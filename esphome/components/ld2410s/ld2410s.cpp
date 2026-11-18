@@ -9,10 +9,9 @@ namespace esphome::ld2410s {
 
 ESPHOME_LOG_TAG(TAG, "ld2410s");
 
-static constexpr uint8_t SHORT_DATA_FRAME_FOOTER[] PROGMEM = {0x62};
-static constexpr uint8_t STD_DATA_FRAME_FOOTER[] PROGMEM = {0xF8, 0xF7, 0xF6, 0xF5};
-static constexpr uint8_t CMD_FRAME_HEADER[] PROGMEM = {0xFD, 0xFC, 0xFB, 0xFA};
-static constexpr uint8_t CMD_FRAME_FOOTER[] PROGMEM = {0x04, 0x03, 0x02, 0x01};
+using ld24xx::CMD_FRAME_FOOTER;
+using ld24xx::CMD_FRAME_HEADER;
+static constexpr uint8_t SHORT_DATA_FRAME_FOOTER = 0x62;
 static constexpr uint8_t LONG_HEADER_SIZE = 4;
 static constexpr uint8_t LENGTH_FIELD_SIZE = 2;
 static constexpr uint8_t LONG_PAYLOAD_POS = LONG_HEADER_SIZE + LENGTH_FIELD_SIZE;
@@ -250,22 +249,9 @@ void LD2410SComponent::send_command_(uint16_t command) {
 }
 
 bool LD2410SComponent::handle_frame_(const uint8_t *frame, uint8_t len) {
-  const uint8_t *footer_src;
-  uint8_t footer_size = sizeof(CMD_FRAME_FOOTER);
-  uint8_t payload_pos = LONG_PAYLOAD_POS;
   const uint8_t type = frame[0];
-  if (type == ShortDataFrameFormat::FIRST) {
-    footer_src = SHORT_DATA_FRAME_FOOTER;
-    footer_size = sizeof(SHORT_DATA_FRAME_FOOTER);
-    payload_pos = 1;
-  } else if (type == ld24xx::DataFrameFormat::FIRST) {
-    footer_src = STD_DATA_FRAME_FOOTER;
-  } else {
-    footer_src = CMD_FRAME_FOOTER;
-  }
-  uint8_t footer[sizeof(CMD_FRAME_FOOTER)];
-  progmem_memcpy(footer, footer_src, footer_size);
-  if (memcmp(&frame[len - footer_size], footer, footer_size) != 0) {
+  const bool short_frame = type == ShortDataFrameFormat::FIRST;
+  if (short_frame ? frame[len - 1] != SHORT_DATA_FRAME_FOOTER : !ld24xx::has_footer(frame, len)) {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
     char hex_buf[format_hex_pretty_size(RX_BUFFER_SIZE)];
     ESP_LOGV(TAG, "Footer does not match header: %s", format_hex_pretty_to(hex_buf, frame, len, ' '));
@@ -273,8 +259,9 @@ bool LD2410SComponent::handle_frame_(const uint8_t *frame, uint8_t len) {
     this->count_dropped_frame_();
     return false;
   }
+  const uint8_t payload_pos = short_frame ? 1 : LONG_PAYLOAD_POS;
   const uint8_t *payload = &frame[payload_pos];
-  const uint16_t payload_len = len - payload_pos - footer_size;
+  const uint16_t payload_len = len - payload_pos - (short_frame ? 1 : ld24xx::HEADER_FOOTER_SIZE);
   if (type == ld24xx::CmdFrameFormat::FIRST) {
     this->handle_command_ack_(payload, payload_len);
   } else if (!this->handle_data_frame_(payload, payload_len, type == ld24xx::DataFrameFormat::FIRST)) {

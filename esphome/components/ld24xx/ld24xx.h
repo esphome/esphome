@@ -7,7 +7,6 @@
 #include "esphome/core/progmem.h"
 
 #include <cstring>
-#include <memory>
 #include <span>
 
 #ifdef USE_SENSOR
@@ -79,19 +78,26 @@ inline void format_version_str(const uint8_t *version, std::span<char, 20> buffe
                      version[5], version[4], version[3], version[2]);
 }
 
-// Commands and their answers share this header, a little-endian byte count and this footer
+// Commands and their answers share this header, a little-endian byte count and this footer; periodic data frames have
+// their own header and footer
 static constexpr uint8_t HEADER_FOOTER_SIZE = 4;
-static constexpr uint8_t CMD_FRAME_HEADER[HEADER_FOOTER_SIZE] = {0xFD, 0xFC, 0xFB, 0xFA};
-static constexpr uint8_t CMD_FRAME_FOOTER[HEADER_FOOTER_SIZE] = {0x04, 0x03, 0x02, 0x01};
+static constexpr uint8_t CMD_FRAME_HEADER[HEADER_FOOTER_SIZE] PROGMEM = {0xFD, 0xFC, 0xFB, 0xFA};
+static constexpr uint8_t CMD_FRAME_FOOTER[HEADER_FOOTER_SIZE] PROGMEM = {0x04, 0x03, 0x02, 0x01};
+static constexpr uint8_t DATA_FRAME_FOOTER[HEADER_FOOTER_SIZE] PROGMEM = {0xF8, 0xF7, 0xF6, 0xF5};
 
-inline bool validate_header_footer(const uint8_t *header_footer, const uint8_t *buffer) {
-  return std::memcmp(header_footer, buffer, HEADER_FOOTER_SIZE) == 0;
+// Command and periodic data frame formats with the length rule LENGTH
+template<class LENGTH> using CmdFrame = FrameFormat<LENGTH, 0xFD, 0xFC, 0xFB, 0xFA>;
+template<class LENGTH> using DataFrame = FrameFormat<LENGTH, 0xF4, 0xF3, 0xF2, 0xF1>;
+// The header, a little-endian payload length, the payload, then the footer
+using PayloadLength = FrameLengthU16LE<HEADER_FOOTER_SIZE, 2 * HEADER_FOOTER_SIZE + 2>;
+using CmdFrameFormat = CmdFrame<PayloadLength>;
+using DataFrameFormat = DataFrame<PayloadLength>;
+
+// Whether a command or periodic data frame of at least HEADER_FOOTER_SIZE bytes ends in its footer
+inline bool has_footer(const uint8_t *frame, size_t len) {
+  uint8_t footer[HEADER_FOOTER_SIZE];
+  progmem_memcpy(footer, frame[0] == DataFrameFormat::FIRST ? DATA_FRAME_FOOTER : CMD_FRAME_FOOTER, sizeof(footer));
+  return std::memcmp(&frame[len - HEADER_FOOTER_SIZE], footer, sizeof(footer)) == 0;
 }
-
-// Command and periodic data frames: the header, a little-endian payload length, the payload, then the footer
-template<uint8_t... HEADER>
-using LengthFrameFormat = FrameFormat<FrameLengthU16LE<HEADER_FOOTER_SIZE, 2 * HEADER_FOOTER_SIZE + 2>, HEADER...>;
-using CmdFrameFormat = LengthFrameFormat<0xFD, 0xFC, 0xFB, 0xFA>;
-using DataFrameFormat = LengthFrameFormat<0xF4, 0xF3, 0xF2, 0xF1>;
 
 }  // namespace esphome::ld24xx

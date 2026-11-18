@@ -4,18 +4,12 @@
 #include "esphome/core/helpers.h"
 
 #include <cmath>
-#include <cstring>
 #include <numbers>
 
 namespace esphome::ld2460 {
 
 ESPHOME_LOG_TAG(TAG, "ld2460");
 
-static constexpr uint8_t FOOTER_SIZE = 4;
-// PROGMEM keeps the patterns out of RAM on the ESP8266; they are copied out for each compare
-static constexpr uint8_t CMD_FRAME_FOOTER[FOOTER_SIZE] PROGMEM = {0x04, 0x03, 0x02, 0x01};
-static constexpr uint8_t DATA_FRAME_FOOTER[FOOTER_SIZE] PROGMEM = {0xF8, 0xF7, 0xF6, 0xF5};
-static constexpr uint8_t DATA_FRAME_FIRST = 0xF4;
 // Header (4), command (1), length (2), footer (4)
 static constexpr uint8_t MIN_FRAME_LENGTH = 11;
 
@@ -27,14 +21,6 @@ static constexpr uint8_t MAX_QUERY_ATTEMPTS = 3;
 static constexpr uint8_t QUERY_INSTALLATION_MODE_FRAME[] PROGMEM = {
     0xFD, 0xFC, 0xFB, 0xFA, CMD_QUERY_INSTALLATION_MODE, 0x0C, 0x00, 0x01, 0x04, 0x03, 0x02, 0x01,
 };
-
-static bool has_footer(const uint8_t *frame, size_t len) {
-  if (len < MIN_FRAME_LENGTH)
-    return false;
-  uint8_t footer[FOOTER_SIZE];
-  progmem_memcpy(footer, frame[0] == DATA_FRAME_FIRST ? DATA_FRAME_FOOTER : CMD_FRAME_FOOTER, sizeof(footer));
-  return std::memcmp(&frame[len - FOOTER_SIZE], footer, sizeof(footer)) == 0;
-}
 
 static constexpr float RADIANS_TO_DEGREES = 180.0f / std::numbers::pi_v<float>;
 
@@ -144,10 +130,10 @@ void LD2460Component::readline_(uint8_t readch) {
 
 // Handles the frame when its footer is in place; returns false otherwise
 bool LD2460Component::handle_frame_(const uint8_t *frame, uint8_t len) {
-  if (!has_footer(frame, len))
+  if (len < MIN_FRAME_LENGTH || !ld24xx::has_footer(frame, len))
     return false;
   ESP_LOGV_HEX(TAG, frame, len, MAX_FRAME_LENGTH, "Frame: %s");
-  if (frame[0] == DATA_FRAME_FIRST) {
+  if (frame[0] == ld24xx::DataFrameFormat::FIRST) {
     this->handle_periodic_data_(frame, len);
   } else {
     this->handle_ack_(frame, len);

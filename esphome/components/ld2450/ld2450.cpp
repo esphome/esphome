@@ -71,9 +71,7 @@ static constexpr uint8_t CMD_SET_ZONE = 0xC2;
 using ld24xx::CMD_FRAME_FOOTER;
 using ld24xx::CMD_FRAME_HEADER;
 using ld24xx::HEADER_FOOTER_SIZE;
-using ld24xx::validate_header_footer;
-// Data Header & Footer
-static constexpr uint8_t DATA_FRAME_HEADER[HEADER_FOOTER_SIZE] = {0xAA, 0xFF, 0x03, 0x00};
+// Periodic data frame footer
 static constexpr uint8_t DATA_FRAME_FOOTER[2] = {0x55, 0xCC};
 // Successful zone query ACK: header (4) + length (2) + command/status (2) + result (2) + zone type (2) +
 // 3 zones * 8 + footer (4).
@@ -490,7 +488,7 @@ void LD2450Component::restart_and_read_all_info() {
 void LD2450Component::send_command_(uint8_t command, const uint8_t *command_value, uint8_t command_value_len) {
   ESP_LOGV(TAG, "Sending COMMAND %02X", command);
   // frame header bytes
-  this->write_array(CMD_FRAME_HEADER, sizeof(CMD_FRAME_HEADER));
+  this->write_array_progmem(CMD_FRAME_HEADER, sizeof(CMD_FRAME_HEADER));
   // length bytes
   uint8_t len = 2;
   if (command_value != nullptr) {
@@ -504,7 +502,7 @@ void LD2450Component::send_command_(uint8_t command, const uint8_t *command_valu
     this->write_array(command_value, command_value_len);
   }
   // frame footer bytes
-  this->write_array(CMD_FRAME_FOOTER, sizeof(CMD_FRAME_FOOTER));
+  this->write_array_progmem(CMD_FRAME_FOOTER, sizeof(CMD_FRAME_FOOTER));
 
   if (command != CMD_ENABLE_CONF && command != CMD_DISABLE_CONF) {
     delay(50);  // NOLINT
@@ -835,13 +833,12 @@ void LD2450Component::readline_(uint8_t c) {
 // Handles the frame when its footer is in place; returns false otherwise
 bool LD2450Component::handle_frame_(const uint8_t *frame, uint8_t len) {
   const uint8_t *end = &frame[len];
-  const bool periodic = frame[0] == DATA_FRAME_HEADER[0];
-  if (periodic ? end[-2] != DATA_FRAME_FOOTER[0] || end[-1] != DATA_FRAME_FOOTER[1]
-               : !ld2450::validate_header_footer(CMD_FRAME_FOOTER, end - HEADER_FOOTER_SIZE)) {
+  const bool periodic = frame[0] == PeriodicFrameFormat::FIRST;
+  if (periodic ? end[-2] != DATA_FRAME_FOOTER[0] || end[-1] != DATA_FRAME_FOOTER[1] : !ld24xx::has_footer(frame, len)) {
     if (this->invalid_frames_ < UINT16_MAX) {
       this->invalid_frames_++;
     }
-    ESP_LOGW(TAG, "Invalid header/footer");
+    ESP_LOGW(TAG, "Invalid footer");
     return false;
   }
   if (periodic) {

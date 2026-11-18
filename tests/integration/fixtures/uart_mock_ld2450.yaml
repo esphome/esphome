@@ -94,7 +94,7 @@ uart_mock:
 
     # Phase 4 (t=600ms): 75 bytes of 0xFF
     # The first 22 complete the truncated frame's 30 bytes without its footer, so it is
-    # dropped with an 'Invalid header/footer' warning; the rest cannot start a header and
+    # dropped with an 'Invalid footer' warning; the rest cannot start a header and
     # are dropped too, leaving the buffer empty for the recovery frame.
     - delay: 200ms
       inject_rx:

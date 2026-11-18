@@ -46,6 +46,8 @@ static constexpr uint8_t DEFAULT_PRESENCE_TIMEOUT = 5;  // Timeout to reset pres
 static constexpr uint8_t MAX_LINE_LENGTH = 45;
 static constexpr uint8_t MAX_TARGETS = 3;  // Max 3 Targets in LD2450
 static constexpr uint8_t MAX_ZONES = 3;    // Max 3 Zones in LD2450
+// Periodic frames: header, three targets of 8 bytes, footer; they carry no length
+using PeriodicFrameFormat = FrameFormat<FrameFixedLength<30>, 0xAA, 0xFF, 0x03, 0x00>;
 
 // Silence after our own commands (restart, Bluetooth toggle, ...) is not a link loss; a restart takes about 2.3 s
 static constexpr uint32_t LINK_GRACE_MS = 5000;
@@ -241,9 +243,7 @@ class LD2450Component : public Component, public uart::UARTDevice {
   uint32_t link_deadline_ms_{0};  // the link is lost when the loop clock reaches this
   uint8_t mac_address_[MAC_ADDRESS_SIZE] = {0, 0, 0, 0, 0, 0};
   uint8_t version_[6] = {0, 0, 0, 0, 0, 0};
-  // Periodic frames: header, three targets of 8 bytes, footer; they carry no length
-  LengthFrameReader<MAX_LINE_LENGTH, ld24xx::CmdFrameFormat, FrameFormat<FrameFixedLength<30>, 0xAA, 0xFF, 0x03, 0x00>>
-      reader_;
+  LengthFrameReader<MAX_LINE_LENGTH, ld24xx::CmdFrameFormat, PeriodicFrameFormat> reader_;
   uint8_t zone_type_ = 0;
   bool bluetooth_on_{false};
   LinkState link_state_{LinkState::LINK_STATE_WAITING};

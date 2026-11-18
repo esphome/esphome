@@ -58,8 +58,7 @@ class LD2460Component : public Component, public uart::UARTDevice {
 
   LazyCallbackManager<void()> data_callback_;
   // Header, command (1), length (2, little endian, counting the whole frame), payload, footer
-  LengthFrameReader<MAX_FRAME_LENGTH, FrameFormat<FrameLengthU16LE<5>, 0xF4, 0xF3, 0xF2, 0xF1>,
-                    FrameFormat<FrameLengthU16LE<5>, 0xFD, 0xFC, 0xFB, 0xFA>>
+  LengthFrameReader<MAX_FRAME_LENGTH, ld24xx::DataFrame<FrameLengthU16LE<5>>, ld24xx::CmdFrame<FrameLengthU16LE<5>>>
       reader_;
   // The angle formula depends on how the module is mounted, so it is read from the module at boot
   InstallationMode installation_mode_{InstallationMode::INSTALLATION_MODE_SIDE};

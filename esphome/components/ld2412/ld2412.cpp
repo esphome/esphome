@@ -113,13 +113,9 @@ static constexpr uint8_t STILL_BITMASK = 0x02;
 using ld24xx::CMD_FRAME_FOOTER;
 using ld24xx::CMD_FRAME_HEADER;
 using ld24xx::HEADER_FOOTER_SIZE;
-using ld24xx::validate_header_footer;
 // Smallest frames whose values can all be read: the last value, data footer and check, then the frame footer
 static constexpr uint8_t PERIODIC_FRAME_MIN = STILL_ENERGY + 3 + HEADER_FOOTER_SIZE;
 static constexpr uint8_t ENGINEERING_FRAME_MIN = LIGHT_SENSOR + 3 + HEADER_FOOTER_SIZE;
-// Data Header & Footer
-static constexpr uint8_t DATA_FRAME_HEADER[HEADER_FOOTER_SIZE] = {0xF4, 0xF3, 0xF2, 0xF1};
-static constexpr uint8_t DATA_FRAME_FOOTER[HEADER_FOOTER_SIZE] = {0xF8, 0xF7, 0xF6, 0xF5};
 static constexpr uint8_t GATE_SENS_ACK_SIZE = ACK_PAYLOAD + TOTAL_GATES + HEADER_FOOTER_SIZE;
 
 void LD2412Component::dump_config() {
@@ -242,7 +238,7 @@ void LD2412Component::loop() {
 void LD2412Component::send_command_(uint8_t command, const uint8_t *command_value, uint8_t command_value_len) {
   ESP_LOGV(TAG, "Sending COMMAND %02X", command);
   // frame header bytes
-  this->write_array(CMD_FRAME_HEADER, HEADER_FOOTER_SIZE);
+  this->write_array_progmem(CMD_FRAME_HEADER, HEADER_FOOTER_SIZE);
   // length bytes
   uint8_t len = 2;
   if (command_value != nullptr) {
@@ -257,7 +253,7 @@ void LD2412Component::send_command_(uint8_t command, const uint8_t *command_valu
     this->write_array(command_value, command_value_len);
   }
   // frame footer bytes
-  this->write_array(CMD_FRAME_FOOTER, HEADER_FOOTER_SIZE);
+  this->write_array_progmem(CMD_FRAME_FOOTER, HEADER_FOOTER_SIZE);
 
   if (command != CMD_ENABLE_CONF && command != CMD_DISABLE_CONF) {
     delay(30);  // NOLINT
@@ -268,8 +264,7 @@ void LD2412Component::send_command_(uint8_t command, const uint8_t *command_valu
 void LD2412Component::handle_periodic_data_(const uint8_t *frame, uint8_t len) {
   // 4 frame header bytes + 2 length bytes + 1 data end byte + 1 crc byte + 4 frame footer bytes
   // data header=0xAA, data footer=0x55, crc=0x00
-  if (len < 12 || !ld2412::validate_header_footer(DATA_FRAME_HEADER, frame) || frame[7] != HEADER ||
-      frame[len - 6] != FOOTER) {
+  if (len < 12 || frame[7] != HEADER || frame[len - 6] != FOOTER) {
     return;
   }
   /*
@@ -573,13 +568,11 @@ void LD2412Component::handle_ack_data_(const uint8_t *frame, uint8_t len) {
 
 // Handles the frame when its footer is in place; returns false otherwise
 bool LD2412Component::handle_frame_(const uint8_t *frame, uint8_t len) {
-  const bool periodic = frame[0] == DATA_FRAME_HEADER[0];
-  if (!ld2412::validate_header_footer(periodic ? DATA_FRAME_FOOTER : CMD_FRAME_FOOTER,
-                                      &frame[len - HEADER_FOOTER_SIZE])) {
-    ESP_LOGW(TAG, "Invalid length");
+  if (!ld24xx::has_footer(frame, len)) {
+    ESP_LOGW(TAG, "Invalid footer");
     return false;
   }
-  if (periodic) {
+  if (frame[0] == ld24xx::DataFrameFormat::FIRST) {
     ESP_LOGV_HEX(TAG, frame, len, MAX_LINE_LENGTH, "Handling Periodic Data: %s");
     this->handle_periodic_data_(frame, len);
   } else {
