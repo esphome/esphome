@@ -40,10 +40,13 @@ class ESPColorCorrection {
 #endif
   void set_gamma_table(const uint16_t *table) { this->gamma_table_ = table; }
 
+  /// corrected = (uncorrected * max_brightness * local_brightness) ^ gamma, keeping a lit pixel lit
   inline Color color_correct(Color color) const ESPHOME_ALWAYS_INLINE {
-    // corrected = (uncorrected * max_brightness * local_brightness) ^ gamma
-    return Color(this->color_correct_red(color.red), this->color_correct_green(color.green),
-                 this->color_correct_blue(color.blue), this->color_correct_white(color.white));
+    Color res(this->round_channel_(COLOR_CHANNEL_R, color.red), this->round_channel_(COLOR_CHANNEL_G, color.green),
+              this->round_channel_(COLOR_CHANNEL_B, color.blue), this->round_channel_(COLOR_CHANNEL_W, color.white));
+    if (res.raw_32 == 0 && color.raw_32 != 0)
+      res = this->correct_dark_pixel_(color);
+    return Color(this->limit_(res.red), this->limit_(res.green), this->limit_(res.blue), this->limit_(res.white));
   }
   inline uint8_t color_correct_red(uint8_t red) const ESPHOME_ALWAYS_INLINE {
     return this->color_correct_channel(COLOR_CHANNEL_R, red);
@@ -90,6 +93,15 @@ class ESPColorCorrection {
 #endif
     return res;
   }
+  inline uint8_t round_channel_(uint8_t channel, uint8_t value) const ESPHOME_ALWAYS_INLINE {
+    return this->gamma_round_(esp_scale8_twice(value, this->max_brightness_[channel], this->local_brightness_));
+  }
+  /// Forward gamma as the table's 16-bit level
+  uint16_t gamma_level_(uint8_t value) const;
+  /// Forward gamma rounded to uint8, where a low level becomes 0
+  uint8_t gamma_round_(uint8_t value) const;
+  /// The levels of a pixel whose channels all round to 0: 1 for its strongest channels, unless it is black
+  Color correct_dark_pixel_(Color color) const;
   /// Forward gamma: read uint16 PROGMEM table, convert to uint8
   uint8_t gamma_correct_(uint8_t value) const;
   /// Reverse gamma and limit for one stored level
