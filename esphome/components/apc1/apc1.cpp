@@ -5,6 +5,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
 
+#include <array>
 #include <cinttypes>
 #include <cmath>
 
@@ -176,35 +177,31 @@ void APC1Component::parse_measurement_frame_(const uint8_t *frame) {
   // Measurement payload data (bytes 4-57): big-endian sensor readings.
   // The values below feed the debug summary, so they are always decoded; every
   // other reading is only decoded when its sensor is configured.
-  const auto u16 = [frame](uint8_t offset) { return encode_uint16(frame[offset], frame[offset + 1]); };
-  const auto u32 = [frame](uint8_t offset) {
-    return encode_uint32(frame[offset], frame[offset + 1], frame[offset + 2], frame[offset + 3]);
-  };
-  uint16_t pm_1_0 = u16(10);
-  uint16_t pm_2_5 = u16(12);
-  uint16_t pm_10_0 = u16(14);
-  uint16_t tvoc = u16(28);
-  uint16_t eco2 = u16(30);
-  float temp_comp = static_cast<int16_t>(u16(34)) / 10.0f;
-  float hum_comp = u16(36) / 10.0f;
+  uint16_t pm_1_0 = encode_value<uint16_t>(frame + 10);
+  uint16_t pm_2_5 = encode_value<uint16_t>(frame + 12);
+  uint16_t pm_10_0 = encode_value<uint16_t>(frame + 14);
+  uint16_t tvoc = encode_value<uint16_t>(frame + 28);
+  uint16_t eco2 = encode_value<uint16_t>(frame + 30);
+  float temp_comp = encode_value<int16_t>(frame + 34) / 10.0f;
+  float hum_comp = encode_value<uint16_t>(frame + 36) / 10.0f;
 
   ESP_LOGD(TAG, "APC1: PM1.0: %u, PM2.5: %u, PM10: %u, TVOC: %u, eCO2: %u, AQI: %u, Temp: %.1f°C, Hum: %.1f%%", pm_1_0,
            pm_2_5, pm_10_0, tvoc, eco2, aqi, temp_comp, hum_comp);
 
-  PUBLISH_STATE(this->pm_1_0_std_sensor_, u16(4));
-  PUBLISH_STATE(this->pm_2_5_std_sensor_, u16(6));
-  PUBLISH_STATE(this->pm_10_0_std_sensor_, u16(8));
+  PUBLISH_STATE(this->pm_1_0_std_sensor_, encode_value<uint16_t>(frame + 4));
+  PUBLISH_STATE(this->pm_2_5_std_sensor_, encode_value<uint16_t>(frame + 6));
+  PUBLISH_STATE(this->pm_10_0_std_sensor_, encode_value<uint16_t>(frame + 8));
 
   PUBLISH_STATE(this->pm_1_0_sensor_, pm_1_0);
   PUBLISH_STATE(this->pm_2_5_sensor_, pm_2_5);
   PUBLISH_STATE(this->pm_10_0_sensor_, pm_10_0);
 
-  PUBLISH_STATE(this->pm_0_3um_sensor_, u16(16));
-  PUBLISH_STATE(this->pm_0_5um_sensor_, u16(18));
-  PUBLISH_STATE(this->pm_1_0um_sensor_, u16(20));
-  PUBLISH_STATE(this->pm_2_5um_sensor_, u16(22));
-  PUBLISH_STATE(this->pm_5_0um_sensor_, u16(24));
-  PUBLISH_STATE(this->pm_10_0um_sensor_, u16(26));
+  PUBLISH_STATE(this->pm_0_3um_sensor_, encode_value<uint16_t>(frame + 16));
+  PUBLISH_STATE(this->pm_0_5um_sensor_, encode_value<uint16_t>(frame + 18));
+  PUBLISH_STATE(this->pm_1_0um_sensor_, encode_value<uint16_t>(frame + 20));
+  PUBLISH_STATE(this->pm_2_5um_sensor_, encode_value<uint16_t>(frame + 22));
+  PUBLISH_STATE(this->pm_5_0um_sensor_, encode_value<uint16_t>(frame + 24));
+  PUBLISH_STATE(this->pm_10_0um_sensor_, encode_value<uint16_t>(frame + 26));
 
   PUBLISH_STATE(this->tvoc_sensor_, tvoc);
   PUBLISH_STATE(this->eco2_sensor_, eco2);
@@ -213,12 +210,12 @@ void APC1Component::parse_measurement_frame_(const uint8_t *frame) {
   PUBLISH_STATE(this->temperature_sensor_, temp_comp);
   PUBLISH_STATE(this->humidity_sensor_, hum_comp);
 
-  PUBLISH_STATE(this->raw_temperature_sensor_, static_cast<int16_t>(u16(38)) / 10.0f);
-  PUBLISH_STATE(this->raw_humidity_sensor_, u16(40) / 10.0f);
+  PUBLISH_STATE(this->raw_temperature_sensor_, encode_value<int16_t>(frame + 38) / 10.0f);
+  PUBLISH_STATE(this->raw_humidity_sensor_, encode_value<uint16_t>(frame + 40) / 10.0f);
 
-  PUBLISH_STATE(this->rs0_sensor_, u32(42));
-  PUBLISH_STATE(this->rs2_sensor_, u32(50));
-  PUBLISH_STATE(this->rs3_sensor_, u32(54));
+  PUBLISH_STATE(this->rs0_sensor_, encode_value<uint32_t>(frame + 42));
+  PUBLISH_STATE(this->rs2_sensor_, encode_value<uint32_t>(frame + 50));
+  PUBLISH_STATE(this->rs3_sensor_, encode_value<uint32_t>(frame + 54));
 }
 
 void APC1Component::parse_device_info_frame_(const uint8_t *frame) {

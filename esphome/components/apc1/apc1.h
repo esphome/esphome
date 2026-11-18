@@ -6,8 +6,6 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/uart/uart.h"
 
-#include <array>
-
 namespace esphome::apc1 {
 
 static constexpr uint8_t APC1_HEADER_1 = 0x42;
