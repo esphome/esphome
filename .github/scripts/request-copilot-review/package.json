@@ -1,0 +1,7 @@
+{
+  "name": "request-copilot-review",
+  "private": true,
+  "scripts": {
+    "test": "node --test tests/*.test.js"
+  }
+}
