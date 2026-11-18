@@ -3,6 +3,8 @@
 #if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || \
     defined(USE_ESP32_VARIANT_ESP32S31) || defined(USE_ESP32_VARIANT_ESP32H4)
 
+#include <atomic>
+
 #include "esphome/core/component.h"
 
 #ifdef USE_TINYUSB_KEYBOARD_LED_STATE
@@ -41,9 +43,16 @@ extern TinyUSBKeyboard *global_tinyusb_keyboard;  // NOLINT(cppcoreguidelines-av
 
 class TinyUSBKeyboard final : public Component {
  public:
-  TinyUSBKeyboard() = default;
+  TinyUSBKeyboard() { global_tinyusb_keyboard = this; }
   void setup() override {
-    global_tinyusb_keyboard = this;
+#ifdef USE_TINYUSB_KEYBOARD_LED_STATE
+    // A host report may have arrived between the TinyUSB driver start and this setup; keep the loop
+    // running in that case so the queued LED state is published instead of being dropped.
+    if (this->led_pending_) {
+      this->enable_loop();
+      return;
+    }
+#endif
     this->disable_loop();
   }
   void loop() override;
@@ -85,10 +94,11 @@ class TinyUSBKeyboard final : public Component {
   bool wakeup_requested_{false};
 
   // LED state reported by the host via Set_Report (bit 0: Num Lock, bit 1: Caps Lock, bit 2: Scroll Lock).
+  // Cross-task state between the TinyUSB task callback and the main loop, so kept atomic.
 #ifdef USE_TINYUSB_KEYBOARD_LED_STATE
-  volatile uint8_t led_state_{0};
-  volatile uint8_t last_led_state_{0xFF};
-  bool led_pending_{false};
+  std::atomic<uint8_t> led_state_{0};
+  std::atomic<uint8_t> last_led_state_{0xFF};
+  std::atomic<bool> led_pending_{false};
 #endif
 };
 
