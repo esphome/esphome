@@ -15,9 +15,16 @@ rtl87xx:
   board: {board}
 {framework}
 uart:
-  baud_rate: 9600
-{pins}
+{uart}
 """
+
+
+def _write_config(path: Path, board: str, framework: str, pins: str) -> None:
+    """One UART with these pins, or the pins text as is when it already lists entries."""
+    uart = pins if pins.startswith("  - ") else f"  baud_rate: 9600\n{pins}"
+    path.write_text(
+        CONFIG.format(board=board, framework=framework, uart=uart), encoding="utf-8"
+    )
 
 
 def test_port_with_pin_choices_is_routed(
@@ -65,6 +72,14 @@ def test_port_with_pin_choices_is_routed(
             "needs LibreTiny 1.12.0 or later",
             id="old_libretiny",
         ),
+        pytest.param(
+            "bw15",
+            "",
+            "  - id: uart_a\n    baud_rate: 9600\n    tx_pin: PA01\n    rx_pin: PA00\n"
+            "  - id: uart_b\n    baud_rate: 9600\n    tx_pin: PA03\n    rx_pin: PA02",
+            "already uses hardware UART1 of board bw15",
+            id="two_entries_one_port",
+        ),
         # UART1 TX has a default pin on this board; only RX has choices
         pytest.param("wbru", "", "  rx_pin: PA02", None, id="default_tx_rx_only"),
         pytest.param(
@@ -88,9 +103,7 @@ def test_pins_are_checked_against_the_board(
     board: str, framework: str, pins: str, error: str | None, tmp_path: Path
 ) -> None:
     path = tmp_path / "uart.yaml"
-    path.write_text(
-        CONFIG.format(board=board, framework=framework, pins=pins), encoding="utf-8"
-    )
+    _write_config(path, board, framework, pins)
     CORE.config_path = path
     result = config.validate_config(yaml_util.load_yaml(path), {})
     errors = [str(err) for err in result.errors]
@@ -105,10 +118,7 @@ def test_hardware_uarts_of_a_board_with_pin_choices(tmp_path: Path) -> None:
     from esphome.components.libretiny import HardwareUart, get_hardware_uarts
 
     path = tmp_path / "uart.yaml"
-    path.write_text(
-        CONFIG.format(board="bw15", framework="", pins="  tx_pin: PA14"),
-        encoding="utf-8",
-    )
+    _write_config(path, "bw15", "", "  tx_pin: PA14")
     CORE.config_path = path
     config.validate_config(yaml_util.load_yaml(path), {})
     assert get_hardware_uarts() == [

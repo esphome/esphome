@@ -114,7 +114,8 @@ void LibreTinyUARTComponent::setup() {
     this->serial_ = hardware;
     libretiny::ensure_serial_handle(this->hardware_idx_);
 #ifdef USE_UART_LIBRETINY_PIN_ROUTING
-    // Routes a port with pin choices to the configured pins (LibreTiny 1.12+, checked in codegen)
+    // Routes a port with pin choices to the configured pins (LibreTiny 1.12+, checked in codegen). setPins()
+    // replaces a left-out pin (PIN_INVALID) with the port's default, so default-pin ports start as before.
     hardware->begin(this->baud_rate_, this->get_config(), rx_pin, tx_pin);
 #else
     hardware->begin(this->baud_rate_, this->get_config());

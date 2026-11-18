@@ -381,6 +381,16 @@ def _validate_libretiny_pins(config: ConfigType) -> None:
         raise cv.Invalid(
             f"Board {board} has no hardware UART on these pins. Pin numbers per UART: {choices}"
         )
+    # Two entries on one port would share the Serial object, and the second begin() would move its pins
+    for other in fv.full_config.get().get(DOMAIN, []):
+        if other is config or other[CONF_ID] == config[CONF_ID]:
+            continue
+        if (
+            other_uart := _libretiny_hardware_uart(other)
+        ) and other_uart.port == uart.port:
+            raise cv.Invalid(
+                f"UART {other[CONF_ID]} already uses hardware UART{uart.port} of board {board}"
+            )
     if not uart.pin_choices:
         return
     # A left-out direction with no default pin is opened on an invalid pin, which hangs at boot
