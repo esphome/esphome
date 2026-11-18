@@ -41,6 +41,8 @@ VARIANT_I2C = {
     VARIANT_NRF54LM20: VariantI2C("i2c21", (1, 3)),
 }
 VARIANTS_WITHOUT_USB = frozenset({VARIANT_NRF52832, VARIANT_NRF54L15})
+# The nRF54L family: RRAM instead of flash, the CRACEN crypto unit and the wdt31 watchdog
+VARIANTS_NRF54L = frozenset({VARIANT_NRF54L15, VARIANT_NRF54LM20})
 # Devicetree label of the main regulator, reg1 on the others
 VARIANT_REGULATOR = {VARIANT_NRF52832: "reg"}
 VARIANT_FLASH_SIZE = {VARIANT_NRF52832: 0x80000, VARIANT_NRF52840: 0x100000}
