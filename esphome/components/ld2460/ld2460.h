@@ -11,8 +11,6 @@ namespace esphome::ld2460 {
 
 static constexpr uint8_t MAX_FRAME_LENGTH = 31;  // A 5-target data frame
 static constexpr uint8_t MAX_TARGETS = 5;
-// A partial frame left this long without a byte is given up, and the frames it held back are handled
-static constexpr uint32_t RX_GAP_MS = 100;
 
 enum class InstallationMode : uint8_t {
   INSTALLATION_MODE_SIDE = 1,
@@ -58,8 +56,8 @@ class LD2460Component : public Component, public uart::UARTDevice {
 #endif
 
   LazyCallbackManager<void()> data_callback_;
-  // Header, command (1), length (2, little endian, counting the whole frame), payload, footer
   uint32_t last_rx_{0};
+  // Header, command (1), length (2, little endian, counting the whole frame), payload, footer
   LengthFrameReader<MAX_FRAME_LENGTH, ld24xx::DataFrame<FrameLengthU16LE<5>>, ld24xx::CmdFrame<FrameLengthU16LE<5>>>
       reader_;
   // The angle formula depends on how the module is mounted, so it is read from the module at boot

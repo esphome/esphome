@@ -23,16 +23,13 @@ static constexpr float RADIANS_TO_DEGREES = 180.0f / std::numbers::pi_v<float>;
 
 void LD2460Component::setup() { this->send_query_(); }
 
+// Header, command, length (12, little endian), payload 0x01, footer
+static constexpr uint8_t QUERY_INSTALLATION_MODE_FRAME[] PROGMEM = {
+    0xFD, 0xFC, 0xFB, 0xFA, CMD_QUERY_INSTALLATION_MODE, 0x0C, 0x00, 0x01, 0x04, 0x03, 0x02, 0x01,
+};
+
 void LD2460Component::send_query_() {
-  // Header, command, length (12, little endian), payload 0x01, footer
-  uint8_t frame[12];
-  progmem_memcpy(frame, ld24xx::CMD_FRAME_HEADER, ld24xx::HEADER_FOOTER_SIZE);
-  frame[4] = CMD_QUERY_INSTALLATION_MODE;
-  frame[5] = sizeof(frame);
-  frame[6] = 0x00;
-  frame[7] = 0x01;
-  progmem_memcpy(&frame[8], ld24xx::CMD_FRAME_FOOTER, ld24xx::HEADER_FOOTER_SIZE);
-  this->write_array(frame, sizeof(frame));
+  this->write_array_progmem(QUERY_INSTALLATION_MODE_FRAME, sizeof(QUERY_INSTALLATION_MODE_FRAME));
 }
 
 void LD2460Component::dump_config() {
@@ -56,7 +53,7 @@ void LD2460Component::dump_config() {
 void LD2460Component::loop() {
   const uint32_t now = App.get_loop_component_start_time();
   auto handler = [this](const uint8_t *frame, size_t len) { return this->handle_frame_(frame, len); };
-  this->read_frames<MAX_FRAME_LENGTH>(this->reader_, handler, now, this->last_rx_, RX_GAP_MS);
+  this->read_frames<MAX_FRAME_LENGTH>(this->reader_, handler, now, this->last_rx_);
 }
 
 bool LD2460Component::handle_periodic_data_(const uint8_t *data, uint8_t packet_len) {

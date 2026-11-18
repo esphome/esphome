@@ -88,10 +88,6 @@ class TuyaUART final : public Tuya, public uart::UARTDevice {
   void dump_mcu_config_();
   /// Returns false for a frame that fails the checksum
   bool handle_frame_(const uint8_t *frame, size_t len);
-  // One handler type for feed() and flush(), so the reader's frame loop is compiled once
-  auto frame_handler_() {
-    return [this](const uint8_t *frame, size_t len) { return this->handle_frame_(frame, len); };
-  }
   void handle_datapoints_(const uint8_t *buffer, size_t len);
 
   void handle_command_(uint8_t command, uint8_t version, const uint8_t *buffer, size_t len);

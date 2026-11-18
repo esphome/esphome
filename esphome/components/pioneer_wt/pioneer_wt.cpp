@@ -20,7 +20,6 @@ static constexpr uint32_t STATUS_REFRESH_MS = 5 * 60 * 1000;
 // Until the first full status has arrived, ask again this often.
 static constexpr uint32_t STATUS_RETRY_MS = 30 * 1000;
 // A frame arrives in one burst; after a pause this long a partly received frame is dropped.
-static constexpr uint32_t RX_GAP_MS = 100;
 static constexpr float MIN_TEMPERATURE_C = 16.0f;
 static constexpr float MAX_TEMPERATURE_C = 31.0f;
 
@@ -78,7 +77,7 @@ void PioneerWT::loop() {
     this->handle_frame_(frame, len);
     return true;
   };
-  this->read_frames(this->reader_, handle, now, this->last_rx_, RX_GAP_MS);
+  this->read_frames(this->reader_, handle, now, this->last_rx_);
   if (!this->queue_.empty() && now - this->last_send_ >= RESEND_INTERVAL_MS)
     this->send_pending_();
   // The target temperature only arrives in a full status, so it tells whether one has been received.

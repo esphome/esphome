@@ -85,9 +85,6 @@ static bool frame_valid(const uint8_t *frame, size_t len) {
   return true;
 }
 
-// A partial frame left this long without a byte is given up
-static constexpr uint32_t RX_GAP_MS = 100;
-
 void MR60FDA2Component::loop() {
   auto handler = [this](const uint8_t *frame, size_t len) {
     if (!frame_valid(frame, len))
@@ -95,7 +92,7 @@ void MR60FDA2Component::loop() {
     this->process_frame_(frame);
     return true;
   };
-  this->read_frames(this->reader_, handler, App.get_loop_component_start_time(), this->last_rx_, RX_GAP_MS);
+  this->read_frames(this->reader_, handler, App.get_loop_component_start_time(), this->last_rx_);
 }
 
 #ifdef USE_SELECT

@@ -54,7 +54,6 @@ class MR60BHA2Component final : public Component,
   void handle_frame_(const uint8_t *frame, size_t len);
   void process_frame_(uint16_t frame_id, uint16_t frame_type, const uint8_t *data, size_t length);
 
-  // 01, id (2), data length (2, high byte first), type (2), header checksum, data, data checksum
   uint32_t last_rx_{0};
   LengthFrameReader<FRAME_MAX_SIZE, FrameFormat<TinyFrameLength, FRAME_HEADER_BUFFER>> reader_;
 };

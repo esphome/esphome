@@ -68,7 +68,6 @@ static constexpr uint8_t STEP_MAX_TIMEOUTS = 2;
 static constexpr uint32_t ACK_TIMEOUT_MS = 300;
 static constexpr uint32_t COMMAND_GAP_MS = 300;     // pause after an acknowledgement before the next command
 static constexpr uint32_t REINIT_PAUSE_MS = 15000;  // pause before starting over after the module stopped answering
-static constexpr uint32_t RX_GAP_MS = 100;          // a partial frame left this long without a byte is given up
 static constexpr uint32_t LINK_TIMEOUT_MS = 5000;   // the module streams frames continuously; silence means it is gone
 
 static constexpr uint8_t DATA_TYPE_STANDARD = 0x01;
@@ -97,7 +96,7 @@ void LD2410SComponent::dump_config() {
 void LD2410SComponent::loop() {
   const uint32_t now = App.get_loop_component_start_time();
   auto handler = [this](const uint8_t *frame, size_t len) { return this->handle_frame_(frame, len); };
-  this->read_frames<16>(this->reader_, handler, now, this->last_rx_, RX_GAP_MS);
+  this->read_frames<16>(this->reader_, handler, now, this->last_rx_);
   if (this->sequence_ == nullptr) {
     if (!this->init_done_) {
       this->start_sequence_(INIT_SEQUENCE, INIT_SEQUENCE_LENGTH, now);

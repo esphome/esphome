@@ -55,8 +55,9 @@ void TuyaUART::setup() {
 }
 
 void TuyaUART::loop() {
-  this->read_frames(this->reader_, this->frame_handler_(), App.get_loop_component_start_time(),
-                    this->last_rx_char_timestamp_, RECEIVE_TIMEOUT);
+  auto handler = [this](const uint8_t *frame, size_t len) { return this->handle_frame_(frame, len); };
+  this->read_frames(this->reader_, handler, App.get_loop_component_start_time(), this->last_rx_char_timestamp_,
+                    RECEIVE_TIMEOUT);
   process_command_queue_();
 }
 

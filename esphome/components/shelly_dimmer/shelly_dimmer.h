@@ -18,8 +18,8 @@ class ShellyDimmer final : public PollingComponent, public light::LightOutput, p
   SUB_SENSOR(current)
 
  private:
-  // Holds the largest reply (a 24 byte poll); 255 keeps the reader's positions 8 bit
-  static constexpr uint16_t SHELLY_DIMMER_BUFFER_SIZE = 255;
+  // Holds the largest reply, a 24 byte poll
+  static constexpr uint16_t SHELLY_DIMMER_BUFFER_SIZE = 32;
   static constexpr uint8_t SHELLY_DIMMER_PROTO_START_BYTE = 0x01;
   static constexpr uint8_t SHELLY_DIMMER_PROTO_END_BYTE = 0x04;
   // Start byte, seq, cmd, payload length, payload, two checksum bytes, end byte
