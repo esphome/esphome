@@ -7,6 +7,7 @@ from esphome.const import (
     CONF_LAMBDA,
     CONF_RESTORE,
     CONF_SENSOR,
+    CONF_VALUE,
     DEVICE_CLASS_DURATION,
     ENTITY_CATEGORY_DIAGNOSTIC,
     STATE_CLASS_TOTAL,
@@ -82,6 +83,17 @@ for _name, _call in (
     automation.register_apply_action(
         _name, DUTY_TIME_ID_SCHEMA, automation.ApplyCall(_call)
     )
+
+automation.register_apply_action(
+    "sensor.duty_time.set",
+    cv.Schema(
+        {
+            cv.Required(CONF_ID): cv.use_id(DutyTimeSensor),
+            cv.Required(CONF_VALUE): cv.templatable(cv.uint32_t),
+        }
+    ),
+    automation.ApplyField(CONF_VALUE, "set_value", cg.uint32),
+)
 
 automation.register_apply_condition(
     "sensor.duty_time.is_running", DUTY_TIME_ID_SCHEMA, "is_running()"
