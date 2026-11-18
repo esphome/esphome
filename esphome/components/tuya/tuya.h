@@ -17,10 +17,10 @@
 
 namespace esphome::tuya {
 
-// Some MCUs answer a datapoint query with every datapoint in one frame, and schedule datapoints can be long
-static constexpr size_t MAX_FRAME_SIZE = 512;
+// Longest frame accepted, as in Tasmota; keeps the reader's positions 8 bit
+static constexpr size_t MAX_FRAME_SIZE = 255;
 
-/// 55 AA, version, command, 2 byte length, data, sum8; warns when a frame is skipped for being longer than the buffer
+/// 55 AA, version, command, 2 byte length, data, sum8; warns only for a frame longer than the buffer, which is skipped
 struct TuyaFrameLength {
   static constexpr size_t KNOWN_AT = 6;
   static size_t get(const uint8_t *buf) {
