@@ -331,13 +331,6 @@ struct FirstByteLength {
 
 TEST(LengthFrameReaderTest, CustomRuleKnownAtTheFirstByte) {
   LengthFrameReader<8, FrameFormat<FirstByteLength, 0x03>> reader;
-  std::vector<std::vector<uint8_t>> frames;
-  for (uint8_t c : {0x03, 0x01, 0x02, 0x03}) {
-    reader.feed(c, [&frames](const uint8_t *f, size_t len) {
-      frames.emplace_back(f, f + len);
-      return true;
-    });
-  }
-  EXPECT_EQ(frames, (std::vector<std::vector<uint8_t>>{{0x03, 0x01, 0x02}}));
+  EXPECT_EQ(feed_all(reader, {0x03, 0x01, 0x02, 0x03}), (Frames{{0x03, 0x01, 0x02}}));
 }
 }  // namespace esphome::core::testing
