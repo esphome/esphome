@@ -202,7 +202,7 @@ void PioneerWT::control(const climate::ClimateCall &call) {
       this->power_wanted_ = false;
     } else {
       uint8_t ac_mode = 0;
-      for (uint8_t i = 0; i < std::size(CLIMATE_MODES); i++) {
+      for (size_t i = 0; i < std::size(CLIMATE_MODES); i++) {
         if (progmem_read_byte(&CLIMATE_MODES[i]) == mode) {
           ac_mode = i;
           break;
