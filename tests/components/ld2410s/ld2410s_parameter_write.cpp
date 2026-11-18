@@ -176,4 +176,23 @@ TEST_F(LD2410SStartTest, GapAcrossWrapFullRange) {
   this->check_starts_on_first_pass_(START_GAP_ACROSS_WRAP, 0xFFFFFFFF);
 }
 
+// A short data frame inside a bad command frame inside a bad data frame is still read, so the link holds
+TEST_F(LD2410SWriteTest, FrameInsideTwoNestedBadFramesKeepsTheLink) {
+  uint32_t now = START_FAR_FROM_WRAP;
+  for (int pass = 0; pass < 20; pass++, now += STEP_MS) {
+    this->loop_at_(now);
+    if (!this->uart_.commands.empty() && this->uart_.commands.back() == 0x00FE && this->uart_.available() == 0)
+      break;
+  }
+  ASSERT_EQ(this->uart_.commands, INIT_COMMANDS);
+  ASSERT_FALSE(this->radar_.status_has_warning());
+  std::vector<uint8_t> bytes = {0xF4, 0xF3, 0xF2, 0xF1, 0x20, 0x00, 0xFD, 0xFC, 0xFB, 0xFA, 0x07, 0x00};
+  bytes.insert(bytes.end(), {0x6E, 0x02, 0x64, 0x00, 0x62});
+  bytes.resize(42, 0x00);
+  this->uart_.queue(bytes);
+  this->loop_at_(now + 3000);
+  this->loop_at_(now + 6000);
+  EXPECT_FALSE(this->radar_.status_has_warning());
+}
+
 }  // namespace esphome::ld2410s::testing
