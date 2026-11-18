@@ -132,8 +132,8 @@ EXPECTED_RECOVERY_PRESENCE = [
     False,  # short frame
 ]
 # The truncated frame takes the next 6 bytes to reach its declared length
-TRUNCATED_FRAME_HEX = "F4 F3 F2 F1 05 00 01 02 2C 6E 02 2C 01 62 6E"
-BAD_COMMAND_FRAME_HEX = "FD FC FB FA 04 00 FE 01 00 00 00 00 00 00"
+TRUNCATED_FRAME_HEX = "F4:F3:F2:F1:05:00:01:02:2C:6E:02:2C:01:62:6E"
+BAD_COMMAND_FRAME_HEX = "FD:FC:FB:FA:04:00:FE:01:00:00:00:00:00:00"
 
 
 def _tx_frame(line: str) -> str | None:
