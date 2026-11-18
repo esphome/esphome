@@ -11,6 +11,7 @@ from . import EpaperModel
 
 
 class WaveshareModel(EpaperModel):
+    class_name = "EpaperWaveshare"
     source_files = (
         "epaper_spi_mono.cpp",
         "epaper_waveshare.cpp",
@@ -24,7 +25,7 @@ class WaveshareModel(EpaperModel):
         sequence_full: tuple[tuple[int, ...], ...] = (),
         sequence_partial: tuple[tuple[int, ...], ...] = (),
         base_image_required: bool = False,
-        class_name: str = "EpaperWaveshare",
+        class_name: str | None = None,
         **defaults: Any,
     ) -> None:
         # A partial LUT is what lets EpaperWaveshare do partial refresh

@@ -79,7 +79,7 @@ bool MQTTBackendESP32::initialize_() {
   auto *mqtt_client = esp_mqtt_client_init(&mqtt_cfg_);
   if (mqtt_client) {
     handler_.reset(mqtt_client);
-    is_initalized_ = true;
+    is_initialized_ = true;
     esp_mqtt_client_register_event(mqtt_client, MQTT_EVENT_ANY, mqtt_event_handler, this);
 #if defined(USE_MQTT_IDF_ENQUEUE)
     // Create the task only after MQTT client is initialized successfully
@@ -94,7 +94,7 @@ bool MQTTBackendESP32::initialize_() {
       ESP_LOGE(TAG, "Failed to create MQTT task");
       // Clean up MQTT client since we can't start the async task
       handler_.reset();
-      is_initalized_ = false;
+      is_initialized_ = false;
       return false;
     }
     // Set the task handle so the queue can notify it

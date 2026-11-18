@@ -10,6 +10,7 @@ from esphome.components.nrf52.const import (
     VARIANT_NRF54L15,
     VARIANT_NRF54LM20,
     VARIANT_NRF51822,
+    VARIANT_NRF52832,
     VARIANT_NRF52840,
 )
 from esphome.components.nrf52.framework import get_nrf52_variant, set_nrf52_variant
@@ -32,6 +33,7 @@ from esphome.types import ConfigType
         ("NRF54LM20DK/NRF54LM20A/CPUAPP", VARIANT_NRF54LM20),
         ("xiao_ble", VARIANT_NRF52840),
         ("bbc_microbit", VARIANT_NRF51822),
+        ("nrf52dk/nrf52832", VARIANT_NRF52832),
         ("adafruit_feather_nrf52840", VARIANT_NRF52840),
         ("nrf54lm20dk", VARIANT_NRF54LM20),
         ("nrf54l15dk/nrf54l15/cpuapp", VARIANT_NRF54L15),
@@ -69,6 +71,7 @@ def _set_framework(version: str | None) -> ConfigType:
     ("variant", "default"),
     [
         (VARIANT_NRF54LM20, "3.4.1"),
+        (VARIANT_NRF52832, nrf52.RECOMMENDED_SDK_NRF_VERSION),
         (VARIANT_NRF52840, nrf52.RECOMMENDED_SDK_NRF_VERSION),
     ],
 )
@@ -92,6 +95,14 @@ def test_nrf54lm20_rejects_older_sdk(version: str) -> None:
     set_nrf52_variant(VARIANT_NRF54LM20)
     with pytest.raises(cv.Invalid, match="needs sdk-nrf 3.4.1 or newer"):
         _set_framework(version)
+
+
+@pytest.mark.usefixtures("platformio")
+def test_nrf52832_rejects_sdk_without_its_board_names() -> None:
+    """The nRF52832 boards are built on Zephyr's board/SoC names, which arrived with 2.9.2."""
+    set_nrf52_variant(VARIANT_NRF52832)
+    with pytest.raises(cv.Invalid, match="needs sdk-nrf 2.9.2 or newer"):
+        _set_framework("2.6.1")
 
 
 def test_nrf54lm20_rejects_platformio(platformio: PropertyMock) -> None:

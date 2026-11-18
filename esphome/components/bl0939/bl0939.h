@@ -8,6 +8,10 @@ namespace esphome::bl0939 {
 
 // https://datasheet.lcsc.com/lcsc/2108071830_BL-Shanghai-Belling-BL0939_C2841044.pdf
 // (unfortunately chinese, but the formulas can be easily understood)
+
+// WA_CREEP reset value (datasheet section 2.4).
+static constexpr uint8_t BL0939_DEFAULT_ANTI_CREEP_THRESHOLD = 0x0B;
+
 // The datasheet has one set of formulas for direct mode (current shunt) and one for current transformer mode.
 
 // Direct mode.
@@ -97,6 +101,7 @@ class BL0939 final : public PollingComponent, public uart::UARTDevice {
     this->current_reference_ = current_transformer ? BL0939_IREF_CT : BL0939_IREF;
     this->energy_reference_ = current_transformer ? BL0939_EREF_CT : BL0939_EREF;
   }
+  void set_anti_creep_threshold(uint8_t threshold) { this->anti_creep_threshold_ = threshold; }
 
   void loop() override;
 
@@ -114,6 +119,7 @@ class BL0939 final : public PollingComponent, public uart::UARTDevice {
   // Divide by this to turn into kWh
   float energy_reference_ = BL0939_EREF;
   BL0939Mode mode_{BL0939Mode::BL0939_MODE_DIRECT};
+  uint8_t anti_creep_threshold_{BL0939_DEFAULT_ANTI_CREEP_THRESHOLD};
 
   static uint32_t to_uint32_t(ube24_t input);
 

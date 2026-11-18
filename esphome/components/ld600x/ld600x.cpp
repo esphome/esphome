@@ -175,21 +175,8 @@ static bool is_expected_control_report(uint32_t command, uint16_t type) {
 #endif
 
 void LD600XComponent::setup() {
-  // Only the point cloud stream needs the larger frame; nothing resizes the buffer after setup.
-  bool point_cloud_configured = false;
-#ifdef USE_SENSOR
-  point_cloud_configured = point_cloud_configured || this->point_count_sensor_.has_sensor();
-#endif
-#ifdef USE_SWITCH
-  point_cloud_configured = point_cloud_configured || this->point_cloud_switch_ != nullptr;
-#endif
-  const uint16_t capacity = point_cloud_configured ? DEFAULT_MAX_DATA_LEN_POINT_CLOUD : DEFAULT_MAX_DATA_LEN;
-  // One allocation for the component lifetime; the parser reuses it for every payload.
-  RAMAllocator<uint8_t> allocator;
-  uint8_t *buffer = allocator.allocate(capacity);
-  if (!this->setup_check(buffer != nullptr, LOG_STR("Failed to allocate frame buffer")))
+  if (!this->setup_check(this->parser_.has_buffer(), LOG_STR(ESP_LOG_MSG_ALLOC_FAIL)))
     return;
-  this->parser_.init(buffer, capacity);
 
   this->set_timeout(SETUP_DELAY_MS, [this]() {
     bool want_target_stream = false;

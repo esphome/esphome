@@ -363,7 +363,9 @@ async def http_request_action_to_code(
             lambda_ = await cg.process_lambda(json_, args_, return_type=cg.void)
             cg.add(var.set_json(lambda_))
         else:
-            cg.add(var.init_json(len(json_)))
+            entry = action_id.type.template(template_arg).class_("JsonEntry")
+            storage = cg.static_storage(action_id, entry, len(json_))
+            cg.add(var.set_json_storage(storage))
             for key in json_:
                 template_ = await cg.templatable(json_[key], args, cg.std_string)
                 cg.add(var.add_json(key, template_))

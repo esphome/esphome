@@ -37,6 +37,7 @@ from esphome.const import (
     CONF_TEMPERATURE_COMPENSATION,
     CONF_TIME_CONSTANT,
     CONF_TYPE,
+    CONF_VALUE,
     CONF_VOC,
     DEVICE_CLASS_CARBON_DIOXIDE,
     DEVICE_CLASS_HUMIDITY,
@@ -338,11 +339,12 @@ async def to_code(config: ConfigType) -> None:
         )
 
 
-SEN6X_ACTION_SCHEMA = maybe_simple_id(
+SEN6X_ID_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_ID): cv.use_id(SEN6XComponent),
     }
 )
+SEN6X_ACTION_SCHEMA = maybe_simple_id(SEN6X_ID_SCHEMA)
 
 
 for _name, _call in (
@@ -354,3 +356,17 @@ for _name, _call in (
     automation.register_apply_action(
         _name, SEN6X_ACTION_SCHEMA, automation.ApplyCall(_call)
     )
+
+
+SEN6X_FORCED_CO2_RECALIBRATION_SCHEMA = SEN6X_ID_SCHEMA.extend(
+    {
+        cv.Required(CONF_VALUE): cv.templatable(cv.float_range(min=0, max=40000)),
+    }
+)
+
+
+automation.register_apply_action(
+    "sen6x.perform_forced_co2_recalibration",
+    SEN6X_FORCED_CO2_RECALIBRATION_SCHEMA,
+    automation.ApplyField(CONF_VALUE, "perform_forced_co2_recalibration", cg.float_),
+)

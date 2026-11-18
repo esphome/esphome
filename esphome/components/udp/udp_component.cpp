@@ -15,10 +15,6 @@ static constexpr uint32_t NETWORK_POLL_ID = 0;
 static constexpr uint32_t NETWORK_POLL_INTERVAL_MS = 1000;
 
 void UDPComponent::setup() {
-  size_t address_count = 0;
-  for (const char *const *it = this->addresses_; it != nullptr && *it != nullptr; it++)
-    address_count++;
-  this->sockaddrs_.init(address_count);
   for (const char *const *it = this->addresses_; it != nullptr && *it != nullptr; it++) {
     const char *address = *it;
     SockaddrEntry entry{};

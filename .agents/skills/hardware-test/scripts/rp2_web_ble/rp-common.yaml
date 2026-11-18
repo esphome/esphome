@@ -1,0 +1,13 @@
+# Shared by every station and Ethernet build: encrypted API, web_server and a restart button on top of the
+# diagnostics package (5 Hz state traffic, uptime, heap, reset reason). Substitution: name (set with -s name).
+packages:
+  diagnostics: !include ../../templates/diagnostics.yaml
+api:
+  encryption:
+    key: !secret api_key
+  reboot_timeout: 0s
+web_server:
+  port: 80
+button:
+  - platform: restart
+    name: Restart

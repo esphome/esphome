@@ -1,0 +1,35 @@
+esphome:
+  name: sigc3
+  on_boot:
+    - priority: -100
+      then:
+        - logger.log:
+            format: "BUILDTAG ${tag}"
+            level: INFO
+
+substitutions:
+  tag: first
+
+esp32:
+  board: esp32-c3-devkitm-1
+  framework:
+    type: esp-idf
+    advanced:
+      signed_ota_verification:
+        signing_scheme: rsa3072
+        verification_keys:
+          - keyA.pem
+
+logger:
+  hardware_uart: USB_SERIAL_JTAG
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  power_save_mode: none
+
+api:
+  reboot_timeout: 0s
+
+ota:
+  - platform: esphome
