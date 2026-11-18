@@ -34,7 +34,6 @@ COMFORT_TEMPERATURE_SCHEMA = (
             ),
         }
     )
-    .extend(DUCO_COMPONENT_SCHEMA)
     .extend(cv.polling_component_schema("60s"))
 )
 
