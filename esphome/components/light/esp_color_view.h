@@ -151,7 +151,12 @@ class CorrectedBufferColorAccessor final : public BufferColorAccessor {
     return this->color_correction->color_uncorrect_channel(channel, this->get_channel_raw(index, channel));
   }
 
-  void set(int32_t index, Color color) override { this->set_raw(index, this->color_correction->color_correct(color)); }
+  void set(int32_t index, Color color) override {
+    // A white level the strip cannot show must not count as the pixel's strongest channel
+    if (!this->channel_colors.has_white())
+      color.white = 0;
+    this->set_raw(index, this->color_correction->color_correct(color));
+  }
   void set_channel(int32_t index, uint8_t channel, uint8_t value) override {
     this->set_channel_raw(index, channel, this->color_correction->color_correct_channel(channel, value));
   }

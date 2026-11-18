@@ -6,6 +6,7 @@
 #include <cstdint>
 
 #include "esphome/components/light/esp_color_correction.h"
+#include "esphome/components/light/esp_color_view.h"
 
 namespace esphome::light::testing {
 
@@ -75,10 +76,11 @@ TEST(GammaCorrection, DimPixelKeepsDominantChannel) {
   EXPECT_EQ(fixture.correction.color_correct(Color(0, 0, 255, 30)), Color(0, 0, 1, 0));
 }
 
-// Orange at 1 to 2% brightness: the table reads 1 for both channels there, so its levels cannot be compared.
+// Orange at 2% brightness and below: the table reads 1 for both channels there, and at the lowest
+// step both scale to the same 8-bit value, so neither can be used to compare them.
 TEST(GammaCorrection, VeryDimPixelKeepsDominantChannel) {
   GammaFixture fixture(2.8);
-  for (uint8_t brightness : {2, 3, 4, 5, 6}) {
+  for (uint8_t brightness : {1, 2, 3, 4, 5, 6}) {
     fixture.correction.set_local_brightness(brightness);
     EXPECT_EQ(fixture.correction.color_correct(Color(255, 130, 0, 0)), Color(1, 0, 0, 0))
         << "brightness=" << int(brightness);
@@ -90,6 +92,20 @@ TEST(GammaCorrection, DimPixelKeepsSimilarChannels) {
   fixture.correction.set_local_brightness(13);
   EXPECT_EQ(fixture.correction.color_correct(Color(255, 255, 255, 0)), Color(1, 1, 1, 0));
   EXPECT_EQ(fixture.correction.color_correct(Color(255, 230, 0, 0)), Color(1, 1, 0, 0));
+  fixture.correction.set_local_brightness(1);
+  EXPECT_EQ(fixture.correction.color_correct(Color(255, 250, 250, 0)), Color(1, 1, 1, 0));
+}
+
+// A strip without white drops the white level before the pixel is rounded, so it cannot outrank red.
+TEST(GammaCorrection, UnusedWhiteDoesNotDarkenRgbStrip) {
+  GammaFixture fixture(2.8);
+  fixture.correction.set_local_brightness(13);
+  std::array<uint8_t, 3> color_data{};
+  std::array<uint8_t, 1> effect_data{};
+  CorrectedBufferColorAccessor accessor(color_data.data(), effect_data.data(), ChannelColors{0, 1, 2},
+                                        &fixture.correction);
+  accessor.set(0, Color(128, 0, 0, 255));
+  EXPECT_EQ(color_data, (std::array<uint8_t, 3>{1, 0, 0}));
 }
 
 TEST(GammaCorrection, LitPixelDropsChannelThatRoundsToZero) {

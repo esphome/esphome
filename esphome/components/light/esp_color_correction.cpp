@@ -18,28 +18,29 @@ uint16_t ESPColorCorrection::gamma_level_(uint8_t value) const {
   return progmem_read_uint16(&this->gamma_table_[value]);
 }
 
-Color ESPColorCorrection::color_correct(Color color) const {
-  // The largest 16-bit level that still rounds to an 8-bit 0
-  static constexpr uint16_t MAX_DARK_LEVEL = 128;
-  uint8_t scaled[4];
-  uint8_t max_scaled = 0;
+uint8_t ESPColorCorrection::gamma_round_(uint8_t value) const { return (this->gamma_level_(value) + 128) / 257; }
+
+// Lighting every non-zero channel instead would turn a dim red with a trace of green into yellow
+Color ESPColorCorrection::correct_dark_pixel_(Color color) const {
+  // Kept unshifted: the 8-bit results are too coarse to compare channels at the lowest brightness
+  uint32_t products[4];
+  uint32_t max_product = 0;
   for (uint8_t i = 0; i < 4; i++) {
-    scaled[i] = esp_scale8_twice(color[i], this->max_brightness_[i], this->local_brightness_);
-    max_scaled = std::max(max_scaled, scaled[i]);
+    products[i] = uint32_t(color[i]) * (1 + this->max_brightness_[i]) * (1 + this->local_brightness_);
+    max_product = std::max(max_product, products[i]);
   }
   Color res;
-  if (max_scaled != 0 && this->gamma_level_(max_scaled) <= MAX_DARK_LEVEL) {
-    // Every channel would round to 0: stretch the strongest to full scale and round the others against
-    // it. Lighting each non-zero channel would turn a dim red with a trace of green into yellow, and
-    // the table is too coarse this low to compare its levels directly.
-    for (uint8_t i = 0; i < 4; i++)
-      res[i] = this->gamma_level_(scaled[i] * 255 / max_scaled) >= 0x8000 ? 1 : 0;
-  } else {
-    for (uint8_t i = 0; i < 4; i++)
-      res[i] = (this->gamma_level_(scaled[i]) + 128) / 257;
+  if ((max_product >> 16) == 0)
+    return res;
+  // Stretch the strongest channel to full scale and round the others against it; the table is too
+  // coarse to compare its lowest levels. products[i] * 255 fits: a product is at most 255 * 256 * 256.
+  for (uint8_t i = 0; i < 4; i++) {
+    if (products[i] == max_product) {
+      res[i] = 1;
+    } else if (products[i] != 0) {
+      res[i] = this->gamma_level_(products[i] * 255 / max_product) >= 0x8000 ? 1 : 0;
+    }
   }
-  for (uint8_t i = 0; i < 4; i++)
-    res[i] = this->limit_(res[i]);
   return res;
 }
 
