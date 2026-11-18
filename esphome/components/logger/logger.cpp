@@ -7,9 +7,26 @@
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
 
+#if defined(USE_ESP32) && defined(USE_NETWORK)
+#include <sdkconfig.h>
+#if defined(CONFIG_LWIP_TCPIP_CORE_LOCKING) && defined(USE_ESPHOME_TASK_LOG_BUFFER)
+#include "lwip/sys.h"
+#define USE_LOGGER_DEFER_UNDER_LWIP_LOCK
+#endif
+#endif
+
 namespace esphome::logger {
 
 ESPHOME_LOG_TAG(TAG, "logger");
+
+#ifdef USE_LOGGER_DEFER_UNDER_LWIP_LOCK
+// lwIP code run under the core lock (tcpip_api_call, netif callbacks) can log. A listener that writes to a socket would
+// take that lock again and deadlock, so such a line is queued for loop() instead. It can print after later inline
+// lines, and is lost if loop() never runs again (safe_reboot()).
+static inline bool HOT ESPHOME_ALWAYS_INLINE under_lwip_core_lock() {
+  return sys_thread_tcpip(LWIP_CORE_LOCK_QUERY_HOLDER) && sys_thread_tcpip(LWIP_CORE_IS_TCPIP_INITIALIZED);
+}
+#endif
 
 #if defined(USE_ESP32) || defined(USE_HOST) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
 // Implementation for multi-threaded platforms (ESP32 with FreeRTOS, Host with pthreads, LibreTiny with FreeRTOS,
@@ -42,6 +59,12 @@ void HOT Logger::log_vprintf_(uint8_t level, const char *tag, int line, const ch
   // Fast path: main thread, no recursion (99.9% of all logs)
   // Pass nullptr for thread_name since we already know this is the main task
   if (is_main_task && !this->main_task_recursion_guard_) [[likely]] {
+#ifdef USE_LOGGER_DEFER_UNDER_LWIP_LOCK
+    if (under_lwip_core_lock()) [[unlikely]] {
+      this->log_vprintf_non_main_thread_(level, tag, line, format, args, nullptr);
+      return;
+    }
+#endif
     this->log_message_to_buffer_and_send_(this->main_task_recursion_guard_, level, tag, line, format, args, nullptr);
     return;
   }
@@ -138,6 +161,49 @@ void Logger::log_vprintf_(uint8_t level, const char *tag, int line, const __Flas
     return;
 
   this->log_message_to_buffer_and_send_(this->main_task_recursion_guard_, level, tag, line, format, args, nullptr);
+}
+#endif  // USE_ESP8266
+
+// Not shared with log_message_to_buffer_and_send_(): sharing it slows formatted lines
+inline void HOT ESPHOME_ALWAYS_INLINE Logger::send_unformatted_line_(uint8_t level, const char *tag, LogBuffer &buf) {
+#ifdef USE_LOGGER_BOOT_LOG_BUFFER
+  if (!this->boot_log_done_)
+    this->boot_log_capture_(level, tag, buf);
+#endif
+  this->notify_listeners_(level, tag, buf);
+  this->write_log_buffer_to_console_(buf);
+}
+
+bool HOT Logger::log_str_(uint8_t level, const char *tag, int line, const char *msg) {
+  if (level > this->level_for(tag))
+    return true;
+  // Check the task first: the guard belongs to the main task and must not be read from other threads
+  if (!this->is_main_task_())
+    return false;
+  if (this->main_task_recursion_guard_)
+    return true;
+#ifdef USE_LOGGER_DEFER_UNDER_LWIP_LOCK
+  // The formatting path queues it
+  if (under_lwip_core_lock()) [[unlikely]]
+    return false;
+#endif
+  RecursionGuard guard(this->main_task_recursion_guard_);
+  LogBuffer buf{this->tx_buffer_, ESPHOME_LOGGER_TX_BUFFER_SIZE};
+  buf.write_header(level, tag, line, nullptr);
+  buf.write_unformatted_body(msg, strlen(msg));
+  this->send_unformatted_line_(level, tag, buf);
+  return true;
+}
+
+#ifdef USE_ESP8266
+void Logger::log_str_(uint8_t level, const char *tag, int line, const __FlashStringHelper *msg) {
+  if (level > this->level_for(tag) || this->main_task_recursion_guard_)
+    return;
+  RecursionGuard guard(this->main_task_recursion_guard_);
+  LogBuffer buf{this->tx_buffer_, ESPHOME_LOGGER_TX_BUFFER_SIZE};
+  buf.write_header(level, tag, line, nullptr);
+  buf.write_unformatted_body_p(reinterpret_cast<PGM_P>(msg));
+  this->send_unformatted_line_(level, tag, buf);
 }
 #endif  // USE_ESP8266
 

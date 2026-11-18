@@ -2803,6 +2803,16 @@ def test_should_run_benchmarks_host_platform_change() -> None:
             )
 
 
+def test_should_run_benchmarks_logger_change() -> None:
+    """Test benchmarks trigger on logger changes, which the core logger benchmarks run through."""
+    with patch.object(
+        determine_jobs,
+        "changed_files",
+        return_value=["esphome/components/logger/log_buffer.h"],
+    ):
+        assert determine_jobs.should_run_benchmarks() is True
+
+
 def test_should_run_benchmarks_benchmark_infra_change() -> None:
     """Test benchmarks trigger on benchmark infrastructure changes."""
     for infra_file in [
@@ -2846,15 +2856,15 @@ def test_python_import_benchmarked_components_imports_real_components() -> None:
 def test_should_run_benchmarks_python_import_benchmarked_component() -> None:
     """A Python change in a component the import benchmark loads runs benchmarks.
 
-    logger has no C++ benchmark, so before this a change to its __init__.py
-    skipped the Python import benchmark that times it.
+    ota has no C++ benchmark, so without this a change to its __init__.py
+    would skip the Python import benchmark that times it.
     """
     for changed, expected in [
-        ("esphome/components/logger/__init__.py", True),
-        ("esphome/components/logger/select/__init__.py", True),
+        ("esphome/components/ota/__init__.py", True),
+        ("esphome/components/ota/sub/__init__.py", True),
         ("esphome/components/mqtt/__init__.py", True),
-        ("esphome/components/logger/logger.cpp", False),
-        ("tests/components/logger/common.yaml", False),
+        ("esphome/components/ota/ota_backend.cpp", False),
+        ("tests/components/ota/common.yaml", False),
         ("esphome/components/wifi/__init__.py", False),
     ]:
         with (
@@ -2862,7 +2872,7 @@ def test_should_run_benchmarks_python_import_benchmarked_component() -> None:
             patch.object(
                 determine_jobs,
                 "python_import_benchmarked_components",
-                return_value=frozenset({"logger", "mqtt"}),
+                return_value=frozenset({"ota", "mqtt"}),
             ),
         ):
             assert determine_jobs.should_run_benchmarks() is expected, changed

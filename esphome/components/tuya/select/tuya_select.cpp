@@ -5,7 +5,7 @@ namespace esphome::tuya {
 
 ESPHOME_LOG_TAG(TAG, "tuya.select");
 
-void TuyaSelect::setup() {
+void TuyaSelect::register_listeners() {
   this->parent_->register_listener(this->select_id_, [this](const TuyaDatapoint &datapoint) {
     // The parent dispatches by datapoint ID alone; a report of the wrong
     // type would otherwise be read from the wrong union field
@@ -85,7 +85,7 @@ static const LogString *datapoint_type_name(TuyaDatapointType type) {
   }
 }
 
-void TuyaSelect::dump_config() {
+void TuyaSelect::dump_child_config() {
   LOG_SELECT("", "Tuya Select", this);
   ESP_LOGCONFIG(TAG,
                 "  Select has datapoint ID %u\n"
