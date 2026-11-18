@@ -54,8 +54,9 @@ void TinyUSBKeyboard::flush_() {
     this->consumer_pending_ = false;
     this->wakeup_requested_ = false;
 #ifdef USE_TINYUSB_KEYBOARD_LED_STATE
-    this->last_led_state_ = 0xFF;
     this->led_pending_ = false;
+    // The lock-state sensors keep their last published value while no host is connected; a new host
+    // sends its current LED state on attach, which is published via set_led_state().
 #endif
     this->disable_loop();
     return;

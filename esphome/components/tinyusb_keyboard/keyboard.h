@@ -44,17 +44,7 @@ extern TinyUSBKeyboard *global_tinyusb_keyboard;  // NOLINT(cppcoreguidelines-av
 class TinyUSBKeyboard final : public Component {
  public:
   TinyUSBKeyboard() { global_tinyusb_keyboard = this; }
-  void setup() override {
-#ifdef USE_TINYUSB_KEYBOARD_LED_STATE
-    // A host report may have arrived between the TinyUSB driver start and this setup; keep the loop
-    // running in that case so the queued LED state is published instead of being dropped.
-    if (this->led_pending_) {
-      this->enable_loop();
-      return;
-    }
-#endif
-    this->disable_loop();
-  }
+  void setup() override { this->disable_loop(); }
   void loop() override;
   void dump_config() override;
 
@@ -97,7 +87,6 @@ class TinyUSBKeyboard final : public Component {
   // Cross-task state between the TinyUSB task callback and the main loop, so kept atomic.
 #ifdef USE_TINYUSB_KEYBOARD_LED_STATE
   std::atomic<uint8_t> led_state_{0};
-  std::atomic<uint8_t> last_led_state_{0xFF};
   std::atomic<bool> led_pending_{false};
 #endif
 };
