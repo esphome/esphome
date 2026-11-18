@@ -232,6 +232,34 @@ TEST(LengthFrameReaderTest, ResyncReturnsFrameInsideRejectedOne) {
   EXPECT_EQ(Bytes(frame, frame + reader.frame_length()), (Bytes{0xA5, 0x03, 0x01}));
 }
 
+TEST(LengthFrameReaderTest, ResyncAgainAfterRecoveredFrameIsRejected) {
+  LengthFrameReader<16, 1, 0, 0xA5> reader;
+  // The 9 byte frame holds a 4 byte candidate, which holds a 3 byte one
+  const uint8_t *frame = nullptr;
+  for (uint8_t c : {0xA5, 0x09, 0xA5, 0x04, 0xA5, 0x03, 0x01, 0x02, 0x03}) {
+    frame = reader.feed(c);
+  }
+  ASSERT_NE(frame, nullptr);
+  frame = reader.resync();
+  ASSERT_NE(frame, nullptr);
+  EXPECT_EQ(Bytes(frame, frame + reader.frame_length()), (Bytes{0xA5, 0x04, 0xA5, 0x03}));
+  // The bytes after the recovered frame were dropped, so the inner one is left partial
+  EXPECT_EQ(reader.resync(), nullptr);
+  EXPECT_EQ(reader.length(), 2u);
+  EXPECT_EQ(feed_all(reader, {0x01}), (Frames{{0xA5, 0x03, 0x01}}));
+}
+
+TEST(LengthFrameReaderTest, ResyncWhileIdleIsHarmless) {
+  LengthFrameReader<8, 1, 0, 0xA5> reader;
+  // A rejected length of 9 stays in the buffer with nothing collected
+  EXPECT_EQ(feed_all(reader, {0xA5, 0x09}), Frames{});
+  EXPECT_EQ(reader.length(), 0u);
+  EXPECT_EQ(reader.resync(), nullptr);
+  reader.reset();
+  EXPECT_EQ(reader.resync(), nullptr);
+  EXPECT_EQ(feed_all(reader, {0xA5, 0x03, 0x01}), (Frames{{0xA5, 0x03, 0x01}}));
+}
+
 TEST(LengthFrameReaderTest, ResyncPartialFrameAfterSilence) {
   LengthFrameReader<16, 1, 0, 0xA5> reader;
   // A corrupt length of 15 holds back a complete frame behind it until the caller gives up on the partial one

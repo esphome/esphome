@@ -121,7 +121,13 @@ template<size_t N, size_t LEN_POS, size_t LEN_ADD, uint8_t... HEADER> class Leng
   /// without a byte: drop its first byte and realign on a header in the rest. Call right after feed() returned that
   /// frame, or while length() is not 0. Returns a complete frame found in the rest, like feed(), dropping the bytes
   /// after it; call again if that frame is rejected too.
-  const uint8_t *resync() { return this->replay_((this->pos_ != 0 ? this->pos_ : this->frame_length()) - 1); }
+  const uint8_t *resync() {
+    const size_t len = this->pos_ != 0 ? this->pos_ : this->frame_length();
+    // A length feed() rejected, or garbage when nothing was collected, has nothing to replay
+    if (len <= 1 || len > N)
+      return nullptr;
+    return this->replay_(len - 1);
+  }
 
  protected:
   // Start over and feed buf_[1..last] again, stopping at a completed frame; writes stay behind the read position.
