@@ -10,6 +10,30 @@ ESPHOME_LOG_TAG(TAG, "tinyusb_keyboard");
 
 void TinyUSBKeyboard::dump_config() { ESP_LOGCONFIG(TAG, "TinyUSB Keyboard"); }
 
+void TinyUSBKeyboard::set_led_state(uint8_t led_state) {
+  if (led_state == this->led_state_) {
+    return;
+  }
+  this->led_state_ = led_state;
+  this->led_pending_ = true;
+  this->enable_loop();
+}
+
+void TinyUSBKeyboard::publish_led_state_() {
+  if (!this->led_pending_) {
+    return;
+  }
+  this->led_pending_ = false;
+  uint8_t led = this->led_state_;
+  if (led == this->last_led_state_) {
+    return;
+  }
+  this->last_led_state_ = led;
+  PUBLISH_STATE(this->capslock_binary_sensor_, (led & 0x02) != 0);
+  PUBLISH_STATE(this->numlock_binary_sensor_, (led & 0x01) != 0);
+  PUBLISH_STATE(this->scrolllock_binary_sensor_, (led & 0x04) != 0);
+}
+
 void TinyUSBKeyboard::set_keyboard_(uint8_t keycode, uint8_t modifiers) {
   this->keycode_ = keycode;
   this->modifiers_ = modifiers;
@@ -59,14 +83,19 @@ void TinyUSBKeyboard::flush_() {
       tud_hid_report(REPORT_ID_CONSUMER, &this->usage_, sizeof(this->usage_))) {
     this->consumer_pending_ = false;
   }
-  if (this->keyboard_pending_ || this->consumer_pending_) {
+  if (this->keyboard_pending_ || this->consumer_pending_ || this->led_pending_) {
     this->enable_loop();
   } else {
     this->disable_loop();
   }
 }
 
-void TinyUSBKeyboard::loop() { this->flush_(); }
+void TinyUSBKeyboard::loop() {
+  this->flush_();
+  this->publish_led_state_();
+}
+
+TinyUSBKeyboard *global_tinyusb_keyboard = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace esphome::tinyusb_keyboard
 
@@ -81,9 +110,16 @@ uint16_t tud_hid_get_report_cb(uint8_t /*instance*/, uint8_t /*report_id*/, hid_
   return 0;
 }
 
-// Keyboard LED state from the host; nothing consumes it yet
-void tud_hid_set_report_cb(uint8_t /*instance*/, uint8_t /*report_id*/, hid_report_type_t /*report_type*/,
-                           const uint8_t * /*buffer*/, uint16_t /*bufsize*/) {}
+// Keyboard LED state from the host (Set_Report, output report id 1, LED byte: bit 0 Num Lock,
+// bit 1 Caps Lock, bit 2 Scroll Lock).
+void tud_hid_set_report_cb(uint8_t /*instance*/, uint8_t report_id, hid_report_type_t report_type,
+                           const uint8_t *buffer, uint16_t bufsize) {
+  if (report_id != esphome::tinyusb_keyboard::REPORT_ID_KEYBOARD || report_type != HID_REPORT_TYPE_OUTPUT ||
+      bufsize < 1 || esphome::tinyusb_keyboard::global_tinyusb_keyboard == nullptr) {
+    return;
+  }
+  esphome::tinyusb_keyboard::global_tinyusb_keyboard->set_led_state(buffer[0]);
+}
 }
 
 #endif  // USE_ESP32_VARIANT_ESP32P4 || USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3 ||

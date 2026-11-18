@@ -47,3 +47,12 @@ binary_sensor:
           usage: !lambda return 0xEA;
     on_release:
       - tinyusb_keyboard.media_release: kb
+
+  - platform: tinyusb_keyboard
+    tinyusb_keyboard_id: kb
+    capslock:
+      name: "Caps Lock"
+    numlock:
+      name: "Num Lock"
+    scrolllock:
+      name: "Scroll Lock"
