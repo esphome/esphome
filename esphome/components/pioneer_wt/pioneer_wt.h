@@ -6,6 +6,10 @@
 #include "esphome/components/climate/climate.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/component.h"
+#include "esphome/core/defines.h"
+#ifdef USE_SWITCH
+#include "esphome/components/switch/switch.h"
+#endif
 #include "pioneer_wt_protocol.h"
 
 namespace esphome::pioneer_wt {
@@ -15,6 +19,16 @@ class PioneerWT : public climate::Climate, public uart::UARTDevice, public Compo
   void setup() override;
   void loop() override;
   void dump_config() override;
+
+  /// Turns the indoor unit's front display on or off.
+  void set_display_on(bool on) { this->send_setting_(ATTR_DISPLAY, on); }
+  /// Turns the beep that confirms each command on or off.
+  void set_beeper_on(bool on) { this->send_setting_(ATTR_BEEPER, on); }
+
+#ifdef USE_SWITCH
+  SUB_SWITCH(display)
+  SUB_SWITCH(beeper)
+#endif
 
  protected:
   climate::ClimateTraits traits() override;
@@ -28,6 +42,8 @@ class PioneerWT : public climate::Climate, public uart::UARTDevice, public Compo
   /// Queues a data frame that the AC must acknowledge; it is resent until it is.
   void queue_command_(uint8_t msg_class, const uint8_t *body, size_t body_len);
   void send_pending_();
+  /// Queues a command that sets one on/off attribute.
+  void send_setting_(uint16_t attr, bool on);
   void request_status_();
 
   struct PendingFrame {

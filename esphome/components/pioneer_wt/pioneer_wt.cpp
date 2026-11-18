@@ -140,6 +140,14 @@ void PioneerWT::handle_status_(const uint8_t *body, size_t len) {
         this->set_preset_(v ? climate::CLIMATE_PRESET_ECO : climate::CLIMATE_PRESET_NONE);
         changed = true;
         break;
+#ifdef USE_SWITCH
+      case ATTR_DISPLAY:
+        PUBLISH_STATE(this->display_switch_, v != 0);
+        break;
+      case ATTR_BEEPER:
+        PUBLISH_STATE(this->beeper_switch_, v != 0);
+        break;
+#endif
       default:
         break;
     }
@@ -245,6 +253,11 @@ void PioneerWT::control(const climate::ClimateCall &call) {
   // State is published when the AC reports the new values back.
 }
 
+void PioneerWT::send_setting_(uint16_t attr, bool on) {
+  uint8_t body[3];
+  this->queue_command_(CLASS_COMMAND, body, put_attr(body, 0, attr, on ? 1 : 0, 1));
+}
+
 void PioneerWT::request_status_() {
   // Asks the AC to send every setting, as the stock module does at boot.
   const uint8_t request_all[] = {0xFF, 0xFF};
@@ -312,6 +325,12 @@ void PioneerWT::write_frame_(uint8_t flags, uint8_t type, uint8_t seq, uint8_t a
   this->write_array(frame, total);
 }
 
-void PioneerWT::dump_config() { LOG_CLIMATE("", "Pioneer WT", this); }
+void PioneerWT::dump_config() {
+  LOG_CLIMATE("", "Pioneer WT", this);
+#ifdef USE_SWITCH
+  LOG_SWITCH("  ", "Display", this->display_switch_);
+  LOG_SWITCH("  ", "Beeper", this->beeper_switch_);
+#endif
+}
 
 }  // namespace esphome::pioneer_wt

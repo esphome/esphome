@@ -2,3 +2,10 @@ climate:
   - platform: pioneer_wt
     uart_id: uart_bus
     name: Pioneer WT
+
+switch:
+  - platform: pioneer_wt
+    display:
+      name: Pioneer WT Display
+    beeper:
+      name: Pioneer WT Beeper

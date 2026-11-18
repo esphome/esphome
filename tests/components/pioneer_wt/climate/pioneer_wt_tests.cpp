@@ -49,6 +49,8 @@ size_t feed_all(FrameReader &reader, const Frame &bytes) {
 TEST(PioneerWTProtocol, BuildsCapturedCommands) {
   EXPECT_EQ(command(0x09, {0x00, 0x01, 0x00}), from_hex("a50101210900000f4f990a0a000100"));
   EXPECT_EQ(command(0x0b, {0x00, 0x12, 0x03}), from_hex("a50101210b00000fefbd0a0a001203"));
+  EXPECT_EQ(command(0x29, {0x00, 0x1e, 0x00}), from_hex("a50101212900000ffb280a0a001e00"));
+  EXPECT_EQ(command(0x2b, {0x00, 0x25, 0x00}), from_hex("a50101212b00000fe4200a0a002500"));
   EXPECT_EQ(command(0x10, {0x02, 0x27, 0x00, 0x00, 0x00, 0x3f}), from_hex("a50101211000001238620a0a02270000003f"));
   EXPECT_EQ(build(FLAG_WANT_ACK, TYPE_DATA, 0x01, 0, {CLASS_NETWORK, CLASS_NETWORK, 0xff, 0xff}),
             from_hex("a50101210100000e4ae90b0bffff"));
@@ -252,6 +254,19 @@ TEST_F(PioneerWTTest, FanSpeedSentLikeTheApp) {
   this->sut_.make_call().set_fan_mode("Speed 3").perform();
   this->loop_at_(1200);
   EXPECT_EQ(this->uart_.tx, from_hex("a501012102000018ac1f0a0a022400022500000503007300"));
+}
+
+TEST_F(PioneerWTTest, DisplayAndBeeperCommands) {
+  this->start_();
+  this->uart_.tx.clear();
+  this->sut_.set_display_on(false);
+  this->loop_at_(1200);
+  EXPECT_EQ(this->uart_.tx, command(0x02, {0x00, 0x1e, 0x00}));
+  this->uart_.tx.clear();
+  this->uart_.push_rx(build(FLAG_WANT_ACK, TYPE_REPLY, 0, 0x02, {0x80, CLASS_COMMAND}));
+  this->sut_.set_beeper_on(true);
+  this->loop_at_(1300);
+  EXPECT_EQ(this->uart_.tx, command(0x03, {0x00, 0x25, 0x01}));
 }
 
 }  // namespace esphome::pioneer_wt::testing
