@@ -1,5 +1,6 @@
 #include "tuya.h"
 #include <cstring>
+#include "esphome/core/application.h"
 #include "esphome/core/gpio.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -55,7 +56,12 @@ void Tuya::setup() {
 }
 
 void Tuya::loop() {
-  this->read_available([this](uint8_t b) { this->handle_char_(b); });
+  this->read_available([this](uint8_t b) {
+    this->last_rx_char_timestamp_ = App.get_loop_component_start_time();
+    const uint8_t *frame = this->reader_.feed(b);
+    if (frame != nullptr)
+      this->handle_frames_(frame);
+  });
   process_command_queue_();
 }
 
@@ -114,70 +120,31 @@ void Tuya::dump_mcu_config_() {
 #endif
 }
 
-bool Tuya::validate_message_() {
-  uint32_t at = this->rx_message_.size() - 1;
-  auto *data = &this->rx_message_[0];
-  uint8_t new_byte = data[at];
-
-  // Byte 0: HEADER1 (always 0x55)
-  if (at == 0)
-    return new_byte == 0x55;
-  // Byte 1: HEADER2 (always 0xAA)
-  if (at == 1)
-    return new_byte == 0xAA;
-
-  // Byte 2: VERSION
-  // no validation for the following fields:
-  uint8_t version = data[2];
-  if (at == 2)
-    return true;
-  // Byte 3: COMMAND
-  uint8_t command = data[3];
-  if (at == 3)
-    return true;
-
-  // Byte 4: LENGTH1
-  // Byte 5: LENGTH2
-  if (at <= 5) {
-    // no validation for these fields
-    return true;
-  }
-
-  uint16_t length = encode_uint16(data[4], data[5]);
-
-  // wait until all data is read
-  if (at - 6 < length)
-    return true;
-
-  // Byte 6+LEN: CHECKSUM - sum of all bytes (including header) modulo 256
-  uint8_t rx_checksum = new_byte;
-  const uint8_t calc_checksum = sum_bytes(data, 6 + length);
-
-  if (rx_checksum != calc_checksum) {
-    ESP_LOGW(TAG, "Tuya Received invalid message checksum %02X!=%02X", rx_checksum, calc_checksum);
-    return false;
-  }
-
-  // valid message
-  const uint8_t *message_data = data + 6;
+void Tuya::handle_frames_(const uint8_t *frame) {
+  this->handling_frame_ = true;
+  while (frame != nullptr) {
+    const size_t len = this->reader_.frame_length();
+    // Last byte: sum of all bytes before it, header included, modulo 256
+    const uint8_t rx_checksum = frame[len - 1];
+    const uint8_t calc_checksum = sum_bytes(frame, len - 1);
+    if (rx_checksum != calc_checksum) {
+      ESP_LOGW(TAG, "Tuya Received invalid message checksum %02X!=%02X", rx_checksum, calc_checksum);
+      frame = this->reader_.resync();
+      continue;
+    }
+    const uint8_t version = frame[2];
+    const uint8_t command = frame[3];
+    const uint8_t *message_data = frame + 6;
+    const size_t length = len - 7;
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-  char hex_buf[format_hex_pretty_size(MAX_DATAPOINT_LOG_BYTES)];
-  ESP_LOGV(TAG, "Received Tuya: CMD=0x%02X VERSION=%u DATA=[%s] INIT_STATE=%u", command, version,
-           format_hex_pretty_to(hex_buf, message_data, length), static_cast<uint8_t>(this->init_state_));
+    char hex_buf[format_hex_pretty_size(MAX_DATAPOINT_LOG_BYTES)];
+    ESP_LOGV(TAG, "Received Tuya: CMD=0x%02X VERSION=%u DATA=[%s] INIT_STATE=%u", command, version,
+             format_hex_pretty_to(hex_buf, message_data, length), static_cast<uint8_t>(this->init_state_));
 #endif
-  this->handle_command_(command, version, message_data, length);
-
-  // return false to reset rx buffer
-  return false;
-}
-
-void Tuya::handle_char_(uint8_t c) {
-  this->rx_message_.push_back(c);
-  if (!this->validate_message_()) {
-    this->rx_message_.clear();
-  } else {
-    this->last_rx_char_timestamp_ = millis();
+    this->handle_command_(command, version, message_data, length);
+    frame = this->reader_.next();
   }
+  this->handling_frame_ = false;
 }
 
 void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buffer, size_t len) {
@@ -538,8 +505,10 @@ void Tuya::process_command_queue_() {
   uint32_t now = millis();
   uint32_t delay = now - this->last_command_timestamp_;
 
-  if (now - this->last_rx_char_timestamp_ > RECEIVE_TIMEOUT) {
-    this->rx_message_.clear();
+  // A partial frame left too long without a byte may hide a whole frame behind a broken start
+  if (this->reader_.length() > 0 && now - this->last_rx_char_timestamp_ > RECEIVE_TIMEOUT) {
+    while (this->reader_.length() > 0)
+      this->handle_frames_(this->reader_.resync());
   }
 
   if (this->expected_response_.has_value() && delay > RECEIVE_TIMEOUT) {
@@ -557,7 +526,7 @@ void Tuya::process_command_queue_() {
   }
 
   // Left check of delay since last command in case there's ever a command sent by calling send_raw_command_ directly
-  if (delay > COMMAND_DELAY && !this->command_queue_.empty() && this->rx_message_.empty() &&
+  if (delay > COMMAND_DELAY && !this->command_queue_.empty() && this->reader_.length() == 0 && !this->handling_frame_ &&
       !this->expected_response_.has_value()) {
     this->send_raw_command_(command_queue_.front());
     if (!this->expected_response_.has_value())

@@ -6,6 +6,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
+#include "esphome/core/frame_reader.h"
 #include "esphome/core/helpers.h"
 #include "esphome/components/uart/uart.h"
 
@@ -131,10 +132,9 @@ class Tuya final : public Component, public uart::UARTDevice {
  protected:
   void register_listener_(uint8_t datapoint_id, Callback<void(const TuyaDatapoint &)> func);
   void dump_mcu_config_();
-  void handle_char_(uint8_t c);
+  void handle_frames_(const uint8_t *frame);
   void handle_datapoints_(const uint8_t *buffer, size_t len);
   optional<TuyaDatapoint> get_datapoint_(uint8_t datapoint_id);
-  bool validate_message_();
 
   void handle_command_(uint8_t command, uint8_t version, const uint8_t *buffer, size_t len);
   void send_raw_command_(TuyaCommand command);
@@ -174,13 +174,16 @@ class Tuya final : public Component, public uart::UARTDevice {
   std::unique_ptr<char[]> product_;
   std::vector<TuyaDatapointListener> listeners_;
   std::vector<TuyaDatapoint> datapoints_;
-  std::vector<uint8_t> rx_message_;
   std::vector<uint8_t> ignore_mcu_update_on_datapoints_{};
   std::vector<TuyaCommand> command_queue_;
   optional<TuyaCommandType> expected_response_{};
   uint8_t wifi_status_ = -1;
   bool product_invalid_{false};
+  // Holds commands back while a received frame is handled
+  bool handling_frame_{false};
   CallbackManager<void()> initialized_callback_{};
+  // 55 AA, version, command, 2 byte length, data, sum8; 256 bytes like the Tasmota Tuya MCU driver
+  LengthFrameReader<256, FrameFormat<FrameLengthU16BE<4, 7>, 0x55, 0xAA>> reader_;
 };
 
 }  // namespace esphome::tuya
