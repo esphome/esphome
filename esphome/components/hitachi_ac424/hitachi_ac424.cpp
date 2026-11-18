@@ -294,11 +294,7 @@ bool HitachiClimate::parse_swing_(const uint8_t remote_state[]) {
                                                HITACHI_AC424_SWINGH_SIZE);
   ESP_LOGV(TAG, "SwingH: %02X %02X", remote_state[HITACHI_AC424_SWINGH_BYTE], swing_modeh);
 
-  if ((swing_modeh & 0x3) == 0x3) {
-    this->swing_mode = climate::CLIMATE_SWING_OFF;
-  } else {
-    this->swing_mode = climate::CLIMATE_SWING_HORIZONTAL;
-  }
+  this->swing_mode = (swing_modeh & 0x3) == 0x3 ? climate::CLIMATE_SWING_OFF : climate::CLIMATE_SWING_HORIZONTAL;
 
   return true;
 }
@@ -340,12 +336,7 @@ bool HitachiClimate::on_receive(remote_base::RemoteReceiveData data) {
 }
 
 void HitachiClimate::dump_state_(const char action[], uint8_t state[]) {
-  for (uint16_t i = 0; i < HITACHI_AC424_STATE_LENGTH - 10; i += 10) {
-    ESP_LOGV(TAG, "%s: %02X %02X %02X %02X %02X  %02X %02X %02X %02X %02X", action, state[i + 0], state[i + 1],
-             state[i + 2], state[i + 3], state[i + 4], state[i + 5], state[i + 6], state[i + 7], state[i + 8],
-             state[i + 9]);
-  }
-  ESP_LOGV(TAG, "%s: %02X %02X %02X", action, state[40], state[41], state[42]);
+  ESP_LOGV_HEX(TAG, state, HITACHI_AC424_STATE_LENGTH, HITACHI_AC424_STATE_LENGTH, "%s: %s", action);
 }
 
 }  // namespace esphome::hitachi_ac424

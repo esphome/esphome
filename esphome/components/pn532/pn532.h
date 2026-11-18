@@ -73,15 +73,10 @@ class PN532 : public PollingComponent {
   void loop() override;
   void on_powerdown() override { powerdown(); }
 
-#ifdef PN532_BINARY_SENSOR_COUNT
-  void register_tag(PN532BinarySensor *tag) { this->binary_sensors_.push_back(tag); }
-#endif
-#ifdef PN532_ON_TAG_TRIGGER_COUNT
-  void register_ontag_trigger(nfc::NfcOnTagTrigger *trig) { this->triggers_ontag_.push_back(trig); }
-#endif
-#ifdef PN532_ON_TAG_REMOVED_TRIGGER_COUNT
-  void register_ontagremoved_trigger(nfc::NfcOnTagTrigger *trig) { this->triggers_ontagremoved_.push_back(trig); }
-#endif
+  SLOT_LIST(PN532BinarySensor, binary_sensors_, register_tag, PN532_BINARY_SENSOR_COUNT)
+  SLOT_LIST(nfc::NfcOnTagTrigger, triggers_ontag_, register_ontag_trigger, PN532_ON_TAG_TRIGGER_COUNT)
+  SLOT_LIST(nfc::NfcOnTagTrigger, triggers_ontagremoved_, register_ontagremoved_trigger,
+            PN532_ON_TAG_REMOVED_TRIGGER_COUNT)
 
   template<typename F> void add_on_finished_write_callback(F &&callback) {
     this->on_finished_write_callback_.add(std::forward<F>(callback));
@@ -155,15 +150,6 @@ class PN532 : public PollingComponent {
 
   // members are ordered by alignment, widest first, to minimize padding
   LazyCallbackManager<void()> on_finished_write_callback_;
-#ifdef PN532_BINARY_SENSOR_COUNT
-  StaticVector<PN532BinarySensor *, PN532_BINARY_SENSOR_COUNT> binary_sensors_;
-#endif
-#ifdef PN532_ON_TAG_TRIGGER_COUNT
-  StaticVector<nfc::NfcOnTagTrigger *, PN532_ON_TAG_TRIGGER_COUNT> triggers_ontag_;
-#endif
-#ifdef PN532_ON_TAG_REMOVED_TRIGGER_COUNT
-  StaticVector<nfc::NfcOnTagTrigger *, PN532_ON_TAG_REMOVED_TRIGGER_COUNT> triggers_ontagremoved_;
-#endif
   std::unique_ptr<nfc::NdefMessage> next_task_message_to_write_;
   nfc::NfcTagUid current_uid_;
   uint32_t rd_start_time_{0};  // valid only while rd_started_ is set

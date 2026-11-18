@@ -47,7 +47,6 @@ each ring size at least the encoder window, three times, and logs the best time 
 `BENCHDONE`. `bench.sh CONFIG DEVICE` builds and uploads `bench-esp32s3.yaml` or `bench-bk72xx.yaml`, collects one pass
 over syslog and fails when a case did not reach the end of its stream.
 
-- LibreTiny defines `micros` as a macro, so the header calls `(esphome::micros)()`.
 - Keep the streams near 130 KB on a BK7231N: an image with about 330 KB of extra incompressible data failed its
   OTA with "Writing OTA data to flash memory failed". Use one image and `--windows 12` there.
 - `bench.hpp` targets the decoder interface with `dest_limit`. #21641 drops it (the output runs into the window up
@@ -67,3 +66,41 @@ refusal prints no `Connecting to` line, and an image that slips through cannot r
 `firmware.factory.bin` slipped through on 2026-10-27 (its bootloader header at offset 0 looks like an app), the device
 reported `OTA successful` and its bootloader rejected the slot at boot; send the board its proper app image afterwards.
 A factory image has the partition table magic `AA 50` at 0x8000 and the app at 0x10000.
+
+## OTA automations on two OTA platforms (#21903)
+
+`scripts/ota_automations/ota-automations-common.yaml` (a package) puts `esphome` and `web_server` OTA in one config,
+each with all six automations (`on_begin`, `on_progress`, `on_end`, `on_abort`, `on_error`, `on_state_change`)
+logging a platform tag and the argument. `run.sh esp32|esp8266 LABEL` builds, flashes by serial, and runs four cases
+under one capture: a native upload, a native upload whose uploader is SIGKILLed after the first progress fire, a
+web_server upload of a random 64 KB file and a web_server upload of the real image. `summ.py OUT_DIR` prints each
+case's fires in order with progress collapsed to a count; diff dev against the PR.
+
+- `web_server: ota: false` removes `/update` (404), so leave it out when the web platform is under test.
+- A killed native uploader ends in `state 4` and `error 255`, not `abort`. `on_abort` only comes from a web upload
+  cut on the network. On ESP8266 those happen by themselves (1 in 4 uploads on dev), so count them on both builds with
+  `webrep.sh IP IMAGE COUNT` before blaming the PR.
+- A random file through web_server gives `error 128` on the ESP32 and `error 132` on the ESP8266.
+- A SIGTERM to the uploader lets it finish the transfer; use SIGKILL for the native error path.
+- Results: https://github.com/esphome/esphome/pull/21903#issuecomment-6516529409
+
+## Signed OTA with several trusted keys (`verification_keys`, #22398)
+
+`scripts/signed_ota/` on an ESP32-C3 (`signed-ota-c3.yaml`, `signed_ota_verification: signing_scheme: rsa3072,
+verification_keys: [keyA.pem]`):
+1. `python -m espsecure generate-signing-key --version 2 --scheme rsa3072 keyA.pem` (and keyB).
+2. Build four tagged images with `esphome -s tag <name> compile`, serial-flash the first factory image (no on-boot
+   signature check without secure boot), copy each `firmware.ota.bin`.
+3. `sign_variants.py <image> keyA.pem keyB.pem <prefix>` writes key A, key B, B then A, stored CRC flipped, byte 2
+   changed (covered only by the CRC), the same with the CRC recomputed by zlib, and B then A with block 1's CRC flipped.
+4. `otaseq.sh <ip> FILE=reject... FILE=<tag>...` sends them with `esphome upload --file` and checks the first verdict
+   in the device log and the upload result against the expectation (a rejection, or the `BUILDTAG` of that build);
+   send the rejects first so every check runs in the same build, then the accepted ones.
+Expected: unsigned, B only and every CRC edit rejected; A, B+A and the zlib-fixed CRC accepted. The byte 2 pair isolates
+the CRC from the signature and key digest.
+
+Gotchas: an ESP-IDF image can contain `E7 02` at a 4 KiB boundary by chance; find the signature sector by the CRC, as
+`sign_variants.py` does. An unsigned image sent after a signed one can be rejected with "trusted key failed to verify"
+instead of "no signature block": the partition still holds the old signature sector past the new image's end.
+
+Results: https://github.com/esphome/esphome/pull/22398#issuecomment-6716330334

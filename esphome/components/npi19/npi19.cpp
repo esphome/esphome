@@ -54,7 +54,7 @@ i2c::ErrorCode NPI19Component::read_(uint16_t &raw_temperature, uint16_t &raw_pr
 
 inline float convert_temperature(uint16_t raw_temperature) {
   /*
-   * Correspondance with Amphenol confirmed the appropriate equation for computing temperature is:
+   * Correspondence with Amphenol confirmed the appropriate equation for computing temperature is:
    * T (°C) =(((((Th*8)+Tl)/2048)*200)-50), where Th is the high (third) byte and Tl is the low (fourth) byte.
    *
    * Tl is actually the upper 3 bits of the fourth data byte; the first 5 (LSBs) must be masked out.

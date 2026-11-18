@@ -20,6 +20,27 @@ canbus:
               then:
                 logger.log: Truth
           - canbus.send: !lambda return x;
+      # x forms from the docs
+      - can_id: 24
+        then:
+          - number.set:
+              id: canbus_test_number
+              value: !lambda "return (x.size() > 0) ? (float) x[0] / 255 : 0;"
+          - lambda: |-
+              if (x.empty())
+                return;
+              ESP_LOGI("can", "SOC: %d%%", x[0]);
+              ESP_LOGD("can", "%s", format_hex_pretty(x).c_str());
+              uint8_t buf[8];
+              memcpy(buf, x.data(), x.size());
+              for (uint8_t b : x)
+                buf[0] ^= b;
+              std::vector<uint8_t> copy = x;
+              ESP_LOGD("can", "%u %u", buf[0], (unsigned) copy.size());
+          - canbus.send: !lambda |-
+              std::vector<uint8_t> data(x.begin(), x.end());
+              data.push_back(0x01);
+              return data;
       - can_id: 0b00000000000000000000001000000
         can_id_mask: 0b11111000000000011111111000000
         use_extended_id: true

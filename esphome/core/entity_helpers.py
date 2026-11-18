@@ -535,7 +535,9 @@ class FollowEntity:
 
     def __call__(self, entity: MockObj, source: MockObj, *args: SafeExpType) -> None:
         """Make ``entity`` publish every state of ``source``; ``args`` precede the callback."""
-        publish = f"{parent_ref(entity).publish_state(RawExpression(self.value))};"
+        publish = cg.statement(
+            parent_ref(entity).publish_state(RawExpression(self.value))
+        )
         callback = LambdaExpression(
             [publish], list(self.params), capture="", return_type=cg.void
         )
@@ -844,7 +846,9 @@ def convert_visual_temperatures(
     that needs ``full_config`` is left for final validation, which runs this again with it."""
     if (unit := entity_temperature_unit(config, full_config)) is None:
         return config
-    visual = config[CONF_VISUAL]
+    # A platform entry that only holds nested entities has no visual section of its own
+    if (visual := config.get(CONF_VISUAL)) is None:
+        return config
     convert_temperature_keys(visual, (CONF_MIN_TEMPERATURE, CONF_MAX_TEMPERATURE), unit)
     section = visual if delta_section is None else visual.get(delta_section)
     if section is not None:

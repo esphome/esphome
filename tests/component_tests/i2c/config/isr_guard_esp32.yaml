@@ -1,0 +1,11 @@
+esphome:
+  name: isr-guard-esp32
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+i2c:
+  sda: GPIO21
+  scl: GPIO22

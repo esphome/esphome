@@ -1,4 +1,4 @@
-"""The crash handler is built for BK7238, BK7231N (both with an ITCM linker region), RTL8720C and LN882H."""
+"""The crash handler is built for BK7238, BK7231N (both with an ITCM linker region), RTL8710B, RTL8720C and LN882H."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ from esphome.core import CORE
         ("bk72xx.yaml", True, True),  # BK7231N
         ("bk7231t.yaml", False, False),
         ("rtl8720c.yaml", True, False),  # installed at run time
-        ("rtl8710b.yaml", False, False),
+        ("rtl8710b.yaml", True, False),  # installed at run time
         ("ln882x.yaml", True, False),  # installed at run time
     ],
 )
@@ -33,6 +33,8 @@ def test_crash_handler_family_gate(
     defines = {define.name for define in CORE.defines}
     assert ("USE_LIBRETINY_CRASH_HANDLER" in defines) is enabled
     assert ("USE_CRASH_HANDLER" in defines) is enabled
+    # __wrap_abort is only built with the crash handler; a leaked flag fails the link
+    assert ("-Wl,--wrap=abort" in CORE.build_flags) is enabled
     for trap in BK_TRAP_HANDLERS:
         assert (f"-Wl,--wrap={trap}" in CORE.build_flags) is bk_hooks
     assert (

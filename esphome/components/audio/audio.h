@@ -9,7 +9,7 @@
 namespace esphome::audio {
 
 class AudioStreamInfo {
-  /* Class to respresent important parameters of the audio stream that also provides helper function to convert between
+  /* Class to represent important parameters of the audio stream that also provides helper function to convert between
    * various audio related units.
    *
    *  - An audio sample represents a unit of audio for one channel.

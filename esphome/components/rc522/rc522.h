@@ -10,7 +10,6 @@
 namespace esphome::rc522 {
 
 class RC522BinarySensor;
-class RC522Trigger;
 class RC522 : public PollingComponent {
  public:
   void setup() override;
@@ -22,8 +21,14 @@ class RC522 : public PollingComponent {
   void loop() override;
 
   void register_tag(RC522BinarySensor *tag) { this->binary_sensors_.push_back(tag); }
-  void register_ontag_trigger(RC522Trigger *trig) { this->triggers_ontag_.push_back(trig); }
-  void register_ontagremoved_trigger(RC522Trigger *trig) { this->triggers_ontagremoved_.push_back(trig); }
+#ifdef RC522_ON_TAG_COUNT
+  void add_on_tag_automation(Automation<std::string> *automation) { this->tag_automations_.add(automation); }
+#endif
+#ifdef RC522_ON_TAG_REMOVED_COUNT
+  void add_on_tag_removed_automation(Automation<std::string> *automation) {
+    this->tag_removed_automations_.add(automation);
+  }
+#endif
 
   void set_reset_pin(GPIOPin *reset) { this->reset_pin_ = reset; }
 
@@ -241,8 +246,12 @@ class RC522 : public PollingComponent {
   uint8_t reset_count_{0};
   uint32_t reset_timeout_{0};
   std::vector<RC522BinarySensor *> binary_sensors_;
-  std::vector<RC522Trigger *> triggers_ontag_;
-  std::vector<RC522Trigger *> triggers_ontagremoved_;
+#ifdef RC522_ON_TAG_COUNT
+  AutomationList<RC522_ON_TAG_COUNT, std::string> tag_automations_;
+#endif
+#ifdef RC522_ON_TAG_REMOVED_COUNT
+  AutomationList<RC522_ON_TAG_REMOVED_COUNT, std::string> tag_removed_automations_;
+#endif
   std::vector<uint8_t> current_uid_;
 };
 
@@ -262,11 +271,6 @@ class RC522BinarySensor final : public binary_sensor::BinarySensor {
  protected:
   std::vector<uint8_t> uid_;
   bool found_{false};
-};
-
-class RC522Trigger final : public Trigger<std::string> {
- public:
-  void process(std::vector<uint8_t> &data);
 };
 
 }  // namespace esphome::rc522
