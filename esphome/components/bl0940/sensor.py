@@ -5,7 +5,6 @@ from esphome.const import (
     CONF_CURRENT,
     CONF_ENERGY,
     CONF_EXTERNAL_TEMPERATURE,
-    CONF_ID,
     CONF_INTERNAL_TEMPERATURE,
     CONF_POWER,
     CONF_REFERENCE_VOLTAGE,
@@ -92,23 +91,6 @@ def calculate_energy_reference(power_reference: float) -> float:
     return power_reference * 3600000 / (1638.4 * 256)
 
 
-def validate_legacy_mode(config: ConfigType) -> ConfigType:
-    # Only allow schematic calibration options if legacy_mode is False
-    if config.get(CONF_LEGACY_MODE, True):
-        forbidden = [
-            CONF_REFERENCE_VOLTAGE,
-            CONF_RESISTOR_SHUNT,
-            CONF_RESISTOR_ONE,
-            CONF_RESISTOR_TWO,
-        ]
-        for key in forbidden:
-            if key in config:
-                raise cv.Invalid(
-                    f"Option '{key}' is only allowed when legacy_mode: false"
-                )
-    return config
-
-
 def set_command_defaults(config: ConfigType) -> ConfigType:
     # Set defaults for read_command and write_command based on legacy_mode
     legacy = config.get(CONF_LEGACY_MODE, True)
@@ -154,7 +136,7 @@ def set_reference_values(config: ConfigType) -> ConfigType:
     return config
 
 
-CONFIG_SCHEMA = (
+CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(BL0940),
@@ -209,9 +191,18 @@ CONFIG_SCHEMA = (
     )
     .extend(cv.polling_component_schema("60s"))
     .extend(uart.UART_DEVICE_SCHEMA)
-    .add_extra(validate_legacy_mode)
     .add_extra(set_command_defaults)
-    .add_extra(set_reference_values)
+    .add_extra(set_reference_values),
+    cv.only_when(
+        (
+            CONF_REFERENCE_VOLTAGE,
+            CONF_RESISTOR_SHUNT,
+            CONF_RESISTOR_ONE,
+            CONF_RESISTOR_TWO,
+        ),
+        CONF_LEGACY_MODE,
+        False,
+    ),
 )
 
 # BL0940 datasheet: 4800 baud, 8 data bits, no parity (stop bits are 1.5 -- not
@@ -227,9 +218,7 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await uart.register_uart_device(var, config)
+    var = await uart.new_uart_component(config)
 
     sensors = sensor.sub_sensors(config)
     await sensors(CONF_VOLTAGE, var.set_voltage_sensor)

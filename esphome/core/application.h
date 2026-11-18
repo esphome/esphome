@@ -302,6 +302,9 @@ class Application {
 
   void safe_reboot();
 
+  /// Run the safe shutdown hooks, give components up to timeout_ms to tear down, then run the powerdown hooks.
+  void safe_shutdown(uint32_t timeout_ms);
+
   void run_safe_shutdown_hooks();
 
   void run_powerdown_hooks();
@@ -390,6 +393,7 @@ class Application {
   friend Component;
   friend class Scheduler;
   friend class LoopBlockingGuard;
+  friend class UnavoidableBlockingScope;
 #ifdef USE_RUNTIME_STATS
   friend class runtime_stats::RuntimeStatsCollector;
 #endif
@@ -429,16 +433,15 @@ class Application {
     // FixedVector capacity was pre-initialized by codegen with the exact count
     // of components that override loop(), computed at C++ compile time.
 
-    // Add all components with loop override that aren't already LOOP_DONE
-    // Some components (like logger) may call disable_loop() during initialization
-    // before setup runs, so we need to respect their LOOP_DONE state
+    // Add all components with loop override that aren't already LOOP_DONE or FAILED
+    // Some components (like logger) may call disable_loop() during initialization,
+    // and some call mark_failed() from their constructor, before setup runs
     this->add_looping_components_by_state_(false);
     this->looping_components_active_end_ = this->looping_components_.size();
-    // Then add any components that are already LOOP_DONE to the inactive section
-    // This handles components that called disable_loop() during initialization
+    // Then add any components that are already LOOP_DONE or FAILED to the inactive section
     this->add_looping_components_by_state_(true);
   }
-  void add_looping_components_by_state_(bool match_loop_done);
+  void add_looping_components_by_state_(bool inactive);
 
   // These methods are called by Component::disable_loop() and Component::enable_loop()
   // Components should not call these directly - use this->disable_loop() or this->enable_loop()
@@ -632,6 +635,38 @@ class LoopBlockingGuard {
   static void __attribute__((noinline, cold)) warn_blocking(uint32_t blocking_time);
 };
 
+/// Leaves a stretch of the current loop pass out of the blocking warning.
+///
+/// Only for work that cannot be made shorter or split across passes: radio
+/// bring-up, a first network connect, a key generation. Work that could be
+/// cached, deferred, polled or turned into a state machine stays outside, so
+/// the warning keeps finding it.
+///
+/// Affects only work timed by LoopBlockingGuard: loop() and scheduler
+/// callbacks, not setup(). Main loop task only. The watchdog is not fed, so
+/// pair long work with watchdog::WatchdogManager. Scopes may nest.
+/// Afterwards App.get_loop_component_start_time() can be earlier than a
+/// millis() read taken before the scope; time the work with millis() at both ends.
+///
+///   UnavoidableBlockingScope scope;
+///   this->generate_key_();
+class UnavoidableBlockingScope {
+ public:
+  UnavoidableBlockingScope() : started_(MillisInternal::get()), pass_start_(App.get_loop_component_start_time()) {}
+  ~UnavoidableBlockingScope() {
+    // Move the pass start seen at entry forward by the time spent here, clamped to now
+    const uint32_t now = MillisInternal::get();
+    const uint32_t moved = this->pass_start_ + (now - this->started_);
+    App.set_loop_component_start_time_(static_cast<int32_t>(now - moved) < 0 ? now : moved);
+  }
+  UnavoidableBlockingScope(const UnavoidableBlockingScope &) = delete;
+  UnavoidableBlockingScope &operator=(const UnavoidableBlockingScope &) = delete;
+
+ private:
+  uint32_t started_;
+  uint32_t pass_start_;
+};
+
 // Phase A: drain wake notifications and run the scheduler. Invoked on every
 // Application::loop() tick regardless of whether a component phase runs, so
 // scheduler items fire at their requested cadence even when the caller has
@@ -751,6 +786,8 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
 #ifdef USE_RUNTIME_STATS
     loop_tail_start_us = micros();
 #endif
+    // process scheduler items added in component phase
+    this->scheduler.process_to_add();
     this->last_loop_ = last_op_end_time;
     now = last_op_end_time;
     // phase_guard destructor clears in_loop_ at scope exit

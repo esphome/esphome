@@ -1,0 +1,23 @@
+# Needs packages/aux-2-pre-prod.yaml from NabuCasa/aux-2 at commit 283f2e64 next to this file, with its local
+# external_components source pointed at github://NabuCasa/aux-2@main (see reference/recipes/usb_audio.md).
+# Nabu Casa Connect AUX-2 on the usb_audio PR tree: stock package (I2S PCM5122 output) as a control.
+packages:
+  core: !include aux-2-pre-prod.yaml
+
+esphome:
+  name: aux-2-dut
+  name_add_mac_suffix: false
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+api:
+  encryption:
+    key: !secret api_key
+
+logger:
+  level: DEBUG
+
+sendspin:
+  unpaired_access: true

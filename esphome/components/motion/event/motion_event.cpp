@@ -5,7 +5,7 @@
 
 namespace esphome::motion {
 
-static const char *const TAG = "motion.event";
+ESPHOME_LOG_TAG(TAG, "motion.event");
 
 MotionEvent::MotionEvent(MotionComponent *parent) : parent_(parent) {}
 

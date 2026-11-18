@@ -11,7 +11,7 @@
 
 namespace esphome::sntp {
 
-static const char *const TAG = "sntp";
+ESPHOME_LOG_TAG(TAG, "sntp");
 
 #if defined(USE_ESP32)
 SNTPComponent *SNTPComponent::instance = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

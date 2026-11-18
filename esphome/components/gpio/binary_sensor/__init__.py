@@ -129,8 +129,7 @@ async def to_code(config: ConfigType) -> None:
     var = await binary_sensor.new_binary_sensor(config)
     await cg.register_component(var, config)
 
-    pin = await cg.gpio_pin_expression(config[CONF_PIN])
-    cg.add(var.set_pin(pin))
+    await cg.add_pin(var.set_pin, config[CONF_PIN])
 
     if config[CONF_USE_INTERRUPT]:
         cg.add_define("USE_GPIO_BINARY_SENSOR_INTERRUPT")

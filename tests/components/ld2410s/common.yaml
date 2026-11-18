@@ -1,0 +1,35 @@
+ld2410s:
+  uart_id: uart_bus
+
+binary_sensor:
+  - platform: ld2410s
+    has_target:
+      name: Presence
+
+sensor:
+  - platform: ld2410s
+    distance:
+      name: Distance
+
+text_sensor:
+  - platform: ld2410s
+    version:
+      name: Firmware
+
+number:
+  - platform: ld2410s
+    max_distance:
+      name: Max Distance
+    min_distance:
+      name: Min Distance
+    no_delay:
+      name: No Delay
+    status_reporting_frequency:
+      name: Status Reporting Frequency
+    distance_reporting_frequency:
+      name: Distance Reporting Frequency
+
+select:
+  - platform: ld2410s
+    response_speed:
+      name: Response Speed

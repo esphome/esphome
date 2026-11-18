@@ -1,0 +1,12 @@
+---
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+wifi:
+  dpp:
+    private_key: 00112233445566778899AABBCCDDEEFF00112233445566778899aabbccddeeff

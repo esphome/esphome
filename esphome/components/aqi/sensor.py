@@ -17,16 +17,6 @@ DEPENDENCIES = ["sensor"]
 AQISensor = aqi_ns.class_("AQISensor", sensor.Sensor, cg.Component)
 
 
-def _validate_extended_range(config: ConfigType) -> ConfigType:
-    if CONF_EXTENDED_RANGE in config and config[CONF_CALCULATION_TYPE] == "CAQI":
-        raise cv.Invalid(
-            f"'{CONF_EXTENDED_RANGE}' is not supported with 'calculation_type: CAQI'. "
-            "CAQI has no maximum value by specification, so it is always reported unbounded.",
-            [CONF_EXTENDED_RANGE],
-        )
-    return config
-
-
 CONFIG_SCHEMA = cv.All(
     sensor.sensor_schema(
         AQISensor,
@@ -45,7 +35,13 @@ CONFIG_SCHEMA = cv.All(
         }
     )
     .extend(cv.COMPONENT_SCHEMA),
-    _validate_extended_range,
+    cv.only_when(
+        CONF_EXTENDED_RANGE,
+        CONF_CALCULATION_TYPE,
+        "CAQI",
+        negate=True,
+        hint="CAQI has no maximum by specification, so it is always reported unbounded",
+    ),
 )
 
 
@@ -53,11 +49,8 @@ async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
 
-    pm_2_5_sensor = await cg.get_variable(config[CONF_PM_2_5])
-    cg.add(var.set_pm_2_5_sensor(pm_2_5_sensor))
-
-    pm_10_0_sensor = await cg.get_variable(config[CONF_PM_10_0])
-    cg.add(var.set_pm_10_0_sensor(pm_10_0_sensor))
+    await cg.add_variable(var.set_pm_2_5_sensor, config[CONF_PM_2_5])
+    await cg.add_variable(var.set_pm_10_0_sensor, config[CONF_PM_10_0])
 
     cg.add(var.set_aqi_calculation_type(config[CONF_CALCULATION_TYPE]))
     cg.add(var.set_extended_range(config.get(CONF_EXTENDED_RANGE, False)))

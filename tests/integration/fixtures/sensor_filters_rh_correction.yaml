@@ -1,0 +1,102 @@
+esphome:
+  name: test-rh-correction
+
+host:
+api:
+  batch_delay: 0ms  # Disable batching to receive all state updates
+logger:
+  level: DEBUG
+
+sensor:
+  - platform: template
+    name: "Temperature C"
+    id: temperature_c
+    accuracy_decimals: 1
+
+  - platform: template
+    name: "Temperature F"
+    id: temperature_f
+    accuracy_decimals: 1
+
+  - platform: template
+    name: "Humidity Source"
+    id: humidity_source
+    accuracy_decimals: 1
+
+  - platform: copy
+    source_id: humidity_source
+    name: "RH Celsius"
+    id: rh_celsius
+    accuracy_decimals: 2
+    filters:
+      - rh_correction:
+          sensor_id: temperature_c
+          temperature_offset: -7.3
+
+  - platform: copy
+    source_id: humidity_source
+    name: "RH Fahrenheit"
+    id: rh_fahrenheit
+    accuracy_decimals: 2
+    filters:
+      - rh_correction:
+          sensor_id: temperature_f
+          temperature_offset: -13.14
+          use_fahrenheit: true
+
+script:
+  - id: test_rh_correction
+    then:
+      # Both temperature sensors read 25 °C after a -7.3 °C (-13.14 °F) offset
+      - sensor.template.publish:
+          id: temperature_c
+          state: 25.0
+      - sensor.template.publish:
+          id: temperature_f
+          state: 77.0
+      - sensor.template.publish:
+          id: humidity_source
+          state: 40.0
+      - delay: 20ms
+      # Clamped to 100 %
+      - sensor.template.publish:
+          id: humidity_source
+          state: 90.0
+      - delay: 20ms
+      # Out of band: passes through unchanged
+      - sensor.template.publish:
+          id: temperature_c
+          state: 60.0
+      - sensor.template.publish:
+          id: temperature_f
+          state: 140.0
+      - sensor.template.publish:
+          id: humidity_source
+          state: 40.0
+      - delay: 20ms
+      # NaN temperature: the update is dropped
+      - sensor.template.publish:
+          id: temperature_c
+          state: !lambda "return NAN;"
+      - sensor.template.publish:
+          id: temperature_f
+          state: !lambda "return NAN;"
+      - sensor.template.publish:
+          id: humidity_source
+          state: 50.0
+      - delay: 20ms
+      - sensor.template.publish:
+          id: temperature_c
+          state: 25.0
+      - sensor.template.publish:
+          id: temperature_f
+          state: 77.0
+      - sensor.template.publish:
+          id: humidity_source
+          state: 40.0
+
+button:
+  - platform: template
+    name: "Test RH Correction"
+    on_press:
+      - script.execute: test_rh_correction

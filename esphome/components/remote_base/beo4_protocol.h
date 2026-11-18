@@ -23,19 +23,4 @@ class Beo4Protocol : public RemoteProtocol<Beo4Data> {
 
 DECLARE_REMOTE_PROTOCOL(Beo4)
 
-template<typename... Ts> class Beo4Action : public RemoteTransmitterActionBase<Ts...> {
- public:
-  TEMPLATABLE_VALUE(uint8_t, source)
-  TEMPLATABLE_VALUE(uint8_t, command)
-  TEMPLATABLE_VALUE(uint8_t, repeats)
-
-  void encode(RemoteTransmitData *dst, Ts... x) override {
-    Beo4Data data{};
-    data.source = this->source_.value(x...);
-    data.command = this->command_.value(x...);
-    data.repeats = this->repeats_.value(x...);
-    Beo4Protocol().encode(dst, data);
-  }
-};
-
 }  // namespace esphome::remote_base

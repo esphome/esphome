@@ -4,7 +4,7 @@
 
 namespace esphome::mcp47a1 {
 
-static const char *const TAG = "mcp47a1";
+ESPHOME_LOG_TAG(TAG, "mcp47a1");
 
 void MCP47A1::dump_config() {
   ESP_LOGCONFIG(TAG, "MCP47A1 Output:");

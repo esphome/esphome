@@ -1,13 +1,24 @@
+import logging
+
 from esphome import pins
 import esphome.codegen as cg
-from esphome.components.nrf52.boards import BOOTLOADER_CONFIG
+from esphome.components import network
+from esphome.components.nrf52.boards import MCUMGR_OTA_BOOTLOADERS
+from esphome.components.nrf52.const import (
+    CONF_TRANSPORT,
+    CONF_UDP,
+    FLASH_SECTOR_SIZE,
+    IPV4_UDP_HEADERS,
+    IPV6_UDP_HEADERS,
+    SMP_UDP_LINK_MTU,
+)
 from esphome.components.nrf52.framework import include_west_project
 from esphome.components.ota import BASE_OTA_SCHEMA, OTAComponent, ota_to_code
 from esphome.components.zephyr import (
     HexValue,
-    zephyr_add_cdc_acm,
     zephyr_add_overlay,
     zephyr_add_prj_conf,
+    zephyr_claim_cdc_acm,
     zephyr_data,
 )
 from esphome.components.zephyr.const import (
@@ -31,7 +42,10 @@ from esphome.const import (
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.coroutine import CoroPriority
+import esphome.final_validate as fv
 from esphome.types import ConfigType
+
+_LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@tomaszduda23"]
 DEPENDENCIES = ["zephyr"]
@@ -41,16 +55,22 @@ ZephyrMcumgrOTAComponent = cg.esphome_ns.namespace("zephyr_mcumgr").class_(
 )
 
 CONF_BLE = "ble"
-CONF_TRANSPORT = "transport"
 
 
 def _validate_transport(conf: ConfigType) -> ConfigType:
     transport = conf[CONF_TRANSPORT]
-    if transport[CONF_BLE] or CONF_HARDWARE_UART in transport:
+    if transport[CONF_BLE] or transport[CONF_UDP] or CONF_HARDWARE_UART in transport:
         return conf
     raise cv.Invalid(
-        f"At least one transport protocol has to be enabled. Set '{CONF_BLE}: true' or '{CONF_HARDWARE_UART}'"
+        f"At least one transport protocol has to be enabled. "
+        f"Set '{CONF_BLE}: true', '{CONF_UDP}: true' or '{CONF_HARDWARE_UART}'"
     )
+
+
+def _require_ipv6_for_udp(conf: ConfigType) -> ConfigType:
+    if conf[CONF_TRANSPORT][CONF_UDP]:
+        network.require_ipv6("zephyr_mcumgr")(conf)
+    return conf
 
 
 UARTS = {
@@ -68,6 +88,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_TRANSPORT, default={CONF_BLE: True}): cv.Schema(
                 {
                     cv.Optional(CONF_BLE, default=False): cv.boolean,
+                    cv.Optional(CONF_UDP, default=False): cv.boolean,
                     cv.Optional(
                         CONF_HARDWARE_UART,
                     ): cv.one_of(*UARTS, upper=True),
@@ -83,6 +104,7 @@ CONFIG_SCHEMA = cv.All(
     .extend(BASE_OTA_SCHEMA)
     .extend(cv.COMPONENT_SCHEMA),
     _validate_transport,
+    _require_ipv6_for_udp,
     cv.only_with_framework(Framework.ZEPHYR),
 )
 
@@ -98,11 +120,18 @@ def _validate_ble_server(config: ConfigType) -> None:
         raise cv.Invalid(f"'{KEY_ZEPHYR_BLE_SERVER}' component is required for BLE OTA")
 
 
+def _validate_udp_network(config: ConfigType) -> None:
+    if config[CONF_TRANSPORT][CONF_UDP] and "network" not in CORE.loaded_integrations:
+        raise cv.Invalid(
+            f"'{CONF_UDP}' OTA transport requires a network, for example 'openthread:'"
+        )
+
+
 def _validate_bootloader(config: ConfigType) -> None:
     bootloader = zephyr_data()[KEY_BOOTLOADER]
     if bootloader == BOOTLOADER_MCUBOOT:
         return
-    if bootloader not in BOOTLOADER_CONFIG:
+    if bootloader not in MCUMGR_OTA_BOOTLOADERS:
         raise cv.Invalid(f"{bootloader} does not support OTA")
     framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
     if framework_ver < cv.Version(2, 9, 2):
@@ -113,7 +142,19 @@ def _validate_bootloader(config: ConfigType) -> None:
 
 def _final_validate(config: ConfigType) -> None:
     _validate_ble_server(config)
+    _validate_udp_network(config)
     _validate_bootloader(config)
+    if "zephyr_coredump" in fv.full_config.get():
+        _LOGGER.warning(
+            "zephyr_coredump moves the OTA image slots. A device that already runs mcumgr OTA "
+            "needs one flash over USB after enabling or disabling it; an OTA update alone leaves "
+            "the installed MCUboot with the old slot layout"
+        )
+    if (uart := config[CONF_TRANSPORT].get(CONF_HARDWARE_UART)) is not None:
+        cdc_id = UARTS[uart][1]
+        if cdc_id >= 0:
+            # SMP frames are marked, so log text from the logger on the same port is skipped
+            zephyr_claim_cdc_acm(cdc_id, "zephyr_mcumgr", allow_write_only=True)
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
@@ -158,13 +199,21 @@ async def to_code(config: ConfigType) -> None:
 
         zephyr_add_prj_conf("NCS_SAMPLE_MCUMGR_BT_OTA_DFU_SPEEDUP", True)
         request_ble_l2cap_mtu(498)  # matches NCS_SAMPLE_MCUMGR_BT_OTA_DFU_SPEEDUP
+    if transport[CONF_UDP]:
+        ipv4 = CORE.config[network.DOMAIN][network.CONF_ENABLE_IPV4]
+        zephyr_add_prj_conf("NET_SOCKETS", True)
+        zephyr_add_prj_conf("MCUMGR_TRANSPORT_UDP", True)
+        zephyr_add_prj_conf("MCUMGR_TRANSPORT_UDP_IPV6", True)
+        zephyr_add_prj_conf("MCUMGR_TRANSPORT_UDP_IPV4", ipv4)
+        # The largest frame the host sends; the default 1500 MTU and 2048 B buffers waste RAM
+        udp_mtu = SMP_UDP_LINK_MTU - (IPV4_UDP_HEADERS if ipv4 else IPV6_UDP_HEADERS)
+        zephyr_add_prj_conf("MCUMGR_TRANSPORT_UDP_MTU", udp_mtu)
+        if not transport[CONF_BLE]:
+            # BLE sets its own buffer size; UDP needs only room for one frame
+            zephyr_add_prj_conf("MCUMGR_TRANSPORT_NETBUF_SIZE", udp_mtu)
     if CONF_HARDWARE_UART in transport:
         zephyr_add_prj_conf("SERIAL", True)
-        uart = UARTS[transport[CONF_HARDWARE_UART]]
-        uart_name = uart[0]
-        cdc_id = uart[1]
-        if cdc_id >= 0:
-            zephyr_add_cdc_acm(config, cdc_id)
+        uart_name = UARTS[transport[CONF_HARDWARE_UART]][0]
         zephyr_add_prj_conf("MCUMGR_TRANSPORT_UART", True)
         zephyr_add_prj_conf("BASE64", True)
         zephyr_add_prj_conf("CONSOLE", True)
@@ -209,17 +258,18 @@ async def to_code(config: ConfigType) -> None:
 
     bootloader = zephyr_data()[KEY_BOOTLOADER]
     if bootloader != BOOTLOADER_MCUBOOT:
-        # Derive partition addresses from the SoftDevice and bootloader sections
-        # registered with the Partition Manager (moved in testing mode) so that
-        # the DTS flash map matches what it produces:
-        #   MCUboot sits immediately after the SoftDevice, then slot0, then slot1.
+        # Derive partition addresses from the sections registered with the
+        # Partition Manager (moved in testing mode) so that the DTS flash map
+        # matches what it produces:
+        #   MCUboot sits immediately after the SoftDevice, then slot0, then slot1,
+        #   which ends at the lowest section reserved above (bootloader, coredump).
         sections = zephyr_data()[KEY_PM_STATIC]
         mcuboot_size = 0x9000
-        sd_end = next(s.address + s.size for s in sections if "SoftDevice" in s.name)
-        bl_start = next(s.address for s in sections if "Adafruit" in s.name)
+        sd_end = next(s.end_address for s in sections if "SoftDevice" in s.name)
+        top = min(s.address for s in sections if s.address >= sd_end)
         slot0_start = sd_end + mcuboot_size
         # Align slot size down to a 4 KB sector boundary
-        slot_size = ((bl_start - slot0_start) // 2 // 0x1000) * 0x1000
+        slot_size = (top - slot0_start) // 2 // FLASH_SECTOR_SIZE * FLASH_SECTOR_SIZE
         slot1_start = slot0_start + slot_size
 
         def _mcuboot_partition_overlay() -> str:

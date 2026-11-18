@@ -4,7 +4,7 @@
 
 namespace esphome::uart_mux {
 
-static const char *const TAG = "uart_mux";
+ESPHOME_LOG_TAG(TAG, "uart_mux");
 
 void UARTMux::setup() {
   // A failed UART never assigned its port; nothing behind the mux can work.

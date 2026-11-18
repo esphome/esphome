@@ -69,8 +69,9 @@ Key methods:
 
 | Method | Effect |
 |---|---|
-| `manifest.enable_codegen()` | Remove the `to_code` suppression, re-enabling code generation |
-| `manifest.restore()` | Clear **all** overrides, reverting every attribute to the original |
+| `manifest.enable_codegen()` | Remove the `to_code` suppression, re-enabling code generation; a custom `to_code` set by another override is kept |
+| `manifest.add_resources(*files)` | Copy extra `FileResource` files into the build; the component's own file list is still read at build time, after `FILTER_SOURCE_FILES` sees the defines |
+| `manifest.restore()` | Clear **all** overrides and added resources, reverting every attribute to the original |
 
 The function is called after `to_code` has already been set to `None`, so calling
 `enable_codegen()` is a deliberate opt-in.

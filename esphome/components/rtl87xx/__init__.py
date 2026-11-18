@@ -29,12 +29,14 @@ from esphome.components.libretiny.const import (
 )
 from esphome.core import CORE
 from esphome.cpp_generator import MockObj
+from esphome.stacktrace import process_crash_handler_line as process_stacktrace  # noqa: F401
 from esphome.types import ConfigType
 
 from .boards import RTL87XX_BOARD_PINS, RTL87XX_BOARDS
 
 CODEOWNERS = ["@kuba2k2"]
 AUTO_LOAD = ["libretiny"]
+DOMAIN = "rtl87xx"
 IS_TARGET_PLATFORM = True
 
 COMPONENT_DATA = LibreTinyComponent(
@@ -76,3 +78,7 @@ async def pin_to_code(config: ConfigType) -> MockObj:
 # Called by writer.py; delegates to the shared libretiny implementation.
 def copy_files() -> None:
     libretiny.copy_files()
+
+
+# Called by the OTA upload; the shared libretiny implementation.
+ota_image = libretiny.device_ota_image

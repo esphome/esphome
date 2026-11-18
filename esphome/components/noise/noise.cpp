@@ -13,7 +13,7 @@
 
 namespace esphome::noise {
 
-static const char *const TAG = "noise";
+ESPHOME_LOG_TAG(TAG, "noise");
 
 void NoiseContext::load_psk(psk_t &out) const {
   if (this->psk_ == nullptr) {

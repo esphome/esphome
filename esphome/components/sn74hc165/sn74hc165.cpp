@@ -3,7 +3,7 @@
 
 namespace esphome::sn74hc165 {
 
-static const char *const TAG = "sn74hc165";
+ESPHOME_LOG_TAG(TAG, "sn74hc165");
 
 void SN74HC165Component::setup() {
   // initialize pins

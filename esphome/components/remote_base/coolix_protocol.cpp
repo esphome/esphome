@@ -3,7 +3,7 @@
 
 namespace esphome::remote_base {
 
-static const char *const TAG = "remote.coolix";
+ESPHOME_LOG_TAG(TAG, "remote.coolix");
 
 static const int32_t TICK_US = 560;
 static const int32_t HEADER_MARK_US = 8 * TICK_US;

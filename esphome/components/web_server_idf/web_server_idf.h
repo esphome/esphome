@@ -45,6 +45,8 @@ class AsyncWebParameter {
 class AsyncWebServerRequest;
 
 class AsyncWebServerResponse {
+  friend class AsyncWebServerRequest;
+
  public:
   AsyncWebServerResponse(const AsyncWebServerRequest *req) : req_(req) {}
   virtual ~AsyncWebServerResponse() {}
@@ -57,6 +59,8 @@ class AsyncWebServerResponse {
 
  protected:
   const AsyncWebServerRequest *req_;
+  // Bit i set: this response set default header i itself, so it is not sent at send time
+  uint8_t replaced_defaults_{0};
 };
 
 class AsyncWebServerResponseEmpty : public AsyncWebServerResponse {
@@ -129,11 +133,10 @@ class AsyncWebServerRequest {
   void requestAuthentication() const;
 #endif
 
-  void redirect(const std::string &url);
+  void redirect(const char *url);
+  void redirect(const std::string &url) { this->redirect(url.c_str()); }
 
-  inline void ESPHOME_ALWAYS_INLINE send(AsyncWebServerResponse *response) {
-    httpd_resp_send(*this, response->get_content_data(), response->get_content_size());
-  }
+  void send(AsyncWebServerResponse *response);
   inline void ESPHOME_ALWAYS_INLINE send(int code, const char *content_type = nullptr, const char *content = nullptr) {
     this->init_response_(nullptr, code, content_type);
     if (content) {
@@ -182,8 +185,17 @@ class AsyncWebServerRequest {
   std::string arg(const char *name);
   std::string arg(const std::string &name) { return this->arg(name.c_str()); }
 
+#ifdef USE_WEBSERVER_OTA
+  /// Called when the request ends, including early returns.
+  // NOLINTNEXTLINE(readability-identifier-naming)
+  void onDisconnect(std::function<void()> fn) { this->on_disconnect_ = std::move(fn); }
+#endif
+
   operator httpd_req_t *() const { return this->req_; }
   optional<std::string> get_header(const char *name) const;
+  /// Copy a header value into buf without heap allocation.
+  /// Returns its length, 0 when absent, or SIZE_MAX when it does not fit in buf.
+  size_t get_header_to(const char *name, std::span<char> buf) const;
   // NOLINTNEXTLINE(readability-identifier-naming)
   bool hasHeader(const char *name) const;
 
@@ -197,6 +209,9 @@ class AsyncWebServerRequest {
   optional<std::string> find_query_value_(const char *name) const;
   std::vector<AsyncWebParameter *> params_;
   std::string post_query_;
+#ifdef USE_WEBSERVER_OTA
+  std::function<void()> on_disconnect_;
+#endif
   AsyncWebServerRequest(httpd_req_t *req) : req_(req) {}
   AsyncWebServerRequest(httpd_req_t *req, std::string post_query) : req_(req), post_query_(std::move(post_query)) {}
   void init_response_(AsyncWebServerResponse *rsp, int code, const char *content_type);
@@ -206,7 +221,7 @@ class AsyncWebHandler;
 
 class AsyncWebServer {
  public:
-  AsyncWebServer(uint16_t port) : port_(port){};
+  AsyncWebServer(uint16_t port) : port_(port) {};
   ~AsyncWebServer() { this->end(); }
 
   // NOLINTNEXTLINE(readability-identifier-naming)
@@ -291,7 +306,10 @@ class AsyncEventSourceResponse {
  public:
   bool try_send_nodefer(const char *message, size_t message_len, const char *event = nullptr, uint32_t id = 0,
                         uint32_t reconnect = 0);
-  void deferrable_send_state(void *source, const char *event_type, message_generator_t *message_generator);
+  // detail_all events go out while entities are still being listed; state events wait until listing is done
+  void deferrable_send_state(void *source, bool detail_all, message_generator_t *message_generator);
+  // The old event name argument would otherwise convert to true
+  void deferrable_send_state(void *source, const char *event_type, message_generator_t *message_generator) = delete;
   void loop();
 
  protected:
@@ -326,8 +344,8 @@ class AsyncEventSourceResponse {
   // Keep the arena out of the caller's frame so it is gone before the state send.
   // size_out: BUFFER = JSON length, NO_MEMORY = requested tail capacity, TOO_LARGE = available JSON room;
   // unused for TAIL.
-  JsonPrepareResult __attribute__((noinline))
-  prepare_json_(void *source, message_generator_t *generator, char *buffer, size_t *size_out);
+  JsonPrepareResult __attribute__((noinline)) prepare_json_(void *source, message_generator_t *generator, char *buffer,
+                                                            size_t *size_out);
   // Warn once, and close the session once the stall timeout passes with no memory for the tail
   void tail_alloc_failed_(size_t cap);
   void request_close_();
@@ -414,7 +432,9 @@ class AsyncEventSource : public AsyncWebHandler {
   void handleRequest(AsyncWebServerRequest *request) override;
   void try_send_nodefer(const char *message, size_t message_len, const char *event = nullptr, uint32_t id = 0,
                         uint32_t reconnect = 0);
-  void deferrable_send_state(void *source, const char *event_type, message_generator_t *message_generator);
+  void deferrable_send_state(void *source, bool detail_all, message_generator_t *message_generator);
+  // The old event name argument would otherwise convert to true
+  void deferrable_send_state(void *source, const char *event_type, message_generator_t *message_generator) = delete;
   /// Returns true if there are sessions remaining (including pending cleanup).
   bool loop();
   bool empty() { return this->count() == 0; }
@@ -443,9 +463,11 @@ struct HttpHeader {
 
 class DefaultHeaders {
   friend class AsyncWebServerRequest;
+  friend class AsyncWebServerResponse;
 #ifdef USE_WEBSERVER
   friend class AsyncEventSourceResponse;
 #endif
+  static_assert(WEB_SERVER_DEFAULT_HEADERS_COUNT <= 8, "AsyncWebServerResponse::replaced_defaults_ holds 8 bits");
 
  public:
   // NOLINTNEXTLINE(readability-identifier-naming)
@@ -457,6 +479,9 @@ class DefaultHeaders {
  protected:
   // Stack-allocated, no reallocation machinery. Count defined in web_server_base where headers are added.
   StaticVector<HttpHeader, WEB_SERVER_DEFAULT_HEADERS_COUNT> headers_;
+
+  /// Set every default header on the response except those whose bit is set in skip_mask.
+  void apply_(httpd_req_t *req, uint8_t skip_mask = 0) const;
 };
 
 }  // namespace web_server_idf

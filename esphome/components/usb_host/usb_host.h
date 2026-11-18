@@ -12,6 +12,7 @@
 #include <freertos/task.h>
 #include "esphome/core/lock_free_queue.h"
 #include "esphome/core/event_pool.h"
+#include "esphome/core/log.h"
 #include <atomic>
 #include <span>
 
@@ -39,7 +40,7 @@ namespace esphome::usb_host {
 // - Main loop controls backpressure by deciding when to restart after consuming data
 // The atomic bitmask ensures thread-safe allocation/deallocation without mutex blocking.
 
-static const char *const TAG = "usb_host";
+ESPHOME_LOG_TAG(TAG, "usb_host");
 
 // Forward declarations
 struct TransferRequest;

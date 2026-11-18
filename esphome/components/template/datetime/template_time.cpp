@@ -6,7 +6,7 @@
 
 namespace esphome::template_ {
 
-static const char *const TAG = "template.time";
+ESPHOME_LOG_TAG(TAG, "template.time");
 
 void TemplateTime::setup() {
   if (this->f_.has_value())

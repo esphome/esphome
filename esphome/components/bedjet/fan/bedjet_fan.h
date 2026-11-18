@@ -20,7 +20,7 @@ class BedJetFan final : public fan::Fan, public BedJetClient, public PollingComp
 
   /* BedJetClient status update */
   void on_status(const BedjetStatusPacket *data) override;
-  void on_bedjet_state(bool is_ready) override{};
+  void on_bedjet_state(bool is_ready) override {};
   std::string describe() override;
 
   fan::FanTraits get_traits() override { return fan::FanTraits(false, true, false, BEDJET_FAN_SPEED_COUNT); }

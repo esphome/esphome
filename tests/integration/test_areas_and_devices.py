@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import asyncio
 
-from aioesphomeapi import EntityState, SwitchInfo, SwitchState
+from aioesphomeapi import DeviceRelation, EntityState, SwitchInfo, SwitchState
 import pytest
 
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -68,6 +69,20 @@ async def test_areas_and_devices(
             "Smart Switch should be in Kitchen"
         )
 
+        # The fixture mixes relations, so each device stores and sends its own
+        assert light_controller.relation == DeviceRelation.VIA, (
+            "Light Controller should be a via device"
+        )
+        assert temp_sensor.relation == DeviceRelation.VIA, (
+            "Temperature Sensor should be a via device"
+        )
+        assert motion_detector.relation == DeviceRelation.CHILD, (
+            "Motion Detector should be a child device"
+        )
+        assert smart_switch.relation == DeviceRelation.CHILD, (
+            "Smart Switch should be a child device"
+        )
+
         # Verify suggested_area is set to the top-level area name
         assert device_info.suggested_area == "Living Room", (
             f"Expected suggested_area to be 'Living Room', got '{device_info.suggested_area}'"
@@ -118,13 +133,12 @@ async def test_areas_and_devices(
         client.subscribe_states(on_state)
 
         # Wait for sensor states
-        try:
-            await asyncio.wait_for(initial_states_future, timeout=10.0)
-        except TimeoutError:
-            pytest.fail(
-                f"Did not receive all states within 10 seconds. "
-                f"Received {len(states)} states"
-            )
+        await wait_or_fail(
+            initial_states_future,
+            10.0,
+            "Did not receive all states within 10 seconds",
+            states=states,
+        )
 
         # Verify we have sensor entities with proper device_id assignments
         device_id_mapping = {

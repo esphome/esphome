@@ -38,7 +38,12 @@ I2SAudioMicrophone = i2s_audio_ns.class_(
 )
 
 INTERNAL_ADC_VARIANTS = [esp32.VARIANT_ESP32]
-PDM_VARIANTS = [esp32.VARIANT_ESP32, esp32.VARIANT_ESP32S3, esp32.VARIANT_ESP32P4]
+PDM_VARIANTS = [
+    esp32.VARIANT_ESP32,
+    esp32.VARIANT_ESP32S3,
+    esp32.VARIANT_ESP32P4,
+    esp32.VARIANT_ESP32S31,
+]
 
 i2s_pdm_dsr_t = cg.global_ns.enum("i2s_pdm_dsr_t")
 I2S_PDM_DSR = {

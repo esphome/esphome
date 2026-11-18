@@ -50,8 +50,9 @@ class LWIPRawCommon {
 
  protected:
   int ip2sockaddr_(ip_addr_t *ip, uint16_t port, struct sockaddr *name, socklen_t *addrlen);
-  /// sockaddr of this socket's family to lwip address and port; false with errno on mismatch
-  bool sockaddr2ip_(const struct sockaddr *name, socklen_t addrlen, ip_addr_t *ip, uint16_t *port) const;
+  /// sockaddr of this socket's family to lwip address and port; false with errno on mismatch.
+  /// for_bind keeps an IPv6 wildcard dual stack, otherwise the type is concrete.
+  bool sockaddr2ip_(const struct sockaddr *name, socklen_t addrlen, ip_addr_t *ip, uint16_t *port, bool for_bind) const;
 
   // Member ordering optimized to minimize padding on 32-bit systems
   struct tcp_pcb *pcb_;

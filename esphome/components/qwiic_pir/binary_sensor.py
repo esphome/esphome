@@ -24,12 +24,6 @@ QwiicPIRComponent = qwiic_pir_ns.class_(
 )
 
 
-def validate_no_debounce_unless_native(config: ConfigType) -> ConfigType:
-    if CONF_DEBOUNCE in config and config[CONF_DEBOUNCE_MODE] != "NATIVE":
-        raise cv.Invalid("debounce can only be set if debounce_mode is NATIVE")
-    return config
-
-
 CONFIG_SCHEMA = cv.All(
     binary_sensor.binary_sensor_schema(
         QwiicPIRComponent,
@@ -48,7 +42,7 @@ CONFIG_SCHEMA = cv.All(
     )
     .extend(cv.COMPONENT_SCHEMA)
     .extend(i2c.i2c_device_schema(0x12)),
-    validate_no_debounce_unless_native,
+    cv.only_when(CONF_DEBOUNCE, CONF_DEBOUNCE_MODE, "NATIVE"),
 )
 
 

@@ -1,0 +1,1 @@
+DOMAIN = "thermopro_ble"

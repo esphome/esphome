@@ -3,7 +3,7 @@
 
 namespace esphome::nfc {
 
-static const char *const TAG = "nfc.ndef_message";
+ESPHOME_LOG_TAG(TAG, "nfc.ndef_message");
 
 NdefMessage::NdefMessage(const std::span<const uint8_t> data) {
   ESP_LOGV(TAG, "Building NdefMessage with %zu bytes", data.size());
@@ -48,17 +48,24 @@ NdefMessage::NdefMessage(const std::span<const uint8_t> data) {
 
     ESP_LOGVV(TAG, "Lengths: type=%d, payload=%" PRIu32 ", id=%d", type_length, payload_length, id_length);
 
+    if (index + type_length > data.size()) {
+      ESP_LOGE(TAG, "Truncated type; aborting");
+      break;
+    }
     std::string type_str(data.begin() + index, data.begin() + index + type_length);
-
     index += type_length;
 
     std::string id_str;
     if (il) {
+      if (index + id_length > data.size()) {
+        ESP_LOGE(TAG, "Truncated ID; aborting");
+        break;
+      }
       id_str = std::string(data.begin() + index, data.begin() + index + id_length);
       index += id_length;
     }
 
-    if ((data.begin() + index > data.end()) || (data.begin() + index + payload_length > data.end())) {
+    if (payload_length > data.size() - index) {
       ESP_LOGE(TAG, "Corrupt record encountered; NdefMessage constructor aborting");
       break;
     }

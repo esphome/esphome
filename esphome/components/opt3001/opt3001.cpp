@@ -3,7 +3,10 @@
 
 namespace esphome::opt3001 {
 
-static const char *const TAG = "opt3001.sensor";
+ESPHOME_LOG_TAG(TAG, "opt3001.sensor");
+
+static constexpr uint32_t RESULT_RETRY_TIMEOUT_ID = 0;
+static constexpr uint32_t READ_TIMEOUT_ID = 1;
 
 static const uint8_t OPT3001_REG_RESULT = 0x00;
 static const uint8_t OPT3001_REG_CONFIGURATION = 0x01;
@@ -42,7 +45,7 @@ void OPT3001Sensor::read_result_(const std::function<void(float)> &f) {
   if ((raw_value & OPT3001_CONFIGURATION_CONVERSION_MODE_MASK) != OPT3001_CONFIGURATION_CONVERSION_MODE_SHUTDOWN) {
     // not ready; wait 10ms and try again
     ESP_LOGW(TAG, "Data not ready; waiting 10ms");
-    this->set_timeout("opt3001_wait", 10, [this, f]() { read_result_(f); });
+    this->set_timeout(RESULT_RETRY_TIMEOUT_ID, 10, [this, f]() { read_result_(f); });
     return;
   }
 
@@ -70,7 +73,7 @@ void OPT3001Sensor::read_lx_(const std::function<void(float)> &f) {
     return;
   }
 
-  this->set_timeout("read", OPT3001_CONVERSION_TIME_800, [this, f]() {
+  this->set_timeout(READ_TIMEOUT_ID, OPT3001_CONVERSION_TIME_800, [this, f]() {
     if (this->write(&OPT3001_REG_CONFIGURATION, 1) != i2c::ERROR_OK) {
       ESP_LOGW(TAG, "Starting configuration register read failed");
       f(NAN);
@@ -84,9 +87,6 @@ void OPT3001Sensor::read_lx_(const std::function<void(float)> &f) {
 void OPT3001Sensor::dump_config() {
   LOG_SENSOR("", "OPT3001", this);
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
 
   LOG_UPDATE_INTERVAL(this);
 }
@@ -104,13 +104,11 @@ void OPT3001Sensor::update() {
   this->read_lx_([this](float val) {
     this->updating_ = false;
 
-    if (std::isnan(val)) {
-      this->status_set_warning();
+    if (!this->status_comm_result(!std::isnan(val))) {
       this->publish_state(NAN);
       return;
     }
-    ESP_LOGD(TAG, "'%s': Illuminance=%.1flx", this->get_name().c_str(), val);
-    this->status_clear_warning();
+    ESP_LOGD(TAG, "'%s': Illuminance=%.1flx", LOG_STR_ARG(this->get_log_name()), val);
     this->publish_state(val);
   });
 }

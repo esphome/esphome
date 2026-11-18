@@ -16,3 +16,5 @@ sensor:
       name: BL0939 Energy 2
     energy_total:
       name: BL0939 Total energy
+    internal_temperature:
+      name: BL0939 Internal Temperature

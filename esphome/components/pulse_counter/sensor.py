@@ -28,11 +28,9 @@ CONF_USE_PCNT = "use_pcnt"
 
 pulse_counter_ns = cg.esphome_ns.namespace("pulse_counter")
 PulseCounterCountMode = pulse_counter_ns.enum("PulseCounterCountMode")
-COUNT_MODES = {
-    "DISABLE": PulseCounterCountMode.PULSE_COUNTER_DISABLE,
-    "INCREMENT": PulseCounterCountMode.PULSE_COUNTER_INCREMENT,
-    "DECREMENT": PulseCounterCountMode.PULSE_COUNTER_DECREMENT,
-}
+COUNT_MODES = PulseCounterCountMode.options(
+    "DISABLE", "INCREMENT", "DECREMENT", prefix="PULSE_COUNTER_"
+)
 
 COUNT_MODE_SCHEMA = cv.enum(COUNT_MODES, upper=True)
 
@@ -133,8 +131,7 @@ async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config, use_pcnt)
     await cg.register_component(var, config)
 
-    pin = await cg.gpio_pin_expression(config[CONF_PIN])
-    cg.add(var.set_pin(pin))
+    await cg.add_pin(var.set_pin, config[CONF_PIN])
     count = config[CONF_COUNT_MODE]
     cg.add(var.set_rising_edge_mode(count[CONF_RISING_EDGE]))
     cg.add(var.set_falling_edge_mode(count[CONF_FALLING_EDGE]))

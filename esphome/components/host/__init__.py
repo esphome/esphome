@@ -1,9 +1,11 @@
 import sys
 
 import esphome.codegen as cg
+from esphome.components import network
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_MAC_ADDRESS,
+    CONF_USE_ADDRESS,
     KEY_CORE,
     KEY_FRAMEWORK_VERSION,
     KEY_TARGET_FRAMEWORK,
@@ -23,6 +25,7 @@ from .gpio import host_pin_to_code  # noqa: F401
 
 CODEOWNERS = ["@esphome/core", "@clydebarrow"]
 AUTO_LOAD = ["network", "preferences"]
+DOMAIN = "host"
 IS_TARGET_PLATFORM = True
 
 
@@ -38,12 +41,14 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.Optional(CONF_MAC_ADDRESS, default="98:35:69:ab:f6:79"): cv.mac_address,
+            cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
         }
     ),
     # The host builds with the machine's own compiler through ninja; there
     # is no PlatformIO backend, so a CLI --toolchain must name this one
     cv.resolve_toolchain("host", (Toolchain.HOST,), Toolchain.HOST),
     set_core_data,
+    network.require_ipv4(PLATFORM_HOST),
 )
 
 

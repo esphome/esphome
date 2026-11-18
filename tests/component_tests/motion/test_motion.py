@@ -944,6 +944,7 @@ class TestEventSchema:
 def mock_binary_sensor_codegen():
     mock_var = MagicMock()
     mock_parent = MagicMock()
+    mock_add = MagicMock()
     with (
         patch(
             "esphome.components.motion.binary_sensor.cg.get_variable",
@@ -962,9 +963,8 @@ def mock_binary_sensor_codegen():
             "esphome.components.motion.binary_sensor.cg.register_component",
             new_callable=AsyncMock,
         ) as mock_reg_comp,
-        patch(
-            "esphome.components.motion.binary_sensor.cg.add",
-        ) as mock_add,
+        patch("esphome.components.motion.binary_sensor.cg.add", mock_add),
+        patch("esphome.cpp_helpers.add", mock_add),
     ):
         yield {
             "get_variable": mock_get_var,

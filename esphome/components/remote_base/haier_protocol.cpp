@@ -1,10 +1,11 @@
 #include "haier_protocol.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::remote_base {
 
-static const char *const TAG = "remote.haier";
+ESPHOME_LOG_TAG(TAG, "remote.haier");
 
 constexpr uint32_t HEADER_LOW_US = 3100;
 constexpr uint32_t HEADER_HIGH_US = 4400;
@@ -29,16 +30,17 @@ void HaierProtocol::encode_byte_(RemoteTransmitData *dst, uint8_t item) {
   }
 }
 
-void HaierProtocol::encode(RemoteTransmitData *dst, const HaierData &data) {
+void HaierProtocol::encode(RemoteTransmitData *dst, const uint8_t *data, size_t len) {
   dst->set_carrier_frequency(38000);
-  dst->reserve(5 + ((data.data.size() + 1) * 16));
+  dst->reserve(5 + ((len + 1) * 16));
   dst->mark(HEADER_LOW_US);
   dst->space(HEADER_LOW_US);
   dst->mark(HEADER_LOW_US);
   dst->space(HEADER_HIGH_US);
   dst->mark(BIT_MARK_US);
   uint8_t checksum = 0;
-  for (uint8_t item : data.data) {
+  for (size_t i = 0; i < len; i++) {
+    const uint8_t item = progmem_read_byte(data + i);
     this->encode_byte_(dst, item);
     checksum += item;
   }

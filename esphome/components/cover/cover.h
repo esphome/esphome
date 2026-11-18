@@ -14,8 +14,7 @@ static constexpr float COVER_OPEN = 1.0f;
 static constexpr float COVER_CLOSED = 0.0f;
 
 #define LOG_COVER(prefix, type, obj) \
-  if ((obj) != nullptr) { \
-    ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, LOG_STR_LITERAL(type), (obj)->get_name().c_str()); \
+  if (log_entity_header(TAG, prefix, LOG_STR_LITERAL(type), (obj))) { \
     auto traits_ = (obj)->get_traits(); \
     if (traits_.get_is_assumed_state()) { \
       ESP_LOGCONFIG(TAG, "%s  Assumed State: YES", prefix); \
@@ -37,6 +36,8 @@ class CoverCall {
   CoverCall &set_command_close();
   /// Set the command to stop the cover.
   CoverCall &set_command_stop();
+  /// Set the command to stop the cover tilt.
+  CoverCall &set_command_stop_tilt();
   /// Set the command to toggle the cover.
   CoverCall &set_command_toggle();
   /// Set the call to a certain target position.
@@ -45,12 +46,15 @@ class CoverCall {
   CoverCall &set_tilt(float tilt);
   /// Set whether this cover call should stop the cover.
   CoverCall &set_stop(bool stop);
+  /// Set whether this cover call should stop the cover tilt.
+  CoverCall &set_stop_tilt(bool stop_tilt);
 
   /// Perform the cover call.
   void perform();
 
   const optional<float> &get_position() const;
   bool get_stop() const { return this->stop_; }
+  bool get_stop_tilt() const { return this->stop_tilt_; }
   const optional<float> &get_tilt() const;
   const optional<bool> &get_toggle() const;
 
@@ -59,6 +63,7 @@ class CoverCall {
 
   Cover *parent_;
   bool stop_{false};
+  bool stop_tilt_{false};
   optional<float> position_{};
   optional<float> tilt_{};
   optional<bool> toggle_{};

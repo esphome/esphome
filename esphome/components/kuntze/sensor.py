@@ -3,7 +3,6 @@ from esphome.components import modbus, sensor
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_EC,
-    CONF_ID,
     CONF_PH,
     CONF_TEMPERATURE,
     DEVICE_CLASS_EMPTY,
@@ -97,9 +96,7 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await modbus.register_modbus_client_device(var, config)
+    var = await modbus.new_modbus_client_component(config)
 
     sensors = sensor.sub_sensors(config)
     await sensors(CONF_PH, var.set_ph_sensor)

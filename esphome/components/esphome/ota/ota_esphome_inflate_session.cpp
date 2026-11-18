@@ -7,7 +7,7 @@
 
 namespace esphome {
 
-static const char *const TAG = "esphome.ota";
+ESPHOME_LOG_TAG(TAG, "esphome.ota");
 
 // The window doubles as the output buffer; flushed bytes stay as back
 // reference history for the next windowful.

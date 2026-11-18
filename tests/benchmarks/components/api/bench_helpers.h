@@ -30,7 +30,7 @@ inline std::pair<std::unique_ptr<socket::Socket>, int> create_tcp_loopback() {
   int opt = 1;
   ::setsockopt(listen_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
 
-  struct sockaddr_in addr {};
+  struct sockaddr_in addr{};
   addr.sin_family = AF_INET;
   addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
   addr.sin_port = 0;  // OS-assigned port

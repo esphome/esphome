@@ -37,8 +37,7 @@ async def to_code(config: ConfigType) -> None:
     var = await binary_sensor.new_binary_sensor(config)
     await cg.register_component(var, config)
 
-    sens = await cg.get_variable(config[CONF_SENSOR_ID])
-    cg.add(var.set_sensor(sens))
+    await cg.add_variable(var.set_sensor, config[CONF_SENSOR_ID])
 
     if isinstance(config[CONF_THRESHOLD], dict):
         lower = await cg.templatable(config[CONF_THRESHOLD][CONF_LOWER], [], cg.float_)

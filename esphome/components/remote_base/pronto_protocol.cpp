@@ -37,7 +37,7 @@
 
 namespace esphome::remote_base {
 
-static const char *const TAG = "remote.pronto";
+ESPHOME_LOG_TAG(TAG, "remote.pronto");
 
 bool ProntoData::operator==(const ProntoData &rhs) const {
   std::vector<uint16_t> data1 = encode_pronto(data);

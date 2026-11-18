@@ -7,7 +7,6 @@ import ipaddress
 import logging
 import os
 from pathlib import Path
-import platform
 import re
 import stat
 import sys
@@ -41,9 +40,9 @@ FALSY_BOOL_STRINGS = frozenset({"false", "no", "off", "disable"})
 TRUTHY_ENV_STRINGS = TRUTHY_BOOL_STRINGS | {"1"}
 FALSY_ENV_STRINGS = FALSY_BOOL_STRINGS | {"0"}
 
-IS_MACOS = platform.system() == "Darwin"
-IS_WINDOWS = platform.system() == "Windows"
-IS_LINUX = platform.system() == "Linux"
+IS_MACOS = sys.platform == "darwin"
+IS_WINDOWS = sys.platform == "win32"
+IS_LINUX = sys.platform.startswith("linux")
 
 # FNV-1 hash constants (must match C++ in esphome/core/helpers.h)
 FNV1_OFFSET_BASIS = 2166136261

@@ -3,7 +3,7 @@
 
 namespace esphome::sun {
 
-static const char *const TAG = "sun.text_sensor";
+ESPHOME_LOG_TAG(TAG, "sun.text_sensor");
 
 void SunTextSensor::dump_config() { LOG_TEXT_SENSOR("", "Sun Text Sensor", this); }
 

@@ -1,6 +1,7 @@
 """Tests for the api wizard: schema, final validation and generated tables."""
 
 from collections.abc import Callable
+import importlib
 import json
 from pathlib import Path
 import random
@@ -8,13 +9,20 @@ import re
 import string
 import textwrap
 
+from aioesphomeapi.model import COMPONENT_TYPE_TO_INFO
 import pytest
 
 from esphome.components.api import wizard
 from esphome.components.homeassistant.switch import SUPPORTED_DOMAINS as SWITCH_DOMAINS
 from esphome.config import load_config
-from esphome.core import CORE
-from esphome.helpers import fnv1_hash, fnv1a_32bit_hash, zstd_module
+from esphome.core import CORE, ID
+from esphome.cpp_generator import MockObjClass
+from esphome.helpers import (
+    fnv1_hash,
+    fnv1_hash_object_id,
+    fnv1a_32bit_hash,
+    zstd_module,
+)
 from tests.component_tests.helpers import get_define_value
 
 ESP32_HEADER = """
@@ -301,6 +309,16 @@ def test_entity_id_is_optional_only_for_wizard_inputs(
             "entity_id is required unless this entity is a wizard input" in error
             for error in errors
         ), errors
+
+
+def test_light_is_a_wizard_input(tmp_path: Path) -> None:
+    entities = "light:\n  - platform: homeassistant\n    id: ha_light\n"
+    errors = config_errors(
+        write_config(
+            tmp_path, ESP32_HEADER, wizard_inputs("- entity: ha_light"), entities
+        )
+    )
+    assert errors == []
 
 
 def test_entity_id_is_optional_for_an_input_and_its_domain_is_checked(
@@ -676,6 +694,7 @@ DEVICES_HEADER = """
       devices:
         - id: kitchen_dev
           name: Kitchen
+          relation: via
 
     esp32:
       variant: esp32
@@ -739,7 +758,8 @@ def blob_in(main_cpp: str) -> bytes:
 def entity_hash(main_cpp: str, variable: str) -> int:
     """The key the generated code passes to configure_entity_, which ListEntities then sends."""
     match = re.search(
-        rf'App\.register_switch\({variable}, "[^"]*", (\d+)UL, \d+\)', main_cpp
+        rf'App\.register_switch\({variable}, ESPHOME_PSTR\("[^"]*"\), (\d+)UL, \d+\)',
+        main_cpp,
     )
     assert match is not None, variable
     return int(match.group(1))
@@ -762,9 +782,14 @@ def test_the_blob_is_the_exact_json_document(
                 "description": "Pick",
                 "entities": [
                     # No device_id for the main device, and no description when unset
-                    {"key": entity_hash(main_cpp, "sw"), "description": "Enable"},
+                    {
+                        "key": entity_hash(main_cpp, "sw"),
+                        "platform": "switch",
+                        "description": "Enable",
+                    },
                     {
                         "key": entity_hash(main_cpp, "sw2"),
+                        "platform": "switch",
                         "device_id": fnv1a_32bit_hash("kitchen_dev"),
                     },
                 ],
@@ -972,12 +997,12 @@ def test_multiple_input_is_valid(tmp_path: Path, input_conf: str) -> None:
         ),
         pytest.param(
             "- {id: cals, max_length: 1023}",
-            "max_length only applies to an input with multiple: true",
+            "'max_length' is only valid when 'multiple' is true",
             id="max-length-without-multiple",
         ),
         pytest.param(
             "- {id: cals, multiple: false, max_length: 1023}",
-            "max_length only applies to an input with multiple: true",
+            "'max_length' is only valid when 'multiple' is true",
             id="max-length-multiple-false",
         ),
         pytest.param(
@@ -1041,3 +1066,267 @@ def test_inputs_without_multiple_keep_the_two_field_table(
 
     assert f"{{{fnv1_hash('single')}u, api_wizard_input_single}}" in main_cpp
     assert "MULTIPLE_INPUTS" not in {d.name for d in CORE.defines}
+
+
+def wizard_entities(main_cpp: str) -> list[dict[str, object]]:
+    """The entities of the first page of the wizard that the generated code puts in flash."""
+    document = json.loads(zstd_module().decompress(blob_in(main_cpp)))
+    return document["pages"][0]["entities"]
+
+
+def test_an_entity_role_is_sent_with_the_entity(
+    tmp_path: Path, generate_main: Callable[[str | Path], str]
+) -> None:
+    wizard.register_entity_role(ID("sw", is_declaration=True), "example.enable")
+
+    main_cpp = generate_main(
+        write_config(tmp_path, DEVICES_HEADER, wizard_api(JSON_PAGES), JSON_ENTITIES)
+    )
+
+    # Only the entity with a role gets one
+    assert wizard_entities(main_cpp) == [
+        {
+            "key": entity_hash(main_cpp, "sw"),
+            "platform": "switch",
+            "description": "Enable",
+            "role": "example.enable",
+        },
+        {
+            "key": entity_hash(main_cpp, "sw2"),
+            "platform": "switch",
+            "device_id": fnv1a_32bit_hash("kitchen_dev"),
+        },
+    ]
+
+
+def test_entities_sharing_a_name_are_told_apart_by_platform(
+    tmp_path: Path, generate_main: Callable[[str | Path], str]
+) -> None:
+    entities = """
+        sensor:
+          - platform: template
+            id: power_sensor
+            name: Power
+        switch:
+          - platform: template
+            id: power_switch
+            name: Power
+            optimistic: true
+        """
+    pages = """
+        - entities:
+            - id: power_sensor
+            - id: power_switch
+        """
+
+    main_cpp = generate_main(
+        write_config(tmp_path, ESP32_HEADER, wizard_api(pages), entities)
+    )
+
+    # The key is the same, so the platform is what says which entity is meant
+    key = fnv1_hash_object_id("Power")
+    assert wizard_entities(main_cpp) == [
+        {"key": key, "platform": "sensor"},
+        {"key": key, "platform": "switch"},
+    ]
+
+
+def test_a_datetime_entity_has_the_platform_of_its_type(
+    tmp_path: Path, generate_main: Callable[[str | Path], str]
+) -> None:
+    entities = """
+        datetime:
+          - platform: template
+            id: dt_date
+            name: Day
+            type: date
+            optimistic: true
+          - platform: template
+            id: dt_time
+            name: Hour
+            type: time
+            optimistic: true
+          - platform: template
+            id: dt_datetime
+            name: Moment
+            type: datetime
+            optimistic: true
+        """
+    pages = """
+        - entities:
+            - id: dt_date
+            - id: dt_time
+            - id: dt_datetime
+        """
+
+    main_cpp = generate_main(
+        write_config(tmp_path, ESP32_HEADER, wizard_api(pages), entities)
+    )
+
+    assert wizard_entities(main_cpp) == [
+        {"key": fnv1_hash_object_id("Day"), "platform": "date"},
+        {"key": fnv1_hash_object_id("Hour"), "platform": "time"},
+        {"key": fnv1_hash_object_id("Moment"), "platform": "datetime"},
+    ]
+
+
+def test_an_entity_declared_in_its_component_has_the_platform_of_its_class(
+    tmp_path: Path, generate_main: Callable[[str | Path], str]
+) -> None:
+    entities = """
+        uart:
+          tx_pin: 17
+          rx_pin: 16
+          baud_rate: 9600
+        gps:
+          latitude:
+            id: gps_lat
+            name: Latitude
+        """
+    pages = """
+        - entities:
+            - id: gps_lat
+        """
+
+    main_cpp = generate_main(
+        write_config(tmp_path, ESP32_HEADER, wizard_api(pages), entities)
+    )
+
+    assert wizard_entities(main_cpp) == [
+        {"key": fnv1_hash_object_id("Latitude"), "platform": "sensor"}
+    ]
+
+
+def test_an_entity_of_a_platform_the_wizard_does_not_know_is_rejected(
+    tmp_path: Path,
+) -> None:
+    entities = """
+        psram:
+        i2c:
+          id: camera_bus
+          sda: 25
+          scl: 23
+        esp32_camera:
+          id: test_camera
+          name: Camera
+          data_pins: [17, 35, 34, 5, 39, 18, 36, 19]
+          vsync_pin: 22
+          href_pin: 26
+          pixel_clock_pin: 21
+          external_clock:
+            pin: 27
+          i2c_id: camera_bus
+        """
+    pages = """
+        - entities:
+            - id: test_camera
+        """
+
+    errors = config_errors(
+        write_config(tmp_path, ESP32_HEADER, wizard_api(pages), entities)
+    )
+
+    assert any(
+        "Entity 'test_camera' is not of a platform the wizard can show" in error
+        for error in errors
+    ), errors
+
+
+@pytest.mark.parametrize(
+    ("class_name", "platform"), wizard.WIZARD_ENTITY_PLATFORMS.items()
+)
+def test_every_wizard_entity_platform_names_a_real_entity_class(
+    class_name: str, platform: str
+) -> None:
+    namespace, _ = class_name.split("::")
+    component = importlib.import_module(
+        f"esphome.components.{namespace.removesuffix('_')}"
+    )
+    # Light keeps its classes in a submodule
+    modules = [component, *(getattr(component, "types", None),)]
+    classes = {
+        str(value)
+        for module in modules
+        if module is not None
+        for value in vars(module).values()
+        if isinstance(value, MockObjClass)
+    }
+    assert class_name in classes
+    # The name the API client knows the entity type by
+    assert platform in COMPONENT_TYPE_TO_INFO
+
+
+# Entity platforms of the API that a wizard page cannot show
+WIZARD_UNSUPPORTED_PLATFORMS: set[str] = {
+    # ESP32Camera derives from EntityBase directly, with no camera base class to recognise
+    "camera",
+    # MediaPlayer does not declare EntityBase, so the page's use_id(EntityBase) already rejects it
+    "media_player",
+    # No ESPHome component provides one
+    "siren",
+}
+
+
+def test_every_api_entity_platform_is_known_to_the_wizard() -> None:
+    """A new entity platform needs a WIZARD_ENTITY_PLATFORMS entry, or a reason to be left out."""
+    proto = (
+        Path(wizard.__file__).parent.joinpath("api.proto").read_text(encoding="utf-8")
+    )
+    messages = re.findall(r"message ListEntities(?!Done|Services)\w+Response \{", proto)
+    # The ifdef of each ListEntities message names its platform: USE_SENSOR, USE_DATETIME_DATE, ...
+    ifdefs = re.findall(
+        r"message ListEntities(?!Done|Services)\w+Response \{[^}]*?"
+        r'option \(ifdef\) = "USE_(\w+)";',
+        proto,
+    )
+    assert len(ifdefs) == len(messages)
+    proto_platforms = {ifdef.lower().removeprefix("datetime_") for ifdef in ifdefs}
+    assert (
+        set(wizard.WIZARD_ENTITY_PLATFORMS.values()) | WIZARD_UNSUPPORTED_PLATFORMS
+        == proto_platforms
+    )
+
+
+def test_an_entity_with_a_role_may_be_in_the_wizard_twice(tmp_path: Path) -> None:
+    wizard.register_entity_role(ID("sw", is_declaration=True), "example.enable")
+
+    assert config_errors(write_input_config(tmp_path, ESP32_HEADER)) == []
+
+
+def test_two_entities_with_the_same_role_are_rejected(tmp_path: Path) -> None:
+    wizard.register_entity_role(ID("sw", is_declaration=True), "example.enable")
+    wizard.register_entity_role(ID("sw2", is_declaration=True), "example.enable")
+    path = write_config(tmp_path, DEVICES_HEADER, wizard_api(JSON_PAGES), JSON_ENTITIES)
+
+    assert config_errors(path) == [
+        (
+            "Wizard entities 'sw' and 'sw2' both have the role 'example.enable', "
+            "so only one of them can be in the wizard"
+        )
+    ]
+
+
+@pytest.mark.parametrize(
+    "role",
+    [
+        "enable",
+        "Example.enable",
+        "example.enable.more",
+        "example-x.enable",
+        "example.",
+        "example." + "a" * (wizard.WIZARD_ROLE_MAX_LENGTH - len("example.") + 1),
+    ],
+)
+def test_an_invalid_role_is_rejected(role: str) -> None:
+    with pytest.raises(ValueError, match="Invalid wizard role"):
+        wizard.register_entity_role(ID("sw", is_declaration=True), role)
+
+    assert wizard._wizard_roles() == {}
+
+
+def test_the_longest_role_is_accepted() -> None:
+    role = "example." + "a" * (wizard.WIZARD_ROLE_MAX_LENGTH - len("example."))
+
+    wizard.register_entity_role(ID("sw", is_declaration=True), role)
+
+    assert wizard._wizard_roles() == {"sw": role}

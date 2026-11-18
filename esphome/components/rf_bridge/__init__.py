@@ -6,7 +6,6 @@ from esphome.const import (
     CONF_CODE,
     CONF_DURATION,
     CONF_HIGH,
-    CONF_ID,
     CONF_LENGTH,
     CONF_LOW,
     CONF_PROTOCOL,
@@ -16,6 +15,7 @@ from esphome.const import (
 
 DEPENDENCIES = ["uart"]
 CODEOWNERS = ["@jesserockz"]
+DOMAIN = "rf_bridge"
 
 rf_bridge_ns = cg.esphome_ns.namespace("rf_bridge")
 RFBridgeComponent = rf_bridge_ns.class_(
@@ -69,9 +69,7 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await uart.register_uart_device(var, config)
+    var = await uart.new_uart_component(config)
 
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 

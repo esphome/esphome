@@ -3,7 +3,7 @@
 
 namespace esphome::counter {
 
-static const char *const TAG = "counter";
+ESPHOME_LOG_TAG(TAG, "counter");
 
 void CounterSensor::setup() {
   if (this->restore_) {

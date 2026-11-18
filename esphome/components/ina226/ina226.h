@@ -41,6 +41,11 @@ union ConfigurationRegister {
 };
 
 class INA226Component final : public PollingComponent, public i2c::I2CDevice {
+  SUB_SENSOR(bus_voltage)
+  SUB_SENSOR(shunt_voltage)
+  SUB_SENSOR(current)
+  SUB_SENSOR(power)
+
  public:
   void setup() override;
   void dump_config() override;
@@ -52,11 +57,6 @@ class INA226Component final : public PollingComponent, public i2c::I2CDevice {
   void set_adc_time_current(AdcTime time) { adc_time_current_ = time; }
   void set_adc_avg_samples(AdcAvgSamples samples) { adc_avg_samples_ = samples; }
 
-  void set_bus_voltage_sensor(sensor::Sensor *bus_voltage_sensor) { bus_voltage_sensor_ = bus_voltage_sensor; }
-  void set_shunt_voltage_sensor(sensor::Sensor *shunt_voltage_sensor) { shunt_voltage_sensor_ = shunt_voltage_sensor; }
-  void set_current_sensor(sensor::Sensor *current_sensor) { current_sensor_ = current_sensor; }
-  void set_power_sensor(sensor::Sensor *power_sensor) { power_sensor_ = power_sensor; }
-
  protected:
   float shunt_resistance_ohm_;
   float max_current_a_;
@@ -64,12 +64,6 @@ class INA226Component final : public PollingComponent, public i2c::I2CDevice {
   AdcTime adc_time_current_{AdcTime::ADC_TIME_1100US};
   AdcAvgSamples adc_avg_samples_{AdcAvgSamples::ADC_AVG_SAMPLES_4};
   uint32_t calibration_lsb_;
-  sensor::Sensor *bus_voltage_sensor_{nullptr};
-  sensor::Sensor *shunt_voltage_sensor_{nullptr};
-  sensor::Sensor *current_sensor_{nullptr};
-  sensor::Sensor *power_sensor_{nullptr};
-
-  int32_t twos_complement_(int32_t val, uint8_t bits);
 };
 
 }  // namespace esphome::ina226

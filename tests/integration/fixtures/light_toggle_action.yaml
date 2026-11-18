@@ -20,14 +20,14 @@ light:
     default_transition_length: 0s
 
 button:
-  # Test 1: light.toggle without transition_length (HasTransitionLength=false)
+  # Test 1: light.toggle without transition_length
   - platform: template
     id: btn_toggle
     name: "Toggle"
     on_press:
       - light.toggle: test_light
 
-  # Test 2: light.toggle with transition_length (HasTransitionLength=true)
+  # Test 2: light.toggle with transition_length
   - platform: template
     id: btn_toggle_with_trans
     name: "Toggle With Trans"

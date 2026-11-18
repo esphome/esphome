@@ -218,6 +218,8 @@ bool LwRx::lwrx_getmessage(uint8_t *buf, uint8_t len) {
         case 10:
           buf[i] = j;
           break;
+        default:
+          break;
       }
     }
   } else {

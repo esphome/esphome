@@ -10,7 +10,7 @@
 
 namespace esphome::max7219digit {
 
-static const char *const TAG = "max7219DIGIT";
+ESPHOME_LOG_TAG(TAG, "max7219DIGIT");
 
 static const uint8_t MAX7219_REGISTER_NOOP = 0x00;
 static const uint8_t MAX7219_REGISTER_DECODE_MODE = 0x09;
@@ -304,7 +304,7 @@ void MAX7219Component::send64pixels(uint8_t chip, const uint8_t pixels[8]) {
     for (int i = 0; i < this->num_chips_ - chip - 1; i++)  // end with enough NOPs so later chips don't update
       this->send_byte_(MAX7219_REGISTER_NOOP, MAX7219_REGISTER_NOOP);
     this->disable();  // all done disable SPI
-  }                   // end of for each column
+  }  // end of for each column
 }  // end of send64pixels
 
 uint8_t MAX7219Component::printdigit(const char *str) { return this->printdigit(0, str); }

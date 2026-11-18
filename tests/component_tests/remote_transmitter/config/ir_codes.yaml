@@ -1,0 +1,43 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+remote_transmitter:
+  pin: GPIO4
+  carrier_duty_percent: 50%
+
+button:
+  - platform: template
+    name: Midea A
+    on_press:
+      - remote_transmitter.transmit_midea:
+          code: [0xA2, 0x08, 0xFF, 0xFF, 0xFF]
+  - platform: template
+    name: Midea B
+    on_press:
+      - remote_transmitter.transmit_midea:
+          code: [0xA2, 0x08, 0xFF, 0xFF, 0xFF]
+  - platform: template
+    name: AEHA
+    on_press:
+      - remote_transmitter.transmit_aeha:
+          address: 0x8008
+          data: [0x00, 0x02, 0xFD, 0xFF, 0x00, 0x33]
+  - platform: template
+    name: Haier lambda
+    on_press:
+      - remote_transmitter.transmit_haier:
+          code: !lambda |-
+            return {0xA6, 0xDA, 0x00, 0x00};
+  - platform: template
+    name: Haier static
+    on_press:
+      - remote_transmitter.transmit_haier:
+          code: [0xA6, 0xDA, 0x00, 0x00, 0x40, 0x40, 0x00, 0x80, 0x00, 0x00, 0x00, 0x00, 0x05]
+  - platform: template
+    name: Mirage static
+    on_press:
+      - remote_transmitter.transmit_mirage:
+          code: [0x56, 0x6C, 0x00, 0x00, 0x20, 0x1A, 0x00, 0x00, 0x0C, 0x00, 0x0C, 0x00, 0x00, 0x42]

@@ -139,14 +139,14 @@ def test_st7701s_only_supports_mirror_x(
         CONFIG_SCHEMA({**base, "transform": {"mirror_x": True, "mirror_y": True}})
 
 
-def test_pure_rgb_model_has_no_hardware_transform(
+def test_pure_rgb_model_has_hardware_rotation(
     set_core_config: SetCoreConfigCallable,
 ) -> None:
     """A model with no init sequence has no command interface, so no transform
-    can be applied in hardware and every rotation must be done in software.
+    can be applied in panel silicon (MADCTL).
 
-    Previously such models claimed mirror_x/mirror_y support, so a rotation of
-    180 was handed to the (nonexistent) hardware and the display was not rotated.
+    The driver itself handles rotation directly in the framebuffer without
+    allocating software rotation buffers, so has_hardware_rotation is True.
     """
     _set_s3(set_core_config)
 
@@ -162,7 +162,7 @@ def test_pure_rgb_model_has_no_hardware_transform(
         assert not model.rotation_as_transform(config)
         metadata = get_display_metadata(config["id"])
         assert metadata.rotation == rotation
-        assert not metadata.has_hardware_rotation
+        assert metadata.has_hardware_rotation
 
     with pytest.raises(cv.Invalid, match="'mirror_x' is not supported by this model"):
         CONFIG_SCHEMA({**base, "transform": {"mirror_x": True}})

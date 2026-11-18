@@ -7,15 +7,13 @@
 
 namespace esphome::sgp4x {
 
-static const char *const TAG = "sgp4x";
+ESPHOME_LOG_TAG(TAG, "sgp4x");
 
 void SGP4xComponent::setup() {
   // Serial Number identification
   uint16_t raw_serial_number[3];
   if (!this->get_register(SGP4X_CMD_GET_SERIAL_ID, raw_serial_number, 3, 1)) {
-    ESP_LOGE(TAG, "Get serial number failed");
-    this->error_code_ = SERIAL_NUMBER_IDENTIFICATION_FAILED;
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Get serial number failed"));
     return;
   }
   this->serial_number_ = (uint64_t(raw_serial_number[0]) << 32) | (uint64_t(raw_serial_number[1]) << 16) |
@@ -26,7 +24,7 @@ void SGP4xComponent::setup() {
   uint16_t featureset;
   if (!this->get_register(SGP4X_CMD_GET_FEATURESET, featureset, 1)) {
     ESP_LOGD(TAG, "Get feature set failed");
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   featureset &= 0x1FF;
@@ -44,7 +42,7 @@ void SGP4xComponent::setup() {
     this->measure_time_ = SGP41_MEASURE_TIME;
   } else {
     ESP_LOGD(TAG, "Unknown feature set 0x%0X", featureset);
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Unknown feature set"));
     return;
   }
 
@@ -111,9 +109,7 @@ void SGP4xComponent::setup() {
 void SGP4xComponent::self_test_() {
   ESP_LOGD(TAG, "Starting self-test");
   if (!this->write_command(SGP4X_CMD_SELF_TEST)) {
-    this->error_code_ = COMMUNICATION_FAILED;
-    ESP_LOGD(TAG, ESP_LOG_MSG_COMM_FAIL);
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
 
@@ -123,9 +119,8 @@ void SGP4xComponent::self_test_() {
     // failures
     bool passed = this->read_data(reply) && (this->sgp_type_ == SGP41 ? (reply & 0x0003) == 0 : (reply >> 8) == 0xD4);
     if (!passed) {
-      this->error_code_ = SELF_TEST_FAILED;
       ESP_LOGW(TAG, "Self-test failed (0x%X)", reply);
-      this->mark_failed();
+      this->mark_failed(LOG_STR("Self-test failed"));
       return;
     }
 
@@ -264,22 +259,7 @@ void SGP4xComponent::dump_config() {
   LOG_I2C_DEVICE(this);
   ESP_LOGCONFIG(TAG, "  Store baseline: %s", YESNO(this->store_baseline_));
 
-  if (this->is_failed()) {
-    switch (this->error_code_) {
-      case COMMUNICATION_FAILED:
-        ESP_LOGW(TAG, ESP_LOG_MSG_COMM_FAIL);
-        break;
-      case SERIAL_NUMBER_IDENTIFICATION_FAILED:
-        ESP_LOGW(TAG, "Get serial number failed");
-        break;
-      case SELF_TEST_FAILED:
-        ESP_LOGW(TAG, "Self-test failed");
-        break;
-      default:
-        ESP_LOGW(TAG, "Unknown error");
-        break;
-    }
-  } else {
+  if (!this->is_failed()) {
     ESP_LOGCONFIG(TAG,
                   "  Type: %s\n"
                   "  Serial number: %" PRIu64 "\n"

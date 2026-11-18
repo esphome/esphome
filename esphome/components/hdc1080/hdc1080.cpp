@@ -4,7 +4,7 @@
 
 namespace esphome::hdc1080 {
 
-static const char *const TAG = "hdc1080";
+ESPHOME_LOG_TAG(TAG, "hdc1080");
 
 static const uint8_t HDC1080_CMD_CONFIGURATION = 0x02;
 static const uint8_t HDC1080_CMD_TEMPERATURE = 0x00;
@@ -24,12 +24,9 @@ void HDC1080Component::setup() {
 void HDC1080Component::dump_config() {
   ESP_LOGCONFIG(TAG, "HDC1080:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
   LOG_UPDATE_INTERVAL(this);
-  LOG_SENSOR("  ", "Temperature", this->temperature_);
-  LOG_SENSOR("  ", "Humidity", this->humidity_);
+  LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
+  LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
 }
 
 void HDC1080Component::update() {
@@ -50,11 +47,8 @@ void HDC1080Component::update() {
       return;
     }
 
-    if (this->temperature_ != nullptr) {
-      raw_temperature = i2c::i2ctohs(raw_temperature);
-      float temperature = raw_temperature * 0.0025177f - 40.0f;  // raw * 2^-16 * 165 - 40
-      this->temperature_->publish_state(temperature);
-    }
+    // raw * 2^-16 * 165 - 40
+    PUBLISH_STATE(this->temperature_sensor_, i2c::i2ctohs(raw_temperature) * 0.0025177f - 40.0f);
 
     if (this->write(&HDC1080_CMD_HUMIDITY, 1) != i2c::ERROR_OK) {
       this->status_set_warning();
@@ -68,11 +62,8 @@ void HDC1080Component::update() {
         return;
       }
 
-      if (this->humidity_ != nullptr) {
-        raw_humidity = i2c::i2ctohs(raw_humidity);
-        float humidity = raw_humidity * 0.001525879f;  // raw * 2^-16 * 100
-        this->humidity_->publish_state(humidity);
-      }
+      // raw * 2^-16 * 100
+      PUBLISH_STATE(this->humidity_sensor_, i2c::i2ctohs(raw_humidity) * 0.001525879f);
     });
   });
 }

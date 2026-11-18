@@ -3,7 +3,7 @@
 
 namespace esphome::number {
 
-static const char *const TAG = "number.automation";
+ESPHOME_LOG_TAG(TAG, "number.automation");
 
 union convert {
   float from;

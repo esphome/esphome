@@ -9,7 +9,7 @@
 
 namespace esphome::mqtt {
 
-static const char *const TAG = "mqtt.number";
+ESPHOME_LOG_TAG(TAG, "mqtt.number");
 
 using namespace esphome::number;
 
@@ -19,7 +19,7 @@ PROGMEM_STRING_TABLE(NumberMqttModeStrings, "", "box", "slider");
 MQTTNumberComponent::MQTTNumberComponent(Number *number) : number_(number) {}
 
 void MQTTNumberComponent::setup() {
-  this->subscribe(this->get_command_topic_(), [this](const std::string &topic, const std::string &state) {
+  this->subscribe(this->command_topic_source_(), [this](const std::string &topic, const std::string &state) {
     auto val = parse_number<float>(state);
     if (!val.has_value()) {
       ESP_LOGW(TAG, "Can't convert '%s' to number!", state.c_str());
@@ -32,10 +32,7 @@ void MQTTNumberComponent::setup() {
   this->number_->add_on_state_callback([this](float state) { this->publish_state(state); });
 }
 
-void MQTTNumberComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "MQTT Number '%s':", this->number_->get_name().c_str());
-  LOG_MQTT_COMPONENT(true, false);
-}
+void MQTTNumberComponent::dump_config() { LOG_MQTT_COMPONENT(true, false); }
 
 MQTT_COMPONENT_TYPE(MQTTNumberComponent, "number")
 const EntityBase *MQTTNumberComponent::get_entity() const { return this->number_; }

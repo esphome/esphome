@@ -4,7 +4,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ID
 from esphome.types import ConfigType
 
-from .. import CONF_BATTERY, CONF_PYLONTECH_ID, PYLONTECH_COMPONENT_SCHEMA, pylontech_ns
+from .. import CONF_BATTERY, PYLONTECH_COMPONENT_SCHEMA, pylontech_ns, register_listener
 
 PylontechTextSensor = pylontech_ns.class_("PylontechTextSensor")
 
@@ -26,7 +26,6 @@ CONFIG_SCHEMA = PYLONTECH_COMPONENT_SCHEMA.extend(
 
 
 async def to_code(config: ConfigType) -> None:
-    paren = await cg.get_variable(config[CONF_PYLONTECH_ID])
     bat = cg.new_Pvariable(config[CONF_ID], config[CONF_BATTERY])
 
     for marker in MARKERS:
@@ -34,4 +33,4 @@ async def to_code(config: ConfigType) -> None:
             var = await text_sensor.new_text_sensor(marker_config)
             cg.add(getattr(bat, f"set_{marker}_text_sensor")(var))
 
-    cg.add(paren.register_listener(bat))
+    await register_listener(config, bat)

@@ -4,3 +4,15 @@ sensor:
     id: ph_ezo
     address: 99
     unit_of_measurement: pH
+    on_custom:
+      - logger.log: custom
+    on_calibration:
+      - logger.log: calibration
+    on_slope:
+      - logger.log: slope
+    on_t:
+      - logger.log: temperature compensation
+    on_device_information:
+      - logger.log: device information
+    on_led:
+      - logger.log: led

@@ -90,6 +90,9 @@ class IDFUARTComponent final : public UARTComponent, public Component {
 
  protected:
   void check_logger_conflict() override;
+#ifdef USE_GPIO_HOLD
+  void set_pins_hold_(bool hold);
+#endif
   uint32_t line_inversion_mask_();
   // Re-applies what uart_param_config() resets: inversion, RX threshold/timeout, mode.
   esp_err_t apply_line_settings_();

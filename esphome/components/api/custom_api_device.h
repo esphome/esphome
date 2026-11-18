@@ -247,7 +247,7 @@ class CustomAPIDevice {
    */
   void call_homeassistant_service(const std::string &service_name) {
     HomeassistantActionRequest resp;
-    resp.service = StringRef(service_name);
+    resp.service = ProgmemStringRef(StringRef(service_name));
     global_api_server->send_homeassistant_action(resp);
   }
 
@@ -267,12 +267,12 @@ class CustomAPIDevice {
    */
   void call_homeassistant_service(const std::string &service_name, const std::map<std::string, std::string> &data) {
     HomeassistantActionRequest resp;
-    resp.service = StringRef(service_name);
+    resp.service = ProgmemStringRef(StringRef(service_name));
     resp.data.init(data.size());
     for (auto &it : data) {
       auto &kv = resp.data.emplace_back();
-      kv.key = StringRef(it.first);
-      kv.value = StringRef(it.second);  // data map lives until send completes
+      kv.key = ProgmemStringRef(StringRef(it.first));
+      kv.value = ProgmemStringRef(StringRef(it.second));  // data map lives until send completes
     }
     global_api_server->send_homeassistant_action(resp);
   }
@@ -289,7 +289,7 @@ class CustomAPIDevice {
    */
   void fire_homeassistant_event(const std::string &event_name) {
     HomeassistantActionRequest resp;
-    resp.service = StringRef(event_name);
+    resp.service = ProgmemStringRef(StringRef(event_name));
     resp.is_event = true;
     global_api_server->send_homeassistant_action(resp);
   }
@@ -309,13 +309,13 @@ class CustomAPIDevice {
    */
   void fire_homeassistant_event(const std::string &service_name, const std::map<std::string, std::string> &data) {
     HomeassistantActionRequest resp;
-    resp.service = StringRef(service_name);
+    resp.service = ProgmemStringRef(StringRef(service_name));
     resp.is_event = true;
     resp.data.init(data.size());
     for (auto &it : data) {
       auto &kv = resp.data.emplace_back();
-      kv.key = StringRef(it.first);
-      kv.value = StringRef(it.second);  // data map lives until send completes
+      kv.key = ProgmemStringRef(StringRef(it.first));
+      kv.value = ProgmemStringRef(StringRef(it.second));  // data map lives until send completes
     }
     global_api_server->send_homeassistant_action(resp);
   }

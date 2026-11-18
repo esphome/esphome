@@ -8,7 +8,6 @@ bluetooth_proxy:
   connection_slots: 9
 
 esp32_hosted:
-  active_high: true
   variant: ESP32C6
   reset_pin: GPIO54
   cmd_pin: GPIO19

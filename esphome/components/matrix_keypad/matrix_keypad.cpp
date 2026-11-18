@@ -4,7 +4,7 @@
 
 namespace esphome::matrix_keypad {
 
-static const char *const TAG = "matrix_keypad";
+ESPHOME_LOG_TAG(TAG, "matrix_keypad");
 
 void MatrixKeypad::setup() {
   for (auto *pin : this->rows_) {

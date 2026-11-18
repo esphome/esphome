@@ -147,9 +147,7 @@ automation.register_apply_action(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await uart.register_uart_device(var, config)
+    var = await uart.new_uart_component(config)
     sensors = sensor.sub_sensors(config)
     await sensors(CONF_FREQUENCY, var.set_frequency_sensor)
     await sensors(CONF_TEMPERATURE, var.set_temperature_sensor)

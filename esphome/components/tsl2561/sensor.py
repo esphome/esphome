@@ -24,10 +24,7 @@ INTEGRATION_TIMES = {
 }
 
 TSL2561Gain = tsl2561_ns.enum("TSL2561Gain")
-GAINS = {
-    "1X": TSL2561Gain.TSL2561_GAIN_1X,
-    "16X": TSL2561Gain.TSL2561_GAIN_16X,
-}
+GAINS = TSL2561Gain.options("1X", "16X", prefix="TSL2561_GAIN_")
 
 CONF_IS_CS_PACKAGE = "is_cs_package"
 

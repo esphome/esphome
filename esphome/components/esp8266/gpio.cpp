@@ -1,11 +1,12 @@
 #ifdef USE_ESP8266
 
 #include "gpio.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
 namespace esphome::esp8266 {
 
-static const char *const TAG = "esp8266";
+ESPHOME_LOG_TAG(TAG, "esp8266");
 
 static int flags_to_mode(gpio::Flags flags, uint8_t pin) {
   flags =
@@ -74,7 +75,7 @@ ISRInternalGPIOPin ESP8266GPIOPin::to_isr() const {
   return ISRInternalGPIOPin((void *) arg);
 }
 
-void ESP8266GPIOPin::attach_interrupt(void (*func)(void *), void *arg, gpio::InterruptType type) const {
+void ESP8266GPIOPin::attach_interrupt_(void (*func)(void *), void *arg, gpio::InterruptType type) const {
   uint8_t arduino_mode = 0;
   switch (type) {
     case gpio::INTERRUPT_RISING_EDGE:

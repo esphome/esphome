@@ -1,6 +1,18 @@
 esphome:
   on_boot:
     then:
+      # External components keep scripts as script::Script<...> pointers
+      - lambda: |-
+          script::Script<int> *by_base = id(my_script_by_value_params);
+          by_base->execute(1);
+          if (by_base->is_running())
+            by_base->stop();
+          script::Script<> *single = id(my_script);
+          single->execute();
+          single->stop();
+          script::Script<> *queued = id(my_script_queued);
+          queued->execute();
+          queued->stop();
       - script.execute: my_script
       - script.execute:
           id: my_script_with_params
@@ -22,6 +34,51 @@ esphome:
             - script.is_running: my_script
           then:
             - logger.log: my_script is running
+      - if:
+          any:
+            - script.is_running: my_script
+            - script.is_running: my_script_restart
+          then:
+            - logger.log: a script is running
+      - script.execute: my_script_stops_itself
+      - delay:
+          minutes: 1
+          seconds: 2
+          milliseconds: 3
+      - delay:
+          hours: 1
+      - if:
+          all:
+            - script.is_running: my_script
+            - lambda: return true;
+          then:
+            - logger.log: all conditions true
+      - wait_until:
+          condition:
+            not:
+              script.is_running: my_script
+          timeout: !lambda return 2000;
+      - wait_until:
+          condition:
+            not:
+              script.is_running: my_script
+          timeout: 500ms
+      - choose:
+          - if:
+              script.is_running: my_script
+            then:
+              - logger.log: first choice
+          - if:
+              - lambda: return true;
+              - script.is_running: my_script_restart
+            then:
+              - logger.log: second choice
+          - else:
+              - logger.log: default choice
+
+globals:
+  - id: nested_total
+    type: int
 
 script:
   - id: my_script
@@ -40,8 +97,22 @@ script:
       - lambda: 'ESP_LOGD("main", "Hello World!");'
   - id: my_script_restart
     mode: restart
+    on_stop:
+      - logger.log: my_script_restart stopped
     then:
       - lambda: 'ESP_LOGD("main", "Hello World!");'
+  - id: my_script_stops_itself
+    on_stop:
+      then:
+        - logger.log: my_script_stops_itself stopped
+    then:
+      - delay: 1s
+      - if:
+          lambda: return true;
+          then:
+            - script.stop
+      - script.stop:
+      - logger.log: never reached
   - id: my_script_with_array_params
     parameters:
       ints: int[]
@@ -71,3 +142,34 @@ script:
           count: 5
           then:
             - logger.log: looping!
+      - repeat:
+          count: 2
+          then:
+            - repeat:
+                count: 2
+                then:
+                  - delay: 200ms
+                  - lambda: 'ESP_LOGD("main", "inner iteration %u", iteration);'
+                  - globals.set:
+                      id: nested_total
+                      value: !lambda |-
+                        int total = iteration;
+                        return total;
+  # Lambdas take the parameters by value, so each form can change its own copy
+  - id: my_script_by_value_params
+    parameters:
+      x: int
+    then:
+      - lambda: |-
+          x *= 2;
+          ESP_LOGD("main", "x=%d", x);
+      - logger.log:
+          format: "again %d"
+          args: [x *= 2]
+      - script.execute:
+          id: my_script_with_params
+          prefix: !lambda |-
+            x *= 2;
+            return std::to_string(x);
+          param2: !lambda return x *= 2;
+          param3: true

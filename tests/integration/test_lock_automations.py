@@ -3,10 +3,10 @@
 Tests that on_lock and on_unlock triggers work correctly.
 """
 
-import asyncio
-
 import pytest
 
+from .log_utils import LineWaiter
+from .state_utils import require_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -17,21 +17,10 @@ async def test_lock_automations(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Test lock on_lock and on_unlock triggers."""
-    loop = asyncio.get_running_loop()
-
-    # Futures for log line detection
-    on_lock_future: asyncio.Future[bool] = loop.create_future()
-    on_unlock_future: asyncio.Future[bool] = loop.create_future()
-
-    def check_output(line: str) -> None:
-        """Check log output for trigger messages."""
-        if "TRIGGER: on_lock fired" in line and not on_lock_future.done():
-            on_lock_future.set_result(True)
-        elif "TRIGGER: on_unlock fired" in line and not on_unlock_future.done():
-            on_unlock_future.set_result(True)
+    waiter = LineWaiter()
 
     async with (
-        run_compiled(yaml_config, line_callback=check_output),
+        run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
         # Import here to avoid import errors when aioesphomeapi is not installed
@@ -39,20 +28,14 @@ async def test_lock_automations(
 
         # Get entities
         entities = await client.list_entities_services()
-        lock = next(e for e in entities[0] if e.object_id == "test_lock")
+        lock = require_entity(entities[0], "test_lock", exact=True)
 
         # Test 1: Lock - should trigger on_lock
         client.lock_command(key=lock.key, command=LockCommand.LOCK)
 
-        try:
-            await asyncio.wait_for(on_lock_future, timeout=5.0)
-        except TimeoutError:
-            pytest.fail("on_lock trigger did not fire")
+        await waiter.wait_for("TRIGGER: on_lock fired", timeout=5.0)
 
         # Test 2: Unlock - should trigger on_unlock
         client.lock_command(key=lock.key, command=LockCommand.UNLOCK)
 
-        try:
-            await asyncio.wait_for(on_unlock_future, timeout=5.0)
-        except TimeoutError:
-            pytest.fail("on_unlock trigger did not fire")
+        await waiter.wait_for("TRIGGER: on_unlock fired", timeout=5.0)

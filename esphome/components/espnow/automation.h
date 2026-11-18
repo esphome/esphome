@@ -1,6 +1,6 @@
 #pragma once
 
-#ifdef USE_ESP32
+#if defined(USE_ESP32) || defined(USE_ESP8266)
 
 #include "espnow_component.h"
 
@@ -70,8 +70,7 @@ template<typename... Ts> class SendAction final : public Action<Ts...>, public P
   }
 
  protected:
-  void play(const Ts &...x) override { /* ignore - see play_complex */
-  }
+  void play(const Ts &...x) override { /* ignore - see play_complex */ }
 
   void stop() override {
     this->sent_.stop();
@@ -142,4 +141,4 @@ class OnBroadcastTrigger final : public Trigger<const ESPNowRecvInfo &, const ui
 
 }  // namespace esphome::espnow
 
-#endif  // USE_ESP32
+#endif  // USE_ESP32 || USE_ESP8266

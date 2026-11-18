@@ -7,6 +7,7 @@ from esphome.const import CONF_ID, CONF_ON_KEY, CONF_PIN, CONF_TRIGGER_ID
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@ssieb"]
+DOMAIN = "matrix_keypad"
 
 AUTO_LOAD = ["key_provider"]
 
@@ -84,10 +85,8 @@ async def to_code(config: ConfigType) -> None:
         )
         cg.add(var.set_keys(table))
     cg.add(var.set_debounce_time(config[CONF_DEBOUNCE_TIME]))
-    if CONF_HAS_DIODES in config:
-        cg.add(var.set_has_diodes(config[CONF_HAS_DIODES]))
-    if CONF_HAS_PULLDOWNS in config:
-        cg.add(var.set_has_pulldowns(config[CONF_HAS_PULLDOWNS]))
+    cg.add_optional(var.set_has_diodes, config.get(CONF_HAS_DIODES))
+    cg.add_optional(var.set_has_pulldowns, config.get(CONF_HAS_PULLDOWNS))
     for conf in config.get(CONF_ON_KEY, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
         cg.add(var.register_key_trigger(trigger))

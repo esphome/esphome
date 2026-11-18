@@ -8,7 +8,6 @@
 #include <string>
 
 #include "esphome/components/exponential_moving_average/exponential_moving_average_sensor.h"
-#include "esphome/core/preferences.h"
 #ifdef USE_HOST
 #include "esphome/components/host/preferences.h"
 #endif
@@ -33,11 +32,9 @@ class ExponentialMovingAverageTest : public ::testing::Test {
 #ifdef USE_HOST
     host::setup_preferences();
 #endif
-    global_preferences->reset();
   }
 
   void TearDown() override {
-    global_preferences->reset();
     if (this->saved_prefdir_.has_value()) {
       setenv("ESPHOME_PREFDIR", this->saved_prefdir_->c_str(), 1);
     } else {

@@ -1,12 +1,11 @@
 #include "wake_on_lan.h"
 #if defined(USE_NETWORK) && !defined(USE_ZEPHYR)
 #include "esphome/core/log.h"
-#include "esphome/components/network/ip_address.h"
 #include "esphome/components/network/util.h"
 
 namespace esphome::wake_on_lan {
 
-static const char *const TAG = "wake_on_lan.button";
+ESPHOME_LOG_TAG(TAG, "wake_on_lan.button");
 static const uint8_t PREFIX[6] = {255, 255, 255, 255, 255, 255};
 
 void WakeOnLanButton::set_macaddr(uint8_t a, uint8_t b, uint8_t c, uint8_t d, uint8_t e, uint8_t f) {
@@ -25,13 +24,16 @@ void WakeOnLanButton::dump_config() {
 }
 
 void WakeOnLanButton::press_action() {
+  if (this->broadcast_socket_ == nullptr) {
+    ESP_LOGW(TAG, "Socket not available");
+    return;
+  }
   if (!network::is_connected()) {
     ESP_LOGW(TAG, "Network not connected");
     return;
   }
   ESP_LOGI(TAG, "Sending Wake-on-LAN Packet");
-#if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
-  struct sockaddr_storage saddr {};
+  struct sockaddr_storage saddr{};
   auto addr_len =
       socket::set_sockaddr(reinterpret_cast<sockaddr *>(&saddr), sizeof(saddr), "255.255.255.255", this->port_);
   if (addr_len == 0) {
@@ -47,29 +49,10 @@ void WakeOnLanButton::press_action() {
                                       addr_len) <= 0) {
     ESP_LOGW(TAG, "sendto() error %d", errno);
   }
-#else
-  IPAddress broadcast = IPAddress(255, 255, 255, 255);
-  for (auto ip : esphome::network::get_ip_addresses()) {
-    if (ip.is_ip4()) {
-      if (this->udp_client_.beginPacketMulticast(broadcast, 9, ip, 128) != 0) {
-        this->udp_client_.write(PREFIX, 6);
-        for (size_t i = 0; i < 16; i++) {
-          this->udp_client_.write(macaddr_, 6);
-        }
-        if (this->udp_client_.endPacket() != 0)
-          return;
-        ESP_LOGW(TAG, "WOL broadcast failed");
-        return;
-      }
-    }
-  }
-  ESP_LOGW(TAG, "No ip4 addresses to broadcast to");
-#endif
 }
 
 void WakeOnLanButton::setup() {
-#if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
-  this->broadcast_socket_ = socket::socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
+  this->broadcast_socket_ = socket::socket_udp_send(AF_INET, IPPROTO_IP);
   if (this->broadcast_socket_ == nullptr) {
     this->status_set_error(LOG_STR("Could not create socket"));
     this->mark_failed();
@@ -85,7 +68,6 @@ void WakeOnLanButton::setup() {
   if (err != 0) {
     this->status_set_warning(LOG_STR("Socket unable to set broadcast"));
   }
-#endif
 }
 
 }  // namespace esphome::wake_on_lan

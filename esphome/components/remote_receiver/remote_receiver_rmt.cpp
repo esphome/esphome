@@ -10,7 +10,7 @@
 
 namespace esphome::remote_receiver {
 
-static const char *const TAG = "remote_receiver";
+ESPHOME_LOG_TAG(TAG, "remote_receiver");
 static constexpr uint32_t DEFAULT_BUFFER_SLOTS = 4;
 
 static bool IRAM_ATTR HOT rmt_callback(rmt_channel_handle_t channel, const rmt_rx_done_event_data_t *event, void *arg) {
@@ -140,6 +140,9 @@ void RemoteReceiverComponent::dump_config() {
       (this->tolerance_mode_ == remote_base::TOLERANCE_MODE_TIME) ? LOG_STR_LITERAL(" us") : LOG_STR_LITERAL("%"),
       this->carrier_frequency_, this->carrier_duty_percent_, this->filter_us_, this->idle_us_);
   LOG_PIN("  Pin: ", this->pin_);
+#ifdef REMOTE_BASE_DUMPER_COUNT
+  this->warn_extra_secondaries_();
+#endif
 }
 
 void RemoteReceiverComponent::loop() {

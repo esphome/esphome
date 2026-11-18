@@ -1,0 +1,21 @@
+esphome:
+  name: test
+  on_boot:
+    - lambda: |-
+        ESP_LOGD("test", "secondary %d", id(my_nec).is_secondary());
+
+esp32:
+  board: esp32dev
+
+logger:
+
+remote_receiver:
+  - id: ir_rcvr
+    pin: GPIO4
+    dump:
+      - nec:
+        type_id: my_nec
+  - id: my_nec__flash
+    pin: GPIO5
+    dump:
+      - rc_switch

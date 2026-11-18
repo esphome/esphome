@@ -3,8 +3,6 @@
 #include "esphome/core/defines.h"
 #ifdef USE_TEXT_SENSOR_FILTER
 
-#include <array>
-
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 
@@ -123,24 +121,17 @@ struct Substitution {
   const char *to;
 };
 
-/// Non-template helper (implementation in filter.cpp)
-bool substitute_filter_apply(const Substitution *substitutions, size_t count, std::string &value);
-
 /// A simple filter that replaces a substring with another substring.
-/// N is set by code generation to match the exact number of substitutions configured in YAML.
-template<size_t N> class SubstituteFilter : public Filter {
+/// `substitutions` is a codegen table in flash, shared by filters with the same list and
+/// ended by an entry whose `from` is nullptr, so no count is stored.
+class SubstituteFilter : public Filter {
  public:
-  explicit SubstituteFilter(const std::initializer_list<Substitution> &substitutions) {
-    init_array_from(this->substitutions_, substitutions);
-  }
-  bool new_value(std::string &value) override { return substitute_filter_apply(this->substitutions_.data(), N, value); }
+  explicit SubstituteFilter(const Substitution *substitutions) : substitutions_(substitutions) {}
+  bool new_value(std::string &value) override;
 
  protected:
-  std::array<Substitution, N> substitutions_{};
+  const Substitution *substitutions_;
 };
-
-/// Non-template helper (implementation in filter.cpp)
-bool map_filter_apply(const Substitution *mappings, size_t count, std::string &value);
 
 /** A filter that maps values from one set to another
  *
@@ -166,17 +157,92 @@ bool map_filter_apply(const Substitution *mappings, size_t count, std::string &v
  *
  * Break-even point: ~35-40 mappings, but ESPHome configs rarely exceed 20
  *
- * N is set by code generation to match the exact number of mappings configured in YAML.
+ * `mappings` is a codegen table in flash, shared by filters with the same list and ended by
+ * an entry whose `from` is nullptr, so no count is stored.
  */
-template<size_t N> class MapFilter : public Filter {
+class MapFilter : public Filter {
  public:
-  explicit MapFilter(const std::initializer_list<Substitution> &mappings) {
-    init_array_from(this->mappings_, mappings);
-  }
-  bool new_value(std::string &value) override { return map_filter_apply(this->mappings_.data(), N, value); }
+  explicit MapFilter(const Substitution *mappings) : mappings_(mappings) {}
+  bool new_value(std::string &value) override;
 
  protected:
-  std::array<Substitution, N> mappings_{};
+  const Substitution *mappings_;
+};
+
+/// Drops a value that comes sooner than `min_time_between_inputs` after the last one let through.
+class ThrottleFilter : public Filter {
+ public:
+  explicit ThrottleFilter(uint32_t min_time_between_inputs) : min_time_between_inputs_(min_time_between_inputs) {}
+  bool new_value(std::string &value) override;
+
+ protected:
+  uint32_t last_input_{0};
+  uint32_t min_time_between_inputs_;
+};
+
+/// Same as ThrottleFilter, but a value in `prioritized` always passes. `prioritized` is a codegen table
+/// in flash, shared by filters with the same list and ended by nullptr.
+class ThrottleWithPriorityFilter : public ThrottleFilter {
+ public:
+  ThrottleWithPriorityFilter(uint32_t min_time_between_inputs, const char *const *prioritized)
+      : ThrottleFilter(min_time_between_inputs), prioritized_(prioritized) {}
+  bool new_value(std::string &value) override;
+
+ protected:
+  const char *const *prioritized_;
+};
+
+/// Passes every value on and, once none has come for `time_period`, sends one value again. A Component rather than
+/// a scheduler timeout for the reason given on the sensor's TimeoutFilterBase: it re-arms on every value.
+class TimeoutFilterBase : public Filter, public Component {
+ public:
+  bool new_value(std::string &value) override;
+  void loop() override;
+  float get_setup_priority() const override { return setup_priority::HARDWARE; }
+
+ protected:
+  explicit TimeoutFilterBase(uint32_t time_period) : time_period_(time_period) { this->disable_loop(); }
+  /// Sends `text`; never moves a stored string on, so it keeps its buffer.
+  void send_(const char *text, size_t len);
+  virtual void send_timeout_value() = 0;
+
+  uint32_t time_period_;
+  uint32_t timeout_start_time_{0};
+};
+
+/// Sends the last value again.
+class TimeoutFilterLast : public TimeoutFilterBase {
+ public:
+  explicit TimeoutFilterLast(uint32_t time_period) : TimeoutFilterBase(time_period) {}
+  bool new_value(std::string &value) override;
+
+ protected:
+  void send_timeout_value() override { this->send_(this->last_.data(), this->last_.size()); }
+  std::string last_;
+};
+
+/// Codegen use only: `timeout` (value `last`) followed by `throttle_with_priority` with the same period, as one
+/// object. Output matches the two filter chain exactly.
+class TimeoutThrottleFilter : public TimeoutFilterLast {
+ public:
+  TimeoutThrottleFilter(uint32_t time_period, const char *const *prioritized)
+      : TimeoutFilterLast(time_period), prioritized_(prioritized) {}
+  bool new_value(std::string &value) override;
+
+ protected:
+  void send_timeout_value() override;
+  const char *const *prioritized_;
+  uint32_t last_input_{0};  // When the throttle stage last let a value through
+};
+
+/// Sends the configured text.
+class TimeoutFilterConfigured : public TimeoutFilterBase {
+ public:
+  TimeoutFilterConfigured(uint32_t time_period, const char *value) : TimeoutFilterBase(time_period), value_(value) {}
+
+ protected:
+  void send_timeout_value() override { this->send_(this->value_, strlen(this->value_)); }
+  const char *value_;
 };
 
 }  // namespace esphome::text_sensor

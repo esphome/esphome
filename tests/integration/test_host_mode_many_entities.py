@@ -20,7 +20,9 @@ from aioesphomeapi import (
 )
 import pytest
 
+from .state_utils import require_only_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -64,28 +66,19 @@ async def test_host_mode_many_entities(
         client.subscribe_states(on_state)
 
         # Wait for minimum states with timeout
-        try:
-            await asyncio.wait_for(minimum_states_future, timeout=10.0)
-        except TimeoutError:
-            sensor_states = [
-                s
-                for s in states.values()
-                if isinstance(s, SensorState) and isinstance(s.state, float)
-            ]
-            date_states = [s for s in states.values() if isinstance(s, DateState)]
-            time_states = [s for s in states.values() if isinstance(s, TimeState)]
-            datetime_states = [
-                s for s in states.values() if isinstance(s, DateTimeState)
-            ]
+        def count(kind: type) -> int:
+            return sum(isinstance(s, kind) for s in states.values())
 
-            pytest.fail(
-                f"Did not receive expected states within 10 seconds. "
-                f"Received: {len(sensor_states)} sensor states (expected >=50), "
-                f"{len(date_states)} date states (expected >=1), "
-                f"{len(time_states)} time states (expected >=1), "
-                f"{len(datetime_states)} datetime states (expected >=1). "
-                f"Total states: {len(states)}"
-            )
+        await wait_or_fail(
+            minimum_states_future,
+            10.0,
+            "Did not receive the expected states (>=50 sensor, >=1 date, time and datetime)",
+            sensor=lambda: count(SensorState),
+            date=lambda: count(DateState),
+            time=lambda: count(TimeState),
+            datetime=lambda: count(DateTimeState),
+            total=lambda: len(states),
+        )
 
         # Verify we received a good number of entity states
         assert len(states) >= 50, (
@@ -120,10 +113,7 @@ async def test_host_mode_many_entities(
 
         # Get entity info to verify climate entity details
         entities = await client.list_entities_services()
-        climate_infos = [e for e in entities[0] if isinstance(e, ClimateInfo)]
-        assert len(climate_infos) >= 1, "Expected at least 1 climate entity"
-
-        climate_info = climate_infos[0]
+        climate_info = require_only_entity(entities[0], ClimateInfo)
 
         # Verify feature flags set as expected
         assert climate_info.feature_flags == (
@@ -177,27 +167,18 @@ async def test_host_mode_many_entities(
         assert "AWAY" in preset_names, f"Expected 'AWAY' preset, got {preset_names}"
         assert "SLEEP" in preset_names, f"Expected 'SLEEP' preset, got {preset_names}"
 
-        # Verify datetime entities exist
-        date_infos = [e for e in entities[0] if isinstance(e, DateInfo)]
-        time_infos = [e for e in entities[0] if isinstance(e, TimeInfo)]
-        datetime_infos = [e for e in entities[0] if isinstance(e, DateTimeInfo)]
-
-        assert len(date_infos) >= 1, "Expected at least 1 date entity"
-        assert len(time_infos) >= 1, "Expected at least 1 time entity"
-        assert len(datetime_infos) >= 1, "Expected at least 1 datetime entity"
-
-        # Verify the entity names
-        date_info = date_infos[0]
+        # Verify the datetime entities and their names
+        date_info = require_only_entity(entities[0], DateInfo)
         assert date_info.name == "Test Date", (
             f"Expected date entity name 'Test Date', got {date_info.name}"
         )
 
-        time_info = time_infos[0]
+        time_info = require_only_entity(entities[0], TimeInfo)
         assert time_info.name == "Test Time", (
             f"Expected time entity name 'Test Time', got {time_info.name}"
         )
 
-        datetime_info = datetime_infos[0]
+        datetime_info = require_only_entity(entities[0], DateTimeInfo)
         assert datetime_info.name == "Test DateTime", (
             f"Expected datetime entity name 'Test DateTime', got {datetime_info.name}"
         )

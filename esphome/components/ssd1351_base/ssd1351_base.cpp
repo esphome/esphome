@@ -4,7 +4,7 @@
 
 namespace esphome::ssd1351_base {
 
-static const char *const TAG = "ssd1351";
+ESPHOME_LOG_TAG(TAG, "ssd1351");
 
 static const uint16_t SSD1351_COLORMASK = 0xffff;
 static const uint8_t SSD1351_MAX_CONTRAST = 15;
@@ -174,18 +174,7 @@ void SSD1351::fill(Color color) {
     }
   }
 }
-void SSD1351::init_reset_() {
-  if (this->reset_pin_ != nullptr) {
-    this->reset_pin_->setup();
-    this->reset_pin_->digital_write(true);
-    delay(1);
-    // Trigger Reset
-    this->reset_pin_->digital_write(false);
-    delay(10);
-    // Wake up
-    this->reset_pin_->digital_write(true);
-  }
-}
+void SSD1351::init_reset_() { pulse_reset(this->reset_pin_, {.high_before_ms = 1, .low_ms = 10}); }
 const char *SSD1351::model_str_() {
   switch (this->model_) {
     case SSD1351_MODEL_128_96:

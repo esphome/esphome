@@ -3,19 +3,19 @@
 
 namespace esphome::bang_bang {
 
-static const char *const TAG = "bang_bang.climate";
+ESPHOME_LOG_TAG(TAG, "bang_bang.climate");
 
 BangBangClimate::BangBangClimate() = default;
 
 void BangBangClimate::setup() {
-  this->sensor_->add_on_state_callback([this](float state) {
+  this->temperature_sensor_->add_on_state_callback([this](float state) {
     this->current_temperature = state;
     // control may have changed, recompute
     this->compute_state_();
     // current temperature changed, publish state
     this->publish_state();
   });
-  this->current_temperature = this->sensor_->state;
+  this->current_temperature = this->temperature_sensor_->state;
 
   // register for humidity values and get initial state
   if (this->humidity_sensor_ != nullptr) {

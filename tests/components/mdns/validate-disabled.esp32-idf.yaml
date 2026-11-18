@@ -1,0 +1,7 @@
+# Disabling mdns compiles no mdns code, so config validation is enough.
+wifi:
+  ssid: MySSID
+  password: password1
+
+mdns:
+  disabled: true

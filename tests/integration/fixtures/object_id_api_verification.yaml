@@ -8,8 +8,10 @@ esphome:
   devices:
     - id: sub_device_1
       name: Sub Device One
+      relation: via
     - id: sub_device_2
       name: Sub Device Two
+      relation: via
 
 host:
 

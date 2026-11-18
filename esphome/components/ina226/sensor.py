@@ -1,12 +1,13 @@
+from collections.abc import Callable
 from typing import Any
 
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
+from esphome.components.const import CONF_ADC_AVERAGING, CONF_ADC_TIME
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BUS_VOLTAGE,
     CONF_CURRENT,
-    CONF_ID,
     CONF_MAX_CURRENT,
     CONF_POWER,
     CONF_SHUNT_RESISTANCE,
@@ -24,8 +25,6 @@ from esphome.types import ConfigType
 
 DEPENDENCIES = ["i2c"]
 
-CONF_ADC_AVERAGING = "adc_averaging"
-CONF_ADC_TIME = "adc_time"
 
 ina226_ns = cg.esphome_ns.namespace("ina226")
 INA226Component = ina226_ns.class_(
@@ -62,6 +61,19 @@ def validate_adc_time(value: Any) -> int:
     return cv.enum(ADC_TIMES, int=True)(value)
 
 
+def _per_channel(validator: Callable[[Any], Any]) -> Callable[[Any], ConfigType]:
+    """One value for both channels, or one each; always returns the per-channel dict."""
+    return cv.Any(
+        cv.All(validator, lambda value: {CONF_VOLTAGE: value, CONF_CURRENT: value}),
+        cv.Schema(
+            {
+                cv.Required(CONF_VOLTAGE): validator,
+                cv.Required(CONF_CURRENT): validator,
+            }
+        ),
+    )
+
+
 CONFIG_SCHEMA = (
     cv.Schema(
         {
@@ -96,14 +108,8 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_MAX_CURRENT, default=3.2): cv.All(
                 cv.current, cv.Range(min=0.0)
             ),
-            cv.Optional(CONF_ADC_TIME, default="1100 us"): cv.Any(
-                validate_adc_time,
-                cv.Schema(
-                    {
-                        cv.Required(CONF_VOLTAGE): validate_adc_time,
-                        cv.Required(CONF_CURRENT): validate_adc_time,
-                    }
-                ),
+            cv.Optional(CONF_ADC_TIME, default="1100 us"): _per_channel(
+                validate_adc_time
             ),
             cv.Optional(CONF_ADC_AVERAGING, default=4): cv.enum(
                 ADC_AVG_SAMPLES, int=True
@@ -116,20 +122,14 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
 
     cg.add(var.set_shunt_resistance_ohm(config[CONF_SHUNT_RESISTANCE]))
     cg.add(var.set_max_current_a(config[CONF_MAX_CURRENT]))
 
-    adc_time_config = config[CONF_ADC_TIME]
-    if isinstance(adc_time_config, dict):
-        cg.add(var.set_adc_time_voltage(adc_time_config[CONF_VOLTAGE]))
-        cg.add(var.set_adc_time_current(adc_time_config[CONF_CURRENT]))
-    else:
-        cg.add(var.set_adc_time_voltage(adc_time_config))
-        cg.add(var.set_adc_time_current(adc_time_config))
+    adc_time = config[CONF_ADC_TIME]
+    cg.add(var.set_adc_time_voltage(adc_time[CONF_VOLTAGE]))
+    cg.add(var.set_adc_time_current(adc_time[CONF_CURRENT]))
 
     cg.add(var.set_adc_avg_samples(config[CONF_ADC_AVERAGING]))
 

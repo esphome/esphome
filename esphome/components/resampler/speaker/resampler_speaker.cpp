@@ -22,7 +22,7 @@ static const uint32_t TASK_STACK_SIZE = 3072;
 
 static const uint32_t STATE_TRANSITION_TIMEOUT_MS = 5000;
 
-static const char *const TAG = "resampler_speaker";
+ESPHOME_LOG_TAG(TAG, "resampler_speaker");
 
 enum ResamplingEventGroupBits : uint32_t {
   COMMAND_STOP = (1 << 0),       // signals stop request

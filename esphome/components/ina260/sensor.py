@@ -4,7 +4,6 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_BUS_VOLTAGE,
     CONF_CURRENT,
-    CONF_ID,
     CONF_POWER,
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_POWER,
@@ -54,10 +53,7 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
 
     sensors = sensor.sub_sensors(config)
     await sensors(CONF_BUS_VOLTAGE, var.set_bus_voltage_sensor)

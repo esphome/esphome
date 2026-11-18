@@ -1,0 +1,9 @@
+# Declaring the entity domains makes the C++ unit test build define USE_SENSOR and friends.
+# Loaded with plain yaml.safe_load, so no ESPHome tags here.
+binary_sensor:
+sensor:
+text_sensor:
+number:
+switch:
+select:
+button:

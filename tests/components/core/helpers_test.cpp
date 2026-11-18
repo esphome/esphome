@@ -55,6 +55,47 @@ TEST(HelpersTest, Ilog10RoundTripMatchesLog10) {
   }
 }
 
+TEST(HelpersTest, SignExtend) {
+  EXPECT_EQ(sign_extend<24>(0x000000), 0);
+  EXPECT_EQ(sign_extend<24>(0x7FFFFF), 8388607);
+  EXPECT_EQ(sign_extend<24>(0x800000), -8388608);
+  EXPECT_EQ(sign_extend<24>(0xFFFFFE), -2);
+  EXPECT_EQ(sign_extend<24>(0xAB000001), 1);  // bits above BITS are ignored
+  EXPECT_EQ(sign_extend<12>(0x7FF), 2047);
+  EXPECT_EQ(sign_extend<12>(0x800), -2048);
+  EXPECT_EQ(sign_extend<16>(0xFF38), -200);
+  EXPECT_EQ(sign_extend<1>(1), -1);
+  EXPECT_EQ(sign_extend<32>(0xFFFFFFFF), -1);
+  EXPECT_EQ(sign_extend<32>(0x7FFFFFFF), INT32_MAX);
+  static_assert(sign_extend<12>(0xFFF) == -1, "usable in constant expressions");
+}
+
+TEST(HelpersTest, SumBytes) {
+  static constexpr uint8_t FRAME[] = {0x11, 0xDA, 0x27, 0x00, 0xC5, 0x00, 0x10};
+  EXPECT_EQ(sum_bytes(FRAME, sizeof(FRAME)), 0xE7);  // the Daikin comfort frame checksum
+  EXPECT_EQ(sum_bytes(FRAME, 0), 0);
+  EXPECT_EQ(sum_bytes(FRAME, sizeof(FRAME), 0x19), 0x00);  // wraps at 8 bits
+  static_assert(sum_bytes(FRAME, 2) == 0xEB, "usable in constant expressions");
+}
+
+TEST(HelpersTest, Sum16Bytes) {
+  static constexpr uint8_t FRAME[] = {0x42, 0x4D, 0xE1, 0x00, 0x01};
+  EXPECT_EQ(sum16_bytes(FRAME, sizeof(FRAME)), 0x0171);  // the PMSx003 active mode command checksum
+  EXPECT_EQ(sum16_bytes(FRAME, 0), 0);
+  EXPECT_EQ(sum16_bytes(FRAME, sizeof(FRAME), 0x1234), 0x13A5);
+  EXPECT_EQ(sum16_bytes(FRAME, sizeof(FRAME), 0xFFFF), 0x0170);  // wraps at 16 bits
+  static_assert(sum16_bytes(FRAME, 2) == 0x8F, "usable in constant expressions");
+}
+
+TEST(HelpersTest, XorBytes) {
+  static constexpr uint8_t FRAME[] = {0x01, 0x03, 0x00, 0x15, 0x00};
+  EXPECT_EQ(xor_bytes(FRAME + 1, 3, 0xFF), 0xE9);  // the Z-Wave GetVersion frame checksum
+  EXPECT_EQ(xor_bytes(FRAME, 0), 0);
+  EXPECT_EQ(xor_bytes(FRAME, 0, 0x5A), 0x5A);
+  EXPECT_EQ(xor_bytes(FRAME, sizeof(FRAME)), 0x17);
+  static_assert(xor_bytes(FRAME, 2) == 0x02, "usable in constant expressions");
+}
+
 TEST(StaticVectorTest, ConvertingConstructorFromSmaller) {
   StaticVector<uint8_t, 5> small{0x03, 0x00, 0x10, 0x00, 0x01};
   StaticVector<uint8_t, 253> big = small;

@@ -1,0 +1,9 @@
+emontx:
+  id: test_emontx
+  lock_on_reboot: true
+
+text_sensor:
+  - platform: emontx
+    emontx_id: test_emontx
+    version:
+      name: emonTx firmware version

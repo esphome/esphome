@@ -2,16 +2,324 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 import json
+import logging
+from pathlib import Path
+import ssl
 import threading
 import time
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, call, patch
 
+import paho.mqtt.client as mqtt
+from paho.mqtt.packettypes import PacketTypes
+from paho.mqtt.reasoncodes import ReasonCode
 import pytest
 
-from esphome.const import CONF_BROKER, CONF_ESPHOME, CONF_MQTT, CONF_NAME
+from esphome.components.const import CONF_VERIFY_SSL
+from esphome.components.mqtt import CONF_TLS
+from esphome.const import (
+    CONF_BIRTH_MESSAGE,
+    CONF_BROKER,
+    CONF_CERTIFICATE_AUTHORITY,
+    CONF_CLIENT_CERTIFICATE,
+    CONF_CLIENT_CERTIFICATE_KEY,
+    CONF_ESPHOME,
+    CONF_LOG_TOPIC,
+    CONF_MQTT,
+    CONF_NAME,
+    CONF_NAME_ADD_MAC_SUFFIX,
+    CONF_PAYLOAD,
+    CONF_PORT,
+    CONF_RETAIN,
+    CONF_SKIP_CERT_CN_CHECK,
+    CONF_TOPIC,
+    CONF_TOPIC_PREFIX,
+)
 from esphome.core import EsphomeError
-from esphome.mqtt import get_esphome_device_ip
+from esphome.mqtt import (
+    clear_topic,
+    get_esphome_device_ip,
+    prepare,
+    show_discover,
+    show_logs,
+)
+
+
+@pytest.mark.parametrize(
+    "birth",
+    [
+        None,
+        {CONF_TOPIC: "test-device/status", CONF_PAYLOAD: "online", CONF_RETAIN: False},
+        {CONF_TOPIC: "test-device/status", CONF_PAYLOAD: "", CONF_RETAIN: True},
+    ],
+    ids=["no birth message", "unretained birth message", "empty birth payload"],
+)
+@patch("esphome.mqtt.initialize")
+def test_show_logs_asks_on_connect(
+    mock_initialize: MagicMock, birth: dict | None
+) -> None:
+    """Without a retained birth message nothing tells a later CLI the device is up, so it asks on connect."""
+    config = _discovery_config()
+    if birth is not None:
+        config[CONF_MQTT][CONF_BIRTH_MESSAGE] = birth
+
+    show_logs(config)
+
+    on_connect = mock_initialize.call_args.args[3]
+    client = MagicMock()
+    on_connect(client, None, None, 0, None)
+    client.publish.assert_called_once_with(
+        "esphome/logs/test-device", None, retain=False
+    )
+    if birth is None or not birth[CONF_PAYLOAD]:
+        assert mock_initialize.call_args.args[1] == ["test-device/debug"]
+
+
+@patch("esphome.mqtt.safe_print")
+@patch("esphome.mqtt.initialize")
+def test_show_logs_requests_crash_log_when_device_reports_online(
+    mock_initialize: MagicMock, mock_print: MagicMock
+) -> None:
+    """With a retained birth message the request follows the device coming online, not the CLI connecting."""
+    config = _discovery_config()
+    config[CONF_MQTT][CONF_BIRTH_MESSAGE] = {
+        CONF_TOPIC: "test-device/status",
+        CONF_PAYLOAD: "online",
+        CONF_RETAIN: True,
+    }
+
+    show_logs(config)
+
+    assert mock_initialize.call_args.args[1] == [
+        "test-device/debug",
+        "test-device/status",
+    ]
+    on_message = mock_initialize.call_args.args[2]
+    on_connect = mock_initialize.call_args.args[3]
+    client = MagicMock()
+    on_connect(client, None, None, 0, None)
+    client.publish.assert_not_called()
+
+    on_message(client, None, MagicMock(topic="test-device/status", payload=b"offline"))
+    client.publish.assert_not_called()
+    # The birth payload on another topic is only a log line
+    on_message(client, None, MagicMock(topic="test-device/debug", payload=b"online"))
+    client.publish.assert_not_called()
+    mock_print.reset_mock()
+    on_message(client, None, MagicMock(topic="test-device/status", payload=b"online"))
+    client.publish.assert_called_once_with(
+        "esphome/logs/test-device", None, retain=False
+    )
+    mock_print.assert_not_called()
+
+    on_message(
+        client, None, MagicMock(topic="test-device/debug", payload=b"[I][app]: hi")
+    )
+    assert mock_print.call_args.args[0].endswith("[I][app]: hi")
+    client.publish.assert_called_once()
+
+
+@patch("esphome.mqtt.safe_print")
+@patch("esphome.mqtt.initialize")
+def test_show_logs_prints_a_birth_message_inside_the_log_subscription(
+    mock_initialize: MagicMock, mock_print: MagicMock
+) -> None:
+    """A birth topic covered by the log topic is still printed, and still requests the crash log."""
+    config = _discovery_config()
+    config[CONF_MQTT][CONF_BIRTH_MESSAGE] = {
+        CONF_TOPIC: "test-device/status",
+        CONF_PAYLOAD: "online",
+        CONF_RETAIN: True,
+    }
+
+    show_logs(config, topic="test-device/#")
+
+    on_message = mock_initialize.call_args.args[2]
+    client = MagicMock()
+    on_message(client, None, MagicMock(topic="test-device/status", payload=b"online"))
+    client.publish.assert_called_once_with(
+        "esphome/logs/test-device", None, retain=False
+    )
+    assert mock_print.call_args.args[0].endswith("online")
+
+
+@patch("esphome.mqtt.safe_print")
+@patch("esphome.mqtt.initialize")
+def test_show_logs_follows_the_mac_suffix_of_default_topics(
+    mock_initialize: MagicMock, mock_print: MagicMock
+) -> None:
+    """With name_add_mac_suffix the default topics carry a MAC the CLI cannot know, so any suffix matches."""
+    show_logs(_mac_config(log_topic="test-device/debug"))
+
+    assert mock_initialize.call_args.args[1] == ["+/debug", "+/status"]
+    on_message = mock_initialize.call_args.args[2]
+    client = MagicMock()
+    for topic in (
+        "other-device/status",
+        "test-device/status",
+        "test-device-abc/status",
+    ):
+        _online(on_message, client, topic)
+    client.publish.assert_not_called()
+    _online(on_message, client, "test-device-a1b2c3/status")
+    client.publish.assert_called_once_with(
+        "esphome/logs/test-device-a1b2c3", None, retain=False
+    )
+
+    on_message(client, None, MagicMock(topic="other-device/debug", payload=b"no"))
+    mock_print.assert_not_called()
+    on_message(
+        client, None, MagicMock(topic="test-device-a1b2c3/debug", payload=b"[I]: hi")
+    )
+    assert mock_print.call_args.args[0].endswith("[test-device-a1b2c3][I]: hi")
+
+
+@pytest.mark.parametrize(
+    ("mac_suffix", "options", "cli_topic", "subscriptions"),
+    [
+        pytest.param(
+            True,
+            {"log_topic": "custom/debug", "birth_topic": None},
+            None,
+            ["custom/debug"],
+            id="custom log topic with the mac suffix",
+        ),
+        pytest.param(
+            True,
+            {"birth_topic": None},
+            "test-device/debug",
+            ["test-device/debug"],
+            id="command line topic as written",
+        ),
+        pytest.param(
+            False,
+            {"prefix": "custom", "birth_topic": None},
+            None,
+            ["custom/debug"],
+            id="logs under the topic prefix",
+        ),
+        pytest.param(
+            True,
+            {"prefix": "custom", "log_topic": "test-device/debug"},
+            None,
+            ["test-device/debug", "test-device/status"],
+            id="written out topics under a custom prefix",
+        ),
+    ],
+)
+@patch("esphome.mqtt.initialize")
+def test_show_logs_subscribes_to_literal_topics(
+    mock_initialize: MagicMock,
+    mac_suffix: bool,
+    options: dict,
+    cli_topic: str | None,
+    subscriptions: list[str],
+) -> None:
+    """Topics the firmware does not build from the MAC-suffixed name are subscribed to as written."""
+    config = _mac_config(**options)
+    config[CONF_ESPHOME][CONF_NAME_ADD_MAC_SUFFIX] = mac_suffix
+
+    show_logs(config, topic=cli_topic)
+
+    assert mock_initialize.call_args.args[1] == subscriptions
+
+
+@patch("esphome.mqtt.initialize")
+def test_show_logs_asks_only_the_board_a_command_line_topic_shows(
+    mock_initialize: MagicMock,
+) -> None:
+    """Replaying a crash clears it, so boards whose logs are not shown are left alone."""
+    show_logs(_mac_config(), topic="test-device-a1b2c3/debug")
+
+    assert mock_initialize.call_args.args[1] == [
+        "test-device-a1b2c3/debug",
+        "+/status",
+    ]
+    on_message = mock_initialize.call_args.args[2]
+    client = MagicMock()
+    _online(on_message, client, "test-device-d4e5f6/status")
+    client.publish.assert_not_called()
+    _online(on_message, client, "test-device-a1b2c3/status")
+    client.publish.assert_called_once_with(
+        "esphome/logs/test-device-a1b2c3", None, retain=False
+    )
+
+
+@pytest.mark.parametrize(
+    ("cli_topic", "asked"),
+    [
+        pytest.param(None, True, id="no command line topic"),
+        pytest.param("custom/debug", True, id="the shared custom topic"),
+        pytest.param(
+            "test-device-a1b2c3/debug", False, id="a topic the board never uses"
+        ),
+    ],
+)
+@patch("esphome.mqtt.initialize")
+def test_show_logs_matches_a_command_line_topic_to_the_custom_log_topic(
+    mock_initialize: MagicMock, cli_topic: str | None, asked: bool
+) -> None:
+    """Every board's crash replay goes to the custom log topic, so --topic must show it for a board to be asked."""
+    show_logs(_mac_config(log_topic="custom/debug"), topic=cli_topic)
+
+    assert mock_initialize.call_args.args[1] == [
+        cli_topic or "custom/debug",
+        "+/status",
+    ]
+    on_message = mock_initialize.call_args.args[2]
+    client = MagicMock()
+    _online(on_message, client, "test-device-a1b2c3/status")
+    if asked:
+        client.publish.assert_called_once_with(
+            "esphome/logs/test-device-a1b2c3", None, retain=False
+        )
+    else:
+        client.publish.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    ("mqtt_config", "message"),
+    [
+        pytest.param(None, "MQTT isn't setup", id="no mqtt"),
+        pytest.param({CONF_LOG_TOPIC: None}, "set to null", id="null log topic"),
+        pytest.param(
+            {CONF_LOG_TOPIC: {}}, "not available", id="log topic without topic"
+        ),
+    ],
+)
+@patch("esphome.mqtt.initialize")
+def test_show_logs_without_a_log_topic(
+    mock_initialize: MagicMock,
+    mqtt_config: dict | None,
+    message: str,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Without a log topic there is nothing to follow."""
+    config = _discovery_config()
+    if mqtt_config is None:
+        del config[CONF_MQTT]
+    else:
+        config[CONF_MQTT].update(mqtt_config)
+
+    assert show_logs(config) == 1
+    assert message in caplog.text
+    mock_initialize.assert_not_called()
+
+
+@patch("esphome.mqtt.initialize")
+def test_show_logs_skips_crash_log_requests_no_suffixed_board_hears(
+    mock_initialize: MagicMock,
+) -> None:
+    """A board with the MAC suffix only hears requests named after its own birth message."""
+    show_logs(_mac_config(birth_topic="custom/status", retain=False))
+
+    on_message = mock_initialize.call_args.args[2]
+    on_connect = mock_initialize.call_args.args[3]
+    client = MagicMock()
+    on_connect(client, None, None, 0, None)
+    _online(on_message, client, "custom/status")
+    client.publish.assert_not_called()
 
 
 def test_get_esphome_device_ip_empty_broker() -> None:
@@ -96,6 +404,34 @@ def test_get_esphome_device_ip_missing_name() -> None:
         get_esphome_device_ip(config)
 
 
+def _mac_config(
+    log_topic: str | None = None,
+    birth_topic: str | None = "test-device/status",
+    retain: bool = True,
+    prefix: str | None = None,
+) -> dict:
+    """A config with name_add_mac_suffix on and the given mqtt topics."""
+    config = _discovery_config()
+    config[CONF_ESPHOME][CONF_NAME_ADD_MAC_SUFFIX] = True
+    mqtt_conf = config[CONF_MQTT]
+    if prefix is not None:
+        mqtt_conf[CONF_TOPIC_PREFIX] = prefix
+    if log_topic is not None:
+        mqtt_conf[CONF_LOG_TOPIC] = {CONF_TOPIC: log_topic}
+    if birth_topic is not None:
+        mqtt_conf[CONF_BIRTH_MESSAGE] = {
+            CONF_TOPIC: birth_topic,
+            CONF_PAYLOAD: "online",
+            CONF_RETAIN: retain,
+        }
+    return config
+
+
+def _online(on_message: Callable[..., None], client: MagicMock, topic: str) -> None:
+    """Deliver the birth payload on a topic."""
+    on_message(client, None, MagicMock(topic=topic, payload=b"online"))
+
+
 def _discovery_config() -> dict:
     return {
         CONF_MQTT: {
@@ -105,6 +441,10 @@ def _discovery_config() -> dict:
             CONF_NAME: "test-device",
         },
     }
+
+
+def _disconnect_reason(name: str) -> ReasonCode:
+    return ReasonCode(PacketTypes.DISCONNECT, name)
 
 
 def _deliver_on_loop_start(mock_prepare, client, payload: bytes) -> None:
@@ -217,10 +557,15 @@ def test_get_esphome_device_ip_replaces_reconnect_handler(
         get_esphome_device_ip(_discovery_config(), timeout=0.25)
 
     assert client.on_disconnect is not prepare_handler
-    client.on_disconnect(client, None, 0)
+    flags = mqtt.DisconnectFlags(is_disconnect_packet_from_server=True)
+    client.on_disconnect(
+        client, None, flags, _disconnect_reason("Normal disconnection"), None
+    )
     assert "Disconnected from MQTT broker" not in caplog.text
-    client.on_disconnect(client, None, 5)
-    assert "Disconnected from MQTT broker (5)" in caplog.text
+    client.on_disconnect(
+        client, None, flags, _disconnect_reason("Not authorized"), None
+    )
+    assert "Disconnected from MQTT broker (Not authorized, rc=135)" in caplog.text
 
 
 def test_get_esphome_device_ip_answer_without_ip_fails_fast(
@@ -268,7 +613,10 @@ def test_get_esphome_device_ip_broker_disconnect_fails_fast(
     with patch("esphome.mqtt.prepare", return_value=client):
 
         def drop_connection(*args, **kwargs):
-            client.on_disconnect(client, None, 5)
+            flags = mqtt.DisconnectFlags(is_disconnect_packet_from_server=True)
+            client.on_disconnect(
+                client, None, flags, _disconnect_reason("Not authorized"), None
+            )
 
         client.loop_start.side_effect = drop_connection
 
@@ -277,7 +625,7 @@ def test_get_esphome_device_ip_broker_disconnect_fails_fast(
             get_esphome_device_ip(_discovery_config(), timeout=5)
 
     assert time.monotonic() - start < 1
-    assert "Disconnected from MQTT broker (5)" in caplog.text
+    assert "Disconnected from MQTT broker (Not authorized, rc=135)" in caplog.text
 
 
 def test_get_esphome_device_ip_sends_discovery_ping() -> None:
@@ -288,7 +636,7 @@ def test_get_esphome_device_ip_sends_discovery_ping() -> None:
 
         def connect_then_answer(*args, **kwargs):
             on_connect = mock_prepare.call_args.args[3]
-            on_connect(client, None, None, 0)
+            on_connect(client, None, None, 0, None)
             msg = MagicMock()
             msg.payload = json.dumps({"name": "test-device", "ip": "10.0.0.5"}).encode()
             mock_prepare.call_args.args[2](client, None, msg)
@@ -350,4 +698,245 @@ def test_get_esphome_device_ip_invalid_address_values_skipped(
     assert caplog.text.count("Ignoring invalid address in discovery answer") == 2
     assert "forged" not in "".join(
         r.getMessage() for r in caplog.records if "Found IP" in r.getMessage()
+    )
+
+
+@pytest.mark.parametrize(
+    ("transport", "ws_path", "expect_tls", "expect_path"),
+    [
+        (None, None, False, None),
+        ("ws", None, False, "/mqtt"),
+        ("wss", "/ws", True, "/ws"),
+    ],
+    ids=["tcp", "ws with the default path", "wss with a path"],
+)
+@patch("esphome.mqtt.ssl.create_default_context")
+@patch("esphome.mqtt.mqtt.Client")
+def test_prepare_follows_the_firmware_transport(
+    mock_client_class: MagicMock,
+    mock_context: MagicMock,
+    transport: str | None,
+    ws_path: str | None,
+    expect_tls: bool,
+    expect_path: str | None,
+) -> None:
+    """The CLI client speaks WebSocket, and TLS over wss, when the firmware is configured to."""
+    config = _discovery_config()
+    config[CONF_MQTT][CONF_PORT] = 1883
+    if transport is not None:
+        config[CONF_MQTT]["transport"] = transport
+    if ws_path is not None:
+        config[CONF_MQTT]["ws_path"] = ws_path
+    if expect_tls:
+        # Validation switches tls on for wss
+        config[CONF_MQTT][CONF_TLS] = True
+    client = mock_client_class.return_value
+
+    assert prepare(config, [], None, None, None, None, None) is client
+
+    mock_client_class.assert_called_once_with(
+        mqtt.CallbackAPIVersion.VERSION2,
+        "",
+        transport="websockets" if expect_path else "tcp",
+    )
+    if expect_path is None:
+        client.ws_set_options.assert_not_called()
+    else:
+        client.ws_set_options.assert_called_once_with(path=expect_path)
+    if expect_tls:
+        mock_context.assert_called_once_with(cadata=None)
+        client.tls_set_context.assert_called_once_with(mock_context.return_value)
+    else:
+        client.tls_set_context.assert_not_called()
+    client.connect.assert_called_once_with("mqtt.local", 1883)
+
+
+@patch("esphome.mqtt.mqtt.Client")
+def test_prepare_subscribes_on_connect_then_runs_the_caller_hook(
+    mock_client_class: MagicMock,
+) -> None:
+    """On CONNACK the client subscribes to every topic before the caller's on_connect runs."""
+    config = _discovery_config()
+    config[CONF_MQTT][CONF_PORT] = 1883
+    on_connect = MagicMock()
+
+    client = prepare(config, ["a/#", "b"], None, on_connect, None, None, None)
+
+    flags = mqtt.ConnectFlags(session_present=False)
+    reason = ReasonCode(PacketTypes.CONNACK, "Success")
+    client.on_connect(client, None, flags, reason, None)
+    assert client.subscribe.call_args_list == [call("a/#"), call("b")]
+    on_connect.assert_called_once_with(client, None, flags, reason, None)
+
+
+@patch("esphome.mqtt.time.sleep")
+@patch("esphome.mqtt.mqtt.Client")
+def test_prepare_reconnects_with_backoff_after_an_unexpected_disconnect(
+    mock_client_class: MagicMock,
+    mock_sleep: MagicMock,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A clean disconnect is left alone; any other reason retries with backoff until the broker answers."""
+    caplog.set_level(logging.INFO)
+    config = _discovery_config()
+    config[CONF_MQTT][CONF_PORT] = 1883
+    client = prepare(config, [], None, None, None, None, None)
+    flags = mqtt.DisconnectFlags(is_disconnect_packet_from_server=False)
+
+    client.on_disconnect(
+        client, None, flags, _disconnect_reason("Normal disconnection"), None
+    )
+    client.reconnect.assert_not_called()
+
+    client.reconnect.side_effect = [OSError("down"), 1, 0]
+    client.on_disconnect(
+        client, None, flags, _disconnect_reason("Unspecified error"), None
+    )
+    assert client.reconnect.call_count == 3
+    assert mock_sleep.call_args_list == [call(1), call(2)]
+    assert (
+        caplog.text.count(
+            "Disconnected from MQTT (Unspecified error, rc=128). Trying to reconnect"
+        )
+        == 2
+    )
+    assert "Successfully reconnected to the MQTT server" in caplog.text
+
+
+@patch("esphome.mqtt.safe_print")
+@patch("esphome.mqtt.initialize")
+def test_show_discover_broadcasts_on_connect_and_prints_answers(
+    mock_initialize: MagicMock, mock_print: MagicMock
+) -> None:
+    """The discover listener sends the broadcast once connected and prints every non-empty answer."""
+    show_discover(_discovery_config())
+
+    assert mock_initialize.call_args.args[1] == ["esphome/discover/#"]
+    on_message = mock_initialize.call_args.args[2]
+    on_connect = mock_initialize.call_args.args[3]
+    client = MagicMock()
+    flags = mqtt.ConnectFlags(session_present=False)
+    on_connect(client, None, flags, ReasonCode(PacketTypes.CONNACK, "Success"), None)
+    client.publish.assert_called_once_with("esphome/discover", None, retain=False)
+
+    on_message(client, None, MagicMock(payload=b""))
+    mock_print.assert_not_called()
+    on_message(client, None, MagicMock(payload=b"test-device 10.0.0.5"))
+    assert mock_print.call_args.args[0].endswith(" test-device 10.0.0.5")
+
+
+def _mqtt_config(options: dict | None = None) -> dict:
+    return {
+        CONF_MQTT: {CONF_BROKER: "broker.local", CONF_PORT: 8883, **(options or {})}
+    }
+
+
+def _prepare_with_mocks(config: dict) -> tuple[MagicMock, MagicMock, MagicMock]:
+    """Runs prepare() against a mocked paho client and SSL context factory."""
+    with (
+        patch("esphome.mqtt.mqtt.Client") as client_cls,
+        patch("esphome.mqtt.ssl.create_default_context") as create_context,
+    ):
+        client = client_cls.return_value
+        context = create_context.return_value
+        # A real context verifies hostnames unless prepare() turns that off
+        context.check_hostname = True
+        prepare(config, [], None, None, None, None, None)
+    return client, create_context, context
+
+
+def test_prepare_without_tls_connects_in_plaintext() -> None:
+    client, create_context, _ = _prepare_with_mocks(_mqtt_config({CONF_PORT: 1883}))
+
+    create_context.assert_not_called()
+    client.tls_set_context.assert_not_called()
+    client.connect.assert_called_once_with("broker.local", 1883)
+
+
+def test_prepare_tls_without_ca_uses_system_trust_store() -> None:
+    client, create_context, context = _prepare_with_mocks(
+        _mqtt_config({CONF_TLS: True})
+    )
+
+    create_context.assert_called_once_with(cadata=None)
+    assert context.check_hostname is True
+    client.tls_set_context.assert_called_once_with(context)
+
+
+def test_prepare_tls_with_ca_and_skip_cn_check() -> None:
+    client, create_context, context = _prepare_with_mocks(
+        _mqtt_config(
+            {
+                CONF_TLS: True,
+                CONF_CERTIFICATE_AUTHORITY: "---cert---",
+                CONF_SKIP_CERT_CN_CHECK: True,
+            }
+        )
+    )
+
+    create_context.assert_called_once_with(cadata="---cert---")
+    assert context.check_hostname is False
+    client.tls_set_context.assert_called_once_with(context)
+
+
+def test_prepare_verify_ssl_false_disables_verification() -> None:
+    client, create_context, context = _prepare_with_mocks(
+        _mqtt_config({CONF_TLS: True, CONF_VERIFY_SSL: False})
+    )
+
+    create_context.assert_called_once_with()
+    assert context.check_hostname is False
+    assert context.verify_mode == ssl.CERT_NONE
+    client.tls_set_context.assert_called_once_with(context)
+
+
+def test_prepare_loads_client_certificate() -> None:
+    _, _, context = _prepare_with_mocks(
+        _mqtt_config(
+            {
+                CONF_TLS: True,
+                CONF_CLIENT_CERTIFICATE: "---client cert---",
+                CONF_CLIENT_CERTIFICATE_KEY: "---client key---",
+            }
+        )
+    )
+
+    context.load_cert_chain.assert_called_once()
+    cert_file, key_file = context.load_cert_chain.call_args.args
+    assert not Path(cert_file).exists()
+    assert not Path(key_file).exists()
+
+
+@patch("esphome.mqtt.initialize")
+def test_clear_topic_clears_retained_messages_under_the_device(
+    mock_initialize: MagicMock,
+) -> None:
+    """Without a topic the device's discovery subtree is cleared, one empty retained publish per retained message."""
+    clear_topic(_discovery_config(), None)
+
+    assert mock_initialize.call_args.args[1] == ["homeassistant/+/test-device/#"]
+    on_message = mock_initialize.call_args.args[2]
+    client = MagicMock()
+    on_message(
+        client,
+        None,
+        MagicMock(
+            topic="homeassistant/sensor/test-device/t", payload=b"1", retain=False
+        ),
+    )
+    on_message(
+        client,
+        None,
+        MagicMock(topic="homeassistant/sensor/test-device/t", payload=b"", retain=True),
+    )
+    client.publish.assert_not_called()
+    on_message(
+        client,
+        None,
+        MagicMock(
+            topic="homeassistant/sensor/test-device/t", payload=b"1", retain=True
+        ),
+    )
+    client.publish.assert_called_once_with(
+        "homeassistant/sensor/test-device/t", None, retain=True
     )

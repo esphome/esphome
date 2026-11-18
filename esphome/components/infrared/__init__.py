@@ -19,6 +19,7 @@ from esphome.types import ConfigType, SafeExpType
 
 CODEOWNERS = ["@kbx81"]
 AUTO_LOAD = ["ir_rf_base"]
+DOMAIN = "infrared"
 
 IS_PLATFORM_COMPONENT = True
 
@@ -43,7 +44,7 @@ def infrared_schema(class_: type[cg.MockObjClass]) -> cv.Schema:
         {
             cv.GenerateID(): cv.declare_id(class_),
         }
-    )
+    ).add_extra(ir_rf_base.duplicate_validator(DOMAIN))
 
 
 @setup_entity("infrared")

@@ -27,9 +27,9 @@ ble_device_base::ESPBTDevice advert(std::initializer_list<uint8_t> service_data)
 struct Harness {
   Harness() {
     this->thermometer.set_address(SENSOR_ADDRESS);
-    this->thermometer.set_temperature(&this->temperature);
-    this->thermometer.set_humidity(&this->humidity);
-    this->thermometer.set_battery_level(&this->battery_level);
+    this->thermometer.set_temperature_sensor(&this->temperature);
+    this->thermometer.set_humidity_sensor(&this->humidity);
+    this->thermometer.set_battery_level_sensor(&this->battery_level);
   }
 
   BTHomeMiThermometer thermometer;

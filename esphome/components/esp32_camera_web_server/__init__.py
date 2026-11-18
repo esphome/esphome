@@ -7,13 +7,14 @@ from esphome.types import ConfigType
 CODEOWNERS = ["@ayufan"]
 AUTO_LOAD = ["camera"]
 DEPENDENCIES = ["network"]
+DOMAIN = "esp32_camera_web_server"
 MULTI_CONF = True
 
 esp32_camera_web_server_ns = cg.esphome_ns.namespace("esp32_camera_web_server")
 CameraWebServer = esp32_camera_web_server_ns.class_("CameraWebServer", cg.Component)
 Mode = esp32_camera_web_server_ns.enum("Mode")
 
-MODES = {"STREAM": Mode.STREAM, "SNAPSHOT": Mode.SNAPSHOT}
+MODES = Mode.options("STREAM", "SNAPSHOT")
 
 
 def _consume_camera_web_server_sockets(config: ConfigType) -> ConfigType:

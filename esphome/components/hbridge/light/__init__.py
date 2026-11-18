@@ -28,7 +28,5 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
     await light.register_light(var, config)
 
-    hside = await cg.get_variable(config[CONF_PIN_A])
-    cg.add(var.set_pina_pin(hside))
-    lside = await cg.get_variable(config[CONF_PIN_B])
-    cg.add(var.set_pinb_pin(lside))
+    await cg.add_variable(var.set_pina_pin, config[CONF_PIN_A])
+    await cg.add_variable(var.set_pinb_pin, config[CONF_PIN_B])

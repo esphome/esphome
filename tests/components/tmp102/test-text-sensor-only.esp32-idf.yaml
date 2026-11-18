@@ -1,0 +1,12 @@
+packages:
+  i2c: !include ../../test_build_components/common/i2c/esp32-idf.yaml
+
+sensor:
+  - platform: tmp102
+    id: tmp102_text_sensor_parent
+    name: TMP102 Temperature
+
+text_sensor:
+  - platform: tmp102
+    tmp102_id: tmp102_text_sensor_parent
+    name: TMP102 Threshold Status

@@ -10,7 +10,7 @@
 
 namespace esphome::esp8266_pwm {
 
-static const char *const TAG = "esp8266_pwm";
+ESPHOME_LOG_TAG(TAG, "esp8266_pwm");
 
 void ESP8266PWM::setup() {
   this->pin_->setup();

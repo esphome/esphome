@@ -15,6 +15,7 @@ from esphome.types import ConfigType
 
 CODEOWNERS = ["@jesserockz"]
 DEPENDENCIES = []
+DOMAIN = "sn74hc165"
 MULTI_CONF = True
 
 sn74hc165_ns = cg.esphome_ns.namespace("sn74hc165")
@@ -43,15 +44,10 @@ CONFIG_SCHEMA = cv.Schema(
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
-    data_pin = await cg.gpio_pin_expression(config[CONF_DATA_PIN])
-    cg.add(var.set_data_pin(data_pin))
-    clock_pin = await cg.gpio_pin_expression(config[CONF_CLOCK_PIN])
-    cg.add(var.set_clock_pin(clock_pin))
-    load_pin = await cg.gpio_pin_expression(config[CONF_LOAD_PIN])
-    cg.add(var.set_load_pin(load_pin))
-    if CONF_CLOCK_INHIBIT_PIN in config:
-        clock_inhibit_pin = await cg.gpio_pin_expression(config[CONF_CLOCK_INHIBIT_PIN])
-        cg.add(var.set_clock_inhibit_pin(clock_inhibit_pin))
+    await cg.add_pin(var.set_data_pin, config[CONF_DATA_PIN])
+    await cg.add_pin(var.set_clock_pin, config[CONF_CLOCK_PIN])
+    await cg.add_pin(var.set_load_pin, config[CONF_LOAD_PIN])
+    await cg.add_pin(var.set_clock_inhibit_pin, config.get(CONF_CLOCK_INHIBIT_PIN))
 
     cg.add(var.set_sr_count(config[CONF_SR_COUNT]))
 

@@ -130,6 +130,17 @@ def safe_input(prompt=""):
     return input()
 
 
+def read_secret_line(prompt: str) -> str:
+    """Read a secret without echo on a terminal, or one line from a pipe."""
+    if sys.stdin.isatty():
+        import getpass
+
+        return getpass.getpass(prompt).strip()
+    # Still say what is awaited, so a pipe held open is not a silent hang
+    print(prompt, end="", file=sys.stderr, flush=True)
+    return sys.stdin.readline().strip()
+
+
 def shlex_quote(s: str | Path) -> str:
     # Convert Path objects to strings
     if isinstance(s, Path):

@@ -1,0 +1,63 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+sensor:
+  - platform: adc
+    id: mics_5524_adc
+    name: MiCS-5524 AO
+    pin: GPIO34
+
+  # Calibrated at boot; every gas below it is published from the same ratio.
+  - platform: mics_5524
+    id: mics_5524_boot
+    voltage: mics_5524_adc
+    voltage_multiplier: 1.5
+    sample_count: 3
+    calibration:
+      delay: 5s
+      sample_count: 3
+    carbon_monoxide:
+      id: mics_5524_co
+      name: MiCS-5524 CO
+      max_ppm: 500.0
+    methane:
+      id: mics_5524_ch4
+      name: MiCS-5524 CH4
+
+  # The reference is hard-coded, so nothing is calibrated at boot.
+  - platform: mics_5524
+    id: mics_5524_fixed
+    voltage: mics_5524_adc
+    air_reference: 3.6
+    hydrogen:
+      id: mics_5524_h2
+      name: MiCS-5524 H2
+
+  # The datasheet model on the ADC this component owns: the 10k/20k divider puts 3.33 V on
+  # the pin, so it needs adc_input_max: 3.34 and the 12 dB attenuation it gets by default.
+  - platform: mics_5524
+    id: mics_5524_pin
+    pin: GPIO32
+    voltage_divider:
+      r1: 10000
+      r2: 20000
+    adc_input_max: 3.34
+    conversion: datasheet
+    r0: 10.0
+    # Diagnostics of this reading, declared by the hub itself.
+    ratio_sensor:
+      id: mics_5524_ratio
+      name: MiCS-5524 ratio
+    rs_sensor:
+      id: mics_5524_rs
+      name: MiCS-5524 RS
+    voltage_sensor:
+      id: mics_5524_volts
+      name: MiCS-5524 volts
+    carbon_monoxide:
+      id: mics_5524_co_ds
+      name: MiCS-5524 CO (datasheet)
+      max_ppm: 2000.0

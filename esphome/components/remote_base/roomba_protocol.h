@@ -19,15 +19,4 @@ class RoombaProtocol : public RemoteProtocol<RoombaData> {
 
 DECLARE_REMOTE_PROTOCOL(Roomba)
 
-template<typename... Ts> class RoombaAction : public RemoteTransmitterActionBase<Ts...> {
- public:
-  TEMPLATABLE_VALUE(uint8_t, data)
-
-  void encode(RemoteTransmitData *dst, Ts... x) override {
-    RoombaData data{};
-    data.data = this->data_.value(x...);
-    RoombaProtocol().encode(dst, data);
-  }
-};
-
 }  // namespace esphome::remote_base

@@ -6,7 +6,6 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_BATTERY_LEVEL,
     CONF_DISTANCE,
-    CONF_ID,
     CONF_LEVEL,
     CONF_MAC_ADDRESS,
     CONF_TEMPERATURE,
@@ -132,9 +131,7 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await ble_device_base.register_ble_device(var, config)
+    var = await ble_device_base.new_ble_device_component(config)
 
     cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))
 
@@ -160,9 +157,9 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_min_signal_quality(minimum_signal_quality))
 
     sensors = sensor.sub_sensors(config)
-    await sensors(CONF_TEMPERATURE, var.set_temperature)
-    await sensors(CONF_LEVEL, var.set_level)
-    await sensors(CONF_DISTANCE, var.set_distance)
-    await sensors(CONF_BATTERY_LEVEL, var.set_battery_level)
-    await sensors(CONF_SIGNAL_QUALITY, var.set_signal_quality)
-    await sensors(CONF_IGNORED_READS, var.set_ignored_reads)
+    await sensors(CONF_TEMPERATURE, var.set_temperature_sensor)
+    await sensors(CONF_LEVEL, var.set_level_sensor)
+    await sensors(CONF_DISTANCE, var.set_distance_sensor)
+    await sensors(CONF_BATTERY_LEVEL, var.set_battery_level_sensor)
+    await sensors(CONF_SIGNAL_QUALITY, var.set_signal_quality_sensor)
+    await sensors(CONF_IGNORED_READS, var.set_ignored_reads_sensor)

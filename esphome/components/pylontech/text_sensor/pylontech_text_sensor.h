@@ -7,7 +7,7 @@ namespace esphome::pylontech {
 
 class PylontechTextSensor final : public PylontechListener {
  public:
-  PylontechTextSensor(int8_t bat_num);
+  explicit PylontechTextSensor(uint8_t bat_num) : PylontechListener(bat_num) {}
   void dump_config() override;
 
   SUB_TEXT_SENSOR(base_state)
@@ -16,9 +16,6 @@ class PylontechTextSensor final : public PylontechListener {
   SUB_TEXT_SENSOR(temperature_state)
 
   void on_line_read(LineContents *line) override;
-
- protected:
-  int8_t bat_num_;
 };
 
 }  // namespace esphome::pylontech

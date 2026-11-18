@@ -8,6 +8,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include "software_serial_rx_decoder.h"
+#include "software_serial_tx_frame.h"
 #include "uart_component.h"
 
 namespace esphome::uart {
@@ -25,6 +26,10 @@ class ESP8266SoftwareSerial {
   void write_byte(uint8_t data);
 
   size_t available();
+
+  /// TX holds interrupts off for each byte up to the edge into its trailing run of 1 bits, rather than per bit: above
+  /// the per-bit lock limit, or while any instance's RX interrupt reads whole bytes (it must not run between TX edges).
+  bool locks_whole_frame() const { return this->lock_frame_ || blocking_rx_count != 0; }
 
  protected:
   /// Above SW_SERIAL_EDGE_MODE_MAX_BAUD; reads the whole byte in the ISR.
@@ -51,6 +56,9 @@ class ESP8266SoftwareSerial {
   UARTParityOptions parity_;
   uint8_t stop_bits_;
   uint8_t data_bits_;
+  bool lock_frame_{false};
+  bool blocking_rx_{false};                     // this instance's RX reads whole bytes in its interrupt
+  static inline uint8_t blocking_rx_count = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 };
 
 class ESP8266UartComponent final : public UARTComponent, public Component {
@@ -92,7 +100,8 @@ class ESP8266UartComponent final : public UARTComponent, public Component {
   ESP8266SoftwareSerial *sw_serial_{nullptr};
 
  private:
-  static bool serial0_in_use;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+  static bool serial0_in_use;   // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+  static bool serial0_swapped;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 };
 
 }  // namespace esphome::uart

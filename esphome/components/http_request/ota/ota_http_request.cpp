@@ -11,29 +11,38 @@
 
 namespace esphome::http_request {
 
-static const char *const TAG = "http_request.ota";
+ESPHOME_LOG_TAG(TAG, "http_request.ota");
 
 void OtaHttpRequestComponent::dump_config() { ESP_LOGCONFIG(TAG, "Over-The-Air updates via HTTP request"); };
 
+OtaHttpRequestComponent::Request &OtaHttpRequestComponent::get_request_() {
+  if (this->request_ == nullptr)
+    this->request_ = make_unique<Request>();
+  return *this->request_;
+}
+
 void OtaHttpRequestComponent::set_md5_url(const std::string &url) {
   if (!this->validate_url_(url)) {
-    this->md5_url_.clear();  // URL was not valid; prevent flashing until it is
+    if (this->request_ != nullptr)
+      this->request_->md5_url.clear();  // URL was not valid; prevent flashing until it is
     return;
   }
-  this->md5_url_ = url;
-  this->md5_expected_.clear();  // to be retrieved later
+  Request &request = this->get_request_();
+  request.md5_url = url;
+  request.md5_expected.clear();  // to be retrieved later
 }
 
 void OtaHttpRequestComponent::set_url(const std::string &url) {
   if (!this->validate_url_(url)) {
-    this->url_.clear();  // URL was not valid; prevent flashing until it is
+    if (this->request_ != nullptr)
+      this->request_->url.clear();  // URL was not valid; prevent flashing until it is
     return;
   }
-  this->url_ = url;
+  this->get_request_().url = url;
 }
 
 void OtaHttpRequestComponent::flash() {
-  if (this->url_.empty()) {
+  if (this->request_ == nullptr || this->request_->url.empty()) {
     ESP_LOGE(TAG, "URL not set; cannot start update");
     return;
   }
@@ -58,8 +67,8 @@ void OtaHttpRequestComponent::flash() {
 #ifdef USE_OTA_STATE_LISTENER
       this->notify_state_(ota::OTA_ERROR, 0.0f, ota_status);
 #endif
-      this->md5_computed_.clear();  // will be reset at next attempt
-      this->md5_expected_.clear();  // will be reset at next attempt
+      this->request_->md5_computed.clear();  // will be reset at next attempt
+      this->request_->md5_expected.clear();  // will be reset at next attempt
       break;
   }
 }
@@ -81,22 +90,24 @@ uint8_t OtaHttpRequestComponent::do_ota_() {
   md5::MD5Digest md5_receive;
   char md5_receive_str[33];
 
-  if (this->md5_expected_.empty() && !this->http_get_md5_()) {
+  if (this->request_->md5_expected.empty() && !this->http_get_md5_()) {
     return OTA_MD5_INVALID;
   }
 
-  ESP_LOGD(TAG, "MD5 expected: %s", this->md5_expected_.c_str());
+  ESP_LOGD(TAG, "MD5 expected: %s", this->request_->md5_expected.c_str());
 
-  auto url_with_auth = this->get_url_with_auth_(this->url_);
+  auto url_with_auth = this->get_url_with_auth_(this->request_->url);
   if (url_with_auth.empty()) {
     return OTA_BAD_URL;
   }
   ESP_LOGVV(TAG, "url_with_auth: %s", url_with_auth.c_str());
-  ESP_LOGI(TAG, "Connecting to: %s", this->url_.c_str());
+  ESP_LOGI(TAG, "Connecting to: %s", this->request_->url.c_str());
 
   auto container = this->parent_->get(url_with_auth);
 
   if (container == nullptr || container->status_code != HTTP_STATUS_OK) {
+    if (container != nullptr)
+      container->end();
     return OTA_CONNECTION_ERROR;
   }
 
@@ -179,9 +190,9 @@ uint8_t OtaHttpRequestComponent::do_ota_() {
   // verify MD5 is as expected and act accordingly
   md5_receive.calculate();
   md5_receive.get_hex(md5_receive_str);
-  this->md5_computed_ = md5_receive_str;
-  if (strncmp(this->md5_computed_.c_str(), this->md5_expected_.c_str(), MD5_SIZE) != 0) {
-    ESP_LOGE(TAG, "MD5 computed: %s - Aborting due to MD5 mismatch", this->md5_computed_.c_str());
+  this->request_->md5_computed = md5_receive_str;
+  if (strncmp(this->request_->md5_computed.c_str(), this->request_->md5_expected.c_str(), MD5_SIZE) != 0) {
+    ESP_LOGE(TAG, "MD5 computed: %s - Aborting due to MD5 mismatch", this->request_->md5_computed.c_str());
     this->cleanup_(std::move(backend), container, /*abort_backend=*/true);
     return ota::OTA_RESPONSE_ERROR_MD5_MISMATCH;
   } else {
@@ -223,11 +234,15 @@ static std::string url_encode(const std::string &str) {
   return result;
 }
 
-void OtaHttpRequestComponent::set_password(const std::string &password) { this->password_ = url_encode(password); }
-void OtaHttpRequestComponent::set_username(const std::string &username) { this->username_ = url_encode(username); }
+void OtaHttpRequestComponent::set_password(const std::string &password) {
+  this->get_request_().password = url_encode(password);
+}
+void OtaHttpRequestComponent::set_username(const std::string &username) {
+  this->get_request_().username = url_encode(username);
+}
 
 std::string OtaHttpRequestComponent::get_url_with_auth_(const std::string &url) {
-  if (this->username_.empty() || this->password_.empty()) {
+  if (this->request_->username.empty() || this->request_->password.empty()) {
     return url;
   }
 
@@ -240,23 +255,23 @@ std::string OtaHttpRequestComponent::get_url_with_auth_(const std::string &url) 
   ESP_LOGD(TAG, "Using basic HTTP authentication");
 
   start_char += 3;  // skip '://' characters
-  auto url_with_auth =
-      url.substr(0, start_char) + this->username_ + ":" + this->password_ + "@" + url.substr(start_char);
+  auto url_with_auth = url.substr(0, start_char) + this->request_->username + ":" + this->request_->password + "@" +
+                       url.substr(start_char);
   return url_with_auth;
 }
 
 bool OtaHttpRequestComponent::http_get_md5_() {
-  if (this->md5_url_.empty()) {
+  if (this->request_->md5_url.empty()) {
     return false;
   }
 
-  auto url_with_auth = this->get_url_with_auth_(this->md5_url_);
+  auto url_with_auth = this->get_url_with_auth_(this->request_->md5_url);
   if (url_with_auth.empty()) {
     return false;
   }
 
   ESP_LOGVV(TAG, "url_with_auth: %s", url_with_auth.c_str());
-  ESP_LOGI(TAG, "Connecting to: %s", this->md5_url_.c_str());
+  ESP_LOGI(TAG, "Connecting to: %s", this->request_->md5_url.c_str());
   auto container = this->parent_->get(url_with_auth);
   if (container == nullptr) {
     ESP_LOGE(TAG, "Failed to connect to MD5 URL");
@@ -273,8 +288,8 @@ bool OtaHttpRequestComponent::http_get_md5_() {
     return false;
   }
 
-  this->md5_expected_.resize(MD5_SIZE);
-  auto result = http_read_fully(container.get(), (uint8_t *) this->md5_expected_.data(), MD5_SIZE, MD5_SIZE,
+  this->request_->md5_expected.resize(MD5_SIZE);
+  auto result = http_read_fully(container.get(), (uint8_t *) this->request_->md5_expected.data(), MD5_SIZE, MD5_SIZE,
                                 this->parent_->get_timeout());
   container->end();
 

@@ -1,0 +1,31 @@
+# Config-only test: the datasheet model with the wiring the component owns (pin:, voltage_divider:).
+sensor:
+  - platform: mics_5524
+    id: mics_5524_dat
+    pin: GPIO34
+    voltage_divider:
+      r1: 10000
+      r2: 20000
+    adc_input_max: 3.34
+    adc_attenuation: 12db
+    conversion: datasheet
+    r0: 10.0
+    rl: 10.0
+    # The EN input of the breakout is active low, so the pin is inverted.
+    enable_pin:
+      number: GPIO25
+      inverted: true
+    ratio_sensor:
+      name: MiCS-5524 ratio
+    rs_sensor:
+      name: MiCS-5524 RS
+    voltage_sensor:
+      name: MiCS-5524 volts
+    carbon_monoxide:
+      id: mics_5524_dat_co
+      name: MiCS-5524 CO (datasheet)
+      max_ppm: 2000.0
+    hydrogen:
+      name: MiCS-5524 H2 (fit)
+      coefficient_a: 6.3
+      coefficient_b: -1.1

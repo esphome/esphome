@@ -6,7 +6,7 @@
 
 namespace esphome::mqtt {
 
-static const char *const TAG = "mqtt.custom";
+ESPHOME_LOG_TAG(TAG, "mqtt.custom");
 
 bool CustomMQTTDevice::publish(const std::string &topic, const std::string &payload, uint8_t qos, bool retain) {
   return global_mqtt_client->publish(topic, payload, qos, retain);

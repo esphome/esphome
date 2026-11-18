@@ -6,7 +6,7 @@
 
 namespace esphome::exponential_moving_average {
 
-static const char *const TAG = "exponential_moving_average";
+ESPHOME_LOG_TAG(TAG, "exponential_moving_average");
 
 const LogString *time_weighting_to_string(TimeWeighting weighting) {
   switch (weighting) {

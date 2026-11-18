@@ -37,11 +37,14 @@ esphome:
     - id: other_device
       name: Another device
       area_id: another_area
+      relation: child
     - id: test_device
       name: Test device in main area
       area_id: testing_area  # Reference the main area (not in areas)
+      relation: child
     - id: no_area_device
       name: Device without area  # This device has no area_id
+      relation: child
 
 binary_sensor:
   - platform: template

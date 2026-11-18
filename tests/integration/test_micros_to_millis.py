@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-import asyncio
-import re
-
 import pytest
 
+from .log_utils import LineWaiter
+from .state_utils import assert_device_name
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -18,29 +18,22 @@ async def test_micros_to_millis(
 ) -> None:
     """Test that micros_to_millis matches reference uint64 division."""
 
-    all_passed = asyncio.Event()
-    failures: list[str] = []
+    waiter = LineWaiter()
 
-    def on_log_line(line: str) -> None:
-        clean_line = re.sub(r"\x1b\[[0-9;]*m", "", line)
-        if "ALL_PASSED" in clean_line:
-            all_passed.set()
-        elif "FAILED" in clean_line and "[MTM" in clean_line:
-            failures.append(clean_line)
+    def failures() -> list[str]:
+        return [line for line in waiter.lines if "FAILED" in line and "[MTM" in line]
 
     async with (
-        run_compiled(yaml_config, line_callback=on_log_line),
+        run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "micros-to-millis-test"
+        await assert_device_name(client, "micros-to-millis-test")
 
-        try:
-            await asyncio.wait_for(all_passed.wait(), timeout=2.0)
-        except TimeoutError:
-            if failures:
-                pytest.fail(f"micros_to_millis failures: {failures}")
-            pytest.fail("micros_to_millis test timed out")
+        await wait_or_fail(
+            waiter.wait_for("ALL_PASSED"),
+            2.0,
+            "micros_to_millis test timed out",
+            failures=failures,
+        )
 
-        assert not failures, f"micros_to_millis failures: {failures}"
+        assert not failures(), f"micros_to_millis failures: {failures()}"

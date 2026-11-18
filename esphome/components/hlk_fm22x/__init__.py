@@ -4,7 +4,6 @@ from esphome.components import uart
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DIRECTION,
-    CONF_ID,
     CONF_NAME,
     CONF_ON_ENROLLMENT_DONE,
     CONF_ON_ENROLLMENT_FAILED,
@@ -13,6 +12,7 @@ from esphome.const import (
 CODEOWNERS = ["@OnFreund"]
 DEPENDENCIES = ["uart"]
 AUTO_LOAD = ["binary_sensor", "sensor", "text_sensor"]
+DOMAIN = "hlk_fm22x"
 MULTI_CONF = True
 
 CONF_HLK_FM22X_ID = "hlk_fm22x_id"
@@ -89,9 +89,7 @@ _CALLBACK_AUTOMATIONS = (
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await uart.register_uart_device(var, config)
+    var = await uart.new_uart_component(config)
 
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 

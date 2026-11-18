@@ -22,7 +22,7 @@ namespace esphome::http_request {
 #define UPDATE_RETURN return
 #endif
 
-static const char *const TAG = "http_request.update";
+ESPHOME_LOG_TAG(TAG, "http_request.update");
 
 static const size_t MAX_READ_SIZE = 256;
 static constexpr uint32_t INITIAL_CHECK_INTERVAL_ID = 0;

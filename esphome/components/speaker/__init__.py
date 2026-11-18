@@ -8,6 +8,7 @@ from esphome.coroutine import CoroPriority, coroutine_with_priority
 
 AUTO_LOAD = ["audio"]
 CODEOWNERS = ["@jesserockz", "@kahrendt"]
+DOMAIN = "speaker"
 
 IS_PLATFORM_COMPONENT = True
 
@@ -20,10 +21,24 @@ PlayAction = speaker_ns.class_(
 )
 
 
+def get_audio_dac_ids(config):
+    """Return the audio DAC ids of a speaker config: none, the single id, or the list."""
+    audio_dac_ids = config.get(CONF_AUDIO_DAC)
+    if audio_dac_ids is None:
+        return []
+    return audio_dac_ids if isinstance(audio_dac_ids, list) else [audio_dac_ids]
+
+
 async def setup_speaker_core_(var, config):
-    if audio_dac_config := config.get(CONF_AUDIO_DAC):
-        aud_dac = await cg.get_variable(audio_dac_config)
-        cg.add(var.set_audio_dac(aud_dac))
+    if audio_dacs := get_audio_dac_ids(config):
+        dacs = [await cg.get_variable(dac_id) for dac_id in audio_dacs]
+        table = cg.shared_progmem_array(
+            "speaker_audio_dacs",
+            audio_dac.AudioDac.operator("ptr"),
+            cg.ArrayInitializer(*dacs),
+            constexpr=False,
+        )
+        cg.add(var.set_audio_dacs(table, len(dacs)))
 
 
 async def register_speaker(var, config):
@@ -32,9 +47,26 @@ async def register_speaker(var, config):
     await setup_speaker_core_(var, config)
 
 
+def _unique_audio_dacs(value):
+    # a repeated DAC would get every volume, mute and audio start write twice
+    if len(set(value)) != len(value):
+        raise cv.Invalid("Each audio_dac can only be listed once")
+    return value
+
+
 SPEAKER_SCHEMA = cv.Schema.extend(audio.AUDIO_COMPONENT_SCHEMA).extend(
     {
-        cv.Optional(CONF_AUDIO_DAC): cv.use_id(audio_dac.AudioDac),
+        # one id as before (kept as a single value), or a list of DACs fed by this speaker's audio output that all
+        # get the same volume and mute
+        # the list comes first so a bad list reports its own error
+        cv.Optional(CONF_AUDIO_DAC): cv.Any(
+            cv.All(
+                [cv.use_id(audio_dac.AudioDac)],
+                cv.Length(min=1),
+                _unique_audio_dacs,
+            ),
+            cv.use_id(audio_dac.AudioDac),
+        ),
     }
 )
 

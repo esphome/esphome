@@ -1,0 +1,25 @@
+# on_state and on_control on a thermostat.
+sensor:
+  - platform: template
+    id: climate_triggers_temperature
+
+climate:
+  - platform: thermostat
+    name: Climate Triggers
+    id: climate_triggers
+    sensor: climate_triggers_temperature
+    min_idle_time: 30s
+    min_heating_off_time: 300s
+    min_heating_run_time: 300s
+    heat_action:
+      - logger.log: heating
+    idle_action:
+      - logger.log: idle
+    on_state:
+      - logger.log:
+          format: "Climate mode %d"
+          args: [x.mode]
+    on_control:
+      - lambda: |-
+          if (x.get_mode().has_value())
+            ESP_LOGD("test", "Control mode %d", *x.get_mode());

@@ -132,8 +132,10 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config: ConfigType) -> None:
+    # Remove before 2027.5.0
     LOGGER.warning(
-        "The 'rpi_dpi_rgb' component is deprecated, it is recommended to use 'mipi_rgb' instead."
+        "The 'rpi_dpi_rgb' component is deprecated and will be removed in ESPHome 2027.5.0, "
+        "migrate to 'mipi_rgb' instead."
     )
     var = cg.new_Pvariable(config[CONF_ID])
     await display.register_display(var, config)

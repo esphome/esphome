@@ -68,8 +68,7 @@ async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_NFCC_ID])
     _request_listener_slot(str(hub))
     cg.add(hub.register_listener(var))
-    if CONF_NDEF_CONTAINS in config:
-        cg.add(var.set_ndef_match_string(config[CONF_NDEF_CONTAINS]))
+    cg.add_optional(var.set_ndef_match_string, config.get(CONF_NDEF_CONTAINS))
     if CONF_TAG_ID in config:
         cg.add(var.set_tag_name(config[CONF_TAG_ID]))
     elif CONF_UID in config:

@@ -3,7 +3,7 @@
 
 namespace esphome::tuya {
 
-static const char *const TAG = "tuya.climate";
+ESPHOME_LOG_TAG(TAG, "tuya.climate");
 
 void TuyaClimate::setup() {
   auto switch_id = this->switch_id_;

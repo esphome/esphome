@@ -46,9 +46,6 @@ class SnapshotAnimationTest : public ::testing::Test {
     fs::remove_all(this->dir_);
     fs::create_directories(this->dir_);
     setenv("ESPHOME_SNAPSHOT_DIR", this->dir_.c_str(), 1);
-    // The test main does not construct App as generated code does, and recording needs its scheduler.
-    static const bool app_constructed = (new (&App) Application(), true);
-    (void) app_constructed;
     App.pre_setup("test_snapshot", 10, "", 0);
   }
   void TearDown() override {

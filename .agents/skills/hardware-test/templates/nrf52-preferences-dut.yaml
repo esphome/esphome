@@ -1,0 +1,31 @@
+esphome:
+  name: pref20810
+  on_boot:
+    priority: -100
+    then:
+      - lambda: |-
+          ESP_LOGI("test", "boot: restored counter_pr=%d", id(counter_pr));
+
+nrf52:
+  board: nrf52840dongle
+  dfu: true
+
+logger:
+  hardware_uart: USB_CDC
+  level: VERBOSE
+
+preferences:
+  flash_write_interval: 5s
+
+globals:
+  - id: counter_pr
+    type: int
+    restore_value: true
+    initial_value: "0"
+
+interval:
+  - interval: 15s
+    then:
+      - lambda: |-
+          id(counter_pr) += 1;
+          ESP_LOGI("test", "counter_pr now %d", id(counter_pr));

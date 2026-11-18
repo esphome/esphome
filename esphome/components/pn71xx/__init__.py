@@ -17,6 +17,7 @@ from esphome.types import ConfigType
 
 AUTO_LOAD = ["binary_sensor", "nfc"]
 CODEOWNERS = ["@kbx81", "@jesserockz"]
+DOMAIN = "pn71xx"
 
 CONF_EMULATION_MESSAGE = "emulation_message"
 CONF_INCLUDE_ANDROID_APP_RECORD = "include_android_app_record"
@@ -126,18 +127,14 @@ _request_ontagremoved_trigger_slot = cg.slot_counter(
 async def setup_pn71xx(var: MockObj, config: ConfigType) -> None:
     await cg.register_component(var, config)
 
-    pin = await cg.gpio_pin_expression(config[CONF_IRQ_PIN])
-    cg.add(var.set_irq_pin(pin))
-
-    pin = await cg.gpio_pin_expression(config[CONF_VEN_PIN])
-    cg.add(var.set_ven_pin(pin))
+    await cg.add_pin(var.set_irq_pin, config[CONF_IRQ_PIN])
+    await cg.add_pin(var.set_ven_pin, config[CONF_VEN_PIN])
 
     if emulation_message_config := config.get(CONF_EMULATION_MESSAGE):
         cg.add(var.set_tag_emulation_message(emulation_message_config))
         cg.add(var.set_tag_emulation_on())
 
-    if (tag_ttl := config.get(CONF_TAG_TTL)) is not None:
-        cg.add(var.set_tag_ttl(tag_ttl))
+    cg.add_optional(var.set_tag_ttl, config.get(CONF_TAG_TTL))
 
     for conf in config.get(CONF_ON_TAG, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])

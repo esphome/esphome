@@ -1,5 +1,6 @@
 ld2450:
   - id: ld2450_radar
+    link_timeout: 10s
     on_data:
       then:
         - logger.log: "LD2450 Radar Data Received"
@@ -90,12 +91,28 @@ binary_sensor:
   - platform: ld2450
     id: ld2450_binary
     ld2450_id: ld2450_radar
+    connected:
+      name: Radar Link
     has_target:
       name: Presence
     has_moving_target:
       name: Moving Target
     has_still_target:
       name: Still Target
+    polygon_zones:
+      - polygon_zone_id: ld2450_couch_zone
+        name: Couch Occupied
+      - polygon_zone_id: ld2450_desk_zone
+        name: Desk Occupied
+
+text:
+  - platform: ld2450
+    ld2450_id: ld2450_radar
+    polygon_zones:
+      - id: ld2450_couch_zone
+        name: Couch Zone Polygon
+      - id: ld2450_desk_zone
+        name: Desk Zone Polygon
 
 switch:
   - platform: ld2450
@@ -117,12 +134,23 @@ text_sensor:
     target_1:
       direction:
         name: Target-1 Direction
+      xy:
+        name: Target-1 XY
     target_2:
       direction:
         name: Target-2 Direction
+      xy:
+        name: Target-2 XY
+        filters:
+          - throttle_with_priority:
+              timeout: 200ms
+              value: NA
     target_3:
       direction:
         name: Target-3 Direction
+      xy:
+        name: Target-3 XY
+        filters: []
 
 number:
   - platform: ld2450

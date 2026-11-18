@@ -1,0 +1,30 @@
+---
+esphome:
+  name: test
+
+logger:
+
+esp32:
+  board: esp32dev
+
+sensor:
+  - platform: template
+    id: temp_sensor
+    lambda: return 21.0;
+
+climate:
+  - platform: thermostat
+    id: dehumidifier
+    name: Dehumidifier
+    sensor: temp_sensor
+    min_idle_time: 0s
+    min_cooling_off_time: 0s
+    min_cooling_run_time: 0s
+    min_fanning_off_time: 0s
+    min_fanning_run_time: 0s
+    idle_action:
+      - logger.log: idle
+    fan_only_action:
+      - logger.log: fan only
+    dry_action:
+      - logger.log: dry

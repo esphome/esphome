@@ -6,6 +6,7 @@
 #include "esphome/core/helpers.h"
 #ifdef USE_ESP32
 #include <esp_sleep.h>
+#include "soc/soc_caps.h"
 #endif
 
 #ifdef USE_TIME
@@ -42,7 +43,7 @@ struct WakeUpPinItem {
 #endif  // USE_BK72XX
 
 #ifdef USE_ESP32
-#if defined(USE_ESP32) && !defined(USE_ESP32_VARIANT_ESP32C2) && !defined(USE_ESP32_VARIANT_ESP32C3)
+#if SOC_PM_SUPPORT_EXT1_WAKEUP
 struct Ext1Wakeup {
   uint64_t mask;
   esp_sleep_ext1_wakeup_mode_t wakeup_mode;
@@ -60,8 +61,6 @@ struct WakeupCauseToRunDuration {
 
 #endif  // USE_ESP32
 
-#ifdef USE_DEEP_SLEEP_ON_WAKE
-
 /// Why the device woke from deep sleep. Passed to on_wake automations.
 enum WakeupCause : uint8_t {
   /// The device did not wake from deep sleep (for example a cold boot, reset or OTA restart).
@@ -78,6 +77,11 @@ enum WakeupCause : uint8_t {
 
 /// Return why the device woke from deep sleep. Implemented per platform.
 WakeupCause get_wakeup_cause();
+
+/// Return true when this boot is a wake from deep sleep.
+inline bool woke_from_deep_sleep() { return get_wakeup_cause() != WAKEUP_CAUSE_NONE; }
+
+#ifdef USE_DEEP_SLEEP_ON_WAKE
 
 /** Setup priority of on_wake triggers.
  *
@@ -99,7 +103,7 @@ class WakeTrigger : public Trigger<WakeupCause>, public Component {
   float get_setup_priority() const override { return ON_WAKE_TRIGGER_SETUP_PRIORITY; }
 };
 
-#if defined(USE_ESP32) && !defined(USE_ESP32_VARIANT_ESP32C2) && !defined(USE_ESP32_VARIANT_ESP32C3)
+#if defined(USE_ESP32) && SOC_PM_SUPPORT_EXT1_WAKEUP
 /// Fires once on boot when the device was woken from deep sleep by the given ext1 pin.
 class Ext1WakeTrigger : public Trigger<>, public Component {
  public:
@@ -148,13 +152,11 @@ class DeepSleepComponent final : public Component {
 #endif  // USE_BK72XX
 
 #if defined(USE_ESP32)
-#if !defined(USE_ESP32_VARIANT_ESP32C2) && !defined(USE_ESP32_VARIANT_ESP32C3)
+#if SOC_PM_SUPPORT_EXT1_WAKEUP
   void set_ext1_wakeup(Ext1Wakeup ext1_wakeup);
 #endif
 
-#if !defined(USE_ESP32_VARIANT_ESP32C2) && !defined(USE_ESP32_VARIANT_ESP32C3) && \
-    !defined(USE_ESP32_VARIANT_ESP32C5) && !defined(USE_ESP32_VARIANT_ESP32C6) && \
-    !defined(USE_ESP32_VARIANT_ESP32C61) && !defined(USE_ESP32_VARIANT_ESP32H2)
+#if SOC_PM_SUPPORT_TOUCH_SENSOR_WAKEUP
   void set_touch_wakeup(bool touch_wakeup) { this->touch_wakeup_ = touch_wakeup; }
 #endif
 
@@ -208,7 +210,7 @@ class DeepSleepComponent final : public Component {
   InternalGPIOPin *wakeup_pin_{nullptr};
   WakeupPinMode wakeup_pin_mode_{WAKEUP_PIN_MODE_IGNORE};
 
-#if !defined(USE_ESP32_VARIANT_ESP32C2) && !defined(USE_ESP32_VARIANT_ESP32C3)
+#if SOC_PM_SUPPORT_EXT1_WAKEUP
   optional<Ext1Wakeup> ext1_wakeup_;
 #endif
 

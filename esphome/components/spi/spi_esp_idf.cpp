@@ -8,7 +8,7 @@
 namespace esphome::spi {
 
 #ifdef USE_ESP32
-static const char *const TAG = "spi";
+ESPHOME_LOG_TAG(TAG, "spi");
 static const size_t MAX_TRANSFER_SIZE = 4092;  // dictated by ESP-IDF API.
 
 #ifdef USE_SPI_PSRAM_DMA

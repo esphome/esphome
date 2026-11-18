@@ -1,7 +1,8 @@
 #pragma once
 
 #ifdef USE_ESP32
-#include "esphome/core/hal.h"
+#include "esphome/core/gpio_pin.h"
+#include <esp_system.h>
 #include <driver/gpio.h>
 
 namespace esphome::esp32 {
@@ -10,7 +11,7 @@ namespace esphome::esp32 {
 static_assert(GPIO_NUM_MAX <= 256, "gpio_num_t has too many values for uint8_t");
 static_assert(GPIO_DRIVE_CAP_MAX <= 4, "gpio_drive_cap_t has too many values for 2-bit field");
 
-class ESP32InternalGPIOPin final : public InternalGPIOPin {
+class ESP32InternalGPIOPin final : public GPIOPin {
  public:
   void set_pin(gpio_num_t pin) { this->pin_ = static_cast<uint8_t>(pin); }
   void set_inverted(bool inverted) { this->pin_flags_.inverted = inverted; }
@@ -24,16 +25,30 @@ class ESP32InternalGPIOPin final : public InternalGPIOPin {
   bool digital_read() override;
   void digital_write(bool value) override;
   size_t dump_summary(char *buffer, size_t len) const override;
-  void detach_interrupt() const override;
-  ISRInternalGPIOPin to_isr() const override;
-  uint8_t get_pin() const override { return this->pin_; }
+  void detach_interrupt() const;
+  template<typename T> void attach_interrupt(void (*func)(T *), T *arg, gpio::InterruptType type) const {
+    this->attach_interrupt_(reinterpret_cast<void (*)(void *)>(func), arg, type);
+  }
+  ISRInternalGPIOPin to_isr() const;
+  uint8_t get_pin() const { return this->pin_; }
   gpio::Flags get_flags() const override { return this->flags_; }
-  bool is_inverted() const override { return this->pin_flags_.inverted; }
+  bool is_inverted() const { return this->pin_flags_.inverted; }
+  bool is_internal() override { return true; }
   gpio_num_t get_pin_num() const { return static_cast<gpio_num_t>(this->pin_); }
   gpio_drive_cap_t get_drive_strength() const { return static_cast<gpio_drive_cap_t>(this->pin_flags_.drive_strength); }
+#ifdef USE_GPIO_HOLD
+  /// Apply or release the pad hold. Does nothing unless the pin is configured with hold_state.
+  void set_hold(bool hold) const;
+  bool is_held() const override {
+    if (!this->get_hold())
+      return false;
+    esp_reset_reason_t reason = esp_reset_reason();
+    return reason == ESP_RST_DEEPSLEEP || reason == ESP_RST_SW;
+  }
+#endif
 
  protected:
-  void attach_interrupt(void (*func)(void *), void *arg, gpio::InterruptType type) const override;
+  void attach_interrupt_(void (*func)(void *), void *arg, gpio::InterruptType type) const;
 
   // Memory layout: 8 bytes total on 32-bit systems
   // - 3 bytes for members below

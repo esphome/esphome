@@ -4,6 +4,7 @@ from typing import Any
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import output
+from esphome.components.output import DOMAIN as OUTPUT_DOMAIN
 from esphome.components.zephyr import zephyr_add_overlay_builder, zephyr_add_prj_conf
 import esphome.config_validation as cv
 from esphome.const import (
@@ -12,9 +13,7 @@ from esphome.const import (
     CONF_ID,
     CONF_INVERTED,
     CONF_NUMBER,
-    CONF_OUTPUT,
     CONF_PIN,
-    CONF_PLATFORM,
 )
 from esphome.core import CORE
 import esphome.final_validate as fv
@@ -71,15 +70,8 @@ def _get_data() -> ZephyrPWMData:
 
 
 def _allocate_blocks() -> None:
-    full_config = fv.full_config.get()
-    zephyr_pwm_conf = [
-        cfg
-        for cfg in full_config.get(CONF_OUTPUT, [])
-        if cfg.get(CONF_PLATFORM) == DOMAIN
-    ]
-
     pwm_blocks: list[PWMBlock] = []
-    for cfg in zephyr_pwm_conf:
+    for cfg in fv.platform_entries(domain=OUTPUT_DOMAIN, platform=DOMAIN):
         pin_number = cfg[CONF_PIN][CONF_NUMBER]
         period_ns = int(1e9 / cfg[CONF_FREQUENCY])
         pwm_block = next(

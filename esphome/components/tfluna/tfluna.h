@@ -51,7 +51,13 @@ class TFLuna : public i2c::I2CDevice, public PollingComponent {
 
   void read_data_timeout_();
 
+  [[nodiscard]] bool configure_();
+
+  void reconfigure_();
+
   uint8_t attempt_ = 0;
+
+  bool reconfigure_pending_ = false;
 };
 
 }  // namespace esphome::tfluna

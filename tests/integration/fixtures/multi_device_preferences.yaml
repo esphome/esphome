@@ -4,8 +4,10 @@ esphome:
   devices:
     - id: device_a
       name: Device A
+      relation: via
     - id: device_b
       name: Device B
+      relation: via
 
 host:
 api:  # Port will be automatically injected

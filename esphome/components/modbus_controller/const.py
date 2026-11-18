@@ -1,3 +1,5 @@
+from esphome.components.const import CONF_VALUE_TYPE  # noqa: F401  # pylint: disable=unused-import
+
 CONF_ALLOW_DUPLICATE_COMMANDS = "allow_duplicate_commands"
 CONF_BITMASK = "bitmask"
 CONF_BYTE_OFFSET = "byte_offset"
@@ -23,5 +25,4 @@ CONF_SERVER_COURTESY_RESPONSE = "server_courtesy_response"
 CONF_SERVER_REGISTERS = "server_registers"
 CONF_SKIP_UPDATES = "skip_updates"
 CONF_USE_WRITE_MULTIPLE = "use_write_multiple"
-CONF_VALUE_TYPE = "value_type"
 CONF_WRITE_LAMBDA = "write_lambda"

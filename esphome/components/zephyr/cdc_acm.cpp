@@ -1,5 +1,6 @@
 #if defined(CONFIG_CDC_ACM_DTE_RATE_CALLBACK_SUPPORT)
 #include "cdc_acm.h"
+#include "esphome/core/application.h"
 #include <zephyr/drivers/uart.h>
 #include <zephyr/drivers/uart/cdc_acm.h>
 
@@ -7,9 +8,10 @@
 
 namespace esphome::zephyr {
 
-CdcAcm::CdcAcm() { global_cdc_acm = this; }
+static CdcAcm cdc_acm_instance;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+CdcAcm *const global_cdc_acm = &cdc_acm_instance;
 
-void CdcAcm::setup() {
+void CdcAcm::set_driver_callbacks_() {
 #if DT_HAS_COMPAT_STATUS_OKAY(zephyr_cdc_acm_uart)
   const struct device *cdc_dev[] = {DT_FOREACH_STATUS_OKAY(zephyr_cdc_acm_uart, DEVICE_AND_COMMA)};
   for (auto &idx : cdc_dev) {
@@ -20,10 +22,10 @@ void CdcAcm::setup() {
 }
 
 void CdcAcm::cdc_dte_rate_callback_(const struct device *device, uint32_t rate) {
-  global_cdc_acm->defer([device, rate]() { global_cdc_acm->rate_callbacks_.call(device, rate); });
+  // Unnamed, so each rate change is queued in order instead of replacing a pending one
+  App.scheduler.set_timeout(static_cast<Component *>(nullptr), static_cast<const char *>(nullptr), 0,
+                            [device, rate]() { global_cdc_acm->rate_callbacks_.call(device, rate); });
 }
-
-CdcAcm *global_cdc_acm;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace esphome::zephyr
 

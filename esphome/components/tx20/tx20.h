@@ -22,15 +22,14 @@ struct Tx20ComponentStore {
 
 /// This class implements support for the Tx20 Wind sensor.
 class Tx20Component final : public Component {
+  SUB_SENSOR(wind_speed)
+  SUB_SENSOR(wind_direction_degrees)
+
  public:
   /// Get the textual representation of the wind direction ('N', 'SSE', ..).
   std::string get_wind_cardinal_direction() const;
 
   void set_pin(InternalGPIOPin *pin) { pin_ = pin; }
-  void set_wind_speed_sensor(sensor::Sensor *wind_speed_sensor) { wind_speed_sensor_ = wind_speed_sensor; }
-  void set_wind_direction_degrees_sensor(sensor::Sensor *wind_direction_degrees_sensor) {
-    wind_direction_degrees_sensor_ = wind_direction_degrees_sensor;
-  }
 
   void setup() override;
   void dump_config() override;
@@ -39,10 +38,8 @@ class Tx20Component final : public Component {
  protected:
   void decode_and_publish_();
 
-  std::string wind_cardinal_direction_;
+  uint8_t wind_direction_index_{0xFF};  // 0xFF until the first reading
   InternalGPIOPin *pin_;
-  sensor::Sensor *wind_speed_sensor_{nullptr};
-  sensor::Sensor *wind_direction_degrees_sensor_{nullptr};
   Tx20ComponentStore store_;
 };
 

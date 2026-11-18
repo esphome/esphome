@@ -6,11 +6,12 @@
 #include "esphome/components/api/api_server.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 #include "esphome/core/string_ref.h"
 
 namespace esphome::homeassistant {
 
-static const char *const TAG = "homeassistant.text";
+ESPHOME_LOG_TAG(TAG, "homeassistant.text");
 
 void HomeassistantText::state_changed_(StringRef state) {
   if (state == this->state) {
@@ -81,32 +82,31 @@ void HomeassistantText::control(const std::string &value) {
 
 #ifdef USE_API_WIZARD_LINKED_INPUTS
   if (this->entity_id_[0] == '\0') {
-    ESP_LOGW(TAG, "'%s': No entity ID set yet", this->get_name().c_str());
+    ESP_LOGW(TAG, "'%s': No entity ID set yet", LOG_STR_ARG(this->get_log_name()));
     return;
   }
 #endif
 
-  static constexpr auto SERVICE_TEXT = StringRef::from_lit("text.set_value");
-  static constexpr auto SERVICE_INPUT_TEXT = StringRef::from_lit("input_text.set_value");
-  static constexpr auto ENTITY_ID_KEY = StringRef::from_lit("entity_id");
-  static constexpr auto VALUE_KEY = StringRef::from_lit("value");
-  static constexpr char INPUT_PREFIX[] = "input_";
+  // In flash on the ESP8266 and encoded from there
+  static const char SERVICE_TEXT[] PROGMEM = "text.set_value";
+  static const char SERVICE_INPUT_TEXT[] PROGMEM = "input_text.set_value";
+  static const char ENTITY_ID_KEY[] PROGMEM = "entity_id";
+  static const char VALUE_KEY[] PROGMEM = "value";
 
   api::HomeassistantActionRequest resp;
-  if (strncmp(this->entity_id_, INPUT_PREFIX, sizeof(INPUT_PREFIX) - 1) == 0) {
-    resp.service = SERVICE_INPUT_TEXT;
-  } else {
-    resp.service = SERVICE_TEXT;
-  }
+  // An input helper entity id starts with the "input_" its action name starts with
+  const bool input_helper = ESPHOME_strncmp_P(this->entity_id_, SERVICE_INPUT_TEXT, sizeof("input_") - 1) == 0;
+  resp.service =
+      input_helper ? ProgmemStringRef::from_lit(SERVICE_INPUT_TEXT) : ProgmemStringRef::from_lit(SERVICE_TEXT);
 
   resp.data.init(2);
   auto &entity_id_kv = resp.data.emplace_back();
-  entity_id_kv.key = ENTITY_ID_KEY;
-  entity_id_kv.value = StringRef(this->entity_id_);
+  entity_id_kv.key = ProgmemStringRef::from_lit(ENTITY_ID_KEY);
+  entity_id_kv.value = ProgmemStringRef(StringRef(this->entity_id_));
 
   auto &value_kv = resp.data.emplace_back();
-  value_kv.key = VALUE_KEY;
-  value_kv.value = StringRef(value.data(), value.size());
+  value_kv.key = ProgmemStringRef::from_lit(VALUE_KEY);
+  value_kv.value = ProgmemStringRef(value.data(), value.size());
 
   api::global_api_server->send_homeassistant_action(resp);
 }

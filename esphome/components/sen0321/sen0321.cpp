@@ -4,12 +4,12 @@
 
 namespace esphome::sen0321_sensor {
 
-static const char *const TAG = "sen0321_sensor.sensor";
+ESPHOME_LOG_TAG(TAG, "sen0321_sensor.sensor");
 
 void Sen0321Sensor::setup() {
   if (!this->write_byte(SENSOR_MODE_REGISTER, SENSOR_MODE_AUTO)) {
     ESP_LOGW(TAG, "Error setting measurement mode.");
-    this->mark_failed();
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
   };
 }
 
@@ -18,9 +18,6 @@ void Sen0321Sensor::update() { this->read_data_(); }
 void Sen0321Sensor::dump_config() {
   ESP_LOGCONFIG(TAG, "DF Robot Ozone Sensor sen0321:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
   LOG_UPDATE_INTERVAL(this);
 }
 

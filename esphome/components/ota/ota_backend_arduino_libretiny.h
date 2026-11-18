@@ -23,6 +23,7 @@ class ArduinoLibreTinyOTABackend final {
 
   bool feed_(const uint8_t *data, size_t len);
 
+  UpdateLock lock_;
   md5::MD5Digest md5_{};
   uint8_t expected_md5_[16];
   // The last byte is held back until end() has checked the MD5: lt_ota_end(),

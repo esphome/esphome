@@ -11,6 +11,22 @@ image:
     transparency: chroma_key
 
   - platform: file
+    id: rgb111_image
+    file: ../../pnglogo.png
+    type: RGB111
+  - platform: file
+    id: rgb111_alpha_image
+    file: ../../pnglogo.png
+    type: RGB111
+    transparency: alpha_channel
+  - platform: file
+    id: rgb111_dither_alpha_image
+    file: ../../pnglogo.png
+    type: RGB111
+    dither: FloydSteinberg
+    transparency: alpha_channel
+
+  - platform: file
     id: rgba_image
     file: ../../pnglogo.png
     type: RGB

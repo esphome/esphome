@@ -40,7 +40,7 @@ extern "C" {
 
 namespace esphome::wifi {
 
-static const char *const TAG = "wifi_esp8266";
+ESPHOME_LOG_TAG(TAG, "wifi_esp8266");
 
 enum class ESP8266WiFiSTAState : uint8_t {
   IDLE,             // Not connecting
@@ -183,7 +183,7 @@ bool WiFiComponent::wifi_sta_ip_config_(const optional<ManualIP> &manual_ip) {
   wifi_get_ip_info(STATION_IF, &previp);
 #endif
 
-  struct ip_info info {};
+  struct ip_info info{};
   info.ip = manual_ip->static_ip;
   info.gw = manual_ip->gateway;
   info.netmask = manual_ip->subnet;
@@ -229,7 +229,7 @@ network::IPAddresses WiFiComponent::wifi_sta_ip_addresses() {
   uint8_t index = 0;
   // addrList enumerates all lwIP netifs, including the SoftAP / fallback hotspot. Filter out
   // the AP address so the STA address is reported as the device IP (see issue #17181).
-  struct ip_info ap_ip {};
+  struct ip_info ap_ip{};
   wifi_get_ip_info(SOFTAP_IF, &ap_ip);
   network::IPAddress ap_address(&ap_ip.ip);
   bool filter_ap = ap_address.is_set();
@@ -271,7 +271,7 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
 
   this->wifi_disconnect_();
 
-  struct station_config conf {};
+  struct station_config conf{};
   memset(&conf, 0, sizeof(conf));
   if (ap.ssid_.size() > sizeof(conf.ssid)) {
     ESP_LOGE(TAG, "SSID too long");
@@ -572,6 +572,9 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
       break;
     }
     case EVENT_SOFTAPMODE_STACONNECTED: {
+#ifdef USE_WIFI_AP
+      global_wifi_component->ap_clients_++;
+#endif
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
       auto it = event->event_info.sta_connected;
       char mac_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
@@ -581,6 +584,10 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
       break;
     }
     case EVENT_SOFTAPMODE_STADISCONNECTED: {
+#ifdef USE_WIFI_AP
+      if (global_wifi_component->ap_clients_ > 0)
+        global_wifi_component->ap_clients_--;
+#endif
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
       auto it = event->event_info.sta_disconnected;
       char mac_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
@@ -693,7 +700,7 @@ bool WiFiComponent::wifi_scan_start_(bool passive) {
   // (e.g., roaming scan completed just before unexpected disconnect)
   this->scan_done_ = false;
 
-  struct scan_config config {};
+  struct scan_config config{};
   memset(&config, 0, sizeof(config));
   config.ssid = nullptr;
   config.bssid = nullptr;
@@ -804,7 +811,7 @@ bool WiFiComponent::wifi_ap_ip_config_(const optional<ManualIP> &manual_ip) {
   if (!this->wifi_mode_({}, true))
     return false;
 
-  struct ip_info info {};
+  struct ip_info info{};
   if (manual_ip.has_value()) {
     info.ip = manual_ip->static_ip;
     info.gw = manual_ip->gateway;
@@ -830,7 +837,7 @@ bool WiFiComponent::wifi_ap_ip_config_(const optional<ManualIP> &manual_ip) {
   dhcpSoftAP.begin(&info);
 #endif
 
-  struct dhcps_lease lease {};
+  struct dhcps_lease lease{};
   lease.enable = true;
   network::IPAddress start_address = network::IPAddress(&info.ip);
   start_address += 99;
@@ -877,7 +884,7 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
   if (!this->wifi_mode_({}, true))
     return false;
 
-  struct softap_config conf {};
+  struct softap_config conf{};
   if (ap.ssid_.size() > sizeof(conf.ssid)) {
     ESP_LOGE(TAG, "AP SSID too long");
     return false;
@@ -926,7 +933,7 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
 }
 
 network::IPAddress WiFiComponent::wifi_soft_ap_ip() {
-  struct ip_info ip {};
+  struct ip_info ip{};
   wifi_get_ip_info(SOFTAP_IF, &ip);
   return network::IPAddress(&ip.ip);
 }
@@ -934,14 +941,14 @@ network::IPAddress WiFiComponent::wifi_soft_ap_ip() {
 
 bssid_t WiFiComponent::wifi_bssid() {
   bssid_t bssid{};
-  struct station_config conf {};
+  struct station_config conf{};
   if (wifi_station_get_config(&conf)) {
     std::copy_n(conf.bssid, bssid.size(), bssid.begin());
   }
   return bssid;
 }
 const char *WiFiComponent::wifi_ssid_to(std::span<char, SSID_BUFFER_SIZE> buffer) {
-  struct station_config conf {};
+  struct station_config conf{};
   if (!wifi_station_get_config(&conf)) {
     buffer[0] = '\0';
     return buffer.data();
@@ -961,12 +968,12 @@ int8_t WiFiComponent::wifi_rssi() {
 }
 int32_t WiFiComponent::get_wifi_channel() { return wifi_get_channel(); }
 network::IPAddress WiFiComponent::wifi_subnet_mask_() {
-  struct ip_info ip {};
+  struct ip_info ip{};
   wifi_get_ip_info(STATION_IF, &ip);
   return network::IPAddress(&ip.netmask);
 }
 network::IPAddress WiFiComponent::wifi_gateway_ip_() {
-  struct ip_info ip {};
+  struct ip_info ip{};
   wifi_get_ip_info(STATION_IF, &ip);
   return network::IPAddress(&ip.gw);
 }

@@ -7,6 +7,7 @@ from esphome.cpp_types import EntityBase
 from esphome.types import ConfigType
 
 AUTO_LOAD = ["web_server_base"]
+DOMAIN = "prometheus"
 
 prometheus_ns = cg.esphome_ns.namespace("prometheus")
 PrometheusHandler = prometheus_ns.class_("PrometheusHandler", cg.Component)

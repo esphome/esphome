@@ -5,7 +5,7 @@
 #ifdef USE_ESP32
 namespace esphome::ble_client {
 
-static const char *const TAG = "ble_binary_output";
+ESPHOME_LOG_TAG(TAG, "ble_binary_output");
 
 void BLEBinaryOutput::dump_config() {
   ESP_LOGCONFIG(TAG, "BLE Binary Output:");

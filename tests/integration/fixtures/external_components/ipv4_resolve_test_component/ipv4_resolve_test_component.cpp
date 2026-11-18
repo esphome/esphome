@@ -9,7 +9,7 @@ namespace esphome::ipv4_resolve_test_component {
 static const char *const TAG = "ipv4_resolve_test";
 
 static bool check_sockaddr(socket::Ipv4Resolve &lookup, uint16_t port, uint32_t expected) {
-  struct sockaddr_storage addr {};
+  struct sockaddr_storage addr{};
   socklen_t len = lookup.to_sockaddr(reinterpret_cast<struct sockaddr *>(&addr), sizeof(addr), port);
   if (len != sizeof(sockaddr_in)) {
     return false;
@@ -22,7 +22,7 @@ void Ipv4ResolveTestComponent::setup() {
   ESP_LOGI(TAG, "IPv4 resolve test starting");
 
   socket::Ipv4Resolve lookup;
-  struct sockaddr_storage addr {};
+  struct sockaddr_storage addr{};
 
   lookup.start("192.168.1.1", 1, TAG);
   bool ok = lookup.ready() && check_sockaddr(lookup, 6053, 0xC0A80101);

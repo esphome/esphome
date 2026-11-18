@@ -7,7 +7,7 @@
 
 namespace esphome::modbus_controller {
 
-static const char *const TAG = "modbus_controller";
+ESPHOME_LOG_TAG(TAG, "modbus_controller");
 
 void ModbusController::setup() { this->create_polling_commands_(); }
 
@@ -652,7 +652,7 @@ ModbusCommandItem ModbusCommandItem::create_custom_command(
       ESP_LOGI(TAG, "Custom Command sent");
     };
   } else {
-    cmd.on_data_func = handler;
+    cmd.on_data_func = std::move(handler);
   }
   cmd.payload.set(values.data(), values.size());
 
@@ -669,7 +669,7 @@ ModbusCommandItem ModbusCommandItem::create_custom_command(
       ESP_LOGI(TAG, "Custom Command sent");
     };
   } else {
-    cmd.on_data_func = handler;
+    cmd.on_data_func = std::move(handler);
   }
   uint8_t *p = cmd.payload.init(values.size() * 2);
   for (auto v : values) {

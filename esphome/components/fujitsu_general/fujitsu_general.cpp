@@ -2,7 +2,7 @@
 
 namespace esphome::fujitsu_general {
 
-static const char *const TAG = "fujitsu_general.climate";
+ESPHOME_LOG_TAG(TAG, "fujitsu_general.climate");
 
 // Common header
 constexpr uint8_t FUJITSU_GENERAL_COMMON_LENGTH = 6;
@@ -19,9 +19,8 @@ constexpr uint8_t FUJITSU_GENERAL_MESSAGE_TYPE_STATE = 0xFE;
 
 // Util messages - off & eco etc.
 constexpr uint8_t FUJITSU_GENERAL_UTIL_MESSAGE_LENGTH = 7;
+// Turns the unit off; a util message, but transmit_state() owns it because it changes the climate state
 constexpr uint8_t FUJITSU_GENERAL_MESSAGE_TYPE_OFF = 0x02;
-constexpr uint8_t FUJITSU_GENERAL_MESSAGE_TYPE_ECONOMY = 0x09;
-constexpr uint8_t FUJITSU_GENERAL_MESSAGE_TYPE_NUDGE = 0x6C;
 
 // State header
 constexpr uint8_t FUJITSU_GENERAL_STATE_HEADER_BYTE0 = 0x09;
@@ -66,9 +65,8 @@ constexpr uint8_t FUJITSU_GENERAL_FAN_SILENT = 0x04;
 constexpr uint16_t FUJITSU_GENERAL_HEADER_MARK = 3300;
 constexpr uint16_t FUJITSU_GENERAL_HEADER_SPACE = 1600;
 
-constexpr uint16_t FUJITSU_GENERAL_BIT_MARK = 420;
-constexpr uint16_t FUJITSU_GENERAL_ONE_SPACE = 1200;
-constexpr uint16_t FUJITSU_GENERAL_ZERO_SPACE = 420;
+static constexpr remote_base::BitTimings FUJITSU_GENERAL_BIT_TIMINGS{
+    .bit_mark = 420, .one_space = 1200, .zero_space = 420};
 
 constexpr uint16_t FUJITSU_GENERAL_TRL_MARK = 420;
 constexpr uint16_t FUJITSU_GENERAL_TRL_SPACE = 8000;
@@ -77,7 +75,9 @@ constexpr uint32_t FUJITSU_GENERAL_CARRIER_FREQUENCY = 38000;
 
 void FujitsuGeneralClimate::transmit_state() {
   if (this->mode == climate::CLIMATE_MODE_OFF) {
-    this->transmit_off_();
+    ESP_LOGV(TAG, "Transmit off");
+    this->transmit_util(FUJITSU_GENERAL_MESSAGE_TYPE_OFF);
+    this->power_ = false;
     return;
   }
 
@@ -176,9 +176,7 @@ void FujitsuGeneralClimate::transmit_state() {
   this->power_ = true;
 }
 
-void FujitsuGeneralClimate::transmit_off_() {
-  ESP_LOGV(TAG, "Transmit off");
-
+void FujitsuGeneralClimate::transmit_util(uint8_t command) {
   uint8_t remote_state[FUJITSU_GENERAL_UTIL_MESSAGE_LENGTH] = {0};
 
   remote_state[0] = FUJITSU_GENERAL_COMMON_BYTE0;
@@ -186,12 +184,10 @@ void FujitsuGeneralClimate::transmit_off_() {
   remote_state[2] = FUJITSU_GENERAL_COMMON_BYTE2;
   remote_state[3] = FUJITSU_GENERAL_COMMON_BYTE3;
   remote_state[4] = FUJITSU_GENERAL_COMMON_BYTE4;
-  remote_state[5] = FUJITSU_GENERAL_MESSAGE_TYPE_OFF;
+  remote_state[5] = command;
   remote_state[6] = this->checksum_util_(remote_state);
 
   this->transmit_(remote_state, FUJITSU_GENERAL_UTIL_MESSAGE_LENGTH);
-
-  this->power_ = false;
 }
 
 void FujitsuGeneralClimate::transmit_(uint8_t const *message, uint8_t length) {
@@ -207,14 +203,7 @@ void FujitsuGeneralClimate::transmit_(uint8_t const *message, uint8_t length) {
   data->space(FUJITSU_GENERAL_HEADER_SPACE);
 
   // Data
-  for (uint8_t i = 0; i < length; ++i) {
-    const uint8_t byte = message[i];
-    for (uint8_t mask = 0b00000001; mask > 0; mask <<= 1) {  // write from right to left
-      data->mark(FUJITSU_GENERAL_BIT_MARK);
-      bool bit = byte & mask;
-      data->space(bit ? FUJITSU_GENERAL_ONE_SPACE : FUJITSU_GENERAL_ZERO_SPACE);
-    }
-  }
+  data->item_bytes<FUJITSU_GENERAL_BIT_TIMINGS>(message, length);
 
   // Footer
   data->mark(FUJITSU_GENERAL_TRL_MARK);
@@ -224,11 +213,7 @@ void FujitsuGeneralClimate::transmit_(uint8_t const *message, uint8_t length) {
 }
 
 uint8_t FujitsuGeneralClimate::checksum_state_(uint8_t const *message) {
-  uint8_t checksum = 0;
-  for (uint8_t i = 7; i < FUJITSU_GENERAL_STATE_MESSAGE_LENGTH - 1; ++i) {
-    checksum += message[i];
-  }
-  return 256 - checksum;
+  return -sum_bytes(message + 7, FUJITSU_GENERAL_STATE_MESSAGE_LENGTH - 8);
 }
 
 uint8_t FujitsuGeneralClimate::checksum_util_(uint8_t const *message) { return 255 - message[5]; }
@@ -288,19 +273,12 @@ bool FujitsuGeneralClimate::on_receive(remote_base::RemoteReceiveData data) {
     return false;
   }
 
-  uint8_t recv_message[FUJITSU_GENERAL_STATE_MESSAGE_LENGTH] = {0};
+  uint8_t recv_message[FUJITSU_GENERAL_STATE_MESSAGE_LENGTH];
 
   // Read header
-  for (uint8_t byte = 0; byte < FUJITSU_GENERAL_COMMON_LENGTH; ++byte) {
-    // Read bit
-    for (uint8_t bit = 0; bit < 8; ++bit) {
-      if (data.expect_item(FUJITSU_GENERAL_BIT_MARK, FUJITSU_GENERAL_ONE_SPACE)) {
-        recv_message[byte] |= 1 << bit;  // read from right to left
-      } else if (!data.expect_item(FUJITSU_GENERAL_BIT_MARK, FUJITSU_GENERAL_ZERO_SPACE)) {
-        ESP_LOGV(TAG, "Byte %d bit %d fail", byte, bit);
-        return false;
-      }
-    }
+  if (!data.expect_bytes<FUJITSU_GENERAL_BIT_TIMINGS>(recv_message, FUJITSU_GENERAL_COMMON_LENGTH)) {
+    ESP_LOGV(TAG, "Header bytes fail");
+    return false;
   }
 
   const uint8_t recv_message_type = recv_message[FUJITSU_GENERAL_MESSAGE_TYPE_BYTE];
@@ -313,7 +291,8 @@ bool FujitsuGeneralClimate::on_receive(remote_base::RemoteReceiveData data) {
       break;
     case FUJITSU_GENERAL_MESSAGE_TYPE_OFF:
     case FUJITSU_GENERAL_MESSAGE_TYPE_ECONOMY:
-    case FUJITSU_GENERAL_MESSAGE_TYPE_NUDGE:
+    case FUJITSU_GENERAL_MESSAGE_TYPE_NUDGE_HORIZONTAL:
+    case FUJITSU_GENERAL_MESSAGE_TYPE_NUDGE_VERTICAL:
       ESP_LOGV(TAG, "Received util message");
       recv_message_length = FUJITSU_GENERAL_UTIL_MESSAGE_LENGTH;
       break;
@@ -323,15 +302,10 @@ bool FujitsuGeneralClimate::on_receive(remote_base::RemoteReceiveData data) {
   }
 
   // Read message body
-  for (uint8_t byte = FUJITSU_GENERAL_COMMON_LENGTH; byte < recv_message_length; ++byte) {
-    for (uint8_t bit = 0; bit < 8; ++bit) {
-      if (data.expect_item(FUJITSU_GENERAL_BIT_MARK, FUJITSU_GENERAL_ONE_SPACE)) {
-        recv_message[byte] |= 1 << bit;  // read from right to left
-      } else if (!data.expect_item(FUJITSU_GENERAL_BIT_MARK, FUJITSU_GENERAL_ZERO_SPACE)) {
-        ESP_LOGV(TAG, "Byte %d bit %d fail", byte, bit);
-        return false;
-      }
-    }
+  if (!data.expect_bytes<FUJITSU_GENERAL_BIT_TIMINGS>(recv_message + FUJITSU_GENERAL_COMMON_LENGTH,
+                                                      recv_message_length - FUJITSU_GENERAL_COMMON_LENGTH)) {
+    ESP_LOGV(TAG, "Body bytes fail");
+    return false;
   }
 
   for (uint8_t byte = 0; byte < recv_message_length; ++byte) {

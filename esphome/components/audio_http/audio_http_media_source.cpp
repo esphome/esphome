@@ -11,7 +11,7 @@
 
 namespace esphome::audio_http {
 
-static const char *const TAG = "audio_http_media_source";
+ESPHOME_LOG_TAG(TAG, "audio_http_media_source");
 
 // Decoder task / buffer tuning. Kept here as constants so the header stays free of magic numbers.
 static constexpr size_t DEFAULT_TRANSFER_BUFFER_SIZE = 8 * 1024;  // Staging buffer between HTTP reader and decoder

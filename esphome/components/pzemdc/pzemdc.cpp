@@ -5,7 +5,7 @@ namespace esphome::pzemdc {
 
 namespace helpers = modbus::helpers;
 
-static const char *const TAG = "pzemdc";
+ESPHOME_LOG_TAG(TAG, "pzemdc");
 
 static const uint8_t PZEM_CMD_RESET_ENERGY = 0x42;
 static const uint8_t PZEM_REGISTER_COUNT = 8;  // 8x 16-bit registers

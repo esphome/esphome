@@ -4,13 +4,16 @@ Home Assistant shows the wizard when the device is added. See api_wizard.h for t
 """
 
 from collections.abc import Callable
+from dataclasses import dataclass, field
 import importlib
 import json
+import re
 from typing import Any
 
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components.const import CONF_DESCRIPTION
+from esphome.components.homeassistant import DOMAIN as HOMEASSISTANT_DOMAIN
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DEVICE_CLASS,
@@ -69,6 +72,38 @@ WIZARD_TITLE_MAX_LENGTH = 127
 WIZARD_DESCRIPTION_MAX_LENGTH = 255
 WIZARD_FILTER_MAX_LENGTH = 63
 WIZARD_SUPPORTED_FEATURE_MAX_LENGTH = 127
+WIZARD_ROLE_MAX_LENGTH = 63
+# <component>.<name>, so roles of different components never clash
+_WIZARD_ROLE_PATTERN = re.compile(r"[a-z0-9_]+\.[a-z0-9_]+")
+
+
+@dataclass
+class WizardData:
+    """Codegen state of the wizard, kept in CORE.data."""
+
+    # The entities that components gave a role, and the role, in the order they were registered
+    roles: list[tuple[ID, str]] = field(default_factory=list)
+
+
+def _get_data() -> WizardData:
+    return CORE.data.setdefault(API_DOMAIN, {}).setdefault(CONF_WIZARD, WizardData())
+
+
+def register_entity_role(entity_id: ID, role: str) -> None:
+    """Give an entity a role, a stable name that Home Assistant recognises it by on a wizard page.
+
+    For a component to call while its config is validated, so the role is known before the wizard
+    is built. The role is <component>.<name> and is not set by the user.
+    The wizard only sends it when the entity is on one of its pages.
+    """
+    if len(role) > WIZARD_ROLE_MAX_LENGTH or not _WIZARD_ROLE_PATTERN.fullmatch(role):
+        raise ValueError(f"Invalid wizard role '{role}'")
+    _get_data().roles.append((entity_id, role))
+
+
+def _wizard_roles() -> dict[str, str]:
+    """The role of every entity that has one, by its ESPHome id."""
+    return {entity_id.id: role for entity_id, role in _get_data().roles}
 
 
 def _wizard_text(max_length: int) -> Callable[[Any], str]:
@@ -118,11 +153,6 @@ def _validate_multiple(conf: ConfigType) -> ConfigType:
             "is only for standalone inputs (id)",
             path=[CONF_MULTIPLE],
         )
-    if CONF_MAX_LENGTH in conf and not conf[CONF_MULTIPLE]:
-        raise cv.Invalid(
-            "max_length only applies to an input with multiple: true",
-            path=[CONF_MAX_LENGTH],
-        )
     return conf
 
 
@@ -149,6 +179,7 @@ WIZARD_INPUT_SCHEMA = cv.All(
     ),
     cv.has_exactly_one_key(CONF_ID, CONF_ENTITY),
     _validate_multiple,
+    cv.only_when(CONF_MAX_LENGTH, CONF_MULTIPLE, True),
 )
 
 WIZARD_PAGE_SCHEMA = cv.All(
@@ -207,6 +238,7 @@ WIZARD_SCHEMA = cv.All(
 WIZARD_INPUT_DOMAINS = (
     "binary_sensor",
     "button",
+    "light",
     "number",
     "select",
     "sensor",
@@ -215,7 +247,55 @@ WIZARD_INPUT_DOMAINS = (
     "text_sensor",
 )
 # Platforms that act on one family of Home Assistant domains, which the input's filters must stay within
-WIZARD_DOMAIN_LIMITED_PLATFORMS = ("button", "number", "select", "switch", "text")
+WIZARD_DOMAIN_LIMITED_PLATFORMS = (
+    "button",
+    "light",
+    "number",
+    "select",
+    "switch",
+    "text",
+)
+
+
+# The C++ base class of each kind of entity a wizard page can show, and the platform an API client
+# knows it by. An entity key is only unique within its platform, so the wizard sends both.
+WIZARD_ENTITY_PLATFORMS: dict[str, str] = {
+    "alarm_control_panel::AlarmControlPanel": "alarm_control_panel",
+    "binary_sensor::BinarySensor": "binary_sensor",
+    "button::Button": "button",
+    "climate::Climate": "climate",
+    "cover::Cover": "cover",
+    "datetime::DateEntity": "date",
+    "datetime::DateTimeEntity": "datetime",
+    "datetime::TimeEntity": "time",
+    "event::Event": "event",
+    "fan::Fan": "fan",
+    "infrared::Infrared": "infrared",
+    "light::LightState": "light",
+    "lock::Lock": "lock",
+    "number::Number": "number",
+    "radio_frequency::RadioFrequency": "radio_frequency",
+    "select::Select": "select",
+    "sensor::Sensor": "sensor",
+    "switch_::Switch": "switch",
+    "text::Text": "text",
+    "text_sensor::TextSensor": "text_sensor",
+    "update::UpdateEntity": "update",
+    "valve::Valve": "valve",
+    "water_heater::WaterHeater": "water_heater",
+}
+
+
+def _wizard_entity_platform(
+    config: fv.FinalValidateConfig, entity_id: ID
+) -> str | None:
+    """The platform of an entity, from the C++ class it is declared with, as some entities are not
+    declared under their platform (the sensors of gps:, for example)."""
+    declared: ID = config.get_config_for_path(config.get_path_for_id(entity_id))
+    for cls in (declared.type, *declared.type.parents):
+        if (platform := WIZARD_ENTITY_PLATFORMS.get(str(cls))) is not None:
+            return platform
+    return None
 
 
 def wizard_input_ids(api_config: ConfigType) -> set[str]:
@@ -293,7 +373,7 @@ def _validate_wizard_input(conf: ConfigType) -> ConfigType:
         fv.full_config.get(), conf[CONF_ENTITY]
     )
     if (
-        declaration.get(CONF_PLATFORM) != "homeassistant"
+        declaration.get(CONF_PLATFORM) != HOMEASSISTANT_DOMAIN
         or domain not in WIZARD_INPUT_DOMAINS
     ):
         raise cv.Invalid(
@@ -322,7 +402,8 @@ def _validate_wizard_input(conf: ConfigType) -> ConfigType:
 
 
 def _validate_wizard_entity_exposed(value: ID) -> ID:
-    """Reject entities that are internal, as they are not exposed over the API, or have no name.
+    """Reject entities that are internal, as they are not exposed over the API, have no name, or
+    are of a platform the wizard does not know.
 
     The key a client knows an entity by is a hash of its name. Without a name of its own, the
     device works the name out at runtime from its friendly name, which can add the MAC address,
@@ -338,6 +419,10 @@ def _validate_wizard_entity_exposed(value: ID) -> ID:
         raise cv.Invalid(
             f"Entity '{value.id}' has no name of its own, so its key is not known "
             "when the wizard is built. Give it a name to use it in the wizard"
+        )
+    if _wizard_entity_platform(fv.full_config.get(), value) is None:
+        raise cv.Invalid(
+            f"Entity '{value.id}' is not of a platform the wizard can show"
         )
     return value
 
@@ -359,10 +444,29 @@ _WIZARD_FINAL_VALIDATE_SCHEMA = cv.Schema(
 )
 
 
+def _validate_unique_wizard_roles(wizard: ConfigType) -> None:
+    """A role tells Home Assistant which entity it is, so no two entities of the wizard may share one."""
+    roles = _wizard_roles()
+    seen: dict[str, str] = {}
+    for page in wizard[CONF_PAGES]:
+        for conf in page.get(CONF_ENTITIES, []):
+            entity_id = conf[CONF_ID].id
+            if (role := roles.get(entity_id)) is None:
+                continue
+            if (other := seen.get(role)) is not None and other != entity_id:
+                raise cv.Invalid(
+                    f"Wizard entities '{other}' and '{entity_id}' both have the role '{role}', "
+                    "so only one of them can be in the wizard",
+                    path=[CONF_WIZARD],
+                )
+            seen[role] = entity_id
+
+
 def final_validate(config: ConfigType) -> None:
     """Final validation of the wizard in the given api config, if it has one."""
     _WIZARD_FINAL_VALIDATE_SCHEMA(config)
     if (wizard := config.get(CONF_WIZARD)) is not None:
+        _validate_unique_wizard_roles(wizard)
         size = len(wizard_blob(wizard, fv.full_config.get()))
         if size > WIZARD_RESPONSE_MAX_SIZE:
             raise cv.Invalid(
@@ -383,14 +487,21 @@ automation.register_apply_condition(
 )
 
 
-def _entity_document(conf: ConfigType, config: fv.FinalValidateConfig) -> ConfigType:
+def _entity_document(
+    conf: ConfigType, config: fv.FinalValidateConfig, roles: dict[str, str]
+) -> ConfigType:
     """An entity of the device that the page shows, keyed as ListEntitiesResponse keys it."""
     _, declaration = _wizard_input_declaration(config, conf[CONF_ID])
-    document: ConfigType = {"key": fnv1_hash_object_id(declaration[CONF_NAME])}
+    document: ConfigType = {
+        "key": fnv1_hash_object_id(declaration[CONF_NAME]),
+        "platform": _wizard_entity_platform(config, conf[CONF_ID]),
+    }
     if (device := declaration.get(CONF_DEVICE_ID)) is not None:
         document["device_id"] = fnv1a_32bit_hash(device.id)
     if description := conf.get(CONF_DESCRIPTION):
         document[CONF_DESCRIPTION] = description
+    if (role := roles.get(conf[CONF_ID].id)) is not None:
+        document["role"] = role
     return document
 
 
@@ -414,7 +525,8 @@ def wizard_document(wizard: ConfigType, config: fv.FinalValidateConfig) -> Confi
 
         {"version": 1,
          "pages": [{"title": "...", "description": "...",
-           "entities": [{"key": 123, "device_id": 456, "description": "..."}],
+           "entities": [{"key": 123, "platform": "sensor", "device_id": 456,
+                         "description": "...", "role": "..."}],
            "inputs": [{"key": 789, "description": "...", "multiple": true, "max_length": 1023,
              "entity_filters": [{"integration": "...", "domain": ["..."],
                                  "device_class": ["..."], "supported_features": ["..."]}]}]}]}
@@ -425,6 +537,14 @@ def wizard_document(wizard: ConfigType, config: fv.FinalValidateConfig) -> Confi
     - An entity key is the key ListEntitiesResponse sends for the entity: the FNV-1 hash of the
       object id made from its name (entity_helpers). device_id is the hash of the ESPHome id of
       the device it belongs to (esphome/core/config.py), and is left out for the main device.
+    - An entity platform is the platform of the entity: sensor, switch and so on, or date, time or
+      datetime for an entity of the datetime component. A key is only unique within its platform
+      and device, so a client matches an entity by platform, device_id and key together. A client
+      that does not know platform ignores it, so the version stays 1.
+    - An entity role is a stable name, always <component>.<name>, that the component of the entity
+      gives it with register_entity_role, so Home Assistant can recognise the entity. The user
+      cannot set or change it, and no two entities of a wizard share one. A client that does not
+      know role ignores it, so the version stays 1.
     - An input key is the FNV-1 hash of the ESPHome id of the input, or of the linked entity. A linked
       entity must not set entity_id, as that is a static entry kept apart from the ones the wizard sets.
     - multiple means the user may pick several entities. The client sends them in one
@@ -439,13 +559,14 @@ def wizard_document(wizard: ConfigType, config: fv.FinalValidateConfig) -> Confi
       number, text, select or button.
     """
     pages: list[ConfigType] = []
+    roles = _wizard_roles()
     for page in wizard[CONF_PAGES]:
         document: ConfigType = {}
         for key in (CONF_TITLE, CONF_DESCRIPTION):
             if value := page.get(key):
                 document[key] = value
         if entities := [
-            _entity_document(e, config) for e in page.get(CONF_ENTITIES, [])
+            _entity_document(e, config, roles) for e in page.get(CONF_ENTITIES, [])
         ]:
             document[CONF_ENTITIES] = entities
         if inputs := [_input_document(i, config) for i in page.get(CONF_INPUTS, [])]:

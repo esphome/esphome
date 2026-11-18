@@ -4,7 +4,7 @@
 
 namespace esphome::ads1115 {
 
-static const char *const TAG = "ads1115.sensor";
+ESPHOME_LOG_TAG(TAG, "ads1115.sensor");
 
 float ADS1115Sensor::sample() {
   return this->parent_->request_measurement(this->multiplexer_, this->gain_, this->resolution_, this->samplerate_);
@@ -13,7 +13,7 @@ float ADS1115Sensor::sample() {
 void ADS1115Sensor::update() {
   float v = this->sample();
   if (!std::isnan(v)) {
-    ESP_LOGD(TAG, "'%s': Got Voltage=%fV", this->get_name().c_str(), v);
+    ESP_LOGD(TAG, "'%s': Got Voltage=%fV", LOG_STR_ARG(this->get_log_name()), v);
     this->publish_state(v);
   }
 }

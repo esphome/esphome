@@ -1,0 +1,46 @@
+# Deep sleep wake timing for the outgoing API connection: boot -> dial -> client hello -> first HA state.
+esphome:
+  name: deep-sleep-dut
+  on_boot:
+    priority: -100
+    then:
+      - lambda: ESP_LOGI("timing", "setup done at %u ms", (unsigned) millis());
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+logger:
+  level: DEBUG
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  fast_connect: true
+  on_connect:
+    - lambda: ESP_LOGI("timing", "wifi connected at %u ms", (unsigned) millis());
+
+api:
+  encryption:
+    key: !secret api_key
+  outgoing_connection:
+  on_client_connected:
+    - lambda: ESP_LOGI("timing", "client connected at %u ms (%s %s)", (unsigned) millis(), client_info.c_str(), client_address.c_str());
+  on_client_disconnected:
+    - lambda: ESP_LOGI("timing", "client disconnected at %u ms", (unsigned) millis());
+
+ota:
+  - platform: esphome
+
+text_sensor:
+  - platform: homeassistant
+    id: ha_state
+    entity_id: light.ENTITY
+    on_value:
+      - lambda: ESP_LOGI("timing", "first HA state '%s' at %u ms", x.c_str(), (unsigned) millis());
+
+deep_sleep:
+  id: ds
+  run_duration: 15s
+  sleep_duration: 15s

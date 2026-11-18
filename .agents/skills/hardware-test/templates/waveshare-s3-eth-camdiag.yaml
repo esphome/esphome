@@ -1,0 +1,83 @@
+esphome:
+  name: camdiag
+  on_boot:
+    priority: -100
+    then:
+      - output.set_level:
+          id: xclk
+          level: 50%
+      - delay: 200ms
+      - lambda: |-
+          auto *bus = id(cam_i2c);
+          auto scan = [&](const char *what) {
+            int found = 0;
+            for (uint8_t a = 0x08; a < 0x78; a++) {
+              if (bus->write(a, nullptr, 0) == i2c::ERROR_OK) {
+                ESP_LOGI("camdiag", "  ACK at 0x%02X", a);
+                found++;
+              }
+            }
+            ESP_LOGI("camdiag", "scan %s: %d devices", what, found);
+          };
+          auto rd16 = [&](uint16_t reg) {
+            uint8_t r[2] = {(uint8_t) (reg >> 8), (uint8_t) reg};
+            uint8_t v = 0xEE;
+            auto err = bus->write_readv(0x3C, r, 2, &v, 1);
+            ESP_LOGI("camdiag", "  0x3C [0x%04X] err=%d -> 0x%02X", reg, (int) err, v);
+            return v;
+          };
+          auto rd8 = [&](uint8_t addr, uint8_t reg) {
+            uint8_t v = 0xEE;
+            auto err = bus->write_readv(addr, &reg, 1, &v, 1);
+            ESP_LOGI("camdiag", "  0x%02X [0x%02X] (8 bit) err=%d -> 0x%02X", addr, reg, (int) err, v);
+          };
+          id(g8).turn_off(); delay(1500);
+          id(xclk).set_level(0.0f); delay(300);
+          scan("GPIO8 LOW, XCLK OFF");
+          id(xclk).set_level(0.5f); delay(300);
+          scan("GPIO8 LOW, XCLK ON");
+          ESP_LOGI("camdiag", "OV5640 style 16 bit reads (expect 300A=0x56 300B=0x40, 302A=0xB0..B2):");
+          rd16(0x300A); rd16(0x300B); rd16(0x302A); rd16(0x3008); rd16(0x3100); rd16(0x3103); rd16(0x4300);
+          ESP_LOGI("camdiag", "8 bit reads at 0x3C (GC2145 expects F0=0x21 F1=0x45):");
+          rd8(0x3C, 0xF0); rd8(0x3C, 0xF1); rd8(0x3C, 0x0A); rd8(0x3C, 0x0B);
+          ESP_LOGI("camdiag", "write 0x3103=0x11 then read back, then soft reset 0x3008=0x82 and re-read IDs:");
+          uint8_t w[3] = {0x31, 0x03, 0x11};
+          auto werr = bus->write(0x3C, w, 3);
+          ESP_LOGI("camdiag", "  write err=%d", (int) werr);
+          rd16(0x3103);
+          uint8_t rst[3] = {0x30, 0x08, 0x82};
+          bus->write(0x3C, rst, 3); delay(100);
+          rd16(0x300A); rd16(0x300B);
+          id(g8).turn_on(); delay(500); scan("GPIO8 HIGH (camera off)");
+          id(g8).turn_off(); delay(1500); scan("GPIO8 LOW again");
+
+esp32:
+  board: esp32-s3-devkitc-1
+  variant: esp32s3
+  flash_size: 16MB
+  framework:
+    type: esp-idf
+
+psram:
+  mode: octal
+  speed: 80MHz
+
+logger:
+  level: DEBUG
+  hardware_uart: USB_SERIAL_JTAG
+
+i2c:
+  - id: cam_i2c
+    sda: GPIO48
+    scl: GPIO47
+    frequency: 100kHz
+    scan: true
+
+output:
+  - platform: gpio
+    id: g8
+    pin: GPIO8
+  - platform: ledc
+    pin: GPIO3
+    id: xclk
+    frequency: 20000000Hz

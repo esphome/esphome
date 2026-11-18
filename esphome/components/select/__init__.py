@@ -1,6 +1,5 @@
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components import mqtt, web_server
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CYCLE,
@@ -15,13 +14,13 @@ from esphome.const import (
     CONF_OPERATION,
     CONF_OPTION,
     CONF_OPTIONS,
-    CONF_TRIGGER_ID,
-    CONF_WEB_SERVER,
 )
-from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority, entity_helpers
 from esphome.core.entity_helpers import (
+    ApplyEntity,
     SubEntities,
     entity_duplicate_validator,
+    mqtt_component_class,
     queue_entity_register,
     setup_entity,
 )
@@ -30,43 +29,34 @@ from esphome.cpp_types import global_ns
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "select"
 IS_PLATFORM_COMPONENT = True
 
 select_ns = cg.esphome_ns.namespace("select")
 Select = select_ns.class_("Select", cg.EntityBase)
 SelectPtr = Select.operator("ptr")
-
-# Triggers
-SelectStateTrigger = select_ns.class_(
-    "SelectStateTrigger",
-    automation.Trigger.template(cg.StringRef, cg.size_t),
-)
+ApplySelect = select_ns.class_("ApplySelect", Select)
 
 # Conditions
 SelectIsCondition = select_ns.class_("SelectIsCondition", automation.Condition)
 
 # Enums
 SelectOperation = select_ns.enum("SelectOperation")
-SELECT_OPERATION_OPTIONS = {
-    "NEXT": SelectOperation.SELECT_OP_NEXT,
-    "PREVIOUS": SelectOperation.SELECT_OP_PREVIOUS,
-    "FIRST": SelectOperation.SELECT_OP_FIRST,
-    "LAST": SelectOperation.SELECT_OP_LAST,
-}
+SELECT_OPERATION_OPTIONS = SelectOperation.options(
+    "NEXT", "PREVIOUS", "FIRST", "LAST", prefix="SELECT_OP_"
+)
 
 
 _SELECT_SCHEMA = (
-    cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
+    cv.ENTITY_BASE_SCHEMA.extend(entity_helpers.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
     .extend(
         {
-            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTSelectComponent),
-            cv.GenerateID(): cv.declare_id(Select),
-            cv.Optional(CONF_ON_VALUE): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(SelectStateTrigger),
-                }
+            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(
+                mqtt_component_class("MQTTSelectComponent")
             ),
+            cv.GenerateID(): cv.declare_id(Select),
+            cv.Optional(CONF_ON_VALUE): automation.validate_automation(),
         }
     )
 )
@@ -100,17 +90,19 @@ async def setup_select_core_(var, config, *, options: list[str]):
         cg.add(var.traits.set_options_static(table, len(options)))
 
     for conf in config.get(CONF_ON_VALUE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(
-            trigger, [(cg.StringRef, "x"), (cg.size_t, "i")], conf
+        # The callback carries the index; the automation gets the option text as well.
+        parent = automation.parent_ref(var)
+        index = cg.RawExpression("index")
+        await automation.build_callback_automation(
+            var,
+            "add_on_state_callback",
+            [(cg.StringRef, "x"), (cg.size_t, "i")],
+            conf,
+            params=[(cg.size_t, "index")],
+            forward=[cg.StringRef(parent.option_at(index)), index],
         )
 
-    if (mqtt_id := config.get(CONF_MQTT_ID)) is not None:
-        mqtt_ = cg.new_Pvariable(mqtt_id, var)
-        await mqtt.register_mqtt_component(mqtt_, config)
-
-    if web_server_config := config.get(CONF_WEB_SERVER):
-        await web_server.add_entity_config(var, web_server_config)
+    await entity_helpers.setup_entity_integrations(var, config)
 
 
 async def register_select(var, config, *, options: list[str]):
@@ -127,11 +119,19 @@ async def new_select(config, *args, options: list[str]):
     return var
 
 
+APPLY_ENTITY = ApplyEntity(
+    ApplySelect,
+    ((SelectPtr, "entity"), (cg.size_t, "index")),
+    "entity->publish_state(index);",
+    (("option", "const char *option = entity->option_at(index);"),),
+)
+
+
 def sub_selects(
     config: ConfigType, *, parent: MockObj | ID | None = None
 ) -> SubEntities:
-    """Return a SubEntities bound to new_select."""
-    return SubEntities(new_select, config, parent)
+    """Return a SubEntities bound to new_select; ``apply`` statements can use ``entity``, ``index`` and ``option``."""
+    return SubEntities(new_select, config, parent, APPLY_ENTITY)
 
 
 @coroutine_with_priority(CoroPriority.CORE)

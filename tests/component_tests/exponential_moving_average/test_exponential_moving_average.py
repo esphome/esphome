@@ -127,7 +127,7 @@ def test_alpha_in_range(alpha: float) -> None:
 
 
 def test_time_weighting_requires_time_constant() -> None:
-    with pytest.raises(cv.Invalid, match="can only be used with 'time_constant'"):
+    with pytest.raises(cv.Invalid, match="'time_weighting' requires 'time_constant'"):
         CONFIG_SCHEMA(
             {
                 "id": "ema",

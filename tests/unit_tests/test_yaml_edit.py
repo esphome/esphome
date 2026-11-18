@@ -3,21 +3,32 @@
 from __future__ import annotations
 
 from pathlib import Path
+import stat
 import sys
+from typing import Any
+from unittest.mock import patch
 
 import pytest
 
 from esphome import yaml_util
+from esphome.compiled_config import compiled_config_path
 from esphome.config import do_substitution_pass
 from esphome.const import CONF_ESPHOME, CONF_NAME
 from esphome.core import CORE, EsphomeError
 from esphome.yaml_edit import (
     LineEdit,
+    RestoreError,
+    Snapshot,
+    apply_line_edits,
+    editable_file,
     field_line_re,
     line_at,
+    own_documents,
     read_text,
+    restore_files,
     rewrite,
     rewritten_text,
+    source_line,
     source_of,
     write_keeping_mode,
 )
@@ -98,13 +109,46 @@ def test_a_comment_needs_whitespace_and_a_scalar_is_not_empty() -> None:
     assert field_line_re("key", "abc#def").match("key: abc#def") is not None
 
 
-def test_source_of_is_none_for_a_value_validation_added(tmp_path: Path) -> None:
-    """Only a key read from a file carries a range, and only a mapping read
-    from a file can place its keys; a mapping built in code cannot."""
+def test_source_of_is_none_for_a_value_validation_added() -> None:
+    """Only a key read from a file carries a range."""
     assert source_of({"name": "kitchen"}, "name") is None
+
+
+def test_a_mapping_built_in_code_places_only_this_configurations_keys(
+    tmp_path: Path,
+) -> None:
+    """merge_config rebuilds a mapping without a range; a value read for this
+    configuration is still placed, one read from elsewhere is not."""
     _setup(tmp_path, YAML)
-    loaded_key = next(iter(CORE.raw_config[CONF_ESPHOME]))
-    assert source_of({loaded_key: "kitchen"}, CONF_NAME) is None
+    own_key, own_value = next(iter(CORE.raw_config[CONF_ESPHOME].items()))
+    assert source_of({own_key: own_value}, CONF_NAME) == (CORE.config_path, 1)
+    # Only the value names the line that won; without a range it is refused
+    assert source_of({own_key: "x"}, CONF_NAME) is None
+    (tmp_path / "elsewhere.yaml").write_bytes(YAML.encode())
+    other = yaml_util.load_yaml(tmp_path / "elsewhere.yaml")
+    other_key, other_value = next(iter(other[CONF_ESPHOME].items()))
+    assert source_of({other_key: other_value}, CONF_NAME) is None
+    # A value on a line of its own does not name the key's line
+    _setup(tmp_path, "esphome:\n  name:\n    kitchen\n")
+    own_key, own_value = next(iter(CORE.raw_config[CONF_ESPHOME].items()))
+    assert source_of({own_key: own_value}, CONF_NAME) is None
+
+
+def test_own_documents_include_a_file_that_only_gives_substitutions(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "subs.yaml").write_bytes(b"substitutions:\n  x: y\n")
+    (tmp_path / "sensor.yaml").write_bytes(b"platform: template\nname: x\n")
+    _setup(
+        tmp_path,
+        YAML + "packages:\n  subs: !include subs.yaml\nsensor:\n"
+        "  - !include sensor.yaml\n",
+    )
+    assert (tmp_path / "sensor.yaml").resolve() in own_documents()  # via a list
+    CORE.reset()
+    CORE.config_path = tmp_path / "test.yaml"
+    CORE.raw_config = {}  # what is left after substitutions are taken out
+    assert (tmp_path / "subs.yaml").resolve() in own_documents()
 
 
 def test_source_of_is_none_for_a_merged_key(tmp_path: Path) -> None:
@@ -152,8 +196,6 @@ def test_write_keeps_the_mode_of_the_file_or_another(tmp_path: Path) -> None:
 def test_write_failures_say_which_step_and_why(tmp_path: Path) -> None:
     """A missing mode source, a write that fails, and a mode that cannot be
     put back after the write are three different situations."""
-    from unittest.mock import patch
-
     path = _setup(tmp_path, YAML)
     with pytest.raises(EsphomeError, match="Could not read the mode of .*gone.yaml"):
         write_keeping_mode(path, YAML, like=tmp_path / "gone.yaml")
@@ -180,3 +222,349 @@ def test_read_text_reports_a_file_it_cannot_decode(tmp_path: Path) -> None:
     path.write_bytes(b"caf\xe9: 1\n")
     with pytest.raises(EsphomeError, match="Error reading file"):
         read_text(path)
+
+
+def test_source_line_refuses_what_is_not_an_editable_file(tmp_path: Path) -> None:
+    """A remote package is checked out under the build data and is not the
+    user's; a file outside the configuration directory is not either."""
+    (tmp_path / ".esphome").mkdir()
+    (tmp_path / ".esphome" / "base.yaml").write_bytes(b"name: kitchen\n")
+    _setup(tmp_path, "esphome: !include .esphome/base.yaml\n")
+    with pytest.raises(EsphomeError, match="not an editable file"):
+        source_line(CORE.raw_config[CONF_ESPHOME], CONF_NAME)
+    with pytest.raises(EsphomeError, match="was not read from a file"):
+        source_line({"name": "kitchen"}, CONF_NAME)
+    _setup(tmp_path, YAML)
+    assert source_line(CORE.raw_config[CONF_ESPHOME], CONF_NAME) == (
+        CORE.config_path,
+        1,
+        "  name: kitchen  # the device",
+    )
+    outside = tmp_path.parent / "outside.yaml"
+    outside.write_bytes(b"")
+    with pytest.raises(EsphomeError, match="not an editable file"):
+        editable_file(outside)
+    (tmp_path / "link.yaml").symlink_to(CORE.config_path)
+    assert editable_file(tmp_path / "link.yaml") == CORE.config_path.resolve()
+
+
+def test_insert_after_goes_before_the_rewrite_of_the_same_line(
+    tmp_path: Path,
+) -> None:
+    """Edits apply from the bottom up so an insertion never moves a later
+    line; the file's own line ending is used, also on a bare last line."""
+    text = YAML.replace("\n", "\r\n").rstrip("\r\n")
+    path = _setup(tmp_path, text)
+    edit = _name_edit("garage")
+    added = LineEdit(path, 4, "  ssid: kitchen", "  password: x", insert_after=True)
+    more = LineEdit(
+        path, 4, "  ssid: kitchen", "  fast_connect: true", insert_after=True
+    )
+    assert rewritten_text(read_text(path), [added, more, edit]) == (
+        text.replace("name: kitchen", "name: garage")
+        + "\r\n  password: x\r\n  fast_connect: true"
+    )
+    edit.old_line = "changed"
+    with pytest.raises(EsphomeError, match="changed since it was read"):
+        rewritten_text(read_text(path), [added, edit])
+
+
+def test_own_documents_refuses_an_incomplete_set(tmp_path: Path) -> None:
+    _setup(tmp_path, YAML)
+    found = yaml_util.DiscoveredYamlFiles(load_errors=["sub.yaml: broken"])
+    with (
+        patch("esphome.yaml_util.discover_user_yaml_files", return_value=found),
+        pytest.raises(EsphomeError, match="Could not read every file .*sub.yaml"),
+    ):
+        own_documents()
+
+
+def test_apply_keeps_the_secret_registry(tmp_path: Path) -> None:
+    """The reload must not clear what later output redacts as !secret."""
+    (tmp_path / "secrets.yaml").write_bytes(b"ssid: hidden\n")
+    path = _setup(tmp_path, YAML.replace("ssid: kitchen", "ssid: !secret ssid"))
+    assert yaml_util.is_secret("hidden") == "ssid"
+    apply_line_edits([_name_edit("garage")])
+    assert yaml_util.is_secret("hidden") == "ssid"
+    assert "!secret ssid" in path.read_text()
+
+
+def test_apply_writes_reloads_drops_the_cache_and_restores(tmp_path: Path) -> None:
+    path = _setup(tmp_path, YAML)
+    cache = compiled_config_path(CORE.config_filename)
+    cache.parent.mkdir(parents=True, exist_ok=True)
+    cache.write_text("{}")
+    mode = stat.S_IMODE(path.stat().st_mode)
+    originals = apply_line_edits([_name_edit("garage")])
+    assert originals == {
+        path: Snapshot(YAML, YAML.replace("kitchen  #", "garage  #"), mode)
+    }
+    assert path.read_text() == YAML.replace("kitchen  #", "garage  #")
+    assert not cache.exists()
+    cache.write_text("{}")
+    restore_files(originals)
+    assert path.read_text() == YAML
+    assert not cache.exists()
+
+
+def test_apply_reloads_a_symlinked_file_by_the_link(tmp_path: Path) -> None:
+    """A relative !include inside the file resolves beside the link, as the
+    loader read it, not beside the target."""
+    shared = tmp_path / "shared"
+    shared.mkdir()
+    (shared / "device.yaml").write_bytes(
+        b"name: kitchen\nfriendly_name: !include fn.yaml\n"
+    )
+    (tmp_path / "fn.yaml").write_bytes(b"Kitchen\n")  # beside the link only
+    (tmp_path / "device.yaml").symlink_to(shared / "device.yaml")
+    _setup(tmp_path, "esphome: !include device.yaml\n")
+    doc, line_no = source_of(CORE.raw_config[CONF_ESPHOME], CONF_NAME)
+    assert doc == tmp_path / "device.yaml"
+    match = field_line_re(CONF_NAME, "kitchen").match(line_at(doc, line_no))
+    edit = LineEdit(doc, line_no, match.string, rewrite(match, "garage"))
+    originals = apply_line_edits([edit])
+    assert list(originals) == [(shared / "device.yaml").resolve()]
+    assert (shared / "device.yaml").read_text() == (
+        "name: garage\nfriendly_name: !include fn.yaml\n"
+    )
+
+
+def test_apply_rolls_back_a_rewrite_the_loader_refuses(tmp_path: Path) -> None:
+    path = _setup(tmp_path, YAML)
+    edit = _name_edit("garage")
+    edit.new_line = "  name: [unterminated"
+    with pytest.raises(EsphomeError, match="no longer loads"):
+        apply_line_edits([edit])
+    assert path.read_text() == YAML
+    with (
+        patch("esphome.yaml_util.load_yaml", side_effect=KeyboardInterrupt),
+        pytest.raises(KeyboardInterrupt),
+    ):
+        apply_line_edits([_name_edit("garage")])
+    assert path.read_text() == YAML
+
+
+def test_restore_reports_every_file_it_could_not_write(tmp_path: Path) -> None:
+    """A missing file, a failed write and a cache that cannot be dropped are
+    all reported; a file the user changed meanwhile is left alone."""
+    path = _setup(tmp_path, YAML)
+    good = tmp_path / "a.yaml"
+    (tmp_path / "b.yaml").write_bytes(b"")
+    good.write_bytes(b"")
+    with (
+        patch("esphome.yaml_edit.write_file", side_effect=[EsphomeError("disk"), None]),
+        pytest.raises(EsphomeError, match="Could not restore .*b.yaml: disk"),
+    ):
+        restore_files({tmp_path / "b.yaml": Snapshot("x", ""), good: Snapshot("y", "")})
+    with pytest.raises(
+        EsphomeError, match="Could not restore .*gone.yaml: Error reading file"
+    ):
+        restore_files({tmp_path / "gone.yaml": Snapshot("x", "x")})
+    with (
+        patch(
+            "esphome.compiled_config.invalidate_compiled_config",
+            side_effect=EsphomeError("busy"),
+        ),
+        pytest.raises(
+            EsphomeError, match="Could not restore the validated caches: busy"
+        ),
+    ):
+        restore_files({path: Snapshot(YAML, YAML)})
+    originals = apply_line_edits([_name_edit("garage")])
+    edited = path.read_text() + "logger:\n"
+    path.write_bytes(edited.encode())
+    with pytest.raises(EsphomeError, match="changed since it was written, left as is"):
+        restore_files(originals)
+    assert path.read_text() == edited
+
+
+def test_apply_rolls_back_when_the_cache_cannot_be_dropped(tmp_path: Path) -> None:
+    path = _setup(tmp_path, YAML)
+    with (
+        patch(
+            "esphome.compiled_config.invalidate_compiled_config",
+            side_effect=[EsphomeError("busy"), None],
+        ),
+        pytest.raises(EsphomeError, match="busy"),
+    ):
+        apply_line_edits([_name_edit("garage")])
+    assert path.read_text() == YAML
+
+
+def test_apply_reports_a_rollback_that_also_failed(tmp_path: Path) -> None:
+    """The rewrite lands, the reload fails, and the rollback write fails too."""
+    from esphome.yaml_edit import write_file
+
+    _setup(tmp_path, YAML)
+    writes: list[int] = []
+
+    def write_then_fail(*args: Any, **kwargs: Any) -> None:
+        writes.append(1)
+        if len(writes) > 1:
+            raise EsphomeError("disk")
+        write_file(*args, **kwargs)
+
+    with (
+        patch("esphome.yaml_util.load_yaml", side_effect=EsphomeError("broken")),
+        patch("esphome.yaml_edit.write_file", side_effect=write_then_fail),
+        pytest.raises(EsphomeError, match="broken; Could not restore .*disk"),
+    ):
+        apply_line_edits([_name_edit("garage")])
+
+
+def test_a_failed_rollback_keeps_an_interrupt_an_interrupt(tmp_path: Path) -> None:
+    _setup(tmp_path, YAML)
+    with (
+        patch("esphome.yaml_util.load_yaml", side_effect=KeyboardInterrupt),
+        patch("pathlib.Path.chmod", side_effect=[None, OSError("disk")]),
+        pytest.raises(KeyboardInterrupt) as info,
+    ):
+        apply_line_edits([_name_edit("garage")])
+    assert "disk" in "".join(info.value.__notes__)
+
+
+def test_rollback_after_a_failed_second_write_leaves_the_untouched_file_alone(
+    tmp_path: Path,
+) -> None:
+    """The file that was never written is not reported as changed."""
+    path = _setup(tmp_path, YAML)
+    other = tmp_path / "other.yaml"
+    other.write_bytes(b"x: 1\n")
+    edits = [_name_edit("garage"), LineEdit(other, 0, "x: 1", "x: 2")]
+    with (
+        patch(
+            "esphome.yaml_edit.write_keeping_mode",
+            side_effect=[None, EsphomeError("disk")],
+        ),
+        pytest.raises(EsphomeError) as info,
+    ):
+        apply_line_edits(edits)
+    assert "changed since it was written" not in str(info.value)
+    assert path.read_text() == YAML and other.read_text() == "x: 1\n"
+
+
+def test_restore_goes_on_after_an_interrupt(tmp_path: Path) -> None:
+    """A second Ctrl-C must not leave the other files holding the new value."""
+    path = _setup(tmp_path, YAML)
+    other = tmp_path / "other.yaml"
+    other.write_bytes(b"x: 1\n")
+    calls: list[Path] = []
+
+    def interrupt_at(n: int) -> Any:
+        def write(target: Path, text: str, **kwargs: Any) -> None:
+            calls.append(target)
+            if len(calls) == n:
+                raise KeyboardInterrupt
+            write_keeping_mode(target, text, **kwargs)
+
+        return write
+
+    originals = apply_line_edits(
+        [_name_edit("garage"), LineEdit(other, 0, "x: 1", "x: 2")]
+    )
+    with (
+        patch("esphome.yaml_edit.write_keeping_mode", side_effect=interrupt_at(1)),
+        pytest.raises(KeyboardInterrupt) as info,
+    ):
+        restore_files(originals)
+    assert calls == [path, other] and other.read_text() == "x: 1\n"
+    assert f"Could not restore {path}: interrupted" in "".join(info.value.__notes__)
+    # The interrupt stays one inside apply as well
+    _setup(tmp_path, YAML)
+    calls.clear()
+    with (
+        patch("esphome.yaml_util.load_yaml", side_effect=EsphomeError("broken")),
+        patch("esphome.yaml_edit.write_keeping_mode", side_effect=interrupt_at(2)),
+        pytest.raises(KeyboardInterrupt) as info,
+    ):
+        apply_line_edits([_name_edit("garage")])
+    assert "Could not restore" in "".join(info.value.__notes__)
+
+
+def test_restore_finishes_after_any_failure(tmp_path: Path) -> None:
+    """A raw OSError still leaves the other files put back, and an interrupt
+    while dropping the caches carries the report."""
+    path = _setup(tmp_path, YAML)
+    other = tmp_path / "other.yaml"
+    other.write_bytes(b"x: 1\n")
+    originals = apply_line_edits(
+        [_name_edit("garage"), LineEdit(other, 0, "x: 1", "x: 2")]
+    )
+    writes: list[Path] = []
+
+    def fail_first(target: Path, text: str, **kwargs: Any) -> None:
+        writes.append(target)
+        if len(writes) == 1:
+            raise OSError("odd")
+        write_keeping_mode(target, text, **kwargs)
+
+    with (
+        patch("esphome.yaml_edit.write_keeping_mode", side_effect=fail_first),
+        pytest.raises(RestoreError) as info,
+    ):
+        restore_files(originals)
+    assert f"Could not restore {path}: odd" in str(
+        info.value
+    )  # a Windows path is no regex
+    assert "garage" in path.read_text() and other.read_text() == "x: 1\n"
+    with (
+        patch(
+            "esphome.compiled_config.invalidate_compiled_config",
+            side_effect=KeyboardInterrupt,
+        ),
+        pytest.raises(KeyboardInterrupt) as info,
+    ):
+        restore_files(originals)
+    assert path.read_text() == YAML
+    assert "the validated caches: interrupted" in "".join(info.value.__notes__)
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="posix file modes")
+def test_restore_puts_back_the_mode_from_before_the_edit(tmp_path: Path) -> None:
+    """A write whose chmod failed leaves the file 0600; the restore does not
+    copy that, it has the mode from before."""
+    path = _setup(tmp_path, YAML)
+    path.chmod(0o644)
+    originals = apply_line_edits([_name_edit("garage")])
+    path.chmod(0o600)
+    restore_files(originals)
+    assert path.read_text() == YAML
+    assert path.stat().st_mode & 0o777 == 0o644
+
+
+def test_restore_finishes_after_an_exit(tmp_path: Path) -> None:
+    """A SystemExit from a signal handler still leaves the other files put
+    back and comes out again with the report."""
+    path = _setup(tmp_path, YAML)
+    other = tmp_path / "other.yaml"
+    other.write_bytes(b"x: 1\n")
+    originals = apply_line_edits(
+        [_name_edit("garage"), LineEdit(other, 0, "x: 1", "x: 2")]
+    )
+    writes: list[Path] = []
+
+    def exit_first(target: Path, text: str, **kwargs: Any) -> None:
+        writes.append(target)
+        if len(writes) == 1:
+            raise SystemExit(1)
+        write_keeping_mode(target, text, **kwargs)
+
+    with (
+        patch("esphome.yaml_edit.write_keeping_mode", side_effect=exit_first),
+        pytest.raises(SystemExit) as info,
+    ):
+        restore_files(originals)
+    assert other.read_text() == "x: 1\n"
+    assert f"Could not restore {path}: SystemExit" in "".join(info.value.__notes__)
+
+
+def test_a_value_written_to_the_secrets_file_is_registered(tmp_path: Path) -> None:
+    """Only a resolved !secret registers its value, so the main file is
+    loaded again after an edit elsewhere; own_documents keeps the registry."""
+    secrets = tmp_path / "secrets.yaml"
+    secrets.write_bytes(b"ssid: hidden\n")
+    _setup(tmp_path, YAML.replace("ssid: kitchen", "ssid: !secret ssid"))
+    own_documents()
+    assert yaml_util.is_secret("hidden") == "ssid"
+    apply_line_edits([LineEdit(secrets, 0, "ssid: hidden", "ssid: hidden2")])
+    assert yaml_util.is_secret("hidden2") == "ssid"

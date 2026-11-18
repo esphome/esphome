@@ -4,7 +4,7 @@
 
 namespace esphome::template_ {
 
-static const char *const TAG = "template.sensor";
+ESPHOME_LOG_TAG(TAG, "template.sensor");
 
 void TemplateSensor::update() {
   if (!this->f_.has_value())

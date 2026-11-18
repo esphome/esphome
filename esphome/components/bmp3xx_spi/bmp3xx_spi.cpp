@@ -3,7 +3,7 @@
 
 namespace esphome::bmp3xx_spi {
 
-static const char *const TAG = "bmp3xx_spi.sensor";
+ESPHOME_LOG_TAG(TAG, "bmp3xx_spi.sensor");
 
 uint8_t set_bit(uint8_t num, int position) {
   int mask = 1 << position;

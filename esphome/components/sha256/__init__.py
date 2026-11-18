@@ -5,6 +5,7 @@ from esphome.helpers import IS_MACOS
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "sha256"
 
 sha256_ns = cg.esphome_ns.namespace("sha256")
 

@@ -3,7 +3,7 @@
 
 namespace esphome::output {
 
-static const char *const TAG = "output.lock";
+ESPHOME_LOG_TAG(TAG, "output.lock");
 
 void OutputLock::dump_config() { LOG_LOCK("", "Output Lock", this); }
 

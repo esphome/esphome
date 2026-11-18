@@ -5,7 +5,6 @@ from esphome.const import (
     CONF_ACTIVE_POWER,
     CONF_CURRENT,
     CONF_FREQUENCY,
-    CONF_ID,
     CONF_PHASE_A,
     CONF_PHASE_B,
     CONF_PHASE_C,
@@ -100,10 +99,7 @@ PV_SCHEMA = cv.Schema(
 )
 
 GrowattProtocolVersion = growatt_solar_ns.enum("GrowattProtocolVersion")
-PROTOCOL_VERSIONS = {
-    "RTU": GrowattProtocolVersion.RTU,
-    "RTU2": GrowattProtocolVersion.RTU2,
-}
+PROTOCOL_VERSIONS = GrowattProtocolVersion.options("RTU", "RTU2")
 
 
 CONFIG_SCHEMA = (
@@ -171,9 +167,7 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await modbus.register_modbus_client_device(var, config)
+    var = await modbus.new_modbus_client_component(config)
 
     cg.add(var.set_protocol_version(config[CONF_PROTOCOL_VERSION]))
 

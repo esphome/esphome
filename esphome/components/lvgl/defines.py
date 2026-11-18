@@ -25,6 +25,7 @@ KEY_LV_DEFINES = "lv_defines"
 KEY_LV_FONTS_USED = "lv_fonts_used"
 KEY_LV_IMAGES_USED = "lv_images_used"
 KEY_LV_USES = "lv_uses"
+KEY_MENU_SET_PAGE_ACTIONS = "menu_set_page_actions"
 KEY_NAMED_STYLES = "named_styles"
 KEY_OPTIONS = "options"
 KEY_REFRESHED_WIDGETS = "refreshed_widgets"
@@ -143,8 +144,8 @@ def get_theme_styles() -> dict[str, MockObj]:
     return _get_data(KEY_THEME_STYLES, {})
 
 
-def get_widget_theme_style_data() -> dict[str, list[tuple[MockObj, MockObj]]]:
-    """Get the map of widget type names to the list of (style variable, part/state name)"""
+def get_widget_theme_style_data() -> dict[str, list[tuple[MockObj, str, str]]]:
+    """Get the map of widget type names to the list of (style variable, part, state)"""
     return _get_data(KEY_WIDGET_THEME_STYLES, {})
 
 
@@ -170,6 +171,10 @@ def get_focused_widgets() -> set:
 
 def get_refreshed_widgets() -> set:
     return _get_data(KEY_REFRESHED_WIDGETS, set())
+
+
+def get_menu_set_page_actions() -> list:
+    return _get_data(KEY_MENU_SET_PAGE_ACTIONS, [])
 
 
 def get_list_triggers() -> dict:
@@ -477,6 +482,16 @@ LV_LOG_LEVELS = {
     "NONE": "NONE",
 }
 
+# Log output for failed LVGL argument checks, chosen from the LVGL log level
+LV_CHECK_ARG_LOG_MODES = {
+    "VERBOSE": "VERBOSE",
+    "DEBUG": "VERBOSE",
+    "INFO": "MINIMAL",
+    "WARN": "MINIMAL",
+    "ERROR": "NONE",
+    "NONE": "NONE",
+}
+
 LV_LONG_MODES = LvConstant(
     "LV_LABEL_LONG_",
     "WRAP",
@@ -606,13 +621,20 @@ OBJ_FLAGS = (
     "ignore_layout",
     "floating",
     "overflow_visible",
+    "send_draw_task_events",
+    "event_trickle",
+    "state_trickle",
+    "radio_button",
+    "flex_in_new_track",
     "layout_1",
     "layout_2",
-    "send_draw_task_events",
     "widget_1",
     "widget_2",
 )
-LV_OBJ_FLAG = LvConstant("LV_OBJ_FLAG_", *OBJ_FLAGS)
+# Flags whose lv_obj_set_<flag>() setter has a different name
+FLAG_SETTER_ALIASES = {"layout_1": "flex_in_new_track"}
+# Custom flags that have no lv_obj_set_<flag>() setter
+CUSTOM_FLAGS = ("layout_2", "widget_1", "widget_2")
 
 ARC_MODES = LvConstant("LV_ARC_MODE_", "NORMAL", "REVERSE", "SYMMETRICAL")
 BAR_MODES = LvConstant("LV_BAR_MODE_", "NORMAL", "SYMMETRICAL", "RANGE")
@@ -665,6 +687,12 @@ LV_MENU_MODES = LvConstant(
     "BOTTOM_FIXED",
 )
 
+LV_MENU_ROOT_BACK_BUTTON_MODES = LvConstant(
+    "LV_MENU_ROOT_BACK_BUTTON_",
+    "DISABLED",
+    "ENABLED",
+)
+
 LV_CHART_TYPES = (
     "NONE",
     "LINE",
@@ -701,10 +729,11 @@ CONF_DISP_BG_COLOR = "disp_bg_color"
 CONF_DISP_BG_IMAGE = "disp_bg_image"
 CONF_DISP_BG_OPA = "disp_bg_opa"
 CONF_BODY = "body"
-CONF_BUTTONS = "buttons"
 CONF_CHANGE_RATE = "change_rate"
+CONF_CLICKABLE = "clickable"
 CONF_CLOSE_BUTTON = "close_button"
 CONF_COLOR_END = "color_end"
+CONF_COLOR_PICKER = "color_picker"
 CONF_COLOR_START = "color_start"
 CONF_CONTAINER = "container"
 CONF_CONTROL = "control"
@@ -727,6 +756,7 @@ CONF_FLEX_ALIGN_CROSS = "flex_align_cross"
 CONF_FLEX_ALIGN_TRACK = "flex_align_track"
 CONF_FLEX_GROW = "flex_grow"
 CONF_FREEZE = "freeze"
+CONF_CHECK_ARGS = "check_args"
 CONF_DARK_MODE = "dark_mode"
 CONF_FULL_REFRESH = "full_refresh"
 CONF_GRADIENTS = "gradients"
@@ -742,6 +772,7 @@ CONF_GRID_ROW_ALIGN = "grid_row_align"
 CONF_GRID_ROWS = "grid_rows"
 CONF_HEADER_BUTTONS = "header_buttons"
 CONF_HEADER_MODE = "header_mode"
+CONF_HEADER_STYLE = "header_style"
 CONF_HOME = "home"
 CONF_IMAGE = "image"
 CONF_INDICATORS = "indicators"
@@ -758,6 +789,7 @@ CONF_LVGL_ID = "lvgl_id"
 CONF_LONG_MODE = "long_mode"
 CONF_MAJOR_TICKS_STYLE = "major_ticks_style"
 CONF_MAPPING = "mapping"
+CONF_MENU = "menu"
 CONF_MSGBOXES = "msgboxes"
 CONF_OBJ = "obj"
 CONF_ONE_CHECKED = "one_checked"
@@ -768,8 +800,8 @@ CONF_ON_LANDSCAPE = "on_landscape"
 CONF_ON_PAUSE = "on_pause"
 CONF_ON_PORTRAIT = "on_portrait"
 CONF_ON_RESUME = "on_resume"
+CONF_ON_ROOT_BACK_BUTTON_CLICK = "on_root_back_button_click"
 CONF_ON_SELECT = "on_select"
-CONF_ON_STOP = "on_stop"
 CONF_OPA = "opa"
 CONF_NEXT = "next"
 CONF_PAD_ROW = "pad_row"
@@ -791,15 +823,20 @@ CONF_RESUME_ON_INPUT = "resume_on_input"
 CONF_RIGHT_BUTTON = "right_button"
 CONF_ROLLOVER = "rollover"
 CONF_ROOT_BACK_BTN = "root_back_btn"
+CONF_ROOT_PAGE = "root_page"
 CONF_SCALE = "scale"
 CONF_SCALE_LINES = "scale_lines"
 CONF_SCROLLBAR_MODE = "scrollbar_mode"
 CONF_SCROLL_DIR = "scroll_dir"
+CONF_SCROLLABLE = "scrollable"
 CONF_SCROLL_SNAP_X = "scroll_snap_x"
 CONF_SCROLL_SNAP_Y = "scroll_snap_y"
+CONF_SECTIONS = "sections"
 CONF_SELECTED_INDEX = "selected_index"
 CONF_SELECTED_TEXT = "selected_text"
 CONF_SHOW_SNOW = "show_snow"
+CONF_SIDEBAR_PAGE = "sidebar_page"
+CONF_SIDEBAR_HEADER_STYLE = "sidebar_header_style"
 CONF_SPIN_TIME = "spin_time"
 CONF_SRC = "src"
 CONF_START_ANGLE = "start_angle"
@@ -891,7 +928,8 @@ def get_part_state_selector(part: str, state: str) -> MockObj:
 
 # fmt: off
 LV_COLOR_FORMATS = (
-    "RGB565", "SWAPPED", "RGB565A8", "RGB888", "XRGB8888", "ARGB8888", "PREMULTIPLIED", "L8", "AL88", "A8", "I1",
+    "RGB565", "RGB565_SWAPPED", "RGB565A8", "RGB888", "XRGB8888", "ARGB8888", "ARGB8888_PREMULTIPLIED", "L8", "AL88",
+    "A8", "I1",
 )
 
 LV_DEFINES = (

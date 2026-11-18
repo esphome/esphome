@@ -22,11 +22,9 @@ from .. import template_ns
 TemplateValve = template_ns.class_("TemplateValve", valve.Valve, cg.Component)
 
 TemplateValveRestoreMode = template_ns.enum("TemplateValveRestoreMode")
-RESTORE_MODES = {
-    "NO_RESTORE": TemplateValveRestoreMode.VALVE_NO_RESTORE,
-    "RESTORE": TemplateValveRestoreMode.VALVE_RESTORE,
-    "RESTORE_AND_CALL": TemplateValveRestoreMode.VALVE_RESTORE_AND_CALL,
-}
+RESTORE_MODES = TemplateValveRestoreMode.options(
+    "NO_RESTORE", "RESTORE", "RESTORE_AND_CALL", prefix="VALVE_"
+)
 
 CONF_HAS_POSITION = "has_position"
 CONF_TOGGLE_ACTION = "toggle_action"

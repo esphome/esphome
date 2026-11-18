@@ -12,11 +12,13 @@
 
 namespace esphome::ota {
 
-static const char *const TAG = "ota";
+ESPHOME_LOG_TAG(TAG, "ota");
 
 std::unique_ptr<ArduinoLibreTinyOTABackend> make_ota_backend() { return make_unique<ArduinoLibreTinyOTABackend>(); }
 
 OTAResponseTypes ArduinoLibreTinyOTABackend::begin(size_t image_size, OTAType ota_type) {
+  if (!this->lock_.try_acquire())
+    return OTA_RESPONSE_ERROR_UPDATE_BUSY;
   if (ota_type != OTA_TYPE_UPDATE_APP) {
     return OTA_RESPONSE_ERROR_UNSUPPORTED_OTA_TYPE;
   }
@@ -85,18 +87,26 @@ OTAResponseTypes ArduinoLibreTinyOTABackend::end() {
   // Use strict validation (false) when MD5 is set, lenient validation (true) when no MD5
   // This matches the behavior of the old web_server OTA implementation
   if (Update.end(!this->md5_set_)) {
-    // Nothing for a later abort() to revert
-    this->wrote_ = false;
+    this->lock_.hold_until_reboot();
     return OTA_RESPONSE_OK;
   }
 
   uint8_t error = Update.getError();
+#ifdef USE_BK72XX
+  // The image was written to its own layout's download partition, not this build's
+  if (error == UPDATE_ERROR_ACTIVATE) {
+    ESP_LOGE(TAG, "End error: %d, image is for another flash layout; check that board: matches this module", error);
+    return OTA_RESPONSE_ERROR_UPDATE_END;
+  }
+#endif
   ESP_LOGE(TAG, "End error: %d", error);
 
   return OTA_RESPONSE_ERROR_UPDATE_END;
 }
 
 void ArduinoLibreTinyOTABackend::abort() {
+  if (!this->lock_.is_held())  // refused in begin(), or end() succeeded
+    return;
   Update.abort();
   // Bootloaders take a written image LibreTiny never marked: RTL8720C boots the
   // valid one with the higher serial number, BK72xx and LN882H install a

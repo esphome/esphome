@@ -16,7 +16,7 @@ namespace esphome::esp32_camera_web_server {
 static const uint32_t IMAGE_REQUEST_TIMEOUT = 5000;
 // How often streaming_handler_ reports its throughput.
 static const uint32_t STREAM_STATS_INTERVAL = 5000;
-static const char *const TAG = "esp32_camera_web_server";
+ESPHOME_LOG_TAG(TAG, "esp32_camera_web_server");
 
 #define PART_BOUNDARY "123456789000000000000987654321"
 #define CONTENT_TYPE "image/jpeg"
@@ -42,7 +42,7 @@ CameraWebServer::~CameraWebServer() {}
 
 void CameraWebServer::setup() {
   if (!camera::Camera::instance() || camera::Camera::instance()->is_failed()) {
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Camera not available"));
     return;
   }
 
@@ -56,7 +56,7 @@ void CameraWebServer::setup() {
   config.lru_purge_enable = true;
 
   if (httpd_start(&this->httpd_, &config) != ESP_OK) {
-    mark_failed();
+    this->mark_failed(LOG_STR("Failed to start the web server"));
     return;
   }
 
@@ -96,10 +96,6 @@ void CameraWebServer::dump_config() {
     ESP_LOGCONFIG(TAG, "  Mode: stream");
   } else {
     ESP_LOGCONFIG(TAG, "  Mode: snapshot");
-  }
-
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, "  Setup Failed");
   }
 }
 

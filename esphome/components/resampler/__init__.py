@@ -3,6 +3,8 @@ from typing import Any
 import esphome.codegen as cg
 import esphome.config_validation as cv
 
+DOMAIN = "resampler"
+
 resampler_ns = cg.esphome_ns.namespace("resampler")
 
 CONF_TAPS = "taps"

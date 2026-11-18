@@ -2,6 +2,7 @@ from esphome import automation
 from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
 from esphome.components import sensor, uart
+from esphome.components.const import CONF_AUTOMATIC_BASELINE_CALIBRATION
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CO2,
@@ -19,7 +20,6 @@ from esphome.types import ConfigType
 
 DEPENDENCIES = ["uart"]
 
-CONF_AUTOMATIC_BASELINE_CALIBRATION = "automatic_baseline_calibration"
 CONF_DETECTION_RANGE = "detection_range"
 
 mhz19_ns = cg.esphome_ns.namespace("mhz19")
@@ -73,9 +73,7 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await uart.register_uart_device(var, config)
+    var = await uart.new_uart_component(config)
 
     sensors = sensor.sub_sensors(config)
     await sensors(CONF_CO2, var.set_co2_sensor)
@@ -90,8 +88,7 @@ async def to_code(config: ConfigType) -> None:
 
     cg.add(var.set_warmup_seconds(config[CONF_WARMUP_TIME]))
 
-    if CONF_DETECTION_RANGE in config:
-        cg.add(var.set_detection_range(config[CONF_DETECTION_RANGE]))
+    cg.add_optional(var.set_detection_range, config.get(CONF_DETECTION_RANGE))
 
 
 NO_ARGS_ACTION_SCHEMA = maybe_simple_id(

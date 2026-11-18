@@ -1,12 +1,13 @@
 import esphome.codegen as cg
 from esphome.components import uart
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_THROTTLE
+from esphome.const import CONF_THROTTLE
 from esphome.types import ConfigType
 
 AUTO_LOAD = ["ld24xx"]
 CODEOWNERS = ["@Rihan9"]
 DEPENDENCIES = ["uart"]
+DOMAIN = "ld2412"
 MULTI_CONF = True
 
 LD2412_ns = cg.esphome_ns.namespace("ld2412")
@@ -42,6 +43,4 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await uart.register_uart_device(var, config)
+    await uart.new_uart_component(config)

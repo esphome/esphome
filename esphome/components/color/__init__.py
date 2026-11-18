@@ -6,6 +6,7 @@ from esphome.types import ConfigType
 
 ColorStruct = cg.esphome_ns.struct("Color")
 
+DOMAIN = "color"
 INSTANCE_TYPE = ColorStruct
 
 MULTI_CONF = True

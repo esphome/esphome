@@ -7,7 +7,7 @@
 
 namespace esphome::lightwaverf {
 
-static const char *const TAG = "lightwaverf.sensor";
+ESPHOME_LOG_TAG(TAG, "lightwaverf.sensor");
 
 static const uint8_t DEFAULT_REPEAT = 10;
 static const bool DEFAULT_INVERT = false;

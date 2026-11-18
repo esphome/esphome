@@ -20,7 +20,7 @@ namespace esphome::opentherm {
 
 using std::string;
 
-static const char *const TAG = "opentherm";
+ESPHOME_LOG_TAG(TAG, "opentherm");
 
 #ifdef ESP8266
 OpenTherm *OpenTherm::instance = nullptr;

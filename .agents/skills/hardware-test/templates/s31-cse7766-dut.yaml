@@ -1,0 +1,107 @@
+# Basic Config
+
+esphome:
+  name: s31-cse7766
+
+esp8266:
+  board: esp01_1m
+  toolchain: arduino
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+logger:
+  baud_rate: 0  # (UART logging interferes with cse7766)
+  level: VERBOSE
+  logs:
+    cse7766: VERBOSE
+    api: DEBUG
+    api.connection: DEBUG
+    api.socket: DEBUG
+    socket: DEBUG
+    scheduler: DEBUG
+    component: DEBUG
+    app: DEBUG
+    wifi: DEBUG
+    mdns: DEBUG
+    ota: DEBUG
+    logger: DEBUG
+    sensor: DEBUG
+    switch: DEBUG
+    binary_sensor: DEBUG
+    status_led: DEBUG
+    uart: DEBUG
+    gpio: DEBUG
+    preferences: DEBUG
+    esp8266: DEBUG
+    wifi_esp8266: DEBUG
+api:
+ota:
+  platform: esphome
+
+# Device Specific Config
+
+uart:
+  rx_pin: RX
+  baud_rate: 4800
+  parity: EVEN
+
+binary_sensor:
+  - platform: gpio
+    pin:
+      number: GPIO0
+      mode: INPUT_PULLUP
+      inverted: True
+    name: "S31 Button"
+    on_press:
+      - switch.toggle: relay
+  - platform: status
+    name: "S31 Status"
+
+sensor:
+  - platform: wifi_signal
+    name: "S31 WiFi Signal"
+    update_interval: 60s
+  - platform: cse7766
+    current:
+      accuracy_decimals: 3
+      name: "S31 Current"
+      filters:
+        - throttle: 2s
+    voltage:
+      accuracy_decimals: 1
+      name: "S31 Voltage"
+      filters:
+        - throttle: 2s
+      on_raw_value:
+        then:
+          - lambda: |-
+              id(frames) += 1;
+    power:
+      accuracy_decimals: 1
+      name: "S31 Power"
+      filters:
+        - throttle: 2s
+switch:
+  - platform: gpio
+    name: "S31 Relay"
+    pin: GPIO12
+    id: relay
+    restore_mode: RESTORE_DEFAULT_ON
+
+status_led:
+  pin: GPIO13
+
+globals:
+  - id: frames
+    type: uint32_t
+    initial_value: "0"
+
+interval:
+  - interval: 10s
+    then:
+      - lambda: |-
+          static uint32_t last = 0;
+          ESP_LOGI("frames", "cse7766 frames parsed: %u in 10 s (total %u)", (unsigned) (id(frames) - last), (unsigned) id(frames));
+          last = id(frames);

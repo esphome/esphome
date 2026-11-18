@@ -1,0 +1,18 @@
+packages:
+  spi: !include ../../test_build_components/common/spi/esp32-idf.yaml
+
+wifi:
+  ssid: MySSID
+  password: password1
+
+display:
+  - platform: it8951
+    id: m5paper_display
+    model: m5stack-m5paper
+    cs_pin: GPIO22
+    reset_pin: GPIO21
+    busy_pin: GPIO27
+    sleep_when_done: false
+
+vnc:
+  - host: vnc.local

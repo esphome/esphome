@@ -26,16 +26,16 @@ from .. import template_ns
 TemplateCover = template_ns.class_("TemplateCover", cover.Cover, cg.Component)
 
 TemplateCoverRestoreMode = template_ns.enum("TemplateCoverRestoreMode")
-RESTORE_MODES = {
-    "NO_RESTORE": TemplateCoverRestoreMode.COVER_NO_RESTORE,
-    "RESTORE": TemplateCoverRestoreMode.COVER_RESTORE,
-    "RESTORE_AND_CALL": TemplateCoverRestoreMode.COVER_RESTORE_AND_CALL,
-}
+RESTORE_MODES = TemplateCoverRestoreMode.options(
+    "NO_RESTORE", "RESTORE", "RESTORE_AND_CALL", prefix="COVER_"
+)
 
 CONF_HAS_POSITION = "has_position"
+CONF_STOP_TILT_ACTION = "stop_tilt_action"
 CONF_TOGGLE_ACTION = "toggle_action"
 
-CONFIG_SCHEMA = (
+
+CONFIG_SCHEMA = cv.All(
     cv.with_visibility(
         cover.cover_schema(TemplateCover),
         cv.Visibility.UI,
@@ -52,6 +52,9 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_STOP_ACTION): automation.validate_automation(single=True),
             cv.Optional(CONF_TILT_ACTION): automation.validate_automation(single=True),
             cv.Optional(CONF_TILT_LAMBDA): cv.returning_lambda,
+            cv.Optional(CONF_STOP_TILT_ACTION): automation.validate_automation(
+                single=True
+            ),
             cv.Optional(CONF_TOGGLE_ACTION): automation.validate_automation(
                 single=True
             ),
@@ -63,7 +66,8 @@ CONFIG_SCHEMA = (
             ),
         }
     )
-    .extend(cv.COMPONENT_SCHEMA)
+    .extend(cv.COMPONENT_SCHEMA),
+    cv.key_requires(CONF_STOP_TILT_ACTION, CONF_TILT_ACTION),
 )
 
 
@@ -103,6 +107,11 @@ async def to_code(config):
             config[CONF_TILT_LAMBDA], [], return_type=cg.optional.template(float)
         )
         cg.add(var.set_tilt_lambda(tilt_template_))
+    if CONF_STOP_TILT_ACTION in config:
+        await automation.build_automation(
+            var.get_stop_tilt_trigger(), [], config[CONF_STOP_TILT_ACTION]
+        )
+        cg.add(var.set_has_stop_tilt(True))
     if CONF_POSITION_ACTION in config:
         await automation.build_automation(
             var.get_position_trigger(), [(float, "pos")], config[CONF_POSITION_ACTION]

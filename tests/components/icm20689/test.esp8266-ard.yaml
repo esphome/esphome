@@ -1,0 +1,3 @@
+packages:
+  spi: !include ../../test_build_components/common/spi/esp8266-ard.yaml
+  icm20689: !include common.yaml

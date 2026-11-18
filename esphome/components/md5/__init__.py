@@ -4,6 +4,7 @@ from esphome.helpers import IS_MACOS
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "md5"
 
 
 async def to_code(config: ConfigType) -> None:

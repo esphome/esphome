@@ -10,6 +10,10 @@ button:
           id: midea_unit
           temperature: !lambda return id(midea_unit).target_temperature + 1.0f;
           use_fahrenheit: !lambda return false;
+      - midea_ac.follow_me:
+          id: midea_unit
+          temperature: 24.0
+          beeper: !lambda return true;
       - midea_ac.display_toggle:
           id: midea_unit
       - midea_ac.swing_step:

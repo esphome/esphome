@@ -11,7 +11,7 @@
 
 namespace esphome::api {
 
-static const char *const TAG = "api.wizard";
+ESPHOME_LOG_TAG(TAG, "api.wizard");
 
 #ifdef USE_API_WIZARD_INPUTS
 #ifdef USE_API_WIZARD_MULTIPLE_INPUTS

@@ -6,7 +6,7 @@
 
 namespace esphome::adc {
 
-static const char *const TAG = "adc";
+ESPHOME_LOG_TAG(TAG, "adc");
 
 adc_oneshot_unit_handle_t ADCSensor::shared_adc_handles[2] = {nullptr, nullptr};
 
@@ -94,11 +94,11 @@ void ADCSensor::setup() {
     }
 #elif defined(ADC_CALI_SCHEME_LINE_FITTING_SUPPORTED)
     adc_cali_line_fitting_config_t cali_config = {
-      .unit_id = this->adc_unit_,
-      .atten = this->attenuation_,
-      .bitwidth = ADC_BITWIDTH_DEFAULT,
+        .unit_id = this->adc_unit_,
+        .atten = this->attenuation_,
+        .bitwidth = ADC_BITWIDTH_DEFAULT,
 #if !defined(USE_ESP32_VARIANT_ESP32S2) && !defined(USE_ESP32_VARIANT_ESP32C2)
-      .default_vref = 1100,  // Default reference voltage in mV
+        .default_vref = 1100,  // Default reference voltage in mV
 #endif  // !defined(USE_ESP32_VARIANT_ESP32S2) && !defined(USE_ESP32_VARIANT_ESP32C2)
     };
     err = adc_cali_create_scheme_line_fitting(&cali_config, &handle);
@@ -248,11 +248,11 @@ float ADCSensor::sample_autorange_() {
               (err == ESP_OK) ? "SUCCESS" : "FAILED", err);
 #elif defined(ADC_CALI_SCHEME_LINE_FITTING_SUPPORTED)
     adc_cali_line_fitting_config_t cali_config = {
-      .unit_id = this->adc_unit_,
-      .atten = atten,
-      .bitwidth = ADC_BITWIDTH_DEFAULT,
+        .unit_id = this->adc_unit_,
+        .atten = atten,
+        .bitwidth = ADC_BITWIDTH_DEFAULT,
 #if !defined(USE_ESP32_VARIANT_ESP32S2) && !defined(USE_ESP32_VARIANT_ESP32C2)
-      .default_vref = 1100,
+        .default_vref = 1100,
 #endif
     };
     err = adc_cali_create_scheme_line_fitting(&cali_config, &handle);

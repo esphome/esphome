@@ -32,8 +32,8 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(MipiSpiLight),
             cv.GenerateID(CONF_DISPLAY_ID): cv.use_id(MipiSpi),
             cv.Optional(CONF_GAMMA_CORRECT, default=1.0): cv.positive_float,
-            cv.Optional(CONF_MIN_BRIGHTNESS, default=0): cv.int_range(0, 255),
-            cv.Optional(CONF_MAX_BRIGHTNESS, default=255): cv.int_range(0, 255),
+            cv.Optional(CONF_MIN_BRIGHTNESS, default=0): cv.uint8_t,
+            cv.Optional(CONF_MAX_BRIGHTNESS, default=255): cv.uint8_t,
         }
     ),
     _validate_brightness_range,
@@ -41,9 +41,7 @@ CONFIG_SCHEMA = cv.All(
 
 
 def _final_validate(config: ConfigType) -> None:
-    full_config = fv.full_config.get()
-    display_path = full_config.get_path_for_id(config[CONF_DISPLAY_ID])[:-1]
-    display_config = full_config.get_config_for_path(display_path)
+    display_config = fv.get_declaring_config(config[CONF_DISPLAY_ID])
     if CONF_BRIGHTNESS not in display_config:
         model = display_config[CONF_MODEL]
         if model == "CUSTOM":

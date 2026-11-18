@@ -7,7 +7,7 @@ namespace esphome::pylontech {
 
 class PylontechSensor final : public PylontechListener {
  public:
-  PylontechSensor(int8_t bat_num);
+  explicit PylontechSensor(uint8_t bat_num) : PylontechListener(bat_num) {}
   void dump_config() override;
 
   SUB_SENSOR(voltage)
@@ -17,14 +17,25 @@ class PylontechSensor final : public PylontechListener {
   SUB_SENSOR(temperature_high)
   SUB_SENSOR(voltage_low)
   SUB_SENSOR(voltage_high)
-
   SUB_SENSOR(coulomb)
   SUB_SENSOR(mos_temperature)
 
   void on_line_read(LineContents *line) override;
 
+#ifdef PYLONTECH_SENSOR_CELL_COUNT
+  void add_cell(uint8_t cell, sensor::Sensor *voltage, sensor::Sensor *temperature) {
+    this->cells_.push_back({voltage, temperature, cell});
+  }
+  void on_cells_read(const CellArray &cells, cell_mask_t read) override;
+
  protected:
-  int8_t bat_num_;
+  struct CellSensors {
+    sensor::Sensor *voltage;
+    sensor::Sensor *temperature;
+    uint8_t cell;
+  };
+  StaticVector<CellSensors, PYLONTECH_SENSOR_CELL_COUNT> cells_;
+#endif
 };
 
 }  // namespace esphome::pylontech

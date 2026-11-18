@@ -6,7 +6,7 @@
 
 namespace esphome::update {
 
-static const char *const TAG = "update";
+ESPHOME_LOG_TAG(TAG, "update");
 
 // Update state strings indexed by UpdateState enum (0-3): UNKNOWN, NO UPDATE, UPDATE AVAILABLE, INSTALLING
 PROGMEM_STRING_TABLE(UpdateStateStrings, "UNKNOWN", "NO UPDATE", "UPDATE AVAILABLE", "INSTALLING");
@@ -20,7 +20,7 @@ void UpdateEntity::publish_state() {
   ESP_LOGV(TAG,
            "'%s' >>\n"
            "  Current Version: %s",
-           this->name_.c_str(), this->update_info_.current_version.c_str());
+           LOG_STR_ARG(this->get_log_name()), this->update_info_.current_version.c_str());
 
   if (!this->update_info_.md5.empty()) {
     ESP_LOGV(TAG, "  Latest Version: %s", this->update_info_.latest_version.c_str());

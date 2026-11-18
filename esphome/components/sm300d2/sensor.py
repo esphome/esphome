@@ -5,7 +5,6 @@ from esphome.const import (
     CONF_CO2,
     CONF_FORMALDEHYDE,
     CONF_HUMIDITY,
-    CONF_ID,
     CONF_PM_2_5,
     CONF_PM_10_0,
     CONF_TEMPERATURE,
@@ -95,9 +94,7 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await uart.register_uart_device(var, config)
+    var = await uart.new_uart_component(config)
 
     sensors = sensor.sub_sensors(config)
     await sensors(CONF_CO2, var.set_co2_sensor)

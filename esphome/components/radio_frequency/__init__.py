@@ -20,6 +20,7 @@ from esphome.types import ConfigType, SafeExpType
 
 CODEOWNERS = ["@kbx81"]
 AUTO_LOAD = ["ir_rf_base"]
+DOMAIN = "radio_frequency"
 
 IS_PLATFORM_COMPONENT = True
 
@@ -44,7 +45,7 @@ def radio_frequency_schema(class_: type[cg.MockObjClass]) -> cv.Schema:
             cv.GenerateID(): cv.declare_id(class_),
             cv.Optional(CONF_ON_CONTROL): automation.validate_automation({}),
         }
-    )
+    ).add_extra(ir_rf_base.duplicate_validator(DOMAIN))
 
 
 @setup_entity("radio_frequency")

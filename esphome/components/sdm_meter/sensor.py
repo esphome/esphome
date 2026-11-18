@@ -8,7 +8,6 @@ from esphome.const import (
     CONF_EXPORT_ACTIVE_ENERGY,
     CONF_EXPORT_REACTIVE_ENERGY,
     CONF_FREQUENCY,
-    CONF_ID,
     CONF_IMPORT_ACTIVE_ENERGY,
     CONF_IMPORT_REACTIVE_ENERGY,
     CONF_PHASE_A,
@@ -156,9 +155,7 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await modbus.register_modbus_client_device(var, config)
+    var = await modbus.new_modbus_client_component(config)
 
     sensors = sensor.sub_sensors(config)
     await sensors(CONF_TOTAL_POWER, var.set_total_power_sensor)

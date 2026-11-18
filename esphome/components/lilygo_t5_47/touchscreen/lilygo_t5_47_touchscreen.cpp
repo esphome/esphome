@@ -5,7 +5,7 @@
 
 namespace esphome::lilygo_t5_47 {
 
-static const char *const TAG = "lilygo_t5_47.touchscreen";
+ESPHOME_LOG_TAG(TAG, "lilygo_t5_47.touchscreen");
 
 static const uint8_t POWER_REGISTER = 0xD6;
 static const uint8_t TOUCH_REGISTER = 0xD0;

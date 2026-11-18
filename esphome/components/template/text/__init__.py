@@ -51,8 +51,8 @@ CONFIG_SCHEMA = cv.All(
     text.text_schema(TemplateText)
     .extend(
         {
-            cv.Optional(CONF_MIN_LENGTH, default=0): cv.int_range(min=0, max=255),
-            cv.Optional(CONF_MAX_LENGTH, default=255): cv.int_range(min=0, max=255),
+            cv.Optional(CONF_MIN_LENGTH, default=0): cv.uint8_t,
+            cv.Optional(CONF_MAX_LENGTH, default=255): cv.uint8_t,
             cv.Optional(CONF_PATTERN): cv.string,
             cv.Optional(CONF_LAMBDA): cv.returning_lambda,
             cv.Optional(CONF_OPTIMISTIC, default=False): cv.boolean,

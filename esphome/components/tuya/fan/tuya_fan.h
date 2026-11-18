@@ -15,10 +15,15 @@ class TuyaFan final : public Component, public fan::Fan {
   void set_switch_id(uint8_t switch_id) { this->switch_id_ = switch_id; }
   void set_oscillation_id(uint8_t oscillation_id) { this->oscillation_id_ = oscillation_id; }
   void set_direction_id(uint8_t direction_id) { this->direction_id_ = direction_id; }
+  void set_optimistic(bool optimistic) { this->optimistic_ = optimistic; }
 
   fan::FanTraits get_traits() override;
 
  protected:
+  void set_boolean_(uint8_t datapoint_id, bool value);
+  void set_enum_(uint8_t datapoint_id, uint8_t value);
+  void set_integer_(uint8_t datapoint_id, uint32_t value);
+
   void control(const fan::FanCall &call) override;
 
   Tuya *parent_;
@@ -29,6 +34,7 @@ class TuyaFan final : public Component, public fan::Fan {
   int speed_count_{};
   TuyaDatapointType speed_type_{};
   TuyaDatapointType oscillation_type_{};
+  bool optimistic_{false};
 };
 
 }  // namespace esphome::tuya

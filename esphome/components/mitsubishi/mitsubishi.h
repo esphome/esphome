@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/components/climate_ir/climate_ir.h"
+#include "esphome/core/helpers.h"
 
 #include <cinttypes>
 
@@ -9,6 +10,8 @@ namespace esphome::mitsubishi {
 // Temperature
 const uint8_t MITSUBISHI_TEMP_MIN = 16;  // Celsius
 const uint8_t MITSUBISHI_TEMP_MAX = 31;  // Celsius
+// Remotes set to Fahrenheit go up to 88°F, one step past the Celsius range
+static constexpr float MITSUBISHI_TEMP_MAX_FAHRENHEIT = fahrenheit_to_celsius(88.0f);
 
 // Fan mode
 enum SetFanMode : uint8_t {
@@ -55,6 +58,12 @@ class MitsubishiClimate final : public climate_ir::ClimateIR {
   void set_supports_fan_only(bool supports_fan_only) {
     this->set_mode_supported_(climate::CLIMATE_MODE_FAN_ONLY, supports_fan_only);
   }
+  void set_fahrenheit_compatibility(bool fahrenheit_compatibility) {
+    this->fahrenheit_compatibility_ = fahrenheit_compatibility;
+    if (fahrenheit_compatibility) {
+      this->maximum_temperature_ = MITSUBISHI_TEMP_MAX_FAHRENHEIT;
+    }
+  }
 
   void set_fan_mode(SetFanMode fan_mode) {
     this->fan_mode_ = fan_mode;
@@ -71,6 +80,7 @@ class MitsubishiClimate final : public climate_ir::ClimateIR {
   void set_vertical_default(VerticalDirection vertical_direction) {
     this->default_vertical_direction_ = vertical_direction;
   }
+  void set_vertical_vanes(uint8_t vertical_vanes) { this->vertical_vanes_ = vertical_vanes; }
 
  protected:
   // Transmit via IR the state of this climate controller.
@@ -80,9 +90,11 @@ class MitsubishiClimate final : public climate_ir::ClimateIR {
   bool parse_state_frame_(const uint8_t frame[]);
 
   SetFanMode fan_mode_;
+  bool fahrenheit_compatibility_{false};
 
   HorizontalDirection default_horizontal_direction_;
   VerticalDirection default_vertical_direction_;
+  uint8_t vertical_vanes_{1};
 };
 
 }  // namespace esphome::mitsubishi

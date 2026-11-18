@@ -5,7 +5,7 @@
 
 namespace esphome::tlc59208f {
 
-static const char *const TAG = "tlc59208f";
+ESPHOME_LOG_TAG(TAG, "tlc59208f");
 
 // * marks register defaults
 // 0*: Register auto increment disabled, 1: Register auto increment enabled
@@ -65,32 +65,27 @@ void TLC59208FOutput::setup() {
   // Reset all devices on the bus
   if (this->bus_->write_readv(TLC59208F_SWRST_ADDR >> 1, TLC59208F_SWRST_SEQ, sizeof TLC59208F_SWRST_SEQ, nullptr, 0) !=
       i2c::ERROR_OK) {
-    ESP_LOGE(TAG, "RESET failed");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("RESET failed"));
     return;
   }
 
   // Auto increment registers, and respond to all-call address
   if (!this->write_byte(TLC59208F_REG_MODE1, TLC59208F_MODE1_AI2 | TLC59208F_MODE1_ALLCALL)) {
-    ESP_LOGE(TAG, "MODE1 failed");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("MODE1 failed"));
     return;
   }
   if (!this->write_byte(TLC59208F_REG_MODE2, this->mode_)) {
-    ESP_LOGE(TAG, "MODE2 failed");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("MODE2 failed"));
     return;
   }
   // Set all 3 outputs to be individually controlled
   // TODO: think of a way to support group dimming
   if (!this->write_byte(TLC59208F_REG_LEDOUT0, (LDR_PWM << 6) | (LDR_PWM << 4) | (LDR_PWM << 2) | (LDR_PWM << 0))) {
-    ESP_LOGE(TAG, "LEDOUT0 failed");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("LEDOUT0 failed"));
     return;
   }
   if (!this->write_byte(TLC59208F_REG_LEDOUT1, (LDR_PWM << 6) | (LDR_PWM << 4) | (LDR_PWM << 2) | (LDR_PWM << 0))) {
-    ESP_LOGE(TAG, "LEDOUT1 failed");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("LEDOUT1 failed"));
     return;
   }
   delayMicroseconds(500);
@@ -103,10 +98,6 @@ void TLC59208FOutput::dump_config() {
                 "TLC59208F:\n"
                 "  Mode: 0x%02X",
                 this->mode_);
-
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, "Setting up TLC59208F failed!");
-  }
 }
 
 void TLC59208FOutput::loop() {
@@ -128,18 +119,16 @@ void TLC59208FOutput::loop() {
   this->update_ = false;
 }
 
-void TLC59208FOutput::register_channel(TLC59208FChannel *channel) {
-  auto c = channel->channel_;
-  this->min_channel_ = std::min(this->min_channel_, c);
-  this->max_channel_ = std::max(this->max_channel_, c);
-  channel->set_parent(this);
+void TLC59208FOutput::register_channel(uint8_t channel) {
+  this->min_channel_ = std::min(this->min_channel_, channel);
+  this->max_channel_ = std::max(this->max_channel_, channel);
 }
 
-void TLC59208FChannel::write_state(float state) {
-  const uint8_t max_duty = 255;
-  const float duty_rounded = roundf(state * max_duty);
-  auto duty = static_cast<uint8_t>(duty_rounded);
-  this->parent_->set_channel_value_(this->channel_, duty);
+void TLC59208FOutput::write_channel(uint8_t channel, float state) {
+  auto duty = static_cast<uint8_t>(roundf(state * 255));
+  if (this->pwm_amounts_[channel] != duty)
+    this->update_ = true;
+  this->pwm_amounts_[channel] = duty;
 }
 
 }  // namespace esphome::tlc59208f

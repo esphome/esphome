@@ -226,13 +226,8 @@ async def to_code(config: ConfigType) -> None:
     await touchscreen.register_touchscreen(var, config)
     await i2c.register_i2c_device(var, config)
 
-    if CONF_INTERRUPT_PIN in config:
-        pin = await cg.gpio_pin_expression(config[CONF_INTERRUPT_PIN])
-        cg.add(var.set_interrupt_pin(pin))
-
-    if CONF_RESET_PIN in config:
-        pin = await cg.gpio_pin_expression(config[CONF_RESET_PIN])
-        cg.add(var.set_reset_pin(pin))
+    await cg.add_pin(var.set_interrupt_pin, config.get(CONF_INTERRUPT_PIN))
+    await cg.add_pin(var.set_reset_pin, config.get(CONF_RESET_PIN))
 
     #  Firmware table
     data = _read_firmware(config)

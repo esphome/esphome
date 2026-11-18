@@ -2,7 +2,6 @@ import esphome.codegen as cg
 from esphome.components import sensor, spi
 import esphome.config_validation as cv
 from esphome.const import (
-    CONF_ID,
     CONF_PRESSURE,
     CONF_TEMPERATURE,
     DEVICE_CLASS_PRESSURE,
@@ -52,9 +51,7 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await spi.register_spi_device(var, config)
+    var = await spi.new_spi_component(config)
 
     sensors = sensor.sub_sensors(config)
     if await sensors(CONF_PRESSURE, var.set_pressure_sensor):

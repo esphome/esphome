@@ -5,7 +5,7 @@
 #include "esphome/components/audio_dac/audio_dac.h"
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/core/component.h"
-#ifdef USE_SELECT
+#ifdef USE_ES8388_SELECT
 #include "esphome/components/select/select.h"
 #endif
 
@@ -25,8 +25,21 @@ enum AdcInputMicLine : uint8_t {
   ADC_INPUT_MIC_DIFFERENCE,
 };
 
+/// ADC PGA gain (reg 0x09): the same 3 dB step in both channel nibbles
+enum ES8388MicGain : uint8_t {
+  ES8388_MIC_GAIN_0DB = 0x00,
+  ES8388_MIC_GAIN_3DB = 0x11,
+  ES8388_MIC_GAIN_6DB = 0x22,
+  ES8388_MIC_GAIN_9DB = 0x33,
+  ES8388_MIC_GAIN_12DB = 0x44,
+  ES8388_MIC_GAIN_15DB = 0x55,
+  ES8388_MIC_GAIN_18DB = 0x66,
+  ES8388_MIC_GAIN_21DB = 0x77,
+  ES8388_MIC_GAIN_24DB = 0x88,
+};
+
 class ES8388 final : public audio_dac::AudioDac, public Component, public i2c::I2CDevice {
-#ifdef USE_SELECT
+#ifdef USE_ES8388_SELECT
   SUB_SELECT(dac_output)
   SUB_SELECT(adc_input_mic)
 #endif
@@ -68,11 +81,26 @@ class ES8388 final : public audio_dac::AudioDac, public Component, public i2c::I
   bool set_dac_output(DacOutputLine line);
   bool set_adc_input_mic(AdcInputMicLine line);
 
+  void set_mic_gain(ES8388MicGain gain) { this->mic_gain_ = gain; }
+
+#ifdef USE_ES8388_SELECT
+  /// Line to apply in setup() instead of keeping what the codec reports.
+  void set_dac_output_initial(DacOutputLine line) { this->dac_output_initial_ = line; }
+  void set_adc_input_mic_initial(AdcInputMicLine line) { this->adc_input_mic_initial_ = line; }
+#endif
+
  protected:
   /// @brief Mutes or unmutes the DAC audio out
   /// @param mute_state True to mute, false to unmute
   /// @return True if successful and false otherwise
   bool set_mute_state_(bool mute_state);
+
+  ES8388MicGain mic_gain_{ES8388_MIC_GAIN_0DB};
+
+#ifdef USE_ES8388_SELECT
+  optional<DacOutputLine> dac_output_initial_{};
+  optional<AdcInputMicLine> adc_input_mic_initial_{};
+#endif
 };
 
 }  // namespace esphome::es8388
