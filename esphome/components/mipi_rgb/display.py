@@ -79,7 +79,7 @@ from esphome.const import (
 from esphome.final_validate import full_config
 from esphome.types import ConfigType
 
-from . import models
+from . import models, register_enable_pin
 from .models import RgbDriverChip
 
 DEPENDENCIES = ["esp32"]
@@ -276,9 +276,8 @@ async def to_code(config: ConfigType) -> None:
     )
     var = cg.new_Pvariable(config[CONF_ID], width, height)
     cg.add(var.set_model(model.name))
-    if enable_pin := config.get(CONF_ENABLE_PIN):
-        enable = [await cg.gpio_pin_expression(pin) for pin in enable_pin]
-        cg.add(var.set_enable_pins(enable))
+    for pin in config.get(CONF_ENABLE_PIN, ()):
+        cg.add(register_enable_pin(var, await cg.gpio_pin_expression(pin)))
 
     if CONF_SPI_ID in config:
         await spi.register_spi_device(var, config, write_only=True)

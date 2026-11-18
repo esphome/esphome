@@ -56,7 +56,7 @@ from esphome.cpp_generator import MockObjClass, TemplateArguments
 from esphome.final_validate import full_config
 from esphome.types import ConfigType
 
-from . import CONF_BUS_MODE, CONF_SPI_16, DOMAIN, models
+from . import CONF_BUS_MODE, CONF_SPI_16, DOMAIN, models, register_enable_pin
 
 DEPENDENCIES = ["spi"]
 
@@ -397,9 +397,8 @@ async def to_code(config: ConfigType) -> None:
     table = cg.shared_progmem_array("mipi_spi_init_sequence", cg.uint8, init_sequence)
     cg.add(var.set_init_sequence(table, len(init_sequence)))
     cg.add(var.set_model(config[CONF_MODEL]))
-    if enable_pin := config.get(CONF_ENABLE_PIN):
-        enable = [await cg.gpio_pin_expression(pin) for pin in enable_pin]
-        cg.add(var.set_enable_pins(enable))
+    for pin in config.get(CONF_ENABLE_PIN, ()):
+        cg.add(register_enable_pin(var, await cg.gpio_pin_expression(pin)))
 
     await cg.add_pin(var.set_reset_pin, config.get(CONF_RESET_PIN))
     await cg.add_pin(var.set_dc_pin, config.get(CONF_DC_PIN))

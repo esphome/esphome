@@ -986,9 +986,8 @@ def test_enable_pin_code_generation(
     pin_25 = pin_var_for(25)
     pin_26 = pin_var_for(26)
 
-    # Both pin objects must be passed to the display via set_enable_pins() as a
-    # std::vector initializer list, in the configured order.
-    assert f"set_enable_pins({{{pin_25}, {pin_26}}});" in main_cpp
+    # Both pin objects must be registered with the display, in the configured order.
+    assert re.findall(r"->register_enable_pin\((\w+)\);", main_cpp) == [pin_25, pin_26]
 
 
 def test_full_update_next_action_code_generation(

@@ -2,7 +2,6 @@
 
 #include <algorithm>
 #include <cstring>
-#include <utility>
 
 #include "esphome/components/spi/spi.h"
 #include "esphome/components/display/display.h"
@@ -107,7 +106,7 @@ class MipiSpi : public display::Display,
   void draw_pixel_at(int x, int y, Color color) override {}
   void set_model(const char *model) { this->model_ = model; }
   void set_reset_pin(GPIOPin *reset_pin) { this->reset_pin_ = reset_pin; }
-  void set_enable_pins(std::vector<GPIOPin *> enable_pins) { this->enable_pins_ = std::move(enable_pins); }
+  SLOT_LIST(GPIOPin, enable_pins_, register_enable_pin, MIPI_SPI_ENABLE_PIN_COUNT)
   void set_dc_pin(GPIOPin *dc_pin) { this->dc_pin_ = dc_pin; }
   void set_invert_colors(bool invert_colors) {
     this->invert_colors_ = invert_colors;
@@ -486,7 +485,6 @@ class MipiSpi : public display::Display,
 
   // GPIO pins
   GPIOPin *reset_pin_{nullptr};
-  std::vector<GPIOPin *> enable_pins_{};
   GPIOPin *dc_pin_{nullptr};
 
   // other properties set by configuration

@@ -2,12 +2,12 @@
 
 #if defined(USE_ESP32_VARIANT_ESP32S3) || defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S31)
 #include "esphome/core/gpio.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/components/display/display.h"
 #include "esphome/components/display/display_color_utils.h"
 #include "mipi_rgb_blitter.h"
 #include <esp_lcd_panel_rgb.h>
-#include <utility>
 #ifdef USE_SPI
 #include "esphome/components/spi/spi.h"
 #endif
@@ -61,7 +61,7 @@ class MipiRgb : public display::Display {
   void set_vsync_pulse_width(uint16_t vsync_pulse_width) { this->vsync_pulse_width_ = vsync_pulse_width; }
   void set_vsync_back_porch(uint16_t vsync_back_porch) { this->vsync_back_porch_ = vsync_back_porch; }
   void set_vsync_front_porch(uint16_t vsync_front_porch) { this->vsync_front_porch_ = vsync_front_porch; }
-  void set_enable_pins(std::vector<GPIOPin *> enable_pins) { this->enable_pins_ = std::move(enable_pins); }
+  SLOT_LIST(GPIOPin, enable_pins_, register_enable_pin, MIPI_RGB_ENABLE_PIN_COUNT)
   display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_COLOR; }
   int get_width_internal() override { return this->width_; }
   int get_height_internal() override { return this->height_; }
@@ -111,7 +111,6 @@ class MipiRgb : public display::Display {
   size_t width_;
   size_t height_;
   uint16_t *buffer_{nullptr};
-  std::vector<GPIOPin *> enable_pins_{};
   uint16_t x_low_{1};
   uint16_t y_low_{1};
   uint16_t x_high_{0};

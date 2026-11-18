@@ -42,7 +42,7 @@ from esphome.const import (
 )
 from esphome.cpp_generator import RawExpression
 
-from . import models, register_sources
+from . import models, register_enable_pin, register_sources
 
 AUTO_LOAD = ["split_buffer"]
 DEPENDENCIES = ["spi"]
@@ -249,9 +249,8 @@ async def to_code(config):
     await display.add_writer(var, config)
     await cg.add_pin(var.set_reset_pin, config.get(CONF_RESET_PIN))
     await cg.add_pin(var.set_busy_pin, config.get(CONF_BUSY_PIN))
-    if enable_pin := config.get(CONF_ENABLE_PIN):
-        enable = [await cg.gpio_pin_expression(pin) for pin in enable_pin]
-        cg.add(var.set_enable_pins(enable))
+    for pin in config.get(CONF_ENABLE_PIN, ()):
+        cg.add(register_enable_pin(var, await cg.gpio_pin_expression(pin)))
     cg.add(var.set_full_update_every(config[CONF_FULL_UPDATE_EVERY]))
     cg.add_optional(var.set_reset_duration, config.get(CONF_RESET_DURATION))
     if transform := config.get(CONF_TRANSFORM):

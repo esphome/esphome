@@ -2,10 +2,15 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import esphome.codegen as cg
 from esphome.core import CORE
 
 CODEOWNERS = ["@esphome/core"]
 DOMAIN = "epaper_spi"
+
+register_enable_pin = cg.slot_list(
+    "EPAPER_SPI_ENABLE_PIN_COUNT", "register_enable_pin", DOMAIN
+)
 
 # The source file that every model needs.
 BASE_SOURCE_FILE = "epaper_spi.cpp"

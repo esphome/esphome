@@ -63,7 +63,7 @@ from esphome.core import CORE
 from esphome.final_validate import full_config
 from esphome.types import ConfigType
 
-from . import mipi_dsi_ns, models
+from . import mipi_dsi_ns, models, register_enable_pin
 from .models import DsiDriverChip
 
 # Currently only ESP32-P4 is supported, so esp_ldo and psram are required
@@ -227,9 +227,8 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_lanes(int(config[CONF_LANES])))
     cg.add(var.set_lane_bit_rate(config[CONF_LANE_BIT_RATE] / 1.0e6))
     await cg.add_pin(var.set_reset_pin, config.get(CONF_RESET_PIN))
-    if enable_pin := config.get(CONF_ENABLE_PIN):
-        enable = [await cg.gpio_pin_expression(pin) for pin in enable_pin]
-        cg.add(var.set_enable_pins(enable))
+    for pin in config.get(CONF_ENABLE_PIN, ()):
+        cg.add(register_enable_pin(var, await cg.gpio_pin_expression(pin)))
 
     if model.rotation_as_transform(config):
         config[CONF_ROTATION] = 0

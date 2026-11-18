@@ -37,9 +37,7 @@ def test_reterminal_e1003_enable_pin_used_elsewhere(
     """A default enable pin used by a switch is left out, and the other is still applied."""
     main_cpp = generate_main(component_fixture_path("enable_pins.yaml"))
 
-    match = re.search(r"epaper_display->set_enable_pins\(\{(.*)\}\);", main_cpp)
-    assert match is not None
-    pin_ids = match.group(1).split(", ")
+    pin_ids = re.findall(r"epaper_display->register_enable_pin\((\w+)\);", main_cpp)
     assert len(pin_ids) == 1
     assert f"{pin_ids[0]}->set_pin(::GPIO_NUM_11);" in main_cpp
     assert "logic_supply->set_pin(" in main_cpp
