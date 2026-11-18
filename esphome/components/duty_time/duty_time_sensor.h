@@ -25,6 +25,7 @@ class DutyTimeSensor final : public sensor::Sensor, public PollingComponent {
   void stop();
   bool is_running() const { return this->last_state_; }
   void reset() { this->set_value_(0); }
+  void set_value(uint32_t sec) { this->set_value_(sec); }
 
 #ifdef USE_BINARY_SENSOR
   void set_sensor(binary_sensor::BinarySensor *sensor);
