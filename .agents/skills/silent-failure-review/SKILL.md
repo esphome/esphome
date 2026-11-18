@@ -42,8 +42,8 @@ read that library's code too.
 
 Moved code counts too: if the original had the same flaw, say so, but still report it. Report only flaws in
 changed or moved lines; unchanged callers are context. If the branch has an open PR, read its reviews
-(`gh pr view <n> --comments` and `gh api repos/esphome/esphome/pulls/<n>/comments`) and skip what they already
-raised.
+(`gh pr view <n> --comments` and `gh api --paginate repos/esphome/esphome/pulls/<n>/comments`)
+and skip what they already raised.
 
 Before reporting a candidate, follow it to the line that proves it and quote that line. If you cannot
 confirm it, drop it or mark it as likely.
