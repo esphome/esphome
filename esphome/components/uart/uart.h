@@ -90,10 +90,8 @@ class UARTDevice {
         count);
   }
 
-  /// For loop(): feed the waiting bytes to a LengthFrameReader and set last_rx to now. On a pass with nothing waiting,
-  /// gap_ms after last_rx, flush the partial frame, which a corrupt length can hold open with whole frames behind it.
-  /// Only an idle pass flushes, as after a slow loop the rest of a frame may already be waiting. Returns the number
-  /// of bytes fed.
+  /// Feed the waiting bytes to a LengthFrameReader and set last_rx; on a pass with none waiting, gap_ms after last_rx,
+  /// flush its stalled partial frame. Returns the number of bytes fed.
   template<size_t N = 64, typename R, typename F>
   size_t read_frames(R &reader, F &&handle, uint32_t now, uint32_t &last_rx, uint32_t gap_ms = 100) {
     const size_t count = this->available();

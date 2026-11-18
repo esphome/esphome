@@ -79,8 +79,8 @@ template<size_t N, uint8_t... HEADER> class FrameReader {
 };
 
 /// Length rules for FrameFormat: the frame length is known once KNOWN_AT bytes are collected, and get() returns it
-/// for the whole frame, header included. A component can pass its own type with these two members; its get() can
-/// return 0 to reject a header it can already tell is broken (a header checksum, an unknown type).
+/// for the whole frame, header included. A component can pass its own type with these two members; its get()
+/// returns 0 to reject a broken header.
 /// One length byte at POS; ADD is added to give the whole frame length.
 template<size_t POS, size_t ADD = 0> struct FrameLengthU8 {
   static constexpr size_t KNOWN_AT = POS + 1;
@@ -156,7 +156,7 @@ template<size_t N, class... FORMATS> class LengthFrameReader {
  public:
   /// Feed one byte; calls handle(frame, length) for each frame it completes, header included. A rejected frame
   /// (handle returns false) is searched for frames inside it and after it, which go to handle the same way.
-  /// handle returns false when the bytes are not a real frame (checksum, footer, structure), true once it is used.
+  /// handle returns false when the bytes are not a real frame.
   /// handle must not feed this reader again: the frame and the bytes held behind it live in its buffer.
   template<class F> void __attribute__((always_inline)) feed(uint8_t c, F &&handle) {
     // Most bytes are in the middle of a frame whose length is known, and not its last byte
@@ -180,16 +180,15 @@ template<size_t N, class... FORMATS> class LengthFrameReader {
   size_t length() const { return this->pos_; }
 
  protected:
-  // Hands each frame, len bytes at buf_, to handle; nothing is collected while a frame is held, so a handled frame
-  // goes on after its end and a rejected one from its second byte, over the bytes held behind it
+  // Hands each frame (len bytes at buf_) to handle, then goes on after a handled frame or from the second byte of a
+  // rejected one
   template<class F> void ESPHOME_FRAME_READER_COLD drain_(size_t len, F &handle) {
     while (len != 0) {
       len = this->replay_(handle(this->buf_, len) ? len : 1, this->held_end_);
     }
   }
 
-  // A header byte, the bytes up to the length, the last byte of a frame, or a byte between frames; returns the length
-  // of a completed frame, at buf_, or 0
+  // Every byte but the middle of a frame; returns the length of a completed frame, or 0
   size_t ESPHOME_FRAME_READER_COLD feed_edge_(uint8_t c) {
     const pos_t pos = this->pos_;
     if (pos == 0) {
@@ -256,7 +255,7 @@ template<size_t N, class... FORMATS> class LengthFrameReader {
   pos_t pos_{0};
   // Length of the frame being collected once its length is known; 0 otherwise
   pos_t end_{0};
-  // While a frame is held: end of the frame plus the bytes after it that are not fed yet; set when a frame completes
+  // End of a held frame plus the bytes after it not fed yet; set when a frame completes
   pos_t held_end_{0};
   uint8_t buf_[N];
 };
