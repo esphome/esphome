@@ -643,8 +643,7 @@ async def component_to_code(config):
         build_src_flags += " -Os"
     cg.add_platformio_option("build_src_flags", build_src_flags)
     # LibreTiny before 1.14.0 breaks under SCons 4.11 without this script; see the script
-    version = CORE.framework_version
-    if (version.major, version.minor, version.patch) < (1, 14, 0):
+    if CORE.framework_version < cv.Version(1, 14, 0):
         cg.add_platformio_option("extra_scripts", ["pre:scons_dont_inherit.py"])
     cg.add_platformio_option("extra_scripts", ["pre:ccache.py"])
     # IRAM_ATTR is a no-op on BK72xx (SDK masks FIQ+IRQ around flash ops).
