@@ -58,9 +58,7 @@ void Tuya::setup() {
 void Tuya::loop() {
   this->read_available([this](uint8_t b) {
     this->last_rx_char_timestamp_ = App.get_loop_component_start_time();
-    const uint8_t *frame = this->reader_.feed(b);
-    if (frame != nullptr)
-      this->handle_frames_(frame);
+    this->reader_.feed(b, this->frame_handler_());
   });
   process_command_queue_();
 }
@@ -120,31 +118,33 @@ void Tuya::dump_mcu_config_() {
 #endif
 }
 
-void Tuya::handle_frames_(const uint8_t *frame) {
-  this->handling_frame_ = true;
-  while (frame != nullptr) {
-    const size_t len = this->reader_.frame_length();
-    // Last byte: sum of all bytes before it, header included, modulo 256
-    const uint8_t rx_checksum = frame[len - 1];
-    const uint8_t calc_checksum = sum_bytes(frame, len - 1);
-    if (rx_checksum != calc_checksum) {
-      ESP_LOGW(TAG, "Tuya Received invalid message checksum %02X!=%02X", rx_checksum, calc_checksum);
-      frame = this->reader_.resync();
-      continue;
-    }
-    const uint8_t version = frame[2];
-    const uint8_t command = frame[3];
-    const uint8_t *message_data = frame + 6;
-    const size_t length = len - 7;
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-    char hex_buf[format_hex_pretty_size(MAX_DATAPOINT_LOG_BYTES)];
-    ESP_LOGV(TAG, "Received Tuya: CMD=0x%02X VERSION=%u DATA=[%s] INIT_STATE=%u", command, version,
-             format_hex_pretty_to(hex_buf, message_data, length), static_cast<uint8_t>(this->init_state_));
-#endif
-    this->handle_command_(command, version, message_data, length);
-    frame = this->reader_.next();
+void TuyaFrameLength::warn_too_long(size_t len) {
+  ESP_LOGW(TAG, "Skipped a %u byte frame, longer than the %u byte buffer", static_cast<unsigned>(len),
+           static_cast<unsigned>(MAX_FRAME_SIZE));
+}
+
+bool Tuya::handle_frame_(const uint8_t *frame, size_t len) {
+  // Last byte: sum of all bytes before it, header included, modulo 256
+  const uint8_t rx_checksum = frame[len - 1];
+  const uint8_t calc_checksum = sum_bytes(frame, len - 1);
+  if (rx_checksum != calc_checksum) {
+    ESP_LOGW(TAG, "Tuya Received invalid message checksum %02X!=%02X", rx_checksum, calc_checksum);
+    return false;
   }
+  const uint8_t version = frame[2];
+  const uint8_t command = frame[3];
+  const uint8_t *message_data = frame + 6;
+  const size_t length = len - 7;
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+  char hex_buf[format_hex_pretty_size(MAX_DATAPOINT_LOG_BYTES)];
+  ESP_LOGV(TAG, "Received Tuya: CMD=0x%02X VERSION=%u DATA=[%s] INIT_STATE=%u", command, version,
+           format_hex_pretty_to(hex_buf, message_data, length), static_cast<uint8_t>(this->init_state_));
+#endif
+  // Like a partial frame, a frame being handled holds queued commands back
+  this->handling_frame_ = true;
+  this->handle_command_(command, version, message_data, length);
   this->handling_frame_ = false;
+  return true;
 }
 
 void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buffer, size_t len) {
@@ -507,8 +507,7 @@ void Tuya::process_command_queue_() {
 
   // A partial frame left too long without a byte may hide a whole frame behind a broken start
   if (this->reader_.length() > 0 && now - this->last_rx_char_timestamp_ > RECEIVE_TIMEOUT) {
-    while (this->reader_.length() > 0)
-      this->handle_frames_(this->reader_.resync());
+    this->reader_.flush(this->frame_handler_());
   }
 
   if (this->expected_response_.has_value() && delay > RECEIVE_TIMEOUT) {

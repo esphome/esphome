@@ -17,6 +17,21 @@
 
 namespace esphome::tuya {
 
+// Some MCUs answer a datapoint query with every datapoint in one frame, and schedule datapoints can be long
+static constexpr size_t MAX_FRAME_SIZE = 512;
+
+/// 55 AA, version, command, 2 byte length, data, sum8; warns when a frame is skipped for being longer than the buffer
+struct TuyaFrameLength {
+  static constexpr size_t KNOWN_AT = 6;
+  static size_t get(const uint8_t *buf) {
+    const size_t len = encode_uint16(buf[4], buf[5]) + 7;
+    if (len > MAX_FRAME_SIZE)
+      warn_too_long(len);
+    return len;
+  }
+  static void warn_too_long(size_t len);
+};
+
 enum class TuyaDatapointType : uint8_t {
   RAW = 0x00,      // variable length
   BOOLEAN = 0x01,  // 1 byte (0/1)
@@ -132,7 +147,12 @@ class Tuya final : public Component, public uart::UARTDevice {
  protected:
   void register_listener_(uint8_t datapoint_id, Callback<void(const TuyaDatapoint &)> func);
   void dump_mcu_config_();
-  void handle_frames_(const uint8_t *frame);
+  /// Returns false for a frame that fails the checksum
+  bool handle_frame_(const uint8_t *frame, size_t len);
+  // One handler type for feed() and flush(), so the reader's frame loop is compiled once
+  auto frame_handler_() {
+    return [this](const uint8_t *frame, size_t len) { return this->handle_frame_(frame, len); };
+  }
   void handle_datapoints_(const uint8_t *buffer, size_t len);
   optional<TuyaDatapoint> get_datapoint_(uint8_t datapoint_id);
 
@@ -182,8 +202,7 @@ class Tuya final : public Component, public uart::UARTDevice {
   // Holds commands back while a received frame is handled
   bool handling_frame_{false};
   CallbackManager<void()> initialized_callback_{};
-  // 55 AA, version, command, 2 byte length, data, sum8; 256 bytes like the Tasmota Tuya MCU driver
-  LengthFrameReader<256, FrameFormat<FrameLengthU16BE<4, 7>, 0x55, 0xAA>> reader_;
+  LengthFrameReader<MAX_FRAME_SIZE, FrameFormat<TuyaFrameLength, 0x55, 0xAA>> reader_;
 };
 
 }  // namespace esphome::tuya
