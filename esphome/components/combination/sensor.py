@@ -13,6 +13,7 @@ from esphome.const import (
     CONF_SUM,
     CONF_TYPE,
     CONF_UNIT_OF_MEASUREMENT,
+    CONF_WEIGHT,
 )
 from esphome.core.entity_helpers import inherit_property_from
 from esphome.types import ConfigType
@@ -26,6 +27,9 @@ KalmanCombinationComponent = combination_ns.class_(
 )
 LinearCombinationComponent = combination_ns.class_(
     "LinearCombinationComponent", cg.Component, sensor.Sensor
+)
+WeightedMeanCombinationComponent = combination_ns.class_(
+    "WeightedMeanCombinationComponent", cg.Component, sensor.Sensor
 )
 MaximumCombinationComponent = combination_ns.class_(
     "MaximumCombinationComponent", cg.Component, sensor.Sensor
@@ -61,6 +65,7 @@ CONF_MIN = "min"
 CONF_MOST_RECENTLY_UPDATED = "most_recently_updated"
 CONF_PROCESS_STD_DEV = "process_std_dev"
 CONF_STD_DEV = "std_dev"
+CONF_WEIGHTED_MEAN = "weighted_mean"
 
 
 KALMAN_SOURCE_SCHEMA = cv.Schema(
@@ -84,6 +89,13 @@ LINEAR_SOURCE_SCHEMA = cv.All(
             cv.Required(CONF_COEFFICIENT): cv.templatable(cv.float_),
         }
     ),
+)
+
+WEIGHTED_MEAN_SOURCE_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_SOURCE): cv.use_id(sensor.Sensor),
+        cv.Required(CONF_WEIGHT): cv.templatable(cv.positive_float),
+    }
 )
 
 SENSOR_ONLY_SOURCE_SCHEMA = cv.Schema(
@@ -127,6 +139,11 @@ CONFIG_SCHEMA = cv.typed_schema(
         CONF_SUM: sensor.sensor_schema(SumCombinationComponent)
         .extend(cv.COMPONENT_SCHEMA)
         .extend({cv.Required(CONF_SOURCES): cv.ensure_list(SENSOR_ONLY_SOURCE_SCHEMA)}),
+        CONF_WEIGHTED_MEAN: sensor.sensor_schema(WeightedMeanCombinationComponent)
+        .extend(cv.COMPONENT_SCHEMA)
+        .extend(
+            {cv.Required(CONF_SOURCES): cv.ensure_list(WEIGHTED_MEAN_SOURCE_SCHEMA)}
+        ),
     }
 )
 
@@ -163,7 +180,7 @@ async def to_code(config: ConfigType) -> None:
     if process_std_dev := config.get(CONF_PROCESS_STD_DEV):
         cg.add(var.set_process_std_dev(process_std_dev))
 
-    if config[CONF_TYPE] in (CONF_KALMAN, CONF_LINEAR):
+    if config[CONF_TYPE] in (CONF_KALMAN, CONF_LINEAR, CONF_WEIGHTED_MEAN):
         storage = cg.static_storage(
             config[CONF_ID],
             config[CONF_ID].type.class_("SensorSource"),
@@ -192,6 +209,13 @@ async def to_code(config: ConfigType) -> None:
                 cg.float_,
             )
             cg.add(var.add_source(source, coefficient))
+        elif config[CONF_TYPE] == CONF_WEIGHTED_MEAN:
+            weight = await cg.templatable(
+                source_conf[CONF_WEIGHT],
+                [(float, "x")],
+                cg.float_,
+            )
+            cg.add(var.add_source(source, weight))
         else:
             cg.add(var.add_source(source))
 
