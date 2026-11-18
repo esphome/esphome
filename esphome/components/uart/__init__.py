@@ -42,8 +42,12 @@ from esphome.const import (
     CONF_FLOW_CONTROL_PIN,
     CONF_ID,
     CONF_LAMBDA,
+    CONF_MODE,
     CONF_NUMBER,
+    CONF_OPEN_DRAIN,
     CONF_PORT,
+    CONF_PULLDOWN,
+    CONF_PULLUP,
     CONF_RX_BUFFER_SIZE,
     CONF_RX_PIN,
     CONF_SEQUENCE,
@@ -338,8 +342,16 @@ CONFIG_SCHEMA = cv.All(
 
 def _libretiny_hardware_uart(config: ConfigType) -> "HardwareUart | None":
     """Hardware UART the board can route the configured pins to; None if none can or the board is unknown."""
-    from esphome.components.libretiny import get_hardware_uarts
+    from esphome.components.libretiny import get_hardware_uarts, has_software_serial
 
+    # Pin flags make setup() use SoftwareSerial where the family has it
+    if has_software_serial() and any(
+        pin[CONF_MODE].get(flag)
+        for pin in (config.get(CONF_TX_PIN), config.get(CONF_RX_PIN))
+        if pin is not None
+        for flag in (CONF_OPEN_DRAIN, CONF_PULLUP, CONF_PULLDOWN)
+    ):
+        return None
     tx = config[CONF_TX_PIN][CONF_NUMBER] if CONF_TX_PIN in config else None
     rx = config[CONF_RX_PIN][CONF_NUMBER] if CONF_RX_PIN in config else None
     return next(

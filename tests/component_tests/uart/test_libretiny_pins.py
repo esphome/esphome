@@ -80,6 +80,17 @@ def test_port_with_pin_choices_is_routed(
             "already uses hardware UART1 of board bw15",
             id="two_entries_one_port",
         ),
+        # Pin flags force SoftwareSerial on RTL8710B, so these do not share hardware UART0
+        pytest.param(
+            "generic-rtl8710bn-2mb-788k",
+            "",
+            "  - id: uart_a\n    baud_rate: 9600\n    tx_pin:\n      number: PA23\n"
+            "      mode:\n        output: true\n        open_drain: true\n"
+            "  - id: uart_b\n    baud_rate: 9600\n    rx_pin:\n      number: PA18\n"
+            "      mode:\n        input: true\n        pullup: true",
+            None,
+            id="software_serial_flags",
+        ),
         # UART1 TX has a default pin on this board; only RX has choices
         pytest.param("wbru", "", "  rx_pin: PA02", None, id="default_tx_rx_only"),
         pytest.param(
