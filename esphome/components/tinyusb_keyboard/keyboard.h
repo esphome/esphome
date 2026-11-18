@@ -37,7 +37,7 @@ inline constexpr uint8_t CONFIGURATION_DESCRIPTOR[] = {
 
 class TinyUSBKeyboard;
 
-extern TinyUSBKeyboard *global_tinyusb_keyboard;
+extern TinyUSBKeyboard *global_tinyusb_keyboard;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 class TinyUSBKeyboard final : public Component {
  public:
