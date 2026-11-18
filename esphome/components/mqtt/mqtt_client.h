@@ -436,6 +436,8 @@ class MQTTClientComponent final : public Component {
   network::IPAddress ip_;
   bool dns_resolved_{false};
   bool dns_resolve_error_{false};
+  /// The last start_dnslookup_() found no network, so no attempt was made and there is nothing to back off from
+  bool waiting_for_network_{false};
   bool enable_on_boot_{true};
 #ifdef USE_MQTT_CRASH_LOG
   bool crash_log_offered_{false};
