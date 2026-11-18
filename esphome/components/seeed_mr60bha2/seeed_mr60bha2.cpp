@@ -42,16 +42,21 @@ static bool validate_checksum(const uint8_t *data, size_t len, uint8_t expected_
   return static_cast<uint8_t>(~xor_bytes(data, len)) == expected_checksum;
 }
 
+size_t TinyFrameLength::get(const uint8_t *buf) {
+  if (!validate_checksum(buf, 7, buf[7])) {
+    ESP_LOGE(TAG, "HEAD_CKSUM_FRAME ERROR: 0x%02x", buf[7]);
+    ESP_LOGV_HEX(TAG, buf, 8, MR60BHA2_MAX_LOG_BYTES, "GET FRAME: %s");
+    return 0;
+  }
+  return encode_uint16(buf[3], buf[4]) + FRAME_OVERHEAD;
+}
+
+// The reader checks the header; the type and the data checksum are checked here
 static bool frame_valid(const uint8_t *frame, size_t len) {
   const uint16_t frame_type = encode_uint16(frame[5], frame[6]);
   if (frame_type != BREATH_RATE_TYPE_BUFFER && frame_type != HEART_RATE_TYPE_BUFFER &&
       frame_type != DISTANCE_TYPE_BUFFER && frame_type != PEOPLE_EXIST_TYPE_BUFFER &&
       frame_type != PRINT_CLOUD_BUFFER) {
-    return false;
-  }
-  if (!validate_checksum(frame, 7, frame[7])) {
-    ESP_LOGE(TAG, "HEAD_CKSUM_FRAME ERROR: 0x%02x", frame[7]);
-    ESP_LOGV_HEX(TAG, frame, 8, MR60BHA2_MAX_LOG_BYTES, "GET FRAME: %s");
     return false;
   }
   if (!validate_checksum(frame + 8, len - FRAME_OVERHEAD, frame[len - 1])) {

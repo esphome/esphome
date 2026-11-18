@@ -16,6 +16,13 @@
 
 namespace esphome::seeed_mr60bha2 {
 static constexpr uint8_t FRAME_HEADER_BUFFER = 0x01;
+
+/// 01, id (2), data length (2, high byte first), type (2), header checksum, data, data checksum. A header that fails
+/// its checksum gives no length, so the reader drops it at once instead of waiting for a length it cannot trust.
+struct TinyFrameLength {
+  static constexpr size_t KNOWN_AT = 8;
+  static size_t get(const uint8_t *buf);
+};
 // Header, id, length and type bytes, header checksum, then the data and its checksum
 static constexpr uint8_t FRAME_OVERHEAD = 9;
 // A point cloud frame is 13 bytes plus 16 per target and only its count is read; 128 holds up to 7 targets
@@ -48,7 +55,7 @@ class MR60BHA2Component final : public Component,
   void process_frame_(uint16_t frame_id, uint16_t frame_type, const uint8_t *data, size_t length);
 
   // 01, id (2), data length (2, high byte first), type (2), header checksum, data, data checksum
-  LengthFrameReader<FRAME_MAX_SIZE, FrameFormat<FrameLengthU16BE<3, FRAME_OVERHEAD>, FRAME_HEADER_BUFFER>> reader_;
+  LengthFrameReader<FRAME_MAX_SIZE, FrameFormat<TinyFrameLength, FRAME_HEADER_BUFFER>> reader_;
 };
 
 }  // namespace esphome::seeed_mr60bha2
