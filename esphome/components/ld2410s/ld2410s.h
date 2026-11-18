@@ -2,6 +2,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
+#include "esphome/core/frame_reader.h"
 #include "esphome/core/helpers.h"
 #include "esphome/components/uart/uart.h"
 #ifdef USE_BINARY_SENSOR

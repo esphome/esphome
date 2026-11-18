@@ -30,6 +30,7 @@
 
 #include "esphome/components/ld24xx/ld24xx.h"
 #include "esphome/components/uart/uart.h"
+#include "esphome/core/frame_reader.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
 
