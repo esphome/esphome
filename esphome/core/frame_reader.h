@@ -105,8 +105,8 @@ template<size_t LEN> struct FrameFixedLength {
 
 namespace frame_reader_detail {
 // The length of a FrameFixedLength rule, 0 for every other rule
-template<class LENGTH> constexpr size_t fixed_length = 0;
-template<size_t LEN> constexpr size_t fixed_length<FrameFixedLength<LEN>> = LEN;
+template<class LENGTH> constexpr size_t FIXED_LENGTH = 0;
+template<size_t LEN> constexpr size_t FIXED_LENGTH<FrameFixedLength<LEN>> = LEN;
 }  // namespace frame_reader_detail
 
 /// One frame type for LengthFrameReader: frames that start with the header bytes HEADER... and whose length follows
@@ -147,9 +147,9 @@ template<size_t N, class... FORMATS> class LengthFrameReader {
   }
   static_assert(distinct_first(), "Each FrameFormat needs a different first header byte");
   static_assert(((FORMATS::MIN_LEN <= N) && ...), "N must hold the header and length field of every FrameFormat");
-  static_assert(((frame_reader_detail::fixed_length<typename FORMATS::Length> == 0 ||
-                  (frame_reader_detail::fixed_length<typename FORMATS::Length> >= FORMATS::MIN_LEN &&
-                   frame_reader_detail::fixed_length<typename FORMATS::Length> <= N)) &&
+  static_assert(((frame_reader_detail::FIXED_LENGTH<typename FORMATS::Length> == 0 ||
+                  (frame_reader_detail::FIXED_LENGTH<typename FORMATS::Length> >= FORMATS::MIN_LEN &&
+                   frame_reader_detail::FIXED_LENGTH<typename FORMATS::Length> <= N)) &&
                  ...),
                 "A fixed length must hold the header and fit in N");
 
