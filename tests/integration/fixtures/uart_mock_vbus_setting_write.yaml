@@ -127,3 +127,13 @@ button:
           id: controller
           value_id: 48
           value: 60
+number:
+  - platform: vbus
+    controller_id: controller
+    parameter: min_pump_speed_1
+    name: Minimum Pump Speed
+  - platform: vbus
+    controller_id: controller
+    parameter: delta_temperature_1_on
+    name: Switch On Temperature Difference
+    unit_of_measurement: K

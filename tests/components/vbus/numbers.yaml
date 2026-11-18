@@ -1,0 +1,15 @@
+vbus:
+  id: number_bus
+  transmit:
+    destination: 0x2211
+    transactions:
+      controller:
+        id: number_controller
+        model: deltasol_cs_plus
+        writes:
+          require_write_arm: false
+number:
+  - platform: vbus
+    controller_id: number_controller
+    parameter: system_time
+    name: System Time
