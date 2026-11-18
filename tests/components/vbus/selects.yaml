@@ -1,0 +1,15 @@
+vbus:
+  id: select_bus
+  transmit:
+    destination: 8721
+    transactions:
+      controller:
+        id: select_controller
+        model: deltasol_cs_plus
+        writes:
+          require_write_arm: false
+select:
+  - platform: vbus
+    controller_id: select_controller
+    parameter: system_scheme
+    name: System Scheme
