@@ -25,3 +25,14 @@ jobs:
       - name: Run tests
         working-directory: .github/scripts/auto-label-pr
         run: npm test
+
+  test-rerun-failed-ci-jobs:
+    name: Test rerun-failed-ci-jobs script
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code from GitHub
+        uses: actions/checkout@v7.0.1
+
+      - name: Run tests
+        working-directory: .github/scripts/rerun-failed-ci-jobs
+        run: npm test
