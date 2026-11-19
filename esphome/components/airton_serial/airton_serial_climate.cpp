@@ -319,11 +319,14 @@ void AirtonSerialClimate::send_a5_() {
 void AirtonSerialClimate::send_ab_() {
   uint8_t frame[sizeof(AB_FRAME)];
   progmem_memcpy(frame, AB_FRAME, sizeof(AB_FRAME));
+  this->reader_.drop_kept();
   this->write_array(frame, sizeof(frame));
 }
 
 void AirtonSerialClimate::write_frame_(uint8_t *frame, size_t len) {
   put_be16(frame + len - 2, crc16(frame, len - 2));
+  // Kept bytes of an earlier frame must not merge into the reply
+  this->reader_.drop_kept();
   this->write_array(frame, len);
 }
 

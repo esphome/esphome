@@ -75,7 +75,8 @@ void PioneerWT::loop() {
     return true;
   };
   this->read_frames(this->reader_, handle, now, this->last_rx_);
-  if (!this->queue_.empty() && now - this->last_send_ >= RESEND_INTERVAL_MS)
+  // A frame still coming in may be the reply; wait for it before resending
+  if (!this->queue_.empty() && now - this->last_send_ >= RESEND_INTERVAL_MS && !this->reader_.receiving())
     this->send_pending_();
   // The target temperature only arrives in a full status, so it tells whether one has been received.
   const uint32_t status_interval = std::isnan(this->target_temperature) ? STATUS_RETRY_MS : STATUS_REFRESH_MS;

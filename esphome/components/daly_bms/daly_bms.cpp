@@ -48,7 +48,7 @@ void DalyBmsComponent::loop() {
   const uint32_t now = App.get_loop_component_start_time();
   auto handle = [this](const uint8_t *frame, size_t /*len*/) { return this->handle_frame_(frame); };
   this->read_frames(this->reader_, handle, now, this->last_transmission_);
-  if (this->response_complete_() && this->reader_.length() == 0 &&
+  if (this->response_complete_() && !this->reader_.receiving() &&
       (now - this->last_transmission_ >= DALY_RESPONSE_GAP_MS) && !this->trigger_next_) {
     // response complete and nothing more on the line -> trigger next request without waiting for the timeout
     this->last_transmission_ = now;
