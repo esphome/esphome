@@ -22,7 +22,7 @@ class WebServer;
 
 class ListEntitiesIterator final : public ComponentIterator {
  public:
-  ListEntitiesIterator(const WebServer *ws, EventSession *session) : web_server_(ws), session_(session) {}
+  explicit ListEntitiesIterator(EventSession *session) : session_(session) {}
 
 // Entity overrides (generated from entity_types.h).
 // Implementations live in list_entities.cpp.
@@ -39,7 +39,6 @@ class ListEntitiesIterator final : public ComponentIterator {
   // Same type as message_generator_t, which this header cannot include
   void send_all_(void *source, void (*generator)(WebServer *, void *, json::JsonBuilder &));
 
-  const WebServer *web_server_;
   EventSession *session_;
 };
 

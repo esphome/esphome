@@ -130,7 +130,7 @@ void AsyncEventSource::deferrable_send_state(void *source, bool detail_all, mess
 
 AsyncEventSourceResponse::AsyncEventSourceResponse(AsyncWebServerRequest *request, AsyncEventSource *server,
                                                    WebServer *ws)
-    : server_(server), web_server_(ws), entities_iterator_(ws, this) {
+    : server_(server), web_server_(ws), entities_iterator_(this) {
   // Httpd task only. start_session_main_loop_() sends the greeting and starts the iterator.
   this->begin(request, SSE_STATUS, SSE_CONTENT_TYPE, SSE_HEADERS, SSE_FIRST_CHUNK);
 }

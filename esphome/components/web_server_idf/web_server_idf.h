@@ -315,8 +315,6 @@ class AsyncStreamResponse {
   bool is_closing() const { return this->close_requested_; }
   /// The socket fd, for log lines only
   int log_id() const { return this->fd_.load(); }
-  /// Sends are making no progress; after write() returns -1 this tells a send timeout from a send error.
-  bool is_stalled() const { return this->stall_.is_running(); }
   /// The session is gone and no queued httpd work still references this object.
   bool safe_to_delete() const {
     return this->fd_.load() == 0 && !this->close_work_queued_.load(std::memory_order_acquire) &&
