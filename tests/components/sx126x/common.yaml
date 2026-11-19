@@ -65,3 +65,10 @@ packet_transport:
     update_interval: 5s
     providers:
       - name: other-device
+
+sensor:
+  - platform: sx126x
+    sample_interval: 50ms
+    update_interval: 15s
+    noise_floor:
+      name: Noise floor

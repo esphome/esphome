@@ -453,6 +453,21 @@ bool SX127x::restore_() {
   return this->applied_.rx_start ? this->enter_rx_() : this->set_mode_(this->applied_.modulation, MODE_SLEEP);
 }
 
+float SX127x::get_rssi_instant() {
+  if (this->state_ != RadioState::RADIO_STATE_IDLE || !this->applied_.rx_start || this->is_receiving()) {
+    return NAN;
+  }
+  const uint8_t mode = this->read_register_(REG_OP_MODE) & MODE_MASK;
+  if (mode != MODE_RX && mode != MODE_RX_SINGLE) {
+    return NAN;
+  }
+  if (this->applied_.modulation == MOD_LORA) {
+    return (float) this->read_register_(REG_RSSI_VALUE) -
+           (this->applied_.frequency > 700000000 ? RSSI_OFFSET_HF : RSSI_OFFSET_LF);
+  }
+  return this->read_register_(REG_RSSI_VALUE_FSK) / -2.0f;
+}
+
 bool SX127x::is_receiving() {
   if (this->state_ == RadioState::RADIO_STATE_HOLDING_RX) {
     return true;

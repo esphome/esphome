@@ -107,6 +107,9 @@ class SX126xRadio {
   // True while a packet is being received, or has been received and not yet read, so a send would lose it.
   // Reads the chip only when the radio is idle and listening; any other state reports false, a failed read true.
   bool is_receiving();
+  // The power on the channel, in dBm, while the radio listens with no packet arriving: the noise floor. NAN at any
+  // other time, or if the read fails.
+  float read_rssi_instant();
 
   // Requires can_configure(). Resets the chip and applies the requested profile.
   RadioEffects configure(const RadioProfile &requested, std::span<char, 16> version);

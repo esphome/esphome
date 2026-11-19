@@ -54,6 +54,8 @@ enum SX127xReg : uint8_t {
   REG_FIFO_RX_BASE_ADDR = 0x0F,
   REG_FIFO_RX_CURR_ADDR = 0x10,
   REG_IRQ_FLAGS_MASK = 0x11,
+  // At the same address in FSK/OOK mode
+  REG_RSSI_VALUE_FSK = 0x11,
   REG_IRQ_FLAGS = 0x12,
   REG_NB_RX_BYTES = 0x13,
   REG_MODEM_STAT = 0x18,
