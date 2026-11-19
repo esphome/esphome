@@ -26,6 +26,7 @@ static constexpr uint8_t FLAG_ECO = 0x01;
 
 static constexpr uint8_t SYNC_BYTE = 0x7A;
 static constexpr uint8_t LENGTH_POS = 4;
+static constexpr uint8_t OPCODE_POS = 7;
 static constexpr uint8_t MAX_FRAME_LEN = 64;
 
 /// Climate on the Airton serial bus. The ESP takes the place of the original Wi-Fi module (address 0x21):
@@ -69,8 +70,10 @@ class AirtonSerialClimate final : public uart::UARTDevice, public climate::Clima
   void handle_ac_(const uint8_t *data);
   void publish_settings_();
 
-  LengthFrameReader<MAX_FRAME_LEN, FrameFormat<FrameHeader<SYNC_BYTE, SYNC_BYTE>, FrameLengthU8<LENGTH_POS>>>
-      rx_reader_;
+  // 7A 7A, ..., whole-frame length at 4, opcode, ..., CRC (2); the shortest runs up to the opcode
+  LengthFrameReader<MAX_FRAME_LEN, FrameFormat<FrameHeader<SYNC_BYTE, SYNC_BYTE>, FrameLengthU8<LENGTH_POS>,
+                                               FrameMinLength<OPCODE_POS + 3>>>
+      reader_;
   uint8_t flags_{FLAG_DISPLAY};
   bool state_received_{false};
   uint8_t swing_{0};      // Raw swing byte

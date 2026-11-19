@@ -55,7 +55,6 @@ class ShellyDimmer final : public PollingComponent, public light::LightOutput, p
   GPIOPin *pin_nrst_;
   GPIOPin *pin_boot0_;
 
-  // Frame parser state.
   uint8_t seq_{0};
   // Start byte, seq, cmd, payload length, payload, checksum (2), end byte
   LengthFrameReader<SHELLY_DIMMER_BUFFER_SIZE,

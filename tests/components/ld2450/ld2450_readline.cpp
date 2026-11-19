@@ -64,12 +64,11 @@ TEST_F(LD2450ReadlineTest, GarbageThenValidFrame) {
 
 // --- Footer-based resynchronization tests ---
 
-TEST_F(LD2450ReadlineTest, FooterInGarbageResyncs) {
-  // Garbage containing a periodic frame footer (0x55 0xCC) triggers
-  // a buffer reset, allowing the next frame to be parsed cleanly.
+TEST_F(LD2450ReadlineTest, GarbageWithFooterBytesIsNotBuffered) {
+  // Bytes that never start a header, footer bytes included, are skipped
   std::vector<uint8_t> garbage_with_footer = {0x01, 0x02, 0x03, 0x04, 0x55, 0xCC};
   this->ld2450_.feed(garbage_with_footer);
-  EXPECT_EQ(this->ld2450_.reader_.length(), 0u);  // Footer reset the buffer
+  EXPECT_EQ(this->ld2450_.reader_.length(), 0u);
 
   auto frame = make_periodic_frame();
   this->ld2450_.feed(frame);

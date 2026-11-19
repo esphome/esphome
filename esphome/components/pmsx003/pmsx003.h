@@ -81,6 +81,7 @@ class PMSX003Component final : public uart::UARTDevice, public Component {
   Type type_;
   State state_{State::IDLE};
   bool initialised_{false};
+  // 42 4D, payload length (2, BE), payload ending in its checksum (2)
   LengthFrameReader<MAX_FRAME_SIZE,
                     FrameFormat<FrameHeader<START_CHARACTER_1, START_CHARACTER_2>, PayloadLengthU16BE<2>>>
       reader_;

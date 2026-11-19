@@ -13,8 +13,6 @@ namespace esphome::airton_serial {
 
 ESPHOME_LOG_TAG(TAG, "airton_serial.climate");
 
-static constexpr uint8_t OPCODE_POS = 7;
-static constexpr uint8_t MIN_FRAME_LEN = OPCODE_POS + 1 + 2;  // Up to the opcode, then the CRC
 // A partial frame left this long without a new byte is not a frame start.
 static constexpr uint32_t FRAME_GAP_MS = 50;
 
@@ -119,12 +117,10 @@ void AirtonSerialClimate::setup() {
 void AirtonSerialClimate::loop() {
   const uint32_t now = App.get_loop_component_start_time();
   auto accept = [this](const uint8_t *frame, size_t len) { return this->handle_frame_(frame, len); };
-  this->read_frames(this->rx_reader_, accept, now, this->last_rx_ms_, FRAME_GAP_MS);
+  this->read_frames(this->reader_, accept, now, this->last_rx_ms_, FRAME_GAP_MS);
 }
 
 bool AirtonSerialClimate::handle_frame_(const uint8_t *data, size_t len) {
-  if (len < MIN_FRAME_LEN)
-    return false;
   if (crc16(data, len - 2) != encode_uint16(data[len - 2], data[len - 1])) {
     ESP_LOGW(TAG, "Bad CRC on %u-byte frame", static_cast<unsigned>(len));
     return false;

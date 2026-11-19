@@ -71,11 +71,9 @@ size_t TinyFrameLength::get(const uint8_t *buf) {
   return encode_uint16(buf[3], buf[4]) + LEN_TO_DATA_FRAME;
 }
 
-// The reader caps the data at DATA_BUF_MAX_SIZE bytes and checks the type and header; the 1 byte minimum, the 12 data
-// bytes a parameter reply is read for and the data checksum are checked here
+// The 12 data bytes a parameter reply is read for, and the data checksum
 static bool frame_valid(const uint8_t *frame, size_t len) {
-  if (len <= LEN_TO_DATA_FRAME ||
-      (encode_uint16(frame[5], frame[6]) == RESULT_PARAMETERS && len - LEN_TO_DATA_FRAME < 12))
+  if (encode_uint16(frame[5], frame[6]) == RESULT_PARAMETERS && len - LEN_TO_DATA_FRAME < 12)
     return false;
   if (!validate_checksum(frame + LEN_TO_HEAD_CKSUM, len - LEN_TO_DATA_FRAME, frame[len - 1])) {
     ESP_LOGD(TAG, "DATA_CKSUM_FRAME ERROR: 0x%02x", frame[len - 1]);

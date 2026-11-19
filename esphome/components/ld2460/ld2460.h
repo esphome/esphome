@@ -11,6 +11,11 @@ namespace esphome::ld2460 {
 
 static constexpr uint8_t MAX_FRAME_LENGTH = 31;  // A 5-target data frame
 static constexpr uint8_t MAX_TARGETS = 5;
+// Header (4), command, whole-frame length (2, LE), payload, footer (4)
+static constexpr uint8_t MIN_FRAME_LENGTH = 11;
+using FrameLength = FrameLengthU16LE<5>;
+using DataFrame = FrameFormat<FrameHeader<0xF4, 0xF3, 0xF2, 0xF1>, FrameLength, FrameMinLength<MIN_FRAME_LENGTH>>;
+using CmdFrame = FrameFormat<FrameHeader<0xFD, 0xFC, 0xFB, 0xFA>, FrameLength, FrameMinLength<MIN_FRAME_LENGTH>>;
 
 enum class InstallationMode : uint8_t {
   INSTALLATION_MODE_SIDE = 1,
@@ -57,9 +62,7 @@ class LD2460Component : public Component, public uart::UARTDevice {
 
   LazyCallbackManager<void()> data_callback_;
   uint32_t last_rx_{0};
-  // Header, command (1), length (2, little endian, counting the whole frame), payload, footer
-  LengthFrameReader<MAX_FRAME_LENGTH, ld24xx::DataFrame<FrameLengthU16LE<5>>, ld24xx::CmdFrame<FrameLengthU16LE<5>>>
-      reader_;
+  LengthFrameReader<MAX_FRAME_LENGTH, DataFrame, CmdFrame> reader_;
   // The angle formula depends on how the module is mounted, so it is read from the module at boot
   InstallationMode installation_mode_{InstallationMode::INSTALLATION_MODE_SIDE};
   // Queries sent so far; 0 once the module answered. Data frames resend up to MAX_QUERY_ATTEMPTS.

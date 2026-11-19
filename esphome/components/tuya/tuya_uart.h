@@ -19,17 +19,11 @@ namespace esphome::tuya {
 // Longest frame accepted, as in Tasmota; keeps the reader's positions 8 bit
 static constexpr size_t MAX_FRAME_SIZE = 255;
 
-/// 55 AA, version, command, 2 byte length, data, sum8; warns only for a frame longer than the buffer, which is skipped
-struct TuyaFrameLength {
-  static constexpr size_t KNOWN_AT = 6;
-  static size_t get(const uint8_t *buf) {
-    const size_t len = PayloadLengthU16BE<4, 1>::get(buf);
-    if (len > MAX_FRAME_SIZE)
-      warn_too_long(len);
-    return len;
-  }
-  static void warn_too_long(size_t len);
-};
+// 55 AA, version, command, payload length (2, BE), payload, checksum
+using TuyaLength = PayloadLengthU16BE<4, 1>;
+/// False, with a warning, for a frame longer than the buffer
+bool frame_fits(const uint8_t *buf);
+using TuyaFrame = FrameFormat<FrameHeader<0x55, 0xAA>, CheckedLength<TuyaLength, TuyaLength::KNOWN_AT, frame_fits>>;
 
 enum class TuyaCommandType : uint8_t {
   HEARTBEAT = 0x00,
@@ -130,7 +124,7 @@ class TuyaUART final : public Tuya, public uart::UARTDevice {
   bool product_invalid_{false};
   // Holds commands back while a received frame is handled
   bool handling_frame_{false};
-  LengthFrameReader<MAX_FRAME_SIZE, FrameFormat<FrameHeader<0x55, 0xAA>, TuyaFrameLength>> reader_;
+  LengthFrameReader<MAX_FRAME_SIZE, TuyaFrame> reader_;
 };
 
 }  // namespace esphome::tuya

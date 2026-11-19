@@ -108,9 +108,9 @@ void MR24HPC1Component::update_() {
 // Frames are at least 10 bytes, so the three trailing bytes can always be left out
 static uint8_t get_frame_crc_sum(const uint8_t *data, size_t len) { return sum_bytes(data, len - 3); }
 
-// The reader caps the data at 32 bytes; the 1 byte minimum, footer and sum are checked here
+// Footer and sum; the reader caps the payload at 32 bytes
 static bool frame_valid(const uint8_t *data, size_t len) {
-  if (len < 10 || data[len - 2] != FRAME_TAIL1_VALUE || data[len - 1] != FRAME_TAIL2_VALUE)
+  if (data[len - 2] != FRAME_TAIL1_VALUE || data[len - 1] != FRAME_TAIL2_VALUE)
     return false;
   if (data[len - 3] != get_frame_crc_sum(data, len)) {
     ESP_LOGD(TAG, "frame check failure!");

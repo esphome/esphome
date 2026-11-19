@@ -107,8 +107,7 @@ void PMSX003Component::loop() {
 }
 
 bool PMSX003Component::check_frame_(const uint8_t *frame, size_t total_size) {
-  // start (16bit) + length (16bit) + DATA (payload_length - 16bit) + checksum (16bit)
-  const uint16_t payload_length = total_size - 4;
+  const uint16_t payload_length = total_size - PayloadLengthU16BE<2>::KNOWN_AT;
   if (!this->check_payload_length_(payload_length)) {
     ESP_LOGW(TAG, "Payload length %u doesn't match. Are you using the correct PMSX003 type?", payload_length);
     return false;

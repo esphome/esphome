@@ -67,8 +67,6 @@ climate::ClimateTraits PioneerWT::traits() {
 void PioneerWT::loop() {
   const uint32_t now = App.get_loop_component_start_time();
   auto handle = [this](const uint8_t *frame, size_t len) {
-    if (len < HEADER_SIZE)
-      return false;
     if (!checksum_valid(frame, len)) {
       ESP_LOGD(TAG, "Dropped a frame with a wrong checksum");
       return false;

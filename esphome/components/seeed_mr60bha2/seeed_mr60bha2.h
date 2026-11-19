@@ -17,8 +17,7 @@
 namespace esphome::seeed_mr60bha2 {
 static constexpr uint8_t FRAME_HEADER_BUFFER = 0x01;
 
-/// 01, id (2), data length (2, high byte first), type (2), header checksum, data, data checksum. A header that fails
-/// its checksum gives no length, so the reader drops it at once instead of waiting for a length it cannot trust.
+/// 01, id (2), data length (2, BE), type (2), header checksum, data, data checksum; 0 for a bad header
 struct TinyFrameLength {
   static constexpr size_t KNOWN_AT = 8;
   static size_t get(const uint8_t *buf);

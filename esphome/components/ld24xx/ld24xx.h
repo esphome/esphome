@@ -85,13 +85,10 @@ static constexpr uint8_t CMD_FRAME_HEADER[HEADER_FOOTER_SIZE] PROGMEM = {0xFD, 0
 static constexpr uint8_t CMD_FRAME_FOOTER[HEADER_FOOTER_SIZE] PROGMEM = {0x04, 0x03, 0x02, 0x01};
 static constexpr uint8_t DATA_FRAME_FOOTER[HEADER_FOOTER_SIZE] PROGMEM = {0xF8, 0xF7, 0xF6, 0xF5};
 
-// Command and periodic data frame formats with the length rule LENGTH
-template<class LENGTH> using CmdFrame = FrameFormat<FrameHeader<0xFD, 0xFC, 0xFB, 0xFA>, LENGTH>;
-template<class LENGTH> using DataFrame = FrameFormat<FrameHeader<0xF4, 0xF3, 0xF2, 0xF1>, LENGTH>;
-// Header, payload length (2, LE), payload, footer
+// Header (4), payload length (2, LE), payload, footer (4)
 using PayloadLength = PayloadLengthU16LE<HEADER_FOOTER_SIZE, HEADER_FOOTER_SIZE>;
-using CmdFrameFormat = CmdFrame<PayloadLength>;
-using DataFrameFormat = DataFrame<PayloadLength>;
+using CmdFrameFormat = FrameFormat<FrameHeader<0xFD, 0xFC, 0xFB, 0xFA>, PayloadLength>;
+using DataFrameFormat = FrameFormat<FrameHeader<0xF4, 0xF3, 0xF2, 0xF1>, PayloadLength>;
 
 // Whether a command or periodic data frame of at least HEADER_FOOTER_SIZE bytes ends in its footer
 inline bool has_footer(const uint8_t *frame, size_t len) {

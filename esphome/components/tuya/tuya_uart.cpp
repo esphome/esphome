@@ -95,9 +95,13 @@ void TuyaUART::dump_mcu_config_() {
 #endif
 }
 
-void TuyaFrameLength::warn_too_long(size_t len) {
+bool frame_fits(const uint8_t *buf) {
+  const size_t len = TuyaLength::get(buf);
+  if (len <= MAX_FRAME_SIZE)
+    return true;
   ESP_LOGW(TAG, "Skipped a %u byte frame, longer than the %u byte buffer", static_cast<unsigned>(len),
            static_cast<unsigned>(MAX_FRAME_SIZE));
+  return false;
 }
 
 bool TuyaUART::handle_frame_(const uint8_t *frame, size_t len) {
@@ -113,8 +117,8 @@ bool TuyaUART::handle_frame_(const uint8_t *frame, size_t len) {
   }
   const uint8_t version = frame[2];
   const uint8_t command = frame[3];
-  const uint8_t *message_data = frame + 6;
-  const size_t length = len - 7;
+  const uint8_t *message_data = frame + TuyaLength::KNOWN_AT;
+  const size_t length = len - TuyaLength::KNOWN_AT - 1;
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   char hex_buf[format_hex_pretty_size(MAX_DATAPOINT_LOG_BYTES)];
   ESP_LOGV(TAG, "Received Tuya: CMD=0x%02X VERSION=%u DATA=[%s] INIT_STATE=%u", command, version,

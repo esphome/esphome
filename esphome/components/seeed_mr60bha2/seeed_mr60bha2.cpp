@@ -52,9 +52,10 @@ static bool is_known_type(uint16_t type) {
 size_t TinyFrameLength::get(const uint8_t *buf) {
   if (!is_known_type(encode_uint16(buf[5], buf[6])))
     return 0;
-  if (!validate_checksum(buf, 7, buf[7])) {
-    ESP_LOGE(TAG, "HEAD_CKSUM_FRAME ERROR: 0x%02x", buf[7]);
-    ESP_LOGV_HEX(TAG, buf, 8, MR60BHA2_MAX_LOG_BYTES, "GET FRAME: %s");
+  constexpr size_t cksum_pos = TinyFrameLength::KNOWN_AT - 1;
+  if (!validate_checksum(buf, cksum_pos, buf[cksum_pos])) {
+    ESP_LOGE(TAG, "HEAD_CKSUM_FRAME ERROR: 0x%02x", buf[cksum_pos]);
+    ESP_LOGV_HEX(TAG, buf, TinyFrameLength::KNOWN_AT, MR60BHA2_MAX_LOG_BYTES, "GET FRAME: %s");
     return 0;
   }
   return encode_uint16(buf[3], buf[4]) + FRAME_OVERHEAD;
@@ -62,7 +63,7 @@ size_t TinyFrameLength::get(const uint8_t *buf) {
 
 // The reader checks the type and the header; the data checksum is checked here
 static bool frame_valid(const uint8_t *frame, size_t len) {
-  if (!validate_checksum(frame + 8, len - FRAME_OVERHEAD, frame[len - 1])) {
+  if (!validate_checksum(frame + TinyFrameLength::KNOWN_AT, len - FRAME_OVERHEAD, frame[len - 1])) {
     ESP_LOGE(TAG, "DATA_CKSUM_FRAME ERROR: 0x%02x", frame[len - 1]);
     ESP_LOGV_HEX(TAG, frame, len - 1, MR60BHA2_MAX_LOG_BYTES, "GET FRAME: %s");
     return false;
@@ -83,7 +84,7 @@ void MR60BHA2Component::loop() {
 void MR60BHA2Component::handle_frame_(const uint8_t *frame, size_t len) {
   const uint16_t frame_id = encode_uint16(frame[1], frame[2]);
   const uint16_t frame_type = encode_uint16(frame[5], frame[6]);
-  const uint8_t *frame_data = frame + 8;
+  const uint8_t *frame_data = frame + TinyFrameLength::KNOWN_AT;
   const size_t length = len - FRAME_OVERHEAD;
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   char hex_buf1[format_hex_pretty_size(MR60BHA2_MAX_LOG_BYTES)];

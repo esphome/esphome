@@ -48,11 +48,12 @@ static constexpr uint8_t SWING_OFF = 0x08;
 /// CRC-16/XMODEM over a whole frame, skipping the two checksum bytes at offset 8.
 uint16_t frame_crc(const uint8_t *frame, size_t len);
 
-/// Collects bytes from the serial line into frames; checksum_valid() checks them.
+// A5 01, ..., whole-frame length at 7, CRC (2) at 8, body
 using PacketReader =
-    LengthFrameReader<MAX_FRAME_SIZE, FrameFormat<FrameHeader<FRAME_START_1, FRAME_START_2>, FrameLengthU8<LEN_POS>>>;
+    LengthFrameReader<MAX_FRAME_SIZE, FrameFormat<FrameHeader<FRAME_START_1, FRAME_START_2>, FrameLengthU8<LEN_POS>,
+                                                  FrameMinLength<HEADER_SIZE>>>;
 
-/// True when the checksum matches; the frame must hold at least HEADER_SIZE bytes.
+/// True when the checksum matches.
 inline bool checksum_valid(const uint8_t *frame, size_t len) {
   return frame_crc(frame, len) == encode_uint16(frame[8], frame[9]);
 }

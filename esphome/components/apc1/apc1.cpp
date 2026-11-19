@@ -105,11 +105,6 @@ void APC1Component::loop() {
 }
 
 bool APC1Component::parse_frame_(const uint8_t *frame, uint8_t total_len) {
-  // The payload carries at least the checksum
-  if (total_len < APC1_FRAME_HEADER_SIZE + 2) {
-    ESP_LOGW(TAG, "Invalid frame length: %d", total_len - APC1_FRAME_HEADER_SIZE);
-    return false;
-  }
   uint16_t expected_checksum = encode_uint16(frame[total_len - 2], frame[total_len - 1]);
   uint16_t calculated_checksum = sum16_bytes(frame, total_len - 2);
   if (expected_checksum != calculated_checksum) {
