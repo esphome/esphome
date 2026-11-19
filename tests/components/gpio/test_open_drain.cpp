@@ -1,11 +1,12 @@
-#include "esphome/core/gpio.h"
+#ifdef USE_HOST
 #include <gtest/gtest.h>
+#include "esphome/core/gpio.h"
 
 namespace esphome::gpio::testing {
 
 TEST(OpenDrainPinTest, PhysicalLevelsIgnoreLogicalInversion) {
   for (const bool inverted : {false, true}) {
-    host::HostGPIOPin pin;
+    InternalGPIOPin pin;
     pin.set_pin(1);
     pin.set_inverted(inverted);
     ASSERT_TRUE(pin.setup_open_drain(true));
@@ -19,3 +20,4 @@ TEST(OpenDrainPinTest, PhysicalLevelsIgnoreLogicalInversion) {
 }
 
 }  // namespace esphome::gpio::testing
+#endif  // USE_HOST
