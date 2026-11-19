@@ -20,8 +20,11 @@ from esphome.components.esp32 import (
     KEY_VFS_SELECT_REQUIRED,
     KEY_VFS_TERMIOS_REQUIRED,
     MBEDTLS_NON_P256_CURVE_OPTIONS,
+    MBEDTLS_RSA_OPTIONS,
     MBEDTLS_TLS_EXTRA_OPTIONS,
     MBEDTLS_UNUSED_CIPHER_MODE_OPTIONS,
+    PSA_USER_CONFIG_CONTENT,
+    PSA_USER_CONFIG_FILENAME,
     VARIANT_ESP32,
     VARIANTS,
     MbedtlsSdkconfigData,
@@ -1112,6 +1115,76 @@ def test_reconcile_mbedtls_sdkconfig(
     asyncio.run(_reconcile_mbedtls_sdkconfig())
 
     assert CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS] == expected
+
+
+@pytest.mark.parametrize(
+    ("data", "preset", "rsa_off"),
+    [
+        pytest.param(MbedtlsSdkconfigData(), {}, True, id="no_tls_drops_rsa"),
+        pytest.param(
+            MbedtlsSdkconfigData(rsa_required=True), {}, False, id="rsa_required"
+        ),
+        pytest.param(
+            MbedtlsSdkconfigData(tls_required=True), {}, False, id="tls_keeps_rsa"
+        ),
+        pytest.param(
+            MbedtlsSdkconfigData(),
+            {"CONFIG_SECURE_BOOT": RawSdkconfigValue("y")},
+            False,
+            id="secure_boot_keeps_rsa",
+        ),
+    ],
+)
+def test_reconcile_mbedtls_psa_user_config(
+    set_core_config: SetCoreConfigCallable,
+    tmp_path: Path,
+    data: MbedtlsSdkconfigData,
+    preset: dict[str, Any],
+    rsa_off: bool,
+) -> None:
+    """On ESP-IDF 6 with the native toolchain the PSA user config header is
+    written and passed to every component, and RSA goes when nothing needs it."""
+    set_core_config(PlatformFramework.ESP32_IDF)
+    CORE.toolchain = Toolchain.ESP_IDF
+    CORE.build_path = tmp_path
+    CORE.data[KEY_ESP32] = {
+        KEY_IDF_VERSION: _IDF61,
+        KEY_SDKCONFIG_OPTIONS: dict(preset),
+        KEY_MBEDTLS_SDKCONFIG: data,
+        KEY_EXCLUDE_COMPONENTS: set(_ESP_TLS_LINKING_COMPONENTS),
+    }
+
+    asyncio.run(_reconcile_mbedtls_sdkconfig())
+
+    header = tmp_path / PSA_USER_CONFIG_FILENAME
+    assert header.read_text() == PSA_USER_CONFIG_CONTENT
+    assert f'-DMBEDTLS_USER_CONFIG_FILE=\\"{header.as_posix()}\\"' in CORE.build_flags
+    opts = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    for option in MBEDTLS_RSA_OPTIONS:
+        assert (opts.get(option) is False) is rsa_off
+
+
+def test_reconcile_mbedtls_psa_user_config_needs_native_toolchain(
+    set_core_config: SetCoreConfigCallable, tmp_path: Path
+) -> None:
+    """Without the native toolchain the header could miss some components, so
+    neither it nor the RSA trim is applied."""
+    set_core_config(PlatformFramework.ESP32_IDF)
+    CORE.toolchain = Toolchain.PLATFORMIO
+    CORE.build_path = tmp_path
+    CORE.data[KEY_ESP32] = {
+        KEY_IDF_VERSION: _IDF61,
+        KEY_SDKCONFIG_OPTIONS: {},
+        KEY_MBEDTLS_SDKCONFIG: MbedtlsSdkconfigData(),
+        KEY_EXCLUDE_COMPONENTS: set(_ESP_TLS_LINKING_COMPONENTS),
+    }
+
+    asyncio.run(_reconcile_mbedtls_sdkconfig())
+
+    assert not (tmp_path / PSA_USER_CONFIG_FILENAME).exists()
+    assert not any("MBEDTLS_USER_CONFIG_FILE" in flag for flag in CORE.build_flags)
+    opts = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert not any(option in opts for option in MBEDTLS_RSA_OPTIONS)
 
 
 @pytest.mark.parametrize(
