@@ -163,6 +163,8 @@ constexpr size_t FIXED_LENGTH<WarnIfLonger<LENGTH, MAX, WARN>> = FIXED_LENGTH<LE
 template<class LENGTH> constexpr size_t WARN_MAX = 0;
 template<class LENGTH, size_t MAX, void (*WARN)(size_t)>
 constexpr size_t WARN_MAX<WarnIfLonger<LENGTH, MAX, WARN>> = MAX;
+template<class LENGTH, size_t AT, bool (*CHECK)(const uint8_t *)>
+constexpr size_t WARN_MAX<CheckedLength<LENGTH, AT, CHECK>> = WARN_MAX<LENGTH>;
 }  // namespace frame_reader_detail
 
 /// The bytes every frame of a FrameFormat starts with.
