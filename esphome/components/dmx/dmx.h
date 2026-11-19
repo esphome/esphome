@@ -8,7 +8,7 @@
 
 #if __has_include(<esp_dmx.h>)
 #include <esp_dmx.h>
-#include "driver/uart.h"   // uart_is_driver_installed
+#include "driver/uart.h"  // uart_is_driver_installed
 #else
 using dmx_port_t = int;
 
