@@ -1102,8 +1102,6 @@ ssize_t AsyncStreamResponse::write(struct iovec *iov, int iovcnt) {
   }
   if (sent < 0 && err != EAGAIN && err != EWOULDBLOCK) {
     ESP_LOGD(TAG, "send error: errno %d", err);
-    // A hard error is not a timeout, so is_stalled() must not report one
-    this->stall_.clear();
     this->close();
     return -1;
   }
