@@ -11,7 +11,6 @@ from esphome.const import (
     CONF_SAMPLE_RATE,
     PLATFORM_ESP32,
 )
-import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 from .. import (
@@ -29,26 +28,32 @@ AudioAnalyzerSpeaker = audio_analyzer_ns.class_(
     "AudioAnalyzerSpeaker", AudioAnalyzer, speaker.Speaker
 )
 
-# The audio passes through unchanged, so this speaker takes the output speaker's format and stream limits
-_INHERITED_KEYS = (
-    CONF_BITS_PER_SAMPLE,
-    CONF_NUM_CHANNELS,
-    CONF_SAMPLE_RATE,
-    audio.CONF_MIN_BITS_PER_SAMPLE,
-    audio.CONF_MAX_BITS_PER_SAMPLE,
-    audio.CONF_MIN_CHANNELS,
-    audio.CONF_MAX_CHANNELS,
-    audio.CONF_MIN_SAMPLE_RATE,
-    audio.CONF_MAX_SAMPLE_RATE,
-)
 
-_PASS_THROUGH = "The audio passes through unchanged: set {} on the output speaker"
+def _set_stream_limits(config: ConfigType) -> ConfigType:
+    # Lock the stream limits to the declared format at CONFIG_SCHEMA time, like router: components that write to this
+    # speaker (media players, mixers) read them during their FINAL_VALIDATE, which can run before ours
+    audio.set_stream_limits(
+        min_bits_per_sample=config[CONF_BITS_PER_SAMPLE],
+        max_bits_per_sample=config[CONF_BITS_PER_SAMPLE],
+        min_channels=config[CONF_NUM_CHANNELS],
+        max_channels=config[CONF_NUM_CHANNELS],
+        min_sample_rate=config[CONF_SAMPLE_RATE],
+        max_sample_rate=config[CONF_SAMPLE_RATE],
+    )(config)
+    return config
+
 
 CONFIG_SCHEMA = cv.All(
     ANALYZER_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(AudioAnalyzerSpeaker),
             cv.Required(CONF_OUTPUT_SPEAKER): cv.use_id(speaker.Speaker),
+            # The format of the audio written to this speaker. It passes through unchanged, so the output speaker
+            # must accept it. Required rather than inherited from the output so that validation doesn't depend on
+            # the order of the configuration.
+            cv.Required(CONF_BITS_PER_SAMPLE): cv.int_range(8, 32),
+            cv.Required(CONF_NUM_CHANNELS): cv.int_range(1, 2),
+            cv.Required(CONF_SAMPLE_RATE): cv.int_range(8000, 48000),
             # Must cover how far the audio written to this speaker runs ahead of what is heard (buffers of the
             # output speaker and of anything after it). Holds 16-bit samples at 16 kHz: 32 KB per second.
             cv.Optional(CONF_BUFFER_DURATION, default="1000ms"): cv.All(
@@ -58,36 +63,26 @@ CONFIG_SCHEMA = cv.All(
                     max=cv.TimePeriod(milliseconds=5000),
                 ),
             ),
-            **{
-                cv.Optional(key): cv.invalid(_PASS_THROUGH.format(key))
-                for key in (
-                    CONF_AUDIO_DAC,
-                    CONF_BITS_PER_SAMPLE,
-                    CONF_NUM_CHANNELS,
-                    CONF_SAMPLE_RATE,
-                )
-            },
+            cv.Optional(CONF_AUDIO_DAC): cv.invalid(
+                "The audio passes through unchanged: set audio_dac on the output speaker"
+            ),
         }
     ),
     validate_frequency_range,
     cv.only_on([PLATFORM_ESP32]),
+    _set_stream_limits,
 )
 
 
 def _final_validate(config: ConfigType) -> ConfigType:
-    # Copy the output's format and limits so components that write to this speaker (media players, mixers) validate
-    # against what the output accepts. Like any inherited setting, they are only seen by components validated after
-    # this one.
-    full_config = fv.full_config.get()
-    output_config = fv.get_declaring_config(config[CONF_OUTPUT_SPEAKER], full_config)
-    this_config = fv.get_declaring_config(config[CONF_ID], full_config)
-    for key in _INHERITED_KEYS:
-        # A resampler's "passthrough" bits_per_sample is decided at run time, so there is nothing to inherit
-        if isinstance(value := output_config.get(key), int):
-            this_config[key] = value
-            config[key] = value
-    if (sample_rate := config.get(CONF_SAMPLE_RATE)) is not None:
-        validate_max_frequency_for_rate(config, sample_rate)
+    audio.final_validate_audio_schema(
+        "audio_analyzer speaker",
+        audio_device=CONF_OUTPUT_SPEAKER,
+        bits_per_sample=config[CONF_BITS_PER_SAMPLE],
+        channels=config[CONF_NUM_CHANNELS],
+        sample_rate=config[CONF_SAMPLE_RATE],
+    )(config)
+    validate_max_frequency_for_rate(config, config[CONF_SAMPLE_RATE])
     return config
 
 

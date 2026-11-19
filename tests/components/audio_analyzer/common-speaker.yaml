@@ -1,23 +1,7 @@
 wifi:
   ap:
 
-speaker:
-  - platform: i2s_audio
-    id: audio_analyzer_i2s_speaker
-    i2s_audio_id: i2s_audio_bus
-    i2s_dout_pin: ${dout_pin}
-    dac_type: external
-    sample_rate: 48000
-  - platform: resampler
-    id: audio_analyzer_resampler
-    output_speaker: audio_analyzer_i2s_speaker
-  - platform: audio_analyzer
-    id: speaker_analyzer
-    output_speaker: audio_analyzer_resampler
-    buffer_duration: 500ms
-    attack: 0ms
-    release: 0ms
-
+# Listed before the speakers on purpose: the analyzer declares its format, so validation doesn't depend on the order
 media_player:
   - platform: speaker
     id: audio_analyzer_media_player
@@ -26,11 +10,31 @@ media_player:
       format: FLAC
       num_channels: 1
 
+speaker:
+  - platform: audio_analyzer
+    id: speaker_analyzer
+    output_speaker: audio_analyzer_resampler
+    bits_per_sample: 16
+    num_channels: 1
+    sample_rate: 48000
+    buffer_duration: 500ms
+    attack: 0ms
+    release: 0ms
+  - platform: resampler
+    id: audio_analyzer_resampler
+    output_speaker: audio_analyzer_i2s_speaker
+  - platform: i2s_audio
+    id: audio_analyzer_i2s_speaker
+    i2s_audio_id: i2s_audio_bus
+    i2s_dout_pin: ${dout_pin}
+    dac_type: external
+    sample_rate: 48000
+
 sensor:
   - platform: audio_analyzer
     audio_analyzer_id: speaker_analyzer
-    power:
-      name: Speaker Power
+    rms:
+      name: Speaker RMS
   - platform: template
     name: Speaker Band 3 dB
     lambda: return id(speaker_analyzer).get_band_db(3);

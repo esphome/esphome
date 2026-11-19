@@ -16,7 +16,8 @@
 namespace esphome::audio_analyzer {
 
 /// @brief Analyzer fed by a microphone, hooked up like ``sound_level``: the microphone's data callback copies the
-/// audio into a ring buffer and ``loop()`` analyzes it.
+/// audio into a ring buffer and wakes ``loop()``, which analyzes it. Once the microphone stopped and the values
+/// released to silence, the loop sleeps until the next audio arrives.
 class MicrophoneAudioAnalyzer final : public AudioAnalyzer {
  public:
   explicit MicrophoneAudioAnalyzer(microphone::MicrophoneSource *microphone_source)
@@ -40,8 +41,8 @@ class MicrophoneAudioAnalyzer final : public AudioAnalyzer {
   Decimator decimator_;
   /// Set by the microphone task when the ring buffer was full and the oldest audio was overwritten
   std::atomic<bool> overrun_{false};
+  uint32_t last_overrun_ms_{0};
   bool running_{false};
-  bool overrun_logged_{false};
 };
 
 }  // namespace esphome::audio_analyzer

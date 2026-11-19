@@ -11,8 +11,8 @@ audio_analyzer:
     microphone: audio_analyzer_i2s_mic
     passive: false
     min_frequency: 80Hz
-    max_frequency: 5000Hz
-    power_range:
+    max_frequency: 4800Hz
+    rms_range:
       min_db: -60
       max_db: -10
     band_range:
@@ -25,8 +25,8 @@ sensor:
   - platform: audio_analyzer
     audio_analyzer_id: mic_analyzer
     update_interval: 2s
-    power:
-      name: Mic Power
+    rms:
+      name: Mic RMS
     bands:
       - band: 0
         name: Mic Band 0
@@ -39,7 +39,7 @@ sensor:
       for (uint8_t i = 0; i < id(mic_analyzer).get_num_bands(); ++i) {
         loudest = std::max(loudest, id(mic_analyzer).get_band_level(i));
       }
-      return id(mic_analyzer).is_active() ? loudest : id(mic_analyzer).get_power_level();
+      return id(mic_analyzer).is_active() ? loudest : id(mic_analyzer).get_rms_level();
 
 script:
   - id: audio_analyzer_toggle_mic

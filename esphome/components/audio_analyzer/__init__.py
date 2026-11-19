@@ -1,4 +1,4 @@
-"""Live power and frequency spectrum of an audio stream.
+"""Live RMS level and frequency spectrum of an audio stream.
 
 One analysis engine with two inputs:
 - ``audio_analyzer:`` analyzes a microphone, hooked up like ``sound_level``.
@@ -32,14 +32,15 @@ CONF_MAX_FREQUENCY = "max_frequency"
 CONF_MIN_DB = "min_db"
 CONF_MIN_FREQUENCY = "min_frequency"
 CONF_PASSIVE = "passive"
-CONF_POWER_RANGE = "power_range"
 CONF_RELEASE = "release"
+CONF_RMS_RANGE = "rms_range"
 
 # Must match analysis.h
 NUM_BANDS = 12
 FFT_SIZE = 512
 MAX_ANALYSIS_RATE_HZ = 16000
-MAX_BAND_FRACTION = 0.4
+MAX_BAND_FRACTION = 0.3
+MIN_BAND_BINS = 2
 
 audio_analyzer_ns = cg.esphome_ns.namespace("audio_analyzer")
 AudioAnalyzer = audio_analyzer_ns.class_("AudioAnalyzer", cg.Component)
@@ -75,27 +76,32 @@ def _db_range_schema(min_default: float, max_default: float) -> cv.All:
     )
 
 
+def _round_bin(frequency: float, bin_width: float) -> int:
+    """FFT bin of a frequency, rounded like ``lroundf`` in ``SpectrumAnalysis::configure``."""
+    return math.floor(frequency / bin_width + 0.5)
+
+
 def validate_frequency_range(config: ConfigType) -> ConfigType:
     min_frequency = config[CONF_MIN_FREQUENCY]
     max_frequency = config[CONF_MAX_FREQUENCY]
     if min_frequency >= max_frequency:
         raise cv.Invalid(f"{CONF_MIN_FREQUENCY} must be below {CONF_MAX_FREQUENCY}")
-    # The lowest band is the narrowest; it must hold at least one FFT bin at the highest analysis rate
+    # Every band gets at least MIN_BAND_BINS FFT bins; the bins are widest at the highest analysis rate
     bin_width = MAX_ANALYSIS_RATE_HZ / FFT_SIZE
-    lowest_band = min_frequency * (
-        (max_frequency / min_frequency) ** (1 / NUM_BANDS) - 1
-    )
-    if lowest_band < bin_width:
+    lower_bin = max(1, _round_bin(min_frequency, bin_width))
+    if _round_bin(max_frequency, bin_width) - lower_bin < NUM_BANDS * MIN_BAND_BINS:
+        needed = (lower_bin + NUM_BANDS * MIN_BAND_BINS - 0.5) * bin_width
         raise cv.Invalid(
-            f"The lowest band is {lowest_band:.1f} Hz wide, narrower than the {bin_width} Hz analysis resolution: "
-            f"raise {CONF_MIN_FREQUENCY} or widen the range",
-            path=[CONF_MIN_FREQUENCY],
+            f"The range is too narrow for {NUM_BANDS} bands of at least {MIN_BAND_BINS * bin_width} Hz "
+            f"({MIN_BAND_BINS} analysis bins): raise {CONF_MAX_FREQUENCY} to at least {math.ceil(needed)} Hz "
+            f"or lower {CONF_MIN_FREQUENCY}",
+            path=[CONF_MAX_FREQUENCY],
         )
     return config
 
 
 def validate_max_frequency_for_rate(config: ConfigType, sample_rate: int) -> None:
-    """Rejects bands above the anti-alias corner of a stream rate that is known at config time."""
+    """Rejects bands above what a stream rate that is known at config time allows."""
     limit = MAX_BAND_FRACTION * analysis_rate(sample_rate)
     if config[CONF_MAX_FREQUENCY] > limit:
         raise cv.Invalid(
@@ -108,13 +114,13 @@ def validate_max_frequency_for_rate(config: ConfigType, sample_rate: int) -> Non
 ANALYZER_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_MIN_FREQUENCY, default="100Hz"): cv.All(
-            cv.frequency, cv.Range(min=20, max=6000)
+            cv.frequency, cv.Range(min=20, max=4000)
         ),
         cv.Optional(CONF_MAX_FREQUENCY, default="4000Hz"): cv.All(
             cv.frequency,
             cv.Range(min=100, max=MAX_BAND_FRACTION * MAX_ANALYSIS_RATE_HZ),
         ),
-        cv.Optional(CONF_POWER_RANGE, default={}): _db_range_schema(-70, -20),
+        cv.Optional(CONF_RMS_RANGE, default={}): _db_range_schema(-70, -20),
         cv.Optional(CONF_BAND_RANGE, default={}): _db_range_schema(-80, -30),
         cv.Optional(CONF_ATTACK, default="30ms"): cv.positive_time_period_milliseconds,
         cv.Optional(
@@ -130,8 +136,8 @@ async def setup_analyzer(var: cg.MockObj, config: ConfigType) -> None:
     cg.add(
         var.set_frequency_range(config[CONF_MIN_FREQUENCY], config[CONF_MAX_FREQUENCY])
     )
-    power_range = config[CONF_POWER_RANGE]
-    cg.add(var.set_power_range(power_range[CONF_MIN_DB], power_range[CONF_MAX_DB]))
+    rms_range = config[CONF_RMS_RANGE]
+    cg.add(var.set_rms_range(rms_range[CONF_MIN_DB], rms_range[CONF_MAX_DB]))
     band_range = config[CONF_BAND_RANGE]
     cg.add(var.set_band_range(band_range[CONF_MIN_DB], band_range[CONF_MAX_DB]))
     cg.add(var.set_attack(config[CONF_ATTACK]))

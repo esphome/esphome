@@ -48,50 +48,18 @@ static inline float smoothing_alpha(float seconds, uint32_t time_constant_ms) {
   return 1.0f - expf(-seconds * 1000.0f / static_cast<float>(time_constant_ms));
 }
 
-float read_mono_sample(const uint8_t *frame, uint8_t bytes_per_sample, uint8_t channels) {
-  float sum = 0.0f;
-  for (uint8_t c = 0; c < channels; ++c) {
-    const uint8_t *p = frame + c * bytes_per_sample;
-    switch (bytes_per_sample) {
-      case 1:
-        sum += static_cast<float>(static_cast<int8_t>(p[0])) * (1.0f / 128.0f);
-        break;
-      case 2:
-        sum += static_cast<float>(static_cast<int16_t>(p[0] | (p[1] << 8))) * (1.0f / 32768.0f);
-        break;
-      case 3:
-        sum += static_cast<float>(static_cast<int32_t>((static_cast<uint32_t>(p[0]) << 8) |
-                                                       (static_cast<uint32_t>(p[1]) << 16) |
-                                                       (static_cast<uint32_t>(p[2]) << 24))) *
-               (1.0f / 2147483648.0f);
-        break;
-      case 4:
-        sum += static_cast<float>(
-                   static_cast<int32_t>(static_cast<uint32_t>(p[0]) | (static_cast<uint32_t>(p[1]) << 8) |
-                                        (static_cast<uint32_t>(p[2]) << 16) | (static_cast<uint32_t>(p[3]) << 24))) *
-               (1.0f / 2147483648.0f);
-        break;
-      default:
-        return 0.0f;
-    }
-  }
-  return channels > 1 ? sum / channels : sum;
-}
-
 void Decimator::configure(uint32_t sample_rate) {
   this->input_rate_ = sample_rate;
   this->factor_ = decimation_for(sample_rate);
-  this->inv_factor_ = 1.0f / this->factor_;
   this->output_rate_ = static_cast<float>(sample_rate) / this->factor_;
-  this->sum_ = 0.0f;
-  this->count_ = 0;
 
-  // 4th-order Butterworth low-pass as two biquads (Q of each pole pair), corner at MAX_BAND_FRACTION of the output
-  // rate (RBJ cookbook coefficients)
-  static constexpr double SECTION_Q[2] = {0.54119610014619698, 1.3065629648763766};
-  const double w0 = 2.0 * PI * MAX_BAND_FRACTION / this->factor_;
+  // 8th-order Butterworth low-pass as four biquads (the Q of each pole pair), corner at FILTER_CORNER_FRACTION of
+  // the output rate (RBJ cookbook coefficients)
+  static constexpr double SECTION_Q[4] = {0.50979557910415917, 0.60134488693504528, 0.89997622313641570,
+                                          2.5629154477415055};
+  const double w0 = 2.0 * PI * FILTER_CORNER_FRACTION / this->factor_;
   const double cos_w0 = std::cos(w0);
-  for (uint8_t s = 0; s < 2; ++s) {
+  for (size_t s = 0; s < this->sections_.size(); ++s) {
     const double alpha = std::sin(w0) / (2.0 * SECTION_Q[s]);
     const double a0 = 1.0 + alpha;
     Biquad &section = this->sections_[s];
@@ -100,33 +68,54 @@ void Decimator::configure(uint32_t sample_rate) {
     section.b2 = section.b0;
     section.a1 = static_cast<float>(-2.0 * cos_w0 / a0);
     section.a2 = static_cast<float>((1.0 - alpha) / a0);
+  }
+  this->reset();
+}
+
+void Decimator::reset() {
+  for (Biquad &section : this->sections_) {
     section.z1 = 0.0f;
     section.z2 = 0.0f;
   }
+  this->count_ = 0;
 }
 
 bool SpectrumAnalysis::configure(float analysis_rate) {
   this->analysis_rate_ = analysis_rate;
   this->frame_fill_ = 0;
 
-  const float limit = MAX_BAND_FRACTION * analysis_rate;
-  const bool clamped = this->max_frequency_ > limit;
-  this->upper_frequency_ = clamped ? limit : this->max_frequency_;
-
   const float bin_width = analysis_rate / FFT_SIZE;
-  const float ratio = this->upper_frequency_ / this->min_frequency_;
-  for (uint8_t b = 0; b <= NUM_BANDS; ++b) {
-    const float edge_hz = this->min_frequency_ * powf(ratio, static_cast<float>(b) / NUM_BANDS);
-    uint16_t bin =
-        static_cast<uint16_t>(std::clamp<int32_t>(static_cast<int32_t>(lroundf(edge_hz / bin_width)), 1, FFT_SIZE / 2));
-    if (b > 0 && bin <= this->band_bins_[b - 1]) {
-      // Config validation keeps bands at least one bin wide at the highest analysis rate; a Nyquist clamp can
-      // still narrow them, so every band keeps at least one bin
-      bin = this->band_bins_[b - 1] + 1;
-    }
-    this->band_bins_[b] = bin;
+  const float limit = MAX_BAND_FRACTION * analysis_rate;
+  bool fits = this->max_frequency_ <= limit;
+  const float upper_hz = fits ? this->max_frequency_ : limit;
+  const auto to_bin = [bin_width](float hz) { return static_cast<int32_t>(lroundf(hz / bin_width)); };
+
+  // Every band gets at least MIN_BAND_BINS bins. When the clamped top leaves no room for that, the bottom moves down.
+  static constexpr int32_t MIN_SPAN = NUM_BANDS * MIN_BAND_BINS;
+  const int32_t upper_bin = std::max(to_bin(upper_hz), MIN_SPAN + 1);
+  int32_t lower_bin = std::max(to_bin(this->min_frequency_), static_cast<int32_t>(1));
+  if (upper_bin - lower_bin < MIN_SPAN) {
+    lower_bin = upper_bin - MIN_SPAN;
+    fits = false;
   }
-  return !clamped;
+
+  // Log-spaced edges between the two bins, widened from the bottom so no band is narrower than MIN_BAND_BINS, then
+  // pulled back from the top so the last band ends at upper_bin. The span leaves room for both passes.
+  const float lower_hz = lower_bin * bin_width;
+  const float ratio = (upper_bin * bin_width) / lower_hz;
+  std::array<int32_t, NUM_BANDS + 1> bins{};
+  bins[0] = lower_bin;
+  for (uint8_t b = 1; b < NUM_BANDS; ++b) {
+    bins[b] = std::max(to_bin(lower_hz * powf(ratio, static_cast<float>(b) / NUM_BANDS)), bins[b - 1] + MIN_BAND_BINS);
+  }
+  bins[NUM_BANDS] = upper_bin;
+  for (int8_t b = NUM_BANDS - 1; b > 0; --b) {
+    bins[b] = std::min(bins[b], bins[b + 1] - MIN_BAND_BINS);
+  }
+  for (uint8_t b = 0; b <= NUM_BANDS; ++b) {
+    this->band_bins_[b] = static_cast<uint16_t>(bins[b]);
+  }
+  return fits;
 }
 
 bool SpectrumAnalysis::push(float sample) {
@@ -195,11 +184,11 @@ void SpectrumAnalysis::analyze_frame_() {
   this->apply_targets_(to_db(squared_sum / FFT_SIZE), band_db, this->get_frame_seconds());
 }
 
-void SpectrumAnalysis::apply_targets_(float power_db, const float *band_db, float seconds) {
+void SpectrumAnalysis::apply_targets_(float rms_db, const float *band_db, float seconds) {
   const float attack = smoothing_alpha(seconds, this->attack_ms_);
   const float release = smoothing_alpha(seconds, this->release_ms_);
 
-  this->power_db_ += (power_db - this->power_db_) * (power_db > this->power_db_ ? attack : release);
+  this->rms_db_ += (rms_db - this->rms_db_) * (rms_db > this->rms_db_ ? attack : release);
   for (uint8_t b = 0; b < NUM_BANDS; ++b) {
     float &db = this->band_db_[b];
     db += (band_db[b] - db) * (band_db[b] > db ? attack : release);
@@ -217,7 +206,7 @@ void SpectrumAnalysis::release(float seconds) {
 
 bool SpectrumAnalysis::is_released() const {
   static constexpr float RELEASED_DB = FLOOR_DB + 0.1f;
-  if (this->power_db_ > RELEASED_DB) {
+  if (this->rms_db_ > RELEASED_DB) {
     return false;
   }
   return std::all_of(this->band_db_.begin(), this->band_db_.end(), [](float db) { return db <= RELEASED_DB; });

@@ -2,6 +2,7 @@
 
 #if defined(USE_ESP32) && defined(USE_MICROPHONE)
 
+#include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
 namespace esphome::audio_analyzer {
@@ -13,6 +14,8 @@ static constexpr uint32_t RING_BUFFER_DURATION_MS = 120;
 static constexpr uint32_t MAX_FILL_DURATION_MS = 30;
 // Enough fills to drain a full ring buffer, even when the wrap splits one
 static constexpr uint8_t MAX_FILLS_PER_LOOP = RING_BUFFER_DURATION_MS / MAX_FILL_DURATION_MS + 2;
+// The overrun warning clears after this long without an overrun
+static constexpr uint32_t OVERRUN_CLEAR_MS = 1000;
 
 void MicrophoneAudioAnalyzer::dump_config() {
   ESP_LOGCONFIG(TAG,
@@ -44,12 +47,14 @@ void MicrophoneAudioAnalyzer::setup() {
   this->configure_analysis_(this->decimator_.get_output_rate());
 
   // THREAD CONTEXT: the microphone task. The ring buffer outlives the callback; write() overwrites the oldest audio.
+  // Also wakes the loop, which sleeps while the microphone is stopped (in passive mode another component starts it).
   ring_buffer::RingBuffer *ring_buffer = this->ring_buffer_.get();
   this->microphone_source_->add_data_callback([this, ring_buffer](const microphone::AudioCapture &capture) {
     if (ring_buffer->free() < capture.data.size()) {
       this->overrun_.store(true, std::memory_order_relaxed);
     }
     ring_buffer->write((void *) capture.data.data(), capture.data.size());
+    this->enable_loop_soon_any_context();
   });
 
   if (!this->microphone_source_->is_passive()) {
@@ -62,21 +67,27 @@ void MicrophoneAudioAnalyzer::loop() {
   // Passive, or stopped with stop(): not an error, the values release to silence
   if (!this->microphone_source_->is_running()) {
     this->running_ = false;
+    this->status_clear_warning();
     this->release_if_idle_();
+    if (!this->active_ && this->analysis_.is_released()) {
+      // The data callback wakes it up
+      this->disable_loop();
+    }
     return;
   }
 
   const audio::AudioStreamInfo stream_info = this->microphone_source_->get_audio_stream_info();
   if (!this->running_) {
-    // Drop what is left from the previous run and the partial frame
+    // Drop what is left from the previous run, the partial frame and the filter state
     this->running_ = true;
     this->audio_source_->clear_buffered_data();
     this->overrun_.store(false, std::memory_order_relaxed);
     this->analysis_.reset_frame();
-    this->overrun_logged_ = false;
     if (this->decimator_.get_input_rate() != stream_info.get_sample_rate()) {
       this->decimator_.configure(stream_info.get_sample_rate());
       this->configure_analysis_(this->decimator_.get_output_rate());
+    } else {
+      this->decimator_.reset();
     }
   }
 
@@ -99,14 +110,25 @@ void MicrophoneAudioAnalyzer::loop() {
     this->audio_source_->consume(frames * bytes_per_frame);
   }
 
-  if (this->overrun_.exchange(false, std::memory_order_relaxed) && !this->overrun_logged_) {
-    this->overrun_logged_ = true;
-    ESP_LOGW(TAG, "The main loop fell behind the microphone; the oldest audio was dropped");
+  // Warning status while overruns repeat; logged each time it is raised
+  const uint32_t now = App.get_loop_component_start_time();
+  if (this->overrun_.exchange(false, std::memory_order_relaxed)) {
+    if (!this->status_has_warning()) {
+      ESP_LOGW(TAG, "The main loop fell behind the microphone; the oldest audio was dropped");
+    }
+    this->status_set_warning();
+    this->last_overrun_ms_ = now;
+  } else if (this->status_has_warning() && now - this->last_overrun_ms_ > OVERRUN_CLEAR_MS) {
+    this->status_clear_warning();
   }
   this->release_if_idle_();
 }
 
 void MicrophoneAudioAnalyzer::start() {
+  if (this->is_failed()) {
+    // Nothing would read the microphone
+    return;
+  }
   if (this->microphone_source_->is_passive()) {
     ESP_LOGW(TAG, "Can't start the microphone in passive mode");
     return;

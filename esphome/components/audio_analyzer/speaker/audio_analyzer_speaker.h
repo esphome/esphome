@@ -3,6 +3,7 @@
 #ifdef USE_ESP32
 
 #include "esphome/components/audio_analyzer/audio_analyzer.h"
+#include "esphome/components/audio_analyzer/pass_through.h"
 #include "esphome/components/ring_buffer/ring_buffer.h"
 #include "esphome/components/speaker/speaker.h"
 
@@ -14,16 +15,18 @@ namespace esphome::audio_analyzer {
 /// @brief Pass-through speaker that analyzes the audio flowing through it.
 ///
 /// Placed between an audio source (for example a media player pipeline) and its real speaker. Every call is forwarded
-/// to the output speaker. ``play()`` also downmixes the bytes the output accepted to mono, decimates them to at most
-/// 16 kHz and copies them as 16-bit samples into a buffer allocated once in ``setup()``, without blocking.
+/// to the output speaker, and the running/stopped state mirrors the output's (``follow_output()``), so a producer
+/// sees the same states with or without the analyzer. ``play()`` also downmixes the bytes the output accepted to
+/// mono, decimates them to at most 16 kHz and copies them as 16-bit samples into a buffer allocated once in
+/// ``setup()``, without blocking.
 ///
 /// Audio written to a speaker runs ahead of what is heard (resampler, mixer and I2S buffers, often a few hundred ms).
 /// The analyzer counts the frames written to the output and not yet reported as played through its audio output
 /// callback, like ``router``. ``loop()`` only analyzes the buffered samples older than those frames, so the values
 /// follow what is heard.
 ///
-/// The analysis is taken before the output's volume. While this speaker is muted (or at zero volume) it analyzes
-/// silence.
+/// The analysis is taken before the output's volume. While the output speaker is muted (or at zero volume) it
+/// analyzes silence.
 class AudioAnalyzerSpeaker final : public AudioAnalyzer, public speaker::Speaker {
  public:
   explicit AudioAnalyzerSpeaker(speaker::Speaker *output_speaker) : output_speaker_(output_speaker) {}
@@ -44,16 +47,10 @@ class AudioAnalyzerSpeaker final : public AudioAnalyzer, public speaker::Speaker
 
   bool has_buffered_data() const override { return this->output_speaker_->has_buffered_data(); }
 
-  void set_mute_state(bool mute_state) override {
-    this->mute_state_ = mute_state;
-    this->output_speaker_->set_mute_state(mute_state);
-  }
+  void set_mute_state(bool mute_state) override { this->output_speaker_->set_mute_state(mute_state); }
   bool get_mute_state() override { return this->output_speaker_->get_mute_state(); }
 
-  void set_volume(float volume) override {
-    this->volume_ = volume;
-    this->output_speaker_->set_volume(volume);
-  }
+  void set_volume(float volume) override { this->output_speaker_->set_volume(volume); }
   float get_volume() override { return this->output_speaker_->get_volume(); }
 
   void set_buffer_duration(uint32_t buffer_duration_ms) { this->buffer_duration_ms_ = buffer_duration_ms; }
@@ -72,6 +69,8 @@ class AudioAnalyzerSpeaker final : public AudioAnalyzer, public speaker::Speaker
   /// @brief Forwards the stream format to the output speaker.
   void sync_stream_info_();
 
+  /// @brief Producer side: counts whole frames forwarded to the output, then copies them.
+  void forward_frames_(const uint8_t *data, uint32_t frames);
   /// @brief Producer side: decimates and copies forwarded frames into the analysis buffer.
   void copy_frames_(const uint8_t *data, uint32_t frames);
   /// @brief Producer side: writes decimated samples, or asks for a resync when they don't fit.
@@ -79,8 +78,10 @@ class AudioAnalyzerSpeaker final : public AudioAnalyzer, public speaker::Speaker
 
   /// @brief Mirrors the output speaker's state, which callers read through ``is_stopped()`` and ``is_running()``.
   void update_state_();
-  /// @brief Analyzes the buffered samples that have been played.
-  void analyze_heard_();
+  /// @brief Analyzes the buffered samples that have been played. Returns true when it completed a frame.
+  bool analyze_heard_();
+  /// @brief Raises the overflow warning, or clears it once the analysis works again.
+  void report_overflow_(bool overflowed, bool analyzed);
 
   speaker::Speaker *output_speaker_;
 
@@ -89,6 +90,7 @@ class AudioAnalyzerSpeaker final : public AudioAnalyzer, public speaker::Speaker
 
   // Producer side (THREAD CONTEXT: the task that calls play())
   Decimator decimator_;
+  FrameAssembler frame_assembler_;
   audio::AudioStreamInfo copy_stream_info_;
 
   /// Frames written to the output and not yet reported as played. Decremented (clamped at 0) from the output's task.
@@ -96,16 +98,18 @@ class AudioAnalyzerSpeaker final : public AudioAnalyzer, public speaker::Speaker
   /// Input sample rate of the samples copied since the last resync; published before SYNC_STATE_COPYING
   std::atomic<uint32_t> copy_sample_rate_{0};
   std::atomic<SyncState> sync_state_{SyncState::SYNC_STATE_RESYNC};
+  /// millis() of the last start(); written before state_ so loop() never pairs STARTING with an older time
+  std::atomic<uint32_t> state_start_ms_{0};
+  /// Set by start(): the producer drops the partial frame it kept from the previous stream
+  std::atomic<bool> new_stream_{false};
   /// Set by the producer when the buffer was full
   std::atomic<bool> overflow_{false};
 
   uint32_t buffer_duration_ms_{1000};
-  uint32_t state_start_ms_{0};
   // loop() side
   uint32_t analysis_sample_rate_{0};
   uint8_t decimation_{1};
   bool awaiting_copy_{true};
-  bool overflow_logged_{false};
 };
 
 }  // namespace esphome::audio_analyzer
