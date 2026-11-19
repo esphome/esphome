@@ -165,8 +165,9 @@ void DMXComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "  Mode: %u", static_cast<unsigned>(this->mode_));
   ESP_LOGCONFIG(TAG, "  TX Pin: GPIO%d", this->tx_pin_);
   ESP_LOGCONFIG(TAG, "  RX Pin: GPIO%d", this->rx_pin_);
-  if (this->rts_pin_ >= 0)
+  if (this->rts_pin_ >= 0) {
     ESP_LOGCONFIG(TAG, "  RTS Pin: GPIO%d", this->rts_pin_);
+  }
   ESP_LOGCONFIG(TAG, "  TX interval: %u ms", static_cast<unsigned>(this->tx_interval_ms_));
   ESP_LOGCONFIG(TAG, "  RX guard: %u ms", static_cast<unsigned>(this->rx_guard_ms_));
 }
