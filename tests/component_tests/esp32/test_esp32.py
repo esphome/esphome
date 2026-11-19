@@ -19,7 +19,9 @@ from esphome.components.esp32 import (
     KEY_VFS_DIR_REQUIRED,
     KEY_VFS_SELECT_REQUIRED,
     KEY_VFS_TERMIOS_REQUIRED,
+    MBEDTLS_NON_P256_CURVE_OPTIONS,
     MBEDTLS_TLS_EXTRA_OPTIONS,
+    MBEDTLS_UNUSED_CIPHER_MODE_OPTIONS,
     VARIANT_ESP32,
     VARIANTS,
     MbedtlsSdkconfigData,
@@ -44,6 +46,7 @@ from esphome.components.esp32.const import (
     KEY_NETWORK_SDKCONFIG,
     KEY_SDKCONFIG_OPTIONS,
     KEY_VARIANT,
+    VARIANT_ESP32C2,
     VARIANT_ESP32C3,
     VARIANT_ESP32C5,
     VARIANT_ESP32C6,
@@ -802,18 +805,34 @@ _TLS_OFF_IDF6 = {
     "CONFIG_MBEDTLS_TLS_ENABLED": False,
     "CONFIG_ESP_WIFI_ENTERPRISE_SUPPORT": False,
     **_TLS_OFF_CRYPTO,
+    "CONFIG_MBEDTLS_PEM_PARSE_C": False,
+    "CONFIG_MBEDTLS_LARGE_KEY_SOFTWARE_MPI": False,
+    **dict.fromkeys(MBEDTLS_NON_P256_CURVE_OPTIONS, False),
+}
+_CIPHER_MODES_OFF = dict.fromkeys(MBEDTLS_UNUSED_CIPHER_MODE_OPTIONS, False)
+_SHA512_OFF = {
+    "CONFIG_MBEDTLS_SHA384_C": False,
+    "CONFIG_MBEDTLS_SHA512_C": False,
 }
 _PEER_CERT_PKCS7_OFF = {
     "CONFIG_MBEDTLS_SSL_KEEP_PEER_CERTIFICATE": False,
     "CONFIG_MBEDTLS_PKCS7_C": False,
 }
 _TLS_EXTRAS_OFF = dict.fromkeys(MBEDTLS_TLS_EXTRA_OPTIONS, False)
+# What every ESP-IDF 6 build without a TLS or SHA-512 requester also trims.
+_IDF6_TRIMS = {
+    **_TLS_EXTRAS_OFF,
+    **_PEER_CERT_PKCS7_OFF,
+    **_SHA512_OFF,
+    **_CIPHER_MODES_OFF,
+}
 _TLS_CLIENT_ONLY = {
     "CONFIG_MBEDTLS_TLS_CLIENT_ONLY": True,
     "CONFIG_MBEDTLS_TLS_SERVER_AND_CLIENT": False,
 }
 _IDF5 = cv.Version(5, 5, 5)
 _IDF6 = cv.Version(6, 0, 0)
+_IDF61 = cv.Version(6, 1, 1)
 
 
 @pytest.mark.parametrize(
@@ -855,20 +874,82 @@ _IDF6 = cv.Version(6, 0, 0)
             {},
             {
                 **_TLS_OFF_IDF6,
-                **_TLS_EXTRAS_OFF,
-                **_PEER_CERT_PKCS7_OFF,
-                "CONFIG_MBEDTLS_SHA384_C": False,
-                "CONFIG_MBEDTLS_SHA512_C": False,
+                **_IDF6_TRIMS,
             },
             set(_ESP_TLS_LINKING_COMPONENTS),
             id="idf6_drops_sha512",
+        ),
+        pytest.param(
+            # 6.1's esp_wifi_remote enterprise option would select TLS back on.
+            PlatformFramework.ESP32_IDF,
+            _IDF61,
+            MbedtlsSdkconfigData(),
+            {},
+            {
+                **_TLS_OFF_IDF6,
+                "CONFIG_WIFI_RMT_ENTERPRISE_SUPPORT": False,
+                **_IDF6_TRIMS,
+            },
+            set(_ESP_TLS_LINKING_COMPONENTS),
+            id="idf61_remote_enterprise_off",
+        ),
+        pytest.param(
+            # With TLS kept, the curves, PEM and large-key MPI stay; the unused
+            # cipher modes still go.
+            PlatformFramework.ESP32_IDF,
+            _IDF6,
+            MbedtlsSdkconfigData(tls_required=True),
+            {},
+            {
+                **_TLS_CLIENT_ONLY,
+                **_IDF6_TRIMS,
+            },
+            set(_ESP_TLS_LINKING_COMPONENTS),
+            id="idf6_tls_keeps_curves",
+        ),
+        pytest.param(
+            # A user sdkconfig_options value wins over a curve trim.
+            PlatformFramework.ESP32_IDF,
+            _IDF6,
+            MbedtlsSdkconfigData(),
+            {"CONFIG_MBEDTLS_ECP_DP_SECP384R1_ENABLED": RawSdkconfigValue("y")},
+            {
+                **_TLS_OFF_IDF6,
+                "CONFIG_MBEDTLS_ECP_DP_SECP384R1_ENABLED": RawSdkconfigValue("y"),
+                **_IDF6_TRIMS,
+            },
+            set(_ESP_TLS_LINKING_COMPONENTS),
+            id="idf6_user_curve_wins",
+        ),
+        pytest.param(
+            # A P-384 app signing key keeps the P-384 curve.
+            PlatformFramework.ESP32_IDF,
+            _IDF6,
+            MbedtlsSdkconfigData(),
+            {"CONFIG_SECURE_BOOT_ECDSA_KEY_LEN_384_BITS": RawSdkconfigValue("y")},
+            {
+                **{
+                    k: v
+                    for k, v in _TLS_OFF_IDF6.items()
+                    if k != "CONFIG_MBEDTLS_ECP_DP_SECP384R1_ENABLED"
+                },
+                "CONFIG_SECURE_BOOT_ECDSA_KEY_LEN_384_BITS": RawSdkconfigValue("y"),
+                **_IDF6_TRIMS,
+            },
+            set(_ESP_TLS_LINKING_COMPONENTS),
+            id="idf6_p384_signing_key_keeps_curve",
         ),
         pytest.param(
             PlatformFramework.ESP32_IDF,
             _IDF6,
             MbedtlsSdkconfigData(sha512_required=True),
             {},
-            {**_TLS_OFF_IDF6, **_TLS_EXTRAS_OFF, **_PEER_CERT_PKCS7_OFF},
+            {
+                **_TLS_OFF_IDF6,
+                **_TLS_EXTRAS_OFF,
+                **_PEER_CERT_PKCS7_OFF,
+                **_CIPHER_MODES_OFF,
+            },
             set(_ESP_TLS_LINKING_COMPONENTS),
             id="idf6_sha512_required",
         ),
@@ -1000,6 +1081,21 @@ _IDF6 = cv.Version(6, 0, 0)
             set(_ESP_TLS_LINKING_COMPONENTS),
             id="arduino_keeps_tls",
         ),
+        pytest.param(
+            # Arduino on ESP-IDF 6 keeps every cipher mode.
+            PlatformFramework.ESP32_ARDUINO,
+            _IDF6,
+            MbedtlsSdkconfigData(),
+            {},
+            {
+                **_TLS_CLIENT_ONLY,
+                **_TLS_EXTRAS_OFF,
+                **_PEER_CERT_PKCS7_OFF,
+                **_SHA512_OFF,
+            },
+            set(_ESP_TLS_LINKING_COMPONENTS),
+            id="arduino_idf6_keeps_cipher_modes",
+        ),
     ],
 )
 def test_reconcile_mbedtls_sdkconfig(
@@ -1015,6 +1111,7 @@ def test_reconcile_mbedtls_sdkconfig(
     user sdkconfig_options always win."""
     set_core_config(framework)
     CORE.data[KEY_ESP32] = {
+        KEY_VARIANT: VARIANT_ESP32,
         KEY_IDF_VERSION: idf,
         KEY_SDKCONFIG_OPTIONS: dict(preset),
         KEY_MBEDTLS_SDKCONFIG: data,
@@ -1024,6 +1121,54 @@ def test_reconcile_mbedtls_sdkconfig(
     asyncio.run(_reconcile_mbedtls_sdkconfig())
 
     assert CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS] == expected
+
+
+@pytest.mark.parametrize(
+    ("variant", "idf", "preset", "keeps_xts"),
+    [
+        pytest.param(VARIANT_ESP32, _IDF6, {}, False, id="hardware_aes"),
+        pytest.param(VARIANT_ESP32C2, _IDF6, {}, True, id="c2_no_aes"),
+        pytest.param(VARIANT_ESP32H4, _IDF6, {}, True, id="h4_idf60_no_aes"),
+        pytest.param(VARIANT_ESP32H4, _IDF61, {}, False, id="h4_idf61_aes"),
+        pytest.param(
+            VARIANT_ESP32,
+            _IDF6,
+            {"CONFIG_MBEDTLS_HARDWARE_AES": RawSdkconfigValue("n")},
+            True,
+            id="user_software_aes",
+        ),
+        pytest.param(
+            VARIANT_ESP32,
+            _IDF6,
+            {"CONFIG_SPIRAM_CACHE_WORKAROUND_STRATEGY_DUPLDST": True},
+            True,
+            id="psram_dupldst",
+        ),
+    ],
+)
+def test_reconcile_mbedtls_software_aes_keeps_xts(
+    set_core_config: SetCoreConfigCallable,
+    variant: str,
+    idf: cv.Version,
+    preset: dict[str, Any],
+    keeps_xts: bool,
+) -> None:
+    """NVS always builds its encrypted partition code, which needs mbedTLS XTS
+    when AES runs in software."""
+    set_core_config(PlatformFramework.ESP32_IDF)
+    CORE.data[KEY_ESP32] = {
+        KEY_VARIANT: variant,
+        KEY_IDF_VERSION: idf,
+        KEY_SDKCONFIG_OPTIONS: dict(preset),
+        KEY_MBEDTLS_SDKCONFIG: MbedtlsSdkconfigData(),
+        KEY_EXCLUDE_COMPONENTS: set(_ESP_TLS_LINKING_COMPONENTS),
+    }
+
+    asyncio.run(_reconcile_mbedtls_sdkconfig())
+
+    opts = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert ("CONFIG_MBEDTLS_CIPHER_MODE_XTS" not in opts) is keeps_xts
+    assert opts["CONFIG_MBEDTLS_CIPHER_MODE_CFB"] is False
 
 
 @pytest.mark.parametrize(
@@ -1046,6 +1191,7 @@ def test_reconcile_mbedtls_warns_when_peer_cert_drops_tls13(
     if peer_cert is not None:
         preset["CONFIG_MBEDTLS_SSL_KEEP_PEER_CERTIFICATE"] = peer_cert
     CORE.data[KEY_ESP32] = {
+        KEY_VARIANT: VARIANT_ESP32,
         KEY_IDF_VERSION: _IDF5,
         KEY_SDKCONFIG_OPTIONS: preset,
         KEY_MBEDTLS_SDKCONFIG: MbedtlsSdkconfigData(tls_required=True),
@@ -1082,6 +1228,11 @@ def test_esp_tls_linking_components_are_excluded_by_default() -> None:
         pytest.param({"CONFIG_OPENTHREAD_BORDER_ROUTER": "y"}, True, id="ot_br_y"),
         pytest.param(
             {"CONFIG_ESP_WIFI_ENTERPRISE_SUPPORT": "y"}, True, id="wifi_enterprise_y"
+        ),
+        pytest.param(
+            {"CONFIG_WIFI_RMT_ENTERPRISE_SUPPORT": "y"},
+            True,
+            id="wifi_remote_enterprise_y",
         ),
         pytest.param({"CONFIG_LWIP_IPV6": "y"}, False, id="unrelated"),
     ],
