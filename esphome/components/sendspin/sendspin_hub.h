@@ -154,8 +154,8 @@ class SendspinHub final : public Component,
 
   // --- Configuration setters (called from codegen) ---
 
-  template<typename F> void add_group_update_callback(F &&callback) {
-    this->group_update_callbacks_.add(std::forward<F>(callback));
+  template<typename F> void add_group_state_callback(F &&callback) {
+    this->group_state_callbacks_.add(std::forward<F>(callback));
   }
 
   template<typename F> void add_on_open_pairing_window_callback(F &&callback) {
@@ -348,7 +348,7 @@ class SendspinHub final : public Component,
 #endif
 
   // --- SendspinClientListener overrides ---
-  void on_group_update(const sendspin::GroupUpdateObject &group) override;
+  void on_group_state(const sendspin::GroupState &changes) override;
 
   void on_request_high_performance() override;
 
@@ -453,7 +453,7 @@ class SendspinHub final : public Component,
   std::unique_ptr<sendspin::SendspinClient> client_;
 
   // Callback fan-out to child components
-  CallbackManager<void(const sendspin::GroupUpdateObject &)> group_update_callbacks_{};
+  CallbackManager<void(const sendspin::GroupState &)> group_state_callbacks_{};
 
   // Lazy: each pairing callback is fed by an optional YAML surface.
   LazyCallbackManager<void()> open_pairing_window_callbacks_{};
