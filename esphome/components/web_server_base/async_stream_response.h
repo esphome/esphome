@@ -27,6 +27,12 @@ struct StreamIovec {
 /// A long lived response the main loop writes to without blocking, on ESPAsyncWebServer; the same interface as
 /// web_server_idf's AsyncStreamResponse. The network callbacks only set flags, and the main loop owns and frees the
 /// AsyncClient.
+enum class StreamState : uint8_t {
+  STREAM_STATE_PENDING,       // begin() ran; the request has not handed over the connection yet
+  STREAM_STATE_ATTACHED,      // the connection is ours and the head is queued
+  STREAM_STATE_DISCONNECTED,  // gone; no network callback references the stream any more
+};
+
 class AsyncStreamResponse {
  public:
   AsyncStreamResponse() = default;
@@ -54,14 +60,20 @@ class AsyncStreamResponse {
   void loop();
 
   /// The connection is taken from the request and the head queued; write() needs it.
-  bool is_attached() const { return this->attached_.load(std::memory_order_acquire); }
+  bool is_attached() const {
+    return this->state_.load(std::memory_order_acquire) == StreamState::STREAM_STATE_ATTACHED;
+  }
   /// The client is still connected.
-  bool is_connected() const { return !this->disconnected_.load(std::memory_order_acquire); }
+  bool is_connected() const {
+    return this->state_.load(std::memory_order_acquire) != StreamState::STREAM_STATE_DISCONNECTED;
+  }
   bool is_closing() const { return this->close_requested_; }
   /// An id for log lines only
   int log_id() const { return static_cast<int>(reinterpret_cast<uintptr_t>(this) & 0xFFFF); }
   /// The connection is gone; no network callback still references this object.
-  bool safe_to_delete() const { return this->disconnected_.load(std::memory_order_acquire); }
+  bool safe_to_delete() const {
+    return this->state_.load(std::memory_order_acquire) == StreamState::STREAM_STATE_DISCONNECTED;
+  }
 
   static constexpr uint32_t SEND_STALL_TIMEOUT_MS = 20000;
   // While stalled, retry at most this often: on RP2 each try releases the lwIP lock, which postpones a polled
@@ -82,7 +94,7 @@ class AsyncStreamResponse {
   // Logs how long the stream made no progress and why, then aborts it
   void __attribute__((cold)) close_stuck_(uint32_t elapsed_ms, const LogString *reason);
 
-  // Set before attached_; the main loop owns it and frees it once disconnected_
+  // Set before the state turns attached; the main loop owns it and frees it once disconnected
   AsyncClient *client_{nullptr};
   // The part of the head the send buffer could not take in the network context; sent before anything else
   RAMUniquePtr<char[]> head_rest_;
@@ -94,9 +106,10 @@ class AsyncStreamResponse {
   size_t space_after_write_{0};
   uint32_t last_ack_ms_{0};
   // Set from the network callbacks with plain stores (no read-modify-write: RP2040 has none)
-  std::atomic<bool> disconnected_{false};
+  // Only moves forward (pending, attached, disconnected), set with plain stores from the network context, the
+  // request's teardown and abort_now(); one byte keeps the three main loop flags below in the same word
+  std::atomic<StreamState> state_{StreamState::STREAM_STATE_PENDING};
   std::atomic<bool> ack_timed_out_{false};
-  std::atomic<bool> attached_{false};
   // Main loop only
   bool close_requested_{false};
   bool close_sent_{false};

@@ -87,7 +87,7 @@ class StreamHandoffResponse final : public AsyncWebServerResponse {
   }
   ~StreamHandoffResponse() override {
     if (this->stream_ != nullptr) {
-      this->stream_->disconnected_.store(true, std::memory_order_release);
+      this->stream_->state_.store(StreamState::STREAM_STATE_DISCONNECTED, std::memory_order_release);
     }
   }
 
@@ -146,7 +146,8 @@ void AsyncStreamResponse::attach_(AsyncClient *client, RAMUniquePtr<char[]> head
   // the loop task and touches nothing after this callback, so the loop cannot free the client under it.
   client->onDisconnect(
       [](void *arg, AsyncClient *) {
-        static_cast<AsyncStreamResponse *>(arg)->disconnected_.store(true, std::memory_order_release);
+        static_cast<AsyncStreamResponse *>(arg)->state_.store(StreamState::STREAM_STATE_DISCONNECTED,
+                                                              std::memory_order_release);
       },
       this);
   client->onTimeout(
@@ -162,7 +163,7 @@ void AsyncStreamResponse::attach_(AsyncClient *client, RAMUniquePtr<char[]> head
   // could free the pcb the library still uses after it, so the main loop closes it once the callback has returned.
   this->close_requested_ = !head_kept;
   // Last: the main loop reads everything above once it sees this
-  this->attached_.store(true, std::memory_order_release);
+  this->state_.store(StreamState::STREAM_STATE_ATTACHED, std::memory_order_release);
 }
 
 AsyncStreamResponse::~AsyncStreamResponse() {
@@ -282,7 +283,7 @@ void AsyncStreamResponse::close_client_(bool abort) {
   if (!abort) {
     close_now(this->client_);
   } else if (!abort_now(this->client_)) {
-    this->disconnected_.store(true, std::memory_order_release);
+    this->state_.store(StreamState::STREAM_STATE_DISCONNECTED, std::memory_order_release);
   }
 }
 
