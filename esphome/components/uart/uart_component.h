@@ -214,7 +214,12 @@ class UARTComponent {
    *
    * This will load the current UART interface with the latest settings (baud_rate, parity, etc).
    */
+#ifdef USE_LIBRETINY
+  // Not pure here, so UART implementations written before LibreTiny had it still build; those do not reload
+  virtual void load_settings(bool /*dump_config*/) {}
+#else
   virtual void load_settings(bool dump_config) = 0;
+#endif
 
   /**
    * Load the UART settings.
