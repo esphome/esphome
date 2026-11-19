@@ -1,4 +1,4 @@
-"""poll_period is capped at 7200 s so the child timeout (4 * poll_period) stays within 8 hours."""
+"""poll_period limit and the core_options it replaces."""
 
 import logging
 
@@ -14,37 +14,32 @@ from esphome.components.openthread import (
 from esphome.const import KEY_FRAMEWORK_VERSION, PlatformFramework
 from tests.component_tests.types import SetCoreConfigCallable
 
-
-def _config(poll_period: str) -> dict:
-    return {
-        "device_type": "MTD",
-        "force_dataset": False,
-        "tlv": "0e080000000000010000000300001035060004001fffe00208e227ac6a7f24052f0708fdb753eb517cb4d3051062b2442a928d9ea3b947a1618fc4085a030f4f70656e5468726561642d393837330102987304105330d857354330133c05e1fd7ae81a910c0402a0f7f8",
-        "poll_period": poll_period,
-    }
+TLV = "0e080000000000010000000300001435060004001fffe0"
+OTHER_OPTION = {"OPENTHREAD_CONFIG_MLE_MAX_CHILDREN": "5"}
 
 
-def test_poll_period_at_maximum_accepted(
-    set_core_config: SetCoreConfigCallable,
-) -> None:
+@pytest.fixture(autouse=True)
+def _esp32_c6_idf(set_core_config: SetCoreConfigCallable) -> None:
     set_core_config(
         PlatformFramework.ESP32_IDF,
         platform_data={KEY_VARIANT: VARIANT_ESP32C6},
         core_data={KEY_FRAMEWORK_VERSION: cv.Version(5, 5, 5)},
     )
-    assert CONFIG_SCHEMA(_config("7200s"))["poll_period"].total_milliseconds == (
-        7200 * 1000
-    )
 
 
-def test_poll_period_above_maximum_limited(
-    set_core_config: SetCoreConfigCallable, caplog: pytest.LogCaptureFixture
-) -> None:
-    set_core_config(
-        PlatformFramework.ESP32_IDF,
-        platform_data={KEY_VARIANT: VARIANT_ESP32C6},
-        core_data={KEY_FRAMEWORK_VERSION: cv.Version(5, 5, 5)},
-    )
+def _config(poll_period: str | None, **extra: object) -> dict:
+    config = {"device_type": "MTD", "force_dataset": False, "tlv": TLV, **extra}
+    if poll_period is not None:
+        config["poll_period"] = poll_period
+    return config
+
+
+def test_poll_period_at_maximum_accepted() -> None:
+    result = CONFIG_SCHEMA(_config("7200s"))
+    assert result["poll_period"].total_milliseconds == 7200 * 1000
+
+
+def test_poll_period_above_maximum_limited(caplog: pytest.LogCaptureFixture) -> None:
     with caplog.at_level(logging.WARNING):
         result = CONFIG_SCHEMA(_config("7201s"))
     assert result["poll_period"].total_milliseconds == 7200 * 1000
@@ -52,36 +47,32 @@ def test_poll_period_above_maximum_limited(
 
 
 @pytest.mark.parametrize("name", sorted(MTD_POLL_PERIOD_OPTIONS))
-def test_mtd_drops_derived_core_options(
-    set_core_config: SetCoreConfigCallable, caplog: pytest.LogCaptureFixture, name: str
+def test_poll_period_drops_derived_core_options(
+    caplog: pytest.LogCaptureFixture, name: str
 ) -> None:
-    set_core_config(
-        PlatformFramework.ESP32_IDF,
-        platform_data={KEY_VARIANT: VARIANT_ESP32C6},
-        core_data={KEY_FRAMEWORK_VERSION: cv.Version(5, 5, 5)},
-    )
-    config = _config("5s")
-    config["core_options"] = {name: "0", "OPENTHREAD_CONFIG_MLE_MAX_CHILDREN": "5"}
+    config = _config("5s", core_options={name: "0", **OTHER_OPTION})
     with caplog.at_level(logging.WARNING):
         result = CONFIG_SCHEMA(config)
-    assert result["core_options"] == {"OPENTHREAD_CONFIG_MLE_MAX_CHILDREN": "5"}
+    assert result["core_options"] == OTHER_OPTION
     assert f"'{name}' in core_options is deprecated" in caplog.text
 
 
-def test_ftd_accepts_derived_core_options(
-    set_core_config: SetCoreConfigCallable,
+@pytest.mark.parametrize("poll_period", [None, "0s"])
+def test_no_polling_keeps_derived_core_options(
+    caplog: pytest.LogCaptureFixture, poll_period: str | None
 ) -> None:
-    set_core_config(
-        PlatformFramework.ESP32_IDF,
-        platform_data={KEY_VARIANT: VARIANT_ESP32C6},
-        core_data={KEY_FRAMEWORK_VERSION: cv.Version(5, 5, 5)},
-    )
-    config = _config("0s")
+    options = {"OPENTHREAD_CONFIG_MLE_CHILD_TIMEOUT_DEFAULT": "960"}
+    with caplog.at_level(logging.WARNING):
+        result = CONFIG_SCHEMA(_config(poll_period, core_options=options))
+    assert result["core_options"] == options
+    assert "deprecated" not in caplog.text
+
+
+def test_ftd_accepts_derived_core_options() -> None:
+    options = {"OPENTHREAD_CONFIG_CHILD_SUPERVISION_CHECK_TIMEOUT": "0"}
+    config = _config(None, core_options=options)
     config["device_type"] = "FTD"
-    config["core_options"] = {"OPENTHREAD_CONFIG_CHILD_SUPERVISION_CHECK_TIMEOUT": "0"}
-    assert CONFIG_SCHEMA(config)["core_options"] == {
-        "OPENTHREAD_CONFIG_CHILD_SUPERVISION_CHECK_TIMEOUT": "0"
-    }
+    assert CONFIG_SCHEMA(config)["core_options"] == options
 
 
 def test_action_poll_period_at_maximum_accepted() -> None:

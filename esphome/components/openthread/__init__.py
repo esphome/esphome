@@ -156,7 +156,7 @@ BORDER_ROUTER_SDKCONFIG_OPTIONS: dict[str, bool | int] = {
 OT_HEADER_DIR = "openthread"
 OT_HEADER_FILE = "esphome_ot_config.h"
 OT_CORE_OPTION_NAME = re.compile(r"[A-Z0-9_]+")
-# Set at run time from poll_period on an MTD, which would replace a core_options value.
+# Set at run time from poll_period, which would replace a core_options value.
 MTD_POLL_PERIOD_OPTIONS: frozenset[str] = frozenset(
     {
         "OPENTHREAD_CONFIG_MLE_CHILD_TIMEOUT_DEFAULT",
@@ -342,23 +342,21 @@ def _validate(config: ConfigType) -> ConfigType:
         )
     device_type = config.get(CONF_DEVICE_TYPE)
     poll_period = config.get(CONF_POLL_PERIOD)
-    if (
-        device_type == "FTD"
-        and poll_period
-        and poll_period > TimePeriodMilliseconds(milliseconds=0)
-    ):
+    polling = poll_period is not None and poll_period > TimePeriodMilliseconds(
+        milliseconds=0
+    )
+    if device_type == "FTD" and polling:
         raise cv.Invalid(
             f"{CONF_POLL_PERIOD} can only be used with {CONF_DEVICE_TYPE}: MTD"
         )
     # Remove before 2027.6.0: make these an error
-    if device_type == "MTD" and (core_options := config.get(CONF_CORE_OPTIONS)):
+    if polling and (core_options := config.get(CONF_CORE_OPTIONS)):
         for name in sorted(MTD_POLL_PERIOD_OPTIONS & core_options.keys()):
             _LOGGER.warning(
-                "'%s' in %s is deprecated with %s: MTD and ignored, it is derived from "
-                "%s. This will be an error in 2027.6.0",
+                "'%s' in %s is deprecated with %s and ignored, it is derived from it. "
+                "This will be an error in 2027.6.0",
                 name,
                 CONF_CORE_OPTIONS,
-                CONF_DEVICE_TYPE,
                 CONF_POLL_PERIOD,
             )
             del core_options[name]
@@ -461,9 +459,11 @@ def _limit_poll_period(value: TimePeriodMilliseconds) -> TimePeriodMilliseconds:
     # Remove before 2027.6.0: reject with cv.Range(max=MAX_POLL_PERIOD)
     if value > MAX_POLL_PERIOD:
         _LOGGER.warning(
-            "%s above 7200s is deprecated and now limited to 7200s. "
+            "%s above %s is deprecated and now limited to %s. "
             "This will be an error in 2027.6.0",
             CONF_POLL_PERIOD,
+            MAX_POLL_PERIOD,
+            MAX_POLL_PERIOD,
         )
         return MAX_POLL_PERIOD
     return value
