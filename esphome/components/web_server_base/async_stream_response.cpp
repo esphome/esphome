@@ -5,6 +5,7 @@
 #include <cstring>
 
 #include "esphome/core/application.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
@@ -161,7 +162,9 @@ void AsyncStreamResponse::attach_(AsyncClient *client, RAMUniquePtr<char[]> head
   this->head_rest_ = std::move(head_rest);
   // Without the rest of the head the stream cannot continue. Closing here, inside the client's receive callback,
   // could free the pcb the library still uses after it, so the main loop closes it once the callback has returned.
-  this->close_requested_ = !head_kept;
+  if (!head_kept) {
+    this->close_requested_ = true;
+  }
   // Last: the main loop reads everything above once it sees this
   this->state_.store(StreamState::STREAM_STATE_ATTACHED, std::memory_order_release);
 }
@@ -181,6 +184,10 @@ AsyncStreamResponse::~AsyncStreamResponse() {
 ssize_t AsyncStreamResponse::write(StreamIovec *iov, int iovcnt) {
   if (this->close_requested_) {
     return -1;
+  }
+  // The request has not handed over the connection yet
+  if (!this->is_attached()) {
+    return 0;
   }
   // The rest of the head goes first; loop() sends it
   if (this->head_rest_ != nullptr) {
@@ -272,7 +279,8 @@ void AsyncStreamResponse::close() {
 }
 
 void AsyncStreamResponse::close_client_(bool abort) {
-  if (this->close_sent_ || !this->is_connected()) {
+  // Before the connection is ours, close_requested_ keeps the close and loop() sends it once attached
+  if (this->close_sent_ || !this->is_connected() || !this->is_attached()) {
     return;
   }
   this->close_sent_ = true;

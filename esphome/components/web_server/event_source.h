@@ -6,7 +6,6 @@
 #include "esphome/components/json/json_util.h"
 #include "esphome/components/web_server_base/stream_response.h"
 #include "esphome/core/helpers.h"
-#include "esphome/core/string_ref.h"
 #include "list_entities.h"
 #include "sse_chunk.h"
 

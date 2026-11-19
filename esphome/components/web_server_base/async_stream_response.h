@@ -44,7 +44,8 @@ class AsyncStreamResponse {
   /// Network context, from a request handler, once. Queues the library's head for status (for example "200 OK":
   /// status line, default headers, Content-Type) with headers and body (a C string or null; all may be in flash),
   /// then takes the connection from the request. A chunked response passes {"Transfer-Encoding", "chunked"} in
-  /// headers and frames each chunk itself.
+  /// headers and frames each chunk itself. The head is built after the handler returns, so headers, their strings
+  /// and body must outlive the request (static data in practice); the ESP-IDF begin() sends it at once.
   void begin(AsyncWebServerRequest *request, const char *status, const char *content_type,
              std::span<const HttpHeader> headers, const char *body = nullptr);
 
@@ -110,7 +111,7 @@ class AsyncStreamResponse {
   // request's teardown and abort_now(); one byte keeps the three main loop flags below in the same word
   std::atomic<StreamState> state_{StreamState::STREAM_STATE_PENDING};
   std::atomic<bool> ack_timed_out_{false};
-  // Main loop only
+  // Main loop only, apart from attach_() setting close_requested_ when the head was lost
   bool close_requested_{false};
   bool close_sent_{false};
 };
