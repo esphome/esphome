@@ -326,6 +326,8 @@ void PioneerWT::write_frame_(uint8_t flags, uint8_t type, uint8_t seq, uint8_t a
   uint8_t frame[HEADER_SIZE + 2 + MAX_BODY_SIZE];
   const size_t total = build_frame(frame, flags, type, seq, ack, class_1, class_2, body, len);
   ESP_LOGVV_HEX(TAG, frame, total, sizeof(frame), "TX %s");
+  // Kept bytes of an earlier frame must not merge into the reply
+  this->reader_.drop_kept();
   this->write_array(frame, total);
 }
 

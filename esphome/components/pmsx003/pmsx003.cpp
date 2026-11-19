@@ -149,6 +149,8 @@ bool PMSX003Component::check_payload_length_(uint16_t payload_length) {
 }
 
 void PMSX003Component::send_command_(Command cmd, uint16_t data) {
+  // Kept bytes of an earlier reply must not merge into this command's
+  this->reader_.drop_kept();
   uint8_t send_data[7] = {
       START_CHARACTER_1,            // Start Byte 1
       START_CHARACTER_2,            // Start Byte 2

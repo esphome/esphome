@@ -246,6 +246,8 @@ void APC1Component::set_measurement_mode() {
 }
 
 void APC1Component::send_command_(APC1Command cmd, uint16_t data) {
+  // Kept bytes of an earlier reply must not merge into this command's
+  this->reader_.drop_kept();
   std::array<uint8_t, APC1_COMMAND_FRAME_SIZE> buf{
       APC1_HEADER_1,
       APC1_HEADER_2,

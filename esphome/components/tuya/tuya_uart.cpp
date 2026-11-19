@@ -473,7 +473,7 @@ void TuyaUART::process_command_queue_() {
   // the reply
   if (delay > COMMAND_DELAY && !this->command_queue_.empty() && !this->reader_.receiving() && !this->handling_frame_ &&
       !this->expected_response_.has_value()) {
-    this->reader_.reset();
+    this->reader_.drop_kept();
     this->send_raw_command_(command_queue_.front());
     if (!this->expected_response_.has_value())
       this->command_queue_.erase(command_queue_.begin());
