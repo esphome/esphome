@@ -463,6 +463,17 @@ static bool second_byte_not_ff(const uint8_t *buf) { return buf[1] != 0xFF; }
 using Checked =
     FrameFormat<FrameHeader<0xA5>, CheckedLength<PayloadLengthU8<LengthField{.offset = 2}>, 3, second_byte_not_ff>>;
 
+static size_t warned_len = 0;
+static void note_too_long(size_t len) { warned_len = len; }
+
+TEST(LengthFrameReaderTest, WarnIfLongerRejectsAndReports) {
+  LengthFrameReader<
+      8, FrameFormat<FrameHeader<0xA5>, WarnIfLonger<FrameLengthU8<LengthField{.offset = 1}>, 8, note_too_long>>>
+      reader;
+  EXPECT_EQ(feed_all(reader, {0xA5, 0x09, 0xA5, 0x03, 0x42}), (Frames{{0xA5, 0x03, 0x42}}));
+  EXPECT_EQ(warned_len, 9u);
+}
+
 TEST(LengthFrameReaderTest, CheckedLengthRejectsABadHeader) {
   LengthFrameReader<16, Checked> reader;
   EXPECT_EQ(feed_all(reader, {0xA5, 0xFF, 0x01, 0xA5, 0x00, 0x01, 0x42}), (Frames{{0xA5, 0x00, 0x01, 0x42}}));
