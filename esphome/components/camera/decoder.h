@@ -44,6 +44,9 @@ class Decoder {
   /// The pointer and its contents are valid only until the next call to decode().
   virtual Buffer *get_output_buffer() = 0;
 
+  /// Prints the decoder's configuration to the log.
+  virtual void dump_config() = 0;
+
   virtual ~Decoder() = default;
 };
 

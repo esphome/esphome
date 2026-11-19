@@ -4,6 +4,8 @@
 
 #include "esphome/core/log.h"
 
+#include "jpeg_grayscale.h"
+
 #include <climits>
 #include <utility>
 
@@ -12,6 +14,9 @@ namespace esphome::camera_decoder {
 ESPHOME_LOG_TAG(TAG, "camera_decoder");
 
 namespace {
+
+/// The decoder writes into a 16-byte aligned block.
+constexpr size_t JPEG_BUFFER_ALIGNMENT = 16;
 
 /// Maps the configured rotation to the library's enum once, at construction.
 jpeg_rotate_t rotation_to_jpeg(int degrees) {
@@ -27,25 +32,10 @@ jpeg_rotate_t rotation_to_jpeg(int degrees) {
   }
 }
 
-/// Compacts decoded RGB888 pixels to 8-bit luma in place.
-///
-/// esp_new_jpeg has no one-channel decoder output, so grayscale frames are
-/// decoded as RGB888 and reduced here. The integer weights match the
-/// conversion used by the camera image processors.
-void rgb888_to_grayscale_in_place(uint8_t *buffer, size_t pixels) {
-  // esp_jpeg_common.h documents RGB888 as R, G, B from low to high address.
-  // dst index i is always <= 3 * i, so a forward pass never reads a pixel it
-  // has already overwritten.
-  for (size_t i = 0; i < pixels; i++) {
-    const uint8_t *pixel = buffer + i * 3;
-    buffer[i] = static_cast<uint8_t>((pixel[0] * 77 + pixel[1] * 150 + pixel[2] * 29) >> 8);
-  }
-}
-
 }  // namespace
 
 JpegBuffer::JpegBuffer(size_t capacity) : capacity_(capacity) {
-  this->data_ = static_cast<uint8_t *>(jpeg_calloc_align(capacity, 16));
+  this->data_ = static_cast<uint8_t *>(jpeg_calloc_align(capacity, JPEG_BUFFER_ALIGNMENT));
 }
 
 JpegBuffer::~JpegBuffer() {
@@ -55,7 +45,7 @@ JpegBuffer::~JpegBuffer() {
 }
 
 ESP32CameraJPEGDecoder::ESP32CameraJPEGDecoder(camera::PixelFormat output_format, int rotation)
-    : output_format_(output_format), rotation_(rotation_to_jpeg(rotation)) {}
+    : output_format_(output_format), rotation_degrees_(rotation) {}
 
 ESP32CameraJPEGDecoder::~ESP32CameraJPEGDecoder() {
   if (this->decoder_ != nullptr) {
@@ -85,13 +75,17 @@ bool ESP32CameraJPEGDecoder::open_decoder_() {
       break;
   }
   config.block_enable = false;
-  config.rotate = this->rotation_;
+  config.rotate = rotation_to_jpeg(this->rotation_degrees_);
 
-  if (jpeg_dec_open(&config, &this->decoder_) != JPEG_ERR_OK) {
-    this->decoder_ = nullptr;
+  // Open into a local handle: an open that fails must not leave a half-initialized
+  // handle in the member, and a decoder that cannot open is not retried per frame.
+  jpeg_dec_handle_t decoder = nullptr;
+  if (jpeg_dec_open(&config, &decoder) != JPEG_ERR_OK) {
+    this->open_failed_ = true;
     ESP_LOGE(TAG, "Failed to open the JPEG decoder");
     return false;
   }
+  this->decoder_ = decoder;
   return true;
 }
 
@@ -107,7 +101,7 @@ camera::DecoderError ESP32CameraJPEGDecoder::decode(const uint8_t *data, size_t 
     return camera::DECODER_ERROR_FAILED;
   }
 
-  if (this->decoder_ == nullptr && !this->open_decoder_()) {
+  if (this->decoder_ == nullptr && (this->open_failed_ || !this->open_decoder_())) {
     return camera::DECODER_ERROR_FAILED;
   }
 
@@ -120,6 +114,14 @@ camera::DecoderError ESP32CameraJPEGDecoder::decode(const uint8_t *data, size_t 
   if (jpeg_dec_parse_header(this->decoder_, &io, &header) != JPEG_ERR_OK) {
     ESP_LOGE(TAG, "Failed to parse the JPEG header");
     return camera::DECODER_ERROR_FAILED;
+  }
+  // esp_new_jpeg rotates only when both dimensions are multiples of 8. Report
+  // that here instead of letting the decode fail with a generic error after the
+  // output buffer has been allocated.
+  if (this->rotation_degrees_ != 0 && (header.width % 8U != 0 || header.height % 8U != 0)) {
+    ESP_LOGE(TAG, "Cannot rotate a %ux%u JPEG: both dimensions must be multiples of 8",
+             static_cast<unsigned>(header.width), static_cast<unsigned>(header.height));
+    return camera::DECODER_ERROR_UNSUPPORTED;
   }
 
   int output_length = 0;
@@ -152,10 +154,9 @@ camera::DecoderError ESP32CameraJPEGDecoder::decode(const uint8_t *data, size_t 
   size_t output_bytes = static_cast<size_t>(output_length);
   if (this->output_format_ == camera::PIXEL_FORMAT_GRAYSCALE) {
     // Compacting in place avoids a second buffer, but the allocation above is
-    // still sized for RGB888 (3 bytes per pixel), so peak RAM is 3x the
-    // grayscale frame size.
+    // still sized for RGB888, so peak RAM is 3x the grayscale frame size.
     const uint64_t pixel_count = static_cast<uint64_t>(header.width) * static_cast<uint64_t>(header.height);
-    if (pixel_count == 0 || pixel_count * 3 > static_cast<uint64_t>(output_bytes)) {
+    if (pixel_count == 0 || pixel_count * RGB888_BYTES_PER_PIXEL > static_cast<uint64_t>(output_bytes)) {
       ESP_LOGE(TAG, "Decoded image does not fit in the JPEG output buffer");
       return camera::DECODER_ERROR_FAILED;
     }
@@ -168,11 +169,20 @@ camera::DecoderError ESP32CameraJPEGDecoder::decode(const uint8_t *data, size_t 
   spec->width = header.width;
   spec->height = header.height;
   spec->format = this->output_format_;
-  if (this->rotation_ == JPEG_ROTATE_90D || this->rotation_ == JPEG_ROTATE_270D) {
+  if (this->rotation_degrees_ == 90 || this->rotation_degrees_ == 270) {
     std::swap(spec->width, spec->height);
   }
 
   return camera::DECODER_ERROR_SUCCESS;
+}
+
+void ESP32CameraJPEGDecoder::dump_config() {
+  ESP_LOGCONFIG(TAG, "Camera Decoder:");
+  ESP_LOGCONFIG(TAG, "  Output: %s", camera::to_string(this->output_format_));
+  ESP_LOGCONFIG(TAG, "  Rotation: %d", this->rotation_degrees_);
+  if (this->output_format_ == camera::PIXEL_FORMAT_GRAYSCALE) {
+    ESP_LOGCONFIG(TAG, "  Grayscale: decoded as RGB888 and compacted in place, 3x frame RAM");
+  }
 }
 
 }  // namespace esphome::camera_decoder

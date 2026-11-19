@@ -20,6 +20,9 @@ class JpegBuffer final : public camera::Buffer {
   explicit JpegBuffer(size_t capacity);
   ~JpegBuffer() override;
 
+  JpegBuffer(const JpegBuffer &) = delete;
+  JpegBuffer &operator=(const JpegBuffer &) = delete;
+
   uint8_t *get_data_buffer() override { return this->data_; }
   size_t get_data_length() override { return this->length_; }
   bool valid() const { return this->data_ != nullptr; }
@@ -47,15 +50,19 @@ class ESP32CameraJPEGDecoder final : public camera::Decoder {
   /// Returns nullptr until a frame has been decoded successfully; the pointer
   /// and its contents stay valid only until the next decode().
   camera::Buffer *get_output_buffer() override { return this->has_output_ ? this->output_.get() : nullptr; }
+  void dump_config() override;
 
  protected:
   /// Opens the decoder on first use; the handle is kept for later frames.
   bool open_decoder_();
 
   camera::PixelFormat output_format_;
-  jpeg_rotate_t rotation_;
+  /// Rotation in degrees, converted to the library's enum when the decoder opens.
+  int rotation_degrees_;
   jpeg_dec_handle_t decoder_{nullptr};
   bool has_output_{false};
+  /// Set when the decoder could not be opened, so every frame does not retry it.
+  bool open_failed_{false};
   std::unique_ptr<JpegBuffer> output_;
 };
 
