@@ -130,6 +130,23 @@ bool write_stream_head(Send &&send, const char *status, const char *content_type
   return batch.ok;
 }
 
+/// Copies the bytes of a gather list that come after the first skip bytes to out and returns how many it copied.
+/// skip goes down by the bytes passed over, so calls for consecutive batches continue where the last one stopped.
+template<typename Iovec> size_t copy_iovecs_after(const Iovec *iov, int count, size_t &skip, char *out) {
+  size_t copied = 0;
+  for (int i = 0; i < count; i++) {
+    const size_t len = iov[i].iov_len;
+    if (skip >= len) {
+      skip -= len;
+      continue;
+    }
+    stream_memcpy(out + copied, static_cast<const char *>(iov[i].iov_base) + skip, len - skip);
+    copied += len - skip;
+    skip = 0;
+  }
+  return copied;
+}
+
 /// AsyncClient::add() flags; the three TCP libraries use the same values (checked where they are included)
 static constexpr uint8_t STREAM_ADD_FLAG_COPY = 0x01;
 static constexpr uint8_t STREAM_ADD_FLAG_MORE = 0x02;

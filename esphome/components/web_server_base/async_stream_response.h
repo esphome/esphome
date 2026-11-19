@@ -8,6 +8,7 @@
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <span>
 #include <sys/types.h>
 
@@ -79,8 +80,12 @@ class AsyncStreamResponse {
  protected:
   friend class StreamHandoffResponse;
 
-  // Network context, before publishing: take the connection; a head not queued whole closes it
-  void attach_(AsyncClient *client, bool head_sent);
+  // Network context, before publishing: take the connection and the part of the head not queued yet, as a C string;
+  // head_kept false (no memory for that part) closes it
+  void attach_(AsyncClient *client, std::unique_ptr<char[]> head_rest, bool head_kept);
+  // Main loop: queues what is left of the head; true once all of it is queued
+  bool send_head_rest_();
+  ssize_t send_(StreamIovec *iov, int iovcnt);
   // Starts the stall clock; once it has run SEND_STALL_TIMEOUT_MS, logs reason and aborts. True when it did.
   bool stall_or_close_(const LogString *reason);
   // Graceful FIN, or with abort a RST that frees the pcb now (a stuck stream's FIN would queue behind its data)
@@ -89,6 +94,8 @@ class AsyncStreamResponse {
 
   // Set before publishing; the main loop owns it and frees it once disconnected_
   AsyncClient *client_{nullptr};
+  // The part of the head the send buffer could not take in the network context; sent before anything else
+  std::unique_ptr<char[]> head_rest_;
   // Runs while sends make no progress
   StallClock stall_;
   uint32_t last_try_ms_{0};

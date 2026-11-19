@@ -311,6 +311,33 @@ TEST(IovecsTotal, SumsEveryElementIncludingEmptyOnes) {
   EXPECT_EQ(iovecs_total(iov, 0), 0U);
 }
 
+// The head rest a stream keeps after a short add(): for every split point, across pieces and batches, the bytes
+// copied after the split are exactly the rest of the head
+TEST(CopyIovecsAfter, RestOfHeadMatchesAtEverySplit) {
+  static constexpr HttpHeader HEADERS[] = {
+      {"X-Header-0", "value"}, {"X-Header-1", "value"}, {"X-Header-2", "value"}, {"X-Header-3", "value"},
+      {"X-Header-4", "value"}, {"X-Header-5", "value"}, {"X-Header-6", "value"}, {"X-Header-7", "value"},
+  };
+  const std::span<const HttpHeader> headers(HEADERS);
+  Capture cap;
+  const std::string full = build_head(cap, "200 OK", "text/event-stream", headers, DEFAULTS, "retry: 30000\n\n");
+  ASSERT_GT(cap.batch_sizes.size(), 1U);
+  for (size_t split = 0; split <= full.size(); split++) {
+    std::string rest(full.size() - split, '\0');
+    size_t skip = split;
+    size_t copied = 0;
+    write_stream_head<struct iovec>(
+        [&](struct iovec *iov, int count) {
+          copied += copy_iovecs_after(iov, count, skip, rest.data() + copied);
+          return true;
+        },
+        "200 OK", "text/event-stream", headers, DEFAULTS, "retry: 30000\n\n");
+    ASSERT_EQ(copied, rest.size()) << "split " << split;
+    EXPECT_EQ(skip, 0U) << "split " << split;
+    EXPECT_EQ(rest, full.substr(split)) << "split " << split;
+  }
+}
+
 }  // namespace esphome::web_server::testing
 
 #endif  // USE_HOST
