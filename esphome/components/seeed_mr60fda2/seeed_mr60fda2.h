@@ -60,7 +60,7 @@ class MR60FDA2Component final : public Component,
 
  protected:
   uint32_t last_rx_{0};
-  LengthFrameReader<FRAME_BUF_MAX_SIZE, FrameFormat<TinyFrameLength, FRAME_HEADER_BUFFER>> reader_;
+  LengthFrameReader<FRAME_BUF_MAX_SIZE, FrameFormat<FrameHeader<FRAME_HEADER_BUFFER>, TinyFrameLength>> reader_;
 
   void process_frame_(const uint8_t *frame);
 

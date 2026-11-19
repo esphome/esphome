@@ -55,7 +55,7 @@ class MR60BHA2Component final : public Component,
   void process_frame_(uint16_t frame_id, uint16_t frame_type, const uint8_t *data, size_t length);
 
   uint32_t last_rx_{0};
-  LengthFrameReader<FRAME_MAX_SIZE, FrameFormat<TinyFrameLength, FRAME_HEADER_BUFFER>> reader_;
+  LengthFrameReader<FRAME_MAX_SIZE, FrameFormat<FrameHeader<FRAME_HEADER_BUFFER>, TinyFrameLength>> reader_;
 };
 
 }  // namespace esphome::seeed_mr60bha2

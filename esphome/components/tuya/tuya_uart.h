@@ -23,7 +23,7 @@ static constexpr size_t MAX_FRAME_SIZE = 255;
 struct TuyaFrameLength {
   static constexpr size_t KNOWN_AT = 6;
   static size_t get(const uint8_t *buf) {
-    const size_t len = encode_uint16(buf[4], buf[5]) + 7;
+    const size_t len = PayloadLengthU16BE<4, 1>::get(buf);
     if (len > MAX_FRAME_SIZE)
       warn_too_long(len);
     return len;
@@ -130,7 +130,7 @@ class TuyaUART final : public Tuya, public uart::UARTDevice {
   bool product_invalid_{false};
   // Holds commands back while a received frame is handled
   bool handling_frame_{false};
-  LengthFrameReader<MAX_FRAME_SIZE, FrameFormat<TuyaFrameLength, 0x55, 0xAA>> reader_;
+  LengthFrameReader<MAX_FRAME_SIZE, FrameFormat<FrameHeader<0x55, 0xAA>, TuyaFrameLength>> reader_;
 };
 
 }  // namespace esphome::tuya

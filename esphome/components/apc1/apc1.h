@@ -89,7 +89,7 @@ class APC1Component final : public uart::UARTDevice, public Component {
   uint32_t last_valid_frame_{0};
   uint32_t last_init_attempt_{0};
   LengthFrameReader<APC1_FRAME_SIZE_MEASUREMENT,
-                    FrameFormat<FrameLengthU16BE<2, APC1_FRAME_HEADER_SIZE>, APC1_HEADER_1, APC1_HEADER_2>>
+                    FrameFormat<FrameHeader<APC1_HEADER_1, APC1_HEADER_2>, PayloadLengthU16BE<2>>>
       reader_;
   uint8_t last_error_code_{0xFF};
   bool active_mode_{true};

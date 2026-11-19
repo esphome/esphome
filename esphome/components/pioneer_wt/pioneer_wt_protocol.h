@@ -50,7 +50,7 @@ uint16_t frame_crc(const uint8_t *frame, size_t len);
 
 /// Collects bytes from the serial line into frames; checksum_valid() checks them.
 using PacketReader =
-    LengthFrameReader<MAX_FRAME_SIZE, FrameFormat<FrameLengthU8<LEN_POS>, FRAME_START_1, FRAME_START_2>>;
+    LengthFrameReader<MAX_FRAME_SIZE, FrameFormat<FrameHeader<FRAME_START_1, FRAME_START_2>, FrameLengthU8<LEN_POS>>>;
 
 /// True when the checksum matches; the frame must hold at least HEADER_SIZE bytes.
 inline bool checksum_valid(const uint8_t *frame, size_t len) {

@@ -83,7 +83,7 @@ class DalyBmsComponent final : public PollingComponent, public uart::UARTDevice 
   uint8_t addr_;
 
   // A5, address, data ID, length 8, 8 data bytes, sum8; every request and response has 8 data bytes
-  LengthFrameReader<DALY_FRAME_SIZE, FrameFormat<FrameFixedLength<DALY_FRAME_SIZE>, 0xA5>> reader_;
+  LengthFrameReader<DALY_FRAME_SIZE, FrameFormat<FrameHeader<0xA5>, FrameFixedLength<DALY_FRAME_SIZE>>> reader_;
   uint32_t last_transmission_{0};
   bool trigger_next_{false};
   // update() asked for a request cycle; it starts once no cycle is running. The first one runs at boot.

@@ -48,7 +48,7 @@ static constexpr uint8_t MAX_LINE_LENGTH = 45;
 static constexpr uint8_t MAX_TARGETS = 3;  // Max 3 Targets in LD2450
 static constexpr uint8_t MAX_ZONES = 3;    // Max 3 Zones in LD2450
 // Periodic frames: header, three targets of 8 bytes, footer; they carry no length
-using PeriodicFrameFormat = FrameFormat<FrameFixedLength<30>, 0xAA, 0xFF, 0x03, 0x00>;
+using PeriodicFrameFormat = FrameFormat<FrameHeader<0xAA, 0xFF, 0x03, 0x00>, FrameFixedLength<30>>;
 
 // Silence after our own commands (restart, Bluetooth toggle, ...) is not a link loss; a restart takes about 2.3 s
 static constexpr uint32_t LINK_GRACE_MS = 5000;

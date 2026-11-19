@@ -81,7 +81,9 @@ class PMSX003Component final : public uart::UARTDevice, public Component {
   Type type_;
   State state_{State::IDLE};
   bool initialised_{false};
-  LengthFrameReader<MAX_FRAME_SIZE, FrameFormat<FrameLengthU16BE<2, 4>, START_CHARACTER_1, START_CHARACTER_2>> reader_;
+  LengthFrameReader<MAX_FRAME_SIZE,
+                    FrameFormat<FrameHeader<START_CHARACTER_1, START_CHARACTER_2>, PayloadLengthU16BE<2>>>
+      reader_;
   uint32_t fan_on_time_{0};
   uint32_t last_update_{0};
   uint32_t last_transmission_{0};

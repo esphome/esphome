@@ -86,10 +86,10 @@ static constexpr uint8_t CMD_FRAME_FOOTER[HEADER_FOOTER_SIZE] PROGMEM = {0x04, 0
 static constexpr uint8_t DATA_FRAME_FOOTER[HEADER_FOOTER_SIZE] PROGMEM = {0xF8, 0xF7, 0xF6, 0xF5};
 
 // Command and periodic data frame formats with the length rule LENGTH
-template<class LENGTH> using CmdFrame = FrameFormat<LENGTH, 0xFD, 0xFC, 0xFB, 0xFA>;
-template<class LENGTH> using DataFrame = FrameFormat<LENGTH, 0xF4, 0xF3, 0xF2, 0xF1>;
-// The header, a little-endian payload length, the payload, then the footer
-using PayloadLength = FrameLengthU16LE<HEADER_FOOTER_SIZE, 2 * HEADER_FOOTER_SIZE + 2>;
+template<class LENGTH> using CmdFrame = FrameFormat<FrameHeader<0xFD, 0xFC, 0xFB, 0xFA>, LENGTH>;
+template<class LENGTH> using DataFrame = FrameFormat<FrameHeader<0xF4, 0xF3, 0xF2, 0xF1>, LENGTH>;
+// Header, payload length (2, LE), payload, footer
+using PayloadLength = PayloadLengthU16LE<HEADER_FOOTER_SIZE, HEADER_FOOTER_SIZE>;
 using CmdFrameFormat = CmdFrame<PayloadLength>;
 using DataFrameFormat = DataFrame<PayloadLength>;
 

@@ -28,7 +28,7 @@ namespace esphome::ld2410s {
 static constexpr size_t RX_BUFFER_SIZE = 96;
 static_assert(RX_BUFFER_SIZE <= 255, "frame lengths are kept in a byte");
 // Minimal output: header, state, distance low, distance high, footer
-using ShortDataFrameFormat = FrameFormat<FrameFixedLength<5>, 0x6E>;
+using ShortDataFrameFormat = FrameFormat<FrameHeader<0x6E>, FrameFixedLength<5>>;
 
 /// The module's common parameters, in the order the parameter read answers them
 enum class Parameter : uint8_t {
