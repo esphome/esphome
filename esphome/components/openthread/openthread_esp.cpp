@@ -263,10 +263,11 @@ void OpenThreadComponent::ot_main_() {
     const esp_err_t err = esp_openthread_launch_mainloop();
 #ifdef USE_OPENTHREAD_BORDER_ROUTER
     this->set_border_router_flag_(MAINLOOP_RUNNING, false);
-    // ESP-IDF 5.5 returns a processing error with the exit it handled
-    const bool exit_requested = this->set_border_router_flag_(MAINLOOP_EXIT_REQUESTED, false);
+    // ESP-IDF 5.5 returns a processing error with the exit it handled; teardown() posts one too
+    const bool exit_requested = this->set_border_router_flag_(MAINLOOP_EXIT_REQUESTED, false) ||
+                                this->teardown_stage_ != TeardownStage::TEARDOWN_STAGE_NOT_STARTED;
 #else
-    const bool exit_requested = false;
+    const bool exit_requested = this->teardown_stage_ != TeardownStage::TEARDOWN_STAGE_NOT_STARTED;
 #endif
     if (err != ESP_OK && !exit_requested) {
       ESP_LOGE(TAG, "OpenThread main loop failed: %s", esp_err_to_name(err));
