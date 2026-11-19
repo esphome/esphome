@@ -21,7 +21,7 @@ namespace {
 ESPHOME_LOG_TAG(TAG, "shelly_dimmer");
 
 constexpr uint8_t SHELLY_DIMMER_ACK_TIMEOUT = 200;  // ms
-// A partial frame left this long without a byte is given up, so a stray header cannot hide the reply
+// After this long without a byte, a partial frame is searched, so a stray header cannot hide the reply
 constexpr uint8_t SHELLY_DIMMER_RX_GAP = 20;  // ms
 constexpr uint8_t SHELLY_DIMMER_MAX_RETRIES = 3;
 constexpr uint16_t SHELLY_DIMMER_MAX_BRIGHTNESS = 1000;  // 100%

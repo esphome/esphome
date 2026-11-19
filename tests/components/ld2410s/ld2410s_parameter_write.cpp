@@ -77,13 +77,18 @@ class LD2410SWriteTest : public ::testing::Test {
     LoopBlockingGuard guard{nullptr, nullptr, now};
     this->radar_.loop();
   }
-  // Runs init until the configuration-mode-off acknowledgement is taken, then queues one change
-  void finish_init_(uint32_t now) {
+  // Runs init until the configuration-mode-off acknowledgement is taken; returns the time it stopped at
+  uint32_t run_init_(uint32_t now) {
     for (int pass = 0; pass < 20; pass++, now += STEP_MS) {
       this->loop_at_(now);
       if (!this->uart_.commands.empty() && this->uart_.commands.back() == 0x00FE && this->uart_.available() == 0)
         break;
     }
+    return now;
+  }
+  // Runs init, then queues one change
+  void finish_init_(uint32_t now) {
+    now = this->run_init_(now);
     ASSERT_EQ(this->uart_.commands, INIT_COMMANDS);
     ASSERT_EQ(this->uart_.available(), 0u);
     ASSERT_TRUE(this->radar_.set_parameter(Parameter::PARAMETER_NO_DELAY, 30));
@@ -178,12 +183,7 @@ TEST_F(LD2410SStartTest, GapAcrossWrapFullRange) {
 
 // A short data frame inside a bad command frame inside a bad data frame is still read, so the link holds
 TEST_F(LD2410SWriteTest, FrameInsideTwoNestedBadFramesKeepsTheLink) {
-  uint32_t now = START_FAR_FROM_WRAP;
-  for (int pass = 0; pass < 20; pass++, now += STEP_MS) {
-    this->loop_at_(now);
-    if (!this->uart_.commands.empty() && this->uart_.commands.back() == 0x00FE && this->uart_.available() == 0)
-      break;
-  }
+  const uint32_t now = this->run_init_(START_FAR_FROM_WRAP);
   ASSERT_EQ(this->uart_.commands, INIT_COMMANDS);
   ASSERT_FALSE(this->radar_.status_has_warning());
   std::vector<uint8_t> bytes = {0xF4, 0xF3, 0xF2, 0xF1, 0x20, 0x00, 0xFD, 0xFC, 0xFB, 0xFA, 0x07, 0x00};

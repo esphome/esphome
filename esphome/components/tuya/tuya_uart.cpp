@@ -473,9 +473,8 @@ void TuyaUART::process_command_queue_() {
   }
 
   // Left check of delay since last command in case there's ever a command sent by calling send_raw_command_ directly
-  // A partial frame the line has gone quiet on may be kept for its late bytes; it does not hold commands back
-  const bool rx_idle = this->reader_.length() == 0 || now - this->last_rx_char_timestamp_ >= RECEIVE_TIMEOUT;
-  if (delay > COMMAND_DELAY && !this->command_queue_.empty() && rx_idle && !this->handling_frame_ &&
+  // A partial frame kept by an idle flush for its late bytes does not hold commands back
+  if (delay > COMMAND_DELAY && !this->command_queue_.empty() && !this->reader_.receiving() && !this->handling_frame_ &&
       !this->expected_response_.has_value()) {
     this->send_raw_command_(command_queue_.front());
     if (!this->expected_response_.has_value())

@@ -347,7 +347,7 @@ TEST_F(PioneerWTTest, FindsFrameBehindCutOffHeaderAfterPause) {
   // A cut-off header claiming 255 bytes is kept; the frame landing inside it is found on the next idle pass
   this->uart_.push_rx_hex("a5010121000000ff");
   this->loop_at_(1100);
-  this->loop_at_(1400);
+  this->loop_at_(1400);  // idle pass: searched and kept
   this->uart_.push_rx_hex(PRESENCE_CHECK);
   this->loop_at_(2000);
   this->loop_at_(2300);  // idle pass after the gap

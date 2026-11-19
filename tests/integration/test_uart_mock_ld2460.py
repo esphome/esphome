@@ -122,7 +122,7 @@ async def test_uart_mock_ld2460(
             pytest.approx(-33.7, abs=0.1) in collector.sensor_states["target_1_angle"]
         )
         assert pytest.approx(26.6, abs=0.1) in collector.sensor_states["target_2_angle"]
-        # Phase 4 completed the truncated frame, which was rejected rather than given up early
+        # Later bytes completed phase 4's truncated frame, which was then rejected
         assert any("Invalid footer" in line for line in waiter.lines)
 
         # Phase 6: the top-mount receipt changes the angle for the same coordinates
