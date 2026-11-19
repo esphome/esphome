@@ -89,6 +89,7 @@ from .const import (
     KEY_SDKCONFIG_OPTIONS,
     KEY_SRC_CMAKE,
     KEY_VARIANT,
+    NO_WIFI_VARIANTS,
     VARIANT_ESP32,
     VARIANT_ESP32C2,
     VARIANT_ESP32C3,
@@ -2838,6 +2839,22 @@ def _rsa_signing_enabled() -> bool:
     )
 
 
+def _ecp_stays_on() -> bool:
+    """Whether ECP survives the TLS-off trim: X.509 parsing needs the PK layer,
+    which needs RSA or ECP. Native Wi-Fi's mbedTLS crypto selects ECP; hosted
+    Wi-Fi has no such option."""
+    if _mbedtls_sdkconfig().ecp_required:
+        return True
+    wifi_crypto = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS].get(
+        "CONFIG_ESP_WIFI_MBEDTLS_CRYPTO"
+    )
+    return (
+        _network_sdkconfig().wifi
+        and get_esp32_variant() not in NO_WIFI_VARIANTS
+        and (wifi_crypto is None or _format_sdkconfig_val(wifi_crypto) == "y")
+    )
+
+
 def _psa_user_config_applies() -> bool:
     """The user config header reaches every component only on the native ESP-IDF
     toolchain, and Arduino's libraries call mbedTLS directly."""
@@ -2972,7 +2989,11 @@ async def _reconcile_mbedtls_sdkconfig() -> None:
             set_idf_sdkconfig_default("CONFIG_MBEDTLS_PEM_PARSE_C", False)
             set_idf_sdkconfig_default("CONFIG_MBEDTLS_LARGE_KEY_SOFTWARE_MPI", False)
             _trim_mbedtls_options(MBEDTLS_NON_P256_CURVE_OPTIONS)
-        if _psa_user_config_applies() and not _rsa_signing_enabled():
+        if (
+            _psa_user_config_applies()
+            and _ecp_stays_on()
+            and not _rsa_signing_enabled()
+        ):
             for option in MBEDTLS_RSA_OPTIONS:
                 set_idf_sdkconfig_default(option, False)
     elif (

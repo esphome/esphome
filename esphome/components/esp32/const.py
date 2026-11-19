@@ -77,5 +77,13 @@ VARIANT_FRIENDLY = {
     VARIANT_ESP32S31: "ESP32-S31",
 }
 
+# Variants without a native Wi-Fi PHY; wifi: needs the esp32_hosted co-processor.
+NO_WIFI_VARIANTS = [
+    VARIANT_ESP32H2,
+    VARIANT_ESP32H4,
+    VARIANT_ESP32H21,
+    VARIANT_ESP32P4,
+]
+
 
 esp32_ns = cg.esphome_ns.namespace("esp32")

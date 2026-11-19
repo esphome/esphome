@@ -1177,6 +1177,7 @@ def test_reconcile_mbedtls_psa_user_config(
         KEY_IDF_VERSION: _IDF61,
         KEY_SDKCONFIG_OPTIONS: dict(preset),
         KEY_MBEDTLS_SDKCONFIG: data,
+        KEY_NETWORK_SDKCONFIG: NetworkSdkconfigData(wifi=True),
         KEY_EXCLUDE_COMPONENTS: set(_ESP_TLS_LINKING_COMPONENTS),
     }
 
@@ -1190,19 +1191,37 @@ def test_reconcile_mbedtls_psa_user_config(
         assert (opts.get(option) is False) is rsa_off
 
 
-def test_reconcile_mbedtls_psa_user_config_needs_native_toolchain(
-    set_core_config: SetCoreConfigCallable, tmp_path: Path
+@pytest.mark.parametrize(
+    ("framework", "toolchain", "idf"),
+    [
+        pytest.param(
+            PlatformFramework.ESP32_IDF, Toolchain.PLATFORMIO, _IDF61, id="platformio"
+        ),
+        pytest.param(PlatformFramework.ESP32_IDF, Toolchain.ESP_IDF, _IDF5, id="idf5"),
+        pytest.param(
+            PlatformFramework.ESP32_ARDUINO, Toolchain.ESP_IDF, _IDF61, id="arduino"
+        ),
+    ],
+)
+def test_reconcile_mbedtls_psa_user_config_not_applied(
+    set_core_config: SetCoreConfigCallable,
+    tmp_path: Path,
+    framework: PlatformFramework,
+    toolchain: Toolchain,
+    idf: cv.Version,
 ) -> None:
-    """Without the native toolchain the header could miss some components, so
+    """The header only reaches every component on the native ESP-IDF toolchain,
+    only ESP-IDF 6 needs it, and Arduino calls mbedTLS directly, so otherwise
     neither it nor the RSA trim is applied."""
-    set_core_config(PlatformFramework.ESP32_IDF)
-    CORE.toolchain = Toolchain.PLATFORMIO
+    set_core_config(framework)
+    CORE.toolchain = toolchain
     CORE.build_path = tmp_path
     CORE.data[KEY_ESP32] = {
         KEY_VARIANT: VARIANT_ESP32,
-        KEY_IDF_VERSION: _IDF61,
+        KEY_IDF_VERSION: idf,
         KEY_SDKCONFIG_OPTIONS: {},
         KEY_MBEDTLS_SDKCONFIG: MbedtlsSdkconfigData(),
+        KEY_NETWORK_SDKCONFIG: NetworkSdkconfigData(wifi=True),
         KEY_EXCLUDE_COMPONENTS: set(_ESP_TLS_LINKING_COMPONENTS),
     }
 
@@ -1212,6 +1231,81 @@ def test_reconcile_mbedtls_psa_user_config_needs_native_toolchain(
     assert not any("MBEDTLS_USER_CONFIG_FILE" in flag for flag in CORE.build_flags)
     opts = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
     assert not any(option in opts for option in MBEDTLS_RSA_OPTIONS)
+
+
+@pytest.mark.parametrize(
+    ("variant", "net", "data", "preset", "rsa_off"),
+    [
+        pytest.param(
+            VARIANT_ESP32,
+            NetworkSdkconfigData(wifi=True),
+            MbedtlsSdkconfigData(),
+            {},
+            True,
+            id="wifi",
+        ),
+        pytest.param(
+            VARIANT_ESP32,
+            NetworkSdkconfigData(),
+            MbedtlsSdkconfigData(),
+            {},
+            False,
+            id="no_wifi",
+        ),
+        pytest.param(
+            VARIANT_ESP32,
+            NetworkSdkconfigData(wifi=True),
+            MbedtlsSdkconfigData(),
+            {"CONFIG_ESP_WIFI_MBEDTLS_CRYPTO": RawSdkconfigValue("n")},
+            False,
+            id="wifi_internal_crypto",
+        ),
+        pytest.param(
+            VARIANT_ESP32P4,
+            NetworkSdkconfigData(wifi=True),
+            MbedtlsSdkconfigData(),
+            {},
+            False,
+            id="hosted_wifi",
+        ),
+        pytest.param(
+            VARIANT_ESP32,
+            NetworkSdkconfigData(),
+            MbedtlsSdkconfigData(ecp_required=True),
+            {},
+            True,
+            id="ecp_required",
+        ),
+    ],
+)
+def test_reconcile_mbedtls_rsa_needs_ecp(
+    set_core_config: SetCoreConfigCallable,
+    tmp_path: Path,
+    variant: str,
+    net: NetworkSdkconfigData,
+    data: MbedtlsSdkconfigData,
+    preset: dict[str, Any],
+    rsa_off: bool,
+) -> None:
+    """X.509 parsing needs the PK layer, which needs RSA or ECP, so RSA only
+    goes when ECP is sure to stay on."""
+    set_core_config(PlatformFramework.ESP32_IDF)
+    CORE.toolchain = Toolchain.ESP_IDF
+    CORE.build_path = tmp_path
+    CORE.data[KEY_ESP32] = {
+        KEY_VARIANT: variant,
+        KEY_IDF_VERSION: _IDF61,
+        KEY_SDKCONFIG_OPTIONS: dict(preset),
+        KEY_MBEDTLS_SDKCONFIG: data,
+        KEY_NETWORK_SDKCONFIG: net,
+        KEY_EXCLUDE_COMPONENTS: set(_ESP_TLS_LINKING_COMPONENTS),
+    }
+
+    asyncio.run(_reconcile_mbedtls_sdkconfig())
+
+    opts = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    for option in MBEDTLS_RSA_OPTIONS:
+        assert (opts.get(option) is False) is rsa_off
 
 
 @pytest.mark.parametrize(

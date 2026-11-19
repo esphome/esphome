@@ -86,12 +86,7 @@ _LOGGER = logging.getLogger(__name__)
 AUTO_LOAD = ["network"]
 DOMAIN = "wifi"
 
-NO_WIFI_VARIANTS = [
-    const.VARIANT_ESP32H2,
-    const.VARIANT_ESP32H4,
-    const.VARIANT_ESP32H21,
-    const.VARIANT_ESP32P4,
-]
+NO_WIFI_VARIANTS = const.NO_WIFI_VARIANTS
 
 
 def variant_has_wifi(variant: str) -> bool:
