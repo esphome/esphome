@@ -16,6 +16,7 @@ from esphome.const import (
 )
 import esphome.final_validate as fv
 
+AUTO_LOAD = ["light"]
 CODEOWNERS = ["@KoenBreeman"]
 CONF_UART_NUM = "uart_num"
 CONF_DMX_ID = "dmx_id"
