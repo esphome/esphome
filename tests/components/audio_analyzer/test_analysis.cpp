@@ -263,7 +263,7 @@ TEST(AudioAnalyzerDecimation, TopBandMatchesUndecimatedStream) {
 }
 
 TEST(AudioAnalyzerDecimation, AliasesOfTheTopBandAreAttenuated) {
-  // 12.1 and 19.9 kHz fold onto 3.9 kHz at 16 kHz
+  // 12.1 and 19.9 kHz fold onto 3.9 kHz at 16 kHz; test_config.py sweeps the whole folding range of every rate
   for (double frequency : {12100.0, 19900.0}) {
     const SpectrumAnalysis analysis = analyze_48k(frequency);
     for (uint8_t b = 0; b < NUM_BANDS; ++b) {
