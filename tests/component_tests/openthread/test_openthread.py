@@ -344,25 +344,24 @@ def ethernet_backbone(otbr_config: ConfigType, full_config: ConfigType) -> None:
 
 
 @pytest.mark.usefixtures("ethernet_backbone")
-def test_ethernet_backbone_accepts_config_without_wifi(
+@pytest.mark.parametrize(
+    "mutate",
+    [
+        lambda config: config.pop(CONF_WIFI),
+        lambda config: config[CONF_WIFI].update(
+            {CONF_NETWORKS: [], CONF_ENABLE_ON_BOOT: False}
+        ),
+    ],
+    ids=["without_wifi", "ignores_wifi_sta_rules"],
+)
+def test_ethernet_backbone_accepts_config(
     set_core_config: SetCoreConfigCallable,
     otbr_config: ConfigType,
     full_config: ConfigType,
+    mutate: Any,
 ) -> None:
     _set_esp32_idf_core(set_core_config, VARIANT_ESP32S31)
-    full_config.pop(CONF_WIFI)
-
-    _run_final_validation(otbr_config, full_config)
-
-
-@pytest.mark.usefixtures("ethernet_backbone")
-def test_ethernet_backbone_ignores_wifi_sta_rules(
-    set_core_config: SetCoreConfigCallable,
-    otbr_config: ConfigType,
-    full_config: ConfigType,
-) -> None:
-    _set_esp32_idf_core(set_core_config, VARIANT_ESP32S31)
-    full_config[CONF_WIFI].update({CONF_NETWORKS: [], CONF_ENABLE_ON_BOOT: False})
+    mutate(full_config)
 
     _run_final_validation(otbr_config, full_config)
 
@@ -396,54 +395,41 @@ def test_ethernet_backbone_rejects_incompatible_config(
         _run_final_validation(otbr_config, full_config)
 
 
-def test_border_router_ethernet_codegen(
+@pytest.mark.parametrize(
+    ("config_file", "ethernet_backbone", "rcp", "coexistence"),
+    [
+        ("border_router_ethernet.yaml", True, False, True),
+        ("border_router_ethernet_no_wifi.yaml", True, False, False),
+        ("border_router_wifi_with_ethernet.yaml", False, False, True),
+        ("border_router_rcp_ethernet.yaml", True, True, False),
+    ],
+    ids=["ethernet", "ethernet_no_wifi", "wifi_with_ethernet", "rcp_ethernet"],
+)
+def test_border_router_backbone_codegen(
     generate_main: Callable[[str | Path], str],
+    config_file: str,
+    ethernet_backbone: bool,
+    rcp: bool,
+    coexistence: bool,
 ) -> None:
-    generate_main(CONFIG_DIR / "border_router_ethernet.yaml")
+    generate_main(CONFIG_DIR / config_file)
 
     defines = {define.name for define in CORE.defines}
     sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    radio = (
+        "CONFIG_OPENTHREAD_RADIO_SPINEL_UART"
+        if rcp
+        else "CONFIG_OPENTHREAD_RADIO_NATIVE"
+    )
     assert "USE_OPENTHREAD_BORDER_ROUTER" in defines
-    assert "USE_OPENTHREAD_BACKBONE_ETHERNET" in defines
-    assert get_define_value("ESPHOME_ETHERNET_CONNECT_STATE_LISTENERS") == "1"
-    assert "USE_WIFI_CONNECT_STATE_LISTENERS" not in defines
-    assert sdkconfig["CONFIG_OPENTHREAD_RADIO_NATIVE"] is True
     assert sdkconfig["CONFIG_OPENTHREAD_BORDER_ROUTER"] is True
-    assert sdkconfig["CONFIG_ESP_COEX_SW_COEXIST_ENABLE"] is True
-
-
-def test_border_router_ethernet_without_wifi_skips_coexistence(
-    generate_main: Callable[[str | Path], str],
-) -> None:
-    generate_main(CONFIG_DIR / "border_router_ethernet_no_wifi.yaml")
-
-    assert "USE_OPENTHREAD_BACKBONE_ETHERNET" in {d.name for d in CORE.defines}
-    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
-    assert sdkconfig.get("CONFIG_ESP_COEX_SW_COEXIST_ENABLE") is not True
-
-
-def test_border_router_wifi_backbone_ignores_ethernet(
-    generate_main: Callable[[str | Path], str],
-) -> None:
-    generate_main(CONFIG_DIR / "border_router_wifi_with_ethernet.yaml")
-
-    defines = {define.name for define in CORE.defines}
-    assert "USE_OPENTHREAD_BORDER_ROUTER" in defines
-    assert "USE_OPENTHREAD_BACKBONE_ETHERNET" not in defines
-    assert "USE_ETHERNET_CONNECT_STATE_LISTENERS" not in defines
-    assert "USE_WIFI_CONNECT_STATE_LISTENERS" in defines
-
-
-def test_border_router_rcp_ethernet_codegen(
-    generate_main: Callable[[str | Path], str],
-) -> None:
-    generate_main(CONFIG_DIR / "border_router_rcp_ethernet.yaml")
-
-    defines = {define.name for define in CORE.defines}
-    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
-    assert "USE_OPENTHREAD_RCP_UART" in defines
-    assert "USE_OPENTHREAD_BACKBONE_ETHERNET" in defines
-    assert get_define_value("ESPHOME_ETHERNET_CONNECT_STATE_LISTENERS") == "1"
-    assert "USE_WIFI_CONNECT_STATE_LISTENERS" not in defines
-    assert sdkconfig["CONFIG_OPENTHREAD_RADIO_SPINEL_UART"] is True
-    assert sdkconfig.get("CONFIG_ESP_COEX_SW_COEXIST_ENABLE") is not True
+    assert ("USE_OPENTHREAD_RCP_UART" in defines) is rcp
+    assert sdkconfig[radio] is True
+    assert ("USE_OPENTHREAD_BACKBONE_ETHERNET" in defines) is ethernet_backbone
+    # Border routing follows the backbone: one connect state listener on its link, none on the other
+    assert get_define_value("ESPHOME_ETHERNET_CONNECT_STATE_LISTENERS") == (
+        "1" if ethernet_backbone else None
+    )
+    assert ("USE_WIFI_CONNECT_STATE_LISTENERS" in defines) is not ethernet_backbone
+    # Software coexistence only for the native radio next to Wi-Fi
+    assert (sdkconfig.get("CONFIG_ESP_COEX_SW_COEXIST_ENABLE") is True) is coexistence
