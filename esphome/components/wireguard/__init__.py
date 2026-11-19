@@ -5,7 +5,7 @@ from esphome import automation
 import esphome.codegen as cg
 from esphome.components import network, time
 from esphome.components.esp32 import CORE, add_idf_component, add_idf_sdkconfig_option
-from esphome.components.noise import LIBSODIUM_VERSION, use_managed_components
+from esphome.components.noise import LIBSODIUM_VERSION, use_registry_libsodium
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADDRESS,
@@ -156,7 +156,7 @@ async def to_code(config):
     cg.add_library("esphome/wireguard", "0.4.8")
     # Same rule as noise: the wireguard library then uses the registry libsodium
     # instead of its own copy
-    if use_managed_components():
+    if use_registry_libsodium():
         add_idf_component(name="esphome/libsodium", ref=LIBSODIUM_VERSION)
 
     await cg.register_component(var, config)
