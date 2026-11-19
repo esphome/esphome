@@ -208,11 +208,14 @@ class SendspinHub final : public Component,
   /// @brief Returns the SendspinFeature flags reported to API clients.
   uint32_t get_feature_flags() const { return SENDSPIN_FEATURE_PAIRING_TOKEN; }
 
+  /// A pairing token's characters, with no terminating NUL.
+  using PairingToken = std::array<char, sendspin::SendspinClient::PAIRING_TOKEN_LENGTH>;
+
   /// @brief Returns the pairing token a Sendspin server uses to pair with this device.
   ///
   /// The token is a long-lived secret, so this component never logs it. Returns std::nullopt until the client has
   /// started once; it stays available after the client stops. Main loop only.
-  std::optional<std::string> get_pairing_token() const;
+  std::optional<PairingToken> get_pairing_token() const;
 
   /// @brief Returns the Sendspin client_id: base64url of the client's static public key.
   ///
@@ -362,13 +365,13 @@ class SendspinHub final : public Component,
 
   void on_close_pairing_window() override;
 
-  void on_display_pairing_code(const std::string &code, sendspin::SendspinPairingCodeFormat format) override;
+  void on_pairing_code(std::string_view code, sendspin::SendspinPairingCodeFormat format) override;  // NOLINT
 
   void on_clear_pairing_code() override;
 
-  void on_pairing_succeeded(const std::string &server_id) override;
+  void on_paired(std::string_view server_id) override;  // NOLINT
 
-  void on_pairing_failed(const std::string &server_id, sendspin::SendspinPairAbortReason reason) override;
+  void on_pairing_aborted(std::string_view server_id, sendspin::SendspinPairAbortReason reason) override;  // NOLINT
 
   // --- SendspinNetworkProvider override ---
   bool is_network_ready() override;
