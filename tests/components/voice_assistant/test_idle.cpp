@@ -3,6 +3,7 @@
 #include <array>
 #include <netinet/in.h>
 #include <span>
+#include <string>
 #include <sys/socket.h>
 #include <unistd.h>
 #include <vector>
@@ -109,6 +110,7 @@ class VoiceAssistantIdleTest : public ::testing::Test {
     int client = ::accept(listener, nullptr, nullptr);
     ::close(listener);
     ASSERT_GE(client, 0);
+    this->peer_fd_ = peer;
     this->peer_ = std::make_unique<api::APIPlaintextFrameHelper>(std::make_unique<socket::Socket>(peer));
     ASSERT_EQ(this->peer_->init(), api::APIError::OK);
     this->client_ = std::make_unique<api::APIConnection>(std::make_unique<socket::Socket>(client), &this->server_);
@@ -216,6 +218,7 @@ class VoiceAssistantIdleTest : public ::testing::Test {
   api::APIServer server_;
   std::unique_ptr<api::APIConnection> client_;
   std::unique_ptr<api::APIPlaintextFrameHelper> peer_;
+  int peer_fd_{-1};  // Owned by peer_.
 };
 
 TEST_F(VoiceAssistantIdleTest, InitialAndRepeatedIdleDoNotInventACompletion) {
@@ -246,6 +249,34 @@ TEST_F(VoiceAssistantIdleTest, IdleAutomationCanStartTheNextRequest) {
   EXPECT_EQ(this->microphone_.starts, 2u);
   EXPECT_EQ(this->start_requests_(), 1u);
   EXPECT_TRUE(this->voice_.is_running());
+}
+
+TEST_F(VoiceAssistantIdleTest, FailedStartReportsErrorAndLetsTheIdleAutomationRequestAnotherRun) {
+  this->voice_.request_start(false, false);
+  this->pump_(2);
+  // The client goes away between microphone startup and sending the API request.
+  const linger reset_on_close{1, 0};
+  ASSERT_EQ(::setsockopt(this->peer_fd_, SOL_SOCKET, SO_LINGER, &reset_on_close, sizeof(reset_on_close)), 0);
+
+  std::string error_code;
+  LambdaAction<std::string, std::string> capture_error{
+      [&](const std::string &code, const std::string &) { error_code = code; }};
+  Automation<std::string, std::string> on_error{this->voice_.get_error_trigger()};
+  on_error.add_action(&capture_error);
+
+  this->peer_.reset();
+  this->restart_once_ = true;
+  this->pump_(1);
+  this->voice_.get_error_trigger()->set_automation_parent(nullptr);
+  EXPECT_EQ(error_code, "not-connected");
+  EXPECT_EQ(this->idle_count_, 1u);
+  EXPECT_TRUE(this->voice_.is_running());
+
+  // Once the server removes the disconnected client, the requested retry cannot run.
+  this->disconnect_client_();
+  this->pump_(4);
+  EXPECT_FALSE(this->voice_.is_running());
+  EXPECT_EQ(this->microphone_.starts, 1u);
 }
 
 TEST_F(VoiceAssistantIdleTest, ContinuousIdleRetainsItsExistingLoopTiming) {
