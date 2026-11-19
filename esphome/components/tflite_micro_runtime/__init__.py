@@ -4,6 +4,7 @@ Image (single-shot) and audio (streaming) models, on top of esp-tflite-micro.
 """
 
 from dataclasses import dataclass
+import inspect
 import logging
 from pathlib import Path
 import zlib
@@ -141,12 +142,32 @@ def _model_filename(model_path: Path) -> str:
     return Path(str(model_path).replace("\\", "/")).name
 
 
+def _progmem_array_supports_align() -> bool:
+    """Whether ``progmem_array()`` takes ``align`` (added in 2026.12, #22620)."""
+    return "align" in inspect.signature(cg.progmem_array).parameters
+
+
+_PROGMEM_ARRAY_SUPPORTS_ALIGN = _progmem_array_supports_align()
+
+
 def _emit_model_buffer(config: ConfigType, model_data: bytes) -> cg.MockObj:
-    """Emit the model as a PROGMEM array and return a reference to it."""
+    """Emit the model as a 16-byte aligned PROGMEM array and return a reference."""
     # TFLM casts the buffer to a flatbuffer, so it cannot be byte-aligned.
-    return cg.progmem_array(
-        config[CONF_RAW_DATA_ID], [HexInt(x) for x in model_data], align=16
+    values = [HexInt(x) for x in model_data]
+    if _PROGMEM_ARRAY_SUPPORTS_ALIGN:
+        return cg.progmem_array(config[CONF_RAW_DATA_ID], values, align=16)
+    # ESPHome 2026.11 and earlier: ``align`` does not exist yet. Emit the same
+    # declaration the updated helper produces, so the buffer keeps its alignment.
+    id_ = config[CONF_RAW_DATA_ID]
+    cg.add_global(
+        cg.RawExpression(
+            f"alignas(16) static constexpr {id_.type} {id_}[] PROGMEM = "
+            f"{cg.safe_exp(values)}"
+        )
     )
+    obj = cg.MockObj(id_, ".")
+    CORE.register_variable(id_, obj)
+    return obj
 
 
 def _validate_model_operators(model_path: Path) -> None:
