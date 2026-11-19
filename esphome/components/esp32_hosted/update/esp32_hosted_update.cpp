@@ -30,6 +30,8 @@ ESPHOME_LOG_TAG(TAG, "esp32_hosted.update");
 constexpr size_t CHUNK_SIZE = EH_HOST_CP_OTA_CHUNK_MAX;
 // OTA begin blocks while the coprocessor erases its partition, end while it validates the image
 constexpr uint32_t OTA_WDT_TIMEOUT_MS = 60000;
+// A coprocessor that does not answer blocks the version request for the 5 s RPC timeout
+constexpr uint32_t VERSION_WDT_TIMEOUT_MS = 15000;
 
 static esp_err_t ota_end_guarded() {
   watchdog::WatchdogManager wdt(OTA_WDT_TIMEOUT_MS);
@@ -94,14 +96,19 @@ static int compare_versions(int major1, int minor1, int patch1, int major2, int 
 void Esp32HostedUpdate::setup() {
   this->update_info_.title = "ESP32 Hosted Coprocessor";
 
-#ifndef USE_WIFI
-  // If WiFi is not present, connect to the coprocessor
-  esp_hosted_connect_to_slave();  // NOLINT
-#endif
-
   // Get coprocessor version
   esp_hosted_coprocessor_fwver_t ver_info;
-  if (esp_hosted_get_coprocessor_fwversion(&ver_info) == ESP_OK) {
+  esp_err_t err;
+  {
+    watchdog::WatchdogManager wdt(VERSION_WDT_TIMEOUT_MS);
+#ifndef USE_WIFI
+    // If WiFi is not present, connect to the coprocessor
+    esp_hosted_connect_to_slave();  // NOLINT
+#endif
+    err = esp_hosted_get_coprocessor_fwversion(&ver_info);
+  }
+  App.feed_wdt();
+  if (err == ESP_OK) {
     // 16 bytes: "255.255.255" (11 chars) + null + safety margin
     char buf[16];
     snprintf(buf, sizeof(buf), "%" PRIu32 ".%" PRIu32 ".%" PRIu32, ver_info.major1, ver_info.minor1, ver_info.patch1);
