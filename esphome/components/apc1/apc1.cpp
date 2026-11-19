@@ -26,7 +26,6 @@ static constexpr uint32_t APC1_COLD_BOOT_INIT_DELAY_MS = 2000;
 static constexpr uint32_t APC1_INIT_RETRY_INTERVAL_MS = 10000;
 // Active mode streams a frame every second; this long without one means the sensor stopped
 static constexpr uint32_t APC1_NO_DATA_TIMEOUT_MS = 15000;
-// Drop a partial frame when the bytes stop mid-way
 
 void APC1Component::setup() {
   if (this->set_pin_ != nullptr) {

@@ -8,7 +8,6 @@ namespace esphome::pmsx003 {
 ESPHOME_LOG_TAG(TAG, "pmsx003");
 
 static const uint16_t STABILISING_MS = 30000;  // time taken for the sensor to become stable after power on in ms
-// Drop a partial frame when the bytes stop mid-way
 
 static const uint16_t CMD_MEASUREMENT_MODE_PASSIVE =
     0x0000;  // use `Command::MANUAL_MEASUREMENT` to trigger a measurement
