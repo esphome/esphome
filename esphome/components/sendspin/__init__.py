@@ -10,6 +10,7 @@ from esphome.components import (
     mdns,
     microphone,
     network,
+    noise,
     psram,
     socket,
     wifi,
@@ -543,6 +544,9 @@ async def to_code(config: ConfigType) -> None:
 
     # sendspin-cpp library
     esp32.add_idf_component(name="sendspin/sendspin-cpp", ref="0.9.3")
+    # sendspin-cpp takes any noise-c from 0.1.13 up; pin the versions the noise component uses
+    esp32.add_idf_component(name="esphome/noise-c", ref=noise.NOISE_C_VERSION)
+    esp32.add_idf_component(name="esphome/libsodium", ref=noise.LIBSODIUM_VERSION)
     # esp_websocket_client links esp_tls even for ws:// connections.
     esp32.request_tls()
 
