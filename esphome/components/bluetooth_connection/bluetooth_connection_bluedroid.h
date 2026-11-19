@@ -1,7 +1,7 @@
 // Bluedroid (esp32) GATT client backend: the esp32 arm of the
 // ble_device_base::BLEGattConnection alias for the hub BluetoothConnection
 // wrapper. Not a BLEClientBase: the tracker's promote loop owns
-// scan-stop/coex/one-connect-at-a-time, so the contract's connect() only
+// scan-stop/one-connect-at-a-time, so the contract's connect() only
 // parks the address in DISCOVERED; the real esp_ble_gattc_open happens in
 // the tracker-invoked connect() override.
 
@@ -25,7 +25,7 @@ class BluetoothConnection;
 #endif
 
 // One class carries both halves: the tracker's ESPBTClient surface (its
-// promote loop owns scan-stop/coex/one-connect-at-a-time and calls the
+// promote loop owns scan-stop/one-connect-at-a-time and calls the
 // virtual connect()/disconnect()) and the neutral contract ops. The
 // contract's teardown op is named gatt_disconnect() because the tracker's
 // void disconnect() cannot overload with an int-returning twin.

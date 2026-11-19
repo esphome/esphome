@@ -127,8 +127,8 @@ int BluedroidGattClient::connect(uint64_t address, uint8_t addr_type) {
   }
   ble_device_base::uint64_to_mac_msb_first(address, this->remote_bda_);
   this->remote_addr_type_ = addr_type;
-  // Hand the request to the tracker's promote loop: it stops the scan, raises
-  // coex, and calls tracker_connect_() - the tracker owns connect timing here.
+  // Hand the request to the tracker's promote loop: it stops the scan and
+  // calls tracker_connect_() - the tracker owns connect timing here.
   this->set_state(ClientState::DISCOVERED);
   return 0;
 }
