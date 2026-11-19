@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+#include <algorithm>
 #include <cmath>
 #include <cstring>
 
@@ -269,6 +270,28 @@ TEST(BufAppendStrP, AppendsAndTruncates) {
   pos = buf_append_str_p(buf, sizeof(buf), pos, UNIT);
   EXPECT_STREQ(buf, "12daysd");
   EXPECT_EQ(pos, 7u);
+}
+
+// --- progmem_copy_str() ---
+
+TEST(ProgmemCopyStr, CopiesUpToTheNullOrTheEndAtEveryAlignment) {
+  static constexpr char TEXT[] = "0123456789abcdefghij";
+  constexpr size_t len = sizeof(TEXT) - 1;
+  for (size_t offset = 0; offset < 4; offset++) {
+    // Reads whole aligned words, so the source is a zero padded copy
+    alignas(4) char src[32] = {};
+    memcpy(src + offset, TEXT, sizeof(TEXT));
+    for (size_t room = 0; room <= len + 2; room++) {
+      SCOPED_TRACE(::testing::Message() << "offset " << offset << " room " << room);
+      char dst[32];
+      memset(dst, '#', sizeof(dst));
+      const char *const end = progmem_copy_str(dst, dst + room, src + offset);
+      const size_t copied = std::min(room, len);
+      EXPECT_EQ(end, dst + copied);
+      EXPECT_EQ(memcmp(dst, TEXT, copied), 0);
+      EXPECT_EQ(dst[copied], '#');  // No terminator written
+    }
+  }
 }
 
 // --- base64 encode/decode ---

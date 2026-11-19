@@ -1,7 +1,7 @@
 from collections.abc import Callable
 from pathlib import Path
 import textwrap
-from typing import NamedTuple, TypedDict
+from typing import Literal, NamedTuple, TypedDict
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -212,10 +212,18 @@ async def _cdc_acm_to_code() -> None:
     _cdc_acm_add_ports()
 
 
-def zephyr_setup_preferences() -> None:
+PreferenceStorage = Literal["NVS", "ZMS"]
+
+
+def zephyr_setup_preferences(storage: PreferenceStorage = "NVS") -> None:
+    """Store preferences through the settings subsystem.
+
+    `storage` picks the Zephyr storage backend: NVS for flash, ZMS for RRAM and MRAM.
+    """
     cg.add(zephyr_ns.setup_preferences())
     zephyr_add_prj_conf("SETTINGS", True)
-    zephyr_add_prj_conf("NVS", True)
+    zephyr_add_prj_conf(storage, True)
+    zephyr_add_prj_conf(f"SETTINGS_{storage}", True)
     zephyr_add_prj_conf("FLASH_MAP", True)
     zephyr_add_prj_conf("FLASH", True)
 

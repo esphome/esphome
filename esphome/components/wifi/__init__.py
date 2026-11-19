@@ -298,11 +298,14 @@ AP_MANUAL_IP_SCHEMA = cv.Schema(
     }
 )
 
-STA_MANUAL_IP_SCHEMA = AP_MANUAL_IP_SCHEMA.extend(
-    {
-        cv.Optional(CONF_DNS1, default="0.0.0.0"): cv.ipv4address,
-        cv.Optional(CONF_DNS2, default="0.0.0.0"): cv.ipv4address,
-    }
+STA_MANUAL_IP_SCHEMA = cv.All(
+    AP_MANUAL_IP_SCHEMA.extend(
+        {
+            cv.Optional(CONF_DNS1, default="0.0.0.0"): cv.ipv4address,
+            cv.Optional(CONF_DNS2, default="0.0.0.0"): cv.ipv4address,
+        }
+    ),
+    require_ipv4(DOMAIN, CONF_MANUAL_IP),
 )
 
 TTLS_PHASE_2 = {
@@ -388,6 +391,7 @@ def wifi_network_ap(value):
     if value is None:
         value = {}
     config = WIFI_NETWORK_AP(value)
+    require_ipv4(DOMAIN, CONF_AP)(config)
     ap_mode = config[CONF_AP_MODE]
     if ap_mode == WIFI_AP_MODE_WISP and not config.get(CONF_PASSWORD):
         raise cv.Invalid(
@@ -688,6 +692,7 @@ def _lease_cache_schema(value: Any) -> ConfigType:
     value = LEASE_CACHE_SCHEMA(value)
     if value[CONF_ENABLED]:
         cv.only_on_esp32(value)
+        require_ipv4(DOMAIN, CONF_LEASE_CACHE)(value)
         if CONF_STORAGE not in value:
             if not preferences.rtc_supported():
                 raise cv.Invalid(
@@ -780,7 +785,6 @@ CONFIG_SCHEMA = cv.All(
     _apply_min_auth_mode_default,
     _validate,
     _report_provisioning_credentials,
-    require_ipv4(DOMAIN),
 )
 
 
