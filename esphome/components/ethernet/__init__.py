@@ -64,8 +64,6 @@ DOMAIN = "ethernet"
 
 # Key for tracking IP state listener count in CORE.data
 ETHERNET_IP_STATE_LISTENERS_KEY = "ethernet_ip_state_listeners"
-# Key for tracking connect state listener count in CORE.data
-ETHERNET_CONNECT_STATE_LISTENERS_KEY = "ethernet_connect_state_listeners"
 # Key for tracking configured ethernet type
 ETHERNET_TYPE_KEY = "ethernet_type"
 
@@ -81,15 +79,19 @@ def request_ethernet_ip_state_listener() -> None:
     )
 
 
+_request_connect_state_listener_slot = cg.slot_counter(
+    "ESPHOME_ETHERNET_CONNECT_STATE_LISTENERS"
+)
+
+
 def request_ethernet_connect_state_listener() -> None:
     """Request a connect state listener slot.
 
     Components that implement EthernetConnectStateListener should call this
     in their to_code() to be told when the interface connects or disconnects.
     """
-    CORE.data[ETHERNET_CONNECT_STATE_LISTENERS_KEY] = (
-        CORE.data.get(ETHERNET_CONNECT_STATE_LISTENERS_KEY, 0) + 1
-    )
+    cg.add_define("USE_ETHERNET_CONNECT_STATE_LISTENERS")
+    _request_connect_state_listener_slot()
 
 
 # RMII pins that are hardcoded on ESP32 classic and cannot be changed
@@ -887,9 +889,6 @@ async def final_step() -> None:
     if ip_state_count := CORE.data.get(ETHERNET_IP_STATE_LISTENERS_KEY, 0):
         cg.add_define("USE_ETHERNET_IP_STATE_LISTENERS")
         cg.add_define("ESPHOME_ETHERNET_IP_STATE_LISTENERS", ip_state_count)
-    if connect_state_count := CORE.data.get(ETHERNET_CONNECT_STATE_LISTENERS_KEY, 0):
-        cg.add_define("USE_ETHERNET_CONNECT_STATE_LISTENERS")
-        cg.add_define("ESPHOME_ETHERNET_CONNECT_STATE_LISTENERS", connect_state_count)
 
 
 _platform_filter = filter_source_files_from_platform(

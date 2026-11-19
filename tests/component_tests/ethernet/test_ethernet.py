@@ -1,7 +1,5 @@
 """Tests for the ethernet final-validation coexistence gate and schema bounds."""
 
-import asyncio
-
 import pytest
 from voluptuous import Invalid
 
@@ -18,7 +16,6 @@ from esphome.components.ethernet import (
     CONF_CLOCK_SPEED,
     CONFIG_SCHEMA,
     _final_validate_wifi,
-    final_step,
     request_ethernet_connect_state_listener,
 )
 from esphome.components.network import _validate_priority_list
@@ -183,7 +180,7 @@ def test_connect_state_listener_defines(requests: int) -> None:
     """Each request adds a listener slot; without one the listener code stays compiled out."""
     for _ in range(requests):
         request_ethernet_connect_state_listener()
-    asyncio.run(final_step())
+    CORE.flush_tasks()
     assert (
         "USE_ETHERNET_CONNECT_STATE_LISTENERS" in {d.name for d in CORE.defines}
     ) is (requests > 0)
