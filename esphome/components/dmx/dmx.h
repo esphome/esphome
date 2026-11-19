@@ -1,8 +1,10 @@
 #pragma once
 
+#include <cmath>
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
+#include "esphome/components/light/light_output.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/number/number.h"
 
@@ -150,4 +152,24 @@ class DMXOutputNumber : public number::Number, public Component {
   uint16_t channel_{1};
 };
 
+enum class DMXLightType : uint8_t {
+  DIMMER,
+  RGB,
+  RGBW,
+};
+
+class DMXLightOutput : public light::LightOutput {
+ public:
+  void set_parent(DMXComponent *parent) { this->parent_ = parent; }
+  void set_first_channel(uint16_t channel) { this->first_channel_ = channel; }
+  void set_light_type(DMXLightType type) { this->light_type_ = type; }
+
+  light::LightTraits get_traits() override;
+  void write_state(light::LightState *state) override;
+
+ protected:
+  DMXComponent *parent_{nullptr};
+  uint16_t first_channel_{1};
+  DMXLightType light_type_{DMXLightType::DIMMER};
+};
 }  // namespace esphome::dmx

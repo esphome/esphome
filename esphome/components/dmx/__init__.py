@@ -103,7 +103,7 @@ def _uart_component_assigned_ports(full_config, logger_uart: int | None) -> set[
     return used
 
 
-def _final_validate(config):
+def _final_validate(config) -> None:
     full_config = fv.full_config.get()
     uart_num = config[CONF_UART_NUM]
 
@@ -140,8 +140,6 @@ def _final_validate(config):
             [CONF_UART_NUM],
         )
     claimed.add(uart_num)
-    return config
-
 
 FINAL_VALIDATE_SCHEMA = _final_validate
 

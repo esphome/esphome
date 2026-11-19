@@ -186,4 +186,69 @@ void DMXOutputNumber::dump_config() {
   ESP_LOGCONFIG(TAG, "  Channel: %u", this->channel_);
 }
 
+light::LightTraits DMXLightOutput::get_traits() {
+  auto traits = light::LightTraits();
+
+  switch (this->light_type_) {
+    case DMXLightType::DIMMER:
+      traits.set_supported_color_modes({light::ColorMode::BRIGHTNESS});
+      break;
+
+    case DMXLightType::RGB:
+      traits.set_supported_color_modes({light::ColorMode::RGB});
+      break;
+
+    case DMXLightType::RGBW:
+      traits.set_supported_color_modes({light::ColorMode::RGB_WHITE});
+      break;
+  }
+
+  return traits;
+}
+
+void DMXLightOutput::write_state(light::LightState *state) {
+  if (this->parent_ == nullptr || state == nullptr)
+    return;
+
+  uint8_t values[4]{};
+  size_t count = 0;
+
+  switch (this->light_type_) {
+    case DMXLightType::DIMMER: {
+      float brightness;
+      state->current_values_as_brightness(&brightness);
+
+      values[0] = static_cast<uint8_t>(std::lroundf(brightness * 255.0f));
+      count = 1;
+      break;
+    }
+
+    case DMXLightType::RGB: {
+      float red, green, blue;
+      state->current_values_as_rgb(&red, &green, &blue);
+
+      values[0] = static_cast<uint8_t>(std::lroundf(red * 255.0f));
+      values[1] = static_cast<uint8_t>(std::lroundf(green * 255.0f));
+      values[2] = static_cast<uint8_t>(std::lroundf(blue * 255.0f));
+      count = 3;
+      break;
+    }
+
+    case DMXLightType::RGBW: {
+      float red, green, blue, white;
+      state->current_values_as_rgbw(&red, &green, &blue, &white);
+
+      values[0] = static_cast<uint8_t>(std::lroundf(red * 255.0f));
+      values[1] = static_cast<uint8_t>(std::lroundf(green * 255.0f));
+      values[2] = static_cast<uint8_t>(std::lroundf(blue * 255.0f));
+      values[3] = static_cast<uint8_t>(std::lroundf(white * 255.0f));
+      count = 4;
+      break;
+    }
+  }
+
+  this->parent_->enable_tx();
+  this->parent_->set_slots(this->first_channel_, values, count);
+}
+
 }  // namespace esphome::dmx
