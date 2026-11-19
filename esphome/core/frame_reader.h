@@ -159,7 +159,7 @@ template<class HEADER, class LENGTH, class MIN = FrameMinLength<0>> struct Frame
   using Length = LENGTH;
   static constexpr size_t HEADER_LEN = HEADER::LEN;
   static constexpr uint8_t FIRST = HEADER::byte(0);
-  // Bytes collected when the length is checked; also the shortest frame
+  // Bytes collected when the length is checked
   static constexpr size_t MIN_LEN = std::max<size_t>({LENGTH::KNOWN_AT, HEADER_LEN, 2});
   // A shorter length is not a frame
   static constexpr size_t SHORTEST = std::max(MIN_LEN, MIN::VALUE);
