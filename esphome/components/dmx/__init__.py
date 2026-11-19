@@ -10,7 +10,7 @@ from esphome.const import (
     CONF_RX_PIN,
     CONF_TX_PIN,
 )
-from esphome.core import CORE
+from esphome.components.esp32 import add_idf_component
 import esphome.final_validate as fv
 
 CODEOWNERS = ["@KoenBreeman"]
@@ -124,17 +124,8 @@ async def to_code(config):
         cg.add(var.set_rts_pin(config[CONF_RTS_PIN]))
     cg.add(var.set_uart_num(config[CONF_UART_NUM]))
 
-    # IDF-component: behoudt CMakeLists REQUIRES (o.a. esp_driver_gptimer)
-    if CORE.using_esp_idf:
-        add_idf_component(
-            name="esp_dmx",
-            repo="https://github.com/KoenBreeman/esp_dmx.git",
-            ref="fix/cmake-esp-driver-gptimer",
-        )
-    else:
-        # Arduino-framework: PlatformIO library
-        cg.add_library(
-            "esp_dmx",
-            None,
-            "https://github.com/KoenBreeman/esp_dmx.git#fix/cmake-esp-driver-gptimer",
-        )
+    add_idf_component(
+        name="esp_dmx",
+        repo="https://github.com/KoenBreeman/esp_dmx.git",
+        ref="fix/cmake-esp-driver-gptimer",
+    )
