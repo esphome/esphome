@@ -156,6 +156,15 @@ template<size_t N, class... F> static Frames feed_all(LengthFrameReader<N, F...>
   return feed_all(reader, input, [](const Bytes & /*frame*/) { return false; });
 }
 
+// Takes every frame and keeps a copy
+struct Collect {
+  Frames seen;
+  bool operator()(const uint8_t *frame, size_t len) {
+    this->seen.emplace_back(frame, frame + len);
+    return true;
+  }
+};
+
 // pioneer_wt: A5 01, one byte at 7 holds the whole length
 using OneByte = FrameFormat<FrameHeader<0xA5, 0x01>, FrameLengthU8<LengthField{.offset = 7}>>;
 // tuya: 55 AA, version, command, payload length (2, BE), payload, checksum
@@ -312,57 +321,58 @@ TEST(LengthFrameReaderTest, RecoveredFrameRejectedTooIsSearched) {
 
 TEST(LengthFrameReaderTest, FlushHandsOverFramesHeldBack) {
   LengthFrameReader<16, Small> reader;
-  Frames seen;
-  auto handle = [&seen](const uint8_t *frame, size_t len) {
-    seen.emplace_back(frame, frame + len);
-    return true;
-  };
-  // A corrupt length of 15 holds back two complete frames until the caller gives up on the partial one
+  Collect handle;
+  // A corrupt length of 15 holds back two complete frames until flush()
   for (uint8_t c : {0xA5, 0x0F, 0xA5, 0x04, 0x01, 0x02, 0xA5, 0x03, 0x09})
     reader.feed(c, handle);
-  EXPECT_EQ(seen, Frames{});
+  EXPECT_EQ(handle.seen, Frames{});
   EXPECT_EQ(reader.length(), 9u);
   reader.flush(handle);
-  EXPECT_EQ(seen, (Frames{{0xA5, 0x04, 0x01, 0x02}, {0xA5, 0x03, 0x09}}));
+  EXPECT_EQ(handle.seen, (Frames{{0xA5, 0x04, 0x01, 0x02}, {0xA5, 0x03, 0x09}}));
   EXPECT_EQ(reader.length(), 0u);
   reader.flush(handle);  // nothing collected: nothing to do
-  EXPECT_EQ(seen.size(), 2u);
+  EXPECT_EQ(handle.seen.size(), 2u);
 }
 
 TEST(LengthFrameReaderTest, FlushKeepsASlowFrameUntilTheRestArrives) {
   LengthFrameReader<16, Small> reader;
-  Frames seen;
-  auto handle = [&seen](const uint8_t *frame, size_t len) {
-    seen.emplace_back(frame, frame + len);
-    return true;
-  };
+  Collect handle;
   for (uint8_t c : {0xA5, 0x06, 0xA5, 0x03})
     reader.feed(c, handle);
   reader.flush(handle);
-  EXPECT_EQ(seen, Frames{});
+  EXPECT_EQ(handle.seen, Frames{});
   EXPECT_EQ(reader.length(), 4u);
   for (uint8_t c : {0x01, 0x02})
     reader.feed(c, handle);
-  EXPECT_EQ(seen, (Frames{{0xA5, 0x06, 0xA5, 0x03, 0x01, 0x02}}));
+  EXPECT_EQ(handle.seen, (Frames{{0xA5, 0x06, 0xA5, 0x03, 0x01, 0x02}}));
 }
 
 TEST(LengthFrameReaderTest, FlushKeepsASlowFrameBehindTheFramesItHandsOver) {
   LengthFrameReader<16, Small> reader;
-  Frames seen;
-  auto handle = [&seen](const uint8_t *frame, size_t len) {
-    seen.emplace_back(frame, frame + len);
-    return true;
-  };
+  Collect handle;
   // A corrupt length holds a whole frame, then the start of a slow one
   for (uint8_t c : {0xA5, 0x0F, 0xA5, 0x04, 0x01, 0x02, 0xA5, 0x05, 0x11})
     reader.feed(c, handle);
   reader.flush(handle);
   reader.flush(handle);
-  EXPECT_EQ(seen, (Frames{{0xA5, 0x04, 0x01, 0x02}}));
+  EXPECT_EQ(handle.seen, (Frames{{0xA5, 0x04, 0x01, 0x02}}));
   EXPECT_EQ(reader.length(), 3u);
   for (uint8_t c : {0x22, 0x33})
     reader.feed(c, handle);
-  EXPECT_EQ(seen, (Frames{{0xA5, 0x04, 0x01, 0x02}, {0xA5, 0x05, 0x11, 0x22, 0x33}}));
+  EXPECT_EQ(handle.seen, (Frames{{0xA5, 0x04, 0x01, 0x02}, {0xA5, 0x05, 0x11, 0x22, 0x33}}));
+}
+
+TEST(LengthFrameReaderTest, ReceivingUntilAnIdleFlushKeepsTheFrame) {
+  LengthFrameReader<16, Small> reader;
+  Collect handle;
+  EXPECT_FALSE(reader.receiving());
+  for (uint8_t c : {0xA5, 0x06, 0x01})
+    reader.feed(c, handle);
+  EXPECT_TRUE(reader.receiving());
+  reader.flush(handle);
+  EXPECT_FALSE(reader.receiving());
+  reader.feed(0x02, handle);
+  EXPECT_TRUE(reader.receiving());
 }
 
 TEST(LengthFrameReaderTest, FlushKeepsTheFrameWhenEveryFrameInsideIsRejected) {
@@ -392,16 +402,12 @@ TEST(LengthFrameReaderTest, ResetForgetsThePartialFrame) {
 
 TEST(LengthFrameReaderTest, IdleAfterHandledFrameFindsNothingInIt) {
   LengthFrameReader<16, Small> reader;
-  Frames seen;
-  auto handle = [&seen](const uint8_t *frame, size_t len) {
-    seen.emplace_back(frame, frame + len);
-    return true;
-  };
+  Collect handle;
   // A handled frame whose payload looks like a frame of its own, then noise
   for (uint8_t c : {0xA5, 0x06, 0xA5, 0x03, 0x01, 0x02, 0x00})
     reader.feed(c, handle);
   reader.flush(handle);
-  EXPECT_EQ(seen, (Frames{{0xA5, 0x06, 0xA5, 0x03, 0x01, 0x02}}));
+  EXPECT_EQ(handle.seen, (Frames{{0xA5, 0x06, 0xA5, 0x03, 0x01, 0x02}}));
 }
 
 // A custom rule known at the first byte that reads the buffer builds (only FrameFixedLength is checked up front)
