@@ -163,6 +163,7 @@ class OpenThreadComponent final : public Component {
   static constexpr uint8_t MAINLOOP_RUNNING = 1 << 0;               // written by the OpenThread task
   static constexpr uint8_t BORDER_ROUTER_STARTED = 1 << 1;          // written by the OpenThread task
   static constexpr uint8_t BORDER_ROUTER_START_REQUESTED = 1 << 2;  // set by loop(), taken by the OpenThread task
+  static constexpr uint8_t MAINLOOP_EXIT_REQUESTED = 1 << 3;        // set by loop(), taken by the OpenThread task
   std::atomic<uint8_t> border_router_flags_{0};
   bool backbone_up_{false};  // what the stack was told about the infra interface last; main loop only
 #endif

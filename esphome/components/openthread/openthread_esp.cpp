@@ -266,11 +266,19 @@ void OpenThreadComponent::ot_main_() {
     const esp_err_t err = esp_openthread_launch_mainloop();
 #ifdef USE_OPENTHREAD_BORDER_ROUTER
     this->set_border_router_flag_(MAINLOOP_RUNNING, false);
+    // ESP-IDF 5.5 does not stop its main loop on a processing error; it returns the status of the pass that
+    // handled the exit. So an error on an exit loop() asked for is not a failure
+    const bool exit_requested = this->set_border_router_flag_(MAINLOOP_EXIT_REQUESTED, false);
+#else
+    const bool exit_requested = false;
 #endif
-    if (err != ESP_OK) {
+    if (err != ESP_OK && !exit_requested) {
       ESP_LOGE(TAG, "OpenThread main loop failed: %s", esp_err_to_name(err));
       this->mark_task_failed_(LOG_STR("Main loop failed"));
       break;
+    }
+    if (err != ESP_OK) {
+      ESP_LOGW(TAG, "OpenThread main loop returned %s on a requested exit", esp_err_to_name(err));
     }
 #ifdef USE_OPENTHREAD_BORDER_ROUTER
     // Only teardown ends the task. Otherwise loop() stopped the main loop to have the border router
@@ -431,9 +439,9 @@ void OpenThreadComponent::loop() {
     ESP_LOGI(TAG, "%s backbone back, border routing restarts", BACKBONE_NAME);
   }
   // The OpenThread task (re)starts the border router once its main loop has stopped
-  this->set_border_router_flag_(BORDER_ROUTER_START_REQUESTED, true);
+  this->set_border_router_flag_(BORDER_ROUTER_START_REQUESTED | MAINLOOP_EXIT_REQUESTED, true);
   if (const esp_err_t err = esp_openthread_mainloop_exit(); err != ESP_OK) {
-    this->set_border_router_flag_(BORDER_ROUTER_START_REQUESTED, false);
+    this->set_border_router_flag_(BORDER_ROUTER_START_REQUESTED | MAINLOOP_EXIT_REQUESTED, false);
     ESP_LOGE(TAG, "Failed to stop the OpenThread main loop: %s", esp_err_to_name(err));
     this->status_set_error(LOG_STR("Border router start failed"));
     this->disable_loop();
