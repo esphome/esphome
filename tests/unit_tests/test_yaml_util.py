@@ -2668,9 +2668,7 @@ def test_env_var_tag(
     }
 
 
-def test_env_var_tag_no_arguments(
-    tmp_path: Path, yaml_util_module: ModuleType
-) -> None:
+def test_env_var_tag_no_arguments(tmp_path: Path, yaml_util_module: ModuleType) -> None:
     """A bare !env_var tag gets a helpful error instead of an IndexError."""
     yaml_file = tmp_path / "main.yaml"
     yaml_file.write_text("a: !env_var\n")
