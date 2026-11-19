@@ -158,11 +158,6 @@ class AsyncEventSource {
   void __attribute__((noinline, cold)) adopt_pending_sessions_main_loop_();
   // Network context: queue a new session for the main loop
   void push_pending_(AsyncEventSourceResponse *rsp);
-#ifndef USE_ESP32
-  // web_server_base::StreamAcceptor callbacks, network context
-  static web_server_base::AsyncStreamResponse *create_session(void *ws);
-  static void publish_session(void *source, web_server_base::AsyncStreamResponse *stream);
-#endif
 
   // Main-loop only; intrusive list through AsyncEventSourceResponse::next_
   AsyncEventSourceResponse *sessions_{nullptr};
