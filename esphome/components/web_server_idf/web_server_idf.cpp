@@ -921,6 +921,14 @@ void AsyncResponseStream::printf(const char *fmt, ...) {
 void AsyncStreamResponse::begin(const AsyncWebServerRequest *request, const char *status, const char *content_type,
                                 std::span<const HttpHeader> headers, const char *body) {
   httpd_req_t *req = *request;
+#ifdef USE_WEBSERVER_SSL
+  // Streams send straight to the socket, which would bypass TLS; only an HTTPS server has a global transport context.
+  // Refused before anything is sent, so the stream stays unattached and safe to delete.
+  if (httpd_get_global_transport_ctx(req->handle) != nullptr) {
+    httpd_resp_send_err(req, HTTPD_501_METHOD_NOT_IMPLEMENTED, "Streams are not supported over HTTPS");
+    return;
+  }
+#endif
   // Same head httpd_resp_send_chunk() writes, without its first chunk. Blocking sends: the session's non-blocking
   // send override is not installed yet.
   const int fd = httpd_req_to_sockfd(req);
@@ -1083,6 +1091,11 @@ ssize_t AsyncStreamResponse::write(struct iovec *iov, int iovcnt) {
   // httpd closes the socket before it clears the session, so the fd number may already be a new client's.
   // Treated as would-block; the stall timer ends a session that never becomes ours again.
   const int fd = this->fd_.load();
+  // httpd freed the session, so the stream can never send again
+  if (fd == 0) {
+    this->close();
+    return -1;
+  }
   ssize_t sent = 0;
   int err = 0;
   {
@@ -1132,15 +1145,6 @@ AsyncEventSource::~AsyncEventSource() {
 }
 
 void AsyncEventSource::handleRequest(AsyncWebServerRequest *request) {
-#ifdef USE_WEBSERVER_SSL
-  // Event streams send from the main loop straight to the socket, which would bypass TLS.
-  // Only an HTTPS server has a global transport context.
-  httpd_req_t *req = *request;
-  if (httpd_get_global_transport_ctx(req->handle) != nullptr) {
-    httpd_resp_send_err(req, HTTPD_501_METHOD_NOT_IMPLEMENTED, "Event streams are not supported over HTTPS");
-    return;
-  }
-#endif
   // Httpd task: set up the live httpd_req_t and park the session; main loop does the rest.
   // NOLINTNEXTLINE(cppcoreguidelines-owning-memory,clang-analyzer-cplusplus.NewDeleteLeaks)
   auto *rsp = new AsyncEventSourceResponse(request, this, this->web_server_);
