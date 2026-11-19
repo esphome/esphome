@@ -1,6 +1,10 @@
 #include "dmx.h"
 #include "esphome/core/log.h"
 
+#ifdef USE_ESP32
+#include "driver/uart.h"
+#endif
+
 namespace esphome::dmx {
 
 ESPHOME_LOG_TAG(TAG, "dmx");
@@ -9,7 +13,8 @@ void DMXComponent::setup() {
   this->dmx_port_ = static_cast<dmx_port_t>(this->uart_num_);
   this->data_[0] = 0;  // null start code
 
-  if (uart_is_driver_installed(this->dmx_port_)) {
+#ifdef USE_ESP32
+  if (uart_is_driver_installed(static_cast<uart_port_t>(this->uart_num_))) {
     ESP_LOGE(TAG,
              "UART%d is already in use. "
              "Check logger and UART configuration.",
@@ -17,6 +22,7 @@ void DMXComponent::setup() {
     this->mark_failed();
     return;
   }
+#endif
 
   dmx_config_t config = DMX_CONFIG_DEFAULT;
   dmx_personality_t personalities[] = {{1, "ESPHome DMX"}};
