@@ -55,7 +55,7 @@ class TcpUart : public uart::UARTComponent, public Component {
   size_t available_for_write() override { return this->link_.tx_free(); }
   uart::UARTFlushResult flush() override;
   bool is_connected() override { return this->link_.connected(); }
-#if defined(USE_ESP8266) || defined(USE_ESP32)
+#if defined(USE_ESP8266) || defined(USE_ESP32) || defined(USE_LIBRETINY)
   void load_settings(bool dump_config) override {}
   using UARTComponent::load_settings;  // also bring in the no-arg overload for convenience
 #endif

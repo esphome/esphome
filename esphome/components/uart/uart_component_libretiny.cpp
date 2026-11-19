@@ -151,6 +151,28 @@ void LibreTinyUARTComponent::setup() {
 #endif
 }
 
+void LibreTinyUARTComponent::load_settings(bool dump_config) {
+  // Only a hardware port can change its settings: LibreTiny's SoftwareSerial ignores a second begin(), and a
+  // failed setup() leaves serial_ on the logger's port.
+  SerialClass *hardware = hardware_serial(this->hardware_idx_);
+  if (hardware == nullptr) {
+    ESP_LOGW(TAG, "Only a hardware UART can load new settings");
+    return;
+  }
+  ESP_LOGCONFIG(TAG, "Loading UART bus settings");
+#ifdef USE_LN882X
+  // Like at setup, the LN882x core applies only the baud rate and keeps 8N1
+  if (this->get_config() != SERIAL_8N1)
+    ESP_LOGW(TAG, "LN882x keeps 8N1; only the baud rate changes");
+#endif
+  // Changes the settings in place, on the pins setup() chose; the port stays allocated
+  hardware->configure(this->baud_rate_, this->get_config());
+  if (dump_config) {
+    ESP_LOGCONFIG(TAG, "UART bus was reloaded.");
+    this->dump_config();
+  }
+}
+
 void LibreTinyUARTComponent::dump_config() {
   bool is_software = this->hardware_idx_ == -1;
   ESP_LOGCONFIG(TAG,

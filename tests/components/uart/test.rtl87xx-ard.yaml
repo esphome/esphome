@@ -1,3 +1,9 @@
+esphome:
+  on_boot:
+    then:
+      - lambda: |-
+          id(uart_id).load_settings(false);
+
 uart:
   - id: uart_id
     tx_pin: PA23

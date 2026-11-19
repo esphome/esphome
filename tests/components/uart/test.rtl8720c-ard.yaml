@@ -1,3 +1,9 @@
+esphome:
+  on_boot:
+    then:
+      - lambda: |-
+          id(uart_id).load_settings(false);
+
 # UART1 on its second pair of pins (the board allows PA01/PA00 or PA03/PA02)
 uart:
   - id: uart_id

@@ -14,6 +14,8 @@ class LibreTinyUARTComponent final : public UARTComponent, public Component {
  public:
   void setup() override;
   void dump_config() override;
+  void load_settings(bool dump_config) override;
+  using UARTComponent::load_settings;  // also bring in the no-arg overload for convenience
   float get_setup_priority() const override { return setup_priority::BUS; }
 
   void write_array(const uint8_t *data, size_t len) override;
