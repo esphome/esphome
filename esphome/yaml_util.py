@@ -946,6 +946,11 @@ class ESPHomeLoaderMixin:
     @_add_data_ref
     def construct_env_var(self, node: yaml.Node) -> str:
         args = node.value.split()
+        if not args:
+            raise yaml.MarkedYAMLError(
+                "!env_var requires a variable name, e.g. '!env_var MY_VARIABLE'",
+                node.start_mark,
+            )
         # Check for a default value
         if len(args) > 1:
             return os.getenv(args[0], " ".join(args[1:]))
