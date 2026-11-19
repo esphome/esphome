@@ -37,7 +37,7 @@ _LOGGER_HW_UART_TO_NUM = {
 
 dmx_ns = cg.esphome_ns.namespace("dmx")
 DMXComponent = dmx_ns.class_("DMXComponent", cg.Component)
-DMXMode = dmx_ns.enum("DMXMode")
+DMXMode = dmx_ns.enum("DMXMode", is_protected=True)
 
 MODE_TO_ENUM = {
     MODE_RX: DMXMode.RX,
