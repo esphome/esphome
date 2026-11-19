@@ -7,16 +7,22 @@ One analysis engine with two inputs:
 Values are read in lambdas through the getters; ``sensor: - platform: audio_analyzer`` publishes them at a low rate.
 """
 
+import math
+
+from esphome import automation
 import esphome.codegen as cg
 from esphome.components import microphone
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_MICROPHONE, PLATFORM_ESP32
+from esphome.const import CONF_ID, CONF_MICROPHONE, CONF_SAMPLE_RATE, PLATFORM_ESP32
+import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 AUTO_LOAD = ["audio"]
 CODEOWNERS = ["@jlpouffier"]
 DOMAIN = "audio_analyzer"
 MULTI_CONF = True
+# Auto-loaded by the speaker platform without any microphone analyzer
+MULTI_CONF_NO_DEFAULT = True
 
 CONF_ATTACK = "attack"
 CONF_AUDIO_ANALYZER_ID = "audio_analyzer_id"
@@ -29,13 +35,22 @@ CONF_PASSIVE = "passive"
 CONF_POWER_RANGE = "power_range"
 CONF_RELEASE = "release"
 
+# Must match analysis.h
 NUM_BANDS = 12
+FFT_SIZE = 512
+MAX_ANALYSIS_RATE_HZ = 16000
+MAX_BAND_FRACTION = 0.4
 
 audio_analyzer_ns = cg.esphome_ns.namespace("audio_analyzer")
-AudioAnalyzer = audio_analyzer_ns.class_("AudioAnalyzer", cg.PollingComponent)
+AudioAnalyzer = audio_analyzer_ns.class_("AudioAnalyzer", cg.Component)
 MicrophoneAudioAnalyzer = audio_analyzer_ns.class_(
     "MicrophoneAudioAnalyzer", AudioAnalyzer
 )
+
+
+def analysis_rate(sample_rate: int) -> float:
+    """Rate a stream is analyzed at: decimated by an integer factor to at most 16 kHz (``decimation_for``)."""
+    return sample_rate / max(1, math.ceil(sample_rate / MAX_ANALYSIS_RATE_HZ))
 
 
 def _validate_db_range(config: ConfigType) -> ConfigType:
@@ -61,20 +76,43 @@ def _db_range_schema(min_default: float, max_default: float) -> cv.All:
 
 
 def validate_frequency_range(config: ConfigType) -> ConfigType:
-    if config[CONF_MIN_FREQUENCY] >= config[CONF_MAX_FREQUENCY]:
+    min_frequency = config[CONF_MIN_FREQUENCY]
+    max_frequency = config[CONF_MAX_FREQUENCY]
+    if min_frequency >= max_frequency:
         raise cv.Invalid(f"{CONF_MIN_FREQUENCY} must be below {CONF_MAX_FREQUENCY}")
+    # The lowest band is the narrowest; it must hold at least one FFT bin at the highest analysis rate
+    bin_width = MAX_ANALYSIS_RATE_HZ / FFT_SIZE
+    lowest_band = min_frequency * (
+        (max_frequency / min_frequency) ** (1 / NUM_BANDS) - 1
+    )
+    if lowest_band < bin_width:
+        raise cv.Invalid(
+            f"The lowest band is {lowest_band:.1f} Hz wide, narrower than the {bin_width} Hz analysis resolution: "
+            f"raise {CONF_MIN_FREQUENCY} or widen the range",
+            path=[CONF_MIN_FREQUENCY],
+        )
     return config
 
 
-# Options shared by the microphone analyzer and the speaker platform. ``update_interval`` only sets how often the
-# sensors publish; the analysis itself runs on every audio frame.
+def validate_max_frequency_for_rate(config: ConfigType, sample_rate: int) -> None:
+    """Rejects bands above the anti-alias corner of a stream rate that is known at config time."""
+    limit = MAX_BAND_FRACTION * analysis_rate(sample_rate)
+    if config[CONF_MAX_FREQUENCY] > limit:
+        raise cv.Invalid(
+            f"{CONF_MAX_FREQUENCY} must be at most {math.floor(limit)} Hz for a {sample_rate} Hz stream",
+            path=[CONF_MAX_FREQUENCY],
+        )
+
+
+# Options shared by the microphone analyzer and the speaker platform.
 ANALYZER_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_MIN_FREQUENCY, default="100Hz"): cv.All(
-            cv.frequency, cv.Range(min=20, max=7000)
+            cv.frequency, cv.Range(min=20, max=6000)
         ),
         cv.Optional(CONF_MAX_FREQUENCY, default="4000Hz"): cv.All(
-            cv.frequency, cv.Range(min=100, max=7900)
+            cv.frequency,
+            cv.Range(min=100, max=MAX_BAND_FRACTION * MAX_ANALYSIS_RATE_HZ),
         ),
         cv.Optional(CONF_POWER_RANGE, default={}): _db_range_schema(-70, -20),
         cv.Optional(CONF_BAND_RANGE, default={}): _db_range_schema(-80, -30),
@@ -83,7 +121,7 @@ ANALYZER_SCHEMA = cv.Schema(
             CONF_RELEASE, default="250ms"
         ): cv.positive_time_period_milliseconds,
     }
-).extend(cv.polling_component_schema("1s"))
+).extend(cv.COMPONENT_SCHEMA)
 
 
 async def setup_analyzer(var: cg.MockObj, config: ConfigType) -> None:
@@ -118,14 +156,18 @@ CONFIG_SCHEMA = cv.All(
     cv.only_on([PLATFORM_ESP32]),
 )
 
-FINAL_VALIDATE_SCHEMA = cv.Schema(
-    {
-        cv.Required(
-            CONF_MICROPHONE
-        ): microphone.final_validate_microphone_source_schema(DOMAIN),
-    },
-    extra=cv.ALLOW_EXTRA,
-)
+
+def _final_validate(config: ConfigType) -> ConfigType:
+    microphone.final_validate_microphone_source_schema(DOMAIN)(config[CONF_MICROPHONE])
+    mic_config = fv.get_declaring_config(
+        config[CONF_MICROPHONE][CONF_MICROPHONE], fv.full_config.get()
+    )
+    if isinstance(sample_rate := mic_config.get(CONF_SAMPLE_RATE), int):
+        validate_max_frequency_for_rate(config, sample_rate)
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config: ConfigType) -> None:
@@ -134,3 +176,22 @@ async def to_code(config: ConfigType) -> None:
     )
     var = cg.new_Pvariable(config[CONF_ID], mic_source)
     await setup_analyzer(var, config)
+
+
+AUDIO_ANALYZER_ACTION_SCHEMA = automation.maybe_simple_id(
+    {
+        cv.GenerateID(): cv.use_id(MicrophoneAudioAnalyzer),
+    }
+)
+
+
+automation.register_apply_action(
+    "audio_analyzer.start",
+    AUDIO_ANALYZER_ACTION_SCHEMA,
+    automation.ApplyCall("start()"),
+)
+automation.register_apply_action(
+    "audio_analyzer.stop",
+    AUDIO_ANALYZER_ACTION_SCHEMA,
+    automation.ApplyCall("stop()"),
+)

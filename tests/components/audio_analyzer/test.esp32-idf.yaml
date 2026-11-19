@@ -4,4 +4,5 @@ substitutions:
 
 packages:
   i2s_audio: !include ../../test_build_components/common/i2s_audio/esp32-idf.yaml
-  audio_analyzer: !include common.yaml
+  audio_analyzer_microphone: !include common-microphone.yaml
+  audio_analyzer_speaker: !include common-speaker.yaml
