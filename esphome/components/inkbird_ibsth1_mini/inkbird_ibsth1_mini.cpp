@@ -6,7 +6,7 @@ namespace esphome::inkbird_ibsth1_mini {
 
 ESPHOME_LOG_TAG(TAG, "inkbird_ibsth1_mini");
 
-void InkbirdIbstH1Mini::dump_config() {
+void InkbirdIbstH1Mini::dump_child_config() {
   ESP_LOGCONFIG(TAG, "Inkbird IBS TH1 MINI");
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "External Temperature", this->external_temperature_sensor_);
