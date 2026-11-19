@@ -3,7 +3,6 @@
 
 #include <algorithm>
 #include <cstring>
-#include <iterator>
 
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
