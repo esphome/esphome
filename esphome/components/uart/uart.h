@@ -12,6 +12,12 @@
 
 namespace esphome::uart {
 
+/// A frame reader that also keeps the loop time of its last received byte, for UARTDevice::read_frames().
+template<class R> class FrameReceiver : public R {
+ public:
+  uint32_t last_rx{0};
+};
+
 class UARTDevice {
  public:
   UARTDevice() = default;
@@ -99,6 +105,11 @@ class UARTDevice {
     } else if (reader.length() != 0 && now - last_rx >= gap_ms) {
       reader.flush(handle);
     }
+  }
+  /// The same for a FrameReceiver, which keeps its own last_rx.
+  template<size_t N = 64, typename R, typename F>
+  void read_frames(FrameReceiver<R> &receiver, F &&handle, uint32_t now, uint32_t gap_ms = 250) {
+    this->read_frames<N>(static_cast<R &>(receiver), handle, now, receiver.last_rx, gap_ms);
   }
 
   /// Read and drop every byte waiting in the receive buffer.

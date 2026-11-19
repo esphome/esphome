@@ -232,4 +232,17 @@ TEST(UARTReadFramesTest, BytesAfterASlowLoopAreFedNotFlushed) {
   EXPECT_EQ(handle.frames, (std::vector<std::vector<uint8_t>>{{0xAA, 0x02, 0x01, 0x02}}));
 }
 
+TEST(UARTReadFramesTest, FrameReceiverKeepsItsOwnTimestamp) {
+  ::testing::NiceMock<FakeRxUART> uart(std::vector<uint8_t>{0xAA, 0x09, 0xAA, 0x01, 0x07});
+  UARTDevice dev(&uart);
+  FrameReceiver<GapReader> receiver;
+  Collect handle{.reject_len = 0x09};
+  dev.read_frames(receiver, handle, 1000);
+  EXPECT_EQ(receiver.last_rx, 1000u);
+  dev.read_frames(receiver, handle, 1249);
+  EXPECT_TRUE(handle.frames.empty());
+  dev.read_frames(receiver, handle, 1250);
+  EXPECT_EQ(handle.frames, (std::vector<std::vector<uint8_t>>{{0xAA, 0x01, 0x07}}));
+}
+
 }  // namespace esphome::uart::testing

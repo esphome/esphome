@@ -134,6 +134,18 @@ template<class LENGTH, size_t AT, bool (*CHECK)(const uint8_t *)> struct Checked
   static size_t get(const uint8_t *buf) { return CHECK(buf) ? LENGTH::get(buf) : 0; }
 };
 
+/// Wraps a length rule: a frame longer than MAX calls WARN(length) and is rejected.
+template<class LENGTH, size_t MAX, void (*WARN)(size_t)> struct WarnIfLonger {
+  static constexpr size_t KNOWN_AT = LENGTH::KNOWN_AT;
+  static size_t get(const uint8_t *buf) {
+    const size_t len = LENGTH::get(buf);
+    if (len <= MAX)
+      return len;
+    WARN(len);
+    return 0;
+  }
+};
+
 /// The shortest frame of a FrameFormat, when that is more than its header and length field.
 template<size_t LEN> struct FrameMinLength {
   static constexpr size_t VALUE = LEN;
