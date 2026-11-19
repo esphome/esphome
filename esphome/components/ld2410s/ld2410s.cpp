@@ -96,7 +96,9 @@ void LD2410SComponent::dump_config() {
 void LD2410SComponent::loop() {
   const uint32_t now = App.get_loop_component_start_time();
   auto handler = [this](const uint8_t *frame, size_t len) { return this->handle_frame_(frame, len); };
-  this->read_frames<16>(this->reader_, handler, now, this->last_rx_);
+  if (!this->read_frames<16>(this->reader_, handler, now, this->last_rx_)) {
+    ESP_LOGV(TAG, "UART read failed");
+  }
   if (this->sequence_ == nullptr) {
     if (!this->init_done_) {
       this->start_sequence_(INIT_SEQUENCE, INIT_SEQUENCE_LENGTH, now);
