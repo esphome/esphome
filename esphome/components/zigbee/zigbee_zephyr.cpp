@@ -23,6 +23,7 @@ const uint8_t IEEE_ADDR_BUF_SIZE = 17;
 
 void ZigbeeComponent::log_callback_registration_error_(zb_uint8_t endpoint) {
   ESP_LOGE(TAG, "Cannot register callback for endpoint %u: invalid ID, duplicate or full table", endpoint);
+  this->status_set_error();
 }
 
 void ZigbeeComponent::zboss_signal_handler_esphome(zb_bufid_t bufid) {

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "esphome/core/defines.h"
+
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -8,7 +10,12 @@
 
 namespace esphome::zigbee {
 
+#ifdef ZIGBEE_MAX_ENDPOINT_ID
+static constexpr uint8_t MAX_ENDPOINT_ID = ZIGBEE_MAX_ENDPOINT_ID;
+#else
+// Standalone tests use the protocol limit; firmware gets it from Python validation.
 static constexpr uint8_t MAX_ENDPOINT_ID = 239;
+#endif
 
 // Wire endpoint IDs are sparse; capacity counts registered handlers, not IDs.
 template<size_t N> class EndpointCallbacks {

@@ -24,6 +24,7 @@ from .const import (
     BACNET_UNIT_NO_UNITS,
     BACNET_UNITS,
     CONF_ENDPOINT,
+    CONF_MAX_EP_NUMBER,
     CONF_POWER_SOURCE,
     CONF_ROUTER,
     CONF_SLEEPY,
@@ -63,6 +64,7 @@ ZigbeeNumber = zigbee_ns.class_("ZigbeeNumber", cg.Component)
 
 
 async def zephyr_to_code(config: ConfigType) -> "MockObj":
+    cg.add_define("ZIGBEE_MAX_ENDPOINT_ID", CONF_MAX_EP_NUMBER)
     zephyr_add_prj_conf("ZIGBEE", True)
     zephyr_add_prj_conf("ZIGBEE_APP_UTILS", True)
     if config[CONF_ROUTER]:

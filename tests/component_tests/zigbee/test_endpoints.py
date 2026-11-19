@@ -9,6 +9,7 @@ import yaml
 from esphome.__main__ import generate_cpp_contents
 from esphome.config import read_config
 from esphome.core import CORE
+from esphome.core.entity_helpers import ZIGBEE_MAX_EP_NUMBER
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -91,6 +92,9 @@ def test_common_mixed_endpoints(tmp_path: Path) -> None:
     assert_endpoint_ids(cpp, [2, 3, 4, 17, 5, 1, 239, 6])
     assert [d.as_macro for d in CORE.defines if d.name == "ZIGBEE_ENDPOINTS_COUNT"] == [
         "#define ZIGBEE_ENDPOINTS_COUNT 8"
+    ]
+    assert [d.as_macro for d in CORE.defines if d.name == "ZIGBEE_MAX_ENDPOINT_ID"] == [
+        f"#define ZIGBEE_MAX_ENDPOINT_ID {ZIGBEE_MAX_EP_NUMBER}"
     ]
 
 
