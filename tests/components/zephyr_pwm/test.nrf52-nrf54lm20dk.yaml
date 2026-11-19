@@ -1,0 +1,14 @@
+# nRF54LM20 DK: PWM20 to PWM22 serve ports 1 and 3, and each PWM block stays on one port
+output:
+  - platform: zephyr_pwm
+    id: pwm_output_1
+    pin: P1.04
+  - platform: zephyr_pwm
+    id: pwm_output_2
+    pin:
+      number: P3.04
+      inverted: true
+  - platform: zephyr_pwm
+    id: pwm_output_3
+    pin: P1.05
+    frequency: 2kHz
