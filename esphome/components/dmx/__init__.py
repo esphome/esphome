@@ -141,6 +141,7 @@ def _final_validate(config) -> None:
         )
     claimed.add(uart_num)
 
+
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
