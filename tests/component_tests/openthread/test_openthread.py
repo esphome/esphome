@@ -10,6 +10,7 @@ from esphome.components.esp32 import (
     VARIANT_ESP32C6,
     VARIANT_ESP32H2,
     VARIANT_ESP32H4,
+    VARIANT_ESP32P4,
     VARIANT_ESP32S3,
     VARIANT_ESP32S31,
 )
@@ -250,14 +251,33 @@ def test_border_router_rcp_accepts_wifi_variants(
     assert _validate_platform(otbr_config) is otbr_config
 
 
-@pytest.mark.parametrize("variant", [VARIANT_ESP32H2, VARIANT_ESP32H4])
+def test_border_router_rcp_accepts_esp32p4_with_ethernet_backbone(
+    set_core_config: SetCoreConfigCallable,
+    otbr_config: ConfigType,
+) -> None:
+    _set_esp32_idf_core(set_core_config, VARIANT_ESP32P4)
+    otbr_config[CONF_BORDER_ROUTER] = {CONF_RCP: RCP_PINS, CONF_BACKBONE: CONF_ETHERNET}
+
+    assert _validate_platform(otbr_config) is otbr_config
+
+
+@pytest.mark.parametrize(
+    ("variant", "backbone"),
+    [
+        (VARIANT_ESP32H2, CONF_WIFI),
+        (VARIANT_ESP32H2, CONF_ETHERNET),
+        (VARIANT_ESP32H4, CONF_WIFI),
+        (VARIANT_ESP32P4, CONF_WIFI),
+    ],
+)
 def test_border_router_rcp_rejects_variants_without_wifi(
     set_core_config: SetCoreConfigCallable,
     otbr_config: ConfigType,
     variant: str,
+    backbone: str,
 ) -> None:
     _set_esp32_idf_core(set_core_config, variant)
-    otbr_config[CONF_BORDER_ROUTER][CONF_RCP] = RCP_PINS
+    otbr_config[CONF_BORDER_ROUTER] = {CONF_RCP: RCP_PINS, CONF_BACKBONE: backbone}
 
     with pytest.raises(cv.Invalid, match="requires a Wi-Fi-capable ESP32 variant"):
         _validate_platform(otbr_config)

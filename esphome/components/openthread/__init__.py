@@ -15,6 +15,7 @@ from esphome.components.esp32 import (
     VARIANT_ESP32H2,
     VARIANT_ESP32H4,
     VARIANT_ESP32H21,
+    VARIANT_ESP32P4,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
     VARIANT_ESP32S31,
@@ -381,9 +382,12 @@ def _validate_platform(config: ConfigType) -> ConfigType:
     if CONF_BORDER_ROUTER in config:
         variant = get_esp32_variant()
         if _get_rcp(config) is not None:
-            if variant not in RCP_BORDER_ROUTER_VARIANTS:
+            if variant not in RCP_BORDER_ROUTER_VARIANTS and not (
+                variant == VARIANT_ESP32P4 and _get_backbone(config) == CONF_ETHERNET
+            ):
                 raise cv.Invalid(
-                    "OpenThread Border Router RCP mode requires a Wi-Fi-capable ESP32 variant."
+                    "OpenThread Border Router RCP mode requires a Wi-Fi-capable ESP32 "
+                    "variant, or an ESP32-P4 with 'backbone: ethernet'."
                 )
         elif variant not in NATIVE_BORDER_ROUTER_VARIANTS:
             raise cv.Invalid(
