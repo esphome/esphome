@@ -34,6 +34,7 @@ from esphome.components.esp32 import (
     idf_version,
     require_idf_version,
 )
+from esphome.components.esp32.boards import BOARDS, STANDARD_BOARDS
 from esphome.components.esp32.const import (
     KEY_BOARD,
     KEY_ESP32,
@@ -113,6 +114,23 @@ def test_esp32_config(
             }
         )
         assert VARIANT_FRIENDLY[variant].lower() in config["board"]
+
+
+@pytest.mark.parametrize("variant", sorted(STANDARD_BOARDS))
+def test_platformio_default_board(
+    variant: str, set_core_config: SetCoreConfigCallable
+) -> None:
+    """With PlatformIO, a variant alone selects a default board that has a board file."""
+    set_core_config(PlatformFramework.ESP32_IDF)
+
+    from esphome.components.esp32 import CONFIG_SCHEMA
+
+    config = CONFIG_SCHEMA(
+        {"variant": variant, "toolchain": Toolchain.PLATFORMIO.value}
+    )
+
+    assert config["board"] == STANDARD_BOARDS[variant]
+    assert BOARDS[config["board"]][KEY_VARIANT] == variant
 
 
 @pytest.mark.parametrize(
@@ -354,6 +372,28 @@ def test_sdkconfig_cpu_frequency_errors(
     assert exc_info.value.path == ["framework", "sdkconfig_options"]
 
 
+@pytest.mark.parametrize("watchdog_timeout", ["0s", "5s", "60s"])
+def test_esp32_watchdog_timeout_valid(
+    set_core_config: SetCoreConfigCallable, watchdog_timeout: str
+) -> None:
+    """0 disables the task watchdog; otherwise 5 to 60 seconds."""
+    set_core_config(PlatformFramework.ESP32_IDF)
+    from esphome.components.esp32 import CONFIG_SCHEMA
+
+    CONFIG_SCHEMA({"variant": VARIANT_ESP32, "watchdog_timeout": watchdog_timeout})
+
+
+@pytest.mark.parametrize("watchdog_timeout", ["1s", "4s", "61s"])
+def test_esp32_watchdog_timeout_invalid(
+    set_core_config: SetCoreConfigCallable, watchdog_timeout: str
+) -> None:
+    set_core_config(PlatformFramework.ESP32_IDF)
+    from esphome.components.esp32 import CONFIG_SCHEMA
+
+    with pytest.raises(cv.Invalid, match="must be 0s"):
+        CONFIG_SCHEMA({"variant": VARIANT_ESP32, "watchdog_timeout": watchdog_timeout})
+
+
 @pytest.mark.parametrize(
     ("config_toolchain", "expected"),
     [
@@ -437,8 +477,8 @@ def test_esp32_rejects_unsupported_cli_toolchain(
             id="mismatched_board_variant_config",
         ),
         pytest.param(
-            {"variant": "esp32s31", "toolchain": Toolchain.PLATFORMIO.value},
-            r"No default board is known for ESP32S31\. Please specify the `board:` option explicitly\. @ data\['variant'\]",
+            {"variant": "esp32h4", "toolchain": Toolchain.PLATFORMIO.value},
+            r"No default board is known for ESP32H4\. Please specify the `board:` option explicitly\. @ data\['variant'\]",
             id="variant_without_default_board_requires_explicit_board_under_platformio",
         ),
         pytest.param(
@@ -2552,3 +2592,28 @@ def test_require_idf_version_rejects_other_platforms(
     set_core_config(PlatformFramework.ESP8266_ARDUINO)
     with pytest.raises(cv.Invalid, match="only available on"):
         require_idf_version(cv.Version(5, 5, 3))("x")
+
+
+@pytest.mark.parametrize(
+    ("config_name", "timeout"),
+    [("watchdog_disabled", None), ("watchdog_default", 5), ("watchdog_custom", 10)],
+)
+def test_task_watchdog_sdkconfig_and_define(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+    config_name: str,
+    timeout: int | None,
+) -> None:
+    """watchdog_timeout: 0s turns the task watchdog off; any other value configures it."""
+    generate_main(component_config_path(f"{config_name}.yaml"))
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    defines = {define.name for define in CORE.defines}
+    assert sdkconfig["CONFIG_ESP_TASK_WDT_INIT"] is (timeout is not None)
+    assert ("USE_ESP32_TASK_WDT" in defines) is (timeout is not None)
+    if timeout is None:
+        assert "CONFIG_ESP_TASK_WDT_TIMEOUT_S" not in sdkconfig
+        return
+    assert sdkconfig["CONFIG_ESP_TASK_WDT_TIMEOUT_S"] == timeout
+    assert sdkconfig["CONFIG_ESP_TASK_WDT_PANIC"] is True
+    assert sdkconfig["CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU0"] is False
+    assert sdkconfig["CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU1"] is False
