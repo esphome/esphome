@@ -98,7 +98,7 @@ def encryption_schema(config: ConfigType | None) -> ConfigType:
     return ENCRYPTION_SCHEMA(config)
 
 
-def _use_managed_components() -> bool:
+def use_managed_components() -> bool:
     """Whether noise-c and libsodium come from the ESP-IDF component registry.
 
     Both build as ESP-IDF components, so on ESP32 they skip the PlatformIO library
@@ -122,7 +122,7 @@ async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_NOISE")
     # libsodium is declared next to noise-c so the library manager sees both up front
     # and nothing else pulls a second copy; the version must match noise-c's own pin
-    if _use_managed_components():
+    if use_managed_components():
         from esphome.components.esp32 import add_idf_component
 
         add_idf_component(name="esphome/noise-c", ref=NOISE_C_VERSION)
