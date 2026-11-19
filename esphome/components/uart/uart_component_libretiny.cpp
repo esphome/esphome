@@ -16,6 +16,12 @@
 #include <SoftwareSerial.h>
 #endif
 
+#ifdef USE_LN882X
+#include <sdk_private.h>
+// The SDK's open port handles (components/serial/serial.c); not in its header.
+extern "C" Serial_t *serial_handles[SER_PORT_NUM];
+#endif
+
 namespace esphome::uart {
 
 ESPHOME_LOG_TAG(TAG, "uart");
@@ -159,12 +165,13 @@ void LibreTinyUARTComponent::load_settings(bool dump_config) {
     ESP_LOGW(TAG, "Only a started hardware UART can load new settings");
     return;
   }
-#ifdef USE_LN882X
-  // The LN882x core applies only the baud rate and keeps 8N1
+#if defined(USE_LN882X)
+  // The LN882x core keeps 8N1. Its configure() zeroes the port while its RX interrupt is live, which a byte arriving
+  // then turns into an endless interrupt loop, so only the baud rate is set.
   if (this->get_config() != SERIAL_8N1)
     ESP_LOGW(TAG, "LN882x keeps 8N1; only the baud rate changes");
-#endif
-#ifdef USE_BK72XX
+  serial_setbaudrate(serial_handles[this->hardware_idx_], this->baud_rate_);
+#elif defined(USE_BK72XX)
   // The BK72xx configure() registers the port with the SDK again on every call, which fills its fixed device table;
   // begin() releases the old registration first. It keeps the pins setup() chose.
   hardware->begin(this->baud_rate_, this->get_config());
