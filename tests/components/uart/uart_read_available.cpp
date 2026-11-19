@@ -199,7 +199,7 @@ TEST(UARTReadFramesTest, FeedsTheReaderAndStampsTheTime) {
   GapReader reader;
   Collect handle;
   uint32_t last_rx = 0;
-  dev.read_frames(reader, handle, 500, last_rx);
+  EXPECT_TRUE(dev.read_frames(reader, handle, 500, last_rx));
   EXPECT_EQ(last_rx, 500u);
   EXPECT_EQ(handle.frames, (std::vector<std::vector<uint8_t>>{{0xAA, 0x01, 0x07}}));
 }
@@ -230,6 +230,16 @@ TEST(UARTReadFramesTest, BytesAfterASlowLoopAreFedNotFlushed) {
   uart.append({0x02});
   dev.read_frames(reader, handle, 1500, last_rx, 100);
   EXPECT_EQ(handle.frames, (std::vector<std::vector<uint8_t>>{{0xAA, 0x02, 0x01, 0x02}}));
+}
+
+TEST(UARTReadFramesTest, ReportsAFailedRead) {
+  ::testing::NiceMock<FakeRxUART> uart(std::vector<uint8_t>{0xAA, 0x01, 0x07});
+  uart.fail_after_reads = 0;
+  UARTDevice dev(&uart);
+  GapReader reader;
+  Collect handle;
+  uint32_t last_rx = 0;
+  EXPECT_FALSE(dev.read_frames(reader, handle, 500, last_rx));
 }
 
 }  // namespace esphome::uart::testing
