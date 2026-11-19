@@ -10,6 +10,7 @@ from esphome.const import (
     CONF_RX_PIN,
     CONF_TX_PIN,
 )
+from esphome.core import CORE
 import esphome.final_validate as fv
 
 CODEOWNERS = ["@KoenBreeman"]
