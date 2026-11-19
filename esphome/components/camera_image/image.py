@@ -52,20 +52,30 @@ CameraImage = camera_image_ns.class_(
 
 
 def _validate_options(config: ConfigType) -> ConfigType:
-    transforms = CONF_CROP in config or config[CONF_ROTATION] != 0
-    if transforms and config[CONF_DOUBLE_BUFFER]:
-        raise cv.Invalid(
-            "'crop' and 'rotation' cannot be combined with 'double_buffer'"
+    enabled = [
+        f"'{name}'"
+        for name, active in (
+            (CONF_CROP, CONF_CROP in config),
+            (CONF_ROTATION, config[CONF_ROTATION] != 0),
         )
-    if transforms and config[CONF_TYPE] not in ("GRAYSCALE", "RGB565", "RGB"):
-        raise cv.Invalid("'crop' and 'rotation' require type GRAYSCALE, RGB565 or RGB")
-    # With an alpha channel the image keeps a separate plane next to the colour
-    # data, and crop/rotation only transforms the colour plane.
-    if transforms and config[CONF_TRANSPARENCY] == CONF_ALPHA_CHANNEL:
-        raise cv.Invalid(
-            "'crop' and 'rotation' cannot be combined with "
-            "'transparency: alpha_channel'"
-        )
+        if active
+    ]
+    if enabled:
+        transforms = " and ".join(enabled)
+        if config[CONF_DOUBLE_BUFFER]:
+            raise cv.Invalid(f"{transforms} cannot be combined with 'double_buffer'")
+        if config[CONF_TYPE] not in ("GRAYSCALE", "RGB565", "RGB"):
+            plural = len(enabled) > 1
+            raise cv.Invalid(
+                f"{transforms} {'require' if plural else 'requires'} type "
+                f"GRAYSCALE, RGB565 or RGB"
+            )
+        # With an alpha channel the image keeps a separate plane next to the
+        # colour data, and crop/rotation only transforms the colour plane.
+        if config[CONF_TRANSPARENCY] == CONF_ALPHA_CHANNEL:
+            raise cv.Invalid(
+                f"{transforms} cannot be combined with 'transparency: alpha_channel'"
+            )
     # A crop is checked against the size the frame actually decodes to in the
     # final validation, which needs the camera resolution; with `resize` that is
     # smaller than the resize box when the aspect ratios differ.

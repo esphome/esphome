@@ -20,7 +20,6 @@ class CameraImage : public PollingComponent, public runtime_image::RuntimeImage,
  public:
   CameraImage(camera::Camera *camera, int width, int height, runtime_image::ImageFormat format, image::ImageType type,
               image::Transparency transparency, image::Image *placeholder, bool is_big_endian);
-  ~CameraImage();
 
   void setup() override;
   void update() override;
@@ -70,7 +69,7 @@ class CameraImage : public PollingComponent, public runtime_image::RuntimeImage,
   int decode_width_{0};
   int decode_height_{0};
   /// Scratch buffer for rotation, allocated in setup() through RAMAllocator.
-  uint8_t *transform_buffer_{nullptr};
+  RAMUniquePtr<uint8_t[]> transform_buffer_;
   size_t transform_buffer_size_{0};
   LazyCallbackManager<void()> on_image_callback_{};
   LazyCallbackManager<void()> on_error_callback_{};

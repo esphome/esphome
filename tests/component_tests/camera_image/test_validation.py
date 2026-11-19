@@ -158,6 +158,20 @@ def test_crop_with_alpha_channel_is_rejected(
         _validate(set_core_config, {"crop": crop, "transparency": "alpha_channel"})
 
 
+@pytest.mark.parametrize("image_type", ["BINARY", "RGB111"])
+@pytest.mark.parametrize(
+    "option", [{"crop": {"x": 0, "y": 0, "width": 10, "height": 10}}, {"rotation": 90}]
+)
+def test_transform_with_unsupported_type_is_rejected(
+    set_core_config: Callable[..., None],
+    image_type: str,
+    option: dict[str, object],
+) -> None:
+    # A transform needs a pixel format it can address in place.
+    with pytest.raises(cv.Invalid, match="requires type GRAYSCALE, RGB565 or RGB"):
+        _validate(set_core_config, {"type": image_type, **option})
+
+
 def test_rotation_without_resize_or_crop_is_accepted(
     set_core_config: Callable[..., None],
 ) -> None:

@@ -18,20 +18,20 @@ static constexpr uint32_t REQUEST_TIMEOUT_ID = 0;
 namespace {
 
 /// Reads better in dump_config than the raw enum value.
-const char *image_type_name(image::ImageType type) {
+const LogString *image_type_name(image::ImageType type) {
   switch (type) {
     case image::IMAGE_TYPE_BINARY:
-      return "BINARY";
+      return LOG_STR("BINARY");
     case image::IMAGE_TYPE_GRAYSCALE:
-      return "GRAYSCALE";
+      return LOG_STR("GRAYSCALE");
     case image::IMAGE_TYPE_RGB:
-      return "RGB";
+      return LOG_STR("RGB");
     case image::IMAGE_TYPE_RGB565:
-      return "RGB565";
+      return LOG_STR("RGB565");
     case image::IMAGE_TYPE_RGB111:
-      return "RGB111";
+      return LOG_STR("RGB111");
   }
-  return "UNKNOWN";
+  return LOG_STR("UNKNOWN");
 }
 
 }  // namespace
@@ -40,12 +40,6 @@ CameraImage::CameraImage(camera::Camera *camera, int width, int height, runtime_
                          image::ImageType type, image::Transparency transparency, image::Image *placeholder,
                          bool is_big_endian)
     : RuntimeImage(format, type, transparency, placeholder, is_big_endian, width, height), camera_(camera) {}
-
-CameraImage::~CameraImage() {
-  if (this->transform_buffer_ != nullptr) {
-    RAMAllocator<uint8_t>().deallocate(this->transform_buffer_, this->transform_buffer_size_);
-  }
-}
 
 void CameraImage::setup() {
   this->camera_->add_listener(this);
@@ -63,8 +57,8 @@ void CameraImage::setup() {
   }
 
   this->transform_buffer_size_ = static_cast<size_t>(bytes_64);
-  this->transform_buffer_ = RAMAllocator<uint8_t>().allocate(this->transform_buffer_size_);
-  if (this->transform_buffer_ == nullptr) {
+  this->transform_buffer_ = RAMAllocator<uint8_t>().make_unique_array_for_overwrite(this->transform_buffer_size_);
+  if (!this->transform_buffer_) {
     ESP_LOGE(TAG, "Failed to allocate %zu bytes for rotation", this->transform_buffer_size_);
     this->mark_failed(LOG_STR("Could not allocate the rotation buffer"));
   }
@@ -211,7 +205,7 @@ bool CameraImage::apply_crop_rotation_() {
       ESP_LOGE(TAG, "No buffer allocated for a %dx%d crop/rotation", output_width, output_height);
       return false;
     }
-    uint8_t *output = this->transform_buffer_;
+    uint8_t *output = this->transform_buffer_.get();
     switch (this->rotation_) {
       case 90:
         for (int y = 0; y < output_height; y++) {
@@ -257,7 +251,7 @@ bool CameraImage::apply_crop_rotation_() {
 void CameraImage::dump_config() {
   ESP_LOGCONFIG(TAG, "Camera Image:");
   ESP_LOGCONFIG(TAG, "  Format: %s", LOG_STR_ARG(runtime_image::get_format_name(this->get_format())));
-  ESP_LOGCONFIG(TAG, "  Type: %s", image_type_name(this->get_type()));
+  ESP_LOGCONFIG(TAG, "  Type: %s", LOG_STR_ARG(image_type_name(this->get_type())));
   if (this->has_crop_) {
     ESP_LOGCONFIG(TAG, "  Crop: %d,%d %dx%d", this->crop_x_, this->crop_y_, this->crop_width_, this->crop_height_);
   }
