@@ -224,7 +224,9 @@ void Esp32HostedUpdate::check() {
   } else {
     this->state_ = update::UPDATE_STATE_AVAILABLE;
 #ifdef CONFIG_ESP_HOSTED_CP_TARGET_ESP32C5
-    warn_esp32c5_partition_table(this->update_info_);
+    if (!was_available) {
+      warn_esp32c5_partition_table(this->update_info_);
+    }
 #endif
   }
 
