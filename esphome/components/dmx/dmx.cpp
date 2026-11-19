@@ -64,8 +64,8 @@ void DMXComponent::loop() {
             this->last_rx_ms_ = millis();
             got_rx = true;
           } else {
-            ESP_LOGW(TAG, "Incomplete DMX read: expected %u bytes, received %u",
-                     static_cast<unsigned>(received_size), static_cast<unsigned>(bytes_read));
+            ESP_LOGW(TAG, "Incomplete DMX read: expected %u bytes, received %u", static_cast<unsigned>(received_size),
+                     static_cast<unsigned>(bytes_read));
           }
         }
       } else if (packet.err != DMX_OK) {
@@ -134,9 +134,7 @@ uint8_t DMXComponent::get_tx_channel(uint16_t channel) const {
   return this->tx_data_[channel];
 }
 
-void DMXComponent::set_slot(uint16_t channel, uint8_t value) {
-  this->set_slots(channel, &value, 1);
-}
+void DMXComponent::set_slot(uint16_t channel, uint8_t value) { this->set_slots(channel, &value, 1); }
 
 void DMXComponent::set_slots(uint16_t first_channel, const uint8_t *values, size_t count) {
   if (values == nullptr || count == 0 || first_channel < 1 || first_channel > 512)
