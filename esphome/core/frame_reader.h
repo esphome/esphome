@@ -179,7 +179,8 @@ template<class HEADER, class LENGTH, class MIN = FrameMinLength<0>> struct Frame
 template<size_t N, class... FORMATS> class LengthFrameReader {
   using pos_t = std::conditional_t<(N <= 0xFF), uint8_t, uint16_t>;
   static_assert(sizeof...(FORMATS) >= 1, "LengthFrameReader takes at least one FrameFormat");
-  static_assert(N >= 2 && N <= 0xFFFF, "LengthFrameReader size out of range");
+  static_assert(N >= 2 && N <= 1024,
+                "LengthFrameReader size out of range");  // flush_() copies a partial frame on the stack
   static constexpr bool distinct_first() {
     const uint8_t first[] = {FORMATS::FIRST...};
     for (size_t i = 0; i < sizeof...(FORMATS); i++) {
@@ -213,11 +214,13 @@ template<size_t N, class... FORMATS> class LengthFrameReader {
     }
   }
 
-  /// For a partial frame left too long without a byte, which a corrupt length can cause: give up on it, and pass the
-  /// frames it held back to handle. A UART component gets this from UARTDevice::read_frames().
+  /// For a partial frame left too long without a byte: when it holds frames that handle takes, which a corrupt length
+  /// can cause, give it up and pass them on; otherwise keep it, as a slow UART may still deliver the rest. A UART
+  /// component gets this from UARTDevice::read_frames().
   template<class F> void flush(F &&handle) {
-    while (this->pos_ != 0)
-      this->drain_(this->replay_(1, this->pos_), handle);
+    // held_end_ marks a partial frame already searched; new bytes move pos_ past it
+    if (this->pos_ != 0 && this->held_end_ != this->pos_)
+      this->flush_(handle);
   }
 
   /// Number of bytes of the partial frame; 0 after a frame is returned and while looking for a header.
@@ -226,10 +229,32 @@ template<size_t N, class... FORMATS> class LengthFrameReader {
  protected:
   // Hands each frame (len bytes at buf_) to handle, then goes on after a handled frame or from the second byte of a
   // rejected one
-  template<class F> void ESPHOME_FRAME_READER_COLD drain_(size_t len, F &handle) {
+  template<class F> bool ESPHOME_FRAME_READER_COLD drain_(size_t len, F &handle) {
+    bool handled = false;
     while (len != 0) {
-      len = this->replay_(handle(this->buf_, len) ? len : 1, this->held_end_);
+      const bool ok = handle(this->buf_, len);
+      handled |= ok;
+      len = this->replay_(ok ? len : 1, this->held_end_);
     }
+    this->held_end_ = 0;
+    return handled;
+  }
+
+  // Searches the partial frame for frames; when handle takes none, puts the partial frame back and marks it searched
+  template<class F> void ESPHOME_FRAME_READER_COLD flush_(F &handle) {
+    const pos_t pos = this->pos_;
+    const pos_t end = this->end_;
+    uint8_t saved[N];
+    std::memcpy(saved, this->buf_, pos);
+    bool handled = false;
+    while (this->pos_ != 0)
+      handled |= this->drain_(this->replay_(1, this->pos_), handle);
+    if (handled)
+      return;
+    std::memcpy(this->buf_, saved, pos);
+    this->pos_ = pos;
+    this->end_ = end;
+    this->held_end_ = pos;
   }
 
   // Every byte but the middle of a frame; returns the length of a completed frame, or 0
@@ -299,7 +324,7 @@ template<size_t N, class... FORMATS> class LengthFrameReader {
   pos_t pos_{0};
   // Length of the frame being collected once its length is known; 0 otherwise
   pos_t end_{0};
-  // End of a held frame plus the bytes after it not fed yet; set when a frame completes
+  // End of a held frame plus the bytes after it not fed yet, set when a frame completes; or a searched partial frame
   pos_t held_end_{0};
   uint8_t buf_[N];
 };

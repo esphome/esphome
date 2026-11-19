@@ -329,6 +329,40 @@ TEST(LengthFrameReaderTest, FlushHandsOverFramesHeldBack) {
   EXPECT_EQ(seen.size(), 2u);
 }
 
+TEST(LengthFrameReaderTest, FlushKeepsASlowFrameUntilTheRestArrives) {
+  LengthFrameReader<16, Small> reader;
+  Frames seen;
+  auto handle = [&seen](const uint8_t *frame, size_t len) {
+    seen.emplace_back(frame, frame + len);
+    return true;
+  };
+  for (uint8_t c : {0xA5, 0x06, 0xA5, 0x03})
+    reader.feed(c, handle);
+  reader.flush(handle);
+  EXPECT_EQ(seen, Frames{});
+  EXPECT_EQ(reader.length(), 4u);
+  for (uint8_t c : {0x01, 0x02})
+    reader.feed(c, handle);
+  EXPECT_EQ(seen, (Frames{{0xA5, 0x06, 0xA5, 0x03, 0x01, 0x02}}));
+}
+
+TEST(LengthFrameReaderTest, FlushKeepsTheFrameWhenEveryFrameInsideIsRejected) {
+  LengthFrameReader<16, Small> reader;
+  size_t calls = 0;
+  auto reject = [&calls](const uint8_t *, size_t) {
+    calls++;
+    return false;
+  };
+  for (uint8_t c : {0xA5, 0x0F, 0xA5, 0x03, 0x09})
+    reader.feed(c, reject);
+  reader.flush(reject);
+  EXPECT_EQ(calls, 1u);
+  EXPECT_EQ(reader.length(), 5u);
+  // Searched once until a new byte comes
+  reader.flush(reject);
+  EXPECT_EQ(calls, 1u);
+}
+
 TEST(LengthFrameReaderTest, IdleAfterHandledFrameFindsNothingInIt) {
   LengthFrameReader<16, Small> reader;
   Frames seen;
