@@ -1,6 +1,5 @@
-// CANopenNode driver functions (301/CO_driver.h) on top of ESPHome canbus. CANptr is the CANopenComponent.
-// Everything runs on the main loop: frames are received by CANopenComponent::on_frame_() (the canbus callback),
-// handed to CANopenNode's receive buffers by receive_(), and sent by transmit().
+// CANopenNode driver functions (301/CO_driver.h) on ESPHome canbus; CANptr is the CANopenComponent. All on the main
+// loop: frames come in by on_frame_() (the canbus callback) and receive_(), and go out by transmit().
 #include "canopen.h"
 
 #include <cstring>
@@ -33,7 +32,7 @@ void CANopenComponent::on_frame_(const canbus::CanFrame &frame) {
   if (frame.use_extended_id || len > 8)
     return;
   this->receive_((frame.can_id & 0x7FF) | (frame.remote_transmission_request ? 0x800 : 0), frame.data, len);
-  this->process_();
+  this->process_(true);
 }
 
 void CANopenComponent::receive_(uint16_t ident, const uint8_t *data, uint8_t len) {

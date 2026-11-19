@@ -1,5 +1,4 @@
-// CANopenComponent: setup (initialising CANopenNode's CAN module and SDO client) and processing. The other features
-// are in their own files, see canopen.h.
+// CANopenComponent: setup and processing; the other features are in their own files, see canopen.h.
 #include "canopen.h"
 
 #include "esphome/core/hal.h"
@@ -44,21 +43,29 @@ void CANopenComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "CANopen (CANopenNode):\n  SDO client: response timeout %u ms", this->response_timeout_ms_);
 }
 
-void CANopenComponent::loop() { this->process_(); }
+void CANopenComponent::loop() { this->process_(false); }
 
-void CANopenComponent::process_() {
+void CANopenComponent::process_(bool from_frame) {
   if (this->co_ == nullptr || this->is_failed())
     return;
   // nothing to do without a request or a frame to send
   if (this->co_->CANmodule->CANtxCount == 0 && !this->sdo_busy_ && this->sdo_count_ == 0)
     return;
-  uint32_t now = micros();
-  uint32_t dt = now - this->last_us_;
-  this->last_us_ = now;
-  // The SDO client first: a request whose frame still waits at its deadline ends there, before the flush could send
-  // it. CO_process() would process the node's objects, which aren't initialised.
-  this->process_sdo_(dt);
+  // SDO client first: an unsent frame ends at its deadline, before the flush could send it. Its time runs in loop() (a
+  // received frame may come before a queued reply), or while no reply can be on its way (frame unsent, no request).
+  CO_SDOclient_t *cli = this->co_->SDOclient;
+  const bool unsent = cli->CANtxBuff->bufferFull;
+  if (!from_frame || unsent || !this->sdo_busy_) {
+    uint32_t now = micros();
+    this->process_sdo_(now - this->last_us_);
+    this->last_us_ = now;
+  } else {
+    this->process_sdo_(0);
+  }
   CO_CANmodule_process(this->co_->CANmodule);
+  // CANopenNode started the response timeout when it queued the frame: start it again now that the frame is sent
+  if (unsent && !cli->CANtxBuff->bufferFull)
+    cli->timeoutTimer = 0;
 }
 
 }  // namespace esphome::canopen

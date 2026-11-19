@@ -21,6 +21,7 @@ def test_codegen(
     assert "canopen_hub->set_canbus(can_bus);" in main_cpp
     assert "canopen_hub->set_response_timeout(200);" in main_cpp
     assert "-DCO_CONFIG_SDO_CLI=0x03" in CORE.build_flags
+    assert "-DCO_CONFIG_SDO_CLI_BUFFER_SIZE=7" in CORE.build_flags
     assert "-DCO_CONFIG_FIFO=0x01" in CORE.build_flags
     # canopen.sdo_read
     assert "canopen::SDOReadAction<>" in main_cpp

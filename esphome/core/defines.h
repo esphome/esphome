@@ -72,6 +72,7 @@
 // canopen: the CANopenNode configuration codegen sets as build flags
 #define CO_CONFIG_SDO_CLI 0x03
 #define CO_CONFIG_FIFO 0x01
+#define CO_CONFIG_SDO_CLI_BUFFER_SIZE 7
 #define USE_CANBUS_FD
 #define USE_CC1101_LONG_PACKET
 #define USE_CLIMATE

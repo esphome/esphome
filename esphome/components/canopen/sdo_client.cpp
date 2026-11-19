@@ -127,12 +127,14 @@ void CANopenComponent::reject_queued_sdo_() {
   }
 }
 
-// A late reply to a request that already ended (e.g. timed out) names its object. CANopenNode takes any abort, and
-// aborts the transfer on an initiate response for another object, so the reply would fail the current request.
-// Segment responses name no object and pass.
+// A late reply to an ended request (e.g. timed out) names its object; CANopenNode takes any abort and aborts on an
+// initiate response for another object, failing the current request. Segment responses name no object and pass.
 bool CANopenComponent::sdo_reply_is_stale_(const uint8_t *data, uint8_t len) const {
   if (!this->sdo_busy_ || len < 4)
     return false;
+  // a request that hasn't gone out yet has no reply
+  if (this->co_->SDOclient->CANtxBuff->bufferFull)
+    return true;
   const uint8_t scs = data[0] >> 5;  // 2: initiate upload response, 3: initiate download response, 4: abort
   if (scs < 2 || scs > 4)
     return false;
@@ -153,8 +155,8 @@ bool CANopenComponent::start_sdo_() {
       return CO_SDOclientUploadInitiate(cli, r.index, r.sub, this->response_timeout_ms_, false) ==
              CO_SDO_RT_ok_communicationEnd;
     case SDOKind::SDO_KIND_WRITE: {
-      uint8_t buf[4] = {(uint8_t) r.value, (uint8_t) (r.value >> 8), (uint8_t) (r.value >> 16),
-                        (uint8_t) (r.value >> 24)};
+      uint8_t buf[4];
+      put_le32(buf, r.value);
       if (CO_SDOclientDownloadInitiate(cli, r.index, r.sub, r.size, this->response_timeout_ms_, false) !=
           CO_SDO_RT_ok_communicationEnd)
         return false;
@@ -192,12 +194,13 @@ void CANopenComponent::process_sdo_(uint32_t dt_us) {
   CO_SDO_return_t ret;
   if (r.kind == SDOKind::SDO_KIND_READ || r.kind == SDOKind::SDO_KIND_READ_DATA) {
     ret = CO_SDOclientUpload(cli, dt_us, false, &abort, nullptr, nullptr, nullptr);
-    // drained after every segment, so a value read stops at the first one past 4 bytes
-    if (ret >= 0) {
-      const bool value_read = r.kind == SDOKind::SDO_KIND_READ;
-      uint8_t *dst = value_read ? this->sdo_rx_value_.data() : r.data;
-      const size_t cap = value_read ? this->sdo_rx_value_.size() : r.len;
-      uint8_t buf[64];
+    const bool value_read = r.kind == SDOKind::SDO_KIND_READ;
+    uint8_t *dst = value_read ? this->sdo_rx_value_.data() : r.data;
+    const size_t cap = value_read ? this->sdo_rx_value_.size() : r.len;
+    // The fifo holds one segment (CO_CONFIG_SDO_CLI_BUFFER_SIZE 7), drained before the next is requested: a read past
+    // its capacity (a value: 4 bytes) ends without asking the server for more.
+    while (ret >= 0) {
+      uint8_t buf[8];
       size_t n;
       while ((n = CO_SDOclientUploadBufRead(cli, buf, sizeof(buf))) > 0) {
         if (this->sdo_rx_len_ < cap)
@@ -205,7 +208,6 @@ void CANopenComponent::process_sdo_(uint32_t dt_us) {
         this->sdo_rx_len_ += n;
       }
       if (this->sdo_rx_len_ > cap) {
-        // a value is at most 4 bytes: a longer object is a size mismatch, not worth uploading
         abort = value_read ? CO_SDO_AB_DATA_LONG : CO_SDO_AB_OUT_OF_MEM;
         CO_SDOclientUpload(cli, 0, true, &abort, nullptr, nullptr, nullptr);
         // not abort: it comes back empty when the last frame ended the transfer, with nothing left to abort
@@ -216,6 +218,9 @@ void CANopenComponent::process_sdo_(uint32_t dt_us) {
         }
         return;
       }
+      if (ret != CO_SDO_RT_uploadDataBufferFull)
+        break;
+      ret = CO_SDOclientUpload(cli, 0, false, &abort, nullptr, nullptr, nullptr);
     }
   } else {
     if (r.kind == SDOKind::SDO_KIND_WRITE_DATA && this->sdo_offset_ < r.len) {
@@ -231,7 +236,8 @@ void CANopenComponent::process_sdo_(uint32_t dt_us) {
     // CANopenNode doesn't time out while its frame waits to be sent: the queue would wait as long as the bus is stuck
     this->finish_sdo_(SDOResult::SDO_RESULT_TRANSPORT_ERROR, 0);
   } else if (ret < 0) {
-    if (abort == CO_SDO_AB_TIMEOUT) {
+    // a server may abort with the timeout code too
+    if (ret != CO_SDO_RT_endedWithServerAbort && abort == CO_SDO_AB_TIMEOUT) {
       this->finish_sdo_(SDOResult::SDO_RESULT_TIMEOUT, abort);
     } else if (ret == CO_SDO_RT_endedWithServerAbort || ret == CO_SDO_RT_endedWithClientAbort) {
       this->finish_sdo_(SDOResult::SDO_RESULT_ABORT, abort);
@@ -244,8 +250,7 @@ void CANopenComponent::process_sdo_(uint32_t dt_us) {
 void CANopenComponent::finish_sdo_(SDOResult result, uint32_t abort_code) {
   CO_SDOclient_t *cli = this->co_->SDOclient;
   CO_SDOclientClose(cli);
-  // the caller is told it failed: drop its frame if the controller hasn't taken it yet (one it has taken can't be
-  // recalled, so a failed write may still reach the server)
+  // failed: drop the frame unless the controller took it (then it can't be recalled, see types.h)
   if (result != SDOResult::SDO_RESULT_SUCCESS)
     discard_pending_tx(cli->CANdevTx, cli->CANtxBuff);
   SDORequest r = this->sdo_active_;

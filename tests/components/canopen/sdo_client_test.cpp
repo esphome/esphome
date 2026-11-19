@@ -167,9 +167,55 @@ TEST_F(SdoClient, LongObjectIsASizeMismatchForAValueRead) {
   this->hub_.loop();
   ASSERT_EQ(this->replies_.size(), 1u);
   EXPECT_EQ(this->replies_[0].result, SDOResult::SDO_RESULT_SIZE_MISMATCH);
-  auto req = this->requests_();
-  EXPECT_EQ(req.back(), (Bytes{0x80, 0x08, 0x10, 0, 0x12, 0x00, 0x07, 0x06}));
-  EXPECT_LE(req.size(), 4u);
+  // no request for the next segment before the abort, whose response could reach the next request
+  EXPECT_EQ(this->requests_(), (std::vector<Bytes>{
+                                   {0x40, 0x08, 0x10, 0, 0, 0, 0, 0},
+                                   {0x60, 0, 0, 0, 0, 0, 0, 0},
+                                   {0x80, 0x08, 0x10, 0, 0x12, 0x00, 0x07, 0x06},
+                               }));
+}
+
+// More than the 7-byte fifo: refilled for every segment.
+TEST_F(SdoClient, SegmentedWriteLargerThanTheFifo) {
+  static const uint8_t DATA[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20};
+  ASSERT_TRUE(this->hub_.write_sdo_data(0x21, 0x2000, 1, DATA, sizeof(DATA), on_reply, this));
+  this->hub_.loop();
+  this->hub_.frame(0x5A1, {0x60, 0x00, 0x20, 1, 0, 0, 0, 0});
+  this->hub_.frame(0x5A1, {0x20, 0, 0, 0, 0, 0, 0, 0});
+  this->hub_.frame(0x5A1, {0x30, 0, 0, 0, 0, 0, 0, 0});
+  EXPECT_TRUE(this->replies_.empty());
+  this->hub_.frame(0x5A1, {0x20, 0, 0, 0, 0, 0, 0, 0});
+  ASSERT_EQ(this->replies_.size(), 1u);
+  EXPECT_TRUE(this->replies_[0].ok());
+  EXPECT_EQ(this->requests_(), (std::vector<Bytes>{
+                                   {0x21, 0x00, 0x20, 1, 20, 0, 0, 0},
+                                   {0x00, 1, 2, 3, 4, 5, 6, 7},
+                                   {0x10, 8, 9, 10, 11, 12, 13, 14},
+                                   {0x00 | (1 << 1) | 1, 15, 16, 17, 18, 19, 20, 0},  // toggle 0, 6 bytes, last
+                               }));
+}
+
+// A server may abort with the timeout code: still an abort, not a local timeout.
+TEST_F(SdoClient, ServerAbortWithTheTimeoutCode) {
+  ASSERT_TRUE(this->hub_.read_sdo<uint32_t>(0x21, 0x1000, 0, on_reply, this));
+  this->hub_.loop();
+  this->hub_.frame(0x5A1, {0x80, 0x00, 0x10, 0, 0x00, 0x00, 0x04, 0x05});
+  ASSERT_EQ(this->replies_.size(), 1u);
+  EXPECT_EQ(this->replies_[0].result, SDOResult::SDO_RESULT_ABORT);
+  EXPECT_EQ(this->replies_[0].abort_code, 0x05040000u);
+}
+
+// After a long loop, a frame received before the reply still queued behind it must not time the request out.
+TEST_F(SdoClient, OtherFrameAfterTheTimeoutBeforeTheReply) {
+  ASSERT_TRUE(this->hub_.read_sdo<uint16_t>(0x21, 0x1017, 0, on_reply, this));
+  this->hub_.loop();
+  std::this_thread::sleep_for(std::chrono::milliseconds(40));
+  this->hub_.frame(0x701, {0x05});  // a heartbeat
+  EXPECT_TRUE(this->replies_.empty());
+  this->hub_.frame(0x5A1, {0x4B, 0x17, 0x10, 0, 0xE8, 0x03, 0, 0});
+  ASSERT_EQ(this->replies_.size(), 1u);
+  EXPECT_TRUE(this->replies_[0].ok());
+  EXPECT_EQ(this->replies_[0].value, 1000u);
 }
 
 // After a timeout, the server's late replies about the old object must not end the next request.

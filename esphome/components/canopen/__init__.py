@@ -74,6 +74,8 @@ def add_canopennode_library() -> None:
     cg.add_library("CANopenNode", None, CANOPENNODE_SOURCE)
     cg.add_build_flag("-DCO_CONFIG_SDO_CLI=0x03")
     cg.add_build_flag("-DCO_CONFIG_FIFO=0x01")
+    # one segment: drained before the next one is requested (sdo_client.cpp)
+    cg.add_build_flag("-DCO_CONFIG_SDO_CLI_BUFFER_SIZE=7")
 
 
 async def to_code(config: ConfigType) -> None:
