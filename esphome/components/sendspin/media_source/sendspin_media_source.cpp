@@ -180,6 +180,10 @@ size_t SendspinMediaSource::on_audio_output(std::span<const uint8_t> pcm, const 
 
 // THREAD CONTEXT: Main loop (PlayerRoleListener lifecycle callback)
 void SendspinMediaSource::on_stream_start() {
+  // A stream/start for a stream already playing only changes its format, which each audio write carries
+  if (this->get_state() != media_source::MediaSourceState::IDLE) {
+    return;
+  }
   if (!this->pending_start_) {
     // Dedup rapid on_stream_start() calls
     this->pending_start_ = true;
