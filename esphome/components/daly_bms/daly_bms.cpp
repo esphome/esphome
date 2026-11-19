@@ -79,6 +79,8 @@ void DalyBmsComponent::loop() {
   this->last_transmission_ = now;
   // the request IDs are consecutive, see DALY_REQUEST_BATTERY_LEVEL
   this->last_request_ = DALY_REQUEST_BATTERY_LEVEL + this->next_request_++;
+  // A new request starts a new exchange; kept bytes of an earlier reply must not merge into this one
+  this->reader_.reset();
   this->request_data_(this->last_request_);
 }
 

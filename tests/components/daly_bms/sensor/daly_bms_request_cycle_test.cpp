@@ -140,6 +140,12 @@ TEST_F(DalyBmsRequestCycleTest, PartialFrameHoldsTheNextRequest) {
   loop_at(this->bms_, 1270);
   ASSERT_EQ(request_count(this->uart_), 2u);
   EXPECT_EQ(last_request(this->uart_), 0x91);
+  // The kept bytes must not merge with the reply into a frame that passes the checksum
+  receive(this->uart_, {0xA5, 0x01, 0x91, 0x08, 0x0C, 0x82, 0x01, 0x0C, 0x40, 0x02, 0x00, 0x00, 0x1C});
+  loop_at(this->bms_, 1280);
+  loop_at(this->bms_, 1340);
+  ASSERT_EQ(request_count(this->uart_), 3u);
+  EXPECT_EQ(last_request(this->uart_), 0x92);
 }
 
 // More than seven probes take more than one temperature frame: the next cycle waits for all of them.

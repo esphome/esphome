@@ -56,8 +56,11 @@ void TuyaUART::setup() {
 
 void TuyaUART::loop() {
   auto handler = [this](const uint8_t *frame, size_t len) { return this->handle_frame_(frame, len); };
+  // Holds commands back for the whole read, the idle search and its log lines included
+  this->handling_frame_ = true;
   this->read_frames(this->reader_, handler, App.get_loop_component_start_time(), this->last_rx_char_timestamp_,
                     RECEIVE_TIMEOUT);
+  this->handling_frame_ = false;
   process_command_queue_();
 }
 
@@ -105,13 +108,11 @@ bool frame_fits(const uint8_t *buf) {
 }
 
 bool TuyaUART::handle_frame_(const uint8_t *frame, size_t len) {
-  this->handling_frame_ = true;
   // Last byte: sum of all bytes before it, header included, modulo 256
   const uint8_t rx_checksum = frame[len - 1];
   const uint8_t calc_checksum = sum_bytes(frame, len - 1);
   if (rx_checksum != calc_checksum) {
     ESP_LOGW(TAG, "Tuya Received invalid message checksum %02X!=%02X", rx_checksum, calc_checksum);
-    this->handling_frame_ = false;
     return false;
   }
   const uint8_t version = frame[2];
@@ -124,7 +125,6 @@ bool TuyaUART::handle_frame_(const uint8_t *frame, size_t len) {
            format_hex_pretty_to(hex_buf, message_data, length), static_cast<uint8_t>(this->init_state_));
 #endif
   this->handle_command_(command, version, message_data, length);
-  this->handling_frame_ = false;
   return true;
 }
 
