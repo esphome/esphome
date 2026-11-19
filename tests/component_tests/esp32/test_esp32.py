@@ -897,15 +897,17 @@ _IDF61 = cv.Version(6, 1, 1)
             id="idf61_remote_enterprise_off",
         ),
         pytest.param(
-            # With TLS kept, the curves, PEM and large-key MPI stay; the unused
-            # cipher modes still go.
+            # With TLS kept, the curves, PEM, large-key MPI and SHA-384 (for
+            # certificate chains) stay; the unused cipher modes still go.
             PlatformFramework.ESP32_IDF,
             _IDF6,
             MbedtlsSdkconfigData(tls_required=True),
             {},
             {
                 **_TLS_CLIENT_ONLY,
-                **_IDF6_TRIMS,
+                **_TLS_EXTRAS_OFF,
+                **_PEER_CERT_PKCS7_OFF,
+                **_CIPHER_MODES_OFF,
             },
             set(_ESP_TLS_LINKING_COMPONENTS),
             id="idf6_tls_keeps_curves",
@@ -1085,7 +1087,7 @@ _IDF61 = cv.Version(6, 1, 1)
             id="arduino_keeps_tls",
         ),
         pytest.param(
-            # Arduino on ESP-IDF 6 keeps every cipher mode.
+            # Arduino on ESP-IDF 6 keeps TLS, so every cipher mode and SHA-384.
             PlatformFramework.ESP32_ARDUINO,
             _IDF6,
             MbedtlsSdkconfigData(),
@@ -1094,7 +1096,6 @@ _IDF61 = cv.Version(6, 1, 1)
                 **_TLS_CLIENT_ONLY,
                 **_TLS_EXTRAS_OFF,
                 **_PEER_CERT_PKCS7_OFF,
-                **_SHA512_OFF,
             },
             set(_ESP_TLS_LINKING_COMPONENTS),
             id="arduino_idf6_keeps_cipher_modes",
