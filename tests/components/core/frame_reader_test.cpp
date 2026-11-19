@@ -157,16 +157,16 @@ template<size_t N, class... F> static Frames feed_all(LengthFrameReader<N, F...>
 }
 
 // pioneer_wt: A5 01, one byte at 7 holds the whole length
-using OneByte = FrameFormat<FrameLengthU8<7>, 0xA5, 0x01>;
-// tuya: 55 AA, payload length big-endian at 4, header, length and checksum add 7
-using TwoByteBE = FrameFormat<FrameLengthU16BE<4, 7>, 0x55, 0xAA>;
-// ld24xx command and data frames: payload length little-endian at 4, header, length and footer add 10
-using LdCmd = FrameFormat<FrameLengthU16LE<4, 10>, 0xFD, 0xFC, 0xFB, 0xFA>;
-using LdData = FrameFormat<FrameLengthU16LE<4, 10>, 0xF4, 0xF3, 0xF2, 0xF1>;
+using OneByte = FrameFormat<FrameHeader<0xA5, 0x01>, FrameLengthU8<7>>;
+// tuya: 55 AA, version, command, payload length (2, BE), payload, checksum
+using TwoByteBE = FrameFormat<FrameHeader<0x55, 0xAA>, PayloadLengthU16BE<4, 1>>;
+// ld24xx command and data frames: header (4), payload length (2, LE), payload, footer (4)
+using LdCmd = FrameFormat<FrameHeader<0xFD, 0xFC, 0xFB, 0xFA>, PayloadLengthU16LE<4, 4>>;
+using LdData = FrameFormat<FrameHeader<0xF4, 0xF3, 0xF2, 0xF1>, PayloadLengthU16LE<4, 4>>;
 // ld2410s short frame: 6E, always 5 bytes
-using LdShort = FrameFormat<FrameFixedLength<5>, 0x6E>;
+using LdShort = FrameFormat<FrameHeader<0x6E>, FrameFixedLength<5>>;
 // Small format for the recovery tests: A5, one byte at 1 holds the whole length
-using Small = FrameFormat<FrameLengthU8<1>, 0xA5>;
+using Small = FrameFormat<FrameHeader<0xA5>, FrameLengthU8<1>>;
 
 static_assert(sizeof(LengthFrameReader<255, OneByte>) == 258);
 static_assert(sizeof(LengthFrameReader<300, TwoByteBE>) == 306);
@@ -221,7 +221,7 @@ TEST(LengthFrameReaderTest, BrokenHeaderRealigns) {
 
 TEST(LengthFrameReaderTest, BrokenHeaderHoldsAShorterFrameOfAnotherFormat) {
   // FD FC FB then 77 breaks the command header; its replay finds a whole 2 byte FC frame and keeps the 77 behind it
-  LengthFrameReader<32, LdCmd, FrameFormat<FrameFixedLength<2>, 0xFC>> reader;
+  LengthFrameReader<32, LdCmd, FrameFormat<FrameHeader<0xFC>, FrameFixedLength<2>>> reader;
   EXPECT_EQ(feed_all(reader, {0xFD, 0xFC, 0xFB, 0x77}), (Frames{{0xFC, 0xFB}}));
   EXPECT_EQ(reader.length(), 0u);
   // The held 77 was noise, so the next frame is found normally
@@ -248,7 +248,7 @@ TEST(LengthFrameReaderTest, BadLengthRealignsAfterFirstByte) {
 }
 
 TEST(LengthFrameReaderTest, LengthByteCanStartHeader) {
-  LengthFrameReader<8, FrameFormat<FrameLengthU8<1>, 0x09>> reader;
+  LengthFrameReader<8, FrameFormat<FrameHeader<0x09>, FrameLengthU8<1>>> reader;
   // Length 9 is longer than 8, so the length byte becomes the next header
   EXPECT_EQ(feed_all(reader, {0x09, 0x09, 0x03, 0x07}), (Frames{{0x09, 0x03, 0x07}}));
 }
@@ -330,7 +330,7 @@ struct FirstByteLength {
 };
 
 TEST(LengthFrameReaderTest, CustomRuleKnownAtTheFirstByte) {
-  LengthFrameReader<8, FrameFormat<FirstByteLength, 0x03>> reader;
+  LengthFrameReader<8, FrameFormat<FrameHeader<0x03>, FirstByteLength>> reader;
   EXPECT_EQ(feed_all(reader, {0x03, 0x01, 0x02, 0x03}), (Frames{{0x03, 0x01, 0x02}}));
 }
 }  // namespace esphome::core::testing

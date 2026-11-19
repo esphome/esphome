@@ -81,20 +81,31 @@ template<size_t N, uint8_t... HEADER> class FrameReader {
 /// Length rules for FrameFormat: the frame length is known once KNOWN_AT bytes are collected, and get() returns it
 /// for the whole frame, header included. A component can pass its own type with these two members; its get()
 /// returns 0 to reject a broken header.
-/// One length byte at POS; ADD is added to give the whole frame length.
-template<size_t POS, size_t ADD = 0> struct FrameLengthU8 {
+/// Whole-frame length: the field at POS counts every byte of the frame, header included.
+template<size_t POS> struct FrameLengthU8 {
   static constexpr size_t KNOWN_AT = POS + 1;
-  static constexpr size_t get(const uint8_t *buf) { return buf[POS] + ADD; }
+  static constexpr size_t get(const uint8_t *buf) { return buf[POS]; }
 };
-/// Two length bytes at POS, high byte first.
-template<size_t POS, size_t ADD = 0> struct FrameLengthU16BE {
+template<size_t POS> struct FrameLengthU16BE {
   static constexpr size_t KNOWN_AT = POS + 2;
-  static constexpr size_t get(const uint8_t *buf) { return ((size_t(buf[POS]) << 8) | buf[POS + 1]) + ADD; }
+  static constexpr size_t get(const uint8_t *buf) { return (size_t(buf[POS]) << 8) | buf[POS + 1]; }
 };
-/// Two length bytes at POS, low byte first.
-template<size_t POS, size_t ADD = 0> struct FrameLengthU16LE {
+template<size_t POS> struct FrameLengthU16LE {
   static constexpr size_t KNOWN_AT = POS + 2;
-  static constexpr size_t get(const uint8_t *buf) { return (buf[POS] | (size_t(buf[POS + 1]) << 8)) + ADD; }
+  static constexpr size_t get(const uint8_t *buf) { return buf[POS] | (size_t(buf[POS + 1]) << 8); }
+};
+/// Payload length: the field at POS counts the payload right after it; AFTER bytes (checksum, footer) follow it.
+template<size_t POS, size_t AFTER = 0> struct PayloadLengthU8 {
+  static constexpr size_t KNOWN_AT = POS + 1;
+  static constexpr size_t get(const uint8_t *buf) { return KNOWN_AT + buf[POS] + AFTER; }
+};
+template<size_t POS, size_t AFTER = 0> struct PayloadLengthU16BE {
+  static constexpr size_t KNOWN_AT = POS + 2;
+  static constexpr size_t get(const uint8_t *buf) { return KNOWN_AT + FrameLengthU16BE<POS>::get(buf) + AFTER; }
+};
+template<size_t POS, size_t AFTER = 0> struct PayloadLengthU16LE {
+  static constexpr size_t KNOWN_AT = POS + 2;
+  static constexpr size_t get(const uint8_t *buf) { return KNOWN_AT + FrameLengthU16LE<POS>::get(buf) + AFTER; }
 };
 /// A frame type that always has LEN bytes.
 template<size_t LEN> struct FrameFixedLength {
@@ -109,17 +120,22 @@ template<class LENGTH> constexpr size_t FIXED_LENGTH = 0;
 template<size_t LEN> constexpr size_t FIXED_LENGTH<FrameFixedLength<LEN>> = LEN;
 }  // namespace frame_reader_detail
 
-/// One frame type for LengthFrameReader: frames that start with the header bytes HEADER... and whose length follows
-/// LENGTH, one of the FrameLength types above.
-template<class LENGTH, uint8_t... HEADER> struct FrameFormat {
+/// The bytes every frame of a FrameFormat starts with.
+template<uint8_t... BYTES> struct FrameHeader {
+  static constexpr size_t LEN = sizeof...(BYTES);
+  static_assert(LEN >= 1 && LEN <= 8, "A FrameHeader has 1 to 8 bytes");
+  static constexpr uint8_t byte(size_t i) { return frame_reader_detail::header_byte<BYTES...>(i); }
+};
+
+/// One frame type for LengthFrameReader: a FrameHeader and a length rule from above.
+template<class HEADER, class LENGTH> struct FrameFormat {
   using Length = LENGTH;
-  static constexpr size_t HEADER_LEN = sizeof...(HEADER);
-  static constexpr uint8_t FIRST = frame_reader_detail::header_byte<HEADER...>(0);
+  static constexpr size_t HEADER_LEN = HEADER::LEN;
+  static constexpr uint8_t FIRST = HEADER::byte(0);
   // Bytes collected when the length is checked; also the shortest frame
   static constexpr size_t MIN_LEN = std::max<size_t>({LENGTH::KNOWN_AT, HEADER_LEN, 2});
-  static_assert(HEADER_LEN >= 1 && HEADER_LEN <= 8, "FrameFormat takes 1 to 8 header bytes");
   static_assert(LENGTH::KNOWN_AT == 1 || LENGTH::KNOWN_AT > HEADER_LEN, "The length field must follow the header");
-  static constexpr uint8_t header_byte(size_t i) { return frame_reader_detail::header_byte<HEADER...>(i); }
+  static constexpr uint8_t header_byte(size_t i) { return HEADER::byte(i); }
 };
 
 /// Collects binary frames that give their own length, of up to N bytes, in one or more FrameFormats; the first byte

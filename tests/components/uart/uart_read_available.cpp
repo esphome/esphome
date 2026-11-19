@@ -181,7 +181,7 @@ TEST(UARTReadAvailableTest, DiscardStopsOnReadFailure) {
 }
 
 // AA, length byte, then that many bytes; the handler takes every frame
-using GapReader = LengthFrameReader<16, FrameFormat<FrameLengthU8<1, 2>, 0xAA>>;
+using GapReader = LengthFrameReader<16, FrameFormat<FrameHeader<0xAA>, PayloadLengthU8<1>>>;
 
 TEST(UARTReadFramesTest, FeedsTheReaderAndStampsTheTime) {
   ::testing::NiceMock<FakeRxUART> uart(std::vector<uint8_t>{0xAA, 0x01, 0x07});
