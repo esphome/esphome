@@ -325,6 +325,7 @@ class GroupQueryData : public FrameData {
 /* ### POLLING ### */
 /* ############### */
 
+// Replaces MideaUART's m_onIdle(), which only queues the status query; its power usage query runs on its own timer
 void Appliance::m_onIdle() {
   // Group queries take turns with the status query, so the climate state keeps its refresh rate
   if (!this->status_turn_ && this->queue_next_data_query_()) {
@@ -375,9 +376,12 @@ void Appliance::queue_group_query_(MideaGroup group) {
 /* ### PARSING ### */
 /* ############### */
 
+template<typename T> static bool same(T a, T b) { return a == b; }
+// NAN marks a value the appliance does not report; it never equals itself, so compare it explicitly
+static bool same(float a, float b) { return a == b || (std::isnan(a) && std::isnan(b)); }
+
 template<typename T> static void update(T &property, T value, bool &changed) {
-  // NAN never equals itself, so a first report always counts as a change
-  if (!(property == value)) {
+  if (!same(property, value)) {
     property = value;
     changed = true;
   }
@@ -398,18 +402,31 @@ bool Appliance::read_status_fields_(const FrameData &data) {
 }
 
 static uint8_t bcd(uint8_t value) { return 10 * (value >> 4) + (value & 0x0F); }
+// Louver angles are 0-180 degrees; a larger value (0xF0 seen on a unit without an angle setting) is not an angle
+static float angle(uint8_t value) { return value <= 180 ? static_cast<float>(value) : NAN; }
+// Shortest reply that holds every field read from it, per group
+static constexpr uint8_t GROUP_MIN_SIZES[] = {17, 11, 21, 13, 14, 15};
+static_assert(sizeof(GROUP_MIN_SIZES) == static_cast<uint8_t>(MideaGroup::MIDEA_GROUP_COUNT));
 
 ResponseStatus Appliance::read_group_(MideaGroup group, const FrameData &data) {
   const uint8_t *d = data.data();
   const uint8_t size = data.size();
-  if (!data.hasID(0xC1) || size < 4 || (d[3] & 0x0F) != (GROUP_IDS[static_cast<uint8_t>(group)] & 0x0F))
+  const uint8_t idx = static_cast<uint8_t>(group);
+  if (!data.hasID(0xC1) || size < 4 || (d[3] & 0x0F) != (GROUP_IDS[idx] & 0x0F))
     return ResponseStatus::RESPONSE_WRONG;
+  if (size < GROUP_MIN_SIZES[idx]) {
+    // A reply in a layout this code does not know; its entities stay unknown, so say why once
+    if (!(this->short_groups_ & (1U << idx))) {
+      this->short_groups_ |= 1U << idx;
+      ESP_LOGW(Constants::TAG, "Group %u reply has %u bytes, expected %u; its values stay unknown", GROUP_IDS[idx],
+               size, GROUP_MIN_SIZES[idx]);
+    }
+    return ResponseStatus::RESPONSE_OK;
+  }
   bool changed = false;
   auto &e = this->state_;
   switch (group) {
     case MideaGroup::MIDEA_GROUP_1:
-      if (size < 17)
-        break;
       update(e.compressor_frequency, static_cast<float>(d[4]), changed);
       update(e.compressor_target_frequency, static_cast<float>(d[5]), changed);
       update(e.compressor_current, static_cast<float>(d[7]), changed);
@@ -419,15 +436,11 @@ ResponseStatus Appliance::read_group_(MideaGroup group, const FrameData &data) {
       update(e.discharge_temperature, static_cast<float>(d[14]), changed);
       break;
     case MideaGroup::MIDEA_GROUP_2:
-      if (size < 11)
-        break;
       update(e.indoor_fan_target_speed, static_cast<float>(d[4] * 8), changed);
       update(e.indoor_fan_speed, static_cast<float>(d[5] * 8), changed);
       update(e.water_pump, static_cast<int8_t>((d[8] & 0x10) != 0), changed);
       break;
     case MideaGroup::MIDEA_GROUP_4: {
-      if (size < 21)
-        break;
       float total, current, power;
       if (this->energy_format_ == MideaEnergyFormat::MIDEA_ENERGY_FORMAT_BINARY) {
         auto u32 = [d](uint8_t i) {
@@ -455,22 +468,17 @@ ResponseStatus Appliance::read_group_(MideaGroup group, const FrameData &data) {
       break;
     }
     case MideaGroup::MIDEA_GROUP_5:
-      if (size < 13)
-        break;
+      // 0 means the unit has no humidity sensor
       update(e.indoor_humidity, d[4] != 0 ? static_cast<float>(d[4]) : NAN, changed);
       update(e.outdoor_fan_speed, static_cast<float>(d[8] * 8), changed);
       update(e.defrost, static_cast<int8_t>(d[10] != 0), changed);
       break;
     case MideaGroup::MIDEA_GROUP_7:
-      if (size < 14)
-        break;
       update(e.outdoor_unit_power, static_cast<float>(d[10] | (d[11] << 8)), changed);
       break;
     case MideaGroup::MIDEA_GROUP_11:
-      if (size < 15)
-        break;
-      update(e.horizontal_louver_angle, static_cast<float>(d[9]), changed);
-      update(e.vertical_louver_angle, static_cast<float>(d[12]), changed);
+      update(e.horizontal_louver_angle, angle(d[9]), changed);
+      update(e.vertical_louver_angle, angle(d[12]), changed);
       break;
     default:
       break;

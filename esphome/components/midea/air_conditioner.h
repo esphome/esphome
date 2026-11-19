@@ -111,6 +111,7 @@ class Appliance : public dudanov::midea::ac::AirConditioner {
 
   ApplianceState state_{};
   uint8_t polled_groups_{0};
+  uint8_t short_groups_{0};  // groups whose short reply was already logged
   // Index of the next group query; group queries alternate with the status query
   uint8_t next_query_{0};
   bool status_turn_{true};

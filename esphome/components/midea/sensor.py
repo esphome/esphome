@@ -57,25 +57,25 @@ ICON_ALERT = "mdi:alert-circle-outline"
 ICON_ANGLE = "mdi:angle-acute"
 
 
-def _measurement(unit, device_class=cv.UNDEFINED, accuracy=0, icon=cv.UNDEFINED):
+def _measurement(
+    unit,
+    device_class=cv.UNDEFINED,
+    accuracy=0,
+    icon=cv.UNDEFINED,
+    entity_category=cv.UNDEFINED,
+):
     return sensor.sensor_schema(
         unit_of_measurement=unit,
         device_class=device_class,
         accuracy_decimals=accuracy,
         icon=icon,
         state_class=STATE_CLASS_MEASUREMENT,
+        entity_category=entity_category,
     )
 
 
 def _diagnostic(unit, device_class=cv.UNDEFINED, accuracy=0, icon=cv.UNDEFINED):
-    return sensor.sensor_schema(
-        unit_of_measurement=unit,
-        device_class=device_class,
-        accuracy_decimals=accuracy,
-        icon=icon,
-        state_class=STATE_CLASS_MEASUREMENT,
-        entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-    )
+    return _measurement(unit, device_class, accuracy, icon, ENTITY_CATEGORY_DIAGNOSTIC)
 
 
 def _energy():
