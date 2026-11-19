@@ -292,7 +292,8 @@ class AsyncStreamResponse {
  public:
   /// Httpd task, once. Sends the status line (for example HTTPD_200), Content-Type, headers, the default headers
   /// and body (a C string or null, sent as is), then makes this object the session context. A chunked response
-  /// passes {"Transfer-Encoding", "chunked"} as its first header and frames each chunk itself.
+  /// passes {"Transfer-Encoding", "chunked"} as its first header and frames each chunk itself. On an HTTPS server
+  /// it answers 501 instead and the stream never attaches.
   void begin(AsyncWebServerRequest *request, const char *status, const char *content_type,
              std::span<const HttpHeader> headers, const char *body = nullptr);
 

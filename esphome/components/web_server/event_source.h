@@ -60,7 +60,7 @@ class AsyncEventSourceResponse : public web_server_base::AsyncStreamResponse {
   void loop();
 
  protected:
-  AsyncEventSourceResponse(AsyncWebServerRequest *request, AsyncEventSource *server, WebServer *ws);
+  AsyncEventSourceResponse(AsyncWebServerRequest *request, WebServer *ws);
 
   // Main-loop only: sends initial ping/config/sorting_groups, starts entity iterator.
   void start_session_main_loop_();
@@ -101,7 +101,6 @@ class AsyncEventSourceResponse : public web_server_base::AsyncStreamResponse {
   // Frees the tail and the queue's storage once the session is closing
   void release_buffers_();
 
-  AsyncEventSource *server_;
   std::vector<DeferredEvent> deferred_queue_;
   WebServer *web_server_;
   ListEntitiesIterator entities_iterator_;

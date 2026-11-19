@@ -30,18 +30,9 @@ AsyncEventSource::~AsyncEventSource() {
 }
 
 void AsyncEventSource::handleRequest(AsyncWebServerRequest *request) {
-#ifdef USE_WEBSERVER_SSL
-  // Event streams send from the main loop straight to the socket, which would bypass TLS.
-  // Only an HTTPS server has a global transport context.
-  httpd_req_t *req = *request;
-  if (httpd_get_global_transport_ctx(req->handle) != nullptr) {
-    httpd_resp_send_err(req, HTTPD_501_METHOD_NOT_IMPLEMENTED, "Event streams are not supported over HTTPS");
-    return;
-  }
-#endif
   // Httpd task: set up the live httpd_req_t and park the session; main loop does the rest.
   // NOLINTNEXTLINE(cppcoreguidelines-owning-memory,clang-analyzer-cplusplus.NewDeleteLeaks)
-  auto *rsp = new AsyncEventSourceResponse(request, this, this->web_server_);
+  auto *rsp = new AsyncEventSourceResponse(request, this->web_server_);
   {
     LockGuard guard{this->pending_mutex_};
     this->pending_sessions_.push_back(rsp);
@@ -128,9 +119,8 @@ void AsyncEventSource::deferrable_send_state(void *source, bool detail_all, mess
   }
 }
 
-AsyncEventSourceResponse::AsyncEventSourceResponse(AsyncWebServerRequest *request, AsyncEventSource *server,
-                                                   WebServer *ws)
-    : server_(server), web_server_(ws), entities_iterator_(this) {
+AsyncEventSourceResponse::AsyncEventSourceResponse(AsyncWebServerRequest *request, WebServer *ws)
+    : web_server_(ws), entities_iterator_(this) {
   // Httpd task only. start_session_main_loop_() sends the greeting and starts the iterator.
   this->begin(request, SSE_STATUS, SSE_CONTENT_TYPE, SSE_HEADERS, SSE_FIRST_CHUNK);
 }
@@ -283,7 +273,8 @@ bool AsyncEventSourceResponse::stash_chunk_(const char *prefix, size_t prefix_le
 
 void AsyncEventSourceResponse::loop() {
   AsyncStreamResponse::loop();
-  if (this->is_closing()) {
+  // A client that left may wait for httpd's queued work before it can be freed; stop filling it meanwhile
+  if (this->is_closing() || !this->is_connected()) {
     if (this->tail_cap_ != 0 || this->deferred_queue_.capacity() != 0) {
       this->release_buffers_();
     }
