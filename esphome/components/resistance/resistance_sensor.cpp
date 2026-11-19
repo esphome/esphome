@@ -22,18 +22,10 @@ void ResistanceSensor::process_(float value) {
   float res = 0;
   switch (this->configuration_) {
     case UPSTREAM:
-      if (value == 0.0f) {
-        res = NAN;
-      } else {
-        res = (this->reference_voltage_ - value) / value;
-      }
+      res = value == 0.0f ? NAN : (this->reference_voltage_ - value) / value;
       break;
     case DOWNSTREAM:
-      if (value == this->reference_voltage_) {
-        res = NAN;
-      } else {
-        res = value / (this->reference_voltage_ - value);
-      }
+      res = value == this->reference_voltage_ ? NAN : value / (this->reference_voltage_ - value);
       break;
   }
 

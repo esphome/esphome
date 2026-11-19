@@ -112,6 +112,16 @@ void SerialProxy::loop() {
 
 #ifdef USE_API
 void __attribute__((noinline)) SerialProxy::read_and_send_(size_t available) {
+  // A message the subscriber's connection cannot take is lost, so the bytes stay in the
+  // UART's buffer until it can. A tap is still served: its answers must not wait on the network.
+  if (this->api_connection_ != nullptr &&
+#ifdef USE_SERIAL_PROXY_TAP
+      !this->tap_observing_() &&
+#endif
+      !this->api_connection_->try_to_clear_buffer(false)) {
+    return;
+  }
+
   // Read in chunks up to SERIAL_PROXY_MAX_READ_SIZE
   uint8_t buffer[SERIAL_PROXY_MAX_READ_SIZE];
   size_t to_read = std::min(available, sizeof(buffer));

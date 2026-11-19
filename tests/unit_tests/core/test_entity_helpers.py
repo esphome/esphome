@@ -12,7 +12,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from esphome import final_validate as fv
+from esphome import cpp_generator, final_validate as fv
 import esphome.codegen as cg
 from esphome.components import (
     button,
@@ -1550,6 +1550,15 @@ def test_convert_visual_temperatures(
     convert_visual_temperatures({"visual": {}}, delta_keys, delta_section)
 
 
+def test_convert_visual_temperatures_without_a_visual_section() -> None:
+    """A platform entry that only holds nested entities has no visual section and is left alone."""
+    nested = {"visual": {"min_temperature": (50.0, "°F")}}
+    config = {"zone_1": nested}
+
+    assert convert_visual_temperatures(config, ("step",)) is config
+    assert nested["visual"]["min_temperature"] == (50.0, "°F")
+
+
 @pytest.mark.asyncio
 async def test_setup_entity_integrations_registers_mqtt_and_web_server(
     monkeypatch: pytest.MonkeyPatch, setup_test_environment: list[str]
@@ -1602,7 +1611,7 @@ def apply_functions(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, str, str
         emitted.append((name, params, "\n".join(body)))
         return RawExpression(name)
 
-    monkeypatch.setattr(entity_helpers.cg, "static_function", fake_static_function)
+    monkeypatch.setattr(cpp_generator, "static_function", fake_static_function)
     CORE.data.pop(entity_helpers._APPLY_DOMAIN, None)
     return emitted
 

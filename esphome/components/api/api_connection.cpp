@@ -15,6 +15,7 @@
 #endif
 #include <cerrno>
 #include <cinttypes>
+#include <cstring>
 #include <functional>
 #include <limits>
 #include <new>
@@ -2243,7 +2244,9 @@ void APIConnection::on_home_assistant_state_response(const HomeAssistantStateRes
   }
 
   for (auto &it : this->parent_->get_state_subs()) {
-    if (msg.entity_id != it.entity_id) {
+    // The stored length rejects most entries without reading the entity id
+    if (msg.entity_id.size() != it.entity_id_len ||
+        memcmp(msg.entity_id.c_str(), it.entity_id, it.entity_id_len) != 0) {
       continue;
     }
 

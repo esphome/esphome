@@ -1,0 +1,132 @@
+# Package: reporter-shaped I2C bus + INA219 on GPIO32/33, answered by the in-chip software INA219 (inasim.hpp)
+esphome:
+  name: ${name}
+  includes:
+    - inasim.hpp
+  on_boot:
+    - priority: 700
+      then:
+        - lambda: |-
+            if (${seed} != 0) inasim::rng = ${seed};
+            inasim::install();
+            uint8_t w[3] = {0x05, 0x12, 0x34};
+            uint8_t r = 0x05;
+            for (int pass = 1; pass <= 2; pass++) {
+              uint8_t b[2] = {0, 0};
+              auto ew = id(bus_a)->write_readv(0x40, w, 3, nullptr, 0);
+              auto er = id(bus_a)->write_readv(0x40, &r, 1, b, 2);
+              ESP_LOGI("inasim", "selftest%d write=%d read=%d val=%02X%02X starts=%u", pass, ew, er, b[0], b[1],
+                       (unsigned) inasim::st.starts);
+            }
+
+esp32:
+  board: pico32
+  framework:
+    type: ${fw}
+    version: ${fwver}
+
+logger:
+  level: INFO
+  baud_rate: 115200
+
+i2c:
+  id: bus_a
+  sda: GPIO32
+  scl: GPIO33
+  frequency: ${freq}
+  scan: true
+
+globals:
+  - id: n_ok
+    type: uint32_t
+    initial_value: '0'
+  - id: n_to
+    type: uint32_t
+    initial_value: '0'
+  - id: n_nack
+    type: uint32_t
+    initial_value: '0'
+  - id: n_other
+    type: uint32_t
+    initial_value: '0'
+  - id: n_bad
+    type: uint32_t
+    initial_value: '0'
+  - id: n_ina_bad
+    type: uint32_t
+    initial_value: '0'
+  - id: max_us
+    type: uint32_t
+    initial_value: '0'
+  - id: streak
+    type: uint32_t
+    initial_value: '0'
+  - id: max_streak
+    type: uint32_t
+    initial_value: '0'
+
+interval:
+  - interval: ${hammer}
+    then:
+      - lambda: |-
+          if (millis() < 20000) return;
+          if (!inasim::armed) {
+            inasim::p_fault = ${p_fault};
+            inasim::fault_mask = ${fault_mask};
+            inasim::hold_max_ms = ${hold_max_ms};
+            // The ISR picks faults until one is in the mask, so an empty mask would spin there forever
+            if (inasim::p_fault && !(inasim::fault_mask & ((1u << inasim::F_COUNT) - 1))) {
+              ESP_LOGE("inasim", "fault_mask 0x%x selects no fault, running without faults", (unsigned) inasim::fault_mask);
+              inasim::p_fault = 0;
+            }
+            inasim::armed = true;
+            ESP_LOGI("inasim", "faults armed p=%u/1000 mask=0x%x", (unsigned) inasim::p_fault, (unsigned) inasim::fault_mask);
+          }
+          inasim::hb = millis();
+          inasim::diag_recover = ${diag_recover};
+          inasim::drain();
+          uint8_t r = 0x02, buf[2] = {0, 0};
+          uint32_t t0 = micros();
+          auto e = id(bus_a)->write_readv(0x40, &r, 1, buf, 2);
+          uint32_t dt = micros() - t0;
+          if (dt > id(max_us)) id(max_us) = dt;
+          if (e == i2c::ERROR_OK) {
+            id(streak) = 0;
+            id(n_ok)++;
+            if (((buf[0] << 8) | buf[1]) != ((3410 << 3) | 2)) id(n_bad)++;
+          } else {
+            id(streak)++;
+            if (id(streak) > id(max_streak)) id(max_streak) = id(streak);
+            if (e == i2c::ERROR_TIMEOUT) id(n_to)++;
+            else if (e == i2c::ERROR_NOT_ACKNOWLEDGED) id(n_nack)++;
+            else id(n_other)++;
+          }
+  - interval: 30s
+    then:
+      - lambda: |-
+          ESP_LOGI("inasim", "MASTER up=%us ok=%u timeout=%u nack=%u other=%u badval=%u ina_bad=%u max_us=%u heap=%u fail_streak_now=%u max_fail_streak=%u",
+                   (unsigned) (millis() / 1000), (unsigned) id(n_ok), (unsigned) id(n_to), (unsigned) id(n_nack),
+                   (unsigned) id(n_other), (unsigned) id(n_bad), (unsigned) id(n_ina_bad), (unsigned) id(max_us),
+                   (unsigned) esp_get_free_heap_size(), (unsigned) id(streak), (unsigned) id(max_streak));
+          id(max_us) = 0;
+          inasim::log_stats();
+
+sensor:
+  - platform: ina219
+    address: 0x40
+    shunt_resistance: 0.1 ohm
+    max_voltage: 32.0V
+    max_current: 3.2A
+    update_interval: ${ina_interval}
+    bus_voltage:
+      name: Starter battery
+      accuracy_decimals: 2
+      on_value:
+        - lambda: |-
+            if (fabsf(x - 13.64f) > 0.005f) {
+              id(n_ina_bad)++;
+              ESP_LOGW("inasim", "INA bus voltage garbage %.2f V", x);
+            }
+    current:
+      name: Charge current
+      accuracy_decimals: 2

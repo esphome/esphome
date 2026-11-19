@@ -192,7 +192,7 @@ void Smartair2Climate::process_phase(std::chrono::steady_clock::time_point now) 
           this->send_message_(this->action_request_.value().message.value(), this->use_crc_);
           this->action_request_.value().message.reset();  // NOLINT(bugprone-unchecked-optional-access)
         } else {
-          // Message already sent, reseting request and return to idle
+          // Message already sent, resetting request and return to idle
           this->action_request_.reset();
           this->set_phase(ProtocolPhases::IDLE);
         }
@@ -548,10 +548,6 @@ haier_protocol::HandlerError Smartair2Climate::process_status_message_(const uin
   esp_log_printf_(log_level, TAG, __LINE__, "Vertical Swing Status = 0x%X", packet.control.vertical_swing);
   esp_log_printf_(log_level, TAG, __LINE__, "Set Point Status = 0x%X", packet.control.set_point);
   return haier_protocol::HandlerError::HANDLER_OK;
-}
-
-void Smartair2Climate::set_alternative_swing_control(bool swing_control) {
-  this->use_alternative_swing_control_ = swing_control;
 }
 
 }  // namespace esphome::haier

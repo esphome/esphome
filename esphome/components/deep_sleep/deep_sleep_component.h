@@ -141,7 +141,7 @@ class DeepSleepComponent final : public Component {
    */
   void set_wakeup_pin(InternalGPIOPin *pin) { this->wakeup_pin_ = pin; }
 
-  void set_wakeup_pin_mode(WakeupPinMode wakeup_pin_mode);
+  void set_wakeup_pin_mode(WakeupPinMode wakeup_pin_mode) { this->wakeup_pin_mode_ = wakeup_pin_mode; }
 #endif  // USE_ESP32
 
 #if defined(USE_BK72XX)
@@ -153,7 +153,7 @@ class DeepSleepComponent final : public Component {
 
 #if defined(USE_ESP32)
 #if SOC_PM_SUPPORT_EXT1_WAKEUP
-  void set_ext1_wakeup(Ext1Wakeup ext1_wakeup);
+  void set_ext1_wakeup(Ext1Wakeup ext1_wakeup) { this->ext1_wakeup_ = ext1_wakeup; }
 #endif
 
 #if SOC_PM_SUPPORT_TOUCH_SENSOR_WAKEUP
@@ -162,7 +162,9 @@ class DeepSleepComponent final : public Component {
 
   // Set the duration in ms for how long the code should run before entering
   // deep sleep mode, according to the cause the ESP32 has woken.
-  void set_run_duration(WakeupCauseToRunDuration wakeup_cause_to_run_duration);
+  void set_run_duration(WakeupCauseToRunDuration wakeup_cause_to_run_duration) {
+    this->wakeup_cause_to_run_duration_ = wakeup_cause_to_run_duration;
+  }
 #endif  // USE_ESP32
 
   /// Set a duration in ms for how long the code should run before entering deep sleep mode.

@@ -10,3 +10,7 @@ back with a repeated start, probes an absent address and reads both stretch regi
 (the read back matches, the absent address NACKs and both stretched reads succeed) or `RW BAD` with running totals.
 Control: the same blocks on a classic ESP32 devkit (SDA GPIO21, SCL GPIO22) with hardware I2C at 25 and 50 kHz got
 every repeated start read right, so failures on a bit banged master at a similar real clock point at the master.
+On the NiceMCU WB3S V1 board (BK7238), P26 and P24 are on the right-hand header.
+
+Fake devices that need no real chip (in-firmware buses, the Pico 2 W target, the DS2482-800 simulator, NACK
+injection) are in [fake_i2c.md](fake_i2c.md).

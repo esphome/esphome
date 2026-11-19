@@ -232,6 +232,13 @@ class AsyncWebServer {
 
   void begin();
   void end();
+#ifdef USE_WEBSERVER_SSL
+  /// PEM certificate and key, not copied; nullptr for plain HTTP. Takes effect at the next begin().
+  void set_ssl_credentials(const char *certificate, const char *private_key) {
+    this->ssl_certificate_ = certificate;
+    this->ssl_private_key_ = private_key;
+  }
+#endif
 
   // NOLINTNEXTLINE(readability-identifier-naming)
   AsyncWebHandler &addHandler(AsyncWebHandler *handler) {
@@ -243,7 +250,17 @@ class AsyncWebServer {
 
  protected:
   uint16_t port_{};
+#ifdef USE_WEBSERVER_SSL
+  uint16_t running_port_{};  // port of the running listener, 0 once httpd frees it
+#endif
   httpd_handle_t server_{};
+#ifdef USE_WEBSERVER_SSL
+  const char *ssl_certificate_{nullptr};
+  const char *ssl_private_key_{nullptr};
+  Mutex close_lock_;  // held by close_fn while closing, by shutdown_clients_() and by context_free()
+  void shutdown_clients_();
+  static void context_free(void *ctx);
+#endif
   static esp_err_t request_handler(httpd_req_t *r);
   static esp_err_t request_post_handler(httpd_req_t *r);
   esp_err_t request_handler_(AsyncWebServerRequest *request) const;
@@ -305,8 +322,6 @@ class AsyncStreamResponse {
   /// The client is still connected; httpd has not freed the session.
   bool is_connected() const { return this->fd_.load() != 0; }
   bool is_closing() const { return this->close_requested_; }
-  /// Sends are making no progress; after write() returns -1 this tells a send timeout from a send error.
-  bool is_stalled() const { return this->stall_.is_running(); }
   /// The session is gone and no queued httpd work still references this object.
   bool safe_to_delete() const {
     return this->fd_.load() == 0 && !this->close_work_queued_.load(std::memory_order_acquire) &&
@@ -320,7 +335,8 @@ class AsyncStreamResponse {
   static void close_session_work(void *arg);
   void refresh_lru_();
   static void refresh_lru_work(void *arg);
-  // httpd frees a session before closing its socket, so the fd may already belong to a new client
+  // httpd closes the socket before it clears the session, so this can still match a closed fd; write() also checks
+  // socket_closed_
   bool owns_session_(int fd) const { return fd != 0 && httpd_sess_get_ctx(this->hd_, fd) == this; }
   static void destroy(void *p);
 

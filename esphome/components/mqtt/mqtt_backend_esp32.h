@@ -179,14 +179,24 @@ class MQTTBackendESP32 final : public MQTTBackend {
   bool connected() const final { return this->is_connected_; }
 
   void connect() final {
-    if (!is_initalized_) {
+    this->requested_link_state_.store(
+        LinkState::LINK_STATE_CONNECTED);  // before start/reconnect, so the MQTT task sees it
+    if (!is_initialized_) {
       if (initialize_()) {
         esp_mqtt_client_start(handler_.get());
       }
+    } else {
+      // Only acts in WAIT_RECONNECT; otherwise the state machine retries after DISCONNECTED
+      esp_mqtt_client_reconnect(this->handler_.get());
     }
   }
   void disconnect() final {
-    if (is_initalized_)
+    this->requested_link_state_.store(LinkState::LINK_STATE_DISCONNECTED);
+
+    // The MQTT task closes the socket 1 to 20 s later; report it down now so it is never reused
+    this->is_connected_ = false;
+
+    if (is_initialized_)
       esp_mqtt_client_disconnect(handler_.get());
   }
 
@@ -259,6 +269,7 @@ class MQTTBackendESP32 final : public MQTTBackend {
  protected:
   bool initialize_();
   void mqtt_event_handler_(const Event &event);
+  void handle_disconnected_();
   static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data);
 
   struct MqttClientDeleter {
@@ -277,11 +288,20 @@ class MQTTBackendESP32 final : public MQTTBackend {
   ClientHandler_ handler_;
 
   bool is_connected_{false};
-  bool is_initalized_{false};
+  bool is_initialized_{false};
 #if defined(USE_MQTT_IDF_ENQUEUE)
   // Queued SUBSCRIBEs the task could not send
   std::atomic<uint16_t> subscribes_lost_{0};
 #endif
+
+  // uint8_t-sized, not bool: GCC on Xtensa emits an out-of-line call for atomic<bool>
+  enum class LinkState : uint8_t { LINK_STATE_DISCONNECTED = 0, LINK_STATE_CONNECTED };
+
+  // Last connect()/disconnect() request; read by the MQTT task and the main loop
+  std::atomic<LinkState> requested_link_state_{LinkState::LINK_STATE_DISCONNECTED};
+
+  // Link state seen by the MQTT task, so loop() can catch a dropped DISCONNECTED
+  std::atomic<LinkState> task_link_state_{LinkState::LINK_STATE_DISCONNECTED};
 
   esp_mqtt_client_config_t mqtt_cfg_{};
 

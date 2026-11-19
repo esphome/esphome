@@ -173,7 +173,7 @@ void DFPlayer::loop() {
         }
         // Parse valid received command
         uint8_t cmd = this->read_buffer_[3];
-        uint16_t argument = (this->read_buffer_[5] << 8) | this->read_buffer_[6];
+        uint16_t argument = encode_uint16(this->read_buffer_[5], this->read_buffer_[6]);
 
         ESP_LOGV(TAG, "Received message cmd: %#02x arg %#04x", cmd, argument);
 

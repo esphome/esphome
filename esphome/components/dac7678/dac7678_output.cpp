@@ -56,10 +56,8 @@ void DAC7678Output::write_channel(uint8_t channel, float state) {
   if (this->dac_input_reg_[channel] != value) {
     ESP_LOGV(TAG, "Channel %01u: input_reg=%04u ", channel, value);
 
-    if (!this->write_byte_16(DAC7678_REG_WRITE_N_UPDATE_N | channel, value << 4)) {
-      this->status_set_warning();
+    if (!this->status_comm_check(this->write_byte_16(DAC7678_REG_WRITE_N_UPDATE_N | channel, value << 4)))
       return;
-    }
   }
   this->dac_input_reg_[channel] = value;
   this->status_clear_warning();
