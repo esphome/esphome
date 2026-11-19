@@ -1124,18 +1124,22 @@ def test_reconcile_mbedtls_sdkconfig(
 
 
 @pytest.mark.parametrize(
-    ("variant", "preset", "keeps_xts"),
+    ("variant", "idf", "preset", "keeps_xts"),
     [
-        pytest.param(VARIANT_ESP32, {}, False, id="hardware_aes"),
-        pytest.param(VARIANT_ESP32C2, {}, True, id="c2_no_aes"),
+        pytest.param(VARIANT_ESP32, _IDF6, {}, False, id="hardware_aes"),
+        pytest.param(VARIANT_ESP32C2, _IDF6, {}, True, id="c2_no_aes"),
+        pytest.param(VARIANT_ESP32H4, _IDF6, {}, True, id="h4_idf60_no_aes"),
+        pytest.param(VARIANT_ESP32H4, _IDF61, {}, False, id="h4_idf61_aes"),
         pytest.param(
             VARIANT_ESP32,
+            _IDF6,
             {"CONFIG_MBEDTLS_HARDWARE_AES": RawSdkconfigValue("n")},
             True,
             id="user_software_aes",
         ),
         pytest.param(
             VARIANT_ESP32,
+            _IDF6,
             {"CONFIG_SPIRAM_CACHE_WORKAROUND_STRATEGY_DUPLDST": True},
             True,
             id="psram_dupldst",
@@ -1145,6 +1149,7 @@ def test_reconcile_mbedtls_sdkconfig(
 def test_reconcile_mbedtls_software_aes_keeps_xts(
     set_core_config: SetCoreConfigCallable,
     variant: str,
+    idf: cv.Version,
     preset: dict[str, Any],
     keeps_xts: bool,
 ) -> None:
@@ -1153,7 +1158,7 @@ def test_reconcile_mbedtls_software_aes_keeps_xts(
     set_core_config(PlatformFramework.ESP32_IDF)
     CORE.data[KEY_ESP32] = {
         KEY_VARIANT: variant,
-        KEY_IDF_VERSION: _IDF6,
+        KEY_IDF_VERSION: idf,
         KEY_SDKCONFIG_OPTIONS: dict(preset),
         KEY_MBEDTLS_SDKCONFIG: MbedtlsSdkconfigData(),
         KEY_EXCLUDE_COMPONENTS: set(_ESP_TLS_LINKING_COMPONENTS),
