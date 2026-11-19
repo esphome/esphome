@@ -39,11 +39,17 @@ inline constexpr uint8_t CONFIGURATION_DESCRIPTOR[] = {
 
 class TinyUSBKeyboard;
 
+#ifdef USE_TINYUSB_KEYBOARD_LED_STATE
 extern TinyUSBKeyboard *global_tinyusb_keyboard;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+#endif
 
 class TinyUSBKeyboard final : public Component {
  public:
-  TinyUSBKeyboard() { global_tinyusb_keyboard = this; }
+  TinyUSBKeyboard() {
+#ifdef USE_TINYUSB_KEYBOARD_LED_STATE
+    global_tinyusb_keyboard = this;
+#endif
+  }
   void setup() override { this->disable_loop(); }
   void loop() override;
   void dump_config() override;
@@ -85,9 +91,10 @@ class TinyUSBKeyboard final : public Component {
 
   // LED state reported by the host via Set_Report (bit 0: Num Lock, bit 1: Caps Lock, bit 2: Scroll Lock).
   // Cross-task state between the TinyUSB task callback and the main loop, so kept atomic.
+  // On Xtensa, std::atomic<bool> compiles to out-of-line calls; use atomic<uint8_t> for flags.
 #ifdef USE_TINYUSB_KEYBOARD_LED_STATE
   std::atomic<uint8_t> led_state_{0};
-  std::atomic<bool> led_pending_{false};
+  std::atomic<uint8_t> led_pending_{0};
 #endif
 };
 
