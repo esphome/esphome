@@ -119,6 +119,15 @@ class OpenThreadComponent final : public Component {
 #if defined(USE_OPENTHREAD_BORDER_ROUTER) && defined(USE_ESP32)
   void start_border_router_();
 #endif
+#ifdef USE_OPENTHREAD_BORDER_ROUTER
+  bool has_border_router_flag_(uint8_t flag) const { return (this->border_router_flags_.load() & flag) != 0; }
+  /// Sets or clears one flag; returns whether it was set before
+  bool set_border_router_flag_(uint8_t flag, bool on) {
+    const uint8_t old = on ? this->border_router_flags_.fetch_or(flag)
+                           : this->border_router_flags_.fetch_and(static_cast<uint8_t>(~flag));
+    return (old & flag) != 0;
+  }
+#endif
 #ifdef USE_OPENTHREAD_RCP_UART
   void reset_rcp_(bool recovery_attempt);
 #endif
@@ -150,10 +159,12 @@ class OpenThreadComponent final : public Component {
   static constexpr uint32_t RCP_RESET_FORGET_MS = 10 * 60 * 1000;
 #endif
 #ifdef USE_OPENTHREAD_BORDER_ROUTER
-  std::atomic<bool> mainloop_running_{false};
-  std::atomic<bool> border_router_started_{false};  // written by the OpenThread task
-  std::atomic<bool> border_router_start_requested_{false};
-  bool backbone_up_{false};  // what the stack was told about the infra interface last
+  // State the main loop and the OpenThread task share, one bit each in border_router_flags_
+  static constexpr uint8_t MAINLOOP_RUNNING = 1 << 0;               // written by the OpenThread task
+  static constexpr uint8_t BORDER_ROUTER_STARTED = 1 << 1;          // written by the OpenThread task
+  static constexpr uint8_t BORDER_ROUTER_START_REQUESTED = 1 << 2;  // set by loop(), taken by the OpenThread task
+  std::atomic<uint8_t> border_router_flags_{0};
+  bool backbone_up_{false};  // what the stack was told about the infra interface last; main loop only
 #endif
 
  private:

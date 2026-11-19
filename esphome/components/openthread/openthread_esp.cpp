@@ -261,11 +261,11 @@ void OpenThreadComponent::ot_main_() {
 
   while (launch_mainloop) {
 #ifdef USE_OPENTHREAD_BORDER_ROUTER
-    this->mainloop_running_ = true;
+    this->set_border_router_flag_(MAINLOOP_RUNNING, true);
 #endif
     const esp_err_t err = esp_openthread_launch_mainloop();
 #ifdef USE_OPENTHREAD_BORDER_ROUTER
-    this->mainloop_running_ = false;
+    this->set_border_router_flag_(MAINLOOP_RUNNING, false);
 #endif
     if (err != ESP_OK) {
       ESP_LOGE(TAG, "OpenThread main loop failed: %s", esp_err_to_name(err));
@@ -277,7 +277,7 @@ void OpenThreadComponent::ot_main_() {
     // started here (or an exit came from elsewhere), and the main loop runs again: it sets its running
     // flag on entry, so an exit posted meanwhile is handled on the next run
     if (this->teardown_stage_ == TeardownStage::TEARDOWN_STAGE_NOT_STARTED) {
-      if (this->border_router_start_requested_.exchange(false)) {
+      if (this->set_border_router_flag_(BORDER_ROUTER_START_REQUESTED, false)) {
         this->start_border_router_();
       }
       continue;
@@ -292,9 +292,9 @@ void OpenThreadComponent::ot_main_() {
   // Best effort: after a normal teardown all of this is done already
   otIp6SetAddressCallback(instance, nullptr, nullptr);
 #ifdef USE_OPENTHREAD_BORDER_ROUTER
-  if (this->border_router_started_) {
+  if (this->has_border_router_flag_(BORDER_ROUTER_STARTED)) {
     (void) esp_openthread_border_router_deinit();
-    this->border_router_started_ = false;
+    this->set_border_router_flag_(BORDER_ROUTER_STARTED, false);
   }
 #endif
   (void) otThreadSetEnabled(instance, false);
@@ -392,7 +392,7 @@ void OpenThreadComponent::loop() {
   // when it comes back the border router is created afresh (on the OpenThread task), since the port's
   // infra interface keeps the socket and the addresses of the backbone as it was. The backbone's connect
   // state listener enables the loop on every link change
-  if (!this->mainloop_running_) {
+  if (!this->has_border_router_flag_(MAINLOOP_RUNNING)) {
     return;
   }
 #ifdef USE_OPENTHREAD_BACKBONE_ETHERNET
@@ -410,7 +410,7 @@ void OpenThreadComponent::loop() {
     if (!lock) {
       return;
     }
-    if (this->border_router_started_) {
+    if (this->has_border_router_flag_(BORDER_ROUTER_STARTED)) {
       ESP_LOGI(TAG, "%s backbone lost, border routing pauses", BACKBONE_NAME);
       esp_netif_t *backbone = esp_openthread_get_backbone_netif();
       // A refused report is not retried: the border router is created afresh when the backbone returns
@@ -420,18 +420,18 @@ void OpenThreadComponent::loop() {
       }
     }
     // A start the OpenThread task has not picked up yet is no longer wanted
-    this->border_router_start_requested_ = false;
+    this->set_border_router_flag_(BORDER_ROUTER_START_REQUESTED, false);
     this->backbone_up_ = false;
     this->disable_loop();
     return;
   }
-  if (this->border_router_started_) {
+  if (this->has_border_router_flag_(BORDER_ROUTER_STARTED)) {
     ESP_LOGI(TAG, "%s backbone back, border routing restarts", BACKBONE_NAME);
   }
   // The OpenThread task (re)starts the border router once its main loop has stopped
-  this->border_router_start_requested_ = true;
+  this->set_border_router_flag_(BORDER_ROUTER_START_REQUESTED, true);
   if (const esp_err_t err = esp_openthread_mainloop_exit(); err != ESP_OK) {
-    this->border_router_start_requested_ = false;
+    this->set_border_router_flag_(BORDER_ROUTER_START_REQUESTED, false);
     ESP_LOGE(TAG, "Failed to stop the OpenThread main loop: %s", esp_err_to_name(err));
     this->status_set_error(LOG_STR("Border router start failed"));
     this->disable_loop();
@@ -448,15 +448,15 @@ void OpenThreadComponent::start_border_router_() {
   esp_openthread_lock_acquire(portMAX_DELAY);
   bool deinit_failed = false;
   esp_err_t err = ESP_OK;
-  if (this->border_router_started_) {
+  if (this->has_border_router_flag_(BORDER_ROUTER_STARTED)) {
     err = esp_openthread_border_router_deinit();
     deinit_failed = err != ESP_OK;
     // The old router stays marked as started until it is gone, so a retry tears it down first
-    this->border_router_started_ = deinit_failed;
+    this->set_border_router_flag_(BORDER_ROUTER_STARTED, deinit_failed);
   }
   if (!deinit_failed) {
     err = esp_openthread_border_router_init();
-    this->border_router_started_ = err == ESP_OK;
+    this->set_border_router_flag_(BORDER_ROUTER_STARTED, err == ESP_OK);
   }
   esp_openthread_lock_release();
   // The component state belongs to the main loop
