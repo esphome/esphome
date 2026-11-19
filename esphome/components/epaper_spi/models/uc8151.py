@@ -8,13 +8,16 @@ Supported black/white models, with partial updates when ``full_update_every`` is
 - goodisplay-gdew029t5-2.9: Good Display GDEW029T5, 2.9" 128x296 flexible panel; replaces the
   waveshare_epaper model gdew029t5. Also sold by Seeed as SKU 104990852 (seeed-104990852).
 
+The reset and busy pins are required for these models: only a hardware reset wakes the panel after a
+full refresh, and the busy pin times the refresh, which takes about 3 seconds.
+
 The busy pin of these displays is low while busy, so configure it with ``inverted: true``.
 """
 
 from typing import Any
 
 import esphome.config_validation as cv
-from esphome.const import CONF_DIMENSIONS
+from esphome.const import CONF_BUSY_PIN, CONF_DIMENSIONS, CONF_RESET_PIN
 from esphome.types import ConfigType
 
 from . import EpaperModel
@@ -75,6 +78,14 @@ class UC8151Mono(UC8151):
     ) -> None:
         defaults.setdefault("partial_update", True)
         super().__init__(name, class_name, **defaults)
+
+    def option(
+        self, name: str, fallback: Any = cv.UNDEFINED
+    ) -> cv.Optional | cv.Required:
+        # The panel wakes only by hardware reset and a refresh is timed by the busy line
+        if name in (CONF_RESET_PIN, CONF_BUSY_PIN):
+            return cv.Required(name)
+        return super().option(name, fallback)
 
     def get_init_sequence(self, config: dict) -> tuple:
         width, height = self.get_dimensions(config)

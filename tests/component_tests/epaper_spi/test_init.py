@@ -1067,6 +1067,27 @@ def test_gdew029t5_uses_the_uc8151_mono_driver(model: str) -> None:
     )
 
 
+@pytest.mark.parametrize("pin", [CONF_RESET_PIN, CONF_BUSY_PIN])
+@pytest.mark.parametrize("model", GDEW029T5_MODELS)
+def test_gdew029t5_requires_reset_and_busy_pins(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+    model: str,
+    pin: str,
+) -> None:
+    """Only a hardware reset wakes the panel from deep sleep, and refreshes are timed by busy."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+    )
+    set_component_config("spi", {"id": "spi_bus", "clk_pin": 18, "mosi_pin": 19})
+
+    config = _gdew029t5_config(model)
+    del config[pin]
+    with pytest.raises(cv.Invalid, match=pin):
+        run_schema_validation(config)
+
+
 @pytest.mark.parametrize("model", GDEW029T5_MODELS)
 def test_gdew029t5_validates_with_partial_updates(
     set_core_config: SetCoreConfigCallable,

@@ -112,7 +112,12 @@ bool HOT EPaperUC8151::after_refresh() {
     return true;
   if (this->current_data_index_ == 0 && this->partial_)
     this->command(CMD_PARTIAL_OUT);
-  return this->write_plane_(CMD_DTM1);
+  if (!this->write_plane_(CMD_DTM1))
+    return false;
+  // A draw during the update means DTM1 may hold pixels the panel never showed, so refresh fully next time
+  if (this->drawn_since_hash_)
+    this->update_count_ = 0;
+  return true;
 }
 
 void EPaperUC8151::power_off() {

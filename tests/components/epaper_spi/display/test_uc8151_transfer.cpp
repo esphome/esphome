@@ -63,6 +63,8 @@ class TestableUC8151 : public EPaperUC8151 {
     this->set_partial_window(x_start, x_end, y_start, y_end);
   }
   void begin_partial() { this->partial_ = true; }
+  void mark_drawn() { this->drawn_since_hash_ = true; }
+  uint8_t update_count() const { return this->update_count_; }
 
   RecordingPin dc;
   CountingPin reset_pin;
@@ -273,6 +275,57 @@ TEST(EPaperUC8151, PreviousImageRewriteIsTimeSliced) {
   EXPECT_EQ(count(bus.commands, 0x92), 1u);
   EXPECT_EQ(count(bus.commands, 0x10), 1u);
   EXPECT_EQ(bus.data[0x10], FRAME_1);
+}
+
+/// A draw while the update runs can leave DTM1 holding pixels the panel never showed, so the next update is a full one.
+TEST(EPaperUC8151, DrawDuringTheUpdateForcesTheNextUpdateToBeFull) {
+  TestableUC8151 display;
+  RecordingDelegate bus(&display.dc);
+  display.install(&bus, 5);
+
+  display.set_frame(FRAME_1);
+  display.run_update();
+  display.set_frame(FRAME_2);
+  display.run_update();
+  ASSERT_NE(display.update_count(), 0);
+
+  display.set_frame(FRAME_3);
+  display.mark_drawn();
+  EXPECT_TRUE(display.refresh_done(true));
+  EXPECT_EQ(display.update_count(), 0);
+
+  bus.clear();
+  const int pulses = display.reset_pin.pulses;
+  display.set_frame(FRAME_3);
+  display.run_update();
+
+  EXPECT_EQ(display.reset_pin.pulses, pulses + 1) << "the next update did not reset the panel";
+  EXPECT_EQ(bus.data[0x00], (Bytes{0x1F}));
+  EXPECT_EQ(count(bus.commands, 0x91), 0u) << "the next update was partial";
+  EXPECT_EQ(bus.data[0x13], FRAME_3);
+}
+
+/// With nothing drawn during the update, the update count is left alone and the next update stays partial.
+TEST(EPaperUC8151, NoDrawDuringTheUpdateKeepsTheNextUpdatePartial) {
+  TestableUC8151 display;
+  RecordingDelegate bus(&display.dc);
+  display.install(&bus, 5);
+
+  display.set_frame(FRAME_1);
+  display.run_update();
+  const uint8_t count_after_first = display.update_count();
+  ASSERT_NE(count_after_first, 0);
+
+  display.set_frame(FRAME_2);
+  display.run_update();
+  EXPECT_EQ(display.update_count(), count_after_first + 1);
+
+  bus.clear();
+  const int pulses = display.reset_pin.pulses;
+  display.set_frame(FRAME_3);
+  display.run_update();
+  EXPECT_EQ(display.reset_pin.pulses, pulses);
+  EXPECT_EQ(count(bus.commands, 0x91), 1u);
 }
 
 /// Without partial updates nothing is written after the refresh.
