@@ -78,6 +78,7 @@ void MipiDsi::setup() {
     this->smark_failed(LOG_STR("new_panel_io_dbi failed"), err);
     return;
   }
+  const auto dpi_clock = static_cast<decltype(esp_lcd_dpi_panel_config_t::dpi_clock_freq_mhz)>(this->pclk_frequency_);
   // clang-format off
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
   auto color_format = LCD_COLOR_FMT_RGB565;
@@ -86,7 +87,7 @@ void MipiDsi::setup() {
   }
   esp_lcd_dpi_panel_config_t dpi_config = {.virtual_channel = 0,
                                            .dpi_clk_src = MIPI_DSI_DPI_CLK_SRC_DEFAULT,
-                                           .dpi_clock_freq_mhz = static_cast<decltype(esp_lcd_dpi_panel_config_t::dpi_clock_freq_mhz)>(this->pclk_frequency_),
+                                           .dpi_clock_freq_mhz = dpi_clock,
                                            .in_color_format = color_format,
 #else
   auto pixel_format = LCD_COLOR_PIXEL_FORMAT_RGB565;
@@ -95,7 +96,7 @@ void MipiDsi::setup() {
   }
   esp_lcd_dpi_panel_config_t dpi_config = {.virtual_channel = 0,
                                            .dpi_clk_src = MIPI_DSI_DPI_CLK_SRC_DEFAULT,
-                                           .dpi_clock_freq_mhz = static_cast<decltype(esp_lcd_dpi_panel_config_t::dpi_clock_freq_mhz)>(this->pclk_frequency_),
+                                           .dpi_clock_freq_mhz = dpi_clock,
                                            .pixel_format = pixel_format,
 #endif
                                            .num_fbs = 1,  // number of frame buffers to allocate
@@ -551,7 +552,7 @@ void MipiDsi::draw_pixels_internal(int x_start, int y_start, int w, int h, const
 #ifdef USE_MIPI_DSI_RGB565_OWNED_TRANSFORM
   if (bitness == display::COLOR_BITNESS_565 && !big_endian && this->rotation_ != display::DISPLAY_ROTATION_0_DEGREES &&
       !this->is_clipping() && !this->updating_ &&
-      this->draw_rotated_rgb565_(x_start, y_start, w, h, ptr, x_offset, y_offset, x_pad))
+      (this->draw_rotated_rgb565_(x_start, y_start, w, h, ptr, x_offset, y_offset, x_pad) || this->is_failed()))
     return;
 #endif
   if (bitness != this->color_depth_ || (bitness == display::COLOR_BITNESS_565 && big_endian != this->big_endian_) ||

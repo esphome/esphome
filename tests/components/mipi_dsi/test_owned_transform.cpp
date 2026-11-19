@@ -183,6 +183,28 @@ TEST_F(MipiOwned, StaleCompletionCannotReleaseTheNextBorrowEarly) {
   EXPECT_EQ(mipi_test_sdk::io_waits, 1u);
   EXPECT_EQ(std::memcmp(rig.panel->memory.data(), pixels, sizeof(pixels)), 0);
 }
+TEST_F(MipiOwned, RotatedBulkDrawFallsBackOnlyWhileThePanelIsUsable) {
+  uint16_t pixels[]{0xf800, 0x07e0};
+  for (const bool fail_submit : {false, true}) {
+    auto rig = new_owned();
+    rig.driver->set_rotation(display::DISPLAY_ROTATION_90_DEGREES);
+    mipi_test_sdk::reset_calls();
+    mipi_test_sdk::ppa_error = fail_submit ? ESP_OK : ESP_FAIL;
+    mipi_test_sdk::draw_error = fail_submit ? ESP_FAIL : ESP_OK;
+    rig.driver->draw_pixels_at(0, 0, 2, 1, reinterpret_cast<uint8_t *>(pixels), display::COLOR_BITNESS_565, false);
+    EXPECT_EQ(rig.driver->is_failed(), fail_submit);
+    EXPECT_EQ(mipi_test_sdk::ppa_calls, 1u);
+    if (fail_submit) {
+      EXPECT_EQ(mipi_test_sdk::draw_calls, 1u);
+      EXPECT_EQ(mipi_test_sdk::io_waits, 0u);
+    } else {
+      std::array<uint16_t, 32> copy{};
+      ASSERT_TRUE(rig.driver->copy_frame_buffer_rgb565(reinterpret_cast<uint8_t *>(copy.data()), sizeof(copy)));
+      EXPECT_EQ(copy[0], pixels[0]);
+      EXPECT_EQ(copy[1], pixels[1]);
+    }
+  }
+}
 TEST_F(MipiOwned, RejectedPanelSubmitNeverWaitsForAnAbsentCallback) {
   auto rig = new_owned();
   uint16_t pixels[6]{};
