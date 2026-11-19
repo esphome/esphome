@@ -2775,6 +2775,30 @@ MBEDTLS_UNUSED_CIPHER_MODE_OPTIONS = (
     "CONFIG_MBEDTLS_CIPHER_MODE_OFB",
 )
 
+# Trimmed options that stay on when any of these user sdkconfig options is set:
+# a P-384 app signing key verifies updates with P-384, and NVS encryption uses
+# mbedTLS XTS when hardware AES is off. Nothing selects either in Kconfig.
+_MBEDTLS_TRIM_KEPT_BY = {
+    "CONFIG_MBEDTLS_ECP_DP_SECP384R1_ENABLED": (
+        "CONFIG_SECURE_BOOT_ECDSA_KEY_LEN_384_BITS",
+    ),
+    "CONFIG_MBEDTLS_CIPHER_MODE_XTS": (
+        "CONFIG_NVS_ENCRYPTION",
+        "CONFIG_SECURE_FLASH_ENC_ENABLED",
+    ),
+}
+
+
+def _trim_mbedtls_options(options: Iterable[str]) -> None:
+    """Default each option off unless an option in _MBEDTLS_TRIM_KEPT_BY keeps it."""
+    for option in options:
+        if not any(
+            is_idf_sdkconfig_option_enabled(name)
+            for name in _MBEDTLS_TRIM_KEPT_BY.get(option, ())
+        ):
+            set_idf_sdkconfig_default(option, False)
+
+
 # Members of the mbedTLS "TLS Protocol Role" Kconfig choice. Setting one
 # member is only valid when the user has not already chosen another.
 MBEDTLS_TLS_ROLE_OPTIONS = (
@@ -2827,7 +2851,8 @@ async def _reconcile_mbedtls_sdkconfig() -> None:
     win; a user-chosen TLS role leaves the whole choice alone.
     """
     data = _mbedtls_sdkconfig()
-    idf6 = idf_version() >= cv.Version(6, 0, 0)
+    version = idf_version()
+    idf6 = version >= cv.Version(6, 0, 0)
     opts = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
 
     if _mbedtls_tls_compiled_out():
@@ -2842,7 +2867,7 @@ async def _reconcile_mbedtls_sdkconfig() -> None:
         set_idf_sdkconfig_default("CONFIG_ESP_WIFI_ENTERPRISE_SUPPORT", False)
         # IDF 6.1 always reads esp_wifi_remote's Kconfig, whose own enterprise
         # option selects TLS back on, even on chips with native Wi-Fi.
-        if idf_version() >= cv.Version(6, 1, 0):
+        if version >= cv.Version(6, 1, 0):
             set_idf_sdkconfig_default("CONFIG_WIFI_RMT_ENTERPRISE_SUPPORT", False)
         # WiFi (ESP_WIFI_MBEDTLS_CRYPTO) and Bluetooth deliberately stay on
         # the select-wins path: an unconditional request from request_wifi()
@@ -2857,15 +2882,7 @@ async def _reconcile_mbedtls_sdkconfig() -> None:
             # larger than the hardware supports need the software MPI.
             set_idf_sdkconfig_default("CONFIG_MBEDTLS_PEM_PARSE_C", False)
             set_idf_sdkconfig_default("CONFIG_MBEDTLS_LARGE_KEY_SOFTWARE_MPI", False)
-            # A P-384 app signing key (set through sdkconfig_options) verifies
-            # updates with that curve, and nothing selects it.
-            keep_p384 = is_idf_sdkconfig_option_enabled(
-                "CONFIG_SECURE_BOOT_ECDSA_KEY_LEN_384_BITS"
-            )
-            for option in MBEDTLS_NON_P256_CURVE_OPTIONS:
-                if keep_p384 and option == "CONFIG_MBEDTLS_ECP_DP_SECP384R1_ENABLED":
-                    continue
-                set_idf_sdkconfig_default(option, False)
+            _trim_mbedtls_options(MBEDTLS_NON_P256_CURVE_OPTIONS)
     elif (
         # TLS stays in: trim it to the client role unless a component accepts
         # TLS connections or the user already chose a role.
@@ -2916,14 +2933,7 @@ async def _reconcile_mbedtls_sdkconfig() -> None:
 
     # Arduino's libraries call mbedTLS directly, so its builds keep every mode.
     if idf6 and not CORE.using_arduino:
-        for option in MBEDTLS_UNUSED_CIPHER_MODE_OPTIONS:
-            # NVS encryption uses mbedTLS XTS when hardware AES is off.
-            if option == "CONFIG_MBEDTLS_CIPHER_MODE_XTS" and any(
-                is_idf_sdkconfig_option_enabled(name)
-                for name in ("CONFIG_NVS_ENCRYPTION", "CONFIG_SECURE_FLASH_ENC_ENABLED")
-            ):
-                continue
-            set_idf_sdkconfig_default(option, False)
+        _trim_mbedtls_options(MBEDTLS_UNUSED_CIPHER_MODE_OPTIONS)
 
 
 @coroutine_with_priority(CoroPriority.FINAL)

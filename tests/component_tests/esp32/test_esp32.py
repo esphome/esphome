@@ -818,6 +818,13 @@ _PEER_CERT_PKCS7_OFF = {
     "CONFIG_MBEDTLS_PKCS7_C": False,
 }
 _TLS_EXTRAS_OFF = dict.fromkeys(MBEDTLS_TLS_EXTRA_OPTIONS, False)
+# What every ESP-IDF 6 build without a TLS or SHA-512 requester also trims.
+_IDF6_TRIMS = {
+    **_TLS_EXTRAS_OFF,
+    **_PEER_CERT_PKCS7_OFF,
+    **_SHA512_OFF,
+    **_CIPHER_MODES_OFF,
+}
 _TLS_CLIENT_ONLY = {
     "CONFIG_MBEDTLS_TLS_CLIENT_ONLY": True,
     "CONFIG_MBEDTLS_TLS_SERVER_AND_CLIENT": False,
@@ -866,10 +873,7 @@ _IDF61 = cv.Version(6, 1, 1)
             {},
             {
                 **_TLS_OFF_IDF6,
-                **_TLS_EXTRAS_OFF,
-                **_PEER_CERT_PKCS7_OFF,
-                **_SHA512_OFF,
-                **_CIPHER_MODES_OFF,
+                **_IDF6_TRIMS,
             },
             set(_ESP_TLS_LINKING_COMPONENTS),
             id="idf6_drops_sha512",
@@ -883,10 +887,7 @@ _IDF61 = cv.Version(6, 1, 1)
             {
                 **_TLS_OFF_IDF6,
                 "CONFIG_WIFI_RMT_ENTERPRISE_SUPPORT": False,
-                **_TLS_EXTRAS_OFF,
-                **_PEER_CERT_PKCS7_OFF,
-                **_SHA512_OFF,
-                **_CIPHER_MODES_OFF,
+                **_IDF6_TRIMS,
             },
             set(_ESP_TLS_LINKING_COMPONENTS),
             id="idf61_remote_enterprise_off",
@@ -900,10 +901,7 @@ _IDF61 = cv.Version(6, 1, 1)
             {},
             {
                 **_TLS_CLIENT_ONLY,
-                **_TLS_EXTRAS_OFF,
-                **_PEER_CERT_PKCS7_OFF,
-                **_SHA512_OFF,
-                **_CIPHER_MODES_OFF,
+                **_IDF6_TRIMS,
             },
             set(_ESP_TLS_LINKING_COMPONENTS),
             id="idf6_tls_keeps_curves",
@@ -917,10 +915,7 @@ _IDF61 = cv.Version(6, 1, 1)
             {
                 **_TLS_OFF_IDF6,
                 "CONFIG_MBEDTLS_ECP_DP_SECP384R1_ENABLED": RawSdkconfigValue("y"),
-                **_TLS_EXTRAS_OFF,
-                **_PEER_CERT_PKCS7_OFF,
-                **_SHA512_OFF,
-                **_CIPHER_MODES_OFF,
+                **_IDF6_TRIMS,
             },
             set(_ESP_TLS_LINKING_COMPONENTS),
             id="idf6_user_curve_wins",
@@ -938,10 +933,7 @@ _IDF61 = cv.Version(6, 1, 1)
                     if k != "CONFIG_MBEDTLS_ECP_DP_SECP384R1_ENABLED"
                 },
                 "CONFIG_SECURE_BOOT_ECDSA_KEY_LEN_384_BITS": RawSdkconfigValue("y"),
-                **_TLS_EXTRAS_OFF,
-                **_PEER_CERT_PKCS7_OFF,
-                **_SHA512_OFF,
-                **_CIPHER_MODES_OFF,
+                **_IDF6_TRIMS,
             },
             set(_ESP_TLS_LINKING_COMPONENTS),
             id="idf6_p384_signing_key_keeps_curve",
