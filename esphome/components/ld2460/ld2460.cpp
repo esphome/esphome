@@ -12,8 +12,6 @@ namespace esphome::ld2460 {
 
 ESPHOME_LOG_TAG(TAG, "ld2460");
 
-// Header (4), command (1), length (2), footer (4)
-
 static constexpr uint8_t CMD_REPORT_DATA = 0x04;
 static constexpr uint8_t CMD_QUERY_INSTALLATION_MODE = 0x0A;
 static constexpr uint8_t ACK_FRAME_LENGTH = 12;
@@ -134,7 +132,7 @@ bool LD2460Component::handle_frame_(const uint8_t *frame, uint8_t len) {
     return false;
   }
   ESP_LOGV_HEX(TAG, frame, len, MAX_FRAME_LENGTH, "Frame: %s");
-  if (frame[0] == ld24xx::DataFrameFormat::FIRST)
+  if (frame[0] == DataFrame::FIRST)
     return this->handle_periodic_data_(frame, len);
   return this->handle_ack_(frame, len);
 }

@@ -28,7 +28,7 @@ static constexpr uint32_t WIFI_STATUS_INTERVAL_ID = 1;
 static constexpr uint32_t DATAPOINT_DUMP_TIMEOUT_ID = 2;
 static constexpr uint32_t FORCE_TIME_SYNC_INTERVAL_ID = 3;
 static const int COMMAND_DELAY = 10;
-static const int RECEIVE_TIMEOUT = 300;
+static constexpr uint32_t RECEIVE_TIMEOUT = 300;
 static const int MAX_RETRIES = 5;
 static constexpr uint32_t FORCE_TIME_SYNC_CHECK_INTERVAL = 1000;
 
@@ -105,7 +105,6 @@ bool frame_fits(const uint8_t *buf) {
 }
 
 bool TuyaUART::handle_frame_(const uint8_t *frame, size_t len) {
-  // Holds queued commands back while the frame is handled, log lines included
   this->handling_frame_ = true;
   // Last byte: sum of all bytes before it, header included, modulo 256
   const uint8_t rx_checksum = frame[len - 1];

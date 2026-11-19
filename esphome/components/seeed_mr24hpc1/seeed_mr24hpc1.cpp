@@ -105,10 +105,10 @@ void MR24HPC1Component::update_() {
   this->poll_time_base_func_check_ = true;      // Query the base functionality information at regular intervals
 }
 
-// Frames are at least 10 bytes, so the three trailing bytes can always be left out
+// The reader keeps frames at MIN_FRAME_SIZE or more, so the three trailing bytes can always be left out
 static uint8_t get_frame_crc_sum(const uint8_t *data, size_t len) { return sum_bytes(data, len - 3); }
 
-// Footer and sum; the reader caps the payload at 32 bytes
+// Footer and sum
 static bool frame_valid(const uint8_t *data, size_t len) {
   if (data[len - 2] != FRAME_TAIL1_VALUE || data[len - 1] != FRAME_TAIL2_VALUE)
     return false;

@@ -48,80 +48,27 @@ TEST_F(LD2450ReadlineTest, BackToBackMixedFrames) {
   EXPECT_EQ(this->ld2450_.reader_.length(), 0u);
 }
 
-// --- Garbage then valid frame tests ---
+// --- Noise then a frame ---
 
-TEST_F(LD2450ReadlineTest, GarbageThenValidFrame) {
-  // Garbage bytes never open the buffer; a valid frame that follows is parsed as usual.
-  std::vector<uint8_t> garbage = {0x01, 0x02, 0x03, 0x42, 0x99};
-  this->ld2450_.feed(garbage);
-  EXPECT_EQ(this->ld2450_.reader_.length(), 0u);
-
-  auto frame = make_periodic_frame();
-  this->ld2450_.feed(frame);
-  // Footer from the valid frame resyncs the parser
-  EXPECT_EQ(this->ld2450_.reader_.length(), 0u);
-}
-
-// --- Footer-based resynchronization tests ---
-
-TEST_F(LD2450ReadlineTest, GarbageWithFooterBytesIsNotBuffered) {
-  // Bytes that never start a header, footer bytes included, are skipped
-  std::vector<uint8_t> garbage_with_footer = {0x01, 0x02, 0x03, 0x04, 0x55, 0xCC};
-  this->ld2450_.feed(garbage_with_footer);
-  EXPECT_EQ(this->ld2450_.reader_.length(), 0u);
-
-  auto frame = make_periodic_frame();
-  this->ld2450_.feed(frame);
-  EXPECT_EQ(this->ld2450_.reader_.length(), 0u);
-}
-
-TEST_F(LD2450ReadlineTest, CmdFooterInGarbageResyncs) {
-  // Garbage containing a command frame footer (04 03 02 01) also resyncs.
-  std::vector<uint8_t> garbage_with_footer = {0x10, 0x20, 0x30, 0x40, 0x04, 0x03, 0x02, 0x01};
-  this->ld2450_.feed(garbage_with_footer);
-  EXPECT_EQ(this->ld2450_.reader_.length(), 0u);
-
-  auto frame = make_periodic_frame();
-  this->ld2450_.feed(frame);
-  EXPECT_EQ(this->ld2450_.reader_.length(), 0u);
-}
-
-// --- Recovery tests ---
-
-TEST_F(LD2450ReadlineTest, BytesThatStartNoHeaderAreNotBuffered) {
-  std::vector<uint8_t> filler(MAX_LINE_LENGTH, 0x11);
-  this->ld2450_.feed(filler);
-  EXPECT_EQ(this->ld2450_.reader_.length(), 0u);
-}
-
-TEST_F(LD2450ReadlineTest, OverflowThenValidFrame) {
-  // Overflow, then a valid frame should be processed.
-  std::vector<uint8_t> overflow_data(MAX_LINE_LENGTH, 0x11);
-  this->ld2450_.feed(overflow_data);
-
-  auto frame = make_periodic_frame();
-  this->ld2450_.feed(frame);
-  EXPECT_EQ(this->ld2450_.reader_.length(), 0u);
-}
-
-TEST_F(LD2450ReadlineTest, BufferLargeEnoughForDesyncedFooter) {
-  // The key fix: the buffer (45) is large enough that a desynced periodic frame's
-  // footer (at most 30 bytes into the stream) will land inside the buffer before overflow.
-  // Simulate starting 10 bytes into a periodic frame, then a full frame follows.
-  std::vector<uint8_t> mid_frame = {0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39};
-  // Then a complete periodic frame whose footer will land at position 40 (10 + 30),
-  // well within the buffer size of 45.
-  auto frame = make_periodic_frame();
-  mid_frame.insert(mid_frame.end(), frame.begin(), frame.end());
-
-  this->ld2450_.feed(mid_frame);
-  // The footer from the frame should have triggered a reset
-  EXPECT_EQ(this->ld2450_.reader_.length(), 0u);
+TEST_F(LD2450ReadlineTest, NoiseIsNotBufferedAndTheNextFrameParses) {
+  // Plain bytes, footer bytes of both frame types, a run longer than the buffer, the tail of a frame
+  const std::vector<std::vector<uint8_t>> noises = {
+      {0x01, 0x02, 0x03, 0x42, 0x99},
+      {0x01, 0x02, 0x03, 0x04, 0x55, 0xCC},
+      {0x10, 0x20, 0x30, 0x40, 0x04, 0x03, 0x02, 0x01},
+      std::vector<uint8_t>(MAX_LINE_LENGTH, 0x11),
+      {0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39},
+  };
+  for (const auto &noise : noises) {
+    this->ld2450_.feed(noise);
+    EXPECT_EQ(this->ld2450_.reader_.length(), 0u);
+    this->ld2450_.feed(make_periodic_frame());
+    EXPECT_EQ(this->ld2450_.reader_.length(), 0u);
+  }
 }
 
 TEST_F(LD2450ReadlineTest, SimulatedRestartThenFrames) {
   // Simulate LD2450 restart: burst of garbage followed by valid periodic frames.
-  // The garbage + first frame should fit in the buffer so the footer resyncs.
   std::vector<uint8_t> restart_noise = {
       0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37,  // 8 bytes of mid-frame data
   };

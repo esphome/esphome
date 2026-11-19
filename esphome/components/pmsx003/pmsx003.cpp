@@ -9,7 +9,6 @@ ESPHOME_LOG_TAG(TAG, "pmsx003");
 
 static const uint16_t STABILISING_MS = 30000;  // time taken for the sensor to become stable after power on in ms
 // Drop a partial frame when the bytes stop mid-way
-static constexpr uint32_t RX_IDLE_TIMEOUT_MS = 500;
 
 static const uint16_t CMD_MEASUREMENT_MODE_PASSIVE =
     0x0000;  // use `Command::MANUAL_MEASUREMENT` to trigger a measurement
@@ -103,7 +102,7 @@ void PMSX003Component::loop() {
     }
     return true;
   };
-  this->read_frames(this->reader_, handle, now, this->last_transmission_, RX_IDLE_TIMEOUT_MS);
+  this->read_frames(this->reader_, handle, now, this->last_transmission_);
 }
 
 bool PMSX003Component::check_frame_(const uint8_t *frame, size_t total_size) {

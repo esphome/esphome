@@ -27,7 +27,6 @@ static constexpr uint32_t APC1_INIT_RETRY_INTERVAL_MS = 10000;
 // Active mode streams a frame every second; this long without one means the sensor stopped
 static constexpr uint32_t APC1_NO_DATA_TIMEOUT_MS = 15000;
 // Drop a partial frame when the bytes stop mid-way
-static constexpr uint32_t APC1_RX_IDLE_TIMEOUT_MS = 200;
 
 void APC1Component::setup() {
   if (this->set_pin_ != nullptr) {
@@ -101,7 +100,7 @@ void APC1Component::loop() {
   }
 
   auto handle = [this](const uint8_t *frame, size_t len) { return this->parse_frame_(frame, len); };
-  this->read_frames(this->reader_, handle, now, this->last_transmission_, APC1_RX_IDLE_TIMEOUT_MS);
+  this->read_frames(this->reader_, handle, now, this->last_transmission_);
 }
 
 bool APC1Component::parse_frame_(const uint8_t *frame, uint8_t total_len) {

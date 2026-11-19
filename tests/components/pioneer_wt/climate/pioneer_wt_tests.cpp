@@ -41,7 +41,7 @@ size_t feed_all(PacketReader &reader, const Frame &bytes) {
   size_t last = 0;
   for (uint8_t b : bytes) {
     reader.feed(b, [&last](const uint8_t *frame, size_t len) {
-      if (len < HEADER_SIZE || !checksum_valid(frame, len))
+      if (!checksum_valid(frame, len))
         return false;
       last = len;
       return true;

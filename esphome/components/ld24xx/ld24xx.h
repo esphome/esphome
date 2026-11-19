@@ -87,8 +87,10 @@ static constexpr uint8_t DATA_FRAME_FOOTER[HEADER_FOOTER_SIZE] PROGMEM = {0xF8, 
 
 // Header (4), payload length (2, LE), payload, footer (4)
 using PayloadLength = PayloadLengthU16LE<LengthField{.offset = HEADER_FOOTER_SIZE, .trailer = HEADER_FOOTER_SIZE}>;
-using CmdFrameFormat = FrameFormat<FrameHeader<0xFD, 0xFC, 0xFB, 0xFA>, PayloadLength>;
-using DataFrameFormat = FrameFormat<FrameHeader<0xF4, 0xF3, 0xF2, 0xF1>, PayloadLength>;
+using CmdFrameHeader = FrameHeader<0xFD, 0xFC, 0xFB, 0xFA>;
+using DataFrameHeader = FrameHeader<0xF4, 0xF3, 0xF2, 0xF1>;
+using CmdFrameFormat = FrameFormat<CmdFrameHeader, PayloadLength>;
+using DataFrameFormat = FrameFormat<DataFrameHeader, PayloadLength>;
 
 // Whether a command or periodic data frame of at least HEADER_FOOTER_SIZE bytes ends in its footer
 inline bool has_footer(const uint8_t *frame, size_t len) {

@@ -78,7 +78,7 @@ class APC1Component final : public uart::UARTDevice, public Component {
   void initialize_device_();
   /// Restarts the no-data watchdog so a mode change gets the same grace period as a cold boot
   void arm_watchdog_();
-  /// Returns false for a frame that is too short or fails the checksum
+  /// Returns false for a frame that fails the checksum
   bool parse_frame_(const uint8_t *frame, uint8_t total_len);
   void parse_measurement_frame_(const uint8_t *frame);
   void parse_device_info_frame_(const uint8_t *frame);

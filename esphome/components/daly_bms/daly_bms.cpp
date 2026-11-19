@@ -8,7 +8,6 @@ namespace esphome::daly_bms {
 
 ESPHOME_LOG_TAG(TAG, "daly_bms");
 
-static constexpr uint32_t DALY_RX_IDLE_TIMEOUT_MS = 200;
 static const uint8_t DALY_TEMPERATURE_OFFSET = 40;
 static const uint16_t DALY_CURRENT_OFFSET = 30000;
 
@@ -48,7 +47,7 @@ void DalyBmsComponent::update() {
 void DalyBmsComponent::loop() {
   const uint32_t now = App.get_loop_component_start_time();
   auto handle = [this](const uint8_t *frame, size_t /*len*/) { return this->handle_frame_(frame); };
-  this->read_frames(this->reader_, handle, now, this->last_transmission_, DALY_RX_IDLE_TIMEOUT_MS);
+  this->read_frames(this->reader_, handle, now, this->last_transmission_);
   if (this->response_complete_() && this->reader_.length() == 0 &&
       (now - this->last_transmission_ >= DALY_RESPONSE_GAP_MS) && !this->trigger_next_) {
     // response complete and nothing more on the line -> trigger next request without waiting for the timeout
@@ -126,7 +125,7 @@ bool DalyBmsComponent::handle_frame_(const uint8_t *frame) {
     ESP_LOGW(TAG, "Checksum-Error on Packet %x", frame[4]);
     return false;
   }
-  // only a valid frame answering the last request counts; an echoed request or a late answer does not
+  // only an answer to the last request counts
   if (frame[2] == this->last_request_)
     this->frames_received_++;
   if (frame[2] == DALY_REQUEST_STATUS) {

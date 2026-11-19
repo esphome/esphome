@@ -115,7 +115,7 @@ size_t build_frame(uint8_t *out, uint8_t flags, uint8_t type, uint8_t seq, uint8
   out[HEADER_SIZE + 1] = class_2;
   if (len)
     std::memcpy(out + HEADER_SIZE + 2, body, len);
-  put_be16(out + 8, frame_crc(out, total));
+  put_be16(out + CRC_POS, frame_crc(out, total));
   return total;
 }
 

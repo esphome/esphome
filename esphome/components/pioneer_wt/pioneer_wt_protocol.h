@@ -14,6 +14,7 @@ static constexpr uint8_t FRAME_START_1 = 0xA5;
 static constexpr uint8_t FRAME_START_2 = 0x01;
 // The length byte counts the whole frame.
 static constexpr size_t LEN_POS = 7;
+static constexpr size_t CRC_POS = 8;
 static constexpr size_t MAX_FRAME_SIZE = 255;
 
 static constexpr uint8_t FLAG_NO_ACK = 0x00;
@@ -54,9 +55,8 @@ using PacketReader =
                       FrameFormat<FrameHeader<FRAME_START_1, FRAME_START_2>,
                                   FrameLengthU8<LengthField{.offset = LEN_POS}>, FrameMinLength<HEADER_SIZE>>>;
 
-/// True when the checksum matches.
 inline bool checksum_valid(const uint8_t *frame, size_t len) {
-  return frame_crc(frame, len) == encode_uint16(frame[8], frame[9]);
+  return frame_crc(frame, len) == encode_uint16(frame[CRC_POS], frame[CRC_POS + 1]);
 }
 
 /// Walks the attribute list in a status body. Stops at the first ID whose size is unknown.

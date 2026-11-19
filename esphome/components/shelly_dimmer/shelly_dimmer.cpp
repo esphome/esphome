@@ -330,7 +330,7 @@ bool ShellyDimmer::handle_frame_(const uint8_t *frame) {
     return false;
   }
 
-  const uint8_t *payload = frame + 4;
+  const uint8_t *payload = frame + PayloadLength::KNOWN_AT;
 
   // Handle response.
   switch (cmd) {

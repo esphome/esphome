@@ -54,9 +54,8 @@ TEST_F(LD2460ReadlineTest, FooterBytesInsideGarbage) {
   EXPECT_FLOAT_EQ(this->count_.state, 1);
 }
 
-TEST_F(LD2460ReadlineTest, OverflowThenValidFrame) {
+TEST_F(LD2460ReadlineTest, NoiseThenValidFrame) {
   this->ld2460_.feed(std::vector<uint8_t>(MAX_FRAME_LENGTH + 8, 0x11));
-  // The frame right after the overflow lands behind leftover bytes; the header resync skips them
   this->ld2460_.feed(make_periodic_frame());
   EXPECT_FLOAT_EQ(this->count_.state, 1);
   EXPECT_NEAR(this->x_[0].state, 1.5f, 0.001f);

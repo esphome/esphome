@@ -137,7 +137,7 @@ TEST_F(DalyBmsRequestCycleTest, PartialFrameHoldsTheNextRequest) {
   loop_at(this->bms_, 1020);
   loop_at(this->bms_, 1080);
   EXPECT_EQ(request_count(this->uart_), 1u);
-  loop_at(this->bms_, 1220);
+  loop_at(this->bms_, 1270);
   ASSERT_EQ(request_count(this->uart_), 2u);
   EXPECT_EQ(last_request(this->uart_), 0x91);
 }
