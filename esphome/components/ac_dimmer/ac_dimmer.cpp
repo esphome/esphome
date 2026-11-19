@@ -5,7 +5,7 @@
 #include <numbers>
 
 #ifdef USE_ESP8266
-#include <core_esp8266_waveform.h>
+#include <Arduino.h>
 #endif
 
 #ifdef USE_ESP32
@@ -26,6 +26,17 @@ static AcDimmerDataStore *all_dimmers[32];  // NOLINT(cppcoreguidelines-avoid-no
 /// are also considered and a really low value is not important
 /// See also: https://github.com/esphome/issues/issues/1632
 static constexpr uint32_t GATE_ENABLE_TIME = 50;
+
+/// Shortest time between two accepted zero crossings. A half cycle is 10 ms at 50 Hz and 8.33 ms at 60 Hz,
+/// so any edge sooner than this after the last crossing is noise (for example from the triac switching)
+/// or the second edge of the same zero-cross pulse.
+static constexpr uint32_t MIN_HALF_CYCLE_US = 6000;
+
+#ifdef USE_ESP8266
+/// Timer interval while nothing is pending; the zero-cross interrupt restarts the timer anyway
+static constexpr uint32_t IDLE_TIMER_INTERVAL_US = 20000;
+static void esp8266_timer_in(uint32_t us);
+#endif
 
 #ifdef USE_ESP32
 /// Timer frequency in Hz (1 MHz = 1µs resolution)
@@ -67,8 +78,8 @@ uint32_t IRAM_ATTR HOT AcDimmerDataStore::timer_intr(uint32_t now) {
   }
 
   if (time_since_zc >= this->cycle_time_us) {
-    // Already past last cycle time, schedule next call shortly
-    return 100;
+    // Already past last cycle time: nothing to do until the next zero crossing, which restarts the timer
+    return 0;
   }
 
   return this->cycle_time_us - time_since_zc;
@@ -76,8 +87,12 @@ uint32_t IRAM_ATTR HOT AcDimmerDataStore::timer_intr(uint32_t now) {
 
 /// Run timer interrupt code and return in how many µs the next event is expected
 uint32_t IRAM_ATTR HOT timer_interrupt() {
-  // run at least with 1kHz
+  // Only the ESP8266 uses the returned interval; with nothing pending it waits for the next zero crossing
+#ifdef USE_ESP8266
+  uint32_t min_dt_us = IDLE_TIMER_INTERVAL_US;
+#else
   uint32_t min_dt_us = 1000;
+#endif
   uint32_t now = micros();
   for (auto *dimmer : all_dimmers) {
     if (dimmer == nullptr) {
@@ -88,25 +103,24 @@ uint32_t IRAM_ATTR HOT timer_interrupt() {
     if (res != 0 && res < min_dt_us)
       min_dt_us = res;
   }
-  // return time until next timer1 interrupt in µs
+  // return time until next timer interrupt in µs
   return min_dt_us;
 }
 
 /// GPIO interrupt routine, called when ZC pin triggers
 void IRAM_ATTR HOT AcDimmerDataStore::gpio_intr() {
   uint32_t prev_crossed = this->crossed_zero_at;
+  uint32_t now = micros();
+  uint32_t cycle_time = now - prev_crossed;
 
-  // 50Hz mains frequency should give a half cycle of 10ms a 60Hz will give 8.33ms
-  // in any case the cycle last at least 5ms
-  this->crossed_zero_at = micros();
-  uint32_t cycle_time = this->crossed_zero_at - prev_crossed;
-  if (cycle_time > 5000) {
-    this->cycle_time_us = cycle_time;
-  } else {
-    // Otherwise this is noise and this is 2nd (or 3rd...) fall in the same pulse
-    // Consider this is the right fall edge and accumulate the cycle time instead
-    this->cycle_time_us += cycle_time;
-  }
+  // Ignore noise and the extra edges of the same zero-cross pulse: keep the timing of the real crossing,
+  // so that the gate events already scheduled for this half cycle are not moved
+  if (prev_crossed != 0 && cycle_time < MIN_HALF_CYCLE_US)
+    return;
+  this->crossed_zero_at = now;
+  if (prev_crossed == 0)
+    return;  // first crossing: the half cycle length is not known yet
+  this->cycle_time_us = cycle_time;
 
   if (this->value == 65535) {
     // fully on, enable output immediately
@@ -154,7 +168,23 @@ void IRAM_ATTR HOT AcDimmerDataStore::s_gpio_intr(AcDimmerDataStore *store) {
       dimmer->gpio_intr();
     }
   }
+#ifdef USE_ESP8266
+  // Run the timer code right away: it schedules the gate events of this half cycle
+  esp8266_timer_in(2);
+#endif
 }
+
+#ifdef USE_ESP8266
+// ESP8266: a one-shot interrupt on the CPU cycle counter (CCOMPARE0, the Arduino core's timer0), fired only
+// at the gate events and right after each zero crossing (a few hundred per second).
+// The Arduino waveform generator used before runs timer1 as a non-maskable interrupt (NMI) at least every
+// 1 ms (every 100 µs while waiting for a zero crossing), which together with WiFi traffic ended in
+// hardware watchdog resets, and it could interrupt the zero-cross handler halfway through an update.
+static void IRAM_ATTR esp8266_timer_in(uint32_t us) {
+  timer0_write(ESP.getCycleCount() + us * clockCyclesPerMicrosecond());
+}
+static void IRAM_ATTR HOT esp8266_timer_isr() { esp8266_timer_in(timer_interrupt()); }
+#endif
 
 #ifdef USE_ESP32
 // ESP32 implementation, uses basically the same code but needs to wrap
@@ -192,9 +222,14 @@ void AcDimmer::setup() {
   }
 
 #ifdef USE_ESP8266
-  // Uses ESP8266 waveform (soft PWM) class
-  // PWM and AcDimmer can even run at the same time this way
-  setTimer1Callback(&timer_interrupt);
+  // One timer for all dimmers (see esp8266_timer_isr)
+  static bool timer_started = false;
+  if (!timer_started) {
+    timer_started = true;
+    timer0_isr_init();
+    timer0_attachInterrupt(&esp8266_timer_isr);
+    esp8266_timer_in(IDLE_TIMER_INTERVAL_US);
+  }
 #endif
 #ifdef USE_ESP32
   if (dimmer_timer == nullptr) {
