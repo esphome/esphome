@@ -1,0 +1,2 @@
+packages:
+  one_wire: !include ../../test_build_components/common/one_wire/rp2350-ard.yaml
