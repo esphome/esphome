@@ -2868,6 +2868,7 @@ _MBEDTLS_TLS_ON_OPTIONS = (
     "CONFIG_OPENTHREAD_BORDER_ROUTER",
     # Enterprise WiFi selects TLS back on (see the TLS-off block).
     "CONFIG_ESP_WIFI_ENTERPRISE_SUPPORT",
+    "CONFIG_WIFI_RMT_ENTERPRISE_SUPPORT",
 )
 # Any user option under these prefixes only makes sense with TLS compiled in.
 _TLS_OPTION_PREFIXES = ("CONFIG_ESP_TLS_", "CONFIG_MBEDTLS_SSL_", "CONFIG_ESP_HTTPS_")
@@ -2999,6 +3000,12 @@ async def _reconcile_mbedtls_sdkconfig() -> None:
     # Arduino's libraries call mbedTLS directly, so its builds keep every mode.
     if idf6 and not CORE.using_arduino:
         for option in MBEDTLS_UNUSED_CIPHER_MODE_OPTIONS:
+            # NVS encryption uses mbedTLS XTS when hardware AES is off.
+            if option == "CONFIG_MBEDTLS_CIPHER_MODE_XTS" and any(
+                is_idf_sdkconfig_option_enabled(name)
+                for name in ("CONFIG_NVS_ENCRYPTION", "CONFIG_SECURE_FLASH_ENC_ENABLED")
+            ):
+                continue
             set_idf_sdkconfig_default(option, False)
 
 
