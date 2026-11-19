@@ -15,6 +15,7 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
     async def to_code_testing(config: ConfigType) -> None:
         if any(Path(p) == TESTS_DIR for p in CORE.config[CONF_ESPHOME][CONF_INCLUDES]):
             cg.add_define("USE_WIFI")
+            cg.add_define("USE_WIFI_AP")
             cg.add_define("WIFI_NETWORK_COUNT", 4)
 
     manifest.to_code = to_code_testing

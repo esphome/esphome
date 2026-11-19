@@ -42,7 +42,7 @@ class CombinationNoParameterComponent : public CombinationComponent {
   StaticFixedVector<Sensor *> sensors_;
 };
 
-// Base class for opertions that require one parameter to compute the combination
+// Base class for operations that require one parameter to compute the combination
 class CombinationOneParameterComponent : public CombinationComponent {
  public:
   struct SensorSource {

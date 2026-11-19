@@ -29,6 +29,7 @@ from esphome.components.store_yaml import (
     _symlink_descriptions,
     _uncaptured_note,
     unpack_envelope,
+    write_recovered_files,
 )
 import esphome.config_validation as cv
 from esphome.core import CORE, EsphomeError, Lambda
@@ -394,6 +395,15 @@ def test_redacted_inline_value_becomes_secret_ref(
             API_KEY,
             "dsmr.decryption_key in base.yaml",
             id="bind_key_shadowed_by_a_merge",
+        ),
+        pytest.param(
+            {
+                "base.yaml": 'keeloq:\n  - manufacturer_key: "0x0011223344556677"\n',
+                "entry.yaml": "<<: !include base.yaml\nkeeloq:\n  - serial: 0x1234500\n",
+            },
+            API_KEY,
+            "keeloq.manufacturer_key in base.yaml",
+            id="manufacturer_key_shadowed_by_a_merge",
         ),
         pytest.param(
             {
@@ -1358,3 +1368,45 @@ def test_credential_words_cover_every_sensitive_key() -> None:
         if not any(w in k for w in store_yaml._CREDENTIAL_WORDS)
     }
     assert not unnamed, f"add a word for {sorted(unnamed)} to _CREDENTIAL_WORDS"
+
+
+def test_write_recovered_files_keeps_files_from_above(tmp_path: Path) -> None:
+    """A `..` file keeps its place relative to the main YAML, inside the folder."""
+    out = tmp_path / "out"
+    written = write_recovered_files(
+        {
+            "dev.yaml": b"a",
+            "secrets.yaml": b"b",
+            "../../common/wifi.yaml": b"c",
+            "a/../../x.yaml": b"d",
+        },
+        out,
+    )
+    root = out.resolve()
+    assert written == [
+        root / "dev" / "dev" / "dev.yaml",
+        root / "dev" / "dev" / "secrets.yaml",
+        root / "common" / "wifi.yaml",
+        root / "dev" / "x.yaml",
+    ]
+    assert [p.read_bytes() for p in written] == [b"a", b"b", b"c", b"d"]
+
+
+def test_write_recovered_files_refuses_two_files_on_one_path(tmp_path: Path) -> None:
+    """A stored file that lands on the main YAML's path fails instead of replacing it."""
+    with pytest.raises(EsphomeError, match="would both be written"):
+        write_recovered_files(
+            {"kitchen.yaml": b"main", "../kitchen/kitchen.yaml": b"package"}, tmp_path
+        )
+    assert (tmp_path / "kitchen" / "kitchen.yaml").read_bytes() == b"main"
+
+
+@pytest.mark.parametrize("main", ["", ".."])
+def test_write_recovered_files_refuses_paths_outside_the_folder(
+    tmp_path: Path, main: str
+) -> None:
+    """A main path that leaves no folder name cannot let a `..` file climb out."""
+    out = tmp_path / "out"
+    with pytest.raises(EsphomeError, match="outside"):
+        write_recovered_files({main: b"main", "../escaped.yaml": b"x"}, out)
+    assert not (tmp_path / "escaped.yaml").exists()

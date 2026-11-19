@@ -177,7 +177,7 @@ void EZOSensor::loop() {
       this->led_callback_.call(payload[strlen(payload) - 1] == '1');
       return;
     case EzoCommandType::EZO_DEVICE_INFORMATION:
-      callback = &this->device_infomation_callback_;
+      callback = &this->device_information_callback_;
       break;
     case EzoCommandType::EZO_SLOPE:
       callback = &this->slope_callback_;
