@@ -1260,12 +1260,6 @@ ESP_IDF_FRAMEWORK_VERSION_LOOKUP = {
 ESP_IDF_PLATFORM_VERSION_LOOKUP = {
     cv.Version(6, 1, 1): cv.Version(61, 4, 0, "RC1"),
     cv.Version(6, 1, 0): cv.Version(61, 4, 0, "RC1"),
-    cv.Version(
-        6, 0, 1
-    ): "https://github.com/pioarduino/platform-espressif32.git#prep_IDF6",
-    cv.Version(
-        6, 0, 0
-    ): "https://github.com/pioarduino/platform-espressif32.git#prep_IDF6",
     cv.Version(5, 5, 6): cv.Version(55, 3, 312),
     cv.Version(5, 5, 5): cv.Version(55, 3, 312),
     cv.Version(5, 5, 4): cv.Version(55, 3, 39),
