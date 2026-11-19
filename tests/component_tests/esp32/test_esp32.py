@@ -7,7 +7,6 @@ from collections.abc import Callable
 import logging
 from pathlib import Path
 from typing import Any
-from unittest.mock import patch
 
 import pytest
 
@@ -1253,7 +1252,7 @@ def _seed_mbedtls(
 )
 def test_reconcile_mbedtls_psa_user_config(
     set_core_config: SetCoreConfigCallable,
-    tmp_path: Path,
+    idf_tools_in_tmp: Path,
     variant: str,
     net: NetworkSdkconfigData,
     data: MbedtlsSdkconfigData,
@@ -1267,10 +1266,9 @@ def test_reconcile_mbedtls_psa_user_config(
     CORE.toolchain = Toolchain.ESP_IDF
     _seed_mbedtls(variant=variant, preset=preset, data=data, net=net)
 
-    with patch("esphome.espidf.framework.get_idf_tools_path", return_value=tmp_path):
-        asyncio.run(_reconcile_mbedtls_sdkconfig())
+    asyncio.run(_reconcile_mbedtls_sdkconfig())
 
-    (header,) = (tmp_path / "esphome").glob("psa_user_config.*.h")
+    (header,) = (idf_tools_in_tmp / "esphome").glob("psa_user_config.*.h")
     assert header.read_text() == PSA_USER_CONFIG_SOURCE.read_text()
     assert path_define_flag("MBEDTLS_USER_CONFIG_FILE", header) in CORE.build_flags
     opts = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
@@ -1290,11 +1288,7 @@ def test_reconcile_mbedtls_psa_user_config_flag_is_per_machine(
         CORE.toolchain = Toolchain.ESP_IDF
         CORE.build_path = tmp_path / device
         _seed_mbedtls(net=_WIFI)
-        with patch(
-            "esphome.espidf.framework.get_idf_tools_path",
-            return_value=tmp_path / "idf",
-        ):
-            asyncio.run(_reconcile_mbedtls_sdkconfig())
+        asyncio.run(_reconcile_mbedtls_sdkconfig())
         flags.append(
             {f for f in CORE.build_flags if f.startswith("-DMBEDTLS_USER_CONFIG_FILE")}
         )
@@ -1328,10 +1322,8 @@ def test_reconcile_mbedtls_psa_user_config_not_applied(
     CORE.toolchain = toolchain
     _seed_mbedtls(idf=idf, net=_WIFI)
 
-    with patch("esphome.espidf.framework.get_idf_tools_path", return_value=tmp_path):
-        asyncio.run(_reconcile_mbedtls_sdkconfig())
+    asyncio.run(_reconcile_mbedtls_sdkconfig())
 
-    assert not (tmp_path / "esphome").exists()
     assert not any("MBEDTLS_USER_CONFIG_FILE" in flag for flag in CORE.build_flags)
     opts = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
     assert not any(option in opts for option in MBEDTLS_RSA_OPTIONS)
