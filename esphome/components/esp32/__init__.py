@@ -2776,17 +2776,33 @@ MBEDTLS_UNUSED_CIPHER_MODE_OPTIONS = (
 )
 
 # Trimmed options that stay on when any of these user sdkconfig options is set:
-# a P-384 app signing key verifies updates with P-384, and NVS encryption uses
-# mbedTLS XTS when hardware AES is off. Nothing selects either in Kconfig.
+# a P-384 app signing key verifies updates with P-384, and nothing selects it.
 _MBEDTLS_TRIM_KEPT_BY = {
     "CONFIG_MBEDTLS_ECP_DP_SECP384R1_ENABLED": (
         "CONFIG_SECURE_BOOT_ECDSA_KEY_LEN_384_BITS",
     ),
-    "CONFIG_MBEDTLS_CIPHER_MODE_XTS": (
-        "CONFIG_NVS_ENCRYPTION",
-        "CONFIG_SECURE_FLASH_ENC_ENABLED",
-    ),
 }
+
+_NO_HARDWARE_AES_VARIANTS = (VARIANT_ESP32C2, VARIANT_ESP32C61)
+
+
+def _uses_hardware_aes() -> bool:
+    """Whether mbedTLS runs AES on the hardware (CONFIG_MBEDTLS_HARDWARE_AES).
+
+    Kconfig turns it off on chips without AES and under the PSRAM DUPLDST
+    workaround; NVS always builds its encrypted partition code, which then
+    needs mbedTLS XTS.
+    """
+    hardware_aes = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS].get(
+        "CONFIG_MBEDTLS_HARDWARE_AES"
+    )
+    return (
+        get_esp32_variant() not in _NO_HARDWARE_AES_VARIANTS
+        and (hardware_aes is None or _format_sdkconfig_val(hardware_aes) == "y")
+        and not is_idf_sdkconfig_option_enabled(
+            "CONFIG_SPIRAM_CACHE_WORKAROUND_STRATEGY_DUPLDST"
+        )
+    )
 
 
 def _trim_mbedtls_options(options: Iterable[str]) -> None:
@@ -2933,7 +2949,12 @@ async def _reconcile_mbedtls_sdkconfig() -> None:
 
     # Arduino's libraries call mbedTLS directly, so its builds keep every mode.
     if idf6 and not CORE.using_arduino:
-        _trim_mbedtls_options(MBEDTLS_UNUSED_CIPHER_MODE_OPTIONS)
+        hardware_aes = _uses_hardware_aes()
+        _trim_mbedtls_options(
+            option
+            for option in MBEDTLS_UNUSED_CIPHER_MODE_OPTIONS
+            if hardware_aes or option != "CONFIG_MBEDTLS_CIPHER_MODE_XTS"
+        )
 
 
 @coroutine_with_priority(CoroPriority.FINAL)

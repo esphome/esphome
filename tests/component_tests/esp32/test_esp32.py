@@ -46,6 +46,7 @@ from esphome.components.esp32.const import (
     KEY_NETWORK_SDKCONFIG,
     KEY_SDKCONFIG_OPTIONS,
     KEY_VARIANT,
+    VARIANT_ESP32C2,
     VARIANT_ESP32C3,
     VARIANT_ESP32C5,
     VARIANT_ESP32C6,
@@ -1095,24 +1096,6 @@ _IDF61 = cv.Version(6, 1, 1)
             set(_ESP_TLS_LINKING_COMPONENTS),
             id="arduino_idf6_keeps_cipher_modes",
         ),
-        pytest.param(
-            # NVS encryption keeps XTS.
-            PlatformFramework.ESP32_IDF,
-            _IDF6,
-            MbedtlsSdkconfigData(),
-            {"CONFIG_NVS_ENCRYPTION": RawSdkconfigValue("y")},
-            {
-                "CONFIG_NVS_ENCRYPTION": RawSdkconfigValue("y"),
-                **_TLS_OFF_IDF6,
-                **_TLS_EXTRAS_OFF,
-                **_PEER_CERT_PKCS7_OFF,
-                **_SHA512_OFF,
-                "CONFIG_MBEDTLS_CIPHER_MODE_CFB": False,
-                "CONFIG_MBEDTLS_CIPHER_MODE_OFB": False,
-            },
-            set(_ESP_TLS_LINKING_COMPONENTS),
-            id="idf6_nvs_encryption_keeps_xts",
-        ),
     ],
 )
 def test_reconcile_mbedtls_sdkconfig(
@@ -1128,6 +1111,7 @@ def test_reconcile_mbedtls_sdkconfig(
     user sdkconfig_options always win."""
     set_core_config(framework)
     CORE.data[KEY_ESP32] = {
+        KEY_VARIANT: VARIANT_ESP32,
         KEY_IDF_VERSION: idf,
         KEY_SDKCONFIG_OPTIONS: dict(preset),
         KEY_MBEDTLS_SDKCONFIG: data,
@@ -1137,6 +1121,49 @@ def test_reconcile_mbedtls_sdkconfig(
     asyncio.run(_reconcile_mbedtls_sdkconfig())
 
     assert CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS] == expected
+
+
+@pytest.mark.parametrize(
+    ("variant", "preset", "keeps_xts"),
+    [
+        pytest.param(VARIANT_ESP32, {}, False, id="hardware_aes"),
+        pytest.param(VARIANT_ESP32C2, {}, True, id="c2_no_aes"),
+        pytest.param(
+            VARIANT_ESP32,
+            {"CONFIG_MBEDTLS_HARDWARE_AES": RawSdkconfigValue("n")},
+            True,
+            id="user_software_aes",
+        ),
+        pytest.param(
+            VARIANT_ESP32,
+            {"CONFIG_SPIRAM_CACHE_WORKAROUND_STRATEGY_DUPLDST": True},
+            True,
+            id="psram_dupldst",
+        ),
+    ],
+)
+def test_reconcile_mbedtls_software_aes_keeps_xts(
+    set_core_config: SetCoreConfigCallable,
+    variant: str,
+    preset: dict[str, Any],
+    keeps_xts: bool,
+) -> None:
+    """NVS always builds its encrypted partition code, which needs mbedTLS XTS
+    when AES runs in software."""
+    set_core_config(PlatformFramework.ESP32_IDF)
+    CORE.data[KEY_ESP32] = {
+        KEY_VARIANT: variant,
+        KEY_IDF_VERSION: _IDF6,
+        KEY_SDKCONFIG_OPTIONS: dict(preset),
+        KEY_MBEDTLS_SDKCONFIG: MbedtlsSdkconfigData(),
+        KEY_EXCLUDE_COMPONENTS: set(_ESP_TLS_LINKING_COMPONENTS),
+    }
+
+    asyncio.run(_reconcile_mbedtls_sdkconfig())
+
+    opts = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert ("CONFIG_MBEDTLS_CIPHER_MODE_XTS" not in opts) is keeps_xts
+    assert opts["CONFIG_MBEDTLS_CIPHER_MODE_CFB"] is False
 
 
 @pytest.mark.parametrize(
@@ -1159,6 +1186,7 @@ def test_reconcile_mbedtls_warns_when_peer_cert_drops_tls13(
     if peer_cert is not None:
         preset["CONFIG_MBEDTLS_SSL_KEEP_PEER_CERTIFICATE"] = peer_cert
     CORE.data[KEY_ESP32] = {
+        KEY_VARIANT: VARIANT_ESP32,
         KEY_IDF_VERSION: _IDF5,
         KEY_SDKCONFIG_OPTIONS: preset,
         KEY_MBEDTLS_SDKCONFIG: MbedtlsSdkconfigData(tls_required=True),
