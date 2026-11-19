@@ -1,5 +1,6 @@
 """poll_period limit and the core_options it replaces."""
 
+from collections.abc import Callable
 import logging
 
 import pytest
@@ -34,18 +35,6 @@ def _config(poll_period: str | None, **extra: object) -> dict:
     return config
 
 
-def test_poll_period_at_maximum_accepted() -> None:
-    result = CONFIG_SCHEMA(_config("7200s"))
-    assert result["poll_period"].total_milliseconds == 7200 * 1000
-
-
-def test_poll_period_above_maximum_limited(caplog: pytest.LogCaptureFixture) -> None:
-    with caplog.at_level(logging.WARNING):
-        result = CONFIG_SCHEMA(_config("7201s"))
-    assert result["poll_period"].total_milliseconds == 7200 * 1000
-    assert "poll_period above 7200s is deprecated" in caplog.text
-
-
 @pytest.mark.parametrize("name", sorted(MTD_POLL_PERIOD_OPTIONS))
 def test_poll_period_drops_derived_core_options(
     caplog: pytest.LogCaptureFixture, name: str
@@ -75,15 +64,24 @@ def test_ftd_accepts_derived_core_options() -> None:
     assert CONFIG_SCHEMA(config)["core_options"] == options
 
 
-def test_action_poll_period_at_maximum_accepted() -> None:
-    result = POLL_PERIOD_ACTION_SCHEMA({"poll_period": "7200s", "id": "ot"})
-    assert result["poll_period"].total_milliseconds == 7200 * 1000
-
-
-def test_action_poll_period_above_maximum_limited(
+@pytest.mark.parametrize(
+    "validate",
+    [
+        lambda period: CONFIG_SCHEMA(_config(period)),
+        lambda period: POLL_PERIOD_ACTION_SCHEMA({"poll_period": period, "id": "ot"}),
+    ],
+    ids=["config", "action"],
+)
+@pytest.mark.parametrize(
+    ("poll_period", "deprecated"), [("7200s", False), ("7201s", True)]
+)
+def test_poll_period_limit(
     caplog: pytest.LogCaptureFixture,
+    validate: Callable[[str], dict],
+    poll_period: str,
+    deprecated: bool,
 ) -> None:
     with caplog.at_level(logging.WARNING):
-        result = POLL_PERIOD_ACTION_SCHEMA({"poll_period": "7201s", "id": "ot"})
+        result = validate(poll_period)
     assert result["poll_period"].total_milliseconds == 7200 * 1000
-    assert "poll_period above 7200s is deprecated" in caplog.text
+    assert ("poll_period above 7200s is deprecated" in caplog.text) is deprecated

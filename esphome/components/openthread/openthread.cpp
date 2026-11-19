@@ -367,11 +367,11 @@ void OpenThreadComponent::on_factory_reset(const std::function<void()> &callback
 void OpenThreadComponent::apply_poll_period(uint32_t poll_period) {
 #if CONFIG_OPENTHREAD_MTD
   // MAX_POLL_PERIOD in __init__.py; the schema cannot check lambda values
-  static constexpr uint32_t max_poll_period_ms = 7200 * 1000;
-  if (poll_period > max_poll_period_ms) {
+  static constexpr uint32_t MAX_POLL_PERIOD_MS = 7200 * 1000;
+  if (poll_period > MAX_POLL_PERIOD_MS) {
     ESP_LOGW(TAG, "poll_period %" PRIu32 " ms exceeds the maximum, using %" PRIu32 " ms", poll_period,
-             max_poll_period_ms);
-    poll_period = max_poll_period_ms;
+             MAX_POLL_PERIOD_MS);
+    poll_period = MAX_POLL_PERIOD_MS;
   }
   this->set_poll_period(poll_period);
   if (!this->is_lock_initialized()) {
@@ -398,9 +398,9 @@ void OpenThreadComponent::apply_linkmode_(otInstance *instance) {
   link_mode_config.mNetworkData = true;
 #elif CONFIG_OPENTHREAD_MTD
   // Minimums are the OpenThread defaults (src/core/config/mle.h, child_supervision.h)
-  static constexpr uint32_t child_timeout_min_sec = 240;
-  static constexpr uint16_t child_supervision_check_timeout_min_sec = 190;
-  static constexpr uint16_t child_supervision_interval_min_sec = 129;
+  static constexpr uint32_t CHILD_TIMEOUT_MIN_SEC = 240;
+  static constexpr uint16_t CHILD_SUPERVISION_CHECK_TIMEOUT_MIN_SEC = 190;
+  static constexpr uint16_t CHILD_SUPERVISION_INTERVAL_MIN_SEC = 129;
   if (this->poll_period_ > 0) {
     if (otLinkSetPollPeriod(instance, this->poll_period_) != OT_ERROR_NONE) {
       ESP_LOGE(TAG, "Failed to set pollperiod");
@@ -408,15 +408,15 @@ void OpenThreadComponent::apply_linkmode_(otInstance *instance) {
     // Round up so the derived timeouts are never below their multiples of poll_period.
     const uint32_t poll_period_sec = (this->poll_period_ + 999) / 1000;
     this->timeouts_derived_ = true;
-    otThreadSetChildTimeout(instance, std::max<uint32_t>(poll_period_sec * 4, child_timeout_min_sec));
+    otThreadSetChildTimeout(instance, std::max<uint32_t>(poll_period_sec * 4, CHILD_TIMEOUT_MIN_SEC));
     // At most 3 * 7200 + 10, so both fit the uint16_t setters
     otChildSupervisionSetCheckTimeout(
         instance,
-        static_cast<uint16_t>(std::max<uint32_t>(poll_period_sec * 3 + 10, child_supervision_check_timeout_min_sec)));
+        static_cast<uint16_t>(std::max<uint32_t>(poll_period_sec * 3 + 10, CHILD_SUPERVISION_CHECK_TIMEOUT_MIN_SEC)));
     // Ends just before a poll so the parent holds the frame briefly
     otChildSupervisionSetInterval(
         instance,
-        static_cast<uint16_t>(std::max<uint32_t>(poll_period_sec * 2, child_supervision_interval_min_sec + 10) - 10));
+        static_cast<uint16_t>(std::max<uint32_t>(poll_period_sec * 2, CHILD_SUPERVISION_INTERVAL_MIN_SEC + 10) - 10));
     // Read after the child timeout is set: OpenThread caps the effective period by one derived from it.
     ESP_LOGD(TAG,
              "Child Timeout: %" PRIu32 " sec, Child Supervision Check Timeout: %u sec, "
@@ -426,9 +426,9 @@ void OpenThreadComponent::apply_linkmode_(otInstance *instance) {
   } else if (this->timeouts_derived_) {
     // Back to always listening: drop the timeouts derived for polling
     this->timeouts_derived_ = false;
-    otThreadSetChildTimeout(instance, child_timeout_min_sec);
-    otChildSupervisionSetCheckTimeout(instance, child_supervision_check_timeout_min_sec);
-    otChildSupervisionSetInterval(instance, child_supervision_interval_min_sec);
+    otThreadSetChildTimeout(instance, CHILD_TIMEOUT_MIN_SEC);
+    otChildSupervisionSetCheckTimeout(instance, CHILD_SUPERVISION_CHECK_TIMEOUT_MIN_SEC);
+    otChildSupervisionSetInterval(instance, CHILD_SUPERVISION_INTERVAL_MIN_SEC);
   }
 
   link_mode_config.mRxOnWhenIdle = this->poll_period_ == 0;
