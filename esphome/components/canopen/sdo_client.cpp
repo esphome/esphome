@@ -28,14 +28,8 @@ void CANopenComponent::add_sdo_client_od_() {
   }};
   this->od_entries_[0] = OD_entry_t{0x1280, static_cast<uint8_t>(this->sdo_cli_record_.size()), ODT_REC,
                                     this->sdo_cli_record_.data(), nullptr};
-  this->od_entries_[1] = OD_entry_t{0, 0, 0, nullptr, nullptr};
   this->od_.size = 1;
   this->od_.list = this->od_entries_.data();
-}
-
-void CANopenComponent::config_sdo_client_(CO_config_t &cfg) {
-  cfg.CNT_SDO_CLI = 1;
-  cfg.ENTRY_H1280 = &this->od_entries_[0];
 }
 
 bool CANopenComponent::init_sdo_client_() {
@@ -71,7 +65,7 @@ bool CANopenComponent::read_sdo(uint8_t node_id, uint16_t index, uint8_t sub, ui
     return false;
   }
   return this->queue_sdo_(
-      SDORequest{node_id, index, sub, SDOKind::SDO_KIND_READ, expected_size, 0, nullptr, 0, callback, context});
+      SDORequest{node_id, sub, SDOKind::SDO_KIND_READ, expected_size, index, {}, 0, callback, context});
 }
 
 bool CANopenComponent::write_sdo(uint8_t node_id, uint16_t index, uint8_t sub, uint32_t value, uint8_t size,
@@ -83,7 +77,7 @@ bool CANopenComponent::write_sdo(uint8_t node_id, uint16_t index, uint8_t sub, u
   if (size < 4)
     value &= (1u << (8 * size)) - 1;  // sign-extended: the reply's value is zero-extended
   return this->queue_sdo_(
-      SDORequest{node_id, index, sub, SDOKind::SDO_KIND_WRITE, size, value, nullptr, 0, callback, context});
+      SDORequest{node_id, sub, SDOKind::SDO_KIND_WRITE, size, index, {value}, 0, callback, context});
 }
 
 bool CANopenComponent::read_sdo_data(uint8_t node_id, uint16_t index, uint8_t sub, uint8_t *data, size_t capacity,
@@ -92,8 +86,9 @@ bool CANopenComponent::read_sdo_data(uint8_t node_id, uint16_t index, uint8_t su
     reject(node_id, index, sub, callback, context);
     return false;
   }
-  return this->queue_sdo_(
-      SDORequest{node_id, index, sub, SDOKind::SDO_KIND_READ_DATA, 0, 0, data, capacity, callback, context});
+  SDORequest request{node_id, sub, SDOKind::SDO_KIND_READ_DATA, 0, index, {}, capacity, callback, context};
+  request.data = data;
+  return this->queue_sdo_(request);
 }
 
 bool CANopenComponent::write_sdo_data(uint8_t node_id, uint16_t index, uint8_t sub, const uint8_t *data, size_t len,
@@ -102,27 +97,25 @@ bool CANopenComponent::write_sdo_data(uint8_t node_id, uint16_t index, uint8_t s
     reject(node_id, index, sub, callback, context);
     return false;
   }
-  // a WRITE_DATA request only reads it
-  return this->queue_sdo_(SDORequest{node_id, index, sub, SDOKind::SDO_KIND_WRITE_DATA, 0, 0,
-                                     const_cast<uint8_t *>(data), len, callback, context});
+  SDORequest request{node_id, sub, SDOKind::SDO_KIND_WRITE_DATA, 0, index, {}, len, callback, context};
+  request.data = const_cast<uint8_t *>(data);  // a WRITE_DATA request only reads it
+  return this->queue_sdo_(request);
 }
 
-bool CANopenComponent::queue_sdo_(SDORequest &&request) {
+bool CANopenComponent::queue_sdo_(const SDORequest &request) {
   // before setup() the request waits in the queue: process_() starts once CANopenNode runs
-  if (this->is_failed() || request.node_id == 0 || request.node_id > 127 || this->sdo_count_ == SDO_QUEUE_SIZE) {
+  if (this->is_failed() || request.node_id == 0 || request.node_id > 127 || !this->sdo_queue_.push(request)) {
     reject(request.node_id, request.index, request.sub, request.callback, request.context);
     return false;
   }
-  this->sdo_queue_[(this->sdo_head_ + this->sdo_count_) % SDO_QUEUE_SIZE] = request;
-  this->sdo_count_++;
+  this->enable_loop();
   return true;
 }
 
 void CANopenComponent::reject_queued_sdo_() {
-  while (this->sdo_count_ > 0) {
-    SDORequest r = this->sdo_queue_[this->sdo_head_];
-    this->sdo_head_ = (this->sdo_head_ + 1) % SDO_QUEUE_SIZE;
-    this->sdo_count_--;
+  while (!this->sdo_queue_.empty()) {
+    SDORequest r = this->sdo_queue_.front();
+    this->sdo_queue_.pop();
     reject(r.node_id, r.index, r.sub, r.callback, r.context);
   }
 }
@@ -175,11 +168,10 @@ bool CANopenComponent::start_sdo_() {
 
 void CANopenComponent::process_sdo_(uint32_t dt_us) {
   if (!this->sdo_busy_) {
-    if (this->sdo_count_ == 0)
+    if (this->sdo_queue_.empty())
       return;
-    this->sdo_active_ = this->sdo_queue_[this->sdo_head_];
-    this->sdo_head_ = (this->sdo_head_ + 1) % SDO_QUEUE_SIZE;
-    this->sdo_count_--;
+    this->sdo_active_ = this->sdo_queue_.front();
+    this->sdo_queue_.pop();
     this->sdo_busy_ = true;
     if (!this->start_sdo_()) {
       this->finish_sdo_(SDOResult::SDO_RESULT_TRANSPORT_ERROR, 0);

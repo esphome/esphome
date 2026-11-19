@@ -5,6 +5,7 @@ substitutions:
 
 packages:
   spi: !include ../../test_build_components/common/spi/rp2040-ard.yaml
+  canopen: !include common.yaml
 
 canbus:
   - platform: mcp2515
@@ -12,5 +13,3 @@ canbus:
     cs_pin: GPIO5
     can_id: 0
     bit_rate: 125kbps
-
-<<: !include common.yaml

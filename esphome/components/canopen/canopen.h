@@ -68,8 +68,9 @@ class CANopenComponent : public Component {
 
  protected:
   void on_frame_(const canbus::CanFrame &frame);
-  void receive_(uint16_t ident, const uint8_t *data, uint8_t len);
   void process_(bool from_frame);
+  // no request queued or running and no frame waiting to be resent
+  bool idle_() const;
   // marks the hub failed and ends the requests queued before setup()
   void fail_setup_(const LogString *reason);
 
@@ -77,50 +78,48 @@ class CANopenComponent : public Component {
   CO_t *co_{nullptr};
   CO_config_t config_{};  // must outlive co_
 
-  uint32_t last_us_{0};
-  uint16_t response_timeout_ms_{500};
-
   // --- SDO client (sdo_client.cpp) ---
   enum class SDOKind : uint8_t { SDO_KIND_READ, SDO_KIND_WRITE, SDO_KIND_READ_DATA, SDO_KIND_WRITE_DATA };
   struct SDORequest {
     uint8_t node_id;
-    uint16_t index;
     uint8_t sub;
     SDOKind kind;
     uint8_t size;  // read: expected size (0 = any); write: value size
-    uint32_t value;
-    uint8_t *data;  // READ_DATA, WRITE_DATA (only read): owned by the caller
-    size_t len;     // READ_DATA: capacity of data
+    uint16_t index;
+    union {
+      uint32_t value;  // WRITE
+      uint8_t *data;   // READ_DATA, WRITE_DATA (only read): owned by the caller
+    };
+    size_t len;  // READ_DATA: capacity of data
     SDOCallback callback;
     void *context;
   };
   static constexpr size_t SDO_QUEUE_SIZE = 16;
   void add_sdo_client_od_();
-  void config_sdo_client_(CO_config_t &cfg);
   bool init_sdo_client_();
-  bool queue_sdo_(SDORequest &&request);
+  bool queue_sdo_(const SDORequest &request);
   void reject_queued_sdo_();
   bool sdo_reply_is_stale_(const uint8_t *data, uint8_t len) const;
   void process_sdo_(uint32_t dt_us);
   bool start_sdo_();
   void finish_sdo_(SDOResult result, uint32_t abort_code);
-  // OD 0x1280 (SDO client parameter), set up per request
-  uint8_t sdo_cli_highest_sub_{3};
-  uint32_t sdo_cli_cob_tx_{0x80000000};
-  uint32_t sdo_cli_cob_rx_{0x80000000};
-  uint8_t sdo_cli_node_{0};
   // the OD CO_SDOclient_init() needs: 0x1280 and the blank last entry (not const: CANopenNode writes the entry)
   std::array<OD_obj_record_t, 4> sdo_cli_record_{};
   std::array<OD_entry_t, 2> od_entries_{};
   OD_t od_{};
-  std::array<SDORequest, SDO_QUEUE_SIZE> sdo_queue_{};
+  StaticRingBuffer<SDORequest, SDO_QUEUE_SIZE> sdo_queue_;
   SDORequest sdo_active_{};
   size_t sdo_offset_{0};  // WRITE/WRITE_DATA: bytes handed to the client fifo
   // READ/READ_DATA: bytes received, also those beyond the buffer (for the size checks)
   size_t sdo_rx_len_{0};
+  uint32_t last_us_{0};
+  // OD 0x1280 (SDO client parameter, with sdo_cli_highest_sub_ and sdo_cli_node_), set up per request
+  uint32_t sdo_cli_cob_tx_{0x80000000};
+  uint32_t sdo_cli_cob_rx_{0x80000000};
   std::array<uint8_t, 4> sdo_rx_value_{};
-  uint8_t sdo_head_{0};
-  uint8_t sdo_count_{0};
+  uint16_t response_timeout_ms_{500};
+  uint8_t sdo_cli_highest_sub_{3};
+  uint8_t sdo_cli_node_{0};
   bool sdo_busy_{false};
 };
 

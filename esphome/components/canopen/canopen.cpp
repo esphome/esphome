@@ -12,7 +12,8 @@ ESPHOME_LOG_TAG(TAG, "canopen");
 // EMCY and the SDO server. The OD holds only the client's 0x1280.
 void CANopenComponent::setup() {
   this->add_sdo_client_od_();
-  this->config_sdo_client_(this->config_);
+  this->config_.CNT_SDO_CLI = 1;
+  this->config_.ENTRY_H1280 = &this->od_entries_[0];
   uint32_t heap = 0;
   this->co_ = CO_new(&this->config_, &heap);
   if (this->co_ == nullptr) {
@@ -43,13 +44,22 @@ void CANopenComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "CANopen (CANopenNode):\n  SDO client: response timeout %u ms", this->response_timeout_ms_);
 }
 
-void CANopenComponent::loop() { this->process_(false); }
+bool CANopenComponent::idle_() const {
+  return this->co_->CANmodule->CANtxCount == 0 && !this->sdo_busy_ && this->sdo_queue_.empty();
+}
 
-void CANopenComponent::process_(bool from_frame) {
-  if (this->co_ == nullptr || this->is_failed())
+// Only a running request or an unsent frame needs time: queue_sdo_() and CO_CANsend() enable the loop again.
+void CANopenComponent::loop() {
+  if (this->idle_()) {
+    this->disable_loop();
     return;
-  // nothing to do without a request or a frame to send
-  if (this->co_->CANmodule->CANtxCount == 0 && !this->sdo_busy_ && this->sdo_count_ == 0)
+  }
+  this->process_(false);
+}
+
+// called from loop() and on_frame_(), which have checked co_
+void CANopenComponent::process_(bool from_frame) {
+  if (this->idle_())
     return;
   // SDO client first: an unsent frame ends at its deadline, before the flush could send it. Its time runs in loop() (a
   // received frame may come before a queued reply), or while no reply can be on its way (frame unsent, no request).

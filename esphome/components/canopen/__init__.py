@@ -1,6 +1,6 @@
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components.canbus import CanbusComponent
+from esphome.components.canbus import CONF_CANBUS_ID, CanbusComponent
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
@@ -21,7 +21,6 @@ DEPENDENCIES = ["canbus"]
 DOMAIN = "canopen"
 MULTI_CONF = True
 
-CONF_CANBUS_ID = "canbus_id"
 CONF_NODE_ID = "node_id"
 CONF_RESPONSE_TIMEOUT = "response_timeout"
 CONF_SUBINDEX = "subindex"
@@ -160,11 +159,7 @@ async def sdo_write_to_code(
     args: TemplateArgsType,
 ) -> MockObj:
     var = await _sdo_action_to_code(config, action_id, template_arg, args)
-    value = config[CONF_VALUE]
-    if isinstance(value, int):
-        # negative values as two's complement in `size` bytes
-        value &= (1 << (8 * config[CONF_SIZE])) - 1
-    cg.add(var.set_value(await cg.templatable(value, args, cg.uint32)))
+    cg.add(var.set_value(await cg.templatable(config[CONF_VALUE], args, cg.uint32)))
     cg.add(var.set_size(config[CONF_SIZE]))
     if success_conf := config.get(CONF_ON_SUCCESS):
         await automation.build_automation(var.get_success_trigger(), [], success_conf)

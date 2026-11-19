@@ -1,5 +1,5 @@
 // CANopenNode driver functions (301/CO_driver.h) on ESPHome canbus; CANptr is the CANopenComponent. All on the main
-// loop: frames come in by on_frame_() (the canbus callback) and receive_(), and go out by transmit().
+// loop: frames come in by on_frame_() (the canbus callback) and go out by transmit().
 #include "canopen.h"
 
 #include <cstring>
@@ -23,6 +23,8 @@ void CANopenComponent::set_canbus(canbus::Canbus *canbus) {
 }
 
 void CANopenComponent::on_frame_(const canbus::CanFrame &frame) {
+  if (this->co_ == nullptr || this->is_failed())
+    return;
   // CANopen (CiA 301) uses classic CAN frames with 11-bit ids
 #ifdef USE_CANBUS_FD
   if (frame.fd)
@@ -31,31 +33,23 @@ void CANopenComponent::on_frame_(const canbus::CanFrame &frame) {
   const uint8_t len = frame.payload_length();
   if (frame.use_extended_id || len > 8)
     return;
-  this->receive_((frame.can_id & 0x7FF) | (frame.remote_transmission_request ? 0x800 : 0), frame.data, len);
-  this->process_(true);
-}
-
-void CANopenComponent::receive_(uint16_t ident, const uint8_t *data, uint8_t len) {
-  if (this->co_ == nullptr || this->is_failed())
-    return;
   CO_CANmodule_t *mod = this->co_->CANmodule;
   CO_CANrxMsg_t msg{};
-  msg.ident = ident;
+  msg.ident = (frame.can_id & 0x7FF) | (frame.remote_transmission_request ? 0x800 : 0);
   msg.DLC = len;
-  memcpy(msg.data, data, len);
+  memcpy(msg.data, frame.data, len);
   for (uint16_t i = 0; i < mod->rxSize; i++) {
     CO_CANrx_t *rx = &mod->rxArray[i];
     if (rx->CANrx_callback == nullptr || ((msg.ident ^ rx->ident) & rx->mask) != 0)
       continue;
-    if (rx->object == this->co_->SDOclient && this->sdo_reply_is_stale_(data, len))
+    if (rx->object == this->co_->SDOclient && this->sdo_reply_is_stale_(frame.data, len))
       continue;
     rx->CANrx_callback(rx->object, &msg);
   }
+  this->process_(true);
 }
 
 bool CANopenComponent::transmit(uint16_t ident, const uint8_t *data, uint8_t len) {
-  if (this->canbus_ == nullptr)
-    return false;
   return this->canbus_->send_data(ident & 0x7FF, false, ident & 0x800, data, len) == canbus::ERROR_OK;
 }
 
@@ -135,9 +129,10 @@ CO_ReturnError_t CO_CANsend(CO_CANmodule_t *CANmodule, CO_CANtx_t *buffer) {
     CANmodule->firstCANtxMessage = false;
     return CO_ERROR_NO;
   }
-  // keep it queued (in order behind the others), CO_CANmodule_process() resends it
+  // keep it queued (in order behind the others), CO_CANmodule_process() resends it from loop()
   buffer->bufferFull = true;
   CANmodule->CANtxCount++;
+  static_cast<esphome::canopen::CANopenComponent *>(CANmodule->CANptr)->enable_loop();
   return CO_ERROR_NO;
 }
 
@@ -145,8 +140,7 @@ void CO_CANclearPendingSyncPDOs(CO_CANmodule_t *CANmodule) {
   for (uint16_t i = 0; i < CANmodule->txSize; i++) {
     CO_CANtx_t *tx = &CANmodule->txArray[i];
     if (tx->bufferFull && tx->syncFlag) {
-      tx->bufferFull = false;
-      CANmodule->CANtxCount--;
+      discard_pending_tx(CANmodule, tx);
       CANmodule->CANerrorStatus |= CO_CAN_ERRTX_PDO_LATE;
     }
   }

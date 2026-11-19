@@ -29,13 +29,6 @@ class FakeCanbus : public canbus::Canbus {
       n += f.can_id == can_id;
     return n;
   }
-  const Frame *find(uint32_t can_id) const {
-    for (const auto &f : this->sent) {
-      if (f.can_id == can_id)
-        return &f;
-    }
-    return nullptr;
-  }
 
  protected:
   bool setup_internal() override { return true; }
