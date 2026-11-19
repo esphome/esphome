@@ -155,6 +155,8 @@ void AsyncStreamResponse::attach_(AsyncClient *client, RAMUniquePtr<char[]> head
       },
       this);
   this->client_ = client;
+  // The ACK clock starts with the head
+  this->last_ack_ms_ = millis();
   this->head_rest_ = std::move(head_rest);
   // Without the rest of the head the stream cannot continue. Closing here, inside the client's receive callback,
   // could free the pcb the library still uses after it, so the main loop closes it once the callback has returned.
@@ -200,9 +202,15 @@ ssize_t AsyncStreamResponse::write(StreamIovec *iov, int iovcnt) {
     if (this->is_connected()) {
 #ifdef USE_ESP8266
       // Every segment holds a full MSS pbuf on the heap until acked (LWIP_NETIF_TX_SINGLE_PBUF), so write only once
-      // the last send is acked, like ESPAsyncWebServer. Not a stall: the library's ACK timeout covers a silent peer.
-      if (!this->client_->canSend())
+      // the last send is acked, like ESPAsyncWebServer. canSend() is also false when a failed send never armed the
+      // library's ACK timeout, so the ACK age is checked here too.
+      if (!this->client_->canSend()) {
+        if (now - this->last_ack_ms_ >= SEND_STALL_TIMEOUT_MS) {
+          this->close_stuck_(now - this->last_ack_ms_, LOG_STR("without an ACK"));
+          return -1;
+        }
         return 0;
+      }
 #endif
       // Only an ACK grows the send buffer's free space (lwIP snd_buf). ESPAsyncTCP and RPAsyncTCP call onAck
       // only once everything is acked, so it cannot measure this.
