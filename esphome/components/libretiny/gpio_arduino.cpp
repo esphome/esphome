@@ -4,8 +4,8 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-// clang-tidy cannot parse the Realtek SDK headers behind wiring_data.h
-#if defined(USE_BK72XX) || (defined(USE_RTL87XX) && !defined(CLANG_TIDY))
+// clang-tidy cannot parse the Realtek and LN882x SDK headers behind wiring_data.h.
+#if defined(USE_BK72XX) || (!defined(CLANG_TIDY) && (defined(USE_LN882X) || defined(USE_RTL87XX)))
 #include <wiring_data.h>
 #endif
 
@@ -135,6 +135,21 @@ static void rtl_preset_level(uint8_t pin, bool level) {
 }
 #endif
 
+bool ArduinoInternalGPIOPin::setup_open_drain(bool pullup) {
+  // LibreTiny's pin read switches outputs to input, so keep the input/output fallback here.
+#if defined(USE_BK72XX) || (!defined(CLANG_TIDY) && (defined(USE_LN882X) || defined(USE_RTL87XX)))
+  PinInfo *info = pinInfo(this->pin_);
+  if (info == nullptr || !pinSupported(info, PIN_GPIO))
+    return false;
+#endif
+  this->flags_ = gpio::FLAG_INPUT;
+  if (pullup)
+    this->flags_ = this->flags_ | gpio::FLAG_PULLUP;
+  this->pin_mode(this->flags_);
+  this->level_ = false;
+  return true;
+}
+
 void ArduinoInternalGPIOPin::pin_mode(gpio::Flags flags) {
   const int mode = flags_to_mode(flags);
   this->output_ = flags & gpio::FLAG_OUTPUT;
@@ -191,6 +206,26 @@ void IRAM_ATTR ISRInternalGPIOPin::digital_write(bool value) {
 void IRAM_ATTR ISRInternalGPIOPin::clear_interrupt() {
   detachInterrupt(reinterpret_cast<ArduinoInternalGPIOPin *>(this->arg_)->get_pin());
 }
+void IRAM_ATTR ISRInternalGPIOPin::open_drain_pull_low() {
+  auto *pin = static_cast<ArduinoInternalGPIOPin *>(this->arg_);
+  pin->digital_write(pin->is_inverted());
+#if defined(USE_LN882X) && !defined(CLANG_TIDY)
+  // The Arduino output-mode switch enables direction before writing the level; preset the latch while still input.
+  hal_gpio_pin_reset(GPIO_GET_BASE(pin->get_pin()), GPIO_GET_PIN(pin->get_pin()));
+#endif
+  pin->pin_mode(gpio::FLAG_OUTPUT);
+}
+
+void IRAM_ATTR ISRInternalGPIOPin::open_drain_release() {
+  auto *pin = static_cast<ArduinoInternalGPIOPin *>(this->arg_);
+  pin->pin_mode(pin->get_flags());
+}
+
+bool IRAM_ATTR ISRInternalGPIOPin::open_drain_read() {
+  auto *pin = static_cast<ArduinoInternalGPIOPin *>(this->arg_);
+  return pin->digital_read() != pin->is_inverted();
+}
+
 void IRAM_ATTR ISRInternalGPIOPin::pin_mode(gpio::Flags flags) {
   reinterpret_cast<ArduinoInternalGPIOPin *>(this->arg_)->pin_mode(flags);
 }

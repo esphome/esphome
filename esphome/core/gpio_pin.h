@@ -146,6 +146,12 @@ class ISRInternalGPIOPin {
   void clear_interrupt();
   void pin_mode(gpio::Flags flags);
 
+  /// Physical bus operations: low drives the pin, release leaves it high impedance.
+  /// Call only after InternalGPIOPin::setup_open_drain(). Safe in timing-critical code.
+  void open_drain_pull_low();
+  void open_drain_release();
+  bool open_drain_read();
+
  protected:
   // Only to_isr() builds a handle from a pin, since it also prepares the pin (the RTC IO number on ESP32).
   template<std::derived_from<GPIOPin> T>
@@ -156,17 +162,21 @@ class ISRInternalGPIOPin {
 };
 
 // What callers of the InternalGPIOPin alias (bound in esphome/core/gpio.h) rely on beyond
-// GPIOPin. The class must be final so calls to the GPIOPin virtuals through the alias are direct.
+// GPIOPin. setup_open_drain(pullup) replaces setup() for an exclusive bus pin: it must start released,
+// enable physical input reads and return false when the pin cannot be configured.
+// The class must be final so calls to the GPIOPin virtuals through the alias are direct.
 // int is arbitrary: any T * exercises the public attach_interrupt<T> template.
 template<typename T>
-concept InternalGPIOPinContract = std::derived_from<T, GPIOPin> && std::is_final_v<T> &&
-                                  requires(const T pin, void (*func)(int *), int *arg, gpio::InterruptType type) {
-                                    { pin.get_pin() } -> std::same_as<uint8_t>;
-                                    { pin.is_inverted() } -> std::same_as<bool>;
-                                    { pin.to_isr() } -> std::same_as<ISRInternalGPIOPin>;
-                                    { pin.detach_interrupt() } -> std::same_as<void>;
-                                    { pin.attach_interrupt(func, arg, type) } -> std::same_as<void>;
-                                  };
+concept InternalGPIOPinContract =
+    std::derived_from<T, GPIOPin> && std::is_final_v<T> &&
+    requires(const T pin, T &mutable_pin, void (*func)(int *), int *arg, gpio::InterruptType type) {
+      { pin.get_pin() } -> std::same_as<uint8_t>;
+      { pin.is_inverted() } -> std::same_as<bool>;
+      { pin.to_isr() } -> std::same_as<ISRInternalGPIOPin>;
+      { mutable_pin.setup_open_drain(true) } -> std::same_as<bool>;
+      { pin.detach_interrupt() } -> std::same_as<void>;
+      { pin.attach_interrupt(func, arg, type) } -> std::same_as<void>;
+    };
 
 // Inline default implementation for GPIOPin::dump_summary.
 // Writes an empty summary; subclasses override to provide pin details.
