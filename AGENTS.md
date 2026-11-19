@@ -247,7 +247,7 @@ file does, and it is the authority when they disagree. The most useful starting 
         `DS_BCD_CALENDAR` or `PCF_BCD_CALENDAR`.
     *   **Bus helpers:** UART drains with `read_available(on_byte)` and `discard_available()`, text lines with
         `LineReader<N>`, fixed-length binary frames with `FrameReader<N, HEADER...>`, frames that give their own length
-        with `LengthFrameReader<N, FrameFormat<FrameHeader<...>, PayloadLengthU16LE<POS, AFTER>>...>` fed by
+        with `LengthFrameReader<N, FrameFormat<FrameHeader<...>, PayloadLengthU16LE<LengthField{...}>>...>` fed by
         `read_frames(reader, handler, now, last_rx)`, which also gives up a frame stalled by a corrupt length; I2C has
         `update_register`, `update_register16`, `read_byte_reg16` and `write_byte_reg16` for 16-bit register addresses,
         `write_registers` (PROGMEM `I2CRegValue` table), `check_chip_id` and `read_bytes_16_le`. `if

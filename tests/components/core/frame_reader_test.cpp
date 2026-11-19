@@ -157,16 +157,18 @@ template<size_t N, class... F> static Frames feed_all(LengthFrameReader<N, F...>
 }
 
 // pioneer_wt: A5 01, one byte at 7 holds the whole length
-using OneByte = FrameFormat<FrameHeader<0xA5, 0x01>, FrameLengthU8<7>>;
+using OneByte = FrameFormat<FrameHeader<0xA5, 0x01>, FrameLengthU8<LengthField{.at = 7}>>;
 // tuya: 55 AA, version, command, payload length (2, BE), payload, checksum
-using TwoByteBE = FrameFormat<FrameHeader<0x55, 0xAA>, PayloadLengthU16BE<4, 1>>;
+using TwoByteBE = FrameFormat<FrameHeader<0x55, 0xAA>, PayloadLengthU16BE<LengthField{.at = 4, .after_payload = 1}>>;
 // ld24xx command and data frames: header (4), payload length (2, LE), payload, footer (4)
-using LdCmd = FrameFormat<FrameHeader<0xFD, 0xFC, 0xFB, 0xFA>, PayloadLengthU16LE<4, 4>>;
-using LdData = FrameFormat<FrameHeader<0xF4, 0xF3, 0xF2, 0xF1>, PayloadLengthU16LE<4, 4>>;
+using LdCmd =
+    FrameFormat<FrameHeader<0xFD, 0xFC, 0xFB, 0xFA>, PayloadLengthU16LE<LengthField{.at = 4, .after_payload = 4}>>;
+using LdData =
+    FrameFormat<FrameHeader<0xF4, 0xF3, 0xF2, 0xF1>, PayloadLengthU16LE<LengthField{.at = 4, .after_payload = 4}>>;
 // ld2410s short frame: 6E, always 5 bytes
 using LdShort = FrameFormat<FrameHeader<0x6E>, FrameFixedLength<5>>;
 // Small format for the recovery tests: A5, one byte at 1 holds the whole length
-using Small = FrameFormat<FrameHeader<0xA5>, FrameLengthU8<1>>;
+using Small = FrameFormat<FrameHeader<0xA5>, FrameLengthU8<LengthField{.at = 1}>>;
 
 static_assert(sizeof(LengthFrameReader<255, OneByte>) == 258);
 static_assert(sizeof(LengthFrameReader<300, TwoByteBE>) == 306);
@@ -248,7 +250,7 @@ TEST(LengthFrameReaderTest, BadLengthRealignsAfterFirstByte) {
 }
 
 TEST(LengthFrameReaderTest, LengthByteCanStartHeader) {
-  LengthFrameReader<8, FrameFormat<FrameHeader<0x09>, FrameLengthU8<1>>> reader;
+  LengthFrameReader<8, FrameFormat<FrameHeader<0x09>, FrameLengthU8<LengthField{.at = 1}>>> reader;
   // Length 9 is longer than 8, so the length byte becomes the next header
   EXPECT_EQ(feed_all(reader, {0x09, 0x09, 0x03, 0x07}), (Frames{{0x09, 0x03, 0x07}}));
 }
@@ -335,7 +337,8 @@ TEST(LengthFrameReaderTest, CustomRuleKnownAtTheFirstByte) {
 }
 
 // A5, payload length at 1, payload, checksum; a frame has at least 2 payload bytes
-using MinTwo = FrameFormat<FrameHeader<0xA5>, PayloadLengthU8<1, 1>, FrameMinLength<5>>;
+using MinTwo =
+    FrameFormat<FrameHeader<0xA5>, PayloadLengthU8<LengthField{.at = 1, .after_payload = 1}>, FrameMinLength<5>>;
 
 TEST(LengthFrameReaderTest, LengthBelowTheMinimumIsRejectedAtTheHeader) {
   LengthFrameReader<16, MinTwo> reader;
@@ -344,7 +347,8 @@ TEST(LengthFrameReaderTest, LengthBelowTheMinimumIsRejectedAtTheHeader) {
 
 static bool second_byte_not_ff(const uint8_t *buf) { return buf[1] != 0xFF; }
 // A5, a byte that must not be FF, payload length at 2, payload
-using Checked = FrameFormat<FrameHeader<0xA5>, CheckedLength<PayloadLengthU8<2>, 2, second_byte_not_ff>>;
+using Checked =
+    FrameFormat<FrameHeader<0xA5>, CheckedLength<PayloadLengthU8<LengthField{.at = 2}>, 2, second_byte_not_ff>>;
 
 TEST(LengthFrameReaderTest, CheckedLengthRejectsABadHeader) {
   LengthFrameReader<16, Checked> reader;
