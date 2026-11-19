@@ -39,8 +39,13 @@ static esp_err_t ota_end_guarded() {
 #ifdef CONFIG_ESP_HOSTED_CP_TARGET_ESP32C5
 // An ESP32-C5 that came with ESP-Hosted 2.x has its partition table at 0xc000. Firmware built for
 // another offset, such as a stock 3.x build, does not start there.
+static bool esp32c5_partition_table_at_risk(const update::UpdateInfo &info) {
+  return info.current_version.starts_with("2.") && !info.latest_version.empty() &&
+         !info.latest_version.starts_with("2.");
+}
+
 static void warn_esp32c5_partition_table(const update::UpdateInfo &info) {
-  if (!info.current_version.starts_with("2.") || info.latest_version.empty() || info.latest_version.starts_with("2.")) {
+  if (!esp32c5_partition_table_at_risk(info)) {
     return;
   }
   ESP_LOGW(TAG,
@@ -211,6 +216,11 @@ void Esp32HostedUpdate::check() {
     return;
   }
 
+#ifdef CONFIG_ESP_HOSTED_CP_TARGET_ESP32C5
+  // Until the manifest is fetched, update_info_ still holds the offer from the last check
+  const bool was_warned = esp32c5_partition_table_at_risk(this->update_info_);
+#endif
+
   if (!this->fetch_manifest_()) {
     return;
   }
@@ -224,7 +234,7 @@ void Esp32HostedUpdate::check() {
   } else {
     this->state_ = update::UPDATE_STATE_AVAILABLE;
 #ifdef CONFIG_ESP_HOSTED_CP_TARGET_ESP32C5
-    if (!was_available) {
+    if (!was_warned) {
       warn_esp32c5_partition_table(this->update_info_);
     }
 #endif
