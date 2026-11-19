@@ -405,12 +405,13 @@ void OpenThreadComponent::loop() {
     this->disable_loop();
     return;
   }
+  // Never wait for the lock on the main loop; the OpenThread task releases it between events. Holding it
+  // also keeps the task's clean-up, which deletes the task queue, from running while an exit is posted
+  auto lock = InstanceLock::try_acquire(0);
+  if (!lock) {
+    return;
+  }
   if (!backbone_up) {
-    // Never wait for the lock on the main loop; the OpenThread task releases it between events
-    auto lock = InstanceLock::try_acquire(0);
-    if (!lock) {
-      return;
-    }
     if (this->has_border_router_flag_(BORDER_ROUTER_STARTED)) {
       ESP_LOGI(TAG, "%s backbone lost, border routing pauses", BACKBONE_NAME);
       esp_netif_t *backbone = esp_openthread_get_backbone_netif();
