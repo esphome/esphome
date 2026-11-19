@@ -167,6 +167,8 @@ void LibreTinyUARTComponent::load_settings(bool dump_config) {
     ESP_LOGW(TAG, "Only a started hardware UART can load new settings");
     return;
   }
+  // Bytes still in the TX FIFO would otherwise go out at the new settings
+  hardware->flush();
 #if defined(USE_LN882X)
   // The LN882x core keeps 8N1. Its configure() zeroes the port while its RX interrupt is live, which a byte arriving
   // then turns into an endless interrupt loop, so only the baud rate is set.
