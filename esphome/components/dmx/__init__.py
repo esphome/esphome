@@ -8,6 +8,7 @@ from esphome.const import (
     CONF_HARDWARE_UART,
     CONF_ID,
     CONF_LOGGER,
+    CONF_MODE,
     CONF_RX_PIN,
     CONF_TX_PIN,
 )
@@ -17,7 +18,6 @@ import logging
 CODEOWNERS = ["@KoenBreeman"]
 CONF_UART_NUM = "uart_num"
 CONF_DMX_ID = "dmx_id"
-CONF_MODE = "mode"
 CONF_TX_INTERVAL = "tx_interval"
 CONF_RX_GUARD = "rx_guard"
 DEPENDENCIES = ["esp32"]

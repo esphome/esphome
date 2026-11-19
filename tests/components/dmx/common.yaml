@@ -12,6 +12,7 @@ substitutions:
 
 dmx:
   id: dmx_bus
+  mode: ${dmx_mode}
   uart_num: ${dmx_uart_num}
   tx_pin: ${dmx_tx_pin}
   rx_pin: ${dmx_rx_pin}
