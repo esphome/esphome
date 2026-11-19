@@ -6,7 +6,7 @@ namespace esphome::pvvx_mithermometer {
 
 ESPHOME_LOG_TAG(TAG, "pvvx_mithermometer");
 
-void PVVXMiThermometer::dump_config() {
+void PVVXMiThermometer::dump_child_config() {
   ESP_LOGCONFIG(TAG, "PVVX MiThermometer");
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
