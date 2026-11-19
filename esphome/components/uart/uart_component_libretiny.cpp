@@ -16,9 +16,11 @@
 #include <SoftwareSerial.h>
 #endif
 
-#ifdef USE_LN882X
+#if defined(USE_BK72XX) || defined(USE_LN882X)
 #include <sdk_private.h>
-// The SDK's open port handles (components/serial/serial.c); not in its header.
+#endif
+#ifdef USE_LN882X
+// The SDK's open port handles (components/serial/serial.c), declared as in libretiny/core.cpp; not in its header.
 extern "C" Serial_t *serial_handles[SER_PORT_NUM];
 #endif
 
@@ -172,9 +174,17 @@ void LibreTinyUARTComponent::load_settings(bool dump_config) {
     ESP_LOGW(TAG, "LN882x keeps 8N1; only the baud rate changes");
   serial_setbaudrate(serial_handles[this->hardware_idx_], this->baud_rate_);
 #elif defined(USE_BK72XX)
-  // The BK72xx configure() registers the port with the SDK again on every call, which fills its fixed device table;
-  // begin() releases the old registration first. It keeps the pins setup() chose.
-  hardware->begin(this->baud_rate_, this->get_config());
+  // The BK72xx configure() registers the port with the SDK again on every call, which fills its fixed device table.
+  // The driver's init command only rewrites the port's registers, the way configure() ends.
+  bk_uart_config_t cfg{};
+  cfg.baud_rate = this->baud_rate_;
+  cfg.data_width = static_cast<uart_data_width_t>(this->data_bits_ - 5);
+  cfg.parity = this->parity_ == UART_CONFIG_PARITY_EVEN  ? BK_PARITY_EVEN
+               : this->parity_ == UART_CONFIG_PARITY_ODD ? BK_PARITY_ODD
+                                                         : BK_PARITY_NO;
+  cfg.stop_bits = this->stop_bits_ == 2 ? BK_STOP_BITS_2 : BK_STOP_BITS_1;
+  cfg.flow_control = FLOW_CTRL_DISABLED;
+  sddev_control(const_cast<char *>(this->hardware_idx_ == 1 ? UART1_DEV_NAME : UART2_DEV_NAME), CMD_UART_INIT, &cfg);
 #else
   // Changes the settings in place, on the pins setup() chose
   hardware->configure(this->baud_rate_, this->get_config());
