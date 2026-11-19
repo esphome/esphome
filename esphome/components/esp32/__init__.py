@@ -229,6 +229,24 @@ NVS_ENCRYPTION_HMAC_VARIANTS = {
     VARIANT_ESP32P4,
 }
 
+# Variants with an AES driver, based on SOC_AES_SUPPORTED in soc_caps.h. ESP-IDF
+# 6.1 adds the ESP32-H4 and ESP32-S31. A chip not listed keeps mbedTLS XTS.
+HARDWARE_AES_VARIANTS_IDF60 = {
+    VARIANT_ESP32,
+    VARIANT_ESP32S2,
+    VARIANT_ESP32S3,
+    VARIANT_ESP32C3,
+    VARIANT_ESP32C5,
+    VARIANT_ESP32C6,
+    VARIANT_ESP32H2,
+    VARIANT_ESP32H21,
+    VARIANT_ESP32P4,
+}
+HARDWARE_AES_VARIANTS = HARDWARE_AES_VARIANTS_IDF60 | {
+    VARIANT_ESP32H4,
+    VARIANT_ESP32S31,
+}
+
 COMPILER_OPTIMIZATIONS = {
     "DEBUG": "CONFIG_COMPILER_OPTIMIZATION_DEBUG",
     "NONE": "CONFIG_COMPILER_OPTIMIZATION_NONE",
@@ -839,6 +857,13 @@ def is_idf_sdkconfig_option_enabled(name: str) -> bool:
     """
     value = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS].get(name)
     return value is not None and _format_sdkconfig_val(value) == "y"
+
+
+def _is_idf_sdkconfig_option_not_disabled(name: str) -> bool:
+    """Return True unless sdkconfig_options set the bool option to ``n``; an
+    unset option keeps its Kconfig default, which is on for the callers."""
+    value = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS].get(name)
+    return value is None or _format_sdkconfig_val(value) == "y"
 
 
 def task_wdt_timeout_ms() -> int:
@@ -2855,24 +2880,6 @@ _MBEDTLS_TRIM_KEPT_BY = {
     ),
 }
 
-# Variants with an AES driver (SOC_AES_SUPPORTED); a chip not listed keeps XTS.
-_HARDWARE_AES_VARIANTS_IDF60 = (
-    VARIANT_ESP32,
-    VARIANT_ESP32C3,
-    VARIANT_ESP32C5,
-    VARIANT_ESP32C6,
-    VARIANT_ESP32H2,
-    VARIANT_ESP32H21,
-    VARIANT_ESP32P4,
-    VARIANT_ESP32S2,
-    VARIANT_ESP32S3,
-)
-_HARDWARE_AES_VARIANTS = (
-    *_HARDWARE_AES_VARIANTS_IDF60,
-    VARIANT_ESP32H4,
-    VARIANT_ESP32S31,
-)
-
 
 def _uses_hardware_aes() -> bool:
     """Whether mbedTLS runs AES on the hardware (CONFIG_MBEDTLS_HARDWARE_AES).
@@ -2881,17 +2888,14 @@ def _uses_hardware_aes() -> bool:
     workaround; NVS always builds its encrypted partition code, which then
     needs mbedTLS XTS.
     """
-    hardware_aes = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS].get(
-        "CONFIG_MBEDTLS_HARDWARE_AES"
-    )
     aes_variants = (
-        _HARDWARE_AES_VARIANTS
+        HARDWARE_AES_VARIANTS
         if idf_version() >= cv.Version(6, 1, 0)
-        else _HARDWARE_AES_VARIANTS_IDF60
+        else HARDWARE_AES_VARIANTS_IDF60
     )
     return (
         get_esp32_variant() in aes_variants
-        and (hardware_aes is None or _format_sdkconfig_val(hardware_aes) == "y")
+        and _is_idf_sdkconfig_option_not_disabled("CONFIG_MBEDTLS_HARDWARE_AES")
         and not is_idf_sdkconfig_option_enabled(
             "CONFIG_SPIRAM_CACHE_WORKAROUND_STRATEGY_DUPLDST"
         )
