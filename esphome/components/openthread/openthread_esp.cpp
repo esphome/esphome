@@ -460,19 +460,23 @@ void OpenThreadComponent::start_border_router_() {
     this->set_border_router_flag_(BORDER_ROUTER_STARTED, err == ESP_OK);
   }
   esp_openthread_lock_release();
-  // The component state belongs to the main loop
-  this->defer([this, err, deinit_failed]() {
-    if (err == ESP_OK) {
+  const LogString *failure = nullptr;
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "Failed to %s OpenThread Border Router: %s",
+             deinit_failed ? LOG_STR_LITERAL("deinitialize") : LOG_STR_LITERAL("initialize"), esp_err_to_name(err));
+    failure = deinit_failed ? LOG_STR("Border router deinit failed") : LOG_STR("Border router init failed");
+  }
+  // The component state belongs to the main loop. Two pointers fit std::function's inline storage, so
+  // deferring allocates nothing
+  this->defer([this, failure]() {
+    if (failure == nullptr) {
       this->status_clear_error();
       ESP_LOGI(TAG, "Border routing started");
       // The backbone may have gone while the router started; loop() checks again
       this->enable_loop();
       return;
     }
-    ESP_LOGE(TAG, "Failed to %s OpenThread Border Router: %s",
-             deinit_failed ? LOG_STR_LITERAL("deinitialize") : LOG_STR_LITERAL("initialize"), esp_err_to_name(err));
-    this->status_set_error(deinit_failed ? LOG_STR("Border router deinit failed")
-                                         : LOG_STR("Border router init failed"));
+    this->status_set_error(failure);
     // After the retry delay, loop() sees the backbone as up again and asks for another start
     this->backbone_up_ = false;
     this->disable_loop();
