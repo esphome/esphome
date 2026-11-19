@@ -248,9 +248,7 @@ def set_sdkconfig_options(config: ConfigType) -> None:
 
     if border_router:
         # Border routing follows the backbone link
-        if _get_backbone(config) == CONF_ETHERNET:
-            ethernet.request_ethernet_connect_state_listener()
-        else:
+        if _get_backbone(config) == CONF_WIFI:
             wifi.request_wifi_connect_state_listener()
         for name, value in BORDER_ROUTER_SDKCONFIG_OPTIONS.items():
             add_idf_sdkconfig_option(name, value)
@@ -607,6 +605,8 @@ async def to_code(config: ConfigType) -> None:
         )
     add_use_address(ot, config[CONF_USE_ADDRESS])
     await cg.register_component(ot, config)
+    if border_router and _get_backbone(config) == CONF_ETHERNET:
+        await ethernet.register_connect_state_listener(ot)
     cg.add_optional(ot.set_poll_period, config.get(CONF_POLL_PERIOD))
 
     if not border_router:

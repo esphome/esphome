@@ -61,9 +61,7 @@ void OpenThreadComponent::setup() {
     return;
   }
   esp_openthread_set_backbone_netif(backbone_netif);
-#ifdef USE_OPENTHREAD_BACKBONE_ETHERNET
-  ethernet::global_eth_component->add_connect_state_listener(this);
-#else
+#ifndef USE_OPENTHREAD_BACKBONE_ETHERNET  // codegen registers the Ethernet listener
   wifi::global_wifi_component->add_connect_state_listener(this);
 #endif
 #endif

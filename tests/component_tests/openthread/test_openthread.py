@@ -426,10 +426,8 @@ def test_border_router_backbone_codegen(
     assert ("USE_OPENTHREAD_RCP_UART" in defines) is rcp
     assert sdkconfig[radio] is True
     assert ("USE_OPENTHREAD_BACKBONE_ETHERNET" in defines) is ethernet_backbone
-    # Border routing follows the backbone: one connect state listener on its link, none on the other
     assert get_define_value("ESPHOME_ETHERNET_CONNECT_STATE_LISTENERS") == (
-        "1" if ethernet_backbone else None
+        "1" if ethernet_backbone else "0"
     )
     assert ("USE_WIFI_CONNECT_STATE_LISTENERS" in defines) is not ethernet_backbone
-    # Software coexistence only for the native radio next to Wi-Fi
     assert (sdkconfig.get("CONFIG_ESP_COEX_SW_COEXIST_ENABLE") is True) is coexistence
