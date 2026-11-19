@@ -13,6 +13,7 @@ from esphome import core, external_files
 import esphome.codegen as cg
 from esphome.components.const import CONF_BYTE_ORDER
 from esphome.components.image import (
+    CONF_CHROMA_KEY,
     CONF_INVERT_ALPHA,
     CONF_OPAQUE,
     CONF_TRANSPARENCY,
@@ -24,6 +25,7 @@ from esphome.components.image import (
     get_image_type_enum,
     get_transparency_enum,
     is_svg_file,
+    validate_background_color,
     validate_byte_order,
     validate_settings,
     validate_transparency,
@@ -31,6 +33,7 @@ from esphome.components.image import (
 )
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_BACKGROUND_COLOR,
     CONF_DITHER,
     CONF_FILE,
     CONF_ICON,
@@ -206,6 +209,7 @@ OPTIONS_SCHEMA = {
     cv.Optional(CONF_INVERT_ALPHA, default=False): cv.boolean,
     cv.Optional(CONF_BYTE_ORDER): validate_byte_order,
     cv.Optional(CONF_TRANSPARENCY, default=CONF_OPAQUE): validate_transparency(),
+    cv.Optional(CONF_BACKGROUND_COLOR): validate_background_color,
 }
 
 
@@ -268,6 +272,26 @@ async def new_image(config: ConfigType) -> MockObj:
     return var
 
 
+def _apply_background_color(
+    frame: Image.Image, bg_color: int, transparency: str
+) -> Image.Image:
+    """Composite frame onto an opaque RGB background color.
+
+    For ``chroma_key``, pixels with alpha >= 128 are blended onto the
+    background and made opaque, while pixels with alpha < 128 remain
+    transparent (alpha 0) so the encoder still emits the chroma key.
+    """
+    bg_rgb = (bg_color >> 16, (bg_color >> 8) & 0xFF, bg_color & 0xFF)
+    rgba = frame.convert("RGBA")
+    composited = Image.alpha_composite(
+        Image.new("RGBA", rgba.size, (*bg_rgb, 255)), rgba
+    )
+    if transparency == CONF_CHROMA_KEY:
+        alpha = rgba.getchannel("A").point(lambda a: 255 if a >= 128 else 0)
+        composited.putalpha(alpha)
+    return composited
+
+
 async def write_image(
     config: ConfigType, all_frames: bool = False
 ) -> tuple[MockObj, int, int, MockObj, MockObj, int]:
@@ -328,6 +352,7 @@ async def write_image(
     # per frame) so animation frame stepping in image.cpp / animation.cpp stays
     # correct without needing to know the total frame count.
     byte_order = config.get(CONF_BYTE_ORDER)
+    bg_color = config.get(CONF_BACKGROUND_COLOR)
     combined_data: list[int] = []
     encoder: ImageEncoder | None = None
     for frame_index in range(frame_count):
@@ -336,9 +361,10 @@ async def write_image(
         if byte_order is not None:
             # Check for valid type has already been done in validate_settings
             encoder.set_big_endian(byte_order == "BIG_ENDIAN")
-        pixels = encoder.convert(
-            image.resize((width, height)), path
-        ).get_flattened_data()
+        frame = image.resize((width, height))
+        if bg_color is not None:
+            frame = _apply_background_color(frame, bg_color, transparency)
+        pixels = encoder.convert(frame, path).get_flattened_data()
         for row in range(height):
             for col in range(width):
                 encoder.encode(pixels[row * width + col])
