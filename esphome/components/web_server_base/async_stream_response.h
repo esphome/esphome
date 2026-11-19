@@ -84,9 +84,6 @@ class AsyncStreamResponse {
   // Network context, before publishing: take the connection and the part of the head not queued yet, as a C string;
   // head_kept false (no memory for that part) closes it
   void attach_(AsyncClient *client, RAMUniquePtr<char[]> head_rest, bool head_kept);
-  // Main loop: queues what is left of the head; true once all of it is queued
-  bool send_head_rest_();
-  ssize_t send_(StreamIovec *iov, int iovcnt);
   // Starts the stall clock; once it has run SEND_STALL_TIMEOUT_MS, logs reason and aborts. True when it did.
   bool stall_or_close_(const LogString *reason);
   // Graceful FIN, or with abort a RST that frees the pcb now (a stuck stream's FIN would queue behind its data)
