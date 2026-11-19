@@ -335,7 +335,8 @@ void WebServer::handle_not_found_(AsyncWebServerRequest *request) {
 void WebServer::on_log(uint8_t level, const char *tag, const char *message, size_t message_len) {
   (void) level;
   (void) tag;
-  // Sessions are main-loop state; RP2 logs from its network IRQ arrive here directly, so drop those
+  // Sessions are main-loop state, so logs from network callbacks are dropped, web OTA progress among them
+  // (ESP8266's SYS context and RP2's network IRQ log here directly)
   if (!is_main_loop_thread())
     return;
   this->events_.try_send_nodefer(message, std::min(message_len, LOG_EVENT_MAX_LEN), "log", millis());
