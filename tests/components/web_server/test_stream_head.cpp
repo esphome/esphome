@@ -176,38 +176,35 @@ struct IovFixture {
   }
 };
 
-TEST(AdvanceIovecs, ZeroLengthWriteChangesNothing) {
+// One short write of sent bytes: where the list then starts, how many elements remain and the bytes left
+struct AdvanceCase {
+  size_t sent;
+  int first;
+  int count;
+  size_t first_len;
+  const char *rest;
+};
+
+class AdvanceIovecsTest : public ::testing::TestWithParam<AdvanceCase> {};
+
+TEST_P(AdvanceIovecsTest, LeavesTheUnsentBytes) {
+  const AdvanceCase &c = GetParam();
   IovFixture f;
-  advance_iovecs(f.cur, f.count, 0);
-  EXPECT_EQ(f.cur, f.iov);
-  EXPECT_EQ(f.count, 3);
-  EXPECT_EQ(f.rest(), "abcdefghijkl");
+  advance_iovecs(f.cur, f.count, c.sent);
+  EXPECT_EQ(f.count, c.count);
+  if (c.count > 0) {
+    EXPECT_EQ(f.cur, &f.iov[c.first]);
+    EXPECT_EQ(f.cur->iov_len, c.first_len);
+  }
+  EXPECT_EQ(f.rest(), c.rest);
 }
 
-TEST(AdvanceIovecs, PartialInsideFirstElement) {
-  IovFixture f;
-  advance_iovecs(f.cur, f.count, 2);
-  EXPECT_EQ(f.cur, f.iov);
-  EXPECT_EQ(f.count, 3);
-  EXPECT_EQ(f.cur->iov_len, 1u);
-  EXPECT_EQ(f.rest(), "cdefghijkl");
-}
-
-TEST(AdvanceIovecs, ExactlyOnElementBoundary) {
-  IovFixture f;
-  advance_iovecs(f.cur, f.count, 3);
-  EXPECT_EQ(f.cur, &f.iov[1]);
-  EXPECT_EQ(f.count, 2);
-  EXPECT_EQ(f.rest(), "defghijkl");
-}
-
-TEST(AdvanceIovecs, AcrossElementBoundaries) {
-  IovFixture f;
-  advance_iovecs(f.cur, f.count, 9);
-  EXPECT_EQ(f.cur, &f.iov[2]);
-  EXPECT_EQ(f.count, 1);
-  EXPECT_EQ(f.rest(), "jkl");
-}
+INSTANTIATE_TEST_SUITE_P(Writes, AdvanceIovecsTest,
+                         ::testing::Values(AdvanceCase{0, 0, 3, 3, "abcdefghijkl"},  // nothing written
+                                           AdvanceCase{2, 0, 3, 1, "cdefghijkl"},    // inside the first element
+                                           AdvanceCase{3, 1, 2, 4, "defghijkl"},     // on an element boundary
+                                           AdvanceCase{9, 2, 1, 3, "jkl"},           // across boundaries
+                                           AdvanceCase{12, 0, 0, 0, ""}));           // everything
 
 TEST(AdvanceIovecs, RepeatedShortWrites) {
   IovFixture f;
@@ -218,13 +215,6 @@ TEST(AdvanceIovecs, RepeatedShortWrites) {
     sent += before.substr(0, before.size() - f.rest().size());
   }
   EXPECT_EQ(sent, "abcdefghijkl");
-}
-
-TEST(AdvanceIovecs, EverythingWritten) {
-  IovFixture f;
-  advance_iovecs(f.cur, f.count, 12);
-  EXPECT_EQ(f.count, 0);
-  EXPECT_EQ(f.rest(), "");
 }
 
 TEST(AdvanceIovecs, SkipsZeroLengthElements) {

@@ -89,7 +89,8 @@ class AsyncStreamResponse {
   // Runs while sends make no progress
   StallClock stall_;
   uint32_t last_try_ms_{0};
-  // Send buffer free after the last write that queued bytes, and when an ACK was last seen; main loop only
+  // Send buffer free after the last write that queued bytes, and when an ACK was last seen (from attach_() on);
+  // main loop only once attached
   size_t space_after_write_{0};
   uint32_t last_ack_ms_{0};
   // Set from the network callbacks with plain stores (no read-modify-write: RP2040 has none)

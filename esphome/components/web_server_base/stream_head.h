@@ -11,8 +11,6 @@
 #include "esphome/core/defines.h"
 #ifdef USE_ESP8266
 #include <pgmspace.h>
-
-#include "esphome/core/helpers.h"
 #endif
 
 // Pure helpers of AsyncStreamResponse, kept free of httpd and lwIP so they build on the host.
@@ -20,26 +18,17 @@
 
 namespace esphome::web_server_base {
 
-// The stream helpers take strings and pieces that may sit in flash on ESP8266: only word reads
-// work there, so copies and string scans go through the _P functions (which also read RAM)
+// Gather pieces may be framing literals in flash on ESP8266 (mapped from 0x40200000), where only word reads work.
+// RAM payloads, the hot case, take memcpy.
 #ifdef USE_ESP8266
-#define STREAM_PSTR(s) PSTR(s)
-inline size_t stream_strlen(const char *s) { return strlen_P(s); }
-inline int stream_strcasecmp(const char *ram, const char *any) { return strcasecmp_P(ram, any); }
-// Only framing literals sit in flash (mapped from 0x40200000), so RAM payloads take memcpy and the literals are
-// read a word at a time, never memcpy_P's byte loop
 inline void stream_memcpy(void *dst, const void *src, size_t len) {
   if (reinterpret_cast<uintptr_t>(src) < 0x40200000) {
     std::memcpy(dst, src, len);
   } else {
-    char *out = static_cast<char *>(dst);
-    progmem_copy_str(out, out + len, static_cast<const char *>(src));
+    memcpy_P(dst, src, len);
   }
 }
 #else
-#define STREAM_PSTR(s) (s)
-inline size_t stream_strlen(const char *s) { return strlen(s); }
-inline int stream_strcasecmp(const char *ram, const char *any) { return strcasecmp(ram, any); }
 inline void stream_memcpy(void *dst, const void *src, size_t len) { std::memcpy(dst, src, len); }
 #endif
 
@@ -80,7 +69,7 @@ static constexpr int STREAM_HEAD_MAX_IOV = 24;
 /// True if headers holds a header named name, compared case insensitively
 inline bool has_header(std::span<const HttpHeader> headers, const char *name) {
   for (const auto &header : headers) {
-    if (stream_strcasecmp(name, header.name) == 0) {
+    if (strcasecmp(name, header.name) == 0) {
       return true;
     }
   }
@@ -112,18 +101,18 @@ bool write_stream_head(Send &&send, const char *status, const char *content_type
       }
       this->iov[this->count++] = {const_cast<char *>(buf), len};
     }
-    void add(const char *str) { this->add(str, stream_strlen(str)); }
+    void add(const char *str) { this->add(str, strlen(str)); }
     void add_header(const HttpHeader &header) {
-      this->add(STREAM_PSTR("\r\n"), 2);
+      this->add("\r\n", 2);
       this->add(header.name);
-      this->add(STREAM_PSTR(": "), 2);
+      this->add(": ", 2);
       this->add(header.value);
     }
   } batch{send};
 
-  batch.add(STREAM_PSTR("HTTP/1.1 "), 9);
+  batch.add("HTTP/1.1 ", 9);
   batch.add(status);
-  batch.add(STREAM_PSTR("\r\nContent-Type: "), 16);
+  batch.add("\r\nContent-Type: ", 16);
   batch.add(content_type);
   for (const auto &header : headers) {
     batch.add_header(header);
@@ -133,7 +122,7 @@ bool write_stream_head(Send &&send, const char *status, const char *content_type
       batch.add_header(header);
     }
   }
-  batch.add(STREAM_PSTR("\r\n\r\n"), 4);
+  batch.add("\r\n\r\n", 4);
   if (body != nullptr) {
     batch.add(body);
   }
