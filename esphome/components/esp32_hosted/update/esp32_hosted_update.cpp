@@ -347,14 +347,16 @@ bool Esp32HostedUpdate::fetch_manifest_() {
       return false;
     }
 
-    this->update_info_.latest_version = best_version;
-    this->firmware_url_ = best_url;
-
-    // Parse SHA256 hex string to bytes
-    if (!parse_hex(best_sha256, this->firmware_sha256_.data(), 32)) {
+    // Parse SHA256 hex string to bytes; a rejected manifest must not replace the stored offer
+    std::array<uint8_t, 32> sha256;
+    if (!parse_hex(best_sha256, sha256.data(), sha256.size())) {
       ESP_LOGE(TAG, "Invalid SHA256: %s", best_sha256.c_str());
       return false;
     }
+
+    this->update_info_.latest_version = best_version;
+    this->firmware_url_ = best_url;
+    this->firmware_sha256_ = sha256;
 
     ESP_LOGD(TAG, "Best compatible version: %s", this->update_info_.latest_version.c_str());
 
