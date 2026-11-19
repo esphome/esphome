@@ -80,31 +80,44 @@ template<size_t N, uint8_t... HEADER> class FrameReader {
 
 // Length rules: get() gives the whole frame length once KNOWN_AT bytes are in, or 0 to reject the header.
 
-/// Whole-frame length: the field at POS counts every byte of the frame, header included.
-template<size_t POS> struct FrameLengthU8 {
-  static constexpr size_t KNOWN_AT = POS + 1;
-  static constexpr size_t get(const uint8_t *buf) { return buf[POS]; }
+/// Where a length field sits, and for a payload length the bytes after the payload (checksum, footer).
+struct LengthField {
+  size_t at;
+  size_t after_payload = 0;
 };
-template<size_t POS> struct FrameLengthU16BE {
-  static constexpr size_t KNOWN_AT = POS + 2;
-  static constexpr size_t get(const uint8_t *buf) { return (size_t(buf[POS]) << 8) | buf[POS + 1]; }
+
+/// Whole-frame length: the field counts every byte of the frame, header included.
+template<LengthField F> struct FrameLengthU8 {
+  static_assert(F.after_payload == 0, "A whole-frame length has nothing after the payload");
+  static constexpr size_t KNOWN_AT = F.at + 1;
+  static constexpr size_t get(const uint8_t *buf) { return buf[F.at]; }
 };
-template<size_t POS> struct FrameLengthU16LE {
-  static constexpr size_t KNOWN_AT = POS + 2;
-  static constexpr size_t get(const uint8_t *buf) { return buf[POS] | (size_t(buf[POS + 1]) << 8); }
+template<LengthField F> struct FrameLengthU16BE {
+  static_assert(F.after_payload == 0, "A whole-frame length has nothing after the payload");
+  static constexpr size_t KNOWN_AT = F.at + 2;
+  static constexpr size_t get(const uint8_t *buf) { return (size_t(buf[F.at]) << 8) | buf[F.at + 1]; }
 };
-/// Payload length: the field at POS counts the payload right after it; AFTER bytes (checksum, footer) follow it.
-template<size_t POS, size_t AFTER = 0> struct PayloadLengthU8 {
-  static constexpr size_t KNOWN_AT = POS + 1;
-  static constexpr size_t get(const uint8_t *buf) { return KNOWN_AT + buf[POS] + AFTER; }
+template<LengthField F> struct FrameLengthU16LE {
+  static_assert(F.after_payload == 0, "A whole-frame length has nothing after the payload");
+  static constexpr size_t KNOWN_AT = F.at + 2;
+  static constexpr size_t get(const uint8_t *buf) { return buf[F.at] | (size_t(buf[F.at + 1]) << 8); }
 };
-template<size_t POS, size_t AFTER = 0> struct PayloadLengthU16BE {
-  static constexpr size_t KNOWN_AT = POS + 2;
-  static constexpr size_t get(const uint8_t *buf) { return KNOWN_AT + FrameLengthU16BE<POS>::get(buf) + AFTER; }
+/// Payload length: the field counts the payload right after it.
+template<LengthField F> struct PayloadLengthU8 {
+  static constexpr size_t KNOWN_AT = F.at + 1;
+  static constexpr size_t get(const uint8_t *buf) { return KNOWN_AT + buf[F.at] + F.after_payload; }
 };
-template<size_t POS, size_t AFTER = 0> struct PayloadLengthU16LE {
-  static constexpr size_t KNOWN_AT = POS + 2;
-  static constexpr size_t get(const uint8_t *buf) { return KNOWN_AT + FrameLengthU16LE<POS>::get(buf) + AFTER; }
+template<LengthField F> struct PayloadLengthU16BE {
+  static constexpr size_t KNOWN_AT = F.at + 2;
+  static constexpr size_t get(const uint8_t *buf) {
+    return KNOWN_AT + FrameLengthU16BE<LengthField{.at = F.at}>::get(buf) + F.after_payload;
+  }
+};
+template<LengthField F> struct PayloadLengthU16LE {
+  static constexpr size_t KNOWN_AT = F.at + 2;
+  static constexpr size_t get(const uint8_t *buf) {
+    return KNOWN_AT + FrameLengthU16LE<LengthField{.at = F.at}>::get(buf) + F.after_payload;
+  }
 };
 /// A frame type that always has LEN bytes.
 template<size_t LEN> struct FrameFixedLength {
