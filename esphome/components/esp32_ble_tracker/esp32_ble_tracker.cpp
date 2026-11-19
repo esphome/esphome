@@ -641,7 +641,9 @@ void ESP32BLETracker::log_unexpected_state_(const char *operation, ScannerState 
 #ifdef USE_ESP32_BLE_SOFTWARE_COEXISTENCE
 // esp_coex_preference_set() is a stub in ESP-IDF's coexistence library on every target; the
 // scheduler reads these BLE status bits instead.
+#ifndef CONFIG_BT_CONTROLLER_DISABLED
 static uint8_t coex_ble_priority_holds = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+#endif
 
 void coex_ble_priority_acquire() {
 #ifndef CONFIG_BT_CONTROLLER_DISABLED
@@ -656,7 +658,10 @@ void coex_ble_priority_acquire() {
 
 void coex_ble_priority_release() {
 #ifndef CONFIG_BT_CONTROLLER_DISABLED
-  if (coex_ble_priority_holds != 0 && --coex_ble_priority_holds == 0) {
+  if (coex_ble_priority_holds == 0)
+    return;
+  coex_ble_priority_holds--;
+  if (coex_ble_priority_holds == 0) {
     esp_err_t err = esp_coex_status_bit_clear(ESP_COEX_ST_TYPE_BLE, ESP_COEX_BLE_ST_MESH_CONFIG);
     if (err != ESP_OK) {
       ESP_LOGW(TAG, "Clearing BLE coexistence priority failed: %d", err);
