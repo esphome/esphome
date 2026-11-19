@@ -1,5 +1,3 @@
-
-
 #pragma once
 
 #include "esphome/core/component.h"
@@ -96,3 +94,60 @@ class DMXComponent : public Component {
   void set_slot(uint16_t channel, uint8_t value);
   void set_slots(uint16_t first_channel, const uint8_t *values, size_t count);
   void enable_tx() {
+    this->tx_enabled_ = true;
+    this->tx_dirty_ = true;
+  }
+
+  SLOT_LIST_REQUIRES(DMX_STATIC_SENSOR_COUNT)
+  void register_channel_sensor(uint16_t channel, sensor::Sensor *sens) {
+    this->static_sensors_.push_back({channel, sens});
+  }
+
+  SLOT_LIST_REQUIRES(DMX_DYNAMIC_SENSOR_COUNT)
+  void register_dynamic_channel_sensor(number::Number *channel_number, sensor::Sensor *sens) {
+    this->dynamic_sensors_.push_back({channel_number, sens});
+  }
+
+ protected:
+  void publish_inputs_();
+  void send_universe_();
+
+  int tx_pin_{-1};
+  int rx_pin_{-1};
+  int rts_pin_{-1};
+  int uart_num_{2};
+
+  dmx_port_t dmx_port_{};
+
+  // Each buffer includes the DMX start code at index 0. Channel 1 is index 1.
+  uint8_t rx_data_[DMX_PACKET_SIZE]{};
+  uint8_t tx_data_[DMX_PACKET_SIZE]{};
+
+  bool tx_enabled_{false};
+  bool tx_dirty_{false};
+  uint32_t last_tx_ms_{0};
+  uint32_t last_rx_ms_{0};
+  DMXMode mode_{DMXMode::RX};
+  uint32_t tx_interval_ms_{25};
+  uint32_t rx_guard_ms_{5};
+
+  [[no_unique_address]] SlotList<StaticChannelSensor, DMX_STATIC_SENSOR_COUNT> static_sensors_;
+  [[no_unique_address]] SlotList<DynamicChannelSensor, DMX_DYNAMIC_SENSOR_COUNT> dynamic_sensors_;
+};
+
+class DMXOutputNumber : public number::Number, public Component {
+ public:
+  void setup() override {}
+  void dump_config() override;
+  void set_parent(DMXComponent *parent) { this->parent_ = parent; }
+  void set_channel(uint16_t channel) { this->channel_ = channel; }
+  float get_setup_priority() const override { return setup_priority::DATA; }
+
+ protected:
+  void control(float value) override;
+
+  DMXComponent *parent_{nullptr};
+  uint16_t channel_{1};
+};
+
+}  // namespace esphome::dmx
