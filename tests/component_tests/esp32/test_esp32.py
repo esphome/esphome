@@ -34,6 +34,7 @@ from esphome.components.esp32 import (
     idf_version,
     require_idf_version,
 )
+from esphome.components.esp32.boards import BOARDS, STANDARD_BOARDS
 from esphome.components.esp32.const import (
     KEY_BOARD,
     KEY_ESP32,
@@ -113,6 +114,23 @@ def test_esp32_config(
             }
         )
         assert VARIANT_FRIENDLY[variant].lower() in config["board"]
+
+
+@pytest.mark.parametrize("variant", sorted(STANDARD_BOARDS))
+def test_platformio_default_board(
+    variant: str, set_core_config: SetCoreConfigCallable
+) -> None:
+    """With PlatformIO, a variant alone selects a default board that has a board file."""
+    set_core_config(PlatformFramework.ESP32_IDF)
+
+    from esphome.components.esp32 import CONFIG_SCHEMA
+
+    config = CONFIG_SCHEMA(
+        {"variant": variant, "toolchain": Toolchain.PLATFORMIO.value}
+    )
+
+    assert config["board"] == STANDARD_BOARDS[variant]
+    assert BOARDS[config["board"]][KEY_VARIANT] == variant
 
 
 @pytest.mark.parametrize(
@@ -457,6 +475,11 @@ def test_esp32_rejects_unsupported_cli_toolchain(
             {"variant": "esp32s3", "board": "esp32dev"},
             r"Option 'variant' does not match selected board. @ data\['variant'\]",
             id="mismatched_board_variant_config",
+        ),
+        pytest.param(
+            {"variant": "esp32h4", "toolchain": Toolchain.PLATFORMIO.value},
+            r"No default board is known for ESP32H4\. Please specify the `board:` option explicitly\. @ data\['variant'\]",
+            id="variant_without_default_board_requires_explicit_board_under_platformio",
         ),
         pytest.param(
             {
