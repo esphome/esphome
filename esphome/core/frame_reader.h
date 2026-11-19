@@ -248,9 +248,9 @@ template<size_t N, class... FORMATS> class LengthFrameReader {
   /// Whether a frame is coming in: a partial frame that an idle flush has not searched and kept.
   bool receiving() const { return this->pos_ != 0 && this->held_end_ != this->pos_; }
 
-  /// Forget a partial frame an idle flush kept, before a request starts a new exchange; a frame still coming in stays.
+  /// Forget a partial frame an idle flush kept, before a request starts a new exchange; safe inside a frame handler.
   void drop_kept() {
-    if (!this->receiving())
+    if (this->pos_ != 0 && this->held_end_ == this->pos_)
       this->reset();
   }
 

@@ -440,6 +440,20 @@ TEST(LengthFrameReaderTest, DropKeptLeavesAFrameStillComingIn) {
   EXPECT_EQ(reader.length(), 0u);
 }
 
+TEST(LengthFrameReaderTest, DropKeptInsideAHandlerKeepsTheHeldFrames) {
+  LengthFrameReader<16, Small> reader;
+  Frames seen;
+  auto handle = [&reader, &seen](const uint8_t *frame, size_t len) {
+    seen.emplace_back(frame, frame + len);
+    reader.drop_kept();
+    return frame[1] != 0x09;
+  };
+  for (uint8_t c : {0xA5, 0x09, 0xA5, 0x03, 0x01, 0xA5, 0x03, 0x02, 0x00})
+    reader.feed(c, handle);
+  EXPECT_EQ(seen,
+            (Frames{{0xA5, 0x09, 0xA5, 0x03, 0x01, 0xA5, 0x03, 0x02, 0x00}, {0xA5, 0x03, 0x01}, {0xA5, 0x03, 0x02}}));
+}
+
 TEST(LengthFrameReaderTest, IdleAfterHandledFrameFindsNothingInIt) {
   LengthFrameReader<16, Small> reader;
   Collect handle;
