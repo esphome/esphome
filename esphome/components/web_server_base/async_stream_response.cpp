@@ -2,6 +2,8 @@
 #if !defined(USE_ESP32) && defined(USE_ARDUINO)
 
 #include <cinttypes>
+#include <cstring>
+#include <new>
 
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
@@ -76,15 +78,43 @@ class StreamHandoffResponse final : public AsyncWebServerResponse {
       }
       defaults[default_count++] = {header.name().c_str(), header.value().c_str()};
     }
+    auto gather = [&](auto &&send) {
+      write_stream_head<StreamIovec>(send, this->status_, this->content_type_, this->headers_,
+                                     std::span<const HttpHeader>(defaults, default_count), this->body_);
+    };
+    size_t head_len = 0;
+    size_t queued = 0;
+    bool short_add = false;
     char scratch[ADD_SCRATCH_SIZE];
-    const bool head_sent = write_stream_head<StreamIovec>(
-        [client, &scratch](StreamIovec *iov, int count) {
-          return add_iovecs(*client, iov, count, scratch, sizeof(scratch)) == iovecs_total(iov, count);
-        },
-        this->status_, this->content_type_, this->headers_, std::span<const HttpHeader>(defaults, default_count),
-        this->body_);
+    gather([&](StreamIovec *iov, int count) {
+      const size_t len = iovecs_total(iov, count);
+      head_len += len;
+      if (!short_add) {
+        const size_t added = add_iovecs(*client, iov, count, scratch, sizeof(scratch));
+        queued += added;
+        short_add = added != len;
+      }
+      return true;
+    });
+    // lwIP can run short of memory while many connections close, so the rest of the head waits for the main loop.
+    // The head is text, so the rest is kept as a C string.
+    std::unique_ptr<char[]> head_rest;
+    const size_t rest_len = head_len - queued;
+    if (rest_len != 0) {
+      head_rest.reset(new (std::nothrow) char[rest_len + 1]);  // NOLINT(cppcoreguidelines-owning-memory)
+      if (head_rest != nullptr) {
+        size_t skip = queued;
+        char *out = head_rest.get();
+        gather([&](StreamIovec *iov, int count) {
+          out += copy_iovecs_after(iov, count, skip, out);
+          return true;
+        });
+        *out = '\0';
+      }
+    }
+    const bool head_kept = rest_len == 0 || head_rest != nullptr;
     AsyncStreamResponse *stream = this->acceptor_.create(this->acceptor_.ctx);
-    stream->attach_(request->clientRelease(), head_sent);
+    stream->attach_(request->clientRelease(), std::move(head_rest), head_kept);
     this->acceptor_.publish(this->acceptor_.owner, stream);
   }
   bool _sourceValid() const override { return true; }
@@ -104,7 +134,7 @@ void AsyncStreamResponse::accept(AsyncWebServerRequest *request, const char *sta
   request->send(new StreamHandoffResponse(status, content_type, headers, body, acceptor));
 }
 
-void AsyncStreamResponse::attach_(AsyncClient *client, bool head_sent) {
+void AsyncStreamResponse::attach_(AsyncClient *client, std::unique_ptr<char[]> head_rest, bool head_kept) {
   client->setRxTimeout(0);
   // Backstop for data left unacked once writes stop; each send restarts it
   client->setAckTimeout(SEND_STALL_TIMEOUT_MS);
@@ -123,9 +153,26 @@ void AsyncStreamResponse::attach_(AsyncClient *client, bool head_sent) {
       },
       this);
   this->client_ = client;
-  // A partly queued head must not be continued by later writes. Closing here, inside the client's receive callback,
+  this->head_rest_ = std::move(head_rest);
+  // Without the rest of the head the stream cannot continue. Closing here, inside the client's receive callback,
   // could free the pcb the library still uses after it, so the main loop closes it once the callback has returned.
-  this->close_requested_ = !head_sent;
+  this->close_requested_ = !head_kept;
+}
+
+bool AsyncStreamResponse::send_head_rest_() {
+  char *rest = this->head_rest_.get();
+  const size_t len = strlen(rest);
+  StreamIovec iov = {rest, len};
+  const ssize_t sent = this->send_(&iov, 1);
+  if (sent <= 0) {
+    return false;
+  }
+  if (static_cast<size_t>(sent) < len) {
+    memmove(rest, rest + sent, len - sent + 1);
+    return false;
+  }
+  this->head_rest_.reset();
+  return true;
 }
 
 AsyncStreamResponse::~AsyncStreamResponse() {
@@ -141,6 +188,13 @@ AsyncStreamResponse::~AsyncStreamResponse() {
 }
 
 ssize_t AsyncStreamResponse::write(StreamIovec *iov, int iovcnt) {
+  if (this->head_rest_ != nullptr && !this->send_head_rest_()) {
+    return this->close_requested_ ? -1 : 0;
+  }
+  return this->send_(iov, iovcnt);
+}
+
+ssize_t AsyncStreamResponse::send_(StreamIovec *iov, int iovcnt) {
   if (this->close_requested_) {
     return -1;
   }
@@ -238,6 +292,10 @@ void AsyncStreamResponse::loop() {
   if (this->ack_timed_out_.load(std::memory_order_acquire)) {
     ESP_LOGW(TAG, "Closing stream after %" PRIu32 " ms without an ACK", SEND_STALL_TIMEOUT_MS);
     this->abort_();
+    return;
+  }
+  if (this->head_rest_ != nullptr) {
+    this->send_head_rest_();
   }
 }
 
