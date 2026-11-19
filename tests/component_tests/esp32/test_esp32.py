@@ -19,7 +19,9 @@ from esphome.components.esp32 import (
     KEY_VFS_DIR_REQUIRED,
     KEY_VFS_SELECT_REQUIRED,
     KEY_VFS_TERMIOS_REQUIRED,
+    MBEDTLS_NON_P256_CURVE_OPTIONS,
     MBEDTLS_TLS_EXTRA_OPTIONS,
+    MBEDTLS_UNUSED_CIPHER_MODE_OPTIONS,
     VARIANT_ESP32,
     VARIANTS,
     MbedtlsSdkconfigData,
@@ -802,6 +804,14 @@ _TLS_OFF_IDF6 = {
     "CONFIG_MBEDTLS_TLS_ENABLED": False,
     "CONFIG_ESP_WIFI_ENTERPRISE_SUPPORT": False,
     **_TLS_OFF_CRYPTO,
+    "CONFIG_MBEDTLS_PEM_PARSE_C": False,
+    "CONFIG_MBEDTLS_LARGE_KEY_SOFTWARE_MPI": False,
+    **dict.fromkeys(MBEDTLS_NON_P256_CURVE_OPTIONS, False),
+}
+_CIPHER_MODES_OFF = dict.fromkeys(MBEDTLS_UNUSED_CIPHER_MODE_OPTIONS, False)
+_SHA512_OFF = {
+    "CONFIG_MBEDTLS_SHA384_C": False,
+    "CONFIG_MBEDTLS_SHA512_C": False,
 }
 _PEER_CERT_PKCS7_OFF = {
     "CONFIG_MBEDTLS_SSL_KEEP_PEER_CERTIFICATE": False,
@@ -814,6 +824,7 @@ _TLS_CLIENT_ONLY = {
 }
 _IDF5 = cv.Version(5, 5, 5)
 _IDF6 = cv.Version(6, 0, 0)
+_IDF61 = cv.Version(6, 1, 1)
 
 
 @pytest.mark.parametrize(
@@ -857,18 +868,74 @@ _IDF6 = cv.Version(6, 0, 0)
                 **_TLS_OFF_IDF6,
                 **_TLS_EXTRAS_OFF,
                 **_PEER_CERT_PKCS7_OFF,
-                "CONFIG_MBEDTLS_SHA384_C": False,
-                "CONFIG_MBEDTLS_SHA512_C": False,
+                **_SHA512_OFF,
+                **_CIPHER_MODES_OFF,
             },
             set(_ESP_TLS_LINKING_COMPONENTS),
             id="idf6_drops_sha512",
+        ),
+        pytest.param(
+            # 6.1's esp_wifi_remote enterprise option would select TLS back on.
+            PlatformFramework.ESP32_IDF,
+            _IDF61,
+            MbedtlsSdkconfigData(),
+            {},
+            {
+                **_TLS_OFF_IDF6,
+                "CONFIG_WIFI_RMT_ENTERPRISE_SUPPORT": False,
+                **_TLS_EXTRAS_OFF,
+                **_PEER_CERT_PKCS7_OFF,
+                **_SHA512_OFF,
+                **_CIPHER_MODES_OFF,
+            },
+            set(_ESP_TLS_LINKING_COMPONENTS),
+            id="idf61_remote_enterprise_off",
+        ),
+        pytest.param(
+            # With TLS kept, the curves, PEM and large-key MPI stay; the unused
+            # cipher modes still go.
+            PlatformFramework.ESP32_IDF,
+            _IDF6,
+            MbedtlsSdkconfigData(tls_required=True),
+            {},
+            {
+                **_TLS_CLIENT_ONLY,
+                **_TLS_EXTRAS_OFF,
+                **_PEER_CERT_PKCS7_OFF,
+                **_SHA512_OFF,
+                **_CIPHER_MODES_OFF,
+            },
+            set(_ESP_TLS_LINKING_COMPONENTS),
+            id="idf6_tls_keeps_curves",
+        ),
+        pytest.param(
+            # A user sdkconfig_options value wins over a curve trim.
+            PlatformFramework.ESP32_IDF,
+            _IDF6,
+            MbedtlsSdkconfigData(),
+            {"CONFIG_MBEDTLS_ECP_DP_SECP384R1_ENABLED": RawSdkconfigValue("y")},
+            {
+                **_TLS_OFF_IDF6,
+                "CONFIG_MBEDTLS_ECP_DP_SECP384R1_ENABLED": RawSdkconfigValue("y"),
+                **_TLS_EXTRAS_OFF,
+                **_PEER_CERT_PKCS7_OFF,
+                **_SHA512_OFF,
+                **_CIPHER_MODES_OFF,
+            },
+            set(_ESP_TLS_LINKING_COMPONENTS),
+            id="idf6_user_curve_wins",
         ),
         pytest.param(
             PlatformFramework.ESP32_IDF,
             _IDF6,
             MbedtlsSdkconfigData(sha512_required=True),
             {},
-            {**_TLS_OFF_IDF6, **_TLS_EXTRAS_OFF, **_PEER_CERT_PKCS7_OFF},
+            {
+                **_TLS_OFF_IDF6,
+                **_TLS_EXTRAS_OFF,
+                **_PEER_CERT_PKCS7_OFF,
+                **_CIPHER_MODES_OFF,
+            },
             set(_ESP_TLS_LINKING_COMPONENTS),
             id="idf6_sha512_required",
         ),

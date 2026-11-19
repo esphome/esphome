@@ -2754,6 +2754,27 @@ MBEDTLS_TLS_EXTRA_OPTIONS = (
     "CONFIG_MBEDTLS_ECDSA_DETERMINISTIC",
 )
 
+# Wi-Fi (SAE, OWE, DPP), Bluetooth and OpenThread only use P-256, and their
+# Kconfig selects it. Without TLS nothing needs another curve, yet IDF 6's PSA
+# crypto links every enabled one.
+MBEDTLS_NON_P256_CURVE_OPTIONS = (
+    "CONFIG_MBEDTLS_ECP_DP_SECP384R1_ENABLED",
+    "CONFIG_MBEDTLS_ECP_DP_SECP521R1_ENABLED",
+    "CONFIG_MBEDTLS_ECP_DP_SECP256K1_ENABLED",
+    "CONFIG_MBEDTLS_ECP_DP_BP256R1_ENABLED",
+    "CONFIG_MBEDTLS_ECP_DP_BP384R1_ENABLED",
+    "CONFIG_MBEDTLS_ECP_DP_BP512R1_ENABLED",
+    "CONFIG_MBEDTLS_ECP_DP_CURVE25519_ENABLED",
+)
+
+# AES modes that no TLS cipher suite and no component uses; IDF 6's PSA crypto
+# links them whenever they are enabled.
+MBEDTLS_UNUSED_CIPHER_MODE_OPTIONS = (
+    "CONFIG_MBEDTLS_CIPHER_MODE_XTS",
+    "CONFIG_MBEDTLS_CIPHER_MODE_CFB",
+    "CONFIG_MBEDTLS_CIPHER_MODE_OFB",
+)
+
 # Members of the mbedTLS "TLS Protocol Role" Kconfig choice. Setting one
 # member is only valid when the user has not already chosen another.
 MBEDTLS_TLS_ROLE_OPTIONS = (
@@ -2818,6 +2839,10 @@ async def _reconcile_mbedtls_sdkconfig() -> None:
         # Enterprise WiFi selects TLS back on; wifi writes this itself, but
         # esp_wifi can also be in the build without a wifi: block (openthread).
         set_idf_sdkconfig_default("CONFIG_ESP_WIFI_ENTERPRISE_SUPPORT", False)
+        # IDF 6.1 always reads esp_wifi_remote's Kconfig, whose own enterprise
+        # option selects TLS back on, even on chips with native Wi-Fi.
+        if idf_version() >= cv.Version(6, 1, 0):
+            set_idf_sdkconfig_default("CONFIG_WIFI_RMT_ENTERPRISE_SUPPORT", False)
         # WiFi (ESP_WIFI_MBEDTLS_CRYPTO) and Bluetooth deliberately stay on
         # the select-wins path: an unconditional request from request_wifi()
         # would defeat the ECP trim for users who disable that select.
@@ -2826,6 +2851,13 @@ async def _reconcile_mbedtls_sdkconfig() -> None:
         set_idf_sdkconfig_default("CONFIG_MBEDTLS_PEM_WRITE_C", False)
         set_idf_sdkconfig_default("CONFIG_MBEDTLS_X509_CRL_PARSE_C", False)
         set_idf_sdkconfig_default("CONFIG_MBEDTLS_X509_CSR_PARSE_C", False)
+        if idf6:
+            # Only certificates (TLS, EAP) are parsed from PEM, and only RSA keys
+            # larger than the hardware supports need the software MPI.
+            set_idf_sdkconfig_default("CONFIG_MBEDTLS_PEM_PARSE_C", False)
+            set_idf_sdkconfig_default("CONFIG_MBEDTLS_LARGE_KEY_SOFTWARE_MPI", False)
+            for option in MBEDTLS_NON_P256_CURVE_OPTIONS:
+                set_idf_sdkconfig_default(option, False)
     elif (
         # TLS stays in: trim it to the client role unless a component accepts
         # TLS connections or the user already chose a role.
@@ -2873,6 +2905,11 @@ async def _reconcile_mbedtls_sdkconfig() -> None:
     if idf6 and not data.sha512_required:
         set_idf_sdkconfig_default("CONFIG_MBEDTLS_SHA384_C", False)
         set_idf_sdkconfig_default("CONFIG_MBEDTLS_SHA512_C", False)
+
+    # Arduino's libraries call mbedTLS directly, so its builds keep every mode.
+    if idf6 and not CORE.using_arduino:
+        for option in MBEDTLS_UNUSED_CIPHER_MODE_OPTIONS:
+            set_idf_sdkconfig_default(option, False)
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
