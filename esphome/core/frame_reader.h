@@ -134,7 +134,7 @@ template<class LENGTH, size_t AT, bool (*CHECK)(const uint8_t *)> struct Checked
   static size_t get(const uint8_t *buf) { return CHECK(buf) ? LENGTH::get(buf) : 0; }
 };
 
-/// Wraps a length rule: a frame longer than MAX calls WARN(length) and is rejected.
+/// Wraps a length rule: a frame longer than MAX calls WARN(length) and is rejected; a replay can warn again.
 template<class LENGTH, size_t MAX, void (*WARN)(size_t)> struct WarnIfLonger {
   static constexpr size_t KNOWN_AT = LENGTH::KNOWN_AT;
   static size_t get(const uint8_t *buf) {
@@ -157,6 +157,12 @@ template<class LENGTH> constexpr size_t FIXED_LENGTH = 0;
 template<size_t LEN> constexpr size_t FIXED_LENGTH<FrameFixedLength<LEN>> = LEN;
 template<class LENGTH, size_t AT, bool (*CHECK)(const uint8_t *)>
 constexpr size_t FIXED_LENGTH<CheckedLength<LENGTH, AT, CHECK>> = FIXED_LENGTH<LENGTH>;
+template<class LENGTH, size_t MAX, void (*WARN)(size_t)>
+constexpr size_t FIXED_LENGTH<WarnIfLonger<LENGTH, MAX, WARN>> = FIXED_LENGTH<LENGTH>;
+// The MAX of a WarnIfLonger rule, 0 for every other rule
+template<class LENGTH> constexpr size_t WARN_MAX = 0;
+template<class LENGTH, size_t MAX, void (*WARN)(size_t)>
+constexpr size_t WARN_MAX<WarnIfLonger<LENGTH, MAX, WARN>> = MAX;
 }  // namespace frame_reader_detail
 
 /// The bytes every frame of a FrameFormat starts with.
@@ -210,6 +216,8 @@ template<size_t N, class... FORMATS> class LengthFrameReader {
                    frame_reader_detail::FIXED_LENGTH<typename FORMATS::Length> <= N)) &&
                  ...),
                 "A fixed length must hold the header and fit in N");
+  static_assert(((frame_reader_detail::WARN_MAX<typename FORMATS::Length> <= N) && ...),
+                "A WarnIfLonger MAX above N lets longer frames be skipped without a warning");
 
  public:
   /// Feed one byte; calls handle(frame, length) for each frame it completes, header included. A rejected frame
