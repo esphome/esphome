@@ -1,3 +1,5 @@
+
+
 #include "dmx.h"
 #include "esphome/core/log.h"
 
@@ -11,7 +13,8 @@ ESPHOME_LOG_TAG(TAG, "dmx");
 
 void DMXComponent::setup() {
   this->dmx_port_ = static_cast<dmx_port_t>(this->uart_num_);
-  this->data_[0] = 0;  // null start code
+  this->rx_data_[0] = 0;  // null start code
+  this->tx_data_[0] = 0;  // null start code
 
 #ifdef USE_ESP32
   if (uart_is_driver_installed(static_cast<uart_port_t>(this->uart_num_))) {
@@ -51,13 +54,22 @@ void DMXComponent::loop() {
   bool got_rx = false;
   if (want_rx) {
     dmx_packet_t packet{};
-    int size = static_cast<int>(dmx_receive(this->dmx_port_, &packet, 0));
-    if (size > 0) {
+    const size_t received_size = dmx_receive(this->dmx_port_, &packet, 0);
+    if (received_size > 0) {
       if (packet.err == DMX_OK && !packet.is_rdm && packet.sc == 0x00) {
-        dmx_read(this->dmx_port_, this->data_, static_cast<size_t>(size));
-        this->publish_inputs_();
-        this->last_rx_ms_ = millis();
-        got_rx = true;
+        if (received_size > DMX_PACKET_SIZE) {
+          ESP_LOGW(TAG, "Ignoring oversized DMX packet (%u bytes)", static_cast<unsigned>(received_size));
+        } else {
+          const size_t bytes_read = dmx_read(this->dmx_port_, this->rx_data_, received_size);
+          if (bytes_read == received_size) {
+            this->publish_inputs_();
+            this->last_rx_ms_ = millis();
+            got_rx = true;
+          } else {
+            ESP_LOGW(TAG, "Incomplete DMX read: expected %u bytes, received %u", static_cast<unsigned>(received_size),
+                     static_cast<unsigned>(bytes_read));
+          }
+        }
       } else if (packet.err != DMX_OK) {
         ESP_LOGW(TAG, "DMX error: %d", packet.err);
       }
@@ -67,7 +79,7 @@ void DMXComponent::loop() {
   if (!want_tx)
     return;
 
-  // Half-duplex: do not TX in the same loop as RX, and wait after last RX
+  // Half-duplex: do not TX in the same loop as RX, and wait after last RX.
   if (this->mode_ == DMXMode::BIDIRECTIONAL) {
     if (got_rx)
       return;
@@ -84,79 +96,3 @@ void DMXComponent::loop() {
 }
 
 void DMXComponent::publish_inputs_() {
-  for (auto &cs : this->static_sensors_) {
-    if (cs.channel < 1 || cs.channel > 512)
-      continue;
-    float value = static_cast<float>(this->data_[cs.channel]);
-    if (!cs.sensor->has_state() || cs.sensor->state != value) {
-      cs.sensor->publish_state(value);
-    }
-  }
-
-  for (auto &ds : this->dynamic_sensors_) {
-    if (ds.channel_number == nullptr || !ds.channel_number->has_state())
-      continue;
-    const float channel_value = ds.channel_number->state;
-    if (channel_value < 1.0f || channel_value > 512.0f)
-      continue;
-    const uint16_t channel = static_cast<uint16_t>(channel_value);
-    if (static_cast<float>(channel) != channel_value)
-      continue;
-    float value = static_cast<float>(this->data_[channel]);
-    if (!ds.sensor->has_state() || ds.sensor->state != value) {
-      ds.sensor->publish_state(value);
-    }
-  }
-}
-
-void DMXComponent::send_universe_() {
-  dmx_write(this->dmx_port_, this->data_, DMX_PACKET_SIZE);
-  dmx_send_num(this->dmx_port_, DMX_PACKET_SIZE);
-}
-
-uint8_t DMXComponent::get_channel(uint16_t channel) const {
-  if (channel < 1 || channel > 512)
-    return 0;
-  return this->data_[channel];
-}
-
-void DMXComponent::set_slot(uint16_t channel, uint8_t value) {
-  if (channel < 1 || channel > 512)
-    return;
-  if (this->data_[channel] == value)
-    return;
-  this->data_[channel] = value;
-  this->tx_dirty_ = true;
-}
-
-void DMXComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "DMX Hub:");
-  ESP_LOGCONFIG(TAG, "  UART: %d", this->uart_num_);
-  ESP_LOGCONFIG(TAG, "  Mode: %u", static_cast<unsigned>(this->mode_));
-  ESP_LOGCONFIG(TAG, "  TX Pin: GPIO%d", this->tx_pin_);
-  ESP_LOGCONFIG(TAG, "  RX Pin: GPIO%d", this->rx_pin_);
-  if (this->rts_pin_ >= 0) {
-    ESP_LOGCONFIG(TAG, "  RTS Pin: GPIO%d", this->rts_pin_);
-  }
-  ESP_LOGCONFIG(TAG, "  TX interval: %u ms", static_cast<unsigned>(this->tx_interval_ms_));
-  ESP_LOGCONFIG(TAG, "  RX guard: %u ms", static_cast<unsigned>(this->rx_guard_ms_));
-}
-
-void DMXOutputNumber::control(float value) {
-  if (this->parent_ == nullptr)
-    return;
-  if (value < 0.0f)
-    value = 0.0f;
-  if (value > 255.0f)
-    value = 255.0f;
-  const uint8_t slot = static_cast<uint8_t>(value);
-  this->parent_->set_slot(this->channel_, slot);
-  this->publish_state(slot);
-}
-
-void DMXOutputNumber::dump_config() {
-  ESP_LOGCONFIG(TAG, "DMX Output:");
-  ESP_LOGCONFIG(TAG, "  Channel: %u", this->channel_);
-}
-
-}  // namespace esphome::dmx
