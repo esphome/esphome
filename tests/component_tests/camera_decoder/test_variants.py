@@ -2,6 +2,7 @@
 
 import pytest
 
+from esphome.components import camera
 from esphome.components.camera_decoder import CONFIG_SCHEMA
 from esphome.components.esp32 import (
     ARDUINO_ALLOWED_VARIANTS,
@@ -92,3 +93,43 @@ def test_non_esp32_rejected(set_core_config: SetCoreConfigCallable) -> None:
 
     with pytest.raises(cv.Invalid, match="only available on"):
         CONFIG_SCHEMA({})
+
+
+@pytest.mark.parametrize(
+    ("output_type", "pixel_format"),
+    [
+        ("GRAYSCALE", "PIXEL_FORMAT_GRAYSCALE"),
+        ("RGB888", "PIXEL_FORMAT_RGB888"),
+        ("RGB565", "PIXEL_FORMAT_RGB565"),
+        ("YUV422", "PIXEL_FORMAT_CBYCRY"),
+    ],
+)
+def test_output_types(
+    set_core_config: SetCoreConfigCallable, output_type: str, pixel_format: str
+) -> None:
+    """Every supported output format maps to its camera pixel format."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_VARIANT: VARIANT_ESP32},
+        full_config={CONF_ESPHOME: {}},
+    )
+
+    config = CONFIG_SCHEMA({"output_type": output_type})
+
+    assert str(config["output_type"].enum_value) == str(
+        getattr(camera.PixelFormat, pixel_format)
+    )
+
+
+def test_unknown_output_type_rejected(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """Unknown output formats are rejected instead of falling back silently."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_VARIANT: VARIANT_ESP32},
+        full_config={CONF_ESPHOME: {}},
+    )
+
+    with pytest.raises(cv.Invalid):
+        CONFIG_SCHEMA({"output_type": "GREY"})

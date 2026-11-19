@@ -27,6 +27,21 @@ jpeg_rotate_t rotation_to_jpeg(int degrees) {
   }
 }
 
+/// Compacts decoded RGB888 pixels to 8-bit luma in place.
+///
+/// esp_new_jpeg has no one-channel decoder output, so grayscale frames are
+/// decoded as RGB888 and reduced here. The integer weights match the
+/// conversion used by the camera image processors.
+void rgb888_to_grayscale_in_place(uint8_t *buffer, size_t pixels) {
+  // esp_jpeg_common.h documents RGB888 as R, G, B from low to high address.
+  // dst index i is always <= 3 * i, so a forward pass never reads a pixel it
+  // has already overwritten.
+  for (size_t i = 0; i < pixels; i++) {
+    const uint8_t *pixel = buffer + i * 3;
+    buffer[i] = static_cast<uint8_t>((pixel[0] * 77 + pixel[1] * 150 + pixel[2] * 29) >> 8);
+  }
+}
+
 }  // namespace
 
 JpegBuffer::JpegBuffer(size_t capacity) : capacity_(capacity) {
@@ -51,6 +66,12 @@ ESP32CameraJPEGDecoder::~ESP32CameraJPEGDecoder() {
 bool ESP32CameraJPEGDecoder::open_decoder_() {
   jpeg_dec_config_t config = DEFAULT_JPEG_DEC_CONFIG();
   switch (this->output_format_) {
+    case camera::PIXEL_FORMAT_GRAYSCALE:
+      // esp_new_jpeg has no one-channel decode output: JPEG_PIXEL_FORMAT_GRAY
+      // is encoder-only in 1.0.2. Decode RGB888 and compact it to luma in
+      // decode() instead.
+      config.output_type = JPEG_PIXEL_FORMAT_RGB888;
+      break;
     case camera::PIXEL_FORMAT_RGB565:
       // Big-endian, matching the layout esp32-camera produces for RGB565.
       config.output_type = JPEG_PIXEL_FORMAT_RGB565_BE;
@@ -127,7 +148,17 @@ camera::DecoderError ESP32CameraJPEGDecoder::decode(const uint8_t *data, size_t 
   }
 
   // The buffer becomes readable only now that it holds a complete frame.
-  this->output_->set_length(static_cast<size_t>(output_length));
+  size_t output_bytes = static_cast<size_t>(output_length);
+  if (this->output_format_ == camera::PIXEL_FORMAT_GRAYSCALE) {
+    const uint64_t pixel_count = static_cast<uint64_t>(header.width) * static_cast<uint64_t>(header.height);
+    if (pixel_count == 0 || pixel_count * 3 > static_cast<uint64_t>(output_bytes)) {
+      ESP_LOGE(TAG, "Decoded image does not fit in the JPEG output buffer");
+      return camera::DECODER_ERROR_FAILED;
+    }
+    rgb888_to_grayscale_in_place(this->output_->get_data_buffer(), static_cast<size_t>(pixel_count));
+    output_bytes = static_cast<size_t>(pixel_count);
+  }
+  this->output_->set_length(output_bytes);
   this->has_output_ = true;
 
   spec->width = header.width;

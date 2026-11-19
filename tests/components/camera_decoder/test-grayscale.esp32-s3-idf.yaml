@@ -1,0 +1,8 @@
+# GRAYSCALE is decoded as RGB888 and compacted to luma in place; this build
+# pins that the one-channel output path links.
+packages:
+  camera_decoder: !include common.yaml
+
+camera_decoder:
+  output_type: GRAYSCALE
+  rotation: 90

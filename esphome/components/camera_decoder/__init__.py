@@ -14,6 +14,7 @@ DOMAIN = "camera_decoder"
 CONF_OUTPUT_TYPE = "output_type"
 
 OUTPUT_TYPES = {
+    "GRAYSCALE": camera.PixelFormat.PIXEL_FORMAT_GRAYSCALE,
     "RGB888": camera.PixelFormat.PIXEL_FORMAT_RGB888,
     "RGB565": camera.PixelFormat.PIXEL_FORMAT_RGB565,
     "YUV422": camera.PixelFormat.PIXEL_FORMAT_CBYCRY,

@@ -33,6 +33,9 @@ class JpegBuffer final : public camera::Buffer {
 };
 
 /// JPEG decoder backed by espressif/esp_new_jpeg.
+///
+/// GRAYSCALE output is produced by decoding RGB888 and reducing it to luma in
+/// software, because the library's decoder has no one-channel output format.
 class ESP32CameraJPEGDecoder final : public camera::Decoder {
  public:
   ESP32CameraJPEGDecoder(camera::PixelFormat output_format, int rotation);
