@@ -35,7 +35,9 @@ def _final_validate(config):
     for hub in hubs:
         if hub[CONF_ID].id == target:
             if hub.get(CONF_MODE, "rx") == MODE_RX:
-                raise cv.Invalid("dmx number requires hub mode 'tx' or 'bidirectional', not 'rx'")
+                raise cv.Invalid(
+                    "dmx number requires hub mode 'tx' or 'bidirectional', not 'rx'"
+                )
             break
     return config
 
