@@ -77,41 +77,34 @@ class StreamHandoffResponse final : public AsyncWebServerResponse {
       }
       defaults[default_count++] = {header.name().c_str(), header.value().c_str()};
     }
-    auto gather = [&](auto &&send) {
-      write_stream_head<StreamIovec>(send, this->status_, this->content_type_, this->headers_,
-                                     std::span<const HttpHeader>(defaults, default_count), this->body_);
-    };
-    size_t head_len = 0;
-    size_t queued = 0;
-    bool short_add = false;
-    char scratch[ADD_SCRATCH_SIZE];
-    gather([&](StreamIovec *iov, int count) {
-      const size_t len = iovecs_total(iov, count);
-      head_len += len;
-      if (!short_add) {
-        const size_t added = add_iovecs(*client, iov, count, scratch, sizeof(scratch));
-        queued += added;
-        short_add = added != len;
-      }
-      return true;
-    });
-    // lwIP can run short of memory while many connections close, so the rest of the head waits for the main loop.
-    // The head is text, so the rest is kept as a C string.
+    // lwIP can run short of memory while many connections close. The rest of a batch add() could not take whole
+    // waits for the main loop, kept as a C string (the head is text); a later batch after it closes the stream.
     RAMUniquePtr<char[]> head_rest;
-    const size_t rest_len = head_len - queued;
-    if (rest_len != 0) {
-      head_rest = RAMAllocator<char>(RAMAllocator<char>::PREFER_INTERNAL).make_unique_array_for_overwrite(rest_len + 1);
-      if (head_rest != nullptr) {
-        size_t skip = queued;
-        char *out = head_rest.get();
-        gather([&](StreamIovec *iov, int count) {
-          out += copy_iovecs_after(iov, count, skip, out);
+    bool head_kept = true;
+    char scratch[ADD_SCRATCH_SIZE];
+    write_stream_head<StreamIovec>(
+        [&](StreamIovec *iov, int count) {
+          if (head_rest != nullptr || !head_kept) {
+            head_kept = false;
+            return false;
+          }
+          const size_t len = iovecs_total(iov, count);
+          size_t skip = add_iovecs(*client, iov, count, scratch, sizeof(scratch));
+          if (skip != len) {
+            head_rest =
+                RAMAllocator<char>(RAMAllocator<char>::PREFER_INTERNAL).make_unique_array_for_overwrite(len - skip + 1);
+            if (head_rest == nullptr) {
+              head_kept = false;
+              return false;
+            }
+            head_rest[copy_iovecs_after(iov, count, skip, head_rest.get())] = '\0';
+          }
           return true;
-        });
-        *out = '\0';
-      }
-    }
-    const bool head_kept = rest_len == 0 || head_rest != nullptr;
+        },
+        this->status_, this->content_type_, this->headers_, std::span<const HttpHeader>(defaults, default_count),
+        this->body_);
+    if (!head_kept)
+      head_rest.reset();
     AsyncStreamResponse *stream = this->acceptor_.create(this->acceptor_.ctx);
     stream->attach_(request->clientRelease(), std::move(head_rest), head_kept);
     this->acceptor_.publish(this->acceptor_.owner, stream);
@@ -158,22 +151,6 @@ void AsyncStreamResponse::attach_(AsyncClient *client, RAMUniquePtr<char[]> head
   this->close_requested_ = !head_kept;
 }
 
-bool AsyncStreamResponse::send_head_rest_() {
-  char *rest = this->head_rest_.get();
-  const size_t len = strlen(rest);
-  StreamIovec iov = {rest, len};
-  const ssize_t sent = this->send_(&iov, 1);
-  if (sent <= 0) {
-    return false;
-  }
-  if (static_cast<size_t>(sent) < len) {
-    memmove(rest, rest + sent, len - sent + 1);
-    return false;
-  }
-  this->head_rest_.reset();
-  return true;
-}
-
 AsyncStreamResponse::~AsyncStreamResponse() {
   AsyncClient *client = this->client_;
   if (client == nullptr) {
@@ -187,15 +164,12 @@ AsyncStreamResponse::~AsyncStreamResponse() {
 }
 
 ssize_t AsyncStreamResponse::write(StreamIovec *iov, int iovcnt) {
-  if (this->head_rest_ != nullptr && !this->send_head_rest_()) {
-    return this->close_requested_ ? -1 : 0;
-  }
-  return this->send_(iov, iovcnt);
-}
-
-ssize_t AsyncStreamResponse::send_(StreamIovec *iov, int iovcnt) {
   if (this->close_requested_) {
     return -1;
+  }
+  // The rest of the head goes first; loop() sends it
+  if (this->head_rest_ != nullptr) {
+    return 0;
   }
   // Nothing to send is not a stall
   if (iovecs_total(iov, iovcnt) == 0) {
@@ -300,7 +274,14 @@ void AsyncStreamResponse::loop() {
     return;
   }
   if (this->head_rest_ != nullptr) {
-    this->send_head_rest_();
+    // Moved out so write() takes it; the stall and ACK clocks cover it like any write
+    RAMUniquePtr<char[]> rest = std::move(this->head_rest_);
+    const size_t len = strlen(rest.get());
+    const ssize_t sent = this->write(rest.get(), len);
+    if (sent >= 0 && static_cast<size_t>(sent) < len) {
+      memmove(rest.get(), rest.get() + sent, len - sent + 1);
+      this->head_rest_ = std::move(rest);
+    }
   }
 }
 
