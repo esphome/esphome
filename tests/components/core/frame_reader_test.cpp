@@ -382,6 +382,14 @@ TEST(LengthFrameReaderTest, FlushKeepsTheFrameWhenEveryFrameInsideIsRejected) {
   EXPECT_EQ(calls, 1u);
 }
 
+TEST(LengthFrameReaderTest, ResetForgetsThePartialFrame) {
+  LengthFrameReader<16, Small> reader;
+  EXPECT_EQ(feed_all(reader, {0xA5, 0x05, 0x11}), Frames{});
+  reader.reset();
+  EXPECT_EQ(reader.length(), 0u);
+  EXPECT_EQ(feed_all(reader, {0xA5, 0x03, 0x22}), (Frames{{0xA5, 0x03, 0x22}}));
+}
+
 TEST(LengthFrameReaderTest, IdleAfterHandledFrameFindsNothingInIt) {
   LengthFrameReader<16, Small> reader;
   Frames seen;
