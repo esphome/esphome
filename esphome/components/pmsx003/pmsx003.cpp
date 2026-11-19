@@ -80,8 +80,9 @@ void PMSX003Component::loop() {
         // wait for the sensor to be stable
         if (now - this->fan_on_time_ < STABILISING_MS)
           return;
-        // consume any command responses that are in the serial buffer
+        // consume any command responses that are in the serial buffer, and any partial frame from before the sleep
         this->discard_available();
+        this->reader_.reset();
         // Trigger a new read
         this->send_command_(Command::MANUAL_MEASUREMENT, 0);
         this->state_ = State::WAITING;

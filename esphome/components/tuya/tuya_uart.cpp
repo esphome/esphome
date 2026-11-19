@@ -454,7 +454,8 @@ void TuyaUART::process_command_queue_() {
   uint32_t now = millis();
   uint32_t delay = now - this->last_command_timestamp_;
 
-  if (this->expected_response_.has_value() && delay > RECEIVE_TIMEOUT) {
+  // A reply still coming in, or held behind a corrupt length, is waited for
+  if (this->expected_response_.has_value() && delay > RECEIVE_TIMEOUT && !this->reader_.receiving()) {
     this->expected_response_.reset();
     if (init_state_ != TuyaInitState::INIT_DONE) {
       if (++this->init_retries_ >= MAX_RETRIES) {
