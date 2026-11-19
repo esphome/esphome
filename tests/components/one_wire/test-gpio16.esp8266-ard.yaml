@@ -1,5 +1,0 @@
-substitutions:
-  one_wire_pin: GPIO16
-
-packages:
-  one_wire: !include ../../test_build_components/common/one_wire/esp8266-ard.yaml

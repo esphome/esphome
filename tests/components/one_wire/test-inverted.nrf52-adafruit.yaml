@@ -1,5 +1,0 @@
-substitutions:
-  one_wire_inverted: "true"
-
-packages:
-  one_wire: !include ../../test_build_components/common/one_wire/nrf52-adafruit.yaml
