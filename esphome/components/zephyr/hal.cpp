@@ -6,9 +6,7 @@
 #include <zephyr/drivers/watchdog.h>
 #include <zephyr/sys/reboot.h>
 
-#ifdef USE_ZEPHYR_DWT_MICROS
-#include <cmsis_core.h>
-#endif
+#include <nrfx.h>
 
 // Empty zephyr namespace block to satisfy ci-custom's lint_namespace check.
 // HAL functions live in namespace esphome (root) — they are not part of the
@@ -22,9 +20,16 @@ static int wdt_channel_id = -1;  // NOLINT(cppcoreguidelines-avoid-non-const-glo
 static const device *const WDT = DEVICE_DT_GET(DT_ALIAS(watchdog0));
 #endif
 
-// yield(), delay(), millis(), millis_64(), delayMicroseconds(), micros() except the cycle-counter one,
-// arch_get_cpu_cycle_count(), arch_get_cpu_freq_hz() inlined in
-// components/zephyr/hal.h.
+// yield(), delay(), millis(), millis_64(), delayMicroseconds(), micros() except the cycle-counter one
+// inlined in components/zephyr/hal.h.
+
+uint32_t arch_get_cpu_cycle_count() { return DWT->CYCCNT; }
+
+uint32_t arch_get_cpu_freq_hz() {
+  // Nothing else updates SystemCoreClock, so on nRF54L it would keep its 64 MHz default.
+  SystemCoreClockUpdate();
+  return SystemCoreClock;
+}
 
 #ifdef USE_ZEPHYR_DWT_MICROS
 // The kernel clock counts in ticks of about 30 us, and the CPU cycle counter stops while the CPU sleeps.
@@ -77,10 +82,8 @@ uint32_t micros() {
 
 void arch_init() {
   main_loop_thread() = k_current_get();
-#ifdef USE_ZEPHYR_DWT_MICROS
   CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
   DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
-#endif
 #ifdef CONFIG_WATCHDOG
   if (device_is_ready(WDT)) {
     static wdt_timeout_cfg wdt_config{};
