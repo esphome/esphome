@@ -397,16 +397,17 @@ void OpenThreadComponent::apply_linkmode_(otInstance *instance) {
   link_mode_config.mDeviceType = true;
   link_mode_config.mNetworkData = true;
 #elif CONFIG_OPENTHREAD_MTD
+  // Minimums are the OpenThread defaults (src/core/config/mle.h, child_supervision.h)
+  static constexpr uint32_t child_timeout_min_sec = 240;
+  static constexpr uint16_t child_supervision_check_timeout_min_sec = 190;
+  static constexpr uint16_t child_supervision_interval_min_sec = 129;
   if (this->poll_period_ > 0) {
     if (otLinkSetPollPeriod(instance, this->poll_period_) != OT_ERROR_NONE) {
       ESP_LOGE(TAG, "Failed to set pollperiod");
     }
     // Round up so the derived timeouts are never below their multiples of poll_period.
     const uint32_t poll_period_sec = (this->poll_period_ + 999) / 1000;
-    // Minimums are the OpenThread defaults (src/core/config/mle.h, child_supervision.h)
-    static constexpr uint32_t child_timeout_min_sec = 240;
-    static constexpr uint32_t child_supervision_check_timeout_min_sec = 190;
-    static constexpr uint32_t child_supervision_interval_min_sec = 129;
+    this->timeouts_derived_ = true;
     otThreadSetChildTimeout(instance, std::max<uint32_t>(poll_period_sec * 4, child_timeout_min_sec));
     // At most 3 * 7200 + 10, so both fit the uint16_t setters
     otChildSupervisionSetCheckTimeout(
@@ -422,6 +423,12 @@ void OpenThreadComponent::apply_linkmode_(otInstance *instance) {
              "Child Supervision Interval: %u sec, Link Polling Period: %" PRIu32,
              otThreadGetChildTimeout(instance), otChildSupervisionGetCheckTimeout(instance),
              otChildSupervisionGetInterval(instance), otLinkGetPollPeriod(instance));
+  } else if (this->timeouts_derived_) {
+    // Back to always listening: drop the timeouts derived for polling
+    this->timeouts_derived_ = false;
+    otThreadSetChildTimeout(instance, child_timeout_min_sec);
+    otChildSupervisionSetCheckTimeout(instance, child_supervision_check_timeout_min_sec);
+    otChildSupervisionSetInterval(instance, child_supervision_interval_min_sec);
   }
 
   link_mode_config.mRxOnWhenIdle = this->poll_period_ == 0;
