@@ -138,8 +138,8 @@ void DMXComponent::dump_config() {
   if (this->rts_pin_ >= 0) {
     ESP_LOGCONFIG(TAG, "  RTS Pin: GPIO%d", this->rts_pin_);
   }
-  ESP_LOGCONFIG(TAG, "  TX interval: %u ms", this->tx_interval_ms_);
-  ESP_LOGCONFIG(TAG, "  RX guard: %u ms", this->rx_guard_ms_);
+  ESP_LOGCONFIG(TAG, "  TX interval: %u ms", static_cast<unsigned>(this->tx_interval_ms_));
+  ESP_LOGCONFIG(TAG, "  RX guard: %u ms", static_cast<unsigned>(this->rx_guard_ms_));
 }
 
 void DMXOutputNumber::control(float value) {
