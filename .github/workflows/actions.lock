@@ -38,7 +38,7 @@ workflows:
         - 'awalsh128/cache-apt-pkgs-action@v1.6.3'
         - 'codecov/codecov-action@v7.1.1'
         - 'codspeedhq/action@v5.6.3'
-        - 'j178/prek-action@v3.1.0'
+        - 'j178/prek-action@v3.1.1'
         - 'pre-commit-ci/lite-action@v1.2.0'
     '.github/workflows/close-pr-from-fork-default-branch.yml':
         - 'actions/github-script@v9.0.0'
@@ -209,9 +209,9 @@ dependencies:
         commit: 'sha1-33d7b85da1a04171e211befe2c739303b9a4c066'
         owner_id: 9919
         repo_id: 259445878
-    'j178/prek-action@v3.1.0':
-        ref: 'v3.1.0'
-        commit: 'sha1-44924fe9ef4a6f88253c4b6b1bf11c689d3ce53d'
+    'j178/prek-action@v3.1.1':
+        ref: 'v3.1.1'
+        commit: 'sha1-7b101f8338a08d2bd6fdb3625e4e7692428763a3'
         owner_id: 10510431
         repo_id: 1052387486
     'peter-evans/create-pull-request@v8.1.3':
