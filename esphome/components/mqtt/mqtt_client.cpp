@@ -325,8 +325,9 @@ bool MQTTClientComponent::can_proceed() {
 void MQTTClientComponent::start_dnslookup_() {
   this->status_set_warning();
   // No lookup can start before the network is up: there is no DNS server to ask yet.
-  // Stay disconnected, and loop() calls this again.
-  if (!network::is_connected())
+  // Stay disconnected, and loop() calls this again as soon as it is up.
+  this->waiting_for_network_ = !network::is_connected();
+  if (this->waiting_for_network_)
     return;
 
   for (auto &subscription : this->subscriptions_) {
@@ -514,7 +515,9 @@ void MQTTClientComponent::loop() {
     case MQTT_CLIENT_DISABLED:
       return;  // Return to avoid a reboot when disabled
     case MQTT_CLIENT_DISCONNECTED:
-      if (now - this->connect_begin_ > 5000) {
+      // Back off 5 s after a failed attempt. Without a network no attempt was made, so the
+      // first one starts as soon as the network is up instead of 5 s after boot.
+      if (this->waiting_for_network_ || now - this->connect_begin_ > 5000) {
         this->start_dnslookup_();
       }
       break;
