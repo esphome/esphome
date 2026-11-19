@@ -167,25 +167,23 @@ def _config_schema(config: ConfigType) -> ConfigType:
     width, height, _offset_width, _offset_height, _pad_width, _pad_height = (
         model.get_dimensions(config)
     )
-    rgb565 = get_color_depth(config) == 16
-    transform = rgb565 and config[CONF_BYTE_ORDER] == BYTE_ORDER_LITTLE
-    # Keep ID objects until the normal ID pass resolves generated names.
-    capabilities = get_data()
-    if rgb565:
-        capabilities.framebuffer_readback_ids.append(config[CONF_ID])
-    if transform:
-        capabilities.rgb565_transform_ids.append(config[CONF_ID])
     display.add_metadata(
         config[CONF_ID],
         width,
         height,
-        has_hardware_rotation=transform,
+        has_hardware_rotation=False,
         byte_order=config[CONF_BYTE_ORDER],
         has_writer=requires_buffer(config)
         or config.get(CONF_AUTO_CLEAR_ENABLED) is True,
         rotation=config.get(CONF_ROTATION, 0),
         draw_rounding=config.get(CONF_DRAW_ROUNDING, 0),
     )
+    # Final validators in external components read these IDs after the normal ID pass.
+    if get_color_depth(config) == 16:
+        capabilities = get_data()
+        capabilities["framebuffer_readback_ids"].append(config[CONF_ID])
+        if config[CONF_BYTE_ORDER] == BYTE_ORDER_LITTLE:
+            capabilities["rgb565_transform_ids"].append(config[CONF_ID])
     return config
 
 

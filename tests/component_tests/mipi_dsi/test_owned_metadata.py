@@ -5,8 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from esphome.components.display import get_display_metadata
-from esphome.core import CORE, ID
+from esphome.core import CORE
 
 
 @pytest.mark.parametrize(
@@ -32,7 +31,7 @@ def test_owned_metadata_matches_the_display_format(
     path = tmp_path / "format.yaml"
     path.write_text(config)
     main = generate_main(path)
-    metadata = CORE.data["mipi_dsi"]
+    metadata = CORE.data.get("mipi_dsi", {})
     assert (
         any(str(value) == "panel" for value in metadata.get("rgb565_transform_ids", []))
         is transform
@@ -44,5 +43,16 @@ def test_owned_metadata_matches_the_display_format(
         )
         is readback
     )
-    assert get_display_metadata(ID("panel")).has_hardware_rotation is transform
+    assert "lvgl::ROTATION_SOFTWARE" in main
+    assert (
+        "USE_MIPI_DSI_RGB565_OWNED_TRANSFORM" in {d.name for d in CORE.defines}
+    ) is transform
     assert "mipi_dsi::MipiDsi" in main
+
+
+def test_lvgl_rotation_with_another_display(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    main = generate_main(component_config_path("lvgl-mixed.yaml"))
+    assert "lvgl::ROTATION_SOFTWARE" in main

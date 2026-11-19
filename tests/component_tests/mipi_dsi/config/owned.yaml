@@ -14,3 +14,7 @@ display:
     model: WAVESHARE-10.1-DSI-TOUCH-A
     color_depth: 16
     byte_order: little_endian
+
+lvgl:
+  displays: panel
+  rotation: 90

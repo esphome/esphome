@@ -122,7 +122,7 @@ inline TestDpiPanel *last_panel{};
 inline std::vector<TestDpiPanel *> panels;
 inline unsigned get_calls{}, cache_calls{}, draw_calls{}, wait_calls{}, blocking_takes{}, try_takes{}, io_waits{},
     ppa_calls{}, no_copy_calls{}, from_isr_gives{}, task_gives{};
-inline esp_err_t get_error{}, cache_error{}, draw_error{}, ppa_error{};
+inline esp_err_t get_error{}, cache_error{}, draw_error{}, ppa_error{}, ppa_register_error{};
 inline bool null_frame{}, callback_isr{};
 inline thread_local bool inside_isr{};
 inline std::function<void()> on_submit, on_ppa;
@@ -161,7 +161,7 @@ inline void reset_calls() {
   assert(!pending.active);
   get_calls = cache_calls = draw_calls = wait_calls = blocking_takes = try_takes = io_waits = ppa_calls =
       no_copy_calls = from_isr_gives = task_gives = 0;
-  get_error = cache_error = draw_error = ppa_error = ESP_OK;
+  get_error = cache_error = draw_error = ppa_error = ppa_register_error = ESP_OK;
   null_frame = callback_isr = inside_isr = false;
   on_submit = {};
   on_ppa = {};
@@ -303,6 +303,8 @@ inline esp_err_t esp_cache_msync(void *address, size_t size, int flags) {
 }
 inline esp_err_t ppa_register_client(const ppa_client_config_t *c, ppa_client_handle_t *h) {
   assert(c->oper_type == PPA_OPERATION_SRM);
+  if (mipi_test_sdk::ppa_register_error != ESP_OK)
+    return mipi_test_sdk::ppa_register_error;
   *h = new TestPpaClient{mipi_test_sdk::last_panel};
   return ESP_OK;
 }

@@ -87,8 +87,8 @@ class MipiDsi final : public display::Display {
   // Present from normal display/main-loop context. Input remains borrowed until
   // return, including PPA and panel completion; operation.out is not borrowed.
   // Input formats are RGB565/RGB888/ARGB8888/YUV420/YUV444; output is RGB565.
-  // Rectangles are logical and the supplied rotation is zero;
-  // this driver composes its own rotation once. Admission must be read-only.
+  // Use display coordinates and a zero input rotation. The driver applies its own rotation.
+  // LVGL can rotate its content separately. Admission must be read-only.
   bool draw_rgb565_transformed(const ppa_srm_oper_config_t &operation, size_t input_bytes, int logical_x, int logical_y,
                                int logical_width, int logical_height, WriteAdmission still_current = nullptr,
                                void *context = nullptr);
@@ -106,7 +106,6 @@ class MipiDsi final : public display::Display {
   void write_to_display_(int x_start, int y_start, int w, int h, const uint8_t *ptr, int x_offset, int y_offset,
                          int x_pad);
   bool check_buffer_();
-  bool draw_rotated_rgb565_(int x, int y, int w, int h, const uint8_t *data, int x_offset, int y_offset, int x_pad);
   bool submit_bitmap_(int x_start, int y_start, int x_end, int y_end, const uint8_t *ptr);
   bool submit_bitmap_locked_(int x_start, int y_start, int x_end, int y_end, const uint8_t *ptr);
   void mirror_native_rgb565_(int x, int y, int w, int h, const uint8_t *data, size_t stride);

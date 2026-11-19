@@ -88,6 +88,19 @@ TEST_F(MipiOwned, GenericYuvInputStaysOnePassAndUsesItsActualByteDepth) {
   EXPECT_EQ(mipi_test_sdk::observed.input_cm, PPA_SRM_COLOR_MODE_YUV420);
   EXPECT_EQ(mipi_test_sdk::observed.output_cm, PPA_SRM_COLOR_MODE_RGB565);
 }
+TEST_F(MipiOwned, OrdinaryDrawingAndScreenshotsWorkWhenTheAcceleratorIsUnavailable) {
+  mipi_test_sdk::ppa_register_error = ESP_FAIL;
+  auto rig = new_owned();
+  EXPECT_FALSE(rig.driver->supports_rgb565_transform());
+  uint16_t pixels[]{0xf800, 0x07e0};
+  EXPECT_FALSE(rig.driver->draw_rgb565_transformed(request(pixels, 2, 1), sizeof(pixels), 0, 0, 2, 1));
+  rig.driver->draw_pixels_at(0, 0, 2, 1, reinterpret_cast<uint8_t *>(pixels), display::COLOR_BITNESS_565, false);
+  std::array<uint16_t, 32> copy{};
+  ASSERT_TRUE(rig.driver->copy_frame_buffer_rgb565(reinterpret_cast<uint8_t *>(copy.data()), sizeof(copy)));
+  EXPECT_EQ(mipi_test_sdk::ppa_calls, 0u);
+  EXPECT_EQ(copy[0], pixels[0]);
+  EXPECT_EQ(copy[1], pixels[1]);
+}
 TEST_F(MipiOwned, InvalidRequestsCannotMutateOrRotateTwice) {
   auto rig = new_owned();
   uint16_t pixels[6]{};
@@ -150,7 +163,7 @@ TEST_F(MipiOwned, CompletionWorksFromTaskAndIsrAndErrorsNeverWaitForMissingCallb
   mipi_test_sdk::ppa_error = ESP_OK;
   ASSERT_TRUE(rig.driver->draw_rgb565_transformed(c, sizeof(pixels), 0, 0, 3, 2));
 }
-TEST_F(MipiOwned, NormalBulkRotationKeepsTheExistingCanvasCoherent) {
+TEST_F(MipiOwned, NormalRotatedDrawUsesTheExistingScalarPath) {
   auto actual = new_owned(), expected = new_owned();
   actual.driver->set_rotation(display::DISPLAY_ROTATION_90_DEGREES);
   expected.driver->set_rotation(display::DISPLAY_ROTATION_90_DEGREES);
@@ -161,7 +174,7 @@ TEST_F(MipiOwned, NormalBulkRotationKeepsTheExistingCanvasCoherent) {
   uint16_t pixels[]{0xf800, 0x07e0};
   mipi_test_sdk::reset_calls();
   actual.driver->draw_pixels_at(1, 2, 2, 1, reinterpret_cast<uint8_t *>(pixels), display::COLOR_BITNESS_565, false);
-  EXPECT_EQ(mipi_test_sdk::ppa_calls, 1u);
+  EXPECT_EQ(mipi_test_sdk::ppa_calls, 0u);
   expected.driver->draw_pixel_at(1, 2, Color(255, 0, 0));
   expected.driver->draw_pixel_at(2, 2, Color(0, 255, 0));
   for (auto *driver : {actual.driver, expected.driver}) {
@@ -183,28 +196,6 @@ TEST_F(MipiOwned, StaleCompletionCannotReleaseTheNextBorrowEarly) {
   EXPECT_EQ(mipi_test_sdk::io_waits, 1u);
   EXPECT_EQ(std::memcmp(rig.panel->memory.data(), pixels, sizeof(pixels)), 0);
 }
-TEST_F(MipiOwned, RotatedBulkDrawFallsBackOnlyWhileThePanelIsUsable) {
-  uint16_t pixels[]{0xf800, 0x07e0};
-  for (const bool fail_submit : {false, true}) {
-    auto rig = new_owned();
-    rig.driver->set_rotation(display::DISPLAY_ROTATION_90_DEGREES);
-    mipi_test_sdk::reset_calls();
-    mipi_test_sdk::ppa_error = fail_submit ? ESP_OK : ESP_FAIL;
-    mipi_test_sdk::draw_error = fail_submit ? ESP_FAIL : ESP_OK;
-    rig.driver->draw_pixels_at(0, 0, 2, 1, reinterpret_cast<uint8_t *>(pixels), display::COLOR_BITNESS_565, false);
-    EXPECT_EQ(rig.driver->is_failed(), fail_submit);
-    EXPECT_EQ(mipi_test_sdk::ppa_calls, 1u);
-    if (fail_submit) {
-      EXPECT_EQ(mipi_test_sdk::draw_calls, 1u);
-      EXPECT_EQ(mipi_test_sdk::io_waits, 0u);
-    } else {
-      std::array<uint16_t, 32> copy{};
-      ASSERT_TRUE(rig.driver->copy_frame_buffer_rgb565(reinterpret_cast<uint8_t *>(copy.data()), sizeof(copy)));
-      EXPECT_EQ(copy[0], pixels[0]);
-      EXPECT_EQ(copy[1], pixels[1]);
-    }
-  }
-}
 TEST_F(MipiOwned, RejectedPanelSubmitNeverWaitsForAnAbsentCallback) {
   auto rig = new_owned();
   uint16_t pixels[6]{};
@@ -212,6 +203,9 @@ TEST_F(MipiOwned, RejectedPanelSubmitNeverWaitsForAnAbsentCallback) {
   mipi_test_sdk::reset_calls();
   mipi_test_sdk::draw_error = ESP_FAIL;
   EXPECT_FALSE(rig.driver->draw_rgb565_transformed(c, sizeof(pixels), 0, 0, 3, 2));
+  EXPECT_TRUE(rig.driver->is_failed());
+  EXPECT_EQ(mipi_test_sdk::ppa_calls, 1u);
+  EXPECT_EQ(mipi_test_sdk::draw_calls, 1u);
   EXPECT_EQ(mipi_test_sdk::io_waits, 0u);
   EXPECT_FALSE(mipi_test_sdk::pending.active);
 }

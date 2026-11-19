@@ -19,8 +19,7 @@ static constexpr size_t MIPI_DSI_MAX_CMD_LOG_BYTES = 64;
 // Highest AXI QoS priority (4 bits); all masters start at 0
 static constexpr uint32_t DSI_DMA_READ_PRIORITY = 15;
 
-// With CONFIG_LCD_DSI_ISR_CACHE_SAFE the DPI driver only accepts callbacks in
-// IRAM
+// With CONFIG_LCD_DSI_ISR_CACHE_SAFE the DPI driver only accepts callbacks in IRAM
 #if CONFIG_LCD_DSI_ISR_CACHE_SAFE
 #define MIPI_DSI_ISR_ATTR IRAM_ATTR
 #else
@@ -134,8 +133,7 @@ void MipiDsi::setup() {
   } else {
     esp_lcd_panel_io_tx_param(this->io_handle_, SW_RESET_CMD, nullptr, 0);
   }
-  // need to know when the display is ready for SLPOUT command - will be 120ms
-  // after reset
+  // need to know when the display is ready for SLPOUT command - will be 120ms after reset
   auto when = millis() + 120;
   err = esp_lcd_panel_init(this->handle_);
   if (err != ESP_OK) {
@@ -208,11 +206,9 @@ void MipiDsi::setup() {
     return;
   }
 
-  // The panel reads its frame buffer from PSRAM all the time through DW-GDMA.
-  // With all AXI masters at the same priority, heavy PSRAM use by the CPU or
-  // the PPA can hold those reads up until the panel runs out of data and shows
-  // a corrupt frame. Raise the read priority on both DW-GDMA master ports; the
-  // panel does not write.
+  // The panel reads its frame buffer from PSRAM all the time through DW-GDMA. With all AXI masters at the same
+  // priority, heavy PSRAM use by the CPU or the PPA can hold those reads up until the panel runs out of data and
+  // shows a corrupt frame. Raise the read priority on both DW-GDMA master ports; the panel does not write.
   axi_icm_ll_set_dw_gdma_qos_arbiter_prio(0, 0, DSI_DMA_READ_PRIORITY);
   axi_icm_ll_set_dw_gdma_qos_arbiter_prio(1, 0, DSI_DMA_READ_PRIORITY);
 
@@ -477,39 +473,6 @@ bool MipiDsi::draw_rgb565_transformed(const ppa_srm_oper_config_t &operation, si
 #endif
 }
 
-bool MipiDsi::draw_rotated_rgb565_(int x, int y, int w, int h, const uint8_t *data, int x_offset, int y_offset,
-                                   int x_pad) {
-#ifdef USE_MIPI_DSI_RGB565_OWNED_TRANSFORM
-  if (!this->supports_rgb565_transform() || data == nullptr || x_offset < 0 || y_offset < 0 || x_pad < 0)
-    return false;
-  const int64_t stride = int64_t(x_offset) + w + x_pad;
-  const int64_t source_height = int64_t(y_offset) + h;
-  if (stride <= 0 || source_height <= 0 || stride > UINT32_MAX || source_height > UINT32_MAX ||
-      uint64_t(stride) * source_height > SIZE_MAX / sizeof(uint16_t))
-    return false;
-  const int64_t left = std::max<int64_t>(0, -int64_t(x)), top = std::max<int64_t>(0, -int64_t(y));
-  const int64_t right = std::min<int64_t>(w, int64_t(this->get_width()) - x);
-  const int64_t bottom = std::min<int64_t>(h, int64_t(this->get_height()) - y);
-  if (left >= right || top >= bottom)
-    return true;
-  ppa_srm_oper_config_t config{};
-  config.in.buffer = data;
-  config.in.pic_w = stride;
-  config.in.pic_h = source_height;
-  config.in.block_offset_x = x_offset + left;
-  config.in.block_offset_y = y_offset + top;
-  config.in.block_w = right - left;
-  config.in.block_h = bottom - top;
-  config.in.srm_cm = PPA_SRM_COLOR_MODE_RGB565;
-  config.scale_x = config.scale_y = 1.0f;
-  config.rotation_angle = PPA_SRM_ROTATION_ANGLE_0;
-  return this->draw_rgb565_transformed(config, size_t(stride) * source_height * sizeof(uint16_t), x + left, y + top,
-                                       right - left, bottom - top);
-#else
-  return false;
-#endif
-}
-
 void MipiDsi::update() {
   if (this->auto_clear_enabled_) {
     this->clear();
@@ -549,12 +512,6 @@ void MipiDsi::draw_pixels_internal(int x_start, int y_start, int w, int h, const
                                    int x_pad) {
   if (w <= 0 || h <= 0)
     return;
-#ifdef USE_MIPI_DSI_RGB565_OWNED_TRANSFORM
-  if (bitness == display::COLOR_BITNESS_565 && !big_endian && this->rotation_ != display::DISPLAY_ROTATION_0_DEGREES &&
-      !this->is_clipping() && !this->updating_ &&
-      (this->draw_rotated_rgb565_(x_start, y_start, w, h, ptr, x_offset, y_offset, x_pad) || this->is_failed()))
-    return;
-#endif
   if (bitness != this->color_depth_ || (bitness == display::COLOR_BITNESS_565 && big_endian != this->big_endian_) ||
       this->rotation_ != display::DISPLAY_ROTATION_0_DEGREES || this->is_clipping()) {
     display::Display::draw_pixels_internal(x_start, y_start, w, h, ptr, bitness, big_endian, x_offset, y_offset, x_pad);
@@ -563,8 +520,7 @@ void MipiDsi::draw_pixels_internal(int x_start, int y_start, int w, int h, const
     return;
   }
   if (this->buffer_ != nullptr) {
-    // With a buffer the block goes through it, or a flush of the old contents
-    // would paint over it
+    // With a buffer the block goes through it, or a flush of the old contents would paint over it
     const int first_col = std::max(0, -x_start), end_col = std::min(w, static_cast<int>(this->width_) - x_start);
     const int first_row = std::max(0, -y_start), end_row = std::min(h, static_cast<int>(this->height_) - y_start);
     if (first_col >= end_col || first_row >= end_row)
@@ -592,8 +548,7 @@ void MipiDsi::write_to_display_(int x_start, int y_start, int w, int h, const ui
   auto bytes_per_pixel = 3 - this->color_depth_;
   auto stride = (x_offset + w + x_pad) * bytes_per_pixel;
   ptr += y_offset * stride + x_offset * bytes_per_pixel;  // skip to the first pixel
-  // x_ and y_offset are offsets into the source buffer, unrelated to our own
-  // offsets into the display.
+  // x_ and y_offset are offsets into the source buffer, unrelated to our own offsets into the display.
   if (x_offset == 0 && x_pad == 0) {
     if (!this->submit_bitmap_(x_start, y_start, x_start + w, y_start + h, ptr))
       return;
@@ -641,8 +596,7 @@ bool MipiDsi::check_buffer_() {
   return true;
 }
 
-// Widen the dirty box to the drawn rectangle, even where the buffer already
-// held the same values.
+// Widen the dirty box to the drawn rectangle, even where the buffer already held the same values.
 void MipiDsi::mark_dirty_(int x_start, int y_start, int w, int h) {
   int x1 = x_start, y1 = y_start;
   int x2 = x_start + w - 1, y2 = y_start + h - 1;
@@ -689,8 +643,7 @@ void MipiDsi::draw_pixel_at(int x, int y, Color color) {
       break;
     }
     case display::COLOR_BITNESS_888:
-      // The panel applies the colour order, so the buffer keeps the standard
-      // b,g,r layout
+      // The panel applies the colour order, so the buffer keeps the standard b,g,r layout
       this->buffer_[pos * 3] = color.b;
       this->buffer_[pos * 3 + 1] = color.g;
       this->buffer_[pos * 3 + 2] = color.r;
