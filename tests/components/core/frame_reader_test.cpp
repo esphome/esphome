@@ -375,6 +375,20 @@ TEST(LengthFrameReaderTest, ReceivingUntilAnIdleFlushKeepsTheFrame) {
   EXPECT_TRUE(reader.receiving());
 }
 
+TEST(LengthFrameReaderTest, NewBytesAtTheSearchedLengthAreSearchedAgain) {
+  // A5 with a whole-frame length at 5, and a fixed two-byte 6E frame
+  LengthFrameReader<16, FrameFormat<FrameHeader<0xA5>, FrameLengthU8<LengthField{.offset = 5}>>,
+                    FrameFormat<FrameHeader<0x6E>, FrameFixedLength<2>>>
+      reader;
+  Collect handle;
+  for (uint8_t c : {0xA5, 0xA5, 0x00, 0x00, 0x6E})
+    reader.feed(c, handle);
+  reader.flush(handle);
+  reader.feed(0x01, handle);
+  reader.flush(handle);
+  EXPECT_EQ(handle.seen, (Frames{{0x6E, 0x01}}));
+}
+
 TEST(LengthFrameReaderTest, FlushKeepsTheFrameWhenEveryFrameInsideIsRejected) {
   LengthFrameReader<16, Small> reader;
   size_t calls = 0;
