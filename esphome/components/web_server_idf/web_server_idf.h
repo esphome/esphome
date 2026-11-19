@@ -45,6 +45,8 @@ class AsyncWebParameter {
 class AsyncWebServerRequest;
 
 class AsyncWebServerResponse {
+  friend class AsyncWebServerRequest;
+
  public:
   AsyncWebServerResponse(const AsyncWebServerRequest *req) : req_(req) {}
   virtual ~AsyncWebServerResponse() {}
@@ -57,6 +59,8 @@ class AsyncWebServerResponse {
 
  protected:
   const AsyncWebServerRequest *req_;
+  // Bit i set: this response set default header i itself, so it is not sent at send time
+  uint8_t replaced_defaults_{0};
 };
 
 class AsyncWebServerResponseEmpty : public AsyncWebServerResponse {
@@ -132,9 +136,7 @@ class AsyncWebServerRequest {
   void redirect(const char *url);
   void redirect(const std::string &url) { this->redirect(url.c_str()); }
 
-  inline void ESPHOME_ALWAYS_INLINE send(AsyncWebServerResponse *response) {
-    httpd_resp_send(*this, response->get_content_data(), response->get_content_size());
-  }
+  void send(AsyncWebServerResponse *response);
   inline void ESPHOME_ALWAYS_INLINE send(int code, const char *content_type = nullptr, const char *content = nullptr) {
     this->init_response_(nullptr, code, content_type);
     if (content) {
@@ -191,6 +193,9 @@ class AsyncWebServerRequest {
 
   operator httpd_req_t *() const { return this->req_; }
   optional<std::string> get_header(const char *name) const;
+  /// Copy a header value into buf without heap allocation.
+  /// Returns its length, 0 when absent, or SIZE_MAX when it does not fit in buf.
+  size_t get_header_to(const char *name, std::span<char> buf) const;
   // NOLINTNEXTLINE(readability-identifier-naming)
   bool hasHeader(const char *name) const;
 
@@ -224,6 +229,13 @@ class AsyncWebServer {
 
   void begin();
   void end();
+#ifdef USE_WEBSERVER_SSL
+  /// PEM certificate and key, not copied; nullptr for plain HTTP. Takes effect at the next begin().
+  void set_ssl_credentials(const char *certificate, const char *private_key) {
+    this->ssl_certificate_ = certificate;
+    this->ssl_private_key_ = private_key;
+  }
+#endif
 
   // NOLINTNEXTLINE(readability-identifier-naming)
   AsyncWebHandler &addHandler(AsyncWebHandler *handler) {
@@ -235,7 +247,17 @@ class AsyncWebServer {
 
  protected:
   uint16_t port_{};
+#ifdef USE_WEBSERVER_SSL
+  uint16_t running_port_{};  // port of the running listener, 0 once httpd frees it
+#endif
   httpd_handle_t server_{};
+#ifdef USE_WEBSERVER_SSL
+  const char *ssl_certificate_{nullptr};
+  const char *ssl_private_key_{nullptr};
+  Mutex close_lock_;  // held by close_fn while closing, by shutdown_clients_() and by context_free()
+  void shutdown_clients_();
+  static void context_free(void *ctx);
+#endif
   static esp_err_t request_handler(httpd_req_t *r);
   static esp_err_t request_post_handler(httpd_req_t *r);
   esp_err_t request_handler_(AsyncWebServerRequest *request) const;
@@ -458,9 +480,11 @@ struct HttpHeader {
 
 class DefaultHeaders {
   friend class AsyncWebServerRequest;
+  friend class AsyncWebServerResponse;
 #ifdef USE_WEBSERVER
   friend class AsyncEventSourceResponse;
 #endif
+  static_assert(WEB_SERVER_DEFAULT_HEADERS_COUNT <= 8, "AsyncWebServerResponse::replaced_defaults_ holds 8 bits");
 
  public:
   // NOLINTNEXTLINE(readability-identifier-naming)
@@ -472,6 +496,9 @@ class DefaultHeaders {
  protected:
   // Stack-allocated, no reallocation machinery. Count defined in web_server_base where headers are added.
   StaticVector<HttpHeader, WEB_SERVER_DEFAULT_HEADERS_COUNT> headers_;
+
+  /// Set every default header on the response except those whose bit is set in skip_mask.
+  void apply_(httpd_req_t *req, uint8_t skip_mask = 0) const;
 };
 
 }  // namespace web_server_idf

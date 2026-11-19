@@ -28,38 +28,31 @@ void Kuntze::on_read_holding_registers(uint16_t start_address, std::span<const u
   switch (start_address) {
     case REGISTER_PH:
       ESP_LOGD(TAG, "pH=%.1f", value);
-      if (this->ph_sensor_ != nullptr)
-        this->ph_sensor_->publish_state(value);
+      PUBLISH_STATE(this->ph_sensor_, value);
       break;
     case REGISTER_TEMPERATURE:
       ESP_LOGD(TAG, "temperature=%.1f", value);
-      if (this->temperature_sensor_ != nullptr)
-        this->temperature_sensor_->publish_state(value);
+      PUBLISH_STATE(this->temperature_sensor_, value);
       break;
     case REGISTER_DIS1:
       ESP_LOGD(TAG, "DIS1=%.1f", value);
-      if (this->dis1_sensor_ != nullptr)
-        this->dis1_sensor_->publish_state(value);
+      PUBLISH_STATE(this->dis1_sensor_, value);
       break;
     case REGISTER_DIS2:
       ESP_LOGD(TAG, "DIS2=%.1f", value);
-      if (this->dis2_sensor_ != nullptr)
-        this->dis2_sensor_->publish_state(value);
+      PUBLISH_STATE(this->dis2_sensor_, value);
       break;
     case REGISTER_REDOX:
       ESP_LOGD(TAG, "REDOX=%.1f", value);
-      if (this->redox_sensor_ != nullptr)
-        this->redox_sensor_->publish_state(value);
+      PUBLISH_STATE(this->redox_sensor_, value);
       break;
     case REGISTER_EC:
       ESP_LOGD(TAG, "EC=%.1f", value);
-      if (this->ec_sensor_ != nullptr)
-        this->ec_sensor_->publish_state(value);
+      PUBLISH_STATE(this->ec_sensor_, value);
       break;
     case REGISTER_OCI:
       ESP_LOGD(TAG, "OCI=%.1f", value);
-      if (this->oci_sensor_ != nullptr)
-        this->oci_sensor_->publish_state(value);
+      PUBLISH_STATE(this->oci_sensor_, value);
       break;
     default:
       break;

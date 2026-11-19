@@ -1,13 +1,19 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/hal.h"
 #include "addressable_light.h"
 
 namespace esphome::light {
 
 class AddressableLightWrapper : public light::AddressableLight {
  public:
-  explicit AddressableLightWrapper(light::LightState *light_state) : light_state_(light_state) {}
+  explicit AddressableLightWrapper(light::LightState *light_state)
+      : light_state_(light_state),
+        wrapper_accessor_(this->wrapper_state_, &this->wrapper_state_[4], ChannelColors{0, 1, 2, 3},
+                          &this->correction_) {
+    this->accessor_ = &this->wrapper_accessor_;
+  }
 
   int32_t size() const override { return 1; }
 
@@ -18,19 +24,21 @@ class AddressableLightWrapper : public light::AddressableLight {
 
     // Choose which color mode to use.
     // This is ordered by how closely each color mode matches the underlying RGBW data structure used in LightPartition.
-    ColorMode color_mode_precedence[] = {ColorMode::RGB_WHITE,
-                                         ColorMode::RGB_COLD_WARM_WHITE,
-                                         ColorMode::RGB_COLOR_TEMPERATURE,
-                                         ColorMode::RGB,
-                                         ColorMode::WHITE,
-                                         ColorMode::COLD_WARM_WHITE,
-                                         ColorMode::COLOR_TEMPERATURE,
-                                         ColorMode::BRIGHTNESS,
-                                         ColorMode::ON_OFF,
-                                         ColorMode::UNKNOWN};
+    // In flash: a local array is copied from a RAM constant on ESP8266
+    static constexpr ColorMode COLOR_MODE_PRECEDENCE[] PROGMEM = {ColorMode::RGB_WHITE,
+                                                                  ColorMode::RGB_COLD_WARM_WHITE,
+                                                                  ColorMode::RGB_COLOR_TEMPERATURE,
+                                                                  ColorMode::RGB,
+                                                                  ColorMode::WHITE,
+                                                                  ColorMode::COLD_WARM_WHITE,
+                                                                  ColorMode::COLOR_TEMPERATURE,
+                                                                  ColorMode::BRIGHTNESS,
+                                                                  ColorMode::ON_OFF,
+                                                                  ColorMode::UNKNOWN};
 
     LightTraits parent_traits = this->light_state_->get_traits();
-    for (auto cm : color_mode_precedence) {
+    for (const auto &entry : COLOR_MODE_PRECEDENCE) {
+      auto cm = static_cast<ColorMode>(progmem_read_byte(reinterpret_cast<const uint8_t *>(&entry)));
       if (parent_traits.supports_color_mode(cm)) {
         this->color_mode_ = cm;
         break;
@@ -109,13 +117,9 @@ class AddressableLightWrapper : public light::AddressableLight {
   }
 
  protected:
-  light::ESPColorView get_view_internal(int32_t index) const override {
-    return {&this->wrapper_state_[0], &this->wrapper_state_[1], &this->wrapper_state_[2],
-            &this->wrapper_state_[3], &this->wrapper_state_[4], &this->correction_};
-  }
-
   light::LightState *light_state_;
-  mutable uint8_t wrapper_state_[5]{};
+  CorrectedBufferColorAccessor wrapper_accessor_;
+  uint8_t wrapper_state_[5]{};
   ColorMode color_mode_{ColorMode::UNKNOWN};
 };
 

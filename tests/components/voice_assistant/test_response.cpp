@@ -98,13 +98,14 @@ class VoiceAssistantResponseTest : public ::testing::Test {
     this->voice_.setup();
     this->intent_automation_.add_action(&this->intent_action_);
     this->error_automation_.add_action(&this->error_action_);
+    this->end_automation_.add_action(&this->end_action_);
   }
 
   void TearDown() override {
     this->voice_.request_stop();
     this->flush_();
     // Numeric timeout IDs are local to VoiceAssistant.
-    for (uint32_t id = 0; id < 4; ++id) {
+    for (uint32_t id = 0; id < 6; ++id) {
       App.scheduler.cancel_timeout(&this->voice_, id);
       App.scheduler.cancel_interval(&this->voice_, id);
     }
@@ -186,6 +187,9 @@ class VoiceAssistantResponseTest : public ::testing::Test {
       this->intent_hook_(url);
   }};
   Automation<std::string> intent_automation_{this->voice_.get_intent_progress_trigger()};
+  unsigned ends_{0};
+  LambdaAction<> end_action_{[this]() { ++this->ends_; }};
+  Automation<> end_automation_{this->voice_.get_end_trigger()};
   std::vector<std::string> errors_;
   LambdaAction<std::string, std::string> error_action_{
       [this](const std::string &code, const std::string &) { this->errors_.push_back(code); }};
@@ -259,13 +263,18 @@ TEST_F(VoiceAssistantSpeakerResponseTest, DirectSpeakerStreamEndAndReuseWithoutM
   EXPECT_TRUE(this->errors_.empty());
 }
 
-TEST_F(VoiceAssistantSpeakerResponseTest, DirectSpeakerKeepsConfiguredLegacyTimeout) {
+TEST_F(VoiceAssistantSpeakerResponseTest, DirectSpeakerUsesStallTimeoutAfterPlayback) {
   this->voice_.set_tts_playback_start_timeout(20);
   this->start_speaker_response_();
   this->send_pcm_();
   this->voice_.loop();
   this->speaker_.stop();
   delay(30);
+  this->flush_();
+  this->voice_.loop();
+  EXPECT_TRUE(this->voice_.is_running());
+  EXPECT_TRUE(this->completions_().empty());
+  delay(2000);  // NOLINT: the host scheduler uses the real two-second playback stall timer.
   this->flush_();
   this->voice_.loop();
   EXPECT_FALSE(this->voice_.is_running());
@@ -432,6 +441,12 @@ TEST_F(VoiceAssistantResponseTest, StopBeforeMicrophoneStopCancelsResponseOnce) 
   this->voice_.loop();
   EXPECT_EQ(this->player_.play_requests, 1);
   EXPECT_TRUE(this->completions_().empty());
+  EXPECT_EQ(this->ends_, 0);
+  this->event_(api::enums::VOICE_ASSISTANT_RUN_END);
+  this->flush_();
+  this->voice_.request_stop();
+  this->flush_();
+  EXPECT_EQ(this->ends_, 1);
 }
 
 TEST_F(VoiceAssistantResponseTest, CompletedResponseBeforeMicrophoneStopKeepsSuccess) {

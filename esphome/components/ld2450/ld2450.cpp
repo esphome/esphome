@@ -84,9 +84,7 @@ static inline uint32_t convert_seconds_to_ms(uint16_t value) { return (uint32_t)
 
 static inline void convert_int_values_to_hex(const int *values, uint8_t *bytes) {
   for (uint8_t i = 0; i < 4; i++) {
-    uint16_t val = values[i] & 0xFFFF;
-    bytes[i * 2] = val & 0xFF;             // Store low byte first (little-endian)
-    bytes[i * 2 + 1] = (val >> 8) & 0xFF;  // Store high byte second
+    put_le16(bytes + i * 2, values[i]);
   }
 }
 
@@ -230,6 +228,9 @@ void LD2450Component::dump_config() {
   ESP_LOGCONFIG(TAG, "Buttons:");
   LOG_BUTTON("  ", "FactoryReset", this->factory_reset_button_);
   LOG_BUTTON("  ", "Restart", this->restart_button_);
+#ifdef USE_LD2450_XY_UNFILTERED
+  LOG_BUTTON("  ", "XYUnfiltered", this->xy_unfiltered_button_);
+#endif
 #endif
 #ifdef LD2450_POLYGON_ZONE_COUNT
   ESP_LOGCONFIG(TAG, "Polygon Zones:");
@@ -304,9 +305,7 @@ void LD2450Component::on_link_up_(bool restored) {
   }
   this->status_clear_warning();
 #ifdef USE_BINARY_SENSOR
-  if (this->connected_binary_sensor_ != nullptr) {
-    this->connected_binary_sensor_->publish_state(true);
-  }
+  PUBLISH_STATE(this->connected_binary_sensor_, true);
 #endif
 }
 
@@ -328,9 +327,7 @@ void LD2450Component::on_link_lost_(uint32_t silent_ms, bool was_up) {
            static_cast<unsigned>(this->invalid_frames_));
   this->status_set_warning();
 #ifdef USE_BINARY_SENSOR
-  if (this->connected_binary_sensor_ != nullptr) {
-    this->connected_binary_sensor_->publish_state(false);
-  }
+  PUBLISH_STATE(this->connected_binary_sensor_, false);
 #endif
   if (!was_up) {
     return;  // no frame since boot, so the live values are still unknown
@@ -357,9 +354,7 @@ void LD2450Component::on_link_lost_(uint32_t silent_ms, bool was_up) {
     this->publish_target_unknown_(i);
 #endif
 #ifdef USE_LD2450_TARGET_XY
-    if (this->target_xy_text_sensors_[i] != nullptr) {
-      this->target_xy_text_sensors_[i]->publish_state("unknown");
-    }
+    PUBLISH_STATE(this->target_xy_text_sensors_[i], "unknown");
     // No coordinate decodes to INT16_MIN, so the next position publishes
     this->target_info_[i].x = INT16_MIN;
     this->target_info_[i].y = INT16_MIN;
@@ -443,7 +438,7 @@ void LD2450Component::send_set_zone_command_() {
   this->set_config_mode_(false);
 }
 
-// Check presense timeout to reset presence status
+// Check presence timeout to reset presence status
 bool LD2450Component::get_timeout_status_(uint32_t check_millis) {
   if (check_millis == 0) {
     return true;
@@ -605,10 +600,8 @@ void LD2450Component::handle_periodic_data_() {
       direction = DIRECTION_STATIONARY;
     }
     if (this->direction_dedup_[index].next(direction)) {
-      text_sensor::TextSensor *tsd = this->direction_text_sensors_[index];
-      if (tsd != nullptr) {
-        tsd->publish_state(DirectionStrings::get_progmem_str(direction, DirectionStrings::LAST_INDEX));
-      }
+      PUBLISH_STATE(this->direction_text_sensors_[index],
+                    DirectionStrings::get_progmem_str(direction, DirectionStrings::LAST_INDEX));
     }
 #endif
 
@@ -762,9 +755,7 @@ void LD2450Component::handle_ack_data_() {
       ld24xx::format_version_str(this->version_, version_s);
       ESP_LOGV(TAG, "Firmware version: %s", version_s);
 #ifdef USE_TEXT_SENSOR
-      if (this->version_text_sensor_ != nullptr) {
-        this->version_text_sensor_->publish_state(version_s);
-      }
+      PUBLISH_STATE(this->version_text_sensor_, version_s);
 #endif
       break;
     }
@@ -780,14 +771,10 @@ void LD2450Component::handle_ack_data_() {
       const char *mac_str = ld24xx::format_mac_str(this->mac_address_, mac_s);
       ESP_LOGV(TAG, "MAC address: %s", mac_str);
 #ifdef USE_TEXT_SENSOR
-      if (this->mac_text_sensor_ != nullptr) {
-        this->mac_text_sensor_->publish_state(mac_str);
-      }
+      PUBLISH_STATE(this->mac_text_sensor_, mac_str);
 #endif
 #ifdef USE_SWITCH
-      if (this->bluetooth_switch_ != nullptr) {
-        this->bluetooth_switch_->publish_state(this->bluetooth_on_);
-      }
+      PUBLISH_STATE(this->bluetooth_switch_, this->bluetooth_on_);
 #endif
       break;
     }
@@ -799,18 +786,14 @@ void LD2450Component::handle_ack_data_() {
     case CMD_SINGLE_TARGET_MODE:
       ESP_LOGV(TAG, "Single target conf");
 #ifdef USE_SWITCH
-      if (this->multi_target_switch_ != nullptr) {
-        this->multi_target_switch_->publish_state(false);
-      }
+      PUBLISH_STATE(this->multi_target_switch_, false);
 #endif
       break;
 
     case CMD_MULTI_TARGET_MODE:
       ESP_LOGV(TAG, "Multi target conf");
 #ifdef USE_SWITCH
-      if (this->multi_target_switch_ != nullptr) {
-        this->multi_target_switch_->publish_state(true);
-      }
+      PUBLISH_STATE(this->multi_target_switch_, true);
 #endif
       break;
 
@@ -820,9 +803,7 @@ void LD2450Component::handle_ack_data_() {
       }
       ESP_LOGV(TAG, "Query target tracking mode");
 #ifdef USE_SWITCH
-      if (this->multi_target_switch_ != nullptr) {
-        this->multi_target_switch_->publish_state(this->buffer_data_[10] == 0x02);
-      }
+      PUBLISH_STATE(this->multi_target_switch_, this->buffer_data_[10] == 0x02);
 #endif
       break;
 
@@ -947,9 +928,7 @@ void LD2450Component::set_zone_type(ZoneType type) {
 // Publish Zone Type to Select component
 void LD2450Component::publish_zone_type() {
 #ifdef USE_SELECT
-  if (this->zone_type_select_ != nullptr) {
-    this->zone_type_select_->publish_state(static_cast<size_t>(this->zone_type_));
-  }
+  PUBLISH_STATE(this->zone_type_select_, static_cast<size_t>(this->zone_type_));
 #endif
 }
 
@@ -1043,6 +1022,31 @@ void LD2450Component::update_target_xy_(uint8_t target, bool changed) {
   char text[16];
   const size_t len = buf_append_printf(text, sizeof(text), 0, "%d,%d", pos.x, pos.y);
   s->publish_state(text, len);
+}
+#endif
+
+#ifdef USE_LD2450_XY_UNFILTERED
+void LD2450Component::start_xy_unfiltered() {
+  // Deferred: on_raw_value may press this mid-publish, which still uses the filters
+  this->defer([this]() {
+    this->bypass_xy_filters_(true);
+    this->set_timeout(XY_UNFILTERED_TIMEOUT_ID, XY_UNFILTERED_DURATION_MS,
+                      [this]() { this->bypass_xy_filters_(false); });
+  });
+}
+
+void LD2450Component::bypass_xy_filters_(bool bypass) {
+  for (uint8_t i = 0; i < MAX_TARGETS; i++) {
+    text_sensor::TextSensor *s = this->target_xy_text_sensors_[i];
+    if (s == nullptr)
+      continue;
+    if (!bypass) {
+      s->attach_filters(this->xy_filters_[i]);
+      this->xy_filters_[i] = nullptr;
+    } else if (this->xy_filters_[i] == nullptr) {
+      this->xy_filters_[i] = s->detach_filters();
+    }
+  }
 }
 #endif
 

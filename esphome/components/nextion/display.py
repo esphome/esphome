@@ -10,9 +10,9 @@ from esphome.const import (
     PLATFORM_ESP8266,
 )
 from esphome.core import CORE, TimePeriod
-from esphome.types import ConfigType, TemplateArgsType
+from esphome.types import ConfigType
 
-from . import FILTER_SOURCE_FILES, Nextion, nextion_ns, nextion_ref  # noqa: F401  pylint: disable=unused-import
+from . import Nextion, nextion_ref
 from .base_component import (
     CONF_AUTO_WAKE_ON_TOUCH,
     CONF_COMMAND_SPACING,
@@ -146,6 +146,14 @@ CONFIG_SCHEMA = cv.All(
     ),
     _validate_tft_upload,
 )
+
+
+def _final_validate(config: ConfigType) -> None:
+    if CORE.is_esp32:
+        esp32.validate_task_wdt_enabled(config, CONF_TFT_UPLOAD_WATCHDOG_TIMEOUT)
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 automation.register_apply_action(
@@ -305,15 +313,8 @@ async def to_code(config):
     for entry in _CUSTOM_CALLBACK_AUTOMATIONS:
         for conf in config.get(entry.conf_key, []):
             await automation.build_callback_automation(
-                var, entry.callback_method, _owning_args(entry.args, conf), conf
+                var,
+                entry.callback_method,
+                automation.owning_args(entry.args, conf),
+                conf,
             )
-
-
-def _owning_args(args: TemplateArgsType, conf: ConfigType) -> TemplateArgsType:
-    """Pass std::string instead of StringRef to an automation that defers, as it keeps its arguments."""
-    if not automation.has_non_synchronous_actions(conf):
-        return args
-    return [
-        (cg.std_string if type_ is cg.StringRef else type_, name)
-        for type_, name in args
-    ]

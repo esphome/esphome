@@ -1,0 +1,31 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+i2s_audio:
+  - id: i2s_audio_bus
+    i2s_lrclk_pin: 25
+    i2s_bclk_pin: 26
+
+speaker:
+  - platform: i2s_audio
+    id: speaker_id
+    dac_type: external
+    i2s_dout_pin: 27
+
+script:
+  - id: play_constant
+    then:
+      - speaker.play:
+          id: speaker_id
+          data: [0x10, 0x20, 0x30, 0x40]
+  - id: play_constant_again
+    then:
+      - speaker.play: [0x10, 0x20, 0x30, 0x40]
+  - id: play_lambda
+    then:
+      - speaker.play:
+          id: speaker_id
+          data: !lambda "return {0x01, 0x02};"

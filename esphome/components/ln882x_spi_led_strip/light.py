@@ -137,11 +137,19 @@ FINAL_VALIDATE_SCHEMA = fv.unique_platform_key(
 
 async def to_code(config: ConfigType) -> None:
     encoding = spi_encoding(CHIPSETS[config[CONF_CHIPSET]])
+    num_leds = config[CONF_NUM_LEDS]
+    channel_colors = config[CONF_CHANNEL_COLORS]
+    dma_data_bytes = ln882x_spi_led_strip_ns.dma_data_bytes(
+        num_leds * len(channel_colors), encoding.reset_bytes
+    )
     var = cg.new_Pvariable(
         config[CONF_OUTPUT_ID],
+        light.static_led_buffer(
+            config[CONF_OUTPUT_ID], num_leds, len(channel_colors), dma_data_bytes
+        ),
         config[CONF_PIN],
-        config[CONF_NUM_LEDS],
-        light.channel_colors_struct(config[CONF_CHANNEL_COLORS]),
+        num_leds,
+        light.channel_colors_struct(channel_colors),
         encoding.prescaler,
         encoding.bit0_high_bits,
         encoding.bit1_high_bits,

@@ -12,4 +12,7 @@ matrix_keypad:
   keys: "1234"
   has_pulldowns: true
   on_key:
-    - lambda: ESP_LOGI("KEY", "key %d pressed", x);
+    - then:
+        - lambda: ESP_LOGI("KEY", "key %d pressed", x);
+    - then:
+        - lambda: ESP_LOGI("KEY", "second key %c", x);

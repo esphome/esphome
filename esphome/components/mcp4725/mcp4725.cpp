@@ -7,10 +7,8 @@ ESPHOME_LOG_TAG(TAG, "mcp4725");
 
 void MCP4725::setup() {
   auto err = this->write(nullptr, 0);
-  if (err != i2c::ERROR_OK) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(err == i2c::ERROR_OK))
     return;
-  }
 }
 
 void MCP4725::dump_config() { LOG_I2C_DEVICE(this); }

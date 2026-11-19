@@ -1,0 +1,348 @@
+# Automation code generation trace: every step logs a marker "M <case> <values>". A package: the per-run file from
+# run.sh supplies the board, Wi-Fi and name. drive.py records the markers over the API.
+logger:
+  level: DEBUG
+
+api:
+  reboot_timeout: 0s
+
+ota:
+  - platform: esphome
+
+globals:
+  - {id: g_a, type: int, initial_value: "0"}
+  - {id: g_b, type: int, initial_value: "0"}
+  - {id: g_tick, type: int, initial_value: "0"}
+  - {id: g_ticking, type: bool, initial_value: "false"}
+  - {id: g_par, type: int, initial_value: "0"}
+  - {id: g_par3, type: int, initial_value: "0"}
+  - {id: g_par4, type: int, initial_value: "0"}
+
+interval:
+  - interval: 100ms
+    then:
+      - if:
+          condition:
+            lambda: return id(g_ticking);
+          then:
+            - lambda: id(g_tick)++;
+
+number:
+  - platform: template
+    id: num
+    name: Num
+    optimistic: true
+    min_value: 0
+    max_value: 100
+    step: 1
+    on_value:
+      - logger.log: {format: "M num_on_value %.0f", args: [x]}
+      - if:
+          condition:
+            lambda: return x > 50;
+          then:
+            - logger.log: {format: "M num_high %.0f", args: [x]}
+          else:
+            - logger.log: {format: "M num_low %.0f", args: [x]}
+
+switch:
+  - platform: template
+    id: sw
+    name: Sw
+    optimistic: true
+    on_turn_on:
+      - logger.log: "M sw_on"
+      - globals.set: {id: g_b, value: !lambda "return id(g_b) + 1;"}
+      - logger.log: {format: "M sw_on_b %d", args: [id(g_b)]}
+    on_turn_off:
+      - logger.log: "M sw_off"
+
+select:
+  - platform: template
+    id: sel
+    name: Sel
+    optimistic: true
+    options: [a, b, c]
+    initial_option: a
+    on_value:
+      - logger.log: {format: "M sel_on_value %s idx %d", args: [x.c_str(), (int) i]}
+
+sensor:
+  - platform: template
+    id: sens
+    name: Sens
+    update_interval: never
+    on_value_range:
+      - above: 50
+        then:
+          - logger.log: {format: "M sens_above %.0f", args: [x]}
+      - below: 10
+        then:
+          - logger.log: {format: "M sens_below %.0f", args: [x]}
+
+alarm_control_panel:
+  - platform: template
+    id: acp
+    name: Acp
+    codes: ["1234"]
+    requires_code_to_arm: false
+    arming_away_time: 0s
+    on_armed_away:
+      - logger.log: "M acp_armed_away"
+    on_disarmed:
+      - logger.log: "M acp_disarmed"
+    on_state:
+      - logger.log: "M acp_state"
+
+button:
+  - platform: template
+    name: Run All
+    on_press:
+      - logger.log: "M press_run_all"
+      - script.execute: master
+  - platform: template
+    name: Chain Button
+    on_press:
+      - logger.log: "M cb_1"
+      - lambda: id(g_a) = 7;
+      - globals.set: {id: g_b, value: "3"}
+      - logger.log: {format: "M cb_2 %d %d", args: [id(g_a), id(g_b)]}
+      - switch.toggle: sw
+      - logger.log: "M cb_3"
+
+script:
+  - id: s_single
+    mode: single
+    parameters: {x: int}
+    then:
+      - logger.log: {format: "M single_start %d", args: [x]}
+      - delay: 150ms
+      - logger.log: {format: "M single_end %d", args: [x]}
+  - id: s_restart
+    mode: restart
+    parameters: {x: int, s: string}
+    then:
+      - logger.log: {format: "M restart_start %d %s", args: [x, s.c_str()]}
+      - delay: 150ms
+      - logger.log: {format: "M restart_end %d %s", args: [x, s.c_str()]}
+  - id: s_queued
+    mode: queued
+    max_runs: 5
+    parameters: {x: int}
+    then:
+      - logger.log: {format: "M queued_start %d", args: [x]}
+      - delay: 60ms
+      - logger.log: {format: "M queued_end %d", args: [x]}
+  - id: s_parallel
+    mode: parallel
+    parameters: {x: int}
+    then:
+      - logger.log: {format: "M parallel_start %d", args: [x]}
+      - delay: !lambda "return 50 + x * 30;"
+      - logger.log: {format: "M parallel_end %d", args: [x]}
+  - id: s_selfstop
+    mode: single
+    then:
+      - logger.log: "M selfstop_1"
+      - lambda: id(g_a) = 100;
+      - script.stop: s_selfstop
+      - logger.log: "M selfstop_SHOULD_NOT_RUN"
+      - lambda: id(g_a) = 200;
+  - id: s_par_self
+    mode: parallel
+    max_runs: 2
+    then:
+      - lambda: id(g_par)++;
+      - logger.log: {format: "M parself_run %d running=%d", args: [id(g_par), (int) id(s_par_self).is_running()]}
+      - if:
+          condition:
+            lambda: return id(g_par) < 4;
+          then:
+            - script.execute: s_par_self
+      - delay: 200ms
+  - id: s_par3
+    mode: parallel
+    max_runs: 3
+    then:
+      - lambda: id(g_par3)++;
+      - logger.log: {format: "M par3_run %d", args: [id(g_par3)]}
+      - if:
+          condition:
+            lambda: return id(g_par3) < 8;
+          then:
+            - script.execute: s_par3
+      - delay: 200ms
+  - id: s_par4
+    mode: parallel
+    max_runs: 4
+    then:
+      - lambda: id(g_par4)++;
+      - logger.log: {format: "M par4_run %d", args: [id(g_par4)]}
+      - if:
+          condition:
+            lambda: return id(g_par4) < 8;
+          then:
+            - script.execute: s_par4
+      - delay: 200ms
+  - id: master
+    mode: single
+    then:
+      - logger.log: "M c1_chain_start"
+      - lambda: id(g_a) = 1;
+      - globals.set: {id: g_b, value: "2"}
+      - logger.log: {format: "M c1_vals %d %d", args: [id(g_a), id(g_b)]}
+      - switch.turn_on: sw
+      - number.set: {id: num, value: 42}
+      - select.set: {id: sel, option: b}
+      - lambda: |-
+          int local = id(g_a) + id(g_b);
+          if (local > 0) { ESP_LOGI("main", "M c1_lambda_local %d", local); return; }
+          ESP_LOGI("main", "M c1_lambda_NOT_REACHED");
+      - logger.log: "M c1_after_return"
+      - logger.log: "M c2_delay_chain_start"
+      - delay: 50ms
+      - logger.log: "M c2_after_delay"
+      - lambda: id(g_a) = 5;
+      - delay: 0ms
+      - logger.log: {format: "M c2_end %d", args: [id(g_a)]}
+      - logger.log: "M c3_if_start"
+      - repeat:
+          count: 4
+          then:
+            - if:
+                condition:
+                  and:
+                    - lambda: return iteration % 2 == 0;
+                    - not:
+                        lambda: return iteration == 2;
+                then:
+                  - logger.log: {format: "M c3_even_not2 %d", args: [iteration]}
+                else:
+                  - if:
+                      condition:
+                        or:
+                          - lambda: return iteration == 1;
+                          - xor:
+                              - lambda: return iteration == 2;
+                              - lambda: return false;
+                      then:
+                        - logger.log: {format: "M c3_or_xor %d", args: [iteration]}
+                      else:
+                        - logger.log: {format: "M c3_else %d", args: [iteration]}
+      - logger.log: "M c4_choose_start"
+      - repeat:
+          count: 3
+          then:
+            - choose:
+                - if:
+                    lambda: return iteration == 0;
+                  then:
+                    - logger.log: {format: "M c4_choice0 %d", args: [iteration]}
+                - if:
+                    lambda: return iteration == 1;
+                  then:
+                    - logger.log: {format: "M c4_choice1 %d", args: [iteration]}
+                - else:
+                    - logger.log: {format: "M c4_default %d", args: [iteration]}
+      - logger.log: "M c5_while_start"
+      - globals.set: {id: g_a, value: "0"}
+      - while:
+          condition:
+            lambda: return id(g_a) < 4;
+          then:
+            - logger.log: {format: "M c5_while %d", args: [id(g_a)]}
+            - lambda: id(g_a)++;
+      - logger.log: {format: "M c5_while_done %d", args: [id(g_a)]}
+      - globals.set: {id: g_a, value: "0"}
+      - while:
+          condition:
+            lambda: return id(g_a) < 3;
+          then:
+            - logger.log: {format: "M c5_while_delay %d", args: [id(g_a)]}
+            - delay: 20ms
+            - lambda: id(g_a)++;
+      - logger.log: {format: "M c5_while_delay_done %d", args: [id(g_a)]}
+      - logger.log: "M c6_repeat_start"
+      - repeat:
+          count: 2
+          then:
+            - lambda: id(g_b) = iteration;
+            - repeat:
+                count: 3
+                then:
+                  - logger.log: {format: "M c6_nested outer=%d inner=%d", args: [id(g_b), iteration]}
+      - repeat:
+          count: !lambda "return id(g_b) + 2;"
+          then:
+            - logger.log: {format: "M c6_dyn %d", args: [iteration]}
+            - delay: 10ms
+      - logger.log: "M c7_wait_until_start"
+      - lambda: |-
+          id(g_tick) = 0;
+          id(g_ticking) = true;
+      - wait_until:
+          condition:
+            lambda: return id(g_tick) >= 3;
+          timeout: 2s
+      - logger.log: {format: "M c7_waited %d", args: [(int) (id(g_tick) >= 3)]}
+      - wait_until:
+          condition:
+            for:
+              time: 300ms
+              condition:
+                lambda: return id(g_tick) >= 3;
+          timeout: 3s
+      - lambda: id(g_ticking) = false;
+      - logger.log: "M c7_for_done"
+      - logger.log: "M c8_scripts_start"
+      - script.execute: {id: s_single, x: 1}
+      - script.execute: {id: s_single, x: 2}
+      - script.wait: s_single
+      - script.execute: {id: s_restart, x: 1, s: one}
+      - delay: 40ms
+      - script.execute: {id: s_restart, x: 2, s: two}
+      - script.wait: s_restart
+      - script.execute: {id: s_queued, x: 1}
+      - script.execute: {id: s_queued, x: 2}
+      - script.execute: {id: s_queued, x: 3}
+      - script.wait: s_queued
+      - script.execute: {id: s_parallel, x: 2}
+      - script.execute: {id: s_parallel, x: 1}
+      - script.wait: s_parallel
+      - logger.log: "M c9_selfstop_start"
+      - script.execute: s_selfstop
+      - script.wait: s_selfstop
+      - logger.log: {format: "M c9_selfstop_g_a %d", args: [id(g_a)]}
+      - logger.log: "M c10_sensor_start"
+      - sensor.template.publish: {id: sens, state: 60}
+      - sensor.template.publish: {id: sens, state: 30}
+      - sensor.template.publish: {id: sens, state: 5}
+      - logger.log: "M c11_acp_start"
+      - alarm_control_panel.arm_away: acp
+      - delay: 100ms
+      - alarm_control_panel.disarm: {id: acp, code: "1234"}
+      - delay: 100ms
+      - logger.log: "M c12_parself_start"
+      - globals.set: {id: g_par, value: "0"}
+      - script.execute: s_par_self
+      - delay: 800ms
+      - logger.log: {format: "M c12_parself_total %d", args: [id(g_par)]}
+      - logger.log: "M c13_parmax_start"
+      - globals.set: {id: g_par3, value: "0"}
+      - script.execute: s_par3
+      - delay: 800ms
+      - logger.log: {format: "M c13_par3_total %d", args: [id(g_par3)]}
+      - globals.set: {id: g_par4, value: "0"}
+      - script.execute: s_par4
+      - delay: 800ms
+      - logger.log: {format: "M c13_par4_total %d", args: [id(g_par4)]}
+      - switch.turn_off: sw
+      - logger.log: "M done"
+
+esphome:
+  on_boot:
+    priority: -100
+    then:
+      - logger.log: "M boot"
+      - delay: 8s
+      - script.execute: master

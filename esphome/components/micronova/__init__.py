@@ -30,7 +30,7 @@ def _get_data() -> MicronovaData:
     return CORE.data[DOMAIN]
 
 
-CONF_MICRONOVA_ID = f"{DOMAIN}_id"
+CONF_MICRONOVA_ID = "micronova_id"
 CONF_ENABLE_RX_PIN = "enable_rx_pin"
 CONF_MEMORY_LOCATION = "memory_location"
 CONF_MEMORY_ADDRESS = "memory_address"

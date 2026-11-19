@@ -15,10 +15,8 @@ static const uint8_t TC74_DATA_READY_MASK = 0x40;
 // being set does not constitute a failure.
 void TC74Component::setup() {
   uint8_t config_reg;
-  if (this->read_register(TC74_REGISTER_CONFIGURATION, &config_reg, 1) != i2c::ERROR_OK) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->read_register(TC74_REGISTER_CONFIGURATION, &config_reg, 1) == i2c::ERROR_OK))
     return;
-  }
   this->data_ready_ = config_reg & TC74_DATA_READY_MASK;
 }
 
@@ -33,10 +31,8 @@ void TC74Component::dump_config() {
 void TC74Component::read_temperature_() {
   if (!this->data_ready_) {
     uint8_t config_reg;
-    if (this->read_register(TC74_REGISTER_CONFIGURATION, &config_reg, 1) != i2c::ERROR_OK) {
-      this->status_set_warning();
+    if (!this->status_comm_check(this->read_register(TC74_REGISTER_CONFIGURATION, &config_reg, 1) == i2c::ERROR_OK))
       return;
-    }
 
     if (config_reg & TC74_DATA_READY_MASK) {
       this->data_ready_ = true;
@@ -47,15 +43,12 @@ void TC74Component::read_temperature_() {
   }
 
   int8_t temperature_reg;
-  if (this->read_register(TC74_REGISTER_TEMPERATURE, reinterpret_cast<uint8_t *>(&temperature_reg), 1) !=
-      i2c::ERROR_OK) {
-    this->status_set_warning();
+  auto *temperature_buf = reinterpret_cast<uint8_t *>(&temperature_reg);
+  if (!this->status_comm_result(this->read_register(TC74_REGISTER_TEMPERATURE, temperature_buf, 1) == i2c::ERROR_OK))
     return;
-  }
 
   ESP_LOGD(TAG, "Got Temperature=%d °C", temperature_reg);
   this->publish_state(temperature_reg);
-  this->status_clear_warning();
 }
 
 }  // namespace esphome::tc74

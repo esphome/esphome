@@ -1,0 +1,26 @@
+climate:
+  - platform: airton_serial
+    id: airton_serial_climate
+    name: Airton Serial Climate
+
+switch:
+  - platform: airton_serial
+    airton_serial_id: airton_serial_climate
+    display:
+      name: Display
+    ionizer:
+      name: Ionizer
+    sleep:
+      name: Sleep
+    eco:
+      name: Eco
+    health:
+      name: Health
+
+sensor:
+  - platform: airton_serial
+    airton_serial_id: airton_serial_climate
+    total_usage_time:
+      name: Total usage time
+    revision:
+      name: Protocol revision

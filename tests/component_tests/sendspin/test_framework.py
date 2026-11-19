@@ -1,7 +1,7 @@
 """Validation tests for the frameworks the sendspin hub builds on.
 
-sendspin-cpp needs noise-c as an ESP-IDF component, which Arduino below IDF 6.0
-cannot use, so the hub is ESP-IDF only.
+sendspin-cpp needs noise-c as an ESP-IDF component, which Arduino cannot always
+use, so the hub is ESP-IDF only.
 """
 
 import pytest
