@@ -55,11 +55,11 @@ def test_zigbee_entity_validators_inject_ids(
     assert validated is config
     if inject_ids:
         assert isinstance(config[CONF_ZIGBEE_ID], ID)
-        assert config[CONF_ZIGBEE_ID].type == ZigbeeComponent
+        assert config[CONF_ZIGBEE_ID].type is ZigbeeComponent
 
         entity_id = config[entity_key]
         assert isinstance(entity_id, ID)
-        assert entity_id.type == getattr(zigbee, entity_type)
+        assert entity_id.type is getattr(zigbee, entity_type)
     else:
         assert CONF_ZIGBEE_ID not in config
         assert entity_key not in config
