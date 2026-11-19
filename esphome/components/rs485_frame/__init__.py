@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import uart
+from esphome.components.const import CONF_ON_FRAME
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DELAY,
@@ -58,7 +59,6 @@ CONF_GATE = "gate"
 CONF_MAX_FRAME_LENGTH = "max_frame_length"
 CONF_MAX_QUEUE_SIZE = "max_queue_size"
 CONF_MIN_SILENCE = "min_silence"
-CONF_ON_FRAME = "on_frame"
 CONF_POSTAMBLE = "postamble"
 CONF_PREAMBLE = "preamble"
 CONF_QUEUE_POLICY = "queue_policy"

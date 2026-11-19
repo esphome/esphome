@@ -34,7 +34,7 @@ from typing import Any
 # Add esphome to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from helpers import BASE_BUS_COMPONENTS, is_validate_only_file
+from helpers import BASE_BUS_COMPONENTS, BENCHMARK_YAML_FILENAME, is_validate_only_file
 
 from esphome import yaml_util
 from esphome.config_helpers import Extend, Remove
@@ -107,6 +107,8 @@ ISOLATED_COMPONENTS = {
     "tinyusb_keyboard": "Depends on tinyusb which conflicts with usb_host",
     "uart_mux": "Depends on tinyusb which conflicts with usb_host",
     "usb_cdc_acm": "Depends on tinyusb which conflicts with usb_host",
+    "web_server_idf": "Its HTTPS variant (test-ssl) can't be merged with web_server or captive_portal, and grouped runs skip variants",
+    "brizlabs_led_string": "Takes SPI2_HOST for itself, which the shared spi: test bus also uses",
 }
 
 
@@ -306,6 +308,10 @@ def analyze_component(component_dir: Path) -> tuple[dict[str, list[str]], bool, 
         # (e.g. a !extend used only to exercise schema validation must not
         # disqualify the whole component from being grouped).
         if is_validate_only_file(yaml_file):
+            continue
+        # benchmark.yaml only feeds the C++ unit test build (script/cpp_unit_test.py);
+        # its buses never reach the grouped build test.
+        if yaml_file.name == BENCHMARK_YAML_FILENAME:
             continue
 
         analysis = analyze_yaml_file(yaml_file)

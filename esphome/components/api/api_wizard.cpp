@@ -95,6 +95,8 @@ void APIConnection::on_wizard_input_set_request(const WizardInputSetRequest &msg
   if (entity_id == nullptr)
     return;
 #ifdef USE_API_WIZARD_LINKED_INPUTS
+  // The subscriptions to the buffer keep the length of the id it held
+  this->parent_->update_state_subscription_entity_id(entity_id);
   // Entities subscribed to the buffer before it held an entity id, so every client needs to learn of it now
   for (auto &client : this->parent_->active_clients()) {
     client->resend_state_subscriptions(entity_id);
