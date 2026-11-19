@@ -22,6 +22,16 @@ audio_analyzer:
     release: 300ms
 
 sensor:
+  - platform: audio_analyzer
+    audio_analyzer_id: mic_analyzer
+    update_interval: 2s
+    rms:
+      name: Mic RMS
+    bands:
+      - band: 0
+        name: Mic Band 0
+      - band: 11
+        name: Mic Band 11
   - platform: template
     name: Mic Loudest Band
     lambda: |-

@@ -24,6 +24,7 @@ from esphome.components.audio_analyzer import (
     band_bins,
     smoothing_factor,
 )
+from esphome.components.audio_analyzer.sensor import CONFIG_SCHEMA as SENSOR_SCHEMA
 from esphome.config import Config
 from esphome.const import CONF_ID, PlatformFramework
 from esphome.core import ID
@@ -31,6 +32,7 @@ from esphome.types import ConfigType
 from tests.component_tests.types import SetCoreConfigCallable
 
 MIC_ID = "mic"
+ANALYZER_ID = "analyzer"
 
 
 def _full_config(mic: ConfigType) -> Config:
@@ -247,3 +249,21 @@ def test_microphone_rate_rejected(
     set_core_config(PlatformFramework.ESP32_IDF, full_config=_full_config(mic))
     with pytest.raises(cv.Invalid, match=message):
         _validate_mic(max_frequency="4000Hz")
+
+
+@pytest.mark.parametrize(
+    ("config", "message"),
+    [
+        ({}, "at least one of rms, bands"),
+        (
+            {"bands": [{"band": 1, "name": "a"}, {"band": 1, "name": "b"}]},
+            "Each band can only have one sensor",
+        ),
+        ({"bands": []}, "length of value must be at least 1"),
+    ],
+)
+def test_sensor_rejected(config: ConfigType, message: str) -> None:
+    with pytest.raises(cv.Invalid, match=message):
+        SENSOR_SCHEMA(
+            {"audio_analyzer_id": ID(ANALYZER_ID, is_declaration=False), **config}
+        )
