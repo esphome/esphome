@@ -60,18 +60,13 @@ CONF_VALVES = "valves"
 
 sprinkler_ns = cg.esphome_ns.namespace("sprinkler")
 Sprinkler = sprinkler_ns.class_("Sprinkler", cg.Component)
+SprinklerValve = sprinkler_ns.struct("SprinklerValve")
 SprinklerControllerNumber = sprinkler_ns.class_(
     "SprinklerControllerNumber", number.Number, cg.Component
 )
 SprinklerControllerSwitch = sprinkler_ns.class_(
     "SprinklerControllerSwitch", switch.Switch, cg.Component
 )
-
-StartSingleValveAction = sprinkler_ns.class_(
-    "StartSingleValveAction", automation.Action
-)
-ShutdownAction = sprinkler_ns.class_("ShutdownAction", automation.Action)
-ResumeOrStartAction = sprinkler_ns.class_("ResumeOrStartAction", automation.Action)
 
 
 def validate_min_max(config):
@@ -182,7 +177,10 @@ SPRINKLER_ACTION_REPEAT_SCHEMA = cv.maybe_simple_value(
 SPRINKLER_ACTION_SINGLE_VALVE_SCHEMA = cv.maybe_simple_value(
     {
         cv.GenerateID(): cv.use_id(Sprinkler),
-        cv.Optional(CONF_RUN_DURATION): cv.templatable(cv.positive_time_period_seconds),
+        # 0 is the valve's own run duration, as when start_single_valve() gets none
+        cv.Optional(CONF_RUN_DURATION, default="0s"): cv.templatable(
+            cv.positive_time_period_seconds
+        ),
         cv.Required(CONF_VALVE_NUMBER): cv.templatable(cv.positive_int),
     },
     key=CONF_VALVE_NUMBER,
@@ -460,41 +458,19 @@ for _name, _schema, _apply in (
     ),
     ("sprinkler.pause", SPRINKLER_ACTION_SCHEMA, automation.ApplyCall("pause()")),
     ("sprinkler.resume", SPRINKLER_ACTION_SCHEMA, automation.ApplyCall("resume()")),
+    (
+        "sprinkler.resume_or_start_full_cycle",
+        SPRINKLER_ACTION_SCHEMA,
+        automation.ApplyCall("resume_or_start_full_cycle()"),
+    ),
+    ("sprinkler.shutdown", SPRINKLER_ACTION_SCHEMA, automation.ApplyCall("shutdown()")),
+    (
+        "sprinkler.start_single_valve",
+        SPRINKLER_ACTION_SINGLE_VALVE_SCHEMA,
+        automation.ApplyCall("start_single_valve({}, {})", _VALVE_AND_DURATION),
+    ),
 ):
     automation.register_apply_action(_name, _schema, _apply)
-
-
-@automation.register_action(
-    "sprinkler.start_single_valve",
-    StartSingleValveAction,
-    SPRINKLER_ACTION_SINGLE_VALVE_SCHEMA,
-    synchronous=True,
-)
-async def sprinkler_start_single_valve_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_VALVE_NUMBER], args, cg.size_t)
-    cg.add(var.set_valve_to_start(template_))
-    if CONF_RUN_DURATION in config:
-        template_ = await cg.templatable(config[CONF_RUN_DURATION], args, cg.uint32)
-        cg.add(var.set_valve_run_duration(template_))
-    return var
-
-
-automation.register_simple_action(
-    "sprinkler.resume_or_start_full_cycle",
-    ResumeOrStartAction,
-    SPRINKLER_ACTION_SCHEMA,
-    synchronous=True,
-)
-
-
-automation.register_simple_action(
-    "sprinkler.shutdown",
-    ShutdownAction,
-    SPRINKLER_ACTION_SCHEMA,
-    synchronous=True,
-)
 
 
 async def to_code(config):
@@ -504,7 +480,12 @@ async def to_code(config):
         else:
             name = sprinkler_controller[CONF_VALVES][0][CONF_VALVE_SWITCH][CONF_NAME]
         name = sprinkler_controller.get(CONF_NAME, name)
-        var = cg.new_Pvariable(sprinkler_controller[CONF_ID], name)
+        valves = cg.static_storage(
+            sprinkler_controller[CONF_ID],
+            SprinklerValve,
+            len(sprinkler_controller[CONF_VALVES]),
+        )
+        var = cg.new_Pvariable(sprinkler_controller[CONF_ID], name, valves)
 
         await cg.register_component(var, sprinkler_controller)
 

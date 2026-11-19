@@ -53,7 +53,7 @@ ErrorCode I2CDevice::read_register16(uint16_t a_register, uint8_t *data, size_t 
 }
 
 ErrorCode I2CDevice::write_register(uint8_t a_register, const uint8_t *data, size_t len) const {
-  SmallBufferWithHeapFallback<17> buffer_alloc(len + 1);  // Most I2C writes are <= 16 bytes
+  SmallBufferWithHeapFallback<19> buffer_alloc(len + 1);  // Up to 18 data bytes stay on the stack
   uint8_t *buffer = buffer_alloc.get();
 
   buffer[0] = a_register;
@@ -62,7 +62,7 @@ ErrorCode I2CDevice::write_register(uint8_t a_register, const uint8_t *data, siz
 }
 
 ErrorCode I2CDevice::write_register16(uint16_t a_register, const uint8_t *data, size_t len) const {
-  SmallBufferWithHeapFallback<18> buffer_alloc(len + 2);  // Most I2C writes are <= 16 bytes + 2 for register
+  SmallBufferWithHeapFallback<20> buffer_alloc(len + 2);  // Up to 18 data bytes stay on the stack
   uint8_t *buffer = buffer_alloc.get();
 
   put_be16(buffer, a_register);
@@ -99,6 +99,15 @@ bool I2CDevice::update_register(uint8_t a_register, uint8_t mask, uint8_t value)
   const uint8_t updated = (data & ~mask) | (value & mask);
   ESP_LOGV(TAG, "Register 0x%02X: 0x%02X -> 0x%02X", a_register, data, updated);
   return this->write_byte(a_register, updated);
+}
+
+bool I2CDevice::update_register16(uint16_t a_register, uint8_t mask, uint8_t value) {
+  uint8_t data;
+  if (!this->read_byte_reg16(a_register, &data))
+    return false;
+  const uint8_t updated = (data & ~mask) | (value & mask);
+  ESP_LOGV(TAG, "Register 0x%04X: 0x%02X -> 0x%02X", a_register, data, updated);
+  return this->write_byte_reg16(a_register, updated);
 }
 
 bool I2CDevice::write_bytes_16(uint8_t a_register, const uint16_t *data, uint8_t len) const {

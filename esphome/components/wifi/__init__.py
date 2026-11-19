@@ -163,6 +163,8 @@ CONF_BAND_MODE = "band_mode"
 CONF_DEVICE_INFO = "device_info"
 CONF_DPP = "dpp"
 CONF_MIN_AUTH_MODE = "min_auth_mode"
+CONF_ON_AP_START = "on_ap_start"
+CONF_ON_AP_STOP = "on_ap_stop"
 CONF_ON_DPP_URI = "on_dpp_uri"
 CONF_PHY_MODE = "phy_mode"
 CONF_POST_CONNECT_ROAMING = "post_connect_roaming"
@@ -296,11 +298,14 @@ AP_MANUAL_IP_SCHEMA = cv.Schema(
     }
 )
 
-STA_MANUAL_IP_SCHEMA = AP_MANUAL_IP_SCHEMA.extend(
-    {
-        cv.Optional(CONF_DNS1, default="0.0.0.0"): cv.ipv4address,
-        cv.Optional(CONF_DNS2, default="0.0.0.0"): cv.ipv4address,
-    }
+STA_MANUAL_IP_SCHEMA = cv.All(
+    AP_MANUAL_IP_SCHEMA.extend(
+        {
+            cv.Optional(CONF_DNS1, default="0.0.0.0"): cv.ipv4address,
+            cv.Optional(CONF_DNS2, default="0.0.0.0"): cv.ipv4address,
+        }
+    ),
+    require_ipv4(DOMAIN, CONF_MANUAL_IP),
 )
 
 TTLS_PHASE_2 = {
@@ -386,6 +391,7 @@ def wifi_network_ap(value):
     if value is None:
         value = {}
     config = WIFI_NETWORK_AP(value)
+    require_ipv4(DOMAIN, CONF_AP)(config)
     ap_mode = config[CONF_AP_MODE]
     if ap_mode == WIFI_AP_MODE_WISP and not config.get(CONF_PASSWORD):
         raise cv.Invalid(
@@ -686,6 +692,7 @@ def _lease_cache_schema(value: Any) -> ConfigType:
     value = LEASE_CACHE_SCHEMA(value)
     if value[CONF_ENABLED]:
         cv.only_on_esp32(value)
+        require_ipv4(DOMAIN, CONF_LEASE_CACHE)(value)
         if CONF_STORAGE not in value:
             if not preferences.rtc_supported():
                 raise cv.Invalid(
@@ -755,6 +762,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_PASSIVE_SCAN, default=False): cv.boolean,
             cv.Optional(CONF_ENABLE_ON_BOOT, default=True): cv.boolean,
             cv.Optional(CONF_POST_CONNECT_ROAMING, default=True): cv.boolean,
+            cv.Optional(CONF_ON_AP_START): automation.validate_automation(single=True),
+            cv.Optional(CONF_ON_AP_STOP): automation.validate_automation(single=True),
             cv.Optional(CONF_ON_CONNECT): automation.validate_automation(single=True),
             cv.Optional(CONF_ON_DISCONNECT): automation.validate_automation(
                 single=True
@@ -765,6 +774,7 @@ CONFIG_SCHEMA = cv.All(
             ),
         }
     ),
+    cv.key_requires((CONF_ON_AP_START, CONF_ON_AP_STOP), CONF_AP),
     cv.key_requires(CONF_ON_DPP_URI, CONF_DPP),
     cv.key_requires(CONF_PASSWORD, CONF_SSID),
     cv.key_requires(
@@ -775,7 +785,6 @@ CONFIG_SCHEMA = cv.All(
     _apply_min_auth_mode_default,
     _validate,
     _report_provisioning_credentials,
-    require_ipv4(DOMAIN),
 )
 
 
@@ -1088,6 +1097,14 @@ async def to_code(config):
     await cg.register_component(var, config)
 
     await cg.past_safe_mode()
+
+    for conf_key, define, setter in (
+        (CONF_ON_AP_START, "USE_WIFI_AP_START_TRIGGER", var.set_on_ap_start),
+        (CONF_ON_AP_STOP, "USE_WIFI_AP_STOP_TRIGGER", var.set_on_ap_stop),
+    ):
+        if (conf := config.get(conf_key)) is not None:
+            cg.add_define(define)
+            cg.add(setter(await automation.build_trigger_callback([], conf, params=[])))
 
     if on_connect_config := config.get(CONF_ON_CONNECT):
         cg.add_define("USE_WIFI_CONNECT_TRIGGER")
