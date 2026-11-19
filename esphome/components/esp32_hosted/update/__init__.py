@@ -12,8 +12,16 @@ import esphome.codegen as cg
 from esphome.components import esp32, update
 from esphome.components.const import CONF_SHA256
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_PATH, CONF_SOURCE, CONF_TYPE, CONF_URL
+from esphome.const import (
+    CONF_ID,
+    CONF_PATH,
+    CONF_SOURCE,
+    CONF_TYPE,
+    CONF_URL,
+    CONF_VARIANT,
+)
 from esphome.core import CORE, ID, HexInt
+import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
@@ -152,7 +160,29 @@ def _validate_firmware(config: ConfigType) -> None:
                 time.sleep(CACHE_RACE_RETRY_S)
 
 
-FINAL_VALIDATE_SCHEMA = _validate_firmware
+ESP32C5_PARTITION_TABLE_URL = "https://github.com/esphome/esp-hosted-firmware/issues/34"
+
+
+def _warn_esp32c5_partition_table() -> None:
+    """Warn that ESP32-C5 firmware has to match the partition table offset on the chip."""
+    if fv.full_config.get()["esp32_hosted"][CONF_VARIANT] != esp32.VARIANT_ESP32C5:
+        return
+    _LOGGER.warning(
+        "An ESP32-C5 coprocessor only starts firmware built for the partition table "
+        "offset already on the chip: 0xc000 if it came with ESP-Hosted 2.x, 0x8000 if "
+        "it was flashed with a stock 3.x build. An update built for the other offset "
+        "leaves the coprocessor unable to start, and recovery needs a serial "
+        "connection to it. See %s",
+        ESP32C5_PARTITION_TABLE_URL,
+    )
+
+
+def _final_validate(config: ConfigType) -> None:
+    _validate_firmware(config)
+    _warn_esp32c5_partition_table()
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config: dict[str, Any]) -> None:
