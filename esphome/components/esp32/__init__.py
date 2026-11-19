@@ -2856,7 +2856,14 @@ async def _reconcile_mbedtls_sdkconfig() -> None:
             # larger than the hardware supports need the software MPI.
             set_idf_sdkconfig_default("CONFIG_MBEDTLS_PEM_PARSE_C", False)
             set_idf_sdkconfig_default("CONFIG_MBEDTLS_LARGE_KEY_SOFTWARE_MPI", False)
+            # A P-384 app signing key (set through sdkconfig_options) verifies
+            # updates with that curve, and nothing selects it.
+            keep_p384 = is_idf_sdkconfig_option_enabled(
+                "CONFIG_SECURE_BOOT_ECDSA_KEY_LEN_384_BITS"
+            )
             for option in MBEDTLS_NON_P256_CURVE_OPTIONS:
+                if keep_p384 and option == "CONFIG_MBEDTLS_ECP_DP_SECP384R1_ENABLED":
+                    continue
                 set_idf_sdkconfig_default(option, False)
     elif (
         # TLS stays in: trim it to the client role unless a component accepts

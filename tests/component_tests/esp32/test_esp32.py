@@ -926,6 +926,27 @@ _IDF61 = cv.Version(6, 1, 1)
             id="idf6_user_curve_wins",
         ),
         pytest.param(
+            # A P-384 app signing key keeps the P-384 curve.
+            PlatformFramework.ESP32_IDF,
+            _IDF6,
+            MbedtlsSdkconfigData(),
+            {"CONFIG_SECURE_BOOT_ECDSA_KEY_LEN_384_BITS": RawSdkconfigValue("y")},
+            {
+                **{
+                    k: v
+                    for k, v in _TLS_OFF_IDF6.items()
+                    if k != "CONFIG_MBEDTLS_ECP_DP_SECP384R1_ENABLED"
+                },
+                "CONFIG_SECURE_BOOT_ECDSA_KEY_LEN_384_BITS": RawSdkconfigValue("y"),
+                **_TLS_EXTRAS_OFF,
+                **_PEER_CERT_PKCS7_OFF,
+                **_SHA512_OFF,
+                **_CIPHER_MODES_OFF,
+            },
+            set(_ESP_TLS_LINKING_COMPONENTS),
+            id="idf6_p384_signing_key_keeps_curve",
+        ),
+        pytest.param(
             PlatformFramework.ESP32_IDF,
             _IDF6,
             MbedtlsSdkconfigData(sha512_required=True),
