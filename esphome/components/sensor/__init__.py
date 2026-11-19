@@ -335,7 +335,8 @@ validate_unit_of_measurement = cv.All(
     # Keep in sync with max_data_length in api.proto
     cv.ByteLength(max=UNIT_OF_MEASUREMENT_MAX_LENGTH),
 )
-validate_accuracy_decimals = cv.int_
+# Stored in an int8_t in C++, values outside 0..127 would silently wrap
+validate_accuracy_decimals = cv.int_range(min=0, max=127)
 validate_icon = cv.icon
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
 
