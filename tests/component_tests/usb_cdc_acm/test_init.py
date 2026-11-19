@@ -6,6 +6,7 @@ from esphome import config_validation as cv
 from esphome.components import usb_cdc_acm
 from esphome.components.nrf52.const import (
     VARIANT_NRF54L15,
+    VARIANT_NRF51822,
     VARIANT_NRF52832,
     VARIANT_NRF52840,
 )
@@ -14,7 +15,9 @@ from esphome.const import PlatformFramework
 from tests.component_tests.types import SetCoreConfigCallable
 
 
-@pytest.mark.parametrize("variant", [VARIANT_NRF52832, VARIANT_NRF54L15])
+@pytest.mark.parametrize(
+    "variant", [VARIANT_NRF51822, VARIANT_NRF52832, VARIANT_NRF54L15]
+)
 def test_nrf52_variant_without_usb_rejected(
     set_core_config: SetCoreConfigCallable, variant: str
 ) -> None:
