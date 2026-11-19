@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import sensor
+from esphome.components.const import CONF_NOISE_FLOOR, CONF_SAMPLE_INTERVAL
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
@@ -14,9 +15,6 @@ from esphome.types import ConfigType
 from .. import CONF_SX126X_ID, SX126x, sx126x_ns
 
 DEPENDENCIES = ["sx126x"]
-
-CONF_NOISE_FLOOR = "noise_floor"
-CONF_SAMPLE_INTERVAL = "sample_interval"
 
 # Samples kept for one update; each is two bytes
 MAX_SAMPLES = 1000
