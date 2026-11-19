@@ -225,6 +225,10 @@ def validate_local_no_higher_than_global(config: ConfigType) -> ConfigType:
     # A level more verbose than the global one is compiled out, so it could never log or be captured
     global_level = config[CONF_LEVEL]
     global_level_index = LOG_LEVEL_SEVERITY.index(global_level)
+    config.setdefault(
+        CONF_BOOT_LOG_LEVEL,
+        min("WARN", global_level, key=LOG_LEVEL_SEVERITY.index),
+    )
     errs = []
     for key in (CONF_LOGS, CONF_BOOT_LOGS):
         for tag, level in config.get(key, {}).items():
@@ -331,7 +335,7 @@ CONFIG_SCHEMA = cv.All(
                     cv.int_range(min=512, max=16384),
                 ),
             ),
-            cv.Optional(CONF_BOOT_LOG_LEVEL, default="WARN"): is_log_level,
+            cv.Optional(CONF_BOOT_LOG_LEVEL): is_log_level,
             cv.Optional(CONF_BOOT_LOGS, default={}): cv.Schema(
                 {
                     cv.string: is_log_level,
