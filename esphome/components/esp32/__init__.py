@@ -2873,9 +2873,23 @@ _MBEDTLS_TRIM_KEPT_BY = {
     ),
 }
 
-_NO_HARDWARE_AES_VARIANTS = (VARIANT_ESP32C2, VARIANT_ESP32C61)
-# ESP-IDF 6.0 has no AES driver for the ESP32-H4 yet; 6.1 adds it.
-_NO_HARDWARE_AES_VARIANTS_IDF60 = (*_NO_HARDWARE_AES_VARIANTS, VARIANT_ESP32H4)
+# Variants with an AES driver (SOC_AES_SUPPORTED); a chip not listed keeps XTS.
+_HARDWARE_AES_VARIANTS_IDF60 = (
+    VARIANT_ESP32,
+    VARIANT_ESP32C3,
+    VARIANT_ESP32C5,
+    VARIANT_ESP32C6,
+    VARIANT_ESP32H2,
+    VARIANT_ESP32H21,
+    VARIANT_ESP32P4,
+    VARIANT_ESP32S2,
+    VARIANT_ESP32S3,
+)
+_HARDWARE_AES_VARIANTS = (
+    *_HARDWARE_AES_VARIANTS_IDF60,
+    VARIANT_ESP32H4,
+    VARIANT_ESP32S31,
+)
 
 
 def _uses_hardware_aes() -> bool:
@@ -2888,13 +2902,13 @@ def _uses_hardware_aes() -> bool:
     hardware_aes = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS].get(
         "CONFIG_MBEDTLS_HARDWARE_AES"
     )
-    no_aes = (
-        _NO_HARDWARE_AES_VARIANTS
+    aes_variants = (
+        _HARDWARE_AES_VARIANTS
         if idf_version() >= cv.Version(6, 1, 0)
-        else _NO_HARDWARE_AES_VARIANTS_IDF60
+        else _HARDWARE_AES_VARIANTS_IDF60
     )
     return (
-        get_esp32_variant() not in no_aes
+        get_esp32_variant() in aes_variants
         and (hardware_aes is None or _format_sdkconfig_val(hardware_aes) == "y")
         and not is_idf_sdkconfig_option_enabled(
             "CONFIG_SPIRAM_CACHE_WORKAROUND_STRATEGY_DUPLDST"
