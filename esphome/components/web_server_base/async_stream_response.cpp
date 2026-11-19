@@ -185,6 +185,11 @@ ssize_t AsyncStreamResponse::write(StreamIovec *iov, int iovcnt) {
   if (this->close_requested_) {
     return -1;
   }
+  // Gone for good, before or after attaching
+  if (!this->is_connected()) {
+    this->close();
+    return -1;
+  }
   // The request has not handed over the connection yet
   if (!this->is_attached()) {
     return 0;
@@ -196,10 +201,6 @@ ssize_t AsyncStreamResponse::write(StreamIovec *iov, int iovcnt) {
   // Nothing to send is not a stall
   if (iovecs_total(iov, iovcnt) == 0) {
     return 0;
-  }
-  if (!this->is_connected()) {
-    this->close();
-    return -1;
   }
   size_t sent = 0;
   const uint32_t now = App.get_loop_component_start_time();
