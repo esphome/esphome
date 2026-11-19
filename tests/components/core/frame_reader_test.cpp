@@ -428,6 +428,18 @@ TEST(LengthFrameReaderTest, ResetForgetsThePartialFrame) {
   EXPECT_EQ(feed_all(reader, {0xA5, 0x03, 0x22}), (Frames{{0xA5, 0x03, 0x22}}));
 }
 
+TEST(LengthFrameReaderTest, DropKeptLeavesAFrameStillComingIn) {
+  LengthFrameReader<16, Small> reader;
+  Collect handle;
+  for (uint8_t c : {0xA5, 0x06, 0x01})
+    reader.feed(c, handle);
+  reader.drop_kept();
+  EXPECT_EQ(reader.length(), 3u);
+  reader.flush(handle);
+  reader.drop_kept();
+  EXPECT_EQ(reader.length(), 0u);
+}
+
 TEST(LengthFrameReaderTest, IdleAfterHandledFrameFindsNothingInIt) {
   LengthFrameReader<16, Small> reader;
   Collect handle;
