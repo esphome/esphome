@@ -35,9 +35,7 @@ def _final_validate(config):
     for hub in hubs:
         if hub[CONF_ID].id == target:
             if hub.get(CONF_MODE, "rx") == MODE_RX:
-                raise cv.Invalid(
-                    "dmx number requires hub mode 'tx' or 'bidirectional', not 'rx'"
-                )
+                raise cv.Invalid("dmx number requires hub mode 'tx' or 'bidirectional', not 'rx'")
             break
     return config
 
@@ -48,13 +46,7 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
-    await number.register_number(
-        var,
-        config,
-        min_value=0,
-        max_value=255,
-        step=1,
-    )
+    await number.register_number(var, config, min_value=0, max_value=255, step=1)
 
     parent = await cg.get_variable(config[CONF_DMX_ID])
     cg.add(var.set_parent(parent))

@@ -52,3 +52,23 @@ sensor:
     channel: 1
     name: "DMX Channel 1 (fixed)"
     id: dmx_channel_1
+
+# Ligths: Dimmers have only 1 channels, RGB lights 3 channels, RGBW 4 channels
+light:
+  - platform: dmx
+    name: "DMX Dimmer"
+    dmx_id: dmx_bus
+    first_channel: 30
+    type: dimmer
+
+  - platform: dmx
+    name: "DMX RGB"
+    dmx_id: dmx_bus
+    first_channel: 50
+    type: rgb
+
+  - platform: dmx
+    name: "DMX RGBW"
+    dmx_id: dmx_bus
+    first_channel: 60
+    type: rgbw

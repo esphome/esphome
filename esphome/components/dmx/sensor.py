@@ -1,13 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import number, sensor
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_CHANNEL,
-    CONF_ID,
-    ICON_BRIGHTNESS_5,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_EMPTY,
-)
+from esphome.const import CONF_CHANNEL, CONF_ID, ICON_BRIGHTNESS_5, STATE_CLASS_MEASUREMENT, UNIT_EMPTY
 import esphome.final_validate as fv
 
 from . import (
@@ -20,7 +14,6 @@ from . import (
 )
 
 DEPENDENCIES = ["dmx"]
-
 CONF_CHANNEL_ID = "channel_id"
 
 CONFIG_SCHEMA = cv.All(
@@ -49,9 +42,7 @@ def _final_validate(config):
     for hub in hubs:
         if hub[CONF_ID].id == target:
             if hub.get(CONF_MODE, "rx") == MODE_TX:
-                raise cv.Invalid(
-                    "dmx sensor requires hub mode 'rx' or 'bidirectional', not 'tx'"
-                )
+                raise cv.Invalid("dmx sensor requires hub mode 'rx' or 'bidirectional', not 'tx'")
             break
     return config
 
@@ -62,7 +53,6 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 async def to_code(config):
     var = await sensor.new_sensor(config)
     parent = await cg.get_variable(config[CONF_DMX_ID])
-
     if CONF_CHANNEL in config:
         cg.add(register_channel_sensor(parent, config[CONF_CHANNEL], var))
     else:

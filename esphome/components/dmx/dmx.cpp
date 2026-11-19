@@ -64,8 +64,7 @@ void DMXComponent::loop() {
             this->last_rx_ms_ = millis();
             got_rx = true;
           } else {
-            ESP_LOGW(TAG, "Incomplete DMX read: expected %u bytes, received %u", static_cast<unsigned>(received_size),
-                     static_cast<unsigned>(bytes_read));
+            ESP_LOGW(TAG, "Incomplete DMX read: expected %u bytes, received %u", static_cast<unsigned>(received_size), static_cast<unsigned>(bytes_read));
           }
         }
       } else if (packet.err != DMX_OK) {
