@@ -389,6 +389,20 @@ TEST(LengthFrameReaderTest, NewBytesAtTheSearchedLengthAreSearchedAgain) {
   EXPECT_EQ(handle.seen, (Frames{{0x6E, 0x01}}));
 }
 
+TEST(LengthFrameReaderTest, ResyncAfterASearchedFrameIsSearchedAgain) {
+  // A5 with a whole-frame length at 3, and a fixed two-byte AA frame
+  LengthFrameReader<6, FrameFormat<FrameHeader<0xA5>, FrameLengthU8<LengthField{.offset = 3}>>,
+                    FrameFormat<FrameHeader<0xAA>, FrameFixedLength<2>>>
+      reader;
+  Collect handle;
+  for (uint8_t c : {0xA5, 0xA5, 0xAA})
+    reader.feed(c, handle);
+  reader.flush(handle);
+  reader.feed(0x07, handle);
+  reader.flush(handle);
+  EXPECT_EQ(handle.seen, (Frames{{0xAA, 0x07}}));
+}
+
 TEST(LengthFrameReaderTest, FlushKeepsTheFrameWhenEveryFrameInsideIsRejected) {
   LengthFrameReader<16, Small> reader;
   size_t calls = 0;
