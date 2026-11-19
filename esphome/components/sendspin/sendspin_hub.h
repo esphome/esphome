@@ -281,11 +281,14 @@ class SendspinHub final : public Component,
 #endif
 
 #ifdef USE_SENDSPIN_METADATA
+  void set_metadata_config(const sendspin::MetadataRoleConfig &config) { this->metadata_config_ = config; }
+
   /// @brief Registers a callback that fires when the server sends metadata.
   ///
   /// Also fires when the connection is lost, with an all-empty state object (every field nullopt, timestamp 0) meaning
   /// the cached metadata was dropped. Subscribers must treat an absent field as cleared, not as no update. The text
-  /// fields view the library's copy, so a subscriber copies what it keeps past the call.
+  /// fields view the library's copy, so a subscriber copies what it keeps past the call. A text field no text sensor
+  /// shows is always absent (see set_metadata_config()).
   template<typename F> void add_metadata_update_callback(F &&callback) {
     this->metadata_update_callbacks_.add(std::forward<F>(callback));
   }
@@ -410,6 +413,7 @@ class SendspinHub final : public Component,
 #endif
 
 #ifdef USE_SENDSPIN_METADATA
+  sendspin::MetadataRoleConfig metadata_config_{};
   sendspin::MetadataRole *metadata_role_{nullptr};
 
   void on_track_metadata(const sendspin::TrackMetadata &metadata) override;

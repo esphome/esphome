@@ -153,7 +153,7 @@ void SendspinHub::setup() {
 #endif
 
 #ifdef USE_SENDSPIN_METADATA
-  this->metadata_role_ = &this->client_->add_metadata();
+  this->metadata_role_ = &this->client_->add_metadata(this->metadata_config_);
   this->metadata_role_->set_listener(this);
 #endif
 
