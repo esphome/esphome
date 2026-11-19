@@ -346,6 +346,25 @@ TEST(LengthFrameReaderTest, FlushKeepsASlowFrameUntilTheRestArrives) {
   EXPECT_EQ(seen, (Frames{{0xA5, 0x06, 0xA5, 0x03, 0x01, 0x02}}));
 }
 
+TEST(LengthFrameReaderTest, FlushKeepsASlowFrameBehindTheFramesItHandsOver) {
+  LengthFrameReader<16, Small> reader;
+  Frames seen;
+  auto handle = [&seen](const uint8_t *frame, size_t len) {
+    seen.emplace_back(frame, frame + len);
+    return true;
+  };
+  // A corrupt length holds a whole frame, then the start of a slow one
+  for (uint8_t c : {0xA5, 0x0F, 0xA5, 0x04, 0x01, 0x02, 0xA5, 0x05, 0x11})
+    reader.feed(c, handle);
+  reader.flush(handle);
+  reader.flush(handle);
+  EXPECT_EQ(seen, (Frames{{0xA5, 0x04, 0x01, 0x02}}));
+  EXPECT_EQ(reader.length(), 3u);
+  for (uint8_t c : {0x22, 0x33})
+    reader.feed(c, handle);
+  EXPECT_EQ(seen, (Frames{{0xA5, 0x04, 0x01, 0x02}, {0xA5, 0x05, 0x11, 0x22, 0x33}}));
+}
+
 TEST(LengthFrameReaderTest, FlushKeepsTheFrameWhenEveryFrameInsideIsRejected) {
   LengthFrameReader<16, Small> reader;
   size_t calls = 0;

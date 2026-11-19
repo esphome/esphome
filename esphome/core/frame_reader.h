@@ -246,11 +246,11 @@ template<size_t N, class... FORMATS> class LengthFrameReader {
     const pos_t end = this->end_;
     uint8_t saved[N];
     std::memcpy(saved, this->buf_, pos);
-    bool handled = false;
-    while (this->pos_ != 0)
-      handled |= this->drain_(this->replay_(1, this->pos_), handle);
-    if (handled)
-      return;
+    while (this->pos_ != 0) {
+      // A partial frame left behind the handed over ones is searched on the next idle pass
+      if (this->drain_(this->replay_(1, this->pos_), handle))
+        return;
+    }
     std::memcpy(this->buf_, saved, pos);
     this->pos_ = pos;
     this->end_ = end;
