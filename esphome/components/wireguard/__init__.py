@@ -4,7 +4,8 @@ import re
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import network, time
-from esphome.components.esp32 import CORE, add_idf_sdkconfig_option
+from esphome.components.esp32 import CORE, add_idf_component, add_idf_sdkconfig_option
+from esphome.components.noise import LIBSODIUM_VERSION
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADDRESS,
@@ -153,6 +154,9 @@ async def to_code(config):
     # be automatically added to the provided list.
     cg.add_build_flag(f"-DCONFIG_WIREGUARD_MAX_SRC_IPS={len(allowed_ips) + 1}")
     cg.add_library("esphome/wireguard", "0.4.8")
+    # The converted library then uses the registry libsodium instead of its own copy
+    if CORE.is_esp32 and CORE.using_toolchain_esp_idf:
+        add_idf_component(name="esphome/libsodium", ref=LIBSODIUM_VERSION)
 
     await cg.register_component(var, config)
 
