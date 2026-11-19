@@ -1,5 +1,6 @@
 #include "max44009.h"
 
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::max44009 {
@@ -80,8 +81,8 @@ float MAX44009Sensor::read_illuminance_() {
 }
 
 float MAX44009Sensor::convert_to_lux_(uint8_t data_high, uint8_t data_low) {
-  uint8_t exponent = data_high >> 4;
-  uint32_t mantissa = ((data_high & 0x0F) << 4) + (data_low & 0x0F);
+  uint8_t exponent = high_nibble(data_high);
+  uint32_t mantissa = (low_nibble(data_high) << 4) | low_nibble(data_low);
   return ((0x0001 << exponent) * 0.045) * mantissa;
 }
 
@@ -115,20 +116,12 @@ bool MAX44009Sensor::set_low_power_mode() {
 
 uint8_t MAX44009Sensor::read_(uint8_t reg) {
   uint8_t data = 0;
-  if (!this->read_byte(reg, &data)) {
-    this->error_ = MAX44009_ERROR_WIRE_REQUEST;
-  } else {
-    this->error_ = MAX44009_OK;
-  }
+  this->error_ = this->read_byte(reg, &data) ? MAX44009_OK : MAX44009_ERROR_WIRE_REQUEST;
   return data;
 }
 
 void MAX44009Sensor::write_(uint8_t reg, uint8_t value) {
-  if (!this->write_byte(reg, value)) {
-    this->error_ = MAX44009_ERROR_WIRE_REQUEST;
-  } else {
-    this->error_ = MAX44009_OK;
-  }
+  this->error_ = this->write_byte(reg, value) ? MAX44009_OK : MAX44009_ERROR_WIRE_REQUEST;
 }
 
 }  // namespace esphome::max44009

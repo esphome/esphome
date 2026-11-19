@@ -14,21 +14,17 @@ void IRAM_ATTR TCA8418Component::interrupt_handler(TCA8418Component *arg) { arg-
 void TCA8418Component::setup() {
   //  The configuration register reads back, so use it to check the device is there.
   uint8_t config;
-  if (!this->read_byte(TCA8418_REG_CFG, &config)) {
-    this->mark_failed(LOG_STR("Failed to read from device - check wiring / address"));
+  if (!this->setup_check(this->read_byte(TCA8418_REG_CFG, &config),
+                         LOG_STR("Failed to read from device - check wiring / address")))
     return;
-  }
 
-  if (!this->configure_pins_()) {
-    this->mark_failed(LOG_STR("Failed to configure pins"));
+  if (!this->setup_check(this->configure_pins_(), LOG_STR("Failed to configure pins")))
     return;
-  }
 
   //  Report key events, and keep the interrupt asserted while events remain queued.
-  if (!this->write_byte(TCA8418_REG_CFG, TCA8418_CFG_KEY_INT_EN | TCA8418_CFG_INT_CFG)) {
-    this->mark_failed(LOG_STR("Failed to write the configuration register"));
+  if (!this->setup_check(this->write_byte(TCA8418_REG_CFG, TCA8418_CFG_KEY_INT_EN | TCA8418_CFG_INT_CFG),
+                         LOG_STR("Failed to write the configuration register")))
     return;
-  }
 
   if (this->interrupt_pin_ != nullptr) {
     this->interrupt_pin_->setup();
@@ -39,10 +35,8 @@ void TCA8418Component::setup() {
 
   //  Discard anything the device queued before it was configured, and clear
   //  every interrupt flag: leaving one set holds the interrupt output asserted.
-  if (!this->drain_events_(false)) {
-    this->mark_failed(LOG_STR("Failed to clear the event queue"));
+  if (!this->setup_check(this->drain_events_(false), LOG_STR("Failed to clear the event queue")))
     return;
-  }
 
   //  With an interrupt pin there is nothing to do until it fires. Stay running
   //  if the device still has something queued, since that produces no new edge.
@@ -126,14 +120,9 @@ uint8_t TCA8418Component::key_char_(uint8_t key) const {
 void TCA8418Component::dispatch_(uint8_t key, bool pressed) {
   ESP_LOGV(TAG, "Key %u %s", key, pressed ? LOG_STR_LITERAL("pressed") : LOG_STR_LITERAL("released"));
 
-#ifdef TCA8418_LISTENER_COUNT
-  for (auto *listener : this->listeners_) {
-    if (pressed) {
-      listener->key_pressed(key);
-    } else {
-      listener->key_released(key);
-    }
-  }
+#ifdef USE_TCA8418_KEY_PUBLISHER
+  if (this->key_publisher_ != nullptr)
+    this->key_publisher_(key, pressed);
 #endif
 
   if (!pressed)

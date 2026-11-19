@@ -1,0 +1,71 @@
+# substitutions: name
+esphome:
+  name: ${name}
+  includes:
+    - canself.hpp
+  on_boot:
+    priority: -100
+    then:
+      - delay: 3s
+      - lambda: canself::loop_back();
+      - repeat:
+          count: 20
+          then:
+            - lambda: canself::round(id(can0));
+            - delay: 500ms
+      - delay: 2s
+      - lambda: 'ESP_LOGI("canself", "DONE sent %u failed %u", (unsigned) canself::sent, (unsigned) canself::failed);'
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+logger:
+  level: DEBUG
+
+canbus:
+  - platform: esp32_can
+    id: can0
+    tx_pin: GPIO25
+    rx_pin: GPIO26
+    can_id: 0x100
+    bit_rate: 125kbps
+    mode: NO_ACK
+    rx_queue_len: 32
+    tx_queue_len: 16
+    on_frame:
+      - can_id: 0x101
+        then:
+          - lambda: 'ESP_LOGI("of", "T1 std101 id=0x%X rtr=%d len=%u d0=%02X", (unsigned) can_id, remote_transmission_request, (unsigned) x.size(), x.empty() ? 0 : x[0]);'
+      - can_id: 0x101
+        then:
+          - lambda: 'ESP_LOGI("of", "T2 std101again id=0x%X rtr=%d len=%u", (unsigned) can_id, remote_transmission_request, (unsigned) x.size());'
+      - can_id: 0x100
+        can_id_mask: 0x700
+        then:
+          - lambda: 'ESP_LOGI("of", "T3 mask100/700 id=0x%X rtr=%d len=%u", (unsigned) can_id, remote_transmission_request, (unsigned) x.size());'
+      - can_id: 0x101
+        use_extended_id: true
+        then:
+          - lambda: 'ESP_LOGI("of", "T4 ext101 id=0x%X rtr=%d len=%u d0=%02X", (unsigned) can_id, remote_transmission_request, (unsigned) x.size(), x.empty() ? 0 : x[0]);'
+      - can_id: 0x12345678
+        use_extended_id: true
+        then:
+          - lambda: 'ESP_LOGI("of", "T5 ext12345678 id=0x%X rtr=%d len=%u d7=%02X", (unsigned) can_id, remote_transmission_request, (unsigned) x.size(), x.size() > 7 ? x[7] : 0);'
+      - can_id: 0x101
+        remote_transmission_request: true
+        then:
+          - lambda: 'ESP_LOGI("of", "T6 std101 rtr-only id=0x%X rtr=%d len=%u", (unsigned) can_id, remote_transmission_request, (unsigned) x.size());'
+      - can_id: 0x101
+        remote_transmission_request: false
+        then:
+          - lambda: 'ESP_LOGI("of", "T7 std101 data-only id=0x%X rtr=%d len=%u", (unsigned) can_id, remote_transmission_request, (unsigned) x.size());'
+      - can_id: 0x1FF
+        can_id_mask: 0x0FF
+        then:
+          - lambda: 'ESP_LOGI("of", "T8 id-outside-mask id=0x%X", (unsigned) can_id);'
+      - can_id: 0x000
+        can_id_mask: 0x000
+        then:
+          - lambda: 'ESP_LOGI("of", "T9 any-std id=0x%X len=%u", (unsigned) can_id, (unsigned) x.size());'

@@ -1,5 +1,6 @@
 #include "adc128s102.h"
 #include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::adc128s102 {
 
@@ -22,7 +23,7 @@ uint16_t ADC128S102::read_data(uint8_t channel) {
   uint8_t adc_secondary_byte = this->transfer_byte(0x00);
   this->disable();
 
-  uint16_t digital_value = adc_primary_byte << 8 | adc_secondary_byte;
+  uint16_t digital_value = encode_uint16(adc_primary_byte, adc_secondary_byte);
 
   return digital_value;
 }

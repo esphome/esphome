@@ -1,0 +1,25 @@
+esphome:
+  name: rmt-test
+
+esp32:
+  variant: esp32s3
+  framework:
+    type: esp-idf
+
+# The small strip is registered and set up first, then the large one can extend into the
+# free RX blocks
+light:
+  - platform: esp32_rmt_led_strip
+    id: status_led
+    chipset: WS2812
+    channel_colors: GRB
+    pin: GPIO4
+    num_leds: 1
+    rmt_symbols: 48
+  - platform: esp32_rmt_led_strip
+    id: matrix
+    chipset: WS2812
+    channel_colors: GRB
+    pin: GPIO5
+    num_leds: 64
+    rmt_symbols: 288

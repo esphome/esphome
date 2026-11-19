@@ -1,0 +1,274 @@
+esphome:
+  name: test-sensor-filters-apply
+
+host:
+api:
+logger:
+  level: DEBUG
+
+sensor:
+  - platform: template
+    name: "Source"
+    id: source
+    update_interval: never
+
+  - platform: template
+    id: x
+    update_interval: never
+
+  - platform: copy
+    source_id: source
+    id: offset_const
+    internal: true
+    filters:
+      - offset: 2.5
+    on_value:
+      - logger.log:
+          format: "OUT offset_const=%.9g"
+          args: [x]
+
+  - platform: copy
+    source_id: source
+    id: offset_lambda
+    internal: true
+    filters:
+      - offset: !lambda |-
+            float base = 1.0f;
+            return base + 0.25f;
+    on_value:
+      - logger.log:
+          format: "OUT offset_lambda=%.9g"
+          args: [x]
+
+  - platform: copy
+    source_id: source
+    id: offset_id_x
+    internal: true
+    filters:
+      - offset: !lambda return id(x).state;
+    on_value:
+      - logger.log:
+          format: "OUT offset_id_x=%.9g"
+          args: [x]
+
+  - platform: copy
+    source_id: source
+    id: multiply_const
+    internal: true
+    filters:
+      - multiply: 1.5
+    on_value:
+      - logger.log:
+          format: "OUT multiply_const=%.9g"
+          args: [x]
+
+  - platform: copy
+    source_id: source
+    id: multiply_lambda
+    internal: true
+    filters:
+      - multiply: !lambda return 1.0f + 1.0f;
+    on_value:
+      - logger.log:
+          format: "OUT multiply_lambda=%.9g"
+          args: [x]
+
+  - platform: copy
+    source_id: source
+    id: clamp_min
+    internal: true
+    filters:
+      - clamp:
+          min_value: 0
+    on_value:
+      - logger.log:
+          format: "OUT clamp_min=%.9g"
+          args: [x]
+
+  - platform: copy
+    source_id: source
+    id: clamp_max
+    internal: true
+    filters:
+      - clamp:
+          max_value: 10
+    on_value:
+      - logger.log:
+          format: "OUT clamp_max=%.9g"
+          args: [x]
+
+  - platform: copy
+    source_id: source
+    id: clamp_both
+    internal: true
+    filters:
+      - clamp:
+          min_value: 0
+          max_value: 10
+    on_value:
+      - logger.log:
+          format: "OUT clamp_both=%.9g"
+          args: [x]
+
+  - platform: copy
+    source_id: source
+    id: clamp_ignore
+    internal: true
+    filters:
+      - clamp:
+          min_value: 0
+          max_value: 10
+          ignore_out_of_range: true
+    on_value:
+      - logger.log:
+          format: "OUT clamp_ignore=%.9g"
+          args: [x]
+
+  - platform: copy
+    source_id: source
+    id: ntc_resistance
+    internal: true
+    filters:
+      - to_ntc_resistance:
+          calibration:
+            b_constant: 3950
+            reference_temperature: 25°C
+            reference_resistance: 10kOhm
+    on_value:
+      - logger.log:
+          format: "OUT ntc_resistance=%.9g"
+          args: [x]
+
+  - platform: copy
+    source_id: source
+    id: ntc_resistance_abc
+    internal: true
+    filters:
+      - to_ntc_resistance:
+          calibration:
+            a: 0.0011
+            b: 0.00023
+            c: 0.0000001
+    on_value:
+      - logger.log:
+          format: "OUT ntc_resistance_abc=%.9g"
+          args: [x]
+
+  - platform: copy
+    source_id: source
+    id: ntc_temperature
+    internal: true
+    filters:
+      - multiply: 1000
+      - to_ntc_temperature:
+          calibration:
+            b_constant: 3950
+            reference_temperature: 25°C
+            reference_resistance: 10kOhm
+    on_value:
+      - logger.log:
+          format: "OUT ntc_temperature=%.9g"
+          args: [x]
+
+  - platform: copy
+    source_id: source
+    id: ntc_temperature_abc
+    internal: true
+    filters:
+      - multiply: 1000
+      - to_ntc_temperature:
+          calibration:
+            a: 0.0011
+            b: 0.00023
+            c: 0.0000001
+    on_value:
+      - logger.log:
+          format: "OUT ntc_temperature_abc=%.9g"
+          args: [x]
+
+  - platform: copy
+    source_id: source
+    id: calibrate_least_squares
+    internal: true
+    filters:
+      - calibrate_linear:
+          - 0.0 -> 0.0
+          - 10.0 -> 10.5
+          - 20.0 -> 19.0
+    on_value:
+      - logger.log:
+          format: "OUT calibrate_least_squares=%.9g"
+          args: [x]
+
+  - platform: copy
+    source_id: source
+    id: calibrate_exact
+    internal: true
+    filters:
+      - calibrate_linear:
+          method: exact
+          datapoints:
+            - 0.0 -> 0.0
+            - 10.0 -> 100.0
+            - 20.0 -> 150.0
+    on_value:
+      - logger.log:
+          format: "OUT calibrate_exact=%.9g"
+          args: [x]
+
+  - platform: copy
+    source_id: source
+    id: lambda_filter
+    internal: true
+    filters:
+      - lambda: |-
+            if (x > 100.0f)
+              return {};
+            return x * 2.0f;
+    on_value:
+      - logger.log:
+          format: "OUT lambda_filter=%.9g"
+          args: [x]
+
+text_sensor:
+  - platform: template
+    id: text_source
+    update_interval: never
+
+  - platform: copy
+    source_id: text_source
+    id: text_lambda_replace
+    internal: true
+    filters:
+      - lambda: return {"[" + x + "]"};
+    on_value:
+      - logger.log:
+          format: "TXT text_lambda_replace=%s"
+          args: [x.c_str()]
+
+  - platform: copy
+    source_id: text_source
+    id: text_lambda_drop
+    internal: true
+    filters:
+      - lambda: |-
+          if (x == "skip")
+            return {};
+          return x;
+    on_value:
+      - logger.log:
+          format: "TXT text_lambda_drop=%s"
+          args: [x.c_str()]
+
+button:
+  - platform: template
+    name: "Run Filters"
+    id: run_filters
+    on_press:
+      - lambda: |-
+          id(x).publish_state(0.75f);
+          for (float value : {-10.0f, 0.0f, 0.5f, 2.25f, 12.345f, 50.0f, 150.0f, NAN, INFINITY})
+            id(source).publish_state(value);
+          for (const char *value : {"a", "skip", "b"})
+            id(text_source).publish_state(value);
+          ESP_LOGI("test", "FILTERS DONE");

@@ -150,10 +150,8 @@ void DFRobotSEN0465Component::handle_no_response_() {
 
 void DFRobotSEN0465Component::fail_reading_() {
   // A frozen gas reading would hide a rising concentration, so the entities go unknown
-  if (this->concentration_sensor_ != nullptr)
-    this->concentration_sensor_->publish_state(NAN);
-  if (this->temperature_sensor_ != nullptr)
-    this->temperature_sensor_->publish_state(NAN);
+  PUBLISH_STATE(this->concentration_sensor_, NAN);
+  PUBLISH_STATE(this->temperature_sensor_, NAN);
   this->status_set_warning();
 }
 
@@ -210,22 +208,19 @@ void DFRobotSEN0465Component::handle_data_(const uint8_t *frame) {
     // 0 is a disconnected thermistor, 1024 and above a bad frame
     ESP_LOGW(TAG, "Temperature reading %u is out of range", temperature_raw);
   }
-  if (this->temperature_sensor_ != nullptr)
-    this->temperature_sensor_->publish_state(temperature);
+  PUBLISH_STATE(this->temperature_sensor_, temperature);
 
   if (frame[4] != this->gas_type_) {
     ESP_LOGW(TAG, "Probe reports gas type 0x%02X, expected %s (0x%02X); check the configured model", frame[4],
              this->gas_name_, this->gas_type_);
-    if (this->concentration_sensor_ != nullptr)
-      this->concentration_sensor_->publish_state(NAN);
+    PUBLISH_STATE(this->concentration_sensor_, NAN);
     this->status_set_warning();
     return;
   }
 
   if (frame[5] > 2) {
     ESP_LOGW(TAG, "Invalid number of decimal places: %u", frame[5]);
-    if (this->concentration_sensor_ != nullptr)
-      this->concentration_sensor_->publish_state(NAN);
+    PUBLISH_STATE(this->concentration_sensor_, NAN);
     this->status_set_warning();
     return;
   }
@@ -238,8 +233,7 @@ void DFRobotSEN0465Component::handle_data_(const uint8_t *frame) {
   if (concentration < 0.0f)
     concentration = 0.0f;
 
-  if (this->concentration_sensor_ != nullptr)
-    this->concentration_sensor_->publish_state(concentration);
+  PUBLISH_STATE(this->concentration_sensor_, concentration);
   this->status_comm_result(!std::isnan(concentration) && !std::isnan(temperature) && !this->setup_incomplete_, nullptr);
 }
 

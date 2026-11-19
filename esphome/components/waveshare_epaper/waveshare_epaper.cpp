@@ -403,7 +403,7 @@ void WaveshareEPaperBase::on_safe_shutdown() { this->deep_sleep(); }
 // ========================================================
 
 void WaveshareEPaperTypeA::initialize() {
-  // Achieve display intialization
+  // Achieve display initialization
   this->init_display_();
   // If a reset pin is configured, eligible displays can be set to deep sleep
   // between updates, as recommended by the hardware provider
@@ -1424,7 +1424,7 @@ void WaveshareEPaper2P9InD::initialize() {
 
   // VCOM_DC settings
   this->command(0x82);  // Command: VDCS
-  this->data(0x12);     // Dafault VCOM_DC
+  this->data(0x12);     // Default VCOM_DC
 }
 
 void WaveshareEPaper2P9InD::display() {
@@ -2888,7 +2888,7 @@ void WaveshareEPaper5P8InV2::initialize() {
   delay(10);
   this->wait_until_idle_();
 
-  // PANNEL SETTING
+  // PANEL SETTING
   this->command(0x00);
   this->data(0x1F);
 

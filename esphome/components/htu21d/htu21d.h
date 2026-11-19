@@ -9,11 +9,11 @@ namespace esphome::htu21d {
 enum HTU21DSensorModels { HTU21D_SENSOR_MODEL_HTU21D = 0, HTU21D_SENSOR_MODEL_SI7021, HTU21D_SENSOR_MODEL_SHT21 };
 
 class HTU21DComponent final : public PollingComponent, public i2c::I2CDevice {
- public:
-  void set_temperature(sensor::Sensor *temperature) { temperature_ = temperature; }
-  void set_humidity(sensor::Sensor *humidity) { humidity_ = humidity; }
-  void set_heater(sensor::Sensor *heater) { heater_ = heater; }
+  SUB_SENSOR(temperature)
+  SUB_SENSOR(humidity)
+  SUB_SENSOR(heater)
 
+ public:
   /// Setup (reset) the sensor and check connection.
   void setup() override;
   void dump_config() override;
@@ -27,9 +27,6 @@ class HTU21DComponent final : public PollingComponent, public i2c::I2CDevice {
   uint8_t get_heater_level();
 
  protected:
-  sensor::Sensor *temperature_{nullptr};
-  sensor::Sensor *humidity_{nullptr};
-  sensor::Sensor *heater_{nullptr};
   HTU21DSensorModels sensor_model_{HTU21D_SENSOR_MODEL_HTU21D};
 };
 

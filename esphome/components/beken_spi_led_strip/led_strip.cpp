@@ -159,34 +159,7 @@ void spi_dma_tx_finish_callback(unsigned int param) {
 }
 
 void BekenSPILEDStripLightOutput::setup() {
-  size_t buffer_size = this->get_buffer_size_();
-  size_t dma_buffer_size = (buffer_size * 8) + (2 * 64);
-
-  RAMAllocator<uint8_t> allocator;
-  this->buf_ = allocator.allocate(buffer_size);
-  if (this->buf_ == nullptr) {
-    ESP_LOGE(TAG, "Cannot allocate LED buffer!");
-    this->mark_failed();
-    return;
-  }
-
-  this->effect_data_ = allocator.allocate(this->num_leds_);
-  if (this->effect_data_ == nullptr) {
-    ESP_LOGE(TAG, "Cannot allocate effect data!");
-    this->mark_failed();
-    return;
-  }
-
-  this->dma_buf_ = allocator.allocate(dma_buffer_size);
-  if (this->dma_buf_ == nullptr) {
-    ESP_LOGE(TAG, "Cannot allocate DMA buffer!");
-    this->mark_failed();
-    return;
-  }
-
-  memset(this->buf_, 0, buffer_size);
-  memset(this->effect_data_, 0, this->num_leds_);
-  memset(this->dma_buf_, 0, dma_buffer_size);
+  const size_t dma_buffer_size = dma_buffer_bytes(this->get_buffer_size_());
 
   uint32_t value = PCLK_POSI_SPI;
   sddev_control(ICU_DEV_NAME, CMD_CONF_PCLK_26M, &value);
@@ -194,25 +167,16 @@ void BekenSPILEDStripLightOutput::setup() {
   value = PWD_SPI_CLK_BIT;
   sddev_control(ICU_DEV_NAME, CMD_CLK_PWR_UP, &value);
 
-  if (spi_data != nullptr) {
-    ESP_LOGE(TAG, "SPI device already initialized!");
-    this->mark_failed();
+  if (!this->setup_check(spi_data == nullptr, LOG_STR("SPI already initialized")))
     return;
-  }
 
   spi_data = (SpiData *) calloc(1, sizeof(SpiData));  // NOLINT(cppcoreguidelines-no-malloc)
-  if (spi_data == nullptr) {
-    ESP_LOGE(TAG, "Cannot allocate spi_data!");
-    this->mark_failed();
+  if (!this->setup_check(spi_data != nullptr, LOG_STR(ESP_LOG_MSG_ALLOC_FAIL)))
     return;
-  }
 
   spi_data->dma_tx_semaphore = xSemaphoreCreateBinary();
-  if (spi_data->dma_tx_semaphore == nullptr) {
-    ESP_LOGE(TAG, "TX Semaphore init faild!");
-    this->mark_failed();
+  if (!this->setup_check(spi_data->dma_tx_semaphore != nullptr, LOG_STR("TX semaphore init failed")))
     return;
-  }
 
   spi_data->first_run = true;
 
@@ -291,6 +255,8 @@ void BekenSPILEDStripLightOutput::setup() {
   // T-like variants: No transfer-length register. The SPI controller shifts out
   // everything the DMA writes into SPI_DAT.
 #endif
+
+  this->accessor_ = &this->internal_accessor_;
 }
 
 void BekenSPILEDStripLightOutput::set_led_params(uint8_t bit0, uint8_t bit1, uint32_t spi_frequency) {
@@ -351,7 +317,7 @@ void BekenSPILEDStripLightOutput::write_state(light::LightState *state) {
 
   size_t buffer_size = this->get_buffer_size_();
   size_t size = 0;
-  uint8_t *psrc = this->buf_;
+  uint8_t *psrc = this->internal_accessor_.color_data;
   uint8_t *pdest = this->dma_buf_ + 64;
   // The 64 byte padding is a workaround for a SPI DMA bug where the
   // output doesn't exactly start at the beginning of dma_buf_
@@ -381,7 +347,8 @@ void BekenSPILEDStripLightOutput::dump_config() {
                 "  Channel colors: %s\n"
                 "  Max refresh rate: %" PRIu32 "\n"
                 "  Number of LEDs: %u",
-                this->channel_colors_.to_string(channel_colors), this->max_refresh_rate_, this->num_leds_);
+                this->internal_accessor_.channel_colors.to_string(channel_colors), this->max_refresh_rate_,
+                this->num_leds_);
 }
 
 float BekenSPILEDStripLightOutput::get_setup_priority() const { return setup_priority::HARDWARE; }

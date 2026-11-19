@@ -1,0 +1,48 @@
+# Layout A: BS on PA22; F13/I13 on PA12/PA00, F0/I0 on PA14/PA15, B13 on PA19 counting both edges
+substitutions:
+  name: bw12-edges-a
+  bs_pin: PA22
+
+packages:
+  base: !include bw12-base.yaml
+
+sensor:
+  - platform: pulse_counter
+    name: F13
+    pin: PA12
+    update_interval: 10s
+    on_raw_value:
+      - lambda: 'static uint32_t l = 0; uint32_t g = bwdbg::gen_rise; ESP_LOGI("meas", "F13 raw %.0f gen_rise %u", x, g - l); l = g;'
+  - platform: pulse_counter
+    name: I13
+    pin:
+      number: PA00
+      inverted: true
+    update_interval: 10s
+    on_raw_value:
+      - lambda: 'static uint32_t l = 0; uint32_t g = bwdbg::gen_rise; ESP_LOGI("meas", "I13 raw %.0f gen_rise %u", x, g - l); l = g;'
+  - platform: pulse_counter
+    name: F0
+    pin: PA14
+    internal_filter: 0us
+    update_interval: 10s
+    on_raw_value:
+      - lambda: 'static uint32_t l = 0; uint32_t g = bwdbg::gen_rise; ESP_LOGI("meas", "F0 raw %.0f gen_rise %u", x, g - l); l = g;'
+  - platform: pulse_counter
+    name: I0
+    pin:
+      number: PA15
+      inverted: true
+    internal_filter: 0us
+    update_interval: 10s
+    on_raw_value:
+      - lambda: 'static uint32_t l = 0; uint32_t g = bwdbg::gen_rise; ESP_LOGI("meas", "I0 raw %.0f gen_rise %u", x, g - l); l = g;'
+  - platform: pulse_counter
+    name: B13
+    pin: PA19
+    count_mode:
+      rising_edge: INCREMENT
+      falling_edge: INCREMENT
+    update_interval: 10s
+    on_raw_value:
+      - lambda: 'static uint32_t l = 0; uint32_t g = bwdbg::gen_rise; ESP_LOGI("meas", "B13 raw %.0f gen_rise %u", x, g - l); l = g;'

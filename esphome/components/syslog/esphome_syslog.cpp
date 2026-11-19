@@ -76,12 +76,12 @@ void Syslog::on_log(uint8_t level, const char *tag, const char *message, size_t 
   this->log_(level, tag, message, message_len);
 }
 
-void Syslog::log_(const int level, const char *tag, const char *message, size_t message_len) const {
+void Syslog::log_(const uint8_t level, const char *tag, const char *message, size_t message_len) const {
   if (level > this->log_level_)
     return;
   // Syslog PRI calculation: facility * 8 + severity
   int severity = 7;
-  if ((unsigned) level <= 7) {
+  if (level <= 7) {
     severity = progmem_read_byte(&LOG_LEVEL_TO_SYSLOG_SEVERITY[level]);
   }
   int pri = this->facility_ * 8 + severity;

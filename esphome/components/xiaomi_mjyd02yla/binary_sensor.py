@@ -27,7 +27,6 @@ xiaomi_mjyd02yla_ns = cg.esphome_ns.namespace("xiaomi_mjyd02yla")
 XiaomiMJYD02YLA = xiaomi_mjyd02yla_ns.class_(
     "XiaomiMJYD02YLA",
     binary_sensor.BinarySensor,
-    cg.Component,
     xiaomi_ble.XiaomiEncryptedDevice,
 )
 
@@ -64,21 +63,19 @@ CONFIG_SCHEMA = cv.All(
             ),
         }
     )
-    .extend(cv.COMPONENT_SCHEMA)
     .extend(ble_device_base.BLE_DEVICE_SCHEMA),
 )
 
 
 async def to_code(config: ConfigType) -> None:
     var = await binary_sensor.new_binary_sensor(config)
-    await cg.register_component(var, config)
     await ble_device_base.register_ble_device(var, config)
 
     xiaomi_ble.setup_xiaomi_device(var, config)
 
     sensors = sensor.sub_sensors(config)
-    await sensors(CONF_IDLE_TIME, var.set_idle_time)
-    await sensors(CONF_BATTERY_LEVEL, var.set_battery_level)
-    await sensors(CONF_ILLUMINANCE, var.set_illuminance)
+    await sensors(CONF_IDLE_TIME, var.set_idle_time_sensor)
+    await sensors(CONF_BATTERY_LEVEL, var.set_battery_level_sensor)
+    await sensors(CONF_ILLUMINANCE, var.set_illuminance_sensor)
     binary_sensors = binary_sensor.sub_binary_sensors(config)
-    await binary_sensors(CONF_LIGHT, var.set_light)
+    await binary_sensors(CONF_LIGHT, var.set_light_binary_sensor)

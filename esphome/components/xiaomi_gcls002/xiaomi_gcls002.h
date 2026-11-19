@@ -1,26 +1,21 @@
 #pragma once
 
-#include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/xiaomi_ble/xiaomi_ble.h"
 
 namespace esphome::xiaomi_gcls002 {
 
-class XiaomiGCLS002 final : public Component, public xiaomi_ble::XiaomiDevice {
+class XiaomiGCLS002 final : public xiaomi_ble::XiaomiDevice {
+  SUB_SENSOR(temperature)
+  SUB_SENSOR(moisture)
+  SUB_SENSOR(conductivity)
+  SUB_SENSOR(illuminance)
+
  public:
-  void dump_config() override;
-  void set_temperature(sensor::Sensor *temperature) { temperature_ = temperature; }
-  void set_moisture(sensor::Sensor *moisture) { moisture_ = moisture; }
-  void set_conductivity(sensor::Sensor *conductivity) { conductivity_ = conductivity; }
-  void set_illuminance(sensor::Sensor *illuminance) { illuminance_ = illuminance; }
+  void dump_child_config() override;
 
  protected:
   void publish_result(const xiaomi_ble::XiaomiParseResult &res) override;
-
-  sensor::Sensor *temperature_{nullptr};
-  sensor::Sensor *moisture_{nullptr};
-  sensor::Sensor *conductivity_{nullptr};
-  sensor::Sensor *illuminance_{nullptr};
 };
 
 }  // namespace esphome::xiaomi_gcls002

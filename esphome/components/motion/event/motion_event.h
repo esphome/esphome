@@ -8,18 +8,13 @@ namespace esphome::motion {
 
 class MotionEvent : public Component, public event::Event {
  public:
-  explicit MotionEvent(MotionComponent *parent);
-
-  void setup() override;
   void dump_config() override;
 
   void set_threshold(float threshold) { this->threshold_ = threshold; }
   void set_cooldown(uint32_t cooldown) { this->cooldown_ = cooldown; }
+  void process_motion_data(const MotionData &data);
 
  protected:
-  void process_motion_data_(const MotionData &data);
-
-  MotionComponent *parent_;
   float threshold_{0.5f};
   uint32_t cooldown_{500};
 

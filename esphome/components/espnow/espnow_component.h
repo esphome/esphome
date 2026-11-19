@@ -104,7 +104,7 @@ class ESPNowComponent final : public Component {
     memcpy(peer.address, address.data(), ESP_NOW_ETH_ALEN);
     this->peers_.push_back(peer);
   }
-  // Add a peer with the esp_now api and add to the internal list if doesnt exist already
+  // Add a peer with the esp_now api and add to the internal list if doesn't exist already
   esp_err_t add_peer(const uint8_t *peer);
   // Remove a peer with the esp_now api and remove from the internal list if exists
   esp_err_t del_peer(const uint8_t *peer);

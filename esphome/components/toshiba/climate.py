@@ -5,8 +5,6 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_MODEL
 from esphome.types import ConfigType
 
-from . import FILTER_SOURCE_FILES  # noqa: F401  pylint: disable=unused-import
-
 AUTO_LOAD = ["climate_ir"]
 CODEOWNERS = ["@kbx81"]
 

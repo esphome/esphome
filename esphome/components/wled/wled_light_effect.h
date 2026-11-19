@@ -1,21 +1,12 @@
 #pragma once
 
-#ifdef USE_ARDUINO
+#include "esphome/core/defines.h"
+#ifdef USE_NETWORK
 
-#include "esphome/core/component.h"
 #include "esphome/components/light/addressable_light_effect.h"
+#include "esphome/components/socket/socket.h"
 
-#include <vector>
 #include <memory>
-
-#if defined(USE_RP2) || defined(USE_LIBRETINY)
-namespace arduino {
-class UDP;
-}  // namespace arduino
-using arduino::UDP;  // NOLINT(google-global-names-in-headers)
-#else
-class UDP;
-#endif
 
 namespace esphome::wled {
 
@@ -31,6 +22,7 @@ class WLEDLightEffect : public light::AddressableLightEffect {
   void set_blank_on_start(bool blank) { this->blank_on_start_ = blank; }
 
  protected:
+  void open_socket_();
   void blank_all_leds_(light::AddressableLight &it);
   bool parse_frame_(light::AddressableLight &it, const uint8_t *payload, uint16_t size);
   bool parse_notifier_frame_(light::AddressableLight &it, const uint8_t *payload, uint16_t size);
@@ -40,14 +32,15 @@ class WLEDLightEffect : public light::AddressableLightEffect {
   bool parse_dnrgb_frame_(light::AddressableLight &it, const uint8_t *payload, uint16_t size);
 
   uint16_t port_{0};
-  std::unique_ptr<UDP> udp_;
+  std::unique_ptr<socket::UDPSocket> socket_;
   optional<uint32_t> blank_start_{};
   uint32_t blank_timeout_{0};
   uint32_t dropped_{0};
   uint8_t sync_group_mask_{0};
   bool blank_on_start_{true};
+  bool socket_failed_{false};  // until the next start(), so a bind error is not retried every loop
 };
 
 }  // namespace esphome::wled
 
-#endif  // USE_ARDUINO
+#endif  // USE_NETWORK
