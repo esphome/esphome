@@ -994,15 +994,15 @@ void AsyncStreamResponse::destroy(void *ptr) {
 }
 
 void AsyncStreamResponse::close() {
-  if (!this->close_requested_) {
-    this->close_requested_ = true;
+  if (!this->loop_flags_.close_requested) {
+    this->loop_flags_.close_requested = true;
     this->next_close_attempt_ms_ = App.get_loop_component_start_time();
   }
   this->process_close_();
 }
 
 void AsyncStreamResponse::loop() {
-  if (this->close_requested_) {
+  if (this->loop_flags_.close_requested) {
     this->process_close_();
   } else {
     this->refresh_lru_();
@@ -1010,7 +1010,7 @@ void AsyncStreamResponse::loop() {
 }
 
 void AsyncStreamResponse::process_close_() {
-  if (!this->close_requested_ || this->close_work_queued_.load(std::memory_order_acquire)) {
+  if (!this->loop_flags_.close_requested || this->close_work_queued_.load(std::memory_order_acquire)) {
     return;
   }
   const int fd = this->fd_.load();
@@ -1034,9 +1034,9 @@ void AsyncStreamResponse::process_close_() {
   }
 
   this->close_work_queued_.store(false, std::memory_order_release);
-  if (!this->close_retry_warning_logged_) {
+  if (!this->loop_flags_.close_retry_warning_logged) {
     ESP_LOGW(TAG, "Failed to queue stream close (%s); retrying", esp_err_to_name(err));
-    this->close_retry_warning_logged_ = true;
+    this->loop_flags_.close_retry_warning_logged = true;
   }
 }
 
@@ -1083,7 +1083,7 @@ void AsyncStreamResponse::close_session_work(void *arg) {
 }
 
 ssize_t AsyncStreamResponse::write(struct iovec *iov, int iovcnt) {
-  if (this->close_requested_) {
+  if (this->loop_flags_.close_requested) {
     return -1;
   }
   // Nothing to send is not a stall
