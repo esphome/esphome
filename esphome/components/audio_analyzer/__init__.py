@@ -16,6 +16,8 @@ AUTO_LOAD = ["audio", "ring_buffer"]
 CODEOWNERS = ["@jlpouffier"]
 DOMAIN = "audio_analyzer"
 MULTI_CONF = True
+# Auto-loaded by the speaker platform without any microphone analyzer
+MULTI_CONF_NO_DEFAULT = True
 
 CONF_ATTACK = "attack"
 CONF_AUDIO_ANALYZER_ID = "audio_analyzer_id"

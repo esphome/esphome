@@ -1,7 +1,7 @@
 """Validation tests for audio_analyzer.
 
-A `test*.yaml` can only show that a configuration is accepted, so these cover the rejections and the band plan and
-filter design.
+A `test*.yaml` can only show that a configuration is accepted, so these cover the rejections and how the speaker
+platform's declared format is checked against its output and by the components that write to it.
 """
 
 import cmath
@@ -10,6 +10,7 @@ import math
 import pytest
 
 from esphome import config_validation as cv
+from esphome.components import audio
 from esphome.components.audio_analyzer import (
     CONFIG_SCHEMA as MIC_CONFIG_SCHEMA,
     FFT_SIZE,
@@ -25,6 +26,11 @@ from esphome.components.audio_analyzer import (
     smoothing_factor,
 )
 from esphome.components.audio_analyzer.sensor import CONFIG_SCHEMA as SENSOR_SCHEMA
+from esphome.components.audio_analyzer.speaker import (
+    CONFIG_SCHEMA as SPEAKER_CONFIG_SCHEMA,
+    FINAL_VALIDATE_SCHEMA as SPEAKER_FINAL_VALIDATE_SCHEMA,
+    output_latency_ms,
+)
 from esphome.config import Config
 from esphome.const import CONF_ID, PlatformFramework
 from esphome.core import ID
@@ -32,26 +38,43 @@ from esphome.types import ConfigType
 from tests.component_tests.types import SetCoreConfigCallable
 
 MIC_ID = "mic"
+OUTPUT_ID = "output"
 ANALYZER_ID = "analyzer"
 
 
-def _full_config(mic: ConfigType) -> Config:
-    """A full config with one microphone, as the ID pass leaves it."""
+def _full_config(output: ConfigType, analyzer: ConfigType | None = None) -> Config:
+    """A full config with one output speaker, one microphone and optionally the analyzer, as the ID pass leaves it."""
     full = Config()
-    sample_rate = mic.get("mic_sample_rate", 16000)
-    full["microphone"] = [
-        {
-            CONF_ID: ID(MIC_ID, is_declaration=True, type="microphone"),
-            "min_sample_rate": sample_rate,
-            "max_sample_rate": mic.get("mic_max_sample_rate", sample_rate),
-            "min_channels": 1,
-            "max_channels": 1,
-        }
-    ]
-    full.declare_ids.append(
-        (full["microphone"][0][CONF_ID], ["microphone", 0, CONF_ID])
-    )
+    mic_sample_rate = output.pop("mic_sample_rate", 16000)
+    output = {CONF_ID: ID(OUTPUT_ID, is_declaration=True, type="speaker"), **output}
+    mic = {
+        CONF_ID: ID(MIC_ID, is_declaration=True, type="microphone"),
+        "min_sample_rate": mic_sample_rate,
+        "max_sample_rate": output.pop("mic_max_sample_rate", mic_sample_rate),
+        "min_channels": 1,
+        "max_channels": 1,
+    }
+    full["speaker"] = [output] + ([analyzer] if analyzer is not None else [])
+    full["microphone"] = [mic]
+    full.declare_ids.append((output[CONF_ID], ["speaker", 0, CONF_ID]))
+    full.declare_ids.append((mic[CONF_ID], ["microphone", 0, CONF_ID]))
+    if analyzer is not None:
+        full.declare_ids.append((analyzer[CONF_ID], ["speaker", 1, CONF_ID]))
     return full
+
+
+SPEAKER_FORMAT = {"bits_per_sample": 16, "num_channels": 1, "sample_rate": 48000}
+
+
+def _speaker_config(**options) -> ConfigType:
+    return SPEAKER_CONFIG_SCHEMA(
+        {
+            CONF_ID: ID(ANALYZER_ID, is_declaration=True, type="speaker"),
+            "output_speaker": ID(OUTPUT_ID, is_declaration=False),
+            **SPEAKER_FORMAT,
+            **options,
+        }
+    )
 
 
 def _mic_config(**options) -> ConfigType:
@@ -252,6 +275,114 @@ def test_microphone_rate_rejected(
 
 
 @pytest.mark.parametrize(
+    ("options", "message"),
+    [
+        ({"buffer_duration": "0ms"}, "buffer_duration"),
+        ({"buffer_duration": "50ms"}, "buffer_duration"),
+        ({"audio_dac": "dac"}, "set audio_dac on the output speaker"),
+        ({"sample_rate": 96000}, "sample_rate"),
+    ],
+)
+def test_speaker_options_rejected(options: ConfigType, message: str) -> None:
+    with pytest.raises(cv.Invalid, match=message):
+        _speaker_config(**options)
+
+
+@pytest.mark.parametrize("key", ["bits_per_sample", "num_channels", "sample_rate"])
+def test_speaker_format_required(key: str) -> None:
+    config = {
+        CONF_ID: ID(ANALYZER_ID, is_declaration=True, type="speaker"),
+        "output_speaker": ID(OUTPUT_ID, is_declaration=False),
+        **SPEAKER_FORMAT,
+    }
+    del config[key]
+    with pytest.raises(
+        cv.Invalid, match=f"required key not provided @ data\\['{key}'\\]"
+    ):
+        SPEAKER_CONFIG_SCHEMA(config)
+
+
+def test_speaker_limits_set_by_its_schema() -> None:
+    # Set at CONFIG_SCHEMA time, so components validated before this speaker's FINAL_VALIDATE see them
+    analyzer = _speaker_config()
+    for key, value in (
+        ("bits_per_sample", 16),
+        ("channels", 1),
+        ("sample_rate", 48000),
+    ):
+        assert analyzer[f"min_{key}"] == value
+        assert analyzer[f"max_{key}"] == value
+
+
+@pytest.mark.parametrize(
+    ("sample_rate", "channels", "valid"),
+    [(48000, 1, True), (16000, 1, False), (48000, 2, False)],
+)
+def test_producer_validated_against_declared_format(
+    set_core_config: SetCoreConfigCallable,
+    sample_rate: int,
+    channels: int,
+    valid: bool,
+) -> None:
+    # What a media player pipeline runs on its speaker; works whether or not the analyzer's own final validation ran
+    analyzer = _speaker_config()
+    set_core_config(PlatformFramework.ESP32_IDF, full_config=_full_config({}, analyzer))
+    validate = audio.final_validate_audio_schema(
+        "speaker media_player",
+        audio_device="speaker",
+        bits_per_sample=16,
+        channels=channels,
+        sample_rate=sample_rate,
+    )
+    producer = {"speaker": ID(ANALYZER_ID, is_declaration=False)}
+    if valid:
+        validate(producer)
+    else:
+        with pytest.raises(
+            cv.Invalid, match="Invalid configuration for the speaker media_player"
+        ):
+            validate(producer)
+
+
+@pytest.mark.parametrize(
+    ("output", "message"),
+    [
+        ({"min_sample_rate": 16000, "max_sample_rate": 16000}, "sample_rate"),
+        ({"min_bits_per_sample": 32, "max_bits_per_sample": 32}, "bits_per_sample"),
+    ],
+)
+def test_speaker_format_checked_against_output(
+    set_core_config: SetCoreConfigCallable, output: ConfigType, message: str
+) -> None:
+    analyzer = _speaker_config()
+    set_core_config(
+        PlatformFramework.ESP32_IDF, full_config=_full_config(output, analyzer)
+    )
+    with pytest.raises(
+        cv.Invalid, match=f"audio_analyzer speaker component. The {message}"
+    ):
+        SPEAKER_FINAL_VALIDATE_SCHEMA(analyzer)
+
+
+def test_speaker_format_accepted_by_output(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    analyzer = _speaker_config()
+    output = {"min_bits_per_sample": 16, "max_bits_per_sample": 32}
+    set_core_config(
+        PlatformFramework.ESP32_IDF, full_config=_full_config(output, analyzer)
+    )
+    SPEAKER_FINAL_VALIDATE_SCHEMA(analyzer)
+
+
+def test_speaker_bands_checked_against_its_rate() -> None:
+    with pytest.raises(cv.Invalid, match="at most 2400 Hz for a 8000 Hz stream"):
+        _speaker_config(sample_rate=8000, max_frequency="4000Hz")
+    # Without max_frequency, the default is lowered to what the rate allows
+    _speaker_config(sample_rate=22050)
+
+
+@pytest.mark.parametrize(
     ("config", "message"),
     [
         ({}, "at least one of rms, bands"),
@@ -267,3 +398,170 @@ def test_sensor_rejected(config: ConfigType, message: str) -> None:
         SENSOR_SCHEMA(
             {"audio_analyzer_id": ID(ANALYZER_ID, is_declaration=False), **config}
         )
+
+
+def _speaker_chain(blocks: list[ConfigType]) -> Config:
+    """A full config of speakers; ``source_of`` puts a block in a mixer's source_speakers."""
+    full = Config()
+    full["speaker"] = []
+    for block in blocks:
+        entry = {CONF_ID: ID(block["id"], is_declaration=True, type="speaker")}
+        if (duration := block.get("buffer_duration")) is not None:
+            entry["buffer_duration"] = cv.TimePeriod(milliseconds=duration)
+        for key in ("output_speaker", "platform"):
+            if key in block:
+                entry[key] = (
+                    ID(block[key], is_declaration=False)
+                    if key == "output_speaker"
+                    else block[key]
+                )
+        if "output_speakers" in block:
+            entry["output_speakers"] = [
+                ID(out, is_declaration=False) for out in block["output_speakers"]
+            ]
+        if (mixer := block.get("source_of")) is not None:
+            mixer_entry = next(e for e in full["speaker"] if str(e[CONF_ID]) == mixer)
+            index = full["speaker"].index(mixer_entry)
+            sources = mixer_entry.setdefault("source_speakers", [])
+            sources.append(entry)
+            full.declare_ids.append(
+                (
+                    entry[CONF_ID],
+                    ["speaker", index, "source_speakers", len(sources) - 1, CONF_ID],
+                )
+            )
+            continue
+        full["speaker"].append(entry)
+        full.declare_ids.append(
+            (entry[CONF_ID], ["speaker", len(full["speaker"]) - 1, CONF_ID])
+        )
+    return full
+
+
+I2S = {"id": "i2s", "buffer_duration": 500}
+
+
+@pytest.mark.parametrize(
+    ("blocks", "latency", "complete"),
+    [
+        # resampler (100 ms) -> mixer source (100 ms, output_speaker set by the mixer) -> i2s (500 ms)
+        (
+            [
+                {"id": "resampler", "output_speaker": "source", "buffer_duration": 100},
+                {"id": "source", "output_speaker": "i2s", "buffer_duration": 100},
+                I2S,
+            ],
+            700,
+            True,
+        ),
+        # The same, validated before the mixer copied its output_speaker into the source
+        (
+            [
+                {"id": "resampler", "output_speaker": "source", "buffer_duration": 100},
+                {"id": "mixer", "output_speaker": "i2s"},
+                {"id": "source", "source_of": "mixer", "buffer_duration": 100},
+                I2S,
+            ],
+            700,
+            True,
+        ),
+        # A router has several outputs: the walk stops there
+        (
+            [
+                {"id": "resampler", "output_speaker": "router", "buffer_duration": 100},
+                {"id": "router", "output_speakers": ["i2s"]},
+                I2S,
+            ],
+            100,
+            False,
+        ),
+        # Another analyzer's buffer_duration is analysis history
+        (
+            [
+                {
+                    "id": "resampler",
+                    "output_speaker": "inner",
+                    "buffer_duration": 100,
+                },
+                {
+                    "id": "inner",
+                    "platform": "audio_analyzer",
+                    "output_speaker": "i2s",
+                    "buffer_duration": 900,
+                },
+                I2S,
+            ],
+            600,
+            True,
+        ),
+        # A speaker without a buffer_duration doesn't say how much it holds
+        (
+            [
+                {"id": "resampler", "output_speaker": "usb", "buffer_duration": 100},
+                {"id": "usb"},
+            ],
+            100,
+            False,
+        ),
+    ],
+)
+def test_output_latency_follows_the_chain(
+    blocks: list[ConfigType], latency: int, complete: bool
+) -> None:
+    full = _speaker_chain(blocks)
+    analyzer = {"output_speaker": ID("resampler", is_declaration=False)}
+    assert output_latency_ms(analyzer, full) == (latency, complete)
+
+
+def _final_validate_speaker(
+    set_core_config: SetCoreConfigCallable, blocks: list[ConfigType], **options
+) -> None:
+    analyzer = SPEAKER_CONFIG_SCHEMA(
+        {
+            CONF_ID: ID(ANALYZER_ID, is_declaration=True, type="speaker"),
+            "output_speaker": ID("resampler", is_declaration=False),
+            **SPEAKER_FORMAT,
+            **options,
+        }
+    )
+    set_core_config(PlatformFramework.ESP32_IDF, full_config=_speaker_chain(blocks))
+    SPEAKER_FINAL_VALIDATE_SCHEMA(analyzer)
+
+
+RESAMPLER_TO_I2S = [
+    {"id": "resampler", "output_speaker": "i2s", "buffer_duration": 100},
+    I2S,
+]
+
+
+@pytest.mark.parametrize("buffer_duration", ["600ms", "850ms"])
+def test_explicit_buffer_covering_the_chain_accepted(
+    set_core_config: SetCoreConfigCallable, buffer_duration: str
+) -> None:
+    _final_validate_speaker(
+        set_core_config, RESAMPLER_TO_I2S, buffer_duration=buffer_duration
+    )
+
+
+def test_explicit_buffer_shorter_than_the_chain_rejected(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    with pytest.raises(
+        cv.Invalid,
+        match="must cover the 600 ms of audio the output speakers buffer: set at least 850 ms",
+    ):
+        _final_validate_speaker(
+            set_core_config, RESAMPLER_TO_I2S, buffer_duration="300ms"
+        )
+
+
+def test_explicit_buffer_not_checked_through_a_router(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    # The walk can't see past the router, so it can't tell the buffer is short (a documented limitation)
+    blocks = [
+        {"id": "resampler", "output_speaker": "router", "buffer_duration": 100},
+        {"id": "router", "output_speakers": ["i2s"]},
+        I2S,
+    ]
+    _final_validate_speaker(set_core_config, blocks, buffer_duration="300ms")
