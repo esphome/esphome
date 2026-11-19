@@ -12,6 +12,7 @@
 #include <span>
 #include <sys/types.h>
 
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "stream_head.h"
 
@@ -82,7 +83,7 @@ class AsyncStreamResponse {
 
   // Network context, before publishing: take the connection and the part of the head not queued yet, as a C string;
   // head_kept false (no memory for that part) closes it
-  void attach_(AsyncClient *client, std::unique_ptr<char[]> head_rest, bool head_kept);
+  void attach_(AsyncClient *client, RAMUniquePtr<char[]> head_rest, bool head_kept);
   // Main loop: queues what is left of the head; true once all of it is queued
   bool send_head_rest_();
   ssize_t send_(StreamIovec *iov, int iovcnt);
@@ -95,7 +96,7 @@ class AsyncStreamResponse {
   // Set before publishing; the main loop owns it and frees it once disconnected_
   AsyncClient *client_{nullptr};
   // The part of the head the send buffer could not take in the network context; sent before anything else
-  std::unique_ptr<char[]> head_rest_;
+  RAMUniquePtr<char[]> head_rest_;
   // Runs while sends make no progress
   StallClock stall_;
   uint32_t last_try_ms_{0};

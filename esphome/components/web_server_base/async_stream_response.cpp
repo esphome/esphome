@@ -3,7 +3,6 @@
 
 #include <cinttypes>
 #include <cstring>
-#include <new>
 
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
@@ -98,10 +97,10 @@ class StreamHandoffResponse final : public AsyncWebServerResponse {
     });
     // lwIP can run short of memory while many connections close, so the rest of the head waits for the main loop.
     // The head is text, so the rest is kept as a C string.
-    std::unique_ptr<char[]> head_rest;
+    RAMUniquePtr<char[]> head_rest;
     const size_t rest_len = head_len - queued;
     if (rest_len != 0) {
-      head_rest.reset(new (std::nothrow) char[rest_len + 1]);  // NOLINT(cppcoreguidelines-owning-memory)
+      head_rest = RAMAllocator<char>(RAMAllocator<char>::PREFER_INTERNAL).make_unique_array_for_overwrite(rest_len + 1);
       if (head_rest != nullptr) {
         size_t skip = queued;
         char *out = head_rest.get();
@@ -134,7 +133,7 @@ void AsyncStreamResponse::accept(AsyncWebServerRequest *request, const char *sta
   request->send(new StreamHandoffResponse(status, content_type, headers, body, acceptor));
 }
 
-void AsyncStreamResponse::attach_(AsyncClient *client, std::unique_ptr<char[]> head_rest, bool head_kept) {
+void AsyncStreamResponse::attach_(AsyncClient *client, RAMUniquePtr<char[]> head_rest, bool head_kept) {
   client->setRxTimeout(0);
   // Backstop for data left unacked once writes stop; each send restarts it
   client->setAckTimeout(SEND_STALL_TIMEOUT_MS);
@@ -221,12 +220,18 @@ ssize_t AsyncStreamResponse::send_(StreamIovec *iov, int iovcnt) {
     if (this->is_connected()) {
       // Only an ACK grows the send buffer's free space (lwIP snd_buf). ESPAsyncTCP and RPAsyncTCP call onAck
       // only once everything is acked, so it cannot measure this.
-      if (this->client_->space() > this->space_after_write_)
+      const size_t space_before = this->client_->space();
+      if (space_before > this->space_after_write_)
         this->last_ack_ms_ = now;
       char scratch[ADD_SCRATCH_SIZE];
       sent = add_iovecs(*this->client_, iov, iovcnt, scratch, sizeof(scratch));
-      if (sent > 0)
-        this->space_after_write_ = this->client_->space();
+      if (sent > 0) {
+        const size_t space_after = this->client_->space();
+        // On LibreTiny an ACK can arrive while the adds run in the tcpip thread; it leaves more space than they used
+        if (space_after + sent > space_before)
+          this->last_ack_ms_ = now;
+        this->space_after_write_ = space_after;
+      }
     }
   }
   if (sent > 0) {
