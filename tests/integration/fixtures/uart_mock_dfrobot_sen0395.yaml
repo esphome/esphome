@@ -1,0 +1,70 @@
+esphome:
+  name: uart-mock-dfrobot-sen0395
+
+host:
+api:
+  batch_delay: 0ms  # Disable batching to receive all state updates
+logger:
+  level: VERBOSE
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+
+# Dummy uart entry to satisfy DEPENDENCIES = ["uart"]
+uart:
+  baud_rate: 115200
+  port: /dev/null
+
+uart_mock:
+  id: mock_uart
+  baud_rate: 115200
+  # A small model of the module's command line: echo, answer and the prompt (no line end)
+  on_tx:
+    - then:
+        - lambda: |-
+            std::string cmd(data.begin(), data.end());
+            std::string reply = cmd + "\r\n";
+            if (cmd == "resetSystem") {
+              // The restart only answers with the prompt
+            } else {
+              reply += "Done\r\n";
+            }
+            reply += "leapMMW:/>";
+            id(mock_uart).inject_to_rx_buffer(std::vector<uint8_t>(reply.begin(), reply.end()));
+
+dfrobot_sen0395:
+  id: sen0395
+  uart_id: mock_uart
+
+binary_sensor:
+  - platform: dfrobot_sen0395
+    name: Detected
+
+switch:
+  - platform: dfrobot_sen0395
+    type: sensor_active
+    name: Sensor Active
+
+button:
+  - platform: template
+    name: Inject Present
+    on_press:
+      - lambda: |-
+          // '$' is kept apart so it is not read as a substitution
+          std::string frame = std::string(1, '$') + "JYBSS,1, , , *\r\n";
+          id(mock_uart).inject_to_rx_buffer(std::vector<uint8_t>(frame.begin(), frame.end()));
+  - platform: template
+    name: Inject Overlong Then Absent
+    on_press:
+      - lambda: |-
+          // An overlong line is dropped up to its line end; the next frame still parses
+          std::string data(300, 'x');
+          data += "\r\n" + std::string(1, '$') + "JYBSS,0, , , *\r\n";
+          id(mock_uart).inject_to_rx_buffer(std::vector<uint8_t>(data.begin(), data.end()));
+  - platform: template
+    name: Reset Sensor
+    on_press:
+      - dfrobot_sen0395.reset:
+          id: sen0395

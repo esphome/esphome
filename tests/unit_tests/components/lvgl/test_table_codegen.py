@@ -110,7 +110,10 @@ async def test_percent_column_width_uses_the_dynamic_helper(setup_core) -> None:
     """
     await _create_table({"id": "table_pct", "columns": [{"width": "40%"}]})
     statements = _statements()
-    assert any("table_pct->init_column_pct(1)" in s for s in statements)
+    assert any("table_pct->set_column_pct_storage(" in s for s in statements)
+    assert any(
+        "sizeof(LvTableType::ColumnPct) * (1)" in str(s) for s in CORE.global_statements
+    )
     assert any("table_pct->add_column_width_pct(0, 40)" in s for s in statements)
     assert not any(
         "lv_table_set_column_width(table_pct->obj, 0" in s for s in statements

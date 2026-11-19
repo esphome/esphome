@@ -13,6 +13,7 @@ import asyncio
 from aioesphomeapi import ButtonInfo, HomeassistantServiceCall
 import pytest
 
+from .log_utils import LineWaiter
 from .state_utils import assert_device_name, require_only_entity
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
@@ -25,25 +26,8 @@ async def test_api_homeassistant_action_no_subscriber(
 ) -> None:
     """Undeliverable actions warn in the log; actions after subscribing arrive."""
     loop = asyncio.get_running_loop()
-
-    boot_warning_future = loop.create_future()
-    connected_warning_future = loop.create_future()
+    waiter = LineWaiter()
     button_action_future = loop.create_future()
-
-    def check_output(line: str) -> None:
-        if (
-            not boot_warning_future.done()
-            and "Home Assistant action 'test.boot_action' dropped; no client connected"
-            in line
-        ):
-            boot_warning_future.set_result(True)
-        if (
-            not connected_warning_future.done()
-            and "Home Assistant action 'test.connected_action' dropped; "
-            "client has not subscribed to actions (yet)"
-            in line
-        ):
-            connected_warning_future.set_result(True)
 
     service_calls: list[HomeassistantServiceCall] = []
 
@@ -55,16 +39,23 @@ async def test_api_homeassistant_action_no_subscriber(
         ):
             button_action_future.set_result(service_call)
 
-    async with run_compiled(yaml_config, line_callback=check_output):
+    async with run_compiled(yaml_config, line_callback=waiter.callback):
         # The on_boot action fires with no client connected at all.
-        await asyncio.wait_for(boot_warning_future, timeout=10.0)
+        await waiter.wait_for(
+            "Home Assistant action 'test.boot_action' dropped; no client connected",
+            timeout=10.0,
+        )
 
         async with api_client_connected() as client:
             await assert_device_name(client, "test-ha-action-no-subscriber")
 
             # on_client_connected fired at authentication, before this client
             # subscribed to Home Assistant actions.
-            await asyncio.wait_for(connected_warning_future, timeout=5.0)
+            await waiter.wait_for(
+                "Home Assistant action 'test.connected_action' dropped; "
+                "client has not subscribed to actions (yet)",
+                timeout=5.0,
+            )
 
             # After subscribing, actions must be delivered normally (and the
             # dropped ones must not suddenly show up).

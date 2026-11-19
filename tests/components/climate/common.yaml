@@ -84,6 +84,27 @@ button:
       - climate.control:
           id: climate_test_thermostat
           mode: "OFF"
+  - platform: template
+    name: "Climate Control Fan Preset Swing"
+    on_press:
+      - climate.control:
+          id: climate_test_thermostat
+          fan_mode: AUTO
+          preset: HOME
+          swing_mode: VERTICAL
+          target_humidity: 45
+          target_temperature: 21°C
+  - platform: template
+    name: "Climate Control Enum Lambdas"
+    on_press:
+      - climate.control:
+          id: climate_test_thermostat
+          mode: !lambda return climate::CLIMATE_MODE_HEAT;
+          fan_mode: !lambda return climate::CLIMATE_FAN_LOW;
+          preset: !lambda return climate::CLIMATE_PRESET_ECO;
+          swing_mode: !lambda return climate::CLIMATE_SWING_OFF;
+          target_temperature_low: !lambda return 18.5;
+          target_humidity: !lambda return 50;
   # Custom strings take the (const char *, size_t) overload; the byte length of
   # the non-ASCII value is computed at codegen time.
   - platform: template

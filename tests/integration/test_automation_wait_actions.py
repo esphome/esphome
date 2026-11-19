@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-import asyncio
-import re
-
 import pytest
 
+from .log_utils import LineWaiter
 from .state_utils import require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
@@ -23,47 +21,15 @@ async def test_automation_wait_actions(
 
     This tests sensor.on_value automations being triggered 5 times before any complete.
     """
-    loop = asyncio.get_running_loop()
-
-    # Track completion counts
-    test_results = {
-        "wait_until": 0,
-        "script_wait": 0,
-        "wait_until_timeout": 0,
-    }
+    waiter = LineWaiter()
 
     # Patterns for log messages
-    wait_until_complete = re.compile(r"wait_until automation completed")
-    script_wait_complete = re.compile(r"script\.wait automation completed")
-    timeout_complete = re.compile(r"timeout automation completed")
-
-    # Test completion futures
-    test1_complete = loop.create_future()
-    test2_complete = loop.create_future()
-    test3_complete = loop.create_future()
-
-    def check_output(line: str) -> None:
-        """Check log output for completion messages."""
-        # Test 1: wait_until concurrent execution
-        if wait_until_complete.search(line):
-            test_results["wait_until"] += 1
-            if test_results["wait_until"] == 5 and not test1_complete.done():
-                test1_complete.set_result(True)
-
-        # Test 2: script.wait concurrent execution
-        if script_wait_complete.search(line):
-            test_results["script_wait"] += 1
-            if test_results["script_wait"] == 5 and not test2_complete.done():
-                test2_complete.set_result(True)
-
-        # Test 3: wait_until with timeout
-        if timeout_complete.search(line):
-            test_results["wait_until_timeout"] += 1
-            if test_results["wait_until_timeout"] == 5 and not test3_complete.done():
-                test3_complete.set_result(True)
+    wait_until_complete = "wait_until automation completed"
+    script_wait_complete = "script.wait automation completed"
+    timeout_complete = "timeout automation completed"
 
     async with (
-        run_compiled(yaml_config, line_callback=check_output),
+        run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
         # Get services
@@ -72,29 +38,32 @@ async def test_automation_wait_actions(
         # Test 1: wait_until in automation - trigger 5 times rapidly
         test_service = require_service(services, "test_wait_until")
         await client.execute_service(test_service, {})
-        await asyncio.wait_for(test1_complete, timeout=3.0)
+        await waiter.wait_count(wait_until_complete, 5, 3.0, "Test 1 did not complete")
 
         # Verify Test 1: All 5 triggers should complete
-        assert test_results["wait_until"] == 5, (
-            f"Test 1: Expected 5 wait_until completions, got {test_results['wait_until']}"
+        completions = waiter.count(wait_until_complete)
+        assert completions == 5, (
+            f"Test 1: Expected 5 wait_until completions, got {completions}"
         )
 
         # Test 2: script.wait in automation - trigger 5 times rapidly
         test_service = require_service(services, "test_script_wait")
         await client.execute_service(test_service, {})
-        await asyncio.wait_for(test2_complete, timeout=3.0)
+        await waiter.wait_count(script_wait_complete, 5, 3.0, "Test 2 did not complete")
 
         # Verify Test 2: All 5 triggers should complete
-        assert test_results["script_wait"] == 5, (
-            f"Test 2: Expected 5 script.wait completions, got {test_results['script_wait']}"
+        completions = waiter.count(script_wait_complete)
+        assert completions == 5, (
+            f"Test 2: Expected 5 script.wait completions, got {completions}"
         )
 
         # Test 3: wait_until with timeout in automation - trigger 5 times rapidly
         test_service = require_service(services, "test_wait_timeout")
         await client.execute_service(test_service, {})
-        await asyncio.wait_for(test3_complete, timeout=3.0)
+        await waiter.wait_count(timeout_complete, 5, 3.0, "Test 3 did not complete")
 
         # Verify Test 3: All 5 triggers should timeout and complete
-        assert test_results["wait_until_timeout"] == 5, (
-            f"Test 3: Expected 5 timeout completions, got {test_results['wait_until_timeout']}"
+        completions = waiter.count(timeout_complete)
+        assert completions == 5, (
+            f"Test 3: Expected 5 timeout completions, got {completions}"
         )

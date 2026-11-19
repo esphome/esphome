@@ -12,6 +12,37 @@ api:
         - snapshot.take:
             id: disp
             filename: !lambda return filename;
+    - action: vnc_connect
+      then:
+        - vnc.connect: remote
+    - action: tap
+      variables:
+        x: int
+        y: int
+      then:
+        - vnc.send_pointer:
+            x: !lambda return x;
+            y: !lambda return y;
+            buttons: [left]
+        - vnc.send_pointer:
+            x: !lambda return x;
+            y: !lambda return y;
+            buttons: 0
+    - action: key
+      variables:
+        keysym: int
+      then:
+        - vnc.send_key:
+            key: !lambda return keysym;
+    - action: type
+      variables:
+        chars: string
+      then:
+        - vnc.type_text:
+            text: !lambda return chars;
+    - action: vnc_refresh
+      then:
+        - vnc.refresh: remote
 
 logger:
   level: DEBUG

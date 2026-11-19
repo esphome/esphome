@@ -32,8 +32,10 @@ from esphome.components.esp32 import (
     _user_sdkconfig_wants_tls,
     allow_insecure_tls,
     idf_version,
+    require_idf_version,
 )
 from esphome.components.esp32.const import (
+    KEY_BOARD,
     KEY_ESP32,
     KEY_EXCLUDE_COMPONENTS,
     KEY_IDF_VERSION,
@@ -350,6 +352,28 @@ def test_sdkconfig_cpu_frequency_errors(
     with pytest.raises(cv.Invalid, match=error_match) as exc_info:
         CONFIG_SCHEMA(config)
     assert exc_info.value.path == ["framework", "sdkconfig_options"]
+
+
+@pytest.mark.parametrize("watchdog_timeout", ["0s", "5s", "60s"])
+def test_esp32_watchdog_timeout_valid(
+    set_core_config: SetCoreConfigCallable, watchdog_timeout: str
+) -> None:
+    """0 disables the task watchdog; otherwise 5 to 60 seconds."""
+    set_core_config(PlatformFramework.ESP32_IDF)
+    from esphome.components.esp32 import CONFIG_SCHEMA
+
+    CONFIG_SCHEMA({"variant": VARIANT_ESP32, "watchdog_timeout": watchdog_timeout})
+
+
+@pytest.mark.parametrize("watchdog_timeout", ["1s", "4s", "61s"])
+def test_esp32_watchdog_timeout_invalid(
+    set_core_config: SetCoreConfigCallable, watchdog_timeout: str
+) -> None:
+    set_core_config(PlatformFramework.ESP32_IDF)
+    from esphome.components.esp32 import CONFIG_SCHEMA
+
+    with pytest.raises(cv.Invalid, match="must be 0s"):
+        CONFIG_SCHEMA({"variant": VARIANT_ESP32, "watchdog_timeout": watchdog_timeout})
 
 
 @pytest.mark.parametrize(
@@ -885,6 +909,41 @@ _IDF6 = cv.Version(6, 0, 0)
             id="idf_advanced_disables_off",
         ),
         pytest.param(
+            # TLS 1.3 depends on the peer certificate in Kconfig.
+            PlatformFramework.ESP32_IDF,
+            _IDF5,
+            MbedtlsSdkconfigData(tls_required=True),
+            {"CONFIG_MBEDTLS_SSL_PROTO_TLS1_3": RawSdkconfigValue("y")},
+            {
+                "CONFIG_MBEDTLS_SSL_PROTO_TLS1_3": RawSdkconfigValue("y"),
+                **_TLS_CLIENT_ONLY,
+                **_TLS_EXTRAS_OFF,
+                "CONFIG_MBEDTLS_SSL_KEEP_PEER_CERTIFICATE": True,
+                "CONFIG_MBEDTLS_PKCS7_C": False,
+            },
+            set(_ESP_TLS_LINKING_COMPONENTS),
+            id="idf_tls13_keeps_peer_cert",
+        ),
+        pytest.param(
+            # A user choice for the peer certificate still wins over TLS 1.3.
+            PlatformFramework.ESP32_IDF,
+            _IDF5,
+            MbedtlsSdkconfigData(tls_required=True),
+            {
+                "CONFIG_MBEDTLS_SSL_PROTO_TLS1_3": RawSdkconfigValue("y"),
+                "CONFIG_MBEDTLS_SSL_KEEP_PEER_CERTIFICATE": RawSdkconfigValue("n"),
+            },
+            {
+                "CONFIG_MBEDTLS_SSL_PROTO_TLS1_3": RawSdkconfigValue("y"),
+                "CONFIG_MBEDTLS_SSL_KEEP_PEER_CERTIFICATE": RawSdkconfigValue("n"),
+                **_TLS_CLIENT_ONLY,
+                **_TLS_EXTRAS_OFF,
+                "CONFIG_MBEDTLS_PKCS7_C": False,
+            },
+            set(_ESP_TLS_LINKING_COMPONENTS),
+            id="idf_tls13_user_peer_cert_wins",
+        ),
+        pytest.param(
             # advanced: disable_mbedtls_tls: false keeps TLS with no requester.
             PlatformFramework.ESP32_IDF,
             _IDF5,
@@ -947,6 +1006,38 @@ def test_reconcile_mbedtls_sdkconfig(
     asyncio.run(_reconcile_mbedtls_sdkconfig())
 
     assert CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS] == expected
+
+
+@pytest.mark.parametrize(
+    ("peer_cert", "warns"),
+    [
+        pytest.param(RawSdkconfigValue("n"), True, id="user_off_warns"),
+        pytest.param(RawSdkconfigValue("y"), False, id="user_on"),
+        pytest.param(None, False, id="unset"),
+    ],
+)
+def test_reconcile_mbedtls_warns_when_peer_cert_drops_tls13(
+    set_core_config: SetCoreConfigCallable,
+    caplog: pytest.LogCaptureFixture,
+    peer_cert: RawSdkconfigValue | None,
+    warns: bool,
+) -> None:
+    """Turning off the peer certificate with TLS 1.3 on drops TLS 1.3, so say so."""
+    set_core_config(PlatformFramework.ESP32_IDF)
+    preset: dict[str, Any] = {"CONFIG_MBEDTLS_SSL_PROTO_TLS1_3": RawSdkconfigValue("y")}
+    if peer_cert is not None:
+        preset["CONFIG_MBEDTLS_SSL_KEEP_PEER_CERTIFICATE"] = peer_cert
+    CORE.data[KEY_ESP32] = {
+        KEY_IDF_VERSION: _IDF5,
+        KEY_SDKCONFIG_OPTIONS: preset,
+        KEY_MBEDTLS_SDKCONFIG: MbedtlsSdkconfigData(tls_required=True),
+        KEY_EXCLUDE_COMPONENTS: set(_ESP_TLS_LINKING_COMPONENTS),
+    }
+
+    with caplog.at_level(logging.WARNING):
+        asyncio.run(_reconcile_mbedtls_sdkconfig())
+
+    assert ("TLS 1.3 is disabled" in caplog.text) is warns
 
 
 def test_esp_tls_linking_components_are_excluded_by_default() -> None:
@@ -2442,3 +2533,69 @@ def test_allow_insecure_tls_only_switches_the_flags_on(
         "CONFIG_ESP_TLS_INSECURE": True,
         "CONFIG_ESP_TLS_SKIP_SERVER_CERT_VERIFY": True,
     }
+
+
+@pytest.mark.parametrize(
+    ("platform_framework", "idf", "ok"),
+    [
+        (PlatformFramework.ESP32_IDF, cv.Version(5, 5, 3), True),
+        (PlatformFramework.ESP32_IDF, cv.Version(5, 5, 2), False),
+        (PlatformFramework.ESP32_ARDUINO, cv.Version(5, 5, 3), True),
+        (PlatformFramework.ESP32_ARDUINO, cv.Version(5, 5, 2), False),
+    ],
+)
+def test_require_idf_version_compares_the_idf_underneath(
+    set_core_config: SetCoreConfigCallable,
+    platform_framework: PlatformFramework,
+    idf: cv.Version,
+    ok: bool,
+) -> None:
+    set_core_config(
+        platform_framework,
+        platform_data={
+            KEY_BOARD: "esp32dev",
+            KEY_VARIANT: VARIANT_ESP32,
+            KEY_IDF_VERSION: idf,
+        },
+    )
+    validator = require_idf_version(cv.Version(5, 5, 3), "The thing")
+    if ok:
+        assert validator("x") == "x"
+    else:
+        with pytest.raises(
+            cv.Invalid, match="The thing requires ESP-IDF 5.5.3 or newer, got 5.5.2"
+        ):
+            validator("x")
+
+
+def test_require_idf_version_rejects_other_platforms(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    set_core_config(PlatformFramework.ESP8266_ARDUINO)
+    with pytest.raises(cv.Invalid, match="only available on"):
+        require_idf_version(cv.Version(5, 5, 3))("x")
+
+
+@pytest.mark.parametrize(
+    ("config_name", "timeout"),
+    [("watchdog_disabled", None), ("watchdog_default", 5), ("watchdog_custom", 10)],
+)
+def test_task_watchdog_sdkconfig_and_define(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+    config_name: str,
+    timeout: int | None,
+) -> None:
+    """watchdog_timeout: 0s turns the task watchdog off; any other value configures it."""
+    generate_main(component_config_path(f"{config_name}.yaml"))
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    defines = {define.name for define in CORE.defines}
+    assert sdkconfig["CONFIG_ESP_TASK_WDT_INIT"] is (timeout is not None)
+    assert ("USE_ESP32_TASK_WDT" in defines) is (timeout is not None)
+    if timeout is None:
+        assert "CONFIG_ESP_TASK_WDT_TIMEOUT_S" not in sdkconfig
+        return
+    assert sdkconfig["CONFIG_ESP_TASK_WDT_TIMEOUT_S"] == timeout
+    assert sdkconfig["CONFIG_ESP_TASK_WDT_PANIC"] is True
+    assert sdkconfig["CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU0"] is False
+    assert sdkconfig["CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU1"] is False

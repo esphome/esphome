@@ -11,9 +11,7 @@ from esphome.components.const import (
     CONF_RST_PIN,
 )
 import esphome.config_validation as cv
-from esphome.const import CONF_DATA, CONF_FREQUENCY, CONF_ID
-from esphome.core import ID
-from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.const import CONF_DATA, CONF_FREQUENCY
 from esphome.types import ConfigType
 
 DOMAIN = "sx127x"
@@ -23,6 +21,7 @@ DEPENDENCIES = ["spi"]
 
 CONF_SX127X_ID = "sx127x_id"
 
+CONF_AFC_BANDWIDTH = "afc_bandwidth"
 CONF_AUTO_CAL = "auto_cal"
 CONF_BANDWIDTH = "bandwidth"
 CONF_BITSYNC = "bitsync"
@@ -117,10 +116,6 @@ SHAPING = {
     "NONE": SX127xPaRamp.SHAPING_NONE,
 }
 
-SendPacketAction = sx127x_ns.class_(
-    "SendPacketAction", automation.Action, cg.Parented.template(SX127x)
-)
-
 
 def validate_raw_data(value: Any) -> bytes | list[int]:
     if isinstance(value, str):
@@ -162,6 +157,10 @@ def validate_config(config: ConfigType) -> ConfigType:
     else:
         if config[CONF_BANDWIDTH] == "500_0kHz":
             raise cv.Invalid(f"{config[CONF_BANDWIDTH]} is only available with LORA")
+        if config.get(CONF_AFC_BANDWIDTH) == "500_0kHz":
+            raise cv.Invalid(
+                "500_0kHz is only available with LORA", path=[CONF_AFC_BANDWIDTH]
+            )
         if CONF_BITSYNC not in config:
             raise cv.Invalid("Config 'bitsync' required with FSK/OOK")
         if CONF_PACKET_MODE not in config:
@@ -170,6 +169,10 @@ def validate_config(config: ConfigType) -> ConfigType:
             raise cv.Invalid("Config 'dio0_pin' required in packet mode")
         if config[CONF_PAYLOAD_LENGTH] > 64:
             raise cv.Invalid("Payload length must be <= 64 with FSK/OOK")
+    if CONF_AFC_BANDWIDTH in config and config[CONF_MODULATION] != "FSK":
+        raise cv.Invalid(
+            "Config 'afc_bandwidth' only available with FSK", path=[CONF_AFC_BANDWIDTH]
+        )
     if config[CONF_PA_PIN] == "RFO" and config[CONF_PA_POWER] > 15:
         raise cv.Invalid("PA power must be <= 15 dbm when using the RFO pin")
     if config[CONF_PA_PIN] == "BOOST" and config[CONF_PA_POWER] < 2:
@@ -181,6 +184,7 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(SX127x),
+            cv.Optional(CONF_AFC_BANDWIDTH): cv.enum(BW),
             cv.Optional(CONF_AUTO_CAL, default=True): cv.boolean,
             cv.Optional(CONF_BANDWIDTH, default="125_0kHz"): cv.enum(BW),
             cv.Optional(CONF_BITRATE, default=4800): cv.int_range(min=500, max=300000),
@@ -239,6 +243,7 @@ async def to_code(config: ConfigType) -> None:
     await cg.add_pin(var.set_rst_pin, config[CONF_RST_PIN])
     cg.add(var.set_auto_cal(config[CONF_AUTO_CAL]))
     cg.add(var.set_bandwidth(config[CONF_BANDWIDTH]))
+    cg.add_optional(var.set_afc_bandwidth, config.get(CONF_AFC_BANDWIDTH))
     cg.add(var.set_frequency(config[CONF_FREQUENCY]))
     cg.add(var.set_deviation(config[CONF_DEVIATION]))
     cg.add(var.set_modulation(config[CONF_MODULATION]))
@@ -291,25 +296,8 @@ SEND_PACKET_ACTION_SCHEMA = cv.maybe_simple_value(
 )
 
 
-@automation.register_action(
+automation.register_apply_action(
     "sx127x.send_packet",
-    SendPacketAction,
     SEND_PACKET_ACTION_SCHEMA,
-    synchronous=True,
+    automation.ApplyBytes(CONF_DATA, "transmit_packet({})", stack=MAX_PACKET_SIZE),
 )
-async def send_packet_action_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    await automation.templatable_bytes(
-        config[CONF_DATA],
-        args,
-        var.set_data_template,
-        var.set_data_static,
-        "sx127x_data",
-    )
-    return var

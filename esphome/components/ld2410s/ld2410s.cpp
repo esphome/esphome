@@ -1,6 +1,4 @@
 #include "ld2410s.h"
-#include "ld2410s_number.h"
-#include <algorithm>
 #include <cstring>
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
@@ -41,6 +39,11 @@ static constexpr uint8_t CMD_FRAME_MAX_SIZE = LONG_PAYLOAD_POS + 2 + PARAMETERS_
 #ifdef USE_LD2410S_PARAMETERS
 static constexpr uint16_t PARAMETER_KEYS[] PROGMEM = {0x0005, 0x000A, 0x0006, 0x0002, 0x000C, 0x000B};
 static_assert(sizeof(PARAMETER_KEYS) / sizeof(PARAMETER_KEYS[0]) == PARAMETER_COUNT, "one key per parameter");
+#ifdef USE_NUMBER
+// Module units to number units: 0.7 m gates, seconds, tenths of a hertz (number.py uses the same)
+static constexpr float PARAMETER_SCALES[] PROGMEM = {0.7f, 0.7f, 1.0f, 0.1f, 0.1f, 1.0f};
+static_assert(sizeof(PARAMETER_SCALES) / sizeof(PARAMETER_SCALES[0]) == PARAMETER_COUNT, "one scale per parameter");
+#endif
 #endif
 // The version answer: 4 bytes device type, then major, minor and patch as 16-bit words
 static constexpr uint8_t VERSION_TYPE_SIZE = 4;
@@ -79,7 +82,7 @@ void LD2410SComponent::dump_config() {
   LOG_BINARY_SENSOR("  ", "Has Target", this->target_binary_sensor_);
 #endif
 #ifdef USE_SENSOR
-  LOG_SENSOR_WITH_DEDUP_SAFE("  ", "Distance", this->distance_sensor_);
+  LOG_SENSOR_WITH_DEDUP("  ", "Distance", this->distance_sensor_);
 #endif
 #ifdef USE_LD2410S_VERSION
   LOG_TEXT_SENSOR("  ", "Version", this->version_text_sensor_);
@@ -95,19 +98,8 @@ void LD2410SComponent::dump_config() {
 }
 
 void LD2410SComponent::loop() {
-  uint8_t chunk[16];
-  // Take the count once so one pass handles a bounded number of bytes
-  size_t avail = this->available();
-  while (avail > 0) {
-    const size_t len = std::min(avail, sizeof(chunk));
-    if (!this->read_array(chunk, len)) {
-      ESP_LOGV(TAG, "UART read of %u bytes failed", static_cast<unsigned>(len));
-      break;
-    }
-    for (size_t i = 0; i < len; i++) {
-      this->receive_byte_(chunk[i]);
-    }
-    avail -= len;
+  if (!this->read_available<16>([this](uint8_t b) { this->receive_byte_(b); })) {
+    ESP_LOGV(TAG, "UART read failed");
   }
   const uint32_t now = App.get_loop_component_start_time();
   if (this->sequence_ == nullptr) {
@@ -148,6 +140,27 @@ bool LD2410SComponent::set_parameter(Parameter parameter, uint8_t value) {
   this->parameters_dirty_ = true;  // written by loop() once no sequence is running
   return true;
 }
+
+#ifdef USE_NUMBER
+void LD2410SComponent::control_number(number::Number *number, float value) {
+  for (uint8_t i = 0; i < PARAMETER_COUNT; i++) {
+    if (this->numbers_[i] != number)
+      continue;
+    // Show the step the module got, not a value between two steps
+    const uint8_t raw = lroundf(value / PARAMETER_SCALES[i]);  // the schema keeps every parameter within a byte
+    if (this->set_parameter(static_cast<Parameter>(i), raw))
+      number->publish_state(raw * PARAMETER_SCALES[i]);
+    return;
+  }
+}
+#endif
+
+#ifdef USE_SELECT
+void LD2410SComponent::control_response_speed(select::Select *select, size_t index) {
+  if (this->set_parameter(Parameter::PARAMETER_RESPONSE_SPEED, progmem_read_byte(&RESPONSE_SPEEDS[index])))
+    select->publish_state(index);
+}
+#endif
 #endif
 
 void LD2410SComponent::restart_init_(uint32_t at) {
@@ -200,29 +213,26 @@ void LD2410SComponent::send_command_(uint16_t command) {
   uint8_t frame[CMD_FRAME_MAX_SIZE];
   progmem_memcpy(frame, CMD_FRAME_HEADER, LONG_HEADER_SIZE);
   uint8_t pos = LONG_PAYLOAD_POS;
-  frame[pos++] = command & 0xFF;
-  frame[pos++] = command >> 8;
+  put_le16(frame + pos, command);
+  pos += 2;
   switch (command) {
     case OUTPUT_MODE_SWITCH_CMD:
       memset(&frame[pos], 0, OUTPUT_MODE_MINIMAL_SIZE);
       pos += OUTPUT_MODE_MINIMAL_SIZE;
       break;
     case CONFIG_MODE_START_CMD:
-      frame[pos++] = CONFIG_MODE_START_VALUE & 0xFF;
-      frame[pos++] = CONFIG_MODE_START_VALUE >> 8;
+      put_le16(frame + pos, CONFIG_MODE_START_VALUE);
+      pos += 2;
       break;
 #ifdef USE_LD2410S_PARAMETERS
     case PARAMETERS_READ_CMD:
     case PARAMETERS_WRITE_CMD:
       for (uint8_t i = 0; i < PARAMETER_COUNT; i++) {
-        const uint16_t key = progmem_read_uint16(&PARAMETER_KEYS[i]);
-        frame[pos++] = key & 0xFF;
-        frame[pos++] = key >> 8;
+        put_le16(frame + pos, progmem_read_uint16(&PARAMETER_KEYS[i]));
+        pos += 2;
         if (command == PARAMETERS_WRITE_CMD) {
-          const uint32_t value = this->parameters_[i];  // a 32-bit field on the wire
-          for (uint8_t shift = 0; shift < 32; shift += 8) {
-            frame[pos++] = (value >> shift) & 0xFF;
-          }
+          put_le32(frame + pos, this->parameters_[i]);  // a 32-bit field on the wire
+          pos += 4;
         }
       }
       break;
@@ -230,8 +240,7 @@ void LD2410SComponent::send_command_(uint16_t command) {
     default:
       break;
   }
-  frame[LONG_HEADER_SIZE] = pos - LONG_PAYLOAD_POS;  // payload length, little-endian
-  frame[LONG_HEADER_SIZE + 1] = 0;
+  put_le16(frame + LONG_HEADER_SIZE, pos - LONG_PAYLOAD_POS);  // payload length
   progmem_memcpy(&frame[pos], CMD_FRAME_FOOTER, sizeof(CMD_FRAME_FOOTER));
   pos += sizeof(CMD_FRAME_FOOTER);
   this->write_array(frame, pos);
@@ -458,9 +467,7 @@ bool LD2410SComponent::handle_parameters_(const uint8_t *values, uint16_t len) {
 #ifdef USE_NUMBER
       // A value a number showed before the module answered is not confirmed
       for (auto *number : this->numbers_) {
-        if (number != nullptr) {
-          number->publish_state(NAN);
-        }
+        PUBLISH_STATE(number, NAN);
       }
 #endif
       return true;
@@ -490,18 +497,14 @@ bool LD2410SComponent::handle_version_(const uint8_t *values, uint16_t len) {
   snprintf(version, sizeof(version), "%u.%u.%u", encode_uint16(v[1], v[0]), encode_uint16(v[3], v[2]),
            encode_uint16(v[5], v[4]));
   ESP_LOGD(TAG, "Firmware %s", version);
-  if (this->version_text_sensor_ != nullptr) {
-    this->version_text_sensor_->publish_state(version);
-  }
+  PUBLISH_STATE(this->version_text_sensor_, version);
   return true;
 }
 #endif
 
 void LD2410SComponent::publish_target_(bool target, uint16_t distance) {
 #ifdef USE_BINARY_SENSOR
-  if (this->target_binary_sensor_ != nullptr) {
-    this->target_binary_sensor_->publish_state(target);
-  }
+  PUBLISH_STATE(this->target_binary_sensor_, target);
 #endif
 #ifdef USE_SENSOR
   // The module keeps reporting the last distance after the target left
@@ -513,9 +516,7 @@ void LD2410SComponent::publish_target_(bool target, uint16_t distance) {
 void LD2410SComponent::publish_parameters_() {
 #ifdef USE_NUMBER
   for (uint8_t i = 0; i < PARAMETER_COUNT; i++) {
-    if (this->numbers_[i] != nullptr) {
-      this->numbers_[i]->publish_raw(this->parameters_[i]);
-    }
+    PUBLISH_STATE(this->numbers_[i], this->parameters_[i] * PARAMETER_SCALES[i]);
   }
 #endif
 #ifdef USE_SELECT

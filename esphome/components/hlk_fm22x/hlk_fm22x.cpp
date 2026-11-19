@@ -262,12 +262,8 @@ void HlkFm22xComponent::handle_reply_(const uint8_t *data, size_t length) {
       int16_t face_id = encode_value<int16_t>(&data[2]);
       const char *name_ptr = reinterpret_cast<const char *>(data + 4);
       ESP_LOGD(TAG, "Face verified. ID: %d, name: %.*s", face_id, (int) HLK_FM22X_NAME_SIZE, name_ptr);
-      if (this->last_face_id_sensor_ != nullptr) {
-        this->last_face_id_sensor_->publish_state(face_id);
-      }
-      if (this->last_face_name_text_sensor_ != nullptr) {
-        this->last_face_name_text_sensor_->publish_state(name_ptr, HLK_FM22X_NAME_SIZE);
-      }
+      PUBLISH_STATE(this->last_face_id_sensor_, face_id);
+      PUBLISH_STATE(this->last_face_name_text_sensor_, name_ptr, HLK_FM22X_NAME_SIZE);
       this->face_scan_matched_callback_.call(face_id, std::string(name_ptr, HLK_FM22X_NAME_SIZE));
       break;
     }
@@ -281,9 +277,7 @@ void HlkFm22xComponent::handle_reply_(const uint8_t *data, size_t length) {
       break;
     }
     case HlkFm22xCommand::GET_STATUS:
-      if (this->status_sensor_ != nullptr) {
-        this->status_sensor_->publish_state(data[2]);
-      }
+      PUBLISH_STATE(this->status_sensor_, data[2]);
       this->defer([this]() { this->send_command_(HlkFm22xCommand::GET_VERSION); });
       break;
     case HlkFm22xCommand::GET_VERSION:
@@ -293,9 +287,7 @@ void HlkFm22xComponent::handle_reply_(const uint8_t *data, size_t length) {
       this->defer([this]() { this->get_face_count_(); });
       break;
     case HlkFm22xCommand::GET_ALL_FACE_IDS:
-      if (this->face_count_sensor_ != nullptr) {
-        this->face_count_sensor_->publish_state(data[2]);
-      }
+      PUBLISH_STATE(this->face_count_sensor_, data[2]);
       break;
     case HlkFm22xCommand::DELETE_FACE:
       ESP_LOGI(TAG, "Deleted face");
@@ -313,11 +305,7 @@ void HlkFm22xComponent::handle_reply_(const uint8_t *data, size_t length) {
   }
 }
 
-void HlkFm22xComponent::set_enrolling_(bool enrolling) {
-  if (this->enrolling_binary_sensor_ != nullptr) {
-    this->enrolling_binary_sensor_->publish_state(enrolling);
-  }
-}
+void HlkFm22xComponent::set_enrolling_(bool enrolling) { PUBLISH_STATE(this->enrolling_binary_sensor_, enrolling); }
 
 void HlkFm22xComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "HLK_FM22X:");

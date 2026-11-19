@@ -1,6 +1,7 @@
 #include "sen6x.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 #include <cinttypes>
 #include <cmath>
 #include <iterator>
@@ -8,6 +9,14 @@
 namespace esphome::sen6x {
 
 ESPHOME_LOG_TAG(TAG, "sen6x");
+
+// Indexed by Sen6xType
+PROGMEM_STRING_TABLE(TypeStrings, "SEN62", "SEN63C", "SEN65", "SEN66", "SEN68", "SEN69C", "UNKNOWN");
+
+static SEN6XComponent::Sen6xType infer_type_from_product_name(const char *product_name) {
+  const int16_t type = progmem_string_table_find<TypeStrings>(product_name, strnlen(product_name, 32));
+  return type < 0 ? SEN6XComponent::UNKNOWN : static_cast<SEN6XComponent::Sen6xType>(type);
+}
 
 #ifdef SEN6X_STATUS_SENSOR_COUNT
 // Bit of the status register behind each kind; the CO2 error bit is 9 on SEN66 and 12 on SEN63C/SEN69C
@@ -40,6 +49,7 @@ static constexpr uint32_t POLL_INTERVAL = 50;   // 50 ms between poll attempts
 static constexpr uint32_t TIMEOUT_POLL = 1;
 static constexpr uint32_t TIMEOUT_SETUP_STEP = 2;
 static constexpr uint32_t TIMEOUT_STARTUP = 3;
+static constexpr uint32_t TIMEOUT_CO2_RECALIBRATION = 4;
 // Post-command wait times from the datasheet: start execution (4.8.1), stop execution (4.8.2),
 // fan cleaning (4.8.22), SHT heater (4.8.23), CO2 conditioning after start on SEN63C/SEN69C (4.8.1)
 static constexpr uint32_t START_MEASUREMENT_DELAY = 50;
@@ -47,6 +57,13 @@ static constexpr uint32_t STOP_MEASUREMENT_DELAY = 1400;
 static constexpr uint32_t FAN_CLEANING_DELAY = 10000;
 static constexpr uint32_t SHT_HEATER_DELAY = 20000;
 static constexpr uint32_t CO2_CONDITIONING_DELAY = 24000;
+// Forced CO2 recalibration runs for about 500 ms before its correction can be read
+static constexpr uint32_t CO2_FORCED_RECALIBRATION_DELAY = 500;
+// Correction read back after a forced recalibration: 0xFFFF on failure, otherwise ppm offset by 0x8000
+static constexpr uint16_t CO2_FORCED_RECALIBRATION_FAILED = 0xFFFF;
+static constexpr uint16_t CO2_FORCED_RECALIBRATION_OFFSET = 0x8000;
+// Highest accepted reference: the sensor's 40000 ppm range, the same limit the schema applies to constants
+static constexpr float CO2_FORCED_RECALIBRATION_MAX_PPM = 40000.0f;
 // Accepted range of a runtime pressure source, the same as the schema's ambient_pressure_compensation
 static constexpr float AMBIENT_PRESSURE_MIN_HPA = 700.0f;
 static constexpr float AMBIENT_PRESSURE_MAX_HPA = 1200.0f;
@@ -76,6 +93,7 @@ static constexpr uint16_t SEN6X_CMD_NOX_ALGORITHM_TUNING = 0x60E1;
 static constexpr uint16_t SEN6X_CMD_TEMPERATURE_COMPENSATION = 0x60B2;
 static constexpr uint16_t SEN6X_CMD_TEMPERATURE_ACCELERATION = 0x6100;
 static constexpr uint16_t SEN6X_CMD_CO2_AUTOMATIC_SELF_CAL = 0x6711;
+static constexpr uint16_t SEN6X_CMD_CO2_FORCED_RECALIBRATION = 0x6707;
 static constexpr uint16_t SEN6X_CMD_AMBIENT_PRESSURE = 0x6720;
 static constexpr uint16_t SEN6X_CMD_SENSOR_ALTITUDE = 0x6736;
 
@@ -133,33 +151,36 @@ void SEN6XComponent::setup() {
         this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
         return;
       }
-      this->serial_number_ = SEN6XComponent::sensirion_convert_to_string_in_place(raw_serial_number, 16);
-      ESP_LOGI(TAG, "Serial number: %s", this->serial_number_.c_str());
+      // The last byte of serial_number_ stays 0, so a full 32-byte serial is still terminated
+      memcpy(this->serial_number_, SEN6XComponent::sensirion_convert_to_string_in_place(raw_serial_number, 16),
+             sizeof(this->serial_number_) - 1);
+      ESP_LOGI(TAG, "Serial number: %s", this->serial_number_);
 
       // Step 2: Read product name in next loop iteration
       this->set_timeout(0, [this]() {
-        uint16_t raw_product_name[16];
+        // One spare zero word so a full 32-byte name is still terminated
+        uint16_t raw_product_name[17]{};
         if (!this->get_register(SEN6X_CMD_GET_PRODUCT_NAME, raw_product_name, 16, 20)) {
           ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
           this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
           return;
         }
 
-        this->product_name_ = SEN6XComponent::sensirion_convert_to_string_in_place(raw_product_name, 16);
+        const char *product_name = SEN6XComponent::sensirion_convert_to_string_in_place(raw_product_name, 16);
 
-        Sen6xType inferred_type = this->infer_type_from_product_name_(this->product_name_);
+        Sen6xType inferred_type = infer_type_from_product_name(product_name);
         if (this->sen6x_type_ == UNKNOWN) {
           this->sen6x_type_ = inferred_type;
           if (inferred_type == UNKNOWN) {
-            ESP_LOGE(TAG, "Unknown product '%s'", this->product_name_.c_str());
+            ESP_LOGE(TAG, "Unknown product '%s'", product_name);
             this->mark_failed();
             return;
           }
-          ESP_LOGD(TAG, "Type inferred from product: %s", this->product_name_.c_str());
+          ESP_LOGD(TAG, "Type inferred from product: %s", product_name);
         } else if (this->sen6x_type_ != inferred_type && inferred_type != UNKNOWN) {
-          ESP_LOGW(TAG, "Configured type (used) mismatches product '%s'", this->product_name_.c_str());
+          ESP_LOGW(TAG, "Configured type (used) mismatches product '%s'", product_name);
         }
-        ESP_LOGI(TAG, "Product: %s", this->product_name_.c_str());
+        ESP_LOGI(TAG, "Product: %s", product_name);
 
         // Validate configured sensors against detected type and disable unsupported ones
         const bool has_voc_nox = (this->sen6x_type_ == SEN65 || this->sen6x_type_ == SEN66 ||
@@ -329,13 +350,13 @@ bool SEN6XComponent::write_tuning_parameters_(uint16_t i2c_command, const GasTun
 void SEN6XComponent::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "sen6x:\n"
-                "  Product: %s\n"
+                "  Type: %s\n"
                 "  Serial: %s\n"
                 "  Firmware: %u.%u\n"
                 "  Address: 0x%02X\n"
                 "  Startup delay: %" PRIu32 " ms",
-                this->product_name_.c_str(), this->serial_number_.c_str(), this->firmware_version_major_,
-                this->firmware_version_minor_, this->address_, this->startup_delay_ms_);
+                LOG_STR_ARG(TypeStrings::get_log_str(this->sen6x_type_, TypeStrings::LAST_INDEX)), this->serial_number_,
+                this->firmware_version_major_, this->firmware_version_minor_, this->address_, this->startup_delay_ms_);
   LOG_UPDATE_INTERVAL(this);
   if (this->temperature_compensation_.has_value()) {
     const auto &comp = this->temperature_compensation_.value();
@@ -358,9 +379,9 @@ void SEN6XComponent::dump_config() {
     if (this->ambient_pressure_ != PRESSURE_UNSET) {
       ESP_LOGCONFIG(TAG, "  Ambient pressure compensation: %u hPa", this->ambient_pressure_);
     }
-    if (this->ambient_pressure_source_ != nullptr) {
+    if (this->ambient_pressure_source_sensor_ != nullptr) {
       ESP_LOGCONFIG(TAG, "  Ambient pressure compensation source: %s",
-                    LOG_STR_ARG(this->ambient_pressure_source_->get_log_name()));
+                    LOG_STR_ARG(this->ambient_pressure_source_sensor_->get_log_name()));
     }
   }
   LOG_SENSOR("  ", "PM  1.0", this->pm_1_0_sensor_);
@@ -399,8 +420,8 @@ void SEN6XComponent::update() {
     return;
   }
 
-  if (this->ambient_pressure_source_ != nullptr && this->co2_sensor_ != nullptr) {
-    this->update_ambient_pressure_compensation_(this->ambient_pressure_source_->state);
+  if (this->ambient_pressure_source_sensor_ != nullptr && this->co2_sensor_ != nullptr) {
+    this->update_ambient_pressure_compensation_(this->ambient_pressure_source_sensor_->state);
   }
 
   set_read_command_and_words(this->sen6x_type_, this->read_cmd_, this->read_words_);
@@ -591,26 +612,16 @@ void SEN6XComponent::parse_and_publish_measurements_() {
     return;
   }
 
-  if (this->pm_1_0_sensor_ != nullptr)
-    this->pm_1_0_sensor_->publish_state(pm_1_0);
-  if (this->pm_2_5_sensor_ != nullptr)
-    this->pm_2_5_sensor_->publish_state(pm_2_5);
-  if (this->pm_4_0_sensor_ != nullptr)
-    this->pm_4_0_sensor_->publish_state(pm_4_0);
-  if (this->pm_10_0_sensor_ != nullptr)
-    this->pm_10_0_sensor_->publish_state(pm_10_0);
-  if (this->temperature_sensor_ != nullptr)
-    this->temperature_sensor_->publish_state(temperature);
-  if (this->humidity_sensor_ != nullptr)
-    this->humidity_sensor_->publish_state(humidity);
-  if (this->voc_sensor_ != nullptr)
-    this->voc_sensor_->publish_state(voc);
-  if (this->nox_sensor_ != nullptr)
-    this->nox_sensor_->publish_state(nox);
-  if (this->hcho_sensor_ != nullptr)
-    this->hcho_sensor_->publish_state(hcho);
-  if (this->co2_sensor_ != nullptr)
-    this->co2_sensor_->publish_state(co2);
+  PUBLISH_STATE(this->pm_1_0_sensor_, pm_1_0);
+  PUBLISH_STATE(this->pm_2_5_sensor_, pm_2_5);
+  PUBLISH_STATE(this->pm_4_0_sensor_, pm_4_0);
+  PUBLISH_STATE(this->pm_10_0_sensor_, pm_10_0);
+  PUBLISH_STATE(this->temperature_sensor_, temperature);
+  PUBLISH_STATE(this->humidity_sensor_, humidity);
+  PUBLISH_STATE(this->voc_sensor_, voc);
+  PUBLISH_STATE(this->nox_sensor_, nox);
+  PUBLISH_STATE(this->hcho_sensor_, hcho);
+  PUBLISH_STATE(this->co2_sensor_, co2);
 
 #ifdef USE_SEN6X_NUMBER_CONCENTRATION
   // The define says some device in the build has pmc sensors; this one may not
@@ -684,8 +695,7 @@ void SEN6XComponent::parse_and_publish_number_concentration_() {
   }
 
   for (size_t i = 0; i < std::size(sensors); i++) {
-    if (sensors[i] != nullptr)
-      sensors[i]->publish_state(measurements[i] == 0xFFFF ? NAN : measurements[i] / 10.0f);
+    PUBLISH_STATE(sensors[i], measurements[i] == 0xFFFF ? NAN : measurements[i] / 10.0f);
   }
 }
 #endif
@@ -812,20 +822,54 @@ void SEN6XComponent::activate_sht_heater() {
   this->set_command_wait_(SHT_HEATER_DELAY);
 }
 
-SEN6XComponent::Sen6xType SEN6XComponent::infer_type_from_product_name_(const std::string &product_name) {
-  if (product_name == "SEN62")
-    return SEN62;
-  if (product_name == "SEN63C")
-    return SEN63C;
-  if (product_name == "SEN65")
-    return SEN65;
-  if (product_name == "SEN66")
-    return SEN66;
-  if (product_name == "SEN68")
-    return SEN68;
-  if (product_name == "SEN69C")
-    return SEN69C;
-  return UNKNOWN;
+void SEN6XComponent::perform_forced_co2_recalibration(float target_co2_ppm) {
+  if (!this->initialized_)
+    return;
+  if (this->co2_sensor_ == nullptr) {
+    ESP_LOGW(TAG, "Forced CO2 recalibration requires a CO2 sensor");
+    return;
+  }
+  // The schema only range-checks constants; a templated value is checked here, as the device keeps the result
+  if (std::isnan(target_co2_ppm) || target_co2_ppm < 0.0f || target_co2_ppm > CO2_FORCED_RECALIBRATION_MAX_PPM) {
+    ESP_LOGW(TAG, "Forced CO2 recalibration value out of range: %.0f ppm", target_co2_ppm);
+    return;
+  }
+  // The device only accepts this command in idle mode, at least 600 ms after a stop; the stop's
+  // command wait already covers that
+  if (this->measuring_) {
+    ESP_LOGW(TAG, "Forced CO2 recalibration requires idle mode; stop the measurement first");
+    return;
+  }
+  if (this->command_blocked_()) {
+    ESP_LOGW(TAG, "Device busy");
+    return;
+  }
+  const auto target = static_cast<uint16_t>(lroundf(target_co2_ppm));
+  // Keep other commands out from the write until the result has been read, however late the timeout runs;
+  // a log callback can run an action in the middle of either transfer
+  this->set_command_wait_(UINT32_MAX);
+  if (!this->write_command(SEN6X_CMD_CO2_FORCED_RECALIBRATION, target)) {
+    this->set_command_wait_(0);
+    this->status_set_warning();
+    ESP_LOGW(TAG, "Forced CO2 recalibration failed (%d)", this->last_error_);
+    return;
+  }
+  this->set_timeout(TIMEOUT_CO2_RECALIBRATION, CO2_FORCED_RECALIBRATION_DELAY, [this, target]() {
+    uint16_t correction;
+    const bool read_ok = this->read_data(correction);
+    this->set_command_wait_(0);
+    if (!this->status_comm_result(read_ok)) {
+      ESP_LOGW(TAG, "Reading the forced CO2 recalibration result failed (%d)", this->last_error_);
+      return;
+    }
+    if (correction == CO2_FORCED_RECALIBRATION_FAILED) {
+      this->status_set_warning();
+      ESP_LOGW(TAG, "Forced CO2 recalibration to %u ppm rejected by the sensor", target);
+      return;
+    }
+    const int correction_ppm = static_cast<int>(correction) - CO2_FORCED_RECALIBRATION_OFFSET;
+    ESP_LOGI(TAG, "Forced CO2 recalibration to %u ppm done, correction %d ppm", target, correction_ppm);
+  });
 }
 
 }  // namespace esphome::sen6x

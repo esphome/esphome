@@ -15,7 +15,7 @@ using namespace esphome::switch_;
 MQTTSwitchComponent::MQTTSwitchComponent(switch_::Switch *a_switch) : switch_(a_switch) {}
 
 void MQTTSwitchComponent::setup() {
-  this->subscribe(this->get_command_topic_(), [this](const std::string &topic, const std::string &payload) {
+  this->subscribe(this->command_topic_source_(), [this](const std::string &topic, const std::string &payload) {
     switch (parse_on_off(payload.c_str())) {
       case PARSE_ON:
         this->switch_->turn_on();

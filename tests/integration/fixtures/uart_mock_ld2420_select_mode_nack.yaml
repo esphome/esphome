@@ -1,0 +1,73 @@
+esphome:
+  name: uart-mock-ld2420-mode-nack
+
+host:
+api:
+  batch_delay: 0ms  # Disable batching to receive all state updates
+logger:
+  level: VERBOSE
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+
+# Dummy uart entry to satisfy ld2420's DEPENDENCIES = ["uart"]
+# The actual UART bus used is the uart_mock component below
+uart:
+  baud_rate: 115200
+  port: /dev/null
+
+uart_mock:
+  id: mock_uart
+  baud_rate: 115200
+  responses:
+    # Firmware v2.0.0 (1.5.4 or newer), so setup picks energy reporting
+    - expect_tx:
+        [0xFD, 0xFC, 0xFB, 0xFA, 0x02, 0x00, 0x00, 0x00, 0x04, 0x03, 0x02, 0x01]
+      inject_rx:
+        [
+          0xFD, 0xFC, 0xFB, 0xFA,
+          0x0C, 0x00,
+          0x00, 0x01,
+          0x00, 0x00,
+          0x06, 0x00,
+          0x76, 0x32, 0x2E, 0x30, 0x2E, 0x30,
+          0x04, 0x03, 0x02, 0x01,
+        ]
+
+    # The simple system mode write is refused (error word 1)
+    - expect_tx:
+        [
+          0xFD, 0xFC, 0xFB, 0xFA, 0x08, 0x00, 0x12, 0x00,
+          0x00, 0x00, 0x64, 0x00, 0x00, 0x00, 0x04, 0x03, 0x02, 0x01,
+        ]
+      inject_rx:
+        [
+          0xFD, 0xFC, 0xFB, 0xFA,
+          0x04, 0x00,
+          0x12, 0x01,
+          0x01, 0x00,
+          0x04, 0x03, 0x02, 0x01,
+        ]
+
+    # Generic ACK for every other command
+    - expect_tx: [0x04, 0x03, 0x02, 0x01]
+      inject_rx:
+        [
+          0xFD, 0xFC, 0xFB, 0xFA,
+          0x04, 0x00,
+          0xFF, 0x01,
+          0x00, 0x00,
+          0x04, 0x03, 0x02, 0x01,
+        ]
+
+ld2420:
+  id: ld2420_dev
+  uart_id: mock_uart
+
+select:
+  - platform: ld2420
+    ld2420_id: ld2420_dev
+    operating_mode:
+      name: "Operating Mode"

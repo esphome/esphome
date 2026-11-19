@@ -25,15 +25,85 @@ extern "C" {
 #include <freertos/FreeRTOSConfig.h>
 #include <freertos/task.h>
 
+#include <cstring>
+
 #ifdef USE_ARDUINO
 // Prevent Arduino from releasing BT memory at startup (esp32-hal-misc.c).
 // Without this, esp_bt_controller_init() fails with ESP_ERR_INVALID_STATE.
 extern "C" bool btInUse() { return true; }  // NOLINT(readability-identifier-naming)
 #endif
 
+#if !defined(CONFIG_BT_CONTROLLER_DISABLED) && \
+    (defined(CONFIG_IDF_TARGET_ESP32C3) || defined(CONFIG_IDF_TARGET_ESP32S3))
+// The ESP32-C3 and ESP32-S3 share one controller (lib_esp32c3_family, RivieraWaves link layer).
+#define USE_ESP32_BLE_TERMINATE_PATCH
+// Controller internals, reached through r_ip_funcs_p: a table btdm_controller_init() copies into RAM.
+extern "C" {
+extern void *r_ip_funcs_p;
+const char *btdm_controller_get_compile_version();
+uint8_t r_lld_con_terminate_max_evt_update(uint8_t link_id, uint8_t acked);
+uint8_t *r_lld_con_cntl_pkt_info_get();
+}
+#endif
+
 namespace esphome::esp32_ble {
 
 ESPHOME_LOG_TAG(TAG, "esp32_ble");
+
+#ifdef USE_ESP32_BLE_TERMINATE_PATCH
+// The controller ends its terminate procedure after 6 connection events without an acknowledgement and reports
+// the link closed. A peer using peripheral latency listens only every (latency + 1) events, so it can miss all
+// six LL_TERMINATE_IND: it keeps the link and searches for the central at full receive current until its own
+// supervision timeout. The Core spec keeps the procedure going until the acknowledgement or the supervision
+// timeout; this does that, by holding the controller's no-acknowledgement count below its limit. A peer that
+// never answers still ends the link at the supervision timeout.
+static constexpr size_t TERMINATE_MAX_EVT_SLOT = 0x7dc / sizeof(void *);
+static constexpr uint8_t TERMINATE_MAX_EVT = 5;  // the controller gives up once its count exceeds this
+
+static uint8_t IRAM_ATTR terminate_until_acked(uint8_t link_id, uint8_t acked) {
+  // Per link: [2] terminate in progress, [3] connection events without an acknowledgement.
+  uint8_t *info = r_lld_con_cntl_pkt_info_get() + link_id * 4;
+  if (!acked && info[2] != 0 && info[3] >= TERMINATE_MAX_EVT)
+    info[3] = TERMINATE_MAX_EVT - 1;
+  return r_lld_con_terminate_max_evt_update(link_id, acked);
+}
+
+// The controller builds whose r_lld_con_terminate_max_evt_update and r_lld_con_cntl_pkt_info_get the wrapper was
+// checked against. The table slot alone does not prove the pkt_info layout, so an unknown build is left alone.
+// btdm_controller_get_compile_version() is what ESP-IDF logs at init as "BT controller compile version [...]".
+// Recheck on every ESP-IDF bump: add the new build once both functions are confirmed unchanged, or drop the patch once
+// espressif/esp-idf#19189 is fixed.
+static const char *const TERMINATE_PATCH_CONTROLLER_BUILDS[] = {
+    "51d9dfd",  // ESP-IDF 5.5.5-5.5.6, Arduino 3.3.10-3.3.12
+    "b7de11e",  // ESP-IDF 5.5.4, Arduino 3.3.8-3.3.9: both functions identical to 51d9dfd's
+};
+
+static void patch_terminate_until_acked() {
+  auto **table = static_cast<void **>(r_ip_funcs_p);
+  if (table == nullptr) {
+    ESP_LOGW(TAG, "Controller layout not recognised; disconnects keep the controller's 6-event limit");
+    return;
+  }
+  const char *build = btdm_controller_get_compile_version();
+  bool known_build = false;
+  for (const char *known : TERMINATE_PATCH_CONTROLLER_BUILDS)
+    known_build = known_build || strcmp(build, known) == 0;
+  if (!known_build) {
+    // Expected after an ESP-IDF bump, and nothing a user can act on
+    ESP_LOGD(TAG,
+             "Controller build %s not checked for the terminate patch; disconnects keep the controller's 6-event limit",
+             build);
+    return;
+  }
+  if (table[TERMINATE_MAX_EVT_SLOT] == reinterpret_cast<void *>(&terminate_until_acked))
+    return;  // already patched: the controller stayed enabled across a setup
+  if (table[TERMINATE_MAX_EVT_SLOT] != reinterpret_cast<void *>(&r_lld_con_terminate_max_evt_update)) {
+    ESP_LOGW(TAG, "Controller build %s has an unexpected terminate handler; terminate patch skipped", build);
+    return;
+  }
+  table[TERMINATE_MAX_EVT_SLOT] = reinterpret_cast<void *>(&terminate_until_acked);
+}
+#endif
 
 #ifdef CONFIG_BT_CONTROLLER_DISABLED
 // Bringing up the remote BT controller issues synchronous RPCs to the
@@ -125,7 +195,8 @@ void ESP32BLE::advertising_refresh() {
   if (this->advertising_ref_count_ == 0) {
     this->advertising_->stop();
   } else {
-    this->advertising_->start();
+    this->advertising_->request_start();
+    App.wake_loop_threadsafe();
   }
 }
 
@@ -174,6 +245,16 @@ void ESP32BLE::advertising_add_service_uuid(ESPBTUUID uuid) {
   this->advertising_refresh();
 }
 
+void ESP32BLE::advertising_set_priority_uuid(ESPBTUUID uuid) {
+  this->advertising_init_();
+  this->advertising_->set_priority_uuid(uuid);
+}
+
+void ESP32BLE::advertising_clear_priority_uuid() {
+  if (this->advertising_ != nullptr)
+    this->advertising_->clear_priority_uuid();
+}
+
 void ESP32BLE::advertising_remove_service_uuid(ESPBTUUID uuid) {
   this->advertising_init_();
   this->advertising_->remove_service_uuid(uuid);
@@ -187,11 +268,27 @@ void ESP32BLE::advertising_init_() {
     return;
   this->advertising_ = new BLEAdvertising(this->advertising_cycle_time_);  // NOLINT(cppcoreguidelines-owning-memory)
 
-  this->advertising_->set_scan_response(true);
-  this->advertising_->set_min_preferred_interval(0x06);
   this->advertising_->set_appearance(this->appearance_);
 }
 #endif
+
+const char *ESP32BLE::device_name(char *buffer) const {
+  if (this->name_ != nullptr) {
+    if (!App.is_name_add_mac_suffix_enabled())
+      return this->name_;
+    // Last 6 characters of the 12 character MAC address string
+    constexpr size_t mac_address_suffix_len = 6;
+    char mac_addr[MAC_ADDRESS_BUFFER_SIZE];
+    get_mac_address_into_buffer(mac_addr);
+    make_name_with_suffix_to(buffer, DEVICE_NAME_BUFFER_SIZE, this->name_, strlen(this->name_), '-',
+                             mac_addr + mac_address_suffix_len, mac_address_suffix_len);
+    return buffer;
+  }
+  const auto &app_name = App.get_name();
+  truncate_name_to(buffer, DEVICE_NAME_BUFFER_SIZE, app_name.c_str(), app_name.length(),
+                   App.is_name_add_mac_suffix_enabled() ? MAC_ADDRESS_SUFFIX_WITH_SEPARATOR_LEN : 0);
+  return buffer;
+}
 
 bool ESP32BLE::ble_setup_() {
   esp_err_t err;
@@ -223,6 +320,9 @@ bool ESP32BLE::ble_setup_() {
       return false;
     }
   }
+#ifdef USE_ESP32_BLE_TERMINATE_PATCH
+  patch_terminate_until_acked();
+#endif
 
   esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT);
 #else
@@ -300,32 +400,8 @@ bool ESP32BLE::ble_setup_() {
   }
 #endif
 
-  // BLE device names are limited to 20 characters
-  // Buffer: 20 chars + null terminator
-  constexpr size_t ble_name_max_len = 21;
-  char name_buffer[ble_name_max_len];
-  const char *device_name;
-
-  if (this->name_ != nullptr) {
-    if (App.is_name_add_mac_suffix_enabled()) {
-      // MAC address suffix length (last 6 characters of 12-char MAC address string)
-      constexpr size_t mac_address_suffix_len = 6;
-      char mac_addr[MAC_ADDRESS_BUFFER_SIZE];
-      get_mac_address_into_buffer(mac_addr);
-      const char *mac_suffix_ptr = mac_addr + mac_address_suffix_len;
-      make_name_with_suffix_to(name_buffer, sizeof(name_buffer), this->name_, strlen(this->name_), '-', mac_suffix_ptr,
-                               mac_address_suffix_len);
-      device_name = name_buffer;
-    } else {
-      device_name = this->name_;
-    }
-  } else {
-    const auto &app_name = App.get_name();
-    truncate_name_to(name_buffer, sizeof(name_buffer), app_name.c_str(), app_name.length(),
-                     App.is_name_add_mac_suffix_enabled() ? MAC_ADDRESS_SUFFIX_WITH_SEPARATOR_LEN : 0);
-    device_name = name_buffer;
-  }
-
+  char name_buffer[DEVICE_NAME_BUFFER_SIZE];
+  const char *device_name = this->device_name(name_buffer);
   err = esp_ble_gap_set_device_name(device_name);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_ble_gap_set_device_name failed: %d", err);
@@ -434,15 +510,11 @@ void ESP32BLE::loop() {
     return;
   }
 
-#ifdef USE_ESP32_BLE_ADVERTISING
-  if (this->advertising_ != nullptr) {
-    this->advertising_->loop();
-  }
-#endif
-
   BLEEvent *ble_event = this->ble_events_.pop();
-  if (ble_event == nullptr)
+  if (ble_event == nullptr) {
+    this->advertising_loop_();
     return;
+  }
 
   do {
     switch (ble_event->type_) {
@@ -452,6 +524,11 @@ void ESP32BLE::loop() {
         esp_gatt_if_t gatts_if = ble_event->event_.gatts.gatts_if;
         esp_ble_gatts_cb_param_t *param = &ble_event->event_.gatts.gatts_param;
         ESP_LOGV(TAG, "gatts_event [esp_gatt_if: %d] - %d", gatts_if, event);
+#ifdef USE_ESP32_BLE_ADVERTISING
+        // A peripheral connect stops advertising, so drop a queued send; a handler that wants more refreshes again
+        if (event == ESP_GATTS_CONNECT_EVT && param->connect.link_role == 1)
+          this->advertising_cancel_start_();
+#endif
         this->gatts_event_callbacks_.call(event, gatts_if, param);
         break;
       }
@@ -541,6 +618,8 @@ void ESP32BLE::loop() {
   if (dropped > 0) {
     ESP_LOGW(TAG, "Dropped %u BLE events due to buffer overflow", dropped);
   }
+  // After the events, so refreshes they trigger go out in this pass
+  this->advertising_loop_();
 }
 
 void ESP32BLE::loop_handle_state_transition_not_active_() {
@@ -558,6 +637,9 @@ void ESP32BLE::loop_handle_state_transition_not_active_() {
       return;
     }
     this->drain_ble_events_();
+#ifdef USE_ESP32_BLE_ADVERTISING
+    this->advertising_cancel_start_();
+#endif
     // A status callback may have asked for BLE back; the stack is down now, so
     // that request becomes a bring-up.
     this->state_ =
@@ -649,24 +731,35 @@ void ESP32BLE::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_pa
     // never answer an update, and without this the link silently stays on the
     // old parameters (visible only as unexplained supervision timeouts).
     case ESP_GAP_BLE_UPDATE_CONN_PARAMS_EVT: {
+      // A peer can keep asking for parameters it then rejects: warn once per peer, repeats are
+      // verbose until an update succeeds or it disconnects.
       if (param->update_conn_params.status != ESP_BT_STATUS_SUCCESS) {
         char mac_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
         format_mac_addr_upper(param->update_conn_params.bda, mac_s);
-        ESP_LOGW(TAG, "[%s] Conn param update failed, status=%d", mac_s, param->update_conn_params.status);
-      }
+        if (global_ble->conn_param_failed_slot_(param->update_conn_params.bda) != nullptr) {
+          ESP_LOGV(TAG, "[%s] Conn param update failed again, status=%d", mac_s, param->update_conn_params.status);
+        } else {
+          ESP_LOGW(TAG, "[%s] Conn param update failed, status=%d", mac_s, param->update_conn_params.status);
+          static constexpr esp_bd_addr_t FREE{};
+          uint8_t *slot = global_ble->conn_param_failed_slot_(FREE);
+          if (slot != nullptr)
+            memcpy(slot, param->update_conn_params.bda, sizeof(esp_bd_addr_t));
+        }
+      } else {
+        global_ble->forget_conn_param_failure_(param->update_conn_params.bda);
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-      else {
         char mac_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
         format_mac_addr_upper(param->update_conn_params.bda, mac_s);
         ESP_LOGV(TAG, "[%s] Conn params updated: interval=%u (x1.25ms) latency=%u timeout=%u (x10ms)", mac_s,
                  param->update_conn_params.conn_int, param->update_conn_params.latency,
                  param->update_conn_params.timeout);
-      }
 #endif
+      }
       return;
     }
 
     // Ignore these GAP events as they are not relevant for our use case
+    case ESP_GAP_BLE_KEY_EVT:
     case ESP_GAP_BLE_SET_PKT_LENGTH_COMPLETE_EVT:
     case ESP_GAP_BLE_PHY_UPDATE_COMPLETE_EVT:       // BLE 5.0 PHY update complete
     case ESP_GAP_BLE_CHANNEL_SELECT_ALGORITHM_EVT:  // BLE 5.0 channel selection algorithm
@@ -683,6 +776,8 @@ void ESP32BLE::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_pa
 #ifdef USE_ESP32_BLE_SERVER
 void ESP32BLE::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,
                                    esp_ble_gatts_cb_param_t *param) {
+  if (event == ESP_GATTS_DISCONNECT_EVT)
+    global_ble->forget_conn_param_failure_(param->disconnect.remote_bda);
   enqueue_ble_event(event, gatts_if, param);
   // Wake up main loop to process GATT event immediately
   App.wake_loop_threadsafe();
@@ -692,11 +787,27 @@ void ESP32BLE::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gat
 #ifdef USE_ESP32_BLE_CLIENT
 void ESP32BLE::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                                    esp_ble_gattc_cb_param_t *param) {
+  if (event == ESP_GATTC_DISCONNECT_EVT)
+    global_ble->forget_conn_param_failure_(param->disconnect.remote_bda);
   enqueue_ble_event(event, gattc_if, param);
   // Wake up main loop to process GATT event immediately
   App.wake_loop_threadsafe();
 }
 #endif
+
+uint8_t *ESP32BLE::conn_param_failed_slot_(const uint8_t *bda) {
+  for (auto &slot : this->conn_param_failed_bdas_) {
+    if (memcmp(slot, bda, sizeof(esp_bd_addr_t)) == 0)
+      return slot;
+  }
+  return nullptr;
+}
+
+void ESP32BLE::forget_conn_param_failure_(const uint8_t *bda) {
+  uint8_t *slot = this->conn_param_failed_slot_(bda);
+  if (slot != nullptr)
+    memset(slot, 0, sizeof(esp_bd_addr_t));
+}
 
 void ESP32BLE::get_mac_msb_first(uint8_t out[MAC_ADDRESS_SIZE]) const {
   // The running stack owns the address (on hosted controllers it lives in

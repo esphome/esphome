@@ -26,21 +26,7 @@ static void expect_block(const FakeDisplay &d, int x, int y, int w, int h, const
   }
 }
 
-static void expect_solid(const FakeDisplay &d, int x, int y, int w, int h, uint16_t px, uint8_t bpp) {
-  expect_block(d, x, y, w, h, std::vector<uint16_t>(static_cast<size_t>(w) * h, px), bpp);
-}
-
-class VncDecode : public ::testing::Test {
- protected:
-  void start(FakeDisplay &display, uint16_t fb_w, uint16_t fb_h) {
-    this->session_ = std::make_unique<Session>(&display);
-    this->session_->start(fb_w, fb_h);
-    // Past the 50 ms request spacing, so the next request goes out as soon as a frame ends.
-    set_now(now_ms() + 100);
-  }
-  Session &s() { return *this->session_; }
-  std::unique_ptr<Session> session_;
-};
+class VncDecode : public VncSessionTest {};
 
 TEST_F(VncDecode, Raw16bpp) {
   FakeDisplay d(64, 48);
@@ -83,6 +69,225 @@ TEST_F(VncDecode, EmptyUpdateRequestsAgainWithoutRefresh) {
   EXPECT_EQ(hex(s().take()), hex(fbur(true, 64, 48)));
   s().run_for(2000);
   EXPECT_EQ(d.updates(), 0);
+}
+
+TEST_F(VncDecode, HextileRawTile) {
+  FakeDisplay d(64, 48);
+  this->start(d, 64, 48);
+  auto px = pattern(256, 0x0F0F);
+  Rfb f;
+  f.fbu(1).rect(16, 16, 16, 16, HEXTILE).u8(0x01);
+  for (auto p : px) {
+    f.px(p);
+  }
+  s().deliver(f);
+  expect_block(d, 16, 16, 16, 16, px, 2);
+  EXPECT_EQ(d.drawn_count(), 256u);
+}
+
+TEST_F(VncDecode, HextileRawTileIgnoresOtherFlags) {
+  FakeDisplay d(64, 48);
+  this->start(d, 64, 48);
+  auto px = pattern(4 * 3, 0x7777);
+  Rfb f;
+  // 0x1F: Raw plus every other bit. Only the pixels follow.
+  f.fbu(2).rect(0, 0, 4, 3, HEXTILE).u8(0x1F);
+  for (auto p : px) {
+    f.px(p);
+  }
+  f.raw_rect(10, 10, 1, 1, {0xABCD});
+  s().deliver(f);
+  expect_block(d, 0, 0, 4, 3, px, 2);
+  EXPECT_EQ(d.pixel(10, 10), expect_px(0xABCD, 2));
+  EXPECT_TRUE(s().client.is_connected());
+  EXPECT_EQ(hex(s().take()), hex(fbur(true, 64, 48)));
+}
+
+TEST_F(VncDecode, HextileBackgroundOnly) {
+  FakeDisplay d(64, 48);
+  this->start(d, 64, 48);
+  s().deliver(Rfb().fbu(1).rect(0, 0, 16, 16, HEXTILE).u8(0x02).px(0x1234));
+  EXPECT_TRUE(solid(d, 0, 0, 16, 16, 0x1234));
+  EXPECT_EQ(d.drawn_count(), 256u);
+}
+
+TEST(VncDecodeBigEndian, HextileTilesKeepTheServerByteOrder) {
+  FakeDisplay d(64, 48);
+  Session s(&d, 1000, true);
+  s.start(64, 48);
+  set_now(now_ms() + 100);
+  s.deliver(
+      Rfb().fbu(2).rect(0, 0, 16, 16, HEXTILE).u8(0x02).u16(0x1234).rect(16, 0, 1, 1, HEXTILE).u8(0x01).u16(0xF800));
+  EXPECT_TRUE(solid(d, 0, 0, 16, 16, 0x1234));
+  EXPECT_EQ(d.pixel(16, 0), expect_px(0xF800, 2));
+}
+
+TEST_F(VncDecode, HextileForegroundSubrects) {
+  FakeDisplay d(64, 48);
+  this->start(d, 64, 48);
+  // bg 0x1111, fg 0x2222, two subrects: (1,2) 3x4 and (10,0) 6x1.
+  s().deliver(Rfb()
+                  .fbu(1)
+                  .rect(0, 0, 16, 16, HEXTILE)
+                  .u8(0x02 | 0x04 | 0x08)
+                  .px(0x1111)
+                  .px(0x2222)
+                  .u8(2)
+                  .u8(0x12)
+                  .u8(0x23)
+                  .u8(0xA0)
+                  .u8(0x50));
+  for (int y = 0; y < 16; y++) {
+    for (int x = 0; x < 16; x++) {
+      const bool fg = (x >= 1 && x < 4 && y >= 2 && y < 6) || (x >= 10 && y == 0);
+      ASSERT_EQ(d.pixel(x, y), expect_px(fg ? 0x2222 : 0x1111, 2)) << x << "," << y;
+    }
+  }
+}
+
+TEST_F(VncDecode, HextileColouredSubrects) {
+  FakeDisplay d(64, 48);
+  this->start(d, 64, 48);
+  s().deliver(Rfb()
+                  .fbu(1)
+                  .rect(16, 0, 16, 16, HEXTILE)
+                  .u8(0x02 | 0x08 | 0x10)
+                  .px(0x0001)
+                  .u8(2)
+                  .px(0xF800)
+                  .u8(0x00)
+                  .u8(0x11)
+                  .px(0x07E0)
+                  .u8(0xFF)
+                  .u8(0x00));
+  EXPECT_TRUE(solid(d, 16, 0, 2, 2, 0xF800));
+  EXPECT_EQ(d.pixel(31, 15), expect_px(0x07E0, 2));
+  EXPECT_EQ(d.pixel(18, 0), expect_px(0x0001, 2));
+  EXPECT_EQ(d.pixel(30, 15), expect_px(0x0001, 2));
+}
+
+TEST_F(VncDecode, HextileCarriesColoursBetweenTiles) {
+  FakeDisplay d(64, 48);
+  this->start(d, 64, 48);
+  s().deliver(Rfb()
+                  .fbu(1)
+                  .rect(0, 0, 48, 16, HEXTILE)
+                  // Tile 1: bg A, fg B, one subrect.
+                  .u8(0x02 | 0x04 | 0x08)
+                  .px(0xAAAA)
+                  .px(0xBBBB)
+                  .u8(1)
+                  .u8(0x00)
+                  .u8(0x00)
+                  // Tile 2: nothing specified, so solid A.
+                  .u8(0x00)
+                  // Tile 3: subrects in the carried fg B on the carried bg A.
+                  .u8(0x08)
+                  .u8(1)
+                  .u8(0xFF)
+                  .u8(0x00));
+  EXPECT_EQ(d.pixel(0, 0), expect_px(0xBBBB, 2));
+  EXPECT_TRUE(solid(d, 1, 1, 15, 15, 0xAAAA));
+  EXPECT_TRUE(solid(d, 16, 0, 16, 16, 0xAAAA));
+  EXPECT_EQ(d.pixel(47, 15), expect_px(0xBBBB, 2));
+  EXPECT_TRUE(solid(d, 32, 0, 15, 15, 0xAAAA));
+}
+
+TEST_F(VncDecode, HextileCarriesColoursAcrossRawTile) {
+  FakeDisplay d(64, 48);
+  this->start(d, 64, 48);
+  auto raw = pattern(256, 0x0400);
+  Rfb f;
+  f.fbu(1).rect(0, 16, 48, 16, HEXTILE).u8(0x02 | 0x04).px(0xCCCC).px(0xDDDD).u8(0x01);
+  for (auto p : raw) {
+    f.px(p);
+  }
+  f.u8(0x08).u8(1).u8(0x00).u8(0x00);
+  s().deliver(f);
+  EXPECT_TRUE(solid(d, 0, 16, 16, 16, 0xCCCC));
+  expect_block(d, 16, 16, 16, 16, raw, 2);
+  EXPECT_EQ(d.pixel(32, 16), expect_px(0xDDDD, 2));
+  EXPECT_EQ(d.pixel(33, 16), expect_px(0xCCCC, 2));
+  EXPECT_EQ(d.pixel(47, 31), expect_px(0xCCCC, 2));
+}
+
+TEST_F(VncDecode, HextileSingleEdgeTile) {
+  FakeDisplay d(64, 48);
+  this->start(d, 64, 48);
+  auto px = pattern(13 * 7, 0x3000);
+  Rfb f;
+  f.fbu(1).rect(5, 3, 13, 7, HEXTILE).u8(0x01);
+  for (auto p : px) {
+    f.px(p);
+  }
+  s().deliver(f);
+  expect_block(d, 5, 3, 13, 7, px, 2);
+  EXPECT_EQ(d.drawn_count(), 13u * 7u);
+}
+
+TEST_F(VncDecode, HextileTileGrid) {
+  FakeDisplay d(64, 48);
+  this->start(d, 64, 48);
+  // 37x21 is 3x2 tiles: 16, 16, 5 wide and 16, 5 tall.
+  Rfb f;
+  f.fbu(1).rect(2, 1, 37, 21, HEXTILE);
+  for (int i = 0; i < 6; i++) {
+    f.u8(0x02).px(0x1000 + i);
+  }
+  s().deliver(f);
+  const int xs[] = {2, 18, 34};
+  const int ws[] = {16, 16, 5};
+  const int ys[] = {1, 17};
+  const int hs[] = {16, 5};
+  for (int row = 0; row < 2; row++) {
+    for (int col = 0; col < 3; col++) {
+      EXPECT_TRUE(solid(d, xs[col], ys[row], ws[col], hs[row], 0x1000 + row * 3 + col));
+    }
+  }
+  EXPECT_EQ(d.drawn_count(), 37u * 21u);
+}
+
+TEST_F(VncDecode, HextileSubrectClippedToTile) {
+  FakeDisplay d(64, 48);
+  this->start(d, 64, 48);
+  // A 5x5 edge tile with a subrect at 3,3 claiming 16x16, and one starting outside the tile.
+  s().deliver(Rfb()
+                  .fbu(1)
+                  .rect(59, 43, 5, 5, HEXTILE)
+                  .u8(0x02 | 0x04 | 0x08)
+                  .px(0x0101)
+                  .px(0xFFFF)
+                  .u8(2)
+                  .u8(0x33)
+                  .u8(0xFF)
+                  .u8(0x90)
+                  .u8(0x00));
+  for (int y = 0; y < 5; y++) {
+    for (int x = 0; x < 5; x++) {
+      const bool fg = x >= 3 && y >= 3;
+      ASSERT_EQ(d.pixel(59 + x, 43 + y), expect_px(fg ? 0xFFFF : 0x0101, 2)) << x << "," << y;
+    }
+  }
+  EXPECT_EQ(d.drawn_count(), 25u);
+  EXPECT_TRUE(s().client.is_connected());
+}
+
+TEST_F(VncDecode, Hextile8bpp) {
+  FakeDisplay d(64, 48, display::DISPLAY_TYPE_BINARY);
+  this->start(d, 64, 48);
+  auto raw = pattern(4, 0x00E3);
+  Rfb f;
+  f.fbu(1).rect(0, 0, 18, 2, HEXTILE).u8(0x02 | 0x04 | 0x08).px(0x00, 1).px(0xFF, 1).u8(1).u8(0x10).u8(0x00).u8(0x01);
+  for (auto p : raw) {
+    f.px(p & 0xFF, 1);
+  }
+  s().deliver(f);
+  EXPECT_EQ(d.pixel(0, 0), expect_px(0x00, 1));
+  EXPECT_EQ(d.pixel(1, 0), expect_px(0xFF, 1));
+  EXPECT_EQ(d.pixel(1, 1), expect_px(0x00, 1));
+  for (int i = 0; i < 4; i++) {
+    EXPECT_EQ(d.pixel(16 + i % 2, i / 2), expect_px(raw[i] & 0xFF, 1));
+  }
 }
 
 TEST_F(VncDecode, RichCursorIsSkippedAndNeverRefreshes) {
@@ -161,9 +366,15 @@ TEST(VncDecodeClip, ServerLargerThanDisplay) {
   auto raw = pattern(90 * 70, 0x0021);
   Rfb f;
   f.fbu(3).raw_rect(5, 5, 90, 70, raw);
-  // A raw rect straddling both edges, and one entirely off screen.
-  f.raw_rect(56, 40, 20, 20, std::vector<uint16_t>(20 * 20, 0x5000));
-  f.raw_rect(70, 50, 16, 16, pattern(256, 1));
+  // A hextile rect straddling both edges, and one entirely off screen.
+  f.rect(56, 40, 20, 20, HEXTILE);
+  for (int i = 0; i < 4; i++) {
+    f.u8(0x02).px(0x5000 + i);
+  }
+  f.rect(70, 50, 16, 16, HEXTILE).u8(0x01);
+  for (auto p : pattern(256, 1)) {
+    f.px(p);
+  }
   s.deliver(f);
   EXPECT_EQ(d.out_of_bounds(), 0);
   for (int y = 5; y < 40; y++) {
@@ -171,7 +382,7 @@ TEST(VncDecodeClip, ServerLargerThanDisplay) {
       ASSERT_EQ(d.pixel(x, y), expect_px(raw[(y - 5) * 90 + (x - 5)], 2)) << x << "," << y;
     }
   }
-  expect_solid(d, 56, 40, 8, 8, 0x5000, 2);
+  EXPECT_TRUE(solid(d, 56, 40, 8, 8, 0x5000));
   EXPECT_EQ(d.pixel(4, 4), UNSET);
   EXPECT_TRUE(s.client.is_connected());
   EXPECT_EQ(hex(s.take()), hex(fbur(true, 64, 48)));
@@ -228,8 +439,8 @@ TEST_P(VncRectOutside, Reconnects) {
 
 INSTANTIATE_TEST_SUITE_P(Rects, VncRectOutside,
                          ::testing::Values(OutsideCase{60, 0, 5, 1, RAW}, OutsideCase{0, 47, 1, 2, RAW},
-                                           OutsideCase{65535, 0, 2, 1, RAW}, OutsideCase{0, 65535, 1, 2, RAW},
-                                           OutsideCase{64, 0, 1, 1, RAW}, OutsideCase{0, 0, 65, 1, RAW}));
+                                           OutsideCase{65535, 0, 2, 1, RAW}, OutsideCase{0, 65535, 1, 2, HEXTILE},
+                                           OutsideCase{64, 0, 1, 1, HEXTILE}, OutsideCase{0, 0, 65, 1, HEXTILE}));
 
 // --- A frame whose last step needs no bytes must still finish when its last byte arrives.
 
@@ -250,6 +461,43 @@ class VncZeroByteEnd : public VncDecode {
     EXPECT_EQ(s().client.rx_buffered(), 0);
   }
 };
+
+TEST_F(VncZeroByteEnd, SolidHextileTile) {
+  FakeDisplay d(64, 48);
+  this->start(d, 64, 48);
+  Rfb f;
+  f.fbu(1).rect(0, 0, 32, 16, HEXTILE).u8(0x01);
+  for (auto p : pattern(256, 3)) {
+    f.px(p);
+  }
+  f.u8(0x02).px(0x4444);
+  this->deliver_bytewise(f.bytes, f.bytes.size());
+  EXPECT_TRUE(solid(d, 16, 0, 16, 16, 0x4444));
+  s().run_for(300);
+  EXPECT_EQ(d.updates(), 1);
+}
+
+TEST_F(VncZeroByteEnd, CarriedBackgroundTile) {
+  FakeDisplay d(64, 48);
+  this->start(d, 64, 48);
+  Rfb f;
+  f.fbu(1).rect(0, 0, 32, 16, HEXTILE).u8(0x02).px(0x5555).u8(0x00);
+  this->deliver_bytewise(f.bytes, f.bytes.size());
+  EXPECT_TRUE(solid(d, 0, 0, 32, 16, 0x5555));
+  s().run_for(300);
+  EXPECT_EQ(d.updates(), 1);
+}
+
+TEST_F(VncZeroByteEnd, TileWithZeroSubrects) {
+  FakeDisplay d(64, 48);
+  this->start(d, 64, 48);
+  Rfb f;
+  f.fbu(1).rect(0, 0, 16, 16, HEXTILE).u8(0x02 | 0x08).px(0x6666).u8(0);
+  this->deliver_bytewise(f.bytes, f.bytes.size());
+  EXPECT_TRUE(solid(d, 0, 0, 16, 16, 0x6666));
+  s().run_for(300);
+  EXPECT_EQ(d.updates(), 1);
+}
 
 TEST_F(VncZeroByteEnd, ZeroSizeCursor) {
   FakeDisplay d(64, 48);
@@ -285,17 +533,14 @@ TEST_F(VncZeroByteEnd, EmptyCutTextAfterFrame) {
   EXPECT_EQ(d.pixel(1, 0), expect_px(0x7002, 2));
 }
 
-// --- The 20 ms budget: with a slow display, one row per pass.
+// --- The 20 ms budget: with a slow display, one tile per pass.
 
-TEST_F(VncDecode, BudgetPausesBetweenRectsAndFinishesOnTheLastOne) {
+TEST_F(VncDecode, BudgetPausesBetweenTilesAndFinishesOnTheLastOne) {
   FakeDisplay d(64, 48);
   this->start(d, 64, 48);
   d.set_draw_delay_us(25000);
   Rfb f;
-  f.fbu(3)
-      .raw_rect(0, 0, 16, 1, std::vector<uint16_t>(16, 0x0A0A))
-      .raw_rect(16, 0, 16, 1, std::vector<uint16_t>(16, 0x0B0B))
-      .raw_rect(32, 0, 16, 1, std::vector<uint16_t>(16, 0x0C0C));
+  f.fbu(1).rect(0, 0, 48, 16, HEXTILE).u8(0x02).px(0x0A0A).u8(0x02).px(0x0B0B).u8(0x02).px(0x0C0C);
   s().send(f);
   s().loop();
   EXPECT_EQ(d.draw_calls(), 1);
@@ -312,7 +557,7 @@ TEST_F(VncDecode, BudgetPausesBetweenRectsAndFinishesOnTheLastOne) {
   s().loop(2);
   EXPECT_FALSE(s().client.rx_pending());
   EXPECT_FALSE(HighFrequencyLoopRequester::is_high_frequency());
-  expect_solid(d, 32, 0, 16, 1, 0x0C0C, 2);
+  EXPECT_TRUE(solid(d, 32, 0, 16, 16, 0x0C0C));
 }
 
 TEST_F(VncDecode, BudgetPausesInsideARawRect) {
@@ -393,6 +638,8 @@ static Generated generate(uint32_t seed) {
   g.handshake_tx = cat({g.handshake_tx, bpp == 2 ? set_pixel_format_565() : set_pixel_format_332(), set_encodings(),
                         fbur(false, g.vis_w, g.vis_h)});
 
+  uint16_t bg = 0;
+  uint16_t fg = 0;
   const int frames = rnd(3, 8);
   for (int frame = 0; frame < frames; frame++) {
     Rfb f;
@@ -420,19 +667,99 @@ static Generated generate(uint32_t seed) {
       if (kind == 9) {
         const int x = rnd(0, fb_w);
         const int y = rnd(0, fb_h);
-        f.rect(x, y, rnd(0, 1) ? 0 : rnd(0, fb_w - x), 0, RAW);
+        f.rect(x, y, rnd(0, 1) ? 0 : rnd(0, fb_w - x), 0, rnd(0, 1) ? RAW : HEXTILE);
         continue;
       }
       const int x = rnd(0, fb_w - 1);
       const int y = rnd(0, fb_h - 1);
       const int w = rnd(1, std::min(fb_w - x, 48));
       const int h = rnd(1, std::min(fb_h - y, 40));
-      f.rect(x, y, w, h, RAW);
-      for (int yy = 0; yy < h; yy++) {
-        for (int xx = 0; xx < w; xx++) {
-          uint16_t p = pixel();
-          f.px(p, bpp);
-          g.model.set(x + xx, y + yy, p);
+      if (kind < 4) {
+        f.rect(x, y, w, h, RAW);
+        for (int yy = 0; yy < h; yy++) {
+          for (int xx = 0; xx < w; xx++) {
+            uint16_t p = pixel();
+            f.px(p, bpp);
+            g.model.set(x + xx, y + yy, p);
+          }
+        }
+        continue;
+      }
+      f.rect(x, y, w, h, HEXTILE);
+      bool bg_valid = false;
+      bool fg_valid = false;
+      for (int ty = y; ty < y + h; ty += 16) {
+        for (int tx = x; tx < x + w; tx += 16) {
+          const int tw = std::min(16, x + w - tx);
+          const int th = std::min(16, y + h - ty);
+          const int choice = rnd(0, 5);
+          if (choice == 0) {
+            f.u8(static_cast<uint8_t>(0x01 | (rnd(0, 15) << 1)));
+            for (int yy = 0; yy < th; yy++) {
+              for (int xx = 0; xx < tw; xx++) {
+                uint16_t p = pixel();
+                f.px(p, bpp);
+                g.model.set(tx + xx, ty + yy, p);
+              }
+            }
+            continue;
+          }
+          uint8_t flags = 0;
+          const bool set_bg = !bg_valid || choice == 1 || rnd(0, 3) == 0;
+          const bool subrects = choice >= 3;
+          const bool coloured = choice == 5;
+          const bool set_fg = subrects && !coloured && (!fg_valid || choice == 3);
+          const bool extra_fg = coloured && rnd(0, 1);
+          if (set_bg) {
+            flags |= 0x02;
+            bg = pixel();
+            bg_valid = true;
+          }
+          if (set_fg || extra_fg) {
+            flags |= 0x04;
+            fg = pixel();
+            fg_valid = true;
+          }
+          if (subrects) {
+            flags |= 0x08;
+          }
+          if (coloured) {
+            flags |= 0x10;
+          }
+          f.u8(flags);
+          if (flags & 0x02) {
+            f.px(bg, bpp);
+          }
+          if (flags & 0x04) {
+            f.px(fg, bpp);
+          }
+          std::vector<uint16_t> tile(static_cast<size_t>(tw) * th, bg);
+          if (subrects) {
+            const int count = rnd(0, 6);
+            f.u8(count);
+            for (int i = 0; i < count; i++) {
+              uint16_t colour = fg;
+              if (coloured) {
+                colour = pixel();
+                f.px(colour, bpp);
+              }
+              const int sx = rnd(0, 15);
+              const int sy = rnd(0, 15);
+              const int sw = rnd(1, 16);
+              const int sh = rnd(1, 16);
+              f.u8(static_cast<uint8_t>((sx << 4) | sy)).u8(static_cast<uint8_t>(((sw - 1) << 4) | (sh - 1)));
+              for (int yy = sy; yy < std::min(sy + sh, th); yy++) {
+                for (int xx = sx; xx < std::min(sx + sw, tw); xx++) {
+                  tile[yy * tw + xx] = colour;
+                }
+              }
+            }
+          }
+          for (int yy = 0; yy < th; yy++) {
+            for (int xx = 0; xx < tw; xx++) {
+              g.model.set(tx + xx, ty + yy, tile[yy * tw + xx]);
+            }
+          }
         }
       }
     }

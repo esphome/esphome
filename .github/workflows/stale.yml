@@ -3,7 +3,11 @@ name: Stale
 
 on:
   schedule:
+    # Full pass once a day
     - cron: "30 0 * * *"
+    # Conflicts only, every 3 hours in between, so authors hear about new
+    # merge conflicts the same day
+    - cron: "30 3-21/3 * * *"
   workflow_dispatch:
 
 # The reusable workflow authenticates as the ESPHome GitHub App, so GITHUB_TOKEN
@@ -16,12 +20,14 @@ jobs:
     # No GITHUB_TOKEN permissions: the reusable workflow mints an ESPHome
     # GitHub App token so the labels, comments and closures come from
     # esphome[bot] instead of github-actions[bot].
-    uses: esphome/workflows/.github/workflows/stale.yml@31d160e5f0ffa0ee65d5b27cb55c153d415f2abe  # main
+    uses: esphome/workflows/.github/workflows/stale.yml@2026.11.0
     secrets:
       ESPHOME_GITHUB_APP_PRIVATE_KEY: ${{ secrets.ESPHOME_GITHUB_APP_PRIVATE_KEY }}
     with:
       # Live only on dev: a workflow_dispatch from any other branch is a dry run
       dry-run: ${{ github.ref != 'refs/heads/dev' }}
+      # Must match the conflicts-only cron above; workflow_dispatch runs a full pass
+      conflicts-only: ${{ github.event.schedule == '30 3-21/3 * * *' }}
       days-before-stale: 90
       days-before-stale-conflicting: 30
       days-before-close: 7

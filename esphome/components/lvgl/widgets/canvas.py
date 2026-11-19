@@ -28,6 +28,7 @@ from esphome.const import (
     CONF_X,
     CONF_Y,
 )
+from esphome.cpp_generator import MockObj
 from esphome.cpp_types import FixedVector
 
 from ..automation import action_to_code
@@ -41,6 +42,7 @@ from ..defines import (
     CONF_RADIUS,
     CONF_SRC,
     CONF_START_ANGLE,
+    LValidator,
     addr,
     literal,
 )
@@ -57,7 +59,7 @@ from ..lv_validation import (
 )
 from ..lvcode import LocalVariable, lv, lv_assign, lv_expr
 from ..schemas import STYLE_PROPS, TEXT_SCHEMA, point_schema, remap_property
-from ..types import LvType, ObjUpdateAction, lv_point_precise_t
+from ..types import LvType, ObjUpdateAction, lv_gradient_t, lv_point_precise_t
 from . import Widget, WidgetType, get_widgets
 from .img import CONF_IMAGE
 
@@ -221,7 +223,6 @@ RECT_PROPS = {
         "radius",
         "bg_opa",
         "bg_color",
-        "bg_grad",
         "border_color",
         "border_width",
         "border_opa",
@@ -238,6 +239,30 @@ RECT_PROPS = {
         "shadow_spread",
         "shadow_opa",
     )
+}
+RECT_PROPS.update(
+    bg_grad=LValidator(
+        cv.use_id(lv_gradient_t), lv_gradient_t, retmapper=lambda v: MockObj(f"*{v}")
+    )
+)
+RECT_SCHEMA = {
+    **{cv.Optional(prop): validator for prop, validator in RECT_PROPS.items()},
+    cv.Optional(CONF_OPA): cv.invalid(
+        "Rectangles have no single opacity; use bg_opa, border_opa, outline_opa or shadow_opa"
+    ),
+}
+POLYGON_PROPS = {
+    p: RECT_PROPS[p] for p in ("border_color", "border_width", "border_opa")
+}
+POLYGON_SCHEMA = {
+    **{cv.Optional(prop): validator for prop, validator in POLYGON_PROPS.items()},
+    **{
+        cv.Optional(prop): cv.invalid(
+            "Polygons are drawn as an outline; use border_color, border_width and border_opa"
+        )
+        for prop in (*RECT_PROPS, CONF_OPA)
+        if prop not in POLYGON_PROPS
+    },
 }
 
 
@@ -264,10 +289,10 @@ def _draw_line(layer, dsc, points):
     ObjUpdateAction,
     cv.Schema(
         {
-            **DRAW_OPA_SCHEMA,
+            **DRAW_SCHEMA,
             cv.Required(CONF_WIDTH): cv.templatable(cv.int_),
             cv.Required(CONF_HEIGHT): cv.templatable(cv.int_),
-            **{cv.Optional(prop): STYLE_PROPS[prop] for prop in RECT_PROPS},
+            **RECT_SCHEMA,
         }
     ),
     synchronous=True,
@@ -423,8 +448,8 @@ async def canvas_draw_image(config, action_id, template_arg, args):
 LINE_PROPS = {
     "width": STYLE_PROPS["line_width"],
     "color": STYLE_PROPS["line_color"],
-    "dash-width": STYLE_PROPS["line_dash_width"],
-    "dash-gap": STYLE_PROPS["line_dash_gap"],
+    "dash_width": STYLE_PROPS["line_dash_width"],
+    "dash_gap": STYLE_PROPS["line_dash_gap"],
     "round_start": lv_bool,
     "round_end": lv_bool,
 }
@@ -474,7 +499,7 @@ async def canvas_draw_line(config, action_id, template_arg, args):
         {
             cv.GenerateID(CONF_ID): cv.use_id(lv_canvas_t),
             cv.Required(CONF_POINTS): cv.ensure_list(point_schema),
-            **{cv.Optional(prop): STYLE_PROPS[prop] for prop in RECT_PROPS},
+            **POLYGON_SCHEMA,
         },
     ).add_extra(_validate_points),
     synchronous=True,
@@ -503,7 +528,7 @@ async def canvas_draw_polygon(config, action_id, template_arg, args):
             _draw_line(layer, line_dsc, points)
 
     return await draw_to_code(
-        config, "rect", RECT_PROPS, do_draw_polygon, action_id, template_arg, args
+        config, "rect", POLYGON_PROPS, do_draw_polygon, action_id, template_arg, args
     )
 
 

@@ -87,10 +87,10 @@ async def wave_base_to_code(var: MockObj, config: ConfigType) -> None:
     await ble_client.register_ble_node(var, config)
 
     sensors = sensor.sub_sensors(config)
-    await sensors(CONF_HUMIDITY, var.set_humidity)
-    await sensors(CONF_TEMPERATURE, var.set_temperature)
-    await sensors(CONF_PRESSURE, var.set_pressure)
-    await sensors(CONF_TVOC, var.set_tvoc)
+    await sensors(CONF_HUMIDITY, var.set_humidity_sensor)
+    await sensors(CONF_TEMPERATURE, var.set_temperature_sensor)
+    await sensors(CONF_PRESSURE, var.set_pressure_sensor)
+    await sensors(CONF_TVOC, var.set_tvoc_sensor)
     await sensors(CONF_BATTERY_VOLTAGE, var.set_battery_voltage)
     if config_battery_update_interval := config.get(CONF_BATTERY_UPDATE_INTERVAL):
         cg.add(var.set_battery_update_interval(config_battery_update_interval))

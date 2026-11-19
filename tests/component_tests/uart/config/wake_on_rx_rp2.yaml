@@ -1,0 +1,10 @@
+---
+esphome:
+  name: test
+
+rp2:
+  board: rpipico
+
+uart:
+  rx_pin: GPIO5
+  baud_rate: 9600

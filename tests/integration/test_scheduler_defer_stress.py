@@ -7,6 +7,7 @@ import pytest
 
 from .state_utils import assert_device_name, require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -76,15 +77,13 @@ async def test_scheduler_defer_stress(
         await client.execute_service(run_stress_test_service, {})
 
         # Wait for all defers to execute (should be quick)
-        try:
-            await asyncio.wait_for(test_complete_future, timeout=5.0)
-        except TimeoutError:
-            # Report how many we got
-            pytest.fail(
-                f"Stress test timed out. Only {len(executed_defers)} of "
-                f"1000 defers executed. Missing IDs: "
-                f"{sorted(set(range(1000)) - executed_defers)[:10]}..."
-            )
+        await wait_or_fail(
+            test_complete_future,
+            5.0,
+            "Stress test did not complete",
+            executed=lambda: f"{len(executed_defers)} of 1000 defers",
+            missing_ids=lambda: sorted(set(range(1000)) - executed_defers),
+        )
 
         # Verify all defers executed
         assert len(executed_defers) == 1000, (

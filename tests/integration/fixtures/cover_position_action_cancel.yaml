@@ -1,0 +1,27 @@
+esphome:
+  name: cover-position-cancel-test
+host:
+api:
+logger:
+  level: DEBUG
+
+cover:
+  - platform: template
+    name: "Test Cover"
+    id: test_cover
+    position_action:
+      - delay: 1s
+      - cover.template.publish:
+          id: test_cover
+          position: !lambda "return pos;"
+    open_action:
+      - cover.template.publish:
+          id: test_cover
+          state: OPEN
+    close_action:
+      - cover.template.publish:
+          id: test_cover
+          state: CLOSED
+    # Only there so that the cover supports toggle
+    toggle_action:
+      - logger.log: "Toggle"

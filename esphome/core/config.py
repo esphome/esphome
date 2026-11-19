@@ -4,6 +4,7 @@ from collections import Counter
 import logging
 import os
 from pathlib import Path
+import re
 
 from esphome import automation, core
 import esphome.codegen as cg
@@ -42,10 +43,9 @@ from esphome.const import (
     CONF_PRIORITY,
     CONF_PROJECT,
     CONF_TRIGGER_ID,
+    CONF_URL,
     CONF_VERSION,
-    CONF_WATCHDOG_TIMEOUT,
     KEY_CORE,
-    PLATFORM_ESP32,
     PLATFORM_HOST,
     PLATFORM_RP2,
     PlatformFramework,
@@ -55,6 +55,7 @@ from esphome.core import (
     CORE,
     KEY_CONTROLLER_REGISTRY_CONTROLLERS,
     CoroPriority,
+    TimePeriodMilliseconds,
     coroutine_with_priority,
 )
 import esphome.final_validate as fv
@@ -68,9 +69,16 @@ from esphome.helpers import (
 )
 from esphome.types import ConfigType
 
+CONF_CONTACT = "contact"
 CONF_LOOP_INTERVAL = "loop_interval"
 CONF_RELATION = "relation"
+CONF_SBOM = "sbom"
+CONF_SUPPLIER = "supplier"
 CONF_SUSPEND_LOOP = "suspend_loop"
+CONF_FRIENDLY_NAME_SEPARATOR = "friendly_name_separator"
+
+# Application::loop_interval_ when loop_interval is not set. Make sure to align with application.h
+DEFAULT_LOOP_INTERVAL = TimePeriodMilliseconds(milliseconds=16)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -156,6 +164,23 @@ def validate_hostname(config):
     return config
 
 
+# DeviceInfoResponse sends the friendly name as a short string (encode_short_string_force in api/proto.h)
+FRIENDLY_NAME_WITH_SUFFIX_MAX_LEN = 127
+
+
+def validate_friendly_name_with_suffix(config: ConfigType) -> ConfigType:
+    if not config[CONF_NAME_ADD_MAC_SUFFIX] or not config[CONF_FRIENDLY_NAME]:
+        return config
+    full = f"{config[CONF_FRIENDLY_NAME]}{config[CONF_FRIENDLY_NAME_SEPARATOR]}{_MAC_SUFFIX_PLACEHOLDER}"
+    if (length := len(full.encode("utf-8"))) > FRIENDLY_NAME_WITH_SUFFIX_MAX_LEN:
+        raise cv.Invalid(
+            f"friendly_name with {CONF_FRIENDLY_NAME_SEPARATOR} and the MAC suffix is {length} "
+            f"bytes; at most {FRIENDLY_NAME_WITH_SUFFIX_MAX_LEN} fit",
+            path=[CONF_FRIENDLY_NAME],
+        )
+    return config
+
+
 def validate_ids_and_references(config: ConfigType) -> ConfigType:
     """Validate that there are no hash collisions between IDs and that area_id references are valid.
 
@@ -206,18 +231,25 @@ def validate_ids_and_references(config: ConfigType) -> ConfigType:
     return config
 
 
+def get_loop_interval() -> TimePeriodMilliseconds:
+    """Return the main loop interval of the configuration; for final validation."""
+    return fv.full_config.get()[CONF_ESPHOME].get(
+        CONF_LOOP_INTERVAL, DEFAULT_LOOP_INTERVAL
+    )
+
+
 def validate_loop_interval(config: ConfigType) -> ConfigType:
     if CONF_LOOP_INTERVAL in config and not (CORE.is_host or CORE.is_esp8266):
         # max_loop interval is calculated from WDT_FEED_INTERVAL_MS. Make sure to align with application.h
         max_loop = 600  # 2 * 300ms default for other platforms
         if CORE.is_esp32:
-            max_loop = (
-                2
-                * fv.full_config.get()[PLATFORM_ESP32][
-                    CONF_WATCHDOG_TIMEOUT
-                ].total_milliseconds
-                // 5
-            )
+            from esphome.components.esp32 import task_wdt_timeout_ms
+
+            wdt_ms = task_wdt_timeout_ms()
+            if wdt_ms == 0:
+                # Task watchdog disabled: the loop sleep is not capped
+                return config
+            max_loop = 2 * wdt_ms // 5
         elif CORE.is_bk72xx:
             max_loop = 4000  # 10000ms / 5 * 2 default value
         if config[CONF_LOOP_INTERVAL].total_milliseconds > max_loop:
@@ -256,6 +288,52 @@ def valid_project_name(value: str):
     if value.count(".") != 1:
         raise cv.Invalid("project name needs to have a namespace")
     return value
+
+
+# The checks below match esp-idf-sbom's, which aborts on a value they reject
+def _sbom_email(value: str) -> str:
+    value = cv.string_strict(value)
+    if re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", value) is None:
+        raise cv.Invalid("Expected an email address")
+    return value
+
+
+def _sbom_url(value: str) -> str:
+    value = cv.url(value)
+    if not value.startswith(("http://", "https://")):
+        raise cv.Invalid("Expected an http or https URL")
+    return value
+
+
+def _sbom_supplier(value: str) -> str:
+    value = cv.string_strict(value).strip()
+    if not value:
+        raise cv.Invalid("Supplier name must not be empty")
+    if any(c in value for c in "()\n\r"):
+        raise cv.Invalid("Supplier name must not contain parentheses or line breaks")
+    return value
+
+
+def _sbom_platform(value: ConfigType) -> ConfigType:
+    # Only ESP-IDF builds produce the manifests esp-idf-sbom reads
+    if not CORE.is_esp32:
+        raise cv.Invalid(
+            f"SBOM details are only used on ESP32, not on {CORE.target_platform}"
+        )
+    return value
+
+
+SBOM_SCHEMA = cv.All(
+    _sbom_platform,
+    cv.Schema(
+        {
+            cv.Required(CONF_SUPPLIER): _sbom_supplier,
+            cv.Optional(CONF_CONTACT): _sbom_email,
+            cv.Optional(CONF_URL): _sbom_url,
+        }
+    ),
+    cv.has_at_least_one_key(CONF_CONTACT, CONF_URL),
+)
 
 
 if "ESPHOME_DEFAULT_COMPILE_PROCESS_LIMIT" in os.environ:
@@ -386,6 +464,9 @@ CONFIG_SCHEMA = cv.All(
                 CONF_LIBRARIES, default=[], visibility=cv.Visibility.YAML_ONLY
             ): cv.ensure_list(cv.string_strict),
             cv.Optional(CONF_NAME_ADD_MAC_SUFFIX, default=False): cv.boolean,
+            cv.Optional(
+                CONF_FRIENDLY_NAME_SEPARATOR, default=_APP_FRIENDLY_NAME_MAC_SEP
+            ): cv.All(cv.string_no_slash, cv.ByteLength(max=3)),
             cv.Optional(CONF_MERGE_WARNINGS, default=True): cv.boolean,
             cv.Optional(
                 CONF_DEBUG_SCHEDULER, default=False, visibility=cv.Visibility.YAML_ONLY
@@ -413,6 +494,7 @@ CONFIG_SCHEMA = cv.All(
                     cv.Required(CONF_VERSION): cv.All(
                         cv.string_strict, cv.ByteLength(max=PROJECT_MAX_LENGTH)
                     ),
+                    cv.Optional(CONF_SBOM): SBOM_SCHEMA,
                     cv.Optional(CONF_ON_UPDATE): automation.validate_automation(
                         {
                             cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
@@ -437,6 +519,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ),
     validate_hostname,
+    validate_friendly_name_with_suffix,
 )
 
 
@@ -782,7 +865,7 @@ async def _add_controller_registry_dispatch() -> None:
 
 @coroutine_with_priority(CoroPriority.FINAL)
 async def _add_looping_components() -> None:
-    # Emit ESPHOME_LOOPING_COMPONENT_COUNT. Sizing of looping_components_
+    # Emit ESPHOME_LOOPING_COMPONENT_COUNT and its storage. Sizing of looping_components_
     # happens in core to_code() so it lands before safe_mode's early return.
     entries = CORE.data.get("looping_component_entries", [])
 
@@ -798,6 +881,14 @@ async def _add_looping_components() -> None:
         cg.RawStatement(
             f"static constexpr size_t ESPHOME_LOOPING_COMPONENT_COUNT = \\\n"
             f"  {constexpr_expr};"
+        )
+    )
+    # In namespace esphome so analyze-memory counts it as core; sized at least 1 to avoid a zero-length array
+    cg.add_global(
+        cg.RawStatement(
+            "namespace esphome {\n"
+            "static Component *looping_components_storage[std::max<size_t>(ESPHOME_LOOPING_COMPONENT_COUNT, 1)];\n"
+            "}  // namespace esphome"
         )
     )
 
@@ -836,7 +927,9 @@ async def to_code(config: ConfigType) -> None:
 
     name_expr, name_len = _emit_app_name(name, _APP_NAME_BUF_VAR, _APP_NAME_MAC_SEP)
     friendly_expr, friendly_len = _emit_app_name(
-        friendly_name, _APP_FRIENDLY_NAME_BUF_VAR, _APP_FRIENDLY_NAME_MAC_SEP
+        friendly_name,
+        _APP_FRIENDLY_NAME_BUF_VAR,
+        config[CONF_FRIENDLY_NAME_SEPARATOR],
     )
     if name_add_mac_suffix:
         cg.add_define("ESPHOME_NAME_ADD_MAC_SUFFIX")
@@ -844,11 +937,12 @@ async def to_code(config: ConfigType) -> None:
     # Define component count for static allocation
     cg.add_define("ESPHOME_COMPONENT_COUNT", len(CORE.component_ids))
 
-    # Pre-init FixedVector with exact capacity so calculate_looping_components_()
-    # can skip the counting pass
+    # Pre-init the list with exact capacity so calculate_looping_components_()
+    # can skip the counting pass; the storage is emitted by _add_looping_components()
     cg.add(
         cg.RawExpression(
-            "App.looping_components_.init(ESPHOME_LOOPING_COMPONENT_COUNT)"
+            "App.looping_components_.init(std::span<Component *>("
+            "looping_components_storage, ESPHOME_LOOPING_COMPONENT_COUNT))"
         )
     )
 
@@ -858,7 +952,8 @@ async def to_code(config: ConfigType) -> None:
 
     CORE.add_job(_add_automations, config)
 
-    cg.add_build_flag("-fno-exceptions")
+    if not (CORE.using_toolchain_esp_idf or CORE.using_toolchain_sdk_nrf):
+        cg.add_build_flag("-fno-exceptions")
 
     # Libraries
     for lib in config[CONF_LIBRARIES]:

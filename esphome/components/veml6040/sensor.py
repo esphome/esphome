@@ -32,14 +32,15 @@ VEML6040Component = veml6040_ns.class_(
 )
 
 VEML6040IntegrationTime = veml6040_ns.enum("VEML6040IntegrationTime")
-VEML6040_INTEGRATION_TIMES = {
-    "40ms": VEML6040IntegrationTime.VEML6040_INTEGRATION_TIME_40MS,
-    "80ms": VEML6040IntegrationTime.VEML6040_INTEGRATION_TIME_80MS,
-    "160ms": VEML6040IntegrationTime.VEML6040_INTEGRATION_TIME_160MS,
-    "320ms": VEML6040IntegrationTime.VEML6040_INTEGRATION_TIME_320MS,
-    "640ms": VEML6040IntegrationTime.VEML6040_INTEGRATION_TIME_640MS,
-    "1280ms": VEML6040IntegrationTime.VEML6040_INTEGRATION_TIME_1280MS,
-}
+VEML6040_INTEGRATION_TIMES = VEML6040IntegrationTime.options(
+    "40ms",
+    "80ms",
+    "160ms",
+    "320ms",
+    "640ms",
+    "1280ms",
+    prefix="VEML6040_INTEGRATION_TIME_",
+)
 
 color_channel_schema = sensor.sensor_schema(
     icon=ICON_LIGHTBULB,

@@ -7,8 +7,10 @@ import re
 
 import pytest
 
+from .log_utils import LineWaiter
 from .state_utils import assert_device_name, require_service
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -26,13 +28,6 @@ async def test_scheduler_pool(
     4. The pool grows gradually based on actual usage patterns
     5. Pool operations are logged correctly with debug scheduler enabled
     """
-    # Track log messages to verify pool behavior
-    log_lines: list[str] = []
-    pool_reuse_count = 0
-    pool_recycle_count = 0
-    pool_full_count = 0
-    new_alloc_count = 0
-
     # Patterns to match pool operations
     reuse_pattern = re.compile(r"Reused item from pool \(pool size now: (\d+)\)")
     recycle_pattern = re.compile(r"Recycled item to pool \(pool size now: (\d+)\)")
@@ -40,52 +35,16 @@ async def test_scheduler_pool(
     new_alloc_pattern = re.compile(r"Allocated new item \(pool empty\)")
 
     # Futures to track when test phases complete
-    loop = asyncio.get_running_loop()
-    test_complete_future: asyncio.Future[bool] = loop.create_future()
+    waiter = LineWaiter()
+    test_complete_future = waiter.expect("Pool recycling test complete")
     phase_futures = {
-        1: loop.create_future(),
-        2: loop.create_future(),
-        3: loop.create_future(),
-        4: loop.create_future(),
-        5: loop.create_future(),
-        6: loop.create_future(),
-        7: loop.create_future(),
+        phase_num: waiter.expect(f"Phase {phase_num} complete")
+        for phase_num in range(1, 8)
     }
-
-    def check_output(line: str) -> None:
-        """Check log output for pool operations and phase completion."""
-        nonlocal pool_reuse_count, pool_recycle_count, pool_full_count, new_alloc_count
-        log_lines.append(line)
-
-        # Track pool operations
-        if reuse_pattern.search(line):
-            pool_reuse_count += 1
-
-        elif recycle_pattern.search(line):
-            pool_recycle_count += 1
-
-        elif pool_full_pattern.search(line):
-            pool_full_count += 1
-
-        elif new_alloc_pattern.search(line):
-            new_alloc_count += 1
-
-        # Track phase completion
-        for phase_num in range(1, 8):
-            if (
-                f"Phase {phase_num} complete" in line
-                and phase_num in phase_futures
-                and not phase_futures[phase_num].done()
-            ):
-                phase_futures[phase_num].set_result(True)
-
-        # Check for test completion
-        if "Pool recycling test complete" in line and not test_complete_future.done():
-            test_complete_future.set_result(True)
 
     # Run the test with log monitoring
     async with (
-        run_compiled(yaml_config, line_callback=check_output),
+        run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
         # Verify device is running
@@ -116,64 +75,64 @@ async def test_scheduler_pool(
         }
         complete_service = require_service(services, "run_complete")
 
-        try:
-            # Phase 1: Component lifecycle
-            await client.execute_service(phase_services[1], {})
-            await asyncio.wait_for(phase_futures[1], timeout=1.0)
-            await asyncio.sleep(0.05)  # Let timeouts complete
+        # Shown when a phase does not complete
+        pool = {
+            "phases_completed": lambda: [
+                n for n, fut in phase_futures.items() if fut.done()
+            ],
+            "reuse": lambda: waiter.count(reuse_pattern),
+            "recycle": lambda: waiter.count(recycle_pattern),
+            "pool_full": lambda: waiter.count(pool_full_pattern),
+            "new_alloc": lambda: waiter.count(new_alloc_pattern),
+            "logged": waiter.lines,
+        }
+        # Phase 1: Component lifecycle
+        await client.execute_service(phase_services[1], {})
+        await wait_or_fail(phase_futures[1], 1.0, "Phase 1 did not complete", **pool)
+        await asyncio.sleep(0.05)  # Let timeouts complete
 
-            # Phase 2: Sensor polling
-            await client.execute_service(phase_services[2], {})
-            await asyncio.wait_for(phase_futures[2], timeout=1.0)
-            await asyncio.sleep(0.1)  # Let intervals run a bit
+        # Phase 2: Sensor polling
+        await client.execute_service(phase_services[2], {})
+        await wait_or_fail(phase_futures[2], 1.0, "Phase 2 did not complete", **pool)
+        await asyncio.sleep(0.1)  # Let intervals run a bit
 
-            # Phase 3: Communication patterns
-            await client.execute_service(phase_services[3], {})
-            await asyncio.wait_for(phase_futures[3], timeout=1.0)
-            await asyncio.sleep(0.1)  # Let heartbeat run
+        # Phase 3: Communication patterns
+        await client.execute_service(phase_services[3], {})
+        await wait_or_fail(phase_futures[3], 1.0, "Phase 3 did not complete", **pool)
+        await asyncio.sleep(0.1)  # Let heartbeat run
 
-            # Phase 4: Defer patterns
-            await client.execute_service(phase_services[4], {})
-            await asyncio.wait_for(phase_futures[4], timeout=1.0)
-            await asyncio.sleep(0.2)  # Let everything settle and recycle
+        # Phase 4: Defer patterns
+        await client.execute_service(phase_services[4], {})
+        await wait_or_fail(phase_futures[4], 1.0, "Phase 4 did not complete", **pool)
+        await asyncio.sleep(0.2)  # Let everything settle and recycle
 
-            # Phase 5: Pool reuse verification
-            await client.execute_service(phase_services[5], {})
-            await asyncio.wait_for(phase_futures[5], timeout=1.0)
-            await asyncio.sleep(0.1)  # Let Phase 5 timeouts complete and recycle
+        # Phase 5: Pool reuse verification
+        await client.execute_service(phase_services[5], {})
+        await wait_or_fail(phase_futures[5], 1.0, "Phase 5 did not complete", **pool)
+        await asyncio.sleep(0.1)  # Let Phase 5 timeouts complete and recycle
 
-            # Phase 6: Full pool reuse verification
-            await client.execute_service(phase_services[6], {})
-            await asyncio.wait_for(phase_futures[6], timeout=1.0)
-            await asyncio.sleep(0.1)  # Let Phase 6 timeouts complete
+        # Phase 6: Full pool reuse verification
+        await client.execute_service(phase_services[6], {})
+        await wait_or_fail(phase_futures[6], 1.0, "Phase 6 did not complete", **pool)
+        await asyncio.sleep(0.1)  # Let Phase 6 timeouts complete
 
-            # Phase 7: Same-named defer optimization
-            await client.execute_service(phase_services[7], {})
-            await asyncio.wait_for(phase_futures[7], timeout=1.0)
-            await asyncio.sleep(0.05)  # Let the single defer execute
+        # Phase 7: Same-named defer optimization
+        await client.execute_service(phase_services[7], {})
+        await wait_or_fail(phase_futures[7], 1.0, "Phase 7 did not complete", **pool)
+        await asyncio.sleep(0.05)  # Let the single defer execute
 
-            # Complete test
-            await client.execute_service(complete_service, {})
-            await asyncio.wait_for(test_complete_future, timeout=0.5)
-
-        except TimeoutError as e:
-            # Print debug info if test times out
-            recent_logs = "\n".join(log_lines[-30:])
-            phases_completed = [num for num, fut in phase_futures.items() if fut.done()]
-            pytest.fail(
-                f"Test timed out waiting for phase/completion. Error: {e}\n"
-                f"  Phases completed: {phases_completed}\n"
-                f"  Pool stats:\n"
-                f"    Reuse count: {pool_reuse_count}\n"
-                f"    Recycle count: {pool_recycle_count}\n"
-                f"    Pool full count: {pool_full_count}\n"
-                f"    New alloc count: {new_alloc_count}\n"
-                f"Recent logs:\n{recent_logs}"
-            )
+        # Complete test
+        await client.execute_service(complete_service, {})
+        await wait_or_fail(test_complete_future, 0.5, "Test did not complete", **pool)
 
     # Verify all test phases ran
     for phase_num in range(1, 8):
         assert phase_futures[phase_num].done(), f"Phase {phase_num} did not complete"
+
+    pool_reuse_count = waiter.count(reuse_pattern)
+    pool_recycle_count = waiter.count(recycle_pattern)
+    pool_full_count = waiter.count(pool_full_pattern)
+    new_alloc_count = waiter.count(new_alloc_pattern)
 
     # Verify pool behavior
     assert pool_recycle_count > 0, "Should have recycled items to pool"
@@ -188,7 +147,7 @@ async def test_scheduler_pool(
     # observed peak should comfortably exceed 5. Without this lower-bound check, a
     # silent regression that re-introduced a small cap could pass the test above.
     max_pool_size = 0
-    for line in log_lines:
+    for line in waiter.lines:
         if match := recycle_pattern.search(line):
             max_pool_size = max(max_pool_size, int(match.group(1)))
     assert max_pool_size > 5, (

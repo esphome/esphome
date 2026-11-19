@@ -32,6 +32,34 @@ esphome:
           action: notify.html5
           data:
             message: Button was pressed
+      - homeassistant.service:
+          service: notify.html5
+          data:
+            message: Button was pressed
+      - homeassistant.service:
+          service: !lambda 'return std::string("notify.html5");'
+          data:
+            title: Title
+          data_template:
+            message: The value is {{ my_value }}
+          variables:
+            my_value: !lambda 'return std::string("42");'
+          capture_response: true
+          response_template: !lambda 'return std::string("{{ response.value }}");'
+          on_success:
+            - logger.log: "service succeeded"
+          on_error:
+            - logger.log:
+                format: "service failed: %s"
+                args: [error.c_str()]
+      - homeassistant.action:
+          action: weather.get_forecasts
+          data:
+            entity_id: weather.forecast_home
+          capture_response: true
+          response_template: !lambda 'return std::string("{{ response }}");'
+          on_success:
+            - logger.log: "forecast received"
       - homeassistant.tag_scanned: pulse
       - homeassistant.action:
           action: weather.get_forecasts
@@ -303,6 +331,13 @@ api:
             success: false
             error_message: !lambda 'return error_msg;'
 
+    - action: test_respond_lambda_success
+      variables:
+        ok: bool
+      then:
+        - api.respond:
+            success: !lambda 'return ok;'
+
     # ==========================================================================
     # supports_response: optional (auto-detected - api.respond with data)
     # Has call_id and return_response - client decides if it wants response
@@ -364,6 +399,37 @@ api:
               root["config"]["api"] = true;
               root["items"][0] = "item1";
               root["items"][1] = "item2";
+
+    # ==========================================================================
+    # Array args in actions that respond.  The default array args are
+    # non-copyable FixedVector views, so api.respond and the action that
+    # unregisters the call must read call_id without copying the other args.
+    # ==========================================================================
+    - action: test_respond_only_array
+      supports_response: only
+      variables:
+        float_arr: float[]
+        string_arr: string[]
+      then:
+        - api.respond:
+            data: !lambda |-
+              root["floats"] = float_arr.size();
+              root["strings"] = string_arr.size();
+
+    - action: test_respond_status_array
+      variables:
+        int_arr: int[]
+      then:
+        - api.respond:
+            success: !lambda 'return !int_arr.empty();'
+
+    - action: test_respond_optional_array
+      variables:
+        bool_arr: bool[]
+      then:
+        - api.respond:
+            data: !lambda |-
+              root["bools"] = bool_arr.size();
 
     # ==========================================================================
     # supports_response: none (no api.respond action)

@@ -253,8 +253,9 @@ template<typename... Ts> class APIRespondAction final : public Action<Ts...> {
 #endif
 
   void play(const Ts &...x) override {
-    // Extract call_id from first argument - it's always first for optional/only/status modes
-    auto args = std::make_tuple(x...);
+    // Extract call_id from first argument - it's always first for optional/only/status modes.
+    // By reference: array args are non-copyable FixedVector views.
+    auto args = std::forward_as_tuple(x...);
     uint32_t call_id = std::get<0>(args);
 
     bool success = this->success_.value(x...);
@@ -308,7 +309,7 @@ template<typename... Ts> class APIUnregisterServiceCallAction final : public Act
 
   void play(const Ts &...x) override {
     // Extract call_id from first argument - same convention as APIRespondAction
-    auto args = std::make_tuple(x...);
+    auto args = std::forward_as_tuple(x...);
     uint32_t call_id = std::get<0>(args);
     if (call_id != 0) {
       this->parent_->unregister_active_action_call(call_id);

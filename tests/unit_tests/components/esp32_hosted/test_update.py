@@ -245,6 +245,85 @@ def test_concurrent_downloads_publish_only_verified_bytes(downloader: Mock) -> N
     assert list(cache_file().parent.iterdir()) == [cache_file()]
 
 
+def test_replace_refused_after_another_build_cached_the_image(
+    downloader: Mock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Windows denies the rename when a concurrent build has just placed the same verified file."""
+    downloader.return_value = FIRMWARE
+
+    def refuse_replace(self: Path, target: Path) -> None:
+        target.write_bytes(FIRMWARE)
+        raise PermissionError(5, "Access is denied")
+
+    monkeypatch.setattr(Path, "replace", refuse_replace)
+    hosted_update.FINAL_VALIDATE_SCHEMA(remote_config())
+    assert cache_file().read_bytes() == FIRMWARE
+
+
+def test_replace_refused_image_arrives_during_the_retries(
+    downloader: Mock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The other build's rename and a sharing lock can both still be in flight at the first check."""
+    downloader.return_value = FIRMWARE
+    checks: list[str | None] = [None, None, DIGEST]
+
+    def refuse_replace(self: Path, target: Path) -> None:
+        raise PermissionError(5, "Access is denied")
+
+    monkeypatch.setattr(Path, "replace", refuse_replace)
+    monkeypatch.setattr(hosted_update, "CACHE_RACE_RETRY_S", 0)
+    monkeypatch.setattr(
+        hosted_update, "_cached_image_digest", lambda target: checks.pop(0)
+    )
+    hosted_update.FINAL_VALIDATE_SCHEMA(remote_config())
+    assert not checks
+
+
+def test_replace_retried_once_the_lock_is_released(
+    downloader: Mock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A rename refused while the target is held succeeds on a later attempt."""
+    downloader.return_value = FIRMWARE
+    real_replace = Path.replace
+    refusals = [PermissionError(5, "Access is denied")] * 2
+
+    def replace_after_refusals(self: Path, target: Path) -> Path:
+        if refusals:
+            raise refusals.pop()
+        return real_replace(self, target)
+
+    monkeypatch.setattr(Path, "replace", replace_after_refusals)
+    monkeypatch.setattr(hosted_update, "CACHE_RACE_RETRY_S", 0)
+    hosted_update.FINAL_VALIDATE_SCHEMA(remote_config())
+    assert not refusals
+    assert cache_file().read_bytes() == FIRMWARE
+
+
+def test_replace_refused_without_a_verified_image_is_an_error(
+    downloader: Mock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    downloader.return_value = FIRMWARE
+
+    def refuse_replace(self: Path, target: Path) -> None:
+        raise PermissionError(5, "Access is denied")
+
+    monkeypatch.setattr(Path, "replace", refuse_replace)
+    monkeypatch.setattr(hosted_update, "CACHE_RACE_RETRY_S", 0)
+    with pytest.raises(cv.Invalid, match="Could not cache the firmware"):
+        hosted_update.FINAL_VALIDATE_SCHEMA(remote_config())
+
+
+def test_unreadable_cache_entry_is_treated_as_missing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    locked = tmp_path / "locked.bin"
+    locked.write_bytes(FIRMWARE)
+    monkeypatch.setattr(
+        Path, "read_bytes", lambda self: (_ for _ in ()).throw(PermissionError(32))
+    )
+    assert hosted_update._cached_image_digest(locked) is None
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize("source", ["path", "url"])
 async def test_codegen_embeds_verified_bytes_without_runtime_http(

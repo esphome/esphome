@@ -1,4 +1,4 @@
-"""buffer_size is bytes on the pulse ring targets and only reaches RMT targets when set."""
+"""buffer_size sizes the static pulse ring, and is a floor for the RMT ring."""
 
 from collections.abc import Callable
 from pathlib import Path
@@ -17,7 +17,11 @@ def test_explicit_buffer_size_is_passed_through(
     component_config_path: Callable[[str], Path],
 ) -> None:
     main_cpp = generate_main(component_config_path("receiver_buffer_size.yaml"))
-    assert "rcvr->set_buffer_size(2000);" in main_cpp
+    assert (
+        "rcvr_buffer__pstorage[remote_receiver::rmt_buffer_words(192, 2000)];"
+        in main_cpp
+    )
+    assert "rcvr->set_buffer(remote_receiver__rcvr_buffer__pstorage);" in main_cpp
 
 
 @pytest.mark.parametrize(
@@ -29,7 +33,8 @@ def test_pulse_ring_default_holds_1000_pulses(
     target: str,
 ) -> None:
     main_cpp = generate_main(component_config_path(f"receiver_{target}.yaml"))
-    assert "rcvr->set_buffer_size(4000);" in main_cpp
+    assert "static int32_t remote_receiver__rcvr_buffer__pstorage[1000];" in main_cpp
+    assert "rcvr->set_buffer(remote_receiver__rcvr_buffer__pstorage);" in main_cpp
 
 
 @pytest.mark.parametrize(

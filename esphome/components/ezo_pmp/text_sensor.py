@@ -27,5 +27,5 @@ async def to_code(config):
     hub = await cg.get_variable(config[CONF_ID])
 
     text_sensors = text_sensor.sub_text_sensors(config)
-    await text_sensors(CONF_DOSING_MODE, hub.set_dosing_mode)
-    await text_sensors(CONF_CALIBRATION_STATUS, hub.set_calibration_status)
+    await text_sensors(CONF_DOSING_MODE, hub.set_dosing_mode_text_sensor)
+    await text_sensors(CONF_CALIBRATION_STATUS, hub.set_calibration_status_text_sensor)

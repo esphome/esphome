@@ -16,6 +16,7 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
+AUTO_LOAD = ["max170xx"]
 DEPENDENCIES = ["i2c"]
 
 max17043_ns = cg.esphome_ns.namespace("max17043")

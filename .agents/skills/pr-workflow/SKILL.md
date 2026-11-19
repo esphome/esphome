@@ -94,3 +94,22 @@ gh pr create --repo esphome/esphome --base dev --title "[component] Brief descri
 ```
 
 Title should be prefixed with the component name in brackets, e.g. `[safe_mode] Add feature`.
+
+## 6. Fixes for a Release Branch
+
+A fix that should ship in a beta or patch release still targets `dev`. Give it the milestone of that release
+(`gh pr create --milestone <version>`). The release manager cherry-picks each PR's squash-merge commit onto `beta` (beta
+releases) or `release` (patch releases), so test that same change in a throwaway worktree:
+
+```bash
+git worktree add --detach <scratch-dir> upstream/release   # or upstream/beta
+# Before the PR merges: the PR's whole change, as it will be squashed
+git diff $(git merge-base upstream/dev HEAD) HEAD | git -C <scratch-dir> apply --3way
+# After it merges: the squash commit itself
+git -C <scratch-dir> cherry-pick --no-commit <merge commit>
+```
+
+If it conflicts, resolve it there, commit it as one commit, push it to a branch of your fork, and declare it in the PR
+body as step 7 of the contribution workflow in `AGENTS.md` describes (a `release-cherry-pick` block with `branch` and
+`commit`). The release manager compares that commit with the PR's squash-merge commit before using it, so make a new one
+and update the block if the PR changes afterwards. Keep the branch until the release is out.

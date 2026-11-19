@@ -5,8 +5,11 @@
 
 namespace esphome::remote_base {
 
+/// A Mirage frame carries 14 data bytes and a checksum
+static constexpr size_t MIRAGE_DATA_BYTES = 14;
+
 struct MirageData {
-  std::vector<uint8_t> data;
+  RemoteBytes<MIRAGE_DATA_BYTES> data;
 
   bool operator==(const MirageData &rhs) const { return data == rhs.data; }
 };

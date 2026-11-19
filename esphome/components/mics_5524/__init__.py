@@ -43,10 +43,9 @@ CONF_RATIO_SENSOR = "ratio_sensor"
 CONF_RS_SENSOR = "rs_sensor"
 CONF_VOLTAGE_SENSOR = "voltage_sensor"
 
-CONVERSION_MODELS = {
-    "dfrobot": ConversionModel.CONVERSION_MODEL_DFROBOT,
-    "datasheet": ConversionModel.CONVERSION_MODEL_DATASHEET,
-}
+CONVERSION_MODELS = ConversionModel.options(
+    "dfrobot", "datasheet", prefix="CONVERSION_MODEL_"
+)
 
 # Divider guard limits (input max, pin max) in volts by target platform. ESP32 and RP2: VDD and
 # the absolute maximum VDD + 0.3 V; a bare ESP8266 A0 measures 0 - 1 V, boards with an onboard

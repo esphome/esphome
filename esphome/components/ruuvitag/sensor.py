@@ -38,9 +38,7 @@ from esphome.types import ConfigType
 AUTO_LOAD = ["ble_device_base", "ruuvi_ble"]
 
 ruuvitag_ns = cg.esphome_ns.namespace("ruuvitag")
-RuuviTag = ruuvitag_ns.class_(
-    "RuuviTag", ble_device_base.ESPBTDeviceListener, cg.Component
-)
+RuuviTag = ruuvitag_ns.class_("RuuviTag", ble_device_base.ESPBTDeviceListener)
 
 CONFIG_SCHEMA = cv.All(
     ble_device_base.rename_legacy_hub_id("ruuvitag"),
@@ -115,26 +113,26 @@ CONFIG_SCHEMA = cv.All(
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
         }
-    )
-    .extend(cv.COMPONENT_SCHEMA)
-    .extend(ble_device_base.BLE_DEVICE_SCHEMA),
+    ).extend(ble_device_base.BLE_DEVICE_SCHEMA),
 )
 
 
 async def to_code(config: ConfigType) -> None:
-    var = await ble_device_base.new_ble_device_component(config)
+    var = await ble_device_base.new_ble_device(config)
 
     cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))
 
     sensors = sensor.sub_sensors(config)
-    await sensors(CONF_TEMPERATURE, var.set_temperature)
-    await sensors(CONF_HUMIDITY, var.set_humidity)
-    await sensors(CONF_PRESSURE, var.set_pressure)
-    await sensors(CONF_ACCELERATION, var.set_acceleration)
-    await sensors(CONF_ACCELERATION_X, var.set_acceleration_x)
-    await sensors(CONF_ACCELERATION_Y, var.set_acceleration_y)
-    await sensors(CONF_ACCELERATION_Z, var.set_acceleration_z)
-    await sensors(CONF_BATTERY_VOLTAGE, var.set_battery_voltage)
-    await sensors(CONF_TX_POWER, var.set_tx_power)
-    await sensors(CONF_MOVEMENT_COUNTER, var.set_movement_counter)
-    await sensors(CONF_MEASUREMENT_SEQUENCE_NUMBER, var.set_measurement_sequence_number)
+    await sensors(CONF_TEMPERATURE, var.set_temperature_sensor)
+    await sensors(CONF_HUMIDITY, var.set_humidity_sensor)
+    await sensors(CONF_PRESSURE, var.set_pressure_sensor)
+    await sensors(CONF_ACCELERATION, var.set_acceleration_sensor)
+    await sensors(CONF_ACCELERATION_X, var.set_acceleration_x_sensor)
+    await sensors(CONF_ACCELERATION_Y, var.set_acceleration_y_sensor)
+    await sensors(CONF_ACCELERATION_Z, var.set_acceleration_z_sensor)
+    await sensors(CONF_BATTERY_VOLTAGE, var.set_battery_voltage_sensor)
+    await sensors(CONF_TX_POWER, var.set_tx_power_sensor)
+    await sensors(CONF_MOVEMENT_COUNTER, var.set_movement_counter_sensor)
+    await sensors(
+        CONF_MEASUREMENT_SEQUENCE_NUMBER, var.set_measurement_sequence_number_sensor
+    )

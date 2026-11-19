@@ -73,3 +73,9 @@ interval:
   - interval: 10s
     then:
       - snapshot.take: sdl_sdl_display
+
+touchscreen:
+  - platform: sdl
+    id: sdl_touch
+    sdl_id: sdl_sdl_display
+    display: sdl_sdl_display

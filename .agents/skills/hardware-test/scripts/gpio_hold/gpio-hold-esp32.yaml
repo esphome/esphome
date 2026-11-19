@@ -1,0 +1,45 @@
+# Classic ESP32 devkit: RTC pins 25 26 27 32 33 and digital pins 19 21 22 23, three rounds 5 s after boot.
+esphome:
+  name: gpio-hold-esp32
+  includes:
+    - hold_test.hpp
+  on_boot:
+    priority: -100
+    then:
+      - delay: 5s
+      - lambda: |-
+          static const int pins[] = {25, 26, 27, 32, 33, 19, 21, 22, 23};
+          for (int r = 1; r <= 3; r++) holdtest::run(pins, sizeof(pins) / sizeof(pins[0]), r);
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+logger:
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+api:
+  reboot_timeout: 0s
+
+ota:
+  - platform: esphome
+
+# Turns on USE_GPIO_HOLD.
+output:
+  - platform: gpio
+    id: held_out
+    pin:
+      number: GPIO4
+      hold_state: true
+
+button:
+  - platform: template
+    name: rerun
+    on_press:
+      - lambda: |-
+          static const int pins[] = {25, 26, 27, 32, 33, 19, 21, 22, 23};
+          holdtest::run(pins, sizeof(pins) / sizeof(pins[0]), 9);

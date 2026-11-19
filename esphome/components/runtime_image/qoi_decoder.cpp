@@ -3,9 +3,11 @@
 #ifdef USE_RUNTIME_IMAGE_QOI
 
 #include "esphome/components/display/display.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
+#include <algorithm>
 #include <cinttypes>
 
 namespace esphome::runtime_image {
@@ -102,12 +104,17 @@ int HOT QoiDecoder::decode(uint8_t *buffer, size_t size) {
 
   Color color;
   const size_t total_pixels = this->width_ * this->height_;
+  // A call that has run for DECODE_TIME_LIMIT_MS stops, and the caller passes the rest again later
+  const uint32_t start = millis();
+  uint32_t steps = 0;
   while (index < size && this->paint_index_ < total_pixels) {
+    if (++steps % DECODE_TIME_CHECK_STEPS == 0 && millis() - start >= DECODE_TIME_LIMIT_MS)
+      break;
     color = this->last_pixel_;
     uint8_t byte = buffer[index];
     if (byte == QOI_OP_RGB) {
       if (size < index + QOI_RGB_CHUNK_SIZE) {
-        return index;  // Need more data for RGB chunk
+        break;  // Need more data for RGB chunk
       }
       index++;
       color.r = buffer[index++];
@@ -117,7 +124,7 @@ int HOT QoiDecoder::decode(uint8_t *buffer, size_t size) {
       this->paint_index_++;
     } else if (byte == QOI_OP_RGBA) {
       if (size < index + QOI_RGBA_CHUNK_SIZE) {
-        return index;  // Need more data for RGBA chunk
+        break;  // Need more data for RGBA chunk
       }
       index++;
       color.r = buffer[index++];
@@ -129,15 +136,18 @@ int HOT QoiDecoder::decode(uint8_t *buffer, size_t size) {
     } else if ((byte & QOI_MASK_OP) == QOI_OP_RUN) {
       // QOI run chunk
       size_t run_length = (byte & QOI_MASK_VALUE) + 1;  // run length is encoded in the lower 6 bits, plus one
-      for (size_t i = 0; i < run_length; i++) {
-        // TODO: optimize by drawing runs of pixels at once instead of one by one
-        this->draw(this->paint_index_ % this->width_, this->paint_index_ / this->width_, 1, 1, color);
-        this->paint_index_++;
+      // Draw the part of the run in each row it covers at once
+      while (run_length > 0) {
+        const size_t x = this->paint_index_ % this->width_;
+        const size_t count = std::min(run_length, this->width_ - x);
+        this->draw(x, this->paint_index_ / this->width_, count, 1, color);
+        this->paint_index_ += count;
+        run_length -= count;
       }
       index++;
     } else if ((byte & QOI_MASK_OP) == QOI_OP_LUMA) {
       if (size < index + QOI_LUMA_CHUNK_SIZE) {
-        return index;  // Need more data for LUMA chunk
+        break;  // Need more data for LUMA chunk
       }
       index++;
       uint8_t byte2 = buffer[index++];
@@ -165,8 +175,10 @@ int HOT QoiDecoder::decode(uint8_t *buffer, size_t size) {
     this->last_pixel_ = color;
     this->color_table_[qoi_color_table_index(color)] = color;
   }
-  this->decoded_bytes_ += size;
-  return size;
+  if (this->paint_index_ >= total_pixels)
+    index = size;  // All that follows the last pixel is the end marker
+  this->decoded_bytes_ += index;
+  return index;
 }
 
 }  // namespace esphome::runtime_image
