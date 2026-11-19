@@ -1198,8 +1198,8 @@ def _is_framework_url(source: str) -> bool:
 #  - https://github.com/espressif/arduino-esp32/releases
 ARDUINO_FRAMEWORK_VERSION_LOOKUP = {
     "recommended": cv.Version(4, 0, 0),
-    "latest": cv.Version(3, 3, 12),
-    "dev": cv.Version(3, 3, 12),
+    "latest": cv.Version(4, 0, 0),
+    "dev": cv.Version(4, 0, 0),
 }
 ARDUINO_PLATFORM_VERSION_LOOKUP = {
     cv.Version(4, 0, 0): cv.Version(61, 4, 0, "RC1"),
@@ -1253,8 +1253,8 @@ ARDUINO_IDF_VERSION_LOOKUP = {
 #  - https://github.com/espressif/esp-idf/releases
 ESP_IDF_FRAMEWORK_VERSION_LOOKUP = {
     "recommended": cv.Version(6, 1, 1),
-    "latest": cv.Version(5, 5, 6),
-    "dev": cv.Version(5, 5, 6),
+    "latest": cv.Version(6, 1, 1),
+    "dev": cv.Version(6, 1, 1),
 }
 
 ESP_IDF_PLATFORM_VERSION_LOOKUP = {
@@ -1283,7 +1283,7 @@ ESP_IDF_PLATFORM_VERSION_LOOKUP = {
 #  - https://github.com/pioarduino/platform-espressif32/releases
 PLATFORM_VERSION_LOOKUP = {
     "recommended": cv.Version(61, 4, 0, "RC1"),
-    "latest": cv.Version(55, 3, 312),
+    "latest": cv.Version(61, 4, 0, "RC1"),
     "dev": "https://github.com/pioarduino/platform-espressif32.git#develop",
 }
 
