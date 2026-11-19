@@ -1,5 +1,7 @@
 """poll_period is capped at 7200 s so the child timeout (4 * poll_period) stays within 8 hours."""
 
+import logging
+
 import pytest
 
 from esphome import config_validation as cv
@@ -35,21 +37,23 @@ def test_poll_period_at_maximum_accepted(
     )
 
 
-def test_poll_period_above_maximum_rejected(
-    set_core_config: SetCoreConfigCallable,
+def test_poll_period_above_maximum_limited(
+    set_core_config: SetCoreConfigCallable, caplog: pytest.LogCaptureFixture
 ) -> None:
     set_core_config(
         PlatformFramework.ESP32_IDF,
         platform_data={KEY_VARIANT: VARIANT_ESP32C6},
         core_data={KEY_FRAMEWORK_VERSION: cv.Version(5, 5, 5)},
     )
-    with pytest.raises(cv.Invalid):
-        CONFIG_SCHEMA(_config("7201s"))
+    with caplog.at_level(logging.WARNING):
+        result = CONFIG_SCHEMA(_config("7201s"))
+    assert result["poll_period"].total_milliseconds == 7200 * 1000
+    assert "poll_period above 7200s is deprecated" in caplog.text
 
 
 @pytest.mark.parametrize("name", sorted(MTD_POLL_PERIOD_OPTIONS))
-def test_mtd_rejects_derived_core_options(
-    set_core_config: SetCoreConfigCallable, name: str
+def test_mtd_drops_derived_core_options(
+    set_core_config: SetCoreConfigCallable, caplog: pytest.LogCaptureFixture, name: str
 ) -> None:
     set_core_config(
         PlatformFramework.ESP32_IDF,
@@ -57,9 +61,11 @@ def test_mtd_rejects_derived_core_options(
         core_data={KEY_FRAMEWORK_VERSION: cv.Version(5, 5, 5)},
     )
     config = _config("5s")
-    config["core_options"] = {name: "0"}
-    with pytest.raises(cv.Invalid, match=f"'{name}' cannot be set with device_type"):
-        CONFIG_SCHEMA(config)
+    config["core_options"] = {name: "0", "OPENTHREAD_CONFIG_MLE_MAX_CHILDREN": "5"}
+    with caplog.at_level(logging.WARNING):
+        result = CONFIG_SCHEMA(config)
+    assert result["core_options"] == {"OPENTHREAD_CONFIG_MLE_MAX_CHILDREN": "5"}
+    assert f"'{name}' in core_options is deprecated" in caplog.text
 
 
 def test_ftd_accepts_derived_core_options(
@@ -83,6 +89,10 @@ def test_action_poll_period_at_maximum_accepted() -> None:
     assert result["poll_period"].total_milliseconds == 7200 * 1000
 
 
-def test_action_poll_period_above_maximum_rejected() -> None:
-    with pytest.raises(cv.Invalid):
-        POLL_PERIOD_ACTION_SCHEMA({"poll_period": "7201s", "id": "ot"})
+def test_action_poll_period_above_maximum_limited(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(logging.WARNING):
+        result = POLL_PERIOD_ACTION_SCHEMA({"poll_period": "7201s", "id": "ot"})
+    assert result["poll_period"].total_milliseconds == 7200 * 1000
+    assert "poll_period above 7200s is deprecated" in caplog.text

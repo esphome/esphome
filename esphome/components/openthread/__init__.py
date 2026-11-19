@@ -1,3 +1,4 @@
+import logging
 import re
 from typing import Any
 
@@ -93,6 +94,8 @@ from .const import (
     CONF_TLV,
     OPENTHREAD_CONFIG_PREFIX,
 )
+
+_LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@mrene"]
 DOMAIN = "openthread"
@@ -347,14 +350,18 @@ def _validate(config: ConfigType) -> ConfigType:
         raise cv.Invalid(
             f"{CONF_POLL_PERIOD} can only be used with {CONF_DEVICE_TYPE}: MTD"
         )
-    if device_type == "MTD":
-        for name in config.get(CONF_CORE_OPTIONS, {}):
-            if name in MTD_POLL_PERIOD_OPTIONS:
-                raise cv.Invalid(
-                    f"'{name}' cannot be set with {CONF_DEVICE_TYPE}: MTD; "
-                    f"it is derived from {CONF_POLL_PERIOD}",
-                    path=[CONF_CORE_OPTIONS, name],
-                )
+    # Remove before 2027.6.0: make these an error
+    if device_type == "MTD" and (core_options := config.get(CONF_CORE_OPTIONS)):
+        for name in sorted(MTD_POLL_PERIOD_OPTIONS & core_options.keys()):
+            _LOGGER.warning(
+                "'%s' in %s is deprecated with %s: MTD and ignored, it is derived from "
+                "%s. This will be an error in 2027.6.0",
+                name,
+                CONF_CORE_OPTIONS,
+                CONF_DEVICE_TYPE,
+                CONF_POLL_PERIOD,
+            )
+            del core_options[name]
     if CONF_BORDER_ROUTER in config and device_type != "FTD":
         raise cv.Invalid("OpenThread Border Router requires 'device_type: FTD'.")
 
@@ -447,10 +454,22 @@ def _validate_tlv_hex(value: Any) -> str:
 
 
 # The child timeout is 4 * poll_period, and OpenThread limits it to 8 hours.
-_POLL_PERIOD = cv.All(
-    cv.positive_time_period_milliseconds,
-    cv.Range(max=TimePeriodMilliseconds(seconds=7200)),
-)
+MAX_POLL_PERIOD = TimePeriodMilliseconds(seconds=7200)
+
+
+def _limit_poll_period(value: TimePeriodMilliseconds) -> TimePeriodMilliseconds:
+    # Remove before 2027.6.0: reject with cv.Range(max=MAX_POLL_PERIOD)
+    if value > MAX_POLL_PERIOD:
+        _LOGGER.warning(
+            "%s above 7200s is deprecated and now limited to 7200s. "
+            "This will be an error in 2027.6.0",
+            CONF_POLL_PERIOD,
+        )
+        return MAX_POLL_PERIOD
+    return value
+
+
+_POLL_PERIOD = cv.All(cv.positive_time_period_milliseconds, _limit_poll_period)
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
