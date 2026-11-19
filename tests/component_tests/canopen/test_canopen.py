@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from esphome.components.canopen import CONFIG_SCHEMA, SDO_WRITE_SCHEMA
+from esphome.config import read_config
 import esphome.config_validation as cv
 from esphome.core import CORE
 
@@ -73,6 +74,29 @@ def test_sdo_write_value_fits_size(value: int, size: int, valid: bool) -> None:
     else:
         with pytest.raises(cv.Invalid, match="doesn't fit"):
             SDO_WRITE_SCHEMA(config)
+
+
+@pytest.mark.parametrize("key", ["on_success", "on_error"])
+def test_sdo_write_single_automation(key: str) -> None:
+    """An action's trigger runs one automation: a list of automations is rejected."""
+    automations = [{"then": [{"delay": "1s"}]}, {"then": [{"delay": "2s"}]}]
+    with pytest.raises(cv.Invalid, match="only a single automation"):
+        SDO_WRITE_SCHEMA({**SDO_WRITE, "value": 1, key: automations})
+
+
+def test_one_hub_per_canbus(
+    component_config_path: Callable[[str], Path],
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Two hubs on one canbus: their SDO clients would use the same COB-IDs."""
+    CORE.config_path = component_config_path("same_bus.yaml")
+    assert read_config({}) is None
+    assert "one canopen hub per canbus" in capsys.readouterr().out
+
+
+def test_hubs_on_two_buses(component_config_path: Callable[[str], Path]) -> None:
+    CORE.config_path = component_config_path("two_buses.yaml")
+    assert read_config({}) is not None
 
 
 def test_sdo_write_size() -> None:

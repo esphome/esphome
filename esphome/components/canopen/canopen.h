@@ -41,7 +41,8 @@ class CANopenComponent : public Component {
   // --- SDO client (sdo_client.cpp) ---
   // SDO client (one channel, requests run one after another in FIFO order). Every request ends in exactly one
   // callback: accepted ones from loop() / frame processing after the transfer, rejected ones (queue full, invalid
-  // arguments, stack not running) synchronously before the call returns false.
+  // arguments, failed hub) synchronously before the call returns false. Requests made before setup() wait in the
+  // queue (e.g. from on_boot).
 
   // value read; expected_size 1/2/4 checks the width (SIZE_MISMATCH), 0 accepts any width up to 4
   bool read_sdo(uint8_t node_id, uint16_t index, uint8_t sub, uint8_t expected_size, SDOCallback callback,
@@ -73,6 +74,8 @@ class CANopenComponent : public Component {
   void on_frame_(const canbus::CanFrame &frame);
   void receive_(uint16_t ident, const uint8_t *data, uint8_t len);
   void process_();
+  // marks the hub failed and ends the requests queued before setup()
+  void fail_setup_(const LogString *reason);
 
   canbus::Canbus *canbus_{nullptr};
   CO_t *co_{nullptr};
@@ -96,12 +99,12 @@ class CANopenComponent : public Component {
     void *context;
   };
   static constexpr size_t SDO_QUEUE_SIZE = 16;
-  // a value read only counts the bytes (SIZE_MISMATCH above 4); longer objects are aborted
-  static constexpr size_t SDO_MAX_VALUE_UPLOAD = 1024;
   void add_sdo_client_od_();
   void config_sdo_client_(CO_config_t &cfg);
   bool init_sdo_client_();
   bool queue_sdo_(SDORequest &&request);
+  void reject_queued_sdo_();
+  bool sdo_reply_is_stale_(const uint8_t *data, uint8_t len) const;
   void process_sdo_(uint32_t dt_us);
   bool start_sdo_();
   void finish_sdo_(SDOResult result, uint32_t abort_code);

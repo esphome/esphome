@@ -1,7 +1,6 @@
 #include <gtest/gtest.h>
 #include <array>
 #include <chrono>
-#include <string>
 #include <thread>
 
 #include "fake_canbus.h"
@@ -11,37 +10,7 @@ namespace esphome::canopen::testing {
 
 using Bytes = std::vector<uint8_t>;
 
-class SdoClient : public ::testing::Test {
- protected:
-  FakeCanbus bus_;
-  TestHub hub_;
-  std::vector<SDOReply> replies_;
-  std::string data_;  // READ_DATA: the buffer, copied during the callback
-
-  void SetUp() override {
-    this->hub_.set_canbus(&this->bus_);
-    this->hub_.set_response_timeout(20);
-    this->hub_.setup();
-    ASSERT_FALSE(this->hub_.is_failed());
-  }
-
-  static void on_reply(void *context, const SDOReply &reply) {
-    auto *self = static_cast<SdoClient *>(context);
-    self->replies_.push_back(reply);
-    if (reply.data != nullptr)
-      self->data_.assign(reinterpret_cast<const char *>(reply.data), reply.len);
-  }
-
-  // the requests sent to node 0x21, in order
-  std::vector<Bytes> requests_(uint32_t can_id = 0x621) const {
-    std::vector<Bytes> out;
-    for (const auto &f : this->bus_.sent) {
-      if (f.can_id == can_id)
-        out.push_back(f.data);
-    }
-    return out;
-  }
-};
+class SdoClient : public SdoTest {};
 
 TEST_F(SdoClient, ExpeditedRead) {
   ASSERT_TRUE(this->hub_.read_sdo<uint16_t>(0x21, 0x6041, 0, on_reply, this));
@@ -175,6 +144,73 @@ TEST_F(SdoClient, QueueFull) {
   EXPECT_EQ(accepted, 16);
   ASSERT_EQ(this->replies_.size(), 1u);
   EXPECT_EQ(this->replies_[0].result, SDOResult::SDO_RESULT_REJECTED);
+}
+
+TEST_F(SdoClient, SignedRawWriteRepliesZeroExtended) {
+  ASSERT_TRUE(this->hub_.write_sdo(0x21, 0x6040, 0, static_cast<uint32_t>(-1), 1, on_reply, this));
+  this->hub_.loop();
+  ASSERT_EQ(this->requests_(), (std::vector<Bytes>{{0x2F, 0x40, 0x60, 0, 0xFF, 0, 0, 0}}));
+  this->hub_.frame(0x5A1, {0x60, 0x40, 0x60, 0, 0, 0, 0, 0});
+  ASSERT_EQ(this->replies_.size(), 1u);
+  EXPECT_EQ(this->replies_[0].value, 0xFFu);
+  EXPECT_EQ(this->replies_[0].as<int32_t>(), -1);
+}
+
+// A value is at most 4 bytes: the upload stops at the first segment that exceeds it.
+TEST_F(SdoClient, LongObjectIsASizeMismatchForAValueRead) {
+  ASSERT_TRUE(this->hub_.read_sdo(0x21, 0x1008, 0, 0, on_reply, this));
+  this->hub_.loop();
+  // initiate response: segmented, 200 bytes
+  this->hub_.frame(0x5A1, {0x41, 0x08, 0x10, 0, 200, 0, 0, 0});
+  this->hub_.loop();
+  this->hub_.frame(0x5A1, {0x00, 'd', 'i', 'm', 'm', 'e', 'r', '4'});
+  this->hub_.loop();
+  ASSERT_EQ(this->replies_.size(), 1u);
+  EXPECT_EQ(this->replies_[0].result, SDOResult::SDO_RESULT_SIZE_MISMATCH);
+  auto req = this->requests_();
+  EXPECT_EQ(req.back(), (Bytes{0x80, 0x08, 0x10, 0, 0x12, 0x00, 0x07, 0x06}));
+  EXPECT_LE(req.size(), 4u);
+}
+
+// After a timeout, the server's late replies about the old object must not end the next request.
+TEST_F(SdoClient, LateRepliesForAnotherObjectAreIgnored) {
+  ASSERT_TRUE(this->hub_.read_sdo<uint32_t>(0x21, 0x1000, 0, on_reply, this));
+  ASSERT_TRUE(this->hub_.write_sdo<uint8_t>(0x21, 0x6060, 0, 1, on_reply, this));
+  this->hub_.loop();
+  std::this_thread::sleep_for(std::chrono::milliseconds(40));
+  this->hub_.loop();
+  ASSERT_EQ(this->replies_.size(), 1u);
+  EXPECT_EQ(this->replies_[0].result, SDOResult::SDO_RESULT_TIMEOUT);
+  this->hub_.loop();
+  ASSERT_EQ(this->requests_().back(), (Bytes{0x2F, 0x60, 0x60, 0, 1, 0, 0, 0}));
+
+  this->hub_.frame(0x5A1, {0x43, 0x00, 0x10, 0, 0x92, 0x01, 0, 0});        // upload response, 0x1000
+  this->hub_.frame(0x5A1, {0x80, 0x00, 0x10, 0, 0x00, 0x00, 0x02, 0x06});  // abort, 0x1000
+  this->hub_.frame(0x5A1, {0x60, 0x60, 0x60, 1, 0, 0, 0, 0});              // download response, 0x6060:1
+  this->hub_.loop();
+  EXPECT_EQ(this->replies_.size(), 1u);
+  this->hub_.frame(0x5A1, {0x60, 0x60, 0x60, 0, 0, 0, 0, 0});
+  ASSERT_EQ(this->replies_.size(), 2u);
+  EXPECT_TRUE(this->replies_[1].ok());
+}
+
+// e.g. from on_boot, which runs before the hub's setup()
+TEST(CanopenSdoClient, RequestBeforeSetupWaitsForIt) {
+  FakeCanbus bus;
+  TestHub hub;
+  hub.set_canbus(&bus);
+  std::vector<SDOReply> replies;
+  auto on_reply = [](void *context, const SDOReply &reply) {
+    static_cast<std::vector<SDOReply> *>(context)->push_back(reply);
+  };
+  ASSERT_TRUE(hub.read_sdo<uint8_t>(0x21, 0x1001, 0, on_reply, &replies));
+  EXPECT_TRUE(replies.empty());
+  hub.setup();
+  hub.loop();
+  EXPECT_EQ(bus.count(0x621), 1u);
+  hub.frame(0x5A1, {0x4F, 0x01, 0x10, 0, 0, 0, 0, 0});
+  ASSERT_EQ(replies.size(), 1u);
+  EXPECT_TRUE(replies[0].ok());
 }
 
 }  // namespace esphome::canopen::testing

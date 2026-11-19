@@ -1,7 +1,11 @@
 #pragma once
 
+#include <gtest/gtest.h>
 #include <algorithm>
+#include <chrono>
 #include <cstdint>
+#include <string>
+#include <thread>
 #include <vector>
 
 #include "esphome/components/canopen/canopen.h"
@@ -53,6 +57,49 @@ class TestHub : public CANopenComponent {
     f.can_data_length_code = data.size();
     std::copy(data.begin(), data.end(), f.data);
     this->on_frame_(f);
+  }
+  void frame(const canbus::CanFrame &f) { this->on_frame_(f); }
+};
+
+// A hub on a FakeCanbus, recording the replies of its SDO requests.
+// Requests to node 0x21 go out on 0x621, its replies come on 0x5A1.
+class SdoTest : public ::testing::Test {
+ protected:
+  FakeCanbus bus_;
+  TestHub hub_;
+  std::vector<SDOReply> replies_;
+  std::string data_;  // READ_DATA: the buffer, copied during the callback
+
+  void SetUp() override {
+    this->hub_.set_canbus(&this->bus_);
+    this->hub_.set_response_timeout(20);
+    this->hub_.setup();
+    ASSERT_FALSE(this->hub_.is_failed());
+  }
+
+  static void on_reply(void *context, const SDOReply &reply) {
+    auto *self = static_cast<SdoTest *>(context);
+    self->replies_.push_back(reply);
+    if (reply.data != nullptr)
+      self->data_.assign(reinterpret_cast<const char *>(reply.data), reply.len);
+  }
+
+  // the frames sent on can_id, in order
+  std::vector<std::vector<uint8_t>> requests_(uint32_t can_id = 0x621) const {
+    std::vector<std::vector<uint8_t>> out;
+    for (const auto &f : this->bus_.sent) {
+      if (f.can_id == can_id)
+        out.push_back(f.data);
+    }
+    return out;
+  }
+
+  // long enough for the response timeout to end a transfer
+  void wait_for_timeout_() {
+    for (int i = 0; i < 60; i++) {
+      this->hub_.loop();
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
   }
 };
 

@@ -17,27 +17,31 @@ void CANopenComponent::setup() {
   uint32_t heap = 0;
   this->co_ = CO_new(&this->config_, &heap);
   if (this->co_ == nullptr) {
-    this->mark_failed(LOG_STR("CO_new failed"));
+    this->fail_setup_(LOG_STR("CO_new failed"));
     return;
   }
   CO_ReturnError_t err = CO_CANinit(this->co_, this, 0);
   if (err != CO_ERROR_NO) {
     ESP_LOGE(TAG, "CO_CANinit failed: %d", err);
-    this->mark_failed();
+    this->fail_setup_(LOG_STR("CO_CANinit failed"));
     return;
   }
   if (!this->init_sdo_client_()) {
-    this->mark_failed();
+    this->fail_setup_(LOG_STR("SDO client init failed"));
     return;
   }
   CO_CANsetNormalMode(this->co_->CANmodule);
   this->last_us_ = micros();
-  ESP_LOGI(TAG, "CANopenNode initialized, SDO client, heap %" PRIu32 " B", heap);
+  ESP_LOGV(TAG, "CANopenNode initialized, SDO client, heap %" PRIu32 " B", heap);
+}
+
+void CANopenComponent::fail_setup_(const LogString *reason) {
+  this->mark_failed(reason);
+  this->reject_queued_sdo_();
 }
 
 void CANopenComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "CANopen (CANopenNode):");
-  ESP_LOGCONFIG(TAG, "  SDO client: response timeout %u ms", this->response_timeout_ms_);
+  ESP_LOGCONFIG(TAG, "CANopen (CANopenNode):\n  SDO client: response timeout %u ms", this->response_timeout_ms_);
 }
 
 void CANopenComponent::loop() { this->process_(); }
@@ -51,9 +55,10 @@ void CANopenComponent::process_() {
   uint32_t now = micros();
   uint32_t dt = now - this->last_us_;
   this->last_us_ = now;
-  // CO_process() would process the node's objects, which aren't initialised
-  CO_CANmodule_process(this->co_->CANmodule);
+  // The SDO client first: a request whose frame still waits at its deadline ends there, before the flush could send
+  // it. CO_process() would process the node's objects, which aren't initialised.
   this->process_sdo_(dt);
+  CO_CANmodule_process(this->co_->CANmodule);
 }
 
 }  // namespace esphome::canopen

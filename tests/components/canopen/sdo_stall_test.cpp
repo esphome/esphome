@@ -7,34 +7,9 @@
 #include "fake_canbus.h"
 
 // The SDO client when the bus refuses frames, and requests it must not send as they are.
-// Requests to node 0x21 on 0x621, replies on 0x5A1.
 namespace esphome::canopen::testing {
 
-class SdoStall : public ::testing::Test {
- protected:
-  FakeCanbus bus_;
-  TestHub hub_;
-  std::vector<SDOReply> replies_;
-
-  void SetUp() override {
-    this->hub_.set_canbus(&this->bus_);
-    this->hub_.set_response_timeout(20);
-    this->hub_.setup();
-    ASSERT_FALSE(this->hub_.is_failed());
-  }
-
-  static void on_reply(void *context, const SDOReply &reply) {
-    static_cast<SdoStall *>(context)->replies_.push_back(reply);
-  }
-
-  // long enough for the response timeout to end a transfer
-  void wait_for_timeout_() {
-    for (int i = 0; i < 60; i++) {
-      this->hub_.loop();
-      std::this_thread::sleep_for(std::chrono::milliseconds(1));
-    }
-  }
-};
+class SdoStall : public SdoTest {};
 
 TEST_F(SdoStall, UnsentWriteEndsAndIsNeverSent) {
   this->bus_.busy = true;
@@ -47,6 +22,20 @@ TEST_F(SdoStall, UnsentWriteEndsAndIsNeverSent) {
   this->wait_for_timeout_();
   EXPECT_EQ(this->bus_.count(0x621), 0u);
   EXPECT_EQ(this->replies_.size(), 1u);
+}
+
+// The bus takes frames again right at the deadline: the request ends unsent instead of reaching the server just
+// before the caller is told it failed.
+TEST_F(SdoStall, FrameUnsentAtTheDeadlineIsNotSentLate) {
+  this->bus_.busy = true;
+  ASSERT_TRUE(this->hub_.write_sdo<uint16_t>(0x21, 0x6040, 0, 0x1234, on_reply, this));
+  this->hub_.loop();
+  std::this_thread::sleep_for(std::chrono::milliseconds(25));
+  this->bus_.busy = false;
+  this->hub_.loop();
+  ASSERT_EQ(this->replies_.size(), 1u);
+  EXPECT_EQ(this->replies_[0].result, SDOResult::SDO_RESULT_TRANSPORT_ERROR);
+  EXPECT_EQ(this->bus_.count(0x621), 0u);
 }
 
 TEST_F(SdoStall, UnsentReadEnds) {
@@ -105,6 +94,22 @@ TEST_F(SdoStall, ValueAtTheLimitsIsSent) {
   EXPECT_TRUE(this->hub_.write_sdo(0x21, 0x6040, 0, 0xFFFFFFFFu, 4));
   EXPECT_TRUE(this->hub_.write_sdo<int16_t>(0x21, 0x6040, 0, -2));
 }
+
+#ifdef USE_CANBUS_FD
+// CANopen is classic CAN: an FD frame on the reply id isn't a reply, even with 8 bytes
+TEST_F(SdoStall, FdFrameOnTheReplyIdIsIgnored) {
+  ASSERT_TRUE(this->hub_.read_sdo<uint32_t>(0x21, 0x1000, 0, on_reply, this));
+  this->hub_.loop();
+  canbus::CanFrame frame{};
+  frame.can_id = 0x5A1;
+  frame.fd = true;
+  frame.can_data_length_code = 8;
+  const uint8_t data[8] = {0x43, 0x00, 0x10, 0, 0x92, 0x01, 0, 0};
+  std::copy(data, data + 8, frame.data);
+  this->hub_.frame(frame);
+  EXPECT_TRUE(this->replies_.empty());
+}
+#endif
 
 TEST_F(SdoStall, ReadFillsTheCallersBuffer) {
   std::array<uint8_t, 4> buffer{};

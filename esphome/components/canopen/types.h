@@ -17,10 +17,12 @@ enum class SDOResult : uint8_t {
   SDO_RESULT_SUCCESS,
   SDO_RESULT_ABORT,            // the server aborted the transfer, see abort_code
   SDO_RESULT_TIMEOUT,          // no response within response_timeout
-  SDO_RESULT_SIZE_MISMATCH,    // a value read returned another width than expected
+  SDO_RESULT_SIZE_MISMATCH,    // a value read returned another width than expected (or more than 4 bytes)
   SDO_RESULT_TRANSPORT_ERROR,  // the transfer couldn't be started or failed locally
-  SDO_RESULT_REJECTED,         // not queued (queue full, invalid arguments, stack not running)
+  SDO_RESULT_REJECTED,         // not queued (queue full, invalid arguments, failed hub)
 };
+// A write that ended with TIMEOUT or TRANSPORT_ERROR may still have been carried out: the server's response may be
+// lost, and a frame the CAN controller has already taken can't be recalled.
 
 const LogString *sdo_result_to_string(SDOResult result);
 

@@ -13,6 +13,7 @@ from esphome.const import (
 )
 from esphome.core import ID
 from esphome.cpp_generator import MockObj, TemplateArgsType
+import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@mrk-its"]
@@ -52,6 +53,17 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
+def _final_validate(config: ConfigType) -> ConfigType:
+    # their SDO clients would use the same COB-IDs, and a reply would end both hubs' requests
+    buses = [hub[CONF_CANBUS_ID] for hub in fv.full_config.get()[DOMAIN]]
+    if buses.count(config[CONF_CANBUS_ID]) > 1:
+        raise cv.Invalid("one canopen hub per canbus", path=[CONF_CANBUS_ID])
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
+
+
 def add_canopennode_library() -> None:
     """Add the CANopenNode library and its configuration (also used by the C++ unit tests).
 
@@ -86,19 +98,50 @@ def validate_sdo_value(config: ConfigType) -> ConfigType:
     return config
 
 
+SDO_ACTION_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.use_id(CANopenComponent),
+        cv.Required(CONF_NODE_ID): cv.templatable(cv.int_range(min=1, max=127)),
+        cv.Required(CONF_INDEX): cv.templatable(cv.hex_uint16_t),
+        cv.Optional(CONF_SUBINDEX, default=0): cv.templatable(cv.hex_uint8_t),
+        # single: an action's trigger runs one automation
+        cv.Optional(CONF_ON_ERROR): automation.validate_automation(single=True),
+    }
+)
+
+
+async def _sdo_action_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
+    """What canopen.sdo_read and canopen.sdo_write share: the hub, the object address and on_error."""
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    for key, setter, type_ in (
+        (CONF_NODE_ID, var.set_node_id, cg.uint8),
+        (CONF_INDEX, var.set_index, cg.uint16),
+        (CONF_SUBINDEX, var.set_subindex, cg.uint8),
+    ):
+        cg.add(setter(await cg.templatable(config[key], args, type_)))
+    if error_conf := config.get(CONF_ON_ERROR):
+        await automation.build_automation(
+            var.get_error_trigger(),
+            [(SDOResult, "result"), (cg.uint32, "abort_code")],
+            error_conf,
+        )
+    return var
+
+
 SDO_WRITE_SCHEMA = cv.All(
-    cv.Schema(
+    SDO_ACTION_SCHEMA.extend(
         {
-            cv.GenerateID(): cv.use_id(CANopenComponent),
-            cv.Required(CONF_NODE_ID): cv.templatable(cv.int_range(min=1, max=127)),
-            cv.Required(CONF_INDEX): cv.templatable(cv.hex_uint16_t),
-            cv.Optional(CONF_SUBINDEX, default=0): cv.templatable(cv.hex_uint8_t),
             cv.Required(CONF_VALUE): cv.templatable(
                 cv.int_range(min=-(1 << 31), max=(1 << 32) - 1)
             ),
             cv.Optional(CONF_SIZE, default=4): cv.one_of(1, 2, 4, int=True),
-            cv.Optional(CONF_ON_SUCCESS): automation.validate_automation({}),
-            cv.Optional(CONF_ON_ERROR): automation.validate_automation({}),
+            cv.Optional(CONF_ON_SUCCESS): automation.validate_automation(single=True),
         }
     ),
     validate_sdo_value,
@@ -114,41 +157,23 @@ async def sdo_write_to_code(
     template_arg: cg.TemplateArguments,
     args: TemplateArgsType,
 ) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    for key, setter, type_ in (
-        (CONF_NODE_ID, var.set_node_id, cg.uint8),
-        (CONF_INDEX, var.set_index, cg.uint16),
-        (CONF_SUBINDEX, var.set_subindex, cg.uint8),
-    ):
-        cg.add(setter(await cg.templatable(config[key], args, type_)))
+    var = await _sdo_action_to_code(config, action_id, template_arg, args)
     value = config[CONF_VALUE]
     if isinstance(value, int):
         # negative values as two's complement in `size` bytes
         value &= (1 << (8 * config[CONF_SIZE])) - 1
     cg.add(var.set_value(await cg.templatable(value, args, cg.uint32)))
     cg.add(var.set_size(config[CONF_SIZE]))
-    for conf in config.get(CONF_ON_SUCCESS, []):
-        await automation.build_automation(var.get_success_trigger(), [], conf)
-    for conf in config.get(CONF_ON_ERROR, []):
-        await automation.build_automation(
-            var.get_error_trigger(),
-            [(SDOResult, "result"), (cg.uint32, "abort_code")],
-            conf,
-        )
+    if success_conf := config.get(CONF_ON_SUCCESS):
+        await automation.build_automation(var.get_success_trigger(), [], success_conf)
     return var
 
 
-SDO_READ_SCHEMA = cv.Schema(
+SDO_READ_SCHEMA = SDO_ACTION_SCHEMA.extend(
     {
-        cv.GenerateID(): cv.use_id(CANopenComponent),
-        cv.Required(CONF_NODE_ID): cv.templatable(cv.int_range(min=1, max=127)),
-        cv.Required(CONF_INDEX): cv.templatable(cv.hex_uint16_t),
-        cv.Optional(CONF_SUBINDEX, default=0): cv.templatable(cv.hex_uint8_t),
         # 1/2/4: the value must have this width; 0: any width up to 4 bytes
         cv.Optional(CONF_SIZE, default=0): cv.one_of(0, 1, 2, 4, int=True),
-        cv.Optional(CONF_ON_VALUE): automation.validate_automation({}),
-        cv.Optional(CONF_ON_ERROR): automation.validate_automation({}),
+        cv.Optional(CONF_ON_VALUE): automation.validate_automation(single=True),
     }
 )
 
@@ -162,23 +187,10 @@ async def sdo_read_to_code(
     template_arg: cg.TemplateArguments,
     args: TemplateArgsType,
 ) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    for key, setter, type_ in (
-        (CONF_NODE_ID, var.set_node_id, cg.uint8),
-        (CONF_INDEX, var.set_index, cg.uint16),
-        (CONF_SUBINDEX, var.set_subindex, cg.uint8),
-    ):
-        cg.add(setter(await cg.templatable(config[key], args, type_)))
+    var = await _sdo_action_to_code(config, action_id, template_arg, args)
     cg.add(var.set_size(config[CONF_SIZE]))
-    for conf in config.get(CONF_ON_VALUE, []):
+    if value_conf := config.get(CONF_ON_VALUE):
         await automation.build_automation(
-            var.get_value_trigger(), [(cg.uint32, "x")], conf
-        )
-    for conf in config.get(CONF_ON_ERROR, []):
-        await automation.build_automation(
-            var.get_error_trigger(),
-            [(SDOResult, "result"), (cg.uint32, "abort_code")],
-            conf,
+            var.get_value_trigger(), [(cg.uint32, "x")], value_conf
         )
     return var

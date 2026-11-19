@@ -8,7 +8,7 @@
 namespace esphome::canopen {
 
 // canopen.sdo_write: fires the request and continues; on_success / on_error run when it ends
-template<typename... Ts> class SDOWriteAction : public Action<Ts...>, public Parented<CANopenComponent> {
+template<typename... Ts> class SDOWriteAction final : public Action<Ts...>, public Parented<CANopenComponent> {
  public:
   TEMPLATABLE_VALUE(uint8_t, node_id)
   TEMPLATABLE_VALUE(uint16_t, index)
@@ -39,7 +39,7 @@ template<typename... Ts> class SDOWriteAction : public Action<Ts...>, public Par
 };
 
 // canopen.sdo_read: fires the request and continues; on_value / on_error run when it ends
-template<typename... Ts> class SDOReadAction : public Action<Ts...>, public Parented<CANopenComponent> {
+template<typename... Ts> class SDOReadAction final : public Action<Ts...>, public Parented<CANopenComponent> {
  public:
   TEMPLATABLE_VALUE(uint8_t, node_id)
   TEMPLATABLE_VALUE(uint16_t, index)

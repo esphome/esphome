@@ -25,6 +25,10 @@ void CANopenComponent::set_canbus(canbus::Canbus *canbus) {
 
 void CANopenComponent::on_frame_(const canbus::CanFrame &frame) {
   // CANopen (CiA 301) uses classic CAN frames with 11-bit ids
+#ifdef USE_CANBUS_FD
+  if (frame.fd)
+    return;
+#endif
   const uint8_t len = frame.payload_length();
   if (frame.use_extended_id || len > 8)
     return;
@@ -42,8 +46,11 @@ void CANopenComponent::receive_(uint16_t ident, const uint8_t *data, uint8_t len
   memcpy(msg.data, data, len);
   for (uint16_t i = 0; i < mod->rxSize; i++) {
     CO_CANrx_t *rx = &mod->rxArray[i];
-    if (rx->CANrx_callback != nullptr && ((msg.ident ^ rx->ident) & rx->mask) == 0)
-      rx->CANrx_callback(rx->object, &msg);
+    if (rx->CANrx_callback == nullptr || ((msg.ident ^ rx->ident) & rx->mask) != 0)
+      continue;
+    if (rx->object == this->co_->SDOclient && this->sdo_reply_is_stale_(data, len))
+      continue;
+    rx->CANrx_callback(rx->object, &msg);
   }
 }
 

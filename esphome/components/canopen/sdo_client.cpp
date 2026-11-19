@@ -5,28 +5,18 @@
 #include <cstring>
 
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome::canopen {
 
 ESPHOME_LOG_TAG(TAG, "canopen.sdo");
 
+// indexed by SDOResult; the last entry for other values
+PROGMEM_STRING_TABLE(SDOResultStrings, "success", "abort", "timeout", "size mismatch", "transport error", "rejected",
+                     "unknown");
+
 const LogString *sdo_result_to_string(SDOResult result) {
-  switch (result) {
-    case SDOResult::SDO_RESULT_SUCCESS:
-      return LOG_STR("success");
-    case SDOResult::SDO_RESULT_ABORT:
-      return LOG_STR("abort");
-    case SDOResult::SDO_RESULT_TIMEOUT:
-      return LOG_STR("timeout");
-    case SDOResult::SDO_RESULT_SIZE_MISMATCH:
-      return LOG_STR("size mismatch");
-    case SDOResult::SDO_RESULT_TRANSPORT_ERROR:
-      return LOG_STR("transport error");
-    case SDOResult::SDO_RESULT_REJECTED:
-      return LOG_STR("rejected");
-    default:
-      return LOG_STR("unknown");
-  }
+  return SDOResultStrings::get_log_str(static_cast<uint8_t>(result), SDOResultStrings::LAST_INDEX);
 }
 
 void CANopenComponent::add_sdo_client_od_() {
@@ -90,6 +80,8 @@ bool CANopenComponent::write_sdo(uint8_t node_id, uint16_t index, uint8_t sub, u
     reject(node_id, index, sub, callback, context);
     return false;
   }
+  if (size < 4)
+    value &= (1u << (8 * size)) - 1;  // sign-extended: the reply's value is zero-extended
   return this->queue_sdo_(
       SDORequest{node_id, index, sub, SDOKind::SDO_KIND_WRITE, size, value, nullptr, 0, callback, context});
 }
@@ -116,14 +108,35 @@ bool CANopenComponent::write_sdo_data(uint8_t node_id, uint16_t index, uint8_t s
 }
 
 bool CANopenComponent::queue_sdo_(SDORequest &&request) {
-  if (this->co_ == nullptr || this->is_failed() || request.node_id == 0 || request.node_id > 127 ||
-      this->sdo_count_ == SDO_QUEUE_SIZE) {
+  // before setup() the request waits in the queue: process_() starts once CANopenNode runs
+  if (this->is_failed() || request.node_id == 0 || request.node_id > 127 || this->sdo_count_ == SDO_QUEUE_SIZE) {
     reject(request.node_id, request.index, request.sub, request.callback, request.context);
     return false;
   }
   this->sdo_queue_[(this->sdo_head_ + this->sdo_count_) % SDO_QUEUE_SIZE] = request;
   this->sdo_count_++;
   return true;
+}
+
+void CANopenComponent::reject_queued_sdo_() {
+  while (this->sdo_count_ > 0) {
+    SDORequest r = this->sdo_queue_[this->sdo_head_];
+    this->sdo_head_ = (this->sdo_head_ + 1) % SDO_QUEUE_SIZE;
+    this->sdo_count_--;
+    reject(r.node_id, r.index, r.sub, r.callback, r.context);
+  }
+}
+
+// A late reply to a request that already ended (e.g. timed out) names its object. CANopenNode takes any abort, and
+// aborts the transfer on an initiate response for another object, so the reply would fail the current request.
+// Segment responses name no object and pass.
+bool CANopenComponent::sdo_reply_is_stale_(const uint8_t *data, uint8_t len) const {
+  if (!this->sdo_busy_ || len < 4)
+    return false;
+  const uint8_t scs = data[0] >> 5;  // 2: initiate upload response, 3: initiate download response, 4: abort
+  if (scs < 2 || scs > 4)
+    return false;
+  return encode_uint16(data[2], data[1]) != this->sdo_active_.index || data[3] != this->sdo_active_.sub;
 }
 
 bool CANopenComponent::start_sdo_() {
@@ -179,15 +192,11 @@ void CANopenComponent::process_sdo_(uint32_t dt_us) {
   CO_SDO_return_t ret;
   if (r.kind == SDOKind::SDO_KIND_READ || r.kind == SDOKind::SDO_KIND_READ_DATA) {
     ret = CO_SDOclientUpload(cli, dt_us, false, &abort, nullptr, nullptr, nullptr);
-    if (ret == CO_SDO_RT_uploadDataBufferFull || ret == CO_SDO_RT_ok_communicationEnd) {
-      uint8_t *dst = this->sdo_rx_value_.data();
-      size_t cap = this->sdo_rx_value_.size();
-      size_t limit = SDO_MAX_VALUE_UPLOAD;
-      if (r.kind == SDOKind::SDO_KIND_READ_DATA) {
-        dst = r.data;
-        cap = r.len;
-        limit = cap;
-      }
+    // drained after every segment, so a value read stops at the first one past 4 bytes
+    if (ret >= 0) {
+      const bool value_read = r.kind == SDOKind::SDO_KIND_READ;
+      uint8_t *dst = value_read ? this->sdo_rx_value_.data() : r.data;
+      const size_t cap = value_read ? this->sdo_rx_value_.size() : r.len;
       uint8_t buf[64];
       size_t n;
       while ((n = CO_SDOclientUploadBufRead(cli, buf, sizeof(buf))) > 0) {
@@ -195,11 +204,16 @@ void CANopenComponent::process_sdo_(uint32_t dt_us) {
           std::memcpy(dst + this->sdo_rx_len_, buf, std::min(n, cap - this->sdo_rx_len_));
         this->sdo_rx_len_ += n;
       }
-      if (this->sdo_rx_len_ > limit) {
-        abort = CO_SDO_AB_OUT_OF_MEM;
+      if (this->sdo_rx_len_ > cap) {
+        // a value is at most 4 bytes: a longer object is a size mismatch, not worth uploading
+        abort = value_read ? CO_SDO_AB_DATA_LONG : CO_SDO_AB_OUT_OF_MEM;
         CO_SDOclientUpload(cli, 0, true, &abort, nullptr, nullptr, nullptr);
         // not abort: it comes back empty when the last frame ended the transfer, with nothing left to abort
-        this->finish_sdo_(SDOResult::SDO_RESULT_ABORT, CO_SDO_AB_OUT_OF_MEM);
+        if (value_read) {
+          this->finish_sdo_(SDOResult::SDO_RESULT_SIZE_MISMATCH, 0);
+        } else {
+          this->finish_sdo_(SDOResult::SDO_RESULT_ABORT, CO_SDO_AB_OUT_OF_MEM);
+        }
         return;
       }
     }
@@ -230,7 +244,8 @@ void CANopenComponent::process_sdo_(uint32_t dt_us) {
 void CANopenComponent::finish_sdo_(SDOResult result, uint32_t abort_code) {
   CO_SDOclient_t *cli = this->co_->SDOclient;
   CO_SDOclientClose(cli);
-  // the caller is told it failed: its unsent frame must not reach the server later
+  // the caller is told it failed: drop its frame if the controller hasn't taken it yet (one it has taken can't be
+  // recalled, so a failed write may still reach the server)
   if (result != SDOResult::SDO_RESULT_SUCCESS)
     discard_pending_tx(cli->CANdevTx, cli->CANtxBuff);
   SDORequest r = this->sdo_active_;
@@ -240,7 +255,7 @@ void CANopenComponent::finish_sdo_(SDOResult result, uint32_t abort_code) {
   if (result == SDOResult::SDO_RESULT_SUCCESS) {
     if (r.kind == SDOKind::SDO_KIND_READ) {
       size_t len = this->sdo_rx_len_;
-      if (len == 0 || len > 4 || (r.size != 0 && len != r.size)) {
+      if (len == 0 || (r.size != 0 && len != r.size)) {
         reply.result = SDOResult::SDO_RESULT_SIZE_MISMATCH;
       } else {
         for (size_t i = 0; i < len; i++)
