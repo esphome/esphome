@@ -399,15 +399,17 @@ void OpenThreadComponent::apply_linkmode_(otInstance *instance) {
 #elif CONFIG_OPENTHREAD_MTD
   // Minimums are the OpenThread defaults (src/core/config/mle.h, child_supervision.h)
   static constexpr uint32_t CHILD_TIMEOUT_MIN_SEC = 240;
-  static constexpr uint16_t CHILD_SUPERVISION_CHECK_TIMEOUT_MIN_SEC = 190;
-  static constexpr uint16_t CHILD_SUPERVISION_INTERVAL_MIN_SEC = 129;
-  if (this->poll_period_ > 0) {
-    if (otLinkSetPollPeriod(instance, this->poll_period_) != OT_ERROR_NONE) {
-      ESP_LOGE(TAG, "Failed to set pollperiod");
-    }
+  static constexpr uint32_t CHILD_SUPERVISION_CHECK_TIMEOUT_MIN_SEC = 190;
+  static constexpr uint32_t CHILD_SUPERVISION_INTERVAL_MIN_SEC = 129;
+  const bool polling = this->poll_period_ > 0;
+  if (polling && otLinkSetPollPeriod(instance, this->poll_period_) != OT_ERROR_NONE) {
+    ESP_LOGE(TAG, "Failed to set pollperiod");
+  }
+  // At poll period 0 the formulas give the defaults, which restores them when polling stops
+  if (polling || this->timeouts_derived_) {
+    this->timeouts_derived_ = polling;
     // Round up so the derived timeouts are never below their multiples of poll_period.
     const uint32_t poll_period_sec = (this->poll_period_ + 999) / 1000;
-    this->timeouts_derived_ = true;
     otThreadSetChildTimeout(instance, std::max<uint32_t>(poll_period_sec * 4, CHILD_TIMEOUT_MIN_SEC));
     // At most 3 * 7200 + 10, so both fit the uint16_t setters
     otChildSupervisionSetCheckTimeout(
@@ -423,15 +425,9 @@ void OpenThreadComponent::apply_linkmode_(otInstance *instance) {
              "Child Supervision Interval: %u sec, Link Polling Period: %" PRIu32,
              otThreadGetChildTimeout(instance), otChildSupervisionGetCheckTimeout(instance),
              otChildSupervisionGetInterval(instance), otLinkGetPollPeriod(instance));
-  } else if (this->timeouts_derived_) {
-    // Back to always listening: drop the timeouts derived for polling
-    this->timeouts_derived_ = false;
-    otThreadSetChildTimeout(instance, CHILD_TIMEOUT_MIN_SEC);
-    otChildSupervisionSetCheckTimeout(instance, CHILD_SUPERVISION_CHECK_TIMEOUT_MIN_SEC);
-    otChildSupervisionSetInterval(instance, CHILD_SUPERVISION_INTERVAL_MIN_SEC);
   }
 
-  link_mode_config.mRxOnWhenIdle = this->poll_period_ == 0;
+  link_mode_config.mRxOnWhenIdle = !polling;
   link_mode_config.mDeviceType = false;
   link_mode_config.mNetworkData = false;
 #endif

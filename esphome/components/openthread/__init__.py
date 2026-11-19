@@ -459,10 +459,9 @@ def _limit_poll_period(value: TimePeriodMilliseconds) -> TimePeriodMilliseconds:
     # Remove before 2027.6.0: reject with cv.Range(max=MAX_POLL_PERIOD)
     if value > MAX_POLL_PERIOD:
         _LOGGER.warning(
-            "%s above %s is deprecated and now limited to %s. "
+            "%s above %s is deprecated and now limited to it. "
             "This will be an error in 2027.6.0",
             CONF_POLL_PERIOD,
-            MAX_POLL_PERIOD,
             MAX_POLL_PERIOD,
         )
         return MAX_POLL_PERIOD

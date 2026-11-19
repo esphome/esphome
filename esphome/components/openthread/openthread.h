@@ -118,7 +118,7 @@ class OpenThreadComponent final : public Component {
   std::atomic<bool> task_exited_{false};
 #endif
 #if CONFIG_OPENTHREAD_MTD
-  bool timeouts_derived_{false};  // the child timeouts were set from poll_period_
+  bool timeouts_derived_{false};
 #endif
 #ifdef USE_OPENTHREAD_RCP_UART
   uint32_t rcp_baud_rate_{0};
