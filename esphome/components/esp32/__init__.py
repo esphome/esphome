@@ -3068,7 +3068,8 @@ async def _reconcile_mbedtls_sdkconfig() -> None:
 
     if _psa_user_config_applies():
         header = _psa_user_config_header()
-        copy_file_if_changed(PSA_USER_CONFIG_SOURCE, header)
+        # Shared by every project on the machine, so publish it atomically.
+        write_file_if_changed(header, PSA_USER_CONFIG_SOURCE.read_text())
         cg.add_build_flag(path_define_flag("MBEDTLS_USER_CONFIG_FILE", header))
 
     # Arduino's libraries call mbedTLS directly, so its builds keep every mode.
