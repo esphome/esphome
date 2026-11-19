@@ -226,6 +226,13 @@ template<size_t N, class... FORMATS> class LengthFrameReader {
   /// Number of bytes of the partial frame; 0 after a frame is returned and while looking for a header.
   size_t length() const { return this->pos_; }
 
+  /// Forget the partial frame, for a request/response protocol starting a new exchange.
+  void reset() {
+    this->pos_ = 0;
+    this->end_ = 0;
+    this->held_end_ = 0;
+  }
+
  protected:
   // Hands each frame (len bytes at buf_) to handle, then goes on after a handled frame or from the second byte of a
   // rejected one
