@@ -12,6 +12,8 @@ from esphome.const import (
     CONF_ID,
     CONF_REBOOT_TIMEOUT,
     CONF_TIME_ID,
+    KEY_CORE,
+    KEY_FRAMEWORK_VERSION,
     PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
@@ -154,8 +156,14 @@ async def to_code(config):
     # be automatically added to the provided list.
     cg.add_build_flag(f"-DCONFIG_WIREGUARD_MAX_SRC_IPS={len(allowed_ips) + 1}")
     cg.add_library("esphome/wireguard", "0.4.8")
-    # The converted library then uses the registry libsodium instead of its own copy
-    if CORE.is_esp32 and CORE.using_toolchain_esp_idf:
+    # The wireguard library then uses the registry libsodium instead of its own copy
+    if CORE.is_esp32 and (
+        CORE.using_toolchain_esp_idf
+        or (
+            CORE.using_arduino
+            and CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] >= cv.Version(4, 0, 0)
+        )
+    ):
         add_idf_component(name="esphome/libsodium", ref=LIBSODIUM_VERSION)
 
     await cg.register_component(var, config)

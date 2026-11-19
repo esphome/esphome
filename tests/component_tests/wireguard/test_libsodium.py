@@ -21,8 +21,11 @@ def _libraries() -> set[str]:
     return {library.name for library in CORE.platformio_libraries.values()}
 
 
-@pytest.mark.parametrize("config", ["esp32_idf.yaml", "esp32_arduino.yaml"])
-def test_esp_idf_toolchain_declares_the_registry_libsodium(
+@pytest.mark.parametrize(
+    "config",
+    ["esp32_idf.yaml", "esp32_arduino.yaml", "esp32_arduino4_platformio.yaml"],
+)
+def test_declares_the_registry_libsodium(
     config: str,
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
@@ -34,12 +37,16 @@ def test_esp_idf_toolchain_declares_the_registry_libsodium(
     assert "esphome/wireguard" in _libraries()
 
 
+@pytest.mark.parametrize(
+    "config", ["esp32_idf_platformio.yaml", "esp32_arduino_platformio.yaml"]
+)
 def test_platformio_toolchain_keeps_the_library_dependency(
+    config: str,
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
 ) -> None:
-    """PlatformIO builds wireguard and its libsodium as libraries."""
-    generate_main(component_config_path("esp32_idf_platformio.yaml"))
+    """Below Arduino 4, PlatformIO only builds wireguard and its libsodium as libraries."""
+    generate_main(component_config_path(config))
 
     assert _LIBSODIUM not in CORE.data[KEY_ESP32][KEY_COMPONENTS]
     assert "esphome/wireguard" in _libraries()
