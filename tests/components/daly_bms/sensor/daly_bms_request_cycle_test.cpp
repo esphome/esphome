@@ -129,7 +129,7 @@ TEST_F(DalyBmsRequestCycleTest, BufferedBytesHoldTheNextRequest) {
   EXPECT_EQ(last_request(this->uart_), 0x91);
 }
 
-// A partly received frame holds the next request, even after the quiet gap, until the receive reset drops it.
+// A kept partial frame holds the early trigger; the response timeout sends the next request, which clears it.
 TEST_F(DalyBmsRequestCycleTest, PartialFrameHoldsTheNextRequest) {
   receive(this->uart_, response_frame(0x90));
   loop_at(this->bms_, 1010);
