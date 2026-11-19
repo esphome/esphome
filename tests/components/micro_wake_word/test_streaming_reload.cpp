@@ -47,9 +47,12 @@ TEST_P(StreamingReloadTest, PublicDisableAndEnableRequireAnEntireNewStride) {
     this->feed(model, -20 - slice);
   ASSERT_TRUE(model.get_unprocessed_probability_status());
 
-  // Same owner APIs used by the ordinary YAML model actions and inference task.
+  // The inference task checks each new score even during the initial detection warm-up.
+  EXPECT_FALSE(model.determine_detected().detected);
+  ASSERT_TRUE(model.get_unprocessed_probability_status());
   model.disable();
   this->feed(model, -30);
+  EXPECT_FALSE(model.get_unprocessed_probability_status());
   model.enable();
   this->feed(model, 17);
   EXPECT_EQ(invocations.size(), 1u);
