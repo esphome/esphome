@@ -175,7 +175,7 @@ void LibreTinyUARTComponent::load_settings(bool dump_config) {
   serial_setbaudrate(serial_handles[this->hardware_idx_], this->baud_rate_);
 #elif defined(USE_BK72XX)
   // The BK72xx configure() registers the port with the SDK again on every call, which fills its fixed device table.
-  // The driver's init command only rewrites the port's registers, the way configure() ends.
+  // uart_hw_set_change() only rewrites the port's registers, the way configure() ends.
   bk_uart_config_t cfg{};
   cfg.baud_rate = this->baud_rate_;
   cfg.data_width = static_cast<uart_data_width_t>(this->data_bits_ - 5);
@@ -184,7 +184,8 @@ void LibreTinyUARTComponent::load_settings(bool dump_config) {
                                                          : BK_PARITY_NO;
   cfg.stop_bits = this->stop_bits_ == 2 ? BK_STOP_BITS_2 : BK_STOP_BITS_1;
   cfg.flow_control = FLOW_CTRL_DISABLED;
-  sddev_control(const_cast<char *>(this->hardware_idx_ == 1 ? UART1_DEV_NAME : UART2_DEV_NAME), CMD_UART_INIT, &cfg);
+  // LibreTiny's port 1 is the SDK's UART1_PORT (0)
+  uart_hw_set_change(this->hardware_idx_ - 1, &cfg);
 #else
   // Changes the settings in place, on the pins setup() chose
   hardware->configure(this->baud_rate_, this->get_config());
