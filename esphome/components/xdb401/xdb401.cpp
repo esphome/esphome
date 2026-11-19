@@ -22,10 +22,8 @@ void XDB401Component::setup() {
 
   uint8_t meas_resp[1] = {};
   i2c::ErrorCode err_code = this->read_register(REG_MAKE_MEASURE, meas_resp, sizeof(meas_resp));
-  if (err_code != i2c::ERROR_OK) {
-    this->mark_failed(LOG_STR("I2C communication failed"));
+  if (!this->setup_check(err_code == i2c::ERROR_OK, LOG_STR("I2C communication failed")))
     return;
-  }
 
   this->comm_err_counter_ = 0;
 }

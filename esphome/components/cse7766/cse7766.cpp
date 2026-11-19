@@ -189,7 +189,8 @@ void CSE7766Component::parse_data_() {
     if (have_power && this->reactive_power_sensor_ != nullptr) {
       const float q_squared = apparent_power * apparent_power - power * power;
       if (q_squared < 0.0f) {
-        ESP_LOGD(TAG, "Impossible reactive power: S^2-P^2 is negative (%.4f)", q_squared);
+        // From the same noise as a power factor above 1 (below)
+        ESP_LOGV(TAG, "Impossible reactive power: S^2-P^2 is negative (%.4f)", q_squared);
         this->reactive_power_sensor_->publish_state(0.0f);
       } else {
         this->reactive_power_sensor_->publish_state(std::sqrt(q_squared));
@@ -200,8 +201,9 @@ void CSE7766Component::parse_data_() {
       if (apparent_power > 0) {
         pf = power / apparent_power;
         if (pf > 1) {
-          // Noise near the chip's resolution limit, seen during inrush, pushes the ratio past unity
-          ESP_LOGD(TAG, "Power factor %.4f above 1, clamped", pf);
+          // Noise near the chip's resolution limit pushes the ratio past unity: during inrush, and on
+          // nearly every frame of a steady resistive load, so it is logged only at verbose level
+          ESP_LOGV(TAG, "Power factor %.4f above 1, clamped", pf);
           pf = 1.0f;
         }
       } else if (apparent_power == 0 && power == 0) {

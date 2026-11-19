@@ -16,6 +16,16 @@
 
 namespace esphome::esp32_rmt_led_strip {
 
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 3, 0)
+// A copy of the color data
+using RmtBuffer = uint8_t;
+static constexpr size_t rmt_buffer_size(size_t color_bytes) { return color_bytes; }
+#else
+// 1 symbol per bit + 1 for reset
+using RmtBuffer = rmt_symbol_word_t;
+static constexpr size_t rmt_buffer_size(size_t color_bytes) { return color_bytes * 8 + 1; }
+#endif
+
 struct LedParams {
   rmt_symbol_word_t bit0;
   rmt_symbol_word_t bit1;
@@ -38,7 +48,9 @@ class ESP32RMTLEDStripLightOutput final : public light::AddressableLight {
     this->internal_accessor_.channel_colors = channel_colors;
   }
   void set_use_dma(bool use_dma) { this->use_dma_ = use_dma; }
-  void set_use_psram(bool use_psram) { this->use_psram_ = use_psram; }
+  /// Buffers from cg.static_buffer(..., psram=...), nullptr if a PSRAM allocation failed. Call after
+  /// set_num_leds() and set_channel_colors().
+  void set_buffers(uint8_t *led_data, RmtBuffer *rmt_buf);
 
   /// Set a maximum refresh rate in µs as some lights do not like being updated too often.
   void set_max_refresh_rate(uint32_t interval_us) { this->max_refresh_rate_ = interval_us; }
@@ -59,16 +71,11 @@ class ESP32RMTLEDStripLightOutput final : public light::AddressableLight {
   uint16_t num_leds_;
   uint8_t pin_;
   bool use_dma_{false};
-  bool use_psram_{false};
   bool invert_out_{false};
   light::CorrectedBufferColorAccessor internal_accessor_{nullptr, nullptr, {0, 1, 2}, &this->correction_};
   rmt_channel_handle_t channel_{nullptr};
   rmt_encoder_handle_t encoder_{nullptr};
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 3, 0)
-  uint8_t *rmt_buf_{nullptr};
-#else
-  rmt_symbol_word_t *rmt_buf_{nullptr};
-#endif
+  RmtBuffer *rmt_buf_{nullptr};
   LedParams params_;
   uint32_t rmt_symbols_{48};
   uint32_t last_refresh_{0};

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/hal.h"
 #include "addressable_light.h"
 
 namespace esphome::light {
@@ -23,19 +24,21 @@ class AddressableLightWrapper : public light::AddressableLight {
 
     // Choose which color mode to use.
     // This is ordered by how closely each color mode matches the underlying RGBW data structure used in LightPartition.
-    ColorMode color_mode_precedence[] = {ColorMode::RGB_WHITE,
-                                         ColorMode::RGB_COLD_WARM_WHITE,
-                                         ColorMode::RGB_COLOR_TEMPERATURE,
-                                         ColorMode::RGB,
-                                         ColorMode::WHITE,
-                                         ColorMode::COLD_WARM_WHITE,
-                                         ColorMode::COLOR_TEMPERATURE,
-                                         ColorMode::BRIGHTNESS,
-                                         ColorMode::ON_OFF,
-                                         ColorMode::UNKNOWN};
+    // In flash: a local array is copied from a RAM constant on ESP8266
+    static constexpr ColorMode COLOR_MODE_PRECEDENCE[] PROGMEM = {ColorMode::RGB_WHITE,
+                                                                  ColorMode::RGB_COLD_WARM_WHITE,
+                                                                  ColorMode::RGB_COLOR_TEMPERATURE,
+                                                                  ColorMode::RGB,
+                                                                  ColorMode::WHITE,
+                                                                  ColorMode::COLD_WARM_WHITE,
+                                                                  ColorMode::COLOR_TEMPERATURE,
+                                                                  ColorMode::BRIGHTNESS,
+                                                                  ColorMode::ON_OFF,
+                                                                  ColorMode::UNKNOWN};
 
     LightTraits parent_traits = this->light_state_->get_traits();
-    for (auto cm : color_mode_precedence) {
+    for (const auto &entry : COLOR_MODE_PRECEDENCE) {
+      auto cm = static_cast<ColorMode>(progmem_read_byte(reinterpret_cast<const uint8_t *>(&entry)));
       if (parent_traits.supports_color_mode(cm)) {
         this->color_mode_ = cm;
         break;

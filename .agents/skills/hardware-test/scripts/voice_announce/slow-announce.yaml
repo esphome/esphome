@@ -1,0 +1,13 @@
+# Adds a button that starts an announcement with start_conversation, the way Home Assistant does; only the
+# subscribed API client may send VoiceAssistantAnnounceRequest, so the build has to start it itself.
+# Substitution: announce_url (drive.py's server, e.g. http://<host ip>:18090/tone.flac). Needs a voice_assistant
+# with id va.
+button:
+  - platform: template
+    name: hwtest slow announce
+    on_press:
+      - lambda: |-
+          api::VoiceAssistantAnnounceRequest msg;
+          msg.media_id = StringRef("${announce_url}");
+          msg.start_conversation = true;
+          id(va).on_announce(msg);

@@ -14,10 +14,8 @@ ESPHOME_LOG_TAG(TAG, "statsD");
 
 void StatsdComponent::setup() {
   this->sock_ = esphome::socket::socket_udp_send(AF_INET, 0);
-  if (!this->sock_) {
-    this->mark_failed(LOG_STR("Could not create socket"));
+  if (!this->setup_check(this->sock_ != nullptr, LOG_STR("Could not create socket")))
     return;
-  }
 
   this->destination_.sin_family = AF_INET;
   this->destination_.sin_port = htons(this->port_);

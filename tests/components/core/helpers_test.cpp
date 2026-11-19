@@ -55,6 +55,26 @@ TEST(HelpersTest, Ilog10RoundTripMatchesLog10) {
   }
 }
 
+TEST(HelpersTest, Nibbles) {
+  EXPECT_EQ(high_nibble(0xA5), 0xA);
+  EXPECT_EQ(low_nibble(0xA5), 0x5);
+  EXPECT_EQ(high_nibble(0x0F), 0x0);
+  EXPECT_EQ(low_nibble(0xF0), 0x0);
+  static_assert(high_nibble(0xFF) == 0xF && low_nibble(0xFF) == 0xF, "usable in constant expressions");
+}
+
+TEST(HelpersTest, EncodeUint12) {
+  EXPECT_EQ(encode_uint12(0x12, 0x3), 0x123);
+  EXPECT_EQ(encode_uint12(0xFF, 0xF), 0xFFF);
+  EXPECT_EQ(encode_uint12(0x00, 0x0), 0x000);
+  EXPECT_EQ(encode_uint12(0x12, 0xA3), 0x123);
+  // A touch record byte packing the low nibbles of X (high) and Y (low)
+  const uint8_t shared = 0x5C;
+  EXPECT_EQ(encode_uint12(0x34, high_nibble(shared)), 0x345);
+  EXPECT_EQ(encode_uint12(0x67, low_nibble(shared)), 0x67C);
+  static_assert(encode_uint12(0xAB, 0xC) == 0xABC, "usable in constant expressions");
+}
+
 TEST(HelpersTest, SignExtend) {
   EXPECT_EQ(sign_extend<24>(0x000000), 0);
   EXPECT_EQ(sign_extend<24>(0x7FFFFF), 8388607);
@@ -94,6 +114,33 @@ TEST(HelpersTest, XorBytes) {
   EXPECT_EQ(xor_bytes(FRAME, 0, 0x5A), 0x5A);
   EXPECT_EQ(xor_bytes(FRAME, sizeof(FRAME)), 0x17);
   static_assert(xor_bytes(FRAME, 2) == 0x02, "usable in constant expressions");
+}
+
+TEST(HelpersTest, Crc32CheckValue) {
+  static constexpr uint8_t DATA[] = {'1', '2', '3', '4', '5', '6', '7', '8', '9'};
+  EXPECT_EQ(crc32(0, DATA, sizeof(DATA)), 0xCBF43926);
+}
+
+TEST(HelpersTest, Crc32AllByteValues) {
+  uint8_t data[256];
+  for (size_t i = 0; i < sizeof(data); i++)
+    data[i] = i;
+  EXPECT_EQ(crc32(0, data, sizeof(data)), 0x29058C73);  // zlib.crc32(bytes(range(256)))
+}
+
+TEST(HelpersTest, Crc32Chained) {
+  uint8_t data[256];
+  for (size_t i = 0; i < sizeof(data); i++)
+    data[i] = i * 7;
+  const uint32_t whole = crc32(0, data, sizeof(data));
+  EXPECT_EQ(crc32(crc32(0, data, 100), data + 100, sizeof(data) - 100), whole);
+  EXPECT_EQ(crc32(crc32(crc32(0, data, 1), data + 1, 254), data + 255, 1), whole);
+}
+
+TEST(HelpersTest, Crc32EmptyReturnsSeed) {
+  static constexpr uint8_t DATA[] = {0x00};
+  EXPECT_EQ(crc32(0, DATA, 0), 0u);
+  EXPECT_EQ(crc32(0x12345678, DATA, 0), 0x12345678u);
 }
 
 TEST(StaticVectorTest, ConvertingConstructorFromSmaller) {

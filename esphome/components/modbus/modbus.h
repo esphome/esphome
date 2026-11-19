@@ -37,9 +37,7 @@ struct ModbusFrame {
     uint8_t *buf = this->data.init(pdu_len + 3);
     buf[0] = address;
     memcpy(buf + 1, pdu, pdu_len);
-    auto crc = crc16(buf, pdu_len + 1);
-    buf[pdu_len + 1] = crc >> 0;
-    buf[pdu_len + 2] = crc >> 8;
+    put_le16(buf + pdu_len + 1, crc16(buf, pdu_len + 1));
   }
 
   uint16_t size() const { return static_cast<uint16_t>(this->data.size()); }

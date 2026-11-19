@@ -17,16 +17,12 @@ static const uint8_t TSL2561_REGISTER_DATA_1 = 0x0E;
 
 void TSL2561Sensor::setup() {
   uint8_t id;
-  if (!this->tsl2561_read_byte(TSL2561_REGISTER_ID, &id)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->tsl2561_read_byte(TSL2561_REGISTER_ID, &id)))
     return;
-  }
 
   uint8_t timing;
-  if (!this->tsl2561_read_byte(TSL2561_REGISTER_TIMING, &timing)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->tsl2561_read_byte(TSL2561_REGISTER_TIMING, &timing)))
     return;
-  }
 
   timing &= ~0b00010000;
   timing |= this->gain_ == TSL2561_GAIN_16X ? 0b00010000 : 0;
@@ -50,10 +46,8 @@ void TSL2561Sensor::dump_config() {
 }
 void TSL2561Sensor::update() {
   // Power on
-  if (!this->tsl2561_write_byte(TSL2561_REGISTER_CONTROL, 0b00000011)) {
-    this->status_set_warning();
+  if (!this->status_comm_check(this->tsl2561_write_byte(TSL2561_REGISTER_CONTROL, 0b00000011)))
     return;
-  }
 
   // Make sure the data is there when we will read it.
   auto timeout = static_cast<uint32_t>(this->get_integration_time_ms_() + 20);
@@ -110,14 +104,10 @@ float TSL2561Sensor::calculate_lx_(uint16_t ch0, uint16_t ch1) {
 }
 void TSL2561Sensor::read_data_() {
   uint16_t data1, data0;
-  if (!this->tsl2561_read_uint(TSL2561_WORD_BIT | TSL2561_REGISTER_DATA_1, &data1)) {
-    this->status_set_warning();
+  if (!this->status_comm_check(this->tsl2561_read_uint(TSL2561_WORD_BIT | TSL2561_REGISTER_DATA_1, &data1)))
     return;
-  }
-  if (!this->tsl2561_read_uint(TSL2561_WORD_BIT | TSL2561_REGISTER_DATA_0, &data0)) {
-    this->status_set_warning();
+  if (!this->status_comm_check(this->tsl2561_read_uint(TSL2561_WORD_BIT | TSL2561_REGISTER_DATA_0, &data0)))
     return;
-  }
   // Power off
   if (!this->status_comm_result(this->tsl2561_write_byte(TSL2561_REGISTER_CONTROL, 0b00000000)))
     return;
@@ -136,9 +126,6 @@ float TSL2561Sensor::get_integration_time_ms_() {
       return 402.0f;
   }
   return 0.0f;
-}
-void TSL2561Sensor::set_integration_time(TSL2561IntegrationTime integration_time) {
-  this->integration_time_ = integration_time;
 }
 
 bool TSL2561Sensor::tsl2561_write_byte(uint8_t a_register, uint8_t value) {

@@ -567,3 +567,61 @@ def test_every_component_defines_its_domain() -> None:
         )
     ]
     assert missing == []
+
+
+GY39_NO_ID = "sensor:\n  - platform: gy39\n    illuminance:\n      name: Lux\n"
+
+
+@pytest.mark.parametrize(
+    ("content", "id_key"),
+    [
+        pytest.param(GY39_NO_ID, "i2c_id", id="i2c"),
+        pytest.param(
+            "sensor:\n  - platform: motion\n    type: acceleration_x\n",
+            "motion_id",
+            id="motion",
+        ),
+        pytest.param(
+            "sensor:\n  - platform: dallas_temp\n    address: 0x1C\n",
+            "one_wire_id",
+            id="one-wire",
+        ),
+        pytest.param(
+            "sensor:\n  - platform: gy39\n    i2c_id:\n",
+            "i2c_id",
+            id="empty-id",
+        ),
+    ],
+)
+def test_grouped_test_ids_flags_omitted_id(content: str, id_key: str) -> None:
+    errs = ci_custom.lint_grouped_test_ids("tests/components/gy39/common.yaml", content)
+    assert [(line, col) for line, col, _ in errs] == [(2, 5)]
+    assert id_key in errs[0][2]
+
+
+@pytest.mark.parametrize(
+    ("fname", "content"),
+    [
+        pytest.param(
+            "tests/components/gy39/common.yaml",
+            "sensor:\n  - platform: gy39\n    i2c_id: i2c_bus\n    illuminance:\n      name: Lux\n",
+            id="named-bus",
+        ),
+        pytest.param("tests/components/lvgl/common.yaml", GY39_NO_ID, id="isolated"),
+        pytest.param(
+            "tests/components/gy39/common.yaml",
+            "sensor:\n  - platform: uptime\n    name: Up\n",
+            id="not-i2c",
+        ),
+    ],
+)
+def test_grouped_test_ids_accepts(fname: str, content: str) -> None:
+    assert not ci_custom.lint_grouped_test_ids(fname, content)
+
+
+def test_grouped_test_ids_flags_empty_hub_declaration() -> None:
+    errs = ci_custom.lint_grouped_test_ids(
+        "tests/components/gy39/common.yaml", "as5600:\n"
+    )
+    assert [(line, col) for line, col, _ in errs] == [(1, 8)]
+    assert "i2c_id" in errs[0][2]

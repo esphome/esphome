@@ -55,9 +55,13 @@ class BMP280Component : public PollingComponent {
 
  public:
   /// Set the oversampling value for the temperature sensor. Default is 16x.
-  void set_temperature_oversampling(BMP280Oversampling temperature_over_sampling);
+  void set_temperature_oversampling(BMP280Oversampling temperature_over_sampling) {
+    this->temperature_oversampling_ = temperature_over_sampling;
+  }
   /// Set the oversampling value for the pressure sensor. Default is 16x.
-  void set_pressure_oversampling(BMP280Oversampling pressure_over_sampling);
+  void set_pressure_oversampling(BMP280Oversampling pressure_over_sampling) {
+    this->pressure_oversampling_ = pressure_over_sampling;
+  }
   /// Set the IIR Filter used to increase accuracy, defaults to no IIR Filter.
   void set_iir_filter(BMP280IIRFilter iir_filter) { this->iir_filter_ = iir_filter; }
 

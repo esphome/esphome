@@ -12,13 +12,14 @@ on ESP32. Keep `power_save_mode: none`, and drive the device by address: mDNS na
 
 `scripts/web_server/sse.py HOST SECONDS [--clients N] [--stall] [--churn CYCLES]` opens raw TCP connections to
 `/events`, decodes the chunked body and parses every `state` event as JSON; `--stall` adds a connection with a 2 kB
-receive buffer that never reads (the device must log `Closing stuck EventSource connection` after the 20 s stall
-timeout), `--churn` opens and resets a connection CYCLES times. `sse_cases.sh HOST KEY LABEL CAPTURE` runs the
-set: 1 client 60 s, 4 clients 60 s, a reader plus a stalled client 45 s, a reader plus 10 abrupt closes, then two
-clients with the "Burst" button (50 sensor and 50 text publishes in one loop pass). Pass: 0 invalid JSON on every
-client, the oversize sensor dropped with its warning on every publish, the stalled session closed after about
-20 s, no reset. The loop task watermark is a minimum since boot, so compare the value after the first client, after
-four clients and after the burst between the builds (the SSE split in #21109 left 1280 B more on the ESP32 classic).
+receive buffer that never reads (the device must log `Closing stuck stream` on ESP-IDF and `Closing stuck
+EventSource connection` elsewhere, after the 20 s stall timeout), `--churn` opens and resets a connection CYCLES
+times. `sse_cases.sh HOST KEY LABEL CAPTURE` runs the set: 1 client 60 s, 4 clients 60 s, a reader plus a stalled
+client 45 s, a reader plus 10 abrupt closes, then two clients with the "Burst" button (50 sensor and 50 text
+publishes in one loop pass). Pass: 0 invalid JSON on every client, the oversize sensor dropped with its warning on
+every publish, the stalled session closed after about 20 s, no reset. The loop task watermark is a minimum since
+boot, so compare the value after the first client, after four clients and after the burst between the builds (the
+SSE split in #21109 left 1280 B more on the ESP32 classic).
 
 For the HTTPD task, `web_server: auth: type: digest` (the default `auth` is Basic) and
 `scripts/web_server/httpd_cases.sh HOST USER PASS LABEL CAPTURE`: `httpmix.sh` sends a `curl --anyauth` request
@@ -58,3 +59,46 @@ valve, update, alarm_control_panel or water_heater entity reboots with `Exceptio
 `json::linked(const char *)` (the ROM `strlen` on a flash address), fixed by #21316. The cover in the template keeps
 that path covered; before #21316 is merged, apply its one line change to both trees or the web_server comparison
 cannot run.
+
+## Basic auth on the async web servers (ESP8266, RP2040, LibreTiny)
+
+`scripts/web_auth/` (see its README) fuzzes Basic auth over raw sockets: functional routes with and without
+credentials, wrong credentials, other schemes, a tampered hash, spacing and case, then large headers, many failed
+attempts next to an authenticated `/events` stream, and a timing comparison of wrong first and last bytes. It also
+has a captive portal client package that probes `/`, `/config.json`, POST with and without credentials and
+`/wifisave`. `compare.py` lines a dev run up with a PR run. These scripts were still being extended when copied here.
+The README also covers the newer flows: the heap under paced connection churn (`heap_churn.py`, the LibreTiny TIME_WAIT
+check for #22696) and the main task stack high-water mark with the JSON arena (`arena/`, #22699).
+
+## Per-session /events listing on ESP32 (#22691)
+
+Checks that a new `/events` client's entity listing goes only to that client. Config
+`scripts/web_server/sse-listing.yaml` (ESP32 ESP-IDF, web_server version 3, 19 entities, 3 sorting groups, heap logged
+every 5 s); build each head with a different `-s name` through `pio_build.sh`. Driver:
+`python -I scripts/web_server/sse_listing.py DEVICE_IP --rounds 4 --out events.jsonl`. Each round opens streams 1 and
+2, waits for their listing, connects stream 3 and counts for 10 s per stream. A `state` event that carries `domain`
+is a full detail (detail_all) entry; a `ping` with only `uptime` is the 10 s keepalive, any other `ping` the greeting
+(config JSON). The greeting and `sorting_group` events always go only to the new session, so only the detail_all
+count tells the builds apart. Ends `RESULT PASS` or `RESULT FAIL` (exit 0 or 1).
+
+On an ESP32-PICO-D4 the control sent all 19 detail_all entries to streams 1 and 2 on every round, the PR none; stream 3
+was ordered on both.
+
+## /events stream rework checks (#21973)
+
+Config `scripts/web_server/stream-dut.yaml` (ESP32 ESP-IDF, 20 ms template sensor, a "Wifi Drop" button that runs
+`wifi.disable`, 8 s, `wifi.enable`, heap every 5 s). `scripts/web_server/stream_retest.py HOST MODE` has five modes:
+`head` (raw bytes of the first 3 s; compare two builds with `head_compare.py A B NAME_A NAME_B`, which masks numbers
+and the device name), `multi` (4 clients 20 s, events and longest gap), `stall` (a client with a 2 KB receive buffer
+stops reading for 35 s; read the close time from `Closing stuck stream`, or `Closing stuck EventSource connection` on
+older builds), `wifidrop` (REST press, the client reconnects after 5 s idle like a browser `EventSource`) and `churn`
+(40 connects, 20 of them reset, then a fresh client). `stream_runall.sh NAME PORT` uploads, captures and runs every
+mode. Both builds should close the stalled stream at about 20 s and close the stream at the Wi-Fi drop.
+
+- `sse_listing.py` prints stream 3's TCP connect and first event times. A late greeting (3 to 4 s) was TCP connect
+  time on the network (SYN retransmits), seen on the control too, not the device.
+- On a noisy Wi-Fi network multi-client runs fell to 110 to 900 events per client with every client pausing together,
+  and a stalled client sometimes missed the EOF although the device logged `Closing stuck stream`. Alternate the
+  builds (flash A, 4 multi runs, flash B, repeat) before calling a rate difference.
+- Log text check for refactors: collect every `[web_server*]` line from all captures, mask timestamps, source line
+  numbers and digits, `sort -u`, and diff the two builds' sets.

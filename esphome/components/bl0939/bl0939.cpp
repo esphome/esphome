@@ -10,17 +10,18 @@ ESPHOME_LOG_TAG(TAG, "bl0939");
 
 // https://www.belling.com.cn/media/file_object/bel_product/BL0939/datasheet/BL0939_V1.2_cn.pdf
 // (unfortunately chinese, but the protocol can be understood with some translation tool)
-static const uint8_t BL0939_READ_COMMAND = 0x55;  // 0x5{A4,A3,A2,A1}
-static const uint8_t BL0939_FULL_PACKET = 0xAA;
-static const uint8_t BL0939_PACKET_HEADER = 0x55;
+static constexpr uint8_t BL0939_READ_COMMAND = 0x55;  // 0x5{A4,A3,A2,A1}
+static constexpr uint8_t BL0939_FULL_PACKET = 0xAA;
+static constexpr uint8_t BL0939_PACKET_HEADER = 0x55;
 
-static const uint8_t BL0939_WRITE_COMMAND = 0xA5;  // 0xA{A4,A3,A2,A1}
-static const uint8_t BL0939_REG_IA_FAST_RMS_CTRL = 0x10;
-static const uint8_t BL0939_REG_IB_FAST_RMS_CTRL = 0x1E;
-static const uint8_t BL0939_REG_MODE = 0x18;
-static const uint8_t BL0939_REG_SOFT_RESET = 0x19;
-static const uint8_t BL0939_REG_USR_WRPROT = 0x1A;
-static const uint8_t BL0939_REG_TPS_CTRL = 0x1B;
+static constexpr uint8_t BL0939_WRITE_COMMAND = 0xA5;  // 0xA{A4,A3,A2,A1}
+static constexpr uint8_t BL0939_REG_IA_FAST_RMS_CTRL = 0x10;
+static constexpr uint8_t BL0939_REG_IB_FAST_RMS_CTRL = 0x1E;
+static constexpr uint8_t BL0939_REG_WA_CREEP = 0x17;
+static constexpr uint8_t BL0939_REG_MODE = 0x18;
+static constexpr uint8_t BL0939_REG_SOFT_RESET = 0x19;
+static constexpr uint8_t BL0939_REG_USR_WRPROT = 0x1A;
+static constexpr uint8_t BL0939_REG_TPS_CTRL = 0x1B;
 
 static constexpr uint8_t BL0939_INIT[6][6] PROGMEM = {
     // Reset to default
@@ -74,6 +75,12 @@ void BL0939::setup() {
     this->write_array(cmd, sizeof(cmd));
     delay(1);
   }
+  if (this->anti_creep_threshold_ != BL0939_DEFAULT_ANTI_CREEP_THRESHOLD) {
+    uint8_t creep_cmd[6] = {BL0939_WRITE_COMMAND, BL0939_REG_WA_CREEP, this->anti_creep_threshold_, 0x00, 0x00, 0x00};
+    creep_cmd[5] = sum_bytes(creep_cmd, sizeof(creep_cmd) - 1) ^ 0xFF;
+    this->write_array(creep_cmd, sizeof(creep_cmd));
+    delay(1);
+  }
   this->flush();
 }
 
@@ -119,9 +126,11 @@ void BL0939::received_package_(const DataPacket *data) const {
 void BL0939::dump_config() {  // NOLINT(readability-function-cognitive-complexity)
   ESP_LOGCONFIG(TAG,
                 "BL0939:\n"
-                "  Mode: %s",
+                "  Mode: %s\n"
+                "  Anti-creep threshold: %u",
                 this->mode_ == BL0939Mode::BL0939_MODE_CURRENT_TRANSFORMER ? LOG_STR_LITERAL("current_transformer")
-                                                                           : LOG_STR_LITERAL("direct"));
+                                                                           : LOG_STR_LITERAL("direct"),
+                this->anti_creep_threshold_);
   LOG_SENSOR("", "Voltage", this->voltage_sensor_);
   LOG_SENSOR("", "Current 1", this->current_1_sensor_);
   LOG_SENSOR("", "Current 2", this->current_2_sensor_);
