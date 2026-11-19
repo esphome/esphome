@@ -13,7 +13,7 @@ static constexpr uint8_t MAX_FRAME_LENGTH = 31;  // A 5-target data frame
 static constexpr uint8_t MAX_TARGETS = 5;
 // Header (4), command, whole-frame length (2, LE), payload, footer (4)
 static constexpr uint8_t MIN_FRAME_LENGTH = 11;
-using FrameLength = FrameLengthU16LE<5>;
+using FrameLength = FrameLengthU16LE<LengthField{.offset = 5}>;
 using DataFrame = FrameFormat<FrameHeader<0xF4, 0xF3, 0xF2, 0xF1>, FrameLength, FrameMinLength<MIN_FRAME_LENGTH>>;
 using CmdFrame = FrameFormat<FrameHeader<0xFD, 0xFC, 0xFB, 0xFA>, FrameLength, FrameMinLength<MIN_FRAME_LENGTH>>;
 

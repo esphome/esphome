@@ -20,7 +20,7 @@ namespace esphome::tuya {
 static constexpr size_t MAX_FRAME_SIZE = 255;
 
 // 55 AA, version, command, payload length (2, BE), payload, checksum
-using TuyaLength = PayloadLengthU16BE<4, 1>;
+using TuyaLength = PayloadLengthU16BE<LengthField{.offset = 4, .trailer = 1}>;
 /// False, with a warning, for a frame longer than the buffer
 bool frame_fits(const uint8_t *buf);
 using TuyaFrame = FrameFormat<FrameHeader<0x55, 0xAA>, CheckedLength<TuyaLength, TuyaLength::KNOWN_AT, frame_fits>>;

@@ -71,8 +71,9 @@ class AirtonSerialClimate final : public uart::UARTDevice, public climate::Clima
   void publish_settings_();
 
   // 7A 7A, ..., whole-frame length at 4, opcode, ..., CRC (2); the shortest runs up to the opcode
-  LengthFrameReader<MAX_FRAME_LEN, FrameFormat<FrameHeader<SYNC_BYTE, SYNC_BYTE>, FrameLengthU8<LENGTH_POS>,
-                                               FrameMinLength<OPCODE_POS + 3>>>
+  LengthFrameReader<MAX_FRAME_LEN,
+                    FrameFormat<FrameHeader<SYNC_BYTE, SYNC_BYTE>, FrameLengthU8<LengthField{.offset = LENGTH_POS}>,
+                                FrameMinLength<OPCODE_POS + 3>>>
       reader_;
   uint8_t flags_{FLAG_DISPLAY};
   bool state_received_{false};

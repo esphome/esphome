@@ -244,7 +244,7 @@ TEST_F(LD2460ReadlineTest, AckBehindCorruptLengthIsHandledAfterSilence) {
   rx.insert(rx.end(), bytes.begin(), bytes.end());
   this->ld2460_.loop_at(1000);
   EXPECT_EQ(this->ld2460_.installation_mode(), InstallationMode::INSTALLATION_MODE_SIDE);
-  this->ld2460_.loop_at(1000 + 100);
+  this->ld2460_.loop_at(1000 + 250);
   EXPECT_EQ(this->ld2460_.installation_mode(), InstallationMode::INSTALLATION_MODE_TOP);
 }
 

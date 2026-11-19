@@ -50,8 +50,9 @@ uint16_t frame_crc(const uint8_t *frame, size_t len);
 
 // A5 01, ..., whole-frame length at 7, CRC (2) at 8, body
 using PacketReader =
-    LengthFrameReader<MAX_FRAME_SIZE, FrameFormat<FrameHeader<FRAME_START_1, FRAME_START_2>, FrameLengthU8<LEN_POS>,
-                                                  FrameMinLength<HEADER_SIZE>>>;
+    LengthFrameReader<MAX_FRAME_SIZE,
+                      FrameFormat<FrameHeader<FRAME_START_1, FRAME_START_2>,
+                                  FrameLengthU8<LengthField{.offset = LEN_POS}>, FrameMinLength<HEADER_SIZE>>>;
 
 /// True when the checksum matches.
 inline bool checksum_valid(const uint8_t *frame, size_t len) {

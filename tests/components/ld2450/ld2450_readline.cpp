@@ -86,15 +86,12 @@ TEST_F(LD2450ReadlineTest, CmdFooterInGarbageResyncs) {
   EXPECT_EQ(this->ld2450_.reader_.length(), 0u);
 }
 
-// --- Overflow recovery tests ---
+// --- Recovery tests ---
 
-TEST_F(LD2450ReadlineTest, OverflowResetsBuffer) {
-  // Fill the buffer to capacity with filler that won't match any footer.
-  // MAX_LINE_LENGTH is 45, usable is 44. The 45th byte triggers overflow.
-  std::vector<uint8_t> overflow_data(MAX_LINE_LENGTH, 0x11);
-  this->ld2450_.feed(overflow_data);
-  // Bytes that never start a header are not buffered
-  EXPECT_LT(this->ld2450_.reader_.length(), 4u);
+TEST_F(LD2450ReadlineTest, BytesThatStartNoHeaderAreNotBuffered) {
+  std::vector<uint8_t> filler(MAX_LINE_LENGTH, 0x11);
+  this->ld2450_.feed(filler);
+  EXPECT_EQ(this->ld2450_.reader_.length(), 0u);
 }
 
 TEST_F(LD2450ReadlineTest, OverflowThenValidFrame) {

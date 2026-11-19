@@ -90,7 +90,7 @@ class APC1Component final : public uart::UARTDevice, public Component {
   uint32_t last_init_attempt_{0};
   // 42 4D, payload length (2, BE), payload ending in its checksum (2)
   LengthFrameReader<APC1_FRAME_SIZE_MEASUREMENT,
-                    FrameFormat<FrameHeader<APC1_HEADER_1, APC1_HEADER_2>, PayloadLengthU16BE<2>,
+                    FrameFormat<FrameHeader<APC1_HEADER_1, APC1_HEADER_2>, PayloadLengthU16BE<LengthField{.offset = 2}>,
                                 FrameMinLength<APC1_FRAME_HEADER_SIZE + 2>>>
       reader_;
   uint8_t last_error_code_{0xFF};

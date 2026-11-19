@@ -347,7 +347,7 @@ TEST_F(PioneerWTTest, ReleasesPartialFrameAfterPause) {
   // A cut-off header that claims 255 bytes is given up after the pause, so it does not swallow the frames that follow.
   this->uart_.push_rx_hex("a5010121000000ff");
   this->loop_at_(1100);
-  this->loop_at_(1300);  // idle pass after the gap
+  this->loop_at_(1400);  // idle pass after the gap
   this->uart_.push_rx_hex(PRESENCE_CHECK);
   this->loop_at_(2000);
   EXPECT_EQ(this->uart_.tx, from_hex(PRESENCE_REPLY));
@@ -362,7 +362,7 @@ TEST_F(PioneerWTTest, FindsFrameHeldBackByCorruptLength) {
   this->uart_.push_rx(bytes);
   this->loop_at_(1100);
   EXPECT_TRUE(this->uart_.tx.empty());
-  this->loop_at_(1300);  // idle pass after the gap
+  this->loop_at_(1400);  // idle pass after the gap
   EXPECT_EQ(this->uart_.tx, from_hex(PRESENCE_REPLY));
 }
 

@@ -86,7 +86,7 @@ static constexpr uint8_t CMD_FRAME_FOOTER[HEADER_FOOTER_SIZE] PROGMEM = {0x04, 0
 static constexpr uint8_t DATA_FRAME_FOOTER[HEADER_FOOTER_SIZE] PROGMEM = {0xF8, 0xF7, 0xF6, 0xF5};
 
 // Header (4), payload length (2, LE), payload, footer (4)
-using PayloadLength = PayloadLengthU16LE<HEADER_FOOTER_SIZE, HEADER_FOOTER_SIZE>;
+using PayloadLength = PayloadLengthU16LE<LengthField{.offset = HEADER_FOOTER_SIZE, .trailer = HEADER_FOOTER_SIZE}>;
 using CmdFrameFormat = FrameFormat<FrameHeader<0xFD, 0xFC, 0xFB, 0xFA>, PayloadLength>;
 using DataFrameFormat = FrameFormat<FrameHeader<0xF4, 0xF3, 0xF2, 0xF1>, PayloadLength>;
 
