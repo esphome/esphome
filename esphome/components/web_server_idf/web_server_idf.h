@@ -313,7 +313,7 @@ class AsyncStreamResponse {
   bool is_attached() const { return this->owns_session_(this->fd_.load()); }
   /// The client is still connected; httpd has not freed the session.
   bool is_connected() const { return this->fd_.load() != 0; }
-  bool is_closing() const { return this->close_requested_; }
+  bool is_closing() const { return this->loop_flags_.close_requested; }
   /// The socket fd, for log lines only
   int log_id() const { return this->fd_.load(); }
   /// The session is gone and no queued httpd work still references this object.
@@ -346,8 +346,12 @@ class AsyncStreamResponse {
   // Guarded by the stream send mutex
   bool socket_closed_{false};
   // Main-loop only; the HTTPD task never reads or writes these flags.
-  bool close_requested_{false};
-  bool close_retry_warning_logged_{false};
+  // One byte, so the stream's flags share a word on 32-bit targets
+  struct LoopFlags {
+    uint8_t close_requested : 1;
+    uint8_t close_retry_warning_logged : 1;
+    uint8_t reserved : 6;
+  } loop_flags_{};
 
   static constexpr uint32_t CLOSE_RETRY_INTERVAL_MS = 250;
   static constexpr uint32_t CLOSE_CONFIRM_INTERVAL_MS = 1000;
