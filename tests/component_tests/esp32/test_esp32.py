@@ -77,6 +77,7 @@ from esphome.const import (
     Toolchain,
 )
 from esphome.core import CORE
+from esphome.helpers import path_define_flag
 from tests.component_tests.types import SetCoreConfigCallable
 
 
@@ -821,6 +822,13 @@ _PEER_CERT_PKCS7_OFF = {
     "CONFIG_MBEDTLS_PKCS7_C": False,
 }
 _TLS_EXTRAS_OFF = dict.fromkeys(MBEDTLS_TLS_EXTRA_OPTIONS, False)
+# What every ESP-IDF 6 build without a TLS or SHA-512 requester also trims.
+_IDF6_TRIMS = {
+    **_TLS_EXTRAS_OFF,
+    **_PEER_CERT_PKCS7_OFF,
+    **_SHA512_OFF,
+    **_CIPHER_MODES_OFF,
+}
 _TLS_CLIENT_ONLY = {
     "CONFIG_MBEDTLS_TLS_CLIENT_ONLY": True,
     "CONFIG_MBEDTLS_TLS_SERVER_AND_CLIENT": False,
@@ -869,10 +877,7 @@ _IDF61 = cv.Version(6, 1, 1)
             {},
             {
                 **_TLS_OFF_IDF6,
-                **_TLS_EXTRAS_OFF,
-                **_PEER_CERT_PKCS7_OFF,
-                **_SHA512_OFF,
-                **_CIPHER_MODES_OFF,
+                **_IDF6_TRIMS,
             },
             set(_ESP_TLS_LINKING_COMPONENTS),
             id="idf6_drops_sha512",
@@ -886,10 +891,7 @@ _IDF61 = cv.Version(6, 1, 1)
             {
                 **_TLS_OFF_IDF6,
                 "CONFIG_WIFI_RMT_ENTERPRISE_SUPPORT": False,
-                **_TLS_EXTRAS_OFF,
-                **_PEER_CERT_PKCS7_OFF,
-                **_SHA512_OFF,
-                **_CIPHER_MODES_OFF,
+                **_IDF6_TRIMS,
             },
             set(_ESP_TLS_LINKING_COMPONENTS),
             id="idf61_remote_enterprise_off",
@@ -903,10 +905,7 @@ _IDF61 = cv.Version(6, 1, 1)
             {},
             {
                 **_TLS_CLIENT_ONLY,
-                **_TLS_EXTRAS_OFF,
-                **_PEER_CERT_PKCS7_OFF,
-                **_SHA512_OFF,
-                **_CIPHER_MODES_OFF,
+                **_IDF6_TRIMS,
             },
             set(_ESP_TLS_LINKING_COMPONENTS),
             id="idf6_tls_keeps_curves",
@@ -920,10 +919,7 @@ _IDF61 = cv.Version(6, 1, 1)
             {
                 **_TLS_OFF_IDF6,
                 "CONFIG_MBEDTLS_ECP_DP_SECP384R1_ENABLED": RawSdkconfigValue("y"),
-                **_TLS_EXTRAS_OFF,
-                **_PEER_CERT_PKCS7_OFF,
-                **_SHA512_OFF,
-                **_CIPHER_MODES_OFF,
+                **_IDF6_TRIMS,
             },
             set(_ESP_TLS_LINKING_COMPONENTS),
             id="idf6_user_curve_wins",
@@ -941,10 +937,7 @@ _IDF61 = cv.Version(6, 1, 1)
                     if k != "CONFIG_MBEDTLS_ECP_DP_SECP384R1_ENABLED"
                 },
                 "CONFIG_SECURE_BOOT_ECDSA_KEY_LEN_384_BITS": RawSdkconfigValue("y"),
-                **_TLS_EXTRAS_OFF,
-                **_PEER_CERT_PKCS7_OFF,
-                **_SHA512_OFF,
-                **_CIPHER_MODES_OFF,
+                **_IDF6_TRIMS,
             },
             set(_ESP_TLS_LINKING_COMPONENTS),
             id="idf6_p384_signing_key_keeps_curve",
@@ -1155,7 +1148,22 @@ def test_reconcile_mbedtls_sdkconfig(
     [
         pytest.param(MbedtlsSdkconfigData(), {}, True, id="no_tls_drops_rsa"),
         pytest.param(
-            MbedtlsSdkconfigData(rsa_required=True), {}, False, id="rsa_required"
+            MbedtlsSdkconfigData(),
+            {
+                "CONFIG_SECURE_SIGNED_APPS_NO_SECURE_BOOT": True,
+                "CONFIG_SECURE_SIGNED_APPS_RSA_SCHEME": True,
+            },
+            False,
+            id="rsa_signed_ota_keeps_rsa",
+        ),
+        pytest.param(
+            MbedtlsSdkconfigData(),
+            {
+                "CONFIG_SECURE_SIGNED_APPS_NO_SECURE_BOOT": True,
+                "CONFIG_SECURE_SIGNED_APPS_ECDSA_V2_SCHEME": True,
+            },
+            True,
+            id="ecdsa_signed_ota_drops_rsa",
         ),
         pytest.param(
             MbedtlsSdkconfigData(tls_required=True), {}, False, id="tls_keeps_rsa"
@@ -1191,7 +1199,7 @@ def test_reconcile_mbedtls_psa_user_config(
 
     header = tmp_path / PSA_USER_CONFIG_FILENAME
     assert header.read_text() == PSA_USER_CONFIG_CONTENT
-    assert f'-DMBEDTLS_USER_CONFIG_FILE=\\"{header.as_posix()}\\"' in CORE.build_flags
+    assert path_define_flag("MBEDTLS_USER_CONFIG_FILE", header) in CORE.build_flags
     opts = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
     for option in MBEDTLS_RSA_OPTIONS:
         assert (opts.get(option) is False) is rsa_off

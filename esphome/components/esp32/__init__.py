@@ -58,7 +58,12 @@ from esphome.core.config import BOARD_MAX_LENGTH
 from esphome.coroutine import CoroPriority, coroutine_with_priority
 from esphome.espidf.component import IDFComponent, generate_idf_components
 import esphome.final_validate as fv
-from esphome.helpers import copy_file_if_changed, rmtree, write_file_if_changed
+from esphome.helpers import (
+    copy_file_if_changed,
+    path_define_flag,
+    rmtree,
+    write_file_if_changed,
+)
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
 from esphome.writer import clean_build, clean_cmake_cache
@@ -941,7 +946,6 @@ class MbedtlsSdkconfigData:
     peer_cert_required: bool = False  # keep the peer certificate after the handshake
     pkcs7_required: bool = False  # PKCS#7 parsing
     sha512_required: bool = False  # SHA-384/SHA-512
-    rsa_required: bool = False  # RSA without TLS (signed OTA with the RSA scheme)
     # esp32 advanced disable_mbedtls_* options
     disable_tls: bool = True
     disable_tls_server: bool = True
@@ -2213,11 +2217,6 @@ def require_mbedtls_sha512() -> None:
     _mbedtls_sdkconfig().sha512_required = True
 
 
-def require_mbedtls_rsa() -> None:
-    """Keep mbedTLS RSA (CONFIG_MBEDTLS_RSA_C) when TLS is compiled out."""
-    _mbedtls_sdkconfig().rsa_required = True
-
-
 def idf_version() -> cv.Version:
     """Return the underlying ESP-IDF version regardless of framework choice.
 
@@ -2790,8 +2789,8 @@ MBEDTLS_RSA_OPTIONS = (
     "CONFIG_MBEDTLS_X509_RSASSA_PSS_SUPPORT",
 )
 
-# Secure Boot and signed app options; any of them verifies updates, which can
-# use RSA, so RSA stays whenever one is set.
+# Secure Boot and signed app options; any of them verifies updates, with RSA
+# unless an ECDSA scheme is chosen.
 _SECURE_SIGNING_OPTIONS = (
     "CONFIG_SECURE_BOOT",
     "CONFIG_SECURE_SIGNED_APPS_NO_SECURE_BOOT",
@@ -2827,10 +2826,16 @@ PSA_USER_CONFIG_CONTENT = """\
 """
 
 
-def _psa_user_config_flag(path: Path) -> str:
-    """The -DMBEDTLS_USER_CONFIG_FILE build flag, quoted like lvgl's LV_CONF_PATH."""
-    escaped = re.sub(r"[^\w/.:+=,-]", r"\\\g<0>", Path(path).as_posix())
-    return f'-DMBEDTLS_USER_CONFIG_FILE=\\"{escaped}\\"'
+def _rsa_signing_enabled() -> bool:
+    """Whether updates are verified with RSA, the Kconfig default scheme."""
+    if is_idf_sdkconfig_option_enabled(SIGNING_SCHEMES[SIGNING_SCHEME_RSA3072]):
+        return True
+    return any(
+        is_idf_sdkconfig_option_enabled(option) for option in _SECURE_SIGNING_OPTIONS
+    ) and not any(
+        is_idf_sdkconfig_option_enabled(SIGNING_SCHEMES[scheme])
+        for scheme in (SIGNING_SCHEME_ECDSA256, SIGNING_SCHEME_ECDSA_V1)
+    )
 
 
 def _psa_user_config_applies() -> bool:
@@ -2841,6 +2846,30 @@ def _psa_user_config_applies() -> bool:
         and CORE.using_toolchain_esp_idf
         and not CORE.using_arduino
     )
+
+
+# Trimmed options that stay on when any of these user sdkconfig options is set:
+# a P-384 app signing key verifies updates with P-384, and NVS encryption uses
+# mbedTLS XTS when hardware AES is off. Nothing selects either in Kconfig.
+_MBEDTLS_TRIM_KEPT_BY = {
+    "CONFIG_MBEDTLS_ECP_DP_SECP384R1_ENABLED": (
+        "CONFIG_SECURE_BOOT_ECDSA_KEY_LEN_384_BITS",
+    ),
+    "CONFIG_MBEDTLS_CIPHER_MODE_XTS": (
+        "CONFIG_NVS_ENCRYPTION",
+        "CONFIG_SECURE_FLASH_ENC_ENABLED",
+    ),
+}
+
+
+def _trim_mbedtls_options(options: Iterable[str]) -> None:
+    """Default each option off unless an option in _MBEDTLS_TRIM_KEPT_BY keeps it."""
+    for option in options:
+        if not any(
+            is_idf_sdkconfig_option_enabled(name)
+            for name in _MBEDTLS_TRIM_KEPT_BY.get(option, ())
+        ):
+            set_idf_sdkconfig_default(option, False)
 
 
 # Members of the mbedTLS "TLS Protocol Role" Kconfig choice. Setting one
@@ -2895,7 +2924,8 @@ async def _reconcile_mbedtls_sdkconfig() -> None:
     win; a user-chosen TLS role leaves the whole choice alone.
     """
     data = _mbedtls_sdkconfig()
-    idf6 = idf_version() >= cv.Version(6, 0, 0)
+    version = idf_version()
+    idf6 = version >= cv.Version(6, 0, 0)
     opts = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
 
     if _mbedtls_tls_compiled_out():
@@ -2910,7 +2940,7 @@ async def _reconcile_mbedtls_sdkconfig() -> None:
         set_idf_sdkconfig_default("CONFIG_ESP_WIFI_ENTERPRISE_SUPPORT", False)
         # IDF 6.1 always reads esp_wifi_remote's Kconfig, whose own enterprise
         # option selects TLS back on, even on chips with native Wi-Fi.
-        if idf_version() >= cv.Version(6, 1, 0):
+        if version >= cv.Version(6, 1, 0):
             set_idf_sdkconfig_default("CONFIG_WIFI_RMT_ENTERPRISE_SUPPORT", False)
         # WiFi (ESP_WIFI_MBEDTLS_CRYPTO) and Bluetooth deliberately stay on
         # the select-wins path: an unconditional request from request_wifi()
@@ -2925,23 +2955,8 @@ async def _reconcile_mbedtls_sdkconfig() -> None:
             # larger than the hardware supports need the software MPI.
             set_idf_sdkconfig_default("CONFIG_MBEDTLS_PEM_PARSE_C", False)
             set_idf_sdkconfig_default("CONFIG_MBEDTLS_LARGE_KEY_SOFTWARE_MPI", False)
-            # A P-384 app signing key (set through sdkconfig_options) verifies
-            # updates with that curve, and nothing selects it.
-            keep_p384 = is_idf_sdkconfig_option_enabled(
-                "CONFIG_SECURE_BOOT_ECDSA_KEY_LEN_384_BITS"
-            )
-            for option in MBEDTLS_NON_P256_CURVE_OPTIONS:
-                if keep_p384 and option == "CONFIG_MBEDTLS_ECP_DP_SECP384R1_ENABLED":
-                    continue
-                set_idf_sdkconfig_default(option, False)
-        if (
-            _psa_user_config_applies()
-            and not data.rsa_required
-            and not any(
-                is_idf_sdkconfig_option_enabled(option)
-                for option in _SECURE_SIGNING_OPTIONS
-            )
-        ):
+            _trim_mbedtls_options(MBEDTLS_NON_P256_CURVE_OPTIONS)
+        if _psa_user_config_applies() and not _rsa_signing_enabled():
             for option in MBEDTLS_RSA_OPTIONS:
                 set_idf_sdkconfig_default(option, False)
     elif (
@@ -2995,18 +3010,11 @@ async def _reconcile_mbedtls_sdkconfig() -> None:
     if _psa_user_config_applies():
         path = Path(CORE.relative_build_path(PSA_USER_CONFIG_FILENAME))
         write_file_if_changed(path, PSA_USER_CONFIG_CONTENT)
-        cg.add_build_flag(_psa_user_config_flag(path))
+        cg.add_build_flag(path_define_flag("MBEDTLS_USER_CONFIG_FILE", path))
 
     # Arduino's libraries call mbedTLS directly, so its builds keep every mode.
     if idf6 and not CORE.using_arduino:
-        for option in MBEDTLS_UNUSED_CIPHER_MODE_OPTIONS:
-            # NVS encryption uses mbedTLS XTS when hardware AES is off.
-            if option == "CONFIG_MBEDTLS_CIPHER_MODE_XTS" and any(
-                is_idf_sdkconfig_option_enabled(name)
-                for name in ("CONFIG_NVS_ENCRYPTION", "CONFIG_SECURE_FLASH_ENC_ENABLED")
-            ):
-                continue
-            set_idf_sdkconfig_default(option, False)
+        _trim_mbedtls_options(MBEDTLS_UNUSED_CIPHER_MODE_OPTIONS)
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
@@ -3648,8 +3656,6 @@ async def to_code(config):
 
         for key, flag in SIGNING_SCHEMES.items():
             add_idf_sdkconfig_option(flag, scheme == key)
-        if scheme == SIGNING_SCHEME_RSA3072:
-            require_mbedtls_rsa()
         if scheme in (SIGNING_SCHEME_ECDSA256, SIGNING_SCHEME_ECDSA_V1):
             # SECURE_SIGNED_APPS selects ECP in Kconfig anyway; requesting it
             # keeps the resolved sdkconfig consistent with what ESPHome wrote.
