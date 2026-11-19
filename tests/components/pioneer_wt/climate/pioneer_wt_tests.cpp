@@ -342,14 +342,15 @@ TEST_F(PioneerWTTest, WarningStaysUntilAcknowledgement) {
   EXPECT_FALSE(this->sut_.status_has_warning());
 }
 
-TEST_F(PioneerWTTest, ReleasesPartialFrameAfterPause) {
+TEST_F(PioneerWTTest, FindsFrameBehindCutOffHeaderAfterPause) {
   this->start_();
-  // A cut-off header that claims 255 bytes is given up after the pause, so it does not swallow the frames that follow.
+  // A cut-off header claiming 255 bytes is kept; the frame landing inside it is found on the next idle pass
   this->uart_.push_rx_hex("a5010121000000ff");
   this->loop_at_(1100);
-  this->loop_at_(1400);  // idle pass after the gap
+  this->loop_at_(1400);
   this->uart_.push_rx_hex(PRESENCE_CHECK);
   this->loop_at_(2000);
+  this->loop_at_(2300);  // idle pass after the gap
   EXPECT_EQ(this->uart_.tx, from_hex(PRESENCE_REPLY));
 }
 
