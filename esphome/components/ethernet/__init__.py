@@ -79,19 +79,15 @@ def request_ethernet_ip_state_listener() -> None:
     )
 
 
-_request_connect_state_listener_slot = cg.slot_counter(
-    "ESPHOME_ETHERNET_CONNECT_STATE_LISTENERS"
+_register_connect_state_listener = cg.slot_list(
+    "ESPHOME_ETHERNET_CONNECT_STATE_LISTENERS", "add_connect_state_listener", DOMAIN
 )
 
 
-def request_ethernet_connect_state_listener() -> None:
-    """Request a connect state listener slot.
-
-    Components that implement EthernetConnectStateListener should call this
-    in their to_code() to be told when the interface connects or disconnects.
-    """
-    cg.add_define("USE_ETHERNET_CONNECT_STATE_LISTENERS")
-    _request_connect_state_listener_slot()
+async def register_connect_state_listener(listener: cg.MockObj) -> None:
+    """Register an EthernetConnectStateListener; call from to_code()."""
+    ethernet = await cg.get_variable(CORE.config[DOMAIN][CONF_ID])
+    cg.add(_register_connect_state_listener(ethernet, listener))
 
 
 # RMII pins that are hardcoded on ESP32 classic and cannot be changed

@@ -74,21 +74,11 @@ class EthernetIPStateListener {
 };
 #endif  // USE_ETHERNET_IP_STATE_LISTENERS
 
-#ifdef USE_ETHERNET_CONNECT_STATE_LISTENERS
-/** Listener interface for Ethernet connection state changes.
- *
- * The Ethernet counterpart of wifi::WiFiConnectStateListener. Called on the main loop when the
- * interface enters or leaves the connected state, after is_connected() has changed and at the
- * same points as the on_connect and on_disconnect triggers.
- *
- * @note Components must call ethernet.request_ethernet_connect_state_listener() in their
- *       Python to_code() to register for this listener type.
- */
+/// Called on the main loop with the on_connect and on_disconnect triggers.
 class EthernetConnectStateListener {
  public:
   virtual void on_ethernet_connect_state(bool connected) = 0;
 };
-#endif  // USE_ETHERNET_CONNECT_STATE_LISTENERS
 
 enum EthernetType : uint8_t {
   ETHERNET_TYPE_UNKNOWN = 0,
@@ -234,11 +224,8 @@ class EthernetComponent final : public Component {
 #ifdef USE_ETHERNET_IP_STATE_LISTENERS
   void add_ip_state_listener(EthernetIPStateListener *listener) { this->ip_state_listeners_.push_back(listener); }
 #endif
-#ifdef USE_ETHERNET_CONNECT_STATE_LISTENERS
-  void add_connect_state_listener(EthernetConnectStateListener *listener) {
-    this->connect_state_listeners_.push_back(listener);
-  }
-#endif
+  SLOT_LIST(EthernetConnectStateListener, connect_state_listeners_, add_connect_state_listener,
+            ESPHOME_ETHERNET_CONNECT_STATE_LISTENERS)
 
 #ifdef USE_ETHERNET_CONNECT_TRIGGER
   Trigger<> *get_connect_trigger() { return &this->connect_trigger_; }
@@ -268,9 +255,11 @@ class EthernetComponent final : public Component {
 #ifdef USE_ETHERNET_IP_STATE_LISTENERS
   void notify_ip_state_listeners_();
 #endif
-#ifdef USE_ETHERNET_CONNECT_STATE_LISTENERS
-  void notify_connect_state_listeners_(bool connected);
-#endif
+  void notify_connect_state_listeners_(bool connected) {
+    for (auto *listener : this->connect_state_listeners_) {
+      listener->on_ethernet_connect_state(connected);
+    }
+  }
 
 #ifdef USE_ESP32
   static void eth_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
@@ -395,9 +384,6 @@ class EthernetComponent final : public Component {
 #ifdef USE_ESP32
   std::atomic<uint8_t> ip_state_pending_{0};
 #endif
-#endif
-#ifdef USE_ETHERNET_CONNECT_STATE_LISTENERS
-  StaticVector<EthernetConnectStateListener *, ESPHOME_ETHERNET_CONNECT_STATE_LISTENERS> connect_state_listeners_;
 #endif
 
 #ifdef USE_ETHERNET_CONNECT_TRIGGER

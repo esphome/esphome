@@ -1,9 +1,13 @@
 """Tests for the ethernet final-validation coexistence gate and schema bounds."""
 
+from collections.abc import Callable
+from pathlib import Path
+
 import pytest
 from voluptuous import Invalid
 
 from esphome import config_validation as cv
+import esphome.codegen as cg
 from esphome.components.esp32 import (
     KEY_BOARD,
     KEY_IDF_VERSION,
@@ -15,12 +19,20 @@ from esphome.components.esp32 import (
 from esphome.components.ethernet import (
     CONF_CLOCK_SPEED,
     CONFIG_SCHEMA,
+    DOMAIN,
+    EthernetComponent,
     _final_validate_wifi,
-    request_ethernet_connect_state_listener,
+    register_connect_state_listener,
 )
 from esphome.components.network import _validate_priority_list
-from esphome.const import CONF_AP, CONF_NETWORKS, CONF_PRIORITY, PlatformFramework
-from esphome.core import CORE
+from esphome.const import (
+    CONF_AP,
+    CONF_ID,
+    CONF_NETWORKS,
+    CONF_PRIORITY,
+    PlatformFramework,
+)
+from esphome.core import CORE, ID
 import esphome.final_validate as fv
 
 from ..helpers import get_define_value
@@ -175,15 +187,19 @@ def test_rmii_requires_clk(set_core_config: SetCoreConfigCallable) -> None:
         CONFIG_SCHEMA(_LAN8720_CONFIG)
 
 
-@pytest.mark.parametrize("requests", [0, 2])
-def test_connect_state_listener_defines(requests: int) -> None:
-    """Each request adds a listener slot; without one the listener code stays compiled out."""
-    for _ in range(requests):
-        request_ethernet_connect_state_listener()
+def test_connect_state_listeners_size_the_list() -> None:
+    eth_id = ID("eth", type=EthernetComponent)
+    CORE.config = {DOMAIN: {CONF_ID: eth_id}}
+    CORE.register_variable(eth_id, cg.MockObj("eth"))
+    CORE.add_job(register_connect_state_listener, cg.MockObj("a"))
+    CORE.add_job(register_connect_state_listener, cg.MockObj("b"))
     CORE.flush_tasks()
-    assert (
-        "USE_ETHERNET_CONNECT_STATE_LISTENERS" in {d.name for d in CORE.defines}
-    ) is (requests > 0)
-    assert get_define_value("ESPHOME_ETHERNET_CONNECT_STATE_LISTENERS") == (
-        str(requests) if requests else None
-    )
+    assert get_define_value("ESPHOME_ETHERNET_CONNECT_STATE_LISTENERS") == "2"
+
+
+def test_no_connect_state_listener_emits_zero(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    generate_main(component_config_path("rmii_defaults.yaml"))
+    assert get_define_value("ESPHOME_ETHERNET_CONNECT_STATE_LISTENERS") == "0"
