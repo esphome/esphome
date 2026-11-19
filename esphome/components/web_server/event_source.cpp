@@ -150,7 +150,7 @@ void AsyncEventSource::deferrable_send_state(void *source, message_generator_t *
 }
 
 // Network context only. start_session_main_loop_() sends the greeting and starts the iterator.
-AsyncEventSourceResponse::AsyncEventSourceResponse(WebServer *ws) : web_server_(ws), entities_iterator_(ws, this) {}
+AsyncEventSourceResponse::AsyncEventSourceResponse(WebServer *ws) : web_server_(ws), entities_iterator_(this) {}
 static_assert(web_server_base::stream_head_iov_count(SSE_HEADERS_COUNT + WEB_SERVER_DEFAULT_HEADERS_COUNT) <=
                   web_server_base::STREAM_HEAD_MAX_IOV,
               "the event stream head must go out in one write");
