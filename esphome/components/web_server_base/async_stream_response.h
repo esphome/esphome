@@ -46,10 +46,11 @@ class AsyncStreamResponse {
   /// Main loop, once safe_to_delete(): frees the connection
   ~AsyncStreamResponse();
 
-  /// Network context, from a request handler. Queues the status line, Content-Type, headers, the default headers and
-  /// body (a C string or null), then has the acceptor create the stream, attach the connection and publish it. A
-  /// chunked response passes {"Transfer-Encoding", "chunked"} as its first header and frames each chunk itself.
-  static void accept(AsyncWebServerRequest *request, const char *status, const char *content_type,
+  /// Network context, from a request handler. Queues the library's head for code (status line, default headers,
+  /// Content-Type) with headers and body (a C string or null; all may be in flash), then has the acceptor create the
+  /// stream, attach the connection and publish it. A chunked response passes {"Transfer-Encoding", "chunked"} in
+  /// headers and frames each chunk itself.
+  static void accept(AsyncWebServerRequest *request, int code, const char *content_type,
                      std::span<const HttpHeader> headers, const char *body, const StreamAcceptor &acceptor);
 
   /// Main loop. Non-blocking gather write. Returns the bytes accepted, which may be fewer than offered: the caller
@@ -89,6 +90,8 @@ class AsyncStreamResponse {
   // Graceful FIN, or with abort a RST that frees the pcb now (a stuck stream's FIN would queue behind its data)
   void close_client_(bool abort = false);
   void abort_();
+  // Logs how long the stream made no progress and why, then aborts it
+  void __attribute__((cold)) close_stuck_(uint32_t elapsed_ms, const LogString *reason);
 
   // Set before publishing; the main loop owns it and frees it once disconnected_
   AsyncClient *client_{nullptr};

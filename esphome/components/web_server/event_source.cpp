@@ -21,17 +21,6 @@ ESPHOME_LOG_TAG(TAG, "web_server");
 #pragma GCC diagnostic error "-Wstack-usage=2048"
 #endif
 
-AsyncEventSource::~AsyncEventSource() {
-  web_server_base::StreamIntakeGuard guard{this->pending_mutex_};
-  for (auto *ses : {this->sessions_, this->pending_sessions_.load(std::memory_order_relaxed)}) {
-    while (ses != nullptr) {
-      auto *next = ses->next_;
-      delete ses;  // NOLINT(cppcoreguidelines-owning-memory)
-      ses = next;
-    }
-  }
-}
-
 void AsyncEventSource::handle_request(AsyncWebServerRequest *request, WebServer *ws) {
   // Network context: start the stream and park the session; the main loop does the rest.
 #ifdef USE_ESP32
@@ -51,7 +40,7 @@ void AsyncEventSource::handle_request(AsyncWebServerRequest *request, WebServer 
 #else
   // The session is created only once the head is queued and the connection is ours
   web_server_base::AsyncStreamResponse::accept(
-      request, SSE_STATUS, SSE_CONTENT_TYPE, SSE_HEADERS, SSE_FIRST_CHUNK,
+      request, 200, SSE_CONTENT_TYPE, SSE_HEADERS, SSE_FIRST_CHUNK,
       {&AsyncEventSource::create_session, &AsyncEventSource::publish_session, this, ws});
 #endif
 }
@@ -150,7 +139,7 @@ void AsyncEventSource::deferrable_send_state(void *source, message_generator_t *
 }
 
 // Network context only. start_session_main_loop_() sends the greeting and starts the iterator.
-AsyncEventSourceResponse::AsyncEventSourceResponse(WebServer *ws) : web_server_(ws), entities_iterator_(ws, this) {}
+AsyncEventSourceResponse::AsyncEventSourceResponse(WebServer *ws) : web_server_(ws), entities_iterator_(this) {}
 static_assert(web_server_base::stream_head_iov_count(SSE_HEADERS_COUNT + WEB_SERVER_DEFAULT_HEADERS_COUNT) <=
                   web_server_base::STREAM_HEAD_MAX_IOV,
               "the event stream head must go out in one write");

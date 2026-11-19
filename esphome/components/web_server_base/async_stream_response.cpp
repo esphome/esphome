@@ -57,54 +57,51 @@ static bool abort_now(AsyncClient *client) {
 #endif
 }
 
-// Writes the head, then creates the stream with the connection. The library runs _respond() in the network context
+// The head strings may sit in flash on ESP8266, where String needs the flash helper to copy them
+#ifdef USE_ESP8266
+static String head_string(const char *str) { return String(reinterpret_cast<const __FlashStringHelper *>(str)); }
+#else
+static const char *head_string(const char *str) { return str; }
+#endif
+
+// Queues the head, then creates the stream with the connection. The library runs _respond() in the network context
 // right after the handler returns; clientRelease() then unhooks the request, which frees itself and this response.
 // A request that ends before _respond() never creates a stream, so nothing is left to free.
 class StreamHandoffResponse final : public AsyncWebServerResponse {
  public:
-  StreamHandoffResponse(const char *status, const char *content_type, std::span<const HttpHeader> headers,
-                        const char *body, const StreamAcceptor &acceptor)
-      : status_(status), content_type_(content_type), headers_(headers), body_(body), acceptor_(acceptor) {}
+  StreamHandoffResponse(int code, const char *content_type, std::span<const HttpHeader> headers, const char *body,
+                        const StreamAcceptor &acceptor)
+      : headers_(headers), body_(body), acceptor_(acceptor) {
+    this->_code = code;
+    this->_contentType = head_string(content_type);
+    this->_sendContentLength = false;
+  }
 
   void _respond(AsyncWebServerRequest *request) override {
     AsyncClient *client = request->client();
-    // The library's default headers only reach its own responses, so this raw head writes them itself
-    HttpHeader defaults[WEB_SERVER_DEFAULT_HEADERS_COUNT];
-    size_t default_count = 0;
-    for (const auto &header : DefaultHeaders::Instance()) {
-      if (default_count == WEB_SERVER_DEFAULT_HEADERS_COUNT) {
-        break;
-      }
-      defaults[default_count++] = {header.name().c_str(), header.value().c_str()};
+    // The library's own head: the status line, its default headers (copied by its constructor) and these
+    for (const auto &header : this->headers_) {
+      this->addHeader(head_string(header.name), head_string(header.value));
     }
-    // lwIP can run short of memory while many connections close. The rest of a batch add() could not take whole
-    // waits for the main loop, kept as a C string (the head is text); a later batch after it closes the stream.
+    String head;
+    this->_assembleHead(head, request->version());
+    if (this->body_ != nullptr) {
+      head.concat(head_string(this->body_));
+    }
+    const size_t added = client->add(head.c_str(), head.length());
+    if (added != 0) {
+      client->send();
+    }
+    // lwIP can run short of memory while many connections close: the rest waits for the main loop as a C string
     RAMUniquePtr<char[]> head_rest;
-    bool head_kept = true;
-    char scratch[ADD_SCRATCH_SIZE];
-    write_stream_head<StreamIovec>(
-        [&](StreamIovec *iov, int count) {
-          if (head_rest != nullptr || !head_kept) {
-            head_kept = false;
-            return false;
-          }
-          const size_t len = iovecs_total(iov, count);
-          size_t skip = add_iovecs(*client, iov, count, scratch, sizeof(scratch));
-          if (skip != len) {
-            head_rest =
-                RAMAllocator<char>(RAMAllocator<char>::PREFER_INTERNAL).make_unique_array_for_overwrite(len - skip + 1);
-            if (head_rest == nullptr) {
-              head_kept = false;
-              return false;
-            }
-            head_rest[copy_iovecs_after(iov, count, skip, head_rest.get())] = '\0';
-          }
-          return true;
-        },
-        this->status_, this->content_type_, this->headers_, std::span<const HttpHeader>(defaults, default_count),
-        this->body_);
-    if (!head_kept)
-      head_rest.reset();
+    const size_t rest_len = head.length() - added;
+    if (rest_len != 0) {
+      head_rest = RAMAllocator<char>(RAMAllocator<char>::PREFER_INTERNAL).make_unique_array_for_overwrite(rest_len + 1);
+      if (head_rest != nullptr) {
+        std::memcpy(head_rest.get(), head.c_str() + added, rest_len + 1);
+      }
+    }
+    const bool head_kept = rest_len == 0 || head_rest != nullptr;
     AsyncStreamResponse *stream = this->acceptor_.create(this->acceptor_.ctx);
     stream->attach_(request->clientRelease(), std::move(head_rest), head_kept);
     this->acceptor_.publish(this->acceptor_.owner, stream);
@@ -112,18 +109,16 @@ class StreamHandoffResponse final : public AsyncWebServerResponse {
   bool _sourceValid() const override { return true; }
 
  protected:
-  const char *status_;
-  const char *content_type_;
   std::span<const HttpHeader> headers_;
   const char *body_;
   StreamAcceptor acceptor_;
 };
 
-void AsyncStreamResponse::accept(AsyncWebServerRequest *request, const char *status, const char *content_type,
+void AsyncStreamResponse::accept(AsyncWebServerRequest *request, int code, const char *content_type,
                                  std::span<const HttpHeader> headers, const char *body,
                                  const StreamAcceptor &acceptor) {
   // NOLINTNEXTLINE(cppcoreguidelines-owning-memory) the request owns and frees its response
-  request->send(new StreamHandoffResponse(status, content_type, headers, body, acceptor));
+  request->send(new StreamHandoffResponse(code, content_type, headers, body, acceptor));
 }
 
 void AsyncStreamResponse::attach_(AsyncClient *client, RAMUniquePtr<char[]> head_rest, bool head_kept) {
@@ -185,13 +180,13 @@ ssize_t AsyncStreamResponse::write(StreamIovec *iov, int iovcnt) {
     this->last_try_ms_ = now;
     // RP2: the network IRQ may free the pcb between the check and the use, so hold it out across both
     LwIPLock lock;
-#ifdef USE_ESP8266
-    // Every segment holds a full MSS pbuf on the heap until acked (LWIP_NETIF_TX_SINGLE_PBUF), so write only once
-    // the last send is acked, like ESPAsyncWebServer. Not a stall: the library's ACK timeout covers a silent peer.
-    if (this->is_connected() && !this->client_->canSend())
-      return 0;
-#endif
     if (this->is_connected()) {
+#ifdef USE_ESP8266
+      // Every segment holds a full MSS pbuf on the heap until acked (LWIP_NETIF_TX_SINGLE_PBUF), so write only once
+      // the last send is acked, like ESPAsyncWebServer. Not a stall: the library's ACK timeout covers a silent peer.
+      if (!this->client_->canSend())
+        return 0;
+#endif
       // Only an ACK grows the send buffer's free space (lwIP snd_buf). ESPAsyncTCP and RPAsyncTCP call onAck
       // only once everything is acked, so it cannot measure this.
       const size_t space_before = this->client_->space();
@@ -212,8 +207,7 @@ ssize_t AsyncStreamResponse::write(StreamIovec *iov, int iovcnt) {
     this->stall_.clear();
     // lwIP keeps queueing into a large buffer while the window is shut, so the buffer may never fill
     if (now - this->last_ack_ms_ >= SEND_STALL_TIMEOUT_MS) {
-      ESP_LOGW(TAG, "Closing stuck stream after %" PRIu32 " ms without an ACK", now - this->last_ack_ms_);
-      this->abort_();
+      this->close_stuck_(now - this->last_ack_ms_, LOG_STR("without an ACK"));
       return -1;
     }
     return static_cast<ssize_t>(sent);
@@ -232,9 +226,13 @@ bool AsyncStreamResponse::stall_or_close_(const LogString *reason) {
   if (!this->stall_.start_or_expired(now, SEND_STALL_TIMEOUT_MS)) {
     return false;
   }
-  ESP_LOGW(TAG, "Closing stuck stream after %" PRIu32 " ms %s", this->stall_.elapsed(now), LOG_STR_ARG(reason));
-  this->abort_();
+  this->close_stuck_(this->stall_.elapsed(now), reason);
   return true;
+}
+
+void AsyncStreamResponse::close_stuck_(uint32_t elapsed_ms, const LogString *reason) {
+  ESP_LOGW(TAG, "Closing stuck stream after %" PRIu32 " ms %s", elapsed_ms, LOG_STR_ARG(reason));
+  this->abort_();
 }
 
 void AsyncStreamResponse::abort_() {
@@ -269,8 +267,7 @@ void AsyncStreamResponse::loop() {
     return;
   }
   if (this->ack_timed_out_.load(std::memory_order_acquire)) {
-    ESP_LOGW(TAG, "Closing stream after %" PRIu32 " ms without an ACK", SEND_STALL_TIMEOUT_MS);
-    this->abort_();
+    this->close_stuck_(SEND_STALL_TIMEOUT_MS, LOG_STR("without an ACK"));
     return;
   }
   if (this->head_rest_ != nullptr) {

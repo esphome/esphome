@@ -144,8 +144,6 @@ class AsyncEventSourceResponse : public web_server_base::AsyncStreamResponse {
 class AsyncEventSource {
  public:
   AsyncEventSource() = default;
-  ~AsyncEventSource();
-
   void handle_request(AsyncWebServerRequest *request, WebServer *ws);
   void try_send_nodefer(const char *message, size_t message_len, const char *event = nullptr, uint32_t id = 0,
                         uint32_t reconnect = 0);
