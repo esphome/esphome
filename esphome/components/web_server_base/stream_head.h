@@ -11,6 +11,8 @@
 #include "esphome/core/defines.h"
 #ifdef USE_ESP8266
 #include <pgmspace.h>
+
+#include "esphome/core/helpers.h"
 #endif
 
 // Pure helpers of AsyncStreamResponse, kept free of httpd and lwIP so they build on the host.
@@ -24,7 +26,16 @@ namespace esphome::web_server_base {
 #define STREAM_PSTR(s) PSTR(s)
 inline size_t stream_strlen(const char *s) { return strlen_P(s); }
 inline int stream_strcasecmp(const char *ram, const char *any) { return strcasecmp_P(ram, any); }
-inline void stream_memcpy(void *dst, const void *src, size_t len) { memcpy_P(dst, src, len); }
+// Only framing literals sit in flash (mapped from 0x40200000), so RAM payloads take memcpy and the literals are
+// read a word at a time, never memcpy_P's byte loop
+inline void stream_memcpy(void *dst, const void *src, size_t len) {
+  if (reinterpret_cast<uintptr_t>(src) < 0x40200000) {
+    std::memcpy(dst, src, len);
+  } else {
+    char *out = static_cast<char *>(dst);
+    progmem_copy_str(out, out + len, static_cast<const char *>(src));
+  }
+}
 #else
 #define STREAM_PSTR(s) (s)
 inline size_t stream_strlen(const char *s) { return strlen(s); }
@@ -128,23 +139,6 @@ bool write_stream_head(Send &&send, const char *status, const char *content_type
   }
   batch.flush();
   return batch.ok;
-}
-
-/// Copies the bytes of a gather list that come after the first skip bytes to out and returns how many it copied.
-/// skip goes down by the bytes passed over, so calls for consecutive batches continue where the last one stopped.
-template<typename Iovec> size_t copy_iovecs_after(const Iovec *iov, int count, size_t &skip, char *out) {
-  size_t copied = 0;
-  for (int i = 0; i < count; i++) {
-    const size_t len = iov[i].iov_len;
-    if (skip >= len) {
-      skip -= len;
-      continue;
-    }
-    stream_memcpy(out + copied, static_cast<const char *>(iov[i].iov_base) + skip, len - skip);
-    copied += len - skip;
-    skip = 0;
-  }
-  return copied;
 }
 
 /// AsyncClient::add() flags; the three TCP libraries use the same values (checked where they are included)

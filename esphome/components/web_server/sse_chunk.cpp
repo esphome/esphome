@@ -64,8 +64,9 @@ size_t build_chunk_prefix(char *buf, size_t size, const char *event, uint32_t id
     len = buf_append_printf(buf, size, len, "id: %" PRIu32 "\r\n", id);
   }
   if (event && *event) {
-    // event is not a literal, so it cannot go through buf_append_str (a PSTR() wrapper on ESP8266)
-    len = buf_append_printf(buf, size, len, "event: %s\r\n", event);
+    len = buf_append_str(buf, size, len, "event: ");
+    len = buf_append_str_p(buf, size, len, event);
+    len = buf_append_str(buf, size, len, "\r\n");
   }
   if (with_data) {
     len = buf_append_str(buf, size, len, "data: ");
@@ -90,7 +91,7 @@ size_t copy_chunk(uint8_t *dst, const char *prefix, size_t prefix_len, const cha
       message, message_len,
       [](void *ctx, const char *piece, size_t len) {
         auto &out = *static_cast<uint8_t **>(ctx);
-        progmem_memcpy(out, piece, len);
+        web_server_base::stream_memcpy(out, piece, len);
         out += len;
       },
       &dst);
@@ -110,9 +111,7 @@ size_t tail_queue_cap(size_t need, size_t cap, size_t max) {
 size_t queue_chunk(uint8_t *dst, const uint8_t *src, size_t len, size_t sent, const char *prefix, size_t prefix_len,
                    const char *message, size_t message_len) {
   const size_t pending = len - sent;
-  if (dst != src || sent != 0) {
-    std::memmove(dst, src + sent, pending);
-  }
+  std::memmove(dst, src + sent, pending);
   return pending + copy_chunk(dst + pending, prefix, prefix_len, message, message_len);
 }
 
