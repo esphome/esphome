@@ -6,6 +6,7 @@ from pathlib import Path
 
 from esphome import git
 import esphome.codegen as cg
+from esphome.components.audio import MICRO_DECODER_VERSION, MICRO_FLAC_VERSION
 import esphome.config_validation as cv
 from esphome.core import CORE
 from esphome.loader import FileResource
@@ -31,7 +32,7 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
         dependencies = (
             (
                 "micro-decoder",
-                "4d06df93a1ee69788dfc7d8676cbd66371b3eae9",
+                MICRO_DECODER_VERSION,
                 (
                     "audio_decoder",
                     "audio_reader",
@@ -43,7 +44,7 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
             ),
             (
                 "micro-flac",
-                "f9c27d4d0166021db977d7fc37d205b21d81e9f2",
+                MICRO_FLAC_VERSION,
                 (
                     "crc",
                     "decorrelation",
@@ -57,10 +58,10 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
                 ),
             ),
         )
-        for name, revision, sources in dependencies:
+        for name, version, sources in dependencies:
             root, _ = git.clone_or_update(
                 url=f"https://github.com/esphome-libs/{name}.git",
-                ref=revision,
+                ref=f"v{version}",
                 refresh=git.NEVER_REFRESH,
                 domain="cpp_unit_test",
             )

@@ -1,11 +1,16 @@
 #ifdef USE_HOST
 #include <gtest/gtest.h>
+#include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <cstring>
 #include <fstream>
 #include <iterator>
+#include <memory>
 #include <pthread.h>
+#include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 
 #include "esphome/core/application.h"
@@ -158,6 +163,27 @@ TEST_F(HttpRetirement, NaturalEndJoinsRealWorkersBeforePublishingIdle) {
   EXPECT_EQ(fixture().transport_errors.load(), 0u);
   EXPECT_EQ(fixture().transport_closed.load(), 1u);
   EXPECT_EQ(source.get_state(), media_source::MediaSourceState::IDLE);
+  EXPECT_TRUE(source.is_idle());
+}
+
+TEST_F(HttpRetirement, ExplicitStopPublishesIdleOnceAfterJoiningWorkers) {
+  using namespace esphome;
+  fixture().natural_end.store(false);
+  RetirementListener listener;
+  audio_http::AudioHTTPMediaSource source;
+  source.media_source::MediaSource::set_listener(&listener);
+  source.call();
+  ASSERT_TRUE(source.play_uri("http://fixture.test/stream.flac"));
+  ASSERT_TRUE(pump_until([&] { return source.get_state() == media_source::MediaSourceState::PLAYING; },
+                         [&] { source.call(); }));
+
+  source.handle_command(media_source::MediaSourceCommand::STOP);
+  EXPECT_TRUE(listener.at_idle.empty());
+  source.call();
+  source.handle_command(media_source::MediaSourceCommand::STOP);
+  source.call();
+  ASSERT_EQ(listener.at_idle.size(), 1u);
+  EXPECT_EQ(listener.at_idle.front(), (std::pair<unsigned, unsigned>{2, 2}));
   EXPECT_TRUE(source.is_idle());
 }
 

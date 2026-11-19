@@ -2,15 +2,16 @@
 
 Run `script/cpp_unit_test.py audio_http` or combine it with `speaker_source`.
 The manifest uses the standard FileResource/manifest.add_resources path to copy
-unchanged translation units from pinned micro-decoder 0.4.0 and micro-flac 0.3.0
-sources. It neither patches the runner nor adds a second source lifecycle.
+unchanged translation units from the micro-decoder and micro-flac release tags
+selected by the production audio component.
 
 The complete production AudioHTTP adapter is compiled through the local ESP32
 guard already used by the player host tests. Only the HTTP transport factory
 and SDK boundary are fixtures. Reader/decoder pthreads, FLAC decoding, source
 callbacks and Component::call scheduling are real. Linker wrappers delegate
 actual pthread create/join calls and observe successful joins before an IDLE
-callback starts the next playback. The five-second waits are bounded failure
+callback starts the next playback. An explicit STOP also reports IDLE once after
+both workers have joined. The five-second waits are bounded failure
 deadlines. No HTTP server, network playback, SDK or hardware is used.
 
 The existing player test SDK supplies the FreeRTOS queue/delay declarations.
