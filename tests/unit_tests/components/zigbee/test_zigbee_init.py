@@ -8,8 +8,16 @@ import pytest
 
 from esphome.components import zigbee
 from esphome.components.zigbee.const import CONF_ZIGBEE_ID, ZigbeeComponent
-from esphome.const import CONF_INTERNAL, KEY_CORE, KEY_TARGET_PLATFORM
+from esphome.const import CONF_INTERNAL, CONF_MODEL, KEY_CORE, KEY_TARGET_PLATFORM
 from esphome.core import CORE, ID
+
+
+def test_model_default_uses_current_node_name() -> None:
+    """The model default is resolved when the Zigbee schema is validated."""
+    with patch.object(CORE, "name", "test_node"):
+        validated = zigbee.CONFIG_SCHEMA.validators[0]({})
+
+    assert validated[CONF_MODEL] == "test_node"
 
 
 @pytest.mark.parametrize(

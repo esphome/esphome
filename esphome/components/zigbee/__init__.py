@@ -113,7 +113,7 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(CONF_ID): cv.declare_id(ZigbeeComponent),
-            cv.Optional(CONF_MODEL, default=CORE.name): cv.All(
+            cv.Optional(CONF_MODEL, default=lambda: CORE.name): cv.All(
                 cv.string,
                 cv.Length(max=31),
                 _validate_ascii,
