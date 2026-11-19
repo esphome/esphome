@@ -67,9 +67,10 @@ bool ESP32CameraJPEGDecoder::open_decoder_() {
   jpeg_dec_config_t config = DEFAULT_JPEG_DEC_CONFIG();
   switch (this->output_format_) {
     case camera::PIXEL_FORMAT_GRAYSCALE:
-      // esp_new_jpeg has no one-channel decode output: JPEG_PIXEL_FORMAT_GRAY
-      // is encoder-only in 1.0.2. Decode RGB888 and compact it to luma in
-      // decode() instead.
+      // WARNING: esp_new_jpeg has no one-channel decode output:
+      // JPEG_PIXEL_FORMAT_GRAY is encoder-only in 1.0.2. The RGB888 frame is
+      // compacted to luma in decode(), but the buffer must still hold the full
+      // RGB888 image, so peak RAM is 3x the grayscale frame size.
       config.output_type = JPEG_PIXEL_FORMAT_RGB888;
       break;
     case camera::PIXEL_FORMAT_RGB565:
@@ -150,6 +151,9 @@ camera::DecoderError ESP32CameraJPEGDecoder::decode(const uint8_t *data, size_t 
   // The buffer becomes readable only now that it holds a complete frame.
   size_t output_bytes = static_cast<size_t>(output_length);
   if (this->output_format_ == camera::PIXEL_FORMAT_GRAYSCALE) {
+    // Compacting in place avoids a second buffer, but the allocation above is
+    // still sized for RGB888 (3 bytes per pixel), so peak RAM is 3x the
+    // grayscale frame size.
     const uint64_t pixel_count = static_cast<uint64_t>(header.width) * static_cast<uint64_t>(header.height);
     if (pixel_count == 0 || pixel_count * 3 > static_cast<uint64_t>(output_bytes)) {
       ESP_LOGE(TAG, "Decoded image does not fit in the JPEG output buffer");

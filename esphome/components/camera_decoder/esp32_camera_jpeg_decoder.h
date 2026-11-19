@@ -36,6 +36,8 @@ class JpegBuffer final : public camera::Buffer {
 ///
 /// GRAYSCALE output is produced by decoding RGB888 and reducing it to luma in
 /// software, because the library's decoder has no one-channel output format.
+/// The published buffer is 1 byte per pixel, but the allocation is still sized
+/// for RGB888, so peak RAM is 3x the grayscale frame size.
 class ESP32CameraJPEGDecoder final : public camera::Decoder {
  public:
   ESP32CameraJPEGDecoder(camera::PixelFormat output_format, int rotation);
