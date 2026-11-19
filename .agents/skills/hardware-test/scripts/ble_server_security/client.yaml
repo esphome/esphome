@@ -1,0 +1,156 @@
+# Waveshare ESP32-S3 (any ESP32 with BLE) as the central. run.sh passes name, io, auth, idf and server (the
+# server's BLE MAC from its esp32_ble dump) with -s. ble_client never pairs by itself: the Pair button calls pair().
+esphome:
+  name: ${name}
+
+esp32:
+  board: esp32-s3-devkitc-1
+  variant: esp32s3
+  flash_size: 16MB
+  framework:
+    type: esp-idf
+    version: ${idf}
+
+logger:
+  hardware_uart: USB_SERIAL_JTAG
+  level: VERBOSE
+  logs:
+    esp32_ble_tracker: DEBUG
+    api: DEBUG
+    api.connection: DEBUG
+    api.service: DEBUG
+    api.socket: DEBUG
+    scheduler: DEBUG
+    component: DEBUG
+    wifi: DEBUG
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+api:
+  reboot_timeout: 0s
+
+ota:
+  - platform: esphome
+
+esp32_ble:
+  io_capability: ${io}
+  auth_req_mode: ${auth}
+
+esp32_ble_tracker:
+
+ble_client:
+  - mac_address: ${server}
+    id: cli
+    on_connect:
+      - logger.log: "CLI connected"
+    on_disconnect:
+      - logger.log: "CLI disconnected"
+    on_numeric_comparison_request:
+      - logger.log:
+          format: "CLI numeric comparison %06u"
+          args: ["(unsigned) passkey"]
+      - ble_client.numeric_comparison_reply:
+          id: cli
+          accept: true
+
+text_sensor:
+  - platform: ble_client
+    ble_client_id: cli
+    id: secure_value
+    name: Secure value
+    service_uuid: "180F"
+    characteristic_uuid: "2A19"
+    update_interval: never
+    on_value:
+      - logger.log:
+          format: "CLI secure read: %s"
+          args: ["x.c_str()"]
+  - platform: ble_client
+    ble_client_id: cli
+    id: open_value
+    name: Open value
+    service_uuid: 5ec50000-0000-4000-8000-00000000f000
+    characteristic_uuid: 5ec50000-0000-4000-8000-00000000f001
+    update_interval: never
+    on_value:
+      - logger.log:
+          format: "CLI open read: %s"
+          args: ["x.c_str()"]
+
+  - platform: ble_client
+    ble_client_id: cli
+    id: mitm_value
+    name: Mitm value
+    service_uuid: 5ec50000-0000-4000-8000-00000000f000
+    characteristic_uuid: 5ec50000-0000-4000-8000-00000000f004
+    update_interval: never
+    on_value:
+      - logger.log:
+          format: "CLI mitm read: %s"
+          args: ["x.c_str()"]
+  - platform: ble_client
+    ble_client_id: cli
+    id: notify_value
+    name: Notify value
+    service_uuid: 5ec50000-0000-4000-8000-00000000f000
+    characteristic_uuid: 5ec50000-0000-4000-8000-00000000f003
+    notify: true
+    on_value:
+      - logger.log:
+          format: "CLI notification: %s"
+          args: ["x.c_str()"]
+
+button:
+  - platform: template
+    name: Subscribe
+    on_press:
+      - lambda: |-
+          // ble_client drops its service list after discovery; ESP-IDF's GATT server puts the CCCD right after
+          // the characteristic value, so write handle + 1
+          uint16_t chr = id(notify_value)->handle;
+          if (chr == 0) { ESP_LOGW("CLI", "notify characteristic handle unknown"); return; }
+          auto reg = esp_ble_gattc_register_for_notify(id(cli)->get_gattc_if(), id(cli)->get_remote_bda(), chr);
+          if (reg != ESP_OK) { ESP_LOGW("CLI", "register_for_notify failed: %d", reg); return; }
+          uint8_t on[2] = {1, 0};
+          auto err = esp_ble_gattc_write_char_descr(id(cli)->get_gattc_if(), id(cli)->get_conn_id(), chr + 1, 2, on,
+                                                    ESP_GATT_WRITE_TYPE_RSP, ESP_GATT_AUTH_REQ_NONE);
+          ESP_LOGI("CLI", "CCCD write to handle %u (char %u) sent, err %d", chr + 1, chr, err);
+  - platform: template
+    name: Pair
+    on_press:
+      - lambda: 'ESP_LOGI("CLI", "pair() returned %d", (int) id(cli)->pair());'
+  - platform: template
+    name: Read secure
+    on_press:
+      - component.update: secure_value
+  - platform: template
+    name: Read mitm
+    on_press:
+      - component.update: mitm_value
+  - platform: template
+    name: Read open
+    on_press:
+      - component.update: open_value
+  - platform: template
+    name: Write secure
+    on_press:
+      - ble_client.ble_write:
+          id: cli
+          service_uuid: 5ec50000-0000-4000-8000-00000000f000
+          characteristic_uuid: 5ec50000-0000-4000-8000-00000000f002
+          value: [0x68, 0x65, 0x6C, 0x6C, 0x6F]
+  - platform: template
+    name: Disconnect
+    on_press:
+      - ble_client.disconnect: cli
+  - platform: template
+    name: Connect
+    on_press:
+      - ble_client.connect: cli
+  - platform: template
+    name: Remove bond
+    on_press:
+      - ble_client.remove_bond:
+          id: cli

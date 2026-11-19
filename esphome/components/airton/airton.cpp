@@ -26,14 +26,11 @@ void AirtonClimate::setup() {
 
 void AirtonClimate::publish_settings_() {
 #ifdef USE_SWITCH
-  if (this->sleep_mode_switch_ != nullptr)
-    this->sleep_mode_switch_->publish_state(this->settings_.sleep_state);
-  if (this->display_switch_ != nullptr)
-    this->display_switch_->publish_state(this->settings_.display_state);
+  PUBLISH_STATE(this->sleep_mode_switch_, this->settings_.sleep_state);
+  PUBLISH_STATE(this->display_switch_, this->settings_.display_state);
 #endif
 #ifdef USE_SELECT
-  if (this->vertical_direction_select_ != nullptr)
-    this->vertical_direction_select_->publish_state(static_cast<size_t>(this->settings_.vertical_direction));
+  PUBLISH_STATE(this->vertical_direction_select_, static_cast<size_t>(this->settings_.vertical_direction));
 #endif
 }
 
@@ -60,8 +57,7 @@ bool AirtonClimate::set_sleep_mode_state(bool state) {
     this->save_settings_();
   }
 #ifdef USE_SWITCH
-  if (this->sleep_mode_switch_ != nullptr)
-    this->sleep_mode_switch_->publish_state(state);
+  PUBLISH_STATE(this->sleep_mode_switch_, state);
 #endif
   return changed;
 }
@@ -73,8 +69,7 @@ bool AirtonClimate::set_display_state(bool state) {
     this->save_settings_();
   }
 #ifdef USE_SWITCH
-  if (this->display_switch_ != nullptr)
-    this->display_switch_->publish_state(state);
+  PUBLISH_STATE(this->display_switch_, state);
 #endif
   return changed;
 }
@@ -87,8 +82,7 @@ bool AirtonClimate::set_vertical_direction_state(VerticalDirection direction) {
     this->save_settings_();
   }
 #ifdef USE_SELECT
-  if (this->vertical_direction_select_ != nullptr)
-    this->vertical_direction_select_->publish_state(static_cast<size_t>(direction));
+  PUBLISH_STATE(this->vertical_direction_select_, static_cast<size_t>(direction));
 #endif
   return changed;
 }
@@ -260,6 +254,8 @@ void AirtonClimate::parse_state_frame_(const uint8_t *frame) {
       break;
     case AIRTON_FAN_AUTO:
       this->fan_mode = climate::CLIMATE_FAN_AUTO;
+      break;
+    default:
       break;
   }
 

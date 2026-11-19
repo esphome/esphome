@@ -230,7 +230,8 @@ bool LibreTinyPreferences::is_changed_(fdb_kvdb_t db, const NVSData &to_save, co
     return true;
   }
 
-  // Compare the actual data
+  // Compare the actual data. fdb_kv_get_blob filled stored_data through this->blob, which the analyzer cannot see.
+  // NOLINTNEXTLINE(clang-analyzer-unix.cstring.UninitializedRead)
   return memcmp(to_save.data.data(), stored_data.get(), kv.value_len) != 0;
 }
 

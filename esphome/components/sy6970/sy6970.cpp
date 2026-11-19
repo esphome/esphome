@@ -45,13 +45,10 @@ bool SY6970Component::write_register_(uint8_t reg, uint8_t value) {
 }
 
 bool SY6970Component::update_register_(uint8_t reg, uint8_t mask, uint8_t value) {
-  uint8_t reg_value;
-  if (!this->read_byte(reg, &reg_value)) {
-    ESP_LOGW(TAG, "Failed to read register 0x%02X for update", reg);
-    return false;
-  }
-  reg_value = (reg_value & ~mask) | (value & mask);
-  return this->write_register_(reg, reg_value);
+  if (this->update_register(reg, mask, value))
+    return true;
+  ESP_LOGW(TAG, "Failed to update register 0x%02X", reg);
+  return false;
 }
 
 void SY6970Component::setup() {
@@ -59,10 +56,8 @@ void SY6970Component::setup() {
 
   // Try to read chip ID
   uint8_t reg_value;
-  if (!this->read_byte(SY6970_REG_DEVICE_ID, &reg_value)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->read_byte(SY6970_REG_DEVICE_ID, &reg_value)))
     return;
-  }
 
   uint8_t chip_id = reg_value & 0x03;
   if (chip_id != 0x00) {
@@ -128,10 +123,10 @@ void SY6970Component::update() {
     return;
   }
 
-  // Notify all listeners with the new data
-  for (auto *listener : this->listeners_) {
-    listener->on_data(this->data_);
-  }
+#ifdef USE_SY6970_DATA_PUBLISHER
+  if (this->data_publisher_ != nullptr)
+    this->data_publisher_(this->data_);
+#endif
 }
 
 void SY6970Component::set_input_current_limit(uint16_t milliamps) {

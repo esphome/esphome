@@ -90,11 +90,22 @@ __attribute__((always_inline)) inline bool is_main_loop_thread() {
   return xTaskGetCurrentTaskHandle() == esphome_main_task_handle;
 }
 __attribute__((always_inline)) inline void yield() { ::yield(); }
+#if defined(USE_LIBRETINY_VARIANT_RTL8710B)
+// Already sleeps to a deadline (rtl8710b_micros.c)
 __attribute__((always_inline)) inline void delay(uint32_t ms) { ::delay(ms); }
+#else
+// vTaskDelay() counts the partial tick, so one more tick makes the wait at least ms
+__attribute__((always_inline)) inline void delay(uint32_t ms) {
+  vTaskDelay(ms == 0 ? 0 : (ms + portTICK_PERIOD_MS - 1) / portTICK_PERIOD_MS + 1);
+}
+#endif
 __attribute__((always_inline)) inline uint32_t micros() { return static_cast<uint32_t>(::micros()); }
 
 // Per-variant millis() fast path — matches MillisInternal::get().
-#if defined(USE_RTL87XX) || defined(USE_LN882X)
+#if defined(USE_LIBRETINY_VARIANT_RTL8710B)
+// The RTL8710B tick is 976.6 us; millis() comes from the system timer instead (rtl8710b_micros.c)
+__attribute__((always_inline)) inline uint32_t millis() { return static_cast<uint32_t>(::millis()); }
+#elif defined(USE_RTL87XX) || defined(USE_LN882X)
 static_assert(configTICK_RATE_HZ == 1000, "millis() fast path requires 1 kHz FreeRTOS tick");
 __attribute__((always_inline)) inline uint32_t millis() {
   // xTaskGetTickCountFromISR is mandatory in interrupt context per the FreeRTOS API contract.

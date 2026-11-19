@@ -1,0 +1,24 @@
+esphome:
+  name: rmt-test
+
+esp32:
+  variant: esp32c6
+  framework:
+    type: esp-idf
+
+# The first strip takes both TX channels, so the second one has no channel to start at
+light:
+  - platform: esp32_rmt_led_strip
+    name: Strip 0
+    chipset: WS2812
+    channel_colors: GRB
+    pin: GPIO3
+    num_leds: 5
+    rmt_symbols: 96
+  - platform: esp32_rmt_led_strip
+    name: Strip 1
+    chipset: WS2812
+    channel_colors: GRB
+    pin: GPIO2
+    num_leds: 5
+    rmt_symbols: 48

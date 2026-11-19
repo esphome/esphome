@@ -92,4 +92,23 @@ TEST(BleDeviceUuid, DifferentUuidsDoNotMatch) {
   EXPECT_FALSE(ESPBTUUID::from_uint16(0x1234) == ESPBTUUID::from_raw(custom));
 }
 
+// The constexpr path of the factories must build the same UUID as the run-time path.
+TEST(BleDeviceUuid, ConstexprFactoriesMatchRuntimeOnes) {
+  static constexpr uint8_t RAW[16] = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
+                                      0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10};
+  static constexpr ESPBTUUID U16 = ESPBTUUID::from_uint16(0x181A);
+  static constexpr ESPBTUUID U32 = ESPBTUUID::from_uint32(0xABCD1234);
+  static constexpr ESPBTUUID U128 = ESPBTUUID::from_raw(RAW);
+  const uint8_t *volatile raw = RAW;  // forces the run-time path
+  volatile uint16_t short16 = 0x181A;
+  volatile uint32_t short32 = 0xABCD1234;
+  EXPECT_EQ(U16, ESPBTUUID::from_uint16(short16));
+  EXPECT_EQ(U16.type(), ESPBTUUID::Type::UUID16);
+  EXPECT_EQ(U32, ESPBTUUID::from_uint32(short32));
+  EXPECT_EQ(U32.uuid32(), 0xABCD1234u);
+  EXPECT_EQ(U128, ESPBTUUID::from_raw(raw));
+  EXPECT_EQ(U128.type(), ESPBTUUID::Type::UUID128);
+  EXPECT_EQ(U128, ESPBTUUID::from_raw("100F0E0D-0C0B-0A09-0807-060504030201"));
+}
+
 }  // namespace esphome::ble_device_base::testing

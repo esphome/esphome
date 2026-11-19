@@ -39,6 +39,9 @@ class APIServerConnectionBase {
   void on_list_entities_request() {};
 
   void on_subscribe_states_request() {};
+#ifdef USE_CRASH_REPORT
+  void on_crash_report_request() {};
+#endif
 
 #ifdef USE_COVER
   void on_cover_command_request(const CoverCommandRequest &value) {};
@@ -255,6 +258,10 @@ class APIServerConnectionBase {
 
 #ifdef USE_SENDSPIN
   void on_sendspin_pairing_token_request() {};
+#endif
+
+#ifdef USE_STORE_YAML
+  void on_get_yaml_request() {};
 #endif
 };
 

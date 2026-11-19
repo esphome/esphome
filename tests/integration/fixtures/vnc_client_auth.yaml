@@ -1,0 +1,41 @@
+esphome:
+  name: vnc-client-auth-test
+
+host:
+
+api:
+  actions:
+    - action: take_snapshot
+      variables:
+        filename: string
+      then:
+        - snapshot.take:
+            id: disp
+            filename: !lambda return filename;
+    - action: vnc_connect
+      then:
+        - vnc.connect: remote
+
+logger:
+  level: DEBUG
+
+display:
+  - platform: snapshot
+    id: disp
+    update_interval: never
+    dimensions:
+      width: 64
+      height: 48
+
+vnc:
+  id: remote
+  display_id: disp
+  host: 127.0.0.1
+  # Rewritten by the test to the fake server's port
+  port: 15900
+  password: secret12
+  reconnect_interval: 1s
+  on_connect:
+    - logger.log: "VNC_TEST_CONNECTED"
+  on_disconnect:
+    - logger.log: "VNC_TEST_DISCONNECTED"

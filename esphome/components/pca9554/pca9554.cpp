@@ -1,4 +1,5 @@
 #include "pca9554.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::pca9554 {
@@ -51,29 +52,7 @@ void PCA9554Component::setup() {
   ESP_LOGD(TAG, "Initialization complete. Warning: %d, Error: %d", this->status_has_warning(),
            this->status_has_error());
 
-  if (this->interrupt_pin_ != nullptr) {
-    this->interrupt_pin_->setup();
-    this->interrupt_pin_->attach_interrupt(&PCA9554Component::gpio_intr, this, gpio::INTERRUPT_FALLING_EDGE);
-    // Don't invalidate cache on read — only invalidate when interrupt fires
-    this->set_invalidate_on_read_(false);
-  }
-  // Disable loop until an input pin is configured via pin_mode()
-  // For interrupt-driven mode, loop is re-enabled by the ISR
-  // For polling mode, loop is re-enabled when pin_mode() registers an input pin
-  this->disable_loop();
-}
-
-void IRAM_ATTR PCA9554Component::gpio_intr(PCA9554Component *arg) { arg->enable_loop_soon_any_context(); }
-
-void PCA9554Component::loop() {
-  // Invalidate the cache so the next digital_read() triggers a fresh I2C read
-  this->reset_pin_cache_();
-  // Only disable the loop once INT has actually gone HIGH. Input transitions that straddle the
-  // I2C read leave INT asserted without re-firing a falling edge, which would strand us with
-  // stale state forever; keep looping until the line is released so we self-heal.
-  if (this->interrupt_pin_ != nullptr && this->interrupt_pin_->digital_read()) {
-    this->disable_loop();
-  }
+  this->setup_interrupt_pin_();
 }
 
 void PCA9554Component::dump_config() {
@@ -88,22 +67,10 @@ void PCA9554Component::dump_config() {
   LOG_I2C_DEVICE(this)
 }
 
-bool PCA9554Component::digital_read_hw(uint8_t pin) {
-  // Read all pins from hardware into input_mask_
-  return this->read_inputs_();  // Return true if I2C read succeeded, false on error
-}
-
-bool PCA9554Component::digital_read_cache(uint8_t pin) {
-  // Return the cached pin state from input_mask_
-  return this->input_mask_ & (1 << pin);
-}
+bool PCA9554Component::digital_read_hw(uint8_t pin) { return this->read_inputs_(); }
 
 void PCA9554Component::digital_write_hw(uint8_t pin, bool value) {
-  if (value) {
-    this->output_mask_ |= (1 << pin);
-  } else {
-    this->output_mask_ &= ~(1 << pin);
-  }
+  assign_bits(this->output_mask_, 1 << pin, value);
 #ifdef USE_PCA9554_PCAL
   if (this->write_register_(OUTPUT_REG, this->output_mask_))
     this->retry_pcal_shadows_();  // an output-only hub never reads, so it retries here
@@ -116,11 +83,7 @@ void PCA9554Component::pin_mode(uint8_t pin, gpio::Flags flags) {
   if (flags & gpio::FLAG_INPUT) {
     // Clear mode mask bit
     this->config_mask_ &= ~(1 << pin);
-    // Enable polling loop for input pins (not needed for interrupt-driven mode
-    // where the ISR handles re-enabling loop)
-    if (this->interrupt_pin_ == nullptr) {
-      this->enable_loop();
-    }
+    this->enable_polling_loop_();
   } else if (flags & gpio::FLAG_OUTPUT) {
     // Set mode mask bit
     this->config_mask_ |= 1 << pin;
@@ -142,7 +105,7 @@ void PCA9554Component::pin_mode(uint8_t pin, gpio::Flags flags) {
 }
 
 bool PCA9554Component::read_inputs_() {
-  uint8_t inputs[2];
+  uint8_t inputs[2]{};  // the second byte stays 0 on the 8-pin parts
 
   if (this->is_failed()) {
     ESP_LOGD(TAG, "Device marked failed");
@@ -154,10 +117,7 @@ bool PCA9554Component::read_inputs_() {
     ESP_LOGE(TAG, "read_register_(): I2C I/O error: %d", (int) err);
     return false;
   }
-  this->input_mask_ = inputs[0];
-  if (this->reg_width_ == 2) {
-    this->input_mask_ |= inputs[1] << 8;
-  }
+  this->input_[0] = encode_value_le<uint16_t>(inputs);
 #ifdef USE_PCA9554_PCAL
   // The bus answers again, so retry the settings a failed write left off the chip
   this->retry_pcal_shadows_();
@@ -167,8 +127,7 @@ bool PCA9554Component::read_inputs_() {
 
 bool PCA9554Component::write_address_(uint8_t address, uint16_t value) {
   uint8_t outputs[2];
-  outputs[0] = (uint8_t) value;
-  outputs[1] = (uint8_t) (value >> 8);
+  put_le16(outputs, value);
   const i2c::ErrorCode err = this->write_register(address, outputs, this->reg_width_);
   if (!this->status_comm_result(err == i2c::ERROR_OK)) {
     ESP_LOGE(TAG, "write_register(): I2C I/O error: %d", (int) err);
@@ -206,8 +165,6 @@ void PCA9554Component::update_pcal_register_(uint8_t reg, uint16_t &shadow, uint
   this->write_pcal_register_(reg, shadow);
 }
 #endif
-
-float PCA9554Component::get_setup_priority() const { return setup_priority::IO; }
 
 }  // namespace esphome::pca9554
 

@@ -55,6 +55,10 @@ CoverCall &CoverCall::set_command_stop() {
   this->stop_ = true;
   return *this;
 }
+CoverCall &CoverCall::set_command_stop_tilt() {
+  this->stop_tilt_ = true;
+  return *this;
+}
 CoverCall &CoverCall::set_command_toggle() {
   this->toggle_ = true;
   return *this;
@@ -73,6 +77,9 @@ void CoverCall::perform() {
   this->validate_();
   if (this->stop_) {
     ESP_LOGV(TAG, "  Command: STOP");
+  }
+  if (this->stop_tilt_) {
+    ESP_LOGV(TAG, "  Command: STOP_TILT");
   }
   if (this->position_.has_value()) {
     if (traits.get_supports_position()) {
@@ -122,6 +129,15 @@ void CoverCall::validate_() {
       this->toggle_.reset();
     }
   }
+  if (this->stop_tilt_) {
+    if (!traits.get_supports_stop_tilt()) {
+      ESP_LOGW(TAG, "'%s': stop tilt unsupported", name);
+      this->stop_tilt_ = false;
+    } else if (this->tilt_.has_value()) {
+      ESP_LOGW(TAG, "'%s': cannot tilt when stopping tilt", name);
+      this->tilt_.reset();
+    }
+  }
   if (this->stop_) {
     if (this->position_.has_value() || this->tilt_.has_value() || this->toggle_.has_value()) {
       ESP_LOGW(TAG, "'%s': cannot position/tilt/toggle when stopping", name);
@@ -133,6 +149,10 @@ void CoverCall::validate_() {
 }
 CoverCall &CoverCall::set_stop(bool stop) {
   this->stop_ = stop;
+  return *this;
+}
+CoverCall &CoverCall::set_stop_tilt(bool stop_tilt) {
+  this->stop_tilt_ = stop_tilt;
   return *this;
 }
 void Cover::publish_state(bool save) {

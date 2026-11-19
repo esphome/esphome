@@ -1,0 +1,48 @@
+esphome:
+  name: test
+
+esp32:
+  board: nodemcu-32s
+
+wifi:
+  ssid: MySSID
+  password: password1
+
+time:
+  - platform: sntp
+    id: sntp_time
+
+deep_sleep:
+  id: deepsleep
+
+script:
+  - id: sleep_now
+    then:
+      - deep_sleep.enter: deepsleep
+  - id: sleep_constant
+    then:
+      - deep_sleep.enter:
+          sleep_duration: 60min
+  - id: sleep_seconds
+    parameters:
+      seconds: uint32_t
+    then:
+      - deep_sleep.enter:
+          sleep_duration: !lambda "return seconds * 1000;"
+  - id: sleep_scaled
+    parameters:
+      seconds: uint32_t
+    then:
+      - deep_sleep.enter:
+          sleep_duration: !lambda "seconds *= 1000; return seconds;"
+  - id: sleep_scaled_return
+    parameters:
+      seconds: uint32_t
+    then:
+      - deep_sleep.enter:
+          sleep_duration: !lambda "return seconds *= 1000;"
+  - id: sleep_until
+    then:
+      - deep_sleep.enter:
+          until: "06:30:00"
+          time_id: sntp_time

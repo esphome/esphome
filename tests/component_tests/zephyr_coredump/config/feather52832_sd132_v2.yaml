@@ -1,0 +1,10 @@
+esphome:
+  name: coredumptest
+
+nrf52:
+  board: adafruit_feather_nrf52832
+  bootloader: adafruit_nrf52_sd132_v2
+
+logger:
+
+zephyr_coredump:

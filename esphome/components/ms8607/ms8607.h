@@ -6,14 +6,49 @@
 
 namespace esphome::ms8607 {
 
-/**
- Class for I2CDevice used to communicate with the Humidity sensor
- on the chip. See MS8607Component instead
- */
-class MS8607HumidityDevice final : public i2c::I2CDevice {
- public:
-  uint8_t get_address() { return address_; }
+/// Pressure & temperature calibration values, read from the PROM
+struct CalibrationValues {
+  /// Pressure sensitivity | SENS-T1. [C1]
+  uint16_t pressure_sensitivity;
+  /// Temperature coefficient of pressure sensitivity | TCS. [C3]
+  uint16_t pressure_sensitivity_temperature_coefficient;
+  /// Pressure offset | OFF-T1. [C2]
+  uint16_t pressure_offset;
+  /// Temperature coefficient of pressure offset | TCO. [C4]
+  uint16_t pressure_offset_temperature_coefficient;
+  /// Reference temperature | T-REF. [C5]
+  uint16_t reference_temperature;
+  /// Temperature coefficient of the temperature | TEMPSENS. [C6]
+  uint16_t temperature_coefficient_of_temperature;
 };
+
+struct CompensatedTemperature {
+  /// difference between actual and reference temperature
+  int32_t d_t;
+  /// temperature as hundredths of degree celsius in range [-4000, 8500], after first order
+  /// temperature calculation
+  int32_t first_order_temperature;
+  /// actual temperature, after 2nd order temperature calculation, in degrees celsius as a float
+  float temperature_float;
+};
+
+/// use raw temperature and calibration values to figure out actual temperature value
+/// return value includes some intermediate values needed by the pressure compensation algorithm
+/// Precondition: values must be within typical values from the device to avoid Undefined Behavior.
+CompensatedTemperature compensated_temperature(uint32_t d2_raw_temperature,
+                                               const CalibrationValues &calibration_values);
+
+/// use raw pressure, calibration values, and current temperature to figure out actual pressure
+/// Precondition: calibration_values & temperature_values must be within typical values for the device.
+/// Unbounded values can cause Undefined Behavior.
+float compensated_pressure(uint32_t d1_raw_pressure, const CalibrationValues &calibration_values,
+                           const CompensatedTemperature &temperature_values);
+
+/// convert raw humidity value into correct range & apply temperature compensation calculation
+float compensated_humidity(float humidity_float, float temperature_float);
+
+/// I2C device for the humidity sensor's own address on the chip. See MS8607Component instead
+class MS8607HumidityDevice final : public i2c::I2CDevice {};
 
 /**
  Temperature, pressure, and humidity sensor.
@@ -31,80 +66,60 @@ class MS8607HumidityDevice final : public i2c::I2CDevice {
  - https://github.com/sparkfun/SparkFun_PHT_MS8607_Arduino_Library
  */
 class MS8607Component final : public PollingComponent, public i2c::I2CDevice {
+  SUB_SENSOR(temperature)
+  SUB_SENSOR(pressure)
+  SUB_SENSOR(humidity)
+
  public:
   ~MS8607Component() = default;
   void setup() override;
   void update() override;
   void dump_config() override;
 
-  void set_temperature_sensor(sensor::Sensor *temperature_sensor) { temperature_sensor_ = temperature_sensor; }
-  void set_pressure_sensor(sensor::Sensor *pressure_sensor) { pressure_sensor_ = pressure_sensor; }
-  void set_humidity_sensor(sensor::Sensor *humidity_sensor) { humidity_sensor_ = humidity_sensor; }
-  void set_humidity_device(MS8607HumidityDevice *humidity_device) { humidity_device_ = humidity_device; }
+  void set_humidity_device(MS8607HumidityDevice *humidity_device) { this->humidity_device_ = humidity_device; }
 
  protected:
   /// Attempt to reset both I2C devices, retrying with backoff on failure
   void try_reset_();
-  /**
-   Read and store the Pressure & Temperature calibration settings from the PROM.
-   Intended to be called during setup(), this will set the `failure_reason_`
-   */
+  /// Read and CRC-check the PROM calibration values; marks the component failed on error
   bool read_calibration_values_from_prom_();
+  /// Read a 24-bit converted ADC value, either D1 (pressure) or D2 (temperature)
+  bool read_adc_(uint32_t &value);
 
   /// Start async temperature read
   void request_read_temperature_();
-  /// Process async temperature read
+  /// Process async temperature read, publish it and hand off to pressure or humidity
   void read_temperature_();
-  /// start async pressure read
-  void request_read_pressure_(uint32_t raw_temperature);
-  /// process async pressure read
-  void read_pressure_(uint32_t raw_temperature);
+  /// Start async pressure read; false if the request failed
+  bool request_read_pressure_(uint32_t d2_raw_temperature);
+  /// Process async pressure read and publish it. Takes the raw temperature rather than the
+  /// compensated one so the timeout callback fits in std::function's inline storage
+  void read_pressure_(uint32_t d2_raw_temperature);
+  /// Read humidity if it is configured, otherwise end the update cycle
+  void finish_update_(float temperature);
   /// start async humidity read
-  void request_read_humidity_(float temperature_float);
+  void request_read_humidity_(float temperature);
   /// process async humidity read
-  void read_humidity_(float temperature_float);
-  /// use raw temperature & pressure to calculate & publish values
-  void calculate_values_(uint32_t raw_temperature, uint32_t raw_pressure);
-
-  sensor::Sensor *temperature_sensor_{nullptr};
-  sensor::Sensor *pressure_sensor_{nullptr};
-  sensor::Sensor *humidity_sensor_{nullptr};
+  void read_humidity_(float temperature);
+  /// End the update cycle, setting or clearing the warning from update_ok_
+  void finalize_update_();
 
   /** I2CDevice object to communicate with secondary I2C address for the humidity sensor
    *
    * The MS8607 only has one set of I2C pins, despite using two different addresses.
-   *
-   * Default address for humidity is 0x40
+   * Set exactly when the humidity sensor is configured. Default address for humidity is 0x40
    */
   MS8607HumidityDevice *humidity_device_{nullptr};
 
   /// This device's pressure & temperature calibration values, read from PROM
-  struct CalibrationValues {
-    /// Pressure sensitivity | SENS-T1. [C1]
-    uint16_t pressure_sensitivity;
-    /// Temperature coefficient of pressure sensitivity | TCS. [C3]
-    uint16_t pressure_sensitivity_temperature_coefficient;
-    /// Pressure offset | OFF-T1. [C2]
-    uint16_t pressure_offset;
-    /// Temperature coefficient of pressure offset | TCO. [C4]
-    uint16_t pressure_offset_temperature_coefficient;
-    /// Reference temperature | T-REF. [C5]
-    uint16_t reference_temperature;
-    /// Temperature coefficient of the temperature | TEMPSENS. [C6]
-    uint16_t temperature_coefficient_of_temperature;
-  } calibration_values_;
+  CalibrationValues calibration_values_{};
 
-  /// Possible failure reasons of this component
-  enum class ErrorCode;
-  /// Keep track of the reason why this component failed, to augment the dumped config
-  ErrorCode error_code_;
-
-  /// Current progress through required component setup
-  enum class SetupStatus;
-  /// Current step in the multi-step & possibly delayed setup() process
-  SetupStatus setup_status_;
-  uint32_t reset_interval_{5};
-  uint8_t reset_attempts_remaining_{0};
+  /// Set once the PROM calibration values have been read
+  bool setup_complete_{false};
+  uint8_t reset_interval_{5};
+  uint8_t reset_attempts_remaining_{3};
+  /// False once any step of the current update cycle failed
+  bool update_ok_{true};
 };
 
 }  // namespace esphome::ms8607

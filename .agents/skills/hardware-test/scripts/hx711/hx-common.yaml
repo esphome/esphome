@@ -1,0 +1,37 @@
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+esphome:
+  includes: [hxsim.hpp]
+  on_boot:
+    - priority: -100
+      then:
+        - lambda: hxsim::chip.start();
+    - priority: -200
+      then:
+        - script.execute: run_all
+
+logger:
+  level: VERBOSE
+  logs:
+    scheduler: DEBUG
+    component: DEBUG
+    esp32.preferences: DEBUG
+    sensor: DEBUG
+
+interval:
+  - interval: 50ms
+    then:
+      - lambda: |-
+          hxsim::chip.log_events();
+          static int last = -1;
+          int w = id(hx).status_has_warning();
+          if (w != last) { last = w; ESP_LOGI("hxsim", "STATUS warning=%d", w); }
+
+# Each parts file defines run_all (its cases) and ends it with done.
+script:
+  - id: done
+    then:
+      - lambda: 'ESP_LOGI("hxsim", "DONE transfers=%d short=%d pd=%d pu=%d", hxsim::chip.transfers.load(), hxsim::chip.short_transfers.load(), hxsim::chip.power_downs.load(), hxsim::chip.power_ups.load());'

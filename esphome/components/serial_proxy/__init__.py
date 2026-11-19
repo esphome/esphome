@@ -17,6 +17,7 @@ from dataclasses import dataclass
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import uart
+from esphome.components.const import CONF_DTR_PIN, CONF_RTS_PIN
 from esphome.components.usb_uart import is_usb_uart_channel
 import esphome.config_validation as cv
 from esphome.const import CONF_NAME, CONF_UART_ID
@@ -40,9 +41,7 @@ SERIAL_PROXY_PORT_TYPES = SerialProxyPortType.options(
     "TTL", "RS232", "RS485", "USB_SERIAL", prefix="SERIAL_PROXY_PORT_TYPE_"
 )
 
-CONF_DTR_PIN = "dtr_pin"
 CONF_PORT_TYPE = "port_type"
-CONF_RTS_PIN = "rts_pin"
 
 DOMAIN = "serial_proxy"
 

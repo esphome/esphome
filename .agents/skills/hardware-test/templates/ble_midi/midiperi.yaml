@@ -1,0 +1,177 @@
+esphome:
+  name: midiperi
+
+esp32:
+  board: esp32-s3-devkitc-1
+  variant: esp32s3
+  flash_size: 16MB
+  framework:
+    type: esp-idf
+
+logger:
+  hardware_uart: USB_SERIAL_JTAG
+  level: DEBUG
+
+api:
+  reboot_timeout: 0s
+
+ota:
+  - platform: esphome
+
+ethernet:
+  type: W5500
+  clk_pin: GPIO13
+  mosi_pin: GPIO11
+  miso_pin: GPIO12
+  cs_pin: GPIO14
+  interrupt_pin: GPIO10
+  reset_pin: GPIO9
+
+esp32_ble_server:
+  id: ble_server
+  manufacturer: FakeMIDI
+  on_connect:
+    - lambda: ESP_LOGI("peri", "central connected %d", id);
+  on_disconnect:
+    - lambda: ESP_LOGI("peri", "central disconnected %d", id);
+  services:
+    - uuid: 03B80E5A-EDE8-4B33-A751-6CE34EC4C700
+      advertise: true
+      characteristics:
+        - id: midi_io
+          uuid: 7772E5DB-3868-4112-A1A9-F2669D106BF3
+          read: true
+          write: true
+          write_no_response: true
+          notify: true
+          on_write:
+            - lambda: |-
+                ESP_LOGI("peri", "RX %u bytes: %s", (unsigned) x.size(), format_hex_pretty(x.data(), x.size()).c_str());
+
+script:
+  - id: emit
+    parameters:
+      pkt: std::vector<uint8_t>
+    then:
+      - lambda: |-
+          ESP_LOGI("peri", "TX %u bytes: %s", (unsigned) pkt.size(), format_hex_pretty(pkt.data(), pkt.size()).c_str());
+          id(midi_io).set_value(std::vector<uint8_t>(pkt));
+          id(midi_io).notify();
+
+button:
+  - platform: restart
+    name: P Restart
+  - platform: template
+    name: P Note On
+    on_press:
+      - script.execute:
+          id: emit
+          pkt: !lambda 'return {0x80, 0x80, 0x90, 0x3C, 0x64};'
+  - platform: template
+    name: P Note Off
+    on_press:
+      - script.execute:
+          id: emit
+          pkt: !lambda 'return {0x80, 0x80, 0x80, 0x3C, 0x00};'
+  - platform: template
+    name: P Control Change
+    on_press:
+      - script.execute:
+          id: emit
+          pkt: !lambda 'return {0x80, 0x80, 0xB0, 0x07, 0x40};'
+  - platform: template
+    name: P Program Change
+    on_press:
+      - script.execute:
+          id: emit
+          pkt: !lambda 'return {0x80, 0x80, 0xC5, 0x05};'
+  - platform: template
+    name: P Pitch Bend
+    on_press:
+      - script.execute:
+          id: emit
+          pkt: !lambda 'return {0x80, 0x80, 0xE0, 0x7F, 0x7F};'
+  - platform: template
+    name: P Two Notes One Packet
+    on_press:
+      - script.execute:
+          id: emit
+          pkt: !lambda 'return {0x80, 0x80, 0x90, 0x3C, 0x64, 0x81, 0x91, 0x3E, 0x50};'
+  - platform: template
+    name: P Running Status
+    on_press:
+      - script.execute:
+          id: emit
+          pkt: !lambda 'return {0x80, 0x80, 0x90, 0x40, 0x64, 0x41, 0x64};'
+  - platform: template
+    name: P Sysex One Packet
+    on_press:
+      - script.execute:
+          id: emit
+          pkt: !lambda 'return {0x80, 0x80, 0xF0, 0x7E, 0x7F, 0x06, 0x01, 0x80, 0xF7};'
+  - platform: template
+    name: P Sysex Split
+    on_press:
+      - script.execute:
+          id: emit
+          pkt: !lambda 'return {0x80, 0x80, 0xF0, 0x41, 0x10, 0x42};'
+      - delay: 200ms
+      - script.execute:
+          id: emit
+          pkt: !lambda 'return {0x80, 0x12, 0x00, 0x40, 0x80, 0xF7};'
+  - platform: template
+    name: P Sysex Oversize
+    on_press:
+      - script.execute:
+          id: emit
+          pkt: !lambda 'std::vector<uint8_t> v{0x80, 0x80, 0xF0}; for (int i = 0; i < 17; i++) v.push_back(i); return v;'
+      - delay: 200ms
+      - script.execute:
+          id: emit
+          pkt: !lambda 'std::vector<uint8_t> v{0x80}; for (int i = 0; i < 19; i++) v.push_back(0x20 + i); return v;'
+      - delay: 200ms
+      - script.execute:
+          id: emit
+          pkt: !lambda 'std::vector<uint8_t> v{0x80}; for (int i = 0; i < 19; i++) v.push_back(0x40 + i); return v;'
+      - delay: 200ms
+      - script.execute:
+          id: emit
+          pkt: !lambda 'std::vector<uint8_t> v{0x80}; for (int i = 0; i < 19; i++) v.push_back(0x60 + i); return v;'
+      - delay: 200ms
+      - script.execute:
+          id: emit
+          pkt: !lambda 'return {0x80, 0x80, 0xF7};'
+  - platform: template
+    name: P Sysex Cut Short
+    on_press:
+      - script.execute:
+          id: emit
+          pkt: !lambda 'return {0x80, 0x80, 0xF0, 0x41, 0x10, 0x80, 0x90, 0x3C, 0x64};'
+  - platform: template
+    name: P Clock
+    on_press:
+      - script.execute:
+          id: emit
+          pkt: !lambda 'return {0x80, 0x80, 0xF8};'
+  - platform: template
+    name: P Aftertouch
+    on_press:
+      - script.execute:
+          id: emit
+          pkt: !lambda 'return {0x80, 0x80, 0xD3, 0x45};'
+  - platform: template
+    name: P Orphan Data Byte
+    on_press:
+      - script.execute:
+          id: emit
+          pkt: !lambda 'return {0x80, 0x80, 0x3C, 0x64};'
+  - platform: template
+    name: P Burst
+    on_press:
+      - repeat:
+          count: 50
+          then:
+            - script.execute:
+                id: emit
+                pkt: !lambda 'return {0x80, 0x80, 0x90, 0x30, 0x40, 0x80, 0x80, 0x30, 0x00};'
+            - delay: 20ms

@@ -138,18 +138,10 @@ void MLX90393Cls::update() {
 
   if (this->mlx_.readData(data) == MLX90393::STATUS_OK) {
     ESP_LOGD(TAG, "received %f %f %f", data.x, data.y, data.z);
-    if (this->x_sensor_ != nullptr) {
-      this->x_sensor_->publish_state(data.x);
-    }
-    if (this->y_sensor_ != nullptr) {
-      this->y_sensor_->publish_state(data.y);
-    }
-    if (this->z_sensor_ != nullptr) {
-      this->z_sensor_->publish_state(data.z);
-    }
-    if (this->t_sensor_ != nullptr) {
-      this->t_sensor_->publish_state(data.t);
-    }
+    PUBLISH_STATE(this->x_sensor_, data.x);
+    PUBLISH_STATE(this->y_sensor_, data.y);
+    PUBLISH_STATE(this->z_sensor_, data.z);
+    PUBLISH_STATE(this->t_sensor_, data.t);
     this->status_clear_warning();
   } else {
     ESP_LOGE(TAG, "failed to read data");

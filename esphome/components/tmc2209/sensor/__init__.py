@@ -59,9 +59,7 @@ CONFIG_SCHEMA = cv.Schema(
 def _final_validate(config: ConfigType) -> ConfigType:
     if CONF_ACTUAL_CURRENT not in config:
         return config
-    full_config = fv.full_config.get()
-    path = full_config.get_path_for_id(config[CONF_TMC2209_ID])[:-1]
-    if full_config.get_config_for_path(path).get(CONF_ANALOG_CURRENT_SCALE):
+    if fv.get_declaring_config(config[CONF_TMC2209_ID]).get(CONF_ANALOG_CURRENT_SCALE):
         raise cv.Invalid(
             f"'{CONF_ACTUAL_CURRENT}' can't be used with '{CONF_ANALOG_CURRENT_SCALE}', "
             "the current then depends on VREF",

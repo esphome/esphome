@@ -61,5 +61,5 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_thermocouple_type(config[CONF_THERMOCOUPLE_TYPE]))
 
     sensors = sensor.sub_sensors(config)
-    await sensors(CONF_HOT_JUNCTION, var.set_hot_junction)
-    await sensors(CONF_COLD_JUNCTION, var.set_cold_junction)
+    await sensors(CONF_HOT_JUNCTION, var.set_hot_junction_sensor)
+    await sensors(CONF_COLD_JUNCTION, var.set_cold_junction_sensor)

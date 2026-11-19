@@ -49,11 +49,6 @@ static constexpr uint8_t MADCTL_YFLIP = 0x01;        // Mirror the display verti
 static constexpr uint16_t MADCTL_FLIP_FLAG = 0x100;  // controller uses axis flip bits
 
 static constexpr uint8_t DELAY_FLAG = 0xFF;
-// store a 16 bit value in a buffer, big endian.
-static inline void put16_be(uint8_t *buf, uint16_t value) {
-  buf[0] = value >> 8;
-  buf[1] = value;
-}
 
 // Buffer mode, conveniently also the number of bytes in a pixel
 enum PixelMode {
@@ -151,15 +146,8 @@ class MipiSpi : public display::Display,
       pin->setup();
       pin->digital_write(true);
     }
-    if (this->reset_pin_ != nullptr) {
-      this->reset_pin_->setup();
-      this->reset_pin_->digital_write(true);
-      delay(5);
-      this->reset_pin_->digital_write(false);
-      delay(5);
-      this->reset_pin_->digital_write(true);
-      // required delay after reset is already in the init sequence, don't duplicate
-    }
+    // required delay after reset is already in the init sequence, don't duplicate
+    pulse_reset(this->reset_pin_, {.high_before_ms = 5, .low_ms = 5});
 
     // need to know when the display is ready for SLPOUT command - will be 120ms after reset
     auto when = millis() + 120;
@@ -244,9 +232,9 @@ class MipiSpi : public display::Display,
     char hex_buf[format_hex_pretty_size(MIPI_SPI_MAX_CMD_LOG_BYTES)];
     // Don't spam the log after setup
     if (this->init_sequence_len_ == 0) {
-      esph_log_v(TAG, "Command %02X, length %d, bytes %s", cmd, len, format_hex_pretty_to(hex_buf, bytes, len));
+      esph_log_v(TAG, "Command %02X, length %zu, bytes %s", cmd, len, format_hex_pretty_to(hex_buf, bytes, len));
     } else {
-      esph_log_d(TAG, "Command %02X, length %d, bytes %s", cmd, len, format_hex_pretty_to(hex_buf, bytes, len));
+      esph_log_d(TAG, "Command %02X, length %zu, bytes %s", cmd, len, format_hex_pretty_to(hex_buf, bytes, len));
     }
     if constexpr (BUS_TYPE == BUS_TYPE_QUAD) {
       this->enable();
@@ -367,11 +355,11 @@ class MipiSpi : public display::Display,
     x2 += get_offset_width_();
     y1 += get_offset_height_();
     y2 += get_offset_height_();
-    put16_be(buf, y1);
-    put16_be(buf + 2, y2);
+    put_be16(buf, y1);
+    put_be16(buf + 2, y2);
     this->write_command_(RASET, buf, sizeof buf);
-    put16_be(buf, x1);
-    put16_be(buf + 2, x2);
+    put_be16(buf, x1);
+    put_be16(buf + 2, x2);
     this->write_command_(CASET, buf, sizeof buf);
     if constexpr (BUS_TYPE != BUS_TYPE_QUAD) {
       this->write_command_(WDATA);

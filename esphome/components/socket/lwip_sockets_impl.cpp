@@ -52,11 +52,7 @@ int LwIPSocketImpl::setblocking(bool blocking) {
   if (fl < 0) {
     return fl;
   }
-  if (blocking) {
-    fl &= ~O_NONBLOCK;
-  } else {
-    fl |= O_NONBLOCK;
-  }
+  assign_bits(fl, O_NONBLOCK, !blocking);
   return lwip_fcntl(this->fd_, F_SETFL, fl);
 }
 

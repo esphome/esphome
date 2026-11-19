@@ -33,22 +33,22 @@ uint16_t parse_u8_hb_60(OpenthermData &data) { return data.valueHB * 60; }
 int16_t parse_s16(OpenthermData &data) { return data.get_s16(); }
 float parse_f88(OpenthermData &data) { return data.get_f88(); }
 
-void write_flag8_lb_0(const bool value, OpenthermData &data) { data.valueLB = write_bit(data.valueLB, 0, value); }
-void write_flag8_lb_1(const bool value, OpenthermData &data) { data.valueLB = write_bit(data.valueLB, 1, value); }
-void write_flag8_lb_2(const bool value, OpenthermData &data) { data.valueLB = write_bit(data.valueLB, 2, value); }
-void write_flag8_lb_3(const bool value, OpenthermData &data) { data.valueLB = write_bit(data.valueLB, 3, value); }
-void write_flag8_lb_4(const bool value, OpenthermData &data) { data.valueLB = write_bit(data.valueLB, 4, value); }
-void write_flag8_lb_5(const bool value, OpenthermData &data) { data.valueLB = write_bit(data.valueLB, 5, value); }
-void write_flag8_lb_6(const bool value, OpenthermData &data) { data.valueLB = write_bit(data.valueLB, 6, value); }
-void write_flag8_lb_7(const bool value, OpenthermData &data) { data.valueLB = write_bit(data.valueLB, 7, value); }
-void write_flag8_hb_0(const bool value, OpenthermData &data) { data.valueHB = write_bit(data.valueHB, 0, value); }
-void write_flag8_hb_1(const bool value, OpenthermData &data) { data.valueHB = write_bit(data.valueHB, 1, value); }
-void write_flag8_hb_2(const bool value, OpenthermData &data) { data.valueHB = write_bit(data.valueHB, 2, value); }
-void write_flag8_hb_3(const bool value, OpenthermData &data) { data.valueHB = write_bit(data.valueHB, 3, value); }
-void write_flag8_hb_4(const bool value, OpenthermData &data) { data.valueHB = write_bit(data.valueHB, 4, value); }
-void write_flag8_hb_5(const bool value, OpenthermData &data) { data.valueHB = write_bit(data.valueHB, 5, value); }
-void write_flag8_hb_6(const bool value, OpenthermData &data) { data.valueHB = write_bit(data.valueHB, 6, value); }
-void write_flag8_hb_7(const bool value, OpenthermData &data) { data.valueHB = write_bit(data.valueHB, 7, value); }
+void write_flag8_lb_0(const bool value, OpenthermData &data) { assign_bits(data.valueLB, 1 << 0, value); }
+void write_flag8_lb_1(const bool value, OpenthermData &data) { assign_bits(data.valueLB, 1 << 1, value); }
+void write_flag8_lb_2(const bool value, OpenthermData &data) { assign_bits(data.valueLB, 1 << 2, value); }
+void write_flag8_lb_3(const bool value, OpenthermData &data) { assign_bits(data.valueLB, 1 << 3, value); }
+void write_flag8_lb_4(const bool value, OpenthermData &data) { assign_bits(data.valueLB, 1 << 4, value); }
+void write_flag8_lb_5(const bool value, OpenthermData &data) { assign_bits(data.valueLB, 1 << 5, value); }
+void write_flag8_lb_6(const bool value, OpenthermData &data) { assign_bits(data.valueLB, 1 << 6, value); }
+void write_flag8_lb_7(const bool value, OpenthermData &data) { assign_bits(data.valueLB, 1 << 7, value); }
+void write_flag8_hb_0(const bool value, OpenthermData &data) { assign_bits(data.valueHB, 1 << 0, value); }
+void write_flag8_hb_1(const bool value, OpenthermData &data) { assign_bits(data.valueHB, 1 << 1, value); }
+void write_flag8_hb_2(const bool value, OpenthermData &data) { assign_bits(data.valueHB, 1 << 2, value); }
+void write_flag8_hb_3(const bool value, OpenthermData &data) { assign_bits(data.valueHB, 1 << 3, value); }
+void write_flag8_hb_4(const bool value, OpenthermData &data) { assign_bits(data.valueHB, 1 << 4, value); }
+void write_flag8_hb_5(const bool value, OpenthermData &data) { assign_bits(data.valueHB, 1 << 5, value); }
+void write_flag8_hb_6(const bool value, OpenthermData &data) { assign_bits(data.valueHB, 1 << 6, value); }
+void write_flag8_hb_7(const bool value, OpenthermData &data) { assign_bits(data.valueHB, 1 << 7, value); }
 void write_u8_lb(const uint8_t value, OpenthermData &data) { data.valueLB = value; }
 void write_u8_hb(const uint8_t value, OpenthermData &data) { data.valueHB = value; }
 void write_s8_lb(const int8_t value, OpenthermData &data) { data.valueLB = (uint8_t) value; }
@@ -370,7 +370,7 @@ void OpenthermHub::stop_opentherm_() {
 void OpenthermHub::handle_protocol_error_() {
   OpenThermError error;
   this->opentherm_->get_protocol_error(error);
-  ESP_LOGW(TAG, "Protocol error occured while receiving response: %s",
+  ESP_LOGW(TAG, "Protocol error occurred while receiving response: %s",
            this->opentherm_->protocol_error_to_str(error.error_type));
   this->opentherm_->debug_error(error);
   this->stop_opentherm_();

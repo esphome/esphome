@@ -53,9 +53,6 @@ CONF_POWER_GAIN = "power_gain"
 
 CONF_NEUTRAL = "neutral"
 
-# Tuple of power channel phases
-POWER_PHASES = (CONF_PHASE_A, CONF_PHASE_B, CONF_PHASE_C)
-
 # Tuple of sensor types that can be configured for power channels
 POWER_SENSOR_TYPES = (
     CONF_CURRENT,
@@ -65,6 +62,20 @@ POWER_SENSOR_TYPES = (
     CONF_POWER_FACTOR,
     CONF_FORWARD_ACTIVE_ENERGY,
     CONF_REVERSE_ACTIVE_ENERGY,
+)
+POWER_CALIBRATION_TYPES = (
+    CONF_CURRENT_GAIN,
+    CONF_VOLTAGE_GAIN,
+    CONF_POWER_GAIN,
+    CONF_PHASE_ANGLE,
+)
+
+# Channel config key, ADE7880 setter, sensor types, calibration types
+CHANNELS = (
+    (CONF_PHASE_A, "set_channel_a", POWER_SENSOR_TYPES, POWER_CALIBRATION_TYPES),
+    (CONF_PHASE_B, "set_channel_b", POWER_SENSOR_TYPES, POWER_CALIBRATION_TYPES),
+    (CONF_PHASE_C, "set_channel_c", POWER_SENSOR_TYPES, POWER_CALIBRATION_TYPES),
+    (CONF_NEUTRAL, "set_channel_n", (CONF_CURRENT,), (CONF_CURRENT_GAIN,)),
 )
 
 NEUTRAL_CHANNEL_SCHEMA = cv.Schema(
@@ -191,7 +202,7 @@ def prefix_sensor_name(
 
 
 def process_channel_sensors(
-    config: ConfigType, channel_key: str, sensor_types: tuple
+    config: ConfigType, channel_key: str, sensor_types: tuple[str, ...]
 ) -> None:
     """Process sensors for a channel and prefix their names.
 
@@ -212,12 +223,8 @@ def process_channel_sensors(
 
 def preprocess_channels(config: ConfigType) -> ConfigType:
     """Preprocess channel configurations to add channel name prefix to sensor names."""
-    # Process power channels
-    for channel in POWER_PHASES:
-        process_channel_sensors(config, channel, POWER_SENSOR_TYPES)
-
-    # Process neutral channel
-    process_channel_sensors(config, CONF_NEUTRAL, (CONF_CURRENT,))
+    for channel_key, _, sensor_types, _ in CHANNELS:
+        process_channel_sensors(config, channel_key, sensor_types)
 
     return config
 
@@ -244,39 +251,20 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def neutral_channel(config: ConfigType) -> MockObj:
+async def new_channel(
+    config: ConfigType,
+    sensor_types: tuple[str, ...],
+    calibration_types: tuple[str, ...],
+) -> MockObj:
     var = cg.new_Pvariable(config[CONF_ID])
 
-    current = config[CONF_CURRENT]
-    sens = await sensor.new_sensor(current)
-    cg.add(var.set_current(sens))
+    sensors = sensor.sub_sensors(config)
+    for sensor_type in sensor_types:
+        await sensors(sensor_type, getattr(var, f"set_{sensor_type}"))
 
-    cg.add(
-        var.set_current_gain_calibration(config[CONF_CALIBRATION][CONF_CURRENT_GAIN])
-    )
-
-    return var
-
-
-async def power_channel(config: ConfigType) -> MockObj:
-    var = cg.new_Pvariable(config[CONF_ID])
-
-    for sensor_type in POWER_SENSOR_TYPES:
-        if conf := config.get(sensor_type):
-            sens = await sensor.new_sensor(conf)
-            cg.add(getattr(var, f"set_{sensor_type}")(sens))
-
-    for calib_type in [
-        CONF_CURRENT_GAIN,
-        CONF_VOLTAGE_GAIN,
-        CONF_POWER_GAIN,
-        CONF_PHASE_ANGLE,
-    ]:
-        cg.add(
-            getattr(var, f"set_{calib_type}_calibration")(
-                config[CONF_CALIBRATION][calib_type]
-            )
-        )
+    calibration = config[CONF_CALIBRATION]
+    for calib_type in calibration_types:
+        cg.add(getattr(var, f"set_{calib_type}_calibration")(calibration[calib_type]))
 
     return var
 
@@ -288,21 +276,9 @@ async def to_code(config: ConfigType) -> None:
     await cg.add_pin(var.set_irq1_pin, config[CONF_IRQ1_PIN])
     await cg.add_pin(var.set_reset_pin, config.get(CONF_RESET_PIN))
 
-    if frequency := config.get(CONF_FREQUENCY):
-        cg.add(var.set_frequency(frequency))
+    cg.add(var.set_frequency(config[CONF_FREQUENCY]))
 
-    if channel := config.get(CONF_PHASE_A):
-        chan = await power_channel(channel)
-        cg.add(var.set_channel_a(chan))
-
-    if channel := config.get(CONF_PHASE_B):
-        chan = await power_channel(channel)
-        cg.add(var.set_channel_b(chan))
-
-    if channel := config.get(CONF_PHASE_C):
-        chan = await power_channel(channel)
-        cg.add(var.set_channel_c(chan))
-
-    if channel := config.get(CONF_NEUTRAL):
-        chan = await neutral_channel(channel)
-        cg.add(var.set_channel_n(chan))
+    for channel_key, setter, sensor_types, calibration_types in CHANNELS:
+        if channel := config.get(channel_key):
+            chan = await new_channel(channel, sensor_types, calibration_types)
+            cg.add(getattr(var, setter)(chan))

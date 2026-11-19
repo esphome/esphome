@@ -1,0 +1,15 @@
+# The access point stays up next to the station, so the captive mode follows the
+# station: ended when it connects, served again while it is down.
+wifi:
+  networks:
+    - ssid: MySSID
+      password: password1
+  # A roaming scan would take the AP down, so ALWAYS_ON requires it off
+  post_connect_roaming: false
+  ap:
+    ssid: "ESPHome-Test"
+    password: "Test1234!"
+    ap_mode: ALWAYS_ON
+
+web_server:
+  local: true

@@ -49,16 +49,13 @@ static bool check_model_and_device_match(INAModel model, uint16_t dev_id) {
 }
 
 void INA2XX::setup() {
-  if (!this->reset_config_()) {
-    this->mark_failed(LOG_STR("Reset failed, check connection"));
+  if (!this->setup_check(this->reset_config_(), LOG_STR("Reset failed, check connection")))
     return;
-  }
   delay(2);
 
-  if (!this->check_device_model_()) {
-    this->mark_failed(LOG_STR("Device not supported or model selected improperly in yaml file"));
+  if (!this->setup_check(this->check_device_model_(),
+                         LOG_STR("Device not supported or model selected improperly in yaml file")))
     return;
-  }
   delay(1);
 
   this->configure_adc_range_();
@@ -141,17 +138,15 @@ void INA2XX::loop() {
 
       case State::DATA_COLLECTION_6:
         if (this->ina_model_ == INAModel::INA_228 || this->ina_model_ == INAModel::INA_229) {
-          if (this->energy_sensor_j_ != nullptr || this->energy_sensor_wh_ != nullptr ||
-              this->charge_sensor_c_ != nullptr || this->charge_sensor_ah_ != nullptr) {
+          if (this->energy_j_sensor_ != nullptr || this->energy_wh_sensor_ != nullptr ||
+              this->charge_c_sensor_ != nullptr || this->charge_ah_sensor_ != nullptr) {
             this->read_diagnostics_and_act_();
           }
-          if (this->energy_sensor_j_ != nullptr || this->energy_sensor_wh_ != nullptr) {
+          if (this->energy_j_sensor_ != nullptr || this->energy_wh_sensor_ != nullptr) {
             double energy_j{0}, energy_wh{0};
             this->full_loop_is_okay_ &= this->read_energy_(energy_j, energy_wh);
-            if (this->energy_sensor_j_ != nullptr)
-              this->energy_sensor_j_->publish_state(energy_j);
-            if (this->energy_sensor_wh_ != nullptr)
-              this->energy_sensor_wh_->publish_state(energy_wh);
+            PUBLISH_STATE(this->energy_j_sensor_, energy_j);
+            PUBLISH_STATE(this->energy_wh_sensor_, energy_wh);
           }
         }
         this->state_ = State::DATA_COLLECTION_7;
@@ -159,13 +154,11 @@ void INA2XX::loop() {
 
       case State::DATA_COLLECTION_7:
         if (this->ina_model_ == INAModel::INA_228 || this->ina_model_ == INAModel::INA_229) {
-          if (this->charge_sensor_c_ != nullptr || this->charge_sensor_ah_ != nullptr) {
+          if (this->charge_c_sensor_ != nullptr || this->charge_ah_sensor_ != nullptr) {
             double charge_c{0}, charge_ah{0};
             this->full_loop_is_okay_ &= this->read_charge_(charge_c, charge_ah);
-            if (this->charge_sensor_c_ != nullptr)
-              this->charge_sensor_c_->publish_state(charge_c);
-            if (this->charge_sensor_ah_ != nullptr)
-              this->charge_sensor_ah_->publish_state(charge_ah);
+            PUBLISH_STATE(this->charge_c_sensor_, charge_c);
+            PUBLISH_STATE(this->charge_ah_sensor_, charge_ah);
           }
         }
         this->state_ = State::DATA_COLLECTION_8;
@@ -219,10 +212,10 @@ void INA2XX::dump_config() {
   LOG_SENSOR("  ", "Power", this->power_sensor_);
 
   if (this->ina_model_ == INAModel::INA_228 || this->ina_model_ == INAModel::INA_229) {
-    LOG_SENSOR("  ", "Energy J", this->energy_sensor_j_);
-    LOG_SENSOR("  ", "Energy Wh", this->energy_sensor_wh_);
-    LOG_SENSOR("  ", "Charge C", this->charge_sensor_c_);
-    LOG_SENSOR("  ", "Charge Ah", this->charge_sensor_ah_);
+    LOG_SENSOR("  ", "Energy J", this->energy_j_sensor_);
+    LOG_SENSOR("  ", "Energy Wh", this->energy_wh_sensor_);
+    LOG_SENSOR("  ", "Charge C", this->charge_c_sensor_);
+    LOG_SENSOR("  ", "Charge Ah", this->charge_ah_sensor_);
   }
 }
 
@@ -288,7 +281,7 @@ bool INA2XX::check_device_model_() {
     return false;
   }
 
-  // Check user-selected model agains what we have found. Mark as failed if selected model != found model
+  // Check user-selected model against what we have found. Mark as failed if selected model != found model
   if (!check_model_and_device_match(this->ina_model_, this->dev_id_)) {
     ESP_LOGE(TAG, "Selected model %s doesn't match found device INA%x", get_device_name(this->ina_model_),
              this->dev_id_);
@@ -349,7 +342,7 @@ bool INA2XX::configure_shunt_() {
     this->shunt_cal_ *= 4;
 
   if (this->shunt_cal_ & 0x8000) {
-    // cant be more than 15 bits
+    // can't be more than 15 bits
     ESP_LOGW(TAG, "Shunt value too high");
   }
   this->shunt_cal_ &= 0x7FFF;
@@ -517,7 +510,7 @@ bool INA2XX::read_charge_(double &coulombs_out, double &amp_hours_out) {
     return false;
   }
 
-  // and what to do with this? datasheet doesnt tell us what if charge is negative
+  // and what to do with this? datasheet doesn't tell us what if charge is negative
   uint64_t previous_charge = this->charge_overflows_count_ * (((uint64_t) 1) << 39);
   double coulombs_reading = 0;
   uint64_t raw{0};

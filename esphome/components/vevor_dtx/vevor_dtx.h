@@ -53,7 +53,7 @@ class VevorDtxComponent : public Component, public remote_base::RemoteReceiverLi
 
   using Payload = std::array<uint8_t, PAYLOAD_SIZE>;
 
-  bool decode_timings_(const remote_base::RawTimings &timings, Payload &payload) const;
+  bool decode_timings_(remote_base::RawTimingsView timings, Payload &payload) const;
   bool publish_(const Payload &payload);
 
   uint16_t station_id_{0};  // 0 accepts every station in range

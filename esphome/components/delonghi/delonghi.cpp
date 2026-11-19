@@ -143,6 +143,8 @@ bool DelonghiClimate::parse_state_frame_(const uint8_t frame[]) {
     case DELONGHI_FAN_AUTO:
       this->fan_mode = climate::CLIMATE_FAN_AUTO;
       break;
+    default:
+      break;
   }
   this->publish_state();
   return true;

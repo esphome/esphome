@@ -1,4 +1,5 @@
 from esphome import codegen as cg, config_validation as cv
+from esphome.components.const import CONF_BUTTONS
 from esphome.const import CONF_BUTTON, CONF_HIDDEN, CONF_ID, CONF_TEXT
 from esphome.core import ID
 from esphome.cpp_generator import MockObjClass
@@ -7,7 +8,6 @@ from esphome.cpp_types import nullptr
 from ..defines import (
     CONF_BODY,
     CONF_BUTTON_STYLE,
-    CONF_BUTTONS,
     CONF_CLOSE_BUTTON,
     CONF_HEADER_BUTTONS,
     CONF_MAIN,

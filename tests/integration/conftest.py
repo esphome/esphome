@@ -4,7 +4,12 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncGenerator, Callable, Generator
-from contextlib import AbstractAsyncContextManager, asynccontextmanager, suppress
+from contextlib import (
+    AbstractAsyncContextManager,
+    asynccontextmanager,
+    contextmanager,
+    suppress,
+)
 import fcntl
 from functools import cache
 import hashlib
@@ -16,6 +21,7 @@ import re
 import shutil
 import signal
 import socket
+import subprocess
 import sys
 import tempfile
 import time
@@ -28,6 +34,7 @@ import pytest_asyncio
 import esphome.config
 from esphome.core import CORE
 from esphome.helpers import (
+    get_bool_env,
     get_usable_cpu_count,
     read_file,
     rmtree,
@@ -39,6 +46,7 @@ from esphome.host.toolchain import get_elf_path
 from .const import (
     API_CONNECTION_TIMEOUT,
     DEFAULT_API_PORT,
+    GDB_TIMEOUT,
     LOCALHOST,
     PORT_POLL_INTERVAL,
     PORT_WAIT_TIMEOUT,
@@ -79,6 +87,13 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
 # CI caches parts of this path; keep in sync with ci.yml integration-tests.
 INTEGRATION_TESTS_ROOT = Path.home() / ".esphome-integration-tests"
+
+# Opt-in -g and gdb core backtraces; CI enables both only to re-run failed tests
+DEBUG_SYMBOLS = get_bool_env("ESPHOME_INTEGRATION_DEBUG_SYMBOLS")
+CORE_DIR = os.environ.get("ESPHOME_INTEGRATION_CORE_DIR")
+_CRASH_SIGNALS = frozenset(
+    {signal.SIGABRT, signal.SIGBUS, signal.SIGFPE, signal.SIGILL, signal.SIGSEGV}
+)
 
 
 def _get_build_env() -> dict[str, str]:
@@ -169,17 +184,34 @@ def integration_test_dir() -> Generator[Path]:
         yield Path(tmpdir)
 
 
-@pytest.fixture
-def reserved_tcp_port() -> Generator[tuple[int, socket.socket]]:
-    """Reserve an unused TCP port by holding the socket open."""
+@contextmanager
+def _reserve_port() -> Generator[tuple[int, socket.socket]]:
+    """Hold an unused TCP port open until the caller is done with it."""
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     s.bind(("", 0))
-    port = s.getsockname()[1]
     try:
-        yield port, s
+        yield s.getsockname()[1], s
     finally:
         s.close()
+
+
+@pytest.fixture
+def reserved_tcp_port() -> Generator[tuple[int, socket.socket]]:
+    """Reserve an unused TCP port by holding the socket open."""
+    with _reserve_port() as reserved:
+        yield reserved
+
+
+@pytest.fixture
+def reserved_ota_port() -> Generator[tuple[int, socket.socket]]:
+    """Reserve a second port, for fixtures that name their OTA port __OTA_PORT__.
+
+    Only the api socket is closed by run_compiled, so a test using this one closes its
+    socket itself before starting the binary, or the device cannot bind the port.
+    """
+    with _reserve_port() as reserved:
+        yield reserved
 
 
 @pytest.fixture
@@ -217,6 +249,11 @@ async def yaml_config(request: pytest.FixtureRequest, unused_tcp_port: int) -> s
         # Add port configuration after api:
         content = content.replace("api:", f"api:\n  port: {unused_tcp_port}")
 
+    # Filled here rather than by the test, so tests sharing an OTA fixture can share its build
+    if "__OTA_PORT__" in content:
+        ota_port, _ = request.getfixturevalue("reserved_ota_port")
+        content = content.replace("__OTA_PORT__", str(ota_port))
+
     # Add debug build flags for integration tests to enable assertions
     if "esphome:" in content and "build_flags:" not in content:
         # Add build_flags with debug flags after esphome:
@@ -227,14 +264,21 @@ async def yaml_config(request: pytest.FixtureRequest, unused_tcp_port: int) -> s
             "  build_flags:\n"
             '    - "-DDEBUG"  # Enable assert() statements\n'
             '    - "-DESPHOME_DEBUG"  # Enable ESPHOME_DEBUG_ASSERT checks\n'
-            '    - "-DESPHOME_DEBUG_API"  # Enable API protocol asserts\n'
-            '    - "-g"       # Add debug symbols',
+            '    - "-DESPHOME_DEBUG_API"  # Enable API protocol asserts'
+            + ('\n    - "-g"  # Add debug symbols' if DEBUG_SYMBOLS else ""),
         )
+    elif DEBUG_SYMBOLS and "  build_flags:\n" in content:
+        # A fixture with its own flags still gets symbols for a debug re-run
+        content = content.replace("  build_flags:\n", '  build_flags:\n    - "-g"\n', 1)
 
     # Replace external component path placeholder if present
     if "EXTERNAL_COMPONENT_PATH" in content:
         external_components_path = str(FIXTURES_DIR / "external_components")
         content = content.replace("EXTERNAL_COMPONENT_PATH", external_components_path)
+
+    # Replace the user includes path placeholder if present
+    if "INCLUDES_PATH" in content:
+        content = content.replace("INCLUDES_PATH", str(FIXTURES_DIR / "includes"))
 
     if shared_name is not None:
         # _compile verifies the marked test compiles this content unmodified
@@ -768,16 +812,46 @@ async def _read_stream_lines(
             line_callback(decoded_line.rstrip())
 
 
+def _print_crash_backtrace(binary_path: Path, returncode: int, pid: int) -> None:
+    """Print a gdb backtrace from the core of a binary that died from a crash signal."""
+    if CORE_DIR is None or -returncode not in _CRASH_SIGNALS:
+        return
+    core = Path(CORE_DIR) / f"core.{pid}"
+    if not core.is_file() or (gdb := shutil.which("gdb")) is None:
+        print(f"No core or gdb for the crash of {binary_path} (looked for {core})")
+        return
+    try:
+        result = subprocess.run(
+            [gdb, "-batch", "-iex", "set debuginfod enabled off"]
+            + ["-ex", "thread apply all bt", str(binary_path), str(core)],
+            capture_output=True,
+            text=True,
+            errors="replace",
+            timeout=GDB_TIMEOUT,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as err:
+        # Best effort: never replace the test's own failure
+        print(f"gdb could not read {core}: {err}")
+        return
+    print(f"--- Backtrace of {binary_path} ({core}) ---")
+    print(result.stdout + result.stderr)
+
+
 @asynccontextmanager
 async def run_binary(
     binary_path: Path,
     line_callback: Callable[[str], None] | None = None,
+    symbols_path: Path | None = None,
 ) -> AsyncGenerator[tuple[asyncio.subprocess.Process, list[str]]]:
     """Run a binary under a PTY, capture log output, and clean up on exit.
 
     Yields the running ``Process`` and a live list of captured log lines.
     No port wait -- callers that need that should use
-    ``run_binary_and_wait_for_port``."""
+    ``run_binary_and_wait_for_port``.
+    ``symbols_path`` is the unstripped build when ``binary_path`` is a stripped
+    copy; a crash backtrace reads its symbols from it.
+    """
     # Create a pseudo-terminal to make the binary think it's running interactively
     # This is needed because the ESPHome host logger checks isatty()
     controller_fd, device_fd = pty.openpty()
@@ -806,6 +880,9 @@ async def run_binary(
     )
 
     if process.returncode is not None:
+        _print_crash_backtrace(
+            symbols_path or binary_path, process.returncode, process.pid
+        )
         raise RuntimeError(
             f"Process died immediately with return code {process.returncode}. "
             "Ensure the binary is valid and can run successfully."
@@ -847,6 +924,9 @@ async def run_binary(
                     # Last resort: SIGKILL
                     process.kill()
                     await process.wait()
+        _print_crash_backtrace(
+            symbols_path or binary_path, process.returncode, process.pid
+        )
 
 
 @asynccontextmanager

@@ -14,8 +14,18 @@ namespace esphome::udp {
 static const size_t MAX_PACKET_SIZE = 508;
 class UDPComponent final : public Component {
  public:
-  /// nullptr-terminated table of addresses; must outlive the component.
-  void set_addresses(const char *const *addresses) { this->addresses_ = addresses; }
+  union SockaddrEntry {
+    sockaddr sa;
+#ifdef USE_UDP_IPV6_SEND
+    sockaddr_in6 in6;  // sizes the storage for IPv6 destinations
+#endif
+  };
+
+  /// nullptr-terminated table of addresses, and one entry of storage per address; both must outlive the component.
+  void set_addresses(const char *const *addresses, std::span<SockaddrEntry> storage) {
+    this->addresses_ = addresses;
+    this->sockaddrs_.init(storage);
+  }
   /// Multicast group literal; must outlive the component.
   void set_listen_address(const char *listen_addr) { this->listen_address_ = listen_addr; }
   void set_listen_port(uint16_t port) { this->listen_port_ = port; }
@@ -31,35 +41,41 @@ class UDPComponent final : public Component {
   /// An instance whose destinations are all IPv6 needs no IPv4 send socket
   void set_ipv4_send(bool ipv4_send) { this->ipv4_send_ = ipv4_send; }
 #endif
+#ifdef USE_UDP_OMR_SOURCE
+  /// A destination is off the Thread mesh, so the IPv6 send socket must be bound to the OMR address first.
+  /// Kept as the pending poll bit, as the bool members leave no padding.
+  void set_omr_source() { this->poll_pending_ |= POLL_SRC_BIND; }
+#endif
   template<typename F> void add_listener(F &&listener) { this->packet_listeners_.add(std::forward<F>(listener)); }
   void setup() override;
   void loop() override;
   void dump_config() override;
-  void send_packet(const uint8_t *data, size_t size);
-  void send_packet(const std::vector<uint8_t> &buf) { this->send_packet(buf.data(), buf.size()); }
+  /// Returns false if the packet could not be sent to every destination.
+  bool send_packet(const uint8_t *data, size_t size);
+  bool send_packet(const std::vector<uint8_t> &buf) { return this->send_packet(buf.data(), buf.size()); }
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; };
 
  protected:
-  enum PollStep : uint8_t { POLL_JOIN = 1, POLL_BIND = 2, POLL_MCAST_IF = 4 };
-
-  union SockaddrEntry {
-    sockaddr sa;
-#ifdef USE_UDP_IPV6_SEND
-    sockaddr_in6 in6;  // sizes the storage for IPv6 destinations
-#endif
+  enum PollStep : uint8_t {
+    POLL_JOIN = 1,
+    POLL_BIND = 2,
+    POLL_MCAST_IF = 4,
+    POLL_SRC_BIND = 8,
+    POLL_SEND_HELD = 16,  // only in poll_failed_: the held IPv6 sends were logged
   };
 
   /// One pass of the network poll; true once nothing is left to do.
   bool network_poll_();
-  void set_poll_warning_(PollStep step, const LogString *what);
+  /// err is the errno of the failed call, or 0 when no call failed.
+  void set_poll_warning_(PollStep step, const LogString *what, int err);
 
-  CallbackManager<void(std::span<const uint8_t>)> packet_listeners_{};
+  LazyCallbackManager<void(std::span<const uint8_t>)> packet_listeners_{};
   std::unique_ptr<socket::UDPSendSocket> broadcast_socket_ = nullptr;
   std::unique_ptr<socket::UDPSocket> listen_socket_ = nullptr;
 #ifdef USE_UDP_IPV6_SEND
   std::unique_ptr<socket::UDPSendSocket> send_socket_v6_ = nullptr;
 #endif
-  FixedVector<SockaddrEntry> sockaddrs_{};
+  StaticFixedVector<SockaddrEntry> sockaddrs_;
   const char *const *addresses_{nullptr};
   const char *listen_address_{nullptr};
 #ifdef USE_SOCKET_IPV6

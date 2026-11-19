@@ -89,7 +89,6 @@ uart_mock:
 
     # Phase 3 (t=300ms): Frame with still target at 291cm (multi-byte distance)
     # This tests the two_byte_to_int function with high byte > 0
-    # Note: low byte 0x2F < 0x80 so it avoids the signed char bug
     - delay: 100ms
       inject_rx:
         [

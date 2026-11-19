@@ -12,6 +12,13 @@ api:
         - globals.set:
             id: force_off
             value: !lambda return value;
+    # Sixteen calls in one loop pass, the last one to full brightness
+    - action: retarget_many
+      then:
+        - lambda: |-
+            for (int i = 0; i < 16; i++) {
+              id(ha_light).make_call().set_brightness(i == 15 ? 1.0f : 0.6f).set_transition_length(1000).perform();
+            }
 
 logger:
   level: DEBUG

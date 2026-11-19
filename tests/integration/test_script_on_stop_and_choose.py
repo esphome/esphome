@@ -7,6 +7,7 @@ import asyncio
 from aioesphomeapi import UserService
 import pytest
 
+from .log_utils import LineWaiter
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -17,25 +18,13 @@ async def test_script_on_stop_and_choose(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Test on_stop, self-stopping scripts and choose."""
-    lines: list[str] = []
-    waiters: list[tuple[str, asyncio.Future[None]]] = []
-
-    def check_output(line: str) -> None:
-        lines.append(line)
-        for text, future in waiters:
-            if text in line and not future.done():
-                future.set_result(None)
-
-    def expect(text: str) -> asyncio.Future[None]:
-        future: asyncio.Future[None] = asyncio.get_running_loop().create_future()
-        waiters.append((text, future))
-        return future
+    waiter = LineWaiter()
 
     def count(text: str) -> int:
-        return sum(text in line for line in lines)
+        return sum(text in line for line in waiter.lines)
 
     async with (
-        run_compiled(yaml_config, line_callback=check_output),
+        run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
         _, services = await client.list_entities_services()
@@ -49,9 +38,8 @@ async def test_script_on_stop_and_choose(
             (500, "large"),
             (5000, "default"),
         ):
-            done = expect(f"CHOOSE done {value}")
             await client.execute_service(service["run_choose"], {"value": value})
-            await asyncio.wait_for(done, timeout=5.0)
+            await waiter.wait_for(f"CHOOSE done {value}", timeout=5.0)
             assert count(f"CHOOSE {label} {value}") == 1
         assert count("CHOOSE small") == 1
         assert count("CHOOSE medium") == 1
@@ -59,44 +47,36 @@ async def test_script_on_stop_and_choose(
         assert count("CHOOSE default") == 1
 
         # A bare script.stop inside a script stops that script and fires on_stop
-        stopped = expect("SELF on_stop")
         await client.execute_service(service["run_self_stop"], {})
-        await asyncio.wait_for(stopped, timeout=5.0)
+        await waiter.wait_for("SELF on_stop", timeout=5.0)
 
         # Stopping a running script from outside fires on_stop
-        stopped = expect("LONG on_stop")
         await client.execute_service(service["run_external_stop"], {})
-        await asyncio.wait_for(stopped, timeout=5.0)
+        await waiter.wait_for("LONG on_stop", timeout=5.0)
 
         # Stopping a script that is not running does not fire on_stop
-        idle_done = expect("IDLE stop done")
         await client.execute_service(service["run_idle_stop"], {})
-        await asyncio.wait_for(idle_done, timeout=5.0)
+        await waiter.wait_for("IDLE stop done", timeout=5.0)
 
         # Restarting a running script stops the old run early
-        finished = expect("RESTART finished")
         await client.execute_service(service["run_restart"], {})
-        await asyncio.wait_for(finished, timeout=5.0)
+        await waiter.wait_for("RESTART finished", timeout=5.0)
 
         # A script that finishes normally does not fire on_stop
-        finished = expect("NORMAL finished")
         await client.execute_service(service["run_normal"], {})
-        await asyncio.wait_for(finished, timeout=5.0)
+        await waiter.wait_for("NORMAL finished", timeout=5.0)
 
         # A restart script whose on_stop executes it again ends up with one run
-        finished = expect("REENTER finished")
         await client.execute_service(service["run_reenter"], {})
-        await asyncio.wait_for(finished, timeout=5.0)
+        await waiter.wait_for("REENTER finished", timeout=5.0)
 
         # Stopping several parallel runs fires on_stop once
-        done = expect("PARALLEL stop done")
         await client.execute_service(service["run_parallel_stop"], {})
-        await asyncio.wait_for(done, timeout=5.0)
+        await waiter.wait_for("PARALLEL stop done", timeout=5.0)
 
         # Stopping a queued script fires on_stop once and drops the queued run
-        done = expect("QUEUED stop done")
         await client.execute_service(service["run_queued_stop"], {})
-        await asyncio.wait_for(done, timeout=5.0)
+        await waiter.wait_for("QUEUED stop done", timeout=5.0)
         await asyncio.sleep(0.2)
 
         assert count("SELF not reached") == 0

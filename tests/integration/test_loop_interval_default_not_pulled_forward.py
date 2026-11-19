@@ -16,14 +16,16 @@ phase stays at ~62 Hz regardless of scheduler activity.
 
 from __future__ import annotations
 
-import asyncio
 import re
 
 import pytest
 
+from .log_utils import LineWaiter
 from .state_utils import assert_device_name
 from .types import APIClientConnectedFactory, RunCompiledFunction
 from .wait_utils import wait_or_fail
+
+MEASUREMENT_RE = re.compile(r"MEASUREMENT_DONE loop_delta=(\d+)")
 
 
 @pytest.mark.asyncio
@@ -33,23 +35,22 @@ async def test_loop_interval_default_not_pulled_forward(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Fast scheduler item must not pull component phase past default ~62 Hz."""
-    loop = asyncio.get_running_loop()
-    measurement_done: asyncio.Future[int] = loop.create_future()
-
-    def on_log_line(line: str) -> None:
-        match = re.search(r"MEASUREMENT_DONE loop_delta=(\d+)", line)
-        if match and not measurement_done.done():
-            measurement_done.set_result(int(match.group(1)))
+    waiter = LineWaiter()
 
     async with (
-        run_compiled(yaml_config, line_callback=on_log_line),
+        run_compiled(yaml_config, line_callback=waiter.callback),
         api_client_connected() as client,
     ):
         await assert_device_name(client, "loop-default-not-pulled")
 
-        loop_delta = await wait_or_fail(
-            measurement_done, 10.0, "MEASUREMENT_DONE marker never appeared"
+        line = await wait_or_fail(
+            waiter.wait_for("MEASUREMENT_DONE loop_delta=", timeout=20.0),
+            10.0,
+            "MEASUREMENT_DONE marker never appeared",
         )
+        match = MEASUREMENT_RE.search(line)
+        assert match, line
+        loop_delta = int(match[1])
 
         # Observation window = 2s, loop_interval_ default = 16ms → ~62 Hz →
         # ~125 component-phase iterations expected.

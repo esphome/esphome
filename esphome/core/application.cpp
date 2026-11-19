@@ -33,6 +33,9 @@
 #ifdef USE_STATUS_LED
 #include "esphome/components/status_led/status_led.h"
 #endif
+#ifdef USE_ESP32_TASK_WDT
+#include "esp_task_wdt.h"
+#endif
 
 namespace esphome {
 
@@ -235,10 +238,26 @@ void Application::process_dump_config_() {
   this->dump_config_at_++;
 }
 
+#if !defined(USE_ESP32) || defined(USE_ESP32_TASK_WDT) || defined(USE_STATUS_LED)
 void Application::feed_wdt() {
   // Cold entry: callers without a millis() timestamp in hand. Fetches the
   // time and defers to the hot path.
   this->feed_wdt_with_time(MillisInternal::get());
+}
+#endif
+
+void Application::feed_wdt_if_watched() {
+#ifdef USE_ESP32_TASK_WDT
+  if (esp_task_wdt_status(nullptr) != ESP_OK)
+    return;
+#elif defined(USE_ESP32) && defined(USE_STATUS_LED)
+  // No watchdog, but the loop task keeps the status LED blinking through a long blocking call
+  if (xTaskGetCurrentTaskHandle() != esphome_main_task_handle)
+    return;
+#elif defined(USE_ESP32)
+  return;
+#endif
+  this->feed_wdt();
 }
 
 void HOT Application::feed_wdt_slow_(uint32_t time) {
@@ -294,14 +313,20 @@ void Application::reboot() {
   for (auto &component : std::ranges::reverse_view(this->components_)) {
     component->on_shutdown();
   }
+  // No teardown on a forced reboot, but still power hardware down (Wi-Fi leaves the AP)
+  this->run_powerdown_hooks();
   arch_restart();
 }
 void Application::safe_reboot() {
   ESP_LOGI(TAG, "Rebooting safely");
-  run_safe_shutdown_hooks();
-  teardown_components(TEARDOWN_TIMEOUT_REBOOT_MS);
-  run_powerdown_hooks();
+  this->safe_shutdown(TEARDOWN_TIMEOUT_REBOOT_MS);
   arch_restart();
+}
+
+void Application::safe_shutdown(uint32_t timeout_ms) {
+  this->run_safe_shutdown_hooks();
+  this->teardown_components(timeout_ms);
+  this->run_powerdown_hooks();
 }
 
 void Application::run_safe_shutdown_hooks() {
@@ -412,10 +437,13 @@ void Application::teardown_components(uint32_t timeout_ms) {
   }
 }
 
-void Application::add_looping_components_by_state_(bool match_loop_done) {
+void Application::add_looping_components_by_state_(bool inactive) {
   for (auto *obj : this->components_) {
-    if (obj->has_overridden_loop() &&
-        ((obj->get_component_state() & COMPONENT_STATE_MASK) == COMPONENT_STATE_LOOP_DONE) == match_loop_done) {
+    if (!obj->has_overridden_loop()) {
+      continue;
+    }
+    const uint8_t state = obj->get_component_state() & COMPONENT_STATE_MASK;
+    if ((state == COMPONENT_STATE_LOOP_DONE || state == COMPONENT_STATE_FAILED) == inactive) {
       this->looping_components_.push_back(obj);
     }
   }

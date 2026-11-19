@@ -22,10 +22,8 @@ static const uint8_t REGISTER_AGC = 0x1A;        // 8 bytes  / R
 static const uint8_t REGISTER_MAGNITUDE = 0x1B;  // 16 bytes / R
 
 void AS5600Component::setup() {
-  if (!this->read_byte(REGISTER_STATUS).has_value()) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->read_byte(REGISTER_STATUS).has_value()))
     return;
-  }
 
   // configuration direction pin, if given
   // the dir pin on the chip should be low for clockwise
@@ -53,10 +51,8 @@ void AS5600Component::setup() {
   // clang-format on
 
   // write config to config register
-  if (!this->write_byte_16(REGISTER_CONF, config)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->write_byte_16(REGISTER_CONF, config)))
     return;
-  }
 
   // configure the start position
   this->write_byte_16(REGISTER_ZPOS, this->start_position_);

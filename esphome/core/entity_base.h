@@ -150,6 +150,8 @@ class EntityBase {
   // On non-ESP8266: returns pointer to PROGMEM string directly (buffer unused).
   // On ESP8266: copies from PROGMEM to buffer, returns buffer pointer.
   const char *get_device_class_to(std::span<char, MAX_DEVICE_CLASS_LENGTH> buffer) const;
+  /// The device class as stored (in flash on ESP8266), for consumers that read flash themselves.
+  ProgmemStringRef get_device_class_progmem() const;
 
   // Get unit of measurement as StringRef (from packed index)
   StringRef get_unit_of_measurement_ref() const;
@@ -158,6 +160,8 @@ class EntityBase {
   // On ESP32: returns pointer to PROGMEM string directly (buffer unused).
   // On ESP8266: copies from PROGMEM to buffer, returns buffer pointer.
   const char *get_icon_to(std::span<char, MAX_ICON_LENGTH> buffer) const;
+  /// The icon as stored (in flash on ESP8266), for consumers that read flash themselves.
+  ProgmemStringRef get_icon_progmem() const;
 
 #ifdef USE_DEVICES
   // Get this entity's device id
@@ -291,6 +295,21 @@ void log_entity_device_class(const char *tag, const char *prefix, const EntityBa
 /// Log entity unit of measurement if set (for use in dump_config)
 #define LOG_ENTITY_UNIT_OF_MEASUREMENT(tag, prefix, obj) log_entity_unit_of_measurement(tag, prefix, obj)
 void log_entity_unit_of_measurement(const char *tag, const char *prefix, const EntityBase &obj);
+
+/// Call `entity->publish_state(...)` when `entity` is not null. `entity` is evaluated once and the
+/// arguments only when it is set.
+#define PUBLISH_STATE(entity, ...) \
+  do { \
+    auto *const esphome_publish_state_entity_ = (entity); \
+    if (esphome_publish_state_entity_ != nullptr) \
+      esphome_publish_state_entity_->publish_state(__VA_ARGS__); \
+  } while (0)
+
+/// Publish `value` to `entity` when the entity is configured and the value is set.
+template<typename E, typename V> inline void publish_optional(E *entity, const optional<V> &value) {
+  if (entity != nullptr && value.has_value())
+    entity->publish_state(*value);
+}
 
 /** Base class for entities that track a typed state value with change-detection and callbacks.
  *
