@@ -588,6 +588,28 @@ display:
       it.filled_rectangle(0, 0, it.get_width(), it.get_height(), Color::WHITE);
       it.circle(it.get_width() / 2, it.get_height() / 2, 100, Color::BLACK);
 
+  # Waveshare 7.5" V2 in four grey levels (800x480, UC8179, waveforms from the driver)
+  # full_update_every is not supported by this model, so left at its default of 1
+  - platform: epaper_spi
+    spi_id: spi_bus
+    model: waveshare-7.5in-v2-gray4
+    cs_pin:
+      allow_other_uses: true
+      number: GPIO5
+    dc_pin:
+      allow_other_uses: true
+      number: GPIO17
+    reset_pin:
+      allow_other_uses: true
+      number: GPIO16
+    busy_pin:
+      allow_other_uses: true
+      number: GPIO4
+      inverted: true
+    lambda: |-
+      it.filled_rectangle(0, 0, it.get_width(), it.get_height(), Color(170, 170, 170));
+      it.circle(it.get_width() / 2, it.get_height() / 2, 100, Color::BLACK);
+
   # Good Display GDEW075T7 7.5" mono e-paper (800x480, UC8179)
   - platform: epaper_spi
     spi_id: spi_bus

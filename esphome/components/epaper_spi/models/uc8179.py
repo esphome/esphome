@@ -80,6 +80,46 @@ waveshare_7_5_v2 = uc8179.extend(
     height=480,
 )
 
+
+class UC8179Gray4(UC8179):
+    """Four grey levels on a UC8179 panel, with the waveforms sent by the driver."""
+
+    class_name = "EPaperUC8179Gray4"
+    source_files = (
+        "epaper_spi_ultrachip.cpp",
+        "epaper_spi_uc8179.cpp",
+        "epaper_spi_uc8179_gray4.cpp",
+    )
+
+    def get_init_sequence(self, config: dict) -> tuple:
+        """The settings which precede power-on in Waveshare's EPD_7in5_V2_old example.
+
+        With waveforms from registers the voltages and frame rate come from
+        registers too, not from the panel's OTP. The driver sends the panel
+        settings and the waveforms after power-on.
+        """
+        return (
+            # POWER SETTING: internal supplies, VGH/VGL 20 V, VDH/VDL 15 V, VDHR 5.8 V
+            (0x01, 0x17, 0x17, 0x3F, 0x3F, 0x11),
+            # VCOM DC: -1.9 V
+            (0x82, 0x24),
+            # BOOSTER SOFT START
+            (0x06, 0x27, 0x27, 0x2F, 0x17),
+            # PLL: 50 frames a second
+            (0x30, 0x06),
+        )
+
+
+# The Waveshare 7.5" V2 panel in four grey levels. Every update is a full refresh.
+UC8179Gray4(
+    "waveshare-7.5in-v2-gray4",
+    width=800,
+    height=480,
+    partial_update=False,
+    # each plane byte is built from two whole buffer bytes
+    width_multiple=8,
+)
+
 # Good Display GDEW075T7, 7.5" mono 800x480, UC8179; the panel used in the Waveshare 7.5" V2.
 # Replaces the waveshare_epaper models 7.50inv2 and 7.50inv2p (use full_update_every for partial updates).
 goodisplay_gdew075t7 = waveshare_7_5_v2.extend("goodisplay-gdew075t7-7.5")
