@@ -192,6 +192,24 @@ TEST(LengthFrameReaderTest, TwoByteBigEndianPayloadLength) {
   EXPECT_EQ(reader.length(), 0u);
 }
 
+TEST(LengthFrameReaderTest, LittleEndianLengthsAboveAByte) {
+  // Whole-frame length 0x0102 = 258, low byte first
+  LengthFrameReader<300, FrameFormat<FrameHeader<0xA5>, FrameLengthU16LE<LengthField{.offset = 1}>>> whole;
+  Bytes input{0xA5, 0x02, 0x01};
+  input.resize(258, 0x33);
+  Frames frames = feed_all(whole, input);
+  ASSERT_EQ(frames.size(), 1u);
+  EXPECT_EQ(frames[0].size(), 258u);
+  // Payload length 0x0100 = 256 after the field, then a 1 byte trailer: 260 in all
+  LengthFrameReader<300, FrameFormat<FrameHeader<0xA5>, PayloadLengthU16LE<LengthField{.offset = 1, .trailer = 1}>>>
+      payload;
+  input = {0xA5, 0x00, 0x01};
+  input.resize(260, 0x44);
+  frames = feed_all(payload, input);
+  ASSERT_EQ(frames.size(), 1u);
+  EXPECT_EQ(frames[0].size(), 260u);
+}
+
 TEST(LengthFrameReaderTest, TwoFormatsPickedByFirstByte) {
   LengthFrameReader<32, LdCmd, LdData> reader;
   const Bytes cmd{0xFD, 0xFC, 0xFB, 0xFA, 0x02, 0x00, 0xA0, 0x01, 0x04, 0x03, 0x02, 0x01};
@@ -348,7 +366,7 @@ TEST(LengthFrameReaderTest, LengthBelowTheMinimumIsRejectedAtTheHeader) {
 static bool second_byte_not_ff(const uint8_t *buf) { return buf[1] != 0xFF; }
 // A5, a byte that must not be FF, payload length at 2, payload
 using Checked =
-    FrameFormat<FrameHeader<0xA5>, CheckedLength<PayloadLengthU8<LengthField{.offset = 2}>, 2, second_byte_not_ff>>;
+    FrameFormat<FrameHeader<0xA5>, CheckedLength<PayloadLengthU8<LengthField{.offset = 2}>, 3, second_byte_not_ff>>;
 
 TEST(LengthFrameReaderTest, CheckedLengthRejectsABadHeader) {
   LengthFrameReader<16, Checked> reader;

@@ -129,7 +129,8 @@ template<size_t LEN> struct FrameFixedLength {
 
 /// Wraps a length rule: CHECK(buf) runs once AT bytes are in, and a header it fails gives length 0 (rejected).
 template<class LENGTH, size_t AT, bool (*CHECK)(const uint8_t *)> struct CheckedLength {
-  static constexpr size_t KNOWN_AT = std::max(LENGTH::KNOWN_AT, AT);
+  static_assert(AT >= LENGTH::KNOWN_AT, "AT must cover the length field");
+  static constexpr size_t KNOWN_AT = AT;
   static size_t get(const uint8_t *buf) { return CHECK(buf) ? LENGTH::get(buf) : 0; }
 };
 
@@ -142,6 +143,8 @@ namespace frame_reader_detail {
 // The length of a FrameFixedLength rule, 0 for every other rule
 template<class LENGTH> constexpr size_t FIXED_LENGTH = 0;
 template<size_t LEN> constexpr size_t FIXED_LENGTH<FrameFixedLength<LEN>> = LEN;
+template<class LENGTH, size_t AT, bool (*CHECK)(const uint8_t *)>
+constexpr size_t FIXED_LENGTH<CheckedLength<LENGTH, AT, CHECK>> = FIXED_LENGTH<LENGTH>;
 }  // namespace frame_reader_detail
 
 /// The bytes every frame of a FrameFormat starts with.
