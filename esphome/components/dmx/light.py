@@ -1,8 +1,8 @@
 import esphome.codegen as cg
 from esphome.components import light
 import esphome.config_validation as cv
-import esphome.final_validate as fv
 from esphome.const import CONF_ID, CONF_OUTPUT_ID, CONF_TYPE
+import esphome.final_validate as fv
 
 from . import CONF_DMX_ID, DMXComponent, dmx_ns
 
@@ -55,7 +55,9 @@ def _final_validate(config):
     for hub in hubs:
         if hub[CONF_ID].id == target:
             if hub.get("mode", "rx") == "rx":
-                raise cv.Invalid("dmx light requires hub mode 'tx' or 'bidirectional', not 'rx'")
+                raise cv.Invalid(
+                    "dmx light requires hub mode 'tx' or 'bidirectional', not 'rx'"
+                )
             break
     return config
 
