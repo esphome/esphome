@@ -1,3 +1,5 @@
+import logging
+
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components.const import CONF_RTS_PIN
@@ -13,7 +15,6 @@ from esphome.const import (
     CONF_TX_PIN,
 )
 import esphome.final_validate as fv
-import logging
 
 CODEOWNERS = ["@KoenBreeman"]
 CONF_UART_NUM = "uart_num"
@@ -65,7 +66,9 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_MODE, default=MODE_RX): cv.one_of(
             MODE_RX, MODE_TX, MODE_BIDI, lower=True
         ),
-        cv.Optional(CONF_TX_INTERVAL, default="25ms"): cv.positive_time_period_milliseconds,
+        cv.Optional(
+            CONF_TX_INTERVAL, default="25ms"
+        ): cv.positive_time_period_milliseconds,
         cv.Optional(CONF_RX_GUARD, default="5ms"): cv.positive_time_period_milliseconds,
     }
 ).extend(cv.COMPONENT_SCHEMA)
