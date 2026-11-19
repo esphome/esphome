@@ -98,13 +98,9 @@ void TuyaUART::dump_mcu_config_() {
 #endif
 }
 
-bool frame_fits(const uint8_t *buf) {
-  const size_t len = TuyaLength::get(buf);
-  if (len <= MAX_FRAME_SIZE)
-    return true;
+void warn_too_long(size_t len) {
   ESP_LOGW(TAG, "Skipped a %u byte frame, longer than the %u byte buffer", static_cast<unsigned>(len),
            static_cast<unsigned>(MAX_FRAME_SIZE));
-  return false;
 }
 
 bool TuyaUART::handle_frame_(const uint8_t *frame, size_t len) {
