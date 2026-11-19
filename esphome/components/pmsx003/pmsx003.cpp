@@ -104,6 +104,15 @@ void PMSX003Component::loop() {
   this->read_frames(this->reader_, handle, now, this->last_transmission_);
 }
 
+bool frame_fits(const uint8_t *buf) {
+  const size_t len = PayloadLength::get(buf);
+  if (len <= MAX_FRAME_SIZE)
+    return true;
+  ESP_LOGW(TAG, "Payload length %u doesn't match. Are you using the correct PMSX003 type?",
+           static_cast<unsigned>(len - PayloadLength::KNOWN_AT));
+  return false;
+}
+
 bool PMSX003Component::check_frame_(const uint8_t *frame, size_t total_size) {
   const uint16_t payload_length = total_size - PayloadLength::KNOWN_AT;
   if (!this->check_payload_length_(payload_length)) {
