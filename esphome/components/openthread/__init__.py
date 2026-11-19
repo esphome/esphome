@@ -491,6 +491,10 @@ def _final_validate(config: ConfigType) -> ConfigType:
                 "OpenThread can only be used with Wi-Fi when 'border_router:' is configured."
             )
     else:
+        if wifi_config is not None and CONF_AP in wifi_config:
+            raise cv.Invalid(
+                "OpenThread Border Router does not support Wi-Fi AP or fallback AP mode."
+            )
         if _get_backbone(config) == CONF_ETHERNET:
             if CONF_ETHERNET not in full_config:
                 raise cv.Invalid(
@@ -503,13 +507,11 @@ def _final_validate(config: ConfigType) -> ConfigType:
                     "OpenThread Border Router with 'backbone: ethernet' requires "
                     "Ethernet 'enable_on_boot: true'."
                 )
-        elif wifi_config is None:
-            raise cv.Invalid("OpenThread Border Router requires a Wi-Fi STA backbone.")
-        if wifi_config is not None and CONF_AP in wifi_config:
-            raise cv.Invalid(
-                "OpenThread Border Router does not support Wi-Fi AP or fallback AP mode."
-            )
-        if _get_backbone(config) != CONF_ETHERNET:
+        else:
+            if wifi_config is None:
+                raise cv.Invalid(
+                    "OpenThread Border Router requires a Wi-Fi STA backbone."
+                )
             if not wifi_config.get(CONF_NETWORKS):
                 raise cv.Invalid(
                     "OpenThread Border Router requires at least one configured Wi-Fi STA network."
