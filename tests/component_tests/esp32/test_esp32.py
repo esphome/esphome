@@ -1088,6 +1088,39 @@ _IDF61 = cv.Version(6, 1, 1)
             set(_ESP_TLS_LINKING_COMPONENTS),
             id="arduino_keeps_tls",
         ),
+        pytest.param(
+            # Arduino on ESP-IDF 6 keeps every cipher mode.
+            PlatformFramework.ESP32_ARDUINO,
+            _IDF6,
+            MbedtlsSdkconfigData(),
+            {},
+            {
+                **_TLS_CLIENT_ONLY,
+                **_TLS_EXTRAS_OFF,
+                **_PEER_CERT_PKCS7_OFF,
+                **_SHA512_OFF,
+            },
+            set(_ESP_TLS_LINKING_COMPONENTS),
+            id="arduino_idf6_keeps_cipher_modes",
+        ),
+        pytest.param(
+            # NVS encryption keeps XTS.
+            PlatformFramework.ESP32_IDF,
+            _IDF6,
+            MbedtlsSdkconfigData(),
+            {"CONFIG_NVS_ENCRYPTION": RawSdkconfigValue("y")},
+            {
+                "CONFIG_NVS_ENCRYPTION": RawSdkconfigValue("y"),
+                **_TLS_OFF_IDF6,
+                **_TLS_EXTRAS_OFF,
+                **_PEER_CERT_PKCS7_OFF,
+                **_SHA512_OFF,
+                "CONFIG_MBEDTLS_CIPHER_MODE_CFB": False,
+                "CONFIG_MBEDTLS_CIPHER_MODE_OFB": False,
+            },
+            set(_ESP_TLS_LINKING_COMPONENTS),
+            id="idf6_nvs_encryption_keeps_xts",
+        ),
     ],
 )
 def test_reconcile_mbedtls_sdkconfig(
@@ -1170,6 +1203,11 @@ def test_esp_tls_linking_components_are_excluded_by_default() -> None:
         pytest.param({"CONFIG_OPENTHREAD_BORDER_ROUTER": "y"}, True, id="ot_br_y"),
         pytest.param(
             {"CONFIG_ESP_WIFI_ENTERPRISE_SUPPORT": "y"}, True, id="wifi_enterprise_y"
+        ),
+        pytest.param(
+            {"CONFIG_WIFI_RMT_ENTERPRISE_SUPPORT": "y"},
+            True,
+            id="wifi_remote_enterprise_y",
         ),
         pytest.param({"CONFIG_LWIP_IPV6": "y"}, False, id="unrelated"),
     ],
