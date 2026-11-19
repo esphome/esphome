@@ -17,7 +17,7 @@ from esphome.const import (
     CONF_TYPE,
     CONF_VARIANT,
 )
-from esphome.cpp_generator import add_define
+from esphome.cpp_generator import add_build_flag, add_define
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -28,6 +28,8 @@ DEPENDENCIES = ["esp32"]
 DOMAIN = "esp32_hosted"
 # esp32_ble raises the task watchdog around the remote BT controller bring-up
 AUTO_LOAD = ["watchdog"]
+
+_SDIO_RX_STAGING_TARGET = "eh_host_bus_sdio_set_rx_staging_target"
 
 CONF_BUS_WIDTH = "bus_width"
 CONF_CMD_PIN = "cmd_pin"
@@ -234,6 +236,9 @@ def _configure_sdio(config: ConfigType) -> None:
         "CONFIG_ESP_HOSTED_HOST_SDIO_CLK_KHZ",
         int(config[CONF_SDIO_FREQUENCY] // 1000),
     )
+    # sdio_rx_staging.cpp; the wrap sits in libsrc.a, so pull it in explicitly
+    add_build_flag(f"-Wl,--wrap={_SDIO_RX_STAGING_TARGET}")
+    add_build_flag(f"-Wl,--undefined=__wrap_{_SDIO_RX_STAGING_TARGET}")
 
 
 def _configure_spi(config: ConfigType) -> None:
