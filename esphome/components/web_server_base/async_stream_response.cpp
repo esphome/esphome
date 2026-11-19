@@ -64,17 +64,31 @@ static String head_string(const char *str) { return String(reinterpret_cast<cons
 static const char *head_string(const char *str) { return str; }
 #endif
 
-// Queues the head, then creates the stream with the connection. The library runs _respond() in the network context
-// right after the handler returns; clientRelease() then unhooks the request, which frees itself and this response.
-// A request that ends before _respond() never creates a stream, so nothing is left to free.
+// The status line's code, for example 200 for "200 OK"; status may be in flash
+static int status_code(const char *status) {
+  int code = 0;
+  for (int i = 0; i < 3; i++) {
+    code = code * 10 + (progmem_read_byte(reinterpret_cast<const uint8_t *>(status + i)) - '0');
+  }
+  return code;
+}
+
+// Queues the head and hands the connection to the stream. The library runs _respond() in the network context right
+// after the handler returns; clientRelease() then unhooks the request, which frees itself and this response. A request
+// that ends before _respond() frees this response unanswered, which marks the stream disconnected for the main loop.
 class StreamHandoffResponse final : public AsyncWebServerResponse {
  public:
-  StreamHandoffResponse(int code, const char *content_type, std::span<const HttpHeader> headers, const char *body,
-                        const StreamAcceptor &acceptor)
-      : headers_(headers), body_(body), acceptor_(acceptor) {
-    this->_code = code;
+  StreamHandoffResponse(AsyncStreamResponse *stream, const char *status, const char *content_type,
+                        std::span<const HttpHeader> headers, const char *body)
+      : stream_(stream), headers_(headers), body_(body) {
+    this->_code = status_code(status);
     this->_contentType = head_string(content_type);
     this->_sendContentLength = false;
+  }
+  ~StreamHandoffResponse() override {
+    if (this->stream_ != nullptr) {
+      this->stream_->disconnected_.store(true, std::memory_order_release);
+    }
   }
 
   void _respond(AsyncWebServerRequest *request) override {
@@ -102,23 +116,24 @@ class StreamHandoffResponse final : public AsyncWebServerResponse {
       }
     }
     const bool head_kept = rest_len == 0 || head_rest != nullptr;
-    AsyncStreamResponse *stream = this->acceptor_.create(this->acceptor_.ctx);
+    // Cleared first: clientRelease() may free the request, and this response with it
+    AsyncStreamResponse *stream = this->stream_;
+    this->stream_ = nullptr;
     stream->attach_(request->clientRelease(), std::move(head_rest), head_kept);
-    this->acceptor_.publish(this->acceptor_.owner, stream);
   }
   bool _sourceValid() const override { return true; }
 
  protected:
+  // Until _respond() hands the connection over
+  AsyncStreamResponse *stream_;
   std::span<const HttpHeader> headers_;
   const char *body_;
-  StreamAcceptor acceptor_;
 };
 
-void AsyncStreamResponse::accept(AsyncWebServerRequest *request, int code, const char *content_type,
-                                 std::span<const HttpHeader> headers, const char *body,
-                                 const StreamAcceptor &acceptor) {
+void AsyncStreamResponse::begin(AsyncWebServerRequest *request, const char *status, const char *content_type,
+                                std::span<const HttpHeader> headers, const char *body) {
   // NOLINTNEXTLINE(cppcoreguidelines-owning-memory) the request owns and frees its response
-  request->send(new StreamHandoffResponse(code, content_type, headers, body, acceptor));
+  request->send(new StreamHandoffResponse(this, status, content_type, headers, body));
 }
 
 void AsyncStreamResponse::attach_(AsyncClient *client, RAMUniquePtr<char[]> head_rest, bool head_kept) {
@@ -144,6 +159,8 @@ void AsyncStreamResponse::attach_(AsyncClient *client, RAMUniquePtr<char[]> head
   // Without the rest of the head the stream cannot continue. Closing here, inside the client's receive callback,
   // could free the pcb the library still uses after it, so the main loop closes it once the callback has returned.
   this->close_requested_ = !head_kept;
+  // Last: the main loop reads everything above once it sees this
+  this->attached_.store(true, std::memory_order_release);
 }
 
 AsyncStreamResponse::~AsyncStreamResponse() {

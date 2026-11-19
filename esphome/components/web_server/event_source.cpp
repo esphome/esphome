@@ -23,8 +23,7 @@ ESPHOME_LOG_TAG(TAG, "web_server");
 
 void AsyncEventSource::handle_request(AsyncWebServerRequest *request, WebServer *ws) {
   // Network context: start the stream and park the session; the main loop does the rest.
-#ifdef USE_ESP32
-#ifdef USE_WEBSERVER_SSL
+#if defined(USE_ESP32) && defined(USE_WEBSERVER_SSL)
   // Event streams send from the main loop straight to the socket, which would bypass TLS.
   // Only an HTTPS server has a global transport context.
   httpd_req_t *req = *request;
@@ -37,33 +36,18 @@ void AsyncEventSource::handle_request(AsyncWebServerRequest *request, WebServer 
   auto *rsp = new AsyncEventSourceResponse(ws);
   rsp->begin(request, SSE_STATUS, SSE_CONTENT_TYPE, SSE_HEADERS, SSE_FIRST_CHUNK);
   this->push_pending_(rsp);
-#else
-  // The session is created only once the head is queued and the connection is ours
-  web_server_base::AsyncStreamResponse::accept(
-      request, 200, SSE_CONTENT_TYPE, SSE_HEADERS, SSE_FIRST_CHUNK,
-      {&AsyncEventSource::create_session, &AsyncEventSource::publish_session, this, ws});
-#endif
 }
 
 void AsyncEventSource::push_pending_(AsyncEventSourceResponse *rsp) {
+  // Read first: once published, the main loop may free the session
+  WebServer *ws = rsp->web_server_;
   {
     web_server_base::StreamIntakeGuard guard{this->pending_mutex_};
     rsp->next_ = this->pending_sessions_.load(std::memory_order_relaxed);
     this->pending_sessions_.store(rsp, std::memory_order_release);
   }
-  rsp->web_server_->enable_loop_soon_any_context();
+  ws->enable_loop_soon_any_context();
 }
-
-#ifndef USE_ESP32
-web_server_base::AsyncStreamResponse *AsyncEventSource::create_session(void *ws) {
-  // NOLINTNEXTLINE(cppcoreguidelines-owning-memory,clang-analyzer-cplusplus.NewDeleteLeaks)
-  return new AsyncEventSourceResponse(static_cast<WebServer *>(ws));
-}
-
-void AsyncEventSource::publish_session(void *source, web_server_base::AsyncStreamResponse *stream) {
-  static_cast<AsyncEventSource *>(source)->push_pending_(static_cast<AsyncEventSourceResponse *>(stream));
-}
-#endif
 
 // clang-analyzer traces a false-positive leak path from loop() through
 // adopt_pending_sessions_main_loop_() into start_session_main_loop_() and
@@ -106,8 +90,7 @@ void AsyncEventSource::adopt_pending_sessions_main_loop_() {
       delete rsp;  // NOLINT(cppcoreguidelines-owning-memory)
       continue;
     }
-    // httpd commits a stream after the creating handler returns (or destroys it), so it stays pending until then;
-    // on ESPAsyncWebServer a session is published already attached
+    // The server attaches a stream after the creating handler returns (or frees it), so it stays pending until then
     if (!rsp->is_attached()) {
       web_server_base::StreamIntakeGuard guard{this->pending_mutex_};
       rsp->next_ = this->pending_sessions_.load(std::memory_order_relaxed);
