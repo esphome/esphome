@@ -36,8 +36,12 @@ enum class TeardownStage : uint8_t {
 #ifdef USE_OPENTHREAD_BORDER_ROUTER
 #ifdef USE_OPENTHREAD_BACKBONE_ETHERNET
 static constexpr const char *const BACKBONE_NAME = "Ethernet";
+inline esp_netif_t *backbone_netif() { return ethernet::global_eth_component->get_esp_netif(); }
+inline bool backbone_connected() { return ethernet::global_eth_component->is_connected(); }
 #else
 static constexpr const char *const BACKBONE_NAME = "Wi-Fi";
+inline esp_netif_t *backbone_netif() { return wifi::global_wifi_component->get_esp_netif_sta(); }
+inline bool backbone_connected() { return wifi::global_wifi_component->is_connected(); }
 #endif
 #endif
 
@@ -117,6 +121,7 @@ class OpenThreadComponent final : public Component {
 #endif
 #if defined(USE_OPENTHREAD_BORDER_ROUTER) && defined(USE_ESP32)
   void start_border_router_();
+  void retry_border_router_later_(const LogString *reason);
 #endif
 #ifdef USE_OPENTHREAD_BORDER_ROUTER
   bool has_border_router_flag_(uint8_t flag) const { return (this->border_router_flags_.load() & flag) != 0; }

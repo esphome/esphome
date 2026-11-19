@@ -10,11 +10,6 @@
 
 #ifdef USE_OPENTHREAD_BORDER_ROUTER
 #include "esp_openthread_border_router.h"
-#ifdef USE_OPENTHREAD_BACKBONE_ETHERNET
-#include "esphome/components/ethernet/ethernet_component.h"
-#else
-#include "esphome/components/wifi/wifi_component.h"
-#endif
 #if !defined(USE_OPENTHREAD_RCP_UART) && defined(USE_WIFI)
 #include "esp_coexist.h"
 #endif
@@ -49,18 +44,14 @@ namespace esphome::openthread {
 
 void OpenThreadComponent::setup() {
 #ifdef USE_OPENTHREAD_BORDER_ROUTER
-#ifdef USE_OPENTHREAD_BACKBONE_ETHERNET
-  esp_netif_t *backbone_netif = ethernet::global_eth_component->get_esp_netif();
-#else
-  esp_netif_t *backbone_netif = wifi::global_wifi_component->get_esp_netif_sta();
-#endif
-  if (backbone_netif == nullptr) {
+  esp_netif_t *netif = backbone_netif();
+  if (netif == nullptr) {
     ESP_LOGE(TAG, "%s backbone netif is not initialized", BACKBONE_NAME);
     this->teardown_stage_ = TeardownStage::TEARDOWN_STAGE_COMPLETED;
     this->mark_failed();
     return;
   }
-  esp_openthread_set_backbone_netif(backbone_netif);
+  esp_openthread_set_backbone_netif(netif);
 #ifndef USE_OPENTHREAD_BACKBONE_ETHERNET  // codegen registers the Ethernet listener
   wifi::global_wifi_component->add_connect_state_listener(this);
 #endif
@@ -396,11 +387,7 @@ void OpenThreadComponent::loop() {
   if (!this->has_border_router_flag_(MAINLOOP_RUNNING)) {
     return;
   }
-#ifdef USE_OPENTHREAD_BACKBONE_ETHERNET
-  const bool backbone_up = ethernet::global_eth_component->is_connected();
-#else
-  const bool backbone_up = wifi::global_wifi_component->is_connected();
-#endif
+  const bool backbone_up = backbone_connected();
   if (backbone_up == this->backbone_up_) {
     this->disable_loop();
     return;
@@ -433,9 +420,7 @@ void OpenThreadComponent::loop() {
   if (const esp_err_t err = esp_openthread_mainloop_exit(); err != ESP_OK) {
     this->set_border_router_flag_(BORDER_ROUTER_START_REQUESTED | MAINLOOP_EXIT_REQUESTED, false);
     ESP_LOGE(TAG, "Failed to stop the OpenThread main loop: %s", esp_err_to_name(err));
-    this->status_set_error(LOG_STR("Border router start failed"));
-    this->disable_loop();
-    this->set_timeout(BORDER_ROUTER_RETRY_ID, BORDER_ROUTER_RETRY_MS, [this]() { this->enable_loop(); });
+    this->retry_border_router_later_(LOG_STR("Border router start failed"));
     return;
   }
   this->backbone_up_ = true;
@@ -473,12 +458,16 @@ void OpenThreadComponent::start_border_router_() {
       this->enable_loop();
       return;
     }
-    this->status_set_error(failure);
-    // loop() asks again after the retry delay
     this->backbone_up_ = false;
-    this->disable_loop();
-    this->set_timeout(BORDER_ROUTER_RETRY_ID, BORDER_ROUTER_RETRY_MS, [this]() { this->enable_loop(); });
+    this->retry_border_router_later_(failure);
   });
+}
+
+void OpenThreadComponent::retry_border_router_later_(const LogString *reason) {
+  this->status_set_error(reason);
+  // loop() asks again after the retry delay
+  this->disable_loop();
+  this->set_timeout(BORDER_ROUTER_RETRY_ID, BORDER_ROUTER_RETRY_MS, [this]() { this->enable_loop(); });
 }
 #endif
 

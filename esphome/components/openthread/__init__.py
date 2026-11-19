@@ -177,8 +177,8 @@ def _get_rcp(config: ConfigType) -> ConfigType | None:
     return config.get(CONF_BORDER_ROUTER, {}).get(CONF_RCP)
 
 
-def _get_backbone(config: ConfigType) -> str | None:
-    return config.get(CONF_BORDER_ROUTER, {}).get(CONF_BACKBONE)
+def _ethernet_backbone(config: ConfigType) -> bool:
+    return config.get(CONF_BORDER_ROUTER, {}).get(CONF_BACKBONE) == CONF_ETHERNET
 
 
 def set_sdkconfig_options(config: ConfigType) -> None:
@@ -248,7 +248,7 @@ def set_sdkconfig_options(config: ConfigType) -> None:
         add_idf_sdkconfig_option("CONFIG_OPENTHREAD_SRP_CLIENT_MAX_SERVICES", 5)
 
     if border_router:
-        if _get_backbone(config) == CONF_WIFI:
+        if not _ethernet_backbone(config):
             # Border routing follows the Wi-Fi link
             wifi.request_wifi_connect_state_listener()
         for name, value in BORDER_ROUTER_SDKCONFIG_OPTIONS.items():
@@ -383,7 +383,7 @@ def _validate_platform(config: ConfigType) -> ConfigType:
         variant = get_esp32_variant()
         if _get_rcp(config) is not None:
             if variant not in RCP_BORDER_ROUTER_VARIANTS and not (
-                variant == VARIANT_ESP32P4 and _get_backbone(config) == CONF_ETHERNET
+                variant == VARIANT_ESP32P4 and _ethernet_backbone(config)
             ):
                 raise cv.Invalid(
                     "OpenThread Border Router RCP mode requires a Wi-Fi-capable ESP32 "
@@ -499,31 +499,28 @@ def _final_validate(config: ConfigType) -> ConfigType:
             raise cv.Invalid(
                 "OpenThread Border Router does not support Wi-Fi AP or fallback AP mode."
             )
-        if _get_backbone(config) == CONF_ETHERNET:
+        if _ethernet_backbone(config):
             if CONF_ETHERNET not in full_config:
                 raise cv.Invalid(
                     "OpenThread Border Router with 'backbone: ethernet' requires the "
                     "'ethernet' component."
                 )
             # The Ethernet netif only exists once Ethernet has started
-            if not full_config[CONF_ETHERNET].get(CONF_ENABLE_ON_BOOT, True):
+            if not full_config[CONF_ETHERNET][CONF_ENABLE_ON_BOOT]:
                 raise cv.Invalid(
                     "OpenThread Border Router with 'backbone: ethernet' requires "
                     "Ethernet 'enable_on_boot: true'."
                 )
-        else:
-            if wifi_config is None:
-                raise cv.Invalid(
-                    "OpenThread Border Router requires a Wi-Fi STA backbone."
-                )
-            if not wifi_config.get(CONF_NETWORKS):
-                raise cv.Invalid(
-                    "OpenThread Border Router requires at least one configured Wi-Fi STA network."
-                )
-            if not wifi_config[CONF_ENABLE_ON_BOOT]:
-                raise cv.Invalid(
-                    "OpenThread Border Router requires Wi-Fi 'enable_on_boot: true'."
-                )
+        elif wifi_config is None:
+            raise cv.Invalid("OpenThread Border Router requires a Wi-Fi STA backbone.")
+        elif not wifi_config.get(CONF_NETWORKS):
+            raise cv.Invalid(
+                "OpenThread Border Router requires at least one configured Wi-Fi STA network."
+            )
+        elif not wifi_config[CONF_ENABLE_ON_BOOT]:
+            raise cv.Invalid(
+                "OpenThread Border Router requires Wi-Fi 'enable_on_boot: true'."
+            )
         if _get_rcp(config) is not None:
             if full_config.get("uart") is not None:
                 raise cv.Invalid(
@@ -575,10 +572,11 @@ async def to_code(config: ConfigType) -> None:
         # OPENTHREAD_CONFIG_ECDSA_ENABLE: the SRP client host key uses mbedtls_ecdsa_*
         require_mbedtls_ecp()
 
+    ethernet_backbone = border_router and _ethernet_backbone(config)
     cg.add_define("USE_OPENTHREAD")
     if border_router:
         cg.add_define("USE_OPENTHREAD_BORDER_ROUTER")
-        if _get_backbone(config) == CONF_ETHERNET:
+        if ethernet_backbone:
             cg.add_define("USE_OPENTHREAD_BACKBONE_ETHERNET")
     else:
         # The SRP client registers the mDNS services with the Thread network
@@ -611,7 +609,7 @@ async def to_code(config: ConfigType) -> None:
         )
     add_use_address(ot, config[CONF_USE_ADDRESS])
     await cg.register_component(ot, config)
-    if border_router and _get_backbone(config) == CONF_ETHERNET:
+    if ethernet_backbone:
         await ethernet.register_connect_state_listener(ot)
     cg.add_optional(ot.set_poll_period, config.get(CONF_POLL_PERIOD))
 

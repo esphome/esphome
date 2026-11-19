@@ -360,7 +360,7 @@ def test_border_router_backbone_rejects_unknown() -> None:
 @pytest.fixture
 def ethernet_backbone(otbr_config: ConfigType, full_config: ConfigType) -> None:
     otbr_config[CONF_BORDER_ROUTER] = {CONF_BACKBONE: "ethernet"}
-    full_config[CONF_ETHERNET] = {}
+    full_config[CONF_ETHERNET] = {CONF_ENABLE_ON_BOOT: True}
 
 
 @pytest.mark.usefixtures("ethernet_backbone")
