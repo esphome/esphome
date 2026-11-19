@@ -12,12 +12,21 @@ from esphome.const import (
     CONF_TX_PIN,
 )
 import esphome.final_validate as fv
+import logging
 
 CODEOWNERS = ["@KoenBreeman"]
 CONF_UART_NUM = "uart_num"
 CONF_DMX_ID = "dmx_id"
+CONF_MODE = "mode"
+CONF_TX_INTERVAL = "tx_interval"
+CONF_RX_GUARD = "rx_guard"
 DEPENDENCIES = ["esp32"]
 DOMAIN = "dmx"
+_LOGGER = logging.getLogger(__name__)
+
+MODE_RX = "rx"
+MODE_TX = "tx"
+MODE_BIDI = "bidirectional"
 
 _LOGGER_HW_UART_TO_NUM = {
     "UART0": 0,
@@ -27,6 +36,13 @@ _LOGGER_HW_UART_TO_NUM = {
 
 dmx_ns = cg.esphome_ns.namespace("dmx")
 DMXComponent = dmx_ns.class_("DMXComponent", cg.Component)
+DMXMode = dmx_ns.enum("DMXMode")
+
+MODE_TO_ENUM = {
+    MODE_RX: DMXMode.RX,
+    MODE_TX: DMXMode.TX,
+    MODE_BIDI: DMXMode.BIDIRECTIONAL,
+}
 
 register_channel_sensor = cg.slot_list(
     "DMX_STATIC_SENSOR_COUNT",
@@ -46,6 +62,11 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Required(CONF_RX_PIN): pins.internal_gpio_pin_number,
         cv.Optional(CONF_RTS_PIN): pins.internal_gpio_pin_number,
         cv.Optional(CONF_UART_NUM, default=2): cv.int_range(min=0, max=2),
+        cv.Optional(CONF_MODE, default=MODE_RX): cv.one_of(
+            MODE_RX, MODE_TX, MODE_BIDI, lower=True
+        ),
+        cv.Optional(CONF_TX_INTERVAL, default="25ms"): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_RX_GUARD, default="5ms"): cv.positive_time_period_milliseconds,
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -82,6 +103,14 @@ def _uart_component_assigned_ports(full_config, logger_uart: int | None) -> set[
 def _final_validate(config):
     full_config = fv.full_config.get()
     uart_num = config[CONF_UART_NUM]
+
+    mode = config[CONF_MODE]
+    if mode in (MODE_TX, MODE_BIDI) and CONF_RTS_PIN not in config:
+        _LOGGER.warning(
+            "dmx: mode '%s' without rts_pin — direction is controlled by the "
+            "transceiver (OK for M5 Unit DMX; boards with DE/RE should set rts_pin)",
+            mode,
+        )
 
     logger_uart = _logger_hardware_uart_num(full_config)
     if logger_uart is not None and uart_num == logger_uart:
@@ -122,7 +151,12 @@ async def to_code(config):
     cg.add(var.set_rx_pin(config[CONF_RX_PIN]))
     if CONF_RTS_PIN in config:
         cg.add(var.set_rts_pin(config[CONF_RTS_PIN]))
+    else:
+        cg.add(var.set_rts_pin(-1))
     cg.add(var.set_uart_num(config[CONF_UART_NUM]))
+    cg.add(var.set_mode(MODE_TO_ENUM[config[CONF_MODE]]))
+    cg.add(var.set_tx_interval(config[CONF_TX_INTERVAL].total_milliseconds))
+    cg.add(var.set_rx_guard(config[CONF_RX_GUARD].total_milliseconds))
 
     add_idf_component(
         name="esp_dmx",

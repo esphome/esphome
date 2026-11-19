@@ -45,26 +45,41 @@ void DMXComponent::setup() {
 }
 
 void DMXComponent::loop() {
-  // --- RX ---
-  dmx_packet_t packet;
-  int size = static_cast<int>(dmx_receive(this->dmx_port_, &packet, 0));
-  if (size > 0) {
-    if (packet.err == DMX_OK && !packet.is_rdm && packet.sc == 0x00) {
-      dmx_read(this->dmx_port_, this->data_, static_cast<size_t>(size));
-      this->publish_inputs_();
-    } else if (packet.err != DMX_OK) {
-      ESP_LOGW(TAG, "DMX error: %d", packet.err);
+  const bool want_rx = (this->mode_ != DMXMode::TX);
+  const bool want_tx = (this->mode_ != DMXMode::RX) && this->tx_enabled_;
+
+  bool got_rx = false;
+  if (want_rx) {
+    dmx_packet_t packet{};
+    int size = static_cast<int>(dmx_receive(this->dmx_port_, &packet, 0));
+    if (size > 0) {
+      if (packet.err == DMX_OK && !packet.is_rdm && packet.sc == 0x00) {
+        dmx_read(this->dmx_port_, this->data_, static_cast<size_t>(size));
+        this->publish_inputs_();
+        this->last_rx_ms_ = millis();
+        got_rx = true;
+      } else if (packet.err != DMX_OK) {
+        ESP_LOGW(TAG, "DMX error: %d", packet.err);
+      }
     }
   }
 
-  // --- TX (continuous refresh when outputs are used) ---
-  if (this->tx_enabled_) {
-    const uint32_t now = millis();
-    if (this->tx_dirty_ || (now - this->last_tx_ms_ >= TX_INTERVAL_MS)) {
-      this->send_universe_();
-      this->tx_dirty_ = false;
-      this->last_tx_ms_ = now;
-    }
+  if (!want_tx)
+    return;
+
+  // Half-duplex: do not TX in the same loop as RX, and wait after last RX
+  if (this->mode_ == DMXMode::BIDIRECTIONAL) {
+    if (got_rx)
+      return;
+    if ((millis() - this->last_rx_ms_) < this->rx_guard_ms_)
+      return;
+  }
+
+  const uint32_t now = millis();
+  if (this->tx_dirty_ || (now - this->last_tx_ms_ >= this->tx_interval_ms_)) {
+    this->send_universe_();
+    this->tx_dirty_ = false;
+    this->last_tx_ms_ = now;
   }
 }
 
@@ -117,11 +132,14 @@ void DMXComponent::set_slot(uint16_t channel, uint8_t value) {
 void DMXComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "DMX Hub:");
   ESP_LOGCONFIG(TAG, "  UART: %d", this->uart_num_);
+  ESP_LOGCONFIG(TAG, "  Mode: %u", static_cast<unsigned>(this->mode_));
   ESP_LOGCONFIG(TAG, "  TX Pin: GPIO%d", this->tx_pin_);
   ESP_LOGCONFIG(TAG, "  RX Pin: GPIO%d", this->rx_pin_);
   if (this->rts_pin_ >= 0) {
     ESP_LOGCONFIG(TAG, "  RTS Pin: GPIO%d", this->rts_pin_);
   }
+  ESP_LOGCONFIG(TAG, "  TX interval: %u ms", this->tx_interval_ms_);
+  ESP_LOGCONFIG(TAG, "  RX guard: %u ms", this->rx_guard_ms_);
 }
 
 void DMXOutputNumber::control(float value) {

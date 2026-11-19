@@ -52,6 +52,12 @@ static constexpr size_t DMX_DYNAMIC_SENSOR_COUNT = 0;
 
 namespace esphome::dmx {
 
+enum class DMXMode : uint8_t {
+  RX = 0,
+  TX = 1,
+  BIDIRECTIONAL = 2,
+};
+
 struct StaticChannelSensor {
   uint16_t channel;
   sensor::Sensor *sensor;
@@ -73,6 +79,9 @@ class DMXComponent : public Component {
   void set_rx_pin(int pin) { this->rx_pin_ = pin; }
   void set_rts_pin(int pin) { this->rts_pin_ = pin; }
   void set_uart_num(int num) { this->uart_num_ = num; }
+  void set_mode(DMXMode mode) { this->mode_ = mode; }
+  void set_tx_interval(uint32_t ms) { this->tx_interval_ms_ = ms; }
+  void set_rx_guard(uint32_t ms) { this->rx_guard_ms_ = ms; }
 
   uint8_t get_channel(uint16_t channel) const;
   void set_slot(uint16_t channel, uint8_t value);
@@ -102,8 +111,10 @@ class DMXComponent : public Component {
   bool tx_enabled_{false};
   bool tx_dirty_{false};
   uint32_t last_tx_ms_{0};
-
-  static constexpr uint32_t TX_INTERVAL_MS = 25;  // ~40 Hz
+  uint32_t last_rx_ms_{0};
+  DMXMode mode_{DMXMode::RX};
+  uint32_t tx_interval_ms_{25};
+  uint32_t rx_guard_ms_{5};
 
   [[no_unique_address]] SlotList<StaticChannelSensor, DMX_STATIC_SENSOR_COUNT> static_sensors_;
   [[no_unique_address]] SlotList<DynamicChannelSensor, DMX_DYNAMIC_SENSOR_COUNT> dynamic_sensors_;
