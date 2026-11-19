@@ -385,6 +385,7 @@ network::IPAddresses OpenThreadComponent::get_ip_addresses() {
 
 #ifdef USE_OPENTHREAD_BORDER_ROUTER
 static constexpr uint32_t BORDER_ROUTER_RETRY_MS = 10000;
+static constexpr uint32_t BORDER_ROUTER_RETRY_ID = 0;
 
 void OpenThreadComponent::loop() {
   // Thread starts on its own. Border routing starts once the backbone (Wi-Fi or Ethernet) has an
@@ -435,7 +436,7 @@ void OpenThreadComponent::loop() {
     ESP_LOGE(TAG, "Failed to stop the OpenThread main loop: %s", esp_err_to_name(err));
     this->status_set_error(LOG_STR("Border router start failed"));
     this->disable_loop();
-    this->set_timeout(BORDER_ROUTER_RETRY_MS, [this]() { this->enable_loop(); });
+    this->set_timeout(BORDER_ROUTER_RETRY_ID, BORDER_ROUTER_RETRY_MS, [this]() { this->enable_loop(); });
     return;
   }
   this->backbone_up_ = true;
@@ -472,9 +473,10 @@ void OpenThreadComponent::start_border_router_() {
              deinit_failed ? LOG_STR_LITERAL("deinitialize") : LOG_STR_LITERAL("initialize"), esp_err_to_name(err));
     this->status_set_error(deinit_failed ? LOG_STR("Border router deinit failed")
                                          : LOG_STR("Border router init failed"));
-    // loop() sees the backbone as up again and asks for another start
+    // After the retry delay, loop() sees the backbone as up again and asks for another start
     this->backbone_up_ = false;
-    this->set_timeout(BORDER_ROUTER_RETRY_MS, [this]() { this->enable_loop(); });
+    this->disable_loop();
+    this->set_timeout(BORDER_ROUTER_RETRY_ID, BORDER_ROUTER_RETRY_MS, [this]() { this->enable_loop(); });
   });
 }
 #endif
