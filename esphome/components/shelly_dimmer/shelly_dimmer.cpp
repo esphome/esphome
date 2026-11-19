@@ -265,6 +265,8 @@ bool ShellyDimmer::send_command_(uint8_t cmd, const uint8_t *const payload, uint
   // Write the frame and wait for acknowledgement.
   int retries = SHELLY_DIMMER_MAX_RETRIES;
   while (retries--) {
+    // Kept bytes of an earlier reply must not merge into this one
+    this->reader_.drop_kept();
     this->write_array(frame, frame_len);
     this->flush();
 
