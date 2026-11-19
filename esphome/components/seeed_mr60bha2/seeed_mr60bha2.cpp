@@ -58,13 +58,12 @@ size_t TinyFrameLength::get(const uint8_t *buf) {
     ESP_LOGV_HEX(TAG, buf, TinyFrameLength::KNOWN_AT, MR60BHA2_MAX_LOG_BYTES, "GET FRAME: %s");
     return 0;
   }
-  const size_t len = encode_uint16(buf[3], buf[4]) + FRAME_OVERHEAD;
-  if (len > FRAME_MAX_SIZE) {
-    ESP_LOGW(TAG, "Skipped a %u byte frame, longer than the %u byte buffer", static_cast<unsigned>(len),
-             static_cast<unsigned>(FRAME_MAX_SIZE));
-    return 0;
-  }
-  return len;
+  return encode_uint16(buf[3], buf[4]) + FRAME_OVERHEAD;
+}
+
+void warn_too_long(size_t len) {
+  ESP_LOGW(TAG, "Skipped a %u byte frame, longer than the %u byte buffer", static_cast<unsigned>(len),
+           static_cast<unsigned>(FRAME_MAX_SIZE));
 }
 
 // The reader checks the type and the header; the data checksum is checked here

@@ -22,6 +22,7 @@ struct TinyFrameLength {
   static constexpr size_t KNOWN_AT = 8;
   static size_t get(const uint8_t *buf);
 };
+void warn_too_long(size_t len);
 // Header, id, length and type bytes, header checksum, then the data and its checksum
 static constexpr uint8_t FRAME_OVERHEAD = 9;
 // A point cloud frame is 13 bytes plus 16 per target and only its count is read; 128 holds up to 7 targets
@@ -54,7 +55,9 @@ class MR60BHA2Component final : public Component,
   void process_frame_(uint16_t frame_id, uint16_t frame_type, const uint8_t *data, size_t length);
 
   uint32_t last_rx_{0};
-  LengthFrameReader<FRAME_MAX_SIZE, FrameFormat<FrameHeader<FRAME_HEADER_BUFFER>, TinyFrameLength>> reader_;
+  LengthFrameReader<FRAME_MAX_SIZE, FrameFormat<FrameHeader<FRAME_HEADER_BUFFER>,
+                                                WarnIfLonger<TinyFrameLength, FRAME_MAX_SIZE, warn_too_long>>>
+      reader_;
 };
 
 }  // namespace esphome::seeed_mr60bha2
