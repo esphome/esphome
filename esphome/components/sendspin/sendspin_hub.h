@@ -284,7 +284,8 @@ class SendspinHub final : public Component,
   /// @brief Registers a callback that fires when the server sends metadata.
   ///
   /// Also fires when the connection is lost, with an all-empty state object (every field nullopt, timestamp 0) meaning
-  /// the cached metadata was dropped. Subscribers must treat an absent field as cleared, not as no update.
+  /// the cached metadata was dropped. Subscribers must treat an absent field as cleared, not as no update. The text
+  /// fields view the library's copy, so a subscriber copies what it keeps past the call.
   template<typename F> void add_metadata_update_callback(F &&callback) {
     this->metadata_update_callbacks_.add(std::forward<F>(callback));
   }
@@ -411,12 +412,12 @@ class SendspinHub final : public Component,
 #ifdef USE_SENDSPIN_METADATA
   sendspin::MetadataRole *metadata_role_{nullptr};
 
-  void on_metadata(const sendspin::ServerMetadataStateObject &metadata) override;
+  void on_track_metadata(const sendspin::TrackMetadata &metadata) override;
 
   void on_metadata_clear() override;
 
   // Callback fan-out to child components; they filter as needed
-  CallbackManager<void(const sendspin::ServerMetadataStateObject &)> metadata_update_callbacks_{};
+  CallbackManager<void(const sendspin::TrackMetadata &)> metadata_update_callbacks_{};
 #endif
 
 #ifdef USE_SENDSPIN_PLAYER
