@@ -38,6 +38,25 @@ static esp_err_t ota_end_guarded() {
   return esp_hosted_slave_ota_end();  // NOLINT
 }
 
+#ifdef CONFIG_ESP_HOSTED_CP_TARGET_ESP32C5
+// An ESP32-C5 that came with ESP-Hosted 2.x has its partition table at 0xc000. Firmware built for
+// another offset, such as a stock 3.x build, does not start there.
+static bool esp32c5_partition_table_at_risk(const update::UpdateInfo &info) {
+  return info.current_version.starts_with("2.") && !info.latest_version.empty() &&
+         !info.latest_version.starts_with("2.");
+}
+
+static void warn_esp32c5_partition_table(const update::UpdateInfo &info) {
+  if (!esp32c5_partition_table_at_risk(info)) {
+    return;
+  }
+  ESP_LOGW(TAG,
+           "ESP32-C5 coprocessor on %s: firmware %s must be built for a partition table at 0xc000, or the "
+           "coprocessor will not start again",
+           info.current_version.c_str(), info.latest_version.c_str());
+}
+#endif
+
 #ifdef USE_ESP32_HOSTED_HTTP_UPDATE
 // Interval/timeout IDs (uint32_t to avoid string comparison)
 constexpr uint32_t INITIAL_CHECK_INTERVAL_ID = 0;
@@ -135,6 +154,9 @@ void Esp32HostedUpdate::setup() {
       this->update_info_.latest_version = app_desc->version;
       if (this->update_info_.latest_version != this->update_info_.current_version) {
         this->state_ = update::UPDATE_STATE_AVAILABLE;
+#ifdef CONFIG_ESP_HOSTED_CP_TARGET_ESP32C5
+        warn_esp32c5_partition_table(this->update_info_);
+#endif
       } else {
         this->state_ = update::UPDATE_STATE_NO_UPDATE;
       }
@@ -201,6 +223,11 @@ void Esp32HostedUpdate::check() {
     return;
   }
 
+#ifdef CONFIG_ESP_HOSTED_CP_TARGET_ESP32C5
+  // Until the manifest is fetched, update_info_ still holds the offer from the last check
+  const bool was_warned = esp32c5_partition_table_at_risk(this->update_info_);
+#endif
+
   if (!this->fetch_manifest_()) {
     return;
   }
@@ -213,6 +240,11 @@ void Esp32HostedUpdate::check() {
     this->state_ = update::UPDATE_STATE_NO_UPDATE;
   } else {
     this->state_ = update::UPDATE_STATE_AVAILABLE;
+#ifdef CONFIG_ESP_HOSTED_CP_TARGET_ESP32C5
+    if (!was_warned) {
+      warn_esp32c5_partition_table(this->update_info_);
+    }
+#endif
   }
 
   this->update_info_.has_progress = false;
@@ -315,14 +347,16 @@ bool Esp32HostedUpdate::fetch_manifest_() {
       return false;
     }
 
-    this->update_info_.latest_version = best_version;
-    this->firmware_url_ = best_url;
-
-    // Parse SHA256 hex string to bytes
-    if (!parse_hex(best_sha256, this->firmware_sha256_.data(), 32)) {
+    // Parse SHA256 hex string to bytes; a rejected manifest must not replace the stored offer
+    std::array<uint8_t, 32> sha256;
+    if (!parse_hex(best_sha256, sha256.data(), sha256.size())) {
       ESP_LOGE(TAG, "Invalid SHA256: %s", best_sha256.c_str());
       return false;
     }
+
+    this->update_info_.latest_version = best_version;
+    this->firmware_url_ = best_url;
+    this->firmware_sha256_ = sha256;
 
     ESP_LOGD(TAG, "Best compatible version: %s", this->update_info_.latest_version.c_str());
 
@@ -489,6 +523,10 @@ void Esp32HostedUpdate::perform(bool force) {
     ESP_LOGW(TAG, "No firmware URL available, run check first");
     return;
   }
+#endif
+
+#ifdef CONFIG_ESP_HOSTED_CP_TARGET_ESP32C5
+  warn_esp32c5_partition_table(this->update_info_);
 #endif
 
   update::UpdateState prev_state = this->state_;
