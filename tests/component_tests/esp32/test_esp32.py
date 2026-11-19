@@ -23,8 +23,7 @@ from esphome.components.esp32 import (
     MBEDTLS_RSA_OPTIONS,
     MBEDTLS_TLS_EXTRA_OPTIONS,
     MBEDTLS_UNUSED_CIPHER_MODE_OPTIONS,
-    PSA_USER_CONFIG_CONTENT,
-    PSA_USER_CONFIG_FILENAME,
+    PSA_USER_CONFIG_HEADER,
     VARIANT_ESP32,
     VARIANTS,
     MbedtlsSdkconfigData,
@@ -1250,9 +1249,13 @@ def test_reconcile_mbedtls_psa_user_config(
 
     asyncio.run(_reconcile_mbedtls_sdkconfig())
 
-    header = tmp_path / PSA_USER_CONFIG_FILENAME
-    assert header.read_text() == PSA_USER_CONFIG_CONTENT
-    assert path_define_flag("MBEDTLS_USER_CONFIG_FILE", header) in CORE.build_flags
+    assert PSA_USER_CONFIG_HEADER.is_file()
+    assert (
+        path_define_flag("MBEDTLS_USER_CONFIG_FILE", PSA_USER_CONFIG_HEADER)
+        in CORE.build_flags
+    )
+    # The same path for every device keeps the shared ccache hitting.
+    assert not PSA_USER_CONFIG_HEADER.is_relative_to(tmp_path)
     opts = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
     for option in MBEDTLS_RSA_OPTIONS:
         if option not in preset:
@@ -1295,7 +1298,6 @@ def test_reconcile_mbedtls_psa_user_config_not_applied(
 
     asyncio.run(_reconcile_mbedtls_sdkconfig())
 
-    assert not (tmp_path / PSA_USER_CONFIG_FILENAME).exists()
     assert not any("MBEDTLS_USER_CONFIG_FILE" in flag for flag in CORE.build_flags)
     opts = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
     assert not any(option in opts for option in MBEDTLS_RSA_OPTIONS)
