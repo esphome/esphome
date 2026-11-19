@@ -127,6 +127,7 @@ class SEN6XComponent final : public PollingComponent, public sensirion_common::S
   void stop_measurement();
   void start_fan_cleaning();
   void activate_sht_heater();
+  void perform_forced_co2_recalibration(float target_co2_ppm);
 
  protected:
   enum SetupStep : uint8_t {

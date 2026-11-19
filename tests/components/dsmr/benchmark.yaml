@@ -1,0 +1,17 @@
+# Declaring the entity domains makes the C++ unit test build define USE_SENSOR and USE_TEXT_SENSOR.
+# Loaded with plain yaml.safe_load, so no ESPHome tags here.
+sensor:
+text_sensor:
+
+# One instance, so dsmr's to_code adds the dsmr_parser library; the tests build their own.
+# A list, so the uart entries of other test directories are joined to it.
+uart:
+  - id: dsmr_uart_bus
+    port: /dev/null
+    baud_rate: 115200
+    # dsmr warns below 1500 bytes
+    rx_buffer_size: 1500
+
+dsmr:
+  - id: dsmr_bench
+    uart_id: dsmr_uart_bus

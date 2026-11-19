@@ -47,7 +47,6 @@ each ring size at least the encoder window, three times, and logs the best time 
 `BENCHDONE`. `bench.sh CONFIG DEVICE` builds and uploads `bench-esp32s3.yaml` or `bench-bk72xx.yaml`, collects one pass
 over syslog and fails when a case did not reach the end of its stream.
 
-- LibreTiny defines `micros` as a macro, so the header calls `(esphome::micros)()`.
 - Keep the streams near 130 KB on a BK7231N: an image with about 330 KB of extra incompressible data failed its
   OTA with "Writing OTA data to flash memory failed". Use one image and `--windows 12` there.
 - `bench.hpp` targets the decoder interface with `dest_limit`. #21641 drops it (the output runs into the window up
@@ -84,3 +83,24 @@ case's fires in order with progress collapsed to a count; diff dev against the P
 - A random file through web_server gives `error 128` on the ESP32 and `error 132` on the ESP8266.
 - A SIGTERM to the uploader lets it finish the transfer; use SIGKILL for the native error path.
 - Results: https://github.com/esphome/esphome/pull/21903#issuecomment-6516529409
+
+## Signed OTA with several trusted keys (`verification_keys`, #22398)
+
+`scripts/signed_ota/` on an ESP32-C3 (`signed-ota-c3.yaml`, `signed_ota_verification: signing_scheme: rsa3072,
+verification_keys: [keyA.pem]`):
+1. `python -m espsecure generate-signing-key --version 2 --scheme rsa3072 keyA.pem` (and keyB).
+2. Build four tagged images with `esphome -s tag <name> compile`, serial-flash the first factory image (no on-boot
+   signature check without secure boot), copy each `firmware.ota.bin`.
+3. `sign_variants.py <image> keyA.pem keyB.pem <prefix>` writes key A, key B, B then A, stored CRC flipped, byte 2
+   changed (covered only by the CRC), the same with the CRC recomputed by zlib, and B then A with block 1's CRC flipped.
+4. `otaseq.sh <ip> FILE=reject... FILE=<tag>...` sends them with `esphome upload --file` and checks the first verdict
+   in the device log and the upload result against the expectation (a rejection, or the `BUILDTAG` of that build);
+   send the rejects first so every check runs in the same build, then the accepted ones.
+Expected: unsigned, B only and every CRC edit rejected; A, B+A and the zlib-fixed CRC accepted. The byte 2 pair isolates
+the CRC from the signature and key digest.
+
+Gotchas: an ESP-IDF image can contain `E7 02` at a 4 KiB boundary by chance; find the signature sector by the CRC, as
+`sign_variants.py` does. An unsigned image sent after a signed one can be rejected with "trusted key failed to verify"
+instead of "no signature block": the partition still holds the old signature sector past the new image's end.
+
+Results: https://github.com/esphome/esphome/pull/22398#issuecomment-6716330334

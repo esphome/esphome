@@ -100,12 +100,13 @@ void CardinS438Protocol::encode(RemoteTransmitData *dst, const CardinS438Data &d
 }
 
 optional<CardinS438Data> CardinS438Protocol::decode(RemoteReceiveData src) {
+  const TimingRange sync = src.timing_range(SYNC_MARK_US);
   while (src.is_valid()) {
     // Find the frame's long sync mark.
-    if (!src.expect_mark(SYNC_MARK_US)) {
-      src.advance();
+    const bool found = sync.matches_mark(src.peek());
+    src.advance();
+    if (!found)
       continue;
-    }
 
     uint8_t wire[WIRE_SIZE];
     if (!src.expect_bytes<CARDIN_TIMINGS>(wire, WIRE_SIZE) ||

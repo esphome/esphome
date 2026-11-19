@@ -1,5 +1,7 @@
 #pragma once
 
+#include <utility>
+
 #include "esphome/core/component.h"
 #include "esphome/core/time.h"
 
@@ -19,7 +21,7 @@ class MAX7219Component final : public PollingComponent,
   /// `buffer` holds 8 bytes per chip, a static array from code generation
   MAX7219Component(uint8_t num_chips, uint8_t *buffer) : num_chips_(num_chips), buffer_(buffer) {}
 
-  void set_writer(max7219_writer_t &&writer);
+  void set_writer(max7219_writer_t &&writer) { this->writer_ = std::move(writer); }
 
   void setup() override;
 

@@ -98,12 +98,15 @@ void MitsubishiClimate::transmit_state() {
   // Byte 11: END CLOCK Stop time of HVAC (0x00 for no setting)
   // Byte 12: START CLOCK Start time of HVAC (0x00 for no setting)
   // Byte 13: Constant 0x00
-  // Byte 14: HVAC specfic, i.e. ECONO COOL, CLEAN MODE, always 0x00
-  // Byte 15: HVAC specfic, i.e. POWERFUL, SMART SET, PLASMA, always 0x00
+  // Byte 14: HVAC specific, i.e. ECONO COOL, CLEAN MODE, always 0x00
+  // Byte 15: HVAC specific, i.e. POWERFUL, SMART SET, PLASMA, always 0x00
   // Byte 16: Left vane control (for specific models). Constants match right vane controls.
   // Byte 17: Checksum: SUM[Byte0...Byte16]
-  uint8_t remote_state[MITSUBISHI_FRAME_SIZE] = {0x23, 0xCB, 0x26, 0x01, 0x00, 0x20, 0x00, 0x00, 0x00,
-                                                 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+  // In flash: an initialized local array is copied from a RAM constant on ESP8266
+  static constexpr uint8_t REMOTE_STATE_TEMPLATE[MITSUBISHI_FRAME_SIZE] PROGMEM = {
+      0x23, 0xCB, 0x26, 0x01, 0x00, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+  uint8_t remote_state[sizeof(REMOTE_STATE_TEMPLATE)];
+  progmem_memcpy(remote_state, REMOTE_STATE_TEMPLATE, sizeof(remote_state));
 
   switch (this->mode) {
     case climate::CLIMATE_MODE_HEAT:

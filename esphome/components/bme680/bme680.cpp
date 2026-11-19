@@ -70,8 +70,9 @@ bool BME680Component::setup_registers_() {
   this->calibration_.t2 = encode_value_le<int16_t>(&coeff1[1]);
   this->calibration_.t3 = coeff1[3];
 
-  this->calibration_.h1 = coeff2[2] << 4 | (coeff2[1] & 0x0F);
-  this->calibration_.h2 = encode_uint16(coeff2[0], coeff2[1]) >> 4;
+  // H1 and H2 are 12-bit values sharing byte 1: its low nibble ends H1, its high nibble ends H2
+  this->calibration_.h1 = encode_uint12(coeff2[2], low_nibble(coeff2[1]));
+  this->calibration_.h2 = encode_uint12(coeff2[0], high_nibble(coeff2[1]));
   this->calibration_.h3 = coeff2[3];
   this->calibration_.h4 = coeff2[4];
   this->calibration_.h5 = coeff2[5];
@@ -175,10 +176,8 @@ void BME680Component::update() {
   meas_control |= (this->temperature_oversampling_ & 0b111) << 5;
   meas_control |= (this->pressure_oversampling_ & 0b111) << 2;
   meas_control |= 0b01;  // forced mode
-  if (!this->write_byte(BME680_REGISTER_CONTROL_MEAS, meas_control)) {
-    this->status_set_warning();
+  if (!this->status_comm_check(this->write_byte(BME680_REGISTER_CONTROL_MEAS, meas_control)))
     return;
-  }
 
   this->set_timeout(DATA_TIMEOUT_ID, this->calc_meas_duration_(), [this]() { this->read_data_(); });
 }
@@ -245,7 +244,7 @@ void BME680Component::read_data_() {
   uint32_t raw_pressure = encode_uint24(data[2], data[3], data[4]) >> 4;
   uint32_t raw_humidity = encode_uint16(data[8], data[9]);
   uint16_t raw_gas = encode_uint16(data[13], data[14]) >> 6;
-  uint8_t gas_range = data[14] & 0x0F;
+  uint8_t gas_range = low_nibble(data[14]);
 
   float temperature = this->calc_temperature_(raw_temperature);
   float pressure = this->calc_pressure_(raw_pressure);
@@ -422,15 +421,6 @@ uint32_t BME680Component::calc_meas_duration_() {
   tph_dur += this->heater_duration_;
 
   return tph_dur;
-}
-void BME680Component::set_temperature_oversampling(BME680Oversampling temperature_oversampling) {
-  this->temperature_oversampling_ = temperature_oversampling;
-}
-void BME680Component::set_pressure_oversampling(BME680Oversampling pressure_oversampling) {
-  this->pressure_oversampling_ = pressure_oversampling;
-}
-void BME680Component::set_humidity_oversampling(BME680Oversampling humidity_oversampling) {
-  this->humidity_oversampling_ = humidity_oversampling;
 }
 void BME680Component::set_heater(uint16_t heater_temperature, uint16_t heater_duration) {
   this->heater_temperature_ = heater_temperature;

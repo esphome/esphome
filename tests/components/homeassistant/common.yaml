@@ -64,6 +64,9 @@ switch:
     entity_id: remote.my_cool_remote
     id: my_cool_remote
   - platform: homeassistant
+    entity_id: script.my_cool_script
+    id: my_cool_script
+  - platform: homeassistant
     entity_id: siren.my_cool_siren
     id: my_cool_siren
   - platform: homeassistant

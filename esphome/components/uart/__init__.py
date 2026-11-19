@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 from logging import getLogger
 import math
 import re
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from esphome import automation, pins
 import esphome.codegen as cg
@@ -42,8 +42,12 @@ from esphome.const import (
     CONF_FLOW_CONTROL_PIN,
     CONF_ID,
     CONF_LAMBDA,
+    CONF_MODE,
     CONF_NUMBER,
+    CONF_OPEN_DRAIN,
     CONF_PORT,
+    CONF_PULLDOWN,
+    CONF_PULLUP,
     CONF_RX_BUFFER_SIZE,
     CONF_RX_PIN,
     CONF_SEQUENCE,
@@ -59,6 +63,9 @@ from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 from esphome.yaml_util import make_data_base
+
+if TYPE_CHECKING:
+    from esphome.components.libretiny import HardwareUart
 
 _LOGGER = getLogger(__name__)
 
@@ -333,6 +340,89 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
+def _libretiny_hardware_uart(config: ConfigType) -> "HardwareUart | None":
+    """Hardware UART the board can route the configured pins to; None if none can or the board is unknown."""
+    from esphome.components.libretiny import get_hardware_uarts, has_software_serial
+
+    # Pin flags make setup() use SoftwareSerial where the family has it
+    if has_software_serial() and any(
+        pin[CONF_MODE].get(flag)
+        for pin in (config.get(CONF_TX_PIN), config.get(CONF_RX_PIN))
+        if pin is not None
+        for flag in (CONF_OPEN_DRAIN, CONF_PULLUP, CONF_PULLDOWN)
+    ):
+        return None
+    tx = config[CONF_TX_PIN][CONF_NUMBER] if CONF_TX_PIN in config else None
+    rx = config[CONF_RX_PIN][CONF_NUMBER] if CONF_RX_PIN in config else None
+    return next(
+        (
+            uart
+            for uart in get_hardware_uarts()
+            if tx in (None, *uart.tx_pins) and rx in (None, *uart.rx_pins)
+        ),
+        None,
+    )
+
+
+def _final_validate(config: ConfigType) -> None:
+    if CORE.is_libretiny:
+        _validate_libretiny_pins(config)
+
+
+def _validate_libretiny_pins(config: ConfigType) -> None:
+    from esphome.components.libretiny import (
+        can_choose_uart_pins,
+        get_hardware_uarts,
+        get_libretiny_board,
+        has_software_serial,
+    )
+
+    # A board without pin data is matched against its default pins at boot
+    if not (uarts := get_hardware_uarts()):
+        return
+    board = get_libretiny_board()
+    uart = _libretiny_hardware_uart(config)
+    if uart is None:
+        if has_software_serial():
+            return
+        choices = "; ".join(
+            f"UART{u.port}: TX={'/'.join(map(str, u.tx_pins)) or 'none'}, "
+            f"RX={'/'.join(map(str, u.rx_pins)) or 'none'}"
+            for u in uarts
+        )
+        raise cv.Invalid(
+            f"Board {board} has no hardware UART on these pins. Pin numbers per UART: {choices}"
+        )
+    # Two entries on one port would share the Serial object, and the second begin() would move its pins
+    for other in fv.full_config.get().get(DOMAIN, []):
+        if other is config or other[CONF_ID] == config[CONF_ID]:
+            continue
+        if (
+            other_uart := _libretiny_hardware_uart(other)
+        ) and other_uart.port == uart.port:
+            raise cv.Invalid(
+                f"UART {other[CONF_ID]} already uses hardware UART{uart.port} of board {board}"
+            )
+    if not uart.pin_choices:
+        return
+    # A left-out direction with no default pin is opened on an invalid pin, which hangs at boot
+    for key, role, choices in (
+        (CONF_TX_PIN, "TX", uart.tx_pin_choices),
+        (CONF_RX_PIN, "RX", uart.rx_pin_choices),
+    ):
+        if choices and key not in config:
+            raise cv.Invalid(
+                f"UART{uart.port} of board {board} has no default {role} pin, so it needs {key}"
+            )
+    if not can_choose_uart_pins():
+        raise cv.Invalid(
+            f"Choosing the pins of UART{uart.port} on board {board} needs LibreTiny 1.12.0 or later"
+        )
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
+
+
 async def debug_to_code(config, parent):
     trigger = cg.new_Pvariable(config[CONF_TRIGGER_ID], parent)
     await cg.register_component(trigger, config)
@@ -425,6 +515,11 @@ async def to_code(config):
         if (tx_num is None or tx_num == 2) and (rx_num is None or rx_num == 8):
             enable_serial1()
             cg.add_define("USE_ESP8266_UART_SERIAL1")
+
+    if CORE.is_libretiny and (uart := _libretiny_hardware_uart(config)) is not None:
+        cg.add(var.set_hardware_port(uart.port))
+        if uart.pin_choices:
+            cg.add_define("USE_UART_LIBRETINY_PIN_ROUTING")
 
     CORE.add_job(final_step)
 
@@ -693,7 +788,7 @@ automation.register_apply_action(
 @coroutine_with_priority(CoroPriority.FINAL)
 async def final_step():
     """Final code generation step to configure optional UART features."""
-    if (CORE.is_esp32 or CORE.is_esp8266) and CORE.has_networking:
+    if CORE.is_esp32 or CORE.is_esp8266:
         # Wake-on-RX is essentially free (just an ISR function pointer
         # registration on ESP32, an inline flag set on ESP8266 software
         # serial) — enable by default to reduce RX buffer overflow risk by

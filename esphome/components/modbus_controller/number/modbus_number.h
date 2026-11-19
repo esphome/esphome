@@ -32,7 +32,7 @@ class ModbusNumber final : public number::Number, public Component, public Senso
   using write_transform_func_t = optional<float> (*)(ModbusNumber *, float, modbus::RegisterValues &);
   void set_template(transform_func_t f) { this->transform_func_ = f; }
   void set_write_template(write_transform_func_t f) { this->write_transform_func_ = f; }
-  void set_use_write_mutiple(bool use_write_multiple) { this->use_write_multiple_ = use_write_multiple; }
+  void set_use_write_multiple(bool use_write_multiple) { this->use_write_multiple_ = use_write_multiple; }
 
  protected:
   void control(float value) override;

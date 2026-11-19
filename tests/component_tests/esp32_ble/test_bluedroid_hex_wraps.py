@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from esphome.components.esp32.const import KEY_ESP32, KEY_SRC_CMAKE
-from esphome.components.esp32_ble import BLUEDROID_HEADERS_CMAKE
+from esphome.components.esp32_ble import bluedroid_headers_cmake
 from esphome.core import CORE
 
 _WRAP_FLAGS = {
@@ -26,21 +26,24 @@ _WRAP_FLAGS = {
         pytest.param("esp32c3", "{type: esp-idf}", True, id="c3"),
         pytest.param("esp32s3", "{type: esp-idf}", True, id="s3"),
         pytest.param("esp32c2", "{type: esp-idf}", True, id="c2"),
-        pytest.param("esp32c6", "{type: esp-idf}", False, id="c6_rom_sscanf"),
+        pytest.param("esp32c6", "{type: esp-idf}", True, id="c6"),
         pytest.param(
-            "esp32", "{type: esp-idf, version: 6.0.1}", False, id="idf6_picolibc"
+            "esp32", "{type: esp-idf, version: 6.0.1}", True, id="idf6_picolibc"
+        ),
+        pytest.param(
+            "esp32c6", "{type: esp-idf, version: 6.0.1}", True, id="c6_idf6_picolibc"
         ),
         pytest.param("esp32", "{type: arduino}", False, id="arduino"),
     ],
 )
-def test_wraps_only_on_newlib_idf_without_rom_sscanf(
+def test_wraps_only_on_idf_without_rom_sscanf(
     generate_main: Callable[[str | Path], str],
     tmp_path: Path,
     variant: str,
     framework: str,
     expected: bool,
 ) -> None:
-    """The wraps are emitted only where Bluedroid's sscanf calls link newlib's engine."""
+    """The wraps are emitted only where Bluedroid's sscanf calls link a scanf engine."""
     config = tmp_path / "test.yaml"
     config.write_text(
         f"esphome:\n  name: test\n\nesp32:\n  variant: {variant}\n"
@@ -51,4 +54,5 @@ def test_wraps_only_on_newlib_idf_without_rom_sscanf(
     defines = {define.name for define in CORE.defines}
     assert ("USE_ESP32_BLE_BLUEDROID_HEX_WRAPS" in defines) is expected
     # The drift checks need Bluedroid's private headers
-    assert (BLUEDROID_HEADERS_CMAKE in CORE.data[KEY_ESP32][KEY_SRC_CMAKE]) is expected
+    headers = bluedroid_headers_cmake("bluedroid_hex_wraps.cpp")
+    assert (headers in CORE.data[KEY_ESP32][KEY_SRC_CMAKE]) is expected

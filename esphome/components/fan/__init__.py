@@ -59,8 +59,6 @@ RESTORE_MODES = FanRestoreMode.options(
 )
 
 # Actions
-CycleSpeedAction = fan_ns.class_("CycleSpeedAction", automation.Action)
-
 FanTurnOnTrigger = fan_ns.class_("FanTurnOnTrigger", automation.Trigger.template())
 FanTurnOffTrigger = fan_ns.class_("FanTurnOffTrigger", automation.Trigger.template())
 FanDirectionSetTrigger = fan_ns.class_(
@@ -328,7 +326,7 @@ automation.register_apply_action(
 
 @automation.register_action(
     "fan.cycle_speed",
-    CycleSpeedAction,
+    automation.ApplyAction,
     maybe_simple_id(
         {
             cv.Required(CONF_ID): cv.use_id(Fan),
@@ -338,11 +336,9 @@ automation.register_apply_action(
     synchronous=True,
 )
 async def fan_cycle_speed_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_OFF_SPEED_CYCLE], args, cg.bool_)
-    cg.add(var.set_no_off_cycle(template_))
-    return var
+    paren = automation.parent_ref(await cg.get_variable(config[CONF_ID]))
+    text = str(cg.statement(fan_ns.cycle_speed(paren, config[CONF_OFF_SPEED_CYCLE])))
+    return automation.apply_statements_action(action_id, template_arg, args, [text])
 
 
 FAN_CONDITION_SCHEMA = automation.maybe_simple_id(
