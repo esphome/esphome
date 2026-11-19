@@ -41,7 +41,11 @@ using esp32_ble_tracker::ConnectionType;
 // ---- tracker surface ----
 
 void BluedroidGattClient::connect() { this->tracker_connect_(); }
-void BluedroidGattClient::disconnect() { this->gatt_disconnect(); }
+void BluedroidGattClient::disconnect() {
+  // OTA calls this and then blocks the loop, so a still-pending open must not keep BLE priority.
+  this->release_coex_priority_();
+  this->gatt_disconnect();
+}
 
 // ---- component ----
 
