@@ -1,0 +1,15 @@
+# TLS 1.3 and DHE keep finite-field Diffie-Hellman in the PSA user config header.
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+    sdkconfig_options:
+      CONFIG_MBEDTLS_SSL_PROTO_TLS1_3: y
+      CONFIG_MBEDTLS_DHM_C: y
+
+wifi:
+  ssid: MySSID
+  password: password1
+
+http_request:
+  verify_ssl: false

@@ -1270,13 +1270,36 @@ def test_reconcile_mbedtls_psa_user_config(
     with patch("esphome.espidf.framework.get_idf_tools_path", return_value=tmp_path):
         asyncio.run(_reconcile_mbedtls_sdkconfig())
 
-    header = tmp_path / "esphome" / PSA_USER_CONFIG_SOURCE.name
+    (header,) = (tmp_path / "esphome").glob("psa_user_config.*.h")
     assert header.read_text() == PSA_USER_CONFIG_SOURCE.read_text()
     assert path_define_flag("MBEDTLS_USER_CONFIG_FILE", header) in CORE.build_flags
     opts = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
     for option in MBEDTLS_RSA_OPTIONS:
         if option not in preset:
             assert (opts.get(option) is False) is rsa_off
+
+
+def test_reconcile_mbedtls_psa_user_config_flag_is_per_machine(
+    set_core_config: SetCoreConfigCallable, tmp_path: Path
+) -> None:
+    """The header flag reaches every ESP-IDF compile line, so it must not depend
+    on the build directory, or each device misses the shared ccache."""
+    flags = []
+    for device in ("a", "b"):
+        set_core_config(PlatformFramework.ESP32_IDF)
+        CORE.toolchain = Toolchain.ESP_IDF
+        CORE.build_path = tmp_path / device
+        _seed_mbedtls(net=_WIFI)
+        with patch(
+            "esphome.espidf.framework.get_idf_tools_path",
+            return_value=tmp_path / "idf",
+        ):
+            asyncio.run(_reconcile_mbedtls_sdkconfig())
+        flags.append(
+            {f for f in CORE.build_flags if f.startswith("-DMBEDTLS_USER_CONFIG_FILE")}
+        )
+    assert len(flags[0]) == 1
+    assert flags[0] == flags[1]
 
 
 @pytest.mark.parametrize(

@@ -2836,10 +2836,15 @@ PSA_USER_CONFIG_SOURCE = Path(espidf.__file__).parent / "psa_user_config.h"
 
 
 def _psa_user_config_header() -> Path:
-    """The installed copy of PSA_USER_CONFIG_SOURCE."""
+    """The installed copy of PSA_USER_CONFIG_SOURCE, named by its content so
+    ESPHome versions sharing the tools cache never overwrite each other's."""
+    import hashlib
+
     from esphome.espidf.framework import get_idf_tools_path
 
-    return get_idf_tools_path() / "esphome" / PSA_USER_CONFIG_SOURCE.name
+    digest = hashlib.sha256(PSA_USER_CONFIG_SOURCE.read_bytes()).hexdigest()[:8]
+    source = PSA_USER_CONFIG_SOURCE
+    return get_idf_tools_path() / "esphome" / f"{source.stem}.{digest}{source.suffix}"
 
 
 def _rsa_signing_enabled() -> bool:
