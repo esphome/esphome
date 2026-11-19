@@ -1958,8 +1958,10 @@ async def test_build_callback_automations_when_names_parent(
     )
     assert _registered_function(mock_cg) == (
         "valve->add_on_state_callback(esphome__automation_1__fn)",
-        "static void esphome__automation_1__fn() { "
-        f"if (!(::valve->is_fully_open())) return; ::{NEW_OBJ}->trigger(); }}",
+        (
+            "static void esphome__automation_1__fn() { "
+            f"if (!(::valve->is_fully_open())) return; ::{NEW_OBJ}->trigger(); }}"
+        ),
     )
 
 
@@ -1993,8 +1995,10 @@ async def test_build_callback_automation_lambda(mock_cg: MockCodegen) -> None:
     )
     assert _registered_function(mock_cg) == (
         "sel->add_cb(esphome__automation_1__fn)",
-        "static void esphome__automation_1__fn(const std::remove_cvref_t<size_t> & index) { "
-        f"::{NEW_OBJ}->trigger(::sel->option_at(index), index); }}",
+        (
+            "static void esphome__automation_1__fn(const std::remove_cvref_t<size_t> & index) { "
+            f"::{NEW_OBJ}->trigger(::sel->option_at(index), index); }}"
+        ),
     )
 
 
