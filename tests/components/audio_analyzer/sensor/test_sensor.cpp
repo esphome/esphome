@@ -20,6 +20,8 @@ class FedAnalyzer : public AudioAnalyzer {
       this->push_sample_(amplitude * static_cast<float>(std::sin(TWO_PI * 1000.0 * i / 16000.0)));
     }
   }
+  void start_analysis() override {}
+  void stop_analysis() override {}
   void release_if_idle(uint32_t now) { this->release_if_idle_(now); }
 };
 

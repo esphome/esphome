@@ -29,6 +29,8 @@ class TestAnalyzer : public AudioAnalyzer {
     this->overflow_raised = this->update_overflow_warning_(now);
     this->release_if_idle_(now);
   }
+  void start_analysis() override {}
+  void stop_analysis() override {}
   uint32_t buffered() { return this->buffered_samples_(); }
   void restart() { this->tap_.restart(); }
   void analyze(uint32_t due, bool silent) { this->analyze_(due, silent); }

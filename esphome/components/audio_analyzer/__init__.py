@@ -19,7 +19,7 @@ from esphome.core import CORE
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
-AUTO_LOAD = ["audio"]
+AUTO_LOAD = ["audio", "ring_buffer"]
 CODEOWNERS = ["@jlpouffier"]
 DOMAIN = "audio_analyzer"
 MULTI_CONF = True
@@ -37,9 +37,11 @@ CONF_PASSIVE = "passive"
 CONF_RELEASE = "release"
 CONF_RMS_RANGE = "rms_range"
 
-# FFT_SIZE and NUM_BANDS size arrays in analysis.h; the generated code checks that both sides agree
+# FFT_SIZE, NUM_BANDS and NUM_SECTIONS size arrays in analysis.h; the generated code checks that both sides agree
 FFT_SIZE = 512
 NUM_BANDS = 12
+# Biquad sections of the anti-alias low-pass (8th order)
+NUM_SECTIONS = 4
 # Streams are decimated by an integer factor to at most this rate before the analysis
 MAX_ANALYSIS_RATE = 16000
 # Highest stream rate: the anti-alias claims hold up to a decimation factor of 3
@@ -50,6 +52,8 @@ MAX_BAND_FRACTION = 0.3
 FILTER_CORNER_FRACTION = 0.4
 # Narrowest band in FFT bins: the 6 dB width of the Hann window's main lobe
 MIN_BAND_BINS = 2
+# Lowest FFT bin in a band: the Hann window spreads a DC offset into bins 0 and 1
+MIN_BAND_BIN = 2
 DEFAULT_MAX_FREQUENCY = 4000
 # Microphone analyzer: audio buffered between the microphone task and loop()
 MICROPHONE_BUFFER_MS = 120
@@ -76,9 +80,9 @@ def anti_alias_sections(factor: int) -> list[tuple[float, float, float]]:
     analysis rate. Each section is ``(b0, a1, a2)`` normalized by a0; its numerator is b0 (1 + 2 z^-1 + z^-2)."""
     w0 = 2 * math.pi * FILTER_CORNER_FRACTION / factor
     sections = []
-    for k in range(4):
+    for k in range(NUM_SECTIONS):
         # Q of each pole pair of an 8th-order Butterworth
-        q = 1 / (2 * math.cos(math.pi * (2 * k + 1) / 16))
+        q = 1 / (2 * math.cos(math.pi * (2 * k + 1) / (4 * NUM_SECTIONS)))
         alpha = math.sin(w0) / (2 * q)
         a0 = 1 + alpha
         sections.append(
@@ -95,10 +99,11 @@ def band_bins(min_frequency: float, max_frequency: float, rate: float) -> list[i
     """First FFT bin of each band, then the end of the last band.
 
     Log-spaced between the two frequencies, widened from the bottom so no band is narrower than ``MIN_BAND_BINS``, then
-    pulled back from the top so the last band ends at ``max_frequency``.
+    pulled back from the top so the last band ends at ``max_frequency``. The first band starts at ``MIN_BAND_BIN`` at
+    the lowest, so a DC offset never shows in the bands.
     """
     bin_width = rate / FFT_SIZE
-    lower = max(1, _round_bin(min_frequency, bin_width))
+    lower = max(MIN_BAND_BIN, _round_bin(min_frequency, bin_width))
     upper = _round_bin(max_frequency, bin_width)
     if upper - lower < NUM_BANDS * MIN_BAND_BINS:
         needed = (lower + NUM_BANDS * MIN_BAND_BINS - 0.5) * bin_width
@@ -116,6 +121,19 @@ def band_bins(min_frequency: float, max_frequency: float, rate: float) -> list[i
     for band in range(NUM_BANDS - 1, 0, -1):
         bins[band] = min(bins[band], bins[band + 1] - MIN_BAND_BINS)
     return bins
+
+
+@dataclass
+class AudioAnalyzerData:
+    """Code generation state, in ``CORE.data[DOMAIN]``."""
+
+    constants_checked: bool = False
+
+
+def _get_data() -> AudioAnalyzerData:
+    if DOMAIN not in CORE.data:
+        CORE.data[DOMAIN] = AudioAnalyzerData()
+    return CORE.data[DOMAIN]
 
 
 @dataclass(frozen=True)
@@ -216,12 +234,15 @@ async def setup_analyzer(
     """Registers the component and passes it the analysis worked out for its stream rate."""
     await cg.register_component(var, config)
     plan = analysis_plan(config, sample_rate)
-    cg.add_global(
-        cg.RawStatement(
-            f"static_assert(audio_analyzer::FFT_SIZE == {FFT_SIZE} && audio_analyzer::NUM_BANDS == {NUM_BANDS}, "
-            '"audio_analyzer: FFT_SIZE and NUM_BANDS differ between __init__.py and analysis.h");'
+    if not (data := _get_data()).constants_checked:
+        data.constants_checked = True
+        cg.add_global(
+            cg.RawStatement(
+                f"static_assert(audio_analyzer::FFT_SIZE == {FFT_SIZE} && audio_analyzer::NUM_BANDS == {NUM_BANDS} && "
+                f"audio_analyzer::Decimator::NUM_SECTIONS == {NUM_SECTIONS}, "
+                '"audio_analyzer: FFT_SIZE, NUM_BANDS or NUM_SECTIONS differ between __init__.py and analysis.h");'
+            )
         )
-    )
     bins = ", ".join(str(b) for b in plan.bins)
     cg.add(
         var.set_band_plan(
@@ -238,7 +259,8 @@ async def setup_analyzer(
             var.set_decimation(
                 plan.factor,
                 cg.RawExpression(
-                    f"std::array<audio_analyzer::Decimator::Section, 4>{{{{{sections}}}}}"
+                    "std::array<audio_analyzer::Decimator::Section, audio_analyzer::Decimator::NUM_SECTIONS>"
+                    f"{{{{{sections}}}}}"
                 ),
             )
         )
@@ -302,13 +324,9 @@ async def to_code(config: ConfigType) -> None:
     mic_source = await microphone.microphone_source_to_code(
         config[CONF_MICROPHONE], passive=config[CONF_PASSIVE]
     )
-    var = cg.new_Pvariable(config[CONF_ID], mic_source)
-    await setup_analyzer(
-        var,
-        config,
-        _microphone_sample_rate(config, CORE.config),
-        MICROPHONE_BUFFER_MS,
-    )
+    sample_rate = _microphone_sample_rate(config, CORE.config)
+    var = cg.new_Pvariable(config[CONF_ID], mic_source, sample_rate)
+    await setup_analyzer(var, config, sample_rate, MICROPHONE_BUFFER_MS)
 
 
 AUDIO_ANALYZER_ACTION_SCHEMA = automation.maybe_simple_id(

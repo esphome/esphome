@@ -16,6 +16,7 @@ from esphome.components.audio_analyzer import (
     FFT_SIZE,
     FINAL_VALIDATE_SCHEMA as MIC_FINAL_VALIDATE_SCHEMA,
     MAX_BAND_FRACTION,
+    MIN_BAND_BIN,
     MIN_BAND_BINS,
     NUM_BANDS,
     analysis_plan,
@@ -120,7 +121,7 @@ def test_analysis_options_rejected(options: ConfigType, message: str) -> None:
         ),
         (
             {"min_frequency": "20Hz", "max_frequency": "200Hz"},
-            "raise max_frequency to at least 766 Hz",
+            "raise max_frequency to at least 797 Hz",
         ),
         (
             {"min_frequency": "4000Hz", "max_frequency": "4700Hz"},
@@ -139,6 +140,26 @@ def test_band_range_rejected_for_the_rate(options: ConfigType, message: str) -> 
 )
 def test_narrowest_ranges_accepted(min_frequency: str, max_frequency: str) -> None:
     _validate_mic(min_frequency=min_frequency, max_frequency=max_frequency)
+
+
+def test_band_plan_leaves_out_the_bins_dc_reaches() -> None:
+    # The Hann window spreads DC into bins 0 and 1; a lower min_frequency still starts at bin 2 (the C++ tests use this
+    # plan as LOW_PLAN)
+    assert band_bins(20, 4000, 16000) == [
+        2,
+        4,
+        6,
+        8,
+        10,
+        12,
+        16,
+        23,
+        32,
+        45,
+        64,
+        91,
+        128,
+    ]
 
 
 def test_default_band_plan() -> None:
@@ -179,7 +200,7 @@ def test_band_plan_at_every_rate(
         )
         return
     assert len(bins) == NUM_BANDS + 1
-    assert bins[0] >= 1
+    assert bins[0] >= MIN_BAND_BIN
     assert all(b - a >= MIN_BAND_BINS for a, b in zip(bins, bins[1:], strict=False))
     assert (bins[-1] - 0.5) * rate / FFT_SIZE <= limit
 
@@ -369,6 +390,7 @@ def test_speaker_bands_checked_against_its_rate() -> None:
             {"bands": [{"band": 1, "name": "a"}, {"band": 1, "name": "b"}]},
             "Each band can only have one sensor",
         ),
+        ({"bands": []}, "length of value must be at least 1"),
     ],
 )
 def test_sensor_rejected(config: ConfigType, message: str) -> None:
@@ -378,25 +400,168 @@ def test_sensor_rejected(config: ConfigType, message: str) -> None:
         )
 
 
-def test_default_buffer_covers_the_output_chain(
+def _speaker_chain(blocks: list[ConfigType]) -> Config:
+    """A full config of speakers; ``source_of`` puts a block in a mixer's source_speakers."""
+    full = Config()
+    full["speaker"] = []
+    for block in blocks:
+        entry = {CONF_ID: ID(block["id"], is_declaration=True, type="speaker")}
+        if (duration := block.get("buffer_duration")) is not None:
+            entry["buffer_duration"] = cv.TimePeriod(milliseconds=duration)
+        for key in ("output_speaker", "platform"):
+            if key in block:
+                entry[key] = (
+                    ID(block[key], is_declaration=False)
+                    if key == "output_speaker"
+                    else block[key]
+                )
+        if "output_speakers" in block:
+            entry["output_speakers"] = [
+                ID(out, is_declaration=False) for out in block["output_speakers"]
+            ]
+        if (mixer := block.get("source_of")) is not None:
+            mixer_entry = next(e for e in full["speaker"] if str(e[CONF_ID]) == mixer)
+            index = full["speaker"].index(mixer_entry)
+            sources = mixer_entry.setdefault("source_speakers", [])
+            sources.append(entry)
+            full.declare_ids.append(
+                (
+                    entry[CONF_ID],
+                    ["speaker", index, "source_speakers", len(sources) - 1, CONF_ID],
+                )
+            )
+            continue
+        full["speaker"].append(entry)
+        full.declare_ids.append(
+            (entry[CONF_ID], ["speaker", len(full["speaker"]) - 1, CONF_ID])
+        )
+    return full
+
+
+I2S = {"id": "i2s", "buffer_duration": 500}
+
+
+@pytest.mark.parametrize(
+    ("blocks", "latency", "complete"),
+    [
+        # resampler (100 ms) -> mixer source (100 ms, output_speaker set by the mixer) -> i2s (500 ms)
+        (
+            [
+                {"id": "resampler", "output_speaker": "source", "buffer_duration": 100},
+                {"id": "source", "output_speaker": "i2s", "buffer_duration": 100},
+                I2S,
+            ],
+            700,
+            True,
+        ),
+        # The same, validated before the mixer copied its output_speaker into the source
+        (
+            [
+                {"id": "resampler", "output_speaker": "source", "buffer_duration": 100},
+                {"id": "mixer", "output_speaker": "i2s"},
+                {"id": "source", "source_of": "mixer", "buffer_duration": 100},
+                I2S,
+            ],
+            700,
+            True,
+        ),
+        # A router has several outputs: the walk stops there
+        (
+            [
+                {"id": "resampler", "output_speaker": "router", "buffer_duration": 100},
+                {"id": "router", "output_speakers": ["i2s"]},
+                I2S,
+            ],
+            100,
+            False,
+        ),
+        # Another analyzer's buffer_duration is analysis history
+        (
+            [
+                {
+                    "id": "resampler",
+                    "output_speaker": "inner",
+                    "buffer_duration": 100,
+                },
+                {
+                    "id": "inner",
+                    "platform": "audio_analyzer",
+                    "output_speaker": "i2s",
+                    "buffer_duration": 900,
+                },
+                I2S,
+            ],
+            600,
+            True,
+        ),
+        # A speaker without a buffer_duration doesn't say how much it holds
+        (
+            [
+                {"id": "resampler", "output_speaker": "usb", "buffer_duration": 100},
+                {"id": "usb"},
+            ],
+            100,
+            False,
+        ),
+    ],
+)
+def test_output_latency_follows_the_chain(
+    blocks: list[ConfigType], latency: int, complete: bool
+) -> None:
+    full = _speaker_chain(blocks)
+    analyzer = {"output_speaker": ID("resampler", is_declaration=False)}
+    assert output_latency_ms(analyzer, full) == (latency, complete)
+
+
+def _final_validate_speaker(
+    set_core_config: SetCoreConfigCallable, blocks: list[ConfigType], **options
+) -> None:
+    analyzer = SPEAKER_CONFIG_SCHEMA(
+        {
+            CONF_ID: ID(ANALYZER_ID, is_declaration=True, type="speaker"),
+            "output_speaker": ID("resampler", is_declaration=False),
+            **SPEAKER_FORMAT,
+            **options,
+        }
+    )
+    set_core_config(PlatformFramework.ESP32_IDF, full_config=_speaker_chain(blocks))
+    SPEAKER_FINAL_VALIDATE_SCHEMA(analyzer)
+
+
+RESAMPLER_TO_I2S = [
+    {"id": "resampler", "output_speaker": "i2s", "buffer_duration": 100},
+    I2S,
+]
+
+
+@pytest.mark.parametrize("buffer_duration", ["600ms", "850ms"])
+def test_explicit_buffer_covering_the_chain_accepted(
+    set_core_config: SetCoreConfigCallable, buffer_duration: str
+) -> None:
+    _final_validate_speaker(
+        set_core_config, RESAMPLER_TO_I2S, buffer_duration=buffer_duration
+    )
+
+
+def test_explicit_buffer_shorter_than_the_chain_rejected(
     set_core_config: SetCoreConfigCallable,
 ) -> None:
-    # analyzer -> resampler (100 ms) -> mixer source (100 ms, output_speaker set by the mixer) -> i2s (500 ms)
-    full = Config()
+    with pytest.raises(
+        cv.Invalid,
+        match="must cover the 600 ms of audio the output speakers buffer: set at least 850 ms",
+    ):
+        _final_validate_speaker(
+            set_core_config, RESAMPLER_TO_I2S, buffer_duration="300ms"
+        )
+
+
+def test_explicit_buffer_not_checked_through_a_router(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    # The walk can't see past the router, so it can't tell the buffer is short (a documented limitation)
     blocks = [
-        {"id": "resampler", "output_speaker": "source", "buffer_duration": 100},
-        {"id": "source", "output_speaker": "i2s", "buffer_duration": 100},
-        {"id": "i2s", "buffer_duration": 500},
+        {"id": "resampler", "output_speaker": "router", "buffer_duration": 100},
+        {"id": "router", "output_speakers": ["i2s"]},
+        I2S,
     ]
-    full["speaker"] = []
-    for index, block in enumerate(blocks):
-        entry = {
-            CONF_ID: ID(block["id"], is_declaration=True, type="speaker"),
-            "buffer_duration": cv.TimePeriod(milliseconds=block["buffer_duration"]),
-        }
-        if "output_speaker" in block:
-            entry["output_speaker"] = ID(block["output_speaker"], is_declaration=False)
-        full["speaker"].append(entry)
-        full.declare_ids.append((entry[CONF_ID], ["speaker", index, CONF_ID]))
-    analyzer = {"output_speaker": ID("resampler", is_declaration=False)}
-    assert output_latency_ms(analyzer, full) == 700
+    _final_validate_speaker(set_core_config, blocks, buffer_duration="300ms")

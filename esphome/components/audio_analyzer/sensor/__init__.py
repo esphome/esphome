@@ -41,10 +41,13 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): cv.declare_id(AudioAnalyzerSensor),
             cv.GenerateID(CONF_AUDIO_ANALYZER_ID): cv.use_id(AudioAnalyzer),
             cv.Optional(CONF_RMS): _db_sensor_schema("mdi:waveform"),
-            cv.Optional(CONF_BANDS): cv.ensure_list(
-                _db_sensor_schema("mdi:equalizer").extend(
-                    {cv.Required(CONF_BAND): cv.int_range(min=0, max=NUM_BANDS - 1)}
-                )
+            cv.Optional(CONF_BANDS): cv.All(
+                cv.ensure_list(
+                    _db_sensor_schema("mdi:equalizer").extend(
+                        {cv.Required(CONF_BAND): cv.int_range(min=0, max=NUM_BANDS - 1)}
+                    )
+                ),
+                cv.Length(min=1),
             ),
         }
     ).extend(cv.polling_component_schema("1s")),

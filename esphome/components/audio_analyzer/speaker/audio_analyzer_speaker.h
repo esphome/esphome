@@ -13,8 +13,9 @@ namespace esphome::audio_analyzer {
 /// Placed between an audio source (for example a media player pipeline) and its real speaker. Every call is forwarded
 /// to the output speaker at once. ``start()`` and ``stop()`` only post a command, and ``loop()`` alone moves the state:
 /// it follows the output, so the speaker is running while the output runs and stops when the output stopped, which
-/// after ``finish()`` is once the output played its buffered audio. ``play()`` also downmixes the bytes the output
-/// accepted to mono, decimates them and copies them into the analysis buffer, without blocking.
+/// after ``finish()`` is once the output played its buffered audio. A start right after a stop waits for the output to
+/// pass through STOPPED, so the end of the old stream isn't taken for the new one. ``play()`` also downmixes the bytes
+/// the output accepted to mono, decimates them and copies them into the analysis buffer, without blocking.
 ///
 /// Audio written to a speaker runs ahead of what is heard (resampler, mixer and I2S buffers, often a few hundred ms).
 /// The analyzer counts the frames written to the output and not yet reported as played through its audio output
@@ -55,9 +56,9 @@ class AudioAnalyzerSpeaker final : public AudioAnalyzer, public speaker::Speaker
   float get_volume() override { return this->output_speaker_->get_volume(); }
 
   /// @brief Analyzes the audio again after ``stop_analysis()``.
-  void start_analysis();
+  void start_analysis() override;
   /// @brief Stops copying the audio, which keeps passing through; the values release to silence.
-  void stop_analysis();
+  void stop_analysis() override;
 
  protected:
   /// @brief Producer side, before the output's ``play()``: starts a stopped speaker, forwards the stream format.
@@ -86,6 +87,8 @@ class AudioAnalyzerSpeaker final : public AudioAnalyzer, public speaker::Speaker
   /// Rate of a stream that wasn't analyzed because it differs from ``sample_rate_``, for loop() to log
   std::atomic<uint32_t> unexpected_rate_{0};
   uint32_t state_since_ms_{0};
+  /// Since when the output has run unpaused with audio in it, for the played-audio report check
+  uint32_t reports_since_ms_{0};
   FrameAssembler frame_assembler_;  // producer side
 
   /// Commands posted by start() and stop() from any task for loop()
@@ -97,6 +100,9 @@ class AudioAnalyzerSpeaker final : public AudioAnalyzer, public speaker::Speaker
   std::atomic<bool> output_reported_{false};
   // loop() side
   bool output_seen_starting_{false};
+  /// STARTING after a stop: the output hasn't been seen STOPPED since
+  bool awaiting_output_stop_{false};
+  bool warned_no_start_{false};
   bool warned_no_reports_{false};
   bool warned_unexpected_rate_{false};
 };

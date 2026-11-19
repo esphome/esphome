@@ -20,9 +20,9 @@ static void feed_sine(SpectrumAnalysis &analysis, float frequency, float amplitu
 }
 
 // Default band plan at 16 kHz, no smoothing
-static SpectrumAnalysis unsmoothed() {
+static SpectrumAnalysis unsmoothed(const std::array<uint16_t, NUM_BANDS + 1> &plan = DEFAULT_PLAN) {
   SpectrumAnalysis analysis;
-  analysis.set_band_plan(16000.0f, DEFAULT_PLAN);
+  analysis.set_band_plan(16000.0f, plan);
   analysis.set_smoothing(1.0f, 1.0f);
   return analysis;
 }
@@ -122,13 +122,16 @@ TEST(AudioAnalyzerSpectrum, RmsIsMeanSquareInDb) {
 }
 
 TEST(AudioAnalyzerSpectrum, DcCountsInRmsButNotInBands) {
-  SpectrumAnalysis analysis = unsmoothed();
-  for (uint32_t i = 0; i < FFT_SIZE; ++i) {
-    analysis.push(0.01f);
-  }
-  EXPECT_NEAR(analysis.get_rms_db(), -40.0f, 0.05f);
-  for (uint8_t b = 0; b < NUM_BANDS; ++b) {
-    EXPECT_LT(analysis.get_band_db(b), -90.0f) << int(b);
+  // The default plan, and the lowest one code generation makes (min_frequency 20 Hz), which starts at bin 2
+  for (const auto &plan : {DEFAULT_PLAN, LOW_PLAN}) {
+    SpectrumAnalysis analysis = unsmoothed(plan);
+    for (uint32_t i = 0; i < FFT_SIZE; ++i) {
+      analysis.push(0.01f);
+    }
+    EXPECT_NEAR(analysis.get_rms_db(), -40.0f, 0.05f);
+    for (uint8_t b = 0; b < NUM_BANDS; ++b) {
+      EXPECT_LT(analysis.get_band_db(b), -90.0f) << int(b);
+    }
   }
 }
 

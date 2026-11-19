@@ -36,6 +36,11 @@ class AudioAnalyzer : public Component {
   /// True while audio is being analyzed.
   bool is_active() const { return this->active_; }
 
+  /// @brief Starts the analysis: the microphone analyzer starts its microphone, the speaker copies its audio again.
+  virtual void start_analysis() = 0;
+  /// @brief Stops the analysis; the values release to silence.
+  virtual void stop_analysis() = 0;
+
   /// @brief Registers a callback called on the main task after each analyzed frame.
   template<typename F> void add_on_frame_callback(F &&callback) {
     this->frame_callback_.add(std::forward<F>(callback));

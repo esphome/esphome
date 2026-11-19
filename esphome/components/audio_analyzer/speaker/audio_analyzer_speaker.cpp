@@ -11,9 +11,12 @@ ESPHOME_LOG_TAG(TAG, "audio_analyzer.speaker");
 
 static constexpr uint8_t COMMAND_START = 1 << 0;
 static constexpr uint8_t COMMAND_STOP = 1 << 1;
-// A start ends without the output ever leaving STOPPED after this long (format refused, start ignored)
+// A start ends after the output stayed STOPPED this long (format refused, start ignored). Outputs leave STOPPED on
+// their next loop pass, so this needs no more margin; producers retry with their next play().
 static constexpr uint32_t OUTPUT_START_TIMEOUT_MS = 1000;
-// Running this long with audio in the output and no played-audio report means the output never reports it
+// A restart waits at most this long for the output to finish stopping the previous stream (router's timeout)
+static constexpr uint32_t OUTPUT_STOP_TIMEOUT_MS = 5000;
+// Running this long unpaused with audio in the output and no played-audio report means the output never reports it
 static constexpr uint32_t OUTPUT_REPORT_TIMEOUT_MS = 2000;
 
 static inline void atomic_subtract_clamped(std::atomic<uint32_t> &var, uint32_t amount) {
@@ -131,7 +134,9 @@ void AudioAnalyzerSpeaker::forward_accepted_(const uint8_t *data, size_t bytes_w
   // A write can end mid-frame; the producer continues from there on its next call
   this->frame_assembler_.add(data, bytes_written, info.frames_to_bytes(1),
                              [this, &info, analyze](const uint8_t *frames, uint32_t count) {
-                               // Counted before the copy, so loop() never sees samples of frames not counted yet
+                               // Counted before the copy, so loop() never sees samples of frames not counted yet.
+                               // Counted after the output's play(), like router: a report the output's task makes in
+                               // between is clamped, and the analysis lags by those frames until the next stream.
                                this->frames_in_output_.fetch_add(count, std::memory_order_release);
                                if (analyze) {
                                  this->tap_.write(frames, count, info.samples_to_bytes(1), info.get_channels());
@@ -153,9 +158,13 @@ void AudioAnalyzerSpeaker::stop_analysis() {
 void AudioAnalyzerSpeaker::enter_state_(speaker::State state, uint32_t now) {
   this->state_ = state;
   this->state_since_ms_ = now;
+  this->reports_since_ms_ = now;
   this->output_seen_starting_ = false;
+  this->awaiting_output_stop_ = false;
   if (state == speaker::STATE_STARTING) {
     this->warned_unexpected_rate_ = false;
+  } else if (state == speaker::STATE_RUNNING) {
+    this->warned_no_start_ = false;
   }
   if (state == speaker::STATE_STOPPED) {
     // An overflow near the end of a stream must not stay raised while idle
@@ -173,7 +182,9 @@ void AudioAnalyzerSpeaker::apply_commands_(uint32_t now) {
   }
   if ((commands & COMMAND_START) &&
       (this->state_ == speaker::STATE_STOPPED || this->state_ == speaker::STATE_STOPPING)) {
+    const bool restart = this->state_ == speaker::STATE_STOPPING;
     this->enter_state_(speaker::STATE_STARTING, now);
+    this->awaiting_output_stop_ = restart;
   }
   // After the state: a producer that sees the start taken also sees STARTING. Commands posted meanwhile stay.
   this->commands_.fetch_and(static_cast<uint8_t>(~commands), std::memory_order_release);
@@ -182,6 +193,17 @@ void AudioAnalyzerSpeaker::apply_commands_(uint32_t now) {
 void AudioAnalyzerSpeaker::follow_output_(uint32_t now) {
   switch (this->state_) {
     case speaker::STATE_STARTING:
+      if (this->awaiting_output_stop_) {
+        // A restart: real outputs pass through STOPPED first, so until then running or stopping is the old stream
+        if (this->output_speaker_->is_stopped()) {
+          this->awaiting_output_stop_ = false;
+          this->state_since_ms_ = now;
+        } else if (now - this->state_since_ms_ > OUTPUT_STOP_TIMEOUT_MS) {
+          this->awaiting_output_stop_ = false;
+        } else {
+          break;
+        }
+      }
       if (this->output_speaker_->is_running()) {
         this->enter_state_(speaker::STATE_RUNNING, now);
       } else if (!this->output_speaker_->is_stopped()) {
@@ -190,7 +212,11 @@ void AudioAnalyzerSpeaker::follow_output_(uint32_t now) {
         // Started and already stopped again: a short stream, or the output gave up starting
         this->enter_state_(speaker::STATE_STOPPED, now);
       } else if (now - this->state_since_ms_ > OUTPUT_START_TIMEOUT_MS) {
-        ESP_LOGD(TAG, "Output speaker did not start");
+        if (!this->warned_no_start_) {
+          // Once until the output runs again: producers retry on every play()
+          this->warned_no_start_ = true;
+          ESP_LOGW(TAG, "Output speaker did not start (stream format refused or start ignored)");
+        }
         this->enter_state_(speaker::STATE_STOPPED, now);
       }
       break;
@@ -210,8 +236,12 @@ void AudioAnalyzerSpeaker::check_output_reports_(uint32_t now) {
       this->output_reported_.load(std::memory_order_relaxed)) {
     return;
   }
-  if (now - this->state_since_ms_ > OUTPUT_REPORT_TIMEOUT_MS &&
-      this->frames_in_output_.load(std::memory_order_relaxed) > 0) {
+  if (this->output_speaker_->get_pause_state() || this->frames_in_output_.load(std::memory_order_relaxed) == 0) {
+    // A paused output plays silence and reports nothing
+    this->reports_since_ms_ = now;
+    return;
+  }
+  if (now - this->reports_since_ms_ > OUTPUT_REPORT_TIMEOUT_MS) {
     this->warned_no_reports_ = true;
     ESP_LOGW(TAG, "The output speaker doesn't report the audio it played; nothing can be analyzed");
   }

@@ -30,18 +30,17 @@ uint32_t AudioAnalyzer::buffered_samples_() {
   if (this->tap_.drain_if_restarting()) {
     this->analysis_.reset_frame();
   }
-  return this->tap_.get_fifo().available();
+  return this->tap_.available();
 }
 
 void AudioAnalyzer::analyze_(uint32_t due, bool silent) {
-  SampleFifo &fifo = this->tap_.get_fifo();
   if (due > MAX_BACKLOG_SAMPLES) {
     // Being current matters more than analyzing every sample
-    fifo.skip(due - FFT_SIZE);
+    this->tap_.skip(due - FFT_SIZE);
     this->analysis_.reset_frame();
     due = FFT_SIZE;
   }
-  fifo.consume(due, [this, silent](int16_t sample) {
+  this->tap_.consume(due, [this, silent](int16_t sample) {
     this->push_sample_(silent ? 0.0f : static_cast<float>(sample) * (1.0f / 32768.0f));
   });
 }
