@@ -3,15 +3,13 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <complex>
 #include <cstdint>
 
 #include "esphome/components/audio_analyzer/analysis.h"
+#include "test_helpers.h"
 
 namespace esphome::audio_analyzer::testing {
-
-static constexpr double TWO_PI = 6.283185307179586;
-
-static float mean_square_db(float amplitude) { return 10.0f * log10f(amplitude * amplitude / 2.0f); }
 
 // Feeds whole frames of a sine at the analysis rate
 static void feed_sine(SpectrumAnalysis &analysis, float frequency, float amplitude, uint32_t frames) {
@@ -21,30 +19,33 @@ static void feed_sine(SpectrumAnalysis &analysis, float frequency, float amplitu
   }
 }
 
-static SpectrumAnalysis unsmoothed(float rate = 16000.0f) {
+// Default band plan at 16 kHz, no smoothing
+static SpectrumAnalysis unsmoothed() {
   SpectrumAnalysis analysis;
-  analysis.set_attack(0);
-  analysis.set_release(0);
-  analysis.configure(rate);
+  analysis.set_band_plan(16000.0f, DEFAULT_PLAN);
+  analysis.set_smoothing(1.0f, 1.0f);
   return analysis;
 }
 
-TEST(AudioAnalyzerDecimation, FactorBringsRateToAtMost16k) {
-  struct Case {
-    uint32_t rate;
-    uint8_t factor;
-  };
-  for (const Case &c : {Case{8000, 1}, Case{16000, 1}, Case{22050, 2}, Case{24000, 2}, Case{32000, 2}, Case{44100, 3},
-                        Case{48000, 3}, Case{96000, 6}}) {
-    EXPECT_EQ(decimation_for(c.rate), c.factor) << c.rate;
-    Decimator decimator;
-    decimator.configure(c.rate);
-    EXPECT_LE(decimator.get_output_rate(), 16000.0f) << c.rate;
-  }
+TEST(AudioAnalyzerSamples, ReadsEachSampleWidth) {
+  const uint8_t s8[] = {0x40};
+  EXPECT_FLOAT_EQ(read_mono_sample(s8, 1, 1), 0.5f);
+  const uint8_t s16[] = {0x00, 0xC0};  // -16384
+  EXPECT_FLOAT_EQ(read_mono_sample(s16, 2, 1), -0.5f);
+  const uint8_t s24[] = {0x00, 0x00, 0x40};
+  EXPECT_FLOAT_EQ(read_mono_sample(s24, 3, 1), 0.5f);
+  const uint8_t s32[] = {0x00, 0x00, 0x00, 0xC0};
+  EXPECT_FLOAT_EQ(read_mono_sample(s32, 4, 1), -0.5f);
+}
+
+TEST(AudioAnalyzerSamples, StereoIsDownmixed) {
+  // Left silent, right at 0.5: a right-only signal is not lost
+  const uint8_t frame[] = {0x00, 0x00, 0x00, 0x40};
+  EXPECT_FLOAT_EQ(read_mono_sample(frame, 2, 2), 0.25f);
 }
 
 TEST(AudioAnalyzerSpectrum, StartsSilent) {
-  SpectrumAnalysis analysis;
+  const SpectrumAnalysis analysis = unsmoothed();
   EXPECT_FLOAT_EQ(analysis.get_rms_db(), FLOOR_DB);
   for (uint8_t b = 0; b < NUM_BANDS; ++b) {
     EXPECT_FLOAT_EQ(analysis.get_band_db(b), FLOOR_DB);
@@ -53,11 +54,17 @@ TEST(AudioAnalyzerSpectrum, StartsSilent) {
   EXPECT_TRUE(analysis.is_released());
 }
 
-// Band of the default 100-4000 Hz plan at 16 kHz holding an FFT bin
-static uint8_t band_of_bin(const SpectrumAnalysis &analysis, float bin) {
-  const auto &bins = analysis.get_band_bins();
+TEST(AudioAnalyzerSpectrum, BandEdgesAndFrame) {
+  const SpectrumAnalysis analysis = unsmoothed();
+  EXPECT_NEAR(analysis.get_lower_edge(), 78.1f, 0.1f);
+  EXPECT_NEAR(analysis.get_upper_edge(), 3984.4f, 0.1f);
+  EXPECT_EQ(analysis.get_frame_ms(), 32u);
+}
+
+// Band of the default plan holding an FFT bin
+static uint8_t band_of_bin(float bin) {
   for (uint8_t b = 0; b < NUM_BANDS; ++b) {
-    if (bin >= bins[b] - 0.5f && bin < bins[b + 1] - 0.5f) {
+    if (bin >= DEFAULT_PLAN[b] - 0.5f && bin < DEFAULT_PLAN[b + 1] - 0.5f) {
       return b;
     }
   }
@@ -69,7 +76,7 @@ TEST(AudioAnalyzerSpectrum, SineLandsInItsBand) {
   // edges, in middle bands and the top band
   for (float bin : {30.0f, 30.5f, 59.0f, 59.5f, 110.0f, 110.5f}) {
     SpectrumAnalysis analysis = unsmoothed();
-    const uint8_t band = band_of_bin(analysis, bin);
+    const uint8_t band = band_of_bin(bin);
     ASSERT_LT(band, NUM_BANDS) << bin;
     feed_sine(analysis, bin * 31.25f, 0.5f, 2);
 
@@ -85,14 +92,12 @@ TEST(AudioAnalyzerSpectrum, SineLandsInItsBand) {
 }
 
 TEST(AudioAnalyzerSpectrum, ToneNearABandEdgeLeaksIntoItsNeighbour) {
-  // The Hann window's main lobe spreads a tone over 2 bins either side. With the default plan at 16 kHz, band 1 is
-  // bins 5-6: a tone centred in it keeps its neighbours 15 dB down, a tone on its first bin shows in band 0 about
-  // 8 dB down, and a tone on the boundary is split between the two bands. Nothing reaches two bands away.
-  SpectrumAnalysis analysis = unsmoothed();
-  ASSERT_EQ(analysis.get_band_bins()[1], 5);
-  ASSERT_EQ(analysis.get_band_bins()[2], 7);
+  // The Hann window's main lobe spreads a tone over 2 bins either side. Band 1 is bins 5-6: a tone centred in it keeps
+  // its neighbours 15 dB down, a tone on its first bin shows in band 0 about 8 dB down, and a tone on the boundary is
+  // split between the two bands. Nothing reaches two bands away.
   const float expected_db = mean_square_db(0.5f);
 
+  SpectrumAnalysis analysis = unsmoothed();
   feed_sine(analysis, 5.5f * 31.25f, 0.5f, 2);
   EXPECT_NEAR(analysis.get_band_db(1), expected_db, 0.5f);
   EXPECT_LT(analysis.get_band_db(0), expected_db - 15.0f);
@@ -111,7 +116,6 @@ TEST(AudioAnalyzerSpectrum, ToneNearABandEdgeLeaksIntoItsNeighbour) {
 }
 
 TEST(AudioAnalyzerSpectrum, RmsIsMeanSquareInDb) {
-  // Same value as sound_level's RMS sensor for the same samples
   SpectrumAnalysis analysis = unsmoothed();
   feed_sine(analysis, 1000.0f, 0.25f, 1);
   EXPECT_NEAR(analysis.get_rms_db(), mean_square_db(0.25f), 0.05f);
@@ -150,147 +154,77 @@ TEST(AudioAnalyzerSpectrum, LevelsMapTheirRange) {
   EXPECT_FLOAT_EQ(SpectrumAnalysis::normalize(0.0f, -80.0f, -30.0f), 1.0f);
 }
 
-TEST(AudioAnalyzerSpectrum, DefaultBandPlan) {
-  // 100-4000 Hz at 16 kHz: log-spaced, but the lowest bands are widened to 2 bins
-  SpectrumAnalysis analysis;
-  EXPECT_TRUE(analysis.configure(16000.0f));
-  const std::array<uint16_t, NUM_BANDS + 1> expected{3, 5, 7, 9, 11, 14, 20, 27, 37, 50, 68, 94, 128};
-  EXPECT_EQ(analysis.get_band_bins(), expected);
-  EXPECT_NEAR(analysis.get_lower_edge(), 78.1f, 0.1f);
-  EXPECT_NEAR(analysis.get_upper_edge(), 3984.4f, 0.1f);
-}
-
-TEST(AudioAnalyzerSpectrum, BandsAtLeastTwoBinsBelowTheLimit) {
-  struct Case {
-    float min_hz, max_hz;
-  };
-  for (const Case &c : {Case{100.0f, 4000.0f}, Case{20.0f, 800.0f}, Case{4000.0f, 4800.0f}, Case{100.0f, 4800.0f}}) {
-    for (float rate : {16000.0f, 14700.0f, 12000.0f, 11025.0f, 8000.0f}) {
-      SpectrumAnalysis analysis;
-      analysis.set_frequency_range(c.min_hz, c.max_hz);
-      analysis.configure(rate);
-      const auto &bins = analysis.get_band_bins();
-      EXPECT_GE(bins[0], 1) << c.min_hz << " " << rate;
-      for (uint8_t b = 0; b < NUM_BANDS; ++b) {
-        EXPECT_GE(bins[b + 1] - bins[b], MIN_BAND_BINS) << c.min_hz << " " << rate << " band " << int(b);
-      }
-      EXPECT_LE(analysis.get_upper_edge(), MAX_BAND_FRACTION * rate + 0.01f) << c.min_hz << " " << rate;
-    }
-  }
-}
-
-TEST(AudioAnalyzerSpectrum, ClampBelowMinFrequencyMovesTheBottomDown) {
-  // 4000-4800 Hz is valid at 16 kHz; an 8 kHz stream only allows bands up to 2400 Hz, below min_frequency
-  SpectrumAnalysis analysis;
-  analysis.set_frequency_range(4000.0f, 4800.0f);
-  EXPECT_TRUE(analysis.configure(16000.0f));
-  EXPECT_FALSE(analysis.configure(8000.0f));
-  EXPECT_LE(analysis.get_upper_edge(), 2400.0f);
-  EXPECT_LT(analysis.get_lower_edge(), analysis.get_upper_edge());
-  EXPECT_EQ(analysis.get_band_bins()[NUM_BANDS] - analysis.get_band_bins()[0], NUM_BANDS * MIN_BAND_BINS);
-}
-
-TEST(AudioAnalyzerSpectrum, MaxFrequencyClampedForLowRates) {
-  SpectrumAnalysis analysis;
-  EXPECT_TRUE(analysis.configure(16000.0f));
-  // 8 kHz: bands end at 0.3 * 8000 Hz, the bottom stays
-  EXPECT_FALSE(analysis.configure(8000.0f));
-  EXPECT_LE(analysis.get_upper_edge(), 2400.0f);
-  EXPECT_GT(analysis.get_upper_edge(), 2400.0f - 8000.0f / FFT_SIZE);
-  EXPECT_NEAR(analysis.get_lower_edge(), 100.0f, 8000.0f / FFT_SIZE);
-}
-
 TEST(AudioAnalyzerSpectrum, AttackAndReleaseSteps) {
-  SpectrumAnalysis analysis;
-  analysis.set_attack(30);
-  analysis.set_release(250);
-  analysis.configure(16000.0f);
-  const float frame = analysis.get_frame_seconds();  // 32 ms
-
+  SpectrumAnalysis analysis = unsmoothed();
+  analysis.set_smoothing(0.6f, 0.1f);
   feed_sine(analysis, 1000.0f, 0.5f, 1);
   const float target = mean_square_db(0.5f);
-  const float attack = 1.0f - expf(-frame * 1000.0f / 30.0f);
-  EXPECT_NEAR(analysis.get_rms_db(), FLOOR_DB + (target - FLOOR_DB) * attack, 0.1f);
+  EXPECT_NEAR(analysis.get_rms_db(), FLOOR_DB + (target - FLOOR_DB) * 0.6f, 0.1f);
 
   const float before = analysis.get_rms_db();
-  analysis.release(frame);
-  const float release = 1.0f - expf(-frame * 1000.0f / 250.0f);
-  EXPECT_NEAR(analysis.get_rms_db(), before + (FLOOR_DB - before) * release, 0.1f);
+  analysis.release_step();
+  EXPECT_NEAR(analysis.get_rms_db(), before + (FLOOR_DB - before) * 0.1f, 0.1f);
 }
 
 TEST(AudioAnalyzerSpectrum, ReleaseReachesSilence) {
-  SpectrumAnalysis analysis;
-  analysis.configure(16000.0f);
+  SpectrumAnalysis analysis = unsmoothed();
+  analysis.set_smoothing(0.6f, 0.1f);
   feed_sine(analysis, 1000.0f, 0.5f, 4);
   EXPECT_FALSE(analysis.is_released());
   for (int i = 0; i < 200 && !analysis.is_released(); ++i) {
-    analysis.release(analysis.get_frame_seconds());
+    analysis.release_step();
   }
   EXPECT_TRUE(analysis.is_released());
   EXPECT_NEAR(analysis.get_rms_db(), FLOOR_DB, 0.1f);
   EXPECT_FLOAT_EQ(analysis.get_band_level(5), 0.0f);
 }
 
-// Decimates a sine into an unsmoothed analysis with the highest band edge the stream allows
-static SpectrumAnalysis analyze_sine(uint32_t rate, double frequency, float min_hz = 100.0f) {
+TEST(AudioAnalyzerDecimation, PassesUnchangedWithoutAFactor) {
   Decimator decimator;
-  decimator.configure(rate);
-  SpectrumAnalysis analysis;
-  analysis.set_attack(0);
-  analysis.set_release(0);
-  analysis.set_frequency_range(min_hz, MAX_BAND_FRACTION * decimator.get_output_rate());
-  analysis.configure(decimator.get_output_rate());
-  for (uint32_t i = 0; i < 4 * FFT_SIZE * decimator.get_factor(); ++i) {
-    float out;
-    if (decimator.push(0.5f * static_cast<float>(std::sin(TWO_PI * frequency * i / rate)), out)) {
-      analysis.push(out);
-    }
-  }
-  return analysis;
+  float out = 0.0f;
+  EXPECT_TRUE(decimator.push(0.25f, out));
+  EXPECT_FLOAT_EQ(out, 0.25f);
 }
 
-TEST(AudioAnalyzerDecimation, TopBandMatchesUndecimatedStream) {
-  // A tone near the highest allowed band edge reads the same from a 16 kHz stream (no filter) and from 32 and 48 kHz
-  // streams decimated to 16 kHz; 44.1 kHz streams are analyzed at 14.7 kHz, with their own limit
-  for (double fraction : {0.9, 0.97}) {
-    const double frequency = fraction * MAX_BAND_FRACTION * 16000.0;
-    const SpectrumAnalysis direct = analyze_sine(16000, frequency);
-    for (uint32_t rate : {32000u, 48000u}) {
-      const SpectrumAnalysis decimated = analyze_sine(rate, frequency);
-      EXPECT_NEAR(decimated.get_band_db(NUM_BANDS - 1), direct.get_band_db(NUM_BANDS - 1), 0.1f) << rate;
-      EXPECT_NEAR(decimated.get_rms_db(), direct.get_rms_db(), 0.1f) << rate;
-    }
-    const SpectrumAnalysis cd = analyze_sine(44100, fraction * MAX_BAND_FRACTION * 14700.0);
-    EXPECT_NEAR(cd.get_band_db(NUM_BANDS - 1), mean_square_db(0.5f), 0.1f);
+// Gain of the reference filter at a frequency (fraction of the input rate), from its coefficients
+static double filter_gain(uint8_t factor, double fraction) {
+  const std::complex<double> z1 = std::polar(1.0, -TWO_PI * fraction);
+  const std::complex<double> z2 = z1 * z1;
+  double gain = 1.0;
+  for (const Decimator::Section &s : reference_sections(factor)) {
+    gain *= std::abs(static_cast<double>(s.b0) * (1.0 + 2.0 * z1 + z2) /
+                     (1.0 + static_cast<double>(s.a1) * z1 + static_cast<double>(s.a2) * z2));
   }
+  return gain;
 }
 
-TEST(AudioAnalyzerDecimation, AliasesAreAttenuatedEverywhere) {
-  // Every input tone that folds into 0 Hz to the highest allowed band edge (the worst case lands on that edge) stays
-  // more than 45 dB down, in the RMS and in every band
-  const float limit_db = mean_square_db(0.5f) - 45.0f;
-  for (uint32_t rate : {22050u, 32000u, 44100u, 48000u}) {
-    const uint8_t factor = decimation_for(rate);
-    const double out = static_cast<double>(rate) / factor;
-    const double top = MAX_BAND_FRACTION * out;
-    for (double frequency = out - top; frequency < rate / 2.0; frequency += 37.0) {
-      double folded = std::fmod(frequency, out);
-      folded = std::min(folded, out - folded);
-      if (folded > top) {
-        continue;
-      }
-      const SpectrumAnalysis analysis = analyze_sine(rate, frequency);
-      EXPECT_LT(analysis.get_rms_db(), limit_db) << rate << " " << frequency;
-      for (uint8_t b = 0; b < NUM_BANDS; ++b) {
-        EXPECT_LT(analysis.get_band_db(b), limit_db) << rate << " " << frequency << " band " << int(b);
+TEST(AudioAnalyzerDecimation, FilterRealizesItsTransferFunction) {
+  // The float filter's output level matches the analytic response of its coefficients, in the passband and in the
+  // stopband, and every third sample is kept
+  for (double frequency : {1000.0, 4000.0, 7000.0, 12100.0, 19900.0}) {
+    Decimator decimator;
+    decimator.configure(3, reference_sections(3));
+    double squares = 0.0;
+    uint32_t kept = 0;
+    for (uint32_t i = 0; i < 48000; ++i) {
+      float out;
+      if (decimator.push(0.5f * static_cast<float>(std::sin(TWO_PI * frequency * i / 48000.0)), out)) {
+        if (i >= 24000) {  // settled
+          squares += static_cast<double>(out) * out;
+          ++kept;
+        }
       }
     }
+    EXPECT_EQ(kept, 8000u);
+    const double measured_db = 10.0 * std::log10(squares / kept / 0.125);
+    const double expected_db = 20.0 * std::log10(filter_gain(3, frequency / 48000.0));
+    EXPECT_NEAR(measured_db, expected_db, std::max(0.05, -expected_db * 0.02)) << frequency;
   }
 }
 
 TEST(AudioAnalyzerDecimation, ResetClearsTheFilter) {
   Decimator decimator;
-  decimator.configure(48000);
+  decimator.configure(3, reference_sections(3));
   float out = 0.0f;
   for (int i = 0; i < 30; ++i) {
     decimator.push(1.0f, out);
@@ -303,21 +237,36 @@ TEST(AudioAnalyzerDecimation, ResetClearsTheFilter) {
   EXPECT_FLOAT_EQ(first, 0.0f);
 }
 
-TEST(AudioAnalyzerSamples, ReadsEachSampleWidth) {
-  const uint8_t s8[] = {0x40};
-  EXPECT_FLOAT_EQ(read_mono_sample(s8, 1, 1), 0.5f);
-  const uint8_t s16[] = {0x00, 0xC0};  // -16384
-  EXPECT_FLOAT_EQ(read_mono_sample(s16, 2, 1), -0.5f);
-  const uint8_t s24[] = {0x00, 0x00, 0x40};
-  EXPECT_FLOAT_EQ(read_mono_sample(s24, 3, 1), 0.5f);
-  const uint8_t s32[] = {0x00, 0x00, 0x00, 0xC0};
-  EXPECT_FLOAT_EQ(read_mono_sample(s32, 4, 1), -0.5f);
+// Decimates a 48 kHz sine to 16 kHz into an unsmoothed analysis with the default plan
+static SpectrumAnalysis analyze_48k(double frequency) {
+  Decimator decimator;
+  decimator.configure(3, reference_sections(3));
+  SpectrumAnalysis analysis = unsmoothed();
+  for (uint32_t i = 0; i < 4 * FFT_SIZE * 3; ++i) {
+    float out;
+    if (decimator.push(0.5f * static_cast<float>(std::sin(TWO_PI * frequency * i / 48000.0)), out)) {
+      analysis.push(out);
+    }
+  }
+  return analysis;
 }
 
-TEST(AudioAnalyzerSamples, StereoIsDownmixed) {
-  // Left silent, right at 0.5: a right-only signal is not lost
-  const uint8_t frame[] = {0x00, 0x00, 0x00, 0x40};
-  EXPECT_FLOAT_EQ(read_mono_sample(frame, 2, 2), 0.25f);
+TEST(AudioAnalyzerDecimation, TopBandMatchesUndecimatedStream) {
+  SpectrumAnalysis direct = unsmoothed();
+  feed_sine(direct, 3900.0f, 0.5f, 4);
+  const SpectrumAnalysis decimated = analyze_48k(3900.0);
+  EXPECT_NEAR(decimated.get_band_db(NUM_BANDS - 1), direct.get_band_db(NUM_BANDS - 1), 0.1f);
+  EXPECT_NEAR(decimated.get_rms_db(), direct.get_rms_db(), 0.1f);
+}
+
+TEST(AudioAnalyzerDecimation, AliasesOfTheTopBandAreAttenuated) {
+  // 12.1 and 19.9 kHz fold onto 3.9 kHz at 16 kHz; test_config.py sweeps the whole folding range of every rate
+  for (double frequency : {12100.0, 19900.0}) {
+    const SpectrumAnalysis analysis = analyze_48k(frequency);
+    for (uint8_t b = 0; b < NUM_BANDS; ++b) {
+      EXPECT_LT(analysis.get_band_db(b), mean_square_db(0.5f) - 45.0f) << frequency << " band " << int(b);
+    }
+  }
 }
 
 }  // namespace esphome::audio_analyzer::testing

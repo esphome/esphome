@@ -21,7 +21,6 @@ void AudioAnalyzerSensor::dump_config() {
 }
 
 void AudioAnalyzerSensor::setup() {
-  this->band_db_hold_.fill(NAN);
   this->parent_->add_on_frame_callback([this]() {
     // fmaxf ignores the NAN of an empty hold
     this->rms_db_hold_ = fmaxf(this->rms_db_hold_, this->parent_->get_rms_db());

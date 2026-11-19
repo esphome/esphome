@@ -1,24 +1,20 @@
 #pragma once
 
-#ifdef USE_ESP32
-
 #include "esphome/components/audio_analyzer/audio_analyzer.h"
 #include "esphome/components/audio_analyzer/pass_through.h"
-#include "esphome/components/ring_buffer/ring_buffer.h"
 #include "esphome/components/speaker/speaker.h"
 
 #include <atomic>
-#include <memory>
 
 namespace esphome::audio_analyzer {
 
 /// @brief Pass-through speaker that analyzes the audio flowing through it.
 ///
 /// Placed between an audio source (for example a media player pipeline) and its real speaker. Every call is forwarded
-/// to the output speaker, and the running/stopped state mirrors the output's (``follow_output()``), so a producer
-/// sees the same states with or without the analyzer. ``play()`` also downmixes the bytes the output accepted to
-/// mono, decimates them to at most 16 kHz and copies them as 16-bit samples into a buffer allocated once in
-/// ``setup()``, without blocking.
+/// to the output speaker at once. ``start()`` and ``stop()`` only post a command, and ``loop()`` alone moves the state:
+/// it follows the output, so the speaker is running while the output runs and stops when the output stopped, which
+/// after ``finish()`` is once the output played its buffered audio. ``play()`` also downmixes the bytes the output
+/// accepted to mono, decimates them and copies them into the analysis buffer, without blocking.
 ///
 /// Audio written to a speaker runs ahead of what is heard (resampler, mixer and I2S buffers, often a few hundred ms).
 /// The analyzer counts the frames written to the output and not yet reported as played through its audio output
@@ -27,16 +23,21 @@ namespace esphome::audio_analyzer {
 ///
 /// The analysis is taken before the output's volume. While the output speaker is muted (or at zero volume) it
 /// analyzes silence.
+///
+/// Platform independent apart from the FreeRTOS ``play()`` overload, so the whole class runs in the host unit tests.
 class AudioAnalyzerSpeaker final : public AudioAnalyzer, public speaker::Speaker {
  public:
-  explicit AudioAnalyzerSpeaker(speaker::Speaker *output_speaker) : output_speaker_(output_speaker) {}
+  AudioAnalyzerSpeaker(speaker::Speaker *output_speaker, uint32_t sample_rate)
+      : output_speaker_(output_speaker), sample_rate_(sample_rate) {}
 
   void dump_config() override;
   void setup() override;
   void loop() override;
 
+#ifdef USE_ESP32
   size_t play(const uint8_t *data, size_t length, TickType_t ticks_to_wait) override;
-  size_t play(const uint8_t *data, size_t length) override { return this->play(data, length, 0); }
+#endif
+  size_t play(const uint8_t *data, size_t length) override;
 
   void start() override;
   void stop() override;
@@ -53,65 +54,51 @@ class AudioAnalyzerSpeaker final : public AudioAnalyzer, public speaker::Speaker
   void set_volume(float volume) override { this->output_speaker_->set_volume(volume); }
   float get_volume() override { return this->output_speaker_->get_volume(); }
 
-  void set_buffer_duration(uint32_t buffer_duration_ms) { this->buffer_duration_ms_ = buffer_duration_ms; }
+  /// @brief Analyzes the audio again after ``stop_analysis()``.
+  void start_analysis();
+  /// @brief Stops copying the audio, which keeps passing through; the values release to silence.
+  void stop_analysis();
 
  protected:
-  /// Hand-over of the analysis buffer between the task that calls ``play()`` (the producer) and ``loop()``.
-  enum class SyncState : uint8_t {
-    /// Producer asked for a fresh start (new stream, format change, full buffer) and stopped copying
-    SYNC_STATE_RESYNC,
-    /// loop() emptied the buffer; the producer starts copying with the current format on its next play()
-    SYNC_STATE_DRAINED,
-    /// Producer copies every frame it forwards
-    SYNC_STATE_COPYING,
-  };
+  /// @brief Producer side, before the output's ``play()``: starts a stopped speaker, forwards the stream format.
+  void prepare_play_();
+  /// @brief Producer side, after the output's ``play()``: counts and copies the whole frames it accepted.
+  void forward_accepted_(const uint8_t *data, size_t bytes_written);
+  /// @brief True for the first ``start()`` of a new stream (after a stop, or while stopped).
+  bool claim_new_stream_();
 
-  /// @brief Forwards the stream format to the output speaker.
-  void sync_stream_info_();
-
-  /// @brief Producer side: counts whole frames forwarded to the output, then copies them.
-  void forward_frames_(const uint8_t *data, uint32_t frames);
-  /// @brief Producer side: decimates and copies forwarded frames into the analysis buffer.
-  void copy_frames_(const uint8_t *data, uint32_t frames);
-  /// @brief Producer side: writes decimated samples, or asks for a resync when they don't fit.
-  bool write_samples_(const int16_t *samples, size_t count);
-
-  /// @brief Mirrors the output speaker's state, which callers read through ``is_stopped()`` and ``is_running()``.
-  void update_state_();
-  /// @brief Analyzes the buffered samples that have been played. Returns true when it completed a frame.
-  bool analyze_heard_();
-  /// @brief Raises the overflow warning, or clears it once the analysis works again.
-  void report_overflow_(bool overflowed, bool analyzed);
+  void apply_commands_(uint32_t now);
+  /// @brief Moves the state to follow the output speaker's.
+  void follow_output_(uint32_t now);
+  void enter_state_(speaker::State state, uint32_t now);
+  /// @brief Warns once when the output plays audio but never reports it played, which stops the analysis.
+  void check_output_reports_(uint32_t now);
+  bool output_silent_() {
+    return this->output_speaker_->get_mute_state() ||
+           this->output_speaker_->get_volume() < speaker::SILENT_VOLUME_THRESHOLD;
+  }
 
   speaker::Speaker *output_speaker_;
-
-  // Decimated mono 16-bit samples, written by the producer and read by loop(). Allocated once in setup().
-  std::unique_ptr<ring_buffer::RingBuffer> ring_buffer_;
-
-  // Producer side (THREAD CONTEXT: the task that calls play())
-  Decimator decimator_;
-  FrameAssembler frame_assembler_;
-  audio::AudioStreamInfo copy_stream_info_;
+  const uint32_t sample_rate_;
 
   /// Frames written to the output and not yet reported as played. Decremented (clamped at 0) from the output's task.
   std::atomic<uint32_t> frames_in_output_{0};
-  /// Input sample rate of the samples copied since the last resync; published before SYNC_STATE_COPYING
-  std::atomic<uint32_t> copy_sample_rate_{0};
-  std::atomic<SyncState> sync_state_{SyncState::SYNC_STATE_RESYNC};
-  /// millis() of the last start(); written before state_ so loop() never pairs STARTING with an older time
-  std::atomic<uint32_t> state_start_ms_{0};
-  /// Set by start(): the producer drops the partial frame it kept from the previous stream
-  std::atomic<bool> new_stream_{false};
-  /// Set by the producer when the buffer was full
-  std::atomic<bool> overflow_{false};
+  /// Rate of a stream that wasn't analyzed because it differs from ``sample_rate_``, for loop() to log
+  std::atomic<uint32_t> unexpected_rate_{0};
+  uint32_t state_since_ms_{0};
+  FrameAssembler frame_assembler_;  // producer side
 
-  uint32_t buffer_duration_ms_{1000};
+  /// Commands posted by start() and stop() from any task for loop()
+  std::atomic<uint8_t> commands_{0};
+  /// Set by a new stream: the producer drops the partial frame it kept from the previous one
+  std::atomic<bool> new_stream_{false};
+  std::atomic<bool> analysis_enabled_{true};
+  /// Set once the output reported played audio
+  std::atomic<bool> output_reported_{false};
   // loop() side
-  uint32_t analysis_sample_rate_{0};
-  uint8_t decimation_{1};
-  bool awaiting_copy_{true};
+  bool output_seen_starting_{false};
+  bool warned_no_reports_{false};
+  bool warned_unexpected_rate_{false};
 };
 
 }  // namespace esphome::audio_analyzer
-
-#endif  // USE_ESP32

@@ -5,6 +5,7 @@
 #include "esphome/core/component.h"
 
 #include <array>
+#include <cmath>
 
 namespace esphome::audio_analyzer {
 
@@ -17,7 +18,7 @@ class AudioAnalyzerSensor final : public PollingComponent {
   SUB_SENSOR(rms)
 
  public:
-  explicit AudioAnalyzerSensor(AudioAnalyzer *parent) : parent_(parent) {}
+  explicit AudioAnalyzerSensor(AudioAnalyzer *parent) : parent_(parent) { this->band_db_hold_.fill(NAN); }
 
   void dump_config() override;
   void setup() override;

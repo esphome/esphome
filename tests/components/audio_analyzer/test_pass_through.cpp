@@ -7,110 +7,6 @@
 
 namespace esphome::audio_analyzer::testing {
 
-using State = PassThroughState;
-static constexpr State STOPPED = State::PASS_THROUGH_STATE_STOPPED;
-static constexpr State STARTING = State::PASS_THROUGH_STATE_STARTING;
-static constexpr State RUNNING = State::PASS_THROUGH_STATE_RUNNING;
-static constexpr State STOPPING = State::PASS_THROUGH_STATE_STOPPING;
-
-// Drives the state functions the way AudioAnalyzerSpeaker calls them
-struct PassThrough {
-  State state{STOPPED};
-  bool new_stream{false};
-  void start() {
-    this->new_stream = starts_new_stream(this->state);
-    if (this->new_stream) {
-      this->state = STARTING;
-    }
-  }
-  void play() {
-    if (starts_new_stream(this->state)) {
-      this->start();
-    }
-  }
-  void stop() { this->state = state_after_stop(this->state); }
-  void loop(bool output_running, bool output_stopped, bool timed_out = false) {
-    this->state = follow_output(this->state, output_running, output_stopped, timed_out);
-  }
-};
-
-TEST(AudioAnalyzerPassThrough, StopWhileIdleThenPlay) {
-  // A cancelled announcement stops a speaker that never played: it stays stopped, so the next play() starts it
-  PassThrough speaker;
-  speaker.stop();
-  EXPECT_EQ(speaker.state, STOPPED);
-  speaker.loop(false, true);
-  EXPECT_EQ(speaker.state, STOPPED);
-  speaker.play();
-  EXPECT_EQ(speaker.state, STARTING);
-  EXPECT_TRUE(speaker.new_stream);
-  speaker.loop(true, false);
-  EXPECT_EQ(speaker.state, RUNNING);
-}
-
-TEST(AudioAnalyzerPassThrough, FinishRunsUntilTheOutputDrained) {
-  PassThrough speaker;
-  speaker.start();
-  speaker.loop(true, false);
-  ASSERT_EQ(speaker.state, RUNNING);
-  // finish() leaves the state alone: the output still plays its buffered audio
-  speaker.loop(true, false);
-  EXPECT_EQ(speaker.state, RUNNING);
-  speaker.loop(false, false);  // output stopping
-  EXPECT_EQ(speaker.state, RUNNING);
-  speaker.loop(false, true);
-  EXPECT_EQ(speaker.state, STOPPED);
-}
-
-TEST(AudioAnalyzerPassThrough, StopFollowsTheOutputToStopped) {
-  PassThrough speaker;
-  speaker.start();
-  speaker.loop(true, false);
-  speaker.stop();
-  EXPECT_EQ(speaker.state, STOPPING);
-  speaker.loop(false, false);
-  EXPECT_EQ(speaker.state, STOPPING);
-  speaker.loop(false, true);
-  EXPECT_EQ(speaker.state, STOPPED);
-}
-
-TEST(AudioAnalyzerPassThrough, RestartWhileStoppingIsANewStream) {
-  PassThrough speaker;
-  speaker.start();
-  speaker.loop(true, false);
-  speaker.stop();
-  speaker.play();
-  EXPECT_EQ(speaker.state, STARTING);
-  EXPECT_TRUE(speaker.new_stream);
-}
-
-TEST(AudioAnalyzerPassThrough, StartWhileRunningContinuesTheStream) {
-  PassThrough speaker;
-  speaker.start();
-  speaker.loop(true, false);
-  speaker.start();
-  EXPECT_EQ(speaker.state, RUNNING);
-  EXPECT_FALSE(speaker.new_stream);
-}
-
-TEST(AudioAnalyzerPassThrough, FailedStartTimesOut) {
-  PassThrough speaker;
-  speaker.start();
-  speaker.loop(false, true);
-  EXPECT_EQ(speaker.state, STARTING);  // the output hasn't processed its start yet
-  speaker.loop(false, true, true);
-  EXPECT_EQ(speaker.state, STOPPING);  // the speaker stops the output
-  speaker.loop(false, true);
-  EXPECT_EQ(speaker.state, STOPPED);
-  speaker.play();
-  EXPECT_EQ(speaker.state, STARTING);
-}
-
-TEST(AudioAnalyzerPassThrough, StoppedIgnoresARunningOutput) {
-  // Only start() or play() start a stream; an output started by someone else doesn't
-  EXPECT_EQ(follow_output(STOPPED, true, false, false), STOPPED);
-}
-
 TEST(AudioAnalyzerSync, NothingHeardWhileUncopiedFramesPlay) {
   // 3000 frames went to the output before the copy started, then 300 samples (900 frames at /3) were copied: the
   // copied audio is only heard once the uncopied frames have played
@@ -144,8 +40,8 @@ struct Collector {
 TEST(AudioAnalyzerFrames, WritesEndingMidFrameKeepTheStreamAligned) {
   // Stereo 16-bit (4-byte frames) written as 7, 6 and 3 bytes: 4 whole frames, in order
   std::vector<uint8_t> stream(16);
-  for (uint8_t i = 0; i < stream.size(); ++i) {
-    stream[i] = i;
+  for (size_t i = 0; i < stream.size(); ++i) {
+    stream[i] = static_cast<uint8_t>(i);
   }
   FrameAssembler assembler;
   Collector out;

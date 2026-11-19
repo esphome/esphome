@@ -1,55 +1,13 @@
 #pragma once
 
-// Platform-independent bookkeeping of the pass-through speaker: its state machine, the frames written to the output
-// and the samples that have been heard. No ESP32 or App dependency, so it runs in the host unit tests.
+// Platform-independent bookkeeping of the pass-through speaker: whole frames from partial writes and the samples that
+// have been heard. No ESP32 or App dependency, so it runs in the host unit tests.
 
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
 
 namespace esphome::audio_analyzer {
-
-/// @brief States of the pass-through speaker, with the values of ``speaker::State``.
-enum class PassThroughState : uint8_t {
-  PASS_THROUGH_STATE_STOPPED = 0,
-  PASS_THROUGH_STATE_STARTING,
-  PASS_THROUGH_STATE_RUNNING,
-  PASS_THROUGH_STATE_STOPPING,
-};
-
-/// @brief True when ``start()`` (or a ``play()`` that starts the speaker) begins a new stream from this state.
-/// ``finish()`` leaves the state alone, so a speaker that is finishing is still running and continues its stream.
-inline bool starts_new_stream(PassThroughState state) {
-  return state == PassThroughState::PASS_THROUGH_STATE_STOPPED ||
-         state == PassThroughState::PASS_THROUGH_STATE_STOPPING;
-}
-
-/// @brief State after ``stop()``. A stopped speaker stays stopped, so nothing waits on an output that never ran.
-inline PassThroughState state_after_stop(PassThroughState state) {
-  return state == PassThroughState::PASS_THROUGH_STATE_STOPPED ? state : PassThroughState::PASS_THROUGH_STATE_STOPPING;
-}
-
-/// @brief State after a ``loop()`` pass: the speaker mirrors its output instead of predicting it.
-///
-/// Starting becomes running once the output runs, or stopping when it did not start in time (the caller then stops
-/// the output). Running and stopping become stopped once the output stopped, so after ``finish()`` the speaker
-/// stays running until the output has played its buffered audio, like ``resampler`` and ``i2s_audio``.
-inline PassThroughState follow_output(PassThroughState state, bool output_running, bool output_stopped,
-                                      bool start_timed_out) {
-  switch (state) {
-    case PassThroughState::PASS_THROUGH_STATE_STARTING:
-      if (output_running) {
-        return PassThroughState::PASS_THROUGH_STATE_RUNNING;
-      }
-      return start_timed_out ? PassThroughState::PASS_THROUGH_STATE_STOPPING : state;
-    case PassThroughState::PASS_THROUGH_STATE_RUNNING:
-    case PassThroughState::PASS_THROUGH_STATE_STOPPING:
-      return output_stopped ? PassThroughState::PASS_THROUGH_STATE_STOPPED : state;
-    case PassThroughState::PASS_THROUGH_STATE_STOPPED:
-      break;
-  }
-  return state;
-}
 
 /// @brief Decimated samples due for analysis in a pass-through speaker.
 ///

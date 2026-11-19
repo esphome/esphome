@@ -8,18 +8,21 @@ from esphome.const import (
     CONF_ID,
     CONF_NUM_CHANNELS,
     CONF_OUTPUT_SPEAKER,
+    CONF_PLATFORM,
     CONF_SAMPLE_RATE,
     PLATFORM_ESP32,
 )
+from esphome.core import CORE
+import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 from .. import (
     ANALYZER_SCHEMA,
+    DOMAIN,
     AudioAnalyzer,
+    analysis_plan,
     audio_analyzer_ns,
     setup_analyzer,
-    validate_frequency_range,
-    validate_max_frequency_for_rate,
 )
 
 AUTO_LOAD = ["audio", "audio_analyzer"]
@@ -43,6 +46,11 @@ def _set_stream_limits(config: ConfigType) -> ConfigType:
     return config
 
 
+def _validate_bands(config: ConfigType) -> ConfigType:
+    analysis_plan(config, config[CONF_SAMPLE_RATE])
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     ANALYZER_SCHEMA.extend(
         {
@@ -55,8 +63,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_NUM_CHANNELS): cv.int_range(1, 2),
             cv.Required(CONF_SAMPLE_RATE): cv.int_range(8000, 48000),
             # Must cover how far the audio written to this speaker runs ahead of what is heard (buffers of the
-            # output speaker and of anything after it). Holds 16-bit samples at 16 kHz: 32 KB per second.
-            cv.Optional(CONF_BUFFER_DURATION, default="1000ms"): cv.All(
+            # output speaker and of anything after it). Defaults to the output chain's buffers plus a margin.
+            cv.Optional(CONF_BUFFER_DURATION): cv.All(
                 cv.positive_time_period_milliseconds,
                 cv.Range(
                     min=cv.TimePeriod(milliseconds=100),
@@ -68,7 +76,7 @@ CONFIG_SCHEMA = cv.All(
             ),
         }
     ),
-    validate_frequency_range,
+    _validate_bands,
     cv.only_on([PLATFORM_ESP32]),
     _set_stream_limits,
 )
@@ -82,16 +90,42 @@ def _final_validate(config: ConfigType) -> ConfigType:
         channels=config[CONF_NUM_CHANNELS],
         sample_rate=config[CONF_SAMPLE_RATE],
     )(config)
-    validate_max_frequency_for_rate(config, config[CONF_SAMPLE_RATE])
     return config
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
+# Added to the output chain's buffers for the default buffer_duration: transfer and DMA buffers, and the main loop
+OUTPUT_LATENCY_MARGIN_MS = 250
+
+
+def output_latency_ms(config: ConfigType, full_config: fv.FinalValidateConfig) -> int:
+    """Sum of the buffer_duration of the speakers the audio passes through after this one."""
+    total = 0
+    seen: set[str] = set()
+    speaker_id = config[CONF_OUTPUT_SPEAKER]
+    while speaker_id is not None and str(speaker_id) not in seen:
+        seen.add(str(speaker_id))
+        block = fv.get_declaring_config(speaker_id, full_config)
+        # Another analyzer's buffer_duration is its analysis buffer, not audio waiting to be played
+        if block.get(CONF_PLATFORM) != DOMAIN and (
+            duration := block.get(CONF_BUFFER_DURATION)
+        ):
+            total += duration.total_milliseconds
+        # Mixer source speakers get their mixer's output_speaker during validation
+        speaker_id = block.get(CONF_OUTPUT_SPEAKER)
+    return total
+
+
 async def to_code(config: ConfigType) -> None:
     output_speaker = await cg.get_variable(config[CONF_OUTPUT_SPEAKER])
-    var = cg.new_Pvariable(config[CONF_ID], output_speaker)
-    await setup_analyzer(var, config)
+    var = cg.new_Pvariable(config[CONF_ID], output_speaker, config[CONF_SAMPLE_RATE])
+    if (buffer := config.get(CONF_BUFFER_DURATION)) is not None:
+        buffer_ms = buffer.total_milliseconds
+    else:
+        buffer_ms = min(
+            5000, output_latency_ms(config, CORE.config) + OUTPUT_LATENCY_MARGIN_MS
+        )
+    await setup_analyzer(var, config, config[CONF_SAMPLE_RATE], buffer_ms)
     await speaker.register_speaker(var, config)
-    cg.add(var.set_buffer_duration(config[CONF_BUFFER_DURATION]))

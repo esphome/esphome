@@ -5,29 +5,23 @@
 
 #include "esphome/components/audio_analyzer/sensor/audio_analyzer_sensor.h"
 #include "esphome/core/application.h"
+#include "../test_helpers.h"
 
 namespace esphome::audio_analyzer::testing {
-
-static constexpr double TWO_PI = 6.283185307179586;
 
 class FedAnalyzer : public AudioAnalyzer {
  public:
   FedAnalyzer() {
-    this->set_attack(0);
-    this->set_release(0);
-    this->configure_analysis_(16000.0f);
+    this->set_band_plan(16000.0f, DEFAULT_PLAN);
+    this->set_smoothing(1.0f, 1.0f);
   }
   void feed_frame(float amplitude) {
     for (uint32_t i = 0; i < FFT_SIZE; ++i) {
       this->push_sample_(amplitude * static_cast<float>(std::sin(TWO_PI * 1000.0 * i / 16000.0)));
     }
   }
-  void release_if_idle() { this->release_if_idle_(); }
+  void release_if_idle(uint32_t now) { this->release_if_idle_(now); }
 };
-
-static void at(uint32_t now_ms) { LoopBlockingGuard clock{nullptr, nullptr, now_ms}; }
-
-static float mean_square_db(float amplitude) { return 10.0f * log10f(amplitude * amplitude / 2.0f); }
 
 class AudioAnalyzerSensorTest : public ::testing::Test {
  protected:
@@ -70,7 +64,7 @@ TEST_F(AudioAnalyzerSensorTest, UnknownOnceTheAnalyzerIsIdle) {
   int publishes = 0;
   this->rms_.add_on_state_callback([&publishes](float) { ++publishes; });
   at(1000 + 100);
-  this->analyzer_.release_if_idle();
+  this->analyzer_.release_if_idle(1000 + 100);
   ASSERT_FALSE(this->analyzer_.is_active());
   this->sensor_.update();
   EXPECT_TRUE(std::isnan(this->rms_.state));

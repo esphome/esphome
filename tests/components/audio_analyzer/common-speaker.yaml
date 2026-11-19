@@ -17,7 +17,6 @@ speaker:
     bits_per_sample: 16
     num_channels: 1
     sample_rate: 48000
-    buffer_duration: 500ms
     attack: 0ms
     release: 0ms
   - platform: resampler
@@ -38,3 +37,10 @@ sensor:
   - platform: template
     name: Speaker Band 3 dB
     lambda: return id(speaker_analyzer).get_band_db(3);
+
+script:
+  - id: audio_analyzer_toggle_speaker
+    then:
+      - audio_analyzer.stop: speaker_analyzer
+      - audio_analyzer.start:
+          id: speaker_analyzer
