@@ -89,7 +89,6 @@ from .const import (
     KEY_SDKCONFIG_OPTIONS,
     KEY_SRC_CMAKE,
     KEY_VARIANT,
-    NO_WIFI_VARIANTS,
     VARIANT_ESP32,
     VARIANT_ESP32C2,
     VARIANT_ESP32C3,
@@ -105,6 +104,7 @@ from .const import (
     VARIANT_ESP32S31,
     VARIANT_FRIENDLY,
     VARIANTS,
+    variant_has_wifi,
 )
 
 # force import gpio to register pin schema
@@ -2828,10 +2828,18 @@ _SECURE_SIGNING_OPTIONS = (
 # defaults turn these on and sdkconfig cannot reach them: finite-field
 # Diffie-Hellman, which only TLS 1.2 DHE suites and TLS 1.3 FFDHE groups use,
 # and RSA-PSS, which fails the prerequisite check once CONFIG_MBEDTLS_RSA_C is off.
-# A fixed file, not one in the build directory: the flag reaches every ESP-IDF
-# file's compile line, and a per-device path there would defeat the shared
+# The flag reaches every ESP-IDF file's compile line, so the header is copied
+# next to the machine-wide ESP-IDF install: a path in the build directory or the
+# esphome checkout would differ per device or worktree and miss the shared
 # ccache (CCACHE_BASEDIR only rewrites path arguments, not -D values).
-PSA_USER_CONFIG_HEADER = Path(espidf.__file__).parent / "psa_user_config.h"
+PSA_USER_CONFIG_SOURCE = Path(espidf.__file__).parent / "psa_user_config.h"
+
+
+def _psa_user_config_header() -> Path:
+    """The installed copy of PSA_USER_CONFIG_SOURCE."""
+    from esphome.espidf.framework import get_idf_tools_path
+
+    return get_idf_tools_path() / "esphome" / PSA_USER_CONFIG_SOURCE.name
 
 
 def _rsa_signing_enabled() -> bool:
@@ -2850,15 +2858,14 @@ def _ecp_stays_on() -> bool:
     """Whether ECP survives the TLS-off trim: X.509 parsing needs the PK layer,
     which needs RSA or ECP. Native Wi-Fi's mbedTLS crypto selects ECP; hosted
     Wi-Fi has no such option."""
-    if _mbedtls_sdkconfig().ecp_required:
+    if _mbedtls_sdkconfig().ecp_required or is_idf_sdkconfig_option_enabled(
+        "CONFIG_MBEDTLS_ECP_C"
+    ):
         return True
-    wifi_crypto = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS].get(
-        "CONFIG_ESP_WIFI_MBEDTLS_CRYPTO"
-    )
     return (
         _network_sdkconfig().wifi
-        and get_esp32_variant() not in NO_WIFI_VARIANTS
-        and (wifi_crypto is None or _format_sdkconfig_val(wifi_crypto) == "y")
+        and variant_has_wifi(get_esp32_variant())
+        and _is_idf_sdkconfig_option_not_disabled("CONFIG_ESP_WIFI_MBEDTLS_CRYPTO")
     )
 
 
@@ -3055,9 +3062,9 @@ async def _reconcile_mbedtls_sdkconfig() -> None:
         set_idf_sdkconfig_default("CONFIG_MBEDTLS_SHA512_C", False)
 
     if _psa_user_config_applies():
-        cg.add_build_flag(
-            path_define_flag("MBEDTLS_USER_CONFIG_FILE", PSA_USER_CONFIG_HEADER)
-        )
+        header = _psa_user_config_header()
+        copy_file_if_changed(PSA_USER_CONFIG_SOURCE, header)
+        cg.add_build_flag(path_define_flag("MBEDTLS_USER_CONFIG_FILE", header))
 
     # Arduino's libraries call mbedTLS directly, so its builds keep every mode.
     if idf6 and not CORE.using_arduino:

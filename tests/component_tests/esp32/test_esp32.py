@@ -7,6 +7,7 @@ from collections.abc import Callable
 import logging
 from pathlib import Path
 from typing import Any
+from unittest.mock import patch
 
 import pytest
 
@@ -23,7 +24,7 @@ from esphome.components.esp32 import (
     MBEDTLS_RSA_OPTIONS,
     MBEDTLS_TLS_EXTRA_OPTIONS,
     MBEDTLS_UNUSED_CIPHER_MODE_OPTIONS,
-    PSA_USER_CONFIG_HEADER,
+    PSA_USER_CONFIG_SOURCE,
     VARIANT_ESP32,
     VARIANTS,
     MbedtlsSdkconfigData,
@@ -1129,6 +1130,25 @@ def test_reconcile_mbedtls_sdkconfig(
 _WIFI = NetworkSdkconfigData(wifi=True)
 
 
+def _seed_mbedtls(
+    *,
+    variant: str = VARIANT_ESP32,
+    idf: cv.Version = _IDF61,
+    preset: dict[str, Any] | None = None,
+    data: MbedtlsSdkconfigData | None = None,
+    net: NetworkSdkconfigData | None = None,
+) -> None:
+    """Seed the esp32 data _reconcile_mbedtls_sdkconfig() reads."""
+    CORE.data[KEY_ESP32] = {
+        KEY_VARIANT: variant,
+        KEY_IDF_VERSION: idf,
+        KEY_SDKCONFIG_OPTIONS: dict(preset or {}),
+        KEY_MBEDTLS_SDKCONFIG: data or MbedtlsSdkconfigData(),
+        KEY_NETWORK_SDKCONFIG: net or NetworkSdkconfigData(),
+        KEY_EXCLUDE_COMPONENTS: set(_ESP_TLS_LINKING_COMPONENTS),
+    }
+
+
 @pytest.mark.parametrize(
     ("variant", "net", "data", "preset", "rsa_off"),
     [
@@ -1221,6 +1241,14 @@ _WIFI = NetworkSdkconfigData(wifi=True)
             True,
             id="ecp_required_drops_rsa",
         ),
+        pytest.param(
+            VARIANT_ESP32,
+            NetworkSdkconfigData(),
+            MbedtlsSdkconfigData(),
+            {"CONFIG_MBEDTLS_ECP_C": RawSdkconfigValue("y")},
+            True,
+            id="user_ecp_drops_rsa",
+        ),
     ],
 )
 def test_reconcile_mbedtls_psa_user_config(
@@ -1233,29 +1261,18 @@ def test_reconcile_mbedtls_psa_user_config(
     rsa_off: bool,
 ) -> None:
     """On ESP-IDF 6 with the native toolchain the PSA user config header is
-    written and passed to every component. RSA goes only when nothing needs it
-    and ECP keeps the PK layer that X.509 parsing needs."""
+    installed next to ESP-IDF and passed to every component. RSA goes only when
+    nothing needs it and ECP keeps the PK layer that X.509 parsing needs."""
     set_core_config(PlatformFramework.ESP32_IDF)
     CORE.toolchain = Toolchain.ESP_IDF
-    CORE.build_path = tmp_path
-    CORE.data[KEY_ESP32] = {
-        KEY_VARIANT: variant,
-        KEY_IDF_VERSION: _IDF61,
-        KEY_SDKCONFIG_OPTIONS: dict(preset),
-        KEY_MBEDTLS_SDKCONFIG: data,
-        KEY_NETWORK_SDKCONFIG: net,
-        KEY_EXCLUDE_COMPONENTS: set(_ESP_TLS_LINKING_COMPONENTS),
-    }
+    _seed_mbedtls(variant=variant, preset=preset, data=data, net=net)
 
-    asyncio.run(_reconcile_mbedtls_sdkconfig())
+    with patch("esphome.espidf.framework.get_idf_tools_path", return_value=tmp_path):
+        asyncio.run(_reconcile_mbedtls_sdkconfig())
 
-    assert PSA_USER_CONFIG_HEADER.is_file()
-    assert (
-        path_define_flag("MBEDTLS_USER_CONFIG_FILE", PSA_USER_CONFIG_HEADER)
-        in CORE.build_flags
-    )
-    # The same path for every device keeps the shared ccache hitting.
-    assert not PSA_USER_CONFIG_HEADER.is_relative_to(tmp_path)
+    header = tmp_path / "esphome" / PSA_USER_CONFIG_SOURCE.name
+    assert header.read_text() == PSA_USER_CONFIG_SOURCE.read_text()
+    assert path_define_flag("MBEDTLS_USER_CONFIG_FILE", header) in CORE.build_flags
     opts = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
     for option in MBEDTLS_RSA_OPTIONS:
         if option not in preset:
@@ -1286,18 +1303,12 @@ def test_reconcile_mbedtls_psa_user_config_not_applied(
     neither it nor the RSA trim is applied."""
     set_core_config(framework)
     CORE.toolchain = toolchain
-    CORE.build_path = tmp_path
-    CORE.data[KEY_ESP32] = {
-        KEY_VARIANT: VARIANT_ESP32,
-        KEY_IDF_VERSION: idf,
-        KEY_SDKCONFIG_OPTIONS: {},
-        KEY_MBEDTLS_SDKCONFIG: MbedtlsSdkconfigData(),
-        KEY_NETWORK_SDKCONFIG: NetworkSdkconfigData(wifi=True),
-        KEY_EXCLUDE_COMPONENTS: set(_ESP_TLS_LINKING_COMPONENTS),
-    }
+    _seed_mbedtls(idf=idf, net=_WIFI)
 
-    asyncio.run(_reconcile_mbedtls_sdkconfig())
+    with patch("esphome.espidf.framework.get_idf_tools_path", return_value=tmp_path):
+        asyncio.run(_reconcile_mbedtls_sdkconfig())
 
+    assert not (tmp_path / "esphome").exists()
     assert not any("MBEDTLS_USER_CONFIG_FILE" in flag for flag in CORE.build_flags)
     opts = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
     assert not any(option in opts for option in MBEDTLS_RSA_OPTIONS)
@@ -1336,13 +1347,7 @@ def test_reconcile_mbedtls_software_aes_keeps_xts(
     """NVS always builds its encrypted partition code, which needs mbedTLS XTS
     when AES runs in software."""
     set_core_config(PlatformFramework.ESP32_IDF)
-    CORE.data[KEY_ESP32] = {
-        KEY_VARIANT: variant,
-        KEY_IDF_VERSION: idf,
-        KEY_SDKCONFIG_OPTIONS: dict(preset),
-        KEY_MBEDTLS_SDKCONFIG: MbedtlsSdkconfigData(),
-        KEY_EXCLUDE_COMPONENTS: set(_ESP_TLS_LINKING_COMPONENTS),
-    }
+    _seed_mbedtls(variant=variant, idf=idf, preset=preset)
 
     asyncio.run(_reconcile_mbedtls_sdkconfig())
 
