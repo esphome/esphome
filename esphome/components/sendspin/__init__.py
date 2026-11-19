@@ -542,7 +542,7 @@ async def to_code(config: ConfigType) -> None:
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
     # sendspin-cpp library
-    esp32.add_idf_component(name="sendspin/sendspin-cpp", ref="0.9.3")
+    esp32.add_idf_component(name="sendspin/sendspin-cpp", ref="0.10.0")
     # esp_websocket_client links esp_tls even for ws:// connections.
     esp32.request_tls()
 
