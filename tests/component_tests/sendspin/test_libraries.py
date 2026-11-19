@@ -1,4 +1,4 @@
-"""Tests for the registry components the sendspin hub declares."""
+"""Tests for the registry components a sendspin build declares."""
 
 from collections.abc import Callable
 from pathlib import Path
@@ -12,8 +12,9 @@ def test_noise_c_and_libsodium_are_pinned(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
 ) -> None:
-    """sendspin-cpp accepts any noise-c from 0.1.13 up, so without these pins a build
-    without API encryption would take whatever version is newest."""
+    """The hub loads the noise component, which pins both. sendspin-cpp accepts any
+    noise-c from 0.1.13 up, so a build without API encryption would otherwise take
+    whatever version is newest."""
     generate_main(component_config_path("device_info_default.yaml"))
 
     components = CORE.data[KEY_ESP32][KEY_COMPONENTS]
