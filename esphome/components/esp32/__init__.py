@@ -3062,7 +3062,9 @@ async def _reconcile_mbedtls_sdkconfig() -> None:
     # SHA-384 shares the SHA-512 compression function, so both go together.
     # Only IDF 6.0's PSA engine links a ~3KB software fallback for them; on
     # IDF 5 they are a single hardware-only option with no code size cost.
-    if idf6 and not data.sha512_required:
+    # TLS keeps them: many certificate chains are signed with SHA-384, and
+    # without it HTTPS to those servers fails the certificate check.
+    if idf6 and not data.sha512_required and _mbedtls_tls_compiled_out():
         set_idf_sdkconfig_default("CONFIG_MBEDTLS_SHA384_C", False)
         set_idf_sdkconfig_default("CONFIG_MBEDTLS_SHA512_C", False)
 
