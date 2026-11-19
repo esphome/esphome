@@ -247,8 +247,8 @@ def set_sdkconfig_options(config: ConfigType) -> None:
         add_idf_sdkconfig_option("CONFIG_OPENTHREAD_SRP_CLIENT_MAX_SERVICES", 5)
 
     if border_router:
-        # Border routing follows the backbone link
         if _get_backbone(config) == CONF_WIFI:
+            # Border routing follows the Wi-Fi link
             wifi.request_wifi_connect_state_listener()
         for name, value in BORDER_ROUTER_SDKCONFIG_OPTIONS.items():
             add_idf_sdkconfig_option(name, value)

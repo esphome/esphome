@@ -34,7 +34,6 @@ enum class TeardownStage : uint8_t {
 };
 
 #ifdef USE_OPENTHREAD_BORDER_ROUTER
-// The link border routing runs over, for log messages
 #ifdef USE_OPENTHREAD_BACKBONE_ETHERNET
 static constexpr const char *const BACKBONE_NAME = "Ethernet";
 #else
@@ -159,13 +158,13 @@ class OpenThreadComponent final : public Component {
   static constexpr uint32_t RCP_RESET_FORGET_MS = 10 * 60 * 1000;
 #endif
 #ifdef USE_OPENTHREAD_BORDER_ROUTER
-  // State the main loop and the OpenThread task share, one bit each in border_router_flags_
-  static constexpr uint8_t MAINLOOP_RUNNING = 1 << 0;               // written by the OpenThread task
-  static constexpr uint8_t BORDER_ROUTER_STARTED = 1 << 1;          // written by the OpenThread task
-  static constexpr uint8_t BORDER_ROUTER_START_REQUESTED = 1 << 2;  // set by loop(), taken by the OpenThread task
-  static constexpr uint8_t MAINLOOP_EXIT_REQUESTED = 1 << 3;        // set by loop(), taken by the OpenThread task
+  // border_router_flags_ bits, shared with the OpenThread task
+  static constexpr uint8_t MAINLOOP_RUNNING = 1 << 0;
+  static constexpr uint8_t BORDER_ROUTER_STARTED = 1 << 1;
+  static constexpr uint8_t BORDER_ROUTER_START_REQUESTED = 1 << 2;
+  static constexpr uint8_t MAINLOOP_EXIT_REQUESTED = 1 << 3;
   std::atomic<uint8_t> border_router_flags_{0};
-  bool backbone_up_{false};  // what the stack was told about the infra interface last; main loop only
+  bool backbone_up_{false};  // what the stack was told about the infra interface last
 #endif
 
  private:
