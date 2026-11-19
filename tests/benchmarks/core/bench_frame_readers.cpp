@@ -101,8 +101,11 @@ BENCHMARK(FrameReader_UltrasonicNoisy);
 
 // --- LengthFrameReader: frames of different lengths among noise ---
 
+// A5 01, whole-frame length at 7
+using PioneerFormat = FrameFormat<FrameHeader<0xA5, 0x01>, FrameLengthU8<7>>;
+
 static void LengthFrameReader_MixedFrames(benchmark::State &state) {
-  LengthFrameReader<255, FrameFormat<FrameHeader<0xA5, 0x01>, FrameLengthU8<7>>> reader;
+  LengthFrameReader<255, PioneerFormat> reader;
   const uint8_t *bytes = LENGTH_FRAMES;
   uint32_t frames = 0;
 

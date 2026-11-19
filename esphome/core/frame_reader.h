@@ -78,9 +78,8 @@ template<size_t N, uint8_t... HEADER> class FrameReader {
   pos_t pos_{0};
 };
 
-/// Length rules for FrameFormat: the frame length is known once KNOWN_AT bytes are collected, and get() returns it
-/// for the whole frame, header included. A component can pass its own type with these two members; its get()
-/// returns 0 to reject a broken header.
+// Length rules: get() gives the whole frame length once KNOWN_AT bytes are in, or 0 to reject the header.
+
 /// Whole-frame length: the field at POS counts every byte of the frame, header included.
 template<size_t POS> struct FrameLengthU8 {
   static constexpr size_t KNOWN_AT = POS + 1;
@@ -114,6 +113,17 @@ template<size_t LEN> struct FrameFixedLength {
   static constexpr size_t get(const uint8_t * /*buf*/) { return LEN; }
 };
 
+/// Wraps a length rule: CHECK(buf) runs once AT bytes are in, and a header it fails gives length 0 (rejected).
+template<class LENGTH, size_t AT, bool (*CHECK)(const uint8_t *)> struct CheckedLength {
+  static constexpr size_t KNOWN_AT = std::max(LENGTH::KNOWN_AT, AT);
+  static size_t get(const uint8_t *buf) { return CHECK(buf) ? LENGTH::get(buf) : 0; }
+};
+
+/// The shortest frame of a FrameFormat, when that is more than its header and length field.
+template<size_t LEN> struct FrameMinLength {
+  static constexpr size_t VALUE = LEN;
+};
+
 namespace frame_reader_detail {
 // The length of a FrameFixedLength rule, 0 for every other rule
 template<class LENGTH> constexpr size_t FIXED_LENGTH = 0;
@@ -127,13 +137,15 @@ template<uint8_t... BYTES> struct FrameHeader {
   static constexpr uint8_t byte(size_t i) { return frame_reader_detail::header_byte<BYTES...>(i); }
 };
 
-/// One frame type for LengthFrameReader: a FrameHeader and a length rule from above.
-template<class HEADER, class LENGTH> struct FrameFormat {
+/// One frame type for LengthFrameReader: a FrameHeader, a length rule from above and an optional FrameMinLength.
+template<class HEADER, class LENGTH, class MIN = FrameMinLength<0>> struct FrameFormat {
   using Length = LENGTH;
   static constexpr size_t HEADER_LEN = HEADER::LEN;
   static constexpr uint8_t FIRST = HEADER::byte(0);
   // Bytes collected when the length is checked; also the shortest frame
   static constexpr size_t MIN_LEN = std::max<size_t>({LENGTH::KNOWN_AT, HEADER_LEN, 2});
+  // A shorter length is not a frame
+  static constexpr size_t SHORTEST = std::max(MIN_LEN, MIN::VALUE);
   static_assert(LENGTH::KNOWN_AT == 1 || LENGTH::KNOWN_AT > HEADER_LEN, "The length field must follow the header");
   static constexpr uint8_t header_byte(size_t i) { return HEADER::byte(i); }
 };
@@ -141,8 +153,8 @@ template<class HEADER, class LENGTH> struct FrameFormat {
 /// Collects binary frames that give their own length, of up to N bytes, in one or more FrameFormats; the first byte
 /// picks the format, so each format needs a different first header byte. Bytes before a header are skipped. A length
 /// that ends the frame before its length field, or is longer than N, is not a frame, and the reader looks for a
-/// header after its first byte. Checksums, footers and a minimum length that covers them are left to the caller,
-/// which passes a handler that returns false for a frame it rejects:
+/// header after its first byte. Checksums and footers are left to the caller, which passes a handler that returns
+/// false for a frame it rejects:
 ///
 ///   this->reader_.feed(c, [this](const uint8_t *frame, size_t len) { return this->handle_frame_(frame, len); });
 ///
@@ -162,9 +174,9 @@ template<size_t N, class... FORMATS> class LengthFrameReader {
     return true;
   }
   static_assert(distinct_first(), "Each FrameFormat needs a different first header byte");
-  static_assert(((FORMATS::MIN_LEN <= N) && ...), "N must hold the header and length field of every FrameFormat");
+  static_assert(((FORMATS::SHORTEST <= N) && ...), "N must hold the shortest frame of every FrameFormat");
   static_assert(((frame_reader_detail::FIXED_LENGTH<typename FORMATS::Length> == 0 ||
-                  (frame_reader_detail::FIXED_LENGTH<typename FORMATS::Length> >= FORMATS::MIN_LEN &&
+                  (frame_reader_detail::FIXED_LENGTH<typename FORMATS::Length> >= FORMATS::SHORTEST &&
                    frame_reader_detail::FIXED_LENGTH<typename FORMATS::Length> <= N)) &&
                  ...),
                 "A fixed length must hold the header and fit in N");
@@ -172,7 +184,6 @@ template<size_t N, class... FORMATS> class LengthFrameReader {
  public:
   /// Feed one byte; calls handle(frame, length) for each frame it completes, header included. A rejected frame
   /// (handle returns false) is searched for frames inside it and after it, which go to handle the same way.
-  /// handle returns false when the bytes are not a real frame.
   /// handle must not feed this reader again: the frame and the bytes held behind it live in its buffer.
   template<class F> void __attribute__((always_inline)) feed(uint8_t c, F &&handle) {
     // Most bytes are in the middle of a frame whose length is known, and not its last byte
@@ -234,7 +245,7 @@ template<size_t N, class... FORMATS> class LengthFrameReader {
     this->buf_[pos++] = c;
     if (pos == F::MIN_LEN) {
       const size_t len = F::Length::get(this->buf_);
-      if (len < F::MIN_LEN || len > N)
+      if (len < F::SHORTEST || len > N)
         return this->replay_(1, pos);
       this->end_ = len;
     }

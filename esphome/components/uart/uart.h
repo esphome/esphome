@@ -90,8 +90,7 @@ class UARTDevice {
         count);
   }
 
-  /// Feed the waiting bytes to a LengthFrameReader and set last_rx; on a pass with none waiting, gap_ms after last_rx,
-  /// flush its stalled partial frame.
+  /// Feed the waiting bytes to a LengthFrameReader; on a pass with none, gap_ms after last_rx, flush a stalled frame.
   template<size_t N = 64, typename R, typename F>
   void read_frames(R &reader, F &&handle, uint32_t now, uint32_t &last_rx, uint32_t gap_ms = 100) {
     if (const size_t count = this->available()) {

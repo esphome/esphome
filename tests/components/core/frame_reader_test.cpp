@@ -323,7 +323,7 @@ TEST(LengthFrameReaderTest, IdleAfterHandledFrameFindsNothingInIt) {
   EXPECT_EQ(seen, (Frames{{0xA5, 0x06, 0xA5, 0x03, 0x01, 0x02}}));
 }
 
-// A custom rule known at the first byte that reads the buffer: the header byte itself gives the length
+// A custom rule known at the first byte that reads the buffer builds (only FrameFixedLength is checked up front)
 struct FirstByteLength {
   static constexpr size_t KNOWN_AT = 1;
   static constexpr size_t get(const uint8_t *buf) { return buf[0]; }
@@ -333,4 +333,22 @@ TEST(LengthFrameReaderTest, CustomRuleKnownAtTheFirstByte) {
   LengthFrameReader<8, FrameFormat<FrameHeader<0x03>, FirstByteLength>> reader;
   EXPECT_EQ(feed_all(reader, {0x03, 0x01, 0x02, 0x03}), (Frames{{0x03, 0x01, 0x02}}));
 }
+
+// A5, payload length at 1, payload, checksum; a frame has at least 2 payload bytes
+using MinTwo = FrameFormat<FrameHeader<0xA5>, PayloadLengthU8<1, 1>, FrameMinLength<5>>;
+
+TEST(LengthFrameReaderTest, LengthBelowTheMinimumIsRejectedAtTheHeader) {
+  LengthFrameReader<16, MinTwo> reader;
+  EXPECT_EQ(feed_all(reader, {0xA5, 0x00, 0xA5, 0x02, 0x10, 0x20, 0x30}), (Frames{{0xA5, 0x02, 0x10, 0x20, 0x30}}));
+}
+
+static bool second_byte_not_ff(const uint8_t *buf) { return buf[1] != 0xFF; }
+// A5, a byte that must not be FF, payload length at 2, payload
+using Checked = FrameFormat<FrameHeader<0xA5>, CheckedLength<PayloadLengthU8<2>, 2, second_byte_not_ff>>;
+
+TEST(LengthFrameReaderTest, CheckedLengthRejectsABadHeader) {
+  LengthFrameReader<16, Checked> reader;
+  EXPECT_EQ(feed_all(reader, {0xA5, 0xFF, 0x01, 0xA5, 0x00, 0x01, 0x42}), (Frames{{0xA5, 0x00, 0x01, 0x42}}));
+}
+
 }  // namespace esphome::core::testing
