@@ -1,6 +1,7 @@
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components.const import CONF_RTS_PIN
+from esphome.components.esp32 import add_idf_component
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BAUD_RATE,
@@ -10,7 +11,6 @@ from esphome.const import (
     CONF_RX_PIN,
     CONF_TX_PIN,
 )
-from esphome.components.esp32 import add_idf_component
 import esphome.final_validate as fv
 
 CODEOWNERS = ["@KoenBreeman"]
