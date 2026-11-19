@@ -194,8 +194,14 @@ size_t SpeakerSourceMediaPlayer::handle_media_output_(uint8_t pipeline, media_so
   if (ps.active_source == source) {
     // This source is active - play the audio
     if (ps.speaker->get_audio_stream_info() != stream_info) {
-      // Setup the speaker to play this stream
-      ps.speaker->set_audio_stream_info(stream_info);
+      if (ps.speaker->is_stopped()) {
+        // Setup the speaker to play this stream
+        ps.speaker->set_audio_stream_info(stream_info);
+      } else {
+        // A running speaker drops the audio already written when its format changes, so play that out first
+        // and reopen the speaker in the new format once it stops
+        ps.speaker->finish();
+      }
       vTaskDelay(pdMS_TO_TICKS(timeout_ms));
       return 0;
     }
