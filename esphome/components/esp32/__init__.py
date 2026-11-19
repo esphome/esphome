@@ -14,6 +14,7 @@ import esphome.codegen as cg
 from esphome.components.const import (
     CONF_ENABLE_OTA_DOWNGRADE_PROTECTION,
     CONF_IGNORE_NOT_FOUND,
+    CONF_TASK_CORE,
 )
 import esphome.config_validation as cv
 from esphome.const import (
@@ -813,6 +814,26 @@ def only_on_variant(*, supported=None, unsupported=None, msg_prefix="This featur
         return obj
 
     return validator_
+
+
+def final_validate_task_core(config: ConfigType) -> ConfigType:
+    """Check that the selected task core is available in this FreeRTOS build."""
+    if config[CONF_TASK_CORE] != 1:
+        return config
+    only_on_variant(
+        supported=[
+            VARIANT_ESP32,
+            VARIANT_ESP32S3,
+            VARIANT_ESP32P4,
+            VARIANT_ESP32H4,
+            VARIANT_ESP32S31,
+        ],
+        msg_prefix="task_core: 1",
+    )(config)
+    sdkconfig = fv.full_config.get()[DOMAIN][CONF_FRAMEWORK][CONF_SDKCONFIG_OPTIONS]
+    if sdkconfig.get("CONFIG_FREERTOS_UNICORE") == "y":
+        raise cv.Invalid("task_core: 1 requires FreeRTOS dual-core mode")
+    return config
 
 
 @dataclass

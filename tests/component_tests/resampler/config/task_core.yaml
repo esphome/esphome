@@ -1,5 +1,5 @@
 esphome:
-  name: resampler-task-scheduling
+  name: resampler-task-core
 
 esp32:
   variant: ESP32S3
@@ -22,9 +22,7 @@ speaker:
     id: core_zero_resampler
     output_speaker: output
     task_core: 0
-    task_priority: 5
   - platform: resampler
     id: core_one_resampler
     output_speaker: output
     task_core: 1
-    task_priority: 23
