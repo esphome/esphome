@@ -32,8 +32,14 @@ namespace esphome::epaper_spi {
  * The framebuffer packs 2 bits per pixel (4 per byte, most significant pixel first), 0 = black
  * and 3 = white.
  *
- * Every update is a full refresh: with both planes used for the level, nothing tells the
+ * A four-level update is a full refresh: with both planes used for the level, nothing tells the
  * controller what a pixel shows now.
+ *
+ * With full_update_every above 1, the updates in between are black and white, using the panel's
+ * own partial waveform from its OTP. That waveform leaves alone a pixel which is told it has not
+ * changed, so only the pixels whose level is different are driven, each to black or white,
+ * whichever its new level is nearer. The rest keep what they show, greys included. For this the
+ * driver keeps a copy of the level every pixel was last driven to.
  */
 class EPaperUC8179Gray4 : public EPaperUC8179 {
  public:
@@ -41,17 +47,22 @@ class EPaperUC8179Gray4 : public EPaperUC8179 {
                     size_t init_sequence_length)
       : EPaperUC8179(name, width, height, init_sequence, init_sequence_length, DISPLAY_TYPE_GRAYSCALE, 2) {}
 
+  void setup() override;
   void fill(Color color) override;
   void draw_pixel_at(int x, int y, Color color) override;
   void set_driver_waveforms(bool driver_waveforms) { this->driver_waveforms_ = driver_waveforms; }
 
  protected:
+  bool initialise(bool partial) override;
   bool transfer_data() override;
+  bool transfer_gray_();
+  bool transfer_mono_();
   void send_waveforms_();
   void send_waveform_(uint8_t command, const uint8_t *waveform);
   void select_stored_waveforms_();
 
   bool driver_waveforms_{};  // send the tables in this driver, for a panel whose OTP has no four-level set
+  bool mono_push_{};         // the update in progress is a black-and-white partial one
 };
 
 }  // namespace esphome::epaper_spi

@@ -589,10 +589,11 @@ display:
       it.circle(it.get_width() / 2, it.get_height() / 2, 100, Color::BLACK);
 
   # Waveshare 7.5" V2 in four grey levels (800x480, UC8179, the panel's own waveforms)
-  # full_update_every is not supported by this model, so left at its default of 1
+  # full_update_every > 1 exercises the black-and-white partial updates
   - platform: epaper_spi
     spi_id: spi_bus
     model: waveshare-7.5in-v2-gray4
+    full_update_every: 10
     cs_pin:
       allow_other_uses: true
       number: GPIO5
@@ -611,7 +612,7 @@ display:
       it.circle(it.get_width() / 2, it.get_height() / 2, 100, Color::BLACK);
 
   # The same with the driver's own waveforms, for panels which have no four-level set
-  # full_update_every is not supported by this model, so left at its default of 1
+  # full_update_every left at 1, so every update is a four-level one
   - platform: epaper_spi
     spi_id: spi_bus
     model: waveshare-7.5in-v2-gray4

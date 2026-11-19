@@ -133,12 +133,12 @@ class UC8179Gray4(UC8179):
         )
 
 
-# The Waveshare 7.5" V2 panel in four grey levels. Every update is a full refresh.
+# The Waveshare 7.5" V2 panel in four grey levels. A four-level update is a full refresh; with
+# full_update_every above 1 the updates in between are black and white, of the changed pixels only.
 UC8179Gray4(
     "waveshare-7.5in-v2-gray4",
     width=800,
     height=480,
-    partial_update=False,
     # each plane byte is built from two whole buffer bytes
     width_multiple=8,
 )

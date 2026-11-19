@@ -22,11 +22,23 @@ class TestableUC8179Gray4 : public EPaperUC8179Gray4 {
     ASSERT_TRUE(this->init_buffer_(this->buffer_length_));
   }
 
-  /// Both planes of one push; returns how many calls it took.
-  int run_push() {
+  /// As configured with full_update_every > 1.
+  void install_with_partials(spi::SPIDelegate *delegate) {
+    this->install(delegate);
+    this->set_full_update_every(5);
+    ASSERT_TRUE(this->init_sent_frame_(this->buffer_length_));
+  }
+
+  /// One update as the state machine runs it, from initialise to the end of the transfer; returns
+  /// how many calls the transfer took. A partial one is black and white if the panel's state is known.
+  int run_push(bool partial = false) {
+    this->sent_count_ = 0;
+    this->initialise(partial);
     int calls = 1;
     while (!this->transfer_data())
       calls++;
+    if (this->sent_.is_valid() && this->sent_count_ == this->sent_.size())
+      this->sent_valid_ = true;
     return calls;
   }
 
@@ -200,6 +212,106 @@ TEST(EPaperUC8179Gray4, UsesThePanelsOwnWaveformsByDefault) {
   }
   EXPECT_EQ(std::count(bus.commands.begin(), bus.commands.end(), 0x00), 0)
       << "the panel was switched to waveforms from registers";
+}
+
+/// With partial updates enabled, an update in between drives only the pixels whose level has
+/// changed, with the panel's own partial waveform. DTM1 is what the panel is told it shows and
+/// DTM2 the new image, a set bit being white; equal bits leave a pixel alone.
+TEST(EPaperUC8179Gray4, PartialUpdateDrivesOnlyChangedPixels) {
+  TestableUC8179Gray4 display(8, 1);
+  RecordingDelegate bus(&display.dc);
+  display.install_with_partials(&bus);
+
+  draw_row(display, 0, {0, 1, 2, 3, 0, 1, 2, 3});
+  display.run_push();
+  bus.clear();
+
+  draw_row(display, 0, {0, 1, 2, 3, 3, 1, 2, 0});
+  display.run_push(true);
+
+  //          shown   0 1 2 3 0 1 2 3
+  //          wanted  0 1 2 3 3 1 2 0
+  // DTM1 (shown)     0 0 1 1 0 0 1 1 = 0x33
+  // DTM2 (new)       0 0 1 1 1 0 1 0 = 0x3A
+  EXPECT_EQ(bus.data[DTM1], (Bytes{0x33}));
+  EXPECT_EQ(bus.data[DTM2], (Bytes{0x3A}));
+  EXPECT_EQ(bus.data[0x00], (Bytes{0x1F})) << "partial update does not take its waveform from the OTP";
+  EXPECT_EQ(bus.data[0xE5], (Bytes{0x6E})) << "partial update does not select the partial waveform";
+  EXPECT_EQ(std::count(bus.commands.begin(), bus.commands.end(), LUT_WW), 0);
+}
+
+/// A pixel showing white is not driven to become light grey, nor one showing black to become dark
+/// grey: black and white are all a partial update has.
+TEST(EPaperUC8179Gray4, PartialUpdateLeavesAPixelAtTheNearerExtreme) {
+  TestableUC8179Gray4 display(8, 1);
+  RecordingDelegate bus(&display.dc);
+  display.install_with_partials(&bus);
+
+  draw_row(display, 0, {3, 3, 3, 3, 0, 0, 0, 0});
+  display.run_push();
+  bus.clear();
+
+  draw_row(display, 0, {2, 2, 2, 2, 1, 1, 1, 1});
+  display.run_push(true);
+
+  EXPECT_EQ(bus.data[DTM1], (Bytes{0xF0}));
+  EXPECT_EQ(bus.data[DTM2], (Bytes{0xF0}));
+}
+
+/// The driver remembers what a partial update drove a pixel to: a grey which became black is black,
+/// so asking again for the dark grey which is drawn as black drives nothing.
+TEST(EPaperUC8179Gray4, PartialUpdateRemembersWhatItDrove) {
+  TestableUC8179Gray4 display(8, 1);
+  RecordingDelegate bus(&display.dc);
+  display.install_with_partials(&bus);
+
+  draw_row(display, 0, {2, 2, 2, 2, 2, 2, 2, 2});
+  display.run_push();
+  draw_row(display, 0, {1, 2, 2, 2, 2, 2, 2, 2});
+  bus.clear();
+  display.run_push(true);
+  EXPECT_EQ(bus.data[DTM1], (Bytes{0xFF})) << "the changed pixel was not told it shows white";
+  EXPECT_EQ(bus.data[DTM2], (Bytes{0x7F})) << "the changed pixel was not driven to black";
+
+  bus.clear();
+  display.run_push(true);
+  EXPECT_EQ(bus.data[DTM1], (Bytes{0x7F}));
+  EXPECT_EQ(bus.data[DTM2], (Bytes{0x7F}));
+}
+
+/// A full update is still four-level with partial updates enabled, and so is any update before
+/// the driver knows what the panel shows.
+TEST(EPaperUC8179Gray4, UpdatesAreFourLevelUntilThePanelStateIsKnown) {
+  TestableUC8179Gray4 display(8, 1);
+  RecordingDelegate bus(&display.dc);
+  display.install_with_partials(&bus);
+
+  display.run_push(true);
+  EXPECT_EQ(bus.data[LUT_WW].size(), 42u) << "first update was not four-level";
+
+  bus.clear();
+  display.run_push(false);
+  EXPECT_EQ(bus.data[LUT_WW].size(), 42u) << "full update was not four-level";
+}
+
+/// The partial updates do not depend on where the four-level waveforms come from: with the
+/// panel's own, the update in between is the same.
+TEST(EPaperUC8179Gray4, PartialUpdateIsTheSameWithThePanelsOwnWaveforms) {
+  TestableUC8179Gray4 display(8, 1, false);
+  RecordingDelegate bus(&display.dc);
+  display.install_with_partials(&bus);
+
+  draw_row(display, 0, {0, 1, 2, 3, 0, 1, 2, 3});
+  display.run_push();
+  EXPECT_EQ(bus.data[0xE5], (Bytes{0x5F})) << "full update did not select the four-level waveform";
+  bus.clear();
+
+  draw_row(display, 0, {0, 1, 2, 3, 3, 1, 2, 0});
+  display.run_push(true);
+
+  EXPECT_EQ(bus.data[DTM1], (Bytes{0x33}));
+  EXPECT_EQ(bus.data[DTM2], (Bytes{0x3A}));
+  EXPECT_EQ(bus.data[0xE5], (Bytes{0x6E})) << "partial update does not select the partial waveform";
 }
 
 }  // namespace esphome::epaper_spi::testing
