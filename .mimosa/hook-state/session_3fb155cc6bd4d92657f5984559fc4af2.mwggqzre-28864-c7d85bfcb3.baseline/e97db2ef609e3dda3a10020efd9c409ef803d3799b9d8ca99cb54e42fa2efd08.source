@@ -1,0 +1,2 @@
+CODEOWNERS = ["@aeonsablaze"]
+DOMAIN = "whynter"

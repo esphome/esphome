@@ -1,0 +1,1504 @@
+#include "voice_assistant.h"
+#include "esphome/core/defines.h"
+
+#ifdef USE_VOICE_ASSISTANT
+
+#include "esphome/components/socket/socket.h"
+#include "esphome/core/application.h"
+#include "esphome/core/log.h"
+
+#include <cinttypes>
+#include <cstdio>
+
+namespace esphome::voice_assistant {
+
+ESPHOME_LOG_TAG(TAG, "voice_assistant");
+
+static constexpr uint32_t RESET_CONVERSATION_TIMEOUT_ID = 0;
+static constexpr uint32_t PLAYBACK_TIMEOUT_ID = 1;
+static constexpr uint32_t SPEAKER_IDLE_TIMEOUT_ID = 2;
+static constexpr uint32_t TIMER_TICK_INTERVAL_ID = 3;
+static constexpr uint32_t WAKE_WORD_VERDICT_TIMEOUT_ID = 4;
+static constexpr uint32_t RUN_END_TIMEOUT_ID = 5;
+
+// Fallback for a run whose RUN_END never arrives
+static constexpr uint32_t RUN_END_TIMEOUT_MS = 2000;
+
+#ifdef SAMPLE_RATE_HZ
+#undef SAMPLE_RATE_HZ
+#endif
+
+static const size_t SAMPLE_RATE_HZ = 16000;
+
+static const size_t RING_BUFFER_SAMPLES = 512 * SAMPLE_RATE_HZ / 1000;  // 512 ms * 16 kHz/ 1000 ms
+static const size_t RING_BUFFER_SIZE = RING_BUFFER_SAMPLES * sizeof(int16_t);
+static const size_t SEND_BUFFER_SAMPLES = 32 * SAMPLE_RATE_HZ / 1000;  // 32ms * 16kHz / 1000ms
+static const size_t SEND_BUFFER_SIZE = SEND_BUFFER_SAMPLES * sizeof(int16_t);
+static const size_t RECEIVE_SIZE = 1024;
+// Stall watchdog, re-armed from loop() while playback runs. Waiting for playback
+// to start uses tts_playback_start_timeout_ instead (home-assistant-voice-pe#621).
+static constexpr uint32_t PLAYBACK_STALL_TIMEOUT_MS = 2000;
+
+static const size_t SPEAKER_BUFFER_SIZE = 16 * RECEIVE_SIZE;
+
+// If one microphone channel keeps producing audio while another configured channel produces none for this
+// long, treat the silent channel as failed and stop the stream. A working microphone exposes a chunk every
+// SEND_BUFFER_SAMPLES (32 ms), so this is far longer than any legitimate gap between chunks.
+static const uint32_t AUDIO_CHANNEL_STALL_TIMEOUT_MS = 2000;
+
+#ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
+// Room for live audio while the buffered audio is sent
+static constexpr uint32_t WAKE_WORD_AUDIO_HEADROOM_MS = 1000;
+static constexpr uint32_t WAKE_WORD_DETECTION_MAX_AGE_MS = 1000;
+
+static size_t trim_audio_source(audio::RingBufferAudioSource *source,
+                                const std::weak_ptr<ring_buffer::RingBuffer> &weak_ring_buffer, size_t target_bytes) {
+  std::shared_ptr<ring_buffer::RingBuffer> ring_buffer = weak_ring_buffer.lock();
+  if ((source == nullptr) || (ring_buffer == nullptr)) {
+    return 0;
+  }
+  while (true) {
+    source->fill(0);
+    const size_t exposed = source->available();
+    const size_t buffered = exposed + ring_buffer->available();
+    // Whole samples only
+    const size_t excess = (buffered > target_bytes) ? ((buffered - target_bytes) & ~(sizeof(int16_t) - 1)) : 0;
+    if ((excess == 0) || (exposed == 0)) {
+      return buffered;
+    }
+    source->consume(std::min(exposed, excess));
+  }
+}
+#endif
+
+VoiceAssistant::VoiceAssistant() { global_voice_assistant = this; }
+
+void VoiceAssistant::setup() {
+  this->mic_source_->add_data_callback([this](const microphone::AudioCapture &capture) {
+    std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = this->ring_buffer_.lock();
+    if (temp_ring_buffer != nullptr) {
+      temp_ring_buffer->write((void *) capture.data.data(), capture.data.size());
+    }
+  });
+
+  // Second microphone channel
+  if (this->mic_source2_ != nullptr) {
+    this->mic_source2_->add_data_callback([this](const microphone::AudioCapture &capture) {
+      std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = this->ring_buffer2_.lock();
+      if (temp_ring_buffer != nullptr) {
+        temp_ring_buffer->write((void *) capture.data.data(), capture.data.size());
+      }
+    });
+  }
+
+#ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
+  this->micro_wake_word_->add_on_wake_word_detected_callback([this](const micro_wake_word::DetectionEvent &event) {
+    constexpr float uint8_to_float_divisor = 255.0f;
+    this->detection_.id = (event.id != nullptr) ? *event.id : "";
+    this->detection_.probability = event.average_probability / uint8_to_float_divisor;
+    this->detection_.probability_cutoff = event.probability_cutoff / uint8_to_float_divisor;
+    this->detection_.detected_at = millis();
+  });
+#endif
+
+#ifdef USE_MEDIA_PLAYER
+  if (this->media_player_ != nullptr) {
+    this->media_player_->add_on_state_callback([this](media_player::MediaPlayerState state) {
+      switch (state) {
+        case media_player::MediaPlayerState::MEDIA_PLAYER_STATE_ANNOUNCING:
+          if (this->media_player_response_state_ == MediaPlayerResponseState::URL_SENT) {
+            // State changed to announcing after receiving the url
+            this->media_player_response_state_ = MediaPlayerResponseState::PLAYING;
+          }
+          break;
+        default:
+          if (this->media_player_response_state_ == MediaPlayerResponseState::PLAYING) {
+            // No longer announcing the TTS response
+            this->media_player_response_state_ = MediaPlayerResponseState::FINISHED;
+          }
+          break;
+      }
+    });
+  }
+#endif
+}
+
+float VoiceAssistant::get_setup_priority() const { return setup_priority::AFTER_CONNECTION; }
+
+bool VoiceAssistant::start_udp_socket_() {
+#if USE_NETWORK_IPV4
+  this->socket_ = socket::socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
+#else
+  this->socket_ = socket::socket_ip(SOCK_DGRAM, IPPROTO_IP);
+#endif
+  if (this->socket_ == nullptr) {
+    ESP_LOGE(TAG, "Could not create socket");
+    this->mark_failed();
+    return false;
+  }
+  int enable = 1;
+  int err = this->socket_->setsockopt(SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int));
+  if (err != 0) {
+    ESP_LOGW(TAG, "Socket unable to set reuseaddr: errno %d", err);
+    // we can still continue
+  }
+  err = this->socket_->setblocking(false);
+  if (err != 0) {
+    ESP_LOGE(TAG, "Socket unable to set nonblocking mode: errno %d", err);
+    this->mark_failed();
+    return false;
+  }
+
+#ifdef USE_SPEAKER
+  if (this->speaker_ != nullptr) {
+    struct sockaddr_storage server;
+
+    socklen_t sl = socket::set_sockaddr_any((struct sockaddr *) &server, sizeof(server), 6055);
+    if (sl == 0) {
+      ESP_LOGE(TAG, "Socket unable to set sockaddr: errno %d", errno);
+      this->mark_failed();
+      return false;
+    }
+
+    err = this->socket_->bind((struct sockaddr *) &server, sizeof(server));
+    if (err != 0) {
+      ESP_LOGE(TAG, "Socket unable to bind: errno %d", errno);
+      this->mark_failed();
+      return false;
+    }
+  }
+#endif
+  this->udp_socket_running_ = true;
+  return true;
+}
+
+bool VoiceAssistant::allocate_buffers_() {
+#ifdef USE_SPEAKER
+  if ((this->speaker_ != nullptr) && (this->speaker_buffer_ == nullptr)) {
+    RAMAllocator<uint8_t> speaker_allocator;
+    this->speaker_buffer_ = speaker_allocator.allocate(SPEAKER_BUFFER_SIZE);
+    if (this->speaker_buffer_ == nullptr) {
+      ESP_LOGW(TAG, "Could not allocate speaker buffer");
+      return false;
+    }
+  }
+#endif
+
+  if (this->audio_source_ == nullptr) {
+    std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer =
+        ring_buffer::RingBuffer::create(this->ring_buffer_size_());
+    if (temp_ring_buffer == nullptr) {
+      ESP_LOGE(TAG, "Could not allocate ring buffer");
+      return false;
+    }
+    // Zero-copy source that reads directly from the ring buffer; frame-aligned to never split an int16 sample.
+    this->audio_source_ = audio::RingBufferAudioSource::create(temp_ring_buffer, SEND_BUFFER_SIZE, sizeof(int16_t));
+    if (this->audio_source_ == nullptr) {
+      ESP_LOGE(TAG, "Could not allocate audio source");
+      return false;
+    }
+    this->ring_buffer_ = temp_ring_buffer;
+  }
+
+  // Second microphone channel
+  if ((this->mic_source2_ != nullptr) && (this->audio_source2_ == nullptr)) {
+    std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer =
+        ring_buffer::RingBuffer::create(this->ring_buffer_size_());
+    if (temp_ring_buffer == nullptr) {
+      ESP_LOGE(TAG, "Could not allocate second ring buffer");
+      return false;
+    }
+    this->audio_source2_ = audio::RingBufferAudioSource::create(temp_ring_buffer, SEND_BUFFER_SIZE, sizeof(int16_t));
+    if (this->audio_source2_ == nullptr) {
+      ESP_LOGE(TAG, "Could not allocate second audio source");
+      return false;
+    }
+    this->ring_buffer2_ = temp_ring_buffer;
+  }
+
+  return true;
+}
+
+size_t VoiceAssistant::ring_buffer_size_() const {
+#ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
+  if (this->is_wake_word_audio_active()) {
+    return (this->wake_word_audio_buffer_duration_ + WAKE_WORD_AUDIO_HEADROOM_MS) * SAMPLE_RATE_HZ / 1000 *
+           sizeof(int16_t);
+  }
+#endif
+  return RING_BUFFER_SIZE;
+}
+
+void VoiceAssistant::clear_buffers_(bool clear_microphone_audio) {
+  if (clear_microphone_audio && (this->audio_source_ != nullptr)) {
+    this->audio_source_->clear_buffered_data();
+  }
+
+  // Second microphone channel
+  if (clear_microphone_audio && (this->audio_source2_ != nullptr)) {
+    this->audio_source2_->clear_buffered_data();
+  }
+
+  // Reset the multi-channel stall watchdog (see audio_channel_stall_start_).
+  this->audio_channel_stall_start_ = 0;
+
+#ifdef USE_SPEAKER
+  if ((this->speaker_ != nullptr) && (this->speaker_buffer_ != nullptr)) {
+    memset(this->speaker_buffer_, 0, SPEAKER_BUFFER_SIZE);
+
+    this->speaker_buffer_size_ = 0;
+    this->speaker_buffer_index_ = 0;
+    this->speaker_bytes_received_ = 0;
+  }
+#endif
+}
+
+void VoiceAssistant::deallocate_buffers_() {
+  // Destroying each source releases its ring buffer; the matching weak_ptr then expires automatically.
+  this->audio_source_.reset();
+
+  // Second microphone channel
+  this->audio_source2_.reset();
+
+#ifdef USE_SPEAKER
+  if ((this->speaker_ != nullptr) && (this->speaker_buffer_ != nullptr)) {
+    RAMAllocator<uint8_t> speaker_deallocator;
+    speaker_deallocator.deallocate(this->speaker_buffer_, SPEAKER_BUFFER_SIZE);
+    this->speaker_buffer_ = nullptr;
+  }
+#endif
+}
+
+void VoiceAssistant::reset_conversation_id() {
+  this->conversation_id_ = "";
+  ESP_LOGD(TAG, "reset conversation ID");
+}
+
+void VoiceAssistant::stream_api_audio_() {
+  // Both microphone channels are sent together, if configured. Home Assistant feeds one of the
+  // channels to its speech-to-text stream and treats an empty payload on that channel as
+  // end-of-stream, and the device cannot know which channel it picked, so only send once every
+  // configured channel has audio exposed, and always send them together. We don't target any
+  // particular message size: Home Assistant re-chunks the audio, and each fill() exposes at most
+  // SEND_BUFFER_SIZE bytes.
+  while (true) {
+    // fill() exposes a new chunk, or returns 0 if a previous chunk is still exposed; available()
+    // reports the currently exposed bytes either way.
+    this->audio_source_->fill(0);
+    size_t available = this->audio_source_->available();
+    size_t available2 = 0;
+    if (this->audio_source2_ != nullptr) {
+      this->audio_source2_->fill(0);
+      available2 = this->audio_source2_->available();
+    }
+
+    const bool channel_empty = (available == 0);
+    const bool channel2_empty = (this->audio_source2_ != nullptr) && (available2 == 0);
+    if (channel_empty || channel2_empty) {
+      // A configured channel has no audio yet, so keep any chunk exposed on the other channel for the
+      // next pass rather than sending an empty payload.
+      this->handle_channel_stall_(available, available2);
+      break;
+    }
+
+    // Both channels have audio exposed; clear any in-progress stall timer.
+    this->audio_channel_stall_start_ = 0;
+
+    api::VoiceAssistantAudio msg;
+    // Zero-copy: send_message() copies the data out before we consume it.
+    msg.data = this->audio_source_->data();
+    msg.data_len = available;
+    if (this->audio_source2_ != nullptr) {
+      msg.data2 = this->audio_source2_->data();
+      msg.data2_len = available2;
+    }
+
+    if (!this->api_client_->send_message(msg)) {
+      // Keep the chunk exposed and retry next pass, the same shape as
+      // APIConnection::try_send_camera_image_(): the slice is only lost if
+      // the ring buffer overflows before the TCP buffer clears, instead of
+      // on every refusal. The api layer already reports the refusal at V.
+      return;
+    }
+
+    this->audio_source_->consume(available);
+    if (this->audio_source2_ != nullptr) {
+      this->audio_source2_->consume(available2);
+    }
+  }
+}
+
+void VoiceAssistant::handle_channel_stall_(size_t available, size_t available2) {
+  // Called when at least one configured channel has no audio exposed. When one channel has data and the
+  // other does not, watch how long the empty channel stays starved: Home Assistant has no stream timeout
+  // and would never tell us to stop, so a channel that fails outright would otherwise hang streaming
+  // forever with the live channel's chunk held. Stop the stream with an error after a prolonged imbalance.
+  if ((available == 0) && (available2 == 0)) {
+    // Both channels are idle (no audio buffered yet); normal, not a stalled channel.
+    this->audio_channel_stall_start_ = 0;
+    return;
+  }
+
+  const uint32_t now = App.get_loop_component_start_time();
+  if (this->audio_channel_stall_start_ == 0) {
+    this->audio_channel_stall_start_ = now;
+  } else if ((now - this->audio_channel_stall_start_) >= AUDIO_CHANNEL_STALL_TIMEOUT_MS) {
+    ESP_LOGW(TAG, "Mic channel %d stalled, stopping stream", (available == 0) ? 0 : 1);
+    this->audio_channel_stall_start_ = 0;
+    this->signal_stop_();
+    this->set_state_(State::STOP_MICROPHONE, State::IDLE);
+    this->defer([this]() {
+      this->error_trigger_.trigger("mic-channel-stalled", "A microphone channel stopped producing audio");
+    });
+  }
+}
+
+void VoiceAssistant::loop() {
+  if (this->api_client_ == nullptr && this->state_ != State::IDLE && this->state_ != State::STOP_MICROPHONE &&
+      this->state_ != State::STOPPING_MICROPHONE) {
+    if (this->mic_source_->is_running() || (this->mic_source2_ && this->mic_source2_->is_running()) ||
+        this->state_ == State::STARTING_MICROPHONE) {
+      this->set_state_(State::STOP_MICROPHONE, State::IDLE);
+    } else {
+      this->set_state_(State::IDLE, State::IDLE);
+    }
+    this->continuous_ = false;
+    this->signal_stop_();
+    this->clear_buffers_();
+#ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
+    this->clear_wake_word_verdict_();
+#endif
+    return;
+  }
+#ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
+  this->update_wake_word_audio_();
+#endif
+  switch (this->state_) {
+    case State::IDLE: {
+      if (this->continuous_ && this->desired_state_ == State::IDLE) {
+        this->idle_trigger_.trigger();
+        this->set_state_(State::START_MICROPHONE, State::START_PIPELINE);
+#ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
+      } else if (this->wake_word_audio_buffering_) {
+        // Only microWakeWord detections use the buffered audio, so the microphone idles while it is stopped
+        // (a software mute, say); the buffers stay allocated for when it runs again.
+        if (this->micro_wake_word_->is_running()) {
+          // Until the microphone runs again, drop what it buffered before it stopped, so a clip never joins audio
+          // from before a mute to audio after it
+          if (!this->mic_source_->is_running() && (this->audio_source_ != nullptr)) {
+            this->audio_source_->clear_buffered_data();
+            if (this->audio_source2_ != nullptr) {
+              this->audio_source2_->clear_buffered_data();
+            }
+          }
+          this->mic_source_->start();
+          if (this->mic_source2_) {
+            this->mic_source2_->start();
+          }
+        } else {
+          this->mic_source_->stop();
+          if (this->mic_source2_) {
+            this->mic_source2_->stop();
+          }
+        }
+#endif
+      } else {
+        this->deallocate_buffers_();
+      }
+      break;
+    }
+    case State::START_MICROPHONE: {
+      ESP_LOGD(TAG, "Starting Microphone");
+      if (!this->allocate_buffers_()) {
+        this->status_set_error(LOG_STR("Failed to allocate buffers"));
+        return;
+      }
+      if (this->status_has_error()) {
+        this->status_clear_error();
+      }
+#ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
+      this->clear_buffers_(!this->wake_word_audio_buffering_);
+#else
+      this->clear_buffers_();
+#endif
+
+      this->mic_source_->start();
+      if (this->mic_source2_) {
+        this->mic_source2_->start();
+      }
+      this->set_state_(State::STARTING_MICROPHONE);
+      break;
+    }
+    case State::STARTING_MICROPHONE: {
+      if (this->mic_source_->is_running() && (!this->mic_source2_ || this->mic_source2_->is_running())) {
+        this->set_state_(this->desired_state_);
+      }
+      break;
+    }
+    case State::START_PIPELINE: {
+      ESP_LOGD(TAG, "Requesting start");
+      uint32_t flags = 0;
+      if (!this->continue_conversation_ && this->use_wake_word_)
+        flags |= api::enums::VOICE_ASSISTANT_REQUEST_USE_WAKE_WORD;
+      if (this->silence_detection_)
+        flags |= api::enums::VOICE_ASSISTANT_REQUEST_USE_VAD;
+      api::VoiceAssistantAudioSettings audio_settings;
+      audio_settings.noise_suppression_level = this->noise_suppression_level_;
+      audio_settings.auto_gain = this->auto_gain_;
+      audio_settings.volume_multiplier = this->volume_multiplier_;
+
+      api::VoiceAssistantRequest msg;
+      msg.start = true;
+      msg.conversation_id = StringRef(this->conversation_id_);
+      msg.flags = flags;
+      msg.audio_settings = std::move(audio_settings);
+      msg.wake_word_phrase = StringRef(this->wake_word_);
+#ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
+      if (this->wake_word_audio_buffering_) {
+        const size_t bytes_per_ms = SAMPLE_RATE_HZ / 1000 * sizeof(int16_t);
+        // Audio from after the detection belongs to the command, not the wake word
+        const size_t command_bytes =
+            this->start_with_detection_ ? (millis() - this->detection_.detected_at) * bytes_per_ms : 0;
+        const size_t target_bytes =
+            this->start_with_detection_ ? (this->wake_word_audio_buffer_duration_ * bytes_per_ms) + command_bytes : 0;
+        const size_t buffered = trim_audio_source(this->audio_source_.get(), this->ring_buffer_, target_bytes);
+        const size_t buffered2 = trim_audio_source(this->audio_source2_.get(), this->ring_buffer2_, target_bytes);
+        if (this->start_with_detection_) {
+          const size_t wake_word_bytes = buffered - std::min(buffered, command_bytes);
+          const size_t wake_word_bytes2 = buffered2 - std::min(buffered2, command_bytes);
+          msg.wake_word_id = StringRef(this->detection_.id);
+          msg.wake_word_audio_bytes = wake_word_bytes;
+          msg.wake_word_audio_bytes2 = wake_word_bytes2;
+          msg.wake_word_probability = this->detection_.probability;
+          msg.wake_word_probability_cutoff = this->detection_.probability_cutoff;
+          ESP_LOGD(TAG, "Sending %zu/%zu bytes of wake word audio for %s", wake_word_bytes, wake_word_bytes2,
+                   this->detection_.id.c_str());
+        }
+      }
+      this->detection_.detected_at = 0;
+#endif
+
+      // Reset media player state tracking
+#ifdef USE_MEDIA_PLAYER
+      if (this->media_player_ != nullptr) {
+        this->media_player_response_state_ = MediaPlayerResponseState::IDLE;
+      }
+#endif
+
+      // No client: on_client_connected re-arms instead. A start during the RUN_END wait shares one on_end.
+      this->end_pending_ = this->api_client_ != nullptr;
+      this->end_run_();
+      if (this->api_client_ == nullptr || !this->api_client_->send_message(msg)) {
+        ESP_LOGW(TAG, "Could not request start");
+        this->error_trigger_.trigger("not-connected", "Could not request start");
+        this->continuous_ = false;
+        this->set_state_(State::IDLE, State::IDLE);
+        break;
+      }
+      this->set_timeout(RESET_CONVERSATION_TIMEOUT_ID, this->conversation_timeout_,
+                        [this]() { this->reset_conversation_id(); });
+#ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
+      this->streaming_before_response_ = this->start_with_detection_;
+      if (this->start_with_detection_) {
+        this->start_with_detection_ = false;
+        // Waiting for the response would let live audio overwrite the buffered audio
+        ESP_LOGD(TAG, "Streaming microphone");
+        this->audio_mode_ = AUDIO_MODE_API;
+        this->set_state_(State::STREAMING_MICROPHONE, State::STREAMING_MICROPHONE);
+        this->set_timeout(WAKE_WORD_VERDICT_TIMEOUT_ID, this->wake_word_audio_timeout_, [this]() {
+          ESP_LOGW(TAG, "Wake word was not accepted or rejected in time");
+          this->request_stop();
+          this->error_trigger_.trigger("wake-word-verification-timeout",
+                                       "Wake word was not accepted or rejected in time");
+        });
+        break;
+      }
+#endif
+      this->set_state_(State::STARTING_PIPELINE);
+      break;
+    }
+    case State::STARTING_PIPELINE: {
+      break;  // State changed when udp server port received
+    }
+    case State::STREAMING_MICROPHONE: {
+      if (this->audio_mode_ == AUDIO_MODE_API) {
+        this->stream_api_audio_();
+      } else {
+        // UDP (will eventually be deprecated)
+        // Only the primary microphone channel is used
+        while (true) {
+          this->audio_source_->fill(0);
+          size_t available = this->audio_source_->available();
+          if (available == 0) {
+            break;
+          }
+          if (!this->udp_socket_running_) {
+            if (!this->start_udp_socket_()) {
+              this->set_state_(State::STOP_MICROPHONE, State::IDLE);
+              break;
+            }
+          }
+          this->socket_->sendto(this->audio_source_->data(), available, 0, (struct sockaddr *) &this->dest_addr_,
+                                sizeof(this->dest_addr_));
+          this->audio_source_->consume(available);
+        }
+      }  // audio mode
+      break;
+    }
+    case State::STOP_MICROPHONE: {
+#ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
+      if (this->wake_word_audio_buffering_) {
+        this->set_state_(this->desired_state_);
+        break;
+      }
+#endif
+      // Check both microphone channels
+      bool is_running = this->mic_source_->is_running();
+      bool is_running2 = false;
+      if (this->mic_source2_) {
+        is_running2 = this->mic_source2_->is_running();
+      }
+      if (is_running || is_running2) {
+        if (is_running) {
+          this->mic_source_->stop();
+        }
+        if (is_running2) {
+          this->mic_source2_->stop();
+        }
+        this->set_state_(State::STOPPING_MICROPHONE);
+      } else {
+        this->set_state_(this->desired_state_);
+      }
+      break;
+    }
+    case State::STOPPING_MICROPHONE: {
+      // Check both microphone channels
+      bool is_stopped = this->mic_source_->is_stopped();
+      bool is_stopped2 = true;
+      if (this->mic_source2_) {
+        is_stopped2 = this->mic_source2_->is_stopped();
+      }
+      if (is_stopped && is_stopped2) {
+        this->set_state_(this->desired_state_);
+      }
+      break;
+    }
+    case State::AWAITING_RESPONSE: {
+      break;  // State changed by events
+    }
+    case State::STREAMING_RESPONSE: {
+      bool playing = false;
+#ifdef USE_SPEAKER
+      if (this->speaker_ != nullptr) {
+        ssize_t received_len = 0;
+        if (this->audio_mode_ == AUDIO_MODE_UDP) {
+          if (this->speaker_buffer_index_ + RECEIVE_SIZE < SPEAKER_BUFFER_SIZE) {
+            received_len = this->socket_->read(this->speaker_buffer_ + this->speaker_buffer_index_, RECEIVE_SIZE);
+            if (received_len > 0) {
+              this->speaker_buffer_index_ += received_len;
+              this->speaker_buffer_size_ += received_len;
+              this->speaker_bytes_received_ += received_len;
+            }
+          } else {
+            ESP_LOGD(TAG, "Receive buffer full");
+          }
+        }
+        // Build a small buffer of audio before sending to the speaker
+        bool end_of_stream = this->stream_ended_ && (this->audio_mode_ == AUDIO_MODE_API || received_len < 0);
+        if (this->speaker_bytes_received_ > RECEIVE_SIZE * 4 || end_of_stream)
+          this->write_speaker_();
+        if (this->wait_for_stream_end_) {
+          this->cancel_timeout(PLAYBACK_TIMEOUT_ID);
+          if (end_of_stream) {
+            ESP_LOGD(TAG, "End of audio stream received");
+            this->cancel_timeout(SPEAKER_IDLE_TIMEOUT_ID);
+            this->set_state_(State::RESPONSE_FINISHED, State::RESPONSE_FINISHED);
+          }
+          break;  // We dont want to timeout here as the STREAM_END event will take care of that.
+        }
+        playing = this->speaker_->is_running();
+      }
+#endif
+#ifdef USE_MEDIA_PLAYER
+      if (this->media_player_ != nullptr) {
+        playing = (this->media_player_response_state_ == MediaPlayerResponseState::PLAYING);
+
+        if (this->media_player_response_state_ == MediaPlayerResponseState::FINISHED) {
+          this->media_player_response_state_ = MediaPlayerResponseState::IDLE;
+          this->cancel_timeout(PLAYBACK_TIMEOUT_ID);
+          ESP_LOGD(TAG, "Announcement finished playing");
+          this->set_state_(State::RESPONSE_FINISHED, State::RESPONSE_FINISHED);
+
+          api::VoiceAssistantAnnounceFinished msg;
+          msg.success = true;
+          if (!this->api_client_->send_message(msg)) {
+            API_LOG_MSG_DROPPED(TAG, "Announce-finished");
+          }
+          break;
+        }
+      }
+#endif
+      if (playing) {
+        // Playback is running: short watchdog against a stalled player.
+        this->start_playback_timeout_(PLAYBACK_STALL_TIMEOUT_MS);
+      }
+      break;
+    }
+    case State::RESPONSE_FINISHED: {
+#ifdef USE_SPEAKER
+      if (this->speaker_ != nullptr) {
+        if (this->speaker_buffer_size_ > 0) {
+          this->write_speaker_();
+          break;
+        }
+        if (this->speaker_->has_buffered_data() || this->speaker_->is_running()) {
+          break;
+        }
+        ESP_LOGD(TAG, "Speaker has finished outputting all audio");
+        this->speaker_->stop();
+        this->cancel_timeout(SPEAKER_IDLE_TIMEOUT_ID);
+        this->cancel_timeout(PLAYBACK_TIMEOUT_ID);
+
+        this->clear_buffers_();
+
+        this->wait_for_stream_end_ = false;
+        this->stream_ended_ = false;
+
+        this->tts_stream_end_trigger_.trigger();
+      }
+#endif
+#ifdef USE_MEDIA_PLAYER
+      // Counterpart to the speaker checks above: while the media player is
+      // still announcing our response, the microphone must stay shut, otherwise
+      // the device records its own response and answers it. Only our own
+      // response counts; an unrelated announcement does not hold this state.
+      if ((this->media_player_ != nullptr) &&
+          (this->media_player_response_state_ == MediaPlayerResponseState::PLAYING)) {
+        break;
+      }
+      // The start timeout fired before playback began: skip the follow-up turn, so a late start
+      // cannot play into an open microphone.
+      if ((this->media_player_ != nullptr) &&
+          (this->media_player_response_state_ == MediaPlayerResponseState::URL_SENT)) {
+        this->set_state_(State::IDLE, State::IDLE);
+        break;
+      }
+#endif
+      if (this->continue_conversation_) {
+        this->set_state_(State::START_MICROPHONE, State::START_PIPELINE);
+      } else {
+        this->set_state_(State::IDLE, State::IDLE);
+      }
+      break;
+    }
+    default:
+      break;
+  }
+}
+
+#ifdef USE_SPEAKER
+void VoiceAssistant::write_speaker_() {
+  if ((this->speaker_ != nullptr) && (this->speaker_buffer_ != nullptr)) {
+    if (this->speaker_buffer_size_ > 0) {
+      size_t write_chunk = std::min<size_t>(this->speaker_buffer_size_, 4 * 1024);
+      size_t written = this->speaker_->play(this->speaker_buffer_, write_chunk);
+      if (written > 0) {
+        memmove(this->speaker_buffer_, this->speaker_buffer_ + written, this->speaker_buffer_size_ - written);
+        this->speaker_buffer_size_ -= written;
+        this->speaker_buffer_index_ -= written;
+        this->set_timeout(SPEAKER_IDLE_TIMEOUT_ID, 5000, [this]() { this->speaker_->stop(); });
+      } else {
+        ESP_LOGV(TAG, "Speaker buffer full, trying again next loop");
+      }
+    }
+  }
+}
+#endif
+
+void VoiceAssistant::client_subscription(api::APIConnection *client, bool subscribe, uint32_t flags) {
+  if (!subscribe) {
+    if (this->api_client_ == nullptr || client != this->api_client_) {
+      ESP_LOGE(TAG, "Client attempting to unsubscribe that is not the current API Client");
+      return;
+    }
+    this->api_client_ = nullptr;
+    // on_client_connected re-arms the wake word, so a pipeline cut off by the disconnect fires no on_end
+    this->end_pending_ = false;
+    this->end_run_();
+#ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
+    this->wake_word_audio_requested_ = false;
+#endif
+    this->client_disconnected_trigger_.trigger();
+    return;
+  }
+
+  if (this->api_client_ != nullptr) {
+    char current_peername[socket::SOCKADDR_STR_LEN];
+    char new_peername[socket::SOCKADDR_STR_LEN];
+    ESP_LOGE(TAG,
+             "Multiple API Clients attempting to connect to Voice Assistant\n"
+             "  Current client: %s (%s)\n"
+             "  New client: %s (%s)",
+             this->api_client_->get_name(), this->api_client_->get_peername_to(current_peername), client->get_name(),
+             client->get_peername_to(new_peername));
+    return;
+  }
+
+  this->api_client_ = client;
+#ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
+  this->wake_word_audio_requested_ = (flags & api::enums::VOICE_ASSISTANT_SUBSCRIBE_WAKE_WORD_AUDIO) != 0;
+  ESP_LOGD(TAG, "Wake word audio %s",
+           this->wake_word_audio_requested_ ? LOG_STR_LITERAL("requested") : LOG_STR_LITERAL("not requested"));
+  // So is_wake_word_audio_active() reflects a failed allocation in on_client_connected
+  this->update_wake_word_audio_();
+#endif
+  this->client_connected_trigger_.trigger();
+}
+
+static const LogString *voice_assistant_state_to_string(State state) {
+  switch (state) {
+    case State::IDLE:
+      return LOG_STR("IDLE");
+    case State::START_MICROPHONE:
+      return LOG_STR("START_MICROPHONE");
+    case State::STARTING_MICROPHONE:
+      return LOG_STR("STARTING_MICROPHONE");
+    case State::WAIT_FOR_VAD:
+      return LOG_STR("WAIT_FOR_VAD");
+    case State::WAITING_FOR_VAD:
+      return LOG_STR("WAITING_FOR_VAD");
+    case State::START_PIPELINE:
+      return LOG_STR("START_PIPELINE");
+    case State::STARTING_PIPELINE:
+      return LOG_STR("STARTING_PIPELINE");
+    case State::STREAMING_MICROPHONE:
+      return LOG_STR("STREAMING_MICROPHONE");
+    case State::STOP_MICROPHONE:
+      return LOG_STR("STOP_MICROPHONE");
+    case State::STOPPING_MICROPHONE:
+      return LOG_STR("STOPPING_MICROPHONE");
+    case State::AWAITING_RESPONSE:
+      return LOG_STR("AWAITING_RESPONSE");
+    case State::STREAMING_RESPONSE:
+      return LOG_STR("STREAMING_RESPONSE");
+    case State::RESPONSE_FINISHED:
+      return LOG_STR("RESPONSE_FINISHED");
+    default:
+      return LOG_STR("UNKNOWN");
+  }
+};
+
+#ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
+static bool is_microphone_streaming_state(State state) {
+  return (state == State::START_PIPELINE) || (state == State::STARTING_PIPELINE) ||
+         (state == State::STREAMING_MICROPHONE);
+}
+#endif
+
+void VoiceAssistant::set_state_(State state) {
+  State old_state = this->state_;
+  this->state_ = state;
+  ESP_LOGD(TAG, "State changed from %s to %s", LOG_STR_ARG(voice_assistant_state_to_string(old_state)),
+           LOG_STR_ARG(voice_assistant_state_to_string(state)));
+#ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
+  if (this->wake_word_audio_buffering_ && is_microphone_streaming_state(old_state) &&
+      !is_microphone_streaming_state(state)) {
+    this->end_wake_word_audio_stream_();
+  }
+#endif
+  // Fire on_end now, or once RUN_END or its timeout arrives if Home Assistant's run is still open
+  if (state == State::IDLE && this->end_pending_) {
+    if (this->run_active_) {
+      this->set_timeout(RUN_END_TIMEOUT_ID, RUN_END_TIMEOUT_MS, [this]() { this->end_session_(); });
+    } else {
+      this->end_session_();
+    }
+  }
+}
+
+void VoiceAssistant::end_run_() {
+  this->run_active_ = false;
+  this->cancel_timeout(RUN_END_TIMEOUT_ID);
+}
+
+void VoiceAssistant::end_session_() {
+  if (!this->end_pending_)
+    return;
+  this->end_pending_ = false;
+  // The client can unsubscribe before the deferred trigger runs
+  this->defer([this]() {
+    if (this->api_client_ != nullptr)
+      this->end_trigger_.trigger();
+  });
+}
+
+void VoiceAssistant::set_state_(State state, State desired_state) {
+  this->set_state_(state);
+  this->desired_state_ = desired_state;
+  ESP_LOGD(TAG, "Desired state set to %s", LOG_STR_ARG(voice_assistant_state_to_string(desired_state)));
+}
+
+void VoiceAssistant::set_state_after_mic_stop_(State state) {
+  if (this->state_ == State::STOP_MICROPHONE || this->state_ == State::STOPPING_MICROPHONE) {
+    // loop() moves to the desired state once the microphone has stopped
+    this->desired_state_ = state;
+    ESP_LOGD(TAG, "Desired state set to %s", LOG_STR_ARG(voice_assistant_state_to_string(state)));
+  } else if (state != this->state_) {
+    this->set_state_(state, state);
+  }
+}
+
+void VoiceAssistant::failed_to_start() {
+  ESP_LOGE(TAG, "Failed to start server. See Home Assistant logs for more details.");
+  this->error_trigger_.trigger("failed-to-start", "Failed to start server. See Home Assistant logs for more details.");
+  this->set_state_(State::STOP_MICROPHONE, State::IDLE);
+}
+
+void VoiceAssistant::start_streaming() {
+#ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
+  if (this->streaming_before_response_) {
+    this->streaming_before_response_ = false;
+    return;
+  }
+#endif
+  if (this->state_ != State::STARTING_PIPELINE) {
+    this->signal_stop_();
+    return;
+  }
+
+  ESP_LOGD(TAG, "Client started, streaming microphone");
+  this->audio_mode_ = AUDIO_MODE_API;
+
+  // Both microphone channels
+  if (this->mic_source_->is_running() && (!this->mic_source2_ || this->mic_source2_->is_running())) {
+    this->set_state_(State::STREAMING_MICROPHONE, State::STREAMING_MICROPHONE);
+  } else {
+    this->set_state_(State::START_MICROPHONE, State::STREAMING_MICROPHONE);
+  }
+}
+
+void VoiceAssistant::start_streaming(struct sockaddr_storage *addr, uint16_t port) {
+  if (this->state_ != State::STARTING_PIPELINE) {
+    this->signal_stop_();
+    return;
+  }
+
+  ESP_LOGD(TAG, "Client started, streaming microphone");
+  this->audio_mode_ = AUDIO_MODE_UDP;
+
+  if (this->mic_source2_ != nullptr) {
+    ESP_LOGW(TAG, "UDP audio mode does not support a second microphone channel; only the primary will be streamed");
+  }
+
+  memcpy(&this->dest_addr_, addr, sizeof(this->dest_addr_));
+  switch (this->dest_addr_.ss_family) {
+#if USE_NETWORK_IPV4
+    case AF_INET:
+      ((struct sockaddr_in *) &this->dest_addr_)->sin_port = htons(port);
+      break;
+#endif
+#if LWIP_IPV6
+    case AF_INET6:
+      ((struct sockaddr_in6 *) &this->dest_addr_)->sin6_port = htons(port);
+      break;
+#endif
+    default:
+      ESP_LOGW(TAG, "Unknown address family: %d", this->dest_addr_.ss_family);
+      return;
+  }
+
+  // Only primary microphone channel over UDP
+  if (this->mic_source_->is_running()) {
+    this->set_state_(State::STREAMING_MICROPHONE, State::STREAMING_MICROPHONE);
+  } else {
+    this->set_state_(State::START_MICROPHONE, State::STREAMING_MICROPHONE);
+  }
+}
+
+void VoiceAssistant::request_start(bool continuous, bool silence_detection) {
+  if (this->api_client_ == nullptr) {
+    ESP_LOGE(TAG, "No API client connected");
+    this->set_state_(State::IDLE, State::IDLE);
+    this->continuous_ = false;
+    return;
+  }
+  if (this->state_ == State::IDLE) {
+    this->continuous_ = continuous;
+    this->silence_detection_ = silence_detection;
+#ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
+    this->start_with_detection_ = this->wake_word_audio_buffering_ && (this->detection_.detected_at != 0) &&
+                                  ((millis() - this->detection_.detected_at) <= WAKE_WORD_DETECTION_MAX_AGE_MS);
+    if (!this->start_with_detection_) {
+      this->detection_.detected_at = 0;
+    }
+#endif
+
+    this->set_state_(State::START_MICROPHONE, State::START_PIPELINE);
+  }
+}
+
+void VoiceAssistant::request_stop() {
+  this->continuous_ = false;
+  this->continue_conversation_ = false;
+#ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
+  this->start_with_detection_ = false;
+  this->detection_.detected_at = 0;
+  this->clear_wake_word_verdict_();
+#endif
+
+  switch (this->state_) {
+    case State::IDLE:
+      break;
+    case State::START_MICROPHONE:
+    case State::STARTING_MICROPHONE:
+    case State::WAIT_FOR_VAD:
+    case State::WAITING_FOR_VAD:
+    case State::START_PIPELINE:
+      this->set_state_(State::STOP_MICROPHONE, State::IDLE);
+      break;
+    case State::STARTING_PIPELINE:
+    case State::STREAMING_MICROPHONE:
+      this->signal_stop_();
+      this->set_state_(State::STOP_MICROPHONE, State::IDLE);
+      break;
+    case State::STOP_MICROPHONE:
+    case State::STOPPING_MICROPHONE:
+      // A response queued behind the microphone shutdown is cancelled like a playing one and keeps its
+      // state, so it finishes through the same path (playback timeout, stream end) once the microphone
+      // has stopped instead of leaving those behind for the next request
+      if (this->desired_state_ == State::STREAMING_RESPONSE) {
+        this->cancel_response_();
+      } else {
+        this->set_state_after_mic_stop_(State::IDLE);
+      }
+      break;
+    case State::AWAITING_RESPONSE:
+      this->signal_stop_();
+      break;
+    case State::STREAMING_RESPONSE:
+      this->cancel_response_();
+      break;
+    case State::RESPONSE_FINISHED:
+#ifdef USE_MEDIA_PLAYER
+      // loop() holds this state while our response is still being announced;
+      // stop it the same way STREAMING_RESPONSE does.
+      if ((this->media_player_ != nullptr) &&
+          (this->media_player_response_state_ == MediaPlayerResponseState::PLAYING)) {
+        this->cancel_response_();
+      }
+#endif
+      break;  // Let the incoming audio stream finish then it will go to idle.
+  }
+}
+
+void VoiceAssistant::cancel_response_() {
+#ifdef USE_MEDIA_PLAYER
+  // Stop any ongoing media player announcement
+  if (this->media_player_ != nullptr) {
+    this->media_player_->make_call()
+        .set_command(media_player::MEDIA_PLAYER_COMMAND_STOP)
+        .set_announcement(true)
+        .perform();
+  }
+  if (this->started_streaming_tts_) {
+    // Haven't reached the TTS_END stage, so send the stop signal to HA.
+    this->signal_stop_();
+  }
+#endif
+}
+
+void VoiceAssistant::signal_stop_() {
+  memset(&this->dest_addr_, 0, sizeof(this->dest_addr_));
+  if (this->api_client_ == nullptr) {
+    return;
+  }
+  ESP_LOGD(TAG, "Signaling stop");
+  api::VoiceAssistantRequest msg;
+  msg.start = false;
+  if (!this->api_client_->send_message(msg)) {
+    API_LOG_MSG_DROPPED(TAG, "Stop request");
+  }
+}
+
+void VoiceAssistant::start_playback_timeout_(uint32_t timeout_ms) {
+  this->set_timeout(PLAYBACK_TIMEOUT_ID, timeout_ms, [this]() {
+    this->cancel_timeout(SPEAKER_IDLE_TIMEOUT_ID);
+    this->set_state_(State::RESPONSE_FINISHED, State::RESPONSE_FINISHED);
+
+    if (this->api_client_ == nullptr)
+      return;
+    api::VoiceAssistantAnnounceFinished msg;
+    msg.success = true;
+    if (!this->api_client_->send_message(msg)) {
+      API_LOG_MSG_DROPPED(TAG, "Announce-finished");
+    }
+  });
+}
+
+void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
+  ESP_LOGD(TAG, "Event Type: %" PRId32, msg.event_type);
+  switch (msg.event_type) {
+    case api::enums::VOICE_ASSISTANT_RUN_START:
+      ESP_LOGD(TAG, "Assist Pipeline running");
+      // Home Assistant sends RUN_END only for a run it sent RUN_START for. A local abort before RUN_START
+      // fires on_end at once, so a late RUN_START/RUN_END can still end a pipeline that on_end starts.
+      this->run_active_ = true;
+#ifdef USE_MEDIA_PLAYER
+      this->started_streaming_tts_ = false;
+      for (const auto &arg : msg.data) {
+        if (arg.name == "url") {
+          this->tts_response_url_ = arg.value;
+        }
+      }
+#endif
+      this->defer([this]() { this->start_trigger_.trigger(); });
+      break;
+    case api::enums::VOICE_ASSISTANT_WAKE_WORD_START:
+      break;
+    case api::enums::VOICE_ASSISTANT_WAKE_WORD_END: {
+      ESP_LOGD(TAG, "Wake word detected");
+#ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
+      this->clear_wake_word_verdict_();
+#endif
+      this->defer([this]() { this->wake_word_detected_trigger_.trigger(); });
+      break;
+    }
+#ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
+    case api::enums::VOICE_ASSISTANT_WAKE_WORD_REJECTED: {
+      ESP_LOGD(TAG, "Wake word rejected");
+      this->clear_wake_word_verdict_();
+      if ((this->state_ == State::STARTING_PIPELINE) || (this->state_ == State::STREAMING_MICROPHONE)) {
+        this->set_state_(State::STOP_MICROPHONE, State::IDLE);
+      }
+      this->defer([this]() { this->wake_word_rejected_trigger_.trigger(); });
+      break;
+    }
+#endif
+    case api::enums::VOICE_ASSISTANT_STT_START:
+      ESP_LOGD(TAG, "STT started");
+      this->defer([this]() { this->listening_trigger_.trigger(); });
+      break;
+    case api::enums::VOICE_ASSISTANT_STT_END: {
+      // Providers that detect the end of speech themselves send no STT_VAD_END, so stop the microphone here
+      // if that event didn't already
+      if (this->state_ == State::STREAMING_MICROPHONE) {
+        this->set_state_(State::STOP_MICROPHONE, State::AWAITING_RESPONSE);
+      }
+      std::string text;
+      for (const auto &arg : msg.data) {
+        if (arg.name == "text") {
+          text = arg.value;
+        }
+      }
+      if (text.empty()) {
+        ESP_LOGW(TAG, "No text in STT_END event");
+        return;
+      } else if (text.length() > 500) {
+        text.resize(497);
+        text += "...";
+      }
+      ESP_LOGD(TAG, "Speech recognised as: \"%s\"", text.c_str());
+      this->defer([this, text]() { this->stt_end_trigger_.trigger(text); });
+      break;
+    }
+    case api::enums::VOICE_ASSISTANT_INTENT_START:
+      ESP_LOGD(TAG, "Intent started");
+      this->defer([this]() { this->intent_start_trigger_.trigger(); });
+      break;
+    case api::enums::VOICE_ASSISTANT_INTENT_PROGRESS: {
+      ESP_LOGD(TAG, "Intent progress");
+      std::string tts_url_for_trigger;
+#ifdef USE_MEDIA_PLAYER
+      if (this->media_player_ != nullptr) {
+        for (const auto &arg : msg.data) {
+          if ((arg.name == "tts_start_streaming") && (arg.value == "1") && !this->tts_response_url_.empty()) {
+            this->media_player_response_state_ = MediaPlayerResponseState::URL_SENT;
+
+            this->media_player_->make_call().set_media_url(this->tts_response_url_).set_announcement(true).perform();
+
+            this->started_streaming_tts_ = true;
+            this->start_playback_timeout_(this->tts_playback_start_timeout_);
+
+            tts_url_for_trigger = this->tts_response_url_;
+            this->tts_response_url_.clear();  // Reset streaming URL
+            this->set_state_after_mic_stop_(State::STREAMING_RESPONSE);
+          }
+        }
+      }
+#endif
+      this->defer([this, tts_url_for_trigger]() { this->intent_progress_trigger_.trigger(tts_url_for_trigger); });
+      break;
+    }
+    case api::enums::VOICE_ASSISTANT_INTENT_END: {
+      for (const auto &arg : msg.data) {
+        if (arg.name == "conversation_id") {
+          this->conversation_id_ = arg.value;
+        } else if (arg.name == "continue_conversation") {
+          this->continue_conversation_ = (arg.value == "1");
+        }
+      }
+      this->defer([this]() { this->intent_end_trigger_.trigger(); });
+      break;
+    }
+    case api::enums::VOICE_ASSISTANT_TTS_START: {
+      std::string text;
+      for (const auto &arg : msg.data) {
+        if (arg.name == "text") {
+          text = arg.value;
+        }
+      }
+      if (text.empty()) {
+        ESP_LOGW(TAG, "No text in TTS_START event");
+        return;
+      }
+      if (text.length() > 500) {
+        text.resize(497);
+        text += "...";
+      }
+      ESP_LOGD(TAG, "Response: \"%s\"", text.c_str());
+      this->defer([this, text]() {
+        this->tts_start_trigger_.trigger(text);
+#ifdef USE_SPEAKER
+        if (this->speaker_ != nullptr) {
+          this->speaker_->start();
+        }
+#endif
+      });
+      break;
+    }
+    case api::enums::VOICE_ASSISTANT_TTS_END: {
+      std::string url;
+      for (const auto &arg : msg.data) {
+        if (arg.name == "url") {
+          url = arg.value;
+        }
+      }
+      if (url.empty()) {
+        ESP_LOGW(TAG, "No url in TTS_END event");
+        return;
+      }
+      ESP_LOGD(TAG, "Response URL: \"%s\"", url.c_str());
+      this->defer([this, url]() {
+#ifdef USE_MEDIA_PLAYER
+        if ((this->media_player_ != nullptr) && (!this->started_streaming_tts_)) {
+          this->media_player_response_state_ = MediaPlayerResponseState::URL_SENT;
+
+          this->media_player_->make_call().set_media_url(url).set_announcement(true).perform();
+
+          this->start_playback_timeout_(this->tts_playback_start_timeout_);
+        }
+        this->started_streaming_tts_ = false;  // Helps indicate reaching the TTS_END stage
+#endif
+        this->tts_end_trigger_.trigger(url);
+      });
+      // The intent progress stage may already have moved to streaming response
+      this->set_state_after_mic_stop_(this->local_output_ ? State::STREAMING_RESPONSE : State::IDLE);
+      break;
+    }
+    case api::enums::VOICE_ASSISTANT_RUN_END: {
+      ESP_LOGD(TAG, "Assist Pipeline ended");
+      this->end_run_();
+#ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
+      this->clear_wake_word_verdict_();
+#endif
+      if ((this->state_ == State::START_PIPELINE) || (this->state_ == State::STARTING_PIPELINE) ||
+          (this->state_ == State::STREAMING_MICROPHONE)) {
+        // Microphone is running, stop it
+        this->set_state_(State::STOP_MICROPHONE, State::IDLE);
+      } else if (this->state_ == State::AWAITING_RESPONSE) {
+        // No TTS start event ("nevermind")
+        this->set_state_(State::IDLE, State::IDLE);
+      } else if (this->desired_state_ == State::AWAITING_RESPONSE) {
+        // No TTS start event while the microphone is still stopping
+        this->set_state_after_mic_stop_(State::IDLE);
+      }
+      this->end_session_();
+      break;
+    }
+    case api::enums::VOICE_ASSISTANT_ERROR: {
+      std::string code;
+      std::string message;
+      for (const auto &arg : msg.data) {
+        if (arg.name == "code") {
+          code = arg.value;
+        } else if (arg.name == "message") {
+          message = arg.value;
+        }
+      }
+      if (code == "wake-word-timeout" || code == "wake_word_detection_aborted" || code == "no_wake_word") {
+        // Don't change state here since either the "tts-end" or "run-end" events will do it.
+        return;
+      } else if (code == "wake-provider-missing" || code == "wake-engine-missing") {
+        // Wake word is not set up or not ready on Home Assistant so stop and do not retry until user starts again.
+        this->defer([this, code, message]() {
+          this->request_stop();
+          this->error_trigger_.trigger(code, message);
+        });
+        return;
+      }
+      ESP_LOGE(TAG, "Error: %s - %s", code.c_str(), message.c_str());
+#ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
+      this->clear_wake_word_verdict_();
+#endif
+      if (this->state_ != State::IDLE) {
+        this->signal_stop_();
+        this->set_state_(State::STOP_MICROPHONE, State::IDLE);
+      }
+      this->defer([this, code, message]() { this->error_trigger_.trigger(code, message); });
+      break;
+    }
+    case api::enums::VOICE_ASSISTANT_TTS_STREAM_START: {
+#ifdef USE_SPEAKER
+      if (this->speaker_ != nullptr) {
+        this->wait_for_stream_end_ = true;
+        ESP_LOGD(TAG, "TTS stream start");
+        this->defer([this] { this->tts_stream_start_trigger_.trigger(); });
+      }
+#endif
+      break;
+    }
+    case api::enums::VOICE_ASSISTANT_TTS_STREAM_END: {
+#ifdef USE_SPEAKER
+      if (this->speaker_ != nullptr) {
+        this->stream_ended_ = true;
+        ESP_LOGD(TAG, "TTS stream end");
+      }
+#endif
+      break;
+    }
+    case api::enums::VOICE_ASSISTANT_STT_VAD_START:
+      ESP_LOGD(TAG, "Starting STT by VAD");
+      this->defer([this]() { this->stt_vad_start_trigger_.trigger(); });
+      break;
+    case api::enums::VOICE_ASSISTANT_STT_VAD_END:
+      ESP_LOGD(TAG, "STT by VAD end");
+      this->set_state_(State::STOP_MICROPHONE, State::AWAITING_RESPONSE);
+      this->defer([this]() { this->stt_vad_end_trigger_.trigger(); });
+      break;
+    default:
+      ESP_LOGD(TAG, "Unhandled event type: %" PRId32, msg.event_type);
+      break;
+  }
+}
+
+void VoiceAssistant::on_audio(const api::VoiceAssistantAudio &msg) {
+#ifdef USE_SPEAKER  // We should never get to this function if there is no speaker anyway
+  if ((this->speaker_ != nullptr) && (this->speaker_buffer_ != nullptr)) {
+    if (this->speaker_buffer_index_ + msg.data_len <= SPEAKER_BUFFER_SIZE) {
+      memcpy(this->speaker_buffer_ + this->speaker_buffer_index_, msg.data, msg.data_len);
+      this->speaker_buffer_index_ += msg.data_len;
+      this->speaker_buffer_size_ += msg.data_len;
+      this->speaker_bytes_received_ += msg.data_len;
+      this->write_speaker_();
+      ESP_LOGV(TAG, "Received audio: %u bytes from API", msg.data_len);
+    } else {
+      ESP_LOGE(TAG, "Cannot receive audio, buffer is full");
+    }
+  }
+#endif
+}
+
+void VoiceAssistant::on_timer_event(const api::VoiceAssistantTimerEventResponse &msg) {
+  // Find existing timer or add a new one
+  auto it = this->timers_.begin();
+  for (; it != this->timers_.end(); ++it) {
+    if (it->id == msg.timer_id)
+      break;
+  }
+  if (it == this->timers_.end()) {
+    this->timers_.push_back({});
+    it = this->timers_.end() - 1;
+  }
+  it->id = msg.timer_id;
+  it->name = msg.name;
+  it->total_seconds = msg.total_seconds;
+  it->seconds_left = msg.seconds_left;
+  it->is_active = msg.is_active;
+
+  char timer_buf[Timer::TO_STR_BUFFER_SIZE];
+  ESP_LOGD(TAG,
+           "Timer Event\n"
+           "  Type: %" PRId32 "\n"
+           "  %s",
+           msg.event_type, it->to_str(timer_buf));
+
+  switch (msg.event_type) {
+    case api::enums::VOICE_ASSISTANT_TIMER_STARTED:
+      this->timer_started_trigger_.trigger(*it);
+      break;
+    case api::enums::VOICE_ASSISTANT_TIMER_UPDATED:
+      this->timer_updated_trigger_.trigger(*it);
+      break;
+    case api::enums::VOICE_ASSISTANT_TIMER_CANCELLED:
+      this->timer_cancelled_trigger_.trigger(*it);
+      this->timers_.erase(it);
+      break;
+    case api::enums::VOICE_ASSISTANT_TIMER_FINISHED:
+      this->timer_finished_trigger_.trigger(*it);
+      this->timers_.erase(it);
+      break;
+  }
+
+  if (this->timers_.empty()) {
+    this->cancel_interval(TIMER_TICK_INTERVAL_ID);
+    this->timer_tick_running_ = false;
+  } else if (!this->timer_tick_running_) {
+    this->set_interval(TIMER_TICK_INTERVAL_ID, 1000, [this]() { this->timer_tick_(); });
+    this->timer_tick_running_ = true;
+  }
+}
+
+void VoiceAssistant::timer_tick_() {
+  for (auto &timer : this->timers_) {
+    if (timer.is_active && timer.seconds_left > 0) {
+      timer.seconds_left--;
+    }
+  }
+  this->timer_tick_trigger_.trigger(this->timers_);
+}
+
+void VoiceAssistant::on_announce(const api::VoiceAssistantAnnounceRequest &msg) {
+#ifdef USE_MEDIA_PLAYER
+  if (this->media_player_ != nullptr) {
+    this->tts_start_trigger_.trigger(msg.text);
+
+    this->media_player_response_state_ = MediaPlayerResponseState::URL_SENT;
+
+    if (!msg.preannounce_media_id.empty()) {
+      this->media_player_->make_call().set_media_url(msg.preannounce_media_id).set_announcement(true).perform();
+    }
+    // Enqueueing a URL with an empty playlist will still play the file immediately
+    this->media_player_->make_call()
+        .set_command(media_player::MEDIA_PLAYER_COMMAND_ENQUEUE)
+        .set_media_url(msg.media_id)
+        .set_announcement(true)
+        .perform();
+    this->continue_conversation_ = msg.start_conversation;
+
+    // Waiting for playback to start here too, not for it to finish.
+    this->start_playback_timeout_(this->tts_playback_start_timeout_);
+
+    if (this->continuous_) {
+      this->set_state_(State::STOP_MICROPHONE, State::STREAMING_RESPONSE);
+    } else {
+      this->set_state_(State::STREAMING_RESPONSE, State::STREAMING_RESPONSE);
+    }
+
+    this->tts_end_trigger_.trigger(msg.media_id);
+    this->end_trigger_.trigger();
+  }
+#endif
+}
+
+void VoiceAssistant::on_set_configuration(const std::vector<std::string> &active_wake_words) {
+#ifdef USE_MICRO_WAKE_WORD
+  if (this->micro_wake_word_) {
+    // Disable all wake words first
+    for (auto &model : this->micro_wake_word_->get_wake_words()) {
+      model->disable();
+    }
+
+    // Enable only active wake words
+    for (const auto &ww_id : active_wake_words) {
+      for (auto &model : this->micro_wake_word_->get_wake_words()) {
+        if (model->get_id() == ww_id) {
+          model->enable();
+          ESP_LOGD(TAG, "Enabled wake word: %s (id=%s)", model->get_wake_word().c_str(), model->get_id().c_str());
+        }
+      }
+    }
+  }
+#endif
+};
+
+const Configuration &VoiceAssistant::get_configuration() {
+  this->config_.available_wake_words.clear();
+  this->config_.active_wake_words.clear();
+
+#ifdef USE_MICRO_WAKE_WORD
+  if (this->micro_wake_word_) {
+    this->config_.max_active_wake_words = 1;
+
+    for (auto &model : this->micro_wake_word_->get_wake_words()) {
+      if (model->is_enabled()) {
+        this->config_.active_wake_words.push_back(model->get_id());
+      }
+
+      WakeWord wake_word;
+      wake_word.id = model->get_id();
+      wake_word.wake_word = model->get_wake_word();
+      for (const auto &lang : model->get_trained_languages()) {
+        wake_word.trained_languages.push_back(lang);
+      }
+      this->config_.available_wake_words.push_back(std::move(wake_word));
+    }
+  } else {
+#endif
+    // No microWakeWord
+    this->config_.max_active_wake_words = 0;
+#ifdef USE_MICRO_WAKE_WORD
+  }
+#endif
+
+  return this->config_;
+};
+
+#ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
+void VoiceAssistant::update_wake_word_audio_() {
+  const bool active = this->is_wake_word_audio_active();
+  if (active == this->wake_word_audio_buffering_) {
+    return;
+  }
+
+  if (active) {
+    if (this->state_ != State::IDLE) {
+      // Retried every loop, so the buffers are resized once the run ends
+      return;
+    }
+    // Buffers left over from a run without wake word audio are too small
+    this->deallocate_buffers_();
+    if (!this->allocate_buffers_()) {
+      // Detect wake words without verification rather than retry large allocations every loop
+      ESP_LOGE(TAG, "Not enough memory for wake word audio");
+      this->wake_word_audio_requested_ = false;
+      return;
+    }
+    // The IDLE branch of loop() starts the microphone while microWakeWord runs
+    ESP_LOGD(TAG, "Buffering wake word audio");
+  } else {
+    this->clear_wake_word_verdict_();
+    if (this->state_ == State::IDLE) {
+      this->mic_source_->stop();
+      if (this->mic_source2_) {
+        this->mic_source2_->stop();
+      }
+    }
+    ESP_LOGD(TAG, "Stopped buffering wake word audio");
+  }
+  this->wake_word_audio_buffering_ = active;
+
+#ifdef USE_MICRO_WAKE_WORD_VAD
+  // The VAD model blocks true detections at the lower cutoffs
+  this->micro_wake_word_->set_vad_enabled(!active);
+#endif
+}
+
+void VoiceAssistant::clear_wake_word_verdict_() { this->cancel_timeout(WAKE_WORD_VERDICT_TIMEOUT_ID); }
+
+void VoiceAssistant::end_wake_word_audio_stream_() {
+  // A chunk still held by an audio source stops its ring buffer from replacing old audio
+  if (this->audio_source_ != nullptr) {
+    this->audio_source_->clear_buffered_data();
+  }
+  if (this->audio_source2_ != nullptr) {
+    this->audio_source2_->clear_buffered_data();
+  }
+  this->clear_wake_word_verdict_();
+}
+#endif
+
+VoiceAssistant *global_voice_assistant = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+}  // namespace esphome::voice_assistant
+
+#endif  // USE_VOICE_ASSISTANT

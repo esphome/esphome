@@ -1,0 +1,97 @@
+#include "esphome/core/defines.h"
+#include "esphome/core/helpers.h"
+#include "socket.h"
+
+#ifdef USE_SOCKET_IMPL_LWIP_SOCKETS
+
+#include <cstring>
+#include "esphome/core/application.h"
+#ifdef USE_HOST
+#include "esphome/core/wake.h"
+#endif
+
+namespace esphome::socket {
+
+LwIPSocketImpl::LwIPSocketImpl(int fd, bool monitor_loop) {
+  this->fd_ = fd;
+  if (!monitor_loop || this->fd_ < 0)
+    return;
+#ifdef USE_LWIP_FAST_SELECT
+  this->cached_sock_ = hook_fd_for_fast_select(this->fd_);
+#else
+  this->loop_monitored_ = wake_register_fd(this->fd_);
+#endif
+}
+
+LwIPSocketImpl::~LwIPSocketImpl() { this->close(); }
+
+int LwIPSocketImpl::close() {
+  if (this->fd_ < 0) {
+    // Already closed, or never opened.
+    return 0;
+  }
+#ifdef USE_LWIP_FAST_SELECT
+  // Null the cached lwip_sock pointer before closing. The underlying lwip slot can be
+  // recycled for a new connection as soon as lwip_close() returns, so anything that
+  // might dereference cached_sock_ post-close (e.g. setsockopt(TCP_NODELAY)) would
+  // otherwise touch an unrelated socket's pcb. No per-socket callback unhook is needed —
+  // all LwIP sockets share the same static event_callback.
+  this->cached_sock_ = nullptr;
+#else
+  if (this->loop_monitored_) {
+    wake_unregister_fd(this->fd_);
+  }
+#endif
+  int ret = lwip_close(this->fd_);
+  this->fd_ = -1;  // Sentinel for "closed" — prevents double-close and makes use-after-close visible.
+  return ret;
+}
+
+int LwIPSocketImpl::setblocking(bool blocking) {
+  int fl = lwip_fcntl(this->fd_, F_GETFL, 0);
+  if (fl < 0) {
+    return fl;
+  }
+  assign_bits(fl, O_NONBLOCK, !blocking);
+  return lwip_fcntl(this->fd_, F_SETFL, fl);
+}
+
+size_t LwIPSocketImpl::getpeername_to(std::span<char, SOCKADDR_STR_LEN> buf) {
+  struct sockaddr_storage storage;
+  socklen_t len = sizeof(storage);
+  if (this->getpeername(reinterpret_cast<struct sockaddr *>(&storage), &len) != 0) {
+    buf[0] = '\0';
+    return 0;
+  }
+  return format_sockaddr_to(reinterpret_cast<struct sockaddr *>(&storage), len, buf);
+}
+
+size_t LwIPSocketImpl::getsockname_to(std::span<char, SOCKADDR_STR_LEN> buf) {
+  struct sockaddr_storage storage;
+  socklen_t len = sizeof(storage);
+  if (this->getsockname(reinterpret_cast<struct sockaddr *>(&storage), &len) != 0) {
+    buf[0] = '\0';
+    return 0;
+  }
+  return format_sockaddr_to(reinterpret_cast<struct sockaddr *>(&storage), len, buf);
+}
+
+// Helper to create a socket with optional monitoring
+static std::unique_ptr<LwIPSocketImpl> create_socket(int domain, int type, int protocol, bool loop_monitored = false) {
+  int ret = lwip_socket(domain, type, protocol);
+  if (ret == -1)
+    return nullptr;
+  return make_unique<LwIPSocketImpl>(ret, loop_monitored);
+}
+
+std::unique_ptr<Socket> socket(int domain, int type, int protocol) {
+  return create_socket(domain, type, protocol, false);
+}
+
+std::unique_ptr<Socket> socket_loop_monitored(int domain, int type, int protocol) {
+  return create_socket(domain, type, protocol, true);
+}
+
+}  // namespace esphome::socket
+
+#endif  // USE_SOCKET_IMPL_LWIP_SOCKETS

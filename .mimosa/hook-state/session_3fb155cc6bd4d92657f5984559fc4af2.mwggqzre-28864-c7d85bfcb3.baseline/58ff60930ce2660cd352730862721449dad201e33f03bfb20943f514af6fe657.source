@@ -1,0 +1,31 @@
+#pragma once
+
+#include "esphome/components/i2c/i2c.h"
+#include "esphome/components/sensor/sensor.h"
+#include "esphome/core/component.h"
+#include "esphome/core/hal.h"
+
+namespace esphome::mics_4514 {
+
+class MICS4514Component final : public PollingComponent, public i2c::I2CDevice {
+  SUB_SENSOR(carbon_monoxide)
+  SUB_SENSOR(nitrogen_dioxide)
+  SUB_SENSOR(methane)
+  SUB_SENSOR(ethanol)
+  SUB_SENSOR(hydrogen)
+  SUB_SENSOR(ammonia)
+
+ public:
+  void setup() override;
+  void dump_config() override;
+  void update() override;
+
+ protected:
+  bool warmed_up_{false};
+  bool initial_{true};
+
+  float ox_calibration_{0};
+  float red_calibration_{0};
+};
+
+}  // namespace esphome::mics_4514

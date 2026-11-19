@@ -1,0 +1,127 @@
+#ifdef USE_ESP32
+#include <cstring>
+#include <cctype>
+#include "esphome/core/helpers.h"
+#include "http_parser.h"
+
+#include "utils.h"
+
+namespace esphome::web_server_idf {
+
+size_t url_decode(char *str) {
+  char *start = str;
+  char *ptr = str, buf;
+  for (; *str; str++, ptr++) {
+    if (*str == '%') {
+      str++;
+      if (parse_hex(str, 2, reinterpret_cast<uint8_t *>(&buf), 1) == 2) {
+        *ptr = buf;
+        str++;
+      } else {
+        str--;
+        *ptr = *str;
+      }
+    } else if (*str == '+') {
+      *ptr = ' ';
+    } else {
+      *ptr = *str;
+    }
+  }
+  *ptr = '\0';
+  return ptr - start;
+}
+
+bool request_has_header(httpd_req_t *req, const char *name) { return httpd_req_get_hdr_value_len(req, name); }
+
+optional<std::string> request_get_header(httpd_req_t *req, const char *name) {
+  size_t len = httpd_req_get_hdr_value_len(req, name);
+  if (len == 0) {
+    return {};
+  }
+
+  std::string str;
+  str.resize(len);
+
+  auto res = httpd_req_get_hdr_value_str(req, name, &str[0], len + 1);
+  if (res != ESP_OK) {
+    return {};
+  }
+
+  return {str};
+}
+
+size_t request_get_header_to(httpd_req_t *req, const char *name, std::span<char> buf) {
+  const size_t len = httpd_req_get_hdr_value_len(req, name);
+  if (len == 0)
+    return 0;
+  if (len >= buf.size() || httpd_req_get_hdr_value_str(req, name, buf.data(), buf.size()) != ESP_OK)
+    return SIZE_MAX;
+  return len;
+}
+
+optional<std::string> query_key_value(const char *query_url, size_t query_len, const char *key) {
+  if (query_url == nullptr || query_len == 0) {
+    return {};
+  }
+
+  // Value can't exceed query_len. Use small stack buffer for typical values,
+  // heap fallback for long ones (e.g. base64 IR data) to limit stack usage
+  // since callers may also have stack buffers for the query string.
+  SmallBufferWithHeapFallback<128, char> val(query_len);
+  if (httpd_query_key_value(query_url, key, val.get(), query_len) != ESP_OK) {
+    return {};
+  }
+
+  url_decode(val.get());
+  return {val.get()};
+}
+
+bool query_has_key(const char *query_url, size_t query_len, const char *key) {
+  if (query_url == nullptr || query_len == 0) {
+    return false;
+  }
+  // Minimal buffer — we only care if the key exists, not the value
+  char buf[1];
+  // httpd_query_key_value returns ESP_OK if found, ESP_ERR_HTTPD_RESULT_TRUNC if found
+  // but value truncated (expected with 1-byte buffer), or other errors for invalid input
+  auto err = httpd_query_key_value(query_url, key, buf, sizeof(buf));
+  return err == ESP_OK || err == ESP_ERR_HTTPD_RESULT_TRUNC;
+}
+
+// Helper function for case-insensitive string region comparison
+bool str_ncmp_ci(const char *s1, const char *s2, size_t n) {
+  for (size_t i = 0; i < n; i++) {
+    if (!char_equals_ci(s1[i], s2[i])) {
+      return false;
+    }
+  }
+  return true;
+}
+
+// Bounded case-insensitive string search (like strcasestr but length-bounded)
+const char *strcasestr_n(const char *haystack, size_t haystack_len, const char *needle) {
+  if (!haystack) {
+    return nullptr;
+  }
+
+  size_t needle_len = strlen(needle);
+  if (needle_len == 0) {
+    return haystack;
+  }
+
+  if (haystack_len < needle_len) {
+    return nullptr;
+  }
+
+  const char *end = haystack + haystack_len - needle_len + 1;
+  for (const char *p = haystack; p < end; p++) {
+    if (str_ncmp_ci(p, needle, needle_len)) {
+      return p;
+    }
+  }
+
+  return nullptr;
+}
+
+}  // namespace esphome::web_server_idf
+#endif  // USE_ESP32

@@ -1,0 +1,254 @@
+#include "pulse_counter_sensor.h"
+#include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
+
+#ifdef HAS_PCNT
+#include <driver/gpio.h>
+#include <esp_private/esp_clk.h>
+#include <hal/pcnt_ll.h>
+#endif
+
+namespace esphome::pulse_counter {
+
+ESPHOME_LOG_TAG(TAG, "pulse_counter");
+
+PROGMEM_STRING_TABLE(EdgeModeStrings, "DISABLE", "INCREMENT", "DECREMENT");
+
+#ifdef HAS_PCNT
+PulseCounterStorageBase *get_storage(bool hw_pcnt) {
+  return (hw_pcnt ? (PulseCounterStorageBase *) (new HwPulseCounterStorage)
+                  : (PulseCounterStorageBase *) (new BasicPulseCounterStorage));
+}
+#else   // HAS_PCNT
+PulseCounterStorageBase *get_storage(bool) { return new BasicPulseCounterStorage; }
+#endif  // HAS_PCNT
+
+void IRAM_ATTR BasicPulseCounterStorage::gpio_intr(BasicPulseCounterStorage *arg) {
+  const uint32_t now = micros();
+  const bool discard = now - arg->last_pulse < arg->filter_us;
+  arg->last_pulse = now;
+  if (discard)
+    return;
+
+  PulseCounterCountMode mode = arg->fixed_mode;
+  if (mode == PULSE_COUNTER_DISABLE) {
+    mode = arg->isr_pin.digital_read() ? arg->rising_edge_mode : arg->falling_edge_mode;
+  }
+  if (mode == PULSE_COUNTER_INCREMENT) {
+    auto x = arg->counter + 1;
+    arg->counter = x;
+  } else if (mode == PULSE_COUNTER_DECREMENT) {
+    auto x = arg->counter - 1;
+    arg->counter = x;
+  }
+}
+
+bool BasicPulseCounterStorage::pulse_counter_setup(InternalGPIOPin *pin) {
+  this->pin = pin;
+  this->pin->setup();
+  this->isr_pin = this->pin->to_isr();
+  const bool rising = this->rising_edge_mode != PULSE_COUNTER_DISABLE;
+  const bool falling = this->falling_edge_mode != PULSE_COUNTER_DISABLE;
+  if (!rising && !falling) {
+    return true;
+  }
+  gpio::InterruptType type = gpio::INTERRUPT_ANY_EDGE;
+  if (this->filter_us == 0) {
+    if (!falling) {
+      type = gpio::INTERRUPT_RISING_EDGE;
+      this->fixed_mode = this->rising_edge_mode;
+    } else if (!rising) {
+      type = gpio::INTERRUPT_FALLING_EDGE;
+      this->fixed_mode = this->falling_edge_mode;
+    } else if (this->rising_edge_mode == this->falling_edge_mode) {
+      this->fixed_mode = this->rising_edge_mode;
+    }
+  }
+  this->pin->attach_interrupt(BasicPulseCounterStorage::gpio_intr, this, type);
+  return true;
+}
+
+pulse_counter_t BasicPulseCounterStorage::read_raw_value() {
+  pulse_counter_t counter = this->counter;
+  pulse_counter_t ret = counter - this->last_value;
+  this->last_value = counter;
+  return ret;
+}
+
+#ifdef HAS_PCNT
+bool HwPulseCounterStorage::pulse_counter_setup(InternalGPIOPin *pin) {
+  this->pin = pin;
+  this->pin->setup();
+
+  pcnt_unit_config_t unit_config = {
+      .low_limit = INT16_MIN,
+      .high_limit = INT16_MAX,
+      .flags = {.accum_count = true},
+  };
+  esp_err_t error = pcnt_new_unit(&unit_config, &this->pcnt_unit);
+  if (error != ESP_OK) {
+    ESP_LOGE(TAG, "Creating PCNT unit failed: %s", esp_err_to_name(error));
+    return false;
+  }
+
+  pcnt_chan_config_t chan_config = {
+      .edge_gpio_num = static_cast<gpio_num_t>(this->pin->get_pin()),
+      .level_gpio_num = GPIO_NUM_NC,
+  };
+  error = pcnt_new_channel(this->pcnt_unit, &chan_config, &this->pcnt_channel);
+  if (error != ESP_OK) {
+    ESP_LOGE(TAG, "Creating PCNT channel failed: %s", esp_err_to_name(error));
+    return false;
+  }
+
+  pcnt_channel_edge_action_t rising = PCNT_CHANNEL_EDGE_ACTION_HOLD;
+  pcnt_channel_edge_action_t falling = PCNT_CHANNEL_EDGE_ACTION_HOLD;
+  switch (this->rising_edge_mode) {
+    case PULSE_COUNTER_DISABLE:
+      rising = PCNT_CHANNEL_EDGE_ACTION_HOLD;
+      break;
+    case PULSE_COUNTER_INCREMENT:
+      rising = PCNT_CHANNEL_EDGE_ACTION_INCREASE;
+      break;
+    case PULSE_COUNTER_DECREMENT:
+      rising = PCNT_CHANNEL_EDGE_ACTION_DECREASE;
+      break;
+  }
+  switch (this->falling_edge_mode) {
+    case PULSE_COUNTER_DISABLE:
+      falling = PCNT_CHANNEL_EDGE_ACTION_HOLD;
+      break;
+    case PULSE_COUNTER_INCREMENT:
+      falling = PCNT_CHANNEL_EDGE_ACTION_INCREASE;
+      break;
+    case PULSE_COUNTER_DECREMENT:
+      falling = PCNT_CHANNEL_EDGE_ACTION_DECREASE;
+      break;
+  }
+
+  error = pcnt_channel_set_edge_action(this->pcnt_channel, rising, falling);
+  if (error != ESP_OK) {
+    ESP_LOGE(TAG, "Setting PCNT edge action failed: %s", esp_err_to_name(error));
+    return false;
+  }
+
+  if (this->filter_us != 0) {
+    uint32_t max_glitch_ns = PCNT_LL_MAX_GLITCH_WIDTH * 1000u / ((uint32_t) esp_clk_apb_freq() / 1000000u);
+    pcnt_glitch_filter_config_t filter_config = {
+        .max_glitch_ns = std::min(this->filter_us * 1000u, max_glitch_ns),
+    };
+    error = pcnt_unit_set_glitch_filter(this->pcnt_unit, &filter_config);
+    if (error != ESP_OK) {
+      ESP_LOGE(TAG, "Setting PCNT glitch filter failed: %s", esp_err_to_name(error));
+      return false;
+    }
+  }
+
+  error = pcnt_unit_add_watch_point(this->pcnt_unit, INT16_MIN);
+  if (error != ESP_OK) {
+    ESP_LOGE(TAG, "Adding PCNT low limit watch point failed: %s", esp_err_to_name(error));
+    return false;
+  }
+  error = pcnt_unit_add_watch_point(this->pcnt_unit, INT16_MAX);
+  if (error != ESP_OK) {
+    ESP_LOGE(TAG, "Adding PCNT high limit watch point failed: %s", esp_err_to_name(error));
+    return false;
+  }
+
+  error = pcnt_unit_enable(this->pcnt_unit);
+  if (error != ESP_OK) {
+    ESP_LOGE(TAG, "Enabling PCNT unit failed: %s", esp_err_to_name(error));
+    return false;
+  }
+  error = pcnt_unit_clear_count(this->pcnt_unit);
+  if (error != ESP_OK) {
+    ESP_LOGE(TAG, "Clearing PCNT unit failed: %s", esp_err_to_name(error));
+    return false;
+  }
+  error = pcnt_unit_start(this->pcnt_unit);
+  if (error != ESP_OK) {
+    ESP_LOGE(TAG, "Starting PCNT unit failed: %s", esp_err_to_name(error));
+    return false;
+  }
+  return true;
+}
+
+pulse_counter_t HwPulseCounterStorage::read_raw_value() {
+  int count;
+  pcnt_unit_get_count(this->pcnt_unit, &count);
+  pulse_counter_t ret = count - this->last_value;
+  this->last_value = count;
+  return ret;
+}
+#endif  // HAS_PCNT
+
+bool PulseCounterSensor::before_setup_() {
+  if (this->storage_.pin == nullptr) {
+    return true;
+  }
+  ESP_LOGE(TAG, "Edge modes and filter cannot change after setup");
+  return false;
+}
+
+void PulseCounterSensor::set_rising_edge_mode(PulseCounterCountMode mode) {
+  if (this->before_setup_()) {
+    this->storage_.rising_edge_mode = mode;
+  }
+}
+
+void PulseCounterSensor::set_falling_edge_mode(PulseCounterCountMode mode) {
+  if (this->before_setup_()) {
+    this->storage_.falling_edge_mode = mode;
+  }
+}
+
+void PulseCounterSensor::set_filter_us(uint32_t filter) {
+  if (this->before_setup_()) {
+    this->storage_.filter_us = filter;
+  }
+}
+
+void PulseCounterSensor::setup() {
+  if (!this->storage_.pulse_counter_setup(this->pin_)) {
+    this->mark_failed();
+    return;
+  }
+}
+
+void PulseCounterSensor::set_total_pulses(uint32_t pulses) {
+  this->current_total_ = pulses;
+  PUBLISH_STATE(this->total_sensor_, pulses);
+}
+
+void PulseCounterSensor::dump_config() {
+  LOG_SENSOR("", "Pulse Counter", this);
+  LOG_PIN("  Pin: ", this->pin_);
+  ESP_LOGCONFIG(TAG,
+                "  Rising Edge: %s\n"
+                "  Falling Edge: %s\n"
+                "  Filtering pulses shorter than %" PRIu32 " µs",
+                LOG_STR_ARG(EdgeModeStrings::get_log_str(this->storage_.rising_edge_mode, 0)),
+                LOG_STR_ARG(EdgeModeStrings::get_log_str(this->storage_.falling_edge_mode, 0)),
+                this->storage_.filter_us);
+  LOG_UPDATE_INTERVAL(this);
+}
+
+void PulseCounterSensor::update() {
+  pulse_counter_t raw = this->storage_.read_raw_value();
+  uint32_t now = millis();
+  if (this->last_time_ != 0) {
+    uint32_t interval = now - this->last_time_;
+    float value = (60000.0f * raw) / float(interval);  // per minute
+    ESP_LOGD(TAG, "'%s': Retrieved counter: %0.2f pulses/min", LOG_STR_ARG(this->get_log_name()), value);
+    this->publish_state(value);
+  }
+
+  if (this->total_sensor_ != nullptr) {
+    current_total_ += raw;
+    ESP_LOGD(TAG, "'%s': Total : %" PRIu32 " pulses", LOG_STR_ARG(this->get_log_name()), current_total_);
+    this->total_sensor_->publish_state(current_total_);
+  }
+  this->last_time_ = now;
+}
+
+}  // namespace esphome::pulse_counter

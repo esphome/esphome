@@ -1,0 +1,203 @@
+"""Integration test for API action responses feature.
+
+Tests the supports_response modes: none, status, optional, only.
+"""
+
+from __future__ import annotations
+
+import json
+
+from aioesphomeapi import SupportsResponseType, UserServiceArgType
+import pytest
+
+from .log_utils import LineWaiter
+from .state_utils import assert_device_name, require_service
+from .types import APIClientConnectedFactory, RunCompiledFunction
+
+
+@pytest.mark.asyncio
+async def test_api_action_responses(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """Test API action response modes work correctly."""
+    waiter = LineWaiter()
+
+    # Run with log monitoring
+    async with (
+        run_compiled(yaml_config, line_callback=waiter.callback),
+        api_client_connected() as client,
+    ):
+        # Verify device info
+        await assert_device_name(client, "api-action-responses-test")
+
+        # List services
+        _, services = await client.list_entities_services()
+
+        # Should have 5 services
+        assert len(services) == 5, f"Expected 5 services, found {len(services)}"
+
+        # Find our services
+        action_no_response = require_service(services, "action_no_response")
+        action_status_response = require_service(services, "action_status_response")
+        action_optional_response = require_service(services, "action_optional_response")
+        action_only_response = require_service(services, "action_only_response")
+        action_nested_json = require_service(services, "action_nested_json")
+
+        # Verify supports_response modes
+        assert action_no_response.supports_response is None or (
+            action_no_response.supports_response == SupportsResponseType.NONE
+        ), (
+            f"action_no_response should have supports_response=NONE, got {action_no_response.supports_response}"
+        )
+
+        assert (
+            action_status_response.supports_response == SupportsResponseType.STATUS
+        ), (
+            f"action_status_response should have supports_response=STATUS, "
+            f"got {action_status_response.supports_response}"
+        )
+
+        assert (
+            action_optional_response.supports_response == SupportsResponseType.OPTIONAL
+        ), (
+            f"action_optional_response should have supports_response=OPTIONAL, "
+            f"got {action_optional_response.supports_response}"
+        )
+
+        assert action_only_response.supports_response == SupportsResponseType.ONLY, (
+            f"action_only_response should have supports_response=ONLY, "
+            f"got {action_only_response.supports_response}"
+        )
+
+        assert action_nested_json.supports_response == SupportsResponseType.ONLY, (
+            f"action_nested_json should have supports_response=ONLY, "
+            f"got {action_nested_json.supports_response}"
+        )
+
+        # Verify argument types
+        # action_no_response: string message
+        assert len(action_no_response.args) == 1
+        assert action_no_response.args[0].name == "message"
+        assert action_no_response.args[0].type == UserServiceArgType.STRING
+
+        # action_status_response: bool should_succeed
+        assert len(action_status_response.args) == 1
+        assert action_status_response.args[0].name == "should_succeed"
+        assert action_status_response.args[0].type == UserServiceArgType.BOOL
+
+        # action_optional_response: int value
+        assert len(action_optional_response.args) == 1
+        assert action_optional_response.args[0].name == "value"
+        assert action_optional_response.args[0].type == UserServiceArgType.INT
+
+        # action_only_response: string name
+        assert len(action_only_response.args) == 1
+        assert action_only_response.args[0].name == "name"
+        assert action_only_response.args[0].type == UserServiceArgType.STRING
+
+        # action_nested_json: no args
+        assert len(action_nested_json.args) == 0
+
+        # Test action_no_response (supports_response: none)
+        # No response expected for this action
+        response = await client.execute_service(
+            action_no_response, {"message": "test_message"}
+        )
+        assert response is None, "action_no_response should not return a response"
+        await waiter.wait_for(
+            "ACTION_NO_RESPONSE called with: test_message", timeout=5.0
+        )
+
+        # Test action_status_response with success (supports_response: status)
+        response = await client.execute_service(
+            action_status_response,
+            {"should_succeed": True},
+            return_response=True,
+        )
+        await waiter.wait_for("ACTION_STATUS_RESPONSE success (call_id=", timeout=5.0)
+        assert response is not None, "Expected response for status action"
+        assert response.success is True, (
+            f"Expected success=True, got {response.success}"
+        )
+        assert response.error_message == "", (
+            f"Expected empty error_message, got '{response.error_message}'"
+        )
+
+        # Test action_status_response with error
+        response = await client.execute_service(
+            action_status_response,
+            {"should_succeed": False},
+            return_response=True,
+        )
+        await waiter.wait_for("ACTION_STATUS_RESPONSE error (call_id=", timeout=5.0)
+        assert response is not None, "Expected response for status action"
+        assert response.success is False, (
+            f"Expected success=False, got {response.success}"
+        )
+        assert "Intentional failure" in response.error_message, (
+            f"Expected error message containing 'Intentional failure', "
+            f"got '{response.error_message}'"
+        )
+
+        # Test action_optional_response (supports_response: optional)
+        response = await client.execute_service(
+            action_optional_response,
+            {"value": 42},
+            return_response=True,
+        )
+        await waiter.wait_for(
+            "ACTION_OPTIONAL_RESPONSE (call_id=", "value=42)", timeout=5.0
+        )
+        assert response is not None, "Expected response for optional action"
+        assert response.success is True, (
+            f"Expected success=True, got {response.success}"
+        )
+        # Parse response data as JSON
+        response_json = json.loads(response.response_data.decode("utf-8"))
+        assert response_json["input"] == 42, (
+            f"Expected input=42, got {response_json.get('input')}"
+        )
+        assert response_json["doubled"] == 84, (
+            f"Expected doubled=84, got {response_json.get('doubled')}"
+        )
+
+        # Test action_only_response (supports_response: only)
+        response = await client.execute_service(
+            action_only_response,
+            {"name": "World"},
+            return_response=True,
+        )
+        await waiter.wait_for(
+            "ACTION_ONLY_RESPONSE (call_id=", "name=World)", timeout=5.0
+        )
+        assert response is not None, "Expected response for only action"
+        assert response.success is True, (
+            f"Expected success=True, got {response.success}"
+        )
+        response_json = json.loads(response.response_data.decode("utf-8"))
+        assert response_json["greeting"] == "Hello, World!", (
+            f"Expected greeting='Hello, World!', got {response_json.get('greeting')}"
+        )
+        assert response_json["length"] == 5, (
+            f"Expected length=5, got {response_json.get('length')}"
+        )
+
+        # Test action_nested_json
+        response = await client.execute_service(
+            action_nested_json,
+            {},
+            return_response=True,
+        )
+        await waiter.wait_for("ACTION_NESTED_JSON (call_id=", timeout=5.0)
+        assert response is not None, "Expected response for nested json action"
+        assert response.success is True, (
+            f"Expected success=True, got {response.success}"
+        )
+        response_json = json.loads(response.response_data.decode("utf-8"))
+        # Verify nested structure
+        assert response_json["config"]["wifi"]["connected"] is True
+        assert response_json["config"]["api"]["port"] == 6053
+        assert response_json["items"][0] == "first"
+        assert response_json["items"][1] == "second"

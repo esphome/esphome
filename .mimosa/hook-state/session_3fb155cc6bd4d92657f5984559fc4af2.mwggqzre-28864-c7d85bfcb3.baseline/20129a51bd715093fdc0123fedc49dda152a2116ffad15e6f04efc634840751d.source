@@ -1,0 +1,54 @@
+// Based on the TC74 datasheet https://ww1.microchip.com/downloads/en/DeviceDoc/21462D.pdf
+
+#include "tc74.h"
+#include "esphome/core/log.h"
+
+namespace esphome::tc74 {
+
+ESPHOME_LOG_TAG(TAG, "tc74");
+
+static const uint8_t TC74_REGISTER_TEMPERATURE = 0x00;
+static const uint8_t TC74_REGISTER_CONFIGURATION = 0x01;
+static const uint8_t TC74_DATA_READY_MASK = 0x40;
+
+// It is possible the "Data Ready" bit will not be set if the TC74 has not been powered on for at least 250ms, so it not
+// being set does not constitute a failure.
+void TC74Component::setup() {
+  uint8_t config_reg;
+  if (!this->setup_check(this->read_register(TC74_REGISTER_CONFIGURATION, &config_reg, 1) == i2c::ERROR_OK))
+    return;
+  this->data_ready_ = config_reg & TC74_DATA_READY_MASK;
+}
+
+void TC74Component::update() { this->read_temperature_(); }
+
+void TC74Component::dump_config() {
+  LOG_SENSOR("", "TC74", this);
+  LOG_I2C_DEVICE(this);
+  LOG_UPDATE_INTERVAL(this);
+}
+
+void TC74Component::read_temperature_() {
+  if (!this->data_ready_) {
+    uint8_t config_reg;
+    if (!this->status_comm_check(this->read_register(TC74_REGISTER_CONFIGURATION, &config_reg, 1) == i2c::ERROR_OK))
+      return;
+
+    if (config_reg & TC74_DATA_READY_MASK) {
+      this->data_ready_ = true;
+    } else {
+      ESP_LOGD(TAG, "TC74 not ready");
+      return;
+    }
+  }
+
+  int8_t temperature_reg;
+  auto *temperature_buf = reinterpret_cast<uint8_t *>(&temperature_reg);
+  if (!this->status_comm_result(this->read_register(TC74_REGISTER_TEMPERATURE, temperature_buf, 1) == i2c::ERROR_OK))
+    return;
+
+  ESP_LOGD(TAG, "Got Temperature=%d °C", temperature_reg);
+  this->publish_state(temperature_reg);
+}
+
+}  // namespace esphome::tc74

@@ -1,0 +1,25 @@
+#include "spi_device.h"
+#include "esphome/core/log.h"
+#include "esphome/core/hal.h"
+#include <cinttypes>
+
+namespace esphome::spi_device {
+
+ESPHOME_LOG_TAG(TAG, "spi_device");
+
+void SPIDeviceComponent::setup() { this->spi_setup(); }
+
+void SPIDeviceComponent::dump_config() {
+  ESP_LOGCONFIG(TAG,
+                "SPIDevice\n"
+                "  Mode: %d",
+                this->mode_);
+  LOG_PIN("  CS pin: ", this->cs_);
+  if (this->data_rate_ < 1000000) {
+    ESP_LOGCONFIG(TAG, "  Data rate: %" PRId32 "kHz", this->data_rate_ / 1000);
+  } else {
+    ESP_LOGCONFIG(TAG, "  Data rate: %" PRId32 "MHz", this->data_rate_ / 1000000);
+  }
+}
+
+}  // namespace esphome::spi_device

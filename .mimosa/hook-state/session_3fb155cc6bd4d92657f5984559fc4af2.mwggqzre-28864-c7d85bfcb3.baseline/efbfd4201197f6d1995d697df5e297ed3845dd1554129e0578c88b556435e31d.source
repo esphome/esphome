@@ -1,0 +1,47 @@
+#include "template_switch.h"
+#include "esphome/core/log.h"
+
+namespace esphome::template_ {
+
+ESPHOME_LOG_TAG(TAG, "template.switch");
+
+TemplateSwitch::TemplateSwitch() = default;
+
+void TemplateSwitch::loop() {
+  auto s = this->f_();
+  if (s.has_value()) {
+    this->publish_state(*s);
+  }
+}
+void TemplateSwitch::write_state(bool state) {
+  if (this->prev_trigger_ != nullptr) {
+    this->prev_trigger_->stop_action();
+  }
+
+  if (state) {
+    this->prev_trigger_ = &this->turn_on_trigger_;
+    this->turn_on_trigger_.trigger();
+  } else {
+    this->prev_trigger_ = &this->turn_off_trigger_;
+    this->turn_off_trigger_.trigger();
+  }
+
+  if (this->optimistic_)
+    this->publish_state(state);
+}
+bool TemplateSwitch::assumed_state() { return this->assumed_state_; }
+float TemplateSwitch::get_setup_priority() const { return setup_priority::HARDWARE - 2.0f; }
+Trigger<> *TemplateSwitch::get_turn_on_trigger() { return &this->turn_on_trigger_; }
+Trigger<> *TemplateSwitch::get_turn_off_trigger() { return &this->turn_off_trigger_; }
+void TemplateSwitch::setup() {
+  if (!this->f_.has_value())
+    this->disable_loop();
+
+  this->restore();
+}
+void TemplateSwitch::dump_config() {
+  LOG_SWITCH("", "Template Switch", this);
+  ESP_LOGCONFIG(TAG, "  Optimistic: %s", YESNO(this->optimistic_));
+}
+
+}  // namespace esphome::template_

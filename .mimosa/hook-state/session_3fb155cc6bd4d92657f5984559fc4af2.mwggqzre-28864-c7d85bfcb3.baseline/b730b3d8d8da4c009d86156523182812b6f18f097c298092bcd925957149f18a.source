@@ -1,0 +1,100 @@
+#pragma once
+
+#include "esphome/components/climate_ir/climate_ir.h"
+#include "esphome/core/helpers.h"
+
+#include <cinttypes>
+
+namespace esphome::mitsubishi {
+
+// Temperature
+const uint8_t MITSUBISHI_TEMP_MIN = 16;  // Celsius
+const uint8_t MITSUBISHI_TEMP_MAX = 31;  // Celsius
+// Remotes set to Fahrenheit go up to 88°F, one step past the Celsius range
+static constexpr float MITSUBISHI_TEMP_MAX_FAHRENHEIT = fahrenheit_to_celsius(88.0f);
+
+// Fan mode
+enum SetFanMode : uint8_t {
+  MITSUBISHI_FAN_3L = 0,  // 3 levels + auto
+  MITSUBISHI_FAN_4L,      // 4 levels + auto
+  MITSUBISHI_FAN_Q4L,     // Quiet + 4 levels + auto
+  //  MITSUBISHI_FAN_5L,      // 5 levels + auto
+};
+
+// Enum to represent horizontal directios
+enum HorizontalDirection : uint8_t {
+  HORIZONTAL_DIRECTION_LEFT = 0x10,
+  HORIZONTAL_DIRECTION_MIDDLE_LEFT = 0x20,
+  HORIZONTAL_DIRECTION_MIDDLE = 0x30,
+  HORIZONTAL_DIRECTION_MIDDLE_RIGHT = 0x40,
+  HORIZONTAL_DIRECTION_RIGHT = 0x50,
+  HORIZONTAL_DIRECTION_SPLIT = 0x80,
+};
+
+// Enum to represent vertical directions
+enum VerticalDirection : uint8_t {
+  VERTICAL_DIRECTION_AUTO = 0x00,
+  VERTICAL_DIRECTION_UP = 0x08,
+  VERTICAL_DIRECTION_MIDDLE_UP = 0x10,
+  VERTICAL_DIRECTION_MIDDLE = 0x18,
+  VERTICAL_DIRECTION_MIDDLE_DOWN = 0x20,
+  VERTICAL_DIRECTION_DOWN = 0x28,
+};
+
+// Fan modes offered by every set_fan_mode option.
+static constexpr climate::ClimateFanModeMask MITSUBISHI_BASE_FAN_MODES{
+    climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_MEDIUM, climate::CLIMATE_FAN_HIGH};
+
+class MitsubishiClimate final : public climate_ir::ClimateIR {
+ public:
+  MitsubishiClimate()
+      : climate_ir::ClimateIR(MITSUBISHI_TEMP_MIN, MITSUBISHI_TEMP_MAX, 1.0f, true, true, MITSUBISHI_BASE_FAN_MODES,
+                              {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_BOTH, climate::CLIMATE_SWING_VERTICAL,
+                               climate::CLIMATE_SWING_HORIZONTAL},
+                              {climate::CLIMATE_PRESET_NONE, climate::CLIMATE_PRESET_ECO, climate::CLIMATE_PRESET_BOOST,
+                               climate::CLIMATE_PRESET_SLEEP}) {}
+
+  void set_supports_dry(bool supports_dry) { this->set_mode_supported_(climate::CLIMATE_MODE_DRY, supports_dry); }
+  void set_supports_fan_only(bool supports_fan_only) {
+    this->set_mode_supported_(climate::CLIMATE_MODE_FAN_ONLY, supports_fan_only);
+  }
+  void set_fahrenheit_compatibility(bool fahrenheit_compatibility) {
+    this->fahrenheit_compatibility_ = fahrenheit_compatibility;
+    if (fahrenheit_compatibility) {
+      this->maximum_temperature_ = MITSUBISHI_TEMP_MAX_FAHRENHEIT;
+    }
+  }
+
+  void set_fan_mode(SetFanMode fan_mode) {
+    this->fan_mode_ = fan_mode;
+    this->fan_modes_ = MITSUBISHI_BASE_FAN_MODES;
+    if (fan_mode == MITSUBISHI_FAN_Q4L)
+      this->fan_modes_.insert(climate::CLIMATE_FAN_QUIET);
+    if (fan_mode >= MITSUBISHI_FAN_4L)
+      this->fan_modes_.insert(climate::CLIMATE_FAN_MIDDLE);  // Shouldn't be used for this but it helps
+  }
+
+  void set_horizontal_default(HorizontalDirection horizontal_direction) {
+    this->default_horizontal_direction_ = horizontal_direction;
+  }
+  void set_vertical_default(VerticalDirection vertical_direction) {
+    this->default_vertical_direction_ = vertical_direction;
+  }
+  void set_vertical_vanes(uint8_t vertical_vanes) { this->vertical_vanes_ = vertical_vanes; }
+
+ protected:
+  // Transmit via IR the state of this climate controller.
+  void transmit_state() override;
+  // Handle received IR Buffer
+  bool on_receive(remote_base::RemoteReceiveData data) override;
+  bool parse_state_frame_(const uint8_t frame[]);
+
+  SetFanMode fan_mode_;
+  bool fahrenheit_compatibility_{false};
+
+  HorizontalDirection default_horizontal_direction_;
+  VerticalDirection default_vertical_direction_;
+  uint8_t vertical_vanes_{1};
+};
+
+}  // namespace esphome::mitsubishi

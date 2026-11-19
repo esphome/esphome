@@ -1,0 +1,82 @@
+#include <cinttypes>
+#include "mqtt_sensor.h"
+#include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
+
+#include "mqtt_const.h"
+
+#ifdef USE_MQTT
+#ifdef USE_SENSOR
+
+#ifdef USE_DEEP_SLEEP
+#include "esphome/components/deep_sleep/deep_sleep_component.h"
+#endif
+
+namespace esphome::mqtt {
+
+ESPHOME_LOG_TAG(TAG, "mqtt.sensor");
+
+using namespace esphome::sensor;
+
+MQTTSensorComponent::MQTTSensorComponent(Sensor *sensor) : sensor_(sensor) {}
+
+void MQTTSensorComponent::setup() {
+  this->sensor_->add_on_state_callback([this](float state) { this->publish_state(state); });
+}
+
+void MQTTSensorComponent::dump_config() {
+  LOG_MQTT_COMPONENT(true, false);
+  if (this->get_expire_after() > 0) {
+    ESP_LOGCONFIG(TAG, "  Expire After: %" PRIu32 "s", this->get_expire_after() / 1000);
+  }
+}
+
+MQTT_COMPONENT_TYPE(MQTTSensorComponent, "sensor")
+const EntityBase *MQTTSensorComponent::get_entity() const { return this->sensor_; }
+
+uint32_t MQTTSensorComponent::get_expire_after() const {
+  if (this->expire_after_.has_value())
+    return *this->expire_after_;
+  return 0;
+}
+
+void MQTTSensorComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
+  // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
+  if (this->sensor_->has_accuracy_decimals()) {
+    root[MQTT_SUGGESTED_DISPLAY_PRECISION] = this->sensor_->get_accuracy_decimals();
+  }
+
+  const auto unit_of_measurement = this->sensor_->get_unit_of_measurement_ref();
+  if (!unit_of_measurement.empty()) {
+    root[MQTT_UNIT_OF_MEASUREMENT] = unit_of_measurement;
+  }
+  // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
+
+  if (this->get_expire_after() > 0)
+    root[MQTT_EXPIRE_AFTER] = this->get_expire_after() / 1000;
+
+  if (this->sensor_->get_force_update())
+    root[MQTT_FORCE_UPDATE] = true;
+
+  if (this->sensor_->get_state_class() != STATE_CLASS_NONE) {
+    root[MQTT_STATE_CLASS] = reinterpret_cast<ProgmemStr>(state_class_to_string(this->sensor_->get_state_class()));
+  }
+
+  config.command_topic = false;
+}
+bool MQTTSensorComponent::send_initial_state() {
+  if (this->sensor_->has_state()) {
+    return this->publish_state(this->sensor_->state);
+  } else {
+    return true;
+  }
+}
+bool MQTTSensorComponent::publish_state(float value) {
+  char topic_buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
+  return this->publish_float_(this->get_state_topic_to_(topic_buf), value, this->sensor_->get_accuracy_decimals());
+}
+
+}  // namespace esphome::mqtt
+
+#endif
+#endif  // USE_MQTT

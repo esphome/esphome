@@ -1,0 +1,57 @@
+#include "mqtt_lock.h"
+#include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
+
+#include "mqtt_const.h"
+
+#ifdef USE_MQTT
+#ifdef USE_LOCK
+
+namespace esphome::mqtt {
+
+ESPHOME_LOG_TAG(TAG, "mqtt.lock");
+
+using namespace esphome::lock;
+
+MQTTLockComponent::MQTTLockComponent(lock::Lock *a_lock) : lock_(a_lock) {}
+
+void MQTTLockComponent::setup() {
+  this->subscribe(this->command_topic_source_(), [this](const std::string &topic, const std::string &payload) {
+    if (ESPHOME_strcasecmp_P(payload.c_str(), ESPHOME_PSTR("LOCK")) == 0) {
+      this->lock_->lock();
+    } else if (ESPHOME_strcasecmp_P(payload.c_str(), ESPHOME_PSTR("UNLOCK")) == 0) {
+      this->lock_->unlock();
+    } else if (ESPHOME_strcasecmp_P(payload.c_str(), ESPHOME_PSTR("OPEN")) == 0) {
+      this->lock_->open();
+    } else {
+      ESP_LOGW(TAG, "'%s': Received unknown status payload: %s", LOG_STR_ARG(this->log_name_()), payload.c_str());
+      this->status_momentary_warning(5000);
+    }
+  });
+  this->lock_->add_on_state_callback(
+      [this](LockState /*state*/) { this->defer(SEND_DEFER_ID, [this]() { this->publish_state(); }); });
+}
+void MQTTLockComponent::dump_config() { LOG_MQTT_COMPONENT(true, true); }
+
+MQTT_COMPONENT_TYPE(MQTTLockComponent, "lock")
+const EntityBase *MQTTLockComponent::get_entity() const { return this->lock_; }
+void MQTTLockComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
+  // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
+  if (this->lock_->traits.get_assumed_state()) {
+    root[MQTT_OPTIMISTIC] = true;
+  }
+  if (this->lock_->traits.get_supports_open())
+    root[MQTT_PAYLOAD_OPEN] = "OPEN";
+}
+bool MQTTLockComponent::send_initial_state() { return this->publish_state(); }
+
+bool MQTTLockComponent::publish_state() {
+  char topic_buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
+  return this->publish(this->get_state_topic_to_(topic_buf),
+                       reinterpret_cast<ProgmemStr>(lock_state_to_string(this->lock_->state)));
+}
+
+}  // namespace esphome::mqtt
+
+#endif
+#endif  // USE_MQTT

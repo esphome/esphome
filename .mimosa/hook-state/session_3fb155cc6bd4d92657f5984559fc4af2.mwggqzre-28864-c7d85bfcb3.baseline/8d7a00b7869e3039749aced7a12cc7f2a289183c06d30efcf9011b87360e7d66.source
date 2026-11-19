@@ -1,0 +1,67 @@
+#pragma once
+
+#include "esphome/core/component.h"
+#include "esphome/core/entity_base.h"
+#include "esphome/core/helpers.h"
+#include "number_call.h"
+#include "number_traits.h"
+
+namespace esphome::number {
+
+class Number;
+void log_number(const char *tag, const char *prefix, const char *type, Number *obj);
+
+#define LOG_NUMBER(prefix, type, obj) log_number(TAG, prefix, LOG_STR_LITERAL(type), obj)
+
+#define SUB_NUMBER(name) \
+ protected: \
+  number::Number *name##_number_{nullptr}; \
+\
+ public: \
+  void set_##name##_number(number::Number *number) { this->name##_number_ = number; }
+
+class Number;
+
+/** Base-class for all numbers.
+ *
+ * A number can use publish_state to send out a new value.
+ */
+class Number : public EntityBase {
+ public:
+  float state{};
+
+  void publish_state(float state);
+
+  NumberCall make_call() { return NumberCall(this); }
+
+  template<typename F> void add_on_state_callback(F &&callback) {
+    this->state_callback_.add(std::forward<F>(callback));
+  }
+
+  NumberTraits traits;
+
+ protected:
+  friend class NumberCall;
+
+  /** Set the value of the number, this is a virtual method that each number integration must implement.
+   *
+   * This method is called by the NumberCall.
+   *
+   * @param value The value as validated by the NumberCall.
+   */
+  virtual void control(float value) = 0;
+
+  LazyCallbackManager<void(float)> state_callback_;
+};
+
+/// Calls the codegen-generated Fn(this, value) on a new value; the hub and any publish are baked into Fn.
+template<auto Fn> class ApplyNumber final : public Number {
+ public:
+  // Not "= default": placement new would zero-fill .bss that is already zero.
+  ApplyNumber() {}
+
+ protected:
+  void control(float value) override { Fn(this, value); }
+};
+
+}  // namespace esphome::number

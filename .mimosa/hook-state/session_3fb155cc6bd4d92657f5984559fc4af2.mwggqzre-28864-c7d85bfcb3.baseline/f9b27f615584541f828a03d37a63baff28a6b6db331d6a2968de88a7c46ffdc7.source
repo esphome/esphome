@@ -1,0 +1,72 @@
+#include "mcp9808.h"
+#include "esphome/core/log.h"
+
+namespace esphome::mcp9808 {
+
+static const uint8_t MCP9808_REG_AMBIENT_TEMP = 0x05;
+static const uint8_t MCP9808_REG_MANUF_ID = 0x06;
+static const uint8_t MCP9808_REG_DEVICE_ID = 0x07;
+
+static const uint16_t MCP9808_MANUF_ID = 0x0054;
+static const uint16_t MCP9808_DEV_ID = 0x0400;
+
+static const uint8_t MCP9808_AMBIENT_CLEAR_FLAGS = 0x1F;
+static const uint8_t MCP9808_AMBIENT_CLEAR_SIGN = 0x0F;
+static const uint8_t MCP9808_AMBIENT_TEMP_NEGATIVE = 0x10;
+
+ESPHOME_LOG_TAG(TAG, "mcp9808");
+
+void MCP9808Sensor::setup() {
+  uint16_t manu = 0;
+  if (!this->setup_check(this->read_byte_16(MCP9808_REG_MANUF_ID, &manu)))
+    return;
+  if (manu != MCP9808_MANUF_ID) {
+    ESP_LOGE(TAG, "Incorrect manufacturer ID (%X) for '%s'", manu, LOG_STR_ARG(this->get_log_name()));
+    this->mark_failed(LOG_STR("Wrong chip ID"));
+    return;
+  }
+  uint16_t dev_id = 0;
+  if (!this->setup_check(this->read_byte_16(MCP9808_REG_DEVICE_ID, &dev_id)))
+    return;
+  if (dev_id != MCP9808_DEV_ID) {
+    ESP_LOGE(TAG, "Incorrect device ID (%X) for '%s'", dev_id, LOG_STR_ARG(this->get_log_name()));
+    this->mark_failed(LOG_STR("Wrong chip ID"));
+    return;
+  }
+}
+void MCP9808Sensor::dump_config() {
+  ESP_LOGCONFIG(TAG, "%s:", LOG_STR_ARG(this->get_log_name()));
+  LOG_I2C_DEVICE(this);
+  LOG_UPDATE_INTERVAL(this);
+  LOG_SENSOR("  ", "Temperature", this);
+}
+void MCP9808Sensor::update() {
+  uint16_t raw_temp;
+  if (!this->status_comm_check(this->read_byte_16(MCP9808_REG_AMBIENT_TEMP, &raw_temp)))
+    return;
+  if (raw_temp == 0xFFFF) {
+    this->status_set_warning();
+    return;
+  }
+
+  float temp = NAN;
+  uint8_t msb = (uint8_t) ((raw_temp & 0xff00) >> 8);
+  uint8_t lsb = raw_temp & 0x00ff;
+
+  msb = msb & MCP9808_AMBIENT_CLEAR_FLAGS;
+
+  if ((msb & MCP9808_AMBIENT_TEMP_NEGATIVE) == MCP9808_AMBIENT_TEMP_NEGATIVE) {
+    msb = msb & MCP9808_AMBIENT_CLEAR_SIGN;
+    temp = (256 - ((uint16_t) (msb) * 16 + lsb / 16.0f)) * -1;
+  } else {
+    temp = (uint16_t) (msb) * 16 + lsb / 16.0f;
+  }
+
+  if (!this->status_comm_result(!std::isnan(temp), nullptr))
+    return;
+
+  ESP_LOGD(TAG, "%s: Got temperature=%.4f°C", LOG_STR_ARG(this->get_log_name()), temp);
+  this->publish_state(temp);
+}
+
+}  // namespace esphome::mcp9808

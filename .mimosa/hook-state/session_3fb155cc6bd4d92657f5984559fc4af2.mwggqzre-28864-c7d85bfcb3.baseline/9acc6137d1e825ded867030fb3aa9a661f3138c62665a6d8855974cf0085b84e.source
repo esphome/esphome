@@ -1,0 +1,143 @@
+#include "ruuvi_ble.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
+
+namespace esphome::ruuvi_ble {
+
+ESPHOME_LOG_TAG(TAG, "ruuvi_ble");
+
+bool parse_ruuvi_data_byte(const ble_device_base::adv_data_t &adv_data, RuuviParseResult &result) {
+  const uint8_t data_type = adv_data[0];
+  const auto *data = &adv_data[1];
+  switch (data_type) {
+    case 0x03: {  // RAWv1
+      if (adv_data.size() != 14)
+        return false;
+
+      const uint8_t temp_sign = (data[1] >> 7) & 1;
+      const float temp_val = (data[1] & 0x7F) + (data[2] / 100.0f);
+      const float temperature = temp_sign == 0 ? temp_val : -1 * temp_val;
+
+      const float humidity = data[0] * 0.5f;
+      const float pressure = (encode_uint16(data[3], data[4]) + 50000.0f) / 100.0f;
+      const float acceleration_x = encode_value<int16_t>(&data[5]) / 1000.0f;
+      const float acceleration_y = encode_value<int16_t>(&data[7]) / 1000.0f;
+      const float acceleration_z = encode_value<int16_t>(&data[9]) / 1000.0f;
+      const float battery_voltage = encode_uint16(data[11], data[12]) / 1000.0f;
+
+      result.humidity = humidity;
+      result.temperature = temperature;
+      result.pressure = pressure;
+      result.acceleration_x = acceleration_x;
+      result.acceleration_y = acceleration_y;
+      result.acceleration_z = acceleration_z;
+      result.acceleration =
+          sqrtf(acceleration_x * acceleration_x + acceleration_y * acceleration_y + acceleration_z * acceleration_z);
+      result.battery_voltage = battery_voltage;
+
+      return true;
+    }
+    case 0x05: {  // RAWv2
+      if (adv_data.size() != 24)
+        return false;
+
+      const float temperature = encode_value<int16_t>(data) * 0.005f;
+      const float humidity = encode_uint16(data[2], data[3]) / 400.0f;
+      const float pressure = (encode_uint16(data[4], data[5]) + 50000.0f) / 100.0f;
+      const float acceleration_x = encode_value<int16_t>(&data[6]) / 1000.0f;
+      const float acceleration_y = encode_value<int16_t>(&data[8]) / 1000.0f;
+      const float acceleration_z = encode_value<int16_t>(&data[10]) / 1000.0f;
+
+      const uint16_t power_info = encode_uint16(data[12], data[13]);
+      const float battery_voltage = ((power_info >> 5) + 1600.0f) / 1000.0f;
+      const float tx_power = ((power_info & 0x1F) * 2.0f) - 40.0f;
+
+      const float movement_counter = float(data[14]);
+      const float measurement_sequence_number = float(encode_uint16(data[15], data[16]));
+
+      result.temperature = data[0] == 0x7F && data[1] == 0xFF ? NAN : temperature;
+      result.humidity = data[2] == 0xFF && data[3] == 0xFF ? NAN : humidity;
+      result.pressure = data[4] == 0xFF && data[5] == 0xFF ? NAN : pressure;
+      result.acceleration_x = data[6] == 0xFF && data[7] == 0xFF ? NAN : acceleration_x;
+      result.acceleration_y = data[8] == 0xFF && data[9] == 0xFF ? NAN : acceleration_y;
+      result.acceleration_z = data[10] == 0xFF && data[11] == 0xFF ? NAN : acceleration_z;
+      if ((data[6] != 0xFF || data[7] != 0xFF) && (data[8] != 0xFF || data[9] != 0xFF) &&
+          (data[10] != 0xFF || data[11] != 0xFF)) {
+        result.acceleration =
+            sqrtf(acceleration_x * acceleration_x + acceleration_y * acceleration_y + acceleration_z * acceleration_z);
+      } else {
+        result.acceleration = NAN;
+      }
+      result.battery_voltage = (power_info >> 5) == 0x7FF ? NAN : battery_voltage;
+      result.tx_power = (power_info & 0x1F) == 0x1F ? NAN : tx_power;
+      result.movement_counter = movement_counter;
+      result.measurement_sequence_number = measurement_sequence_number;
+
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+optional<RuuviParseResult> parse_ruuvi(const ble_device_base::ESPBTDevice &device) {
+  bool success = false;
+  RuuviParseResult result{};
+  for (auto &it : device.get_manufacturer_datas()) {
+    bool is_ruuvi = it.uuid.contains(0x99, 0x04);
+    if (!is_ruuvi)
+      continue;
+
+    if (parse_ruuvi_data_byte(it.data, result))
+      success = true;
+  }
+  if (!success)
+    return {};
+  return result;
+}
+
+bool RuuviListener::parse_device(const ble_device_base::ESPBTDevice &device) {
+  auto res = parse_ruuvi(device);
+  if (!res.has_value())
+    return false;
+
+  char addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+  ESP_LOGD(TAG, "Got RuuviTag (%s):", device.address_str_to(addr_buf));
+
+  if (res->humidity.has_value()) {
+    ESP_LOGD(TAG, "  Humidity: %.2f%%", *res->humidity);
+  }
+  if (res->temperature.has_value()) {
+    ESP_LOGD(TAG, "  Temperature: %.2f°C", *res->temperature);
+  }
+  if (res->pressure.has_value()) {
+    ESP_LOGD(TAG, "  Pressure: %.2fhPa", *res->pressure);
+  }
+  if (res->acceleration.has_value()) {
+    ESP_LOGD(TAG, "  Acceleration: %.3fG", *res->acceleration);
+  }
+  if (res->acceleration_x.has_value()) {
+    ESP_LOGD(TAG, "  Acceleration X: %.3fG", *res->acceleration_x);
+  }
+  if (res->acceleration_y.has_value()) {
+    ESP_LOGD(TAG, "  Acceleration Y: %.3fG", *res->acceleration_y);
+  }
+  if (res->acceleration_z.has_value()) {
+    ESP_LOGD(TAG, "  Acceleration Z: %.3fG", *res->acceleration_z);
+  }
+  if (res->battery_voltage.has_value()) {
+    ESP_LOGD(TAG, "  Battery Voltage: %.3fV", *res->battery_voltage);
+  }
+  if (res->tx_power.has_value()) {
+    ESP_LOGD(TAG, "  TX Power: %.0fdBm", *res->tx_power);
+  }
+  if (res->movement_counter.has_value()) {
+    ESP_LOGD(TAG, "  Movement Counter: %.0f", *res->movement_counter);
+  }
+  if (res->measurement_sequence_number.has_value()) {
+    ESP_LOGD(TAG, "  Measurement Sequence Number: %.0f", *res->measurement_sequence_number);
+  }
+
+  return true;
+}
+
+}  // namespace esphome::ruuvi_ble

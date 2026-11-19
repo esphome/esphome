@@ -1,0 +1,154 @@
+from esphome import automation
+import esphome.codegen as cg
+import esphome.config_validation as cv
+from esphome.const import (
+    CONF_ENTITY_CATEGORY,
+    CONF_ICON,
+    CONF_ID,
+    CONF_MODE,
+    CONF_MQTT_ID,
+    CONF_ON_VALUE,
+    CONF_VALUE,
+)
+from esphome.core import CORE, CoroPriority, coroutine_with_priority, entity_helpers
+from esphome.core.entity_helpers import (
+    entity_duplicate_validator,
+    mqtt_component_class,
+    queue_entity_register,
+    setup_entity,
+)
+from esphome.cpp_generator import MockObj, MockObjClass
+from esphome.types import ConfigType
+
+CODEOWNERS = ["@mauritskorse"]
+DOMAIN = "text"
+IS_PLATFORM_COMPONENT = True
+
+text_ns = cg.esphome_ns.namespace("text")
+Text = text_ns.class_("Text", cg.EntityBase)
+TextPtr = Text.operator("ptr")
+
+# Conditions
+TextMode = text_ns.enum("TextMode")
+
+TEXT_MODES = TextMode.options("TEXT", "PASSWORD", prefix="TEXT_MODE_")
+
+_TEXT_SCHEMA = (
+    cv.ENTITY_BASE_SCHEMA.extend(entity_helpers.WEBSERVER_SORTING_SCHEMA)
+    .extend(cv.MQTT_COMPONENT_SCHEMA)
+    .extend(
+        {
+            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(
+                mqtt_component_class("MQTTTextComponent")
+            ),
+            cv.GenerateID(): cv.declare_id(Text),
+            cv.Optional(CONF_ON_VALUE): automation.validate_automation(),
+            cv.Required(CONF_MODE): cv.enum(TEXT_MODES, upper=True),
+        }
+    )
+)
+
+
+_TEXT_SCHEMA.add_extra(entity_duplicate_validator("text"))
+
+
+def text_schema(
+    class_: MockObjClass = cv.UNDEFINED,
+    *,
+    icon: str = cv.UNDEFINED,
+    entity_category: str = cv.UNDEFINED,
+    mode: str = cv.UNDEFINED,
+) -> cv.Schema:
+    schema = {}
+
+    if class_ is not cv.UNDEFINED:
+        schema[cv.GenerateID()] = cv.declare_id(class_)
+
+    for key, default, validator in [
+        (CONF_ICON, icon, cv.icon),
+        (CONF_ENTITY_CATEGORY, entity_category, cv.entity_category),
+        (CONF_MODE, mode, cv.enum(TEXT_MODES, upper=True)),
+    ]:
+        if default is not cv.UNDEFINED:
+            schema[cv.Optional(key, default=default)] = validator
+
+    return _TEXT_SCHEMA.extend(schema)
+
+
+@setup_entity("text")
+async def setup_text_core_(
+    var: MockObj,
+    config: ConfigType,
+    *,
+    min_length: int | None,
+    max_length: int | None,
+    pattern: str | None,
+) -> None:
+    cg.add(var.traits.set_min_length(min_length))
+    cg.add(var.traits.set_max_length(max_length))
+    if pattern is not None:
+        cg.add(var.traits.set_pattern(pattern))
+
+    cg.add(var.traits.set_mode(config[CONF_MODE]))
+
+    for conf in config.get(CONF_ON_VALUE, []):
+        await automation.build_callback_automation(
+            var, "add_on_state_callback", [(cg.std_string, "x")], conf
+        )
+
+    await entity_helpers.setup_entity_integrations(var, config)
+
+
+async def register_text(
+    var: MockObj,
+    config: ConfigType,
+    *,
+    min_length: int | None = 0,
+    max_length: int | None = 255,
+    pattern: str | None = None,
+) -> None:
+    if not CORE.has_id(config[CONF_ID]):
+        var = cg.Pvariable(config[CONF_ID], var)
+    queue_entity_register("text", config)
+    CORE.register_platform_component("text", var)
+    await setup_text_core_(
+        var, config, min_length=min_length, max_length=max_length, pattern=pattern
+    )
+
+
+async def new_text(
+    config: ConfigType,
+    *,
+    min_length: int | None = 0,
+    max_length: int | None = 255,
+    pattern: str | None = None,
+) -> MockObj:
+    var = cg.new_Pvariable(config[CONF_ID])
+    await register_text(
+        var, config, min_length=min_length, max_length=max_length, pattern=pattern
+    )
+    return var
+
+
+@coroutine_with_priority(CoroPriority.CORE)
+async def to_code(config: ConfigType) -> None:
+    cg.add_global(text_ns.using)
+
+
+OPERATION_BASE_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_ID): cv.use_id(Text),
+    }
+)
+
+
+automation.register_apply_action(
+    "text.set",
+    OPERATION_BASE_SCHEMA.extend(
+        {
+            cv.Required(CONF_VALUE): cv.templatable(cv.string_strict),
+        }
+    ),
+    automation.ApplyField(CONF_VALUE, "set_value", cg.std_string),
+    call="make_call",
+)

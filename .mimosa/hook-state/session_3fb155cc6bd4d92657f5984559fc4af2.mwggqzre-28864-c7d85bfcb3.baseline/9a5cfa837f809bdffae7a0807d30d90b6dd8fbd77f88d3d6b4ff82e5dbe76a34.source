@@ -1,0 +1,90 @@
+#pragma once
+
+#include "esphome/core/component.h"
+#include "esphome/core/hal.h"
+#include "esphome/components/sensor/sensor.h"
+
+#include <cinttypes>
+
+#if defined(USE_ESP32)
+#include <soc/soc_caps.h>
+#if defined(SOC_PCNT_SUPPORTED) && __has_include(<driver/pulse_cnt.h>)
+#include <driver/pulse_cnt.h>
+#define HAS_PCNT
+#endif  // defined(SOC_PCNT_SUPPORTED) && __has_include(<driver/pulse_cnt.h>)
+#endif  // USE_ESP32
+
+namespace esphome::pulse_counter {
+
+enum PulseCounterCountMode {
+  PULSE_COUNTER_DISABLE = 0,
+  PULSE_COUNTER_INCREMENT,
+  PULSE_COUNTER_DECREMENT,
+};
+
+using pulse_counter_t = int32_t;
+
+struct PulseCounterStorageBase {
+  virtual bool pulse_counter_setup(InternalGPIOPin *pin) = 0;
+  virtual pulse_counter_t read_raw_value() = 0;
+
+  InternalGPIOPin *pin{nullptr};
+  PulseCounterCountMode rising_edge_mode{PULSE_COUNTER_INCREMENT};
+  PulseCounterCountMode falling_edge_mode{PULSE_COUNTER_DISABLE};
+  uint32_t filter_us{0};
+  pulse_counter_t last_value{0};
+};
+
+struct BasicPulseCounterStorage : public PulseCounterStorageBase {
+  static void gpio_intr(BasicPulseCounterStorage *arg);
+
+  bool pulse_counter_setup(InternalGPIOPin *pin) override;
+  pulse_counter_t read_raw_value() override;
+
+  volatile pulse_counter_t counter{0};
+  volatile uint32_t last_pulse{0};
+
+  ISRInternalGPIOPin isr_pin;
+  PulseCounterCountMode fixed_mode{PULSE_COUNTER_DISABLE};
+};
+
+#ifdef HAS_PCNT
+struct HwPulseCounterStorage : public PulseCounterStorageBase {
+  bool pulse_counter_setup(InternalGPIOPin *pin) override;
+  pulse_counter_t read_raw_value() override;
+
+  pcnt_unit_handle_t pcnt_unit{nullptr};
+  pcnt_channel_handle_t pcnt_channel{nullptr};
+};
+#endif  // HAS_PCNT
+
+PulseCounterStorageBase *get_storage(bool hw_pcnt = false);
+
+class PulseCounterSensor final : public sensor::Sensor, public PollingComponent {
+  SUB_SENSOR(total)
+
+ public:
+  explicit PulseCounterSensor(bool hw_pcnt = false) : storage_(*get_storage(hw_pcnt)) {}
+
+  void set_pin(InternalGPIOPin *pin) { pin_ = pin; }
+  void set_rising_edge_mode(PulseCounterCountMode mode);
+  void set_falling_edge_mode(PulseCounterCountMode mode);
+  void set_filter_us(uint32_t filter);
+
+  void set_total_pulses(uint32_t pulses);
+
+  /// Unit of measurement is "pulses/min".
+  void setup() override;
+  void update() override;
+  void dump_config() override;
+
+ protected:
+  bool before_setup_();
+
+  InternalGPIOPin *pin_;
+  PulseCounterStorageBase &storage_;
+  uint32_t last_time_{0};
+  uint32_t current_total_{0};
+};
+
+}  // namespace esphome::pulse_counter

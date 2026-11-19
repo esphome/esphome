@@ -1,0 +1,118 @@
+from esphome import automation, pins
+import esphome.codegen as cg
+from esphome.components import sensor
+import esphome.config_validation as cv
+from esphome.const import (
+    CONF_ID,
+    CONF_MAX_VALUE,
+    CONF_MIN_VALUE,
+    CONF_PIN_A,
+    CONF_PIN_B,
+    CONF_RESOLUTION,
+    CONF_RESTORE_MODE,
+    CONF_VALUE,
+    ICON_ROTATE_RIGHT,
+    STATE_CLASS_MEASUREMENT,
+    UNIT_STEPS,
+)
+from esphome.types import ConfigType
+
+rotary_encoder_ns = cg.esphome_ns.namespace("rotary_encoder")
+
+RotaryEncoderRestoreMode = rotary_encoder_ns.enum("RotaryEncoderRestoreMode")
+RESTORE_MODES = RotaryEncoderRestoreMode.options(
+    "RESTORE_DEFAULT_ZERO", "ALWAYS_ZERO", prefix="ROTARY_ENCODER_"
+)
+
+RotaryEncoderResolution = rotary_encoder_ns.enum("RotaryEncoderResolution")
+RESOLUTIONS = {
+    1: RotaryEncoderResolution.ROTARY_ENCODER_1_PULSE_PER_CYCLE,
+    2: RotaryEncoderResolution.ROTARY_ENCODER_2_PULSES_PER_CYCLE,
+    4: RotaryEncoderResolution.ROTARY_ENCODER_4_PULSES_PER_CYCLE,
+}
+
+CONF_PIN_RESET = "pin_reset"
+CONF_ON_CLOCKWISE = "on_clockwise"
+CONF_ON_ANTICLOCKWISE = "on_anticlockwise"
+CONF_PUBLISH_INITIAL_VALUE = "publish_initial_value"
+
+RotaryEncoderSensor = rotary_encoder_ns.class_(
+    "RotaryEncoderSensor", sensor.Sensor, cg.Component
+)
+
+
+def validate_min_max_value(config: ConfigType) -> ConfigType:
+    if CONF_MIN_VALUE in config and CONF_MAX_VALUE in config:
+        min_val = config[CONF_MIN_VALUE]
+        max_val = config[CONF_MAX_VALUE]
+        if min_val >= max_val:
+            raise cv.Invalid(
+                f"Max value {max_val} must be greater than min value {min_val}"
+            )
+    return config
+
+
+CONFIG_SCHEMA = cv.All(
+    sensor.sensor_schema(
+        RotaryEncoderSensor,
+        unit_of_measurement=UNIT_STEPS,
+        icon=ICON_ROTATE_RIGHT,
+        accuracy_decimals=0,
+        state_class=STATE_CLASS_MEASUREMENT,
+    )
+    .extend(
+        {
+            cv.Required(CONF_PIN_A): cv.All(pins.internal_gpio_input_pin_schema),
+            cv.Required(CONF_PIN_B): cv.All(pins.internal_gpio_input_pin_schema),
+            cv.Optional(CONF_PIN_RESET): pins.internal_gpio_output_pin_schema,
+            cv.Optional(CONF_RESOLUTION, default=1): cv.enum(RESOLUTIONS, int=True),
+            cv.Optional(CONF_MIN_VALUE): cv.int_,
+            cv.Optional(CONF_MAX_VALUE): cv.int_,
+            cv.Optional(CONF_PUBLISH_INITIAL_VALUE, default=False): cv.boolean,
+            cv.Optional(CONF_RESTORE_MODE, default="RESTORE_DEFAULT_ZERO"): cv.enum(
+                RESTORE_MODES, upper=True, space="_"
+            ),
+            cv.Optional(CONF_ON_CLOCKWISE): automation.validate_automation({}),
+            cv.Optional(CONF_ON_ANTICLOCKWISE): automation.validate_automation({}),
+        }
+    )
+    .extend(cv.COMPONENT_SCHEMA),
+    validate_min_max_value,
+)
+
+
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(CONF_ON_CLOCKWISE, "add_on_clockwise_callback"),
+    automation.CallbackAutomation(
+        CONF_ON_ANTICLOCKWISE, "add_on_anticlockwise_callback"
+    ),
+)
+
+
+async def to_code(config: ConfigType) -> None:
+    var = await sensor.new_sensor(config)
+    await cg.register_component(var, config)
+
+    await cg.add_pin(var.set_pin_a, config[CONF_PIN_A])
+    await cg.add_pin(var.set_pin_b, config[CONF_PIN_B])
+    cg.add(var.set_publish_initial_value(config[CONF_PUBLISH_INITIAL_VALUE]))
+    cg.add(var.set_restore_mode(config[CONF_RESTORE_MODE]))
+
+    await cg.add_pin(var.set_reset_pin, config.get(CONF_PIN_RESET))
+    cg.add(var.set_resolution(config[CONF_RESOLUTION]))
+    cg.add_optional(var.set_min_value, config.get(CONF_MIN_VALUE))
+    cg.add_optional(var.set_max_value, config.get(CONF_MAX_VALUE))
+
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
+
+
+automation.register_apply_action(
+    "sensor.rotary_encoder.set_value",
+    cv.Schema(
+        {
+            cv.Required(CONF_ID): cv.use_id(RotaryEncoderSensor),
+            cv.Required(CONF_VALUE): cv.templatable(cv.int_),
+        }
+    ),
+    automation.ApplyField(CONF_VALUE, "set_value", cg.int_),
+)

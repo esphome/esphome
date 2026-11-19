@@ -1,0 +1,188 @@
+#pragma once
+
+#include "esphome/core/component.h"
+#include "esphome/core/entity_base.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
+#include "esphome/core/preferences.h"
+#include <initializer_list>
+
+namespace esphome::lock {
+
+class Lock;
+
+#define LOG_LOCK(prefix, type, obj) \
+  if (log_entity_header(TAG, prefix, LOG_STR_LITERAL(type), (obj))) { \
+    LOG_ENTITY_ICON(TAG, prefix, *(obj)); \
+    if ((obj)->traits.get_assumed_state()) { \
+      ESP_LOGCONFIG(TAG, "%s  Assumed State: YES", prefix); \
+    } \
+  }
+/// Enum for all states a lock can be in.
+enum LockState : uint8_t {
+  LOCK_STATE_NONE = 0,
+  LOCK_STATE_LOCKED = 1,
+  LOCK_STATE_UNLOCKED = 2,
+  LOCK_STATE_JAMMED = 3,
+  LOCK_STATE_LOCKING = 4,
+  LOCK_STATE_UNLOCKING = 5,
+  LOCK_STATE_OPENING = 6,
+  LOCK_STATE_OPEN = 7,
+};
+const LogString *lock_state_to_string(LockState state);
+
+class LockTraits {
+ public:
+  LockTraits() = default;
+
+  bool get_supports_open() const { return this->flags_.supports_open; }
+  void set_supports_open(bool supports_open) { this->flags_.supports_open = supports_open; }
+  bool get_requires_code() const { return this->flags_.requires_code; }
+  void set_requires_code(bool requires_code) { this->flags_.requires_code = requires_code; }
+  bool get_assumed_state() const { return this->flags_.assumed_state; }
+  void set_assumed_state(bool assumed_state) { this->flags_.assumed_state = assumed_state; }
+
+  bool supports_state(LockState state) const { return supported_states_mask_ & (1 << state); }
+  void set_supported_states(std::initializer_list<LockState> states) {
+    supported_states_mask_ = 0;
+    for (auto state : states) {
+      supported_states_mask_ |= (1 << state);
+    }
+  }
+  uint8_t get_supported_states_mask() const { return supported_states_mask_; }
+  void set_supported_states_mask(uint8_t mask) { supported_states_mask_ = mask; }
+  void add_supported_state(LockState state) { supported_states_mask_ |= (1 << state); }
+
+ protected:
+  // Bit-packed flags to save memory (1 byte instead of 3)
+  struct LockTraitFlags {
+    uint8_t supports_open : 1;
+    uint8_t requires_code : 1;
+    uint8_t assumed_state : 1;
+    uint8_t reserved : 5;
+  } flags_{};
+  uint8_t supported_states_mask_{(1 << LOCK_STATE_NONE) | (1 << LOCK_STATE_LOCKED) | (1 << LOCK_STATE_UNLOCKED)};
+};
+
+/** This class is used to encode all control actions on a lock device.
+ *
+ * It is supposed to be used by all code that wishes to control a lock device (mqtt, api, lambda etc).
+ * Create an instance of this class by calling `id(lock_device).make_call();`. Then set all attributes
+ * with the `set_x` methods. Finally, to apply the changes call `.perform();`.
+ *
+ * The integration that implements the lock device receives this instance with the `control` method.
+ * It should check all the properties it implements and apply them as needed. It should do so by
+ * getting all properties it controls with the getter methods in this class. If the optional value is
+ * set (check with `.has_value()`) that means the user wants to control this property. Get the value
+ * of the optional with the star operator (`*call.get_state()`) and apply it.
+ */
+class LockCall {
+ public:
+  LockCall(Lock *parent) : parent_(parent) {}
+
+  /// Set the state of the lock device.
+  LockCall &set_state(LockState state);
+  /// Set the state of the lock device.
+  LockCall &set_state(optional<LockState> state);
+  /// Set the state of the lock device based on a string.
+  LockCall &set_state(const char *state);
+  LockCall &set_state(const std::string &state) { return this->set_state(state.c_str()); }
+
+  void perform();
+
+  const optional<LockState> &get_state() const;
+
+ protected:
+  void validate_();
+
+  Lock *const parent_;
+  optional<LockState> state_;
+};
+
+/** Base class for all locks.
+ *
+ * A lock is basically a switch with a combination of a binary sensor (for reporting lock values)
+ * and a write_state method that writes a state to the hardware. Locks can also have an "open"
+ * method to unlatch.
+ *
+ * For integrations: Integrations must implement the method control().
+ * Control will be called with the arguments supplied by the user and should be used
+ * to control all values of the lock.
+ */
+class Lock : public EntityBase {
+ public:
+  explicit Lock();
+
+  /** Make a lock device control call, this is used to control the lock device, see the LockCall description
+   * for more info.
+   * @return A new LockCall instance targeting this lock device.
+   */
+  LockCall make_call();
+
+  /** Publish a state to the front-end from the back-end.
+   *
+   * Then the internal value member is set and finally the callbacks are called.
+   *
+   * @param state The new state.
+   */
+  void publish_state(LockState state);
+
+  /// The current reported state of the lock.
+  LockState state{LOCK_STATE_NONE};
+
+  LockTraits traits;
+
+  /** Turn this lock on. This is called by the front-end.
+   *
+   * For implementing locks, please override control.
+   */
+  void lock();
+  /** Turn this lock off. This is called by the front-end.
+   *
+   * For implementing locks, please override control.
+   */
+  void unlock();
+  /** Open (unlatch) this lock. This is called by the front-end.
+   *
+   * For implementing locks, please override control.
+   */
+  void open();
+
+  /** Set callback for state changes.
+   *
+   * @param callback The void(LockState) callback.
+   */
+  template<typename F> void add_on_state_callback(F &&callback) {
+    this->state_callback_.add(std::forward<F>(callback));
+  }
+
+ protected:
+  friend LockCall;
+
+  /// Helper for lock/unlock convenience methods
+  void set_state_(LockState state);
+
+  /** Perform the open latch action with hardware. This method is optional to implement
+   * when creating a new lock.
+   *
+   * In the implementation of this method, it is recommended you also call
+   * publish_state with "unlock" to acknowledge that the state was written to the hardware.
+   */
+  virtual void open_latch() { unlock(); };
+
+  /** Control the lock device, this is a virtual method that each lock integration must implement.
+   *
+   * See more info in LockCall. The integration should check all of its values in this method and
+   * set them accordingly. At the end of the call, the integration must call `publish_state()` to
+   * notify the frontend of a changed state.
+   *
+   * @param call The LockCall instance encoding all attribute changes.
+   */
+  virtual void control(const LockCall &call) = 0;
+
+  Deduplicator<LockState> publish_dedup_;  // packs with state and traits ahead of the pointer members
+  LazyCallbackManager<void(LockState)> state_callback_{};
+  ESPPreferenceObject rtc_;
+};
+
+}  // namespace esphome::lock

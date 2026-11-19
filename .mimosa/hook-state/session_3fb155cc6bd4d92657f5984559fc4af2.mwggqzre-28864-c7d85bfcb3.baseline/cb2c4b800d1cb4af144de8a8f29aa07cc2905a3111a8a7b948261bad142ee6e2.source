@@ -1,0 +1,53 @@
+from esphome import pins
+import esphome.codegen as cg
+from esphome.components import gpio_expander, i2c
+import esphome.config_validation as cv
+from esphome.const import CONF_ID, CONF_INPUT, CONF_INTERRUPT_PIN, CONF_OUTPUT
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
+
+CODEOWNERS = ["@mobrembski"]
+DOMAIN = "tca9555"
+
+AUTO_LOAD = ["gpio_expander"]
+DEPENDENCIES = ["i2c"]
+MULTI_CONF = True
+
+tca9555_ns = cg.esphome_ns.namespace("tca9555")
+
+TCA9555Component = tca9555_ns.class_("TCA9555Component", cg.Component, i2c.I2CDevice)
+TCA9555GPIOPin = tca9555_ns.class_("TCA9555GPIOPin", cg.GPIOPin)
+
+CONF_TCA9555 = "tca9555"
+CONFIG_SCHEMA = (
+    cv.Schema(
+        {
+            cv.Required(CONF_ID): cv.declare_id(TCA9555Component),
+        }
+    )
+    .extend(gpio_expander.INTERRUPT_EXPANDER_SCHEMA)
+    .extend(i2c.i2c_device_schema(0x21))
+)
+
+
+async def to_code(config: ConfigType) -> None:
+    var = await i2c.new_i2c_component(config)
+    await cg.add_pin(var.set_interrupt_pin, config.get(CONF_INTERRUPT_PIN))
+
+
+TCA9555_PIN_SCHEMA = pins.gpio_base_schema(
+    TCA9555GPIOPin,
+    cv.int_range(min=0, max=15),
+    modes=[CONF_INPUT, CONF_OUTPUT],
+    mode_validator=pins.gpio_validate_input_xor_output,
+    invertible=True,
+).extend(
+    {
+        cv.Required(CONF_TCA9555): pins.use_id_or_address(TCA9555Component),
+    }
+)
+
+
+@pins.PIN_SCHEMA_REGISTRY.register(CONF_TCA9555, TCA9555_PIN_SCHEMA)
+async def tca9555_pin_to_code(config: ConfigType) -> MockObj:
+    return await pins.new_parented_pin(config, CONF_TCA9555)

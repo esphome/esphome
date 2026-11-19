@@ -1,0 +1,56 @@
+#include "template_lock.h"
+#include "esphome/core/log.h"
+
+namespace esphome::template_ {
+
+using namespace esphome::lock;
+
+ESPHOME_LOG_TAG(TAG, "template.lock");
+
+TemplateLock::TemplateLock() = default;
+
+void TemplateLock::setup() {
+  if (!this->f_.has_value())
+    this->disable_loop();
+}
+
+void TemplateLock::loop() {
+  auto val = this->f_();
+  if (val.has_value()) {
+    this->publish_state(*val);
+  }
+}
+void TemplateLock::control(const lock::LockCall &call) {
+  if (this->prev_trigger_ != nullptr) {
+    this->prev_trigger_->stop_action();
+  }
+
+  auto opt_state = call.get_state();
+  if (!opt_state.has_value())
+    return;
+  auto state = *opt_state;
+  if (state == LOCK_STATE_LOCKED) {
+    this->prev_trigger_ = &this->lock_trigger_;
+    this->lock_trigger_.trigger();
+  } else if (state == LOCK_STATE_UNLOCKED) {
+    this->prev_trigger_ = &this->unlock_trigger_;
+    this->unlock_trigger_.trigger();
+  }
+
+  if (this->optimistic_)
+    this->publish_state(state);
+}
+void TemplateLock::open_latch() {
+  if (this->prev_trigger_ != nullptr) {
+    this->prev_trigger_->stop_action();
+  }
+  this->prev_trigger_ = &this->open_trigger_;
+  this->open_trigger_.trigger();
+}
+float TemplateLock::get_setup_priority() const { return setup_priority::HARDWARE; }
+void TemplateLock::dump_config() {
+  LOG_LOCK("", "Template Lock", this);
+  ESP_LOGCONFIG(TAG, "  Optimistic: %s", YESNO(this->optimistic_));
+}
+
+}  // namespace esphome::template_

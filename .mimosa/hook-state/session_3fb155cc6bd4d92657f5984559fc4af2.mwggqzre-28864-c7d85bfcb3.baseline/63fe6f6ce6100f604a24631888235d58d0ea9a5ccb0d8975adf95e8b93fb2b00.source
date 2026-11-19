@@ -1,0 +1,50 @@
+import esphome.codegen as cg
+from esphome.components.switch import Switch, register_switch, switch_schema
+import esphome.config_validation as cv
+from esphome.const import CONF_ID
+from esphome.cpp_generator import MockObj
+from esphome.cpp_types import Component
+
+from ..defines import CONF_WIDGET, literal
+from ..lvcode import (
+    EVENT_ARG,
+    UPDATE_EVENT,
+    LambdaContext,
+    LvContext,
+    lv_add,
+    lvgl_static,
+)
+from ..types import LV_EVENT, LV_STATE, lv_pseudo_button_t, lvgl_ns
+from ..widgets import get_widgets
+
+LVGLSwitch = lvgl_ns.class_("LVGLSwitch", Switch, Component)
+CONFIG_SCHEMA = switch_schema(LVGLSwitch).extend(
+    {
+        cv.Required(CONF_WIDGET): cv.use_id(lv_pseudo_button_t),
+    }
+)
+
+
+async def to_code(config):
+    widget = await get_widgets(config, CONF_WIDGET)
+    widget = widget[0]
+    switch_id = MockObj(config[CONF_ID], "->")
+    v = literal("v")
+    async with LambdaContext([(cg.bool_, "v")]) as control:
+        widget.set_state(LV_STATE.CHECKED, literal("v"))
+        control.add(switch_id.publish_state(v))
+    switch = cg.new_Pvariable(config[CONF_ID], await control.get_lambda())
+    await cg.register_component(switch, config)
+    await register_switch(switch, config)
+    async with LambdaContext(EVENT_ARG) as checked_ctx:
+        checked_ctx.add(switch.publish_state(widget.get_value()))
+    async with LvContext() as ctx:
+        ctx.add(
+            lvgl_static.add_event_cb(
+                widget.obj,
+                await checked_ctx.get_lambda(),
+                LV_EVENT.VALUE_CHANGED,
+                UPDATE_EVENT,
+            )
+        )
+        lv_add(switch.publish_state(widget.get_value()))

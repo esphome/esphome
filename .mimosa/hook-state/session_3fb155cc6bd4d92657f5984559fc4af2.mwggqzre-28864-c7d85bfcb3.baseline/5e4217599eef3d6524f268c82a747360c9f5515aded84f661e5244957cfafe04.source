@@ -1,0 +1,351 @@
+from typing import Any
+
+import esphome.codegen as cg
+from esphome.components import sensor, uart
+import esphome.config_validation as cv
+from esphome.const import (
+    CONF_FORMALDEHYDE,
+    CONF_HUMIDITY,
+    CONF_PM_0_3UM,
+    CONF_PM_0_5UM,
+    CONF_PM_1_0,
+    CONF_PM_1_0_STD,
+    CONF_PM_1_0UM,
+    CONF_PM_2_5,
+    CONF_PM_2_5_STD,
+    CONF_PM_2_5UM,
+    CONF_PM_5_0UM,
+    CONF_PM_10_0,
+    CONF_PM_10_0_STD,
+    CONF_PM_10_0UM,
+    CONF_TEMPERATURE,
+    CONF_TYPE,
+    CONF_UPDATE_INTERVAL,
+    DEVICE_CLASS_HUMIDITY,
+    DEVICE_CLASS_PM1,
+    DEVICE_CLASS_PM10,
+    DEVICE_CLASS_PM25,
+    DEVICE_CLASS_TEMPERATURE,
+    ICON_CHEMICAL_WEAPON,
+    STATE_CLASS_MEASUREMENT,
+    UNIT_CELSIUS,
+    UNIT_COUNT_DECILITRE,
+    UNIT_MICROGRAMS_PER_CUBIC_METER,
+    UNIT_PERCENT,
+)
+from esphome.core import TimePeriodMilliseconds
+from esphome.types import ConfigType
+
+CODEOWNERS = ["@ximex"]
+DEPENDENCIES = ["uart"]
+
+pmsx003_ns = cg.esphome_ns.namespace("pmsx003")
+PMSX003Component = pmsx003_ns.class_("PMSX003Component", uart.UARTDevice, cg.Component)
+PMSX003Sensor = pmsx003_ns.class_("PMSX003Sensor", sensor.Sensor)
+
+TYPE_PMS1003 = "PMS1003"
+TYPE_PMS3003 = "PMS3003"
+TYPE_PMSX003 = "PMSX003"  # PMS5003, PMS6003, PMS7003, PMSA003 (NOT PMSA003I - see `pmsa003i` component)
+TYPE_PMS5003S = "PMS5003S"
+TYPE_PMS5003T = "PMS5003T"
+TYPE_PMS5003ST = "PMS5003ST"
+TYPE_PMS9003M = "PMS9003M"
+TYPE_LUFTMY = "LUFTMY"
+
+Type = pmsx003_ns.enum("Type", is_class=True)
+
+PMSX003_TYPES = {
+    TYPE_PMS1003: Type.PMS1003,
+    TYPE_PMS3003: Type.PMS3003,
+    TYPE_PMSX003: Type.PMSX003,
+    TYPE_PMS5003S: Type.PMS5003S,
+    TYPE_PMS5003T: Type.PMS5003T,
+    TYPE_PMS5003ST: Type.PMS5003ST,
+    TYPE_PMS9003M: Type.PMS9003M,
+    TYPE_LUFTMY: Type.LUFTMY,
+}
+
+SENSORS_TO_TYPE = {
+    CONF_PM_1_0_STD: [
+        TYPE_PMS1003,
+        TYPE_PMS3003,
+        TYPE_PMSX003,
+        TYPE_PMS5003S,
+        TYPE_PMS5003T,
+        TYPE_PMS5003ST,
+        TYPE_PMS9003M,
+        TYPE_LUFTMY,
+    ],
+    CONF_PM_2_5_STD: [
+        TYPE_PMS1003,
+        TYPE_PMS3003,
+        TYPE_PMSX003,
+        TYPE_PMS5003S,
+        TYPE_PMS5003T,
+        TYPE_PMS5003ST,
+        TYPE_PMS9003M,
+        TYPE_LUFTMY,
+    ],
+    CONF_PM_10_0_STD: [
+        TYPE_PMS1003,
+        TYPE_PMS3003,
+        TYPE_PMSX003,
+        TYPE_PMS5003S,
+        TYPE_PMS5003T,
+        TYPE_PMS5003ST,
+        TYPE_PMS9003M,
+        TYPE_LUFTMY,
+    ],
+    CONF_PM_1_0: [
+        TYPE_PMS1003,
+        TYPE_PMS3003,
+        TYPE_PMSX003,
+        TYPE_PMS5003S,
+        TYPE_PMS5003T,
+        TYPE_PMS5003ST,
+        TYPE_PMS9003M,
+    ],
+    CONF_PM_2_5: [
+        TYPE_PMS1003,
+        TYPE_PMS3003,
+        TYPE_PMSX003,
+        TYPE_PMS5003S,
+        TYPE_PMS5003T,
+        TYPE_PMS5003ST,
+        TYPE_PMS9003M,
+    ],
+    CONF_PM_10_0: [
+        TYPE_PMS1003,
+        TYPE_PMS3003,
+        TYPE_PMSX003,
+        TYPE_PMS5003S,
+        TYPE_PMS5003T,
+        TYPE_PMS5003ST,
+        TYPE_PMS9003M,
+    ],
+    CONF_PM_0_3UM: [
+        TYPE_PMS1003,
+        TYPE_PMSX003,
+        TYPE_PMS5003S,
+        TYPE_PMS5003T,
+        TYPE_PMS5003ST,
+        TYPE_PMS9003M,
+        TYPE_LUFTMY,
+    ],
+    CONF_PM_0_5UM: [
+        TYPE_PMS1003,
+        TYPE_PMSX003,
+        TYPE_PMS5003S,
+        TYPE_PMS5003T,
+        TYPE_PMS5003ST,
+        TYPE_PMS9003M,
+        TYPE_LUFTMY,
+    ],
+    CONF_PM_1_0UM: [
+        TYPE_PMS1003,
+        TYPE_PMSX003,
+        TYPE_PMS5003S,
+        TYPE_PMS5003T,
+        TYPE_PMS5003ST,
+        TYPE_PMS9003M,
+        TYPE_LUFTMY,
+    ],
+    CONF_PM_2_5UM: [
+        TYPE_PMS1003,
+        TYPE_PMSX003,
+        TYPE_PMS5003S,
+        TYPE_PMS5003T,
+        TYPE_PMS5003ST,
+        TYPE_PMS9003M,
+        TYPE_LUFTMY,
+    ],
+    CONF_PM_5_0UM: [
+        TYPE_PMS1003,
+        TYPE_PMSX003,
+        TYPE_PMS5003S,
+        TYPE_PMS5003ST,
+        TYPE_PMS9003M,
+        TYPE_LUFTMY,
+    ],
+    CONF_PM_10_0UM: [
+        TYPE_PMS1003,
+        TYPE_PMSX003,
+        TYPE_PMS5003S,
+        TYPE_PMS5003ST,
+        TYPE_PMS9003M,
+        TYPE_LUFTMY,
+    ],
+    CONF_FORMALDEHYDE: [TYPE_PMS5003S, TYPE_PMS5003ST],
+    CONF_TEMPERATURE: [TYPE_PMS5003T, TYPE_PMS5003ST],
+    CONF_HUMIDITY: [TYPE_PMS5003T, TYPE_PMS5003ST],
+}
+
+
+def validate_pmsx003_sensors(value: ConfigType) -> ConfigType:
+    for key, types in SENSORS_TO_TYPE.items():
+        if key in value and value[CONF_TYPE] not in types:
+            raise cv.Invalid(f"{value[CONF_TYPE]} does not have {key} sensor!")
+    return value
+
+
+def validate_update_interval(value: Any) -> TimePeriodMilliseconds:
+    value = cv.positive_time_period_milliseconds(value)
+    if value == cv.time_period("0s"):
+        return value
+    if value < cv.time_period("30s"):
+        raise cv.Invalid(
+            "Update interval must be greater than or equal to 30 seconds if set."
+        )
+    return value
+
+
+CONFIG_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(PMSX003Component),
+            cv.Required(CONF_TYPE): cv.enum(PMSX003_TYPES, upper=True),
+            cv.Optional(CONF_PM_1_0_STD): sensor.sensor_schema(
+                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
+                icon=ICON_CHEMICAL_WEAPON,
+                accuracy_decimals=0,
+                device_class=DEVICE_CLASS_PM1,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_PM_2_5_STD): sensor.sensor_schema(
+                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
+                icon=ICON_CHEMICAL_WEAPON,
+                accuracy_decimals=0,
+                device_class=DEVICE_CLASS_PM25,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_PM_10_0_STD): sensor.sensor_schema(
+                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
+                icon=ICON_CHEMICAL_WEAPON,
+                accuracy_decimals=0,
+                device_class=DEVICE_CLASS_PM10,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_PM_1_0): sensor.sensor_schema(
+                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
+                icon=ICON_CHEMICAL_WEAPON,
+                accuracy_decimals=0,
+                device_class=DEVICE_CLASS_PM1,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_PM_2_5): sensor.sensor_schema(
+                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
+                icon=ICON_CHEMICAL_WEAPON,
+                accuracy_decimals=0,
+                device_class=DEVICE_CLASS_PM25,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_PM_10_0): sensor.sensor_schema(
+                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
+                icon=ICON_CHEMICAL_WEAPON,
+                accuracy_decimals=0,
+                device_class=DEVICE_CLASS_PM10,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_PM_0_3UM): sensor.sensor_schema(
+                unit_of_measurement=UNIT_COUNT_DECILITRE,
+                icon=ICON_CHEMICAL_WEAPON,
+                accuracy_decimals=0,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_PM_0_5UM): sensor.sensor_schema(
+                unit_of_measurement=UNIT_COUNT_DECILITRE,
+                icon=ICON_CHEMICAL_WEAPON,
+                accuracy_decimals=0,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_PM_1_0UM): sensor.sensor_schema(
+                unit_of_measurement=UNIT_COUNT_DECILITRE,
+                icon=ICON_CHEMICAL_WEAPON,
+                accuracy_decimals=0,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_PM_2_5UM): sensor.sensor_schema(
+                unit_of_measurement=UNIT_COUNT_DECILITRE,
+                icon=ICON_CHEMICAL_WEAPON,
+                accuracy_decimals=0,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_PM_5_0UM): sensor.sensor_schema(
+                unit_of_measurement=UNIT_COUNT_DECILITRE,
+                icon=ICON_CHEMICAL_WEAPON,
+                accuracy_decimals=0,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_PM_10_0UM): sensor.sensor_schema(
+                unit_of_measurement=UNIT_COUNT_DECILITRE,
+                icon=ICON_CHEMICAL_WEAPON,
+                accuracy_decimals=0,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_FORMALDEHYDE): sensor.sensor_schema(
+                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
+                icon=ICON_CHEMICAL_WEAPON,
+                accuracy_decimals=0,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
+                unit_of_measurement=UNIT_CELSIUS,
+                accuracy_decimals=1,
+                device_class=DEVICE_CLASS_TEMPERATURE,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(
+                unit_of_measurement=UNIT_PERCENT,
+                accuracy_decimals=1,
+                device_class=DEVICE_CLASS_HUMIDITY,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_UPDATE_INTERVAL, default="0s"): validate_update_interval,
+        }
+    )
+    .extend(cv.COMPONENT_SCHEMA)
+    .extend(uart.UART_DEVICE_SCHEMA),
+    validate_pmsx003_sensors,
+)
+
+
+def final_validate(config: ConfigType) -> None:
+    require_tx = config[CONF_UPDATE_INTERVAL] > cv.time_period("0s")
+    schema = uart.final_validate_device_schema(
+        "pmsx003",
+        baud_rate=9600,
+        require_rx=True,
+        require_tx=require_tx,
+        data_bits=8,
+        parity="NONE",
+        stop_bits=1,
+    )
+    schema(config)
+
+
+FINAL_VALIDATE_SCHEMA = final_validate
+
+
+async def to_code(config: ConfigType) -> None:
+    var = await uart.new_uart_component(config)
+
+    cg.add(var.set_type(config[CONF_TYPE]))
+
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_PM_1_0_STD, var.set_pm_1_0_std_sensor)
+    await sensors(CONF_PM_2_5_STD, var.set_pm_2_5_std_sensor)
+    await sensors(CONF_PM_10_0_STD, var.set_pm_10_0_std_sensor)
+    await sensors(CONF_PM_1_0, var.set_pm_1_0_sensor)
+    await sensors(CONF_PM_2_5, var.set_pm_2_5_sensor)
+    await sensors(CONF_PM_10_0, var.set_pm_10_0_sensor)
+    await sensors(CONF_PM_0_3UM, var.set_pm_particles_03um_sensor)
+    await sensors(CONF_PM_0_5UM, var.set_pm_particles_05um_sensor)
+    await sensors(CONF_PM_1_0UM, var.set_pm_particles_10um_sensor)
+    await sensors(CONF_PM_2_5UM, var.set_pm_particles_25um_sensor)
+    await sensors(CONF_PM_5_0UM, var.set_pm_particles_50um_sensor)
+    await sensors(CONF_PM_10_0UM, var.set_pm_particles_100um_sensor)
+    await sensors(CONF_FORMALDEHYDE, var.set_formaldehyde_sensor)
+    await sensors(CONF_TEMPERATURE, var.set_temperature_sensor)
+    await sensors(CONF_HUMIDITY, var.set_humidity_sensor)
+
+    cg.add(var.set_update_interval(config[CONF_UPDATE_INTERVAL]))

@@ -1,0 +1,356 @@
+from collections.abc import Callable
+import logging
+import re
+
+from esphome import automation
+import esphome.codegen as cg
+from esphome.components.const import CONF_ON_DOUBLE_TAP, CONF_ON_TAP, CONF_TAP
+import esphome.config_validation as cv
+from esphome.const import (
+    CONF_ID,
+    CONF_ON_ERROR,
+    CONF_ON_SUCCESS,
+    CONF_THRESHOLD,
+    CONF_UPDATE_INTERVAL,
+)
+from esphome.core import CORE, ID
+from esphome.cpp_generator import MockObj, MockObjClass
+import esphome.final_validate as fv
+from esphome.helpers import fnv1_hash_object_id
+from esphome.types import ConfigType
+
+_LOGGER = logging.getLogger(__name__)
+
+CODEOWNERS = ["@esphome/core"]
+
+DOMAIN = "motion"
+IS_PLATFORM_COMPONENT = True
+
+#  C++ namespace / class
+motion_ns = cg.esphome_ns.namespace("motion")
+MotionComponent = motion_ns.class_("MotionComponent", cg.PollingComponent)
+MotionData = motion_ns.class_("MotionData")
+
+AXES = ["x", "y", "z"]
+
+CONF_AXES = "axes"
+CONF_AXIS_MAP = "axis_map"
+CONF_MOTION_ID = "motion_id"
+CONF_TRANSFORM_MATRIX = "transform_matrix"
+
+CalibrateLevelAction = motion_ns.class_("CalibrateLevelAction", automation.Action)
+CalibrateHeadingAction = motion_ns.class_("CalibrateHeadingAction", automation.Action)
+
+KEY_ACCELEROMETER = "accelerometer"
+KEY_GYROSCOPE = "gyroscope"
+KEY_TAP_THRESHOLD_IDS = "motion_tap_threshold_ids"
+
+ACCELERATION_G = cv.All(cv.float_with_unit("acceleration", "(g|G)?"), cv.positive_float)
+
+# Each motion sensor, binary sensor and event adds its handling of a new sample
+DATA_PUBLISHER = cg.HubFunction(
+    "data",
+    cg.void,
+    [(MotionData.const_ref(), "data")],
+    define="USE_MOTION_DATA_PUBLISHER",
+)
+DATA = DATA_PUBLISHER.param("data")
+
+SENSOR_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(CONF_MOTION_ID): cv.use_id(MotionComponent),
+    }
+)
+
+_AXIS_REGEX = re.compile(r"^[+-]?[xyz]$", re.IGNORECASE)
+
+# Fast motion patterns (shakes, free-fall, sudden movement) need frequent samples
+# to be detected reliably; a slower parent update_interval makes them likely to be
+# missed between polls.
+MAX_RECOMMENDED_UPDATE_INTERVAL_MS = 100
+
+
+def get_motion_config(motion_id: ID) -> dict:
+    """Look up the (already-validated) config of the motion hub referenced by motion_id."""
+    return fv.get_declaring_config(motion_id)
+
+
+def check_update_interval(motion_id: ID, feature_name: str) -> None:
+    """Warn if the parent motion component polls too slowly for fast motion detection."""
+    motion_config = get_motion_config(motion_id)
+    update_interval = motion_config[CONF_UPDATE_INTERVAL]
+    if update_interval.total_milliseconds > MAX_RECOMMENDED_UPDATE_INTERVAL_MS:
+        _LOGGER.warning(
+            "Motion component '%s' has update_interval %s, but %s detection "
+            "works best with an update_interval of %dms or less.",
+            motion_id,
+            update_interval,
+            feature_name,
+            MAX_RECOMMENDED_UPDATE_INTERVAL_MS,
+        )
+
+
+def check_has_accelerometer(
+    motion_id: ID, feature_name: str, path: list[str] | None = None
+) -> None:
+    """Raise if the parent motion device does not measure acceleration.
+
+    `path` locates the error within the calling entity's config.
+    """
+    motion_config = get_motion_config(motion_id)
+    if not motion_config.get(KEY_ACCELEROMETER, False):
+        raise cv.Invalid(
+            f"The motion device does not measure acceleration, required for {feature_name}",
+            path=path,
+        )
+
+
+def validate_axes(value: object) -> list[str]:
+    """A list of distinct axes."""
+    value = cv.All(cv.ensure_list(cv.one_of(*AXES, lower=True)), cv.Length(min=1))(
+        value
+    )
+    if len(set(value)) != len(value):
+        raise cv.Invalid("Each axis may be listed only once")
+    return value
+
+
+def _axis_map(config: dict) -> dict:
+    errors = []
+    for key, axis in config.items():
+        if _AXIS_REGEX.fullmatch(axis) is None:
+            errors.append(
+                cv.Invalid(
+                    "Each 'axis_map' config value must be one of 'x', 'y' or 'z' (optionally preceded by '+' or '-').",
+                    path=[key],
+                )
+            )
+    values = {x.lower().removeprefix("-").removeprefix("+") for x in config.values()}
+    if values != set(AXES):
+        errors.append(cv.Invalid("Each axis may be mapped only once"))
+    if errors:
+        raise cv.MultipleInvalid(errors)
+    return config
+
+
+def _axis_map_to_matrix(config: dict[str, str]) -> list[float]:
+    matrix = []
+    for target_axis in AXES:
+        source_axis = config[target_axis].lower()
+        sign = -1.0 if source_axis.startswith("-") else 1.0
+        source_axis = source_axis.removeprefix("+").removeprefix("-")
+
+        row = [0.0, 0.0, 0.0]
+        row[AXES.index(source_axis)] = sign
+        matrix.extend(row)
+
+    return matrix
+
+
+def _transform_matrix(value):
+    """Accept a flat list of 9 floats or a 3x3 nested list."""
+    if not isinstance(value, list) or len(value) == 0:
+        raise cv.Invalid("Expected a list of 9 numbers or a 3x3 nested list")
+    # Nested 3x3
+    if isinstance(value[0], list):
+        if len(value) != 3:
+            raise cv.Invalid(f"3x3 matrix must have 3 rows, got {len(value)}")
+        flat = []
+        for i, row in enumerate(value):
+            if not isinstance(row, list) or len(row) != 3:
+                raise cv.Invalid("Each row must be a list of 3 numbers", path=[i])
+            flat.extend(cv.float_(v) for v in row)
+        return flat
+    # Flat list
+    if len(value) != 9:
+        raise cv.Invalid(f"Flat matrix must have exactly 9 values, got {len(value)}")
+    return [cv.float_(v) for v in value]
+
+
+def _validate_matrix_options(config):
+    if CONF_AXIS_MAP in config and CONF_TRANSFORM_MATRIX in config:
+        raise cv.Invalid(
+            f"'{CONF_AXIS_MAP}' and '{CONF_TRANSFORM_MATRIX}' are mutually exclusive"
+        )
+    return config
+
+
+#  Top-level CONFIG_SCHEMA
+_CONFIG_SCHEMA = (
+    cv.Schema(
+        {
+            cv.Optional(CONF_AXIS_MAP): cv.All(
+                {cv.Required(k): cv.string_strict for k in AXES},
+                _axis_map,
+            ),
+            cv.Optional(CONF_TRANSFORM_MATRIX): _transform_matrix,
+        }
+    )
+    .extend(cv.polling_component_schema("250ms"))
+    .add_extra(_validate_matrix_options)
+)
+
+
+def _add_data(has_accel: bool, has_gyro: bool) -> Callable[[dict], dict]:
+
+    def validator(config):
+        config = config.copy()
+        config[KEY_ACCELEROMETER] = has_accel
+        config[KEY_GYROSCOPE] = has_gyro
+        return config
+
+    return validator
+
+
+def motion_schema(class_: MockObjClass, has_accel: bool, has_gyro: bool) -> cv.Schema:
+    return _CONFIG_SCHEMA.extend(
+        {
+            cv.GenerateID(): cv.declare_id(class_),
+        }
+    ).add_extra(_add_data(has_accel, has_gyro))
+
+
+#  Code generation
+async def register_motion_component(var: MockObj, config) -> None:
+    await cg.register_component(var, config)
+    # Set preference key for NVS save/restore (based on component ID)
+    obj_id = config[CONF_ID].id
+    pref_hash = fnv1_hash_object_id(obj_id)
+    cg.add(var.set_calibration_key(pref_hash))
+    if axis_map := config.get(CONF_AXIS_MAP):
+        cg.add(var.set_matrix(_axis_map_to_matrix(axis_map)))
+    elif transform_matrix := config.get(CONF_TRANSFORM_MATRIX):
+        cg.add(var.set_matrix(transform_matrix))
+
+
+async def new_motion_component(config: dict) -> MockObj:
+    var = cg.new_Pvariable(config[CONF_ID])
+    await register_motion_component(var, config)
+    return var
+
+
+# --- Tap detection ---
+
+_TAP_ARGS = [(cg.uint8, "axis"), (bool, "negative")]
+_TAP_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(CONF_ON_TAP, "add_on_tap_callback", _TAP_ARGS),
+    automation.CallbackAutomation(
+        CONF_ON_DOUBLE_TAP, "add_on_double_tap_callback", _TAP_ARGS
+    ),
+)
+
+
+def tap_schema(default_threshold: str, extra: dict | None = None) -> cv.All:
+    """The `tap:` block for a platform; `extra` adds the chip's timing and pin options."""
+    schema = cv.Schema(
+        {
+            cv.Optional(CONF_THRESHOLD, default=default_threshold): ACCELERATION_G,
+            cv.Optional(CONF_AXES, default=AXES): validate_axes,
+            cv.Optional(CONF_ON_TAP): automation.validate_automation({}),
+            cv.Optional(CONF_ON_DOUBLE_TAP): automation.validate_automation({}),
+        }
+    )
+    if extra:
+        schema = schema.extend(extra)
+    return cv.All(schema, cv.has_at_least_one_key(CONF_ON_TAP, CONF_ON_DOUBLE_TAP))
+
+
+async def setup_tap(var: MockObj, tap: ConfigType) -> None:
+    """Generate the shared part of a validated `tap:` block."""
+    cg.add_define("USE_MOTION_TAP")
+    cg.add(var.set_tap_threshold(tap[CONF_THRESHOLD]))
+    await automation.build_callback_automations(var, tap, _TAP_CALLBACK_AUTOMATIONS)
+
+
+def _final_validate(config: list[ConfigType]) -> None:
+    ids = CORE.data.get(KEY_TAP_THRESHOLD_IDS, ())
+    for index, conf in enumerate(config):
+        if conf[CONF_ID].id in ids and CONF_TAP not in conf:
+            raise cv.Invalid(
+                "'motion.set_tap_threshold' needs a 'tap' block on this sensor",
+                path=[index, CONF_ID],
+            )
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
+
+
+# --- Actions ---
+
+CONF_SAVE = "save"
+
+CALIBRATE_ACTION_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.use_id(MotionComponent),
+        cv.Optional(CONF_SAVE, default=False): cv.boolean,
+        cv.Optional(CONF_ON_SUCCESS): automation.validate_automation(single=True),
+        cv.Optional(CONF_ON_ERROR): automation.validate_automation(single=True),
+    }
+)
+
+
+async def _build_calibrate_action(config, action_id, template_arg, args):
+    parent = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, parent)
+    if config.get(CONF_SAVE):
+        cg.add(var.set_save(True))
+    if on_success := config.get(CONF_ON_SUCCESS):
+        await automation.build_automation(var.get_success_trigger(), [], on_success)
+    if on_error := config.get(CONF_ON_ERROR):
+        await automation.build_automation(var.get_error_trigger(), [], on_error)
+    return var
+
+
+@automation.register_action(
+    "motion.calibrate_level",
+    CalibrateLevelAction,
+    CALIBRATE_ACTION_SCHEMA,
+    synchronous=True,
+)
+async def calibrate_level_to_code(config, action_id, template_arg, args):
+    return await _build_calibrate_action(config, action_id, template_arg, args)
+
+
+@automation.register_action(
+    "motion.calibrate_heading",
+    CalibrateHeadingAction,
+    CALIBRATE_ACTION_SCHEMA,
+    synchronous=True,
+)
+async def calibrate_heading_to_code(config, action_id, template_arg, args):
+    return await _build_calibrate_action(config, action_id, template_arg, args)
+
+
+CLEAR_ACTION_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.use_id(MotionComponent),
+        cv.Optional(CONF_SAVE, default=False): cv.boolean,
+    }
+)
+
+
+def _tap_threshold_id(value: object) -> ID:
+    # Checked against the target's tap block in final validation
+    value = cv.use_id(MotionComponent)(value)
+    CORE.data.setdefault(KEY_TAP_THRESHOLD_IDS, set()).add(value.id)
+    return value
+
+
+# Clamped on the device to the steps the chip allows
+automation.register_apply_action(
+    "motion.set_tap_threshold",
+    cv.Schema(
+        {
+            cv.Required(CONF_ID): _tap_threshold_id,
+            cv.Required(CONF_THRESHOLD): cv.templatable(ACCELERATION_G),
+        }
+    ),
+    automation.ApplyField(CONF_THRESHOLD, "set_tap_threshold", cg.float_),
+)
+
+
+automation.register_apply_action(
+    "motion.clear_calibration",
+    CLEAR_ACTION_SCHEMA,
+    automation.ApplyField(CONF_SAVE, "clear_calibration", cg.bool_),
+)

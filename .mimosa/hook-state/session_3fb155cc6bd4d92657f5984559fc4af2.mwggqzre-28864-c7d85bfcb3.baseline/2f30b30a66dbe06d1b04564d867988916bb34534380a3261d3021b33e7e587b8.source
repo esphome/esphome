@@ -1,0 +1,99 @@
+#include "sn74hc595.h"
+#include "esphome/core/log.h"
+#include <ranges>
+
+namespace esphome::sn74hc595 {
+
+ESPHOME_LOG_TAG(TAG, "sn74hc595");
+
+void SN74HC595Component::pre_setup_() {
+  if (this->oe_pin_ != nullptr) {  // disable output
+    this->oe_pin_->setup();
+    this->oe_pin_->digital_write(true);
+  }
+}
+void SN74HC595Component::post_setup_() {
+  this->latch_pin_->setup();
+  this->latch_pin_->digital_write(false);
+
+  // send state to shift register
+  this->write_gpio();
+}
+
+void SN74HC595GPIOComponent::setup() {
+  this->pre_setup_();
+  this->clock_pin_->setup();
+  this->data_pin_->setup();
+  this->clock_pin_->digital_write(false);
+  this->data_pin_->digital_write(false);
+  this->post_setup_();
+}
+
+#ifdef USE_SPI
+void SN74HC595SPIComponent::setup() {
+  this->pre_setup_();
+  this->spi_setup();
+  this->post_setup_();
+}
+#endif
+
+void SN74HC595Component::dump_config() { ESP_LOGCONFIG(TAG, "SN74HC595:"); }
+
+void SN74HC595Component::digital_write_(uint16_t pin, bool value) {
+  if (pin >= this->output_bytes_.size() * 8) {
+    ESP_LOGE(TAG, "Pin %u is out of range! Maximum pin number with %zu chips in series is %zu", pin,
+             this->output_bytes_.size(), (this->output_bytes_.size() * 8) - 1);
+    return;
+  }
+  if (value) {
+    this->output_bytes_[pin / 8] |= (1 << (pin % 8));
+  } else {
+    this->output_bytes_[pin / 8] &= ~(1 << (pin % 8));
+  }
+  this->write_gpio();
+}
+
+void SN74HC595GPIOComponent::write_gpio() {
+  for (uint8_t &output_byte : std::ranges::reverse_view(this->output_bytes_)) {
+    for (int8_t i = 7; i >= 0; i--) {
+      bool bit = (output_byte >> i) & 1;
+      this->data_pin_->digital_write(bit);
+      this->clock_pin_->digital_write(true);
+      this->clock_pin_->digital_write(false);
+    }
+  }
+  SN74HC595Component::write_gpio();
+}
+
+#ifdef USE_SPI
+void SN74HC595SPIComponent::write_gpio() {
+  for (uint8_t &output_byte : std::ranges::reverse_view(this->output_bytes_)) {
+    this->enable();
+    this->write_byte(output_byte);
+    this->disable();
+  }
+  SN74HC595Component::write_gpio();
+}
+#endif
+
+void SN74HC595Component::write_gpio() {
+  // pulse latch to activate new values
+  this->latch_pin_->digital_write(true);
+  this->latch_pin_->digital_write(false);
+
+  // enable output if configured
+  if (this->oe_pin_ != nullptr) {
+    this->oe_pin_->digital_write(false);
+  }
+}
+
+float SN74HC595Component::get_setup_priority() const { return setup_priority::IO; }
+
+void SN74HC595GPIOPin::digital_write(bool value) {
+  this->parent_->digital_write_(this->pin_, value != this->inverted_);
+}
+size_t SN74HC595GPIOPin::dump_summary(char *buffer, size_t len) const {
+  return buf_append_printf(buffer, len, 0, "%u via SN74HC595", this->pin_);
+}
+
+}  // namespace esphome::sn74hc595

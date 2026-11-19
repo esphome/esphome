@@ -1,0 +1,52 @@
+#include "mqtt_event.h"
+#include "esphome/core/log.h"
+
+#include "mqtt_const.h"
+
+#ifdef USE_MQTT
+#ifdef USE_EVENT
+
+namespace esphome::mqtt {
+
+ESPHOME_LOG_TAG(TAG, "mqtt.event");
+
+using namespace esphome::event;
+
+MQTTEventComponent::MQTTEventComponent(event::Event *event) : event_(event) {}
+
+void MQTTEventComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
+  // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
+  JsonArray event_types = root[MQTT_EVENT_TYPES].to<JsonArray>();
+  for (const auto &event_type : this->event_->get_event_types())
+    event_types.add(event_type);
+
+  config.command_topic = false;
+}
+
+void MQTTEventComponent::setup() {
+  this->event_->add_on_event_callback([this](const std::string &event_type) { this->publish_event_(event_type); });
+}
+
+void MQTTEventComponent::dump_config() {
+  LOG_MQTT_COMPONENT(true, true);
+  ESP_LOGCONFIG(TAG, "  Event Types:");
+  for (const char *event_type : this->event_->get_event_types()) {
+    ESP_LOGCONFIG(TAG, "    - %s", event_type);
+  }
+}
+
+bool MQTTEventComponent::publish_event_(const std::string &event_type) {
+  char topic_buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
+  return this->publish_json(this->get_state_topic_to_(topic_buf), [event_type](JsonObject root) {
+    // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
+    root[MQTT_EVENT_TYPE] = event_type;
+  });
+}
+
+MQTT_COMPONENT_TYPE(MQTTEventComponent, "event")
+const EntityBase *MQTTEventComponent::get_entity() const { return this->event_; }
+
+}  // namespace esphome::mqtt
+
+#endif
+#endif  // USE_MQTT

@@ -1,0 +1,2 @@
+CODEOWNERS = ["@jesserockz"]
+DOMAIN = "pixoo"

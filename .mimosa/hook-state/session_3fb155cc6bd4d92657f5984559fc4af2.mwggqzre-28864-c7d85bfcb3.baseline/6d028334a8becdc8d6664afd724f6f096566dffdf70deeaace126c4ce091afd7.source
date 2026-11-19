@@ -1,0 +1,196 @@
+from esphome import automation
+from esphome.automation import maybe_simple_id
+import esphome.codegen as cg
+import esphome.config_validation as cv
+from esphome.const import (
+    CONF_DEVICE_CLASS,
+    CONF_ENTITY_CATEGORY,
+    CONF_ICON,
+    CONF_ID,
+    CONF_MQTT_ID,
+    CONF_ON_OPEN,
+    CONF_POSITION,
+    CONF_POSITION_COMMAND_TOPIC,
+    CONF_POSITION_STATE_TOPIC,
+    CONF_STATE,
+    CONF_STOP,
+    DEVICE_CLASS_EMPTY,
+    DEVICE_CLASS_GAS,
+    DEVICE_CLASS_WATER,
+)
+from esphome.core import CORE, CoroPriority, coroutine_with_priority, entity_helpers
+from esphome.core.entity_helpers import (
+    entity_duplicate_validator,
+    mqtt_component_class,
+    queue_entity_register,
+    setup_device_class,
+    setup_entity,
+)
+from esphome.cpp_generator import MockObjClass
+
+IS_PLATFORM_COMPONENT = True
+
+CODEOWNERS = ["@esphome/core"]
+DOMAIN = "valve"
+
+DEVICE_CLASSES = [
+    DEVICE_CLASS_EMPTY,
+    DEVICE_CLASS_GAS,
+    DEVICE_CLASS_WATER,
+]
+
+valve_ns = cg.esphome_ns.namespace("valve")
+
+Valve = valve_ns.class_("Valve", cg.EntityBase)
+
+VALVE_OPEN = valve_ns.VALVE_OPEN
+VALVE_CLOSED = valve_ns.VALVE_CLOSED
+
+VALVE_STATES = {
+    "OPEN": VALVE_OPEN,
+    "CLOSED": VALVE_CLOSED,
+}
+validate_valve_state = cv.enum(VALVE_STATES, upper=True)
+
+ValveOperation = valve_ns.enum("ValveOperation")
+VALVE_OPERATIONS = ValveOperation.options(
+    "IDLE", "OPENING", "CLOSING", prefix="VALVE_OPERATION_"
+)
+validate_valve_operation = cv.enum(VALVE_OPERATIONS, upper=True)
+
+CONF_ON_CLOSED = "on_closed"
+
+# The state callback carries nothing; each automation fires only in its end state.
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(
+        CONF_ON_OPEN, "add_on_state_callback", when="{parent}->is_fully_open()"
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_CLOSED, "add_on_state_callback", when="{parent}->is_fully_closed()"
+    ),
+)
+
+_VALVE_SCHEMA = (
+    cv.ENTITY_BASE_SCHEMA.extend(entity_helpers.WEBSERVER_SORTING_SCHEMA)
+    .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
+    .extend(
+        {
+            cv.GenerateID(): cv.declare_id(Valve),
+            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(
+                mqtt_component_class("MQTTValveComponent")
+            ),
+            cv.Optional(
+                CONF_DEVICE_CLASS, visibility=cv.Visibility.ADVANCED
+            ): cv.one_of(*DEVICE_CLASSES, lower=True),
+            cv.Optional(CONF_POSITION_COMMAND_TOPIC): cv.All(
+                cv.requires_component("mqtt"), cv.subscribe_topic
+            ),
+            cv.Optional(CONF_POSITION_STATE_TOPIC): cv.All(
+                cv.requires_component("mqtt"), cv.subscribe_topic
+            ),
+            cv.Optional(CONF_ON_OPEN): automation.validate_automation({}),
+            cv.Optional(CONF_ON_CLOSED): automation.validate_automation({}),
+        }
+    )
+)
+
+
+_VALVE_SCHEMA.add_extra(entity_duplicate_validator("valve"))
+
+
+def valve_schema(
+    class_: MockObjClass = cv.UNDEFINED,
+    *,
+    device_class: str = cv.UNDEFINED,
+    entity_category: str = cv.UNDEFINED,
+    icon: str = cv.UNDEFINED,
+) -> cv.Schema:
+    schema = {}
+
+    if class_ is not cv.UNDEFINED:
+        schema[cv.GenerateID()] = cv.declare_id(class_)
+
+    for key, default, validator in [
+        (CONF_DEVICE_CLASS, device_class, cv.one_of(*DEVICE_CLASSES, lower=True)),
+        (CONF_ENTITY_CATEGORY, entity_category, cv.entity_category),
+        (CONF_ICON, icon, cv.icon),
+    ]:
+        if default is not cv.UNDEFINED:
+            schema[cv.Optional(key, default=default)] = validator
+
+    return _VALVE_SCHEMA.extend(schema)
+
+
+@setup_entity("valve")
+async def _setup_valve_core(var, config):
+    setup_device_class(config)
+
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
+
+    mqtt_ = await entity_helpers.setup_entity_integrations(var, config)
+    if mqtt_ is not None:
+        if position_state_topic_config := config.get(CONF_POSITION_STATE_TOPIC):
+            cg.add(mqtt_.set_custom_position_state_topic(position_state_topic_config))
+        if position_command_topic_config := config.get(CONF_POSITION_COMMAND_TOPIC):
+            cg.add(
+                mqtt_.set_custom_position_command_topic(position_command_topic_config)
+            )
+
+
+async def register_valve(var, config):
+    if not CORE.has_id(config[CONF_ID]):
+        var = cg.Pvariable(config[CONF_ID], var)
+    queue_entity_register("valve", config)
+    CORE.register_platform_component("valve", var)
+    await _setup_valve_core(var, config)
+
+
+async def new_valve(config, *args):
+    var = cg.new_Pvariable(config[CONF_ID], *args)
+    await register_valve(var, config)
+    return var
+
+
+VALVE_ACTION_SCHEMA = maybe_simple_id(
+    {
+        cv.Required(CONF_ID): cv.use_id(Valve),
+    }
+)
+
+
+for _name, _command in (
+    ("valve.open", "set_command_open()"),
+    ("valve.close", "set_command_close()"),
+    ("valve.stop", "set_command_stop()"),
+    ("valve.toggle", "set_command_toggle()"),
+):
+    automation.register_apply_action(
+        _name, VALVE_ACTION_SCHEMA, automation.ApplyCall(_command), call="make_call"
+    )
+
+
+VALVE_CONTROL_ACTION_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_ID): cv.use_id(Valve),
+        cv.Optional(CONF_STOP): cv.templatable(cv.boolean),
+        cv.Exclusive(CONF_STATE, "pos"): cv.templatable(validate_valve_state),
+        cv.Exclusive(CONF_POSITION, "pos"): cv.templatable(cv.percentage),
+    }
+)
+
+
+# CONF_STATE and CONF_POSITION are cv.Exclusive in the schema, so at most
+# one is present and both dispatch to set_position.
+automation.register_apply_action(
+    "valve.control",
+    VALVE_CONTROL_ACTION_SCHEMA,
+    automation.ApplyField(CONF_STOP, "set_stop", cg.bool_),
+    automation.ApplyField(CONF_STATE, "set_position", cg.float_),
+    automation.ApplyField(CONF_POSITION, "set_position", cg.float_),
+    call="make_call",
+)
+
+
+@coroutine_with_priority(CoroPriority.CORE)
+async def to_code(config):
+    cg.add_global(valve_ns.using)

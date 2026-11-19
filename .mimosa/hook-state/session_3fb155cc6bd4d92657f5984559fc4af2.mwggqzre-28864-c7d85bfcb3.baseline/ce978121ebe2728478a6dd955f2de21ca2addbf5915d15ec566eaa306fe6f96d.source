@@ -1,0 +1,556 @@
+#pragma once
+
+#include "esphome/core/automation.h"
+#include "esphome/core/component.h"
+#include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
+#include "esphome/components/climate/climate.h"
+#include "esphome/components/sensor/sensor.h"
+
+#include <array>
+#include <cinttypes>
+
+namespace esphome::thermostat {
+
+enum HumidificationAction : uint8_t {
+  THERMOSTAT_HUMIDITY_CONTROL_ACTION_OFF = 0,
+  THERMOSTAT_HUMIDITY_CONTROL_ACTION_DEHUMIDIFY = 1,
+  THERMOSTAT_HUMIDITY_CONTROL_ACTION_HUMIDIFY = 2,
+  THERMOSTAT_HUMIDITY_CONTROL_ACTION_NONE,
+};
+
+enum ThermostatClimateTimerIndex : uint8_t {
+  THERMOSTAT_TIMER_COOLING_MAX_RUN_TIME = 0,
+  THERMOSTAT_TIMER_COOLING_OFF = 1,
+  THERMOSTAT_TIMER_COOLING_ON = 2,
+  THERMOSTAT_TIMER_FAN_MODE = 3,
+  THERMOSTAT_TIMER_FANNING_OFF = 4,
+  THERMOSTAT_TIMER_FANNING_ON = 5,
+  THERMOSTAT_TIMER_HEATING_MAX_RUN_TIME = 6,
+  THERMOSTAT_TIMER_HEATING_OFF = 7,
+  THERMOSTAT_TIMER_HEATING_ON = 8,
+  THERMOSTAT_TIMER_IDLE_ON = 9,
+  THERMOSTAT_TIMER_COUNT = 10,
+};
+
+enum OnBootRestoreFrom : uint8_t {
+  MEMORY = 0,
+  DEFAULT_PRESET = 1,
+};
+
+struct ThermostatClimateTimer {
+  ThermostatClimateTimer() = default;
+  ThermostatClimateTimer(bool active, uint32_t time, uint32_t started) : active(active), time(time), started(started) {}
+
+  bool active;
+  uint32_t time;
+  uint32_t started;
+};
+
+struct ThermostatClimateTargetTempConfig {
+ public:
+  constexpr ThermostatClimateTargetTempConfig() = default;
+  constexpr ThermostatClimateTargetTempConfig(float default_temperature) : default_temperature(default_temperature) {}
+  constexpr ThermostatClimateTargetTempConfig(float default_temperature_low, float default_temperature_high)
+      : default_temperature_low(default_temperature_low), default_temperature_high(default_temperature_high) {}
+  /// Full form used by the generated preset tables in flash.
+  constexpr ThermostatClimateTargetTempConfig(float default_temperature, float default_temperature_low,
+                                              float default_temperature_high, optional<climate::ClimateMode> mode,
+                                              optional<climate::ClimateFanMode> fan_mode,
+                                              optional<climate::ClimateSwingMode> swing_mode)
+      : default_temperature(default_temperature),
+        default_temperature_low(default_temperature_low),
+        default_temperature_high(default_temperature_high),
+        fan_mode_(fan_mode),
+        swing_mode_(swing_mode),
+        mode_(mode) {}
+
+  void set_fan_mode(climate::ClimateFanMode fan_mode) { this->fan_mode_ = fan_mode; }
+  void set_swing_mode(climate::ClimateSwingMode swing_mode) { this->swing_mode_ = swing_mode; }
+  void set_mode(climate::ClimateMode mode) { this->mode_ = mode; }
+
+  float default_temperature{NAN};
+  float default_temperature_low{NAN};
+  float default_temperature_high{NAN};
+  optional<climate::ClimateFanMode> fan_mode_{};
+  optional<climate::ClimateSwingMode> swing_mode_{};
+  optional<climate::ClimateMode> mode_{};
+};
+
+/// Entry for standard preset lookup
+struct ThermostatPresetEntry {
+  climate::ClimatePreset preset;
+  ThermostatClimateTargetTempConfig config;
+};
+
+/// Entry for custom preset lookup
+struct ThermostatCustomPresetEntry {
+  const char *name;
+  ThermostatClimateTargetTempConfig config;
+};
+
+class ThermostatClimate final : public climate::Climate, public Component {
+ public:
+  using PresetEntry = ThermostatPresetEntry;
+  using CustomPresetEntry = ThermostatCustomPresetEntry;
+
+  ThermostatClimate();
+  void setup() override;
+  void dump_config() override;
+  void loop() override;
+
+  void set_default_preset(const char *custom_preset);
+  void set_default_preset(climate::ClimatePreset preset) { this->default_preset_ = preset; }
+  void set_on_boot_restore_from(thermostat::OnBootRestoreFrom on_boot_restore_from) {
+    this->on_boot_restore_from_ = on_boot_restore_from;
+  }
+  void set_set_point_minimum_differential(float differential) { this->set_point_minimum_differential_ = differential; }
+  void set_cool_deadband(float deadband) { this->cooling_deadband_ = deadband; }
+  void set_cool_overrun(float overrun) { this->cooling_overrun_ = overrun; }
+  void set_heat_deadband(float deadband) { this->heating_deadband_ = deadband; }
+  void set_heat_overrun(float overrun) { this->heating_overrun_ = overrun; }
+  void set_supplemental_cool_delta(float delta) { this->supplemental_cool_delta_ = delta; }
+  void set_supplemental_heat_delta(float delta) { this->supplemental_heat_delta_ = delta; }
+  void set_cooling_maximum_run_time_in_sec(uint32_t time);
+  void set_heating_maximum_run_time_in_sec(uint32_t time);
+  void set_cooling_minimum_off_time_in_sec(uint32_t time);
+  void set_cooling_minimum_run_time_in_sec(uint32_t time);
+  void set_fan_mode_minimum_switching_time_in_sec(uint32_t time);
+  void set_fanning_minimum_off_time_in_sec(uint32_t time);
+  void set_fanning_minimum_run_time_in_sec(uint32_t time);
+  void set_heating_minimum_off_time_in_sec(uint32_t time);
+  void set_heating_minimum_run_time_in_sec(uint32_t time);
+  void set_idle_minimum_time_in_sec(uint32_t time);
+  void set_sensor(sensor::Sensor *sensor) { this->sensor_ = sensor; }
+  void set_humidity_sensor(sensor::Sensor *humidity_sensor) { this->humidity_sensor_ = humidity_sensor; }
+  void set_humidity_hysteresis(float humidity_hysteresis);
+  void set_use_startup_delay(bool use_startup_delay) { this->use_startup_delay_ = use_startup_delay; }
+  void set_supports_auto(bool supports_auto) { this->supports_auto_ = supports_auto; }
+  void set_supports_heat_cool(bool supports_heat_cool) { this->supports_heat_cool_ = supports_heat_cool; }
+  void set_supports_cool(bool supports_cool) { this->supports_cool_ = supports_cool; }
+  void set_supports_dry(bool supports_dry) { this->supports_dry_ = supports_dry; }
+  void set_supports_fan_only(bool supports_fan_only) { this->supports_fan_only_ = supports_fan_only; }
+  void set_supports_fan_only_action_uses_fan_mode_timer(bool supports_fan_only_action_uses_fan_mode_timer) {
+    this->supports_fan_only_action_uses_fan_mode_timer_ = supports_fan_only_action_uses_fan_mode_timer;
+  }
+  void set_supports_fan_only_cooling(bool supports_fan_only_cooling) {
+    this->supports_fan_only_cooling_ = supports_fan_only_cooling;
+  }
+  void set_supports_fan_with_cooling(bool supports_fan_with_cooling) {
+    this->supports_fan_with_cooling_ = supports_fan_with_cooling;
+  }
+  void set_supports_fan_with_heating(bool supports_fan_with_heating) {
+    this->supports_fan_with_heating_ = supports_fan_with_heating;
+  }
+  void set_supports_heat(bool supports_heat) { this->supports_heat_ = supports_heat; }
+  void set_supports_fan_mode_on(bool supports_fan_mode_on) { this->supports_fan_mode_on_ = supports_fan_mode_on; }
+  void set_supports_fan_mode_off(bool supports_fan_mode_off) { this->supports_fan_mode_off_ = supports_fan_mode_off; }
+  void set_supports_fan_mode_auto(bool supports_fan_mode_auto) {
+    this->supports_fan_mode_auto_ = supports_fan_mode_auto;
+  }
+  void set_supports_fan_mode_low(bool supports_fan_mode_low) { this->supports_fan_mode_low_ = supports_fan_mode_low; }
+  void set_supports_fan_mode_medium(bool supports_fan_mode_medium) {
+    this->supports_fan_mode_medium_ = supports_fan_mode_medium;
+  }
+  void set_supports_fan_mode_high(bool supports_fan_mode_high) {
+    this->supports_fan_mode_high_ = supports_fan_mode_high;
+  }
+  void set_supports_fan_mode_middle(bool supports_fan_mode_middle) {
+    this->supports_fan_mode_middle_ = supports_fan_mode_middle;
+  }
+  void set_supports_fan_mode_focus(bool supports_fan_mode_focus) {
+    this->supports_fan_mode_focus_ = supports_fan_mode_focus;
+  }
+  void set_supports_fan_mode_diffuse(bool supports_fan_mode_diffuse) {
+    this->supports_fan_mode_diffuse_ = supports_fan_mode_diffuse;
+  }
+  void set_supports_fan_mode_quiet(bool supports_fan_mode_quiet) {
+    this->supports_fan_mode_quiet_ = supports_fan_mode_quiet;
+  }
+  void set_supports_swing_mode_both(bool supports_swing_mode_both) {
+    this->supports_swing_mode_both_ = supports_swing_mode_both;
+  }
+  void set_supports_swing_mode_horizontal(bool supports_swing_mode_horizontal) {
+    this->supports_swing_mode_horizontal_ = supports_swing_mode_horizontal;
+  }
+  void set_supports_swing_mode_off(bool supports_swing_mode_off) {
+    this->supports_swing_mode_off_ = supports_swing_mode_off;
+  }
+  void set_supports_swing_mode_vertical(bool supports_swing_mode_vertical) {
+    this->supports_swing_mode_vertical_ = supports_swing_mode_vertical;
+  }
+  void set_supports_dehumidification(bool supports_dehumidification);
+  void set_supports_humidification(bool supports_humidification);
+  void set_supports_two_points(bool supports_two_points) { this->supports_two_points_ = supports_two_points; }
+
+  /// `presets` is a PROGMEM table that outlives the thermostat.
+  void set_preset_config(const PresetEntry *presets, uint8_t count) {
+    this->preset_config_ = presets;
+    this->preset_count_ = count;
+  }
+  void set_custom_preset_config(const CustomPresetEntry *presets, uint8_t count) {
+    this->custom_preset_config_ = presets;
+    this->custom_preset_count_ = count;
+  }
+
+  Trigger<> *get_cool_action_trigger();
+  Trigger<> *get_supplemental_cool_action_trigger();
+  Trigger<> *get_dry_action_trigger();
+  Trigger<> *get_fan_only_action_trigger();
+  Trigger<> *get_heat_action_trigger();
+  Trigger<> *get_supplemental_heat_action_trigger();
+  Trigger<> *get_idle_action_trigger();
+  Trigger<> *get_auto_mode_trigger();
+  Trigger<> *get_cool_mode_trigger();
+  Trigger<> *get_dry_mode_trigger();
+  Trigger<> *get_fan_only_mode_trigger();
+  Trigger<> *get_heat_mode_trigger();
+  Trigger<> *get_heat_cool_mode_trigger();
+  Trigger<> *get_off_mode_trigger();
+  Trigger<> *get_fan_mode_on_trigger();
+  Trigger<> *get_fan_mode_off_trigger();
+  Trigger<> *get_fan_mode_auto_trigger();
+  Trigger<> *get_fan_mode_low_trigger();
+  Trigger<> *get_fan_mode_medium_trigger();
+  Trigger<> *get_fan_mode_high_trigger();
+  Trigger<> *get_fan_mode_middle_trigger();
+  Trigger<> *get_fan_mode_focus_trigger();
+  Trigger<> *get_fan_mode_diffuse_trigger();
+  Trigger<> *get_fan_mode_quiet_trigger();
+  Trigger<> *get_swing_mode_both_trigger();
+  Trigger<> *get_swing_mode_horizontal_trigger();
+  Trigger<> *get_swing_mode_off_trigger();
+  Trigger<> *get_swing_mode_vertical_trigger();
+  Trigger<> *get_humidity_change_trigger();
+  Trigger<> *get_temperature_change_trigger();
+  Trigger<> *get_preset_change_trigger();
+  Trigger<> *get_humidity_control_dehumidify_action_trigger();
+  Trigger<> *get_humidity_control_humidify_action_trigger();
+  Trigger<> *get_humidity_control_off_action_trigger();
+  /// Get current hysteresis values
+  float cool_deadband() { return this->cooling_deadband_; }
+  float cool_overrun() { return this->cooling_overrun_; }
+  float heat_deadband() { return this->heating_deadband_; }
+  float heat_overrun() { return this->heating_overrun_; }
+  /// Call triggers based on updated climate states (modes/actions)
+  void refresh();
+  /// Returns true if a climate action/fan mode transition is being delayed
+  bool climate_action_change_delayed();
+  bool fan_mode_change_delayed();
+  /// Returns the climate action that is being delayed (check climate_action_change_delayed(), first!)
+  climate::ClimateAction delayed_climate_action();
+  /// Returns the fan mode that is locked in (check fan_mode_change_delayed(), first!)
+  climate::ClimateFanMode locked_fan_mode() { return this->prev_fan_mode_; }
+  /// Set point and hysteresis validation
+  bool hysteresis_valid();               // returns true if valid
+  bool humidity_hysteresis_valid();      // returns true if valid
+  bool limit_setpoints_for_heat_cool();  // returns true if set points should be further limited within visual range
+  void validate_target_temperature();
+  void validate_target_temperatures(bool pin_target_temperature_high);
+  void validate_target_temperature_low();
+  void validate_target_temperature_high();
+  void validate_target_humidity();
+
+  /// The current humidification action
+  HumidificationAction humidification_action{THERMOSTAT_HUMIDITY_CONTROL_ACTION_NONE};
+
+ protected:
+  /// Override control to change settings of the climate device.
+  void control(const climate::ClimateCall &call) override;
+
+  /// Change to a provided preset setting; will reset temperature, mode, fan, and swing modes accordingly
+  void change_preset_(climate::ClimatePreset preset);
+  /// Change to a provided custom preset setting; will reset temperature, mode, fan, and swing modes accordingly
+  void change_custom_preset_(const char *custom_preset) {
+    this->change_custom_preset_(custom_preset, strlen(custom_preset));
+  }
+  void change_custom_preset_(const char *custom_preset, size_t len);
+  void change_custom_preset_(StringRef custom_preset) {
+    this->change_custom_preset_(custom_preset.c_str(), custom_preset.size());
+  }
+
+  /// Applies the temperature, mode, fan, and swing modes of the provided config.
+  /// This is agnostic of custom vs built in preset
+  /// Returns true if something was changed
+  bool change_preset_internal_(const ThermostatClimateTargetTempConfig &config);
+
+  /// Return the traits of this controller.
+  climate::ClimateTraits traits() override;
+
+  /// Re-compute the required action of this climate controller.
+  climate::ClimateAction compute_action_(bool ignore_timers = false);
+  climate::ClimateAction compute_supplemental_action_();
+  HumidificationAction compute_humidity_control_action_();
+
+  /// Switch the climate device to the given climate action.
+  void switch_to_action_(climate::ClimateAction action, bool publish_state = true);
+  void switch_to_supplemental_action_(climate::ClimateAction action);
+  void trigger_supplemental_action_();
+  void switch_to_humidity_control_action_(HumidificationAction action);
+
+  /// Switch the climate device to the given climate fan mode.
+  void switch_to_fan_mode_(climate::ClimateFanMode fan_mode, bool publish_state = true);
+
+  /// Switch the climate device to the given climate mode.
+  void switch_to_mode_(climate::ClimateMode mode, bool publish_state = true);
+
+  /// Switch the climate device to the given climate swing mode.
+  void switch_to_swing_mode_(climate::ClimateSwingMode swing_mode, bool publish_state = true);
+
+  /// Check if the humidity change trigger should be called.
+  void check_humidity_change_trigger_();
+
+  /// Check if the temperature change trigger should be called.
+  void check_temperature_change_trigger_();
+
+  /// Is the action ready to be called? Returns true if so
+  bool idle_action_ready_();
+  bool cooling_action_ready_();
+  bool drying_action_ready_();
+  bool fan_mode_ready_();
+  bool fanning_action_ready_();
+  bool heating_action_ready_();
+
+  /// Start/cancel/get status of climate action timer
+  void start_timer_(ThermostatClimateTimerIndex timer_index);
+  bool cancel_timer_(ThermostatClimateTimerIndex timer_index);
+  bool timer_active_(ThermostatClimateTimerIndex timer_index);
+  uint32_t timer_duration_(ThermostatClimateTimerIndex timer_index);
+  /// Call the appropriate timer callback based on timer index
+  void call_timer_callback_(ThermostatClimateTimerIndex timer_index);
+  /// Enhanced timer duration setter with running timer adjustment
+  void set_timer_duration_in_sec_(ThermostatClimateTimerIndex timer_index, uint32_t time);
+
+  /// set_timeout() callbacks for various actions (see above)
+  void cooling_max_run_time_timer_callback_();
+  void cooling_off_timer_callback_();
+  void cooling_on_timer_callback_();
+  void fan_mode_timer_callback_();
+  void fanning_off_timer_callback_();
+  void fanning_on_timer_callback_();
+  void heating_max_run_time_timer_callback_();
+  void heating_off_timer_callback_();
+  void heating_on_timer_callback_();
+  void idle_on_timer_callback_();
+
+  /// Check if cooling/fanning/heating actions are required; returns true if so
+  bool cooling_required_();
+  bool fanning_required_();
+  bool heating_required_();
+  bool supplemental_cooling_required_();
+  bool supplemental_heating_required_();
+  bool dehumidification_required_();
+  bool humidification_required_();
+
+  void dump_preset_config_(const char *preset_name, const ThermostatClimateTargetTempConfig &config);
+  /// Copies of table entries; the tables live in PROGMEM and hold byte-sized fields.
+  PresetEntry preset_entry_(uint8_t index) const;
+  CustomPresetEntry custom_preset_entry_(uint8_t index) const;
+
+  /// Minimum allowable duration in seconds for action timers
+  const uint8_t min_timer_duration_{1};
+
+  /// Store previously-known states
+  ///
+  /// These are used to determine when a trigger/action needs to be called
+  climate::ClimateFanMode prev_fan_mode_{climate::CLIMATE_FAN_ON};
+  climate::ClimateMode prev_mode_{climate::CLIMATE_MODE_OFF};
+  climate::ClimateSwingMode prev_swing_mode_{climate::CLIMATE_SWING_OFF};
+
+  /// The current supplemental action
+  climate::ClimateAction supplemental_action_{climate::CLIMATE_ACTION_OFF};
+
+  /// Default standard preset to use on start up
+  climate::ClimatePreset default_preset_{};
+
+  /// If set to DEFAULT_PRESET then the default preset is always used. When MEMORY prior
+  /// state will attempt to be restored if possible
+  OnBootRestoreFrom on_boot_restore_from_{OnBootRestoreFrom::MEMORY};
+
+  uint8_t preset_count_{0};
+  uint8_t custom_preset_count_{0};
+
+  /// Whether the controller supports auto/cooling/drying/fanning/heating.
+  ///
+  /// A false value for any given attribute means that the controller has no such action
+  /// (for example a thermostat, where only heating and not-heating is possible).
+  bool supports_auto_{false};
+  bool supports_heat_cool_{false};
+  bool supports_cool_{false};
+  bool supports_dry_{false};
+  bool supports_fan_only_{false};
+  bool supports_heat_{false};
+  /// Special flag -- enables fan_modes to share timer with fan_only climate action
+  bool supports_fan_only_action_uses_fan_mode_timer_{false};
+  /// Special flag -- enables fan to be switched based on target_temperature_high
+  bool supports_fan_only_cooling_{false};
+  /// Special flags -- enables fan_only action to be called with cooling/heating actions
+  bool supports_fan_with_cooling_{false};
+  bool supports_fan_with_heating_{false};
+
+  /// Whether the controller supports turning on or off just the fan.
+  ///
+  /// A false value for either attribute means that the controller has no fan on/off action
+  /// (for example a thermostat, where independent control of the fan is not possible).
+  bool supports_fan_mode_on_{false};
+  bool supports_fan_mode_off_{false};
+
+  /// Whether the controller supports fan auto mode.
+  ///
+  /// A false value for this attribute means that the controller has no fan-auto action
+  /// (for example a thermostat, where independent control of the fan is not possible).
+  bool supports_fan_mode_auto_{false};
+
+  /// Whether the controller supports various fan speeds and/or positions.
+  ///
+  /// A false value for any given attribute means that the controller has no such fan action.
+  bool supports_fan_mode_low_{false};
+  bool supports_fan_mode_medium_{false};
+  bool supports_fan_mode_high_{false};
+  bool supports_fan_mode_middle_{false};
+  bool supports_fan_mode_focus_{false};
+  bool supports_fan_mode_diffuse_{false};
+  bool supports_fan_mode_quiet_{false};
+
+  /// Whether the controller supports various swing modes.
+  ///
+  /// A false value for any given attribute means that the controller has no such swing mode.
+  bool supports_swing_mode_both_{false};
+  bool supports_swing_mode_off_{false};
+  bool supports_swing_mode_horizontal_{false};
+  bool supports_swing_mode_vertical_{false};
+
+  /// Whether the controller supports two set points
+  ///
+  /// A false value means that the controller has no such support.
+  bool supports_two_points_{false};
+
+  /// Whether the controller supports dehumidification and/or humidification
+  ///
+  /// A false value means that the controller has no such support.
+  bool supports_dehumidification_{false};
+  bool supports_humidification_{false};
+
+  /// Flags indicating if maximum allowable run time was exceeded
+  bool cooling_max_runtime_exceeded_{false};
+  bool heating_max_runtime_exceeded_{false};
+
+  /// Used to start "off" delay timers at boot
+  bool use_startup_delay_{false};
+
+  /// setup_complete_ blocks modifying/resetting the temps immediately after boot
+  bool setup_complete_{false};
+
+  /// Store previously-known humidity and temperatures
+  ///
+  /// These are used to determine when a temperature/humidity has changed
+  float prev_target_humidity_{NAN};
+  float prev_target_temperature_{NAN};
+  float prev_target_temperature_low_{NAN};
+  float prev_target_temperature_high_{NAN};
+
+  /// Minimum differential required between set points
+  float set_point_minimum_differential_{0};
+
+  /// Hysteresis values used for computing climate actions
+  float cooling_deadband_{0};
+  float cooling_overrun_{0};
+  float heating_deadband_{0};
+  float heating_overrun_{0};
+
+  /// Hysteresis values used for computing humidification action
+  float humidity_hysteresis_{0};
+
+  /// Maximum allowable temperature deltas before engaging supplemental cooling/heating actions
+  float supplemental_cool_delta_{0};
+  float supplemental_heat_delta_{0};
+
+  /// The sensor used for getting the current temperature
+  sensor::Sensor *sensor_{nullptr};
+  /// The sensor used for getting the current humidity
+  sensor::Sensor *humidity_sensor_{nullptr};
+
+  /// Trigger for cooling action/mode
+  Trigger<> cool_action_trigger_;
+  Trigger<> supplemental_cool_action_trigger_;
+  Trigger<> cool_mode_trigger_;
+
+  /// Trigger for dry (dehumidification) mode
+  Trigger<> dry_action_trigger_;
+  Trigger<> dry_mode_trigger_;
+
+  /// Trigger for heating action/mode
+  Trigger<> heat_action_trigger_;
+  Trigger<> supplemental_heat_action_trigger_;
+  Trigger<> heat_mode_trigger_;
+
+  /// Trigger for heat/cool mode
+  Trigger<> heat_cool_mode_trigger_;
+
+  /// Trigger for auto mode
+  Trigger<> auto_mode_trigger_;
+
+  /// Trigger for idle action/off mode
+  Trigger<> idle_action_trigger_;
+  Trigger<> off_mode_trigger_;
+
+  /// Trigger for fan-only action/mode
+  Trigger<> fan_only_action_trigger_;
+  Trigger<> fan_only_mode_trigger_;
+
+  /// Fan mode triggers
+  Trigger<> fan_mode_on_trigger_;
+  Trigger<> fan_mode_off_trigger_;
+  Trigger<> fan_mode_auto_trigger_;
+  Trigger<> fan_mode_low_trigger_;
+  Trigger<> fan_mode_medium_trigger_;
+  Trigger<> fan_mode_high_trigger_;
+  Trigger<> fan_mode_middle_trigger_;
+  Trigger<> fan_mode_focus_trigger_;
+  Trigger<> fan_mode_diffuse_trigger_;
+  Trigger<> fan_mode_quiet_trigger_;
+
+  /// Swing mode triggers
+  Trigger<> swing_mode_both_trigger_;
+  Trigger<> swing_mode_off_trigger_;
+  Trigger<> swing_mode_horizontal_trigger_;
+  Trigger<> swing_mode_vertical_trigger_;
+
+  /// Trigger for target humidity changes
+  Trigger<> humidity_change_trigger_;
+
+  /// Trigger for target temperature changes
+  Trigger<> temperature_change_trigger_;
+
+  /// Trigger for preset mode changes
+  Trigger<> preset_change_trigger_;
+
+  /// Humidity control triggers
+  Trigger<> humidity_control_dehumidify_action_trigger_;
+  Trigger<> humidity_control_humidify_action_trigger_;
+  Trigger<> humidity_control_off_action_trigger_;
+
+  /// A reference to the trigger that was previously active.
+  ///
+  /// This is so that the previous trigger can be stopped before enabling a new one
+  /// for each climate category (mode, action, fan_mode, swing_mode).
+  Trigger<> *prev_action_trigger_{nullptr};
+  Trigger<> *prev_fan_mode_trigger_{nullptr};
+  Trigger<> *prev_mode_trigger_{nullptr};
+  Trigger<> *prev_swing_mode_trigger_{nullptr};
+  Trigger<> *prev_humidity_control_trigger_{nullptr};
+
+  /// Climate action timers
+  std::array<ThermostatClimateTimer, THERMOSTAT_TIMER_COUNT> timer_{};
+
+  /// Standard preset configurations (Eg. AWAY, ECO, etc), a PROGMEM table of preset_count_ entries
+  const PresetEntry *preset_config_{nullptr};
+  /// Custom preset configurations (eg. "My Custom Preset"), a PROGMEM table of custom_preset_count_ entries
+  const CustomPresetEntry *custom_preset_config_{nullptr};
+
+ private:
+  /// Default custom preset to use on start up (name pointer from an entry in custom_preset_config_)
+  const char *default_custom_preset_{nullptr};
+};
+
+}  // namespace esphome::thermostat

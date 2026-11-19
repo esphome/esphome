@@ -1,0 +1,76 @@
+from esphome import pins
+import esphome.codegen as cg
+from esphome.components import gpio_expander
+import esphome.config_validation as cv
+from esphome.const import (
+    CONF_ID,
+    CONF_INPUT,
+    CONF_INTERRUPT,
+    CONF_INTERRUPT_PIN,
+    CONF_OPEN_DRAIN_INTERRUPT,
+    CONF_OUTPUT,
+    CONF_PULLUP,
+)
+from esphome.core import CORE, ID, coroutine
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
+
+AUTO_LOAD = ["gpio_expander"]
+CODEOWNERS = ["@jesserockz"]
+DOMAIN = "mcp23xxx_base"
+
+mcp23xxx_base_ns = cg.esphome_ns.namespace("mcp23xxx_base")
+MCP23XXXBase = mcp23xxx_base_ns.class_("MCP23XXXBase", cg.Component)
+MCP23XXXGPIOPin = mcp23xxx_base_ns.class_("MCP23XXXGPIOPin", cg.GPIOPin)
+MCP23XXXInterruptMode = mcp23xxx_base_ns.enum("MCP23XXXInterruptMode")
+
+MCP23XXX_INTERRUPT_MODES = MCP23XXXInterruptMode.options(
+    "NO_INTERRUPT", "CHANGE", "RISING", "FALLING", prefix="MCP23XXX_"
+)
+
+
+MCP23XXX_CONFIG_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_OPEN_DRAIN_INTERRUPT, default=False): cv.boolean,
+    }
+).extend(gpio_expander.INTERRUPT_EXPANDER_SCHEMA)
+
+
+@coroutine
+async def register_mcp23xxx(config: ConfigType, num_pins: int) -> MockObj:
+    id: ID = config[CONF_ID]
+    var = cg.new_Pvariable(id)
+    await cg.register_component(var, config)
+    CORE.data.setdefault(CONF_MCP23XXX, {})[id.id] = num_pins
+    cg.add(var.set_open_drain_ints(config[CONF_OPEN_DRAIN_INTERRUPT]))
+    await cg.add_pin(var.set_interrupt_pin, config.get(CONF_INTERRUPT_PIN))
+    return var
+
+
+CONF_MCP23XXX = "mcp23xxx"
+
+MCP23XXX_PIN_SCHEMA = pins.gpio_base_schema(
+    MCP23XXXGPIOPin,
+    cv.int_range(min=0, max=15),
+    modes=[CONF_INPUT, CONF_OUTPUT, CONF_PULLUP],
+    mode_validator=pins.gpio_validate_input_xor_output_pullup,
+    invertible=True,
+).extend(
+    {
+        cv.Required(CONF_MCP23XXX): pins.use_id_or_address(MCP23XXXBase),
+        cv.Optional(CONF_INTERRUPT, default="NO_INTERRUPT"): cv.enum(
+            MCP23XXX_INTERRUPT_MODES, upper=True
+        ),
+    }
+)
+
+
+@pins.PIN_SCHEMA_REGISTRY.register(CONF_MCP23XXX, MCP23XXX_PIN_SCHEMA)
+async def mcp23xxx_pin_to_code(config: ConfigType) -> MockObj:
+    parent_id: ID = config[CONF_MCP23XXX]
+    # Wait for the hub so its to_code has recorded the pin count
+    await cg.get_variable(parent_id)
+    num_pins = cg.TemplateArguments(CORE.data[CONF_MCP23XXX][parent_id.id])
+    var = await pins.new_parented_pin(config, CONF_MCP23XXX, num_pins)
+    cg.add(var.set_interrupt_mode(config[CONF_INTERRUPT]))
+    return var

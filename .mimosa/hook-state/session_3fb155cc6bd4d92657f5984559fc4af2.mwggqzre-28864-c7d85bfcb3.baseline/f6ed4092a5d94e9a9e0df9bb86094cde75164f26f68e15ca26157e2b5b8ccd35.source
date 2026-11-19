@@ -1,0 +1,85 @@
+import esphome.codegen as cg
+from esphome.components import i2c, sensor
+import esphome.config_validation as cv
+from esphome.const import (
+    CONF_GAIN,
+    CONF_INTEGRATION_TIME,
+    DEVICE_CLASS_ILLUMINANCE,
+    STATE_CLASS_MEASUREMENT,
+    UNIT_LUX,
+)
+from esphome.types import ConfigType
+
+CODEOWNERS = ["@kbx81"]
+DEPENDENCIES = ["i2c"]
+
+CONF_AUTO_GAIN = "auto_gain"
+CONF_AUTO_GAIN_THRESHOLD_HIGH = "auto_gain_threshold_high"
+CONF_AUTO_GAIN_THRESHOLD_LOW = "auto_gain_threshold_low"
+CONF_DIGITAL_GAIN = "digital_gain"
+
+veml3235_ns = cg.esphome_ns.namespace("veml3235")
+
+VEML3235Sensor = veml3235_ns.class_(
+    "VEML3235Sensor", sensor.Sensor, cg.PollingComponent, i2c.I2CDevice
+)
+VEML3235ComponentIntegrationTime = veml3235_ns.enum("VEML3235ComponentIntegrationTime")
+VEML3235_INTEGRATION_TIMES = VEML3235ComponentIntegrationTime.options(
+    "50ms", "100ms", "200ms", "400ms", "800ms", prefix="VEML3235_INTEGRATION_TIME_"
+)
+VEML3235ComponentDigitalGain = veml3235_ns.enum("VEML3235ComponentDigitalGain")
+DIGITAL_GAINS = VEML3235ComponentDigitalGain.options(
+    "1X", "2X", prefix="VEML3235_DIGITAL_GAIN_"
+)
+VEML3235ComponentGain = veml3235_ns.enum("VEML3235ComponentGain")
+GAINS = VEML3235ComponentGain.options("1X", "2X", "4X", prefix="VEML3235_GAIN_")
+
+
+def _validate_auto_gain_thresholds(config: ConfigType) -> ConfigType:
+    if config[CONF_AUTO_GAIN_THRESHOLD_LOW] >= config[CONF_AUTO_GAIN_THRESHOLD_HIGH]:
+        raise cv.Invalid(
+            f"'{CONF_AUTO_GAIN_THRESHOLD_LOW}' must be less than '{CONF_AUTO_GAIN_THRESHOLD_HIGH}'"
+        )
+    return config
+
+
+CONFIG_SCHEMA = cv.All(
+    sensor.sensor_schema(
+        VEML3235Sensor,
+        unit_of_measurement=UNIT_LUX,
+        accuracy_decimals=1,
+        device_class=DEVICE_CLASS_ILLUMINANCE,
+        state_class=STATE_CLASS_MEASUREMENT,
+    )
+    .extend(
+        {
+            cv.Optional(CONF_DIGITAL_GAIN, default="1X"): cv.enum(
+                DIGITAL_GAINS, upper=True
+            ),
+            cv.Optional(CONF_AUTO_GAIN, default=True): cv.boolean,
+            cv.Optional(CONF_AUTO_GAIN_THRESHOLD_HIGH, default="90%"): cv.percentage,
+            cv.Optional(CONF_AUTO_GAIN_THRESHOLD_LOW, default="20%"): cv.percentage,
+            cv.Optional(CONF_GAIN, default="1X"): cv.enum(GAINS, upper=True),
+            cv.Optional(CONF_INTEGRATION_TIME, default="50ms"): cv.All(
+                cv.positive_time_period_milliseconds,
+                cv.enum(VEML3235_INTEGRATION_TIMES, lower=True),
+            ),
+        }
+    )
+    .extend(cv.polling_component_schema("60s"))
+    .extend(i2c.i2c_device_schema(0x10)),
+    _validate_auto_gain_thresholds,
+)
+
+
+async def to_code(config: ConfigType) -> None:
+    var = await sensor.new_sensor(config)
+    await cg.register_component(var, config)
+    await i2c.register_i2c_device(var, config)
+
+    cg.add(var.set_auto_gain(config[CONF_AUTO_GAIN]))
+    cg.add(var.set_auto_gain_threshold_high(config[CONF_AUTO_GAIN_THRESHOLD_HIGH]))
+    cg.add(var.set_auto_gain_threshold_low(config[CONF_AUTO_GAIN_THRESHOLD_LOW]))
+    cg.add(var.set_digital_gain(DIGITAL_GAINS[config[CONF_DIGITAL_GAIN]]))
+    cg.add(var.set_gain(GAINS[config[CONF_GAIN]]))
+    cg.add(var.set_integration_time(config[CONF_INTEGRATION_TIME]))

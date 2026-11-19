@@ -1,0 +1,31 @@
+#pragma once
+
+#include "esphome/core/component.h"
+#include "remote_base.h"
+
+namespace esphome::remote_base {
+
+struct ByronSXData {
+  uint8_t address;
+  uint8_t command;
+
+  bool operator==(const ByronSXData &rhs) const {
+    // Treat 0x10 as a special, wildcard command/chime
+    // This allows us to match on just the address if wanted.
+    if (address != rhs.address) {
+      return false;
+    }
+    return (rhs.command == 0x10 || command == rhs.command);
+  }
+};
+
+class ByronSXProtocol : public RemoteProtocol<ByronSXData> {
+ public:
+  void encode(RemoteTransmitData *dst, const ByronSXData &data);
+  optional<ByronSXData> decode(RemoteReceiveData src);
+  void dump(const ByronSXData &data);
+};
+
+DECLARE_REMOTE_PROTOCOL(ByronSX)
+
+}  // namespace esphome::remote_base

@@ -1,0 +1,560 @@
+from pathlib import Path
+import secrets
+import string
+from typing import Literal, NotRequired, TypedDict, Unpack
+import unicodedata
+
+import voluptuous as vol
+
+from esphome.components.noise import generate_encryption_key
+import esphome.config_validation as cv
+from esphome.const import ALLOWED_NAME_CHARS, ENV_QUICKWIZARD
+from esphome.core import CORE
+from esphome.helpers import get_bool_env, write_file
+from esphome.log import AnsiFore, color
+from esphome.storage_json import StorageJSON, ext_storage_path
+from esphome.util import safe_input, safe_print
+
+CORE_BIG = r"""    _____ ____  _____  ______
+   / ____/ __ \|  __ \|  ____|
+  | |   | |  | | |__) | |__
+  | |   | |  | |  _  /|  __|
+  | |___| |__| | | \ \| |____
+   \_____\____/|_|  \_\______|
+"""
+ESP_BIG = r"""      ______  _____ _____
+     |  ____|/ ____|  __ \\
+     | |__  | (___ | |__) |
+     |  __|  \___ \|  ___/
+     | |____ ____) | |
+     |______|_____/|_|
+"""
+WIFI_BIG = r"""   __          ___ ______ _
+   \ \        / (_)  ____(_)
+    \ \  /\  / / _| |__   _
+     \ \/  \/ / | |  __| | |
+      \  /\  /  | | |    | |
+       \/  \/   |_|_|    |_|
+"""
+OTA_BIG = r"""       ____ _______
+      / __ \__   __|/\\
+     | |  | | | |  /  \\
+     | |  | | | | / /\ \\
+     | |__| | | |/ ____ \\
+      \____/  |_/_/    \_\\
+"""
+
+BASE_CONFIG = """esphome:
+  name: {name}
+"""
+
+BASE_CONFIG_FRIENDLY = """esphome:
+  name: {name}
+  friendly_name: {friendly_name}
+"""
+
+LOGGER_CONFIG = """
+# Enable logging
+logger:
+"""
+
+API_CONFIG = """
+# Enable Home Assistant API
+api:
+"""
+
+ESP8266_CONFIG = """
+esp8266:
+  board: {board}
+"""
+
+ESP32_CONFIG = """
+esp32:
+  board: {board}
+  framework:
+    type: esp-idf
+"""
+
+RP2_CONFIG = """
+rp2:
+  board: {board}
+"""
+
+BOARD_LINKS: dict[str, str] = {
+    "ESP32": "https://docs.platformio.org/en/latest/platforms/espressif32.html#boards",
+    "ESP8266": "https://docs.platformio.org/en/latest/platforms/espressif8266.html#boards",
+    "RP2": "https://www.raspberrypi.com/documentation/microcontrollers/silicon.html#rp2040",
+    "BK72XX": "https://docs.libretiny.eu/docs/status/supported/",
+    "LN882X": "https://docs.libretiny.eu/docs/status/supported/",
+    "RTL87XX": "https://docs.libretiny.eu/docs/status/supported/",
+}
+
+BK72XX_CONFIG = """
+bk72xx:
+  board: {board}
+"""
+
+LN882X_CONFIG = """
+ln882x:
+  board: {board}
+"""
+
+RTL87XX_CONFIG = """
+rtl87xx:
+  board: {board}
+"""
+
+HARDWARE_BASE_CONFIGS = {
+    "ESP8266": ESP8266_CONFIG,
+    "ESP32": ESP32_CONFIG,
+    "RP2": RP2_CONFIG,
+    "BK72XX": BK72XX_CONFIG,
+    "LN882X": LN882X_CONFIG,
+    "RTL87XX": RTL87XX_CONFIG,
+}
+
+
+def sanitize_double_quotes(value: str) -> str:
+    return value.replace("\\", "\\\\").replace('"', '\\"')
+
+
+class WizardFileKwargs(TypedDict):
+    """Keyword arguments for wizard_file function."""
+
+    name: str
+    platform: Literal["ESP8266", "ESP32", "RP2", "BK72XX", "LN882X", "RTL87XX"]
+    board: str
+    ssid: NotRequired[str]
+    psk: NotRequired[str]
+    ota_password: NotRequired[str]
+    api_encryption_key: NotRequired[str]
+    friendly_name: NotRequired[str]
+
+
+def wizard_file(**kwargs: Unpack[WizardFileKwargs]) -> str:
+    letters = string.ascii_letters + string.digits
+    ap_name_base = kwargs["name"].replace("_", " ").title()
+    ap_name = f"{ap_name_base} Fallback Hotspot"
+    if len(ap_name) > 32:
+        ap_name = ap_name_base
+    kwargs["fallback_name"] = ap_name
+    kwargs["fallback_psk"] = "".join(secrets.choice(letters) for _ in range(12))
+
+    base = BASE_CONFIG_FRIENDLY if kwargs.get("friendly_name") else BASE_CONFIG
+
+    config = base.format(**kwargs)
+
+    config += HARDWARE_BASE_CONFIGS[kwargs["platform"]].format(**kwargs)
+
+    config += LOGGER_CONFIG
+
+    if kwargs["board"] == "rpipico":
+        return config
+
+    config += API_CONFIG
+
+    # Configure API encryption
+    if "api_encryption_key" in kwargs:
+        config += f'  encryption:\n    key: "{kwargs["api_encryption_key"]}"\n'
+
+    # The api key also secures OTA; a password only serves older uploaders
+    config += "\nota:\n"
+    config += "  - platform: esphome\n"
+    if "ota_password" in kwargs:
+        config += f'    password: "{kwargs["ota_password"]}"'
+    elif "api_encryption_key" in kwargs:
+        config += "    encryption:"
+
+    # Configuring wifi
+    config += "\n\nwifi:\n"
+
+    if "ssid" in kwargs:
+        if kwargs["ssid"].startswith("!secret"):
+            template = "  ssid: {ssid}\n  password: {psk}\n"
+        else:
+            template = """  ssid: "{ssid}"\n  password: "{psk}"\n"""
+        config += template.format(**kwargs)
+    else:
+        config += """  # ssid: "My SSID"
+  # password: "mypassword"
+
+  networks:
+"""
+
+    # pylint: disable=consider-using-f-string
+    if kwargs["platform"] in ["ESP8266", "ESP32", "BK72XX", "LN882X", "RTL87XX"]:
+        config += """
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "{fallback_name}"
+    password: "{fallback_psk}"
+
+captive_portal:
+    """.format(**kwargs)
+    else:
+        config += """
+  # Enable fallback hotspot in case wifi connection fails
+  ap:
+    ssid: "{fallback_name}"
+    password: "{fallback_psk}"
+    """.format(**kwargs)
+
+    return config
+
+
+class WizardWriteKwargs(TypedDict):
+    """Keyword arguments for wizard_write function."""
+
+    name: str
+    type: Literal["basic", "empty", "upload"]
+    # Required for "basic" type
+    board: NotRequired[str]
+    platform: NotRequired[str]
+    ssid: NotRequired[str]
+    psk: NotRequired[str]
+    ota_password: NotRequired[str]
+    api_encryption_key: NotRequired[str]
+    friendly_name: NotRequired[str]
+    # Required for "upload" type
+    file_text: NotRequired[str]
+
+
+def wizard_write(path: Path, **kwargs: Unpack[WizardWriteKwargs]) -> bool:
+    from esphome.components.bk72xx import boards as bk72xx_boards
+    from esphome.components.esp32 import boards as esp32_boards
+    from esphome.components.esp8266 import boards as esp8266_boards
+    from esphome.components.ln882x import boards as ln882x_boards
+    from esphome.components.rp2 import boards as rp2_boards
+    from esphome.components.rtl87xx import boards as rtl87xx_boards
+
+    name = kwargs["name"]
+    if kwargs["type"] == "empty":
+        file_text = ""
+        # Will be updated later after editing the file
+        hardware = "UNKNOWN"
+    elif kwargs["type"] == "upload":
+        file_text = kwargs["file_text"]
+        hardware = "UNKNOWN"
+    else:  # "basic"
+        board = kwargs["board"]
+
+        for key in ("ssid", "psk", "ota_password"):
+            if key in kwargs:
+                kwargs[key] = sanitize_double_quotes(kwargs[key])
+        if "platform" not in kwargs:
+            if board in esp8266_boards.BOARDS:
+                platform = "ESP8266"
+            elif board in esp32_boards.BOARDS:
+                platform = "ESP32"
+            elif board in rp2_boards.BOARDS:
+                platform = "RP2"
+            elif board in bk72xx_boards.BOARDS:
+                platform = "BK72XX"
+            elif board in ln882x_boards.BOARDS:
+                platform = "LN882X"
+            elif board in rtl87xx_boards.BOARDS:
+                platform = "RTL87XX"
+            else:
+                safe_print(color(AnsiFore.RED, f'The board "{board}" is unknown.'))
+                return False
+            kwargs["platform"] = platform
+        hardware = kwargs["platform"]
+        file_text = wizard_file(**kwargs)
+
+    # Check if file already exists to prevent overwriting
+    if path.exists() and path.is_file():
+        safe_print(color(AnsiFore.RED, f'The file "{path}" already exists.'))
+        return False
+
+    write_file(path, file_text)
+    storage = StorageJSON.from_wizard(name, name, f"{name}.local", hardware)
+    storage_path = ext_storage_path(path.name)
+    storage.save(storage_path)
+
+    return True
+
+
+if get_bool_env(ENV_QUICKWIZARD):
+
+    def sleep(time: float) -> None:
+        pass
+
+else:
+    from time import sleep
+
+
+def safe_print_step(step: int, big: str) -> None:
+    safe_print()
+    safe_print()
+    safe_print(f"============= STEP {step} =============")
+    safe_print(big)
+    safe_print("===================================")
+    sleep(0.25)
+
+
+def default_input(text: str, default: str) -> str:
+    safe_print()
+    safe_print(f"Press ENTER for default ({default})")
+    return safe_input(text.format(default)) or default
+
+
+# From https://stackoverflow.com/a/518232/8924614
+def strip_accents(value: str) -> str:
+    return "".join(
+        c
+        for c in unicodedata.normalize("NFD", str(value))
+        if unicodedata.category(c) != "Mn"
+    )
+
+
+def wizard(path: Path) -> int:
+    from esphome.components.bk72xx import boards as bk72xx_boards
+    from esphome.components.esp32 import boards as esp32_boards
+    from esphome.components.esp8266 import boards as esp8266_boards
+    from esphome.components.ln882x import boards as ln882x_boards
+    from esphome.components.rp2 import boards as rp2_boards
+    from esphome.components.rtl87xx import boards as rtl87xx_boards
+
+    if path.suffix not in (".yaml", ".yml"):
+        safe_print(
+            f"Please make your configuration file {color(AnsiFore.CYAN, str(path))} have the extension .yaml or .yml"
+        )
+        return 1
+    if path.exists():
+        safe_print(
+            f"Uh oh, it seems like {color(AnsiFore.CYAN, str(path))} already exists, please delete that file first or chose another configuration file."
+        )
+        return 2
+
+    CORE.config_path = path
+
+    safe_print("Hi there!")
+    sleep(1.5)
+    safe_print("I'm the wizard of ESPHome :)")
+    sleep(1.25)
+    safe_print("And I'm here to help you get started with ESPHome.")
+    sleep(2.0)
+    safe_print(
+        "In 4 steps I'm going to guide you through creating a basic "
+        "configuration file for your custom firmware. Yay!"
+    )
+    sleep(3.0)
+    safe_print()
+    safe_print_step(1, CORE_BIG)
+    safe_print(
+        f"First up, please choose a {color(AnsiFore.GREEN, 'name')} for your node."
+    )
+    safe_print(
+        "It should be a unique name that can be used to identify the device later."
+    )
+    sleep(1)
+    safe_print(
+        f"For example, I like calling the node in my living room {color(AnsiFore.BOLD_WHITE, 'livingroom')}."
+    )
+    safe_print()
+    sleep(1)
+    name = safe_input(color(AnsiFore.BOLD_WHITE, "(name): "))
+
+    while True:
+        try:
+            name = cv.valid_name(name)
+            break
+        except vol.Invalid:
+            safe_print(
+                color(
+                    AnsiFore.RED,
+                    f'Oh noes, "{name}" isn\'t a valid name. Names can only '
+                    f"include numbers, lower-case letters and hyphens. ",
+                )
+            )
+            name = strip_accents(name).lower().replace(" ", "-")
+            name = strip_accents(name).lower().replace("_", "-")
+            name = "".join(c for c in name if c in ALLOWED_NAME_CHARS)
+            safe_print(
+                f'Shall I use "{color(AnsiFore.CYAN, name)}" as the name instead?'
+            )
+            sleep(0.5)
+            name = default_input("(name [{}]): ", name)
+
+    safe_print(f'Great! Your node is now called "{color(AnsiFore.CYAN, name)}".')
+    sleep(1)
+    safe_print_step(2, ESP_BIG)
+    safe_print(
+        "Now I'd like to know what microcontroller you're using so that I can compile "
+        "firmwares for it."
+    )
+
+    wizard_platforms = ["ESP32", "ESP8266", "BK72XX", "LN882X", "RTL87XX", "RP2"]
+    safe_print(
+        "Please choose one of the supported microcontrollers "
+        "(Use ESP8266 for Sonoff devices)."
+    )
+    while True:
+        sleep(0.5)
+        safe_print()
+        platform = safe_input(
+            color(AnsiFore.BOLD_WHITE, f"({'/'.join(wizard_platforms)}): ")
+        )
+        try:
+            platform = vol.All(vol.Upper, vol.Any(*wizard_platforms))(platform.upper())
+            break
+        except vol.Invalid:
+            safe_print(
+                f'Unfortunately, I can\'t find an espressif microcontroller called "{platform}". Please try again.'
+            )
+    safe_print(
+        f"Thanks! You've chosen {color(AnsiFore.CYAN, platform)} as your platform."
+    )
+    safe_print()
+    sleep(1)
+
+    board_link = BOARD_LINKS[platform]
+
+    safe_print(
+        f"Next, I need to know what {color(AnsiFore.GREEN, 'board')} you're using."
+    )
+    sleep(0.5)
+    safe_print(f"Please go to {color(AnsiFore.GREEN, board_link)} and choose a board.")
+    if platform == "ESP32":
+        safe_print(f"(Type {color(AnsiFore.GREEN, 'esp01_1m')} for Sonoff devices)")
+    safe_print()
+    # Don't sleep because user needs to copy link
+    # Platform-to-(example board, boards module) lookup. Dict-driven so the
+    # set of supported platforms has a single source of truth and the elif
+    # chain — which left the last entry's "False" branch structurally
+    # unreachable in tests — is gone.
+    example_boards = {
+        "ESP32": ("nodemcu-32s", esp32_boards),
+        "ESP8266": ("nodemcuv2", esp8266_boards),
+        "BK72XX": ("cb2s", bk72xx_boards),
+        "LN882X": ("wl2s", ln882x_boards),
+        "RTL87XX": ("wr3", rtl87xx_boards),
+        "RP2": ("rpipicow", rp2_boards),
+    }
+    example, boards_module = example_boards[platform]
+    safe_print(f'For example "{color(AnsiFore.BOLD_WHITE, example)}".')
+    boards_list = boards_module.BOARDS.items()
+
+    boards = []
+    safe_print("Options:")
+    for board_id, board_data in boards_list:
+        safe_print(f" - {board_id} - {board_data['name']}")
+        boards.append(board_id.lower())
+
+    while True:
+        board = safe_input(color(AnsiFore.BOLD_WHITE, "(board): "))
+        try:
+            board = vol.All(vol.Lower, vol.Any(*boards))(board)
+            break
+        except vol.Invalid:
+            safe_print(
+                color(
+                    AnsiFore.RED, f'Sorry, I don\'t think the board "{board}" exists.'
+                )
+            )
+            safe_print()
+            sleep(0.25)
+            safe_print()
+
+    safe_print(f"Way to go! You've chosen {color(AnsiFore.CYAN, board)} as your board.")
+    safe_print()
+    sleep(1)
+
+    # Do not create wifi if the board does not support it
+    if board != "rpipico":
+        safe_print_step(3, WIFI_BIG)
+        safe_print("In this step, I'm going to create the configuration for WiFi.")
+        safe_print()
+        sleep(1)
+        safe_print(
+            f"First, what's the {color(AnsiFore.GREEN, 'SSID')} (the name) of the WiFi network {name} should connect to?"
+        )
+        sleep(1.5)
+        safe_print(f'For example "{color(AnsiFore.BOLD_WHITE, "Abraham Linksys")}".')
+        while True:
+            ssid = safe_input(color(AnsiFore.BOLD_WHITE, "(ssid): "))
+            try:
+                ssid = cv.ssid(ssid)
+                break
+            except vol.Invalid:
+                safe_print(
+                    color(
+                        AnsiFore.RED,
+                        f'Unfortunately, "{ssid}" doesn\'t seem to be a valid SSID. Please try again.',
+                    )
+                )
+                safe_print()
+                sleep(1)
+
+        safe_print(
+            f'Thank you very much! You\'ve just chosen "{color(AnsiFore.CYAN, ssid)}" as your SSID.'
+        )
+        safe_print()
+        sleep(0.75)
+
+        safe_print(
+            f"Now please state the {color(AnsiFore.GREEN, 'password')} of the WiFi network so that I can connect to it (Leave empty for no password)"
+        )
+        safe_print()
+        safe_print(f'For example "{color(AnsiFore.BOLD_WHITE, "PASSWORD42")}"')
+        sleep(0.5)
+        psk = safe_input(color(AnsiFore.BOLD_WHITE, "(PSK): "))
+        safe_print(
+            "Perfect! WiFi is now set up (you can create static IPs and so on later)."
+        )
+        sleep(1.5)
+
+        safe_print_step(4, OTA_BIG)
+        safe_print(
+            "Almost there! ESPHome can automatically upload custom firmwares over WiFi "
+            "(over the air) and integrates into Home Assistant with a native API."
+        )
+        safe_print()
+        sleep(0.5)
+
+        api_encryption_key = generate_encryption_key()
+
+        safe_print(
+            "For secure API communication, I've generated a random encryption key."
+        )
+        safe_print()
+        safe_print(
+            f"Your {color(AnsiFore.GREEN, 'API encryption key')} is: "
+            f"{color(AnsiFore.BOLD_WHITE, api_encryption_key)}"
+        )
+        safe_print()
+        safe_print("You'll need this key when adding the device to Home Assistant.")
+        sleep(1)
+    else:
+        ssid, psk = "", ""
+        api_encryption_key = None
+
+    kwargs = {
+        "path": path,
+        "name": name,
+        "platform": platform,
+        "board": board,
+        "ssid": ssid,
+        "psk": psk,
+        "type": "basic",
+    }
+    # The api key also secures OTA updates, so the wizard sets no OTA password
+    if api_encryption_key:
+        kwargs["api_encryption_key"] = api_encryption_key
+
+    if not wizard_write(**kwargs):
+        return 1
+
+    safe_print()
+    safe_print(
+        color(AnsiFore.CYAN, "DONE! I've now written a new configuration file to ")
+        + color(AnsiFore.BOLD_CYAN, str(path))
+    )
+    safe_print()
+    safe_print("Next steps:")
+    safe_print("  > Follow the rest of the getting started guide:")
+    safe_print(
+        "  > https://esphome.io/guides/getting_started_command_line/#adding-some-features"
+    )
+    safe_print("  > to learn how to customize ESPHome and install it to your device.")
+    return 0

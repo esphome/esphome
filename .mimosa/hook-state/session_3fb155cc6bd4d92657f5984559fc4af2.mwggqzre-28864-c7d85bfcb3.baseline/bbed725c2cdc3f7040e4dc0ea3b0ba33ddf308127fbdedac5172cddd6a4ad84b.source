@@ -1,0 +1,150 @@
+from esphome import automation
+import esphome.codegen as cg
+import esphome.config_validation as cv
+from esphome.const import (
+    CONF_DEVICE_CLASS,
+    CONF_ENTITY_CATEGORY,
+    CONF_FORCE_UPDATE,
+    CONF_ICON,
+    CONF_ID,
+    CONF_MQTT_ID,
+    DEVICE_CLASS_EMPTY,
+    DEVICE_CLASS_FIRMWARE,
+    ENTITY_CATEGORY_CONFIG,
+)
+from esphome.core import CORE, CoroPriority, coroutine_with_priority, entity_helpers
+from esphome.core.entity_helpers import (
+    entity_duplicate_validator,
+    mqtt_component_class,
+    queue_entity_register,
+    setup_device_class,
+    setup_entity,
+)
+from esphome.cpp_generator import MockObj, MockObjClass
+from esphome.types import ConfigType
+
+CODEOWNERS = ["@jesserockz"]
+DOMAIN = "update"
+IS_PLATFORM_COMPONENT = True
+
+update_ns = cg.esphome_ns.namespace("update")
+UpdateEntity = update_ns.class_("UpdateEntity", cg.EntityBase)
+
+UpdateInfo = update_ns.struct("UpdateInfo")
+
+DEVICE_CLASSES = [
+    DEVICE_CLASS_EMPTY,
+    DEVICE_CLASS_FIRMWARE,
+]
+
+CONF_ON_UPDATE_AVAILABLE = "on_update_available"
+
+_UPDATE_SCHEMA = (
+    cv.ENTITY_BASE_SCHEMA.extend(entity_helpers.WEBSERVER_SORTING_SCHEMA)
+    .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
+    .extend(
+        {
+            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(
+                mqtt_component_class("MQTTUpdateComponent")
+            ),
+            cv.Optional(
+                CONF_DEVICE_CLASS, visibility=cv.Visibility.ADVANCED
+            ): cv.one_of(*DEVICE_CLASSES, lower=True),
+            cv.Optional(CONF_ON_UPDATE_AVAILABLE): automation.validate_automation(
+                single=True
+            ),
+            cv.Optional(
+                CONF_ENTITY_CATEGORY, default=ENTITY_CATEGORY_CONFIG
+            ): cv.entity_category,
+        }
+    )
+)
+
+
+_UPDATE_SCHEMA.add_extra(entity_duplicate_validator("update"))
+
+
+def update_schema(
+    class_: MockObjClass = cv.UNDEFINED,
+    *,
+    icon: str = cv.UNDEFINED,
+    device_class: str = cv.UNDEFINED,
+    entity_category: str = cv.UNDEFINED,
+) -> cv.Schema:
+    schema = {}
+
+    if class_ is not cv.UNDEFINED:
+        schema[cv.GenerateID()] = cv.declare_id(class_)
+
+    for key, default, validator in [
+        (CONF_ICON, icon, cv.icon),
+        (CONF_DEVICE_CLASS, device_class, cv.one_of(*DEVICE_CLASSES, lower=True)),
+        (CONF_ENTITY_CATEGORY, entity_category, cv.entity_category),
+    ]:
+        if default is not cv.UNDEFINED:
+            schema[cv.Optional(key, default=default)] = validator
+
+    return _UPDATE_SCHEMA.extend(schema)
+
+
+@setup_entity("update")
+async def setup_update_core_(var: MockObj, config: ConfigType) -> None:
+    setup_device_class(config)
+
+    if on_update_available := config.get(CONF_ON_UPDATE_AVAILABLE):
+        await automation.build_automation(
+            var.get_update_available_trigger(),
+            [(UpdateInfo.operator("ref").operator("const"), "x")],
+            on_update_available,
+        )
+
+    await entity_helpers.setup_entity_integrations(var, config)
+
+
+async def register_update(var: MockObj, config: ConfigType) -> None:
+    if not CORE.has_id(config[CONF_ID]):
+        var = cg.Pvariable(config[CONF_ID], var)
+    queue_entity_register("update", config)
+    CORE.register_platform_component("update", var)
+    await setup_update_core_(var, config)
+
+
+async def new_update(config: ConfigType) -> MockObj:
+    var = cg.new_Pvariable(config[CONF_ID])
+    await register_update(var, config)
+    return var
+
+
+@coroutine_with_priority(CoroPriority.CORE)
+async def to_code(config: ConfigType) -> None:
+    cg.add_global(update_ns.using)
+
+
+automation.register_apply_action(
+    "update.perform",
+    automation.maybe_simple_id(
+        {
+            cv.GenerateID(): cv.use_id(UpdateEntity),
+            cv.Optional(
+                CONF_FORCE_UPDATE, default=False, visibility=cv.Visibility.ADVANCED
+            ): cv.templatable(cv.boolean),
+        }
+    ),
+    automation.ApplyField(CONF_FORCE_UPDATE, "perform", cg.bool_),
+)
+
+
+UPDATE_AUTOMATION_SCHEMA = automation.maybe_simple_id(
+    {
+        cv.GenerateID(): cv.use_id(UpdateEntity),
+    }
+)
+
+automation.register_apply_action(
+    "update.check", UPDATE_AUTOMATION_SCHEMA, automation.ApplyCall("check()")
+)
+automation.register_apply_condition(
+    "update.is_available",
+    UPDATE_AUTOMATION_SCHEMA,
+    "state == update::UPDATE_STATE_AVAILABLE",
+)

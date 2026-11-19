@@ -1,0 +1,45 @@
+import esphome.codegen as cg
+from esphome.components import fan, output
+from esphome.components.fan import validate_preset_modes
+import esphome.config_validation as cv
+from esphome.const import (
+    CONF_DIRECTION_OUTPUT,
+    CONF_OSCILLATION_OUTPUT,
+    CONF_OUTPUT,
+    CONF_PRESET_MODES,
+    CONF_SPEED,
+    CONF_SPEED_COUNT,
+)
+from esphome.types import ConfigType
+
+from .. import speed_ns
+
+SpeedFan = speed_ns.class_("SpeedFan", cg.Component, fan.Fan)
+
+CONFIG_SCHEMA = (
+    fan.fan_schema(SpeedFan)
+    .extend(
+        {
+            cv.Required(CONF_OUTPUT): cv.use_id(output.FloatOutput),
+            cv.Optional(CONF_OSCILLATION_OUTPUT): cv.use_id(output.BinaryOutput),
+            cv.Optional(CONF_DIRECTION_OUTPUT): cv.use_id(output.BinaryOutput),
+            cv.Optional(CONF_SPEED): cv.invalid(
+                "Configuring individual speeds is deprecated."
+            ),
+            cv.Optional(CONF_SPEED_COUNT, default=100): fan.validate_speed_count,
+            cv.Optional(CONF_PRESET_MODES): validate_preset_modes,
+        }
+    )
+    .extend(cv.COMPONENT_SCHEMA)
+)
+
+
+async def to_code(config: ConfigType) -> None:
+    var = await fan.new_fan(config, config[CONF_SPEED_COUNT])
+    await cg.register_component(var, config)
+
+    await cg.add_variable(var.set_output, config[CONF_OUTPUT])
+    await cg.add_variable(var.set_oscillating, config.get(CONF_OSCILLATION_OUTPUT))
+    await cg.add_variable(var.set_direction, config.get(CONF_DIRECTION_OUTPUT))
+
+    fan.set_preset_modes(var, config.get(CONF_PRESET_MODES, []))

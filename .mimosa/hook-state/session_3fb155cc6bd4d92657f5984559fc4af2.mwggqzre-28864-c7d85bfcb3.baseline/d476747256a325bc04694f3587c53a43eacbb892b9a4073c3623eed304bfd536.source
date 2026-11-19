@@ -1,0 +1,151 @@
+#include "pca9685_output.h"
+#include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
+
+namespace esphome::pca9685 {
+
+ESPHOME_LOG_TAG(TAG, "pca9685");
+
+// PCA9685 mode constants are now inline constexpr in pca9685_output.h
+
+static const uint8_t PCA9685_REGISTER_SOFTWARE_RESET = 0x06;
+static const uint8_t PCA9685_REGISTER_MODE1 = 0x00;
+static const uint8_t PCA9685_REGISTER_MODE2 = 0x01;
+static const uint8_t PCA9685_REGISTER_LED0 = 0x06;
+static const uint8_t PCA9685_REGISTER_PRE_SCALE = 0xFE;
+
+static const uint8_t PCA9685_MODE1_RESTART = 0b10000000;
+static const uint8_t PCA9685_MODE1_EXTCLK = 0b01000000;
+static const uint8_t PCA9685_MODE1_AUTOINC = 0b00100000;
+static const uint8_t PCA9685_MODE1_SLEEP = 0b00010000;
+
+void PCA9685Output::setup() {
+  if (!this->setup_registers_())
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+}
+
+bool PCA9685Output::setup_registers_() {
+  ESP_LOGV(TAG, "  Resetting devices");
+  if (!this->write_bytes(PCA9685_REGISTER_SOFTWARE_RESET, nullptr, 0)) {
+    return false;
+  }
+
+  if (!this->write_byte(PCA9685_REGISTER_MODE1, PCA9685_MODE1_RESTART | PCA9685_MODE1_AUTOINC)) {
+    return false;
+  }
+  if (!this->write_byte(PCA9685_REGISTER_MODE2, this->mode_)) {
+    return false;
+  }
+
+  uint8_t mode1;
+  if (!this->read_byte(PCA9685_REGISTER_MODE1, &mode1)) {
+    return false;
+  }
+  mode1 = (mode1 & ~PCA9685_MODE1_RESTART) | PCA9685_MODE1_SLEEP;
+  if (!this->write_byte(PCA9685_REGISTER_MODE1, mode1)) {
+    return false;
+  }
+
+  int pre_scaler = 3;
+  if (this->extclk_) {
+    mode1 = mode1 | PCA9685_MODE1_EXTCLK;
+    if (!this->write_byte(PCA9685_REGISTER_MODE1, mode1)) {
+      return false;
+    }
+  } else {
+    pre_scaler = static_cast<int>((25000000 / (4096 * this->frequency_)) - 1);
+    pre_scaler = clamp(pre_scaler, 3, 255);
+
+    ESP_LOGV(TAG, "  -> Prescaler: %d", pre_scaler);
+  }
+  if (!this->write_byte(PCA9685_REGISTER_PRE_SCALE, pre_scaler)) {
+    return false;
+  }
+
+  mode1 = (mode1 & ~PCA9685_MODE1_SLEEP) | PCA9685_MODE1_RESTART;
+  if (!this->write_byte(PCA9685_REGISTER_MODE1, mode1)) {
+    return false;
+  }
+  delayMicroseconds(500);
+
+  this->loop();
+  return true;
+}
+
+void PCA9685Output::dump_config() {
+  ESP_LOGCONFIG(TAG,
+                "PCA9685:\n"
+                "  Mode: 0x%02X",
+                this->mode_);
+  if (this->extclk_) {
+    ESP_LOGCONFIG(TAG, "  EXTCLK: enabled");
+  } else {
+    ESP_LOGCONFIG(TAG,
+                  "  EXTCLK: disabled\n"
+                  "  Frequency: %.0f Hz",
+                  this->frequency_);
+  }
+}
+
+void PCA9685Output::loop() {
+  if (this->min_channel_ == 0xFF || !this->update_)
+    return;
+
+  const uint16_t num_channels = this->max_channel_ - this->min_channel_ + 1;
+  const uint16_t phase_delta_begin = 4096 / num_channels;
+  for (uint8_t channel = this->min_channel_; channel <= this->max_channel_; channel++) {
+    uint16_t phase_begin;
+    switch (this->balancer_) {
+      case PhaseBalancer::NONE:
+        phase_begin = 0;
+        break;
+      case PhaseBalancer::LINEAR:
+        phase_begin = (channel - this->min_channel_) * phase_delta_begin;
+        break;
+      default:
+        ESP_LOGE(TAG, "Unknown phase balancer %d", static_cast<int>(this->balancer_));
+        return;
+    }
+    uint16_t phase_end;
+    uint16_t amount = this->pwm_amounts_[channel];
+    if (amount == 0) {
+      phase_end = 4096;
+    } else if (amount >= 4096) {
+      phase_begin = 4096;
+      phase_end = 0;
+    } else {
+      phase_end = phase_begin + amount;
+      if (phase_end >= 4096)
+        phase_end -= 4096;
+    }
+
+    ESP_LOGVV(TAG, "Channel %02u: amount=%04u phase_begin=%04u phase_end=%04u", channel, amount, phase_begin,
+              phase_end);
+
+    uint8_t data[4];
+    put_le16(data, phase_begin);
+    put_le16(data + 2, phase_end);
+
+    uint8_t reg = PCA9685_REGISTER_LED0 + 4 * channel;
+    if (!this->status_comm_check(this->write_bytes(reg, data, 4)))
+      return;
+  }
+
+  this->status_clear_warning();
+  this->update_ = false;
+}
+
+void PCA9685Output::register_channel(uint8_t channel) {
+  this->min_channel_ = std::min(this->min_channel_, channel);
+  this->max_channel_ = std::max(this->max_channel_, channel);
+}
+
+void PCA9685Output::write_channel(uint8_t channel, float state) {
+  auto value = static_cast<uint16_t>(roundf(state * 4096));
+  if (this->pwm_amounts_[channel] != value)
+    this->update_ = true;
+  this->pwm_amounts_[channel] = value;
+}
+
+}  // namespace esphome::pca9685

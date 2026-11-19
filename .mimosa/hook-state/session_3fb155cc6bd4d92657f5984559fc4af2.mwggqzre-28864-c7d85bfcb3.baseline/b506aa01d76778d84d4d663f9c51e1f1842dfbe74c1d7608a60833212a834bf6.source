@@ -1,0 +1,98 @@
+#include "template_date.h"
+
+#ifdef USE_DATETIME_DATE
+
+#include "esphome/core/log.h"
+
+namespace esphome::template_ {
+
+ESPHOME_LOG_TAG(TAG, "template.date");
+
+void TemplateDate::setup() {
+  if (this->f_.has_value())
+    return;
+
+  ESPTime state{};
+
+  if (!this->restore_value_) {
+    state = this->initial_value_;
+  } else {
+    datetime::DateEntityRestoreState temp;
+    this->pref_ = this->make_entity_preference<datetime::DateEntityRestoreState>(194434030U);
+    if (this->pref_.load(&temp)) {
+      temp.apply(this);
+      return;
+    } else {
+      // set to initial value if loading from pref failed
+      state = this->initial_value_;
+    }
+  }
+
+  this->year_ = state.year;
+  this->month_ = state.month;
+  this->day_ = state.day_of_month;
+  this->publish_state();
+}
+
+void TemplateDate::update() {
+  if (!this->f_.has_value())
+    return;
+
+  auto val = this->f_();
+  if (val.has_value()) {
+    this->year_ = val->year;
+    this->month_ = val->month;
+    this->day_ = val->day_of_month;
+    this->publish_state();
+  }
+}
+
+void TemplateDate::control(const datetime::DateCall &call) {
+  auto opt_year = call.get_year();
+  auto opt_month = call.get_month();
+  auto opt_day = call.get_day();
+  bool has_year = opt_year.has_value();
+  bool has_month = opt_month.has_value();
+  bool has_day = opt_day.has_value();
+
+  ESPTime value = {};
+  if (has_year)
+    value.year = *opt_year;
+
+  if (has_month)
+    value.month = *opt_month;
+
+  if (has_day)
+    value.day_of_month = *opt_day;
+
+  this->set_trigger_.trigger(value);
+
+  if (this->optimistic_) {
+    if (has_year)
+      this->year_ = *opt_year;
+    if (has_month)
+      this->month_ = *opt_month;
+    if (has_day)
+      this->day_ = *opt_day;
+    this->publish_state();
+  }
+
+  if (this->restore_value_) {
+    datetime::DateEntityRestoreState temp = {};
+    temp.year = opt_year.value_or(this->year_);
+    temp.month = opt_month.value_or(this->month_);
+    temp.day = opt_day.value_or(this->day_);
+
+    this->pref_.save(&temp);
+  }
+}
+
+void TemplateDate::dump_config() {
+  LOG_DATETIME_DATE("", "Template Date", this);
+  ESP_LOGCONFIG(TAG, "  Optimistic: %s", YESNO(this->optimistic_));
+  LOG_UPDATE_INTERVAL(this);
+}
+
+}  // namespace esphome::template_
+
+#endif  // USE_DATETIME_DATE

@@ -1,0 +1,28 @@
+#include "text.h"
+#include "esphome/core/defines.h"
+#include "esphome/core/controller_registry.h"
+#include "esphome/core/log.h"
+#include <cstring>
+
+namespace esphome::text {
+
+ESPHOME_LOG_TAG(TAG, "text");
+
+void Text::publish_state(const char *state, size_t len) {
+  this->set_has_state(true);
+  // Only assign if changed to avoid heap allocation
+  if (len != this->state.size() || memcmp(state, this->state.data(), len) != 0) {
+    this->state.assign(state, len);
+  }
+  if (this->traits.get_mode() == TEXT_MODE_PASSWORD) {
+    ESP_LOGV(TAG, "'%s' >> " LOG_SECRET("'%s'"), LOG_STR_ARG(this->get_log_name()), this->state.c_str());
+  } else {
+    ESP_LOGV(TAG, "'%s' >> '%s'", LOG_STR_ARG(this->get_log_name()), this->state.c_str());
+  }
+  this->state_callback_.call(this->state);
+#if defined(USE_TEXT) && defined(USE_CONTROLLER_REGISTRY)
+  ControllerRegistry::notify_text_update(this);
+#endif
+}
+
+}  // namespace esphome::text

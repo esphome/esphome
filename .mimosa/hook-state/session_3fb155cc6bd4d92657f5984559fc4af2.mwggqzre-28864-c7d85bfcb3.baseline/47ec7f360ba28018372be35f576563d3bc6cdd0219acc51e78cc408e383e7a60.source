@@ -1,0 +1,59 @@
+#include "text_call.h"
+#include "esphome/core/log.h"
+#include "text.h"
+
+namespace esphome::text {
+
+ESPHOME_LOG_TAG(TAG, "text");
+
+TextCall &TextCall::set_value(const std::string &value) {
+  this->value_ = value;
+  return *this;
+}
+
+TextCall &TextCall::set_value(const char *value, size_t len) {
+  this->value_ = std::string(value, len);
+  return *this;
+}
+
+void TextCall::validate_() {
+  const auto *name = LOG_STR_ARG(this->parent_->get_log_name());
+
+  if (!this->value_.has_value()) {
+    ESP_LOGW(TAG, "'%s' - No value set for TextCall", name);
+    return;
+  }
+
+  int sz = this->value_.value().size();
+
+  if (sz > this->parent_->traits.get_max_length()) {
+    ESP_LOGW(TAG, "'%s' - Value set for TextCall is too long", name);
+    this->value_.reset();
+    return;
+  }
+
+  if (sz < this->parent_->traits.get_min_length()) {
+    ESP_LOGW(TAG, "'%s' - Value set for TextCall is too short", name);
+    this->value_.reset();
+    return;
+  }
+}
+
+void TextCall::perform() {
+  this->validate_();
+  if (!this->value_.has_value()) {
+    ESP_LOGW(TAG, "'%s' - No value set for TextCall", LOG_STR_ARG(this->parent_->get_log_name()));
+    return;
+  }
+  std::string target_value = this->value_.value();
+
+  if (this->parent_->traits.get_mode() == TEXT_MODE_PASSWORD) {
+    ESP_LOGV(TAG, "'%s' - Setting password value: " LOG_SECRET("'%s'"), LOG_STR_ARG(this->parent_->get_log_name()),
+             target_value.c_str());
+  } else {
+    ESP_LOGV(TAG, "'%s' - Setting text value: %s", LOG_STR_ARG(this->parent_->get_log_name()), target_value.c_str());
+  }
+  this->parent_->control(target_value);
+}
+
+}  // namespace esphome::text

@@ -1,0 +1,111 @@
+from enum import Enum
+import logging
+import sys
+from typing import TextIO
+
+from esphome.core import CORE
+
+
+class AnsiFore(Enum):
+    KEEP = ""
+    BLACK = "\033[30m"
+    RED = "\033[31m"
+    GREEN = "\033[32m"
+    YELLOW = "\033[33m"
+    BLUE = "\033[34m"
+    MAGENTA = "\033[35m"
+    CYAN = "\033[36m"
+    WHITE = "\033[37m"
+    RESET = "\033[39m"
+
+    BOLD_BLACK = "\033[1;30m"
+    BOLD_RED = "\033[1;31m"
+    BOLD_GREEN = "\033[1;32m"
+    BOLD_YELLOW = "\033[1;33m"
+    BOLD_BLUE = "\033[1;34m"
+    BOLD_MAGENTA = "\033[1;35m"
+    BOLD_CYAN = "\033[1;36m"
+    BOLD_WHITE = "\033[1;37m"
+    BOLD_RESET = "\033[1;39m"
+
+
+class AnsiStyle(Enum):
+    # BOLD/BRIGHT and THIN/DIM are intentional ANSI synonyms; Enum treats the
+    # second name in each pair as an alias of the first.
+    BRIGHT = "\033[1m"
+    BOLD = "\033[1m"  # noqa: PIE796
+    DIM = "\033[2m"
+    THIN = "\033[2m"  # noqa: PIE796
+    NORMAL = "\033[22m"
+    RESET_ALL = "\033[0m"
+
+
+def color(col: AnsiFore, msg: str, reset: bool = True) -> str:
+    if col == AnsiFore.KEEP:
+        return msg
+    s = col.value + msg
+    if reset and col:
+        s += AnsiStyle.RESET_ALL.value
+    return s
+
+
+class ESPHomeLogFormatter(logging.Formatter):
+    def __init__(self, *, include_timestamp: bool):
+        fmt = "%(asctime)s " if include_timestamp else ""
+        fmt += "%(levelname)s %(message)s"
+        super().__init__(fmt=fmt, style="%")
+
+    # @override
+    def format(self, record: logging.LogRecord) -> str:
+        formatted = super().format(record)
+        prefix = {
+            "DEBUG": AnsiFore.CYAN.value,
+            "INFO": AnsiFore.GREEN.value,
+            "WARNING": AnsiFore.YELLOW.value,
+            "ERROR": AnsiFore.RED.value,
+            "CRITICAL": AnsiFore.RED.value,
+        }.get(record.levelname, "")
+        message = f"{prefix}{formatted}{AnsiStyle.RESET_ALL.value}"
+        if CORE.dashboard:
+            message = message.replace("\033", "\\033")
+        return message
+
+
+def _is_tty(stream: TextIO | None) -> bool:
+    # A stream can be missing, closed, or not a real file object; colorama
+    # tolerates all three, so treat them like a redirect and let its own
+    # handling apply.
+    if stream is None or getattr(stream, "closed", True):
+        return False
+    return hasattr(stream, "isatty") and stream.isatty()
+
+
+def setup_log(
+    log_level: int = logging.INFO,
+    include_timestamp: bool = False,
+) -> None:
+    # colorama translates ANSI escapes for old Windows consoles and strips
+    # them from redirected output. POSIX terminals render ANSI natively, and
+    # dashboard runs escape their color codes before printing, so both would
+    # use colorama as a plain passthrough; skip the import there (it pulls
+    # in ctypes, ~3ms on every CLI invocation).
+    if sys.platform == "win32" or not (
+        CORE.dashboard or (_is_tty(sys.stdout) and _is_tty(sys.stderr))
+    ):
+        import colorama
+
+        colorama.init()
+
+    # Setup logging - will map log level from string to constant
+    logging.basicConfig(level=log_level)
+
+    if logging.root.level == logging.DEBUG:
+        CORE.verbose = True
+    elif logging.root.level == logging.CRITICAL:
+        CORE.quiet = True
+
+    logging.getLogger("urllib3").setLevel(logging.WARNING)
+
+    logging.getLogger().handlers[0].setFormatter(
+        ESPHomeLogFormatter(include_timestamp=include_timestamp)
+    )

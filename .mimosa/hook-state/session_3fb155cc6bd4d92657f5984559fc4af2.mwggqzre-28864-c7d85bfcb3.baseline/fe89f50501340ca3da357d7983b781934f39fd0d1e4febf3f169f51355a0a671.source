@@ -1,0 +1,25 @@
+#include "mcp3008_sensor.h"
+
+#include "esphome/core/log.h"
+
+namespace esphome::mcp3008 {
+
+ESPHOME_LOG_TAG(TAG, "mcp3008.sensor");
+
+void MCP3008Sensor::dump_config() {
+  ESP_LOGCONFIG(TAG,
+                "MCP3008Sensor:\n"
+                "  Pin: %u\n"
+                "  Reference Voltage: %.2fV",
+                this->pin_, this->reference_voltage_);
+}
+
+float MCP3008Sensor::sample() {
+  float value_v = this->parent_->read_data(pin_);
+  value_v = (value_v * this->reference_voltage_);
+  return value_v;
+}
+
+void MCP3008Sensor::update() { this->publish_state(this->sample()); }
+
+}  // namespace esphome::mcp3008

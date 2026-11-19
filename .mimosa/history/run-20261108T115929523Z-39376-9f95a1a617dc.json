@@ -1,0 +1,68 @@
+{
+  "schemaVersion": "mimosa-finding-history/v1",
+  "runId": "20261108T115929523Z-39376-9f95a1a617dc",
+  "runStatus": "inconclusive",
+  "errors": [
+    "bash-discovery:esphome/components/internal_temperature/internal_temperature_esp32.cpp: bash_discovery_incomplete: project enumeration exceeded 5000 reviewable files",
+    "candidate-select:C:/Users/huangkongsheng/AppData/Local/Temp/mipi_test/test_mapseq.py: changed_file_unreadable: observed changed file no longer exists or cannot be read",
+    "candidate-select:tests/component_tests/mipi/test_map_sequence.py: changed_file_unreadable: observed changed file no longer exists or cannot be read",
+    "candidate-select:C:/Users/huangkongsheng/AppData/Local/Temp/push_prs.sh: changed_file_unreadable: observed changed file no longer exists or cannot be read",
+    "candidate-select:C:/Users/huangkongsheng/AppData/Local/Temp/push_dd.sh: changed_file_unreadable: observed changed file no longer exists or cannot be read",
+    "candidate-select:tests/component_tests/qspi_dbi/test_map_sequence.py: changed_file_unreadable: observed changed file no longer exists or cannot be read",
+    "candidate-select:tests/component_tests/st7701s/test_map_sequence.py: changed_file_unreadable: observed changed file no longer exists or cannot be read",
+    "candidate-select:tests/component_tests/qspi_dbi/__init__.py: changed_file_unreadable: observed changed file no longer exists or cannot be read",
+    "candidate-select:tests/component_tests/st7701s/__init__.py: changed_file_unreadable: observed changed file no longer exists or cannot be read",
+    "candidate-select:C:/Users/huangkongsheng/AppData/Local/Temp/ship_esphome6.sh: changed_file_unreadable: observed changed file no longer exists or cannot be read",
+    "candidate-select:C:/Users/huangkongsheng/AppData/Local/Temp/ship_esphome7.sh: changed_file_unreadable: observed changed file no longer exists or cannot be read",
+    "candidate-select:tests/component_tests/config_validation/test_percentage_int.py: changed_file_unreadable: observed changed file no longer exists or cannot be read",
+    "candidate-select:C:/Users/huangkongsheng/AppData/Local/Temp/ship_esphome8.sh: changed_file_unreadable: observed changed file no longer exists or cannot be read",
+    "candidate-select:C:/Users/huangkongsheng/AppData/Local/Temp/push_esphome_rebase.sh: changed_file_unreadable: observed changed file no longer exists or cannot be read",
+    "candidate-select:C:/Users/huangkongsheng/AppData/Local/Temp/push_esphome_batch2.sh: changed_file_unreadable: observed changed file no longer exists or cannot be read",
+    "baseline:.: baseline_partial: baseline capture had enumeration or snapshot errors",
+    "scan:esphome/components/mipi/__init__.py: scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+    "scan:esphome/components/sun/__init__.py: scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+    "scan:tests/component_tests/sun/test_parse_latlon.py: scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+    "scan:esphome/config_validation.py: scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+    "scan:esphome/components/time/__init__.py: scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+    "scan:tests/unit_tests/test_config_validation.py: scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+    "scan:C:/Users/huangkongsheng/AppData/Local/Temp/prcheck/push_esphome_fullmatch.sh: scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+    "scan:C:/Users/huangkongsheng/AppData/Local/Temp/prcheck/push_nr_round4.sh: scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+    "scan:C:/Users/huangkongsheng/AppData/Local/Temp/prcheck/push_esphome_envvar.sh: scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+    "scan:C:/Users/huangkongsheng/AppData/Local/Temp/prcheck/push_esphome_bytes.sh: scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+    "scan:C:/Users/huangkongsheng/AppData/Local/Temp/prcheck/push_esphome_pct.sh: scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT"
+  ],
+  "target": ".",
+  "revision": "10e9e69a308c253790fdee6149d155f3df533dd6",
+  "diffHash": "069d671c786d18427805126bd76ccc0f41058917572ccf6319844b4220db1429",
+  "rulesVersion": "unavailable",
+  "recordedAt": "2026-11-08T11:59:29.523Z",
+  "timing": {
+    "startedAt": "2026-11-08T11:59:26.604Z",
+    "completedAt": "2026-11-08T11:59:29.523Z",
+    "durationMs": 2919
+  },
+  "tokens": {
+    "input": 0,
+    "output": 0,
+    "total": 0,
+    "modelCalls": 0,
+    "measurement": "known-zero"
+  },
+  "findings": {
+    "total": 0,
+    "bySeverity": {},
+    "byStatus": {}
+  },
+  "coverage": {
+    "status": "partial",
+    "reasonCounts": {
+      "bash_discovery_incomplete": 1,
+      "changed_file_unreadable": 14,
+      "baseline_partial": 1,
+      "scanner_failed": 11,
+      "project_check_failed": 27
+    }
+  },
+  "evidenceBoundary": "static_only",
+  "immutableReport": ".mimosa/reports/task-review-session_3fb155cc6bd4d92657f5984559fc4af2-20261108T115929523Z-39376-9f95a1a617dc.json"
+}

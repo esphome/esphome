@@ -1,0 +1,60 @@
+#pragma once
+
+#include <cinttypes>
+#include <vector>
+
+#include "esphome/core/component.h"
+#include "esphome/components/sensor/sensor.h"
+#include "esphome/components/ble_device_base/ble_device.h"
+
+namespace esphome::mopeka_pro_check {
+
+enum SensorType {
+  STANDARD_BOTTOM_UP = 0x03,
+  TOP_DOWN_AIR_ABOVE = 0x04,
+  BOTTOM_UP_WATER = 0x05,
+  LIPPERT_BOTTOM_UP = 0x06,
+  PLUS_BOTTOM_UP = 0x08,
+  PRO_UNIVERSAL = 0xC  // Pro Check Universal
+
+  // all other values are reserved
+};
+
+// Sensor read quality.  If sensor is poorly placed or tank level
+// gets too low the read quality will show and the distance
+// measurement may be inaccurate.
+enum SensorReadQuality { QUALITY_HIGH = 0x3, QUALITY_MED = 0x2, QUALITY_LOW = 0x1, QUALITY_ZERO = 0x0 };
+
+class MopekaProCheck final : public Component, public ble_device_base::ESPBTDeviceListener {
+  SUB_SENSOR(level)
+  SUB_SENSOR(temperature)
+  SUB_SENSOR(battery_level)
+  SUB_SENSOR(distance)
+  SUB_SENSOR(signal_quality)
+  SUB_SENSOR(ignored_reads)
+
+ public:
+  void set_address(uint64_t address) { address_ = address; };
+
+  bool parse_device(const ble_device_base::ESPBTDevice &device) override;
+  void dump_config() override;
+  void set_min_signal_quality(SensorReadQuality min) { this->min_signal_quality_ = min; };
+
+  void set_tank_full(float full) { full_mm_ = full; };
+  void set_tank_empty(float empty) { empty_mm_ = empty; };
+
+ protected:
+  uint64_t address_;
+
+  uint32_t full_mm_;
+  uint32_t empty_mm_;
+  uint32_t ignored_read_count_ = 0;
+  SensorReadQuality min_signal_quality_ = QUALITY_MED;
+
+  uint8_t parse_battery_level_(const std::vector<uint8_t> &message);
+  uint32_t parse_distance_(const std::vector<uint8_t> &message);
+  int8_t parse_temperature_(const std::vector<uint8_t> &message);
+  SensorReadQuality parse_read_quality_(const std::vector<uint8_t> &message);
+};
+
+}  // namespace esphome::mopeka_pro_check

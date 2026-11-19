@@ -1,0 +1,437 @@
+#pragma once
+
+#include "esphome/core/component.h"
+#include "esphome/core/entity_base.h"
+#include "esphome/core/optional.h"
+#include "esphome/core/preferences.h"
+#include "esphome/core/string_ref.h"
+#include "light_call.h"
+#include "esp_color_correction.h"
+#include "light_color_values.h"
+#include "light_effect.h"
+#include "light_traits.h"
+#include "light_transformer.h"
+
+#include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/progmem.h"
+#include <strings.h>
+#include <vector>
+
+namespace esphome::light {
+
+class LightOutput;
+class LightState;
+
+/** Listener interface for light remote value changes.
+ *
+ * Components can implement this interface to receive notifications
+ * when the light's remote values change (state, brightness, color, etc.)
+ * without the overhead of std::function callbacks.
+ */
+class LightRemoteValuesListener {
+ public:
+  virtual void on_light_remote_values_update() = 0;
+};
+
+/** Listener interface for light target state reached.
+ *
+ * Components can implement this interface to receive notifications
+ * when the light finishes a transition and reaches its target state
+ * without the overhead of std::function callbacks.
+ */
+class LightTargetStateReachedListener {
+ public:
+  virtual void on_light_target_state_reached() = 0;
+};
+
+struct LightStateRTCState {
+  // Group 4-byte aligned members first
+  float brightness{1.0f};
+  float color_brightness{1.0f};
+  float red{1.0f};
+  float green{1.0f};
+  float blue{1.0f};
+  float white{1.0f};
+  float color_temp{1.0f};
+  float cold_white{1.0f};
+  float warm_white{1.0f};
+  uint32_t effect{0};
+  // Group smaller members at the end
+  ColorMode color_mode{ColorMode::UNKNOWN};
+  bool state{false};
+};
+
+/** This class represents the communication layer between the front-end MQTT layer and the
+ * hardware output layer.
+ */
+class LightState : public EntityBase, public Component {
+ public:
+  LightState(LightOutput *output);
+
+  LightTraits get_traits();
+
+  /// Make a light state call
+  LightCall turn_on();
+  LightCall turn_off();
+  LightCall toggle();
+
+  /// The values reported to the frontend: current_values while a light publishes intermediate
+  /// states on an interval, otherwise remote_values. Each interval sample is a publish_state(),
+  /// so on_state automations run on every sample as well.
+  const LightColorValues &get_reported_values() const {
+#ifdef USE_LIGHT_TRANSITION_PUBLISH_INTERVAL
+    if (this->transition_publish_enabled_) {
+      return this->current_values;
+    }
+#endif
+    return this->remote_values;
+  }
+
+  /// True from the call that starts a transition or flash until it reaches its target.
+  bool is_transitioning() const { return this->transformer_ != nullptr; }
+
+  /// True once a call is performed after clear_called(), so an output can tell whether a call came
+  /// after something it noted. Every call that changes the light reaches update_state() within a loop pass.
+  bool called_since_clear() const { return this->called_; }
+  void clear_called() { this->called_ = false; }
+  LightCall make_call();
+
+  /// Take over the state of a light mirrored from elsewhere: current and target values at once,
+  /// published but not written or saved; a running effect stops. False while a write is pending or
+  /// a transition or flash runs.
+  bool set_external_state(const LightColorValues &values);
+
+  // ========== INTERNAL METHODS ==========
+  // (In most use cases you won't need these)
+  /// Load state from preferences
+  void setup() override;
+  void dump_config() override;
+  void loop() override;
+  /// Shortly after HARDWARE.
+  float get_setup_priority() const override { return setup_priority::HARDWARE - 1.0f; }
+
+  /** The current values of the light as outputted to the light.
+   *
+   * These values represent the "real" state of the light - During transitions this
+   * property will be changed continuously (in contrast to .remote_values, where they
+   * are constant during transitions).
+   *
+   * This value does not have gamma correction applied.
+   *
+   * This property is read-only for users. Any changes to it will be ignored.
+   */
+  LightColorValues current_values;
+
+  /** The remote color values reported to the frontend.
+   *
+   * These are different from the "current" values: For example transitions will
+   * continuously change the "current" values. But the remote values will immediately
+   * switch to the target value for a transition, reducing the number of packets sent.
+   *
+   * This value does not have gamma correction applied.
+   *
+   * This property is read-only for users. Any changes to it will be ignored.
+   */
+  LightColorValues remote_values;
+
+  /// Publish the currently active state to the frontend.
+  void publish_state();
+
+  /// Get the light output associated with this object.
+  LightOutput *get_output() const;
+
+  /// Return the name of the current effect, or if no effect is active "None".
+  StringRef get_effect_name();
+
+  /** Add a listener for remote values changes.
+   * Listener is notified when the light's remote values change (state, brightness, color, etc.)
+   * Lazily allocates the listener vector on first registration.
+   */
+  void add_remote_values_listener(LightRemoteValuesListener *listener);
+
+  /** Add a listener for target state reached.
+   * Listener is notified when the light finishes a transition and reaches its target state.
+   * Lazily allocates the listener vector on first registration.
+   */
+  void add_target_state_reached_listener(LightTargetStateReachedListener *listener);
+
+  /// Set the default transition length, i.e. the transition length when no transition is provided.
+  void set_default_transition_length(uint32_t default_transition_length) {
+    this->default_transition_length_ = default_transition_length;
+  }
+  uint32_t get_default_transition_length() const { return this->default_transition_length_; }
+
+#ifdef USE_LIGHT_FLASH_TRANSITION_LENGTH
+  /// Set the flash transition length; only compiled in when a light configures one
+  void set_flash_transition_length(uint32_t flash_transition_length) {
+    this->flash_transition_length_ = flash_transition_length;
+  }
+  uint32_t get_flash_transition_length() const { return this->flash_transition_length_; }
+#else
+  // Remove before 2027.4.0
+  ESPDEPRECATED("set_flash_transition_length() does nothing unless flash_transition_length is set in YAML. Removed in "
+                "2027.4.0",
+                "2026.10.0")
+  void set_flash_transition_length(uint32_t flash_transition_length) {}
+  uint32_t get_flash_transition_length() const { return 0; }
+#endif
+
+  // Remove before 2027.4.0
+  ESPDEPRECATED("set_gamma_correct() does nothing; gamma is fixed at build time by gamma_correct in YAML. Removed in "
+                "2027.4.0",
+                "2026.10.0")
+  void set_gamma_correct(float gamma_correct) {}
+  /// The gamma correction factor, read from the entry after the gamma lookup table; 0 without one
+  float get_gamma_correct() const;
+
+#ifdef USE_LIGHT_TRANSITION_PUBLISH_INTERVAL
+  void set_transition_state_publish_interval(uint32_t transition_state_publish_interval) {
+    this->transition_state_publish_interval_ = transition_state_publish_interval;
+  }
+  uint32_t get_transition_state_publish_interval() const { return this->transition_state_publish_interval_; }
+#endif
+
+#ifdef USE_LIGHT_GAMMA_LUT
+  /// Set the pre-computed PROGMEM gamma curve
+  void set_gamma_table(const GammaTable *table) { this->gamma_table_ = table; }
+
+  /// Get the forward gamma lookup table, 256 PROGMEM entries
+  const uint16_t *get_gamma_table() const { return this->gamma_table_ != nullptr ? this->gamma_table_->lut : nullptr; }
+
+  /// Apply gamma correction using the pre-computed forward LUT
+  float gamma_correct_lut(float value) const;
+  /// Reverse gamma correction by binary-searching the forward LUT
+  float gamma_uncorrect_lut(float value) const;
+#else
+  /// No gamma LUT — passthrough
+  float gamma_correct_lut(float value) const { return value; }
+  float gamma_uncorrect_lut(float value) const { return value; }
+#endif  // USE_LIGHT_GAMMA_LUT
+
+  /// Set the callback that resolves the boot-time state, called once during setup then
+  /// cleared. `restored` is true only when a persisted state actually loaded, in which
+  /// case the state argument already holds the loaded values; otherwise it is freshly
+  /// default-constructed. Values live in flash as code.
+  void set_state_callback(void (*callback)(LightStateRTCState &, bool restored)) { this->state_callback_ = callback; }
+
+  /// Set whether this light persists its state to preferences at all.
+  void set_save_enabled(bool save_enabled) { this->save_enabled_ = save_enabled; }
+
+#ifdef USE_LIGHT_RESUME_EFFECT
+  /// Set whether a plain turn-on restores the effect that was active when the light was turned off.
+  void set_resume_effect(bool resume_effect) { this->resume_effect_ = resume_effect; }
+#endif  // USE_LIGHT_RESUME_EFFECT
+
+  /// Return whether the light has any effects that meet the trait requirements.
+  bool supports_effects() const { return !this->effects_.empty(); }
+
+  /// Get all effects for this light state.
+  const ConstVector<LightEffect *> &get_effects() const { return this->effects_; }
+
+  /// Codegen only: point at the generated table of this light's effects, which must outlive it.
+  /// Codegen caps the count at 65535, so an effect index always fits the uint16_t active index.
+  void add_effects(LightEffect *const *effects, size_t count) {
+    this->effects_ = ConstVector<LightEffect *>(effects, count);
+  }
+
+  /// Get the total number of effects available for this light.
+  size_t get_effect_count() const { return this->effects_.size(); }
+
+  /// Get the currently active effect index (0 = no effect, 1+ = effect index).
+  uint32_t get_current_effect_index() const { return this->active_effect_index_; }
+
+  /// Get effect index by name. Returns 0 if effect not found.
+  uint32_t get_effect_index(const std::string &effect_name) const {
+    if (str_equals_case_insensitive(effect_name, "none")) {
+      return 0;
+    }
+    for (size_t i = 0; i < this->effects_.size(); i++) {
+      if (str_equals_case_insensitive(effect_name, this->effects_[i]->get_name())) {
+        return i + 1;  // Effects are 1-indexed in active_effect_index_
+      }
+    }
+    return 0;  // Effect not found
+  }
+
+  /// Get effect index by name (const char* overload, avoids std::string construction).
+  uint32_t get_effect_index(const char *name, size_t len) const {
+    if (len == 4 && ESPHOME_strncasecmp_P(name, ESPHOME_PSTR("none"), 4) == 0) {
+      return 0;
+    }
+    StringRef ref(name, len);
+    for (size_t i = 0; i < this->effects_.size(); i++) {
+      if (str_equals_case_insensitive(ref, this->effects_[i]->get_name())) {
+        return i + 1;
+      }
+    }
+    return 0;
+  }
+
+  /// Get effect by index. Returns nullptr if index is invalid.
+  LightEffect *get_effect_by_index(uint32_t index) const {
+    if (index == 0 || index > this->effects_.size()) {
+      return nullptr;
+    }
+    return this->effects_[index - 1];  // Effects are 1-indexed in active_effect_index_
+  }
+
+  /// Get effect name by index. Returns "None" for index 0, empty string for invalid index.
+  std::string get_effect_name_by_index(uint32_t index) const {
+    if (index == 0) {
+      return "None";
+    }
+    if (index > this->effects_.size()) {
+      return "";  // Invalid index
+    }
+    return std::string(this->effects_[index - 1]->get_name());
+  }
+
+  /// The result of all the current_values_as_* methods have gamma correction applied.
+  void current_values_as_binary(bool *binary) { this->current_values.as_binary(binary); }
+
+  void current_values_as_brightness(float *brightness);
+
+  void current_values_as_rgb(float *red, float *green, float *blue);
+
+  void current_values_as_rgbw(float *red, float *green, float *blue, float *white);
+
+  void current_values_as_rgbww(float *red, float *green, float *blue, float *cold_white, float *warm_white,
+                               bool constant_brightness = false);
+
+  void current_values_as_rgbct(float *red, float *green, float *blue, float *color_temperature,
+                               float *white_brightness);
+
+  void current_values_as_cwww(float *cold_white, float *warm_white, bool constant_brightness = false);
+
+  void current_values_as_ct(float *color_temperature, float *white_brightness);
+
+  /**
+   * Indicator if a transformer (e.g. transition) is active. This is useful
+   * for effects e.g. at the start of the apply() method, add a check like:
+   *
+   * if (this->state_->is_transformer_active()) {
+   *   // Something is already running.
+   *   return;
+   * }
+   */
+  bool is_transformer_active() const { return this->is_transformer_active_; }
+
+ protected:
+  // The two halves of loop()
+  void apply_effect_and_transformer_();
+  void write_if_pending_();
+  friend LightOutput;
+  friend LightCall;
+  friend class AddressableLight;
+  friend class LightFlashTransformer;
+
+  /// Internal method to start an effect with the given index
+  void start_effect_(uint32_t effect_index);
+  /// Internal method to get the currently active effect
+  LightEffect *get_active_effect_();
+  /// Internal method to stop the current effect (if one is active).
+  void stop_effect_();
+  /// Internal method to start a transition to the target color with the given length.
+  void start_transition_(const LightColorValues &target, uint32_t length, bool set_remote_values);
+
+  /// Internal method to start a flash for the specified amount of time.
+  void start_flash_(const LightColorValues &target, uint32_t length, bool set_remote_values);
+
+  /// Internal method to set the color values to target immediately (with no transition).
+  void set_immediately_(const LightColorValues &target, bool set_remote_values);
+
+  /// Point remote_values at the new transformer's target and, when this light publishes
+  /// intermediate states on an interval, start the interval clock.
+#ifdef USE_LIGHT_TRANSITION_PUBLISH_INTERVAL
+  void set_transformer_remote_values_(const LightColorValues &target, bool set_remote_values);
+#else
+  void set_transformer_remote_values_(const LightColorValues &target, bool set_remote_values) {
+    if (set_remote_values) {
+      this->remote_values = target;
+    }
+  }
+#endif
+
+  /// Internal method to save the current remote_values to the preferences
+  void save_remote_values_();
+
+  /// Disable loop if neither transformer nor effect is active
+  void disable_loop_if_idle_();
+
+  /// Schedule a write to the light output and enable the loop to process it
+  void schedule_write_() {
+    this->next_write_ = true;
+    this->enable_loop();
+  }
+
+  /// Store the output to allow effects to have more access.
+  LightOutput *output_;
+  /// The currently active transformer for this light (transition/flash).
+  std::unique_ptr<LightTransformer> transformer_{nullptr};
+  /// List of effects for this light.
+  ConstVector<LightEffect *> effects_;
+  /// Object used to store the persisted values of the light.
+  ESPPreferenceObject rtc_;
+
+  /** Listeners for remote values changes.
+   *
+   * "Remote values" are light color values that are reported to the frontend and have a lower
+   * publish frequency than the "real" color values. For example, during transitions the current
+   * color value may change continuously, but the remote values will be reported as the target values
+   * starting with the beginning of the transition.
+   *
+   * Lazily allocated - only created when a listener is actually registered.
+   */
+  std::unique_ptr<std::vector<LightRemoteValuesListener *>> remote_values_listeners_;
+
+  /** Listeners for target state reached.
+   * Notified when the state of current_values and remote_values are equal
+   * (when the transition is finished).
+   *
+   * Lazily allocated - only created when a listener is actually registered.
+   */
+  std::unique_ptr<std::vector<LightTargetStateReachedListener *>> target_state_reached_listeners_;
+
+  /// Callback that resolves the boot-time state — called once during setup, then cleared.
+  /// Values live in flash as function body; no per-instance data storage beyond this pointer.
+  void (*state_callback_)(LightStateRTCState &, bool restored){nullptr};
+
+  /// Default transition length for all transitions in ms.
+  uint32_t default_transition_length_{};
+#ifdef USE_LIGHT_FLASH_TRANSITION_LENGTH
+  /// Transition length to use for flash transitions.
+  uint32_t flash_transition_length_{};  // Keep in sync with DEFAULT_FLASH_TRANSITION_LENGTH in __init__.py
+#endif
+#ifdef USE_LIGHT_TRANSITION_PUBLISH_INTERVAL
+  uint32_t transition_state_publish_interval_{0};
+  uint32_t last_transition_state_publish_{0};
+#endif
+#ifdef USE_LIGHT_GAMMA_LUT
+  const GammaTable *gamma_table_{nullptr};
+#endif  // USE_LIGHT_GAMMA_LUT
+
+  /// 1-based index of the active effect, 0 if none; codegen caps effects at MAX_EFFECTS in effects.py
+  uint16_t active_effect_index_{};
+#ifdef USE_LIGHT_RESUME_EFFECT
+  /// The effect index that was active when the light was last turned off; shares the active index's word
+  uint16_t previous_effect_index_{0};
+#endif  // USE_LIGHT_RESUME_EFFECT
+  /// Whether the light value should be written in the next cycle.
+  bool next_write_{true};  // a plain bool: it is the most written flag, and still shares the index's word
+  // for effects, true if a transformer (transition) is active.
+  bool is_transformer_active_ : 1 {false};
+  bool called_ : 1 {false};  // see called_since_clear()
+  /// Whether this light persists its state to preferences at all.
+  bool save_enabled_ : 1 {false};
+#ifdef USE_LIGHT_TRANSITION_PUBLISH_INTERVAL
+  /// True while the active transformer publishes current_values on an interval from loop().
+  bool transition_publish_enabled_ : 1 {false};
+#endif
+#ifdef USE_LIGHT_RESUME_EFFECT
+  /// Whether a plain turn-on restores the effect that was active when the light was turned off.
+  bool resume_effect_ : 1 {false};
+#endif  // USE_LIGHT_RESUME_EFFECT
+};
+
+}  // namespace esphome::light

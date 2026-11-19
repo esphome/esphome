@@ -1,0 +1,403 @@
+from esphome import automation
+import esphome.codegen as cg
+import esphome.config_validation as cv
+from esphome.const import (
+    CONF_ABOVE,
+    CONF_BELOW,
+    CONF_CYCLE,
+    CONF_DEVICE_CLASS,
+    CONF_ENTITY_CATEGORY,
+    CONF_ICON,
+    CONF_ID,
+    CONF_MODE,
+    CONF_MQTT_ID,
+    CONF_ON_VALUE,
+    CONF_ON_VALUE_RANGE,
+    CONF_OPERATION,
+    CONF_TRIGGER_ID,
+    CONF_UNIT_OF_MEASUREMENT,
+    CONF_VALUE,
+    DEVICE_CLASS_ABSOLUTE_HUMIDITY,
+    DEVICE_CLASS_APPARENT_POWER,
+    DEVICE_CLASS_AQI,
+    DEVICE_CLASS_AREA,
+    DEVICE_CLASS_ATMOSPHERIC_PRESSURE,
+    DEVICE_CLASS_BATTERY,
+    DEVICE_CLASS_BLOOD_GLUCOSE_CONCENTRATION,
+    DEVICE_CLASS_CARBON_DIOXIDE,
+    DEVICE_CLASS_CARBON_MONOXIDE,
+    DEVICE_CLASS_CONDUCTIVITY,
+    DEVICE_CLASS_CURRENT,
+    DEVICE_CLASS_DATA_RATE,
+    DEVICE_CLASS_DATA_SIZE,
+    DEVICE_CLASS_DISTANCE,
+    DEVICE_CLASS_DURATION,
+    DEVICE_CLASS_EMPTY,
+    DEVICE_CLASS_ENERGY,
+    DEVICE_CLASS_ENERGY_DISTANCE,
+    DEVICE_CLASS_ENERGY_STORAGE,
+    DEVICE_CLASS_FREQUENCY,
+    DEVICE_CLASS_GAS,
+    DEVICE_CLASS_HUMIDITY,
+    DEVICE_CLASS_ILLUMINANCE,
+    DEVICE_CLASS_IRRADIANCE,
+    DEVICE_CLASS_MOISTURE,
+    DEVICE_CLASS_MONETARY,
+    DEVICE_CLASS_NITROGEN_DIOXIDE,
+    DEVICE_CLASS_NITROGEN_MONOXIDE,
+    DEVICE_CLASS_NITROUS_OXIDE,
+    DEVICE_CLASS_OZONE,
+    DEVICE_CLASS_PH,
+    DEVICE_CLASS_PM1,
+    DEVICE_CLASS_PM4,
+    DEVICE_CLASS_PM10,
+    DEVICE_CLASS_PM25,
+    DEVICE_CLASS_POWER,
+    DEVICE_CLASS_POWER_FACTOR,
+    DEVICE_CLASS_PRECIPITATION,
+    DEVICE_CLASS_PRECIPITATION_INTENSITY,
+    DEVICE_CLASS_PRESSURE,
+    DEVICE_CLASS_RADON,
+    DEVICE_CLASS_REACTIVE_ENERGY,
+    DEVICE_CLASS_REACTIVE_POWER,
+    DEVICE_CLASS_SIGNAL_STRENGTH,
+    DEVICE_CLASS_SOUND_PRESSURE,
+    DEVICE_CLASS_SPEED,
+    DEVICE_CLASS_SULPHUR_DIOXIDE,
+    DEVICE_CLASS_TEMPERATURE,
+    DEVICE_CLASS_TEMPERATURE_DELTA,
+    DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS,
+    DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS,
+    DEVICE_CLASS_VOLTAGE,
+    DEVICE_CLASS_VOLUME,
+    DEVICE_CLASS_VOLUME_FLOW_RATE,
+    DEVICE_CLASS_VOLUME_STORAGE,
+    DEVICE_CLASS_WATER,
+    DEVICE_CLASS_WEIGHT,
+    DEVICE_CLASS_WIND_DIRECTION,
+    DEVICE_CLASS_WIND_SPEED,
+)
+from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority, entity_helpers
+from esphome.core.config import UNIT_OF_MEASUREMENT_MAX_LENGTH
+from esphome.core.entity_helpers import (
+    ApplyEntity,
+    SubEntities,
+    entity_duplicate_validator,
+    lazy_load_setup,
+    lazy_load_validator,
+    mqtt_component_class,
+    queue_entity_register,
+    setup_device_class,
+    setup_entity,
+    setup_unit_of_measurement,
+)
+from esphome.cpp_generator import MockObj, MockObjClass
+from esphome.types import ConfigType
+
+CODEOWNERS = ["@esphome/core"]
+DEVICE_CLASSES = [
+    DEVICE_CLASS_ABSOLUTE_HUMIDITY,
+    DEVICE_CLASS_APPARENT_POWER,
+    DEVICE_CLASS_AQI,
+    DEVICE_CLASS_AREA,
+    DEVICE_CLASS_ATMOSPHERIC_PRESSURE,
+    DEVICE_CLASS_BATTERY,
+    DEVICE_CLASS_BLOOD_GLUCOSE_CONCENTRATION,
+    DEVICE_CLASS_CARBON_DIOXIDE,
+    DEVICE_CLASS_CARBON_MONOXIDE,
+    DEVICE_CLASS_CONDUCTIVITY,
+    DEVICE_CLASS_CURRENT,
+    DEVICE_CLASS_DATA_RATE,
+    DEVICE_CLASS_DATA_SIZE,
+    DEVICE_CLASS_DISTANCE,
+    DEVICE_CLASS_DURATION,
+    DEVICE_CLASS_EMPTY,
+    DEVICE_CLASS_ENERGY,
+    DEVICE_CLASS_ENERGY_DISTANCE,
+    DEVICE_CLASS_ENERGY_STORAGE,
+    DEVICE_CLASS_FREQUENCY,
+    DEVICE_CLASS_GAS,
+    DEVICE_CLASS_HUMIDITY,
+    DEVICE_CLASS_ILLUMINANCE,
+    DEVICE_CLASS_IRRADIANCE,
+    DEVICE_CLASS_MOISTURE,
+    DEVICE_CLASS_MONETARY,
+    DEVICE_CLASS_NITROGEN_DIOXIDE,
+    DEVICE_CLASS_NITROGEN_MONOXIDE,
+    DEVICE_CLASS_NITROUS_OXIDE,
+    DEVICE_CLASS_OZONE,
+    DEVICE_CLASS_PH,
+    DEVICE_CLASS_PM1,
+    DEVICE_CLASS_PM10,
+    DEVICE_CLASS_PM25,
+    DEVICE_CLASS_PM4,
+    DEVICE_CLASS_POWER,
+    DEVICE_CLASS_POWER_FACTOR,
+    DEVICE_CLASS_PRECIPITATION,
+    DEVICE_CLASS_PRECIPITATION_INTENSITY,
+    DEVICE_CLASS_PRESSURE,
+    DEVICE_CLASS_RADON,
+    DEVICE_CLASS_REACTIVE_ENERGY,
+    DEVICE_CLASS_REACTIVE_POWER,
+    DEVICE_CLASS_SIGNAL_STRENGTH,
+    DEVICE_CLASS_SOUND_PRESSURE,
+    DEVICE_CLASS_SPEED,
+    DEVICE_CLASS_SULPHUR_DIOXIDE,
+    DEVICE_CLASS_TEMPERATURE,
+    DEVICE_CLASS_TEMPERATURE_DELTA,
+    DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS,
+    DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS,
+    DEVICE_CLASS_VOLTAGE,
+    DEVICE_CLASS_VOLUME,
+    DEVICE_CLASS_VOLUME_FLOW_RATE,
+    DEVICE_CLASS_VOLUME_STORAGE,
+    DEVICE_CLASS_WATER,
+    DEVICE_CLASS_WEIGHT,
+    DEVICE_CLASS_WIND_DIRECTION,
+    DEVICE_CLASS_WIND_SPEED,
+]
+DOMAIN = "number"
+IS_PLATFORM_COMPONENT = True
+
+number_ns = cg.esphome_ns.namespace("number")
+Number = number_ns.class_("Number", cg.EntityBase)
+NumberPtr = Number.operator("ptr")
+ApplyNumber = number_ns.class_("ApplyNumber", Number)
+
+# Triggers
+ValueRangeTrigger = number_ns.class_(
+    "ValueRangeTrigger", automation.Trigger.template(cg.float_), cg.Component
+)
+
+NumberMode = number_ns.enum("NumberMode")
+
+# Schema default that also matches the C++ initializer in number_traits.h; codegen
+# skips the setter when the config equals it.
+DEFAULT_MODE = "AUTO"
+
+NUMBER_MODES = NumberMode.options("AUTO", "BOX", "SLIDER", prefix="NUMBER_MODE_")
+
+NumberOperation = number_ns.enum("NumberOperation")
+
+NUMBER_OPERATION_OPTIONS = NumberOperation.options(
+    "INCREMENT", "DECREMENT", "TO_MIN", "TO_MAX", prefix="NUMBER_OP_"
+)
+
+validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
+validate_unit_of_measurement = cv.All(
+    cv.string_strict,
+    # Keep in sync with max_data_length in api.proto
+    cv.ByteLength(max=UNIT_OF_MEASUREMENT_MAX_LENGTH),
+)
+
+_NUMBER_SCHEMA = (
+    cv.ENTITY_BASE_SCHEMA.extend(entity_helpers.WEBSERVER_SORTING_SCHEMA)
+    .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
+    .extend(entity_helpers.ZIGBEE_NUMBER_SCHEMA)
+    .extend(
+        {
+            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(
+                mqtt_component_class("MQTTNumberComponent")
+            ),
+            cv.Optional(CONF_ON_VALUE): automation.validate_automation({}),
+            cv.Optional(CONF_ON_VALUE_RANGE): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ValueRangeTrigger),
+                    cv.Optional(CONF_ABOVE): cv.templatable(cv.float_),
+                    cv.Optional(CONF_BELOW): cv.templatable(cv.float_),
+                },
+                cv.has_at_least_one_key(CONF_ABOVE, CONF_BELOW),
+            ),
+            cv.Optional(
+                CONF_UNIT_OF_MEASUREMENT, visibility=cv.Visibility.ADVANCED
+            ): validate_unit_of_measurement,
+            cv.Optional(
+                CONF_MODE, default=DEFAULT_MODE, visibility=cv.Visibility.ADVANCED
+            ): cv.enum(NUMBER_MODES, upper=True),
+            cv.Optional(
+                CONF_DEVICE_CLASS, visibility=cv.Visibility.ADVANCED
+            ): validate_device_class,
+        }
+    )
+)
+
+
+_NUMBER_SCHEMA.add_extra(entity_duplicate_validator("number"))
+_NUMBER_SCHEMA.add_extra(lazy_load_validator("zigbee", "validate_number"))
+
+
+def number_schema(
+    class_: MockObjClass,
+    *,
+    icon: str = cv.UNDEFINED,
+    entity_category: str = cv.UNDEFINED,
+    device_class: str = cv.UNDEFINED,
+    unit_of_measurement: str = cv.UNDEFINED,
+) -> cv.Schema:
+    schema = {cv.GenerateID(): cv.declare_id(class_)}
+
+    for key, default, validator in [
+        (CONF_ICON, icon, cv.icon),
+        (CONF_ENTITY_CATEGORY, entity_category, cv.entity_category),
+        (CONF_DEVICE_CLASS, device_class, validate_device_class),
+        (CONF_UNIT_OF_MEASUREMENT, unit_of_measurement, validate_unit_of_measurement),
+    ]:
+        if default is not cv.UNDEFINED:
+            schema[cv.Optional(key, default=default)] = validator
+
+    return _NUMBER_SCHEMA.extend(schema)
+
+
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(
+        CONF_ON_VALUE, "add_on_state_callback", [(float, "x")]
+    ),
+)
+
+
+@coroutine_with_priority(CoroPriority.AUTOMATION)
+async def _build_number_automations(var, config):
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
+    for conf in config.get(CONF_ON_VALUE_RANGE, []):
+        trigger = await automation.new_value_range_trigger(
+            conf[CONF_TRIGGER_ID], var, conf
+        )
+        await cg.register_component(trigger, conf)
+        await automation.build_automation(trigger, [(float, "x")], conf)
+
+
+@setup_entity("number")
+async def setup_number_core_(
+    var, config, *, min_value: float, max_value: float, step: float
+):
+    cg.add(var.traits.set_min_value(min_value))
+    cg.add(var.traits.set_max_value(max_value))
+    cg.add(var.traits.set_step(step))
+
+    # Skip the setter when the config matches the C++ initializer (DEFAULT_MODE).
+    # The validated value is the enum key string, not the C++ enum expression.
+    if (mode := config[CONF_MODE]) != DEFAULT_MODE:
+        cg.add(var.traits.set_mode(mode))
+
+    CORE.add_job(_build_number_automations, var, config)
+
+    setup_device_class(config)
+    setup_unit_of_measurement(config)
+
+    await entity_helpers.setup_entity_integrations(var, config)
+
+    await lazy_load_setup(
+        "zigbee", "setup_number", var, config, min_value, max_value, step
+    )
+
+
+async def register_number(
+    var, config, *, min_value: float, max_value: float, step: float
+):
+    if not CORE.has_id(config[CONF_ID]):
+        var = cg.Pvariable(config[CONF_ID], var)
+    queue_entity_register("number", config)
+    CORE.register_platform_component("number", var)
+    await setup_number_core_(
+        var, config, min_value=min_value, max_value=max_value, step=step
+    )
+
+
+async def new_number(config, *args, min_value: float, max_value: float, step: float):
+    var = cg.new_Pvariable(config[CONF_ID], *args)
+    await register_number(
+        var, config, min_value=min_value, max_value=max_value, step=step
+    )
+    return var
+
+
+APPLY_ENTITY = ApplyEntity(
+    ApplyNumber,
+    ((NumberPtr, "entity"), (cg.float_, "value")),
+    "entity->publish_state(value);",
+)
+
+
+def sub_numbers(
+    config: ConfigType, *, parent: MockObj | ID | None = None
+) -> SubEntities:
+    """Return a SubEntities bound to new_number; ``apply`` statements can use ``entity`` and ``value``."""
+    return SubEntities(new_number, config, parent, APPLY_ENTITY)
+
+
+NUMBER_IN_RANGE_CONDITION_SCHEMA = cv.All(
+    {
+        cv.Required(CONF_ID): cv.use_id(Number),
+        cv.Optional(CONF_ABOVE): cv.float_,
+        cv.Optional(CONF_BELOW): cv.float_,
+    },
+    cv.has_at_least_one_key(CONF_ABOVE, CONF_BELOW),
+)
+
+
+automation.register_apply_condition(
+    "number.in_range",
+    NUMBER_IN_RANGE_CONDITION_SCHEMA,
+    automation.IN_RANGE_CHECK,
+    defaults=automation.IN_RANGE_DEFAULTS,
+)
+
+
+@coroutine_with_priority(CoroPriority.CORE)
+async def to_code(config):
+    cg.add_global(number_ns.using)
+
+
+OPERATION_BASE_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_ID): cv.use_id(Number),
+    }
+)
+
+
+automation.register_apply_action(
+    "number.set",
+    OPERATION_BASE_SCHEMA.extend(
+        {
+            cv.Required(CONF_VALUE): cv.templatable(cv.float_),
+        }
+    ),
+    automation.ApplyField(CONF_VALUE, "set_value", cg.float_),
+    call="make_call",
+)
+
+# The operation is fixed by the action name; CONF_MODE only stays accepted in the config.
+for _name, _mode, _cycle in (
+    ("number.increment", "INCREMENT", True),
+    ("number.decrement", "DECREMENT", True),
+    ("number.to_min", "TO_MIN", False),
+    ("number.to_max", "TO_MAX", False),
+):
+    _schema = {cv.Optional(CONF_MODE, default=_mode): cv.one_of(_mode, upper=True)}
+    _fields = [
+        automation.ApplyCall(f"with_operation({NUMBER_OPERATION_OPTIONS[_mode]})")
+    ]
+    if _cycle:
+        _schema[cv.Optional(CONF_CYCLE, default=True)] = cv.boolean
+        _fields.append(automation.ApplyField(CONF_CYCLE, "with_cycle", cg.bool_))
+    automation.register_apply_action(
+        _name,
+        automation.maybe_simple_id(OPERATION_BASE_SCHEMA.extend(_schema)),
+        *_fields,
+        call="make_call",
+    )
+
+automation.register_apply_action(
+    "number.operation",
+    OPERATION_BASE_SCHEMA.extend(
+        {
+            cv.Required(CONF_OPERATION): cv.templatable(
+                cv.enum(NUMBER_OPERATION_OPTIONS, upper=True)
+            ),
+            cv.Optional(CONF_CYCLE, default=True): cv.templatable(cv.boolean),
+        }
+    ),
+    automation.ApplyField(CONF_OPERATION, "with_operation", NumberOperation),
+    automation.ApplyField(CONF_CYCLE, "with_cycle", cg.bool_),
+    call="make_call",
+)

@@ -1,0 +1,101 @@
+from esphome import automation, pins
+import esphome.codegen as cg
+from esphome.components import i2c
+import esphome.config_validation as cv
+from esphome.const import CONF_ID, CONF_INPUT, CONF_OUTPUT, CONF_PULLUP
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
+
+CODEOWNERS = ["@looping40"]
+DOMAIN = "max6956"
+
+AUTO_LOAD = ["gpio_expander"]
+DEPENDENCIES = ["i2c"]
+MULTI_CONF = True
+
+CONF_BRIGHTNESS_MODE = "brightness_mode"
+CONF_BRIGHTNESS_GLOBAL = "brightness_global"
+
+
+max6956_ns = cg.esphome_ns.namespace("max6956")
+
+MAX6956 = max6956_ns.class_("MAX6956", cg.Component, i2c.I2CDevice)
+MAX6956GPIOPin = max6956_ns.class_("MAX6956GPIOPin", cg.GPIOPin)
+
+MAX6956_CURRENTMODE = max6956_ns.enum("MAX6956CURRENTMODE")
+CURRENT_MODES = MAX6956_CURRENTMODE.options("global", "segment")
+
+
+CONFIG_SCHEMA = (
+    cv.Schema(
+        {
+            cv.Required(CONF_ID): cv.declare_id(MAX6956),
+            cv.Optional(CONF_BRIGHTNESS_GLOBAL, default="0"): cv.int_range(
+                min=0, max=15
+            ),
+            cv.Optional(CONF_BRIGHTNESS_MODE, default="global"): cv.enum(
+                CURRENT_MODES, lower=True
+            ),
+        }
+    )
+    .extend(cv.COMPONENT_SCHEMA)
+    .extend(i2c.i2c_device_schema(0x40))
+)
+
+
+async def to_code(config: ConfigType) -> None:
+    var = await i2c.new_i2c_component(config)
+    cg.add(var.set_brightness_mode(config[CONF_BRIGHTNESS_MODE]))
+    cg.add(var.set_brightness_global(config[CONF_BRIGHTNESS_GLOBAL]))
+
+
+CONF_MAX6956 = "max6956"
+
+MAX6956_PIN_SCHEMA = pins.gpio_base_schema(
+    MAX6956GPIOPin,
+    cv.int_range(min=4, max=31),
+    modes=[CONF_INPUT, CONF_PULLUP, CONF_OUTPUT],
+    mode_validator=pins.gpio_validate_input_xor_output_pullup,
+).extend(
+    {
+        cv.Required(CONF_MAX6956): pins.use_id_or_address(MAX6956),
+    }
+)
+
+
+@pins.PIN_SCHEMA_REGISTRY.register(CONF_MAX6956, MAX6956_PIN_SCHEMA)
+async def max6956_pin_to_code(config: ConfigType) -> MockObj:
+    return await pins.new_parented_pin(config, CONF_MAX6956)
+
+
+automation.register_apply_action(
+    "max6956.set_brightness_global",
+    cv.maybe_simple_value(
+        {
+            cv.GenerateID(CONF_ID): cv.use_id(MAX6956),
+            cv.Required(CONF_BRIGHTNESS_GLOBAL): cv.templatable(
+                cv.int_range(min=0, max=15)
+            ),
+        },
+        key=CONF_BRIGHTNESS_GLOBAL,
+    ),
+    automation.ApplyField(CONF_BRIGHTNESS_GLOBAL, "set_brightness_global", cg.uint8),
+    automation.ApplyCall("write_brightness_global()"),
+)
+
+automation.register_apply_action(
+    "max6956.set_brightness_mode",
+    cv.maybe_simple_value(
+        {
+            cv.Required(CONF_ID): cv.use_id(MAX6956),
+            cv.Required(CONF_BRIGHTNESS_MODE): cv.templatable(
+                cv.enum(CURRENT_MODES, lower=True)
+            ),
+        },
+        key=CONF_BRIGHTNESS_MODE,
+    ),
+    automation.ApplyField(
+        CONF_BRIGHTNESS_MODE, "set_brightness_mode", MAX6956_CURRENTMODE
+    ),
+    automation.ApplyCall("write_brightness_mode()"),
+)

@@ -1,0 +1,102 @@
+#include "mqtt_valve.h"
+#include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
+
+#include "mqtt_const.h"
+
+#ifdef USE_MQTT
+#ifdef USE_VALVE
+
+namespace esphome::mqtt {
+
+ESPHOME_LOG_TAG(TAG, "mqtt.valve");
+
+using namespace esphome::valve;
+
+static ProgmemStr valve_state_to_mqtt_str(ValveOperation operation, float position, bool supports_position) {
+  if (operation == VALVE_OPERATION_OPENING)
+    return ESPHOME_F("opening");
+  if (operation == VALVE_OPERATION_CLOSING)
+    return ESPHOME_F("closing");
+  if (position == VALVE_CLOSED)
+    return ESPHOME_F("closed");
+  if (position == VALVE_OPEN)
+    return ESPHOME_F("open");
+  if (supports_position)
+    return ESPHOME_F("open");
+  return ESPHOME_F("unknown");
+}
+
+MQTTValveComponent::MQTTValveComponent(Valve *valve) : valve_(valve) {}
+void MQTTValveComponent::setup() {
+  auto traits = this->valve_->get_traits();
+  this->valve_->add_on_state_callback([this]() { this->publish_state(); });
+  this->subscribe(this->command_topic_source_(), [this](const std::string &topic, const std::string &payload) {
+    auto call = this->valve_->make_call();
+    call.set_command(payload.c_str());
+    call.perform();
+  });
+  if (traits.get_supports_position()) {
+    this->subscribe(this->get_position_command_topic_source(),
+                    [this](const std::string &topic, const std::string &payload) {
+                      auto value = parse_number<float>(payload);
+                      if (!value.has_value()) {
+                        ESP_LOGW(TAG, "Invalid position value: '%s'", payload.c_str());
+                        return;
+                      }
+                      auto call = this->valve_->make_call();
+                      call.set_position(*value / 100.0f);
+                      call.perform();
+                    });
+  }
+}
+
+void MQTTValveComponent::dump_config() {
+  auto traits = this->valve_->get_traits();
+  bool has_command_topic = traits.get_supports_position();
+  LOG_MQTT_COMPONENT(true, has_command_topic);
+  if (traits.get_supports_position()) {
+    ESP_LOGCONFIG(TAG,
+                  "  Position State Topic: '%s'\n"
+                  "  Position Command Topic: '%s'",
+                  this->get_position_state_topic().c_str(), this->get_position_command_topic().c_str());
+  }
+}
+void MQTTValveComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
+  // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
+  auto traits = this->valve_->get_traits();
+  if (traits.get_is_assumed_state()) {
+    root[MQTT_OPTIMISTIC] = true;
+  }
+  if (traits.get_supports_position()) {
+    root[MQTT_POSITION_TOPIC] = this->get_position_state_topic();
+    root[MQTT_SET_POSITION_TOPIC] = this->get_position_command_topic();
+  }
+  // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
+}
+
+MQTT_COMPONENT_TYPE(MQTTValveComponent, "valve")
+const EntityBase *MQTTValveComponent::get_entity() const { return this->valve_; }
+
+bool MQTTValveComponent::send_initial_state() { return this->publish_state(); }
+bool MQTTValveComponent::publish_state() {
+  auto traits = this->valve_->get_traits();
+  bool success = true;
+  char topic_buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
+  if (traits.get_supports_position()) {
+    char pos[VALUE_ACCURACY_MAX_LEN];
+    size_t len = value_accuracy_to_buf(pos, roundf(this->valve_->position * 100), 0);
+    if (!this->publish(this->get_position_state_topic_to(topic_buf), pos, len))
+      success = false;
+  }
+  if (!this->publish(this->get_state_topic_to_(topic_buf),
+                     valve_state_to_mqtt_str(this->valve_->current_operation, this->valve_->position,
+                                             traits.get_supports_position())))
+    success = false;
+  return success;
+}
+
+}  // namespace esphome::mqtt
+
+#endif
+#endif  // USE_MQTT

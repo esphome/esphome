@@ -1,0 +1,367 @@
+#include "mitsubishi.h"
+#include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
+
+namespace esphome::mitsubishi {
+
+ESPHOME_LOG_TAG(TAG, "mitsubishi.climate");
+
+// IR frame size for Mitsubishi climate
+static constexpr size_t MITSUBISHI_FRAME_SIZE = 18;
+
+const uint8_t MITSUBISHI_OFF = 0x00;
+
+const uint8_t MITSUBISHI_MODE_AUTO = 0x20;
+const uint8_t MITSUBISHI_MODE_COOL = 0x18;
+const uint8_t MITSUBISHI_MODE_DRY = 0x10;
+const uint8_t MITSUBISHI_MODE_FAN_ONLY = 0x38;
+const uint8_t MITSUBISHI_MODE_HEAT = 0x08;
+
+const uint8_t MITSUBISHI_MODE_A_HEAT = 0x00;
+const uint8_t MITSUBISHI_MODE_A_DRY = 0x02;
+const uint8_t MITSUBISHI_MODE_A_COOL = 0x06;
+const uint8_t MITSUBISHI_MODE_A_AUTO = 0x06;
+
+const uint8_t MITSUBISHI_WIDE_VANE_SWING = 0xC0;
+
+const uint8_t MITSUBISHI_FAN_AUTO = 0x00;
+
+const uint8_t MITSUBISHI_VERTICAL_VANE_MASK = 0x38;  // Bits 3,4,5
+const uint8_t MITSUBISHI_VERTICAL_VANE_SWING = 0x38;
+
+// const uint8_t MITSUBISHI_AUTO = 0x80;
+const uint8_t MITSUBISHI_OTHERWISE = 0x40;
+const uint8_t MITSUBISHI_POWERFUL = 0x08;
+
+// Optional presets used to enable some model features
+const uint8_t MITSUBISHI_ECONOCOOL = 0x20;
+const uint8_t MITSUBISHI_NIGHTMODE = 0xC1;
+
+// Pulse parameters in usec
+const uint16_t MITSUBISHI_BIT_MARK = 430;
+static constexpr remote_base::BitTimings MITSUBISHI_BIT_TIMINGS{
+    .bit_mark = MITSUBISHI_BIT_MARK, .one_space = 1250, .zero_space = 390};
+const uint16_t MITSUBISHI_HEADER_MARK = 3500;
+const uint16_t MITSUBISHI_HEADER_SPACE = 1700;
+const uint16_t MITSUBISHI_MIN_GAP = 17500;
+
+// Marker bytes
+const uint8_t MITSUBISHI_BYTE00 = 0x23;
+const uint8_t MITSUBISHI_BYTE01 = 0xCB;
+const uint8_t MITSUBISHI_BYTE02 = 0x26;
+const uint8_t MITSUBISHI_BYTE03 = 0x01;
+const uint8_t MITSUBISHI_BYTE04 = 0x00;
+const uint8_t MITSUBISHI_BYTE13 = 0x00;
+
+// Byte 7 codes for 61°F through 88°F. Bit 4 is the half degree bit Mitsubishi uses so every Fahrenheit degree
+// maps to its own code.
+static const uint8_t FAHRENHEIT_CODES[] PROGMEM = {0x00, 0x10, 0x01, 0x11, 0x02, 0x12, 0x03, 0x04, 0x05, 0x15,
+                                                   0x06, 0x16, 0x07, 0x17, 0x08, 0x18, 0x09, 0x19, 0x0a, 0x1a,
+                                                   0x0b, 0x1b, 0x0c, 0x1c, 0x0d, 0x1d, 0x0e, 0x0f};
+static constexpr uint8_t FAHRENHEIT_MIN = 61;
+static constexpr uint8_t MITSUBISHI_HALF_DEGREE = 0x10;
+
+static uint8_t fahrenheit_code(float celsius) {
+  int fahrenheit = (int) roundf(celsius_to_fahrenheit(celsius));
+  size_t index = clamp<int>(fahrenheit - FAHRENHEIT_MIN, 0, sizeof(FAHRENHEIT_CODES) - 1);
+  return progmem_read_byte(&FAHRENHEIT_CODES[index]);
+}
+
+// In Fahrenheit mode a code from the table decodes to the exact Fahrenheit value. Any other code, and every code in
+// Celsius mode, is a whole degree plus the half degree bit, which a remote set to Fahrenheit also sets.
+static float decode_temperature(uint8_t code, bool fahrenheit) {
+  if (fahrenheit) {
+    for (size_t i = 0; i < sizeof(FAHRENHEIT_CODES); i++) {
+      if (code == progmem_read_byte(&FAHRENHEIT_CODES[i])) {
+        return fahrenheit_to_celsius(FAHRENHEIT_MIN + i);
+      }
+    }
+  }
+  return MITSUBISHI_TEMP_MIN + (code & 0x0F) + ((code & MITSUBISHI_HALF_DEGREE) ? 0.5f : 0.0f);
+}
+
+void MitsubishiClimate::transmit_state() {
+  // Byte 0-4: Constant: 0x23, 0xCB, 0x26, 0x01, 0x00
+  // Byte 5: On=0x20, Off: 0x00
+  // Byte 6: MODE (See MODEs above (Heat/Dry/Cool/Auto/FanOnly)
+  // Byte 7: TEMP bits 0,1,2,3, added to MITSUBISHI_TEMP_MIN
+  //          Example: 0x00 = 0°C+MITSUBISHI_TEMP_MIN = 16°C; 0x07 = 7°C+MITSUBISHI_TEMP_MIN = 23°C
+  // Byte 8: MODE_A & Wide Vane (if present)
+  //          MODE_A bits 0,1,2 different than Byte 6 (See MODE_As above)
+  //          Wide Vane bits 4,5,6,7 (Middle = 0x30)
+  // Byte 9: FAN/Vertical Vane/Switch To Auto
+  //          FAN (Speed) bits 0,1,2
+  //          Vertical Vane bits 3,4,5 (Auto = 0x00)
+  //          Switch To Auto bits 6,7
+  // Byte 10: CLOCK Current time as configured on remote (0x00=Not used)
+  // Byte 11: END CLOCK Stop time of HVAC (0x00 for no setting)
+  // Byte 12: START CLOCK Start time of HVAC (0x00 for no setting)
+  // Byte 13: Constant 0x00
+  // Byte 14: HVAC specific, i.e. ECONO COOL, CLEAN MODE, always 0x00
+  // Byte 15: HVAC specific, i.e. POWERFUL, SMART SET, PLASMA, always 0x00
+  // Byte 16: Left vane control (for specific models). Constants match right vane controls.
+  // Byte 17: Checksum: SUM[Byte0...Byte16]
+  uint8_t remote_state[MITSUBISHI_FRAME_SIZE] = {0x23, 0xCB, 0x26, 0x01, 0x00, 0x20, 0x00, 0x00, 0x00,
+                                                 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+
+  switch (this->mode) {
+    case climate::CLIMATE_MODE_HEAT:
+      remote_state[6] = MITSUBISHI_MODE_HEAT;
+      remote_state[8] = MITSUBISHI_MODE_A_HEAT;
+      break;
+    case climate::CLIMATE_MODE_DRY:
+      remote_state[6] = MITSUBISHI_MODE_DRY;
+      remote_state[8] = MITSUBISHI_MODE_A_DRY;
+      break;
+    case climate::CLIMATE_MODE_COOL:
+      remote_state[6] = MITSUBISHI_MODE_COOL;
+      remote_state[8] = MITSUBISHI_MODE_A_COOL;
+      break;
+    case climate::CLIMATE_MODE_HEAT_COOL:
+      remote_state[6] = MITSUBISHI_MODE_AUTO;
+      remote_state[8] = MITSUBISHI_MODE_A_AUTO;
+      break;
+    case climate::CLIMATE_MODE_FAN_ONLY:
+      remote_state[6] = MITSUBISHI_MODE_FAN_ONLY;
+      remote_state[8] = MITSUBISHI_MODE_A_AUTO;
+      break;
+    case climate::CLIMATE_MODE_OFF:
+    default:
+      remote_state[6] = MITSUBISHI_MODE_COOL;
+      remote_state[8] = MITSUBISHI_MODE_A_COOL;
+      if (this->modes_.count(climate::CLIMATE_MODE_HEAT)) {
+        remote_state[6] = MITSUBISHI_MODE_HEAT;
+        remote_state[8] = MITSUBISHI_MODE_A_HEAT;
+      }
+      remote_state[5] = MITSUBISHI_OFF;
+      break;
+  }
+
+  // Temperature
+  if (this->mode == climate::CLIMATE_MODE_DRY) {
+    remote_state[7] = 24 - MITSUBISHI_TEMP_MIN;  // Remote sends always 24°C if "Dry" mode is selected
+  } else if (this->fahrenheit_compatibility_) {
+    remote_state[7] = fahrenheit_code(this->target_temperature);
+  } else {
+    remote_state[7] = (uint8_t) roundf(
+        clamp<float>(this->target_temperature, MITSUBISHI_TEMP_MIN, MITSUBISHI_TEMP_MAX) - MITSUBISHI_TEMP_MIN);
+  }
+
+  // Wide Vane
+  switch (this->swing_mode) {
+    case climate::CLIMATE_SWING_HORIZONTAL:
+    case climate::CLIMATE_SWING_BOTH:
+      remote_state[8] = remote_state[8] | MITSUBISHI_WIDE_VANE_SWING;  // Wide Vane Swing
+      break;
+    case climate::CLIMATE_SWING_OFF:
+    default:
+      remote_state[8] = remote_state[8] | this->default_horizontal_direction_;  // Off--> horizontal default position
+      break;
+  }
+
+  ESP_LOGD(TAG, "default_horizontal_direction_: %02X", this->default_horizontal_direction_);
+
+  // Fan Speed & Vertical Vane
+  // Map of Climate fan mode to this device expected value
+  // For 3Level: Low = 1, Medium = 2, High = 3
+  // For 4Level: Low = 1, Middle = 2, Medium = 3, High = 4
+  // For 5Level: Low = 1, Middle = 2, Medium = 3, High = 4
+  // For 4Level + Quiet: Low = 1, Middle = 2, Medium = 3, High = 4, Quiet = 5
+
+  switch (this->fan_mode.value_or(climate::CLIMATE_FAN_ON)) {
+    case climate::CLIMATE_FAN_LOW:
+      remote_state[9] = 1;
+      break;
+    case climate::CLIMATE_FAN_MEDIUM:
+      remote_state[9] = this->fan_mode_ == MITSUBISHI_FAN_3L ? 2 : 3;
+      break;
+    case climate::CLIMATE_FAN_HIGH:
+      remote_state[9] = this->fan_mode_ == MITSUBISHI_FAN_3L ? 3 : 4;
+      break;
+    case climate::CLIMATE_FAN_MIDDLE:
+      remote_state[9] = 2;
+      break;
+    case climate::CLIMATE_FAN_QUIET:
+      remote_state[9] = 5;
+      break;
+    default:
+      remote_state[9] = MITSUBISHI_FAN_AUTO;
+      break;
+  }
+
+  ESP_LOGD(TAG, "fan: %02x state: %02x", static_cast<uint8_t>(this->fan_mode.value_or(climate::CLIMATE_FAN_ON)),
+           remote_state[9]);
+
+  // Vertical Vane
+  switch (this->swing_mode) {
+    case climate::CLIMATE_SWING_VERTICAL:
+    case climate::CLIMATE_SWING_BOTH:
+      remote_state[9] = remote_state[9] | MITSUBISHI_VERTICAL_VANE_SWING | MITSUBISHI_OTHERWISE;  // Vane Swing
+      break;
+    case climate::CLIMATE_SWING_OFF:
+    default:
+      remote_state[9] = remote_state[9] | this->default_vertical_direction_ |
+                        MITSUBISHI_OTHERWISE;  // Off--> vertical default position
+      break;
+  }
+
+  ESP_LOGD(TAG, "Vertical default: 0x%02X, vanes: %u", this->default_vertical_direction_, this->vertical_vanes_);
+
+  // Special modes
+  switch (this->preset.value_or(climate::CLIMATE_PRESET_NONE)) {
+    case climate::CLIMATE_PRESET_ECO:
+      remote_state[6] = MITSUBISHI_MODE_COOL | MITSUBISHI_OTHERWISE;
+      remote_state[8] = (remote_state[8] & ~7) | MITSUBISHI_MODE_A_COOL;
+      remote_state[14] = MITSUBISHI_ECONOCOOL;
+      break;
+    case climate::CLIMATE_PRESET_SLEEP:
+      remote_state[9] = MITSUBISHI_FAN_AUTO;
+      remote_state[14] = MITSUBISHI_NIGHTMODE;
+      break;
+    case climate::CLIMATE_PRESET_BOOST:
+      remote_state[6] |= MITSUBISHI_OTHERWISE;
+      remote_state[15] = MITSUBISHI_POWERFUL;
+      break;
+    case climate::CLIMATE_PRESET_NONE:
+    default:
+      break;
+  }
+
+  if (this->vertical_vanes_ > 1) {
+    // Heads with two vertical vanes carry the left vane in byte 16; it follows the right one, presets included
+    remote_state[16] = remote_state[9] & MITSUBISHI_VERTICAL_VANE_MASK;
+  }
+
+  // Checksum
+  remote_state[17] = sum_bytes(remote_state, 17);
+
+  ESP_LOGD_HEX(TAG, remote_state, MITSUBISHI_FRAME_SIZE, MITSUBISHI_FRAME_SIZE, "sending: %s");
+
+  auto transmit = this->transmitter_->transmit();
+  auto *data = transmit.get_data();
+
+  data->set_carrier_frequency(38000);
+  // repeat twice
+  for (uint8_t r = 0; r < 2; r++) {
+    // Header
+    data->mark(MITSUBISHI_HEADER_MARK);
+    data->space(MITSUBISHI_HEADER_SPACE);
+    // Data
+    data->item_bytes<MITSUBISHI_BIT_TIMINGS>(remote_state, sizeof(remote_state));
+    // Footer
+    if (r == 0) {
+      data->mark(MITSUBISHI_BIT_MARK);
+      data->space(MITSUBISHI_MIN_GAP);  // Pause before repeating
+    }
+  }
+  data->mark(MITSUBISHI_BIT_MARK);
+
+  transmit.perform();
+}
+
+bool MitsubishiClimate::parse_state_frame_(const uint8_t frame[]) { return false; }
+
+bool MitsubishiClimate::on_receive(remote_base::RemoteReceiveData data) {
+  uint8_t state_frame[MITSUBISHI_FRAME_SIZE];
+
+  if (!data.expect_item(MITSUBISHI_HEADER_MARK, MITSUBISHI_HEADER_SPACE)) {
+    ESP_LOGV(TAG, "Header fail");
+    return false;
+  }
+
+  // Check Header && Footer. Byte 16 only ever carries the left vane position (bits 3,4,5).
+  if (!data.expect_bytes<MITSUBISHI_BIT_TIMINGS>(state_frame, sizeof(state_frame)) ||
+      state_frame[0] != MITSUBISHI_BYTE00 || state_frame[1] != MITSUBISHI_BYTE01 ||
+      state_frame[2] != MITSUBISHI_BYTE02 || state_frame[3] != MITSUBISHI_BYTE03 ||
+      state_frame[4] != MITSUBISHI_BYTE04 || state_frame[13] != MITSUBISHI_BYTE13 ||
+      (state_frame[16] & ~MITSUBISHI_VERTICAL_VANE_MASK) != 0) {
+    ESP_LOGV(TAG, "Bit decode or bytes 0,1,2,3,4,13 or 16 fail");
+    return false;
+  }
+
+  // On/Off and Mode
+  if (state_frame[5] == MITSUBISHI_OFF) {
+    this->mode = climate::CLIMATE_MODE_OFF;
+  } else {
+    switch (state_frame[6]) {
+      case MITSUBISHI_MODE_HEAT:
+        this->mode = climate::CLIMATE_MODE_HEAT;
+        break;
+      case MITSUBISHI_MODE_DRY:
+        this->mode = climate::CLIMATE_MODE_DRY;
+        break;
+      case MITSUBISHI_MODE_COOL:
+        this->mode = climate::CLIMATE_MODE_COOL;
+        break;
+      case MITSUBISHI_MODE_FAN_ONLY:
+        this->mode = climate::CLIMATE_MODE_FAN_ONLY;
+        break;
+      case MITSUBISHI_MODE_AUTO:
+        this->mode = climate::CLIMATE_MODE_HEAT_COOL;
+        break;
+    }
+  }
+
+  // Temp
+  this->target_temperature = decode_temperature(state_frame[7], this->fahrenheit_compatibility_);
+
+  // Fan
+  uint8_t fan = state_frame[9] & 0x07;  //(Bit 0,1,2 = Speed)
+  // Map of Climate fan mode to this device expected value
+  // For 3Level: Low = 1, Medium = 2, High = 3
+  // For 4Level: Low = 1, Middle = 2, Medium = 3, High = 4
+  // For 5Level: Low = 1, Middle = 2, Medium = 3, High = 4
+  // For 4Level + Quiet: Low = 1, Middle = 2, Medium = 3, High = 4, Quiet = 5
+  climate::ClimateFanMode modes_mapping[8] = {
+      climate::CLIMATE_FAN_AUTO,
+      climate::CLIMATE_FAN_LOW,
+      this->fan_mode_ == MITSUBISHI_FAN_3L ? climate::CLIMATE_FAN_MEDIUM : climate::CLIMATE_FAN_MIDDLE,
+      this->fan_mode_ == MITSUBISHI_FAN_3L ? climate::CLIMATE_FAN_HIGH : climate::CLIMATE_FAN_MEDIUM,
+      climate::CLIMATE_FAN_HIGH,
+      climate::CLIMATE_FAN_QUIET,
+      climate::CLIMATE_FAN_AUTO,
+      climate::CLIMATE_FAN_AUTO};
+  this->fan_mode = modes_mapping[fan];
+
+  // Wide Vane
+  uint8_t wide_vane = state_frame[8] & 0xF0;  // Bits 4,5,6,7
+  switch (wide_vane) {
+    case MITSUBISHI_WIDE_VANE_SWING:
+      this->swing_mode = climate::CLIMATE_SWING_HORIZONTAL;
+      break;
+    default:
+      this->swing_mode = climate::CLIMATE_SWING_OFF;
+      break;
+  }
+
+  // Vertical Vane
+  // On dual vane heads, the left vane is in [16] and right vane is in [9]. Left is ignored here because
+  // the swing_mode enum doesn't convey that level of detail.
+  uint8_t vertical_vane = state_frame[9] & MITSUBISHI_VERTICAL_VANE_MASK;
+  switch (vertical_vane) {
+    case MITSUBISHI_VERTICAL_VANE_SWING:
+      if (this->swing_mode == climate::CLIMATE_SWING_HORIZONTAL) {
+        this->swing_mode = climate::CLIMATE_SWING_BOTH;
+      } else {
+        this->swing_mode = climate::CLIMATE_SWING_VERTICAL;
+      }
+      break;
+  }
+
+  switch (state_frame[14]) {
+    case MITSUBISHI_ECONOCOOL:
+      this->preset = climate::CLIMATE_PRESET_ECO;
+      break;
+    case MITSUBISHI_NIGHTMODE:
+      this->preset = climate::CLIMATE_PRESET_SLEEP;
+      break;
+  }
+
+  ESP_LOGV_HEX(TAG, state_frame, MITSUBISHI_FRAME_SIZE, MITSUBISHI_FRAME_SIZE, "Receiving: %s");
+
+  this->publish_state();
+  return true;
+}
+
+}  // namespace esphome::mitsubishi

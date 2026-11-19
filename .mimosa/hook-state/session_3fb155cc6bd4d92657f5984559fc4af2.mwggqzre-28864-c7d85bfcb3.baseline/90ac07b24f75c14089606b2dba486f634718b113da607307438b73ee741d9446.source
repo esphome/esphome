@@ -1,0 +1,152 @@
+#pragma once
+#include "esphome/core/defines.h"
+#ifdef USE_WIREGUARD
+#include <ctime>
+
+#include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
+#include "esphome/components/time/real_time_clock.h"
+
+#ifdef USE_BINARY_SENSOR
+#include "esphome/components/binary_sensor/binary_sensor.h"
+#endif
+
+#ifdef USE_SENSOR
+#include "esphome/components/sensor/sensor.h"
+#endif
+
+#ifdef USE_TEXT_SENSOR
+#include "esphome/components/text_sensor/text_sensor.h"
+#endif
+
+#include <esp_wireguard.h>
+
+namespace esphome::wireguard {
+
+/// Allowed IP entry for WireGuard peer configuration.
+struct AllowedIP {
+  const char *ip;
+  const char *netmask;
+};
+
+/// Main Wireguard component class.
+class Wireguard final : public PollingComponent {
+#ifdef USE_BINARY_SENSOR
+  SUB_BINARY_SENSOR(status)
+  SUB_BINARY_SENSOR(enabled)
+#endif
+#ifdef USE_SENSOR
+  SUB_SENSOR(handshake)
+#endif
+#ifdef USE_TEXT_SENSOR
+  SUB_TEXT_SENSOR(address)
+#endif
+
+ public:
+  void setup() override;
+  void loop() override;
+  void update() override;
+  void dump_config() override;
+  void on_shutdown() override;
+  bool can_proceed() override;
+
+  float get_setup_priority() const override { return esphome::setup_priority::BEFORE_CONNECTION; }
+
+  void set_address(const char *address) { this->address_ = address; }
+  void set_netmask(const char *netmask) { this->netmask_ = netmask; }
+  void set_private_key(const char *key) { this->private_key_ = key; }
+  void set_peer_endpoint(const char *endpoint) { this->peer_endpoint_ = endpoint; }
+  void set_peer_public_key(const char *key) { this->peer_public_key_ = key; }
+  void set_peer_port(uint16_t port) { this->peer_port_ = port; }
+  void set_preshared_key(const char *key) { this->preshared_key_ = key; }
+
+  /// Prevent accidental use of std::string which would dangle
+  void set_address(const std::string &address) = delete;
+  void set_netmask(const std::string &netmask) = delete;
+  void set_private_key(const std::string &key) = delete;
+  void set_peer_endpoint(const std::string &endpoint) = delete;
+  void set_peer_public_key(const std::string &key) = delete;
+  void set_preshared_key(const std::string &key) = delete;
+
+  /// Table ended by an entry with a null ip; must outlive the component.
+  void set_allowed_ips(const AllowedIP *ips) { this->allowed_ips_ = ips; }
+
+  void set_keepalive(const uint16_t seconds) { this->keepalive_ = seconds; }
+  void set_reboot_timeout(const uint32_t seconds) { this->reboot_timeout_ = seconds; }
+  void set_srctime(time::RealTimeClock *srctime) { this->srctime_ = srctime; }
+
+  /// Block the setup step until peer is connected.
+  void disable_auto_proceed() { this->proceed_allowed_ = false; }
+
+  /// Enable the WireGuard component.
+  void enable();
+
+  /// Stop any running connection and disable the WireGuard component.
+  void disable();
+
+  /// Publish the enabled state if the enabled binary sensor is configured.
+  void publish_enabled_state();
+
+  /// Return if the WireGuard component is or is not enabled.
+  bool is_enabled() { return this->enabled_; }
+
+  bool is_peer_up() const;
+  time_t get_latest_handshake() const;
+
+ protected:
+  const char *address_{nullptr};
+  const char *netmask_{nullptr};
+  const char *private_key_{nullptr};
+  const char *peer_endpoint_{nullptr};
+  const char *peer_public_key_{nullptr};
+  const char *preshared_key_{nullptr};
+
+  const AllowedIP *allowed_ips_{nullptr};
+
+  uint16_t peer_port_;
+  uint16_t keepalive_;
+  uint32_t reboot_timeout_;
+
+  time::RealTimeClock *srctime_;
+
+  /// Set to false to block the setup step until peer is connected.
+  bool proceed_allowed_ = true;
+
+  /// When false the wireguard link will not be established
+  bool enabled_ = true;
+
+  wireguard_config_t wg_config_ = ESP_WIREGUARD_CONFIG_DEFAULT();
+  wireguard_ctx_t wg_ctx_ = ESP_WIREGUARD_CONTEXT_DEFAULT();
+
+  esp_err_t wg_initialized_ = ESP_FAIL;
+  esp_err_t wg_connected_ = ESP_FAIL;
+
+  /// The last time the remote peer become offline.
+  uint32_t wg_peer_offline_time_ = 0;
+  uint32_t wg_reconnect_time_ = 0;
+
+  /** \brief The latest saved handshake.
+   *
+   * This is used to save (and log) the latest completed handshake even
+   * after a full refresh of the wireguard keys (for example after a
+   * stop/start connection cycle).
+   */
+  time_t latest_saved_handshake_ = 0;
+
+  void start_connection_();
+  void stop_connection_();
+};
+
+// These are used for possibly long DNS resolution to temporarily suspend the watchdog
+void suspend_wdt();
+void resume_wdt();
+
+/// Size of buffer required for mask_key_to: 5 chars + "[...]=" + null = 12
+static constexpr size_t MASK_KEY_BUFFER_SIZE = 12;
+static constexpr uint32_t RECONNECT_INTERVAL_MS = 30000;
+
+/// Strip most part of the key only for secure printing
+void mask_key_to(char *buffer, size_t len, const char *key);
+
+}  // namespace esphome::wireguard
+#endif

@@ -1,0 +1,84 @@
+#pragma once
+
+#ifdef USE_RP2
+
+#include "esphome/core/color.h"
+#include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
+
+#include "esphome/components/light/addressable_light.h"
+#include "esphome/components/light/channel_colors.h"
+#include "esphome/components/light/light_output.h"
+
+#include <hardware/dma.h>
+#include <hardware/pio.h>
+#include <hardware/structs/pio.h>
+#include <pico/stdio.h>
+#include <pico/sem.h>
+
+namespace esphome::rp2040_pio_led_strip {
+
+using init_fn = void (*)(PIO pio, uint sm, uint offset, uint pin, float freq);
+
+class RP2040PIOLEDStripLightOutput final : public light::AddressableLight {
+ public:
+  void setup() override;
+  void write_state(light::LightState *state) override;
+  float get_setup_priority() const override;
+
+  int32_t size() const override { return this->num_leds_; }
+  light::LightTraits get_traits() override { return this->internal_accessor_.channel_colors.traits(); }
+  void set_pin(uint8_t pin) { this->pin_ = pin; }
+  void set_num_leds(uint32_t num_leds) { this->num_leds_ = num_leds; }
+  void set_channel_colors(light::ChannelColors channel_colors) {
+    this->internal_accessor_.channel_colors = channel_colors;
+  }
+
+  /// Call after set_num_leds() and set_channel_colors().
+  void set_buffer(uint8_t *buffer) { this->internal_accessor_.set_buffer(buffer, this->num_leds_); }
+
+  void set_max_refresh_rate(float interval_us) { this->max_refresh_rate_ = interval_us; }
+
+  void set_pio(int pio_num) { pio_num ? this->pio_ = pio1 : this->pio_ = pio0; }
+  void set_program(const pio_program_t *program) { this->program_ = program; }
+  void set_init_function(init_fn init) { this->init_ = init; }
+
+  void clear_effect_data() override { this->internal_accessor_.clear_effect_data(this->num_leds_); }
+
+  void dump_config() override;
+
+ protected:
+  size_t get_buffer_size_() const { return this->num_leds_ * this->internal_accessor_.channel_colors.bytes_per_led(); }
+
+  static void dma_write_complete_handler();
+
+  light::CorrectedBufferColorAccessor internal_accessor_{nullptr, nullptr, {0, 1, 2}, &this->correction_};
+
+  uint8_t pin_;
+  uint32_t num_leds_;
+
+  pio_hw_t *pio_;
+  uint sm_;
+  uint dma_chan_;
+  dma_channel_config dma_config_;
+
+  float max_refresh_rate_;
+
+  const pio_program_t *program_;
+  init_fn init_;
+
+ private:
+  // Programs loaded into each PIO; strips with the same timings share one program pointer
+  struct LoadedPrograms {
+    const pio_program_t *program[NUM_PIO_STATE_MACHINES];
+    uint8_t offset[NUM_PIO_STATE_MACHINES];
+    uint8_t strips;
+  };
+  inline static LoadedPrograms loaded_programs[2];
+  inline static bool dma_chan_active[NUM_DMA_CHANNELS];
+  inline static struct semaphore dma_write_complete_sem[NUM_DMA_CHANNELS];
+};
+
+}  // namespace esphome::rp2040_pio_led_strip
+
+#endif  // USE_RP2

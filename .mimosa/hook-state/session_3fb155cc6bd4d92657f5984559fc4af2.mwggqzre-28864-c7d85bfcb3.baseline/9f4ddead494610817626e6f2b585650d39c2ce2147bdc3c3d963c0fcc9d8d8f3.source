@@ -1,0 +1,88 @@
+#pragma once
+
+#include "esphome/core/component.h"
+#include "esphome/core/defines.h"
+#include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
+
+#include <span>
+
+#ifdef USE_SPI
+#include "esphome/components/spi/spi.h"
+#endif
+
+namespace esphome::sn74hc595 {
+
+class SN74HC595Component : public Component {
+ public:
+  SN74HC595Component() = default;
+
+  void setup() override = 0;
+  float get_setup_priority() const override;
+  void dump_config() override;
+
+  void set_latch_pin(GPIOPin *pin) { this->latch_pin_ = pin; }
+  void set_oe_pin(GPIOPin *pin) { this->oe_pin_ = pin; }
+  /// `output_bytes` holds one byte per register, a static array from code generation
+  void set_output_bytes(std::span<uint8_t> output_bytes) { this->output_bytes_ = output_bytes; }
+
+ protected:
+  friend class SN74HC595GPIOPin;
+  void digital_write_(uint16_t pin, bool value);
+  virtual void write_gpio();
+
+  void pre_setup_();
+  void post_setup_();
+
+  GPIOPin *latch_pin_;
+  GPIOPin *oe_pin_{nullptr};
+  std::span<uint8_t> output_bytes_;
+};
+
+/// Helper class to expose a SC74HC595 pin as an internal output GPIO pin.
+class SN74HC595GPIOPin final : public GPIOPin, public Parented<SN74HC595Component> {
+ public:
+  void setup() override {}
+  void pin_mode(gpio::Flags flags) override {}
+  bool digital_read() override { return false; }
+  void digital_write(bool value) override;
+  size_t dump_summary(char *buffer, size_t len) const override;
+
+  void set_pin(uint16_t pin) { pin_ = pin; }
+  void set_inverted(bool inverted) { inverted_ = inverted; }
+
+  /// Always returns `gpio::Flags::FLAG_OUTPUT`.
+  gpio::Flags get_flags() const override { return gpio::Flags::FLAG_OUTPUT; }
+
+ protected:
+  uint16_t pin_;
+  bool inverted_;
+};
+
+class SN74HC595GPIOComponent final : public SN74HC595Component {
+ public:
+  void setup() override;
+  void set_data_pin(GPIOPin *pin) { data_pin_ = pin; }
+  void set_clock_pin(GPIOPin *pin) { clock_pin_ = pin; }
+
+ protected:
+  void write_gpio() override;
+
+  GPIOPin *data_pin_;
+  GPIOPin *clock_pin_;
+};
+
+#ifdef USE_SPI
+class SN74HC595SPIComponent final : public SN74HC595Component,
+                                    public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
+                                                          spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_4MHZ> {
+ public:
+  void setup() override;
+
+ protected:
+  void write_gpio() override;
+};
+
+#endif
+
+}  // namespace esphome::sn74hc595

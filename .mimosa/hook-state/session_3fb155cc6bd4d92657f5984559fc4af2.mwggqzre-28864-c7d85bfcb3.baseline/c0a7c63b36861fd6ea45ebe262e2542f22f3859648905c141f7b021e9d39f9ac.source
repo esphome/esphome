@@ -1,0 +1,69 @@
+#include "pid_climate_sensor.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
+
+namespace esphome::pid {
+
+ESPHOME_LOG_TAG(TAG, "pid.sensor");
+
+void PIDClimateSensor::setup() {
+  this->parent_->add_on_pid_computed_callback([this]() { this->update_from_parent_(); });
+  this->update_from_parent_();
+}
+void PIDClimateSensor::update_from_parent_() {
+  float value;
+  switch (this->type_) {
+    case PID_SENSOR_TYPE_RESULT:
+      value = this->parent_->get_output_value() * 100.0f;
+      break;
+    case PID_SENSOR_TYPE_ERROR:
+      value = this->parent_->get_error_value() * 100.0f;
+      break;
+    case PID_SENSOR_TYPE_PROPORTIONAL:
+      value = this->parent_->get_proportional_term() * 100.0f;
+      break;
+    case PID_SENSOR_TYPE_INTEGRAL:
+      value = this->parent_->get_integral_term() * 100.0f;
+      break;
+    case PID_SENSOR_TYPE_DERIVATIVE:
+      value = this->parent_->get_derivative_term() * 100.0f;
+      break;
+    case PID_SENSOR_TYPE_HEAT:
+      value = clamp(this->parent_->get_output_value(), 0.0f, 1.0f) * 100.0f;
+      break;
+    case PID_SENSOR_TYPE_COOL:
+      value = clamp(-this->parent_->get_output_value(), 0.0f, 1.0f) * 100.0f;
+      break;
+    case PID_SENSOR_TYPE_KP:
+      value = this->parent_->get_kp();
+      break;
+    case PID_SENSOR_TYPE_KI:
+      value = this->parent_->get_ki();
+      break;
+    case PID_SENSOR_TYPE_KD:
+      value = this->parent_->get_kd();
+      break;
+    case PID_SENSOR_TYPE_DEADBAND_THRESHOLD_HIGH:
+      value = this->parent_->get_threshold_high();
+      break;
+    case PID_SENSOR_TYPE_DEADBAND_THRESHOLD_LOW:
+      value = this->parent_->get_threshold_low();
+      break;
+    case PID_SENSOR_TYPE_KP_DEADBAND_MULTIPLIER:
+      value = this->parent_->get_kp_multiplier();
+      break;
+    case PID_SENSOR_TYPE_KI_DEADBAND_MULTIPLIER:
+      value = this->parent_->get_ki_multiplier();
+      break;
+    case PID_SENSOR_TYPE_KD_DEADBAND_MULTIPLIER:
+      value = this->parent_->get_kd_multiplier();
+      break;
+    default:
+      value = NAN;
+      break;
+  }
+  this->publish_state(value);
+}
+void PIDClimateSensor::dump_config() { LOG_SENSOR("", "PID Climate Sensor", this); }
+
+}  // namespace esphome::pid

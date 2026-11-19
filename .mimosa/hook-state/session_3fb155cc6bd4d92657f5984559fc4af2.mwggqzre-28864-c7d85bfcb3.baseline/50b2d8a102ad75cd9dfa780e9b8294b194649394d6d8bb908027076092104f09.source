@@ -1,0 +1,38 @@
+#pragma once
+
+#include "remote_base.h"
+
+#include <cinttypes>
+
+/* Based on protocol analysis from
+ * https://arduino-irremote.github.io/Arduino-IRremote/ir__MagiQuest_8hpp_source.html
+ */
+
+namespace esphome::remote_base {
+
+// Older decoders read the wand id 5 bits too early, so ids in older configs lack its 5 low bits.
+static constexpr uint8_t MAGIQUEST_LEGACY_WAND_ID_SHIFT = 5;
+
+struct MagiQuestData {
+  uint16_t magnitude;
+  uint32_t wand_id;
+
+  // Not symmetric: `this` is the decoded frame and `rhs` the configured match. A configured wand_id of 0 matches
+  // any wand. Magnitude is not compared; it appears to encode the cast type rather than a strength. The legacy
+  // match applies to every configured id, so an id below 2^26 also matches the 32 wands whose full id shifts to it.
+  bool operator==(const MagiQuestData &rhs) const {
+    return rhs.wand_id == 0 || rhs.wand_id == this->wand_id ||
+           rhs.wand_id == (this->wand_id >> MAGIQUEST_LEGACY_WAND_ID_SHIFT);
+  }
+};
+
+class MagiQuestProtocol : public RemoteProtocol<MagiQuestData> {
+ public:
+  void encode(RemoteTransmitData *dst, const MagiQuestData &data);
+  optional<MagiQuestData> decode(RemoteReceiveData src);
+  void dump(const MagiQuestData &data);
+};
+
+DECLARE_REMOTE_PROTOCOL(MagiQuest)
+
+}  // namespace esphome::remote_base

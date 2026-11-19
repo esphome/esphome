@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "mimosa-hook-status/v1",
+  "recordedAt": "2026-11-19T03:57:43.535Z",
+  "sessionId": "session_3fb155cc6bd4d92657f5984559fc4af2",
+  "event": "PostToolUse",
+  "toolName": "Edit",
+  "file": "esphome/components/sensor/__init__.py",
+  "outcome": "clear",
+  "coverage": "complete",
+  "findingCount": 0,
+  "durationMs": 86,
+  "hostState": "hook_complete",
+  "reportHint": ".mimosa/reports/"
+}

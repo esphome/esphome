@@ -1,0 +1,1230 @@
+from collections.abc import Awaitable, Callable, Iterator
+from dataclasses import dataclass, field
+import functools
+from importlib import import_module
+from importlib.util import find_spec
+import logging
+import re
+from typing import Any, Literal, get_args
+
+from esphome.automation import apply_static_function, parent_ref
+import esphome.codegen as cg
+import esphome.config_validation as cv
+from esphome.const import (
+    CONF_CLUSTER,
+    CONF_DEVICE_CLASS,
+    CONF_DEVICE_ID,
+    CONF_DISABLED_BY_DEFAULT,
+    CONF_ENDPOINT,
+    CONF_ENTITY_CATEGORY,
+    CONF_ICON,
+    CONF_ID,
+    CONF_INTERNAL,
+    CONF_MAX_TEMPERATURE,
+    CONF_MIN_TEMPERATURE,
+    CONF_MQTT_ID,
+    CONF_NAME,
+    CONF_PLATFORM,
+    CONF_REPORT,
+    CONF_SORTING_GROUP_ID,
+    CONF_SORTING_WEIGHT,
+    CONF_UNIT_OF_MEASUREMENT,
+    CONF_USE_DEVICE_TYPE,
+    CONF_VISUAL,
+    CONF_WEB_SERVER,
+    CONF_WEB_SERVER_ID,
+    CONF_ZIGBEE_BINARY_SENSOR,
+    CONF_ZIGBEE_ID,
+    CONF_ZIGBEE_NUMBER,
+    CONF_ZIGBEE_SENSOR,
+    CONF_ZIGBEE_SWITCH,
+    UNIT_CELSIUS,
+)
+from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
+from esphome.core.config import (
+    DEVICE_CLASS_MAX_LENGTH,
+    ICON_MAX_LENGTH,
+    UNIT_OF_MEASUREMENT_MAX_LENGTH,
+)
+from esphome.cpp_generator import (
+    LambdaExpression,
+    MockObj,
+    MockObjClass,
+    RawExpression,
+    RawStatement,
+    add,
+    get_variable,
+)
+from esphome.cpp_types import TEMPERATURE_UNITS, App
+import esphome.final_validate as fv
+from esphome.helpers import (
+    cpp_string_escape,
+    fnv1_hash,
+    fnv1_hash_object_id,
+    sanitize,
+    snake_case,
+)
+from esphome.loader import get_component, get_platform
+from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
+from esphome.types import ConfigType, EntityMetadata, Expression, SafeExpType
+
+_LOGGER = logging.getLogger(__name__)
+
+DOMAIN = "entity_string_pool"
+
+# Private config keys for storing registered string indices
+_KEY_DC_IDX = "_entity_dc_idx"
+_KEY_UOM_IDX = "_entity_uom_idx"
+_KEY_ICON_IDX = "_entity_icon_idx"
+_KEY_ENTITY_NAME = "_entity_name"
+_KEY_OBJECT_ID_HASH = "_entity_object_id_hash"
+
+# Bit layout for entity_fields in configure_entity_().
+# Keep in sync with ENTITY_FIELD_*_SHIFT constants in esphome/core/entity_base.h
+_DC_SHIFT = 0
+_UOM_SHIFT = 8
+_ICON_SHIFT = 16
+_INTERNAL_SHIFT = 24
+_DISABLED_BY_DEFAULT_SHIFT = 25
+_ENTITY_CATEGORY_SHIFT = 26
+
+# Private config keys for storing flags
+_KEY_INTERNAL = "_entity_internal"
+_KEY_DISABLED_BY_DEFAULT = "_entity_disabled_by_default"
+_KEY_ENTITY_CATEGORY = "_entity_category"
+
+# Private config key for the App.register_<method> entry point.
+# When set, finalize_entity_strings() emits a single combined call
+# `App.register_<method>(var, name, hash, packed)` instead of separate
+# `App.register_<method>(var)` and `var->configure_entity_(...)` calls.
+_KEY_REGISTER_METHOD = "_entity_register_method"
+
+# Maximum unique strings per category (8-bit index, 0 = not set)
+_MAX_DEVICE_CLASSES = 0xFF  # 255
+_MAX_UNITS = 0xFF  # 255
+_MAX_ICONS = 0xFF  # 255
+
+
+@dataclass
+class EntityStringPool:
+    """Pool of entity string properties for PROGMEM pointer tables.
+
+    Strings are registered during to_code() and assigned 1-based indices.
+    Index 0 means "not set" (empty string). At render time, the pool
+    generates C++ PROGMEM pointer table + lookup function per category.
+    """
+
+    device_classes: dict[str, int] = field(default_factory=dict)
+    units: dict[str, int] = field(default_factory=dict)
+    icons: dict[str, int] = field(default_factory=dict)
+    tables_registered: bool = False
+
+
+def _get_pool() -> EntityStringPool:
+    """Get or create the entity string pool from CORE.data."""
+    if DOMAIN not in CORE.data:
+        CORE.data[DOMAIN] = EntityStringPool()
+    return CORE.data[DOMAIN]
+
+
+def _ensure_tables_registered() -> None:
+    """Schedule the table generation job (once)."""
+    pool = _get_pool()
+    if pool.tables_registered:
+        return
+    pool.tables_registered = True
+    CORE.add_job(_generate_tables_job)
+
+
+def _generate_category_code(
+    table_var: str,
+    lookup_fn: str,
+    strings: dict[str, int],
+    *,
+    progmem_strings: bool = False,
+) -> str:
+    """Generate C++ code for one string category (PROGMEM pointer table + lookup).
+
+    Uses a PROGMEM array of string pointers. On ESP8266, pointers are stored
+    in flash (via PROGMEM) and read with progmem_read_ptr(). String literals
+    themselves remain in RAM but benefit from linker string deduplication.
+    Index 0 means "not set" and returns empty string.
+
+    When progmem_strings=True, each string is declared as a separate PROGMEM
+    char array. This ensures the string data itself is in flash on ESP8266
+    (where .rodata is RAM). On other platforms PROGMEM is a no-op.
+    """
+    if not strings:
+        return ""
+
+    sorted_strings = sorted(strings.items(), key=lambda x: x[1])
+    count = len(sorted_strings)
+
+    if progmem_strings:
+        # Emit individual PROGMEM char arrays so string data lives in flash
+        lines: list[str] = []
+        var_names: list[str] = []
+        for i, (s, _) in enumerate(sorted_strings):
+            var_name = f"{table_var}_STR_{i}"
+            var_names.append(var_name)
+            lines.append(
+                f"static const char {var_name}[] PROGMEM = {cpp_string_escape(s)};"
+            )
+        entries = ", ".join(var_names)
+        # Empty string must also be PROGMEM — on ESP8266, callers use strncpy_P
+        empty_var = f"{table_var}_EMPTY"
+        lines.append(f'static const char {empty_var}[] PROGMEM = "";')
+        lines.append(f"static const char *const {table_var}[] PROGMEM = {{{entries}}};")
+        lines.append(f"const char *{lookup_fn}(uint8_t index) {{")
+        lines.append(f"  if (index == 0 || index > {count}) return {empty_var};")
+        lines.append(f"  return progmem_read_ptr(&{table_var}[index - 1]);")
+        lines.append("}")
+        return "\n".join(lines) + "\n"
+
+    entries = ", ".join(cpp_string_escape(s) for s, _ in sorted_strings)
+
+    return (
+        f"static const char *const {table_var}[] PROGMEM = {{{entries}}};\n"
+        f"const char *{lookup_fn}(uint8_t index) {{\n"
+        f'  if (index == 0 || index > {count}) return "";\n'
+        f"  return progmem_read_ptr(&{table_var}[index - 1]);\n"
+        f"}}\n"
+    )
+
+
+_CATEGORY_CONFIGS = (
+    ("ENTITY_DC_TABLE", "entity_device_class_lookup", "device_classes", True),
+    ("ENTITY_UOM_TABLE", "entity_uom_lookup", "units", False),
+    ("ENTITY_ICON_TABLE", "entity_icon_lookup", "icons", True),
+)
+
+
+@coroutine_with_priority(CoroPriority.FINAL)
+async def _generate_tables_job() -> None:
+    """Generate all entity string table C++ code as a FINAL-priority job.
+
+    Runs after all component to_code() calls have registered their strings.
+    """
+    pool = _get_pool()
+    parts = ["namespace esphome {"]
+    for table_var, lookup_fn, attr, progmem_strs in _CATEGORY_CONFIGS:
+        code = _generate_category_code(
+            table_var, lookup_fn, getattr(pool, attr), progmem_strings=progmem_strs
+        )
+        if code:
+            parts.append(code)
+    parts.append("}  // namespace esphome")
+    cg.add_global(RawStatement("\n".join(parts)))
+
+
+def _register_string(
+    value: str, category: dict[str, int], max_count: int, category_name: str
+) -> int:
+    """Register a string in a category dict and return its 1-based index.
+
+    Returns 0 if value is empty/None (meaning "not set").
+    """
+    if not value:
+        return 0
+    if value in category:
+        return category[value]
+    idx = len(category) + 1
+    if idx > max_count:
+        raise ValueError(
+            f"Too many unique {category_name} values (max {max_count}), got {idx}: '{value}'"
+        )
+    category[value] = idx
+    _ensure_tables_registered()
+    return idx
+
+
+def register_device_class(value: str) -> int:
+    """Register a device_class string and return its 1-based index."""
+    byte_len = len(value.encode("utf-8")) if value else 0
+    if byte_len > DEVICE_CLASS_MAX_LENGTH:
+        raise ValueError(
+            f"Device class string too long ({byte_len} bytes, max {DEVICE_CLASS_MAX_LENGTH}): '{value}'"
+        )
+    return _register_string(
+        value, _get_pool().device_classes, _MAX_DEVICE_CLASSES, "device_class"
+    )
+
+
+def register_unit_of_measurement(value: str) -> int:
+    """Register a unit_of_measurement string and return its 1-based index."""
+    byte_len = len(value.encode("utf-8")) if value else 0
+    if byte_len > UNIT_OF_MEASUREMENT_MAX_LENGTH:
+        raise ValueError(
+            f"Unit of measurement string too long ({byte_len} bytes, "
+            f"max {UNIT_OF_MEASUREMENT_MAX_LENGTH}): '{value}'"
+        )
+    return _register_string(value, _get_pool().units, _MAX_UNITS, "unit_of_measurement")
+
+
+def register_icon(value: str) -> int:
+    """Register an icon string and return its 1-based index."""
+    byte_len = len(value.encode("utf-8")) if value else 0
+    if byte_len > ICON_MAX_LENGTH:
+        raise ValueError(
+            f"Icon string too long ({byte_len} bytes, max {ICON_MAX_LENGTH}): '{value}'"
+        )
+    return _register_string(value, _get_pool().icons, _MAX_ICONS, "icon")
+
+
+def setup_device_class(config: ConfigType) -> None:
+    """Register config's device_class and store its index for finalize_entity_strings."""
+    idx = register_device_class(config.get(CONF_DEVICE_CLASS, ""))
+    if idx:
+        cg.add_define("USE_ENTITY_DEVICE_CLASS")
+    config[_KEY_DC_IDX] = idx
+
+
+def setup_unit_of_measurement(config: ConfigType) -> None:
+    """Register config's unit_of_measurement and store its index for finalize_entity_strings."""
+    idx = register_unit_of_measurement(config.get(CONF_UNIT_OF_MEASUREMENT, ""))
+    if idx:
+        cg.add_define("USE_ENTITY_UNIT_OF_MEASUREMENT")
+    config[_KEY_UOM_IDX] = idx
+
+
+def _sanitize_comment(text: str) -> str:
+    r"""Sanitize a string for safe inclusion in a C++ // line comment.
+
+    Dangerous characters:
+    - \n, \r: break out of line comment, next line becomes code
+    - \: at end of line, splices next line into comment (eats real code)
+    """
+    return text.replace("\\", "/").replace("\n", " ").replace("\r", "")
+
+
+def _describe_packed_flags(config: ConfigType, entity_category: int) -> str:
+    """Build a human-readable description of packed entity flags for C++ comments."""
+    parts: list[str] = []
+    if config.get(_KEY_INTERNAL):
+        parts.append("internal")
+    if config.get(_KEY_DISABLED_BY_DEFAULT):
+        parts.append("disabled_by_default")
+    entity_cat_keys = list(cv.ENTITY_CATEGORIES)
+    if entity_category < len(entity_cat_keys) and (
+        cat_name := entity_cat_keys[entity_category]
+    ):
+        parts.append(f"category:{cat_name}")
+    if config.get(_KEY_DC_IDX) and (dc := config.get(CONF_DEVICE_CLASS)):
+        parts.append(f"dc:{_sanitize_comment(dc)}")
+    if config.get(_KEY_UOM_IDX) and (uom := config.get(CONF_UNIT_OF_MEASUREMENT)):
+        parts.append(f"uom:{_sanitize_comment(uom)}")
+    if config.get(_KEY_ICON_IDX) and (icon := config.get(CONF_ICON)):
+        parts.append(f"icon:{_sanitize_comment(icon)}")
+    return ", ".join(parts)
+
+
+def queue_entity_register(method_name: str, config: ConfigType) -> None:
+    """Defer ``App.register_<method_name>(var)`` emission to ``finalize_entity_strings``.
+
+    When the deferred call is emitted, it is folded with ``configure_entity_`` into
+    a single ``App.register_<method_name>(var, name, hash, packed)`` call site,
+    which removes one statement and one method dispatch per entity from the
+    generated ``main.cpp``.
+    """
+    config[_KEY_REGISTER_METHOD] = method_name
+
+
+def finalize_entity_strings(var: MockObj, config: ConfigType) -> None:
+    """Emit the entity-registration / configure_entity_ tail.
+
+    Call this at the end of each component's setup function, after
+    setup_entity() and any register_device_class/register_unit_of_measurement calls.
+
+    If queue_entity_register() was called for this entity, emits one combined call
+    ``App.register_<method>(var, name, hash, packed)``. Otherwise falls back to a
+    standalone ``var->configure_entity_(name, hash, packed)``.
+    """
+    entity_name = RawExpression(
+        f"ESPHOME_PSTR({cpp_string_escape(config[_KEY_ENTITY_NAME])})"
+    )
+    object_id_hash = config[_KEY_OBJECT_ID_HASH]
+    dc_idx = config.get(_KEY_DC_IDX, 0)
+    uom_idx = config.get(_KEY_UOM_IDX, 0)
+    icon_idx = config.get(_KEY_ICON_IDX, 0)
+    internal = config.get(_KEY_INTERNAL, 0)
+    disabled_by_default = config.get(_KEY_DISABLED_BY_DEFAULT, 0)
+    entity_category = config.get(_KEY_ENTITY_CATEGORY, 0)
+    packed = (
+        (dc_idx << _DC_SHIFT)
+        | (uom_idx << _UOM_SHIFT)
+        | (icon_idx << _ICON_SHIFT)
+        | (internal << _INTERNAL_SHIFT)
+        | (disabled_by_default << _DISABLED_BY_DEFAULT_SHIFT)
+        | (entity_category << _ENTITY_CATEGORY_SHIFT)
+    )
+    # Build inline comment describing the packed flags for readability
+    comment = _describe_packed_flags(config, entity_category)
+    register_method = config.get(_KEY_REGISTER_METHOD)
+    if register_method is not None:
+        expr = getattr(App, f"register_{register_method}")(
+            var, entity_name, object_id_hash, packed
+        )
+    else:
+        expr = var.configure_entity_(entity_name, object_id_hash, packed)
+    if comment:
+        add(RawStatement(f"{expr};  // {comment}"))
+    else:
+        add(expr)
+
+
+def get_base_entity_object_id(
+    name: str, friendly_name: str | None, device_name: str | None = None
+) -> str:
+    """Calculate the base object ID for an entity that will be set via set_object_id().
+
+    This function calculates what object_id_c_str_ should be set to in C++.
+
+    The C++ EntityBase::write_object_id_to() (entity_base.cpp) works as:
+    - If !has_own_name && is_name_add_mac_suffix_enabled():
+        return str_sanitize(str_snake_case(App.get_friendly_name()))  // Dynamic
+    - Else:
+        return object_id_c_str_ ?? ""  // What we set via set_object_id()
+
+    Since we're calculating what to pass to set_object_id(), we always need to
+    generate the object_id the same way, regardless of name_add_mac_suffix setting.
+
+    Args:
+        name: The entity name (empty string if no name)
+        friendly_name: The friendly name from CORE.friendly_name
+        device_name: The device name if entity is on a sub-device
+
+    Returns:
+        The base object ID to use for duplicate checking and to pass to set_object_id()
+    """
+
+    if name:
+        # Entity has its own name (has_own_name will be true)
+        base_str = name
+    elif device_name:
+        # Entity has empty name and is on a sub-device
+        # C++ EntityBase::set_name() uses device->get_name() when device is set
+        base_str = device_name
+    elif friendly_name:
+        # Entity has empty name (has_own_name will be false)
+        # C++ uses App.get_friendly_name() which returns friendly_name or device name
+        base_str = friendly_name
+    else:
+        # Fallback to device name
+        base_str = CORE.name
+
+    return sanitize(snake_case(base_str))
+
+
+def setup_entity(var_or_platform, config=None, platform=None):
+    """Set up entity properties — works as both decorator and direct call.
+
+    Decorator mode::
+
+        @setup_entity("sensor")
+        async def setup_sensor_core_(var, config):
+            setup_device_class(config)
+            setup_unit_of_measurement(config)
+            ...
+
+    Direct call mode (for entities with no extra string properties)::
+
+        await setup_entity(var, config, "camera")
+    """
+    if isinstance(var_or_platform, str) and config is None:
+        # Decorator mode: @setup_entity("sensor")
+        platform = var_or_platform
+
+        def decorator(func: Callable) -> Callable:
+            @functools.wraps(func)
+            async def wrapper(
+                var: MockObj, config: ConfigType, *args, **kwargs
+            ) -> None:
+                await _setup_entity_impl(var, config, platform)
+                await func(var, config, *args, **kwargs)
+                finalize_entity_strings(var, config)
+
+            return wrapper
+
+        return decorator
+
+    # Direct call mode: await setup_entity(var, config, "camera")
+    async def _do() -> None:
+        await _setup_entity_impl(var_or_platform, config, platform)
+        finalize_entity_strings(var_or_platform, config)
+
+    return _do()
+
+
+async def _setup_entity_impl(var: MockObj, config: ConfigType, platform: str) -> None:
+    """Set up generic properties of an Entity (internal implementation).
+
+    This function sets up the common entity properties like name, icon,
+    entity category, etc.
+
+    Args:
+        var: The entity variable to set up
+        config: Configuration dictionary containing entity settings
+        platform: The platform name (e.g., "sensor", "binary_sensor")
+    """
+    # Get device info if configured
+    if device_id_obj := config.get(CONF_DEVICE_ID):
+        device: MockObj = await get_variable(device_id_obj)
+        add(var.set_device_(device))
+
+    # Pre-compute entity name and object_id hash for configure_entity_()
+    # which is emitted later by finalize_entity_strings().
+    # For named entities: pre-compute hash from entity name
+    # For empty-name entities: pass 0, C++ calculates hash at runtime from
+    # device name, friendly_name, or app name (bug-for-bug compatibility)
+    entity_name = config[CONF_NAME]
+    object_id_hash = fnv1_hash_object_id(entity_name) if entity_name else 0
+    config[_KEY_ENTITY_NAME] = entity_name
+    config[_KEY_OBJECT_ID_HASH] = object_id_hash
+    # Store flags for packing into configure_entity_()
+    config[_KEY_DISABLED_BY_DEFAULT] = int(config[CONF_DISABLED_BY_DEFAULT])
+    if CONF_INTERNAL in config:
+        config[_KEY_INTERNAL] = int(config[CONF_INTERNAL])
+    icon_idx = 0
+    if CONF_ICON in config:
+        # Add USE_ENTITY_ICON define when icons are used
+        cg.add_define("USE_ENTITY_ICON")
+        icon_idx = register_icon(config[CONF_ICON])
+    if CONF_ENTITY_CATEGORY in config:
+        # Derive integer value from key position in cv.ENTITY_CATEGORIES
+        # (must match C++ EntityCategory enum in entity_base.h)
+        entity_cat_str = str(config[CONF_ENTITY_CATEGORY])
+        entity_cat_keys = list(cv.ENTITY_CATEGORIES)
+        config[_KEY_ENTITY_CATEGORY] = (
+            entity_cat_keys.index(entity_cat_str)
+            if entity_cat_str in entity_cat_keys
+            else 0
+        )
+    # Store icon index for finalize_entity_strings
+    config[_KEY_ICON_IDX] = icon_idx
+
+
+ApplyPublishMode = Literal["before", "after", "momentary", "on_success"]
+ApplyPublish = ApplyPublishMode | None
+
+
+@dataclass(frozen=True, slots=True)
+class ApplyEntity:
+    """A domain's ``Apply*`` class, its generated function's parameters and its publish statement.
+
+    ``locals`` are (name, declaration) pairs, declared only when the body uses the name.
+    ``momentary`` is (acknowledge statement, condition) for ``publish="momentary"``.
+    """
+
+    cls: MockObjClass
+    params: tuple[tuple[SafeExpType, str], ...]
+    publish: str | None = None
+    locals: tuple[tuple[str, str], ...] = ()
+    momentary: tuple[str, str] | None = None
+
+
+_APPLY_DOMAIN = "entity_apply"
+
+
+@dataclass(frozen=True, slots=True)
+class FollowEntity:
+    """A state callback, its parameters and the value an entity republishes from it."""
+
+    callback: str
+    params: tuple[tuple[SafeExpType, str], ...]
+    value: str
+
+    def __call__(self, entity: MockObj, source: MockObj, *args: SafeExpType) -> None:
+        """Make ``entity`` publish every state of ``source``; ``args`` precede the callback."""
+        publish = cg.statement(
+            parent_ref(entity).publish_state(RawExpression(self.value))
+        )
+        callback = LambdaExpression(
+            [publish], list(self.params), capture="", return_type=cg.void
+        )
+        add(getattr(source, self.callback)(*args, callback))
+
+
+@dataclass(frozen=True, slots=True)
+class SubEntities:
+    """Create the child entity configured under key, set parent (if bound) and pass it to setter.
+
+    Returns None only when key is absent. ``apply``/``publish`` are documented on ``create``.
+    """
+
+    new_entity: Callable[..., Awaitable[MockObj]]
+    config: ConfigType
+    parent: MockObj | ID | None = None
+    apply_entity: ApplyEntity | None = None
+
+    async def __call__(
+        self,
+        key: str,
+        setter: Callable[[MockObj], Expression] | None,
+        *args: SafeExpType,
+        **kwargs: Any,
+    ) -> MockObj | None:
+        if (conf := self.config.get(key)) is None:
+            return None
+        return await self.create(conf, setter, *args, **kwargs)
+
+    async def create(
+        self,
+        conf: ConfigType,
+        setter: Callable[[MockObj], Expression] | None,
+        *args: SafeExpType,
+        apply: str | None = None,
+        publish: ApplyPublish = None,
+        **kwargs: Any,
+    ) -> MockObj:
+        """Create the entity from ``conf``; ``setter`` may be None when the hub keeps no pointer.
+
+        With ``apply`` the entity is the domain's ``Apply*`` class and its control runs
+        ``parent->apply``, or ``apply`` as a namespaced free statement when no parent is bound, with
+        ``publish`` ("before"/"after") placing the domain's publish; ``"on_success"`` publishes only when
+        ``apply`` returns true. ``publish="momentary"`` instead
+        acknowledges first (a switch publishes off) and runs ``apply`` only when turned on. It is only for
+        legacy action switches; a new action entity is a button.
+        """
+        entity_id: ID = conf[CONF_ID]
+        is_apply_class = self.apply_entity is not None and str(entity_id.type) == str(
+            self.apply_entity.cls
+        )
+        if apply is None and is_apply_class:
+            raise ValueError(f"{entity_id}: {entity_id.type} needs apply=")
+        if apply is not None and not is_apply_class:
+            raise ValueError(
+                f"{entity_id}: apply= needs the domain's Apply class, not {entity_id.type}"
+            )
+        # A parentless statement is a namespaced free function, so a hub platform that forgot
+        # parent= fails here instead of in the generated C++
+        if apply is not None and self.parent is None and "::" not in apply:
+            raise ValueError(
+                f"{entity_id}: apply= without a parent must call a namespaced free function "
+                f"(ns::fn()); bind parent= for a hub method"
+            )
+        if publish is not None and (apply is None or self.apply_entity.publish is None):
+            raise ValueError(f"{entity_id}: publish= needs apply= on a stateful domain")
+        if publish is not None and publish not in (modes := get_args(ApplyPublishMode)):
+            raise ValueError(f"{entity_id}: publish= must be one of {', '.join(modes)}")
+        if publish == "momentary" and self.apply_entity.momentary is None:
+            raise ValueError(f'{entity_id}: publish="momentary" is not supported here')
+
+        if apply is None:
+            var = await self.new_entity(conf, *args, **kwargs)
+            if self.parent is not None:
+                await cg.register_parented(var, self.parent)
+        else:
+            fn = await self._apply_function(entity_id, apply, publish)
+            var = await self.new_entity(conf, cg.TemplateArguments(fn), *args, **kwargs)
+        if setter is not None:
+            add(setter(var))
+        return var
+
+    async def _apply_function(
+        self, entity_id: ID, apply: str, publish: ApplyPublish
+    ) -> SafeExpType:
+        """Emit the control function once per distinct body, so equal entities share one class."""
+        parent = self.parent
+        if isinstance(parent, ID):
+            parent = await get_variable(parent)
+        apply_entity = self.apply_entity
+        expr = apply if parent is None else f"{parent_ref(parent)}->{apply}"
+        call = f"{expr};"
+        if publish == "before":
+            body = [apply_entity.publish, call]
+        elif publish == "after":
+            body = [call, apply_entity.publish]
+        elif publish == "on_success":
+            # An esp_err_t or int would convert to bool silently and flip the meaning
+            body = [
+                (
+                    f"static_assert(std::is_same_v<decltype({expr}), bool>, "
+                    '"publish=\\"on_success\\" needs a hub call that returns bool");'
+                ),
+                f"if ({expr}) {{ {apply_entity.publish} }}",
+            ]
+        elif publish == "momentary":
+            acknowledge, condition = apply_entity.momentary
+            body = [acknowledge, f"if ({condition}) {{ {call} }}"]
+        else:
+            body = [call]
+        for name, decl in apply_entity.locals:
+            # Declared right before its first use, so calls keep their order.
+            uses = (i for i, line in enumerate(body) if re.search(rf"\b{name}\b", line))
+            if (first := next(uses, None)) is not None:
+                body.insert(first, decl)
+        functions: dict[str, SafeExpType] = CORE.data.setdefault(_APPLY_DOMAIN, {})
+        key = "\n".join([*(f"{t} {n}" for t, n in apply_entity.params), *body])
+        if (fn := functions.get(key)) is None:
+            fn = functions[key] = apply_static_function(
+                entity_id, cg.void, list(apply_entity.params), body
+            )
+        return fn
+
+
+def inherit_property_from(property_to_inherit, parent_id_property, transform=None):
+    """Validator that inherits a configuration property from another entity, for use with FINAL_VALIDATE_SCHEMA.
+    If a property is already set, it will not be inherited.
+    Keyword arguments:
+    property_to_inherit -- the name or path of the property to inherit, e.g. CONF_ICON or [CONF_SENSOR, 0, CONF_ICON]
+                           (the parent must exist, otherwise nothing is done).
+    parent_id_property -- the name or path of the property that holds the ID of the parent, e.g. CONF_POWER_ID or
+                          [CONF_SENSOR, 1, CONF_POWER_ID].
+    """
+
+    def inherit_property(config):
+        # Split the property into its path and name
+        if not isinstance(property_to_inherit, list):
+            property_path, property = [], property_to_inherit
+        else:
+            property_path, property = property_to_inherit[:-1], property_to_inherit[-1]
+
+        # Check if the property to inherit is accessible
+        try:
+            config_part = _walk_config(config, property_path)
+        except KeyError:
+            return config
+
+        # Only inherit the property if it does not exist yet
+        if property not in config_part:
+            fconf = fv.full_config.get()
+
+            # Get config for the parent entity
+            parent_id = _walk_config(config, parent_id_property)
+            parent_config = fv.get_declaring_config(parent_id, fconf)
+
+            # If parent sensor has the property set, inherit it
+            if property in parent_config:
+                this_config = _walk_config(
+                    fv.get_declaring_config(config[CONF_ID], fconf), property_path
+                )
+                value = parent_config[property]
+                if transform:
+                    value = transform(value, config)
+                this_config[property] = value
+
+        return config
+
+    inherit_property.inherits = (property_to_inherit, parent_id_property, transform)
+    return inherit_property
+
+
+def _walk_config(config: ConfigType, path: str | list) -> Any:
+    for item_or_index in path if isinstance(path, list) else [path]:
+        config = config[item_or_index]
+    return config
+
+
+def _inherit_validators(validator: Any) -> Iterator[Callable]:
+    """The inherit_property_from validators in a FINAL_VALIDATE_SCHEMA, also inside cv.All."""
+    if hasattr(validator, "inherits"):
+        yield validator
+    for inner in getattr(validator, "validators", ()):
+        yield from _inherit_validators(inner)
+
+
+def _inherits(manifest: Any, property_: str) -> tuple | None:
+    """What ``inherit_property_from`` gives ``property_`` in a component's final validation."""
+    validators = _inherit_validators(manifest.final_validate_schema)
+    return next((v.inherits for v in validators if v.inherits[0] == property_), None)
+
+
+# Returned by resolve_inherited_property when the chain cannot be followed
+UNRESOLVED_PROPERTY = object()
+
+
+def resolve_inherited_property(entity_id: ID, property_: str) -> Any:
+    """The value of ``property_`` for the entity that declares ``entity_id``, following the
+    ``inherit_property_from`` chain (a copy of a copy) the way final validation fills it in, so
+    the result does not depend on which component validates first. None when it is not set;
+    ``UNRESOLVED_PROPERTY`` when the chain cannot be followed (a cycle, an unknown component or
+    an entity nested under a component that is not a platform)."""
+    fconf = fv.full_config.get()
+    seen: set[ID] = set()
+    steps: list[tuple[Callable | None, ConfigType]] = []
+    value = None
+    while entity_id not in seen:
+        seen.add(entity_id)
+        path = fconf.get_path_for_id(entity_id)[:-1]
+        config = fconf.get_config_for_path(path)
+        if property_ in config:
+            value = config[property_]
+            break
+        if (platform := config.get(CONF_PLATFORM)) is not None:
+            manifest = get_platform(path[0], platform)
+        elif len(path) <= 2:
+            manifest = get_component(path[0])
+        else:
+            return UNRESOLVED_PROPERTY
+        if manifest is None:
+            return UNRESOLVED_PROPERTY
+        if (inherits := _inherits(manifest, property_)) is None:
+            return None
+        _, parent_id_property, transform = inherits
+        steps.append((transform, config))
+        entity_id = _walk_config(config, parent_id_property)
+    else:
+        return UNRESOLVED_PROPERTY
+    for transform, config in reversed(steps):
+        if transform:
+            value = transform(value, config)
+    return value
+
+
+# Takes the entity config and the full config, and returns the unit the entity reports in
+TemperatureUnitResolver = Callable[[ConfigType, ConfigType], str]
+
+# Platforms whose entities report in one unit only, set by their traits, or a resolver for those
+# whose unit follows their own (or their hub's) config; keyed by the C++ class name
+_FIXED_TEMPERATURE_UNITS: dict[str, str | TemperatureUnitResolver] = {}
+
+
+def declare_fixed_temperature_unit(
+    class_: MockObjClass, unit: str | TemperatureUnitResolver
+) -> None:
+    """Record the unit every entity of ``class_`` reports in, or a resolver that reads it from the
+    config; nothing is stored in the config, so the unit never appears in a config dump."""
+    _FIXED_TEMPERATURE_UNITS[str(class_)] = unit
+
+
+def _declared_temperature_unit(type_: Any) -> str | TemperatureUnitResolver:
+    """The unit declared for ``type_`` or its closest declared parent class, else Celsius, so a
+    platform built on a declared class (an external component) reports in the same unit."""
+    classes = [type_, *type_.parents] if isinstance(type_, MockObjClass) else [type_]
+    for class_ in classes:
+        if (declared := _FIXED_TEMPERATURE_UNITS.get(str(class_))) is not None:
+            return declared
+    return UNIT_CELSIUS
+
+
+def entity_temperature_unit(
+    config: ConfigType, full_config: ConfigType | None = None
+) -> str | None:
+    """The unit a climate or water heater reports in: ``unit_of_measurement`` when the platform took
+    the option through its schema factory, the platform's fixed or resolved unit when it declared
+    one, else Celsius (anova's option of that name is unrelated). A resolver needs ``full_config``;
+    without it the unit is not known yet and this returns None."""
+    unit = config.get(CONF_UNIT_OF_MEASUREMENT)
+    if isinstance(unit, cv.TemperatureUnitValue):
+        return unit
+    entity_id = config.get(CONF_ID)
+    declared = _declared_temperature_unit(
+        entity_id.type if entity_id is not None else None
+    )
+    if isinstance(declared, str):
+        return declared
+    if full_config is None:
+        return None
+    return declared(config, full_config)
+
+
+def entity_temperature_unit_of_id(entity_id: ID) -> str:
+    """The unit of the entity with this id, for actions that take static temperatures."""
+    return entity_temperature_unit(
+        fv.get_declaring_config(entity_id, CORE.config), CORE.config
+    )
+
+
+def convert_temperature_keys(
+    section: ConfigType, keys: tuple[str, ...], unit: str, *, delta: bool = False
+) -> None:
+    """Convert the ``(value, unit)`` temperatures under ``keys`` into ``unit``; absent or already
+    converted values are left alone."""
+    for key in keys:
+        if isinstance(value := section.get(key), tuple):
+            section[key] = cv.convert_temperature(*value, unit, delta=delta)
+
+
+def convert_visual_temperatures(
+    config: ConfigType,
+    delta_keys: tuple[str, ...],
+    delta_section: str | None = None,
+    full_config: ConfigType | None = None,
+) -> ConfigType:
+    """Convert a climate's or water heater's ``visual`` temperatures into the entity's unit. The
+    step keys are differences, found under ``delta_section`` when the domain nests them. A unit
+    that needs ``full_config`` is left for final validation, which runs this again with it."""
+    if (unit := entity_temperature_unit(config, full_config)) is None:
+        return config
+    visual = config[CONF_VISUAL]
+    convert_temperature_keys(visual, (CONF_MIN_TEMPERATURE, CONF_MAX_TEMPERATURE), unit)
+    section = visual if delta_section is None else visual.get(delta_section)
+    if section is not None:
+        convert_temperature_keys(section, delta_keys, unit, delta=True)
+    return config
+
+
+def temperature_in_entity_unit(
+    config: ConfigType, value: tuple[float, str | None]
+) -> str:
+    """Render a static action temperature in the unit of the entity the action targets."""
+    unit = entity_temperature_unit_of_id(config[CONF_ID])
+    return str(cg.safe_exp(cv.convert_temperature(*value, unit)))
+
+
+def setup_entity_temperature_unit(var: MockObj, config: ConfigType) -> None:
+    """Pass the unit an entity reports in to its platform, which took the option; a platform with a
+    fixed unit sets it in its own traits."""
+    unit = config.get(CONF_UNIT_OF_MEASUREMENT)
+    if isinstance(unit, cv.TemperatureUnitValue):
+        add(var.set_temperature_unit(TEMPERATURE_UNITS[unit]))
+
+
+def entity_duplicate_validator(
+    platform: str, key_namespace: str | None = None
+) -> Callable[[ConfigType], ConfigType]:
+    """Create a validator function to check for duplicate entity names.
+
+    This validator is meant to be used with schema.add_extra() for entity base schemas.
+
+    Args:
+        platform: The platform name (e.g., "sensor", "binary_sensor")
+        key_namespace: Scope in which entity keys must be unique; defaults to the
+            platform. Platforms whose API messages identify an entity by key alone
+            must share one.
+
+    Returns:
+        A validator function that checks for duplicate names
+    """
+
+    def validator(config: ConfigType) -> ConfigType:
+        if CONF_NAME not in config:
+            # No name to validate
+            return config
+
+        # Skip validation for internal entities
+        # Internal entities are not exposed to Home Assistant and don't use the hash-based
+        # entity state tracking system, so name collisions don't matter for them
+        if config.get(CONF_INTERNAL, False):
+            return config
+
+        # Get the entity name
+        entity_name = config[CONF_NAME]
+
+        # Get device name if entity is on a sub-device
+        device_name = None
+        device_id = ""  # Empty string for main device
+        device_id_obj: ID | None
+        if device_id_obj := config.get(CONF_DEVICE_ID):
+            device_name = device_id_obj.id
+            # Use the device ID string directly for uniqueness
+            device_id = device_id_obj.id
+
+        # Calculate what object_id will actually be used
+        # This handles empty names correctly by using device/friendly names
+        name_key = get_base_entity_object_id(
+            entity_name, CORE.friendly_name, device_name
+        )
+
+        # Check for duplicates by the FNV-1 hash of the object_id, which is the entity
+        # key that routes state to API clients. This rejects names that sanitize to the
+        # same object_id, and also two different object_ids whose 32-bit hashes collide.
+        name_hash = fnv1_hash(name_key)
+        unique_key = (device_id, key_namespace or platform, name_hash)
+        if unique_key in CORE.unique_ids:
+            # Get the existing entity metadata
+            existing = CORE.unique_ids[unique_key]
+            existing_name = existing.get("name", entity_name)
+            existing_device = existing.get("device_id", "")
+            existing_id = existing.get("entity_id", "unknown")
+
+            # Build detailed error message
+            device_prefix = f" on device '{device_id}'" if device_id else ""
+            existing_device_prefix = (
+                f" on device '{existing_device}'" if existing_device else ""
+            )
+            existing_component = existing.get("component", "unknown")
+
+            # Provide more context about where the duplicate was found
+            conflict_msg = (
+                f"Conflicts with entity '{existing_name}'{existing_device_prefix}"
+            )
+            if existing_id != "unknown":
+                conflict_msg += f" (id: {existing_id})"
+            if existing_component != "unknown":
+                conflict_msg += f" from component '{existing_component}'"
+
+            existing_platform = existing.get("platform", platform)
+            scope = (
+                "within its platform"
+                if existing_platform == platform
+                else f"across the {existing_platform} and {platform} platforms"
+            )
+
+            # Distinguish names that sanitize to the same object_id from a genuine
+            # 32-bit hash collision between two different object_ids
+            collision_msg = ""
+            if entity_name != existing_name:
+                existing_object_id = get_base_entity_object_id(
+                    existing_name, CORE.friendly_name, existing_device or None
+                )
+                if existing_object_id == name_key:
+                    collision_msg = (
+                        f"\n  Original names: '{entity_name}' and '{existing_name}'"
+                        f"\n  Both convert to ASCII ID: '{name_key}'"
+                        "\n  To fix: Add unique ASCII characters (e.g., '1', '2', or 'A', 'B')"
+                        "\n          to distinguish them"
+                    )
+                else:
+                    collision_msg = (
+                        f"\n  The object_ids '{name_key}' and '{existing_object_id}'"
+                        f"\n  produce the same entity key hash ({name_hash:#010x})."
+                        "\n  To fix: Rename one of the entities"
+                    )
+
+            # Skip duplicate entity name validation when testing_mode is enabled
+            # This flag is used for grouped component testing
+            if not CORE.testing_mode:
+                raise cv.Invalid(
+                    f"Duplicate {platform} entity with name '{entity_name}' found{device_prefix}. "
+                    f"{conflict_msg}. "
+                    f"Each entity on a device must have a unique name {scope}."
+                    f"{collision_msg}"
+                )
+
+        # Store metadata about this entity
+        entity_metadata: EntityMetadata = {
+            "name": entity_name,
+            "device_id": device_id,
+            "platform": platform,
+            "entity_id": str(config.get(CONF_ID, "unknown")),
+            "component": CORE.current_component or "unknown",
+        }
+
+        # Add to tracking dict
+        CORE.unique_ids[unique_key] = entity_metadata
+        return config
+
+    return validator
+
+
+# restore_state: keywords, shared by the entity domains that save their state
+RESTORE_STATE_KEEP = "KEEP"
+RESTORE_STATE_INVERT = "INVERT"
+RESTORE_STATE_INITIAL = "INITIAL"
+RESTORE_STATE_ALL = "ALL"
+RESTORE_STATE_NONE = "NONE"
+
+
+def restore_state_keyword(value: Any, keywords: tuple[str, ...]) -> str | None:
+    """The upper-cased keyword when `value` spells one of `keywords`, else None."""
+    if isinstance(value, str):
+        upper = value.strip().upper()
+        if upper in keywords:
+            return upper
+    return None
+
+
+def restore_state_schema(fields_schema: cv.Schema, none: Any) -> Callable[[Any], Any]:
+    """The validator for a domain's `restore_state:` key.
+
+    A mapping is validated with `fields_schema`. The shorthand `all` is the empty mapping,
+    so every field keeps its saved value, and `none` is returned as it is; a mapping goes through
+    `fields_schema` like one the user wrote, so each config gets its own copy.
+    """
+
+    @schema_extractor("schema")
+    def validate(value: Any) -> Any:
+        if value == SCHEMA_EXTRACT:
+            # The shorthands have no representation in the extracted schema
+            return fields_schema
+        keyword = restore_state_keyword(value, (RESTORE_STATE_ALL, RESTORE_STATE_NONE))
+        if keyword == RESTORE_STATE_ALL:
+            value = {}
+        elif keyword == RESTORE_STATE_NONE:
+            if not isinstance(none, dict):
+                return none
+            value = none
+        elif isinstance(value, str):
+            raise cv.Invalid(
+                f"Unknown restore_state '{value}'; expected 'all', 'none' or a mapping, "
+                "for example '{state: INVERT}'"
+            )
+        return fields_schema(value)
+
+    return validate
+
+
+# ---------------------------------------------------------------------------
+# Cross-integration entity schema fragments
+# ---------------------------------------------------------------------------
+#
+# Entity base schemas offer mqtt/web_server/zigbee options, but importing
+# those packages pulls their full dependency chains (mqtt and zigbee both
+# import the esp32 package) into every entity component import. The
+# fragments below are built from cheap primitives instead: MockObjClass
+# identity is string-based, so the class handles here are interchangeable
+# with the ones the integrations declare, and every key is guarded by
+# ``cv.requires_component``/``cv.OnlyWith``, which consult
+# ``CORE.loaded_integrations`` at validation time without importing. The
+# owning integrations re-export the shared schema names and key strings so
+# each stays defined once.
+
+_WebServer = cg.esphome_ns.namespace("web_server").class_("WebServer", cg.Component)
+
+WEBSERVER_SORTING_SCHEMA = cv.Schema(
+    {
+        # The per-entity web_server block is cosmetic dashboard ordering —
+        # mark the whole block advanced; the children inherit via the cascade.
+        cv.Optional(CONF_WEB_SERVER, visibility=cv.Visibility.ADVANCED): cv.Schema(
+            {
+                cv.OnlyWith(CONF_WEB_SERVER_ID, "web_server"): cv.use_id(_WebServer),
+                cv.Optional(CONF_SORTING_WEIGHT): cv.All(
+                    cv.requires_component("web_server"),
+                    cv.float_,
+                ),
+                cv.Optional(CONF_SORTING_GROUP_ID): cv.All(
+                    cv.requires_component("web_server"),
+                    cv.use_id(cg.int_),
+                ),
+            }
+        )
+    }
+)
+
+_mqtt_ns = cg.esphome_ns.namespace("mqtt")
+_MQTTComponent = _mqtt_ns.class_("MQTTComponent", cg.Component)
+
+
+def mqtt_component_class(name: str) -> MockObjClass:
+    """Handle for a per-entity mqtt::<name> companion class."""
+    return _mqtt_ns.class_(name, _MQTTComponent)
+
+
+ZIGBEE_MAX_EP_NUMBER = 239
+
+_zigbee_ns = cg.esphome_ns.namespace("zigbee")
+_ZigbeeComponent = _zigbee_ns.class_("ZigbeeComponent", cg.Component)
+ZIGBEE_REPORT = _zigbee_ns.enum("ZigbeeReportT").options(
+    "coordinator", "enable", "force", "default", prefix="ZIGBEE_REPORT_"
+)
+
+
+def _check_report_deprecation(value: str) -> str:
+    if str(value).lower() == "coordinator":
+        _LOGGER.warning(
+            "Report option 'coordinator' is deprecated and will be removed in a future release. Use 'default' instead."
+        )
+    return value
+
+
+def zigbee_base_entity_schema(cluster_options: list[str] | None = None) -> cv.Schema:
+    """Zigbee options every entity offers; ``cluster_options`` adds the esp32 cluster key."""
+    schema = cv.Schema(
+        {
+            cv.Optional(CONF_REPORT): cv.All(
+                cv.requires_component("zigbee"),
+                cv.requires_component("esp32"),
+                _check_report_deprecation,
+                cv.enum(ZIGBEE_REPORT, lower=True),
+            ),
+            cv.Optional(CONF_ENDPOINT): cv.All(
+                cv.requires_component("zigbee"),
+                cv.requires_component("esp32"),
+                cv.int_range(1, ZIGBEE_MAX_EP_NUMBER),
+            ),
+            cv.Optional(CONF_USE_DEVICE_TYPE): cv.All(
+                cv.requires_component("zigbee"),
+                cv.requires_component("esp32"),
+                cv.boolean,
+            ),
+        }
+    )
+    if cluster_options:
+        schema = cv.Schema(
+            {
+                cv.OnlyWith(
+                    CONF_CLUSTER, ["esp32", "zigbee"], default=cluster_options[0]
+                ): cv.All(
+                    cv.requires_component("zigbee"),
+                    cv.requires_component("esp32"),
+                    cv.one_of(*cluster_options, lower=True),
+                ),
+            }
+        ).extend(schema)
+    return schema
+
+
+ZIGBEE_BASE_ENTITY_SCHEMA = zigbee_base_entity_schema()
+
+# Entity platform -> (config key, zigbee C++ class, esp32 cluster options). A
+# unit test checks each class against the owning declaration in zigbee_zephyr.
+_ZIGBEE_ENTITY_CLASSES = {
+    "binary_sensor": (
+        CONF_ZIGBEE_BINARY_SENSOR,
+        "ZigbeeBinarySensor",
+        ["generic", "device_class"],
+    ),
+    "sensor": (CONF_ZIGBEE_SENSOR, "ZigbeeSensor", ["generic", "device_class"]),
+    "switch": (CONF_ZIGBEE_SWITCH, "ZigbeeSwitch", ["generic", "on_off"]),
+    "number": (CONF_ZIGBEE_NUMBER, "ZigbeeNumber", ["generic"]),
+}
+
+
+def _zigbee_entity_schema(platform: str) -> cv.Schema:
+    conf_key, class_name, cluster_options = _ZIGBEE_ENTITY_CLASSES[platform]
+    return zigbee_base_entity_schema(cluster_options).extend(
+        {
+            cv.OnlyWith(CONF_ZIGBEE_ID, ["nrf52", "zigbee"]): cv.use_id(
+                _ZigbeeComponent
+            ),
+            cv.OnlyWith(conf_key, ["nrf52", "zigbee"]): cv.declare_id(
+                _zigbee_ns.class_(class_name, cg.Component)
+            ),
+        }
+    )
+
+
+ZIGBEE_BINARY_SENSOR_SCHEMA = _zigbee_entity_schema("binary_sensor")
+ZIGBEE_SENSOR_SCHEMA = _zigbee_entity_schema("sensor")
+ZIGBEE_SWITCH_SCHEMA = _zigbee_entity_schema("switch")
+ZIGBEE_NUMBER_SCHEMA = _zigbee_entity_schema("number")
+
+
+def lazy_load_validator(
+    component: str, name: str
+) -> Callable[[ConfigType], ConfigType]:
+    """Schema extra delegating to ``components.<component>.<name>`` when loaded."""
+    if find_spec(f"esphome.components.{component}") is None:
+        raise ValueError(f"No such component {component!r}")
+
+    def validator(config: ConfigType) -> ConfigType:
+        if component not in CORE.loaded_integrations:
+            return config
+        module = import_module(f"esphome.components.{component}")
+        if (delegate := getattr(module, name, None)) is None:
+            raise ValueError(f"{component} has no validator {name!r}")
+        return delegate(config)
+
+    return validator
+
+
+async def lazy_load_setup(component: str, name: str, *args: Any) -> None:
+    """Await ``components.<component>.<name>(*args)`` when the component is loaded."""
+    if component not in CORE.loaded_integrations:
+        return
+    module = import_module(f"esphome.components.{component}")
+    if (hook := getattr(module, name, None)) is None:
+        raise ValueError(f"{component} has no setup hook {name!r}")
+    await hook(*args)
+
+
+async def setup_entity_integrations(var: MockObj, config: ConfigType) -> MockObj | None:
+    """Register the mqtt companion and web_server entry for an entity.
+
+    Imports the integrations lazily; returns the mqtt companion (or None)
+    so callers can apply integration specific options to it.
+    """
+    mqtt_ = None
+    if (mqtt_id := config.get(CONF_MQTT_ID)) is not None:
+        from esphome.components import mqtt
+
+        mqtt_ = cg.new_Pvariable(mqtt_id, var)
+        await mqtt.register_mqtt_component(mqtt_, config)
+
+    if web_server_config := config.get(CONF_WEB_SERVER):
+        from esphome.components import web_server
+
+        await web_server.add_entity_config(var, web_server_config)
+
+    return mqtt_

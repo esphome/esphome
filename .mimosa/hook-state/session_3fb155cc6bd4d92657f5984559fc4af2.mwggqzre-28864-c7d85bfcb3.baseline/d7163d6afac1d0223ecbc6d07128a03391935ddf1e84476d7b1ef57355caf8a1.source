@@ -1,0 +1,49 @@
+#pragma once
+
+#include "esphome/core/component.h"
+#include "esphome/components/sensor/sensor.h"
+#include "esphome/components/uart/uart.h"
+
+namespace esphome::mhz19 {
+
+enum MHZ19ABCLogic : uint8_t {
+  MHZ19_ABC_NONE = 0,
+  MHZ19_ABC_ENABLED,
+  MHZ19_ABC_DISABLED,
+};
+
+enum MHZ19DetectionRange : uint8_t {
+  MHZ19_DETECTION_RANGE_DEFAULT = 0,
+  MHZ19_DETECTION_RANGE_0_2000PPM,
+  MHZ19_DETECTION_RANGE_0_5000PPM,
+  MHZ19_DETECTION_RANGE_0_10000PPM,
+};
+
+class MHZ19Component final : public PollingComponent, public uart::UARTDevice {
+  SUB_SENSOR(temperature)
+  SUB_SENSOR(co2)
+
+ public:
+  void setup() override;
+  void update() override;
+  void dump_config() override;
+
+  void calibrate_zero();
+  void abc_enable();
+  void abc_disable();
+  void range_set(MHZ19DetectionRange detection_range);
+
+  void set_abc_enabled(bool abc_enabled) { abc_boot_logic_ = abc_enabled ? MHZ19_ABC_ENABLED : MHZ19_ABC_DISABLED; }
+  void set_warmup_seconds(uint32_t seconds) { warmup_seconds_ = seconds; }
+  void set_detection_range(MHZ19DetectionRange detection_range) { detection_range_ = detection_range; }
+
+ protected:
+  bool mhz19_write_command_(const uint8_t *command, uint8_t *response);
+
+  uint32_t warmup_seconds_;
+  MHZ19ABCLogic abc_boot_logic_{MHZ19_ABC_NONE};
+  MHZ19DetectionRange detection_range_{MHZ19_DETECTION_RANGE_DEFAULT};
+  bool warmup_complete_{false};
+};
+
+}  // namespace esphome::mhz19

@@ -1,0 +1,147 @@
+#pragma once
+
+#include <type_traits>
+
+#include "esphome/core/component.h"
+#include "remote_base.h"
+
+namespace esphome::remote_base {
+
+struct RCSwitchData {
+  uint64_t code;
+  uint8_t protocol;
+
+  bool operator==(const RCSwitchData &rhs) const { return code == rhs.code && protocol == rhs.protocol; }
+};
+
+class RCSwitchBase {
+ public:
+  using ProtocolData = RCSwitchData;
+
+  constexpr RCSwitchBase() = default;
+  constexpr RCSwitchBase(uint32_t sync_high, uint32_t sync_low, uint32_t zero_high, uint32_t zero_low,
+                         uint32_t one_high, uint32_t one_low, bool inverted)
+      : sync_high_(sync_high),
+        sync_low_(sync_low),
+        zero_high_(zero_high),
+        zero_low_(zero_low),
+        one_high_(one_high),
+        one_low_(one_low),
+        inverted_(inverted) {}
+
+  void one(RemoteTransmitData *dst) const;
+
+  void zero(RemoteTransmitData *dst) const;
+
+  void sync(RemoteTransmitData *dst) const;
+
+  void transmit(RemoteTransmitData *dst, uint64_t code, uint8_t len) const;
+
+  bool expect_one(RemoteReceiveData &src) const;
+
+  bool expect_zero(RemoteReceiveData &src) const;
+
+  bool expect_sync(RemoteReceiveData &src) const;
+
+  bool decode(RemoteReceiveData &src, uint64_t *out_data, uint8_t *out_nbits) const;
+
+  optional<RCSwitchData> decode(RemoteReceiveData &src) const;
+
+  static void simple_code_to_tristate(uint16_t code, uint8_t nbits, uint64_t *out_code);
+
+  static void type_a_code(uint8_t switch_group, uint8_t switch_device, bool state, uint64_t *out_code,
+                          uint8_t *out_nbits);
+
+  static void type_b_code(uint8_t address_code, uint8_t channel_code, bool state, uint64_t *out_code,
+                          uint8_t *out_nbits);
+
+  static void type_c_code(uint8_t family, uint8_t group, uint8_t device, bool state, uint64_t *out_code,
+                          uint8_t *out_nbits);
+
+  static void type_d_code(uint8_t group, uint8_t device, bool state, uint64_t *out_code, uint8_t *out_nbits);
+
+ protected:
+  uint32_t sync_high_{};
+  uint32_t sync_low_{};
+  uint32_t zero_high_{};
+  uint32_t zero_low_{};
+  uint32_t one_high_{};
+  uint32_t one_low_{};
+  uint32_t inverted_{};  // bool widened so every field is a word: the table is read from flash
+
+  // A bool here would still pad to 28 bytes, so the size check below alone would not catch it.
+  static_assert(std::is_same_v<decltype(inverted_), uint32_t>, "inverted_ must stay a word for flash reads");
+};
+
+// Constant-initialized and kept in flash on every platform. The decoder reads entries in place
+// through a pointer, which ESP8266 only allows while every field is a whole word; copies out of
+// the table go through rc_switch_protocol()
+static_assert(sizeof(RCSwitchBase) == 7 * sizeof(uint32_t), "RCSwitchBase must stay word-only for flash reads");
+inline constexpr RCSwitchBase RC_SWITCH_PROTOCOLS[] PROGMEM = {
+    {0, 0, 0, 0, 0, 0, false},
+    {350, 10850, 350, 1050, 1050, 350, false},
+    {650, 6500, 650, 1300, 1300, 650, false},
+    {3000, 7100, 400, 1100, 900, 600, false},
+    {380, 2280, 380, 1140, 1140, 380, false},
+    {3000, 7000, 500, 1000, 1000, 500, false},
+    {10350, 450, 450, 900, 900, 450, true},
+    {300, 9300, 150, 900, 900, 150, false},
+    {250, 2500, 250, 1250, 250, 250, false},
+};
+
+/// RAM copy of RC_SWITCH_PROTOCOLS[index] (0 when out of range) for the transmit actions and the dumper, made with
+/// progmem_memcpy so no byte load ever touches the flash table on ESP8266
+RCSwitchBase rc_switch_protocol(uint8_t index);
+/// RAM copy of a protocol stored in flash, made with progmem_memcpy (own name: `rc_switch_protocol(0)` stays
+/// unambiguous)
+RCSwitchBase rc_switch_protocol_copy(const RCSwitchBase *protocol);
+
+uint64_t decode_binary_string(const std::string &data);
+
+uint64_t decode_binary_string_mask(const std::string &data);
+
+class RCSwitchRawReceiver : public RemoteReceiverBinarySensorBase {
+ public:
+  /// `protocol` must outlive the receiver: a RC_SWITCH_PROTOCOLS entry or a codegen flash table.
+  void set_protocol(const RCSwitchBase *protocol) { this->protocol_ = protocol; }
+  void set_code(uint64_t code) { this->code_ = code; }
+  void set_code(const std::string &code) {
+    this->code_ = decode_binary_string(code);
+    this->mask_ = decode_binary_string_mask(code);
+    this->nbits_ = code.size();
+  }
+  void set_nbits(uint8_t nbits) { this->nbits_ = nbits; }
+  void set_type_a(const std::string &group, const std::string &device, bool state) {
+    uint8_t u_group = decode_binary_string(group);
+    uint8_t u_device = decode_binary_string(device);
+    RCSwitchBase::type_a_code(u_group, u_device, state, &this->code_, &this->nbits_);
+  }
+  void set_type_b(uint8_t address_code, uint8_t channel_code, bool state) {
+    RCSwitchBase::type_b_code(address_code, channel_code, state, &this->code_, &this->nbits_);
+  }
+  void set_type_c(std::string family, uint8_t group, uint8_t device, bool state) {
+    auto u_family = static_cast<uint8_t>(tolower(family[0]) - 'a');
+    RCSwitchBase::type_c_code(u_family, group, device, state, &this->code_, &this->nbits_);
+  }
+  void set_type_d(std::string group, uint8_t device, bool state) {
+    auto u_group = static_cast<uint8_t>(tolower(group[0]) - 'a');
+    RCSwitchBase::type_d_code(u_group, device, state, &this->code_, &this->nbits_);
+  }
+
+ protected:
+  bool matches(RemoteReceiveData src) override;
+
+  const RCSwitchBase *protocol_{nullptr};  // in flash; decoded in place (word-only fields)
+  uint64_t code_;
+  uint64_t mask_{0xFFFFFFFFFFFFFFFF};
+  uint8_t nbits_;
+};
+
+class RCSwitchDumper : public RemoteReceiverDumperBase {
+ public:
+  bool dump(RemoteReceiveData src) override;
+};
+
+using RCSwitchTrigger = RemoteReceiverTrigger<RCSwitchBase>;
+
+}  // namespace esphome::remote_base

@@ -1,0 +1,78 @@
+#pragma once
+
+#ifndef USE_BK72XX
+
+#include <MLX90393.h>
+#include <MLX90393Hal.h>
+#include "esphome/components/i2c/i2c.h"
+#include "esphome/components/sensor/sensor.h"
+#include "esphome/core/component.h"
+#include "esphome/core/hal.h"
+
+namespace esphome::mlx90393 {
+
+enum MLX90393Setting {
+  MLX90393_GAIN_SEL = 0,
+  MLX90393_RESOLUTION,
+  MLX90393_OVER_SAMPLING,
+  MLX90393_DIGITAL_FILTERING,
+  MLX90393_TEMPERATURE_OVER_SAMPLING,
+  MLX90393_TEMPERATURE_COMPENSATION,
+  MLX90393_HALLCONF,
+  MLX90393_LAST,
+};
+
+class MLX90393Cls final : public PollingComponent, public i2c::I2CDevice, public MLX90393Hal {
+  SUB_SENSOR(x)
+  SUB_SENSOR(y)
+  SUB_SENSOR(z)
+  SUB_SENSOR(t)
+
+ public:
+  void setup() override;
+  void dump_config() override;
+  void update() override;
+
+  void set_drdy_gpio(GPIOPin *pin) { drdy_pin_ = pin; }
+
+  void set_oversampling(uint8_t osr) { oversampling_ = osr; }
+  void set_t_oversampling(uint8_t osr2) { temperature_oversampling_ = osr2; }
+  void set_resolution(uint8_t xyz, uint8_t res) { resolutions_[xyz] = res; }
+  void set_filter(uint8_t filter) { filter_ = filter; }
+  void set_gain(uint8_t gain_sel) { gain_ = gain_sel; }
+  void set_temperature_compensation(bool temperature_compensation) {
+    temperature_compensation_ = temperature_compensation;
+  }
+  void set_hallconf(uint8_t hallconf) { hallconf_ = hallconf; }
+  // overrides for MLX library
+
+  // disable lint because it keeps suggesting const uint8_t *response.
+  // this->read() writes data into response, so it can't be const
+  bool transceive(const uint8_t *request, size_t request_size, uint8_t *response,
+                  size_t response_size) override;  // NOLINT
+  bool has_drdy_pin() override;
+  bool read_drdy_pin() override;
+  void sleep_millis(uint32_t millis) override;
+  void sleep_micros(uint32_t micros) override;
+
+ protected:
+  MLX90393 mlx_;
+  uint8_t gain_;
+  uint8_t oversampling_;
+  uint8_t temperature_oversampling_{0};
+  uint8_t filter_;
+  uint8_t resolutions_[3]{0};
+  bool temperature_compensation_{false};
+  uint8_t hallconf_{0xC};
+  GPIOPin *drdy_pin_{nullptr};
+
+  bool apply_all_settings_();
+  uint8_t apply_setting_(MLX90393Setting which);
+
+  bool verify_setting_(MLX90393Setting which);
+  void verify_settings_timeout_(MLX90393Setting stage);
+};
+
+}  // namespace esphome::mlx90393
+
+#endif  // USE_BK72XX

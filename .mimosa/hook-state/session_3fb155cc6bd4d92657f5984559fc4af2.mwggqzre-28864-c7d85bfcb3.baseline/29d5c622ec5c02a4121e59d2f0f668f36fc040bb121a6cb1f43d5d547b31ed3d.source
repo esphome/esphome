@@ -1,0 +1,61 @@
+from esphome import automation
+import esphome.codegen as cg
+from esphome.components import sensor
+import esphome.config_validation as cv
+from esphome.const import (
+    CONF_ACCURACY_DECIMALS,
+    CONF_DEVICE_CLASS,
+    CONF_FORCE_UPDATE,
+    CONF_ID,
+    CONF_LAMBDA,
+    CONF_STATE,
+    CONF_STATE_CLASS,
+    CONF_UNIT_OF_MEASUREMENT,
+)
+
+from .. import template_ns
+
+TemplateSensor = template_ns.class_(
+    "TemplateSensor", sensor.Sensor, cg.PollingComponent
+)
+
+CONFIG_SCHEMA = (
+    cv.with_visibility(
+        sensor.sensor_schema(TemplateSensor, accuracy_decimals=1),
+        cv.Visibility.UI,
+        CONF_UNIT_OF_MEASUREMENT,
+        CONF_ACCURACY_DECIMALS,
+        CONF_DEVICE_CLASS,
+        CONF_STATE_CLASS,
+        CONF_FORCE_UPDATE,
+    )
+    .extend(
+        {
+            cv.Optional(CONF_LAMBDA): cv.returning_lambda,
+        }
+    )
+    .extend(cv.polling_component_schema("60s"))
+)
+
+
+async def to_code(config):
+    var = await sensor.new_sensor(config)
+    await cg.register_component(var, config)
+
+    if CONF_LAMBDA in config:
+        template_ = await cg.process_lambda(
+            config[CONF_LAMBDA], [], return_type=cg.optional.template(float)
+        )
+        cg.add(var.set_template(template_))
+
+
+automation.register_apply_action(
+    "sensor.template.publish",
+    cv.Schema(
+        {
+            cv.Required(CONF_ID): cv.use_id(sensor.Sensor),
+            cv.Required(CONF_STATE): cv.templatable(cv.float_),
+        }
+    ),
+    automation.ApplyField(CONF_STATE, "publish_state", cg.float_),
+)

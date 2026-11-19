@@ -1,0 +1,25 @@
+#include "xiaomi_hhccjcy01.h"
+#include "esphome/core/log.h"
+
+namespace esphome::xiaomi_hhccjcy01 {
+
+ESPHOME_LOG_TAG(TAG, "xiaomi_hhccjcy01");
+
+void XiaomiHHCCJCY01::dump_config() {
+  ESP_LOGCONFIG(TAG, "Xiaomi HHCCJCY01");
+  LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
+  LOG_SENSOR("  ", "Moisture", this->moisture_sensor_);
+  LOG_SENSOR("  ", "Conductivity", this->conductivity_sensor_);
+  LOG_SENSOR("  ", "Illuminance", this->illuminance_sensor_);
+  LOG_SENSOR("  ", "Battery Level", this->battery_level_sensor_);
+}
+
+void XiaomiHHCCJCY01::publish_result(const xiaomi_ble::XiaomiParseResult &res) {
+  publish_optional(this->temperature_sensor_, res.temperature);
+  publish_optional(this->moisture_sensor_, res.moisture);
+  publish_optional(this->conductivity_sensor_, res.conductivity);
+  publish_optional(this->illuminance_sensor_, res.illuminance);
+  publish_optional(this->battery_level_sensor_, res.battery_level);
+}
+
+}  // namespace esphome::xiaomi_hhccjcy01

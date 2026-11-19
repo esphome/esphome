@@ -1,0 +1,20 @@
+#include "mcp3204_sensor.h"
+
+#include "esphome/core/log.h"
+
+namespace esphome::mcp3204 {
+
+ESPHOME_LOG_TAG(TAG, "mcp3204.sensor");
+
+void MCP3204Sensor::dump_config() {
+  LOG_SENSOR("", "MCP3204 Sensor", this);
+  ESP_LOGCONFIG(TAG,
+                "  Pin: %u\n"
+                "  Differential Mode: %s",
+                this->pin_, YESNO(this->differential_mode_));
+  LOG_UPDATE_INTERVAL(this);
+}
+float MCP3204Sensor::sample() { return this->parent_->read_data(this->pin_, this->differential_mode_); }
+void MCP3204Sensor::update() { this->publish_state(this->sample()); }
+
+}  // namespace esphome::mcp3204

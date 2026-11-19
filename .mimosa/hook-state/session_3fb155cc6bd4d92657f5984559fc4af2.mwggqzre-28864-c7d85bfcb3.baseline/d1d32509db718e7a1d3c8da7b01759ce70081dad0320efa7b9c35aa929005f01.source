@@ -1,0 +1,90 @@
+from esphome import automation
+from esphome.automation import maybe_simple_id
+import esphome.codegen as cg
+from esphome.components import modbus, sensor
+import esphome.config_validation as cv
+from esphome.const import (
+    CONF_CURRENT,
+    CONF_ENERGY,
+    CONF_ID,
+    CONF_POWER,
+    CONF_VOLTAGE,
+    DEVICE_CLASS_CURRENT,
+    DEVICE_CLASS_ENERGY,
+    DEVICE_CLASS_POWER,
+    DEVICE_CLASS_VOLTAGE,
+    STATE_CLASS_MEASUREMENT,
+    STATE_CLASS_TOTAL_INCREASING,
+    UNIT_AMPERE,
+    UNIT_KILOWATT_HOURS,
+    UNIT_VOLT,
+    UNIT_WATT,
+)
+from esphome.types import ConfigType
+
+AUTO_LOAD = ["modbus"]
+
+pzemdc_ns = cg.esphome_ns.namespace("pzemdc")
+PZEMDC = pzemdc_ns.class_("PZEMDC", cg.PollingComponent, modbus.ModbusClientDevice)
+
+CONFIG_SCHEMA = (
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(PZEMDC),
+            cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(
+                unit_of_measurement=UNIT_VOLT,
+                accuracy_decimals=1,
+                device_class=DEVICE_CLASS_VOLTAGE,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_CURRENT): sensor.sensor_schema(
+                unit_of_measurement=UNIT_AMPERE,
+                accuracy_decimals=3,
+                device_class=DEVICE_CLASS_CURRENT,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_POWER): sensor.sensor_schema(
+                unit_of_measurement=UNIT_WATT,
+                accuracy_decimals=1,
+                device_class=DEVICE_CLASS_POWER,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_ENERGY): sensor.sensor_schema(
+                unit_of_measurement=UNIT_KILOWATT_HOURS,
+                accuracy_decimals=3,
+                device_class=DEVICE_CLASS_ENERGY,
+                state_class=STATE_CLASS_TOTAL_INCREASING,
+            ),
+        }
+    )
+    .extend(cv.polling_component_schema("60s"))
+    .extend(modbus.modbus_device_schema(0x01))
+)
+
+
+automation.register_apply_action(
+    "pzemdc.reset_energy",
+    maybe_simple_id(
+        {
+            cv.GenerateID(CONF_ID): cv.use_id(PZEMDC),
+        }
+    ),
+    automation.ApplyCall("reset_energy()"),
+)
+
+
+def _final_validate(config: ConfigType) -> None:
+    modbus.final_validate_modbus_device("pzemdc", role="client")(config)
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
+
+
+async def to_code(config: ConfigType) -> None:
+    var = await modbus.new_modbus_client_component(config)
+
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_VOLTAGE, var.set_voltage_sensor)
+    await sensors(CONF_CURRENT, var.set_current_sensor)
+    await sensors(CONF_POWER, var.set_power_sensor)
+    await sensors(CONF_ENERGY, var.set_energy_sensor)

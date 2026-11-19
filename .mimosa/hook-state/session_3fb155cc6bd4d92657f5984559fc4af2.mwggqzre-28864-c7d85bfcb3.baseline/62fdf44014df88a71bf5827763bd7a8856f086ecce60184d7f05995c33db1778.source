@@ -1,0 +1,103 @@
+from esphome import automation
+import esphome.codegen as cg
+from esphome.components import sensor
+import esphome.config_validation as cv
+from esphome.const import CONF_COMPONENT_ID, CONF_ID, CONF_STATE
+
+from .. import CONF_NEXTION_ID, CONF_PUBLISH_STATE, CONF_SEND_TO_NEXTION, nextion_ns
+from ..base_component import (
+    CONF_COMPONENT_NAME,
+    CONF_PRECISION,
+    CONF_VARIABLE_NAME,
+    CONF_WAVE_CHANNEL_ID,
+    CONF_WAVE_MAX_LENGTH,
+    CONF_WAVE_MAX_VALUE,
+    CONF_WAVEFORM_SEND_LAST_VALUE,
+    CONFIG_SENSOR_COMPONENT_SCHEMA,
+    setup_component_core_,
+)
+
+CODEOWNERS = ["@senexcrenshaw"]
+
+NextionSensor = nextion_ns.class_("NextionSensor", sensor.Sensor, cg.PollingComponent)
+
+
+def CheckWaveID(value):
+    value = cv.int_(value)
+    if value < 0 or value > 3:
+        raise cv.Invalid(f"Valid range for {CONF_WAVE_CHANNEL_ID} is 0-3")
+    return value
+
+
+CONFIG_SCHEMA = cv.All(
+    sensor.sensor_schema(
+        NextionSensor,
+        accuracy_decimals=2,
+    )
+    .extend(
+        {
+            cv.Optional(CONF_PRECISION, default=0): cv.int_range(min=0, max=8),
+            cv.Optional(CONF_WAVE_CHANNEL_ID): CheckWaveID,
+            cv.Optional(CONF_COMPONENT_ID): cv.uint8_t,
+            cv.Optional(CONF_WAVE_MAX_LENGTH, default=255): cv.int_range(
+                min=1, max=1024
+            ),
+            cv.Optional(CONF_WAVE_MAX_VALUE, default=100): cv.int_range(
+                min=1, max=1024
+            ),
+            cv.Optional(CONF_WAVEFORM_SEND_LAST_VALUE, default=True): cv.boolean,
+        }
+    )
+    .extend(CONFIG_SENSOR_COMPONENT_SCHEMA)
+    .extend(cv.polling_component_schema("never")),
+    cv.has_exactly_one_key(CONF_COMPONENT_ID, CONF_COMPONENT_NAME, CONF_VARIABLE_NAME),
+    cv.key_requires(CONF_WAVE_CHANNEL_ID, CONF_COMPONENT_ID),
+)
+
+
+async def to_code(config):
+    hub = await cg.get_variable(config[CONF_NEXTION_ID])
+    var = cg.new_Pvariable(config[CONF_ID], hub)
+    await cg.register_component(var, config)
+    await sensor.register_sensor(var, config)
+
+    cg.add(hub.register_sensor_component(var))
+
+    await setup_component_core_(var, config, ".val")
+
+    cg.add_optional(var.set_precision, config.get(CONF_PRECISION))
+
+    cg.add_optional(var.set_component_id, config.get(CONF_COMPONENT_ID))
+
+    if CONF_WAVE_CHANNEL_ID in config:
+        cg.add_define("USE_NEXTION_WAVEFORM")
+        cg.add(var.set_wave_channel_id(config[CONF_WAVE_CHANNEL_ID]))
+        if CONF_WAVEFORM_SEND_LAST_VALUE in config:
+            cg.add(
+                var.set_waveform_send_last_value(config[CONF_WAVEFORM_SEND_LAST_VALUE])
+            )
+        cg.add_optional(var.set_wave_max_value, config.get(CONF_WAVE_MAX_VALUE))
+        cg.add_optional(var.set_wave_max_length, config.get(CONF_WAVE_MAX_LENGTH))
+
+
+automation.register_apply_action(
+    "sensor.nextion.publish",
+    cv.Schema(
+        {
+            cv.Required(CONF_ID): cv.use_id(NextionSensor),
+            cv.Required(CONF_STATE): cv.templatable(cv.float_),
+            cv.Optional(CONF_PUBLISH_STATE, default="true"): cv.templatable(cv.boolean),
+            cv.Optional(CONF_SEND_TO_NEXTION, default="true"): cv.templatable(
+                cv.boolean
+            ),
+        }
+    ),
+    automation.ApplyCall(
+        "set_state({}, {}, {})",
+        (
+            (CONF_STATE, cg.float_),
+            (CONF_PUBLISH_STATE, cg.bool_),
+            (CONF_SEND_TO_NEXTION, cg.bool_),
+        ),
+    ),
+)

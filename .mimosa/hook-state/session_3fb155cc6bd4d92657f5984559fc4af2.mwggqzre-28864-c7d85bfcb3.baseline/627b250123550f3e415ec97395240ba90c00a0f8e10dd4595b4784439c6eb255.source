@@ -1,0 +1,38 @@
+from esphome import pins
+import esphome.codegen as cg
+from esphome.components import display
+import esphome.config_validation as cv
+from esphome.const import (
+    CONF_CS_PIN,
+    CONF_DATA_PIN,
+    CONF_ID,
+    CONF_READ_PIN,
+    CONF_WRITE_PIN,
+)
+from esphome.types import ConfigType
+
+tm1621_ns = cg.esphome_ns.namespace("tm1621")
+TM1621Display = tm1621_ns.class_("TM1621Display", cg.PollingComponent)
+TM1621DisplayRef = TM1621Display.operator("ref")
+
+CONFIG_SCHEMA = display.BASIC_DISPLAY_SCHEMA.extend(
+    {
+        cv.GenerateID(): cv.declare_id(TM1621Display),
+        cv.Required(CONF_CS_PIN): pins.gpio_output_pin_schema,
+        cv.Required(CONF_DATA_PIN): pins.gpio_output_pin_schema,
+        cv.Required(CONF_READ_PIN): pins.gpio_output_pin_schema,
+        cv.Required(CONF_WRITE_PIN): pins.gpio_output_pin_schema,
+    }
+).extend(cv.polling_component_schema("1s"))
+
+
+async def to_code(config: ConfigType) -> None:
+    var = cg.new_Pvariable(config[CONF_ID])
+    await display.register_display(var, config)
+
+    await cg.add_pin(var.set_cs_pin, config[CONF_CS_PIN])
+    await cg.add_pin(var.set_data_pin, config[CONF_DATA_PIN])
+    await cg.add_pin(var.set_read_pin, config[CONF_READ_PIN])
+    await cg.add_pin(var.set_write_pin, config[CONF_WRITE_PIN])
+
+    await display.add_writer(var, config, TM1621DisplayRef)

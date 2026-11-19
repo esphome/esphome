@@ -1,0 +1,88 @@
+from esphome import automation
+import esphome.codegen as cg
+
+# Base
+light_ns = cg.esphome_ns.namespace("light")
+LightState = light_ns.class_("LightState", cg.EntityBase, cg.Component)
+GammaTable = light_ns.struct("GammaTable")
+LightStateRef = LightState.operator("ref")
+AddressableLightState = light_ns.class_("AddressableLightState", LightState)
+LightOutput = light_ns.class_("LightOutput")
+AddressableLight = light_ns.class_("AddressableLight", LightOutput, cg.Component)
+AddressableLightRef = AddressableLight.operator("ref")
+
+Color = cg.esphome_ns.class_("Color")
+LightColorValues = light_ns.class_("LightColorValues")
+
+LightStateRTCState = light_ns.struct("LightStateRTCState")
+
+# Addressable strips
+ChannelColors = light_ns.struct("ChannelColors")
+BufferColorAccessor = light_ns.class_("BufferColorAccessor")
+PowerEstimation = light_ns.struct("PowerEstimation")
+
+# Color modes
+ColorMode = light_ns.enum("ColorMode", is_class=True)
+COLOR_MODES = ColorMode.options(
+    "ON_OFF",
+    "BRIGHTNESS",
+    "WHITE",
+    "COLOR_TEMPERATURE",
+    "COLD_WARM_WHITE",
+    "RGB",
+    "RGB_WHITE",
+    "RGB_COLOR_TEMPERATURE",
+    "RGB_COLD_WARM_WHITE",
+)
+
+# Limit modes
+LimitMode = light_ns.enum("LimitMode", is_class=True)
+LIMIT_MODES = LimitMode.options("CLAMP", "DO_NOTHING")
+
+# Actions
+LightEffectCycleAction = light_ns.class_("LightEffectCycleAction", automation.Action)
+DimRelativeAction = light_ns.class_("DimRelativeAction", automation.Action)
+AddressableSet = light_ns.class_("AddressableSet", automation.Action)
+
+# Triggers
+LightTurnOnTrigger = light_ns.class_(
+    "LightTurnOnTrigger", automation.Trigger.template()
+)
+LightTurnOffTrigger = light_ns.class_(
+    "LightTurnOffTrigger", automation.Trigger.template()
+)
+LightStateTrigger = light_ns.class_("LightStateTrigger", automation.Trigger.template())
+
+# Effects
+LightEffect = light_ns.class_("LightEffect")
+PulseLightEffect = light_ns.class_("PulseLightEffect", LightEffect)
+RandomLightEffect = light_ns.class_("RandomLightEffect", LightEffect)
+LambdaLightEffect = light_ns.class_("LambdaLightEffect", LightEffect)
+AutomationLightEffect = light_ns.class_("AutomationLightEffect", LightEffect)
+StrobeLightEffect = light_ns.class_("StrobeLightEffect", LightEffect)
+StrobeLightEffectColor = light_ns.class_("StrobeLightEffectColor", LightEffect)
+FlickerLightEffect = light_ns.class_("FlickerLightEffect", LightEffect)
+AddressableLightEffect = light_ns.class_("AddressableLightEffect", LightEffect)
+AddressableLambdaLightEffect = light_ns.class_(
+    "AddressableLambdaLightEffect", AddressableLightEffect
+)
+AddressableRainbowLightEffect = light_ns.class_(
+    "AddressableRainbowLightEffect", AddressableLightEffect
+)
+AddressableColorWipeEffect = light_ns.class_(
+    "AddressableColorWipeEffect", AddressableLightEffect
+)
+AddressableColorWipeEffectColor = light_ns.struct("AddressableColorWipeEffectColor")
+AddressableScanEffect = light_ns.class_("AddressableScanEffect", AddressableLightEffect)
+AddressableTwinkleEffect = light_ns.class_(
+    "AddressableTwinkleEffect", AddressableLightEffect
+)
+AddressableRandomTwinkleEffect = light_ns.class_(
+    "AddressableRandomTwinkleEffect", AddressableLightEffect
+)
+AddressableFireworksEffect = light_ns.class_(
+    "AddressableFireworksEffect", AddressableLightEffect
+)
+AddressableFlickerEffect = light_ns.class_(
+    "AddressableFlickerEffect", AddressableLightEffect
+)

@@ -1,0 +1,156 @@
+from collections.abc import Callable
+import logging
+from typing import Any
+
+from esphome import pins
+import esphome.codegen as cg
+from esphome.components import i2c, sensor
+import esphome.config_validation as cv
+from esphome.const import (
+    CONF_ADDRESS,
+    CONF_DATA_RATE,
+    CONF_FIELD_STRENGTH_X,
+    CONF_FIELD_STRENGTH_Y,
+    CONF_FIELD_STRENGTH_Z,
+    CONF_HEADING,
+    CONF_OVERSAMPLING,
+    CONF_RANGE,
+    CONF_TEMPERATURE,
+    CONF_UPDATE_INTERVAL,
+    DEVICE_CLASS_TEMPERATURE,
+    ICON_MAGNET,
+    ICON_SCREEN_ROTATION,
+    STATE_CLASS_MEASUREMENT,
+    UNIT_CELSIUS,
+    UNIT_DEGREES,
+    UNIT_MICROTESLA,
+)
+from esphome.types import ConfigType
+
+_LOGGER = logging.getLogger(__name__)
+
+CONF_DRDY_PIN = "drdy_pin"
+
+DEPENDENCIES = ["i2c"]
+
+qmc5883l_ns = cg.esphome_ns.namespace("qmc5883l")
+
+QMC5883LComponent = qmc5883l_ns.class_(
+    "QMC5883LComponent", cg.PollingComponent, i2c.I2CDevice
+)
+
+QMC5883LDatarate = qmc5883l_ns.enum("QMC5883LDatarate")
+QMC5883LDatarates = {
+    10: QMC5883LDatarate.QMC5883L_DATARATE_10_HZ,
+    50: QMC5883LDatarate.QMC5883L_DATARATE_50_HZ,
+    100: QMC5883LDatarate.QMC5883L_DATARATE_100_HZ,
+    200: QMC5883LDatarate.QMC5883L_DATARATE_200_HZ,
+}
+
+QMC5883LRange = qmc5883l_ns.enum("QMC5883LRange")
+QMC5883L_RANGES = {
+    200: QMC5883LRange.QMC5883L_RANGE_200_UT,
+    800: QMC5883LRange.QMC5883L_RANGE_800_UT,
+}
+
+QMC5883LOversampling = qmc5883l_ns.enum("QMC5883LOversampling")
+QMC5883LOversamplings = {
+    512: QMC5883LOversampling.QMC5883L_SAMPLING_512,
+    256: QMC5883LOversampling.QMC5883L_SAMPLING_256,
+    128: QMC5883LOversampling.QMC5883L_SAMPLING_128,
+    64: QMC5883LOversampling.QMC5883L_SAMPLING_64,
+}
+
+
+def validate_config(config: ConfigType) -> ConfigType:
+    if (
+        config[CONF_UPDATE_INTERVAL].total_milliseconds < 15
+        and CONF_DRDY_PIN not in config
+    ):
+        _LOGGER.warning(
+            "[qmc5883l] 'update_interval' is less than 15ms and 'drdy_pin' is "
+            "not configured, this may result in I2C errors"
+        )
+    return config
+
+
+def validate_enum(
+    enum_values: dict[Any, Any], units: str | list[str] | None = None, int: bool = True
+) -> Callable[[Any], Any]:
+    _units = []
+    if units is not None:
+        _units = units if isinstance(units, list) else [units]
+        _units = [str(x) for x in _units]
+    enum_bound = cv.enum(enum_values, int=int)
+
+    def validate_enum_bound(value: Any) -> Any:
+        value = cv.string(value)
+        for unit in _units:
+            if value.endswith(unit):
+                value = value[: -len(unit)]
+                break
+        return enum_bound(value)
+
+    return validate_enum_bound
+
+
+field_strength_schema = sensor.sensor_schema(
+    unit_of_measurement=UNIT_MICROTESLA,
+    icon=ICON_MAGNET,
+    accuracy_decimals=1,
+    state_class=STATE_CLASS_MEASUREMENT,
+)
+heading_schema = sensor.sensor_schema(
+    unit_of_measurement=UNIT_DEGREES,
+    icon=ICON_SCREEN_ROTATION,
+    accuracy_decimals=1,
+    state_class=STATE_CLASS_MEASUREMENT,
+)
+temperature_schema = sensor.sensor_schema(
+    unit_of_measurement=UNIT_CELSIUS,
+    accuracy_decimals=1,
+    device_class=DEVICE_CLASS_TEMPERATURE,
+    state_class=STATE_CLASS_MEASUREMENT,
+)
+
+CONFIG_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(QMC5883LComponent),
+            cv.Optional(CONF_ADDRESS): cv.i2c_address,
+            cv.Optional(CONF_RANGE, default="200µT"): validate_enum(
+                QMC5883L_RANGES, units=["uT", "µT"]
+            ),
+            cv.Optional(CONF_OVERSAMPLING, default="512x"): validate_enum(
+                QMC5883LOversamplings, units="x"
+            ),
+            cv.Optional(CONF_FIELD_STRENGTH_X): field_strength_schema,
+            cv.Optional(CONF_FIELD_STRENGTH_Y): field_strength_schema,
+            cv.Optional(CONF_FIELD_STRENGTH_Z): field_strength_schema,
+            cv.Optional(CONF_HEADING): heading_schema,
+            cv.Optional(CONF_TEMPERATURE): temperature_schema,
+            cv.Optional(CONF_DRDY_PIN): pins.gpio_input_pin_schema,
+            cv.Optional(CONF_DATA_RATE, default="200hz"): validate_enum(
+                QMC5883LDatarates, units=["hz", "Hz"]
+            ),
+        }
+    )
+    .extend(cv.polling_component_schema("60s"))
+    .extend(i2c.i2c_device_schema(0x0D)),
+    validate_config,
+)
+
+
+async def to_code(config: ConfigType) -> None:
+    var = await i2c.new_i2c_component(config)
+
+    cg.add(var.set_oversampling(config[CONF_OVERSAMPLING]))
+    cg.add(var.set_datarate(config[CONF_DATA_RATE]))
+    cg.add(var.set_range(config[CONF_RANGE]))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_FIELD_STRENGTH_X, var.set_x_sensor)
+    await sensors(CONF_FIELD_STRENGTH_Y, var.set_y_sensor)
+    await sensors(CONF_FIELD_STRENGTH_Z, var.set_z_sensor)
+    await sensors(CONF_HEADING, var.set_heading_sensor)
+    await sensors(CONF_TEMPERATURE, var.set_temperature_sensor)
+    await cg.add_pin(var.set_drdy_pin, config.get(CONF_DRDY_PIN))

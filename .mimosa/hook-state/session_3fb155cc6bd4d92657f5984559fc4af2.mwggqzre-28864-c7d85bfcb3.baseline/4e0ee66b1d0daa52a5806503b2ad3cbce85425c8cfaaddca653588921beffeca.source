@@ -1,0 +1,40 @@
+#pragma once
+
+#include "esphome/core/component.h"
+#include "esphome/components/pid/pid_climate.h"
+
+namespace esphome::pid {
+
+enum PIDClimateSensorType {
+  PID_SENSOR_TYPE_RESULT,
+  PID_SENSOR_TYPE_ERROR,
+  PID_SENSOR_TYPE_PROPORTIONAL,
+  PID_SENSOR_TYPE_INTEGRAL,
+  PID_SENSOR_TYPE_DERIVATIVE,
+  PID_SENSOR_TYPE_HEAT,
+  PID_SENSOR_TYPE_COOL,
+  PID_SENSOR_TYPE_KP,
+  PID_SENSOR_TYPE_KI,
+  PID_SENSOR_TYPE_KD,
+  PID_SENSOR_TYPE_DEADBAND_THRESHOLD_HIGH,
+  PID_SENSOR_TYPE_DEADBAND_THRESHOLD_LOW,
+  PID_SENSOR_TYPE_KP_DEADBAND_MULTIPLIER,
+  PID_SENSOR_TYPE_KI_DEADBAND_MULTIPLIER,
+  PID_SENSOR_TYPE_KD_DEADBAND_MULTIPLIER,
+};
+
+class PIDClimateSensor final : public sensor::Sensor, public Component {
+ public:
+  void setup() override;
+  void set_parent(PIDClimate *parent) { parent_ = parent; }
+  void set_type(PIDClimateSensorType type) { type_ = type; }
+
+  void dump_config() override;
+
+ protected:
+  void update_from_parent_();
+  PIDClimate *parent_;
+  PIDClimateSensorType type_;
+};
+
+}  // namespace esphome::pid

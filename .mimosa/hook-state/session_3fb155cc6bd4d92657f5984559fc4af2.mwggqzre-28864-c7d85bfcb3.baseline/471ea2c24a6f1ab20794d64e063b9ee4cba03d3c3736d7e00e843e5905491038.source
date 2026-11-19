@@ -1,0 +1,31 @@
+#pragma once
+
+#include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
+#include "remote_base.h"
+
+#include <cinttypes>
+
+namespace esphome::remote_base {
+
+struct CoolixData {
+  CoolixData() {}
+  CoolixData(uint32_t a) : first(a), second(a) {}
+  CoolixData(uint32_t a, uint32_t b) : first(a), second(b) {}
+  bool operator==(const CoolixData &other) const;
+  bool is_strict() const { return this->first == this->second; }
+  bool has_second() const { return this->second != 0; }
+  uint32_t first;
+  uint32_t second;
+};
+
+class CoolixProtocol : public RemoteProtocol<CoolixData> {
+ public:
+  void encode(RemoteTransmitData *dst, const CoolixData &data);
+  optional<CoolixData> decode(RemoteReceiveData data);
+  void dump(const CoolixData &data);
+};
+
+DECLARE_REMOTE_PROTOCOL(Coolix)
+
+}  // namespace esphome::remote_base

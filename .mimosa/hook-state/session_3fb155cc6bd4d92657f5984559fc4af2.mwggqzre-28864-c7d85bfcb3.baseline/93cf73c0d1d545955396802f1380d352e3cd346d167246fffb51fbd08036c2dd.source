@@ -1,0 +1,119 @@
+#include "template_valve.h"
+#include "esphome/core/log.h"
+
+namespace esphome::template_ {
+
+using namespace esphome::valve;
+
+ESPHOME_LOG_TAG(TAG, "template.valve");
+
+TemplateValve::TemplateValve() = default;
+
+void TemplateValve::setup() {
+  switch (this->restore_mode_) {
+    case VALVE_NO_RESTORE:
+      break;
+    case VALVE_RESTORE: {
+      auto restore = this->restore_state_();
+      if (restore.has_value())
+        restore->apply(this);
+      break;
+    }
+    case VALVE_RESTORE_AND_CALL: {
+      auto restore = this->restore_state_();
+      if (restore.has_value()) {
+        restore->to_call(this).perform();
+      }
+      break;
+    }
+  }
+  if (!this->state_f_.has_value())
+    this->disable_loop();
+}
+
+void TemplateValve::loop() {
+  bool changed = false;
+
+  auto s = this->state_f_();
+  if (s.has_value()) {
+    auto pos = clamp(*s, 0.0f, 1.0f);
+    if (pos != this->position) {
+      this->position = pos;
+      changed = true;
+    }
+  }
+
+  if (changed)
+    this->publish_state();
+}
+
+float TemplateValve::get_setup_priority() const { return setup_priority::HARDWARE; }
+
+Trigger<> *TemplateValve::get_open_trigger() { return &this->open_trigger_; }
+Trigger<> *TemplateValve::get_close_trigger() { return &this->close_trigger_; }
+Trigger<> *TemplateValve::get_stop_trigger() { return &this->stop_trigger_; }
+Trigger<> *TemplateValve::get_toggle_trigger() { return &this->toggle_trigger_; }
+
+void TemplateValve::dump_config() {
+  LOG_VALVE("", "Template Valve", this);
+  ESP_LOGCONFIG(TAG,
+                "  Has position: %s\n"
+                "  Optimistic: %s",
+                YESNO(this->has_position_), YESNO(this->optimistic_));
+}
+
+void TemplateValve::control(const ValveCall &call) {
+  if (call.get_stop()) {
+    this->stop_prev_trigger_();
+    this->stop_trigger_.trigger();
+    this->prev_command_trigger_ = &this->stop_trigger_;
+    this->publish_state();
+  }
+  if (call.get_toggle().has_value()) {
+    this->stop_prev_trigger_();
+    this->toggle_trigger_.trigger();
+    this->prev_command_trigger_ = &this->toggle_trigger_;
+    this->publish_state();
+  }
+  auto pos_val = call.get_position();
+  if (pos_val.has_value()) {
+    auto pos = *pos_val;
+    this->stop_prev_trigger_();
+
+    if (pos == VALVE_OPEN) {
+      this->open_trigger_.trigger();
+      this->prev_command_trigger_ = &this->open_trigger_;
+    } else if (pos == VALVE_CLOSED) {
+      this->close_trigger_.trigger();
+      this->prev_command_trigger_ = &this->close_trigger_;
+    } else {
+      this->position_trigger_.trigger(pos);
+    }
+
+    if (this->optimistic_) {
+      this->position = pos;
+    }
+  }
+
+  this->publish_state();
+}
+
+ValveTraits TemplateValve::get_traits() {
+  auto traits = ValveTraits();
+  traits.set_is_assumed_state(this->assumed_state_);
+  traits.set_supports_stop(this->has_stop_);
+  traits.set_supports_toggle(this->has_toggle_);
+  traits.set_supports_position(this->has_position_);
+  return traits;
+}
+
+Trigger<float> *TemplateValve::get_position_trigger() { return &this->position_trigger_; }
+
+void TemplateValve::stop_prev_trigger_() {
+  if (this->prev_command_trigger_ != nullptr) {
+    this->prev_command_trigger_->stop_action();
+    this->prev_command_trigger_ = nullptr;
+  }
+}
+
+}  // namespace esphome::template_

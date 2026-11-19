@@ -1,0 +1,194 @@
+#pragma once
+
+#include "esphome/core/component.h"
+#include "esphome/components/uart/uart.h"
+#include "esphome/core/automation.h"
+#include "esphome/core/helpers.h"
+#include <array>
+#include <span>
+#ifdef USE_TEXT_SENSOR
+#include "esphome/components/text_sensor/text_sensor.h"
+#endif
+#ifdef USE_SELECT
+#include "esphome/components/select/select.h"
+#endif
+#ifdef USE_NUMBER
+#include "esphome/components/number/number.h"
+#endif
+#ifdef USE_BUTTON
+#include "esphome/components/button/button.h"
+#endif
+
+namespace esphome::ld2420 {
+
+namespace testing {
+class LD2420OperatingModeTest;
+}  // namespace testing
+
+static constexpr uint8_t CALIBRATE_SAMPLES = 64;
+// Energy frame is 45 bytes; +1 for null terminator, +4 so that a frame footer always lands
+// inside the buffer during footer-based resynchronization after losing sync.
+static constexpr uint8_t MAX_LINE_LENGTH = 50;
+static constexpr uint8_t TOTAL_GATES = 16;
+
+enum OpMode : uint8_t {
+  OP_NORMAL_MODE = 1,
+  OP_CALIBRATE_MODE = 2,
+  OP_SIMPLE_MODE = 3,
+};
+
+class LD2420Listener {
+ public:
+  virtual void on_presence(bool presence) {};
+  virtual void on_distance(uint16_t distance) {};
+  virtual void on_fw_version(const char *fw) {};
+};
+
+class LD2420Component final : public Component, public uart::UARTDevice {
+ public:
+  struct CmdFrameT {
+    uint32_t header{0};
+    uint32_t footer{0};
+    uint16_t length{0};
+    uint16_t command{0};
+    uint16_t data_length{0};
+    uint8_t data[18];
+  };
+
+  struct RegConfigT {
+    uint32_t move_thresh[TOTAL_GATES];
+    uint32_t still_thresh[TOTAL_GATES];
+    uint16_t min_gate{0};
+    uint16_t max_gate{0};
+    uint16_t timeout{0};
+  };
+
+  void setup() override;
+  void dump_config() override;
+  void loop() override;
+#ifdef USE_SELECT
+  SUB_SELECT(operating_mode)
+#endif
+#ifdef USE_NUMBER
+  SUB_NUMBER(gate_timeout)
+  SUB_NUMBER(gate_select)
+  SUB_NUMBER(min_gate_distance)
+  SUB_NUMBER(max_gate_distance)
+  SUB_NUMBER(gate_move_sensitivity_factor)
+  SUB_NUMBER(gate_still_sensitivity_factor)
+  void set_gate_still_threshold_numbers(int gate, number::Number *n) { this->gate_still_threshold_numbers_[gate] = n; };
+  void set_gate_move_threshold_numbers(int gate, number::Number *n) { this->gate_move_threshold_numbers_[gate] = n; };
+  bool is_gate_select() { return gate_select_number_ != nullptr; };
+  uint8_t get_gate_select_value() { return static_cast<uint8_t>(this->gate_select_number_->state); };
+  float get_min_gate_distance_value() { return min_gate_distance_number_->state; };
+  float get_max_gate_distance_value() { return max_gate_distance_number_->state; };
+  void publish_gate_move_threshold(uint8_t gate) {
+    // With gate_select we only use 1 number pointer, thus we hard code [0]
+    this->gate_move_threshold_numbers_[0]->publish_state(this->new_config.move_thresh[gate]);
+  };
+  void publish_gate_still_threshold(uint8_t gate) {
+    this->gate_still_threshold_numbers_[0]->publish_state(this->new_config.still_thresh[gate]);
+  };
+  // Stores a threshold number's value for its gate, or for the selected gate with gate_select
+  void set_gate_threshold_value(number::Number *n, float value);
+  void init_gate_config_numbers();
+  void refresh_gate_config_numbers();
+#endif
+#ifdef USE_BUTTON
+  SUB_BUTTON(apply_config)
+  SUB_BUTTON(revert_config)
+  SUB_BUTTON(restart_module)
+  SUB_BUTTON(factory_reset)
+#endif
+#ifdef LD2420_LISTENER_COUNT
+  void register_listener(LD2420Listener *listener) { this->listeners_.push_back(listener); }
+#endif
+
+  void send_module_restart();
+  void restart_module_action();
+  void apply_config_action();
+  void factory_reset_action();
+  void revert_config_action();
+  int send_cmd_from_array(CmdFrameT cmd_frame);
+  void report_gate_data();
+  void handle_cmd_error(uint16_t error);
+  void set_operating_mode(const char *state);
+  void set_operating_mode(OpMode mode);
+  void change_operating_mode(OpMode mode);
+  void auto_calibrate_sensitivity();
+  void update_radar_data(uint16_t const *gate_energy, uint8_t sample_number);
+  uint8_t set_config_mode(bool enable);
+  void set_min_max_distances_timeout(uint32_t max_gate_distance, uint32_t min_gate_distance, uint32_t timeout);
+  void set_gate_threshold(uint8_t gate);
+  void set_reg_value(uint16_t reg, uint16_t value);
+  void set_system_mode(uint16_t mode);
+  void ld2420_restart();
+
+  float gate_move_sensitivity_factor{0.5};
+  float gate_still_sensitivity_factor{0.5};
+  int32_t last_periodic_millis{0};
+  int32_t report_periodic_millis{0};
+  int32_t monitor_periodic_millis{0};
+  int32_t last_normal_periodic_millis{0};
+  uint16_t radar_data[TOTAL_GATES][CALIBRATE_SAMPLES];
+  uint16_t gate_avg[TOTAL_GATES];
+  uint16_t gate_peak[TOTAL_GATES];
+  uint16_t total_sample_number_counter{0};
+  uint8_t current_operating_mode{OP_NORMAL_MODE};
+  uint8_t sample_number_counter{0};
+  bool output_energy_state{false};
+  RegConfigT current_config;
+  RegConfigT new_config;
+
+ protected:
+  struct CmdReplyT {
+    uint32_t data[4];
+    uint16_t error;
+    uint8_t command;
+    uint8_t status;
+    uint8_t length;
+    volatile bool ack;
+  };
+
+  void get_firmware_version_();
+  int get_gate_threshold_(uint8_t gate);
+  void get_reg_value_(uint16_t reg);
+  int get_min_max_distances_timeout_();
+  uint16_t get_mode_() { return this->system_mode_; };
+  void set_mode_(uint16_t mode) { this->system_mode_ = mode; };
+  bool get_presence_() { return this->presence_; };
+  void set_presence_(bool presence) { this->presence_ = presence; };
+  uint16_t get_distance_() { return this->distance_; };
+  void set_distance_(uint16_t distance) { this->distance_ = distance; };
+  void handle_simple_mode_(const uint8_t *inbuf, int len);
+  void handle_energy_mode_(uint8_t *buffer, int len);
+  void handle_ack_data_(uint8_t *buffer, int len);
+  void readline_(int rx_data, uint8_t *buffer, int len);
+  void read_batch_(std::span<uint8_t, MAX_LINE_LENGTH> buffer);
+  void set_calibration_(bool state) { this->calibration_ = state; };
+  bool get_calibration_() { return this->calibration_; };
+
+#ifdef USE_NUMBER
+  std::array<number::Number *, TOTAL_GATES> gate_still_threshold_numbers_{};
+  std::array<number::Number *, TOTAL_GATES> gate_move_threshold_numbers_{};
+#endif
+
+  uint16_t distance_{0};
+  uint16_t system_mode_;
+  uint16_t gate_energy_[TOTAL_GATES];
+  uint8_t buffer_pos_{0};  // where to resume processing/populating buffer
+  uint8_t buffer_data_[MAX_LINE_LENGTH];
+  char firmware_ver_[8]{"v0.0.0"};
+  bool cmd_active_{false};
+  bool presence_{false};
+  bool calibration_{false};
+  CmdReplyT cmd_reply_;
+#ifdef LD2420_LISTENER_COUNT
+  StaticVector<LD2420Listener *, LD2420_LISTENER_COUNT> listeners_;
+#endif
+
+  // clang-tidy compiles the host tests without USE_HOST, so the friend is unconditional
+  friend class testing::LD2420OperatingModeTest;
+};
+
+}  // namespace esphome::ld2420

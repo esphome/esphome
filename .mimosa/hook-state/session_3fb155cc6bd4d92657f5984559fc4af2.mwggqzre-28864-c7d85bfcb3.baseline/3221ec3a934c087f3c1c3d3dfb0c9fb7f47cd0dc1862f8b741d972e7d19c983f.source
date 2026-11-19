@@ -1,0 +1,49 @@
+# this component is for the "TLC5947 24-Channel, 12-Bit PWM LED Driver" [https://www.ti.com/lit/ds/symlink/tlc5947.pdf],
+# which is used e.g. on [https://www.adafruit.com/product/1429]. The code is based on the components sm2135 and sm26716.
+
+from esphome import pins
+import esphome.codegen as cg
+import esphome.config_validation as cv
+from esphome.const import (
+    CONF_CLOCK_PIN,
+    CONF_DATA_PIN,
+    CONF_ID,
+    CONF_NUM_CHIPS,
+    CONF_OE_PIN,
+)
+from esphome.types import ConfigType
+
+CONF_LAT_PIN = "lat_pin"
+
+CODEOWNERS = ["@rnauber"]
+DOMAIN = "tlc5947"
+
+tlc5947_ns = cg.esphome_ns.namespace("tlc5947")
+TLC5947 = tlc5947_ns.class_("TLC5947", cg.Component)
+
+MULTI_CONF = True
+CONFIG_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.declare_id(TLC5947),
+        cv.Required(CONF_DATA_PIN): pins.gpio_output_pin_schema,
+        cv.Required(CONF_CLOCK_PIN): pins.gpio_output_pin_schema,
+        cv.Required(CONF_LAT_PIN): pins.gpio_output_pin_schema,
+        cv.Optional(CONF_OE_PIN): pins.gpio_output_pin_schema,
+        cv.Optional(CONF_NUM_CHIPS, default=1): cv.int_range(min=1, max=85),
+    }
+).extend(cv.COMPONENT_SCHEMA)
+
+
+async def to_code(config: ConfigType) -> None:
+    pwm_amounts = cg.static_buffer(
+        config[CONF_ID],
+        cg.uint16,
+        config[CONF_NUM_CHIPS] * TLC5947.static_("N_CHANNELS_PER_CHIP"),
+    )
+    var = cg.new_Pvariable(config[CONF_ID], pwm_amounts)
+    await cg.register_component(var, config)
+
+    await cg.add_pin(var.set_data_pin, config[CONF_DATA_PIN])
+    await cg.add_pin(var.set_clock_pin, config[CONF_CLOCK_PIN])
+    await cg.add_pin(var.set_lat_pin, config[CONF_LAT_PIN])
+    await cg.add_pin(var.set_outenable_pin, config.get(CONF_OE_PIN))

@@ -1,0 +1,252 @@
+#include "keeloq_protocol.h"
+#include "esphome/core/log.h"
+
+#include <cinttypes>
+
+namespace esphome::remote_base {
+
+ESPHOME_LOG_TAG(TAG, "remote.keeloq");
+
+static constexpr uint32_t BIT_TIME_US = 380;
+static constexpr uint8_t NBITS_PREAMBLE = 12;
+static constexpr uint8_t NBITS_REPEAT = 1;
+static constexpr uint8_t NBITS_VLOW = 1;
+static constexpr uint8_t NBITS_SERIAL = 28;
+static constexpr uint8_t NBITS_BUTTONS = 4;
+static constexpr uint8_t NBITS_DISC = 12;
+static constexpr uint8_t NBITS_SYNC_CNT = 16;
+
+static constexpr uint8_t NBITS_FIXED_DATA = NBITS_REPEAT + NBITS_VLOW + NBITS_BUTTONS + NBITS_SERIAL;
+static constexpr uint8_t NBITS_ENCRYPTED_DATA = NBITS_BUTTONS + NBITS_DISC + NBITS_SYNC_CNT;
+static constexpr uint8_t NBITS_DATA = NBITS_FIXED_DATA + NBITS_ENCRYPTED_DATA;
+static constexpr uint8_t NBITS_SUFFIX_MAX = 16;
+// A space this long is not part of the PWM: data spaces are at most 2 bit times, the guard is 39.
+static constexpr uint32_t GAP_TIME_US = 4 * BIT_TIME_US;
+
+/*
+KeeLoq Protocol
+
+Coded using information from datasheet for Microchip HCS301 KeeLow Code Hopping Encoder
+
+Encoder - Hopping code is not generated. Send the encrypted field from the caller.
+Optional suffix bits may follow the 66-bit HCS301 word (same PWM coding).
+
+Decoder - Hopping code is ignored and not checked when received. Serial number of
+transmitter and button command is decoded. Extra bits after the word are returned
+as suffix / suffix_bits when present.
+
+*/
+
+void KeeloqProtocol::encode(RemoteTransmitData *dst, const KeeloqData &data) {
+  uint32_t out_data = 0x0;
+
+  ESP_LOGD(TAG, "Send Keeloq: address=%07" PRIx32 " command=%03x encrypted=%08" PRIx32 " suffix_bits=%u", data.address,
+           data.command, data.encrypted, data.suffix_bits);
+  ESP_LOGV(TAG, "Send Keeloq: data bits (%d + %d)", NBITS_ENCRYPTED_DATA, NBITS_FIXED_DATA);
+
+  // Preamble = '01' x 12
+  for (uint8_t cnt = NBITS_PREAMBLE; cnt; cnt--) {
+    dst->space(BIT_TIME_US);
+    dst->mark(BIT_TIME_US);
+  }
+
+  // Header = 10 bit space
+  dst->space(10 * BIT_TIME_US);
+
+  // Encrypted field
+  out_data = data.encrypted;
+
+  ESP_LOGV(TAG, "Send Keeloq: Encrypted data %04" PRIx32, out_data);
+
+  for (uint32_t mask = 1, cnt = 0; cnt < NBITS_ENCRYPTED_DATA; cnt++, mask <<= 1) {
+    if (out_data & mask) {
+      dst->mark(1 * BIT_TIME_US);
+      dst->space(2 * BIT_TIME_US);
+    } else {
+      dst->mark(2 * BIT_TIME_US);
+      dst->space(1 * BIT_TIME_US);
+    }
+  }
+
+  // first 32 bits of fixed portion
+  out_data = (data.command & 0x0f);
+  out_data <<= NBITS_SERIAL;
+  out_data |= data.address;
+  ESP_LOGV(TAG, "Send Keeloq: Fixed data %04" PRIx32, out_data);
+
+  for (uint32_t mask = 1, cnt = 0; cnt < (NBITS_FIXED_DATA - 2); cnt++, mask <<= 1) {
+    if (out_data & mask) {
+      dst->mark(1 * BIT_TIME_US);
+      dst->space(2 * BIT_TIME_US);
+    } else {
+      dst->mark(2 * BIT_TIME_US);
+      dst->space(1 * BIT_TIME_US);
+    }
+  }
+
+  // low battery flag
+  if (data.vlow) {
+    dst->mark(1 * BIT_TIME_US);
+    dst->space(2 * BIT_TIME_US);
+  } else {
+    dst->mark(2 * BIT_TIME_US);
+    dst->space(1 * BIT_TIME_US);
+  }
+
+  // repeat flag
+  if (data.repeat) {
+    dst->mark(1 * BIT_TIME_US);
+    dst->space(2 * BIT_TIME_US);
+  } else {
+    dst->mark(2 * BIT_TIME_US);
+    dst->space(1 * BIT_TIME_US);
+  }
+
+  const uint8_t extra = data.suffix_bits > NBITS_SUFFIX_MAX ? NBITS_SUFFIX_MAX : data.suffix_bits;
+  for (uint8_t i = 0; i < extra; i++) {
+    if (data.suffix & (1 << i)) {
+      dst->mark(1 * BIT_TIME_US);
+      dst->space(2 * BIT_TIME_US);
+    } else {
+      dst->mark(2 * BIT_TIME_US);
+      dst->space(1 * BIT_TIME_US);
+    }
+  }
+
+  // Guard time  at end of packet
+  dst->space(39 * BIT_TIME_US);
+}
+
+optional<KeeloqData> KeeloqProtocol::decode(RemoteReceiveData src) {
+  KeeloqData out{
+      .encrypted = 0,
+      .address = 0,
+      .command = 0,
+      .repeat = false,
+      .vlow = false,
+      .suffix = 0,
+      .suffix_bits = 0,
+  };
+
+  if (src.size() < (NBITS_PREAMBLE + NBITS_DATA) * 2) {
+    return {};
+  }
+
+  ESP_LOGVV(TAG,
+            "%2" PRId32 ": %" PRId32 " %" PRId32 " %" PRId32 " %" PRId32 " %" PRId32 " %" PRId32 " %" PRId32 " %" PRId32
+            " %" PRId32 " %" PRId32 " %" PRId32 " %" PRId32 " %" PRId32 " %" PRId32 " %" PRId32 " %" PRId32 " %" PRId32
+            " %" PRId32 " %" PRId32 " %" PRId32,
+            src.size(), src.peek(0), src.peek(1), src.peek(2), src.peek(3), src.peek(4), src.peek(5), src.peek(6),
+            src.peek(7), src.peek(8), src.peek(9), src.peek(10), src.peek(11), src.peek(12), src.peek(13), src.peek(14),
+            src.peek(15), src.peek(16), src.peek(17), src.peek(18), src.peek(19));
+
+  // Check preamble bits
+  int8_t bit = NBITS_PREAMBLE - 1;
+  while (--bit >= 0) {
+    if (!src.expect_mark(BIT_TIME_US) || !src.expect_space(BIT_TIME_US)) {
+      ESP_LOGV(TAG, "Decode KeeLoq: Fail 1, %d %" PRId32, bit + 1, src.peek());
+      return {};
+    }
+  }
+  if (!src.expect_mark(BIT_TIME_US) || !src.expect_space(10 * BIT_TIME_US)) {
+    ESP_LOGV(TAG, "Decode KeeLoq: Fail 1, %d %" PRId32, bit + 1, src.peek());
+    return {};
+  }
+
+  // Read encrypted bits
+  uint32_t out_data = 0;
+  for (bit = 0; bit < NBITS_ENCRYPTED_DATA; bit++) {
+    if (src.expect_mark(2 * BIT_TIME_US) && src.expect_space(BIT_TIME_US)) {
+      out_data |= 0 << bit;
+    } else if (src.expect_mark(BIT_TIME_US) && src.expect_space(2 * BIT_TIME_US)) {
+      out_data |= 1 << bit;
+    } else {
+      ESP_LOGV(TAG, "Decode KeeLoq: Fail 2, %" PRIu32 " %" PRId32, src.get_index(), src.peek());
+      return {};
+    }
+  }
+  ESP_LOGVV(TAG, "Decode KeeLoq: Data, %d %08" PRIx32, bit, out_data);
+  out.encrypted = out_data;
+
+  // Read Serial Number and Button Status
+  out_data = 0;
+  for (bit = 0; bit < NBITS_SERIAL + NBITS_BUTTONS; bit++) {
+    if (src.expect_mark(2 * BIT_TIME_US) && src.expect_space(BIT_TIME_US)) {
+      out_data |= 0 << bit;
+    } else if (src.expect_mark(BIT_TIME_US) && src.expect_space(2 * BIT_TIME_US)) {
+      out_data |= 1 << bit;
+    } else {
+      ESP_LOGV(TAG, "Decode KeeLoq: Fail 3, %" PRIu32 " %" PRId32, src.get_index(), src.peek());
+      return {};
+    }
+  }
+  ESP_LOGVV(TAG, "Decode KeeLoq: Data, %2d %08" PRIx32, bit, out_data);
+  out.command = (out_data >> 28) & 0xf;
+  out.address = out_data & 0xfffffff;
+
+  // Read Vlow bit
+  if (src.expect_mark(2 * BIT_TIME_US) && src.expect_space(BIT_TIME_US)) {
+    out.vlow = false;
+  } else if (src.expect_mark(BIT_TIME_US) && src.expect_space(2 * BIT_TIME_US)) {
+    out.vlow = true;
+  } else {
+    ESP_LOGV(TAG, "Decode KeeLoq: Fail 4, %" PRId32, src.peek());
+    return {};
+  }
+
+  // Read Repeat bit
+  if (src.expect_mark(2 * BIT_TIME_US) && src.peek_space_at_least(BIT_TIME_US)) {
+    out.repeat = false;
+  } else if (src.expect_mark(BIT_TIME_US) && src.peek_space_at_least(2 * BIT_TIME_US)) {
+    out.repeat = true;
+  } else {
+    ESP_LOGV(TAG, "Decode KeeLoq: Fail 5, %" PRId32, src.peek());
+    return {};
+  }
+
+  if (out.repeat) {
+    src.expect_space(2 * BIT_TIME_US);
+  } else {
+    src.expect_space(BIT_TIME_US);
+  }
+
+  while (out.suffix_bits < NBITS_SUFFIX_MAX) {
+    bool one = false;
+    if (src.expect_mark(2 * BIT_TIME_US)) {
+      one = false;
+    } else if (src.expect_mark(BIT_TIME_US)) {
+      one = true;
+    } else {
+      break;
+    }
+    // The last bit's space is merged into the guard gap, or the capture ends at idle.
+    if (!src.expect_space(one ? 2 * BIT_TIME_US : BIT_TIME_US) && src.is_valid() &&
+        !src.peek_space_at_least(GAP_TIME_US)) {
+      break;
+    }
+    if (one) {
+      out.suffix |= 1 << out.suffix_bits;
+    }
+    out.suffix_bits++;
+  }
+  // The suffix ends at a gap or at the end of the capture. PWM that goes on is not a suffix.
+  if (src.is_valid() && !src.peek_space_at_least(GAP_TIME_US)) {
+    out.suffix = 0;
+    out.suffix_bits = 0;
+  }
+
+  return out;
+}
+
+void KeeloqProtocol::dump(const KeeloqData &data) {
+  if (data.suffix_bits == 6) {
+    // Jarolift TDEF frame: show the group as transmit_keeloq takes it.
+    ESP_LOGD(TAG, "Received Keeloq: address=0x%08" PRIx32 ", command=0x%02x, encrypted=0x%08" PRIx32 ", group=0x%02x",
+             data.address, data.command, data.encrypted, data.group());
+    return;
+  }
+  ESP_LOGD(TAG, "Received Keeloq: address=0x%08" PRIx32 ", command=0x%02x, encrypted=0x%08" PRIx32 ", suffix=0x%04x/%u",
+           data.address, data.command, data.encrypted, data.suffix, data.suffix_bits);
+}
+
+}  // namespace esphome::remote_base

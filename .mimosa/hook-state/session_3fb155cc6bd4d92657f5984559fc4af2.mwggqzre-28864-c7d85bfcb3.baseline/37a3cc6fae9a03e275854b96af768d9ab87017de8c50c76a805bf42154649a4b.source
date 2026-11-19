@@ -1,0 +1,463 @@
+from esphome import automation, core
+import esphome.codegen as cg
+from esphome.components import media_player, micro_wake_word, microphone, speaker
+import esphome.config_validation as cv
+from esphome.const import (
+    CONF_BUFFER_DURATION,
+    CONF_ID,
+    CONF_MEDIA_PLAYER,
+    CONF_MICROPHONE,
+    CONF_ON_CLIENT_CONNECTED,
+    CONF_ON_CLIENT_DISCONNECTED,
+    CONF_ON_ERROR,
+    CONF_ON_IDLE,
+    CONF_ON_START,
+    CONF_SPEAKER,
+    CONF_TIMEOUT,
+)
+from esphome.types import ConfigType
+
+AUTO_LOAD = ["audio", "ring_buffer", "socket"]
+DEPENDENCIES = ["api", "microphone"]
+
+CODEOWNERS = ["@jesserockz", "@kahrendt"]
+DOMAIN = "voice_assistant"
+
+CONF_ON_END = "on_end"
+CONF_ON_INTENT_END = "on_intent_end"
+CONF_ON_INTENT_PROGRESS = "on_intent_progress"
+CONF_ON_INTENT_START = "on_intent_start"
+CONF_ON_LISTENING = "on_listening"
+CONF_ON_STT_END = "on_stt_end"
+CONF_ON_STT_VAD_END = "on_stt_vad_end"
+CONF_ON_STT_VAD_START = "on_stt_vad_start"
+CONF_ON_TTS_END = "on_tts_end"
+CONF_ON_TTS_START = "on_tts_start"
+CONF_ON_TTS_STREAM_START = "on_tts_stream_start"
+CONF_ON_TTS_STREAM_END = "on_tts_stream_end"
+CONF_ON_WAKE_WORD_DETECTED = "on_wake_word_detected"
+CONF_ON_WAKE_WORD_REJECTED = "on_wake_word_rejected"
+
+CONF_SILENCE_DETECTION = "silence_detection"
+CONF_USE_WAKE_WORD = "use_wake_word"
+CONF_VAD_THRESHOLD = "vad_threshold"
+
+CONF_AUTO_GAIN = "auto_gain"
+CONF_NOISE_SUPPRESSION_LEVEL = "noise_suppression_level"
+CONF_VOLUME_MULTIPLIER = "volume_multiplier"
+
+CONF_MICRO_WAKE_WORD = "micro_wake_word"
+CONF_WAKE_WORD = "wake_word"
+CONF_WAKE_WORD_AUDIO = "wake_word_audio"
+
+CONF_CONVERSATION_TIMEOUT = "conversation_timeout"
+CONF_TTS_PLAYBACK_START_TIMEOUT = "tts_playback_start_timeout"
+# Keep in sync with VoiceAssistant::tts_playback_start_timeout_ in voice_assistant.h.
+TTS_PLAYBACK_START_TIMEOUT_DEFAULT = core.TimePeriod(milliseconds=15000)
+
+CONF_ON_TIMER_STARTED = "on_timer_started"
+CONF_ON_TIMER_UPDATED = "on_timer_updated"
+CONF_ON_TIMER_CANCELLED = "on_timer_cancelled"
+CONF_ON_TIMER_FINISHED = "on_timer_finished"
+CONF_ON_TIMER_TICK = "on_timer_tick"
+
+MAX_MICROPHONE_SOURCES = 2
+
+
+voice_assistant_ns = cg.esphome_ns.namespace("voice_assistant")
+VoiceAssistant = voice_assistant_ns.class_("VoiceAssistant", cg.Component)
+
+
+Timer = voice_assistant_ns.struct("Timer")
+
+
+CONFIG_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(VoiceAssistant),
+            cv.Optional(CONF_MICROPHONE, default=[{}]): cv.All(
+                cv.ensure_list(
+                    microphone.microphone_source_schema(
+                        min_bits_per_sample=16,
+                        max_bits_per_sample=16,
+                        min_channels=1,
+                        max_channels=1,
+                    )
+                ),
+                cv.Length(
+                    min=1,
+                    max=MAX_MICROPHONE_SOURCES,
+                    msg=f"Voice Assistant supports at most {MAX_MICROPHONE_SOURCES} microphone sources",
+                ),
+            ),
+            cv.Exclusive(CONF_MEDIA_PLAYER, "output"): cv.use_id(
+                media_player.MediaPlayer
+            ),
+            cv.Exclusive(CONF_SPEAKER, "output"): cv.use_id(speaker.Speaker),
+            cv.Optional(CONF_USE_WAKE_WORD, default=False): cv.boolean,
+            cv.Optional(CONF_MICRO_WAKE_WORD): cv.use_id(micro_wake_word.MicroWakeWord),
+            cv.Optional(CONF_WAKE_WORD_AUDIO): cv.Schema(
+                {
+                    cv.Optional(CONF_BUFFER_DURATION, default="1500ms"): cv.All(
+                        cv.positive_time_period_milliseconds,
+                        cv.Range(
+                            min=core.TimePeriod(milliseconds=100),
+                            max=core.TimePeriod(seconds=5),
+                        ),
+                    ),
+                    cv.Optional(CONF_TIMEOUT, default="2s"): cv.All(
+                        cv.positive_time_period_milliseconds,
+                        cv.Range(min=core.TimePeriod(milliseconds=1)),
+                    ),
+                }
+            ),
+            cv.Optional(CONF_VAD_THRESHOLD): cv.invalid(
+                "VAD threshold is no longer supported, as it requires the deprecated esp_adf external component. Use an i2s_audio microphone/speaker instead. Additionally, you may need to configure the audio_adc and audio_dac components depending on your hardware."
+            ),
+            cv.Optional(CONF_NOISE_SUPPRESSION_LEVEL, default=0): cv.int_range(0, 4),
+            cv.Optional(CONF_AUTO_GAIN, default="0dBFS"): cv.All(
+                cv.float_with_unit("decibel full scale", "(dBFS|dbfs|DBFS)"),
+                cv.int_range(0, 31),
+            ),
+            cv.Optional(
+                CONF_CONVERSATION_TIMEOUT, default="300s"
+            ): cv.positive_time_period_milliseconds,
+            cv.Optional(
+                CONF_TTS_PLAYBACK_START_TIMEOUT,
+                default=TTS_PLAYBACK_START_TIMEOUT_DEFAULT,
+            ): cv.All(
+                cv.positive_time_period_milliseconds,
+                cv.Range(min=core.TimePeriod(milliseconds=1)),
+            ),
+            cv.Optional(CONF_VOLUME_MULTIPLIER, default=1.0): cv.float_range(
+                min=0.0, min_included=False
+            ),
+            cv.Optional(CONF_ON_LISTENING): automation.validate_automation(single=True),
+            cv.Optional(CONF_ON_START): automation.validate_automation(single=True),
+            cv.Optional(CONF_ON_WAKE_WORD_DETECTED): automation.validate_automation(
+                single=True
+            ),
+            cv.Optional(CONF_ON_WAKE_WORD_REJECTED): automation.validate_automation(
+                single=True
+            ),
+            cv.Optional(CONF_ON_STT_END): automation.validate_automation(single=True),
+            cv.Optional(CONF_ON_TTS_START): automation.validate_automation(single=True),
+            cv.Optional(CONF_ON_TTS_END): automation.validate_automation(single=True),
+            cv.Optional(CONF_ON_END): automation.validate_automation(single=True),
+            cv.Optional(CONF_ON_ERROR): automation.validate_automation(single=True),
+            cv.Optional(CONF_ON_CLIENT_CONNECTED): automation.validate_automation(
+                single=True
+            ),
+            cv.Optional(CONF_ON_CLIENT_DISCONNECTED): automation.validate_automation(
+                single=True
+            ),
+            cv.Optional(CONF_ON_INTENT_START): automation.validate_automation(
+                single=True
+            ),
+            cv.Optional(CONF_ON_INTENT_PROGRESS): automation.validate_automation(
+                single=True
+            ),
+            cv.Optional(CONF_ON_INTENT_END): automation.validate_automation(
+                single=True
+            ),
+            cv.Optional(CONF_ON_STT_VAD_START): automation.validate_automation(
+                single=True
+            ),
+            cv.Optional(CONF_ON_STT_VAD_END): automation.validate_automation(
+                single=True
+            ),
+            cv.Optional(CONF_ON_TTS_STREAM_START): automation.validate_automation(
+                single=True
+            ),
+            cv.Optional(CONF_ON_TTS_STREAM_END): automation.validate_automation(
+                single=True
+            ),
+            cv.Optional(CONF_ON_IDLE): automation.validate_automation(single=True),
+            cv.Optional(CONF_ON_TIMER_STARTED): automation.validate_automation(
+                single=True
+            ),
+            cv.Optional(CONF_ON_TIMER_UPDATED): automation.validate_automation(
+                single=True
+            ),
+            cv.Optional(CONF_ON_TIMER_CANCELLED): automation.validate_automation(
+                single=True
+            ),
+            cv.Optional(CONF_ON_TIMER_FINISHED): automation.validate_automation(
+                single=True
+            ),
+            cv.Optional(CONF_ON_TIMER_TICK): automation.validate_automation(
+                single=True
+            ),
+        }
+    ).extend(cv.COMPONENT_SCHEMA),
+    cv.key_requires((CONF_ON_TTS_STREAM_START, CONF_ON_TTS_STREAM_END), CONF_SPEAKER),
+    cv.key_requires(CONF_WAKE_WORD_AUDIO, CONF_MICRO_WAKE_WORD),
+    cv.key_requires(CONF_ON_WAKE_WORD_REJECTED, CONF_WAKE_WORD_AUDIO),
+)
+
+FINAL_VALIDATE_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.Optional(CONF_MICROPHONE): cv.ensure_list(
+                microphone.final_validate_microphone_source_schema(
+                    "voice_assistant", sample_rate=16000
+                )
+            ),
+        },
+        extra=cv.ALLOW_EXTRA,
+    ),
+)
+
+
+async def to_code(config: ConfigType) -> None:
+    var = cg.new_Pvariable(config[CONF_ID])
+    await cg.register_component(var, config)
+
+    mic_sources = config[CONF_MICROPHONE]
+    mic_source = await microphone.microphone_source_to_code(mic_sources[0])
+    cg.add(var.set_microphone_source(mic_source))
+
+    if len(mic_sources) > 1:
+        mic_source2 = await microphone.microphone_source_to_code(mic_sources[1])
+        cg.add(var.set_microphone_source2(mic_source2))
+
+    await cg.add_variable(var.set_micro_wake_word, config.get(CONF_MICRO_WAKE_WORD))
+    await cg.add_variable(var.set_media_player, config.get(CONF_MEDIA_PLAYER))
+    await cg.add_variable(var.set_speaker, config.get(CONF_SPEAKER))
+
+    cg.add(var.set_use_wake_word(config[CONF_USE_WAKE_WORD]))
+
+    if wake_word_audio := config.get(CONF_WAKE_WORD_AUDIO):
+        cg.add_define("USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO")
+        cg.add(
+            var.set_wake_word_audio(
+                wake_word_audio[CONF_BUFFER_DURATION], wake_word_audio[CONF_TIMEOUT]
+            )
+        )
+
+    cg.add_optional(var.set_vad_threshold, config.get(CONF_VAD_THRESHOLD))
+
+    cg.add(var.set_noise_suppression_level(config[CONF_NOISE_SUPPRESSION_LEVEL]))
+    cg.add(var.set_auto_gain(config[CONF_AUTO_GAIN]))
+    cg.add(var.set_volume_multiplier(config[CONF_VOLUME_MULTIPLIER]))
+    cg.add(var.set_conversation_timeout(config[CONF_CONVERSATION_TIMEOUT]))
+    if (
+        timeout := config[CONF_TTS_PLAYBACK_START_TIMEOUT]
+    ) != TTS_PLAYBACK_START_TIMEOUT_DEFAULT:
+        cg.add(var.set_tts_playback_start_timeout(timeout))
+
+    if CONF_ON_LISTENING in config:
+        await automation.build_automation(
+            var.get_listening_trigger(), [], config[CONF_ON_LISTENING]
+        )
+
+    if CONF_ON_START in config:
+        await automation.build_automation(
+            var.get_start_trigger(), [], config[CONF_ON_START]
+        )
+
+    if CONF_ON_WAKE_WORD_DETECTED in config:
+        await automation.build_automation(
+            var.get_wake_word_detected_trigger(),
+            [],
+            config[CONF_ON_WAKE_WORD_DETECTED],
+        )
+
+    if CONF_ON_WAKE_WORD_REJECTED in config:
+        await automation.build_automation(
+            var.get_wake_word_rejected_trigger(),
+            [],
+            config[CONF_ON_WAKE_WORD_REJECTED],
+        )
+
+    if CONF_ON_STT_END in config:
+        await automation.build_automation(
+            var.get_stt_end_trigger(), [(cg.std_string, "x")], config[CONF_ON_STT_END]
+        )
+
+    if CONF_ON_TTS_START in config:
+        await automation.build_automation(
+            var.get_tts_start_trigger(),
+            [(cg.std_string, "x")],
+            config[CONF_ON_TTS_START],
+        )
+
+    if CONF_ON_TTS_END in config:
+        await automation.build_automation(
+            var.get_tts_end_trigger(), [(cg.std_string, "x")], config[CONF_ON_TTS_END]
+        )
+
+    if CONF_ON_END in config:
+        await automation.build_automation(
+            var.get_end_trigger(), [], config[CONF_ON_END]
+        )
+
+    if CONF_ON_ERROR in config:
+        await automation.build_automation(
+            var.get_error_trigger(),
+            [(cg.std_string, "code"), (cg.std_string, "message")],
+            config[CONF_ON_ERROR],
+        )
+
+    if CONF_ON_CLIENT_CONNECTED in config:
+        await automation.build_automation(
+            var.get_client_connected_trigger(),
+            [],
+            config[CONF_ON_CLIENT_CONNECTED],
+        )
+
+    if CONF_ON_CLIENT_DISCONNECTED in config:
+        await automation.build_automation(
+            var.get_client_disconnected_trigger(),
+            [],
+            config[CONF_ON_CLIENT_DISCONNECTED],
+        )
+
+    if CONF_ON_INTENT_START in config:
+        await automation.build_automation(
+            var.get_intent_start_trigger(),
+            [],
+            config[CONF_ON_INTENT_START],
+        )
+
+    if CONF_ON_INTENT_PROGRESS in config:
+        await automation.build_automation(
+            var.get_intent_progress_trigger(),
+            [(cg.std_string, "x")],
+            config[CONF_ON_INTENT_PROGRESS],
+        )
+
+    if CONF_ON_INTENT_END in config:
+        await automation.build_automation(
+            var.get_intent_end_trigger(),
+            [],
+            config[CONF_ON_INTENT_END],
+        )
+
+    if CONF_ON_STT_VAD_START in config:
+        await automation.build_automation(
+            var.get_stt_vad_start_trigger(),
+            [],
+            config[CONF_ON_STT_VAD_START],
+        )
+
+    if CONF_ON_STT_VAD_END in config:
+        await automation.build_automation(
+            var.get_stt_vad_end_trigger(),
+            [],
+            config[CONF_ON_STT_VAD_END],
+        )
+
+    if CONF_ON_TTS_STREAM_START in config:
+        await automation.build_automation(
+            var.get_tts_stream_start_trigger(),
+            [],
+            config[CONF_ON_TTS_STREAM_START],
+        )
+
+    if CONF_ON_TTS_STREAM_END in config:
+        await automation.build_automation(
+            var.get_tts_stream_end_trigger(),
+            [],
+            config[CONF_ON_TTS_STREAM_END],
+        )
+
+    if CONF_ON_IDLE in config:
+        await automation.build_automation(
+            var.get_idle_trigger(),
+            [],
+            config[CONF_ON_IDLE],
+        )
+
+    has_timers = False
+    if on_timer_started := config.get(CONF_ON_TIMER_STARTED):
+        await automation.build_automation(
+            var.get_timer_started_trigger(),
+            [(Timer, "timer")],
+            on_timer_started,
+        )
+        has_timers = True
+
+    if on_timer_updated := config.get(CONF_ON_TIMER_UPDATED):
+        await automation.build_automation(
+            var.get_timer_updated_trigger(),
+            [(Timer, "timer")],
+            on_timer_updated,
+        )
+        has_timers = True
+
+    if on_timer_cancelled := config.get(CONF_ON_TIMER_CANCELLED):
+        await automation.build_automation(
+            var.get_timer_cancelled_trigger(),
+            [(Timer, "timer")],
+            on_timer_cancelled,
+        )
+        has_timers = True
+
+    if on_timer_finished := config.get(CONF_ON_TIMER_FINISHED):
+        await automation.build_automation(
+            var.get_timer_finished_trigger(),
+            [(Timer, "timer")],
+            on_timer_finished,
+        )
+        has_timers = True
+
+    if on_timer_tick := config.get(CONF_ON_TIMER_TICK):
+        await automation.build_automation(
+            var.get_timer_tick_trigger(),
+            [
+                (
+                    cg.std_vector.template(Timer).operator("const").operator("ref"),
+                    "timers",
+                )
+            ],
+            on_timer_tick,
+        )
+        has_timers = True
+
+    cg.add(var.set_has_timers(has_timers))
+
+    cg.add_define("USE_VOICE_ASSISTANT")
+
+
+VOICE_ASSISTANT_ACTION_SCHEMA = cv.Schema({cv.GenerateID(): cv.use_id(VoiceAssistant)})
+
+
+automation.register_apply_action(
+    "voice_assistant.start_continuous",
+    VOICE_ASSISTANT_ACTION_SCHEMA,
+    automation.ApplyCall("request_start(true, true)"),
+)
+# wake_word defaults to "" so a start without one clears the previous wake word,
+# as the old action did.
+automation.register_apply_action(
+    "voice_assistant.start",
+    VOICE_ASSISTANT_ACTION_SCHEMA.extend(
+        {
+            cv.Optional(CONF_SILENCE_DETECTION, default=True): cv.boolean,
+            cv.Optional(CONF_WAKE_WORD, default=""): cv.templatable(cv.string),
+        }
+    ),
+    automation.ApplyField(CONF_WAKE_WORD, "set_wake_word", cg.std_string),
+    automation.ApplyCall(
+        "request_start(false, {})", ((CONF_SILENCE_DETECTION, cg.bool_),)
+    ),
+)
+automation.register_apply_action(
+    "voice_assistant.stop",
+    VOICE_ASSISTANT_ACTION_SCHEMA,
+    automation.ApplyCall("request_stop()"),
+)
+
+
+automation.register_apply_condition(
+    "voice_assistant.is_running",
+    VOICE_ASSISTANT_ACTION_SCHEMA,
+    "is_running_or_continuous()",
+)
+
+automation.register_apply_condition(
+    "voice_assistant.connected",
+    VOICE_ASSISTANT_ACTION_SCHEMA,
+    "get_api_connection() != nullptr",
+)

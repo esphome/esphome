@@ -1,0 +1,37 @@
+#include "resistance_sensor.h"
+#include "esphome/core/log.h"
+
+namespace esphome::resistance {
+
+ESPHOME_LOG_TAG(TAG, "resistance");
+
+void ResistanceSensor::dump_config() {
+  LOG_SENSOR("", "Resistance Sensor", this);
+  ESP_LOGCONFIG(TAG,
+                "  Configuration: %s\n"
+                "  Resistor: %.2fΩ\n"
+                "  Reference Voltage: %.1fV",
+                this->configuration_ == UPSTREAM ? LOG_STR_LITERAL("UPSTREAM") : LOG_STR_LITERAL("DOWNSTREAM"),
+                this->resistor_, this->reference_voltage_);
+}
+void ResistanceSensor::process_(float value) {
+  if (std::isnan(value)) {
+    this->publish_state(NAN);
+    return;
+  }
+  float res = 0;
+  switch (this->configuration_) {
+    case UPSTREAM:
+      res = value == 0.0f ? NAN : (this->reference_voltage_ - value) / value;
+      break;
+    case DOWNSTREAM:
+      res = value == this->reference_voltage_ ? NAN : value / (this->reference_voltage_ - value);
+      break;
+  }
+
+  res *= this->resistor_;
+  ESP_LOGV(TAG, "'%s' - Resistance %.1fΩ", LOG_STR_ARG(this->get_log_name()), res);
+  this->publish_state(res);
+}
+
+}  // namespace esphome::resistance

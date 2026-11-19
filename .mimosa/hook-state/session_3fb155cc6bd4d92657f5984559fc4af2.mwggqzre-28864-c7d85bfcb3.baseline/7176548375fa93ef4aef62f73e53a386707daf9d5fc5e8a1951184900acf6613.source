@@ -1,0 +1,51 @@
+from esphome import pins
+import esphome.codegen as cg
+from esphome.components import display
+import esphome.config_validation as cv
+from esphome.const import (
+    CONF_INVERT_COLORS,
+    CONF_MIRROR_X,
+    CONF_MIRROR_Y,
+    CONF_RESET_PIN,
+    CONF_TRANSFORM,
+)
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
+
+CODEOWNERS = ["@latonita"]
+DOMAIN = "st7567_base"
+
+st7567_base_ns = cg.esphome_ns.namespace("st7567_base")
+ST7567 = st7567_base_ns.class_("ST7567", cg.PollingComponent, display.DisplayBuffer)
+ST7567Model = st7567_base_ns.enum("ST7567Model")
+
+# todo in future: reuse following constants from const.py when they are released
+
+
+ST7567_SCHEMA = display.FULL_DISPLAY_SCHEMA.extend(
+    {
+        cv.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,
+        cv.Optional(CONF_INVERT_COLORS, default=False): cv.boolean,
+        cv.Optional(CONF_TRANSFORM): cv.Schema(
+            {
+                cv.Optional(CONF_MIRROR_X, default=False): cv.boolean,
+                cv.Optional(CONF_MIRROR_Y, default=False): cv.boolean,
+            }
+        ),
+    }
+).extend(cv.polling_component_schema("1s"))
+
+
+async def setup_st7567(var: MockObj, config: ConfigType) -> None:
+    await display.register_display(var, config)
+
+    await cg.add_pin(var.set_reset_pin, config.get(CONF_RESET_PIN))
+
+    cg.add(var.init_invert_colors(config[CONF_INVERT_COLORS]))
+
+    if CONF_TRANSFORM in config:
+        transform = config[CONF_TRANSFORM]
+        cg.add(var.init_mirror_x(transform[CONF_MIRROR_X]))
+        cg.add(var.init_mirror_y(transform[CONF_MIRROR_Y]))
+
+    await display.add_writer(var, config)

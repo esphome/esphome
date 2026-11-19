@@ -1,0 +1,105 @@
+#pragma once
+
+#include <string>
+#include <utility>
+#include <vector>
+#include "esphome/core/defines.h"
+
+namespace esphome {
+struct LogString;
+}  // namespace esphome
+
+namespace esphome::nextion {
+
+enum NextionQueueType {
+  NO_RESULT = 0,
+  SENSOR = 1,
+  BINARY_SENSOR = 2,
+  SWITCH = 3,
+  TEXT_SENSOR = 4,
+  WAVEFORM_SENSOR = 5,
+};
+
+class NextionComponentBase;
+
+class NextionQueue {
+ public:
+  NextionComponentBase *component{nullptr};
+  uint32_t queue_time = 0;
+
+  // Store command for retry if spacing blocked it
+  std::string pending_command;  // Empty if command was sent successfully
+};
+
+class NextionComponentBase {
+ public:
+  virtual ~NextionComponentBase() = default;
+
+  void set_variable_name(const std::string &variable_name, const std::string &variable_name_to_send = "") {
+    this->variable_name_ = variable_name;
+    this->variable_name_to_send_ = variable_name_to_send.empty() ? variable_name : variable_name_to_send;
+  }
+
+  virtual void update_component_settings() {};
+  virtual void update_component_settings(bool force_update) {};
+
+  virtual void update_component() {};
+  virtual void process_sensor(const std::string &variable_name, int state) {};
+  virtual void process_touch(uint8_t page_id, uint8_t component_id, bool on) {};
+  virtual void process_text(const std::string &variable_name, const std::string &text_value) {};
+  virtual void process_bool(const std::string &variable_name, bool on) {};
+
+  virtual void set_state(float state) {};
+  virtual void set_state(float state, bool publish) {};
+  virtual void set_state(float state, bool publish, bool send_to_nextion) {};
+
+  virtual void set_state(bool state) {};
+  virtual void set_state(bool state, bool publish) {};
+  virtual void set_state(bool state, bool publish, bool send_to_nextion) {};
+
+  virtual void set_state(const std::string &state) {}
+  virtual void set_state(const std::string &state, bool publish) {}
+  virtual void set_state(const std::string &state, bool publish, bool send_to_nextion) {};
+
+  uint8_t get_component_id() const { return this->component_id_; }
+  void set_component_id(uint8_t component_id) { this->component_id_ = component_id; }
+
+#ifdef USE_NEXTION_WAVEFORM
+  uint8_t get_wave_channel_id() const { return this->wave_chan_id_; }
+  void set_wave_channel_id(uint8_t wave_chan_id) { this->wave_chan_id_ = wave_chan_id; }
+  void set_wave_max_length(int wave_max_length) { this->wave_max_length_ = wave_max_length; }
+
+  const std::vector<uint8_t> &get_wave_buffer() const { return this->wave_buffer_; }
+  size_t get_wave_buffer_size() const { return this->wave_buffer_.size(); }
+  void clear_wave_buffer(size_t buffer_sent) {
+    if (this->wave_buffer_.size() <= buffer_sent) {
+      this->wave_buffer_.clear();
+    } else {
+      this->wave_buffer_.erase(this->wave_buffer_.begin(), this->wave_buffer_.begin() + buffer_sent);
+    }
+  }
+#endif  // USE_NEXTION_WAVEFORM
+
+  const std::string &get_variable_name() const { return this->variable_name_; }
+  const std::string &get_variable_name_to_send() const { return this->variable_name_to_send_; }
+  virtual NextionQueueType get_queue_type() const { return NextionQueueType::NO_RESULT; }
+  const LogString *get_queue_type_string() const;
+  virtual void set_state_from_int(int state_value, bool publish, bool send_to_nextion) {};
+  virtual void set_state_from_string(const std::string &state_value, bool publish, bool send_to_nextion) {};
+  virtual void send_state_to_nextion() {};
+  bool get_needs_to_send_update() const { return this->needs_to_send_update_; }
+
+ protected:
+  std::string variable_name_;
+  std::string variable_name_to_send_;
+
+  uint8_t component_id_ = 0;
+#ifdef USE_NEXTION_WAVEFORM
+  uint8_t wave_chan_id_ = UINT8_MAX;
+  std::vector<uint8_t> wave_buffer_;
+  int wave_max_length_ = 255;
+#endif  // USE_NEXTION_WAVEFORM
+
+  bool needs_to_send_update_{false};
+};
+}  // namespace esphome::nextion

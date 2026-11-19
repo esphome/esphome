@@ -1,0 +1,69 @@
+from esphome import automation
+from esphome.automation import maybe_simple_id
+import esphome.codegen as cg
+from esphome.components import i2c, sensor
+import esphome.config_validation as cv
+from esphome.const import (
+    CONF_BATTERY_LEVEL,
+    CONF_BATTERY_VOLTAGE,
+    CONF_ID,
+    DEVICE_CLASS_BATTERY,
+    DEVICE_CLASS_VOLTAGE,
+    ENTITY_CATEGORY_DIAGNOSTIC,
+    STATE_CLASS_MEASUREMENT,
+    UNIT_PERCENT,
+    UNIT_VOLT,
+)
+from esphome.types import ConfigType
+
+AUTO_LOAD = ["max170xx"]
+DEPENDENCIES = ["i2c"]
+
+max17043_ns = cg.esphome_ns.namespace("max17043")
+MAX17043Component = max17043_ns.class_(
+    "MAX17043Component", cg.PollingComponent, i2c.I2CDevice
+)
+
+CONFIG_SCHEMA = (
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(MAX17043Component),
+            cv.Optional(CONF_BATTERY_VOLTAGE): sensor.sensor_schema(
+                unit_of_measurement=UNIT_VOLT,
+                accuracy_decimals=3,
+                device_class=DEVICE_CLASS_VOLTAGE,
+                state_class=STATE_CLASS_MEASUREMENT,
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+            ),
+            cv.Optional(CONF_BATTERY_LEVEL): sensor.sensor_schema(
+                unit_of_measurement=UNIT_PERCENT,
+                accuracy_decimals=3,
+                device_class=DEVICE_CLASS_BATTERY,
+                state_class=STATE_CLASS_MEASUREMENT,
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+            ),
+        }
+    )
+    .extend(cv.polling_component_schema("60s"))
+    .extend(i2c.i2c_device_schema(0x36))
+)
+
+
+async def to_code(config: ConfigType) -> None:
+    var = await i2c.new_i2c_component(config)
+
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_BATTERY_VOLTAGE, var.set_voltage_sensor)
+    await sensors(CONF_BATTERY_LEVEL, var.set_battery_remaining_sensor)
+
+
+MAX17043_ACTION_SCHEMA = maybe_simple_id(
+    {
+        cv.Required(CONF_ID): cv.use_id(MAX17043Component),
+    }
+)
+
+
+automation.register_apply_action(
+    "max17043.sleep_mode", MAX17043_ACTION_SCHEMA, automation.ApplyCall("sleep_mode()")
+)

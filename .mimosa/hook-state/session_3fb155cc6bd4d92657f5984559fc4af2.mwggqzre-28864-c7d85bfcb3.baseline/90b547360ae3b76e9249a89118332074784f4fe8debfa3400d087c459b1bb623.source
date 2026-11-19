@@ -1,0 +1,135 @@
+#include "wiegand.h"
+#include <cinttypes>
+#include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
+
+namespace esphome::wiegand {
+
+ESPHOME_LOG_TAG(TAG, "wiegand");
+static const char *const KEYS = "0123456789*#";
+
+void IRAM_ATTR HOT WiegandStore::d0_gpio_intr(WiegandStore *arg) {
+  if (arg->d0.digital_read())
+    return;
+  arg->count += 1;
+  arg->value <<= 1;
+  arg->last_bit_time = millis();
+  arg->done = false;
+}
+
+void IRAM_ATTR HOT WiegandStore::d1_gpio_intr(WiegandStore *arg) {
+  if (arg->d1.digital_read())
+    return;
+  arg->count += 1;
+  arg->value = (arg->value << 1) | 1;
+  arg->last_bit_time = millis();
+  arg->done = false;
+}
+
+void Wiegand::setup() {
+  this->d0_pin_->setup();
+  this->store_.d0 = this->d0_pin_->to_isr();
+  this->d1_pin_->setup();
+  this->store_.d1 = this->d1_pin_->to_isr();
+  this->d0_pin_->attach_interrupt(WiegandStore::d0_gpio_intr, &this->store_, gpio::INTERRUPT_FALLING_EDGE);
+  this->d1_pin_->attach_interrupt(WiegandStore::d1_gpio_intr, &this->store_, gpio::INTERRUPT_FALLING_EDGE);
+}
+
+bool check_eparity(uint64_t value, int start, int length) {
+  int parity = 0;
+  uint64_t mask = 1LL << start;
+  for (int i = 0; i < length; i++, mask <<= 1) {
+    if (value & mask)
+      parity++;
+  }
+  return !(parity & 1);
+}
+
+bool check_oparity(uint64_t value, int start, int length) {
+  int parity = 0;
+  uint64_t mask = 1LL << start;
+  for (int i = 0; i < length; i++, mask <<= 1) {
+    if (value & mask)
+      parity++;
+  }
+  return parity & 1;
+}
+
+void Wiegand::loop() {
+  if (this->store_.done)
+    return;
+  if (millis() - this->store_.last_bit_time < 100)
+    return;
+  uint8_t count = this->store_.count;
+  uint64_t value = this->store_.value;
+  this->store_.count = 0;
+  this->store_.value = 0;
+  this->store_.done = true;
+  ESP_LOGV(TAG, "received %d-bit value: %llx", count, value);
+#ifdef WIEGAND_ON_RAW_COUNT
+  this->raw_automations_.trigger(count, value);
+#endif
+  if (count == 26) {
+    char tag_buf[12];  // max 8 digits for 24-bit value + null
+    buf_append_printf(tag_buf, sizeof(tag_buf), 0, "%" PRIu32, static_cast<uint32_t>((value >> 1) & 0xffffff));
+    ESP_LOGD(TAG, "received 26-bit tag: %s", tag_buf);
+    if (!check_eparity(value, 13, 13) || !check_oparity(value, 0, 13)) {
+      ESP_LOGW(TAG, "invalid parity");
+      return;
+    }
+#ifdef WIEGAND_ON_TAG_COUNT
+    this->tag_automations_.trigger(tag_buf);
+#endif
+  } else if (count == 34) {
+    char tag_buf[12];  // max 10 digits for 32-bit value + null
+    buf_append_printf(tag_buf, sizeof(tag_buf), 0, "%" PRIu32, static_cast<uint32_t>((value >> 1) & 0xffffffff));
+    ESP_LOGD(TAG, "received 34-bit tag: %s", tag_buf);
+    if (!check_eparity(value, 17, 17) || !check_oparity(value, 0, 17)) {
+      ESP_LOGW(TAG, "invalid parity");
+      return;
+    }
+#ifdef WIEGAND_ON_TAG_COUNT
+    this->tag_automations_.trigger(tag_buf);
+#endif
+  } else if (count == 37) {
+    char tag_buf[12];  // max 11 digits for 35-bit value + null
+    buf_append_printf(tag_buf, sizeof(tag_buf), 0, "%" PRIu64, static_cast<uint64_t>((value >> 1) & 0x7ffffffff));
+    ESP_LOGD(TAG, "received 37-bit tag: %s", tag_buf);
+    if (!check_eparity(value, 18, 19) || !check_oparity(value, 0, 19)) {
+      ESP_LOGW(TAG, "invalid parity");
+      return;
+    }
+#ifdef WIEGAND_ON_TAG_COUNT
+    this->tag_automations_.trigger(tag_buf);
+#endif
+  } else if (count == 4) {
+#ifdef WIEGAND_ON_KEY_COUNT
+    this->key_automations_.trigger(value);
+#endif
+    if (value < 12) {
+      uint8_t key = KEYS[value];
+      this->send_key_(key);
+    }
+  } else if (count == 8) {
+    if ((value ^ 0xf0) >> 4 == (value & 0xf)) {
+      value &= 0xf;
+#ifdef WIEGAND_ON_KEY_COUNT
+      this->key_automations_.trigger(value);
+#endif
+      if (value < 12) {
+        uint8_t key = KEYS[value];
+        this->send_key_(key);
+      }
+    }
+  } else {
+    ESP_LOGD(TAG, "received unknown %d-bit value: %llx", count, value);
+  }
+}
+
+void Wiegand::dump_config() {
+  ESP_LOGCONFIG(TAG, "Wiegand reader:");
+  LOG_PIN("  D0 pin: ", this->d0_pin_);
+  LOG_PIN("  D1 pin: ", this->d1_pin_);
+}
+
+}  // namespace esphome::wiegand

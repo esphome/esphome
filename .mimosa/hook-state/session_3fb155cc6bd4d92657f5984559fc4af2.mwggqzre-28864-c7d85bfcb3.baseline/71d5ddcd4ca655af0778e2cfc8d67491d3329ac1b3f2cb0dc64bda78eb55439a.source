@@ -1,0 +1,43 @@
+from esphome import pins
+import esphome.codegen as cg
+from esphome.components import display
+import esphome.config_validation as cv
+from esphome.const import CONF_BRIGHTNESS, CONF_EXTERNAL_VCC, CONF_MODEL, CONF_RESET_PIN
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
+
+CODEOWNERS = ["@kbx81"]
+DOMAIN = "ssd1325_base"
+
+ssd1325_base_ns = cg.esphome_ns.namespace("ssd1325_base")
+SSD1325 = ssd1325_base_ns.class_("SSD1325", cg.PollingComponent, display.DisplayBuffer)
+SSD1325Model = ssd1325_base_ns.enum("SSD1325Model")
+
+MODELS = {
+    "SSD1325_128X32": SSD1325Model.SSD1325_MODEL_128_32,
+    "SSD1325_128X64": SSD1325Model.SSD1325_MODEL_128_64,
+    "SSD1325_96X16": SSD1325Model.SSD1325_MODEL_96_16,
+    "SSD1325_64X48": SSD1325Model.SSD1325_MODEL_64_48,
+    "SSD1327_128X128": SSD1325Model.SSD1327_MODEL_128_128,
+}
+
+SSD1325_MODEL = cv.enum(MODELS, upper=True, space="_")
+
+SSD1325_SCHEMA = display.FULL_DISPLAY_SCHEMA.extend(
+    {
+        cv.Required(CONF_MODEL): SSD1325_MODEL,
+        cv.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,
+        cv.Optional(CONF_BRIGHTNESS, default=1.0): cv.percentage,
+        cv.Optional(CONF_EXTERNAL_VCC): cv.boolean,
+    }
+).extend(cv.polling_component_schema("1s"))
+
+
+async def setup_ssd1325(var: MockObj, config: ConfigType) -> None:
+    await display.register_display(var, config)
+
+    cg.add(var.set_model(config[CONF_MODEL]))
+    await cg.add_pin(var.set_reset_pin, config.get(CONF_RESET_PIN))
+    cg.add_optional(var.init_brightness, config.get(CONF_BRIGHTNESS))
+    cg.add_optional(var.set_external_vcc, config.get(CONF_EXTERNAL_VCC))
+    await display.add_writer(var, config)

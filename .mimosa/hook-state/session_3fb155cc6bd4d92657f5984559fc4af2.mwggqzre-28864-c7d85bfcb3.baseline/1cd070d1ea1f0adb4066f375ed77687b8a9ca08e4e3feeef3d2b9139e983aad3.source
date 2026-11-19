@@ -1,0 +1,56 @@
+#pragma once
+
+#include "esphome/core/component.h"
+#include "esphome/core/hal.h"
+#include "esphome/components/sensor/sensor.h"
+#include "esphome/components/i2c/i2c.h"
+
+namespace esphome::ufire_ise {
+
+static const float PROBE_MV_TO_PH = 59.2;
+static const float PROBE_TMP_CORRECTION = 0.03;
+
+static const uint8_t CONFIG_TEMP_COMPENSATION = 0x02;
+
+static const uint8_t REGISTER_VERSION = 0;
+static const uint8_t REGISTER_MV = 1;
+static const uint8_t REGISTER_TEMP = 5;
+static const uint8_t REGISTER_REFHIGH = 13;
+static const uint8_t REGISTER_REFLOW = 17;
+static const uint8_t REGISTER_READHIGH = 21;
+static const uint8_t REGISTER_READLOW = 25;
+static const uint8_t REGISTER_SOLUTION = 29;
+static const uint8_t REGISTER_CONFIG = 38;
+static const uint8_t REGISTER_TASK = 39;
+
+static const uint8_t COMMAND_CALIBRATE_HIGH = 8;
+static const uint8_t COMMAND_CALIBRATE_LOW = 10;
+static const uint8_t COMMAND_MEASURE_TEMP = 40;
+static const uint8_t COMMAND_MEASURE_MV = 80;
+
+class UFireISEComponent final : public PollingComponent, public i2c::I2CDevice {
+  SUB_SENSOR(temperature)
+  SUB_SENSOR(ph)
+  // Input sensor for temperature compensation
+  SUB_SENSOR(external_temperature)
+
+ public:
+  void setup() override;
+  void update() override;
+  void dump_config() override;
+
+  void calibrate_probe_low(float solution);
+  void calibrate_probe_high(float solution);
+  void reset_board();
+
+ protected:
+  float measure_temperature_();
+  float measure_mv_();
+  float measure_ph_(float temperature);
+  void set_solution_(float solution);
+  float read_data_(uint8_t reg);
+  void write_data_(uint8_t reg, float data);
+  void update_internal_();
+};
+
+}  // namespace esphome::ufire_ise

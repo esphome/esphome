@@ -1,0 +1,1014 @@
+{
+  "schema_version": "mimosa-task-review/v2",
+  "run_id": "20261113T180506485Z-44324-8f656c31201a",
+  "run_status": "inconclusive",
+  "errors": [
+    {
+      "stage": "bash-discovery",
+      "target": "esphome/components/ld2412/binary_sensor.py",
+      "reason": "bash_discovery_incomplete: project enumeration exceeded 5000 reviewable files"
+    },
+    {
+      "stage": "candidate-select",
+      "target": "C:/Users/huangkongsheng/AppData/Local/Temp/mipi_test/test_mapseq.py",
+      "reason": "changed_file_unreadable: observed changed file no longer exists or cannot be read"
+    },
+    {
+      "stage": "candidate-select",
+      "target": "tests/component_tests/mipi/test_map_sequence.py",
+      "reason": "changed_file_unreadable: observed changed file no longer exists or cannot be read"
+    },
+    {
+      "stage": "candidate-select",
+      "target": "C:/Users/huangkongsheng/AppData/Local/Temp/push_prs.sh",
+      "reason": "changed_file_unreadable: observed changed file no longer exists or cannot be read"
+    },
+    {
+      "stage": "candidate-select",
+      "target": "C:/Users/huangkongsheng/AppData/Local/Temp/push_dd.sh",
+      "reason": "changed_file_unreadable: observed changed file no longer exists or cannot be read"
+    },
+    {
+      "stage": "candidate-select",
+      "target": "tests/component_tests/qspi_dbi/test_map_sequence.py",
+      "reason": "changed_file_unreadable: observed changed file no longer exists or cannot be read"
+    },
+    {
+      "stage": "candidate-select",
+      "target": "tests/component_tests/st7701s/test_map_sequence.py",
+      "reason": "changed_file_unreadable: observed changed file no longer exists or cannot be read"
+    },
+    {
+      "stage": "candidate-select",
+      "target": "tests/component_tests/qspi_dbi/__init__.py",
+      "reason": "changed_file_unreadable: observed changed file no longer exists or cannot be read"
+    },
+    {
+      "stage": "candidate-select",
+      "target": "tests/component_tests/st7701s/__init__.py",
+      "reason": "changed_file_unreadable: observed changed file no longer exists or cannot be read"
+    },
+    {
+      "stage": "candidate-select",
+      "target": "C:/Users/huangkongsheng/AppData/Local/Temp/ship_esphome6.sh",
+      "reason": "changed_file_unreadable: observed changed file no longer exists or cannot be read"
+    },
+    {
+      "stage": "candidate-select",
+      "target": "C:/Users/huangkongsheng/AppData/Local/Temp/ship_esphome7.sh",
+      "reason": "changed_file_unreadable: observed changed file no longer exists or cannot be read"
+    },
+    {
+      "stage": "candidate-select",
+      "target": "tests/component_tests/config_validation/test_percentage_int.py",
+      "reason": "changed_file_unreadable: observed changed file no longer exists or cannot be read"
+    },
+    {
+      "stage": "candidate-select",
+      "target": "C:/Users/huangkongsheng/AppData/Local/Temp/ship_esphome8.sh",
+      "reason": "changed_file_unreadable: observed changed file no longer exists or cannot be read"
+    },
+    {
+      "stage": "candidate-select",
+      "target": "C:/Users/huangkongsheng/AppData/Local/Temp/push_esphome_rebase.sh",
+      "reason": "changed_file_unreadable: observed changed file no longer exists or cannot be read"
+    },
+    {
+      "stage": "candidate-select",
+      "target": "C:/Users/huangkongsheng/AppData/Local/Temp/push_esphome_batch2.sh",
+      "reason": "changed_file_unreadable: observed changed file no longer exists or cannot be read"
+    },
+    {
+      "stage": "candidate-select",
+      "target": "C:/Users/huangkongsheng/AppData/Local/Temp/prcheck/push_esphome_fullmatch.sh",
+      "reason": "changed_file_unreadable: observed changed file no longer exists or cannot be read"
+    },
+    {
+      "stage": "candidate-select",
+      "target": "C:/Users/huangkongsheng/AppData/Local/Temp/prcheck/push_nr_round4.sh",
+      "reason": "changed_file_unreadable: observed changed file no longer exists or cannot be read"
+    },
+    {
+      "stage": "candidate-select",
+      "target": "C:/Users/huangkongsheng/AppData/Local/Temp/prcheck/push_esp_qos.sh",
+      "reason": "candidate_limit_exceeded: 4 changed reviewable file(s) were not scanned because the limit is 20"
+    },
+    {
+      "stage": "baseline",
+      "target": ".",
+      "reason": "baseline_partial: baseline capture had enumeration or snapshot errors"
+    },
+    {
+      "stage": "scan",
+      "target": "esphome/components/mipi/__init__.py",
+      "reason": "scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT"
+    },
+    {
+      "stage": "scan",
+      "target": "esphome/components/sun/__init__.py",
+      "reason": "scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT"
+    },
+    {
+      "stage": "scan",
+      "target": "tests/component_tests/sun/test_parse_latlon.py",
+      "reason": "scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT"
+    },
+    {
+      "stage": "scan",
+      "target": "esphome/config_validation.py",
+      "reason": "scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT"
+    },
+    {
+      "stage": "scan",
+      "target": "esphome/components/time/__init__.py",
+      "reason": "scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT"
+    },
+    {
+      "stage": "scan",
+      "target": "tests/unit_tests/test_config_validation.py",
+      "reason": "scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT"
+    },
+    {
+      "stage": "scan",
+      "target": "C:/Users/huangkongsheng/AppData/Local/Temp/prcheck/push_esphome_envvar.sh",
+      "reason": "scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT"
+    },
+    {
+      "stage": "scan",
+      "target": "C:/Users/huangkongsheng/AppData/Local/Temp/prcheck/push_esphome_bytes.sh",
+      "reason": "scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT"
+    },
+    {
+      "stage": "scan",
+      "target": "C:/Users/huangkongsheng/AppData/Local/Temp/prcheck/push_esphome_pct.sh",
+      "reason": "scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT"
+    },
+    {
+      "stage": "scan",
+      "target": "C:/Users/huangkongsheng/AppData/Local/Temp/prcheck/push_esp_intbool.sh",
+      "reason": "scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT"
+    },
+    {
+      "stage": "scan",
+      "target": "C:/Users/huangkongsheng/AppData/Local/Temp/prcheck/push_esp_mac.sh",
+      "reason": "scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT"
+    },
+    {
+      "stage": "scan",
+      "target": "C:/Users/huangkongsheng/AppData/Local/Temp/prcheck/push_esp_bindkey.sh",
+      "reason": "scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT"
+    },
+    {
+      "stage": "scan",
+      "target": "C:/Users/huangkongsheng/AppData/Local/Temp/prcheck/push_esp_float.sh",
+      "reason": "scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT"
+    },
+    {
+      "stage": "scan",
+      "target": "C:/Users/huangkongsheng/AppData/Local/Temp/prcheck/push_esp_uuid.sh",
+      "reason": "scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT"
+    }
+  ],
+  "coverage": {
+    "schema_version": "mimosa-hook-coverage/v1",
+    "status": "partial",
+    "scope": "hook_observed_diff",
+    "baseline": {
+      "complete": false,
+      "captured_files": 40,
+      "candidate_limit": 5000,
+      "truncated": false,
+      "enumeration_error_count": 0,
+      "snapshot_error_count": 1,
+      "compensated_target_count": 24
+    },
+    "change_tracking": {
+      "touched_observed": 40,
+      "touched_retained": 40,
+      "truncated": false,
+      "bash_mutation": true,
+      "bash_discovered": 6,
+      "bash_discovery_limit": 80,
+      "bash_discovery_truncated": false
+    },
+    "candidates": {
+      "eligible_files": 24,
+      "selected_files": 20,
+      "limit": 20,
+      "truncated": true
+    },
+    "scanning": {
+      "required_files": 14,
+      "scanned_files": 0,
+      "skipped_files": 0,
+      "failed_files": 14,
+      "project_checks_required": 0,
+      "project_checks_completed": 0
+    },
+    "notification": {
+      "eligible_findings": 0,
+      "detailed_findings": 0,
+      "detail_limit": 3,
+      "truncated": false
+    },
+    "reason_counts": {
+      "bash_discovery_incomplete": 1,
+      "changed_file_unreadable": 16,
+      "candidate_limit_exceeded": 1,
+      "baseline_partial": 1,
+      "scanner_failed": 14,
+      "project_check_failed": 33
+    },
+    "reasons": [
+      {
+        "code": "bash_discovery_incomplete",
+        "stage": "bash-discovery",
+        "target": "esphome/components/ld2412/binary_sensor.py",
+        "detail": "project enumeration exceeded 5000 reviewable files",
+        "affects_completion": true
+      },
+      {
+        "code": "changed_file_unreadable",
+        "stage": "candidate-select",
+        "target": "C:/Users/huangkongsheng/AppData/Local/Temp/mipi_test/test_mapseq.py",
+        "detail": "observed changed file no longer exists or cannot be read",
+        "affects_completion": true
+      },
+      {
+        "code": "changed_file_unreadable",
+        "stage": "candidate-select",
+        "target": "tests/component_tests/mipi/test_map_sequence.py",
+        "detail": "observed changed file no longer exists or cannot be read",
+        "affects_completion": true
+      },
+      {
+        "code": "changed_file_unreadable",
+        "stage": "candidate-select",
+        "target": "C:/Users/huangkongsheng/AppData/Local/Temp/push_prs.sh",
+        "detail": "observed changed file no longer exists or cannot be read",
+        "affects_completion": true
+      },
+      {
+        "code": "changed_file_unreadable",
+        "stage": "candidate-select",
+        "target": "C:/Users/huangkongsheng/AppData/Local/Temp/push_dd.sh",
+        "detail": "observed changed file no longer exists or cannot be read",
+        "affects_completion": true
+      },
+      {
+        "code": "changed_file_unreadable",
+        "stage": "candidate-select",
+        "target": "tests/component_tests/qspi_dbi/test_map_sequence.py",
+        "detail": "observed changed file no longer exists or cannot be read",
+        "affects_completion": true
+      },
+      {
+        "code": "changed_file_unreadable",
+        "stage": "candidate-select",
+        "target": "tests/component_tests/st7701s/test_map_sequence.py",
+        "detail": "observed changed file no longer exists or cannot be read",
+        "affects_completion": true
+      },
+      {
+        "code": "changed_file_unreadable",
+        "stage": "candidate-select",
+        "target": "tests/component_tests/qspi_dbi/__init__.py",
+        "detail": "observed changed file no longer exists or cannot be read",
+        "affects_completion": true
+      },
+      {
+        "code": "changed_file_unreadable",
+        "stage": "candidate-select",
+        "target": "tests/component_tests/st7701s/__init__.py",
+        "detail": "observed changed file no longer exists or cannot be read",
+        "affects_completion": true
+      },
+      {
+        "code": "changed_file_unreadable",
+        "stage": "candidate-select",
+        "target": "C:/Users/huangkongsheng/AppData/Local/Temp/ship_esphome6.sh",
+        "detail": "observed changed file no longer exists or cannot be read",
+        "affects_completion": true
+      },
+      {
+        "code": "changed_file_unreadable",
+        "stage": "candidate-select",
+        "target": "C:/Users/huangkongsheng/AppData/Local/Temp/ship_esphome7.sh",
+        "detail": "observed changed file no longer exists or cannot be read",
+        "affects_completion": true
+      },
+      {
+        "code": "changed_file_unreadable",
+        "stage": "candidate-select",
+        "target": "tests/component_tests/config_validation/test_percentage_int.py",
+        "detail": "observed changed file no longer exists or cannot be read",
+        "affects_completion": true
+      },
+      {
+        "code": "changed_file_unreadable",
+        "stage": "candidate-select",
+        "target": "C:/Users/huangkongsheng/AppData/Local/Temp/ship_esphome8.sh",
+        "detail": "observed changed file no longer exists or cannot be read",
+        "affects_completion": true
+      },
+      {
+        "code": "changed_file_unreadable",
+        "stage": "candidate-select",
+        "target": "C:/Users/huangkongsheng/AppData/Local/Temp/push_esphome_rebase.sh",
+        "detail": "observed changed file no longer exists or cannot be read",
+        "affects_completion": true
+      },
+      {
+        "code": "changed_file_unreadable",
+        "stage": "candidate-select",
+        "target": "C:/Users/huangkongsheng/AppData/Local/Temp/push_esphome_batch2.sh",
+        "detail": "observed changed file no longer exists or cannot be read",
+        "affects_completion": true
+      },
+      {
+        "code": "changed_file_unreadable",
+        "stage": "candidate-select",
+        "target": "C:/Users/huangkongsheng/AppData/Local/Temp/prcheck/push_esphome_fullmatch.sh",
+        "detail": "observed changed file no longer exists or cannot be read",
+        "affects_completion": true
+      },
+      {
+        "code": "changed_file_unreadable",
+        "stage": "candidate-select",
+        "target": "C:/Users/huangkongsheng/AppData/Local/Temp/prcheck/push_nr_round4.sh",
+        "detail": "observed changed file no longer exists or cannot be read",
+        "affects_completion": true
+      },
+      {
+        "code": "candidate_limit_exceeded",
+        "stage": "candidate-select",
+        "target": "C:/Users/huangkongsheng/AppData/Local/Temp/prcheck/push_esp_qos.sh",
+        "detail": "4 changed reviewable file(s) were not scanned because the limit is 20",
+        "affects_completion": true
+      },
+      {
+        "code": "baseline_partial",
+        "stage": "baseline",
+        "target": ".",
+        "detail": "baseline capture had enumeration or snapshot errors",
+        "affects_completion": true
+      },
+      {
+        "code": "scanner_failed",
+        "stage": "scan",
+        "target": "esphome/components/mipi/__init__.py",
+        "detail": "spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "scanner_failed",
+        "stage": "scan",
+        "target": "esphome/components/sun/__init__.py",
+        "detail": "spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "scanner_failed",
+        "stage": "scan",
+        "target": "tests/component_tests/sun/test_parse_latlon.py",
+        "detail": "spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "scanner_failed",
+        "stage": "scan",
+        "target": "esphome/config_validation.py",
+        "detail": "spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "scanner_failed",
+        "stage": "scan",
+        "target": "esphome/components/time/__init__.py",
+        "detail": "spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "scanner_failed",
+        "stage": "scan",
+        "target": "tests/unit_tests/test_config_validation.py",
+        "detail": "spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "scanner_failed",
+        "stage": "scan",
+        "target": "C:/Users/huangkongsheng/AppData/Local/Temp/prcheck/push_esphome_envvar.sh",
+        "detail": "spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "scanner_failed",
+        "stage": "scan",
+        "target": "C:/Users/huangkongsheng/AppData/Local/Temp/prcheck/push_esphome_bytes.sh",
+        "detail": "spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "scanner_failed",
+        "stage": "scan",
+        "target": "C:/Users/huangkongsheng/AppData/Local/Temp/prcheck/push_esphome_pct.sh",
+        "detail": "spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "scanner_failed",
+        "stage": "scan",
+        "target": "C:/Users/huangkongsheng/AppData/Local/Temp/prcheck/push_esp_intbool.sh",
+        "detail": "spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "scanner_failed",
+        "stage": "scan",
+        "target": "C:/Users/huangkongsheng/AppData/Local/Temp/prcheck/push_esp_mac.sh",
+        "detail": "spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "scanner_failed",
+        "stage": "scan",
+        "target": "C:/Users/huangkongsheng/AppData/Local/Temp/prcheck/push_esp_bindkey.sh",
+        "detail": "spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "scanner_failed",
+        "stage": "scan",
+        "target": "C:/Users/huangkongsheng/AppData/Local/Temp/prcheck/push_esp_float.sh",
+        "detail": "spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "scanner_failed",
+        "stage": "scan",
+        "target": "C:/Users/huangkongsheng/AppData/Local/Temp/prcheck/push_esp_uuid.sh",
+        "detail": "spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "bash-discovery",
+        "target": "esphome/components/ld2412/binary_sensor.py",
+        "detail": "bash_discovery_incomplete: project enumeration exceeded 5000 reviewable files",
+        "affects_completion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "candidate-select",
+        "target": "C:/Users/huangkongsheng/AppData/Local/Temp/mipi_test/test_mapseq.py",
+        "detail": "changed_file_unreadable: observed changed file no longer exists or cannot be read",
+        "affects_completion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "candidate-select",
+        "target": "tests/component_tests/mipi/test_map_sequence.py",
+        "detail": "changed_file_unreadable: observed changed file no longer exists or cannot be read",
+        "affects_completion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "candidate-select",
+        "target": "C:/Users/huangkongsheng/AppData/Local/Temp/push_prs.sh",
+        "detail": "changed_file_unreadable: observed changed file no longer exists or cannot be read",
+        "affects_completion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "candidate-select",
+        "target": "C:/Users/huangkongsheng/AppData/Local/Temp/push_dd.sh",
+        "detail": "changed_file_unreadable: observed changed file no longer exists or cannot be read",
+        "affects_completion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "candidate-select",
+        "target": "tests/component_tests/qspi_dbi/test_map_sequence.py",
+        "detail": "changed_file_unreadable: observed changed file no longer exists or cannot be read",
+        "affects_completion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "candidate-select",
+        "target": "tests/component_tests/st7701s/test_map_sequence.py",
+        "detail": "changed_file_unreadable: observed changed file no longer exists or cannot be read",
+        "affects_completion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "candidate-select",
+        "target": "tests/component_tests/qspi_dbi/__init__.py",
+        "detail": "changed_file_unreadable: observed changed file no longer exists or cannot be read",
+        "affects_completion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "candidate-select",
+        "target": "tests/component_tests/st7701s/__init__.py",
+        "detail": "changed_file_unreadable: observed changed file no longer exists or cannot be read",
+        "affects_completion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "candidate-select",
+        "target": "C:/Users/huangkongsheng/AppData/Local/Temp/ship_esphome6.sh",
+        "detail": "changed_file_unreadable: observed changed file no longer exists or cannot be read",
+        "affects_completion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "candidate-select",
+        "target": "C:/Users/huangkongsheng/AppData/Local/Temp/ship_esphome7.sh",
+        "detail": "changed_file_unreadable: observed changed file no longer exists or cannot be read",
+        "affects_completion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "candidate-select",
+        "target": "tests/component_tests/config_validation/test_percentage_int.py",
+        "detail": "changed_file_unreadable: observed changed file no longer exists or cannot be read",
+        "affects_completion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "candidate-select",
+        "target": "C:/Users/huangkongsheng/AppData/Local/Temp/ship_esphome8.sh",
+        "detail": "changed_file_unreadable: observed changed file no longer exists or cannot be read",
+        "affects_completion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "candidate-select",
+        "target": "C:/Users/huangkongsheng/AppData/Local/Temp/push_esphome_rebase.sh",
+        "detail": "changed_file_unreadable: observed changed file no longer exists or cannot be read",
+        "affects_completion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "candidate-select",
+        "target": "C:/Users/huangkongsheng/AppData/Local/Temp/push_esphome_batch2.sh",
+        "detail": "changed_file_unreadable: observed changed file no longer exists or cannot be read",
+        "affects_completion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "candidate-select",
+        "target": "C:/Users/huangkongsheng/AppData/Local/Temp/prcheck/push_esphome_fullmatch.sh",
+        "detail": "changed_file_unreadable: observed changed file no longer exists or cannot be read",
+        "affects_completion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "candidate-select",
+        "target": "C:/Users/huangkongsheng/AppData/Local/Temp/prcheck/push_nr_round4.sh",
+        "detail": "changed_file_unreadable: observed changed file no longer exists or cannot be read",
+        "affects_completion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "candidate-select",
+        "target": "C:/Users/huangkongsheng/AppData/Local/Temp/prcheck/push_esp_qos.sh",
+        "detail": "candidate_limit_exceeded: 4 changed reviewable file(s) were not scanned because the limit is 20",
+        "affects_completion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "baseline",
+        "target": ".",
+        "detail": "baseline_partial: baseline capture had enumeration or snapshot errors",
+        "affects_completion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "scan",
+        "target": "esphome/components/mipi/__init__.py",
+        "detail": "scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "scan",
+        "target": "esphome/components/sun/__init__.py",
+        "detail": "scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "scan",
+        "target": "tests/component_tests/sun/test_parse_latlon.py",
+        "detail": "scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "scan",
+        "target": "esphome/config_validation.py",
+        "detail": "scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "scan",
+        "target": "esphome/components/time/__init__.py",
+        "detail": "scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "scan",
+        "target": "tests/unit_tests/test_config_validation.py",
+        "detail": "scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "scan",
+        "target": "C:/Users/huangkongsheng/AppData/Local/Temp/prcheck/push_esphome_envvar.sh",
+        "detail": "scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "scan",
+        "target": "C:/Users/huangkongsheng/AppData/Local/Temp/prcheck/push_esphome_bytes.sh",
+        "detail": "scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "scan",
+        "target": "C:/Users/huangkongsheng/AppData/Local/Temp/prcheck/push_esphome_pct.sh",
+        "detail": "scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "scan",
+        "target": "C:/Users/huangkongsheng/AppData/Local/Temp/prcheck/push_esp_intbool.sh",
+        "detail": "scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "scan",
+        "target": "C:/Users/huangkongsheng/AppData/Local/Temp/prcheck/push_esp_mac.sh",
+        "detail": "scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+        "affects_completion": true
+      },
+      {
+        "code": "project_check_failed",
+        "stage": "scan",
+        "target": "C:/Users/huangkongsheng/AppData/Local/Temp/prcheck/push_esp_bindkey.sh",
+        "detail": "scanner_failed: spawnSync C:\\Program Files\\nodejs\\node.exe ETIMEDOUT",
+        "affects_completion": true
+      }
+    ],
+    "reasons_truncated": true
+  },
+  "generated_at": "2026-11-13T18:05:06.485Z",
+  "session_id": "session_3fb155cc6bd4d92657f5984559fc4af2",
+  "target": ".",
+  "revision": "93c15dc56feb15df6da0b9f90510ab40183d943d",
+  "rules_version": "unavailable",
+  "diff_hash": "b61bfefb649f375e66b3d83b55a83a300104cef4ff9dd0bac709f0e73ee0f058",
+  "diff": {
+    "algorithm": "sha256",
+    "changed_file_count": 14,
+    "changed_files": [
+      {
+        "file": "C:/Users/huangkongsheng/AppData/Local/Temp/prcheck/push_esp_bindkey.sh",
+        "ranges": [
+          {
+            "start": 1,
+            "end": 5
+          }
+        ],
+        "before_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "after_hash": "bb261b4a3eab5c6aaf5e7bf11abb2e1aca60e8af4d23ca813ec7bd8babfcb3c9"
+      },
+      {
+        "file": "C:/Users/huangkongsheng/AppData/Local/Temp/prcheck/push_esp_float.sh",
+        "ranges": [
+          {
+            "start": 1,
+            "end": 5
+          }
+        ],
+        "before_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "after_hash": "dab744f4da8451861f26f9f48e9d07837dc58240543f320619370c32c527824f"
+      },
+      {
+        "file": "C:/Users/huangkongsheng/AppData/Local/Temp/prcheck/push_esp_intbool.sh",
+        "ranges": [
+          {
+            "start": 1,
+            "end": 5
+          }
+        ],
+        "before_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "after_hash": "46b44ecaaf1f53777d10959578e52cd91c83dec7035385b8b0fca522c68c5b14"
+      },
+      {
+        "file": "C:/Users/huangkongsheng/AppData/Local/Temp/prcheck/push_esp_mac.sh",
+        "ranges": [
+          {
+            "start": 1,
+            "end": 5
+          }
+        ],
+        "before_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "after_hash": "25074cde60478b9eabc521a85fae944ac2350e993da852ddb0b0221adc24ad63"
+      },
+      {
+        "file": "C:/Users/huangkongsheng/AppData/Local/Temp/prcheck/push_esp_uuid.sh",
+        "ranges": [
+          {
+            "start": 1,
+            "end": 5
+          }
+        ],
+        "before_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "after_hash": "8d441396d09a43a49a4eb9c6216f198e759c145451e2d6ee8d59b44605a8c7db"
+      },
+      {
+        "file": "C:/Users/huangkongsheng/AppData/Local/Temp/prcheck/push_esphome_bytes.sh",
+        "ranges": [
+          {
+            "start": 1,
+            "end": 5
+          }
+        ],
+        "before_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "after_hash": "3f29ccf1cd6f8675d864a10b42cd7323f6b4239a39c68496f3bf0308abad4422"
+      },
+      {
+        "file": "C:/Users/huangkongsheng/AppData/Local/Temp/prcheck/push_esphome_envvar.sh",
+        "ranges": [
+          {
+            "start": 1,
+            "end": 5
+          }
+        ],
+        "before_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "after_hash": "337ee8fbbf22dc19f177a4fb0de9c90175f29fba1f8447da197815d832cd2282"
+      },
+      {
+        "file": "C:/Users/huangkongsheng/AppData/Local/Temp/prcheck/push_esphome_pct.sh",
+        "ranges": [
+          {
+            "start": 1,
+            "end": 5
+          }
+        ],
+        "before_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "after_hash": "21e3776577826880b8f35d0d91f7da78853d22106930d03245c0a339de0fe852"
+      },
+      {
+        "file": "esphome/components/mipi/__init__.py",
+        "ranges": [
+          {
+            "start": 232,
+            "end": 232
+          },
+          {
+            "start": 679,
+            "end": 679
+          }
+        ],
+        "before_hash": "22699b254bd144ca1acae7ff4399079510b0d5b9a84a2215702e9c3f47d57440",
+        "after_hash": "3c695ab592fce27cddc670e020757d3e1c563ecc4bee56aec755e8f40a359f7c"
+      },
+      {
+        "file": "esphome/components/sun/__init__.py",
+        "ranges": [
+          {
+            "start": 9,
+            "end": 9
+          },
+          {
+            "start": 52,
+            "end": 53
+          },
+          {
+            "start": 67,
+            "end": 67
+          },
+          {
+            "start": 77,
+            "end": 81
+          },
+          {
+            "start": 85,
+            "end": 85
+          },
+          {
+            "start": 90,
+            "end": 97
+          },
+          {
+            "start": 108,
+            "end": 109
+          },
+          {
+            "start": 114,
+            "end": 119
+          },
+          {
+            "start": 126,
+            "end": 135
+          }
+        ],
+        "before_hash": "28aeed35fabb074a328dab974e088720a796b4b39f565cea8392bb712b987a96",
+        "after_hash": "fe728e66ec6e1e49df277fdda35c8f6b5195140ed7d8555b7403eac093038f2f"
+      },
+      {
+        "file": "esphome/components/time/__init__.py",
+        "ranges": [
+          {
+            "start": 172,
+            "end": 179
+          },
+          {
+            "start": 194,
+            "end": 198
+          },
+          {
+            "start": 200,
+            "end": 200
+          }
+        ],
+        "before_hash": "f7254609a3075e77466b6f569669a4e3bada51bcdd57378227c298980da74b4e",
+        "after_hash": "19290a1f701c2943f3eb0c8fdeeea21178f9f06439416ce5159bbf6224ef84f1"
+      },
+      {
+        "file": "esphome/config_validation.py",
+        "ranges": [
+          {
+            "start": 136,
+            "end": 161
+          },
+          {
+            "start": 164,
+            "end": 172
+          },
+          {
+            "start": 344,
+            "end": 345
+          },
+          {
+            "start": 347,
+            "end": 348
+          },
+          {
+            "start": 848,
+            "end": 848
+          },
+          {
+            "start": 1225,
+            "end": 1229
+          },
+          {
+            "start": 1757,
+            "end": 1760
+          },
+          {
+            "start": 1990,
+            "end": 1993
+          },
+          {
+            "start": 2205,
+            "end": 2205
+          },
+          {
+            "start": 2283,
+            "end": 2286
+          },
+          {
+            "start": 2320,
+            "end": 2322
+          },
+          {
+            "start": 2335,
+            "end": 2339
+          },
+          {
+            "start": 2413,
+            "end": 2417
+          }
+        ],
+        "before_hash": "27bf3975805ba484ed41da7255152e1aad51a1b242217fce7a7802ddaf6eeec8",
+        "after_hash": "365e867a3783a238580cf4f5b55524d805ecdcec634dc81febfa7640fd29d346"
+      },
+      {
+        "file": "tests/component_tests/sun/test_parse_latlon.py",
+        "ranges": [
+          {
+            "start": 1,
+            "end": 42
+          }
+        ],
+        "before_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "after_hash": "4855347961ee1acd35d901d3aa1255a99101c0cd363631fae196c8095d5bce39"
+      },
+      {
+        "file": "tests/unit_tests/test_config_validation.py",
+        "ranges": [
+          {
+            "start": 7,
+            "end": 7
+          },
+          {
+            "start": 143,
+            "end": 146
+          },
+          {
+            "start": 2010,
+            "end": 2017
+          },
+          {
+            "start": 2434,
+            "end": 2440
+          },
+          {
+            "start": 2615,
+            "end": 2628
+          },
+          {
+            "start": 2631,
+            "end": 2634
+          },
+          {
+            "start": 2912,
+            "end": 2923
+          },
+          {
+            "start": 2943,
+            "end": 2950
+          },
+          {
+            "start": 2999,
+            "end": 3030
+          }
+        ],
+        "before_hash": "b453c7ebc50752aab8195288d65d1fccd0ade8509a85d0fb2202d8393a5cfe96",
+        "after_hash": "b4c42d3f9f55c2732e6af2fcea6ae2ec31f7c7f2fbbc4088a1c031b6734caa93"
+      }
+    ]
+  },
+  "timing": {
+    "started_at": "2026-11-13T18:05:03.901Z",
+    "completed_at": "2026-11-13T18:05:06.485Z",
+    "duration_ms": 2584,
+    "measurement": "hook_wall_clock"
+  },
+  "tokens": {
+    "input": 0,
+    "output": 0,
+    "total": 0,
+    "model_calls": 0,
+    "measurement": "known-zero"
+  },
+  "telemetry": {
+    "schemaVersion": "mimosa-gate-telemetry/v1",
+    "profile": "gate",
+    "operation": "Stop",
+    "outcome": "partial/INCONCLUSIVE",
+    "latencyMs": 2584,
+    "peakMemoryBytes": 99713024,
+    "memoryMeasurement": "max-observed-process-rss",
+    "scannedFiles": 0,
+    "cache": {
+      "hits": 0,
+      "misses": 0,
+      "measurement": "not-applicable"
+    },
+    "denyCount": 0,
+    "tokens": {
+      "input": 0,
+      "output": 0,
+      "total": 0,
+      "modelCalls": 0,
+      "measurement": "known-zero"
+    }
+  },
+  "finding_count": 0,
+  "rewake_finding_count": 0,
+  "evidence_boundary": {
+    "scan": "candidate",
+    "static_fix_verification": "observed_static_only",
+    "runtime_verification": "not_performed"
+  },
+  "finding_events": [],
+  "findings": [],
+  "artifacts": {
+    "immutable_report": ".mimosa/reports/task-review-session_3fb155cc6bd4d92657f5984559fc4af2-20261113T180506485Z-44324-8f656c31201a.json",
+    "latest_report": ".mimosa/reports/task-review-session_3fb155cc6bd4d92657f5984559fc4af2.json",
+    "history_summary": ".mimosa/history/run-20261113T180506485Z-44324-8f656c31201a.json"
+  }
+}

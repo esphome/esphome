@@ -1,0 +1,492 @@
+#pragma once
+#ifdef USE_ESP32
+
+#include "esphome/core/defines.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/string_ref.h"
+#include <esp_http_server.h>
+
+#include <atomic>
+#include <functional>
+#include <list>
+#include <map>
+#include <span>
+#include <string>
+#include <utility>
+#include <vector>
+
+#ifdef USE_WEBSERVER
+#include "esphome/components/json/json_util.h"
+#include "esphome/components/web_server/list_entities.h"
+#include "sse_chunk.h"
+#endif
+
+struct iovec;  // NOLINT(readability-identifier-naming) - forward decl of lwip's gather list entry
+
+namespace esphome {
+#ifdef USE_WEBSERVER
+namespace web_server {
+class WebServer;
+};  // namespace web_server
+#endif
+namespace web_server_idf {
+
+class AsyncWebParameter {
+ public:
+  AsyncWebParameter(std::string name, std::string value) : name_(std::move(name)), value_(std::move(value)) {}
+  const std::string &name() const { return this->name_; }
+  const std::string &value() const { return this->value_; }
+
+ protected:
+  std::string name_;
+  std::string value_;
+};
+
+class AsyncWebServerRequest;
+
+class AsyncWebServerResponse {
+  friend class AsyncWebServerRequest;
+
+ public:
+  AsyncWebServerResponse(const AsyncWebServerRequest *req) : req_(req) {}
+  virtual ~AsyncWebServerResponse() {}
+
+  // NOLINTNEXTLINE(readability-identifier-naming)
+  void addHeader(const char *name, const char *value);
+
+  virtual const char *get_content_data() const = 0;
+  virtual size_t get_content_size() const = 0;
+
+ protected:
+  const AsyncWebServerRequest *req_;
+  // Bit i set: this response set default header i itself, so it is not sent at send time
+  uint8_t replaced_defaults_{0};
+};
+
+class AsyncWebServerResponseEmpty : public AsyncWebServerResponse {
+ public:
+  AsyncWebServerResponseEmpty(const AsyncWebServerRequest *req) : AsyncWebServerResponse(req) {}
+
+  const char *get_content_data() const override { return nullptr; };
+  size_t get_content_size() const override { return 0; };
+};
+
+class AsyncWebServerResponseContent : public AsyncWebServerResponse {
+ public:
+  AsyncWebServerResponseContent(const AsyncWebServerRequest *req, std::string content)
+      : AsyncWebServerResponse(req), content_(std::move(content)) {}
+
+  const char *get_content_data() const override { return this->content_.c_str(); };
+  size_t get_content_size() const override { return this->content_.size(); };
+
+ protected:
+  std::string content_;
+};
+
+class AsyncResponseStream : public AsyncWebServerResponse {
+ public:
+  AsyncResponseStream(const AsyncWebServerRequest *req) : AsyncWebServerResponse(req) {}
+
+  const char *get_content_data() const override { return this->content_.c_str(); };
+  size_t get_content_size() const override { return this->content_.size(); };
+
+  void print(const char *str) { this->content_.append(str); }
+  void print(const std::string &str) { this->content_.append(str); }
+  void print(float value);
+  void printf(const char *fmt, ...) __attribute__((format(printf, 2, 3)));
+  void write(uint8_t c) { this->content_.push_back(static_cast<char>(c)); }
+
+ protected:
+  std::string content_;
+};
+
+class AsyncWebServerResponseProgmem : public AsyncWebServerResponse {
+ public:
+  AsyncWebServerResponseProgmem(const AsyncWebServerRequest *req, const uint8_t *data, const size_t size)
+      : AsyncWebServerResponse(req), data_(data), size_(size) {}
+
+  const char *get_content_data() const override { return reinterpret_cast<const char *>(this->data_); };
+  size_t get_content_size() const override { return this->size_; };
+
+ protected:
+  const uint8_t *data_;
+  size_t size_;
+};
+
+class AsyncWebServerRequest {
+  friend class AsyncWebServer;
+
+ public:
+  ~AsyncWebServerRequest();
+
+  http_method method() const { return static_cast<http_method>(this->req_->method); }
+  static constexpr size_t URL_BUF_SIZE = CONFIG_HTTPD_MAX_URI_LEN + 1;  ///< Buffer size for url_to()
+  /// Write URL (without query string) to buffer, returns StringRef pointing to buffer.
+  /// URL is decoded (e.g., %20 -> space).
+  StringRef url_to(std::span<char, URL_BUF_SIZE> buffer) const;
+  // NOLINTNEXTLINE(readability-identifier-naming)
+  size_t contentLength() const { return this->req_->content_len; }
+
+#ifdef USE_WEBSERVER_AUTH
+  bool authenticate(const char *username, const char *password) const;
+  // NOLINTNEXTLINE(readability-identifier-naming)
+  void requestAuthentication() const;
+#endif
+
+  void redirect(const char *url);
+  void redirect(const std::string &url) { this->redirect(url.c_str()); }
+
+  void send(AsyncWebServerResponse *response);
+  inline void ESPHOME_ALWAYS_INLINE send(int code, const char *content_type = nullptr, const char *content = nullptr) {
+    this->init_response_(nullptr, code, content_type);
+    if (content) {
+      httpd_resp_send(*this, content, HTTPD_RESP_USE_STRLEN);
+    } else {
+      httpd_resp_send(*this, nullptr, 0);
+    }
+  }
+  // NOLINTNEXTLINE(readability-identifier-naming)
+  AsyncWebServerResponse *beginResponse(int code, const char *content_type) {
+    auto *res = new AsyncWebServerResponseEmpty(this);  // NOLINT(cppcoreguidelines-owning-memory)
+    this->init_response_(res, code, content_type);
+    return res;
+  }
+  // NOLINTNEXTLINE(readability-identifier-naming)
+  AsyncWebServerResponse *beginResponse(int code, const char *content_type, const std::string &content) {
+    auto *res = new AsyncWebServerResponseContent(this, content);  // NOLINT(cppcoreguidelines-owning-memory)
+    this->init_response_(res, code, content_type);
+    return res;
+  }
+  // NOLINTNEXTLINE(readability-identifier-naming)
+  AsyncWebServerResponse *beginResponse(int code, const char *content_type, const uint8_t *data,
+                                        const size_t data_size) {
+    auto *res = new AsyncWebServerResponseProgmem(this, data, data_size);  // NOLINT(cppcoreguidelines-owning-memory)
+    this->init_response_(res, code, content_type);
+    return res;
+  }
+  // NOLINTNEXTLINE(readability-identifier-naming)
+  AsyncResponseStream *beginResponseStream(const char *content_type) {
+    auto *res = new AsyncResponseStream(this);  // NOLINT(cppcoreguidelines-owning-memory)
+    this->init_response_(res, 200, content_type);
+    return res;
+  }
+
+  // NOLINTNEXTLINE(readability-identifier-naming)
+  bool hasParam(const char *name) { return this->getParam(name) != nullptr; }
+  // NOLINTNEXTLINE(readability-identifier-naming)
+  bool hasParam(const std::string &name) { return this->getParam(name.c_str()) != nullptr; }
+  // NOLINTNEXTLINE(readability-identifier-naming)
+  AsyncWebParameter *getParam(const char *name);
+  // NOLINTNEXTLINE(readability-identifier-naming)
+  AsyncWebParameter *getParam(const std::string &name) { return this->getParam(name.c_str()); }
+
+  // NOLINTNEXTLINE(readability-identifier-naming)
+  bool hasArg(const char *name);
+  std::string arg(const char *name);
+  std::string arg(const std::string &name) { return this->arg(name.c_str()); }
+
+#ifdef USE_WEBSERVER_OTA
+  /// Called when the request ends, including early returns.
+  // NOLINTNEXTLINE(readability-identifier-naming)
+  void onDisconnect(std::function<void()> fn) { this->on_disconnect_ = std::move(fn); }
+#endif
+
+  operator httpd_req_t *() const { return this->req_; }
+  optional<std::string> get_header(const char *name) const;
+  /// Copy a header value into buf without heap allocation.
+  /// Returns its length, 0 when absent, or SIZE_MAX when it does not fit in buf.
+  size_t get_header_to(const char *name, std::span<char> buf) const;
+  // NOLINTNEXTLINE(readability-identifier-naming)
+  bool hasHeader(const char *name) const;
+
+ protected:
+  httpd_req_t *req_;
+  AsyncWebServerResponse *rsp_{};
+  // Use vector instead of map/unordered_map: most requests have 0-3 params, so linear search
+  // is faster than tree/hash overhead. AsyncWebParameter stores both name and value to avoid
+  // duplicate storage. Only successful lookups are cached to prevent cache pollution when
+  // handlers check for optional parameters that don't exist.
+  optional<std::string> find_query_value_(const char *name) const;
+  std::vector<AsyncWebParameter *> params_;
+  std::string post_query_;
+#ifdef USE_WEBSERVER_OTA
+  std::function<void()> on_disconnect_;
+#endif
+  AsyncWebServerRequest(httpd_req_t *req) : req_(req) {}
+  AsyncWebServerRequest(httpd_req_t *req, std::string post_query) : req_(req), post_query_(std::move(post_query)) {}
+  void init_response_(AsyncWebServerResponse *rsp, int code, const char *content_type);
+};
+
+class AsyncWebHandler;
+
+class AsyncWebServer {
+ public:
+  AsyncWebServer(uint16_t port) : port_(port) {};
+  ~AsyncWebServer() { this->end(); }
+
+  // NOLINTNEXTLINE(readability-identifier-naming)
+  void onNotFound(std::function<void(AsyncWebServerRequest *request)> &&fn) { on_not_found_ = std::move(fn); }
+
+  void begin();
+  void end();
+
+  // NOLINTNEXTLINE(readability-identifier-naming)
+  AsyncWebHandler &addHandler(AsyncWebHandler *handler) {
+    this->handlers_.push_back(handler);
+    return *handler;
+  }
+
+  httpd_handle_t get_server() { return this->server_; }
+
+ protected:
+  uint16_t port_{};
+  httpd_handle_t server_{};
+  static esp_err_t request_handler(httpd_req_t *r);
+  static esp_err_t request_post_handler(httpd_req_t *r);
+  esp_err_t request_handler_(AsyncWebServerRequest *request) const;
+  static void safe_close_with_shutdown(httpd_handle_t hd, int sockfd);
+  esp_err_t handle_raw_body_(httpd_req_t *r, const char *content_type);
+#ifdef USE_WEBSERVER_OTA
+  esp_err_t handle_multipart_upload_(httpd_req_t *r, const char *content_type);
+#endif
+  std::vector<AsyncWebHandler *> handlers_;
+  std::function<void(AsyncWebServerRequest *request)> on_not_found_{};
+};
+
+class AsyncWebHandler {
+ public:
+  virtual ~AsyncWebHandler() {}
+  // NOLINTNEXTLINE(readability-identifier-naming)
+  virtual bool canHandle(AsyncWebServerRequest *request) const { return false; }
+  // NOLINTNEXTLINE(readability-identifier-naming)
+  virtual void handleRequest(AsyncWebServerRequest *request) {}
+  // NOLINTNEXTLINE(readability-identifier-naming)
+  virtual void handleUpload(AsyncWebServerRequest *request, const std::string &filename, size_t index, uint8_t *data,
+                            size_t len, bool final) {}
+  // NOLINTNEXTLINE(readability-identifier-naming)
+  virtual void handleBody(AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total) {}
+  // NOLINTNEXTLINE(readability-identifier-naming)
+  virtual bool isRequestHandlerTrivial() const { return true; }
+};
+
+#ifdef USE_WEBSERVER
+class AsyncEventSource;
+class AsyncEventSourceResponse;
+
+using message_generator_t = void(esphome::web_server::WebServer *, void *, json::JsonBuilder &);
+
+/*
+  This class holds a pointer to the source component that wants to publish a state event, and a pointer to a function
+  that will lazily generate that event.  The two pointers allow dedup in the deferred queue if multiple publishes for
+  the same component are backed up, and take up only two pointers of memory.  The entry in the deferred queue (a
+  std::vector) is the DeferredEvent instance itself (not a pointer to one elsewhere in heap) so still only two pointers
+  per entry (and no heap fragmentation).  Even 100 backed up events (you'd have to have at least 100 sensors publishing
+  because of dedup) would take up only 0.8 kB.
+*/
+struct DeferredEvent {
+  friend class AsyncEventSourceResponse;
+
+ protected:
+  void *source_;
+  message_generator_t *message_generator_;
+
+ public:
+  DeferredEvent(void *source, message_generator_t *message_generator)
+      : source_(source), message_generator_(message_generator) {}
+  bool operator==(const DeferredEvent &test) const {
+    return (source_ == test.source_ && message_generator_ == test.message_generator_);
+  }
+};
+static_assert(sizeof(DeferredEvent) == sizeof(void *) + sizeof(message_generator_t *),
+              "DeferredEvent should have no padding");
+
+class AsyncEventSourceResponse {
+  friend class AsyncEventSource;
+
+ public:
+  bool try_send_nodefer(const char *message, size_t message_len, const char *event = nullptr, uint32_t id = 0,
+                        uint32_t reconnect = 0);
+  // detail_all events go out while entities are still being listed; state events wait until listing is done
+  void deferrable_send_state(void *source, bool detail_all, message_generator_t *message_generator);
+  // The old event name argument would otherwise convert to true
+  void deferrable_send_state(void *source, const char *event_type, message_generator_t *message_generator) = delete;
+  void loop();
+
+ protected:
+  AsyncEventSourceResponse(const AsyncWebServerRequest *request, esphome::web_server_idf::AsyncEventSource *server,
+                           esphome::web_server::WebServer *ws);
+
+  // Main-loop only: sends initial ping/config/sorting_groups, starts entity iterator.
+  void start_session_main_loop_();
+
+  void deq_push_back_with_dedup_(void *source, message_generator_t *message_generator);
+  void process_deferred_queue_();
+  // A new chunk may go out: not re-entered from a log line, session alive, tail empty
+  bool ready_to_send_();
+  // Non-blocking gather write. Returns bytes written, 0 on would-block or a socket that is not
+  // ours, -1 after requesting the close on any other error.
+  ssize_t send_(struct iovec *iov, int iovcnt);
+  // Push what is left of the chunk in tail_ to the socket; owns the stall timer.
+  void drain_tail_();
+  // Grow tail_ to hold len bytes, kept at its high-water mark. False on OOM.
+  bool reserve_tail_(size_t len);
+  // Keep the whole chunk in tail_ and continue from sent; false when the tail cannot be allocated.
+  bool stash_chunk_(const char *prefix, size_t prefix_len, const char *message, size_t message_len, size_t total,
+                    size_t sent);
+  // Send a state event; JSON too large for the stack buffer is serialized into tail_ instead
+  bool send_json_(void *source, message_generator_t *generator);
+  enum class JsonPrepareResult : uint8_t {
+    JSON_PREPARE_RESULT_BUFFER,
+    JSON_PREPARE_RESULT_TAIL,
+    JSON_PREPARE_RESULT_NO_MEMORY,
+    JSON_PREPARE_RESULT_TOO_LARGE,
+  };
+  // Keep the arena out of the caller's frame so it is gone before the state send.
+  // size_out: BUFFER = JSON length, NO_MEMORY = requested tail capacity, TOO_LARGE = available JSON room;
+  // unused for TAIL.
+  JsonPrepareResult __attribute__((noinline)) prepare_json_(void *source, message_generator_t *generator, char *buffer,
+                                                            size_t *size_out);
+  // Warn once, and close the session once the stall timeout passes with no memory for the tail
+  void tail_alloc_failed_(size_t cap);
+  void request_close_();
+
+  // A log line emitted inside a send re-enters try_send_nodefer on this session; refuse it
+  struct SendGuard {
+    AsyncEventSourceResponse &owner;
+    explicit SendGuard(AsyncEventSourceResponse &owner) : owner(owner) { owner.sending_ = true; }
+    ~SendGuard() { this->owner.sending_ = false; }
+  };
+  void process_close_();
+  static void close_session_work(void *arg);
+  void refresh_lru_();
+  static void refresh_lru_work(void *arg);
+  // httpd frees a session before closing its socket, so the fd may already belong to a new client
+  bool owns_session_(int fd) const { return fd != 0 && httpd_sess_get_ctx(this->hd_, fd) == this; }
+
+  // Deletable only after destroy() zeroed fd_ and no queued HTTPD work still references this object.
+  bool safe_to_delete_() const {
+    return this->fd_.load() == 0 && !this->close_work_queued_.load(std::memory_order_acquire) &&
+           !this->lru_work_queued_.load(std::memory_order_acquire);
+  }
+
+  static void destroy(void *p);
+  AsyncEventSource *server_;
+  httpd_handle_t hd_{};
+  std::atomic<int> fd_{};
+  std::vector<DeferredEvent> deferred_queue_;
+  esphome::web_server::WebServer *web_server_;
+  esphome::web_server::ListEntitiesIterator entities_iterator_;
+  // One chunk the socket did not take whole, allocated on the first stall; the only heap use
+  // on the send path
+  RAMUniquePtr<uint8_t[]> tail_;
+  uint32_t send_failure_started_ms_{0};  // Zero means no send stall in progress.
+  uint32_t next_close_attempt_ms_{0};
+  uint32_t last_lru_refresh_ms_{0};
+  uint16_t tail_cap_{0};
+  uint16_t tail_len_{0};  // Zero means nothing pending
+  uint16_t tail_sent_{0};
+  // Set on the main loop before queueing close work, cleared by the HTTPD-task callback when done.
+  std::atomic<bool> close_work_queued_{false};
+  std::atomic<bool> lru_work_queued_{false};
+  // Main-loop only; the HTTPD task never reads or writes these flags.
+  bool close_requested_{false};
+  bool close_retry_warning_logged_{false};
+  bool sending_{false};
+  // The longest multi line log message in the tree (a climate dump_config) has 22 lines; a
+  // longer one goes through the tail
+  static constexpr size_t MAX_SEND_LINES = 22;
+  static constexpr size_t MAX_SEND_IOV = 1 + 2 * MAX_SEND_LINES;
+  // Chunk header, retry/id/event lines and the first "data: "
+  static constexpr size_t PREFIX_BUF_SIZE = 128;
+
+  // Stack buffer for a state event's JSON; a larger document is serialized into the tail
+  static constexpr size_t JSON_BUF_SIZE = 1024;
+  // Same ceiling JsonBuilder::serialize() applies (max_heap_size in json_util.cpp); a larger
+  // document is dropped before anything is on the wire
+  static constexpr size_t JSON_MAX_SIZE = 5120;
+  // Most RAM a stalled session keeps: the largest state document plus any accepted framing
+  static constexpr size_t TAIL_MAX_SIZE = JSON_MAX_SIZE + PREFIX_BUF_SIZE + SSE_SUFFIX_LEN;
+  static constexpr uint32_t SEND_STALL_TIMEOUT_MS = 20000;
+  static constexpr uint32_t CLOSE_RETRY_INTERVAL_MS = 250;
+  static constexpr uint32_t CLOSE_CONFIRM_INTERVAL_MS = 1000;
+  static constexpr uint32_t LRU_REFRESH_INTERVAL_MS = 1000;
+};
+
+using AsyncEventSourceClient = AsyncEventSourceResponse;
+
+class AsyncEventSource : public AsyncWebHandler {
+  friend class AsyncEventSourceResponse;
+
+ public:
+  AsyncEventSource(StringRef url, esphome::web_server::WebServer *ws) : url_(url), web_server_(ws) {}
+  ~AsyncEventSource() override;
+
+  // NOLINTNEXTLINE(readability-identifier-naming)
+  bool canHandle(AsyncWebServerRequest *request) const override {
+    if (request->method() != HTTP_GET)
+      return false;
+    char url_buf[AsyncWebServerRequest::URL_BUF_SIZE];
+    return request->url_to(url_buf) == this->url_;
+  }
+  // NOLINTNEXTLINE(readability-identifier-naming)
+  void handleRequest(AsyncWebServerRequest *request) override;
+  void try_send_nodefer(const char *message, size_t message_len, const char *event = nullptr, uint32_t id = 0,
+                        uint32_t reconnect = 0);
+  void deferrable_send_state(void *source, bool detail_all, message_generator_t *message_generator);
+  // The old event name argument would otherwise convert to true
+  void deferrable_send_state(void *source, const char *event_type, message_generator_t *message_generator) = delete;
+  /// Returns true if there are sessions remaining (including pending cleanup).
+  bool loop();
+  bool empty() { return this->count() == 0; }
+
+  size_t count() const { return this->sessions_.size(); }
+
+ protected:
+  // Cold path: move sessions from pending_sessions_ into sessions_ and greet each one.
+  void __attribute__((noinline, cold)) adopt_pending_sessions_main_loop_();
+
+  StringRef url_;  // Must outlive this object (string literal)
+  // Main-loop only. Vector: SSE sessions are 1-5 connections, linear search beats set.
+  std::vector<AsyncEventSourceResponse *> sessions_;
+  // Httpd-task intake; guarded by pending_mutex_, gated by has_pending_sessions_.
+  std::vector<AsyncEventSourceResponse *> pending_sessions_;
+  Mutex pending_mutex_;
+  esphome::web_server::WebServer *web_server_;
+  std::atomic<bool> has_pending_sessions_{false};
+};
+#endif  // USE_WEBSERVER
+
+struct HttpHeader {
+  const char *name;
+  const char *value;
+};
+
+class DefaultHeaders {
+  friend class AsyncWebServerRequest;
+  friend class AsyncWebServerResponse;
+#ifdef USE_WEBSERVER
+  friend class AsyncEventSourceResponse;
+#endif
+  static_assert(WEB_SERVER_DEFAULT_HEADERS_COUNT <= 8, "AsyncWebServerResponse::replaced_defaults_ holds 8 bits");
+
+ public:
+  // NOLINTNEXTLINE(readability-identifier-naming)
+  void addHeader(const char *name, const char *value) { this->headers_.push_back({name, value}); }
+
+  // NOLINTNEXTLINE(readability-identifier-naming)
+  static DefaultHeaders &Instance();
+
+ protected:
+  // Stack-allocated, no reallocation machinery. Count defined in web_server_base where headers are added.
+  StaticVector<HttpHeader, WEB_SERVER_DEFAULT_HEADERS_COUNT> headers_;
+
+  /// Set every default header on the response except those whose bit is set in skip_mask.
+  void apply_(httpd_req_t *req, uint8_t skip_mask = 0) const;
+};
+
+}  // namespace web_server_idf
+}  // namespace esphome
+
+using namespace esphome::web_server_idf;  // NOLINT(google-global-names-in-headers)
+
+#endif  // !defined(USE_ESP32)

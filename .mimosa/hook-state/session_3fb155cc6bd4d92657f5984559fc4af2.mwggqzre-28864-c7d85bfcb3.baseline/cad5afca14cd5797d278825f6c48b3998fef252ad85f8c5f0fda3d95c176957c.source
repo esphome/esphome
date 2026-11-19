@@ -1,0 +1,60 @@
+#pragma once
+
+#include "esphome/core/component.h"
+#include "esphome/components/sensor/sensor.h"
+#include "esphome/components/i2c/i2c.h"
+#include "esphome/core/hal.h"
+
+namespace esphome::qmc5883l {
+
+enum QMC5883LDatarate {
+  QMC5883L_DATARATE_10_HZ = 0b00,
+  QMC5883L_DATARATE_50_HZ = 0b01,
+  QMC5883L_DATARATE_100_HZ = 0b10,
+  QMC5883L_DATARATE_200_HZ = 0b11,
+};
+
+enum QMC5883LRange {
+  QMC5883L_RANGE_200_UT = 0b00,
+  QMC5883L_RANGE_800_UT = 0b01,
+};
+
+enum QMC5883LOversampling {
+  QMC5883L_SAMPLING_512 = 0b00,
+  QMC5883L_SAMPLING_256 = 0b01,
+  QMC5883L_SAMPLING_128 = 0b10,
+  QMC5883L_SAMPLING_64 = 0b11,
+};
+
+class QMC5883LComponent final : public PollingComponent, public i2c::I2CDevice {
+  SUB_SENSOR(x)
+  SUB_SENSOR(y)
+  SUB_SENSOR(z)
+  SUB_SENSOR(heading)
+  SUB_SENSOR(temperature)
+
+ public:
+  void setup() override;
+  void dump_config() override;
+  void update() override;
+  void loop() override;
+
+  void set_drdy_pin(GPIOPin *pin) { drdy_pin_ = pin; }
+  void set_datarate(QMC5883LDatarate datarate) { datarate_ = datarate; }
+  void set_range(QMC5883LRange range) { range_ = range; }
+  void set_oversampling(QMC5883LOversampling oversampling) { oversampling_ = oversampling; }
+
+ protected:
+  static void gpio_intr(QMC5883LComponent *arg);
+  void read_sensor_();
+
+  QMC5883LDatarate datarate_{QMC5883L_DATARATE_10_HZ};
+  QMC5883LRange range_{QMC5883L_RANGE_200_UT};
+  QMC5883LOversampling oversampling_{QMC5883L_SAMPLING_512};
+  GPIOPin *drdy_pin_{nullptr};
+  bool drdy_use_isr_{false};
+  i2c::ErrorCode read_bytes_16_le_(uint8_t a_register, uint16_t *data, uint8_t len = 1);
+  HighFrequencyLoopRequester high_freq_;
+};
+
+}  // namespace esphome::qmc5883l

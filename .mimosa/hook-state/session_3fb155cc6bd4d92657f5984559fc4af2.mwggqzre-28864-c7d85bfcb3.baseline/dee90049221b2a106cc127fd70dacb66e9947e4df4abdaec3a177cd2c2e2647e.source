@@ -1,0 +1,72 @@
+from esphome import automation
+import esphome.codegen as cg
+from esphome.components import binary_sensor
+import esphome.config_validation as cv
+from esphome.const import (
+    CONF_CONDITION,
+    CONF_DEVICE_CLASS,
+    CONF_ID,
+    CONF_LAMBDA,
+    CONF_STATE,
+)
+from esphome.cpp_generator import LambdaExpression
+
+from .. import template_ns
+
+TemplateBinarySensor = template_ns.class_(
+    "TemplateBinarySensor", binary_sensor.BinarySensor, cg.Component
+)
+
+CONFIG_SCHEMA = (
+    cv.with_visibility(
+        binary_sensor.binary_sensor_schema(TemplateBinarySensor),
+        cv.Visibility.UI,
+        CONF_DEVICE_CLASS,
+    )
+    .extend(
+        {
+            cv.Exclusive(CONF_LAMBDA, CONF_CONDITION): cv.returning_lambda,
+            cv.Exclusive(
+                CONF_CONDITION, CONF_CONDITION
+            ): automation.validate_potentially_and_condition,
+        }
+    )
+    .extend(cv.COMPONENT_SCHEMA)
+)
+
+
+async def to_code(config):
+    var = await binary_sensor.new_binary_sensor(config)
+    await cg.register_component(var, config)
+
+    if lamb := config.get(CONF_LAMBDA):
+        template_ = await cg.process_lambda(
+            lamb, [], return_type=cg.optional.template(bool)
+        )
+        cg.add(var.set_template(template_))
+    if condition := config.get(CONF_CONDITION):
+        condition = await automation.build_condition(
+            condition, cg.TemplateArguments(), []
+        )
+        # Generate a stateless lambda that calls condition.check()
+        # capture="" is safe because condition is a global variable in generated C++ code
+        # and doesn't need to be captured. This allows implicit conversion to function pointer.
+        template_ = LambdaExpression(
+            f"return {condition.check()};",
+            [],
+            return_type=cg.optional.template(bool),
+            capture="",
+        )
+        cg.add(var.set_template(template_))
+
+
+automation.register_apply_action(
+    "binary_sensor.template.publish",
+    cv.Schema(
+        {
+            cv.Required(CONF_ID): cv.use_id(binary_sensor.BinarySensor),
+            cv.Required(CONF_STATE): cv.templatable(cv.boolean),
+        }
+    ),
+    automation.ApplyField(CONF_STATE, "publish_state", cg.bool_),
+)

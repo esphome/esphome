@@ -1,0 +1,326 @@
+from typing import Any
+
+from esphome import automation, pins
+import esphome.codegen as cg
+from esphome.components import spi
+from esphome.components.const import (
+    CONF_BITRATE,
+    CONF_CRC_ENABLE,
+    CONF_MODULATION,
+    CONF_ON_PACKET,
+    CONF_RST_PIN,
+)
+import esphome.config_validation as cv
+from esphome.const import CONF_BUSY_PIN, CONF_DATA, CONF_FREQUENCY
+from esphome.core import TimePeriod
+from esphome.types import ConfigType
+
+DOMAIN = "sx126x"
+MULTI_CONF = True
+CODEOWNERS = ["@swoboda1337"]
+DEPENDENCIES = ["spi"]
+
+CONF_SX126X_ID = "sx126x_id"
+
+CONF_BANDWIDTH = "bandwidth"
+CONF_CODING_RATE = "coding_rate"
+CONF_COLD = "cold"
+CONF_CRC_INVERTED = "crc_inverted"
+CONF_CRC_SIZE = "crc_size"
+CONF_CRC_POLYNOMIAL = "crc_polynomial"
+CONF_CRC_INITIAL = "crc_initial"
+CONF_DEVIATION = "deviation"
+CONF_DIO1_PIN = "dio1_pin"
+CONF_HW_VERSION = "hw_version"
+CONF_PA_POWER = "pa_power"
+CONF_PA_RAMP = "pa_ramp"
+CONF_PAYLOAD_LENGTH = "payload_length"
+CONF_PREAMBLE_DETECT = "preamble_detect"
+CONF_PREAMBLE_SIZE = "preamble_size"
+CONF_RX_START = "rx_start"
+CONF_RF_SWITCH = "rf_switch"
+CONF_SHAPING = "shaping"
+CONF_SPREADING_FACTOR = "spreading_factor"
+CONF_SYNC_VALUE = "sync_value"
+CONF_TCXO_VOLTAGE = "tcxo_voltage"
+CONF_TCXO_DELAY = "tcxo_delay"
+CONF_WHITENING_ENABLE = "whitening_enable"
+CONF_WHITENING_INITIAL = "whitening_initial"
+
+sx126x_ns = cg.esphome_ns.namespace("sx126x")
+SX126x = sx126x_ns.class_("SX126x", cg.Component, spi.SPIDevice)
+SX126xListener = sx126x_ns.class_("SX126xListener")
+SX126xBw = sx126x_ns.enum("SX126xBw")
+SX126xPacketType = sx126x_ns.enum("SX126xPacketType")
+SX126xTcxoCtrl = sx126x_ns.enum("SX126xTcxoCtrl")
+SX126xRampTime = sx126x_ns.enum("SX126xRampTime")
+SX126xPulseShape = sx126x_ns.enum("SX126xPulseShape")
+SX126xLoraCr = sx126x_ns.enum("SX126xLoraCr")
+
+BW = {
+    "4_8kHz": SX126xBw.SX126X_BW_4800,
+    "5_8kHz": SX126xBw.SX126X_BW_5800,
+    "7_3kHz": SX126xBw.SX126X_BW_7300,
+    "9_7kHz": SX126xBw.SX126X_BW_9700,
+    "11_7kHz": SX126xBw.SX126X_BW_11700,
+    "14_6kHz": SX126xBw.SX126X_BW_14600,
+    "19_5kHz": SX126xBw.SX126X_BW_19500,
+    "23_4kHz": SX126xBw.SX126X_BW_23400,
+    "29_3kHz": SX126xBw.SX126X_BW_29300,
+    "39_0kHz": SX126xBw.SX126X_BW_39000,
+    "46_9kHz": SX126xBw.SX126X_BW_46900,
+    "58_6kHz": SX126xBw.SX126X_BW_58600,
+    "78_2kHz": SX126xBw.SX126X_BW_78200,
+    "93_8kHz": SX126xBw.SX126X_BW_93800,
+    "117_3kHz": SX126xBw.SX126X_BW_117300,
+    "156_2kHz": SX126xBw.SX126X_BW_156200,
+    "187_2kHz": SX126xBw.SX126X_BW_187200,
+    "234_3kHz": SX126xBw.SX126X_BW_234300,
+    "312_0kHz": SX126xBw.SX126X_BW_312000,
+    "373_6kHz": SX126xBw.SX126X_BW_373600,
+    "467_0kHz": SX126xBw.SX126X_BW_467000,
+    "7_8kHz": SX126xBw.SX126X_BW_7810,
+    "10_4kHz": SX126xBw.SX126X_BW_10420,
+    "15_6kHz": SX126xBw.SX126X_BW_15630,
+    "20_8kHz": SX126xBw.SX126X_BW_20830,
+    "31_3kHz": SX126xBw.SX126X_BW_31250,
+    "41_7kHz": SX126xBw.SX126X_BW_41670,
+    "62_5kHz": SX126xBw.SX126X_BW_62500,
+    "125_0kHz": SX126xBw.SX126X_BW_125000,
+    "250_0kHz": SX126xBw.SX126X_BW_250000,
+    "500_0kHz": SX126xBw.SX126X_BW_500000,
+}
+
+CODING_RATE = SX126xLoraCr.options(
+    "CR_4_5", "CR_4_6", "CR_4_7", "CR_4_8", prefix="LORA_"
+)
+
+MOD = {
+    "LORA": SX126xPacketType.PACKET_TYPE_LORA,
+    "FSK": SX126xPacketType.PACKET_TYPE_GFSK,
+}
+
+TCXO_VOLTAGE = SX126xTcxoCtrl.options(
+    "1_6V",
+    "1_7V",
+    "1_8V",
+    "2_2V",
+    "2_4V",
+    "2_7V",
+    "3_0V",
+    "3_3V",
+    "NONE",
+    prefix="TCXO_CTRL_",
+)
+
+RAMP = {
+    "10us": SX126xRampTime.PA_RAMP_10,
+    "20us": SX126xRampTime.PA_RAMP_20,
+    "40us": SX126xRampTime.PA_RAMP_40,
+    "80us": SX126xRampTime.PA_RAMP_80,
+    "200us": SX126xRampTime.PA_RAMP_200,
+    "800us": SX126xRampTime.PA_RAMP_800,
+    "1700us": SX126xRampTime.PA_RAMP_1700,
+    "3400us": SX126xRampTime.PA_RAMP_3400,
+}
+
+SHAPING = {
+    "GAUSSIAN_BT_0_3": SX126xPulseShape.GAUSSIAN_BT_0_3,
+    "GAUSSIAN_BT_0_5": SX126xPulseShape.GAUSSIAN_BT_0_5,
+    "GAUSSIAN_BT_0_7": SX126xPulseShape.GAUSSIAN_BT_0_7,
+    "GAUSSIAN_BT_1_0": SX126xPulseShape.GAUSSIAN_BT_1_0,
+    "NONE": SX126xPulseShape.NO_FILTER,
+}
+
+
+def validate_raw_data(value: Any) -> bytes | list[int]:
+    if isinstance(value, str):
+        return value.encode("utf-8")
+    if isinstance(value, list):
+        return cv.Schema([cv.hex_uint8_t])(value)
+    raise cv.Invalid(
+        "data must either be a string wrapped in quotes or a list of bytes"
+    )
+
+
+MAX_PACKET_SIZE = 255
+# The radio sends packets of 1 to MAX_PACKET_SIZE bytes.
+validate_packet_data = cv.All(validate_raw_data, cv.Length(min=1, max=MAX_PACKET_SIZE))
+
+
+def validate_config(config: ConfigType) -> ConfigType:
+    lora_bws = [
+        "7_8kHz",
+        "10_4kHz",
+        "15_6kHz",
+        "20_8kHz",
+        "31_3kHz",
+        "41_7kHz",
+        "62_5kHz",
+        "125_0kHz",
+        "250_0kHz",
+        "500_0kHz",
+    ]
+    if config[CONF_MODULATION] == "LORA":
+        if config[CONF_BANDWIDTH] not in lora_bws:
+            raise cv.Invalid(f"{config[CONF_BANDWIDTH]} is not available with LORA")
+        if config[CONF_PREAMBLE_SIZE] < 6:
+            raise cv.Invalid("Minimum 'preamble_size' is 6 with LORA")
+        if config[CONF_SPREADING_FACTOR] == 6 and config[CONF_PAYLOAD_LENGTH] == 0:
+            raise cv.Invalid("Payload length must be set when spreading factor is 6")
+    else:
+        if config[CONF_BANDWIDTH] in lora_bws:
+            raise cv.Invalid(f"{config[CONF_BANDWIDTH]} is not available with FSK")
+        if config[CONF_PREAMBLE_DETECT] > len(config[CONF_SYNC_VALUE]):
+            raise cv.Invalid("Preamble detection length must be <= sync value length")
+    return config
+
+
+CONFIG_SCHEMA = (
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(SX126x),
+            cv.Optional(CONF_BANDWIDTH, default="125_0kHz"): cv.enum(BW),
+            cv.Optional(CONF_BITRATE, default=4800): cv.int_range(min=600, max=300000),
+            cv.Required(CONF_BUSY_PIN): pins.gpio_input_pin_schema,
+            cv.Optional(CONF_CODING_RATE, default="CR_4_5"): cv.enum(CODING_RATE),
+            cv.Optional(CONF_CRC_ENABLE, default=False): cv.boolean,
+            cv.Optional(CONF_CRC_INVERTED, default=True): cv.boolean,
+            cv.Optional(CONF_CRC_SIZE, default=2): cv.int_range(min=1, max=2),
+            cv.Optional(CONF_CRC_POLYNOMIAL, default=0x1021): cv.All(
+                cv.hex_int, cv.Range(min=0, max=0xFFFF)
+            ),
+            cv.Optional(CONF_CRC_INITIAL, default=0x1D0F): cv.All(
+                cv.hex_int, cv.Range(min=0, max=0xFFFF)
+            ),
+            cv.Optional(CONF_DEVIATION, default="5kHz"): cv.All(
+                cv.frequency, cv.int_range(min=0, max=100000)
+            ),
+            cv.Required(CONF_DIO1_PIN): pins.gpio_input_pin_schema,
+            cv.Required(CONF_FREQUENCY): cv.All(
+                cv.frequency, cv.int_range(min=int(137e6), max=int(1020e6))
+            ),
+            cv.Required(CONF_HW_VERSION): cv.one_of(
+                "sx1261", "sx1262", "sx1268", "llcc68", lower=True
+            ),
+            cv.Required(CONF_MODULATION): cv.enum(MOD),
+            cv.Optional(CONF_ON_PACKET): automation.validate_automation(single=True),
+            cv.Optional(CONF_PA_POWER, default=17): cv.int_range(min=-3, max=22),
+            cv.Optional(CONF_PA_RAMP, default="40us"): cv.enum(RAMP),
+            cv.Optional(CONF_PAYLOAD_LENGTH, default=0): cv.int_range(
+                min=0, max=MAX_PACKET_SIZE
+            ),
+            cv.Optional(CONF_PREAMBLE_DETECT, default=2): cv.int_range(min=0, max=4),
+            cv.Optional(CONF_PREAMBLE_SIZE, default=8): cv.int_range(min=1, max=65535),
+            cv.Required(CONF_RST_PIN): pins.gpio_output_pin_schema,
+            cv.Optional(CONF_RX_START, default=True): cv.boolean,
+            cv.Required(CONF_RF_SWITCH): cv.boolean,
+            cv.Optional(CONF_SHAPING, default="NONE"): cv.enum(SHAPING),
+            cv.Optional(CONF_SPREADING_FACTOR, default=7): cv.int_range(min=6, max=12),
+            cv.Optional(CONF_SYNC_VALUE, default=[]): cv.ensure_list(cv.hex_uint8_t),
+            cv.Optional(CONF_TCXO_VOLTAGE, default="NONE"): cv.enum(TCXO_VOLTAGE),
+            cv.Optional(CONF_TCXO_DELAY, default="5ms"): cv.All(
+                cv.positive_time_period_microseconds,
+                cv.Range(max=TimePeriod(microseconds=262144000)),
+            ),
+            cv.Optional(CONF_WHITENING_ENABLE, default=False): cv.boolean,
+            cv.Optional(CONF_WHITENING_INITIAL, default=0x0100): cv.All(
+                cv.hex_int, cv.Range(min=0, max=0x1FF)
+            ),
+        },
+    )
+    .extend(cv.COMPONENT_SCHEMA)
+    .extend(spi.spi_device_schema(True, 8e6, "mode0"))
+    .add_extra(validate_config)
+)
+
+
+async def to_code(config: ConfigType) -> None:
+    var = await spi.new_spi_component(config)
+    if CONF_ON_PACKET in config:
+        await automation.build_automation(
+            var.get_packet_trigger(),
+            [
+                (cg.std_vector.template(cg.uint8), "x"),
+                (cg.float_, "rssi"),
+                (cg.float_, "snr"),
+            ],
+            config[CONF_ON_PACKET],
+        )
+    await cg.add_pin(var.set_dio1_pin, config.get(CONF_DIO1_PIN))
+    await cg.add_pin(var.set_rst_pin, config[CONF_RST_PIN])
+    await cg.add_pin(var.set_busy_pin, config[CONF_BUSY_PIN])
+    cg.add(var.set_bandwidth(config[CONF_BANDWIDTH]))
+    cg.add(var.set_frequency(config[CONF_FREQUENCY]))
+    if config[CONF_HW_VERSION] == "sx1261":
+        cg.add(var.set_sx1261(True))
+    cg.add(var.set_deviation(config[CONF_DEVIATION]))
+    cg.add(var.set_modulation(config[CONF_MODULATION]))
+    cg.add(var.set_pa_ramp(config[CONF_PA_RAMP]))
+    cg.add(var.set_pa_power(config[CONF_PA_POWER]))
+    cg.add(var.set_shaping(config[CONF_SHAPING]))
+    cg.add(var.set_bitrate(config[CONF_BITRATE]))
+    cg.add(var.set_crc_enable(config[CONF_CRC_ENABLE]))
+    cg.add(var.set_crc_inverted(config[CONF_CRC_INVERTED]))
+    cg.add(var.set_crc_size(config[CONF_CRC_SIZE]))
+    cg.add(var.set_crc_polynomial(config[CONF_CRC_POLYNOMIAL]))
+    cg.add(var.set_crc_initial(config[CONF_CRC_INITIAL]))
+    cg.add(var.set_payload_length(config[CONF_PAYLOAD_LENGTH]))
+    cg.add(var.set_preamble_size(config[CONF_PREAMBLE_SIZE]))
+    cg.add(var.set_preamble_detect(config[CONF_PREAMBLE_DETECT]))
+    cg.add(var.set_coding_rate(config[CONF_CODING_RATE]))
+    cg.add(var.set_spreading_factor(config[CONF_SPREADING_FACTOR]))
+    cg.add(var.set_sync_value(config[CONF_SYNC_VALUE]))
+    cg.add(var.set_rx_start(config[CONF_RX_START]))
+    cg.add(var.set_rf_switch(config[CONF_RF_SWITCH]))
+    cg.add(var.set_tcxo_voltage(config[CONF_TCXO_VOLTAGE]))
+    cg.add(var.set_tcxo_delay(config[CONF_TCXO_DELAY]))
+    cg.add(var.set_whitening_enable(config[CONF_WHITENING_ENABLE]))
+    cg.add(var.set_whitening_initial(config[CONF_WHITENING_INITIAL]))
+
+
+NO_ARGS_ACTION_SCHEMA = automation.maybe_simple_id(
+    {
+        cv.GenerateID(): cv.use_id(SX126x),
+    }
+)
+
+
+for _name, _call in (
+    ("sx126x.run_image_cal", "run_image_cal()"),
+    ("sx126x.set_mode_tx", "set_mode_tx()"),
+    ("sx126x.set_mode_rx", "set_mode_rx()"),
+    ("sx126x.set_mode_standby", "set_mode_standby(sx126x::STDBY_XOSC)"),
+):
+    automation.register_apply_action(
+        _name, NO_ARGS_ACTION_SCHEMA, automation.ApplyCall(_call)
+    )
+
+SET_MODE_SLEEP_ACTION_SCHEMA = automation.maybe_simple_id(
+    {
+        cv.GenerateID(): cv.use_id(SX126x),
+        cv.Optional(CONF_COLD, default=False): cv.templatable(cv.boolean),
+    }
+)
+
+automation.register_apply_action(
+    "sx126x.set_mode_sleep",
+    SET_MODE_SLEEP_ACTION_SCHEMA,
+    automation.ApplyField(CONF_COLD, "set_mode_sleep", cg.bool_),
+)
+
+
+SEND_PACKET_ACTION_SCHEMA = cv.maybe_simple_value(
+    {
+        cv.GenerateID(): cv.use_id(SX126x),
+        cv.Required(CONF_DATA): cv.templatable(validate_packet_data),
+    },
+    key=CONF_DATA,
+)
+
+
+automation.register_apply_action(
+    "sx126x.send_packet",
+    SEND_PACKET_ACTION_SCHEMA,
+    automation.ApplyBytes(CONF_DATA, "transmit_packet({})", stack=MAX_PACKET_SIZE),
+)

@@ -1,0 +1,106 @@
+from esphome import automation
+import esphome.codegen as cg
+from esphome.components import i2c, sensor
+from esphome.components.const import CONF_TEMPERATURE_SENSOR
+import esphome.config_validation as cv
+from esphome.const import (
+    CONF_EC,
+    CONF_ID,
+    CONF_TEMPERATURE,
+    CONF_TEMPERATURE_COMPENSATION,
+    DEVICE_CLASS_EMPTY,
+    DEVICE_CLASS_TEMPERATURE,
+    ICON_EMPTY,
+    STATE_CLASS_MEASUREMENT,
+    UNIT_CELSIUS,
+    UNIT_MILLISIEMENS_PER_CENTIMETER,
+)
+from esphome.types import ConfigType
+
+DEPENDENCIES = ["i2c"]
+
+CONF_SOLUTION = "solution"
+CONF_TEMPERATURE_COEFFICIENT = "temperature_coefficient"
+
+ufire_ec_ns = cg.esphome_ns.namespace("ufire_ec")
+UFireECComponent = ufire_ec_ns.class_(
+    "UFireECComponent", cg.PollingComponent, i2c.I2CDevice
+)
+
+CONFIG_SCHEMA = (
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(UFireECComponent),
+            cv.Exclusive(CONF_TEMPERATURE, "temperature"): sensor.sensor_schema(
+                unit_of_measurement=UNIT_CELSIUS,
+                device_class=DEVICE_CLASS_TEMPERATURE,
+                state_class=STATE_CLASS_MEASUREMENT,
+                accuracy_decimals=1,
+            ),
+            cv.Optional(CONF_EC): sensor.sensor_schema(
+                unit_of_measurement=UNIT_MILLISIEMENS_PER_CENTIMETER,
+                icon=ICON_EMPTY,
+                device_class=DEVICE_CLASS_EMPTY,
+                state_class=STATE_CLASS_MEASUREMENT,
+                accuracy_decimals=1,
+            ),
+            cv.Exclusive(CONF_TEMPERATURE_SENSOR, "temperature"): cv.use_id(
+                sensor.Sensor
+            ),
+            cv.Optional(CONF_TEMPERATURE_COMPENSATION, default=21.0): cv.temperature,
+            cv.Optional(CONF_TEMPERATURE_COEFFICIENT, default=0.019): cv.float_range(
+                min=0.01, max=0.04
+            ),
+        }
+    )
+    .extend(cv.polling_component_schema("60s"))
+    .extend(i2c.i2c_device_schema(0x3C))
+)
+
+
+async def to_code(config: ConfigType) -> None:
+    var = cg.new_Pvariable(config[CONF_ID])
+    await cg.register_component(var, config)
+    cg.add(var.set_temperature_compensation(config[CONF_TEMPERATURE_COMPENSATION]))
+    cg.add(var.set_temperature_coefficient(config[CONF_TEMPERATURE_COEFFICIENT]))
+
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_TEMPERATURE, var.set_temperature_sensor)
+    await sensors(CONF_EC, var.set_ec_sensor)
+
+    await cg.add_variable(
+        var.set_external_temperature_sensor, config.get(CONF_TEMPERATURE_SENSOR)
+    )
+
+    await i2c.register_i2c_device(var, config)
+
+
+UFIRE_EC_CALIBRATE_PROBE_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.use_id(UFireECComponent),
+        cv.Required(CONF_SOLUTION): cv.templatable(float),
+        cv.Required(CONF_TEMPERATURE): cv.templatable(cv.temperature),
+    }
+)
+
+
+automation.register_apply_action(
+    "ufire_ec.calibrate_probe",
+    UFIRE_EC_CALIBRATE_PROBE_SCHEMA,
+    automation.ApplyCall(
+        "calibrate_probe({}, {})",
+        ((CONF_SOLUTION, cg.float_), (CONF_TEMPERATURE, cg.float_)),
+    ),
+)
+
+
+UFIRE_EC_RESET_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.use_id(UFireECComponent),
+    }
+)
+
+
+automation.register_apply_action(
+    "ufire_ec.reset", UFIRE_EC_RESET_SCHEMA, automation.ApplyCall("reset_board()")
+)

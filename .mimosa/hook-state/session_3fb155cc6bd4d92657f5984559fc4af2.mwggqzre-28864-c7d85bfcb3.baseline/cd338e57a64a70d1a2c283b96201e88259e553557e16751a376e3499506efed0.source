@@ -1,0 +1,134 @@
+#include "template_cover.h"
+#include "esphome/core/log.h"
+
+namespace esphome::template_ {
+
+using namespace esphome::cover;
+
+ESPHOME_LOG_TAG(TAG, "template.cover");
+
+TemplateCover::TemplateCover() = default;
+void TemplateCover::setup() {
+  switch (this->restore_mode_) {
+    case COVER_NO_RESTORE:
+      break;
+    case COVER_RESTORE: {
+      auto restore = this->restore_state_();
+      if (restore.has_value())
+        restore->apply(this);
+      break;
+    }
+    case COVER_RESTORE_AND_CALL: {
+      auto restore = this->restore_state_();
+      if (restore.has_value()) {
+        restore->to_call(this).perform();
+      }
+      break;
+    }
+  }
+  if (!this->state_f_.has_value() && !this->tilt_f_.has_value())
+    this->disable_loop();
+}
+void TemplateCover::loop() {
+  bool changed = false;
+
+  auto s = this->state_f_();
+  if (s.has_value()) {
+    auto pos = clamp(*s, 0.0f, 1.0f);
+    if (pos != this->position) {
+      this->position = pos;
+      changed = true;
+    }
+  }
+
+  auto tilt = this->tilt_f_();
+  if (tilt.has_value()) {
+    auto tilt_val = clamp(*tilt, 0.0f, 1.0f);
+    if (tilt_val != this->tilt) {
+      this->tilt = tilt_val;
+      changed = true;
+    }
+  }
+
+  if (changed)
+    this->publish_state();
+}
+float TemplateCover::get_setup_priority() const { return setup_priority::HARDWARE; }
+Trigger<> *TemplateCover::get_open_trigger() { return &this->open_trigger_; }
+Trigger<> *TemplateCover::get_close_trigger() { return &this->close_trigger_; }
+Trigger<> *TemplateCover::get_stop_trigger() { return &this->stop_trigger_; }
+Trigger<> *TemplateCover::get_stop_tilt_trigger() { return &this->stop_tilt_trigger_; }
+Trigger<> *TemplateCover::get_toggle_trigger() { return &this->toggle_trigger_; }
+void TemplateCover::dump_config() { LOG_COVER("", "Template Cover", this); }
+void TemplateCover::control(const CoverCall &call) {
+  if (call.get_stop()) {
+    this->stop_prev_trigger_();
+    this->stop_trigger_.trigger();
+    this->prev_command_trigger_ = &this->stop_trigger_;
+    this->publish_state();
+  }
+  if (call.get_stop_tilt()) {
+    this->tilt_trigger_.stop_action();
+    this->stop_tilt_trigger_.stop_action();
+    this->stop_tilt_trigger_.trigger();
+  }
+  if (call.get_toggle().has_value()) {
+    this->stop_prev_trigger_();
+    this->toggle_trigger_.trigger();
+    this->prev_command_trigger_ = &this->toggle_trigger_;
+    this->publish_state();
+  }
+  auto pos_val = call.get_position();
+  if (pos_val.has_value()) {
+    auto pos = *pos_val;
+    this->stop_prev_trigger_();
+
+    if (pos == COVER_OPEN) {
+      this->open_trigger_.trigger();
+      this->prev_command_trigger_ = &this->open_trigger_;
+    } else if (pos == COVER_CLOSED) {
+      this->close_trigger_.trigger();
+      this->prev_command_trigger_ = &this->close_trigger_;
+    } else {
+      this->position_trigger_.trigger(pos);
+    }
+
+    if (this->optimistic_) {
+      this->position = pos;
+    }
+  }
+
+  auto tilt_val = call.get_tilt();
+  if (tilt_val.has_value()) {
+    auto tilt = *tilt_val;
+    this->stop_tilt_trigger_.stop_action();
+    this->tilt_trigger_.trigger(tilt);
+
+    if (this->optimistic_) {
+      this->tilt = tilt;
+    }
+  }
+
+  this->publish_state();
+}
+CoverTraits TemplateCover::get_traits() {
+  auto traits = CoverTraits();
+  traits.set_is_assumed_state(this->assumed_state_);
+  traits.set_supports_stop(this->has_stop_);
+  traits.set_supports_toggle(this->has_toggle_);
+  traits.set_supports_position(this->has_position_);
+  traits.set_supports_tilt(this->has_tilt_);
+  traits.set_supports_stop_tilt(this->has_stop_tilt_);
+  return traits;
+}
+Trigger<float> *TemplateCover::get_position_trigger() { return &this->position_trigger_; }
+Trigger<float> *TemplateCover::get_tilt_trigger() { return &this->tilt_trigger_; }
+void TemplateCover::stop_prev_trigger_() {
+  this->position_trigger_.stop_action();
+  if (this->prev_command_trigger_ != nullptr) {
+    this->prev_command_trigger_->stop_action();
+    this->prev_command_trigger_ = nullptr;
+  }
+}
+
+}  // namespace esphome::template_

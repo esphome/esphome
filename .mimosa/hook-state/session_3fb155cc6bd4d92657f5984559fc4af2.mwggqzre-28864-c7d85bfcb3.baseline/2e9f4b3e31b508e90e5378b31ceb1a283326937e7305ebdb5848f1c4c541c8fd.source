@@ -1,0 +1,100 @@
+from collections.abc import Callable
+
+from esphome.automation import parent_ref
+import esphome.codegen as cg
+from esphome.components import i2c
+from esphome.components.const import (
+    CONF_CHARGE_CURRENT,
+    CONF_CHARGE_ENABLED,
+    CONF_INPUT_CURRENT_LIMIT,
+    CONF_PRECHARGE_CURRENT,
+)
+import esphome.config_validation as cv
+from esphome.types import ConfigType
+
+CODEOWNERS = ["@linkedupbits"]
+DEPENDENCIES = ["i2c"]
+DOMAIN = "sy6970"
+MULTI_CONF = True
+
+CONF_SY6970_ID = "sy6970_id"
+CONF_ENABLE_STATUS_LED = "enable_status_led"
+CONF_CHARGE_VOLTAGE = "charge_voltage"
+CONF_ENABLE_ADC = "enable_adc"
+CONF_I2C_WATCHDOG_TIMEOUT = "i2c_watchdog_timeout"
+
+sy6970_ns = cg.esphome_ns.namespace("sy6970")
+SY6970Component = sy6970_ns.class_(
+    "SY6970Component", cg.PollingComponent, i2c.I2CDevice
+)
+SY6970Data = sy6970_ns.struct("SY6970Data")
+I2CWatchdogTimeout = sy6970_ns.enum("I2CWatchdogTimeout")
+
+# REG07[5:4]; the component kicks the watchdog itself, so the chip's 40S default can stay on
+I2C_WATCHDOG_TIMEOUTS = I2CWatchdogTimeout.options(
+    "DISABLED", "40S", "80S", "160S", prefix="I2C_WATCHDOG_"
+)
+
+# Publishes the child entities from the registers read on each update
+DATA_PUBLISHER = cg.HubFunction(
+    "data",
+    cg.void,
+    [(SY6970Data.const_ref(), "data")],
+    define="USE_SY6970_DATA_PUBLISHER",
+)
+DATA = DATA_PUBLISHER.param("data")
+REGISTERS = DATA.registers
+STATUS_REGISTER = REGISTERS[sy6970_ns.SY6970_REG_STATUS]
+BUS_STATUS = (STATUS_REGISTER >> 5) & 0x07
+CHARGE_STATUS = (STATUS_REGISTER >> 3) & 0x03
+
+CONFIG_SCHEMA = (
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(SY6970Component),
+            cv.Optional(CONF_ENABLE_STATUS_LED, default=True): cv.boolean,
+            cv.Optional(CONF_INPUT_CURRENT_LIMIT, default=500): cv.int_range(
+                min=100, max=3200
+            ),
+            cv.Optional(CONF_CHARGE_VOLTAGE, default=4208): cv.int_range(
+                min=3840, max=4608
+            ),
+            cv.Optional(CONF_CHARGE_CURRENT, default=2048): cv.int_range(
+                min=0, max=5056
+            ),
+            cv.Optional(CONF_PRECHARGE_CURRENT, default=128): cv.int_range(
+                min=64, max=1024
+            ),
+            cv.Optional(CONF_CHARGE_ENABLED, default=True): cv.boolean,
+            cv.Optional(CONF_ENABLE_ADC, default=True): cv.boolean,
+            cv.Optional(CONF_I2C_WATCHDOG_TIMEOUT, default="40S"): cv.enum(
+                I2C_WATCHDOG_TIMEOUTS, upper=True
+            ),
+        }
+    )
+    .extend(cv.polling_component_schema("5s"))
+    .extend(i2c.i2c_device_schema(0x6A))
+)
+
+
+async def to_code(config: ConfigType) -> None:
+    await i2c.new_i2c_component(
+        config,
+        config[CONF_ENABLE_STATUS_LED],
+        config[CONF_INPUT_CURRENT_LIMIT],
+        config[CONF_CHARGE_VOLTAGE],
+        config[CONF_CHARGE_CURRENT],
+        config[CONF_PRECHARGE_CURRENT],
+        config[CONF_CHARGE_ENABLED],
+        config[CONF_ENABLE_ADC],
+        config[CONF_I2C_WATCHDOG_TIMEOUT],
+    )
+
+
+async def publish_children(
+    hub: cg.MockObj, sub_entities: Callable, states: dict[str, cg.MockObj]
+) -> None:
+    """Create each configured child and publish its state from the hub's data function."""
+    for key, state in states.items():
+        if (var := await sub_entities(key, None)) is not None:
+            DATA_PUBLISHER.add(hub, parent_ref(var).publish_state(state))

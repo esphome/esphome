@@ -1,0 +1,42 @@
+#include "mqtt_text_sensor.h"
+#include "esphome/core/log.h"
+
+#include "mqtt_const.h"
+
+#ifdef USE_MQTT
+#ifdef USE_TEXT_SENSOR
+
+namespace esphome::mqtt {
+
+ESPHOME_LOG_TAG(TAG, "mqtt.text_sensor");
+
+using namespace esphome::text_sensor;
+
+MQTTTextSensor::MQTTTextSensor(TextSensor *sensor) : sensor_(sensor) {}
+void MQTTTextSensor::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
+  config.command_topic = false;
+}
+void MQTTTextSensor::setup() {
+  this->sensor_->add_on_state_callback([this](const std::string &state) { this->publish_state(state); });
+}
+
+void MQTTTextSensor::dump_config() { LOG_MQTT_COMPONENT(true, false); }
+
+bool MQTTTextSensor::publish_state(const std::string &value) {
+  char topic_buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
+  return this->publish(this->get_state_topic_to_(topic_buf), value.data(), value.size());
+}
+bool MQTTTextSensor::send_initial_state() {
+  if (this->sensor_->has_state()) {
+    return this->publish_state(this->sensor_->state);
+  } else {
+    return true;
+  }
+}
+MQTT_COMPONENT_TYPE(MQTTTextSensor, "sensor")
+const EntityBase *MQTTTextSensor::get_entity() const { return this->sensor_; }
+
+}  // namespace esphome::mqtt
+
+#endif
+#endif  // USE_MQTT

@@ -1,0 +1,70 @@
+from esphome import pins
+import esphome.codegen as cg
+from esphome.components import uart
+from esphome.components.ld600x import (
+    LD600XComponent,
+    add_frame_buffer,
+    ld600x_hub_schema,
+    request_model_sizes,
+    uart_final_validate,
+)
+import esphome.config_validation as cv
+from esphome.const import CONF_WAKEUP_PIN
+from esphome.types import ConfigType
+
+from .const import CONF_AUTO_WAKE, CONF_LD6002B_ID, CONF_WAKEUP_PULSE
+
+AUTO_LOAD = ["ld600x"]
+CODEOWNERS = ["@hepter"]
+DEPENDENCIES = ["uart"]
+DOMAIN = "ld6002b"
+MULTI_CONF = True
+
+ld6002b_ns = cg.esphome_ns.namespace("ld6002b")
+LD6002BComponent = ld6002b_ns.class_("LD6002BComponent", LD600XComponent)
+
+
+def _validate_wakeup_options(config: ConfigType) -> ConfigType:
+    """Reject wake options that would silently do nothing.
+
+    Runs before the schema so the defaults for the keys below have not been
+    filled in yet and an explicit user value is still distinguishable from one.
+    """
+    if not isinstance(config, dict):
+        return config
+    if CONF_WAKEUP_PIN in config:
+        return config
+    for key in (CONF_AUTO_WAKE, CONF_WAKEUP_PULSE):
+        if key in config:
+            raise cv.Invalid(
+                f"'{key}' requires '{CONF_WAKEUP_PIN}' to be configured", path=[key]
+            )
+    return config
+
+
+CONFIG_SCHEMA = cv.All(
+    _validate_wakeup_options,
+    ld600x_hub_schema(LD6002BComponent).extend(
+        {
+            cv.Optional(CONF_WAKEUP_PIN): pins.gpio_output_pin_schema,
+            cv.Optional(
+                CONF_WAKEUP_PULSE, default="50ms"
+            ): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_AUTO_WAKE, default=True): cv.boolean,
+        }
+    ),
+)
+
+FINAL_VALIDATE_SCHEMA = uart_final_validate("ld6002b")
+
+
+async def to_code(config: ConfigType) -> None:
+    var = await uart.new_uart_component(config)
+    request_model_sizes(var, area_kinds=2)
+    add_frame_buffer(var, config, CONF_LD6002B_ID)
+
+    await cg.add_pin(var.set_wakeup_pin, config.get(CONF_WAKEUP_PIN))
+
+    cg.add(var.set_wakeup_pulse_ms(config[CONF_WAKEUP_PULSE].total_milliseconds))
+
+    cg.add(var.set_auto_wake(config[CONF_AUTO_WAKE]))

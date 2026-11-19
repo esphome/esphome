@@ -1,0 +1,125 @@
+#include "esphome/core/log.h"
+#include "tmp1075.h"
+
+namespace esphome::tmp1075 {
+
+ESPHOME_LOG_TAG(TAG, "tmp1075");
+
+constexpr uint8_t REG_TEMP = 0x0;   // Temperature result
+constexpr uint8_t REG_CFGR = 0x1;   // Configuration
+constexpr uint8_t REG_LLIM = 0x2;   // Low limit
+constexpr uint8_t REG_HLIM = 0x3;   // High limit
+constexpr uint8_t REG_DIEID = 0xF;  // Device ID
+
+constexpr uint16_t EXPECT_DIEID = 0x0075;  // Expected Device ID.
+
+static uint16_t temp2regvalue(float temp);
+static float regvalue2temp(uint16_t regvalue);
+
+void TMP1075Sensor::setup() {
+  uint8_t cfg;
+  if (!this->read_byte(REG_CFGR, &cfg)) {
+    ESP_LOGE(TAG, "'%s' - unable to read", LOG_STR_ARG(this->get_log_name()));
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+    return;
+  }
+
+  this->write_config();
+}
+
+void TMP1075Sensor::update() {
+  uint16_t regvalue;
+  if (!this->status_comm_result(this->read_byte_16(REG_TEMP, &regvalue), LOG_STR("can't read"))) {
+    ESP_LOGW(TAG, "'%s' - unable to read temperature register", LOG_STR_ARG(this->get_log_name()));
+    return;
+  }
+
+  const float temp = regvalue2temp(regvalue);
+  this->publish_state(temp);
+}
+
+void TMP1075Sensor::dump_config() {
+  LOG_SENSOR("", "TMP1075 Sensor", this);
+  if (this->is_failed())
+    return;
+  ESP_LOGCONFIG(TAG,
+                "  limit low  : %.4f °C\n"
+                "  limit high : %.4f °C\n"
+                "  oneshot    : %d\n"
+                "  rate       : %d\n"
+                "  fault_count: %d\n"
+                "  polarity   : %d\n"
+                "  alert_mode : %d\n"
+                "  shutdown   : %d",
+                this->alert_limit_low_, this->alert_limit_high_, this->config_.oneshot, this->config_.rate,
+                this->config_.faults, this->config_.polarity, this->config_.alert_mode, this->config_.shutdown);
+}
+
+void TMP1075Sensor::set_fault_count(const int faults) {
+  if (faults < 1) {
+    ESP_LOGE(TAG, "'%s' - fault_count too low: %d", LOG_STR_ARG(this->get_log_name()), faults);
+    return;
+  }
+  if (faults > 4) {
+    ESP_LOGE(TAG, "'%s' - fault_count too high: %d", LOG_STR_ARG(this->get_log_name()), faults);
+    return;
+  }
+  this->config_.faults = faults - 1;
+}
+
+void TMP1075Sensor::log_config_() {
+  ESP_LOGV(TAG,
+           "  oneshot   : %d\n"
+           "  rate      : %d\n"
+           "  faults    : %d\n"
+           "  polarity  : %d\n"
+           "  alert_mode: %d\n"
+           "  shutdown  : %d",
+           this->config_.oneshot, this->config_.rate, this->config_.faults, this->config_.polarity,
+           this->config_.alert_mode, this->config_.shutdown);
+}
+
+void TMP1075Sensor::write_config() {
+  this->send_alert_limit_low_();
+  this->send_alert_limit_high_();
+  this->send_config_();
+}
+
+void TMP1075Sensor::send_config_() {
+  ESP_LOGV(TAG, "'%s' - sending configuration %02x", LOG_STR_ARG(this->get_log_name()), this->config_.to_byte());
+  this->log_config_();
+  if (!this->write_byte(REG_CFGR, this->config_.to_byte())) {
+    ESP_LOGW(TAG, "'%s' - unable to write configuration register", LOG_STR_ARG(this->get_log_name()));
+    return;
+  }
+}
+
+void TMP1075Sensor::send_alert_limit_low_() {
+  ESP_LOGV(TAG, "'%s' - sending alert limit low %.3f °C", LOG_STR_ARG(this->get_log_name()), this->alert_limit_low_);
+  const uint16_t regvalue = temp2regvalue(this->alert_limit_low_);
+  if (!this->write_byte_16(REG_LLIM, regvalue)) {
+    ESP_LOGW(TAG, "'%s' - unable to write low limit register", LOG_STR_ARG(this->get_log_name()));
+    return;
+  }
+}
+
+void TMP1075Sensor::send_alert_limit_high_() {
+  ESP_LOGV(TAG, "'%s' - sending alert limit high %.3f °C", LOG_STR_ARG(this->get_log_name()), this->alert_limit_high_);
+  const uint16_t regvalue = temp2regvalue(this->alert_limit_high_);
+  if (!this->write_byte_16(REG_HLIM, regvalue)) {
+    ESP_LOGW(TAG, "'%s' - unable to write high limit register", LOG_STR_ARG(this->get_log_name()));
+    return;
+  }
+}
+
+static uint16_t temp2regvalue(const float temp) {
+  const int16_t regvalue = static_cast<int16_t>(temp / 0.0625f);
+  return static_cast<uint16_t>(regvalue << 4);
+}
+
+static float regvalue2temp(const uint16_t regvalue) {
+  const int16_t signed_value = regvalue;
+  return (signed_value >> 4) * 0.0625f;
+}
+
+}  // namespace esphome::tmp1075

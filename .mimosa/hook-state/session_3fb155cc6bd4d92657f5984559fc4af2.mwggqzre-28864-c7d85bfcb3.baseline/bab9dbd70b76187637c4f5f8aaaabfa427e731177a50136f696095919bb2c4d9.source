@@ -1,0 +1,268 @@
+#pragma once
+
+#include <type_traits>
+#include <utility>
+
+#include "esphome/core/automation.h"
+#include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
+#include "light_effect.h"
+
+namespace esphome::light {
+
+inline static float random_cubic_float() {
+  const float r = random_float() * 2.0f - 1.0f;
+  return r * r * r;
+}
+
+/// Pulse effect.
+class PulseLightEffect : public LightEffect {
+ public:
+  explicit PulseLightEffect(const char *name) : LightEffect(name) {}
+
+  void apply() override {
+    const uint32_t now = millis();
+    if (now - this->last_color_change_ < this->update_interval_) {
+      return;
+    }
+    auto call = this->state_->turn_on();
+    float out = this->on_ ? this->max_brightness_ : this->min_brightness_;
+    call.set_brightness_if_supported(out);
+    call.set_transition_length_if_supported(this->on_ ? this->transition_on_length_ : this->transition_off_length_);
+    this->on_ = !this->on_;
+    // don't tell HA every change
+    call.set_publish(false);
+    call.set_save(false);
+    call.perform();
+
+    this->last_color_change_ = now;
+  }
+
+  void set_transition_on_length(uint32_t transition_length) { this->transition_on_length_ = transition_length; }
+  void set_transition_off_length(uint32_t transition_length) { this->transition_off_length_ = transition_length; }
+
+  void set_update_interval(uint32_t update_interval) { this->update_interval_ = update_interval; }
+
+  void set_min_max_brightness(float min, float max) {
+    this->min_brightness_ = min;
+    this->max_brightness_ = max;
+  }
+
+ protected:
+  bool on_ = false;
+  uint32_t last_color_change_{0};
+  uint32_t transition_on_length_{};
+  uint32_t transition_off_length_{};
+  uint32_t update_interval_{};
+  float min_brightness_{0.0};
+  float max_brightness_{1.0};
+};
+
+/// Random effect. Sets random colors every 10 seconds and slowly transitions between them.
+class RandomLightEffect : public LightEffect {
+ public:
+  explicit RandomLightEffect(const char *name) : LightEffect(name) {}
+
+  void apply() override {
+    const uint32_t now = millis();
+    if (now - this->last_color_change_ < this->update_interval_) {
+      return;
+    }
+
+    auto color_mode = this->state_->remote_values.get_color_mode();
+    auto call = this->state_->turn_on();
+    bool changed = false;
+    if (color_mode & ColorCapability::RGB) {
+      call.set_red(random_float());
+      call.set_green(random_float());
+      call.set_blue(random_float());
+      changed = true;
+    }
+    if (color_mode & ColorCapability::COLOR_TEMPERATURE) {
+      float min = this->state_->get_traits().get_min_mireds();
+      float max = this->state_->get_traits().get_max_mireds();
+      call.set_color_temperature(min + random_float() * (max - min));
+      changed = true;
+    }
+    if (color_mode & ColorCapability::COLD_WARM_WHITE) {
+      call.set_cold_white(random_float());
+      call.set_warm_white(random_float());
+      changed = true;
+    }
+    if (!changed) {
+      // only randomize brightness if there's no colored option available
+      call.set_brightness(random_float());
+    }
+    call.set_transition_length_if_supported(this->transition_length_);
+    call.set_publish(true);
+    call.set_save(false);
+    call.perform();
+
+    this->last_color_change_ = now;
+  }
+
+  void set_transition_length(uint32_t transition_length) { this->transition_length_ = transition_length; }
+
+  void set_update_interval(uint32_t update_interval) { this->update_interval_ = update_interval; }
+
+ protected:
+  uint32_t last_color_change_{0};
+  uint32_t transition_length_{};
+  uint32_t update_interval_{};
+};
+
+class LambdaLightEffect : public LightEffect {
+ public:
+  LambdaLightEffect(const char *name, void (*f)(LightState &, bool initial_run), uint32_t update_interval)
+      : LightEffect(name), f_(f), update_interval_(update_interval) {}
+
+  void start() override { this->initial_run_ = true; }
+  void apply() override {
+    const uint32_t now = millis();
+    if (now - this->last_run_ >= this->update_interval_ || this->initial_run_) {
+      this->last_run_ = now;
+      this->f_(*this->state_, this->initial_run_);
+      this->initial_run_ = false;
+    }
+  }
+
+  /// Get the current effect index for use in lambda functions.
+  /// This can be useful for lambda effects that need to know their own index.
+  uint32_t get_current_index() const { return this->get_index(); }
+
+ protected:
+  void (*f_)(LightState &, bool initial_run);
+  uint32_t update_interval_;
+  uint32_t last_run_{0};
+  bool initial_run_;
+};
+
+class AutomationLightEffect : public LightEffect {
+ public:
+  AutomationLightEffect(const char *name) : LightEffect(name) {}
+  void stop() override { this->trig_.stop_action(); }
+  void apply() override {
+    if (!this->trig_.is_action_running()) {
+      this->trig_.trigger();
+    }
+  }
+  Trigger<> *get_trig() { return &this->trig_; }
+
+  /// Get the current effect index for use in automations.
+  /// Useful for automations that need to know which effect is running.
+  uint32_t get_current_index() const { return this->get_index(); }
+
+ protected:
+  Trigger<> trig_;
+};
+
+/// One strobe step. Codegen keeps the steps in a flash table, so it is read with progmem_memcpy.
+struct StrobeLightEffectColor {
+  float state;
+  float brightness;
+  float color_brightness;
+  float red;
+  float green;
+  float blue;
+  float white;
+  float color_temperature;
+  float cold_white;
+  float warm_white;
+  uint32_t duration;
+  uint32_t transition_length;
+  ColorMode color_mode;
+};
+static_assert(std::is_trivially_copyable_v<StrobeLightEffectColor>, "StrobeLightEffectColor is copied out of flash");
+static_assert(sizeof(StrobeLightEffectColor) % sizeof(uint32_t) == 0,
+              "StrobeLightEffectColor must be whole words for ESP8266 flash reads");
+
+class StrobeLightEffect : public LightEffect {
+ public:
+  explicit StrobeLightEffect(const char *name) : LightEffect(name) {}
+  void start() override {
+    // Place the cycle at the end of the last color, so the first apply() switches straight to the first color
+    this->at_color_ = this->colors_.size() - 1;
+    this->last_switch_ = millis() - this->duration_(this->at_color_);
+  }
+  void apply() override {
+    const uint32_t now = millis();
+    if (now - this->last_switch_ < this->duration_(this->at_color_))
+      return;
+
+    // Switch to next color
+    this->at_color_ = (this->at_color_ + 1) % this->colors_.size();
+    StrobeLightEffectColor step;
+    progmem_memcpy(&step, &this->colors_[this->at_color_], sizeof(step));
+    LightColorValues color(step.color_mode, step.state, step.brightness, step.color_brightness, step.red, step.green,
+                           step.blue, step.white, step.color_temperature, step.cold_white, step.warm_white);
+
+    auto call = this->state_->turn_on();
+    call.from_light_color_values(color);
+
+    if (!color.is_on()) {
+      // Don't turn the light off, otherwise the light effect will be stopped
+      call.set_brightness(0.0f);
+      call.set_state(true);
+    }
+    call.set_publish(false);
+    call.set_save(false);
+    call.set_transition_length_if_supported(step.transition_length);
+    call.perform();
+    this->last_switch_ = now;
+  }
+
+  /// Codegen only: point at the generated flash table of steps, which must outlive the effect.
+  void set_colors(const StrobeLightEffectColor *colors, size_t count) { this->colors_ = {colors, count}; }
+
+ protected:
+  uint32_t duration_(size_t index) const {
+    uint32_t duration;
+    progmem_memcpy(&duration, &this->colors_[index].duration, sizeof(duration));
+    return duration;
+  }
+
+  ConstVector<StrobeLightEffectColor> colors_;
+  uint32_t last_switch_{0};
+  size_t at_color_{0};
+};
+
+class FlickerLightEffect : public LightEffect {
+ public:
+  explicit FlickerLightEffect(const char *name) : LightEffect(name) {}
+
+  void apply() override {
+    LightColorValues remote = this->state_->remote_values;
+    LightColorValues current = this->state_->current_values;
+    LightColorValues out;
+    const float alpha = this->alpha_;
+    const float beta = 1.0f - alpha;
+    out.set_state(true);
+    out.set_brightness(remote.get_brightness() * beta + current.get_brightness() * alpha +
+                       (random_cubic_float() * this->intensity_));
+    out.set_red(remote.get_red() * beta + current.get_red() * alpha + (random_cubic_float() * this->intensity_));
+    out.set_green(remote.get_green() * beta + current.get_green() * alpha + (random_cubic_float() * this->intensity_));
+    out.set_blue(remote.get_blue() * beta + current.get_blue() * alpha + (random_cubic_float() * this->intensity_));
+    out.set_white(remote.get_white() * beta + current.get_white() * alpha + (random_cubic_float() * this->intensity_));
+    out.set_cold_white(remote.get_cold_white() * beta + current.get_cold_white() * alpha +
+                       (random_cubic_float() * this->intensity_));
+    out.set_warm_white(remote.get_warm_white() * beta + current.get_warm_white() * alpha +
+                       (random_cubic_float() * this->intensity_));
+
+    auto call = this->state_->make_call();
+    call.set_publish(false);
+    call.set_save(false);
+    call.set_transition_length_if_supported(0);
+    call.from_light_color_values(out);
+    call.set_state(true);
+    call.perform();
+  }
+
+  void set_alpha(float alpha) { this->alpha_ = alpha; }
+  void set_intensity(float intensity) { this->intensity_ = intensity; }
+
+ protected:
+  float intensity_{};
+  float alpha_{};
+};
+
+}  // namespace esphome::light

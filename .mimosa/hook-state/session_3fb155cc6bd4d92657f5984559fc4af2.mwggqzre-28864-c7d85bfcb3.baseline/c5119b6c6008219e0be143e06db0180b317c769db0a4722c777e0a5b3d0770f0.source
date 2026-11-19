@@ -1,0 +1,424 @@
+#pragma once
+
+#include "esphome/core/defines.h"
+
+#ifdef USE_VOICE_ASSISTANT
+
+#include "esphome/core/automation.h"
+#include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
+
+#include "esphome/components/api/api_connection.h"
+#include "esphome/components/audio/audio_transfer_buffer.h"
+#include "esphome/components/ring_buffer/ring_buffer.h"
+#include "esphome/components/api/api_pb2.h"
+#include "esphome/components/microphone/microphone_source.h"
+#ifdef USE_MEDIA_PLAYER
+#include "esphome/components/media_player/media_player.h"
+#endif
+#ifdef USE_MICRO_WAKE_WORD
+#include "esphome/components/micro_wake_word/micro_wake_word.h"
+#endif
+#ifdef USE_SPEAKER
+#include "esphome/components/speaker/speaker.h"
+#endif
+#include "esphome/components/socket/socket.h"
+
+#include <span>
+#include <vector>
+
+namespace esphome::voice_assistant {
+
+// Version 1: Initial version
+// Version 2: Adds raw speaker support
+static const uint32_t LEGACY_INITIAL_VERSION = 1;
+static const uint32_t LEGACY_SPEAKER_SUPPORT = 2;
+
+enum VoiceAssistantFeature : uint32_t {
+  FEATURE_VOICE_ASSISTANT = 1 << 0,
+  FEATURE_SPEAKER = 1 << 1,
+  FEATURE_API_AUDIO = 1 << 2,
+  FEATURE_TIMERS = 1 << 3,
+  FEATURE_ANNOUNCE = 1 << 4,
+  FEATURE_START_CONVERSATION = 1 << 5,
+  FEATURE_MULTI_CHANNEL_AUDIO = 1 << 6,
+  FEATURE_WAKE_WORD_AUDIO = 1 << 7,
+};
+
+enum class State : uint8_t {
+  IDLE,
+  START_MICROPHONE,
+  STARTING_MICROPHONE,
+  WAIT_FOR_VAD,
+  WAITING_FOR_VAD,
+  START_PIPELINE,
+  STARTING_PIPELINE,
+  STREAMING_MICROPHONE,
+  STOP_MICROPHONE,
+  STOPPING_MICROPHONE,
+  AWAITING_RESPONSE,
+  STREAMING_RESPONSE,
+  RESPONSE_FINISHED,
+};
+
+enum AudioMode : uint8_t {
+  AUDIO_MODE_UDP,
+  AUDIO_MODE_API,
+};
+
+struct Timer {
+  std::string id;
+  std::string name;
+  uint32_t total_seconds;
+  uint32_t seconds_left;
+  bool is_active;
+
+  /// Buffer size for to_str() - sufficient for typical timer names
+  static constexpr size_t TO_STR_BUFFER_SIZE = 128;
+  /// Format to buffer, returns pointer to buffer (may truncate long names)
+  const char *to_str(std::span<char, TO_STR_BUFFER_SIZE> buffer) const {
+    snprintf(buffer.data(), buffer.size(),
+             "Timer(id=%s, name=%s, total_seconds=%" PRIu32 ", seconds_left=%" PRIu32 ", is_active=%s)",
+             this->id.c_str(), this->name.c_str(), this->total_seconds, this->seconds_left, YESNO(this->is_active));
+    return buffer.data();
+  }
+};
+
+struct WakeWord {
+  std::string id;
+  std::string wake_word;
+  std::vector<std::string> trained_languages;
+};
+
+#ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
+struct WakeWordDetection {
+  std::string id;
+  float probability;
+  float probability_cutoff;
+  // 0 once used
+  uint32_t detected_at{0};
+};
+#endif
+
+struct Configuration {
+  std::vector<WakeWord> available_wake_words;
+  std::vector<std::string> active_wake_words;
+  uint32_t max_active_wake_words;
+};
+
+#ifdef USE_MEDIA_PLAYER
+enum class MediaPlayerResponseState : uint8_t {
+  IDLE,
+  URL_SENT,
+  PLAYING,
+  FINISHED,
+};
+#endif
+
+class VoiceAssistant final : public Component {
+ public:
+  VoiceAssistant();
+
+  void loop() override;
+  void setup() override;
+  float get_setup_priority() const override;
+  void start_streaming();
+  void start_streaming(struct sockaddr_storage *addr, uint16_t port);
+  void failed_to_start();
+
+  void set_microphone_source(microphone::MicrophoneSource *mic_source) { this->mic_source_ = mic_source; }
+  void set_microphone_source2(microphone::MicrophoneSource *mic_source2) { this->mic_source2_ = mic_source2; }
+#ifdef USE_MICRO_WAKE_WORD
+  void set_micro_wake_word(micro_wake_word::MicroWakeWord *mww) { this->micro_wake_word_ = mww; }
+#endif
+#ifdef USE_SPEAKER
+  void set_speaker(speaker::Speaker *speaker) {
+    this->speaker_ = speaker;
+    this->local_output_ = true;
+  }
+#endif
+#ifdef USE_MEDIA_PLAYER
+  void set_media_player(media_player::MediaPlayer *media_player) {
+    this->media_player_ = media_player;
+    this->local_output_ = true;
+  }
+#endif
+
+  uint32_t get_legacy_version() const {
+#ifdef USE_SPEAKER
+    if (this->speaker_ != nullptr) {
+      return LEGACY_SPEAKER_SUPPORT;
+    }
+#endif
+    return LEGACY_INITIAL_VERSION;
+  }
+
+  uint32_t get_feature_flags() const {
+    uint32_t flags = 0;
+    flags |= VoiceAssistantFeature::FEATURE_VOICE_ASSISTANT;
+    flags |= VoiceAssistantFeature::FEATURE_API_AUDIO;
+    if (this->mic_source2_ != nullptr) {
+      flags |= VoiceAssistantFeature::FEATURE_MULTI_CHANNEL_AUDIO;
+    }
+#ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
+    flags |= VoiceAssistantFeature::FEATURE_WAKE_WORD_AUDIO;
+#endif
+#ifdef USE_SPEAKER
+    if (this->speaker_ != nullptr) {
+      flags |= VoiceAssistantFeature::FEATURE_SPEAKER;
+    }
+#endif
+
+    if (this->has_timers_) {
+      flags |= VoiceAssistantFeature::FEATURE_TIMERS;
+    }
+
+#ifdef USE_MEDIA_PLAYER
+    if (this->media_player_ != nullptr) {
+      flags |= VoiceAssistantFeature::FEATURE_ANNOUNCE;
+      flags |= VoiceAssistantFeature::FEATURE_START_CONVERSATION;
+    }
+#endif
+
+    return flags;
+  }
+
+  void request_start(bool continuous, bool silence_detection);
+  void request_stop();
+
+  void on_event(const api::VoiceAssistantEventResponse &msg);
+  void on_audio(const api::VoiceAssistantAudio &msg);
+  void on_timer_event(const api::VoiceAssistantTimerEventResponse &msg);
+  void on_announce(const api::VoiceAssistantAnnounceRequest &msg);
+  void on_set_configuration(const std::vector<std::string> &active_wake_words);
+  const Configuration &get_configuration();
+
+  bool is_running() const { return this->state_ != State::IDLE; }
+  void set_continuous(bool continuous) { this->continuous_ = continuous; }
+  bool is_continuous() const { return this->continuous_; }
+  /// The voice_assistant.is_running condition: a pipeline is running or continuous mode keeps one coming.
+  bool is_running_or_continuous() const { return this->is_running() || this->is_continuous(); }
+
+  void set_use_wake_word(bool use_wake_word) { this->use_wake_word_ = use_wake_word; }
+
+#ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
+  void set_wake_word_audio(uint32_t buffer_duration_ms, uint32_t timeout_ms) {
+    this->wake_word_audio_buffer_duration_ = buffer_duration_ms;
+    this->wake_word_audio_timeout_ = timeout_ms;
+  }
+#endif
+  bool is_wake_word_audio_active() const {
+#ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
+    return this->wake_word_audio_requested_ && (this->api_client_ != nullptr);
+#else
+    return false;
+#endif
+  }
+
+  void set_noise_suppression_level(uint8_t noise_suppression_level) {
+    this->noise_suppression_level_ = noise_suppression_level;
+  }
+  void set_auto_gain(uint8_t auto_gain) { this->auto_gain_ = auto_gain; }
+  void set_volume_multiplier(float volume_multiplier) { this->volume_multiplier_ = volume_multiplier; }
+  void set_conversation_timeout(uint32_t conversation_timeout) { this->conversation_timeout_ = conversation_timeout; }
+  void set_tts_playback_start_timeout(uint32_t timeout) { this->tts_playback_start_timeout_ = timeout; }
+  void reset_conversation_id();
+
+  Trigger<> *get_intent_end_trigger() { return &this->intent_end_trigger_; }
+  Trigger<> *get_intent_start_trigger() { return &this->intent_start_trigger_; }
+  Trigger<std::string> *get_intent_progress_trigger() { return &this->intent_progress_trigger_; }
+  Trigger<> *get_listening_trigger() { return &this->listening_trigger_; }
+  Trigger<> *get_end_trigger() { return &this->end_trigger_; }
+  Trigger<> *get_start_trigger() { return &this->start_trigger_; }
+  Trigger<> *get_stt_vad_end_trigger() { return &this->stt_vad_end_trigger_; }
+  Trigger<> *get_stt_vad_start_trigger() { return &this->stt_vad_start_trigger_; }
+#ifdef USE_SPEAKER
+  Trigger<> *get_tts_stream_start_trigger() { return &this->tts_stream_start_trigger_; }
+  Trigger<> *get_tts_stream_end_trigger() { return &this->tts_stream_end_trigger_; }
+#endif
+  Trigger<> *get_wake_word_detected_trigger() { return &this->wake_word_detected_trigger_; }
+#ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
+  Trigger<> *get_wake_word_rejected_trigger() { return &this->wake_word_rejected_trigger_; }
+#endif
+  Trigger<std::string> *get_stt_end_trigger() { return &this->stt_end_trigger_; }
+  Trigger<std::string> *get_tts_end_trigger() { return &this->tts_end_trigger_; }
+  Trigger<std::string> *get_tts_start_trigger() { return &this->tts_start_trigger_; }
+  Trigger<std::string, std::string> *get_error_trigger() { return &this->error_trigger_; }
+  Trigger<> *get_idle_trigger() { return &this->idle_trigger_; }
+
+  Trigger<> *get_client_connected_trigger() { return &this->client_connected_trigger_; }
+  Trigger<> *get_client_disconnected_trigger() { return &this->client_disconnected_trigger_; }
+
+  void client_subscription(api::APIConnection *client, bool subscribe, uint32_t flags = 0);
+  api::APIConnection *get_api_connection() const { return this->api_client_; }
+
+  void set_wake_word(const std::string &wake_word) { this->wake_word_ = wake_word; }
+
+  Trigger<Timer> *get_timer_started_trigger() { return &this->timer_started_trigger_; }
+  Trigger<Timer> *get_timer_updated_trigger() { return &this->timer_updated_trigger_; }
+  Trigger<Timer> *get_timer_cancelled_trigger() { return &this->timer_cancelled_trigger_; }
+  Trigger<Timer> *get_timer_finished_trigger() { return &this->timer_finished_trigger_; }
+  Trigger<const std::vector<Timer> &> *get_timer_tick_trigger() { return &this->timer_tick_trigger_; }
+  void set_has_timers(bool has_timers) { this->has_timers_ = has_timers; }
+  const std::vector<Timer> &get_timers() const { return this->timers_; }
+
+ protected:
+  bool allocate_buffers_();
+  void clear_buffers_(bool clear_microphone_audio = true);
+  void deallocate_buffers_();
+  size_t ring_buffer_size_() const;
+
+#ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
+  void update_wake_word_audio_();
+  void clear_wake_word_verdict_();
+  void end_wake_word_audio_stream_();
+#endif
+
+  void set_state_(State state);
+  void set_state_(State state, State desired_state);
+  /// Move to state, or only make it the desired state while the microphone is still stopping
+  void set_state_after_mic_stop_(State state);
+  /// Fire on_end once for the requested pipeline
+  void end_session_();
+  /// Mark Home Assistant's run as over and drop the RUN_END fallback timer
+  void end_run_();
+  /// Stop a playing or queued response and tell Home Assistant when the TTS stream is still open
+  void cancel_response_();
+  bool start_udp_socket_();
+  void signal_stop_();
+  void start_playback_timeout_(uint32_t timeout_ms);
+
+  // Drains the exposed microphone audio and sends it to Home Assistant over the API in one loop() pass.
+  void stream_api_audio_();
+  // Handles a pass where at least one configured channel has no audio exposed, timing out a channel that
+  // stalls. See audio_channel_stall_start_.
+  void handle_channel_stall_(size_t available, size_t available2);
+
+  std::unique_ptr<socket::Socket> socket_ = nullptr;
+  struct sockaddr_storage dest_addr_;
+
+  Trigger<> intent_end_trigger_;
+  Trigger<> intent_start_trigger_;
+  Trigger<> listening_trigger_;
+  Trigger<> end_trigger_;
+  Trigger<> start_trigger_;
+  Trigger<> stt_vad_start_trigger_;
+  Trigger<> stt_vad_end_trigger_;
+#ifdef USE_SPEAKER
+  Trigger<> tts_stream_start_trigger_;
+  Trigger<> tts_stream_end_trigger_;
+#endif
+  Trigger<std::string> intent_progress_trigger_;
+  Trigger<> wake_word_detected_trigger_;
+#ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
+  Trigger<> wake_word_rejected_trigger_;
+#endif
+  Trigger<std::string> stt_end_trigger_;
+  Trigger<std::string> tts_end_trigger_;
+  Trigger<std::string> tts_start_trigger_;
+  Trigger<std::string, std::string> error_trigger_;
+  Trigger<> idle_trigger_;
+
+  Trigger<> client_connected_trigger_;
+  Trigger<> client_disconnected_trigger_;
+
+  api::APIConnection *api_client_{nullptr};
+
+  std::vector<Timer> timers_;
+  void timer_tick_();
+  Trigger<Timer> timer_started_trigger_;
+  Trigger<Timer> timer_finished_trigger_;
+  Trigger<Timer> timer_updated_trigger_;
+  Trigger<Timer> timer_cancelled_trigger_;
+  Trigger<const std::vector<Timer> &> timer_tick_trigger_;
+
+  microphone::MicrophoneSource *mic_source_{nullptr};
+  microphone::MicrophoneSource *mic_source2_{nullptr};
+#ifdef USE_SPEAKER
+  void write_speaker_();
+  speaker::Speaker *speaker_{nullptr};
+  uint8_t *speaker_buffer_{nullptr};
+  size_t speaker_buffer_index_{0};
+  size_t speaker_buffer_size_{0};
+  size_t speaker_bytes_received_{0};
+#endif
+#ifdef USE_MEDIA_PLAYER
+  media_player::MediaPlayer *media_player_{nullptr};
+  std::string tts_response_url_;
+#endif
+
+  std::string conversation_id_;
+
+  std::string wake_word_;
+
+  // Zero-copy sources that read directly from each microphone channel's ring buffer internal storage.
+  // Each source owns its ring buffer; the matching ``ring_buffer_``/``ring_buffer2_`` weak_ptr is used by
+  // the microphone callback (a different thread) to write into it.
+  std::unique_ptr<audio::RingBufferAudioSource> audio_source_;
+  std::unique_ptr<audio::RingBufferAudioSource> audio_source2_;
+  std::weak_ptr<ring_buffer::RingBuffer> ring_buffer_;
+  std::weak_ptr<ring_buffer::RingBuffer> ring_buffer2_;
+
+  // When streaming multiple channels, the send loop holds an exposed chunk on one channel until the other
+  // channel also has audio so the channels are always sent together (an empty payload looks like
+  // end-of-stream to Home Assistant). Home Assistant has no stream timeout, so a channel that stops
+  // producing entirely would hang streaming forever. This records when such an imbalance began so a
+  // prolonged one can be detected and stopped; 0 means no imbalance is currently being timed.
+  uint32_t audio_channel_stall_start_{0};
+
+  float volume_multiplier_;
+  uint32_t conversation_timeout_;
+  // Keep in sync with TTS_PLAYBACK_START_TIMEOUT_DEFAULT in __init__.py.
+  uint32_t tts_playback_start_timeout_{15000};
+
+  Configuration config_{};
+
+#ifdef USE_MICRO_WAKE_WORD
+  micro_wake_word::MicroWakeWord *micro_wake_word_{nullptr};
+#endif
+
+#ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
+  WakeWordDetection detection_{};
+  uint32_t wake_word_audio_buffer_duration_{0};
+  uint32_t wake_word_audio_timeout_{0};
+#endif
+
+  // 1 byte members grouped at the end so they share padding instead of each taking a word
+  State state_{State::IDLE};
+  State desired_state_{State::IDLE};
+  AudioMode audio_mode_{AUDIO_MODE_UDP};
+  bool has_timers_{false};
+  bool timer_tick_running_{false};
+#ifdef USE_SPEAKER
+  bool wait_for_stream_end_{false};
+  bool stream_ended_{false};
+#endif
+#ifdef USE_MEDIA_PLAYER
+  MediaPlayerResponseState media_player_response_state_{MediaPlayerResponseState::IDLE};
+  bool started_streaming_tts_{false};
+#endif
+  bool local_output_{false};
+  bool use_wake_word_;
+  uint8_t noise_suppression_level_;
+  uint8_t auto_gain_;
+  bool continuous_{false};
+  // A pipeline was requested and on_end has not fired for it yet
+  bool end_pending_{false};
+  // Set on RUN_START; cleared by RUN_END, the next start or an unsubscribe
+  bool run_active_{false};
+  bool silence_detection_;
+  bool continue_conversation_{false};
+  bool udp_socket_running_{false};
+#ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
+  bool wake_word_audio_requested_{false};
+  bool wake_word_audio_buffering_{false};
+  bool start_with_detection_{false};
+  bool streaming_before_response_{false};
+#endif
+};
+
+extern VoiceAssistant *global_voice_assistant;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+}  // namespace esphome::voice_assistant
+
+#endif  // USE_VOICE_ASSISTANT

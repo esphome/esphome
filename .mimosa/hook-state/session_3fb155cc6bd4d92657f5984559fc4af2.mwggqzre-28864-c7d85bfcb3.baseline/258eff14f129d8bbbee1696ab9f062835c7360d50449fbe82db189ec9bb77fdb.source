@@ -1,0 +1,165 @@
+from typing import Any
+
+import esphome.codegen as cg
+from esphome.components import ble_device_base, sensor
+import esphome.config_validation as cv
+from esphome.const import (
+    CONF_BATTERY_LEVEL,
+    CONF_DISTANCE,
+    CONF_LEVEL,
+    CONF_MAC_ADDRESS,
+    CONF_TEMPERATURE,
+    DEVICE_CLASS_BATTERY,
+    DEVICE_CLASS_TEMPERATURE,
+    ENTITY_CATEGORY_DIAGNOSTIC,
+    ICON_COUNTER,
+    ICON_RULER,
+    ICON_SIGNAL,
+    ICON_THERMOMETER,
+    STATE_CLASS_MEASUREMENT,
+    UNIT_CELSIUS,
+    UNIT_EMPTY,
+    UNIT_MILLIMETER,
+    UNIT_PERCENT,
+)
+from esphome.types import ConfigType
+
+CONF_TANK_TYPE = "tank_type"
+CONF_CUSTOM_DISTANCE_FULL = "custom_distance_full"
+CONF_CUSTOM_DISTANCE_EMPTY = "custom_distance_empty"
+CONF_SIGNAL_QUALITY = "signal_quality"
+CONF_MINIMUM_SIGNAL_QUALITY = "minimum_signal_quality"
+CONF_IGNORED_READS = "ignored_reads"
+
+ICON_PROPANE_TANK = "mdi:propane-tank"
+
+TANK_TYPE_CUSTOM = "CUSTOM"
+
+
+def small_distance(value: Any) -> float:
+    """small_distance is stored in mm"""
+    meters = cv.distance(value)
+    return meters * 1000
+
+
+#
+# Map of standard tank types to their
+# empty and full distance values.
+# Format is - tank name: (empty distance in mm, full distance in mm)
+#
+SUPPORTED_TANKS_MAP = {
+    TANK_TYPE_CUSTOM: (0, 100),
+    "20LB_V": (38, 254),  # empty/full readings for 20lb US tank
+    "30LB_V": (38, 381),
+    "40LB_V": (38, 508),
+    "EUROPE_6KG": (38, 336),
+    "EUROPE_11KG": (38, 366),
+    "EUROPE_14KG": (38, 467),
+}
+
+CODEOWNERS = ["@spbrogan"]
+AUTO_LOAD = ["ble_device_base"]
+
+mopeka_pro_check_ns = cg.esphome_ns.namespace("mopeka_pro_check")
+MopekaProCheck = mopeka_pro_check_ns.class_(
+    "MopekaProCheck", ble_device_base.ESPBTDeviceListener, cg.Component
+)
+
+SensorReadQuality = mopeka_pro_check_ns.enum("SensorReadQuality")
+SIGNAL_QUALITIES = {
+    "ZERO": SensorReadQuality.QUALITY_ZERO,
+    "LOW": SensorReadQuality.QUALITY_LOW,
+    "MEDIUM": SensorReadQuality.QUALITY_MED,
+    "HIGH": SensorReadQuality.QUALITY_HIGH,
+}
+
+CONFIG_SCHEMA = cv.All(
+    ble_device_base.rename_legacy_hub_id("mopeka_pro_check"),
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(MopekaProCheck),
+            cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
+            cv.Optional(CONF_CUSTOM_DISTANCE_FULL): small_distance,
+            cv.Optional(CONF_CUSTOM_DISTANCE_EMPTY): small_distance,
+            cv.Required(CONF_TANK_TYPE): cv.enum(SUPPORTED_TANKS_MAP, upper=True),
+            cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
+                unit_of_measurement=UNIT_CELSIUS,
+                icon=ICON_THERMOMETER,
+                accuracy_decimals=0,
+                device_class=DEVICE_CLASS_TEMPERATURE,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_LEVEL): sensor.sensor_schema(
+                unit_of_measurement=UNIT_PERCENT,
+                icon=ICON_PROPANE_TANK,
+                accuracy_decimals=0,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_DISTANCE): sensor.sensor_schema(
+                unit_of_measurement=UNIT_MILLIMETER,
+                icon=ICON_RULER,
+                accuracy_decimals=0,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_BATTERY_LEVEL): sensor.sensor_schema(
+                unit_of_measurement=UNIT_PERCENT,
+                accuracy_decimals=0,
+                device_class=DEVICE_CLASS_BATTERY,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_SIGNAL_QUALITY): sensor.sensor_schema(
+                unit_of_measurement=UNIT_EMPTY,
+                icon=ICON_SIGNAL,
+                accuracy_decimals=0,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_IGNORED_READS): sensor.sensor_schema(
+                unit_of_measurement=UNIT_EMPTY,
+                icon=ICON_COUNTER,
+                accuracy_decimals=0,
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_MINIMUM_SIGNAL_QUALITY, default="MEDIUM"): cv.enum(
+                SIGNAL_QUALITIES, upper=True
+            ),
+        }
+    )
+    .extend(cv.COMPONENT_SCHEMA)
+    .extend(ble_device_base.BLE_DEVICE_SCHEMA),
+)
+
+
+async def to_code(config: ConfigType) -> None:
+    var = await ble_device_base.new_ble_device_component(config)
+
+    cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))
+
+    if config[CONF_TANK_TYPE] == TANK_TYPE_CUSTOM:
+        # Support custom tank min/max
+        if CONF_CUSTOM_DISTANCE_EMPTY in config:
+            cg.add(var.set_tank_empty(config[CONF_CUSTOM_DISTANCE_EMPTY]))
+        else:
+            cg.add(var.set_tank_empty(SUPPORTED_TANKS_MAP[TANK_TYPE_CUSTOM][0]))
+        if CONF_CUSTOM_DISTANCE_FULL in config:
+            cg.add(var.set_tank_full(config[CONF_CUSTOM_DISTANCE_FULL]))
+        else:
+            cg.add(var.set_tank_full(SUPPORTED_TANKS_MAP[TANK_TYPE_CUSTOM][1]))
+    else:
+        # Set the Tank empty and full based on map - User is requesting standard tank
+        t = config[CONF_TANK_TYPE]
+        cg.add(var.set_tank_empty(SUPPORTED_TANKS_MAP[t][0]))
+        cg.add(var.set_tank_full(SUPPORTED_TANKS_MAP[t][1]))
+
+    if (
+        minimum_signal_quality := config.get(CONF_MINIMUM_SIGNAL_QUALITY, None)
+    ) is not None:
+        cg.add(var.set_min_signal_quality(minimum_signal_quality))
+
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_TEMPERATURE, var.set_temperature_sensor)
+    await sensors(CONF_LEVEL, var.set_level_sensor)
+    await sensors(CONF_DISTANCE, var.set_distance_sensor)
+    await sensors(CONF_BATTERY_LEVEL, var.set_battery_level_sensor)
+    await sensors(CONF_SIGNAL_QUALITY, var.set_signal_quality_sensor)
+    await sensors(CONF_IGNORED_READS, var.set_ignored_reads_sensor)

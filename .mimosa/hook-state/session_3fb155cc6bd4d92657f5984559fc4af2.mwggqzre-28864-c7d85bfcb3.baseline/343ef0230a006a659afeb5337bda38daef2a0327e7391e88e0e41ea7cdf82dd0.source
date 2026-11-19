@@ -1,0 +1,34 @@
+#pragma once
+
+#include "remote_base.h"
+
+#include <cinttypes>
+
+namespace esphome::remote_base {
+
+struct NexaData {
+  uint32_t device;
+  uint8_t group;
+  uint8_t state;
+  uint8_t channel;
+  uint8_t level;
+  bool operator==(const NexaData &rhs) const {
+    return device == rhs.device && group == rhs.group && state == rhs.state && channel == rhs.channel &&
+           level == rhs.level;
+  }
+};
+
+class NexaProtocol : public RemoteProtocol<NexaData> {
+ public:
+  void one(RemoteTransmitData *dst) const;
+  void zero(RemoteTransmitData *dst) const;
+  void sync(RemoteTransmitData *dst) const;
+
+  void encode(RemoteTransmitData *dst, const NexaData &data);
+  optional<NexaData> decode(RemoteReceiveData src);
+  void dump(const NexaData &data);
+};
+
+DECLARE_REMOTE_PROTOCOL(Nexa)
+
+}  // namespace esphome::remote_base

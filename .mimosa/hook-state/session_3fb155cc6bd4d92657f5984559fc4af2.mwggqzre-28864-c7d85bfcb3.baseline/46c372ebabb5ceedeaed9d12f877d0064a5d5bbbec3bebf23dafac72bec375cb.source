@@ -1,0 +1,53 @@
+from esphome import pins
+import esphome.codegen as cg
+from esphome.components import output
+import esphome.config_validation as cv
+from esphome.const import (
+    CONF_CS_PIN,
+    CONF_ID,
+    CONF_INC_PIN,
+    CONF_INITIAL_VALUE,
+    CONF_STEP_DELAY,
+    CONF_UD_PIN,
+)
+from esphome.types import ConfigType
+
+CODEOWNERS = ["@EtienneMD"]
+
+x9c_ns = cg.esphome_ns.namespace("x9c")
+
+X9cOutput = x9c_ns.class_("X9cOutput", output.FloatOutput, cg.Component)
+
+CONFIG_SCHEMA = cv.All(
+    output.FLOAT_OUTPUT_SCHEMA.extend(
+        {
+            cv.GenerateID(): cv.declare_id(X9cOutput),
+            cv.Required(CONF_CS_PIN): pins.internal_gpio_output_pin_schema,
+            cv.Required(CONF_INC_PIN): pins.internal_gpio_output_pin_schema,
+            cv.Required(CONF_UD_PIN): pins.internal_gpio_output_pin_schema,
+            cv.Optional(CONF_INITIAL_VALUE, default=1.0): cv.float_range(
+                min=0.01, max=1.0
+            ),
+            cv.Optional(CONF_STEP_DELAY, default="1us"): cv.All(
+                cv.positive_time_period_microseconds,
+                cv.Range(
+                    min=cv.TimePeriod(microseconds=1),
+                    max=cv.TimePeriod(microseconds=100),
+                ),
+            ),
+        }
+    )
+)
+
+
+async def to_code(config: ConfigType) -> None:
+    var = cg.new_Pvariable(config[CONF_ID])
+    await cg.register_component(var, config)
+    await output.register_output(var, config)
+
+    await cg.add_pin(var.set_cs_pin, config[CONF_CS_PIN])
+    await cg.add_pin(var.set_inc_pin, config[CONF_INC_PIN])
+    await cg.add_pin(var.set_ud_pin, config[CONF_UD_PIN])
+
+    cg.add(var.set_initial_value(config[CONF_INITIAL_VALUE]))
+    cg.add(var.set_step_delay(config[CONF_STEP_DELAY]))

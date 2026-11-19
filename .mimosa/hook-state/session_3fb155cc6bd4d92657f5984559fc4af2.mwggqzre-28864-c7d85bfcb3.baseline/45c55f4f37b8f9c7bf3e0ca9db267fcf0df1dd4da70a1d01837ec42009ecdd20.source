@@ -1,0 +1,96 @@
+#include "haier_protocol.h"
+#include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
+
+namespace esphome::remote_base {
+
+ESPHOME_LOG_TAG(TAG, "remote.haier");
+
+constexpr uint32_t HEADER_LOW_US = 3100;
+constexpr uint32_t HEADER_HIGH_US = 4400;
+constexpr uint32_t BIT_MARK_US = 540;
+constexpr uint32_t BIT_ONE_SPACE_US = 1650;
+constexpr uint32_t BIT_ZERO_SPACE_US = 580;
+// 8 bytes + checksum
+constexpr unsigned int HAIER_IR_PACKET_BIT_SIZE_SHORT = 72;
+// 13 bytes + checksum
+constexpr unsigned int HAIER_IR_PACKET_BIT_SIZE_LONG = 112;
+// Max data bytes in packet (excluding checksum)
+constexpr size_t HAIER_MAX_DATA_BYTES = HAIER_IR_PACKET_BIT_SIZE_LONG / 8 - 1;
+
+void HaierProtocol::encode_byte_(RemoteTransmitData *dst, uint8_t item) {
+  for (uint8_t mask = 1 << 7; mask != 0; mask >>= 1) {
+    if (item & mask) {
+      dst->space(BIT_ONE_SPACE_US);
+    } else {
+      dst->space(BIT_ZERO_SPACE_US);
+    }
+    dst->mark(BIT_MARK_US);
+  }
+}
+
+void HaierProtocol::encode(RemoteTransmitData *dst, const uint8_t *data, size_t len) {
+  dst->set_carrier_frequency(38000);
+  dst->reserve(5 + ((len + 1) * 16));
+  dst->mark(HEADER_LOW_US);
+  dst->space(HEADER_LOW_US);
+  dst->mark(HEADER_LOW_US);
+  dst->space(HEADER_HIGH_US);
+  dst->mark(BIT_MARK_US);
+  uint8_t checksum = 0;
+  for (size_t i = 0; i < len; i++) {
+    const uint8_t item = progmem_read_byte(data + i);
+    this->encode_byte_(dst, item);
+    checksum += item;
+  }
+  this->encode_byte_(dst, checksum);
+}
+
+optional<HaierData> HaierProtocol::decode(RemoteReceiveData src) {
+  if (!src.expect_item(HEADER_LOW_US, HEADER_LOW_US) || !src.expect_item(HEADER_LOW_US, HEADER_HIGH_US)) {
+    return {};
+  }
+  if (!src.expect_mark(BIT_MARK_US)) {
+    return {};
+  }
+  size_t size = src.size() - src.get_index() - 1;
+  if (size >= HAIER_IR_PACKET_BIT_SIZE_LONG * 2) {
+    size = HAIER_IR_PACKET_BIT_SIZE_LONG * 2;
+  } else if (size >= HAIER_IR_PACKET_BIT_SIZE_SHORT * 2) {
+    size = HAIER_IR_PACKET_BIT_SIZE_SHORT * 2;
+  } else {
+    return {};
+  }
+  uint8_t checksum = 0;
+  HaierData out;
+  out.data.reserve(size / 16 - 1);
+  while (size > 0) {
+    uint8_t data = 0;
+    for (uint8_t mask = 0x80; mask != 0; mask >>= 1) {
+      if (src.expect_space(BIT_ONE_SPACE_US)) {
+        data |= mask;
+      } else if (!src.expect_space(BIT_ZERO_SPACE_US)) {
+        return {};
+      }
+      if (!src.expect_mark(BIT_MARK_US)) {
+        return {};
+      }
+      size -= 2;
+    }
+    if (size > 0) {
+      checksum += data;
+      out.data.push_back(data);
+    } else if (checksum != data) {
+      return {};
+    }
+  }
+  return out;
+}
+
+void HaierProtocol::dump(const HaierData &data) {
+  char hex_buf[format_hex_pretty_size(HAIER_MAX_DATA_BYTES)];
+  ESP_LOGI(TAG, "Received Haier: %s", format_hex_pretty_to(hex_buf, data.data.data(), data.data.size()));
+}
+
+}  // namespace esphome::remote_base

@@ -1,0 +1,92 @@
+from esphome import pins
+import esphome.codegen as cg
+from esphome.components import display
+import esphome.config_validation as cv
+from esphome.const import (
+    CONF_BRIGHTNESS,
+    CONF_CONTRAST,
+    CONF_EXTERNAL_VCC,
+    CONF_FLIP_X,
+    CONF_FLIP_Y,
+    CONF_INVERT,
+    CONF_MODEL,
+    CONF_OFFSET_X,
+    CONF_OFFSET_Y,
+    CONF_RESET_PIN,
+)
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
+
+DOMAIN = "ssd1306_base"
+
+ssd1306_base_ns = cg.esphome_ns.namespace("ssd1306_base")
+SSD1306 = ssd1306_base_ns.class_("SSD1306", cg.PollingComponent, display.DisplayBuffer)
+SSD1306Model = ssd1306_base_ns.enum("SSD1306Model")
+
+MODELS = {
+    "SSD1306_128X32": SSD1306Model.SSD1306_MODEL_128_32,
+    "SSD1306_128X64": SSD1306Model.SSD1306_MODEL_128_64,
+    "SSD1306_96X16": SSD1306Model.SSD1306_MODEL_96_16,
+    "SSD1306_64X48": SSD1306Model.SSD1306_MODEL_64_48,
+    "SSD1306_64X32": SSD1306Model.SSD1306_MODEL_64_32,
+    "SSD1306_72X40": SSD1306Model.SSD1306_MODEL_72_40,
+    "SH1106_128X32": SSD1306Model.SH1106_MODEL_128_32,
+    "SH1106_128X64": SSD1306Model.SH1106_MODEL_128_64,
+    "SH1106_96X16": SSD1306Model.SH1106_MODEL_96_16,
+    "SH1106_64X48": SSD1306Model.SH1106_MODEL_64_48,
+    "SH1107_128X64": SSD1306Model.SH1107_MODEL_128_64,
+    "SH1107_128X128": SSD1306Model.SH1107_MODEL_128_128,
+    "SSD1305_128X32": SSD1306Model.SSD1305_MODEL_128_32,
+    "SSD1305_128X64": SSD1306Model.SSD1305_MODEL_128_64,
+}
+
+SSD1306_MODEL = cv.enum(MODELS, upper=True, space="_")
+
+
+def _validate(value: ConfigType) -> ConfigType:
+    model = value[CONF_MODEL]
+    if (
+        model not in ("SSD1305_128X32", "SSD1305_128X64")
+        and value[CONF_BRIGHTNESS] != 1.0
+        and value[CONF_CONTRAST] == 1.0
+    ):
+        raise cv.Invalid(
+            "SSD1306/SH1106 no longer accepts brightness option, "
+            'please use "contrast" instead.'
+        )
+
+    return value
+
+
+SSD1306_SCHEMA = display.FULL_DISPLAY_SCHEMA.extend(
+    {
+        cv.Required(CONF_MODEL): SSD1306_MODEL,
+        cv.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,
+        cv.Optional(CONF_BRIGHTNESS, default=1.0): cv.percentage,
+        cv.Optional(CONF_CONTRAST, default=1.0): cv.percentage,
+        cv.Optional(CONF_EXTERNAL_VCC): cv.boolean,
+        cv.Optional(CONF_FLIP_X, default=True): cv.boolean,
+        cv.Optional(CONF_FLIP_Y, default=True): cv.boolean,
+        # Offsets determine shifts of memory location to LCD rows/columns,
+        # and this family of controllers supports up to 128x128 screens
+        cv.Optional(CONF_OFFSET_X, default=0): cv.int_range(min=0, max=128),
+        cv.Optional(CONF_OFFSET_Y, default=0): cv.int_range(min=0, max=128),
+        cv.Optional(CONF_INVERT, default=False): cv.boolean,
+    }
+).extend(cv.polling_component_schema("1s"))
+
+
+async def setup_ssd1306(var: MockObj, config: ConfigType) -> None:
+    await display.register_display(var, config)
+
+    cg.add(var.set_model(config[CONF_MODEL]))
+    await cg.add_pin(var.set_reset_pin, config.get(CONF_RESET_PIN))
+    cg.add_optional(var.init_brightness, config.get(CONF_BRIGHTNESS))
+    cg.add_optional(var.init_contrast, config.get(CONF_CONTRAST))
+    cg.add_optional(var.set_external_vcc, config.get(CONF_EXTERNAL_VCC))
+    cg.add_optional(var.init_flip_x, config.get(CONF_FLIP_X))
+    cg.add_optional(var.init_flip_y, config.get(CONF_FLIP_Y))
+    cg.add_optional(var.init_offset_x, config.get(CONF_OFFSET_X))
+    cg.add_optional(var.init_offset_y, config.get(CONF_OFFSET_Y))
+    cg.add_optional(var.init_invert, config.get(CONF_INVERT))
+    await display.add_writer(var, config)

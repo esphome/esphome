@@ -1,0 +1,87 @@
+#include "mcp4728.h"
+
+#include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
+
+namespace esphome::mcp4728 {
+
+ESPHOME_LOG_TAG(TAG, "mcp4728");
+
+void MCP4728Component::setup() {
+  auto err = this->write(nullptr, 0);
+  if (!this->setup_check(err == i2c::ERROR_OK))
+    return;
+}
+
+void MCP4728Component::dump_config() {
+  ESP_LOGCONFIG(TAG, "MCP4728:");
+  LOG_I2C_DEVICE(this);
+}
+
+void MCP4728Component::loop() {
+  if (this->update_) {
+    this->update_ = false;
+    if (this->store_in_eeprom_) {
+      if (!this->seq_write_()) {
+        this->status_set_error();
+      } else {
+        this->status_clear_error();
+      }
+    } else {
+      if (!this->multi_write_()) {
+        this->status_set_error();
+      } else {
+        this->status_clear_error();
+      }
+    }
+  }
+}
+
+void MCP4728Component::write_channel(uint8_t channel, float state) {
+  auto value = static_cast<uint16_t>(roundf(state * 4095));
+  ESP_LOGV(TAG, "Setting MCP4728 channel %c to %d!", 'A' + channel, value);
+  this->reg_[channel].data = value;
+  this->update_ = true;
+}
+
+bool MCP4728Component::multi_write_() {
+  i2c::ErrorCode err[4];
+  for (uint8_t i = 0; i < 4; ++i) {
+    uint8_t wd[3];
+    wd[0] = ((uint8_t) CMD::MULTI_WRITE | (i << 1)) & 0xFE;
+    wd[1] = ((uint8_t) reg_[i].vref << 7) | ((uint8_t) reg_[i].pd << 5) | ((uint8_t) reg_[i].gain << 4) |
+            (reg_[i].data >> 8);
+    wd[2] = reg_[i].data & 0xFF;
+    err[i] = this->write(wd, sizeof(wd));
+  }
+  bool ok = true;
+  for (auto &e : err) {
+    if (e != i2c::ERROR_OK) {
+      ok = false;
+      break;
+    }
+  }
+  return ok;
+}
+
+bool MCP4728Component::seq_write_() {
+  uint8_t wd[9];
+  wd[0] = (uint8_t) CMD::SEQ_WRITE;
+  for (uint8_t i = 0; i < 4; i++) {
+    wd[i * 2 + 1] = ((uint8_t) reg_[i].vref << 7) | ((uint8_t) reg_[i].pd << 5) | ((uint8_t) reg_[i].gain << 4) |
+                    (reg_[i].data >> 8);
+    wd[i * 2 + 2] = reg_[i].data & 0xFF;
+  }
+  auto err = this->write(wd, sizeof(wd));
+  return err == i2c::ERROR_OK;
+}
+
+void MCP4728Component::configure_channel(MCP4728ChannelIdx channel, MCP4728Vref vref, MCP4728Gain gain,
+                                         MCP4728PwrDown pd) {
+  this->reg_[channel].vref = vref;
+  this->reg_[channel].pd = pd;
+  this->reg_[channel].gain = gain;
+  this->update_ = true;
+}
+
+}  // namespace esphome::mcp4728

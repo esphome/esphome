@@ -1,0 +1,106 @@
+import esphome.codegen as cg
+from esphome.components import sensor, uart
+import esphome.config_validation as cv
+from esphome.const import (
+    CONF_CO2,
+    CONF_FORMALDEHYDE,
+    CONF_HUMIDITY,
+    CONF_PM_2_5,
+    CONF_PM_10_0,
+    CONF_TEMPERATURE,
+    CONF_TVOC,
+    DEVICE_CLASS_CARBON_DIOXIDE,
+    DEVICE_CLASS_HUMIDITY,
+    DEVICE_CLASS_PM10,
+    DEVICE_CLASS_PM25,
+    DEVICE_CLASS_TEMPERATURE,
+    DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS,
+    ICON_CHEMICAL_WEAPON,
+    ICON_FLASK,
+    ICON_GRAIN,
+    ICON_MOLECULE_CO2,
+    STATE_CLASS_MEASUREMENT,
+    UNIT_CELSIUS,
+    UNIT_MICROGRAMS_PER_CUBIC_METER,
+    UNIT_PARTS_PER_MILLION,
+    UNIT_PERCENT,
+)
+from esphome.types import ConfigType
+
+DEPENDENCIES = ["uart"]
+
+sm300d2_ns = cg.esphome_ns.namespace("sm300d2")
+SM300D2Sensor = sm300d2_ns.class_("SM300D2Sensor", cg.PollingComponent, uart.UARTDevice)
+
+CONFIG_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(SM300D2Sensor),
+            cv.Optional(CONF_CO2): sensor.sensor_schema(
+                unit_of_measurement=UNIT_PARTS_PER_MILLION,
+                icon=ICON_MOLECULE_CO2,
+                accuracy_decimals=0,
+                device_class=DEVICE_CLASS_CARBON_DIOXIDE,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_FORMALDEHYDE): sensor.sensor_schema(
+                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
+                icon=ICON_FLASK,
+                accuracy_decimals=0,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_TVOC): sensor.sensor_schema(
+                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
+                icon=ICON_CHEMICAL_WEAPON,
+                accuracy_decimals=0,
+                device_class=DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_PM_2_5): sensor.sensor_schema(
+                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
+                icon=ICON_GRAIN,
+                accuracy_decimals=0,
+                device_class=DEVICE_CLASS_PM25,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_PM_10_0): sensor.sensor_schema(
+                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
+                icon=ICON_GRAIN,
+                accuracy_decimals=0,
+                device_class=DEVICE_CLASS_PM10,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
+                unit_of_measurement=UNIT_CELSIUS,
+                accuracy_decimals=1,
+                device_class=DEVICE_CLASS_TEMPERATURE,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(
+                unit_of_measurement=UNIT_PERCENT,
+                accuracy_decimals=1,
+                device_class=DEVICE_CLASS_HUMIDITY,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+        }
+    )
+    .extend(cv.polling_component_schema("60s"))
+    .extend(uart.UART_DEVICE_SCHEMA)
+)
+
+FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
+    "sm300d2", baud_rate=9600, require_rx=True, data_bits=8, parity="NONE", stop_bits=1
+)
+
+
+async def to_code(config: ConfigType) -> None:
+    var = await uart.new_uart_component(config)
+
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_CO2, var.set_co2_sensor)
+    await sensors(CONF_FORMALDEHYDE, var.set_formaldehyde_sensor)
+    await sensors(CONF_TVOC, var.set_tvoc_sensor)
+    await sensors(CONF_PM_2_5, var.set_pm_2_5_sensor)
+    await sensors(CONF_PM_10_0, var.set_pm_10_0_sensor)
+    await sensors(CONF_TEMPERATURE, var.set_temperature_sensor)
+    await sensors(CONF_HUMIDITY, var.set_humidity_sensor)

@@ -1,0 +1,31 @@
+import esphome.codegen as cg
+from esphome.components import uart
+import esphome.config_validation as cv
+from esphome.types import ConfigType
+
+DEPENDENCIES = ["uart"]
+CODEOWNERS = ["@andreashergert1984"]
+AUTO_LOAD = ["binary_sensor", "text_sensor", "sensor", "switch", "output"]
+DOMAIN = "pipsolar"
+MULTI_CONF = True
+
+CONF_PIPSOLAR_ID = "pipsolar_id"
+
+pipsolar_ns = cg.esphome_ns.namespace("pipsolar")
+PipsolarComponent = pipsolar_ns.class_("Pipsolar", cg.Component)
+
+PIPSOLAR_COMPONENT_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_PIPSOLAR_ID): cv.use_id(PipsolarComponent),
+    }
+)
+
+CONFIG_SCHEMA = cv.All(
+    cv.Schema({cv.GenerateID(): cv.declare_id(PipsolarComponent)})
+    .extend(cv.polling_component_schema("1s"))
+    .extend(uart.UART_DEVICE_SCHEMA)
+)
+
+
+async def to_code(config: ConfigType) -> None:
+    await uart.new_uart_component(config)

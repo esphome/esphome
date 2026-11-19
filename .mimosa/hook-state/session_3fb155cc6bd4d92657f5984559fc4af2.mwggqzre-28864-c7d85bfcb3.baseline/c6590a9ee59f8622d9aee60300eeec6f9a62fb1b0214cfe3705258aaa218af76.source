@@ -1,0 +1,196 @@
+#include "mqtt_fan.h"
+#include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
+
+#include "mqtt_const.h"
+
+#ifdef USE_MQTT
+#ifdef USE_FAN
+
+namespace esphome::mqtt {
+
+ESPHOME_LOG_TAG(TAG, "mqtt.fan");
+
+using namespace esphome::fan;
+
+static ProgmemStr fan_direction_to_mqtt_str(FanDirection direction) {
+  return direction == FanDirection::FORWARD ? ESPHOME_F("forward") : ESPHOME_F("reverse");
+}
+
+static ProgmemStr fan_oscillation_to_mqtt_str(bool oscillating) {
+  return oscillating ? ESPHOME_F("oscillate_on") : ESPHOME_F("oscillate_off");
+}
+
+MQTTFanComponent::MQTTFanComponent(Fan *state) : state_(state) {}
+
+Fan *MQTTFanComponent::get_state() const { return this->state_; }
+MQTT_COMPONENT_TYPE(MQTTFanComponent, "fan")
+const EntityBase *MQTTFanComponent::get_entity() const { return this->state_; }
+
+void MQTTFanComponent::setup() {
+  this->subscribe(this->command_topic_source_(), [this](const std::string &topic, const std::string &payload) {
+    auto val = parse_on_off(payload.c_str());
+    switch (val) {
+      case PARSE_ON:
+        ESP_LOGD(TAG, "'%s' Turning Fan ON.", LOG_STR_ARG(this->log_name_()));
+        this->state_->turn_on().perform();
+        break;
+      case PARSE_OFF:
+        ESP_LOGD(TAG, "'%s' Turning Fan OFF.", LOG_STR_ARG(this->log_name_()));
+        this->state_->turn_off().perform();
+        break;
+      case PARSE_TOGGLE:
+        ESP_LOGD(TAG, "'%s' Toggling Fan.", LOG_STR_ARG(this->log_name_()));
+        this->state_->toggle().perform();
+        break;
+      case PARSE_NONE:
+      default:
+        ESP_LOGW(TAG, "Unknown state payload %s", payload.c_str());
+        this->status_momentary_warning(5000);
+        break;
+    }
+  });
+
+  if (this->state_->get_traits().supports_direction()) {
+    this->subscribe(
+        this->get_direction_command_topic_source(), [this](const std::string &topic, const std::string &payload) {
+          auto val = parse_on_off(payload.c_str(), "forward", "reverse");
+          switch (val) {
+            case PARSE_ON:
+              ESP_LOGD(TAG, "'%s': Setting direction FORWARD", LOG_STR_ARG(this->log_name_()));
+              this->state_->make_call().set_direction(fan::FanDirection::FORWARD).perform();
+              break;
+            case PARSE_OFF:
+              ESP_LOGD(TAG, "'%s': Setting direction REVERSE", LOG_STR_ARG(this->log_name_()));
+              this->state_->make_call().set_direction(fan::FanDirection::REVERSE).perform();
+              break;
+            case PARSE_TOGGLE:
+              this->state_->make_call()
+                  .set_direction(this->state_->direction == fan::FanDirection::FORWARD ? fan::FanDirection::REVERSE
+                                                                                       : fan::FanDirection::FORWARD)
+                  .perform();
+              break;
+            case PARSE_NONE:
+              ESP_LOGW(TAG, "Unknown direction Payload %s", payload.c_str());
+              this->status_momentary_warning(5000);
+              break;
+          }
+        });
+  }
+
+  if (this->state_->get_traits().supports_oscillation()) {
+    this->subscribe(this->get_oscillation_command_topic_source(),
+                    [this](const std::string &topic, const std::string &payload) {
+                      auto val = parse_on_off(payload.c_str(), "oscillate_on", "oscillate_off");
+                      switch (val) {
+                        case PARSE_ON:
+                          ESP_LOGD(TAG, "'%s': Setting oscillating ON", LOG_STR_ARG(this->log_name_()));
+                          this->state_->make_call().set_oscillating(true).perform();
+                          break;
+                        case PARSE_OFF:
+                          ESP_LOGD(TAG, "'%s': Setting oscillating OFF", LOG_STR_ARG(this->log_name_()));
+                          this->state_->make_call().set_oscillating(false).perform();
+                          break;
+                        case PARSE_TOGGLE:
+                          this->state_->make_call().set_oscillating(!this->state_->oscillating).perform();
+                          break;
+                        case PARSE_NONE:
+                          ESP_LOGW(TAG, "Unknown Oscillation Payload %s", payload.c_str());
+                          this->status_momentary_warning(5000);
+                          break;
+                      }
+                    });
+  }
+
+  if (this->state_->get_traits().supports_speed()) {
+    this->subscribe(this->get_speed_level_command_topic_source(),
+                    [this](const std::string &topic, const std::string &payload) {
+                      optional<int> speed_level_opt = parse_number<int>(payload);
+                      if (speed_level_opt.has_value()) {
+                        const int speed_level = speed_level_opt.value();
+                        if (speed_level >= 0 && speed_level <= this->state_->get_traits().supported_speed_count()) {
+                          ESP_LOGD(TAG, "New speed level %d", speed_level);
+                          this->state_->make_call().set_speed(speed_level).perform();
+                        } else {
+                          ESP_LOGW(TAG, "Invalid speed level %d", speed_level);
+                          this->status_momentary_warning(5000);
+                        }
+                      } else {
+                        ESP_LOGW(TAG, "Invalid speed level %s (int expected)", payload.c_str());
+                        this->status_momentary_warning(5000);
+                      }
+                    });
+  }
+
+  this->state_->add_on_state_callback([this]() { this->defer(SEND_DEFER_ID, [this]() { this->publish_state(); }); });
+}
+
+void MQTTFanComponent::dump_config() {
+  LOG_MQTT_COMPONENT(true, true);
+  if (this->state_->get_traits().supports_direction()) {
+    ESP_LOGCONFIG(TAG,
+                  "  Direction State Topic: '%s'\n"
+                  "  Direction Command Topic: '%s'",
+                  this->get_direction_state_topic().c_str(), this->get_direction_command_topic().c_str());
+  }
+  if (this->state_->get_traits().supports_oscillation()) {
+    ESP_LOGCONFIG(TAG,
+                  "  Oscillation State Topic: '%s'\n"
+                  "  Oscillation Command Topic: '%s'",
+                  this->get_oscillation_state_topic().c_str(), this->get_oscillation_command_topic().c_str());
+  }
+  if (this->state_->get_traits().supports_speed()) {
+    ESP_LOGCONFIG(TAG,
+                  "  Speed Level State Topic: '%s'\n"
+                  "  Speed Level Command Topic: '%s'",
+                  this->get_speed_level_state_topic().c_str(), this->get_speed_level_command_topic().c_str());
+  }
+}
+
+bool MQTTFanComponent::send_initial_state() { return this->publish_state(); }
+
+void MQTTFanComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
+  // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
+  if (this->state_->get_traits().supports_direction()) {
+    root[MQTT_DIRECTION_COMMAND_TOPIC] = this->get_direction_command_topic();
+    root[MQTT_DIRECTION_STATE_TOPIC] = this->get_direction_state_topic();
+  }
+  if (this->state_->get_traits().supports_oscillation()) {
+    root[MQTT_OSCILLATION_COMMAND_TOPIC] = this->get_oscillation_command_topic();
+    root[MQTT_OSCILLATION_STATE_TOPIC] = this->get_oscillation_state_topic();
+  }
+  if (this->state_->get_traits().supports_speed()) {
+    root[MQTT_PERCENTAGE_COMMAND_TOPIC] = this->get_speed_level_command_topic();
+    root[MQTT_PERCENTAGE_STATE_TOPIC] = this->get_speed_level_state_topic();
+    root[MQTT_SPEED_RANGE_MAX] = this->state_->get_traits().supported_speed_count();
+  }
+}
+bool MQTTFanComponent::publish_state() {
+  char topic_buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
+  const char *state_s = this->state_->state ? "ON" : "OFF";
+  ESP_LOGD(TAG, "'%s' Sending state %s.", LOG_STR_ARG(this->state_->get_log_name()), state_s);
+  bool failed = !this->publish(this->get_state_topic_to_(topic_buf), state_s);
+  if (this->state_->get_traits().supports_direction()) {
+    bool success = this->publish(this->get_direction_state_topic_to(topic_buf),
+                                 fan_direction_to_mqtt_str(this->state_->direction));
+    failed = failed || !success;
+  }
+  if (this->state_->get_traits().supports_oscillation()) {
+    bool success = this->publish(this->get_oscillation_state_topic_to(topic_buf),
+                                 fan_oscillation_to_mqtt_str(this->state_->oscillating));
+    failed = failed || !success;
+  }
+  auto traits = this->state_->get_traits();
+  if (traits.supports_speed()) {
+    char buf[12];
+    size_t len = buf_append_printf(buf, sizeof(buf), 0, "%d", this->state_->speed);
+    bool success = this->publish(this->get_speed_level_state_topic_to(topic_buf), buf, len);
+    failed = failed || !success;
+  }
+  return !failed;
+}
+
+}  // namespace esphome::mqtt
+
+#endif
+#endif  // USE_MQTT
