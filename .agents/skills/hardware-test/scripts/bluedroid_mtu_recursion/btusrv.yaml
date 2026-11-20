@@ -1,0 +1,31 @@
+# Peer for the Bluedroid queued MTU recursion repro: a GATT server with one readable and writable characteristic
+esphome:
+  name: btusrv
+
+esp32:
+  variant: esp32s3
+  board: esp32-s3-devkitc-1
+  framework:
+    type: esp-idf
+
+logger:
+  level: DEBUG
+  hardware_uart: USB_SERIAL_JTAG
+
+esp32_ble:
+  name: btusrv
+
+esp32_ble_server:
+  on_connect:
+    - logger.log: {format: "SRV connected", level: INFO}
+  on_disconnect:
+    - logger.log: {format: "SRV disconnected", level: INFO}
+  services:
+    - uuid: 5ec10000-0000-1000-8000-00805f9b34fb
+      advertise: true
+      characteristics:
+        - id: numc
+          uuid: 5ec10001-0000-1000-8000-00805f9b34fb
+          read: true
+          write: true
+          value: [42]

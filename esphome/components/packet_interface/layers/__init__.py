@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from typing import Any
 
 import esphome.codegen as cg
+from esphome.components.const import CONF_DESTINATION
 import esphome.config_validation as cv
 from esphome.const import CONF_ENCRYPTION, CONF_FRAGMENTATION, CONF_KEY, CONF_TYPE
 from esphome.cpp_generator import Expression, MockObj
@@ -24,7 +25,6 @@ packet_interface_ns = cg.esphome_ns.namespace("packet_interface")
 PacketInterface = packet_interface_ns.class_("PacketInterface", cg.Component)
 
 CONF_ADDRESSING = "addressing"
-CONF_DESTINATION = "destination"
 CONF_PEERS = "peers"
 CONF_RELIABILITY = "reliability"
 CONF_SESSION = "session"

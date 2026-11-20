@@ -74,6 +74,12 @@ class EthernetIPStateListener {
 };
 #endif  // USE_ETHERNET_IP_STATE_LISTENERS
 
+/// Called on the main loop with the on_connect and on_disconnect triggers.
+class EthernetConnectStateListener {
+ public:
+  virtual void on_ethernet_connect_state(bool connected) = 0;
+};
+
 enum EthernetType : uint8_t {
   ETHERNET_TYPE_UNKNOWN = 0,
   ETHERNET_TYPE_LAN8720,
@@ -218,6 +224,8 @@ class EthernetComponent final : public Component {
 #ifdef USE_ETHERNET_IP_STATE_LISTENERS
   void add_ip_state_listener(EthernetIPStateListener *listener) { this->ip_state_listeners_.push_back(listener); }
 #endif
+  SLOT_LIST(EthernetConnectStateListener, connect_state_listeners_, add_connect_state_listener,
+            ESPHOME_ETHERNET_CONNECT_STATE_LISTENERS)
 
 #ifdef USE_ETHERNET_CONNECT_TRIGGER
   Trigger<> *get_connect_trigger() { return &this->connect_trigger_; }
@@ -247,6 +255,11 @@ class EthernetComponent final : public Component {
 #ifdef USE_ETHERNET_IP_STATE_LISTENERS
   void notify_ip_state_listeners_();
 #endif
+  void notify_connect_state_listeners_(bool connected) {
+    for (auto *listener : this->connect_state_listeners_) {
+      listener->on_ethernet_connect_state(connected);
+    }
+  }
 
 #ifdef USE_ESP32
   static void eth_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);

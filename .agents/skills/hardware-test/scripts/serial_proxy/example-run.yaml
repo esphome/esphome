@@ -1,0 +1,5 @@
+substitutions:
+  name: sppr
+  rx_buf: "32768"
+packages:
+  common: !include sp-common.yaml
