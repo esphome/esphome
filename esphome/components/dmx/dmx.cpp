@@ -54,16 +54,16 @@ void DMXComponent::loop() {
     dmx_packet_t packet{};
     const size_t received_size = dmx_receive(this->dmx_port_, &packet, 0);
 
-    // Tijdelijke debuglogging
-    static uint32_t last_debug_ms = 0;
+    // // Tijdelijke debuglogging
+    // static uint32_t last_debug_ms = 0;
 
-    if (received_size > 0) {
-      ESP_LOGI(TAG, "DMX packet detected: size=%u, err=%d, is_rdm=%d, start_code=0x%02X",
-               static_cast<unsigned>(received_size), packet.err, packet.is_rdm, packet.sc);
-    } else if (millis() - last_debug_ms >= 2000) {
-      ESP_LOGI(TAG, "Waiting for DMX data...");
-      last_debug_ms = millis();
-    }
+    // if (received_size > 0) {
+    //   ESP_LOGI(TAG, "DMX packet detected: size=%u, err=%d, is_rdm=%d, start_code=0x%02X",
+    //            static_cast<unsigned>(received_size), packet.err, packet.is_rdm, packet.sc);
+    // } else if (millis() - last_debug_ms >= 2000) {
+    //   ESP_LOGI(TAG, "Waiting for DMX data...");
+    //   last_debug_ms = millis();
+    // }
 
     if (received_size > 0) {
       if (packet.err == DMX_OK && !packet.is_rdm && packet.sc == 0x00) {
