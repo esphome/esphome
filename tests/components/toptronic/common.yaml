@@ -1,0 +1,119 @@
+toptronic:
+  - id: tt_hv
+    canbus_id: canbus_toptronic
+    device_type: HV
+    device_addr: 8
+    max_pending_messages: 3
+    max_frames_per_message: 8
+    max_pending_age: 6s
+    write_min_interval: 3s
+    reject_writes_before_read: false
+    boot_refresh_delay: 20s
+    refresh_interval: 60ms
+    max_refresh_retries: 0
+    refresh_retry_interval: 250ms
+
+switch:
+  - platform: toptronic
+    toptronic_id: tt_hv
+    candump:
+      name: CAN dump
+    find_can_id:
+      name: Find CAN id
+
+button:
+  - platform: toptronic
+    toptronic_id: tt_hv
+    name: Hand-written test button
+    function_group: 20
+    function_number: 0
+    datapoint: 1
+    type: U8
+    value: 1
+
+# The hub pauses CAN traffic while an OTA update runs, so the listener path must compile
+wifi:
+  ssid: MySSID
+  password: password1
+
+ota:
+  - platform: esphome
+
+sensor:
+  - platform: toptronic
+    toptronic_id: tt_hv
+    name: Hand-written test sensor
+    function_group: 50
+    function_number: 0
+    datapoint: 40652
+    type: U16
+  - platform: toptronic
+    toptronic_id: tt_hv
+    name: Read entity of the number
+    function_group: 50
+    function_number: 1
+    datapoint: 40660
+    type: S16
+
+number:
+  - platform: toptronic
+    toptronic_id: tt_hv
+    name: Linked number
+    function_group: 50
+    function_number: 1
+    datapoint: 40660
+    type: S16
+    min_value: 100
+    max_value: 300
+    step: 5
+    decimal: 1
+  - platform: toptronic
+    toptronic_id: tt_hv
+    name: Write-only number
+    function_group: 50
+    function_number: 4
+    datapoint: 40664
+    type: U16
+    min_value: 0
+    max_value: 100
+    step: 1
+
+text_sensor:
+  - platform: toptronic
+    toptronic_id: tt_hv
+    name: Read entity of the select
+    function_group: 50
+    function_number: 2
+    datapoint: 40661
+    options:
+      - "Off"
+      - "On"
+    values:
+      - 0
+      - 1
+
+select:
+  - platform: toptronic
+    toptronic_id: tt_hv
+    name: Linked select
+    function_group: 50
+    function_number: 2
+    datapoint: 40661
+    options:
+      - "Off"
+      - "On"
+    values:
+      - 0
+      - 1
+  - platform: toptronic
+    toptronic_id: tt_hv
+    name: Write-only select
+    function_group: 50
+    function_number: 3
+    datapoint: 40662
+    options:
+      - "Off"
+      - "On"
+    values:
+      - 0
+      - 1
