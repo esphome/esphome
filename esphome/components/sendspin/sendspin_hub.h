@@ -355,8 +355,8 @@ class SendspinHub final : public Component,
   ///
   /// The library delivers each datum (loudness, beats, spectrum, ...) from its own drain thread at the datum's
   /// playback time, so the listener's data callbacks must be thread-safe; its stream lifecycle callbacks fire on the
-  /// main loop. The listener and config must outlive the hub. The role is only registered once this is called, since
-  /// the library refuses to start with the default config (zero buffer_capacity).
+  /// main loop. The listener and config must outlive the hub. The role is registered in the hub's setup(), so call this
+  /// before it, from codegen; the library refuses to start with the default config (zero buffer_capacity).
   void set_visualizer(sendspin::VisualizerRoleListener *listener, const sendspin::VisualizerRoleConfig *config) {
     this->visualizer_listener_ = listener;
     this->visualizer_config_ = config;
