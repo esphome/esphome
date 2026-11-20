@@ -2,13 +2,12 @@
 
 #include <gtest/gtest.h>
 #include <algorithm>
-#include <chrono>
 #include <cstdint>
 #include <string>
-#include <thread>
 #include <vector>
 
 #include "esphome/components/canopen/canopen.h"
+#include "esphome/core/application.h"
 
 namespace esphome::canopen::testing {
 
@@ -87,11 +86,16 @@ class SdoTest : public ::testing::Test {
     return out;
   }
 
+  // moves the loop clock the hub reads forward
+  static void advance_(uint32_t ms) {
+    LoopBlockingGuard clock{nullptr, nullptr, App.get_loop_component_start_time() + ms};
+  }
+
   // long enough for the response timeout to end a transfer
   void wait_for_timeout_() {
     for (int i = 0; i < 60; i++) {
       this->hub_.loop();
-      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+      this->advance_(1);
     }
   }
 };

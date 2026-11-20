@@ -103,7 +103,7 @@ bool CANopenComponent::write_sdo_data(uint8_t node_id, uint16_t index, uint8_t s
 }
 
 bool CANopenComponent::queue_sdo_(const SDORequest &request) {
-  // before setup() the request waits in the queue: process_() starts once CANopenNode runs
+  // before setup() the request waits in the queue: loop() starts it once CANopenNode runs
   if (this->is_failed() || request.node_id == 0 || request.node_id > 127 || !this->sdo_queue_.push(request)) {
     reject(request.node_id, request.index, request.sub, request.callback, request.context);
     return false;

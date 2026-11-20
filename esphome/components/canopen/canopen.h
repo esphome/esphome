@@ -68,7 +68,6 @@ class CANopenComponent : public Component {
 
  protected:
   void on_frame_(const canbus::CanFrame &frame);
-  void process_(bool from_frame);
   // no request queued or running and no frame waiting to be resent
   bool idle_() const;
   // marks the hub failed and ends the requests queued before setup()
@@ -113,7 +112,7 @@ class CANopenComponent : public Component {
   SDORequest sdo_active_{};
   // WRITE/WRITE_DATA: bytes handed to the client fifo; READ/READ_DATA: bytes received, also those beyond the buffer
   size_t sdo_len_{0};
-  uint32_t last_us_{0};
+  uint32_t last_ms_{0};  // loop time the SDO client was last given
   // OD 0x1280 (SDO client parameter, with sdo_cli_highest_sub_ and sdo_cli_node_), set up per request
   uint32_t sdo_cli_cob_tx_{0x80000000};
   uint32_t sdo_cli_cob_rx_{0x80000000};

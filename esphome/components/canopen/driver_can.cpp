@@ -4,6 +4,8 @@
 
 #include <cstring>
 
+#include "esphome/core/application.h"
+
 namespace esphome::canopen {
 
 void discard_pending_tx(CO_CANmodule_t *mod, CO_CANtx_t *buf) {
@@ -41,7 +43,12 @@ void CANopenComponent::on_frame_(const canbus::CanFrame &frame) {
       continue;
     rx->CANrx_callback(rx->object, &msg);
   }
-  this->process_(true);
+  // A reply for the running request is handled right away; CANopenNode restarts its response timer for it (and may
+  // send the next segment), so the time loop() charges starts again here.
+  if (CO_FLAG_READ(this->co_->SDOclient->CANrxNew)) {
+    this->process_sdo_(0);
+    this->last_ms_ = App.get_loop_component_start_time();
+  }
 }
 
 bool CANopenComponent::transmit(uint16_t ident, const uint8_t *data, uint8_t len) {

@@ -1,7 +1,5 @@
 #include <gtest/gtest.h>
 #include <array>
-#include <chrono>
-#include <thread>
 #include <vector>
 
 #include "fake_canbus.h"
@@ -28,7 +26,7 @@ TEST_F(SdoTest, FrameUnsentAtTheDeadlineIsNotSentLate) {
   this->bus_.busy = true;
   ASSERT_TRUE(this->hub_.write_sdo<uint16_t>(0x21, 0x6040, 0, 0x1234, on_reply, this));
   this->hub_.loop();
-  std::this_thread::sleep_for(std::chrono::milliseconds(25));
+  this->advance_(25);
   this->bus_.busy = false;
   this->hub_.loop();
   ASSERT_EQ(this->replies_.size(), 1u);
@@ -38,23 +36,33 @@ TEST_F(SdoTest, FrameUnsentAtTheDeadlineIsNotSentLate) {
 
 // The bus takes the frame before the deadline: sent, and the response timeout starts again from there.
 TEST_F(SdoTest, RetryBeforeTheDeadlineRestartsTheTimeout) {
-  // A longer timeout than the fixture's, so late sleeps on a loaded runner keep their margin
-  this->hub_.set_response_timeout(200);
   this->bus_.busy = true;
   ASSERT_TRUE(this->hub_.read_sdo<uint16_t>(0x21, 0x6041, 0, on_reply, this));
   this->hub_.loop();
-  std::this_thread::sleep_for(std::chrono::milliseconds(120));
+  this->advance_(15);
   this->bus_.busy = false;
   this->hub_.loop();
   ASSERT_EQ(this->requests_(), (std::vector<std::vector<uint8_t>>{{0x40, 0x41, 0x60, 0, 0, 0, 0, 0}}));
-  // 240 ms since the request, 120 ms since it was sent (timeout 200 ms)
-  std::this_thread::sleep_for(std::chrono::milliseconds(120));
+  // 25 ms since the request, 10 ms since it was sent (timeout 20 ms)
+  this->advance_(10);
   this->hub_.loop();
   EXPECT_TRUE(this->replies_.empty());
   this->hub_.frame(0x5A1, {0x4B, 0x41, 0x60, 0, 0x37, 0x02, 0, 0});
   ASSERT_EQ(this->replies_.size(), 1u);
   EXPECT_TRUE(this->replies_[0].ok());
   EXPECT_EQ(this->replies_[0].value, 0x0237u);
+}
+
+// Queued frames go out from loop(), not for every received frame: on ESP32 each refused send can block.
+TEST_F(SdoTest, ReceivedFrameDoesNotSendQueuedFrames) {
+  this->bus_.busy = true;
+  ASSERT_TRUE(this->hub_.write_sdo<uint8_t>(0x21, 0x6060, 0, 1, on_reply, this));
+  this->hub_.loop();
+  this->bus_.busy = false;
+  this->hub_.frame(0x701, {0x05});
+  EXPECT_EQ(this->bus_.count(0x621), 0u);
+  this->hub_.loop();
+  EXPECT_EQ(this->bus_.count(0x621), 1u);
 }
 
 // A reply can't be for a request that hasn't gone out: e.g. a late one to an earlier write of the same object.

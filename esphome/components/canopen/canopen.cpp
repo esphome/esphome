@@ -1,7 +1,7 @@
 // CANopenComponent: setup and processing; the other features are in their own files, see canopen.h.
 #include "canopen.h"
 
-#include "esphome/core/hal.h"
+#include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
 namespace esphome::canopen {
@@ -32,7 +32,6 @@ void CANopenComponent::setup() {
   }
   CO_CANsetNormalMode(this->co_->CANmodule);
   this->canbus_->add_frame_callback([this](const canbus::CanFrame &frame) { this->on_frame_(frame); });
-  this->last_us_ = micros();
   ESP_LOGV(TAG, "CANopenNode initialized, SDO client, heap %" PRIu32 " B", heap);
 }
 
@@ -55,24 +54,14 @@ void CANopenComponent::loop() {
     this->disable_loop();
     return;
   }
-  this->process_(false);
-}
-
-// called from loop() and on_frame_(), which have checked co_
-void CANopenComponent::process_(bool from_frame) {
-  if (this->idle_())
-    return;
-  // SDO client first: an unsent frame ends at its deadline, before the flush could send it. Its time runs in loop() (a
-  // received frame may come before a queued reply), or while no reply can be on its way (frame unsent, no request).
+  // SDO client first: an unsent frame ends at its deadline, before the flush could send it. Time runs only here,
+  // after the canbus loop delivered its frames: a received frame may come before a queued reply.
   CO_SDOclient_t *cli = this->co_->SDOclient;
   const bool unsent = cli->CANtxBuff->bufferFull;
-  if (!from_frame || unsent || !this->sdo_busy_) {
-    uint32_t now = micros();
-    this->process_sdo_(now - this->last_us_);
-    this->last_us_ = now;
-  } else {
-    this->process_sdo_(0);
-  }
+  const uint32_t now = App.get_loop_component_start_time();
+  this->process_sdo_((now - this->last_ms_) * 1000);
+  this->last_ms_ = now;
+  // only from here, not per received frame: on ESP32 a refused frame can block for the controller's enqueue timeout
   CO_CANmodule_process(this->co_->CANmodule);
   // CANopenNode started the response timeout when it queued the frame: start it again now that the frame is sent
   if (unsent && !cli->CANtxBuff->bufferFull)
