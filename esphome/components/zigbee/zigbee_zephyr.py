@@ -27,6 +27,11 @@ from .const import (
     CONF_ROUTER,
     CONF_SLEEPY,
     CONF_WIPE_ON_BOOT,
+    CONF_ZIGBEE_BINARY_SENSOR,
+    CONF_ZIGBEE_ID,
+    CONF_ZIGBEE_NUMBER,
+    CONF_ZIGBEE_SENSOR,
+    CONF_ZIGBEE_SWITCH,
     KEY_ZIGBEE,
     KEY_ZIGBEE_AREA_STR,
     KEY_ZIGBEE_VERSION_STR,
@@ -34,15 +39,9 @@ from .const import (
     AnalogAttrs,
     AnalogAttrsOutput,
     BinaryAttrs,
-    zigbee_ns,
 )
 from .const_zephyr import (
     CONF_IEEE802154_VENDOR_OUI,
-    CONF_ZIGBEE_BINARY_SENSOR,
-    CONF_ZIGBEE_ID,
-    CONF_ZIGBEE_NUMBER,
-    CONF_ZIGBEE_SENSOR,
-    CONF_ZIGBEE_SWITCH,
     KEY_EP_NUMBER,
     ZB_ZCL_BASIC_ATTRS_EXT_T,
     ZB_ZCL_CLUSTER_ID_ANALOG_INPUT,
@@ -53,11 +52,6 @@ from .const_zephyr import (
     ZB_ZCL_CLUSTER_ID_IDENTIFY,
     ZB_ZCL_IDENTIFY_ATTRS_T,
 )
-
-ZigbeeBinarySensor = zigbee_ns.class_("ZigbeeBinarySensor", cg.Component)
-ZigbeeSensor = zigbee_ns.class_("ZigbeeSensor", cg.Component)
-ZigbeeSwitch = zigbee_ns.class_("ZigbeeSwitch", cg.Component)
-ZigbeeNumber = zigbee_ns.class_("ZigbeeNumber", cg.Component)
 
 
 async def zephyr_to_code(config: ConfigType) -> "MockObj":
