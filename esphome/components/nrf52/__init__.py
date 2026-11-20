@@ -13,6 +13,7 @@ from esphome.build_helpers.ccache import resolve_ccache_path
 import esphome.codegen as cg
 from esphome.components import network
 from esphome.components.zephyr import (
+    PreferenceStorage,
     Section,
     add_extra_script,
     copy_files as zephyr_copy_files,
@@ -106,6 +107,7 @@ from .const import (
     VARIANT_NRF52832,
     VARIANT_NRF52840,
     VARIANT_REGULATOR,
+    VARIANTS_NRF54L,
     VARIANTS_WITHOUT_USB,
 )
 from .framework import (
@@ -536,6 +538,11 @@ def _final_validate(config):
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
+def _preferences_storage(variant: str) -> PreferenceStorage:
+    """The storage for preferences: ZMS on the RRAM of the nRF54L, NVS on flash."""
+    return "ZMS" if variant in VARIANTS_NRF54L else "NVS"
+
+
 @coroutine_with_priority(CoroPriority.PLATFORM)
 async def to_code(config: ConfigType) -> None:
     """Convert the configuration to code."""
@@ -544,7 +551,7 @@ async def to_code(config: ConfigType) -> None:
     variant = get_nrf52_variant()
     cg.add_define("ESPHOME_VARIANT", variant)
     cg.add_build_flag(f"-DUSE_NRF52_VARIANT_{variant}")
-    if variant in (VARIANT_NRF54L15, VARIANT_NRF54LM20):
+    if variant in VARIANTS_NRF54L:
         # The entropy driver runs on the CRACEN crypto unit, which needs Nordic's PSA crypto
         include_west_project("mbedtls")
         include_west_project("oberon-psa-crypto")
@@ -612,11 +619,11 @@ async def to_code(config: ConfigType) -> None:
     if config[KEY_BOOTLOADER] in ADAFRUIT_BOOTLOADERS:
         cg.add_define("USE_BOOTLOADER_ADAFRUIT")
 
-    zephyr_setup_preferences()
+    zephyr_setup_preferences(_preferences_storage(variant))
     zephyr_to_code(config)
 
     # The nRF54L has RRAM (cpuapp_rram) and no flash0 node
-    if CORE.testing_mode and variant not in (VARIANT_NRF54L15, VARIANT_NRF54LM20):
+    if CORE.testing_mode and variant not in VARIANTS_NRF54L:
         zephyr_add_overlay(
             f"""
                 &flash0 {{

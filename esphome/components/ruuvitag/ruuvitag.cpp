@@ -5,7 +5,7 @@ namespace esphome::ruuvitag {
 
 ESPHOME_LOG_TAG(TAG, "ruuvitag");
 
-void RuuviTag::dump_config() {
+void RuuviTag::dump_child_config() {
   ESP_LOGCONFIG(TAG, "RuuviTag");
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
