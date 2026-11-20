@@ -31,10 +31,15 @@ GPIORMTOneWireBus::GPIORMTOneWireBus(const rmt_one_wire::Timing &timing)
 
 void GPIORMTOneWireBus::setup() {
   const auto gpio = static_cast<gpio_num_t>(this->pin_->get_pin());
+#ifdef USE_GPIO_HOLD
+  // pin_->setup() is left out, as it could drive the line Low before RMT takes over. So release a hold here
+  // that an earlier boot left on the pin, or the pad keeps its old state.
+  gpio_hold_dis(gpio);
+#endif
 
   rmt_copy_encoder_config_t encoder_config{};
 
-  // Also sets the input path and the pullup of the pin
+  // Also sets the input path, and before ESP-IDF 6.0 the internal pullup of the pin
   rmt_rx_channel_config_t rx_config{};
   rx_config.gpio_num = gpio;
   rx_config.clk_src = RMT_CLK_SRC_DEFAULT;
@@ -59,7 +64,8 @@ void GPIORMTOneWireBus::setup() {
   // The line may stay Low from the TX channel to the first transmit, and a Low above 600 us can reset a device:
   // no delay and no log in this list, unless it fails. 500 us High also let a device finish answering such a Low.
   const Symbol release_line{250, 1, 250, 1};
-  if (this->check_(rmt_new_copy_encoder(&encoder_config, &this->encoder_), LOG_STR("in rmt_new_copy_encoder")) &&
+  const bool created =
+      this->check_(rmt_new_copy_encoder(&encoder_config, &this->encoder_), LOG_STR("in rmt_new_copy_encoder")) &&
       this->check_(rmt_new_rx_channel(&rx_config, &this->rx_channel_), LOG_STR("in rmt_new_rx_channel")) &&
       this->check_(rmt_rx_register_event_callbacks(this->rx_channel_, &rx_callbacks, this),
                    LOG_STR("in rmt_rx_register_event_callbacks")) &&
@@ -69,15 +75,39 @@ void GPIORMTOneWireBus::setup() {
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
       this->check_(gpio_od_enable(gpio), LOG_STR("in gpio_od_enable")) &&
 #endif
-      this->check_(gpio_input_enable(gpio), LOG_STR("in gpio_input_enable")) &&
-      this->check_(rmt_enable(this->rx_channel_), LOG_STR("in rmt_enable")) &&
-      this->check_(rmt_enable(this->tx_channel_), LOG_STR("in rmt_enable")) &&
+      this->check_(gpio_input_enable(gpio), LOG_STR("in gpio_input_enable"));
+  const bool rx_enabled = created && this->check_(rmt_enable(this->rx_channel_), LOG_STR("in rmt_enable"));
+  const bool tx_enabled = rx_enabled && this->check_(rmt_enable(this->tx_channel_), LOG_STR("in rmt_enable"));
+  if (tx_enabled &&
       this->check_(
           rmt_transmit(this->tx_channel_, this->encoder_, &release_line, sizeof(release_line), &TRANSMIT_CONFIG),
           LOG_STR("in rmt_transmit")) &&
       this->check_(rmt_tx_wait_all_done(this->tx_channel_, LINE_RELEASE_TIMEOUT_MS),
                    LOG_STR("in rmt_tx_wait_all_done"))) {
     this->search();
+    return;
+  }
+  // check_() marked the bus failed. Free what was created, so other RMT components can still get it.
+  this->release_(rx_enabled, tx_enabled);
+}
+
+void GPIORMTOneWireBus::release_(bool rx_enabled, bool tx_enabled) {
+  // A channel must be disabled before it can be deleted. Errors are ignored, the bus has failed already.
+  if (tx_enabled)
+    rmt_disable(this->tx_channel_);
+  if (rx_enabled)
+    rmt_disable(this->rx_channel_);
+  if (this->tx_channel_ != nullptr) {
+    rmt_del_channel(this->tx_channel_);
+    this->tx_channel_ = nullptr;
+  }
+  if (this->rx_channel_ != nullptr) {
+    rmt_del_channel(this->rx_channel_);
+    this->rx_channel_ = nullptr;
+  }
+  if (this->encoder_ != nullptr) {
+    rmt_del_encoder(this->encoder_);
+    this->encoder_ = nullptr;
   }
 }
 
@@ -89,6 +119,7 @@ void GPIORMTOneWireBus::dump_config() {
   if (this->timing_.read_threshold_us > 15) {
     ESP_LOGW(TAG, "  Read threshold above 15 us: a DS18B20 only keeps a 0 valid for that long");
   }
+  ESP_LOGCONFIG(TAG, "  Parasite power: not supported, the bus never drives a strong pullup");
   this->dump_devices_(TAG);
 }
 
@@ -110,8 +141,12 @@ bool GPIORMTOneWireBus::submit(one_wire::Transaction *transaction) {
   if (!this->engine_.submit(transaction))
     return false;
   this->enable_loop();  // Does nothing on a failed bus, which has to run loop() itself
-  if (this->is_failed())
+  if (this->is_failed()) {
     this->loop();
+    return true;
+  }
+  // From a scheduler callback, loop() would otherwise only run after loop_interval
+  App.wake_loop_threadsafe();
   return true;
 }
 
