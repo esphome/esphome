@@ -57,7 +57,7 @@ def test_zephyr_uart0_label(variant: str, label: str) -> None:
     assert _zephyr_uart0_label() == label
 
 
-@pytest.mark.parametrize("variant", ["NRF52832", "NRF54L15"])
+@pytest.mark.parametrize("variant", ["NRF51822", "NRF52832", "NRF54L15"])
 def test_variants_without_usb_reject_usb_cdc(variant: str) -> None:
     from esphome.components.logger import uart_selection
     from esphome.components.nrf52.framework import set_nrf52_variant

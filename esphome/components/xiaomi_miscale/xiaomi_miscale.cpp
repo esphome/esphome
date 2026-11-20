@@ -7,7 +7,7 @@ namespace esphome::xiaomi_miscale {
 
 ESPHOME_LOG_TAG(TAG, "xiaomi_miscale");
 
-void XiaomiMiscale::dump_config() {
+void XiaomiMiscale::dump_child_config() {
   ESP_LOGCONFIG(TAG, "Xiaomi Miscale");
   LOG_SENSOR("  ", "Weight", this->weight_sensor_);
   LOG_SENSOR("  ", "Impedance", this->impedance_sensor_);

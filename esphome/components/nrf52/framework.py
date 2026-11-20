@@ -19,12 +19,11 @@ from esphome.components.zephyr.framework_helpers import (
 )
 from esphome.components.zephyr.sdk_install import (
     ARM_TOOLCHAIN,
+    ensure_sdk,
     get_sdk_host_info,
-    install_sdk,
     sdk_toolchain_path,
 )
 import esphome.config_validation as cv
-from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION
 from esphome.core import CORE, EsphomeError
 from esphome.framework_helpers import (
     create_venv,
@@ -48,7 +47,7 @@ _TOOLCHAIN_VERSIONS = (TOOLCHAIN_VERSION, _TOOLCHAIN_VERSION_NCS_3_4_0)
 
 def _uses_sdk_ng_1_toolchain() -> bool:
     """True when the framework needs Zephyr SDK 1.0+."""
-    return CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] >= cv.Version(3, 4, 0)
+    return CORE.framework_version >= cv.Version(3, 4, 0)
 
 
 def _get_toolchain_version() -> str:
@@ -97,7 +96,7 @@ def toolchain_tool(name: str) -> Path:
 
 
 def _get_version_str() -> str:
-    framework_ver = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
+    framework_ver = CORE.framework_version
     return f"v{framework_ver.major}.{framework_ver.minor}.{framework_ver.patch}"
 
 
@@ -390,7 +389,7 @@ def include_west_project(name: str) -> None:
 
 def bluetooth_west_projects() -> tuple[str, ...]:
     """Bluetooth's crypto: TinyCrypt up to SDK 3.1, PSA (mbedtls, Oberon) from 3.2."""
-    if CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] >= cv.Version(3, 2, 0):
+    if CORE.framework_version >= cv.Version(3, 2, 0):
         return ("mbedtls", "oberon-psa-crypto")
     return ("tinycrypt",)
 
@@ -398,7 +397,7 @@ def bluetooth_west_projects() -> tuple[str, ...]:
 def wanted_west_projects() -> set[str]:
     projects = set(_get_data().west_projects)
     # Zephyr 4.1 moved the Cortex-M core headers to cmsis_6
-    if CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] >= cv.Version(3, 1, 0):
+    if CORE.framework_version >= cv.Version(3, 1, 0):
         projects.add("cmsis_6")
     # Sysbuild builds the MCUboot image with any bootloader
     if CORE.data.get(KEY_ZEPHYR, {}).get(KEY_SYSBUILD):
@@ -580,8 +579,7 @@ def _check_and_install(version: str) -> None:
     projects = wanted_west_projects()
     if not sentinel.exists() or not zephyr_reqs.exists():
         _install_framework(env_python_path, framework_path, version, projects)
-        framework_ver = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
-        if framework_ver < cv.Version(2, 9, 2):
+        if CORE.framework_version < cv.Version(2, 9, 2):
             _patch_uf2conv_escape_sequences(framework_path)
         sentinel.touch()
     else:
@@ -610,12 +608,7 @@ def _check_and_install(version: str) -> None:
         zephyr_sentinel.touch()
     _patch_pyocd_nrf54lm20a_flash_algo(python_env_path)
 
-    # Shared by every SDK version that uses the same toolchain; locked only
-    # while missing
-    toolchain_version = _get_toolchain_version()
-    if not (_get_toolchain_path(toolchain_version) / ".ready").exists():
-        with install_lock(get_sdk_nrf_tools_path(), f"toolchain-{toolchain_version}"):
-            _install_toolchain()
+    _install_toolchain()
 
 
 # Nordic's nrfutil launcher, one static binary per host; its commands are installed from Nordic's
@@ -718,23 +711,14 @@ def ensure_nordic_nrfutil(env: dict[str, str]) -> str:
 
 def _install_toolchain() -> None:
     toolchain_version = _get_toolchain_version()
-    toolchains_dir = _get_toolchain_path(toolchain_version)
-    sentinel = toolchains_dir / ".ready"
-    if not sentinel.exists():
-        install_sdk(toolchains_dir, toolchain_version, ARM_TOOLCHAIN)
-        # Best-effort prune of resume leftovers, including orphans of retired
-        # toolchain versions; the SDK archives are hundreds of MB. The other
-        # toolchain still in use may be downloading under its own lock, so its
-        # leftovers are kept. A locked file must not discard the just-completed
-        # install.
-        other_versions = tuple(
-            f"{v}." for v in _TOOLCHAIN_VERSIONS if v != toolchain_version
-        )
-        for leftover in toolchains_dir.parent.glob("*.archive.part*"):
-            if leftover.name.startswith(other_versions):
-                continue
-            try:
-                leftover.unlink()
-            except OSError as err:
-                _LOGGER.debug("Could not remove %s: %s", leftover, err)
-        sentinel.touch()
+    # The other toolchain in use may be downloading under its own lock
+    other_versions = tuple(
+        f"{v}." for v in _TOOLCHAIN_VERSIONS if v != toolchain_version
+    )
+    ensure_sdk(
+        _get_toolchain_path(toolchain_version),
+        toolchain_version,
+        ARM_TOOLCHAIN,
+        keep_leftover=lambda leftover: leftover.name.startswith(other_versions),
+        lock_root=get_sdk_nrf_tools_path(),
+    )
