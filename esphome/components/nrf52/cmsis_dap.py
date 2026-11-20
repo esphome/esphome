@@ -17,6 +17,7 @@ from .const import (
     VARIANT_NRF54LM20,
     VARIANT_NRF52832,
     VARIANT_NRF52840,
+    VARIANTS_NRF54L,
 )
 from .framework import (
     check_and_install,
@@ -145,7 +146,7 @@ def upload_using_cmsis_dap(unique_id: str | None = None) -> None:
     pyocd = [str(paths["python_executable"]), "-m", "pyocd"]
     probe = ["-t", target] + (["-u", unique_id] if unique_id else [])
     cmd = [*pyocd, "flash", "--no-wait", *probe, "-e", "sector"]
-    if variant in (VARIANT_NRF54L15, VARIANT_NRF54LM20):
+    if variant in VARIANTS_NRF54L:
         cmd += ["--script", str(_NRF54L_WATCHDOG_SCRIPT)]
     cmd += [str(image) for image in images]
     if not run_command_ok(cmd, env=env, stream_output=True):

@@ -1,15 +1,16 @@
 #pragma once
 
-#include "esphome/core/component.h"
 #include "esphome/components/tuya/tuya.h"
 #include "esphome/components/water_heater/water_heater.h"
 
 namespace esphome::tuya {
 
-class TuyaWaterHeater final : public water_heater::WaterHeater, public Component {
+class TuyaWaterHeater final : public water_heater::WaterHeater {
  public:
-  void setup() override;
-  void dump_config() override;
+  // Called from generated code before setup, after the datapoint setters
+  void register_listeners();
+  // Called from the hub's dump_config()
+  void dump_child_config();
 
   void set_tuya_parent(Tuya *parent) { this->parent_ = parent; }
 
