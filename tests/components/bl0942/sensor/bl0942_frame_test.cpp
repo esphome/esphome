@@ -39,7 +39,7 @@ class BL0942FrameTest : public ::testing::Test {
     this->sut_.set_voltage_sensor(&this->voltage_);
   }
 
-  void receive(const Bytes &bytes) {
+  void receive_(const Bytes &bytes) {
     this->uart_.rx.insert(this->uart_.rx.end(), bytes.begin(), bytes.end());
     this->sut_.loop();
   }
@@ -50,7 +50,7 @@ class BL0942FrameTest : public ::testing::Test {
 };
 
 TEST_F(BL0942FrameTest, WholePacketIsPublished) {
-  this->receive(packet(volts(230)));
+  this->receive_(packet(volts(230)));
   EXPECT_NEAR(this->voltage_.state, 230.0f, 0.01f);
 }
 
@@ -58,17 +58,17 @@ TEST_F(BL0942FrameTest, WholePacketIsPublished) {
 // is left waiting in the UART, until the last of them has arrived.
 TEST_F(BL0942FrameTest, PacketInPiecesIsPublishedWhenComplete) {
   const Bytes bytes = packet(volts(240));
-  this->receive(Bytes(bytes.begin(), bytes.begin() + 1));
-  this->receive(Bytes(bytes.begin() + 1, bytes.begin() + 10));
+  this->receive_(Bytes(bytes.begin(), bytes.begin() + 1));
+  this->receive_(Bytes(bytes.begin() + 1, bytes.begin() + 10));
   EXPECT_FALSE(this->voltage_.has_state());
   EXPECT_TRUE(this->uart_.rx.empty());
-  this->receive(Bytes(bytes.begin() + 10, bytes.end()));
+  this->receive_(Bytes(bytes.begin() + 10, bytes.end()));
   EXPECT_NEAR(this->voltage_.state, 240.0f, 0.01f);
 }
 
 TEST_F(BL0942FrameTest, NoiseBeforeThePacketIsSkipped) {
-  this->receive({0x00, 0xFF, 0x12});
-  this->receive(packet(volts(231)));
+  this->receive_({0x00, 0xFF, 0x12});
+  this->receive_(packet(volts(231)));
   EXPECT_NEAR(this->voltage_.state, 231.0f, 0.01f);
 }
 
@@ -78,24 +78,36 @@ TEST_F(BL0942FrameTest, PacketBehindAFalseHeaderIsFound) {
   Bytes bytes{0x55, 0x01, 0x02};
   const Bytes real = packet(volts(232));
   bytes.insert(bytes.end(), real.begin(), real.end());
-  this->receive(bytes);
+  this->receive_(bytes);
   EXPECT_NEAR(this->voltage_.state, 232.0f, 0.01f);
 }
 
 TEST_F(BL0942FrameTest, BadChecksumIsNotPublished) {
   Bytes bytes = packet(volts(233));
   bytes[22] ^= 0x01;
-  this->receive(bytes);
+  this->receive_(bytes);
   EXPECT_FALSE(this->voltage_.has_state());
+}
+
+// The rest of a rejected packet is searched for a header, so a header value among its bytes leaves a
+// partial packet behind. The next request drops it.
+TEST_F(BL0942FrameTest, PacketAfterARejectedOneIsPublished) {
+  Bytes bad = packet(volts(235));
+  bad[10] = 0x55;
+  this->receive_(bad);
+  EXPECT_FALSE(this->voltage_.has_state());
+  this->sut_.update();
+  this->receive_(packet(volts(236)));
+  EXPECT_NEAR(this->voltage_.state, 236.0f, 0.01f);
 }
 
 // A packet which stopped part of the way through must not take the first bytes of the answer to
 // the next request as its own.
 TEST_F(BL0942FrameTest, PartialPacketIsForgottenAtTheNextRequest) {
   const Bytes stale = packet(volts(100));
-  this->receive(Bytes(stale.begin(), stale.begin() + 12));
+  this->receive_(Bytes(stale.begin(), stale.begin() + 12));
   this->sut_.update();
-  this->receive(packet(volts(234)));
+  this->receive_(packet(volts(234)));
   EXPECT_NEAR(this->voltage_.state, 234.0f, 0.01f);
 }
 
