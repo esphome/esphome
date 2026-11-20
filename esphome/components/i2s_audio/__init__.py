@@ -51,6 +51,7 @@ CONF_I2S_LRCLK_PIN = "i2s_lrclk_pin"
 
 CONF_I2S_AUDIO_ID = "i2s_audio_id"
 CONF_FULL_DUPLEX = "full_duplex"
+CONF_KEEP_TX_ACTIVE = "keep_tx_active"
 CONF_I2S_COMM_FMT = "i2s_comm_fmt"
 CONF_SPDIF_MODE = "spdif_mode"
 
@@ -227,6 +228,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_I2S_BCLK_PIN): pins.internal_gpio_output_pin_number,
         cv.Optional(CONF_I2S_MCLK_PIN): pins.internal_gpio_output_pin_number,
         cv.Optional(CONF_FULL_DUPLEX, default=False): cv.boolean,
+        cv.Optional(CONF_KEEP_TX_ACTIVE, default=False): cv.boolean,
     },
 )
 
@@ -338,6 +340,8 @@ def _final_validate(_: ConfigType) -> None:
 
     data = _get_data()
     for config in i2s_audio_configs:
+        if config.get(CONF_KEEP_TX_ACTIVE, False) and not config[CONF_FULL_DUPLEX]:
+            raise cv.Invalid(f"'{CONF_KEEP_TX_ACTIVE}' requires '{CONF_FULL_DUPLEX}'")
         if config[CONF_FULL_DUPLEX]:
             bus_id = config[CONF_ID]
             _validate_full_duplex(bus_id)
@@ -368,6 +372,8 @@ async def to_code(config: ConfigType) -> None:
     cg.add_optional(var.set_mclk_pin, config.get(CONF_I2S_MCLK_PIN))
     if config[CONF_FULL_DUPLEX]:
         cg.add_define("USE_I2S_AUDIO_FULL_DUPLEX")
+        if config[CONF_KEEP_TX_ACTIVE]:
+            cg.add(var.set_keep_tx_active(True))
 
 
 FILTER_SOURCE_FILES = filter_source_files_from_defines(
