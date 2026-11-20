@@ -6,6 +6,10 @@
 #include <zephyr/drivers/watchdog.h>
 #include <zephyr/sys/reboot.h>
 
+#ifdef USE_ZEPHYR_DWT_MICROS
+#include <cmsis_core.h>
+#endif
+
 // Empty zephyr namespace block to satisfy ci-custom's lint_namespace check.
 // HAL functions live in namespace esphome (root) — they are not part of the
 // zephyr component's API.
@@ -18,12 +22,65 @@ static int wdt_channel_id = -1;  // NOLINT(cppcoreguidelines-avoid-non-const-glo
 static const device *const WDT = DEVICE_DT_GET(DT_ALIAS(watchdog0));
 #endif
 
-// yield(), delay(), micros(), millis(), millis_64(), delayMicroseconds(),
+// yield(), delay(), millis(), millis_64(), delayMicroseconds(), micros() except the cycle-counter one,
 // arch_get_cpu_cycle_count(), arch_get_cpu_freq_hz() inlined in
 // components/zephyr/hal.h.
 
+#ifdef USE_ZEPHYR_DWT_MICROS
+// The kernel clock counts in ticks of about 30 us, and the CPU cycle counter stops while the CPU sleeps.
+// micros() adds the cycles counted since the last call. While the CPU stays busy the result and the kernel clock
+// each trail the true time by less than a tick, so they differ by less than a tick either way. A sleep shorter
+// than a tick can go unnoticed, so the result may trail the true time by up to two ticks until the next resync.
+// The CPU cannot sleep while interrupts are locked, so a lag there comes from before the lock. It and any drift
+// are left for the next unlocked call, which keeps differences inside an InterruptLock exact; InterruptLock makes that
+// call just before it locks, so timestamps taken under the lock line up with later unlocked ones. A counter that has
+// not moved since the last call is not running, and then the kernel clock is used even under a lock.
+
+// One struct so the code loads a single base address.
+static struct {
+  uint32_t value;
+  uint32_t last_cycles;  // Moves on by whole microseconds only, so the remainder carries over.
+} micros_state;          // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+static constexpr uint32_t CYCLES_PER_US = 64;  // nRF52 cores always run at 64 MHz.
+// Drift between unlocked calls stays far below this; a larger lead is a lag of over 2^31 us that wrapped. A lag
+// within this of 2^32 us still looks like a lead and holds micros() for at most a second; that is accepted.
+static constexpr int32_t MAX_LEAD_US = 1000000;
+
+uint32_t micros() {
+  const unsigned int key = irq_lock();
+  const uint32_t cycles = DWT->CYCCNT;
+  const uint32_t elapsed_us = (cycles - micros_state.last_cycles) / CYCLES_PER_US;
+  micros_state.last_cycles += elapsed_us * CYCLES_PER_US;
+  uint32_t value = micros_state.value + elapsed_us;
+
+  const uint32_t kernel_us = k_ticks_to_us_floor32(k_uptime_ticks());
+  // A tick, plus 1 us because kernel_us is rounded down.
+  const int32_t tick_us = k_ticks_to_us_ceil32(1) + 1;
+  const int32_t ahead = static_cast<int32_t>(value - kernel_us);
+  const bool unlocked = arch_irq_unlocked(key);
+  if ((ahead < -tick_us || ahead > MAX_LEAD_US) && (unlocked || elapsed_us == 0)) {
+    // The CPU slept, so the cycle counter fell behind.
+    value = kernel_us;
+    micros_state.last_cycles = cycles;
+  } else if (ahead >= tick_us && ahead <= MAX_LEAD_US && unlocked) {
+    // The CPU clock can run fast against the RTC; cap the drift at one tick, but never below a result already
+    // returned under a lock.
+    const uint32_t cap = kernel_us + tick_us - 1;
+    value = static_cast<int32_t>(cap - micros_state.value) > 0 ? cap : micros_state.value;
+  }
+  micros_state.value = value;
+  irq_unlock(key);
+  return value;
+}
+#endif
+
 void arch_init() {
   main_loop_thread() = k_current_get();
+#ifdef USE_ZEPHYR_DWT_MICROS
+  CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
+  DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
+#endif
 #ifdef CONFIG_WATCHDOG
   if (device_is_ready(WDT)) {
     static wdt_timeout_cfg wdt_config{};

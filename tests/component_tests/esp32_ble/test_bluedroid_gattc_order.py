@@ -39,11 +39,14 @@ _CLIENTS = {
         ("6.0.0", False),
         ("6.0.2", False),
         ("6.0.3", True),
-        ("6.1.0", True),
+        ("6.0.4", True),
+        ("6.1.0", False),
+        ("6.1.1", True),
+        ("6.2.0", True),
     ],
 )
 def test_strict_handle_order_versions(version: str, expected: bool) -> None:
-    """ESP-IDF added the check in 5.5.6 and 6.0.3."""
+    """ESP-IDF added the check in 5.5.6, 6.0.3 and 6.1.1."""
     assert _has_strict_handle_order(cv.Version.parse(version)) is expected
 
 
