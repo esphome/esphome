@@ -8,9 +8,10 @@
 
 namespace lfhraw {
 using namespace esphome;
-using LdData = FrameFormat<FrameLengthU16LE<4, 10>, 0xF4, 0xF3, 0xF2, 0xF1>;
-using LdCmd = FrameFormat<FrameLengthU16LE<4, 10>, 0xFD, 0xFC, 0xFB, 0xFA>;
-using Tuya = FrameFormat<FrameLengthU16BE<4, 7>, 0x55, 0xAA>;
+using LdLength = PayloadLengthU16LE<LengthField{.offset = 4, .trailer = 4}>;
+using LdData = FrameFormat<FrameHeader<0xF4, 0xF3, 0xF2, 0xF1>, LdLength>;
+using LdCmd = FrameFormat<FrameHeader<0xFD, 0xFC, 0xFB, 0xFA>, LdLength>;
+using Tuya = FrameFormat<FrameHeader<0x55, 0xAA>, PayloadLengthU16BE<LengthField{.offset = 4, .trailer = 1}>>;
 inline LengthFrameReader<50, LdCmd, LdData> ld_reader;
 inline LengthFrameReader<255, Tuya> tu_reader;
 inline uint32_t last_rx = 0;
@@ -48,7 +49,11 @@ inline void poll(uart::UARTComponent *bus) {
     tu_reader.feed(c, tu_frame);
     last_rx = now;
   }
-  if (tu_reader.length() > 0 && now - last_rx > 300)
-    tu_reader.flush(tu_frame);
+  if (now - last_rx > 300) {
+    if (ld_reader.length() > 0)
+      ld_reader.flush(ld_frame);
+    if (tu_reader.length() > 0)
+      tu_reader.flush(tu_frame);
+  }
 }
 }  // namespace lfhraw
