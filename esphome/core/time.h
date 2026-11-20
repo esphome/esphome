@@ -138,15 +138,9 @@ struct ESPTime {
   /** Convert an UTC epoch timestamp to a UTC time ESPTime instance.
    *
    * @param epoch Seconds since 1st January 1970. In UTC.
-   * @return The generated ESPTime
+   * @return The generated ESPTime, invalid outside the years 0 to 65535
    */
-  static ESPTime from_epoch_utc(time_t epoch) {
-    struct tm *c_tm = ::gmtime(&epoch);
-    if (c_tm == nullptr) {
-      return ESPTime{};  // Return an invalid ESPTime
-    }
-    return ESPTime::from_c_tm(c_tm, epoch);
-  }
+  static ESPTime from_epoch_utc(time_t epoch);
 
   /// Recalculate the timestamp field from the other fields of this ESPTime instance (must be UTC).
   void recalc_timestamp_utc(bool use_day_of_year = true);
@@ -168,5 +162,9 @@ struct ESPTime {
   bool operator==(const ESPTime &other) const;
   bool operator>=(const ESPTime &other) const;
   bool operator>(const ESPTime &other) const;
+
+ protected:
+  /// recalc_timestamp_utc() that also returns whether the fields were valid
+  bool recalc_timestamp_utc_(bool use_day_of_year);
 };
 }  // namespace esphome

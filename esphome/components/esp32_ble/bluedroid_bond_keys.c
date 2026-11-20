@@ -1,4 +1,4 @@
-// Linker wraps that keep a bonded device's keys when it re-encrypts without pairing again (ESP-IDF 5.5.6).
+// Linker wraps that keep a bonded device's keys when it re-encrypts without pairing again (ESP-IDF 5.5.6, 6.1.1).
 // Same guard as espressif/esp-idf#19322; drop once ESPHome uses an ESP-IDF release that contains it.
 // C, because Bluedroid's btm_ble_int.h does not close its extern "C" block.
 

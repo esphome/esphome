@@ -9,7 +9,7 @@ import re
 import subprocess
 from typing import Any
 
-from esphome import yaml_util
+from esphome import espidf, yaml_util
 import esphome.codegen as cg
 from esphome.components.const import (
     CONF_ENABLE_OTA_DOWNGRADE_PROTECTION,
@@ -56,10 +56,14 @@ from esphome.const import (
 from esphome.core import CORE, EsphomeError, HexInt
 from esphome.core.config import BOARD_MAX_LENGTH
 from esphome.coroutine import CoroPriority, coroutine_with_priority
-from esphome.espidf import sbom
 from esphome.espidf.component import IDFComponent, generate_idf_components
 import esphome.final_validate as fv
-from esphome.helpers import copy_file_if_changed, rmtree, write_file_if_changed
+from esphome.helpers import (
+    copy_file_if_changed,
+    path_define_flag,
+    rmtree,
+    write_file_if_changed,
+)
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
 from esphome.writer import clean_build, clean_cmake_cache
@@ -100,6 +104,7 @@ from .const import (
     VARIANT_ESP32S31,
     VARIANT_FRIENDLY,
     VARIANTS,
+    variant_has_wifi,
 )
 
 # force import gpio to register pin schema
@@ -224,6 +229,24 @@ NVS_ENCRYPTION_HMAC_VARIANTS = {
     VARIANT_ESP32P4,
 }
 
+# Variants with an AES driver, based on SOC_AES_SUPPORTED in soc_caps.h. ESP-IDF
+# 6.1 adds the ESP32-H4 and ESP32-S31. A chip not listed keeps mbedTLS XTS.
+HARDWARE_AES_VARIANTS_IDF60 = {
+    VARIANT_ESP32,
+    VARIANT_ESP32S2,
+    VARIANT_ESP32S3,
+    VARIANT_ESP32C3,
+    VARIANT_ESP32C5,
+    VARIANT_ESP32C6,
+    VARIANT_ESP32H2,
+    VARIANT_ESP32H21,
+    VARIANT_ESP32P4,
+}
+HARDWARE_AES_VARIANTS = HARDWARE_AES_VARIANTS_IDF60 | {
+    VARIANT_ESP32H4,
+    VARIANT_ESP32S31,
+}
+
 COMPILER_OPTIMIZATIONS = {
     "DEBUG": "CONFIG_COMPILER_OPTIMIZATION_DEBUG",
     "NONE": "CONFIG_COMPILER_OPTIMIZATION_NONE",
@@ -331,32 +354,25 @@ ARDUINO_EXCLUDED_IDF_COMPONENTS = (
     "joltwallet__littlefs",  # LittleFS - ESPHome doesn't use filesystem
 )
 
-# Entries arduino-esp32 only declares below the given IDF version; stubbing one past
-# it clashes with ESPHome's own managed component of the same short name.
-ARDUINO_EXCLUDED_IDF_COMPONENTS_MAX_IDF: dict[str, cv.Version] = {
-    "espressif__libsodium": cv.Version(6, 0, 0),
+# arduino-esp32 dependencies that ESPHome replaces with its own component when a
+# build uses it, through the manifest "overrides" field. IDF cannot hold two
+# components of the same short name, so a stub would clash with the replacement.
+ARDUINO_OVERRIDDEN_IDF_COMPONENTS: dict[str, str] = {
+    "espressif/libsodium": "esphome/libsodium",
 }
 
 
+def manifest_overrides_supported() -> bool:
+    """Whether the IDF component manager reads the manifest "overrides" field.
+
+    pioarduino pins idf-component-manager 2.4 for ESP-IDF 5, which predates it.
+    """
+    return CORE.using_toolchain_esp_idf or idf_version() >= cv.Version(6, 0, 0)
+
+
 def arduino_bundles_libsodium() -> bool:
-    """arduino-esp32 ships its own libsodium below IDF 6.0."""
-    return (
-        CORE.using_arduino
-        and idf_version()
-        < ARDUINO_EXCLUDED_IDF_COMPONENTS_MAX_IDF["espressif__libsodium"]
-    )
-
-
-def arduino_excluded_idf_components() -> set[str]:
-    """The arduino-bundled components to stub for this build's IDF version."""
-    version = idf_version()
-    return {
-        component
-        for component in ARDUINO_EXCLUDED_IDF_COMPONENTS
-        if (max_version := ARDUINO_EXCLUDED_IDF_COMPONENTS_MAX_IDF.get(component))
-        is None
-        or version < max_version
-    }
+    """arduino-esp32's own libsodium is in the build and cannot be replaced."""
+    return CORE.using_arduino and not manifest_overrides_supported()
 
 
 # Mapping of Arduino libraries to IDF managed components they require
@@ -843,6 +859,29 @@ def is_idf_sdkconfig_option_enabled(name: str) -> bool:
     return value is not None and _format_sdkconfig_val(value) == "y"
 
 
+def _is_idf_sdkconfig_option_not_disabled(name: str) -> bool:
+    """Return True unless sdkconfig_options set the bool option to ``n``; an
+    unset option keeps its Kconfig default, which is on for the callers."""
+    value = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS].get(name)
+    return value is None or _format_sdkconfig_val(value) == "y"
+
+
+def task_wdt_timeout_ms() -> int:
+    """Return the configured task watchdog timeout; 0 when it is disabled.
+
+    For final validation only, as it reads the full config.
+    """
+    return fv.full_config.get()[DOMAIN][CONF_WATCHDOG_TIMEOUT].total_milliseconds
+
+
+def validate_task_wdt_enabled(config: ConfigType, key: str) -> None:
+    """Final-validate that ``key`` is not set while the task watchdog is disabled."""
+    if key in config and task_wdt_timeout_ms() == 0:
+        raise cv.Invalid(
+            f"Cannot be set when {DOMAIN}.{CONF_WATCHDOG_TIMEOUT} is 0s", path=[key]
+        )
+
+
 def set_idf_sdkconfig_default(name: str, value: SdkconfigValueType) -> None:
     """Set an sdkconfig option unless it is already set.
 
@@ -995,7 +1034,11 @@ def request_tls() -> None:
     """Request the mbedTLS TLS stack and the esp-tls wrapper.
 
     Without a request TLS and its ECP/PEM-write/CRL/CSR crypto compile out;
-    hashes, AES and RSA stay available.
+    AES, SHA-256 and the other hashes stay available. On ESP-IDF 6 builds
+    without Wi-Fi, Bluetooth, a websocket server or PPP, SHA-1 also goes; on
+    native ESP-IDF 6 builds SHA-224 goes, and RSA unless updates are
+    RSA-signed. Set CONFIG_MBEDTLS_SHA1_C or CONFIG_MBEDTLS_RSA_C to keep
+    those.
     """
     require_mbedtls_tls()
     include_builtin_idf_component("esp-tls")
@@ -1189,14 +1232,12 @@ def _is_framework_url(source: str) -> bool:
 # The default/recommended arduino framework version
 #  - https://github.com/espressif/arduino-esp32/releases
 ARDUINO_FRAMEWORK_VERSION_LOOKUP = {
-    "recommended": cv.Version(3, 3, 12),
-    "latest": cv.Version(3, 3, 12),
-    "dev": cv.Version(3, 3, 12),
+    "recommended": cv.Version(4, 0, 0),
+    "latest": cv.Version(4, 0, 0),
+    "dev": cv.Version(4, 0, 0),
 }
 ARDUINO_PLATFORM_VERSION_LOOKUP = {
-    cv.Version(
-        4, 0, 0, "alpha1"
-    ): "https://github.com/pioarduino/platform-espressif32.git#prep_IDF6",
+    cv.Version(4, 0, 0): cv.Version(61, 4, 0),
     cv.Version(3, 3, 12): cv.Version(55, 3, 312),
     cv.Version(3, 3, 11): cv.Version(55, 3, 311),
     cv.Version(3, 3, 10): cv.Version(55, 3, 39),
@@ -1221,7 +1262,7 @@ ARDUINO_PLATFORM_VERSION_LOOKUP = {
 # These versions correspond to pioarduino/esp-idf releases
 # See: https://github.com/pioarduino/esp-idf/releases
 ARDUINO_IDF_VERSION_LOOKUP = {
-    cv.Version(4, 0, 0, "alpha1"): cv.Version(6, 0, 1),
+    cv.Version(4, 0, 0): cv.Version(6, 1, 1),
     cv.Version(3, 3, 12): cv.Version(5, 5, 6),
     cv.Version(3, 3, 11): cv.Version(5, 5, 5),
     cv.Version(3, 3, 10): cv.Version(5, 5, 5),
@@ -1246,18 +1287,14 @@ ARDUINO_IDF_VERSION_LOOKUP = {
 # The default/recommended esp-idf framework version
 #  - https://github.com/espressif/esp-idf/releases
 ESP_IDF_FRAMEWORK_VERSION_LOOKUP = {
-    "recommended": cv.Version(5, 5, 6),
-    "latest": cv.Version(5, 5, 6),
-    "dev": cv.Version(5, 5, 6),
+    "recommended": cv.Version(6, 1, 1),
+    "latest": cv.Version(6, 1, 1),
+    "dev": cv.Version(6, 1, 1),
 }
 
 ESP_IDF_PLATFORM_VERSION_LOOKUP = {
-    cv.Version(
-        6, 0, 1
-    ): "https://github.com/pioarduino/platform-espressif32.git#prep_IDF6",
-    cv.Version(
-        6, 0, 0
-    ): "https://github.com/pioarduino/platform-espressif32.git#prep_IDF6",
+    cv.Version(6, 1, 1): cv.Version(61, 4, 0),
+    cv.Version(6, 1, 0): cv.Version(61, 4, 0),
     cv.Version(5, 5, 6): cv.Version(55, 3, 312),
     cv.Version(5, 5, 5): cv.Version(55, 3, 312),
     cv.Version(5, 5, 4): cv.Version(55, 3, 39),
@@ -1280,8 +1317,8 @@ ESP_IDF_PLATFORM_VERSION_LOOKUP = {
 # The platform-espressif32 version
 #  - https://github.com/pioarduino/platform-espressif32/releases
 PLATFORM_VERSION_LOOKUP = {
-    "recommended": cv.Version(55, 3, 312),
-    "latest": cv.Version(55, 3, 312),
+    "recommended": cv.Version(61, 4, 0),
+    "latest": cv.Version(61, 4, 0),
     "dev": "https://github.com/pioarduino/platform-espressif32.git#develop",
 }
 
@@ -2518,7 +2555,13 @@ CONFIG_SCHEMA = cv.All(
             ): _validate_toolchain,
             cv.Optional(CONF_WATCHDOG_TIMEOUT, default="5s"): cv.All(
                 cv.positive_time_period_seconds,
-                cv.Range(min=cv.TimePeriod(seconds=5), max=cv.TimePeriod(seconds=60)),
+                cv.Any(
+                    cv.Range(max=cv.TimePeriod(seconds=0)),
+                    cv.Range(
+                        min=cv.TimePeriod(seconds=5), max=cv.TimePeriod(seconds=60)
+                    ),
+                    msg="must be 0s (disabled) or between 5s and 60s",
+                ),
             ),
         }
     ),
@@ -2746,6 +2789,144 @@ MBEDTLS_TLS_EXTRA_OPTIONS = (
     "CONFIG_MBEDTLS_ECDSA_DETERMINISTIC",
 )
 
+# Wi-Fi (SAE, OWE, DPP), Bluetooth and OpenThread only use P-256, and their
+# Kconfig selects it. Without TLS nothing needs another curve, yet IDF 6's PSA
+# crypto links every enabled one.
+MBEDTLS_NON_P256_CURVE_OPTIONS = (
+    "CONFIG_MBEDTLS_ECP_DP_SECP384R1_ENABLED",
+    "CONFIG_MBEDTLS_ECP_DP_SECP521R1_ENABLED",
+    "CONFIG_MBEDTLS_ECP_DP_SECP256K1_ENABLED",
+    "CONFIG_MBEDTLS_ECP_DP_BP256R1_ENABLED",
+    "CONFIG_MBEDTLS_ECP_DP_BP384R1_ENABLED",
+    "CONFIG_MBEDTLS_ECP_DP_BP512R1_ENABLED",
+    "CONFIG_MBEDTLS_ECP_DP_CURVE25519_ENABLED",
+)
+
+# AES modes that no TLS cipher suite and no component uses; IDF 6's PSA crypto
+# links them whenever they are enabled.
+MBEDTLS_UNUSED_CIPHER_MODE_OPTIONS = (
+    "CONFIG_MBEDTLS_CIPHER_MODE_XTS",
+    "CONFIG_MBEDTLS_CIPHER_MODE_CFB",
+    "CONFIG_MBEDTLS_CIPHER_MODE_OFB",
+)
+
+# RSA and the padding and certificate options that need it. Without TLS only
+# signed updates verify RSA signatures.
+MBEDTLS_RSA_OPTIONS = (
+    "CONFIG_MBEDTLS_RSA_C",
+    "CONFIG_MBEDTLS_PKCS1_V15",
+    "CONFIG_MBEDTLS_PKCS1_V21",
+    "CONFIG_MBEDTLS_X509_RSASSA_PSS_SUPPORT",
+)
+
+# Secure Boot and signed app options; any of them verifies updates, with RSA
+# unless an ECDSA scheme is chosen.
+_SECURE_SIGNING_OPTIONS = (
+    "CONFIG_SECURE_BOOT",
+    "CONFIG_SECURE_SIGNED_APPS_NO_SECURE_BOOT",
+    "CONFIG_SECURE_SIGNED_ON_UPDATE_NO_SECURE_BOOT",
+)
+
+# Appended to esp_config.h through MBEDTLS_USER_CONFIG_FILE. TF-PSA-Crypto's own
+# defaults turn these on and sdkconfig cannot reach them: finite-field
+# Diffie-Hellman, which only TLS 1.2 DHE suites and TLS 1.3 FFDHE groups use,
+# and RSA-PSS, which fails the prerequisite check once CONFIG_MBEDTLS_RSA_C is off.
+# The flag reaches every ESP-IDF file's compile line, so the header is copied
+# next to the machine-wide ESP-IDF install: a path in the build directory or the
+# esphome checkout would differ per device or worktree and miss the shared
+# ccache (CCACHE_BASEDIR only rewrites path arguments, not -D values).
+PSA_USER_CONFIG_SOURCE = Path(espidf.__file__).parent / "psa_user_config.h"
+
+
+def _psa_user_config_header() -> Path:
+    """The installed copy of PSA_USER_CONFIG_SOURCE, named by its content so
+    ESPHome versions sharing the tools cache never overwrite each other's."""
+    import hashlib
+
+    from esphome.espidf.framework import get_idf_tools_path
+
+    digest = hashlib.sha256(PSA_USER_CONFIG_SOURCE.read_bytes()).hexdigest()[:8]
+    source = PSA_USER_CONFIG_SOURCE
+    return get_idf_tools_path() / "esphome" / f"{source.stem}.{digest}{source.suffix}"
+
+
+def _rsa_signing_enabled() -> bool:
+    """Whether updates are verified with RSA, the Kconfig default scheme."""
+    if is_idf_sdkconfig_option_enabled(SIGNING_SCHEMES[SIGNING_SCHEME_RSA3072]):
+        return True
+    return any(
+        is_idf_sdkconfig_option_enabled(option) for option in _SECURE_SIGNING_OPTIONS
+    ) and not any(
+        is_idf_sdkconfig_option_enabled(SIGNING_SCHEMES[scheme])
+        for scheme in (SIGNING_SCHEME_ECDSA256, SIGNING_SCHEME_ECDSA_V1)
+    )
+
+
+def _ecp_stays_on() -> bool:
+    """Whether ECP survives the TLS-off trim: X.509 parsing needs the PK layer,
+    which needs RSA or ECP. Native Wi-Fi's mbedTLS crypto selects ECP; hosted
+    Wi-Fi has no such option."""
+    if _mbedtls_sdkconfig().ecp_required or is_idf_sdkconfig_option_enabled(
+        "CONFIG_MBEDTLS_ECP_C"
+    ):
+        return True
+    return (
+        _network_sdkconfig().wifi
+        and variant_has_wifi(get_esp32_variant())
+        and _is_idf_sdkconfig_option_not_disabled("CONFIG_ESP_WIFI_MBEDTLS_CRYPTO")
+    )
+
+
+def _psa_user_config_applies() -> bool:
+    """The user config header reaches every component only on the native ESP-IDF
+    toolchain, and Arduino's libraries call mbedTLS directly."""
+    return (
+        idf_version() >= cv.Version(6, 0, 0)
+        and CORE.using_toolchain_esp_idf
+        and not CORE.using_arduino
+    )
+
+
+# Trimmed options that stay on when any of these user sdkconfig options is set:
+# a P-384 app signing key verifies updates with P-384, and nothing selects it.
+_MBEDTLS_TRIM_KEPT_BY = {
+    "CONFIG_MBEDTLS_ECP_DP_SECP384R1_ENABLED": (
+        "CONFIG_SECURE_BOOT_ECDSA_KEY_LEN_384_BITS",
+    ),
+}
+
+
+def _uses_hardware_aes() -> bool:
+    """Whether mbedTLS runs AES on the hardware (CONFIG_MBEDTLS_HARDWARE_AES).
+
+    Kconfig turns it off on chips without AES and under the PSRAM DUPLDST
+    workaround; NVS always builds its encrypted partition code, which then
+    needs mbedTLS XTS.
+    """
+    aes_variants = (
+        HARDWARE_AES_VARIANTS
+        if idf_version() >= cv.Version(6, 1, 0)
+        else HARDWARE_AES_VARIANTS_IDF60
+    )
+    return (
+        get_esp32_variant() in aes_variants
+        and _is_idf_sdkconfig_option_not_disabled("CONFIG_MBEDTLS_HARDWARE_AES")
+        and not is_idf_sdkconfig_option_enabled(
+            "CONFIG_SPIRAM_CACHE_WORKAROUND_STRATEGY_DUPLDST"
+        )
+    )
+
+
+def _trim_mbedtls_options(options: Iterable[str]) -> None:
+    """Default each option off unless an option in _MBEDTLS_TRIM_KEPT_BY keeps it."""
+    for option in options:
+        if not any(
+            is_idf_sdkconfig_option_enabled(name)
+            for name in _MBEDTLS_TRIM_KEPT_BY.get(option, ())
+        ):
+            set_idf_sdkconfig_default(option, False)
+
+
 # Members of the mbedTLS "TLS Protocol Role" Kconfig choice. Setting one
 # member is only valid when the user has not already chosen another.
 MBEDTLS_TLS_ROLE_OPTIONS = (
@@ -2771,6 +2952,7 @@ _MBEDTLS_TLS_ON_OPTIONS = (
     "CONFIG_OPENTHREAD_BORDER_ROUTER",
     # Enterprise WiFi selects TLS back on (see the TLS-off block).
     "CONFIG_ESP_WIFI_ENTERPRISE_SUPPORT",
+    "CONFIG_WIFI_RMT_ENTERPRISE_SUPPORT",
 )
 # Any user option under these prefixes only makes sense with TLS compiled in.
 _TLS_OPTION_PREFIXES = ("CONFIG_ESP_TLS_", "CONFIG_MBEDTLS_SSL_", "CONFIG_ESP_HTTPS_")
@@ -2797,7 +2979,8 @@ async def _reconcile_mbedtls_sdkconfig() -> None:
     win; a user-chosen TLS role leaves the whole choice alone.
     """
     data = _mbedtls_sdkconfig()
-    idf6 = idf_version() >= cv.Version(6, 0, 0)
+    version = idf_version()
+    idf6 = version >= cv.Version(6, 0, 0)
     opts = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
 
     if _mbedtls_tls_compiled_out():
@@ -2810,6 +2993,10 @@ async def _reconcile_mbedtls_sdkconfig() -> None:
         # Enterprise WiFi selects TLS back on; wifi writes this itself, but
         # esp_wifi can also be in the build without a wifi: block (openthread).
         set_idf_sdkconfig_default("CONFIG_ESP_WIFI_ENTERPRISE_SUPPORT", False)
+        # IDF 6.1 always reads esp_wifi_remote's Kconfig, whose own enterprise
+        # option selects TLS back on, even on chips with native Wi-Fi.
+        if version >= cv.Version(6, 1, 0):
+            set_idf_sdkconfig_default("CONFIG_WIFI_RMT_ENTERPRISE_SUPPORT", False)
         # WiFi (ESP_WIFI_MBEDTLS_CRYPTO) and Bluetooth deliberately stay on
         # the select-wins path: an unconditional request from request_wifi()
         # would defeat the ECP trim for users who disable that select.
@@ -2818,6 +3005,33 @@ async def _reconcile_mbedtls_sdkconfig() -> None:
         set_idf_sdkconfig_default("CONFIG_MBEDTLS_PEM_WRITE_C", False)
         set_idf_sdkconfig_default("CONFIG_MBEDTLS_X509_CRL_PARSE_C", False)
         set_idf_sdkconfig_default("CONFIG_MBEDTLS_X509_CSR_PARSE_C", False)
+        if idf6:
+            # Only certificates (TLS, EAP) are parsed from PEM, and only RSA keys
+            # larger than the hardware supports need the software MPI.
+            set_idf_sdkconfig_default("CONFIG_MBEDTLS_PEM_PARSE_C", False)
+            set_idf_sdkconfig_default("CONFIG_MBEDTLS_LARGE_KEY_SOFTWARE_MPI", False)
+            _trim_mbedtls_options(MBEDTLS_NON_P256_CURVE_OPTIONS)
+            # Without TLS only Wi-Fi (WPA), websocket handshakes and PPP use
+            # SHA-1, yet the hardware SHA driver links it whenever it is on.
+            # Any build that links esp_wifi keeps it: wifi, espnow, esp32_hosted
+            # and external components re-include it, and Bluetooth pulls it in.
+            if (
+                "esp_wifi" in CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS]
+                and not _network_sdkconfig().bluetooth
+                and not is_idf_sdkconfig_option_enabled("CONFIG_HTTPD_WS_SUPPORT")
+                and not is_idf_sdkconfig_option_enabled("CONFIG_LWIP_PPP_SUPPORT")
+            ):
+                set_idf_sdkconfig_default("CONFIG_MBEDTLS_SHA1_C", False)
+        if (
+            _psa_user_config_applies()
+            and _ecp_stays_on()
+            and not _rsa_signing_enabled()
+            # The padding and certificate options need RSA, so a user choice
+            # for any of them leaves the whole group alone.
+            and not any(option in opts for option in MBEDTLS_RSA_OPTIONS)
+        ):
+            for option in MBEDTLS_RSA_OPTIONS:
+                set_idf_sdkconfig_default(option, False)
     elif (
         # TLS stays in: trim it to the client role unless a component accepts
         # TLS connections or the user already chose a role.
@@ -2862,9 +3076,26 @@ async def _reconcile_mbedtls_sdkconfig() -> None:
     # SHA-384 shares the SHA-512 compression function, so both go together.
     # Only IDF 6.0's PSA engine links a ~3KB software fallback for them; on
     # IDF 5 they are a single hardware-only option with no code size cost.
-    if idf6 and not data.sha512_required:
+    # TLS keeps them: many certificate chains are signed with SHA-384, and
+    # without it HTTPS to those servers fails the certificate check.
+    if idf6 and not data.sha512_required and _mbedtls_tls_compiled_out():
         set_idf_sdkconfig_default("CONFIG_MBEDTLS_SHA384_C", False)
         set_idf_sdkconfig_default("CONFIG_MBEDTLS_SHA512_C", False)
+
+    if _psa_user_config_applies():
+        header = _psa_user_config_header()
+        # Shared by every project on the machine, so publish it atomically.
+        write_file_if_changed(header, PSA_USER_CONFIG_SOURCE.read_text())
+        cg.add_build_flag(path_define_flag("MBEDTLS_USER_CONFIG_FILE", header))
+
+    # Arduino's libraries call mbedTLS directly, so its builds keep every mode.
+    if idf6 and not CORE.using_arduino:
+        hardware_aes = _uses_hardware_aes()
+        _trim_mbedtls_options(
+            option
+            for option in MBEDTLS_UNUSED_CIPHER_MODE_OPTIONS
+            if hardware_aes or option != "CONFIG_MBEDTLS_CIPHER_MODE_XTS"
+        )
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
@@ -3009,7 +3240,7 @@ async def _finalize_arduino_aware_flags():
 
 
 async def to_code(config):
-    framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
+    framework_ver = CORE.framework_version
     conf = config[CONF_FRAMEWORK]
 
     # Check if using ESP-IDF toolchain
@@ -3107,6 +3338,13 @@ async def to_code(config):
     # --undefined: libsrc.a is scanned before the IDF libraries that also register them.
     cg.add_build_flag("-Wl,--wrap=__cxa_atexit")
     cg.add_build_flag("-Wl,--undefined=__wrap___cxa_atexit")
+
+    # strftime() and mktime() reload TZ, and picolibc's parser links the scanf engine.
+    # ESPHome never sets TZ, so the reload is skipped. See tzset_stubs.cpp.
+    # --undefined: libsrc.a is scanned before the C library that calls it.
+    if idf_version() >= cv.Version(6, 0, 0):
+        cg.add_build_flag("-Wl,--wrap=_tzset_unlocked")
+        cg.add_build_flag("-Wl,--undefined=__wrap__tzset_unlocked")
 
     if conf[CONF_TYPE] == FRAMEWORK_ESP_IDF:
         cg.add_build_flag("-DUSE_ESP_IDF")
@@ -3295,14 +3533,14 @@ async def to_code(config):
         add_idf_sdkconfig_option("CONFIG_HEAP_PLACE_FUNCTION_INTO_FLASH", True)
 
     # Setup watchdog
-    add_idf_sdkconfig_option("CONFIG_ESP_TASK_WDT_INIT", True)
-    add_idf_sdkconfig_option("CONFIG_ESP_TASK_WDT_PANIC", True)
-    add_idf_sdkconfig_option("CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU0", False)
-    add_idf_sdkconfig_option("CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU1", False)
-    add_idf_sdkconfig_option(
-        "CONFIG_ESP_TASK_WDT_TIMEOUT_S",
-        config[CONF_WATCHDOG_TIMEOUT].total_seconds,
-    )
+    wdt = config[CONF_WATCHDOG_TIMEOUT].total_seconds
+    add_idf_sdkconfig_option("CONFIG_ESP_TASK_WDT_INIT", wdt != 0)
+    if wdt:
+        cg.add_define("USE_ESP32_TASK_WDT")
+        add_idf_sdkconfig_option("CONFIG_ESP_TASK_WDT_PANIC", True)
+        add_idf_sdkconfig_option("CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU0", False)
+        add_idf_sdkconfig_option("CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU1", False)
+        add_idf_sdkconfig_option("CONFIG_ESP_TASK_WDT_TIMEOUT_S", wdt)
 
     # Disable dynamic log level control to save memory
     add_idf_sdkconfig_option("CONFIG_LOG_DYNAMIC_LEVEL_CONTROL", False)
@@ -3846,9 +4084,8 @@ def _write_sdkconfig():
     # version switch that happens to leave the option set unchanged still
     # bumps this file's content -- which is what has_outdated_files()
     # uses to decide whether to reconfigure.
-    framework_version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
     contents = (
-        f"# ESPHOME_IDF_VERSION={framework_version}\n"
+        f"# ESPHOME_IDF_VERSION={CORE.framework_version}\n"
         + "\n".join(
             f"{name}={_format_sdkconfig_val(value)}"
             for name, value in sorted(want_opts.items())
@@ -3914,6 +4151,15 @@ def _write_idf_component_yml():
     # on path order. Such a stub points at the converted library instead.
     converted_by_name = {component.path.name: component for component in converted}
 
+    overridden: dict[str, str] = {}
+    if CORE.using_arduino and manifest_overrides_supported():
+        managed_components = CORE.data[KEY_ESP32].get(KEY_COMPONENTS, {})
+        overridden = {
+            target: replacement
+            for target, replacement in ARDUINO_OVERRIDDEN_IDF_COMPONENTS.items()
+            if replacement in managed_components
+        }
+
     # For Arduino builds, override unused managed components from the Arduino framework
     # by pointing them to empty stub directories using override_path
     # This prevents the IDF component manager from downloading the real components
@@ -3927,7 +4173,9 @@ def _write_idf_component_yml():
         }
 
         # Only stub components that are not required by any enabled Arduino library
-        components_to_stub = arduino_excluded_idf_components() - required_idf_components
+        components_to_stub = (
+            set(ARDUINO_EXCLUDED_IDF_COMPONENTS) - required_idf_components
+        )
 
         stubs_dir = CORE.relative_build_path("component_stubs")
         stubs_dir.mkdir(exist_ok=True)
@@ -3939,6 +4187,8 @@ def _write_idf_component_yml():
         for component_name in sorted(components_to_stub):
             stub_name = _idf_component_stub_name(component_name)
             stub_path = stubs_dir / stub_name
+            if _idf_component_dep_name(component_name) in overridden:
+                continue
             if (component := converted_by_name.get(stub_name)) is not None:
                 if stub_path.exists():
                     rmtree(stub_path)
@@ -3986,7 +4236,7 @@ def _write_idf_component_yml():
         if CORE.using_toolchain_esp_idf:
             add_idf_component(
                 name=ARDUINO_ESP32_COMPONENT_NAME,
-                ref=str(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]),
+                ref=str(CORE.framework_version),
             )
 
     for component in converted:
@@ -4006,7 +4256,13 @@ def _write_idf_component_yml():
                 dependency["path"] = component[KEY_PATH]
             dependencies[name] = dependency
 
-    contents = yaml_util.dump({"dependencies": dependencies}) if dependencies else ""
+    manifest: dict[str, Any] = {"dependencies": dependencies}
+    if overridden:
+        manifest["overrides"] = [
+            {target: {"with": {replacement: dependencies[replacement]}}}
+            for target, replacement in overridden.items()
+        ]
+    contents = yaml_util.dump(manifest) if dependencies else ""
     if write_file_if_changed(yml_path, contents):
         dependencies_lock = CORE.relative_build_path("dependencies.lock")
         if dependencies_lock.is_file():
@@ -4033,6 +4289,9 @@ def copy_files():
         CORE.relative_build_path("version.txt"),
         __version__,
     )
+    # Imported here: sbom loads git and urllib helpers that config validation does not need
+    from esphome.espidf import sbom
+
     sbom.write_manifests()
 
     # Remote extra build files are fetched into the shared download cache in
