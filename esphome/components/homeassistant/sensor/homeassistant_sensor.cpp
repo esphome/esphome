@@ -21,7 +21,7 @@ static void __attribute__((noinline, cold)) publish_not_a_number(HomeassistantSe
   sensor->publish_state(NAN);
 }
 
-void HomeassistantSensor::setup() {
+void HomeassistantSensor::subscribe() {
   api::global_api_server->subscribe_home_assistant_state(this->entity_id_, this->attribute_, [this](StringRef state) {
     auto val = parse_number<float>(state.c_str());
     if (!val.has_value()) {
@@ -44,6 +44,5 @@ void HomeassistantSensor::dump_config() {
     ESP_LOGCONFIG(TAG, "  Attribute: '%s'", this->attribute_);
   }
 }
-float HomeassistantSensor::get_setup_priority() const { return setup_priority::AFTER_CONNECTION; }
 
 }  // namespace esphome::homeassistant
