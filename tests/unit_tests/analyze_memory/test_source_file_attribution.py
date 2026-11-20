@@ -1,5 +1,7 @@
 """Tests for source-file-to-component attribution in memory analyzer."""
 
+import pytest
+
 from . import make_analyzer
 
 
@@ -30,3 +32,19 @@ def test_source_file_to_component_known_component() -> None:
         "src/esphome/components/wifi/wifi_component.cpp.o"
     )
     assert result == "[esphome]wifi"
+
+
+@pytest.mark.parametrize(
+    ("rel_path", "component"),
+    [
+        (
+            "lib/esp32async__ESPAsyncWebServer/WebHandlers.cpp.o",
+            "[lib]espasyncwebserver",
+        ),
+        ("lib/ESP8266WiFi/ESP8266WiFi.cpp.o", "[lib]esp8266wifi"),
+        ("core/core_esp8266_main.cpp.o", "arduino_core"),
+    ],
+)
+def test_native_library_objects(rel_path: str, component: str) -> None:
+    """Objects of the native ESP8266 build's libraries and core get a component."""
+    assert make_analyzer()._source_file_to_component(rel_path) == component
