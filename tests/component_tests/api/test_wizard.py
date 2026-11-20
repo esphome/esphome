@@ -651,6 +651,18 @@ def _buffer(main_cpp: str, input_id: str) -> str:
     return re.search(rf"\{{{fnv1_hash(input_id)}u, (\w+)", main_cpp)[1]
 
 
+def _button_press_call(button_id: str, main_cpp: str) -> str:
+    """The one statement of the generated press function of an ApplyButton."""
+    fn = re.search(rf"new\({button_id}\) button::ApplyButton<(\w+)>\(\);", main_cpp)
+    assert fn is not None
+    body = re.search(
+        rf"static void {fn.group(1)}\(button::Button \* entity\) \{{\n  (.*?)\n\}}",
+        main_cpp,
+    )
+    assert body is not None
+    return body.group(1)
+
+
 def test_text_select_and_button_default_to_their_domains(
     tmp_path: Path, generate_main: Callable[[str | Path], str]
 ) -> None:
@@ -669,8 +681,11 @@ def test_text_select_and_button_default_to_their_domains(
     # A number takes number and input_number entities, and the other sensors take anything
     assert filters[fnv1_hash("ha_number")] == [{"domain": ["input_number", "number"]}]
     assert filters[fnv1_hash("ha_binary")] is None
-    for entity in ("ha_txt", "ha_select", "ha_button"):
+    for entity in ("ha_txt", "ha_select"):
         assert f"{entity}->set_entity_id({_buffer(main_cpp, entity)});" in main_cpp
+    assert _button_press_call("ha_button", main_cpp) == (
+        f"homeassistant::press_button_entity(entity, {_buffer(main_cpp, 'ha_button')});"
+    )
 
 
 @pytest.mark.parametrize(
@@ -885,7 +900,13 @@ def test_inputs_have_buffers_hashes_and_a_table(
     assert len(set(buffers.values())) == len(entities)
     assert get_define_value("API_WIZARD_INPUT_COUNT") == str(len(entities))
     for entity in entities[:-2]:
+        if entity == "ha_button":
+            continue
         assert f"{entity}->set_entity_id({buffers[entity]});" in main_cpp
+    # The button's generated press function reads the buffer, which is declared before it
+    call = f"homeassistant::press_button_entity(entity, {buffers['ha_button']});"
+    assert _button_press_call("ha_button", main_cpp) == call
+    assert main_cpp.index(f"static char {buffers['ha_button']}[") < main_cpp.index(call)
     # The standalone inputs are objects that read the same buffer
     assert f"WizardInput({buffers['weather_input']})" in main_cpp
     assert f"WizardInput({buffers['unset_input']})" in main_cpp
