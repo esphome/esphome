@@ -3048,7 +3048,6 @@ def test_task_watchdog_sdkconfig_and_define(
 _UNUSED_IDF_FEATURES_OFF = {
     "CONFIG_ESP_WIFI_SOFTAP_SAE_SUPPORT": False,
     "CONFIG_ESP_TLS_USE_DS_PERIPHERAL": False,
-    "CONFIG_MBEDTLS_GCM_SUPPORT_NON_AES_CIPHER": False,
 }
 
 
@@ -3059,16 +3058,6 @@ _UNUSED_IDF_FEATURES_OFF = {
             PlatformFramework.ESP32_IDF, {}, _UNUSED_IDF_FEATURES_OFF, id="idf"
         ),
         pytest.param(PlatformFramework.ESP32_ARDUINO, {}, {}, id="arduino_skipped"),
-        pytest.param(
-            PlatformFramework.ESP32_IDF,
-            {"CONFIG_MBEDTLS_ARIA_C": RawSdkconfigValue("y")},
-            {
-                "CONFIG_MBEDTLS_ARIA_C": RawSdkconfigValue("y"),
-                "CONFIG_ESP_WIFI_SOFTAP_SAE_SUPPORT": False,
-                "CONFIG_ESP_TLS_USE_DS_PERIPHERAL": False,
-            },
-            id="aria_keeps_non_aes_gcm",
-        ),
         pytest.param(
             PlatformFramework.ESP32_IDF,
             {"CONFIG_ESP_TLS_USE_DS_PERIPHERAL": RawSdkconfigValue("y")},

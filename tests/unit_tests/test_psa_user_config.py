@@ -87,6 +87,14 @@ def _defines(config: tuple[str, ...]) -> set[str]:
             True,
             id="openthread_keeps_storage",
         ),
+        pytest.param(
+            ("CONFIG_MBEDTLS_PSA_ITS_CUSTOM_STORAGE_BACKEND",),
+            False,
+            False,
+            False,
+            True,
+            id="custom_its_backend_keeps_storage",
+        ),
     ],
 )
 def test_psa_user_config_conditions(

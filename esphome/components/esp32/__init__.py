@@ -869,9 +869,8 @@ def _is_idf_sdkconfig_option_not_disabled(name: str) -> bool:
 @coroutine_with_priority(CoroPriority.FINAL)
 async def _reconcile_unused_idf_features() -> None:
     """Default off ESP-IDF features nothing in ESPHome uses; user
-    sdkconfig_options win. Runs at FINAL priority so a component that turns on
-    ARIA or Camellia is seen first. Arduino's libraries are prebuilt, so it is
-    skipped."""
+    sdkconfig_options win. Runs at FINAL priority, after every component's
+    requests. Arduino's libraries are prebuilt, so it is skipped."""
     if CORE.using_arduino:
         return
     # ESPHome's access point is open or WPA2, never WPA3 SAE.
@@ -879,12 +878,9 @@ async def _reconcile_unused_idf_features() -> None:
     # Nothing provisions keys for the digital signature peripheral, yet esp-tls
     # links its PSA driver whenever this is on.
     set_idf_sdkconfig_default("CONFIG_ESP_TLS_USE_DS_PERIPHERAL", False)
-    # GCM only needs a non-AES block cipher for ARIA or Camellia.
-    if not any(
-        is_idf_sdkconfig_option_enabled(option)
-        for option in ("CONFIG_MBEDTLS_ARIA_C", "CONFIG_MBEDTLS_CAMELLIA_C")
-    ):
-        set_idf_sdkconfig_default("CONFIG_MBEDTLS_GCM_SUPPORT_NON_AES_CIPHER", False)
+    # CONFIG_MBEDTLS_GCM_SUPPORT_NON_AES_CIPHER stays on: with hardware AES its
+    # software fallback is also the only path PSA AES-CCM has (xiaomi_ble,
+    # bthome_mithermometer).
 
 
 def task_wdt_timeout_ms() -> int:

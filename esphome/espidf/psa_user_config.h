@@ -20,8 +20,8 @@
 #endif
 // Only OpenThread (its PSA backend with platform key references) stores PSA
 // keys persistently, but ESP-IDF keeps the storage layer (esp_psa_its) linked
-// whenever its NVS backend is available.
-#ifndef CONFIG_OPENTHREAD_ENABLED
+// whenever its NVS backend is available. A custom ITS backend keeps it too.
+#if !defined(CONFIG_OPENTHREAD_ENABLED) && !defined(CONFIG_MBEDTLS_PSA_ITS_CUSTOM_STORAGE_BACKEND)
 #undef MBEDTLS_PSA_CRYPTO_STORAGE_C
 #endif
 // Only TLS uses SHA-224. Chips without SHA-224 hardware otherwise keep the
