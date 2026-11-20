@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <cstddef>
 #include <utility>
 #include <vector>
@@ -140,6 +141,59 @@ class IT8951Display : public Display,
 
   // --- Display API ---
   void update() override;
+
+  // --- Helpers for writers that hand over pre-rendered full frames ------------
+  // Some hosts (Seeed reTerminal boards among them) render a complete screen on a
+  // server and stream the packed bitmap down. They need the framebuffer pointer to
+  // memcpy into, an explicit way to declare which region changed, and a way to ask
+  // for a grayscale-clearing refresh. Going through draw_pixels_at() for a 1872x1404
+  // 1bpp frame costs a per-pixel conversion loop; these accessors let such a writer
+  // keep the fast path without reimplementing the driver.
+  //
+  // Buffer layout is the panel-native one: `row_width_` bytes per row (a stride that
+  // is not width-derived), 1bpp MSB-first with rows padded to a 16-pixel group in
+  // monochrome mode, two pixels per byte in grayscale mode. Coordinates are native
+  // panel coordinates: transform/rotation is not applied here, unlike draw_pixel_at().
+  uint8_t *framebuffer_data() { return this->buffer_; }
+  size_t framebuffer_size() const { return this->buffer_ != nullptr ? this->buffer_length_ : 0; }
+  // True when no update is in flight: nothing is queued or streaming, so the
+  // framebuffer can be rewritten without racing the transfer path. This says nothing
+  // about the panel: with sleep_when_done: false the GC16 waveform keeps running
+  // after the driver returns to idle, so do not cut panel power on is_idle() alone.
+  // It is also false until the controller init has completed.
+  bool is_idle() const { return this->phase_ == Phase::IDLE && this->initialised_; }
+  // Mark a rectangle as changed, in native panel coordinates. Clamped to the panel:
+  // an off-by-one from the caller refreshes the visible part instead of failing the
+  // whole update with an out-of-bounds error.
+  void mark_dirty_area(uint16_t x, uint16_t y, uint16_t w, uint16_t h) {
+    const uint32_t x_end = std::min<uint32_t>(static_cast<uint32_t>(x) + w, this->width_);
+    const uint32_t y_end = std::min<uint32_t>(static_cast<uint32_t>(y) + h, this->height_);
+    if (x >= x_end || y >= y_end)
+      return;
+    if (x < this->x_low_)
+      this->x_low_ = x;
+    if (y < this->y_low_)
+      this->y_low_ = y;
+    if (x_end > this->x_high_)
+      this->x_high_ = static_cast<uint16_t>(x_end);
+    if (y_end > this->y_high_)
+      this->y_high_ = static_cast<uint16_t>(y_end);
+  }
+  void mark_dirty_full() {
+    this->x_low_ = 0;
+    this->y_low_ = 0;
+    this->x_high_ = this->width_;
+    this->y_high_ = this->height_;
+  }
+  // Push the periodic counter to the threshold so the next update takes the
+  // full-refresh branch (and therefore keeps GC16 on a monochrome panel instead of
+  // being downgraded to DU). Needed when the host knows a large solid-black area just
+  // appeared: DU does not erase it, only GC16 does.
+  void force_full_gc16() {
+    this->partial_update_count_ = this->full_update_every_;
+    this->mark_dirty_full();
+  }
+
   void update_mode(UpdateMode mode);
   DisplayType get_display_type() override { return this->grayscale_ ? DISPLAY_TYPE_GRAYSCALE : DISPLAY_TYPE_BINARY; }
   void fill(Color color) override;
