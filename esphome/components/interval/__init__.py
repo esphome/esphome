@@ -11,6 +11,10 @@ IntervalTrigger = interval_ns.class_(
     "IntervalTrigger", automation.Trigger.template(), cg.PollingComponent
 )
 DelayedIntervalTrigger = interval_ns.class_("DelayedIntervalTrigger", IntervalTrigger)
+IntervalCallback = interval_ns.class_("IntervalCallback", cg.PollingComponent)
+DelayedIntervalCallback = interval_ns.class_(
+    "DelayedIntervalCallback", IntervalCallback
+)
 
 CONFIG_SCHEMA = automation.validate_automation(
     cv.Schema(
@@ -27,12 +31,14 @@ CONFIG_SCHEMA = automation.validate_automation(
 
 async def to_code(config: list[ConfigType]) -> None:
     for conf in config:
-        if startup_delay := conf[CONF_STARTUP_DELAY].total_milliseconds:
+        # Cut to 32 bits, as the uint32_t setter always did
+        if startup_delay := conf[CONF_STARTUP_DELAY].total_milliseconds & 0xFFFFFFFF:
+            # A hand-set id keeps the trigger, which takes the delay in its constructor
             conf[CONF_ID].type = DelayedIntervalTrigger
-            var = cg.new_Pvariable(conf[CONF_ID], startup_delay)
+            component_class, template_args = DelayedIntervalCallback, [startup_delay]
         else:
-            var = cg.new_Pvariable(conf[CONF_ID])
-        await cg.register_component(var, conf)
-        await automation.build_automation(var, [], conf)
-
+            component_class, template_args = IntervalCallback, []
+        var = await automation.build_component_automation(
+            conf, component_class, id_key=CONF_ID, template_args=template_args
+        )
         cg.add(var.set_update_interval(conf[CONF_INTERVAL]))

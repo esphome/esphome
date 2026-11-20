@@ -8,6 +8,7 @@ import re
 from typing import NamedTuple
 
 from esphome.helpers import fnv1_hash
+from tests.component_tests.helpers import constructed, function_body
 
 CONFIG = "tests/component_tests/api/test_user_services.yaml"
 LEGACY_CONFIG = "tests/component_tests/api/test_user_services_legacy.yaml"
@@ -22,22 +23,8 @@ class Service(NamedTuple):
     type: str
 
 
-def _constructed(main_cpp: str, id_: str) -> str:
-    match = re.search(rf"\bnew\({id_}\) (.*?);\n", main_cpp, re.DOTALL)
-    assert match is not None, id_
-    return match.group(1)
-
-
 def _actions_of(main_cpp: str, automation: str) -> list[str]:
     return re.findall(rf"\b{automation}->add_action\((\w+)\);", main_cpp)
-
-
-def _function_body(main_cpp: str, name: str) -> str:
-    match = re.search(
-        rf"static void {name}\([^;{{]*\) \{{(.*?)\n\}}\n", main_cpp, re.DOTALL
-    )
-    assert match is not None, name
-    return match.group(1)
 
 
 def _strings(main_cpp: str, name: str) -> tuple[str, str]:
@@ -70,14 +57,14 @@ def _automation(main_cpp: str, trigger: str) -> tuple[str, str]:
 
 def _action_code(main_cpp: str, action: str) -> str:
     """Return the code an action runs: its generated function, or its constructor."""
-    constructed = _constructed(main_cpp, action)
-    if match := re.match(r"ApplyRunAction<(\w+)[,>]", constructed):
-        return _function_body(main_cpp, match.group(1))
-    return constructed
+    code = constructed(main_cpp, action)
+    if match := re.match(r"ApplyRunAction<(\w+)[,>]", code):
+        return function_body(main_cpp, match.group(1))
+    return code
 
 
 def _action_class(main_cpp: str, action: str) -> str:
-    return re.match(r"[\w:]+", _constructed(main_cpp, action)).group(0)
+    return re.match(r"[\w:]+", constructed(main_cpp, action)).group(0)
 
 
 def test_no_args_service(generate_main) -> None:
@@ -151,12 +138,12 @@ def test_respond_optional(generate_main) -> None:
     automation, args = _automation(main_cpp, service.id)
     assert args == "uint32_t, bool, int32_t"
     respond, unregister = _actions_of(main_cpp, automation)
-    assert _constructed(main_cpp, respond) == (
+    assert constructed(main_cpp, respond) == (
         "api::APIRespondAction<uint32_t, bool, int32_t>(api_apiserver_id)"
     )
     assert f"{respond}->set_is_optional_mode(true);" in main_cpp
     assert unregister == f"{service.id}__unregister"
-    assert _constructed(main_cpp, unregister) == (
+    assert constructed(main_cpp, unregister) == (
         "api::APIUnregisterServiceCallAction<uint32_t, bool, int32_t>(api_apiserver_id)"
     )
 
@@ -170,12 +157,12 @@ def test_respond_only(generate_main) -> None:
     assert args == "uint32_t, StringRef"
     log, respond, unregister = _actions_of(main_cpp, automation)
     assert "RESPOND_ONLY %s" in _action_code(main_cpp, log)
-    assert _constructed(main_cpp, respond) == (
+    assert constructed(main_cpp, respond) == (
         "api::APIRespondAction<uint32_t, StringRef>(api_apiserver_id)"
     )
     assert f"{respond}->set_is_optional_mode" not in main_cpp
     assert unregister == f"{service.id}__unregister"
-    assert _constructed(main_cpp, unregister) == (
+    assert constructed(main_cpp, unregister) == (
         "api::APIUnregisterServiceCallAction<uint32_t, StringRef>(api_apiserver_id)"
     )
 

@@ -2153,17 +2153,23 @@ async def build_automation(
 
 
 async def build_component_automation(
-    config: ConfigType, component_class: MockObjClass, priority: float | None = None
+    config: ConfigType,
+    component_class: MockObjClass,
+    priority: float | None = None,
+    *,
+    id_key: str = CONF_TRIGGER_ID,
+    template_args: Sequence[SafeExpType] = (),
 ) -> MockObj:
-    """Create and register the Component that runs a no-argument automation.
+    """Create and register ``component_class<function[, priority bits], *template_args>``,
+    whose function runs the actions of a no-argument automation.
 
-    That is ``component_class<function[, priority bits]>``, whose function runs the actions
-    directly when they are all inline, else triggers their Automation. A ``trigger_id`` set
-    by hand keeps its Trigger, built with ``priority`` if given.
+    An id under ``id_key`` set by hand keeps its Trigger, built with ``priority`` if given and
+    ``template_args`` as constructor arguments.
     """
-    trigger_id: ID = config[CONF_TRIGGER_ID]
+    trigger_id: ID = config[id_key]
+    priority_list = [] if priority is None else [priority]
     if trigger_id.is_manual:
-        var = cg.new_Pvariable(trigger_id, *([] if priority is None else [priority]))
+        var = cg.new_Pvariable(trigger_id, *priority_list, *template_args)
         await cg.register_component(var, config)
         await build_automation(var, [], config)
         return var
@@ -2173,7 +2179,9 @@ async def build_component_automation(
     id_ = trigger_id.copy()
     id_.type = component_class
     bits = [] if priority is None else [_float_bits(priority)]
-    var = cg.new_Pvariable(id_, cg.TemplateArguments(cg.RawExpression(name), *bits))
+    var = cg.new_Pvariable(
+        id_, cg.TemplateArguments(cg.RawExpression(name), *bits, *template_args)
+    )
     await cg.register_component(var, config)
     plan = await _build_automation_plan([], config)
     define([str(cg.statement(CallExpression(_call_target(plan, [], config))))])
