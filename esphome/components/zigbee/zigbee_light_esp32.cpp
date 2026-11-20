@@ -24,9 +24,9 @@ void ZigbeeLight::setup() {
   light::LightTraits traits = this->light_state_->get_traits();
   bool onoff = traits.supports_color_capability(light::ColorCapability::ON_OFF);
   bool level = traits.supports_color_capability(light::ColorCapability::BRIGHTNESS);
-  bool color = traits.supports_color_capability(light::ColorCapability::RGB);
-  bool ct = traits.supports_color_capability(light::ColorCapability::COLOR_TEMPERATURE) ||
-            (traits.supports_color_capability(light::ColorCapability::COLD_WARM_WHITE) && traits.get_min_mireds() > 0 &&
+  bool color = traits.supports_color_mode(light::ColorMode::RGB);
+  bool ct = traits.supports_color_mode(light::ColorMode::COLOR_TEMPERATURE) ||
+            (traits.supports_color_mode(light::ColorMode::COLD_WARM_WHITE) && traits.get_min_mireds() > 0 &&
              traits.get_max_mireds() > 0);
   if (!onoff) {
     ESP_LOGE(TAG, "Light must at least support ON_OFF capability to be added as Zigbee light");
@@ -212,10 +212,6 @@ void ZigbeeLight::apply_color_() {
     float r, g, b;
     if (xy_to_rgb(this->x_, this->y_, r, g, b)) {
       this->next_call_.set_rgb(r, g, b);
-      this->next_call_.set_color_brightness_if_supported(1);
-      this->next_call_.set_white_if_supported(0);
-      this->next_call_.set_warm_white_if_supported(0);
-      this->next_call_.set_cold_white_if_supported(0);
       this->next_call_.set_color_mode_if_supported(light::ColorMode::RGB);
       ESP_LOGD(TAG, "set color: %f, %f, %f", r, g, b);
       this->schedule_call_();
@@ -229,8 +225,6 @@ void ZigbeeLight::apply_ct_(uint16_t ct) {
     return;
   }
   this->next_call_.set_color_temperature(convert_color_temp(ct));
-  this->next_call_.set_color_brightness_if_supported(0);
-  this->next_call_.set_white_if_supported(1);
   this->next_call_.set_color_mode_if_supported(light::ColorMode::COLD_WARM_WHITE);
   this->next_call_.set_color_mode_if_supported(light::ColorMode::COLOR_TEMPERATURE);
   ESP_LOGD(TAG, "set color temp: %f", convert_color_temp(ct));
@@ -308,8 +302,8 @@ void ZigbeeLight::set_attr_internal() {
       }
     }
     if (this->x_forwarder_ ||
-        his->ct_forwarder_ && ezb_zcl_get_cluster_desc(this->endpoint_id_, EZB_ZCL_CLUSTER_ID_COLOR_CONTROL,
-                                                       EZB_ZCL_CLUSTER_SERVER) != NULL) {
+        this->ct_forwarder_ && ezb_zcl_get_cluster_desc(this->endpoint_id_, EZB_ZCL_CLUSTER_ID_COLOR_CONTROL,
+                                                        EZB_ZCL_CLUSTER_SERVER) != NULL) {
       ezb_zcl_attr_desc_t current_time =
           ezb_zcl_get_attr_desc(this->endpoint_id_, EZB_ZCL_CLUSTER_ID_COLOR_CONTROL, EZB_ZCL_CLUSTER_SERVER,
                                 EZB_ZCL_ATTR_COLOR_CONTROL_REMAINING_TIME_ID, EZB_ZCL_STD_MANUF_CODE);
