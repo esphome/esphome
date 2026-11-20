@@ -4,6 +4,7 @@
 #include <cstring>
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::entity_transport {
 
@@ -373,8 +374,7 @@ size_t EntityTransport::write_record_(const LocalEntity &entity, uint8_t *record
 #endif
   uint16_t tag =
       entity.number | (type << TAG_TYPE_SHIFT) | (payload << TAG_PAYLOAD_SHIFT) | (value ? TAG_VALUE_BIT : 0);
-  record[0] = tag;
-  record[1] = tag >> 8;
+  put_le16(record, tag);
   return size;
 }
 

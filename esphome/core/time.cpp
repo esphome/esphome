@@ -1,5 +1,6 @@
 #include "time.h"  // NOLINT
 #include "helpers.h"
+#include "time_utc.h"
 
 #include <algorithm>
 #ifdef USE_TIME_TIMEZONE
@@ -8,14 +9,109 @@
 
 namespace esphome {
 
-uint8_t days_in_month(uint8_t month, uint16_t year) {
-  static const uint8_t DAYS_IN_MONTH[] = {0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
-  if (month == 2 && (year % 4 == 0) && (year % 100 != 0 || year % 400 == 0))
-    return 29;
-  return DAYS_IN_MONTH[month];
+namespace internal {
+
+// A year divisible by 100 is divisible by 400 exactly when it is divisible by 16
+bool is_leap_year(int year) { return (year & 3) == 0 && (year % 100 != 0 || (year & 15) == 0); }
+
+// Count leap years in [1, year]. Shifted by 400 years (97 leap years) so it stays right for year 0, whose year
+// before is -1
+static constexpr int count_leap_years_up_to(int year) {
+  const unsigned shifted = year + 400;
+  return static_cast<int>(shifted / 4 - shifted / 100 + shifted / 400) - 97;
 }
 
-static uint16_t days_in_year(uint16_t year) { return days_in_month(2, year) == 29 ? 366 : 365; }
+static constexpr int EPOCH_YEAR = 1970;
+static constexpr int LEAP_YEARS_BEFORE_EPOCH = count_leap_years_up_to(EPOCH_YEAR - 1);
+static constexpr int DAYS_PER_YEAR = 365;
+static constexpr int32_t DAYS_FROM_YEAR_0 = 719528;  // 0000-01-01 to 1970-01-01
+static constexpr int SECONDS_PER_DAY = 86400;
+
+int32_t days_to_year_start(int year) {
+  return DAYS_PER_YEAR * (year - EPOCH_YEAR) + (count_leap_years_up_to(year - 1) - LEAP_YEARS_BEFORE_EPOCH);
+}
+
+// Every year has at least 365 days, so the estimate is never early; step back to the year that holds the day.
+// Leaves the day of that year in days.
+static int days_to_year(int32_t &days) {
+  // Signed: a local time just before year 0 rounds up to year 0 and steps back to -1
+  int year = (days + DAYS_FROM_YEAR_0) / DAYS_PER_YEAR;
+  int32_t year_start;
+  while (days < (year_start = days_to_year_start(year)))
+    year--;
+  days -= year_start;
+  return year;
+}
+
+int days_in_month(int year, int month) {
+  if (month == 2)
+    return 28 + is_leap_year(year);
+  // 31 days in odd months up to July and even months from August
+  return 30 + ((month ^ (month >> 3)) & 1);
+}
+
+// One 64-bit division, and the remainder from 32-bit math instead of a 64-bit modulo
+static int32_t epoch_to_days(time_t epoch, int32_t &secs) {
+  int32_t days = static_cast<int32_t>(epoch / SECONDS_PER_DAY);
+  secs = static_cast<int32_t>(static_cast<uint32_t>(epoch) - static_cast<uint32_t>(days) * SECONDS_PER_DAY);
+  if (secs < 0) {
+    days--;
+    secs += SECONDS_PER_DAY;
+  }
+  return days;
+}
+
+int epoch_to_year(time_t epoch) {
+  int32_t secs;
+  int32_t days = epoch_to_days(epoch, secs);
+  return days_to_year(days);
+}
+
+void epoch_to_tm_utc(time_t epoch, struct tm *out_tm) {
+  int32_t remaining_secs;
+  int32_t days = epoch_to_days(epoch, remaining_secs);
+
+  out_tm->tm_sec = remaining_secs % 60;
+  remaining_secs /= 60;
+  out_tm->tm_min = remaining_secs % 60;
+  out_tm->tm_hour = remaining_secs / 60;
+
+  // Day of week (Jan 1, 1970 was Thursday = 4)
+  out_tm->tm_wday = (days + 4) % 7;
+  if (out_tm->tm_wday < 0)
+    out_tm->tm_wday += 7;
+
+  // Calculate year (updates days to day-of-year)
+  int year = days_to_year(days);
+  out_tm->tm_year = year - 1900;
+  out_tm->tm_yday = days;
+
+  // Calculate month and day
+  int month = 1;
+  int dim;
+  while (days >= (dim = days_in_month(year, month))) {
+    days -= dim;
+    month++;
+  }
+
+  out_tm->tm_mon = month - 1;
+  out_tm->tm_mday = days + 1;
+  out_tm->tm_isdst = 0;
+}
+
+}  // namespace internal
+
+uint8_t days_in_month(uint8_t month, uint16_t year) { return internal::days_in_month(year, month); }
+
+static uint16_t days_in_year(uint16_t year) { return internal::is_leap_year(year) ? 366 : 365; }
+
+ESPTime ESPTime::from_epoch_utc(time_t epoch) {
+  if (!internal::epoch_in_range(epoch))
+    return ESPTime{};
+  struct tm c_tm;
+  internal::epoch_to_tm_utc(epoch, &c_tm);
+  return ESPTime::from_c_tm(&c_tm, epoch);
+}
 
 size_t ESPTime::strftime(char *buffer, size_t buffer_len, const char *format) {
   struct tm c_tm = this->to_c_tm();
@@ -277,15 +373,16 @@ void ESPTime::increment_day() {
   }
 }
 
-void ESPTime::recalc_timestamp_utc(bool use_day_of_year) {
-  time_t res = 0;
+void ESPTime::recalc_timestamp_utc(bool use_day_of_year) { this->recalc_timestamp_utc_(use_day_of_year); }
+
+bool ESPTime::recalc_timestamp_utc_(bool use_day_of_year) {
   if (!this->fields_in_range(false, use_day_of_year)) {
     this->timestamp = -1;
-    return;
+    return false;
   }
 
-  for (int i = 1970; i < this->year; i++)
-    res += days_in_year(i);
+  // 64-bit, so a 32-bit time_t near its minimum does not overflow before the seconds are added
+  int64_t res = internal::days_to_year_start(this->year);
 
   if (use_day_of_year) {
     res += this->day_of_year - 1;
@@ -301,15 +398,16 @@ void ESPTime::recalc_timestamp_utc(bool use_day_of_year) {
   res += this->minute;
   res *= 60;
   res += this->second;
-  this->timestamp = res;
+  this->timestamp = static_cast<time_t>(res);
+  return true;
 }
 
 void ESPTime::recalc_timestamp_local() {
 #ifdef USE_TIME_TIMEZONE
   // Calculate timestamp as if fields were UTC
-  this->recalc_timestamp_utc(false);
-  if (this->timestamp == -1) {
-    return;  // Invalid time
+  // -1 is also a real time (1969-12-31 23:59:59), so ask for validity instead
+  if (!this->recalc_timestamp_utc_(false)) {
+    return;
   }
 
   // Now convert from local to UTC by adding the offset
