@@ -86,7 +86,7 @@ static void dump_field(DumpBuffer &out, const char *field_name, uint64_t value, 
 
 static void dump_field(DumpBuffer &out, const char *field_name, bool value, int indent = 2) {
   append_field_prefix(out, field_name, indent);
-  out.append(YESNO(value));
+  out.append_p(YESNO(value));
   out.append("\n");
 }
 
