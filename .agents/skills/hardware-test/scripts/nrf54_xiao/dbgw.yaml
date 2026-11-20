@@ -8,7 +8,8 @@ interval:
     startup_delay: 20s
     then:
       - lambda: |-
-          if (id(rr).state.find("Software") != std::string::npos) {
+          if (id(rr).state.find("Software") != std::string::npos &&
+              id(rr).state.find("Watchdog") == std::string::npos) {
             ESP_LOGW("test", "HANG to trigger the watchdog");
             while (true) {
             }

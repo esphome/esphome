@@ -16,8 +16,10 @@ $PY "$S/serial_capture.py" "$P" 40 "$D/$N-rst-cap.txt" > /dev/null 2>&1 &
 CAP=$!
 sleep 12
 echo "probe reset at $(date +%T)"
-$OCD -m pyocd reset -t nrf54lm20a -u "$ID" -m sw > /dev/null 2>&1  # -m hw does nothing on this probe
-wait $CAP
+$OCD -m pyocd reset -t nrf54lm20a -u "$ID" -m sw > /dev/null 2>&1 ||  # -m hw does nothing on this probe
+  { kill $CAP 2>/dev/null; echo "FAIL: probe reset"; exit 1; }
+wait $CAP || { echo "FAIL: no capture after the probe reset"; exit 1; }
+grep -a -q "BOOT build" "$D/$N-rst-cap.txt" || { echo "FAIL: no boot after the probe reset"; exit 1; }
 cat "$D/$N-cap.txt" "$D/$N-rst-cap.txt" |
   grep -a -E "Log initialized|compiled on|BOOT build|SOFT REBOOT|counter=|preferences|Loaded|settings|rror" |
   grep -a -v "save in flash" > "$D/$N-events.txt"

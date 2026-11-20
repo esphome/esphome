@@ -15,5 +15,5 @@ sleep 1
 $DFU -m nordicsemi.__main__ dfu serial -pkg "$PKG" -p "$B" -b 115200 --singlebank > "$D/$N-dfu.log" 2>&1 ||
   { tail -3 "$D/$N-dfu.log"; echo "FAIL: DFU failed; press RESET once and rerun"; exit 1; }
 A=$(app 30) || { echo "FAIL: the app's USB port did not come back"; exit 1; }
-$PY "$S/serial_capture.py" "$A" "$T" "$D/$N-cap.txt" > /dev/null 2>&1
+$PY "$S/serial_capture.py" "$A" "$T" "$D/$N-cap.txt" > /dev/null 2>&1 || { echo "FAIL: no capture from $A"; exit 1; }
 echo "MEAS lines: $(grep -a -c MEAS "$D/$N-cap.txt")"
