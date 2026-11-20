@@ -39,6 +39,45 @@ void DallasTemperatureSensor::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
+#ifdef USE_ONE_WIRE_RMT
+void DallasTemperatureSensor::update() {
+  if (this->address_ == 0)
+    return;
+
+  this->status_clear_warning();
+
+  this->convert_.address = this->read_.address = this->address_;
+  this->convert_.write_data = &DALLAS_COMMAND_START_CONVERSION;
+  this->read_.write_data = &DALLAS_COMMAND_READ_SCRATCH_PAD;
+  if (!this->bus_->submit(&this->convert_)) {
+    ESP_LOGD(TAG, "'%s': skipping a cycle, still converting", LOG_STR_ARG(this->get_log_name()));
+  }
+}
+
+// Any status: the conversion only starts here, and the read reports what is wrong with the bus
+void DallasTemperatureSensor::on_convert_done(void *context, one_wire::TransactionStatus status) {
+  auto *self = static_cast<DallasTemperatureSensor *>(context);
+  self->set_timeout(CONVERSION_TIMEOUT_ID, self->millis_to_wait_for_conversion_(), [self] {
+    if (!self->bus_->submit(&self->read_)) {
+      ESP_LOGD(TAG, "'%s': skipping a cycle, still reading", LOG_STR_ARG(self->get_log_name()));
+    }
+  });
+}
+
+void DallasTemperatureSensor::on_read_done(void *context, one_wire::TransactionStatus status) {
+  auto *self = static_cast<DallasTemperatureSensor *>(context);
+  float tempc = NAN;
+  if (status == one_wire::TransactionStatus::NO_PRESENCE || status == one_wire::TransactionStatus::BUS_LOW) {
+    self->status_set_warning(LOG_STR("bus reset failed"));
+  } else if (status != one_wire::TransactionStatus::OK) {
+    self->status_set_warning(LOG_STR("bus transaction failed"));
+  } else if (self->check_scratch_pad_()) {
+    tempc = self->get_temp_c_();
+    ESP_LOGD(TAG, "'%s': Got Temperature=%f°C", LOG_STR_ARG(self->get_log_name()), tempc);
+  }
+  self->publish_state(tempc);
+}
+#else
 void DallasTemperatureSensor::update() {
   if (this->address_ == 0)
     return;
@@ -58,6 +97,7 @@ void DallasTemperatureSensor::update() {
     this->publish_state(tempc);
   });
 }
+#endif  // USE_ONE_WIRE_RMT
 
 bool DallasTemperatureSensor::read_scratch_pad_() {
   bool success = this->send_command_(DALLAS_COMMAND_READ_SCRATCH_PAD);
