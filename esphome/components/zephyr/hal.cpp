@@ -33,7 +33,7 @@ uint32_t arch_get_cpu_freq_hz() {
 
 #if CONFIG_SYS_CLOCK_HW_CYCLES_PER_SEC == 1000000
 // The DWT cycle counter stays at 0 on nRF54L, so the 1 MHz system timer is scaled to CPU cycles. It wraps at
-// 2^32 like a real cycle counter, so differences stay correct.
+// 2^32 like a real cycle counter, so differences stay correct, but it only steps once per microsecond.
 static uint32_t cpu_cycles_per_us;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 uint32_t arch_get_cpu_cycle_count() { return k_cycle_get_32() * cpu_cycles_per_us; }
 #elif defined(USE_ZEPHYR_DWT_MICROS)
