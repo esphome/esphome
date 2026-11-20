@@ -1,0 +1,45 @@
+ld2410:
+  id: radar
+  uart_id: bus
+
+sensor:
+  - platform: ld2410
+    ld2410_id: radar
+    moving_distance:
+      name: Moving Distance
+      on_raw_value:
+        - lambda: lfh::record((int) x);
+
+script:
+  - id: run_cases
+    mode: single
+    then:
+      - lambda: lfh::seen.clear(); ESP_LOGI("lfh", "RUN start");
+      - uart.write: {id: bus, data: !lambda return lfh::ld_a();}
+      - delay: 1500ms
+      - lambda: lfh::report("A");
+      - uart.write: {id: bus, data: !lambda return lfh::ld_b();}
+      - delay: 1500ms
+      - lambda: lfh::report("B");
+      - uart.write: {id: bus, data: !lambda return lfh::ld_c1();}
+      - delay: 1s
+      - lambda: lfh::report("C1-quiet");
+      - uart.write: {id: bus, data: !lambda return lfh::ld(123);}
+      - delay: 1500ms
+      - lambda: lfh::report("C1-next");
+      - uart.write: {id: bus, data: !lambda return lfh::ld_c2();}
+      - delay: 1s
+      - lambda: lfh::report("C2-quiet");
+      - uart.write: {id: bus, data: !lambda return lfh::ld(126);}
+      - delay: 1500ms
+      - lambda: lfh::report("C2-next");
+      - uart.write: {id: bus, data: !lambda return lfh::ld_c3();}
+      - delay: 1s
+      - lambda: lfh::report("C3-quiet");
+      - uart.write: {id: bus, data: !lambda return lfh::ld(128);}
+      - delay: 1500ms
+      - lambda: lfh::report("C3-next");
+      - uart.write: {id: bus, data: !lambda return lfh::ld_d();}
+      - delay: 1500ms
+      - lambda: lfh::report("D");
+      - lambda: ESP_LOGI("lfh", "RUN end");

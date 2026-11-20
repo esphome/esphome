@@ -1,0 +1,36 @@
+tuya:
+  id: mcu
+  uart_id: bus
+  on_datapoint_update:
+    - sensor_datapoint: 101
+      datapoint_type: int
+      then:
+        - lambda: lfh::record(x);
+
+script:
+  - id: run_cases
+    mode: single
+    then:
+      - lambda: lfh::seen.clear(); ESP_LOGI("lfh", "RUN start");
+      - uart.write: {id: bus, data: !lambda return lfh::tu_a();}
+      - delay: 1500ms
+      - lambda: lfh::report("A");
+      - uart.write: {id: bus, data: !lambda return lfh::tu_b();}
+      - delay: 1500ms
+      - lambda: lfh::report("B");
+      - uart.write: {id: bus, data: !lambda return lfh::tu_c1();}
+      - delay: 1s
+      - lambda: lfh::report("C1-quiet");
+      - uart.write: {id: bus, data: !lambda return lfh::tu(223);}
+      - delay: 1500ms
+      - lambda: lfh::report("C1-next");
+      - uart.write: {id: bus, data: !lambda return lfh::tu_c2();}
+      - delay: 1s
+      - lambda: lfh::report("C2-quiet");
+      - uart.write: {id: bus, data: !lambda return lfh::tu(226);}
+      - delay: 1500ms
+      - lambda: lfh::report("C2-next");
+      - uart.write: {id: bus, data: !lambda return lfh::tu_d();}
+      - delay: 1500ms
+      - lambda: lfh::report("D");
+      - lambda: ESP_LOGI("lfh", "RUN end");
