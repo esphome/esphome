@@ -3339,6 +3339,13 @@ async def to_code(config):
     cg.add_build_flag("-Wl,--wrap=__cxa_atexit")
     cg.add_build_flag("-Wl,--undefined=__wrap___cxa_atexit")
 
+    # strftime() and mktime() reload TZ, and picolibc's parser links the scanf engine.
+    # ESPHome never sets TZ, so the reload is skipped. See tzset_stubs.cpp.
+    # --undefined: libsrc.a is scanned before the C library that calls it.
+    if idf_version() >= cv.Version(6, 0, 0):
+        cg.add_build_flag("-Wl,--wrap=_tzset_unlocked")
+        cg.add_build_flag("-Wl,--undefined=__wrap__tzset_unlocked")
+
     if conf[CONF_TYPE] == FRAMEWORK_ESP_IDF:
         cg.add_build_flag("-DUSE_ESP_IDF")
         cg.add_build_flag("-DUSE_ESP32_FRAMEWORK_ESP_IDF")
