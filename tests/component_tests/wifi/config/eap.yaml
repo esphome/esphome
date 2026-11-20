@@ -1,0 +1,13 @@
+esphome:
+  name: test
+
+esp8266:
+  board: d1_mini
+
+wifi:
+  networks:
+    - ssid: enterprise
+      eap:
+        identity: eap_identity
+        username: eap_username
+        password: eap_password

@@ -1,10 +1,11 @@
 #pragma once
 
-#include "esphome/components/i2c/i2c.h"
-#include "esphome/components/touchscreen/touchscreen.h"
+#include "esphome/components/cstxxx/cstxxx.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
+
+#include <vector>
 
 namespace esphome::cst226 {
 
@@ -15,28 +16,23 @@ class CST226ButtonListener {
   virtual void update_button(bool state) = 0;
 };
 
-class CST226Touchscreen final : public touchscreen::Touchscreen, public i2c::I2CDevice {
+class CST226Touchscreen final : public cstxxx::CSTTouchscreen {
  public:
   void setup() override;
   void update_touches() override;
   void dump_config() override;
 
-  void set_interrupt_pin(InternalGPIOPin *pin) { this->interrupt_pin_ = pin; }
-  void set_reset_pin(GPIOPin *pin) { this->reset_pin_ = pin; }
   bool can_proceed() override { return this->setup_complete_ || this->is_failed(); }
   void register_button_listener(CST226ButtonListener *listener) { this->button_listeners_.push_back(listener); }
 
  protected:
-  bool read16_(uint16_t addr, uint8_t *data, size_t len);
   void continue_setup_();
   void update_button_state_(bool state);
 
-  InternalGPIOPin *interrupt_pin_{};
-  GPIOPin *reset_pin_{};
-  uint8_t chip_id_{};
-  bool setup_complete_{};
-  std::vector<CST226ButtonListener *> button_listeners_;
   bool button_touched_{};
+  uint16_t chip_id_{};
+  uint16_t project_id_{};
+  std::vector<CST226ButtonListener *> button_listeners_;
 };
 
 }  // namespace esphome::cst226
