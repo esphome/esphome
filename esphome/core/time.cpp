@@ -34,7 +34,8 @@ int32_t days_to_year_start(int year) {
 // Every year has at least 365 days, so the estimate is never early; step back to the year that holds the day.
 // Leaves the day of that year in days.
 static int days_to_year(int32_t &days) {
-  int year = static_cast<int>(static_cast<uint32_t>(days + DAYS_FROM_YEAR_0) / DAYS_PER_YEAR);
+  // Signed: a local time just before year 0 rounds up to year 0 and steps back to -1
+  int year = (days + DAYS_FROM_YEAR_0) / DAYS_PER_YEAR;
   int32_t year_start;
   while (days < (year_start = days_to_year_start(year)))
     year--;
@@ -377,13 +378,16 @@ void ESPTime::increment_day() {
   }
 }
 
-void ESPTime::recalc_timestamp_utc(bool use_day_of_year) {
+void ESPTime::recalc_timestamp_utc(bool use_day_of_year) { this->recalc_timestamp_utc_(use_day_of_year); }
+
+bool ESPTime::recalc_timestamp_utc_(bool use_day_of_year) {
   if (!this->fields_in_range(false, use_day_of_year)) {
     this->timestamp = -1;
-    return;
+    return false;
   }
 
-  time_t res = internal::days_to_year_start(this->year);
+  // 64-bit, so a 32-bit time_t near its minimum does not overflow before the seconds are added
+  int64_t res = internal::days_to_year_start(this->year);
 
   if (use_day_of_year) {
     res += this->day_of_year - 1;
@@ -399,15 +403,16 @@ void ESPTime::recalc_timestamp_utc(bool use_day_of_year) {
   res += this->minute;
   res *= 60;
   res += this->second;
-  this->timestamp = res;
+  this->timestamp = static_cast<time_t>(res);
+  return true;
 }
 
 void ESPTime::recalc_timestamp_local() {
 #ifdef USE_TIME_TIMEZONE
   // Calculate timestamp as if fields were UTC
-  this->recalc_timestamp_utc(false);
-  if (this->timestamp == -1) {
-    return;  // Invalid time
+  // -1 is also a real time (1969-12-31 23:59:59), so ask for validity instead
+  if (!this->recalc_timestamp_utc_(false)) {
+    return;
   }
 
   // Now convert from local to UTC by adding the offset

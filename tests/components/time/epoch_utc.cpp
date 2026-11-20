@@ -74,6 +74,13 @@ TEST(EpochUtc, RecalcTimestampRoundTrips) {
   }
 }
 
+TEST(EpochUtc, RecalcTimestampAtThe32BitMinimum) {
+  // 1901-12-13 20:45:52, the smallest 32-bit time_t
+  ESPTime t = ESPTime::from_epoch_utc(static_cast<time_t>(-2147483648LL));
+  t.recalc_timestamp_utc(false);
+  EXPECT_EQ(t.timestamp, static_cast<time_t>(-2147483648LL));
+}
+
 TEST(EpochUtc, EpochsOutsideSixteenBitYearsAreInvalid) {
   for (time_t epoch : {
            static_cast<time_t>(-62167219201),

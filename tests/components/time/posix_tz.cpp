@@ -163,6 +163,35 @@ TEST(PosixTz, DaysInMonthMatchesTable) {
   }
 }
 
+TEST(PosixTz, LocalTimeJustBeforeYear0) {
+  // In UTC-1, the first second of year 0 UTC is still in year -1 local time; it must not overflow
+  ParsedTimezone tz{};
+  tz.std_offset_seconds = 3600;
+  struct tm tm{};
+  ASSERT_TRUE(epoch_to_local_tm(-62167219200, tz, &tm));
+  EXPECT_EQ(tm.tm_year + 1900, -1);
+  EXPECT_EQ(tm.tm_mon, 11);
+  EXPECT_EQ(tm.tm_mday, 31);
+  EXPECT_EQ(tm.tm_hour, 23);
+}
+
+TEST(PosixTz, RecalcLocalOneSecondBeforeEpoch) {
+  // 1969-12-31 23:59:59 as UTC fields is -1, which is a real time, not an error
+  ParsedTimezone tz{};
+  tz.std_offset_seconds = 5 * 3600;  // EST5, no DST
+  set_global_tz(tz);
+  ESPTime t{};
+  t.year = 1969;
+  t.month = 12;
+  t.day_of_month = 31;
+  t.hour = 23;
+  t.minute = 59;
+  t.second = 59;
+  t.recalc_timestamp_local();
+  EXPECT_EQ(t.timestamp, 17999);
+  set_global_tz(ParsedTimezone{});
+}
+
 TEST(PosixTz, LeapYearDetection) {
   EXPECT_FALSE(internal::is_leap_year(1900));  // Divisible by 100 but not 400
   EXPECT_TRUE(internal::is_leap_year(2000));   // Divisible by 400
@@ -210,27 +239,6 @@ TEST(PosixTz, DayOfYear0IsJan1) {
   internal::day_of_year_to_month_day(0, 2025, month, day);
   EXPECT_EQ(month, 1);
   EXPECT_EQ(day, 1);
-}
-
-TEST(PosixTz, DaysInMonthRegular) {
-  // Test all 12 months to ensure switch coverage
-  EXPECT_EQ(internal::days_in_month(2025, 1), 31);   // Jan - default case
-  EXPECT_EQ(internal::days_in_month(2025, 2), 28);   // Feb - case 2
-  EXPECT_EQ(internal::days_in_month(2025, 3), 31);   // Mar - default case
-  EXPECT_EQ(internal::days_in_month(2025, 4), 30);   // Apr - case 4
-  EXPECT_EQ(internal::days_in_month(2025, 5), 31);   // May - default case
-  EXPECT_EQ(internal::days_in_month(2025, 6), 30);   // Jun - case 6
-  EXPECT_EQ(internal::days_in_month(2025, 7), 31);   // Jul - default case
-  EXPECT_EQ(internal::days_in_month(2025, 8), 31);   // Aug - default case
-  EXPECT_EQ(internal::days_in_month(2025, 9), 30);   // Sep - case 9
-  EXPECT_EQ(internal::days_in_month(2025, 10), 31);  // Oct - default case
-  EXPECT_EQ(internal::days_in_month(2025, 11), 30);  // Nov - case 11
-  EXPECT_EQ(internal::days_in_month(2025, 12), 31);  // Dec - default case
-}
-
-TEST(PosixTz, DaysInMonthLeapYear) {
-  EXPECT_EQ(internal::days_in_month(2024, 2), 29);
-  EXPECT_EQ(internal::days_in_month(2025, 2), 28);
 }
 
 TEST(PosixTz, PlainDay365LeapYear) {

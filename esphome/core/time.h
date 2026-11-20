@@ -162,5 +162,9 @@ struct ESPTime {
   bool operator==(const ESPTime &other) const;
   bool operator>=(const ESPTime &other) const;
   bool operator>(const ESPTime &other) const;
+
+ protected:
+  /// recalc_timestamp_utc() that also returns whether the fields were valid
+  bool recalc_timestamp_utc_(bool use_day_of_year);
 };
 }  // namespace esphome
