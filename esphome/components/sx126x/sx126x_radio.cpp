@@ -1,5 +1,6 @@
 #include "sx126x_radio.h"
 #include "esphome/core/log.h"
+#include <cmath>
 #include <utility>
 
 namespace esphome::sx126x {
@@ -213,6 +214,18 @@ bool SX126xRadio::is_receiving() {
   this->busy_ = false;
   // A failed read counts as receiving, so the link holds the send and warns if the radio stays unreadable
   return !this->bus().ok() || (status & (IRQ_HEADER_VALID | IRQ_SYNCWORD_VALID)) != 0;
+}
+
+float SX126xRadio::read_rssi_instant() {
+  // A radio that sleeps after sending is not listening, and reading it would wake it
+  if (this->busy_ || this->state_ != RadioState::RADIO_STATE_IDLE || !this->applied_.rx_start || this->is_receiving()) {
+    return NAN;
+  }
+  this->busy_ = true;
+  this->bus().begin();
+  const float rssi = this->commands_.read_rssi_instant();
+  this->busy_ = false;
+  return this->bus().ok() ? rssi : NAN;
 }
 
 RadioEffects SX126xRadio::poll(uint32_t now, std::vector<uint8_t> &packet) {

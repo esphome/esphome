@@ -159,6 +159,8 @@ class RadioHardware {
   size_t ends{0};
   unsigned sends{0};
   uint16_t irq{0};
+  // The channel power the chip reports, in -0.5 dBm steps
+  uint8_t rssi_inst{0};
   // Called as each command ends, with its opcode
   std::function<void(uint8_t)> on_command;
   bool receiving{false};
@@ -195,6 +197,11 @@ class RadioHardware {
         }
         if (pos == 4) {
           return 84;
+        }
+        break;
+      case RADIO_GET_RSSIINST:
+        if (pos == 2) {
+          return this->rssi_inst;
         }
         break;
       case RADIO_GET_RXBUFFERSTATUS:
