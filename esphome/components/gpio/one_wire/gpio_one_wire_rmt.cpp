@@ -133,8 +133,13 @@ void GPIORMTOneWireBus::loop() {
     this->engine_.poll();
     // From a log handler inside the engine, poll() does nothing. Stop then, instead of spinning forever.
   } while (this->is_failed() && !this->engine_.is_idle() && !this->engine_.is_busy());
-  if (this->engine_.is_idle() && !this->is_failed())
-    this->disable_loop();
+  if (!this->engine_.is_idle() || this->is_failed())
+    return;
+  this->disable_loop();
+  // disable_loop() logs before it takes the bus out of the loop. A log handler that submits there calls
+  // enable_loop() while the loop is still enabled, which does nothing. So enable it again here.
+  if (!this->engine_.is_idle())
+    this->enable_loop_soon_any_context();
 }
 
 void GPIORMTOneWireBus::on_shutdown() {
