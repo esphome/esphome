@@ -17,7 +17,6 @@ import threading
 import time
 from typing import IO, TYPE_CHECKING
 from urllib.parse import urlparse
-from urllib.request import url2pathname
 
 from esphome.helpers import ProgressBar, get_usable_cpu_count, rmtree
 from esphome.net_retry import (
@@ -1363,6 +1362,9 @@ def local_path_from_url(url: str) -> Path:
     Handles ``file:///home/me/x`` and ``file:///C:/x`` (no host), ``file://localhost/x``
     and ``file://server/share/x`` (a UNC path).
     """
+    # urllib.request loads http.client and the email parser, which config validation does not need
+    from urllib.request import url2pathname
+
     from esphome.core import EsphomeError
 
     try:

@@ -1,4 +1,5 @@
 from collections.abc import Callable
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -22,12 +23,19 @@ from esphome.components.esp32.const import (
 from esphome.components.openthread import (
     _RCP_SCHEMA,
     BORDER_ROUTER_SDKCONFIG_OPTIONS,
+    CONFIG_SCHEMA,
+    MTD_POLL_PERIOD_OPTIONS,
+    POLL_PERIOD_ACTION_SCHEMA,
     RCP_BORDER_ROUTER_VARIANTS,
     _final_validate,
     _validate,
     _validate_platform,
 )
-from esphome.components.openthread.const import CONF_RCP
+from esphome.components.openthread.const import (
+    CONF_CORE_OPTIONS,
+    CONF_POLL_PERIOD,
+    CONF_RCP,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_AP,
@@ -50,6 +58,7 @@ from esphome.const import (
 from esphome.core import CORE
 import esphome.final_validate as fv
 from esphome.types import ConfigType
+from tests.component_tests.helpers import get_define_value
 from tests.component_tests.types import SetCoreConfigCallable
 
 CONFIG_DIR = Path(__file__).parent / "config"
@@ -318,3 +327,85 @@ def test_border_router_accepts_supported_config(
     _set_esp32_idf_core(set_core_config)
 
     _run_final_validation(otbr_config, full_config)
+
+
+SHORT_TLV = "0e080000000000010000000300001435060004001fffe0"
+OTHER_CORE_OPTION = {"OPENTHREAD_CONFIG_MLE_MAX_CHILDREN": "5"}
+
+
+def _poll_config(
+    poll_period: str | None, device_type: str = DEVICE_TYPE_MTD, **extra: Any
+) -> ConfigType:
+    config = {CONF_DEVICE_TYPE: device_type, "tlv": SHORT_TLV, **extra}
+    if poll_period is not None:
+        config[CONF_POLL_PERIOD] = poll_period
+    return config
+
+
+@pytest.mark.parametrize(
+    "validate",
+    [
+        lambda period: CONFIG_SCHEMA(_poll_config(period)),
+        lambda period: POLL_PERIOD_ACTION_SCHEMA(
+            {CONF_POLL_PERIOD: period, CONF_ID: "ot"}
+        ),
+    ],
+    ids=["config", "action"],
+)
+@pytest.mark.parametrize(
+    ("poll_period", "deprecated"), [("7200s", False), ("7201s", True)]
+)
+def test_poll_period_limit(
+    set_core_config: SetCoreConfigCallable,
+    caplog: pytest.LogCaptureFixture,
+    validate: Callable[[str], ConfigType],
+    poll_period: str,
+    deprecated: bool,
+) -> None:
+    _set_esp32_idf_core(set_core_config)
+    with caplog.at_level(logging.WARNING):
+        result = validate(poll_period)
+    assert result[CONF_POLL_PERIOD].total_milliseconds == 7200 * 1000
+    assert ("poll_period above 7200s is deprecated" in caplog.text) is deprecated
+
+
+@pytest.mark.parametrize(
+    ("device_type", "poll_period"),
+    [
+        (DEVICE_TYPE_MTD, None),
+        (DEVICE_TYPE_MTD, "0s"),
+        (DEVICE_TYPE_MTD, "5s"),
+        (DEVICE_TYPE_FTD, None),
+    ],
+)
+def test_derived_core_options_are_kept(
+    set_core_config: SetCoreConfigCallable,
+    device_type: str,
+    poll_period: str | None,
+) -> None:
+    _set_esp32_idf_core(set_core_config)
+    options = {**dict.fromkeys(MTD_POLL_PERIOD_OPTIONS, "960"), **OTHER_CORE_OPTION}
+    config = _poll_config(poll_period, device_type, **{CONF_CORE_OPTIONS: options})
+    assert CONFIG_SCHEMA(config)[CONF_CORE_OPTIONS] == options
+
+
+@pytest.mark.parametrize("name", sorted(MTD_POLL_PERIOD_OPTIONS))
+def test_mtd_rejects_derived_core_option_expressions(
+    set_core_config: SetCoreConfigCallable, name: str
+) -> None:
+    _set_esp32_idf_core(set_core_config)
+    config = _poll_config(None, **{CONF_CORE_OPTIONS: {name: "(240 + 10)"}})
+    with pytest.raises(cv.Invalid, match="must be a whole number of seconds"):
+        CONFIG_SCHEMA(config)
+
+
+def test_mtd_timeout_minimums_follow_core_options(
+    generate_main: Callable[[str | Path], str],
+) -> None:
+    generate_main(CONFIG_DIR / "mtd_core_options.yaml")
+
+    # The configured value, else the OpenThread default; polling never goes below it
+    assert get_define_value("ESPHOME_OPENTHREAD_CHILD_TIMEOUT_MIN") == "960"
+    assert (
+        get_define_value("ESPHOME_OPENTHREAD_CHILD_SUPERVISION_INTERVAL_MIN") == "129"
+    )

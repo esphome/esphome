@@ -1,0 +1,46 @@
+# esphome#22776 SPI recorder (sxrec.hpp) on the ESP32-PICO-D4. Build rechw.yaml (ESP-IDF hardware bus, tee and SPI3
+# sniffer) or recsw.yaml (software bus with fake pins) with -s name <name>; they set the substitutions and include this.
+esphome:
+  name: ${name}
+  includes: [spibits.hpp, sxrec.hpp]
+  platformio_options:
+    build_flags: ${flag}
+  on_boot:
+    - priority: ${prio}
+      then:
+        - lambda: sxrec::${install}(id(bus), id(radio), 4);
+    - priority: 300
+      then:
+        - lambda: sxrec::late_pins();
+    - priority: -100
+      then:
+        - delay: 3s
+        - lambda: sxrec::sweep(id(radio));
+esp32:
+  board: pico32
+  framework:
+    type: esp-idf
+logger:
+  level: DEBUG
+  tx_buffer_size: 1024
+spi:
+  id: bus
+  interface: ${interface}
+  clk_pin: GPIO18
+  mosi_pin: GPIO23
+  miso_pin: GPIO19
+sx127x:
+  id: radio
+  cs_pin: GPIO5
+  rst_pin: GPIO21
+  dio0_pin:
+    number: GPIO4
+    mode:
+      input: true
+      pulldown: true
+  frequency: 433920000
+  modulation: LORA
+  bandwidth: 125_0kHz
+  preamble_size: 8
+  crc_enable: true
+  rx_start: true

@@ -45,9 +45,9 @@ void VBus::loop() {
       this->buffer_.push_back(c);
       if (this->buffer_.size() == 7) {
         this->protocol_ = this->buffer_[4];
-        this->source_ = (this->buffer_[3] << 8) + this->buffer_[2];
-        this->dest_ = (this->buffer_[1] << 8) + this->buffer_[0];
-        this->command_ = (this->buffer_[6] << 8) + this->buffer_[5];
+        this->source_ = encode_value_le<uint16_t>(this->buffer_.data() + 2);
+        this->dest_ = encode_value_le<uint16_t>(this->buffer_.data());
+        this->command_ = encode_value_le<uint16_t>(this->buffer_.data() + 5);
       }
       if ((this->protocol_ == 0x20) && (this->buffer_.size() == 15)) {
         this->state_ = 0;
@@ -56,7 +56,7 @@ void VBus::loop() {
           return;
         }
         septet_spread(this->buffer_.data(), 7, 6, this->buffer_[13]);
-        uint16_t id = (this->buffer_[8] << 8) + this->buffer_[7];
+        uint16_t id = encode_value_le<uint16_t>(this->buffer_.data() + 7);
         uint32_t value = encode_uint32(this->buffer_[12], this->buffer_[11], this->buffer_[10], this->buffer_[9]);
         ESP_LOGV(TAG, "P1 C%04x %04x->%04x: %04x %04" PRIx32 " (%" PRIu32 ")", this->command_, this->source_,
                  this->dest_, id, value, value);
