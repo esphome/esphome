@@ -53,12 +53,6 @@ void DeepSleepComponent::begin_sleep(bool manual) {
     return;
   }
 
-#ifdef USE_BK72XX
-  // deep_sleep.enter can run before setup(), e.g. from on_boot at its default priority
-  if (!this->is_ready())
-    this->setup_wakeup_pins_();
-#endif
-
   if (!this->prepare_to_sleep_()) {
     return;
   }

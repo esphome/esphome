@@ -44,6 +44,10 @@ bool DeepSleepComponent::pin_prevents_sleep_(WakeUpPinItem &pin_item) const {
 }
 
 bool DeepSleepComponent::prepare_to_sleep_() {
+  // deep_sleep.enter can run before setup(), e.g. from on_boot at its default priority
+  if (!this->is_ready())
+    this->setup_wakeup_pins_();
+
   if (!this->wakeup_pins_.empty()) {
     for (WakeUpPinItem &item : this->wakeup_pins_) {
       if (this->pin_prevents_sleep_(item)) {
