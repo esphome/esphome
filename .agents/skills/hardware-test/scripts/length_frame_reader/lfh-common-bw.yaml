@@ -1,34 +1,10 @@
 # BW15 kit (RTL8720CF) harness: jumper UART1 TX PA03 to RX PA02, so the bus reads back what it sends.
-esphome:
-  name: ${name}
-  includes:
-    - lfh.hpp
+substitutions:
+  tx: PA03
+  rx: PA02
+
+packages:
+  base: !include lfh-base.yaml
 
 rtl87xx:
   board: bw15
-
-wifi:
-  ssid: !secret wifi_ssid
-  password: !secret wifi_password
-
-api:
-  reboot_timeout: 0s
-
-logger:
-  level: VERBOSE
-
-uart:
-  id: bus
-  tx_pin: PA03
-  rx_pin: PA02
-  baud_rate: ${baud}
-  rx_buffer_size: 512
-
-button:
-  - platform: template
-    name: Run
-    on_press:
-      - script.execute: run_cases
-
-  - platform: restart
-    name: Restart

@@ -1,6 +1,6 @@
 """Write the RP2 UART pin choice configs: u<set><board>.yaml for sets a, b, c on the Pico W and Pico 2 W.
 
-Each bus is (id, tx, rx, loop, inverted); -1 leaves the pin out. Run in the directory that holds lb.hpp.
+Each bus is (id, tx, rx, loop, inverted); -1 leaves the pin out. The configs are written next to lb.hpp.
 """
 
 import pathlib
@@ -82,6 +82,6 @@ uart:
 
 for s, buses in SETS.items():
     for b, board in BOARDS.items():
-        pathlib.Path(f"u{s}{b}.yaml").write_text(
+        (pathlib.Path(__file__).parent / f"u{s}{b}.yaml").write_text(
             config(s, board, buses), encoding="utf-8"
         )

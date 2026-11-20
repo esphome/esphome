@@ -172,6 +172,27 @@ inline Bytes tu_d() {  // payload holds a header
   return o;
 }
 
+// One step of a case script: write the bytes, wait, then log the values seen as CASE <name>
+struct Step {
+  const char *name;
+  Bytes (*make)();
+  uint32_t wait_ms;
+};
+inline const std::vector<Step> LD_STEPS{
+    {"LD A", ld_a, 1500},         {"LD B", ld_b, 1500},
+    {"LD C1-quiet", ld_c1, 1000}, {"LD C1-next", [] { return ld(123); }, 1500},
+    {"LD C2-quiet", ld_c2, 1000}, {"LD C2-next", [] { return ld(126); }, 1500},
+    {"LD C3-quiet", ld_c3, 1000}, {"LD C3-next", [] { return ld(128); }, 1500},
+    {"LD D", ld_d, 1500},
+};
+inline const std::vector<Step> TU_STEPS{
+    {"TU A", tu_a, 1500},         {"TU B", tu_b, 1500},
+    {"TU C1-quiet", tu_c1, 1000}, {"TU C1-next", [] { return tu(223); }, 1500},
+    {"TU C2-quiet", tu_c2, 1000}, {"TU C2-next", [] { return tu(226); }, 1500},
+    {"TU D", tu_d, 1500},
+};
+inline const std::vector<Step> &steps(bool tuya) { return tuya ? TU_STEPS : LD_STEPS; }
+
 inline void report(const char *name) {
   ESP_LOGI("lfh", "CASE %s seen=%s", name, seen.c_str());
   seen.clear();

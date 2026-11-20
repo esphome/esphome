@@ -9,55 +9,10 @@ interval:
 
 script:
   - id: run_cases
-    mode: single
     then:
       - lambda: lfh::seen.clear(); ESP_LOGI("lfh", "RUN start");
-      - uart.write: {id: bus, data: !lambda return lfh::ld_a();}
-      - delay: 1500ms
-      - lambda: lfh::report("LD A");
-      - uart.write: {id: bus, data: !lambda return lfh::ld_b();}
-      - delay: 1500ms
-      - lambda: lfh::report("LD B");
-      - uart.write: {id: bus, data: !lambda return lfh::ld_c1();}
-      - delay: 1s
-      - lambda: lfh::report("LD C1-quiet");
-      - uart.write: {id: bus, data: !lambda return lfh::ld(123);}
-      - delay: 1500ms
-      - lambda: lfh::report("LD C1-next");
-      - uart.write: {id: bus, data: !lambda return lfh::ld_c2();}
-      - delay: 1s
-      - lambda: lfh::report("LD C2-quiet");
-      - uart.write: {id: bus, data: !lambda return lfh::ld(126);}
-      - delay: 1500ms
-      - lambda: lfh::report("LD C2-next");
-      - uart.write: {id: bus, data: !lambda return lfh::ld_c3();}
-      - delay: 1s
-      - lambda: lfh::report("LD C3-quiet");
-      - uart.write: {id: bus, data: !lambda return lfh::ld(128);}
-      - delay: 1500ms
-      - lambda: lfh::report("LD C3-next");
-      - uart.write: {id: bus, data: !lambda return lfh::ld_d();}
-      - delay: 1500ms
-      - lambda: lfh::report("LD D");
-      - uart.write: {id: bus, data: !lambda return lfh::tu_a();}
-      - delay: 1500ms
-      - lambda: lfh::report("TU A");
-      - uart.write: {id: bus, data: !lambda return lfh::tu_b();}
-      - delay: 1500ms
-      - lambda: lfh::report("TU B");
-      - uart.write: {id: bus, data: !lambda return lfh::tu_c1();}
-      - delay: 1s
-      - lambda: lfh::report("TU C1-quiet");
-      - uart.write: {id: bus, data: !lambda return lfh::tu(223);}
-      - delay: 1500ms
-      - lambda: lfh::report("TU C1-next");
-      - uart.write: {id: bus, data: !lambda return lfh::tu_c2();}
-      - delay: 1s
-      - lambda: lfh::report("TU C2-quiet");
-      - uart.write: {id: bus, data: !lambda return lfh::tu(226);}
-      - delay: 1500ms
-      - lambda: lfh::report("TU C2-next");
-      - uart.write: {id: bus, data: !lambda return lfh::tu_d();}
-      - delay: 1500ms
-      - lambda: lfh::report("TU D");
+      - script.execute: {id: play, tuya: false}
+      - script.wait: play
+      - script.execute: {id: play, tuya: true}
+      - script.wait: play
       - lambda: ESP_LOGI("lfh", "RUN end rejected=%u", (unsigned) lfhraw::rejected);

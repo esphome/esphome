@@ -81,7 +81,7 @@ cc1101:
   modulation_type: ASK/OOK
   output_power: 10
 remote_receiver:
-  pin:
+  pin: &gdo0pin
     number: ${gdo0}
     mode:
       input: true
@@ -98,14 +98,7 @@ remote_receiver:
     then:
       - lambda: 'ESP_LOGI("cct", "NEC addr=0x%04X cmd=0x%04X", x.address, x.command);'
 remote_transmitter:
-  pin:
-    number: ${gdo0}
-    mode:
-      input: true
-      output: true
-      pullup: true
-      open_drain: true
-    allow_other_uses: true
+  pin: *gdo0pin
   eot_level: false
   carrier_duty_percent: 100%
   on_transmit:
