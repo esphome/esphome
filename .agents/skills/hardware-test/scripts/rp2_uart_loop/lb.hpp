@@ -77,7 +77,7 @@ inline void check(const char *label, uart::UARTComponent *u, int tx, int rx, boo
     ESP_LOGE(TAG, "LOOP %s no route", label);
     return;
   }
-  delay(5);
+  (esphome::delay)(5);
   uint8_t junk;
   while (u->available())
     u->read_byte(&junk);
@@ -88,7 +88,7 @@ inline void check(const char *label, uart::UARTComponent *u, int tx, int rx, boo
       out[i] = r == 0 ? i * 4 + 3 : (r == 1 ? (i & 1 ? 0x00 : 0xFF) : (uint8_t) (0x55 ^ (i * 37)));
     u->write_array(out, sizeof(out));
     u->flush();
-    delay(20);
+    (esphome::delay)(20);
     size_t got = u->available();
     size_t n = got > 64 ? 64 : got;
     if (n)

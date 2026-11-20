@@ -43,7 +43,7 @@ inline bool tu_frame(const uint8_t *f, size_t len) {
 }
 inline void poll(uart::UARTComponent *bus) {
   uint8_t c;
-  const uint32_t now = millis();
+  const uint32_t now = (esphome::millis) ();
   while (bus->available() > 0 && bus->read_byte(&c)) {
     ld_reader.feed(c, ld_frame);
     tu_reader.feed(c, tu_frame);
