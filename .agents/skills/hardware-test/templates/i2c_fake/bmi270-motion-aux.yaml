@@ -1,0 +1,20 @@
+motion:
+  - platform: bmi270
+    id: imu
+    i2c_id: i2c_bus
+    update_interval: 5s
+    aux_device: BMM150
+
+sensor:
+  - platform: bmi270
+    bmi270_id: imu
+    type: magnetic_field_x
+    name: "BMI Mag X"
+  - platform: bmi270
+    bmi270_id: imu
+    type: magnetic_field_y
+    name: "BMI Mag Y"
+  - platform: bmi270
+    bmi270_id: imu
+    type: magnetic_field_z
+    name: "BMI Mag Z"

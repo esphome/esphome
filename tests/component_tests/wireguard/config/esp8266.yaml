@@ -1,0 +1,5 @@
+packages:
+  common: !include libsodium_common.yaml
+
+esp8266:
+  board: d1_mini
