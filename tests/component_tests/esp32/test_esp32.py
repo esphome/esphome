@@ -1361,7 +1361,7 @@ def test_reconcile_mbedtls_sha1_without_tls(
     asyncio.run(_reconcile_mbedtls_sdkconfig())
 
     opts = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
-    assert ("CONFIG_MBEDTLS_SHA1_C" not in opts) is keeps_sha1
+    assert opts.get("CONFIG_MBEDTLS_SHA1_C") is (None if keeps_sha1 else False)
 
 
 @pytest.mark.parametrize(
