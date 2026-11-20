@@ -3,9 +3,9 @@
 #include <cstddef>
 #include <cstdint>
 
-#include "stream_head.h"
+#include "esphome/components/web_server_base/stream_head.h"
 
-namespace esphome::web_server_idf {
+namespace esphome::web_server {
 
 // Wire framing of one Server-Sent-Events event inside the chunked /events response:
 //   "%08x\r\n" + fields + "data: " line ["\r\ndata: " line]... "\r\n" + "\r\n" + "\r\n"
@@ -27,7 +27,7 @@ constexpr size_t SSE_SUFFIX_LEN = sizeof(SSE_SUFFIX) - 1;
 // Status, Content-Type and headers of the /events response head
 constexpr char SSE_STATUS[] = "200 OK";
 constexpr char SSE_CONTENT_TYPE[] = "text/event-stream";
-constexpr HttpHeader SSE_HEADERS[] = {
+constexpr web_server_base::HttpHeader SSE_HEADERS[] = {
     {"Transfer-Encoding", "chunked"},
     {"Cache-Control", "no-cache"},
     {"Connection", "keep-alive"},
@@ -50,4 +50,4 @@ size_t build_chunk_prefix(char *buf, size_t size, const char *event, uint32_t id
 // Fills the header placeholder at the start of buf once the chunk length is known
 void write_chunk_header(char *buf, size_t chunk_len);
 
-}  // namespace esphome::web_server_idf
+}  // namespace esphome::web_server

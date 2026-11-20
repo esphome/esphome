@@ -5,7 +5,7 @@
 
 #include "esphome/core/helpers.h"
 
-namespace esphome::web_server_idf {
+namespace esphome::web_server {
 
 void for_each_chunk_piece(const char *message, size_t message_len, ChunkPieceSink sink, void *ctx) {
   if (message == nullptr) {
@@ -63,4 +63,4 @@ void write_chunk_header(char *buf, size_t chunk_len) {
   buf[9] = '\n';
 }
 
-}  // namespace esphome::web_server_idf
+}  // namespace esphome::web_server
