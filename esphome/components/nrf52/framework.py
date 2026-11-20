@@ -19,8 +19,8 @@ from esphome.components.zephyr.framework_helpers import (
 )
 from esphome.components.zephyr.sdk_install import (
     ARM_TOOLCHAIN,
+    ensure_sdk,
     get_sdk_host_info,
-    install_sdk,
     sdk_toolchain_path,
 )
 import esphome.config_validation as cv
@@ -610,12 +610,7 @@ def _check_and_install(version: str) -> None:
         zephyr_sentinel.touch()
     _patch_pyocd_nrf54lm20a_flash_algo(python_env_path)
 
-    # Shared by every SDK version that uses the same toolchain; locked only
-    # while missing
-    toolchain_version = _get_toolchain_version()
-    if not (_get_toolchain_path(toolchain_version) / ".ready").exists():
-        with install_lock(get_sdk_nrf_tools_path(), f"toolchain-{toolchain_version}"):
-            _install_toolchain()
+    _install_toolchain()
 
 
 # Nordic's nrfutil launcher, one static binary per host; its commands are installed from Nordic's
@@ -718,23 +713,14 @@ def ensure_nordic_nrfutil(env: dict[str, str]) -> str:
 
 def _install_toolchain() -> None:
     toolchain_version = _get_toolchain_version()
-    toolchains_dir = _get_toolchain_path(toolchain_version)
-    sentinel = toolchains_dir / ".ready"
-    if not sentinel.exists():
-        install_sdk(toolchains_dir, toolchain_version, ARM_TOOLCHAIN)
-        # Best-effort prune of resume leftovers, including orphans of retired
-        # toolchain versions; the SDK archives are hundreds of MB. The other
-        # toolchain still in use may be downloading under its own lock, so its
-        # leftovers are kept. A locked file must not discard the just-completed
-        # install.
-        other_versions = tuple(
-            f"{v}." for v in _TOOLCHAIN_VERSIONS if v != toolchain_version
-        )
-        for leftover in toolchains_dir.parent.glob("*.archive.part*"):
-            if leftover.name.startswith(other_versions):
-                continue
-            try:
-                leftover.unlink()
-            except OSError as err:
-                _LOGGER.debug("Could not remove %s: %s", leftover, err)
-        sentinel.touch()
+    # The other toolchain in use may be downloading under its own lock
+    other_versions = tuple(
+        f"{v}." for v in _TOOLCHAIN_VERSIONS if v != toolchain_version
+    )
+    ensure_sdk(
+        _get_toolchain_path(toolchain_version),
+        toolchain_version,
+        ARM_TOOLCHAIN,
+        keep_leftover=lambda leftover: leftover.name.startswith(other_versions),
+        lock_root=get_sdk_nrf_tools_path(),
+    )
