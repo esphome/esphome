@@ -1,0 +1,208 @@
+// Drives every I2CDevice call shape through each bus model and writes one line per call to $WAB_OUT.
+#include <gtest/gtest.h>
+
+#include <cstdint>
+#include <cstdlib>
+#include <fstream>
+#include <functional>
+#include <vector>
+#ifndef __has_feature
+#define __has_feature(x) 0
+#endif
+#if defined(__SANITIZE_ADDRESS__) || __has_feature(address_sanitizer)
+#define WAB_ASAN 1
+extern "C" int __sanitizer_install_malloc_and_free_hooks(void (*malloc_hook)(const volatile void *, size_t),
+                                                         void (*free_hook)(const volatile void *));
+#endif
+#include "esphome/components/i2c/i2c.h"
+#include "wab_common.h"
+
+esphome::i2c::I2CBus *wab_make_esp8266();
+esphome::i2c::I2CBus *wab_make_pico();
+esphome::i2c::I2CBus *wab_make_idf();
+esphome::i2c::I2CBus *wab_make_sw();
+void wab_reset_esp8266();
+void wab_reset_pico();
+void wab_reset_sw();
+
+namespace wab {
+static volatile bool g_window = false;
+static volatile size_t g_allocs = 0;
+#ifdef WAB_ASAN
+static void on_malloc(const volatile void *, size_t) {
+  if (g_window)
+    g_allocs = g_allocs + 1;
+}
+static void on_free(const volatile void *) {}
+static bool install() {
+  __sanitizer_install_malloc_and_free_hooks(on_malloc, on_free);
+  return true;
+}
+#else
+typedef void(malloc_logger_t)(uint32_t type, uintptr_t arg1, uintptr_t arg2, uintptr_t arg3, uintptr_t result,
+                              uint32_t num_hot_frames_to_skip);
+extern "C" malloc_logger_t *malloc_logger;
+static void on_log(uint32_t type, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uint32_t) {
+  // MALLOC_LOG_TYPE_ALLOCATE = 2
+  if (g_window && (type & 2))
+    g_allocs = g_allocs + 1;
+}
+static bool install() {
+  malloc_logger = on_log;
+  return true;
+}
+#endif
+static bool g_installed = install();
+void alloc_window(bool on) {
+  if (on)
+    g_allocs = 0;
+  g_window = on;
+}
+size_t alloc_count() { return g_allocs; }
+}  // namespace wab
+
+namespace esphome::i2c::testing {
+
+// Zephyr, host and TCA9548A keep the default write_prefixed(): this bus only has write_readv(), like them
+class DefaultPathBus : public I2CBus {
+ public:
+  ErrorCode write_readv(uint8_t address, const uint8_t *wb, size_t wc, uint8_t *rb, size_t rc) override {
+    auto &w = wab::wire();
+    auto &s = wab::slave();
+    if (wc != 0 || rc == 0) {
+      w.start();
+      bool ok = s.address(address << 1);
+      w.wbyte(address << 1, ok);
+      for (size_t i = 0; ok && i < wc; i++) {
+        ok = s.data(wb[i]);
+        w.wbyte(wb[i], ok);
+      }
+      if (!ok) {
+        w.stop();
+        return ERROR_NOT_ACKNOWLEDGED;
+      }
+      if (rc == 0) {
+        w.stop();
+        return ERROR_OK;
+      }
+    }
+    w.start();
+    bool ok = s.address((address << 1) | 1);
+    w.wbyte((address << 1) | 1, ok);
+    for (size_t i = 0; ok && i < rc; i++) {
+      rb[i] = s.next_read();
+      w.rbyte(rb[i], i + 1 < rc);
+    }
+    w.stop();
+    return ok ? ERROR_OK : ERROR_NOT_ACKNOWLEDGED;
+  }
+};
+
+static std::vector<uint8_t> pattern(size_t len, uint8_t seed) {
+  std::vector<uint8_t> v(len);
+  for (size_t i = 0; i < len; i++)
+    v[i] = static_cast<uint8_t>(seed + i * 7);
+  return v;
+}
+
+TEST(WireAB, Record) {
+  const char *out = std::getenv("WAB_OUT");
+  ASSERT_NE(out, nullptr);
+  std::ofstream f(out);
+  // Allocation counter sanity: a malloc inside the window must count
+  wab::alloc_window(true);
+  void *volatile probe = malloc(100);
+  wab::alloc_window(false);
+  free(probe);
+  f << "ALLOC_PROBE " << wab::alloc_count() << "\n";
+  ASSERT_EQ(wab::alloc_count(), 1u);
+
+  struct Bus {
+    const char *name;
+    I2CBus *bus;
+    std::function<void()> reset;
+  };
+  std::vector<Bus> buses = {
+      {"esp8266", wab_make_esp8266(), wab_reset_esp8266},
+      {"pico", wab_make_pico(), wab_reset_pico},
+      {"idf", wab_make_idf(), [] {}},
+      {"sw", wab_make_sw(), wab_reset_sw},
+      {"default", new DefaultPathBus(), [] {}},
+  };
+  for (auto &b : buses) {
+    I2CDevice dev;
+    dev.set_i2c_bus(b.bus);
+    auto run = [&](const std::string &label, const std::function<ErrorCode()> &fn, bool reset = true) {
+      if (reset)
+        b.reset();
+      wab::wire().clear();
+      wab::jobs_note().clear();
+      // the recorder must not allocate inside the window
+      wab::wire().text.reserve(16384);
+      wab::jobs_note().reserve(1024);
+      wab::alloc_window(true);
+      ErrorCode rc = fn();
+      wab::alloc_window(false);
+      f << b.name << "|" << label << "|rc=" << rc << "|alloc=" << wab::alloc_count() << "|" << wab::wire().text
+        << "\n";
+      if (!wab::jobs_note().empty())
+        f << "J|" << b.name << "|" << label << "|" << wab::jobs_note() << "\n";
+    };
+    auto &sl = wab::slave();
+    sl.ack_limit = SIZE_MAX;
+    dev.set_i2c_address(0x48);
+    for (size_t len = 0; len <= 300; len++) {
+      auto d = pattern(len, 0x11);
+      run("wreg8 len=" + std::to_string(len), [&] { return dev.write_register(0x02, d.data(), d.size()); });
+      run("wreg16 len=" + std::to_string(len), [&] { return dev.write_register16(0xBEEF, d.data(), d.size()); });
+    }
+    // nullptr data with len 0, as a caller with no payload may pass
+    run("wreg8 null len=0", [&] { return dev.write_register(0x03, nullptr, 0); });
+    run("wreg16 null len=0", [&] { return dev.write_register16(0x0304, nullptr, 0); });
+    // slave NACKs after k data bytes (k counts the register byte)
+    for (size_t k = 0; k <= 6; k++) {
+      sl.ack_limit = k;
+      auto d = pattern(4, 0x40);
+      run("wreg8 len=4 acklimit=" + std::to_string(k), [&] { return dev.write_register(0x05, d.data(), d.size()); });
+      run("wreg16 len=4 acklimit=" + std::to_string(k),
+          [&] { return dev.write_register16(0x0506, d.data(), d.size()); });
+    }
+    sl.ack_limit = SIZE_MAX;
+    // reads, write+read with repeated start, plain writes, probes
+    for (size_t n : {1, 2, 3, 16, 32}) {
+      std::vector<uint8_t> r(n);
+      run("rreg8 n=" + std::to_string(n), [&] { return dev.read_register(0x01, r.data(), n); });
+      run("rreg16 n=" + std::to_string(n), [&] { return dev.read_register16(0x0102, r.data(), n); });
+      run("read n=" + std::to_string(n), [&] { return dev.read(r.data(), n); });
+      auto w3 = pattern(3, 0x70);
+      run("wr 3+" + std::to_string(n), [&] { return dev.write_read(w3.data(), 3, r.data(), n); });
+    }
+    for (size_t len : {0, 1, 5, 127, 128, 129, 255, 256, 257}) {
+      auto d = pattern(len, 0x22);
+      run("write len=" + std::to_string(len), [&] { return dev.write(d.data(), d.size()); });
+    }
+    // a normal transaction right after an over-long write, without resetting the Wire model in between
+    for (size_t len : {200, 300}) {
+      auto d = pattern(len, 0x33);
+      run("wedge wreg8 len=" + std::to_string(len), [&] { return dev.write_register(0x02, d.data(), d.size()); });
+      std::vector<uint8_t> r(2);
+      run("wedge then rreg8 n=2", [&] { return dev.read_register(0x01, r.data(), 2); }, false);
+      auto s = pattern(2, 0x44);
+      run("wedge then wreg8 len=2", [&] { return dev.write_register(0x02, s.data(), 2); }, false);
+    }
+    // absent device
+    dev.set_i2c_address(0x50);
+    for (size_t len : {0, 1, 5}) {
+      auto d = pattern(len, 0x55);
+      run("absent wreg8 len=" + std::to_string(len), [&] { return dev.write_register(0x02, d.data(), d.size()); });
+      run("absent wreg16 len=" + std::to_string(len),
+          [&] { return dev.write_register16(0x0203, d.data(), d.size()); });
+    }
+    // scan probe over the whole range, as i2c_scan_() does
+    for (uint8_t a = 8; a != 120; a++) {
+      run("probe " + std::to_string(a), [&] { return b.bus->write_readv(a, nullptr, 0, nullptr, 0); });
+    }
+  }
+}
+
+}  // namespace esphome::i2c::testing
