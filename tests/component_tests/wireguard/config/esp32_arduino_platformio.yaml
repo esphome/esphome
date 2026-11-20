@@ -6,3 +6,4 @@ esp32:
   toolchain: platformio
   framework:
     type: arduino
+    version: 3.3.12

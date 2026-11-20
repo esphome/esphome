@@ -293,7 +293,7 @@ jobs:
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
       - name: Run prek
-        uses: j178/prek-action@v3.1.0
+        uses: j178/prek-action@v3.1.1
         with:
           prek-version: ${{ steps.prek.outputs.version }}
           # This job only runs on pull requests, so nothing ever populates
