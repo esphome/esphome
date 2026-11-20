@@ -17,10 +17,11 @@ from esphome.components.zephyr import (
 from esphome.components.zephyr.const import KEY_BOOTLOADER
 from esphome.components.zephyr.variants import (
     ZEPHYR_MAINLINE,
-    ZephyrSDK,
+    ZephyrManifest,
     ZephyrVariant,
-    resolve_framework_version,
-    set_core_data,
+    ZephyrVariantResolved,
+    resolve_variant,
+    set_variant_core_data,
 )
 import esphome.config_validation as cv
 from esphome.const import (
@@ -38,18 +39,24 @@ from esphome.const import (
 )
 from esphome.core import CORE
 
-_SDK: ZephyrSDK = ZephyrSDK(
+_MANIFEST: ZephyrManifest = ZephyrManifest(
+    framework_type="zephyr",
     default_version="4.5.0",
     min_version=cv.Version(4, 4, 0),
 )
-_FAMILY: ModuleType = ModuleType("chipfam_family")
-_FAMILY.FAMILY = "chipfam"
-_VARIANT: ZephyrVariant = ZephyrVariant(sdk=_SDK, family=_FAMILY)
-_VENDOR_SDK: ZephyrSDK = ZephyrSDK(
+_FAMILY_MODULE: ModuleType = ModuleType("chipfam_family")
+_FAMILY_MODULE.FAMILY = "chipfam"
+_VARIANT: ZephyrVariant = ZephyrVariant(
+    name="chip1", family_module=_FAMILY_MODULE, manifest=_MANIFEST
+)
+_VENDOR_MANIFEST: ZephyrManifest = ZephyrManifest(
+    framework_type="vendor",
     default_version="2.0.0",
     min_version=cv.Version(2, 0, 0),
 )
-_ALT_VARIANT: ZephyrVariant = ZephyrVariant(sdk=_SDK, alt_sdks={"vendor": _VENDOR_SDK})
+_ALT_VARIANT: ZephyrVariant = ZephyrVariant(
+    name="chip1", manifest=_MANIFEST, alt_manifests=(_VENDOR_MANIFEST,)
+)
 
 
 def _config(
@@ -71,26 +78,24 @@ def test_zephyr_mainline_default_is_its_minimum() -> None:
 
 @pytest.mark.parametrize("version", [None, "recommended", "4.5.0"])
 @pytest.mark.parametrize("framework_type", [None, "zephyr"])
-def test_version_defaults_to_the_sdks(
+def test_version_defaults_to_the_manifest_default(
     version: str | None, framework_type: str | None, caplog: pytest.LogCaptureFixture
 ) -> None:
-    assert resolve_framework_version(
-        _VARIANT, "chip1", _config(version, framework_type), "chip1 support"
-    ) == ("4.5.0", cv.Version(4, 5, 0), "zephyr", _SDK)
+    assert resolve_variant(
+        _VARIANT, _config(version, framework_type), "chip1 support"
+    ) == ZephyrVariantResolved(_VARIANT, _MANIFEST, cv.Version(4, 5, 0))
     assert "not the recommended one" not in caplog.text
 
 
-def test_type_selects_an_alternative_sdk() -> None:
-    assert resolve_framework_version(
-        _ALT_VARIANT, "chip1", _config(framework_type="vendor"), "chip1 support"
-    ) == ("2.0.0", cv.Version(2, 0, 0), "vendor", _VENDOR_SDK)
+def test_type_selects_an_alternative_manifest() -> None:
+    assert resolve_variant(
+        _ALT_VARIANT, _config(framework_type="vendor"), "chip1 support"
+    ) == ZephyrVariantResolved(_ALT_VARIANT, _VENDOR_MANIFEST, cv.Version(2, 0, 0))
 
 
 def test_unknown_type_is_rejected() -> None:
     with pytest.raises(cv.Invalid, match=r"Valid: \['zephyr', 'vendor'\]") as err:
-        resolve_framework_version(
-            _ALT_VARIANT, "chip1", _config(framework_type="other"), "chip1 support"
-        )
+        resolve_variant(_ALT_VARIANT, _config(framework_type="other"), "chip1 support")
     assert err.value.path == [CONF_FRAMEWORK, CONF_TYPE]
 
 
@@ -98,59 +103,53 @@ def test_version_other_than_the_default_warns(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     with caplog.at_level(logging.WARNING):
-        _, framework_ver, _, _ = resolve_framework_version(
-            _VARIANT, "chip1", _config("4.4.0"), "chip1 support"
-        )
-    assert framework_ver == cv.Version(4, 4, 0)
+        resolved = resolve_variant(_VARIANT, _config("4.4.0"), "chip1 support")
+    assert resolved.version == cv.Version(4, 4, 0)
     assert "not the recommended one (4.5.0)" in caplog.text
 
 
 @pytest.mark.parametrize("version", ["v4.5.0", "4.5.0-rc1a"])
 def test_version_that_is_not_a_number_is_rejected(version: str) -> None:
     with pytest.raises(cv.Invalid, match=f"'{version}' is not a version number") as err:
-        resolve_framework_version(_VARIANT, "chip1", _config(version), "chip1 support")
+        resolve_variant(_VARIANT, _config(version), "chip1 support")
     assert err.value.path == [CONF_FRAMEWORK, CONF_VERSION]
 
 
-def test_version_below_the_minimum_is_rejected() -> None:
+@pytest.mark.parametrize("version", ["4.3.0", "4.4.0-rc1"])
+def test_version_below_the_minimum_is_rejected(version: str) -> None:
+    """A prerelease of the minimum is below it too."""
     with pytest.raises(cv.Invalid, match=r"zephyr >= 4.4.0 \(chip1 support\)") as err:
-        resolve_framework_version(_VARIANT, "chip1", _config("4.3.0"), "chip1 support")
+        resolve_variant(_VARIANT, _config(version), "chip1 support")
     assert err.value.path == [CONF_FRAMEWORK, CONF_VERSION]
-
-
-def test_prerelease_of_the_minimum_is_rejected() -> None:
-    with pytest.raises(cv.Invalid, match=r"zephyr >= 4.4.0"):
-        resolve_framework_version(
-            _VARIANT, "chip1", _config("4.4.0-rc1"), "chip1 support"
-        )
 
 
 def test_release_meets_a_prerelease_minimum() -> None:
-    sdk = ZephyrSDK(default_version="4.5.0", min_version=cv.Version(4, 5, 0, "rc2"))
-    variant = ZephyrVariant(sdk=sdk)
+    manifest = ZephyrManifest(
+        framework_type="zephyr",
+        default_version="4.5.0",
+        min_version=cv.Version(4, 5, 0, "rc2"),
+    )
+    variant = ZephyrVariant(name="chip1", manifest=manifest)
     for version in ("4.5.0", "4.5.0-rc10"):
-        resolve_framework_version(variant, "chip1", _config(version), "chip1 support")
+        resolve_variant(variant, _config(version), "chip1 support")
 
 
 @pytest.mark.parametrize(
-    ("variant", "family"), [(_VARIANT, "chipfam"), (_ALT_VARIANT, None)]
+    ("variant", "manifest", "family"),
+    [(_VARIANT, _MANIFEST, "chipfam"), (_ALT_VARIANT, _VENDOR_MANIFEST, None)],
 )
-def test_set_core_data(variant: ZephyrVariant, family: str | None) -> None:
+def test_set_variant_core_data(
+    variant: ZephyrVariant, manifest: ZephyrManifest, family: str | None
+) -> None:
     CORE.data[KEY_CORE] = {}
 
     config = {CONF_BOARD: "chip1_dk", CONF_FRAMEWORK: {}}
-    set_core_data(
-        "chip1",
-        variant,
-        config,
-        cv.Version(4, 5, 0),
-        framework_type="vendor",
-        bootloader="mcuboot",
-    )
+    resolved = ZephyrVariantResolved(variant, manifest, cv.Version(4, 5, 0))
+    set_variant_core_data(resolved, config, bootloader="mcuboot")
 
     assert zephyr_variant() == "chip1"
     assert zephyr_variant_family() == family
-    assert zephyr_framework_type() == "vendor"
+    assert zephyr_framework_type() == manifest.framework_type
     assert CORE.data["zephyr"][CONF_BOARD] == "chip1_dk"
     assert CORE.data["zephyr"][KEY_BOOTLOADER] == "mcuboot"
     assert CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] == "zephyr"
@@ -191,11 +190,9 @@ def test_variant_names_are_unique_and_listed_within_a_platform(platform: str) ->
     """VARIANT_MODULES is a dict, so a duplicate name would silently replace a variant."""
     package = import_module(f"esphome.components.{platform}.zephyr_variants")
     names = [
-        mod.VARIANT_NAME
+        mod.VARIANT.name
         for info in pkgutil.iter_modules(package.__path__)
-        if hasattr(
-            mod := import_module(f"{package.__name__}.{info.name}"), "VARIANT_NAME"
-        )
+        if hasattr(mod := import_module(f"{package.__name__}.{info.name}"), "VARIANT")
     ]
     assert len(names) == len(set(names))
     assert set(names) == set(package.VARIANT_MODULES)

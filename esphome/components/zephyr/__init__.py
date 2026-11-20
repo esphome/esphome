@@ -143,7 +143,7 @@ def zephyr_variant() -> str | None:
 
 
 def zephyr_variant_family() -> str | None:
-    """The active variant's family, e.g. "stm32"; None without one."""
+    """The active variant's family name, e.g. "stm32"; None without one."""
     return _variant_data().get(KEY_FAMILY)
 
 

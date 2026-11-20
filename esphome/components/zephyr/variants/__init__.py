@@ -4,7 +4,7 @@ Each platform lists its chips in its own ``zephyr_variants`` package; a chip's m
 holds its ``ZephyrVariant`` and its ``config_schema`` and ``to_code``.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 import logging
 import re
 from types import ModuleType
@@ -34,38 +34,54 @@ from ..const import (
 _LOGGER = logging.getLogger(__name__)
 
 
-@dataclass
-class ZephyrSDK:
-    """A framework distribution (Zephyr, NCS, etc.), not the Zephyr SDK toolchain."""
+@dataclass(frozen=True)
+class ZephyrManifest:
+    """The west manifest repository a build starts from (Zephyr, NCS, etc.)."""
 
+    # The `framework: type:` value that selects this manifest
+    framework_type: str
     default_version: str
     min_version: cv.Version
 
 
-@dataclass
+@dataclass(frozen=True, kw_only=True)
 class ZephyrVariant:
-    sdk: ZephyrSDK
-    # The `framework: type:` value naming `sdk`
-    sdk_name: str = "zephyr"
-    # Other SDKs `framework: type:` may select, by type name
-    alt_sdks: dict[str, ZephyrSDK] = field(default_factory=dict)
+    """What zephyr needs to know to build one chip."""
+
+    # e.g. "STM32C5", the `variant:` value in the YAML
+    name: str
     # The module sibling chips share, whose FAMILY is its name; None = no family
-    family: ModuleType | None = None
+    family_module: ModuleType | None = None
+    manifest: ZephyrManifest
+    # Other manifests `framework: type:` may select
+    alt_manifests: tuple[ZephyrManifest, ...] = ()
+
+    @property
+    def manifests(self) -> tuple[ZephyrManifest, ...]:
+        """Its own manifest first, then the alternatives."""
+        return (self.manifest, *self.alt_manifests)
+
+    def manifest_for(self, framework_type: str | None) -> ZephyrManifest:
+        """The manifest a `framework: type:` selects; None selects its own."""
+        if framework_type is None:
+            return self.manifest
+        return {m.framework_type: m for m in self.manifests}[framework_type]
 
 
-ZEPHYR_MAINLINE: ZephyrSDK = ZephyrSDK(
+ZEPHYR_MAINLINE: ZephyrManifest = ZephyrManifest(
+    framework_type="zephyr",
     default_version="4.5.0",
     min_version=cv.Version(4, 5, 0),
 )
 
 
-def resolve_sdk(
-    variant: ZephyrVariant, framework_type: str | None
-) -> tuple[str, ZephyrSDK]:
-    """The (type name, SDK) a `framework: type:` selects; None selects the variant's own."""
-    if framework_type is None or framework_type == variant.sdk_name:
-        return variant.sdk_name, variant.sdk
-    return framework_type, variant.alt_sdks[framework_type]
+@dataclass(frozen=True)
+class ZephyrVariantResolved:
+    """A variant with the manifest and version its `framework:` block resolved to."""
+
+    variant: ZephyrVariant
+    manifest: ZephyrManifest
+    version: cv.Version
 
 
 def _release_order(version: cv.Version) -> tuple[int, int, int, bool, str, int]:
@@ -82,63 +98,63 @@ def _release_order(version: cv.Version) -> tuple[int, int, int, bool, str, int]:
     )
 
 
-def resolve_framework_version(
-    variant: ZephyrVariant, variant_name: str, config: ConfigType, requires_reason: str
-) -> tuple[str, cv.Version, str, ZephyrSDK]:
+def resolve_variant(
+    variant: ZephyrVariant, config: ConfigType, min_version_reason: str
+) -> ZephyrVariantResolved:
     """Resolve `framework: type:` and `version:` of a variant's config.
 
-    ``requires_reason`` says why the SDK's minimum exists, e.g. "mainline STM32 support".
-    Returns the version string, the parsed version, the type name and its SDK.
+    ``min_version_reason`` says why the manifest's minimum exists, e.g. "mainline STM32
+    support".
     """
     framework = config[CONF_FRAMEWORK]
-    type_names = [variant.sdk_name, *variant.alt_sdks]
+    framework_types = [m.framework_type for m in variant.manifests]
     framework_type = framework.get(CONF_TYPE)
-    if framework_type is not None and framework_type not in type_names:
+    if framework_type is not None and framework_type not in framework_types:
         raise cv.Invalid(
-            f"'{framework_type}' is not a valid framework type for {variant_name}. "
-            f"Valid: {type_names!r}",
+            f"'{framework_type}' is not a valid framework type for {variant.name}. "
+            f"Valid: {framework_types!r}",
             [CONF_FRAMEWORK, CONF_TYPE],
         )
-    sdk_name, sdk = resolve_sdk(variant, framework_type)
-    version_str = str(framework.get(CONF_VERSION, sdk.default_version))
+    manifest = variant.manifest_for(framework_type)
+    version_str = str(framework.get(CONF_VERSION, manifest.default_version))
     if version_str == VERSION_RECOMMENDED:
-        version_str = sdk.default_version
+        version_str = manifest.default_version
     try:
-        framework_ver = cv.Version.parse(version_str)
-        framework_order = _release_order(framework_ver)
+        version = cv.Version.parse(version_str)
+        version_order = _release_order(version)
     except ValueError as err:
         raise cv.Invalid(
             f"'{version_str}' is not a version number", [CONF_FRAMEWORK, CONF_VERSION]
         ) from err
-    if framework_order < _release_order(sdk.min_version):
+    if version_order < _release_order(manifest.min_version):
         raise cv.Invalid(
-            f"{variant_name} requires {sdk_name} >= {sdk.min_version} "
-            f"({requires_reason}). Got {version_str}.",
+            f"{variant.name} requires {manifest.framework_type} >= {manifest.min_version} "
+            f"({min_version_reason}). Got {version_str}.",
             [CONF_FRAMEWORK, CONF_VERSION],
         )
-    if framework_ver != cv.Version.parse(sdk.default_version):
+    if version != cv.Version.parse(manifest.default_version):
         _LOGGER.warning(
             "The selected %s version is not the recommended one (%s). "
             "If there are connectivity or build issues please remove the manual version.",
-            sdk_name,
-            sdk.default_version,
+            manifest.framework_type,
+            manifest.default_version,
         )
-    return version_str, framework_ver, sdk_name, sdk
+    return ZephyrVariantResolved(variant, manifest, version)
 
 
-def set_core_data(
-    variant_name: str,
-    variant: ZephyrVariant,
+def set_variant_core_data(
+    resolved: ZephyrVariantResolved,
     config: ConfigType,
-    framework_ver: cv.Version,
     *,
-    framework_type: str,
     bootloader: str,
 ) -> None:
     """Fill CORE.data for a variant's config_schema; ``bootloader`` is "" for none."""
     zephyr_set_core_data({**config, KEY_BOOTLOADER: bootloader})
-    zephyr_data()[KEY_VARIANT] = variant_name
-    zephyr_data()[KEY_FAMILY] = variant.family.FAMILY if variant.family else None
-    zephyr_data()[KEY_FRAMEWORK_TYPE] = framework_type
+    variant = resolved.variant
+    zephyr_data()[KEY_VARIANT] = variant.name
+    zephyr_data()[KEY_FAMILY] = (
+        variant.family_module.FAMILY if variant.family_module else None
+    )
+    zephyr_data()[KEY_FRAMEWORK_TYPE] = resolved.manifest.framework_type
     CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = KEY_ZEPHYR
-    CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] = framework_ver
+    CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] = resolved.version
