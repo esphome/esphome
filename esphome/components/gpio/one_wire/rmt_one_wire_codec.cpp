@@ -14,6 +14,7 @@ static constexpr uint8_t WRITE1_LOW_US = 6;     // tWR1L 2-15, TI SPMA057E: "typ
 static constexpr uint8_t READ_LOW_US = 4;       // tRL 2.5-5
 
 // Accepted when receiving a reset, in us
+static constexpr uint16_t RESET_MIN_LOW_US = 480;  // tRSTL(min), the first Low must be the reset itself
 static constexpr uint16_t PRESENCE_MIN_LOW_US = 15;
 static constexpr uint32_t PRESENCE_LATEST_START_US = 300;  // after the release: tPDH(max) + tPDL(max)
 
@@ -69,6 +70,8 @@ TransactionStatus decode_reset(const Symbol *capture, size_t count) {
     if (classify(capture[i]) != SymbolClass::END_MARKER)
       return TransactionStatus::TRANSACTION_STATUS_CAPTURE_ERROR;
   }
+  if (capture[0].duration0 < RESET_MIN_LOW_US)
+    return TransactionStatus::TRANSACTION_STATUS_CAPTURE_ERROR;
 
   uint32_t since_release = capture[0].duration1;
   for (size_t i = 1; i < times && since_release <= PRESENCE_LATEST_START_US; i++) {

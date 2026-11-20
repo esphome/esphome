@@ -27,7 +27,9 @@ constexpr size_t max_rx_slots(size_t mem_words) { return mem_words - 2; }
 struct Timing {
   uint8_t write0_low_us{90};
   uint8_t slot_us{110};
-  uint8_t read_threshold_us{13};
+  /// A Low shorter than this reads as 1. A 1 is Low for up to 4 us Read Low + 9 us rise time = 13 us, a 0 from a
+  /// device for at least 15 us (tRDV).
+  uint8_t read_threshold_us{14};
 };
 
 Symbol reset_symbol();
@@ -35,7 +37,8 @@ Symbol reset_symbol();
 size_t encode_write_slots(const uint8_t *data, size_t bit_offset, size_t num_bits, Symbol *out,
                           const Timing &timing = {});
 size_t encode_read_slots(size_t num_bits, Symbol *out, const Timing &timing = {});
-/// Only OK (presence), NO_PRESENCE, BUS_LOW or CAPTURE_ERROR.
+/// Only OK (presence), NO_PRESENCE, BUS_LOW or CAPTURE_ERROR. A capture whose first Low is shorter than a reset
+/// did not start with the reset of the master and is a CAPTURE_ERROR.
 one_wire::TransactionStatus decode_reset(const Symbol *capture, size_t count);
 /// Stores num_bits at bit_offset of out, LSB first, changing no other bit. False, with out undefined, unless the
 /// capture is num_bits Low-then-High symbols, each Low shorter than a slot, followed by end markers only.
