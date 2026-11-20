@@ -43,6 +43,7 @@ class FakeCanbus : public canbus::Canbus {
 
 class TestHub : public CANopenComponent {
  public:
+  using CANopenComponent::CANopenComponent;
   // a received frame, as the canbus callback delivers it (processed right away)
   void frame(uint32_t can_id, const std::vector<uint8_t> &data) {
     canbus::CanFrame f{};
@@ -59,12 +60,11 @@ class TestHub : public CANopenComponent {
 class SdoTest : public ::testing::Test {
  protected:
   FakeCanbus bus_;
-  TestHub hub_;
+  TestHub hub_{&this->bus_};
   std::vector<SDOReply> replies_;
   std::string data_;  // READ_DATA: the buffer, copied during the callback
 
   void SetUp() override {
-    this->hub_.set_canbus(&this->bus_);
     this->hub_.set_response_timeout(20);
     this->hub_.setup();
     ASSERT_FALSE(this->hub_.is_failed());

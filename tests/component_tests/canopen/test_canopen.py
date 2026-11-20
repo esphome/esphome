@@ -17,8 +17,7 @@ def test_codegen(
 ) -> None:
     """The hub configures CANopenNode's SDO client; the actions become SDO action objects with their triggers."""
     main_cpp = generate_main(component_config_path("canopen.yaml"))
-    assert "canopen::CANopenComponent()" in main_cpp
-    assert "canopen_hub->set_canbus(can_bus);" in main_cpp
+    assert "canopen::CANopenComponent(can_bus)" in main_cpp
     assert "canopen_hub->set_response_timeout(200);" in main_cpp
     assert "-DCO_CONFIG_SDO_CLI=0x03" in CORE.build_flags
     assert "-DCO_CONFIG_SDO_CLI_BUFFER_SIZE=7" in CORE.build_flags

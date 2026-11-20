@@ -80,11 +80,9 @@ def add_canopennode_library() -> None:
 async def to_code(config: ConfigType) -> None:
     add_canopennode_library()
 
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-
     canbus = await cg.get_variable(config[CONF_CANBUS_ID])
-    cg.add(var.set_canbus(canbus))
+    var = cg.new_Pvariable(config[CONF_ID], canbus)
+    await cg.register_component(var, config)
     cg.add(var.set_response_timeout(config[CONF_RESPONSE_TIMEOUT]))
 
 

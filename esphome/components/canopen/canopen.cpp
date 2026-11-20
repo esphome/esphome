@@ -31,6 +31,7 @@ void CANopenComponent::setup() {
     return;
   }
   CO_CANsetNormalMode(this->co_->CANmodule);
+  this->canbus_->add_frame_callback([this](const canbus::CanFrame &frame) { this->on_frame_(frame); });
   this->last_us_ = micros();
   ESP_LOGV(TAG, "CANopenNode initialized, SDO client, heap %" PRIu32 " B", heap);
 }

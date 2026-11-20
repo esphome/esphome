@@ -264,8 +264,7 @@ TEST_F(SdoTest, LateRepliesForAnotherObjectAreIgnored) {
 // e.g. from on_boot, which runs before the hub's setup()
 TEST(CanopenSdoClient, RequestBeforeSetupWaitsForIt) {
   FakeCanbus bus;
-  TestHub hub;
-  hub.set_canbus(&bus);
+  TestHub hub(&bus);
   std::vector<SDOReply> replies;
   auto on_reply = [](void *context, const SDOReply &reply) {
     static_cast<std::vector<SDOReply> *>(context)->push_back(reply);

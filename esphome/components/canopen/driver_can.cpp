@@ -17,11 +17,6 @@ static bool send_frame(CO_CANmodule_t *mod, CO_CANtx_t *buf) {
   return static_cast<CANopenComponent *>(mod->CANptr)->transmit(buf->ident, buf->data, buf->DLC);
 }
 
-void CANopenComponent::set_canbus(canbus::Canbus *canbus) {
-  this->canbus_ = canbus;
-  canbus->add_frame_callback([this](const canbus::CanFrame &frame) { this->on_frame_(frame); });
-}
-
 void CANopenComponent::on_frame_(const canbus::CanFrame &frame) {
   if (this->co_ == nullptr || this->is_failed())
     return;

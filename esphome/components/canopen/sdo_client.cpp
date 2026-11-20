@@ -140,8 +140,8 @@ bool CANopenComponent::start_sdo_() {
   uint8_t node = r.node_id;
   if (CO_SDOclient_setup(cli, 0x600 + node, 0x580 + node, node) != CO_SDO_RT_ok_communicationEnd)
     return false;
-  this->sdo_offset_ = 0;
-  this->sdo_rx_len_ = 0;
+  this->sdo_len_ = 0;
+  this->sdo_rx_value_.fill(0);  // finish_sdo_() decodes all 4 bytes
   switch (r.kind) {
     case SDOKind::SDO_KIND_READ:
     case SDOKind::SDO_KIND_READ_DATA:
@@ -153,14 +153,14 @@ bool CANopenComponent::start_sdo_() {
       if (CO_SDOclientDownloadInitiate(cli, r.index, r.sub, r.size, this->response_timeout_ms_, false) !=
           CO_SDO_RT_ok_communicationEnd)
         return false;
-      this->sdo_offset_ = CO_SDOclientDownloadBufWrite(cli, buf, r.size);
-      return this->sdo_offset_ == r.size;
+      this->sdo_len_ = CO_SDOclientDownloadBufWrite(cli, buf, r.size);
+      return this->sdo_len_ == r.size;
     }
     case SDOKind::SDO_KIND_WRITE_DATA:
       if (CO_SDOclientDownloadInitiate(cli, r.index, r.sub, r.len, this->response_timeout_ms_, false) !=
           CO_SDO_RT_ok_communicationEnd)
         return false;
-      this->sdo_offset_ = CO_SDOclientDownloadBufWrite(cli, r.data, r.len);
+      this->sdo_len_ = CO_SDOclientDownloadBufWrite(cli, r.data, r.len);
       return true;
   }
   return false;
@@ -185,40 +185,13 @@ void CANopenComponent::process_sdo_(uint32_t dt_us) {
   CO_SDO_abortCode_t abort = CO_SDO_AB_NONE;
   CO_SDO_return_t ret;
   if (r.kind == SDOKind::SDO_KIND_READ || r.kind == SDOKind::SDO_KIND_READ_DATA) {
-    ret = CO_SDOclientUpload(cli, dt_us, false, &abort, nullptr, nullptr, nullptr);
-    const bool value_read = r.kind == SDOKind::SDO_KIND_READ;
-    uint8_t *dst = value_read ? this->sdo_rx_value_.data() : r.data;
-    const size_t cap = value_read ? this->sdo_rx_value_.size() : r.len;
-    // The fifo holds one segment (CO_CONFIG_SDO_CLI_BUFFER_SIZE 7), drained before the next is requested: a read past
-    // its capacity (a value: 4 bytes) ends without asking the server for more.
-    while (ret >= 0) {
-      uint8_t buf[8];
-      size_t n;
-      while ((n = CO_SDOclientUploadBufRead(cli, buf, sizeof(buf))) > 0) {
-        if (this->sdo_rx_len_ < cap)
-          std::memcpy(dst + this->sdo_rx_len_, buf, std::min(n, cap - this->sdo_rx_len_));
-        this->sdo_rx_len_ += n;
-      }
-      if (this->sdo_rx_len_ > cap) {
-        abort = value_read ? CO_SDO_AB_DATA_LONG : CO_SDO_AB_OUT_OF_MEM;
-        CO_SDOclientUpload(cli, 0, true, &abort, nullptr, nullptr, nullptr);
-        // not abort: it comes back empty when the last frame ended the transfer, with nothing left to abort
-        if (value_read) {
-          this->finish_sdo_(SDOResult::SDO_RESULT_SIZE_MISMATCH, 0);
-        } else {
-          this->finish_sdo_(SDOResult::SDO_RESULT_ABORT, CO_SDO_AB_OUT_OF_MEM);
-        }
-        return;
-      }
-      if (ret != CO_SDO_RT_uploadDataBufferFull)
-        break;
-      ret = CO_SDOclientUpload(cli, 0, false, &abort, nullptr, nullptr, nullptr);
-    }
+    if (this->drain_upload_(dt_us, ret, abort))
+      return;
   } else {
-    if (r.kind == SDOKind::SDO_KIND_WRITE_DATA && this->sdo_offset_ < r.len) {
-      this->sdo_offset_ += CO_SDOclientDownloadBufWrite(cli, r.data + this->sdo_offset_, r.len - this->sdo_offset_);
+    if (r.kind == SDOKind::SDO_KIND_WRITE_DATA && this->sdo_len_ < r.len) {
+      this->sdo_len_ += CO_SDOclientDownloadBufWrite(cli, r.data + this->sdo_len_, r.len - this->sdo_len_);
     }
-    bool partial = r.kind == SDOKind::SDO_KIND_WRITE_DATA && this->sdo_offset_ < r.len;
+    bool partial = r.kind == SDOKind::SDO_KIND_WRITE_DATA && this->sdo_len_ < r.len;
     ret = CO_SDOclientDownload(cli, dt_us, false, partial, &abort, nullptr, nullptr);
   }
 
@@ -239,6 +212,41 @@ void CANopenComponent::process_sdo_(uint32_t dt_us) {
   }
 }
 
+bool CANopenComponent::drain_upload_(uint32_t dt_us, CO_SDO_return_t &ret, CO_SDO_abortCode_t &abort) {
+  CO_SDOclient_t *cli = this->co_->SDOclient;
+  SDORequest &r = this->sdo_active_;
+  const bool value_read = r.kind == SDOKind::SDO_KIND_READ;
+  uint8_t *dst = value_read ? this->sdo_rx_value_.data() : r.data;
+  const size_t cap = value_read ? this->sdo_rx_value_.size() : r.len;
+  // The fifo holds one segment (CO_CONFIG_SDO_CLI_BUFFER_SIZE 7), drained before the next is requested: a read past
+  // its capacity (a value: 4 bytes) ends without asking the server for more.
+  ret = CO_SDOclientUpload(cli, dt_us, false, &abort, nullptr, nullptr, nullptr);
+  while (ret >= 0) {
+    uint8_t buf[8];
+    size_t n;
+    while ((n = CO_SDOclientUploadBufRead(cli, buf, sizeof(buf))) > 0) {
+      if (this->sdo_len_ < cap)
+        std::memcpy(dst + this->sdo_len_, buf, std::min(n, cap - this->sdo_len_));
+      this->sdo_len_ += n;
+    }
+    if (this->sdo_len_ > cap) {
+      abort = value_read ? CO_SDO_AB_DATA_LONG : CO_SDO_AB_OUT_OF_MEM;
+      CO_SDOclientUpload(cli, 0, true, &abort, nullptr, nullptr, nullptr);
+      // not abort: it comes back empty when the last frame ended the transfer, with nothing left to abort
+      if (value_read) {
+        this->finish_sdo_(SDOResult::SDO_RESULT_SIZE_MISMATCH, 0);
+      } else {
+        this->finish_sdo_(SDOResult::SDO_RESULT_ABORT, CO_SDO_AB_OUT_OF_MEM);
+      }
+      return true;
+    }
+    if (ret != CO_SDO_RT_uploadDataBufferFull)
+      break;
+    ret = CO_SDOclientUpload(cli, 0, false, &abort, nullptr, nullptr, nullptr);
+  }
+  return false;
+}
+
 void CANopenComponent::finish_sdo_(SDOResult result, uint32_t abort_code) {
   CO_SDOclient_t *cli = this->co_->SDOclient;
   CO_SDOclientClose(cli);
@@ -251,17 +259,16 @@ void CANopenComponent::finish_sdo_(SDOResult result, uint32_t abort_code) {
   SDOReply reply{result, abort_code, 0, 0, nullptr, 0};
   if (result == SDOResult::SDO_RESULT_SUCCESS) {
     if (r.kind == SDOKind::SDO_KIND_READ) {
-      size_t len = this->sdo_rx_len_;
+      size_t len = this->sdo_len_;
       if (len == 0 || (r.size != 0 && len != r.size)) {
         reply.result = SDOResult::SDO_RESULT_SIZE_MISMATCH;
       } else {
-        for (size_t i = 0; i < len; i++)
-          reply.value |= (uint32_t) this->sdo_rx_value_[i] << (8 * i);
+        reply.value = encode_value_le<uint32_t>(this->sdo_rx_value_.data());
       }
       reply.size = len;
     } else if (r.kind == SDOKind::SDO_KIND_READ_DATA) {
       reply.data = r.data;
-      reply.len = this->sdo_rx_len_;
+      reply.len = this->sdo_len_;
     } else if (r.kind == SDOKind::SDO_KIND_WRITE) {
       reply.value = r.value;
       reply.size = r.size;

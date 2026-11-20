@@ -24,13 +24,13 @@ void discard_pending_tx(CO_CANmodule_t *mod, CO_CANtx_t *buf);
 // (setup, processing), driver_can.cpp (CANopenNode's CAN driver, frame reception and transmission), sdo_client.cpp.
 class CANopenComponent : public Component {
  public:
+  explicit CANopenComponent(canbus::Canbus *canbus) : canbus_(canbus) {}
   void setup() override;
   void loop() override;
   void dump_config() override;
   // after the CAN bus, before the default on_boot automations (600)
   float get_setup_priority() const override { return setup_priority::HARDWARE - 1.0f; }
 
-  void set_canbus(canbus::Canbus *canbus);
   void set_response_timeout(uint16_t ms) { this->response_timeout_ms_ = ms; }
 
   // Used by the CANopenNode driver (driver_can.cpp): sends a standard-ID frame (ident bit 11 = RTR) on the canbus.
@@ -74,7 +74,7 @@ class CANopenComponent : public Component {
   // marks the hub failed and ends the requests queued before setup()
   void fail_setup_(const LogString *reason);
 
-  canbus::Canbus *canbus_{nullptr};
+  canbus::Canbus *canbus_;
   CO_t *co_{nullptr};
   CO_config_t config_{};  // must outlive co_
 
@@ -101,6 +101,8 @@ class CANopenComponent : public Component {
   void reject_queued_sdo_();
   bool sdo_reply_is_stale_(const uint8_t *data, uint8_t len) const;
   void process_sdo_(uint32_t dt_us);
+  // runs the upload and drains the client fifo; true when an overlong read ended the request here
+  bool drain_upload_(uint32_t dt_us, CO_SDO_return_t &ret, CO_SDO_abortCode_t &abort);
   bool start_sdo_();
   void finish_sdo_(SDOResult result, uint32_t abort_code);
   // the OD CO_SDOclient_init() needs: 0x1280 and the blank last entry (not const: CANopenNode writes the entry)
@@ -109,9 +111,8 @@ class CANopenComponent : public Component {
   OD_t od_{};
   StaticRingBuffer<SDORequest, SDO_QUEUE_SIZE> sdo_queue_;
   SDORequest sdo_active_{};
-  size_t sdo_offset_{0};  // WRITE/WRITE_DATA: bytes handed to the client fifo
-  // READ/READ_DATA: bytes received, also those beyond the buffer (for the size checks)
-  size_t sdo_rx_len_{0};
+  // WRITE/WRITE_DATA: bytes handed to the client fifo; READ/READ_DATA: bytes received, also those beyond the buffer
+  size_t sdo_len_{0};
   uint32_t last_us_{0};
   // OD 0x1280 (SDO client parameter, with sdo_cli_highest_sub_ and sdo_cli_node_), set up per request
   uint32_t sdo_cli_cob_tx_{0x80000000};
