@@ -1,0 +1,208 @@
+substitutions:
+  name: tuyax
+
+# Tuya hub plus every moved platform, fed by tuyasim.hpp on a cross-wired second UART (esphome#22724).
+# The run file sets `name` and includes this file as a package.
+esphome:
+  name: ${name}
+  includes:
+    - tuyasim.hpp
+  on_boot:
+    priority: 800
+    then:
+      - lambda: tuyasim::bus = id(mcu_uart);
+
+esp32:
+  board: pico32
+  framework:
+    type: esp-idf
+
+logger:
+  level: DEBUG
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  power_save_mode: none
+
+api:
+  reboot_timeout: 0s
+  encryption:
+    key: !secret api_key
+
+uart:
+  - id: hub_uart
+    tx_pin: {number: GPIO9, allow_other_uses: true}
+    rx_pin: {number: GPIO10, allow_other_uses: true}
+    baud_rate: 9600
+  - id: mcu_uart
+    tx_pin: {number: GPIO10, allow_other_uses: true}
+    rx_pin: {number: GPIO9, allow_other_uses: true}
+    baud_rate: 9600
+
+interval:
+  - interval: 5ms
+    then:
+      - lambda: tuyasim::poll();
+  - interval: 10s
+    then:
+      - lambda: |-
+          ESP_LOGI("heap", "HEAP up=%us free=%u min=%u largest=%u", (unsigned) (millis() / 1000),
+                   (unsigned) esp_get_free_heap_size(), (unsigned) esp_get_minimum_free_heap_size(),
+                   (unsigned) heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
+
+button:
+  - platform: template
+    name: Sim start
+    id: sim_start
+    on_press:
+      - lambda: tuyasim::start();
+
+tuya:
+  id: hub
+  uart_id: hub_uart
+  on_datapoint_update:
+    - sensor_datapoint: 1
+      datapoint_type: bool
+      then:
+        - lambda: ESP_LOGI("ord", "HUB dp1 x=%d bs1=%d sw1=%d", x, id(bs1).state, id(sw1).state);
+    - sensor_datapoint: 2
+      datapoint_type: int
+      then:
+        - lambda: ESP_LOGI("ord", "HUB dp2 x=%d s_int=%.0f", x, id(s_int).state);
+    - sensor_datapoint: 3
+      datapoint_type: string
+      then:
+        - lambda: ESP_LOGI("ord", "HUB dp3 x=%s ts_str=%s", x.c_str(), id(ts_str).state.c_str());
+    - sensor_datapoint: 4
+      datapoint_type: enum
+      then:
+        - lambda: ESP_LOGI("ord", "HUB dp4 x=%u sel_enum=%s", x, id(sel_enum).current_option().c_str());
+    - sensor_datapoint: 23
+      datapoint_type: enum
+      then:
+        - lambda: ESP_LOGI("ord", "HUB dp23 x=%u wh_mode=%d", x, (int) id(wh).get_mode());
+
+binary_sensor:
+  - platform: tuya
+    id: bs1
+    name: BS dp1
+    sensor_datapoint: 1
+    trigger_on_initial_state: true
+    on_state:
+      - lambda: ESP_LOGI("ord", "ENT bs1 %d", x);
+
+switch:
+  - platform: tuya
+    id: sw1
+    name: SW dp1
+    switch_datapoint: 1
+    on_state:
+      - lambda: ESP_LOGI("ord", "ENT sw1 %d", x);
+
+sensor:
+  - platform: tuya
+    id: s_int
+    name: S int dp2
+    sensor_datapoint: 2
+    on_value:
+      - lambda: ESP_LOGI("ord", "ENT s_int %.0f", x);
+  - platform: tuya
+    id: s_enum
+    name: S enum dp4
+    sensor_datapoint: 4
+    on_value:
+      - lambda: ESP_LOGI("ord", "ENT s_enum %.0f", x);
+  - platform: tuya
+    id: s_bm
+    name: S bitmask dp5
+    sensor_datapoint: 5
+    on_value:
+      - lambda: ESP_LOGI("ord", "ENT s_bm %.0f", x);
+
+text_sensor:
+  - platform: tuya
+    id: ts_str
+    name: TS string dp3
+    sensor_datapoint: 3
+    on_value:
+      - lambda: ESP_LOGI("ord", "ENT ts_str %s", x.c_str());
+  - platform: tuya
+    id: ts_enum
+    name: TS enum dp4
+    sensor_datapoint: 4
+    on_value:
+      - lambda: ESP_LOGI("ord", "ENT ts_enum %s", x.c_str());
+  - platform: tuya
+    id: ts_raw
+    name: TS raw dp6
+    sensor_datapoint: 6
+    on_value:
+      - lambda: ESP_LOGI("ord", "ENT ts_raw %s", x.c_str());
+
+select:
+  - platform: tuya
+    id: sel_enum
+    name: Sel enum dp4
+    enum_datapoint: 4
+    options:
+      0: Zero
+      1: One
+      2: Two
+    on_value:
+      - lambda: ESP_LOGI("ord", "ENT sel_enum %s", x.c_str());
+  - platform: tuya
+    id: sel_str
+    name: Sel string dp24
+    string_datapoint: 24
+    options:
+      - auto
+      - manual
+      - eco
+    on_value:
+      - lambda: ESP_LOGI("ord", "ENT sel_str %s", x.c_str());
+  - platform: tuya
+    id: sel_int
+    name: Sel int dp25
+    int_datapoint: 25
+    options:
+      0: Low
+      1: High
+    on_value:
+      - lambda: ESP_LOGI("ord", "ENT sel_int %s", x.c_str());
+
+water_heater:
+  - platform: tuya
+    id: wh
+    name: WH
+    switch_datapoint: 20
+    target_temperature_datapoint: 21
+    current_temperature_datapoint: 22
+    current_temperature_multiplier: 0.5
+    target_temperature_multiplier: 0.5
+    mode_datapoint: 23
+    eco_value: 0
+    electric_value: 2
+    supported_modes:
+      - "OFF"
+      - ECO
+      - ELECTRIC
+    visual:
+      min_temperature: 30
+      max_temperature: 75
+      target_temperature_step: 1
+
+number:
+  - platform: tuya
+    id: num
+    name: Num dp30
+    number_datapoint: 30
+    min_value: 0
+    max_value: 10
+    step: 1
+
+fan:
+  - platform: tuya
+    id: fan1
+    name: Fan dp31
+    switch_datapoint: 31
