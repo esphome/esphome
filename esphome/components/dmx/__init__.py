@@ -23,7 +23,7 @@ CONF_UART_NUM = "uart_num"
 CONF_DMX_ID = "dmx_id"
 CONF_TX_INTERVAL = "tx_interval"
 CONF_RX_GUARD = "rx_guard"
-DEPENDENCIES = ["esp32", "light"]
+DEPENDENCIES = ["esp32"]
 DOMAIN = "dmx"
 _LOGGER = logging.getLogger(__name__)
 
@@ -167,5 +167,3 @@ async def to_code(config):
         repo="https://github.com/KoenBreeman/esp_dmx.git",
         ref="fix/cmake-esp-driver-gptimer",
     )
-
-    cg.add_build_flag("-I/")
