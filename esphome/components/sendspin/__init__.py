@@ -41,8 +41,8 @@ from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
-# mdns for autodiscovery
-AUTO_LOAD = ["mdns"]
+# mdns for autodiscovery; noise declares the noise-c and libsodium that sendspin-cpp uses
+AUTO_LOAD = ["mdns", "noise"]
 CODEOWNERS = ["@kahrendt"]
 DEPENDENCIES = ["network"]
 DOMAIN = "sendspin"
