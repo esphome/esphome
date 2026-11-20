@@ -102,3 +102,23 @@ mode. Both builds should close the stalled stream at about 20 s and close the st
   builds (flash A, 4 multi runs, flash B, repeat) before calling a rate difference.
 - Log text check for refactors: collect every `[web_server*]` line from all captures, mask timestamps, source line
   numbers and digits, `sort -u`, and diff the two builds' sets.
+
+## ESPAsyncWebServer / AsyncTCP bump A/B (#22682)
+
+Scripts: `scripts/web_server/async_bump/` (README there). ESP32 never uses ESPAsyncWebServer: `web_server_base` loads
+`web_server_idf` for every ESP32 build, Arduino included, so only ESP8266, RP2040/RP2350 and LibreTiny need a run.
+Per board: page loads, a 180 s SSE client, REST control, `/update` OTA with the build's own image, restart button,
+then the captive portal hammer (`scripts/wifisave_hammer.sh`, `bogus_saves: "5"`) on one board per family.
+- Library check: ESP8266 builds use the native toolchain; the library copies sit in
+  `.esphome/pio_components/arduino8266/<hash>/esp32async/*/library.json`, not in `.piolibdeps`.
+- Restart button over REST on LibreTiny: the HTTP reply is often lost (curl 000 after 5 to 10 s) although the board
+  restarts, on dev too. Not a regression signal.
+- LibreTiny AsyncTCP 3.5.0 does not build with `framework: loglevel: debug` (or more verbose): `AsyncTCP.cpp:332` logs
+  `xPortGetCoreID()`, undeclared on LibreTiny; `log_d` is empty at the default level, so normal builds pass. Any
+  library bump for LibreTiny needs one build with the framework loglevel at debug.
+- SSE rates on a board with a weak radio (a CB3S, say) are unreliable; decide SSE questions on a board with a good
+  link and the same SDK.
+- `/events` churn (`rp2_web_ble/churn.sh`) faults `AsyncEventSource::send` in `AsyncClient::connected()` from
+  `deferrable_send_state` on the Pico W and the W5500-EVB-Pico; 3.12.1 and the RPAsyncTCP fork do not fix it.
+- Stalled-reader runs need about 150 s: the client's receive window can take about 60 s to close, so a 60 s stall run
+  ends before the 20 s device timeout even starts.
