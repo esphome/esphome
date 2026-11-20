@@ -2803,6 +2803,30 @@ def test_vasprintf_stub_only_on_rom_vsnprintf_variants(
     assert ("USE_ESP32_VASPRINTF_STUB" in defines) is expected
 
 
+_TZSET_STUB_FLAGS = {
+    "-Wl,--wrap=_tzset_unlocked",
+    "-Wl,--undefined=__wrap__tzset_unlocked",
+}
+
+
+@pytest.mark.parametrize(
+    ("config_file", "expected"),
+    [
+        pytest.param("tzset_stub_idf6.yaml", True, id="idf6"),
+        pytest.param("tzset_stub_idf5.yaml", False, id="idf5"),
+    ],
+)
+def test_tzset_stub_only_with_picolibc(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+    config_file: str,
+    expected: bool,
+) -> None:
+    """The _tzset_unlocked wrap is emitted only on ESP-IDF 6, whose picolibc it targets."""
+    generate_main(component_config_path(config_file))
+    assert (CORE.build_flags >= _TZSET_STUB_FLAGS) is expected
+
+
 @pytest.mark.parametrize(
     ("fixture", "expected"),
     [

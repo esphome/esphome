@@ -1,3 +1,4 @@
+import logging
 import re
 from typing import Any
 
@@ -61,8 +62,6 @@ from esphome.const import (
     CONF_TX_PIN,
     CONF_USE_ADDRESS,
     CONF_WIFI,
-    KEY_CORE,
-    KEY_FRAMEWORK_VERSION,
     PLATFORM_ESP32,
     PlatformFramework,
 )
@@ -93,6 +92,8 @@ from .const import (
     CONF_TLV,
     OPENTHREAD_CONFIG_PREFIX,
 )
+
+_LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@mrene"]
 DOMAIN = "openthread"
@@ -153,6 +154,22 @@ BORDER_ROUTER_SDKCONFIG_OPTIONS: dict[str, bool | int] = {
 OT_HEADER_DIR = "openthread"
 OT_HEADER_FILE = "esphome_ot_config.h"
 OT_CORE_OPTION_NAME = re.compile(r"[A-Z0-9_]+")
+# Derived from poll_period at run time. Each core_options value, or the OpenThread default, is the
+# floor of its derived value and is restored when polling stops.
+MTD_POLL_PERIOD_OPTIONS: dict[str, tuple[str, int]] = {
+    "OPENTHREAD_CONFIG_MLE_CHILD_TIMEOUT_DEFAULT": (
+        "ESPHOME_OPENTHREAD_CHILD_TIMEOUT_MIN",
+        240,
+    ),
+    "OPENTHREAD_CONFIG_CHILD_SUPERVISION_CHECK_TIMEOUT": (
+        "ESPHOME_OPENTHREAD_CHILD_SUPERVISION_CHECK_TIMEOUT_MIN",
+        190,
+    ),
+    "OPENTHREAD_CONFIG_CHILD_SUPERVISION_INTERVAL": (
+        "ESPHOME_OPENTHREAD_CHILD_SUPERVISION_INTERVAL_MIN",
+        129,
+    ),
+}
 
 
 def _validate_txpower(value: Any) -> int | float:
@@ -331,14 +348,23 @@ def _validate(config: ConfigType) -> ConfigType:
         )
     device_type = config.get(CONF_DEVICE_TYPE)
     poll_period = config.get(CONF_POLL_PERIOD)
-    if (
-        device_type == "FTD"
-        and poll_period
-        and poll_period > TimePeriodMilliseconds(milliseconds=0)
-    ):
+    polling = poll_period is not None and poll_period > TimePeriodMilliseconds(
+        milliseconds=0
+    )
+    if device_type == "FTD" and polling:
         raise cv.Invalid(
             f"{CONF_POLL_PERIOD} can only be used with {CONF_DEVICE_TYPE}: MTD"
         )
+    # ESPHome's code cannot see the OpenThread config header, so these must not be expressions
+    if device_type == "MTD" and (core_options := config.get(CONF_CORE_OPTIONS)):
+        for name in sorted(MTD_POLL_PERIOD_OPTIONS.keys() & core_options.keys()):
+            try:
+                int(core_options[name], 0)
+            except ValueError:
+                raise cv.Invalid(
+                    f"'{name}' must be a whole number of seconds with {CONF_DEVICE_TYPE}: MTD",
+                    path=[CONF_CORE_OPTIONS, name],
+                ) from None
     if CONF_BORDER_ROUTER in config and device_type != "FTD":
         raise cv.Invalid("OpenThread Border Router requires 'device_type: FTD'.")
 
@@ -430,6 +456,25 @@ def _validate_tlv_hex(value: Any) -> str:
     return s
 
 
+# The child timeout is 4 * poll_period, and OpenThread limits it to 8 hours.
+MAX_POLL_PERIOD = TimePeriodMilliseconds(seconds=7200)
+
+
+def _limit_poll_period(value: TimePeriodMilliseconds) -> TimePeriodMilliseconds:
+    # Remove before 2027.6.0: reject with cv.Range(max=MAX_POLL_PERIOD)
+    if value > MAX_POLL_PERIOD:
+        _LOGGER.warning(
+            "%s above %s is deprecated and now limited to it. "
+            "This will be an error in 2027.6.0",
+            CONF_POLL_PERIOD,
+            MAX_POLL_PERIOD,
+        )
+        return MAX_POLL_PERIOD
+    return value
+
+
+_POLL_PERIOD = cv.All(cv.positive_time_period_milliseconds, _limit_poll_period)
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -449,7 +494,7 @@ CONFIG_SCHEMA = cv.All(
                 cv.decibel,
                 _validate_txpower,
             ),
-            cv.Optional(CONF_POLL_PERIOD): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_POLL_PERIOD): _POLL_PERIOD,
             cv.Optional(CONF_CORE_OPTIONS): cv.All(
                 cv.only_on_esp32,
                 {cv.string_strict: _validate_core_option_value},
@@ -553,6 +598,11 @@ async def to_code(config: ConfigType) -> None:
         cg.add_define("USE_OPENTHREAD_FORCE_DATASET")
     if tlv := config.get(CONF_TLV):
         cg.add_define("USE_OPENTHREAD_TLVS", tlv)
+    if config[CONF_DEVICE_TYPE] == "MTD":
+        core_options = config.get(CONF_CORE_OPTIONS, {})
+        for option, (define, default) in MTD_POLL_PERIOD_OPTIONS.items():
+            value = core_options.get(option)
+            cg.add_define(define, default if value is None else int(value, 0))
 
     if not border_router:
         # OpenThread SRP needs access to mDNS services after setup
@@ -592,7 +642,7 @@ async def to_code(config: ConfigType) -> None:
         # Crypto through PSA: mbedtls, plus Oberon from SDK 2.7
         include_west_project("mbedtls")
         include_west_project("openthread")
-        if CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] >= cv.Version(2, 7, 0):
+        if CORE.framework_version >= cv.Version(2, 7, 0):
             include_west_project("oberon-psa-crypto")
         zephyr_add_prj_conf("NET_L2_OPENTHREAD", True)
         zephyr_add_prj_conf(
@@ -608,9 +658,7 @@ POLL_PERIOD_ACTION_SCHEMA = automation.maybe_conf(
     cv.Schema(
         {
             cv.GenerateID(): cv.use_id(OpenThreadComponent),
-            cv.Required(CONF_POLL_PERIOD): cv.templatable(
-                cv.positive_time_period_milliseconds
-            ),
+            cv.Required(CONF_POLL_PERIOD): cv.templatable(_POLL_PERIOD),
         }
     ),
 )
