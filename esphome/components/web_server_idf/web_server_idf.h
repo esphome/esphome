@@ -229,6 +229,13 @@ class AsyncWebServer {
 
   void begin();
   void end();
+#ifdef USE_WEBSERVER_SSL
+  /// PEM certificate and key, not copied; nullptr for plain HTTP. Takes effect at the next begin().
+  void set_ssl_credentials(const char *certificate, const char *private_key) {
+    this->ssl_certificate_ = certificate;
+    this->ssl_private_key_ = private_key;
+  }
+#endif
 
   // NOLINTNEXTLINE(readability-identifier-naming)
   AsyncWebHandler &addHandler(AsyncWebHandler *handler) {
@@ -240,7 +247,17 @@ class AsyncWebServer {
 
  protected:
   uint16_t port_{};
+#ifdef USE_WEBSERVER_SSL
+  uint16_t running_port_{};  // port of the running listener, 0 once httpd frees it
+#endif
   httpd_handle_t server_{};
+#ifdef USE_WEBSERVER_SSL
+  const char *ssl_certificate_{nullptr};
+  const char *ssl_private_key_{nullptr};
+  Mutex close_lock_;  // held by close_fn while closing, by shutdown_clients_() and by context_free()
+  void shutdown_clients_();
+  static void context_free(void *ctx);
+#endif
   static esp_err_t request_handler(httpd_req_t *r);
   static esp_err_t request_post_handler(httpd_req_t *r);
   esp_err_t request_handler_(AsyncWebServerRequest *request) const;

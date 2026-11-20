@@ -1,6 +1,5 @@
 #pragma once
 
-#include "esphome/core/component.h"
 #include "esphome/core/optional.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
@@ -15,8 +14,7 @@ namespace esphome::xiaomi_mccgq02hl {
 // Self-contained on purpose: xiaomi_ble's parse_xiaomi_header() does not know
 // this product id and parse_xiaomi_value() does not know the door object, so
 // this class does its own header and object parsing and decryption.
-class XiaomiMCCGQ02HL final : public Component,
-                              public binary_sensor::BinarySensorInitiallyOff,
+class XiaomiMCCGQ02HL final : public binary_sensor::BinarySensorInitiallyOff,
                               public ble_device_base::ESPBTDeviceListener {
   SUB_BINARY_SENSOR(light)
   SUB_SENSOR(battery_level)
@@ -26,7 +24,7 @@ class XiaomiMCCGQ02HL final : public Component,
   void set_bindkey(const char *bindkey);
 
   bool parse_device(const ble_device_base::ESPBTDevice &device) override;
-  void dump_config() override;
+  void dump_child_config() override;
 
  protected:
   struct Reading {
