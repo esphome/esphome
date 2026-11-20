@@ -58,6 +58,12 @@ using Wiznet6300lwIPFixed = LwipIntfDev<Wiznet6300NoSPI>;
 
 namespace esphome::ethernet {
 
+#ifdef USE_HOST
+namespace testing {
+class EthernetLifecycleTest;
+}  // namespace testing
+#endif
+
 #ifdef USE_ETHERNET_IP_STATE_LISTENERS
 /** Listener interface for Ethernet IP state changes.
  *
@@ -160,9 +166,11 @@ class EthernetComponent final : public Component {
   bool is_disabled() { return this->disabled_; }
   bool is_enabled() { return !this->disabled_; }
 
-#ifdef USE_ESP32
+#if defined(USE_ESP32) || defined(USE_HOST)
   // True while disabled if the driver never started or its STOP event was delivered.
   bool is_driver_stopped() const { return this->disabled_ && this->driver_stopped_.load(std::memory_order_acquire); }
+#endif
+#ifdef USE_ESP32
   /// esp_netif handle, used by network for default-route arbitration.
   /// nullptr until the driver/netif installation has run.
   esp_netif_t *get_esp_netif() { return this->eth_netif_; }
@@ -244,14 +252,28 @@ class EthernetComponent final : public Component {
 #endif
   void dump_connect_params_();
 
-#ifdef USE_ESP32
-  // ESP-IDF only: defers the SPI bus init, netif creation, MAC/PHY install, driver
+#if defined(USE_ESP32) || defined(USE_HOST)
+  // Defers the SPI bus init, netif creation, MAC/PHY install, driver
   // install, netif attach, and event handler registration (which together allocate
   // ~3-8KB of DMA-capable internal SRAM via SPI driver state + eth driver RX queue)
   // until ethernet actually needs to come up. Idempotent — guarded by the
   // ethernet_initialized_ flag. Called from setup() when enable_on_boot_=true, or
   // from enable() on first runtime enable. Mirrors wifi_lazy_init_() in WiFi.
   void ethernet_lazy_init_();
+  bool start_driver_();
+  enum class DriverStopReason : uint8_t { DISABLE, FAILED_START };
+  bool stop_driver_(DriverStopReason reason);
+  void on_driver_start_() {
+    this->started_ = true;
+    this->enable_loop_soon_any_context();
+  }
+  void on_driver_stop_() {
+    this->started_ = false;
+    this->connected_ = false;
+    this->link_up_.store(false, std::memory_order_relaxed);
+    this->driver_stopped_.store(true, std::memory_order_release);
+    this->enable_loop_soon_any_context();
+  }
 #endif
 
 #ifdef USE_ETHERNET_IP_STATE_LISTENERS
@@ -321,9 +343,12 @@ class EthernetComponent final : public Component {
   esp_netif_t *eth_netif_{nullptr};
   esp_eth_handle_t eth_handle_;
   esp_eth_phy_t *phy_{nullptr};
+#endif  // USE_ESP32
+
+#if defined(USE_ESP32) || defined(USE_HOST)
   // Registered by enable() on the main loop so builds without callers can discard the restart code.
   void (*pending_enable_)(EthernetComponent *){nullptr};
-#endif  // USE_ESP32
+#endif
 
 #ifdef USE_RP2
   static constexpr uint32_t LINK_CHECK_INTERVAL = 500;  // ms between link/IP polls
@@ -370,7 +395,7 @@ class EthernetComponent final : public Component {
   // Mirror of "is the link intentionally stopped" — set when setup() honors
   // enable_on_boot=false, cleared by enable(), set again by disable().
   bool disabled_{false};
-#ifdef USE_ESP32
+#if defined(USE_ESP32) || defined(USE_HOST)
   // Tracks whether ethernet_lazy_init_() has completed successfully. Allows enable()
   // to be called at runtime after enable_on_boot:false without re-allocating, and
   // ensures setup() skips the heavy init when enable_on_boot_ is false.
@@ -402,6 +427,9 @@ class EthernetComponent final : public Component {
   Trigger<> disconnect_trigger_;
 #endif
  private:
+#ifdef USE_HOST
+  friend class testing::EthernetLifecycleTest;
+#endif
   // Stores a pointer to a string literal (static storage duration).
   // ONLY set from Python-generated code with string literals - never dynamic strings.
   const char *use_address_{nullptr};
