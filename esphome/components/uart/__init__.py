@@ -220,10 +220,10 @@ def validate_auto_baud(config: ConfigType) -> ConfigType:
     return config
 
 
-def _final_validate_auto_baud(config: ConfigType) -> ConfigType:
+def _validate_auto_baud_sync_bytes(config: ConfigType) -> None:
     # The sync byte is a build-wide constant shared by every software UART
     if CONF_AUTO_BAUD_SYNC_BYTE not in config:
-        return config
+        return
     syncs = {
         conf[CONF_AUTO_BAUD_SYNC_BYTE]
         for conf in fv.full_config.get().get(DOMAIN, [])
@@ -234,10 +234,6 @@ def _final_validate_auto_baud(config: ConfigType) -> ConfigType:
             f"All UARTs with {CONF_AUTO_BAUD_SYNC_BYTE} must use the same byte",
             [CONF_AUTO_BAUD_SYNC_BYTE],
         )
-    return config
-
-
-FINAL_VALIDATE_SCHEMA = _final_validate_auto_baud
 
 
 def validate_host_config(config):
@@ -447,6 +443,7 @@ def _libretiny_hardware_uart(config: ConfigType) -> "HardwareUart | None":
 
 
 def _final_validate(config: ConfigType) -> None:
+    _validate_auto_baud_sync_bytes(config)
     if CORE.is_libretiny:
         _validate_libretiny_pins(config)
 
