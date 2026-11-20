@@ -151,7 +151,8 @@ Color color_from_light_color_values(LightColorValues val) {
   auto r = to_uint8_scale(val.get_color_brightness() * val.get_red());
   auto g = to_uint8_scale(val.get_color_brightness() * val.get_green());
   auto b = to_uint8_scale(val.get_color_brightness() * val.get_blue());
-  auto w = to_uint8_scale(val.get_white());
+  // White keeps its default of 100% in RGB mode, where it must not count as the strongest channel
+  uint8_t w = val.get_color_mode() == ColorMode::RGB ? 0 : to_uint8_scale(val.get_white());
   return Color(r, g, b, w);
 }
 

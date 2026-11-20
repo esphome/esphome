@@ -16,7 +16,7 @@ from .framework_helpers import (
     patch_west_build_source_dir_relpath,
 )
 from .sdk_install import ensure_sdk
-from .variants import ZephyrSDK
+from .variants import ZephyrManifest
 
 _REQUIREMENTS: Path = Path(__file__).parent / "requirements.txt"
 # The SDK versions in use are unknown; a partial download untouched this long has no owner,
@@ -40,21 +40,30 @@ def _get_toolchain_path(sdk_version: str, toolchain: str) -> Path:
     )
 
 
-def _get_framework_path(sdk: ZephyrSDK, version: str) -> Path:
-    return get_zephyr_tools_path() / "frameworks" / f"{sdk.workspace_prefix}-{version}"
+def _get_framework_path(manifest: ZephyrManifest, version: str) -> Path:
+    return (
+        get_zephyr_tools_path()
+        / "frameworks"
+        / f"{manifest.workspace_prefix}-{version}"
+    )
 
 
-def check_and_install(sdk: ZephyrSDK, version: str, projects: frozenset[str]) -> None:
-    """Install the workspace with the ``projects`` the build needs beyond the SDK's
-    required ones; a workspace only gains projects, since the builds of one version
-    share it."""
-    framework_path = _get_framework_path(sdk, version)
+def check_and_install(
+    manifest: ZephyrManifest, version: str, projects: frozenset[str]
+) -> None:
+    """Install the workspace with the ``projects`` the build needs beyond the
+    manifest's required ones; a workspace only gains projects, since the builds of
+    one version share it."""
+    framework_path = _get_framework_path(manifest, version)
     with install_lock(get_zephyr_tools_path(), framework_path.name):
-        _check_and_install(sdk, version, framework_path, projects)
+        _check_and_install(manifest, version, framework_path, projects)
 
 
 def _check_and_install(
-    sdk: ZephyrSDK, version: str, framework_path: Path, projects: frozenset[str]
+    manifest: ZephyrManifest,
+    version: str,
+    framework_path: Path,
+    projects: frozenset[str],
 ) -> None:
     python_env_path = _get_python_env_path(version)
     env_python_path = get_python_env_executable_path(python_env_path, "python")
@@ -64,13 +73,15 @@ def _check_and_install(
 
     sentinel = framework_path / ".ready"
     zephyr_reqs = framework_path / "zephyr" / "scripts" / "requirements.txt"
-    wanted = set(projects | sdk.source.required)
+    wanted = set(projects | manifest.source.required)
     if not sentinel.exists() or not zephyr_reqs.exists():
-        install_framework(env_python_path, framework_path, sdk.source, version, wanted)
+        install_framework(
+            env_python_path, framework_path, manifest.source, version, wanted
+        )
         sentinel.touch()
     else:
         fetch_missing_west_projects(
-            env_python_path, framework_path, sdk.source, version, wanted
+            env_python_path, framework_path, manifest.source, version, wanted
         )
     # Every run: existing installs need these too, and they are no-ops once applied
     patch_gen_defines_dts_path(framework_path)

@@ -1,5 +1,8 @@
-"""Zephyr variants of the stm32 platform; the zephyr component loads them."""
+"""Zephyr variants of the stm32 platform, which hands them to the zephyr component."""
 
-# Modules here that define a variant. Each exports VARIANT_NAME and a ZephyrVariant
-# named VARIANT; a family's module is <family>_family.
-VARIANT_MODULES: list[str] = ["stm32c5"]
+from types import ModuleType
+
+from . import stm32c5
+
+# Variant name -> its module, which exports a ZephyrVariant named VARIANT
+VARIANT_MODULES: dict[str, ModuleType] = {mod.VARIANT.name: mod for mod in (stm32c5,)}
