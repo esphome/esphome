@@ -35,6 +35,8 @@ CONFIG_SCHEMA = cv.All(
         esp32_arduino=cv.Version(0, 0, 0),
         esp_idf=cv.Version(0, 0, 0),
         rp2_arduino=cv.Version(0, 0, 0),
+        rtl87xx_arduino=cv.Version(0, 0, 0),
+        ln882x_arduino=cv.Version(0, 0, 0),
     ),
 )
 
