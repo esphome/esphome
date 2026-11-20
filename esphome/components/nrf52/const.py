@@ -40,7 +40,27 @@ VARIANT_I2C = {
     VARIANT_NRF54L15: VariantI2C("i2c21", (1,)),
     VARIANT_NRF54LM20: VariantI2C("i2c21", (1, 3)),
 }
-VARIANTS_WITHOUT_USB = frozenset({VARIANT_NRF52832, VARIANT_NRF54L15})
+
+
+class VariantPWM(NamedTuple):
+    """The PWM instances of a chip and the GPIO ports their pins may use."""
+
+    labels: tuple[str, ...]  # Devicetree node labels
+    # GPIO ports in the same power domain, None for any port
+    ports: tuple[int, ...] | None
+
+
+# PWM instances of the chips that do not have pwm0 to pwm3
+VARIANT_PWM = {
+    VARIANT_NRF51822: VariantPWM((), None),
+    VARIANT_NRF52832: VariantPWM(("pwm0", "pwm1", "pwm2"), None),
+    VARIANT_NRF54L15: VariantPWM(("pwm20", "pwm21", "pwm22"), (1,)),
+    VARIANT_NRF54LM20: VariantPWM(("pwm20", "pwm21", "pwm22"), (1, 3)),
+}
+DEFAULT_PWM = VariantPWM(("pwm0", "pwm1", "pwm2", "pwm3"), None)
+VARIANTS_WITHOUT_USB = frozenset({VARIANT_NRF51822, VARIANT_NRF52832, VARIANT_NRF54L15})
+# The nRF54L family: RRAM instead of flash, the CRACEN crypto unit and the wdt31 watchdog
+VARIANTS_NRF54L = frozenset({VARIANT_NRF54L15, VARIANT_NRF54LM20})
 # Devicetree label of the main regulator, reg1 on the others
 VARIANT_REGULATOR = {VARIANT_NRF52832: "reg"}
 VARIANT_FLASH_SIZE = {VARIANT_NRF52832: 0x80000, VARIANT_NRF52840: 0x100000}
