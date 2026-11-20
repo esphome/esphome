@@ -44,8 +44,8 @@ def test_auto_baud_emits_sync_byte_define(
         (0x55, {CONF_BAUD_RATE: 1200, CONF_PARITY: "EVEN"}),
         # Last edge at the start of bit 7
         (0xAA, {}),
-        # The parity bit is 0, so the stop bit has an edge
-        (0xFE, {CONF_PARITY: "ODD"}),
+        # The parity bit is 1, after a 0 data bit
+        (0x55, {CONF_PARITY: "ODD"}),
     ],
 )
 def test_valid_sync_bytes(sync: int, overrides: dict[str, object]) -> None:
@@ -63,6 +63,10 @@ def test_valid_sync_bytes(sync: int, overrides: dict[str, object]) -> None:
         (0xF0, {}, "too few edges"),
         # Parity bit 1 continues the ones
         (0xFE, {CONF_PARITY: "EVEN"}, "too few edges"),
+        # Nine low bits miscount a few percent off the nominal rate
+        (0x00, {}, "run of 9 equal bits"),
+        # The stop bit has an edge, but seven ones run before it
+        (0xFE, {CONF_PARITY: "ODD"}, "run of 7 equal bits"),
     ],
 )
 def test_invalid_sync_bytes(

@@ -1,5 +1,6 @@
 from collections.abc import Coroutine
 from dataclasses import dataclass, field
+import itertools
 from logging import getLogger
 import math
 import re
@@ -180,6 +181,8 @@ def esp8266_hardware_uart_pins(
 CONF_AUTO_BAUD_SYNC_BYTE = "auto_baud_sync_byte"
 # Matches SW_SERIAL_EDGE_MODE_MAX_BAUD; auto baud times edges, so it needs the edge decoder
 ESP8266_EDGE_MODE_MAX_BAUD = 19200
+# Runs up to 4 bits still decode at a 12% rate error
+AUTO_BAUD_MAX_SYNC_RUN = 4
 
 
 def validate_auto_baud(config: ConfigType) -> ConfigType:
@@ -214,6 +217,14 @@ def validate_auto_baud(config: ConfigType) -> ConfigType:
     if last_edge < data_bits:
         raise cv.Invalid(
             f"Sync byte 0x{sync:02X} ends in a long run of ones, too few edges to time; "
+            "use a byte with alternating bits such as 0x55",
+            [CONF_AUTO_BAUD_SYNC_BYTE],
+        )
+    # The sync byte itself is decoded at the nominal rate, so its runs must be short
+    longest = max(len(list(run)) for _, run in itertools.groupby(frame))
+    if longest > AUTO_BAUD_MAX_SYNC_RUN:
+        raise cv.Invalid(
+            f"Sync byte 0x{sync:02X} has a run of {longest} equal bits, too long to decode off the nominal rate; "
             "use a byte with alternating bits such as 0x55",
             [CONF_AUTO_BAUD_SYNC_BYTE],
         )
