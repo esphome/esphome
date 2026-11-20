@@ -79,5 +79,5 @@ nrf_pwm_probe/*-cap.txt
 nrf_pwm_probe/*-dfu.log
 nrf54_xiao/*-cap.txt
 nrf54_xiao/*-cap.err
-nrf54_xiao/*-run.log
+nrf54_xiao/*.log
 nrf54_xiao/*-events.txt

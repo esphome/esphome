@@ -12,12 +12,12 @@ log port after the USB re-enumeration and gets the buffered boot lines (`load se
 ## nRF54L preferences and debug info on the XIAO nRF54LM20A (#22839, #22840)
 
 `scripts/nrf54_xiao/`: `pref.yaml` (restored `counter`, `boots` and a per build soft reboot flag; boot 1 waits 30 s,
-syncs and calls `App.safe_reboot()`), `prefflow.sh NAME PORT` (flash with `esphome run`, 100 s capture of the boot and
-the soft reboot, then 40 s around a `pyocd reset -m sw`, events in `NAME-events.txt`), `dbg.yaml` (every debug entity
-logged from `on_value`) and `dbgw.yaml` (a busy loop after a software reset, to force a watchdog reset). Keep the
-global ids the same across builds so a backend change shows whether old keys are read. `esphome run` (pyOCD
-`-e sector`) keeps the settings partition across reflashes. Check the backend in
-`.pioenvs/<name>/zephyr/zephyr/.config` (`CONFIG_SETTINGS_*`).
+syncs and calls `App.safe_reboot()`), `prefflow.sh NAME PORT` (build and flash with `pio_build.sh`, 100 s capture of the
+boot and the soft reboot, then 40 s around a `pyocd reset -m sw`, events in `NAME-events.txt`), `dbg.yaml` (every debug
+entity logged from `on_value`) and `dbgw.yaml` (a busy loop after a software reset, to force a watchdog reset). Keep the
+global ids the same across builds so a backend change shows whether old keys are read. An `esphome` upload (pyOCD
+`-e sector`) keeps the settings partition across reflashes. Check the backend in `.pioenvs/<name>/zephyr/zephyr/.config`
+(`CONFIG_SETTINGS_*`).
 
 - NVS (dev before #22840) works on the nRF54L RRAM. NVS to ZMS loses all values silently (`Loaded 0 settings.`). ZMS
   to NVS hangs the NVS build at boot after `Log initialized` (PC in `nvs_prev_ate`/`nvs_read_hist`); reflash a ZMS

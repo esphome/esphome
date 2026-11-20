@@ -1,18 +1,15 @@
 #!/bin/bash
-# prefflow.sh NAME PORT: flash pref.yaml as NAME with `esphome run` (pyOCD) from TREE, capture the first boot and its
-# soft reboot (100 s), then 40 s around a probe reset with no clean shutdown. Events go to NAME-events.txt.
-# env: TREE, PROBE_ID (pyOCD unique id of the XIAO's probe), PYOCD_PY (a Python with pyOCD, such as ESPHome's sdk-nrf
-# penv), PY (default $TREE/venv/bin/python), PIO_CORE. Exits 1 when the flash or a capture fails.
+# prefflow.sh NAME PORT: build pref.yaml as NAME and flash it (pyOCD) through pio_build.sh, capture the first boot and
+# its soft reboot (100 s), then 40 s around a probe reset with no clean shutdown. Events go to NAME-events.txt.
+# env: TREE, PY, PIO_CORE (as pio_build.sh), PROBE_ID (pyOCD unique id of the XIAO's probe), PYOCD_PY (a Python with
+# pyOCD, such as ESPHome's sdk-nrf penv). Exits 1 when the build, the flash or a capture fails.
 D=$(cd "$(dirname "$0")" && pwd); S=$(dirname "$D"); N=${1:?name}; P=${2:?port}
 T=${TREE:?set TREE}; PY=${PY:-$T/venv/bin/python}; ID=${PROBE_ID:?set PROBE_ID}; OCD=${PYOCD_PY:?set PYOCD_PY}
-export PLATFORMIO_CORE_DIR=${PIO_CORE:-$D/pio} PYTHONPATH=$T PYTHONUNBUFFERED=1
+bash "$S/pio_build.sh" compile "$N" "$D/pref.yaml" || exit 1
 $PY "$S/serial_capture.py" "$P" 100 "$D/$N-cap.txt" > /dev/null 2> "$D/$N-cap.err" &
 CAP=$!
 sleep 2
-if ! (cd "$T" && timeout 600 $PY -m esphome -s name "$N" run --no-logs "$D/pref.yaml" --device "$P") \
-  > "$D/$N-run.log" 2>&1; then
-  tail -3 "$D/$N-run.log"; kill $CAP 2>/dev/null; echo "FAIL: $N run failed"; exit 1
-fi
+bash "$S/pio_build.sh" upload "$N" "$D/pref.yaml" "$P" || { kill $CAP 2>/dev/null; exit 1; }
 wait $CAP
 grep -a -q "SOFT REBOOT" "$D/$N-cap.txt" || { echo "FAIL: no soft reboot in $D/$N-cap.txt"; exit 1; }
 $PY "$S/serial_capture.py" "$P" 40 "$D/$N-rst-cap.txt" > /dev/null 2>&1 &

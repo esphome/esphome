@@ -8,24 +8,11 @@ esphome:
         - delay: 5s
         - lambda: 'pwmprobe::calibrate();'
         - repeat:
-            count: 2
+            count: 12
             then:
-              - lambda: 'id(level) = 0.0f;'
-              - script.execute: probe_all
-              - script.wait: probe_all
-              - lambda: 'id(level) = 0.1f;'
-              - script.execute: probe_all
-              - script.wait: probe_all
-              - lambda: 'id(level) = 0.25f;'
-              - script.execute: probe_all
-              - script.wait: probe_all
-              - lambda: 'id(level) = 0.5f;'
-              - script.execute: probe_all
-              - script.wait: probe_all
-              - lambda: 'id(level) = 0.9f;'
-              - script.execute: probe_all
-              - script.wait: probe_all
-              - lambda: 'id(level) = 1.0f;'
+              - lambda: |-
+                  static constexpr float LEVELS[] = {0.0f, 0.1f, 0.25f, 0.5f, 0.9f, 1.0f};
+                  id(level) = LEVELS[iteration % 6];
               - script.execute: probe_all
               - script.wait: probe_all
         - lambda: 'id(level) = 0.5f;'

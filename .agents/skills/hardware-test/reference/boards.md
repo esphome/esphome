@@ -348,9 +348,6 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
   active low (red P0.23, green P0.22, blue P0.24), button P0.18.
 - Both boards reflash without a button once they run a `dfu: true` build: `esphome upload --device <any app CDC
   port>` on the PCA10059, a 1200 bps open of the log port plus serial DFU on the ItsyBitsy (`recipes/nrf52.md`).
-- macOS refuses copies to a mounted bootloader volume (`ITSY840BOOT`, `RPI-RP2`) from a terminal with "Operation not
-  permitted", even outside a sandbox (the Removable Volumes permission), and picotool sees no device. Flash through a
-  serial port or OTA instead; a board that only shows the volume needs a person to drag the file in Finder.
 - Adafruit ItsyBitsy nRF52840 Express (UF2 bootloader 0.9.0 with S140 6.1.1, bootloader port `239a:0051` plus an
   `ITSY840BOOT` volume): the board DTS already has `cdc_acm_uart0`, so the logger port is the first CDC
   port and a `usb_cdc_acm` interface 1 the second. A `dfu: true` build enters the bootloader on the

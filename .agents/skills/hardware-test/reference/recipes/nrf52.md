@@ -115,15 +115,13 @@ Results: https://github.com/esphome/esphome/pull/21910#issuecomment-6518287139
 
 ## ItsyBitsy as a Thread MTD child (#16387)
 
-- macOS refuses writes to the `ITSY840BOOT` volume from a terminal ("Operation not permitted", even outside a
-  sandbox), so flash by serial DFU. `esphome upload` fails about half the time ("Target is not in DFU mode") and can
-  leave the bootloader wedged. Press RESET once, then run this on the bootloader port, which worked every time
-  (`scripts/nrf_pwm_probe/i52run.sh` does the same):
+- Flash by serial DFU (the terminal cannot write to `ITSY840BOOT` on macOS, see SKILL.md). `esphome upload` fails
+  about half the time ("Target is not in DFU mode") and can leave the bootloader wedged. Press RESET once, then run
+  this on the bootloader port, which worked every time (`scripts/nrf_pwm_probe/i52run.sh` does the same):
 
   ```sh
   <sdk-nrf python> -m nordicsemi.__main__ dfu serial -pkg <build>/.pioenvs/<name>/firmware.zip \
     -p <bootloader port> -b 115200 --singlebank
   ```
-- A 1200 baud touch on the app port takes the child off the air (bootloader). The parent's child table
-  (`otThreadGetChildInfoByIndex` in a lambda on an ESPHome border router) shows mTimeout, mAge and
-  mSupervisionInterval, and the entry goes when its age reaches the child's timeout.
+- A 1200 baud touch on the app port takes the child off the air (bootloader); the parent's child table entry goes
+  when its age reaches the child's timeout (`recipes/openthread.md`, child checks).
