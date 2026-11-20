@@ -5,7 +5,7 @@ wifi:
 bt_spp:
   id: bt_spp_obd
   mac_address: "00:11:22:33:44:55"
-  pin: "1234"
+  pin_code: "1234"
   name: esphome-obd
   reconnect_interval: 15s
   rx_buffer_size: 1024

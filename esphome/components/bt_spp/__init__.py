@@ -22,7 +22,6 @@ from esphome.const import (
     CONF_ID,
     CONF_MAC_ADDRESS,
     CONF_NAME,
-    CONF_PIN,
     CONF_RX_BUFFER_SIZE,
     CONF_TX_BUFFER_SIZE,
 )
@@ -44,6 +43,7 @@ BtSppComponent = bt_spp_ns.class_("BtSppComponent", uart.UARTComponent, cg.Compo
 
 # Bluetooth names are up to 248 bytes; keep them readable on a phone screen.
 MAX_NAME_LENGTH = 64
+CONF_PIN_CODE = "pin_code"
 # Legacy pairing PIN codes are 1 to 16 bytes long.
 MAX_PIN_LENGTH = 16
 
@@ -53,8 +53,12 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): cv.All(cv.declare_id(BtSppComponent), uart.mark_unclocked),
             cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
             cv.Optional(CONF_CHANNEL): cv.int_range(min=1, max=30),
-            cv.Optional(CONF_PIN): cv.All(
-                cv.string_strict, cv.Length(min=1, max=MAX_PIN_LENGTH)
+            cv.Optional(CONF_PIN_CODE): cv.sensitive(
+                cv.All(
+                    cv.string_strict,
+                    cv.Length(min=1),
+                    cv.ByteLength(max=MAX_PIN_LENGTH),
+                )
             ),
             cv.Optional(CONF_NAME): cv.All(
                 cv.string_strict, cv.Length(min=1, max=MAX_NAME_LENGTH)
@@ -95,7 +99,7 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
 
     cg.add_optional(var.set_channel, config.get(CONF_CHANNEL))
-    cg.add_optional(var.set_pin, config.get(CONF_PIN))
+    cg.add_optional(var.set_pin_code, config.get(CONF_PIN_CODE))
     cg.add_optional(var.set_name, config.get(CONF_NAME))
     if not config[CONF_ENABLE_ON_BOOT]:
         cg.add(var.set_enable_on_boot(False))

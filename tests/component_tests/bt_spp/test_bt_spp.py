@@ -10,6 +10,7 @@ import pytest
 from esphome.components.esp32.const import KEY_ESP32, KEY_SDKCONFIG_OPTIONS
 from esphome.config import read_config
 from esphome.core import CORE
+from esphome.yaml_util import Sensitive
 
 _BASE = """
 esphome:
@@ -51,7 +52,7 @@ def test_defaults(generate_main: Callable[[str | Path], str], tmp_path: Path) ->
     assert "bt_spp__obd_buffer__pstorage[769];" in main_cpp
     assert ", 512, 256);" in main_cpp
     assert "obd->set_reconnect_interval(10000);" in main_cpp
-    for setter in ("set_channel", "set_pin", "set_name", "set_enable_on_boot"):
+    for setter in ("set_channel", "set_pin_code", "set_name", "set_enable_on_boot"):
         assert setter not in main_cpp
 
     sdkconfig = _sdkconfig()
@@ -67,7 +68,7 @@ def test_options(generate_main: Callable[[str | Path], str], tmp_path: Path) -> 
             tmp_path,
             _BT_SPP
             + """  channel: 3
-  pin: "0000"
+  pin_code: "0000"
   name: obd-reader
   enable_on_boot: false
   reconnect_interval: 30s
@@ -77,7 +78,8 @@ def test_options(generate_main: Callable[[str | Path], str], tmp_path: Path) -> 
         )
     )
     assert "obd->set_channel(3);" in main_cpp
-    assert 'obd->set_pin("0000");' in main_cpp
+    assert 'obd->set_pin_code("0000");' in main_cpp
+    assert isinstance(CORE.config["bt_spp"]["pin_code"], Sensitive)
     assert 'obd->set_name("obd-reader");' in main_cpp
     assert "obd->set_enable_on_boot(false);" in main_cpp
     assert "obd->set_reconnect_interval(30000);" in main_cpp
@@ -102,7 +104,11 @@ def test_wifi_requests_coexistence(
         pytest.param("esp32", "esp-idf", _BT_SPP + "esp32_ble_tracker:\n", id="ble"),
         pytest.param("esp32", "esp-idf", _BT_SPP + "  channel: 31\n", id="channel"),
         pytest.param(
-            "esp32", "esp-idf", _BT_SPP + '  pin: "12345678901234567"\n', id="pin"
+            "esp32", "esp-idf", _BT_SPP + '  pin_code: "12345678901234567"\n', id="pin"
+        ),
+        # 9 characters, but 18 bytes: the PIN reply holds 16 bytes
+        pytest.param(
+            "esp32", "esp-idf", _BT_SPP + '  pin_code: "ééééééééé"\n', id="pin_bytes"
         ),
         pytest.param(
             "esp32", "esp-idf", _BT_SPP + "  reconnect_interval: 500ms\n", id="interval"

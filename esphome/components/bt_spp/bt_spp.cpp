@@ -28,6 +28,9 @@ static constexpr uint32_t DROP_LOG_INTERVAL_MS = 5000;
 // Largest block handed to esp_spp_write() at once; RFCOMM splits it into frames for the peer.
 static constexpr size_t MAX_WRITE_SIZE = ESP_SPP_MAX_MTU;
 
+static constexpr uint32_t RETRY_ID = 0;
+static constexpr uint32_t CONNECT_TIMEOUT_ID = 1;
+
 BtSppComponent *BtSppComponent::instance = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 BtSppComponent::BtSppComponent(uint64_t address, uint8_t *buffer, size_t rx_size, size_t tx_size)
@@ -102,11 +105,11 @@ void BtSppComponent::dump_config() {
                 "  Address: %s\n"
                 "  Reconnect Interval: %" PRIu32 "ms\n"
                 "  Enabled: %s\n"
-                "  PIN: %s\n"
+                "  PIN Code: %s\n"
                 "  RX Buffer Size: %u\n"
                 "  TX Buffer Size: %u",
                 format_mac_addr_upper(this->address_, address), this->reconnect_interval_, YESNO(this->enabled_),
-                this->pin_.empty() ? LOG_STR_LITERAL("not set") : LOG_STR_LITERAL("set"),
+                this->pin_code_.empty() ? LOG_STR_LITERAL("not set") : LOG_STR_LITERAL("set"),
                 static_cast<unsigned>(this->rx_size_), static_cast<unsigned>(this->tx_size_));
   if (this->channel_ != 0) {
     ESP_LOGCONFIG(TAG, "  Channel: %u", this->channel_);
@@ -126,11 +129,13 @@ void BtSppComponent::on_shutdown() {
 
 void BtSppComponent::connect() {
   this->enabled_ = true;
-  this->attempt_due_ = true;
+  if (this->state_ == State::STATE_IDLE)
+    this->start_attempt_();
 }
 
 void BtSppComponent::disconnect() {
   this->enabled_ = false;
+  this->cancel_timeout(RETRY_ID);
   if (this->handle_ != 0) {
     esp_spp_disconnect(this->handle_);
   } else if (this->pending_handle_ != 0) {
@@ -145,29 +150,8 @@ void BtSppComponent::loop() {
   while (xQueueReceive(this->events_, &event, 0) == pdTRUE)
     this->handle_event_(event);
 
-  const uint32_t now = App.get_loop_component_start_time();
-  switch (this->state_) {
-    case State::STATE_IDLE:
-      if (this->enabled_ && (this->attempt_due_ || now - this->attempt_start_ >= this->reconnect_interval_))
-        this->start_attempt_(now);
-      break;
-    case State::STATE_DISCOVERING:
-    case State::STATE_CONNECTING:
-      if (now - this->attempt_start_ >= CONNECT_TIMEOUT_MS) {
-        ESP_LOGW(TAG, "No answer from Bluetooth stack, connection attempt cancelled");
-        // A late open event for this attempt is closed in handle_event_().
-        if (this->pending_handle_ != 0)
-          esp_spp_disconnect(this->pending_handle_);
-        this->pending_handle_ = 0;
-        this->attempt_failed_();
-      }
-      break;
-    case State::STATE_CONNECTED:
-      this->send_pending_();
-      break;
-    default:
-      break;
-  }
+  if (this->state_ == State::STATE_CONNECTED)
+    this->send_pending_();
 
   const uint32_t rx_dropped = this->rx_dropped_.exchange(0, std::memory_order_relaxed);
   const uint32_t events_dropped = this->events_dropped_.exchange(0, std::memory_order_relaxed);
@@ -175,17 +159,28 @@ void BtSppComponent::loop() {
     ESP_LOGW(TAG, "RX buffer full, dropped %" PRIu32 " bytes", rx_dropped);
   }
   if (events_dropped != 0) {
-    ESP_LOGE(TAG, "Event queue full, dropped %" PRIu32 " events", events_dropped);
+    // A lost open, close or write event would leave the state wrong, so start over.
+    ESP_LOGE(TAG, "Event queue full, dropped %" PRIu32 " events; resetting the connection", events_dropped);
+    this->reset_link_();
   }
 }
 
-void BtSppComponent::start_attempt_(uint32_t now) {
-  this->attempt_start_ = now;
-  this->attempt_due_ = false;
+void BtSppComponent::start_attempt_() {
+  this->cancel_timeout(RETRY_ID);
   // Unread bytes of the last session stay readable while down, never into the next one.
   xStreamBufferReset(this->rx_stream_);
   this->has_peek_ = false;
   this->tx_len_ = 0;
+  // Only fires when Bluedroid never answers; a late open event for this attempt is closed in handle_event_().
+  this->set_timeout(CONNECT_TIMEOUT_ID, CONNECT_TIMEOUT_MS, [this]() {
+    if (this->enabled_) {
+      ESP_LOGW(TAG, "No answer from Bluetooth stack, connection attempt cancelled");
+    }
+    if (this->pending_handle_ != 0)
+      esp_spp_disconnect(this->pending_handle_);
+    this->pending_handle_ = 0;
+    this->attempt_failed_();
+  });
 
   uint8_t channel = this->channel_ != 0 ? this->channel_ : this->found_channel_;
   if (channel != 0) {
@@ -215,6 +210,7 @@ void BtSppComponent::connect_channel_(uint8_t channel) {
 }
 
 void BtSppComponent::attempt_failed_() {
+  this->cancel_timeout(CONNECT_TIMEOUT_ID);
   this->set_state_(State::STATE_IDLE);
   if (!this->enabled_)
     return;  // cancelled by disconnect()
@@ -225,6 +221,54 @@ void BtSppComponent::attempt_failed_() {
     this->failure_logged_ = true;
   } else {
     ESP_LOGD(TAG, "Connection failed");
+  }
+  this->schedule_retry_();
+}
+
+void BtSppComponent::schedule_retry_() {
+  if (!this->enabled_)
+    return;
+  this->set_timeout(RETRY_ID, this->reconnect_interval_, [this]() {
+    if (this->state_ == State::STATE_IDLE && this->enabled_)
+      this->start_attempt_();
+  });
+}
+
+void BtSppComponent::reset_link_() {
+  this->cancel_timeout(CONNECT_TIMEOUT_ID);
+  if (this->handle_ != 0)
+    esp_spp_disconnect(this->handle_);
+  if (this->pending_handle_ != 0)
+    esp_spp_disconnect(this->pending_handle_);
+  this->pending_handle_ = 0;
+  this->rx_handle_.store(0, std::memory_order_relaxed);
+  if (this->state_ == State::STATE_STARTING || this->state_ == State::STATE_IDLE)
+    return;
+  this->set_state_(State::STATE_IDLE);
+  this->schedule_retry_();
+}
+
+void BtSppComponent::accept_connection_(uint32_t handle) {
+  this->cancel_timeout(CONNECT_TIMEOUT_ID);
+  this->pending_handle_ = 0;
+  this->handle_ = handle;
+  this->failure_logged_ = false;
+  // Normally the Bluedroid task has already routed this connection's bytes to the RX buffer.
+  if (this->rx_handle_.exchange(handle, std::memory_order_relaxed) != handle) {
+    xStreamBufferReset(this->rx_stream_);
+    this->has_peek_ = false;
+  }
+  this->set_state_(State::STATE_CONNECTED);
+  ESP_LOGI(TAG, "Connected");
+}
+
+void BtSppComponent::reject_connection_(uint32_t handle) {
+  // Opened after its attempt timed out, or after disconnect().
+  esp_spp_disconnect(handle);
+  uint32_t expected = handle;
+  if (this->rx_handle_.compare_exchange_strong(expected, 0, std::memory_order_relaxed)) {
+    xStreamBufferReset(this->rx_stream_);
+    this->has_peek_ = false;
   }
 }
 
@@ -264,13 +308,15 @@ void BtSppComponent::handle_event_(const Event &event) {
       esp_bt_pin_code_t pin_code{};
       esp_bt_gap_set_pin(ESP_BT_PIN_TYPE_VARIABLE, 0, pin_code);
       this->set_state_(State::STATE_IDLE);
+      if (this->enabled_)
+        this->start_attempt_();
       break;
     }
     case EventType::EVENT_TYPE_DISCOVERY:
       if (this->state_ != State::STATE_DISCOVERING)
         break;  // a query that timed out
       if (!this->enabled_) {
-        this->set_state_(State::STATE_IDLE);
+        this->attempt_failed_();  // cancelled by disconnect(), not logged
         break;
       }
       if (event.status != ESP_SPP_SUCCESS || event.value == 0) {
@@ -282,33 +328,40 @@ void BtSppComponent::handle_event_(const Event &event) {
       this->connect_channel_(this->found_channel_);
       break;
     case EventType::EVENT_TYPE_CLIENT_INIT:
-      if (this->state_ == State::STATE_CONNECTING && event.status == ESP_SPP_SUCCESS)
-        this->pending_handle_ = event.handle;
-      break;
-    case EventType::EVENT_TYPE_OPEN:
+      if (this->state_ != State::STATE_CONNECTING || this->pending_handle_ != 0) {
+        // Belongs to an attempt that was already given up.
+        if (event.status == ESP_SPP_SUCCESS)
+          esp_spp_disconnect(event.handle);
+        break;
+      }
       if (event.status != ESP_SPP_SUCCESS) {
-        if (this->state_ == State::STATE_CONNECTING) {
+        ESP_LOGD(TAG, "SPP client init failed, status %u", event.status);
+        this->attempt_failed_();
+        break;
+      }
+      this->pending_handle_ = event.handle;
+      break;
+    case EventType::EVENT_TYPE_OPEN: {
+      const bool current = this->state_ == State::STATE_CONNECTING && event.handle == this->pending_handle_;
+      if (event.status != ESP_SPP_SUCCESS) {
+        if (current) {
           this->pending_handle_ = 0;
           this->attempt_failed_();
         }
         break;
       }
-      if (this->state_ != State::STATE_CONNECTING || !this->enabled_) {
-        // Opened after the attempt timed out or disconnect() was called.
-        esp_spp_disconnect(event.handle);
+      if (!current || !this->enabled_) {
+        this->reject_connection_(event.handle);
         break;
       }
-      this->pending_handle_ = 0;
-      this->handle_ = event.handle;
-      this->failure_logged_ = false;
-      this->set_state_(State::STATE_CONNECTED);
-      ESP_LOGI(TAG, "Connected");
+      this->accept_connection_(event.handle);
       break;
+    }
     case EventType::EVENT_TYPE_CLOSE:
       if (this->state_ == State::STATE_CONNECTED && event.handle == this->handle_) {
         ESP_LOGI(TAG, "Disconnected");
-        this->attempt_start_ = App.get_loop_component_start_time();
         this->set_state_(State::STATE_IDLE);
+        this->schedule_retry_();
       } else if (this->state_ == State::STATE_CONNECTING && event.handle == this->pending_handle_) {
         // A page timeout or a refused connection
         this->pending_handle_ = 0;
@@ -321,8 +374,10 @@ void BtSppComponent::handle_event_(const Event &event) {
       this->write_pending_ = false;
       this->congested_ = event.value != 0;
       if (event.status != ESP_SPP_SUCCESS) {
-        ESP_LOGW(TAG, "Write failed, status %u", event.status);
+        // The block is lost; continuing would send a stream with a gap, so start a new connection.
+        ESP_LOGW(TAG, "Write failed, status %u; reconnecting", event.status);
         this->status_set_warning(LOG_STR("Write failed"));
+        esp_spp_disconnect(this->handle_);
       } else {
         this->status_clear_warning();
       }
@@ -332,7 +387,7 @@ void BtSppComponent::handle_event_(const Event &event) {
         this->congested_ = event.value != 0;
       break;
     case EventType::EVENT_TYPE_PIN_MISSING:
-      ESP_LOGW(TAG, "The remote device asks for a PIN, but no 'pin' is configured");
+      ESP_LOGW(TAG, "The remote device asks for a PIN, but no 'pin_code' is configured");
       break;
     case EventType::EVENT_TYPE_PASSKEY_REJECTED:
       ESP_LOGW(TAG, "The remote device asks for a passkey, which is not supported");
@@ -364,6 +419,7 @@ void BtSppComponent::write_array(const uint8_t *data, size_t len) {
   for (size_t i = 0; i < len; i++)
     this->debug_callback_.call(uart::UART_DIRECTION_TX, data[i]);
 #endif
+  this->send_pending_();
 }
 
 void BtSppComponent::drop_tx_(size_t len) {
@@ -383,8 +439,10 @@ void BtSppComponent::send_pending_() {
   // Bluedroid copies the data before esp_spp_write() returns.
   esp_err_t err = esp_spp_write(this->handle_, static_cast<int>(len), this->tx_buffer_);
   if (err != ESP_OK) {
-    // Keep the bytes; the next loop tries again.
-    ESP_LOGW(TAG, "esp_spp_write failed: %s", esp_err_to_name(err));
+    // Keep the bytes; the next loop tries again. Logged once until a write succeeds.
+    if (!this->status_has_warning()) {
+      ESP_LOGW(TAG, "esp_spp_write failed: %s", esp_err_to_name(err));
+    }
     this->status_set_warning(LOG_STR("Write failed"));
     return;
   }
@@ -415,8 +473,14 @@ bool BtSppComponent::peek_byte(uint8_t *data) {
 bool BtSppComponent::read_array(uint8_t *data, size_t len) {
   if (len == 0)
     return true;
-  if (this->available() < len)
-    return false;
+  if (this->available() < len) {
+    // Callers that write a request and read the answer at once expect a short wait, as on a hardware UART.
+    if (!this->is_connected())
+      return false;
+    this->send_pending_();
+    if (!this->check_read_timeout_(len))
+      return false;
+  }
   size_t offset = 0;
   if (this->has_peek_) {
     data[offset++] = this->peek_;
@@ -436,7 +500,9 @@ uart::UARTFlushResult BtSppComponent::flush() {
   if (!this->is_connected())
     return uart::UARTFlushResult::UART_FLUSH_RESULT_FAILED;
   this->send_pending_();
-  // Bluedroid does not say when the bytes have left the radio.
+  if (this->tx_len_ != 0)
+    return uart::UARTFlushResult::UART_FLUSH_RESULT_TIMEOUT;
+  // Bluedroid has a copy of every byte, but does not say when they have left the radio.
   return uart::UARTFlushResult::UART_FLUSH_RESULT_ASSUMED_SUCCESS;
 }
 
@@ -473,12 +539,21 @@ void BtSppComponent::on_spp_event_(esp_spp_cb_event_t event, esp_spp_cb_param_t 
     case ESP_SPP_CL_INIT_EVT:
       this->post_event_(EventType::EVENT_TYPE_CLIENT_INIT, param->cl_init.status, 0, param->cl_init.handle);
       break;
-    case ESP_SPP_OPEN_EVT:
+    case ESP_SPP_OPEN_EVT: {
+      if (param->open.status == ESP_SPP_SUCCESS) {
+        // Bytes may arrive before loop() sees this event; keep them unless another connection is active.
+        uint32_t none = 0;
+        this->rx_handle_.compare_exchange_strong(none, param->open.handle, std::memory_order_relaxed);
+      }
       this->post_event_(EventType::EVENT_TYPE_OPEN, param->open.status, 0, param->open.handle);
       break;
-    case ESP_SPP_CLOSE_EVT:
+    }
+    case ESP_SPP_CLOSE_EVT: {
+      uint32_t handle = param->close.handle;
+      this->rx_handle_.compare_exchange_strong(handle, 0, std::memory_order_relaxed);
       this->post_event_(EventType::EVENT_TYPE_CLOSE, param->close.status, 0, param->close.handle);
       break;
+    }
     case ESP_SPP_WRITE_EVT:
       this->post_event_(EventType::EVENT_TYPE_WRITE, param->write.status, param->write.cong, param->write.handle);
       break;
@@ -487,7 +562,7 @@ void BtSppComponent::on_spp_event_(esp_spp_cb_event_t event, esp_spp_cb_param_t 
       break;
     case ESP_SPP_DATA_IND_EVT: {
       const size_t len = param->data_ind.len;
-      if (len == 0)
+      if (len == 0 || param->data_ind.handle != this->rx_handle_.load(std::memory_order_relaxed))
         break;
       const size_t sent = xStreamBufferSend(this->rx_stream_, param->data_ind.data, len, 0);
       if (sent < len)
@@ -505,13 +580,13 @@ void BtSppComponent::on_gap_event_(esp_bt_gap_cb_event_t event, esp_bt_gap_cb_pa
   switch (event) {
     case ESP_BT_GAP_PIN_REQ_EVT: {
       esp_bt_pin_code_t pin_code{};
-      if (this->pin_.empty()) {
+      if (this->pin_code_.empty()) {
         esp_bt_gap_pin_reply(param->pin_req.bda, false, 0, pin_code);
         this->post_event_(EventType::EVENT_TYPE_PIN_MISSING);
         break;
       }
-      const size_t len = std::min(this->pin_.size(), sizeof(pin_code));
-      std::memcpy(pin_code, this->pin_.c_str(), len);
+      const size_t len = std::min(this->pin_code_.size(), sizeof(pin_code));
+      std::memcpy(pin_code, this->pin_code_.c_str(), len);
       esp_bt_gap_pin_reply(param->pin_req.bda, true, static_cast<uint8_t>(len), pin_code);
       break;
     }

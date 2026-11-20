@@ -26,7 +26,7 @@ namespace esphome::bt_spp {
 /// Connects to one remote device by its MAC address and reconnects when the link drops. Bluedroid calls the
 /// callbacks from its own task: they only queue events and received bytes, and loop() handles everything else.
 /// The SPP and GAP callbacks of Bluedroid are global, so there can be only one instance.
-class BtSppComponent : public uart::UARTComponent, public Component {
+class BtSppComponent final : public uart::UARTComponent, public Component {
 #ifdef USE_BINARY_SENSOR
   SUB_BINARY_SENSOR(connected)
 #endif
@@ -37,7 +37,7 @@ class BtSppComponent : public uart::UARTComponent, public Component {
   BtSppComponent(uint64_t address, uint8_t *buffer, size_t rx_size, size_t tx_size);
 
   void set_channel(uint8_t channel) { this->channel_ = channel; }
-  void set_pin(const char *pin) { this->pin_ = StringRef(pin); }
+  void set_pin_code(const char *pin_code) { this->pin_code_ = StringRef(pin_code); }
   void set_name(const char *name) { this->name_ = StringRef(name); }
   void set_enable_on_boot(bool enable) { this->enabled_ = enable; }
   void set_reconnect_interval(uint32_t ms) { this->reconnect_interval_ = ms; }
@@ -99,9 +99,13 @@ class BtSppComponent : public uart::UARTComponent, public Component {
   void check_logger_conflict() override {}
 
   void handle_event_(const Event &event);
-  void start_attempt_(uint32_t now);
+  void start_attempt_();
   void connect_channel_(uint8_t channel);
   void attempt_failed_();
+  void schedule_retry_();
+  void reset_link_();
+  void accept_connection_(uint32_t handle);
+  void reject_connection_(uint32_t handle);
   void set_state_(State state);
   void send_pending_();
   void drop_tx_(size_t len);
@@ -116,10 +120,6 @@ class BtSppComponent : public uart::UARTComponent, public Component {
   // Bluedroid's callbacks carry no context pointer.
   static BtSppComponent *instance;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-  esp_bd_addr_t address_{};
-  StringRef pin_;
-  StringRef name_;
-
   // Written by the Bluedroid task, read by loop().
   QueueHandle_t events_{nullptr};
   StaticQueue_t events_storage_{};
@@ -128,6 +128,9 @@ class BtSppComponent : public uart::UARTComponent, public Component {
   StaticStreamBuffer_t rx_stream_storage_{};
   std::atomic<uint32_t> rx_dropped_{0};
   std::atomic<uint32_t> events_dropped_{0};
+  // Connection whose received bytes go into rx_stream_; 0 drops them. Set by the Bluedroid task when a
+  // connection opens and none is active, corrected by loop() when it accepts or rejects that connection.
+  std::atomic<uint32_t> rx_handle_{0};
 
   // Only touched by the main loop.
   uint8_t *rx_buffer_;
@@ -136,11 +139,13 @@ class BtSppComponent : public uart::UARTComponent, public Component {
   size_t tx_size_;
   size_t tx_len_{0};
   uint32_t reconnect_interval_{10000};
-  uint32_t attempt_start_{0};
   uint32_t last_drop_log_{0};
   uint32_t handle_{0};
   // Handle of the outgoing connection that is not open yet, from ESP_SPP_CL_INIT_EVT.
   uint32_t pending_handle_{0};
+  StringRef pin_code_;
+  StringRef name_;
+  esp_bd_addr_t address_{};
   State state_{State::STATE_STARTING};
   // Configured channel, or 0 to look it up with an SDP query.
   uint8_t channel_{0};
@@ -149,7 +154,6 @@ class BtSppComponent : public uart::UARTComponent, public Component {
   uint8_t peek_{0};
   bool has_peek_{false};
   bool enabled_{true};
-  bool attempt_due_{true};
   bool write_pending_{false};
   bool congested_{false};
   // A failed attempt is logged as a warning once, then at debug level until a connection succeeds.
