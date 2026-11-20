@@ -145,7 +145,13 @@ float ADS1115Component::request_measurement(ADS1115Multiplexer multiplexer, ADS1
     // can we use the rdy pin to trigger when a conversion is done?
     if (!this->continuous_mode_) {
       uint32_t start = millis();
-      while (this->read_byte_16(ADS1115_REGISTER_CONFIG, &config) && (config >> 15) == 0) {
+      while (true) {
+        // A failed read must not end the wait: the conversion register still holds the previous result,
+        // which can come from another multiplexer input.
+        if (!this->status_comm_check(this->read_byte_16(ADS1115_REGISTER_CONFIG, &config)))
+          return NAN;
+        if ((config >> 15) != 0)
+          break;
         if (millis() - start > 100) {
           ESP_LOGW(TAG, "Reading ADS1115 timed out");
           this->status_set_warning();
