@@ -4,6 +4,9 @@ logger:
 esphome:
   on_boot:
     - lambda: |-
+        // Formats a date so the build links strftime(); tzset_stubs.cpp keeps the TZ parser out
+        ESP_LOGD("test", "%s", ESPTime::from_epoch_utc(1700000000).strftime("%Y-%m-%d %H:%M:%S").c_str());
+    - lambda: |-
         int x = 100;
         x = clamp(x, 50, 90);
         assert(x == 90);
