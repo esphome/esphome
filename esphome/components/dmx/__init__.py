@@ -14,7 +14,6 @@ from esphome.const import (
     CONF_RX_PIN,
     CONF_TX_PIN,
 )
-
 import esphome.final_validate as fv
 
 AUTO_LOAD = ["light", "sensor", "number"]
