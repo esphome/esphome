@@ -7,8 +7,11 @@ substitutions:
   hook: |-
     pds::install();
     // warm the target ISR (it runs from flash) until it answers
-    for (int k = 0; k < 10 && id(bus_hw)->write_readv(0x70, nullptr, 0, nullptr, 0) != i2c::ERROR_OK; k++)
+    int k = 0;
+    for (; k < 10 && id(bus_hw)->write_readv(0x70, nullptr, 0, nullptr, 0) != i2c::ERROR_OK; k++)
       delay(5);
+    if (k == 10)
+      ESP_LOGE("mx", "MXDEAD software target never answered");
     mx::root = id(bus_hw);
     mx::ch2 = id(mux_ch2);
 esp32:

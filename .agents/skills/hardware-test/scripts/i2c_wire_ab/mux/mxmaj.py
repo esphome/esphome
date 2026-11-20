@@ -10,7 +10,10 @@ import sys
 def load(path: pathlib.Path) -> dict[str, tuple]:
     """Case -> ((rc, fnv), alloc, stream excerpt)."""
     cases = {}
-    for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+    text = path.read_text(encoding="utf-8", errors="replace")
+    if "MXDEAD" in text:
+        sys.exit(f"{path}: the software target never answered")
+    for line in text.splitlines():
         if m := re.search(
             r"MX (.+?)\|rc=(-?\d+)\|alloc=(\d+)\|fnv=([0-9A-F]+)\|(.*)$", line
         ):
