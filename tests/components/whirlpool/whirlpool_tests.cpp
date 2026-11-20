@@ -252,6 +252,9 @@ TEST(WhirlpoolHisenseArg, SwingIsSentOnEveryTransmit) {
 
 TEST(WhirlpoolDG11J13A, SwingIsSentOnlyWhenItChanges) {
   Fixture f(MODEL_DG11J1_3A);
+  f.command(climate::CLIMATE_MODE_COOL, 24, climate::CLIMATE_FAN_LOW, climate::CLIMATE_SWING_OFF);
+  EXPECT_EQ(f.last_frame()[2] & 0x80, 0) << "swing is already off";
+
   f.command(climate::CLIMATE_MODE_COOL, 24, climate::CLIMATE_FAN_LOW, climate::CLIMATE_SWING_VERTICAL);
   Frame frame = f.last_frame();
   EXPECT_EQ(frame[2] & 0x80, 0x80);
@@ -261,6 +264,9 @@ TEST(WhirlpoolDG11J13A, SwingIsSentOnlyWhenItChanges) {
   frame = f.last_frame();
   EXPECT_EQ(frame[2] & 0x80, 0);
   EXPECT_EQ(frame[8], 0x00);
+
+  f.command(climate::CLIMATE_MODE_COOL, 25, climate::CLIMATE_FAN_LOW, climate::CLIMATE_SWING_VERTICAL);
+  EXPECT_EQ(f.last_frame()[2] & 0x80, 0) << "swing is already vertical";
 }
 
 // Cool 24 C (step 8), fan low, powered on assumed
@@ -383,6 +389,92 @@ TEST(WhirlpoolHisenseArg, EveryTransmitHasValidChecksums) {
     EXPECT_EQ(frame[11], 0x80);
     EXPECT_EQ(frame[12], 0x18);
   }
+}
+
+// Cool 24 C (step 8), fan low, unit on
+static Frame hitachi_cool_frame() {
+  return with_checksums({0xA9, 0x59, 0x03, 0x82, 0x00, 0x00, 0x80, 0x00, 0x00, 0x00, 0x20,
+                         0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x38, 0x08, 0x00});
+}
+
+// The off frame: power bit, cool code, byte 15 0x01 and byte 18 0x28
+static Frame hitachi_off_frame() {
+  return with_checksums({0xA9, 0x59, 0x07, 0x82, 0x00, 0x00, 0x80, 0x00, 0x00, 0x00, 0x20,
+                         0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x28, 0x08, 0x00});
+}
+
+TEST(WhirlpoolHitachiHCRA31NEWH, CoolAndOffMatchKnownFrames) {
+  Fixture f(MODEL_HITACHI_HCRA31NEWH);
+  f.command(climate::CLIMATE_MODE_COOL, 24, climate::CLIMATE_FAN_LOW);
+  // Turning on sends the full state with no power bit
+  expect_frame(f.last_frame(), hitachi_cool_frame());
+
+  f.command(climate::CLIMATE_MODE_OFF, 24, climate::CLIMATE_FAN_LOW);
+  expect_frame(f.last_frame(), hitachi_off_frame());
+
+  // A second off command still sends the power bit
+  f.command(climate::CLIMATE_MODE_OFF, 24, climate::CLIMATE_FAN_LOW);
+  EXPECT_EQ(f.last_frame()[2] & 0x04, 0x04);
+
+  f.command(climate::CLIMATE_MODE_HEAT, 24, climate::CLIMATE_FAN_LOW);
+  const Frame frame = f.last_frame();
+  EXPECT_EQ(frame[2] & 0x04, 0);
+  EXPECT_EQ(frame[3], 0x80);
+  EXPECT_EQ(frame[15], 0x06);
+  EXPECT_EQ(frame[18], 0x38);
+}
+
+TEST(WhirlpoolHitachiHCRA31NEWH, ReceivePowerIsAState) {
+  Fixture f(MODEL_HITACHI_HCRA31NEWH);
+  ASSERT_EQ(f.climate.mode, climate::CLIMATE_MODE_OFF);
+
+  // An on frame restores the mode even though it has no power bit
+  EXPECT_TRUE(receive(f.climate, hitachi_cool_frame()));
+  EXPECT_EQ(f.climate.mode, climate::CLIMATE_MODE_COOL);
+  EXPECT_FLOAT_EQ(f.climate.target_temperature, 24);
+  EXPECT_EQ(f.climate.fan_mode, climate::CLIMATE_FAN_LOW);
+  // The same frame again keeps it on
+  EXPECT_TRUE(receive(f.climate, hitachi_cool_frame()));
+  EXPECT_EQ(f.climate.mode, climate::CLIMATE_MODE_COOL);
+
+  EXPECT_TRUE(receive(f.climate, hitachi_off_frame()));
+  EXPECT_EQ(f.climate.mode, climate::CLIMATE_MODE_OFF);
+  // A repeated off frame does not toggle
+  EXPECT_TRUE(receive(f.climate, hitachi_off_frame()));
+  EXPECT_EQ(f.climate.mode, climate::CLIMATE_MODE_OFF);
+}
+
+TEST(WhirlpoolHitachiHCRA31NEWH, ReceiveChecksRemoteId) {
+  Fixture hitachi(MODEL_HITACHI_HCRA31NEWH);
+  EXPECT_FALSE(receive(hitachi.climate, hisense_cool_frame()));
+  Fixture whirlpool(MODEL_DG11J1_91);
+  EXPECT_FALSE(receive(whirlpool.climate, hitachi_cool_frame()));
+}
+
+TEST(WhirlpoolHitachiHCRA31NEWH, ReceivedTemperatureIsClamped) {
+  Fixture f(MODEL_HITACHI_HCRA31NEWH);
+  Frame frame = hitachi_cool_frame();
+  frame[3] = 0xF2;  // step 15 would be 31 C
+  EXPECT_TRUE(receive(f.climate, with_checksums(frame)));
+  EXPECT_FLOAT_EQ(f.climate.target_temperature, 30);
+}
+
+TEST(WhirlpoolDG11J13A, TargetIsClampedAndRoundedToWhatWasSent) {
+  Fixture f(MODEL_DG11J1_3A);
+  f.command(climate::CLIMATE_MODE_COOL, 35, climate::CLIMATE_FAN_LOW);
+  EXPECT_FLOAT_EQ(f.climate.target_temperature, 32);
+  f.command(climate::CLIMATE_MODE_COOL, 24.4f, climate::CLIMATE_FAN_LOW);
+  EXPECT_FLOAT_EQ(f.climate.target_temperature, 24);
+}
+
+TEST(WhirlpoolHitachiHCRA31NEWH, ReceiveRejectsShortFrame) {
+  Fixture f(MODEL_HITACHI_HCRA31NEWH);
+  remote_base::RawTimings raw = waveform(hitachi_cool_frame());
+  // Cut after the second divider: 14 bytes, no footer
+  raw.resize(2 + 14 * 16 + 2 * 2);
+  remote_base::RemoteReceiveData data(raw, 25, remote_base::TOLERANCE_MODE_PERCENTAGE);
+  EXPECT_FALSE(static_cast<remote_base::RemoteReceiverListener &>(f.climate).on_receive(data));
+  EXPECT_EQ(f.climate.mode, climate::CLIMATE_MODE_OFF);
 }
 
 }  // namespace esphome::whirlpool::testing

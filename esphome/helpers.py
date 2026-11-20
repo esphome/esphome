@@ -612,6 +612,16 @@ def write_file(path: Path, text: str | bytes, private: bool = False) -> None:
         raise EsphomeError(f"Could not write file at {path}") from err
 
 
+def path_define_flag(name: str, path: Path) -> str:
+    """A ``-D<name>="<path>"`` build flag that every build's shell lexer decodes
+    to the same single argument (ESP-IDF and Zephyr then quote each token for
+    CMake), even when the path holds spaces or shell characters."""
+    # forward slashes for Windows, then escape what shlex would not pass
+    # through literally
+    escaped = re.sub(r"[^\w/.:+=,-]", r"\\\g<0>", Path(path).as_posix())
+    return f'-D{name}=\\"{escaped}\\"'
+
+
 def write_file_if_changed(path: Path, text: str) -> bool:
     """Write text to the given path, but not if the contents match already.
 

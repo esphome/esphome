@@ -62,9 +62,9 @@ bool AM2315C::reset_register_(uint8_t reg) {
 
 bool AM2315C::convert_(uint8_t *data, float &humidity, float &temperature) {
   uint32_t raw;
-  raw = (data[1] << 12) | (data[2] << 4) | (data[3] >> 4);
+  raw = encode_uint24(data[1], data[2], data[3]) >> 4;
   humidity = raw * 9.5367431640625e-5;
-  raw = encode_uint24(data[3] & 0x0F, data[4], data[5]);
+  raw = encode_uint24(low_nibble(data[3]), data[4], data[5]);
   temperature = raw * 1.9073486328125e-4 - 50;
   return crc8(data, 6, 0xFF, 0x31, true) == data[6];
 }
