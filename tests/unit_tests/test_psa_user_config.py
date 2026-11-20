@@ -81,8 +81,16 @@ def test_psa_user_config_conditions(
 
 
 @pytest.mark.skipif(_COMPILER is None, reason="needs a host C compiler")
-def test_psa_user_config_drops_persistent_key_storage() -> None:
-    """Nothing stores PSA keys persistently, so the storage layer goes."""
-    assert "MBEDTLS_PSA_CRYPTO_STORAGE_C" not in _defines(
-        ("MBEDTLS_PSA_CRYPTO_STORAGE_C",)
-    )
+@pytest.mark.parametrize(
+    ("config", "storage"),
+    [
+        pytest.param((), False, id="no_persistent_keys"),
+        pytest.param(("CONFIG_OPENTHREAD_ENABLED",), True, id="openthread_keeps"),
+    ],
+)
+def test_psa_user_config_persistent_key_storage(
+    config: tuple[str, ...], storage: bool
+) -> None:
+    """Only OpenThread stores PSA keys persistently, so it keeps the storage layer."""
+    defines = _defines((*config, "MBEDTLS_PSA_CRYPTO_STORAGE_C"))
+    assert ("MBEDTLS_PSA_CRYPTO_STORAGE_C" in defines) is storage
