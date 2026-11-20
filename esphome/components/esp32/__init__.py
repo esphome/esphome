@@ -3008,6 +3008,14 @@ async def _reconcile_mbedtls_sdkconfig() -> None:
             set_idf_sdkconfig_default("CONFIG_MBEDTLS_PEM_PARSE_C", False)
             set_idf_sdkconfig_default("CONFIG_MBEDTLS_LARGE_KEY_SOFTWARE_MPI", False)
             _trim_mbedtls_options(MBEDTLS_NON_P256_CURVE_OPTIONS)
+            # Without TLS only Wi-Fi (WPA), websocket handshakes and PPP use
+            # SHA-1, yet the hardware SHA driver links it whenever it is on.
+            if (
+                not _network_sdkconfig().wifi
+                and not is_idf_sdkconfig_option_enabled("CONFIG_HTTPD_WS_SUPPORT")
+                and not is_idf_sdkconfig_option_enabled("CONFIG_LWIP_PPP_SUPPORT")
+            ):
+                set_idf_sdkconfig_default("CONFIG_MBEDTLS_SHA1_C", False)
         if (
             _psa_user_config_applies()
             and _ecp_stays_on()

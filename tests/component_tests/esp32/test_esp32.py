@@ -811,6 +811,8 @@ _TLS_OFF_IDF6 = {
     "CONFIG_MBEDTLS_PEM_PARSE_C": False,
     "CONFIG_MBEDTLS_LARGE_KEY_SOFTWARE_MPI": False,
     **dict.fromkeys(MBEDTLS_NON_P256_CURVE_OPTIONS, False),
+    # The test data has no Wi-Fi, websocket server or PPP.
+    "CONFIG_MBEDTLS_SHA1_C": False,
 }
 _CIPHER_MODES_OFF = dict.fromkeys(MBEDTLS_UNUSED_CIPHER_MODE_OPTIONS, False)
 _SHA512_OFF = {
@@ -1328,6 +1330,38 @@ def test_reconcile_mbedtls_psa_user_config_not_applied(
     assert not any("MBEDTLS_USER_CONFIG_FILE" in flag for flag in CORE.build_flags)
     opts = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
     assert not any(option in opts for option in MBEDTLS_RSA_OPTIONS)
+
+
+@pytest.mark.parametrize(
+    ("net", "preset", "keeps_sha1"),
+    [
+        pytest.param(NetworkSdkconfigData(), {}, False, id="ethernet_only"),
+        pytest.param(NetworkSdkconfigData(wifi=True), {}, True, id="wifi"),
+        pytest.param(
+            NetworkSdkconfigData(),
+            {"CONFIG_HTTPD_WS_SUPPORT": RawSdkconfigValue("y")},
+            True,
+            id="websocket_server",
+        ),
+        pytest.param(
+            NetworkSdkconfigData(), {"CONFIG_LWIP_PPP_SUPPORT": True}, True, id="ppp"
+        ),
+    ],
+)
+def test_reconcile_mbedtls_sha1_without_tls(
+    set_core_config: SetCoreConfigCallable,
+    net: NetworkSdkconfigData,
+    preset: dict[str, Any],
+    keeps_sha1: bool,
+) -> None:
+    """Without TLS, SHA-1 stays only for Wi-Fi, a websocket server or PPP."""
+    set_core_config(PlatformFramework.ESP32_IDF)
+    _seed_mbedtls(idf=_IDF6, preset=preset, net=net)
+
+    asyncio.run(_reconcile_mbedtls_sdkconfig())
+
+    opts = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert ("CONFIG_MBEDTLS_SHA1_C" not in opts) is keeps_sha1
 
 
 @pytest.mark.parametrize(
