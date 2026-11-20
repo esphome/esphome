@@ -1,0 +1,11 @@
+packages:
+  uart: !include ../../test_build_components/common/uart/esp8266-ard.yaml
+  uart_split: !include common.yaml
+
+# load_settings() exists on ESP8266 and ESP32 only; both overloads must resolve.
+interval:
+  - interval: 60s
+    then:
+      - lambda: |-
+          id(bus).load_settings();
+          id(bus).load_settings(false);
