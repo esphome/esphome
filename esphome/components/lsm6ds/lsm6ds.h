@@ -103,8 +103,6 @@ class LSM6DSComponent final : public motion::MotionComponent, public i2c::I2CDev
   void set_gyro_range(LSM6DSGyroRange r) { this->gyro_range_ = r; }
   void set_gyro_odr(LSM6DSGyroODR o) { this->gyro_odr_ = o; }
 
-  template<typename F> void add_temperature_listener(F &&cb) { this->temperature_callback_.add(std::forward<F>(cb)); }
-
  protected:
   const LogString *chip_name_{nullptr};
   bool update_data(motion::MotionData &data) override;
@@ -114,8 +112,6 @@ class LSM6DSComponent final : public motion::MotionComponent, public i2c::I2CDev
   LSM6DSGyroRange gyro_range_{LSM6DS_GYRO_RANGE_2000};
   LSM6DSGyroODR gyro_odr_{LSM6DS_GYRO_ODR_208};
   uint16_t temperature_sensitivity_{256};  // LSB/°C: 16 on the LSM6DS3, 256 on the others
-
-  LazyCallbackManager<void(float)> temperature_callback_{};
 };
 
 }  // namespace esphome::lsm6ds

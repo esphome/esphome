@@ -107,14 +107,14 @@ class LIS3DHComponent : public motion::MotionComponent, public i2c::I2CDevice {
     this->interrupt_high_pass_ = high_pass;
   }
 
-  template<typename F> void add_temperature_listener(F &&cb) { this->temperature_callback_.add(std::forward<F>(cb)); }
-
  protected:
   bool update_data(motion::MotionData &data) override;
   bool setup_accelerometer_();
   bool setup_temperature_();
   bool setup_interrupt_();
+#ifdef USE_MOTION_TEMPERATURE_PUBLISHER
   bool publish_temperature_();
+#endif
 
   LIS3DHRange range_{LIS3DH_RANGE_2G};
   LIS3DHDataRate data_rate_{LIS3DH_DATA_RATE_100HZ};
@@ -128,8 +128,6 @@ class LIS3DHComponent : public motion::MotionComponent, public i2c::I2CDevice {
   bool interrupt_latched_{false};
   bool interrupt_active_high_{true};
   bool interrupt_high_pass_{false};
-
-  LazyCallbackManager<void(float)> temperature_callback_{};
 };
 
 }  // namespace esphome::lis3dh

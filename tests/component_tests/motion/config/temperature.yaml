@@ -1,0 +1,73 @@
+---
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+i2c:
+  - id: bus_a
+    sda: GPIO21
+    scl: GPIO22
+  - id: bus_b
+    sda: GPIO25
+    scl: GPIO26
+
+spi:
+  clk_pin: GPIO18
+  mosi_pin: GPIO23
+  miso_pin: GPIO19
+
+motion:
+  - platform: lis3dh
+    id: lis3dh_imu
+    i2c_id: bus_a
+  - platform: lis3dh
+    id: lis3dh_idle
+    i2c_id: bus_a
+    address: 0x19
+  - platform: bmi270
+    id: bmi270_imu
+    i2c_id: bus_a
+  - platform: bmi270
+    id: bmi270_idle
+    i2c_id: bus_a
+    address: 0x69
+  - platform: qmi8658
+    id: qmi8658_imu
+    i2c_id: bus_a
+  - platform: qmi8658
+    id: qmi8658_idle
+    i2c_id: bus_a
+    address: 0x6A
+  - platform: lsm6ds
+    id: lsm6ds_imu
+    i2c_id: bus_b
+    address: 0x6A
+  - platform: lsm6ds
+    id: lsm6ds_idle
+    i2c_id: bus_b
+    address: 0x6B
+  - platform: icm20689
+    id: icm20689_imu
+    cs_pin: GPIO5
+  - platform: icm20689
+    id: icm20689_idle
+    cs_pin: GPIO4
+
+sensor:
+  - platform: lis3dh
+    lis3dh_id: lis3dh_imu
+    id: lis3dh_temperature
+  - platform: bmi270
+    bmi270_id: bmi270_imu
+    id: bmi270_temperature
+  - platform: qmi8658
+    qmi8658_id: qmi8658_imu
+    id: qmi8658_temperature
+  - platform: lsm6ds
+    lsm6ds_id: lsm6ds_imu
+    id: lsm6ds_temperature
+  - platform: icm20689
+    icm20689_id: icm20689_imu
+    id: icm20689_temperature
