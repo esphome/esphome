@@ -15,8 +15,11 @@ N=$1 Y=$2 M=$3; P=${PORT:?set PORT}; PY=${PY:-python3}; SEC=${SECRETS:-$D/secret
 export API_KEY PY TREE
 O=$D/out-$N; mkdir -p "$O"; C=$O/cap.txt
 CAP=
-cap() { $PY "$S/serial_capture.py" "$P" 3000 "$C" --append > /dev/null 2>&1 & CAP=$!; }
-stopcap() { [ -n "$CAP" ] && kill "$CAP" 2>/dev/null; wait "$CAP" 2>/dev/null; CAP=; sleep 1; }
+cap() { $PY "$S/serial_capture.py" "$P" 3000 "$C" --append > /dev/null 2>> "$O/cap.err" & CAP=$!; }
+stopcap() {
+  [ -n "$CAP" ] && { kill "$CAP" 2>/dev/null || echo "CAPTURE DIED early, see $O/cap.err"; }
+  wait "$CAP" 2>/dev/null; CAP=; sleep 1
+}
 reset() { stopcap; $PY -m esptool --port "$P" --after hard_reset chip_id > /dev/null 2>&1; echo "REBOOT $1 $(date +%T)" >> "$O/reboots.txt"; cap; sleep 12; }
 round() { $PY gattc.py "$N" "$1" "$2" > "$O/$2.jsonl" 2>&1; tail -1 "$O/$2.jsonl"; }
 proxytable() {
@@ -61,6 +64,7 @@ else
   $PY grow.py "$N" 1 0x81 > "$O/side.json" 2>&1; cat "$O/side.json"
 fi
 sleep 8; stopcap
+[ -s "$C" ] || { echo "CAPTURE EMPTY, counts below are not valid; see $O/cap.err"; exit 1; }
 echo "-- device log counts"
 for p in "WRITE on_write" "DESC on_write" "SRV on_connect" "SRV on_disconnect" "RT " "GROW" "MOVED" "BATTERY" \
   "Guru Meditation" "Backtrace" "\[E\]" "\[W\]"; do
