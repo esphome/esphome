@@ -14,9 +14,10 @@ from esphome.const import (
     CONF_RX_PIN,
     CONF_TX_PIN,
 )
+from esphome.core import CORE
 import esphome.final_validate as fv
 
-AUTO_LOAD = ["light"]
+AUTO_LOAD = ["light", "sensor", "number"]
 CODEOWNERS = ["@KoenBreeman"]
 CONF_UART_NUM = "uart_num"
 CONF_DMX_ID = "dmx_id"
@@ -166,3 +167,5 @@ async def to_code(config):
         repo="https://github.com/KoenBreeman/esp_dmx.git",
         ref="fix/cmake-esp-driver-gptimer",
     )
+
+    cg.add_build_flag("-I/")
