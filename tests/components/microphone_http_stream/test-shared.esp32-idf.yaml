@@ -1,0 +1,19 @@
+substitutions:
+  sample_rate: "16000"
+
+packages:
+  i2s_audio: !include ../../test_build_components/common/i2s_audio/esp32-idf.yaml
+  microphone_http_stream: !include common.yaml
+  multi_client: !include multi-client.yaml
+
+web_server:
+  port: 80
+  allowed_origins:
+    - https://example.com
+
+sensor:
+  - platform: sound_level
+    microphone: microphone_http_test_mic
+    passive: false
+    peak:
+      name: Microphone peak
