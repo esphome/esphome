@@ -276,11 +276,11 @@ void SendspinHub::set_enabled(bool enabled) {
 }
 
 // THREAD CONTEXT: Main loop
-std::optional<std::string> SendspinHub::get_pairing_token() const {
+std::optional<SendspinHub::PairingToken> SendspinHub::get_pairing_token() const {
   if (this->client_ == nullptr) {
     return std::nullopt;
   }
-  return this->client_->pairing_token();
+  return this->client_->client_pairing_token();
 }
 
 // THREAD CONTEXT: Main loop
@@ -449,19 +449,22 @@ void SendspinHub::on_open_pairing_window() { this->open_pairing_window_callbacks
 
 void SendspinHub::on_close_pairing_window() { this->close_pairing_window_callbacks_.call(); }
 
-// Only digits are offered, and the library refuses an activation in any other format.
-void SendspinHub::on_display_pairing_code(const std::string &code, sendspin::SendspinPairingCodeFormat /*format*/) {
-  this->display_pairing_code_callbacks_.call(code);
+// Only digits are offered, and the library refuses an activation in any other format. The automations get copies,
+// since a delayed action outlives the library's view.
+void SendspinHub::on_pairing_code(std::string_view code,  // NOLINT
+                                  sendspin::SendspinPairingCodeFormat /*format*/) {
+  this->display_pairing_code_callbacks_.call(std::string(code));
 }
 
 void SendspinHub::on_clear_pairing_code() { this->clear_pairing_code_callbacks_.call(); }
 
-void SendspinHub::on_pairing_succeeded(const std::string &server_id) {
-  this->pairing_succeeded_callbacks_.call(server_id);
+void SendspinHub::on_paired(std::string_view server_id) {  // NOLINT
+  this->pairing_succeeded_callbacks_.call(std::string(server_id));
 }
 
-void SendspinHub::on_pairing_failed(const std::string &server_id, sendspin::SendspinPairAbortReason reason) {
-  this->pairing_failed_callbacks_.call(server_id, pair_abort_reason_to_string(reason));
+void SendspinHub::on_pairing_aborted(std::string_view server_id,  // NOLINT
+                                     sendspin::SendspinPairAbortReason reason) {
+  this->pairing_failed_callbacks_.call(std::string(server_id), pair_abort_reason_to_string(reason));
 }
 
 // --- SendspinNetworkProvider override ---
