@@ -1,0 +1,22 @@
+# Clock-free build: no `time:` platform, so `USE_TIME` is not defined and tsdb
+# must compile without the time component's sources (require_time: false).
+tsdb:
+  id: tsdb_test
+  require_time: false
+  file: history.tsdb
+  on_missing: sentinel
+  columns:
+    - sensor: tsdb_temperature
+      name: temperature
+      scale_factor: 10.0
+
+sensor:
+  - platform: tsdb
+    tsdb_id: tsdb_test
+    errors:
+      name: TSDB errors
+  - platform: template
+    id: tsdb_temperature
+    name: TSDB temperature
+    lambda: return 21.4f;
+    update_interval: 60s
