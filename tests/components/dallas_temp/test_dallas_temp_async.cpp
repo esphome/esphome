@@ -24,7 +24,7 @@ constexpr uint32_t WAIT_10_BIT_MS = 188;
 /// Runs what was submitted when the test says so, like the FIFO of the real bus. Blocking access is an error.
 class FakeBus final : public one_wire::OneWireBus {
  public:
-  std::deque<Transaction *> queue;
+  std::deque<Transaction *> queue;  ///< Mirror of pending_ that the tests can inspect
   uint8_t scratch_pad[9]{};
   unsigned submits{0};
   bool reject{false};
@@ -32,22 +32,21 @@ class FakeBus final : public one_wire::OneWireBus {
 
   bool submit(Transaction *transaction) override {
     ++this->submits;
-    if (this->reject || transaction->pending_)
+    if (this->reject || !this->pending_.push(transaction))
       return false;
-    transaction->pending_ = true;
     this->queue.push_back(transaction);
     if (this->run_at_once)
-      this->finish(TransactionStatus::OK);
+      this->finish(TransactionStatus::TRANSACTION_STATUS_OK);
     return true;
   }
 
   void finish(TransactionStatus status) {
     ASSERT_FALSE(this->queue.empty());
-    Transaction *transaction = this->queue.front();
+    Transaction *transaction = this->pending_.pop();
+    ASSERT_EQ(transaction, this->queue.front());
     this->queue.pop_front();
-    if (status == TransactionStatus::OK && transaction->read_len != 0)
+    if (status == TransactionStatus::TRANSACTION_STATUS_OK && transaction->read_len != 0)
       std::memcpy(transaction->read_data, this->scratch_pad, transaction->read_len);
-    transaction->pending_ = false;
     transaction->on_done(transaction->context, status);
   }
 
@@ -69,6 +68,8 @@ class FakeBus final : public one_wire::OneWireBus {
   }
   void reset_search() override {}
   uint64_t search_int() override { return 0; }
+
+  one_wire::TransactionQueue pending_;
 };
 
 class DallasAsync : public ::testing::Test {
@@ -107,7 +108,7 @@ class DallasAsync : public ::testing::Test {
   /// update(), the conversion ends, the wait ends: the read is now running.
   void run_until_reading_() {
     this->sensor_.update();
-    this->bus_.finish(TransactionStatus::OK);
+    this->bus_.finish(TransactionStatus::TRANSACTION_STATUS_OK);
     run_timers(WAIT_10_BIT_MS + 30);
     ASSERT_EQ(this->bus_.queue.size(), 1u);
     ASSERT_EQ(*this->bus_.queue.front()->write_data, READ_SCRATCH_PAD);
@@ -136,8 +137,8 @@ TEST_F(DallasAsync, UpdateClearsTheWarningAndStartsTheConversion) {
 
 TEST_F(DallasAsync, ReadComesAfterTheWaitWhateverTheConversionReported) {
   for (const auto status :
-       {TransactionStatus::OK, TransactionStatus::NO_PRESENCE, TransactionStatus::BUS_LOW,
-        TransactionStatus::CAPTURE_ERROR, TransactionStatus::TIMEOUT, TransactionStatus::HARDWARE_ERROR}) {
+       {TransactionStatus::TRANSACTION_STATUS_OK, TransactionStatus::TRANSACTION_STATUS_NO_PRESENCE, TransactionStatus::TRANSACTION_STATUS_BUS_LOW,
+        TransactionStatus::TRANSACTION_STATUS_CAPTURE_ERROR, TransactionStatus::TRANSACTION_STATUS_TIMEOUT, TransactionStatus::TRANSACTION_STATUS_HARDWARE_ERROR}) {
     this->sensor_.update();
     this->bus_.finish(status);
     EXPECT_TRUE(this->bus_.queue.empty());
@@ -148,14 +149,14 @@ TEST_F(DallasAsync, ReadComesAfterTheWaitWhateverTheConversionReported) {
     EXPECT_EQ(read->write_len, 1);
     EXPECT_EQ(*read->write_data, READ_SCRATCH_PAD);
     EXPECT_EQ(read->read_len, 9);
-    this->bus_.finish(TransactionStatus::OK);
+    this->bus_.finish(TransactionStatus::TRANSACTION_STATUS_OK);
   }
 }
 
 TEST_F(DallasAsync, TheWaitStartsWhenTheConversionIsDone) {
   this->sensor_.update();
   run_timers(WAIT_10_BIT_MS - 30);
-  this->bus_.finish(TransactionStatus::OK);
+  this->bus_.finish(TransactionStatus::TRANSACTION_STATUS_OK);
   run_timers(60);  // Past the wait if it had started at update()
   EXPECT_TRUE(this->bus_.queue.empty());
   run_timers(WAIT_10_BIT_MS);
@@ -164,7 +165,7 @@ TEST_F(DallasAsync, TheWaitStartsWhenTheConversionIsDone) {
 
 TEST_F(DallasAsync, ReadOkPublishesTheTemperature) {
   this->run_until_reading_();
-  this->bus_.finish(TransactionStatus::OK);
+  this->bus_.finish(TransactionStatus::TRANSACTION_STATUS_OK);
 
   EXPECT_EQ(this->publications_, 1u);
   EXPECT_FLOAT_EQ(this->sensor_.state, 25.0f);
@@ -174,7 +175,7 @@ TEST_F(DallasAsync, ReadOkPublishesTheTemperature) {
 TEST_F(DallasAsync, ReadOkWithABadChecksumPublishesNan) {
   this->bus_.scratch_pad[8] ^= 0xFF;
   this->run_until_reading_();
-  this->bus_.finish(TransactionStatus::OK);
+  this->bus_.finish(TransactionStatus::TRANSACTION_STATUS_OK);
 
   EXPECT_EQ(this->publications_, 1u);
   EXPECT_TRUE(std::isnan(this->sensor_.state));
@@ -184,7 +185,7 @@ TEST_F(DallasAsync, ReadOkWithABadChecksumPublishesNan) {
 TEST_F(DallasAsync, TheResetValueOf85IsDropped) {
   this->set_scratch_pad_(85 * 16, 0x10);
   this->run_until_reading_();
-  this->bus_.finish(TransactionStatus::OK);
+  this->bus_.finish(TransactionStatus::TRANSACTION_STATUS_OK);
 
   EXPECT_EQ(this->publications_, 1u);
   EXPECT_TRUE(std::isnan(this->sensor_.state));
@@ -192,11 +193,11 @@ TEST_F(DallasAsync, TheResetValueOf85IsDropped) {
 
 TEST_F(DallasAsync, EveryFailedReadPublishesNanWithAWarning) {
   for (const auto status :
-       {TransactionStatus::NO_PRESENCE, TransactionStatus::BUS_LOW, TransactionStatus::CAPTURE_ERROR,
-        TransactionStatus::TIMEOUT, TransactionStatus::HARDWARE_ERROR}) {
+       {TransactionStatus::TRANSACTION_STATUS_NO_PRESENCE, TransactionStatus::TRANSACTION_STATUS_BUS_LOW, TransactionStatus::TRANSACTION_STATUS_CAPTURE_ERROR,
+        TransactionStatus::TRANSACTION_STATUS_TIMEOUT, TransactionStatus::TRANSACTION_STATUS_HARDWARE_ERROR}) {
     // A good reading first: valid bytes are left in the buffer and must not be taken for this one
     this->run_until_reading_();
-    this->bus_.finish(TransactionStatus::OK);
+    this->bus_.finish(TransactionStatus::TRANSACTION_STATUS_OK);
     EXPECT_FLOAT_EQ(this->sensor_.state, 25.0f);
 
     this->run_until_reading_();
@@ -209,7 +210,7 @@ TEST_F(DallasAsync, EveryFailedReadPublishesNanWithAWarning) {
 
 TEST_F(DallasAsync, ARejectedReadSkipsTheCycleWithoutPublishing) {
   this->sensor_.update();
-  this->bus_.finish(TransactionStatus::OK);
+  this->bus_.finish(TransactionStatus::TRANSACTION_STATUS_OK);
   this->bus_.reject = true;
   run_timers(WAIT_10_BIT_MS + 30);
 
@@ -226,12 +227,12 @@ TEST_F(DallasAsync, UpdateDuringTheConversionSkipsTheCycle) {
 
   EXPECT_EQ(this->bus_.queue.size(), 1u);
   EXPECT_EQ(this->bus_.queue.front(), convert);
-  EXPECT_TRUE(convert->pending_);
+  EXPECT_TRUE(convert->is_pending());
 
-  this->bus_.finish(TransactionStatus::OK);
+  this->bus_.finish(TransactionStatus::TRANSACTION_STATUS_OK);
   run_timers(WAIT_10_BIT_MS + 30);
   ASSERT_EQ(this->bus_.queue.size(), 1u) << "exactly one read for the two updates";
-  this->bus_.finish(TransactionStatus::OK);
+  this->bus_.finish(TransactionStatus::TRANSACTION_STATUS_OK);
   EXPECT_EQ(this->publications_, 1u);
 }
 
@@ -245,7 +246,7 @@ TEST_F(DallasAsync, UpdateDuringTheReadLeavesTheReadAlone) {
   ASSERT_EQ(this->bus_.queue.size(), 2u);
   EXPECT_EQ(this->bus_.queue.front(), read) << "the conversion queues up behind the read";
   EXPECT_EQ(*this->bus_.queue.back()->write_data, CONVERT);
-  EXPECT_TRUE(read->pending_);
+  EXPECT_TRUE(read->is_pending());
   EXPECT_EQ(read->address, before.address);
   EXPECT_EQ(read->write_data, before.write_data);
   EXPECT_EQ(read->write_len, before.write_len);
@@ -254,10 +255,10 @@ TEST_F(DallasAsync, UpdateDuringTheReadLeavesTheReadAlone) {
   EXPECT_EQ(read->on_done, before.on_done);
   EXPECT_EQ(read->context, before.context);
 
-  this->bus_.finish(TransactionStatus::OK);
+  this->bus_.finish(TransactionStatus::TRANSACTION_STATUS_OK);
   EXPECT_EQ(this->publications_, 1u);
   EXPECT_FLOAT_EQ(this->sensor_.state, 25.0f);
-  this->bus_.finish(TransactionStatus::OK);  // The conversion from the update in between
+  this->bus_.finish(TransactionStatus::TRANSACTION_STATUS_OK);  // The conversion from the update in between
   run_timers(WAIT_10_BIT_MS + 30);
   ASSERT_EQ(this->bus_.queue.size(), 1u);
   EXPECT_EQ(*this->bus_.queue.front()->write_data, READ_SCRATCH_PAD);

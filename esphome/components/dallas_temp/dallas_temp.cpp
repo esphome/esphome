@@ -39,7 +39,7 @@ void DallasTemperatureSensor::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
-#ifdef USE_ONE_WIRE_RMT
+#ifdef USE_ONE_WIRE_TRANSACTION
 void DallasTemperatureSensor::update() {
   if (this->address_ == 0)
     return;
@@ -67,9 +67,9 @@ void DallasTemperatureSensor::on_convert_done(void *context, one_wire::Transacti
 void DallasTemperatureSensor::on_read_done(void *context, one_wire::TransactionStatus status) {
   auto *self = static_cast<DallasTemperatureSensor *>(context);
   float tempc = NAN;
-  if (status == one_wire::TransactionStatus::NO_PRESENCE || status == one_wire::TransactionStatus::BUS_LOW) {
+  if (status == one_wire::TransactionStatus::TRANSACTION_STATUS_NO_PRESENCE || status == one_wire::TransactionStatus::TRANSACTION_STATUS_BUS_LOW) {
     self->status_set_warning(LOG_STR("bus reset failed"));
-  } else if (status != one_wire::TransactionStatus::OK) {
+  } else if (status != one_wire::TransactionStatus::TRANSACTION_STATUS_OK) {
     self->status_set_warning(LOG_STR("bus transaction failed"));
   } else if (self->check_scratch_pad_()) {
     tempc = self->get_temp_c_();
@@ -97,7 +97,7 @@ void DallasTemperatureSensor::update() {
     this->publish_state(tempc);
   });
 }
-#endif  // USE_ONE_WIRE_RMT
+#endif  // USE_ONE_WIRE_TRANSACTION
 
 bool DallasTemperatureSensor::read_scratch_pad_() {
   bool success = this->send_command_(DALLAS_COMMAND_READ_SCRATCH_PAD);

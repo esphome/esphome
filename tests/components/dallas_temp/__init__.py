@@ -7,7 +7,7 @@ from tests.testing_helpers import ComponentManifestOverride
 def override_manifest(manifest: ComponentManifestOverride) -> None:
     async def to_code_testing(config: ConfigType) -> None:
         CORE.testing_ensure_platform_registered("sensor")
-        cg.add_define("USE_ONE_WIRE_RMT")
+        cg.add_define("USE_ONE_WIRE_TRANSACTION")
 
     manifest.to_code = to_code_testing
     manifest.dependencies = manifest.dependencies + ["one_wire", "sensor"]
