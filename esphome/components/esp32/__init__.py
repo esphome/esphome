@@ -3240,7 +3240,7 @@ async def _finalize_arduino_aware_flags():
 
 
 async def to_code(config):
-    framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
+    framework_ver = CORE.framework_version
     conf = config[CONF_FRAMEWORK]
 
     # Check if using ESP-IDF toolchain
@@ -3338,6 +3338,13 @@ async def to_code(config):
     # --undefined: libsrc.a is scanned before the IDF libraries that also register them.
     cg.add_build_flag("-Wl,--wrap=__cxa_atexit")
     cg.add_build_flag("-Wl,--undefined=__wrap___cxa_atexit")
+
+    # strftime() and mktime() reload TZ, and picolibc's parser links the scanf engine.
+    # ESPHome never sets TZ, so the reload is skipped. See tzset_stubs.cpp.
+    # --undefined: libsrc.a is scanned before the C library that calls it.
+    if idf_version() >= cv.Version(6, 0, 0):
+        cg.add_build_flag("-Wl,--wrap=_tzset_unlocked")
+        cg.add_build_flag("-Wl,--undefined=__wrap__tzset_unlocked")
 
     if conf[CONF_TYPE] == FRAMEWORK_ESP_IDF:
         cg.add_build_flag("-DUSE_ESP_IDF")
@@ -4077,9 +4084,8 @@ def _write_sdkconfig():
     # version switch that happens to leave the option set unchanged still
     # bumps this file's content -- which is what has_outdated_files()
     # uses to decide whether to reconfigure.
-    framework_version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
     contents = (
-        f"# ESPHOME_IDF_VERSION={framework_version}\n"
+        f"# ESPHOME_IDF_VERSION={CORE.framework_version}\n"
         + "\n".join(
             f"{name}={_format_sdkconfig_val(value)}"
             for name, value in sorted(want_opts.items())
@@ -4230,7 +4236,7 @@ def _write_idf_component_yml():
         if CORE.using_toolchain_esp_idf:
             add_idf_component(
                 name=ARDUINO_ESP32_COMPONENT_NAME,
-                ref=str(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]),
+                ref=str(CORE.framework_version),
             )
 
     for component in converted:
