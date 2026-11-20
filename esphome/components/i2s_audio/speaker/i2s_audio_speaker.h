@@ -159,7 +159,13 @@ class I2SAudioSpeakerBase : public I2SAudioOut, public speaker::Speaker, public 
   /// @return false if the preload or the channel enable failed; the caller should restart the task
   template<typename F> bool resync_lockstep_(uint32_t extra_frames, F &&preload) {
     this->drain_lockstep_(extra_frames);
-    return preload() && (i2s_channel_enable(this->tx_handle_) == ESP_OK);
+    if (!preload() || i2s_channel_enable(this->tx_handle_) != ESP_OK)
+      return false;
+#ifdef USE_I2S_AUDIO_FULL_DUPLEX
+    if (this->parent_->is_full_duplex() && this->parent_->is_keep_tx_active())
+      this->parent_->set_continuous_tx_running(true);
+#endif
+    return true;
   }
 
   /// @brief Disables the channel, credits ``extra_frames`` plus every real frame still recorded as in flight,
