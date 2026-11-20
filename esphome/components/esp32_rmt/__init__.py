@@ -190,8 +190,46 @@ def request_rmt_channel(
     return _validator
 
 
+def request_rmt_channels(
+    channels: Iterable[tuple[Direction, int]], setup_priority: float
+) -> Callable[[ConfigType], ConfigType]:
+    """Return a CONFIG_SCHEMA validator for a component with RMT channels of a fixed size.
+
+    Like request_rmt_channel(), but for a component that has no rmt_symbols option.
+    channels lists the direction and the memory blocks of each channel, in the order
+    setup() creates them. All of them are recorded under the id of the entry. Use
+    final_validate_rmt_channels() and register_rmt_channel() as with
+    request_rmt_channel().
+    """
+    channels = tuple(channels)
+
+    def _validator(config: ConfigType) -> ConfigType:
+        if (memory := _get_memory()) is None:
+            return config
+        _get_data().channels.extend(
+            _Channel(
+                config[CONF_ID],
+                config.get(CONF_NAME),
+                direction,
+                blocks * memory.symbols_per_block,
+                False,
+                config.get(CONF_SETUP_PRIORITY, setup_priority),
+            )
+            for direction, blocks in channels
+        )
+        return config
+
+    return _validator
+
+
 def _labels(channels: list[_Channel]) -> str:
-    return ", ".join(f"'{channel.label}'" for channel in channels)
+    """The labels once each, with the count of a component that has several channels."""
+    labels = [channel.label for channel in channels]
+    return ", ".join(
+        f"'{label}'"
+        + (f" ({count} channels)" if (count := labels.count(label)) > 1 else "")
+        for label in dict.fromkeys(labels)
+    )
 
 
 def _check_pool(direction: str, channels: list[_Channel], blocks: int) -> _Error | None:
@@ -202,11 +240,15 @@ def _check_pool(direction: str, channels: list[_Channel], blocks: int) -> _Error
     variant = esp32.get_esp32_variant()
     if len(channels) > blocks:
         kind = "shared by TX and RX" if direction == "TX/RX" else f"for {direction}"
+        if len({channel.id for channel in channels}) == len(channels):
+            need = f"these {len(channels)} components each need one"
+        else:
+            need = f"these components need {len(channels)}"
         return _Error(
             channels,
-            f"{variant} has {blocks} RMT channels {kind}, but these {len(channels)} "
-            f"components each need one: {_labels(channels)}. Remove some of them or "
-            "use a chip with more RMT channels",
+            f"{variant} has {blocks} RMT channels {kind}, but {need}: "
+            f"{_labels(channels)}. Remove some of them or use a chip with more RMT "
+            "channels",
         )
     dma = [channel for channel in channels if channel.dma]
     if len(dma) > 1:
@@ -335,8 +377,12 @@ async def _check_memory() -> None:
     size = memory.symbols_per_block
     if not _allocate(memory, sorted(channels, key=lambda c: c.blocks(size))):
         fix = f", or set '{CONF_SETUP_PRIORITY}' so the smaller ones are set up first"
+    labels = [channel.label for channel in channels]
+    # A component with several channels gets the direction of each
     usage = ", ".join(
-        f"'{channel.label}' ({'DMA' if channel.dma else channel.symbols})"
+        f"'{channel.label}' ("
+        + (f"{channel.direction} " if labels.count(channel.label) > 1 else "")
+        + f"{'DMA' if channel.dma else channel.symbols})"
         for channel in channels
     )
     _LOGGER.warning(
