@@ -112,7 +112,7 @@ class SdoTest : public ::testing::Test {
   void wait_for_timeout_() {
     for (int i = 0; i < 60; i++) {
       this->hub_.loop();
-      this->advance_(1);
+      advance_(1);
     }
   }
 };

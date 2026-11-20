@@ -95,7 +95,7 @@ TEST_F(SdoTest, ServerAbort) {
 TEST_F(SdoTest, TimeoutSendsAbort) {
   ASSERT_TRUE(this->hub_.read_sdo<uint32_t>(0x21, 0x1000, 0, on_reply, this));
   this->hub_.loop();
-  this->advance_(40);
+  advance_(40);
   this->hub_.loop();
   ASSERT_EQ(this->replies_.size(), 1u);
   EXPECT_EQ(this->replies_[0].result, SDOResult::SDO_RESULT_TIMEOUT);
@@ -228,7 +228,7 @@ TEST_F(SdoTest, ServerAbortWithTheTimeoutCode) {
 TEST_F(SdoTest, OtherFrameAfterTheTimeoutBeforeTheReply) {
   ASSERT_TRUE(this->hub_.read_sdo<uint16_t>(0x21, 0x1017, 0, on_reply, this));
   this->hub_.loop();
-  this->advance_(40);
+  advance_(40);
   this->hub_.frame(0x701, {0x05});  // a heartbeat
   EXPECT_TRUE(this->replies_.empty());
   this->hub_.frame(0x5A1, {0x4B, 0x17, 0x10, 0, 0xE8, 0x03, 0, 0});
@@ -242,15 +242,15 @@ TEST_F(SdoTest, DelayedSegmentDoesNotShortenTheNextOne) {
   std::array<uint8_t, 16> buffer{};
   ASSERT_TRUE(this->hub_.read_sdo_data(0x21, 0x1008, 0, buffer.data(), buffer.size(), on_reply, this));
   this->hub_.loop();
-  this->advance_(15);
+  advance_(15);
   this->hub_.frame(0x5A1, {0x41, 0x08, 0x10, 0, 10, 0, 0, 0});
   // 25 ms since the last loop, 10 ms since the segment request (timeout 20 ms)
-  this->advance_(10);
+  advance_(10);
   this->hub_.loop();
   EXPECT_TRUE(this->replies_.empty());
-  this->advance_(5);
+  advance_(5);
   this->hub_.frame(0x5A1, {0x00, 'c', 'a', 'n', 'o', 'p', 'e', 'n'});
-  this->advance_(15);
+  advance_(15);
   this->hub_.loop();
   this->hub_.frame(0x5A1, {0x10 | (4 << 1) | 1, ' ', 'i', 'o', 0, 0, 0, 0});
   ASSERT_EQ(this->replies_.size(), 1u);
@@ -263,7 +263,7 @@ TEST_F(SdoTest, LateRepliesForAnotherObjectAreIgnored) {
   ASSERT_TRUE(this->hub_.read_sdo<uint32_t>(0x21, 0x1000, 0, on_reply, this));
   ASSERT_TRUE(this->hub_.write_sdo<uint8_t>(0x21, 0x6060, 0, 1, on_reply, this));
   this->hub_.loop();
-  this->advance_(40);
+  advance_(40);
   this->hub_.loop();
   ASSERT_EQ(this->replies_.size(), 1u);
   EXPECT_EQ(this->replies_[0].result, SDOResult::SDO_RESULT_TIMEOUT);

@@ -26,7 +26,7 @@ TEST_F(SdoTest, FrameUnsentAtTheDeadlineIsNotSentLate) {
   this->bus_.busy = true;
   ASSERT_TRUE(this->hub_.write_sdo<uint16_t>(0x21, 0x6040, 0, 0x1234, on_reply, this));
   this->hub_.loop();
-  this->advance_(25);
+  advance_(25);
   this->bus_.busy = false;
   this->hub_.loop();
   ASSERT_EQ(this->replies_.size(), 1u);
@@ -42,7 +42,7 @@ TEST_F(SdoTest, UnsentFrameEndsAtTheDeadlineDuringACappedPass) {
   this->hub_.loop();
   this->bus_.queue(0x181, {0});
   this->bus_.queue(0x181, {1});
-  this->advance_(25);
+  advance_(25);
   this->bus_.loop();
   ASSERT_TRUE(this->bus_.rx_capped());
   this->bus_.busy = false;
@@ -57,12 +57,12 @@ TEST_F(SdoTest, RetryBeforeTheDeadlineRestartsTheTimeout) {
   this->bus_.busy = true;
   ASSERT_TRUE(this->hub_.read_sdo<uint16_t>(0x21, 0x6041, 0, on_reply, this));
   this->hub_.loop();
-  this->advance_(15);
+  advance_(15);
   this->bus_.busy = false;
   this->hub_.loop();
   ASSERT_EQ(this->requests_(), (std::vector<std::vector<uint8_t>>{{0x40, 0x41, 0x60, 0, 0, 0, 0, 0}}));
   // 25 ms since the request, 10 ms since it was sent (timeout 20 ms)
-  this->advance_(10);
+  advance_(10);
   this->hub_.loop();
   EXPECT_TRUE(this->replies_.empty());
   this->hub_.frame(0x5A1, {0x4B, 0x41, 0x60, 0, 0x37, 0x02, 0, 0});
@@ -225,7 +225,7 @@ TEST_F(SdoTest, ReplyBehindACappedBurstDoesNotTimeOut) {
   for (uint8_t i = 0; i < 6; i++)
     this->bus_.queue(0x181, {i});  // PDOs
   this->bus_.queue(0x5A1, {0x4B, 0x17, 0x10, 0, 0xE8, 0x03, 0, 0});
-  this->advance_(25);  // past the 20 ms response timeout
+  advance_(25);  // past the 20 ms response timeout
   this->bus_.loop();
   ASSERT_TRUE(this->bus_.rx_capped());
   this->hub_.loop();
@@ -242,13 +242,13 @@ TEST_F(SdoTest, SaturatedBusStillTimesOut) {
   this->bus_.set_max_frames_per_loop(1);
   ASSERT_TRUE(this->hub_.read_sdo<uint16_t>(0x21, 0x1017, 0, on_reply, this));
   this->hub_.loop();
-  this->advance_(15);
+  advance_(15);
   this->hub_.loop();  // nothing received: 15 ms charged
   uint32_t waited = 15;
   while (this->replies_.empty() && waited < 100) {
     this->bus_.queue(0x181, {0});
     this->bus_.queue(0x181, {1});
-    this->advance_(1);
+    advance_(1);
     waited++;
     this->bus_.loop();
     this->hub_.loop();
