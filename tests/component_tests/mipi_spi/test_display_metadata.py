@@ -75,6 +75,38 @@ def test_metadata_single_mode_with_dc_pin(
     assert meta.byte_order == BYTE_ORDER_BIG
 
 
+def test_tested_models_support_sleep(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """Models verified on hardware expose the display sleep actions."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32-s3-devkitc-1", KEY_VARIANT: VARIANT_ESP32S3},
+    )
+
+    ili_config = CONFIG_SCHEMA(
+        {"model": "ILI9341", "dc_pin": 18, "id": "ili9341_sleep"}
+    )
+    jc_config = CONFIG_SCHEMA({"model": "JC4827W543", "id": "jc4827_sleep"})
+
+    assert get_display_metadata(ili_config["id"]).supports_sleep is True
+    assert get_display_metadata(jc_config["id"]).supports_sleep is True
+
+
+def test_unverified_model_does_not_support_sleep(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """Models without hardware verification remain opted out."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+    )
+    config = CONFIG_SCHEMA(
+        {"model": "ST7735", "dc_pin": 18, "id": "unverified_display"}
+    )
+    assert get_display_metadata(config["id"]).supports_sleep is False
+
+
 def test_metadata_custom_dimensions(
     set_core_config: SetCoreConfigCallable,
 ) -> None:
@@ -182,6 +214,16 @@ def test_metadata_via_code_generation_lvgl(
     assert meta.height == 160
     assert meta.has_hardware_rotation is True
     assert meta.byte_order == BYTE_ORDER_BIG
+
+
+def test_sleep_actions_generate_for_supported_model(
+    generate_main: Callable[[str | Path], str],
+    component_fixture_path: Callable[[str], Path],
+) -> None:
+    """Sleep and wakeup actions validate and generate for a tested model."""
+    generated = generate_main(component_fixture_path("sleep.yaml"))
+    assert "device_display->sleep();" in generated
+    assert "device_display->wakeup();" in generated
 
 
 def test_metadata_records_rotation(

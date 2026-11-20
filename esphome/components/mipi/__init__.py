@@ -43,6 +43,7 @@ DOMAIN = "mipi"
 LOGGER = cv.logging.getLogger(__name__)
 
 CONF_TRANSFORMS = "transforms"
+CONF_SUPPORTS_SLEEP = "supports_sleep"
 
 # All axis transforms a model may support, in the order they appear in the schema.
 ALL_TRANSFORMS = (CONF_MIRROR_X, CONF_MIRROR_Y, CONF_SWAP_XY)
