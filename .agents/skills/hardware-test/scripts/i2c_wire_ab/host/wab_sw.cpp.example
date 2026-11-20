@@ -1,0 +1,156 @@
+// The software bus of the tree under test, whole, on fake open-drain pins with a bit-level slave
+#include "esphome/core/application.h"
+#include "esphome/core/component.h"
+#include "esphome/core/gpio.h"
+#include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
+#include "esphome/components/i2c/i2c_bus.h"
+#include "wab_common.h"
+
+namespace wab {
+struct BitSlave {
+  bool m_sda_low{false}, m_scl_low{false}, s_sda_low{false};
+  bool sda{true}, scl{true};
+  enum { IDLE, ADDR, WDATA, RDATA, IGNORE } state{IDLE};
+  enum { BITS, ACK_OUT, ACK_IN } phase{BITS};
+  int bits{0};
+  uint8_t shift{0}, cur{0};
+  bool last_ack{false}, is_read{false}, master_ack{false};
+  void drive_bit() { this->s_sda_low = !(this->cur & (0x80 >> this->bits)); }
+  void update() {
+    auto &w = wire();
+    auto &sl = slave();
+    for (int guard = 0; guard < 4; guard++) {
+      bool nsda = !(this->m_sda_low || this->s_sda_low), nscl = !this->m_scl_low;
+      if (nsda == this->sda && nscl == this->scl)
+        return;
+      bool sda_fell = this->sda && !nsda, sda_rose = !this->sda && nsda;
+      bool scl_rose = !this->scl && nscl, scl_fell = this->scl && !nscl;
+      this->sda = nsda;
+      this->scl = nscl;
+      if (this->scl && !scl_rose && sda_fell) {  // START
+        w.start();
+        this->state = ADDR;
+        this->phase = BITS;
+        this->bits = 0;
+        this->shift = 0;
+        this->s_sda_low = false;
+        continue;
+      }
+      if (this->scl && !scl_rose && sda_rose) {  // STOP
+        if (w.open)
+          w.stop();
+        this->state = IDLE;
+        this->s_sda_low = false;
+        continue;
+      }
+      if (scl_rose) {
+        if ((this->state == ADDR || this->state == WDATA) && this->phase == BITS) {
+          this->shift = (this->shift << 1) | (this->sda ? 1 : 0);
+          this->bits++;
+        } else if (this->state == RDATA && this->phase == ACK_IN) {
+          this->master_ack = !this->sda;
+          w.rbyte(this->cur, this->master_ack);
+        }
+      } else if (scl_fell) {
+        if ((this->state == ADDR || this->state == WDATA) && this->phase == BITS && this->bits == 8) {
+          if (this->state == ADDR) {
+            this->last_ack = sl.address(this->shift);
+            this->is_read = this->shift & 1;
+          } else {
+            this->last_ack = sl.data(this->shift);
+          }
+          w.wbyte(this->shift, this->last_ack);
+          this->s_sda_low = this->last_ack;
+          this->phase = ACK_OUT;
+        } else if (this->phase == ACK_OUT) {
+          this->s_sda_low = false;
+          this->bits = 0;
+          this->shift = 0;
+          this->phase = BITS;
+          if (!this->last_ack) {
+            this->state = IGNORE;
+          } else if (this->state == ADDR && this->is_read) {
+            this->state = RDATA;
+            this->cur = sl.next_read();
+            this->drive_bit();
+          } else {
+            this->state = WDATA;
+          }
+        } else if (this->state == RDATA && this->phase == BITS) {
+          this->bits++;
+          if (this->bits == 8) {
+            this->s_sda_low = false;
+            this->phase = ACK_IN;
+          } else {
+            this->drive_bit();
+          }
+        } else if (this->state == RDATA && this->phase == ACK_IN) {
+          if (this->master_ack) {
+            this->cur = sl.next_read();
+            this->bits = 0;
+            this->phase = BITS;
+            this->drive_bit();
+          } else {
+            this->state = IGNORE;
+          }
+        }
+      }
+    }
+  }
+};
+inline BitSlave &bitslave() {
+  static BitSlave b;
+  return b;
+}
+
+class FakePin : public esphome::GPIOPin {
+ public:
+  explicit FakePin(bool is_sda) : is_sda_(is_sda) {}
+  void setup() override {}
+  void pin_mode(esphome::gpio::Flags flags) override {
+    this->flags_ = flags;
+    this->apply_();
+  }
+  esphome::gpio::Flags get_flags() const override { return this->flags_; }
+  bool digital_read() override { return this->is_sda_ ? bitslave().sda : bitslave().scl; }
+  void digital_write(bool value) override {
+    this->value_ = value;
+    this->apply_();
+  }
+  size_t dump_summary(char *buffer, size_t len) const override { return 0; }
+
+ protected:
+  void apply_() {
+    bool low = (this->flags_ & esphome::gpio::FLAG_OUTPUT) && !this->value_;
+    (this->is_sda_ ? bitslave().m_sda_low : bitslave().m_scl_low) = low;
+    bitslave().update();
+  }
+  bool is_sda_;
+  bool value_{true};
+  esphome::gpio::Flags flags_{esphome::gpio::FLAG_INPUT};
+};
+}  // namespace wab
+
+#define USE_LIBRETINY
+#define InternalGPIOPin wab::FakePin
+#include "wab_sw_impl.inc"
+#undef InternalGPIOPin
+#undef USE_LIBRETINY
+
+esphome::i2c::I2CBus *wab_make_sw() {
+  static wab::FakePin sda(true), scl(false);
+  auto *b = new esphome::i2c::SoftwareI2CBus();
+  b->set_sda_pin(&sda);
+  b->set_scl_pin(&scl);
+  b->set_frequency(1000000);
+  b->set_scan(false);
+  b->setup();
+  return b;
+}
+void wab_reset_sw() {
+  auto &b = wab::bitslave();
+  b.state = wab::BitSlave::IDLE;
+  b.s_sda_low = false;
+}

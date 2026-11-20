@@ -65,11 +65,6 @@ void ESP32BLETracker::on_ota_global_state(ota::OTAState state, float progress, u
     for (auto *client : this->clients_) {
       client->disconnect();
     }
-#ifdef USE_ESP32_BLE_SOFTWARE_COEXISTENCE
-    // The OTA transfer blocks the main loop, so the revert in loop() cannot run. No
-    // active-connection gate here: every client was just told to disconnect.
-    this->update_coex_preference_(false);
-#endif
 #endif
   } else if ((state == ota::OTA_ERROR || state == ota::OTA_ABORT) && this->scan_continuous_before_ota_) {
     this->scan_continuous_before_ota_ = false;
@@ -196,17 +191,8 @@ void ESP32BLETracker::loop() {
   // Start scan: reached when scanner_state_ becomes IDLE (via set_scanner_state_()) and
   // no clients are in the transient CONNECTING / DISCOVERED / DISCONNECTING states
   // (their state changes increment version when they finish). CONNECTED / ESTABLISHED
-  // clients do NOT block this branch — the coex revert below has its own active-count gate.
+  // clients do NOT block this branch.
   if (this->scanner_state_ == ScannerState::IDLE && !counts.connecting && !counts.disconnecting && !counts.discovered) {
-#ifdef USE_ESP32_BLE_SOFTWARE_COEXISTENCE
-    // Only revert to BALANCE when no connections are active. Established connections
-    // continue to need PREFER_BT so peer GATT responses can reach us while WiFi traffic
-    // (advertisement upload, log streaming) competes for the shared radio. Reverting too
-    // early causes Bluedroid to time out at ~20s and synthesize status=133.
-    if (!counts.active) {
-      this->update_coex_preference_(false);
-    }
-#endif
     if (this->scan_continuous_) {
       this->start_scan_(false);  // first = false
     }
@@ -624,9 +610,6 @@ void ESP32BLETracker::try_promote_discovered_clients_() {
     // A connect ends the scan period a window-change restart was continuing.
     this->skip_next_scan_end_ = false;
 #endif
-#ifdef USE_ESP32_BLE_SOFTWARE_COEXISTENCE
-    this->update_coex_preference_(true);
-#endif
     client->connect();
     break;
   }
@@ -656,18 +639,35 @@ void ESP32BLETracker::log_unexpected_state_(const char *operation, ScannerState 
 }
 
 #ifdef USE_ESP32_BLE_SOFTWARE_COEXISTENCE
-void ESP32BLETracker::update_coex_preference_(bool force_ble) {
+// esp_coex_preference_set() is a stub in ESP-IDF's coexistence library on every target; the
+// scheduler reads these BLE status bits instead.
 #ifndef CONFIG_BT_CONTROLLER_DISABLED
-  if (force_ble && !this->coex_prefer_ble_) {
-    ESP_LOGD(TAG, "Setting coexistence to Bluetooth to make connection.");
-    this->coex_prefer_ble_ = true;
-    esp_coex_preference_set(ESP_COEX_PREFER_BT);  // Prioritize Bluetooth
-  } else if (!force_ble && this->coex_prefer_ble_) {
-    ESP_LOGD(TAG, "Setting coexistence preference to balanced.");
-    this->coex_prefer_ble_ = false;
-    esp_coex_preference_set(ESP_COEX_PREFER_BALANCE);  // Reset to default
+static uint8_t coex_ble_priority_holds = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+#endif
+
+void coex_ble_priority_acquire() {
+#ifndef CONFIG_BT_CONTROLLER_DISABLED
+  if (coex_ble_priority_holds++ == 0) {
+    esp_err_t err = esp_coex_status_bit_set(ESP_COEX_ST_TYPE_BLE, ESP_COEX_BLE_ST_MESH_CONFIG);
+    if (err != ESP_OK) {
+      ESP_LOGW(TAG, "Setting BLE coexistence priority failed: %d", err);
+    }
   }
-#endif  // CONFIG_BT_CONTROLLER_DISABLED
+#endif
+}
+
+void coex_ble_priority_release() {
+#ifndef CONFIG_BT_CONTROLLER_DISABLED
+  if (coex_ble_priority_holds == 0)
+    return;
+  coex_ble_priority_holds--;
+  if (coex_ble_priority_holds == 0) {
+    esp_err_t err = esp_coex_status_bit_clear(ESP_COEX_ST_TYPE_BLE, ESP_COEX_BLE_ST_MESH_CONFIG);
+    if (err != ESP_OK) {
+      ESP_LOGW(TAG, "Clearing BLE coexistence priority failed: %d", err);
+    }
+  }
+#endif
 }
 #endif
 
