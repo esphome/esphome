@@ -6,7 +6,7 @@ namespace esphome::atc_mithermometer {
 
 ESPHOME_LOG_TAG(TAG, "atc_mithermometer");
 
-void ATCMiThermometer::dump_config() {
+void ATCMiThermometer::dump_child_config() {
   ESP_LOGCONFIG(TAG, "ATC MiThermometer");
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);

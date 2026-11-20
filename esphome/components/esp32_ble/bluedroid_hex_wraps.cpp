@@ -1,4 +1,5 @@
-// Linker wraps for the only two sscanf callers in Bluedroid, so newlib's scanf engine (~16 KB) is not linked.
+// Linker wraps for the only two sscanf callers in Bluedroid, so the C library's scanf engine is not linked
+// (~16 KB with newlib, ~4 KB with picolibc).
 // Same parsing as espressif/esp-idf#19235; drop once ESPHome uses an ESP-IDF release that contains it.
 
 #include "esphome/core/defines.h"
