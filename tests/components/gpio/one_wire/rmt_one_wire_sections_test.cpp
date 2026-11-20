@@ -19,7 +19,7 @@ std::vector<uint8_t> random_bytes(std::mt19937 &rng, size_t count) {
   return bytes;
 }
 
-/// Every transmitted symbol of every section lies in the windows of section 3.
+/// Every transmitted symbol of every section lies in the 1-Wire timing windows.
 void expect_all_symbols_in_windows(const SimPort &port) {
   ASSERT_FALSE(port.sections.empty());
   EXPECT_TRUE(port.sections[0].is_reset());
@@ -58,9 +58,9 @@ INSTANTIATE_TEST_SUITE_P(W, RmtOneWireSections, ::testing::Values(size_t{48}, si
                            return std::to_string(info.param);  // NOLINT
                          });
 
-// ---- I4: the table of section 4.2 as an exact expectation ------------------------------------
+// ---- The section table as an exact expectation ------------------------------------
 
-TEST(RmtOneWireSectionTable, I4_ReadScratchpadW64) {
+TEST(RmtOneWireSectionTable, ReadScratchpadW64) {
   Rig rig(64);
   rig.port.bus.devices.emplace_back(ROM_A, std::vector<uint8_t>{1, 2, 3, 4, 5, 6, 7, 8, 9}, 1);
   DoneLog log;
@@ -72,7 +72,7 @@ TEST(RmtOneWireSectionTable, I4_ReadScratchpadW64) {
   EXPECT_EQ(job.read_bytes, (std::vector<uint8_t>{1, 2, 3, 4, 5, 6, 7, 8, 9}));
 }
 
-TEST(RmtOneWireSectionTable, I4_ReadScratchpadW48) {
+TEST(RmtOneWireSectionTable, ReadScratchpadW48) {
   Rig rig(48);
   rig.port.bus.devices.emplace_back(ROM_A, std::vector<uint8_t>{1, 2, 3, 4, 5, 6, 7, 8, 9}, 1);
   DoneLog log;
@@ -84,7 +84,7 @@ TEST(RmtOneWireSectionTable, I4_ReadScratchpadW48) {
   EXPECT_EQ(job.read_bytes, (std::vector<uint8_t>{1, 2, 3, 4, 5, 6, 7, 8, 9}));
 }
 
-// ---- I4: all lengths -------------------------------------------------------------------------
+// ---- All lengths -------------------------------------------------------------------------
 
 namespace {
 
@@ -115,35 +115,35 @@ void check_one_length(Rig &rig, std::mt19937 &rng, uint64_t address, size_t writ
 
 }  // namespace
 
-TEST_P(RmtOneWireSections, I4_AllWriteLengthsSkipRom) {
+TEST_P(RmtOneWireSections, AllWriteLengthsSkipRom) {
   Rig rig(GetParam());
   std::mt19937 rng(11);
   for (size_t length = 0; length <= 255; length++)
     check_one_length(rig, rng, 0, length, 0);
 }
 
-TEST_P(RmtOneWireSections, I4_AllWriteLengthsMatchRom) {
+TEST_P(RmtOneWireSections, AllWriteLengthsMatchRom) {
   Rig rig(GetParam());
   std::mt19937 rng(12);
   for (size_t length = 0; length <= 255; length++)
     check_one_length(rig, rng, ROM_A, length, 0);
 }
 
-TEST_P(RmtOneWireSections, I4_AllReadLengthsSkipRom) {
+TEST_P(RmtOneWireSections, AllReadLengthsSkipRom) {
   Rig rig(GetParam());
   std::mt19937 rng(13);
   for (size_t length = 0; length <= 255; length++)
     check_one_length(rig, rng, 0, 0, length);
 }
 
-TEST_P(RmtOneWireSections, I4_AllReadLengthsMatchRom) {
+TEST_P(RmtOneWireSections, AllReadLengthsMatchRom) {
   Rig rig(GetParam());
   std::mt19937 rng(14);
   for (size_t length = 0; length <= 255; length++)
     check_one_length(rig, rng, ROM_A, 0, length);
 }
 
-TEST_P(RmtOneWireSections, I4_WriteAndReadCombined) {
+TEST_P(RmtOneWireSections, WriteAndReadCombined) {
   Rig rig(GetParam());
   std::mt19937 rng(15);
   for (size_t write_len = 0; write_len <= 255; write_len += 15) {
@@ -154,7 +154,7 @@ TEST_P(RmtOneWireSections, I4_WriteAndReadCombined) {
   }
 }
 
-TEST_P(RmtOneWireSections, I4_LengthsAroundTheBlockBoundary) {
+TEST_P(RmtOneWireSections, LengthsAroundTheBlockBoundary) {
   // The bytes around W-1 and W-2 slots, with the ROM selection in front
   Rig rig(GetParam());
   std::mt19937 rng(16);
@@ -165,7 +165,7 @@ TEST_P(RmtOneWireSections, I4_LengthsAroundTheBlockBoundary) {
   }
 }
 
-TEST_P(RmtOneWireSections, I4_FacadeSectionsFit) {
+TEST_P(RmtOneWireSections, FacadeSectionsFit) {
   Rig rig(GetParam());
   std::mt19937 rng(17);
   const auto data = random_bytes(rng, 255);
@@ -201,9 +201,9 @@ TEST_P(RmtOneWireSections, I4_FacadeSectionsFit) {
   }
 }
 
-// ---- I6: order of RX and TX, a section ends only with all of its completions ------------------
+// ---- Order of RX and TX, a section ends only with all of its completions ------------------
 
-TEST_P(RmtOneWireSections, I6_RxIsArmedBeforeTxInEveryRxSection) {
+TEST_P(RmtOneWireSections, RxIsArmedBeforeTxInEveryRxSection) {
   Rig rig(GetParam());
   rig.port.bus.devices.emplace_back(ROM_A, std::vector<uint8_t>(9, 0x3C), 1);
   DoneLog log;
@@ -225,7 +225,7 @@ TEST_P(RmtOneWireSections, I6_RxIsArmedBeforeTxInEveryRxSection) {
   EXPECT_TRUE(rig.port.sections[4].armed);
 }
 
-TEST_P(RmtOneWireSections, I6_FacadeArmsRxBeforeTx) {
+TEST_P(RmtOneWireSections, FacadeArmsRxBeforeTx) {
   Rig rig(GetParam());
   rig.port.bus.devices.emplace_back(ROM_A, std::vector<uint8_t>(9, 0x3C));
   EXPECT_EQ(rig.engine.reset_blocking(), 1);
@@ -282,7 +282,7 @@ void step_through_sections(Rig &rig, DoneLog &log, const std::function<void()> &
 
 }  // namespace
 
-TEST_P(RmtOneWireSections, I6_NextStartOnlyAfterBothCompletionsTxFirst) {
+TEST_P(RmtOneWireSections, NextStartOnlyAfterBothCompletionsTxFirst) {
   Rig rig(GetParam());
   rig.port.manual = true;
   rig.port.bus.devices.emplace_back(ROM_A, std::vector<uint8_t>(30, 0x96), 1);
@@ -294,7 +294,7 @@ TEST_P(RmtOneWireSections, I6_NextStartOnlyAfterBothCompletionsTxFirst) {
   EXPECT_EQ(job.read_bytes, std::vector<uint8_t>(30, 0x96));
 }
 
-TEST_P(RmtOneWireSections, I6_NextStartOnlyAfterBothCompletionsRxFirst) {
+TEST_P(RmtOneWireSections, NextStartOnlyAfterBothCompletionsRxFirst) {
   Rig rig(GetParam());
   rig.port.manual = true;
   rig.port.bus.devices.emplace_back(ROM_A, std::vector<uint8_t>(30, 0x96), 1);
@@ -306,7 +306,7 @@ TEST_P(RmtOneWireSections, I6_NextStartOnlyAfterBothCompletionsRxFirst) {
   EXPECT_EQ(job.read_bytes, std::vector<uint8_t>(30, 0x96));
 }
 
-TEST_P(RmtOneWireSections, I6_AutomaticRxFirstOrderAlsoCompletes) {
+TEST_P(RmtOneWireSections, AutomaticRxFirstOrderAlsoCompletes) {
   Rig rig(GetParam());
   rig.port.rx_first = true;
   rig.port.bus.devices.emplace_back(ROM_A, std::vector<uint8_t>(30, 0x69), 1);
@@ -318,7 +318,7 @@ TEST_P(RmtOneWireSections, I6_AutomaticRxFirstOrderAlsoCompletes) {
   EXPECT_EQ(job.read_bytes, std::vector<uint8_t>(30, 0x69));
 }
 
-TEST_P(RmtOneWireSections, I6_WriteOnlyTransactionNeverArmsAfterReset) {
+TEST_P(RmtOneWireSections, WriteOnlyTransactionNeverArmsAfterReset) {
   Rig rig(GetParam());
   rig.port.bus.devices.emplace_back(ROM_A);
   DoneLog log;
@@ -331,9 +331,9 @@ TEST_P(RmtOneWireSections, I6_WriteOnlyTransactionNeverArmsAfterReset) {
   EXPECT_EQ(rig.port.arm_count, 1);
 }
 
-// ---- I12: timing of what the engine really sends ---------------------------------------------
+// ---- Timing of what the engine really sends ---------------------------------------------
 
-TEST_P(RmtOneWireSections, I12_TransactionSymbolsInWindows) {
+TEST_P(RmtOneWireSections, TransactionSymbolsInWindows) {
   Rig rig(GetParam());
   rig.port.bus.devices.emplace_back(ROM_A, std::vector<uint8_t>{0xAA, 0x00, 0xFF}, 2);
   DoneLog log;
@@ -344,7 +344,7 @@ TEST_P(RmtOneWireSections, I12_TransactionSymbolsInWindows) {
   expect_all_symbols_in_windows(rig.port);
 }
 
-TEST_P(RmtOneWireSections, I12_FacadeAndSearchSymbolsInWindows) {
+TEST_P(RmtOneWireSections, FacadeAndSearchSymbolsInWindows) {
   Rig rig(GetParam());
   rig.port.bus.devices.emplace_back(ROM_A);
   rig.port.bus.devices.emplace_back(ROM_B);
@@ -362,7 +362,7 @@ TEST_P(RmtOneWireSections, I12_FacadeAndSearchSymbolsInWindows) {
   expect_all_symbols_in_windows(rig.port);
 }
 
-// ---- I13: RX idle ----------------------------------------------------------------------------
+// ---- RX idle ----------------------------------------------------------------------------
 
 namespace {
 
@@ -389,7 +389,7 @@ void expect_idle_values(const SimPort &port) {
 
 }  // namespace
 
-TEST_P(RmtOneWireSections, I13_TransactionIdleValues) {
+TEST_P(RmtOneWireSections, TransactionIdleValues) {
   Rig rig(GetParam());
   rig.port.bus.devices.emplace_back(ROM_A, std::vector<uint8_t>(30, 0x5A), 1);
   DoneLog log;
@@ -400,7 +400,7 @@ TEST_P(RmtOneWireSections, I13_TransactionIdleValues) {
   expect_idle_values(rig.port);
 }
 
-TEST_P(RmtOneWireSections, I13_FacadeIdleValues) {
+TEST_P(RmtOneWireSections, FacadeIdleValues) {
   Rig rig(GetParam());
   rig.port.bus.devices.emplace_back(ROM_A, std::vector<uint8_t>(9, 0x5A));
   ASSERT_EQ(rig.engine.reset_blocking(), 1);
@@ -411,7 +411,7 @@ TEST_P(RmtOneWireSections, I13_FacadeIdleValues) {
   expect_idle_values(rig.port);
 }
 
-TEST_P(RmtOneWireSections, I13_SearchIdleValues) {
+TEST_P(RmtOneWireSections, SearchIdleValues) {
   Rig rig(GetParam());
   rig.port.bus.devices.emplace_back(ROM_A);
   ASSERT_EQ(rig.engine.reset_blocking(), 1);
@@ -422,7 +422,7 @@ TEST_P(RmtOneWireSections, I13_SearchIdleValues) {
   expect_idle_values(rig.port);
 }
 
-TEST_P(RmtOneWireSections, I13_ResetCaptureSeesPresenceOfEveryTiming) {
+TEST_P(RmtOneWireSections, ResetCaptureSeesPresenceOfEveryTiming) {
   // Over the whole allowed range of tPDH and tPDL the capture must not end early
   Rig rig(GetParam());
   for (uint32_t wait : {15u, 30u, 60u}) {

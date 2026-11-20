@@ -8,14 +8,14 @@
 
 #include "../common.h"
 
-// Counts allocations for the "kein Heap" tests (section 2, section 4.1). Forwards to malloc, so
+// Counts allocations for the no-heap tests (after setup the bus must not allocate). Forwards to malloc, so
 // sanitizers keep seeing every block; only while a HeapWatch is active anything is counted. Test
 // builds have no exceptions: the plain form aborts when out of memory, the nothrow forms return null.
 namespace {
 void *counted_alloc(std::size_t size) noexcept {
   if (esphome::gpio::rmt_one_wire::testing::g_heap_watch)
     esphome::gpio::rmt_one_wire::testing::g_heap_allocs++;
-  return std::malloc(size == 0 ? 1 : size);
+  return std::malloc(size == 0 ? 1 : size);  // NOLINT(cppcoreguidelines-no-malloc): replaces operator new
 }
 }  // namespace
 void *operator new(std::size_t size) {
@@ -26,8 +26,8 @@ void *operator new(std::size_t size) {
 }
 void *operator new(std::size_t size, const std::nothrow_t &) noexcept { return counted_alloc(size); }
 void *operator new[](std::size_t size, const std::nothrow_t &) noexcept { return counted_alloc(size); }
-void operator delete(void *block) noexcept { std::free(block); }
-void operator delete(void *block, std::size_t) noexcept { std::free(block); }
+void operator delete(void *block) noexcept { std::free(block); }               // NOLINT(cppcoreguidelines-no-malloc)
+void operator delete(void *block, std::size_t) noexcept { std::free(block); }  // NOLINT(cppcoreguidelines-no-malloc)
 
 namespace esphome::gpio::rmt_one_wire::testing {
 
@@ -101,7 +101,7 @@ TEST(RmtOneWireEngine, MatchRomOnlyAddressesThatDevice) {
 
 // ---- Rule 1: the completion beats the timeout ------------------------------------------------
 
-TEST(RmtOneWireEngine, Rule1_CompletionWinsAfterLoopWasBlocked200ms) {
+TEST(RmtOneWireEngine, CompletionWinsAfterLoopWasBlocked200ms) {
   Rig rig;
   add_scratchpad_device(rig);
   rig.port.manual = true;
@@ -124,7 +124,7 @@ TEST(RmtOneWireEngine, Rule1_CompletionWinsAfterLoopWasBlocked200ms) {
   EXPECT_EQ(job.read_bytes, PAYLOAD);
 }
 
-TEST(RmtOneWireEngine, Rule1_EachSectionHasItsOwnTimeout) {
+TEST(RmtOneWireEngine, EachSectionHasItsOwnTimeout) {
   // Each section needs 40 ms, the whole transaction far more than 50 ms
   Rig rig;
   add_scratchpad_device(rig);
@@ -138,7 +138,7 @@ TEST(RmtOneWireEngine, Rule1_EachSectionHasItsOwnTimeout) {
   EXPECT_GT(rig.port.now_us(), 150 * MS);
 }
 
-TEST(RmtOneWireEngine, Rule1_NextSectionTimesFromItsOwnStartAfterBlockedLoop) {
+TEST(RmtOneWireEngine, NextSectionTimesFromItsOwnStartAfterBlockedLoop) {
   Rig rig;
   add_scratchpad_device(rig);
   rig.port.manual = true;
@@ -166,7 +166,7 @@ TEST(RmtOneWireEngine, Rule1_NextSectionTimesFromItsOwnStartAfterBlockedLoop) {
 
 // ---- Rule 4: on_done runs in the main loop and may submit ------------------------------------
 
-TEST(RmtOneWireEngine, Rule4_OnDoneMaySubmitTheSameTransactionAgain) {
+TEST(RmtOneWireEngine, OnDoneMaySubmitTheSameTransactionAgain) {
   Rig rig;
   add_scratchpad_device(rig);
   DoneLog log;
@@ -188,7 +188,7 @@ TEST(RmtOneWireEngine, Rule4_OnDoneMaySubmitTheSameTransactionAgain) {
   EXPECT_EQ(rig.port.frames().size(), 4u);
 }
 
-TEST(RmtOneWireEngine, Rule4_OnDoneMaySubmitAnotherTransactionAndKeepsTheLoop) {
+TEST(RmtOneWireEngine, OnDoneMaySubmitAnotherTransactionAndKeepsTheLoop) {
   Rig rig;
   add_scratchpad_device(rig);
   DoneLog log;
@@ -209,7 +209,7 @@ TEST(RmtOneWireEngine, Rule4_OnDoneMaySubmitAnotherTransactionAndKeepsTheLoop) {
   EXPECT_EQ(second.read_bytes, PAYLOAD);
 }
 
-TEST(RmtOneWireEngine, Rule4_NullOnDoneIsAllowed) {
+TEST(RmtOneWireEngine, NullOnDoneIsAllowed) {
   Rig rig;
   add_scratchpad_device(rig);
   DoneLog log;
@@ -231,7 +231,7 @@ TEST(RmtOneWireEngine, Rule4_NullOnDoneIsAllowed) {
   EXPECT_EQ(rig.port.frames().size(), 3u);
 }
 
-TEST(RmtOneWireEngine, Rule4_NullOnDoneOnEveryErrorEnd) {
+TEST(RmtOneWireEngine, NullOnDoneOnEveryErrorEnd) {
   Rig rig;  // no device: NO_PRESENCE
   DoneLog log;
   Job silent(&log, 1, 0, {0x44}, 0);
@@ -263,7 +263,7 @@ TEST(RmtOneWireEngine, Rule4_NullOnDoneOnEveryErrorEnd) {
 
 // ---- PRECHECK --------------------------------------------------------------------------------
 
-TEST(RmtOneWireEngine, Precheck_LineLowAtTheStartIsBusLowAtOnce) {
+TEST(RmtOneWireEngine, LineLowAtTheStartIsBusLowAtOnce) {
   Rig rig;
   add_scratchpad_device(rig);
   rig.port.line_low_until_us = 1000000;
@@ -279,7 +279,7 @@ TEST(RmtOneWireEngine, Precheck_LineLowAtTheStartIsBusLowAtOnce) {
   EXPECT_FALSE(rig.port.loop_active());
 }
 
-TEST(RmtOneWireEngine, Precheck_NextTransactionRunsOnceTheLineIsBack) {
+TEST(RmtOneWireEngine, NextTransactionRunsOnceTheLineIsBack) {
   Rig rig;
   add_scratchpad_device(rig);
   rig.port.line_low_until_us = 1000;
@@ -399,7 +399,7 @@ TEST(RmtOneWireEngine, LoopOffAfterBlockingMethods) {
 
 // ---- Rules 2 and 3: the ISR functions only store ---------------------------------------------
 
-TEST(RmtOneWireEngine, Rule2_CompletionsTouchNothingButFlags) {
+TEST(RmtOneWireEngine, CompletionsTouchNothingButFlags) {
   // SimPort counts every Port call from inside on_tx_done() and on_rx_done(), Rig checks the count
   Rig rig;
   add_scratchpad_device(rig);
@@ -454,7 +454,7 @@ void run_to_section(Rig &rig, const DoneLog &log, Job &job, size_t target) {
 
 }  // namespace
 
-TEST(RmtOneWireEngine, Rule2_CompletionsReportTheLastExpectedEvent) {
+TEST(RmtOneWireEngine, CompletionsReportTheLastExpectedEvent) {
   // The events under test come straight from here, SimPort ignores the result. The main loop does
   // not run after them, so the receive buffer does not matter.
   // RESET (section 0) and the first READ (section 3): both orders
@@ -525,9 +525,9 @@ TEST(RmtOneWireEngine, Rule2_CompletionsReportTheLastExpectedEvent) {
   }
 }
 
-// ---- I7: FIFO, atomic on the bus -------------------------------------------------------------
+// ---- FIFO, atomic on the bus -------------------------------------------------------------
 
-TEST(RmtOneWireEngine, I7_TransactionsRunInFifoOrderWithoutInterleaving) {
+TEST(RmtOneWireEngine, TransactionsRunInFifoOrderWithoutInterleaving) {
   Rig rig;
   add_scratchpad_device(rig);
   DoneLog log;
@@ -553,7 +553,7 @@ TEST(RmtOneWireEngine, I7_TransactionsRunInFifoOrderWithoutInterleaving) {
   EXPECT_EQ(a.read_bytes, PAYLOAD);
 }
 
-TEST(RmtOneWireEngine, I7_SubmitDuringEverySectionDoesNotDisturbTheRunningOne) {
+TEST(RmtOneWireEngine, SubmitDuringEverySectionDoesNotDisturbTheRunningOne) {
   Rig rig;
   add_scratchpad_device(rig);
   DoneLog log;
@@ -586,7 +586,7 @@ TEST(RmtOneWireEngine, I7_SubmitDuringEverySectionDoesNotDisturbTheRunningOne) {
   EXPECT_EQ(b.read_bytes, PAYLOAD);
 }
 
-TEST(RmtOneWireEngine, I7_OnDoneSubmitQueuesBehindWhatIsAlreadyWaiting) {
+TEST(RmtOneWireEngine, OnDoneSubmitQueuesBehindWhatIsAlreadyWaiting) {
   Rig rig;
   add_scratchpad_device(rig);
   DoneLog log;
@@ -605,7 +605,7 @@ TEST(RmtOneWireEngine, I7_OnDoneSubmitQueuesBehindWhatIsAlreadyWaiting) {
                           {4, TransactionStatus::OK}}));
 }
 
-TEST(RmtOneWireEngine, I7_SubmitOfAPendingTransactionIsRefusedAndChangesNothing) {
+TEST(RmtOneWireEngine, SubmitOfAPendingTransactionIsRefusedAndChangesNothing) {
   Rig rig;
   add_scratchpad_device(rig);
   DoneLog log;
@@ -626,7 +626,7 @@ TEST(RmtOneWireEngine, I7_SubmitOfAPendingTransactionIsRefusedAndChangesNothing)
   EXPECT_EQ(log.size(), 3u);
 }
 
-TEST(RmtOneWireEngine, I7_ReusedNodesInAnotherOrderDoNotLoseOrRepeat) {
+TEST(RmtOneWireEngine, ReusedNodesInAnotherOrderDoNotLoseOrRepeat) {
   // The FIFO is intrusive, a stale next_ from the previous round must not survive
   Rig rig;
   add_scratchpad_device(rig);
@@ -652,7 +652,7 @@ TEST(RmtOneWireEngine, I7_ReusedNodesInAnotherOrderDoNotLoseOrRepeat) {
   EXPECT_EQ(rig.port.frames().size(), 6u);
 }
 
-TEST(RmtOneWireEngine, I7_ManyTransactionsKeepTheOrder) {
+TEST(RmtOneWireEngine, ManyTransactionsKeepTheOrder) {
   Rig rig;
   rig.port.bus.devices.emplace_back(ROM_A);
   DoneLog log;
@@ -672,7 +672,7 @@ TEST(RmtOneWireEngine, I7_ManyTransactionsKeepTheOrder) {
     EXPECT_EQ(slots_to_string(frames[i]), slots_to_string(jobs[i].slots())) << i;
 }
 
-// ---- I9: abort and recovery ------------------------------------------------------------------
+// ---- Abort and recovery ------------------------------------------------------------------
 
 struct LostCompletion {
   const char *name;
@@ -682,7 +682,7 @@ struct LostCompletion {
 
 class RmtOneWireLostCompletion : public ::testing::TestWithParam<LostCompletion> {};
 
-INSTANTIATE_TEST_SUITE_P(I9, RmtOneWireLostCompletion,
+INSTANTIATE_TEST_SUITE_P(Abort, RmtOneWireLostCompletion,
                          ::testing::Values(LostCompletion{"Tx", true, false}, LostCompletion{"Rx", false, true},
                                            LostCompletion{"Both", true, true}),
                          [](const ::testing::TestParamInfo<LostCompletion> &info) { return info.param.name; });
@@ -739,7 +739,7 @@ TEST_P(RmtOneWireLostCompletion, TimeoutInALaterSection) {
   EXPECT_EQ(rig.port.abort_count, 1);
 }
 
-TEST(RmtOneWireEngine, I9_TimeoutOfAWriteSectionOnlyNeedsTx) {
+TEST(RmtOneWireEngine, TimeoutOfAWriteSectionOnlyNeedsTx) {
   Rig rig;
   add_scratchpad_device(rig);
   rig.port.drop_tx_at = 1;
@@ -751,7 +751,7 @@ TEST(RmtOneWireEngine, I9_TimeoutOfAWriteSectionOnlyNeedsTx) {
   EXPECT_EQ(rig.port.sections.size(), 2u);
 }
 
-TEST(RmtOneWireEngine, I9_TimeoutWorksAcrossTheClockWrap) {
+TEST(RmtOneWireEngine, TimeoutWorksAcrossTheClockWrap) {
   Rig rig;
   add_scratchpad_device(rig);
   rig.port.set_time_base_ms(0xFFFFFFFFu - 20u);
@@ -800,7 +800,7 @@ void expect_next_is_not_advanced_and_completes(Rig &rig, DoneLog &log, Job &next
 
 }  // namespace
 
-TEST(RmtOneWireEngine, I9_LateCompletionInsideAbortAfterFailedStartIsDiscarded) {
+TEST(RmtOneWireEngine, LateCompletionInsideAbortAfterFailedStartIsDiscarded) {
   // Rule 7 also holds for the abort() of rule 6
   Rig rig;
   add_scratchpad_device(rig);
@@ -820,7 +820,7 @@ TEST(RmtOneWireEngine, I9_LateCompletionInsideAbortAfterFailedStartIsDiscarded) 
   expect_next_is_not_advanced_and_completes(rig, log, next, 0, TransactionStatus::HARDWARE_ERROR);
 }
 
-TEST(RmtOneWireEngine, I9_LateCompletionInsideAbortIsDiscarded) {
+TEST(RmtOneWireEngine, LateCompletionInsideAbortIsDiscarded) {
   Rig rig;
   add_scratchpad_device(rig);
   rig.port.manual = true;
@@ -842,7 +842,7 @@ TEST(RmtOneWireEngine, I9_LateCompletionInsideAbortIsDiscarded) {
   expect_next_is_not_advanced_and_completes(rig, log, next, 1);
 }
 
-TEST(RmtOneWireEngine, I9_LateCompletionBetweenAbortAndNextStartIsDiscarded) {
+TEST(RmtOneWireEngine, LateCompletionBetweenAbortAndNextStartIsDiscarded) {
   // on_done runs after abort() and before the next start
   Rig rig;
   add_scratchpad_device(rig);
@@ -864,7 +864,7 @@ TEST(RmtOneWireEngine, I9_LateCompletionBetweenAbortAndNextStartIsDiscarded) {
   expect_next_is_not_advanced_and_completes(rig, log, next, 1);
 }
 
-TEST(RmtOneWireEngine, I9_LateCompletionWhileIdleIsDiscarded) {
+TEST(RmtOneWireEngine, LateCompletionWhileIdleIsDiscarded) {
   Rig rig;
   add_scratchpad_device(rig);
   rig.port.manual = true;
@@ -887,7 +887,7 @@ TEST(RmtOneWireEngine, I9_LateCompletionWhileIdleIsDiscarded) {
   expect_next_is_not_advanced_and_completes(rig, log, next, 1);
 }
 
-TEST(RmtOneWireEngine, I9_PartialCompletionOfTheAbortedSectionDoesNotLeak) {
+TEST(RmtOneWireEngine, PartialCompletionOfTheAbortedSectionDoesNotLeak) {
   // TX was reported before the timeout, RX never: the flag must not count for the next section
   Rig rig;
   add_scratchpad_device(rig);
@@ -916,7 +916,7 @@ TEST(RmtOneWireEngine, I9_PartialCompletionOfTheAbortedSectionDoesNotLeak) {
   EXPECT_EQ(rig.port.sections.size(), 3u);
 }
 
-TEST(RmtOneWireEngine, I9_AbortThatFailsEndsAllWorkInHardwareError) {
+TEST(RmtOneWireEngine, AbortThatFailsEndsAllWorkInHardwareError) {
   Rig rig;
   add_scratchpad_device(rig);
   rig.port.drop_tx_at = 0;
@@ -944,7 +944,7 @@ TEST(RmtOneWireEngine, I9_AbortThatFailsEndsAllWorkInHardwareError) {
 
 // ---- Section 7: error table ------------------------------------------------------------------
 
-TEST(RmtOneWireEngine, Errors_NoDeviceIsNoPresenceAndStopsAfterTheReset) {
+TEST(RmtOneWireEngine, NoDeviceIsNoPresenceAndStopsAfterTheReset) {
   Rig rig;
   DoneLog log;
   Job job(&log, 1, ROM_A, {READ_SCRATCHPAD}, 9);
@@ -955,7 +955,7 @@ TEST(RmtOneWireEngine, Errors_NoDeviceIsNoPresenceAndStopsAfterTheReset) {
   EXPECT_EQ(rig.port.abort_count, 0);
 }
 
-TEST(RmtOneWireEngine, Errors_WireToGndAfterPrecheckIsBusLow) {
+TEST(RmtOneWireEngine, WireToGndAfterPrecheckIsBusLow) {
   // The precheck saw High, the wire goes to GND during the reset: the capture ends on Low
   for (const Symbol &held : {Symbol{600, 0, 0, 0}, Symbol{0, 0, STALE_DURATION1, 1}, Symbol{0, 0, 0, 1}}) {
     Rig rig;
@@ -973,7 +973,7 @@ TEST(RmtOneWireEngine, Errors_WireToGndAfterPrecheckIsBusLow) {
   }
 }
 
-TEST(RmtOneWireEngine, Errors_LineStuckBeforeTheStartIsBusLow) {
+TEST(RmtOneWireEngine, LineStuckBeforeTheStartIsBusLow) {
   Rig rig;
   add_scratchpad_device(rig);
   rig.port.stuck_low = true;
@@ -985,7 +985,7 @@ TEST(RmtOneWireEngine, Errors_LineStuckBeforeTheStartIsBusLow) {
   EXPECT_EQ(rig.port.tx_count, 0);
 }
 
-TEST(RmtOneWireEngine, Errors_WrongResetCaptureIsCaptureError) {
+TEST(RmtOneWireEngine, WrongResetCaptureIsCaptureError) {
   for (const auto &bad : {std::vector<Symbol>{}, std::vector<Symbol>{{503, 1, 27, 0}, {120, 1, 0, 0}}}) {
     Rig rig;
     add_scratchpad_device(rig);
@@ -1002,7 +1002,7 @@ TEST(RmtOneWireEngine, Errors_WrongResetCaptureIsCaptureError) {
   }
 }
 
-TEST(RmtOneWireEngine, Errors_BadReadCaptureStopsTheTransaction) {
+TEST(RmtOneWireEngine, BadReadCaptureStopsTheTransaction) {
   Rig rig;
   add_scratchpad_device(rig);
   rig.port.capture_mutator = [&](size_t section, std::vector<Symbol> &capture) {
@@ -1018,7 +1018,7 @@ TEST(RmtOneWireEngine, Errors_BadReadCaptureStopsTheTransaction) {
   EXPECT_EQ(rig.port.abort_count, 0);
 }
 
-TEST(RmtOneWireEngine, Errors_LineToGndDuringReadIsCaptureError) {
+TEST(RmtOneWireEngine, LineToGndDuringReadIsCaptureError) {
   // {100, 0, 0, 0} does not occur on the S3. The measured form is S2 of the probe, n = 3: two valid
   // slots, then the line stays Low.
   for (bool measured : {false, true}) {
@@ -1044,7 +1044,7 @@ TEST(RmtOneWireEngine, Errors_LineToGndDuringReadIsCaptureError) {
   }
 }
 
-TEST(RmtOneWireEngine, Errors_LineToGndInTheLastSlotIsCaptureError) {
+TEST(RmtOneWireEngine, LineToGndInTheLastSlotIsCaptureError) {
   // Section 7: the symbol count is right and the first bits are fine, only the end is on Low. The
   // form behind a complete capture is the one that no slot rule can catch.
   for (size_t failing_section : {size_t{3}, size_t{4}}) {
@@ -1074,7 +1074,7 @@ TEST(RmtOneWireEngine, Errors_LineToGndInTheLastSlotIsCaptureError) {
   }
 }
 
-TEST(RmtOneWireEngine, Errors_LowTimeLimitIn109Out110) {
+TEST(RmtOneWireEngine, LowTimeLimitIn109Out110) {
   const std::vector<uint8_t> ones(9, 0xFF);
   for (size_t failing_section : {size_t{3}, size_t{4}}) {
     for (bool last_slot : {false, true}) {
@@ -1117,7 +1117,7 @@ TEST(RmtOneWireEngine, Errors_LowTimeLimitIn109Out110) {
   }
 }
 
-TEST(RmtOneWireEngine, Errors_BadCrcIsStillOk) {
+TEST(RmtOneWireEngine, BadCrcIsStillOk) {
   // The engine does not know about CRCs, that is check_scratch_pad_() of the consumer
   Rig rig;
   std::vector<uint8_t> broken = PAYLOAD;
@@ -1176,7 +1176,7 @@ TEST_P(RmtOneWirePortFailure, HardwareErrorThenNextRunsNormally) {
   EXPECT_EQ(next.read_bytes, PAYLOAD);
 }
 
-TEST(RmtOneWireEngine, Errors_FailedStartWhoseAbortFailsIsPermanent) {
+TEST(RmtOneWireEngine, FailedStartWhoseAbortFailsIsPermanent) {
   Rig rig;
   add_scratchpad_device(rig);
   rig.port.fail_tx_at = 0;
@@ -1200,7 +1200,7 @@ TEST(RmtOneWireEngine, Errors_FailedStartWhoseAbortFailsIsPermanent) {
   EXPECT_FALSE(rig.port.loop_active());
 }
 
-TEST(RmtOneWireEngine, Errors_SetFailedEndsRunningQueuedAndFutureWork) {
+TEST(RmtOneWireEngine, SetFailedEndsRunningQueuedAndFutureWork) {
   Rig rig;
   add_scratchpad_device(rig);
   rig.port.manual = true;
@@ -1235,7 +1235,7 @@ TEST(RmtOneWireEngine, Errors_SetFailedEndsRunningQueuedAndFutureWork) {
   EXPECT_FALSE(rig.port.loop_active());
 }
 
-TEST(RmtOneWireEngine, Errors_FailedBusStillRefusesAPendingTransactionOnly) {
+TEST(RmtOneWireEngine, FailedBusStillRefusesAPendingTransactionOnly) {
   Rig rig;
   rig.engine.set_failed();
   DoneLog log;
@@ -1248,7 +1248,7 @@ TEST(RmtOneWireEngine, Errors_FailedBusStillRefusesAPendingTransactionOnly) {
   EXPECT_EQ(log.size(), 2u);
 }
 
-// ---- I5 on engine level: OK only with a complete decode --------------------------------------
+// ---- On engine level: OK only with a complete decode --------------------------------------
 
 namespace {
 
@@ -1282,7 +1282,7 @@ INSTANTIATE_TEST_SUITE_P(W, RmtOneWireFuzz, ::testing::Values(size_t{48}, size_t
                            return std::to_string(info.param);  // NOLINT
                          });
 
-TEST_P(RmtOneWireFuzz, I5_OkOnlyWithACompleteDecode) {
+TEST_P(RmtOneWireFuzz, OkOnlyWithACompleteDecode) {
   std::mt19937 rng(0xCAFE);
   int ok = 0;
   int errors = 0;
@@ -1364,11 +1364,11 @@ TEST_P(RmtOneWireFuzz, I5_OkOnlyWithACompleteDecode) {
   EXPECT_GT(errors, 100);
 }
 
-// ---- Timing, section 4.6 and section 15 --------------------------------------------------------
+// ---- Timing (rmt_timing option) --------------------------------------------------------
 
 namespace {
 
-/// Every armed section has the RX idle of section 4.3, the RESET section stays at 600 us.
+/// Every armed section has its RX idle (max(100, slot + 20) us), the RESET section stays at 600 us.
 void expect_rx_idle(const SimPort &port, uint32_t idle_us) {
   int resets = 0;
   int others = 0;
@@ -1401,13 +1401,13 @@ void read_scratchpad_ok(Rig &rig) {
 
 }  // namespace
 
-TEST(RmtOneWireEngine, Timing_DefaultRxIdleIs130) {
+TEST(RmtOneWireEngine, DefaultRxIdleIs130) {
   Rig rig;
   read_scratchpad_ok(rig);
   expect_rx_idle(rig.port, 130);
 }
 
-TEST(RmtOneWireEngine, Timing_RxIdleIsSlotPlus20WithAFloorOf100) {
+TEST(RmtOneWireEngine, RxIdleIsSlotPlus20WithAFloorOf100) {
   // The floor of 100 holds up to slot 80 and ends at slot 81
   const struct {
     uint8_t write0_low;
@@ -1422,7 +1422,7 @@ TEST(RmtOneWireEngine, Timing_RxIdleIsSlotPlus20WithAFloorOf100) {
   }
 }
 
-TEST(RmtOneWireEngine, Timing_ReachesTheWire) {
+TEST(RmtOneWireEngine, ReachesTheWire) {
   Rig rig(64, Timing{90, 120, 13});
   read_scratchpad_ok(rig);
   int zeros = 0;
@@ -1452,7 +1452,7 @@ TEST(RmtOneWireEngine, Timing_ReachesTheWire) {
   EXPECT_EQ(reads, 72);
 }
 
-TEST(RmtOneWireEngine, Timing_ThresholdReachesTheDecoder) {
+TEST(RmtOneWireEngine, ThresholdReachesTheDecoder) {
   // A slow rise: the Low time of a 1 is 4 + 18 = 22 us, a 0 of the device 40 us
   auto setup_bus = [](Rig &rig) {
     rig.port.bus.rise_us = 18;
@@ -1482,7 +1482,7 @@ TEST(RmtOneWireEngine, Timing_ThresholdReachesTheDecoder) {
   }
 }
 
-TEST(RmtOneWireEngine, Timing_SlotLimitReachesTheDecoder) {
+TEST(RmtOneWireEngine, SlotLimitReachesTheDecoder) {
   // Errors_LowTimeLimitIn109Out110 with slot 120
   const std::vector<uint8_t> ones(9, 0xFF);
   for (size_t patched_section : {size_t{3}, size_t{4}}) {
@@ -1503,21 +1503,21 @@ TEST(RmtOneWireEngine, Timing_SlotLimitReachesTheDecoder) {
   }
 }
 
-TEST(RmtOneWireEngine, Timing_BlockingMethodsAndSearchUseIt) {
-  constexpr uint8_t SKIP_ROM = 0xCC;
-  constexpr uint8_t SEARCH_ROM = 0xF0;
+TEST(RmtOneWireEngine, BlockingMethodsAndSearchUseIt) {
+  constexpr uint8_t skip_rom = 0xCC;
+  constexpr uint8_t search_rom = 0xF0;
   Rig rig(64, Timing{90, 120, 13});
   rig.port.bus.devices.emplace_back(ROM_A, PAYLOAD, 0);
 
   ASSERT_EQ(rig.engine.reset_blocking(), 1);
-  ASSERT_TRUE(rig.engine.write_blocking(&SKIP_ROM, 8));
+  ASSERT_TRUE(rig.engine.write_blocking(&skip_rom, 8));
   uint8_t data = 0;
   ASSERT_TRUE(rig.engine.read_blocking(&data, 8));
   EXPECT_EQ(data, PAYLOAD[0]);
 
   rig.engine.reset_search();
   ASSERT_EQ(rig.engine.reset_blocking(), 1);
-  ASSERT_TRUE(rig.engine.write_blocking(&SEARCH_ROM, 8));
+  ASSERT_TRUE(rig.engine.write_blocking(&search_rom, 8));
   EXPECT_EQ(rig.engine.search_next(), ROM_A);
 
   expect_rx_idle(rig.port, 140);

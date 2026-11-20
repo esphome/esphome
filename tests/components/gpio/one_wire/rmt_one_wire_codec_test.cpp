@@ -27,7 +27,7 @@ std::vector<Symbol> capture_of(const std::vector<bool> &bits) {
   return capture;
 }
 
-/// The decoder rule of section 7, as the test understands it. Levels of the second half are only
+/// The decoder rule for RMT RX captures, as the test understands it. Levels of the second half are only
 /// generated as Low for the last symbol. Point 4, "ends on Low": the last symbol has an empty Low
 /// first half, whatever its duration1 and level1 say, or its level1 is 0.
 bool capture_is_valid(const std::vector<Symbol> &capture, size_t expected) {
@@ -53,18 +53,18 @@ bool get_bit(const uint8_t *data, size_t bit) { return (data[bit / 8] >> (bit % 
 
 }  // namespace
 
-// ---- Limits of section 4.2 ------------------------------------------------------------------
+// ---- Section limits ------------------------------------------------------------------
 
-TEST(RmtOneWireCodec, I4_SlotLimitsFollowTheMemoryBlock) {
+TEST(RmtOneWireCodec, SlotLimitsFollowTheMemoryBlock) {
   EXPECT_EQ(max_tx_slots(64), 63u);
   EXPECT_EQ(max_rx_slots(64), 62u);
   EXPECT_EQ(max_tx_slots(48), 47u);
   EXPECT_EQ(max_rx_slots(48), 46u);
 }
 
-// ---- I12: everything that is sent lies in the windows of section 3 --------------------------
+// ---- Everything that is sent lies in the 1-Wire timing windows --------------------------
 
-TEST(RmtOneWireCodec, I12_ResetSymbolInWindows) {
+TEST(RmtOneWireCodec, ResetSymbolInWindows) {
   const Symbol reset = reset_symbol();
   EXPECT_EQ(reset.level0, 0);
   EXPECT_EQ(reset.level1, 1);
@@ -72,7 +72,7 @@ TEST(RmtOneWireCodec, I12_ResetSymbolInWindows) {
   EXPECT_TRUE(WINDOW_RESET_HIGH.contains(reset.duration1)) << reset.duration1;
 }
 
-TEST(RmtOneWireCodec, I12_WriteSlotsInWindows) {
+TEST(RmtOneWireCodec, WriteSlotsInWindows) {
   for (int value = 0; value < 256; value++) {
     const uint8_t byte = static_cast<uint8_t>(value);
     std::array<Symbol, 8> slots{};
@@ -92,7 +92,7 @@ TEST(RmtOneWireCodec, I12_WriteSlotsInWindows) {
   }
 }
 
-TEST(RmtOneWireCodec, I12_ReadSlotsInWindows) {
+TEST(RmtOneWireCodec, ReadSlotsInWindows) {
   std::array<Symbol, 8> slots{};
   ASSERT_EQ(encode_read_slots(8, slots.data()), 8u);
   for (const auto &slot : slots) {
@@ -103,7 +103,7 @@ TEST(RmtOneWireCodec, I12_ReadSlotsInWindows) {
   }
 }
 
-TEST(RmtOneWireCodec, I12_SlotsKeepTheRiseTimeBudget) {
+TEST(RmtOneWireCodec, SlotsKeepTheRiseTimeBudget) {
   // Section 3: a 1 must be High again before it is sampled, with tRC up to 9 us.
   const uint8_t ones = 0xFF;
   const uint8_t zeros = 0x00;
@@ -119,7 +119,7 @@ TEST(RmtOneWireCodec, I12_SlotsKeepTheRiseTimeBudget) {
   EXPECT_GE(zero.duration1, BUDGET_TRC_US + MIN_RECOVERY_US);
 }
 
-TEST(RmtOneWireCodec, I12_ExactValuesOfSection43) {
+TEST(RmtOneWireCodec, ExactValuesOfSection43) {
   const uint8_t ones = 0xFF;
   const uint8_t zeros = 0x00;
   Symbol one{};
@@ -170,7 +170,7 @@ TEST(RmtOneWireCodec, EncodeReadWritesExactlyNumBits) {
   }
 }
 
-// ---- decode_reset, section 4.3 ---------------------------------------------------------------
+// ---- decode_reset ---------------------------------------------------------------
 
 struct ResetCase {
   const char *name;
@@ -188,7 +188,7 @@ TEST_P(RmtOneWireDecodeReset, Result) {
 }
 
 INSTANTIATE_TEST_SUITE_P(
-    I5, RmtOneWireDecodeReset,
+    Shapes, RmtOneWireDecodeReset,
     ::testing::Values(
         ResetCase{"TypicalPresence", {{503, 0, 27, 1}, {120, 0, 0, 1}}, TransactionStatus::OK},
         ResetCase{
@@ -231,9 +231,9 @@ INSTANTIATE_TEST_SUITE_P(
         ResetCase{"LaterSymbolStartsHighEndsLow", {{503, 0, 27, 1}, {120, 1, 0, 0}}, TransactionStatus::CAPTURE_ERROR}),
     [](const ::testing::TestParamInfo<ResetCase> &info) { return info.param.name; });
 
-// ---- decode_read_slots, section 4.3 and section 7 --------------------------------------------
+// ---- decode_read_slots --------------------------------------------
 
-TEST(RmtOneWireCodec, I5_ReadThresholdIs13Microseconds) {
+TEST(RmtOneWireCodec, ReadThresholdIs13Microseconds) {
   for (uint16_t low = 1; low < 80; low++) {
     const Symbol capture{low, 0, 0, 1};
     uint8_t out = low >= 13 ? 0xFF : 0x00;
@@ -242,7 +242,7 @@ TEST(RmtOneWireCodec, I5_ReadThresholdIs13Microseconds) {
   }
 }
 
-TEST(RmtOneWireCodec, I5_DecodeIsLsbFirstFromBitOffset) {
+TEST(RmtOneWireCodec, DecodeIsLsbFirstFromBitOffset) {
   const std::array<uint8_t, 3> expected{0b10110010, 0b01000111, 0b11100001};
   for (size_t offset = 0; offset < 24; offset += 3) {
     std::vector<bool> bits;
@@ -256,7 +256,7 @@ TEST(RmtOneWireCodec, I5_DecodeIsLsbFirstFromBitOffset) {
   }
 }
 
-TEST(RmtOneWireCodec, I5_OnlyTheDecodedBitsChange) {
+TEST(RmtOneWireCodec, OnlyTheDecodedBitsChange) {
   std::mt19937 rng(1);
   for (int round = 0; round < 2000; round++) {
     const size_t offset = rng() % 40;
@@ -280,7 +280,7 @@ TEST(RmtOneWireCodec, I5_OnlyTheDecodedBitsChange) {
   }
 }
 
-TEST(RmtOneWireCodec, I5_CompleteCaptureShapesAreAccepted) {
+TEST(RmtOneWireCodec, CompleteCaptureShapesAreAccepted) {
   const std::vector<bool> bits{true, false, true};
   uint8_t out = 0;
 
@@ -318,7 +318,7 @@ TEST(RmtOneWireCodec, I5_CompleteCaptureShapesAreAccepted) {
   EXPECT_FALSE(decode_read_slots(marker_then_low.data(), marker_then_low.size(), 3, &out, 0));
 }
 
-TEST(RmtOneWireCodec, I5_LowTimeMustBeShorterThanASlot) {
+TEST(RmtOneWireCodec, LowTimeMustBeShorterThanASlot) {
   // Section 7 point 3, at every position: 109 us is a 0, from 110 us on someone holds the bus
   const std::vector<bool> bits{true, true, true, true};
   for (size_t position = 0; position < bits.size(); position++) {
@@ -336,7 +336,7 @@ TEST(RmtOneWireCodec, I5_LowTimeMustBeShorterThanASlot) {
   }
 }
 
-TEST(RmtOneWireCodec, I5_LowInTheSecondHalfOfASymbolCountsToo) {
+TEST(RmtOneWireCodec, LowInTheSecondHalfOfASymbolCountsToo) {
   auto capture = capture_of({true, true, true});
   uint8_t out = 0;
   capture[1].level1 = 0;
@@ -347,7 +347,7 @@ TEST(RmtOneWireCodec, I5_LowInTheSecondHalfOfASymbolCountsToo) {
   }
 }
 
-TEST(RmtOneWireCodec, I5_CaptureEndingOnLowIsInvalid) {
+TEST(RmtOneWireCodec, CaptureEndingOnLowIsInvalid) {
   // Section 7 point 4: the line went to GND in the last slot, the count alone would pass
   const std::vector<bool> bits{true, false, true};
   uint8_t out = 0;
@@ -380,14 +380,14 @@ TEST(RmtOneWireCodec, I5_CaptureEndingOnLowIsInvalid) {
   }
 }
 
-TEST(RmtOneWireCodec, I5_ZeroBitsNeedNoSymbols) {
+TEST(RmtOneWireCodec, ZeroBitsNeedNoSymbols) {
   uint8_t out = 0x5A;
   const Symbol unused{};
   EXPECT_TRUE(decode_read_slots(&unused, 0, 0, &out, 0));
   EXPECT_EQ(out, 0x5A);
 }
 
-TEST(RmtOneWireCodec, I5_TruncatedCaptureIsInvalid) {
+TEST(RmtOneWireCodec, TruncatedCaptureIsInvalid) {
   const std::vector<bool> bits(62, false);
   const auto complete = capture_of(bits);
   std::array<uint8_t, 8> out{};
@@ -395,7 +395,7 @@ TEST(RmtOneWireCodec, I5_TruncatedCaptureIsInvalid) {
     EXPECT_FALSE(decode_read_slots(complete.data(), kept, bits.size(), out.data(), 0)) << "kept " << kept;
 }
 
-TEST(RmtOneWireCodec, I5_EndMarkerDoesNotReplaceAMissingSlot) {
+TEST(RmtOneWireCodec, EndMarkerDoesNotReplaceAMissingSlot) {
   // R1: on newer chips the last symbol may be missing. The end marker in its place is no slot,
   // otherwise a missing 0 would read as a 1 and the capture would pass.
   std::vector<Symbol> capture{read_slot(false), read_slot(false)};
@@ -407,7 +407,7 @@ TEST(RmtOneWireCodec, I5_EndMarkerDoesNotReplaceAMissingSlot) {
   }
 }
 
-TEST(RmtOneWireCodec, I5_WrongLevelAnywhereIsInvalid) {
+TEST(RmtOneWireCodec, WrongLevelAnywhereIsInvalid) {
   const std::vector<bool> bits{true, false, true, true, false, false, true, false};
   const auto good = capture_of(bits);
   std::array<uint8_t, 2> out{};
@@ -418,7 +418,7 @@ TEST(RmtOneWireCodec, I5_WrongLevelAnywhereIsInvalid) {
   }
 }
 
-TEST(RmtOneWireCodec, I5_SurplusSymbolsWithDurationAreInvalid) {
+TEST(RmtOneWireCodec, SurplusSymbolsWithDurationAreInvalid) {
   const std::vector<bool> bits{true, false, true};
   std::array<uint8_t, 2> out{};
   for (const Symbol &surplus : {Symbol{4, 0, 76, 1}, Symbol{1, 0, 0, 1}, Symbol{0, 0, 1, 1}, Symbol{1, 1, 0, 0},
@@ -435,7 +435,7 @@ TEST(RmtOneWireCodec, I5_SurplusSymbolsWithDurationAreInvalid) {
   }
 }
 
-TEST(RmtOneWireCodec, I5_FuzzMutatedCaptures) {
+TEST(RmtOneWireCodec, FuzzMutatedCaptures) {
   std::mt19937 rng(0x1E5);
   int accepted = 0;
   int rejected = 0;
@@ -505,7 +505,7 @@ TEST(RmtOneWireCodec, I5_FuzzMutatedCaptures) {
   EXPECT_GT(rejected, 1000);
 }
 
-TEST(RmtOneWireCodec, I5_FuzzRandomGarbage) {
+TEST(RmtOneWireCodec, FuzzRandomGarbage) {
   std::mt19937 rng(0xBAD);
   for (int round = 0; round < 50000; round++) {
     const size_t expected = 1 + rng() % 62;
@@ -517,7 +517,7 @@ TEST(RmtOneWireCodec, I5_FuzzRandomGarbage) {
     }
     if (!capture.empty()) {
       capture.back().level1 = rng() & 1;
-      // A marker that starts High and carries Low has no defined meaning in section 7
+      // A marker that starts High and carries Low has no defined meaning for the decoder
       if (capture.back().duration0 == 0 && capture.back().duration1 == 0 && capture.back().level0 == 1)
         capture.back().level1 = 1;
     }
@@ -533,7 +533,7 @@ TEST(RmtOneWireCodec, I5_FuzzRandomGarbage) {
   }
 }
 
-// ---- Timing, section 4.6 and section 15 --------------------------------------------------------
+// ---- Timing (rmt_timing option) --------------------------------------------------------
 
 namespace {
 
@@ -553,14 +553,14 @@ void expect_slot(const Symbol &slot, uint16_t low, uint16_t high) {
 
 }  // namespace
 
-TEST(RmtOneWireCodec, Timing_DefaultsAreTheSpecValues) {
+TEST(RmtOneWireCodec, DefaultsAreTheSpecValues) {
   const Timing timing;
   EXPECT_EQ(timing.write0_low_us, 90);
   EXPECT_EQ(timing.slot_us, 110);
   EXPECT_EQ(timing.read_threshold_us, 13);
 }
 
-TEST(RmtOneWireCodec, Timing_NoArgumentEncodesLikeTheSpecValues) {
+TEST(RmtOneWireCodec, NoArgumentEncodesLikeTheSpecValues) {
   const Timing spec_values{90, 110, 13};
   for (int value = 0; value < 256; value++) {
     const uint8_t byte = static_cast<uint8_t>(value);
@@ -579,7 +579,7 @@ TEST(RmtOneWireCodec, Timing_NoArgumentEncodesLikeTheSpecValues) {
     expect_same_symbol(without[bit], with[bit]);
 }
 
-TEST(RmtOneWireCodec, Timing_NoArgumentDecodesLikeTheSpecValues) {
+TEST(RmtOneWireCodec, NoArgumentDecodesLikeTheSpecValues) {
   const Timing spec_values{90, 110, 13};
   for (uint16_t low = 1; low < 100; low++) {
     const Symbol capture{low, 0, 0, 1};
@@ -594,7 +594,7 @@ TEST(RmtOneWireCodec, Timing_NoArgumentDecodesLikeTheSpecValues) {
   }
 }
 
-TEST(RmtOneWireCodec, Timing_LongSlotChangesTheEncodedSymbols) {
+TEST(RmtOneWireCodec, LongSlotChangesTheEncodedSymbols) {
   // Write 1 Low and Read Low stay fixed, the High times are the slot minus the Low time
   const Timing timing{90, 120, 13};
   const uint8_t ones = 0xFF;
@@ -610,7 +610,7 @@ TEST(RmtOneWireCodec, Timing_LongSlotChangesTheEncodedSymbols) {
   expect_slot(read, 4, 116);
 }
 
-TEST(RmtOneWireCodec, Timing_ThresholdDecidesTheBit) {
+TEST(RmtOneWireCodec, ThresholdDecidesTheBit) {
   const Timing timing{65, 80, 25};
   for (uint16_t low : {uint16_t{13}, uint16_t{24}}) {
     const Symbol capture{low, 0, 0, 1};
@@ -626,7 +626,7 @@ TEST(RmtOneWireCodec, Timing_ThresholdDecidesTheBit) {
   }
 }
 
-TEST(RmtOneWireCodec, Timing_SlotLimitsTheLowTime) {
+TEST(RmtOneWireCodec, SlotLimitsTheLowTime) {
   // Section 7 point 3 follows Timing::slot_us, at every position
   const Timing timing{90, 120, 13};
   const std::vector<bool> bits{true, true, true, true};
