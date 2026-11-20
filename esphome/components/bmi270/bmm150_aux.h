@@ -3,11 +3,8 @@
 #include <cstdint>
 #include "esphome/core/helpers.h"
 
-// BMM150 magnetometer definitions - the chip that can optionally be wired to the BMI270's
-// auxiliary (secondary I2C master) interface. Lives in its own header/namespace because this
-// is BMM150-specific driver knowledge, not BMI270 knowledge - it just can't be a standalone
-// ESPHome component, since the BMM150 has no address of its own on the main I2C bus and is only
-// reachable by having the BMI270 proxy register reads/writes through its aux interface.
+// BMM150 magnetometer behind the BMI270's aux interface; it is not on the main I2C bus, so it is not
+// its own component
 namespace esphome::bmi270::bmm150 {
 
 static constexpr uint8_t BMM150_DEFAULT_I2C_ADDRESS = 0x10;
@@ -64,20 +61,23 @@ inline uint16_t bmm150_trim_word(const uint8_t *regs, uint8_t reg) {
   return encode_value_le<uint16_t>(&regs[offset]);
 }
 
+// A trim byte, addressed by its register
+inline uint8_t bmm150_trim_byte(const uint8_t *regs, uint8_t reg) { return regs[reg - BMM150_REG_TRIM_START]; }
+
 // Decodes the trim registers; `regs` holds the bytes of registers 0x5D onwards (at least 21).
 inline BMM150Trim bmm150_parse_trim(const uint8_t *regs) {
   BMM150Trim trim;
-  trim.x1 = static_cast<int8_t>(regs[BMM150_TRIM_X1 - BMM150_REG_TRIM_START]);
-  trim.y1 = static_cast<int8_t>(regs[BMM150_TRIM_Y1 - BMM150_REG_TRIM_START]);
+  trim.x1 = static_cast<int8_t>(bmm150_trim_byte(regs, BMM150_TRIM_X1));
+  trim.y1 = static_cast<int8_t>(bmm150_trim_byte(regs, BMM150_TRIM_Y1));
   trim.z4 = static_cast<int16_t>(bmm150_trim_word(regs, BMM150_TRIM_Z4));
-  trim.x2 = static_cast<int8_t>(regs[BMM150_TRIM_X2 - BMM150_REG_TRIM_START]);
-  trim.y2 = static_cast<int8_t>(regs[BMM150_TRIM_Y2 - BMM150_REG_TRIM_START]);
+  trim.x2 = static_cast<int8_t>(bmm150_trim_byte(regs, BMM150_TRIM_X2));
+  trim.y2 = static_cast<int8_t>(bmm150_trim_byte(regs, BMM150_TRIM_Y2));
   trim.z2 = static_cast<int16_t>(bmm150_trim_word(regs, BMM150_TRIM_Z2));
   trim.z1 = bmm150_trim_word(regs, BMM150_TRIM_Z1);
   trim.xyz1 = bmm150_trim_word(regs, BMM150_TRIM_XYZ1) & BMM150_TRIM_XYZ1_MASK;
   trim.z3 = static_cast<int16_t>(bmm150_trim_word(regs, BMM150_TRIM_Z3));
-  trim.xy2 = static_cast<int8_t>(regs[BMM150_TRIM_XY2 - BMM150_REG_TRIM_START]);
-  trim.xy1 = regs[BMM150_TRIM_XY1 - BMM150_REG_TRIM_START];
+  trim.xy2 = static_cast<int8_t>(bmm150_trim_byte(regs, BMM150_TRIM_XY2));
+  trim.xy1 = bmm150_trim_byte(regs, BMM150_TRIM_XY1);
   return trim;
 }
 
@@ -108,11 +108,11 @@ inline float bmm150_compensate_z(const BMM150Trim &trim, int16_t raw, uint16_t r
 
 // Converts 8 raw bytes from the BMM150 data registers (X, Y, Z, RHALL; 0x42-0x49) to compensated µT.
 inline BMM150Data bmm150_convert(const BMM150Trim &trim, const uint8_t *raw) {
-  // X/Y are 13-bit (LSB byte bits 7:3), Z is 15-bit (bits 7:1), RHALL is 14-bit (bits 7:2).
-  int16_t x = (int16_t) (((int16_t) (int8_t) raw[1] * 32) | (raw[0] >> 3));
-  int16_t y = (int16_t) (((int16_t) (int8_t) raw[3] * 32) | (raw[2] >> 3));
-  int16_t z = (int16_t) (((int16_t) (int8_t) raw[5] * 128) | (raw[4] >> 1));
-  uint16_t rhall = (uint16_t) (((uint16_t) raw[7] << 6) | (raw[6] >> 2));
+  // Left-aligned in their 16-bit words: X/Y are 13-bit, Z is 15-bit, RHALL is 14-bit
+  const int16_t x = encode_value_le<int16_t>(&raw[0]) >> 3;
+  const int16_t y = encode_value_le<int16_t>(&raw[2]) >> 3;
+  const int16_t z = encode_value_le<int16_t>(&raw[4]) >> 1;
+  const uint16_t rhall = encode_value_le<uint16_t>(&raw[6]) >> 2;
   return BMM150Data{
       .x = bmm150_compensate_xy(trim, trim.x1, trim.x2, x, rhall),
       .y = bmm150_compensate_xy(trim, trim.y1, trim.y2, y, rhall),
