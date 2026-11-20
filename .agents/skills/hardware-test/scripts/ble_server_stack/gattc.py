@@ -56,13 +56,13 @@ async def one(name, rnd):
             errors="replace"
         )
         await c.start_notify(NT, lambda _, d: notes.append(bytes(d).hex()))
-        payload = bytes([0xA0 + rnd, 0xB0 + rnd, 0xC0 + rnd])
+        payload = bytes([(0xA0 + rnd) & 0xFF, (0xB0 + rnd) & 0xFF, (0xC0 + rnd) & 0xFF])
         await c.write_gatt_char(WR, payload, response=True)
         await asyncio.sleep(1.5)
         r["written"] = payload.hex()
         r["notifies"] = notes
         r["set_value_readback"] = (await c.read_gatt_char(NT)).hex()
-        dpay = bytes([0xD0 + rnd, 0xE0 + rnd])
+        dpay = bytes([(0xD0 + rnd) & 0xFF, (0xE0 + rnd) & 0xFF])
         await c.write_gatt_descriptor(dsc.handle, dpay)
         await asyncio.sleep(0.5)
         r["desc_written"] = dpay.hex()

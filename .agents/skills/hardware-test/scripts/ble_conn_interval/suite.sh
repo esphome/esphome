@@ -18,7 +18,8 @@ run() {
     [ "$have" -ge "$want" ] && break
     local args=("$@"); args[2]=$((want - have))
     timeout 3000 $P drive.py "$H" "${args[@]}" >> "$T-$n.err" 2>&1
-    echo "$(date +%T) chunk $chunk rc=$? rounds=$(grep -c '"round"' "$out")"
+    local rc=$?
+    echo "$(date +%T) chunk $chunk rc=$rc rounds=$(grep -c '"round"' "$out")"
     sleep 20
   done
   echo "$(date +%T) end $n"
