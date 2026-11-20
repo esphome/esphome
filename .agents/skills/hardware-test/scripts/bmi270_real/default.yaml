@@ -1,0 +1,9 @@
+substitutions:
+  name: bmid
+packages:
+  common: !include common.yaml
+motion:
+  - platform: bmi270
+    id: imu
+    i2c_id: bus
+    update_interval: 1s

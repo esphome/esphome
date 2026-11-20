@@ -1,0 +1,75 @@
+# Package: real BMI270 breakout (0x68) on an ESP8266 (Feather HUZZAH, SDA GPIO4, SCL GPIO5). probe.hpp counts mallocs
+# between on_boot 600.5 and 599.5 (the DATA setups) and dumps the main registers after setup and every 20 s.
+esphome:
+  name: ${name}
+  includes:
+    - probe.hpp
+  platformio_options:
+    build_flags:
+      - -Wl,--wrap=malloc
+  on_boot:
+    - priority: 600.5
+      then:
+        - lambda: bmiprobe::start();
+    - priority: 599.5
+      then:
+        - lambda: bmiprobe::stop();
+    - priority: -100
+      then:
+        - lambda: |-
+            ESP_LOGI("bmiprobe", "BUILD ${name} imu_failed=%d", id(imu)->is_failed());
+            bmiprobe::report("${name}");
+            bmiprobe::regs(id(bus), 0x68, "after_setup");
+esp8266:
+  board: huzzah
+logger:
+  level: DEBUG
+i2c:
+  id: bus
+  sda: GPIO4
+  scl: GPIO5
+  scan: false
+sensor:
+  - platform: bmi270
+    bmi270_id: imu
+    name: "BMI Temperature"
+    id: s_t
+  - platform: motion
+    type: acceleration_x
+    name: "BMI Accel X"
+    id: s_ax
+    accuracy_decimals: 4
+  - platform: motion
+    type: acceleration_y
+    name: "BMI Accel Y"
+    id: s_ay
+    accuracy_decimals: 4
+  - platform: motion
+    type: acceleration_z
+    name: "BMI Accel Z"
+    id: s_az
+    accuracy_decimals: 4
+  - platform: motion
+    type: gyroscope_x
+    name: "BMI Gyro X"
+    id: s_gx
+  - platform: motion
+    type: gyroscope_y
+    name: "BMI Gyro Y"
+    id: s_gy
+  - platform: motion
+    type: gyroscope_z
+    name: "BMI Gyro Z"
+    id: s_gz
+interval:
+  - interval: 2s
+    then:
+      - lambda: |-
+          ESP_LOGI("bmiprobe", "VALUES ax=%.4f ay=%.4f az=%.4f gx=%.3f gy=%.3f gz=%.3f t=%.2f",
+                   id(s_ax).state, id(s_ay).state, id(s_az).state, id(s_gx).state, id(s_gy).state, id(s_gz).state,
+                   id(s_t).state);
+  - interval: 20s
+    then:
+      - lambda: |-
+          bmiprobe::regs(id(bus), 0x68, "periodic");
+          ESP_LOGI("bmiprobe", "HEAP periodic free=%u max_block=%u", ESP.getFreeHeap(), ESP.getMaxFreeBlockSize());

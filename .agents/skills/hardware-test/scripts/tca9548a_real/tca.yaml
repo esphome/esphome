@@ -1,0 +1,115 @@
+# Real TCA9548A/PCA9548A at 0x70 on an ESP8266 (Feather HUZZAH, SDA GPIO4, SCL GPIO5) with a BMI270 on channel 0.
+# twitrace.hpp records every transaction the Wire core sends during setup; -s freq sets the root bus speed.
+substitutions:
+  freq: 400kHz
+esphome:
+  name: ${name}
+  includes:
+    - ../bmi270_real/probe.hpp
+    - twitrace.hpp
+  platformio_options:
+    build_flags:
+      - -Wl,--wrap=malloc
+      - -Wl,--wrap=twi_writeTo
+      - -Wl,--wrap=twi_readFrom
+  on_boot:
+    - priority: 1100
+      then:
+        - lambda: |-
+            // Pull-up check before the i2c setup: release both lines, then time the rise after a 20 us low
+            pinMode(4, INPUT); pinMode(5, INPUT); delayMicroseconds(100);
+            int sda = digitalRead(4), scl = digitalRead(5);
+            uint32_t rise[2];
+            const int pins[2] = {5, 4};
+            for (int k = 0; k < 2; k++) {
+              int p = pins[k];
+              pinMode(p, OUTPUT); digitalWrite(p, LOW); delayMicroseconds(20);
+              uint32_t c0 = ESP.getCycleCount(); pinMode(p, INPUT);
+              while (!digitalRead(p) && ESP.getCycleCount() - c0 < 80000) {}
+              rise[k] = ESP.getCycleCount() - c0;
+            }
+            ESP_LOGI("pullup", "PULLUP released SDA=%d SCL=%d rise_cycles SCL=%u SDA=%u (80 MHz)", sda, scl, rise[0], rise[1]);
+    - priority: 600.5
+      then:
+        - lambda: bmiprobe::start(); twitrace::start();
+    - priority: 599.5
+      then:
+        - lambda: bmiprobe::stop(); twitrace::stop();
+    - priority: -100
+      then:
+        - lambda: |-
+            ESP_LOGI("bmiprobe", "BUILD ${name} imu_failed=%d mux_failed=%d", id(imu)->is_failed(), id(mux)->is_failed());
+            bmiprobe::report("${name}");
+            twitrace::report("${name}");
+            bmiprobe::regs(id(bus), 0x68, "after_setup");
+            uint8_t ctl = 0xAA;
+            bool cok = id(rootbus)->write_readv(0x70, nullptr, 0, &ctl, 1) == i2c::ERROR_OK;
+            bool root68 = id(rootbus)->write_readv(0x68, nullptr, 0, nullptr, 0) == i2c::ERROR_OK;
+            bool ch68 = id(bus)->write_readv(0x68, nullptr, 0, nullptr, 0) == i2c::ERROR_OK;
+            ESP_LOGI("bmiprobe", "MUXSTATE control ok=%d value=0x%02X root_0x68_acks=%d ch0_0x68_acks=%d", cok, ctl, root68, ch68);
+esp8266:
+  board: huzzah
+logger:
+  level: DEBUG
+i2c:
+  id: rootbus
+  sda: GPIO4
+  scl: GPIO5
+  scan: false
+  frequency: ${freq}
+tca9548a:
+  - id: mux
+    i2c_id: rootbus
+    address: 0x70
+    channels:
+      - bus_id: bus
+        channel: 0
+motion:
+  - platform: bmi270
+    id: imu
+    i2c_id: bus
+    update_interval: 1s
+sensor:
+  - platform: bmi270
+    bmi270_id: imu
+    name: "BMI Temperature"
+    id: s_t
+  - platform: motion
+    type: acceleration_x
+    name: "BMI Accel X"
+    id: s_ax
+    accuracy_decimals: 4
+  - platform: motion
+    type: acceleration_y
+    name: "BMI Accel Y"
+    id: s_ay
+    accuracy_decimals: 4
+  - platform: motion
+    type: acceleration_z
+    name: "BMI Accel Z"
+    id: s_az
+    accuracy_decimals: 4
+  - platform: motion
+    type: gyroscope_x
+    name: "BMI Gyro X"
+    id: s_gx
+  - platform: motion
+    type: gyroscope_y
+    name: "BMI Gyro Y"
+    id: s_gy
+  - platform: motion
+    type: gyroscope_z
+    name: "BMI Gyro Z"
+    id: s_gz
+interval:
+  - interval: 1s
+    then:
+      - lambda: |-
+          ESP_LOGI("bmiprobe", "VALUES ax=%.4f ay=%.4f az=%.4f gx=%.3f gy=%.3f gz=%.3f t=%.2f",
+                   id(s_ax).state, id(s_ay).state, id(s_az).state, id(s_gx).state, id(s_gy).state, id(s_gz).state,
+                   id(s_t).state);
+  - interval: 20s
+    then:
+      - lambda: |-
+          bmiprobe::regs(id(bus), 0x68, "periodic");
+          ESP_LOGI("bmiprobe", "HEAP periodic free=%u max_block=%u", ESP.getFreeHeap(), ESP.getMaxFreeBlockSize());
