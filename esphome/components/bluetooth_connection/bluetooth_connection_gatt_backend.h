@@ -12,10 +12,12 @@
 
 #include "esphome/components/ble_device_base/ble_gatt_client.h"
 
-#if defined(USE_RP2040_BLE)
+// Arms are keyed on codegen-emitted per-backend defines (_PLATFORM_BACKENDS
+// in __init__.py), so they are order-independent.
+#if defined(USE_BLE_GATT_BACKEND_RP2)
 #include "bluetooth_connection_rp2.h"
 #define ESPHOME_BLE_GATT_CONNECTION_TYPE bluetooth_connection::RP2GattClient
-#elif defined(USE_ESP32_BLE)
+#elif defined(USE_BLE_GATT_BACKEND_BLUEDROID)
 #include "bluetooth_connection_bluedroid.h"
 #define ESPHOME_BLE_GATT_CONNECTION_TYPE bluetooth_connection::BluedroidGattClient
 #elif defined(USE_BLE_GATT_CLIENT_STUB_BACKEND)
