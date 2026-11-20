@@ -5,5 +5,5 @@ S=$(cd "$(dirname "$0")" && pwd); Y=${1:?yaml}; N=${2:?name}; SEC=${3:-80}
 : "${TREE:?set TREE}"; P=${PORT:?set PORT}; PY=${PY:-$TREE/venv/bin/python}
 "$S/../pio_build.sh" compile "$N" "$Y" || exit 1
 "$S/../pio_build.sh" upload "$N" "$Y" "$P" || exit 1
-"$PY" "$S/../serial_capture.py" "$P" "$SEC" "$S/$N-cap.txt" --reset > /dev/null 2>&1
+"$PY" "$S/../serial_capture.py" "$P" "$SEC" "$S/$N-cap.txt" --reset > /dev/null || exit 1
 echo "captured $S/$N-cap.txt"

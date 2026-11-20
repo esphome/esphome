@@ -215,6 +215,8 @@ def has(name: str, lines: list[str]) -> bool:
 
 
 pr, board = sys.argv[1], sys.argv[2]
+if pr not in T:
+    sys.exit(f"no name tables for group {pr}; known: {', '.join(T)}")
 p = read(f"l{pr}p{board}.norm")
 b = read(f"l{pr}b{board}.norm")
 for comp, (pat, names) in T[pr].items():

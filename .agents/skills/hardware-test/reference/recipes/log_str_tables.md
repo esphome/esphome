@@ -21,8 +21,8 @@ Name the builds `l<PR><p|b><board>` (for example `l1p66` and `l1b66`), which `no
   stream with audio, run end) and reaches every state the component sets. `handle_audio` gets two arguments.
 - `norm.py CAPTURE [NAME_RE]` strips timestamps, line numbers, the device name, the compile time and timing values,
   and cuts at `MARK ALLDONE`. `fdiff.sh A.norm B.norm` diffs without radio, heap and hash lines; add `--sorted`
-  to compare the sorted line sets when independent timers interleave. `cover.py PR BOARD` counts which table names
-  printed, per component, and whether PR and base lines match.
+  to compare the sorted line sets when independent timers interleave. `cover.py PR BOARD` (groups 1 to 3) counts
+  which table names printed, per component, and whether PR and base lines match.
 - Restored entity state (fan speed and preset, cover position) carries across flashes: run PR, base, then PR again
   and compare the two PR runs too.
 - One-pin IR loopback works on both boards (ESP8266 GPIO13 with an interval `pinMode(13, OUTPUT)`, ESP32 GPIO27).
