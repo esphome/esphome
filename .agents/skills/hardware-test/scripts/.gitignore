@@ -37,6 +37,11 @@ npm1300/*-cap.err
 npm1300/*-run.log
 rp2_sched_lock/*.txt
 rp2_sched_lock/*.log
+cc1101_long/*.log
+espnow_link/*.log
+espnow_link/*.err
+tcp_link/*.txt
+sx127x_sim/*pair/
 serial_proxy/*.txt
 serial_proxy/*.log
 web_server/async_bump/*.log
