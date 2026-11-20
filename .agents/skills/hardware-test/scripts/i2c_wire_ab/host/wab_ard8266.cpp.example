@@ -1,0 +1,34 @@
+// Arduino bus body of the tree under test on the esp8266 core Wire model
+#include "esphome/core/application.h"
+#include "esphome/core/component.h"
+#include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
+#include "esphome/components/i2c/i2c_bus.h"
+#define WAB_WIRE_ESP8266
+#define USE_ARDUINO
+#define USE_ESP8266
+#define ArduinoI2CBus ArduinoI2CBus8266
+#include "esphome/components/i2c/i2c_bus_arduino.h"
+TwoWire Wire;
+namespace esphome::i2c {
+ESPHOME_LOG_TAG(TAG, "i2c");
+static constexpr size_t I2C_MAX_LOG_BYTES = 32;
+void ArduinoI2CBus::setup() {}
+void ArduinoI2CBus::dump_config() {}
+void ArduinoI2CBus::set_pins_and_clock_() {}
+#include "wab_gen_arduino.inc"
+}  // namespace esphome::i2c
+#undef USE_ESP8266
+#undef USE_ARDUINO
+struct A8Init { using type = bool esphome::i2c::ArduinoI2CBus::*; friend type get(A8Init); };
+struct A8Wire { using type = TwoWire *esphome::i2c::ArduinoI2CBus::*; friend type get(A8Wire); };
+template struct WabRob<A8Init, &esphome::i2c::ArduinoI2CBus::initialized_>;
+template struct WabRob<A8Wire, &esphome::i2c::ArduinoI2CBus::wire_>;
+esphome::i2c::I2CBus *wab_make_esp8266() {
+  auto *b = new esphome::i2c::ArduinoI2CBus();
+  b->*get(A8Init()) = true;
+  b->*get(A8Wire()) = &Wire;
+  return b;
+}
+void wab_reset_esp8266() { Wire.wab_reset(); }
