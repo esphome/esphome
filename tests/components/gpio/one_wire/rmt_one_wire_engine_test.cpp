@@ -1383,7 +1383,7 @@ TEST_P(RmtOneWireFuzz, OkOnlyWithACompleteDecode) {
     for (auto &byte : payload)
       byte = static_cast<uint8_t>(rng());
     auto &device = rig.port.bus.devices.emplace_back(ROM_A, payload, 1);
-    device.zero_low_us = 15 + rng() % 46;  // tRDV..end of slot
+    device.zero_low_us = 15 + rng() % 46;              // tRDV..end of slot
     rig.port.bus.rise_us = 1 + rng() % BUDGET_TRC_US;  // up to the full budget of 9 us
     rig.port.capture_mutator = [&](size_t section, std::vector<Symbol> &capture) {
       if (section == 0 || rig.port.sections[section].tx.empty())

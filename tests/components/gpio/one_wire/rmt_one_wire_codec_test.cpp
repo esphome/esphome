@@ -216,8 +216,7 @@ INSTANTIATE_TEST_SUITE_P(
         ResetCase{"FirstLowShorterThanAReset",
                   {{479, 0, 27, 1}, {120, 0, 0, 1}},
                   TransactionStatus::TRANSACTION_STATUS_CAPTURE_ERROR},
-        ResetCase{
-            "OnlyAShortLow", {{120, 0, 0, 1}}, TransactionStatus::TRANSACTION_STATUS_CAPTURE_ERROR},
+        ResetCase{"OnlyAShortLow", {{120, 0, 0, 1}}, TransactionStatus::TRANSACTION_STATUS_CAPTURE_ERROR},
         ResetCase{"GlitchBeforeTheReset",
                   {{5, 0, 20, 1}, {503, 0, 27, 1}, {120, 0, 0, 1}},
                   TransactionStatus::TRANSACTION_STATUS_CAPTURE_ERROR},

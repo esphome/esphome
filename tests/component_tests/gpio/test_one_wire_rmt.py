@@ -302,8 +302,14 @@ def test_rmt_timing_default_read_threshold(
 @pytest.mark.parametrize(
     ("pin", "key"),
     [
-        ("\n      number: 5\n      mode:\n        output: true\n        pullup: true", "pullup"),
-        ("\n      number: 5\n      mode:\n        input: true\n        pulldown: true", "pulldown"),
+        (
+            "\n      number: 5\n      mode:\n        output: true\n        pullup: true",
+            "pullup",
+        ),
+        (
+            "\n      number: 5\n      mode:\n        input: true\n        pulldown: true",
+            "pulldown",
+        ),
         ("\n      number: 5\n      mode: INPUT_PULLUP", "pullup"),
         ("\n      number: 5\n      drive_strength: 40mA", "drive_strength"),
         ("\n      number: 5\n      hold_state: true", "hold_state"),
@@ -315,8 +321,9 @@ def test_use_rmt_rejects_pin_options_it_does_not_apply(
 ) -> None:
     result = validate(_yaml(ESP32_S3_IDF, USE_RMT, pin))
     assert result.errors
-    assert f"use_rmt does not {'support' if key == 'hold_state' else 'apply'} '{key}'" in (
-        _error_text(result)
+    assert (
+        f"use_rmt does not {'support' if key == 'hold_state' else 'apply'} '{key}'"
+        in (_error_text(result))
     )
     assert result.errors[0].path[-1] == key
 
