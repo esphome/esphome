@@ -16,12 +16,11 @@ bool is_leap_year(int year) { return (year % 4 == 0 && year % 100 != 0) || (year
 // Get days in year (avoids duplicate is_leap_year calls)
 static inline int days_in_year(int year) { return is_leap_year(year) ? 366 : 365; }
 
-// Rounds toward negative infinity, so the leap year count stays right for year 0 and earlier
-static constexpr int floor_div(int a, int b) { return a / b - (a % b < 0 ? 1 : 0); }
-
-// Count leap years in [1, year] (i.e. up to and including year); negative for years before 1
+// Count leap years in [1, year] (i.e. up to and including year). Shifted by 400 years (97 leap years) so the
+// divisions also round down for year 0 and the year before it, which the year search can reach
 static constexpr int count_leap_years_up_to(int year) {
-  return floor_div(year, 4) - floor_div(year, 100) + floor_div(year, 400);
+  year += 400;
+  return year / 4 - year / 100 + year / 400 - 97;
 }
 
 static constexpr int EPOCH_YEAR = 1970;
@@ -30,18 +29,17 @@ static constexpr int DAYS_PER_YEAR = 365;
 static constexpr int SECONDS_PER_DAY = 86400;
 
 // Days from epoch (Jan 1 1970) to Jan 1 of given year — O(1)
-int64_t days_to_year_start(int year) {
-  return static_cast<int64_t>(DAYS_PER_YEAR) * (year - EPOCH_YEAR) +
-         (count_leap_years_up_to(year - 1) - LEAP_YEARS_BEFORE_EPOCH);
+int32_t days_to_year_start(int year) {
+  return DAYS_PER_YEAR * (year - EPOCH_YEAR) + (count_leap_years_up_to(year - 1) - LEAP_YEARS_BEFORE_EPOCH);
 }
 
 // Convert days since epoch to year, updating days to day-of-year remainder.
 // The initial estimate from days/365 can overshoot by multiple years for
 // far-future dates (e.g., year 5000+) due to accumulated leap days,
 // so we use loops rather than single-step correction.
-int days_to_year(int64_t &days) {
-  int year = static_cast<int>(EPOCH_YEAR + days / DAYS_PER_YEAR);
-  int64_t year_start = days_to_year_start(year);
+int days_to_year(int32_t &days) {
+  int year = EPOCH_YEAR + days / DAYS_PER_YEAR;
+  int32_t year_start = days_to_year_start(year);
   while (days < year_start) {
     year--;
     year_start = days_to_year_start(year);
@@ -68,14 +66,20 @@ int days_in_month(int year, int month) {
   }
 }
 
-void __attribute__((noinline)) epoch_to_tm_utc(time_t epoch, struct tm *out_tm) {
-  // Days since epoch
-  int64_t days = epoch / SECONDS_PER_DAY;
-  int32_t remaining_secs = epoch % SECONDS_PER_DAY;
-  if (remaining_secs < 0) {
+int32_t epoch_to_days(time_t epoch, int32_t &secs) {
+  // One 64-bit division, and the remainder from 32-bit math instead of a 64-bit modulo
+  int32_t days = static_cast<int32_t>(epoch / SECONDS_PER_DAY);
+  secs = static_cast<int32_t>(static_cast<uint32_t>(epoch) - static_cast<uint32_t>(days) * SECONDS_PER_DAY);
+  if (secs < 0) {
     days--;
-    remaining_secs += SECONDS_PER_DAY;
+    secs += SECONDS_PER_DAY;
   }
+  return days;
+}
+
+void epoch_to_tm_utc(time_t epoch, struct tm *out_tm) {
+  int32_t remaining_secs;
+  int32_t days = epoch_to_days(epoch, remaining_secs);
 
   out_tm->tm_sec = remaining_secs % 60;
   remaining_secs /= 60;
@@ -83,14 +87,14 @@ void __attribute__((noinline)) epoch_to_tm_utc(time_t epoch, struct tm *out_tm) 
   out_tm->tm_hour = remaining_secs / 60;
 
   // Day of week (Jan 1, 1970 was Thursday = 4)
-  out_tm->tm_wday = static_cast<int>((days + 4) % 7);
+  out_tm->tm_wday = (days + 4) % 7;
   if (out_tm->tm_wday < 0)
     out_tm->tm_wday += 7;
 
   // Calculate year (updates days to day-of-year)
   int year = days_to_year(days);
   out_tm->tm_year = year - 1900;
-  out_tm->tm_yday = static_cast<int>(days);
+  out_tm->tm_yday = days;
 
   // Calculate month and day
   int month = 1;
@@ -101,7 +105,7 @@ void __attribute__((noinline)) epoch_to_tm_utc(time_t epoch, struct tm *out_tm) 
   }
 
   out_tm->tm_mon = month - 1;
-  out_tm->tm_mday = static_cast<int>(days) + 1;
+  out_tm->tm_mday = days + 1;
   out_tm->tm_isdst = 0;
 }
 
@@ -112,11 +116,13 @@ uint8_t days_in_month(uint8_t month, uint16_t year) { return internal::days_in_m
 static uint16_t days_in_year(uint16_t year) { return internal::is_leap_year(year) ? 366 : 365; }
 
 ESPTime ESPTime::from_epoch_utc(time_t epoch) {
-  // ESPTime's year is 16 bits, and the year search would take ages on a far-off 64-bit epoch
-  static constexpr int64_t YEAR_0_START = -62167219200;
-  static constexpr int64_t YEAR_65536_START = 2005949145600;
-  if (static_cast<int64_t>(epoch) < YEAR_0_START || static_cast<int64_t>(epoch) >= YEAR_65536_START)
-    return ESPTime{};
+  if constexpr (sizeof(time_t) > sizeof(int32_t)) {
+    // ESPTime's year is 16 bits, and the day count is 32 bits; a 32-bit time_t never leaves that range
+    static constexpr int64_t YEAR_0_START = -62167219200;
+    static constexpr int64_t YEAR_65536_START = 2005949145600;
+    if (epoch < YEAR_0_START || epoch >= YEAR_65536_START)
+      return ESPTime{};
+  }
   struct tm c_tm;
   internal::epoch_to_tm_utc(epoch, &c_tm);
   return ESPTime::from_c_tm(&c_tm, epoch);

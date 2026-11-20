@@ -21,9 +21,8 @@ static constexpr int SECONDS_PER_DAY = 86400;
 
 // Extract just the year from a UTC epoch — O(1)
 static int epoch_to_year(time_t epoch) {
-  int64_t days = epoch / SECONDS_PER_DAY;
-  if (epoch < 0 && epoch % SECONDS_PER_DAY != 0)
-    days--;
+  int32_t secs;
+  int32_t days = epoch_to_days(epoch, secs);
   return days_to_year(days);
 }
 

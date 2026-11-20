@@ -87,6 +87,7 @@ int day_of_week(int year, int month, int day);
 using esphome::internal::days_in_month;
 using esphome::internal::days_to_year;
 using esphome::internal::days_to_year_start;
+using esphome::internal::epoch_to_days;
 using esphome::internal::epoch_to_tm_utc;
 using esphome::internal::is_leap_year;
 

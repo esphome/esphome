@@ -47,6 +47,14 @@ TEST(EpochUtc, MatchesGmtimeAcrossCenturies) {
   }
 }
 
+TEST(EpochUtc, MatchesGmtimeAcrossAllYears) {
+  // About 246 years and some seconds per step, through every 400-year era from year 0 to 65535
+  constexpr time_t STEP = 7'777'777'777;
+  for (time_t epoch = -62'167'219'200; epoch < 2'005'949'145'600; epoch += STEP) {
+    expect_matches_gmtime(epoch);
+  }
+}
+
 TEST(EpochUtc, Years0To65535Convert) {
   expect_matches_gmtime(static_cast<time_t>(-62167219200));   // 0000-01-01 00:00:00
   expect_matches_gmtime(static_cast<time_t>(-62135596800));   // 0001-01-01 00:00:00
