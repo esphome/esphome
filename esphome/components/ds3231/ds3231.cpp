@@ -1,6 +1,7 @@
 #include "ds3231.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 // Datasheet:
 // - https://www.analog.com/media/en/technical-documentation/data-sheets/DS3231.pdf
@@ -27,19 +28,11 @@ static const LogString *alarm_state_to_string(uint8_t control, uint8_t alarm) {
   return (control & (alarm == 1 ? 0x01 : 0x02)) != 0 ? LOG_STR("enabled") : LOG_STR("disabled");
 }
 
-static const LogString *square_wave_to_string(SquareWaveFrequency frequency) {
-  switch (frequency) {
-    case SQUARE_WAVE_1HZ:
-      return LOG_STR("1 Hz");
-    case SQUARE_WAVE_1024HZ:
-      return LOG_STR("1.024 kHz");
-    case SQUARE_WAVE_4096HZ:
-      return LOG_STR("4.096 kHz");
-    case SQUARE_WAVE_8192HZ:
-      return LOG_STR("8.192 kHz");
-    default:
-      return LOG_STR("unknown");
-  }
+// Indexed by SquareWaveFrequency
+PROGMEM_STRING_TABLE(SquareWaveStrings, "1 Hz", "1.024 kHz", "4.096 kHz", "8.192 kHz", "unknown");
+
+static __attribute__((noinline)) const LogString *square_wave_to_string(SquareWaveFrequency frequency) {
+  return SquareWaveStrings::get_log_str(static_cast<uint8_t>(frequency), SquareWaveStrings::LAST_INDEX);
 }
 
 void IRAM_ATTR DS3231Component::interrupt_handler(DS3231Component *arg) { arg->enable_loop_soon_any_context(); }

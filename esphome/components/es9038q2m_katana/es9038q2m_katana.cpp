@@ -2,6 +2,7 @@
 
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 #include <cmath>
 
@@ -34,37 +35,12 @@ constexpr uint8_t KATANA_VOLUME_FULL_ATTENUATION = 255;
 // The control logic ignores writes for this long after a reset.
 constexpr uint32_t RESET_SETTLE_DELAY_MS = 10;
 
-const LogString *filter_shape_to_str(FilterShape shape) {
-  switch (shape) {
-    case FILTER_SHAPE_LINEAR_PHASE_FAST:
-      return LOG_STR("linear_phase_fast");
-    case FILTER_SHAPE_LINEAR_PHASE_SLOW:
-      return LOG_STR("linear_phase_slow");
-    case FILTER_SHAPE_MIN_PHASE_FAST:
-      return LOG_STR("minimum_phase_fast");
-    case FILTER_SHAPE_MIN_PHASE_SLOW:
-      return LOG_STR("minimum_phase_slow");
-    case FILTER_SHAPE_APODIZING:
-      return LOG_STR("apodizing");
-    case FILTER_SHAPE_HYBRID:
-      return LOG_STR("hybrid");
-    default:
-      return LOG_STR("brick_wall");
-  }
-}
+// Indexed by FilterShape
+PROGMEM_STRING_TABLE(FilterShapeStrings, "linear_phase_fast", "linear_phase_slow", "minimum_phase_fast",
+                     "minimum_phase_slow", "apodizing", "brick_wall", "hybrid", "brick_wall");
 
-const LogString *deemphasis_to_str(DeemphasisMode mode) {
-  switch (mode) {
-    case DEEMPHASIS_32KHZ:
-      return LOG_STR("32khz");
-    case DEEMPHASIS_44_1KHZ:
-      return LOG_STR("44_1khz");
-    case DEEMPHASIS_48KHZ:
-      return LOG_STR("48khz");
-    default:
-      return LOG_STR("bypass");
-  }
-}
+// Indexed by DeemphasisMode
+PROGMEM_STRING_TABLE(DeemphasisStrings, "bypass", "32khz", "44_1khz", "48khz");
 
 }  // namespace
 
@@ -93,8 +69,10 @@ void ES9038Q2MKatana::dump_config() {
                 "  De-emphasis: %s\n"
                 "  Format register: 0x%02X\n"
                 "  DoP: %s",
-                LOG_STR_ARG(filter_shape_to_str(this->filter_shape_)),
-                LOG_STR_ARG(deemphasis_to_str(this->deemphasis_mode_)), this->format_, ONOFF(this->dop_enabled_));
+                LOG_STR_ARG(FilterShapeStrings::get_log_str(static_cast<uint8_t>(this->filter_shape_),
+                                                            FilterShapeStrings::LAST_INDEX)),
+                LOG_STR_ARG(DeemphasisStrings::get_log_str(this->deemphasis_mode_, DEEMPHASIS_BYPASS)), this->format_,
+                ONOFF(this->dop_enabled_));
   LOG_I2C_DEVICE(this);
   if (this->is_failed())
     return;
