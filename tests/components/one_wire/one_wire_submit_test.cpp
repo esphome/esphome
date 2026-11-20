@@ -4,6 +4,7 @@
 #include <gtest/gtest.h>
 
 #include <cstdint>
+#include <type_traits>
 #include <vector>
 
 #include "esphome/components/one_wire/one_wire_bus.h"
@@ -11,6 +12,9 @@
 namespace esphome::one_wire::testing {
 
 constexpr uint64_t ROM = 0x120000065C17EE28ULL;
+
+// Drivers keep their transactions as members built with designated initializers
+static_assert(std::is_aggregate_v<Transaction>);
 const std::vector<uint8_t> COMMAND{0x4E, 0x01, 0x02};
 
 // What went over the bus. Below 256: a written byte.
@@ -159,6 +163,15 @@ TEST(TransactionQueue, FirstInFirstOut) {
   EXPECT_EQ(queue.pop(), &b);
   EXPECT_EQ(queue.pop(), &c);
   EXPECT_TRUE(queue.empty());
+}
+
+TEST(TransactionQueue, DesignatedInitializerLeavesItIdle) {
+  uint8_t command = 0x44;
+  Transaction convert{.write_data = &command, .write_len = 1};
+  EXPECT_FALSE(convert.is_pending());
+  TransactionQueue queue;
+  EXPECT_TRUE(queue.push(&convert));
+  EXPECT_EQ(queue.pop(), &convert);
 }
 
 TEST(TransactionQueue, PendingUntilPopped) {

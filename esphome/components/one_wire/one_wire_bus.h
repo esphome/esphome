@@ -16,10 +16,26 @@ enum class TransactionStatus : uint8_t {
   TRANSACTION_STATUS_HARDWARE_ERROR,
 };
 
+struct Transaction;
+
+/// Queue state inside a Transaction. Only the bus and TransactionQueue may change it.
+class TransactionLink {
+ public:
+  bool is_pending() const { return this->next_ != nullptr; }
+
+ private:
+  friend class OneWireBus;
+  friend class TransactionQueue;
+
+  /// nullptr: not pending. Points to the transaction itself while it is pending and last in its queue.
+  /// Keeping the pending flag in this pointer lets Transaction pack to 32 bytes on 32-bit targets.
+  Transaction *next_{nullptr};
+};
+
 /// Owned by the caller, must stay valid until on_done has run.
 /// Sequence on the bus: reset, ROM selection, write_data, read_data. Atomic on the bus.
-class Transaction {
- public:
+/// An aggregate, so callers can use designated initializers. Leave link out of them.
+struct Transaction {
   uint64_t address{0};  ///< 0: Skip ROM (0xCC), otherwise Match ROM (0x55)
   const uint8_t *write_data{nullptr};
   uint8_t *read_data{nullptr};  ///< Contents are only defined when the status is TRANSACTION_STATUS_OK
@@ -27,17 +43,10 @@ class Transaction {
   void *context{nullptr};
   uint8_t write_len{0};
   uint8_t read_len{0};
+  TransactionLink link;  ///< Owned by the bus
 
   /// True from a successful submit() until just before on_done runs.
-  bool is_pending() const { return this->pending_; }
-
- private:
-  friend class OneWireBus;
-  friend class TransactionQueue;
-
-  // The bus owns these two. Placed after the byte fields so the struct packs to 32 bytes on 32-bit targets.
-  bool pending_{false};
-  Transaction *next_{nullptr};  ///< Intrusive FIFO, no heap
+  bool is_pending() const { return this->link.is_pending(); }
 };
 static_assert(sizeof(void *) != 4 || sizeof(Transaction) == 32, "Transaction should pack to 32 bytes");
 
@@ -46,32 +55,31 @@ class TransactionQueue {
  public:
   /// Returns false, and changes nothing, if the transaction is already pending.
   bool push(Transaction *transaction) {
-    if (transaction->pending_)
+    if (transaction->is_pending())
       return false;
-    transaction->pending_ = true;
-    transaction->next_ = nullptr;
+    transaction->link.next_ = transaction;  // Last in the queue
     if (this->head_ == nullptr) {
       this->head_ = transaction;
     } else {
-      this->tail_->next_ = transaction;
+      this->tail_->link.next_ = transaction;
     }
     this->tail_ = transaction;
     return true;
   }
   bool empty() const { return this->head_ == nullptr; }
   Transaction *front() const { return this->head_; }
-  /// Removes the front transaction and clears its pending flag, so on_done may submit it again.
+  /// Removes the front transaction and clears its pending state, so on_done may submit it again.
   /// The queue must not be empty.
   Transaction *pop() {
     Transaction *transaction = this->head_;
-    this->head_ = transaction->next_;
-    transaction->next_ = nullptr;
-    transaction->pending_ = false;
+    Transaction *next = transaction->link.next_;
+    this->head_ = next == transaction ? nullptr : next;
+    transaction->link.next_ = nullptr;
     return transaction;
   }
 
  private:
-  // Must stay in sync with the next_ links
+  // Must stay in sync with the link chain
   Transaction *head_{nullptr};
   Transaction *tail_{nullptr};
 };

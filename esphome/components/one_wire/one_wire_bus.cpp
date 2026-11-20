@@ -68,9 +68,9 @@ bool OneWireBus::skip() {
 
 #ifdef USE_ONE_WIRE_TRANSACTION
 bool OneWireBus::submit(Transaction *transaction) {
-  if (transaction->pending_)
+  if (transaction->is_pending())
     return false;
-  transaction->pending_ = true;
+  transaction->link.next_ = transaction;  // Pending while it runs, as in a queue of one
   // reset_int() directly, not skip()/select(): those fold a held-low bus into "no presence"
   TransactionStatus status;
   switch (this->reset_int()) {
@@ -96,7 +96,7 @@ bool OneWireBus::submit(Transaction *transaction) {
     for (uint8_t i = 0; i < transaction->read_len; i++)
       transaction->read_data[i] = this->read8();
   }
-  transaction->pending_ = false;
+  transaction->link.next_ = nullptr;
   if (transaction->on_done != nullptr)
     transaction->on_done(transaction->context, status);
   return true;
