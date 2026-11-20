@@ -64,8 +64,9 @@ injection) are in [fake_i2c.md](fake_i2c.md).
   extended to a mux at 0x70 with devices at 0x3C and 0x48, and the SCL rate per transaction as `@<kHz>`); `d1.yaml` on
   an ESP8266 puts a `MuxShim` bus that answers 0x70 in front of the real Wire bus. Pass `-s xflags
   -DMX_WRITE_PREFIXED` on trees that have `I2CBus::write_prefixed` (#22780; the host harness needs it in both trees),
-  and `-s xflags "-DMX_LOAD_ONLY -DMX_GAP_US=2000"` to run only the load rounds. `devruns.sh NAME YAML PORT [SECONDS]` uploads and takes three
-  captures; judge with `mxmaj.py BASE PR` (2 of 3 majority per case) or `mxcmp.py` for single captures.
+  and `-s xflags "-DMX_LOAD_ONLY -DMX_GAP_US=2000"` to run only the load rounds. `devruns.sh NAME YAML PORT
+  [SECONDS]` uploads and takes three captures; judge with `mxmaj.py BASE PR` (majority per case over the captures
+  that exist, so one capture each also works).
 - Target gotchas: clearing the GPIO status after a transaction loses a START that follows within microseconds, so the
   ISR keeps listening 500 us after a STOP. Chaining transactions in the ISR must stay under the interrupt watchdog
   (`CONFIG_ESP_INT_WDT_TIMEOUT_MS: "1000"`, the ISR gives up at 600 ms). Back to back writes still drop transactions

@@ -1,5 +1,5 @@
-"""mxmaj.py BASE PR: three captures each (NAME-ser.txt, -ser2, -ser3); per case the rc and stream hash seen in most
-captures, base majority against PR majority, and the cases where any base and PR capture agree."""
+"""mxmaj.py BASE PR: the captures NAME-ser.txt, -ser2 and -ser3 that exist (1 to 3); per case the rc and stream hash
+seen in most captures, base majority against PR majority, and the cases where any base and PR capture agree."""
 
 from collections import Counter
 import pathlib
@@ -7,20 +7,22 @@ import re
 import sys
 
 
-def load(path: str) -> dict[str, tuple]:
+def load(path: pathlib.Path) -> dict[str, tuple]:
+    """Case -> ((rc, fnv), alloc, stream excerpt)."""
     cases = {}
-    for line in (
-        pathlib.Path(path).read_text(encoding="utf-8", errors="replace").splitlines()
-    ):
+    for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
         if m := re.search(
-            r"MX (.+?)\|rc=(-?\d+)\|alloc=(\d+)\|fnv=([0-9A-F]+)\|", line
+            r"MX (.+?)\|rc=(-?\d+)\|alloc=(\d+)\|fnv=([0-9A-F]+)\|(.*)$", line
         ):
-            cases[m.group(1)] = ((m.group(2), m.group(4)), int(m.group(3)))
+            cases[m[1]] = ((m[2], m[4]), int(m[3]), m[5].strip())
     return cases
 
 
 def runs(name: str) -> list[dict]:
-    return [load(f"{name}-ser{s}.txt") for s in ("", "2", "3")]
+    found = [pathlib.Path(f"{name}-ser{s}.txt") for s in ("", "2", "3")]
+    if not (loaded := [load(p) for p in found if p.exists()]):
+        sys.exit(f"no capture {name}-ser.txt")
+    return loaded
 
 
 B, P = runs(sys.argv[1]), runs(sys.argv[2])
@@ -33,14 +35,18 @@ for k in keys:
         diff.append(k)
         continue
     (vb, nb), (vp, npr) = cb.most_common(1)[0], cp.most_common(1)[0]
-    if nb < 2 or npr < 2:
+    if 2 * nb <= len(B) or 2 * npr <= len(P):
         nomaj.append(k)
     elif vb != vp:
         diff.append(k)
     shared += bool(set(cb) & set(cp))
 print(
-    f"cases {len(keys)}; majority differs: {diff}; no 2 of 3 majority: {nomaj}; cases where captures agree: {shared}"
+    f"cases {len(keys)}; captures base {len(B)}, pr {len(P)}; majority differs: {len(diff)}; "
+    f"no majority: {nomaj}; cases where captures agree: {shared}"
 )
+for k in diff[:10]:
+    b, p = B[0][k], P[0].get(k, (("?", ""), 0, ""))
+    print(f"  {k}\n     base {b[0][0]} {b[2][:120]}\n     pr   {p[0][0]} {p[2][:120]}")
 for name, R in (("base", B), ("pr", P)):
     wr = [k for k in keys if k.startswith("wreg")]
     per = [sum(r[k][1] > 0 for k in wr if k in r) for r in R]

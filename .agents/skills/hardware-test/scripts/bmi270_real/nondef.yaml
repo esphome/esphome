@@ -3,10 +3,7 @@ substitutions:
 packages:
   common: !include common.yaml
 motion:
-  - platform: bmi270
-    id: imu
-    i2c_id: bus
-    update_interval: 1s
+  - id: !extend imu
     accelerometer_range: 16G
     accelerometer_odr: 1600HZ
     gyroscope_range: 125DPS

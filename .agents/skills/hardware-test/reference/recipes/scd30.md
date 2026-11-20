@@ -2,7 +2,7 @@
 
 `scripts/scd30/`: `s30common.yaml` package (ESP8266 NodeMCU, SDA GPIO4 (D2), SCL GPIO5 (D1), VERY_VERBOSE I2C logs),
 `s30def.yaml` default bus, `s30meas.yaml` with `scl_stretch.hpp` (times every SCL low phase), `s30unst.yaml` (frees a
-stuck SDA at boot), `run.sh NAME YAML PORT SECONDS` (upload, capture, `ana.sh` counts). Make timeout variants by adding
+stuck SDA at boot), `run.sh NAME YAML PORT SECONDS` (build, upload, capture, `ana.sh` counts). Make timeout variants by adding
 `timeout: Nms` under `i2c:`. The SCD30 needs no external pull ups on that board and answers at 0x61.
 
 - Measured on a real SCD30 (firmware 3.66) at 50 kHz: steady reads (data ready 0x0202, read 0x0300) stretch SCL at most

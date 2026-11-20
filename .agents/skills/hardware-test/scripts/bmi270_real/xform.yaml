@@ -19,10 +19,7 @@ esphome:
         - motion.clear_calibration:
             id: imu
 motion:
-  - platform: bmi270
-    id: imu
-    i2c_id: bus
-    update_interval: 1s
+  - id: !extend imu
     axis_map:
       x: y
       y: x

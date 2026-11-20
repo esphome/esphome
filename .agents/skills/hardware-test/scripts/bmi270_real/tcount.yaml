@@ -9,11 +9,6 @@ globals:
   - id: t_nan
     type: uint32_t
     initial_value: "0"
-motion:
-  - platform: bmi270
-    id: imu
-    i2c_id: bus
-    update_interval: 1s
 sensor:
   - id: !extend s_t
     on_raw_value:
