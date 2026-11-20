@@ -154,12 +154,13 @@ def test_on_time_schedule_rejected(
 
 
 def _on_time_lines(action: str, check: str) -> str:
+    automation = action.replace("lambdaaction_id", "automation_id")
     return "\n".join(
         [
-            "sntp_time->add_on_time_callback([](const std::remove_cvref_t<ESPTime> & x) -> void {",
-            f"    if (!({check}))",
-            "      return;",
-            f"    esphome__{action}__fn();",
+            f"static void esphome__{automation}__fn(const std::remove_cvref_t<ESPTime> & x) {{",
+            f"  if (!({check}))",
+            "    return;",
+            f"  esphome__{action}__fn();",
         ]
     )
 
