@@ -49,6 +49,10 @@ class BLEServer final : public Component, public Parented<ESP32BLE> {
   uint8_t get_max_clients() const { return this->max_clients_; }
 
   BLEService *create_service(ESPBTUUID uuid, bool advertise = false, uint16_t num_handles = 15);
+  /// Adds a service the caller keeps alive (such as a component member); remove_service() never frees it.
+  /// Do not add it again after remove_service(). Returns false when it is already added or the UUID already has
+  /// 255 instances.
+  bool add_service(BLEService &service);
   void remove_service(ESPBTUUID uuid, uint8_t inst_id = 0);
   BLEService *get_service(ESPBTUUID uuid, uint8_t inst_id = 0);
   void enqueue_start_service(BLEService *service) { this->services_to_start_.push_back(service); }
@@ -114,9 +118,13 @@ class BLEServer final : public Component, public Parented<ESP32BLE> {
   struct ServiceEntry {
     ESPBTUUID uuid;
     uint8_t inst_id;
+    bool owned;  // allocated by create_service(), freed by remove_service()
     BLEService *service;
   };
 
+  static constexpr uint8_t INVALID_INST_ID = 0xFF;
+  uint8_t free_inst_id_(const ESPBTUUID &uuid);
+  void register_service_(BLEService &service, uint8_t inst_id, bool owned);
   void restart_advertising_();
   void request_advertising_();
   void release_advertising_();

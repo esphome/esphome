@@ -27,8 +27,7 @@ BLEDescriptor::BLEDescriptor(ESPBTUUID uuid, uint16_t max_len, esp_gatt_perm_t p
 
 BLEDescriptor::~BLEDescriptor() { free(this->value_.attr_value); }  // NOLINT
 
-void BLEDescriptor::do_create(BLECharacteristic *characteristic) {
-  this->characteristic_ = characteristic;
+void BLEDescriptor::do_create() {
   esp_attr_control_t control;
   control.auto_rsp = ESP_GATT_AUTO_RSP;
 
@@ -66,7 +65,8 @@ void BLEDescriptor::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_
                                         esp_ble_gatts_cb_param_t *param) {
   switch (event) {
     case ESP_GATTS_ADD_CHAR_DESCR_EVT: {
-      if (this->characteristic_ != nullptr && this->uuid_ == ESPBTUUID::from_uuid(param->add_char_descr.descr_uuid) &&
+      // Bound by add_descriptor(), so only a descriptor do_create() is creating may claim the event
+      if (this->state_ == CREATING && this->uuid_ == ESPBTUUID::from_uuid(param->add_char_descr.descr_uuid) &&
           this->characteristic_->get_service()->get_handle() == param->add_char_descr.service_handle &&
           this->characteristic_ == this->characteristic_->get_service()->get_last_created_characteristic()) {
         this->handle_ = param->add_char_descr.attr_handle;

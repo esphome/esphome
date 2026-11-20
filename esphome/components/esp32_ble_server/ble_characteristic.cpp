@@ -2,6 +2,8 @@
 #include "ble_server.h"
 #include "ble_service.h"
 
+#include <vector>
+
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
@@ -13,7 +15,12 @@ ESPHOME_LOG_TAG(TAG, "esp32_ble_server.characteristic");
 
 BLECharacteristic::~BLECharacteristic() {
   for (auto *descriptor : this->descriptors_) {
-    delete descriptor;  // NOLINT(cppcoreguidelines-owning-memory)
+    if (descriptor->owned_) {
+      delete descriptor;  // NOLINT(cppcoreguidelines-owning-memory)
+    } else if (descriptor->characteristic_ == this) {
+      // A caller-owned descriptor outlives this characteristic, and may already belong to another one
+      descriptor->characteristic_ = nullptr;
+    }
   }
 }
 
@@ -79,10 +86,27 @@ void BLECharacteristic::notify() {
   }
 }
 
-void BLECharacteristic::add_descriptor(BLEDescriptor *descriptor) {
+void BLECharacteristic::do_delete() {
+  this->clients_to_notify_.clear();
+  // The stack may reuse the handles, so a deleted characteristic must not match events until it is created again
+  this->handle_ = 0xFFFF;
+  this->state_ = INIT;
+  for (auto *descriptor : this->descriptors_) {
+    descriptor->handle_ = 0xFFFF;
+    descriptor->state_ = BLEDescriptor::INIT;
+  }
+}
+
+bool BLECharacteristic::add_descriptor(BLEDescriptor &descriptor) {
+  // Bound until removed or the parent is destroyed
+  if (descriptor.characteristic_ != nullptr) {
+    ESP_LOGE(TAG, "Already added");
+    return false;
+  }
+  descriptor.characteristic_ = this;
   // If the descriptor is the CCCD descriptor, listen to its write event to know if the client wants to be notified
-  if (descriptor->get_uuid() == ESPBTUUID::from_uint16(ESP_GATT_UUID_CHAR_CLIENT_CONFIG)) {
-    descriptor->on_write([this](std::span<const uint8_t> value, uint16_t conn_id) {
+  if (descriptor.get_uuid() == ESPBTUUID::from_uint16(ESP_GATT_UUID_CHAR_CLIENT_CONFIG)) {
+    descriptor.on_write([this](std::span<const uint8_t> value, uint16_t conn_id) {
       if (value.size() != 2)
         return;
       uint16_t cccd = encode_uint16(value[1], value[0]);
@@ -96,16 +120,18 @@ void BLECharacteristic::add_descriptor(BLEDescriptor *descriptor) {
       }
     });
   }
-  this->descriptors_.push_back(descriptor);
+  this->descriptors_.push_back(&descriptor);
+  return true;
 }
 
 void BLECharacteristic::remove_descriptor(BLEDescriptor *descriptor) {
-  this->descriptors_.erase(std::remove(this->descriptors_.begin(), this->descriptors_.end(), descriptor),
-                           this->descriptors_.end());
+  if (std::erase(this->descriptors_, descriptor) == 0)
+    return;
+  descriptor->owned_ = false;  // the caller owns it again
+  descriptor->characteristic_ = nullptr;
 }
 
-void BLECharacteristic::do_create(BLEService *service) {
-  this->service_ = service;
+void BLECharacteristic::do_create() {
   esp_attr_control_t control;
   control.auto_rsp = ESP_GATT_RSP_BY_APP;
 
@@ -116,8 +142,9 @@ void BLECharacteristic::do_create(BLEService *service) {
 #endif
 
   esp_bt_uuid_t uuid = this->uuid_.get_uuid();
-  esp_err_t err = esp_ble_gatts_add_char(service->get_handle(), &uuid, static_cast<esp_gatt_perm_t>(this->permissions_),
-                                         this->properties_, nullptr, &control);
+  esp_err_t err =
+      esp_ble_gatts_add_char(this->service_->get_handle(), &uuid, static_cast<esp_gatt_perm_t>(this->permissions_),
+                             this->properties_, nullptr, &control);
 
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_ble_gatts_add_char failed: %d", err);
@@ -188,11 +215,15 @@ void BLECharacteristic::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt
       break;
     }
     case ESP_GATTS_ADD_CHAR_EVT: {
-      if (this->uuid_ == ESPBTUUID::from_uuid(param->add_char.char_uuid)) {
+      // Only while creating, in its own service: a late event for a removed service or a same-UUID
+      // characteristic elsewhere must not set the handle or start the descriptors
+      if (this->state_ == CREATING && this->service_ != nullptr &&
+          this->service_->get_handle() == param->add_char.service_handle &&
+          this->uuid_ == ESPBTUUID::from_uuid(param->add_char.char_uuid)) {
         this->handle_ = param->add_char.attr_handle;
 
         for (auto *descriptor : this->descriptors_) {
-          descriptor->do_create(this);
+          descriptor->do_create();
         }
 
         this->state_ = CREATING_DEPENDENTS;

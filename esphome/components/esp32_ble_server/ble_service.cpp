@@ -12,8 +12,25 @@ BLEService::BLEService(ESPBTUUID uuid, uint16_t num_handles, uint8_t inst_id, bo
     : uuid_(uuid), num_handles_(num_handles), inst_id_(inst_id), advertise_(advertise) {}
 
 BLEService::~BLEService() {
-  for (auto &chr : this->characteristics_)
-    delete chr;  // NOLINT(cppcoreguidelines-owning-memory)
+  for (auto *chr : this->characteristics_) {
+    if (chr->owned_) {
+      delete chr;  // NOLINT(cppcoreguidelines-owning-memory)
+    } else if (chr->service_ == this) {
+      // A caller-owned characteristic outlives this service, and may already belong to another one
+      chr->service_ = nullptr;
+    }
+  }
+}
+
+bool BLEService::add_characteristic(BLECharacteristic &characteristic) {
+  // Bound until the parent is destroyed
+  if (characteristic.service_ != nullptr) {
+    ESP_LOGE(TAG, "Already added");
+    return false;
+  }
+  characteristic.service_ = this;
+  this->characteristics_.push_back(&characteristic);
+  return true;
 }
 
 BLECharacteristic *BLEService::get_characteristic(ESPBTUUID uuid) {
@@ -39,7 +56,8 @@ BLECharacteristic *BLEService::create_characteristic(ESPBTUUID uuid, esp_gatt_ch
                                                      esp_gatt_perm_t permissions) {
   // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
   BLECharacteristic *characteristic = new BLECharacteristic(uuid, properties, permissions);
-  this->characteristics_.push_back(characteristic);
+  characteristic->owned_ = true;
+  this->add_characteristic(*characteristic);
   return characteristic;
 }
 
@@ -69,8 +87,14 @@ void BLEService::do_delete() {
   // Call all characteristics to delete
   for (auto *characteristic : this->characteristics_)
     characteristic->do_delete();
+  // Not created on the stack yet; if a create is in flight, the server deletes it when its handle arrives
+  if (this->handle_ == 0xFFFF) {
+    this->state_ = DELETED;
+    return;
+  }
   this->stop_();
   esp_err_t err = esp_ble_gatts_delete_service(this->handle_);
+  this->handle_ = 0xFFFF;  // a later add creates it again with a new handle
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_ble_gatts_delete_service failed: %d", err);
     return;
@@ -87,7 +111,7 @@ bool BLEService::do_create_characteristics_() {
 
   auto *characteristic = this->characteristics_[this->created_characteristic_count_++];
   this->last_created_characteristic_ = characteristic;
-  characteristic->do_create(this);
+  characteristic->do_create();
   return true;
 }
 
@@ -140,7 +164,7 @@ void BLEService::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t g
                                      esp_ble_gatts_cb_param_t *param) {
   switch (event) {
     case ESP_GATTS_CREATE_EVT: {
-      if (this->uuid_ == ESPBTUUID::from_uuid(param->create.service_id.id.uuid) &&
+      if (this->state_ == CREATING && this->uuid_ == ESPBTUUID::from_uuid(param->create.service_id.id.uuid) &&
           this->inst_id_ == param->create.service_id.id.inst_id) {
         this->handle_ = param->create.service_handle;
         this->state_ = CREATED;
