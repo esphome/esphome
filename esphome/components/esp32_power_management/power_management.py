@@ -204,6 +204,7 @@ async def to_code(config: ConfigType) -> None:
             cg.add_build_flag(f"-Wl,--undefined=__wrap_{symbol}")
     if config[CONF_POWER_DOWN_PERIPHERALS]:
         add_idf_sdkconfig_option("CONFIG_PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP", True)
+        add_idf_sdkconfig_option("CONFIG_PM_LIGHT_SLEEP_CALLBACKS", True)
     if config[CONF_POWER_DOWN_FLASH]:
         add_idf_sdkconfig_option("CONFIG_ESP_SLEEP_POWER_DOWN_FLASH", True)
 
