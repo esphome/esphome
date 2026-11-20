@@ -33,9 +33,11 @@ class NumberTraits {
   // A copy reads the same range but writes to its own copy of it
   NumberTraits(const NumberTraits &other) : range_(other.range_), mode_(other.mode_) {}
   NumberTraits &operator=(const NumberTraits &other) {
-    this->range_ = other.range_;
-    this->mode_ = other.mode_;
-    this->owns_range_ = false;
+    if (this != &other) {
+      this->range_ = other.range_;
+      this->mode_ = other.mode_;
+      this->owns_range_ = false;
+    }
     return *this;
   }
 
