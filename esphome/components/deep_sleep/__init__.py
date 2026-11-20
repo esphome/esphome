@@ -397,20 +397,20 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
 
     cg.add_optional(var.set_sleep_duration, config.get(CONF_SLEEP_DURATION))
-    if (wakeup_pins := config.get(CONF_WAKEUP_PIN)) is not None:
-        if CORE.is_bk72xx:
-            cg.add(var.init_wakeup_pins(len(wakeup_pins)))
-            for item in wakeup_pins:
-                cg.add(
-                    var.add_wakeup_pin(
-                        await cg.gpio_pin_expression(item[CONF_PIN]),
-                        item.get(
-                            CONF_WAKEUP_PIN_MODE, WakeupPinMode.WAKEUP_PIN_MODE_IGNORE
-                        ),
-                    )
+    if CORE.is_bk72xx:
+        wakeup_pins = config.get(CONF_WAKEUP_PIN, [])
+        cg.add_define("DEEP_SLEEP_WAKEUP_PIN_COUNT", len(wakeup_pins))
+        for item in wakeup_pins:
+            cg.add(
+                var.add_wakeup_pin(
+                    await cg.gpio_pin_expression(item[CONF_PIN]),
+                    item.get(
+                        CONF_WAKEUP_PIN_MODE, WakeupPinMode.WAKEUP_PIN_MODE_IGNORE
+                    ),
                 )
-        else:
-            await cg.add_pin(var.set_wakeup_pin, wakeup_pins[0][CONF_PIN])
+            )
+    elif (wakeup_pins := config.get(CONF_WAKEUP_PIN)) is not None:
+        await cg.add_pin(var.set_wakeup_pin, wakeup_pins[0][CONF_PIN])
     cg.add_optional(var.set_wakeup_pin_mode, config.get(CONF_WAKEUP_PIN_MODE))
     if CONF_RUN_DURATION in config:
         run_duration_config = config[CONF_RUN_DURATION]
