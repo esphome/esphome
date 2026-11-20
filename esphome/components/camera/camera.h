@@ -18,8 +18,10 @@ enum CameraRequester : uint8_t { IDLE, API_REQUESTER, WEB_REQUESTER, RTSP_REQUES
 /// Enumeration of different pixel formats.
 enum PixelFormat : uint8_t {
   PIXEL_FORMAT_GRAYSCALE = 0,  ///< 8-bit grayscale.
-  PIXEL_FORMAT_RGB565,         ///< 16-bit RGB (5-6-5).
+  PIXEL_FORMAT_RGB565,         ///< 16-bit RGB (5-6-5), big-endian bytes.
   PIXEL_FORMAT_BGR888,         ///< RGB pixel data in 8-bit format, stored as B, G, R (1 byte each).
+  PIXEL_FORMAT_RGB888,         ///< RGB pixel data in 8-bit format, stored as R, G, B (1 byte each).
+  PIXEL_FORMAT_CBYCRY,         ///< Packed YUV 4:2:2, 4 bytes Cb, Y, Cr, Y for each 2 pixels.
 };
 
 /// Returns string name for a given PixelFormat.
@@ -31,6 +33,10 @@ inline const char *to_string(PixelFormat format) {
       return "PIXEL_FORMAT_RGB565";
     case PIXEL_FORMAT_BGR888:
       return "PIXEL_FORMAT_BGR888";
+    case PIXEL_FORMAT_RGB888:
+      return "PIXEL_FORMAT_RGB888";
+    case PIXEL_FORMAT_CBYCRY:
+      return "PIXEL_FORMAT_CBYCRY";
   }
   return "PIXEL_FORMAT_UNKNOWN";
 }
@@ -90,8 +96,10 @@ struct CameraImageSpec {
       case PIXEL_FORMAT_GRAYSCALE:
         return 1;
       case PIXEL_FORMAT_RGB565:
+      case PIXEL_FORMAT_CBYCRY:
         return 2;
       case PIXEL_FORMAT_BGR888:
+      case PIXEL_FORMAT_RGB888:
         return 3;
     }
 
