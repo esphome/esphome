@@ -22,6 +22,12 @@ static constexpr uint32_t RX_IDLE_RESET_US = 600;  // above the reset Low, or th
 static constexpr uint32_t SECTION_TIMEOUT_MS = 50;
 static constexpr uint32_t BLOCKING_WAIT_MS = 1;
 
+/// What a failed blocking read returns: bits [0, num_bits) of data set to 1.
+static void set_bits(uint8_t *data, size_t num_bits) {
+  for (size_t bit = 0; bit < num_bits; bit++)
+    data[bit / 8] |= 1u << (bit % 8);
+}
+
 Engine::Engine(Port *port, size_t mem_words, const Timing &timing)
     : port_(port),
       mem_words_(mem_words),
@@ -200,16 +206,23 @@ bool Engine::run_section_(size_t count, uint32_t idle_us) {
 
 int Engine::reset_blocking() {
   this->drain_();
+  if (this->failed_)
+    return 0;
+  // Like poll(): RX sees no edge on a line that is already Low
+  if (!this->port_->line_is_high())
+    return -1;
   this->tx_[0] = reset_symbol();
   if (!this->run_section_(1, RX_IDLE_RESET_US))
-    return -1;
+    return 0;
   const TransactionStatus status = decode_reset(this->rx_, this->rx_count_);
+  if (status == TransactionStatus::TRANSACTION_STATUS_OK)
+    return 1;
+  if (status == TransactionStatus::TRANSACTION_STATUS_BUS_LOW)
+    return -1;
   if (status == TransactionStatus::TRANSACTION_STATUS_CAPTURE_ERROR) {
     ESP_LOGW(TAG, "Reset capture is invalid");
   }
-  return status == TransactionStatus::TRANSACTION_STATUS_OK
-             ? 1
-             : (status == TransactionStatus::TRANSACTION_STATUS_NO_PRESENCE ? 0 : -1);
+  return 0;
 }
 
 bool Engine::write_blocking(const uint8_t *data, size_t num_bits) {
@@ -229,9 +242,13 @@ bool Engine::read_blocking(uint8_t *data, size_t num_bits) {
   const size_t room = max_rx_slots(this->mem_words_);
   for (size_t decoded = 0; decoded < num_bits;) {
     const size_t count = encode_read_slots(std::min(room, num_bits - decoded), this->tx_, this->timing_);
-    if (!this->run_section_(count, this->rx_idle_us_) || !this->decode_read_(count, data, decoded)) {
-      for (size_t bit = 0; bit < num_bits; bit++)
-        data[bit / 8] |= 1u << (bit % 8);
+    if (!this->run_section_(count, this->rx_idle_us_)) {
+      set_bits(data, num_bits);
+      return false;
+    }
+    if (!this->decode_read_(count, data, decoded)) {
+      ESP_LOGW(TAG, "Read capture is invalid");
+      set_bits(data, num_bits);
       return false;
     }
     decoded += count;
