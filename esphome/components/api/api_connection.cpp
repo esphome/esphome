@@ -2170,6 +2170,13 @@ bool APIConnection::send_device_capabilities_response_() {
   if (crash_report_get(report))
     resp.crash_report.flags = report.flags;
 #endif
+  // network::NetworkType is numbered to match enums::NetworkType (see network/util.h); a plain
+  // cast avoids a switch that just repeats the mapping. The asserts catch the two enums drifting.
+  static_assert(static_cast<uint32_t>(network::NetworkType::NETWORK_TYPE_NONE) == enums::NETWORK_TYPE_UNKNOWN);
+  static_assert(static_cast<uint32_t>(network::NetworkType::NETWORK_TYPE_WIFI) == enums::NETWORK_TYPE_WIFI);
+  static_assert(static_cast<uint32_t>(network::NetworkType::NETWORK_TYPE_ETHERNET) == enums::NETWORK_TYPE_ETHERNET);
+  static_assert(static_cast<uint32_t>(network::NetworkType::NETWORK_TYPE_THREAD) == enums::NETWORK_TYPE_THREAD);
+  resp.network_type = static_cast<enums::NetworkType>(network::get_network_type());
   return this->send_message(resp);
 }
 void APIConnection::on_hello_request(const HelloRequest &msg) {
