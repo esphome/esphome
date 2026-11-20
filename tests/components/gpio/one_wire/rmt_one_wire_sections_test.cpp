@@ -2,6 +2,8 @@
 
 #include <cstdint>
 #include <random>
+#include <string>
+#include <tuple>
 #include <vector>
 
 #include "../common.h"
@@ -60,26 +62,28 @@ INSTANTIATE_TEST_SUITE_P(W, RmtOneWireSections, ::testing::Values(size_t{48}, si
 
 // ---- The section table as an exact expectation ------------------------------------
 
-TEST(RmtOneWireSectionTable, ReadScratchpadW64) {
-  Rig rig(64);
-  rig.port.bus.devices.emplace_back(ROM_A, std::vector<uint8_t>{1, 2, 3, 4, 5, 6, 7, 8, 9}, 1);
-  DoneLog log;
-  Job job(&log, 1, ROM_A, {READ_SCRATCHPAD}, 9);
-  ASSERT_TRUE(rig.engine.submit(&job.t));
-  rig.pump();
-  EXPECT_EQ(rig.port.summary(), "RESET WRITE:63 WRITE:17 READ:62 READ:10");
-  ASSERT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_OK}}));
-  EXPECT_EQ(job.read_bytes, (std::vector<uint8_t>{1, 2, 3, 4, 5, 6, 7, 8, 9}));
-}
+struct SectionTableCase {
+  size_t mem_words;
+  const char *summary;
+};
 
-TEST(RmtOneWireSectionTable, ReadScratchpadW48) {
-  Rig rig(48);
+class RmtOneWireSectionTable : public ::testing::TestWithParam<SectionTableCase> {};
+
+INSTANTIATE_TEST_SUITE_P(W, RmtOneWireSectionTable,
+                         ::testing::Values(SectionTableCase{64, "RESET WRITE:63 WRITE:17 READ:62 READ:10"},
+                                           SectionTableCase{48, "RESET WRITE:47 WRITE:33 READ:46 READ:26"}),
+                         [](const ::testing::TestParamInfo<SectionTableCase> &info) {
+                           return std::to_string(info.param.mem_words);  // NOLINT
+                         });
+
+TEST_P(RmtOneWireSectionTable, ReadScratchpad) {
+  Rig rig(GetParam().mem_words);
   rig.port.bus.devices.emplace_back(ROM_A, std::vector<uint8_t>{1, 2, 3, 4, 5, 6, 7, 8, 9}, 1);
   DoneLog log;
   Job job(&log, 1, ROM_A, {READ_SCRATCHPAD}, 9);
   ASSERT_TRUE(rig.engine.submit(&job.t));
   rig.pump();
-  EXPECT_EQ(rig.port.summary(), "RESET WRITE:47 WRITE:33 READ:46 READ:26");
+  EXPECT_EQ(rig.port.summary(), GetParam().summary);
   ASSERT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_OK}}));
   EXPECT_EQ(job.read_bytes, (std::vector<uint8_t>{1, 2, 3, 4, 5, 6, 7, 8, 9}));
 }
@@ -116,32 +120,32 @@ void check_one_length(Rig &rig, std::mt19937 &rng, uint64_t address, size_t writ
 
 }  // namespace
 
-TEST_P(RmtOneWireSections, AllWriteLengthsSkipRom) {
-  Rig rig(GetParam());
-  std::mt19937 rng(11);  // NOLINT(cert-msc32-c,cert-msc51-cpp,bugprone-random-generator-seed) reproducible
-  for (size_t length = 0; length <= 255; length++)
-    check_one_length(rig, rng, 0, length, 0);
-}
+struct AllLengthsCase {
+  const char *name;
+  uint64_t address;
+  bool write;  ///< The length is write_len, otherwise read_len
+  uint32_t seed;
+};
 
-TEST_P(RmtOneWireSections, AllWriteLengthsMatchRom) {
-  Rig rig(GetParam());
-  std::mt19937 rng(12);  // NOLINT(cert-msc32-c,cert-msc51-cpp,bugprone-random-generator-seed) reproducible
-  for (size_t length = 0; length <= 255; length++)
-    check_one_length(rig, rng, ROM_A, length, 0);
-}
+class RmtOneWireAllLengths : public ::testing::TestWithParam<std::tuple<size_t, AllLengthsCase>> {};
 
-TEST_P(RmtOneWireSections, AllReadLengthsSkipRom) {
-  Rig rig(GetParam());
-  std::mt19937 rng(13);  // NOLINT(cert-msc32-c,cert-msc51-cpp,bugprone-random-generator-seed) reproducible
-  for (size_t length = 0; length <= 255; length++)
-    check_one_length(rig, rng, 0, 0, length);
-}
+INSTANTIATE_TEST_SUITE_P(W, RmtOneWireAllLengths,
+                         ::testing::Combine(::testing::Values(size_t{48}, size_t{64}),
+                                            ::testing::Values(AllLengthsCase{"WriteSkipRom", 0, true, 11},
+                                                              AllLengthsCase{"WriteMatchRom", ROM_A, true, 12},
+                                                              AllLengthsCase{"ReadSkipRom", 0, false, 13},
+                                                              AllLengthsCase{"ReadMatchRom", ROM_A, false, 14})),
+                         [](const ::testing::TestParamInfo<std::tuple<size_t, AllLengthsCase>> &info) {
+                           return std::string(std::get<1>(info.param).name) +
+                                  std::to_string(std::get<0>(info.param));  // NOLINT
+                         });
 
-TEST_P(RmtOneWireSections, AllReadLengthsMatchRom) {
-  Rig rig(GetParam());
-  std::mt19937 rng(14);  // NOLINT(cert-msc32-c,cert-msc51-cpp,bugprone-random-generator-seed) reproducible
+TEST_P(RmtOneWireAllLengths, From0To255) {
+  const auto &[mem_words, param] = GetParam();
+  Rig rig(mem_words);
+  std::mt19937 rng(param.seed);  // NOLINT(cert-msc32-c,cert-msc51-cpp,bugprone-random-generator-seed) reproducible
   for (size_t length = 0; length <= 255; length++)
-    check_one_length(rig, rng, ROM_A, 0, length);
+    check_one_length(rig, rng, param.address, param.write ? length : 0, param.write ? 0 : length);
 }
 
 TEST_P(RmtOneWireSections, WriteAndReadCombined) {
