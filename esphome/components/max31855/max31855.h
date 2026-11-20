@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/defines.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/spi/spi.h"
 
@@ -15,6 +16,10 @@ class MAX31855Sensor final : public sensor::Sensor,
   SUB_SENSOR(reference)
 
  public:
+#ifdef USE_MAX31855_LINEARIZE
+  void set_linearize(bool linearize) { this->linearize_ = linearize; }
+#endif
+
   void setup() override;
   void dump_config() override;
 
@@ -22,6 +27,13 @@ class MAX31855Sensor final : public sensor::Sensor,
 
  protected:
   void read_data_();
+
+#ifdef USE_MAX31855_LINEARIZE
+  float linearize_reading_(float t_chip, float t_ref);
+
+  bool linearize_{false};
+  bool range_warned_{false};
+#endif
 };
 
 }  // namespace esphome::max31855
