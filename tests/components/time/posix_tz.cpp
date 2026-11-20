@@ -135,6 +135,34 @@ TEST(PosixTz, DayOfWeekKnownDates) {
   EXPECT_EQ(internal::day_of_week(2026, 3, 8), 0);
 }
 
+TEST(PosixTz, DayOfWeekMatchesGmtime) {
+  // Every month start and a mid-month day, in years spread over 0 to 65535
+  for (int year = 0; year <= 65535; year += (year < 2200 ? 13 : 997)) {
+    for (int month = 1; month <= 12; month++) {
+      for (int day : {1, 17}) {
+        time_t epoch = static_cast<time_t>(internal::days_to_year_start(year)) * 86400;
+        for (int m = 1; m < month; m++)
+          epoch += static_cast<time_t>(internal::days_in_month(year, m)) * 86400;
+        epoch += static_cast<time_t>(day - 1) * 86400;
+        struct tm want{};
+        ASSERT_NE(::gmtime_r(&epoch, &want), nullptr);
+        ASSERT_EQ(want.tm_year + 1900, year);
+        ASSERT_EQ(want.tm_mon + 1, month);
+        ASSERT_EQ(want.tm_mday, day);
+        EXPECT_EQ(internal::day_of_week(year, month, day), want.tm_wday) << year << "-" << month << "-" << day;
+      }
+    }
+  }
+}
+
+TEST(PosixTz, DaysInMonthMatchesTable) {
+  static constexpr int DAYS[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+  for (int month = 1; month <= 12; month++) {
+    EXPECT_EQ(internal::days_in_month(2023, month), DAYS[month - 1]) << month;
+    EXPECT_EQ(internal::days_in_month(2024, month), DAYS[month - 1] + (month == 2)) << month;
+  }
+}
+
 TEST(PosixTz, LeapYearDetection) {
   EXPECT_FALSE(internal::is_leap_year(1900));  // Divisible by 100 but not 400
   EXPECT_TRUE(internal::is_leap_year(2000));   // Divisible by 400

@@ -15,12 +15,11 @@ int days_in_month(int year, int month);
 /// Days from the epoch (Jan 1 1970) to Jan 1 of the given year
 int32_t days_to_year_start(int year);
 
-/// Convert days since the epoch to a year, leaving the day of that year in days
-int days_to_year(int32_t &days);
+// The epoch functions take epochs within the years 0 to 65535 and do not check it; of the callers, only
+// ESPTime::from_epoch_utc() does.
 
-/// Whole days since the epoch, rounded down; secs gets the seconds into that day.
-/// The epoch must be within the years 0 to 65535, like the functions below.
-int32_t epoch_to_days(time_t epoch, int32_t &secs);
+/// Get the year of a UTC epoch
+int epoch_to_year(time_t epoch);
 
 /// Convert epoch to year/month/day/hour/min/sec (UTC)
 void epoch_to_tm_utc(time_t epoch, struct tm *out_tm);

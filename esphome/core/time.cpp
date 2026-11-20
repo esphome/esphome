@@ -11,63 +11,46 @@ namespace esphome {
 
 namespace internal {
 
-bool is_leap_year(int year) { return (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0); }
+// A year divisible by 100 is divisible by 400 exactly when it is divisible by 16
+bool is_leap_year(int year) { return (year & 3) == 0 && (year % 100 != 0 || (year & 15) == 0); }
 
-// Get days in year (avoids duplicate is_leap_year calls)
-static inline int days_in_year(int year) { return is_leap_year(year) ? 366 : 365; }
-
-// Count leap years in [1, year] (i.e. up to and including year). Shifted by 400 years (97 leap years) so the
-// divisions also round down for year 0 and the year before it, which the year search can reach
+// Count leap years in [1, year]. Shifted by 400 years (97 leap years) so it stays right for year 0, whose year
+// before is -1
 static constexpr int count_leap_years_up_to(int year) {
-  year += 400;
-  return year / 4 - year / 100 + year / 400 - 97;
+  const unsigned shifted = year + 400;
+  return static_cast<int>(shifted / 4 - shifted / 100 + shifted / 400) - 97;
 }
 
 static constexpr int EPOCH_YEAR = 1970;
 static constexpr int LEAP_YEARS_BEFORE_EPOCH = count_leap_years_up_to(EPOCH_YEAR - 1);
 static constexpr int DAYS_PER_YEAR = 365;
+static constexpr int32_t DAYS_FROM_YEAR_0 = 719528;  // 0000-01-01 to 1970-01-01
 static constexpr int SECONDS_PER_DAY = 86400;
 
-// Days from epoch (Jan 1 1970) to Jan 1 of given year — O(1)
 int32_t days_to_year_start(int year) {
   return DAYS_PER_YEAR * (year - EPOCH_YEAR) + (count_leap_years_up_to(year - 1) - LEAP_YEARS_BEFORE_EPOCH);
 }
 
-// Convert days since epoch to year, updating days to day-of-year remainder.
-// The initial estimate from days/365 can overshoot by multiple years for
-// far-future dates (e.g., year 5000+) due to accumulated leap days,
-// so we use loops rather than single-step correction.
-int days_to_year(int32_t &days) {
-  int year = EPOCH_YEAR + days / DAYS_PER_YEAR;
-  int32_t year_start = days_to_year_start(year);
-  while (days < year_start) {
+// Every year has at least 365 days, so the estimate is never early; step back to the year that holds the day.
+// Leaves the day of that year in days.
+static int days_to_year(int32_t &days) {
+  int year = static_cast<int>(static_cast<uint32_t>(days + DAYS_FROM_YEAR_0) / DAYS_PER_YEAR);
+  int32_t year_start;
+  while (days < (year_start = days_to_year_start(year)))
     year--;
-    year_start = days_to_year_start(year);
-  }
-  while (days >= year_start + days_in_year(year)) {
-    year_start += days_in_year(year);
-    year++;
-  }
   days -= year_start;
   return year;
 }
 
 int days_in_month(int year, int month) {
-  switch (month) {
-    case 2:
-      return is_leap_year(year) ? 29 : 28;
-    case 4:
-    case 6:
-    case 9:
-    case 11:
-      return 30;
-    default:
-      return 31;
-  }
+  if (month == 2)
+    return 28 + is_leap_year(year);
+  // 31 days in odd months up to July and even months from August
+  return 30 + ((month ^ (month >> 3)) & 1);
 }
 
-int32_t epoch_to_days(time_t epoch, int32_t &secs) {
-  // One 64-bit division, and the remainder from 32-bit math instead of a 64-bit modulo
+// One 64-bit division, and the remainder from 32-bit math instead of a 64-bit modulo
+static int32_t epoch_to_days(time_t epoch, int32_t &secs) {
   int32_t days = static_cast<int32_t>(epoch / SECONDS_PER_DAY);
   secs = static_cast<int32_t>(static_cast<uint32_t>(epoch) - static_cast<uint32_t>(days) * SECONDS_PER_DAY);
   if (secs < 0) {
@@ -75,6 +58,12 @@ int32_t epoch_to_days(time_t epoch, int32_t &secs) {
     secs += SECONDS_PER_DAY;
   }
   return days;
+}
+
+int epoch_to_year(time_t epoch) {
+  int32_t secs;
+  int32_t days = epoch_to_days(epoch, secs);
+  return days_to_year(days);
 }
 
 void epoch_to_tm_utc(time_t epoch, struct tm *out_tm) {
@@ -389,14 +378,12 @@ void ESPTime::increment_day() {
 }
 
 void ESPTime::recalc_timestamp_utc(bool use_day_of_year) {
-  time_t res = 0;
   if (!this->fields_in_range(false, use_day_of_year)) {
     this->timestamp = -1;
     return;
   }
 
-  for (int i = 1970; i < this->year; i++)
-    res += days_in_year(i);
+  time_t res = internal::days_to_year_start(this->year);
 
   if (use_day_of_year) {
     res += this->day_of_year - 1;

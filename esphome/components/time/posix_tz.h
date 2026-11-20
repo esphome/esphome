@@ -79,16 +79,14 @@ void julian_to_month_day(int julian_day, int &month, int &day);
 /// @param[out] day Output: day of month
 void day_of_year_to_month_day(int day_of_year, int year, int &month, int &day);
 
-/// Calculate day of week for any date (0 = Sunday)
-/// Uses a simplified algorithm that works for years 1970-2099
+/// Calculate day of week for any date in the years 0 to 65535 (0 = Sunday)
 int day_of_week(int year, int month, int day);
 
 // The UTC calendar math lives in core (esphome/core/time_utc.h)
 using esphome::internal::days_in_month;
-using esphome::internal::days_to_year;
 using esphome::internal::days_to_year_start;
-using esphome::internal::epoch_to_days;
 using esphome::internal::epoch_to_tm_utc;
+using esphome::internal::epoch_to_year;
 using esphome::internal::is_leap_year;
 
 /// Calculate the epoch timestamp for a DST transition in a given year.

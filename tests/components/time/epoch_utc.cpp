@@ -41,16 +41,16 @@ TEST(EpochUtc, MatchesGmtimeAtBoundaries) {
 
 TEST(EpochUtc, MatchesGmtimeAcrossCenturies) {
   // An odd step (about 9.7 days plus some seconds) lands on every weekday, month and time of day
-  constexpr time_t STEP = 837'461;
-  for (time_t epoch = -2'208'988'800; epoch < 7'258'118'400; epoch += STEP) {  // 1900 to 2200
+  constexpr time_t step = 837'461;
+  for (time_t epoch = -2'208'988'800; epoch < 7'258'118'400; epoch += step) {  // 1900 to 2200
     expect_matches_gmtime(epoch);
   }
 }
 
 TEST(EpochUtc, MatchesGmtimeAcrossAllYears) {
   // About 246 years and some seconds per step, through every 400-year era from year 0 to 65535
-  constexpr time_t STEP = 7'777'777'777;
-  for (time_t epoch = -62'167'219'200; epoch < 2'005'949'145'600; epoch += STEP) {
+  constexpr time_t step = 7'777'777'777;
+  for (time_t epoch = -62'167'219'200; epoch < 2'005'949'145'600; epoch += step) {
     expect_matches_gmtime(epoch);
   }
 }
@@ -59,6 +59,19 @@ TEST(EpochUtc, Years0To65535Convert) {
   expect_matches_gmtime(static_cast<time_t>(-62167219200));   // 0000-01-01 00:00:00
   expect_matches_gmtime(static_cast<time_t>(-62135596800));   // 0001-01-01 00:00:00
   expect_matches_gmtime(static_cast<time_t>(2005949145599));  // 65535-12-31 23:59:59
+}
+
+TEST(EpochUtc, RecalcTimestampRoundTrips) {
+  // Both ways of naming the day, including dates before 1970
+  constexpr time_t step = 837'461;
+  for (time_t epoch = -2'208'988'800; epoch < 7'258'118'400; epoch += step) {
+    ESPTime by_day_of_year = ESPTime::from_epoch_utc(epoch);
+    by_day_of_year.recalc_timestamp_utc(true);
+    EXPECT_EQ(by_day_of_year.timestamp, epoch);
+    ESPTime by_month = ESPTime::from_epoch_utc(epoch);
+    by_month.recalc_timestamp_utc(false);
+    EXPECT_EQ(by_month.timestamp, epoch);
+  }
 }
 
 TEST(EpochUtc, EpochsOutsideSixteenBitYearsAreInvalid) {

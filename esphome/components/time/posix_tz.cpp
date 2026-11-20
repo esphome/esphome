@@ -19,27 +19,6 @@ namespace internal {
 
 static constexpr int SECONDS_PER_DAY = 86400;
 
-// Extract just the year from a UTC epoch — O(1)
-static int epoch_to_year(time_t epoch) {
-  int32_t secs;
-  int32_t days = epoch_to_days(epoch, secs);
-  return days_to_year(days);
-}
-
-// Zeller-like algorithm for day of week (0 = Sunday)
-int __attribute__((noinline)) day_of_week(int year, int month, int day) {
-  // Adjust for January/February
-  if (month < 3) {
-    month += 12;
-    year--;
-  }
-  int k = year % 100;
-  int j = year / 100;
-  int h = (day + (13 * (month + 1)) / 5 + k + k / 4 + j / 4 - 2 * j) % 7;
-  // Convert from Zeller (0=Sat) to standard (0=Sun)
-  return ((h + 6) % 7);
-}
-
 void __attribute__((noinline)) julian_to_month_day(int julian_day, int &out_month, int &out_day) {
   // J format: day 1-365, Feb 29 is NOT counted even in leap years
   // So day 60 is always March 1
@@ -87,6 +66,12 @@ static int __attribute__((noinline)) days_from_year_start(int year, int month, i
     days += days_in_month(year, m);
   }
   return days;
+}
+
+// Day of week (0 = Sunday); Jan 1, 1970 was a Thursday
+int __attribute__((noinline)) day_of_week(int year, int month, int day) {
+  int wday = (days_to_year_start(year) + days_from_year_start(year, month, day) + 4) % 7;
+  return wday < 0 ? wday + 7 : wday;
 }
 
 time_t __attribute__((noinline)) calculate_dst_transition(int year, const DSTRule &rule, int32_t base_offset_seconds) {
