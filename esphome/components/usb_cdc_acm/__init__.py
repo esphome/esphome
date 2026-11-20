@@ -10,6 +10,8 @@ from esphome.components.esp32 import (
     VARIANT_ESP32S31,
     add_idf_sdkconfig_option,
 )
+from esphome.components.nrf52.const import VARIANTS_WITHOUT_USB
+from esphome.components.nrf52.framework import get_nrf52_variant
 from esphome.components.uart import debug_to_code, maybe_empty_debug, uart_ns
 from esphome.components.zephyr import (
     zephyr_add_prj_conf,
@@ -70,6 +72,12 @@ def _validate_any_interface_enabled(config: ConfigType) -> ConfigType:
     return config
 
 
+def _validate_nrf52_has_usb(config: ConfigType) -> ConfigType:
+    if (variant := get_nrf52_variant()) in VARIANTS_WITHOUT_USB:
+        raise cv.Invalid(f"{DOMAIN} needs USB, which the {variant} does not have")
+    return config
+
+
 # Main component schema
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
@@ -89,7 +97,7 @@ CONFIG_SCHEMA = cv.All(
     ).extend(cv.COMPONENT_SCHEMA),
     _validate_any_interface_enabled,
     cv.Any(
-        cv.only_on_nrf52,
+        cv.All(cv.only_on_nrf52, _validate_nrf52_has_usb),
         cv.All(
             cv.only_on_esp32,
             esp32.only_on_variant(
