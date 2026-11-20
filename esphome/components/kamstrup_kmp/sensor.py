@@ -24,6 +24,8 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
+from . import add_custom_sensor
+
 CODEOWNERS = ["@cfeenstra1024"]
 DEPENDENCIES = ["uart"]
 
@@ -134,4 +136,4 @@ async def to_code(config: ConfigType) -> None:
     if CONF_CUSTOM in config:
         for conf in config[CONF_CUSTOM]:
             sens = await sensor.new_sensor(conf)
-            cg.add(var.add_custom_sensor(sens, conf[CONF_COMMAND]))
+            cg.add(add_custom_sensor(var, sens, conf[CONF_COMMAND]))
