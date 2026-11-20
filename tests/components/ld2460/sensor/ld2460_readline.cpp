@@ -54,9 +54,8 @@ TEST_F(LD2460ReadlineTest, FooterBytesInsideGarbage) {
   EXPECT_FLOAT_EQ(this->count_.state, 1);
 }
 
-TEST_F(LD2460ReadlineTest, OverflowThenValidFrame) {
-  this->ld2460_.feed(std::vector<uint8_t>(MAX_LINE_LENGTH + 8, 0x11));
-  // The frame right after the overflow lands behind leftover bytes; the header resync skips them
+TEST_F(LD2460ReadlineTest, NoiseThenValidFrame) {
+  this->ld2460_.feed(std::vector<uint8_t>(MAX_FRAME_LENGTH + 8, 0x11));
   this->ld2460_.feed(make_periodic_frame());
   EXPECT_FLOAT_EQ(this->count_.state, 1);
   EXPECT_NEAR(this->x_[0].state, 1.5f, 0.001f);
@@ -154,6 +153,22 @@ TEST_F(LD2460ReadlineTest, HeaderBytesInsidePayload) {
   EXPECT_NEAR(this->y_[0].state, -359.8f, 0.01f);
 }
 
+TEST_F(LD2460ReadlineTest, FooterBytesInsidePayload) {
+  // The target bytes F8 F7 F6 F5 repeat the data footer; the length field still ends the frame
+  this->ld2460_.feed(make_periodic_frame({{static_cast<int16_t>(0xF7F8), static_cast<int16_t>(0xF5F6)}, {10, 20}}));
+  EXPECT_FLOAT_EQ(this->count_.state, 2);
+  EXPECT_NEAR(this->x_[1].state, 1.0f, 0.001f);
+}
+
+TEST_F(LD2460ReadlineTest, LengthTooLongFrameInside) {
+  // A header whose length runs past the next frame; that frame is found inside it
+  this->ld2460_.feed({0xFD, 0xFC, 0xFB, 0xFA, 0x0A, 0x1F, 0x00});
+  this->ld2460_.feed(make_ack_frame(2));
+  this->ld2460_.feed(make_periodic_frame());
+  EXPECT_FLOAT_EQ(this->count_.state, 1);
+  EXPECT_NEAR(this->angle_[0].state, 56.89f, 0.05f);
+}
+
 TEST_F(LD2460ReadlineTest, PartialTargetRejected) {
   // 13 bytes of payload is not a whole number of 4-byte targets
   std::vector<uint8_t> frame = {0xF4, 0xF3, 0xF2, 0xF1, 0x04, 0x0D, 0x00, 0x0F, 0x00, 0xF8, 0xF7, 0xF6, 0xF5};
@@ -217,6 +232,19 @@ TEST_F(LD2460ReadlineTest, HeaderLikeGarbageThenMaxTargets) {
   this->ld2460_.feed(garbage);
   this->ld2460_.feed(make_periodic_frame({{11, 12}, {3, 4}, {5, 6}, {7, 8}, {9, 10}}));
   EXPECT_NEAR(this->x_[0].state, 1.1f, 0.001f);
+}
+
+TEST_F(LD2460ReadlineTest, AckBehindCorruptLengthIsHandledAfterSilence) {
+  // A command header claiming 31 bytes, then a whole installation mode ACK, then nothing
+  std::vector<uint8_t> bytes{0xFD, 0xFC, 0xFB, 0xFA, 0x0A, 0x1F, 0x00};
+  const auto ack = make_ack_frame(2);
+  bytes.insert(bytes.end(), ack.begin(), ack.end());
+  auto &rx = this->mock_uart_.rx;
+  rx.insert(rx.end(), bytes.begin(), bytes.end());
+  this->ld2460_.loop_at(1000);
+  EXPECT_EQ(this->ld2460_.installation_mode(), InstallationMode::INSTALLATION_MODE_SIDE);
+  this->ld2460_.loop_at(1000 + 250);
+  EXPECT_EQ(this->ld2460_.installation_mode(), InstallationMode::INSTALLATION_MODE_TOP);
 }
 
 }  // namespace esphome::ld2460::testing
