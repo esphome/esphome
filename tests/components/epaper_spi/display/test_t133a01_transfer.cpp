@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 
+#include <array>
+
 #include "../common.h"
 #include "esphome/components/epaper_spi/epaper_spi_t133a01.h"
 
@@ -18,6 +20,10 @@ class TestableT133A01 : public EPaperT133A01 {
   }
 
   using EPaperT133A01::transfer_data;
+  using EPaperT133A01::reset_bounds_;
+
+  /// Dirty bounds as {x_low, y_low, x_high, y_high}.
+  std::array<uint16_t, 4> bounds() const { return {this->x_low_, this->y_low_, this->x_high_, this->y_high_}; }
 
   RecordingPin dc, cs, cs1;
 };
@@ -72,6 +78,24 @@ TEST(EPaperT133A01, TransferReportsDoneOnlyAfterReleasingTheBus) {
   EXPECT_TRUE(display.cs1.level) << "transfer reported done with CS1 still asserted";
   EXPECT_EQ(delegate.begin_count, delegate.end_count)
       << "transfer reported done with an SPI transaction still open -- the next enable() would deadlock";
+}
+
+/// A fill-only frame after an update (bounds reset, as the UPDATE state leaves them) must mark the whole
+/// canvas dirty, or the update is skipped. A clipped fill marks only the clipped area.
+TEST(EPaperT133A01, FillMarksTheFilledAreaDirty) {
+  TestableT133A01 display(8, 2);
+  TimedSPIDelegate delegate(0);
+  display.install(&delegate);
+
+  display.reset_bounds_();
+  display.fill(Color::BLACK);
+  EXPECT_EQ(display.bounds(), (std::array<uint16_t, 4>{0, 0, 8, 2}));
+
+  display.reset_bounds_();
+  display.start_clipping(Rect(2, 0, 2, 1));
+  display.fill(Color::WHITE);
+  display.end_clipping();
+  EXPECT_EQ(display.bounds(), (std::array<uint16_t, 4>{2, 0, 4, 1}));
 }
 
 }  // namespace esphome::epaper_spi::testing

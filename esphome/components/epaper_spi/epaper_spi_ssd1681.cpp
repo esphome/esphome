@@ -38,10 +38,7 @@ bool HOT EPaperSSD1681::transfer_data() {
   if (this->current_data_index_ == 0 && this->send_red_) {
     // Both banks always get the whole frame: the RAM ping-pong the panel's OTP enables swaps the bank each
     // command writes after every refresh, so a bank that is only partly written keeps an image from two frames ago
-    this->x_low_ = 0;
-    this->x_high_ = this->width_;
-    this->y_low_ = 0;
-    this->y_high_ = this->height_;
+    this->set_full_bounds_();
     // Without the previous frame there is nothing to compare against, so refresh the whole panel
     if (this->partial_ && !this->sent_valid_)
       this->partial_ = false;
