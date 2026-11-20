@@ -96,7 +96,7 @@ async def main() -> None:
         log("PHASE formats")
         for f in FORMATS:
             await play_full(f)
-            await asyncio.sleep(1)
+            await asyncio.sleep(3)  # plat.py needs two idle probes
     if PHASE in ("all", "switch"):
         log("PHASE switch")
         for f in SWITCH:  # change the stream mid play, no stop
@@ -125,7 +125,7 @@ async def main() -> None:
         log("PHASE leak")
         for i in range(20):
             await play_full(LEAK[i % len(LEAK)])
-            await asyncio.sleep(1)
+            await asyncio.sleep(3)
         await asyncio.sleep(5)
     log("DONE")
     await c.disconnect()

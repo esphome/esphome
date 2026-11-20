@@ -108,8 +108,13 @@ inline void decode(const char *label, size_t words, size_t expect_bits) {
     lo[pulses] = run;
     pulses++;
   }  // last pulse ends in the trailing low
-  // fixed 500 ns split: a frame of all 0 or all 1 bits has no spread to take a midpoint from
-  float thr = 500.0f / ns_per_sample;
+  uint16_t hmin = 0xFFFF, hmax = 0;
+  for (size_t i = 0; i < pulses; i++) {
+    hmin = std::min(hmin, hi[i]);
+    hmax = std::max(hmax, hi[i]);
+  }
+  // midpoint when both classes are present; an all 0 or all 1 frame has no spread, so split it at 500 ns
+  float thr = (hmax - hmin) * ns_per_sample > 150.0f ? (hmin + hmax) / 2.0f : 500.0f / ns_per_sample;
   // per-class average high and low (low of the last bit is the reset gap, skip it)
   double h[2] = {0, 0}, l[2] = {0, 0};
   unsigned nh[2] = {0, 0}, nl[2] = {0, 0};

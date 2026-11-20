@@ -93,7 +93,7 @@ for (rule, rnd, name, strip), ((lb, px, mb), e) in out.items():
         if any(vis) and int(e[i * n : (i + 1) * n], 16) == 0:
             dark.append((rule, name, strip, i))
     if rule == "base" and rnd == "1":
-        p = out.get(("pr", rnd, name, strip))
+        p = out.get(("pr", rnd, name, strip), (None, "MISSING"))
         print(
             f"ROW {name:22s} {strip:8s} lb={lb:3d} px1={''.join(f'{x:02x}' for x in px[1])} base {e} pr {p[1]}"
             + ("  DIFF" if p[1] != e else "")

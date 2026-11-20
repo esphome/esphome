@@ -77,8 +77,8 @@ rounds of every case.
 - RGB-only lights carry white at 100% in `LightColorValues` (the default `white_`), so `color_from_light_color_values`
   passes W=255 to an RGB strip; any per-pixel rule over four channels must ignore it.
 - Call `out->update_state(state)` before probing so the frame uses the correction just set.
-- `pioscope.hpp` splits bits at a fixed 500 ns (WS2812/SK6812 bit 0 about 350 ns, bit 1 660 to 800 ns); a midpoint of
-  the shortest and longest pulse decodes an all-zero or all-ones frame as noise.
+- `pioscope.hpp` splits bits at the midpoint of the shortest and longest high pulse, or at 500 ns when they differ by
+  150 ns or less (an all-zero or all-ones frame, which a midpoint decodes as noise).
 - About 1 in 600 captures has a single 1 bit read as 0; judge a case by its other captures.
 - Eight PIO strips is the limit here: `rp2040_pio_led_strip` takes PIO 0 or 1 only and PIO2 holds the probe.
 - A partition takes its traits from its first segment. Before #22868, a partition whose first segment is RGB lit a
@@ -86,7 +86,7 @@ rounds of every case.
 
 ## RMT power management lock and light sleep (#22631)
 
-Config: the issue's config plus Wi-Fi, API, OTA, `logger: baud_rate: 0` (the native USB console holds a light sleep
+Config: the issue's config with `profiling: true` under `esp32_power_management` (the lock and mode times need it), plus Wi-Fi, API, OTA, `logger: baud_rate: 0` (the native USB console holds a light sleep
 lock otherwise, see `reference/boards.md`) and an interval that writes `esp_pm_dump_locks()` into an `fmemopen`
 buffer and logs it line by line, so the lock table arrives over the API. An API driver walks idle, red, six changes
 2 s apart, rainbow, effect None and off (65 s each), then soaks to 16 min, logging everything with host timestamps;

@@ -21,7 +21,7 @@ print("errors [E]:", count(r"\]\[E\]"), " warnings [W]:", count(r"\]\[W\]"))
 for line in cap:
     if re.search(r"\]\[[EW]\]", line) and "took a long time" not in line:
         print("  ", line[:170])
-print("crash/reboot:", count(r"Guru|abort\(\)|Backtrace|rst:0x|Rebooting|ESP-ROM"))
+print("crashes:", count(r"Guru|abort\(\)|Backtrace"), " boots:", count(r"rst:0x"))
 print("decoded info lines:", count(r"Decoded audio has"))
 probes = [line for line in cap if "[probe" in line]
 print("probes:", len(probes))
