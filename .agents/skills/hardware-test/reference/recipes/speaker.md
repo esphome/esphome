@@ -60,3 +60,17 @@ when the player fails or hangs for 30 s.
   and pre-phrase peaks it prints (a run without it prints them and fails), somewhere between room noise and the
   marker's peak. A trial whose phrase peak is under twice `LOUD_LEVEL` fails as too quiet to judge. A steady 1 kHz
   beep never reaches the PE stream (the XMOS processing removes it), so the marker has to be speech.
+
+## FLAC stream changes without a DAC (#22878)
+
+`scripts/flac_stream_changes/`: `flac-dut.yaml` is a Waveshare ESP32-S3-ETH `speaker` media player (resampler, mixer
+and `i2s_audio` on spare pins GPIO16/17/43 with no DAC attached, Ethernet only) with frame counters on both resampler
+speakers and a 1 s heap probe line. No DAC or speaker is needed: the counters show what was played. `run.py HOST
+BASEURL LABEL [formats|switch|leak]` (API_KEY in the env) plays each format to the end, sends 12 URL changes mid play,
+6 stop and play rounds, 5 announcements over music and 20 full plays; serve the FLAC files it names with any HTTP
+server. `an.py CAPTURE` counts errors and crashes and summarises the heap, `plat.py CAPTURE` prints the frame deltas
+between idle periods.
+
+- The 20 full plays plus the last play of the switch phase sum to an exact frame count for a given file set, so two
+  builds compare exactly.
+- The speaker media player rejects 24-bit audio on dev (16-bit only).

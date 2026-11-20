@@ -92,8 +92,11 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
   and the nested `LwIPLock` in `setsockopt(TCP_NODELAY)` releases the core lock it did not take, so `udp_recv`
   asserts. No crash with IPv6 off, with no log subscriber (a connected client that does not subscribe is fine), or
   on RMII Ethernet. Reading the crash record afterwards: `recipes/crash_report.md`.
-- `usb_serial_jtag` holds a `NO_LIGHT_SLEEP` power lock by itself, so a light sleep soak on a native USB board logs
-  to UART0 instead (see `recipes/light_sleep_gpio_wake.md`).
+- `usb_serial_jtag` holds a `NO_LIGHT_SLEEP` power lock the whole time the board is plugged into a host (seen on
+  the S3 and C6, #22631). Logging on UART0 does not help: logger adds the USB JTAG console as a secondary console
+  whenever serial logging is on. Only `logger: baud_rate: 0` (logs over the API) lets the chip light sleep (see also
+  `recipes/light_sleep_gpio_wake.md`). A light sleeping C6 does not answer the esptool USB reset ("No serial data
+  received"): flash it by OTA.
 - The Waveshare ESP32-P4-WIFI6 needs `engineering_sample: true`. Its Wi-Fi is an ESP32-C6 over SDIO through
   `esp32_hosted`; a test with no network logs over UART0 to the CH343 console.
 - ESP32-S3: GPIO43/44 cannot be used to cross-wire two UARTs: the UART0 IOMUX TX is lost when another UART takes the
@@ -489,6 +492,13 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
 - BME688 parallel mode never reads in `bme68x_bsec2` on dev: the read timer is re-armed by each 30 ms run before
   its 41.6 ms delay ends. Entering parallel mode at all needs gas estimates subscribed at `BSEC_SAMPLE_RATE_SCAN`
   and no IAQ outputs.
+
+## Espressif ESP32-S3-BOX-3
+
+- ESP32-S3 with 16 MB flash and octal PSRAM, a 2.4" 320x240 LCD (ILI9342C class) with capacitive touch, an ES8311
+  speaker codec and an ES7210 microphone ADC; native USB JTAG serial (`303a:1001`). Good for speaker, media player,
+  sendspin, voice and display tests. Take the pin maps from the ESPHome S3-BOX-3 example configs
+  (esphome/wake-word-voice-assistants) and confirm them before relying on them.
 
 ## mDNS responder tests (#22267)
 
