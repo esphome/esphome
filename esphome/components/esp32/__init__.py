@@ -866,9 +866,12 @@ def _is_idf_sdkconfig_option_not_disabled(name: str) -> bool:
     return value is None or _format_sdkconfig_val(value) == "y"
 
 
-def _trim_unused_idf_features() -> None:
+@coroutine_with_priority(CoroPriority.FINAL)
+async def _reconcile_unused_idf_features() -> None:
     """Default off ESP-IDF features nothing in ESPHome uses; user
-    sdkconfig_options win. Arduino's libraries are prebuilt, so it is skipped."""
+    sdkconfig_options win. Runs at FINAL priority so a component that turns on
+    ARIA or Camellia is seen first. Arduino's libraries are prebuilt, so it is
+    skipped."""
     if CORE.using_arduino:
         return
     # ESPHome's access point is open or WPA2, never WPA3 SAE.
@@ -3853,6 +3856,7 @@ async def to_code(config):
     mbedtls.disable_peer_cert = advanced[CONF_DISABLE_MBEDTLS_PEER_CERT]
     mbedtls.disable_pkcs7 = advanced[CONF_DISABLE_MBEDTLS_PKCS7]
     CORE.add_job(_reconcile_mbedtls_sdkconfig)
+    CORE.add_job(_reconcile_unused_idf_features)
 
     # FINAL: require_*() calls can come from to_code at or below this priority, so an
     # inline read would be iteration-order-dependent; reconcile once after every job ran.
@@ -3881,7 +3885,6 @@ async def to_code(config):
 
     for name, value in conf[CONF_SDKCONFIG_OPTIONS].items():
         add_idf_sdkconfig_option(name, RawSdkconfigValue(value))
-    _trim_unused_idf_features()
     # A bundle forced on through sdkconfig_options is a request like any other,
     # so it still gets the CMN variant pinned.
     if conf[CONF_SDKCONFIG_OPTIONS].get("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE") == "y":

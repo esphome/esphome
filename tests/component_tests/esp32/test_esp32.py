@@ -32,8 +32,8 @@ from esphome.components.esp32 import (
     _ota_downgrade_protection_errors,
     _reconcile_mbedtls_sdkconfig,
     _reconcile_network_sdkconfig,
+    _reconcile_unused_idf_features,
     _reconcile_vfs_fatfs_sdkconfig,
-    _trim_unused_idf_features,
     _user_sdkconfig_wants_tls,
     allow_insecure_tls,
     idf_version,
@@ -3080,7 +3080,7 @@ _UNUSED_IDF_FEATURES_OFF = {
         ),
     ],
 )
-def test_trim_unused_idf_features(
+def test_reconcile_unused_idf_features(
     set_core_config: SetCoreConfigCallable,
     framework: PlatformFramework,
     preset: dict[str, Any],
@@ -3090,6 +3090,6 @@ def test_trim_unused_idf_features(
     set_core_config(framework)
     CORE.data[KEY_ESP32] = {KEY_SDKCONFIG_OPTIONS: dict(preset)}
 
-    _trim_unused_idf_features()
+    asyncio.run(_reconcile_unused_idf_features())
 
     assert CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS] == expected
