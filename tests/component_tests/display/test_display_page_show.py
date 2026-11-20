@@ -45,12 +45,11 @@ def test_page_show_lambda_page(main_cpp: str) -> None:
 
 
 def test_page_show_callback_automation_is_direct(main_cpp: str) -> None:
-    """A button press calls the generated function, with no Automation object."""
+    """A button press registers the generated function, with no Automation object."""
     assert (
-        "show_page_button->add_on_press_callback([]() -> void {\n"
-        "    esphome__applyaction_id__fn();\n"
-        "});"
-    ) in main_cpp
+        "show_page_button->add_on_press_callback(esphome__applyaction_id__fn);"
+        in main_cpp
+    )
     assert "Automation<>" not in main_cpp
 
 
