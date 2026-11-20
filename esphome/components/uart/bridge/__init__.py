@@ -1,0 +1,53 @@
+import esphome.codegen as cg
+from esphome.components import uart
+from esphome.components.bridge import DOMAIN as BRIDGE_DOMAIN
+import esphome.config_validation as cv
+from esphome.const import CONF_ID, CONF_UART_ID
+from esphome.types import ConfigType
+
+from .. import _settings_source, uart_ns
+
+CODEOWNERS = ["@Bascht74"]
+DEPENDENCIES = ["uart"]
+
+CONF_PEER_ID = "peer_id"
+
+UARTBridge = uart_ns.class_("UARTBridge", cg.Component)
+
+CONFIG_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.declare_id(UARTBridge),
+        cv.Required(CONF_UART_ID): cv.use_id(uart.UARTComponent),
+        cv.Required(CONF_PEER_ID): cv.use_id(uart.UARTComponent),
+    }
+).extend(cv.COMPONENT_SCHEMA)
+
+
+def _final_validate(config: ConfigType) -> None:
+    if str(config[CONF_UART_ID]) == str(config[CONF_PEER_ID]):
+        raise cv.Invalid("The two ends are the same UART.", [CONF_PEER_ID])
+    for key in (CONF_UART_ID, CONF_PEER_ID):
+        uart.claim_exclusive(config, BRIDGE_DOMAIN, key)
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
+
+
+async def to_code(config: ConfigType) -> None:
+    a_id, a = await cg.get_variable_with_full_id(config[CONF_UART_ID])
+    b_id, b = await cg.get_variable_with_full_id(config[CONF_PEER_ID])
+    var = cg.new_Pvariable(config[CONF_ID], a, b)
+    await cg.register_component(var, config)
+    # A virtual end is not polled, except one passing on another UART's bytes as they
+    # come (uart.inherit_settings()), so pieces within a frame gap leave as one frame.
+    # A polled end is a line unless marked unclocked; a copy takes that UART's mark.
+    a_source = _settings_source(a_id)
+    if a_source is None and a_id.type.inherits_from(uart.VirtualUARTComponent):
+        cg.add(var.set_virtual_a(a))
+    elif not uart.is_unclocked(a_source or a_id):
+        cg.add(var.set_wire_a())
+    b_source = _settings_source(b_id)
+    if b_source is None and b_id.type.inherits_from(uart.VirtualUARTComponent):
+        cg.add(var.set_virtual_b(b))
+    elif not uart.is_unclocked(b_source or b_id):
+        cg.add(var.set_wire_b())

@@ -29,6 +29,16 @@ uart:
     tx_pin: 15
     rx_pin: 13
     baud_rate: 9600
+  - id: uart_bridge_peer
+    tx_pin: 0
+    rx_pin: 2
+    baud_rate: 19200
+
+bridge:
+  - platform: uart
+    id: uart_bridge
+    uart_id: uart_debug
+    peer_id: uart_bridge_peer
 
 switch:
   - platform: uart
