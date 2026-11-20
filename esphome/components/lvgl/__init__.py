@@ -50,7 +50,7 @@ from esphome.const import (
 from esphome.core import CORE, ID, Lambda
 from esphome.cpp_generator import MockObj
 from esphome.final_validate import full_config
-from esphome.helpers import write_file_if_changed
+from esphome.helpers import path_define_flag, write_file_if_changed
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
 from esphome.writer import clean_build
@@ -338,16 +338,6 @@ def final_validation(config_list):
     validate_menu_pages(global_config)
 
 
-def lv_conf_path_flag(lv_conf_h_file: Path) -> str:
-    """The ``-DLV_CONF_PATH`` build flag, decoded identically by the shell
-    lexers of every build (ESP-IDF and Zephyr then quote each token for
-    CMake)."""
-    # forward slashes for Windows, then escape what shlex would not pass
-    # through literally
-    path = re.sub(r"[^\w/.:+=,-]", r"\\\g<0>", Path(lv_conf_h_file).as_posix())
-    return f'-DLV_CONF_PATH=\\"{path}\\"'
-
-
 async def to_code(configs):
     config_0 = configs[0]
     # Global configuration
@@ -582,7 +572,7 @@ async def to_code(configs):
     if write_file_if_changed(lv_conf_h_file, generate_lv_conf_h()):
         clean_build(clear_pio_cache=False)
     cg.add_build_flag("-DLV_CONF_H=1")
-    cg.add_build_flag(lv_conf_path_flag(lv_conf_h_file))
+    cg.add_build_flag(path_define_flag("LV_CONF_PATH", lv_conf_h_file))
     cg.add_build_flag("-DLV_KCONFIG_IGNORE")
 
     for prop in df.get_remapped_uses():
