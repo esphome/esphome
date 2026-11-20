@@ -1,6 +1,3 @@
-from collections.abc import Callable
-from dataclasses import dataclass, field
-
 from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -94,12 +91,11 @@ from esphome.core.entity_helpers import (
     setup_entity,
     setup_unit_of_measurement,
 )
-from esphome.cpp_generator import MockObj, MockObjClass, ProgmemAssignmentExpression
+from esphome.cpp_generator import FloatLiteral, IntLiteral, MockObj, MockObjClass
 from esphome.types import ConfigType, SafeExpType
 
 CODEOWNERS = ["@esphome/core"]
 DOMAIN = "number"
-CONF_RANGE_ID = "range_id"
 
 DEVICE_CLASSES = [
     DEVICE_CLASS_ABSOLUTE_HUMIDITY,
@@ -206,7 +202,6 @@ _NUMBER_SCHEMA = (
             cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(
                 mqtt_component_class("MQTTNumberComponent")
             ),
-            cv.GenerateID(CONF_RANGE_ID): cv.declare_id(NumberRange),
             cv.Optional(CONF_ON_VALUE): automation.validate_automation({}),
             cv.Optional(CONF_ON_VALUE_RANGE): automation.validate_automation(
                 {
@@ -274,74 +269,45 @@ async def _build_number_automations(var, config):
         await automation.build_automation(trigger, [(float, "x")], conf)
 
 
-# A shared table only pays for set_range() and the table itself once this many numbers use it.
-RANGE_TABLE_MIN_USERS = 3
-
-
-@dataclass
-class NumberData:
-    # (min, max, step) -> range_id of every number using it; the first one names the table.
-    ranges: dict[tuple[float, float, float], list[ID]] = field(default_factory=dict)
-
-
-def _get_data() -> NumberData:
-    if DOMAIN not in CORE.data:
-        CORE.data[DOMAIN] = NumberData()
-    return CORE.data[DOMAIN]
-
-
-@dataclass(slots=True)
-class _RenderTimeStatement(cg.Statement):
-    """Text chosen when main.cpp is written, after every number has been counted."""
-
-    render: Callable[[], str]
-
-    def __str__(self) -> str:
-        return self.render()
+def _literal(value: SafeExpType) -> SafeExpType:
+    # lvgl passes constant bounds as literal expressions
+    if isinstance(value, (IntLiteral, FloatLiteral)):
+        return value.i if isinstance(value, IntLiteral) else value.f
+    return value
 
 
 def _add_range(
     var: MockObj,
-    range_id: ID,
     min_value: SafeExpType,
     max_value: SafeExpType,
     step: SafeExpType,
 ) -> None:
-    setters = (
-        var.traits.set_min_value(min_value),
-        var.traits.set_max_value(max_value),
-        var.traits.set_step(step),
-    )
+    bounds = [_literal(v) for v in (min_value, max_value, step)]
     # Lambda bounds (e.g. lvgl arc/bar) are runtime expressions and can't go in a table.
-    if not all(isinstance(v, (int, float)) for v in (min_value, max_value, step)):
-        for expr in setters:
-            cg.add(expr)
+    if not all(isinstance(v, (int, float)) for v in bounds):
+        cg.add(var.traits.set_min_value(min_value))
+        cg.add(var.traits.set_max_value(max_value))
+        cg.add(var.traits.set_step(step))
         return
-    key = (float(min_value), float(max_value), float(step))
-    users = _get_data().ranges.setdefault(key, [])
-    users.append(range_id)
-    table = users[0]
-
-    def render_table() -> str:
-        if len(users) < RANGE_TABLE_MIN_USERS:
-            return ""
-        return f"{ProgmemAssignmentExpression(NumberRange, table, cg.safe_exp([key]))};"
-
-    def render_call() -> str:
-        if len(users) < RANGE_TABLE_MIN_USERS:
-            return "\n".join(str(cg.statement(expr)) for expr in setters)
-        return str(cg.statement(var.set_range(MockObj(table, "."))))
-
-    if len(users) == 1:
-        cg.add_global(_RenderTimeStatement(render_table))
-    cg.add(_RenderTimeStatement(render_call))
+    table = cg.shared_progmem_array(
+        "number_range", NumberRange, [tuple(float(v) for v in bounds)]
+    )
+    cg.add(var.set_range(table))
 
 
 @setup_entity("number")
 async def setup_number_core_(
-    var, config, *, min_value: float, max_value: float, step: float
+    var,
+    config,
+    *,
+    min_value: float,
+    max_value: float,
+    step: float,
+    range_in_flash: bool = True,
 ):
-    _add_range(var, config[CONF_RANGE_ID], min_value, max_value, step)
+    # range_in_flash=False: the number points its traits at RAM of its own (bounds that arrive after setup)
+    if range_in_flash:
+        _add_range(var, min_value, max_value, step)
 
     # Skip the setter when the config matches the C++ initializer (DEFAULT_MODE).
     # The validated value is the enum key string, not the C++ enum expression.
@@ -361,21 +327,44 @@ async def setup_number_core_(
 
 
 async def register_number(
-    var, config, *, min_value: float, max_value: float, step: float
+    var,
+    config,
+    *,
+    min_value: float,
+    max_value: float,
+    step: float,
+    range_in_flash: bool = True,
 ):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
     queue_entity_register("number", config)
     CORE.register_platform_component("number", var)
     await setup_number_core_(
-        var, config, min_value=min_value, max_value=max_value, step=step
+        var,
+        config,
+        min_value=min_value,
+        max_value=max_value,
+        step=step,
+        range_in_flash=range_in_flash,
     )
 
 
-async def new_number(config, *args, min_value: float, max_value: float, step: float):
+async def new_number(
+    config,
+    *args,
+    min_value: float,
+    max_value: float,
+    step: float,
+    range_in_flash: bool = True,
+):
     var = cg.new_Pvariable(config[CONF_ID], *args)
     await register_number(
-        var, config, min_value=min_value, max_value=max_value, step=step
+        var,
+        config,
+        min_value=min_value,
+        max_value=max_value,
+        step=step,
+        range_in_flash=range_in_flash,
     )
     return var
 
