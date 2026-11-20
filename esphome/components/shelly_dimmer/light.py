@@ -19,13 +19,6 @@ from esphome.const import (
     CONF_URL,
     CONF_VERSION,
     CONF_VOLTAGE,
-    DEVICE_CLASS_CURRENT,
-    DEVICE_CLASS_POWER,
-    DEVICE_CLASS_VOLTAGE,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_AMPERE,
-    UNIT_VOLT,
-    UNIT_WATT,
 )
 from esphome.core import HexInt
 from esphome.external_files import RemoteFile
@@ -202,22 +195,13 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_MIN_BRIGHTNESS, default=0): cv.uint16_t,
             cv.Optional(CONF_MAX_BRIGHTNESS, default=1000): cv.uint16_t,
             cv.Optional(CONF_POWER): sensor.sensor_schema(
-                unit_of_measurement=UNIT_WATT,
-                accuracy_decimals=1,
-                device_class=DEVICE_CLASS_POWER,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.POWER, accuracy_decimals=1
             ),
             cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_VOLT,
-                accuracy_decimals=1,
-                device_class=DEVICE_CLASS_VOLTAGE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.VOLTAGE, accuracy_decimals=1
             ),
             cv.Optional(CONF_CURRENT): sensor.sensor_schema(
-                unit_of_measurement=UNIT_AMPERE,
-                device_class=DEVICE_CLASS_CURRENT,
-                accuracy_decimals=2,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.CURRENT, accuracy_decimals=2
             ),
             # Change the default gamma_correct setting.
             cv.Optional(CONF_GAMMA_CORRECT, default=1.0): cv.positive_float,
