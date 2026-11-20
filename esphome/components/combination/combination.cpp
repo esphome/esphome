@@ -155,6 +155,38 @@ void LinearCombinationComponent::handle_new_value(float value) {
   this->publish_state(sum);
 };
 
+void WeightedMeanCombinationComponent::setup() {
+  for (auto &source : this->sensor_sources_) {
+    // Defer updates so the result includes all source changes from the current loop.
+    source.sensor->add_on_state_callback([this](float value) -> void {
+      this->defer(NEW_VALUE_DEFER_ID, [this, value]() { this->handle_new_value(value); });
+    });
+  }
+}
+
+void WeightedMeanCombinationComponent::handle_new_value(float value) {
+  if (!std::isfinite(value))
+    return;
+
+  float weighted_sum = 0.0f;
+  float weight_sum = 0.0f;
+
+  for (const auto &source : this->sensor_sources_) {
+    const float sensor_state = source.sensor->state;
+    if (!std::isfinite(sensor_state))
+      continue;
+
+    const float weight = source.compute(sensor_state);
+    if (!std::isfinite(weight) || weight <= 0.0f)
+      continue;
+
+    weighted_sum += sensor_state * weight;
+    weight_sum += weight;
+  }
+
+  this->publish_state(weight_sum > 0.0f ? weighted_sum / weight_sum : NAN);
+}
+
 void MaximumCombinationComponent::handle_new_value(float value) {
   if (!std::isfinite(value))
     return;

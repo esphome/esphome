@@ -29,6 +29,27 @@ template<typename T, size_t N> struct Fixture {
   }
 };
 
+template<size_t N> struct WeightedMeanFixture {
+  WeightedMeanCombinationComponent combination;
+  std::array<sensor::Sensor, N> sources;
+  std::array<WeightedMeanCombinationComponent::SensorSource, N> storage{};
+
+  WeightedMeanFixture(std::initializer_list<float> states, std::initializer_list<float> weights) {
+    this->combination.set_source_storage(this->storage);
+    size_t i = 0;
+    const auto *weight = weights.begin();
+    for (float state : states) {
+      this->sources[i].state = state;
+      this->combination.add_source(&this->sources[i++], *weight++);
+    }
+  }
+
+  float run() {
+    this->combination.handle_new_value(0.0f);
+    return this->combination.get_state();
+  }
+};
+
 TEST(MedianCombination, OddCountTakesTheMiddle) {
   Fixture<MedianCombinationComponent, 3> f({3.0f, 1.0f, 2.0f});
   EXPECT_FLOAT_EQ(f.run(), 2.0f);
@@ -80,6 +101,21 @@ TEST(RangeCombination, OneFiniteStateIsZero) {
 
 TEST(RangeCombination, NoFiniteStateIsNan) {
   Fixture<RangeCombinationComponent, 2> f({NAN, -INFINITY});
+  EXPECT_TRUE(std::isnan(f.run()));
+}
+
+TEST(WeightedMeanCombination, CalculatesWeightedMean) {
+  WeightedMeanFixture<2> f({10.0f, 20.0f}, {1.0f, 3.0f});
+  EXPECT_FLOAT_EQ(f.run(), 17.5f);
+}
+
+TEST(WeightedMeanCombination, SkipsNonFiniteStatesAndNonPositiveWeights) {
+  WeightedMeanFixture<3> f({10.0f, NAN, 20.0f}, {0.0f, 2.0f, 1.0f});
+  EXPECT_FLOAT_EQ(f.run(), 20.0f);
+}
+
+TEST(WeightedMeanCombination, NoPositiveWeightIsNan) {
+  WeightedMeanFixture<2> f({10.0f, 20.0f}, {0.0f, 0.0f});
   EXPECT_TRUE(std::isnan(f.run()));
 }
 

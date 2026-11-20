@@ -96,6 +96,14 @@ class LinearCombinationComponent final : public CombinationOneParameterComponent
   void handle_new_value(float value);
 };
 
+class WeightedMeanCombinationComponent final : public CombinationOneParameterComponent {
+ public:
+  void dump_config() override { this->log_config_(LOG_STR("weighted_mean")); }
+  void setup() override;
+
+  void handle_new_value(float value);
+};
+
 class MaximumCombinationComponent final : public CombinationNoParameterComponent {
  public:
   void dump_config() override { this->log_config_(LOG_STR("max")); }
