@@ -1331,6 +1331,55 @@ def test_reconcile_mbedtls_psa_user_config_not_applied(
 
 
 @pytest.mark.parametrize(
+    ("wifi_included", "net", "preset", "keeps_sha1"),
+    [
+        pytest.param(False, NetworkSdkconfigData(), {}, False, id="ethernet_only"),
+        pytest.param(True, NetworkSdkconfigData(), {}, True, id="esp_wifi_included"),
+        pytest.param(
+            False,
+            NetworkSdkconfigData(bluetooth=True),
+            {},
+            True,
+            id="bluetooth_links_esp_wifi",
+        ),
+        pytest.param(
+            False,
+            NetworkSdkconfigData(),
+            {"CONFIG_HTTPD_WS_SUPPORT": RawSdkconfigValue("y")},
+            True,
+            id="websocket_server",
+        ),
+        pytest.param(
+            False,
+            NetworkSdkconfigData(),
+            {"CONFIG_LWIP_PPP_SUPPORT": True},
+            True,
+            id="ppp",
+        ),
+    ],
+)
+def test_reconcile_mbedtls_sha1_without_tls(
+    set_core_config: SetCoreConfigCallable,
+    wifi_included: bool,
+    net: NetworkSdkconfigData,
+    preset: dict[str, Any],
+    keeps_sha1: bool,
+) -> None:
+    """Without TLS, SHA-1 stays whenever esp_wifi is linked (re-included by
+    wifi:, espnow, esp32_hosted or an external component, or pulled in by
+    Bluetooth), for a websocket server or for PPP."""
+    set_core_config(PlatformFramework.ESP32_IDF)
+    _seed_mbedtls(idf=_IDF6, preset=preset, net=net)
+    if not wifi_included:
+        CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS].add("esp_wifi")
+
+    asyncio.run(_reconcile_mbedtls_sdkconfig())
+
+    opts = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert opts.get("CONFIG_MBEDTLS_SHA1_C") is (None if keeps_sha1 else False)
+
+
+@pytest.mark.parametrize(
     ("variant", "idf", "preset", "keeps_xts"),
     [
         pytest.param(VARIANT_ESP32, _IDF6, {}, False, id="hardware_aes"),

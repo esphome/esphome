@@ -32,10 +32,13 @@ _FFDH = (
     "PSA_WANT_KEY_TYPE_DH_KEY_PAIR_DERIVE",
 )
 _RSA_PSS = ("PSA_WANT_ALG_RSA_PSS", "PSA_WANT_ALG_RSA_PSS_ANY_SALT")
+_SHA_224 = ("PSA_WANT_ALG_SHA_224",)
 
 
 def _defines(config: tuple[str, ...]) -> set[str]:
-    source = "".join(f"#define {name} 1\n" for name in (*config, *_FFDH, *_RSA_PSS))
+    source = "".join(
+        f"#define {name} 1\n" for name in (*config, *_FFDH, *_RSA_PSS, *_SHA_224)
+    )
     source += f'#include "{PSA_USER_CONFIG_SOURCE.as_posix()}"\n'
     out = subprocess.run(
         [_COMPILER, "-dM", "-E", "-x", "c", "-"],
@@ -49,19 +52,29 @@ def _defines(config: tuple[str, ...]) -> set[str]:
 
 @pytest.mark.skipif(_COMPILER is None, reason="needs a host C compiler")
 @pytest.mark.parametrize(
-    ("config", "ffdh", "rsa_pss"),
+    ("config", "ffdh", "rsa_pss", "sha_224"),
     [
-        pytest.param((), False, False, id="nothing_needs_them"),
-        pytest.param(("CONFIG_MBEDTLS_DHM_C",), True, False, id="dhe_keeps_ffdh"),
+        pytest.param((), False, False, False, id="nothing_needs_them"),
         pytest.param(
-            ("CONFIG_MBEDTLS_SSL_PROTO_TLS1_3",), True, False, id="tls13_keeps_ffdh"
+            ("CONFIG_MBEDTLS_DHM_C",), True, False, False, id="dhe_keeps_ffdh"
         ),
-        pytest.param(("CONFIG_MBEDTLS_RSA_C",), False, True, id="rsa_keeps_pss"),
+        pytest.param(
+            ("CONFIG_MBEDTLS_SSL_PROTO_TLS1_3",),
+            True,
+            False,
+            False,
+            id="tls13_keeps_ffdh",
+        ),
+        pytest.param(("CONFIG_MBEDTLS_RSA_C",), False, True, False, id="rsa_keeps_pss"),
+        pytest.param(
+            ("CONFIG_MBEDTLS_TLS_ENABLED",), False, False, True, id="tls_keeps_sha224"
+        ),
     ],
 )
 def test_psa_user_config_conditions(
-    config: tuple[str, ...], ffdh: bool, rsa_pss: bool
+    config: tuple[str, ...], ffdh: bool, rsa_pss: bool, sha_224: bool
 ) -> None:
     defines = _defines(config)
     assert {name for name in _FFDH if (name in defines) is not ffdh} == set()
     assert {name for name in _RSA_PSS if (name in defines) is not rsa_pss} == set()
+    assert {name for name in _SHA_224 if (name in defines) is not sha_224} == set()
