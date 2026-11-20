@@ -1,0 +1,16 @@
+# D1 mini, one-pin loopback on GPIO12 with every dumper; the board and network come from climate_ir_loop.
+packages:
+  base: !include ../../climate_ir_loop/base.yaml
+  board: !include ../../climate_ir_loop/esp8266-ir.yaml
+  common: !include gen-common.yaml
+logger:
+  baud_rate: 460800
+  level: DEBUG
+remote_receiver:
+  dump: all
+  buffer_size: 3kb
+  on_pronto:
+    - lambda: |-
+        ESP_LOGI("trig", "TRIG len=%u", (unsigned) x.data.size());
+        for (size_t i = 0; i < x.data.size(); i += 200)
+          ESP_LOGI("trig", "TRIG %s", x.data.substr(i, 200).c_str());
