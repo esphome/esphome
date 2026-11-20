@@ -17,17 +17,17 @@ One file per component, named after it:
 - [`libretiny.md`](libretiny.md): rtc preference emulation, BK72xx and RTL8720C crash report on the next boot with a ROM dump matcher, BK7238 BLE bond store safety with a full flash backup and per partition diff, BK7238 OTA versus the board layout and bootloader, pulse counting, RTL8710B edge interrupts and millis timing
 - [`modem.md`](modem.md): PPPoS modem component boot check with no modem attached, loop blocking and disable timing, SIM7080G behaviour with no SIM and with no data plan through a raw UART passthrough
 - [`mqtt.md`](mqtt.md): broker bench, QoS, reconnect, crash log over MQTT, WebSocket transports with a local and a public broker, TLS trust sources (own CA, client certificate, certificate bundle, no verification) with the CLI check, MAC suffix topics and will messages on two boards, shutdown message delivery on restart, disable and deep sleep
-- [`nrf52.md`](nrf52.md): dongle board support, zephyr_ble_server connection slot under reordered callbacks, SMP over UDP OTA over Thread with reset faults, MCUboot swap limit and stuck slot recovery, TCP stack probe, sdk-nrf 3.4.1 build and USB notes
+- [`nrf52.md`](nrf52.md): dongle board support, zephyr_ble_server connection slot under reordered callbacks, SMP over UDP OTA over Thread with reset faults, MCUboot swap limit and stuck slot recovery, TCP stack probe, sdk-nrf 3.4.1 build and USB notes, ItsyBitsy serial DFU and Thread MTD child table
 - [`npm1300.md`](npm1300.md): nPM1300 PMIC on the XIAO nRF54LM20A: probe build, every entity with a register dump and regulator toggles, power-on state and no-battery readings
 - [`online_image.md`](online_image.md): stalled and malformed downloads, PNG, JPEG, BMP and QOI decode time per loop pass with large images and small buffers
-- [`openthread.md`](openthread.md): border router on the S3 host plus H2 RCP
+- [`openthread.md`](openthread.md): border router on the S3 host plus H2 RCP, reboot, backbone loss and init retry flows, child supervision checks
 - [`ota.md`](ota.md): upload without a configuration and the refusal checks, overlap and lock, timeouts, deflate, upload timing A/B per build and board with deflate and raw, on-device inflate benchmark, OTA automations on two platforms
 - [`rtsp_server.md`](rtsp_server.md): camera streaming on the Waveshare ESP32-S3-ETH
 - [`scheduler.md`](scheduler.md): loop wake A/B, interval startup delay and control from lambdas, RP2 scheduler lock under IRQ and lwIP load
 - [`udp.md`](udp.md): datagrams, multicast, sockets, `udp.write` payload shapes
 - [`usb_cdc_acm.md`](usb_cdc_acm.md): nRF52840 dongle host driver
 - [`wifi.md`](wifi.md): reboot_timeout with a fallback AP, DHCP lease cache, Easy Connect (DPP), WISP bridge with an ethernet upstream, reboots against a WPA2/WPA3 PMF access point, WISP and ALWAYS_ON AP switching, AP restarts with WPA3 mixed and LIGHT power save, soft AP clients with the BLE tracker scanning, ESP8266 power save after captive portal provisioning
-- [`zephyr.md`](zephyr.md): preferences on the nRF52840 dongle
+- [`zephyr.md`](zephyr.md): preferences on the nRF52840 dongle, nRF54L preference backends and debug info on the XIAO nRF54LM20A, zephyr_pwm duty and frequency with a self-sampling probe
 - [`zephyr_coredump.md`](zephyr_coredump.md): crash and decode on nRF52 boards
 - [`zwave_proxy.md`](zwave_proxy.md): frame checksums on a live proxy
 - [`one_wire.md`](one_wire.md): ESP8266 interrupt locks under Wi-Fi load with a DS18B20 search and a busy-wait control

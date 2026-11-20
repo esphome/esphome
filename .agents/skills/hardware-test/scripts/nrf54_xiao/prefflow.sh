@@ -1,0 +1,27 @@
+#!/bin/bash
+# prefflow.sh NAME PORT: flash pref.yaml as NAME with `esphome run` (pyOCD) from TREE, capture the first boot and its
+# soft reboot (100 s), then 40 s around a probe reset with no clean shutdown. Events go to NAME-events.txt.
+# env: TREE, PROBE_ID (pyOCD unique id of the XIAO's probe), PYOCD_PY (a Python with pyOCD, such as ESPHome's sdk-nrf
+# penv), PY (default $TREE/venv/bin/python), PIO_CORE. Exits 1 when the flash or a capture fails.
+D=$(cd "$(dirname "$0")" && pwd); S=$(dirname "$D"); N=${1:?name}; P=${2:?port}
+T=${TREE:?set TREE}; PY=${PY:-$T/venv/bin/python}; ID=${PROBE_ID:?set PROBE_ID}; OCD=${PYOCD_PY:?set PYOCD_PY}
+export PLATFORMIO_CORE_DIR=${PIO_CORE:-$D/pio} PYTHONPATH=$T PYTHONUNBUFFERED=1
+$PY "$S/serial_capture.py" "$P" 100 "$D/$N-cap.txt" > /dev/null 2> "$D/$N-cap.err" &
+CAP=$!
+sleep 2
+if ! (cd "$T" && timeout 600 $PY -m esphome -s name "$N" run --no-logs "$D/pref.yaml" --device "$P") \
+  > "$D/$N-run.log" 2>&1; then
+  tail -3 "$D/$N-run.log"; kill $CAP 2>/dev/null; echo "FAIL: $N run failed"; exit 1
+fi
+wait $CAP
+grep -a -q "SOFT REBOOT" "$D/$N-cap.txt" || { echo "FAIL: no soft reboot in $D/$N-cap.txt"; exit 1; }
+$PY "$S/serial_capture.py" "$P" 40 "$D/$N-rst-cap.txt" > /dev/null 2>&1 &
+CAP=$!
+sleep 12
+echo "probe reset at $(date +%T)"
+$OCD -m pyocd reset -t nrf54lm20a -u "$ID" -m sw > /dev/null 2>&1  # -m hw does nothing on this probe
+wait $CAP
+cat "$D/$N-cap.txt" "$D/$N-rst-cap.txt" |
+  grep -a -E "Log initialized|compiled on|BOOT build|SOFT REBOOT|counter=|preferences|Loaded|settings|rror" |
+  grep -a -v "save in flash" > "$D/$N-events.txt"
+grep -a "BOOT build" "$D/$N-events.txt"
