@@ -185,10 +185,12 @@ class Component {
    */
   virtual bool teardown() { return true; }
 
-  /** Called after teardown is complete to power down hardware.
+  /** Called last before a reboot or deep sleep to power down hardware.
    *
-   * This is called after all components have finished their teardown process,
+   * On a safe shutdown this is called after all components have finished their teardown process,
    * making it safe to power down hardware like ethernet PHY.
+   * On a forced reboot (Application::reboot()) it is called right after on_shutdown() with no
+   * teardown, so implementations must not assume teardown() has run.
    */
   virtual void on_powerdown() {}
 

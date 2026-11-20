@@ -18,13 +18,13 @@ namespace esphome::homeassistant::testing {
 class HomeassistantBinarySensorTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    // APIServer() makes itself the global_api_server that setup() subscribes to
+    // APIServer() makes itself the global_api_server that subscribe() uses
     this->server_ = std::make_unique<api::APIServer>();
     // The handler only reads the server's subscriptions, so the connection is never started
     const int fd = ::socket(AF_INET, SOCK_STREAM, 0);
     this->connection_ = std::make_unique<api::APIConnection>(std::make_unique<socket::Socket>(fd), this->server_.get());
     this->binary_sensor_.set_entity_id("light.bedroom_light");
-    this->binary_sensor_.setup();
+    this->binary_sensor_.subscribe();
   }
 
   void TearDown() override {
