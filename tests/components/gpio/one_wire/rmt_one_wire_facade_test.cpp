@@ -359,6 +359,24 @@ TEST(RmtOneWireFacade, ReadReturnsTheBits) {
   }
 }
 
+TEST(RmtOneWireFacade, ReadSetsTheRequestedBitsOnly) {
+  // data may hold anything before the read: whole bytes are overwritten, a partial last byte keeps its other bits
+  for (size_t bits : {size_t{1}, size_t{8}, size_t{12}, size_t{72}, size_t{100}}) {
+    Rig rig;
+    const auto payload = pattern_bytes(bits / 8 + 1);
+    rig.port.bus.devices.emplace_back(ROM_A, payload);
+    select_blocking(rig);
+    std::vector<uint8_t> data(bits / 8 + 2, 0xC3);
+    std::vector<uint8_t> expected = data;
+    for (size_t bit = 0; bit < bits; bit++) {
+      const uint8_t mask = 1u << (bit % 8);
+      expected[bit / 8] = (payload[bit / 8] & mask) != 0 ? expected[bit / 8] | mask : expected[bit / 8] & ~mask;
+    }
+    EXPECT_TRUE(rig.engine.read_blocking(data.data(), bits)) << bits;
+    EXPECT_EQ(data, expected) << bits << " bits";
+  }
+}
+
 TEST(RmtOneWireFacade, ReadOfAQuietBusIsAllOnes) {
   Rig rig;
   std::vector<uint8_t> data(9, 0);

@@ -53,7 +53,8 @@ class Engine {
   int reset_blocking();
   /// False on any failure.
   bool write_blocking(const uint8_t *data, size_t num_bits);
-  /// On failure, every bit of data is set to 1 and the result is false.
+  /// Sets bits [0, num_bits) of data, which may be uninitialized. The other bits of a partial last byte stay.
+  /// On failure, each of these bits is 1 and the result is false.
   bool read_blocking(uint8_t *data, size_t num_bits);
   void reset_search();
   uint64_t search_next();  ///< Same contract as OneWireBus::search_int(): 0 when finished or on failure
