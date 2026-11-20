@@ -1,0 +1,6 @@
+sensor:
+  - platform: dyp_a13
+    id: dyp_a13_sensor
+    name: DYP A13 Distance
+    model: A13
+    mode: AUTO
