@@ -1,0 +1,31 @@
+# Package: Sensirion SCD30 (0x61) on an ESP8266 NodeMCU, SDA GPIO4 (D2), SCL GPIO5 (D1), every I2C transfer logged.
+# Add `timeout: Nms` under `i2c:` for the timeout variants.
+esphome:
+  name: ${name}
+esp8266:
+  board: nodemcuv2
+logger:
+  level: VERY_VERBOSE
+  logs:
+    scheduler: DEBUG
+    component: DEBUG
+    app: DEBUG
+    sensor: DEBUG
+    i2c.arduino: VERY_VERBOSE
+i2c:
+  sda: GPIO4
+  scl: GPIO5
+  scan: true
+sensor:
+  - platform: scd30
+    update_interval: 2s
+    co2:
+      name: CO2
+    temperature:
+      name: Temperature
+    humidity:
+      name: Humidity
+interval:
+  - interval: 60s
+    then:
+      - lambda: 'ESP_LOGI("alive", "uptime %u s heap %u", (unsigned) (millis() / 1000), (unsigned) ESP.getFreeHeap());'
