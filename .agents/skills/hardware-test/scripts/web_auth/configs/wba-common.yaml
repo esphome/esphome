@@ -1,0 +1,28 @@
+# web_server v3 with Basic auth and web OTA, a switch and a light on top of the diagnostics package (fast sensor,
+# heap, reset reason). Substitutions: name, web_user, web_pass (from creds-*.yaml).
+packages:
+  diagnostics: !include ../../../templates/diagnostics.yaml
+ota:
+  - platform: web_server
+web_server:
+  port: 80
+  version: 3
+  auth:
+    username: ${web_user}
+    password: ${web_pass}
+    type: basic
+switch:
+  - platform: template
+    name: Test switch
+    optimistic: true
+output:
+  - platform: template
+    id: light_out
+    type: float
+    write_action:
+      - lambda: ESP_LOGD("test", "light out %.3f", state);
+light:
+  - platform: monochromatic
+    name: Test light
+    output: light_out
+    default_transition_length: 0s

@@ -1,6 +1,7 @@
 #include "cse7761.h"
 
 #include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::cse7761 {
 
@@ -104,8 +105,7 @@ void CSE7761Component::write_(uint8_t reg, uint16_t data) {
       buffer[2] = data & 0xFF;
       len = 3;
     } else {
-      buffer[2] = (data >> 8) & 0xFF;
-      buffer[3] = data & 0xFF;
+      put_be16(buffer + 2, data);
       len = 4;
     }
     buffer[len] = ~sum_bytes(buffer, len);
