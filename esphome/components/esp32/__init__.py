@@ -1034,8 +1034,11 @@ def request_tls() -> None:
     """Request the mbedTLS TLS stack and the esp-tls wrapper.
 
     Without a request TLS and its ECP/PEM-write/CRL/CSR crypto compile out;
-    hashes and AES stay available. On native ESP-IDF 6 builds RSA also goes
-    unless updates are RSA-signed; set CONFIG_MBEDTLS_RSA_C to keep it.
+    AES, SHA-256 and the other hashes stay available. On ESP-IDF 6 builds
+    SHA-224 and, without Wi-Fi, a websocket server or PPP, SHA-1 also go, and
+    on native ESP-IDF 6 builds RSA goes unless updates are RSA-signed; set
+    CONFIG_MBEDTLS_SHA224_C, CONFIG_MBEDTLS_SHA1_C or CONFIG_MBEDTLS_RSA_C to
+    keep them.
     """
     require_mbedtls_tls()
     include_builtin_idf_component("esp-tls")
