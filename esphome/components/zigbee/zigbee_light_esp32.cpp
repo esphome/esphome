@@ -28,6 +28,9 @@ void ZigbeeLight::setup() {
   bool ct = traits.supports_color_mode(light::ColorMode::COLOR_TEMPERATURE) ||
             (traits.supports_color_mode(light::ColorMode::COLD_WARM_WHITE) && traits.get_min_mireds() > 0 &&
              traits.get_max_mireds() > 0);
+  if (!color && traits.supports_color_capability(light::ColorCapability::RGB)) {
+    ESP_LOGW(TAG, "color / warm/cold white not exposed over Zigbee; set color_interlock: true");
+  }
   if (!onoff) {
     ESP_LOGE(TAG, "Light must at least support ON_OFF capability to be added as Zigbee light");
     this->mark_failed();
