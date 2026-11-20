@@ -7,8 +7,8 @@ namespace esphome::uart {
 
 ESPHOME_LOG_TAG(TAG, "uart");
 
-// Keeps the pacing product in 32 bits up to about 10 Mbaud.
-static constexpr uint32_t MAX_PACE_SPAN_MS = 4000;
+// At 1 baud a byte of 10 bits takes 10 s.
+static constexpr uint64_t BYTE_US_AT_ONE_BAUD = 10000000;
 
 bool UARTComponent::check_read_timeout_(size_t len) {
   if (this->available() >= len)
@@ -25,17 +25,31 @@ bool UARTComponent::check_read_timeout_(size_t len) {
   return true;
 }
 
-size_t UARTComponent::paced_write_room(uint32_t last_write_ms) {
+size_t UARTComponent::paced_write_room(uint32_t last_write_us) {
   size_t room = this->available_for_write();
   if (room != SIZE_MAX) {
     return room;
   }
-  // A pass woken early writes little.
-  uint32_t span =
-      std::min({App.get_loop_component_start_time() - last_write_ms, App.get_loop_interval(), MAX_PACE_SPAN_MS});
-  // 10 bits per byte on the line.
-  uint32_t paced = this->baud_rate_ / 10 * span / 1000;
-  return std::max<size_t>(1, paced);
+  this->paces_writes_ = true;
+  return this->paced_room_(micros() - last_write_us);
+}
+
+size_t UARTComponent::paced_room_(uint32_t span_us) const {
+  // What the line sent, in ten-millionths of a byte. A pass woken early writes little. The cap of one loop interval
+  // has a byte on top, so it never cuts the part of a byte that last_write_us carries over.
+  uint64_t sent = std::min<uint64_t>(static_cast<uint64_t>(span_us) * this->baud_rate_,
+                                     App.get_loop_interval() * 1000ULL * this->baud_rate_ + BYTE_US_AT_ONE_BAUD);
+  return static_cast<size_t>(std::max<uint64_t>(1, sent / BYTE_US_AT_ONE_BAUD));
+}
+
+uint32_t UARTComponent::paced_stamp_(uint32_t now_us, uint32_t last_write_us) const {
+  if (this->baud_rate_ == 0) {
+    return now_us;
+  }
+  // Move on by whole bytes only, so the part of a byte the line sent after the last whole one counts for the next
+  // write.
+  uint64_t part = static_cast<uint64_t>(now_us - last_write_us) * this->baud_rate_ % BYTE_US_AT_ONE_BAUD;
+  return now_us - static_cast<uint32_t>(part / this->baud_rate_);
 }
 
 void UARTComponent::set_rx_full_threshold_ms(uint8_t time) {
