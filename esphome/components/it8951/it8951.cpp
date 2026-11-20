@@ -886,8 +886,10 @@ void IT8951Display::set_refresh_paused(bool paused, UpdateMode mode) {
 }
 
 void IT8951Display::refresh_now(UpdateMode mode) {
-  if (!this->initialised_)
+  if (!this->initialised_) {
+    ESP_LOGW(TAG, "Refresh ignored: controller not initialised yet");
     return;
+  }
   if (mode == UPDATE_MODE_BLANK) {
     // Leaves the pause, the paused request and the dirty region alone: they
     // describe image memory, which BLANK does not touch.
@@ -1065,10 +1067,6 @@ static uint8_t color_to_nibble(const Color &color) {
   return quantize_8bit_to_nibble(display::rec601_luma(color));
 }
 
-// Rec.601 luma straight from a 5/6/5 pixel, skipping the expansion to 8-bit
-// channels and the Color round-trip. The weights are the usual 0.299/0.587/0.114
-// pre-scaled so a full-white pixel lands on exactly 15, and the +2048 matches the
-// rounding quantize_8bit_to_nibble applies one byte further up.
 // Place a 4bpp pixel in a packed row. The row always starts on a 4-pixel
 // boundary, so a pixel's nibble parity is just the parity of its column.
 static inline void write_nibble(uint8_t *row, uint16_t column, uint8_t nibble) {
@@ -1077,6 +1075,10 @@ static inline void write_nibble(uint8_t *row, uint16_t column, uint8_t nibble) {
       (column & 1) ? static_cast<uint8_t>((byte & 0xF0) | nibble) : static_cast<uint8_t>((byte & 0x0F) | (nibble << 4));
 }
 
+// Rec.601 luma straight from a 5/6/5 pixel, skipping the expansion to 8-bit
+// channels and the Color round-trip. The weights are the usual 0.299/0.587/0.114
+// pre-scaled so a full-white pixel lands on exactly 15, and the +2048 matches the
+// rounding quantize_8bit_to_nibble applies one byte further up.
 static inline uint8_t rgb565_to_nibble(uint16_t value) {
   const uint32_t r = (value >> 11) & 0x1F;
   const uint32_t g = (value >> 5) & 0x3F;

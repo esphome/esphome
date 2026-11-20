@@ -43,7 +43,7 @@ def test_blank_only_for_refresh() -> None:
     """BLANK does not show image memory, so only it8951.refresh accepts it."""
     assert refresh_mode("blank") == "BLANK"
     assert refresh_mode("du") == "DU"
-    with pytest.raises(cv.Invalid, match="can only be used with it8951.refresh"):
+    with pytest.raises(cv.Invalid, match="Unknown value 'BLANK'"):
         update_mode("blank")
     assert update_mode("gc16") == "GC16"
     assert "BLANK" in REFRESH_MODE_OPTIONS

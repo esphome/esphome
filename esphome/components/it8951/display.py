@@ -91,15 +91,8 @@ UPDATE_MODE_OPTIONS = {
 # that shows memory, so only it8951.refresh accepts it.
 MODE_BLANK = "BLANK"
 REFRESH_MODE_OPTIONS = {**UPDATE_MODE_OPTIONS, MODE_BLANK: UpdateMode.UPDATE_MODE_BLANK}
-_update_mode_enum = cv.enum(UPDATE_MODE_OPTIONS, upper=True)
+update_mode = cv.enum(UPDATE_MODE_OPTIONS, upper=True)
 refresh_mode = cv.enum(REFRESH_MODE_OPTIONS, upper=True)
-
-
-def update_mode(value: str) -> str:
-    """Validate a waveform mode that shows image memory (every mode except BLANK)."""
-    if isinstance(value, str) and value.upper() == MODE_BLANK:
-        raise cv.Invalid(f"'{MODE_BLANK}' can only be used with it8951.refresh")
-    return _update_mode_enum(value)
 
 
 # Transform flag values mirror the C++ TRANSFORM_* constants.
