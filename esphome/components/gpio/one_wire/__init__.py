@@ -92,5 +92,6 @@ async def to_code(config: ConfigType) -> None:
     await cg.add_pin(var.set_pin, config[CONF_PIN])
 
     if config[CONF_USE_RMT]:
+        cg.add_define("USE_ONE_WIRE_TRANSACTION")
         cg.add_define("USE_ONE_WIRE_RMT")
         esp32.include_builtin_idf_component("esp_driver_rmt")

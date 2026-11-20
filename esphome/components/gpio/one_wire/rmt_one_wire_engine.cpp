@@ -28,25 +28,13 @@ Engine::Engine(Port *port, size_t mem_words, const Timing &timing)
       timing_(timing),
       rx_idle_us_(std::max<uint32_t>(100, timing.slot_us + 20)) {}  // above the longest phase of a section
 
-bool Engine::submit(Transaction *transaction) {
-  if (transaction->pending_)
-    return false;
-  transaction->pending_ = true;
-  transaction->next_ = nullptr;
-  if (this->head_ == nullptr) {
-    this->head_ = transaction;
-  } else {
-    this->tail_->next_ = transaction;
-  }
-  this->tail_ = transaction;
-  return true;
-}
+bool Engine::submit(Transaction *transaction) { return this->queue_.push(transaction); }
 
 void Engine::poll() {
-  if (this->head_ == nullptr)
+  if (this->queue_.empty())
     return;
   if (this->failed_) {
-    this->finish_(TransactionStatus::HARDWARE_ERROR);
+    this->finish_(TransactionStatus::TRANSACTION_STATUS_HARDWARE_ERROR);
     return;
   }
   switch (this->step_) {
@@ -55,7 +43,7 @@ void Engine::poll() {
       if (this->port_->line_is_high()) {
         this->start_reset_();
       } else {
-        this->finish_(TransactionStatus::BUS_LOW);
+        this->finish_(TransactionStatus::TRANSACTION_STATUS_BUS_LOW);
       }
       break;
     case Step::RESET:
@@ -65,7 +53,8 @@ void Engine::poll() {
       if (this->pending_ == 0) {
         this->section_done_();
       } else if (this->port_->now_ms() - this->since_ms_ >= SECTION_TIMEOUT_MS) {
-        this->finish_(this->abort_section_() ? TransactionStatus::TIMEOUT : TransactionStatus::HARDWARE_ERROR);
+        this->finish_(this->abort_section_() ? TransactionStatus::TRANSACTION_STATUS_TIMEOUT
+                                             : TransactionStatus::TRANSACTION_STATUS_HARDWARE_ERROR);
       }
       break;
   }
@@ -85,7 +74,7 @@ bool IRAM_ATTR Engine::on_rx_done(size_t num_symbols) {
 }
 
 void Engine::start_reset_() {
-  const uint64_t address = this->head_->address;
+  const uint64_t address = this->queue_.front()->address;
   this->rom_selection_[0] = address == 0 ? CMD_SKIP_ROM : CMD_MATCH_ROM;
   for (size_t i = 0; i < 8; i++)
     this->rom_selection_[i + 1] = static_cast<uint8_t>(address >> (8 * i));
@@ -96,19 +85,19 @@ void Engine::start_reset_() {
   this->step_ = Step::RESET;
   this->tx_[0] = reset_symbol();
   if (!this->start_section_(1, RX_IDLE_RESET_US))
-    this->finish_(TransactionStatus::HARDWARE_ERROR);
+    this->finish_(TransactionStatus::TRANSACTION_STATUS_HARDWARE_ERROR);
 }
 
 void Engine::section_done_() {
-  const Transaction *transaction = this->head_;
-  TransactionStatus status = TransactionStatus::OK;
+  const Transaction *transaction = this->queue_.front();
+  TransactionStatus status = TransactionStatus::TRANSACTION_STATUS_OK;
   if (this->step_ == Step::RESET) {
     status = decode_reset(this->rx_, this->rx_count_);
   } else if (this->step_ == Step::READ &&
              !this->decode_read_(this->read_slots_, transaction->read_data, this->read_pos_ - this->read_slots_)) {
-    status = TransactionStatus::CAPTURE_ERROR;
+    status = TransactionStatus::TRANSACTION_STATUS_CAPTURE_ERROR;
   }
-  if (status != TransactionStatus::OK) {
+  if (status != TransactionStatus::TRANSACTION_STATUS_OK) {
     this->finish_(status);
     return;
   }
@@ -135,11 +124,11 @@ void Engine::section_done_() {
     this->read_pos_ += count;
     idle_us = this->rx_idle_us_;
   } else {
-    this->finish_(TransactionStatus::OK);
+    this->finish_(TransactionStatus::TRANSACTION_STATUS_OK);
     return;
   }
   if (!this->start_section_(count, idle_us))
-    this->finish_(TransactionStatus::HARDWARE_ERROR);
+    this->finish_(TransactionStatus::TRANSACTION_STATUS_HARDWARE_ERROR);
 }
 
 bool Engine::decode_read_(size_t num_bits, uint8_t *out, size_t bit_offset) {
@@ -157,10 +146,8 @@ bool Engine::decode_read_(size_t num_bits, uint8_t *out, size_t bit_offset) {
 }
 
 void Engine::finish_(TransactionStatus status) {
-  Transaction *done = this->head_;
-  this->head_ = done->next_;
+  Transaction *done = this->queue_.pop();
   this->step_ = Step::LINE_UNCHECKED;
-  done->pending_ = false;
   // Comes last, on_done may submit() again
   if (done->on_done != nullptr)
     done->on_done(done->context, status);
@@ -191,9 +178,9 @@ bool Engine::abort_section_() {
 }
 
 void Engine::drain_() {
-  while (this->head_ != nullptr) {
+  while (!this->queue_.empty()) {
     this->poll();
-    if (this->head_ != nullptr)
+    if (!this->queue_.empty())
       this->port_->wait_for_event(BLOCKING_WAIT_MS);
   }
 }
@@ -217,10 +204,12 @@ int Engine::reset_blocking() {
   if (!this->run_section_(1, RX_IDLE_RESET_US))
     return -1;
   const TransactionStatus status = decode_reset(this->rx_, this->rx_count_);
-  if (status == TransactionStatus::CAPTURE_ERROR) {
+  if (status == TransactionStatus::TRANSACTION_STATUS_CAPTURE_ERROR) {
     ESP_LOGW(TAG, "Reset capture is invalid");
   }
-  return status == TransactionStatus::OK ? 1 : (status == TransactionStatus::NO_PRESENCE ? 0 : -1);
+  return status == TransactionStatus::TRANSACTION_STATUS_OK
+             ? 1
+             : (status == TransactionStatus::TRANSACTION_STATUS_NO_PRESENCE ? 0 : -1);
 }
 
 bool Engine::write_blocking(const uint8_t *data, size_t num_bits) {

@@ -35,7 +35,7 @@ class Engine {
   // Main loop only
   bool submit(one_wire::Transaction *transaction);
   void poll();
-  bool is_idle() const { return this->head_ == nullptr; }
+  bool is_idle() const { return this->queue_.empty(); }
   void set_failed();  ///< All pending and future work ends in HARDWARE_ERROR
 
   // ISR safe: store and return. True if this was the last expected event of the section: wake the main loop.
@@ -78,9 +78,7 @@ class Engine {
   uint32_t rx_idle_us_;
   bool failed_{false};
 
-  // FIFO, tail_ is only valid while head_ is set
-  one_wire::Transaction *head_{nullptr};
-  one_wire::Transaction *tail_{nullptr};
+  one_wire::TransactionQueue queue_;
 
   Step step_{Step::LINE_UNCHECKED};
   uint32_t since_ms_{0};  ///< Start of the running section
