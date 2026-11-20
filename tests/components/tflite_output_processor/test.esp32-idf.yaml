@@ -1,0 +1,2 @@
+packages:
+  tflite_output_processor: !include common.yaml
