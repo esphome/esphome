@@ -42,7 +42,7 @@ TEST(RmtOneWireSim, ResetWithDevice) {
   ASSERT_EQ(capture.size(), 2u);
   expect_symbol(capture[0], 503, 27, 1);
   expect_symbol(capture[1], 120, 0, 1);
-  EXPECT_EQ(end, 1250u);  // inside the 1100-1400 us of section 4.3
+  EXPECT_EQ(end, 1250u);  // inside the expected 1100-1400 us
 }
 
 TEST(RmtOneWireSim, ResetWithoutDevice) {
@@ -74,7 +74,7 @@ TEST(RmtOneWireSim, TwoDevicesOverlapToOnePresence) {
 }
 
 TEST(RmtOneWireSim, IdleBelowResetLowEndsInsideThePulse) {
-  // The bug of spec v1: with 320 us idle the capture ends on Low, before any presence
+  // An earlier design bug: with 320 us idle the capture ends on Low, before any presence
   SimBus bus;
   bus.devices.emplace_back(ROM_A);
   std::vector<Phase> phases;

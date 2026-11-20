@@ -31,8 +31,8 @@ using one_wire::Transaction;
 using one_wire::TransactionStatus;
 
 // ---------------------------------------------------------------------------------------------
-// Own table of the timing windows of spec section 3 (TI TMP1826 table 7.6 intersected with the
-// DS18B20 data sheet). Deliberately not taken from the constexpr values of the code (I12).
+// Own table of the 1-Wire timing windows (TI TMP1826 table 7.6 intersected with the DS18B20 data
+// sheet). Deliberately not taken from the constexpr values of the code, so a wrong constant fails here.
 // ---------------------------------------------------------------------------------------------
 struct UsWindow {
   uint32_t min;
@@ -46,13 +46,13 @@ constexpr UsWindow WINDOW_WRITE0_LOW{60, 120};      // tWR0L, tLOW0
 constexpr UsWindow WINDOW_WRITE1_LOW{2, 15};        // tWR1L 2-15 and tLOW1 1-15
 constexpr UsWindow WINDOW_READ_LOW{3, 5};           // tRL 2.5-5 in whole microseconds
 constexpr UsWindow WINDOW_SLOT{60, 120};            // tSLOT of the DS18B20
-constexpr uint32_t BUDGET_TRC_US = 9;               // rise time budget of section 3
+constexpr uint32_t BUDGET_TRC_US = 9;               // rise time budget of the bus (tRC)
 constexpr uint32_t MIN_RECOVERY_US = 2;             // tREC of the TI part
 constexpr uint32_t SAMPLE_WRITE1_US = 15;           // 6 + tRC <= 15
 constexpr uint32_t SAMPLE_READ_US = 13;             // 4 + tRC <= 13
 
 // ---------------------------------------------------------------------------------------------
-// Classification of transmitted symbols, again from section 3 only
+// Classification of transmitted symbols, from the windows above only
 // ---------------------------------------------------------------------------------------------
 enum class Slot : uint8_t { READ, WRITE_1, WRITE_0, BAD };
 
@@ -114,7 +114,7 @@ inline std::vector<Slot> expected_slots(uint64_t address, const std::vector<uint
 }
 
 // ---------------------------------------------------------------------------------------------
-// Heap watch for "kein Heap" (rule set of section 4.4 and section 2). The counting operator new
+// Heap watch for the no-heap tests: after setup the bus must not allocate. The counting operator new
 // is defined in rmt_one_wire_engine_test.cpp. Mock and test code pause the watch, so only
 // allocations of the code under test count.
 // ---------------------------------------------------------------------------------------------
@@ -347,7 +347,7 @@ constexpr uint16_t STALE_DURATION1 = 74;
 
 /// What an RMT receiver makes of a waveform: starts at the first falling edge, stops when the
 /// line has not changed for idle_us. A stop on High stores a zero High duration with level 1, a
-/// stop on Low stores {0, 0, stale, 1} (section 7), the length of that Low is not readable.
+/// stop on Low stores {0, 0, stale, 1}; the length of that Low is not readable.
 /// end_us: time of the stop.
 inline std::vector<Symbol> build_capture(const std::vector<Phase> &phases, uint32_t idle_us, uint64_t *end_us) {
   std::vector<Phase> merged;
@@ -633,7 +633,7 @@ class SimPort : public Port {
     this->in_isr_ = false;
   }
 
-  /// "RESET WRITE:63 WRITE:17 READ:62 READ:10", the notation of the table in section 4.2.
+  /// "RESET WRITE:63 WRITE:17 READ:62 READ:10", the notation of the tables in rmt_one_wire_sections_test.cpp.
   std::string summary(size_t from = 0) const {
     std::string out;
     for (size_t i = from; i < this->sections.size(); i++) {

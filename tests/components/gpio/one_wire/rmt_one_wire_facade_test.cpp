@@ -49,7 +49,7 @@ std::vector<uint64_t> search_all(Rig &rig) {
 }
 
 // ---------------------------------------------------------------------------------------------
-// I8: reference. search_int() and the loop of OneWireBus::search() from upstream
+// Reference: search_int() and the loop of OneWireBus::search() from upstream
 // (gpio_one_wire.cpp and one_wire_bus.cpp at ae54e8b696), on the same simulated bus model.
 // ---------------------------------------------------------------------------------------------
 class UpstreamSearch {
@@ -453,7 +453,7 @@ TEST(RmtOneWireFacade, ReadWithTheLineAtGndFailsAtAnyLength) {
 
 // ---- Facade and FIFO --------------------------------------------------------------------------
 
-TEST(RmtOneWireFacade, I7_FacadeDrainsTheFifoFirst) {
+TEST(RmtOneWireFacade, FacadeDrainsTheFifoFirst) {
   Rig rig;
   rig.port.bus.devices.emplace_back(ROM_A, pattern_bytes(9), 1);
   DoneLog log;
@@ -477,7 +477,7 @@ TEST(RmtOneWireFacade, I7_FacadeDrainsTheFifoFirst) {
   EXPECT_FALSE(rig.port.loop_active());
 }
 
-TEST(RmtOneWireFacade, I7_ReadAndWriteAlsoDrainFirst) {
+TEST(RmtOneWireFacade, ReadAndWriteAlsoDrainFirst) {
   Rig rig;
   rig.port.bus.devices.emplace_back(ROM_A, std::vector<uint8_t>{0x12, 0x34}, 0);
   DoneLog log;
@@ -498,7 +498,7 @@ TEST(RmtOneWireFacade, I7_ReadAndWriteAlsoDrainFirst) {
   EXPECT_EQ(rig.port.summary(3), "RESET WRITE:8 WRITE:8");
 }
 
-TEST(RmtOneWireFacade, I7_DrainIncludesWhatOnDoneSubmits) {
+TEST(RmtOneWireFacade, DrainIncludesWhatOnDoneSubmits) {
   Rig rig;
   rig.port.bus.devices.emplace_back(ROM_A);
   DoneLog log;
@@ -511,7 +511,7 @@ TEST(RmtOneWireFacade, I7_DrainIncludesWhatOnDoneSubmits) {
   EXPECT_EQ(rig.port.summary(), "RESET WRITE:8 RESET WRITE:8 RESET");
 }
 
-TEST(RmtOneWireFacade, I7_DrainWithNullOnDone) {
+TEST(RmtOneWireFacade, DrainWithNullOnDone) {
   Rig rig;
   rig.port.bus.devices.emplace_back(ROM_A);
   DoneLog log;
@@ -523,7 +523,7 @@ TEST(RmtOneWireFacade, I7_DrainWithNullOnDone) {
   EXPECT_TRUE(log.empty());
 }
 
-TEST(RmtOneWireFacade, I7_FailingDrainDoesNotStopThePrimitive) {
+TEST(RmtOneWireFacade, FailingDrainDoesNotStopThePrimitive) {
   Rig rig;
   rig.port.bus.devices.emplace_back(ROM_A);
   rig.port.drop_tx_at = 0;
@@ -640,7 +640,7 @@ TEST(RmtOneWireFacade, FailedAbortMakesTheFacadeFail) {
   EXPECT_EQ(rig.port.abort_count, 1);
 }
 
-// ---- I8: search ------------------------------------------------------------------------------
+// ---- Search ------------------------------------------------------------------------------
 
 class RmtOneWireSearch : public ::testing::TestWithParam<size_t> {};
 
@@ -649,46 +649,46 @@ INSTANTIATE_TEST_SUITE_P(W, RmtOneWireSearch, ::testing::Values(size_t{48}, size
                            return std::to_string(info.param);  // NOLINT
                          });
 
-TEST_P(RmtOneWireSearch, I8_RandomRomsZeroToFortyDevices) {
+TEST_P(RmtOneWireSearch, RandomRomsZeroToFortyDevices) {
   for (size_t count = 0; count <= 40; count++) {
     SCOPED_TRACE("devices " + std::to_string(count));  // NOLINT
     expect_search_matches_upstream(random_roms(count, static_cast<uint32_t>(count) + 100), GetParam());
   }
 }
 
-TEST_P(RmtOneWireSearch, I8_CountingRomsLowDiscrepancies) {
+TEST_P(RmtOneWireSearch, CountingRomsLowDiscrepancies) {
   for (size_t count = 1; count <= 40; count += 3) {
     SCOPED_TRACE("devices " + std::to_string(count));  // NOLINT
     expect_search_matches_upstream(counting_low_roms(count), GetParam());
   }
 }
 
-TEST_P(RmtOneWireSearch, I8_CountingRomsHighDiscrepancies) {
+TEST_P(RmtOneWireSearch, CountingRomsHighDiscrepancies) {
   for (size_t count = 1; count <= 40; count += 3) {
     SCOPED_TRACE("devices " + std::to_string(count));  // NOLINT
     expect_search_matches_upstream(counting_high_roms(count), GetParam());
   }
 }
 
-TEST_P(RmtOneWireSearch, I8_PairsThatDifferInOneBit) {
+TEST_P(RmtOneWireSearch, PairsThatDifferInOneBit) {
   for (size_t count = 2; count <= 40; count += 2) {
     SCOPED_TRACE("devices " + std::to_string(count));  // NOLINT
     expect_search_matches_upstream(single_bit_pairs(count), GetParam());
   }
 }
 
-TEST_P(RmtOneWireSearch, I8_DiscrepancyInTheVeryLastBit) {
+TEST_P(RmtOneWireSearch, DiscrepancyInTheVeryLastBit) {
   expect_search_matches_upstream({0x0123456789ABCD28ULL, 0x8123456789ABCD28ULL}, GetParam());
 }
 
-TEST(RmtOneWireSearchContract, I8_OneDeviceAndAllBits) {
+TEST(RmtOneWireSearchContract, OneDeviceAndAllBits) {
   expect_search_matches_upstream({0xFFFFFFFFFFFFFFFFULL}, 64);
   expect_search_matches_upstream({0x0000000000000001ULL}, 64);
   expect_search_matches_upstream({0xAAAAAAAAAAAAAAAAULL}, 64);
   expect_search_matches_upstream({0x5555555555555555ULL}, 64);
 }
 
-TEST(RmtOneWireSearchContract, I8_ZeroAfterTheLastDeviceWithoutTouchingTheBus) {
+TEST(RmtOneWireSearchContract, ZeroAfterTheLastDeviceWithoutTouchingTheBus) {
   Rig rig;
   rig.port.bus.devices.emplace_back(ROM_A);
   rig.engine.reset_search();
@@ -701,7 +701,7 @@ TEST(RmtOneWireSearchContract, I8_ZeroAfterTheLastDeviceWithoutTouchingTheBus) {
   EXPECT_EQ(rig.port.tx_count, transmits);
 }
 
-TEST(RmtOneWireSearchContract, I8_ZeroWhenNoDeviceTakesPart) {
+TEST(RmtOneWireSearchContract, ZeroWhenNoDeviceTakesPart) {
   // Both read slots come back as 1: search_int() stops after these two without a branch
   Rig rig;
   rig.engine.reset_search();
@@ -712,7 +712,7 @@ TEST(RmtOneWireSearchContract, I8_ZeroWhenNoDeviceTakesPart) {
   EXPECT_EQ(slots, 2u);
 }
 
-TEST(RmtOneWireSearchContract, I8_ResetSearchStartsOver) {
+TEST(RmtOneWireSearchContract, ResetSearchStartsOver) {
   Rig rig;
   const auto roms = random_roms(5, 7);
   for (auto rom : roms)
@@ -730,7 +730,7 @@ TEST(RmtOneWireSearchContract, I8_ResetSearchStartsOver) {
   EXPECT_EQ(search_all(rig), expected);
 }
 
-TEST(RmtOneWireSearchContract, I4_SearchIsTwoThenThreeSlotsThenClosingWrite) {
+TEST(RmtOneWireSearchContract, SearchIsTwoThenThreeSlotsThenClosingWrite) {
   // Section 4.2: SEARCH with 2 slots, 63 x SEARCH with 3 slots, closing WRITE with the last branch.
   for (size_t mem_words : {size_t{48}, size_t{64}}) {
     Rig rig(mem_words);
@@ -769,7 +769,7 @@ TEST(RmtOneWireSearchContract, I4_SearchIsTwoThenThreeSlotsThenClosingWrite) {
   }
 }
 
-TEST(RmtOneWireSearchContract, I8_SearchOnTheWireIsBitComplementBranch) {
+TEST(RmtOneWireSearchContract, SearchOnTheWireIsBitComplementBranch) {
   Rig rig;
   rig.port.bus.devices.emplace_back(0xF00000000000AB28ULL);
   rig.engine.reset_search();
@@ -848,16 +848,14 @@ void run_search_failure(SearchFailure failure) {
 
 }  // namespace
 
-TEST(RmtOneWireSearchContract, I8_ZeroOnCaptureErrorThenRecovers) { run_search_failure(SearchFailure::CAPTURE); }
-TEST(RmtOneWireSearchContract, I8_ZeroOnCaptureEndingLowThenRecovers) {
-  run_search_failure(SearchFailure::ENDS_ON_LOW);
-}
-TEST(RmtOneWireSearchContract, I8_ZeroOnLowOfASlotThenRecovers) { run_search_failure(SearchFailure::LOW_OF_A_SLOT); }
-TEST(RmtOneWireSearchContract, I8_ZeroOnTimeoutThenRecovers) { run_search_failure(SearchFailure::TIMEOUT); }
-TEST(RmtOneWireSearchContract, I8_ZeroOnArmFailureThenRecovers) { run_search_failure(SearchFailure::ARM); }
-TEST(RmtOneWireSearchContract, I8_ZeroOnTxFailureThenRecovers) { run_search_failure(SearchFailure::TX); }
+TEST(RmtOneWireSearchContract, ZeroOnCaptureErrorThenRecovers) { run_search_failure(SearchFailure::CAPTURE); }
+TEST(RmtOneWireSearchContract, ZeroOnCaptureEndingLowThenRecovers) { run_search_failure(SearchFailure::ENDS_ON_LOW); }
+TEST(RmtOneWireSearchContract, ZeroOnLowOfASlotThenRecovers) { run_search_failure(SearchFailure::LOW_OF_A_SLOT); }
+TEST(RmtOneWireSearchContract, ZeroOnTimeoutThenRecovers) { run_search_failure(SearchFailure::TIMEOUT); }
+TEST(RmtOneWireSearchContract, ZeroOnArmFailureThenRecovers) { run_search_failure(SearchFailure::ARM); }
+TEST(RmtOneWireSearchContract, ZeroOnTxFailureThenRecovers) { run_search_failure(SearchFailure::TX); }
 
-TEST(RmtOneWireSearchContract, I8_ZeroWhenTheClosingWriteFails) {
+TEST(RmtOneWireSearchContract, ZeroWhenTheClosingWriteFails) {
   for (bool timeout : {false, true}) {
     Rig rig;
     rig.port.bus.devices.emplace_back(ROM_A);
@@ -875,7 +873,7 @@ TEST(RmtOneWireSearchContract, I8_ZeroWhenTheClosingWriteFails) {
   }
 }
 
-TEST(RmtOneWireSearchContract, I8_SearchDrainsTheFifoFirst) {
+TEST(RmtOneWireSearchContract, SearchDrainsTheFifoFirst) {
   Rig rig;
   rig.port.bus.devices.emplace_back(ROM_A);
   DoneLog log;
