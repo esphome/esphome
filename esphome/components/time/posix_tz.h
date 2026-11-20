@@ -5,6 +5,8 @@
 #include <cstdint>
 #include <ctime>
 
+#include "esphome/core/time_utc.h"
+
 namespace esphome::time {
 
 /// Type of DST transition rule
@@ -77,18 +79,16 @@ void julian_to_month_day(int julian_day, int &month, int &day);
 /// @param[out] day Output: day of month
 void day_of_year_to_month_day(int day_of_year, int year, int &month, int &day);
 
-/// Calculate day of week for any date (0 = Sunday)
-/// Uses a simplified algorithm that works for years 1970-2099
+/// Calculate day of week for any date in the years 0 to 65535 (0 = Sunday)
 int day_of_week(int year, int month, int day);
 
-/// Get the number of days in a month
-int days_in_month(int year, int month);
-
-/// Check if a year is a leap year
-bool is_leap_year(int year);
-
-/// Convert epoch to year/month/day/hour/min/sec (UTC)
-void epoch_to_tm_utc(time_t epoch, struct tm *out_tm);
+// The UTC calendar math lives in core (esphome/core/time_utc.h)
+using esphome::internal::days_in_month;
+using esphome::internal::days_to_year_start;
+using esphome::internal::epoch_to_tm_utc;
+using esphome::internal::epoch_in_range;
+using esphome::internal::epoch_to_year;
+using esphome::internal::is_leap_year;
 
 /// Calculate the epoch timestamp for a DST transition in a given year.
 /// @param year The year (e.g., 2026)

@@ -7,8 +7,9 @@ from pathlib import Path
 
 import pytest
 
+from esphome import config_validation as cv
 from esphome.components.esp32.const import KEY_ESP32, KEY_SRC_CMAKE
-from esphome.components.esp32_ble import bluedroid_headers_cmake
+from esphome.components.esp32_ble import _drops_bond_keys, bluedroid_headers_cmake
 from esphome.core import CORE
 
 _WRAP_FLAGS = {
@@ -20,11 +21,30 @@ _WRAP_FLAGS = {
 
 
 @pytest.mark.parametrize(
+    ("version", "expected"),
+    [
+        ("5.5.5", False),
+        ("5.5.6", True),
+        ("5.5.7", True),
+        ("6.0.0", False),
+        ("6.0.3", False),
+        ("6.1.0", False),
+        ("6.1.1", True),
+        ("6.2.0", True),
+    ],
+)
+def test_drops_bond_keys_versions(version: str, expected: bool) -> None:
+    """ESP-IDF added the bond clearing in 5.5.6 and 6.1.1."""
+    assert _drops_bond_keys(cv.Version.parse(version)) is expected
+
+
+@pytest.mark.parametrize(
     ("framework", "windows", "expected"),
     [
         pytest.param("{type: esp-idf, version: 5.5.6}", False, True, id="idf_5_5_6"),
         pytest.param("{type: esp-idf, version: 5.5.5}", False, False, id="idf_5_5_5"),
         pytest.param("{type: esp-idf, version: 6.0.1}", False, False, id="idf_6"),
+        pytest.param("{type: esp-idf, version: 6.1.1}", False, True, id="idf_6_1_1"),
         pytest.param("{type: esp-idf, version: 5.5.6}", True, False, id="windows"),
         # Arduino 3.3.12 is built on ESP-IDF 5.5.6, 3.3.11 on 5.5.5
         pytest.param(
@@ -48,7 +68,7 @@ _WRAP_FLAGS = {
         ),
     ],
 )
-def test_wraps_only_on_idf_5_5_6_native_builds(
+def test_wraps_only_on_affected_idf_native_builds(
     generate_main: Callable[[str | Path], str],
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
