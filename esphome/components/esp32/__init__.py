@@ -1035,9 +1035,9 @@ def request_tls() -> None:
 
     Without a request TLS and its ECP/PEM-write/CRL/CSR crypto compile out;
     AES, SHA-256 and the other hashes stay available. On ESP-IDF 6 builds
-    SHA-224 and, without Wi-Fi, a websocket server or PPP, SHA-1 also go, and
-    on native ESP-IDF 6 builds RSA goes unless updates are RSA-signed; set
-    CONFIG_MBEDTLS_SHA224_C, CONFIG_MBEDTLS_SHA1_C or CONFIG_MBEDTLS_RSA_C to
+    without Wi-Fi, a websocket server or PPP, SHA-1 also goes; on native
+    ESP-IDF 6 builds SHA-224 goes, and RSA unless updates are RSA-signed. Set
+    CONFIG_MBEDTLS_SHA1_C, CONFIG_MBEDTLS_SHA224_C or CONFIG_MBEDTLS_RSA_C to
     keep them.
     """
     require_mbedtls_tls()
