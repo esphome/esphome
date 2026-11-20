@@ -1829,7 +1829,7 @@ async def component_resume_action_to_code(
             # Built with the trigger's own argument types and always called, so the body
             # may modify its by-value arguments
             lamb = await cg.process_lambda(interval, args, return_type=cg.uint32)
-            interval = CallExpression(lamb, *(MockObj(name) for _, name in args))
+            interval = immediate_lambda_call(lamb)
         calls.append(f"set_update_interval({cg.safe_exp(interval)})")
     calls.append("start_poller()")
     return await _polling_component_action(config, action_id, template_arg, args, calls)
