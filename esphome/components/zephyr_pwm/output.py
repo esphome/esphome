@@ -4,6 +4,8 @@ from typing import Any
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import output
+from esphome.components.nrf52.const import DEFAULT_PWM, VARIANT_PWM, VariantPWM
+from esphome.components.nrf52.framework import get_nrf52_variant
 from esphome.components.output import DOMAIN as OUTPUT_DOMAIN
 from esphome.components.zephyr import zephyr_add_overlay_builder, zephyr_add_prj_conf
 import esphome.config_validation as cv
@@ -36,6 +38,28 @@ def _pin_schema(value: Any) -> ConfigType:
     return value
 
 
+def _get_variant_pwm() -> VariantPWM:
+    return VARIANT_PWM.get(get_nrf52_variant(), DEFAULT_PWM)
+
+
+def _validate_variant(config: ConfigType) -> ConfigType:
+    """Reject chips without PWM, and nRF54L pins outside the power domain of the PWM instances."""
+    variant_pwm = _get_variant_pwm()
+    if not variant_pwm.labels:
+        raise cv.Invalid(f"{get_nrf52_variant()} has no PWM peripheral")
+    if (ports := variant_pwm.ports) is None:
+        return config
+    port, pin = divmod(config[CONF_PIN][CONF_NUMBER], 32)
+    if port not in ports:
+        allowed = " or ".join(f"P{p}" for p in ports)
+        raise cv.Invalid(
+            f"P{port}.{pin:02d} is not in the power domain of the PWM peripherals; "
+            f"use a pin on {allowed}",
+            [CONF_PIN],
+        )
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     output.FLOAT_OUTPUT_SCHEMA.extend(
         {
@@ -45,15 +69,15 @@ CONFIG_SCHEMA = cv.All(
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.only_on_nrf52,
+    _validate_variant,
 )
 
-PWM_BLOCK_COUNT = 4
 PWM_CHANNELS_PER_BLOCK = 4
 
 
 @dataclass
 class PWMBlock:
-    id: int
+    label: str
     period_ns: int
     pins: list[int]
 
@@ -70,6 +94,10 @@ def _get_data() -> ZephyrPWMData:
 
 
 def _allocate_blocks() -> None:
+    variant_pwm = _get_variant_pwm()
+    labels = variant_pwm.labels
+    # The nRF54L GPIO chapter says a peripheral cannot mix pins from different ports
+    one_port_per_block = variant_pwm.ports is not None
     pwm_blocks: list[PWMBlock] = []
     for cfg in fv.platform_entries(domain=OUTPUT_DOMAIN, platform=DOMAIN):
         pin_number = cfg[CONF_PIN][CONF_NUMBER]
@@ -80,15 +108,20 @@ def _allocate_blocks() -> None:
                 for block in pwm_blocks
                 if block.period_ns == period_ns
                 and len(block.pins) < PWM_CHANNELS_PER_BLOCK
+                and (not one_port_per_block or block.pins[0] // 32 == pin_number // 32)
             ),
             None,
         )
         if pwm_block is None:
-            if len(pwm_blocks) >= PWM_BLOCK_COUNT:
+            if len(pwm_blocks) >= len(labels):
+                same_port = " and GPIO port" if one_port_per_block else ""
                 raise cv.Invalid(
-                    f"Only {PWM_BLOCK_COUNT} PWM blocks with a distinct frequency and {PWM_CHANNELS_PER_BLOCK} channels each are supported by nrf52"
+                    f"Only {len(labels)} PWM blocks with a distinct frequency{same_port} and "
+                    f"{PWM_CHANNELS_PER_BLOCK} channels each are supported by {get_nrf52_variant()}"
                 )
-            pwm_block = PWMBlock(id=len(pwm_blocks), period_ns=period_ns, pins=[])
+            pwm_block = PWMBlock(
+                label=labels[len(pwm_blocks)], period_ns=period_ns, pins=[]
+            )
             pwm_blocks.append(pwm_block)
         pwm_block.pins.append(pin_number)
 
@@ -111,10 +144,10 @@ def _overlay_pwm() -> str:
 
     overlay_parts.extend(
         f"""
-        &pwm{block.id} {{
+        &{block.label} {{
             status = "okay";
-            pinctrl-0 = <&pwm{block.id}_default_custom>;
-            pinctrl-1 = <&pwm{block.id}_sleep_custom>;
+            pinctrl-0 = <&{block.label}_default_custom>;
+            pinctrl-1 = <&{block.label}_sleep_custom>;
             pinctrl-names = "default", "sleep";
         }};"""
         for block in pwm_blocks
@@ -127,12 +160,12 @@ def _overlay_pwm() -> str:
             for channel_id, pin in enumerate(block.pins)
         )
         pinctls.append(f"""
-            pwm{block.id}_default_custom: pwm{block.id}_default_custom {{
+            {block.label}_default_custom: {block.label}_default_custom {{
                 group1 {{
                     psels = {psels};
                 }};
             }};
-            pwm{block.id}_sleep_custom: pwm{block.id}_sleep_custom {{
+            {block.label}_sleep_custom: {block.label}_sleep_custom {{
                 group1 {{
                     psels = {psels};
                     low-power-enable;
@@ -160,7 +193,7 @@ async def to_code(config: ConfigType) -> None:
     pin_inverted = pin.get(CONF_INVERTED, False)
     var = cg.new_Pvariable(
         config[CONF_ID],
-        cg.RawExpression(f"DEVICE_DT_GET_OR_NULL(DT_NODELABEL(pwm{pwm_block.id}))"),
+        cg.RawExpression(f"DEVICE_DT_GET_OR_NULL(DT_NODELABEL({pwm_block.label}))"),
         channel_id,
         pin_inverted,
         pwm_block.period_ns,

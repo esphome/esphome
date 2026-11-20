@@ -1518,17 +1518,7 @@ inline char *ESPHOME_ALWAYS_INLINE progmem_copy_str(char *dst, const char *end, 
 /// @param str PROGMEM-resident string to append (must not be null)
 /// @return New position after appending; returns `size` if `pos >= size`, otherwise
 ///         returns at most `size - 1` because one byte is reserved for the null terminator
-inline size_t buf_append_str_p(char *buf, size_t size, size_t pos, PGM_P str) {
-  if (pos >= size) {
-    return size;
-  }
-  size_t remaining = size - pos - 1;  // reserve space for null terminator
-  size_t len = strnlen_P(str, remaining);
-  memcpy_P(buf + pos, str, len);
-  pos += len;
-  buf[pos] = '\0';
-  return pos;
-}
+size_t buf_append_str_p(char *buf, size_t size, size_t pos, PGM_P str);
 /// Safely append a string to buffer, returning new position (capped at size).
 /// More efficient than buf_append_printf for plain string literals.
 /// On ESP8266 the literal is wrapped with PSTR() so it stays in flash.
