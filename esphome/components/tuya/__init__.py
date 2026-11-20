@@ -3,7 +3,7 @@ from esphome.automation import parent_ref
 import esphome.codegen as cg
 from esphome.components import time, uart
 import esphome.config_validation as cv
-from esphome.const import CONF_SENSOR_DATAPOINT, CONF_TIME_ID
+from esphome.const import CONF_PROTOCOL, CONF_SENSOR_DATAPOINT, CONF_TIME_ID
 from esphome.core import CORE, AutoLoad, CoroPriority, coroutine_with_priority
 from esphome.cpp_generator import MockObj
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
@@ -23,12 +23,15 @@ def AUTO_LOAD(config: ConfigType | AutoLoad | None) -> list[str]:
 CONF_IGNORE_MCU_UPDATE_ON_DATAPOINTS = "ignore_mcu_update_on_datapoints"
 
 CONF_ON_DATAPOINT_UPDATE = "on_datapoint_update"
+CONF_ON_MCU_READY = "on_mcu_ready"
 CONF_DATAPOINT_TYPE = "datapoint_type"
 CONF_STATUS_PIN = "status_pin"
 CONF_FORCE_TIME_SYNC = "force_time_sync"
+CONF_MCU_WAKE_PIN = "mcu_wake_pin"
 
 tuya_ns = cg.esphome_ns.namespace("tuya")
 TuyaDatapointType = tuya_ns.enum("TuyaDatapointType", is_class=True)
+TuyaProtocol = tuya_ns.enum("TuyaProtocol", is_class=True)
 Tuya = tuya_ns.class_("Tuya", cg.Component)
 TuyaUART = tuya_ns.class_("TuyaUART", Tuya, uart.UARTDevice)
 
@@ -57,6 +60,7 @@ DATAPOINT_TYPES = {
 
 
 CONF_TUYA_ID = "tuya_id"
+PROTOCOL_LOW_POWER = "low_power"
 
 # The hub's dump_config prints each child's dump
 DUMP_PUBLISHER = cg.HubFunction("dump", cg.void, [], define="USE_TUYA_DUMP_PUBLISHER")
@@ -79,6 +83,19 @@ def _validate_time_options(config: ConfigType) -> ConfigType:
             f"{CONF_FORCE_TIME_SYNC} requires {CONF_TIME_ID}",
             path=[CONF_FORCE_TIME_SYNC],
         )
+    if config[CONF_PROTOCOL] == PROTOCOL_LOW_POWER and config[CONF_FORCE_TIME_SYNC]:
+        raise cv.Invalid(
+            "force_time_sync is unsupported for low_power; CMD06 is MCU initiated",
+            path=[CONF_FORCE_TIME_SYNC],
+        )
+    if config[CONF_PROTOCOL] == PROTOCOL_LOW_POWER and CONF_STATUS_PIN in config:
+        raise cv.Invalid(
+            "status_pin is unsupported for low_power; wake is configured separately",
+            path=[CONF_STATUS_PIN],
+        )
+    for key in (CONF_MCU_WAKE_PIN, CONF_ON_MCU_READY):
+        if key in config and config[CONF_PROTOCOL] != PROTOCOL_LOW_POWER:
+            raise cv.Invalid(f"{key} requires protocol: low_power", path=[key])
     return config
 
 
@@ -100,6 +117,11 @@ UART_SCHEMA = cv.All(
     TUYA_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(TuyaUART),
+            cv.Optional(CONF_PROTOCOL, default="standard"): cv.one_of(
+                "standard", PROTOCOL_LOW_POWER, lower=True
+            ),
+            cv.Optional(CONF_MCU_WAKE_PIN): pins.gpio_output_pin_schema,
+            cv.Optional(CONF_ON_MCU_READY): automation.validate_automation({}),
             cv.Optional(CONF_TIME_ID): cv.use_id(time.RealTimeClock),
             cv.Optional(CONF_FORCE_TIME_SYNC, default=False): cv.boolean,
             cv.Optional(CONF_STATUS_PIN): pins.gpio_output_pin_schema,
@@ -142,12 +164,21 @@ async def to_code(config: ConfigType | AutoLoad) -> None:
         return
 
     var = await uart.new_uart_component(config)
+    if config[CONF_PROTOCOL] == PROTOCOL_LOW_POWER:
+        # Standard Tuya builds must not carry the low-power driver code or state.
+        cg.add_define("USE_TUYA_LOW_POWER")
+        cg.add(var.set_protocol(TuyaProtocol.TUYA_PROTOCOL_LOW_POWER))
+        await cg.add_pin(var.set_mcu_wake_pin, config.get(CONF_MCU_WAKE_PIN))
     if (time_id := config.get(CONF_TIME_ID)) is not None:
         await cg.add_variable(var.set_time_id, time_id)
         if config[CONF_FORCE_TIME_SYNC]:
             cg.add(var.set_force_time_sync(True))
     await cg.add_pin(var.set_status_pin, config.get(CONF_STATUS_PIN))
     await setup_tuya(var, config)
+    for conf in config.get(CONF_ON_MCU_READY, []):
+        await automation.build_callback_automation(
+            var, "add_on_mcu_ready_callback", [], conf
+        )
 
 
 def FILTER_SOURCE_FILES() -> list[str]:
