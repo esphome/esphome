@@ -58,9 +58,24 @@ void RTSPServer::loop() {
   }
 
   bool playing = false;
-  for (auto &session : this->sessions_) {
+  uint8_t sending = 0;
+  uint8_t finished = 0;
+  for (size_t i = 0; i < this->sessions_.size(); i++) {
+    RTSPSession &session = this->sessions_[i];
     session.loop(now, this->port_);
     playing |= session.is_playing();
+    if (session.has_frame())
+      sending |= 1 << i;
+    if (session.finished_frame())
+      finished |= 1 << i;
+  }
+  const uint8_t laggards = this->laggards_.update(sending, finished, now);
+  for (size_t i = 0; i < this->sessions_.size(); i++) {
+    if (laggards & (1 << i)) {
+      ESP_LOGV(TAG, "Session %u is %" PRIu32 " ms behind the others, dropping frame", static_cast<unsigned>(i),
+               FRAME_LAGGARD_MS);
+      this->sessions_[i].drop_frame();
+    }
   }
 
   if (playing != this->streaming_) {
@@ -121,9 +136,13 @@ void RTSPServer::on_camera_image(const std::shared_ptr<camera::CameraImage> &ima
   }
 
   const uint32_t now = App.get_loop_component_start_time();
-  for (auto &session : this->sessions_) {
-    session.on_new_frame(image, jpeg, now);
+  uint8_t taken = 0;
+  for (size_t i = 0; i < this->sessions_.size(); i++) {
+    if (this->sessions_[i].on_new_frame(image, jpeg, now))
+      taken |= 1 << i;
   }
+  if (taken != 0)
+    this->laggards_.start(taken);
 }
 
 void RTSPServer::dump_config() {
