@@ -25,3 +25,14 @@ jobs:
       - name: Run tests
         working-directory: .github/scripts/auto-label-pr
         run: npm test
+
+  test-request-copilot-review:
+    name: Test request-copilot-review script
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code from GitHub
+        uses: actions/checkout@v7.0.1
+
+      - name: Run tests
+        working-directory: .github/scripts/request-copilot-review
+        run: npm test
