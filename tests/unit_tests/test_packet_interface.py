@@ -62,7 +62,8 @@ def test_reliability_defaults(setup_core) -> None:
     config = uart_packet_interface.CONFIG_SCHEMA({CONF_RELIABILITY: None})
     reliability = config[CONF_RELIABILITY]
     assert reliability["type"] == "hdlc"
-    assert reliability["timeout"].total_milliseconds == 200
+    # Left out, so that the link can choose one; otherwise the layer uses 200 ms
+    assert "timeout" not in reliability
     assert reliability[CONF_MAX_QUEUE_LENGTH] == 4
     assert reliability["max_retries"] == 5
 
@@ -92,6 +93,9 @@ def test_ack_delay_shorter_than_timeout(setup_core) -> None:
         uart_packet_interface.CONFIG_SCHEMA(
             {CONF_RELIABILITY: {"timeout": "500ms", "ack_delay": "500ms"}}
         )
+    # Without a timeout, the link's default of 200 ms applies
+    with pytest.raises(cv.Invalid, match="shorter than 'timeout', which is 200ms"):
+        uart_packet_interface.CONFIG_SCHEMA({CONF_RELIABILITY: {"ack_delay": "250ms"}})
 
 
 def test_layer_types_registered() -> None:

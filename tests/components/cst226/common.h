@@ -20,7 +20,14 @@ class FakePin final : public GPIOPin {
   bool level{false};
 };
 
-// Answers the 8-bit status read with a set report and 16-bit setup reads with zeros.
+// Fills a 16-bit register read: the firmware check code read gets a valid code, other registers zeros.
+inline void answer_setup_read(const uint8_t *data, size_t size, uint8_t *out, size_t out_size) {
+  std::memset(out, 0, out_size);
+  if (size == 2 && encode_uint16(data[0], data[1]) == cstxxx::REG_FW_CHECK_CODE && out_size == 4)
+    out[2] = out[3] = 0xCA;
+}
+
+// Answers the 8-bit status read with a set report and 16-bit setup reads through answer_setup_read().
 class StatusBus final : public i2c::I2CBus {
  public:
   std::array<uint8_t, 28> status{};
@@ -35,7 +42,7 @@ class StatusBus final : public i2c::I2CBus {
     if (size == 1 && data[0] == CST226_REG_STATUS) {
       std::memcpy(out, this->status.data(), std::min(out_size, this->status.size()));
     } else {
-      std::memset(out, 0, out_size);
+      answer_setup_read(data, size, out, out_size);
     }
     return i2c::ERROR_OK;
   }

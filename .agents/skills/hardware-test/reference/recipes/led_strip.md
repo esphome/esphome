@@ -61,3 +61,10 @@ frame of two LEDs set to `Color(0xA5, 0x3C, 0x0F)` reads `3ca50f3ca50f`.
 - An RP2350 `panic()` escalates to a HardFault and the rp2 crash handler reboots within about a second, so a panic
   during component setup boot-loops before USB CDC enumerates and the board looks dead (no port, no BOOTSEL drive).
   Hold BOOTSEL while plugging it in and flash the UF2 drive. To see such a fault, trigger it after boot.
+
+## Counting a PIO strip's edges on its own pin (#16243)
+
+A GPIO interrupt on the strip's own data pin (`gpio_set_irq_enabled_with_callback(pin, GPIO_IRQ_EDGE_RISE, ...)`)
+counts every bit the PIO program sends, with no wires or LEDs; a strip that sends nothing shows 0 edges per report.
+Log the PIO block's state machine enable mask and program counters next to the count. `pio_probe/pio-common.yaml`
+clears PIO1 instruction memory at boot because it survives a reflash (see `reference/boards.md`).
