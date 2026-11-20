@@ -147,6 +147,7 @@ void DraytonProtocol::encode(RemoteTransmitData *dst, const DraytonData &data) {
 
 optional<DraytonData> DraytonProtocol::decode(RemoteReceiveData src) {
   DraytonData out{};
+  const TimingRange sync_mark = src.timing_range(2 * BIT_TIME_US);
 
   while (src.size() - src.get_index() >= MIN_RX_SRC) {
     // If first preamble item is a space, skip it
@@ -158,7 +159,7 @@ optional<DraytonData> DraytonProtocol::decode(RemoteReceiveData src) {
     while (src.size() - src.get_index() >= MIN_RX_SRC) {
       ESP_LOGVV(TAG, "sync search %" PRIu32 ", %" PRId32 " %" PRId32, src.size() - src.get_index(), src.peek(),
                 src.peek(1));
-      if (src.peek_mark(2 * BIT_TIME_US) &&
+      if (sync_mark.matches_mark(src.peek()) &&
           (src.peek_space(2 * BIT_TIME_US, 1) || src.peek_space(3 * BIT_TIME_US, 1))) {
         src.advance(1);
         ESP_LOGVV(TAG, "Found SYNC %" PRIu32, src.get_index());
