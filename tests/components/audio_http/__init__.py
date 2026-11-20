@@ -3,6 +3,7 @@
 from contextlib import AbstractContextManager, nullcontext
 from dataclasses import dataclass
 from pathlib import Path
+import sys
 
 from esphome import git
 import esphome.codegen as cg
@@ -79,8 +80,11 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
             )
         cg.add_build_flag("-DMICRO_DECODER_CODEC_FLAC=1")
         cg.add_build_flag("-DMICRO_FLAC_DISABLE_OGG")
-        cg.add_build_flag("-Wl,--wrap=pthread_create")
-        cg.add_build_flag("-Wl,--wrap=pthread_join")
+        # Apple's linker has no --wrap, so the worker thread counts are only checked elsewhere
+        if sys.platform != "darwin":
+            cg.add_define("AUDIO_HTTP_TEST_COUNT_THREADS")
+            cg.add_build_flag("-Wl,--wrap=pthread_create")
+            cg.add_build_flag("-Wl,--wrap=pthread_join")
         sdk = Path(__file__).parent.parent / "speaker_source" / "__sdk"
         manifest.add_resources(
             *(

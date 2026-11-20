@@ -29,14 +29,14 @@ namespace esphome::audio_http::testing {
 struct HttpFixtureState {
   std::atomic<unsigned> threads_created{0}, threads_joined{0};
   std::vector<uint8_t> body;
-  std::atomic<bool> natural_end{false}, reader_fault{false};
-  std::atomic<unsigned> transport_errors{0}, transport_closed{0};
+  std::atomic<bool> natural_end{false};
+  std::atomic<unsigned> transport_closed{0};
 };
 HttpFixtureState &fixture() {
   static HttpFixtureState state;
   return state;
 }
-class FaultHttpClient : public micro_decoder::HttpClient {
+class FixtureHttpClient : public micro_decoder::HttpClient {
  public:
   bool open(const micro_decoder::HttpRequest &) override { return true; }
   const micro_decoder::HttpResponse &response_info() const override { return this->response_; }
@@ -47,10 +47,7 @@ class FaultHttpClient : public micro_decoder::HttpClient {
       this->position_ += length;
       return static_cast<int>(length);
     }
-    if (!fixture().reader_fault.load())
-      return 0;
-    ++fixture().transport_errors;
-    return -1;
+    return 0;
   }
   bool is_complete() const override { return fixture().natural_end.load() && this->position_ == fixture().body.size(); }
   void close() override {
@@ -68,6 +65,7 @@ class FaultHttpClient : public micro_decoder::HttpClient {
 
 }  // namespace esphome::audio_http::testing
 
+#ifdef AUDIO_HTTP_TEST_COUNT_THREADS
 // GNU ld --wrap requires these ABI symbols; C++ identifiers stay ordinary names.
 extern "C" int real_pthread_create(pthread_t *, const pthread_attr_t *, void *(*)(void *),
                                    void *) asm("__real_pthread_create");
@@ -88,9 +86,10 @@ extern "C" int wrapped_pthread_join(pthread_t thread, void **value) {
     ++esphome::audio_http::testing::fixture().threads_joined;
   return result;
 }
+#endif
 namespace micro_decoder {
 std::unique_ptr<HttpClient> create_http_client() {
-  return std::make_unique<esphome::audio_http::testing::FaultHttpClient>();
+  return std::make_unique<esphome::audio_http::testing::FixtureHttpClient>();
 }
 }  // namespace micro_decoder
 
@@ -98,6 +97,13 @@ namespace esphome::audio_http::testing {
 std::vector<uint8_t> fixture_bytes(const char *name) {
   std::ifstream input(std::string(AUDIO_HTTP_TEST_FIXTURES) + "/" + name + ".bin", std::ios::binary);
   return {std::istreambuf_iterator<char>(input), {}};
+}
+// Workers created and joined before an IDLE report; only counted where the linker supports --wrap
+void expect_workers_joined([[maybe_unused]] const std::pair<unsigned, unsigned> &at_idle,
+                           [[maybe_unused]] unsigned workers) {
+#ifdef AUDIO_HTTP_TEST_COUNT_THREADS
+  EXPECT_EQ(at_idle, (std::pair<unsigned, unsigned>{workers, workers}));
+#endif
 }
 template<typename Predicate, typename Pump> bool pump_until(Predicate predicate, Pump pump) {
   auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
@@ -136,35 +142,43 @@ class HttpRetirement : public ::testing::Test {
     fixture().body = fixture_bytes("fixture.flac");
     ASSERT_GT(fixture().body.size(), 1024u);
     fixture().natural_end.store(true);
-    fixture().reader_fault.store(false);
-    fixture().transport_errors.store(0);
     fixture().transport_closed.store(0);
   }
 };
-TEST_F(HttpRetirement, NaturalEndJoinsRealWorkersBeforePublishingIdle) {
+// One playback ends naturally; with two, the IDLE listener starts the second from inside its report.
+class HttpPlaybacks : public HttpRetirement, public ::testing::WithParamInterface<unsigned> {};
+TEST_P(HttpPlaybacks, WorkersJoinBeforeEachIdle) {
   using namespace esphome;
-  ASSERT_GT(fixture().body.size(), 1024u);
+  const unsigned playbacks = GetParam();
   RetirementListener listener;
   audio_http::AudioHTTPMediaSource source;
+  if (playbacks > 1)
+    listener.restart_source = &source;
   source.media_source::MediaSource::set_listener(&listener);
   source.set_persistent_ring_buffer(true);
   source.set_task_stack_in_psram(true);
   source.call();
-  ASSERT_TRUE(source.play_uri("http://fixture.test/natural.flac"));
-  bool ended = pump_until([&] { return listener.at_idle.size() == 1; }, [&] { source.call(); });
+  ASSERT_TRUE(source.play_uri("http://fixture.test/first.flac"));
+  bool ended = pump_until([&] { return listener.at_idle.size() == playbacks; }, [&] { source.call(); });
   // Capture before explicit cleanup, which must not hide retained workers on the baseline.
   const auto at_idle = listener.at_idle;
   source.handle_command(media_source::MediaSourceCommand::STOP);
   source.call();
   ASSERT_TRUE(ended);
-  ASSERT_EQ(at_idle.size(), 1u);
-  EXPECT_EQ(at_idle.front(), (std::pair<unsigned, unsigned>{2, 2}));
-  EXPECT_EQ(listener.pcm, fixture_bytes("reference.pcm"));
-  EXPECT_EQ(fixture().transport_errors.load(), 0u);
-  EXPECT_EQ(fixture().transport_closed.load(), 1u);
+  EXPECT_EQ(listener.restart_accepted, playbacks > 1);
+  ASSERT_EQ(at_idle.size(), playbacks);
+  const auto reference = fixture_bytes("reference.pcm");
+  std::vector<uint8_t> expected;
+  for (unsigned i = 0; i < playbacks; ++i) {
+    expect_workers_joined(at_idle[i], 2 * (i + 1));
+    expected.insert(expected.end(), reference.begin(), reference.end());
+  }
+  EXPECT_EQ(listener.pcm, expected);
+  EXPECT_EQ(fixture().transport_closed.load(), playbacks);
   EXPECT_EQ(source.get_state(), media_source::MediaSourceState::IDLE);
   EXPECT_TRUE(source.is_idle());
 }
+INSTANTIATE_TEST_SUITE_P(OneAndTwo, HttpPlaybacks, ::testing::Values(1u, 2u));
 
 TEST_F(HttpRetirement, ExplicitStopPublishesIdleOnceAfterJoiningWorkers) {
   using namespace esphome;
@@ -183,34 +197,7 @@ TEST_F(HttpRetirement, ExplicitStopPublishesIdleOnceAfterJoiningWorkers) {
   source.handle_command(media_source::MediaSourceCommand::STOP);
   source.call();
   ASSERT_EQ(listener.at_idle.size(), 1u);
-  EXPECT_EQ(listener.at_idle.front(), (std::pair<unsigned, unsigned>{2, 2}));
-  EXPECT_TRUE(source.is_idle());
-}
-
-TEST_F(HttpRetirement, IdleListenerCanStartTheNextRealHttpPlayback) {
-  using namespace esphome;
-  RetirementListener listener;
-  audio_http::AudioHTTPMediaSource source;
-  listener.restart_source = &source;
-  source.media_source::MediaSource::set_listener(&listener);
-  source.set_persistent_ring_buffer(true);
-  source.call();
-  ASSERT_TRUE(source.play_uri("http://fixture.test/first.flac"));
-  bool ended = pump_until([&] { return listener.at_idle.size() == 2; }, [&] { source.call(); });
-  const auto at_idle = listener.at_idle;
-  source.handle_command(media_source::MediaSourceCommand::STOP);
-  source.call();
-  ASSERT_TRUE(ended);
-  ASSERT_TRUE(listener.restart_accepted);
-  ASSERT_EQ(at_idle.size(), 2u);
-  EXPECT_EQ(at_idle[0], (std::pair<unsigned, unsigned>{2, 2}));
-  EXPECT_EQ(at_idle[1], (std::pair<unsigned, unsigned>{4, 4}));
-  auto expected = fixture_bytes("reference.pcm");
-  const auto second = expected;
-  expected.insert(expected.end(), second.begin(), second.end());
-  EXPECT_EQ(listener.pcm, expected);
-  EXPECT_EQ(fixture().transport_closed.load(), 2u);
-  EXPECT_EQ(fixture().transport_errors.load(), 0u);
+  expect_workers_joined(listener.at_idle.front(), 2);
   EXPECT_TRUE(source.is_idle());
 }
 
