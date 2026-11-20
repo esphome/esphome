@@ -437,6 +437,7 @@ class SimPort : public Port {
   int drop_rx_at{NEVER};           ///< Section n never reports RX done
   uint32_t section_delay_us{0};    ///< Extra time before a section reports completion
   std::function<void()> on_abort;  ///< Runs inside abort(), a completion racing the abort
+  std::function<void()> on_start_tx;  ///< Runs first in start_tx(), like a log handler in the middle of a step
   std::function<void(size_t section, std::vector<Symbol> &capture)> capture_mutator;
 
   // ---- Recorded ----
@@ -478,6 +479,8 @@ class SimPort : public Port {
   bool start_tx(const Symbol *symbols, size_t count) override {
     HeapPause pause;
     this->note_main_call_();
+    if (this->on_start_tx)
+      this->on_start_tx();
     this->calls.push_back(PortCall::TX);
     if (this->tx_count++ == this->fail_tx_at)
       return false;

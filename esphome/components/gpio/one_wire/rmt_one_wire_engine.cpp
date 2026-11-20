@@ -23,6 +23,20 @@ static constexpr uint32_t RX_IDLE_RESET_US = 600;  // above the reset Low, or th
 static constexpr uint32_t SECTION_TIMEOUT_MS = 50;
 static constexpr uint32_t BLOCKING_WAIT_MS = 1;
 
+/// Marks the engine busy for one call of poll() or a blocking method.
+class BusyScope {
+ public:
+  explicit BusyScope(bool *busy) : busy_(busy) { *busy = true; }
+  ~BusyScope() { *this->busy_ = false; }
+  BusyScope(const BusyScope &) = delete;
+  BusyScope(BusyScope &&) = delete;
+  BusyScope &operator=(const BusyScope &) = delete;
+  BusyScope &operator=(BusyScope &&) = delete;
+
+ private:
+  bool *busy_;
+};
+
 /// What a failed blocking read returns: bits [0, num_bits) of data set to 1.
 static void set_bits(uint8_t *data, size_t num_bits) {
   for (size_t bit = 0; bit < num_bits; bit++)
@@ -38,6 +52,14 @@ Engine::Engine(Port *port, size_t mem_words, const Timing &timing)
 bool Engine::submit(Transaction *transaction) { return this->queue_.push(transaction); }
 
 void Engine::poll() {
+  // Logging inside the engine runs log handlers at once, and these may call back into the bus
+  if (this->busy_)
+    return;
+  BusyScope scope(&this->busy_);
+  this->poll_();
+}
+
+void Engine::poll_() {
   if (this->queue_.empty())
     return;
   if (this->failed_) {
@@ -159,9 +181,13 @@ bool Engine::decode_read_(size_t num_bits, uint8_t *out, size_t bit_offset) {
 void Engine::finish_(TransactionStatus status) {
   Transaction *done = this->queue_.pop();
   this->step_ = Step::LINE_UNCHECKED;
-  // Comes last, on_done may submit() again
-  if (done->on_done != nullptr)
-    done->on_done(done->context, status);
+  if (done->on_done == nullptr)
+    return;
+  // Comes last. The queue and step_ are consistent now, so on_done may submit() or call a blocking method.
+  const bool busy = this->busy_;
+  this->busy_ = false;
+  done->on_done(done->context, status);
+  this->busy_ = busy;
 }
 
 bool Engine::start_section_(size_t count, uint32_t idle_us) {
@@ -189,9 +215,11 @@ bool Engine::abort_section_() {
 }
 
 void Engine::drain_() {
-  while (!this->queue_.empty()) {
-    this->poll();
-    if (!this->queue_.empty())
+  // poll_() starts a transaction only from LINE_UNCHECKED, so this only ends the one on the bus. The rest of the
+  // queue waits behind the blocking method, and a client that submits again from on_done cannot hold it up.
+  while (this->step_ != Step::LINE_UNCHECKED) {
+    this->poll_();
+    if (this->step_ != Step::LINE_UNCHECKED)
       this->port_->wait_for_event(BLOCKING_WAIT_MS);
   }
 }
@@ -210,6 +238,9 @@ bool Engine::run_section_(size_t count, uint32_t idle_us) {
 }
 
 int Engine::reset_blocking() {
+  if (this->busy_)
+    return 0;
+  BusyScope scope(&this->busy_);
   this->drain_();
   if (this->failed_)
     return 0;
@@ -231,6 +262,9 @@ int Engine::reset_blocking() {
 }
 
 bool Engine::write_blocking(const uint8_t *data, size_t num_bits) {
+  if (this->busy_)
+    return false;
+  BusyScope scope(&this->busy_);
   this->drain_();
   const size_t room = max_tx_slots(this->mem_words_);
   for (size_t sent = 0; sent < num_bits;) {
@@ -243,6 +277,11 @@ bool Engine::write_blocking(const uint8_t *data, size_t num_bits) {
 }
 
 bool Engine::read_blocking(uint8_t *data, size_t num_bits) {
+  if (this->busy_) {
+    set_bits(data, num_bits);
+    return false;
+  }
+  BusyScope scope(&this->busy_);
   this->drain_();
   const size_t room = max_rx_slots(this->mem_words_);
   for (size_t decoded = 0; decoded < num_bits;) {
@@ -268,6 +307,9 @@ void Engine::reset_search() {
 }
 
 uint64_t Engine::search_next() {
+  if (this->busy_)
+    return 0;
+  BusyScope scope(&this->busy_);
   this->drain_();
   if (this->last_device_)
     return 0;
