@@ -1,0 +1,19 @@
+esphome:
+  name: reboot-hooks-safe
+host:
+logger:
+  level: DEBUG
+api:
+  # Reboot once the test has connected, so that it sees every hook
+  on_client_connected:
+    - delay: 100ms
+    - lambda: App.safe_reboot();
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+
+reboot_hook_recorder:
+  - name: first
+  - name: second
