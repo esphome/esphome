@@ -413,16 +413,18 @@ void OpenThreadComponent::apply_linkmode_(otInstance *instance) {
     const uint32_t poll_period_sec = (this->poll_period_ + 999) / 1000;
     otThreadSetChildTimeout(
         instance, polling ? std::max<uint32_t>(poll_period_sec * 4, CHILD_TIMEOUT_MIN_SEC) : CHILD_TIMEOUT_MIN_SEC);
-    // At most 3 * 7200 + 10, so both fit the uint16_t setters
+    // At most 3 * 7200 + 10, so both fit the uint16_t setters; a 0 core_option keeps that setting off
     otChildSupervisionSetCheckTimeout(
         instance, static_cast<uint16_t>(
-                      polling ? std::max<uint32_t>(poll_period_sec * 3 + 10, CHILD_SUPERVISION_CHECK_TIMEOUT_MIN_SEC)
-                              : CHILD_SUPERVISION_CHECK_TIMEOUT_MIN_SEC));
+                      polling && CHILD_SUPERVISION_CHECK_TIMEOUT_MIN_SEC != 0
+                          ? std::max<uint32_t>(poll_period_sec * 3 + 10, CHILD_SUPERVISION_CHECK_TIMEOUT_MIN_SEC)
+                          : CHILD_SUPERVISION_CHECK_TIMEOUT_MIN_SEC));
     // Ends just before a poll so the parent holds the frame briefly
     otChildSupervisionSetInterval(
         instance, static_cast<uint16_t>(
-                      polling ? std::max<uint32_t>(poll_period_sec * 2, CHILD_SUPERVISION_INTERVAL_MIN_SEC + 10) - 10
-                              : CHILD_SUPERVISION_INTERVAL_MIN_SEC));
+                      polling && CHILD_SUPERVISION_INTERVAL_MIN_SEC != 0
+                          ? std::max<uint32_t>(poll_period_sec * 2, CHILD_SUPERVISION_INTERVAL_MIN_SEC + 10) - 10
+                          : CHILD_SUPERVISION_INTERVAL_MIN_SEC));
     // Read after the child timeout is set: OpenThread caps the effective period by one derived from it.
     ESP_LOGD(TAG,
              "Child Timeout: %" PRIu32 " sec, Child Supervision Check Timeout: %u sec, "
