@@ -954,6 +954,22 @@ _IDF61 = cv.Version(6, 1, 1)
             id="idf6_tls_user_rare_curve_wins",
         ),
         pytest.param(
+            # Wi-Fi Enterprise keeps the rare curves for private RADIUS PKIs.
+            PlatformFramework.ESP32_IDF,
+            _IDF6,
+            MbedtlsSdkconfigData(tls_required=True),
+            {"CONFIG_ESP_WIFI_ENTERPRISE_SUPPORT": True},
+            {
+                "CONFIG_ESP_WIFI_ENTERPRISE_SUPPORT": True,
+                **_TLS_CLIENT_ONLY,
+                **_TLS_EXTRAS_OFF,
+                **_PEER_CERT_PKCS7_OFF,
+                **_CIPHER_MODES_OFF,
+            },
+            set(_ESP_TLS_LINKING_COMPONENTS),
+            id="idf6_eap_keeps_rare_curves",
+        ),
+        pytest.param(
             # A P-384 app signing key keeps the P-384 curve.
             PlatformFramework.ESP32_IDF,
             _IDF6,

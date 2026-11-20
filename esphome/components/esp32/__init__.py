@@ -2803,7 +2803,8 @@ MBEDTLS_NON_P256_CURVE_OPTIONS = (
 )
 
 # Curves public CAs never sign with and TLS servers never negotiate (they use
-# RSA, P-256, P-384 and X25519); TLS builds still link them on IDF 6.
+# RSA, P-256, P-384, P-521 and X25519); TLS builds still link them on IDF 6.
+# Wi-Fi Enterprise keeps them: private RADIUS PKIs do use Brainpool.
 MBEDTLS_RARE_TLS_CURVE_OPTIONS = (
     "CONFIG_MBEDTLS_ECP_DP_SECP256K1_ENABLED",
     "CONFIG_MBEDTLS_ECP_DP_BP256R1_ENABLED",
@@ -3099,7 +3100,9 @@ async def _reconcile_mbedtls_sdkconfig() -> None:
 
     # Arduino's libraries call mbedTLS directly, so its builds keep every mode.
     if idf6 and not CORE.using_arduino:
-        if not _mbedtls_tls_compiled_out():
+        if not _mbedtls_tls_compiled_out() and not is_idf_sdkconfig_option_enabled(
+            "CONFIG_ESP_WIFI_ENTERPRISE_SUPPORT"
+        ):
             _trim_mbedtls_options(MBEDTLS_RARE_TLS_CURVE_OPTIONS)
         hardware_aes = _uses_hardware_aes()
         _trim_mbedtls_options(
