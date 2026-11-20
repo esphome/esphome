@@ -1664,6 +1664,10 @@ int call_everything_nested(Rig &rig) {
   EXPECT_FALSE(rig.engine.read_blocking(data, 16));
   EXPECT_EQ(data[0], 0xFF);
   EXPECT_EQ(data[1], 0xFF);
+  uint8_t partial[2] = {0x00, 0x50};
+  EXPECT_FALSE(rig.engine.read_blocking(partial, 12));
+  EXPECT_EQ(partial[0], 0xFF);
+  EXPECT_EQ(partial[1], 0x5F) << "the 4 bits that were not requested stay";
   EXPECT_EQ(rig.engine.search_next(), 0u);
   rig.engine.poll();
   EXPECT_EQ(rig.port.now_us(), now);

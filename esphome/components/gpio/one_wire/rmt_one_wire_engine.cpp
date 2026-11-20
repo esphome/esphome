@@ -39,10 +39,15 @@ class Engine::BusyScope {
   Engine *engine_;
 };
 
-/// What a failed blocking read returns: bits [0, num_bits) of data set to 1.
-static void set_bits(uint8_t *data, size_t num_bits) {
-  for (size_t bit = 0; bit < num_bits; bit++)
-    data[bit / 8] |= 1u << (bit % 8);
+/// Sets bits [0, num_bits) of data to value. Whole bytes are written without being read, the other bits of a
+/// trailing partial byte stay as they are.
+static void fill_bits(uint8_t *data, size_t num_bits, bool value) {
+  std::memset(data, value ? 0xFF : 0x00, num_bits / 8);
+  if (num_bits % 8 == 0)
+    return;
+  const uint8_t mask = (1u << (num_bits % 8)) - 1;
+  uint8_t &last = data[num_bits / 8];
+  last = value ? last | mask : last & ~mask;
 }
 
 Engine::Engine(Port *port, size_t mem_words, const Timing &timing)
@@ -292,21 +297,23 @@ bool Engine::write_blocking(const uint8_t *data, size_t num_bits) {
 
 bool Engine::read_blocking(uint8_t *data, size_t num_bits) {
   if (this->busy_) {
-    set_bits(data, num_bits);
+    fill_bits(data, num_bits, true);
     return false;
   }
   BusyScope scope(this);
   this->drain_();
+  // The decoder changes single bits, and data may be uninitialized
+  fill_bits(data, num_bits, false);
   const size_t room = max_rx_slots(this->mem_words_);
   for (size_t decoded = 0; decoded < num_bits;) {
     const size_t count = encode_read_slots(std::min(room, num_bits - decoded), this->tx_, this->timing_);
     if (!this->run_section_(count, this->rx_idle_us_)) {
-      set_bits(data, num_bits);
+      fill_bits(data, num_bits, true);
       return false;
     }
     if (!this->decode_read_(count, data, decoded)) {
       ESP_LOGW(TAG, "Read capture is invalid");
-      set_bits(data, num_bits);
+      fill_bits(data, num_bits, true);
       return false;
     }
     decoded += count;
