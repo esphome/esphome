@@ -339,6 +339,26 @@ def test_bit_bang_keeps_all_pin_options(validate: Callable[[str], Config]) -> No
     assert not result.errors, _error_text(result)
 
 
+ESP32_IDF = "esp32:\n  variant: esp32\n  framework:\n    type: esp-idf\n"
+
+
+@pytest.mark.parametrize(
+    ("pin", "message"),
+    [
+        ("\n      number: 34\n      mode: INPUT", "use_rmt drives the pin"),
+        ("34", "does not support output pin mode"),
+        ("\n      number: 5\n      mode: INPUT", "use_rmt drives the pin"),
+    ],
+    ids=["input_only_pin_in_input_mode", "input_only_pin", "input_mode"],
+)
+def test_use_rmt_needs_an_output_pin(
+    validate: Callable[[str], Config], pin: str, message: str
+) -> None:
+    """GPIO34 to GPIO39 of the ESP32 are input-only, the TX channel would fail in setup()."""
+    result = validate(_yaml(ESP32_IDF, USE_RMT, pin))
+    assert message in _error_text(result)
+
+
 ESP32_C3 = "esp32:\n  variant: esp32c3\n  framework:\n    type: esp-idf\n"
 
 

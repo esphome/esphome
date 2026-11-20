@@ -8,6 +8,7 @@ from esphome.const import (
     CONF_ID,
     CONF_INVERTED,
     CONF_MODE,
+    CONF_OUTPUT,
     CONF_PIN,
     CONF_PULLDOWN,
     CONF_PULLUP,
@@ -82,6 +83,14 @@ def _validate_rmt_pin(pin: ConfigType) -> None:
                 "needs an external pullup resistor",
                 path=[CONF_PIN, CONF_MODE, key],
             )
+    # The ESP32 pin validation rejects output on an input-only pin, such as GPIO34 of the ESP32,
+    # but not a mode without output. The TX channel drives the pin in any case.
+    if not mode[CONF_OUTPUT]:
+        raise cv.Invalid(
+            "use_rmt drives the pin, so the pin mode needs output. Remove 'mode' or "
+            "use INPUT_OUTPUT_OPEN_DRAIN. Input-only pins cannot be used",
+            path=[CONF_PIN, CONF_MODE],
+        )
     if (strength := pin.get(CONF_DRIVE_STRENGTH)) is not None and (
         strength != DEFAULT_DRIVE_STRENGTH
     ):
