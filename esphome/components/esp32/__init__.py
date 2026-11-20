@@ -866,6 +866,24 @@ def _is_idf_sdkconfig_option_not_disabled(name: str) -> bool:
     return value is None or _format_sdkconfig_val(value) == "y"
 
 
+def _trim_unused_idf_features() -> None:
+    """Default off ESP-IDF features nothing in ESPHome uses; user
+    sdkconfig_options win. Arduino's libraries are prebuilt, so it is skipped."""
+    if CORE.using_arduino:
+        return
+    # ESPHome's access point is open or WPA2, never WPA3 SAE.
+    set_idf_sdkconfig_default("CONFIG_ESP_WIFI_SOFTAP_SAE_SUPPORT", False)
+    # Nothing provisions keys for the digital signature peripheral, yet esp-tls
+    # links its PSA driver whenever this is on.
+    set_idf_sdkconfig_default("CONFIG_ESP_TLS_USE_DS_PERIPHERAL", False)
+    # GCM only needs a non-AES block cipher for ARIA or Camellia.
+    if not any(
+        is_idf_sdkconfig_option_enabled(option)
+        for option in ("CONFIG_MBEDTLS_ARIA_C", "CONFIG_MBEDTLS_CAMELLIA_C")
+    ):
+        set_idf_sdkconfig_default("CONFIG_MBEDTLS_GCM_SUPPORT_NON_AES_CIPHER", False)
+
+
 def task_wdt_timeout_ms() -> int:
     """Return the configured task watchdog timeout; 0 when it is disabled.
 
@@ -3863,6 +3881,7 @@ async def to_code(config):
 
     for name, value in conf[CONF_SDKCONFIG_OPTIONS].items():
         add_idf_sdkconfig_option(name, RawSdkconfigValue(value))
+    _trim_unused_idf_features()
     # A bundle forced on through sdkconfig_options is a request like any other,
     # so it still gets the CMN variant pinned.
     if conf[CONF_SDKCONFIG_OPTIONS].get("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE") == "y":

@@ -78,3 +78,11 @@ def test_psa_user_config_conditions(
     assert {name for name in _FFDH if (name in defines) is not ffdh} == set()
     assert {name for name in _RSA_PSS if (name in defines) is not rsa_pss} == set()
     assert {name for name in _SHA_224 if (name in defines) is not sha_224} == set()
+
+
+@pytest.mark.skipif(_COMPILER is None, reason="needs a host C compiler")
+def test_psa_user_config_drops_persistent_key_storage() -> None:
+    """Nothing stores PSA keys persistently, so the storage layer goes."""
+    assert "MBEDTLS_PSA_CRYPTO_STORAGE_C" not in _defines(
+        ("MBEDTLS_PSA_CRYPTO_STORAGE_C",)
+    )

@@ -18,6 +18,9 @@
 #undef PSA_WANT_ALG_RSA_PSS
 #undef PSA_WANT_ALG_RSA_PSS_ANY_SALT
 #endif
+// Nothing stores PSA keys persistently, but ESP-IDF keeps the storage layer
+// (esp_psa_its) linked whenever its NVS backend is available.
+#undef MBEDTLS_PSA_CRYPTO_STORAGE_C
 // Only TLS uses SHA-224. Chips without SHA-224 hardware otherwise keep the
 // software SHA-256 built in next to the hardware driver.
 #ifndef CONFIG_MBEDTLS_TLS_ENABLED
