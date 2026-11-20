@@ -6,6 +6,8 @@ import re
 import sys
 
 PHASES = (
+    ("no-target injection ON", "1nt"),
+    ("no-target injection OFF", "2after_nt"),
     ("read failure injection ON", "1fail"),
     ("read failure injection OFF", "2after_fail"),
     ("overflow injection ON", "3ovf"),

@@ -20,7 +20,7 @@ print(
     "E", len(re.findall(r"\[E\]", t)),
     "warnflag set", len(re.findall(r"set Warning flag", t)),
     "failed", len(re.findall(r"marked FAILED|mark_failed", t)),
-    "boots", len(re.findall(r"Setup vl6180x took|Running setup", t)),
+    "boots", len(re.findall(r"Running through setup", t)),
 )  # fmt: skip
 for line in sorted(set(re.findall(r"regs:\d+\]: (.*)", t))):
     print(" ", line)

@@ -22,6 +22,8 @@ def runs(name: str) -> list[dict]:
     found = [pathlib.Path(f"{name}-ser{s}.txt") for s in ("", "2", "3")]
     if not (loaded := [load(p) for p in found if p.exists()]):
         sys.exit(f"no capture {name}-ser.txt")
+    if not all(loaded):
+        sys.exit(f"a {name} capture has no MX cases")
     return loaded
 
 

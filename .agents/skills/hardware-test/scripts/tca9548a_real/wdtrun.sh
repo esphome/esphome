@@ -9,7 +9,8 @@ bash "$S/pio_build.sh" compile "$N" tca.yaml -s freq "$F" || exit 1
 bash "$S/pio_build.sh" upload "$N" tca.yaml "$P" -s freq "$F" || exit 1
 for i in $(seq 1 "$R"); do
   f=$N-r$i-cap.txt
-  $PY "$S/serial_capture.py" "$P" "$SEC" "$f" --reset > /dev/null 2>&1
+  rm -f "$f"
+  $PY "$S/serial_capture.py" "$P" "$SEC" "$f" --reset > /dev/null || { echo "$f: capture failed" >&2; continue; }
   echo "$N run $i: boots=$(grep -a -c 'Running through setup' "$f") full_setup=$(grep -a -c 'SETUP ' "$f")" \
     "wdt=$(grep -a -c 'Soft WDT reset' "$f") is01=$(grep -a -c 'after_setup.*INTERNAL_STATUS=01' "$f")" \
     "values=$(grep -a 'VALUES' "$f" | grep -vc nan) mux_failed=$(grep -a -c 'tca9548a was marked as failed' "$f")" \
