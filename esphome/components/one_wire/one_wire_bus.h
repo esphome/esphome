@@ -6,6 +6,24 @@
 
 namespace esphome::one_wire {
 
+#ifdef USE_ONE_WIRE_RMT
+enum class TransactionStatus : uint8_t { OK, NO_PRESENCE, BUS_LOW, CAPTURE_ERROR, TIMEOUT, HARDWARE_ERROR };
+
+/// Owned by the caller, must stay valid until on_done has run.
+/// Sequence on the bus: reset, ROM selection, write_data, read_data. Atomic on the bus.
+struct Transaction {
+  uint64_t address{0};  ///< 0: Skip ROM (0xCC), otherwise Match ROM (0x55)
+  const uint8_t *write_data{nullptr};
+  uint8_t write_len{0};
+  uint8_t *read_data{nullptr};  ///< Contents are only defined when the status is OK
+  uint8_t read_len{0};
+  void (*on_done)(void *context, TransactionStatus status){nullptr};  ///< Runs in main loop context
+  void *context{nullptr};
+  Transaction *next_{nullptr};  ///< Intrusive FIFO, no heap
+  bool pending_{false};
+};
+#endif  // USE_ONE_WIRE_RMT
+
 class OneWireBus {
  public:
   /// Write a word to the bus. LSB first.
@@ -35,6 +53,12 @@ class OneWireBus {
 
   /// Get the description string for this model.
   const LogString *get_model_str(uint8_t model);
+
+#ifdef USE_ONE_WIRE_RMT
+  /// Returns false only if this transaction is still pending; nothing changes in that case.
+  /// May run on_done before returning. Default: runs it through the blocking primitives.
+  virtual bool submit(Transaction *transaction);
+#endif  // USE_ONE_WIRE_RMT
 
  protected:
   std::vector<uint64_t> devices_;

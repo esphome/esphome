@@ -65,6 +65,25 @@ bool OneWireBus::skip() {
   return true;
 }
 
+#ifdef USE_ONE_WIRE_RMT
+bool OneWireBus::submit(Transaction *transaction) {
+  if (transaction->pending_)
+    return false;
+  transaction->pending_ = true;
+  const bool present = transaction->address == 0 ? this->skip() : this->select(transaction->address);
+  if (present) {
+    for (uint8_t i = 0; i < transaction->write_len; i++)
+      this->write8(transaction->write_data[i]);
+    for (uint8_t i = 0; i < transaction->read_len; i++)
+      transaction->read_data[i] = this->read8();
+  }
+  transaction->pending_ = false;
+  if (transaction->on_done != nullptr)
+    transaction->on_done(transaction->context, present ? TransactionStatus::OK : TransactionStatus::NO_PRESENCE);
+  return true;
+}
+#endif  // USE_ONE_WIRE_RMT
+
 const LogString *OneWireBus::get_model_str(uint8_t model) {
   switch (model) {
     case DALLAS_MODEL_DS18S20:
