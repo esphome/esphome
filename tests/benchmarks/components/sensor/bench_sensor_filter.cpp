@@ -6,7 +6,6 @@
 #include "esphome/core/hal.h"
 
 #include <iterator>
-#include <limits>
 
 namespace esphome::sensor::benchmarks {
 
@@ -14,7 +13,6 @@ static constexpr int kInnerIterations = 2000;
 // Long enough that interval filters never fire during a run
 static constexpr uint32_t NEVER_FIRE_MS = 3600000;
 
-static constexpr float NO_MAX_DELTA = std::numeric_limits<float>::infinity();
 static constexpr uint32_t LOOP_TICK_MS = 16;
 
 static inline void advance_ramp(float &value) {
@@ -100,10 +98,13 @@ static void SensorFilter_Throttle(benchmark::State &state) {
 }
 BENCHMARK(SensorFilter_Throttle);
 
+// Same shape as the function codegen emits for `delta: 0.5`
+static bool delta_0_5(float x, float value) { return delta_passes(value, x, 0.5f); }
+
 // Benchmark: delta 0.5 on a 0.1 ramp (1 in 5 passes)
 static void SensorFilter_Delta(benchmark::State &state) {
   Sensor sensor;
-  sensor.add_filter(new DeltaFilter(0.5f, 0.0f, NO_MAX_DELTA, 0.0f));
+  sensor.add_filter(new DeltaFilter(delta_0_5));
   publish_ramp(state, sensor);
 }
 BENCHMARK(SensorFilter_Delta);
@@ -176,7 +177,7 @@ BENCHMARK(SensorFilter_Round);
 // Benchmark: throttle 60s or delta 0.5 ("on change or every minute"), one publish per tick
 static void SensorFilter_Or(benchmark::State &state) {
   Sensor sensor;
-  sensor.add_filter(new OrFilter<2>(new ThrottleFilter(60000), new DeltaFilter(0.5f, 0.0f, NO_MAX_DELTA, 0.0f)));
+  sensor.add_filter(new OrFilter<2>(new ThrottleFilter(60000), new DeltaFilter(delta_0_5)));
   publish_ramp_ticked(state, sensor);
 }
 BENCHMARK(SensorFilter_Or);
