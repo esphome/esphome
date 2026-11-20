@@ -35,12 +35,12 @@ void EKTF2232Touchscreen::setup() {
     if (err == i2c::ERROR_OK) {
       err = this->read(received, 4);
       if (err == i2c::ERROR_OK) {
-        this->x_raw_max_ = ((received[2])) | ((received[3] & 0xf0) << 4);
+        this->x_raw_max_ = encode_uint16(high_nibble(received[3]), received[2]);
         err = this->write(GET_Y_RES, 4);
         if (err == i2c::ERROR_OK) {
           err = this->read(received, 4);
           if (err == i2c::ERROR_OK) {
-            this->y_raw_max_ = ((received[2])) | ((received[3] & 0xf0) << 4);
+            this->y_raw_max_ = encode_uint16(high_nibble(received[3]), received[2]);
           }
         }
       }
@@ -74,8 +74,9 @@ void EKTF2232Touchscreen::update_touches() {
 
   for (int i = 0; i < touch_count; i++) {
     uint8_t *d = raw + 1 + (i * 3);
-    x_raw = (d[0] & 0xF0) << 4 | d[1];
-    y_raw = (d[0] & 0x0F) << 8 | d[2];
+    // d[0] holds the top 4 bits of X (high nibble) and of Y (low nibble)
+    x_raw = encode_uint16(high_nibble(d[0]), d[1]);
+    y_raw = encode_uint16(low_nibble(d[0]), d[2]);
     this->add_raw_touch_position_(i, x_raw, y_raw);
   }
 }

@@ -6,9 +6,12 @@
 
 namespace esphome::remote_base {
 
+/// An AEHA frame carries at most 35 data bytes
+static constexpr size_t AEHA_MAX_DATA_BYTES = 35;
+
 struct AEHAData {
   uint16_t address;
-  std::vector<uint8_t> data;
+  RemoteBytes<AEHA_MAX_DATA_BYTES> data;
 
   bool operator==(const AEHAData &rhs) const { return address == rhs.address && data == rhs.data; }
 };
@@ -25,9 +28,6 @@ class AEHAProtocol : public RemoteProtocol<AEHAData> {
   }
   optional<AEHAData> decode(RemoteReceiveData src);
   void dump(const AEHAData &data);
-
- private:
-  std::string format_data_(const std::vector<uint8_t> &data);
 };
 
 DECLARE_REMOTE_PROTOCOL(AEHA)

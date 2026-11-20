@@ -29,6 +29,7 @@ static constexpr uint16_t REG_BCHG_VTERM = 0x030C;
 static constexpr uint16_t REG_BCHG_VTERM_R = 0x030D;
 static constexpr uint16_t REG_BCHG_VTRICKLE_SEL = 0x030E;
 static constexpr uint16_t REG_BCHG_ITERM_SEL = 0x030F;
+static constexpr uint16_t REG_BCHG_NTC_STATUS = 0x0332;
 static constexpr uint16_t REG_BCHG_CHARGE_STATUS = 0x0334;
 static constexpr uint16_t REG_BCHG_ERR_REASON = 0x0336;
 static constexpr uint16_t REG_BUCK1_ENA_SET = 0x0400;
@@ -53,6 +54,9 @@ static constexpr uint16_t REG_SHIP_TASK_SHIP_MODE = 0x0B02;
 
 // VBUSINSTATUS
 static constexpr uint8_t VBUS_PRESENT = 0x01;
+// NTCSTATUS
+static constexpr uint8_t NTC_STATUS_COLD = 0x01;
+static constexpr uint8_t NTC_STATUS_HOT = 0x08;
 // BCHGCHARGESTATUS; bit 0 (battery detected) is reserved since C00 silicon
 static constexpr uint8_t CHARGE_STATUS_COMPLETED = 0x02;
 static constexpr uint8_t CHARGE_STATUS_TRICKLE = 0x04;
@@ -107,26 +111,36 @@ float ntc_temperature(uint16_t code, float inv_beta) {
 #endif
 
 #ifdef USE_TEXT_SENSOR
-PROGMEM_STRING_TABLE(ChargerStatusStrings, "Error", "Paused, Die Too Hot", "Charge Complete", "Trickle Charge",
-                     "Constant Current", "Constant Voltage", "Discharging", "Not Charging");
-// BCHGCHARGESTATUS bits in order of priority; bit i is reported as string i + 1
+PROGMEM_STRING_TABLE(ChargerStatusStrings, "Discharging", "Error", "Disabled", "Paused, PMIC Too Hot",
+                     "Charge Complete", "Trickle Charge", "Constant Current", "Constant Voltage",
+                     "Paused, Battery Too Cold", "Paused, Battery Too Hot", "Not Charging");
+static constexpr uint8_t CHARGER_STATUS_FIRST_BIT = 3;
+// BCHGCHARGESTATUS bits in order of priority, reported from string CHARGER_STATUS_FIRST_BIT on
 static const uint8_t CHARGER_STATUS_BITS[] PROGMEM = {CHARGE_STATUS_DIE_TEMP_HIGH, CHARGE_STATUS_COMPLETED,
                                                       CHARGE_STATUS_TRICKLE, CHARGE_STATUS_CONSTANT_CURRENT,
                                                       CHARGE_STATUS_CONSTANT_VOLTAGE};
 
-static uint8_t charger_status_index(uint8_t vbus_status, uint8_t charge_status, uint8_t error_reason) {
-  if (error_reason != 0)
+static uint8_t charger_status_index(const NPM1300Status &status) {
+  if ((status.vbus & VBUS_PRESENT) == 0)
     return 0;
+  if (status.error_reason != 0)
+    return 1;
+  if ((status.charger_enable & 1) == 0)
+    return 2;
   for (size_t i = 0; i < sizeof(CHARGER_STATUS_BITS); i++) {
-    if ((charge_status & progmem_read_byte(&CHARGER_STATUS_BITS[i])) != 0)
-      return i + 1;
+    if ((status.charge & progmem_read_byte(&CHARGER_STATUS_BITS[i])) != 0)
+      return CHARGER_STATUS_FIRST_BIT + i;
   }
-  return (vbus_status & VBUS_PRESENT) == 0 ? 6 : 7;
+  // The charger stops without an error outside the cold and hot limits of the battery temperature
+  if ((status.ntc & NTC_STATUS_COLD) != 0)
+    return 8;
+  if ((status.ntc & NTC_STATUS_HOT) != 0)
+    return 9;
+  return 10;
 }
 
-void publish_charger_status(text_sensor::TextSensor *sensor, uint8_t &last, uint8_t vbus_status, uint8_t charge_status,
-                            uint8_t error_reason) {
-  const uint8_t index = charger_status_index(vbus_status, charge_status, error_reason);
+void publish_charger_status(text_sensor::TextSensor *sensor, uint8_t &last, const NPM1300Status &status) {
+  const uint8_t index = charger_status_index(status);
   if (index == last)
     return;
   last = index;
@@ -198,7 +212,7 @@ bool NPM1300Component::configure_charger_(const NPM1300Config &config) {
   split_9bit(charger.discharge_limit, discharge);
   uint8_t disable = charger.recharge ? 0 : CHARGER_DISABLE_RECHARGE;
   // Without a thermistor the charger reports an NTC error and does not charge
-  if (config.thermistor == NPM1300_UNSET)
+  if (config.thermistor == 0 || config.thermistor == NPM1300_UNSET)
     disable |= CHARGER_DISABLE_NTC;
   const uint8_t enable = (CHARGER_DISABLE_RECHARGE | CHARGER_DISABLE_NTC) & ~disable;
   if (this->write_register16(REG_BCHG_ISET_MSB, current, sizeof(current)) != i2c::ERROR_OK ||
@@ -292,33 +306,40 @@ void NPM1300Component::hibernate(uint32_t duration_ms) {
 }
 
 void NPM1300Component::update() {
-  uint8_t vbus_status;
-  uint8_t charge_status;
-  uint8_t error_reason;
-  if (!this->status_comm_check(this->read_byte_reg16(REG_VBUSIN_STATUS, &vbus_status) &&
-                               this->read_byte_reg16(REG_BCHG_CHARGE_STATUS, &charge_status) &&
-                               this->read_byte_reg16(REG_BCHG_ERR_REASON, &error_reason)))
+  NPM1300Status status;
+  // NTCSTATUS, DIETEMPSTATUS and BCHGCHARGESTATUS
+  uint8_t charger_status[3];
+  if (!this->status_comm_check(this->read_byte_reg16(REG_VBUSIN_STATUS, &status.vbus) &&
+                               this->read_byte_reg16(REG_BCHG_ENABLE_SET, &status.charger_enable) &&
+                               this->read_register16(REG_BCHG_NTC_STATUS, charger_status, sizeof(charger_status)) ==
+                                   i2c::ERROR_OK &&
+                               this->read_byte_reg16(REG_BCHG_ERR_REASON, &status.error_reason)))
     return;
+  status.ntc = charger_status[0];
+  status.charge = charger_status[2];
+  // Without a thermistor the NTC pin is grounded and can read as a hot battery
+  if (progmem_read_byte(&this->config_->thermistor) == 0)
+    status.ntc = 0;
 
   // The chip goes back to its default VBUS current limit whenever VBUS is removed
-  const bool vbus_present = (vbus_status & VBUS_PRESENT) != 0;
+  const bool vbus_present = (status.vbus & VBUS_PRESENT) != 0;
   if (vbus_present && !this->vbus_present_ && this->vbus_current_limit_ != NPM1300_UNSET &&
       !this->status_comm_check(this->apply_vbus_current_limit_()))
     return;
   this->vbus_present_ = vbus_present;
 
-  if (error_reason != this->last_error_reason_) {
-    this->last_error_reason_ = error_reason;
-    if (error_reason != 0) {
-      ESP_LOGW(TAG, "Charger error, BCHGERRREASON 0x%02X", error_reason);
+  if (status.error_reason != this->last_error_reason_) {
+    this->last_error_reason_ = status.error_reason;
+    if (status.error_reason != 0) {
+      ESP_LOGW(TAG, "Charger error, BCHGERRREASON 0x%02X", status.error_reason);
     }
   }
 #ifdef USE_NPM1300_STATUS_PUBLISHER
   if (this->status_publisher_ != nullptr)
-    this->status_publisher_(vbus_status, charge_status, error_reason);
+    this->status_publisher_(status);
 #endif
 #ifdef USE_SWITCH
-  if (!this->status_comm_check(this->publish_switches_()))
+  if (!this->status_comm_check(this->publish_switches_(status)))
     return;
 #endif
 
@@ -348,16 +369,10 @@ void NPM1300Component::update() {
 }
 
 #ifdef USE_SWITCH
-bool NPM1300Component::publish_switches_() {
+bool NPM1300Component::publish_switches_(const NPM1300Status &status) {
+  PUBLISH_STATE(this->charger_switch_, (status.charger_enable & 1) != 0);
   uint8_t value;
   bool ok = true;
-  if (this->charger_switch_ != nullptr) {
-    if (this->read_byte_reg16(REG_BCHG_ENABLE_SET, &value)) {
-      this->charger_switch_->publish_state((value & 1) != 0);
-    } else {
-      ok = false;
-    }
-  }
   switch_::Switch *const bucks[2] = {this->buck1_switch_, this->buck2_switch_};
   if (bucks[0] != nullptr || bucks[1] != nullptr) {
     if (this->read_byte_reg16(REG_BUCK_STATUS, &value)) {
@@ -461,7 +476,9 @@ void NPM1300Component::dump_config() {
       ESP_LOGCONFIG(TAG, "    Enabled at boot: %s", YESNO(output.enabled != 0));
     }
   }
-  if (config.thermistor != NPM1300_UNSET) {
+  if (config.thermistor == 0) {
+    ESP_LOGCONFIG(TAG, "  Thermistor: none");
+  } else if (config.thermistor != NPM1300_UNSET) {
     ESP_LOGCONFIG(TAG, "  Thermistor B constant: %u", config.thermistor_beta);
   }
 #ifdef USE_SENSOR
