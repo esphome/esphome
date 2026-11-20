@@ -16,6 +16,8 @@ namespace esphome::gpio {
 
 /// 1-Wire over two RMT channels on one open-drain pin. The hardware runs each section of a transaction,
 /// the CPU only hands them over. Needs an external pullup: unlike bit-bang, the line is never driven High.
+/// So parasite-powered devices are not supported: they need a strong pullup during a conversion or a write
+/// to EEPROM, which this bus does not drive.
 class GPIORMTOneWireBus final : public one_wire::OneWireBus, public Component, public rmt_one_wire::Port {
  public:
   explicit GPIORMTOneWireBus(const rmt_one_wire::Timing &timing = {});
@@ -50,6 +52,8 @@ class GPIORMTOneWireBus final : public one_wire::OneWireBus, public Component, p
 
   /// True if the call succeeded. Otherwise logs, and the bus is failed from now on.
   bool check_(esp_err_t error, const LogString *step);
+  /// Disables the enabled channels and deletes the channels and the encoder, after a failed setup().
+  void release_(bool rx_enabled, bool tx_enabled);
 
   static bool tx_done_isr(rmt_channel_handle_t channel, const rmt_tx_done_event_data_t *data, void *context);
   static bool rx_done_isr(rmt_channel_handle_t channel, const rmt_rx_done_event_data_t *data, void *context);
