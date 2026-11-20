@@ -1,0 +1,12 @@
+tflite_op_processor:
+
+esphome:
+  on_boot:
+    - lambda: |-
+        // Compile-time check of the operator table: SOFTMAX must resolve to a
+        // registration call on the TFLM resolver.
+        using esphome::tflite_op_processor::OpResolverManager;
+        tflite::MicroMutableOpResolver<1> resolver;
+        const std::set<tflite::BuiltinOperator> required{tflite::BuiltinOperator_SOFTMAX};
+        const bool registered = OpResolverManager::register_ops(resolver, required, "tflite_op_processor");
+        ESP_LOGI("tflite_op_processor", "register_ops(SOFTMAX) = %s", registered ? "ok" : "failed");
