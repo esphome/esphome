@@ -127,7 +127,8 @@ void GPIORMTOneWireBus::loop() {
   // mark_failed() took the bus out of the loop: end all that is queued now. disable_loop() would undo the failed state.
   do {
     this->engine_.poll();
-  } while (this->is_failed() && !this->engine_.is_idle());
+    // From a log handler inside the engine, poll() does nothing. Stop then, instead of spinning forever.
+  } while (this->is_failed() && !this->engine_.is_idle() && !this->engine_.is_busy());
   if (this->engine_.is_idle() && !this->is_failed())
     this->disable_loop();
 }
