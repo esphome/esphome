@@ -125,11 +125,14 @@ void CANopenComponent::reject_queued_sdo_() {
 bool CANopenComponent::sdo_reply_is_stale_(const uint8_t *data, uint8_t len) const {
   if (!this->sdo_busy_ || len < 4)
     return false;
+  const CO_SDOclient_t *cli = this->co_->SDOclient;
   // a request that hasn't gone out yet has no reply
-  if (this->co_->SDOclient->CANtxBuff->bufferFull)
+  if (cli->CANtxBuff->bufferFull)
     return true;
-  const uint8_t scs = data[0] >> 5;  // 2: initiate upload response, 3: initiate download response, 4: abort
-  if (scs < 2 || scs > 4)
+  const uint8_t scs = data[0] >> 5;  // 0/1: segment responses, 2/3: initiate upload/download responses, 4: abort
+  if (scs < 2)                       // late, of a timed-out transfer, while the request waits for its initiate response
+    return cli->state == CO_SDO_ST_UPLOAD_INITIATE_RSP || cli->state == CO_SDO_ST_DOWNLOAD_INITIATE_RSP;
+  if (scs > 4)
     return false;
   return encode_uint16(data[2], data[1]) != this->sdo_active_.index || data[3] != this->sdo_active_.sub;
 }

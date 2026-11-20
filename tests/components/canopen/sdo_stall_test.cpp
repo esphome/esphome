@@ -98,6 +98,20 @@ TEST_F(SdoTest, ReplyWhileTheRequestIsUnsentIsIgnored) {
   EXPECT_TRUE(this->replies_[0].ok());
 }
 
+// A late segment response of a timed-out transfer would make CANopenNode abort the next request to that node.
+TEST_F(SdoTest, SegmentResponseWhileWaitingForTheInitiateOneIsIgnored) {
+  ASSERT_TRUE(this->hub_.write_sdo<uint8_t>(0x21, 0x6060, 0, 1, on_reply, this));
+  this->hub_.loop();
+  this->hub_.frame(0x5A1, {0x20, 0, 0, 0, 0, 0, 0, 0});  // download segment response
+  this->hub_.frame(0x5A1, {0x00, 0, 0, 0, 0, 0, 0, 0});  // upload segment response
+  this->hub_.loop();
+  EXPECT_TRUE(this->replies_.empty());
+  EXPECT_EQ(this->bus_.count(0x621), 1u);  // no abort
+  this->hub_.frame(0x5A1, {0x60, 0x60, 0x60, 0, 0, 0, 0, 0});
+  ASSERT_EQ(this->replies_.size(), 1u);
+  EXPECT_TRUE(this->replies_[0].ok());
+}
+
 TEST_F(SdoTest, UnsentReadEnds) {
   this->bus_.busy = true;
   ASSERT_TRUE(this->hub_.read_sdo<uint16_t>(0x21, 0x6041, 0, on_reply, this));
