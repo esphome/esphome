@@ -32,6 +32,9 @@ class BLEAdvertising {
   void set_priority_uuid(ESPBTUUID uuid) { this->priority_uuid_ = uuid; }
   void clear_priority_uuid() { this->priority_uuid_ = {}; }
   void register_raw_advertisement_callback(std::function<void(bool)> &&callback);
+  /// Whether the services advertisement takes a turn in the rotation with the raw
+  /// advertisements. Off, only the raw ones (e.g. a beacon) are sent.
+  void set_advertise_services(bool advertise) { this->advertise_services_ = advertise; }
 
   void start();
   void stop();
@@ -60,6 +63,7 @@ class BLEAdvertising {
   uint8_t manufacturer_data_len_{0};
   uint8_t service_data_len_{0};
   bool include_name_in_adv_{false};
+  bool advertise_services_{true};
   bool start_pending_{false};
 };
 
