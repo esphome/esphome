@@ -86,32 +86,12 @@ _LOGGER = logging.getLogger(__name__)
 AUTO_LOAD = ["network"]
 DOMAIN = "wifi"
 
-NO_WIFI_VARIANTS = [
-    const.VARIANT_ESP32H2,
-    const.VARIANT_ESP32H4,
-    const.VARIANT_ESP32H21,
-    const.VARIANT_ESP32P4,
-]
+NO_WIFI_VARIANTS = const.NO_WIFI_VARIANTS
 
 
-def variant_has_wifi(variant: str) -> bool:
-    """Return True if *variant* has a native WiFi PHY.
-
-    Variants without a native PHY (see ``NO_WIFI_VARIANTS`` — currently
-    ESP32-H2, ESP32-H4, ESP32-H21, ESP32-P4) need the ``esp32_hosted``
-    co-processor to use ``wifi:``.
-
-    Case-insensitive on *variant* so external callers can pass either
-    the upstream uppercase form (e.g. ``"ESP32H2"`` from
-    ``const.VARIANT_ESP32H2``) or a lowercase form their own enum
-    surfaces (e.g. ``"esp32h2"`` from device-builder's
-    ``Esp32Variant``). Both classify identically.
-
-    Used by device-builder (esphome/device-builder) to decide whether
-    its basic-setup wizard emits a ``wifi:`` block — please keep the
-    signature stable.
-    """
-    return variant.upper() not in NO_WIFI_VARIANTS
+# Defined in esp32.const so esp32 can use it without importing wifi; kept here
+# for device-builder, which imports it from wifi.
+variant_has_wifi = const.variant_has_wifi
 
 
 _WIFI_FIRST_PLATFORMS: frozenset[str] = frozenset(
@@ -788,6 +768,11 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
+def _eap_string(value: str | None) -> cg.Expression | str:
+    """A std::string field whose literal stays in flash on ESP8266."""
+    return cg.progmem_string(value) if value else ""
+
+
 def eap_auth(config):
     if config is None:
         return None
@@ -802,9 +787,9 @@ def eap_auth(config):
         key = wpa2_eap.read_relative_config_path(config[CONF_KEY])
     return cg.StructInitializer(
         EAPAuth,
-        ("identity", config.get(CONF_IDENTITY, "")),
-        ("username", config.get(CONF_USERNAME, "")),
-        ("password", config.get(CONF_PASSWORD, "")),
+        ("identity", _eap_string(config.get(CONF_IDENTITY))),
+        ("username", _eap_string(config.get(CONF_USERNAME))),
+        ("password", _eap_string(config.get(CONF_PASSWORD))),
         ("ca_cert", ca_cert),
         ("client_cert", client_cert),
         ("client_key", key),
@@ -826,8 +811,11 @@ def manual_ip_entry(config: ConfigType) -> bytes:
 
 
 def wifi_network(config, ap, manual_ip_index: int | None):
-    cg.add_optional(ap.set_ssid, config.get(CONF_SSID))
-    cg.add_optional(ap.set_password, config.get(CONF_PASSWORD))
+    # The setters copy the text, so the literal can stay in flash on ESP8266.
+    if (ssid := config.get(CONF_SSID)) is not None:
+        cg.add(ap.set_ssid(cg.FlashStringLiteral(ssid)))
+    if (password := config.get(CONF_PASSWORD)) is not None:
+        cg.add(ap.set_password(cg.FlashStringLiteral(password)))
     if CONF_EAP in config:
         cg.add(ap.set_eap(eap_auth(config[CONF_EAP])))
         cg.add_define("USE_WIFI_WPA2_EAP")
