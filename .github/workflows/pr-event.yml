@@ -1,0 +1,26 @@
+name: PR event
+
+# Carries no data and has no permissions. Workflows that need to act on pull
+# requests from forks listen for this one through workflow_run, then read the
+# pull request from the API with their own token.
+on:
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - edited
+      - ready_for_review
+      - labeled
+      - unlabeled
+
+permissions: {}
+
+jobs:
+  notify:
+    name: Notify
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Nothing to do
+        run: "true"
