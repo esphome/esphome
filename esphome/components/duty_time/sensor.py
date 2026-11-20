@@ -85,11 +85,11 @@ for _name, _call in (
     )
 
 automation.register_apply_action(
-    "sensor.duty_time.set",
+    "sensor.duty_time.set_value",
     cv.Schema(
         {
             cv.Required(CONF_ID): cv.use_id(DutyTimeSensor),
-            cv.Required(CONF_VALUE): cv.templatable(cv.uint32_t),
+            cv.Required(CONF_VALUE): cv.templatable(cv.positive_time_period_seconds),
         }
     ),
     automation.ApplyField(CONF_VALUE, "set_value", cg.uint32),
