@@ -210,7 +210,7 @@ def read(path: str) -> list[str]:
 
 
 def has(name: str, lines: list[str]) -> bool:
-    pat = r"(?<![A-Za-z_])" + re.escape(name) + r"(?![A-Za-z_])"
+    pat = r"(?<![A-Za-z0-9_])" + re.escape(name) + r"(?![A-Za-z0-9_])"
     return any(re.search(pat, ln) for ln in lines)
 
 
