@@ -1,15 +1,16 @@
 #pragma once
 
-#include "esphome/core/component.h"
 #include "esphome/components/tuya/tuya.h"
 #include "esphome/components/sensor/sensor.h"
 
 namespace esphome::tuya {
 
-class TuyaSensor final : public sensor::Sensor, public Component {
+class TuyaSensor final : public sensor::Sensor {
  public:
-  void setup() override;
-  void dump_config() override;
+  // Called from generated code before setup, after the datapoint setters
+  void register_listeners();
+  // Called from the hub's dump_config()
+  void dump_child_config();
   void set_sensor_id(uint8_t sensor_id) { this->sensor_id_ = sensor_id; }
 
   void set_tuya_parent(Tuya *parent) { this->parent_ = parent; }

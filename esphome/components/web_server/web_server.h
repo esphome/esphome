@@ -179,6 +179,11 @@ class DeferredUpdateEventSource final : public AsyncEventSource {
 };
 
 class DeferredUpdateEventSourceList final : public std::list<DeferredUpdateEventSource *> {
+  friend class HeadAckedEventSourceResponse;  // ESPAsyncWebServer 3.12.1 workaround, remove with it
+
+ protected:
+  void add_client_(WebServer *ws, AsyncClient *client);  // ESPAsyncWebServer 3.12.1 workaround, remove with it
+
  public:
   /// Returns true if there are event sources remaining (including pending cleanup).
   bool loop();
