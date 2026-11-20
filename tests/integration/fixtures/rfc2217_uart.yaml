@@ -1,0 +1,44 @@
+esphome:
+  name: rfc2217-uart-test
+
+host:
+
+api:
+
+logger:
+  level: DEBUG
+
+uart:
+  - id: uart_bus
+    baud_rate: 115200
+    port: PTY_PATH
+
+tcp_uart:
+  - id: inbound
+    role: server
+    port: 18128
+  - id: remote_link
+    host: 127.0.0.1
+    port: 18129
+    reconnect_interval: 1s
+
+rfc2217_uart:
+  - id: port_server
+    role: server
+    tcp_uart_id: inbound
+    uart_id: uart_bus
+  - id: remote_port
+    tcp_uart_id: remote_link
+    baud_rate: 19200
+    parity: EVEN
+
+interval:
+  # Echoes what the client UART reads.
+  - interval: 20ms
+    then:
+      - lambda: |-
+          uint8_t buf[64];
+          size_t n = std::min<size_t>(id(remote_port).available(), sizeof(buf));
+          if (n != 0 && id(remote_port).read_array(buf, n)) {
+            id(remote_port).write_array(buf, n);
+          }
