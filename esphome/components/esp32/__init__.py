@@ -3013,8 +3013,10 @@ async def _reconcile_mbedtls_sdkconfig() -> None:
             _trim_mbedtls_options(MBEDTLS_NON_P256_CURVE_OPTIONS)
             # Without TLS only Wi-Fi (WPA), websocket handshakes and PPP use
             # SHA-1, yet the hardware SHA driver links it whenever it is on.
+            # Anything that re-includes esp_wifi (wifi, espnow, esp32_hosted,
+            # bt, external components) keeps it.
             if (
-                not _network_sdkconfig().wifi
+                "esp_wifi" in CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS]
                 and not is_idf_sdkconfig_option_enabled("CONFIG_HTTPD_WS_SUPPORT")
                 and not is_idf_sdkconfig_option_enabled("CONFIG_LWIP_PPP_SUPPORT")
             ):

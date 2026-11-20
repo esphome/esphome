@@ -811,8 +811,6 @@ _TLS_OFF_IDF6 = {
     "CONFIG_MBEDTLS_PEM_PARSE_C": False,
     "CONFIG_MBEDTLS_LARGE_KEY_SOFTWARE_MPI": False,
     **dict.fromkeys(MBEDTLS_NON_P256_CURVE_OPTIONS, False),
-    # The test data has no Wi-Fi, websocket server or PPP.
-    "CONFIG_MBEDTLS_SHA1_C": False,
 }
 _CIPHER_MODES_OFF = dict.fromkeys(MBEDTLS_UNUSED_CIPHER_MODE_OPTIONS, False)
 _SHA512_OFF = {
@@ -1333,30 +1331,32 @@ def test_reconcile_mbedtls_psa_user_config_not_applied(
 
 
 @pytest.mark.parametrize(
-    ("net", "preset", "keeps_sha1"),
+    ("wifi_included", "preset", "keeps_sha1"),
     [
-        pytest.param(NetworkSdkconfigData(), {}, False, id="ethernet_only"),
-        pytest.param(NetworkSdkconfigData(wifi=True), {}, True, id="wifi"),
+        pytest.param(False, {}, False, id="ethernet_only"),
+        pytest.param(True, {}, True, id="esp_wifi_included"),
         pytest.param(
-            NetworkSdkconfigData(),
+            False,
             {"CONFIG_HTTPD_WS_SUPPORT": RawSdkconfigValue("y")},
             True,
             id="websocket_server",
         ),
-        pytest.param(
-            NetworkSdkconfigData(), {"CONFIG_LWIP_PPP_SUPPORT": True}, True, id="ppp"
-        ),
+        pytest.param(False, {"CONFIG_LWIP_PPP_SUPPORT": True}, True, id="ppp"),
     ],
 )
 def test_reconcile_mbedtls_sha1_without_tls(
     set_core_config: SetCoreConfigCallable,
-    net: NetworkSdkconfigData,
+    wifi_included: bool,
     preset: dict[str, Any],
     keeps_sha1: bool,
 ) -> None:
-    """Without TLS, SHA-1 stays only for Wi-Fi, a websocket server or PPP."""
+    """Without TLS, SHA-1 stays only when esp_wifi is in the build (wifi:,
+    espnow, esp32_hosted, bt or an external component), for a websocket server
+    or for PPP."""
     set_core_config(PlatformFramework.ESP32_IDF)
-    _seed_mbedtls(idf=_IDF6, preset=preset, net=net)
+    _seed_mbedtls(idf=_IDF6, preset=preset)
+    if not wifi_included:
+        CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS].add("esp_wifi")
 
     asyncio.run(_reconcile_mbedtls_sdkconfig())
 
