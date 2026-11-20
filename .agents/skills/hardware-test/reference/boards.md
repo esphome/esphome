@@ -213,8 +213,8 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
 - UART pins: every module pad is on the kit headers (silkscreen IOn is PAn). UART1 has two pairs, RX PA00 or PA02
   and TX PA01 or PA03; UART0 is PA14/PA13 and UART2 (log) PA16/PA15. A UART RX on PA00 hangs the chip inside UART
   setup (watchdog reset after 10 s) while a capture holds DTR released, because the kit's CH340 then keeps PA00 low
-  (a break). Asserting DTR after boot lets setup finish: `scripts/bw15_dtr_probe.py PORT DELAY TOTAL OUT` resets
-  with DTR released and asserts it DELAY seconds later. Use PA02 for UART1 RX.
+  (a break). Asserting DTR after boot lets setup finish: `serial_capture.py PORT SECONDS OUT --released --reset
+  --dtr-after DELAY` resets with DTR released and asserts it DELAY seconds later. Use PA02 for UART1 RX.
 
 ## BK7238, WB3S, CB3S (BK7231N) (LibreTiny bk72xx, CH340, RTS on CEN)
 
@@ -580,6 +580,3 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
   then pin `idf-component-manager~=2.1.0 esp-idf-kconfig~=2.5.0` (newer ones reject interface_version 3).
 - `ESP.restart()` from a lambda counts toward safe mode: after 10 boots within 60 s the device boots into safe mode
   (OTA only, no API). Use `App.safe_reboot()` in reset loops, or `safe_mode: disabled: true`.
-- Old ESPHome releases and new framework majors can need another PlatformIO core version than the shared venv has
-  (pioarduino 61.x needs PlatformIO 6.2.0): install it with `pip install --target <dir>` and put that on `PYTHONPATH`
-  for those builds only.

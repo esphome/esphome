@@ -16,12 +16,12 @@ interval:
     then:
       - lambda: |-
           static uint8_t v[1500];
-          int n = 0; uint8_t last = (GPI >> 4) & 3;
+          int n = 0;
           uint32_t start = micros();
-          // wait for idle >200us then record
-          uint32_t idle = micros();
+          // wait up to 100 ms for 300 us of idle bus (both lines high), then record
+          uint32_t idle = start;
           while (micros() - start < 100000) { uint8_t c = (GPI >> 4) & 3; if (c != 3) idle = micros(); else if (micros() - idle > 300) break; }
-          last = 3; start = micros();
+          uint8_t last = 3; start = micros();
           while (n < 1500 && micros() - start < 100000) {
             uint8_t cur = (GPI >> 4) & 3;
             if (cur != last) { v[n++] = cur; last = cur; }

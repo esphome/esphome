@@ -1,5 +1,5 @@
 #pragma once
-// Fake I2C register files and a fake TMC2209 single-wire UART, so drivers pass setup without chips.
+// Fake I2C register file and fake UART devices (TMC22xx, SEN0609, CN105), so drivers pass setup without chips.
 #include <cstring>
 #include "esphome/components/i2c/i2c_bus.h"
 #include "esphome/components/uart/uart_component.h"
@@ -36,11 +36,36 @@ struct RegBus final : public esphome::i2c::I2CBus {
 };
 inline RegBus bus;
 
-// TMC22xx single wire: echoes every byte, answers 4 byte read requests from a register map.
-struct TmcUart final : public esphome::uart::UARTComponent {
-  uint32_t regs[128]{};
-  uint8_t rx[64];
+// UART device whose replies queue in an N byte ring; a subclass answers in write_array().
+template<size_t N> struct RingUart : public esphome::uart::UARTComponent {
+  uint8_t rx[N];
   size_t head{0}, tail{0};
+  void push(uint8_t b) {
+    if (this->tail - this->head < N)
+      this->rx[this->tail++ % N] = b;
+  }
+  bool peek_byte(uint8_t *d) override {
+    if (this->head == this->tail)
+      return false;
+    *d = this->rx[this->head % N];
+    return true;
+  }
+  bool read_array(uint8_t *d, size_t n) override {
+    if (this->tail - this->head < n)
+      return false;
+    for (size_t i = 0; i < n; i++)
+      d[i] = this->rx[this->head++ % N];
+    return true;
+  }
+  size_t available() override { return this->tail - this->head; }
+  esphome::uart::UARTFlushResult flush() override { return esphome::uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS; }
+  void load_settings(bool) override {}
+  void check_logger_conflict() override {}
+};
+
+// TMC22xx single wire: echoes every byte, answers 4 byte read requests from a register map.
+struct TmcUart final : public RingUart<64> {
+  uint32_t regs[128]{};
   TmcUart() { this->regs[0x06] = 0x21000000; }
   static uint8_t crc(const uint8_t *d, size_t n) {
     uint8_t c = 0;
@@ -49,10 +74,6 @@ struct TmcUart final : public esphome::uart::UARTComponent {
       c = esphome::crc8(&b, 1, c, 0x07, true);
     }
     return c;
-  }
-  void push(uint8_t b) {
-    if (this->tail - this->head < sizeof(this->rx))
-      this->rx[this->tail++ % sizeof(this->rx)] = b;
   }
   void write_array(const uint8_t *d, size_t n) override {
     for (size_t i = 0; i < n; i++)
@@ -72,36 +93,16 @@ struct TmcUart final : public esphome::uart::UARTComponent {
         this->regs[reg] = v;
     }
   }
-  bool peek_byte(uint8_t *d) override {
-    if (this->head == this->tail)
-      return false;
-    *d = this->rx[this->head % sizeof(this->rx)];
-    return true;
-  }
-  bool read_array(uint8_t *d, size_t n) override {
-    if (this->tail - this->head < n)
-      return false;
-    for (size_t i = 0; i < n; i++)
-      d[i] = this->rx[this->head++ % sizeof(this->rx)];
-    return true;
-  }
-  size_t available() override { return this->tail - this->head; }
-  esphome::uart::UARTFlushResult flush() override { return esphome::uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS; }
-  void load_settings(bool) override {}
-  void check_logger_conflict() override {}
 };
 inline TmcUart tmc;
 
 // SEN0609 text console: "Done" for stop/start/save and every set command except setLedMode; silence otherwise.
-struct SenUart final : public esphome::uart::UARTComponent {
+struct SenUart final : public RingUart<128> {
   char line[64];
   size_t n{0};
-  uint8_t rx[128];
-  size_t head{0}, tail{0};
   void push_str(const char *s) {
     for (; *s; s++)
-      if (this->tail - this->head < sizeof(this->rx))
-        this->rx[this->tail++ % sizeof(this->rx)] = *s;
+      this->push(*s);
   }
   static bool pre(const char *l, const char *p) { return strncmp(l, p, strlen(p)) == 0; }
   void write_array(const uint8_t *d, size_t len) override {
@@ -125,37 +126,14 @@ struct SenUart final : public esphome::uart::UARTComponent {
         this->push_str("Done\r\n");
     }
   }
-  bool peek_byte(uint8_t *d) override {
-    if (this->head == this->tail)
-      return false;
-    *d = this->rx[this->head % sizeof(this->rx)];
-    return true;
-  }
-  bool read_array(uint8_t *d, size_t len) override {
-    if (this->tail - this->head < len)
-      return false;
-    for (size_t i = 0; i < len; i++)
-      d[i] = this->rx[this->head++ % sizeof(this->rx)];
-    return true;
-  }
-  size_t available() override { return this->tail - this->head; }
-  esphome::uart::UARTFlushResult flush() override { return esphome::uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS; }
-  void load_settings(bool) override {}
-  void check_logger_conflict() override {}
 };
 inline SenUart sen;
 
 // CN105 heat pump: ignores the first connect (read timeout), then answers connect, status and write settings.
-struct CnUart final : public esphome::uart::UARTComponent {
+struct CnUart final : public RingUart<256> {
   uint8_t buf[40];
   size_t n{0};
   uint8_t connects{0};
-  uint8_t rx[256];
-  size_t head{0}, tail{0};
-  void push(uint8_t b) {
-    if (this->tail - this->head < sizeof(this->rx))
-      this->rx[this->tail++ % sizeof(this->rx)] = b;
-  }
   void reply(uint8_t type, const uint8_t *p, uint8_t len) {
     uint8_t pkt[24] = {0xFC, type, 0x01, 0x30, len};
     memcpy(pkt + 5, p, len);
@@ -192,23 +170,6 @@ struct CnUart final : public esphome::uart::UARTComponent {
       }
     }
   }
-  bool peek_byte(uint8_t *d) override {
-    if (this->head == this->tail)
-      return false;
-    *d = this->rx[this->head % sizeof(this->rx)];
-    return true;
-  }
-  bool read_array(uint8_t *d, size_t len) override {
-    if (this->tail - this->head < len)
-      return false;
-    for (size_t i = 0; i < len; i++)
-      d[i] = this->rx[this->head++ % sizeof(this->rx)];
-    return true;
-  }
-  size_t available() override { return this->tail - this->head; }
-  esphome::uart::UARTFlushResult flush() override { return esphome::uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS; }
-  void load_settings(bool) override {}
-  void check_logger_conflict() override {}
 };
 inline CnUart cn;
 

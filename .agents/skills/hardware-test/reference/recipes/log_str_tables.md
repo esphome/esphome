@@ -20,8 +20,8 @@ Name the builds `l<PR><p|b><board>` (for example `l1p66` and `l1b66`), which `no
 - `vadrive.py HOST`: plays Home Assistant for voice_assistant (button "VA Start", API audio, VAD, STT, intent, TTS
   stream with audio, run end) and reaches every state the component sets. `handle_audio` gets two arguments.
 - `norm.py CAPTURE [NAME_RE]` strips timestamps, line numbers, the device name, the compile time and timing values,
-  and cuts at `MARK ALLDONE`. `fdiff.sh A.norm B.norm` diffs without radio, heap and hash lines; `sdiff.sh`
-  compares the sorted line sets when independent timers interleave. `cover.py PR BOARD` counts which table names
+  and cuts at `MARK ALLDONE`. `fdiff.sh A.norm B.norm` diffs without radio, heap and hash lines; add `--sorted`
+  to compare the sorted line sets when independent timers interleave. `cover.py PR BOARD` counts which table names
   printed, per component, and whether PR and base lines match.
 - Restored entity state (fan speed and preset, cover position) carries across flashes: run PR, base, then PR again
   and compare the two PR runs too.

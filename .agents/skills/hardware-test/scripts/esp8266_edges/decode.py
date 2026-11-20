@@ -4,6 +4,7 @@ Rebuilds the level timeline from the `<dt><H|L>` pairs and prints the first four
 frames (a frame starts after at least 2 ms idle high).
 """
 
+from bisect import bisect_left, bisect_right
 import pathlib
 import re
 import sys
@@ -18,13 +19,13 @@ for dt, lv in re.findall(r"(\d+)([HL]) ", "\n".join(d + " " for d in dumps)):
     ev.append((t, lv == "H"))
 
 
+times = [tt for tt, _ in ev]
+falls = [tt for tt, high in ev if not high]
+
+
 def level_at(x: float) -> bool:
-    lvl = True
-    for tt, high in ev:
-        if tt > x:
-            break
-        lvl = high
-    return lvl
+    k = bisect_right(times, x)
+    return ev[k - 1][1] if k else True
 
 
 starts = [
@@ -36,9 +37,10 @@ for s in starts[:3]:
     out = []
     x = s
     for _ in range(4):
-        fe = next((tt for tt, high in ev if not high and tt >= x - BIT_US / 2), None)
-        if fe is None:
+        k = bisect_left(falls, x - BIT_US / 2)
+        if k == len(falls):
             break
+        fe = falls[k]
         bits = [level_at(fe + BIT_US * (k + 1.5)) for k in range(8)]
         stop = level_at(fe + BIT_US * 9.5)
         out.append((fe - s, sum(b << k for k, b in enumerate(bits)), stop))

@@ -15,7 +15,7 @@ judging a driver.
 - A capture with no bytes at all was a loose header pin, not the mode: reseat the jumpers before blaming the R19
   value or the 3.3 V supply.
 
-`scripts/esp8266_edges/` (ESP8266, trigger/RX on GPIO14, echo/TX on GPIO12):
+`scripts/esp8266_edges/` (ESP8266, trigger/RX on GPIO14, echo/TX on GPIO12; the `hz*` files share `hz-base.yaml`):
 - `edges.hpp`: timestamps every GPIO12 edge in an ISR and dumps the intervals each second. `hzedge.yaml` writes
   0x55, then 0x01, on a TX-only UART with the edge logger running; `decode.py CAPTURE` decodes 9600 8N1 bytes from
   the dump. Use it to tell "no signal" from "the decoder drops bytes".
