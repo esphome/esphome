@@ -1,16 +1,12 @@
 #include <gtest/gtest.h>
 
-#include <arpa/inet.h>
 #include <csignal>
 #include <cstring>
 #include <memory>
-#include <netinet/in.h>
 #include <sys/socket.h>
 #include <unistd.h>
 
-#include "esphome/components/tcp_uart/tcp_uart.h"
-#include "esphome/core/application.h"
-#include "esphome/core/wake.h"
+#include "common.h"
 
 #ifdef USE_HOST
 
@@ -147,18 +143,11 @@ class TcpUartServer : public ::testing::Test {
  protected:
   void SetUp() override {
     signal(SIGPIPE, SIG_IGN);
-    // Find a free port for the listener.
-    int probe = ::socket(AF_INET, SOCK_STREAM, 0);
-    ASSERT_GE(probe, 0);
-    struct sockaddr_in addr = loopback(0);
-    ASSERT_EQ(::bind(probe, reinterpret_cast<struct sockaddr *>(&addr), sizeof(addr)), 0);
-    socklen_t len = sizeof(addr);
-    ASSERT_EQ(::getsockname(probe, reinterpret_cast<struct sockaddr *>(&addr), &len), 0);
-    ::close(probe);
-    this->port_ = ntohs(addr.sin_port);
+    ASSERT_NO_FATAL_FAILURE(find_free_port(&this->port_));
     this->uart_.set_server(true);
     this->uart_.set_port(this->port_);
     this->uart_.set_reconnect_interval(0);
+    this->uart_.set_idle_timeout(this->idle_timeout_);
     this->uart_.setup();
     this->pass();
   }
@@ -166,25 +155,14 @@ class TcpUartServer : public ::testing::Test {
     this->close_peer();
     this->uart_.on_shutdown();
   }
-  static struct sockaddr_in loopback(uint16_t port) {
-    struct sockaddr_in addr{};
-    addr.sin_family = AF_INET;
-    addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-    addr.sin_port = htons(port);
-    return addr;
-  }
-  // One main loop pass: select() marks readable sockets, then the component runs.
+  // One main loop pass, 16 ms after the last.
   void pass() {
-    internal::wakeable_delay(5);
     this->now_ += 16;
-    LoopBlockingGuard dispatch{nullptr, nullptr, this->now_};
-    this->uart_.loop();
+    set_loop_clock(this->now_);
+    loop_pass(this->uart_);
   }
   void connect_peer() {
-    this->peer_fd_ = ::socket(AF_INET, SOCK_STREAM, 0);
-    ASSERT_GE(this->peer_fd_, 0);
-    struct sockaddr_in addr = loopback(this->port_);
-    ASSERT_EQ(::connect(this->peer_fd_, reinterpret_cast<struct sockaddr *>(&addr), sizeof(addr)), 0);
+    ASSERT_NO_FATAL_FAILURE(connect_loopback(this->port_, &this->peer_fd_));
     for (int i = 0; i < 50 && !this->uart_.is_connected(); i++)
       this->pass();
     ASSERT_TRUE(this->uart_.is_connected());
@@ -195,16 +173,17 @@ class TcpUartServer : public ::testing::Test {
       this->peer_fd_ = -1;
     }
   }
-  void send(const void *data, size_t len) { ASSERT_EQ(::write(this->peer_fd_, data, len), static_cast<ssize_t>(len)); }
+  void send(const void *data, size_t len) { send_bytes(this->peer_fd_, data, len); }
   void pass_until_available(size_t count) {
-    for (int i = 0; i < 50 && this->uart_.available() < count; i++)
-      this->pass();
+    testing::pass_until_available(this->uart_, count, [this]() { this->pass(); });
   }
 
   TcpUart uart_;
   uint16_t port_{0};
   int peer_fd_{-1};
   uint32_t now_{0};
+  // 0 leaves a quiet client connected.
+  uint32_t idle_timeout_{0};
 };
 
 TEST_F(TcpUartServer, NextAcceptedClientStartsWithAnEmptyBuffer) {
@@ -226,6 +205,58 @@ TEST_F(TcpUartServer, NextAcceptedClientStartsWithAnEmptyBuffer) {
   uint8_t got[3];
   ASSERT_TRUE(this->uart_.read_array(got, sizeof(got)));
   EXPECT_EQ(std::memcmp(got, "NEW", sizeof(got)), 0);
+}
+
+// The one-connection server above with a 100 ms idle timeout. Each pass is 16 ms.
+class TcpUartServerIdleTimeout : public TcpUartServer {
+ protected:
+  TcpUartServerIdleTimeout() { this->idle_timeout_ = 100; }
+};
+
+TEST_F(TcpUartServerIdleTimeout, HeldTurnKeepsTheOnlyClientOpen) {
+  // The client asks, and the consumer holds the turn until its reply is ready.
+  this->connect_peer();
+  this->send("ping", 4);
+  this->pass_until_available(4);
+  uint8_t got[4];
+  ASSERT_TRUE(this->uart_.read_array(got, sizeof(got)));
+  this->uart_.hold_turn();
+  // The reply takes 20 passes: 320 ms without a byte, longer than the timeout.
+  for (int i = 0; i < 20; i++) {
+    this->pass();
+  }
+  ASSERT_TRUE(this->uart_.is_connected());
+  this->uart_.write_array(reinterpret_cast<const uint8_t *>("pong"), 4);
+  this->uart_.release_turn();
+  this->pass();
+  ASSERT_EQ(::recv(this->peer_fd_, got, sizeof(got), MSG_WAITALL), 4);
+  EXPECT_EQ(std::memcmp(got, "pong", sizeof(got)), 0);
+
+  // Once answered, the client is quiet like any other: 7 passes (112 ms) later it is closed.
+  for (int i = 0; i < 7; i++) {
+    this->pass();
+  }
+  EXPECT_FALSE(this->uart_.is_connected());
+}
+
+TEST_F(TcpUartServerIdleTimeout, HoldEndsWithItsSession) {
+  // The first client asks and leaves while the turn is held. Its turn is never released.
+  this->connect_peer();
+  this->send("ping", 4);
+  this->pass_until_available(4);
+  this->uart_.hold_turn();
+  this->close_peer();
+  for (int i = 0; i < 50 && this->uart_.is_connected(); i++) {
+    this->pass();
+  }
+  ASSERT_FALSE(this->uart_.is_connected());
+
+  // The next client sends nothing: the old hold does not count for it, so it is closed 7 passes (112 ms) later.
+  this->connect_peer();
+  for (int i = 0; i < 7; i++) {
+    this->pass();
+  }
+  EXPECT_FALSE(this->uart_.is_connected());
 }
 #endif
 
