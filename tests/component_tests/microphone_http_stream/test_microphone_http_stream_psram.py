@@ -1,7 +1,5 @@
 """Validate microphone HTTP stream PSRAM requirements."""
 
-from collections.abc import Generator
-
 import pytest
 
 from esphome import config_validation as cv
@@ -12,15 +10,6 @@ from esphome.components.microphone_http_stream import (
 )
 from esphome.config import Config
 from esphome.const import CONF_DISABLED
-import esphome.final_validate as fv
-
-
-@pytest.fixture
-def full_config() -> Generator[Config, None, None]:
-    config = Config()
-    token = fv.full_config.set(config)
-    yield config
-    fv.full_config.reset(token)
 
 
 def test_single_client_does_not_require_psram(full_config: Config) -> None:
@@ -28,17 +17,17 @@ def test_single_client_does_not_require_psram(full_config: Config) -> None:
     assert FINAL_VALIDATE_SCHEMA(config)[CONF_MAX_CLIENTS] == 1
 
 
+@pytest.mark.parametrize(
+    "psram_config",
+    [None, {CONF_DISABLED: True, CONF_IGNORE_NOT_FOUND: False}],
+    ids=["missing", "disabled"],
+)
 @pytest.mark.parametrize("max_clients", [2, 3])
-def test_multiple_clients_require_psram(full_config: Config, max_clients: int) -> None:
-    with pytest.raises(cv.Invalid, match="requires enabled psram"):
-        FINAL_VALIDATE_SCHEMA({CONF_MAX_CLIENTS: max_clients})
-
-
-@pytest.mark.parametrize("max_clients", [2, 3])
-def test_multiple_clients_reject_disabled_psram(
-    full_config: Config, max_clients: int
+def test_multiple_clients_require_enabled_psram(
+    full_config: Config, max_clients: int, psram_config: dict | None
 ) -> None:
-    full_config["psram"] = {CONF_DISABLED: True, CONF_IGNORE_NOT_FOUND: False}
+    if psram_config is not None:
+        full_config["psram"] = psram_config
     with pytest.raises(cv.Invalid, match="requires enabled psram"):
         FINAL_VALIDATE_SCHEMA({CONF_MAX_CLIENTS: max_clients})
 

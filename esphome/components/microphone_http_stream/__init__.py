@@ -3,7 +3,13 @@
 import re
 
 import esphome.codegen as cg
-from esphome.components import microphone, network, psram, web_server_base
+from esphome.components import (
+    microphone,
+    network,
+    psram,
+    web_server_base,
+    web_server_idf,
+)
 from esphome.components.web_server_base import CONF_WEB_SERVER_BASE_ID
 import esphome.config_validation as cv
 from esphome.const import (
@@ -23,36 +29,31 @@ DOMAIN = "microphone_http_stream"
 
 CONF_STREAM_ID = "stream_id"
 CONF_MAX_CLIENTS = "max_clients"
-# Keep in sync with STREAM_PATH_PREFIX_LEN in microphone_http_stream.h
+# Keep in sync with STREAM_PATH_PREFIX in microphone_http_stream.h
 STREAM_PATH_PREFIX = "/audio/microphones/"
-_STREAM_ID_RE = re.compile(r"[a-z][a-z0-9_-]{0,31}\Z")
-_STREAM_ID_INVALID_CHARS_RE = re.compile(r"[^a-z0-9_-]")
+STREAM_ID_MAX_LEN = 32
+_STREAM_ID_RE = re.compile(rf"[a-z_][a-z0-9_-]{{0,{STREAM_ID_MAX_LEN - 1}}}")
 
 microphone_http_stream_ns = cg.esphome_ns.namespace(DOMAIN)
 MicrophoneHttpStream = microphone_http_stream_ns.class_(
     "MicrophoneHttpStream", cg.Component
 )
+ClientSlot = microphone_http_stream_ns.struct("ClientSlot")
 
 
 def validate_stream_id(value: str) -> str:
     value = cv.string_strict(value)
     if not _STREAM_ID_RE.fullmatch(value):
         raise cv.Invalid(
-            "stream_id must be 1-32 lowercase ASCII letters, digits, _ or -, starting with a letter"
+            f"stream_id must be 1-{STREAM_ID_MAX_LEN} lowercase ASCII letters, digits, _ or -,"
+            " starting with a letter or _"
         )
     return value
 
 
 def stream_id_from_microphone_id(microphone_id: str) -> str:
-    """Build a valid stream_id from a microphone id.
-
-    Lowercases the id, replaces characters outside [a-z0-9_-] with "_", prefixes
-    "m" when it does not start with a letter, and truncates to 32 characters.
-    """
-    stream_id = _STREAM_ID_INVALID_CHARS_RE.sub("_", microphone_id.lower())
-    if not stream_id[:1].isalpha():
-        stream_id = f"m{stream_id}"
-    return stream_id[:32]
+    """Default stream_id: the microphone id, which already passed cv.validate_id_name, lowercased."""
+    return microphone_id.lower()[:STREAM_ID_MAX_LEN]
 
 
 def _register_httpd_clients(config: ConfigType) -> ConfigType:
@@ -60,21 +61,26 @@ def _register_httpd_clients(config: ConfigType) -> ConfigType:
     return config
 
 
+def _require_plain_http(config: ConfigType) -> ConfigType:
+    # AsyncStreamResponse answers 501 on an HTTPS server
+    web_server_idf.require_plain_http(DOMAIN)
+    return config
+
+
 def _request_wifi_networking(config: ConfigType) -> ConfigType:
-    # The default 5.7 KB TCP send buffer carries less than a mono stream over Wi-Fi, so streams end with
-    # buffer_full. Ethernet streams fine on the defaults, so an ethernet-only build keeps the smaller
-    # internal RAM buffers (network: enable_high_performance: false undoes it on Wi-Fi too).
+    # The default TCP send buffer is too small for a stream over Wi-Fi; Ethernet streams fine on it
     if CONF_WIFI in fv.full_config.get():
         network.require_high_performance_networking()
     return config
 
 
 def _validate_psram(config: ConfigType) -> ConfigType:
-    if config[CONF_MAX_CLIENTS] > 1:
-        # A board that turns out to have no PSRAM fails the allocation at setup and answers 503
-        psram_config = fv.full_config.get().get(psram.DOMAIN)
-        if psram_config is None or psram_config.get(CONF_DISABLED, False):
-            raise cv.Invalid("max_clients above 1 requires enabled psram:")
+    # A board that turns out to have no PSRAM fails the allocation at setup and answers 503
+    if config[CONF_MAX_CLIENTS] > 1 and (
+        (psram_config := fv.full_config.get().get(psram.DOMAIN)) is None
+        or psram_config.get(CONF_DISABLED, False)
+    ):
+        raise cv.Invalid("max_clients above 1 requires enabled psram:")
     return config
 
 
@@ -97,6 +103,7 @@ CONFIG_SCHEMA = cv.All(
     ).extend(cv.COMPONENT_SCHEMA),
     cv.only_on_esp32,
     _register_httpd_clients,
+    _require_plain_http,
 )
 
 FINAL_VALIDATE_SCHEMA = cv.All(
@@ -122,11 +129,12 @@ async def to_code(config: ConfigType) -> None:
             config[CONF_SOURCE][CONF_MICROPHONE].id
         )
     base = await cg.get_variable(config[CONF_WEB_SERVER_BASE_ID])
+    clients = cg.static_buffer(config[CONF_ID], ClientSlot, config[CONF_MAX_CLIENTS])
     var = cg.new_Pvariable(
         config[CONF_ID],
         source,
         base,
         f"{STREAM_PATH_PREFIX}{stream_id}",
-        config[CONF_MAX_CLIENTS],
+        clients,
     )
     await cg.register_component(var, config)

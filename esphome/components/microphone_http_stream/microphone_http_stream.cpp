@@ -3,6 +3,7 @@
 #ifdef USE_ESP32
 
 #include "esphome/core/application.h"
+#include "esphome/core/progmem.h"
 
 #include <cinttypes>
 #include <cstdio>
@@ -18,48 +19,43 @@ ESPHOME_LOG_TAG(TAG, "microphone_http_stream");
 
 static_assert(__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__, "S16LE requires a little-endian target");
 
-static constexpr StringRef LIST_PATH = StringRef::from_lit("/audio/microphones");
-static constexpr char CRLF[] = "\r\n";
 static constexpr char LAST_CHUNK[] = "0\r\n\r\n";
 
+// Indexed by StopReason
+PROGMEM_STRING_TABLE(StopReasonStrings, "client_closed", "buffer_full", "peer_closed", "send_failed", "audio_timeout");
+
 void MicrophoneHttpStream::setup() {
-  bool large_ring = this->max_clients_ > 1;
+  this->large_ring_ = this->clients_.size() > 1;
 #ifdef USE_PSRAM
   // With PSRAM one client also gets the large ring, so it rides out Wi-Fi pauses of several seconds
-  large_ring |= heap_caps_get_total_size(MALLOC_CAP_SPIRAM) > 0;
+  this->large_ring_ |= heap_caps_get_total_size(MALLOC_CAP_SPIRAM) > 0;
 #endif
-  if (large_ring)
-    this->ring_size_ = MULTI_RING_SIZE;
-  for (size_t i = 0; i < this->max_clients_; ++i) {
-    auto &client = this->clients_[i];
-    client.ring = ring_buffer::RingBuffer::create(this->ring_size_);
-    if (client.ring == nullptr && this->max_clients_ == 1 && this->ring_size_ != SINGLE_RING_SIZE) {
+  bool allocated = true;
+  for (auto &client : this->clients_) {
+    client.ring = ring_buffer::RingBuffer::create(this->large_ring_ ? MULTI_RING_SIZE : SINGLE_RING_SIZE);
+    if (client.ring == nullptr && this->large_ring_ && this->clients_.size() == 1) {
       // PSRAM already used by other components; the small ring still streams over Ethernet
-      ESP_LOGW(TAG, "Cannot allocate %u bytes in PSRAM, using %u", static_cast<unsigned>(this->ring_size_),
+      ESP_LOGW(TAG, "Cannot allocate %u bytes in PSRAM, using %u", static_cast<unsigned>(MULTI_RING_SIZE),
                static_cast<unsigned>(SINGLE_RING_SIZE));
-      this->ring_size_ = SINGLE_RING_SIZE;
-      client.ring = ring_buffer::RingBuffer::create(this->ring_size_);
+      this->large_ring_ = false;
+      client.ring = ring_buffer::RingBuffer::create(SINGLE_RING_SIZE);
     }
     if (client.ring == nullptr) {
-      this->fail_setup_(LOG_STR("Cannot allocate microphone audio buffers"));
-      return;
+      allocated = false;
+      break;
     }
   }
-  this->source_->add_data_callback([this](const microphone::AudioCapture &capture) { this->on_audio_(capture.data); });
-  this->register_handler_();
-  this->disable_loop();
-}
-
-void MicrophoneHttpStream::fail_setup_(const LogString *reason) {
-  for (auto &client : this->clients_) {
-    client.ring.reset();
+  if (allocated) {
+    this->source_->add_data_callback(
+        [this](const microphone::AudioCapture &capture) { this->on_audio_(capture.data); });
+    this->disable_loop();
+  } else {
+    for (auto &client : this->clients_) {
+      client.ring.reset();
+    }
+    this->mark_failed(LOG_STR("Cannot allocate microphone audio buffers"));
   }
-  this->mark_failed(reason);
-  // Still answer requests, with 503, so clients see why the stream is unavailable.
-  this->register_handler_();
-}
-
-void MicrophoneHttpStream::register_handler_() {
+  // Registered even after a failure, so requests get a 503 that says why the stream is unavailable
   this->base_->init();
   this->base_->add_handler(this);
 }
@@ -68,8 +64,9 @@ void MicrophoneHttpStream::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "Microphone HTTP Stream:\n  ID: %s\n  Format: S16LE mono, %" PRIu32
                 " Hz\n  Path: %s\n  Maximum clients: %u\n  Buffer per client: %u B",
-                this->stream_id_(), this->source_->get_audio_stream_info().get_sample_rate(),
-                this->stream_path_.c_str(), this->max_clients_, static_cast<unsigned>(this->ring_size_));
+                this->stream_id_(), this->source_->get_audio_stream_info().get_sample_rate(), this->stream_path_,
+                static_cast<unsigned>(this->clients_.size()),
+                static_cast<unsigned>(this->large_ring_ ? MULTI_RING_SIZE : SINGLE_RING_SIZE));
 }
 
 bool MicrophoneHttpStream::canHandle(AsyncWebServerRequest *request) const {
@@ -80,14 +77,9 @@ bool MicrophoneHttpStream::canHandle(AsyncWebServerRequest *request) const {
   return url == LIST_PATH || url == this->stream_path_;
 }
 
-void MicrophoneHttpStream::fail_request_(AsyncWebServerRequest *request, const char *message) {
-  ESP_LOGW(TAG, "Stream request failed: %s", message);
-  request->send(503, "text/plain; charset=utf-8", message);
-}
-
 void MicrophoneHttpStream::handleRequest(AsyncWebServerRequest *request) {
   if (this->is_failed()) {
-    this->fail_request_(request, "Microphone stream unavailable");
+    request->send(503, "text/plain; charset=utf-8", "Microphone stream unavailable");
     return;
   }
   char url_buf[AsyncWebServerRequest::URL_BUF_SIZE];
@@ -96,17 +88,17 @@ void MicrophoneHttpStream::handleRequest(AsyncWebServerRequest *request) {
     snprintf(json, sizeof(json),
              "[{\"stream_id\":\"%s\",\"format\":\"S16LE\",\"sample_rate_hz\":%" PRIu32
              ",\"channels\":1,\"content_type\":\"application/octet-stream\",\"url\":\"%s\",\"max_clients\":%u}]",
-             this->stream_id_(), this->source_->get_audio_stream_info().get_sample_rate(), this->stream_path_.c_str(),
-             this->max_clients_);
+             this->stream_id_(), this->source_->get_audio_stream_info().get_sample_rate(), this->stream_path_,
+             static_cast<unsigned>(this->clients_.size()));
     request->send(200, "application/json", json);
     return;
   }
 
   ClientSlot *client = nullptr;
-  for (size_t i = 0; i < this->max_clients_; ++i) {
+  for (auto &slot : this->clients_) {
     StreamState expected = StreamState::STREAM_STATE_IDLE;
-    if (this->clients_[i].state.compare_exchange_strong(expected, StreamState::STREAM_STATE_PREPARING)) {
-      client = &this->clients_[i];
+    if (slot.state.compare_exchange_strong(expected, StreamState::STREAM_STATE_PREPARING)) {
+      client = &slot;
       break;
     }
   }
@@ -114,12 +106,7 @@ void MicrophoneHttpStream::handleRequest(AsyncWebServerRequest *request) {
     request->send(409, "text/plain; charset=utf-8", "No free microphone stream slot");
     return;
   }
-#if defined(USE_LOGGER) && defined(ESPHOME_LOG_HAS_DEBUG)
-  client->peak_ring_used.store(0);
-#endif
   client->stop_reason.store(StopReason::STOP_REASON_NONE);
-  client->abort.store(0);
-  client->stalled = false;
   // Drop audio left over from the previous client of this slot.
   client->ring->reset();
 
@@ -143,8 +130,7 @@ void MicrophoneHttpStream::loop() {
   bool has_ready_client = false;
   bool has_pending_client = false;
   bool has_finishing_client = false;
-  for (size_t i = 0; i < this->max_clients_; ++i) {
-    auto &client = this->clients_[i];
+  for (auto &client : this->clients_) {
     auto state = client.state.load();
     if (state == StreamState::STREAM_STATE_READY) {
       this->service_client_(&client);
@@ -162,13 +148,11 @@ void MicrophoneHttpStream::loop() {
     has_pending_client |= state == StreamState::STREAM_STATE_PREPARING;
   }
 
-  if (has_ready_client && !this->streaming_active_) {
-    this->streaming_active_ = true;
+  // Both are no-ops when the source is already in that state
+  if (has_ready_client) {
     this->source_->start();
-  } else if (!has_ready_client && !has_pending_client && this->streaming_active_) {
-    ESP_LOGI(TAG, "Last HTTP client left; stopping microphone source");
+  } else if (!has_pending_client) {
     this->source_->stop();
-    this->streaming_active_ = false;
   }
   // A claimed slot calls enable_loop_soon_any_context() once it is READY.
   if (!has_ready_client && !has_pending_client && !has_finishing_client)
@@ -178,7 +162,7 @@ void MicrophoneHttpStream::loop() {
 void MicrophoneHttpStream::service_client_(ClientSlot *client) {
   AsyncStreamResponse *stream = client->stream;
   if (!stream->is_closing()) {
-    if (client->abort.load()) {
+    if (client->stop_reason.load() != StopReason::STOP_REASON_NONE) {
       stream->close();  // The audio callback recorded the reason
     } else if (!stream->is_connected()) {
       client->set_stop_reason(StopReason::STOP_REASON_PEER_CLOSED);
@@ -215,41 +199,24 @@ void MicrophoneHttpStream::send_audio_(ClientSlot *client) {
       client->chunk_data = data;
       client->chunk_len = static_cast<uint16_t>(amount);
       client->chunk_sent = 0;
-      client->chunk_header_len = static_cast<uint8_t>(
-          snprintf(client->chunk_header, sizeof(client->chunk_header), "%x\r\n", static_cast<unsigned>(amount)));
+      web_server_idf::write_chunk_header(client->chunk_header, amount);
     }
 
-    // Gather the unsent tail of chunk_header + data + CRLF
-    const size_t parts_len[3] = {client->chunk_header_len, client->chunk_len, sizeof(CRLF) - 1};
-    const char *parts[3] = {client->chunk_header, static_cast<const char *>(client->chunk_data), CRLF};
-    struct iovec iov[3];
-    int iovcnt = 0;
-    size_t skip = client->chunk_sent;
-    size_t remaining = 0;
-    for (size_t i = 0; i < 3; ++i) {
-      if (skip >= parts_len[i]) {
-        skip -= parts_len[i];
-        continue;
-      }
-      iov[iovcnt].iov_base = const_cast<char *>(parts[i] + skip);
-      iov[iovcnt].iov_len = parts_len[i] - skip;
-      remaining += iov[iovcnt].iov_len;
-      ++iovcnt;
-      skip = 0;
-    }
-
+    struct iovec parts[3] = {
+        {client->chunk_header, web_server_idf::CHUNK_HDR_LEN},
+        {client->chunk_data, client->chunk_len},
+        {const_cast<char *>(web_server_idf::CHUNK_END), web_server_idf::CHUNK_END_LEN},
+    };
+    struct iovec *iov = parts;
+    int iovcnt = 3;
+    web_server_idf::advance_iovecs(iov, iovcnt, client->chunk_sent);
     const ssize_t sent = stream->write(iov, iovcnt);
     if (sent < 0) {
-      // write() already closed the stream; a refusal right before means it stalled
-      client->set_stop_reason(client->stalled ? StopReason::STOP_REASON_SEND_TIMEOUT
-                                              : StopReason::STOP_REASON_SEND_FAILED);
+      client->set_stop_reason(StopReason::STOP_REASON_SEND_FAILED);  // write() already closed the stream
       return;
     }
-    client->stalled = sent == 0;
-    if (sent == 0)
-      return;
     client->chunk_sent += static_cast<uint16_t>(sent);
-    if (static_cast<size_t>(sent) < remaining)
+    if (client->chunk_sent < web_server_idf::CHUNK_HDR_LEN + client->chunk_len + web_server_idf::CHUNK_END_LEN)
       return;  // Socket full; continue from chunk_sent on the next pass
     client->ring->receive_release(client->chunk_data);
     client->chunk_data = nullptr;
@@ -264,17 +231,14 @@ void MicrophoneHttpStream::finish_client_(ClientSlot *client) {
   delete client->stream;  // NOLINT(cppcoreguidelines-owning-memory)
   client->stream = nullptr;
   const StopReason stop_reason = client->stop_reason.load();
-  const LogString *reason = stop_reason_name(stop_reason);
+  const LogString *reason =
+      StopReasonStrings::get_log_str(static_cast<uint8_t>(stop_reason), StopReasonStrings::LAST_INDEX);
   const unsigned index = this->client_index_(client);
   if (stop_reason == StopReason::STOP_REASON_NONE || stop_reason == StopReason::STOP_REASON_PEER_CLOSED) {
     ESP_LOGI(TAG, "Client %u disconnected: reason=%s", index, LOG_STR_ARG(reason));
   } else {
     ESP_LOGW(TAG, "Client %u disconnected: reason=%s", index, LOG_STR_ARG(reason));
   }
-#if defined(USE_LOGGER) && defined(ESPHOME_LOG_HAS_DEBUG)
-  ESP_LOGD(TAG, "Client %u diagnostics: peak_ring=%u", index,
-           static_cast<unsigned>(client->peak_ring_used.load(std::memory_order_relaxed)));
-#endif
   // loop() publishes IDLE once no audio callback is still writing to this slot
   client->state.store(StreamState::STREAM_STATE_FINISHING);
 }
@@ -282,53 +246,22 @@ void MicrophoneHttpStream::finish_client_(ClientSlot *client) {
 void MicrophoneHttpStream::on_audio_(std::span<const uint8_t> data) {
   if (data.empty())
     return;
-  for (size_t i = 0; i < this->max_clients_; ++i) {
-    auto &client = this->clients_[i];
+  for (auto &client : this->clients_) {
     if (client.state.load() != StreamState::STREAM_STATE_READY)
       continue;
     client.writers.fetch_add(1);
     // Re-check once counted, so a slot that is finishing or reused is never written (seq_cst, see loop())
-    if (client.state.load() == StreamState::STREAM_STATE_READY && !client.abort.load())
+    if (client.state.load() == StreamState::STREAM_STATE_READY &&
+        client.stop_reason.load() == StopReason::STOP_REASON_NONE)
       this->write_audio_(&client, data);
     client.writers.fetch_sub(1, std::memory_order_release);
   }
 }
 
 void MicrophoneHttpStream::write_audio_(ClientSlot *client, std::span<const uint8_t> data) {
-  if ((data.size() & 1U) != 0) {
-    client->stop(StopReason::STOP_REASON_INVALID_FRAME);
-    return;
-  }
   // Whole frames only, so the sender always reads complete 2-byte samples.
-  if (client->ring->write_without_replacement(data.data(), data.size(), 0, false) == 0) {
-    client->stop(StopReason::STOP_REASON_BUFFER_FULL);  // Disconnect only the client that cannot keep up.
-    return;
-  }
-#if defined(USE_LOGGER) && defined(ESPHOME_LOG_HAS_DEBUG)
-  const uint32_t filled = this->ring_size_ - client->ring->free();
-  if (filled > client->peak_ring_used.load(std::memory_order_relaxed))
-    client->peak_ring_used.store(filled, std::memory_order_relaxed);
-#endif
-}
-
-const LogString *MicrophoneHttpStream::stop_reason_name(StopReason reason) {
-  switch (reason) {
-    case StopReason::STOP_REASON_NONE:
-      return LOG_STR("client_closed");
-    case StopReason::STOP_REASON_BUFFER_FULL:
-      return LOG_STR("buffer_full");
-    case StopReason::STOP_REASON_INVALID_FRAME:
-      return LOG_STR("invalid_frame");
-    case StopReason::STOP_REASON_PEER_CLOSED:
-      return LOG_STR("peer_closed");
-    case StopReason::STOP_REASON_SEND_TIMEOUT:
-      return LOG_STR("send_timeout");
-    case StopReason::STOP_REASON_SEND_FAILED:
-      return LOG_STR("send_failed");
-    case StopReason::STOP_REASON_AUDIO_TIMEOUT:
-      return LOG_STR("audio_timeout");
-  }
-  return LOG_STR("unknown");
+  if (client->ring->write_without_replacement(data.data(), data.size(), 0, false) == 0)
+    client->set_stop_reason(StopReason::STOP_REASON_BUFFER_FULL);  // Disconnect only the client that cannot keep up.
 }
 
 }  // namespace esphome::microphone_http_stream

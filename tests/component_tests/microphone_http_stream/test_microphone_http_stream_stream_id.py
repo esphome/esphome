@@ -1,7 +1,8 @@
-"""Derive the default microphone HTTP stream_id."""
+"""Validate and derive the microphone HTTP stream_id."""
 
 import pytest
 
+from esphome import config_validation as cv
 from esphome.components.microphone_http_stream import (
     stream_id_from_microphone_id,
     validate_stream_id,
@@ -12,14 +13,18 @@ from esphome.components.microphone_http_stream import (
     ("microphone_id", "expected"),
     [
         ("kitchen_mic", "kitchen_mic"),
-        ("Kitchen.Mic", "kitchen_mic"),
-        ("2nd_mic", "m2nd_mic"),
-        ("_mic", "m_mic"),
+        ("Kitchen_Mic", "kitchen_mic"),
+        ("_mic", "_mic"),
         ("a" * 40, "a" * 32),
-        ("1" + "b" * 40, "m1" + "b" * 30),
     ],
 )
 def test_stream_id_from_microphone_id(microphone_id: str, expected: str) -> None:
     stream_id = stream_id_from_microphone_id(microphone_id)
     assert stream_id == expected
     assert validate_stream_id(stream_id) == stream_id
+
+
+@pytest.mark.parametrize("stream_id", ["Mic", "2nd_mic", "-mic", "mic.1", "", "a" * 33])
+def test_invalid_stream_id(stream_id: str) -> None:
+    with pytest.raises(cv.Invalid, match="stream_id must be"):
+        validate_stream_id(stream_id)
