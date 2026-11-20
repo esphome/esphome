@@ -77,6 +77,7 @@ from esphome.core import (
 )
 import esphome.final_validate as fv
 from esphome.helpers import write_file_if_changed
+from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
 from esphome.writer import clean_build
 
@@ -336,7 +337,10 @@ _BORDER_ROUTER_SCHEMA = cv.Schema(
 )
 
 
+@schema_extractor("schema")
 def _validate_border_router(value: object) -> ConfigType:
+    if value is SCHEMA_EXTRACT:
+        return _BORDER_ROUTER_SCHEMA
     # ESP-IDF's border router library resolves DNS and runs DHCP over IPv4
     return require_ipv4(CONF_OPENTHREAD, CONF_BORDER_ROUTER)(
         _BORDER_ROUTER_SCHEMA({} if value is None else value)
