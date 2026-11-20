@@ -147,11 +147,11 @@ the first connect fails the run. Retained switch commands fire `on_turn_on` only
 `d1.yaml` (D1 mini) take the broker on the command line (`-s broker <hostname>`, an IP, or a `.invalid` name that
 never resolves); `nodns.yaml` is a package for a copy of either with a static address and `dns1: 0.0.0.0` (lwIP
 returns -6 at once). `mosq.conf` is the broker on port 18843. `boots.sh NAME YAML PORT BOOTS SECS [noflash|flash]
-[-s ...]` uploads through `pio_build.sh` and takes BOOTS reset captures; `ana.py NAME` prints Wi-Fi up to MQTT up and
-the lookup errors per boot, `cad.py` the lookup cadence, `nan.py` the no DNS retry gaps and on_disconnect reasons,
-`drop.py` the events around each Wi-Fi drop. `rs.sh TAG NAME:PORT...` captures flashed boards, publishes to
-`<name>/in` every 2 s and restarts the broker 35 s in; `rsan.py rs-TAG-drv.txt CAPTURES` counts messages per
-connection.
+[-s ...]` builds and uploads through `pio_build.sh` and takes BOOTS reset captures; `ana.py NAME` prints Wi-Fi up to
+MQTT up and the lookup errors per boot, `cad.py` the lookup cadence, `nan.py` the no DNS retry gaps and
+on_disconnect reasons, `drop.py` the events around each Wi-Fi drop. `rs.sh TAG NAME:PORT...` captures flashed boards,
+publishes to `<name>/in` every 2 s and restarts the broker 35 s in; `rsan.py rs-TAG-drv.txt CAPTURES` counts messages
+per connection.
 - A hostname from the router's DHCP names can move to another machine mid-run. Use a wildcard DNS name such as
   `<ip-with-dashes>.sslip.io` for a broker hostname: the router forwards it and returns the private address.
 - lwIP caches the answer, so later lookups return at once without a `Resolved` line. Before #22843 every boot stalled
