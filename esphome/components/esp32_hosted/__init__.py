@@ -12,11 +12,13 @@ from esphome.const import (
     CONF_FREQUENCY,
     CONF_MISO_PIN,
     CONF_MOSI_PIN,
+    CONF_PLATFORM,
     CONF_RESET_PIN,
     CONF_TYPE,
     CONF_VARIANT,
 )
-from esphome.cpp_generator import add_define
+from esphome.cpp_generator import add_build_flag, add_define
+import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
@@ -26,6 +28,8 @@ DEPENDENCIES = ["esp32"]
 DOMAIN = "esp32_hosted"
 # esp32_ble raises the task watchdog around the remote BT controller bring-up
 AUTO_LOAD = ["watchdog"]
+
+_SDIO_RX_STAGING_TARGET = "eh_host_bus_sdio_set_rx_staging_target"
 
 CONF_BUS_WIDTH = "bus_width"
 CONF_CMD_PIN = "cmd_pin"
@@ -165,6 +169,26 @@ CONFIG_SCHEMA = cv.typed_schema(
 )
 
 
+ESP32C5_PARTITION_TABLE_URL = "https://github.com/esphome/esp-hosted-firmware/issues/34"
+
+
+def _warn_esp32c5_update(config: ConfigType) -> None:
+    """Warn that ESP32-C5 firmware has to match the partition table offset on the chip."""
+    if config.get(CONF_VARIANT) != esp32.VARIANT_ESP32C5:
+        return
+    updates = fv.full_config.get().get("update", [])
+    if not any(update.get(CONF_PLATFORM) == DOMAIN for update in updates):
+        return
+    _LOGGER.warning(
+        "An ESP32-C5 coprocessor only starts firmware built for the partition table "
+        "offset already on the chip: 0xc000 if it came with ESP-Hosted 2.x, 0x8000 if "
+        "it was flashed with a stock 3.x build. An update built for the other offset "
+        "leaves the coprocessor unable to start, and recovery needs a serial "
+        "connection to it. See %s",
+        ESP32C5_PARTITION_TABLE_URL,
+    )
+
+
 def _final_validate(config: ConfigType) -> None:
     if (idf_ver := esp32.idf_version()) < cv.Version(5, 5, 0):
         raise cv.Invalid(
@@ -172,6 +196,7 @@ def _final_validate(config: ConfigType) -> None:
             "Remove the framework version from your configuration to use the "
             "recommended version, or pin a version at or above 5.5."
         )
+    _warn_esp32c5_update(config)
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
@@ -211,6 +236,9 @@ def _configure_sdio(config: ConfigType) -> None:
         "CONFIG_ESP_HOSTED_HOST_SDIO_CLK_KHZ",
         int(config[CONF_SDIO_FREQUENCY] // 1000),
     )
+    # sdio_rx_staging.cpp; the wrap sits in libsrc.a, so pull it in explicitly
+    add_build_flag(f"-Wl,--wrap={_SDIO_RX_STAGING_TARGET}")
+    add_build_flag(f"-Wl,--undefined=__wrap_{_SDIO_RX_STAGING_TARGET}")
 
 
 def _configure_spi(config: ConfigType) -> None:
