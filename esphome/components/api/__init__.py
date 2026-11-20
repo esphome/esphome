@@ -834,22 +834,16 @@ HOMEASSISTANT_ACTION_ACTION_SCHEMA = cv.All(
 )
 
 
-async def _new_service_call_action(
-    server_id: ID,
-    action_id: ID,
+async def _service_call_table(
     template_arg: cg.TemplateArguments,
     args: TemplateArgsType,
-    is_event: bool,
     service: Any,
-    data: dict[str, Any],
-    data_template: dict[str, Any],
-    variables: dict[str, Any],
-) -> MockObj:
-    """Create the action with its name and fields in one shared flash table."""
+    groups: tuple[dict[str, Any], ...],
+) -> list[Expression | int]:
+    """Return the name and the data, data_template and variables ``groups`` in one shared
+    flash table, then the size of each map."""
     cg.add_define("USE_API_HOMEASSISTANT_SERVICES")
-    serv = await cg.get_variable(server_id)
     field_type = HomeAssistantField.template(template_arg)
-    groups = [data, data_template, variables]
     # A lambda may keep static state, so a table with lambdas is never shared
     has_lambda = cg.is_template(service) or any(
         cg.is_template(value) for group in groups for value in group.values()
@@ -873,8 +867,30 @@ async def _new_service_call_action(
         cg.ArrayInitializer(*entries, multiline=True),
         share=not has_lambda,
     )
-    return cg.new_Pvariable(
-        action_id, template_arg, serv, is_event, table, *(len(g) for g in groups)
+    return [table, *(len(g) for g in groups)]
+
+
+async def _send_service_call(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+    is_event: bool,
+    service: Any,
+    groups: tuple[dict[str, Any], ...],
+) -> MockObj:
+    """Send the action or event from a generated function, without waiting for a response."""
+    server = MockObj(await automation.apply_parent(config))
+    table, *counts = await _service_call_table(template_arg, args, service, groups)
+    call = api_ns.send_homeassistant_fields(
+        server,
+        is_event,
+        automation.parent_ref(table),
+        *counts,
+        *(MockObj(name) for _, name in args),
+    )
+    return automation.apply_statements_action(
+        action_id, template_arg, args, [f"{call};"]
     )
 
 
@@ -887,13 +903,13 @@ def _service_call_fields(config: ConfigType) -> tuple[dict[str, Any], ...]:
 # (StringRef into the API receive buffer) must not be used.
 @automation.register_action(
     "homeassistant.action",
-    HomeAssistantServiceCallAction,
+    automation.ApplyAction,
     HOMEASSISTANT_ACTION_ACTION_SCHEMA,
     synchronous=False,
 )
 @automation.register_action(
     "homeassistant.service",
-    HomeAssistantServiceCallAction,
+    automation.ApplyAction,
     HOMEASSISTANT_ACTION_ACTION_SCHEMA,
     synchronous=False,
 )
@@ -903,29 +919,40 @@ async def homeassistant_service_to_code(
     template_arg: cg.TemplateArguments,
     args: TemplateArgsType,
 ) -> MockObj:
-    var = await _new_service_call_action(
-        config[CONF_ID],
+    on_error = config.get(CONF_ON_ERROR)
+    on_success = config.get(CONF_ON_SUCCESS)
+    if not on_error and not on_success:
+        return await _send_service_call(
+            config,
+            action_id,
+            template_arg,
+            args,
+            False,
+            config[CONF_ACTION],
+            _service_call_fields(config),
+        )
+
+    # Waiting for the response needs an object that holds the triggers
+    cg.add_define("USE_API_HOMEASSISTANT_ACTION_RESPONSES")
+    action_id.type = HomeAssistantServiceCallAction
+    var = cg.new_Pvariable(
         action_id,
         template_arg,
-        args,
-        False,
-        config[CONF_ACTION],
-        *_service_call_fields(config),
+        await cg.get_variable(config[CONF_ID]),
+        *await _service_call_table(
+            template_arg, args, config[CONF_ACTION], _service_call_fields(config)
+        ),
     )
 
-    if on_error := config.get(CONF_ON_ERROR):
-        cg.add_define("USE_API_HOMEASSISTANT_ACTION_RESPONSES")
+    if on_error:
         cg.add_define("USE_API_HOMEASSISTANT_ACTION_RESPONSES_ERRORS")
-        cg.add(var.set_wants_status())
         await automation.build_automation(
             var.get_error_trigger(),
             [(cg.std_string, "error"), *args],
             on_error,
         )
 
-    if on_success := config.get(CONF_ON_SUCCESS):
-        cg.add_define("USE_API_HOMEASSISTANT_ACTION_RESPONSES")
-        cg.add(var.set_wants_status())
+    if on_success:
         if config[CONF_CAPTURE_RESPONSE]:
             cg.add(var.set_wants_response())
             cg.add_define("USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON")
@@ -974,7 +1001,7 @@ HOMEASSISTANT_EVENT_ACTION_SCHEMA = cv.Schema(
 # so play() never stores the trigger args.
 @automation.register_action(
     "homeassistant.event",
-    HomeAssistantServiceCallAction,
+    automation.ApplyAction,
     HOMEASSISTANT_EVENT_ACTION_SCHEMA,
     synchronous=True,
 )
@@ -984,14 +1011,14 @@ async def homeassistant_event_to_code(
     template_arg: cg.TemplateArguments,
     args: TemplateArgsType,
 ) -> MockObj:
-    return await _new_service_call_action(
-        config[CONF_ID],
+    return await _send_service_call(
+        config,
         action_id,
         template_arg,
         args,
         True,
         config[CONF_EVENT],
-        *_service_call_fields(config),
+        _service_call_fields(config),
     )
 
 
@@ -1006,7 +1033,7 @@ HOMEASSISTANT_TAG_SCANNED_ACTION_SCHEMA = cv.maybe_simple_value(
 
 @automation.register_action(
     "homeassistant.tag_scanned",
-    HomeAssistantServiceCallAction,
+    automation.ApplyAction,
     HOMEASSISTANT_TAG_SCANNED_ACTION_SCHEMA,
     synchronous=True,
 )
@@ -1016,16 +1043,14 @@ async def homeassistant_tag_scanned_to_code(
     template_arg: cg.TemplateArguments,
     args: TemplateArgsType,
 ) -> MockObj:
-    return await _new_service_call_action(
-        config[CONF_ID],
+    return await _send_service_call(
+        config,
         action_id,
         template_arg,
         args,
         True,
         "esphome.tag_scanned",
-        {"tag_id": config[CONF_TAG]},
-        {},
-        {},
+        ({"tag_id": config[CONF_TAG]}, {}, {}),
     )
 
 
