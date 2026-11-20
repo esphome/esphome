@@ -22,7 +22,9 @@ enum class SDOResult : uint8_t {
   SDO_RESULT_REJECTED,         // not queued (queue full, invalid arguments, failed hub)
 };
 // A write that ended with TIMEOUT or TRANSPORT_ERROR may still have been carried out: the server's response may be
-// lost, and a frame the CAN controller has already taken can't be recalled.
+// lost, and a frame the CAN controller has already taken can't be recalled. SDO has no transaction id, so a late
+// response to a request that timed out can be taken as the response to the next request for the same object of that
+// node (e.g. a retry), which then gets the earlier request's result.
 
 const LogString *sdo_result_to_string(SDOResult result);
 
