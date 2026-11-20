@@ -12,7 +12,9 @@
 D=$(cd "$(dirname "$0")" && pwd); S=$D/..; cd "$D" || exit 1
 N=$1 Y=$2 M=$3; P=${PORT:?set PORT}; PY=${PY:-python3}; SEC=${SECRETS:-$D/secrets.yaml}
 [ -z "${API_KEY+x}" ] && [ -f apikey.txt ] && API_KEY=$(cat apikey.txt)
-export API_KEY PY TREE
+# bles2b.yaml and bles2c.yaml add a Battery service, so gattc.py rounds without it fail
+BATTERY=0; [ "$Y" != bles2.yaml ] && BATTERY=1
+export API_KEY PY TREE BATTERY
 O=$D/out-$N; mkdir -p "$O"; C=$O/cap.txt
 CAP=
 cap() { $PY "$S/serial_capture.py" "$P" 3000 "$C" --append > /dev/null 2>> "$O/cap.err" & CAP=$!; }

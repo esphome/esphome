@@ -14,12 +14,13 @@ P=${PY:-python3} H=${HOST:?set HOST}
 run() {
   local n=$1; shift; local want=$3 out=$4; echo "$(date +%T) start $n"
   for chunk in $(seq "${CHUNKS:-8}"); do
-    local have; have=$(grep -c '"round"' "$out" 2>/dev/null); have=${have:-0}
+    # held_failed rounds never tried the measured link, so they do not count
+    local have; have=$(grep '"round"' "$out" 2>/dev/null | grep -vc held_failed); have=${have:-0}
     [ "$have" -ge "$want" ] && break
     local args=("$@"); args[2]=$((want - have))
     timeout 3000 $P drive.py "$H" "${args[@]}" >> "$T-$n.err" 2>&1
     local rc=$?
-    echo "$(date +%T) chunk $chunk rc=$rc rounds=$(grep -c '"round"' "$out")"
+    echo "$(date +%T) chunk $chunk rc=$rc rounds=$(grep '"round"' "$out" | grep -vc held_failed)"
     sleep 20
   done
   echo "$(date +%T) end $n"

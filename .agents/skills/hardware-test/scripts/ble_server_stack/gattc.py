@@ -1,8 +1,9 @@
 """Direct (bleak) GATT client rounds against bles2.yaml: gattc.py NAME ROUNDS TAG.
-One JSON line per round on stdout, SUMMARY at the end."""
+One JSON line per round on stdout, SUMMARY at the end. BATTERY=1 fails rounds without the Battery service."""
 
 import asyncio
 import json
+import os
 import sys
 
 from bleak import BleakClient, BleakScanner
@@ -96,6 +97,7 @@ async def main(name, rounds, tag):
             and r["written"] in r["notifies"]
             and r["set_value_readback"] == r["written"]
             and sorted(r["dis"]) == ["2a24", "2a26", "2a29"]
+            and (r["battery"] or os.environ.get("BATTERY") != "1")
             and (
                 not r["battery"]
                 or (r["battery_level"] == "57" and r["battery_cccd"] == ["2902"])

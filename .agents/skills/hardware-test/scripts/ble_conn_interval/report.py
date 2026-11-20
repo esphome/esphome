@@ -50,12 +50,15 @@ for path in sorted(pathlib.Path().glob(f"{tag}-*.jsonl")):
     )
     name = path.name[len(tag) + 1 : -6]
     if name.startswith("third"):
+        # rounds where the two held links never came up did not try the third link
+        hf = sum(r.get("result") == "held_failed" for r in rows)
+        rows = [r for r in rows if r.get("result") != "held_failed"]
         ok = sum(r.get("connected") is True for r in rows)
         to = sum("Timeout" in (r.get("exc") or "") for r in rows)
         f133 = sum(r.get("err") == 133 for r in rows)
         tc = [r["t_conn"] for r in rows if r.get("connected")]
         print(
-            f"{name}: rounds={len(rows)} connected={ok} err133={f133} api_timeouts={to} HCI_0x0D_lines={rej} "
+            f"{name}: rounds={len(rows)} held_failed={hf} connected={ok} err133={f133} api_timeouts={to} HCI_0x0D_lines={rej} "
             f"t_conn_med={statistics.median(tc) if tc else None} conn_iv={ivs} updates={upd}"
         )
     elif any("detail" in r for r in rows):
