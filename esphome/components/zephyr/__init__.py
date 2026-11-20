@@ -9,7 +9,7 @@ from esphome.const import (
     CONF_BOARD,
     KEY_CORE,
     KEY_FRAMEWORK_VERSION,
-    KEY_TARGET_PLATFORM,
+    KEY_TARGET_FRAMEWORK,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.helpers import copy_file_if_changed, write_file_if_changed
@@ -97,7 +97,7 @@ class ZephyrData(TypedDict):
     cdc_acm_users: dict[int, list[CdcAcmUser]]
     # Add port 0 even when no component claims a port (see zephyr_require_cdc_acm())
     cdc_acm_required: bool
-    # Set for chips in the variants registry; nrf52 sets none of these
+    # Set by the chips in a platform's zephyr_variants; nrf52 sets none of these
     variant: NotRequired[str]
     family: NotRequired[str | None]
     framework_type: NotRequired[str]
@@ -129,20 +129,16 @@ def zephyr_data() -> ZephyrData:
 
 
 def _variant_data() -> ZephyrData | dict[str, object]:
-    """Raise if no platform is set yet, or a registry platform has no Zephyr data yet."""
+    """Raise if the platform schema, which sets the target framework, has not run yet."""
     if (data := CORE.data.get(KEY_ZEPHYR)) is not None:
         return data
-    # deferred: the variants package imports this one
-    from .variants import _ZEPHYR_PLATFORMS  # noqa: PLC0415
-
-    platform = CORE.data.get(KEY_CORE, {}).get(KEY_TARGET_PLATFORM)
-    if platform is None or platform in _ZEPHYR_PLATFORMS:
+    if CORE.data.get(KEY_CORE, {}).get(KEY_TARGET_FRAMEWORK) is None:
         raise RuntimeError("Zephyr variant read before the platform schema set it")
     return {}
 
 
 def zephyr_variant() -> str | None:
-    """The active chip in the variants registry; None for nrf52 and other platforms."""
+    """The active chip from a platform's zephyr_variants; None for nrf52 and others."""
     return _variant_data().get(KEY_VARIANT)
 
 
@@ -152,7 +148,7 @@ def zephyr_variant_family() -> str | None:
 
 
 def zephyr_framework_type() -> str | None:
-    """The active `framework: type:`, e.g. "zephyr"; None outside the variants registry."""
+    """The active `framework: type:`, e.g. "zephyr"; None as for zephyr_variant()."""
     return _variant_data().get(KEY_FRAMEWORK_TYPE)
 
 
