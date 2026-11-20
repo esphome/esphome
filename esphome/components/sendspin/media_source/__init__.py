@@ -19,6 +19,7 @@ from .. import (
     CONF_CODECS,
     CONF_DECODE_MEMORY,
     CONF_FIXED_DELAY,
+    CONF_FORMATS,
     CONF_INITIAL_STATIC_DELAY,
     CONF_SENDSPIN_ID,
     DEFAULT_CODECS,
@@ -45,18 +46,18 @@ SendspinMediaSource = sendspin_ns.class_(
 
 def _resolve_codecs(config: ConfigType) -> ConfigType:
     """Validate the codec preference list, filling in the default when it is not set."""
-    sample_rate = config[CONF_SAMPLE_RATE]
+    sample_rates = [f[CONF_SAMPLE_RATE] for f in config[CONF_FORMATS]]
     if (codecs := config.get(CONF_CODECS)) is None:
         config[CONF_CODECS] = [
             codec
             for codec in DEFAULT_CODECS
-            if codec != CODEC_OPUS or sample_rate == OPUS_SAMPLE_RATE
+            if codec != CODEC_OPUS or OPUS_SAMPLE_RATE in sample_rates
         ]
         return config
 
     if len(set(codecs)) != len(codecs):
         raise cv.Invalid("Each codec may only be listed once", path=[CONF_CODECS])
-    if CODEC_OPUS in codecs and sample_rate != OPUS_SAMPLE_RATE:
+    if CODEC_OPUS in codecs and OPUS_SAMPLE_RATE not in sample_rates:
         raise cv.Invalid(
             f"Codec '{CODEC_OPUS}' requires a {CONF_SAMPLE_RATE} of {OPUS_SAMPLE_RATE}",
             path=[CONF_CODECS],
@@ -74,8 +75,7 @@ def _register(config: ConfigType) -> ConfigType:
     register_player_config(
         {
             CONF_CODECS: config[CONF_CODECS],
-            CONF_SAMPLE_RATE: config[CONF_SAMPLE_RATE],
-            CONF_BITS_PER_SAMPLE: config[CONF_BITS_PER_SAMPLE],
+            CONF_FORMATS: config[CONF_FORMATS],
             CONF_BUFFER_SIZE: config[CONF_BUFFER_SIZE],
             CONF_INITIAL_STATIC_DELAY: config[CONF_INITIAL_STATIC_DELAY],
             CONF_FIXED_DELAY: config[CONF_FIXED_DELAY],
@@ -103,10 +103,23 @@ CONFIG_SCHEMA = cv.All(
                 cv.positive_time_period_microseconds,
                 cv.Range(max=cv.TimePeriod(microseconds=10000)),
             ),
-            cv.Optional(CONF_SAMPLE_RATE, default=48000): cv.int_range(
-                min=16000, max=96000
+            cv.Optional(
+                CONF_FORMATS, default=[{"sample_rate": 48000, "bits_per_sample": 16}]
+            ): cv.All(
+                cv.ensure_list(
+                    cv.Schema(
+                        {
+                            cv.Required(CONF_SAMPLE_RATE): cv.int_range(
+                                min=16000, max=192000
+                            ),
+                            cv.Required(CONF_BITS_PER_SAMPLE): cv.one_of(
+                                16, 24, int=True
+                            ),
+                        }
+                    )
+                ),
+                cv.Length(min=1),
             ),
-            cv.Optional(CONF_BITS_PER_SAMPLE, default=16): cv.one_of(16, 24, int=True),
             cv.Optional(CONF_DECODE_MEMORY): cv.one_of(*MEMORY_LOCATIONS, lower=True),
             cv.Optional(CONF_CODECS): cv.All(
                 cv.ensure_list(cv.enum(CODECS, lower=True)), cv.Length(min=1)

@@ -8,7 +8,6 @@ check: a `test*.yaml` can only assert that a configuration is accepted.
 from collections.abc import Callable
 from pathlib import Path
 import re
-from typing import Any
 
 import pytest
 
@@ -16,7 +15,6 @@ from esphome import config_validation as cv
 from esphome.components.sendspin import CONF_CODECS, _get_data
 from esphome.components.sendspin.media_source import CONFIG_SCHEMA
 from esphome.const import PlatformFramework
-from esphome.types import ConfigType
 from tests.component_tests.types import SetCoreConfigCallable
 
 AUDIO_FORMAT_RE = re.compile(
@@ -27,14 +25,12 @@ AUDIO_FORMAT_RE = re.compile(
 )
 
 
-def _media_source_config(**overrides: Any) -> ConfigType:
-    """Build a minimal valid media source config, allowing field overrides."""
-    config: ConfigType = {
-        "id": "sendspin_media_source",
+def _media_source_config(sample_rate=48000, bits_per_sample=16, **kwargs):
+    return {
         "sendspin_id": "sendspin_hub",
+        "formats": [{"sample_rate": sample_rate, "bits_per_sample": bits_per_sample}],
+        **kwargs,
     }
-    config.update(overrides)
-    return config
 
 
 def test_default_codecs_at_48_khz(set_core_config: SetCoreConfigCallable) -> None:
