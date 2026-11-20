@@ -22,7 +22,7 @@ CONF_UART_NUM = "uart_num"
 CONF_DMX_ID = "dmx_id"
 CONF_TX_INTERVAL = "tx_interval"
 CONF_RX_GUARD = "rx_guard"
-DEPENDENCIES = ["esp32"]
+DEPENDENCIES = ["esp32", "light"]
 DOMAIN = "dmx"
 _LOGGER = logging.getLogger(__name__)
 
