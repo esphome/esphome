@@ -1,9 +1,17 @@
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import esp32, esp32_rmt
+from esphome.components.const import CONF_DRIVE_STRENGTH, CONF_HOLD_STATE
 from esphome.components.one_wire import OneWireBus
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_INVERTED, CONF_PIN
+from esphome.const import (
+    CONF_ID,
+    CONF_INVERTED,
+    CONF_MODE,
+    CONF_PIN,
+    CONF_PULLDOWN,
+    CONF_PULLUP,
+)
 from esphome.core import CORE
 from esphome.types import ConfigType
 
@@ -14,12 +22,20 @@ CODEOWNERS = ["@ssieb"]
 CONF_USE_RMT = "use_rmt"
 CONF_RMT_TIMING = "rmt_timing"
 
-# Option, with _us also its field in rmt_one_wire::Timing: default, minimum, maximum in us
-RMT_TIMING = {
+# Option, with _us also its field in rmt_one_wire::Timing: (default, minimum, maximum) in us
+RMT_TIMING: dict[str, tuple[int, int, int]] = {
     "write0_low": (90, 60, 105),
     "slot": (110, 71, 120),
-    "read_threshold": (13, 10, 25),
+    # A read 1 is Low for up to 4 us + 9 us of rise time: 14 us leaves one tick of margin
+    "read_threshold": (14, 10, 25),
 }
+
+# GPIORMTOneWireBus::setup() creates one RX, then one TX channel of one memory block each
+RMT_CHANNELS: tuple[tuple[esp32_rmt.Direction, int], ...] = (("RX", 1), ("TX", 1))
+# GPIORMTOneWireBus::get_setup_priority(): setup_priority::HARDWARE - 1
+RMT_SETUP_PRIORITY = 799.0
+# The drive strength of a pad after reset, which use_rmt does not change
+DEFAULT_DRIVE_STRENGTH = 20.0
 
 GPIOOneWireBus = gpio_ns.class_("GPIOOneWireBus", OneWireBus, cg.Component)
 GPIORMTOneWireBus = gpio_ns.class_("GPIORMTOneWireBus", OneWireBus, cg.Component)
@@ -44,14 +60,46 @@ def _validate_use_rmt(config: ConfigType) -> ConfigType:
     if not CORE.is_esp32:
         raise cv.Invalid("use_rmt is only available on ESP32", path=[CONF_USE_RMT])
     esp32_rmt.validate_rmt_not_supported([CONF_USE_RMT])(config)
-    if config[CONF_PIN][CONF_INVERTED]:
+    pin = config[CONF_PIN]
+    if pin[CONF_INVERTED]:
         raise cv.Invalid("use_rmt does not support inverted pins", path=[CONF_PIN])
+    _validate_rmt_pin(pin)
     # The driver facts behind the bus are only checked for this ESP-IDF, which Arduino 3.3.0 brings along
     cv.require_framework_version(
         esp_idf=cv.Version(5, 5, 0), esp32_arduino=cv.Version(3, 3, 0)
     )(config)
     config[CONF_ID].type = GPIORMTOneWireBus
-    return config
+    return esp32_rmt.request_rmt_channels(RMT_CHANNELS, RMT_SETUP_PRIORITY)(config)
+
+
+def _validate_rmt_pin(pin: ConfigType) -> None:
+    """Reject the pin options that the RMT driver does not apply to the pin."""
+    mode = pin[CONF_MODE]
+    for key in (CONF_PULLUP, CONF_PULLDOWN):
+        if mode.get(key):
+            raise cv.Invalid(
+                f"use_rmt does not apply '{key}' of the pin mode, remove it. The bus "
+                "needs an external pullup resistor",
+                path=[CONF_PIN, CONF_MODE, key],
+            )
+    if (strength := pin.get(CONF_DRIVE_STRENGTH)) is not None and (
+        strength != DEFAULT_DRIVE_STRENGTH
+    ):
+        raise cv.Invalid(
+            f"use_rmt does not apply '{CONF_DRIVE_STRENGTH}', remove it to keep the "
+            "default of 20mA",
+            path=[CONF_PIN, CONF_DRIVE_STRENGTH],
+        )
+    if pin.get(CONF_HOLD_STATE):
+        raise cv.Invalid(
+            f"use_rmt does not support '{CONF_HOLD_STATE}'",
+            path=[CONF_PIN, CONF_HOLD_STATE],
+        )
+
+
+def _final_validate(config: ConfigType) -> None:
+    if config[CONF_USE_RMT]:
+        esp32_rmt.final_validate_rmt_channels(config)
 
 
 CONFIG_SCHEMA = cv.All(
@@ -80,6 +128,8 @@ CONFIG_SCHEMA = cv.All(
     _validate_use_rmt,
 )
 
+FINAL_VALIDATE_SCHEMA = _final_validate
+
 
 async def to_code(config: ConfigType) -> None:
     args = []
@@ -88,6 +138,8 @@ async def to_code(config: ConfigType) -> None:
         args.append(cg.StructInitializer(Timing, *fields))
     var = cg.new_Pvariable(config[CONF_ID], *args)
     await cg.register_component(var, config)
+    if config[CONF_USE_RMT]:
+        esp32_rmt.register_rmt_channel(config)
 
     await cg.add_pin(var.set_pin, config[CONF_PIN])
 
