@@ -57,7 +57,7 @@ class EPaperBase : public Display,
   float get_setup_priority() const override;
   void set_reset_pin(GPIOPin *reset) { this->reset_pin_ = reset; }
   void set_busy_pin(GPIOPin *busy) { this->busy_pin_ = busy; }
-  void set_enable_pins(std::vector<GPIOPin *> enable_pins) { this->enable_pins_ = std::move(enable_pins); }
+  SLOT_LIST(GPIOPin, enable_pins_, register_enable_pin, EPAPER_SPI_ENABLE_PIN_COUNT)
   void set_reset_duration(uint32_t reset_duration) { this->reset_duration_ = reset_duration; }
   void set_transform(uint8_t transform) {
     this->transform_ = transform;
@@ -227,7 +227,6 @@ class EPaperBase : public Display,
   GPIOPin *dc_pin_{};
   GPIOPin *busy_pin_{};
   GPIOPin *reset_pin_{};
-  std::vector<GPIOPin *> enable_pins_{};
   bool waiting_for_idle_{};
   HighFrequencyLoopRequester high_frequency_loop_;
   uint32_t delay_until_{};  // timestamp until which to delay processing

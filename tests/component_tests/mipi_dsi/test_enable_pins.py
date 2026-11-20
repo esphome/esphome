@@ -32,9 +32,7 @@ def test_default_enable_pins_by_address(
 
     main_cpp = generate_main(component_fixture_path("enable_pins_address.yaml"))
 
-    match = re.search(r"default_pins->set_enable_pins\(\{(.*)\}\);", main_cpp)
-    assert match is not None
-    pin_ids = match.group(1).split(", ")
+    pin_ids = re.findall(r"default_pins->register_enable_pin\((\w+)\);", main_cpp)
     assert len(pin_ids) == 1
     assert f"{pin_ids[0]}->set_parent(pi4ioe1);" in main_cpp
     assert f"{pin_ids[0]}->set_pin(1);" in main_cpp
