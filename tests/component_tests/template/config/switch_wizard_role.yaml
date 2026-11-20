@@ -1,0 +1,26 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+wifi:
+  ap:
+
+api:
+  wizard:
+    pages:
+      - entities:
+          - id: bluetooth_switch
+          - id: plain_switch
+
+switch:
+  - platform: template
+    id: bluetooth_switch
+    name: Bluetooth
+    optimistic: true
+    wizard_role: bluetooth_enabled
+  - platform: template
+    id: plain_switch
+    name: Plain
+    optimistic: true
