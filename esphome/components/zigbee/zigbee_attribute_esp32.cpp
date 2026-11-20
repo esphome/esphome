@@ -8,18 +8,16 @@ namespace esphome::zigbee {
 
 ESPHOME_LOG_TAG(TAG, "zigbee.attribute");
 
-void ZigbeeAttribute::set_attr_() {
+void ZigbeeAttribute::set_attr_internal() {
   if (!this->zb_->is_started()) {
     return;
   }
   if (esp_zigbee_lock_acquire(10 / portTICK_PERIOD_MS)) {
     ezb_zcl_status_t state = ezb_zcl_set_attr_value(this->endpoint_id_, this->cluster_id_, this->role_, this->attr_id_,
                                                     EZB_ZCL_STD_MANUF_CODE, this->value_p_, false);
-    // cleared before report_() so it can disable the loop
-    // when the report has to wait for join
     this->set_attr_requested_ = false;
     if (this->force_report_) {
-      this->report_(true);
+      this->report_internal(true);
     }
     // Check for error
     if (state != EZB_ZCL_STATUS_SUCCESS) {
@@ -30,15 +28,12 @@ void ZigbeeAttribute::set_attr_() {
   }
 }
 
-void ZigbeeAttribute::report_(bool has_lock) {
+void ZigbeeAttribute::report_internal(bool has_lock) {
   if (!this->report_enabled) {
     return;
   }
   if (!this->zb_->is_joined()) {
     this->report_requested_ = true;
-    if (!this->set_attr_requested_) {
-      this->disable_loop();
-    }
     return;
   }
   if (has_lock or esp_zigbee_lock_acquire(10 / portTICK_PERIOD_MS)) {
@@ -58,43 +53,6 @@ void ZigbeeAttribute::report_(bool has_lock) {
     if (!has_lock) {
       esp_zigbee_lock_release();
     }
-  }
-}
-
-void ZigbeeAttribute::set_report(ZigbeeReportT report) {
-  if (report == ZigbeeReportT::ZIGBEE_REPORT_DEFAULT || report == ZigbeeReportT::ZIGBEE_REPORT_COORDINATOR) {
-    return;
-  }
-  this->report_enabled = true;
-  if (report == ZigbeeReportT::ZIGBEE_REPORT_FORCE) {
-    this->force_report_ = true;
-  }
-  this->zb_->add_on_join_callback([this](bool) {
-    if (this->report_requested_) {
-      this->enable_loop();
-    }
-  });
-}
-
-void ZigbeeAttribute::report() {
-  if (!this->report_enabled) {
-    return;
-  }
-  this->report_requested_ = true;
-  this->enable_loop();
-}
-
-void ZigbeeAttribute::loop() {
-  if (this->set_attr_requested_) {
-    this->set_attr_();
-  }
-
-  if (this->report_requested_) {
-    this->report_(false);
-  }
-
-  if (!this->report_requested_ && !this->set_attr_requested_) {
-    this->disable_loop();
   }
 }
 
