@@ -1,0 +1,16 @@
+# Example wiring for an E07-M1101D (CC1101) module; change the pins to match your board. plen 1024 = long packets,
+# 32 = plain fixed length (copy the file and set plen and name for a plain build).
+substitutions:
+  name: cc-s3-long
+  clk: GPIO12
+  mosi: GPIO11
+  miso: GPIO13
+  cs: GPIO10
+  gdo0: GPIO9
+  plen: "1024"
+packages:
+  c: !include cccommon.yaml
+esp32:
+  board: esp32-s3-devkitc-1
+  framework:
+    type: esp-idf

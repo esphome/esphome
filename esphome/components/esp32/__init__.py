@@ -1034,8 +1034,11 @@ def request_tls() -> None:
     """Request the mbedTLS TLS stack and the esp-tls wrapper.
 
     Without a request TLS and its ECP/PEM-write/CRL/CSR crypto compile out;
-    hashes and AES stay available. On native ESP-IDF 6 builds RSA also goes
-    unless updates are RSA-signed; set CONFIG_MBEDTLS_RSA_C to keep it.
+    AES, SHA-256 and the other hashes stay available. On ESP-IDF 6 builds
+    without Wi-Fi, Bluetooth, a websocket server or PPP, SHA-1 also goes; on
+    native ESP-IDF 6 builds SHA-224 goes, and RSA unless updates are
+    RSA-signed. Set CONFIG_MBEDTLS_SHA1_C or CONFIG_MBEDTLS_RSA_C to keep
+    those.
     """
     require_mbedtls_tls()
     include_builtin_idf_component("esp-tls")
@@ -3008,6 +3011,17 @@ async def _reconcile_mbedtls_sdkconfig() -> None:
             set_idf_sdkconfig_default("CONFIG_MBEDTLS_PEM_PARSE_C", False)
             set_idf_sdkconfig_default("CONFIG_MBEDTLS_LARGE_KEY_SOFTWARE_MPI", False)
             _trim_mbedtls_options(MBEDTLS_NON_P256_CURVE_OPTIONS)
+            # Without TLS only Wi-Fi (WPA), websocket handshakes and PPP use
+            # SHA-1, yet the hardware SHA driver links it whenever it is on.
+            # Any build that links esp_wifi keeps it: wifi, espnow, esp32_hosted
+            # and external components re-include it, and Bluetooth pulls it in.
+            if (
+                "esp_wifi" in CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS]
+                and not _network_sdkconfig().bluetooth
+                and not is_idf_sdkconfig_option_enabled("CONFIG_HTTPD_WS_SUPPORT")
+                and not is_idf_sdkconfig_option_enabled("CONFIG_LWIP_PPP_SUPPORT")
+            ):
+                set_idf_sdkconfig_default("CONFIG_MBEDTLS_SHA1_C", False)
         if (
             _psa_user_config_applies()
             and _ecp_stays_on()
@@ -3226,7 +3240,7 @@ async def _finalize_arduino_aware_flags():
 
 
 async def to_code(config):
-    framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
+    framework_ver = CORE.framework_version
     conf = config[CONF_FRAMEWORK]
 
     # Check if using ESP-IDF toolchain
@@ -3324,6 +3338,13 @@ async def to_code(config):
     # --undefined: libsrc.a is scanned before the IDF libraries that also register them.
     cg.add_build_flag("-Wl,--wrap=__cxa_atexit")
     cg.add_build_flag("-Wl,--undefined=__wrap___cxa_atexit")
+
+    # strftime() and mktime() reload TZ, and picolibc's parser links the scanf engine.
+    # ESPHome never sets TZ, so the reload is skipped. See tzset_stubs.cpp.
+    # --undefined: libsrc.a is scanned before the C library that calls it.
+    if idf_version() >= cv.Version(6, 0, 0):
+        cg.add_build_flag("-Wl,--wrap=_tzset_unlocked")
+        cg.add_build_flag("-Wl,--undefined=__wrap__tzset_unlocked")
 
     if conf[CONF_TYPE] == FRAMEWORK_ESP_IDF:
         cg.add_build_flag("-DUSE_ESP_IDF")
@@ -4063,9 +4084,8 @@ def _write_sdkconfig():
     # version switch that happens to leave the option set unchanged still
     # bumps this file's content -- which is what has_outdated_files()
     # uses to decide whether to reconfigure.
-    framework_version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
     contents = (
-        f"# ESPHOME_IDF_VERSION={framework_version}\n"
+        f"# ESPHOME_IDF_VERSION={CORE.framework_version}\n"
         + "\n".join(
             f"{name}={_format_sdkconfig_val(value)}"
             for name, value in sorted(want_opts.items())
@@ -4216,7 +4236,7 @@ def _write_idf_component_yml():
         if CORE.using_toolchain_esp_idf:
             add_idf_component(
                 name=ARDUINO_ESP32_COMPONENT_NAME,
-                ref=str(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]),
+                ref=str(CORE.framework_version),
             )
 
     for component in converted:
