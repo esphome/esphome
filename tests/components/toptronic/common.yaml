@@ -1,0 +1,5 @@
+toptronic:
+  - id: tt_hv
+    canbus_id: canbus_toptronic
+    device_type: HV
+    device_addr: 8
