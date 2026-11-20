@@ -1143,7 +1143,7 @@ def zigbee_base_entity_schema(cluster_options: list[str] | None = None) -> cv.Sc
 
 ZIGBEE_BASE_ENTITY_SCHEMA = zigbee_base_entity_schema()
 ZIGBEE_BINARY_SENSOR_SCHEMA = zigbee_base_entity_schema(["generic", "device_class"])
-ZIGBEE_SENSOR_SCHEMA = zigbee_base_entity_schema(["generic", "device_class"])
+ZIGBEE_SENSOR_SCHEMA = zigbee_base_entity_schema(["generic", "device_class", "power_config"])
 ZIGBEE_SWITCH_SCHEMA = zigbee_base_entity_schema(["generic", "on_off"])
 ZIGBEE_NUMBER_SCHEMA = zigbee_base_entity_schema(["generic"])
 
