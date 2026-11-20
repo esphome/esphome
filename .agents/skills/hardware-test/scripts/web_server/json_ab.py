@@ -20,27 +20,19 @@ import urllib.request
 host, out = sys.argv[1], sys.argv[2]
 bad = 0
 docs = []
-MASK = {"uptime", "value", "state"}
+VARY = ("Fast counter", "Long text", "Door")  # entities whose value changes on its own
 
 
-def norm(obj, name=""):
-    if isinstance(obj, dict):
-        return {k: norm(v, obj.get("id", name)) for k, v in obj.items()}
-    if isinstance(obj, list):
-        return [norm(v, name) for v in obj]
-    return obj
+def varies(oid):
+    return any(s in oid for s in VARY)
 
 
 def mask(obj):
     o = dict(obj)
-    oid = o.get("id", "")
-    vary = any(s in oid for s in ("Fast counter", "Long text", "Door"))
-    if vary:
+    if varies(o.get("id", "")):
         for k in ("value", "state"):
             if k in o:
                 o[k] = "<masked>"
-    if set(o) == {"uptime"}:
-        o["uptime"] = "<masked>"
     if "uptime" in o:
         o["uptime"] = "<masked>"
     return o
@@ -171,13 +163,7 @@ def stream():
     for ev, data in sse(120, STOP):
         if ev == "state":
             obj = parse("cmd state", data)
-            if (
-                obj
-                and "domain" not in obj
-                and not any(
-                    s in obj["id"] for s in ("Fast counter", "Long text", "Door")
-                )
-            ):
+            if obj and "domain" not in obj and not varies(obj["id"]):
                 got[obj["id"]] = obj
 
 

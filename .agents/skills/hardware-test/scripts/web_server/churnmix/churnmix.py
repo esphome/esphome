@@ -157,15 +157,12 @@ class Observer(threading.Thread):
         )
         self.listing_done = False
         self.relay_events = 0
-        self.relay_states = []
         self.heap = []  # (t, phase, free)
         self.block = []
         self.max_gap = 0.0
         self.reconnects = 0
         self.events = 0
         self.by_phase_missed = {}
-        self.label_prev = None
-        self.label_dup = self.label_back = 0
         self.uptime_prev = None
         self.relay_last = None
         self.dup_log = []
@@ -210,9 +207,10 @@ class Observer(threading.Thread):
                 elif v < self.c_prev:
                     self.back += 1
                 elif v > self.c_prev + 1:
-                    self.missed += v - self.c_prev - 1
+                    gap = v - self.c_prev - 1
+                    self.missed += gap
                     self.by_phase_missed[phase] = (
-                        self.by_phase_missed.get(phase, 0) + v - self.c_prev - 1
+                        self.by_phase_missed.get(phase, 0) + gap
                     )
             self.c_prev = v
         elif i == "switch/Relay":
@@ -220,7 +218,6 @@ class Observer(threading.Thread):
             if detail:
                 return
             self.relay_events += 1
-            self.relay_states.append(j.get("value"))
         elif i == "sensor/Uptime" and not detail:
             u = j.get("value")
             if isinstance(u, (int, float)):
@@ -281,8 +278,6 @@ churn_stats = {
 }
 churn_first_ms = []
 cycle_counter = [0]
-
-
 churn_reasons = {}
 
 
@@ -293,7 +288,6 @@ def note_reason(m, why):
 
 
 def read_until(s, p, deadline, want_state, m=None):
-    got200 = False
     gotstate = False
     why = "deadline"
     t0 = time.monotonic()
@@ -313,15 +307,13 @@ def read_until(s, p, deadline, want_state, m=None):
         for ev, _ in p.feed(d):
             if ev == "state":
                 gotstate = True
-        if p.status == 200:
-            got200 = True
         if want_state and gotstate:
             break
     if m and not (want_state and gotstate):
         note_reason(
             m, f"{why}{'' if p.status else '_nohead'}@{time.monotonic() - t0:.1f}s"[:40]
         )
-    return got200 or p.status == 200, gotstate
+    return p.status == 200, gotstate
 
 
 def churn_worker(rng):
@@ -371,20 +363,16 @@ def churn_worker(rng):
                 elif m == "rst_mid":
                     g200, gst = read_until(s, p, t0 + rng.uniform(0.1, 1.5), False)
                     rst_close(s)
-                    gst = (
-                        True if not g200 else gst
-                    )  # short reads may end before the first state; judge on 200 only
                 else:  # fin_read
                     g200, gst = read_until(s, p, t0 + rng.uniform(1, 3), False)
                     s.close()
-                ok = g200 and gst
+                # short rst_mid reads may end before the first state; judge those on 200 only
+                ok = g200 and (gst or m == "rst_mid")
                 with lock:
                     if not g200:
                         st["no_200"] += 1
-                    elif not gst and m != "rst_mid":
+                    elif not ok:
                         st["no_state"] += 1
-                if m == "rst_mid":
-                    ok = g200
         except OSError as e:
             ok = False
             note_reason(m, f"outer_oserror{e.errno}")
@@ -441,7 +429,7 @@ def rest_worker():
         i += 1
         k = i % 10
         if k in (1, 4, 7):
-            code, body = rest_req("GET", "/sensor/Counter", "get_sensor")
+            rest_req("GET", "/sensor/Counter", "get_sensor")
         elif k in (2, 6):
             code, _ = rest_req("POST", "/switch/Relay/toggle", "toggle")
             if code == 200:
@@ -499,7 +487,6 @@ def post_client(res, idx):
 
 def main():
     global phase  # noqa: PLW0603
-    args.base + 0  # churn duration unknown
     obs = [Observer(i, 10**9) for i in range(args.observers)]
     for o in obs:
         o.start()
@@ -546,18 +533,15 @@ def main():
         relay_now = json.loads(rb).get("value")
     except ValueError:
         relay_now = None
+    fm = sorted(churn_first_ms)
     out = {
         "churn_seconds": round(churn_s, 1),
         "cycles": cycle_counter[0],
         "churn": churn_stats,
         "reasons": churn_reasons,
-        "first_state_ms": [
-            round(min(churn_first_ms)) if churn_first_ms else None,
-            round(sorted(churn_first_ms)[len(churn_first_ms) // 2])
-            if churn_first_ms
-            else None,
-            round(max(churn_first_ms)) if churn_first_ms else None,
-        ],
+        "first_state_ms": [round(fm[0]), round(fm[len(fm) // 2]), round(fm[-1])]
+        if fm
+        else [None] * 3,
         "rest": rest,
         "toggles_ok": toggles,
         "observers": [
@@ -594,7 +578,7 @@ def main():
         print(
             f"  {m:10s} n={st['n']:4d} ok={st['ok']:4d} connect_fail={st['connect_fail']} no_200={st['no_200']} no_state={st['no_state']}"
         )
-    print("fin_first reasons:", dict(sorted(churn_reasons.items())))
+    print("churn failure reasons:", dict(sorted(churn_reasons.items())))
     for ph, kinds in rest.items():
         print(
             f"rest {ph}: "

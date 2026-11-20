@@ -59,6 +59,10 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
 - An ESP32 whose bootloader has no app rollback is protected only by `safe_mode` after a bad OTA. Before sending a
   change to such a device that nobody can reach by hand, boot the same code on a devkit first and keep a fallback
   image of the merge base built.
+- A downgrade OTA (a dev build to an older release, seen on an ESP32-C6) can report `OTA successful` while the board
+  comes back on the previous image, with `safe_mode: OTA rollback detected! Rolled back from partition ...` in the
+  device log. `esphome logs` from the older tree prints the CLI's version, not the firmware's, so it hides this. After
+  every OTA, check the device's own `app: ESPHome version ... compiled on` line before trusting a result.
 - On modules where GPIO16 and GPIO17 are taken by the module itself (PSRAM on WROVER modules, for example), a
   `uart:` bus on those pins boot-loops with a watchdog reset during setup. Use GPIO21 and GPIO22.
 

@@ -31,7 +31,6 @@ for f in sys.argv[2:]:
     marks.sort(key=lambda x: x[1])
     for name, t in marks:
         print(f"  {t:%H:%M:%S.%f}"[:-3], name)
-    last = None
     for t, k, ln in ev:
         if k in ("MQTT UP", "MQTT DOWN", "WIFI UP", "WIFI DOWN"):
             print(f"  {t:%H:%M:%S.%f}"[:-3], ln.split("]: ")[-1])

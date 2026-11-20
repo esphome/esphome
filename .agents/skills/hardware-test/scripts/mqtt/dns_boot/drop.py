@@ -4,11 +4,13 @@ import pathlib
 import re
 import sys
 
+CR = "Couldn't resolve"
 for f in sys.argv[1:]:
     t = pathlib.Path(f).read_text(encoding="utf-8", errors="replace")
     ev = re.findall(r"EV (WIFI UP|WIFI DOWN|MQTT UP|MQTT DOWN|DROP|RESTORE) (\d+)", t)
     print(
-        f"== {f} couldnt={t.count(chr(67) + 'ouldn' + chr(39) + 't resolve')} errres={t.count('Error resolving')} lookups={t.count('Resolving broker')} boots={t.count('build=') and len(re.findall('Enabling', t))}"
+        f"== {f} couldnt={t.count(CR)} errres={t.count('Error resolving')} lookups={t.count('Resolving broker')} "
+        f"boots={t.count('Enabling')}"
     )
     restore = None
     wup = None
