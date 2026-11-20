@@ -338,7 +338,7 @@ void SendspinHub::disconnect_from_server(sendspin::SendspinGoodbyeReason reason)
 // THREAD CONTEXT: Main loop (invoked from Sendspin components)
 void SendspinHub::leave_group() {
   if (this->is_client_running() &&
-      this->client_->get_group_state().playback_state == sendspin::SendspinPlaybackState::PLAYING) {
+      this->client_->group_state().playback_state == sendspin::SendspinPlaybackState::PLAYING) {
     this->client_->leave();
   }
 }
@@ -425,9 +425,7 @@ sendspin::SendspinClientConfig SendspinHub::build_client_config_() {
 // --- SendspinClientListener overrides ---
 // THREAD CONTEXT: Main loop (fired from client_->loop())
 
-void SendspinHub::on_group_update(const sendspin::GroupUpdateObject &group) {
-  this->group_update_callbacks_.call(group);
-}
+void SendspinHub::on_group_state(const sendspin::GroupState &changes) { this->group_state_callbacks_.call(changes); }
 
 void SendspinHub::on_request_high_performance() {
 #ifdef USE_WIFI
