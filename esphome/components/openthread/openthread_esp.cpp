@@ -271,9 +271,7 @@ void OpenThreadComponent::ot_main_() {
 #ifdef USE_OPENTHREAD_BORDER_ROUTER
     // Only teardown ends the task; any other exit restarts the main loop
     if (this->teardown_stage_ == TeardownStage::TEARDOWN_STAGE_NOT_STARTED) {
-      if (this->set_border_router_flag_(BORDER_ROUTER_START_REQUESTED, false)) {
-        this->start_border_router_();
-      }
+      this->start_border_router_();
       continue;
     }
 #endif
@@ -430,6 +428,12 @@ void OpenThreadComponent::loop() {
 // On the OpenThread task between main loop runs: elsewhere, the deinit deadlocks on the lwIP core lock
 void OpenThreadComponent::start_border_router_() {
   esp_openthread_lock_acquire(portMAX_DELAY);
+  // Checked under the lock: a teardown or a backbone loss in loop() either came first or sees the result
+  if (this->teardown_stage_ != TeardownStage::TEARDOWN_STAGE_NOT_STARTED ||
+      !this->set_border_router_flag_(BORDER_ROUTER_START_REQUESTED, false)) {
+    esp_openthread_lock_release();
+    return;
+  }
   bool deinit_failed = false;
   esp_err_t err = ESP_OK;
   if (this->has_border_router_flag_(BORDER_ROUTER_STARTED)) {
