@@ -21,7 +21,6 @@ from esphome.components.nrf52.framework import (
     _get_penv_site_packages,
     _get_platformio_penv_path,
     _install_toolchain,
-    _needs_venv_rebuild,
     check_and_install,
     get_build_env,
     get_sdk_nrf_tools_path,
@@ -92,6 +91,15 @@ def mock_nrf52_ops():
         patch(
             "esphome.components.nrf52.framework.run_command_ok", return_value=True
         ) as mock_run_cmd,
+        # The penv build lives in the shared Zephyr framework helpers
+        patch("esphome.components.zephyr.framework_helpers.rmdir", mock_rmdir),
+        patch(
+            "esphome.components.zephyr.framework_helpers.create_venv",
+            mock_create_venv,
+        ),
+        patch(
+            "esphome.components.zephyr.framework_helpers.run_command_ok", mock_run_cmd
+        ),
         # download_and_extract resolves its internals in framework_helpers,
         # so the download/extract seams are patched there.
         patch(
@@ -1264,48 +1272,6 @@ def testget_tools_path_default_is_global_cache(
     assert get_sdk_nrf_tools_path() == expected
 
 
-def test_needs_venv_rebuild_gates(tmp_path: Path) -> None:
-    """The shared penv gate rebuilds on any missing or stale piece."""
-    penv = tmp_path / "penv"
-    penv.mkdir()
-    python = penv / "python"
-    sentinel = penv / ".ready"
-    good_hash = "abc123"
-
-    # Nothing in place yet
-    assert _needs_venv_rebuild(python, sentinel, good_hash)
-
-    python.write_text("")
-    # Interpreter present but no sentinel
-    assert _needs_venv_rebuild(python, sentinel, good_hash)
-
-    sentinel.write_text(good_hash, encoding="utf-8")
-    # Everything in place
-    assert not _needs_venv_rebuild(python, sentinel, good_hash)
-
-    # Stale requirements hash
-    assert _needs_venv_rebuild(python, sentinel, "otherhash")
-
-
-@pytest.mark.skipif(
-    sys.platform == "win32", reason="symlink creation needs privileges on Windows"
-)
-def test_needs_venv_rebuild_on_dangling_interpreter_symlink(tmp_path: Path) -> None:
-    """A cached venv restored after a host interpreter upgrade has a
-    bin/python symlink whose target is gone; the valid sentinel must not
-    mask it."""
-    penv = tmp_path / "penv"
-    penv.mkdir()
-    python = penv / "python"
-    sentinel = penv / ".ready"
-    sentinel.write_text("abc123", encoding="utf-8")
-    python.symlink_to(tmp_path / "hostedtoolcache" / "3.12.14" / "python3")
-    assert python.is_symlink()
-    assert not python.exists()
-
-    assert _needs_venv_rebuild(python, sentinel, "abc123")
-
-
 def test_resolve_toolchain_rejects_unsupported() -> None:
     """A --toolchain nRF52 cannot serve fails instead of degrading silently."""
 
@@ -1314,54 +1280,103 @@ def test_resolve_toolchain_rejects_unsupported() -> None:
         _resolve_toolchain({})
 
 
-def test_patch_gen_defines_relativizes_the_dts_path(tmp_path: Path) -> None:
-    """The absolute dts.pre path is the only per device byte in the
-    devicetree header; the patch makes gen_defines emit the basename."""
-    gen = tmp_path / "zephyr" / "scripts" / "dts" / "gen_defines.py"
-    gen.parent.mkdir(parents=True)
-    gen.write_text("s = f'DTS input file:\\n  {edt.dts_path}\\n'\n")
-    framework._patch_gen_defines_dts_path(tmp_path)
-    assert "{os.path.basename(edt.dts_path)}" in gen.read_text()
-    assert not list(gen.parent.glob("*.tmp"))  # no leftovers
-    before = gen.read_text()
-    framework._patch_gen_defines_dts_path(tmp_path)  # idempotent
-    assert gen.read_text() == before
-    framework._patch_gen_defines_dts_path(tmp_path / "absent")  # tolerant
+PYOCD_NRF54LM20A_BEFORE = """\
+from ..family.target_nRF54L import NRF54L
 
-
-def test_patch_west_build_tolerates_a_source_dir_on_another_drive(
-    tmp_path: Path,
-) -> None:
-    """West build's relative source path raises across Windows drives; the
-    patch applies Zephyr main's fallback to the absolute path."""
-    build = tmp_path / "zephyr" / "scripts" / "west_commands" / "build.py"
-    build.parent.mkdir(parents=True)
-    build.write_text(
-        "    def _sanity_check_source_dir(self):\n"
-        "        srcrel = os.path.relpath(self.source_dir)\n"
-        "        self.check_force(True, srcrel)\n"
+FLASH_ALGO = {
+    'load_address' : 0x20000000,
+    'instructions': [
+    0xe7fdbe00,
+    0x68134a02, 0xd1fc2b01, 0x46c04770, 0x5004e400, 0x47702000, 0x47702000, 0x2501b570, 0x60254c05,
+    ],
+    'page_size' : 0x4,
+    'sector_sizes': (
+        (0x0, 0x1fd000),
+        (0xffd000, 0x1000),
     )
-    framework._patch_west_build_source_dir_relpath(tmp_path)
-    patched = build.read_text()
-    assert "relative_to(pathlib.Path.cwd(), walk_up=True)" in patched
-    assert (
-        "        except ValueError:\n            srcrel = self.source_dir\n" in patched
+}
+
+class NRF54LM20A(NRF54L):
+    pass
+"""
+
+
+def test_patch_pyocd_nrf54lm20a_flash_algo(tmp_path: Path) -> None:
+    """PyOCD's faulting nRF54LM20A flash algorithm is replaced by the fixed one."""
+    target = (
+        framework._get_penv_site_packages(tmp_path)
+        / "pyocd"
+        / "target"
+        / "builtin"
+        / "target_nRF54LM20A.py"
     )
-    assert "os.path.relpath" not in patched
-    assert "        self.check_force(True, srcrel)\n" in patched
-    assert not list(build.parent.glob("*.tmp"))
-    framework._patch_west_build_source_dir_relpath(tmp_path)  # idempotent
-    assert build.read_text() == patched
-    framework._patch_west_build_source_dir_relpath(tmp_path / "absent")  # tolerant
+    target.parent.mkdir(parents=True)
+    target.write_text(PYOCD_NRF54LM20A_BEFORE)
+    framework._patch_pyocd_nrf54lm20a_flash_algo(tmp_path)
+    patched = target.read_text()
+    assert framework._PYOCD_NRF54LM20A_FLASH_ALGO in patched
+    assert "0x68134a02" not in patched
+    assert patched.startswith("from ..family.target_nRF54L import NRF54L\n\n")
+    assert patched.endswith("\nclass NRF54LM20A(NRF54L):\n    pass\n")
+    framework._patch_pyocd_nrf54lm20a_flash_algo(tmp_path)  # idempotent
+    assert target.read_text() == patched
+    framework._patch_pyocd_nrf54lm20a_flash_algo(tmp_path / "absent")  # tolerant
 
 
-def test_patch_gen_defines_warns_when_the_anchor_is_gone(
+def test_unpatched_pyocd_nrf54lm20a_target(tmp_path: Path) -> None:
+    """The upload error names pyOCD's target file until the fix is in it."""
+    target = framework._pyocd_nrf54lm20a_target(tmp_path)
+    with (
+        patch.object(framework, "_get_version_str", return_value="v3.4.0"),
+        patch.object(framework, "_get_python_env_path", return_value=tmp_path),
+    ):
+        assert framework.unpatched_pyocd_nrf54lm20a_target() is None  # absent
+        target.parent.mkdir(parents=True)
+        target.write_text(PYOCD_NRF54LM20A_BEFORE)
+        assert framework.unpatched_pyocd_nrf54lm20a_target() == target
+        framework._patch_pyocd_nrf54lm20a_flash_algo(tmp_path)
+        assert framework.unpatched_pyocd_nrf54lm20a_target() is None
+
+
+def test_patch_pyocd_nrf54lm20a_leaves_another_algorithm_alone(tmp_path: Path) -> None:
+    """A newer pyOCD's algorithm, without the faulting instructions, is not replaced."""
+    target = framework._pyocd_nrf54lm20a_target(tmp_path)
+    target.parent.mkdir(parents=True)
+    newer = PYOCD_NRF54LM20A_BEFORE.replace("0x68134a02", "0x12345678")
+    target.write_text(newer)
+    framework._patch_pyocd_nrf54lm20a_flash_algo(tmp_path)
+    assert target.read_text() == newer
+    with (
+        patch.object(framework, "_get_version_str", return_value="v3.4.0"),
+        patch.object(framework, "_get_python_env_path", return_value=tmp_path),
+    ):
+        assert framework.unpatched_pyocd_nrf54lm20a_target() is None
+
+
+def test_patch_pyocd_nrf54lm20a_warns_on_an_unknown_layout(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """A reformatted upstream must not silently cost the sharing."""
-    gen = tmp_path / "zephyr" / "scripts" / "dts" / "gen_defines.py"
-    gen.parent.mkdir(parents=True)
-    gen.write_text("s = 'something else entirely'\n")
-    with caplog.at_level("WARNING"):
-        framework._patch_gen_defines_dts_path(tmp_path)
-    assert "gen_defines.py no longer matches" in caplog.text
+    """The faulting algorithm in a layout the patch cannot find is left as it is."""
+    target = framework._pyocd_nrf54lm20a_target(tmp_path)
+    target.parent.mkdir(parents=True)
+    indented = PYOCD_NRF54LM20A_BEFORE.replace("FLASH_ALGO = {", "  FLASH_ALGO = {")
+    target.write_text(indented)
+    framework._patch_pyocd_nrf54lm20a_flash_algo(tmp_path)
+    assert target.read_text() == indented
+    assert "Could not patch pyOCD's nRF54LM20A flash algorithm" in caplog.text
+
+
+def test_pyocd_target_found_in_an_env_of_another_python_version(
+    tmp_path: Path,
+) -> None:
+    """An SDK env kept across a Python upgrade still has its packages under its own version."""
+    builtin = tmp_path / "lib" / "python3.9" / "site-packages" / "pyocd" / "target"
+    (builtin / "builtin").mkdir(parents=True)
+    (builtin / "builtin" / "target_nRF54L15.py").write_text("")
+    with (
+        patch.object(framework.sys, "version_info", SimpleNamespace(major=3, minor=99)),
+        patch.object(framework, "_get_version_str", return_value="v3.4.0"),
+        patch.object(framework, "_get_python_env_path", return_value=tmp_path),
+    ):
+        assert framework.pyocd_has_builtin_target("target_nRF54L15.py")
+        assert not framework.pyocd_has_builtin_target("target_nRF54LM20A.py")

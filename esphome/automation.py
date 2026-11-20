@@ -746,14 +746,15 @@ def _has_top_level_comma(code: str) -> bool:
     return False
 
 
-async def _call_user_lambda(
+async def call_user_lambda(
     value: Lambda, args: TemplateArgsType, return_type: SafeExpType
 ) -> Expression:
-    """Call a config lambda in place; a value arg its body names is a copy it may modify.
+    """Call a config lambda in an apply function's statements; a value arg its body names is a copy it may modify.
 
-    The other args are the generated function's const references, so a body that names
-    none of them is reduced to its expression, as ``call_lambda`` does. When unsure the
+    The other args are the function's const references (``register_apply_action``, ``apply_statements_action``),
+    so a body that names none of them is reduced to its expression, as ``call_lambda`` does. When unsure the
     name check counts a use: a needless copy is only a cost, a missed one fails to compile.
+    The result is safe as an argument or initializer; parenthesize it before using it as an operand.
     """
     code = _cpp_code_only(value.value)
     by_value = {
@@ -795,7 +796,7 @@ async def _render_call(
     exprs: list[str] = []
     for (_, type_, const_fn), value in zip(members, values, strict=True):
         if isinstance(value, Lambda):
-            expr = await _call_user_lambda(value, args, _lambda_type(type_, parent))
+            expr = await call_user_lambda(value, args, _lambda_type(type_, parent))
             bare = compare and isinstance(expr, cg.RawExpression)
             exprs.append(f"({expr})" if bare else str(expr))
         elif isinstance(value, ID):
@@ -915,7 +916,7 @@ async def _render_bytes(
         return f"{receiver}{target.format(data, parent=parent)};"
 
     if isinstance(value, Lambda):
-        call = await _call_user_lambda(value, args, _BYTE_VECTOR)
+        call = await call_user_lambda(value, args, _BYTE_VECTOR)
         return [
             "{",
             f"  const std::vector<uint8_t> esphome__bytes = {call};",
@@ -2146,11 +2147,13 @@ async def build_trigger_callback(
     forward: Sequence[str | Expression] | None = None,
     when: str | ApplyCall | None = None,
     parent: MockObj | None = None,
-) -> LambdaExpression:
-    """Build ``config`` and return a stateless callback that runs its actions.
+) -> MockObj:
+    """Build ``config`` and return a static function to register as the callback.
 
-    An automation that is all inline actions becomes a function the callback calls, with no
-    Automation or action objects; otherwise the callback triggers an Automation.
+    An automation that is all inline actions becomes a function with no Automation or action
+    objects, registered itself when the callback passes its arguments unchanged; otherwise the
+    function triggers an Automation. A function pointer, unlike a lambda per site, shares one
+    ``Callback::create`` per signature, so ``setup()`` needs no stack slot per registration.
 
     ``params`` are the parent callback's parameters, ``forward`` the expressions passed to
     the actions (default: the parameter names; write the parent as ``parent_ref(var)``),
@@ -2171,9 +2174,11 @@ async def _trigger_callback(
     forward: Sequence[str | Expression] | None,
     call: ApplyCall | None,
     parent: MockObj | None,
-) -> LambdaExpression:
-    if (target := _direct_function(plan, args, config)) is None:
+) -> MockObj:
+    if (direct := _direct_function(plan, args, config)) is None:
         target = f"{parent_ref(_automation_from_plan(plan, args, config))}->trigger"
+    else:
+        target = direct
     statements: list[str] = []
     if call is not None:
         members = call.members
@@ -2191,11 +2196,19 @@ async def _trigger_callback(
             )
             statements.append(f"if (!({check}))\n  return;")
     if forward is None:
+        if direct is not None and not statements and _same_types(params, args):
+            return direct
         forward = [name for _, name in params]
     statements.append(f"{target}({', '.join(map(str, forward))});")
-    return LambdaExpression(
-        ["\n".join(statements)], _apply_params(params), capture="", return_type=cg.void
+    return apply_static_function(
+        config[CONF_AUTOMATION_ID], cg.void, _apply_params(params), statements
     )
+
+
+def _same_types(params: TemplateArgsType, args: TemplateArgsType) -> bool:
+    return [str(cg.safe_exp(t)) for t, _ in params] == [
+        str(cg.safe_exp(t)) for t, _ in args
+    ]
 
 
 async def build_callback_automation(
@@ -2218,11 +2231,11 @@ async def build_callback_automation(
     pointer-sized (single Automation* field) to fit inline in Callback::ctx_
     and avoid heap allocation.
 
-    With ``params``, ``forward`` or ``when`` the callback is instead the stateless
-    lambda of ``build_trigger_callback``. An automation that is all inline actions needs
-    no objects and is called directly, so it also takes that lambda when no filter is
-    given. A ``forwarder`` given with them is used when the automation does need objects;
-    they must then describe the same filter. A ``forwarder`` alone keeps its objects.
+    With ``params``, ``forward`` or ``when`` the callback is instead the static function
+    of ``build_trigger_callback``. An automation that is all inline actions needs no
+    objects, so it also takes that function when no filter is given. A ``forwarder`` given
+    with them is used when the automation does need objects; they must then describe the
+    same filter. A ``forwarder`` alone keeps its objects.
 
     :param parent: The component object (e.g., button, sensor).
     :param callback_method: Name of the callback method (e.g., "add_on_press_callback").

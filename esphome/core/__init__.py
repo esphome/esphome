@@ -20,6 +20,7 @@ from esphome.const import (
     CONF_WEB_SERVER,
     CONF_WIFI,
     KEY_CORE,
+    KEY_FRAMEWORK_VERSION,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
     NATIVE_TOOLCHAINS,
@@ -31,6 +32,7 @@ from esphome.const import (
     PLATFORM_NRF52,
     PLATFORM_RP2,
     PLATFORM_RTL87XX,
+    PLATFORM_STM32,
     ErrorFormat,
     Toolchain,
 )
@@ -1023,12 +1025,21 @@ class EsphomeCore:
         return self.target_platform == PLATFORM_NRF52
 
     @property
+    def is_stm32(self) -> bool:
+        return self.target_platform == PLATFORM_STM32
+
+    @property
     def is_host(self):
         return self.target_platform == PLATFORM_HOST
 
     @property
     def target_framework(self):
         return self.data[KEY_CORE][KEY_TARGET_FRAMEWORK]
+
+    @property
+    def framework_version(self) -> Version:
+        """The version of the target platform's framework, set by the platform component."""
+        return self.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
 
     @property
     def using_arduino(self):

@@ -549,35 +549,34 @@ template<typename T, size_t MAX_CAPACITY = std::numeric_limits<uint16_t>::max()>
       std::conditional_t<(MAX_CAPACITY <= std::numeric_limits<uint16_t>::max()), uint16_t, uint32_t>>;
 
  public:
-  class Iterator {
+  /// Walks the elements oldest first. It keeps a pointer to the current element and wraps it only when it runs
+  /// past the end of the storage, so reading an element does not reload the buffer's fields.
+  template<typename B, typename V> class IteratorImpl {
    public:
-    Iterator(FixedRingBuffer *buf, index_type pos) : buf_(buf), pos_(pos) {}
-    T &operator*() { return buf_->data_[buf_->wrap_(static_cast<size_t>(buf_->head_) + pos_)]; }
-    Iterator &operator++() {
-      ++pos_;
+    ESPHOME_ALWAYS_INLINE IteratorImpl(B *buf, index_type pos)
+        : ptr_(buf->data_ + buf->wrap_(static_cast<size_t>(buf->head_) + pos)),
+          data_(buf->data_),
+          data_end_(buf->data_ + buf->capacity_),
+          pos_(pos) {}
+    ESPHOME_ALWAYS_INLINE V &operator*() const { return *this->ptr_; }
+    ESPHOME_ALWAYS_INLINE IteratorImpl &operator++() {
+      ++this->pos_;
+      if (++this->ptr_ == this->data_end_)
+        this->ptr_ = this->data_;
       return *this;
     }
-    bool operator!=(const Iterator &other) const { return pos_ != other.pos_; }
+    // Compares positions, not pointers: when the buffer is full, begin() and end() point at the same element
+    ESPHOME_ALWAYS_INLINE bool operator!=(const IteratorImpl &other) const { return this->pos_ != other.pos_; }
 
    private:
-    FixedRingBuffer *buf_;
+    V *ptr_;
+    V *data_;
+    V *data_end_;
     index_type pos_;
   };
 
-  class ConstIterator {
-   public:
-    ConstIterator(const FixedRingBuffer *buf, index_type pos) : buf_(buf), pos_(pos) {}
-    const T &operator*() const { return buf_->data_[buf_->wrap_(static_cast<size_t>(buf_->head_) + pos_)]; }
-    ConstIterator &operator++() {
-      ++pos_;
-      return *this;
-    }
-    bool operator!=(const ConstIterator &other) const { return pos_ != other.pos_; }
-
-   private:
-    const FixedRingBuffer *buf_;
-    index_type pos_;
-  };
+  using Iterator = IteratorImpl<FixedRingBuffer, T>;
+  using ConstIterator = IteratorImpl<const FixedRingBuffer, const T>;
 
   FixedRingBuffer() = default;
   ~FixedRingBuffer() {
@@ -677,10 +676,10 @@ template<typename T, size_t MAX_CAPACITY = std::numeric_limits<uint16_t>::max()>
     this->count_ = 0;
   }
 
-  Iterator begin() { return Iterator(this, 0); }
-  Iterator end() { return Iterator(this, this->count_); }
-  ConstIterator begin() const { return ConstIterator(this, 0); }
-  ConstIterator end() const { return ConstIterator(this, this->count_); }
+  ESPHOME_ALWAYS_INLINE Iterator begin() { return Iterator(this, 0); }
+  ESPHOME_ALWAYS_INLINE Iterator end() { return Iterator(this, this->count_); }
+  ESPHOME_ALWAYS_INLINE ConstIterator begin() const { return ConstIterator(this, 0); }
+  ESPHOME_ALWAYS_INLINE ConstIterator end() const { return ConstIterator(this, this->count_); }
 
   /// The element `pos` places after the oldest one; the sum is widened so a small index type cannot truncate it
   const T &operator[](index_type pos) const { return this->data_[this->wrap_(static_cast<size_t>(this->head_) + pos)]; }
@@ -1156,6 +1155,16 @@ bool random_bytes(uint8_t *data, size_t len);
 /// @name Bit manipulation
 ///@{
 
+/// The high 4 bits of a byte, e.g. high_nibble(0xA5) == 0xA.
+constexpr uint8_t high_nibble(uint8_t byte) { return byte >> 4; }
+/// The low 4 bits of a byte, e.g. low_nibble(0xA5) == 0x5.
+constexpr uint8_t low_nibble(uint8_t byte) { return byte & 0x0F; }
+
+/// Encode a 12-bit value from its high 8 and low 4 bits, e.g. encode_uint12(0x12, 0x3) == 0x123.
+/// Bits above the low 4 of \p low_bits are ignored.
+constexpr uint16_t encode_uint12(uint8_t high_bits, uint8_t low_bits) {
+  return (static_cast<uint16_t>(high_bits) << 4) | low_nibble(low_bits);
+}
 /// Encode a 16-bit value given the most and least significant byte.
 constexpr uint16_t encode_uint16(uint8_t msb, uint8_t lsb) {
   return (static_cast<uint16_t>(msb) << 8) | (static_cast<uint16_t>(lsb));
@@ -1258,7 +1267,7 @@ constexpr uint8_t *put_le32(uint8_t *dst, uint32_t value) {
 }
 
 /// Decode a two-digit packed BCD byte (tens in the high nibble) to its value, e.g. 0x59 to 59.
-constexpr uint8_t bcd_to_uint8(uint8_t bcd) { return (bcd >> 4) * 10 + (bcd & 0x0F); }
+constexpr uint8_t bcd_to_uint8(uint8_t bcd) { return high_nibble(bcd) * 10 + low_nibble(bcd); }
 /// Encode a value from 0 to 99 as a two-digit packed BCD byte, e.g. 59 to 0x59.
 constexpr uint8_t uint8_to_bcd(uint8_t value) { return ((value / 10) << 4) | (value % 10); }
 
@@ -1463,6 +1472,42 @@ __attribute__((format(printf, 4, 5))) inline size_t buf_append_printf(char *buf,
 }
 #endif
 
+/// Copy a PROGMEM string to `dst`, stopping at its null terminator or at `end`, and return the new end of `dst`.
+/// No terminator is written. Flash only allows aligned 32-bit loads on ESP8266, so `src` is read a whole word at a
+/// time, including the bytes after its null in the last word; `src` must be readable up to the end of that word.
+inline char *ESPHOME_ALWAYS_INLINE progmem_copy_str(char *dst, const char *end, const char *src) {
+  const uint32_t offset = reinterpret_cast<uintptr_t>(src) & 3;
+  const uint32_t *word = reinterpret_cast<const uint32_t *>(src - offset);
+  uint32_t bytes = *word++;
+  // Enters the loop at the first byte of src; after that each word runs its four steps without another dispatch, and
+  // one step per byte keeps each a single extract
+  switch (offset) {
+    for (;;) {
+      bytes = *word++;
+      [[fallthrough]];
+      case 0:
+        if (dst >= end || static_cast<char>(bytes) == '\0')
+          return dst;
+        *dst++ = static_cast<char>(bytes);
+        [[fallthrough]];
+      case 1:
+        if (dst >= end || static_cast<char>(bytes >> 8) == '\0')
+          return dst;
+        *dst++ = static_cast<char>(bytes >> 8);
+        [[fallthrough]];
+      case 2:
+        if (dst >= end || static_cast<char>(bytes >> 16) == '\0')
+          return dst;
+        *dst++ = static_cast<char>(bytes >> 16);
+        [[fallthrough]];
+      default:
+        if (dst >= end || static_cast<char>(bytes >> 24) == '\0')
+          return dst;
+        *dst++ = static_cast<char>(bytes >> 24);
+    }
+  }
+}
+
 #ifdef USE_ESP8266
 /// Safely append a PROGMEM string to buffer, returning new position (capped at size).
 /// ESP8266 internal implementation — prefer the `buf_append_str` macro which wraps
@@ -1473,17 +1518,7 @@ __attribute__((format(printf, 4, 5))) inline size_t buf_append_printf(char *buf,
 /// @param str PROGMEM-resident string to append (must not be null)
 /// @return New position after appending; returns `size` if `pos >= size`, otherwise
 ///         returns at most `size - 1` because one byte is reserved for the null terminator
-inline size_t buf_append_str_p(char *buf, size_t size, size_t pos, PGM_P str) {
-  if (pos >= size) {
-    return size;
-  }
-  size_t remaining = size - pos - 1;  // reserve space for null terminator
-  size_t len = strnlen_P(str, remaining);
-  memcpy_P(buf + pos, str, len);
-  pos += len;
-  buf[pos] = '\0';
-  return pos;
-}
+size_t buf_append_str_p(char *buf, size_t size, size_t pos, PGM_P str);
 /// Safely append a string to buffer, returning new position (capped at size).
 /// More efficient than buf_append_printf for plain string literals.
 /// On ESP8266 the literal is wrapped with PSTR() so it stays in flash.
@@ -1509,6 +1544,10 @@ inline size_t buf_append_str(char *buf, size_t size, size_t pos, const char *str
   pos += len;
   buf[pos] = '\0';
   return pos;
+}
+/// Append a string that is in PROGMEM on ESP8266; on other platforms flash is readable like RAM.
+inline size_t buf_append_str_p(char *buf, size_t size, size_t pos, const char *str) {
+  return buf_append_str(buf, size, pos, str);
 }
 #endif
 
@@ -2399,6 +2438,11 @@ class LwIPLock {
   // Platforms with potential lwIP core locking — out-of-line implementations in helpers.cpp
   LwIPLock();
   ~LwIPLock();
+#ifdef USE_ESP32
+ private:
+  // Only the instance that took the core lock releases it; unused without CONFIG_LWIP_TCPIP_CORE_LOCKING
+  [[maybe_unused]] bool locked_{false};
+#endif
 #else
   // No lwIP core locking — inline no-ops (empty bodies instead of = default
   // to prevent clang-tidy unused-variable warnings at call sites)
