@@ -33,13 +33,15 @@ class Engine {
   Engine(Port *port, size_t mem_words, const Timing &timing = {});
 
   // Main loop only
+  /// On a failed engine, on_done runs before this returns, or when the engine call that runs now returns.
   bool submit(one_wire::Transaction *transaction);
   /// Does nothing while is_busy(): a log handler inside the engine may call back into the bus.
   void poll();
   bool is_idle() const { return this->queue_.empty(); }
   /// True while poll() or a blocking method runs, except inside on_done.
   bool is_busy() const { return this->busy_; }
-  void set_failed();  ///< All pending and future work ends in HARDWARE_ERROR
+  /// All queued and future work ends in HARDWARE_ERROR: at once, or when the engine call that runs now returns.
+  void set_failed();
 
   // ISR safe: store and return. True if this was the last expected event of the section: wake the main loop.
   bool on_tx_done();
@@ -63,12 +65,18 @@ class Engine {
   static constexpr uint32_t PENDING_TX = 1;
   static constexpr uint32_t PENDING_RX = 2;
 
+  /// Marks the engine busy for one call of poll() or a blocking method. On a failed engine, its end also ends all
+  /// queued work, so a transaction queued during that call does not wait for a loop that may never run again.
+  class BusyScope;
+
   void poll_();
   void start_reset_();
   void section_done_();
   /// decode_read_slots() on the capture, shows at VERBOSE how far the bits were from read_threshold.
   bool decode_read_(size_t num_bits, uint8_t *out, size_t bit_offset);
   void finish_(one_wire::TransactionStatus status);
+  /// On a failed engine and outside of any engine call: ends all queued work in HARDWARE_ERROR.
+  void end_failed_work_();
   /// Sends tx_[0, count), with RX unless idle_us is NO_RX. False: hardware error, nothing is running.
   bool start_section_(size_t count, uint32_t idle_us);
   /// False: permanent hardware error, the engine is failed from now on.

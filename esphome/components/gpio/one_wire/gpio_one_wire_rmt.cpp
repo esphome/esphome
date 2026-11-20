@@ -128,11 +128,9 @@ void GPIORMTOneWireBus::dump_config() {
 }
 
 void GPIORMTOneWireBus::loop() {
-  // mark_failed() took the bus out of the loop: end all that is queued now. disable_loop() would undo the failed state.
-  do {
-    this->engine_.poll();
-    // From a log handler inside the engine, poll() does nothing. Stop then, instead of spinning forever.
-  } while (this->is_failed() && !this->engine_.is_idle() && !this->engine_.is_busy());
+  this->engine_.poll();
+  // mark_failed() took the bus out of the loop, and disable_loop() would undo the failed state. A failed engine
+  // ends all queued work itself.
   if (!this->engine_.is_idle() || this->is_failed())
     return;
   this->disable_loop();
@@ -150,11 +148,10 @@ void GPIORMTOneWireBus::on_shutdown() {
 bool GPIORMTOneWireBus::submit(one_wire::Transaction *transaction) {
   if (!this->engine_.submit(transaction))
     return false;
-  this->enable_loop();  // Does nothing on a failed bus, which has to run loop() itself
-  if (this->is_failed()) {
-    this->loop();
+  // A failed engine ended the transaction already, or ends it when the engine call that runs now returns
+  if (this->is_failed())
     return true;
-  }
+  this->enable_loop();
   // From a scheduler callback, loop() would otherwise only run after loop_interval
   App.wake_loop_threadsafe();
   return true;
