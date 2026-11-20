@@ -16,8 +16,12 @@ namespace esphome::libretiny {
 void ensure_serial_handle(uint8_t port) {
   if (port >= SER_PORT_NUM || serial_handles[port] != nullptr)
     return;
-  // serial_init() zeroes and opens it; the port stays open for good.
-  serial_handles[port] = new Serial_t();
+  // serial_init() zeroes and opens it. serial_deinit() clears the SDK's entry, not the storage:
+  // a port that is opened again gets the same storage.
+  static Serial_t *storage[SER_PORT_NUM];
+  if (storage[port] == nullptr)
+    storage[port] = new Serial_t();
+  serial_handles[port] = storage[port];
 }
 
 }  // namespace esphome::libretiny

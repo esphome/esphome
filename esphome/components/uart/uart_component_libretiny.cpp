@@ -178,6 +178,8 @@ bool LibreTinyUARTComponent::set_tx_break(bool enable) {
   // LibreTiny skips a pin mode it has on record and begin() leaves the record alone:
   // recorded as an output, the pin would not be set up for the next break
   this->tx_pin_->pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
+  // end() on LN882x clears the SDK handle of the port
+  libretiny::ensure_serial_handle(this->hardware_idx_);
 #ifdef USE_UART_LIBRETINY_PIN_ROUTING
   const pin_size_t rx_pin = this->rx_pin_ == nullptr ? PIN_INVALID : this->rx_pin_->get_pin();
   hardware->begin(this->baud_rate_, this->get_config(), rx_pin, this->tx_pin_->get_pin());
