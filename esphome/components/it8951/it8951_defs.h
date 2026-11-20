@@ -146,6 +146,9 @@ enum UpdateMode : uint16_t {
   UPDATE_MODE_DU4 = 6,
   UPDATE_MODE_A2 = 7,
   UPDATE_MODE_NONE = 8,
+  // Not a controller waveform: erases the panel to white without touching image
+  // memory (see IT8951Display::refresh_now). Only it8951.refresh accepts it.
+  UPDATE_MODE_BLANK = 9,
 };
 
 // --- Registers ---
