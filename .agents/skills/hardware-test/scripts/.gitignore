@@ -75,3 +75,9 @@ xiaomi_ble/expected_all.json
 xiaomi_ble/run_*.yaml
 ble_scan_complete/*.txt
 ble_scan_complete/*.err
+nrf_pwm_probe/*-cap.txt
+nrf_pwm_probe/*-dfu.log
+nrf54_xiao/*-cap.txt
+nrf54_xiao/*-cap.err
+nrf54_xiao/*.log
+nrf54_xiao/*-events.txt
