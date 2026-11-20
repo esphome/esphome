@@ -37,27 +37,29 @@ static constexpr size_t OP_QUEUE_SIZE = 32;
 // is sent as write ops (CMD, WRITE_W), then a separate read op runs only
 // after the loop confirms HW_RDY is back HIGH (data ready). No blocking.
 enum class OpType : uint8_t {
-  CMD,              // single CS: CMD preamble + command word (a)
-  WRITE_W,          // single CS: WRITE preamble + data word (a)
-  WRITE_REG,        // single CS: WRITE preamble + addr(a) + value(b)
-                    //   (caller must enqueue CMD(TCON_REG_WR) before this)
-  READ_DEV_INFO,    // single CS: READ preamble + dummy + read DevInfo struct
-                    //   (caller enqueues CMD(GET_DEV_INFO) first; loop HW_RDY gate
-                    //    ensures data is ready before this op runs)
-  READ_WORD,        // single CS: READ preamble + dummy + read one 16-bit word
-                    //   into read_result_. Loop HW_RDY gate ensures data ready.
-  CHECK_LUT_IDLE,   // checks read_result_; if non-zero, re-enqueues read sequence
-  SET_1BPP,         // uses read_result_ to set UP1SR bit 2, enqueues writes
-  XFER_LISAR,       // set image-buffer target address (2× reg write: 4 CS transactions)
-  XFER_AREA_CMD,    // single CS: CMD preamble + TCON_LD_IMG_AREA
-  XFER_AREA_ARGS,   // single CS: WRITE preamble + 5 area-parameter words
-  XFER_ROWS,        // single CS: WRITE preamble + row pixel data (time-sliced)
-  XFER_AREA_END,    // single CS: CMD preamble + TCON_LD_IMG_END
-  DPY_BUF_CMD,      // single CS: CMD preamble + I80_CMD_DPY_BUF_AREA
-  DPY_BUF_ARGS,     // single CS: WRITE preamble + 7 display-area words
-  GPIO_RESET_LOW,   // drive RESET pin low
-  GPIO_RESET_HIGH,  // drive RESET pin high
-  DELAY_MS,         // park `delay_until_` for a few ms (no SPI)
+  CMD,               // single CS: CMD preamble + command word (a)
+  WRITE_W,           // single CS: WRITE preamble + data word (a)
+  WRITE_REG,         // single CS: WRITE preamble + addr(a) + value(b)
+                     //   (caller must enqueue CMD(TCON_REG_WR) before this)
+  READ_DEV_INFO,     // single CS: READ preamble + dummy + read DevInfo struct
+                     //   (caller enqueues CMD(GET_DEV_INFO) first; loop HW_RDY gate
+                     //    ensures data is ready before this op runs)
+  READ_WORD,         // single CS: READ preamble + dummy + read one 16-bit word
+                     //   into read_result_. Loop HW_RDY gate ensures data ready.
+  CHECK_LUT_IDLE,    // checks read_result_; if non-zero, re-enqueues read sequence
+  SET_1BPP,          // uses read_result_ to set UP1SR bit 2, enqueues writes
+  XFER_LISAR,        // set image-buffer target address (2× reg write: 4 CS transactions)
+  XFER_AREA_CMD,     // single CS: CMD preamble + TCON_LD_IMG_AREA
+  XFER_AREA_ARGS,    // single CS: WRITE preamble + 5 area-parameter words
+  XFER_ROWS,         // single CS: WRITE preamble + row pixel data (time-sliced)
+  XFER_AREA_END,     // single CS: CMD preamble + TCON_LD_IMG_END
+  DPY_BUF_CMD,       // single CS: CMD preamble + I80_CMD_DPY_BUF_AREA
+  DPY_BUF_ARGS,      // single CS: WRITE preamble + 7 display-area words
+  GPIO_RESET_LOW,    // drive RESET pin low
+  GPIO_RESET_HIGH,   // drive RESET pin high
+  GPIO_ENABLE_LOW,   // drive every enable (panel rail) pin low
+  GPIO_ENABLE_HIGH,  // drive every enable (panel rail) pin high
+  DELAY_MS,          // park `delay_until_` for a few ms (no SPI)
 };
 
 struct Op {
@@ -78,10 +80,11 @@ enum class Phase : uint8_t {
   INIT_TEMP,      // force temperature for waveform LUT selection
   INIT_DONE,      // allocate framebuffer; transition to IDLE
   // Update flow
-  UPDATE_PREPARE,   // do_update_, compute dirty region, decide 4bpp/1bpp
-  UPDATE_TRANSFER,  // one LD_IMG_AREA, time-sliced row streaming, one LD_IMG_END
-  UPDATE_REFRESH,   // wait LUT idle, optionally enable 1bpp, send DPY_BUF_AREA
-  UPDATE_SLEEP,     // optional deep sleep
+  UPDATE_PREPARE,    // do_update_, compute dirty region, decide 4bpp/1bpp
+  UPDATE_TRANSFER,   // one LD_IMG_AREA, time-sliced row streaming, one LD_IMG_END
+  UPDATE_REFRESH,    // wait LUT idle, optionally enable 1bpp, send DPY_BUF_AREA
+  UPDATE_SLEEP,      // optional deep sleep
+  RECOVERY_BACKOFF,  // parked between recovery attempts; no SPI, no high-freq loop
 };
 
 class IT8951Display : public Display,
@@ -222,9 +225,25 @@ class IT8951Display : public Display,
 
   // --- Recovery ---
   void recover_();
+  // Queue the rail power-cycle + reset pulse and restart the init handshake.
+  // Everything runs as Ops, so no part of the recovery blocks loop().
+  void begin_reinit_();
+  void enqueue_rail_power_cycle_();
 
   // --- State ---
   static constexpr uint32_t BUSY_TIMEOUT_MS = 5000;
+  // An unresponsive controller is retried immediately a few times (a transient
+  // hang clears on the first or second pulse), then the retry interval doubles up
+  // to RECOVERY_BACKOFF_MAX_MS. Without the cap a panel that is really gone
+  // (unplugged ribbon, broken BUSY line) would power-cycle forever at the busy
+  // timeout cadence with the high-frequency loop held.
+  static constexpr uint8_t MAX_IMMEDIATE_RECOVERIES = 3;
+  static constexpr uint32_t RECOVERY_BACKOFF_BASE_MS = 2000;
+  static constexpr uint32_t RECOVERY_BACKOFF_MAX_MS = 60000;
+  // Rail power-cycle timing: long enough for the supply to collapse, then the same
+  // ROM-boot floor enqueue_init_reset_() uses.
+  static constexpr uint16_t RAIL_POWER_OFF_MS = 250;
+  static constexpr uint16_t RAIL_BOOT_MS = 300;
 
   StaticRingBuffer<Op, OP_QUEUE_SIZE> queue_;
   Phase phase_{Phase::IDLE};
@@ -290,9 +309,11 @@ class IT8951Display : public Display,
   // Saved data rate so we can probe slow then run fast
   uint32_t configured_data_rate_{0};
 
-  // Consecutive recovery attempts; used to give up rather than infinite-loop
-  // when the controller is unresponsive (e.g. wiring issue).
+  // Consecutive recovery attempts since the last successful init; drives the
+  // retry backoff and the warning status.
   uint8_t recovery_attempts_{0};
+  // Current retry interval; doubles per failed attempt up to the cap.
+  uint32_t recovery_backoff_ms_{0};
 
   // DevInfo read retry counter (controller often returns garbage on the first
   // read after reset; the original driver retried up to 3 times with 100ms
