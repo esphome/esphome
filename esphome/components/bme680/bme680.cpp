@@ -70,8 +70,9 @@ bool BME680Component::setup_registers_() {
   this->calibration_.t2 = encode_value_le<int16_t>(&coeff1[1]);
   this->calibration_.t3 = coeff1[3];
 
-  this->calibration_.h1 = coeff2[2] << 4 | (coeff2[1] & 0x0F);
-  this->calibration_.h2 = encode_uint16(coeff2[0], coeff2[1]) >> 4;
+  // H1 and H2 are 12-bit values sharing byte 1: its low nibble ends H1, its high nibble ends H2
+  this->calibration_.h1 = encode_uint12(coeff2[2], low_nibble(coeff2[1]));
+  this->calibration_.h2 = encode_uint12(coeff2[0], high_nibble(coeff2[1]));
   this->calibration_.h3 = coeff2[3];
   this->calibration_.h4 = coeff2[4];
   this->calibration_.h5 = coeff2[5];
@@ -243,7 +244,7 @@ void BME680Component::read_data_() {
   uint32_t raw_pressure = encode_uint24(data[2], data[3], data[4]) >> 4;
   uint32_t raw_humidity = encode_uint16(data[8], data[9]);
   uint16_t raw_gas = encode_uint16(data[13], data[14]) >> 6;
-  uint8_t gas_range = data[14] & 0x0F;
+  uint8_t gas_range = low_nibble(data[14]);
 
   float temperature = this->calc_temperature_(raw_temperature);
   float pressure = this->calc_pressure_(raw_pressure);

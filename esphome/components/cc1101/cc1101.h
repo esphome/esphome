@@ -2,6 +2,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/components/spi/spi.h"
 #include "esphome/core/automation.h"
 #include "cc1101defs.h"
@@ -10,6 +11,7 @@
 namespace esphome::cc1101 {
 
 enum class CC1101Error { NONE = 0, TIMEOUT, PARAMS, CRC_ERROR, FIFO_OVERFLOW, PLL_LOCK };
+using packet_length_func_t = int32_t (*)(const std::vector<uint8_t> &);
 
 class CC1101Listener {
  public:
@@ -86,7 +88,10 @@ class CC1101Component final : public Component,
 
   // Packet mode settings
   void set_packet_mode(bool value);
-  void set_packet_length(uint8_t value);
+  void set_packet_length(uint16_t value);
+#ifdef USE_CC1101_LONG_PACKET
+  void set_packet_length_lambda(packet_length_func_t func);
+#endif
   void set_crc_enable(bool value);
   void set_whitening(bool value);
 
@@ -101,6 +106,7 @@ class CC1101Component final : public Component,
  protected:
   uint16_t chip_id_{0};
   bool initialized_{false};
+  bool packet_mode_{false};
   bool sleeping_{false};
   bool registers_dirty_{false};
 
@@ -112,13 +118,38 @@ class CC1101Component final : public Component,
 
   // GDO pin for packet reception
   InternalGPIOPin *gdo0_pin_{nullptr};
-  static void gpio_intr(CC1101Component *arg);
+  // Inline like App.get_loop_component_start_time(): on RP2040 an out-of-line IRAM_ATTR function in the same
+  // file as that inline one fails with a section type conflict
+  static void IRAM_ATTR gpio_intr(CC1101Component *arg) { arg->enable_loop_soon_any_context(); }
 
   // Packet handling
   void call_listeners_(const std::vector<uint8_t> &packet, float freq_offset, float rssi, uint8_t lqi);
+  void configure_packet_mode_();
+  void reconfigure_packet_length_();
+  float symbol_rate_() const;
+#ifdef USE_CC1101_LONG_PACKET
+  bool is_long_packet_mode_() const;
+  void arm_length_(uint16_t length);
+  void reset_long_packet_rx_();
+  void restart_long_packet_rx_();
+  void loop_long_packet_();
+  void handle_long_packet_(uint8_t rx_bytes);
+  void finish_long_packet_();
+  void maybe_switch_long_packet_to_fixed_();
+#endif
   Trigger<std::vector<uint8_t>, float, float, uint8_t> packet_trigger_;
   std::vector<uint8_t> packet_;
   std::vector<CC1101Listener *> listeners_;
+#ifdef USE_CC1101_LONG_PACKET
+  packet_length_func_t packet_length_func_{nullptr};
+  uint32_t packet_last_byte_ms_{0};
+#endif
+  uint16_t packet_length_{0};
+#ifdef USE_CC1101_LONG_PACKET
+  uint16_t packet_expected_length_{0};
+  int8_t long_packet_rssi_{0};  // raw RSSI register
+  HighFrequencyLoopRequester high_freq_;
+#endif
 
   // Low-level Helpers
   uint8_t strobe_(Command cmd);
