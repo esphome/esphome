@@ -163,7 +163,8 @@ void format_designation(int32_t posix_offset, char *buf, size_t buf_size) {
 }
 
 bool epoch_to_local_tm(time_t utc_epoch, const ParsedTimezone &tz, struct tm *out_tm) {
-  if (!out_tm) {
+  // A far-off epoch would also stall the year search; a local offset keeps an in-range one at year -1 or later
+  if (!out_tm || !internal::epoch_in_range(utc_epoch)) {
     return false;
   }
 
@@ -193,8 +194,7 @@ extern "C" struct tm *localtime_r(const time_t *timer, struct tm *result) {
   if (timer == nullptr || result == nullptr) {
     return nullptr;
   }
-  esphome::time::epoch_to_local_tm(*timer, esphome::time::get_global_tz(), result);
-  return result;
+  return esphome::time::epoch_to_local_tm(*timer, esphome::time::get_global_tz(), result) ? result : nullptr;
 }
 
 // Non-thread-safe version (uses static buffer, standard libc behavior)

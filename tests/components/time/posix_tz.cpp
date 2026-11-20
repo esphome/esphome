@@ -9,6 +9,7 @@
 #include <gtest/gtest.h>
 #include <cstdlib>
 #include <ctime>
+#include <limits>
 #include <string>
 #include <tuple>
 #include "esphome/components/time/posix_tz.h"
@@ -173,6 +174,18 @@ TEST(PosixTz, LocalTimeJustBeforeYear0) {
   EXPECT_EQ(tm.tm_mon, 11);
   EXPECT_EQ(tm.tm_mday, 31);
   EXPECT_EQ(tm.tm_hour, 23);
+}
+
+TEST(PosixTz, EpochToLocalOutsideSixteenBitYearsFails) {
+  // Year -400 and the time_t limits fail at once instead of stalling the year search; the localtime_r() override
+  // on the embedded platforms then returns nullptr
+  ParsedTimezone tz{};
+  struct tm tm{};
+  for (time_t epoch :
+       {static_cast<time_t>(-74789913600), static_cast<time_t>(-62167219201), static_cast<time_t>(2005949145600),
+        std::numeric_limits<time_t>::min(), std::numeric_limits<time_t>::max()}) {
+    EXPECT_FALSE(epoch_to_local_tm(epoch, tz, &tm)) << epoch;
+  }
 }
 
 TEST(PosixTz, RecalcLocalOneSecondBeforeEpoch) {

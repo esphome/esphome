@@ -106,13 +106,8 @@ uint8_t days_in_month(uint8_t month, uint16_t year) { return internal::days_in_m
 static uint16_t days_in_year(uint16_t year) { return internal::is_leap_year(year) ? 366 : 365; }
 
 ESPTime ESPTime::from_epoch_utc(time_t epoch) {
-  if constexpr (sizeof(time_t) > sizeof(int32_t)) {
-    // ESPTime's year is 16 bits, and the day count is 32 bits; a 32-bit time_t never leaves that range
-    static constexpr int64_t YEAR_0_START = -62167219200;
-    static constexpr int64_t YEAR_65536_START = 2005949145600;
-    if (epoch < YEAR_0_START || epoch >= YEAR_65536_START)
-      return ESPTime{};
-  }
+  if (!internal::epoch_in_range(epoch))
+    return ESPTime{};
   struct tm c_tm;
   internal::epoch_to_tm_utc(epoch, &c_tm);
   return ESPTime::from_c_tm(&c_tm, epoch);
