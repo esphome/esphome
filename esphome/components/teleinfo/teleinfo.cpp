@@ -184,7 +184,11 @@ void TeleInfo::publish_value_(const std::string &tag, const std::string &val) {
     element->publish_val(val);
   }
 }
-void TeleInfo::dump_config() { ESP_LOGCONFIG(TAG, "TeleInfo:"); }
+void TeleInfo::dump_config() {
+  ESP_LOGCONFIG(TAG, "TeleInfo:");
+  for (auto *listener : this->teleinfo_listeners_)
+    listener->dump_child_config();
+}
 TeleInfo::TeleInfo(bool historical_mode) {
   if (historical_mode) {
     /*

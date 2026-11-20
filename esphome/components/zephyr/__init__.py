@@ -1,11 +1,11 @@
 from collections.abc import Callable
 from pathlib import Path
 import textwrap
-from typing import NamedTuple, TypedDict
+from typing import Literal, NamedTuple, TypedDict
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.const import CONF_BOARD, KEY_CORE, KEY_FRAMEWORK_VERSION
+from esphome.const import CONF_BOARD
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.helpers import copy_file_if_changed, write_file_if_changed
 from esphome.types import ConfigType
@@ -212,10 +212,18 @@ async def _cdc_acm_to_code() -> None:
     _cdc_acm_add_ports()
 
 
-def zephyr_setup_preferences() -> None:
+PreferenceStorage = Literal["NVS", "ZMS"]
+
+
+def zephyr_setup_preferences(storage: PreferenceStorage = "NVS") -> None:
+    """Store preferences through the settings subsystem.
+
+    `storage` picks the Zephyr storage backend: NVS for flash, ZMS for RRAM and MRAM.
+    """
     cg.add(zephyr_ns.setup_preferences())
     zephyr_add_prj_conf("SETTINGS", True)
-    zephyr_add_prj_conf("NVS", True)
+    zephyr_add_prj_conf(storage, True)
+    zephyr_add_prj_conf(f"SETTINGS_{storage}", True)
     zephyr_add_prj_conf("FLASH_MAP", True)
     zephyr_add_prj_conf("FLASH", True)
 
@@ -273,8 +281,7 @@ def zephyr_use_usb_device_next() -> bool:
     The new stack (device_next) is used from nRF Connect SDK 3.4.1, where the
     legacy stack is deprecated. Older SDKs keep the legacy stack.
     """
-    framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
-    return CORE.is_nrf52 and framework_ver >= cv.Version(3, 4, 1)
+    return CORE.is_nrf52 and CORE.framework_version >= cv.Version(3, 4, 1)
 
 
 def _disable_board_cdc_acm_overlay() -> str:
