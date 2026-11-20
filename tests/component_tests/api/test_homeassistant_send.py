@@ -107,10 +107,7 @@ def test_action_then_log(main_cpp: str) -> None:
 
 def test_button_on_press(main_cpp: str) -> None:
     """A press callback that only sends calls one generated function, with no objects."""
-    match = re.search(
-        r"add_on_press_callback\(\[\]\(\) -> void \{\n    (\w+)\(\);\n\}\);",
-        main_cpp,
-    )
+    match = re.search(r"add_on_press_callback\((\w+)\);", main_cpp)
     assert match is not None
     body = static_function_body(main_cpp, match.group(1))
     assert body.index(f"{SEND}true, ::ha_action_fields_5, 0, 0, 0);") < body.index(
