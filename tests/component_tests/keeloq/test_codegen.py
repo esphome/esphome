@@ -1,0 +1,90 @@
+"""The code generated for keeloq remotes and their actions."""
+
+from collections.abc import Callable
+from pathlib import Path
+
+import pytest
+
+from esphome.components.esp8266.const import KEY_ESP8266, KEY_PREFERENCES
+from esphome.core import CORE
+
+
+def test_each_remote_reserves_what_it_saves_in_flash(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    generate_main(component_config_path("esp8266_remotes.yaml"))
+    # Each value takes its data words plus the checksum word in the flash store.
+    # The uint16_t counter: one data word
+    counter = (2, True)
+    # The last press, a uint16_t counter: one data word
+    last_press = (2, True)
+    # What a remote without serial took over, serial, reserved block and channels in 8 bytes: two data words
+    taken_over = (3, True)
+    assert CORE.data[KEY_ESP8266][KEY_PREFERENCES] == [
+        counter,  # shutter_remote, without receiver_id
+        *(counter, last_press),  # awning_remote
+        *(taken_over, last_press),  # hand_remote, without serial
+        *(counter, last_press),  # frame_logger
+    ]
+
+
+@pytest.mark.parametrize(
+    ("remote", "receiving"),
+    [("shutter_remote", False), ("awning_remote", True), ("hand_remote", True)],
+)
+def test_only_a_remote_with_a_receiver_keeps_its_last_press(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+    remote: str,
+    receiving: bool,
+) -> None:
+    main = generate_main(component_config_path("esp8266_remotes.yaml"))
+    assert (f"{remote}->set_receiving();" in main) is receiving
+
+
+@pytest.mark.parametrize(
+    ("remote", "manufacturer_key"),
+    [
+        # without receiver_id
+        ("shutter_remote", False),
+        # serial and on_command: its own frames decrypt with the device key from the build
+        ("awning_remote", False),
+        # without serial: a take-over derives the device key of the hand remote's serial
+        ("hand_remote", True),
+        # on_frame: frames of other serials
+        ("frame_logger", True),
+    ],
+)
+def test_only_remotes_that_need_it_get_the_manufacturer_key(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+    remote: str,
+    manufacturer_key: bool,
+) -> None:
+    main = generate_main(component_config_path("esp8266_remotes.yaml"))
+    assert (f"{remote}->set_manufacturer_key(" in main) is manufacturer_key
+
+
+@pytest.mark.parametrize(
+    "call",
+    [
+        # shade is stop (0x4) for channels 1 and 2, held: sent 20 times without a pause
+        "::shutter_remote->send(::transmitter, 4, 0x03, 20, 0);",
+        # a button code is sent twice, like a press of a name
+        "::shutter_remote->send(::transmitter, 4, 0x01, 2, 0);",
+        # repeat sets the count and the wait in microseconds
+        "::shutter_remote->send(::transmitter, 8, 0x01, 3, 10000);",
+        "::shutter_remote->learn(::transmitter, 0x01);",
+        # without channels on the action, the remote's own as they are when it runs
+        "::awning_remote->send(::transmitter, 8, ::awning_remote->get_channels(), 2, 0);",
+        "::awning_remote->learn(::transmitter, ::awning_remote->get_channels());",
+    ],
+    ids=["shade", "code", "repeat", "learn", "send-own-channels", "learn-own-channels"],
+)
+def test_actions_call_the_remote(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+    call: str,
+) -> None:
+    assert call in generate_main(component_config_path("esp8266_remotes.yaml"))
