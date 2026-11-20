@@ -161,6 +161,29 @@ void ESP8266UartComponent::load_settings(bool dump_config) {
   }
 }
 
+#ifdef USE_UART_TX_BREAK
+bool ESP8266UartComponent::set_tx_break(bool enable) {
+  if (this->tx_pin_ == nullptr)
+    return false;
+  if (this->hw_serial_ == nullptr) {
+    // software serial drives the pin as a GPIO
+    this->tx_pin_->digital_write(!enable);
+    return true;
+  }
+  int uart_nr = UART1;
+#ifdef USE_ESP8266_UART_SERIAL
+  if (this->hw_serial_ == &Serial)
+    uart_nr = UART0;
+#endif
+  if (enable) {
+    USC0(uart_nr) |= BIT(UCBRK);
+  } else {
+    USC0(uart_nr) &= ~BIT(UCBRK);
+  }
+  return true;
+}
+#endif
+
 void ESP8266UartComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "UART Bus:");
   LOG_PIN("  TX Pin: ", this->tx_pin_);

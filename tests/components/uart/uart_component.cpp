@@ -70,4 +70,11 @@ TEST(UARTComponentTest, ReadByteFailure) {
   EXPECT_FALSE(mock.read_byte(&value));
 }
 
+// A bus without a TX pin of the microcontroller refuses the break
+TEST(UARTComponentTest, SetTxBreakIsRefusedByDefault) {
+  MockUARTComponent mock;
+  EXPECT_FALSE(mock.set_tx_break(true));
+  EXPECT_FALSE(mock.set_tx_break(false));
+}
+
 }  // namespace esphome::uart::testing

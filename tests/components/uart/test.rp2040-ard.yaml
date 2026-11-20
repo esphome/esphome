@@ -26,3 +26,11 @@ uart:
   - id: uart_rx_only
     rx_pin: 17
     baud_rate: 1200
+
+# set_tx_break() of the bus is built and called once
+external_components:
+  - source: ../../components/uart/components
+    components: [uart_tx_break_test]
+
+uart_tx_break_test:
+  - uart_id: uart_id
