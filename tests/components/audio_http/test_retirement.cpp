@@ -9,6 +9,7 @@
 #include <memory>
 #include <string>
 #include <thread>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -144,16 +145,17 @@ class HttpRetirement : public ::testing::Test {
   }
 };
 // One playback ends naturally; with two, the IDLE listener starts the second from inside its report.
-class HttpPlaybacks : public HttpRetirement, public ::testing::WithParamInterface<unsigned> {};
+// Without a persistent ring buffer, stop() frees it before the restart allocates a new one.
+class HttpPlaybacks : public HttpRetirement, public ::testing::WithParamInterface<std::tuple<unsigned, bool>> {};
 TEST_P(HttpPlaybacks, WorkersJoinBeforeEachIdle) {
   using namespace esphome;
-  const unsigned playbacks = GetParam();
+  const auto [playbacks, persistent] = GetParam();
   RetirementListener listener;
   audio_http::AudioHTTPMediaSource source;
   if (playbacks > 1)
     listener.restart_source = &source;
   source.media_source::MediaSource::set_listener(&listener);
-  source.set_persistent_ring_buffer(true);
+  source.set_persistent_ring_buffer(persistent);
   source.set_task_stack_in_psram(true);
   source.call();
   ASSERT_TRUE(source.play_uri("http://fixture.test/first.flac"));
@@ -176,7 +178,7 @@ TEST_P(HttpPlaybacks, WorkersJoinBeforeEachIdle) {
   EXPECT_EQ(source.get_state(), media_source::MediaSourceState::IDLE);
   EXPECT_TRUE(source.is_idle());
 }
-INSTANTIATE_TEST_SUITE_P(OneAndTwo, HttpPlaybacks, ::testing::Values(1u, 2u));
+INSTANTIATE_TEST_SUITE_P(OneAndTwo, HttpPlaybacks, ::testing::Combine(::testing::Values(1u, 2u), ::testing::Bool()));
 
 TEST_F(HttpRetirement, ExplicitStopPublishesIdleOnceAfterJoiningWorkers) {
   using namespace esphome;
