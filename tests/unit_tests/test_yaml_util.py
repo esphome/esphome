@@ -28,6 +28,7 @@ from esphome.yaml_util import (
     make_data_base,
     make_literal,
 )
+from tests.testing_helpers import symlink_or_skip
 
 
 @pytest.fixture(autouse=True)
@@ -1545,7 +1546,7 @@ def test_discover_user_yaml_files_flags_secrets_symlink(tmp_path: Path) -> None:
     """`secrets.yaml` symlinked to a non-secrets-named target is still flagged
     because the un-resolved basename is what gets recorded."""
     target = _write(tmp_path, "real_creds.yaml", "key: value\n")
-    (tmp_path / "secrets.yaml").symlink_to(target)
+    symlink_or_skip(tmp_path / "secrets.yaml", target)
     discovered = discover_user_yaml_files(
         _write_entry_including(tmp_path, "secrets.yaml")
     )
@@ -1833,7 +1834,7 @@ def test_discover_user_yaml_files_records_symlink_alias(tmp_path: Path) -> None:
     """A file reached through a symlink is listed by its target and aliased to the link."""
     target = _write(tmp_path, "shared/network.yaml", "ssid: x\n")
     link = tmp_path / "wifi.yaml"
-    link.symlink_to(target)
+    symlink_or_skip(link, target)
     discovered = discover_user_yaml_files(_write_entry_including(tmp_path, "wifi.yaml"))
     assert target.resolve() in discovered.files
     assert discovered.aliases[target.resolve()] == [yaml_util.named_path(link)]
@@ -2828,7 +2829,7 @@ def test_named_path_collapses_dotdot_lexically_on_windows(
     """Windows resolves `..` before following a directory link, so named_path does too."""
     (tmp_path / "real" / "sub").mkdir(parents=True)
     # Nested, so following the link (real) and collapsing `..` (tmp_path) differ
-    (tmp_path / "link").symlink_to(tmp_path / "real" / "sub")
+    symlink_or_skip(tmp_path / "link", tmp_path / "real" / "sub")
     path = tmp_path / "link" / ".." / "x.yaml"
     if os.name != "nt":  # POSIX follows the link first
         assert yaml_util.named_path(path) == tmp_path.resolve() / "real" / "x.yaml"
@@ -2856,7 +2857,7 @@ def test_discover_user_yaml_files_records_directory_links(tmp_path: Path) -> Non
     _write(shared, "wifi.yaml", "ssid: x\n")
     config_dir = tmp_path / "config"
     entry = _write(config_dir, "entry.yaml", "wifi: !include linked/wifi.yaml\n")
-    (config_dir / "linked").symlink_to(shared)
+    symlink_or_skip(config_dir / "linked", shared)
     discovered = discover_user_yaml_files(entry)
     assert discovered.links == {config_dir.resolve() / "linked": shared.resolve()}
 

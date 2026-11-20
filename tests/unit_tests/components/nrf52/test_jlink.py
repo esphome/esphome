@@ -7,6 +7,7 @@ import pytest
 
 from esphome.components.nrf52 import jlink
 from esphome.components.nrf52.jlink import find_jlink_commander
+from tests.testing_helpers import symlink_or_skip
 
 
 def _install(
@@ -40,7 +41,7 @@ def test_path_link_to_install_dir(linux, tmp_path: Path) -> None:
     real = _install(tmp_path / "opt" / "JLink_V812")
     link = tmp_path / "bin" / "JLinkExe"
     link.parent.mkdir()
-    link.symlink_to(real)
+    symlink_or_skip(link, real)
     linux.return_value = str(link)
     assert find_jlink_commander() == link
 

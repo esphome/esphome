@@ -32,6 +32,7 @@ from esphome.yaml_edit import (
     source_of,
     write_keeping_mode,
 )
+from tests.testing_helpers import symlink_or_skip
 
 YAML = """esphome:
   name: kitchen  # the device
@@ -177,7 +178,7 @@ def test_source_of_names_the_file_the_loader_read(tmp_path: Path) -> None:
     target.parent.mkdir()
     target.write_bytes(YAML.encode())
     CORE.config_path.unlink()
-    CORE.config_path.symlink_to(target)
+    symlink_or_skip(CORE.config_path, target)
     CORE.raw_config = yaml_util.load_yaml(CORE.config_path)
     assert _name_edit("garage").path == CORE.config_path
 
@@ -244,7 +245,7 @@ def test_source_line_refuses_what_is_not_an_editable_file(tmp_path: Path) -> Non
     outside.write_bytes(b"")
     with pytest.raises(EsphomeError, match="not an editable file"):
         editable_file(outside)
-    (tmp_path / "link.yaml").symlink_to(CORE.config_path)
+    symlink_or_skip(tmp_path / "link.yaml", CORE.config_path)
     assert editable_file(tmp_path / "link.yaml") == CORE.config_path.resolve()
 
 
@@ -316,7 +317,7 @@ def test_apply_reloads_a_symlinked_file_by_the_link(tmp_path: Path) -> None:
         b"name: kitchen\nfriendly_name: !include fn.yaml\n"
     )
     (tmp_path / "fn.yaml").write_bytes(b"Kitchen\n")  # beside the link only
-    (tmp_path / "device.yaml").symlink_to(shared / "device.yaml")
+    symlink_or_skip(tmp_path / "device.yaml", shared / "device.yaml")
     _setup(tmp_path, "esphome: !include device.yaml\n")
     doc, line_no = source_of(CORE.raw_config[CONF_ESPHOME], CONF_NAME)
     assert doc == tmp_path / "device.yaml"
