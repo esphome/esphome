@@ -46,9 +46,10 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <span>
 #include <string>
+#include <string_view>  // NOLINT
 #include <utility>
-#include <vector>
 
 namespace esphome::sendspin_ {
 
@@ -330,7 +331,7 @@ class SendspinHub final : public Component,
 
   /// The preference a library key is stored in and its blob size, or {nullptr, 0} for a key with
   /// no storage here.
-  std::pair<ESPPreferenceObject *, size_t> pref_for_key_(const std::string &key);
+  std::pair<ESPPreferenceObject *, size_t> pref_for_key_(StringRef key);
 
   /// @brief Returns the product name reported to the server: the configured model, or the device name.
   const char *get_product_name_() const;
@@ -370,8 +371,9 @@ class SendspinHub final : public Component,
 
   // --- SendspinPersistenceProvider overrides ---
   // The library calls commit() after writing pairing secrets, so they reach flash right away.
-  std::optional<std::vector<uint8_t>> load_blob(const std::string &key) override;
-  bool save_blob(const std::string &key, const uint8_t *data, size_t len) override;
+  // The library's interface fixes these signatures; each converts its key to StringRef on entry.
+  std::optional<size_t> read_blob(std::string_view key_view, std::span<uint8_t> out) override;  // NOLINT
+  bool write_blob(std::string_view key_view, std::span<const uint8_t> data) override;           // NOLINT
   bool commit() override;
 
   // --- Sendspin role specific methods/overrides/member variables ---

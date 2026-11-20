@@ -17,8 +17,8 @@
 
 #include <esp_log.h>
 
-#include <cstring>
 #include <memory>
+#include <string>
 
 namespace esphome::sendspin_ {
 
@@ -59,41 +59,43 @@ ESPPreferenceObject make_blob_pref(const std::string &name, size_t size) {
   return global_preferences->make_preference(size, fnv1a_hash("sendspin_" + name));
 }
 
-// Loads straight into the returned buffer, which the library wipes after use. A failed load can
-// leave part of a stored private key or PSK behind, so that path wipes it here. This only covers
-// this buffer: the preference backend keeps its own copy of a pending write until it syncs.
-std::optional<std::vector<uint8_t>> read_blob(ESPPreferenceObject &pref, size_t size) {
-  std::vector<uint8_t> out(size);
-  if (!pref.load(out.data(), out.size())) {
-    secure_wipe(out.data(), out.size());
+// Loads straight into the library's buffer, which it wipes after use. A failed load can leave part
+// of a stored private key or PSK behind, so that path wipes it here. This only covers this buffer:
+// the preference backend keeps its own copy of a pending write until it syncs.
+std::optional<size_t> load_pref(ESPPreferenceObject &pref, size_t size, std::span<uint8_t> out) {
+  if (out.size() < size) {
     return std::nullopt;
   }
-  return out;
+  if (!pref.load(out.data(), size)) {
+    secure_wipe(out.data(), size);
+    return std::nullopt;
+  }
+  return size;
 }
 
 // The library always writes a key's fixed size; any other length is misuse and is not stored.
-bool write_blob(ESPPreferenceObject &pref, const char *key, size_t size, const uint8_t *data, size_t len) {
-  if (len != size) {
-    ESP_LOGW(TAG, "\"%s\" blob of %zu bytes does not match its size of %zu; rejecting write", key, len, size);
+bool save_pref(ESPPreferenceObject &pref, StringRef key, size_t size, std::span<const uint8_t> data) {
+  if (data.size() != size) {
+    ESP_LOGW(TAG, "\"%.*s\" blob of %zu bytes does not match its size of %zu; rejecting write",
+             static_cast<int>(key.size()), key.c_str(), data.size(), size);
     return false;
   }
-  if (!pref.save(data, len)) {
-    ESP_LOGW(TAG, "Failed to persist \"%s\" blob (%zu bytes)", key, len);
+  if (!pref.save(data.data(), data.size())) {
+    ESP_LOGW(TAG, "Failed to persist \"%.*s\" blob (%zu bytes)", static_cast<int>(key.size()), key.c_str(),
+             data.size());
     return false;
   }
   return true;
 }
 
 // "rec_<n>" to n; nullopt for any other key or a slot with no storage here.
-std::optional<size_t> parse_record_slot(const std::string &key) {
-  const char *const prefix = sendspin::persistence_keys::RECORD_SLOT_PREFIX;
-  const size_t prefix_len = std::strlen(prefix);
-  if (key.size() <= prefix_len || key.compare(0, prefix_len, prefix) != 0) {
+std::optional<size_t> parse_record_slot(StringRef key) {
+  const StringRef prefix(sendspin::persistence_keys::RECORD_SLOT_PREFIX);
+  if (key.size() <= prefix.size() || !key.starts_with(prefix)) {
     return std::nullopt;
   }
   size_t slot = 0;
-  for (size_t i = prefix_len; i < key.size(); i++) {
-    const char c = key[i];
+  for (const char c : StringRef(key.begin() + prefix.size(), key.end())) {
     if (c < '0' || c > '9') {
       return std::nullopt;
     }
@@ -130,7 +132,8 @@ void SendspinHub::setup() {
   // Released firmware's name, so a calibrated delay survives.
   this->output_delay_pref_ = make_blob_pref("static_delay", keys::OUTPUT_DELAY_SIZE);
   for (size_t slot = 0; slot < SENDSPIN_RECORD_SLOTS; slot++) {
-    this->record_slot_prefs_[slot] = make_blob_pref(keys::record_slot_key(slot), keys::RECORD_SLOT_SIZE);
+    this->record_slot_prefs_[slot] =
+        make_blob_pref(std::string(keys::RecordSlotKey(slot).view()), keys::RECORD_SLOT_SIZE);
   }
   this->record_order_pref_ = make_blob_pref(keys::RECORD_ORDER, SENDSPIN_RECORD_SLOTS);
 
@@ -159,8 +162,8 @@ void SendspinHub::setup() {
 #endif
 
 #ifdef USE_SENDSPIN_SOURCE
-  // Every source reports its signal (Sendspin/spec#335); sendspin-cpp 0.9.3 does only with line sense, so the signal
-  // is always applied below. Remove both once sendspin-cpp follows the spec change.
+  // Every source reports its signal (Sendspin/spec#335); sendspin-cpp (as of 0.10.0) does so only with line sense,
+  // so the signal is always applied below. Remove both once sendspin-cpp follows the spec change.
   this->source_config_.line_sense = true;
   this->source_role_ = &this->client_->add_source(this->source_config_);
   this->source_role_->set_listener(this);
@@ -471,7 +474,7 @@ bool SendspinHub::is_network_ready() { return network::is_connected(); }
 // --- SendspinPersistenceProvider overrides ---
 // THREAD CONTEXT: Main loop (the library makes every provider call there, including from start() and stop())
 
-std::pair<ESPPreferenceObject *, size_t> SendspinHub::pref_for_key_(const std::string &key) {
+std::pair<ESPPreferenceObject *, size_t> SendspinHub::pref_for_key_(StringRef key) {
   namespace keys = sendspin::persistence_keys;
   if (auto slot = parse_record_slot(key); slot.has_value()) {
     return {&this->record_slot_prefs_[*slot], keys::RECORD_SLOT_SIZE};
@@ -494,22 +497,24 @@ std::pair<ESPPreferenceObject *, size_t> SendspinHub::pref_for_key_(const std::s
   return {nullptr, 0};
 }
 
-std::optional<std::vector<uint8_t>> SendspinHub::load_blob(const std::string &key) {
+std::optional<size_t> SendspinHub::read_blob(std::string_view key_view, std::span<uint8_t> out) {  // NOLINT
+  const StringRef key(key_view.data(), key_view.size());
   auto [pref, size] = this->pref_for_key_(key);
   if (pref == nullptr) {
-    ESP_LOGW(TAG, "load_blob: unknown key \"%s\"", key.c_str());
+    ESP_LOGW(TAG, "read_blob: unknown key \"%.*s\"", static_cast<int>(key.size()), key.c_str());
     return std::nullopt;
   }
-  return read_blob(*pref, size);
+  return load_pref(*pref, size, out);
 }
 
-bool SendspinHub::save_blob(const std::string &key, const uint8_t *data, size_t len) {
+bool SendspinHub::write_blob(std::string_view key_view, std::span<const uint8_t> data) {  // NOLINT
+  const StringRef key(key_view.data(), key_view.size());
   auto [pref, size] = this->pref_for_key_(key);
   if (pref == nullptr) {
-    ESP_LOGW(TAG, "save_blob: unknown key \"%s\"", key.c_str());
+    ESP_LOGW(TAG, "write_blob: unknown key \"%.*s\"", static_cast<int>(key.size()), key.c_str());
     return false;
   }
-  return write_blob(*pref, key.c_str(), size, data, len);
+  return save_pref(*pref, key, size, data);
 }
 
 // Writes every component's queued preferences, so a failure may belong to another component.
