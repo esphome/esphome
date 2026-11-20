@@ -29,9 +29,11 @@ class MockLink : public PacketInterface {
     return true;
   }
   void inject(const Packet &packet) { this->on_receive_from_interface_(PacketBuffer(packet), {}); }
+  size_t get_send_capacity() const override { return this->capacity; }
 
   std::vector<Packet> sent;
   std::function<void()> on_send;
+  size_t capacity{SIZE_MAX};
 };
 
 static constexpr size_t ROLLING_TRAILER_SIZE = 16;
@@ -91,6 +93,16 @@ TEST_F(XxteaEncryptionTest, MaxPacketSizeAllowsForTrailerAndWords) {
   EXPECT_EQ(b.encryption->get_max_packet_size(), 60 - ROLLING_TRAILER_SIZE);
   Peer c(0x12345678, 64, false);
   EXPECT_EQ(c.encryption->get_max_packet_size(), 64 - TRAILER_SIZE);
+}
+
+// A link such as TCP can run out of room; a fragmentation layer above must see that
+TEST_F(XxteaEncryptionTest, ForwardsTheLinksSendCapacity) {
+  Peer a;
+  EXPECT_EQ(a.encryption->get_send_capacity(), SIZE_MAX);
+  a.link.capacity = 1;
+  EXPECT_EQ(a.encryption->get_send_capacity(), 1u);
+  a.link.capacity = 0;
+  EXPECT_EQ(a.encryption->get_send_capacity(), 0u);
 }
 
 static void round_trip_all_sizes(bool rolling_code, size_t trailer_size) {
