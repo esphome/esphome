@@ -58,6 +58,7 @@ from esphome.const import (
 from esphome.core import CORE
 import esphome.final_validate as fv
 from esphome.types import ConfigType
+from tests.component_tests.helpers import get_define_value
 from tests.component_tests.types import SetCoreConfigCallable
 
 CONFIG_DIR = Path(__file__).parent / "config"
@@ -399,3 +400,15 @@ def test_no_polling_keeps_derived_core_options(
         result = CONFIG_SCHEMA(config)
     assert result[CONF_CORE_OPTIONS] == options
     assert "deprecated" not in caplog.text
+
+
+def test_mtd_timeout_minimums_follow_core_options(
+    generate_main: Callable[[str | Path], str],
+) -> None:
+    generate_main(CONFIG_DIR / "mtd_core_options.yaml")
+
+    # The configured value, else the OpenThread default; polling never goes below it
+    assert get_define_value("ESPHOME_OPENTHREAD_CHILD_TIMEOUT_MIN") == "960"
+    assert (
+        get_define_value("ESPHOME_OPENTHREAD_CHILD_SUPERVISION_INTERVAL_MIN") == "129"
+    )

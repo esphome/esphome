@@ -156,14 +156,22 @@ BORDER_ROUTER_SDKCONFIG_OPTIONS: dict[str, bool | int] = {
 OT_HEADER_DIR = "openthread"
 OT_HEADER_FILE = "esphome_ot_config.h"
 OT_CORE_OPTION_NAME = re.compile(r"[A-Z0-9_]+")
-# Set at run time from poll_period, which would replace a core_options value.
-MTD_POLL_PERIOD_OPTIONS: frozenset[str] = frozenset(
-    {
-        "OPENTHREAD_CONFIG_MLE_CHILD_TIMEOUT_DEFAULT",
-        "OPENTHREAD_CONFIG_CHILD_SUPERVISION_CHECK_TIMEOUT",
-        "OPENTHREAD_CONFIG_CHILD_SUPERVISION_INTERVAL",
-    }
-)
+# Set at run time from poll_period, which would replace a core_options value. Each value, or the
+# OpenThread default, becomes the floor of its derived value, so it returns when polling stops.
+MTD_POLL_PERIOD_OPTIONS: dict[str, tuple[str, int]] = {
+    "OPENTHREAD_CONFIG_MLE_CHILD_TIMEOUT_DEFAULT": (
+        "ESPHOME_OPENTHREAD_CHILD_TIMEOUT_MIN",
+        240,
+    ),
+    "OPENTHREAD_CONFIG_CHILD_SUPERVISION_CHECK_TIMEOUT": (
+        "ESPHOME_OPENTHREAD_CHILD_SUPERVISION_CHECK_TIMEOUT_MIN",
+        190,
+    ),
+    "OPENTHREAD_CONFIG_CHILD_SUPERVISION_INTERVAL": (
+        "ESPHOME_OPENTHREAD_CHILD_SUPERVISION_INTERVAL_MIN",
+        129,
+    ),
+}
 
 
 def _validate_txpower(value: Any) -> int | float:
@@ -351,7 +359,7 @@ def _validate(config: ConfigType) -> ConfigType:
         )
     # Remove before 2027.6.0: make these an error
     if polling and (core_options := config.get(CONF_CORE_OPTIONS)):
-        for name in sorted(MTD_POLL_PERIOD_OPTIONS & core_options.keys()):
+        for name in sorted(MTD_POLL_PERIOD_OPTIONS.keys() & core_options.keys()):
             _LOGGER.warning(
                 "'%s' in %s is deprecated with %s and ignored, it is derived from it. "
                 "This will be an error in 2027.6.0",
@@ -593,6 +601,12 @@ async def to_code(config: ConfigType) -> None:
         cg.add_define("USE_OPENTHREAD_FORCE_DATASET")
     if tlv := config.get(CONF_TLV):
         cg.add_define("USE_OPENTHREAD_TLVS", tlv)
+    if config[CONF_DEVICE_TYPE] == "MTD":
+        core_options = config.get(CONF_CORE_OPTIONS, {})
+        for option, (define, default) in MTD_POLL_PERIOD_OPTIONS.items():
+            cg.add_define(
+                define, cg.RawExpression(core_options.get(option, str(default)))
+            )
 
     if not border_router:
         # OpenThread SRP needs access to mDNS services after setup

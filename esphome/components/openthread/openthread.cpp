@@ -397,15 +397,16 @@ void OpenThreadComponent::apply_linkmode_(otInstance *instance) {
   link_mode_config.mDeviceType = true;
   link_mode_config.mNetworkData = true;
 #elif CONFIG_OPENTHREAD_MTD
-  // Minimums are the OpenThread defaults (src/core/config/mle.h, child_supervision.h)
-  static constexpr uint32_t CHILD_TIMEOUT_MIN_SEC = 240;
-  static constexpr uint32_t CHILD_SUPERVISION_CHECK_TIMEOUT_MIN_SEC = 190;
-  static constexpr uint32_t CHILD_SUPERVISION_INTERVAL_MIN_SEC = 129;
+  // The core_options values, or the OpenThread defaults (src/core/config/mle.h, child_supervision.h)
+  static constexpr uint32_t CHILD_TIMEOUT_MIN_SEC = ESPHOME_OPENTHREAD_CHILD_TIMEOUT_MIN;
+  static constexpr uint32_t CHILD_SUPERVISION_CHECK_TIMEOUT_MIN_SEC =
+      ESPHOME_OPENTHREAD_CHILD_SUPERVISION_CHECK_TIMEOUT_MIN;
+  static constexpr uint32_t CHILD_SUPERVISION_INTERVAL_MIN_SEC = ESPHOME_OPENTHREAD_CHILD_SUPERVISION_INTERVAL_MIN;
   const bool polling = this->poll_period_ > 0;
   if (polling && otLinkSetPollPeriod(instance, this->poll_period_) != OT_ERROR_NONE) {
     ESP_LOGE(TAG, "Failed to set pollperiod");
   }
-  // At poll period 0 the formulas give the defaults, which restores them when polling stops
+  // At poll period 0 the formulas give the minimums, which restores them when polling stops
   if (polling || this->timeouts_derived_) {
     this->timeouts_derived_ = polling;
     // Round up so the derived timeouts are never below their multiples of poll_period.
