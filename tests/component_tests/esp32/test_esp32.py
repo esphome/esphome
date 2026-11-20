@@ -970,6 +970,22 @@ _IDF61 = cv.Version(6, 1, 1)
             id="idf6_eap_keeps_rare_curves",
         ),
         pytest.param(
+            # So does esp_wifi_remote's Enterprise option on IDF 6.1.
+            PlatformFramework.ESP32_IDF,
+            _IDF6,
+            MbedtlsSdkconfigData(tls_required=True),
+            {"CONFIG_WIFI_RMT_ENTERPRISE_SUPPORT": RawSdkconfigValue("y")},
+            {
+                "CONFIG_WIFI_RMT_ENTERPRISE_SUPPORT": RawSdkconfigValue("y"),
+                **_TLS_CLIENT_ONLY,
+                **_TLS_EXTRAS_OFF,
+                **_PEER_CERT_PKCS7_OFF,
+                **_CIPHER_MODES_OFF,
+            },
+            set(_ESP_TLS_LINKING_COMPONENTS),
+            id="idf6_remote_eap_keeps_rare_curves",
+        ),
+        pytest.param(
             # A P-384 app signing key keeps the P-384 curve.
             PlatformFramework.ESP32_IDF,
             _IDF6,
