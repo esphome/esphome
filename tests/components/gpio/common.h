@@ -425,18 +425,18 @@ class SimPort : public Port {
 
   // ---- Wire and scenario ----
   SimBus bus;
-  bool stuck_low{false};           ///< Line held at GND, the receiver idles out on Low
-  uint64_t line_low_until_us{0};   ///< line_is_high() is false until then
-  bool manual{false};              ///< Completions are only delivered through fire_tx() and fire_rx()
-  bool rx_first{false};            ///< The RX completion arrives before the TX completion
-  bool spurious_wakeups{false};    ///< wait_for_event() returns early every other call
-  int fail_arm_at{NEVER};          ///< arm_rx() number n returns false
-  int fail_tx_at{NEVER};           ///< start_tx() number n returns false
-  bool fail_abort{false};          ///< abort() returns false
-  int drop_tx_at{NEVER};           ///< Section n never reports TX done
-  int drop_rx_at{NEVER};           ///< Section n never reports RX done
-  uint32_t section_delay_us{0};    ///< Extra time before a section reports completion
-  std::function<void()> on_abort;  ///< Runs inside abort(), a completion racing the abort
+  bool stuck_low{false};              ///< Line held at GND, the receiver idles out on Low
+  uint64_t line_low_until_us{0};      ///< line_is_high() is false until then
+  bool manual{false};                 ///< Completions are only delivered through fire_tx() and fire_rx()
+  bool rx_first{false};               ///< The RX completion arrives before the TX completion
+  bool spurious_wakeups{false};       ///< wait_for_event() returns early every other call
+  int fail_arm_at{NEVER};             ///< arm_rx() number n returns false
+  int fail_tx_at{NEVER};              ///< start_tx() number n returns false
+  bool fail_abort{false};             ///< abort() returns false
+  int drop_tx_at{NEVER};              ///< Section n never reports TX done
+  int drop_rx_at{NEVER};              ///< Section n never reports RX done
+  uint32_t section_delay_us{0};       ///< Extra time before a section reports completion
+  std::function<void()> on_abort;     ///< Runs inside abort(), a completion racing the abort
   std::function<void()> on_start_tx;  ///< Runs first in start_tx(), like a log handler in the middle of a step
   std::function<void(size_t section, std::vector<Symbol> &capture)> capture_mutator;
 
