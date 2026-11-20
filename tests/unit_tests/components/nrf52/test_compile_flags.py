@@ -4,9 +4,9 @@ from pathlib import Path
 from unittest.mock import patch
 
 from esphome.components import nrf52
-from esphome.components.lvgl import lv_conf_path_flag
 from esphome.components.zephyr import zephyr_to_code
 from esphome.core import CORE
+from esphome.helpers import path_define_flag
 
 
 def test_double_promotion_warning_is_off_for_the_app(tmp_path: Path) -> None:
@@ -46,7 +46,7 @@ def test_project_flags_reach_the_libraries(tmp_path: Path) -> None:
     CORE.build_path = tmp_path / "build"
     CORE.name = "livingroom"
     # Escaped quotes stay escaped, so CMake reads them as quotes, as for the app
-    CORE.build_flags.add(lv_conf_path_flag(Path("/build/src/lv_conf.h")))
+    CORE.build_flags.add(path_define_flag("LV_CONF_PATH", Path("/build/src/lv_conf.h")))
     CORE.build_flags.add("-Wno-double-promotion")
     with (
         patch(
