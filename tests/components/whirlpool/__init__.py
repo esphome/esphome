@@ -10,7 +10,8 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
     manifest.auto_load = ["climate_ir", "climate"]
 
     async def to_code_testing(config: ConfigType) -> None:
-        # Compiles in the Hisense ARG model, which climate.py adds only when it is configured
+        # Compiles in the Hisense ARG and Hitachi models, which climate.py adds only when configured
         cg.add_define("USE_WHIRLPOOL_HISENSE_ARG")
+        cg.add_define("USE_WHIRLPOOL_HITACHI_HCRA31NEWH")
 
     manifest.to_code = to_code_testing
