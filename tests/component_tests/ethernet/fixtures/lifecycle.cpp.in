@@ -64,7 +64,7 @@ class EthernetComponent {
   bool started_{true};
   bool connected_{true};
   std::atomic<bool> driver_stopped_{false};
-  bool pending_enable_{false};
+  void (*pending_enable_)(EthernetComponent *){nullptr};
   std::atomic<bool> link_up_{false};
   bool link_was_up_{false};
   uint32_t connect_begin_{0};
@@ -96,6 +96,28 @@ void test_disconnect_restart() {
     assert(eth.disconnect_trigger_.calls == 1);
     assert(start_calls == initial_starts + (action != 1));
     eth.loop();
+    assert(eth.disconnect_trigger_.calls == 1);
+  }
+  // A restart queued by on_disconnect needs its own STOP acknowledgement.
+  {
+    EthernetComponent eth;
+    global_eth_component = &eth;
+    const int initial_starts = start_calls;
+    eth.disconnect_trigger_.callback = [&]() {
+      eth.enable();
+      eth.disable();
+      eth.enable();
+    };
+    eth.disable();
+    eth.enable();
+    EthernetComponent::eth_event_handler(nullptr, 0, ETHERNET_EVENT_STOP, nullptr);
+    eth.loop();
+    assert(start_calls == initial_starts + 1 && eth.pending_enable_ && !eth.is_driver_stopped());
+    eth.loop();
+    assert(start_calls == initial_starts + 1);
+    EthernetComponent::eth_event_handler(nullptr, 0, ETHERNET_EVENT_STOP, nullptr);
+    eth.loop();
+    assert(start_calls == initial_starts + 2 && !eth.pending_enable_);
     assert(eth.disconnect_trigger_.calls == 1);
   }
   // An enable after STOP but before loop must also preserve the disconnect.

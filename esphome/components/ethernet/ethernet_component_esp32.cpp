@@ -212,7 +212,7 @@ void EthernetComponent::loop() {
   // Process the stopped connection and its automation before consuming the restart intent.
   // An on_disconnect action may cancel the pending enable or start the driver itself.
   if (this->pending_enable_ && this->driver_stopped_.load(std::memory_order_acquire)) {
-    this->enable();
+    this->pending_enable_(this);
   }
 }
 
@@ -584,11 +584,11 @@ void EthernetComponent::enable() {
   if (!this->disabled_)
     return;
   if (!this->driver_stopped_.load(std::memory_order_acquire) || this->state_ != EthernetComponentState::STOPPED) {
-    this->pending_enable_ = true;
+    this->pending_enable_ = [](EthernetComponent *component) { component->enable(); };
     this->enable_loop();
     return;
   }
-  this->pending_enable_ = false;
+  this->pending_enable_ = nullptr;
 
   ESP_LOGD(TAG, "Enabling");
   this->ethernet_lazy_init_();
@@ -618,7 +618,7 @@ void EthernetComponent::enable() {
 }
 
 void EthernetComponent::disable() {
-  this->pending_enable_ = false;
+  this->pending_enable_ = nullptr;
   if (this->disabled_)
     return;
 

@@ -321,6 +321,8 @@ class EthernetComponent final : public Component {
   esp_netif_t *eth_netif_{nullptr};
   esp_eth_handle_t eth_handle_;
   esp_eth_phy_t *phy_{nullptr};
+  // Registered by enable() on the main loop so builds without callers can discard the restart code.
+  void (*pending_enable_)(EthernetComponent *){nullptr};
 #endif  // USE_ESP32
 
 #ifdef USE_RP2
@@ -374,7 +376,6 @@ class EthernetComponent final : public Component {
   // ensures setup() skips the heavy init when enable_on_boot_ is false.
   bool ethernet_initialized_{false};
   std::atomic<bool> driver_stopped_{true};
-  bool pending_enable_{false};
   // PHY link state, written by the event task; the connect timeout retries only with a link.
   std::atomic<bool> link_up_{false};
   // Last link state loop() saw; a rising edge restarts the connect timeout.
