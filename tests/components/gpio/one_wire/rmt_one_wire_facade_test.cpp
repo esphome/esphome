@@ -222,7 +222,7 @@ void expect_search_matches_upstream(const std::vector<uint64_t> &roms, size_t me
 
 }  // namespace
 
-// ---- reset_blocking: -1/0/1 ------------------------------------------------------------------
+// ---- reset_blocking: -1 only for a bus held Low, 0 for no device and every other failure -----
 
 TEST(RmtOneWireFacade, ResetPresent) {
   Rig rig;
@@ -241,6 +241,19 @@ TEST(RmtOneWireFacade, ResetBusLow) {
   rig.port.bus.devices.emplace_back(ROM_A);
   rig.port.stuck_low = true;
   EXPECT_EQ(rig.engine.reset_blocking(), -1);
+  EXPECT_EQ(rig.port.arm_count, 0) << "the line is checked before RX starts";
+  EXPECT_EQ(rig.port.tx_count, 0);
+  EXPECT_EQ(rig.port.now_us(), 0u) << "no wait for a timeout";
+}
+
+TEST(RmtOneWireFacade, ResetWithTheLineLowAtTheStartRecovers) {
+  Rig rig;
+  rig.port.bus.devices.emplace_back(ROM_A);
+  rig.port.line_low_until_us = 2 * MS;
+  EXPECT_EQ(rig.engine.reset_blocking(), -1);
+  EXPECT_EQ(rig.port.arm_count, 0);
+  rig.port.advance_us(2 * MS);
+  EXPECT_EQ(rig.engine.reset_blocking(), 1);
 }
 
 TEST(RmtOneWireFacade, ResetBusLowDuringThePulse) {
@@ -255,14 +268,14 @@ TEST(RmtOneWireFacade, ResetCaptureErrorIsFailure) {
   Rig rig;
   rig.port.bus.devices.emplace_back(ROM_A);
   rig.port.capture_mutator = [](size_t, std::vector<Symbol> &capture) { capture.clear(); };
-  EXPECT_EQ(rig.engine.reset_blocking(), -1);
+  EXPECT_EQ(rig.engine.reset_blocking(), 0) << "not reported as a bus held Low";
 }
 
 TEST(RmtOneWireFacade, ResetTimeoutIsFailure) {
   Rig rig;
   rig.port.bus.devices.emplace_back(ROM_A);
   rig.port.drop_rx_at = 0;
-  EXPECT_EQ(rig.engine.reset_blocking(), -1);
+  EXPECT_EQ(rig.engine.reset_blocking(), 0);
   EXPECT_EQ(rig.port.abort_count, 1);
   EXPECT_LE(rig.port.now_us(), 110 * MS);
 }
@@ -272,7 +285,7 @@ TEST(RmtOneWireFacade, ResetPortFailureIsFailure) {
     Rig rig;
     rig.port.bus.devices.emplace_back(ROM_A);
     rig.port.fail_arm_at = 0;
-    EXPECT_EQ(rig.engine.reset_blocking(), -1);
+    EXPECT_EQ(rig.engine.reset_blocking(), 0);
     EXPECT_EQ(rig.port.abort_count, 0);
     EXPECT_EQ(rig.engine.reset_blocking(), 1) << "not permanent";
   }
@@ -280,7 +293,7 @@ TEST(RmtOneWireFacade, ResetPortFailureIsFailure) {
     Rig rig;
     rig.port.bus.devices.emplace_back(ROM_A);
     rig.port.fail_tx_at = 0;
-    EXPECT_EQ(rig.engine.reset_blocking(), -1);
+    EXPECT_EQ(rig.engine.reset_blocking(), 0);
     EXPECT_EQ(rig.port.abort_count, 1) << "RX was armed";
     EXPECT_EQ(rig.engine.reset_blocking(), 1) << "not permanent";
   }
@@ -291,9 +304,9 @@ TEST(RmtOneWireFacade, ResetFailedStartWhoseAbortFailsIsPermanent) {
   rig.port.bus.devices.emplace_back(ROM_A);
   rig.port.fail_tx_at = 0;
   rig.port.fail_abort = true;
-  EXPECT_EQ(rig.engine.reset_blocking(), -1);
+  EXPECT_EQ(rig.engine.reset_blocking(), 0);
   const int transmits = rig.port.tx_count;
-  EXPECT_EQ(rig.engine.reset_blocking(), -1);
+  EXPECT_EQ(rig.engine.reset_blocking(), 0);
   EXPECT_EQ(rig.port.tx_count, transmits) << "no RMT call on a failed bus";
   EXPECT_EQ(rig.port.abort_count, 1);
 }
@@ -609,7 +622,7 @@ TEST(RmtOneWireFacade, FailedBusReturnsImmediately) {
   uint8_t data[8];
   std::fill(std::begin(data), std::end(data), 0x00);
 
-  EXPECT_EQ(rig.engine.reset_blocking(), -1);
+  EXPECT_EQ(rig.engine.reset_blocking(), 0);
   EXPECT_FALSE(rig.engine.write_blocking(&byte, 8));
   EXPECT_FALSE(rig.engine.read_blocking(data, 64));
   rig.engine.reset_search();
@@ -638,9 +651,9 @@ TEST(RmtOneWireFacade, FailedAbortMakesTheFacadeFail) {
   rig.port.bus.devices.emplace_back(ROM_A);
   rig.port.drop_rx_at = 0;
   rig.port.fail_abort = true;
-  EXPECT_EQ(rig.engine.reset_blocking(), -1);
+  EXPECT_EQ(rig.engine.reset_blocking(), 0);
   const int transmits = rig.port.tx_count;
-  EXPECT_EQ(rig.engine.reset_blocking(), -1);
+  EXPECT_EQ(rig.engine.reset_blocking(), 0);
   EXPECT_EQ(rig.port.tx_count, transmits);
   EXPECT_EQ(rig.port.abort_count, 1);
 }

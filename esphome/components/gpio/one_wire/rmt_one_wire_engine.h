@@ -43,7 +43,8 @@ class Engine {
   bool on_rx_done(size_t num_symbols);
 
   // Blocking facade; each drains the FIFO first, sleeps through Port::wait_for_event
-  int reset_blocking();  ///< -1 bus low or failure, 0 no device, 1 present
+  /// 1 present, 0 no device or any failure, -1 only when the bus is held Low (OneWireBus logs that case).
+  int reset_blocking();
   /// False on any failure.
   bool write_blocking(const uint8_t *data, size_t num_bits);
   /// On failure, every bit of data is set to 1 and the result is false.
