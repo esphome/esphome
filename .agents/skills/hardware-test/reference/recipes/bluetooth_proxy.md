@@ -97,8 +97,8 @@ SECONDS [ha.py options]` (env PORT, API_KEY or else `apikey.txt`) runs a bounded
 substitutions `flags` for `CONFIG_BT_BLE_50_FEATURES_SUPPORTED` and `window`) with `ivlog.hpp`, which wraps
 `esp_ble_gattc_register_callback` and `esp_ble_gap_register_callback` (`-Wl,--wrap`) and logs `IVLOG connect ...
 interval=N` for every new link and `IVLOG update ...` for every conn param update, so the interval each build really
-used is in the serial log. `proxy-e32.yaml` and `proxy-s3.yaml` are the same proxy on a classic ESP32 and an S3, with
-`coexlog.hpp` as well. `proxy-weak.yaml` lowers the BLE TX power on every power type (`txlvl`, `esp_power_level_t`)
+used is in the serial log. `proxy-e32.yaml` and `proxy-s3.yaml` are packages of it for a classic ESP32 and an S3, adding
+`coexlog.hpp`. `proxy-weak.yaml` lowers the BLE TX power on every power type (`txlvl`, `esp_power_level_t`)
 to approximate a weaker link without moving boards. `gen_peri.py OUT NAME VARIANT BOARD SERVICES CHARS` writes an
 `esp32_ble_server` peripheral with a 2901 description per characteristic and one writable "first command"
 characteristic (raises `CONFIG_BT_GATT_MAX_SR_PROFILES` to 32 and the attributes to 500); build three of them, a
@@ -155,12 +155,11 @@ device's cold discovery with bleak for reference.
   `esp_coex_status_bit_set(ESP_COEX_ST_TYPE_BLE, ESP_COEX_BLE_ST_MESH_CONFIG)` (only 0x08, 0x10 and 0x20 are accepted
   for BLE); read it back with `extern "C" uint32_t coex_schm_status_get(uint32_t type)` (type 1 = BLE).
   `coex_status_get` and `coex_schm_status_bitmap_get` do not show it.
-- `coexpatch.py WORKTREE` patches `bluetooth_connection` to hold that bit from an uncached connect to search complete,
-  counted across slots. Holding it cut device-side discovery 10 to 19 % and changed nothing for refusals or the Eve
-  Flare.
+- #22904 holds that bit from an uncached connect to search complete, counted across slots; compare builds before
+  and after it. Holding it cut device-side discovery 10 to 19 % and changed nothing for refusals or the Eve Flare.
 - `coexlog.hpp` wraps `esp_coex_status_bit_set` and `_clear` and logs the BLE status read back: 0x8 held and 0x6
   cleared on the C3 and S3, 0xa and 0x2 on a classic ESP32. `proxy-e32-selftest.yaml` checks the readback with no API
-  client at all.
+  client at all, through the #22904 acquire and release calls.
 - A proxy with no USB console (an S3 on PoE): `apilogcap.py HOST SECONDS OUT` writes API log lines stamped with the
   local receive time so `devtime.py` works, and `apirun.sh NAME YAML TAG SCENARIO...` OTA flashes it, logs and pings it
   (`pinger.py`) while `suite.sh` runs. `sidefx.py TAG` compares ping RTT inside the uncached discovery windows with

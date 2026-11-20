@@ -1,5 +1,5 @@
 # proxy-e32.yaml plus a self test that takes and releases the coexistence hold every 10 s, with no API client at all.
-# Needs a tree with esp32_ble_tracker::coex_ble_priority_acquire()/release() (the coexistence hold change).
+# Needs esp32_ble_tracker::coex_ble_priority_acquire()/release() from #22904.
 packages:
   base: !include proxy-e32.yaml
 interval:

@@ -18,13 +18,12 @@ import time
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 from aioesphomeapi import LogLevel  # noqa: E402
-from apiconn import connect, log_text  # noqa: E402
+from apiconn import connect, log_text, stop_event  # noqa: E402
 
 PEERS = [p for p in os.environ.get("PEERS", "").split(",") if p]
 HK_NAME = os.environ.get("HK_NAME", "Eve Flare")
 WRITE_UUID = "5ec2ff01-0000-1000-8000-00805f9b34fb"
 BUDGET = float(os.environ.get("BUDGET", "10"))
-PASS_LINE = 8.0
 MAX_ATTEMPTS = 5
 
 
@@ -99,7 +98,6 @@ class Driver:
                     self.peers[n] = (a.address, a.address_type, a.rssi)
 
         unsub = self.cli.subscribe_bluetooth_le_raw_advertisements(on_adv)
-        self.unsub_adv = unsub
         end = time.monotonic() + scan_s
         while time.monotonic() < end and not all(
             any(p.startswith(w) for p in self.peers) for w in want
@@ -223,30 +221,20 @@ class Driver:
             res["n_dsc"] = sum(
                 len(c.descriptors) for s in svcs.services for c in s.characteristics
             )
-            if write:
+            if write or read:
                 ch = next(
                     c
                     for s in svcs.services
                     for c in s.characteristics
-                    if c.uuid == WRITE_UUID
+                    if (c.uuid == WRITE_UUID if write else c.properties & 0x02)
+                )
+                op = (
+                    self.cli.bluetooth_gatt_write(addr, ch.handle, b"\x01", True)
+                    if write
+                    else self.cli.bluetooth_gatt_read(addr, ch.handle)
                 )
                 remaining = BUDGET - (time.monotonic() - st["t0"])
-                await asyncio.wait_for(
-                    self.cli.bluetooth_gatt_write(addr, ch.handle, b"\x01", True),
-                    max(remaining, 0.1),
-                )
-                res["t_cmd"] = round(time.monotonic() - st["t0"], 3)
-            elif read:
-                ch = next(
-                    c
-                    for s in svcs.services
-                    for c in s.characteristics
-                    if c.properties & 0x02
-                )
-                remaining = BUDGET - (time.monotonic() - st["t0"])
-                await asyncio.wait_for(
-                    self.cli.bluetooth_gatt_read(addr, ch.handle), max(remaining, 0.1)
-                )
+                await asyncio.wait_for(op, max(remaining, 0.1))
                 res["t_cmd"] = round(time.monotonic() - st["t0"], 3)
         except TimeoutError:
             res["timeout"] = round(time.monotonic() - st["t0"], 3)
@@ -266,11 +254,7 @@ class Driver:
 
 async def main() -> None:
     host, cmd = sys.argv[1], sys.argv[2]
-    lost_api = asyncio.Event()
-
-    async def on_stop(expected: bool) -> None:
-        lost_api.set()
-
+    lost_api, on_stop = stop_event()
     cli = await connect(host, on_stop=on_stop)
     if cmd == "scan":
         d = Driver(cli, "scan.jsonl")
@@ -302,9 +286,8 @@ async def main() -> None:
             if not await d.ensure_held(held, cache):
                 d.rec(round=r, mode=mode, third=third, result="held_failed")
                 continue
-            await asyncio.sleep(2)
-            # wait for an advert from the third so the proxy has seen it recently
-            await asyncio.sleep(1)
+            # give the proxy time to see a recent advert from the third
+            await asyncio.sleep(3)
             st = await d.connect(third, cache)
             await asyncio.sleep(0.5)
             marks = list(d.marks)
@@ -336,14 +319,10 @@ async def main() -> None:
         await cli.disconnect()
         return
     if cmd in ("disc", "eve"):
-        if cmd == "disc":
-            name, rounds, out = sys.argv[3], int(sys.argv[4]), sys.argv[5]
-            held = sys.argv[6].split(",") if len(sys.argv) > 6 else []
-            mode = "nocache"
-        else:
-            mode, rounds, out = sys.argv[3], int(sys.argv[4]), sys.argv[5]
-            held = sys.argv[6].split(",") if len(sys.argv) > 6 else []
-            name = None
+        # disc takes a peer NAME where eve takes a MODE
+        arg, rounds, out = sys.argv[3], int(sys.argv[4]), sys.argv[5]
+        held = sys.argv[6].split(",") if len(sys.argv) > 6 else []
+        name, mode = (arg, "nocache") if cmd == "disc" else (None, arg)
         d = Driver(cli, out)
         await d.start(
             180 if cmd == "eve" else 30, ([name] if name else [HK_NAME]) + held

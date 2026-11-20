@@ -1,5 +1,5 @@
 """Through a bluetooth_proxy: px.py HOST NAME MODE [CMDS]. env API_KEY.
-MODE table: cold (cache cleared) connect, full table, reads of any grown 0x1821.. services (grow77/), reads, write,
+MODE table: cold (cache cleared) connect, full table, reads of any grown 0x1821.. services (grow.py), reads, write,
 descriptor write, battery read + CCCD.
 MODE rt: for each control command in CMDS (comma list, 0 = none) write it, disconnect, clear cache, reconnect and
 report whether 0x181A is in the table and what 2A6E reads."""

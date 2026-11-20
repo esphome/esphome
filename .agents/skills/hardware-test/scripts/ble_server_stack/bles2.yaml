@@ -1,5 +1,6 @@
 # esp32_ble_server retest (#22457, #22458, #22461): YAML server, Improv over BLE, runtime service control (rt.hpp).
-# -s name NAME. Write to 5e5e00c0: 1 create, 2 stop, 3 start, 4 remove 0x181A; bit 7 set runs it inside on_write.
+# -s name NAME. Write to 5e5e00c0: 1 create, 2 stop, 3 start, 4 remove 0x181A, 5 grow (#22877, rt.hpp); bit 7 set
+# runs it inside on_write.
 substitutions:
   name: bles2
 esphome:
@@ -11,6 +12,9 @@ esp32:
   board: esp32-s3-devkitc-1
   framework:
     type: esp-idf
+    sdkconfig_options:
+      # room for the runtime services on top of the static ones
+      CONFIG_BT_GATT_MAX_SR_PROFILES: "16"
 logger:
   level: DEBUG
   hardware_uart: USB_SERIAL_JTAG
@@ -69,7 +73,7 @@ esp32_ble_server:
                 // runtime service control, run from the interval below (outside the GATT event dispatch);
                 // with bit 7 set it runs right here inside on_write instead
                 uint8_t cmd = x.empty() ? 0 : x[0];
-                if (cmd & 0x80) rt_run(cmd & 0x7F); else id(rt_cmd) = cmd;
+                if (cmd & 0x80) rt_run(cmd & 0x7F, true); else id(rt_cmd) = cmd;
 globals:
   - id: rt_cmd
     type: uint8_t
@@ -78,7 +82,7 @@ interval:
   - interval: 200ms
     then:
       - lambda: |-
-          if (id(rt_cmd) != 0) { uint8_t c = id(rt_cmd); id(rt_cmd) = 0; rt_run(c); }
+          if (id(rt_cmd) != 0) { uint8_t c = id(rt_cmd); id(rt_cmd) = 0; rt_run(c, false); }
   - interval: 5s
     then:
       - lambda: |-

@@ -9,6 +9,9 @@ import statistics
 import sys
 import time
 
+from devtime import ts
+from stats import quantile
+
 tag = sys.argv[1]
 lines = (
     pathlib.Path(f"cap-{tag}.txt")
@@ -21,13 +24,6 @@ pings = [
 ]
 
 
-def seconds_of_day(line: str) -> float | None:
-    m = re.match(r"\[(\d+):(\d+):(\d+)\.(\d+)\]", line)
-    return (
-        int(m[1]) * 3600 + int(m[2]) * 60 + int(m[3]) + int(m[4]) / 1000 if m else None
-    )
-
-
 # map local seconds of day to epoch using the date of the first ping sample
 base = time.mktime(time.localtime(float(pings[0][0]))[:3] + (0, 0, 0, 0, 0, -1))
 win: list[tuple[float, float]] = []
@@ -35,7 +31,7 @@ cur: dict[str, float] = {}
 tcp: list[float] = []
 closes = 0
 for line in lines:
-    t = seconds_of_day(line)
+    t = ts(line)
     if t is None:
         continue
     t += base
@@ -58,7 +54,7 @@ def inwin(t: float, pad: float = 0) -> bool:
 
 
 def p95(v: list[float]) -> float:
-    return sorted(v)[int(round(0.95 * (len(v) - 1)))] if v else float("nan")
+    return quantile(v, 0.95) if v else float("nan")
 
 
 ins: list[float] = []

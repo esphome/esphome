@@ -6,17 +6,15 @@ import pathlib
 import re
 import statistics
 import sys
-import time
 
-from stats import quantile
+from stats import hms, quantile
 
 tag, cap = sys.argv[1], sys.argv[2]
 lines = pathlib.Path(cap).read_text(encoding="utf-8", errors="replace").splitlines()
 
 
 def window(t0: float, t1: float) -> list[str]:
-    a = time.strftime("%H:%M:%S", time.localtime(t0))
-    b = time.strftime("%H:%M:%S", time.localtime(t1))
+    a, b = hms(t0), hms(t1)
     return [ln for ln in lines if ln.startswith("[") and a <= ln[1:9] <= b]
 
 

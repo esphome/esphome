@@ -6,6 +6,7 @@ import json
 import sys
 
 from bleak import BleakClient, BleakScanner
+from list import short
 
 
 def U(s: str) -> str:
@@ -26,12 +27,6 @@ BAT, LVL = (
 )
 DIS = "0000180a-0000-1000-8000-00805f9b34fb"
 IMPROV = "00467768-6228-2272-4663-277478268000"
-
-
-def short(u: str) -> str:
-    if u.endswith("-0000-1000-8000-00805f9b34fb") and u.startswith("0000"):
-        return u[4:8]
-    return u[:8]
 
 
 async def one(name, rnd):

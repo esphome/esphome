@@ -1,14 +1,12 @@
-"""Shared helpers for summary.py and pool.py: quantiles and device-side times from devtime.py."""
+"""Shared helpers for summary.py, pool.py, report.py and sidefx.py: quantiles and device-side times from devtime.py."""
 
 import json
 import pathlib
 import re
 import statistics
-import subprocess
-import sys
 import time
 
-HERE = pathlib.Path(__file__).resolve().parent
+from devtime import attempts
 
 
 def quantile(v: list[float], q: float) -> float:
@@ -30,27 +28,21 @@ def api_times(rs: list[dict]) -> list[float]:
     return [a["t_svc"] for r in rs for a in r.get("detail", []) if a.get("t_svc")]
 
 
-def devtime(tag: str, rs: list[dict]) -> str:
-    """devtime.py output over the scenario's window in cap-TAG.txt."""
+def hms(t: float) -> str:
+    return time.strftime("%H:%M:%S", time.localtime(t))
 
-    def hms(t: float) -> str:
-        return time.strftime("%H:%M:%S", time.localtime(t))
 
-    args = [f"cap-{tag}.txt", hms(rs[0]["ts"] - 60), hms(rs[-1]["ts"] + 5)]
-    return subprocess.run(
-        [sys.executable, str(HERE / "devtime.py"), *args],
-        capture_output=True,
-        text=True,
-        check=False,
-    ).stdout
+def devtime(tag: str, rs: list[dict]) -> list[str]:
+    """devtime.py attempts over the scenario's window in cap-TAG.txt."""
+    return attempts(f"cap-{tag}.txt", hms(rs[0]["ts"] - 60), hms(rs[-1]["ts"] + 5))
 
 
 def link_and_discovery(
-    out: str, slot: str | None = None
+    lines: list[str], slot: str | None = None
 ) -> tuple[list[float], list[float]]:
     """Link-up and discovery-only seconds of resolved attempts (discovery over 0.5 s, so cached ones drop out)."""
     link, disc = [], []
-    for line in out.splitlines():
+    for line in lines:
         if slot and f"slot{slot}" not in line:
             continue
         if (m := re.search(r"link=(\d+)ms discovery=(\d+)ms", line)) and int(
