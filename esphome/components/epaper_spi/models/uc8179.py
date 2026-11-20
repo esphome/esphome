@@ -20,9 +20,14 @@ full refresh, with partial refreshes in between.
 
 from typing import Any
 
+import esphome.codegen as cg
+import esphome.config_validation as cv
 from esphome.const import CONF_DATA_RATE
+from esphome.cpp_generator import MockObj
 
 from . import EpaperModel, ultrachip_resolution
+
+CONF_DRIVER_WAVEFORMS = "driver_waveforms"
 
 
 class UC8179(EpaperModel):
@@ -78,6 +83,64 @@ waveshare_7_5_v2 = uc8179.extend(
     "waveshare-7.5in-v2",
     width=800,
     height=480,
+)
+
+
+class UC8179Gray4(UC8179):
+    """Four grey levels on a UC8179 panel.
+
+    By default the panel's own four-level waveforms are used, which only panels
+    sold from late October 2024 have. With driver_waveforms the driver sends
+    its own, which work on any panel.
+    """
+
+    class_name = "EPaperUC8179Gray4"
+    source_files = (
+        "epaper_spi_ultrachip.cpp",
+        "epaper_spi_uc8179.cpp",
+        "epaper_spi_uc8179_gray4.cpp",
+    )
+
+    def get_config_options(self) -> dict:
+        return {cv.Optional(CONF_DRIVER_WAVEFORMS, default=False): cv.boolean}
+
+    async def to_code(self, var: MockObj, config: dict) -> dict:
+        if config[CONF_DRIVER_WAVEFORMS]:
+            cg.add(var.set_driver_waveforms(True))
+        return config
+
+    def get_init_sequence(self, config: dict) -> tuple:
+        """The panel settings sent before power-on.
+
+        With the panel's own waveforms these are the black and white model's.
+
+        With waveforms from registers the voltages and frame rate come from
+        registers too, not from the panel's OTP, so these are the settings which
+        precede power-on in Waveshare's EPD_7in5_V2_old example. The driver sends
+        the rest, and the waveforms, after power-on.
+        """
+        if not config.get(CONF_DRIVER_WAVEFORMS):
+            return super().get_init_sequence(config)
+        return (
+            # POWER SETTING: internal supplies, VGH/VGL 20 V, VDH/VDL 15 V, VDHR 5.8 V
+            (0x01, 0x17, 0x17, 0x3F, 0x3F, 0x11),
+            # VCOM DC: -1.9 V
+            (0x82, 0x24),
+            # BOOSTER SOFT START
+            (0x06, 0x27, 0x27, 0x2F, 0x17),
+            # PLL: 50 frames a second
+            (0x30, 0x06),
+        )
+
+
+# The Waveshare 7.5" V2 panel in four grey levels. A four-level update is a full refresh; with
+# full_update_every above 1 the updates in between are black and white, of the changed pixels only.
+UC8179Gray4(
+    "waveshare-7.5in-v2-gray4",
+    width=800,
+    height=480,
+    # each plane byte is built from two whole buffer bytes
+    width_multiple=8,
 )
 
 # Good Display GDEW075T7, 7.5" mono 800x480, UC8179; the panel used in the Waveshare 7.5" V2.
