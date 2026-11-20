@@ -140,7 +140,10 @@ def test_use_rmt_needs_idf_5_5(
         "esp32:\n  variant: esp32s3\n  framework:\n"
         f"    type: {framework}\n    version: {version}\n"
     )
-    assert "version" in _error_text(validate(_yaml(platform, USE_RMT)))
+    # Arduino 3.2.1 brings ESP-IDF 5.4.2 along
+    assert "'use_rmt' requires ESP-IDF 5.5.0 or newer, got 5.4.2" in _error_text(
+        validate(_yaml(platform, USE_RMT))
+    )
 
 
 def test_mixed_buses_in_one_device(validate: Callable[[str], Config]) -> None:

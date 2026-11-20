@@ -65,10 +65,8 @@ def _validate_use_rmt(config: ConfigType) -> ConfigType:
     if pin[CONF_INVERTED]:
         raise cv.Invalid("use_rmt does not support inverted pins", path=[CONF_PIN])
     _validate_rmt_pin(pin)
-    # The driver facts behind the bus are only checked for this ESP-IDF, which Arduino 3.3.0 brings along
-    cv.require_framework_version(
-        esp_idf=cv.Version(5, 5, 0), esp32_arduino=cv.Version(3, 3, 0)
-    )(config)
+    # The driver facts behind the bus are only checked from this ESP-IDF on, which Arduino 3.3.0 brings along
+    esp32.require_idf_version(cv.Version(5, 5, 0), f"'{CONF_USE_RMT}'")(config)
     config[CONF_ID].type = GPIORMTOneWireBus
     return esp32_rmt.request_rmt_channels(RMT_CHANNELS, RMT_SETUP_PRIORITY)(config)
 
