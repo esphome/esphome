@@ -23,6 +23,7 @@ static const device *const WDT = DEVICE_DT_GET(DT_ALIAS(watchdog0));
 // yield(), delay(), millis(), millis_64(), delayMicroseconds(), micros() except the cycle-counter one
 // inlined in components/zephyr/hal.h.
 
+#ifdef DWT_CTRL_CYCCNTENA_Msk
 uint32_t arch_get_cpu_cycle_count() { return DWT->CYCCNT; }
 
 uint32_t arch_get_cpu_freq_hz() {
@@ -30,6 +31,11 @@ uint32_t arch_get_cpu_freq_hz() {
   SystemCoreClockUpdate();
   return SystemCoreClock;
 }
+#else
+// Cortex-M0 cores (nRF51) have no cycle counter, so both use the kernel clock to stay in the same unit.
+uint32_t arch_get_cpu_cycle_count() { return k_cycle_get_32(); }
+uint32_t arch_get_cpu_freq_hz() { return sys_clock_hw_cycles_per_sec(); }
+#endif
 
 #ifdef USE_ZEPHYR_DWT_MICROS
 // The kernel clock counts in ticks of about 30 us, and the CPU cycle counter stops while the CPU sleeps.
@@ -82,8 +88,10 @@ uint32_t micros() {
 
 void arch_init() {
   main_loop_thread() = k_current_get();
+#ifdef DWT_CTRL_CYCCNTENA_Msk
   CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
   DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
+#endif
 #ifdef CONFIG_WATCHDOG
   if (device_is_ready(WDT)) {
     static wdt_timeout_cfg wdt_config{};
