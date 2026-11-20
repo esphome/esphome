@@ -45,8 +45,6 @@ from esphome.const import (
     CONF_USE_ADDRESS,
     CONF_VALUE,
     CONF_WIFI,
-    KEY_CORE,
-    KEY_FRAMEWORK_VERSION,
     Platform,
     PlatformFramework,
 )
@@ -357,13 +355,13 @@ def _validate(config: ConfigType) -> ConfigType:
                 if CONF_POLLING_INTERVAL in config:
                     raise cv.Invalid(
                         "In this version of the framework "
-                        f"({CORE.target_framework} {CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]}), "
+                        f"({CORE.target_framework} {CORE.framework_version}), "
                         f"'{CONF_POLLING_INTERVAL}' is not supported."
                     )
                 if CONF_INTERRUPT_PIN not in config:
                     raise cv.Invalid(
                         "In this version of the framework "
-                        f"({CORE.target_framework} {CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]}), "
+                        f"({CORE.target_framework} {CORE.framework_version}), "
                         f"'{CONF_INTERRUPT_PIN}' is a required option for [ethernet]."
                     )
         elif config[CONF_TYPE] in ("GENERIC", "YT8531"):

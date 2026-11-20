@@ -94,25 +94,12 @@ static bool answer_means_done(Operation operation, const char *line) {
   }
 }
 
+// Indexed by Operation
+PROGMEM_STRING_TABLE(OperationStrings, "none", "stop", "start", "restart", "factory reset", "write", "save", "read");
+
 static const LogString *operation_to_str(Operation operation) {
-  switch (operation) {
-    case Operation::OPERATION_STOP:
-      return LOG_STR("stop");
-    case Operation::OPERATION_START:
-      return LOG_STR("start");
-    case Operation::OPERATION_RESTART:
-      return LOG_STR("restart");
-    case Operation::OPERATION_FACTORY_RESET:
-      return LOG_STR("factory reset");
-    case Operation::OPERATION_WRITE:
-      return LOG_STR("write");
-    case Operation::OPERATION_SAVE:
-      return LOG_STR("save");
-    case Operation::OPERATION_READ:
-      return LOG_STR("read");
-    default:
-      return LOG_STR("none");
-  }
+  return OperationStrings::get_log_str(static_cast<uint8_t>(operation),
+                                       static_cast<uint8_t>(Operation::OPERATION_NONE));
 }
 
 DFRobotSEN0609Component::DFRobotSEN0609Component(RunMode mode) : mode_(mode) {
