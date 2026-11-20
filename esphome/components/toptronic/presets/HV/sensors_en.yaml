@@ -1,0 +1,12 @@
+sensor:
+  - platform: toptronic
+    name: Normal ventilation modulation
+    function_group: 50
+    function_number: 0
+    datapoint: 40651
+    type: U8
+    unit_of_measurement: '%'
+    icon: mdi:percent
+    device_class: power_factor
+    state_class: measurement
+    internal: true
