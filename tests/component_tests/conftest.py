@@ -32,6 +32,19 @@ from esphome.core import CORE  # noqa: E402
 from .types import SetCoreConfigCallable  # noqa: E402
 
 
+@pytest.fixture(scope="package", autouse=True)
+def idf_tools_in_tmp(tmp_path_factory: pytest.TempPathFactory) -> Generator[Path]:
+    """Point the machine-wide ESP-IDF tools path at a temporary directory, so
+    codegen that installs files there (the esp32 PSA header) stays out of the
+    real cache. Package scope covers module-scoped codegen fixtures and ends
+    with the component tests, before any other test package runs."""
+    idf_tools = tmp_path_factory.mktemp("idf")
+    with mock.patch(
+        "esphome.espidf.framework.get_idf_tools_path", return_value=idf_tools
+    ):
+        yield idf_tools
+
+
 @pytest.fixture(autouse=True)
 def config_path(request: pytest.FixtureRequest) -> Generator[None]:
     """Set CORE.config_path to the component's config directory and reset it after the test."""

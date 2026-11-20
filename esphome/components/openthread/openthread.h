@@ -111,7 +111,7 @@ class OpenThreadComponent final : public Component {
 #endif
 
  protected:
-  /** Apply Link Mode settings (incl poll period).
+  /** Apply link mode, poll period, and the derived child timeout / supervision settings.
    * Callers running outside the OpenThread task must hold InstanceLock.
    */
   void apply_linkmode_(otInstance *instance);
@@ -151,6 +151,9 @@ class OpenThreadComponent final : public Component {
   std::atomic<bool> connected_{false};
 #ifdef USE_ESP32
   std::atomic<bool> task_exited_{false};
+#endif
+#if CONFIG_OPENTHREAD_MTD
+  bool timeouts_derived_{false};
 #endif
 #ifdef USE_OPENTHREAD_RCP_UART
   uint32_t rcp_baud_rate_{0};

@@ -414,7 +414,8 @@ CONFIG_SCHEMA = cv.All(
                 rtl87xx=DEFAULT,
                 nrf52=USB_CDC,
                 nrf52_54lm20=USB_CDC,
-                # No USB device on the nRF52832 and the nRF54L15
+                # No USB device on the nRF51822, the nRF52832 and the nRF54L15
+                nrf52_51822=UART0,
                 nrf52_52832=UART0,
                 nrf52_54l15=UART0,
             ): cv.All(
