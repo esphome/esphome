@@ -1,5 +1,7 @@
 // Requests a Copilot code review on a pull request. A failed request only
-// warns: Copilot review is advisory and must never block the PR.
+// warns: Copilot review is advisory and must never block the PR. A token that
+// is rejected or lacks write access fails the run (not a required check) so an
+// org owner sees it and fixes the secret.
 //
 // GitHub answers a request it will not act on (one made by an identity without
 // a Copilot seat, which includes GITHUB_TOKEN and GitHub Apps when the PR
