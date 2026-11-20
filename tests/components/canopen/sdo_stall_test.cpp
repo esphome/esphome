@@ -38,15 +38,17 @@ TEST_F(SdoTest, FrameUnsentAtTheDeadlineIsNotSentLate) {
 
 // The bus takes the frame before the deadline: sent, and the response timeout starts again from there.
 TEST_F(SdoTest, RetryBeforeTheDeadlineRestartsTheTimeout) {
+  // A longer timeout than the fixture's, so late sleeps on a loaded runner keep their margin
+  this->hub_.set_response_timeout(200);
   this->bus_.busy = true;
   ASSERT_TRUE(this->hub_.read_sdo<uint16_t>(0x21, 0x6041, 0, on_reply, this));
   this->hub_.loop();
-  std::this_thread::sleep_for(std::chrono::milliseconds(15));
+  std::this_thread::sleep_for(std::chrono::milliseconds(120));
   this->bus_.busy = false;
   this->hub_.loop();
   ASSERT_EQ(this->requests_(), (std::vector<std::vector<uint8_t>>{{0x40, 0x41, 0x60, 0, 0, 0, 0, 0}}));
-  // 25 ms since the request, 10 ms since it was sent (timeout 20 ms)
-  std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  // 240 ms since the request, 120 ms since it was sent (timeout 200 ms)
+  std::this_thread::sleep_for(std::chrono::milliseconds(120));
   this->hub_.loop();
   EXPECT_TRUE(this->replies_.empty());
   this->hub_.frame(0x5A1, {0x4B, 0x41, 0x60, 0, 0x37, 0x02, 0, 0});
