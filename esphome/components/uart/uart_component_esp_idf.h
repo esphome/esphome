@@ -86,6 +86,10 @@ class IDFUARTComponent final : public UARTComponent, public Component {
    */
   esp_err_t apply_settings_live();
 
+#ifdef USE_UART_TX_BREAK
+  bool set_tx_break(bool enable) override;
+#endif
+
   void on_shutdown() override;
 
  protected:

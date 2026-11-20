@@ -151,6 +151,43 @@ void LibreTinyUARTComponent::setup() {
 #endif
 }
 
+#ifdef USE_UART_TX_BREAK
+bool LibreTinyUARTComponent::set_tx_break(bool enable) {
+  if (this->tx_pin_ == nullptr || this->serial_ == nullptr || this->is_failed())
+    return false;
+  SerialClass *hardware = hardware_serial(this->hardware_idx_);
+  if (hardware == nullptr) {
+    // software serial drives the pin as a GPIO
+    this->tx_pin_->digital_write(!enable);
+    return true;
+  }
+  // a hardware port does not invert its TX signal, the pin level would be the idle level
+  if (this->tx_pin_->is_inverted())
+    return false;
+  if (enable == this->tx_break_)
+    return true;
+  this->tx_break_ = enable;
+  if (enable) {
+    // the Arduino API has no break: the port is closed and the pin driven as a GPIO
+    hardware->end();
+    this->tx_pin_->setup();
+    this->tx_pin_->digital_write(false);
+    return true;
+  }
+  this->tx_pin_->digital_write(true);
+  // LibreTiny skips a pin mode it has on record and begin() leaves the record alone:
+  // recorded as an output, the pin would not be set up for the next break
+  this->tx_pin_->pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
+#ifdef USE_UART_LIBRETINY_PIN_ROUTING
+  const pin_size_t rx_pin = this->rx_pin_ == nullptr ? PIN_INVALID : this->rx_pin_->get_pin();
+  hardware->begin(this->baud_rate_, this->get_config(), rx_pin, this->tx_pin_->get_pin());
+#else
+  hardware->begin(this->baud_rate_, this->get_config());
+#endif
+  return true;
+}
+#endif
+
 void LibreTinyUARTComponent::dump_config() {
   bool is_software = this->hardware_idx_ == -1;
   ESP_LOGCONFIG(TAG,

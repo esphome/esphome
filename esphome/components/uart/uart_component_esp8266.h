@@ -93,6 +93,10 @@ class ESP8266UartComponent final : public UARTComponent, public Component {
   void load_settings(bool dump_config) override;
   using UARTComponent::load_settings;  // also bring in the no-arg overload for convenience
 
+#ifdef USE_UART_TX_BREAK
+  bool set_tx_break(bool enable) override;
+#endif
+
  protected:
   void check_logger_conflict() override;
 

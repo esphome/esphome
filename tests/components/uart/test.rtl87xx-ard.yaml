@@ -12,3 +12,11 @@ switch:
     name: "UART Switch"
     uart_id: uart_id
     data: [0x01, 0x02, 0x03]
+
+# set_tx_break() of the bus is built and called once
+external_components:
+  - source: ../../components/uart/components
+    components: [uart_tx_break_test]
+
+uart_tx_break_test:
+  - uart_id: uart_id
