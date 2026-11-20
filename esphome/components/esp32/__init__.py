@@ -1035,7 +1035,8 @@ def request_tls() -> None:
 
     Without a request TLS and its ECP/PEM-write/CRL/CSR crypto compile out;
     AES, SHA-256 and the other hashes stay available. On ESP-IDF 6 builds
-    without Wi-Fi, a websocket server or PPP, SHA-1 also goes; on native
+    without Wi-Fi, Bluetooth, a websocket server or PPP, SHA-1 also goes; on
+    native
     ESP-IDF 6 builds SHA-224 goes, and RSA unless updates are RSA-signed. Set
     CONFIG_MBEDTLS_SHA1_C, CONFIG_MBEDTLS_SHA224_C or CONFIG_MBEDTLS_RSA_C to
     keep them.
@@ -3013,10 +3014,11 @@ async def _reconcile_mbedtls_sdkconfig() -> None:
             _trim_mbedtls_options(MBEDTLS_NON_P256_CURVE_OPTIONS)
             # Without TLS only Wi-Fi (WPA), websocket handshakes and PPP use
             # SHA-1, yet the hardware SHA driver links it whenever it is on.
-            # Anything that re-includes esp_wifi (wifi, espnow, esp32_hosted,
-            # external components) keeps it; Bluetooth pairing does not use it.
+            # Any build that links esp_wifi keeps it: wifi, espnow, esp32_hosted
+            # and external components re-include it, and Bluetooth pulls it in.
             if (
                 "esp_wifi" in CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS]
+                and not _network_sdkconfig().bluetooth
                 and not is_idf_sdkconfig_option_enabled("CONFIG_HTTPD_WS_SUPPORT")
                 and not is_idf_sdkconfig_option_enabled("CONFIG_LWIP_PPP_SUPPORT")
             ):
