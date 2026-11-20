@@ -23,6 +23,8 @@ from esphome.types import ConfigType
 from .const import (
     BACNET_UNIT_NO_UNITS,
     BACNET_UNITS,
+    CONF_ENDPOINT,
+    CONF_MAX_EP_NUMBER,
     CONF_POWER_SOURCE,
     CONF_ROUTER,
     CONF_SLEEPY,
@@ -53,6 +55,7 @@ from .const_zephyr import (
     ZB_ZCL_CLUSTER_ID_IDENTIFY,
     ZB_ZCL_IDENTIFY_ATTRS_T,
 )
+from .endpoints_zephyr import endpoint_ids
 
 ZigbeeBinarySensor = zigbee_ns.class_("ZigbeeBinarySensor", cg.Component)
 ZigbeeSensor = zigbee_ns.class_("ZigbeeSensor", cg.Component)
@@ -61,6 +64,7 @@ ZigbeeNumber = zigbee_ns.class_("ZigbeeNumber", cg.Component)
 
 
 async def zephyr_to_code(config: ConfigType) -> "MockObj":
+    cg.add_define("ZIGBEE_MAX_ENDPOINT_ID", CONF_MAX_EP_NUMBER)
     zephyr_add_prj_conf("ZIGBEE", True)
     zephyr_add_prj_conf("ZIGBEE_APP_UTILS", True)
     if config[CONF_ROUTER]:
@@ -262,7 +266,7 @@ def zigbee_register_ep(
     CORE.data[KEY_ZIGBEE][KEY_EP_NUMBER][slot_index] = ep_name
 
     # Generate the endpoint declaration
-    ep_id = slot_index + 1  # Endpoints are 1-indexed
+    ep_id = endpoint_ids().resolve(slot_index)
     obj = cg.RawExpression(
         f"ESPHOME_ZB_HA_DECLARE_EP({ep_name}, {ep_id}, {cluster_list_name}, "
         f"{in_cluster_num}, {out_cluster_num}, {report_attr_count}, {app_device_id}, {', '.join(cluster_ids)})"
@@ -314,6 +318,7 @@ async def _add_zigbee_ep(
     extra_field_values: dict[str, int] | None = None,
 ) -> None:
     slot_index = get_slot_index()
+    ep_id = endpoint_ids().resolve(slot_index, config.get(CONF_ENDPOINT))
 
     prefix = f"zigbee_ep{slot_index + 1}"
     attrs_name = f"{prefix}_attrs"
@@ -352,7 +357,7 @@ async def _add_zigbee_ep(
     var = cg.new_Pvariable(config[component_key], entity)
     await cg.register_component(var, {})
 
-    cg.add(var.set_endpoint(slot_index + 1))
+    cg.add(var.set_endpoint(ep_id))
     cg.add(var.set_cluster_attributes(attrs))
 
     await cg.register_parented(var, config[CONF_ZIGBEE_ID])

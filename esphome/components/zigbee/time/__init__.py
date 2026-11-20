@@ -9,6 +9,7 @@ from .. import consume_endpoint
 from ..const import ZigbeeComponent, zigbee_ns
 from ..const_esp32 import ROLE
 from ..const_zephyr import CONF_ZIGBEE_ID
+from ..endpoints_zephyr import endpoint_ids
 from ..zigbee_ep_esp32 import add_clusters_to_first_ep, get_first_ep_num
 from ..zigbee_zephyr import (
     ZigbeeClusterDesc,
@@ -110,6 +111,6 @@ async def _add_time_zephyr(config: ConfigType) -> None:
     await time_.register_time(var, config)
     await cg.register_component(var, config)
 
-    cg.add(var.set_endpoint(slot_index + 1))
+    cg.add(var.set_endpoint(endpoint_ids().resolve(slot_index)))
     cg.add(var.set_cluster_attributes(time_attrs))
     await cg.register_parented(var, config[CONF_ZIGBEE_ID])

@@ -39,6 +39,8 @@ from esphome.const import (
     CONF_NAME,
     CONF_UNIT_OF_MEASUREMENT,
     CONF_WEB_SERVER,
+    KEY_CORE,
+    KEY_TARGET_PLATFORM,
 )
 from esphome.core import CORE, ID, entity_helpers
 from esphome.core.entity_helpers import (
@@ -1428,6 +1430,48 @@ def test_datetime_time_handle_matches_time_component() -> None:
     from esphome.components import datetime, time
 
     assert str(datetime._RealTimeClock) == str(time.RealTimeClock)
+
+
+@pytest.mark.parametrize(
+    "endpoint,expected",
+    [(1, 1), (17, 17), (239, 239), ("17", 17), ("0x11", 17), (17.0, 17)],
+)
+def test_zigbee_endpoint_schema_normalization(endpoint: Any, expected: int) -> None:
+    """The entity requires Zigbee; platform validation belongs to the component."""
+    with patch.object(CORE, "loaded_integrations", {"zigbee"}):
+        assert entity_helpers.ZIGBEE_BASE_ENTITY_SCHEMA({"endpoint": endpoint}) == {
+            "endpoint": expected
+        }
+
+
+def test_zigbee_endpoint_requires_component() -> None:
+    with (
+        patch.object(CORE, "loaded_integrations", {"esp32", "nrf52"}),
+        pytest.raises(Invalid, match="requires component zigbee"),
+    ):
+        entity_helpers.ZIGBEE_BASE_ENTITY_SCHEMA({"endpoint": 17})
+
+
+@pytest.mark.parametrize("platform", ["esp32", "nrf52"])
+@pytest.mark.parametrize(
+    "endpoint,message",
+    [
+        (True, "Endpoint must be an integer, not a boolean"),
+        (False, "Endpoint must be an integer, not a boolean"),
+        (0, "must be at least 1"),
+        (240, "must be at most 239"),
+        (1.5, "only accepts integers with no fractional part"),
+    ],
+)
+def test_zigbee_endpoint_schema_rejects_invalid(
+    platform: str, endpoint: Any, message: str
+) -> None:
+    with (
+        patch.object(CORE, "loaded_integrations", {platform, "zigbee"}),
+        patch.dict(CORE.data, {KEY_CORE: {KEY_TARGET_PLATFORM: platform}}),
+        pytest.raises(Invalid, match=message),
+    ):
+        entity_helpers.ZIGBEE_BASE_ENTITY_SCHEMA({"endpoint": endpoint})
 
 
 def test_zigbee_entity_schema_cluster_options() -> None:
