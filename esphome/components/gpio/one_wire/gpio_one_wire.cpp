@@ -8,8 +8,11 @@ ESPHOME_LOG_TAG(TAG, "gpio.one_wire");
 
 void GPIOOneWireBus::setup() {
   if (!this->t_pin_->setup_open_drain(true)) {
-    this->mark_failed(LOG_STR("Cannot configure open-drain pin"));
-    return;
+    if (!this->t_pin_->setup_open_drain(false)) {
+      this->mark_failed(LOG_STR("Cannot configure open-drain pin"));
+      return;
+    }
+    ESP_LOGW(TAG, "Pin has no internal pull-up; an external pull-up is required");
   }
   // clear bus with 480µs high, otherwise initial reset in search might fail
   delayMicroseconds(480);

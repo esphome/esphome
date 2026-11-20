@@ -57,7 +57,7 @@ void RP2GPIOPin::pin_mode(gpio::Flags flags) {
 
 bool RP2GPIOPin::setup_open_drain(bool pullup) {
   // The CYW43 virtual pins have no SIO output-enable register.
-#if defined(PICO_RP2350)
+#if defined(PICO_RP2350) && !PICO_RP2350A
   if (this->pin_ >= 48)
     return false;
 #else

@@ -4,7 +4,7 @@
 
 namespace esphome::gpio::testing {
 
-TEST(OpenDrainPinTest, PhysicalLevelsIgnoreLogicalInversion) {
+TEST(OpenDrainPinTest, HostSimulatesPhysicalLowAndRelease) {
   for (const bool inverted : {false, true}) {
     InternalGPIOPin pin;
     pin.set_pin(1);

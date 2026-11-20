@@ -6,6 +6,7 @@
 
 // clang-tidy cannot parse the Realtek and LN882x SDK headers behind wiring_data.h.
 #if defined(USE_BK72XX) || (!defined(CLANG_TIDY) && (defined(USE_LN882X) || defined(USE_RTL87XX)))
+#define LT_HAS_WIRING_DATA
 #include <wiring_data.h>
 #endif
 
@@ -137,7 +138,7 @@ static void rtl_preset_level(uint8_t pin, bool level) {
 
 bool ArduinoInternalGPIOPin::setup_open_drain(bool pullup) {
   // LibreTiny's pin read switches outputs to input, so keep the input/output fallback here.
-#if defined(USE_BK72XX) || (!defined(CLANG_TIDY) && (defined(USE_LN882X) || defined(USE_RTL87XX)))
+#ifdef LT_HAS_WIRING_DATA
   PinInfo *info = pinInfo(this->pin_);
   if (info == nullptr || !pinSupported(info, PIN_GPIO))
     return false;
@@ -147,6 +148,11 @@ bool ArduinoInternalGPIOPin::setup_open_drain(bool pullup) {
     this->flags_ = this->flags_ | gpio::FLAG_PULLUP;
   this->pin_mode(this->flags_);
   this->level_ = false;
+#if !defined(CLANG_TIDY) && (defined(USE_RTL87XX) || defined(USE_LN882X))
+  if (info->data == nullptr || info->data->gpio == nullptr)
+    return false;
+  this->open_drain_data_ = info->data;
+#endif
   return true;
 }
 
@@ -197,6 +203,13 @@ namespace esphome {
 
 using namespace libretiny;
 
+#if defined(USE_LN882X) && !defined(CLANG_TIDY)
+// LN882x GPIO register word offsets (SDK reg_gpio.h); the C register helpers cannot be included from C++.
+static constexpr uint8_t LN_GPIO_DDR = 0x18 / 4;
+static constexpr uint8_t LN_GPIO_IDR = 0x1C / 4;
+static constexpr uint8_t LN_GPIO_BSRR = 0x24 / 4;
+#endif
+
 bool IRAM_ATTR ISRInternalGPIOPin::digital_read() {
   return reinterpret_cast<ArduinoInternalGPIOPin *>(this->arg_)->digital_read();
 }
@@ -206,24 +219,108 @@ void IRAM_ATTR ISRInternalGPIOPin::digital_write(bool value) {
 void IRAM_ATTR ISRInternalGPIOPin::clear_interrupt() {
   detachInterrupt(reinterpret_cast<ArduinoInternalGPIOPin *>(this->arg_)->get_pin());
 }
+#if defined(USE_LIBRETINY_VARIANT_RTL8720C) && !defined(CLANG_TIDY)
+static void IRAM_ATTR rtl8720c_set_open_drain_direction(PinData *data, bool output) {
+  const auto &adapter = data->gpio->adapter;
+  const uint32_t mask = adapter.bit_mask;
+  switch (adapter.port_idx) {
+    case 0:
+      if (output)
+        GPIO->port_a_odm_en = mask;
+      else
+        GPIO->port_a_idm_en = mask;
+      break;
+    case 1:
+      if (output)
+        GPIO->port_b_odm_en = mask;
+      else
+        GPIO->port_b_idm_en = mask;
+      break;
+    case 2:
+      if (output)
+        GPIO->port_c_odm_en = mask;
+      else
+        GPIO->port_c_idm_en = mask;
+      break;
+    case 3:
+      if (output)
+        GPIO->port_d_odm_en = mask;
+      else
+        GPIO->port_d_idm_en = mask;
+      break;
+  }
+}
+#endif
+
 void IRAM_ATTR ISRInternalGPIOPin::open_drain_pull_low() {
   auto *pin = static_cast<ArduinoInternalGPIOPin *>(this->arg_);
-  pin->digital_write(pin->is_inverted());
 #if defined(USE_LN882X) && !defined(CLANG_TIDY)
-  // The Arduino output-mode switch enables direction before writing the level; preset the latch while still input.
-  hal_gpio_pin_reset(GPIO_GET_BASE(pin->get_pin()), GPIO_GET_PIN(pin->get_pin()));
-#endif
+  auto *data = static_cast<PinData *>(pin->open_drain_data_);
+  auto *regs = reinterpret_cast<volatile uint32_t *>(data->gpio_base);  // NOLINT(performance-no-int-to-ptr)
+  const uint32_t mask = data->gpio->pin;
+  regs[LN_GPIO_BSRR] = mask << 16;
+  regs[LN_GPIO_DDR] |= mask;
+  data->gpioMode = OUTPUT;
+#elif defined(USE_LIBRETINY_VARIANT_RTL8710B) && !defined(CLANG_TIDY)
+  auto *data = static_cast<PinData *>(pin->open_drain_data_);
+  GPIO_WriteBit(data->gpio->pin, GPIO_PIN_LOW);
+  GPIO_Direction(data->gpio->pin, GPIO_Mode_OUT);
+  data->gpioMode = OUTPUT;
+#elif defined(USE_LIBRETINY_VARIANT_RTL8720C) && !defined(CLANG_TIDY)
+  auto *data = static_cast<PinData *>(pin->open_drain_data_);
+  const auto &adapter = data->gpio->adapter;
+  *adapter.out0_port = adapter.bit_mask;
+  rtl8720c_set_open_drain_direction(data, true);
+  data->gpioMode = OUTPUT;
+#else
+  pin->digital_write(pin->is_inverted());
   pin->pin_mode(gpio::FLAG_OUTPUT);
+#endif
+#if !defined(CLANG_TIDY) && (defined(USE_RTL87XX) || defined(USE_LN882X))
+  pin->level_ = false;
+  pin->output_ = true;
+#endif
 }
 
 void IRAM_ATTR ISRInternalGPIOPin::open_drain_release() {
   auto *pin = static_cast<ArduinoInternalGPIOPin *>(this->arg_);
+#if defined(USE_LN882X) && !defined(CLANG_TIDY)
+  auto *data = static_cast<PinData *>(pin->open_drain_data_);
+  auto *regs = reinterpret_cast<volatile uint32_t *>(data->gpio_base);  // NOLINT(performance-no-int-to-ptr)
+  regs[LN_GPIO_DDR] &= ~static_cast<uint32_t>(data->gpio->pin);
+#elif defined(USE_LIBRETINY_VARIANT_RTL8710B) && !defined(CLANG_TIDY)
+  auto *data = static_cast<PinData *>(pin->open_drain_data_);
+  GPIO_Direction(data->gpio->pin, GPIO_Mode_IN);
+#elif defined(USE_LIBRETINY_VARIANT_RTL8720C) && !defined(CLANG_TIDY)
+  auto *data = static_cast<PinData *>(pin->open_drain_data_);
+  rtl8720c_set_open_drain_direction(data, false);
+#else
   pin->pin_mode(pin->get_flags());
+#endif
+#if !defined(CLANG_TIDY) && (defined(USE_RTL87XX) || defined(USE_LN882X))
+  data->gpioMode = (pin->flags_ & gpio::FLAG_PULLUP) ? INPUT_PULLUP : INPUT;
+  pin->output_ = false;
+#endif
 }
 
 bool IRAM_ATTR ISRInternalGPIOPin::open_drain_read() {
   auto *pin = static_cast<ArduinoInternalGPIOPin *>(this->arg_);
+  if (pin->output_)
+    return false;
+#if defined(USE_LN882X) && !defined(CLANG_TIDY)
+  auto *data = static_cast<PinData *>(pin->open_drain_data_);
+  auto *regs = reinterpret_cast<volatile uint32_t *>(data->gpio_base);  // NOLINT(performance-no-int-to-ptr)
+  return (regs[LN_GPIO_IDR] & data->gpio->pin) != 0;
+#elif defined(USE_LIBRETINY_VARIANT_RTL8710B) && !defined(CLANG_TIDY)
+  auto *data = static_cast<PinData *>(pin->open_drain_data_);
+  return GPIO_ReadDataBit(data->gpio->pin) != 0;
+#elif defined(USE_LIBRETINY_VARIANT_RTL8720C) && !defined(CLANG_TIDY)
+  auto *data = static_cast<PinData *>(pin->open_drain_data_);
+  const auto &adapter = data->gpio->adapter;
+  return (*adapter.in_port & adapter.bit_mask) != 0;
+#else
   return pin->digital_read() != pin->is_inverted();
+#endif
 }
 
 void IRAM_ATTR ISRInternalGPIOPin::pin_mode(gpio::Flags flags) {

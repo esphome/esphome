@@ -2,11 +2,8 @@
 
 #include "gpio.h"
 #include "esphome/core/hal.h"
-#include "esphome/core/log.h"
 
 namespace esphome::esp8266 {
-
-ESPHOME_LOG_TAG(TAG, "esp8266");
 
 static int flags_to_mode(gpio::Flags flags, uint8_t pin) {
   flags =
@@ -76,14 +73,12 @@ bool ESP8266GPIOPin::setup_open_drain(bool pullup) {
   if (this->pin_ > 16)
     return false;
   if (this->pin_ == 16) {
-    // GPIO16 has neither hardware open drain nor an internal pull-up.
-    if (pullup) {
-      ESP_LOGW(TAG, "GPIO16 needs an external pull-up for open-drain use");
-    }
+    if (pullup)
+      return false;
     this->flags_ = gpio::FLAG_INPUT;
     pinMode(this->pin_, INPUT);  // NOLINT
     GP16O &= ~1;
-    return true;  // An external pull-up is needed.
+    return true;
   }
   this->flags_ = gpio::FLAG_OUTPUT | gpio::FLAG_OPEN_DRAIN;
   pinMode(this->pin_, pullup ? INPUT_PULLUP : INPUT);  // NOLINT

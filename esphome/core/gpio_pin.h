@@ -147,7 +147,7 @@ class ISRInternalGPIOPin {
   void pin_mode(gpio::Flags flags);
 
   /// Physical bus operations: low drives the pin, release leaves it high impedance.
-  /// Call only after InternalGPIOPin::setup_open_drain(). Safe in timing-critical code.
+  /// Call only after InternalGPIOPin::setup_open_drain(). Check the backend's timing before use in strict bus slots.
   void open_drain_pull_low();
   void open_drain_release();
   bool open_drain_read();
@@ -163,7 +163,10 @@ class ISRInternalGPIOPin {
 
 // What callers of the InternalGPIOPin alias (bound in esphome/core/gpio.h) rely on beyond
 // GPIOPin. setup_open_drain(pullup) replaces setup() for an exclusive bus pin: it must start released,
-// enable physical input reads and return false when the pin cannot be configured.
+// enable physical input reads and return false when the requested configuration cannot be provided.
+// A failed attempt must not drive the pin, so the caller can retry without the optional pull-up.
+// Do not reconfigure the pin with setup() or pin_mode() after open-drain setup;
+// get_flags() is backend-specific and does not track the current bus level.
 // The class must be final so calls to the GPIOPin virtuals through the alias are direct.
 // int is arbitrary: any T * exercises the public attach_interrupt<T> template.
 template<typename T>

@@ -6,6 +6,8 @@
 namespace esphome::libretiny {
 
 class ArduinoInternalGPIOPin final : public GPIOPin {
+  friend class ::esphome::ISRInternalGPIOPin;
+
  public:
   void set_pin(uint8_t pin) { pin_ = pin; }
   void set_inverted(bool inverted) { inverted_ = inverted; }
@@ -38,6 +40,9 @@ class ArduinoInternalGPIOPin final : public GPIOPin {
   bool output_ : 1 {};
   bool level_ : 1 {};
   gpio::Flags flags_{};
+#if !defined(CLANG_TIDY) && (defined(USE_RTL87XX) || defined(USE_LN882X))
+  void *open_drain_data_{nullptr};
+#endif
 };
 
 }  // namespace esphome::libretiny
