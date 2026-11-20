@@ -45,6 +45,9 @@
 #include <esp_netif_net_stack.h>  // esp_netif_get_netif_impl()
 #include "lwip/netif.h"
 #endif
+#if !USE_NETWORK_IPV4
+#include "lwip/dhcp6.h"
+#endif
 #ifdef USE_WIFI_LEASE_CACHE
 #include <esp_rtc_time.h>  // esp_rtc_get_time_us() -- RTC-domain clock for lease age
 #include "lwip/dhcp.h"
@@ -653,7 +656,7 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
 void WiFiComponent::clear_sta_session_() {
   s_sta_connected = false;
   this->got_ipv4_address_ = false;
-#if USE_NETWORK_IPV6
+#if USE_NETWORK_IPV6 && (USE_NETWORK_MIN_IPV6_ADDR_COUNT > 0)
   this->num_ipv6_addresses_ = 0;
 #endif
 }
@@ -665,6 +668,11 @@ static void disable_dhcp_sntp() {
 #endif
   sntp_servermode_dhcp(false);
 }
+
+#if USE_NETWORK_IPV6 && (USE_NETWORK_MIN_IPV6_ADDR_COUNT > 0)
+// How long after a driver roam SLAAC gets to settle before the IPv6 addresses are recounted.
+static constexpr uint32_t IPV6_ROAM_SETTLE_MS = 5000;
+#endif
 
 #ifdef USE_WIFI_LEASE_CACHE
 // Minimum lease time that must remain before a cached lease is applied.
@@ -731,6 +739,11 @@ bool WiFiComponent::wifi_sta_ip_config_(const optional<ManualIP> &manual_ip) {
     return false;
   }
 
+#if !USE_NETWORK_IPV4
+  // No IPv4 stack: addresses come from SLAAC, validation rejects manual_ip
+  (void) manual_ip;
+  return true;
+#else
   esp_netif_dhcp_status_t dhcp_status;
   esp_err_t err = esp_netif_dhcpc_get_status(s_sta_netif, &dhcp_status);
   if (err != ESP_OK) {
@@ -812,6 +825,7 @@ bool WiFiComponent::wifi_sta_ip_config_(const optional<ManualIP> &manual_ip) {
   }
 
   return true;
+#endif  // USE_NETWORK_IPV4
 }
 
 #ifdef USE_WIFI_LEASE_CACHE
@@ -884,6 +898,7 @@ network::IPAddresses WiFiComponent::wifi_sta_ip_addresses() {
   if (!this->has_sta())
     return {};
   network::IPAddresses addresses;
+#if USE_NETWORK_IPV4
   esp_netif_ip_info_t ip;
   esp_err_t err = esp_netif_get_ip_info(s_sta_netif, &ip);
   if (err != ESP_OK) {
@@ -893,6 +908,7 @@ network::IPAddresses WiFiComponent::wifi_sta_ip_addresses() {
   } else {
     addresses[0] = network::IPAddress(&ip.ip);
   }
+#endif
 #if USE_NETWORK_IPV6
   network::fill_ip6_addresses(s_sta_netif, addresses);
 #endif /* USE_NETWORK_IPV6 */
@@ -1106,7 +1122,12 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     if (auto *netif = static_cast<struct netif *>(esp_netif_get_netif_impl(s_sta_netif)); netif != nullptr) {
       if (esp_err_t err = esp_netif_tcpip_exec(
               [](void *ctx) -> esp_err_t {
-                netif_create_ip6_linklocal_address(static_cast<struct netif *>(ctx), 1);
+                auto *netif = static_cast<struct netif *>(ctx);
+                netif_create_ip6_linklocal_address(netif, 1);
+#if !USE_NETWORK_IPV4
+                // Without DHCPv4, DNS servers come from RDNSS or stateless DHCPv6; esp_netif never starts the latter
+                dhcp6_enable_stateless(netif);
+#endif
                 return ESP_OK;
               },
               netif);
@@ -1131,6 +1152,26 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
       bssid_t roam_bssid;
       std::copy(it.bssid, it.bssid + 6, roam_bssid.begin());
       this->handle_driver_roam_(roam_bssid, it.channel);
+#if USE_NETWORK_IPV6 && (USE_NETWORK_MIN_IPV6_ADDR_COUNT > 0)
+      // GOT_IP6 never counts down; once SLAAC settles drop addresses the new AP did not give back,
+      // but never below the minimum, so a slow SLAAC does not read as a lost connection
+      this->set_timeout(IPV6_RECOUNT_TIMEOUT_ID, IPV6_ROAM_SETTLE_MS, [this]() {
+        if (!s_sta_connected)
+          return;  // A disconnect already cleared the count
+        esp_ip6_addr_t addresses[CONFIG_LWIP_IPV6_NUM_ADDRESSES];
+        int count;
+        {
+          LwIPLock lock;
+          count = esp_netif_get_all_ip6(s_sta_netif, addresses);
+        }
+        if (count < USE_NETWORK_MIN_IPV6_ADDR_COUNT || count == this->num_ipv6_addresses_)
+          return;
+        this->num_ipv6_addresses_ = static_cast<uint8_t>(count);
+#ifdef USE_WIFI_IP_STATE_LISTENERS
+        this->notify_ip_state_listeners_();
+#endif
+      });
+#endif
     }
 #ifdef USE_WIFI_CONNECT_STATE_LISTENERS
     // Defer listener notification until state machine reaches STA_CONNECTED
@@ -1158,10 +1199,12 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
       ESP_LOGI(TAG, "Disconnected ssid='%.*s' reason='Station Roaming'", it.ssid_len, (const char *) it.ssid);
       return;
     }
-    const bool expected_disconnect =
-        s_expected_disconnect.consume_disconnect(it.bssid, it.reason == WIFI_REASON_ASSOC_LEAVE);
+    const ExpectedLeave expected = s_expected_disconnect.consume_disconnect(
+        it.bssid, it.reason == WIFI_REASON_ASSOC_LEAVE || it.reason == WIFI_REASON_STA_LEAVING);
+    const bool expected_disconnect = expected != ExpectedLeave::EXPECTED_LEAVE_NONE;
     if (expected_disconnect) {
-      ESP_LOGD(TAG, "Expected disconnect from previous AP");
+      ESP_LOGD(TAG, "Expected leave of the previous %s",
+               expected == ExpectedLeave::EXPECTED_LEAVE_AP ? LOG_STR_LITERAL("AP") : LOG_STR_LITERAL("attempt"));
     } else if (it.reason == WIFI_REASON_NO_AP_FOUND) {
       ESP_LOGW(TAG, "Disconnected ssid='%.*s' reason='Probe Request Unsuccessful'", it.ssid_len,
                (const char *) it.ssid);
@@ -1181,7 +1224,9 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     // Refresh is_connected() cache; the old session is no longer connected.
     this->update_connected_state_();
 #ifdef USE_WIFI_CONNECT_STATE_LISTENERS
-    this->notify_disconnect_state_listeners_();
+    // An attempt that never associated ended no session listeners know of
+    if (expected != ExpectedLeave::EXPECTED_LEAVE_ATTEMPT)
+      this->notify_disconnect_state_listeners_();
 #endif
 
 #if defined(USE_WIFI_AP_WISP) && !defined(USE_WIFI_AP_WISP_STATIC_DNS)
@@ -1189,6 +1234,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
              (data->event_id == IP_EVENT_ETH_GOT_IP || data->event_id == IP_EVENT_PPP_GOT_IP)) {
     this->apply_ap_dns_();
 #endif
+#if USE_NETWORK_IPV4
   } else if (data->event_base == IP_EVENT && data->event_id == IP_EVENT_STA_GOT_IP) {
     const auto &it = data->data.ip_got_ip;
     esp_netif_ip_info_t current_ip{};
@@ -1208,20 +1254,30 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
 #ifdef USE_WIFI_IP_STATE_LISTENERS
     this->notify_ip_state_listeners_();
 #endif
+#endif  // USE_NETWORK_IPV4
 
 #if USE_NETWORK_IPV6
   } else if (data->event_base == IP_EVENT && data->event_id == IP_EVENT_GOT_IP6) {
     const auto &it = data->data.ip_got_ip6;
+    if (it.esp_netif != s_sta_netif) {
+      return;  // another interface's address (AP netif, or ethernet alongside wifi)
+    }
     if (!s_sta_connected) {
       ESP_LOGV(TAG, "Ignoring IPv6 address event before association");
       return;
     }
+    ESP_LOGV(TAG, "IPv6 address=" IPV6STR, IPV62STR(it.ip6_info.ip));
+#if USE_NETWORK_MIN_IPV6_ADDR_COUNT > 0
+    // Count addresses, not events (a roam re-fires the link-local). Never count down while associated:
+    // a roam briefly clears every address, which must not read as a lost connection.
     esp_ip6_addr_t addresses[CONFIG_LWIP_IPV6_NUM_ADDRESSES];
+    uint8_t count;
     {
       LwIPLock lock;
-      this->num_ipv6_addresses_ = esp_netif_get_all_ip6(s_sta_netif, addresses);
+      count = static_cast<uint8_t>(esp_netif_get_all_ip6(s_sta_netif, addresses));
     }
-    ESP_LOGV(TAG, "IPv6 address=" IPV6STR, IPV62STR(it.ip6_info.ip));
+    this->num_ipv6_addresses_ = std::max(this->num_ipv6_addresses_, count);
+#endif
 #ifdef USE_WIFI_IP_STATE_LISTENERS
     this->notify_ip_state_listeners_();
 #endif
@@ -1408,7 +1464,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
 }
 
 WiFiSTAConnectStatus WiFiComponent::wifi_sta_connect_status_() const {
-  if (s_sta_connected && this->got_ipv4_address_) {
+  if (s_sta_connected && (!USE_NETWORK_IPV4 || this->got_ipv4_address_)) {
 #if USE_NETWORK_IPV6 && (USE_NETWORK_MIN_IPV6_ADDR_COUNT > 0)
     if (this->num_ipv6_addresses_ >= USE_NETWORK_MIN_IPV6_ADDR_COUNT) {
       return WiFiSTAConnectStatus::CONNECTED;
@@ -1635,6 +1691,21 @@ bool WiFiComponent::wifi_dpp_start_listen_() {
 void WiFiComponent::wifi_dpp_stop_listen_() { esp_supp_dpp_stop_listen(); }
 #endif
 
+void WiFiComponent::on_powerdown() {
+  // Leave the AP before esp_restart() or deep sleep stops Wi-Fi. esp_wifi_stop() while associated
+  // makes the ESP32 retransmit its Disassociation up to the retry limit although the AP ACKs it
+  // (32 copies with protected management frames), which some APs handle badly.
+  // Upstream bug: https://github.com/espressif/esp-idf/issues/19443 - remove this once it is fixed
+  // in the ESP-IDF versions we support.
+  // Ask the driver: s_sta_connected lags until the main loop has handled the connect event.
+  wifi_ap_record_t ap_info;
+  if (esp_wifi_sta_get_ap_info(&ap_info) != ESP_OK)
+    return;
+  ESP_LOGD(TAG, "Disconnecting before powerdown");
+  esp_wifi_disconnect();
+  delay(100);  // NOLINT: once per reboot or deep sleep, lets the disassociation go out
+}
+
 bool WiFiComponent::wifi_disconnect_() { return esp_wifi_disconnect(); }
 
 bssid_t WiFiComponent::wifi_bssid() {
@@ -1683,6 +1754,7 @@ int32_t WiFiComponent::get_wifi_channel() {
   return primary;
 }
 network::IPAddress WiFiComponent::wifi_subnet_mask_() {
+#if USE_NETWORK_IPV4
   esp_netif_ip_info_t ip;
   esp_err_t err = esp_netif_get_ip_info(s_sta_netif, &ip);
   if (err != ESP_OK) {
@@ -1690,8 +1762,12 @@ network::IPAddress WiFiComponent::wifi_subnet_mask_() {
     return {};
   }
   return network::IPAddress(&ip.netmask);
+#else
+  return {};
+#endif
 }
 network::IPAddress WiFiComponent::wifi_gateway_ip_() {
+#if USE_NETWORK_IPV4
   esp_netif_ip_info_t ip;
   esp_err_t err = esp_netif_get_ip_info(s_sta_netif, &ip);
   if (err != ESP_OK) {
@@ -1699,6 +1775,9 @@ network::IPAddress WiFiComponent::wifi_gateway_ip_() {
     return {};
   }
   return network::IPAddress(&ip.gw);
+#else
+  return {};
+#endif
 }
 network::IPAddress WiFiComponent::wifi_dns_ip_(int num) {
   const ip_addr_t *dns_ip = dns_getserver(num);

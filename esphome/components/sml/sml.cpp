@@ -96,7 +96,11 @@ void Sml::publish_value_(const ObisInfo &obis_info) {
   }
 }
 
-void Sml::dump_config() { ESP_LOGCONFIG(TAG, "SML:"); }
+void Sml::dump_config() {
+  ESP_LOGCONFIG(TAG, "SML:");
+  for (auto *listener : this->sml_listeners_)
+    listener->dump_child_config();
+}
 
 void Sml::register_sml_listener(SmlListener *listener) { sml_listeners_.emplace_back(listener); }
 

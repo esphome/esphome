@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 import logging
 import os
 from pathlib import Path
@@ -9,7 +10,12 @@ import platform
 
 import esphome.config_validation as cv
 from esphome.core import EsphomeError
-from esphome.framework_helpers import download_and_extract, rmdir, str_to_lst_of_str
+from esphome.framework_helpers import (
+    download_and_extract,
+    install_lock,
+    rmdir,
+    str_to_lst_of_str,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -132,3 +138,38 @@ def install_sdk(sdk_path: Path, version: str, toolchain: str) -> None:
             extract_dir,
             progress_header="Extracting",
         )
+
+
+def ensure_sdk(
+    sdk_path: Path,
+    version: str,
+    toolchain: str,
+    *,
+    keep_leftover: Callable[[Path], bool],
+    lock_root: Path,
+) -> None:
+    """Install the SDK unless ready; ``keep_leftover`` spares partial downloads
+    another build may still be writing."""
+    sentinel = sdk_path / ".ready"
+    if sentinel.exists():
+        return
+    with install_lock(lock_root, f"toolchain-{sdk_path.name}"):
+        if not sentinel.exists():  # another build may have installed it meanwhile
+            _install_and_prune(sdk_path, version, toolchain, keep_leftover)
+
+
+def _install_and_prune(
+    sdk_path: Path,
+    version: str,
+    toolchain: str,
+    keep_leftover: Callable[[Path], bool],
+) -> None:
+    install_sdk(sdk_path, version, toolchain)
+    # Archives are hundreds of MB; a locked one must not fail the finished install
+    for leftover in sdk_path.parent.glob("*.archive.part*"):
+        try:
+            if not keep_leftover(leftover):
+                leftover.unlink()
+        except OSError as err:
+            _LOGGER.debug("Could not remove %s: %s", leftover, err)
+    (sdk_path / ".ready").touch()
