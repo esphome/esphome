@@ -1,0 +1,37 @@
+esphome:
+  name: vbus-p2-sensors-codegen
+host:
+logger:
+uart:
+  id: bus_uart
+  port: /dev/null
+  baud_rate: 9600
+vbus:
+  id: bus
+  uart_id: bus_uart
+  transmit:
+    destination: 0x2211
+    transactions:
+      polling:
+        id: polled_values
+        value_ids: [1, 2, 3]
+        rx_value_ids: [3]
+sensor:
+  - platform: vbus
+    model: p2
+    polling_id: polled_values
+    value_id: 1
+    name: Signed Parameter
+    filters:
+      - multiply: 0.1
+  - platform: vbus
+    model: p2
+    polling_id: polled_values
+    value_id: 2
+    value_type: uint32
+    name: Unsigned Parameter
+  - platform: vbus
+    model: deltasol_cs_plus
+    vbus_id: bus
+    temperature_1:
+      name: Existing RX
