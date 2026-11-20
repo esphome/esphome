@@ -31,12 +31,13 @@ def runs(name: str) -> list[dict]:
 
 
 B, P = runs(sys.argv[1]), runs(sys.argv[2])
-keys = list(B[0])
+# Every case seen in any capture, so a case one capture missed is still compared.
+keys = list(dict.fromkeys(k for r in B + P for k in r))
 nomaj, diff, shared = [], [], 0
 for k in keys:
     cb = Counter(r[k][0] for r in B if k in r)
     cp = Counter(r[k][0] for r in P if k in r)
-    if not cp:
+    if not cb or not cp:
         diff.append(k)
         continue
     (vb, nb), (vp, npr) = cb.most_common(1)[0], cp.most_common(1)[0]
@@ -50,7 +51,9 @@ print(
     f"no majority: {nomaj}; cases where captures agree: {shared}"
 )
 for k in diff[:10]:
-    b, p = B[0][k], P[0].get(k, (("?", ""), 0, ""))
+    missing = (("?", ""), 0, "")
+    b = next((r[k] for r in B if k in r), missing)
+    p = next((r[k] for r in P if k in r), missing)
     print(f"  {k}\n     base {b[0][0]} {b[2][:120]}\n     pr   {p[0][0]} {p[2][:120]}")
 for name, R in (("base", B), ("pr", P)):
     wr = [k for k in keys if k.startswith("wreg")]
