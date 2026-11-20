@@ -59,8 +59,14 @@ void CANopenComponent::loop() {
   CO_SDOclient_t *cli = this->co_->SDOclient;
   const bool unsent = cli->CANtxBuff->bufferFull;
   const uint32_t now = App.get_loop_component_start_time();
-  this->process_sdo_((now - this->last_ms_) * 1000);
-  this->last_ms_ = now;
+  const uint32_t elapsed = now - this->last_ms_;
+  // The reply may still wait in the controller behind a capped canbus pass: the time is charged once it drained, but
+  // held at most one response timeout past the deadline, so a saturated bus still times out.
+  if (!this->sdo_busy_ || !this->canbus_->rx_capped() ||
+      cli->timeoutTimer / 1000 + elapsed >= 2u * this->response_timeout_ms_) {
+    this->process_sdo_(elapsed * 1000);
+    this->last_ms_ = now;
+  }
   // only from here, not per received frame: on ESP32 a refused frame can block for the controller's enqueue timeout
   CO_CANmodule_process(this->co_->CANmodule);
   // CANopenNode started the response timeout when it queued the frame: start it again now that the frame is sent

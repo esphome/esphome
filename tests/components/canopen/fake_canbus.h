@@ -3,6 +3,7 @@
 #include <gtest/gtest.h>
 #include <algorithm>
 #include <cstdint>
+#include <deque>
 #include <string>
 #include <vector>
 
@@ -21,6 +22,16 @@ class FakeCanbus : public canbus::Canbus {
   std::vector<Frame> sent;
   // the platform refuses frames (TX buffers full)
   bool busy{false};
+  // frames waiting in the controller, handed out by loop()
+  std::deque<canbus::CanFrame> rx;
+
+  void queue(uint32_t can_id, const std::vector<uint8_t> &data) {
+    canbus::CanFrame f{};
+    f.can_id = can_id;
+    f.can_data_length_code = data.size();
+    std::copy(data.begin(), data.end(), f.data);
+    this->rx.push_back(f);
+  }
 
   size_t count(uint32_t can_id) const {
     size_t n = 0;
@@ -37,7 +48,13 @@ class FakeCanbus : public canbus::Canbus {
     this->sent.push_back({frame->can_id, {frame->data, frame->data + frame->can_data_length_code}});
     return canbus::ERROR_OK;
   }
-  canbus::Error read_message(canbus::CanFrame *frame) override { return canbus::ERROR_NOMSG; }
+  canbus::Error read_message(canbus::CanFrame *frame) override {
+    if (this->rx.empty())
+      return canbus::ERROR_NOMSG;
+    *frame = this->rx.front();
+    this->rx.pop_front();
+    return canbus::ERROR_OK;
+  }
 };
 
 class TestHub : public CANopenComponent {

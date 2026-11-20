@@ -199,4 +199,45 @@ TEST_F(SdoTest, ExpeditedReadOverTheCapacity) {
   EXPECT_EQ(this->replies_[0].abort_code, static_cast<uint32_t>(CO_SDO_AB_OUT_OF_MEM));
 }
 
+// A reply still queued behind a burst the canbus loop stopped at its cap must not time the request out.
+TEST_F(SdoTest, ReplyBehindACappedBurstDoesNotTimeOut) {
+  this->bus_.set_max_frames_per_loop(4);
+  ASSERT_TRUE(this->hub_.read_sdo<uint16_t>(0x21, 0x1017, 0, on_reply, this));
+  this->hub_.loop();
+  for (uint8_t i = 0; i < 6; i++)
+    this->bus_.queue(0x181, {i});  // PDOs
+  this->bus_.queue(0x5A1, {0x4B, 0x17, 0x10, 0, 0xE8, 0x03, 0, 0});
+  this->advance_(25);  // past the 20 ms response timeout
+  this->bus_.loop();
+  ASSERT_TRUE(this->bus_.rx_capped());
+  this->hub_.loop();
+  EXPECT_TRUE(this->replies_.empty());
+  this->bus_.loop();
+  EXPECT_FALSE(this->bus_.rx_capped());
+  ASSERT_EQ(this->replies_.size(), 1u);
+  EXPECT_TRUE(this->replies_[0].ok());
+  EXPECT_EQ(this->replies_[0].value, 1000u);
+}
+
+// On a bus that never drains, the time is held at most one response timeout past the deadline.
+TEST_F(SdoTest, SaturatedBusStillTimesOut) {
+  this->bus_.set_max_frames_per_loop(1);
+  ASSERT_TRUE(this->hub_.read_sdo<uint16_t>(0x21, 0x1017, 0, on_reply, this));
+  this->hub_.loop();
+  this->advance_(15);
+  this->hub_.loop();  // nothing received: 15 ms charged
+  uint32_t waited = 15;
+  while (this->replies_.empty() && waited < 100) {
+    this->bus_.queue(0x181, {0});
+    this->bus_.queue(0x181, {1});
+    this->advance_(1);
+    waited++;
+    this->bus_.loop();
+    this->hub_.loop();
+  }
+  ASSERT_EQ(this->replies_.size(), 1u);
+  EXPECT_EQ(this->replies_[0].result, SDOResult::SDO_RESULT_TIMEOUT);
+  EXPECT_EQ(waited, 40u);
+}
+
 }  // namespace esphome::canopen::testing
