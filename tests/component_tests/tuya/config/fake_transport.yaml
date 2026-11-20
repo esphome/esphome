@@ -1,0 +1,19 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+external_components:
+  - source:
+      type: local
+      path: ../../../components/tuya/components
+
+fake_tuya_transport:
+  id: my_tuya
+
+switch:
+  - platform: tuya
+    tuya_id: my_tuya
+    name: Fake Switch
+    switch_datapoint: 1

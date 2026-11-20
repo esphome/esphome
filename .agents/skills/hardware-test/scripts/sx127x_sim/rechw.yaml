@@ -1,0 +1,7 @@
+substitutions:
+  flag: -DSXREC_HW
+  prio: "800"
+  install: install_hw
+  interface: spi2
+packages:
+  rec: !include rec.yaml
