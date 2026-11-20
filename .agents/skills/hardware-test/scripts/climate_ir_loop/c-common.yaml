@@ -1,0 +1,12 @@
+# Samsung, Friedrich, Siemens IRA211 and Mistral senders and receivers on one loopback pin.
+packages:
+  base: !include base.yaml
+climate:
+  - {platform: samsung, id: sam_tx, name: SAM TX, transmitter_id: irtx}
+  - {platform: samsung, id: sam_rx, name: SAM RX, transmitter_id: irtx, receiver_id: irrx}
+  - {platform: friedrich, id: fr_tx, name: FR TX, transmitter_id: irtx}
+  - {platform: friedrich, id: fr_rx, name: FR RX, transmitter_id: irtx, receiver_id: irrx}
+  - {platform: siemens_ira211, id: si_tx, name: SI TX, transmitter_id: irtx}
+  - {platform: siemens_ira211, id: si_rx, name: SI RX, transmitter_id: irtx, receiver_id: irrx}
+  - {platform: mistral_ir, id: mi_tx, name: MI TX, transmitter_id: irtx}
+  - {platform: mistral_ir, id: mi_rx, name: MI RX, transmitter_id: irtx, receiver_id: irrx}

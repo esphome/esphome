@@ -8,7 +8,7 @@ namespace esphome::xiaomi_cgg1 {
 
 ESPHOME_LOG_TAG(TAG, "xiaomi_cgg1");
 
-void XiaomiCGG1::dump_config() {
+void XiaomiCGG1::dump_child_config() {
   ESP_LOGCONFIG(TAG, "Xiaomi CGG1");
   // The bindkey is optional on the CGG1; without one it stays all zero
   if (std::any_of(std::begin(this->bindkey_), std::end(this->bindkey_), [](uint8_t b) { return b != 0; }))

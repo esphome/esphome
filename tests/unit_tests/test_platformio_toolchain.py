@@ -13,6 +13,7 @@ import subprocess
 import sys
 import threading
 from types import SimpleNamespace
+from typing import Any
 from unittest.mock import MagicMock, Mock, call, patch
 
 import pytest
@@ -1576,6 +1577,49 @@ def test_patch_file_downloader_closes_session_and_response_between_retries() -> 
         # Both response and session should have been closed between retries
         mock_response.close.assert_called_once()
         mock_session.close.assert_called_once()
+
+
+def test_patch_file_downloader_ignores_cleanup_errors_between_retries() -> None:
+    """Test a failing close() does not stop the retry."""
+    mock_exception_cls = type("PackageException", (Exception,), {})
+    mock_response = MagicMock()
+    mock_response.close.side_effect = RuntimeError("close failed")
+    call_count = 0
+
+    def failing_init(self: Any, *args: Any, **kwargs: Any) -> None:
+        nonlocal call_count
+        call_count += 1
+        self._http_response = mock_response
+        if call_count < 2:
+            raise mock_exception_cls("502 error")
+
+    with (
+        patch.dict(
+            "sys.modules",
+            {
+                "platformio": MagicMock(),
+                "platformio.package": MagicMock(),
+                "platformio.package.download": SimpleNamespace(
+                    FileDownloader=type(
+                        "FileDownloader", (), {"__init__": failing_init}
+                    )
+                ),
+                "platformio.package.exception": SimpleNamespace(
+                    PackageException=mock_exception_cls
+                ),
+            },
+        ),
+        patch("time.sleep"),
+    ):
+        runner.patch_file_downloader()
+
+        from platformio.package.download import FileDownloader
+
+        instance = object.__new__(FileDownloader)
+        FileDownloader.__init__(instance, "http://example.com/file.zip")
+
+    assert call_count == 2
+    mock_response.close.assert_called_once()
 
 
 def test_patch_file_downloader_retries_on_connection_error() -> None:
