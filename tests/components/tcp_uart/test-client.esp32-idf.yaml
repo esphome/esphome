@@ -8,6 +8,8 @@ tcp_uart:
     port: 502
     reconnect_interval: 10s
     timeout: 30s
+    encryption:
+      key: "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
 
 binary_sensor:
   - platform: tcp_uart
