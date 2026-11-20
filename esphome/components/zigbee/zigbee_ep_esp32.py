@@ -4,6 +4,7 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
     CONF_LAMBDA,
+    CONF_NUMBER,
     CONF_TYPE,
     CONF_VALUE,
     DEVICE_CLASS_ATMOSPHERIC_PRESSURE,
@@ -42,6 +43,7 @@ from .const_esp32 import (
     SCALE,
 )
 
+_KEY_EP_REFS = "ep_refs"
 _MERGE_ATTRIBUTES = "_merge_attributes"
 
 # endpoint configs:
@@ -471,6 +473,8 @@ def _merge_endpoints(
         for cluster in incoming_clusters
         if (cluster[CONF_ID], cluster[ROLE]) not in clusters
     )
+    ep_list: list[dict] = existing_ep.setdefault(_KEY_EP_REFS, [])
+    ep_list.append(ep)
     return True
 
 
@@ -542,6 +546,11 @@ def create_ep(router: bool) -> None:
         eps = list(ep_dict.keys())
         for ep in ep_list_new:
             ep_num = _get_next_ep_num(eps)
+            ep[CONF_NUMBER] = ep_num
+            if _KEY_EP_REFS in ep:
+                for ep_ref in ep[_KEY_EP_REFS]:
+                    ep_ref[CONF_NUMBER] = ep_num
+                del ep[_KEY_EP_REFS]
             ep_dict[ep_num] = ep
 
         # clear list so that it is not processed again
