@@ -60,9 +60,9 @@ void CANopenComponent::loop() {
   const bool unsent = cli->CANtxBuff->bufferFull;
   const uint32_t now = App.get_loop_component_start_time();
   const uint32_t elapsed = now - this->last_ms_;
-  // The reply may still wait in the controller behind a capped canbus pass: the time is charged once it drained, but
-  // held at most one response timeout past the deadline, so a saturated bus still times out.
-  if (!this->sdo_busy_ || !this->canbus_->rx_capped() ||
+  // The reply to a sent frame may still wait in the controller behind a capped canbus pass: the time is charged once it
+  // drained, but held at most one response timeout past the deadline, so a saturated bus still times out.
+  if (!this->sdo_busy_ || unsent || !this->canbus_->rx_capped() ||
       cli->timeoutTimer / 1000 + elapsed >= 2u * this->response_timeout_ms_) {
     this->process_sdo_(elapsed * 1000);
     this->last_ms_ = now;

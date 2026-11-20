@@ -34,6 +34,24 @@ TEST_F(SdoTest, FrameUnsentAtTheDeadlineIsNotSentLate) {
   EXPECT_EQ(this->bus_.count(0x621), 0u);
 }
 
+// No reply can wait behind a capped receive pass for a frame that never went out: its deadline still applies.
+TEST_F(SdoTest, UnsentFrameEndsAtTheDeadlineDuringACappedPass) {
+  this->bus_.set_max_frames_per_loop(1);
+  this->bus_.busy = true;
+  ASSERT_TRUE(this->hub_.write_sdo<uint16_t>(0x21, 0x6040, 0, 0x1234, on_reply, this));
+  this->hub_.loop();
+  this->bus_.queue(0x181, {0});
+  this->bus_.queue(0x181, {1});
+  this->advance_(25);
+  this->bus_.loop();
+  ASSERT_TRUE(this->bus_.rx_capped());
+  this->bus_.busy = false;
+  this->hub_.loop();
+  ASSERT_EQ(this->replies_.size(), 1u);
+  EXPECT_EQ(this->replies_[0].result, SDOResult::SDO_RESULT_TRANSPORT_ERROR);
+  EXPECT_EQ(this->bus_.count(0x621), 0u);
+}
+
 // The bus takes the frame before the deadline: sent, and the response timeout starts again from there.
 TEST_F(SdoTest, RetryBeforeTheDeadlineRestartsTheTimeout) {
   this->bus_.busy = true;
