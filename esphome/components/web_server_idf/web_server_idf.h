@@ -409,8 +409,7 @@ class AsyncEventSourceResponse : public AsyncStreamResponse {
   void loop();
 
  protected:
-  AsyncEventSourceResponse(const AsyncWebServerRequest *request, esphome::web_server_idf::AsyncEventSource *server,
-                           esphome::web_server::WebServer *ws);
+  AsyncEventSourceResponse(const AsyncWebServerRequest *request, esphome::web_server::WebServer *ws);
 
   // Main-loop only: sends initial ping/config/sorting_groups, starts entity iterator.
   void start_session_main_loop_();
@@ -451,7 +450,6 @@ class AsyncEventSourceResponse : public AsyncStreamResponse {
   // Frees the tail and the queue's storage once the session is closing
   void release_buffers_();
 
-  AsyncEventSource *server_;
   std::vector<DeferredEvent> deferred_queue_;
   esphome::web_server::WebServer *web_server_;
   esphome::web_server::ListEntitiesIterator entities_iterator_;
