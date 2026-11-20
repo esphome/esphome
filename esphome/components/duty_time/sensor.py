@@ -14,6 +14,7 @@ from esphome.const import (
     STATE_CLASS_TOTAL_INCREASING,
     UNIT_SECOND,
 )
+from esphome.core import TimePeriod
 from esphome.types import ConfigType
 
 CONF_LAST_TIME = "last_time"
@@ -89,7 +90,16 @@ automation.register_apply_action(
     cv.Schema(
         {
             cv.Required(CONF_ID): cv.use_id(DutyTimeSensor),
-            cv.Required(CONF_VALUE): cv.templatable(cv.positive_time_period_seconds),
+            # Plain seconds or a time period, both limited to the 32-bit counter
+            cv.Required(CONF_VALUE): cv.templatable(
+                cv.Any(
+                    cv.uint32_t,
+                    cv.All(
+                        cv.positive_time_period_seconds,
+                        cv.Range(max=TimePeriod(seconds=4294967295)),
+                    ),
+                )
+            ),
         }
     ),
     automation.ApplyField(CONF_VALUE, "set_value", cg.uint32),
