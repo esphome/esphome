@@ -20,6 +20,7 @@ def test_number_and_input_number_entities(
 
     assert 'ha_number->set_entity_id("number.some_number");' in main_cpp
     assert 'ha_input_number->set_entity_id("input_number.some_input");' in main_cpp
+    assert any(d.name == "USE_API_HOMEASSISTANT_SERVICES" for d in CORE.defines)
 
 
 def test_number_rejects_unsupported_domain(

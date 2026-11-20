@@ -26,7 +26,6 @@ from pathlib import Path, PurePosixPath
 import re
 from typing import Any
 from urllib.parse import urlsplit, urlunsplit
-from urllib.request import url2pathname
 
 from esphome import git
 from esphome.core import CORE, EsphomeError, Library
@@ -961,6 +960,8 @@ def _node_key(
                     f"{scheme}:// library URL '{repository}' must be an absolute "
                     f"directory path, e.g. {scheme}:///path/to/lib"
                 )
+            from urllib.request import url2pathname
+
             path = url2pathname(url_path)
             return (name or PurePosixPath(url_path).name), "local", (path, None)
         key = str(split_result.path).strip("/").removesuffix(".git")
