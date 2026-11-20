@@ -1,0 +1,94 @@
+esphome:
+  on_boot:
+    then:
+      - climate.equitherm.force_recalculate: equitherm_heating
+      - climate.equitherm.force_recalculate:
+          id: equitherm_heating
+          update_pid: false
+      - climate.equitherm.force_recalculate:
+          id: equitherm_heating
+          update_pid: !lambda return true;
+
+sensor:
+  - platform: template
+    id: equitherm_outdoor
+    lambda: return 12.0;
+    update_interval: 60s
+  - platform: template
+    id: equitherm_indoor
+    lambda: return 19.5;
+    update_interval: 60s
+
+output:
+  - platform: template
+    id: equitherm_heat_output
+    type: float
+    write_action:
+      - logger.log: heat output
+
+number:
+  - platform: template
+    id: equitherm_flow_setpoint
+    min_value: 20
+    max_value: 85
+    step: 0.5
+    optimistic: true
+  - platform: template
+    id: equitherm_manual_flow_temp
+    min_value: 20
+    max_value: 85
+    step: 0.5
+    optimistic: true
+    initial_value: 45
+
+switch:
+  - platform: template
+    id: equitherm_ch_enable
+    optimistic: true
+
+climate:
+  # Float output with the PID and deadband
+  - platform: equitherm
+    id: equitherm_heating
+    name: Equitherm Heating
+    outdoor_sensor: equitherm_outdoor
+    indoor_sensor: equitherm_indoor
+    default_target_temperature: 20°C
+    heat_output: equitherm_heat_output
+    control_parameters:
+      heat_curve_coefficient: 3.0
+      heat_curve_exponent: 1.5
+      heat_curve_shift: 0.0
+      kp: 2.0
+      ki: 0.5
+      kd: 0.0
+      min_integral: -5.0
+      max_integral: 5.0
+      derivative_averaging_samples: 4
+    output_parameters:
+      min_flow_temp: 25.0
+      max_flow_temp: 70.0
+    deadband_parameters:
+      threshold_high: 0.5
+      threshold_low: -0.5
+      kp_multiplier: 0.1
+      ki_multiplier: 0.0
+  # Flow setpoint number with the manual preset and the heating triggers
+  - platform: equitherm
+    id: equitherm_boiler
+    name: Equitherm Boiler
+    outdoor_sensor: equitherm_outdoor
+    indoor_sensor: equitherm_indoor
+    default_target_temperature: 20
+    flow_setpoint: equitherm_flow_setpoint
+    manual_flow_temp: equitherm_manual_flow_temp
+    on_heating_start:
+      - switch.turn_on: equitherm_ch_enable
+    on_heating_stop:
+      - switch.turn_off: equitherm_ch_enable
+    control_parameters:
+      heat_curve_coefficient: 1.4
+      heat_curve_exponent: 1.3
+    output_parameters:
+      min_flow_temp: 20
+      max_flow_temp: 70
