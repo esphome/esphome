@@ -104,10 +104,12 @@ def capture(args: argparse.Namespace, out) -> int:
     dtr_at = None if args.dtr_after is None else time.time() + args.dtr_after
     while time.time() < deadline:
         if s is not None and dtr_at is not None and time.time() >= dtr_at:
-            dtr_at = None
-            with contextlib.suppress(*PORT_ERRORS):
+            try:
                 s.dtr = True
+                dtr_at = None
                 note(out, "DTR asserted", args.ms)
+            except PORT_ERRORS as err:  # kept pending, retried on the next pass
+                note(out, f"DTR assert failed: {err}", args.ms)
         if s is None:
             path = current_path(args.port, serial_number, index)
             try:
