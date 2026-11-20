@@ -20,8 +20,6 @@ class OpenthermNumber final : public number::Number, public Component, public Op
   ESPPreferenceObject pref_;
 
  public:
-  void set_min_value(float min_value) override { this->traits.set_min_value(min_value); }
-  void set_max_value(float max_value) override { this->traits.set_max_value(max_value); }
   void set_initial_value(float initial_value) { initial_value_ = initial_value; }
   void set_restore_value(bool restore_value) { this->restore_value_ = restore_value; }
 };
