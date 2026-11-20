@@ -40,8 +40,10 @@ void SX1509Component::loop() {
       return;
     this->last_loop_timestamp_ = millis();
     uint16_t key_data = this->read_key_data();
-    for (auto *binary_sensor : this->keypad_binary_sensors_)
-      binary_sensor->process(key_data);
+#ifdef USE_SX1509_KEYPAD_PUBLISHER
+    if (this->keypad_publisher_ != nullptr)
+      this->keypad_publisher_(key_data);
+#endif
     if (this->keys_ == nullptr)
       return;
     if (key_data == 0) {

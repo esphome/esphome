@@ -14,6 +14,15 @@ TTP229LSFComponent = ttp229_lsf_ns.class_(
     "TTP229LSFComponent", cg.Component, i2c.I2CDevice
 )
 
+# Publishes the channel binary sensors from the touch status read on each loop
+CHANNELS_PUBLISHER = cg.HubFunction(
+    "channels",
+    cg.void,
+    [(cg.uint16, "touched")],
+    define="USE_TTP229_LSF_CHANNELS_PUBLISHER",
+)
+TOUCHED = CHANNELS_PUBLISHER.param("touched")
+
 MULTI_CONF = True
 CONFIG_SCHEMA = (
     cv.Schema(
