@@ -1308,7 +1308,7 @@ TEST_P(RmtOneWireFuzz, OkOnlyWithACompleteDecode) {
       byte = static_cast<uint8_t>(rng());
     auto &device = rig.port.bus.devices.emplace_back(ROM_A, payload, 1);
     device.zero_low_us = 15 + rng() % 46;  // tRDV..end of slot
-    rig.port.bus.rise_us = 1 + rng() % 8;
+    rig.port.bus.rise_us = 1 + rng() % BUDGET_TRC_US;  // up to the full budget of 9 us
     rig.port.capture_mutator = [&](size_t section, std::vector<Symbol> &capture) {
       if (section == 0 || rig.port.sections[section].tx.empty())
         return;
@@ -1430,14 +1430,14 @@ TEST(RmtOneWireEngine, RxIdleIsSlotPlus20WithAFloorOf100) {
   } cases[] = {{60, 71, 100}, {65, 80, 100}, {65, 81, 101}, {65, 100, 120}, {90, 120, 140}};
   for (const auto &entry : cases) {
     SCOPED_TRACE(static_cast<int>(entry.slot));
-    Rig rig(64, Timing{entry.write0_low, entry.slot, 13});
+    Rig rig(64, Timing{entry.write0_low, entry.slot, 14});
     read_scratchpad_ok(rig);
     expect_rx_idle(rig.port, entry.idle);
   }
 }
 
 TEST(RmtOneWireEngine, ReachesTheWire) {
-  Rig rig(64, Timing{90, 120, 13});
+  Rig rig(64, Timing{90, 120, 14});
   read_scratchpad_ok(rig);
   int zeros = 0;
   int ones = 0;
@@ -1467,33 +1467,60 @@ TEST(RmtOneWireEngine, ReachesTheWire) {
 }
 
 TEST(RmtOneWireEngine, ThresholdReachesTheDecoder) {
-  // A slow rise: the Low time of a 1 is 4 + 18 = 22 us, a 0 of the device 40 us
-  auto setup_bus = [](Rig &rig) {
-    rig.port.bus.rise_us = 18;
+  // The slowest rise the bus budget allows: a 1 is Low for 4 + 9 = 13 us
+  auto read_with = [](const Timing &timing, uint32_t zero_low_us) {
+    Rig rig(64, timing);
+    rig.port.bus.rise_us = BUDGET_TRC_US;
     auto &device = rig.port.bus.devices.emplace_back(ROM_A, PAYLOAD, 1);
-    device.zero_low_us = 40;
+    device.zero_low_us = zero_low_us;
+    DoneLog log;
+    Job job(&log, 1, ROM_A, {READ_SCRATCHPAD}, 9);
+    EXPECT_TRUE(rig.engine.submit(&job.t));
+    rig.pump();
+    EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_OK}}));
+    return job.read_bytes;
   };
-  {
-    Rig rig(64, Timing{65, 80, 25});
-    setup_bus(rig);
-    DoneLog log;
-    Job job(&log, 1, ROM_A, {READ_SCRATCHPAD}, 9);
-    ASSERT_TRUE(rig.engine.submit(&job.t));
-    rig.pump();
-    EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_OK}}));
-    EXPECT_EQ(job.read_bytes, PAYLOAD);
-  }
-  {
-    // Counter-check on the same bus: with the default threshold every bit reads as 0
-    Rig rig;
-    setup_bus(rig);
-    DoneLog log;
-    Job job(&log, 1, ROM_A, {READ_SCRATCHPAD}, 9);
-    ASSERT_TRUE(rig.engine.submit(&job.t));
-    rig.pump();
-    EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_OK}}));
-    EXPECT_EQ(job.read_bytes, std::vector<uint8_t>(9, 0x00));
-  }
+  EXPECT_EQ(read_with(Timing{}, 15), PAYLOAD) << "the default threshold reads a 13 us Low as 1";
+  EXPECT_EQ(read_with(Timing{90, 110, 13}, 15), std::vector<uint8_t>(9, 0x00)) << "a threshold of 13 reads it as 0";
+  EXPECT_EQ(read_with(Timing{65, 80, 25}, 20), std::vector<uint8_t>(9, 0xFF)) << "a threshold of 25 reads 20 us as 1";
+}
+
+TEST(RmtOneWireEngine, ReadDataIsClearedBeforeTheFirstReadSection) {
+  // The decoder sets and clears single bits, so read_data must not need to be initialized by the caller
+  Rig rig;
+  add_scratchpad_device(rig);
+  DoneLog log;
+  Job job(&log, 1, ROM_A, {READ_SCRATCHPAD}, 9);
+  int read_sections = 0;
+  rig.port.capture_mutator = [&](size_t section, std::vector<Symbol> &) {
+    const auto &tx = rig.port.sections[section].tx;
+    if (rig.port.sections[section].is_reset() || tx.empty() || classify_slot(tx[0]) != Slot::READ)
+      return;
+    if (read_sections++ == 0) {
+      EXPECT_EQ(job.read_bytes, std::vector<uint8_t>(9, 0x00));
+    }
+  };
+  ASSERT_TRUE(rig.engine.submit(&job.t));
+  rig.pump();
+  EXPECT_EQ(read_sections, 2);
+  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_OK}}));
+  EXPECT_EQ(job.read_bytes, PAYLOAD);
+}
+
+TEST(RmtOneWireEngine, ReadDataMayShareTheMemoryOfWriteData) {
+  Rig rig;
+  add_scratchpad_device(rig);
+  DoneLog log;
+  Job job(&log, 1, ROM_A, {}, 9);
+  job.read_bytes[0] = READ_SCRATCHPAD;
+  job.t.write_data = job.read_bytes.data();
+  job.t.write_len = 1;
+  ASSERT_TRUE(rig.engine.submit(&job.t));
+  rig.pump();
+  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_OK}}));
+  ASSERT_EQ(rig.port.bus.devices[0].received().size(), 1u);
+  EXPECT_EQ(rig.port.bus.devices[0].received()[0], READ_SCRATCHPAD);
+  EXPECT_EQ(job.read_bytes, PAYLOAD);
 }
 
 TEST(RmtOneWireEngine, SlotLimitReachesTheDecoder) {
@@ -1501,7 +1528,7 @@ TEST(RmtOneWireEngine, SlotLimitReachesTheDecoder) {
   const std::vector<uint8_t> ones(9, 0xFF);
   for (size_t patched_section : {size_t{3}, size_t{4}}) {
     for (uint16_t low : {uint16_t{119}, uint16_t{120}}) {
-      Rig rig(64, Timing{90, 120, 13});
+      Rig rig(64, Timing{90, 120, 14});
       rig.port.bus.devices.emplace_back(ROM_A, ones, 1);
       rig.port.capture_mutator = [&](size_t section, std::vector<Symbol> &capture) {
         if (section == patched_section)
@@ -1521,7 +1548,7 @@ TEST(RmtOneWireEngine, SlotLimitReachesTheDecoder) {
 TEST(RmtOneWireEngine, BlockingMethodsAndSearchUseIt) {
   constexpr uint8_t skip_rom = 0xCC;
   constexpr uint8_t search_rom = 0xF0;
-  Rig rig(64, Timing{90, 120, 13});
+  Rig rig(64, Timing{90, 120, 14});
   rig.port.bus.devices.emplace_back(ROM_A, PAYLOAD, 0);
 
   ASSERT_EQ(rig.engine.reset_blocking(), 1);

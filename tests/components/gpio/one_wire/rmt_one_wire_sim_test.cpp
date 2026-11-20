@@ -110,13 +110,32 @@ TEST(RmtOneWireSim, ReadSlotsOfASelectedDevice) {
   ASSERT_EQ(capture.size(), 8u);
   for (int i = 0; i < 8; i++) {
     const bool bit = (0b01101001 >> i) & 1;
-    EXPECT_EQ(capture[i].duration0 >= 13, !bit) << "slot " << i;
+    EXPECT_EQ(capture[i].duration0 > SAMPLE_READ_US, !bit) << "slot " << i;
     if (i < 7) {
       EXPECT_EQ(capture[i].duration0 + capture[i].duration1, 80) << "slot " << i;
     }
   }
   EXPECT_EQ(capture[7].duration1, 0);
   EXPECT_EQ(capture[7].level1, 1);
+}
+
+TEST(RmtOneWireSim, DeviceSamplesTheLineAfterTheRise) {
+  // Write 1 is 6 us Low, the device samples at 15 us: a rise of up to 9 us still gives a 1
+  for (uint32_t rise : {uint32_t{0}, BUDGET_TRC_US, BUDGET_TRC_US + 1}) {
+    SimBus bus;
+    bus.rise_us = rise;
+    auto &device = bus.devices.emplace_back(ROM_A, std::vector<uint8_t>{}, 1);
+    std::vector<Phase> phases;
+    bus.drive(SIM_RESET, &phases);
+    write_byte(bus, 0xCC);
+    write_byte(bus, 0xA5);
+    if (rise <= BUDGET_TRC_US) {
+      ASSERT_EQ(device.received().size(), 1u) << "rise " << rise;
+      EXPECT_EQ(device.received()[0], 0xA5) << "rise " << rise;
+    } else {
+      EXPECT_TRUE(device.received().empty()) << "every 1 reads as 0, so Skip ROM is not seen";
+    }
+  }
 }
 
 TEST(RmtOneWireSim, MatchRomSelectsOnlyTheAddressedDevice) {

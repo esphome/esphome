@@ -212,6 +212,15 @@ INSTANTIATE_TEST_SUITE_P(
                   {{503, 0, 250, 1}, {5, 0, 100, 1}, {60, 0, 0, 1}},
                   TransactionStatus::TRANSACTION_STATUS_NO_PRESENCE},
         ResetCase{"NoDevice", {{503, 0, 0, 1}}, TransactionStatus::TRANSACTION_STATUS_NO_PRESENCE},
+        ResetCase{"ShortestReset", {{480, 0, 27, 1}, {120, 0, 0, 1}}, TransactionStatus::TRANSACTION_STATUS_OK},
+        ResetCase{"FirstLowShorterThanAReset",
+                  {{479, 0, 27, 1}, {120, 0, 0, 1}},
+                  TransactionStatus::TRANSACTION_STATUS_CAPTURE_ERROR},
+        ResetCase{
+            "OnlyAShortLow", {{120, 0, 0, 1}}, TransactionStatus::TRANSACTION_STATUS_CAPTURE_ERROR},
+        ResetCase{"GlitchBeforeTheReset",
+                  {{5, 0, 20, 1}, {503, 0, 27, 1}, {120, 0, 0, 1}},
+                  TransactionStatus::TRANSACTION_STATUS_CAPTURE_ERROR},
         ResetCase{"LongestOwnPulseIsNoHang", {{599, 0, 0, 1}}, TransactionStatus::TRANSACTION_STATUS_NO_PRESENCE},
         ResetCase{"FirstLowAtHangLimit", {{600, 0, 0, 1}}, TransactionStatus::TRANSACTION_STATUS_NO_PRESENCE},
         ResetCase{"HeldLowUntilIdle", {{600, 0, 0, 0}}, TransactionStatus::TRANSACTION_STATUS_BUS_LOW},
@@ -252,12 +261,13 @@ INSTANTIATE_TEST_SUITE_P(
 
 // ---- decode_read_slots --------------------------------------------
 
-TEST(RmtOneWireCodec, ReadThresholdIs13Microseconds) {
+TEST(RmtOneWireCodec, ReadThresholdIs14Microseconds) {
+  // A 1 is Low for 4 us Read Low + up to 9 us rise time, so 13 us must still read as 1
   for (uint16_t low = 1; low < 80; low++) {
     const Symbol capture{low, 0, 0, 1};
-    uint8_t out = low >= 13 ? 0xFF : 0x00;
+    uint8_t out = low >= 14 ? 0xFF : 0x00;
     ASSERT_TRUE(decode_read_slots(&capture, 1, 1, &out, 0)) << low;
-    EXPECT_EQ(out & 1, low >= 13 ? 0 : 1) << "Low time " << low;
+    EXPECT_EQ(out & 1, low >= 14 ? 0 : 1) << "Low time " << low;
   }
 }
 
@@ -519,7 +529,7 @@ TEST(RmtOneWireCodec, FuzzMutatedCaptures) {
     }
     accepted++;
     for (size_t i = 0; i < count; i++)
-      ASSERT_EQ(get_bit(out.data(), i), capture[i].duration0 < 13) << "round " << round << " bit " << i;
+      ASSERT_EQ(get_bit(out.data(), i), capture[i].duration0 < 14) << "round " << round << " bit " << i;
   }
   // The fuzz must exercise both outcomes to mean anything
   EXPECT_GT(accepted, 1000);
@@ -549,7 +559,7 @@ TEST(RmtOneWireCodec, FuzzRandomGarbage) {
     ASSERT_EQ(decoded, capture_is_valid(capture, expected)) << "round " << round;
     if (decoded) {
       for (size_t i = 0; i < expected; i++)
-        ASSERT_EQ(get_bit(out.data(), i), capture[i].duration0 < 13) << "round " << round << " bit " << i;
+        ASSERT_EQ(get_bit(out.data(), i), capture[i].duration0 < 14) << "round " << round << " bit " << i;
     }
   }
 }
@@ -578,11 +588,11 @@ TEST(RmtOneWireCodec, DefaultsAreTheSpecValues) {
   const Timing timing;
   EXPECT_EQ(timing.write0_low_us, 90);
   EXPECT_EQ(timing.slot_us, 110);
-  EXPECT_EQ(timing.read_threshold_us, 13);
+  EXPECT_EQ(timing.read_threshold_us, 14);
 }
 
 TEST(RmtOneWireCodec, NoArgumentEncodesLikeTheSpecValues) {
-  const Timing spec_values{90, 110, 13};
+  const Timing spec_values{90, 110, 14};
   for (int value = 0; value < 256; value++) {
     const uint8_t byte = static_cast<uint8_t>(value);
     std::array<Symbol, 8> without{};
@@ -601,7 +611,7 @@ TEST(RmtOneWireCodec, NoArgumentEncodesLikeTheSpecValues) {
 }
 
 TEST(RmtOneWireCodec, NoArgumentDecodesLikeTheSpecValues) {
-  const Timing spec_values{90, 110, 13};
+  const Timing spec_values{90, 110, 14};
   for (uint16_t low = 1; low < 100; low++) {
     const Symbol capture{low, 0, 0, 1};
     uint8_t without = 0x55;
@@ -617,7 +627,7 @@ TEST(RmtOneWireCodec, NoArgumentDecodesLikeTheSpecValues) {
 
 TEST(RmtOneWireCodec, LongSlotChangesTheEncodedSymbols) {
   // Write 1 Low and Read Low stay fixed, the High times are the slot minus the Low time
-  const Timing timing{90, 120, 13};
+  const Timing timing{90, 120, 14};
   const uint8_t ones = 0xFF;
   const uint8_t zeros = 0x00;
   Symbol one{};
@@ -649,7 +659,7 @@ TEST(RmtOneWireCodec, ThresholdDecidesTheBit) {
 
 TEST(RmtOneWireCodec, SlotLimitsTheLowTime) {
   // Section 7 point 3 follows Timing::slot_us, at every position
-  const Timing timing{90, 120, 13};
+  const Timing timing{90, 120, 14};
   const std::vector<bool> bits{true, true, true, true};
   for (size_t position = 0; position < bits.size(); position++) {
     auto capture = capture_of(bits);

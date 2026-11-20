@@ -3,6 +3,7 @@
 #ifdef USE_ONE_WIRE_RMT
 
 #include <algorithm>
+#include <cstring>
 
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
@@ -123,6 +124,10 @@ void Engine::section_done_() {
                          this->timing_);
     }
   } else if (this->read_pos_ < read_end) {
+    // The decoder changes single bits of read_data, which may be uninitialized. All writes are encoded by now, so
+    // read_data may share its memory with write_data.
+    if (this->read_pos_ == 0)
+      std::memset(transaction->read_data, 0, transaction->read_len);
     this->step_ = Step::READ;
     count = encode_read_slots(std::min(max_rx_slots(this->mem_words_), read_end - this->read_pos_), this->tx_,
                               this->timing_);

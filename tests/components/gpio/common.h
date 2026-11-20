@@ -281,7 +281,7 @@ constexpr uint32_t DEVICE_SAMPLE_US = 15;
 class SimBus {
  public:
   std::deque<SimDevice> devices;
-  uint32_t rise_us{3};  ///< tRC: how long the pullup takes after the master released the line
+  uint32_t rise_us{3};  ///< tRC: how long the pullup takes after the master released the line, at most BUDGET_TRC_US
 
   /// Puts one master symbol on the wire. Appends the resulting line waveform.
   void drive(const Symbol &symbol, std::vector<Phase> *out) {
@@ -303,7 +303,8 @@ class SimBus {
     line_low = std::min(line_low, total);
     out->push_back({true, line_low});
     out->push_back({false, total - line_low});
-    const bool master_bit = low < DEVICE_SAMPLE_US;
+    // The device samples the line, which only reads High once the rise after the master's Low is done
+    const bool master_bit = low + this->rise_us <= DEVICE_SAMPLE_US;
     for (auto &device : this->devices)
       device.on_slot(master_bit);
     this->last_slot_read_ = !pulled;
