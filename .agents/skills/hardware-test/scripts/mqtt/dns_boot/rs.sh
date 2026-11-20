@@ -7,8 +7,8 @@ D=$(cd "$(dirname "$0")" && pwd); S=$(cd "$D/../.." && pwd); G=${1:?tag}; shift
 PY=${PY:?set PY}; MQ=${MOSQUITTO:-mosquitto}; DRV=$D/rs-$G-drv.txt; rm -f "$DRV"
 names=(); caps=()
 for b in "$@"; do
-  n=${b%%:*}; p=${b#*:}; names+=("$n"); rm -f "$D/$n-rs.txt"
-  "$PY" "$S/serial_capture.py" "$p" 250 "$D/$n-rs.txt" --reset --ms > /dev/null 2>&1 &
+  n=${b%%:*}; p=${b#*:}; names+=("$n"); rm -f "$D/$n-rs.txt" "$D/$n-rs.err"
+  "$PY" "$S/serial_capture.py" "$p" 250 "$D/$n-rs.txt" --reset --ms > /dev/null 2> "$D/$n-rs.err" &
   caps+=($!)
 done
 (
@@ -26,5 +26,7 @@ echo "$(date +%H:%M:%S).000 BROKER STOP" >> "$DRV"
 sleep 10; (exec "$MQ" -c "$D/mosq.conf" >> "$D/mosq.log" 2>&1 < /dev/null) &
 brk=$!; t=$(date +%H:%M:%S); sleep 1; kill -0 $brk 2> /dev/null || fail "broker did not start, see $D/mosq.log"
 echo "$t.000 BROKER START" >> "$DRV"
-sleep 209; kill $pub 2> /dev/null; wait "${caps[@]}"
+sleep 209; kill $pub 2> /dev/null; bad=""
+for k in "${!caps[@]}"; do wait "${caps[$k]}" || bad="$bad ${names[$k]}"; done
+[ -z "$bad" ] || { echo "rs.sh: capture failed for$bad, see NAME-rs.err" >&2; exit 1; }
 echo RSDONE
