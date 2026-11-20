@@ -185,6 +185,20 @@ def test_variant_read_before_the_platform_schema_is_rejected(
         lookup()
 
 
+@pytest.mark.parametrize(
+    "lookup", [zephyr_variant, zephyr_variant_family, zephyr_framework_type]
+)
+def test_variant_read_on_zephyr_without_zephyr_data_is_rejected(
+    lookup: Callable[[], str | None],
+) -> None:
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: PLATFORM_STM32,
+        KEY_TARGET_FRAMEWORK: "zephyr",
+    }
+    with pytest.raises(RuntimeError, match="without Zephyr data"):
+        lookup()
+
+
 @pytest.mark.parametrize("platform", ["stm32"])
 def test_variant_names_are_unique_and_listed_within_a_platform(platform: str) -> None:
     """VARIANT_MODULES is a dict, so a duplicate name would silently replace a variant."""
