@@ -71,36 +71,36 @@ def patch_file_downloader() -> None:
     def patched_init(self, *args: Any, **kwargs: Any) -> None:
         max_retries = 5
 
-        for attempt in range(max_retries):
+        for attempt in range(max_retries - 1):
             try:
                 original_init(self, *args, **kwargs)
                 return
             except (PackageException, OSError) as e:
-                if attempt < max_retries - 1:
-                    delay = 2 ** (attempt + 1)
-                    _LOGGER.warning(
-                        "Package download failed: %s. "
-                        "Retrying in %d seconds... (attempt %d/%d)",
-                        str(e),
-                        delay,
-                        attempt + 1,
-                        max_retries,
-                    )
-                    # pylint: disable=protected-access,broad-except
-                    try:
-                        if (
-                            hasattr(self, "_http_response")
-                            and self._http_response is not None
-                        ):
-                            self._http_response.close()
-                        if hasattr(self, "_http_session"):
-                            self._http_session.close()
-                    except Exception:  # noqa: BLE001
-                        pass
-                    # pylint: enable=protected-access,broad-except
-                    time.sleep(delay)
-                else:
-                    raise
+                delay = 2 ** (attempt + 1)
+                _LOGGER.warning(
+                    "Package download failed: %s. "
+                    "Retrying in %d seconds... (attempt %d/%d)",
+                    str(e),
+                    delay,
+                    attempt + 1,
+                    max_retries,
+                )
+                # pylint: disable=protected-access,broad-except
+                try:
+                    if (
+                        hasattr(self, "_http_response")
+                        and self._http_response is not None
+                    ):
+                        self._http_response.close()
+                    if hasattr(self, "_http_session"):
+                        self._http_session.close()
+                except Exception:  # noqa: BLE001
+                    pass
+                # pylint: enable=protected-access,broad-except
+                time.sleep(delay)
+
+        # Final attempt: let any failure propagate unchanged
+        original_init(self, *args, **kwargs)
 
     patched_init._esphome_patched = True  # type: ignore[attr-defined]  # pylint: disable=protected-access
     FileDownloader.__init__ = patched_init
