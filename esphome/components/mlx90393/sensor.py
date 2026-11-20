@@ -16,6 +16,7 @@ from esphome.const import (
     UNIT_CELSIUS,
     UNIT_MICROTESLA,
 )
+from esphome.core import CORE
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@functionpointer"]
@@ -148,3 +149,5 @@ async def to_code(config: ConfigType) -> None:
     await cg.add_pin(var.set_drdy_gpio, config.get(CONF_DRDY_PIN))
 
     cg.add_library("functionpointer/arduino-MLX90393", "1.0.2")
+    if CORE.using_arduino:
+        cg.add_library("Wire", None)
