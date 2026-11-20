@@ -96,6 +96,11 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
   to UART0 instead (see `recipes/light_sleep_gpio_wake.md`).
 - The Waveshare ESP32-P4-WIFI6 needs `engineering_sample: true`. Its Wi-Fi is an ESP32-C6 over SDIO through
   `esp32_hosted`; a test with no network logs over UART0 to the CH343 console.
+  Its C6 co-processor logs "major version mismatch" and an SDIO RX overflow under HTTPS on dev too; a boot without
+  TLS, the Wi-Fi join and the API work.
+- After an OTA, wait at least 80 s before a hard reset (`esptool chip_id` to wake a silent USB console, say): until
+  safe mode marks the new image valid, the bootloader rolls back to the previous one. Log the image name from an
+  `interval:` to be sure which build runs.
 - ESP32-S3: GPIO43/44 cannot be used to cross-wire two UARTs: the UART0 IOMUX TX is lost when another UART takes the
   pad as RX. TX17/RX16 and TX16/RX17 work. A task woken by `vTaskDelay` runs about 0.5 ms after the tick, on dev too.
 
@@ -550,3 +555,5 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
   build the same target" (the /tmp to /private/tmp alias); put the yaml, build and PLATFORMIO_CORE_DIR elsewhere. Its
   IDF penv under Python 3.14 lacks the tools: install `-r packages/framework-espidf/tools/requirements/requirements.core.txt`,
   then pin `idf-component-manager~=2.1.0 esp-idf-kconfig~=2.5.0` (newer ones reject interface_version 3).
+- pioarduino 61.x (ESP-IDF 6.1, Arduino 4.0) needs PlatformIO 6.2.0; with an older PlatformIO in the shared venv,
+  install 6.2.0 with `pip install --target <dir>` and put that directory on PYTHONPATH for the build.
