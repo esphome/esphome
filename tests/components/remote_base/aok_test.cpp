@@ -114,6 +114,23 @@ TEST(AOKProtocolTest, UsesRepeatWhenFirstFrameIsCutShort) {
   EXPECT_TRUE(decode(timings).has_value());
 }
 
+TEST(AOKProtocolTest, AcceptsALongerStartGap) {
+  RawTimings timings = frame_timings(FRAME);
+  timings[1] = -2000;
+  EXPECT_TRUE(decode(timings).has_value());
+}
+
+TEST(AOKProtocolTest, RejectsAShortStartGap) {
+  RawTimings timings = frame_timings(FRAME);
+  timings[1] = -300;
+  EXPECT_FALSE(decode(timings).has_value());
+}
+
+TEST(AOKProtocolTest, RejectsAStartMarkAsTheLastTiming) {
+  const RawTimings timings{300, -1200, 5000};
+  EXPECT_FALSE(decode(timings).has_value());
+}
+
 TEST(AOKProtocolTest, RejectsBadStart) {
   RawTimings timings = frame_timings(FRAME);
   timings[0] = 2000;

@@ -27,6 +27,7 @@ class SCD4XComponent final : public PollingComponent, public sensirion_common::S
   void update() override;
 
   void set_automatic_self_calibration(bool asc) { enable_asc_ = asc; }
+  void set_automatic_self_calibration_target(uint16_t target) { this->asc_target_ = target; }
   void set_altitude_compensation(uint16_t altitude) { altitude_compensation_ = altitude; }
   void set_ambient_pressure_compensation(float pressure_in_hpa);
   void set_temperature_offset(float offset) { temperature_offset_ = offset; };
@@ -44,6 +45,7 @@ class SCD4XComponent final : public PollingComponent, public sensirion_common::S
   uint16_t ambient_pressure_{0};  // Per datasheet, valid values are 700 to 1200 hPa; 0 is a valid sentinel value
   bool initialized_{false};
   bool enable_asc_{false};
+  uint16_t asc_target_{0};  // 0: keep the sensor's own target (400 ppm by default)
   MeasurementMode measurement_mode_{PERIODIC};
 };
 

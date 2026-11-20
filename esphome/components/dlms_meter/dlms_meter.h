@@ -23,15 +23,31 @@
 
 #include <dlms_parser/dlms_parser.h>
 
-#if __has_include(<psa/crypto.h>)
+#if defined(USE_HOST) && __has_include(<mbedtls/gcm.h>)
+#include <dlms_parser/decryption/aes_128_gcm_decryptor_mbedtls.h>
+namespace esphome::dlms_meter {
+using Aes128GcmDecryptorImpl = dlms_parser::Aes128GcmDecryptorMbedTls;
+}  // namespace esphome::dlms_meter
+#elif __has_include(<psa/crypto.h>)
 #include <dlms_parser/decryption/aes_128_gcm_decryptor_tfpsa.h>
+namespace esphome::dlms_meter {
+using Aes128GcmDecryptorImpl = dlms_parser::Aes128GcmDecryptorTfPsa;
+}  // namespace esphome::dlms_meter
+#elif defined(USE_HOST)
+#error "dlms_meter on the host needs the Mbed TLS development files: apt install libmbedtls-dev or brew install mbedtls"
 #elif !defined(USE_ESP8266) && __has_include(<mbedtls/gcm.h>)
 #if __has_include(<mbedtls/esp_config.h>)
 #include <mbedtls/esp_config.h>
 #endif
 #include <dlms_parser/decryption/aes_128_gcm_decryptor_mbedtls.h>
+namespace esphome::dlms_meter {
+using Aes128GcmDecryptorImpl = dlms_parser::Aes128GcmDecryptorMbedTls;
+}  // namespace esphome::dlms_meter
 #elif __has_include(<bearssl/bearssl.h>)
 #include <dlms_parser/decryption/aes_128_gcm_decryptor_bearssl.h>
+namespace esphome::dlms_meter {
+using Aes128GcmDecryptorImpl = dlms_parser::Aes128GcmDecryptorBearSsl;
+}  // namespace esphome::dlms_meter
 #else
 #error "The platform doesn't provide a compatible encryption library for dlms_parser"
 #endif
@@ -74,14 +90,6 @@ struct CustomPattern {
   int priority;
   dlms_parser::ObisId default_obis;
 };
-
-#if __has_include(<psa/crypto.h>)
-using Aes128GcmDecryptorImpl = dlms_parser::Aes128GcmDecryptorTfPsa;
-#elif !defined(USE_ESP8266) && __has_include(<mbedtls/gcm.h>)
-using Aes128GcmDecryptorImpl = dlms_parser::Aes128GcmDecryptorMbedTls;
-#else
-using Aes128GcmDecryptorImpl = dlms_parser::Aes128GcmDecryptorBearSsl;
-#endif
 
 class DlmsMeterComponent final : public Component, public uart::UARTDevice {
  public:

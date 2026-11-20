@@ -4,6 +4,7 @@
 #include "esphome/components/unicode/unicode.h"
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
 #ifdef USE_VNC_AUTH
@@ -72,16 +73,6 @@ static constexpr uint32_t KEYSYM_UNICODE = 0x01000000;
 
 static inline uint16_t read_be16(const uint8_t *p) { return encode_uint16(p[0], p[1]); }
 static inline uint32_t read_be32(const uint8_t *p) { return encode_uint32(p[0], p[1], p[2], p[3]); }
-static inline void write_be16(uint8_t *p, uint16_t v) {
-  p[0] = v >> 8;
-  p[1] = v;
-}
-static inline void write_be32(uint8_t *p, uint32_t v) {
-  p[0] = v >> 24;
-  p[1] = v >> 16;
-  p[2] = v >> 8;
-  p[3] = v;
-}
 
 static int parse_three_digits(const uint8_t *p) {
   int value = 0;
@@ -1141,9 +1132,9 @@ bool VncClient::start_session_(uint32_t now) {
   pixel_format[5] = rgb565 ? 16 : 8;
   pixel_format[6] = this->big_endian_;
   pixel_format[7] = 1;
-  write_be16(pixel_format + 8, rgb565 ? 31 : 7);
-  write_be16(pixel_format + 10, rgb565 ? 63 : 7);
-  write_be16(pixel_format + 12, rgb565 ? 31 : 3);
+  put_be16(pixel_format + 8, rgb565 ? 31 : 7);
+  put_be16(pixel_format + 10, rgb565 ? 63 : 7);
+  put_be16(pixel_format + 12, rgb565 ? 31 : 3);
   pixel_format[14] = rgb565 ? 11 : 5;
   pixel_format[15] = rgb565 ? 5 : 2;
   if (!this->send_(pixel_format, sizeof(pixel_format))) {
@@ -1152,9 +1143,9 @@ bool VncClient::start_session_(uint32_t now) {
 
   // SetEncodings
   uint8_t encodings[4 + 4 * std::size(ENCODINGS)] = {2};
-  write_be16(encodings + 2, std::size(ENCODINGS));
-  for (size_t i = 0; i < std::size(ENCODINGS); i++) {
-    write_be32(encodings + 4 + 4 * i, static_cast<uint32_t>(ENCODINGS[i]));
+  uint8_t *p = put_be16(encodings + 2, std::size(ENCODINGS));
+  for (auto encoding : ENCODINGS) {
+    p = put_be32(p, static_cast<uint32_t>(encoding));
   }
   if (!this->send_(encodings, sizeof(encodings)) || !this->send_update_request_(false, now)) {
     return false;
@@ -1200,8 +1191,8 @@ bool VncClient::send_(const uint8_t *data, size_t len) {
 
 bool VncClient::send_update_request_(bool incremental, uint32_t now) {
   uint8_t msg[10] = {3, static_cast<uint8_t>(incremental ? 1 : 0)};
-  write_be16(msg + 6, this->vis_w_);
-  write_be16(msg + 8, this->vis_h_);
+  put_be16(msg + 6, this->vis_w_);
+  put_be16(msg + 8, this->vis_h_);
   if (!this->send_(msg, sizeof(msg))) {
     return false;
   }
@@ -1215,8 +1206,8 @@ bool VncClient::send_key_event_(uint32_t keysym, VncKeyAction action) {
   // A press is the down and the up event, sent whole or not at all.
   uint8_t msg[2 * KEY_EVENT_SIZE] = {MSG_KEY_EVENT, static_cast<uint8_t>(action != VncKeyAction::VNC_KEY_ACTION_UP)};
   msg[KEY_EVENT_SIZE] = MSG_KEY_EVENT;
-  write_be32(msg + 4, keysym);
-  write_be32(msg + KEY_EVENT_SIZE + 4, keysym);
+  put_be32(msg + 4, keysym);
+  put_be32(msg + KEY_EVENT_SIZE + 4, keysym);
   return this->send_input_(msg, action == VncKeyAction::VNC_KEY_ACTION_PRESS ? sizeof(msg) : KEY_EVENT_SIZE,
                            action == VncKeyAction::VNC_KEY_ACTION_UP);
 }
@@ -1261,8 +1252,8 @@ bool VncClient::send_pointer(uint16_t x, uint16_t y, uint8_t buttons) {
   x = std::min<uint16_t>(x, this->fb_w_ - 1);
   y = std::min<uint16_t>(y, this->fb_h_ - 1);
   uint8_t msg[POINTER_EVENT_SIZE] = {MSG_POINTER_EVENT, buttons};
-  write_be16(msg + 2, x);
-  write_be16(msg + 4, y);
+  put_be16(msg + 2, x);
+  put_be16(msg + 4, y);
   const bool release = buttons != this->ptr_buttons_ && (buttons & ~this->ptr_buttons_) == 0;
   if (!this->send_input_(msg, sizeof(msg), release)) {
     ESP_LOGW(TAG, "Send buffer full, pointer event dropped");

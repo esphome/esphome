@@ -86,32 +86,12 @@ _LOGGER = logging.getLogger(__name__)
 AUTO_LOAD = ["network"]
 DOMAIN = "wifi"
 
-NO_WIFI_VARIANTS = [
-    const.VARIANT_ESP32H2,
-    const.VARIANT_ESP32H4,
-    const.VARIANT_ESP32H21,
-    const.VARIANT_ESP32P4,
-]
+NO_WIFI_VARIANTS = const.NO_WIFI_VARIANTS
 
 
-def variant_has_wifi(variant: str) -> bool:
-    """Return True if *variant* has a native WiFi PHY.
-
-    Variants without a native PHY (see ``NO_WIFI_VARIANTS`` — currently
-    ESP32-H2, ESP32-H4, ESP32-H21, ESP32-P4) need the ``esp32_hosted``
-    co-processor to use ``wifi:``.
-
-    Case-insensitive on *variant* so external callers can pass either
-    the upstream uppercase form (e.g. ``"ESP32H2"`` from
-    ``const.VARIANT_ESP32H2``) or a lowercase form their own enum
-    surfaces (e.g. ``"esp32h2"`` from device-builder's
-    ``Esp32Variant``). Both classify identically.
-
-    Used by device-builder (esphome/device-builder) to decide whether
-    its basic-setup wizard emits a ``wifi:`` block — please keep the
-    signature stable.
-    """
-    return variant.upper() not in NO_WIFI_VARIANTS
+# Defined in esp32.const so esp32 can use it without importing wifi; kept here
+# for device-builder, which imports it from wifi.
+variant_has_wifi = const.variant_has_wifi
 
 
 _WIFI_FIRST_PLATFORMS: frozenset[str] = frozenset(
@@ -163,6 +143,8 @@ CONF_BAND_MODE = "band_mode"
 CONF_DEVICE_INFO = "device_info"
 CONF_DPP = "dpp"
 CONF_MIN_AUTH_MODE = "min_auth_mode"
+CONF_ON_AP_START = "on_ap_start"
+CONF_ON_AP_STOP = "on_ap_stop"
 CONF_ON_DPP_URI = "on_dpp_uri"
 CONF_PHY_MODE = "phy_mode"
 CONF_POST_CONNECT_ROAMING = "post_connect_roaming"
@@ -296,11 +278,14 @@ AP_MANUAL_IP_SCHEMA = cv.Schema(
     }
 )
 
-STA_MANUAL_IP_SCHEMA = AP_MANUAL_IP_SCHEMA.extend(
-    {
-        cv.Optional(CONF_DNS1, default="0.0.0.0"): cv.ipv4address,
-        cv.Optional(CONF_DNS2, default="0.0.0.0"): cv.ipv4address,
-    }
+STA_MANUAL_IP_SCHEMA = cv.All(
+    AP_MANUAL_IP_SCHEMA.extend(
+        {
+            cv.Optional(CONF_DNS1, default="0.0.0.0"): cv.ipv4address,
+            cv.Optional(CONF_DNS2, default="0.0.0.0"): cv.ipv4address,
+        }
+    ),
+    require_ipv4(DOMAIN, CONF_MANUAL_IP),
 )
 
 TTLS_PHASE_2 = {
@@ -386,6 +371,7 @@ def wifi_network_ap(value):
     if value is None:
         value = {}
     config = WIFI_NETWORK_AP(value)
+    require_ipv4(DOMAIN, CONF_AP)(config)
     ap_mode = config[CONF_AP_MODE]
     if ap_mode == WIFI_AP_MODE_WISP and not config.get(CONF_PASSWORD):
         raise cv.Invalid(
@@ -686,6 +672,7 @@ def _lease_cache_schema(value: Any) -> ConfigType:
     value = LEASE_CACHE_SCHEMA(value)
     if value[CONF_ENABLED]:
         cv.only_on_esp32(value)
+        require_ipv4(DOMAIN, CONF_LEASE_CACHE)(value)
         if CONF_STORAGE not in value:
             if not preferences.rtc_supported():
                 raise cv.Invalid(
@@ -755,6 +742,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_PASSIVE_SCAN, default=False): cv.boolean,
             cv.Optional(CONF_ENABLE_ON_BOOT, default=True): cv.boolean,
             cv.Optional(CONF_POST_CONNECT_ROAMING, default=True): cv.boolean,
+            cv.Optional(CONF_ON_AP_START): automation.validate_automation(single=True),
+            cv.Optional(CONF_ON_AP_STOP): automation.validate_automation(single=True),
             cv.Optional(CONF_ON_CONNECT): automation.validate_automation(single=True),
             cv.Optional(CONF_ON_DISCONNECT): automation.validate_automation(
                 single=True
@@ -765,6 +754,7 @@ CONFIG_SCHEMA = cv.All(
             ),
         }
     ),
+    cv.key_requires((CONF_ON_AP_START, CONF_ON_AP_STOP), CONF_AP),
     cv.key_requires(CONF_ON_DPP_URI, CONF_DPP),
     cv.key_requires(CONF_PASSWORD, CONF_SSID),
     cv.key_requires(
@@ -775,8 +765,12 @@ CONFIG_SCHEMA = cv.All(
     _apply_min_auth_mode_default,
     _validate,
     _report_provisioning_credentials,
-    require_ipv4(DOMAIN),
 )
+
+
+def _eap_string(value: str | None) -> cg.Expression | str:
+    """A std::string field whose literal stays in flash on ESP8266."""
+    return cg.progmem_string(value) if value else ""
 
 
 def eap_auth(config):
@@ -793,9 +787,9 @@ def eap_auth(config):
         key = wpa2_eap.read_relative_config_path(config[CONF_KEY])
     return cg.StructInitializer(
         EAPAuth,
-        ("identity", config.get(CONF_IDENTITY, "")),
-        ("username", config.get(CONF_USERNAME, "")),
-        ("password", config.get(CONF_PASSWORD, "")),
+        ("identity", _eap_string(config.get(CONF_IDENTITY))),
+        ("username", _eap_string(config.get(CONF_USERNAME))),
+        ("password", _eap_string(config.get(CONF_PASSWORD))),
         ("ca_cert", ca_cert),
         ("client_cert", client_cert),
         ("client_key", key),
@@ -817,8 +811,11 @@ def manual_ip_entry(config: ConfigType) -> bytes:
 
 
 def wifi_network(config, ap, manual_ip_index: int | None):
-    cg.add_optional(ap.set_ssid, config.get(CONF_SSID))
-    cg.add_optional(ap.set_password, config.get(CONF_PASSWORD))
+    # The setters copy the text, so the literal can stay in flash on ESP8266.
+    if (ssid := config.get(CONF_SSID)) is not None:
+        cg.add(ap.set_ssid(cg.FlashStringLiteral(ssid)))
+    if (password := config.get(CONF_PASSWORD)) is not None:
+        cg.add(ap.set_password(cg.FlashStringLiteral(password)))
     if CONF_EAP in config:
         cg.add(ap.set_eap(eap_auth(config[CONF_EAP])))
         cg.add_define("USE_WIFI_WPA2_EAP")
@@ -857,10 +854,10 @@ async def to_code(config):
             manual_ip_entries.append(entry)
         return manual_ip_entries.index(entry)
 
-    # Initialize FixedVector with the count of networks
     networks = config.get(CONF_NETWORKS, [])
+    # set_sta() stores one network at run time even when none is configured
+    cg.add_define("WIFI_NETWORK_COUNT", max(1, len(networks)))
     if networks:
-        cg.add(var.init_sta(len(networks)))
         if len(networks) > 1:
             # The ESP32 scan can filter one SSID in the driver; with several the whole list is kept
             cg.add_define("USE_WIFI_MULTI_SSID")
@@ -1088,6 +1085,14 @@ async def to_code(config):
     await cg.register_component(var, config)
 
     await cg.past_safe_mode()
+
+    for conf_key, define, setter in (
+        (CONF_ON_AP_START, "USE_WIFI_AP_START_TRIGGER", var.set_on_ap_start),
+        (CONF_ON_AP_STOP, "USE_WIFI_AP_STOP_TRIGGER", var.set_on_ap_stop),
+    ):
+        if (conf := config.get(conf_key)) is not None:
+            cg.add_define(define)
+            cg.add(setter(await automation.build_trigger_callback([], conf, params=[])))
 
     if on_connect_config := config.get(CONF_ON_CONNECT):
         cg.add_define("USE_WIFI_CONNECT_TRIGGER")

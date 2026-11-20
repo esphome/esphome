@@ -7,6 +7,8 @@
 #include "esphome/core/automation.h"
 #include "esphome/components/network/ip_address.h"
 
+#include <atomic>
+
 #ifdef USE_ETHERNET
 
 #ifdef USE_ESP32
@@ -71,6 +73,12 @@ class EthernetIPStateListener {
                            const network::IPAddress &dns2) = 0;
 };
 #endif  // USE_ETHERNET_IP_STATE_LISTENERS
+
+/// Called on the main loop with the on_connect and on_disconnect triggers.
+class EthernetConnectStateListener {
+ public:
+  virtual void on_ethernet_connect_state(bool connected) = 0;
+};
 
 enum EthernetType : uint8_t {
   ETHERNET_TYPE_UNKNOWN = 0,
@@ -216,6 +224,8 @@ class EthernetComponent final : public Component {
 #ifdef USE_ETHERNET_IP_STATE_LISTENERS
   void add_ip_state_listener(EthernetIPStateListener *listener) { this->ip_state_listeners_.push_back(listener); }
 #endif
+  SLOT_LIST(EthernetConnectStateListener, connect_state_listeners_, add_connect_state_listener,
+            ESPHOME_ETHERNET_CONNECT_STATE_LISTENERS)
 
 #ifdef USE_ETHERNET_CONNECT_TRIGGER
   Trigger<> *get_connect_trigger() { return &this->connect_trigger_; }
@@ -245,6 +255,11 @@ class EthernetComponent final : public Component {
 #ifdef USE_ETHERNET_IP_STATE_LISTENERS
   void notify_ip_state_listeners_();
 #endif
+  void notify_connect_state_listeners_(bool connected) {
+    for (auto *listener : this->connect_state_listeners_) {
+      listener->on_ethernet_connect_state(connected);
+    }
+  }
 
 #ifdef USE_ESP32
   static void eth_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
@@ -263,7 +278,7 @@ class EthernetComponent final : public Component {
   void yt8531_phy_init_();
 #endif
 #ifdef ESPHOME_ETHERNET_PHY_REGISTER_COUNT
-  /// @brief Set arbitratry PHY registers from config.
+  /// @brief Set arbitrary PHY registers from config.
   void write_phy_register_(esp_eth_mac_t *mac, PHYRegister register_data);
 #endif
 
@@ -366,6 +381,9 @@ class EthernetComponent final : public Component {
 
 #ifdef USE_ETHERNET_IP_STATE_LISTENERS
   StaticVector<EthernetIPStateListener *, ESPHOME_ETHERNET_IP_STATE_LISTENERS> ip_state_listeners_;
+#ifdef USE_ESP32
+  std::atomic<uint8_t> ip_state_pending_{0};
+#endif
 #endif
 
 #ifdef USE_ETHERNET_CONNECT_TRIGGER

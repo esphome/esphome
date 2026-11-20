@@ -11,6 +11,7 @@ Usage: python flash_rtl87xx_kit.py flash write -d <port> firmware.uf2
 import sys
 import time
 
+from lt_platform import with_platform
 import serial
 
 _first = [True]
@@ -61,7 +62,9 @@ def boot_app(port: str) -> None:
 def main() -> int:
     rc = 1
     try:
-        result = cli_entrypoint.main(args=sys.argv[1:], standalone_mode=False)
+        result = cli_entrypoint.main(
+            args=with_platform(sys.argv[1:]), standalone_mode=False
+        )
         rc = int(result) if isinstance(result, int) else 0
     finally:
         port = port_argument(sys.argv)

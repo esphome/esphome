@@ -10,7 +10,7 @@ namespace esphome::es8156 {
  */
 static const uint8_t ES8156_REG00_RESET = 0x00;
 /*
- * Clock Managerment
+ * Clock Management
  */
 static const uint8_t ES8156_REG01_MAINCLOCK_CTL = 0x01;
 static const uint8_t ES8156_REG02_SCLK_MODE = 0x02;

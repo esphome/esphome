@@ -115,9 +115,9 @@ bool AS7341Component::read_channels(uint16_t *data) {
   this->set_smux_low_channels(false);
   this->enable_spectral_measurement(true);
   this->wait_for_data();
-  bool high_sucess = this->read_bytes_16_le(AS7341_CH0_DATA_L, &data[6], 6);
+  bool high_success = this->read_bytes_16_le(AS7341_CH0_DATA_L, &data[6], 6);
 
-  return low_success && high_sucess;
+  return low_success && high_success;
 }
 
 void AS7341Component::set_smux_low_channels(bool enable) {
@@ -146,8 +146,8 @@ void AS7341Component::configure_smux_low_channels() {
   this->write_byte(0x03, 0x00);  // F8 left disabled
   this->write_byte(0x04, 0x00);  // F6 left disabled
   this->write_byte(0x05, 0x42);  // F4 left connected to ADC3/f2 left connected to ADC1
-  this->write_byte(0x06, 0x00);  // F5 left disbled
-  this->write_byte(0x07, 0x00);  // F7 left disbled
+  this->write_byte(0x06, 0x00);  // F5 left disabled
+  this->write_byte(0x07, 0x00);  // F7 left disabled
   this->write_byte(0x08, 0x50);  // CLEAR connected to ADC4
   this->write_byte(0x09, 0x00);  // F5 right disabled
   this->write_byte(0x0A, 0x00);  // F7 right disabled

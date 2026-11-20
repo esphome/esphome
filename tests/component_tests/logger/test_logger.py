@@ -6,7 +6,12 @@ import re
 
 import pytest
 
-from esphome.components.logger import validate_task_log_buffer_alignment
+from esphome.components.logger import (
+    CONFIG_SCHEMA,
+    FINAL_VALIDATE_SCHEMA,
+    _validate_libretiny_uart_pins,
+    validate_task_log_buffer_alignment,
+)
 from esphome.config_validation import Invalid
 from esphome.const import PlatformFramework
 from esphome.core import CORE
@@ -161,3 +166,183 @@ def test_log_v2_only_on_native_toolchain(
     assert ("USE_ESP32_LOG_V2" in {d.name for d in CORE.defines}) is log_v2
     sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
     assert ("CONFIG_LOG_VERSION_2" in sdkconfig) is log_v2
+
+
+@pytest.mark.parametrize(
+    ("config", "expected"),
+    [
+        pytest.param("test_logger_rp2_usb_cdc.yaml", {"USB_CDC"}, id="rp2_usb_cdc"),
+        pytest.param("test_logger_rp2_uart0.yaml", set(), id="rp2_uart0"),
+        pytest.param("test_logger_esp32_usb_cdc.yaml", {"USB_CDC"}, id="esp32_usb_cdc"),
+        pytest.param(
+            "test_logger_esp32_usb_serial_jtag.yaml",
+            {"USB_SERIAL_JTAG"},
+            id="esp32_usb_serial_jtag",
+        ),
+        pytest.param("test_logger_nrf52_usb_cdc.yaml", {"USB_CDC"}, id="nrf52_usb_cdc"),
+        # Zephyr polls the USB port only when it logs there
+        pytest.param(
+            "test_logger_nrf52_usb_cdc_no_serial.yaml", set(), id="nrf52_no_serial"
+        ),
+    ],
+)
+def test_uart_selection_defines(
+    generate_main: Callable[[str | Path], str],
+    config: str,
+    expected: set[str],
+) -> None:
+    """USB ports get a selection define, which gates their port code and crash replay."""
+    generate_main(f"tests/component_tests/logger/{config}")
+
+    prefix = "USE_LOGGER_UART_SELECTION_"
+    assert {
+        d.name.removeprefix(prefix) for d in CORE.defines if d.name.startswith(prefix)
+    } == expected
+
+
+def test_log_listener_slots_count_every_listener(
+    generate_main: Callable[[str | Path], str],
+) -> None:
+    """Two on_message triggers and the API each take a slot."""
+    generate_main("tests/component_tests/logger/test_logger_listeners.yaml")
+
+    assert (
+        str({d.name: d.value for d in CORE.defines}["ESPHOME_LOG_MAX_LISTENERS"]) == "3"
+    )
+
+
+@pytest.mark.parametrize(
+    ("board", "hardware_uart", "valid"),
+    [
+        pytest.param("bw15", "UART1", False, id="bw15_uart1_two_pin_choices"),
+        pytest.param("bw15", "UART0", True, id="bw15_uart0"),
+        pytest.param("bw15", "UART2", True, id="bw15_uart2"),
+        pytest.param("bw15", "DEFAULT", True, id="bw15_default"),
+        pytest.param("not-a-board", "UART1", True, id="unknown_board"),
+        # bw12 has no UART1, which falls back to the default port
+        pytest.param("bw12", "UART1", True, id="bw12_missing_port"),
+    ],
+)
+def test_libretiny_uart_needs_default_pins(
+    set_core_config: SetCoreConfigCallable,
+    board: str,
+    hardware_uart: str,
+    valid: bool,
+) -> None:
+    """Opening a LibreTiny port with no default pins hangs at boot, so it is rejected."""
+    from esphome.components import rtl87xx
+    from esphome.components.libretiny.const import (
+        KEY_BOARD,
+        KEY_COMPONENT_DATA,
+        KEY_LIBRETINY,
+    )
+
+    set_core_config(PlatformFramework.RTL87XX_ARDUINO)
+    CORE.data[KEY_LIBRETINY] = {
+        KEY_COMPONENT_DATA: rtl87xx.COMPONENT_DATA,
+        KEY_BOARD: board,
+    }
+    if valid:
+        _validate_libretiny_uart_pins(hardware_uart)
+    else:
+        with pytest.raises(Invalid, match="no default pins for UART1"):
+            _validate_libretiny_uart_pins(hardware_uart)
+
+
+@pytest.mark.parametrize(
+    ("platform", "baud_rate", "valid"),
+    [
+        pytest.param(PlatformFramework.RTL87XX_ARDUINO, 115200, False, id="serial"),
+        pytest.param(PlatformFramework.RTL87XX_ARDUINO, 0, True, id="no_serial"),
+        pytest.param(
+            PlatformFramework.ESP8266_ARDUINO, 115200, True, id="not_libretiny"
+        ),
+    ],
+)
+def test_final_validate_checks_libretiny_uart_pins(
+    set_core_config: SetCoreConfigCallable,
+    platform: PlatformFramework,
+    baud_rate: int,
+    valid: bool,
+) -> None:
+    """The pin check runs from final validation, only when serial logging is on."""
+    from esphome.components import rtl87xx
+    from esphome.components.libretiny.const import (
+        KEY_BOARD,
+        KEY_COMPONENT_DATA,
+        KEY_LIBRETINY,
+    )
+    from esphome.const import CONF_BAUD_RATE, CONF_HARDWARE_UART
+
+    set_core_config(platform)
+    CORE.data[KEY_LIBRETINY] = {
+        KEY_COMPONENT_DATA: rtl87xx.COMPONENT_DATA,
+        KEY_BOARD: "bw15",
+    }
+    config = {CONF_BAUD_RATE: baud_rate, CONF_HARDWARE_UART: "UART1"}
+    if valid:
+        FINAL_VALIDATE_SCHEMA(config)
+    else:
+        with pytest.raises(Invalid, match="no default pins for UART1"):
+            FINAL_VALIDATE_SCHEMA(config)
+
+
+@pytest.mark.parametrize(
+    ("buffer_size", "level", "expected"),
+    [
+        (0, "NONE", "NONE"),
+        (512, "ERROR", "ERROR"),
+        (512, "WARN", "WARN"),
+        (0, "INFO", "WARN"),
+    ],
+)
+def test_implicit_boot_log_level_respects_global_level(
+    set_core_config: SetCoreConfigCallable,
+    buffer_size: int,
+    level: str,
+    expected: str,
+) -> None:
+    """The full schema supplies a usable default even when logging is disabled."""
+    set_core_config(PlatformFramework.ESP8266_ARDUINO)
+    config = CONFIG_SCHEMA({"level": level, "boot_log_buffer_size": buffer_size})
+    assert config["boot_log_level"] == expected
+
+
+@pytest.mark.parametrize(
+    ("buffer_size", "level", "boot_level", "valid"),
+    [
+        (0, "NONE", "NONE", True),
+        (512, "DEBUG", "INFO", True),
+        (0, "ERROR", "WARN", False),
+        (512, "WARN", "INFO", False),
+    ],
+)
+def test_explicit_boot_log_level_is_preserved_or_rejected(
+    set_core_config: SetCoreConfigCallable,
+    buffer_size: int,
+    level: str,
+    boot_level: str,
+    valid: bool,
+) -> None:
+    """An explicit level must still fit within the compiled global level."""
+    set_core_config(PlatformFramework.ESP8266_ARDUINO)
+    config = {
+        "level": level,
+        "boot_log_level": boot_level,
+        "boot_log_buffer_size": buffer_size,
+    }
+    if valid:
+        assert CONFIG_SCHEMA(config)["boot_log_level"] == boot_level
+    else:
+        with pytest.raises(Invalid, match="boot log level"):
+            CONFIG_SCHEMA(config)
+
+
+def test_default_global_and_boot_log_levels(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """Omitting both options retains DEBUG logging and WARN boot capture."""
+    set_core_config(PlatformFramework.ESP8266_ARDUINO)
+    config = CONFIG_SCHEMA({})
+    assert config["level"] == "DEBUG"
+    assert config["boot_log_level"] == "WARN"
