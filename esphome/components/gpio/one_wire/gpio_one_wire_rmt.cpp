@@ -117,12 +117,13 @@ void GPIORMTOneWireBus::release_(bool rx_enabled, bool tx_enabled) {
 void GPIORMTOneWireBus::dump_config() {
   ESP_LOGCONFIG(TAG, "GPIO 1-wire bus (RMT):");
   LOG_PIN("  Pin: ", this->pin_);
-  ESP_LOGCONFIG(TAG, "  Timing: write 0 low %u us, slot %u us, read threshold %u us", this->timing_.write0_low_us,
-                this->timing_.slot_us, this->timing_.read_threshold_us);
+  ESP_LOGCONFIG(TAG,
+                "  Timing: write 0 low %u us, slot %u us, read threshold %u us\n"
+                "  Parasite power: not supported, the bus never drives a strong pullup",
+                this->timing_.write0_low_us, this->timing_.slot_us, this->timing_.read_threshold_us);
   if (this->timing_.read_threshold_us > 15) {
     ESP_LOGW(TAG, "  Read threshold above 15 us: a DS18B20 only keeps a 0 valid for that long");
   }
-  ESP_LOGCONFIG(TAG, "  Parasite power: not supported, the bus never drives a strong pullup");
   this->dump_devices_(TAG);
 }
 
