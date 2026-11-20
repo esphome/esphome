@@ -551,6 +551,11 @@ async def to_code(config: ConfigType) -> None:
     variant = get_nrf52_variant()
     cg.add_define("ESPHOME_VARIANT", variant)
     cg.add_build_flag(f"-DUSE_NRF52_VARIANT_{variant}")
+
+    # strftime() and mktime() reload TZ, and the C library's TZ parser links the scanf engine.
+    # ESPHome never sets TZ, so the reload is skipped. See tzset_stubs.cpp.
+    cg.add_build_flag("-Wl,--wrap=_tzset_unlocked")
+
     if variant in VARIANTS_NRF54L:
         # The entropy driver runs on the CRACEN crypto unit, which needs Nordic's PSA crypto
         include_west_project("mbedtls")
