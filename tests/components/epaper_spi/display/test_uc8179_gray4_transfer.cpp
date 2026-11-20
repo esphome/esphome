@@ -10,7 +10,11 @@ namespace esphome::epaper_spi::testing {
 
 class TestableUC8179Gray4 : public EPaperUC8179Gray4 {
  public:
-  TestableUC8179Gray4(uint16_t width, uint16_t height) : EPaperUC8179Gray4("test", width, height, nullptr, 0) {}
+  /// With the driver's own waveforms unless told otherwise; the default is the panel's.
+  TestableUC8179Gray4(uint16_t width, uint16_t height, bool driver_waveforms = true)
+      : EPaperUC8179Gray4("test", width, height, nullptr, 0) {
+    this->set_driver_waveforms(driver_waveforms);
+  }
 
   void install(spi::SPIDelegate *delegate) {
     this->delegate_ = delegate;
@@ -168,6 +172,34 @@ TEST(EPaperUC8179Gray4, ResumesAfterYielding) {
   EXPECT_EQ(std::count(bus.commands.begin(), bus.commands.end(), DTM1), 1);
   EXPECT_EQ(std::count(bus.commands.begin(), bus.commands.end(), DTM2), 1);
   EXPECT_EQ(std::count(bus.commands.begin(), bus.commands.end(), LUT_VCOM), 1);
+}
+
+/// By default the panel's own waveforms are used, selected by a forced temperature, and the
+/// planes are those Waveshare's EPD_7in5_V2 example sends. Its codes are 11 white, 10 the lighter
+/// grey, 01 the darker and 00 black (its Python driver maps brightness 0xC0 to 10 and 0x80 to 01),
+/// and it sends each code's high bit in DTM2 and low bit in DTM1, both inverted. This has not been
+/// run on a panel which holds the waveforms.
+TEST(EPaperUC8179Gray4, UsesThePanelsOwnWaveformsByDefault) {
+  TestableUC8179Gray4 display(8, 1, false);
+  RecordingDelegate bus(&display.dc);
+  display.install(&bus);
+
+  draw_row(display, 0, {0, 1, 2, 3, 0, 1, 2, 3});
+  display.run_push();
+
+  //         levels  0 1 2 3 0 1 2 3
+  // high bit        0 0 1 1 0 0 1 1 = 0x33, inverted 0xCC
+  // low  bit        0 1 0 1 0 1 0 1 = 0x55, inverted 0xAA
+  EXPECT_EQ(bus.data[DTM2], (Bytes{0xCC}));
+  EXPECT_EQ(bus.data[DTM1], (Bytes{0xAA}));
+  EXPECT_EQ(bus.data[0xE0], (Bytes{0x02})) << "temperature is not forced";
+  EXPECT_EQ(bus.data[0xE5], (Bytes{0x5F})) << "the four-level waveform's temperature is not selected";
+  for (const uint8_t lut : {LUT_VCOM, LUT_WW, LUT_KW, LUT_WK, LUT_KK}) {
+    EXPECT_EQ(std::count(bus.commands.begin(), bus.commands.end(), lut), 0)
+        << "waveform 0x" << std::hex << (int) lut << " was sent";
+  }
+  EXPECT_EQ(std::count(bus.commands.begin(), bus.commands.end(), 0x00), 0)
+      << "the panel was switched to waveforms from registers";
 }
 
 }  // namespace esphome::epaper_spi::testing

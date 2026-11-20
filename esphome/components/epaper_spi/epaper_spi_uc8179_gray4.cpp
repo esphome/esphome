@@ -34,6 +34,7 @@ void HOT EPaperUC8179Gray4::draw_pixel_at(int x, int y, Color color) {
 namespace {
 
 constexpr uint8_t CMD_PANEL_SETTING = 0x00;
+constexpr uint8_t CMD_BOOSTER_SOFT_START = 0x06;
 constexpr uint8_t CMD_DUAL_SPI = 0x15;
 constexpr uint8_t CMD_LUT_VCOM = 0x20;
 constexpr uint8_t CMD_LUT_WW = 0x21;
@@ -111,15 +112,33 @@ void EPaperUC8179Gray4::send_waveforms_() {
   this->send_waveform_(CMD_LUT_KK, LUT_BLACK.data());
 }
 
-// A pixel's two bits, DTM2 then DTM1, choose its waveform: 01 white (K-to-W), 00 light grey
-// (W-to-W), 10 dark grey (W-to-K) and 11 black (K-to-K). So DTM2 is the level's high bit inverted,
-// and DTM1 is set where the two bits of the level are equal.
+// The panel's own four-level waveforms, as Waveshare's EPD_7in5_V2 example selects them: by
+// forcing the temperature the OTP holds them under
+void EPaperUC8179Gray4::select_stored_waveforms_() {
+  this->cmd_data(CMD_BOOSTER_SOFT_START, {0x27, 0x27, 0x18, 0x17});
+  this->cmd_data(CMD_CCSET, {0x02});
+  this->cmd_data(CMD_TSSET, {0x5F});
+}
+
+// A pixel's two bits, DTM2 then DTM1, choose its waveform.
+//
+// With the panel's own waveforms, as in the example: DTM2 is the level's high bit and DTM1 its
+// low bit, both inverted, so white is 00 and black 11. The example's Python driver sends a lighter
+// grey as level 2 and a darker one as level 1, as here.
+//
+// With the driver's waveforms: 01 white (K-to-W), 00 light grey (W-to-W), 10 dark grey (W-to-K)
+// and 11 black (K-to-K). So DTM2 is the level's high bit inverted, and DTM1 is set where the two
+// bits of the level are equal.
 bool HOT EPaperUC8179Gray4::transfer_data() {
   const uint32_t start_time = millis();
   const size_t plane_length = this->buffer_length_ / 2;
   if (this->current_data_index_ == 0) {
     ESP_LOGV(TAG, "Four-level refresh");
-    this->send_waveforms_();
+    if (this->driver_waveforms_) {
+      this->send_waveforms_();
+    } else {
+      this->select_stored_waveforms_();
+    }
   }
 
   uint8_t bytes_to_send[MAX_TRANSFER_SIZE];
@@ -135,8 +154,12 @@ bool HOT EPaperUC8179Gray4::transfer_data() {
       const size_t source = (this->current_data_index_ - offset) * 2;
       for (size_t i = 0; i < bytes_to_copy; i++) {
         const uint8_t first = this->buffer_[source + 2 * i], second = this->buffer_[source + 2 * i + 1];
-        const uint8_t high = gray4_plane_byte(first, second, true);
-        bytes_to_send[i] = (uint8_t) ~(high_bit ? high : high ^ gray4_plane_byte(first, second, false));
+        const uint8_t high = gray4_plane_byte(first, second, true), low = gray4_plane_byte(first, second, false);
+        if (high_bit) {
+          bytes_to_send[i] = (uint8_t) ~high;
+        } else {
+          bytes_to_send[i] = (uint8_t) ~(this->driver_waveforms_ ? high ^ low : low);
+        }
       }
       this->write_array(bytes_to_send, bytes_to_copy);
       this->current_data_index_ += bytes_to_copy;
