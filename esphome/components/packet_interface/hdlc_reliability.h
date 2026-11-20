@@ -17,7 +17,8 @@ namespace esphome::packet_interface {
  * - SABM resets both peers' sequence numbers, and UA answers it.
  *
  * Each frame is the HDLC control byte, the payload, then a CRC-16 of both in little endian order.
- * Unacknowledged frames are resent after the timeout; after max_retries the link is reset.
+ * After the timeout the oldest unacknowledged frame is resent, and the rest follow once the peer answers it, so
+ * a lost acknowledgement costs one frame of airtime. After max_retries the link is reset.
  */
 class HdlcReliability : public PacketInterface {
  public:
@@ -63,6 +64,7 @@ class HdlcReliability : public PacketInterface {
   bool send_supervisory_(uint8_t type);
   bool send_pending_();
   void resend_outstanding_();
+  void resend_oldest_();
   void retry_send_();
   /// An RR is owed: at once, or after the ack delay unless an I-frame carries it first.
   void owe_ack_(bool now);
@@ -96,6 +98,7 @@ class HdlcReliability : public PacketInterface {
   bool ack_pending_ : 1 {false};  // an RR is owed
   bool ack_due_ : 1 {false};      // and should be sent now
   bool rej_sent_ : 1 {false};
+  bool resend_held_ : 1 {false};      // only the oldest frame is resent until the peer acknowledges something
   bool peer_frame_seen_ : 1 {false};  // a numbered frame has arrived since the link came up
   bool oversize_warned_ : 1 {false};
   bool reset_wait_logged_ : 1 {false};  // the queue filled while waiting for this reset to be answered
