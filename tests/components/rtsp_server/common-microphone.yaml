@@ -1,0 +1,21 @@
+microphone:
+  - platform: i2s_audio
+    id: i2s_microphone
+    i2s_audio_id: i2s_audio_bus
+    i2s_din_pin: ${i2s_din_pin}
+    adc_type: external
+    sample_rate: ${sample_rate}
+    bits_per_sample: 16bit
+    channel: left
+
+rtsp_server:
+  port: 554
+  max_connections: 2
+  microphone:
+    microphone: i2s_microphone
+    gain_factor: 2
+  audio_codec: ${audio_codec}
+
+wifi:
+  ssid: MySSID
+  password: password1
