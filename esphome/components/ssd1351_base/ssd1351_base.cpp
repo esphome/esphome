@@ -155,8 +155,7 @@ void HOT SSD1351::draw_absolute_pixel_internal(int x, int y, Color color) {
   const uint32_t color565 = display::ColorUtil::color_to_565(color);
   // where should the bits go in the big buffer array? math...
   uint16_t pos = (x + y * this->get_width_internal()) * SSD1351_BYTESPERPIXEL;
-  this->buffer_[pos++] = (color565 >> 8) & 0xff;
-  this->buffer_[pos] = color565 & 0xff;
+  put_be16(this->buffer_ + pos, color565);
 }
 void SSD1351::fill(Color color) {
   // If clipping is active, fall back to base implementation

@@ -15,13 +15,7 @@ from esphome.components.nrf52.const import (
 )
 from esphome.components.nrf52.framework import get_nrf52_variant, set_nrf52_variant
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_BOARD,
-    CONF_FRAMEWORK,
-    CONF_VERSION,
-    KEY_CORE,
-    KEY_FRAMEWORK_VERSION,
-)
+from esphome.const import CONF_BOARD, CONF_FRAMEWORK, CONF_VERSION, KEY_CORE
 from esphome.core import CORE, EsphomeCore
 from esphome.types import ConfigType
 
@@ -79,7 +73,7 @@ def test_default_sdk_version(variant: str, default: str) -> None:
     set_nrf52_variant(variant)
     config = _set_framework(None)
     assert config[CONF_FRAMEWORK][CONF_VERSION] == default
-    assert CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] == cv.Version.parse(default)
+    assert CORE.framework_version == cv.Version.parse(default)
 
 
 @pytest.mark.usefixtures("platformio")
