@@ -29,6 +29,7 @@ NEW_KEY = PROVISIONING_PSK
 
 
 @pytest.mark.asyncio
+@pytest.mark.shared_yaml("api_zero_psk_provisioning")
 async def test_api_zero_psk_provisioning(
     yaml_config: str,
     write_yaml_config: ConfigWriter,
@@ -116,6 +117,7 @@ async def test_api_zero_psk_provisioning(
 
 
 @pytest.mark.asyncio
+@pytest.mark.shared_yaml("api_zero_psk_provisioning")
 async def test_api_zero_psk_provisioning_plaintext(
     yaml_config: str,
     run_compiled: RunCompiledFunction,
@@ -125,7 +127,7 @@ async def test_api_zero_psk_provisioning_plaintext(
     log_lines: list[str] = []
     async with run_compiled(yaml_config, line_callback=log_lines.append):
         async with api_client_connected() as client:
-            await assert_device_name(client, "zero-psk-plaintext-test")
+            await assert_device_name(client, "zero-psk-provision-test")
 
             assert await client.noise_encryption_set_key(NEW_KEY) is True
 
@@ -136,7 +138,7 @@ async def test_api_zero_psk_provisioning_plaintext(
 
         # The new key works; the zero PSK does not
         async with api_client_connected(noise_psk=NEW_KEY.decode()) as client:
-            await assert_device_name(client, "zero-psk-plaintext-test")
+            await assert_device_name(client, "zero-psk-provision-test")
 
         with pytest.raises(InvalidEncryptionKeyAPIError):
             async with api_client_connected(noise_psk=ZERO_PSK, timeout=5) as client:

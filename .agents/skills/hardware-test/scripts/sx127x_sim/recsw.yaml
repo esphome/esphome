@@ -1,0 +1,7 @@
+substitutions:
+  flag: -DSXREC_SW
+  prio: "1100"
+  install: install_sw
+  interface: software
+packages:
+  rec: !include rec.yaml

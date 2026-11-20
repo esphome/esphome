@@ -13,6 +13,7 @@ from esphome.build_helpers.ccache import resolve_ccache_path
 import esphome.codegen as cg
 from esphome.components import network
 from esphome.components.zephyr import (
+    PreferenceStorage,
     Section,
     add_extra_script,
     copy_files as zephyr_copy_files,
@@ -106,6 +107,7 @@ from .const import (
     VARIANT_NRF52832,
     VARIANT_NRF52840,
     VARIANT_REGULATOR,
+    VARIANTS_NRF54L,
     VARIANTS_WITHOUT_USB,
 )
 from .framework import (
@@ -536,6 +538,11 @@ def _final_validate(config):
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
+def _preferences_storage(variant: str) -> PreferenceStorage:
+    """The storage for preferences: ZMS on the RRAM of the nRF54L, NVS on flash."""
+    return "ZMS" if variant in VARIANTS_NRF54L else "NVS"
+
+
 @coroutine_with_priority(CoroPriority.PLATFORM)
 async def to_code(config: ConfigType) -> None:
     """Convert the configuration to code."""
@@ -544,7 +551,7 @@ async def to_code(config: ConfigType) -> None:
     variant = get_nrf52_variant()
     cg.add_define("ESPHOME_VARIANT", variant)
     cg.add_build_flag(f"-DUSE_NRF52_VARIANT_{variant}")
-    if variant in (VARIANT_NRF54L15, VARIANT_NRF54LM20):
+    if variant in VARIANTS_NRF54L:
         # The entropy driver runs on the CRACEN crypto unit, which needs Nordic's PSA crypto
         include_west_project("mbedtls")
         include_west_project("oberon-psa-crypto")
@@ -581,7 +588,7 @@ async def to_code(config: ConfigType) -> None:
         cg.add_platformio_option(
             "platform_packages",
             [
-                f"platformio/framework-zephyr@https://github.com/tomaszduda23/framework-sdk-nrf/archive/refs/tags/v{CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]}.zip",
+                f"platformio/framework-zephyr@https://github.com/tomaszduda23/framework-sdk-nrf/archive/refs/tags/v{CORE.framework_version}.zip",
             ],
         )
         if config[KEY_BOOTLOADER] != BOOTLOADER_MCUBOOT:
@@ -612,11 +619,11 @@ async def to_code(config: ConfigType) -> None:
     if config[KEY_BOOTLOADER] in ADAFRUIT_BOOTLOADERS:
         cg.add_define("USE_BOOTLOADER_ADAFRUIT")
 
-    zephyr_setup_preferences()
+    zephyr_setup_preferences(_preferences_storage(variant))
     zephyr_to_code(config)
 
     # The nRF54L has RRAM (cpuapp_rram) and no flash0 node
-    if CORE.testing_mode and variant not in (VARIANT_NRF54L15, VARIANT_NRF54LM20):
+    if CORE.testing_mode and variant not in VARIANTS_NRF54L:
         zephyr_add_overlay(
             f"""
                 &flash0 {{
@@ -627,7 +634,7 @@ async def to_code(config: ConfigType) -> None:
 
     if dfu_config := config.get(CONF_DFU):
         CORE.add_job(_dfu_to_code, dfu_config)
-    framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
+    framework_ver = CORE.framework_version
     if (dcdc := config.get(CONF_DCDC)) is not None:
         if framework_ver < cv.Version(2, 9, 2):
             zephyr_add_prj_conf("BOARD_ENABLE_DCDC", dcdc)
@@ -1291,13 +1298,13 @@ def _write_pch_checksum(build_dir: Path, source_dir: Path) -> None:
     The app image dir follows the SDK version, like get_elf_path;
     2.9.2+ always wraps the build in sysbuild."""
     app_dir = build_dir
-    if CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] >= cv.Version(2, 9, 2):
+    if CORE.framework_version >= cv.Version(2, 9, 2):
         app_dir = build_dir / "zephyr"
     checksum = pch.pch_checksum(
         CORE.relative_src_path(),
         pch.PCH_DEFAULT_HEADERS,
         (
-            str(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]),
+            str(CORE.framework_version),
             zephyr_data()[KEY_BOARD],
             # Kconfig inputs that reach autoconf.h without a .conf line
             ",".join(sorted(wanted_west_projects())),
@@ -1545,7 +1552,7 @@ def run_compile(args, config: ConfigType) -> bool:
         raise EsphomeError("nRF52 native build failed")
 
     zephyr_dir = build_dir / "zephyr"
-    framework_ver = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
+    framework_ver = CORE.framework_version
     bootloader = zephyr_data()[KEY_BOOTLOADER]
 
     # (dev_type, sd_req) per bootloader — values from Nordic SoftDevice release notes.
