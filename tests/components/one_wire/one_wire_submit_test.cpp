@@ -182,7 +182,8 @@ TEST(TransactionQueue, CopiesLeaveTheQueueAlone) {
 
   const Transaction copy = a;
   EXPECT_FALSE(copy.is_pending());
-  a = Transaction{.address = ROM};  // Reassigned while queued
+  // A driver must not change a pending transaction. This only checks that a mistake cannot break the queue.
+  a = Transaction{.address = ROM};
   EXPECT_TRUE(a.is_pending());
   EXPECT_EQ(a.address, ROM);
 

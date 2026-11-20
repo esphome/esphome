@@ -42,6 +42,9 @@ class TransactionLink {
 /// Owned by the caller, must stay valid until on_done has run.
 /// Sequence on the bus: reset, ROM selection, write_data, read_data. Atomic on the bus.
 /// An aggregate, so callers can use designated initializers. Leave link out of them.
+/// The caller owns the Transaction and its buffers. Keep all of them valid until on_done has run, so do not use
+/// buffers on the stack of the function that calls submit(). Do not change any field or the write data while
+/// is_pending() is true: a bus that runs in the background reads them later.
 struct Transaction {
   uint64_t address{0};  ///< 0: Skip ROM (0xCC), otherwise Match ROM (0x55)
   const uint8_t *write_data{nullptr};
