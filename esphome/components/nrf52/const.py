@@ -58,7 +58,7 @@ VARIANT_PWM = {
     VARIANT_NRF54LM20: VariantPWM(("pwm20", "pwm21", "pwm22"), (1, 3)),
 }
 DEFAULT_PWM = VariantPWM(("pwm0", "pwm1", "pwm2", "pwm3"), None)
-VARIANTS_WITHOUT_USB = frozenset({VARIANT_NRF52832, VARIANT_NRF54L15})
+VARIANTS_WITHOUT_USB = frozenset({VARIANT_NRF51822, VARIANT_NRF52832, VARIANT_NRF54L15})
 # The nRF54L family: RRAM instead of flash, the CRACEN crypto unit and the wdt31 watchdog
 VARIANTS_NRF54L = frozenset({VARIANT_NRF54L15, VARIANT_NRF54LM20})
 # Devicetree label of the main regulator, reg1 on the others

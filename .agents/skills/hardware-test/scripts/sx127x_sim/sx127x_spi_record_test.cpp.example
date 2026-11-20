@@ -1,0 +1,218 @@
+// Host harness for SX127x SPI A/B checks (esphome#22776): drop into tests/components/sx127x/ of each tree and run
+// script/cpp_unit_test.py sx127x with SX127X_RECORD=<file>. For a sweep of FSK and LoRa settings it records every SPI
+// transaction (setup, configure() with other settings, a transmit) and the final register file of a fake chip with
+// burst auto-increment (FIFO address does not increment). compare_spi.py diffs two record files.
+#include <gtest/gtest.h>
+#include <cstdio>
+#include <cstdlib>
+#include <string>
+#include <vector>
+#include "esphome/components/sx127x/sx127x.h"
+#include "esphome/core/application.h"
+
+namespace esphome::sx127x::testing {
+
+class RecPin : public GPIOPin {
+ public:
+  void setup() override {}
+  void pin_mode(gpio::Flags) override {}
+  gpio::Flags get_flags() const override { return gpio::FLAG_NONE; }
+  size_t dump_summary(char *b, size_t n) const override { return snprintf(b, n, "rec"); }
+  bool digital_read() override { return this->on_read ? this->on_read() : this->level; }
+  void digital_write(bool v) override {
+    this->level = v;
+    if (this->on_write)
+      this->on_write(v);
+  }
+  bool level{false};
+  std::function<bool()> on_read;
+  std::function<void(bool)> on_write;
+};
+
+// Register file with burst auto-increment; records each chip select window as the bytes sent (and read)
+class RecChip {
+ public:
+  RecChip() {
+    this->regs.fill(0);
+    this->regs[REG_OP_MODE] = MODE_STDBY;
+    cs.level = true;
+    cs.on_write = [this](bool high) {
+      if (!high) {
+        this->cur.clear();
+        this->pos = this->bit = this->in = 0;
+      } else {
+        this->log.push_back(this->cur);
+      }
+    };
+    miso.on_read = [this]() {
+      if (this->bit == 0)
+        this->out = this->reply_();
+      const bool b = (this->out >> (7 - this->bit)) & 1;
+      this->in = (this->in << 1) | mosi.level;
+      if (++this->bit == 8) {
+        this->byte_(this->in);
+        this->bit = 0;
+        this->in = 0;
+        this->pos++;
+      }
+      return b;
+    };
+    // The send completes at once
+    dio0.on_read = [this]() { return (this->regs[REG_OP_MODE] & MODE_MASK) == MODE_TX; };
+    spi.set_clk(&clk);
+    spi.set_mosi(&mosi);
+    spi.set_miso(&miso);
+    spi.call();
+    radio.set_spi_parent(&spi);
+    radio.set_cs_pin(&cs);
+    radio.set_dio0_pin(&dio0);
+    radio.set_rst_pin(&rst);
+  }
+  ~RecChip() {
+    App.scheduler.cancel_interval(&this->radio, uint32_t{0});
+    this->radio.spi_teardown();
+  }
+  SX127x radio;
+  spi::SPIComponent spi;
+  RecPin cs, dio0, rst, clk, mosi, miso;
+  std::array<uint8_t, 128> regs{};
+  std::vector<uint8_t> fifo;
+  std::vector<std::vector<uint8_t>> log;  // MOSI bytes of each transaction, with the read replies after a '|'
+  std::vector<uint8_t> cur;
+  uint8_t addr{0}, pos{0}, bit{0}, in{0}, out{0};
+
+ protected:
+  uint8_t reply_() {
+    if (this->pos == 0 || (this->addr & 0x80))
+      return 0;
+    const uint8_t a = this->addr & 0x7F;
+    if (a == REG_VERSION)
+      return 0x12;
+    if (a == REG_IMAGE_CAL)
+      return this->regs[a] & ~IMAGE_CAL_RUNNING;
+    return this->regs[a];
+  }
+  void byte_(uint8_t v) {
+    this->cur.push_back(v);
+    if (this->pos == 0) {
+      this->addr = v;
+      return;
+    }
+    if (!(this->addr & 0x80))
+      return;
+    const uint8_t a = this->addr & 0x7F;
+    if (a == REG_FIFO) {
+      this->fifo.push_back(v);
+      return;  // the FIFO address does not move
+    }
+    this->regs[a] = v;
+    this->addr = 0x80 | ((a + 1) & 0x7F);  // auto-increment
+  }
+};
+
+// The record file from SX127X_RECORD; nullptr when it is unset or cannot be opened (the test then fails)
+static FILE *out_file() {
+  static FILE *f = nullptr;
+  if (f == nullptr) {
+    const char *path = std::getenv("SX127X_RECORD");
+    if (path != nullptr)
+      f = fopen(path, "w");
+  }
+  return f;
+}
+
+static void dump(const char *label, RecChip &c) {
+  static int index = 0;
+  FILE *f = out_file();
+  fprintf(f, "CASE %d %s\n", index++, label);
+  for (auto &t : c.log) {
+    fprintf(f, "T");
+    for (auto b : t)
+      fprintf(f, " %02X", b);
+    fprintf(f, "\n");
+  }
+  fprintf(f, "REGS");
+  for (auto r : c.regs)
+    fprintf(f, " %02X", r);
+  fprintf(f, "\nFIFO");
+  for (auto b : c.fifo)
+    fprintf(f, " %02X", b);
+  fprintf(f, "\nEND\n");
+  fflush(f);
+}
+
+static void settings(SX127x &r, bool lora, uint32_t freq, uint32_t bitrate, uint32_t dev, uint16_t pre) {
+  r.set_modulation(lora ? MOD_LORA : MOD_FSK);
+  r.set_frequency(freq);
+  r.set_bandwidth(lora ? SX127X_BW_125_0 : SX127X_BW_50_0);
+  r.set_afc_bandwidth(SX127X_BW_50_0);
+  r.set_bitrate(bitrate);
+  r.set_deviation(dev);
+  r.set_preamble_size(pre);
+  r.set_packet_mode(true);
+  r.set_payload_length(0);
+  r.set_rx_start(true);
+  r.set_pa_pin(PA_PIN_BOOST);
+  r.set_pa_power(17);
+  r.set_pa_ramp(PA_RAMP_40);
+  r.set_spreading_factor(7);
+  r.set_coding_rate(CODING_RATE_4_5);
+  r.set_crc_enable(true);
+  r.set_rx_floor(-94);
+  r.set_sync_value(lora ? std::vector<uint8_t>{0x12} : std::vector<uint8_t>{0x33, 0x33});
+}
+
+TEST(SX127xSpiRecord, Sweep) {
+  ASSERT_NE(out_file(), nullptr) << "set SX127X_RECORD to a writable record file";
+  const uint32_t freqs[] = {137000000, 169400000, 433920000, 525000000, 779000000, 868100000, 915000000, 1020000000};
+  const uint32_t rates[] = {500, 1200, 4800, 9600, 38400, 250000, 300000};
+  const uint32_t devs[] = {0, 600, 5000, 25000, 100000};
+  const uint16_t fsk_pre[] = {0, 1, 2, 255, 256, 4660, 65535};
+  const uint16_t lora_pre[] = {0, 5, 6, 8, 255, 256, 4660, 65535};
+  char label[96];
+  int n = 0;
+  for (bool lora : {false, true}) {
+    const uint16_t *pres = lora ? lora_pre : fsk_pre;
+    const size_t npre = lora ? sizeof(lora_pre) / 2 : sizeof(fsk_pre) / 2;
+    for (size_t fi = 0; fi < sizeof(freqs) / 4; fi++) {
+      for (size_t pi = 0; pi < npre; pi++) {
+        // bitrate and deviation only matter without LoRa; step through them with the other indexes
+        const uint32_t br = rates[(fi + pi) % (sizeof(rates) / 4)];
+        const uint32_t dv = devs[(fi * 3 + pi) % (sizeof(devs) / 4)];
+        RecChip c;
+        settings(c.radio, lora, freqs[fi], br, dv, pres[pi]);
+        c.radio.call();  // setup()
+        ASSERT_FALSE(c.radio.is_failed());
+        snprintf(label, sizeof(label), "%s setup f=%u br=%u dev=%u pre=%u", lora ? "lora" : "fsk", freqs[fi], br, dv,
+                 pres[pi]);
+        dump(label, c);
+        // configure() with the next frequency, rate, deviation and preamble
+        c.log.clear();
+        const uint32_t f2 = freqs[(fi + 1) % (sizeof(freqs) / 4)];
+        const uint32_t br2 = rates[(fi + pi + 3) % (sizeof(rates) / 4)];
+        const uint32_t dv2 = devs[(fi + pi + 2) % (sizeof(devs) / 4)];
+        const uint16_t pre2 = pres[(pi + 1) % npre];
+        settings(c.radio, lora, f2, br2, dv2, pre2);
+        c.radio.configure();
+        snprintf(label, sizeof(label), "%s configure f=%u br=%u dev=%u pre=%u", lora ? "lora" : "fsk", f2, br2, dv2,
+                 pre2);
+        dump(label, c);
+        // a send of the largest packet and of one byte
+        for (size_t len : {(size_t) 1, (size_t) (lora ? 255 : 63)}) {
+          c.log.clear();
+          c.fifo.clear();
+          std::vector<uint8_t> pkt(len);
+          for (size_t i = 0; i < len; i++)
+            pkt[i] = (uint8_t) (i * 13 + len);
+          EXPECT_EQ(c.radio.transmit_packet(pkt), SX127xError::SX127X_ERROR_NONE);
+          snprintf(label, sizeof(label), "%s send len=%u after f=%u", lora ? "lora" : "fsk", (unsigned) len, f2);
+          dump(label, c);
+        }
+        n++;
+      }
+    }
+  }
+  printf("recorded %d setups\n", n);
+}
+
+}  // namespace esphome::sx127x::testing
