@@ -180,7 +180,8 @@ inline void install() {
 }
 
 inline std::string tokens() {
-  std::string s;
+  // a full log is marked up front so the case shows as truncated, not as a matching stream
+  std::string s = lovf ? "OVF " : "";
   char t[8];
   for (uint32_t i = 0; i < ln; i++) {
     switch (lg[i]) {

@@ -3,6 +3,9 @@
 # (freq: build with I2C_PORT_FREQUENCY_COUNT=4). env: PY (default TREE's venv python)
 T=$(cd "${1:?tree}" && pwd); O=$(cd "$(dirname "${2:?out}")" && pwd)/$(basename "$2")
 H=$(cd "$(dirname "$0")" && pwd); PY=${PY:-$T/venv/bin/python}; D=$T/tests/components/tca9548a
+for f in test_muxab.cpp benchmark.yaml; do
+  [ -e "$D/$f" ] && { echo "$D/$f already exists, not overwriting it" >&2; exit 1; }
+done
 cleanup() { rm -f "$D/test_muxab.cpp" "$D/benchmark.yaml"; }
 trap cleanup EXIT
 trap 'exit 130' INT TERM
