@@ -90,6 +90,7 @@ light:
     cold_white: zb_output_cw
     cold_white_color_temperature: 200 mireds
     warm_white_color_temperature: 455 mireds
+    color_interlock: true
 
 time:
   - platform: zigbee
