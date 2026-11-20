@@ -101,15 +101,20 @@ void BLESensor::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t ga
       break;
     }
     case ESP_GATTC_NOTIFY_EVT: {
+      const bool ours = param->notify.handle == this->handle;
       if (param->notify.value_len == 0) {
         ESP_LOGW(TAG, "[%s] ESP_GATTC_NOTIFY_EVT: empty value", LOG_STR_ARG(this->get_log_name()));
-        break;
+      } else {
+        ESP_LOGD(TAG, "[%s] ESP_GATTC_NOTIFY_EVT: handle=0x%x, value=0x%x", LOG_STR_ARG(this->get_log_name()),
+                 param->notify.handle, param->notify.value[0]);
+        if (ours)
+          this->publish_state(this->parse_data_(param->notify.value, param->notify.value_len));
       }
-      ESP_LOGD(TAG, "[%s] ESP_GATTC_NOTIFY_EVT: handle=0x%x, value=0x%x", LOG_STR_ARG(this->get_log_name()),
-               param->notify.handle, param->notify.value[0]);
-      if (param->notify.handle != this->handle)
-        break;
-      this->publish_state(this->parse_data_(param->notify.value, param->notify.value_len));
+#ifdef USE_BLE_SENSOR_ON_NOTIFY
+      // on_notify sees empty notifications too, parsed by the client rather than the sensor lambda.
+      if (ours && !this->notify_callback_.empty())
+        this->notify_callback_.call(this->parent()->parse_char_value(param->notify.value, param->notify.value_len));
+#endif
       break;
     }
     case ESP_GATTC_REG_FOR_NOTIFY_EVT: {

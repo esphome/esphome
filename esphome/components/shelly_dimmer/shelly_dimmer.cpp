@@ -85,11 +85,9 @@ void ShellyDimmer::handle_firmware() {
 
     this->reset_normal_boot_();
     this->send_command_(SHELLY_DIMMER_PROTO_CMD_VERSION, nullptr, 0);
-    if (!is_running_configured_version()) {
-      ESP_LOGE(TAG, "STM32 firmware upgrade already performed, but version is still incorrect");
-      this->mark_failed();
+    if (!this->setup_check(is_running_configured_version(),
+                           LOG_STR("STM32 firmware upgrade already performed, but version is still incorrect")))
       return;
-    }
 #else
     ESP_LOGW(TAG, "Firmware version mismatch, put 'update: true' in the yaml to flash an update.");
 #endif
@@ -293,26 +291,21 @@ bool ShellyDimmer::send_command_(uint8_t cmd, const uint8_t *const payload, uint
 }
 
 size_t ShellyDimmer::frame_command_(uint8_t *data, uint8_t cmd, const uint8_t *const payload, size_t len) {
-  size_t pos = 0;
-
-  // Generate a frame.
-  data[0] = SHELLY_DIMMER_PROTO_START_BYTE;
-  data[1] = ++this->seq_;
-  data[2] = cmd;
-  data[3] = len;
-  pos += 4;
+  uint8_t *p = data;
+  *p++ = SHELLY_DIMMER_PROTO_START_BYTE;
+  *p++ = ++this->seq_;
+  *p++ = cmd;
+  *p++ = len;
 
   if (payload != nullptr) {
-    std::memcpy(data + 4, payload, len);
-    pos += len;
+    std::memcpy(p, payload, len);
+    p += len;
   }
 
-  // Calculate checksum for the payload.
-  const uint16_t csum = shelly_dimmer_checksum(data + 1, 3 + len);
-  data[pos++] = static_cast<uint8_t>(csum >> 8);
-  data[pos++] = static_cast<uint8_t>(csum & 0xff);
-  data[pos++] = SHELLY_DIMMER_PROTO_END_BYTE;
-  return pos;
+  // Checksum over the sequence, command, length and payload bytes
+  p = put_be16(p, shelly_dimmer_checksum(data + 1, 3 + len));
+  *p++ = SHELLY_DIMMER_PROTO_END_BYTE;
+  return p - data;
 }
 
 int ShellyDimmer::handle_byte_(uint8_t c) {

@@ -243,7 +243,7 @@ _UNSUPPORTED_DYNAMIC_KEYS = SWIPE_TRIGGERS + (CONF_ON_BOOT, CONF_ALIGN_TO)
 
 
 def _check_no_unsupported_triggers(w_type_name: str, w_conf: dict) -> None:
-    # These triggers currently aren't supporte for dynamic widgets
+    # These triggers currently aren't supported for dynamic widgets
     for key in _UNSUPPORTED_DYNAMIC_KEYS:
         if key in w_conf:
             raise cv.Invalid(

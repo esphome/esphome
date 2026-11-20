@@ -19,7 +19,7 @@ static constexpr uint32_t MAX_TRANSFER_TIME_MS = 20;
 // --- Loop / scheduling -------------------------------------------------------
 
 void IT8951Display::enqueue_(OpType type, uint16_t a, uint16_t b) {
-  if (!this->queue_.push_back(Op{type, a, b})) {
+  if (!this->queue_.push(Op{type, a, b})) {
     ESP_LOGE(TAG, "Op queue overflow (cap=%u); dropping op type=%u", static_cast<unsigned>(OP_QUEUE_SIZE),
              static_cast<unsigned>(type));
   }
@@ -74,7 +74,7 @@ void IT8951Display::loop() {
     return;
   }
 
-  this->queue_.pop_front();
+  this->queue_.pop();
   this->process_op_(queued_op);
 }
 
@@ -330,10 +330,8 @@ void IT8951Display::setup() {
   this->buffer_length_ = static_cast<size_t>(this->row_width_) * static_cast<size_t>(this->height_);
   RAMAllocator<uint8_t> allocator{};
   this->buffer_ = allocator.allocate(this->buffer_length_);
-  if (this->buffer_ == nullptr) {
-    this->mark_failed(LOG_STR("Failed to allocate IT8951 framebuffer"));
+  if (!this->setup_check(this->buffer_ != nullptr, LOG_STR("Failed to allocate IT8951 framebuffer")))
     return;
-  }
   // The allocator does not zero memory; start blank (white) so undrawn regions
   // (e.g. with auto_clear disabled) don't show garbage on the first update.
   this->fill(Color::WHITE);
@@ -1045,11 +1043,7 @@ void IT8951Display::set_mono_pixel_(uint16_t x, uint16_t y, bool value) const {
 void IT8951Display::set_gray_pixel_(uint16_t x, uint16_t y, uint8_t nibble) const {
   const uint32_t index = static_cast<uint32_t>(y) * this->row_width_ + (static_cast<uint32_t>(x) >> 1);
   uint8_t buf = this->buffer_[index];
-  if (x & 0x1) {
-    buf = (buf & 0xF0) | nibble;
-  } else {
-    buf = (buf & 0x0F) | static_cast<uint8_t>(nibble << 4);
-  }
+  buf = x & 0x1 ? (buf & 0xF0) | nibble : (buf & 0x0F) | static_cast<uint8_t>(nibble << 4);
   this->buffer_[index] = buf;
 }
 

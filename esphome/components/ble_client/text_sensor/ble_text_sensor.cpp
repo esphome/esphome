@@ -105,11 +105,18 @@ void BLETextSensor::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
         break;
       if (param->notify.value_len == 0) {
         ESP_LOGW(TAG, "[%s] ESP_GATTC_NOTIFY_EVT: empty value", LOG_STR_ARG(this->get_log_name()));
-        break;
+      } else {
+        ESP_LOGV(TAG, "[%s] ESP_GATTC_NOTIFY_EVT: handle=0x%x, value=0x%x", LOG_STR_ARG(this->get_log_name()),
+                 param->notify.handle, param->notify.value[0]);
+        this->publish_state(reinterpret_cast<const char *>(param->notify.value), param->notify.value_len);
       }
-      ESP_LOGV(TAG, "[%s] ESP_GATTC_NOTIFY_EVT: handle=0x%x, value=0x%x", LOG_STR_ARG(this->get_log_name()),
-               param->notify.handle, param->notify.value[0]);
-      this->publish_state(reinterpret_cast<const char *>(param->notify.value), param->notify.value_len);
+#ifdef USE_BLE_TEXT_SENSOR_ON_NOTIFY
+      // on_notify sees empty notifications too.
+      if (!this->notify_callback_.empty()) {
+        this->notify_callback_.call(
+            std::string(reinterpret_cast<const char *>(param->notify.value), param->notify.value_len));
+      }
+#endif
       break;
     }
     case ESP_GATTC_REG_FOR_NOTIFY_EVT: {

@@ -28,10 +28,8 @@ void IRAM_ATTR QMC5883LComponent::gpio_intr(QMC5883LComponent *arg) { arg->enabl
 
 void QMC5883LComponent::setup() {
   // Soft Reset
-  if (!this->write_byte(QMC5883L_REGISTER_CONTROL_2, 1 << 7)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->write_byte(QMC5883L_REGISTER_CONTROL_2, 1 << 7)))
     return;
-  }
   delay(10);
 
   if (this->drdy_pin_) {
@@ -49,25 +47,19 @@ void QMC5883LComponent::setup() {
   control_1 |= this->datarate_ << 2;
   control_1 |= this->range_ << 4;
   control_1 |= this->oversampling_ << 6;
-  if (!this->write_byte(QMC5883L_REGISTER_CONTROL_1, control_1)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->write_byte(QMC5883L_REGISTER_CONTROL_1, control_1)))
     return;
-  }
 
   uint8_t control_2 = 0;
   control_2 |= 0b0 << 7;  // SOFT_RST (Soft Reset) -> 0b00=disabled, 0b01=enabled
   control_2 |= 0b0 << 6;  // ROL_PNT (Pointer Roll Over) -> 0b00=disabled, 0b01=enabled
   control_2 |= 0b0 << 0;  // INT_ENB (Interrupt) -> 0b00=disabled, 0b01=enabled
-  if (!this->write_byte(QMC5883L_REGISTER_CONTROL_2, control_2)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->write_byte(QMC5883L_REGISTER_CONTROL_2, control_2)))
     return;
-  }
 
   uint8_t period = 0x01;  // recommended value
-  if (!this->write_byte(QMC5883L_REGISTER_PERIOD, period)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->write_byte(QMC5883L_REGISTER_PERIOD, period)))
     return;
-  }
 
   if (!this->drdy_use_isr_ && this->get_update_interval() < App.get_loop_interval()) {
     this->high_freq_.start();

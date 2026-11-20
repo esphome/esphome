@@ -1,0 +1,5 @@
+# substitutions: board
+bk72xx:
+  board: ${board}
+logger:
+  hardware_uart: UART1

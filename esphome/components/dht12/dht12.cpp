@@ -3,6 +3,7 @@
 //  - DHT12_sensor_library: https://github.com/xreef/DHT12_sensor_library/blob/master/DHT12.cpp
 
 #include "dht12.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::dht12 {
@@ -11,10 +12,8 @@ ESPHOME_LOG_TAG(TAG, "dht12");
 
 void DHT12Component::update() {
   uint8_t data[5];
-  if (!this->read_data_(data)) {
-    this->status_set_warning();
+  if (!this->status_comm_result(this->read_data_(data)))
     return;
-  }
   const uint16_t raw_temperature = uint16_t(data[2]) * 10 + (data[3] & 0x7F);
   float temperature = raw_temperature / 10.0f;
   if ((data[3] & 0x80) != 0) {
@@ -28,14 +27,11 @@ void DHT12Component::update() {
   ESP_LOGD(TAG, "Got temperature=%.2f°C humidity=%.2f%%", temperature, humidity);
   PUBLISH_STATE(this->temperature_sensor_, temperature);
   PUBLISH_STATE(this->humidity_sensor_, humidity);
-  this->status_clear_warning();
 }
 void DHT12Component::setup() {
   uint8_t data[5];
-  if (!this->read_data_(data)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->read_data_(data)))
     return;
-  }
 }
 void DHT12Component::dump_config() {
   ESP_LOGD(TAG, "DHT12:");
@@ -50,7 +46,7 @@ bool DHT12Component::read_data_(uint8_t *data) {
     return false;
   }
 
-  uint8_t checksum = data[0] + data[1] + data[2] + data[3];
+  uint8_t checksum = sum_bytes(data, 4);
   if (data[4] != checksum) {
     ESP_LOGW(TAG, "DHT12 Checksum invalid!");
     return false;

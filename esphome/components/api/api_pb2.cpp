@@ -299,6 +299,19 @@ uint32_t ZWaveProxyCapabilities::calc_size_msg(const void *self) {
   return size;
 }
 #endif
+#ifdef USE_STORE_YAML
+uint8_t *StoreYamlCapabilities::encode_msg(const void *self, uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const StoreYamlCapabilities *>(self);
+  pos = ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.supported);
+  return pos;
+}
+uint32_t StoreYamlCapabilities::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const StoreYamlCapabilities *>(self);
+  uint32_t size = 0;
+  size += ProtoSize::calc_bool(1, msg.supported);
+  return size;
+}
+#endif
 #ifdef USE_API_WIZARD
 uint8_t *WizardCapabilities::encode_msg(const void *self, uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM) {
   const auto &msg = *static_cast<const WizardCapabilities *>(self);
@@ -327,6 +340,19 @@ uint32_t SendspinCapabilities::calc_size_msg(const void *self) {
   return size;
 }
 #endif
+#ifdef USE_CRASH_REPORT
+uint8_t *CrashReportCapabilities::encode_msg(const void *self, uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const CrashReportCapabilities *>(self);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.flags);
+  return pos;
+}
+uint32_t CrashReportCapabilities::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const CrashReportCapabilities *>(self);
+  uint32_t size = 0;
+  size += ProtoSize::calc_uint32(1, msg.flags);
+  return size;
+}
+#endif
 uint8_t *DeviceCapabilitiesResponse::encode_msg(const void *self, uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM) {
   const auto &msg = *static_cast<const DeviceCapabilitiesResponse *>(self);
 #ifdef USE_BLUETOOTH_PROXY
@@ -348,6 +374,12 @@ uint8_t *DeviceCapabilitiesResponse::encode_msg(const void *self, uint8_t *__res
 #endif
 #ifdef USE_SENDSPIN
   pos = ProtoEncode::encode_optional_sub_message(pos PROTO_ENCODE_DEBUG_ARG, 6, msg.sendspin);
+#endif
+#ifdef USE_STORE_YAML
+  pos = ProtoEncode::encode_optional_sub_message(pos PROTO_ENCODE_DEBUG_ARG, 7, msg.store_yaml);
+#endif
+#ifdef USE_CRASH_REPORT
+  pos = ProtoEncode::encode_optional_sub_message(pos PROTO_ENCODE_DEBUG_ARG, 8, msg.crash_report);
 #endif
   return pos;
 }
@@ -373,6 +405,12 @@ uint32_t DeviceCapabilitiesResponse::calc_size_msg(const void *self) {
 #endif
 #ifdef USE_SENDSPIN
   size += ProtoSize::calc_message(1, msg.sendspin.calculate_size());
+#endif
+#ifdef USE_STORE_YAML
+  size += ProtoSize::calc_message(1, msg.store_yaml.calculate_size());
+#endif
+#ifdef USE_CRASH_REPORT
+  size += ProtoSize::calc_message(1, msg.crash_report.calculate_size());
 #endif
   return size;
 }
@@ -403,6 +441,54 @@ void WizardInputSetRequest::decode_field(void *self, uint32_t tag, const uint8_t
     default:
       break;
   }
+}
+#endif
+#ifdef USE_CRASH_REPORT
+uint8_t *CrashReportCore::encode_msg(const void *self, uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const CrashReportCore *>(self);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.core);
+  for (uint16_t i = 0; i < msg.backtrace_len; i++) {
+    pos = ProtoEncode::encode_uint32_force(pos PROTO_ENCODE_DEBUG_ARG, 2, msg.backtrace[i]);
+  }
+  return pos;
+}
+uint32_t CrashReportCore::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const CrashReportCore *>(self);
+  uint32_t size = 0;
+  size += ProtoSize::calc_uint32(1, msg.core);
+  for (uint16_t i = 0; i < msg.backtrace_len; i++) {
+    size += ProtoSize::calc_uint32_force(1, msg.backtrace[i]);
+  }
+  return size;
+}
+uint8_t *CrashReportResponse::encode_msg(const void *self, uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const CrashReportResponse *>(self);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.flags);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 2, msg.reason);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 3, msg.pc);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 4, msg.cause);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 5, msg.fault_address);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 6, msg.build_time);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 7, msg.crashed_core);
+  for (uint16_t i = 0; i < msg.cores_len; i++) {
+    pos = ProtoEncode::encode_sub_message(pos PROTO_ENCODE_DEBUG_ARG, 8, msg.cores[i]);
+  }
+  return pos;
+}
+uint32_t CrashReportResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const CrashReportResponse *>(self);
+  uint32_t size = 0;
+  size += ProtoSize::calc_uint32(1, msg.flags);
+  size += ProtoSize::calc_uint32(1, msg.reason);
+  size += ProtoSize::calc_uint32(1, msg.pc);
+  size += ProtoSize::calc_uint32(1, msg.cause);
+  size += ProtoSize::calc_uint32(1, msg.fault_address);
+  size += ProtoSize::calc_uint32(1, msg.build_time);
+  size += ProtoSize::calc_uint32(1, msg.crashed_core);
+  for (uint16_t i = 0; i < msg.cores_len; i++) {
+    size += ProtoSize::calc_message_force(1, msg.cores[i].calculate_size());
+  }
+  return size;
 }
 #endif
 #ifdef USE_BINARY_SENSOR
@@ -3028,6 +3114,15 @@ uint8_t *VoiceAssistantRequest::encode_msg(const void *self, uint8_t *__restrict
   pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 3, msg.flags);
   pos = ProtoEncode::encode_optional_sub_message(pos PROTO_ENCODE_DEBUG_ARG, 4, msg.audio_settings);
   pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, msg.wake_word_phrase);
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 6, msg.wake_word_id);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 7, msg.wake_word_audio_bytes);
+  if (uint32_t raw = float_to_raw(msg.wake_word_probability); raw != 0) [[likely]] {
+    pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 69, raw);
+  }
+  if (uint32_t raw = float_to_raw(msg.wake_word_probability_cutoff); raw != 0) [[likely]] {
+    pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 77, raw);
+  }
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 10, msg.wake_word_audio_bytes2);
   return pos;
 }
 uint32_t VoiceAssistantRequest::calc_size_msg(const void *self) {
@@ -3038,6 +3133,11 @@ uint32_t VoiceAssistantRequest::calc_size_msg(const void *self) {
   size += ProtoSize::calc_uint32(1, msg.flags);
   size += ProtoSize::calc_message(1, msg.audio_settings.calculate_size());
   size += ProtoSize::calc_length(1, msg.wake_word_phrase.size());
+  size += ProtoSize::calc_length(1, msg.wake_word_id.size());
+  size += ProtoSize::calc_uint32(1, msg.wake_word_audio_bytes);
+  size += ProtoSize::calc_float(1, msg.wake_word_probability);
+  size += ProtoSize::calc_float(1, msg.wake_word_probability_cutoff);
+  size += ProtoSize::calc_uint32(1, msg.wake_word_audio_bytes2);
   return size;
 }
 void VoiceAssistantResponse::decode_field(void *self, uint32_t tag, const uint8_t *data, proto_varint_value_t scalar) {
@@ -4077,7 +4177,8 @@ uint8_t *InfraredRFReceiveEvent::encode_msg(const void *self, uint8_t *__restric
 #endif
   pos = ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, msg.key);
   for (const auto &it : *msg.timings) {
-    pos = ProtoEncode::encode_sint32_force(pos PROTO_ENCODE_DEBUG_ARG, 3, it);
+    pos = ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, 24);
+    pos = ProtoEncode::encode_varint_raw_short(pos PROTO_ENCODE_DEBUG_ARG, encode_zigzag32(it));
   }
   return pos;
 }
@@ -4314,6 +4415,7 @@ uint8_t *UsbDeviceDescriptor::encode_msg(const void *self, uint8_t *__restrict__
   pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 4, msg.interface_number);
   pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 5, msg.interface_class);
   pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 6, msg.port_number);
+  pos = ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 7, msg.interface_description);
   return pos;
 }
 uint32_t UsbDeviceDescriptor::calc_size_msg(const void *self) {
@@ -4325,6 +4427,7 @@ uint32_t UsbDeviceDescriptor::calc_size_msg(const void *self) {
   size += ProtoSize::calc_uint32(1, msg.interface_number);
   size += ProtoSize::calc_uint32(1, msg.interface_class);
   size += ProtoSize::calc_uint32(1, msg.port_number);
+  size += ProtoSize::calc_length(1, msg.interface_description.size());
   return size;
 }
 uint8_t *SerialProxyIdentity::encode_msg(const void *self, uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM) {
@@ -4404,6 +4507,24 @@ uint32_t SendspinPairingTokenResponse::calc_size_msg(const void *self) {
   uint32_t size = 0;
   size += msg.status ? 2 : 0;
   size += !msg.token.empty() ? 2 + msg.token.size() : 0;
+  return size;
+}
+#endif
+#ifdef USE_STORE_YAML
+uint8_t *GetYamlResponse::encode_msg(const void *self, uint8_t *__restrict__ pos PROTO_ENCODE_DEBUG_PARAM) {
+  const auto &msg = *static_cast<const GetYamlResponse *>(self);
+  pos = ProtoEncode::encode_progmem_bytes_force(pos PROTO_ENCODE_DEBUG_ARG, 1, msg.data, msg.data_len);
+  pos = ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, 16);
+  pos = ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, msg.done ? 0x01 : 0x00);
+  pos = ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 3, msg.total_size);
+  return pos;
+}
+uint32_t GetYamlResponse::calc_size_msg(const void *self) {
+  const auto &msg = *static_cast<const GetYamlResponse *>(self);
+  uint32_t size = 0;
+  size += ProtoSize::calc_length_force(1, msg.data_len);
+  size += ProtoSize::calc_bool_force(1);
+  size += ProtoSize::calc_uint32(1, msg.total_size);
   return size;
 }
 #endif
