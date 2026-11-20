@@ -1,0 +1,58 @@
+esphome:
+  name: ${name}
+  includes:
+    - dhcpwrap.hpp
+  build_flags:
+    - -Wl,--wrap=udp_sendto_if
+    - -Wl,--wrap=udp_sendto_if_src
+  on_boot:
+    priority: 800
+    then:
+      - logger.log: "MARK BOOT ${name}"
+bk72xx:
+  board: xh-wb3s
+logger:
+  hardware_uart: UART1
+  level: VERBOSE
+  logs:
+    api: DEBUG
+    api.connection: DEBUG
+    api.service: DEBUG
+    component: DEBUG
+    app: DEBUG
+    scheduler: DEBUG
+    preferences: DEBUG
+    captive_portal: DEBUG
+    web_server_base: DEBUG
+    dns_server: DEBUG
+    mdns: DEBUG
+    ota: DEBUG
+api:
+  reboot_timeout: 0s
+ota:
+  - platform: esphome
+wifi:
+  networks:
+    - ssid: !secret t_ssid
+      password: !secret t_pw
+  ap:
+    ssid: ${name}-fb
+    password: !secret fb_pw
+    ap_timeout: 10s
+  reboot_timeout: 0s
+captive_portal:
+interval:
+  - interval: 1s
+    then:
+      - lambda: |-
+          ESP_LOGI("alive", "ALIVE up=%u conn=%d disc=%u req=%u rel=%u relup=%u", (unsigned) (millis() / 1000),
+                   (int) wifi::global_wifi_component->is_connected(), (unsigned) g_dhcp_disc,
+                   (unsigned) g_dhcp_req, (unsigned) g_dhcp_rel, (unsigned) g_dhcp_rel_up);
+  - interval: 100ms
+    then:
+      - lambda: |-
+          static uint32_t last = 0;
+          if (g_dhcp_rel != last) {
+            last = g_dhcp_rel;
+            ESP_LOGW("dhcpw", "DHCPRELEASE sent n=%u up=%u", (unsigned) last, (unsigned) g_dhcp_rel_up);
+          }
