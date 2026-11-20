@@ -92,32 +92,25 @@ media_player:
           decibel_reduction: 20
           duration: 0.0s
 
-globals:
-  - {id: ann_frames, type: "std::atomic<uint32_t>*", initial_value: "nullptr"}
-  - {id: med_frames, type: "std::atomic<uint32_t>*", initial_value: "nullptr"}
-
 esphome:
   name: ${name}
+  includes:
+    - ../speaker_tts_pause/frames.h
   on_boot:
     - priority: 600
       then:
         - lambda: |-
-            id(ann_frames) = new std::atomic<uint32_t>(0);
-            auto *f = id(ann_frames);
             id(announcement_resampling_speaker).add_audio_output_callback(
-                [f](uint32_t frames, int64_t) { f->fetch_add(frames); });
-            id(med_frames) = new std::atomic<uint32_t>(0);
-            auto *m = id(med_frames);
+                [](uint32_t frames, int64_t) { hwt_frames::ann.fetch_add(frames); });
             id(media_resampling_speaker).add_audio_output_callback(
-                [m](uint32_t frames, int64_t) { m->fetch_add(frames); });
+                [](uint32_t frames, int64_t) { hwt_frames::med.fetch_add(frames); });
 
 interval:
   - interval: 1s
     then:
       - lambda: |-
-          if (id(ann_frames) == nullptr) return;
           ESP_LOGI("probe", "med %u ann %u int_free %u int_largest %u int_min %u ps_free %u ps_largest %u",
-                   (unsigned) id(med_frames)->load(), (unsigned) id(ann_frames)->load(),
+                   (unsigned) hwt_frames::med.load(), (unsigned) hwt_frames::ann.load(),
                    (unsigned) heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
                    (unsigned) heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL),
                    (unsigned) heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL),

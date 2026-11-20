@@ -2,6 +2,12 @@
 # partition lights over an RGB and an RGBW strip in both orders, stepped through cccases.hpp twice; no LEDs needed.
 substitutions:
   name: colorcorrect
+  # name, light, probe pin, RGBW, color_correct set per case
+  strips: >-
+    {{"rgb28", id(rgb28), 2, false, false}, {"rgbw28", id(rgbw28), 3, true, false},
+    {"rgbdef", id(rgbdef), 6, false, false}, {"rgbwdef", id(rgbwdef), 7, true, false},
+    {"rgb10", id(rgb10), 8, false, false}, {"rgbwmb", id(rgbwmb), 11, true, true}}
+  segs: '{{"seg_rgb", id(seg_rgb), 9, false, false}, {"seg_rgbw", id(seg_rgbw), 10, true, false}}'
 
 esphome:
   name: ${name}
@@ -27,42 +33,27 @@ esphome:
                   condition:
                     lambda: 'return id(case_i) < (int) cccases::NUM_CASES;'
                   then:
-                    - lambda: |-
-                        const cccases::Strip S[] = {{"rgb28", id(rgb28), 2, false, false}, {"rgbw28", id(rgbw28), 3, true, false}, {"rgbdef", id(rgbdef), 6, false, false}, {"rgbwdef", id(rgbwdef), 7, true, false}, {"rgb10", id(rgb10), 8, false, false}, {"rgbwmb", id(rgbwmb), 11, true, true}};
-                        cccases::apply(id(case_i), S, 6);
+                    - lambda: 'const cccases::Strip S[] = ${strips}; cccases::apply(id(case_i), S, std::size(S));'
                     - delay: 400ms
                     - lambda: |-
-                        const cccases::Strip S[] = {{"rgb28", id(rgb28), 2, false, false}, {"rgbw28", id(rgbw28), 3, true, false}, {"rgbdef", id(rgbdef), 6, false, false}, {"rgbwdef", id(rgbwdef), 7, true, false}, {"rgb10", id(rgb10), 8, false, false}, {"rgbwmb", id(rgbwmb), 11, true, true}};
-                        cccases::probe(id(case_i), S, 6, id(round_n));
+                        const cccases::Strip S[] = ${strips};
+                        cccases::probe(id(case_i), S, std::size(S), id(round_n));
                         id(case_i) += 1;
               - globals.set: {id: case_i, value: '0'}
               - while:
                   condition:
                     lambda: 'return id(case_i) < (int) cccases::NUM_PCASES;'
                   then:
-                    - lambda: |-
-                        esphome::light::LightState *const P[] = {id(part_rgb), id(part_rgbw)};
-                        const bool PW[] = {false, true};
-                        cccases::papply(id(case_i), P, PW, 1);
-                        // part_rgbw is driven separately below
+                    - lambda: 'cccases::papply(id(case_i), id(part_rgb), false);'
                     - delay: 400ms
                     - lambda: |-
-                        esphome::light::LightState *const P[] = {id(part_rgb)};
-                        const bool PW[] = {false};
-                        const char *const PN[] = {"partRGB"};
-                        const cccases::Strip G[] = {{"seg_rgb", id(seg_rgb), 9, false, false}, {"seg_rgbw", id(seg_rgbw), 10, true, false}};
-                        cccases::pprobe(id(case_i), P, PW, PN, 1, G, 2, id(round_n));
-                    - lambda: |-
-                        esphome::light::LightState *const P[] = {id(part_rgbw)};
-                        const bool PW[] = {true};
-                        cccases::papply(id(case_i), P, PW, 1);
+                        const cccases::Strip G[] = ${segs};
+                        cccases::pprobe(id(case_i), id(part_rgb), "partRGB", G, std::size(G), id(round_n));
+                    - lambda: 'cccases::papply(id(case_i), id(part_rgbw), true);'
                     - delay: 400ms
                     - lambda: |-
-                        esphome::light::LightState *const P[] = {id(part_rgbw)};
-                        const bool PW[] = {true};
-                        const char *const PN[] = {"partRGBW"};
-                        const cccases::Strip G[] = {{"seg_rgb", id(seg_rgb), 9, false, false}, {"seg_rgbw", id(seg_rgbw), 10, true, false}};
-                        cccases::pprobe(id(case_i), P, PW, PN, 1, G, 2, id(round_n));
+                        const cccases::Strip G[] = ${segs};
+                        cccases::pprobe(id(case_i), id(part_rgbw), "partRGBW", G, std::size(G), id(round_n));
                         id(case_i) += 1;
               - lambda: 'id(round_n) += 1;'
         - lambda: 'ESP_LOGI("hwt", "DONE");'

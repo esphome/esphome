@@ -11,16 +11,7 @@ import sys
 
 from model import base, pr3, table
 
-GAMMA = {
-    "rgb28": 2.8,
-    "rgbw28": 2.8,
-    "rgbdef": 2.8,
-    "rgbwdef": 2.8,
-    "rgb10": 1.0,
-    "rgbwmb": 2.8,
-    "partRGB": 2.8,
-    "partRGBW": 2.8,
-}
+GAMMA_1 = {"rgb10"}  # every other strip and partition uses gamma 2.8
 RGBW = {"rgbw28", "rgbwdef", "rgbwmb", "seg_rgbw"}
 SEGS = {"seg_rgb": False, "seg_rgbw": True}
 
@@ -52,7 +43,7 @@ def parse(path, rule):
             k = (m[1], m[2], m[3])
             lb = int(m[4])
             s = m[3]
-            t = table(GAMMA[s])
+            t = table(1.0 if s in GAMMA_1 else 2.8)
             mb = h2c(m[7])
             px = [h2c(m[5]), h2c(m[6])]
             exp[k] = frame([corr(rule, p, lb, t, s in RGBW, mb) for p in px], s in RGBW)
@@ -60,7 +51,7 @@ def parse(path, rule):
         elif m := re.search(r"PIN r(\d) (\S+) (\S+) lb=(\d+) px=(\w{8})", line):
             lb = int(m[4])
             px = h2c(m[5])
-            t = table(GAMMA[m[3]])
+            t = table(1.0 if m[3] in GAMMA_1 else 2.8)
             for seg, w in SEGS.items():
                 k = (m[1], m[2] + "@" + m[3], seg)
                 exp[k] = frame([corr(rule, px, lb, t, w, (255,) * 4)] * 2, w)

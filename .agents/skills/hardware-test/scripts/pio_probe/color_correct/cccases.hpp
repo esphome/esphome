@@ -143,47 +143,41 @@ static constexpr Case PCASES[] = {
 };
 static constexpr size_t NUM_PCASES = sizeof(PCASES) / sizeof(PCASES[0]);
 
-// parts[p] with its RGBW flag; segs: the RGB strip and the RGBW strip under both partitions
-inline void papply(size_t i, LightState *const *parts, const bool *part_rgbw, size_t np) {
+inline void papply(size_t i, LightState *part, bool rgbw) {
   const Case &c = PCASES[i];
-  for (size_t p = 0; p < np; p++) {
-    auto call = parts[p]->turn_on();
-    call.set_transition_length(0);
-    call.set_brightness(c.bri);
-    call.set_rgb(c.r / 255.0f, c.g / 255.0f, c.b / 255.0f);
-    if (part_rgbw[p])
-      call.set_white(c.w / 255.0f);
-    call.perform();
-  }
+  auto call = part->turn_on();
+  call.set_transition_length(0);
+  call.set_brightness(c.bri);
+  call.set_rgb(c.r / 255.0f, c.g / 255.0f, c.b / 255.0f);
+  if (rgbw)
+    call.set_white(c.w / 255.0f);
+  call.perform();
 }
 
-inline void pprobe(size_t i, LightState *const *parts, const bool *part_rgbw, const char *const *pnames, size_t np,
-                   const Strip *segs, size_t ns, int round) {
+// probe every segment strip after the partition light PART was set
+inline void pprobe(size_t i, LightState *part, const char *pname, const Strip *segs, size_t ns, int round) {
   const Case &c = PCASES[i];
-  for (size_t p = 0; p < np; p++) {
-    auto *st = parts[p];
-    auto *out = static_cast<AddressableLight *>(st->get_output());
-    auto v = st->current_values;
-    Color in = esphome::light::color_from_light_color_values(v);
-    uint8_t lb = esphome::light::to_uint8_scale(v.get_brightness() * v.get_state());
-    out->update_state(st);
-    if (c.mode == 2) {
-      in = Color(c.r, c.g, c.b, c.w);
-      for (int k = 0; k < out->size(); k++)
-        out->get(k).set(in);
-    }
-    ESP_LOGI("hwt", "PIN r%d %s %s lb=%u px=%02x%02x%02x%02x", round, c.name, pnames[p], lb, in.r, in.g, in.b, in.w);
-    for (size_t s = 0; s < ns; s++) {
-      auto *so = static_cast<AddressableLight *>(segs[s].state->get_output());
-      for (int k = 0; k < 3; k++) {
-        char label[64];
-        snprintf(label, sizeof(label), "r%d %s@%s %s %d", round, c.name, pnames[p], segs[s].name, k);
-        pioscope::arm(segs[s].pin);
-        so->write_state(segs[s].state);
-        size_t words = pioscope::collect();
-        pioscope::decode(label, words, so->size() * (segs[s].rgbw ? 32 : 24));
-        busy_wait_us_32(5000);
-      }
+  auto *out = static_cast<AddressableLight *>(part->get_output());
+  auto v = part->current_values;
+  Color in = esphome::light::color_from_light_color_values(v);
+  uint8_t lb = esphome::light::to_uint8_scale(v.get_brightness() * v.get_state());
+  out->update_state(part);
+  if (c.mode == 2) {
+    in = Color(c.r, c.g, c.b, c.w);
+    for (int k = 0; k < out->size(); k++)
+      out->get(k).set(in);
+  }
+  ESP_LOGI("hwt", "PIN r%d %s %s lb=%u px=%02x%02x%02x%02x", round, c.name, pname, lb, in.r, in.g, in.b, in.w);
+  for (size_t s = 0; s < ns; s++) {
+    auto *so = static_cast<AddressableLight *>(segs[s].state->get_output());
+    for (int k = 0; k < 3; k++) {
+      char label[64];
+      snprintf(label, sizeof(label), "r%d %s@%s %s %d", round, c.name, pname, segs[s].name, k);
+      pioscope::arm(segs[s].pin);
+      so->write_state(segs[s].state);
+      size_t words = pioscope::collect();
+      pioscope::decode(label, words, so->size() * (segs[s].rgbw ? 32 : 24));
+      busy_wait_us_32(5000);
     }
   }
 }

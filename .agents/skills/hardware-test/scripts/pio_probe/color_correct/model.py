@@ -3,7 +3,10 @@
 The gamma table is rebuilt like light/__init__.py does it.
 """
 
+import functools
 
+
+@functools.cache
 def table(g):
     if g > 0:
         return [0] + [
