@@ -10,7 +10,7 @@ namespace esphome::one_wire {
 enum class TransactionStatus : uint8_t {
   TRANSACTION_STATUS_OK,
   TRANSACTION_STATUS_NO_PRESENCE,
-  TRANSACTION_STATUS_BUS_LOW,
+  TRANSACTION_STATUS_BUS_LOW,  ///< Reset failed: bus held low, or a bridge such as DS248x could not run the reset
   TRANSACTION_STATUS_CAPTURE_ERROR,
   TRANSACTION_STATUS_TIMEOUT,
   TRANSACTION_STATUS_HARDWARE_ERROR,
@@ -21,6 +21,13 @@ struct Transaction;
 /// Queue state inside a Transaction. Only the bus and TransactionQueue may change it.
 class TransactionLink {
  public:
+  TransactionLink() = default;
+  /// A copy is never queued.
+  TransactionLink(const TransactionLink & /*other*/) {}
+  /// Assigning a whole Transaction keeps its own queue state, so a queued one stays in its queue.
+  // NOLINTNEXTLINE(bugprone-unhandled-self-assignment,cert-oop54-cpp): there is nothing to copy
+  TransactionLink &operator=(const TransactionLink & /*other*/) { return *this; }
+
   bool is_pending() const { return this->next_ != nullptr; }
 
  private:

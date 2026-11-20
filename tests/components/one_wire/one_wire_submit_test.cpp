@@ -174,6 +174,23 @@ TEST(TransactionQueue, DesignatedInitializerLeavesItIdle) {
   EXPECT_EQ(queue.pop(), &convert);
 }
 
+TEST(TransactionQueue, CopiesLeaveTheQueueAlone) {
+  Transaction a, b;
+  TransactionQueue queue;
+  EXPECT_TRUE(queue.push(&a));
+  EXPECT_TRUE(queue.push(&b));
+
+  const Transaction copy = a;
+  EXPECT_FALSE(copy.is_pending());
+  a = Transaction{.address = ROM};  // Reassigned while queued
+  EXPECT_TRUE(a.is_pending());
+  EXPECT_EQ(a.address, ROM);
+
+  EXPECT_EQ(queue.pop(), &a);
+  EXPECT_EQ(queue.pop(), &b);
+  EXPECT_TRUE(queue.empty());
+}
+
 TEST(TransactionQueue, PendingUntilPopped) {
   Transaction a;
   TransactionQueue queue;
