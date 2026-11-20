@@ -93,6 +93,8 @@ async def main(name, rounds, tag):
             and r["read_desc_char"] == "07"
             and r["yaml_svc"]
             and r["desc_after"] == r["desc_written"]
+            and r["written"] in r["notifies"]
+            and r["set_value_readback"] == r["written"]
             and sorted(r["dis"]) == ["2a24", "2a26", "2a29"]
             and (
                 not r["battery"]

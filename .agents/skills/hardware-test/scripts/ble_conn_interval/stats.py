@@ -25,7 +25,8 @@ def rows(tag: str, sc: str) -> list[dict]:
 
 
 def api_times(rs: list[dict]) -> list[float]:
-    return [a["t_svc"] for r in rs for a in r.get("detail", []) if a.get("t_svc")]
+    # disc rows keep attempts under detail, uncached eve rows carry t_svc themselves
+    return [a["t_svc"] for r in rs for a in r.get("detail", [r]) if a.get("t_svc")]
 
 
 def hms(t: float) -> str:
@@ -34,7 +35,11 @@ def hms(t: float) -> str:
 
 def devtime(tag: str, rs: list[dict]) -> list[str]:
     """devtime.py attempts over the scenario's window in cap-TAG.txt."""
-    return attempts(f"cap-{tag}.txt", hms(rs[0]["ts"] - 60), hms(rs[-1]["ts"] + 5))
+    return attempts(
+        f"cap-{tag}.txt",
+        hms(rs[0].get("start", rs[0]["ts"] - 60) - 5),
+        hms(rs[-1]["ts"] + 5),
+    )
 
 
 def link_and_discovery(

@@ -31,7 +31,7 @@ for path in sorted(pathlib.Path().glob(f"{tag}-*.jsonl")):
     rows = [json.loads(ln) for ln in path.read_text(encoding="utf-8").splitlines()]
     if not rows:
         continue
-    w = window(rows[0]["ts"] - 30, rows[-1]["ts"] + 5)
+    w = window(rows[0].get("start", rows[0]["ts"] - 30) - 5, rows[-1]["ts"] + 5)
     rej = sum("Rejected: Resources" in ln for ln in w)
     closed = sum("Remote closed during discovery" in ln for ln in w)
     ivs = sorted(

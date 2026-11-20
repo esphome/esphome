@@ -5,8 +5,8 @@ drive.py HOST third MODE ROUNDS OUT             hold two PEERS, connect the thir
 drive.py HOST disc NAME ROUNDS OUT [HELD,HELD]  no-cache connect to services resolved, BUDGET s, retry up to 5
 drive.py HOST eve MODE ROUNDS OUT [HELD,HELD]   HK_NAME device: connect (+discovery when nocache), then disconnect
 env: API_KEY, PEERS (the three gen_peri.py peripheral names, comma separated), HK_NAME (local name prefix of a real
-device, default "Eve Flare"), BUDGET (default 10), COLD=1 (clear the proxy cache before each attempt), APILOG=debug,
-NOADV=1. Writes JSON lines to OUT; device log lines to OUT.log.
+device, default "Eve Flare"), BUDGET (default 10), COLD=1 (clear the proxy cache before each attempt), APILOG=debug.
+Writes JSON lines to OUT; device log lines to OUT.log.
 """
 
 import asyncio
@@ -55,9 +55,12 @@ class Driver:
         self.marks: list[str] = []
         self.allnames: set = set()
         self.adv_count = 0
+        self.t0: float | None = None  # wall clock start of the current round
 
     def rec(self, **kw) -> None:
         kw["ts"] = round(time.time(), 3)
+        if self.t0 is not None:
+            kw["start"] = round(self.t0, 3)
         self.out.write(json.dumps(kw) + "\n")
         self.out.flush()
         print(json.dumps(kw), flush=True)
@@ -97,15 +100,13 @@ class Driver:
                 if n and (n in PEERS or n.startswith(HK_NAME)):
                     self.peers[n] = (a.address, a.address_type, a.rssi)
 
-        unsub = self.cli.subscribe_bluetooth_le_raw_advertisements(on_adv)
+        # keep the advert subscription: without a subscriber the proxy drops links
+        self.cli.subscribe_bluetooth_le_raw_advertisements(on_adv)
         end = time.monotonic() + scan_s
         while time.monotonic() < end and not all(
             any(p.startswith(w) for p in self.peers) for w in want
         ):
             await asyncio.sleep(0.5)
-        # keep the advert subscription: without a subscriber the proxy drops links
-        if os.environ.get("NOADV") == "1":
-            unsub()  # a weak Wi-Fi link cannot carry the advert stream; alone runs only
 
     async def connect(self, name: str, cache: bool, timeout: float = 20) -> dict:
         addr, atype, _ = self.peers[name]
@@ -275,6 +276,7 @@ async def main() -> None:
         if missing:
             sys.exit(f"not seen: {missing}")
         for r in range(rounds):
+            d.t0 = time.time()
             if lost_api.is_set():
                 print("API connection lost, stopping", flush=True)
                 sys.exit(3)
@@ -336,6 +338,7 @@ async def main() -> None:
             name = min(eves)
             print(f"using {name} rssi={d.peers[name][2]}", flush=True)
         for r in range(rounds):
+            d.t0 = time.time()
             if lost_api.is_set():
                 print("API connection lost, stopping", flush=True)
                 sys.exit(3)
