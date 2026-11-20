@@ -68,9 +68,6 @@ from esphome.const import (
     ENTITY_CATEGORY_CONFIG,
     ENTITY_CATEGORY_DIAGNOSTIC,
     ENTITY_CATEGORY_NONE,
-    KEY_CORE,
-    KEY_FRAMEWORK_VERSION,
-    KEY_TARGET_FRAMEWORK,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
     PLATFORM_NRF52,
@@ -2937,8 +2934,7 @@ def require_framework_version(
     """
 
     def validator(value):
-        core_data = CORE.data[KEY_CORE]
-        framework = core_data[KEY_TARGET_FRAMEWORK]
+        framework = CORE.target_framework
 
         keys_to_try: list[str] = []
         if CORE.is_host and framework == "host":
@@ -2984,14 +2980,14 @@ def require_framework_version(
         required = kwargs[key]
 
         if max_version:
-            if core_data[KEY_FRAMEWORK_VERSION] > required:
+            if CORE.framework_version > required:
                 msg = f"This feature requires framework version {required} or lower"
                 if extra_message:
                     msg += f". {extra_message}"
                 raise Invalid(msg)
             return value
 
-        if core_data[KEY_FRAMEWORK_VERSION] < required:
+        if CORE.framework_version < required:
             msg = f"This feature requires at least framework version {required}"
             if extra_message:
                 msg += f". {extra_message}"
