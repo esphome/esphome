@@ -1350,9 +1350,9 @@ def test_reconcile_mbedtls_sha1_without_tls(
     preset: dict[str, Any],
     keeps_sha1: bool,
 ) -> None:
-    """Without TLS, SHA-1 stays only when esp_wifi is in the build (wifi:,
-    espnow, esp32_hosted, bt or an external component), for a websocket server
-    or for PPP."""
+    """Without TLS, SHA-1 stays only when esp_wifi is re-included (wifi:,
+    espnow, esp32_hosted or an external component), for a websocket server or
+    for PPP."""
     set_core_config(PlatformFramework.ESP32_IDF)
     _seed_mbedtls(idf=_IDF6, preset=preset)
     if not wifi_included:
