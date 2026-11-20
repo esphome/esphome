@@ -36,6 +36,7 @@ void UpdateEntity::publish_state() {
   if (!this->update_info_.release_url.empty()) {
     ESP_LOGV(TAG, "  Release URL: %s", this->update_info_.release_url.c_str());
   }
+  ESP_LOGV(TAG, "  Force Update: %s", YESNO(this->update_info_.force_update));
 
   if (this->update_info_.has_progress) {
     ESP_LOGV(TAG, "  Progress: %.0f%%", this->update_info_.progress);
