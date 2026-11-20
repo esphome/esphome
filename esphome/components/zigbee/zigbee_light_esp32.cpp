@@ -301,9 +301,9 @@ void ZigbeeLight::set_attr_internal() {
         }
       }
     }
-    if (this->x_forwarder_ ||
-        this->ct_forwarder_ && ezb_zcl_get_cluster_desc(this->endpoint_id_, EZB_ZCL_CLUSTER_ID_COLOR_CONTROL,
-                                                        EZB_ZCL_CLUSTER_SERVER) != NULL) {
+    if ((this->x_forwarder_ || this->ct_forwarder_) &&
+        ezb_zcl_get_cluster_desc(this->endpoint_id_, EZB_ZCL_CLUSTER_ID_COLOR_CONTROL, EZB_ZCL_CLUSTER_SERVER) !=
+            NULL) {
       ezb_zcl_attr_desc_t current_time =
           ezb_zcl_get_attr_desc(this->endpoint_id_, EZB_ZCL_CLUSTER_ID_COLOR_CONTROL, EZB_ZCL_CLUSTER_SERVER,
                                 EZB_ZCL_ATTR_COLOR_CONTROL_REMAINING_TIME_ID, EZB_ZCL_STD_MANUF_CODE);
