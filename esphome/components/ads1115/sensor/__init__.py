@@ -1,10 +1,10 @@
+import math
+
 import esphome.codegen as cg
 from esphome.components import sensor, voltage_sampler
+from esphome.components.ads1xxx import MUX_GAIN_SCHEMA, mux_gain_bits
 import esphome.config_validation as cv
 from esphome.const import (
-    CONF_GAIN,
-    CONF_ID,
-    CONF_MULTIPLEXER,
     CONF_RESOLUTION,
     CONF_SAMPLE_RATE,
     DEVICE_CLASS_VOLTAGE,
@@ -18,45 +18,13 @@ from .. import CONF_ADS1115_ID, ADS1115Component, ads1115_ns
 AUTO_LOAD = ["voltage_sampler"]
 DEPENDENCIES = ["ads1115"]
 
-ADS1115Multiplexer = ads1115_ns.enum("ADS1115Multiplexer")
-MUX = {
-    "A0_A1": ADS1115Multiplexer.ADS1115_MULTIPLEXER_P0_N1,
-    "A0_A3": ADS1115Multiplexer.ADS1115_MULTIPLEXER_P0_N3,
-    "A1_A3": ADS1115Multiplexer.ADS1115_MULTIPLEXER_P1_N3,
-    "A2_A3": ADS1115Multiplexer.ADS1115_MULTIPLEXER_P2_N3,
-    "A0_GND": ADS1115Multiplexer.ADS1115_MULTIPLEXER_P0_NG,
-    "A1_GND": ADS1115Multiplexer.ADS1115_MULTIPLEXER_P1_NG,
-    "A2_GND": ADS1115Multiplexer.ADS1115_MULTIPLEXER_P2_NG,
-    "A3_GND": ADS1115Multiplexer.ADS1115_MULTIPLEXER_P3_NG,
+RESOLUTION = {"16_BITS": 16, "12_BITS": 12}
+# Samples per second of each data rate code; the ADS1015 (12 bits) runs faster
+DATA_RATES = {
+    16: (8, 16, 32, 64, 128, 250, 475, 860),
+    12: (128, 250, 490, 920, 1600, 2400, 3300, 3300),
 }
-
-ADS1115Gain = ads1115_ns.enum("ADS1115Gain")
-GAIN = {
-    "6.144": ADS1115Gain.ADS1115_GAIN_6P144,
-    "4.096": ADS1115Gain.ADS1115_GAIN_4P096,
-    "2.048": ADS1115Gain.ADS1115_GAIN_2P048,
-    "1.024": ADS1115Gain.ADS1115_GAIN_1P024,
-    "0.512": ADS1115Gain.ADS1115_GAIN_0P512,
-    "0.256": ADS1115Gain.ADS1115_GAIN_0P256,
-}
-
-ADS1115Resolution = ads1115_ns.enum("ADS1115Resolution")
-RESOLUTION = {
-    "16_BITS": ADS1115Resolution.ADS1115_16_BITS,
-    "12_BITS": ADS1115Resolution.ADS1015_12_BITS,
-}
-
-ADS1115Samplerate = ads1115_ns.enum("ADS1115Samplerate")
-SAMPLERATE = {
-    "8": ADS1115Samplerate.ADS1115_8SPS,
-    "16": ADS1115Samplerate.ADS1115_16SPS,
-    "32": ADS1115Samplerate.ADS1115_32SPS,
-    "64": ADS1115Samplerate.ADS1115_64SPS,
-    "128": ADS1115Samplerate.ADS1115_128SPS,
-    "250": ADS1115Samplerate.ADS1115_250SPS,
-    "475": ADS1115Samplerate.ADS1115_475SPS,
-    "860": ADS1115Samplerate.ADS1115_860SPS,
-}
+SAMPLERATE = {str(sps): i for i, sps in enumerate(DATA_RATES[16])}
 
 ADS1115Sensor = ads1115_ns.class_(
     "ADS1115Sensor", sensor.Sensor, cg.PollingComponent, voltage_sampler.VoltageSampler
@@ -73,8 +41,7 @@ CONFIG_SCHEMA = (
     .extend(
         {
             cv.GenerateID(CONF_ADS1115_ID): cv.use_id(ADS1115Component),
-            cv.Required(CONF_MULTIPLEXER): cv.enum(MUX, upper=True, space="_"),
-            cv.Required(CONF_GAIN): cv.enum(GAIN, string=True),
+            **MUX_GAIN_SCHEMA,
             cv.Optional(CONF_RESOLUTION, default="16_BITS"): cv.enum(
                 RESOLUTION, upper=True, space="_"
             ),
@@ -88,12 +55,9 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await sensor.register_sensor(var, config)
+    rate = config[CONF_SAMPLE_RATE].enum_value
+    sps = DATA_RATES[config[CONF_RESOLUTION].enum_value][rate]
+    delay_ms = math.ceil(1000 / sps + 0.5)
+    var = await sensor.new_sensor(config, mux_gain_bits(config) | rate << 5, delay_ms)
     await cg.register_component(var, config)
     await cg.register_parented(var, config[CONF_ADS1115_ID])
-
-    cg.add(var.set_multiplexer(config[CONF_MULTIPLEXER]))
-    cg.add(var.set_gain(config[CONF_GAIN]))
-    cg.add(var.set_resolution(config[CONF_RESOLUTION]))
-    cg.add(var.set_samplerate(config[CONF_SAMPLE_RATE]))
