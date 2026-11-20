@@ -7,7 +7,7 @@ One file per component, named after it:
 - [`api.md`](api.md): noise handshake and OTA encryption on the ESP8266, outgoing connection wake timing on deep sleep and after a Wi-Fi drop, user defined action listing and execution with a raw plaintext client, store_yaml recovery over Noise or plaintext, rapid connect/disconnect stress (`connstress.py`)
 - [`ble_midi.md`](ble_midi.md): BLE MIDI client against a fake ESP32 instrument, every packet shape and the send actions
 - [`captive_portal.md`](captive_portal.md): fallback AP and /wifisave hammer
-- [`cse7766.md`](cse7766.md): Sonoff S31 parser check over the API
+- [`cse7766.md`](cse7766.md): Sonoff S31 and Athom plug parser checks over the API
 - [`espnow.md`](espnow.md): ESP8266 broadcast receive
 - [`hdmi_cec.md`](hdmi_cec.md): two-board wire
 - [`http_request.md`](http_request.md): update manifest URL changed at run time, every setter shape, a swap under a running check, non-blocking request actions with loop gap, queue, cancel and reboot checks, OTA request cases with basic auth and MD5 sources
@@ -31,14 +31,14 @@ One file per component, named after it:
 - [`zephyr_coredump.md`](zephyr_coredump.md): crash and decode on nRF52 boards
 - [`zwave_proxy.md`](zwave_proxy.md): frame checksums on a live proxy
 - [`one_wire.md`](one_wire.md): ESP8266 interrupt locks under Wi-Fi load with a DS18B20 search and a busy-wait control
-- [`cc1101.md`](cc1101.md): sleep and wake checks read directly from the chip (CHIP_RDYn, PATABLE loss, registers per setter)
+- [`cc1101.md`](cc1101.md): sleep and wake checks read directly from the chip (CHIP_RDYn, PATABLE loss, registers per setter), begin_tx in packet mode, async serial OOK with remote_transmitter and remote_receiver on GDO0
 - [`globals.md`](globals.md): restoring globals with storage rtc and flash across every reset kind
 - [`homeassistant.md`](homeassistant.md): light platform mirrored from a local Home Assistant, held reports versus later calls, wizard-linked entities on every platform, homeassistant switch on a script with a host build
 - [`usb_audio.md`](usb_audio.md): USB audio speaker and microphone, the usb_host FIFO split, and Music Assistant playback through sendspin
 - [`dfrobot_sen0395.md`](dfrobot_sen0395.md): SEN0395 mmWave command flow, module quirks and overlong lines through its error reply
 - [`speaker.md`](speaker.md): media player pipeline tasks on the Connect AUX-2 with the `speaker` platform player
 - [`web_server.md`](web_server.md): state SSE stress and the HTTPD task stack on web_server_idf, entity icon and device class readback, per-session `/events` listing, `/events` head, stall, Wi-Fi drop and churn checks
-- [`uart_sim.md`](uart_sim.md): UART sensors simulated on a classic ESP32 with loopback and cross-wired UARTs, a Duco ventilation box model on a second UART
+- [`uart_sim.md`](uart_sim.md): UART sensors simulated on a classic ESP32 with loopback and cross-wired UARTs, a Duco ventilation box model on a second UART, RP2 UART pin choice with an in-chip loopback, LengthFrameReader injection for ld2410 and tuya
 - [`gpio_expander.md`](gpio_expander.md): interrupt driven expander inputs, loop idle checks, testing a device out of reach
 - [`led_strip.md`](led_strip.md): forcing a failed strip allocation, RMT symbols per chip, loop cost per strip
 - [`remote_base.md`](remote_base.md): remote_receiver protocol decoding through a one-pin loopback on ESP32 and ESP8266, no IR hardware
@@ -84,7 +84,7 @@ One file per component, named after it:
 - [`heap_alloc.md`](heap_alloc.md): operator new counting, and a ring of allocation callers decoded with addr2line to tell the first run after boot from repeats
 - [`wled.md`](wled.md): WLED realtime sender on a board's own access point
 - [`combination.md`](combination.md): combination sensor NaN behaviour from the last source
-- [`improv.md`](improv.md): Improv serial with stray bytes, scan, bad and good passwords from a client that reads frames out of the log stream, Improv over BLE, per board notes
+- [`improv.md`](improv.md): Improv serial with stray bytes, scan, bad and good passwords from a client that reads frames out of the log stream, Improv over BLE, per board notes, logger console echo per transport
 - [`arduino_pico.md`](arduino_pico.md): arduino-pico framework bump A/B: W5100S Ethernet soak, Pico W fallback AP client count, Pico W bluetooth_proxy GATT hold, web_server SSE stalls, `/events` churn crashes and never completed connects, W5100S OTA without `interrupt_pin`
 - [`bluedroid_gattc_queue.md`](bluedroid_gattc_queue.md): queued MTU request and execute write recursion that overflows BTU_TASK, ble_client central against an ESP32-S3 peer
 - [`tcp_link.md`](tcp_link.md): tcp packet_interface link, host to host pair on one computer, raw framing peer, entity_transport both ways
