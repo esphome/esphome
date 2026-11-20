@@ -1,0 +1,1 @@
+VARIANT_STM32C5: str = "STM32C5"
