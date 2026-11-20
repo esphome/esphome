@@ -30,7 +30,11 @@ async def main() -> None:
             ev, on_stop = stop_event()
             try:
                 cli = await connect(host, tries=5, on_stop=on_stop)
-            except SystemExit:
+            except SystemExit as err:
+                # Keep the gap visible: devtime.py skips the line, a reader sees the outage.
+                print(f"apilogcap: connect failed ({err}), retrying", file=sys.stderr)
+                f.write(time.strftime("[%H:%M:%S.000]") + " APILOGCAP CONNECT FAILED\n")
+                f.flush()
                 await asyncio.sleep(5)
                 continue
             cli.subscribe_logs(on_log, log_level=LogLevel.LOG_LEVEL_DEBUG)
