@@ -382,7 +382,7 @@ async def to_code(config: ConfigType) -> None:
         "board_build.filesystem_size", "0m" if CORE.testing_mode else "1m"
     )
 
-    ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
+    ver = CORE.framework_version
     cg.add_define(
         "USE_ARDUINO_VERSION_CODE",
         cg.RawExpression(f"VERSION_CODE({ver.major}, {ver.minor}, {ver.patch})"),
