@@ -588,7 +588,7 @@ async def to_code(config: ConfigType) -> None:
         cg.add_platformio_option(
             "platform_packages",
             [
-                f"platformio/framework-zephyr@https://github.com/tomaszduda23/framework-sdk-nrf/archive/refs/tags/v{CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]}.zip",
+                f"platformio/framework-zephyr@https://github.com/tomaszduda23/framework-sdk-nrf/archive/refs/tags/v{CORE.framework_version}.zip",
             ],
         )
         if config[KEY_BOOTLOADER] != BOOTLOADER_MCUBOOT:
@@ -634,7 +634,7 @@ async def to_code(config: ConfigType) -> None:
 
     if dfu_config := config.get(CONF_DFU):
         CORE.add_job(_dfu_to_code, dfu_config)
-    framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
+    framework_ver = CORE.framework_version
     if (dcdc := config.get(CONF_DCDC)) is not None:
         if framework_ver < cv.Version(2, 9, 2):
             zephyr_add_prj_conf("BOARD_ENABLE_DCDC", dcdc)
@@ -1298,13 +1298,13 @@ def _write_pch_checksum(build_dir: Path, source_dir: Path) -> None:
     The app image dir follows the SDK version, like get_elf_path;
     2.9.2+ always wraps the build in sysbuild."""
     app_dir = build_dir
-    if CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] >= cv.Version(2, 9, 2):
+    if CORE.framework_version >= cv.Version(2, 9, 2):
         app_dir = build_dir / "zephyr"
     checksum = pch.pch_checksum(
         CORE.relative_src_path(),
         pch.PCH_DEFAULT_HEADERS,
         (
-            str(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]),
+            str(CORE.framework_version),
             zephyr_data()[KEY_BOARD],
             # Kconfig inputs that reach autoconf.h without a .conf line
             ",".join(sorted(wanted_west_projects())),
@@ -1552,7 +1552,7 @@ def run_compile(args, config: ConfigType) -> bool:
         raise EsphomeError("nRF52 native build failed")
 
     zephyr_dir = build_dir / "zephyr"
-    framework_ver = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
+    framework_ver = CORE.framework_version
     bootloader = zephyr_data()[KEY_BOOTLOADER]
 
     # (dev_type, sd_req) per bootloader — values from Nordic SoftDevice release notes.
