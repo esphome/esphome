@@ -39,8 +39,8 @@ class BLEService final {
   /// Adds a characteristic the caller keeps alive; it is never freed here. False when it already belongs to a service.
   bool add_characteristic(BLECharacteristic &characteristic);
 
-  ESPBTUUID get_uuid() { return this->uuid_; }
-  uint8_t get_inst_id() { return this->inst_id_; }
+  const ESPBTUUID &get_uuid() const { return this->uuid_; }
+  uint8_t get_inst_id() const { return this->inst_id_; }
   BLECharacteristic *get_last_created_characteristic() { return this->last_created_characteristic_; }
   uint16_t get_handle() { return this->handle_; }
 
@@ -63,7 +63,9 @@ class BLEService final {
  protected:
   std::vector<BLECharacteristic *> characteristics_;
   BLECharacteristic *last_created_characteristic_{nullptr};
-  uint32_t created_characteristic_count_{0};
+  uint16_t created_characteristic_count_{0};  // never above num_handles_, so owned_ fits beside it
+  // Set by BLEServer::create_service(), which allocates it; remove_service() frees it
+  bool owned_{false};
   BLEServer *server_ = nullptr;
   ESPBTUUID uuid_;
   uint16_t num_handles_;

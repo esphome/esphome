@@ -115,16 +115,9 @@ class BLEServer final : public Component, public Parented<ESP32BLE> {
     std::function<void(uint16_t)> callback;
   };
 
-  struct ServiceEntry {
-    ESPBTUUID uuid;
-    uint8_t inst_id;
-    bool owned;  // allocated by create_service(), freed by remove_service()
-    BLEService *service;
-  };
-
   static constexpr uint8_t INVALID_INST_ID = 0xFF;
   uint8_t free_inst_id_(const ESPBTUUID &uuid);
-  void register_service_(BLEService &service, uint8_t inst_id, bool owned);
+  void register_service_(BLEService &service, uint8_t inst_id);
   void restart_advertising_();
   void request_advertising_();
   void release_advertising_();
@@ -167,7 +160,7 @@ class BLEServer final : public Component, public Parented<ESP32BLE> {
 #endif
   uint8_t client_count_{0};
   uint8_t max_clients_{1};
-  std::vector<ServiceEntry> services_{};
+  std::vector<BLEService *> services_{};
   std::vector<BLEService *> services_to_start_{};
   BLEService *device_information_service_{};
 
