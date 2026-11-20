@@ -57,3 +57,11 @@ speaker:
     i2s_audio_id: i2s_audio_bus
     dac_type: external
     i2s_dout_pin: ${i2s_dout_pin}
+    on_audio_start:
+      - then:
+          - logger.log: "Unmute after I2S clocks start"
+      - then:
+          - logger.log: "A second start automation can run independently"
+    on_audio_end:
+      - logger.log: "Mute while I2S clocks are still running"
+      - delay: 20ms
