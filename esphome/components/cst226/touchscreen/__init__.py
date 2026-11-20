@@ -7,7 +7,6 @@ AUTO_LOAD = ["cstxxx"]
 
 CST226Touchscreen = cst226_ns.class_("CST226Touchscreen", cstxxx.CSTTouchscreen)
 
-CST226ButtonListener = cst226_ns.class_("CST226ButtonListener")
 CONFIG_SCHEMA = cstxxx.cst_touchscreen_schema(CST226Touchscreen, 0x5A)
 
 
