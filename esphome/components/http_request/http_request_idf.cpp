@@ -20,8 +20,6 @@
 #include "esp_crt_bundle.h"
 #endif
 
-#include "esp_task_wdt.h"
-
 namespace esphome::http_request {
 
 ESPHOME_LOG_TAG(TAG, "http_request");
@@ -468,12 +466,7 @@ void HttpContainerIDF::end() {
   this->client_ = nullptr;
 }
 
-void HttpContainerIDF::feed_wdt() {
-  // Tests to see if the executing task has a watchdog timer attached
-  if (esp_task_wdt_status(nullptr) == ESP_OK) {
-    App.feed_wdt();
-  }
-}
+void HttpContainerIDF::feed_wdt() { App.feed_wdt_if_watched(); }
 
 }  // namespace esphome::http_request
 

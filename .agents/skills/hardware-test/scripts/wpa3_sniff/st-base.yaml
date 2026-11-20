@@ -1,0 +1,23 @@
+# Station base for st-common.yaml, stearly-common.yaml and ds-common.yaml: joins the WPA3-only AP of sniffap.yaml.
+esphome:
+  name: ${name}
+
+esp32:
+  board: ${board}
+  framework:
+    type: esp-idf
+
+logger:
+  level: DEBUG
+
+globals:
+  - id: boots
+    type: int
+    restore_value: true
+    initial_value: "0"
+
+wifi:
+  ssid: w15pmf
+  password: !secret wd_ap_password
+  min_auth_mode: WPA2
+  power_save_mode: none
