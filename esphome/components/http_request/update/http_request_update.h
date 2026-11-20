@@ -51,6 +51,8 @@ class HttpRequestUpdate final : public update::UpdateEntity, public PollingCompo
 
   void set_request_parent(HttpRequestComponent *request_parent) { this->request_parent_ = request_parent; }
   void set_ota_parent(OtaHttpRequestComponent *ota_parent) { this->ota_parent_ = ota_parent; }
+  /// Codegen: whether a manifest may request an update without user interaction.
+  void set_allow_forced_update(bool allow) { this->allow_forced_update_ = allow; }
 
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
 
@@ -65,6 +67,7 @@ class HttpRequestUpdate final : public update::UpdateEntity, public PollingCompo
   TaskResult *task_result_{nullptr};  // set while a check runs on the update task
 #endif
   uint8_t initial_check_remaining_{0};
+  bool allow_forced_update_{false};  // a manifest may start the update on its own
 
  private:
   friend class testing::HttpRequestUpdateTest;

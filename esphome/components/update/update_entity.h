@@ -17,6 +17,7 @@ struct UpdateInfo {
   std::string md5;
   bool has_progress{false};
   float progress{0};
+  bool force_update{false};
 };
 
 enum UpdateState : uint8_t {

@@ -177,6 +177,9 @@ void HttpRequestUpdate::update_task(void *params) {
         info->title = root[ESPHOME_F("name")].as<std::string>();
         info->latest_version = root[ESPHOME_F("version")].as<std::string>();
 
+        if (root[ESPHOME_F("force_update")].is<bool>())
+          info->force_update = root[ESPHOME_F("force_update")].as<bool>();
+
         auto builds_array = root[ESPHOME_F("builds")].as<JsonArray>();
         for (auto build : builds_array) {
           if (!build[ESPHOME_F("chipFamily")].is<const char *>()) {
@@ -279,6 +282,10 @@ defer:
 
     if (trigger_update_available) {
       this_update->get_update_available_trigger()->trigger(this_update->update_info_);
+    }
+
+    if (this_update->allow_forced_update_ && this_update->update_info_.force_update) {
+      this_update->perform(false);
     }
   });
 
