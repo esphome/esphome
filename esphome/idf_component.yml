@@ -10,7 +10,7 @@ dependencies:
   esphome/micro-decoder:
     version: 0.4.0
   esphome/micro-flac:
-    version: 0.3.0
+    version: 0.3.1
   esphome/micro-mp3:
     version: 0.4.0
   esphome/micro-opus:
@@ -80,7 +80,7 @@ dependencies:
     rules:
       - if: "idf_version >=6.0.0 && target in [esp32, esp32p4]"
   espressif/w5500:
-    version: "2.0.1"
+    version: "1.0.1"
     rules:
       - if: "idf_version >=6.0.0"
   espressif/dm9051:
@@ -129,14 +129,16 @@ dependencies:
     version: d44c800a9e876a8394caefc2ce4915dd96dac77b
     rules:
       - if: "$ESPHOME_ARDUINO_COMPONENT == 1"
-  # noise (api, ota). Arduino below IDF 6.0 bundles espressif/libsodium, which
-  # clashes with esphome/libsodium, so those builds use the PlatformIO libraries.
+  # noise (api, ota)
   esphome/noise-c:
     version: 0.1.31
-    rules:
-      - if: "$ESPHOME_ARDUINO_COMPONENT == 0 || idf_version >= 6.0.0"
   # Declared alongside noise-c so the library converter skips wireguard's copy
   esphome/libsodium:
     version: 1.10021.12
-    rules:
-      - if: "$ESPHOME_ARDUINO_COMPONENT == 0 || idf_version >= 6.0.0"
+# arduino-esp32 declares espressif/libsodium, which cannot share a build with
+# esphome/libsodium
+overrides:
+  - espressif/libsodium:
+      with:
+        esphome/libsodium:
+          version: 1.10021.12

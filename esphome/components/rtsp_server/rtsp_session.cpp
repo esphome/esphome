@@ -434,42 +434,31 @@ bool RTSPSession::queue_next_packet_() {
   const size_t rtp_len = header_len - INTERLEAVED_HEADER_LEN + qtables_len + payload_len;
 
   auto *buf = reinterpret_cast<uint8_t *>(this->send_buf_.data());
-  size_t pos = 0;
-  buf[pos++] = '$';
-  buf[pos++] = 0;  // interleaved channel 0
-  buf[pos++] = static_cast<uint8_t>(rtp_len >> 8);
-  buf[pos++] = static_cast<uint8_t>(rtp_len);
+  uint8_t *p = buf;
+  *p++ = '$';
+  *p++ = 0;  // interleaved channel 0
+  p = put_be16(p, rtp_len);
 
-  buf[pos++] = 0x80;  // V=2, P=0, X=0, CC=0
-  buf[pos++] = static_cast<uint8_t>((last_fragment ? 0x80 : 0x00) | RTP_PAYLOAD_TYPE_JPEG);
-  buf[pos++] = static_cast<uint8_t>(this->sequence_number_ >> 8);
-  buf[pos++] = static_cast<uint8_t>(this->sequence_number_);
+  *p++ = 0x80;  // V=2, P=0, X=0, CC=0
+  *p++ = static_cast<uint8_t>((last_fragment ? 0x80 : 0x00) | RTP_PAYLOAD_TYPE_JPEG);
+  p = put_be16(p, this->sequence_number_);
   this->sequence_number_++;
-  buf[pos++] = static_cast<uint8_t>(this->rtp_timestamp_ >> 24);
-  buf[pos++] = static_cast<uint8_t>(this->rtp_timestamp_ >> 16);
-  buf[pos++] = static_cast<uint8_t>(this->rtp_timestamp_ >> 8);
-  buf[pos++] = static_cast<uint8_t>(this->rtp_timestamp_);
-  buf[pos++] = static_cast<uint8_t>(this->ssrc_ >> 24);
-  buf[pos++] = static_cast<uint8_t>(this->ssrc_ >> 16);
-  buf[pos++] = static_cast<uint8_t>(this->ssrc_ >> 8);
-  buf[pos++] = static_cast<uint8_t>(this->ssrc_);
+  p = put_be32(p, this->rtp_timestamp_);
+  p = put_be32(p, this->ssrc_);
 
   // RFC 2435 main JPEG header
-  buf[pos++] = 0;  // type-specific
-  buf[pos++] = static_cast<uint8_t>(this->frame_sent_ >> 16);
-  buf[pos++] = static_cast<uint8_t>(this->frame_sent_ >> 8);
-  buf[pos++] = static_cast<uint8_t>(this->frame_sent_);
-  buf[pos++] = this->jpeg_.type;
-  buf[pos++] = 255;  // Q >= 128: the quantization tables follow in the first packet
-  buf[pos++] = static_cast<uint8_t>(this->jpeg_.width / 8);
-  buf[pos++] = static_cast<uint8_t>(this->jpeg_.height / 8);
+  *p++ = 0;  // type-specific
+  p = put_be24(p, this->frame_sent_);
+  *p++ = this->jpeg_.type;
+  *p++ = 255;  // Q >= 128: the quantization tables follow in the first packet
+  *p++ = static_cast<uint8_t>(this->jpeg_.width / 8);
+  *p++ = static_cast<uint8_t>(this->jpeg_.height / 8);
 
   uint8_t count = 0;
   if (first_fragment) {
-    buf[pos++] = 0;  // MBZ
-    buf[pos++] = 0;  // 8-bit precision
-    buf[pos++] = static_cast<uint8_t>(qtables_len >> 8);
-    buf[pos++] = static_cast<uint8_t>(qtables_len);
+    *p++ = 0;  // MBZ
+    *p++ = 0;  // 8-bit precision
+    put_be16(p, qtables_len);
     this->iov_[0] = {buf, header_len};
     this->iov_[1] = {const_cast<uint8_t *>(this->jpeg_.qtable0), QTABLE_LEN};
     this->iov_[2] = {const_cast<uint8_t *>(this->jpeg_.qtable1), QTABLE_LEN};
