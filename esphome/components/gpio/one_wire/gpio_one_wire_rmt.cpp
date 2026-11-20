@@ -20,7 +20,7 @@ static constexpr uint32_t RESOLUTION_HZ = 1000000;  // one tick per microsecond,
 static constexpr uint32_t GLITCH_FILTER_NS = 1000;
 static constexpr int LINE_RELEASE_TIMEOUT_MS = 5;
 
-static const rmt_transmit_config_t TRANSMIT_CONFIG = {.flags = {.eot_level = 1, .queue_nonblocking = 1}};
+static constexpr rmt_transmit_config_t TRANSMIT_CONFIG = {.flags = {.eot_level = 1, .queue_nonblocking = 1}};
 
 static_assert(sizeof(Symbol) == sizeof(rmt_symbol_word_t), "Symbol must have the layout of rmt_symbol_word_t");
 static_assert(alignof(Symbol) == alignof(rmt_symbol_word_t), "the copy encoder reads Symbol as rmt_symbol_word_t");
