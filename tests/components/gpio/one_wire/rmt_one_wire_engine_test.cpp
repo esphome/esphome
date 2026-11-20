@@ -1262,6 +1262,82 @@ TEST(RmtOneWireEngine, FailedBusStillRefusesAPendingTransactionOnly) {
   EXPECT_EQ(log.size(), 2u);
 }
 
+TEST(RmtOneWireEngine, FailedBusEndsASubmitBeforeSubmitReturns) {
+  // The bus component is out of the main loop after mark_failed(), so nothing may wait for poll()
+  Rig rig;
+  rig.engine.set_failed();
+  DoneLog log;
+  Job job(&log, 1, ROM_A, {READ_SCRATCHPAD}, 9);
+  ASSERT_TRUE(rig.engine.submit(&job.t));
+  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_HARDWARE_ERROR}}));
+  EXPECT_TRUE(rig.engine.is_idle());
+}
+
+TEST(RmtOneWireEngine, AbortThatFailsInABlockingMethodEndsTheQueuedWork) {
+  Rig rig;
+  add_scratchpad_device(rig);
+  rig.port.drop_tx_at = 0;
+  rig.port.fail_abort = true;
+  DoneLog log;
+  Job first(&log, 1, ROM_A, {READ_SCRATCHPAD}, 9);
+  Job second(&log, 2, ROM_A, {READ_SCRATCHPAD}, 9);
+  ASSERT_TRUE(rig.engine.submit(&first.t));
+  ASSERT_TRUE(rig.engine.submit(&second.t));
+  const uint8_t skip_rom = 0xCC;
+  EXPECT_FALSE(rig.engine.write_blocking(&skip_rom, 8));
+  // Without a single poll()
+  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_HARDWARE_ERROR},
+                          {2, TransactionStatus::TRANSACTION_STATUS_HARDWARE_ERROR}}));
+  EXPECT_TRUE(rig.engine.is_idle());
+  EXPECT_FALSE(rig.engine.is_busy());
+  EXPECT_EQ(rig.port.tx_count, 1) << "the queued transactions never reached the bus";
+}
+
+TEST(RmtOneWireEngine, SubmitInsideTheFailingCallEndsWhenTheCallReturns) {
+  // The bus logs while it fails inside abort(), and a log handler may submit at that point
+  Rig rig;
+  add_scratchpad_device(rig);
+  rig.port.drop_tx_at = 0;
+  rig.port.fail_abort = true;
+  DoneLog log;
+  Job late(&log, 2, ROM_A, {READ_SCRATCHPAD}, 9);
+  bool submitted = false;
+  size_t done_inside = 0;
+  rig.port.on_abort = [&]() {
+    rig.engine.set_failed();
+    submitted = rig.engine.submit(&late.t);
+    done_inside = log.size();
+  };
+  std::vector<uint8_t> data(9);
+  EXPECT_FALSE(rig.engine.read_blocking(data.data(), 72));
+  EXPECT_TRUE(submitted);
+  EXPECT_EQ(done_inside, 0u) << "on_done must not run inside the engine call";
+  EXPECT_EQ(log, (DoneLog{{2, TransactionStatus::TRANSACTION_STATUS_HARDWARE_ERROR}}));
+  EXPECT_TRUE(rig.engine.is_idle());
+}
+
+TEST(RmtOneWireEngine, SubmitInsideTheFailingPollEndsWhenPollReturns) {
+  Rig rig;
+  add_scratchpad_device(rig);
+  rig.port.drop_tx_at = 0;
+  rig.port.fail_abort = true;
+  DoneLog log;
+  Job running(&log, 1, ROM_A, {READ_SCRATCHPAD}, 9);
+  Job late(&log, 2, ROM_A, {READ_SCRATCHPAD}, 9);
+  rig.port.on_abort = [&]() {
+    rig.engine.set_failed();
+    EXPECT_TRUE(rig.engine.submit(&late.t));
+    EXPECT_TRUE(log.empty());
+  };
+  ASSERT_TRUE(rig.engine.submit(&running.t));
+  rig.engine.poll();
+  rig.port.advance_us(60 * MS);
+  rig.engine.poll();  // times out, the abort fails
+  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_HARDWARE_ERROR},
+                          {2, TransactionStatus::TRANSACTION_STATUS_HARDWARE_ERROR}}));
+  EXPECT_TRUE(rig.engine.is_idle());
+}
+
 // ---- On engine level: OK only with a complete decode --------------------------------------
 
 namespace {

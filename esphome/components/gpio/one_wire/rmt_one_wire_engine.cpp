@@ -23,18 +23,20 @@ static constexpr uint32_t RX_IDLE_RESET_US = 600;  // above the reset Low, or th
 static constexpr uint32_t SECTION_TIMEOUT_MS = 50;
 static constexpr uint32_t BLOCKING_WAIT_MS = 1;
 
-/// Marks the engine busy for one call of poll() or a blocking method.
-class BusyScope {
+class Engine::BusyScope {
  public:
-  explicit BusyScope(bool *busy) : busy_(busy) { *busy = true; }
-  ~BusyScope() { *this->busy_ = false; }
+  explicit BusyScope(Engine *engine) : engine_(engine) { engine->busy_ = true; }
+  ~BusyScope() {
+    this->engine_->busy_ = false;
+    this->engine_->end_failed_work_();
+  }
   BusyScope(const BusyScope &) = delete;
   BusyScope(BusyScope &&) = delete;
   BusyScope &operator=(const BusyScope &) = delete;
   BusyScope &operator=(BusyScope &&) = delete;
 
  private:
-  bool *busy_;
+  Engine *engine_;
 };
 
 /// What a failed blocking read returns: bits [0, num_bits) of data set to 1.
@@ -49,13 +51,18 @@ Engine::Engine(Port *port, size_t mem_words, const Timing &timing)
       timing_(timing),
       rx_idle_us_(std::max<uint32_t>(100, timing.slot_us + 20)) {}  // above the longest phase of a section
 
-bool Engine::submit(Transaction *transaction) { return this->queue_.push(transaction); }
+bool Engine::submit(Transaction *transaction) {
+  if (!this->queue_.push(transaction))
+    return false;
+  this->end_failed_work_();
+  return true;
+}
 
 void Engine::poll() {
   // Logging inside the engine runs log handlers at once, and these may call back into the bus
   if (this->busy_)
     return;
-  BusyScope scope(&this->busy_);
+  BusyScope scope(this);
   this->poll_();
 }
 
@@ -92,6 +99,13 @@ void Engine::poll_() {
 void Engine::set_failed() {
   this->failed_ = true;
   this->pending_ = 0;
+  this->end_failed_work_();
+}
+
+void Engine::end_failed_work_() {
+  // Inside an engine call, the end of its BusyScope comes back here
+  while (this->failed_ && !this->busy_ && !this->queue_.empty())
+    this->finish_(TransactionStatus::TRANSACTION_STATUS_HARDWARE_ERROR);
 }
 
 bool IRAM_ATTR Engine::on_tx_done() { return this->pending_.fetch_and(~PENDING_TX) == PENDING_TX; }
@@ -240,7 +254,7 @@ bool Engine::run_section_(size_t count, uint32_t idle_us) {
 int Engine::reset_blocking() {
   if (this->busy_)
     return 0;
-  BusyScope scope(&this->busy_);
+  BusyScope scope(this);
   this->drain_();
   if (this->failed_)
     return 0;
@@ -264,7 +278,7 @@ int Engine::reset_blocking() {
 bool Engine::write_blocking(const uint8_t *data, size_t num_bits) {
   if (this->busy_)
     return false;
-  BusyScope scope(&this->busy_);
+  BusyScope scope(this);
   this->drain_();
   const size_t room = max_tx_slots(this->mem_words_);
   for (size_t sent = 0; sent < num_bits;) {
@@ -281,7 +295,7 @@ bool Engine::read_blocking(uint8_t *data, size_t num_bits) {
     set_bits(data, num_bits);
     return false;
   }
-  BusyScope scope(&this->busy_);
+  BusyScope scope(this);
   this->drain_();
   const size_t room = max_rx_slots(this->mem_words_);
   for (size_t decoded = 0; decoded < num_bits;) {
@@ -309,7 +323,7 @@ void Engine::reset_search() {
 uint64_t Engine::search_next() {
   if (this->busy_)
     return 0;
-  BusyScope scope(&this->busy_);
+  BusyScope scope(this);
   this->drain_();
   if (this->last_device_)
     return 0;
