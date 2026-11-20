@@ -20,8 +20,11 @@ done
   done
 ) &
 pub=$!
-sleep 35; pkill -f "[m]osquitto -c $D/mosq.conf"; echo "$(date +%H:%M:%S).000 BROKER STOP" >> "$DRV"
+fail() { echo "rs.sh: $1" >&2; kill $pub "${caps[@]}" 2> /dev/null; exit 1; }
+sleep 35; pkill -f "[m]osquitto -c $D/mosq.conf" || fail "no broker running from $D/mosq.conf"
+echo "$(date +%H:%M:%S).000 BROKER STOP" >> "$DRV"
 sleep 10; (exec "$MQ" -c "$D/mosq.conf" >> "$D/mosq.log" 2>&1 < /dev/null) &
-echo "$(date +%H:%M:%S).000 BROKER START" >> "$DRV"
-sleep 210; kill $pub 2> /dev/null; wait "${caps[@]}"
+brk=$!; t=$(date +%H:%M:%S); sleep 1; kill -0 $brk 2> /dev/null || fail "broker did not start, see $D/mosq.log"
+echo "$t.000 BROKER START" >> "$DRV"
+sleep 209; kill $pub 2> /dev/null; wait "${caps[@]}"
 echo RSDONE

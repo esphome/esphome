@@ -617,6 +617,14 @@ def main():
         for r in pres.values()
         if r.get("status") != 200 or r.get("states", 0) < 50
     )
+    # rst_mid may reset before the head arrives, so only its missing states count
+    if churn := sum(
+        st["connect_fail"] + st["no_state"] + (st["no_200"] if m != "rst_mid" else 0)
+        for m, st in churn_stats.items()
+    ):
+        bad.append(f"churn failures {churn}")
+    if rest_fail := sum(v["fail"] for kinds in rest.values() for v in kinds.values()):
+        bad.append(f"rest failures {rest_fail}")
     print("RESULT", "PASS" if not bad else "CHECK " + "; ".join(sorted(set(bad))))
 
 

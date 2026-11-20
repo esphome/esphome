@@ -198,4 +198,4 @@ pathlib.Path(out).write_text("\n".join(docs) + "\n", encoding="utf-8")
 print(
     f"listing entries {len(ids)}, rest docs {rest}, commands ok {cmd_ok}/{len(CMDS)}, state events after commands {len(got)}, bad json {bad}"
 )
-sys.exit(1 if bad else 0)
+sys.exit(1 if bad or not ids or not got or cmd_ok != len(CMDS) else 0)
