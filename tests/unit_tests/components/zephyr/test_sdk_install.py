@@ -13,6 +13,7 @@ import pytest
 from esphome.components.zephyr import sdk_install
 from esphome.components.zephyr.sdk_install import (
     ARM_TOOLCHAIN,
+    ensure_sdk,
     get_sdk_host_info,
     install_sdk,
     sdk_toolchain_path,
@@ -256,3 +257,125 @@ def test_install_sdk_keeps_any_arm_override(
         install_sdk(tmp_path / version, version, ARM_TOOLCHAIN)
 
     assert mock_download.call_args_list[1].args[0] == [template]
+
+
+def test_ensure_sdk_installs_prunes_and_marks(
+    tmp_path: Path, mock_download: MagicMock
+) -> None:
+    sdk_path = tmp_path / "toolchains" / "1.0.1"
+    sdk_path.parent.mkdir(parents=True)
+    kept = sdk_path.with_name("0.17.4.toolchain.archive.part")
+    removed = sdk_path.with_name("0.16.8.toolchain.archive.part")
+    for leftover in (kept, removed):
+        leftover.write_text("")
+
+    ensure_sdk(
+        sdk_path,
+        "1.0.1",
+        TOOLCHAIN,
+        keep_leftover=lambda p: p.name.startswith("0.17."),
+        lock_root=tmp_path,
+    )
+
+    assert mock_download.call_count == 2
+    assert kept.exists()
+    assert not removed.exists()
+    assert (sdk_path / ".ready").exists()
+
+
+def test_ensure_sdk_skips_when_ready_without_locking(
+    tmp_path: Path, mock_download: MagicMock
+) -> None:
+    sdk_path = tmp_path / "toolchains" / "1.0.1"
+    sdk_path.mkdir(parents=True)
+    (sdk_path / ".ready").touch()
+
+    with patch("filelock.FileLock") as file_lock:
+        ensure_sdk(
+            sdk_path,
+            "1.0.1",
+            TOOLCHAIN,
+            keep_leftover=lambda p: False,
+            lock_root=tmp_path,
+        )
+
+    file_lock.assert_not_called()
+    mock_download.assert_not_called()
+
+
+def test_ensure_sdk_locks_per_sdk_folder(
+    tmp_path: Path, mock_download: MagicMock
+) -> None:
+    sdk_path = tmp_path / "toolchains" / "1.0.1"
+
+    with patch("filelock.FileLock") as file_lock:
+        ensure_sdk(
+            sdk_path,
+            "1.0.1",
+            TOOLCHAIN,
+            keep_leftover=lambda p: False,
+            lock_root=tmp_path,
+        )
+
+    assert [Path(c.args[0]) for c in file_lock.call_args_list] == [
+        tmp_path / "toolchain-1.0.1.lock"
+    ]
+
+
+def test_ensure_sdk_skips_install_finished_while_waiting(
+    tmp_path: Path, mock_download: MagicMock
+) -> None:
+    sdk_path = tmp_path / "toolchains" / "1.0.1"
+
+    def _other_build_installs(*args: Any, **kwargs: Any) -> MagicMock:
+        sdk_path.mkdir(parents=True, exist_ok=True)
+        (sdk_path / ".ready").touch()
+        return MagicMock()
+
+    with patch("filelock.FileLock", side_effect=_other_build_installs):
+        ensure_sdk(
+            sdk_path,
+            "1.0.1",
+            TOOLCHAIN,
+            keep_leftover=lambda p: False,
+            lock_root=tmp_path,
+        )
+
+    mock_download.assert_not_called()
+
+
+def test_ensure_sdk_keeps_going_when_a_leftover_is_locked(
+    tmp_path: Path, mock_download: MagicMock
+) -> None:
+    sdk_path = tmp_path / "toolchains" / "1.0.1"
+    sdk_path.parent.mkdir(parents=True)
+    sdk_path.with_name("0.16.8.toolchain.archive.part").write_text("")
+
+    with patch.object(Path, "unlink", side_effect=OSError("in use")):
+        ensure_sdk(
+            sdk_path,
+            "1.0.1",
+            TOOLCHAIN,
+            keep_leftover=lambda p: False,
+            lock_root=tmp_path,
+        )
+
+    assert (sdk_path / ".ready").exists()
+
+
+def test_ensure_sdk_no_marker_on_extract_failure(
+    tmp_path: Path, mock_download: MagicMock
+) -> None:
+    sdk_path = tmp_path / "toolchains" / "1.0.1"
+    mock_download.side_effect = ValueError("Unsupported archive format")
+
+    with pytest.raises(ValueError, match="Unsupported archive format"):
+        ensure_sdk(
+            sdk_path,
+            "1.0.1",
+            TOOLCHAIN,
+            keep_leftover=lambda p: False,
+            lock_root=tmp_path,
+        )
+
+    assert not (sdk_path / ".ready").exists()
