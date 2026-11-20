@@ -169,7 +169,7 @@ std::vector<uint64_t> reference_order(const std::vector<uint64_t> &roms) {
 }
 
 std::vector<uint64_t> random_roms(size_t count, uint32_t seed) {
-  std::mt19937_64 rng(seed);
+  std::mt19937_64 rng(seed);  // NOLINT(cert-msc32-c,cert-msc51-cpp,bugprone-random-generator-seed) reproducible
   std::set<uint64_t> roms;
   while (roms.size() < count)
     roms.insert((rng() & ~0xFFULL) | 0x28);
@@ -181,6 +181,7 @@ std::vector<uint64_t> random_roms(size_t count, uint32_t seed) {
 /// Discrepancies low in the ROM, as in a batch of sensors.
 std::vector<uint64_t> counting_low_roms(size_t count) {
   std::vector<uint64_t> roms;
+  roms.reserve(count);
   for (uint64_t i = 0; i < count; i++)
     roms.push_back(0x28 | (i << 8));
   return roms;
@@ -189,6 +190,7 @@ std::vector<uint64_t> counting_low_roms(size_t count) {
 /// Discrepancies only in the last bits, the deepest branches.
 std::vector<uint64_t> counting_high_roms(size_t count) {
   std::vector<uint64_t> roms;
+  roms.reserve(count);
   for (uint64_t i = 0; i < count; i++)
     roms.push_back(0x28 | (i << 58));
   return roms;

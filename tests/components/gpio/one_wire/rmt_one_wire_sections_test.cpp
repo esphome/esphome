@@ -117,35 +117,35 @@ void check_one_length(Rig &rig, std::mt19937 &rng, uint64_t address, size_t writ
 
 TEST_P(RmtOneWireSections, AllWriteLengthsSkipRom) {
   Rig rig(GetParam());
-  std::mt19937 rng(11);
+  std::mt19937 rng(11);  // NOLINT(cert-msc32-c,cert-msc51-cpp,bugprone-random-generator-seed) reproducible
   for (size_t length = 0; length <= 255; length++)
     check_one_length(rig, rng, 0, length, 0);
 }
 
 TEST_P(RmtOneWireSections, AllWriteLengthsMatchRom) {
   Rig rig(GetParam());
-  std::mt19937 rng(12);
+  std::mt19937 rng(12);  // NOLINT(cert-msc32-c,cert-msc51-cpp,bugprone-random-generator-seed) reproducible
   for (size_t length = 0; length <= 255; length++)
     check_one_length(rig, rng, ROM_A, length, 0);
 }
 
 TEST_P(RmtOneWireSections, AllReadLengthsSkipRom) {
   Rig rig(GetParam());
-  std::mt19937 rng(13);
+  std::mt19937 rng(13);  // NOLINT(cert-msc32-c,cert-msc51-cpp,bugprone-random-generator-seed) reproducible
   for (size_t length = 0; length <= 255; length++)
     check_one_length(rig, rng, 0, 0, length);
 }
 
 TEST_P(RmtOneWireSections, AllReadLengthsMatchRom) {
   Rig rig(GetParam());
-  std::mt19937 rng(14);
+  std::mt19937 rng(14);  // NOLINT(cert-msc32-c,cert-msc51-cpp,bugprone-random-generator-seed) reproducible
   for (size_t length = 0; length <= 255; length++)
     check_one_length(rig, rng, ROM_A, 0, length);
 }
 
 TEST_P(RmtOneWireSections, WriteAndReadCombined) {
   Rig rig(GetParam());
-  std::mt19937 rng(15);
+  std::mt19937 rng(15);  // NOLINT(cert-msc32-c,cert-msc51-cpp,bugprone-random-generator-seed) reproducible
   for (size_t write_len = 0; write_len <= 255; write_len += 15) {
     for (size_t read_len = 0; read_len <= 255; read_len += 15) {
       check_one_length(rig, rng, ROM_A, write_len, read_len);
@@ -157,7 +157,7 @@ TEST_P(RmtOneWireSections, WriteAndReadCombined) {
 TEST_P(RmtOneWireSections, LengthsAroundTheBlockBoundary) {
   // The bytes around W-1 and W-2 slots, with the ROM selection in front
   Rig rig(GetParam());
-  std::mt19937 rng(16);
+  std::mt19937 rng(16);  // NOLINT(cert-msc32-c,cert-msc51-cpp,bugprone-random-generator-seed) reproducible
   const size_t words_in_bytes = GetParam() / 8;
   for (size_t bytes = 0; bytes <= 3 * words_in_bytes + 1; bytes++) {
     check_one_length(rig, rng, 0, bytes, bytes);
@@ -167,7 +167,7 @@ TEST_P(RmtOneWireSections, LengthsAroundTheBlockBoundary) {
 
 TEST_P(RmtOneWireSections, FacadeSectionsFit) {
   Rig rig(GetParam());
-  std::mt19937 rng(17);
+  std::mt19937 rng(17);  // NOLINT(cert-msc32-c,cert-msc51-cpp,bugprone-random-generator-seed) reproducible
   const auto data = random_bytes(rng, 255);
   std::vector<uint8_t> read(255);
   for (size_t bits : {size_t{1}, size_t{8}, size_t{46}, size_t{47}, size_t{48}, size_t{62}, size_t{63}, size_t{64},
