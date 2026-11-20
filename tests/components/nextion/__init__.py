@@ -13,11 +13,11 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
             deps.append(dep)
     manifest.dependencies = deps
 
-    # The command queue ordering code under test is gated on
-    # USE_NEXTION_COMMAND_SPACING, which the component only defines when
-    # command_spacing is configured. Define it here so the C++ unit test build
-    # compiles those paths.
+    # The command pacer and queue ordering are compiled only when a config sets command_spacing, the
+    # waveform queue only when a sensor sets wave_channel_id, the start page only with start_up_page
     async def to_code_testing(config: ConfigType) -> None:
         cg.add_define("USE_NEXTION_COMMAND_SPACING")
+        cg.add_define("USE_NEXTION_WAVEFORM")
+        cg.add_define("USE_NEXTION_CONF_START_UP_PAGE")
 
     manifest.to_code = to_code_testing
