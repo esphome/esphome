@@ -6,6 +6,7 @@
 
 #include "esphome/components/sendspin/sendspin_hub.h"
 #include "esphome/components/text_sensor/text_sensor.h"
+#include "esphome/core/string_ref.h"
 
 #ifdef USE_SENDSPIN_METADATA
 #include <sendspin/metadata_role.h>
@@ -30,8 +31,8 @@ class SendspinTextSensor final : public SendspinChild, public text_sensor::TextS
   void set_metadata_type(SendspinTextMetadataTypes metadata_type) { this->metadata_type_ = metadata_type; }
 
  protected:
-  const char *extract_value_(const sendspin::ServerMetadataStateObject &metadata) const;
-  void publish_if_changed_(const char *value);
+  StringRef extract_value_(const sendspin::TrackMetadata &metadata) const;
+  void publish_if_changed_(StringRef value);
 
   SendspinTextMetadataTypes metadata_type_;
 };
