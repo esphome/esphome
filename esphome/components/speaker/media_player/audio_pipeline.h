@@ -68,13 +68,15 @@ class AudioPipeline final {
 
   /// @brief Starts an audio pipeline given a media url
   /// @param uri media file url
-  /// @return ESP_OK if successful or an appropriate error if not
-  void start_url(const std::string &uri);
+  /// @param is_announcement True for an announcement, which also starts when its stream pauses before the
+  /// start threshold
+  void start_url(const std::string &uri, bool is_announcement = false);
 
   /// @brief Starts an audio pipeline given a AudioFile pointer
   /// @param audio_file pointer to an AudioFile object
-  /// @return ESP_OK if successful or an appropriate error if not
-  void start_file(const audio::AudioFile *audio_file);
+  /// @param is_announcement True for an announcement, which also starts when its stream pauses before the
+  /// start threshold
+  void start_file(const audio::AudioFile *audio_file, bool is_announcement = false);
 
   /// @brief Stops the pipeline. Sends a stop signal to each task (if running) and clears the ring buffers.
   /// @return ESP_OK if successful or ESP_ERR_TIMEOUT if the tasks did not indicate they stopped
@@ -117,6 +119,8 @@ class AudioPipeline final {
   // Pending file start state used to ensure the pipeline fully stops before attempting to start the next file
   bool pending_url_{false};
   bool pending_file_{false};
+  bool pending_is_announcement_{false};
+  bool current_is_announcement_{false};
 
   speaker::Speaker *speaker_{nullptr};
 

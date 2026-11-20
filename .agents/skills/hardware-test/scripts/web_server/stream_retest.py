@@ -1,0 +1,306 @@
+"""/events stream checks for the web_server_idf stream rework (esphome#21973), against scripts/web_server/stream-dut.yaml.
+
+usage: stream_retest.py HOST MODE [--out FILE] [--runs N]
+  head      save the raw response bytes of the first 3 s of GET /events to --out (compare two builds with
+            head_compare.py)
+  multi     4 clients for 20 s: state events and longest gap per client (each needs over 500 events and no gap
+            of 5 s or more)
+  stall     a reader plus a client with a 2 KB receive buffer that reads 3 s, stops 35 s, then drains and
+            checks for EOF; the device log line gives the close time
+  wifidrop  a client streams, POST /button/Wifi Drop/press (disable 8 s, enable), the client reconnects after
+            5 s without data like a browser EventSource; reports how the old stream ended and when a new one worked.
+            The device's close of the old stream cannot reach the client while Wi-Fi is off, so the old stream
+            usually ends idle; stream_runall.sh checks the close in the serial log
+  churn     40 connects (every second one reset with SO_LINGER 0 after the first state event, the others closed
+            normally), then a fresh client for 10 s
+Each mode prints a `MODE ... ok=True/False` summary line; exits 1 when any summary is not ok.
+"""
+
+import argparse
+import pathlib
+import socket
+import struct
+import sys
+import threading
+import time
+
+ap = argparse.ArgumentParser()
+ap.add_argument("host")
+ap.add_argument("mode", choices=["head", "multi", "stall", "wifidrop", "churn"])
+ap.add_argument("--out")
+ap.add_argument("--runs", type=int, default=1)
+args = ap.parse_args()
+if args.mode == "head" and not args.out:
+    ap.error("head needs --out")
+H = args.host
+REQ = (
+    b"GET /events HTTP/1.1\r\nHost: %s\r\nAccept: text/event-stream\r\n\r\n"
+    % H.encode()
+)
+
+
+class Reader(threading.Thread):
+    """Counts `event: state` lines and the longest gap between received bytes."""
+
+    def __init__(self, seconds, rcvbuf=None, idle_reconnect=None):
+        super().__init__(daemon=True)
+        self.seconds, self.rcvbuf, self.idle_reconnect = seconds, rcvbuf, idle_reconnect
+        self.states = 0
+        self.max_gap = 0.0
+        self.end = "deadline"
+        self.t_end = None
+        self.raw = b""
+        self.tail = b""
+        self.sock = None
+
+    def connect(self):
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        # a failed connect or send must not leave the socket open; _read() closes it after a good connect
+        try:
+            if self.rcvbuf:
+                s.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, self.rcvbuf)
+            s.settimeout(5)
+            s.connect((H, 80))
+            s.sendall(REQ)
+            s.settimeout(0.5)
+        except OSError:
+            s.close()
+            raise
+        self.sock = s
+        return s
+
+    def run(self):
+        try:
+            self._read()
+        finally:
+            self.t_end = time.monotonic()
+
+    def _read(self):
+        try:
+            s = self.connect()
+        except OSError as e:
+            self.end = f"connect error {e}"
+            return
+        # every exit closes the socket, so an abandoned stream does not stay open on the device
+        try:
+            self._loop(s)
+        finally:
+            s.close()
+
+    def _loop(self, s):
+        deadline = time.monotonic() + self.seconds
+        last = time.monotonic()
+        while time.monotonic() < deadline:
+            try:
+                d = s.recv(65536)
+            except TimeoutError:
+                # a stream that stops delivering must show up as a gap, not leave max_gap at 0
+                self.max_gap = max(self.max_gap, time.monotonic() - last)
+                if (
+                    self.idle_reconnect
+                    and time.monotonic() - last > self.idle_reconnect
+                ):
+                    self.end = "idle"
+                    return
+                continue
+            except OSError as e:
+                self.end = f"error {e.__class__.__name__}"
+                return
+            now = time.monotonic()
+            if not d:
+                self.end = "eof"
+                return
+            self.max_gap = max(self.max_gap, now - last)
+            last = now
+            if len(self.raw) < 200000:
+                self.raw += d
+            # keep the tail so an event line split across two reads is still counted
+            buf = self.tail + d
+            self.states += buf.count(b"event: state")
+            self.tail = buf[-11:]
+
+
+failed = 0
+
+
+def summary(mode, ok, text):
+    global failed  # noqa: PLW0603
+    failed += not ok
+    print(f"{mode} {text} ok={ok}", flush=True)
+
+
+if args.mode == "head":
+    r = Reader(3)
+    r.start()
+    r.join()
+    with pathlib.Path(args.out).open("wb") as f:
+        f.write(r.raw)
+    summary("head", r.states > 0, f"{len(r.raw)} B, {r.states} state events")
+
+elif args.mode == "multi":
+    for run in range(args.runs):
+        rs = [Reader(20) for _ in range(4)]
+        for r in rs:
+            r.start()
+            time.sleep(0.2)
+        for r in rs:
+            r.join()
+        # a stream that stops partway keeps end=deadline, so the gap must be bounded too
+        ok = all(r.end == "deadline" and r.states > 500 and r.max_gap < 5 for r in rs)
+        summary(
+            "multi",
+            ok,
+            f"run {run + 1}: "
+            + ", ".join(f"{r.states} ev gap {r.max_gap:.1f}s" for r in rs),
+        )
+        time.sleep(3)
+
+elif args.mode == "stall":
+    for run in range(args.runs):
+        reader = Reader(45)
+        reader.start()
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 2048)
+            s.settimeout(5)
+            s.connect((H, 80))
+            s.sendall(REQ)
+            s.settimeout(0.5)
+            t_end = time.monotonic() + 3
+            got, early = b"", None
+            while time.monotonic() < t_end:
+                try:
+                    d = s.recv(4096)
+                except TimeoutError:
+                    continue
+                except OSError as e:
+                    early = e.__class__.__name__
+                    break
+                if not d:
+                    early = "eof"
+                    break
+                got += d
+            # a stream refused or closed before the stall would make the later EOF a false pass
+            live = (
+                early is None and got.startswith(b"HTTP/1.1 200") and b"event:" in got
+            )
+            t_stop = time.time()
+            print(
+                f"stall run {run + 1}: stopped reading at {time.strftime('%H:%M:%S', time.localtime(t_stop))}",
+                flush=True,
+            )
+            time.sleep(35)
+            s.settimeout(2)
+            closed = False
+            drain_end = time.monotonic() + 5
+            try:
+                while time.monotonic() < drain_end:
+                    if not s.recv(65536):
+                        closed = True
+                        break
+            except TimeoutError:
+                pass
+            except OSError:
+                closed = True
+        reader.join()
+        ok = live and closed and reader.end == "deadline" and reader.max_gap < 5
+        summary(
+            "stall",
+            ok,
+            f"run {run + 1}: stalled live={live} (early end {early}) closed={closed}, reader {reader.states} ev "
+            f"gap {reader.max_gap:.1f}s end={reader.end}",
+        )
+        time.sleep(3)
+
+elif args.mode == "wifidrop":
+    r = Reader(60, idle_reconnect=5)
+    r.start()
+    time.sleep(3)
+    pre = r.states
+    pressed = False
+    t_send = time.monotonic()
+    try:
+        with socket.create_connection((H, 80), timeout=5) as b:
+            b.sendall(
+                b"POST /button/Wifi%20Drop/press HTTP/1.1\r\nHost: "
+                + H.encode()
+                + b"\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+            )
+            b.settimeout(3)
+            # read through the end of the status line; one recv may hold only part of it
+            reply = b""
+            while b"\r\n" not in reply and (d := b.recv(200)):
+                reply += d
+            status = reply.split(b"\r\n")[0]
+            pressed = status.startswith(b"HTTP/1.1 200")
+            print("press reply:", status, flush=True)
+    except OSError as e:
+        print("press error", e, flush=True)
+    t_press = time.monotonic()
+    r.join()
+    print(
+        f"old stream: {pre} events before the press, ended {r.end} {r.t_end - t_press:.1f} s after it, "
+        f"{r.states} events total",
+        flush=True,
+    )
+    # The old stream must have been live before the press and end because of the drop, not before it
+    dropped = (
+        pre > 0
+        and r.t_end >= t_send
+        and (r.end in ("eof", "idle") or r.end.startswith("error"))
+    )
+    t_new = None
+    nr = None
+    while time.monotonic() - t_press < 90:
+        nr = Reader(5)
+        nr.start()
+        nr.join()
+        if nr.states > 50:
+            t_new = time.monotonic() - t_press
+            break
+        time.sleep(1)
+    summary(
+        "wifidrop",
+        pressed and dropped and t_new is not None,
+        f"press {'ok' if pressed else 'FAILED'}, {pre} ev before it, old end={r.end} (client saw the close: "
+        f"{r.end != 'idle'}), new stream {nr.states if nr else 0} ev in 5 s at {t_new and round(t_new, 1)} s after "
+        f"the press",
+    )
+
+elif args.mode == "churn":
+    made = resets = 0
+    for i in range(40):
+        try:
+            with socket.create_connection((H, 80), timeout=5) as c:
+                c.sendall(REQ)
+                c.settimeout(3)
+                got = b""
+                end = time.monotonic() + 3
+                while b"event: state" not in got and time.monotonic() < end:
+                    try:
+                        d = c.recv(4096)
+                    except TimeoutError:
+                        break
+                    if not d:
+                        break
+                    got += d
+                if i % 2:
+                    c.setsockopt(
+                        socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0)
+                    )
+                    resets += 1
+            made += b"event: state" in got
+        except OSError as e:
+            print("churn error", i, e, flush=True)
+        time.sleep(0.3)
+    time.sleep(2)
+    r = Reader(10)
+    r.start()
+    r.join()
+    summary(
+        "churn",
+        made == 40 and r.states > 200 and r.end == "deadline",
+        f"{made}/40 got a state event, {resets} reset; after: {r.states} ev in 10 s gap {r.max_gap:.1f}s "
+        f"end={r.end}",
+    )
+
+sys.exit(1 if failed else 0)

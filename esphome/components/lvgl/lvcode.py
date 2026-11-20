@@ -148,7 +148,7 @@ class MainContext(CodeContext):
 
 class LambdaContext(CodeContext):
     """
-    A context that will accumlate code for use in a lambda.
+    A context that will accumulate code for use in a lambda.
     """
 
     def __init__(

@@ -7,7 +7,6 @@ from esphome.const import (
     CONF_TEMPERATURE,
     DEVICE_CLASS_DISTANCE,
     DEVICE_CLASS_DURATION,
-    DEVICE_CLASS_SIGNAL_STRENGTH,
     DEVICE_CLASS_TEMPERATURE,
     ENTITY_CATEGORY_DIAGNOSTIC,
     ICON_ARROW_EXPAND_VERTICAL,
@@ -45,7 +44,6 @@ CONFIG_SCHEMA = {
     cv.Optional(CONF_SIGNAL_STRENGTH): sensor.sensor_schema(
         icon=ICON_SIGNAL,
         accuracy_decimals=0,
-        device_class=DEVICE_CLASS_SIGNAL_STRENGTH,
         state_class=STATE_CLASS_MEASUREMENT,
         entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
     ),

@@ -100,6 +100,11 @@ class Rtttl final : public Component {
    */
   void finish_();
   void set_state_(State state);
+  /// The value of a full scale sine wave at phase, where the full uint32_t range is one cycle.
+  static int16_t sine_sample(uint32_t phase);
+  /// Scales a sample near either end of a note, so the note does not click when the wave starts or stops away from
+  /// zero. from_start and to_end count the samples between this one and each end of the note.
+  static int16_t fade_sample(int16_t value, uint32_t from_start, uint32_t to_end);
 
   /// The song being played; points at owned_song_ or at static storage.
   const char *song_{nullptr};
@@ -134,8 +139,8 @@ class Rtttl final : public Component {
 #ifdef USE_SPEAKER
   /// The speaker to write the sound to.
   speaker::Speaker *speaker_{nullptr};
-  /// The number of samples for one full cycle of a note's waveform, in Q10 fixed-point format.
-  uint32_t samples_per_wave_{0};
+  /// How far the phase moves per sample, where the full uint32_t range is one cycle; 0 for a rest.
+  uint32_t phase_step_{0};
   /// The number of samples sent.
   uint32_t samples_sent_{0};
   /// The total number of samples to send.

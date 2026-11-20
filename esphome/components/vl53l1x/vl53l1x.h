@@ -41,9 +41,7 @@ class VL53L1XSensor : public sensor::Sensor, public PollingComponent, public i2c
   bool configure_();
   bool start_ranging_();
 
-  bool write_byte16_(uint16_t reg, uint8_t value);
   bool write_word16_(uint16_t reg, uint16_t value);
-  bool read_byte16_(uint16_t reg, uint8_t *value);
   bool read_word16_(uint16_t reg, uint16_t *value);
 
   // Every instance, so the first setup() can hold all sensors with an enable pin in reset.

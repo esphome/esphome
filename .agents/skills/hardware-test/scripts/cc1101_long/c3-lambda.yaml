@@ -1,0 +1,20 @@
+# Example wiring as in c3-long.yaml; packet length from a lambda, 0xEE in the first byte means -1 (drop).
+substitutions:
+  name: cc-c3-lambda
+  clk: GPIO6
+  mosi: GPIO7
+  miso: GPIO10
+  cs: GPIO3
+  gdo0: GPIO4
+  plen: "1"
+packages:
+  c: !include cccommon.yaml
+esp32:
+  variant: esp32c3
+  framework:
+    type: esp-idf
+cc1101:
+  packet_length: !lambda |-
+    if (x.size() < 1) return 0;
+    if (x[0] == 0xEE) return -1;
+    return x[0] + 1;

@@ -94,25 +94,12 @@ static bool answer_means_done(Operation operation, const char *line) {
   }
 }
 
+// Indexed by Operation
+PROGMEM_STRING_TABLE(OperationStrings, "none", "stop", "start", "restart", "factory reset", "write", "save", "read");
+
 static const LogString *operation_to_str(Operation operation) {
-  switch (operation) {
-    case Operation::OPERATION_STOP:
-      return LOG_STR("stop");
-    case Operation::OPERATION_START:
-      return LOG_STR("start");
-    case Operation::OPERATION_RESTART:
-      return LOG_STR("restart");
-    case Operation::OPERATION_FACTORY_RESET:
-      return LOG_STR("factory reset");
-    case Operation::OPERATION_WRITE:
-      return LOG_STR("write");
-    case Operation::OPERATION_SAVE:
-      return LOG_STR("save");
-    case Operation::OPERATION_READ:
-      return LOG_STR("read");
-    default:
-      return LOG_STR("none");
-  }
+  return OperationStrings::get_log_str(static_cast<uint8_t>(operation),
+                                       static_cast<uint8_t>(Operation::OPERATION_NONE));
 }
 
 DFRobotSEN0609Component::DFRobotSEN0609Component(RunMode mode) : mode_(mode) {
@@ -211,9 +198,7 @@ void DFRobotSEN0609Component::handle_line_(char *line) {
         this->param_ == (software ? PARAM_SW_VERSION : PARAM_HW_VERSION))
       this->version_received_ = true;
 #ifdef USE_TEXT_SENSOR
-    text_sensor::TextSensor *sens = software ? this->version_text_sensor_ : this->hardware_version_text_sensor_;
-    if (sens != nullptr)
-      sens->publish_state(line + 16);
+    PUBLISH_STATE(software ? this->version_text_sensor_ : this->hardware_version_text_sensor_, line + 16);
 #endif
     return;
   }
@@ -258,8 +243,7 @@ void DFRobotSEN0609Component::handle_frame_(char *line) {
     }
     this->last_frame_ms_ = App.get_loop_component_start_time();
 #ifdef USE_BINARY_SENSOR
-    if (this->has_target_binary_sensor_ != nullptr)
-      this->has_target_binary_sensor_->publish_state(presence == '1');
+    PUBLISH_STATE(this->has_target_binary_sensor_, presence == '1');
 #endif
     return;
   }
@@ -280,8 +264,7 @@ void DFRobotSEN0609Component::handle_frame_(char *line) {
   }
   if (*targets == 0) {
 #ifdef USE_BINARY_SENSOR
-    if (this->has_target_binary_sensor_ != nullptr)
-      this->has_target_binary_sensor_->publish_state(false);
+    PUBLISH_STATE(this->has_target_binary_sensor_, false);
 #endif
 #ifdef USE_SENSOR
     this->publish_target_(NAN, NAN, NAN);
@@ -296,8 +279,7 @@ void DFRobotSEN0609Component::handle_frame_(char *line) {
     return;
   }
 #ifdef USE_BINARY_SENSOR
-  if (this->has_target_binary_sensor_ != nullptr)
-    this->has_target_binary_sensor_->publish_state(true);
+  PUBLISH_STATE(this->has_target_binary_sensor_, true);
 #endif
 #ifdef USE_SENSOR
   this->publish_target_(*distance, *speed, *energy);
@@ -464,8 +446,7 @@ void DFRobotSEN0609Component::forget_number_changes_(Param param, bool unknown) 
 
 void DFRobotSEN0609Component::publish_number_(NumberSetting setting, float value) {
   this->number_values_[setting] = value;
-  if (this->numbers_[setting] != nullptr)
-    this->numbers_[setting]->publish_state(value);
+  PUBLISH_STATE(this->numbers_[setting], value);
 }
 #endif
 
@@ -487,8 +468,7 @@ void DFRobotSEN0609Component::control_switch(SwitchSetting setting, bool state) 
 
 void DFRobotSEN0609Component::publish_switch_(SwitchSetting setting, bool state) {
   this->switch_states_[setting] = state;
-  if (this->switches_[setting] != nullptr)
-    this->switches_[setting]->publish_state(state);
+  PUBLISH_STATE(this->switches_[setting], state);
 }
 #endif
 

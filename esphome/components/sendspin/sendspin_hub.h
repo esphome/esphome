@@ -34,6 +34,11 @@
 #ifdef USE_SENDSPIN_PLAYER
 #include <sendspin/player_role.h>
 #endif
+#ifdef USE_SENDSPIN_SOURCE
+#include "esphome/components/microphone/microphone_source.h"
+
+#include <sendspin/source_role.h>
+#endif
 
 #include <array>
 #include <cstddef>
@@ -41,9 +46,10 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <span>
 #include <string>
+#include <string_view>  // NOLINT
 #include <utility>
-#include <vector>
 
 namespace esphome::sendspin_ {
 
@@ -78,6 +84,7 @@ enum SendspinFeature : uint32_t {
 ///  - Handles Sendspin roles that apply to multiple child components (artwork, controller, metadata) so their events
 ///    can be fanned out. Roles specific to a single component (player) are configured by the hub but owned by the
 ///    child thereafter, since no fan-out is needed.
+///  - The source role streams a microphone. Its data callback runs on the microphone's task.
 ///
 /// The sendspin-cpp library follows this design:
 ///  - Core and role configuration are passed at client/role construction time as structs. Built in our `setup()`.
@@ -94,6 +101,9 @@ class SendspinHub final : public Component,
 #endif
 #ifdef USE_SENDSPIN_METADATA
                           public sendspin::MetadataRoleListener,
+#endif
+#ifdef USE_SENDSPIN_SOURCE
+                          public sendspin::SourceRoleListener,
 #endif
                           public sendspin::SendspinClientListener,
                           public sendspin::SendspinNetworkProvider,
@@ -144,8 +154,8 @@ class SendspinHub final : public Component,
 
   // --- Configuration setters (called from codegen) ---
 
-  template<typename F> void add_group_update_callback(F &&callback) {
-    this->group_update_callbacks_.add(std::forward<F>(callback));
+  template<typename F> void add_group_state_callback(F &&callback) {
+    this->group_state_callbacks_.add(std::forward<F>(callback));
   }
 
   template<typename F> void add_on_open_pairing_window_callback(F &&callback) {
@@ -198,11 +208,14 @@ class SendspinHub final : public Component,
   /// @brief Returns the SendspinFeature flags reported to API clients.
   uint32_t get_feature_flags() const { return SENDSPIN_FEATURE_PAIRING_TOKEN; }
 
+  /// A pairing token's characters, with no terminating NUL.
+  using PairingToken = std::array<char, sendspin::SendspinClient::PAIRING_TOKEN_LENGTH>;
+
   /// @brief Returns the pairing token a Sendspin server uses to pair with this device.
   ///
   /// The token is a long-lived secret, so this component never logs it. Returns std::nullopt until the client has
   /// started once; it stays available after the client stops. Main loop only.
-  std::optional<std::string> get_pairing_token() const;
+  std::optional<PairingToken> get_pairing_token() const;
 
   /// @brief Returns the Sendspin client_id: base64url of the client's static public key.
   ///
@@ -271,10 +284,14 @@ class SendspinHub final : public Component,
 #endif
 
 #ifdef USE_SENDSPIN_METADATA
+  void set_metadata_config(const sendspin::MetadataRoleConfig &config) { this->metadata_config_ = config; }
+
   /// @brief Registers a callback that fires when the server sends metadata.
   ///
   /// Also fires when the connection is lost, with an all-empty state object (every field nullopt, timestamp 0) meaning
-  /// the cached metadata was dropped. Subscribers must treat an absent field as cleared, not as no update.
+  /// the cached metadata was dropped. Subscribers must treat an absent field as cleared, not as no update. The text
+  /// fields view the library's copy, so a subscriber copies what it keeps past the call. A text field no text sensor
+  /// shows is always absent (see set_metadata_config()).
   template<typename F> void add_metadata_update_callback(F &&callback) {
     this->metadata_update_callbacks_.add(std::forward<F>(callback));
   }
@@ -291,13 +308,37 @@ class SendspinHub final : public Component,
   sendspin::PlayerRole *get_player_role();
 #endif
 
+#ifdef USE_SENDSPIN_SOURCE
+  void set_source_config(const sendspin::SourceRoleConfig &config) { this->source_config_ = config; }
+  void set_microphone_source(microphone::MicrophoneSource *microphone_source) {
+    this->microphone_source_ = microphone_source;
+  }
+
+  /// @brief Reports whether the source has audio to offer; exposed as the sendspin.source.set_signal action.
+  ///
+  /// Absent until first set. A call before setup() is applied there. Must be called from the main loop thread.
+  void set_source_signal(bool present);
+
+  /// @brief Returns whether the source is streaming microphone audio to the server.
+  bool is_source_streaming() const { return this->source_role_ != nullptr && this->source_role_->is_streaming(); }
+
+  /// @brief Registers a callback that fires when the server opens the source stream.
+  template<typename F> void add_on_source_streaming_started_callback(F &&callback) {
+    this->source_streaming_started_callbacks_.add(std::forward<F>(callback));
+  }
+  /// @brief Registers a callback that fires when the source stream closes.
+  template<typename F> void add_on_source_streaming_stopped_callback(F &&callback) {
+    this->source_streaming_stopped_callbacks_.add(std::forward<F>(callback));
+  }
+#endif
+
  protected:
   /// @brief Builds the SendspinClientConfig from ESPHome configuration and platform info.
   sendspin::SendspinClientConfig build_client_config_();
 
   /// The preference a library key is stored in and its blob size, or {nullptr, 0} for a key with
   /// no storage here.
-  std::pair<ESPPreferenceObject *, size_t> pref_for_key_(const std::string &key);
+  std::pair<ESPPreferenceObject *, size_t> pref_for_key_(StringRef key);
 
   /// @brief Returns the product name reported to the server: the configured model, or the device name.
   const char *get_product_name_() const;
@@ -314,7 +355,7 @@ class SendspinHub final : public Component,
 #endif
 
   // --- SendspinClientListener overrides ---
-  void on_group_update(const sendspin::GroupUpdateObject &group) override;
+  void on_group_state(const sendspin::GroupState &changes) override;
 
   void on_request_high_performance() override;
 
@@ -324,21 +365,22 @@ class SendspinHub final : public Component,
 
   void on_close_pairing_window() override;
 
-  void on_display_pairing_code(const std::string &code, sendspin::SendspinPairingCodeFormat format) override;
+  void on_pairing_code(std::string_view code, sendspin::SendspinPairingCodeFormat format) override;  // NOLINT
 
   void on_clear_pairing_code() override;
 
-  void on_pairing_succeeded(const std::string &server_id) override;
+  void on_paired(std::string_view server_id) override;  // NOLINT
 
-  void on_pairing_failed(const std::string &server_id, sendspin::SendspinPairAbortReason reason) override;
+  void on_pairing_aborted(std::string_view server_id, sendspin::SendspinPairAbortReason reason) override;  // NOLINT
 
   // --- SendspinNetworkProvider override ---
   bool is_network_ready() override;
 
   // --- SendspinPersistenceProvider overrides ---
   // The library calls commit() after writing pairing secrets, so they reach flash right away.
-  std::optional<std::vector<uint8_t>> load_blob(const std::string &key) override;
-  bool save_blob(const std::string &key, const uint8_t *data, size_t len) override;
+  // The library's interface fixes these signatures; each converts its key to StringRef on entry.
+  std::optional<size_t> read_blob(std::string_view key_view, std::span<uint8_t> out) override;  // NOLINT
+  bool write_blob(std::string_view key_view, std::span<const uint8_t> data) override;           // NOLINT
   bool commit() override;
 
   // --- Sendspin role specific methods/overrides/member variables ---
@@ -374,19 +416,36 @@ class SendspinHub final : public Component,
 #endif
 
 #ifdef USE_SENDSPIN_METADATA
+  sendspin::MetadataRoleConfig metadata_config_{};
   sendspin::MetadataRole *metadata_role_{nullptr};
 
-  void on_metadata(const sendspin::ServerMetadataStateObject &metadata) override;
+  void on_track_metadata(const sendspin::TrackMetadata &metadata) override;
 
   void on_metadata_clear() override;
 
   // Callback fan-out to child components; they filter as needed
-  CallbackManager<void(const sendspin::ServerMetadataStateObject &)> metadata_update_callbacks_{};
+  CallbackManager<void(const sendspin::TrackMetadata &)> metadata_update_callbacks_{};
 #endif
 
 #ifdef USE_SENDSPIN_PLAYER
   sendspin::PlayerRoleListener *player_listener_{nullptr};
   sendspin::PlayerRoleConfig player_config_{};
+#endif
+
+#ifdef USE_SENDSPIN_SOURCE
+  // The server opens and closes the stream; the microphone runs only while it is open.
+  void on_streaming_started() override;
+  void on_streaming_stopped() override;
+
+  sendspin::SourceRoleConfig source_config_{};
+  sendspin::SourceRole *source_role_{nullptr};
+  microphone::MicrophoneSource *microphone_source_{nullptr};
+  // Signal set before setup(), applied once the role exists
+  bool source_signal_{false};
+
+  // Lazy: each is fed by an optional YAML automation.
+  LazyCallbackManager<void()> source_streaming_started_callbacks_{};
+  LazyCallbackManager<void()> source_streaming_stopped_callbacks_{};
 #endif
 
   // --- Core member variables ---
@@ -402,7 +461,7 @@ class SendspinHub final : public Component,
   std::unique_ptr<sendspin::SendspinClient> client_;
 
   // Callback fan-out to child components
-  CallbackManager<void(const sendspin::GroupUpdateObject &)> group_update_callbacks_{};
+  CallbackManager<void(const sendspin::GroupState &)> group_state_callbacks_{};
 
   // Lazy: each pairing callback is fed by an optional YAML surface.
   LazyCallbackManager<void()> open_pairing_window_callbacks_{};

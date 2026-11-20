@@ -55,6 +55,7 @@ class EthernetComponent {
   void dump_connect_params_() {}
   void status_clear_warning() {}
   void enable_loop_soon_any_context() {}
+  void notify_connect_state_listeners_(bool) {}
   MockTrigger connect_trigger_;
   MockTrigger disconnect_trigger_;
   void *eth_handle_{this};
@@ -64,6 +65,8 @@ class EthernetComponent {
   bool connected_{true};
   std::atomic<bool> driver_stopped_{false};
   bool pending_enable_{false};
+  std::atomic<bool> link_up_{false};
+  bool link_was_up_{false};
   uint32_t connect_begin_{0};
   EthernetComponentState state_{EthernetComponentState::CONNECTED};
 };

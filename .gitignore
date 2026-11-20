@@ -98,8 +98,10 @@ venv-*/
 .pioenvs
 .piolibdeps
 .pio
-.vscode/
+.vscode/*
 !.vscode/tasks.json
+!.vscode/extensions.json
+!.vscode/settings.default.json
 CMakeListsPrivate.txt
 CMakeLists.txt
 

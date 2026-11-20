@@ -2,6 +2,7 @@
 #include "selec_meter_registers.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 #include <cinttypes>
 #include <cmath>
@@ -18,18 +19,11 @@ static constexpr uint8_t EM2M_REGISTER_COUNT = 34;  // 34 x 16-bit registers
 // Durable refusals an optional read tolerates before it is given up on
 static constexpr uint8_t MAX_OPTIONAL_READ_FAILURES = 5;
 
+// Indexed by ReadState
+PROGMEM_STRING_TABLE(ReadStateStrings, "main block", "serial number", "DG sensing", "idle");
+
 static const LogString *read_state_name(ReadState state) {
-  switch (state) {
-    case ReadState::READ_STATE_MAIN_BLOCK:
-      return LOG_STR("main block");
-    case ReadState::READ_STATE_SERIAL_NUMBER:
-      return LOG_STR("serial number");
-    case ReadState::READ_STATE_DG_SENSING:
-      return LOG_STR("DG sensing");
-    case ReadState::READ_STATE_IDLE:
-    default:
-      return LOG_STR("idle");
-  }
+  return ReadStateStrings::get_log_str(static_cast<uint8_t>(state), ReadStateStrings::LAST_INDEX);
 }
 
 // FP32 at `reg` in the configured word order (MSRF high word first, LSRF low word first); NaN when
@@ -85,11 +79,11 @@ bool SelecMeter::wanted_(ReadState state) const {
       return true;
 #if defined(USE_SELEC_METER_EM4M) && defined(USE_TEXT_SENSOR)
     case ReadState::READ_STATE_SERIAL_NUMBER:
-      return this->serial_number_sensor_ != nullptr && this->serial_number_failures_ < MAX_OPTIONAL_READ_FAILURES;
+      return this->serial_number_text_sensor_ != nullptr && this->serial_number_failures_ < MAX_OPTIONAL_READ_FAILURES;
 #endif
 #if defined(USE_SELEC_METER_EM4M) && defined(USE_BINARY_SENSOR)
     case ReadState::READ_STATE_DG_SENSING:
-      return this->dg_sensing_sensor_ != nullptr && this->dg_sensing_failures_ < MAX_OPTIONAL_READ_FAILURES;
+      return this->dg_sensing_binary_sensor_ != nullptr && this->dg_sensing_failures_ < MAX_OPTIONAL_READ_FAILURES;
 #endif
     default:
       return false;
@@ -198,7 +192,7 @@ void SelecMeter::decode_serial_number_(std::span<const uint16_t> registers) {
   }
   char buf[9];
   snprintf(buf, sizeof(buf), "%08" PRIX32, *serial);
-  this->serial_number_sensor_->publish_state(buf);
+  this->serial_number_text_sensor_->publish_state(buf);
   // The serial number never changes, so stop reading it
   this->serial_number_failures_ = MAX_OPTIONAL_READ_FAILURES;
 }
@@ -212,7 +206,7 @@ void SelecMeter::decode_dg_sensing_(std::span<const uint16_t> registers) {
     note_optional_read_failure(this->dg_sensing_failures_, read_state_name(ReadState::READ_STATE_DG_SENSING));
     return;
   }
-  this->dg_sensing_sensor_->publish_state(value != 0);
+  this->dg_sensing_binary_sensor_->publish_state(value != 0);
   this->dg_sensing_failures_ = 0;
 }
 #endif
@@ -396,10 +390,10 @@ void SelecMeter::dump_config() {
     LOG_SENSOR("  ", "Net Apparent Energy (DG)", this->net_apparent_energy_dg_sensor_);
   }
 #ifdef USE_TEXT_SENSOR
-  LOG_TEXT_SENSOR("  ", "Serial Number", this->serial_number_sensor_);
+  LOG_TEXT_SENSOR("  ", "Serial Number", this->serial_number_text_sensor_);
 #endif
 #ifdef USE_BINARY_SENSOR
-  LOG_BINARY_SENSOR("  ", "DG Sensing", this->dg_sensing_sensor_);
+  LOG_BINARY_SENSOR("  ", "DG Sensing", this->dg_sensing_binary_sensor_);
 #endif
 #endif
 }

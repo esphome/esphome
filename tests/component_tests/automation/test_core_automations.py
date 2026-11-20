@@ -1,0 +1,106 @@
+"""Tests for on_boot, on_shutdown and on_loop codegen."""
+
+from collections.abc import Callable
+from pathlib import Path
+import re
+
+import pytest
+
+CONFIG = "core_automations.yaml"
+
+
+@pytest.fixture
+def main_cpp(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> str:
+    return generate_main(component_config_path(CONFIG))
+
+
+def _constructed(main_cpp: str, var: str) -> str:
+    match = re.search(rf"new\({var}\) ([^;]+);", main_cpp)
+    assert match is not None, var
+    return match.group(1)
+
+
+def _automation_of(main_cpp: str, trigger: str) -> str:
+    """The Automation built on ``trigger``, found by its trigger rather than an id counter."""
+    match = re.search(rf"new\((\w+)\) Automation<>\({trigger}\);", main_cpp)
+    assert match is not None, trigger
+    return match.group(1)
+
+
+def _has_delay(main_cpp: str, trigger: str) -> bool:
+    automation = _automation_of(main_cpp, trigger)
+    return (
+        re.search(rf"{automation}->add_action\(delayaction_id\w*\);", main_cpp)
+        is not None
+    )
+
+
+def _registered(main_cpp: str) -> list[str]:
+    return re.findall(r"App\.register_component_\((\w+), \d+\);", main_cpp)
+
+
+def test_core_automations_registration_order(main_cpp: str) -> None:
+    """Each block is one component, registered in config order after the core ones."""
+    assert _registered(main_cpp)[-8:] == [
+        "startuptrigger_id",
+        "startuptrigger_id_2",
+        "startuptrigger_id_3",
+        "manual_boot",
+        "shutdowntrigger_id",
+        "shutdowntrigger_id_2",
+        "looptrigger_id",
+        "looptrigger_id_2",
+    ]
+
+
+def test_on_boot_inline_priorities(main_cpp: str) -> None:
+    """All-inline on_boot blocks keep their configured priority, default 600."""
+    assert _constructed(main_cpp, "startuptrigger_id") == "StartupTrigger(800.0f)"
+    assert _constructed(main_cpp, "startuptrigger_id_2") == "StartupTrigger(600.0f)"
+    _automation_of(main_cpp, "startuptrigger_id")
+    _automation_of(main_cpp, "startuptrigger_id_2")
+
+
+def test_on_boot_delay_keeps_trigger(main_cpp: str) -> None:
+    """A delay needs the Trigger and its Automation of separate actions."""
+    assert _constructed(main_cpp, "startuptrigger_id_3") == "StartupTrigger(-100.0f)"
+    assert _has_delay(main_cpp, "startuptrigger_id_3")
+
+
+def test_on_boot_manual_trigger_id_keeps_trigger(main_cpp: str) -> None:
+    """A trigger_id set by hand can be used from lambdas, so the Trigger stays."""
+    assert _constructed(main_cpp, "manual_boot") == "StartupTrigger(250.5f)"
+    _automation_of(main_cpp, "manual_boot")
+
+
+def test_on_shutdown_priorities(main_cpp: str) -> None:
+    """on_shutdown blocks keep their priority; a delay keeps the Trigger."""
+    assert _constructed(main_cpp, "shutdowntrigger_id") == "ShutdownTrigger(700.0f)"
+    _automation_of(main_cpp, "shutdowntrigger_id")
+    assert _constructed(main_cpp, "shutdowntrigger_id_2") == "ShutdownTrigger(600.0f)"
+    assert _has_delay(main_cpp, "shutdowntrigger_id_2")
+
+
+def test_on_loop(main_cpp: str) -> None:
+    """on_loop blocks are looping components; a delay keeps the Trigger."""
+    assert _constructed(main_cpp, "looptrigger_id") == "LoopTrigger()"
+    _automation_of(main_cpp, "looptrigger_id")
+    assert _constructed(main_cpp, "looptrigger_id_2") == "LoopTrigger()"
+    assert _has_delay(main_cpp, "looptrigger_id_2")
+
+
+def test_on_boot_registered_before_its_actions_are_built(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """The block keeps its place among components with the same priority while it waits."""
+    main_cpp = generate_main(component_config_path("on_boot_waits_for_ids.yaml"))
+
+    assert _registered(main_cpp)[-3:] == [
+        "startuptrigger_id",
+        "interval_intervaltrigger_id",
+        "some_sensor",
+    ]

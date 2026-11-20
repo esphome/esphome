@@ -502,8 +502,7 @@ bool ToshibaRas25j2kvsgNdClimate::store_power_selection_(ToshibaPowerSelection p
 
 void ToshibaRas25j2kvsgNdClimate::publish_power_selection_() {
 #ifdef USE_SELECT
-  if (this->power_selection_select_ != nullptr)
-    this->power_selection_select_->publish_state(static_cast<size_t>(this->power_selection_));
+  PUBLISH_STATE(this->power_selection_select_, static_cast<size_t>(this->power_selection_));
 #endif
 }
 
