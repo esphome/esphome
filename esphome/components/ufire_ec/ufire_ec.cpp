@@ -46,10 +46,8 @@ void UFireECComponent::update() {
 }
 
 void UFireECComponent::update_internal_() {
-  if (this->temperature_sensor_ != nullptr)
-    this->temperature_sensor_->publish_state(this->measure_temperature_());
-  if (this->ec_sensor_ != nullptr)
-    this->ec_sensor_->publish_state(this->measure_ms_());
+  PUBLISH_STATE(this->temperature_sensor_, this->measure_temperature_());
+  PUBLISH_STATE(this->ec_sensor_, this->measure_ms_());
 }
 
 float UFireECComponent::measure_temperature_() { return this->read_data_(REGISTER_TEMP); }
@@ -69,7 +67,7 @@ bool UFireECComponent::set_solution_(float solution, float temperature) {
 
 void UFireECComponent::set_compensation_(float temperature) { this->write_data_(REGISTER_COMPENSATION, temperature); }
 
-void UFireECComponent::set_coefficient_(float coefficient) { this->write_data_(REGISTER_COEFFICENT, coefficient); }
+void UFireECComponent::set_coefficient_(float coefficient) { this->write_data_(REGISTER_COEFFICIENT, coefficient); }
 
 void UFireECComponent::set_temperature_(float temperature) { this->write_data_(REGISTER_TEMP, temperature); }
 

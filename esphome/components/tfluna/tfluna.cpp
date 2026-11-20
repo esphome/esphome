@@ -58,15 +58,10 @@ bool TFLuna::configure_() {
   }
 
   uint8_t raw_version[3];
-  if (!this->read_bytes(VERSION_REVISION_REGISTER, raw_version, sizeof(raw_version))) {
-    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
-    return true;
-  } else {
+  if (this->status_comm_check(this->read_bytes(VERSION_REVISION_REGISTER, raw_version, sizeof(raw_version)))) {
     snprintf(this->version_, sizeof(this->version_), "%d.%d.%d", raw_version[2], raw_version[1], raw_version[0]);
 #ifdef USE_TEXT_SENSOR
-    if (this->version_text_sensor_ != nullptr) {
-      this->version_text_sensor_->publish_state(version_);
-    }
+    PUBLISH_STATE(this->version_text_sensor_, this->version_);
 #endif
   }
   return true;
@@ -87,10 +82,8 @@ void TFLuna::reconfigure_() {
 
 bool TFLuna::read_data_() {
   uint8_t buf[8];
-  if (!this->read_bytes(DISTANCE_LOW_REGISTER, buf, sizeof(buf))) {
-    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->status_comm_check(this->read_bytes(DISTANCE_LOW_REGISTER, buf, sizeof(buf))))
     return false;
-  }
   // Layout:
   // buf[0..1] = distance (LE), buf[2..3] = signal (LE),
   // buf[4..5] = temperature (LE), buf[6..7] = timestamp (LE)
@@ -104,21 +97,13 @@ bool TFLuna::read_data_() {
   }
 
 #ifdef USE_SENSOR
-  if (this->timestamp_sensor_ != nullptr) {
-    this->timestamp_sensor_->publish_state(timestamp);
-  }
-  if (this->distance_sensor_ != nullptr) {
-    // distance is unreliable when strength is below 100 or saturated at 0xFFFF
-    this->distance_sensor_->publish_state(signal_strength < 100 || signal_strength == 0xFFFF ? NAN : distance);
-  }
+  PUBLISH_STATE(this->timestamp_sensor_, timestamp);
+  // distance is unreliable when strength is below 100 or saturated at 0xFFFF
+  PUBLISH_STATE(this->distance_sensor_, signal_strength < 100 || signal_strength == 0xFFFF ? NAN : distance);
 
-  if (this->temperature_sensor_ != nullptr) {
-    this->temperature_sensor_->publish_state(temperature_raw / (float) 100);
-  }
+  PUBLISH_STATE(this->temperature_sensor_, temperature_raw / (float) 100);
 
-  if (this->signal_strength_sensor_ != nullptr) {
-    this->signal_strength_sensor_->publish_state(signal_strength);
-  }
+  PUBLISH_STATE(this->signal_strength_sensor_, signal_strength);
 #endif
   this->status_clear_warning();
   this->previous_timestamp_ = timestamp;
@@ -151,10 +136,8 @@ void TFLuna::update() {
       return;
     }
   }
-  if (!this->write_byte(TRIGGER_ONESHOT_REGISTER, 0x01)) {
-    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->status_comm_check(this->write_byte(TRIGGER_ONESHOT_REGISTER, 0x01)))
     return;
-  }
   this->read_data_timeout_();
 }
 
@@ -162,10 +145,8 @@ void TFLuna::factory_reset() {
   if (this->is_failed()) {
     return;
   }
-  if (!this->write_byte(RESTORE_FACTORY_DEFAULTS_REGISTER, 1)) {
-    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->status_comm_check(this->write_byte(RESTORE_FACTORY_DEFAULTS_REGISTER, 1)))
     return;
-  }
   this->reconfigure_pending_ = false;
   this->status_set_warning(LOG_STR("Factory reset issued; waiting for device to become ready"));
   this->set_timeout(SETUP_TIMEOUT_ID, 100, [this]() { this->reconfigure_(); });
@@ -175,10 +156,7 @@ void TFLuna::restart() {
   if (this->is_failed()) {
     return;
   }
-  if (!this->write_byte(SHUTDOWN_REBOOT_REGISTER, 0x02)) {
-    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
-    return;
-  }
+  this->status_comm_check(this->write_byte(SHUTDOWN_REBOOT_REGISTER, 0x02));
 }
 
 }  // namespace esphome::tfluna

@@ -23,7 +23,7 @@ class GCJA5Component final : public Component, public uart::UARTDevice {
   void loop() override;
 
  protected:
-  void parse_data_();
+  bool parse_data_();
   bool calculate_checksum_();
 
   uint16_t get_16_bit_uint_(uint8_t start_index) const {
@@ -36,7 +36,6 @@ class GCJA5Component final : public Component, public uart::UARTDevice {
   uint32_t last_transmission_{0};
   std::vector<uint8_t> rx_message_;
 
-  bool have_good_data_{false};
   bool first_status_log_{false};
 };
 

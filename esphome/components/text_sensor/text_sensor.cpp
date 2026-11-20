@@ -83,6 +83,29 @@ void TextSensor::clear_filters() {
   }
   this->filter_list_ = nullptr;
 }
+#ifdef USE_TEXT_SENSOR_FILTER_RESET
+Filter *TextSensor::detach_filters() {
+  Filter *filters = this->filter_list_;
+  if (filters == nullptr)
+    return nullptr;
+  // Reset first, so a timeout armed by an earlier value does not send it while detached
+  filters->reset_chain();
+  this->filter_list_ = nullptr;
+  if (this->raw_state_ != this->state)
+    this->internal_send_state_to_frontend(this->raw_state_);
+  return filters;
+}
+void TextSensor::attach_filters(Filter *filters) {
+  if (filters == nullptr)
+    return;
+  this->filter_list_ = filters;
+  // Values published while detached skipped the filters, which may change the current one (a map, for example)
+  if (this->has_state()) {
+    this->raw_state_ = this->state;
+    filters->input(this->raw_state_);
+  }
+}
+#endif
 #endif  // USE_TEXT_SENSOR_FILTER
 
 const std::string &TextSensor::get_state() const { return this->state; }

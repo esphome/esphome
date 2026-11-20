@@ -1,9 +1,14 @@
 """Shared base for the infrared and radio_frequency entity components."""
 
+from collections.abc import Callable
+
 import esphome.codegen as cg
 from esphome.const import CONF_API
 from esphome.core import CORE
-from esphome.core.entity_helpers import queue_entity_register
+from esphome.core.entity_helpers import (
+    entity_duplicate_validator,
+    queue_entity_register,
+)
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@kbx81", "@bdraco"]
@@ -12,6 +17,16 @@ DOMAIN = "ir_rf_base"
 
 ir_rf_base_ns = cg.esphome_ns.namespace("ir_rf_base")
 IrRfEntity = ir_rf_base_ns.class_("IrRfEntity", cg.EntityBase, cg.Component)
+
+
+def duplicate_validator(domain: str) -> Callable[[ConfigType], ConfigType]:
+    """Reject an entity whose key is already used by an infrared or radio_frequency entity.
+
+    The API messages for both kinds identify the entity by key alone. Adding the entity's domain to the receive,
+    transmit and transmit-complete messages is the agreed long-term fix and a welcome follow-up; once the API
+    routes by domain and key, this shared key namespace can go.
+    """
+    return entity_duplicate_validator(domain, key_namespace=DOMAIN)
 
 
 async def attach_transmitter(var: cg.MockObj, config: ConfigType, key: str) -> None:

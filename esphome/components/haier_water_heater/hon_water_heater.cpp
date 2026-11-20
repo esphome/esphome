@@ -30,8 +30,7 @@ void HonWaterHeater::setup() {
 
 void HonWaterHeater::publish_communication_(bool connected) {
 #ifdef USE_BINARY_SENSOR
-  if (this->communication_binary_sensor_ != nullptr)
-    this->communication_binary_sensor_->publish_state(connected);
+  PUBLISH_STATE(this->communication_binary_sensor_, connected);
 #endif
 }
 
@@ -274,33 +273,23 @@ void HonWaterHeater::publish_status_(const Status &status) {
   // The base entity has no Unknown mode; the text sensor preserves the decoded result.
   this->mode_ = status.powered ? this->last_active_mode_ : water_heater::WATER_HEATER_MODE_OFF;
 #ifdef USE_SENSOR
-  if (this->primary_temperature_sensor_ != nullptr)
-    this->primary_temperature_sensor_->publish_state(status.current_temperature);
-  if (this->secondary_temperature_sensor_ != nullptr) {
-    this->secondary_temperature_sensor_->publish_state(
-        status.secondary_temperature <= MAX_REPORTED_TEMPERATURE ? status.secondary_temperature : NAN);
-  }
-  if (this->target_temperature_sensor_ != nullptr)
-    this->target_temperature_sensor_->publish_state(status.target_temperature);
-  if (this->estimated_heating_time_sensor_ != nullptr)
-    this->estimated_heating_time_sensor_->publish_state(status.estimated_heating_time);
-  if (this->available_water_sensor_ != nullptr) {
-    // Three segments of available hot water, published as 0, 33, 66 or 100 percent.
-    const uint8_t percent = status.available_water * 100 / 3;
-    this->available_water_sensor_->publish_state(status.available_water <= 3 ? percent : NAN);
-  }
+  PUBLISH_STATE(this->primary_temperature_sensor_, status.current_temperature);
+  PUBLISH_STATE(this->secondary_temperature_sensor_,
+                status.secondary_temperature <= MAX_REPORTED_TEMPERATURE ? status.secondary_temperature : NAN);
+  PUBLISH_STATE(this->target_temperature_sensor_, status.target_temperature);
+  PUBLISH_STATE(this->estimated_heating_time_sensor_, status.estimated_heating_time);
+  // Three segments of available hot water, published as 0, 33, 66 or 100 percent.
+  PUBLISH_STATE(this->available_water_sensor_,
+                status.available_water <= 3 ? static_cast<uint8_t>(status.available_water * 100 / 3) : NAN);
 #endif
 #ifdef USE_BINARY_SENSOR
-  if (this->power_binary_sensor_ != nullptr)
-    this->power_binary_sensor_->publish_state(status.powered);
-  if (this->heating_binary_sensor_ != nullptr)
-    this->heating_binary_sensor_->publish_state(status.heating);
+  PUBLISH_STATE(this->power_binary_sensor_, status.powered);
+  PUBLISH_STATE(this->heating_binary_sensor_, status.heating);
 #endif
 #ifdef USE_TEXT_SENSOR
-  if (this->mode_text_sensor_ != nullptr) {
-    this->mode_text_sensor_->publish_state(HonModeLabels::get_progmem_str(
-        static_cast<uint8_t>(status.mode), static_cast<uint8_t>(HonMode::HON_MODE_UNKNOWN)));
-  }
+  PUBLISH_STATE(this->mode_text_sensor_,
+                HonModeLabels::get_progmem_str(static_cast<uint8_t>(status.mode),
+                                               static_cast<uint8_t>(HonMode::HON_MODE_UNKNOWN)));
 #endif
   this->publish_state();
 }

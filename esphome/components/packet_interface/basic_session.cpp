@@ -14,7 +14,7 @@ static constexpr uint8_t PACKET_TYPE_KEEP_ALIVE = 0x01;
 static constexpr size_t KEEP_ALIVE_SIZE = 5;
 
 BasicSession::BasicSession(PacketInterface *lower)
-    : PacketInterface(remaining_packet_size(lower->get_max_packet_size(), HEADER_SIZE)), lower_(lower) {
+    : PacketInterface(packet_size(lower->get_max_packet_size())), lower_(lower) {
   this->stack_on_(lower, CAPABILITY_SESSION);
   // Data lost by a reliability layer below must be sent again, as after a restart of the peer
   if (lower->has_capability(CAPABILITY_RELIABILITY)) {
@@ -82,8 +82,7 @@ void BasicSession::set_connected_(bool connected) {
   this->connected_ = connected;
   ESP_LOGD(TAG, "%s: Session %s", this->name_, connected ? LOG_STR_LITERAL("connected") : LOG_STR_LITERAL("lost"));
 #ifdef USE_BINARY_SENSOR
-  if (this->connected_binary_sensor_ != nullptr)
-    this->connected_binary_sensor_->publish_state(connected);
+  PUBLISH_STATE(this->connected_binary_sensor_, connected);
 #endif
   this->session_callback_.call(connected);
 }

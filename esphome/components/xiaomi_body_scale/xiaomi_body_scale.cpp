@@ -71,10 +71,12 @@ void XiaomiBodyScale::publish_stabilized_(bool stabilized) {
 void XiaomiBodyScale::publish_s400_(uint32_t packed) {
   // Weight x10 (11 bits), heart rate - 50 (7 bits), impedance x10 (14 bits). A measurement sends weight, heart
   // rate and the 50 kHz impedance (the larger value), then a packet with only the 250 kHz impedance.
-  const uint16_t weight = packed & 0x7FF;
+  const uint16_t raw_weight = packed & 0x7FF;
+  // The S400 Pro (MJTZC03YM) marks "no weight" with all weight bits set instead of 0
+  const uint16_t weight = raw_weight == 0x7FF ? 0 : raw_weight;
   const uint8_t heart_rate = (packed >> 11) & 0x7F;
   const uint16_t impedance = packed >> 18;
-  ESP_LOGD(TAG, "weight=%u heart_rate=%u impedance=%u", weight, heart_rate, impedance);
+  ESP_LOGD(TAG, "weight=%u heart_rate=%u impedance=%u", raw_weight, heart_rate, impedance);
 
   if (weight != 0 && this->weight_sensor_ != nullptr)
     this->weight_sensor_->publish_state(weight / 10.0f);
@@ -87,8 +89,7 @@ void XiaomiBodyScale::publish_s400_(uint32_t packed) {
       this->impedance_high_sensor_->publish_state(impedance / 10.0f);
     this->publish_stabilized_(impedance != 0);
   } else if (impedance != 0) {
-    if (this->impedance_low_sensor_ != nullptr)
-      this->impedance_low_sensor_->publish_state(impedance / 10.0f);
+    PUBLISH_STATE(this->impedance_low_sensor_, impedance / 10.0f);
     this->publish_stabilized_(false);
   } else {
     // Weight without impedance: measurement complete (with socks)
@@ -133,8 +134,7 @@ bool XiaomiBodyScale::parse_device(const ble_device_base::ESPBTDevice &device) {
       ESP_LOGVV(TAG, "Unknown object 0x%04X, length %u", value_type, object[2]);
       continue;
     }
-    if (this->profile_id_sensor_ != nullptr)
-      this->profile_id_sensor_->publish_state(data[0]);
+    PUBLISH_STATE(this->profile_id_sensor_, data[0]);
     return true;
   }
   return false;

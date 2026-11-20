@@ -36,14 +36,13 @@ from esphome.const import (
     CONF_WIDTH,
 )
 from esphome.core import CORE
-from esphome.cpp_generator import MockObj
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
-# mdns for autodiscovery
-AUTO_LOAD = ["mdns"]
+# mdns for autodiscovery; noise declares the noise-c and libsodium that sendspin-cpp uses
+AUTO_LOAD = ["mdns", "noise"]
 CODEOWNERS = ["@kahrendt"]
 DEPENDENCIES = ["network"]
 DOMAIN = "sendspin"
@@ -136,6 +135,9 @@ IMAGE_SOURCE_ARTIST = SendspinImageSource.enum("ARTIST")
 AudioSupportedFormatObject = sendspin_library_ns.struct("AudioSupportedFormatObject")
 PlayerRoleConfig = sendspin_library_ns.struct("PlayerRoleConfig")
 ArtworkRoleConfig = sendspin_library_ns.struct("ArtworkRoleConfig")
+MetadataRoleConfig = sendspin_library_ns.struct("MetadataRoleConfig")
+# MetadataRoleConfig's text fields, in declaration order.
+METADATA_TEXT_FIELDS = ("title", "artist", "album_artist", "album", "artwork_url")
 ImageSlotPreference = sendspin_library_ns.struct("ImageSlotPreference")
 SourceRoleConfig = sendspin_library_ns.struct("SourceRoleConfig")
 
@@ -194,6 +196,8 @@ class SendspinConfiguration:
     color_support: bool = False
     controller_support: bool = False
     metadata_support: bool = False
+    # The TrackMetadata text fields a text sensor shows; the metadata role drops the others.
+    metadata_text_fields: set[str] = field(default_factory=set)
     player_support: bool = False
     visualizer_support: bool = False
     pairing_code_display_support: bool = False
@@ -228,9 +232,12 @@ def request_controller_support() -> None:
     _get_data().controller_support = True
 
 
-def request_metadata_support() -> None:
-    """Request metadata role support for Sendspin."""
-    _get_data().metadata_support = True
+def request_metadata_support(text_field: str | None = None) -> None:
+    """Request metadata role support for Sendspin, keeping the named TrackMetadata text field."""
+    data = _get_data()
+    data.metadata_support = True
+    if text_field is not None:
+        data.metadata_text_fields.add(text_field)
 
 
 def request_player_support() -> None:
@@ -374,8 +381,8 @@ CONFIG_SCHEMA = cv.All(
         }
     ),
     cv.only_on_esp32,
-    # Arduino fails: below ESP-IDF 6.0 arduino-esp32 bundles a second libsodium next to the one
-    # noise-c brings in, and from 6.0 sendspin-cpp's enumerators collide with Arduino.h macros (DISPLAY).
+    # Arduino fails: where arduino-esp32's own libsodium cannot be replaced it sits next to the one
+    # noise-c brings in, and from ESP-IDF 6.0 sendspin-cpp's enumerators collide with Arduino.h macros (DISPLAY).
     cv.only_with_framework("esp-idf"),
     _request_high_performance_networking,
 )
@@ -555,7 +562,7 @@ async def to_code(config: ConfigType) -> None:
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
     # sendspin-cpp library
-    esp32.add_idf_component(name="sendspin/sendspin-cpp", ref="0.9.3")
+    esp32.add_idf_component(name="sendspin/sendspin-cpp", ref="0.10.0")
     # esp_websocket_client links esp_tls even for ws:// connections.
     esp32.request_tls()
 
@@ -597,38 +604,57 @@ async def to_code(config: ConfigType) -> None:
     else:
         esp32.add_idf_sdkconfig_option("CONFIG_SENDSPIN_ENABLE_ARTWORK", False)
 
-    for supported, role in (
-        (data.color_support, "COLOR"),
-        (data.controller_support, "CONTROLLER"),
-        (data.metadata_support, "METADATA"),
-    ):
-        if supported:
-            cg.add_define(f"USE_SENDSPIN_{role}", True)
-        else:
-            esp32.add_idf_sdkconfig_option(f"CONFIG_SENDSPIN_ENABLE_{role}", False)
+    if data.color_support:
+        cg.add_define("USE_SENDSPIN_COLOR", True)
+    else:
+        esp32.add_idf_sdkconfig_option("CONFIG_SENDSPIN_ENABLE_COLOR", False)
+
+    if data.controller_support:
+        cg.add_define("USE_SENDSPIN_CONTROLLER", True)
+    else:
+        esp32.add_idf_sdkconfig_option("CONFIG_SENDSPIN_ENABLE_CONTROLLER", False)
+
+    if data.metadata_support:
+        cg.add_define("USE_SENDSPIN_METADATA", True)
+        # Every text field is on by default; a field no text sensor shows costs storage for nothing.
+        cg.add(
+            var.set_metadata_config(
+                cg.StructInitializer(
+                    MetadataRoleConfig,
+                    *(
+                        (text_field, text_field in data.metadata_text_fields)
+                        for text_field in METADATA_TEXT_FIELDS
+                    ),
+                )
+            )
+        )
+    else:
+        esp32.add_idf_sdkconfig_option("CONFIG_SENDSPIN_ENABLE_METADATA", False)
 
     if data.player_support:
         cg.add_define("USE_SENDSPIN_PLAYER", True)
 
-        # Configures the player role. Each configured codec is advertised for 16 bits per sample
-        # mono and stereo at the configured sample rate. The order is a preference order, both for
-        # the codecs themselves and for stereo over mono.
+        # Configures the player role. Each configured codec is advertised for mono and stereo at the
+        # configured sample rate and bits per sample, except Opus, which sendspin-cpp only decodes to
+        # 16 bits per sample. The order is a preference order, both for the codecs themselves and for
+        # stereo over mono.
         player_cfg = data.player_config
         sample_rate = player_cfg[CONF_SAMPLE_RATE]
+        bits_per_sample = player_cfg[CONF_BITS_PER_SAMPLE]
 
-        codecs = [CODECS[codec] for codec in player_cfg[CONF_CODECS]]
-
-        def _audio_format(codec: MockObj, channels: int) -> cg.StructInitializer:
+        def _audio_format(codec: str, channels: int) -> cg.StructInitializer:
             return cg.StructInitializer(
                 AudioSupportedFormatObject,
-                ("codec", codec),
+                ("codec", CODECS[codec]),
                 ("channels", channels),
                 ("sample_rate", sample_rate),
-                ("bit_depth", 16),
+                ("bit_depth", 16 if codec == CODEC_OPUS else bits_per_sample),
             )
 
         audio_format_structs = [
-            _audio_format(codec, channels) for codec in codecs for channels in (2, 1)
+            _audio_format(codec, channels)
+            for codec in player_cfg[CONF_CODECS]
+            for channels in (2, 1)
         ]
 
         psram_stack = player_cfg.get(CONF_TASK_STACK_IN_PSRAM, False)

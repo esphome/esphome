@@ -18,10 +18,8 @@ void Am43::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_i
   switch (event) {
     case ESP_GATTC_DISCONNECT_EVT: {
       this->node_state = espbt::ClientState::IDLE;
-      if (this->battery_sensor_ != nullptr)
-        this->battery_sensor_->publish_state(NAN);
-      if (this->illuminance_sensor_ != nullptr)
-        this->illuminance_sensor_->publish_state(NAN);
+      PUBLISH_STATE(this->battery_sensor_, NAN);
+      PUBLISH_STATE(this->illuminance_sensor_, NAN);
       break;
     }
     case ESP_GATTC_SEARCH_CMPL_EVT: {

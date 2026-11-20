@@ -41,7 +41,6 @@ class LD2420Listener {
  public:
   virtual void on_presence(bool presence) {};
   virtual void on_distance(uint16_t distance) {};
-  virtual void on_energy(uint16_t *sensor_energy, size_t size) {};
   virtual void on_fw_version(const char *fw) {};
 };
 
@@ -68,19 +67,15 @@ class LD2420Component final : public Component, public uart::UARTDevice {
   void dump_config() override;
   void loop() override;
 #ifdef USE_SELECT
-  void set_operating_mode_select(select::Select *selector) { this->operating_selector_ = selector; };
+  SUB_SELECT(operating_mode)
 #endif
 #ifdef USE_NUMBER
-  void set_gate_timeout_number(number::Number *number) { this->gate_timeout_number_ = number; };
-  void set_gate_select_number(number::Number *number) { this->gate_select_number_ = number; };
-  void set_min_gate_distance_number(number::Number *number) { this->min_gate_distance_number_ = number; };
-  void set_max_gate_distance_number(number::Number *number) { this->max_gate_distance_number_ = number; };
-  void set_gate_move_sensitivity_factor_number(number::Number *number) {
-    this->gate_move_sensitivity_factor_number_ = number;
-  };
-  void set_gate_still_sensitivity_factor_number(number::Number *number) {
-    this->gate_still_sensitivity_factor_number_ = number;
-  };
+  SUB_NUMBER(gate_timeout)
+  SUB_NUMBER(gate_select)
+  SUB_NUMBER(min_gate_distance)
+  SUB_NUMBER(max_gate_distance)
+  SUB_NUMBER(gate_move_sensitivity_factor)
+  SUB_NUMBER(gate_still_sensitivity_factor)
   void set_gate_still_threshold_numbers(int gate, number::Number *n) { this->gate_still_threshold_numbers_[gate] = n; };
   void set_gate_move_threshold_numbers(int gate, number::Number *n) { this->gate_move_threshold_numbers_[gate] = n; };
   bool is_gate_select() { return gate_select_number_ != nullptr; };
@@ -100,10 +95,10 @@ class LD2420Component final : public Component, public uart::UARTDevice {
   void refresh_gate_config_numbers();
 #endif
 #ifdef USE_BUTTON
-  void set_apply_config_button(button::Button *button) { this->apply_config_button_ = button; };
-  void set_revert_config_button(button::Button *button) { this->revert_config_button_ = button; };
-  void set_restart_module_button(button::Button *button) { this->restart_module_button_ = button; };
-  void set_factory_reset_button(button::Button *button) { this->factory_reset_button_ = button; };
+  SUB_BUTTON(apply_config)
+  SUB_BUTTON(revert_config)
+  SUB_BUTTON(restart_module)
+  SUB_BUTTON(factory_reset)
 #endif
 #ifdef LD2420_LISTENER_COUNT
   void register_listener(LD2420Listener *listener) { this->listeners_.push_back(listener); }
@@ -144,15 +139,6 @@ class LD2420Component final : public Component, public uart::UARTDevice {
   bool output_energy_state{false};
   RegConfigT current_config;
   RegConfigT new_config;
-#ifdef USE_SELECT
-  select::Select *operating_selector_{nullptr};
-#endif
-#ifdef USE_BUTTON
-  button::Button *apply_config_button_{nullptr};
-  button::Button *revert_config_button_{nullptr};
-  button::Button *restart_module_button_{nullptr};
-  button::Button *factory_reset_button_{nullptr};
-#endif
 
  protected:
   struct CmdReplyT {
@@ -183,12 +169,6 @@ class LD2420Component final : public Component, public uart::UARTDevice {
   bool get_calibration_() { return this->calibration_; };
 
 #ifdef USE_NUMBER
-  number::Number *gate_timeout_number_{nullptr};
-  number::Number *gate_select_number_{nullptr};
-  number::Number *min_gate_distance_number_{nullptr};
-  number::Number *max_gate_distance_number_{nullptr};
-  number::Number *gate_move_sensitivity_factor_number_{nullptr};
-  number::Number *gate_still_sensitivity_factor_number_{nullptr};
   std::array<number::Number *, TOTAL_GATES> gate_still_threshold_numbers_{};
   std::array<number::Number *, TOTAL_GATES> gate_move_threshold_numbers_{};
 #endif

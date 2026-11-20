@@ -34,17 +34,19 @@ esp32_camera:
 
 START = "  on_capture_start:\n    - logger.log: start\n"
 END = "  on_capture_end:\n    - logger.log: end\n"
-FORWARDERS = ("TriggerOnTrueForwarder", "TriggerOnFalseForwarder")
+START_FILTER = "if (!(state))"
+END_FILTER = "if (!(!state))"
+FILTERS = (START_FILTER, END_FILTER)
 
 
 @pytest.mark.parametrize(
-    ("options", "delay", "forwarders"),
+    ("options", "delay", "filters"),
     [
         ("", None, ()),
         ("  capture_delay: 2s\n", 2000, ()),
-        (START, 0, ("TriggerOnTrueForwarder",)),
-        (END, 0, ("TriggerOnFalseForwarder",)),
-        ("  capture_delay: 500ms\n" + START + END, 500, FORWARDERS),
+        (START, 0, (START_FILTER,)),
+        (END, 0, (END_FILTER,)),
+        ("  capture_delay: 500ms\n" + START + END, 500, FILTERS),
     ],
 )
 def test_capture_codegen(
@@ -52,7 +54,7 @@ def test_capture_codegen(
     tmp_path: Path,
     options: str,
     delay: int | None,
-    forwarders: tuple[str, ...],
+    filters: tuple[str, ...],
 ) -> None:
     path = tmp_path / "test.yaml"
     path.write_text(BASE + options)
@@ -62,9 +64,9 @@ def test_capture_codegen(
         assert "set_capture_delay" not in main_cpp
     else:
         assert f"cam->set_capture_delay({delay});" in main_cpp
-    for forwarder in FORWARDERS:
-        expected = int(forwarder in forwarders)
-        assert main_cpp.count(f"cam->add_on_capture_callback({forwarder}") == expected
+    assert main_cpp.count("cam->add_on_capture_callback(") == len(filters)
+    for filter_ in FILTERS:
+        assert main_cpp.count(filter_) == int(filter_ in filters)
     assert ("USE_ESP32_CAMERA_CAPTURE" in {d.name for d in CORE.defines}) == (
         delay is not None
     )

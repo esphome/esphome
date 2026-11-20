@@ -7,7 +7,7 @@ namespace esphome::xiaomi_miscale {
 
 ESPHOME_LOG_TAG(TAG, "xiaomi_miscale");
 
-void XiaomiMiscale::dump_config() {
+void XiaomiMiscale::dump_child_config() {
   ESP_LOGCONFIG(TAG, "Xiaomi Miscale");
   LOG_SENSOR("  ", "Weight", this->weight_sensor_);
   LOG_SENSOR("  ", "Impedance", this->impedance_sensor_);
@@ -34,8 +34,7 @@ bool XiaomiMiscale::parse_device(const ble_device_base::ESPBTDevice &device) {
     if (!report_results_(res, addr_str))
       continue;
 
-    if (res->weight.has_value() && this->weight_sensor_ != nullptr)
-      this->weight_sensor_->publish_state(*res->weight);
+    publish_optional(this->weight_sensor_, res->weight);
 
     if (this->impedance_sensor_ != nullptr) {
       if (res->version == 1) {

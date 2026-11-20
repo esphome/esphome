@@ -18,9 +18,7 @@ void Husb238Component::update() {
     return;
 
 #ifdef USE_BINARY_SENSOR
-  if (this->attached_binary_sensor_ != nullptr) {
-    this->attached_binary_sensor_->publish_state((status & PD_STATUS1_ATTACHED) != 0);
-  }
+  PUBLISH_STATE(this->attached_binary_sensor_, (status & PD_STATUS1_ATTACHED) != 0);
   if (this->cc_direction_binary_sensor_ != nullptr) {
     // The CC line only means something while a source is attached
     if (status & PD_STATUS1_ATTACHED) {

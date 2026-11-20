@@ -1,0 +1,92 @@
+# bluetooth_proxy
+
+## Held GATT link after a half-open API session (#21256, #22077)
+
+When Home Assistant stops answering without closing its socket, the proxy must not keep the BLE link it opened for
+that session. `scripts/bluetooth_proxy_half_open/` reproduces it with:
+- `proxy.yaml`: the proxy under test on a classic ESP32 devkit (ESP-IDF, VERBOSE logger with the busy tags at DEBUG,
+  encrypted API). Build it from the tree under test with a `secrets.yaml` (`wifi_ssid`, `wifi_password`, `api_key`).
+- `peripheral.yaml`: a second ESP32 (an S3 here) as a peripheral that only advertises while nobody is connected
+  (`esp32_ble_server` takes one client by default), with manufacturer data `FF FF 21 56` so the client can find it.
+- `ha.py`: the Home Assistant stand-in (aioesphomeapi, `client_info` "Home Assistant test"). Roles: `owner` connects
+  to the peripheral through the proxy and idles, `observe` counts the peripheral's adverts and the slot report and can
+  ask for a connect at the end, `swap` connects at once and retries on the first advert. Every role stays subscribed
+  to advertisements: with no subscriber the proxy's loop disconnects every link at once, which hides the bug (an
+  early run failed with `disconnect while backend idle` for that reason).
+
+`cases.sh PROXY_HOST LABEL` (env `PROXY_PORT`, `PERI_PORT`, `SC`, `PY`, `API_KEY`) captures both boards and runs
+case C (old client killed, new client after 4 s), case H (old client frozen with `SIGSTOP`, so the socket stays open
+with no FIN; new client after 4 s, watched 300 s, then it asks to connect and releases) and case N (frozen and nobody
+reconnects for 200 s). `cases.sh PROXY_HOST LABEL swap` instead repeats H three times with the new client
+connecting at once (`ha.py ... swap ADDR`) and retrying on the first advert. Both end with PASS or FAIL: the cases
+fail when an observer exits non-zero, never sees the peripheral advertise (the held link) or the proxy resets, and
+swap fails when a round never connects. An owner that never got the link also fails (a rig problem, not a result).
+
+- The proxy drops a frozen session as unresponsive after about 144 s.
+- Before #22077, case H holds the link for good: 0 adverts, and the address stays in the slot report. With #22077 the
+  link is released in the same millisecond as the `replaces` warning. In case 4 the first request logs `Connection
+  request ignored, state: DISCONNECTING` (connected=false at 0.2 s) and the retry connects at 0.5 to 0.7 s.
+
+## Out-of-order GATT discovery responses (#22518)
+
+Some peripherals answer a characteristic discovery (Read By Type) with records out of handle order. ESP-IDF 5.5.6
+rejects that (`gatt_process_read_by_type_rsp invalid handle ...`) and ends the whole discovery; 5.5.5, Android and
+BlueZ accept it. `scripts/att_reorder/` reproduces it with no such device:
+
+- `server.yaml` (ESP32-S3) serves `FFF0` with six characteristics, then `1826`.
+- `proxy.yaml` (classic ESP32, `idf` substitution; keep per-build files such as `example-proxy.yaml` in the same
+  directory) links `components/attswap`, which wraps Bluedroid's
+  `l2c_rcv_acl_data` (`-Wl,--wrap`); `attswap.hpp` swaps the first two records of the response whose first record
+  declares `FFF1`, and logs a swap count.
+- `gattget.py PROXY PEER_MAC ROUNDS` reads the services through the proxy like Home Assistant (no cache);
+  `run.sh PROXY_YAML [ROUNDS]` flashes both boards and prints the services per round and the discovery errors.
+
+On 5.5.6 Home Assistant gets `fff0` with no characteristics and no `1826`, while the proxy still logs
+`Service discovery complete` (the proxy ignores the error status); on 5.5.5 every service arrives. To find the order a
+real device uses, decode an Android HCI snoop: a Read By Type response lists its records in the order sent.
+
+- Handles, reads and notifies after a reordered response: flash `server-notify.yaml` (`SERVER_YAML` on `run.sh`) and run
+  `gattcheck.py PROXY PEER_MAC`. It prints every service, characteristic and descriptor handle, reads FFF1, FFF2 and
+  FFF3 by the received handles (each holds its own value), and enables notify on FFF1, FFF2 and 2ACD. Compare the table
+  with a run of a proxy built without `attswap`. On ESP-IDF 5.5.5, which accepts the unsorted response, FFF1's
+  descriptor range runs over FFF2's declaration, value and CCCD, so FFF2 has no CCCD (#22576).
+- `bluetooth_gatt_start_notify` only registers the notify on the proxy; the client writes the CCCD itself, as Home
+  Assistant does. Without that write no notification arrives.
+- Give the proxy an `api` encryption key (`API_KEY` for the scripts). A Home Assistant on the same network connected to
+  a plaintext test proxy and took over its Bluetooth subscription (`Subscription from Home Assistant ... replaces
+  aioesphomeapi`), dropping the test client's connection mid-run.
+
+## GATT UUID forms through a proxy (#22679)
+
+`scripts/gatt_uuid/`: `server.yaml` (the `ble_notify` server plus a service with 128 bit, 32-bit base and 16 bit
+UUIDs on characteristics and descriptors, and 2901 and 2902; set the name with `-s name`), `gattlist.py PROXY PEER
+OUT.json` (lists every UUID, reads, notifies 10 s, retries 0x3E), `cmp.py REF.json OTHER.json` (entry by entry diff,
+exits 1 on a difference) and `run.sh NAME` (Pico W proxy from `rp2_web_ble/picow.yaml`, list, compare). Take the
+reference from an ESP32 proxy (unset `API_KEY` for a plaintext API).
+
+- On rp2 before #22679, BTstack truncated 32-bit base UUIDs with a nonzero low half to 16 bits (`5ec10001-...` came
+  out as `00000001-...`); a zero low half (5ec10000) came through intact.
+- Connects through the Pico W proxy fail with 0x3E now and then (see `reference/boards.md`); the scripts retry.
+
+## Scan complete never arrives (#22770)
+
+`scripts/ble_scan_complete/`: `scan.yaml` is a proxy config like the report's (ESP32-C6, interval = window = 1100 ms,
+debug sensors, `api: reboot_timeout: 0s`, a `duration` substitution, 5 s by default; the validator wants at least
+three intervals, so 2 s is refused). The tracker watchdog is `duration * 2`, so a short duration shortens it too.
+`scaninst.yaml` adds `scan_inst.hpp` and five `-Wl,--wrap` flags that count one scan's duration timer through
+Bluedroid: `BTM_BleScan` starts and stops, `btu_start_timer(BTU_TTYPE_BLE_SCAN)`, the timer's alarm firing (a shim on
+its `osi_alarm_new` callback, BTC task), `btm_ble_timeout` (BTU task) and the INQ_CMPL handed to `btc_transfer_context`
+(PID 5, act 3; the param is 108 bytes in libbt, so do not compare with the C++ `sizeof`). A 30 s interval logs them as
+`scaninst`; a lost completion shows where the chain stopped (timer > fire + 1, fire > timeout, timeout > cmpl_post, or
+cmpl_post above the ESPHome-side `ends / 2`). `ha.py HOST OUT SECONDS [--toggle S --jitter J]` is the Home Assistant
+stand-in (raw adverts, scanner state, set mode passive once, optional active/passive toggles). `soak.sh TAG HOST
+SECONDS [ha.py options]` (env PORT, API_KEY or else `apikey.txt`) runs a bounded serial capture plus ha.py.
+`wait.sh CAPTURE SECONDS [FROM_LINE]` blocks until a timeout, drop or unexpected-state line and prints the counters.
+- Bluedroid and IDF log lines reach the ESPHome log as tag `esp-idf` at VERBOSE (`[V][esp-idf:000][BTU_TASK]: E ...`),
+  so a user capturing at INFO over the API never sees a Bluedroid error.
+- A stop from Home Assistant landing just after the timer fired (toggle period 5.03 s with 0.08 s jitter against 5 s
+  scans hits it about once per 20 minutes) gives `Unexpected state: STOPPING on scan complete`, `stop complete -
+  status 1`, `BTM_BleScan scan not active`; the tracker recovers. A stop while STARTING logs `Cannot stop scan:
+  STARTING` and the mode change waits for the next restart.
+- With about 55 devices around (about 95 adverts/s), no lost completion in about 2800 natural 5 s cycles on 2026.10.2
+  (VERBOSE and INFO builds) plus about 670 toggled stops, and none on dev.
