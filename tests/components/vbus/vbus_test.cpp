@@ -87,6 +87,41 @@ TEST_F(VBusTest, DecodesValidPacketAndSeptets) {
   EXPECT_EQ(this->listener_.messages[0], PAYLOAD);
 }
 
+#ifdef USE_VBUS_RX_DIAGNOSTICS
+TEST_F(VBusTest, CountsBadP1HeadersAndDataFramesWithoutCountingValidTrafficOrNoise) {
+  EXPECT_EQ(this->bus_.get_packet_error_count(), 0u);
+  this->valid_packet_();
+  EXPECT_EQ(this->bus_.get_packet_error_count(), 0u);
+  auto header = HEADER;
+  header.back() ^= 1;
+  this->feed_(header);
+  this->feed_(FRAMES[0]);
+  this->feed_(FRAMES[1]);
+  EXPECT_EQ(this->bus_.get_packet_error_count(), 1u);
+  auto frame = FRAMES[0];
+  frame.back() ^= 1;
+  this->feed_(HEADER);
+  this->feed_(frame);
+  this->feed_(FRAMES[1]);
+  EXPECT_EQ(this->bus_.get_packet_error_count(), 2u);
+  this->feed_({0x00, 0x80, 0xff, 0x00});
+  this->valid_packet_();
+  EXPECT_EQ(this->bus_.get_packet_error_count(), 2u);
+  EXPECT_EQ(this->listener_.messages.size(), 2u);
+}
+
+TEST_F(VBusTest, DiagnosticCountersBelongToEachReceiver) {
+  VBus other;
+  MockUART other_uart;
+  other.set_uart_parent(&other_uart);
+  auto header = HEADER;
+  header.back() ^= 1;
+  this->feed_(header);
+  EXPECT_EQ(this->bus_.get_packet_error_count(), 1u);
+  EXPECT_EQ(other.get_packet_error_count(), 0u);
+}
+#endif
+
 TEST_F(VBusTest, PreservesPartialHeaderAndFrameAcrossLoopCalls) {
   this->feed_({HEADER.begin(), HEADER.begin() + 5});
   this->feed_({HEADER.begin() + 5, HEADER.end()});
