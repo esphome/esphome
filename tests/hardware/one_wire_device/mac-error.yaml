@@ -1,0 +1,20 @@
+substitutions:
+  node_name: ow-mac-error
+  rom_address: '0'
+esphome:
+  name: ${node_name}
+  includes: [mac-error.h]
+  build_flags:
+    - '-Wl,--wrap=esp_read_mac'
+  on_boot:
+    then:
+      - logger.log: "HIL_IMAGE mac-error-fault"
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+logger:
+  level: DEBUG
+one_wire_device:
+  pin: GPIO4
+  address: ${rom_address}

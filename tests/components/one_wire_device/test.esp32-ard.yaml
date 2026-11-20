@@ -1,0 +1,20 @@
+esphome:
+  name: one-wire-device-io-test
+
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+
+logger:
+
+binary_sensor:
+  - platform: template
+    id: one_wire_device_input
+    lambda: return true;
+
+one_wire_device:
+  pin: GPIO4
+  type: DS2413
+  values:
+    pio_a: !lambda return id(one_wire_device_input).state;

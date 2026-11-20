@@ -1,0 +1,44 @@
+substitutions:
+  device_type: DS18B20
+  run_id: bench-models-v3
+  node_name: ow-model-device
+
+esphome:
+  name: ${node_name}
+  on_boot:
+    then:
+      - logger.log: "HIL_IMAGE ${run_id} ${device_type}"
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+logger:
+  level: DEBUG
+
+sensor:
+  - platform: template
+    id: stimulus
+    internal: true
+    update_interval: 1s
+    lambda: |-
+      // Explicit synthetic stimulus for the real sensor -> emulation -> wire path.
+      switch ((millis() / 15000) % 5) {
+        case 0: return 23.5f;
+        case 1: return -10.125f;
+        case 2: return 85.0f;
+        case 3: return NAN;
+        default: return 9.5f;
+      }
+    on_value:
+      then:
+        - logger.log:
+            format: "HIL_SOURCE value=%.4f"
+            args: [x]
+
+one_wire_device:
+  id: emulated
+  pin: GPIO4
+  type: ${device_type}
+  value: !lambda return id(stimulus).state;
