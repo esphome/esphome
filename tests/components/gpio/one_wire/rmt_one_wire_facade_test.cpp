@@ -468,7 +468,7 @@ TEST(RmtOneWireFacade, ReadWithTheLineAtGndFailsAtAnyLength) {
 
 // ---- Facade and FIFO --------------------------------------------------------------------------
 
-TEST(RmtOneWireFacade, FacadeDrainsTheFifoFirst) {
+TEST(RmtOneWireFacade, FacadeFinishesTheRunningTransactionFirst) {
   Rig rig;
   rig.port.bus.devices.emplace_back(ROM_A, pattern_bytes(9), 1);
   DoneLog log;
@@ -476,21 +476,44 @@ TEST(RmtOneWireFacade, FacadeDrainsTheFifoFirst) {
   Job queued(&log, 2, 0, {0xBE}, 3);
   ASSERT_TRUE(rig.engine.submit(&running.t));
   ASSERT_TRUE(rig.engine.submit(&queued.t));
-  rig.engine.poll();  // the first one is on the wire now, the fifo is not empty
+  rig.engine.poll();  // the first one is on the wire now, the second one waits
 
   EXPECT_EQ(rig.engine.reset_blocking(), 1);
-  EXPECT_EQ(log,
-            (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_OK}, {2, TransactionStatus::TRANSACTION_STATUS_OK}}))
-      << "both transactions ended before the blocking reset returned";
+  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_OK}}))
+      << "only the transaction on the bus ended before the blocking reset";
   EXPECT_EQ(running.read_bytes, pattern_bytes(9));
+  EXPECT_FALSE(rig.engine.is_idle()) << "the queued one waits for the loop";
 
+  rig.pump();
+  EXPECT_EQ(log,
+            (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_OK}, {2, TransactionStatus::TRANSACTION_STATUS_OK}}));
+  EXPECT_EQ(queued.read_bytes, pattern_bytes(3));
   const auto frames = rig.port.frames();
   ASSERT_EQ(frames.size(), 3u);
   EXPECT_EQ(slots_to_string(frames[0]), slots_to_string(running.slots()));
-  EXPECT_EQ(slots_to_string(frames[1]), slots_to_string(queued.slots()));
-  EXPECT_TRUE(frames[2].empty()) << "the reset of the facade comes last";
+  EXPECT_TRUE(frames[1].empty()) << "the reset of the facade comes second";
+  EXPECT_EQ(slots_to_string(frames[2]), slots_to_string(queued.slots()));
   EXPECT_TRUE(rig.engine.is_idle());
   EXPECT_FALSE(rig.port.loop_active());
+}
+
+TEST(RmtOneWireFacade, QueuedTransactionWaitsBehindTheBlockingSequence) {
+  Rig rig;
+  rig.port.bus.devices.emplace_back(ROM_A, std::vector<uint8_t>{0x12, 0x34}, 0);
+  DoneLog log;
+  Job queued(&log, 1, 0, {}, 0);
+  ASSERT_TRUE(rig.engine.submit(&queued.t));  // not started yet, poll() did not run
+  ASSERT_EQ(rig.engine.reset_blocking(), 1);
+  ASSERT_TRUE(rig.engine.write_blocking(&SKIP_ROM, 8));
+  uint8_t data[2]{};
+  ASSERT_TRUE(rig.engine.read_blocking(data, 16));
+  EXPECT_EQ(data[0], 0x12);
+  EXPECT_EQ(data[1], 0x34);
+  EXPECT_TRUE(log.empty());
+  EXPECT_EQ(rig.port.summary(), "RESET WRITE:8 READ:16");
+  rig.pump();
+  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_OK}}));
+  EXPECT_EQ(rig.port.summary(3), "RESET WRITE:8");
 }
 
 TEST(RmtOneWireFacade, ReadAndWriteAlsoDrainFirst) {
@@ -499,6 +522,7 @@ TEST(RmtOneWireFacade, ReadAndWriteAlsoDrainFirst) {
   DoneLog log;
   Job first(&log, 1, 0, {}, 0);
   ASSERT_TRUE(rig.engine.submit(&first.t));
+  rig.engine.poll();
   uint8_t data[2]{};
   EXPECT_TRUE(rig.engine.read_blocking(data, 16));
   EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_OK}}));
@@ -508,6 +532,7 @@ TEST(RmtOneWireFacade, ReadAndWriteAlsoDrainFirst) {
 
   Job second(&log, 2, 0, {}, 0);
   ASSERT_TRUE(rig.engine.submit(&second.t));
+  rig.engine.poll();
   const uint8_t byte = 0x00;
   EXPECT_TRUE(rig.engine.write_blocking(&byte, 8));
   EXPECT_EQ(log,
@@ -515,18 +540,27 @@ TEST(RmtOneWireFacade, ReadAndWriteAlsoDrainFirst) {
   EXPECT_EQ(rig.port.summary(3), "RESET WRITE:8 WRITE:8");
 }
 
-TEST(RmtOneWireFacade, DrainIncludesWhatOnDoneSubmits) {
+TEST(RmtOneWireFacade, ResubmittingClientCannotHoldUpTheBlockingMethod) {
+  // Before, the facade waited for an empty queue, and a client that submits again from on_done kept it waiting
   Rig rig;
   rig.port.bus.devices.emplace_back(ROM_A);
   DoneLog log;
-  Job first(&log, 1, 0, {}, 0);
-  Job second(&log, 2, 0, {}, 0);
-  first.then = [&](TransactionStatus) { EXPECT_TRUE(rig.engine.submit(&second.t)); };
-  ASSERT_TRUE(rig.engine.submit(&first.t));
+  Job job(&log, 1, 0, {}, 0);
+  int resubmits = 0;
+  job.then = [&](TransactionStatus) {
+    if (resubmits++ < 5) {
+      EXPECT_TRUE(rig.engine.submit(&job.t));
+    }
+  };
+  ASSERT_TRUE(rig.engine.submit(&job.t));
+  rig.engine.poll();
   EXPECT_EQ(rig.engine.reset_blocking(), 1);
-  EXPECT_EQ(log,
-            (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_OK}, {2, TransactionStatus::TRANSACTION_STATUS_OK}}));
-  EXPECT_EQ(rig.port.summary(), "RESET WRITE:8 RESET WRITE:8 RESET");
+  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_OK}}));
+  EXPECT_EQ(rig.port.summary(), "RESET WRITE:8 RESET");
+  EXPECT_FALSE(rig.engine.is_idle());
+  rig.pump();
+  EXPECT_EQ(log.size(), 6u);
+  EXPECT_TRUE(rig.engine.is_idle());
 }
 
 TEST(RmtOneWireFacade, DrainWithNullOnDone) {
@@ -536,6 +570,7 @@ TEST(RmtOneWireFacade, DrainWithNullOnDone) {
   Job silent(&log, 1, 0, {}, 0);
   silent.t.on_done = nullptr;
   ASSERT_TRUE(rig.engine.submit(&silent.t));
+  rig.engine.poll();
   EXPECT_EQ(rig.engine.reset_blocking(), 1);
   EXPECT_EQ(rig.port.summary(), "RESET WRITE:8 RESET");
   EXPECT_TRUE(log.empty());
@@ -548,6 +583,7 @@ TEST(RmtOneWireFacade, FailingDrainDoesNotStopThePrimitive) {
   DoneLog log;
   Job lost(&log, 1, 0, {}, 0);
   ASSERT_TRUE(rig.engine.submit(&lost.t));
+  rig.engine.poll();
   EXPECT_EQ(rig.engine.reset_blocking(), 1);
   EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_TIMEOUT}}));
 }
@@ -891,12 +927,13 @@ TEST(RmtOneWireSearchContract, ZeroWhenTheClosingWriteFails) {
   }
 }
 
-TEST(RmtOneWireSearchContract, SearchDrainsTheFifoFirst) {
+TEST(RmtOneWireSearchContract, SearchFinishesTheRunningTransactionFirst) {
   Rig rig;
   rig.port.bus.devices.emplace_back(ROM_A);
   DoneLog log;
   Job job(&log, 1, 0, {}, 0);
   ASSERT_TRUE(rig.engine.submit(&job.t));
+  rig.engine.poll();
   rig.engine.reset_search();
   // On the wire this is a nonsense sequence, only the order counts
   rig.engine.search_next();

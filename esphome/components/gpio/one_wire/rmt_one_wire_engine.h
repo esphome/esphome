@@ -34,15 +34,19 @@ class Engine {
 
   // Main loop only
   bool submit(one_wire::Transaction *transaction);
+  /// Does nothing while is_busy(): a log handler inside the engine may call back into the bus.
   void poll();
   bool is_idle() const { return this->queue_.empty(); }
+  /// True while poll() or a blocking method runs, except inside on_done.
+  bool is_busy() const { return this->busy_; }
   void set_failed();  ///< All pending and future work ends in HARDWARE_ERROR
 
   // ISR safe: store and return. True if this was the last expected event of the section: wake the main loop.
   bool on_tx_done();
   bool on_rx_done(size_t num_symbols);
 
-  // Blocking facade; each drains the FIFO first, sleeps through Port::wait_for_event
+  // Blocking facade. Each first lets the transaction that is on the bus finish, then runs ahead of the rest of the
+  // FIFO, and sleeps through Port::wait_for_event. Called while is_busy(), each fails at once without bus access.
   /// 1 present, 0 no device or any failure, -1 only when the bus is held Low (OneWireBus logs that case).
   int reset_blocking();
   /// False on any failure.
@@ -59,6 +63,7 @@ class Engine {
   static constexpr uint32_t PENDING_TX = 1;
   static constexpr uint32_t PENDING_RX = 2;
 
+  void poll_();
   void start_reset_();
   void section_done_();
   /// decode_read_slots() on the capture, shows at VERBOSE how far the bits were from read_threshold.
@@ -69,6 +74,7 @@ class Engine {
   /// False: permanent hardware error, the engine is failed from now on.
   bool abort_section_();
 
+  /// Finishes the transaction on the bus, if any, but starts no other.
   void drain_();
   /// One whole section, sleeping. False on any failure, nothing is running then.
   bool run_section_(size_t count, uint32_t idle_us);
@@ -78,6 +84,8 @@ class Engine {
   Timing timing_;
   uint32_t rx_idle_us_;
   bool failed_{false};
+  /// Set by poll() and the blocking methods, cleared around on_done. Guards against calls from log handlers.
+  bool busy_{false};
 
   one_wire::TransactionQueue queue_;
 

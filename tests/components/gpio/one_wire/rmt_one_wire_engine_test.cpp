@@ -1571,4 +1571,137 @@ TEST(RmtOneWireEngine, BlockingMethodsAndSearchUseIt) {
   }
 }
 
+// ---- Calls from log handlers: logging runs handlers at once, inside the engine ------------------
+
+namespace {
+
+/// Calls into the engine like a log handler that uses the bus. While the engine is busy, all of this must fail at
+/// once and touch neither the bus nor the clock. Returns how many port calls the nested calls made.
+int call_everything_nested(Rig &rig) {
+  const size_t calls = rig.port.calls.size();
+  const uint64_t now = rig.port.now_us();
+  EXPECT_TRUE(rig.engine.is_busy());
+  EXPECT_EQ(rig.engine.reset_blocking(), 0);
+  const uint8_t byte = 0xCC;
+  EXPECT_FALSE(rig.engine.write_blocking(&byte, 8));
+  uint8_t data[2] = {0x00, 0x00};
+  EXPECT_FALSE(rig.engine.read_blocking(data, 16));
+  EXPECT_EQ(data[0], 0xFF);
+  EXPECT_EQ(data[1], 0xFF);
+  EXPECT_EQ(rig.engine.search_next(), 0u);
+  rig.engine.poll();
+  EXPECT_EQ(rig.port.now_us(), now);
+  return static_cast<int>(rig.port.calls.size() - calls);
+}
+
+/// Runs call_everything_nested() at every start_tx(), once per start.
+void nest_at_every_start(Rig &rig, int *nested, int *port_calls) {
+  rig.port.on_start_tx = [&rig, nested, port_calls]() {
+    static bool inside = false;
+    if (inside)
+      return;
+    inside = true;
+    (*nested)++;
+    *port_calls += call_everything_nested(rig);
+    inside = false;
+  };
+}
+
+}  // namespace
+
+TEST(RmtOneWireEngine, NestedCallsDuringPollFailWithoutBusAccess) {
+  Rig rig;
+  add_scratchpad_device(rig);
+  int nested = 0;
+  int port_calls = 0;
+  nest_at_every_start(rig, &nested, &port_calls);
+  DoneLog log;
+  Job job(&log, 1, ROM_A, {READ_SCRATCHPAD}, 9);
+  ASSERT_TRUE(rig.engine.submit(&job.t));
+  rig.pump();
+  EXPECT_EQ(nested, 5) << "RESET WRITE WRITE READ READ";
+  EXPECT_EQ(port_calls, 0);
+  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_OK}}));
+  EXPECT_EQ(job.read_bytes, PAYLOAD);
+  EXPECT_FALSE(rig.engine.is_busy());
+}
+
+TEST(RmtOneWireEngine, NestedCallsDuringABlockingMethodFailWithoutBusAccess) {
+  Rig rig;
+  rig.port.bus.devices.emplace_back(ROM_A, PAYLOAD, 0);
+  int nested = 0;
+  int port_calls = 0;
+  nest_at_every_start(rig, &nested, &port_calls);
+  const uint8_t skip_rom = 0xCC;
+  ASSERT_EQ(rig.engine.reset_blocking(), 1);
+  ASSERT_TRUE(rig.engine.write_blocking(&skip_rom, 8));
+  std::vector<uint8_t> data(9);
+  ASSERT_TRUE(rig.engine.read_blocking(data.data(), 72));
+  EXPECT_EQ(data, PAYLOAD);
+  EXPECT_EQ(nested, 4);
+  EXPECT_EQ(port_calls, 0);
+  EXPECT_EQ(rig.port.summary(), "RESET WRITE:8 READ:62 READ:10");
+  EXPECT_FALSE(rig.engine.is_busy());
+}
+
+TEST(RmtOneWireEngine, NestedCallsInsideAnAbortFailWithoutBusAccess) {
+  // abort_section_() logs a warning just before the abort
+  Rig rig;
+  add_scratchpad_device(rig);
+  rig.port.drop_rx_at = 3;
+  int nested = 0;
+  int port_calls = 0;
+  rig.port.on_abort = [&]() {
+    nested++;
+    port_calls += call_everything_nested(rig);
+  };
+  DoneLog log;
+  Job lost(&log, 1, ROM_A, {READ_SCRATCHPAD}, 9);
+  Job next(&log, 2, ROM_A, {READ_SCRATCHPAD}, 9);
+  ASSERT_TRUE(rig.engine.submit(&lost.t));
+  ASSERT_TRUE(rig.engine.submit(&next.t));
+  rig.pump();
+  EXPECT_EQ(nested, 1);
+  EXPECT_EQ(port_calls, 0);
+  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_TIMEOUT},
+                          {2, TransactionStatus::TRANSACTION_STATUS_OK}}));
+  EXPECT_EQ(next.read_bytes, PAYLOAD);
+}
+
+TEST(RmtOneWireEngine, OnDoneMayCallBlockingMethods) {
+  // The queue and the step are consistent inside on_done, so the guard is lifted there, from poll() and from the
+  // wait of a blocking method alike
+  Rig rig;
+  rig.port.bus.devices.emplace_back(ROM_A, PAYLOAD, 0);
+  DoneLog log;
+  Job first(&log, 1, 0, {}, 0);
+  Job second(&log, 2, 0, {}, 0);
+  std::vector<uint8_t> data(9);
+  const uint8_t skip_rom = 0xCC;
+  auto read_in_on_done = [&](TransactionStatus) {
+    EXPECT_FALSE(rig.engine.is_busy());
+    EXPECT_EQ(rig.engine.reset_blocking(), 1);
+    EXPECT_TRUE(rig.engine.write_blocking(&skip_rom, 8));
+    EXPECT_TRUE(rig.engine.read_blocking(data.data(), 72));
+  };
+  first.then = read_in_on_done;
+  second.then = read_in_on_done;
+
+  ASSERT_TRUE(rig.engine.submit(&first.t));
+  rig.pump();
+  EXPECT_EQ(data, PAYLOAD);
+  EXPECT_EQ(rig.port.summary(), "RESET WRITE:8 RESET WRITE:8 READ:62 READ:10");
+
+  data.assign(9, 0);
+  ASSERT_TRUE(rig.engine.submit(&second.t));
+  rig.engine.poll();
+  EXPECT_EQ(rig.engine.reset_blocking(), 1) << "second ends inside this wait, its on_done reads first";
+  EXPECT_EQ(data, PAYLOAD);
+  EXPECT_EQ(rig.port.summary(6), "RESET WRITE:8 RESET WRITE:8 READ:62 READ:10 RESET");
+  EXPECT_EQ(log,
+            (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_OK}, {2, TransactionStatus::TRANSACTION_STATUS_OK}}));
+  EXPECT_FALSE(rig.engine.is_busy());
+  EXPECT_TRUE(rig.engine.is_idle());
+}
+
 }  // namespace esphome::gpio::rmt_one_wire::testing
