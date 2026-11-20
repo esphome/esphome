@@ -54,7 +54,10 @@ void GPIORMTOneWireBus::setup() {
   tx_config.resolution_hz = RESOLUTION_HZ;
   tx_config.mem_block_symbols = SOC_RMT_MEM_WORDS_PER_CHANNEL;
   tx_config.trans_queue_depth = 1;
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 2)
+  // Older versions start the line Low, until the first transmit below releases it
   tx_config.flags.init_level = 1;
+#endif
 #if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(6, 0, 0)
   tx_config.flags.io_od_mode = 1;
 #endif
