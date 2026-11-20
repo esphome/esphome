@@ -18,9 +18,8 @@
 #undef PSA_WANT_ALG_RSA_PSS
 #undef PSA_WANT_ALG_RSA_PSS_ANY_SALT
 #endif
-// Only TLS (or an explicit CONFIG_MBEDTLS_SHA224_C) uses SHA-224. Chips
-// without SHA-224 hardware otherwise keep the software SHA-256 built in next to
-// the hardware driver.
-#if !defined(CONFIG_MBEDTLS_TLS_ENABLED) && !defined(CONFIG_MBEDTLS_SHA224_C)
+// Only TLS uses SHA-224. Chips without SHA-224 hardware otherwise keep the
+// software SHA-256 built in next to the hardware driver.
+#ifndef CONFIG_MBEDTLS_TLS_ENABLED
 #undef PSA_WANT_ALG_SHA_224
 #endif

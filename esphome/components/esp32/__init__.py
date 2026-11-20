@@ -1037,8 +1037,8 @@ def request_tls() -> None:
     AES, SHA-256 and the other hashes stay available. On ESP-IDF 6 builds
     without Wi-Fi, Bluetooth, a websocket server or PPP, SHA-1 also goes; on
     native ESP-IDF 6 builds SHA-224 goes, and RSA unless updates are
-    RSA-signed. Set CONFIG_MBEDTLS_SHA1_C, CONFIG_MBEDTLS_SHA224_C or
-    CONFIG_MBEDTLS_RSA_C to keep them.
+    RSA-signed. Set CONFIG_MBEDTLS_SHA1_C or CONFIG_MBEDTLS_RSA_C to keep
+    those.
     """
     require_mbedtls_tls()
     include_builtin_idf_component("esp-tls")

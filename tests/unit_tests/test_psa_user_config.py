@@ -69,13 +69,6 @@ def _defines(config: tuple[str, ...]) -> set[str]:
         pytest.param(
             ("CONFIG_MBEDTLS_TLS_ENABLED",), False, False, True, id="tls_keeps_sha224"
         ),
-        pytest.param(
-            ("CONFIG_MBEDTLS_SHA224_C",),
-            False,
-            False,
-            True,
-            id="sha224_option_keeps_sha224",
-        ),
     ],
 )
 def test_psa_user_config_conditions(
