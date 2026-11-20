@@ -47,15 +47,6 @@ using BQ25186StatusRegisters = std::array<uint8_t, BQ25186_STATUS_REGISTER_COUNT
 PROGMEM_STRING_TABLE(BQ25186StatusStrings, "Not Charging", "Constant Current", "Constant Voltage",
                      "Charge Done/Disabled", "Normal", "Hot/Cold (Charging Suspended)", "Cool (Current Reduced)",
                      "Warm (Voltage Reduced)");
-
-/// Publish the two-bit field in the low bits of `value` as string `first + field`, only when it differs from `last`
-inline void publish_status_text(text_sensor::TextSensor *sensor, uint8_t &last, uint8_t value, uint8_t first) {
-  value &= 0x03;
-  if (value == last)
-    return;
-  last = value;
-  sensor->publish_state(BQ25186StatusStrings::get_progmem_str(first + value, BQ25186StatusStrings::LAST_INDEX));
-}
 #endif
 
 class BQ25186Component : public PollingComponent, public i2c::I2CDevice {

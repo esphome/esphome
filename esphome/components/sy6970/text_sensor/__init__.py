@@ -7,9 +7,9 @@ from .. import (
     BUS_STATUS,
     CHARGE_STATUS,
     CONF_SY6970_ID,
+    DATA_PUBLISHER,
     REGISTERS,
     SY6970Component,
-    publish_children,
     sy6970_ns,
 )
 
@@ -47,4 +47,6 @@ STATES = {
 async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_SY6970_ID])
 
-    await publish_children(hub, text_sensor.sub_text_sensors(config), STATES)
+    await DATA_PUBLISHER.publish_children(
+        hub, text_sensor.sub_text_sensors(config), STATES
+    )

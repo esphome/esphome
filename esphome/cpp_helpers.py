@@ -1,7 +1,7 @@
-from collections.abc import Awaitable, Callable, Hashable
+from collections.abc import Awaitable, Callable, Hashable, Mapping
 from dataclasses import dataclass, field
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from esphome.const import (
     CONF_ID,
@@ -16,6 +16,7 @@ from esphome.coroutine import FakeAwaitable
 from esphome.cpp_generator import (
     AssignmentExpression,
     BinOpExpression,
+    HexIntLiteral,
     MockObj,
     RawStatement,
     Statement,
@@ -31,6 +32,9 @@ from esphome.cpp_types import App
 from esphome.helpers import cpp_string_escape
 from esphome.types import ConfigFragmentType, ConfigType, Expression, TemplateArgsType
 from esphome.util import Registry, RegistryEntry
+
+if TYPE_CHECKING:
+    from esphome.core.entity_helpers import SubEntities
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -371,6 +375,61 @@ class HubFunction:
                 name, self._return_type, self._parameters, self._body(items)
             )
             add(getattr(hub, f"set_{self._name}_publisher")(fn))
+
+    async def publish_children(
+        self,
+        hub: MockObj,
+        sub_entities: "SubEntities",
+        states: Mapping[str, Expression],
+    ) -> None:
+        """Create each configured child of ``states`` and add ``::<child>->publish_state(<state>);``."""
+        from esphome.automation import parent_ref
+
+        for key, state in states.items():
+            if (var := await sub_entities(key, None)) is not None:
+                self.add(hub, parent_ref(var).publish_state(state))
+
+
+@dataclass(frozen=True, kw_only=True)
+class RegisterField:
+    """The field ``(values[register] >> shift) & mask`` of a hub's register array.
+
+    ``on`` lists the field values a binary sensor reads as on.
+    """
+
+    register: int
+    shift: int = 0
+    mask: int = 0x01
+    on: tuple[int, ...] = (1,)
+
+    def __post_init__(self) -> None:
+        # Checked when the table row is built, so a bad row fails on import, not only when configured
+        if any(value & ~self.mask for value in self.on):
+            raise ValueError(
+                f"RegisterField mask {self.mask:#x} with on values {self.on}: "
+                "every on value must be a value of the field"
+            )
+
+    def shifted(self, values: MockObj) -> MockObj:
+        """``(values[register] >> shift)``, unmasked: the C++ text helper applies the mask itself."""
+        return values[self.register] >> self.shift
+
+    def is_on(self, values: MockObj) -> MockObj:
+        """Whether the field is one of ``on``.
+
+        A one-bit field on at 1 is ``((status[1] >> 7) & 0x01)``; any other is a lookup in a bitmap of the
+        on values, ``((0b0110 >> ((status[0] >> 5) & 0x03)) & 1)`` for ``mask=0x03, on=(1, 2)``.
+        """
+        # The bitmap is shifted by the field value, so wider fields would be an undefined C++ shift
+        if self.mask > 0x1F:
+            raise ValueError(
+                f"RegisterField mask {self.mask:#x}: a binary field's mask must be at most 0x1F"
+            )
+        bits = self.shifted(values) & HexIntLiteral(self.mask)
+        if self.mask == 0x01 and self.on == (1,):
+            return bits
+        bitmap = sum(1 << value for value in set(self.on))
+        return (MockObj(f"{bitmap:#06b}") >> bits) & 1
 
 
 async def gpio_pin_expression(conf):

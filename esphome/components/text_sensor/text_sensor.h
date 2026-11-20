@@ -107,4 +107,17 @@ class TextSensor : public EntityBase {
 #endif
 };
 
+/// Publish `Table` string `first + (value & Mask)`, or `Fallback` past its end, only when the field differs from
+/// `last`. `first + Mask` must be at most 255.
+template<typename Table, uint8_t Mask, uint8_t Fallback>
+inline void publish_table_on_change(TextSensor *sensor, uint8_t &last, uint8_t value, uint8_t first) {
+  static_assert(Fallback < Table::COUNT, "Fallback must index a string of Table");
+  static_assert(Mask != 0xFF, "a field value of 0xFF would match the unset last");
+  value &= Mask;
+  if (value == last)
+    return;
+  last = value;
+  sensor->publish_state(Table::get_progmem_str(first + value, Fallback));
+}
+
 }  // namespace esphome::text_sensor

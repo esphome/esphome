@@ -63,8 +63,10 @@ static void publish_status(const BQ25820StatusRegisters &status) {
   entities->binary[THERMAL_SHUTDOWN].publish_state(((status[3] >> 3) & 0x01));
   entities->binary[CHARGE_SAFETY_TIMER].publish_state(((status[3] >> 2) & 0x01));
   entities->binary[DRV_SUPPLY_INVALID].publish_state(((status[3] >> 1) & 0x01));
-  publish_status_text(&entities->text[CHARGE_STATUS], entities->charge_status_last, (status[0] >> 0), 0);
-  publish_status_text(&entities->text[TEMP_STATUS], entities->temp_status_last, (status[1] >> 4), 8);
+  text_sensor::publish_table_on_change<bq25820::BQ25820StatusStrings, 0x07, 5>(
+      &entities->text[CHARGE_STATUS], entities->charge_status_last, (status[0] >> 0), 0);
+  text_sensor::publish_table_on_change<bq25820::BQ25820StatusStrings, 0x07, 5>(
+      &entities->text[TEMP_STATUS], entities->temp_status_last, (status[1] >> 4), 8);
 }
 
 class BQ25820StatusTest : public ::testing::Test {

@@ -30,7 +30,13 @@ from esphome.core.entity_helpers import (
     setup_device_class,
     setup_entity,
 )
-from esphome.cpp_generator import MockObj, MockObjClass
+from esphome.cpp_generator import (
+    AssignmentExpression,
+    HexIntLiteral,
+    MockObj,
+    MockObjClass,
+    VariableDeclarationExpression,
+)
 from esphome.types import ConfigType
 from esphome.util import Registry
 
@@ -356,6 +362,46 @@ def sub_text_sensors(
 ) -> SubEntities:
     """Return a SubEntities bound to new_text_sensor."""
     return SubEntities(new_text_sensor, config, parent)
+
+
+def add_table_on_change(
+    function: cg.HubFunction,
+    hub: MockObj,
+    var: MockObj,
+    values: MockObj,
+    field: cg.RegisterField,
+    *,
+    table: MockObj,
+    first: int = 0,
+    fallback: int | None = None,
+) -> None:
+    """Publish string ``first + field`` of the PROGMEM_STRING_TABLE ``table`` on ``var``, on change.
+
+    Adds two lines to ``function``, for example::
+
+        static uint8_t esphome__tx__last = 0xFF;
+        text_sensor::publish_table_on_change<Strings, 0x07, 5>(::tx, esphome__tx__last, (status[1] >> 4), 8);
+
+    The last field value is one static byte per sensor; a ``Deduplicator<uint8_t>`` would take 3.
+    """
+    # The C++ sums first + field in a uint8_t index, so a sum past 255 would wrap round the fallback
+    if first + field.mask > 0xFF:
+        raise ValueError(
+            f"add_table_on_change: first {first} + mask {field.mask:#x} is past the 255 string index"
+        )
+    last = MockObj(f"esphome__{var}__last")
+    declaration = VariableDeclarationExpression(cg.uint8, "", last, static=True)
+    function.add(
+        hub, AssignmentExpression(None, None, declaration, HexIntLiteral(0xFF))
+    )
+    function.add(
+        hub,
+        text_sensor_ns.publish_table_on_change.template(
+            table,
+            HexIntLiteral(field.mask),
+            table.LAST_INDEX if fallback is None else fallback,
+        )(automation.parent_ref(var), last, field.shifted(values), first),
+    )
 
 
 # Makes a plain text sensor follow another text sensor: follow_text_sensor(entity, source)

@@ -58,6 +58,7 @@ from esphome.cpp_generator import (  # noqa: F401
 )
 from esphome.cpp_helpers import (  # noqa: F401
     HubFunction,
+    RegisterField,
     add_optional,
     add_pin,
     add_variable,
