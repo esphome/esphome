@@ -17,13 +17,24 @@ void log_number(const char *tag, const char *prefix, const char *type, Number *o
   LOG_ENTITY_DEVICE_CLASS(tag, prefix, *obj);
 }
 
-void Number::set_range(const NumberRange *range) {
-  // Aligned 32-bit loads are safe from PROGMEM on ESP8266 (same as pgm_read_float_aligned).
-  this->traits.set_min_value(range->min_value);
-  this->traits.set_max_value(range->max_value);
-  this->traits.set_step(range->step);
+void NumberTraits::set_range(const NumberRange *range) {
+  if (this->owns_range_) {
+    progmem_memcpy(this->writable_range_(), range, sizeof(NumberRange));
+    return;
+  }
+  this->range_ = range;
 }
 
+NumberRange *NumberTraits::writable_range_() {
+  if (!this->owns_range_) {
+    auto *copy = new NumberRange;  // NOLINT(cppcoreguidelines-owning-memory)
+    progmem_memcpy(copy, this->range_, sizeof(NumberRange));
+    this->range_ = copy;
+    this->owns_range_ = true;
+  }
+  // owns_range_ means range_ points at RAM
+  return const_cast<NumberRange *>(this->range_);  // NOLINT(cppcoreguidelines-pro-type-const-cast)
+}
 void Number::publish_state(float state) {
   this->set_has_state(true);
   this->state = state;
