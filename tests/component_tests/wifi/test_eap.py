@@ -14,7 +14,7 @@ HOSTED_EAP_OPTION = "CONFIG_ESP_HOSTED_HOST_FEAT_WIFI_EXT_ENT"
 
 @pytest.mark.parametrize(
     ("config", "hosted"),
-    [("eap.yaml", False), ("eap_hosted.yaml", True)],
+    [("eap_esp32.yaml", False), ("eap_hosted.yaml", True)],
 )
 def test_eap_host_feature_follows_esp32_hosted(
     generate_main: Callable[[str | Path], str],

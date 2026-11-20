@@ -7,6 +7,7 @@ import re
 import pytest
 
 from esphome.components.logger import (
+    CONFIG_SCHEMA,
     FINAL_VALIDATE_SCHEMA,
     _validate_libretiny_uart_pins,
     validate_task_log_buffer_alignment,
@@ -284,3 +285,64 @@ def test_final_validate_checks_libretiny_uart_pins(
     else:
         with pytest.raises(Invalid, match="no default pins for UART1"):
             FINAL_VALIDATE_SCHEMA(config)
+
+
+@pytest.mark.parametrize(
+    ("buffer_size", "level", "expected"),
+    [
+        (0, "NONE", "NONE"),
+        (512, "ERROR", "ERROR"),
+        (512, "WARN", "WARN"),
+        (0, "INFO", "WARN"),
+    ],
+)
+def test_implicit_boot_log_level_respects_global_level(
+    set_core_config: SetCoreConfigCallable,
+    buffer_size: int,
+    level: str,
+    expected: str,
+) -> None:
+    """The full schema supplies a usable default even when logging is disabled."""
+    set_core_config(PlatformFramework.ESP8266_ARDUINO)
+    config = CONFIG_SCHEMA({"level": level, "boot_log_buffer_size": buffer_size})
+    assert config["boot_log_level"] == expected
+
+
+@pytest.mark.parametrize(
+    ("buffer_size", "level", "boot_level", "valid"),
+    [
+        (0, "NONE", "NONE", True),
+        (512, "DEBUG", "INFO", True),
+        (0, "ERROR", "WARN", False),
+        (512, "WARN", "INFO", False),
+    ],
+)
+def test_explicit_boot_log_level_is_preserved_or_rejected(
+    set_core_config: SetCoreConfigCallable,
+    buffer_size: int,
+    level: str,
+    boot_level: str,
+    valid: bool,
+) -> None:
+    """An explicit level must still fit within the compiled global level."""
+    set_core_config(PlatformFramework.ESP8266_ARDUINO)
+    config = {
+        "level": level,
+        "boot_log_level": boot_level,
+        "boot_log_buffer_size": buffer_size,
+    }
+    if valid:
+        assert CONFIG_SCHEMA(config)["boot_log_level"] == boot_level
+    else:
+        with pytest.raises(Invalid, match="boot log level"):
+            CONFIG_SCHEMA(config)
+
+
+def test_default_global_and_boot_log_levels(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """Omitting both options retains DEBUG logging and WARN boot capture."""
+    set_core_config(PlatformFramework.ESP8266_ARDUINO)
+    config = CONFIG_SCHEMA({})
+    assert config["level"] == "DEBUG"
+    assert config["boot_log_level"] == "WARN"
