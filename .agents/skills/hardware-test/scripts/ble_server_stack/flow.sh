@@ -22,7 +22,15 @@ stopcap() {
   [ -n "$CAP" ] && { kill "$CAP" 2>/dev/null || echo "CAPTURE DIED early, see $O/cap.err"; }
   wait "$CAP" 2>/dev/null; CAP=; sleep 1
 }
-reset() { stopcap; $PY -m esptool --port "$P" --after hard_reset chip_id > /dev/null 2>&1; echo "REBOOT $1 $(date +%T)" >> "$O/reboots.txt"; cap; sleep 12; }
+reset() {
+  stopcap
+  if $PY -m esptool --port "$P" --after hard_reset chip_id > /dev/null 2>> "$O/reset.err"; then
+    echo "REBOOT $1 $(date +%T)" >> "$O/reboots.txt"
+  else
+    echo "RESET FAILED $1 $(date +%T), see $O/reset.err" | tee -a "$O/reboots.txt"; exit 1
+  fi
+  cap; sleep 12
+}
 round() { $PY gattc.py "$N" "$1" "$2" > "$O/$2.jsonl" 2>&1; tail -1 "$O/$2.jsonl"; }
 proxytable() {
   for t in 1 2 3; do
