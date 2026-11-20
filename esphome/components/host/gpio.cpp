@@ -16,6 +16,15 @@ void HostGPIOPin::attach_interrupt_(void (*func)(void *), void *arg, gpio::Inter
 }
 void HostGPIOPin::pin_mode(gpio::Flags flags) { ESP_LOGD(TAG, "Setting pin %d mode to %02X", pin_, (uint32_t) flags); }
 
+bool HostGPIOPin::setup_open_drain(bool pullup) {
+  this->flags_ = gpio::FLAG_INPUT;
+  if (pullup)
+    this->flags_ = this->flags_ | gpio::FLAG_PULLUP;
+  this->open_drain_low_ = false;
+  this->setup();
+  return true;
+}
+
 size_t HostGPIOPin::dump_summary(char *buffer, size_t len) const { return snprintf(buffer, len, "GPIO%u", this->pin_); }
 
 bool HostGPIOPin::digital_read() { return inverted_; }
@@ -36,6 +45,16 @@ void IRAM_ATTR ISRInternalGPIOPin::digital_write(bool value) {
 void IRAM_ATTR ISRInternalGPIOPin::clear_interrupt() {
   ESP_LOGD(TAG, "Clearing interrupt for pin %d", static_cast<HostGPIOPin *>(this->arg_)->get_pin());
 }
+void IRAM_ATTR ISRInternalGPIOPin::open_drain_pull_low() {
+  static_cast<HostGPIOPin *>(this->arg_)->open_drain_low_ = true;
+}
+void IRAM_ATTR ISRInternalGPIOPin::open_drain_release() {
+  static_cast<HostGPIOPin *>(this->arg_)->open_drain_low_ = false;
+}
+bool IRAM_ATTR ISRInternalGPIOPin::open_drain_read() {
+  return !static_cast<HostGPIOPin *>(this->arg_)->open_drain_low_;
+}
+
 void IRAM_ATTR ISRInternalGPIOPin::pin_mode(gpio::Flags flags) {
   // pass
 }

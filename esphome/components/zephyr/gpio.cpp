@@ -101,6 +101,23 @@ void ZephyrGPIOPin::setup() {
   this->pin_mode(this->flags_);
 }
 
+bool ZephyrGPIOPin::setup_open_drain(bool pullup) {
+  if (!device_is_ready(this->gpio_)) {
+    ESP_LOGE(TAG, "gpio %u is not ready.", this->pin_);
+    return false;
+  }
+  this->flags_ = gpio::FLAG_INPUT | gpio::FLAG_OUTPUT | gpio::FLAG_OPEN_DRAIN;
+  if (pullup)
+    this->flags_ = this->flags_ | gpio::FLAG_PULLUP;
+  this->value_ = !this->inverted_;
+  const int ret = gpio_pin_configure(this->gpio_, this->pin_ % this->gpio_size_,
+                                     flags_to_mode(this->flags_) | GPIO_OUTPUT_INIT_HIGH);
+  if (ret != 0) {
+    ESP_LOGE(TAG, "gpio %u cannot be configured for open drain: %d", this->pin_, ret);
+  }
+  return ret == 0;
+}
+
 void ZephyrGPIOPin::pin_mode(gpio::Flags flags) {
   if (nullptr == this->gpio_) {
     return;
@@ -163,6 +180,21 @@ void IRAM_ATTR ISRInternalGPIOPin::digital_write(bool value) {
   if (pin == nullptr || pin->gpio_ == nullptr)
     return;
   gpio_pin_set(pin->gpio_, pin->pin_ % pin->gpio_size_, value != pin->inverted_ ? 1 : 0);
+}
+
+void IRAM_ATTR ISRInternalGPIOPin::open_drain_pull_low() {
+  auto *pin = static_cast<zephyr::ZephyrGPIOPin *>(this->arg_);
+  gpio_pin_set(pin->gpio_, pin->pin_ % pin->gpio_size_, 0);
+}
+
+void IRAM_ATTR ISRInternalGPIOPin::open_drain_release() {
+  auto *pin = static_cast<zephyr::ZephyrGPIOPin *>(this->arg_);
+  gpio_pin_set(pin->gpio_, pin->pin_ % pin->gpio_size_, 1);
+}
+
+bool IRAM_ATTR ISRInternalGPIOPin::open_drain_read() {
+  auto *pin = static_cast<zephyr::ZephyrGPIOPin *>(this->arg_);
+  return gpio_pin_get(pin->gpio_, pin->pin_ % pin->gpio_size_) > 0;
 }
 
 void IRAM_ATTR ISRInternalGPIOPin::pin_mode(gpio::Flags flags) {

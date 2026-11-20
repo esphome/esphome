@@ -24,6 +24,7 @@ class ESP32InternalGPIOPin final : public GPIOPin {
   void set_flags(gpio::Flags flags) { this->flags_ = flags; }
 
   void setup() override;
+  bool setup_open_drain(bool pullup);
   void pin_mode(gpio::Flags flags) override;
   bool digital_read() override;
   void digital_write(bool value) override;
@@ -51,6 +52,7 @@ class ESP32InternalGPIOPin final : public GPIOPin {
 #endif
 
  protected:
+  bool setup_gpio_();
   void attach_interrupt_(void (*func)(void *), void *arg, gpio::InterruptType type) const;
 
   // Memory layout: 8 bytes total on 32-bit systems (4 bytes vtable pointer + the 4 below)

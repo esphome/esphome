@@ -136,7 +136,7 @@ void ESP32InternalGPIOPin::set_hold(bool hold) const {
 }
 #endif
 
-void ESP32InternalGPIOPin::setup() {
+bool ESP32InternalGPIOPin::setup_gpio_() {
 #ifdef USE_GPIO_HOLD
   // Hold before gpio_config so the pad keeps its state while the registers change
   this->set_hold(true);
@@ -147,7 +147,8 @@ void ESP32InternalGPIOPin::setup() {
   conf.pull_up_en = this->flags_ & gpio::FLAG_PULLUP ? GPIO_PULLUP_ENABLE : GPIO_PULLUP_DISABLE;
   conf.pull_down_en = this->flags_ & gpio::FLAG_PULLDOWN ? GPIO_PULLDOWN_ENABLE : GPIO_PULLDOWN_DISABLE;
   conf.intr_type = GPIO_INTR_DISABLE;
-  gpio_config(&conf);
+  if (gpio_config(&conf) != ESP_OK)
+    return false;
 #ifdef CONFIG_FREERTOS_USE_TICKLESS_IDLE
   // If auto light sleep is used gpio sleep mode needs to be disabled for the pin
   gpio_sleep_sel_dis(this->get_pin_num());
@@ -167,6 +168,22 @@ void ESP32InternalGPIOPin::setup() {
     }
   }
 #endif
+  return true;
+}
+
+void ESP32InternalGPIOPin::setup() { this->setup_gpio_(); }
+
+bool ESP32InternalGPIOPin::setup_open_drain(bool pullup) {
+  const gpio_num_t num = this->get_pin_num();
+  if (gpio_set_direction(num, GPIO_MODE_INPUT) != ESP_OK || gpio_set_level(num, 1) != ESP_OK)
+    return false;
+  const bool hold = this->flags_ & gpio::FLAG_HOLD;
+  this->flags_ = gpio::FLAG_INPUT | gpio::FLAG_OUTPUT | gpio::FLAG_OPEN_DRAIN;
+  if (pullup)
+    this->flags_ = this->flags_ | gpio::FLAG_PULLUP;
+  if (hold)
+    this->flags_ = this->flags_ | gpio::FLAG_HOLD;
+  return this->setup_gpio_();
 }
 
 void ESP32InternalGPIOPin::pin_mode(gpio::Flags flags) {
@@ -218,6 +235,27 @@ void IRAM_ATTR ISRInternalGPIOPin::digital_write(bool value) {
 
 void IRAM_ATTR ISRInternalGPIOPin::clear_interrupt() {
   // not supported
+}
+
+void IRAM_ATTR ISRInternalGPIOPin::open_drain_pull_low() {
+  auto *pin = static_cast<ESP32InternalGPIOPin *>(this->arg_);
+  gpio_hal_set_level(&GPIO_HAL, pin->get_pin_num(), 0);
+#ifdef USE_GPIO_HOLD
+  isr_refresh_hold(pin->get_pin_num(), pin->pin_flags_.rtc_io, pin->flags_ & gpio::FLAG_HOLD);
+#endif
+}
+
+void IRAM_ATTR ISRInternalGPIOPin::open_drain_release() {
+  auto *pin = static_cast<ESP32InternalGPIOPin *>(this->arg_);
+  gpio_hal_set_level(&GPIO_HAL, pin->get_pin_num(), 1);
+#ifdef USE_GPIO_HOLD
+  isr_refresh_hold(pin->get_pin_num(), pin->pin_flags_.rtc_io, pin->flags_ & gpio::FLAG_HOLD);
+#endif
+}
+
+bool IRAM_ATTR ISRInternalGPIOPin::open_drain_read() {
+  auto *pin = static_cast<ESP32InternalGPIOPin *>(this->arg_);
+  return bool(gpio_hal_get_level(&GPIO_HAL, pin->get_pin_num()));
 }
 
 void IRAM_ATTR ISRInternalGPIOPin::pin_mode(gpio::Flags flags) {
