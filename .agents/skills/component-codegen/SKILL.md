@@ -195,7 +195,7 @@ one function per hub. Pass `define=` and put the hub's `HUB_PUBLISHER(<name>, ar
 ends on `public:`) and its call under that `#ifdef`; call the pointer only when it is not null. The children stay
 plain entities, with no listener class or list. A child that lost a `Component` base keeps its dump lines through
 a second hub function (`"dump"`, a `const char *` tag parameter, no define of its own) that the hub's
-`dump_config()` calls inside the value function's `#ifdef`; every child adds to both.
+`dump_config()` calls inside the value function's `#ifdef` (see `mk2pvrouter`); every child adds to both.
 
 **Entities that each watch a register field:** when every field (register, shift, mask, match) is known at
 build time, use the rule above (see `bq25186`). A binary sensor tests its field value against an on-values

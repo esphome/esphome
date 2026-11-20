@@ -20,23 +20,12 @@ static constexpr uint8_t MAX_TAG_SIZE = 8;     // S_MC (4) + digit (1) + null (1
 static constexpr uint8_t MAX_VAL_SIZE = 8;     // -10000 (6) + null (1) + margin (1)
 static constexpr uint16_t MAX_BUF_SIZE = 256;  // Full frame with all features enabled
 
-// Listener interface for entities that want updates for a specific tag.
-class Mk2PVRouterListener {
- public:
-  explicit Mk2PVRouterListener(const char *tag) : tag_(tag) {}
-  virtual ~Mk2PVRouterListener() = default;
-  const char *get_tag() const { return this->tag_; }
-  virtual void publish_val(const char *val) = 0;
-
- protected:
-  const char *tag_;
-};
-
-// Reads frames via UART, validates their CRC, and publishes tag/value pairs to listeners.
+// Reads frames via UART, validates their CRC, and publishes tag/value pairs to the child entities.
 class Mk2PVRouter : public Component, public uart::UARTDevice {
  public:
-#ifdef MK2PVROUTER_LISTENER_COUNT
-  void register_mk2pvrouter_listener(Mk2PVRouterListener *listener);
+#ifdef USE_MK2PVROUTER_VALUE_PUBLISHER
+  HUB_PUBLISHER(value, const char *, const char *)
+  HUB_PUBLISHER(dump, const char *)
 #endif
   void loop() override;
   void dump_config() override;
@@ -50,9 +39,6 @@ class Mk2PVRouter : public Component, public uart::UARTDevice {
     END_FRAME_RECEIVED,
   };
 
-#ifdef MK2PVROUTER_LISTENER_COUNT
-  StaticVector<Mk2PVRouterListener *, MK2PVROUTER_LISTENER_COUNT> mk2pvrouter_listeners_;
-#endif
   uint16_t buf_index_{0};
   State state_{State::WAITING_FOR_START};
   char tag_[MAX_TAG_SIZE];
