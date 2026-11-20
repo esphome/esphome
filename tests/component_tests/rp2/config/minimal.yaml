@@ -1,0 +1,5 @@
+esphome:
+  name: test
+
+rp2:
+  board: rpipicow

@@ -374,6 +374,10 @@ async def to_code(config: ConfigType) -> None:
         for symbol in ("vprintf", "printf", "fprintf"):
             cg.add_build_flag(f"-Wl,--wrap={symbol}")
 
+    # strftime() and mktime() reload TZ, and newlib's parser links the scanf engine.
+    # ESPHome never sets TZ, so the reload is skipped. See tzset_stubs.cpp.
+    cg.add_build_flag("-Wl,--wrap=_tzset_unlocked")
+
     cg.add_platformio_option("board_build.core", "earlephilhower")
     # In testing mode, use all flash for sketch to allow linking grouped component tests.
     # Real RP2040 hardware uses 1MB filesystem + 1MB sketch, but CI tests may combine
