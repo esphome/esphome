@@ -44,7 +44,7 @@ void ZigbeeLight::setup() {
 
   bool value = values.is_on();
   this->zb_->add_attr(&this->on_off_forwarder_, this->endpoint_id_, EZB_ZCL_CLUSTER_ID_ON_OFF, EZB_ZCL_CLUSTER_SERVER,
-                      EZB_ZCL_ATTR_ON_OFF_ON_OFF_ID, 0, value);
+                      EZB_ZCL_ATTR_ON_OFF_ON_OFF_ID, 0, 0, 0, value);
 
   // setup level cluster
   if (level) {
@@ -54,19 +54,19 @@ void ZigbeeLight::setup() {
     this->zb_->add_cluster(this->endpoint_id_, EZB_ZCL_CLUSTER_ID_LEVEL, EZB_ZCL_CLUSTER_CLIENT);
     uint8_t level_value = brightness_to_level(values.get_brightness());
     this->zb_->add_attr(this->level_forwarder_, this->endpoint_id_, EZB_ZCL_CLUSTER_ID_LEVEL, EZB_ZCL_CLUSTER_SERVER,
-                        EZB_ZCL_ATTR_LEVEL_CURRENT_LEVEL_ID, 0, level_value);
+                        EZB_ZCL_ATTR_LEVEL_CURRENT_LEVEL_ID, 0, 0, 0, level_value);
 
     // static attributes for level cluster
     uint16_t transition_time = (uint16_t) (this->light_state_->get_default_transition_length() / 100);  // in 1/10s
     this->zb_->add_attr(this->endpoint_id_, EZB_ZCL_CLUSTER_ID_LEVEL, EZB_ZCL_CLUSTER_SERVER,
-                        EZB_ZCL_ATTR_LEVEL_ON_OFF_TRANSITION_TIME_ID, 0, transition_time);
+                        EZB_ZCL_ATTR_LEVEL_ON_OFF_TRANSITION_TIME_ID, 0, 0, 0, transition_time);
 
     uint8_t options = 0b00000001;  // execute if off
     this->zb_->add_attr(this->endpoint_id_, EZB_ZCL_CLUSTER_ID_LEVEL, EZB_ZCL_CLUSTER_SERVER,
-                        EZB_ZCL_ATTR_LEVEL_OPTIONS_ID, 0, options);
+                        EZB_ZCL_ATTR_LEVEL_OPTIONS_ID, 0, 0, 0, options);
     uint16_t time = 0;
     this->zb_->add_attr(this->endpoint_id_, EZB_ZCL_CLUSTER_ID_LEVEL, EZB_ZCL_CLUSTER_SERVER,
-                        EZB_ZCL_ATTR_LEVEL_REMAINING_TIME_ID, 0, time);
+                        EZB_ZCL_ATTR_LEVEL_REMAINING_TIME_ID, 0, 0, 0, time);
   }
   // setup color cluster
   if (color || ct) {
@@ -74,16 +74,16 @@ void ZigbeeLight::setup() {
     this->zb_->add_cluster(this->endpoint_id_, EZB_ZCL_CLUSTER_ID_COLOR_CONTROL, EZB_ZCL_CLUSTER_CLIENT);
     uint8_t options = 0b00000001;  // execute if off
     this->zb_->add_attr(this->endpoint_id_, EZB_ZCL_CLUSTER_ID_COLOR_CONTROL, EZB_ZCL_CLUSTER_SERVER,
-                        EZB_ZCL_ATTR_COLOR_CONTROL_OPTIONS_ID, 0, options);
+                        EZB_ZCL_ATTR_COLOR_CONTROL_OPTIONS_ID, 0, 0, 0, options);
     uint16_t time = 0;
     this->zb_->add_attr(this->endpoint_id_, EZB_ZCL_CLUSTER_ID_COLOR_CONTROL, EZB_ZCL_CLUSTER_SERVER,
-                        EZB_ZCL_ATTR_COLOR_CONTROL_REMAINING_TIME_ID, 0, time);
+                        EZB_ZCL_ATTR_COLOR_CONTROL_REMAINING_TIME_ID, 0, 0, 0, time);
     uint8_t mode = get_color_mode(values.get_color_mode());
     this->zb_->add_attr(this->endpoint_id_, EZB_ZCL_CLUSTER_ID_COLOR_CONTROL, EZB_ZCL_CLUSTER_SERVER,
-                        EZB_ZCL_ATTR_COLOR_CONTROL_COLOR_MODE_ID, 0, mode);
+                        EZB_ZCL_ATTR_COLOR_CONTROL_COLOR_MODE_ID, 0, 0, 0, mode);
     uint8_t capa = color << 3 | ct << 4;
     this->zb_->add_attr(this->endpoint_id_, EZB_ZCL_CLUSTER_ID_COLOR_CONTROL, EZB_ZCL_CLUSTER_SERVER,
-                        EZB_ZCL_ATTR_COLOR_CONTROL_COLOR_CAPABILITIES_ID, 0, capa);
+                        EZB_ZCL_ATTR_COLOR_CONTROL_COLOR_CAPABILITIES_ID, 0, 0, 0, capa);
 
     if (color) {
       this->x_forwarder_ = new ZigbeeOnValueForwarder<uint16_t, ZigbeeLight>(this, EZB_ZCL_ATTR_TYPE_UINT16,
@@ -92,9 +92,9 @@ void ZigbeeLight::setup() {
                                                                              &ZigbeeLight::apply_y_, false);
       rgb_to_xy(values.get_red(), values.get_green(), values.get_blue(), this->x_, this->y_);
       this->zb_->add_attr(this->x_forwarder_, this->endpoint_id_, EZB_ZCL_CLUSTER_ID_COLOR_CONTROL,
-                          EZB_ZCL_CLUSTER_SERVER, EZB_ZCL_ATTR_COLOR_CONTROL_CURRENT_X_ID, 0, this->x_);
+                          EZB_ZCL_CLUSTER_SERVER, EZB_ZCL_ATTR_COLOR_CONTROL_CURRENT_X_ID, 0, 0, 0, this->x_);
       this->zb_->add_attr(this->y_forwarder_, this->endpoint_id_, EZB_ZCL_CLUSTER_ID_COLOR_CONTROL,
-                          EZB_ZCL_CLUSTER_SERVER, EZB_ZCL_ATTR_COLOR_CONTROL_CURRENT_Y_ID, 0, this->y_);
+                          EZB_ZCL_CLUSTER_SERVER, EZB_ZCL_ATTR_COLOR_CONTROL_CURRENT_Y_ID, 0, 0, 0, this->y_);
     }
 
     if (ct) {
@@ -108,13 +108,14 @@ void ZigbeeLight::setup() {
                                    traits.get_max_mireds());
       }
       this->zb_->add_attr(this->ct_forwarder_, this->endpoint_id_, EZB_ZCL_CLUSTER_ID_COLOR_CONTROL,
-                          EZB_ZCL_CLUSTER_SERVER, EZB_ZCL_ATTR_COLOR_CONTROL_COLOR_TEMPERATURE_MIREDS_ID, 0, colortemp);
+                          EZB_ZCL_CLUSTER_SERVER, EZB_ZCL_ATTR_COLOR_CONTROL_COLOR_TEMPERATURE_MIREDS_ID, 0, 0, 0,
+                          colortemp);
       uint16_t min_ct = convert_color_temp(traits.get_min_mireds());
       uint16_t max_ct = convert_color_temp(traits.get_max_mireds());
       this->zb_->add_attr(this->endpoint_id_, EZB_ZCL_CLUSTER_ID_COLOR_CONTROL, EZB_ZCL_CLUSTER_SERVER,
-                          EZB_ZCL_ATTR_COLOR_CONTROL_COLOR_TEMP_PHYSICAL_MIN_MIREDS_ID, 0, min_ct);
+                          EZB_ZCL_ATTR_COLOR_CONTROL_COLOR_TEMP_PHYSICAL_MIN_MIREDS_ID, 0, 0, 0, min_ct);
       this->zb_->add_attr(this->endpoint_id_, EZB_ZCL_CLUSTER_ID_COLOR_CONTROL, EZB_ZCL_CLUSTER_SERVER,
-                          EZB_ZCL_ATTR_COLOR_CONTROL_COLOR_TEMP_PHYSICAL_MAX_MIREDS_ID, 0, max_ct);
+                          EZB_ZCL_ATTR_COLOR_CONTROL_COLOR_TEMP_PHYSICAL_MAX_MIREDS_ID, 0, 0, 0, max_ct);
     }
   }
 }
