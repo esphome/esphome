@@ -20,6 +20,7 @@ Symbol read_slot(bool bit, uint16_t zero_low = 30, uint16_t one_low = 7) {
 /// Capture of a whole read section, the High of the last slot idles out and is stored as 0.
 std::vector<Symbol> capture_of(const std::vector<bool> &bits) {
   std::vector<Symbol> capture;
+  capture.reserve(bits.size());
   for (bool bit : bits)
     capture.push_back(read_slot(bit));
   if (!capture.empty())
@@ -257,11 +258,12 @@ TEST(RmtOneWireCodec, DecodeIsLsbFirstFromBitOffset) {
 }
 
 TEST(RmtOneWireCodec, OnlyTheDecodedBitsChange) {
-  std::mt19937 rng(1);
+  std::mt19937 rng(1);  // NOLINT(cert-msc32-c,cert-msc51-cpp,bugprone-random-generator-seed) reproducible
   for (int round = 0; round < 2000; round++) {
     const size_t offset = rng() % 40;
     const size_t count = rng() % 40;
     std::vector<bool> bits;
+    bits.reserve(count);
     for (size_t i = 0; i < count; i++)
       bits.push_back(rng() & 1);
     const auto capture = capture_of(bits);
@@ -436,12 +438,13 @@ TEST(RmtOneWireCodec, SurplusSymbolsWithDurationAreInvalid) {
 }
 
 TEST(RmtOneWireCodec, FuzzMutatedCaptures) {
-  std::mt19937 rng(0x1E5);
+  std::mt19937 rng(0x1E5);  // NOLINT(cert-msc32-c,cert-msc51-cpp,bugprone-random-generator-seed) reproducible
   int accepted = 0;
   int rejected = 0;
   for (int round = 0; round < 50000; round++) {
     const size_t count = 1 + rng() % 62;
     std::vector<bool> bits;
+    bits.reserve(count);
     for (size_t i = 0; i < count; i++)
       bits.push_back(rng() & 1);
     auto capture = capture_of(bits);
@@ -506,7 +509,7 @@ TEST(RmtOneWireCodec, FuzzMutatedCaptures) {
 }
 
 TEST(RmtOneWireCodec, FuzzRandomGarbage) {
-  std::mt19937 rng(0xBAD);
+  std::mt19937 rng(0xBAD);  // NOLINT(cert-msc32-c,cert-msc51-cpp,bugprone-random-generator-seed) reproducible
   for (int round = 0; round < 50000; round++) {
     const size_t expected = 1 + rng() % 62;
     std::vector<Symbol> capture(rng() % 70);

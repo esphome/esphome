@@ -1283,7 +1283,7 @@ INSTANTIATE_TEST_SUITE_P(W, RmtOneWireFuzz, ::testing::Values(size_t{48}, size_t
                          });
 
 TEST_P(RmtOneWireFuzz, OkOnlyWithACompleteDecode) {
-  std::mt19937 rng(0xCAFE);
+  std::mt19937 rng(0xCAFE);  // NOLINT(cert-msc32-c,cert-msc51-cpp,bugprone-random-generator-seed) reproducible
   int ok = 0;
   int errors = 0;
   for (int round = 0; round < 3000; round++) {
