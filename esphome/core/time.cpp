@@ -8,15 +8,6 @@
 
 namespace esphome {
 
-uint8_t days_in_month(uint8_t month, uint16_t year) {
-  static const uint8_t DAYS_IN_MONTH[] = {0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
-  if (month == 2 && (year % 4 == 0) && (year % 100 != 0 || year % 400 == 0))
-    return 29;
-  return DAYS_IN_MONTH[month];
-}
-
-static uint16_t days_in_year(uint16_t year) { return days_in_month(2, year) == 29 ? 366 : 365; }
-
 namespace internal {
 
 bool is_leap_year(int year) { return (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0); }
@@ -109,6 +100,10 @@ void __attribute__((noinline)) epoch_to_tm_utc(time_t epoch, struct tm *out_tm) 
 }
 
 }  // namespace internal
+
+uint8_t days_in_month(uint8_t month, uint16_t year) { return internal::days_in_month(year, month); }
+
+static uint16_t days_in_year(uint16_t year) { return internal::is_leap_year(year) ? 366 : 365; }
 
 size_t ESPTime::strftime(char *buffer, size_t buffer_len, const char *format) {
   struct tm c_tm = this->to_c_tm();
