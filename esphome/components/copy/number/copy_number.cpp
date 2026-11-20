@@ -8,9 +8,8 @@ ESPHOME_LOG_TAG(TAG, "copy.number");
 void CopyNumber::setup() {
   this->source_number_->add_on_state_callback([this](float value) { this->publish_state(value); });
 
-  traits.set_min_value(this->source_number_->traits.get_min_value());
-  traits.set_max_value(this->source_number_->traits.get_max_value());
-  traits.set_step(this->source_number_->traits.get_step());
+  // Shares the source's range, so bounds Home Assistant sends later show up here too
+  this->traits.set_range(this->source_number_->traits.get_range());
 
   if (this->source_number_->has_state())
     this->publish_state(this->source_number_->state);
