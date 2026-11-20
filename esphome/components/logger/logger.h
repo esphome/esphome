@@ -223,6 +223,12 @@ class Logger final : public Component {
   // NOLINTNEXTLINE(readability-identifier-naming)
   void log_vprintf_(uint8_t level, const char *tag, int line, const __FlashStringHelper *format, va_list args);
 #endif
+  // Copies a line with no '%' without formatting; false means the caller must format it
+  bool log_str_(uint8_t level, const char *tag, int line, const char *msg);  // NOLINT
+#ifdef USE_ESP8266
+  // NOLINTNEXTLINE(readability-identifier-naming)
+  void log_str_(uint8_t level, const char *tag, int line, const __FlashStringHelper *msg);
+#endif
 
  protected:
   // RAII guard for recursion flags - sets flag on construction, clears on destruction
@@ -292,7 +298,7 @@ class Logger final : public Component {
   }
 
   // Helper to write log buffer to console if logging is enabled
-  inline void HOT write_log_buffer_to_console_(LogBuffer &buf) {
+  inline void HOT ESPHOME_ALWAYS_INLINE write_log_buffer_to_console_(LogBuffer &buf) {
     if (this->baud_rate_ > 0)
       this->write_to_console_(buf);
   }
@@ -319,6 +325,21 @@ class Logger final : public Component {
 #endif
     this->notify_listeners_(level, tag, buf);
     this->write_log_buffer_to_console_(buf);
+  }
+
+  inline void send_unformatted_line_(uint8_t level, const char *tag, LogBuffer &buf);
+
+  // True on the task that runs the main loop, and always on single-task platforms
+  inline bool HOT is_main_task_() const {
+#if defined(USE_ESP32) || defined(USE_LIBRETINY)
+    return xTaskGetCurrentTaskHandle() == this->main_task_;
+#elif defined(USE_ZEPHYR)
+    return k_current_get() == this->main_task_;
+#elif defined(USE_HOST)
+    return pthread_equal(pthread_self(), this->main_thread_);
+#else
+    return true;
+#endif
   }
 
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER

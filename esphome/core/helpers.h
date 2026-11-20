@@ -1472,6 +1472,42 @@ __attribute__((format(printf, 4, 5))) inline size_t buf_append_printf(char *buf,
 }
 #endif
 
+/// Copy a PROGMEM string to `dst`, stopping at its null terminator or at `end`, and return the new end of `dst`.
+/// No terminator is written. Flash only allows aligned 32-bit loads on ESP8266, so `src` is read a whole word at a
+/// time, including the bytes after its null in the last word; `src` must be readable up to the end of that word.
+inline char *ESPHOME_ALWAYS_INLINE progmem_copy_str(char *dst, const char *end, const char *src) {
+  const uint32_t offset = reinterpret_cast<uintptr_t>(src) & 3;
+  const uint32_t *word = reinterpret_cast<const uint32_t *>(src - offset);
+  uint32_t bytes = *word++;
+  // Enters the loop at the first byte of src; after that each word runs its four steps without another dispatch, and
+  // one step per byte keeps each a single extract
+  switch (offset) {
+    for (;;) {
+      bytes = *word++;
+      [[fallthrough]];
+      case 0:
+        if (dst >= end || static_cast<char>(bytes) == '\0')
+          return dst;
+        *dst++ = static_cast<char>(bytes);
+        [[fallthrough]];
+      case 1:
+        if (dst >= end || static_cast<char>(bytes >> 8) == '\0')
+          return dst;
+        *dst++ = static_cast<char>(bytes >> 8);
+        [[fallthrough]];
+      case 2:
+        if (dst >= end || static_cast<char>(bytes >> 16) == '\0')
+          return dst;
+        *dst++ = static_cast<char>(bytes >> 16);
+        [[fallthrough]];
+      default:
+        if (dst >= end || static_cast<char>(bytes >> 24) == '\0')
+          return dst;
+        *dst++ = static_cast<char>(bytes >> 24);
+    }
+  }
+}
+
 #ifdef USE_ESP8266
 /// Safely append a PROGMEM string to buffer, returning new position (capped at size).
 /// ESP8266 internal implementation — prefer the `buf_append_str` macro which wraps
