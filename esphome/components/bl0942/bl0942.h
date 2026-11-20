@@ -2,6 +2,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/datatypes.h"
+#include "esphome/core/frame_reader.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/components/sensor/sensor.h"
 
@@ -133,7 +134,8 @@ class BL0942 final : public PollingComponent, public uart::UARTDevice {
   uint8_t address_ = 0;
   bool reset_ = false;
   LineFrequency line_freq_ = LINE_FREQUENCY_50HZ;
-  optional<uint32_t> rx_start_{};
+  // A full packet starts with 0x55
+  FrameReader<sizeof(DataPacket), 0x55> reader_;
 
   bool validate_checksum_(DataPacket *data);
   int read_reg_(uint8_t reg);
