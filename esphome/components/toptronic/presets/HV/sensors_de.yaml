@@ -1,0 +1,157 @@
+sensor:
+  - platform: toptronic
+    name: "Normal-L\xFCftungsmodulation"
+    device_type: HV
+    function_group: 50
+    function_number: 0
+    datapoint: 40651
+    type: U8
+    unit_of_measurement: '%'
+    icon: mdi:percent
+    device_class: power_factor
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: "Spar-L\xFCftungsmodulation"
+    device_type: HV
+    function_group: 50
+    function_number: 0
+    datapoint: 40686
+    type: U8
+    unit_of_measurement: '%'
+    icon: mdi:percent
+    device_class: power_factor
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: "L\xFCftungsmodulation"
+    device_type: HV
+    function_group: 50
+    function_number: 0
+    datapoint: 38606
+    type: U8
+    unit_of_measurement: '%'
+    icon: mdi:percent
+    device_class: power_factor
+    state_class: measurement
+  - platform: toptronic
+    name: Feuchte Sollwert
+    device_type: HV
+    function_group: 50
+    function_number: 0
+    datapoint: 40687
+    type: U8
+    unit_of_measurement: '%'
+    icon: mdi:water-percent
+    device_class: humidity
+    state_class: measurement
+    internal: true
+  - platform: toptronic
+    name: Feuchtigkeit Abluft
+    device_type: HV
+    function_group: 50
+    function_number: 0
+    datapoint: 37600
+    type: U8
+    unit_of_measurement: '%'
+    icon: mdi:water-percent
+    device_class: humidity
+    state_class: measurement
+  - platform: toptronic
+    name: Temperatur Aussenluft
+    device_type: HV
+    function_group: 50
+    function_number: 0
+    datapoint: 0
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Temperatur Abluft
+    device_type: HV
+    function_group: 50
+    function_number: 0
+    datapoint: 37602
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Ventilator Fortluft soll
+    device_type: HV
+    function_group: 50
+    function_number: 0
+    datapoint: 38600
+    type: U8
+    unit_of_measurement: '%'
+    icon: mdi:percent
+    device_class: power_factor
+    state_class: measurement
+  - platform: toptronic
+    name: "Wartungssz\xE4hlwert Meldung Wartung (Betriebswochen)"
+    device_type: HV
+    function_group: 0
+    function_number: 0
+    datapoint: 20037
+    type: U32
+  - platform: toptronic
+    name: "Reinigungsz\xE4hlwert Meldung Reinigung (Betriebswochen)"
+    device_type: HV
+    function_group: 0
+    function_number: 0
+    datapoint: 41613
+    type: U32
+text_sensor:
+  - platform: toptronic
+    name: "Betriebswahl L\xFCftung"
+    device_type: HV
+    function_group: 50
+    function_number: 0
+    datapoint: 40650
+    options:
+      - Standby
+      - Woche 1
+      - Woche 2
+      - Konstantbetrieb, Sollwert 40651
+      - Sparbetrieb, Sollwert DAP40686
+    values:
+      - 0
+      - 1
+      - 2
+      - 4
+      - 5
+  - platform: toptronic
+    name: "Status L\xFCftungsregelung"
+    device_type: HV
+    function_group: 50
+    function_number: 0
+    datapoint: 39652
+    options:
+      - Aus, z.B. Standbybetrieb
+      - "Normaler L\xFCftungsbetrieb"
+      - VOC Modus aktiv
+      - Feuchtigkeitsmodus aktiv
+      - Frostschutz aktiv
+      - CoolVet aktiv
+      - Fehlerzustand
+      - Sommerfeuchte
+      - Ausschaltstop
+    values:
+      - 0
+      - 1
+      - 2
+      - 3
+      - 4
+      - 5
+      - 6
+      - 7
+      - 8

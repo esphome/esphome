@@ -1,0 +1,167 @@
+sensor:
+  - platform: toptronic
+    name: "Demande temp\xE9rature chauffage"
+    device_type: GLT
+    function_group: 0
+    function_number: 0
+    datapoint: 21106
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "Demande temp\xE9rature refroid."
+    device_type: GLT
+    function_group: 0
+    function_number: 0
+    datapoint: 21107
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: "Demande temp\xE9rature eau chaude"
+    device_type: GLT
+    function_group: 0
+    function_number: 0
+    datapoint: 21108
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Valeur cons. puiss. chauffage
+    device_type: GLT
+    function_group: 0
+    function_number: 0
+    datapoint: 21109
+    type: S16
+    unit_of_measurement: '%'
+    icon: mdi:percent
+    device_class: power_factor
+    state_class: measurement
+  - platform: toptronic
+    name: Valeur cons. puiss. refroid.
+    device_type: GLT
+    function_group: 0
+    function_number: 0
+    datapoint: 21110
+    type: S16
+    unit_of_measurement: '%'
+    icon: mdi:percent
+    device_class: power_factor
+    state_class: measurement
+  - platform: toptronic
+    name: Valeur cons. puiss. eau chaude
+    device_type: GLT
+    function_group: 0
+    function_number: 0
+    datapoint: 21111
+    type: S16
+    unit_of_measurement: '%'
+    icon: mdi:percent
+    device_class: power_factor
+    state_class: measurement
+  - platform: toptronic
+    name: Info 1 0-10V
+    device_type: GLT
+    function_group: 0
+    function_number: 0
+    datapoint: 21125
+    type: S16
+  - platform: toptronic
+    name: Info 2 0-10V
+    device_type: GLT
+    function_group: 0
+    function_number: 0
+    datapoint: 21126
+    type: S16
+  - platform: toptronic
+    name: Info 3 0-10V
+    device_type: GLT
+    function_group: 0
+    function_number: 0
+    datapoint: 21127
+    type: S16
+  - platform: toptronic
+    name: Info 1
+    device_type: GLT
+    function_group: 0
+    function_number: 0
+    datapoint: 21120
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Info 2
+    device_type: GLT
+    function_group: 0
+    function_number: 0
+    datapoint: 21121
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Info 3
+    device_type: GLT
+    function_group: 0
+    function_number: 0
+    datapoint: 21122
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Info 4
+    device_type: GLT
+    function_group: 0
+    function_number: 0
+    datapoint: 21123
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
+  - platform: toptronic
+    name: Info 5
+    device_type: GLT
+    function_group: 0
+    function_number: 0
+    datapoint: 21124
+    type: S16
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+    unit_of_measurement: "\xB0C"
+    icon: mdi:temperature-celsius
+    device_class: temperature
+    state_class: measurement
