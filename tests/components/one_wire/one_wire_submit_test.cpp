@@ -1,4 +1,5 @@
-// The blocking default of OneWireBus::submit(), which a bit-bang bus uses in a build that also has an RMT bus.
+// The blocking default of OneWireBus::submit(), which a bit-bang bus uses in a build that also has a background bus,
+// and the TransactionQueue that a background bus keeps its pending transactions in.
 
 #include <gtest/gtest.h>
 
@@ -52,7 +53,7 @@ struct Done {
   static void record(void *context, TransactionStatus status) {
     auto *done = static_cast<Done *>(context);
     done->calls.push_back(status);
-    done->pending_during_call = done->transaction->pending_;
+    done->pending_during_call = done->transaction->is_pending();
   }
 };
 
@@ -80,7 +81,7 @@ TEST_F(SubmitDefault, MatchRomThenWriteThenRead) {
 
   const Ops expected{RESET, 0x55, WRITE_ROM, 0x4E, 0x01, 0x02, READ, READ, READ};
   EXPECT_EQ(this->bus_.ops, expected);
-  EXPECT_EQ(this->done_.calls, std::vector<TransactionStatus>{TransactionStatus::OK});
+  EXPECT_EQ(this->done_.calls, std::vector<TransactionStatus>{TransactionStatus::TRANSACTION_STATUS_OK});
 }
 
 TEST_F(SubmitDefault, AddressZeroIsSkipRom) {
@@ -89,7 +90,7 @@ TEST_F(SubmitDefault, AddressZeroIsSkipRom) {
 
   const Ops expected{RESET, 0xCC, 0x4E, 0x01, 0x02, READ, READ, READ};
   EXPECT_EQ(this->bus_.ops, expected);
-  EXPECT_EQ(this->done_.calls, std::vector<TransactionStatus>{TransactionStatus::OK});
+  EXPECT_EQ(this->done_.calls, std::vector<TransactionStatus>{TransactionStatus::TRANSACTION_STATUS_OK});
 }
 
 TEST_F(SubmitDefault, BytesArriveInBusOrder) {
@@ -100,38 +101,42 @@ TEST_F(SubmitDefault, BytesArriveInBusOrder) {
   EXPECT_EQ(this->read_[2], 0xA2);
 }
 
-TEST_F(SubmitDefault, NoPresenceTouchesNothingAfterTheReset) {
-  this->bus_.presence = 0;
+struct ResetCase {
+  int presence;
+  TransactionStatus status;
+};
+
+class SubmitDefaultReset : public SubmitDefault, public ::testing::WithParamInterface<ResetCase> {};
+
+TEST_P(SubmitDefaultReset, FailedResetTouchesNothingAfterTheReset) {
+  this->bus_.presence = GetParam().presence;
   EXPECT_TRUE(this->bus_.submit(&this->transaction_));
 
   EXPECT_EQ(this->bus_.ops, Ops{RESET});
-  EXPECT_EQ(this->done_.calls, std::vector<TransactionStatus>{TransactionStatus::NO_PRESENCE});
+  EXPECT_EQ(this->done_.calls, std::vector<TransactionStatus>{GetParam().status});
   EXPECT_EQ(this->read_[0], 0);
 }
 
-TEST_F(SubmitDefault, HeldLowReadsAsNoPresence) {
-  this->bus_.presence = -1;
-  EXPECT_TRUE(this->bus_.submit(&this->transaction_));
-
-  EXPECT_EQ(this->bus_.ops, Ops{RESET});
-  EXPECT_EQ(this->done_.calls, std::vector<TransactionStatus>{TransactionStatus::NO_PRESENCE});
-}
+INSTANTIATE_TEST_SUITE_P(Presence, SubmitDefaultReset,
+                         ::testing::Values(ResetCase{0, TransactionStatus::TRANSACTION_STATUS_NO_PRESENCE},
+                                           ResetCase{-1, TransactionStatus::TRANSACTION_STATUS_BUS_LOW}));
 
 TEST_F(SubmitDefault, WithoutCallback) {
   this->transaction_.on_done = nullptr;
   EXPECT_TRUE(this->bus_.submit(&this->transaction_));
 
-  EXPECT_FALSE(this->transaction_.pending_);
+  EXPECT_FALSE(this->transaction_.is_pending());
   EXPECT_EQ(this->bus_.ops.size(), 9u);
 }
 
 TEST_F(SubmitDefault, RejectsAPendingTransaction) {
-  this->transaction_.pending_ = true;
+  TransactionQueue queue;  // Still queued on another bus
+  ASSERT_TRUE(queue.push(&this->transaction_));
   EXPECT_FALSE(this->bus_.submit(&this->transaction_));
 
   EXPECT_TRUE(this->bus_.ops.empty());
   EXPECT_TRUE(this->done_.calls.empty());
-  EXPECT_TRUE(this->transaction_.pending_);
+  EXPECT_TRUE(this->transaction_.is_pending());
 }
 
 TEST_F(SubmitDefault, IsFreeAgainWhenTheCallbackRuns) {
@@ -140,6 +145,33 @@ TEST_F(SubmitDefault, IsFreeAgainWhenTheCallbackRuns) {
   EXPECT_FALSE(this->done_.pending_during_call);
   EXPECT_TRUE(this->bus_.submit(&this->transaction_));
   EXPECT_EQ(this->done_.calls.size(), 2u);
+}
+
+TEST(TransactionQueue, FirstInFirstOut) {
+  Transaction a, b, c;
+  TransactionQueue queue;
+  EXPECT_TRUE(queue.empty());
+  EXPECT_TRUE(queue.push(&a));
+  EXPECT_TRUE(queue.push(&b));
+  EXPECT_EQ(queue.pop(), &a);
+  EXPECT_TRUE(queue.push(&c));
+  EXPECT_EQ(queue.front(), &b);
+  EXPECT_EQ(queue.pop(), &b);
+  EXPECT_EQ(queue.pop(), &c);
+  EXPECT_TRUE(queue.empty());
+}
+
+TEST(TransactionQueue, PendingUntilPopped) {
+  Transaction a;
+  TransactionQueue queue;
+  EXPECT_TRUE(queue.push(&a));
+  EXPECT_TRUE(a.is_pending());
+  EXPECT_FALSE(queue.push(&a));
+  EXPECT_EQ(queue.pop(), &a);
+  EXPECT_FALSE(a.is_pending());
+  EXPECT_TRUE(queue.empty());
+  EXPECT_TRUE(queue.push(&a));  // Can be queued again, e.g. from on_done
+  EXPECT_EQ(queue.front(), &a);
 }
 
 }  // namespace esphome::one_wire::testing

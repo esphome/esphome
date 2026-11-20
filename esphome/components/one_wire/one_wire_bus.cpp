@@ -13,6 +13,7 @@ static const uint8_t DALLAS_MODEL_DS28EA00 = 0x42;
 static const uint8_t MAXIM_MODEL_MAX31888 = 0x54;
 
 const uint8_t ONE_WIRE_ROM_SELECT = 0x55;
+const uint8_t ONE_WIRE_ROM_SKIP = 0xCC;
 const uint8_t ONE_WIRE_ROM_SEARCH = 0xF0;
 
 const std::vector<uint64_t> &OneWireBus::get_devices() { return this->devices_; }
@@ -61,17 +62,35 @@ void OneWireBus::search() {
 bool OneWireBus::skip() {
   if (!this->reset_())
     return false;
-  this->write8(0xCC);  // skip ROM
+  this->write8(ONE_WIRE_ROM_SKIP);
   return true;
 }
 
-#ifdef USE_ONE_WIRE_RMT
+#ifdef USE_ONE_WIRE_TRANSACTION
 bool OneWireBus::submit(Transaction *transaction) {
   if (transaction->pending_)
     return false;
   transaction->pending_ = true;
-  const bool present = transaction->address == 0 ? this->skip() : this->select(transaction->address);
-  if (present) {
+  // reset_int() directly, not skip()/select(): those fold a held-low bus into "no presence"
+  TransactionStatus status;
+  switch (this->reset_int()) {
+    case 1:
+      status = TransactionStatus::TRANSACTION_STATUS_OK;
+      break;
+    case -1:
+      status = TransactionStatus::TRANSACTION_STATUS_BUS_LOW;
+      break;
+    default:
+      status = TransactionStatus::TRANSACTION_STATUS_NO_PRESENCE;
+      break;
+  }
+  if (status == TransactionStatus::TRANSACTION_STATUS_OK) {
+    if (transaction->address == 0) {
+      this->write8(ONE_WIRE_ROM_SKIP);
+    } else {
+      this->write8(ONE_WIRE_ROM_SELECT);
+      this->write64(transaction->address);
+    }
     for (uint8_t i = 0; i < transaction->write_len; i++)
       this->write8(transaction->write_data[i]);
     for (uint8_t i = 0; i < transaction->read_len; i++)
@@ -79,10 +98,10 @@ bool OneWireBus::submit(Transaction *transaction) {
   }
   transaction->pending_ = false;
   if (transaction->on_done != nullptr)
-    transaction->on_done(transaction->context, present ? TransactionStatus::OK : TransactionStatus::NO_PRESENCE);
+    transaction->on_done(transaction->context, status);
   return true;
 }
-#endif  // USE_ONE_WIRE_RMT
+#endif  // USE_ONE_WIRE_TRANSACTION
 
 const LogString *OneWireBus::get_model_str(uint8_t model) {
   switch (model) {
