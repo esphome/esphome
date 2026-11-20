@@ -75,7 +75,7 @@ xiaomi_ble/expected_all.json
 xiaomi_ble/run_*.yaml
 ble_scan_complete/*.txt
 ble_scan_complete/*.err
-i2c_wire_ab/mux/*-ser*.txt
+i2c_wire_ab/mux/*-ser*.txt*
 i2c_wire_ab/mux/*.log
 i2c_recovery/*.log
 bmi270_real/*-cap.txt
