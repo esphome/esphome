@@ -78,7 +78,9 @@ def test_without_use_rmt_stays_bit_bang(
 
     assert "gpio::GPIOOneWireBus" in main_cpp
     assert "GPIORMTOneWireBus" not in main_cpp
-    assert "USE_ONE_WIRE_RMT" not in {define.name for define in CORE.defines}
+    defines = {define.name for define in CORE.defines}
+    assert "USE_ONE_WIRE_RMT" not in defines
+    assert "USE_ONE_WIRE_TRANSACTION" not in defines
 
 
 @pytest.mark.parametrize("platform", [ESP32_S3_IDF, ESP32_S3_ARDUINO])
@@ -90,7 +92,9 @@ def test_use_rmt_selects_the_rmt_bus(
     main_cpp = generate_main(write_yaml(_yaml(platform, USE_RMT)))
 
     assert "gpio::GPIORMTOneWireBus" in main_cpp
-    assert "USE_ONE_WIRE_RMT" in {define.name for define in CORE.defines}
+    defines = {define.name for define in CORE.defines}
+    assert "USE_ONE_WIRE_RMT" in defines
+    assert "USE_ONE_WIRE_TRANSACTION" in defines
     assert "esp_driver_rmt" not in get_excluded_builtin_components()
 
 

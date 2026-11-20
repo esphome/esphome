@@ -55,28 +55,28 @@ size_t encode_read_slots(size_t num_bits, Symbol *out, const Timing &timing) {
 
 TransactionStatus decode_reset(const Symbol *capture, size_t count) {
   if (count == 0)
-    return TransactionStatus::CAPTURE_ERROR;
+    return TransactionStatus::TRANSACTION_STATUS_CAPTURE_ERROR;
 
   // The only allowed forms are T+ M* and T* L
   size_t times = 0;
   while (times < count && classify(capture[times]) == SymbolClass::TIME)
     times++;
   if (times == count - 1 && classify(capture[times]) == SymbolClass::ENDS_ON_LOW)
-    return TransactionStatus::BUS_LOW;
+    return TransactionStatus::TRANSACTION_STATUS_BUS_LOW;
   if (times == 0)
-    return TransactionStatus::CAPTURE_ERROR;
+    return TransactionStatus::TRANSACTION_STATUS_CAPTURE_ERROR;
   for (size_t i = times; i < count; i++) {
     if (classify(capture[i]) != SymbolClass::END_MARKER)
-      return TransactionStatus::CAPTURE_ERROR;
+      return TransactionStatus::TRANSACTION_STATUS_CAPTURE_ERROR;
   }
 
   uint32_t since_release = capture[0].duration1;
   for (size_t i = 1; i < times && since_release <= PRESENCE_LATEST_START_US; i++) {
     if (capture[i].duration0 >= PRESENCE_MIN_LOW_US)
-      return TransactionStatus::OK;
+      return TransactionStatus::TRANSACTION_STATUS_OK;
     since_release += capture[i].duration0 + capture[i].duration1;
   }
-  return TransactionStatus::NO_PRESENCE;
+  return TransactionStatus::TRANSACTION_STATUS_NO_PRESENCE;
 }
 
 bool decode_read_slots(const Symbol *capture, size_t count, size_t num_bits, uint8_t *out, size_t bit_offset,

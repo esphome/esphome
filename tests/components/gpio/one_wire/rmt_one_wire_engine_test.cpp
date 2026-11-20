@@ -60,7 +60,7 @@ TEST(RmtOneWireEngine, ReadsScratchpad) {
   EXPECT_FALSE(rig.engine.is_idle());
   rig.pump();
   EXPECT_TRUE(rig.engine.is_idle());
-  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::OK}}));
+  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_OK}}));
   EXPECT_EQ(job.read_bytes, PAYLOAD);
   EXPECT_EQ(rig.port.wait_calls, 0) << "wait_for_event is for the blocking methods only";
 }
@@ -72,7 +72,7 @@ TEST(RmtOneWireEngine, SkipRomWithNoPayloadOnlySendsTheCommand) {
   Job job(&log, 1, 0, {}, 0);
   ASSERT_TRUE(rig.engine.submit(&job.t));
   rig.pump();
-  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::OK}}));
+  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_OK}}));
   EXPECT_EQ(rig.port.summary(), "RESET WRITE:8");
 }
 
@@ -83,7 +83,7 @@ TEST(RmtOneWireEngine, DeviceReceivesTheWrittenBytes) {
   Job job(&log, 1, ROM_A, {0x4E, 0x00, 0xFF, 0xA5}, 0);
   ASSERT_TRUE(rig.engine.submit(&job.t));
   rig.pump();
-  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::OK}}));
+  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_OK}}));
   EXPECT_EQ(device.received(), job.write_bytes);
 }
 
@@ -95,7 +95,7 @@ TEST(RmtOneWireEngine, MatchRomOnlyAddressesThatDevice) {
   Job job(&log, 1, ROM_A, {READ_SCRATCHPAD}, 9);
   ASSERT_TRUE(rig.engine.submit(&job.t));
   rig.pump();
-  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::OK}}));
+  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_OK}}));
   EXPECT_EQ(job.read_bytes, PAYLOAD);
 }
 
@@ -119,7 +119,7 @@ TEST(RmtOneWireEngine, CompletionWinsAfterLoopWasBlocked200ms) {
     rig.port.advance_us(200 * MS);
     rig.engine.poll();
   }
-  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::OK}}));
+  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_OK}}));
   EXPECT_EQ(rig.port.abort_count, 0);
   EXPECT_EQ(job.read_bytes, PAYLOAD);
 }
@@ -133,7 +133,7 @@ TEST(RmtOneWireEngine, EachSectionHasItsOwnTimeout) {
   Job job(&log, 1, ROM_A, {READ_SCRATCHPAD}, 9);
   ASSERT_TRUE(rig.engine.submit(&job.t));
   rig.pump();
-  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::OK}}));
+  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_OK}}));
   EXPECT_EQ(rig.port.abort_count, 0);
   EXPECT_GT(rig.port.now_us(), 150 * MS);
 }
@@ -161,7 +161,7 @@ TEST(RmtOneWireEngine, NextSectionTimesFromItsOwnStartAfterBlockedLoop) {
   rig.port.advance_us(10 * MS);
   rig.engine.poll();
   EXPECT_EQ(rig.port.abort_count, 1);
-  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::TIMEOUT}}));
+  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_TIMEOUT}}));
 }
 
 // ---- Rule 4: on_done runs in the main loop and may submit ------------------------------------
@@ -182,7 +182,7 @@ TEST(RmtOneWireEngine, OnDoneMaySubmitTheSameTransactionAgain) {
   EXPECT_TRUE(accepted) << "inside on_done the transaction is no longer pending";
   EXPECT_EQ(log.size(), 4u);
   for (const auto &entry : log)
-    EXPECT_EQ(entry.status, TransactionStatus::OK);
+    EXPECT_EQ(entry.status, TransactionStatus::TRANSACTION_STATUS_OK);
   EXPECT_TRUE(rig.engine.is_idle());
   EXPECT_FALSE(rig.port.loop_active());
   EXPECT_EQ(rig.port.frames().size(), 4u);
@@ -205,7 +205,8 @@ TEST(RmtOneWireEngine, OnDoneMaySubmitAnotherTransactionAndKeepsTheLoop) {
   EXPECT_FALSE(rig.engine.is_idle());
   EXPECT_TRUE(rig.port.loop_active());
   rig.pump();
-  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::OK}, {2, TransactionStatus::OK}}));
+  EXPECT_EQ(log,
+            (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_OK}, {2, TransactionStatus::TRANSACTION_STATUS_OK}}));
   EXPECT_EQ(second.read_bytes, PAYLOAD);
 }
 
@@ -219,7 +220,7 @@ TEST(RmtOneWireEngine, NullOnDoneIsAllowed) {
   ASSERT_TRUE(rig.engine.submit(&silent.t));
   ASSERT_TRUE(rig.engine.submit(&next.t));
   rig.pump();
-  EXPECT_EQ(log, (DoneLog{{2, TransactionStatus::OK}}));
+  EXPECT_EQ(log, (DoneLog{{2, TransactionStatus::TRANSACTION_STATUS_OK}}));
   EXPECT_EQ(next.read_bytes, PAYLOAD);
   const auto frames = rig.port.frames();
   ASSERT_EQ(frames.size(), 2u);
@@ -271,7 +272,7 @@ TEST(RmtOneWireEngine, LineLowAtTheStartIsBusLowAtOnce) {
   Job job(&log, 1, ROM_A, {READ_SCRATCHPAD}, 9);
   ASSERT_TRUE(rig.engine.submit(&job.t));
   rig.engine.poll();
-  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::BUS_LOW}}));
+  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_BUS_LOW}}));
   EXPECT_EQ(rig.port.tx_count, 0);
   EXPECT_EQ(rig.port.arm_count, 0);
   EXPECT_EQ(rig.port.abort_count, 0);
@@ -289,11 +290,12 @@ TEST(RmtOneWireEngine, NextTransactionRunsOnceTheLineIsBack) {
   ASSERT_TRUE(rig.engine.submit(&first.t));
   ASSERT_TRUE(rig.engine.submit(&second.t));
   rig.engine.poll();
-  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::BUS_LOW}}));
+  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_BUS_LOW}}));
   EXPECT_TRUE(rig.port.sections.empty());
   rig.port.advance_us(2000);
   rig.pump();
-  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::BUS_LOW}, {2, TransactionStatus::OK}}));
+  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_BUS_LOW},
+                          {2, TransactionStatus::TRANSACTION_STATUS_OK}}));
   EXPECT_EQ(second.read_bytes, PAYLOAD);
 }
 
@@ -314,7 +316,8 @@ TEST(RmtOneWireEngine, NoHeapInSubmitPollAndCompletions) {
     rig.pump();
   }
   EXPECT_EQ(g_heap_allocs, 0u);
-  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::OK}, {2, TransactionStatus::OK}}));
+  EXPECT_EQ(log,
+            (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_OK}, {2, TransactionStatus::TRANSACTION_STATUS_OK}}));
   EXPECT_EQ(first.read_bytes, PAYLOAD);
   EXPECT_EQ(rig.port.frames().size(), 2u);
 }
@@ -336,9 +339,9 @@ TEST(RmtOneWireEngine, NoHeapOnErrorPaths) {
     rig.pump();
   }
   EXPECT_EQ(g_heap_allocs, 0u);
-  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::NO_PRESENCE},
-                          {2, TransactionStatus::TIMEOUT},
-                          {1, TransactionStatus::HARDWARE_ERROR}}));
+  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_NO_PRESENCE},
+                          {2, TransactionStatus::TRANSACTION_STATUS_TIMEOUT},
+                          {1, TransactionStatus::TRANSACTION_STATUS_HARDWARE_ERROR}}));
 }
 
 TEST(RmtOneWireEngine, NoHeapInBlockingMethods) {
@@ -384,7 +387,7 @@ TEST(RmtOneWireEngine, LoopStopsAfterEveryErrorEnd) {
   Job job(&log, 1, ROM_A, {READ_SCRATCHPAD}, 9);
   ASSERT_TRUE(rig.engine.submit(&job.t));
   rig.pump();
-  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::NO_PRESENCE}}));
+  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_NO_PRESENCE}}));
   EXPECT_FALSE(rig.port.loop_active());
 }
 
@@ -430,7 +433,7 @@ TEST(RmtOneWireEngine, CompletionsTouchNothingButFlags) {
     EXPECT_EQ(job.read_bytes, untouched) << "decoded inside a completion";
     rig.engine.poll();
   }
-  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::OK}}));
+  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_OK}}));
 }
 
 namespace {
@@ -540,10 +543,10 @@ TEST(RmtOneWireEngine, TransactionsRunInFifoOrderWithoutInterleaving) {
   ASSERT_TRUE(rig.engine.submit(&c.t));
   ASSERT_TRUE(rig.engine.submit(&d.t));
   rig.pump();
-  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::OK},
-                          {2, TransactionStatus::OK},
-                          {3, TransactionStatus::OK},
-                          {4, TransactionStatus::OK}}));
+  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_OK},
+                          {2, TransactionStatus::TRANSACTION_STATUS_OK},
+                          {3, TransactionStatus::TRANSACTION_STATUS_OK},
+                          {4, TransactionStatus::TRANSACTION_STATUS_OK}}));
   const auto frames = rig.port.frames();
   ASSERT_EQ(frames.size(), 4u);
   EXPECT_EQ(slots_to_string(frames[0]), slots_to_string(a.slots()));
@@ -576,7 +579,9 @@ TEST(RmtOneWireEngine, SubmitDuringEverySectionDoesNotDisturbTheRunningOne) {
       rig.port.advance_us(100);
   }
   rig.pump();
-  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::OK}, {2, TransactionStatus::OK}, {3, TransactionStatus::OK}}));
+  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_OK},
+                          {2, TransactionStatus::TRANSACTION_STATUS_OK},
+                          {3, TransactionStatus::TRANSACTION_STATUS_OK}}));
   const auto frames = rig.port.frames();
   ASSERT_EQ(frames.size(), 3u);
   EXPECT_EQ(slots_to_string(frames[0]), slots_to_string(a.slots()));
@@ -599,10 +604,10 @@ TEST(RmtOneWireEngine, OnDoneSubmitQueuesBehindWhatIsAlreadyWaiting) {
   ASSERT_TRUE(rig.engine.submit(&b.t));
   ASSERT_TRUE(rig.engine.submit(&c.t));
   rig.pump();
-  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::OK},
-                          {2, TransactionStatus::OK},
-                          {3, TransactionStatus::OK},
-                          {4, TransactionStatus::OK}}));
+  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_OK},
+                          {2, TransactionStatus::TRANSACTION_STATUS_OK},
+                          {3, TransactionStatus::TRANSACTION_STATUS_OK},
+                          {4, TransactionStatus::TRANSACTION_STATUS_OK}}));
 }
 
 TEST(RmtOneWireEngine, SubmitOfAPendingTransactionIsRefusedAndChangesNothing) {
@@ -619,7 +624,8 @@ TEST(RmtOneWireEngine, SubmitOfAPendingTransactionIsRefusedAndChangesNothing) {
   ASSERT_FALSE(rig.port.sections.empty());
   EXPECT_FALSE(rig.engine.submit(&a.t)) << "running";
   rig.pump();
-  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::OK}, {2, TransactionStatus::OK}}));
+  EXPECT_EQ(log,
+            (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_OK}, {2, TransactionStatus::TRANSACTION_STATUS_OK}}));
   EXPECT_EQ(rig.port.frames().size(), 2u);
   EXPECT_TRUE(rig.engine.submit(&a.t)) << "done, accepted again";
   rig.pump();
@@ -643,11 +649,12 @@ TEST(RmtOneWireEngine, ReusedNodesInAnotherOrderDoNotLoseOrRepeat) {
   ASSERT_TRUE(rig.engine.submit(&c.t));
   ASSERT_TRUE(rig.engine.submit(&a.t));
   rig.pump();
-  EXPECT_EQ(log, (DoneLog{{3, TransactionStatus::OK}, {1, TransactionStatus::OK}}));
+  EXPECT_EQ(log,
+            (DoneLog{{3, TransactionStatus::TRANSACTION_STATUS_OK}, {1, TransactionStatus::TRANSACTION_STATUS_OK}}));
   log.clear();
   ASSERT_TRUE(rig.engine.submit(&a.t));
   rig.pump();
-  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::OK}}));
+  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_OK}}));
   EXPECT_TRUE(rig.engine.is_idle());
   EXPECT_EQ(rig.port.frames().size(), 6u);
 }
@@ -660,7 +667,7 @@ TEST(RmtOneWireEngine, ManyTransactionsKeepTheOrder) {
   DoneLog expected;
   for (int i = 0; i < 40; i++) {
     jobs.emplace_back(&log, i, 0, std::vector<uint8_t>{static_cast<uint8_t>(i)}, 0);
-    expected.push_back({i, TransactionStatus::OK});
+    expected.push_back({i, TransactionStatus::TRANSACTION_STATUS_OK});
   }
   for (auto &job : jobs)
     ASSERT_TRUE(rig.engine.submit(&job.t));
@@ -712,10 +719,11 @@ TEST_P(RmtOneWireLostCompletion, TimeoutAt50msThenNextRunsNormally) {
   rig.engine.poll();
   EXPECT_EQ(rig.port.abort_count, 1);
   ASSERT_FALSE(log.empty());
-  EXPECT_EQ(log[0], (DoneEntry{1, TransactionStatus::TIMEOUT}));
+  EXPECT_EQ(log[0], (DoneEntry{1, TransactionStatus::TRANSACTION_STATUS_TIMEOUT}));
 
   rig.pump();
-  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::TIMEOUT}, {2, TransactionStatus::OK}}));
+  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_TIMEOUT},
+                          {2, TransactionStatus::TRANSACTION_STATUS_OK}}));
   EXPECT_EQ(next.read_bytes, PAYLOAD);
   EXPECT_EQ(rig.port.abort_count, 1);
   EXPECT_TRUE(rig.engine.is_idle());
@@ -734,7 +742,7 @@ TEST_P(RmtOneWireLostCompletion, TimeoutInALaterSection) {
   Job job(&log, 1, ROM_A, {READ_SCRATCHPAD}, 9);
   ASSERT_TRUE(rig.engine.submit(&job.t));
   rig.pump();
-  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::TIMEOUT}}));
+  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_TIMEOUT}}));
   EXPECT_EQ(rig.port.sections.size(), 4u);
   EXPECT_EQ(rig.port.abort_count, 1);
 }
@@ -747,7 +755,7 @@ TEST(RmtOneWireEngine, TimeoutOfAWriteSectionOnlyNeedsTx) {
   Job job(&log, 1, ROM_A, {READ_SCRATCHPAD}, 9);
   ASSERT_TRUE(rig.engine.submit(&job.t));
   rig.pump();
-  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::TIMEOUT}}));
+  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_TIMEOUT}}));
   EXPECT_EQ(rig.port.sections.size(), 2u);
 }
 
@@ -767,14 +775,15 @@ TEST(RmtOneWireEngine, TimeoutWorksAcrossTheClockWrap) {
   EXPECT_TRUE(log.empty());
   rig.port.advance_us(10 * MS);
   rig.engine.poll();
-  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::TIMEOUT}}));
+  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_TIMEOUT}}));
 }
 
 namespace {
 
 /// Drives the next transaction by hand and checks that late messages did not advance it.
-void expect_next_is_not_advanced_and_completes(Rig &rig, DoneLog &log, Job &next, size_t sections_before,
-                                               TransactionStatus first_status = TransactionStatus::TIMEOUT) {
+void expect_next_is_not_advanced_and_completes(
+    Rig &rig, DoneLog &log, Job &next, size_t sections_before,
+    TransactionStatus first_status = TransactionStatus::TRANSACTION_STATUS_TIMEOUT) {
   rig.poll_times(5);
   ASSERT_EQ(rig.port.sections.size(), sections_before + 1) << "the next transaction starts its RESET, nothing more";
   EXPECT_TRUE(rig.port.sections.back().is_reset());
@@ -794,7 +803,7 @@ void expect_next_is_not_advanced_and_completes(Rig &rig, DoneLog &log, Job &next
     if (armed)
       rig.port.fire_rx();
   }
-  EXPECT_EQ(log, (DoneLog{{1, first_status}, {2, TransactionStatus::OK}}));
+  EXPECT_EQ(log, (DoneLog{{1, first_status}, {2, TransactionStatus::TRANSACTION_STATUS_OK}}));
   EXPECT_EQ(next.read_bytes, PAYLOAD);
 }
 
@@ -817,7 +826,7 @@ TEST(RmtOneWireEngine, LateCompletionInsideAbortAfterFailedStartIsDiscarded) {
   ASSERT_TRUE(rig.engine.submit(&next.t));
   rig.engine.poll();
   ASSERT_EQ(rig.port.abort_count, 1);
-  expect_next_is_not_advanced_and_completes(rig, log, next, 0, TransactionStatus::HARDWARE_ERROR);
+  expect_next_is_not_advanced_and_completes(rig, log, next, 0, TransactionStatus::TRANSACTION_STATUS_HARDWARE_ERROR);
 }
 
 TEST(RmtOneWireEngine, LateCompletionInsideAbortIsDiscarded) {
@@ -876,7 +885,7 @@ TEST(RmtOneWireEngine, LateCompletionWhileIdleIsDiscarded) {
   ASSERT_EQ(rig.port.sections.size(), 1u);
   rig.port.advance_us(60 * MS);
   rig.engine.poll();
-  ASSERT_EQ(log, (DoneLog{{1, TransactionStatus::TIMEOUT}}));
+  ASSERT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_TIMEOUT}}));
   ASSERT_TRUE(rig.engine.is_idle());
 
   rig.engine.on_tx_done();
@@ -904,7 +913,7 @@ TEST(RmtOneWireEngine, PartialCompletionOfTheAbortedSectionDoesNotLeak) {
   rig.port.advance_us(60 * MS);
   rig.engine.poll();
   ASSERT_EQ(rig.port.abort_count, 1);
-  ASSERT_EQ(log, (DoneLog{{1, TransactionStatus::TIMEOUT}}));
+  ASSERT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_TIMEOUT}}));
   rig.poll_times(3);
   ASSERT_EQ(rig.port.sections.size(), 2u);
 
@@ -928,13 +937,14 @@ TEST(RmtOneWireEngine, AbortThatFailsEndsAllWorkInHardwareError) {
   ASSERT_TRUE(rig.engine.submit(&lost.t));
   ASSERT_TRUE(rig.engine.submit(&queued.t));
   rig.pump();
-  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::HARDWARE_ERROR}, {2, TransactionStatus::HARDWARE_ERROR}}));
+  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_HARDWARE_ERROR},
+                          {2, TransactionStatus::TRANSACTION_STATUS_HARDWARE_ERROR}}));
   EXPECT_EQ(rig.port.tx_count, 1);
 
   ASSERT_TRUE(rig.engine.submit(&later.t));
   rig.pump();
   EXPECT_EQ(log.size(), 3u);
-  EXPECT_EQ(log.back(), (DoneEntry{3, TransactionStatus::HARDWARE_ERROR}));
+  EXPECT_EQ(log.back(), (DoneEntry{3, TransactionStatus::TRANSACTION_STATUS_HARDWARE_ERROR}));
   EXPECT_EQ(rig.port.tx_count, 1) << "no RMT call on a failed bus";
   EXPECT_EQ(rig.port.arm_count, 1) << "no RMT call on a failed bus";
   EXPECT_EQ(rig.port.abort_count, 1) << "no RMT call on a failed bus";
@@ -950,7 +960,7 @@ TEST(RmtOneWireEngine, NoDeviceIsNoPresenceAndStopsAfterTheReset) {
   Job job(&log, 1, ROM_A, {READ_SCRATCHPAD}, 9);
   ASSERT_TRUE(rig.engine.submit(&job.t));
   rig.pump();
-  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::NO_PRESENCE}}));
+  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_NO_PRESENCE}}));
   EXPECT_EQ(rig.port.summary(), "RESET");
   EXPECT_EQ(rig.port.abort_count, 0);
 }
@@ -968,7 +978,8 @@ TEST(RmtOneWireEngine, WireToGndAfterPrecheckIsBusLow) {
     Job job(&log, 1, ROM_A, {READ_SCRATCHPAD}, 9);
     ASSERT_TRUE(rig.engine.submit(&job.t));
     rig.pump();
-    EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::BUS_LOW}})) << held.duration0 << "/" << held.duration1;
+    EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_BUS_LOW}}))
+        << held.duration0 << "/" << held.duration1;
     EXPECT_EQ(rig.port.summary(), "RESET");
   }
 }
@@ -981,7 +992,7 @@ TEST(RmtOneWireEngine, LineStuckBeforeTheStartIsBusLow) {
   Job job(&log, 1, ROM_A, {READ_SCRATCHPAD}, 9);
   ASSERT_TRUE(rig.engine.submit(&job.t));
   rig.pump();
-  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::BUS_LOW}}));
+  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_BUS_LOW}}));
   EXPECT_EQ(rig.port.tx_count, 0);
 }
 
@@ -997,7 +1008,7 @@ TEST(RmtOneWireEngine, WrongResetCaptureIsCaptureError) {
     Job job(&log, 1, ROM_A, {READ_SCRATCHPAD}, 9);
     ASSERT_TRUE(rig.engine.submit(&job.t));
     rig.pump();
-    EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::CAPTURE_ERROR}}));
+    EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_CAPTURE_ERROR}}));
     EXPECT_EQ(rig.port.summary(), "RESET");
   }
 }
@@ -1013,7 +1024,7 @@ TEST(RmtOneWireEngine, BadReadCaptureStopsTheTransaction) {
   Job job(&log, 1, ROM_A, {READ_SCRATCHPAD}, 9);
   ASSERT_TRUE(rig.engine.submit(&job.t));
   rig.pump();
-  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::CAPTURE_ERROR}}));
+  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_CAPTURE_ERROR}}));
   EXPECT_EQ(rig.port.sections.size(), 4u) << "the second READ must not start";
   EXPECT_EQ(rig.port.abort_count, 0);
 }
@@ -1039,7 +1050,7 @@ TEST(RmtOneWireEngine, LineToGndDuringReadIsCaptureError) {
     Job job(&log, 1, ROM_A, {READ_SCRATCHPAD}, 9);
     ASSERT_TRUE(rig.engine.submit(&job.t));
     rig.pump();
-    EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::CAPTURE_ERROR}}));
+    EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_CAPTURE_ERROR}}));
     EXPECT_EQ(rig.port.sections.size(), 4u);
   }
 }
@@ -1066,7 +1077,7 @@ TEST(RmtOneWireEngine, LineToGndInTheLastSlotIsCaptureError) {
         Job job(&log, 1, ROM_A, {READ_SCRATCHPAD}, 9);
         ASSERT_TRUE(rig.engine.submit(&job.t));
         rig.pump();
-        EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::CAPTURE_ERROR}}))
+        EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_CAPTURE_ERROR}}))
             << "section " << failing_section << " stale " << stale << " behind " << behind;
         EXPECT_EQ(rig.port.sections.size(), failing_section + 1);
       }
@@ -1092,7 +1103,7 @@ TEST(RmtOneWireEngine, LowTimeLimitIn109Out110) {
         Job job(&log, 1, ROM_A, {READ_SCRATCHPAD}, 9);
         ASSERT_TRUE(rig.engine.submit(&job.t));
         rig.pump();
-        EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::OK}})) << "109 us is a slow 0";
+        EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_OK}})) << "109 us is a slow 0";
         int zeros = 0;
         for (auto byte : job.read_bytes) {
           for (int bit = 0; bit < 8; bit++)
@@ -1111,7 +1122,7 @@ TEST(RmtOneWireEngine, LowTimeLimitIn109Out110) {
         Job job(&log, 1, ROM_A, {READ_SCRATCHPAD}, 9);
         ASSERT_TRUE(rig.engine.submit(&job.t));
         rig.pump();
-        EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::CAPTURE_ERROR}})) << "110 us is a held bus";
+        EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_CAPTURE_ERROR}})) << "110 us is a held bus";
       }
     }
   }
@@ -1127,7 +1138,7 @@ TEST(RmtOneWireEngine, BadCrcIsStillOk) {
   Job job(&log, 1, ROM_A, {READ_SCRATCHPAD}, 9);
   ASSERT_TRUE(rig.engine.submit(&job.t));
   rig.pump();
-  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::OK}}));
+  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_OK}}));
   EXPECT_EQ(job.read_bytes, broken);
 }
 
@@ -1164,7 +1175,7 @@ TEST_P(RmtOneWirePortFailure, HardwareErrorThenNextRunsNormally) {
   failing.then = [&](TransactionStatus) { aborts_at_on_done = rig.port.abort_count; };
   ASSERT_TRUE(rig.engine.submit(&failing.t));
   rig.pump();
-  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::HARDWARE_ERROR}}));
+  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_HARDWARE_ERROR}}));
   EXPECT_EQ(rig.port.sections.size(), GetParam().sections_started);
   EXPECT_EQ(rig.port.tx_count, GetParam().tx_calls) << "TX must not start after arm_rx() failed";
   EXPECT_EQ(rig.port.abort_count, GetParam().aborts);
@@ -1172,7 +1183,8 @@ TEST_P(RmtOneWirePortFailure, HardwareErrorThenNextRunsNormally) {
 
   ASSERT_TRUE(rig.engine.submit(&next.t));
   rig.pump();
-  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::HARDWARE_ERROR}, {2, TransactionStatus::OK}}));
+  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_HARDWARE_ERROR},
+                          {2, TransactionStatus::TRANSACTION_STATUS_OK}}));
   EXPECT_EQ(next.read_bytes, PAYLOAD);
 }
 
@@ -1188,11 +1200,12 @@ TEST(RmtOneWireEngine, FailedStartWhoseAbortFailsIsPermanent) {
   ASSERT_TRUE(rig.engine.submit(&failing.t));
   ASSERT_TRUE(rig.engine.submit(&queued.t));
   rig.pump();
-  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::HARDWARE_ERROR}, {2, TransactionStatus::HARDWARE_ERROR}}));
+  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_HARDWARE_ERROR},
+                          {2, TransactionStatus::TRANSACTION_STATUS_HARDWARE_ERROR}}));
   ASSERT_TRUE(rig.engine.submit(&later.t));
   rig.pump();
   EXPECT_EQ(log.size(), 3u);
-  EXPECT_EQ(log.back(), (DoneEntry{3, TransactionStatus::HARDWARE_ERROR}));
+  EXPECT_EQ(log.back(), (DoneEntry{3, TransactionStatus::TRANSACTION_STATUS_HARDWARE_ERROR}));
   EXPECT_EQ(rig.port.tx_count, 1) << "no RMT call on a failed bus";
   EXPECT_EQ(rig.port.arm_count, 1) << "no RMT call on a failed bus";
   EXPECT_EQ(rig.port.abort_count, 1) << "no RMT call on a failed bus";
@@ -1217,7 +1230,8 @@ TEST(RmtOneWireEngine, SetFailedEndsRunningQueuedAndFutureWork) {
 
   rig.engine.set_failed();
   rig.pump();
-  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::HARDWARE_ERROR}, {2, TransactionStatus::HARDWARE_ERROR}}));
+  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_HARDWARE_ERROR},
+                          {2, TransactionStatus::TRANSACTION_STATUS_HARDWARE_ERROR}}));
   EXPECT_TRUE(rig.engine.is_idle());
   EXPECT_FALSE(rig.port.loop_active());
 
@@ -1228,7 +1242,7 @@ TEST(RmtOneWireEngine, SetFailedEndsRunningQueuedAndFutureWork) {
   ASSERT_TRUE(rig.engine.submit(&future.t));
   rig.pump();
   EXPECT_EQ(log.size(), 3u);
-  EXPECT_EQ(log.back(), (DoneEntry{3, TransactionStatus::HARDWARE_ERROR}));
+  EXPECT_EQ(log.back(), (DoneEntry{3, TransactionStatus::TRANSACTION_STATUS_HARDWARE_ERROR}));
   EXPECT_EQ(rig.port.arm_count, arms);
   EXPECT_EQ(rig.port.tx_count, transmits);
   EXPECT_TRUE(rig.engine.is_idle());
@@ -1242,7 +1256,7 @@ TEST(RmtOneWireEngine, FailedBusStillRefusesAPendingTransactionOnly) {
   Job job(&log, 1, ROM_A, {READ_SCRATCHPAD}, 9);
   ASSERT_TRUE(rig.engine.submit(&job.t));
   rig.pump();
-  ASSERT_EQ(log, (DoneLog{{1, TransactionStatus::HARDWARE_ERROR}}));
+  ASSERT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_HARDWARE_ERROR}}));
   ASSERT_TRUE(rig.engine.submit(&job.t)) << "the transaction is no longer pending";
   rig.pump();
   EXPECT_EQ(log.size(), 2u);
@@ -1353,11 +1367,11 @@ TEST_P(RmtOneWireFuzz, OkOnlyWithACompleteDecode) {
     }
     if (all_valid) {
       ok++;
-      ASSERT_EQ(log[0].status, TransactionStatus::OK) << "round " << round;
+      ASSERT_EQ(log[0].status, TransactionStatus::TRANSACTION_STATUS_OK) << "round " << round;
       ASSERT_EQ(job.read_bytes, payload) << "round " << round;
     } else {
       errors++;
-      ASSERT_EQ(log[0].status, TransactionStatus::CAPTURE_ERROR) << "round " << round;
+      ASSERT_EQ(log[0].status, TransactionStatus::TRANSACTION_STATUS_CAPTURE_ERROR) << "round " << round;
     }
   }
   EXPECT_GT(ok, 100);
@@ -1395,7 +1409,7 @@ void read_scratchpad_ok(Rig &rig) {
   Job job(&log, 1, ROM_A, {READ_SCRATCHPAD}, 9);
   ASSERT_TRUE(rig.engine.submit(&job.t));
   rig.pump();
-  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::OK}}));
+  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_OK}}));
   EXPECT_EQ(job.read_bytes, PAYLOAD);
 }
 
@@ -1466,7 +1480,7 @@ TEST(RmtOneWireEngine, ThresholdReachesTheDecoder) {
     Job job(&log, 1, ROM_A, {READ_SCRATCHPAD}, 9);
     ASSERT_TRUE(rig.engine.submit(&job.t));
     rig.pump();
-    EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::OK}}));
+    EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_OK}}));
     EXPECT_EQ(job.read_bytes, PAYLOAD);
   }
   {
@@ -1477,7 +1491,7 @@ TEST(RmtOneWireEngine, ThresholdReachesTheDecoder) {
     Job job(&log, 1, ROM_A, {READ_SCRATCHPAD}, 9);
     ASSERT_TRUE(rig.engine.submit(&job.t));
     rig.pump();
-    EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::OK}}));
+    EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_OK}}));
     EXPECT_EQ(job.read_bytes, std::vector<uint8_t>(9, 0x00));
   }
 }
@@ -1497,7 +1511,8 @@ TEST(RmtOneWireEngine, SlotLimitReachesTheDecoder) {
       Job job(&log, 1, ROM_A, {READ_SCRATCHPAD}, 9);
       ASSERT_TRUE(rig.engine.submit(&job.t));
       rig.pump();
-      const TransactionStatus expected = low < 120 ? TransactionStatus::OK : TransactionStatus::CAPTURE_ERROR;
+      const TransactionStatus expected =
+          low < 120 ? TransactionStatus::TRANSACTION_STATUS_OK : TransactionStatus::TRANSACTION_STATUS_CAPTURE_ERROR;
       EXPECT_EQ(log, (DoneLog{{1, expected}})) << "section " << patched_section << " low " << low;
     }
   }

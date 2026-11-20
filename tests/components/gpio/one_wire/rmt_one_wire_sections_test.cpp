@@ -68,7 +68,7 @@ TEST(RmtOneWireSectionTable, ReadScratchpadW64) {
   ASSERT_TRUE(rig.engine.submit(&job.t));
   rig.pump();
   EXPECT_EQ(rig.port.summary(), "RESET WRITE:63 WRITE:17 READ:62 READ:10");
-  ASSERT_EQ(log, (DoneLog{{1, TransactionStatus::OK}}));
+  ASSERT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_OK}}));
   EXPECT_EQ(job.read_bytes, (std::vector<uint8_t>{1, 2, 3, 4, 5, 6, 7, 8, 9}));
 }
 
@@ -80,7 +80,7 @@ TEST(RmtOneWireSectionTable, ReadScratchpadW48) {
   ASSERT_TRUE(rig.engine.submit(&job.t));
   rig.pump();
   EXPECT_EQ(rig.port.summary(), "RESET WRITE:47 WRITE:33 READ:46 READ:26");
-  ASSERT_EQ(log, (DoneLog{{1, TransactionStatus::OK}}));
+  ASSERT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_OK}}));
   EXPECT_EQ(job.read_bytes, (std::vector<uint8_t>{1, 2, 3, 4, 5, 6, 7, 8, 9}));
 }
 
@@ -99,7 +99,8 @@ void check_one_length(Rig &rig, std::mt19937 &rng, uint64_t address, size_t writ
   ASSERT_TRUE(rig.engine.submit(&job.t));
   rig.pump();
 
-  ASSERT_EQ(log, (DoneLog{{1, TransactionStatus::OK}})) << "write " << write_len << " read " << read_len;
+  ASSERT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_OK}}))
+      << "write " << write_len << " read " << read_len;
   ASSERT_TRUE(rig.engine.is_idle());
   EXPECT_EQ(job.read_bytes, payload) << "write " << write_len << " read " << read_len;
 
@@ -210,7 +211,7 @@ TEST_P(RmtOneWireSections, RxIsArmedBeforeTxInEveryRxSection) {
   Job job(&log, 1, ROM_A, {READ_SCRATCHPAD}, 9);
   ASSERT_TRUE(rig.engine.submit(&job.t));
   rig.pump();
-  ASSERT_EQ(log, (DoneLog{{1, TransactionStatus::OK}}));
+  ASSERT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_OK}}));
 
   // RESET, WRITE, WRITE, READ, READ
   const std::vector<PortCall> expected{PortCall::ARM, PortCall::TX, PortCall::TX,  PortCall::TX,
@@ -290,7 +291,7 @@ TEST_P(RmtOneWireSections, NextStartOnlyAfterBothCompletionsTxFirst) {
   Job job(&log, 1, ROM_A, {READ_SCRATCHPAD}, 30);
   ASSERT_TRUE(rig.engine.submit(&job.t));
   step_through_sections(rig, log, [&] { rig.port.fire_tx(); }, [&] { rig.port.fire_rx(); });
-  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::OK}}));
+  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_OK}}));
   EXPECT_EQ(job.read_bytes, std::vector<uint8_t>(30, 0x96));
 }
 
@@ -302,7 +303,7 @@ TEST_P(RmtOneWireSections, NextStartOnlyAfterBothCompletionsRxFirst) {
   Job job(&log, 1, ROM_A, {READ_SCRATCHPAD}, 30);
   ASSERT_TRUE(rig.engine.submit(&job.t));
   step_through_sections(rig, log, [&] { rig.port.fire_rx(); }, [&] { rig.port.fire_tx(); });
-  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::OK}}));
+  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_OK}}));
   EXPECT_EQ(job.read_bytes, std::vector<uint8_t>(30, 0x96));
 }
 
@@ -314,7 +315,7 @@ TEST_P(RmtOneWireSections, AutomaticRxFirstOrderAlsoCompletes) {
   Job job(&log, 1, ROM_A, {READ_SCRATCHPAD}, 30);
   ASSERT_TRUE(rig.engine.submit(&job.t));
   rig.pump();
-  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::OK}}));
+  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_OK}}));
   EXPECT_EQ(job.read_bytes, std::vector<uint8_t>(30, 0x69));
 }
 
@@ -325,7 +326,7 @@ TEST_P(RmtOneWireSections, WriteOnlyTransactionNeverArmsAfterReset) {
   Job job(&log, 1, ROM_A, std::vector<uint8_t>(40, 0x44), 0);
   ASSERT_TRUE(rig.engine.submit(&job.t));
   rig.pump();
-  ASSERT_EQ(log, (DoneLog{{1, TransactionStatus::OK}}));
+  ASSERT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_OK}}));
   for (size_t i = 1; i < rig.port.sections.size(); i++)
     EXPECT_FALSE(rig.port.sections[i].armed) << "section " << i;
   EXPECT_EQ(rig.port.arm_count, 1);
@@ -340,7 +341,7 @@ TEST_P(RmtOneWireSections, TransactionSymbolsInWindows) {
   Job job(&log, 1, ROM_A, {0x00, 0xFF}, 3);
   ASSERT_TRUE(rig.engine.submit(&job.t));
   rig.pump();
-  ASSERT_EQ(log, (DoneLog{{1, TransactionStatus::OK}}));
+  ASSERT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_OK}}));
   expect_all_symbols_in_windows(rig.port);
 }
 
@@ -396,7 +397,7 @@ TEST_P(RmtOneWireSections, TransactionIdleValues) {
   Job job(&log, 1, ROM_A, {READ_SCRATCHPAD}, 30);
   ASSERT_TRUE(rig.engine.submit(&job.t));
   rig.pump();
-  ASSERT_EQ(log, (DoneLog{{1, TransactionStatus::OK}}));
+  ASSERT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_OK}}));
   expect_idle_values(rig.port);
 }
 

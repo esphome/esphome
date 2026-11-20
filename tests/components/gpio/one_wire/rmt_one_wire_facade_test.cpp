@@ -466,7 +466,8 @@ TEST(RmtOneWireFacade, FacadeDrainsTheFifoFirst) {
   rig.engine.poll();  // the first one is on the wire now, the fifo is not empty
 
   EXPECT_EQ(rig.engine.reset_blocking(), 1);
-  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::OK}, {2, TransactionStatus::OK}}))
+  EXPECT_EQ(log,
+            (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_OK}, {2, TransactionStatus::TRANSACTION_STATUS_OK}}))
       << "both transactions ended before the blocking reset returned";
   EXPECT_EQ(running.read_bytes, pattern_bytes(9));
 
@@ -487,7 +488,7 @@ TEST(RmtOneWireFacade, ReadAndWriteAlsoDrainFirst) {
   ASSERT_TRUE(rig.engine.submit(&first.t));
   uint8_t data[2]{};
   EXPECT_TRUE(rig.engine.read_blocking(data, 16));
-  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::OK}}));
+  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_OK}}));
   EXPECT_EQ(data[0], 0x12);
   EXPECT_EQ(data[1], 0x34);
   EXPECT_EQ(rig.port.summary(), "RESET WRITE:8 READ:16");
@@ -496,7 +497,8 @@ TEST(RmtOneWireFacade, ReadAndWriteAlsoDrainFirst) {
   ASSERT_TRUE(rig.engine.submit(&second.t));
   const uint8_t byte = 0x00;
   EXPECT_TRUE(rig.engine.write_blocking(&byte, 8));
-  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::OK}, {2, TransactionStatus::OK}}));
+  EXPECT_EQ(log,
+            (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_OK}, {2, TransactionStatus::TRANSACTION_STATUS_OK}}));
   EXPECT_EQ(rig.port.summary(3), "RESET WRITE:8 WRITE:8");
 }
 
@@ -509,7 +511,8 @@ TEST(RmtOneWireFacade, DrainIncludesWhatOnDoneSubmits) {
   first.then = [&](TransactionStatus) { EXPECT_TRUE(rig.engine.submit(&second.t)); };
   ASSERT_TRUE(rig.engine.submit(&first.t));
   EXPECT_EQ(rig.engine.reset_blocking(), 1);
-  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::OK}, {2, TransactionStatus::OK}}));
+  EXPECT_EQ(log,
+            (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_OK}, {2, TransactionStatus::TRANSACTION_STATUS_OK}}));
   EXPECT_EQ(rig.port.summary(), "RESET WRITE:8 RESET WRITE:8 RESET");
 }
 
@@ -533,7 +536,7 @@ TEST(RmtOneWireFacade, FailingDrainDoesNotStopThePrimitive) {
   Job lost(&log, 1, 0, {}, 0);
   ASSERT_TRUE(rig.engine.submit(&lost.t));
   EXPECT_EQ(rig.engine.reset_blocking(), 1);
-  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::TIMEOUT}}));
+  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_TIMEOUT}}));
 }
 
 TEST(RmtOneWireFacade, BlockingSequenceStaysInOnePiece) {
@@ -884,7 +887,7 @@ TEST(RmtOneWireSearchContract, SearchDrainsTheFifoFirst) {
   rig.engine.reset_search();
   // On the wire this is a nonsense sequence, only the order counts
   rig.engine.search_next();
-  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::OK}}));
+  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_OK}}));
   ASSERT_GE(rig.port.sections.size(), 3u);
   EXPECT_TRUE(rig.port.sections[0].is_reset());
   EXPECT_EQ(rig.port.sections[1].tx.size(), 8u);
