@@ -147,8 +147,6 @@ MultiClickTriggerEvent = binary_sensor_ns.struct("MultiClickTriggerEvent")
 # Filters
 Filter = binary_sensor_ns.class_("Filter")
 TimeoutFilter = binary_sensor_ns.class_("TimeoutFilter", Filter)
-DelayedOnFilter = binary_sensor_ns.class_("DelayedOnFilter", Filter)
-DelayedOffFilter = binary_sensor_ns.class_("DelayedOffFilter", Filter)
 InvertFilter = binary_sensor_ns.class_("InvertFilter", Filter)
 AutorepeatFilter = binary_sensor_ns.class_("AutorepeatFilter", Filter)
 SettleFilter = binary_sensor_ns.class_("SettleFilter", Filter)
@@ -189,11 +187,10 @@ async def timeout_filter_to_code(config, filter_id):
     return var
 
 
+_DELAY = ((automation.WHOLE_CONFIG, cg.uint32),)
 _DELAY_EITHER = automation.ApplyCall(
-    "return binary_sensor::delay_output(filter, {}, x);",
-    ((automation.WHOLE_CONFIG, cg.uint32),),
+    "return binary_sensor::delay_output(filter, {}, x);", _DELAY
 )
-# The delay for the edge is picked in the generated code, so only that value is evaluated
 _DELAY_SCHEMA = cv.templatable(cv.positive_time_period_milliseconds)
 _DELAY_ON_OFF_SCHEMA = cv.Schema(
     {
@@ -201,9 +198,18 @@ _DELAY_ON_OFF_SCHEMA = cv.Schema(
         cv.Required(CONF_TIME_OFF): _DELAY_SCHEMA,
     }
 )
+# The delay for the edge is picked in the generated code, so only that value is evaluated
 _DELAY_ON_OFF = automation.ApplyCall(
     "return binary_sensor::delay_output(filter, x ? {} : {}, x);",
     ((CONF_TIME_ON, cg.uint32), (CONF_TIME_OFF, cg.uint32)),
+)
+# delayed_on and delayed_off: the delayed value waits, the other drops the pending output and passes
+_PASS_AT_ONCE = "return binary_sensor::cancel_and_pass(filter, x);"
+_DELAY_ON = automation.ApplyCall(
+    "if (x) return binary_sensor::delay_output(filter, {}, x);", _DELAY
+)
+_DELAY_OFF = automation.ApplyCall(
+    "if (!x) return binary_sensor::delay_output(filter, {}, x);", _DELAY
 )
 
 
@@ -232,26 +238,8 @@ async def delayed_on_off_filter_to_code(config: Any, filter_id: ID) -> MockObj:
     )
 
 
-@register_filter(
-    "delayed_on", DelayedOnFilter, cv.templatable(cv.positive_time_period_milliseconds)
-)
-async def delayed_on_filter_to_code(config, filter_id):
-    var = cg.new_Pvariable(filter_id)
-    template_ = await cg.templatable(config, [], cg.uint32)
-    cg.add(var.set_delay(template_))
-    return var
-
-
-@register_filter(
-    "delayed_off",
-    DelayedOffFilter,
-    cv.templatable(cv.positive_time_period_milliseconds),
-)
-async def delayed_off_filter_to_code(config, filter_id):
-    var = cg.new_Pvariable(filter_id)
-    template_ = await cg.templatable(config, [], cg.uint32)
-    cg.add(var.set_delay(template_))
-    return var
+APPLY_FILTER.register("delayed_on", _DELAY_SCHEMA, _DELAY_ON, _PASS_AT_ONCE)
+APPLY_FILTER.register("delayed_off", _DELAY_SCHEMA, _DELAY_OFF, _PASS_AT_ONCE)
 
 
 @register_filter(

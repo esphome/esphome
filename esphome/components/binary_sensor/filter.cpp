@@ -37,30 +37,15 @@ optional<bool> delay_output(Filter *filter, uint32_t delay, bool value) {
   return {};
 }
 
+optional<bool> cancel_and_pass(Filter *filter, bool value) {
+  App.scheduler.cancel_timeout(filter);
+  return value;
+}
+
 void TimeoutFilter::input(bool value) {
   App.scheduler.set_timeout(this, this->timeout_delay_.value(), [this]() { this->parent_->invalidate_state(); });
   // Every input re-arms the timeout, including repeats, so this filter must not de-dup
   this->output(value);
-}
-
-optional<bool> DelayedOnFilter::new_value(bool value) {
-  if (value) {
-    App.scheduler.set_timeout(this, this->delay_.value(), [this]() { this->output(true); });
-    return {};
-  } else {
-    App.scheduler.cancel_timeout(this);
-    return false;
-  }
-}
-
-optional<bool> DelayedOffFilter::new_value(bool value) {
-  if (!value) {
-    App.scheduler.set_timeout(this, this->delay_.value(), [this]() { this->output(false); });
-    return {};
-  } else {
-    App.scheduler.cancel_timeout(this);
-    return true;
-  }
 }
 
 optional<bool> InvertFilter::new_value(bool value) { return !value; }
