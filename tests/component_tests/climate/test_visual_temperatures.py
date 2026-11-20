@@ -222,6 +222,20 @@ def test_a_resolved_unit_waits_for_the_full_config() -> None:
     assert config[CONF_VISUAL][CONF_MIN_TEMPERATURE] == pytest.approx(59.0)
 
 
+def test_final_validate_skips_a_platform_that_only_holds_nested_climates() -> None:
+    """A hub platform may put each of its climates under a key of one platform entry."""
+    nested = climate_schema(climate_ns.class_("NestedClimate", Climate))
+    platform_schema = cv.Schema({cv.Optional("zone_1"): nested})
+    config = platform_schema(
+        {"zone_1": {CONF_NAME: "Zone 1", CONF_VISUAL: {CONF_MIN_TEMPERATURE: "50°F"}}}
+    )
+    # The platform entry itself is not a climate and has no visual section
+    assert CONF_VISUAL not in config
+    _final_validate([config])
+    # The nested climate was converted by its own schema
+    assert config["zone_1"][CONF_VISUAL][CONF_MIN_TEMPERATURE] == pytest.approx(10.0)
+
+
 @pytest.mark.parametrize(
     ("use_fahrenheit", "cn105_lines"),
     [

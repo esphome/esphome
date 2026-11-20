@@ -7,7 +7,7 @@ namespace esphome::xiaomi_xmwsdj04mmc {
 
 ESPHOME_LOG_TAG(TAG, "xiaomi_xmwsdj04mmc");
 
-void XiaomiXMWSDJ04MMC::dump_config() {
+void XiaomiXMWSDJ04MMC::dump_child_config() {
   ESP_LOGCONFIG(TAG, "Xiaomi XMWSDJ04MMC");
   this->dump_bindkey_(TAG);
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);

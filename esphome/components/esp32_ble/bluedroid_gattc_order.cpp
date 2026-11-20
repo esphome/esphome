@@ -1,5 +1,5 @@
 // Linker wrap that puts a GATT discovery response back in handle order before Bluedroid parses it.
-// ESP-IDF 5.5.6 and 6.0.3 end the whole discovery when a peer lists handles out of order (esphome#22518), which
+// ESP-IDF 5.5.6, 6.0.3 and 6.1.1 end the whole discovery when a peer lists handles out of order (esphome#22518), which
 // earlier releases, Android and BlueZ accept.
 
 #include "esphome/core/defines.h"
