@@ -7,5 +7,5 @@ openthread:
   # Largest allowed poll period
   poll_period: 7200s
   core_options:
-    # Deprecated with poll_period, dropped with a warning
+    # The floor of the derived value
     OPENTHREAD_CONFIG_CHILD_SUPERVISION_INTERVAL: "470"

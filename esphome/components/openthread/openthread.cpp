@@ -406,20 +406,23 @@ void OpenThreadComponent::apply_linkmode_(otInstance *instance) {
   if (polling && otLinkSetPollPeriod(instance, this->poll_period_) != OT_ERROR_NONE) {
     ESP_LOGE(TAG, "Failed to set pollperiod");
   }
-  // At poll period 0 the formulas give the minimums, which restores them when polling stops
+  // When polling stops the minimums are restored exactly: 0 turns a supervision check off
   if (polling || this->timeouts_derived_) {
     this->timeouts_derived_ = polling;
     // Round up so the derived timeouts are never below their multiples of poll_period.
     const uint32_t poll_period_sec = (this->poll_period_ + 999) / 1000;
-    otThreadSetChildTimeout(instance, std::max<uint32_t>(poll_period_sec * 4, CHILD_TIMEOUT_MIN_SEC));
+    otThreadSetChildTimeout(
+        instance, polling ? std::max<uint32_t>(poll_period_sec * 4, CHILD_TIMEOUT_MIN_SEC) : CHILD_TIMEOUT_MIN_SEC);
     // At most 3 * 7200 + 10, so both fit the uint16_t setters
     otChildSupervisionSetCheckTimeout(
-        instance,
-        static_cast<uint16_t>(std::max<uint32_t>(poll_period_sec * 3 + 10, CHILD_SUPERVISION_CHECK_TIMEOUT_MIN_SEC)));
+        instance, static_cast<uint16_t>(
+                      polling ? std::max<uint32_t>(poll_period_sec * 3 + 10, CHILD_SUPERVISION_CHECK_TIMEOUT_MIN_SEC)
+                              : CHILD_SUPERVISION_CHECK_TIMEOUT_MIN_SEC));
     // Ends just before a poll so the parent holds the frame briefly
     otChildSupervisionSetInterval(
-        instance,
-        static_cast<uint16_t>(std::max<uint32_t>(poll_period_sec * 2, CHILD_SUPERVISION_INTERVAL_MIN_SEC + 10) - 10));
+        instance, static_cast<uint16_t>(
+                      polling ? std::max<uint32_t>(poll_period_sec * 2, CHILD_SUPERVISION_INTERVAL_MIN_SEC + 10) - 10
+                              : CHILD_SUPERVISION_INTERVAL_MIN_SEC));
     // Read after the child timeout is set: OpenThread caps the effective period by one derived from it.
     ESP_LOGD(TAG,
              "Child Timeout: %" PRIu32 " sec, Child Supervision Check Timeout: %u sec, "

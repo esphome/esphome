@@ -369,37 +369,34 @@ def test_poll_period_limit(
     assert ("poll_period above 7200s is deprecated" in caplog.text) is deprecated
 
 
-@pytest.mark.parametrize("name", sorted(MTD_POLL_PERIOD_OPTIONS))
-def test_poll_period_drops_derived_core_options(
-    set_core_config: SetCoreConfigCallable,
-    caplog: pytest.LogCaptureFixture,
-    name: str,
-) -> None:
-    _set_esp32_idf_core(set_core_config)
-    config = _poll_config("5s", **{CONF_CORE_OPTIONS: {name: "0", **OTHER_CORE_OPTION}})
-    with caplog.at_level(logging.WARNING):
-        result = CONFIG_SCHEMA(config)
-    assert result[CONF_CORE_OPTIONS] == OTHER_CORE_OPTION
-    assert f"'{name}' in core_options is deprecated" in caplog.text
-
-
 @pytest.mark.parametrize(
     ("device_type", "poll_period"),
-    [(DEVICE_TYPE_MTD, None), (DEVICE_TYPE_MTD, "0s"), (DEVICE_TYPE_FTD, None)],
+    [
+        (DEVICE_TYPE_MTD, None),
+        (DEVICE_TYPE_MTD, "0s"),
+        (DEVICE_TYPE_MTD, "5s"),
+        (DEVICE_TYPE_FTD, None),
+    ],
 )
-def test_no_polling_keeps_derived_core_options(
+def test_derived_core_options_are_kept(
     set_core_config: SetCoreConfigCallable,
-    caplog: pytest.LogCaptureFixture,
     device_type: str,
     poll_period: str | None,
 ) -> None:
     _set_esp32_idf_core(set_core_config)
-    options = dict.fromkeys(MTD_POLL_PERIOD_OPTIONS, "960")
+    options = {**dict.fromkeys(MTD_POLL_PERIOD_OPTIONS, "960"), **OTHER_CORE_OPTION}
     config = _poll_config(poll_period, device_type, **{CONF_CORE_OPTIONS: options})
-    with caplog.at_level(logging.WARNING):
-        result = CONFIG_SCHEMA(config)
-    assert result[CONF_CORE_OPTIONS] == options
-    assert "deprecated" not in caplog.text
+    assert CONFIG_SCHEMA(config)[CONF_CORE_OPTIONS] == options
+
+
+@pytest.mark.parametrize("name", sorted(MTD_POLL_PERIOD_OPTIONS))
+def test_mtd_rejects_derived_core_option_expressions(
+    set_core_config: SetCoreConfigCallable, name: str
+) -> None:
+    _set_esp32_idf_core(set_core_config)
+    config = _poll_config(None, **{CONF_CORE_OPTIONS: {name: "(240 + 10)"}})
+    with pytest.raises(cv.Invalid, match="must be a whole number of seconds"):
+        CONFIG_SCHEMA(config)
 
 
 def test_mtd_timeout_minimums_follow_core_options(

@@ -156,8 +156,8 @@ BORDER_ROUTER_SDKCONFIG_OPTIONS: dict[str, bool | int] = {
 OT_HEADER_DIR = "openthread"
 OT_HEADER_FILE = "esphome_ot_config.h"
 OT_CORE_OPTION_NAME = re.compile(r"[A-Z0-9_]+")
-# Set at run time from poll_period, which would replace a core_options value. Each value, or the
-# OpenThread default, becomes the floor of its derived value, so it returns when polling stops.
+# Derived from poll_period at run time. Each core_options value, or the OpenThread default, is the
+# floor of its derived value and is restored when polling stops.
 MTD_POLL_PERIOD_OPTIONS: dict[str, tuple[str, int]] = {
     "OPENTHREAD_CONFIG_MLE_CHILD_TIMEOUT_DEFAULT": (
         "ESPHOME_OPENTHREAD_CHILD_TIMEOUT_MIN",
@@ -357,17 +357,16 @@ def _validate(config: ConfigType) -> ConfigType:
         raise cv.Invalid(
             f"{CONF_POLL_PERIOD} can only be used with {CONF_DEVICE_TYPE}: MTD"
         )
-    # Remove before 2027.6.0: make these an error
-    if polling and (core_options := config.get(CONF_CORE_OPTIONS)):
+    # ESPHome's code cannot see the OpenThread config header, so these must not be expressions
+    if device_type == "MTD" and (core_options := config.get(CONF_CORE_OPTIONS)):
         for name in sorted(MTD_POLL_PERIOD_OPTIONS.keys() & core_options.keys()):
-            _LOGGER.warning(
-                "'%s' in %s is deprecated with %s and ignored, it is derived from it. "
-                "This will be an error in 2027.6.0",
-                name,
-                CONF_CORE_OPTIONS,
-                CONF_POLL_PERIOD,
-            )
-            del core_options[name]
+            try:
+                int(core_options[name], 0)
+            except ValueError:
+                raise cv.Invalid(
+                    f"'{name}' must be a whole number of seconds with {CONF_DEVICE_TYPE}: MTD",
+                    path=[CONF_CORE_OPTIONS, name],
+                ) from None
     if CONF_BORDER_ROUTER in config and device_type != "FTD":
         raise cv.Invalid("OpenThread Border Router requires 'device_type: FTD'.")
 
@@ -604,9 +603,8 @@ async def to_code(config: ConfigType) -> None:
     if config[CONF_DEVICE_TYPE] == "MTD":
         core_options = config.get(CONF_CORE_OPTIONS, {})
         for option, (define, default) in MTD_POLL_PERIOD_OPTIONS.items():
-            cg.add_define(
-                define, cg.RawExpression(core_options.get(option, str(default)))
-            )
+            value = core_options.get(option)
+            cg.add_define(define, default if value is None else int(value, 0))
 
     if not border_router:
         # OpenThread SRP needs access to mDNS services after setup
