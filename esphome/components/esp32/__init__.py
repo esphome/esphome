@@ -2802,6 +2802,15 @@ MBEDTLS_NON_P256_CURVE_OPTIONS = (
     "CONFIG_MBEDTLS_ECP_DP_CURVE25519_ENABLED",
 )
 
+# Curves public CAs never sign with and TLS servers never negotiate (they use
+# RSA, P-256, P-384 and X25519); TLS builds still link them on IDF 6.
+MBEDTLS_RARE_TLS_CURVE_OPTIONS = (
+    "CONFIG_MBEDTLS_ECP_DP_SECP256K1_ENABLED",
+    "CONFIG_MBEDTLS_ECP_DP_BP256R1_ENABLED",
+    "CONFIG_MBEDTLS_ECP_DP_BP384R1_ENABLED",
+    "CONFIG_MBEDTLS_ECP_DP_BP512R1_ENABLED",
+)
+
 # AES modes that no TLS cipher suite and no component uses; IDF 6's PSA crypto
 # links them whenever they are enabled.
 MBEDTLS_UNUSED_CIPHER_MODE_OPTIONS = (
@@ -3090,6 +3099,8 @@ async def _reconcile_mbedtls_sdkconfig() -> None:
 
     # Arduino's libraries call mbedTLS directly, so its builds keep every mode.
     if idf6 and not CORE.using_arduino:
+        if not _mbedtls_tls_compiled_out():
+            _trim_mbedtls_options(MBEDTLS_RARE_TLS_CURVE_OPTIONS)
         hardware_aes = _uses_hardware_aes()
         _trim_mbedtls_options(
             option
