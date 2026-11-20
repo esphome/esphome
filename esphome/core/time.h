@@ -9,8 +9,6 @@
 #include <span>
 #include <string>
 
-#include "esphome/core/time_utc.h"
-
 #ifdef USE_TIME_TIMEZONE
 #include "esphome/components/time/posix_tz.h"
 #endif
@@ -140,13 +138,9 @@ struct ESPTime {
   /** Convert an UTC epoch timestamp to a UTC time ESPTime instance.
    *
    * @param epoch Seconds since 1st January 1970. In UTC.
-   * @return The generated ESPTime
+   * @return The generated ESPTime, invalid outside the years 0 to 65535
    */
-  static ESPTime from_epoch_utc(time_t epoch) {
-    struct tm c_tm;
-    internal::epoch_to_tm_utc(epoch, &c_tm);
-    return ESPTime::from_c_tm(&c_tm, epoch);
-  }
+  static ESPTime from_epoch_utc(time_t epoch);
 
   /// Recalculate the timestamp field from the other fields of this ESPTime instance (must be UTC).
   void recalc_timestamp_utc(bool use_day_of_year = true);

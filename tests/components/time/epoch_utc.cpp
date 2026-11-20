@@ -2,6 +2,7 @@
 
 #include <gtest/gtest.h>
 #include <ctime>
+#include <limits>
 #include "esphome/core/time.h"
 
 namespace esphome::time::testing {
@@ -43,6 +44,25 @@ TEST(EpochUtc, MatchesGmtimeAcrossCenturies) {
   constexpr time_t STEP = 837'461;
   for (time_t epoch = -2'208'988'800; epoch < 7'258'118'400; epoch += STEP) {  // 1900 to 2200
     expect_matches_gmtime(epoch);
+  }
+}
+
+TEST(EpochUtc, Years0To65535Convert) {
+  expect_matches_gmtime(static_cast<time_t>(-62167219200));   // 0000-01-01 00:00:00
+  expect_matches_gmtime(static_cast<time_t>(-62135596800));   // 0001-01-01 00:00:00
+  expect_matches_gmtime(static_cast<time_t>(2005949145599));  // 65535-12-31 23:59:59
+}
+
+TEST(EpochUtc, EpochsOutsideSixteenBitYearsAreInvalid) {
+  for (time_t epoch : {
+           static_cast<time_t>(-62167219201),
+           static_cast<time_t>(2005949145600),
+           std::numeric_limits<time_t>::min(),
+           std::numeric_limits<time_t>::max(),
+       }) {
+    const ESPTime got = ESPTime::from_epoch_utc(epoch);
+    EXPECT_FALSE(got.is_valid()) << epoch;
+    EXPECT_EQ(got.year, 0) << epoch;
   }
 }
 

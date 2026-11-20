@@ -1,5 +1,6 @@
 #include "time.h"  // NOLINT
 #include "helpers.h"
+#include "time_utc.h"
 
 #include <algorithm>
 #ifdef USE_TIME_TIMEZONE
@@ -15,8 +16,13 @@ bool is_leap_year(int year) { return (year % 4 == 0 && year % 100 != 0) || (year
 // Get days in year (avoids duplicate is_leap_year calls)
 static inline int days_in_year(int year) { return is_leap_year(year) ? 366 : 365; }
 
-// Count leap years in [1, year] (i.e. up to and including year)
-static constexpr int count_leap_years_up_to(int year) { return year / 4 - year / 100 + year / 400; }
+// Rounds toward negative infinity, so the leap year count stays right for year 0 and earlier
+static constexpr int floor_div(int a, int b) { return a / b - (a % b < 0 ? 1 : 0); }
+
+// Count leap years in [1, year] (i.e. up to and including year); negative for years before 1
+static constexpr int count_leap_years_up_to(int year) {
+  return floor_div(year, 4) - floor_div(year, 100) + floor_div(year, 400);
+}
 
 static constexpr int EPOCH_YEAR = 1970;
 static constexpr int LEAP_YEARS_BEFORE_EPOCH = count_leap_years_up_to(EPOCH_YEAR - 1);
@@ -104,6 +110,17 @@ void __attribute__((noinline)) epoch_to_tm_utc(time_t epoch, struct tm *out_tm) 
 uint8_t days_in_month(uint8_t month, uint16_t year) { return internal::days_in_month(year, month); }
 
 static uint16_t days_in_year(uint16_t year) { return internal::is_leap_year(year) ? 366 : 365; }
+
+ESPTime ESPTime::from_epoch_utc(time_t epoch) {
+  // ESPTime's year is 16 bits, and the year search would take ages on a far-off 64-bit epoch
+  static constexpr int64_t YEAR_0_START = -62167219200;
+  static constexpr int64_t YEAR_65536_START = 2005949145600;
+  if (static_cast<int64_t>(epoch) < YEAR_0_START || static_cast<int64_t>(epoch) >= YEAR_65536_START)
+    return ESPTime{};
+  struct tm c_tm;
+  internal::epoch_to_tm_utc(epoch, &c_tm);
+  return ESPTime::from_c_tm(&c_tm, epoch);
+}
 
 size_t ESPTime::strftime(char *buffer, size_t buffer_len, const char *format) {
   struct tm c_tm = this->to_c_tm();
