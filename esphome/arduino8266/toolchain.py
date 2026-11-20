@@ -10,12 +10,7 @@ from typing import TYPE_CHECKING
 from esphome.build_helpers.ccache import resolve_absolute_ccache_path
 from esphome.build_helpers.native import warn_ignored_platformio_options
 from esphome.build_helpers.ninja import refresh_compile_commands
-from esphome.const import (
-    CONF_COMPILE_PROCESS_LIMIT,
-    CONF_ESPHOME,
-    KEY_CORE,
-    KEY_FRAMEWORK_VERSION,
-)
+from esphome.const import CONF_COMPILE_PROCESS_LIMIT, CONF_ESPHOME
 from esphome.core import CORE
 from esphome.types import ConfigType
 
@@ -73,7 +68,7 @@ def run_compile(config: ConfigType, verbose: bool) -> int:
     from esphome.core.config import NATIVE_ARDUINO_CONSUMED_PIO_OPTIONS
 
     warn_ignored_platformio_options(NATIVE_ARDUINO_CONSUMED_PIO_OPTIONS)
-    paths = framework.check_and_install(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION])
+    paths = framework.check_and_install(CORE.framework_version)
     # Resolved once: the probe is not free and three consumers need it
     ccache = resolve_absolute_ccache_path()
     ninja_changed = build_gen.write_project(paths, ccache)
