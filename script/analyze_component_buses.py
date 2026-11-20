@@ -102,6 +102,7 @@ ISOLATED_COMPONENTS = {
     "modem": "Cellular-only node with api - grouping with wifi-bearing components hides that case",
     "neopixelbus": "RMT type conflict with ESP32 Arduino/ESP-IDF headers (enum vs struct rmt_channel_t)",
     "packages": "cannot merge packages",
+    "ssocr_reader": "Needs a camera and a camera_decoder ID from its test packages, which the merged config does not include",
     "store_yaml": "Embeds the test's own YAML; grouping would change the blob and its redaction",
     "tinyusb": "Conflicts with usb_host component - cannot be used together",
     "tinyusb_keyboard": "Depends on tinyusb which conflicts with usb_host",
