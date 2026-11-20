@@ -1,6 +1,7 @@
 """Tests for the use_rmt option of the gpio 1-Wire bus, through the whole config pipeline."""
 
 from collections.abc import Callable
+import logging
 from pathlib import Path
 import re
 
@@ -285,3 +286,117 @@ def test_without_rmt_timing_the_constructor_keeps_its_default(
 ) -> None:
     main_cpp = generate_main(write_yaml(_yaml(ESP32_S3_IDF, USE_RMT)))
     assert "rmt_one_wire::Timing" not in main_cpp
+
+
+def test_rmt_timing_default_read_threshold(
+    generate_main: Callable[[str | Path], str], write_yaml: Callable[[str], Path]
+) -> None:
+    """A read 1 is Low for up to 4 us plus 9 us of rise time, so the default is 14 us."""
+    main_cpp = generate_main(write_yaml(_yaml(ESP32_S3_IDF, USE_RMT + _timing())))
+    assert ".read_threshold_us = 14" in main_cpp
+
+
+@pytest.mark.parametrize(
+    ("pin", "key"),
+    [
+        ("\n      number: 5\n      mode:\n        output: true\n        pullup: true", "pullup"),
+        ("\n      number: 5\n      mode:\n        input: true\n        pulldown: true", "pulldown"),
+        ("\n      number: 5\n      mode: INPUT_PULLUP", "pullup"),
+        ("\n      number: 5\n      drive_strength: 40mA", "drive_strength"),
+        ("\n      number: 5\n      hold_state: true", "hold_state"),
+    ],
+    ids=["pullup", "pulldown", "input_pullup", "drive_strength", "hold_state"],
+)
+def test_use_rmt_rejects_pin_options_it_does_not_apply(
+    validate: Callable[[str], Config], pin: str, key: str
+) -> None:
+    result = validate(_yaml(ESP32_S3_IDF, USE_RMT, pin))
+    assert result.errors
+    assert f"use_rmt does not {'support' if key == 'hold_state' else 'apply'} '{key}'" in (
+        _error_text(result)
+    )
+    assert result.errors[0].path[-1] == key
+
+
+@pytest.mark.parametrize(
+    "pin",
+    [
+        "\n      number: 5\n      drive_strength: 20mA",
+        "\n      number: 5\n      mode: INPUT_OUTPUT_OPEN_DRAIN",
+    ],
+    ids=["default_drive_strength", "open_drain"],
+)
+def test_use_rmt_accepts_pin_options_without_effect(
+    validate: Callable[[str], Config], pin: str
+) -> None:
+    result = validate(_yaml(ESP32_S3_IDF, USE_RMT, pin))
+    assert not result.errors, _error_text(result)
+
+
+def test_bit_bang_keeps_all_pin_options(validate: Callable[[str], Config]) -> None:
+    pin = "\n      number: 5\n      drive_strength: 40mA\n      mode: INPUT_PULLUP"
+    result = validate(_yaml(ESP32_S3_IDF, "", pin))
+    assert not result.errors, _error_text(result)
+
+
+ESP32_C3 = "esp32:\n  variant: esp32c3\n  framework:\n    type: esp-idf\n"
+
+
+def _buses(*use_rmt: bool) -> str:
+    """More gpio buses after the first one, with or without use_rmt."""
+    return "".join(
+        f"  - platform: gpio\n    pin: {6 + i}\n" + (USE_RMT if rmt else "")
+        for i, rmt in enumerate(use_rmt)
+    )
+
+
+def _rmt_warnings(caplog: pytest.LogCaptureFixture) -> list[str]:
+    return [message for message in caplog.messages if "RMT memory" in message]
+
+
+def test_use_rmt_buses_count_against_the_rmt_channels(
+    validate: Callable[[str], Config],
+) -> None:
+    """Each bus takes one TX and one RX channel, and the C3 has two of each."""
+    result = validate(_yaml(ESP32_C3, USE_RMT, tail=_buses(True, True)))
+    text = _error_text(result)
+    assert "ESP32C3 has 2 RMT channels for TX, but these 3 components" in text
+    assert "ESP32C3 has 2 RMT channels for RX, but these 3 components" in text
+    assert "'ow', 'one_wire[1]', 'one_wire[2]'" in text
+
+
+def test_bit_bang_buses_take_no_rmt_channel(
+    validate: Callable[[str], Config],
+) -> None:
+    result = validate(_yaml(ESP32_C3, USE_RMT, tail=_buses(True, False, False)))
+    assert not result.errors, _error_text(result)
+
+
+RECEIVER = "remote_receiver:\n  pin: 3\n"
+
+
+@pytest.mark.parametrize(
+    ("receiver", "warns"),
+    [(RECEIVER, True), (RECEIVER + "  rmt_symbols: 48\n", False)],
+    ids=["default_rmt_symbols", "one_block"],
+)
+def test_use_rmt_bus_shares_rx_memory_with_remote_receiver(
+    generate_main: Callable[[str | Path], str],
+    write_yaml: Callable[[str], Path],
+    caplog: pytest.LogCaptureFixture,
+    receiver: str,
+    warns: bool,
+) -> None:
+    """The bus is set up first and takes one of the two C3 RX blocks."""
+    with caplog.at_level(logging.WARNING):
+        generate_main(write_yaml(_yaml(ESP32_C3, USE_RMT, tail=receiver)))
+    messages = _rmt_warnings(caplog)
+    if not warns:
+        assert not messages
+        return
+    assert len(messages) == 1
+    assert (
+        "'remote_receiver[0]' will not fit: 'ow' (RX 48), 'ow' (TX 48), "
+        "'remote_receiver[0]' (96)"
+    ) in messages[0]
+    assert "Set 'rmt_symbols: 48' on 'remote_receiver[0]'" in messages[0]
