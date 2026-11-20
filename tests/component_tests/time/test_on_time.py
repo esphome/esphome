@@ -237,14 +237,27 @@ def test_cron_field_check(
     assert cron_field_check(field, values) == check
 
 
-def test_empty_field_validates_and_generates(
-    set_core_config: SetCoreConfigCallable,
+@pytest.mark.parametrize(
+    ("entry", "check"),
+    [
+        ({CONF_SECONDS: []}, "false"),
+        # the dict form of at takes the same path, so hour: true is checked as 1
+        (
+            {CONF_AT: {CONF_HOUR: True, CONF_MINUTE: 0, CONF_SECOND: 0}},
+            "x.second == 0 && x.minute == 0 && x.hour == 1",
+        ),
+        # every field's full range fires every second, with no check
+        ({CONF_CRON: "* * * * * *"}, None),
+    ],
+)
+def test_on_time_check(
+    set_core_config: SetCoreConfigCallable, entry: dict[str, Any], check: str | None
 ) -> None:
     set_core_config(PlatformFramework.ESP32_IDF)
     config = TIME_SCHEMA(
-        {CONF_TIMEZONE: "UTC0", CONF_ON_TIME: [{CONF_SECONDS: [], CONF_THEN: []}]}
+        {CONF_TIMEZONE: "UTC0", CONF_ON_TIME: [{**entry, CONF_THEN: []}]}
     )
-    assert on_time_check(config[CONF_ON_TIME][0]) == "false"
+    assert on_time_check(config[CONF_ON_TIME][0]) == check
 
 
 def test_list_values_are_deduplicated_ints(
@@ -261,36 +274,3 @@ def test_list_values_are_deduplicated_ints(
     seconds = config[CONF_ON_TIME][0][CONF_SECONDS]
     assert seconds == [0, 1]
     assert all(type(value) is int for value in seconds)
-
-
-def test_at_dict_values_are_ints(set_core_config: SetCoreConfigCallable) -> None:
-    """The dict form of ``at`` takes the same path, so ``hour: true`` is checked as 1."""
-    set_core_config(PlatformFramework.ESP32_IDF)
-    config = TIME_SCHEMA(
-        {
-            CONF_TIMEZONE: "UTC0",
-            CONF_ON_TIME: [
-                {
-                    CONF_AT: {CONF_HOUR: True, CONF_MINUTE: 0, CONF_SECOND: 0},
-                    CONF_THEN: [],
-                }
-            ],
-        }
-    )
-    assert on_time_check(config[CONF_ON_TIME][0]) == (
-        "x.second == 0 && x.minute == 0 && x.hour == 1"
-    )
-
-
-def test_every_second_schedule_has_no_check(
-    set_core_config: SetCoreConfigCallable,
-) -> None:
-    """A schedule covering every field's full range fires every second, with no check."""
-    set_core_config(PlatformFramework.ESP32_IDF)
-    config = TIME_SCHEMA(
-        {
-            CONF_TIMEZONE: "UTC0",
-            CONF_ON_TIME: [{CONF_CRON: "* * * * * *", CONF_THEN: []}],
-        }
-    )
-    assert on_time_check(config[CONF_ON_TIME][0]) is None
