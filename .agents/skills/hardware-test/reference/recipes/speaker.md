@@ -68,7 +68,10 @@ and `i2s_audio` on spare pins GPIO16/17/43 with no DAC attached, Ethernet only) 
 speakers and a 1 s heap probe line. No DAC or speaker is needed: the counters show what was played. `run.py HOST
 BASEURL LABEL [formats|switch|leak]` (API_KEY in the env) plays each format to the end, sends 12 URL changes mid play,
 6 stop and play rounds, 5 announcements over music and 20 full plays; serve the FLAC files it names with any HTTP
-server. `an.py CAPTURE` counts errors and crashes and summarises the heap, `plat.py CAPTURE` prints the frame deltas
+server. The files are not in the repo; make them from any source clip with ffmpeg. The name gives channels (`s`
+stereo, `m` mono), sample rate in kHz and FLAC block size (`b4096`), `_24` is 24-bit; for example
+`ffmpeg -i src.wav -t 10 -ac 2 -ar 44100 -c:a flac -frame_size 4096 s44b4096.flac`, `-c:a libmp3lame` for `s44.mp3`
+and plain `s44.wav`. Use about 10 s per file, 30 s for `long.flac` and 2 s for `ann.flac`. `an.py CAPTURE` counts errors and crashes and summarises the heap, `plat.py CAPTURE` prints the frame deltas
 between idle periods.
 
 - The 20 full plays plus the last play of the switch phase sum to an exact frame count for a given file set, so two
