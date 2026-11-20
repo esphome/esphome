@@ -1,0 +1,18 @@
+# Station: joins the WPA3-only AP and alternates App.reboot() and App.safe_reboot() 10 s after connecting.
+packages:
+  base: !include st-base.yaml
+
+wifi:
+  on_connect:
+    - lambda: ESP_LOGI("st", "JOINED after %u ms since boot", (unsigned) millis());
+    - delay: 10s
+    - lambda: |-
+        id(boots) += 1;
+        global_preferences->sync();
+        const bool forced = id(boots) % 2;
+        ESP_LOGI("st", "REBOOT %s n=%d", forced ? "forced" : "safe", id(boots));
+        if (forced) {
+          App.reboot();
+        } else {
+          App.safe_reboot();
+        }

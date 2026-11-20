@@ -30,7 +30,7 @@ AudioFileType = audio_ns.enum("AudioFileType", is_class=True)
 AUDIO_FILE_TYPE_ENUM = AudioFileType.options("NONE", "WAV", "MP3", "FLAC", "OPUS")
 
 MICRO_DECODER_VERSION = "0.4.0"
-MICRO_FLAC_VERSION = "0.3.1"
+MICRO_FLAC_VERSION = "0.3.2"
 
 MEMORY_PSRAM = "psram"
 MEMORY_INTERNAL = "internal"
