@@ -1,0 +1,18 @@
+esphome:
+  name: npmhead
+  on_boot:
+    - priority: -100
+      then:
+        - delay: 8s
+        - script.execute: regdump
+        - script.execute: swdump
+        - delay: 2s
+        - script.execute: toggles
+nrf52:
+  board: xiao_nrf54lm20a
+logger:
+  level: DEBUG
+  hardware_uart: UART0
+packages:
+  regdump: !include regdump.yaml
+  common: !include npmcommon.yaml
