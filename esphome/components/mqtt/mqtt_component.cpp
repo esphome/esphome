@@ -168,9 +168,8 @@ bool MQTTComponent::publish(const char *topic, ProgmemStr payload) {
     return false;
   // On ESP8266, ProgmemStr is __FlashStringHelper* - need to copy from flash
   char buf[64];
-  strncpy_P(buf, reinterpret_cast<const char *>(payload), sizeof(buf) - 1);
-  buf[sizeof(buf) - 1] = '\0';
-  return global_mqtt_client->publish(topic, buf, strlen(buf), this->qos_, this->retain_);
+  const size_t len = buf_append_str_p(buf, sizeof(buf), 0, reinterpret_cast<const char *>(payload));
+  return global_mqtt_client->publish(topic, buf, len, this->qos_, this->retain_);
 }
 #endif
 

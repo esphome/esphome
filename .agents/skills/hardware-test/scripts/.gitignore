@@ -42,6 +42,15 @@ espnow_link/*.log
 espnow_link/*.err
 tcp_link/*.txt
 sx127x_sim/*pair/
+serial_proxy/*.txt
+serial_proxy/*.log
+web_server/async_bump/*.log
+web_server/async_bump/*.txt
+web_server/async_bump/*.pcap
+web_server/async_bump/img-*.bin
+wifi_outage/*.txt
+wpa3_sniff/*.txt
+api/overflow/putbe-sensors.yaml
 i2c_wire_ab/*/*-ser*.txt
 i2c_wire_ab/*/*-flash.log
 i2c_wire_ab/*/*-compile.log
