@@ -1,0 +1,49 @@
+// ESPTime::from_epoch_utc() against the host C library's gmtime_r(), without a timezone configured.
+
+#include <gtest/gtest.h>
+#include <ctime>
+#include "esphome/core/time.h"
+
+namespace esphome::time::testing {
+
+static void expect_matches_gmtime(time_t epoch) {
+  struct tm want{};
+  ASSERT_NE(::gmtime_r(&epoch, &want), nullptr) << epoch;
+  const ESPTime got = ESPTime::from_epoch_utc(epoch);
+  EXPECT_EQ(got.year, want.tm_year + 1900) << epoch;
+  EXPECT_EQ(got.month, want.tm_mon + 1) << epoch;
+  EXPECT_EQ(got.day_of_month, want.tm_mday) << epoch;
+  EXPECT_EQ(got.hour, want.tm_hour) << epoch;
+  EXPECT_EQ(got.minute, want.tm_min) << epoch;
+  EXPECT_EQ(got.second, want.tm_sec) << epoch;
+  EXPECT_EQ(got.day_of_week, want.tm_wday + 1) << epoch;
+  EXPECT_EQ(got.day_of_year, want.tm_yday + 1) << epoch;
+  EXPECT_FALSE(got.is_dst) << epoch;
+  EXPECT_EQ(got.timestamp, epoch) << epoch;
+}
+
+TEST(EpochUtc, MatchesGmtimeAtBoundaries) {
+  for (time_t epoch : {
+           static_cast<time_t>(0),
+           static_cast<time_t>(-1),
+           static_cast<time_t>(-86400),
+           static_cast<time_t>(951782400),   // 2000-02-29, leap century
+           static_cast<time_t>(951868799),   // 2000-02-29 23:59:59
+           static_cast<time_t>(2147483647),  // 2038-01-19 03:14:07
+           static_cast<time_t>(2147483648),
+           static_cast<time_t>(4107542400),  // 2100-03-01, century without a leap day
+           static_cast<time_t>(4107542399),  // 2100-02-28 23:59:59
+       }) {
+    expect_matches_gmtime(epoch);
+  }
+}
+
+TEST(EpochUtc, MatchesGmtimeAcrossCenturies) {
+  // An odd step (about 9.7 days plus some seconds) lands on every weekday, month and time of day
+  constexpr time_t STEP = 837'461;
+  for (time_t epoch = -2'208'988'800; epoch < 7'258'118'400; epoch += STEP) {  // 1900 to 2200
+    expect_matches_gmtime(epoch);
+  }
+}
+
+}  // namespace esphome::time::testing

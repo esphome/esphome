@@ -9,6 +9,8 @@
 #include <span>
 #include <string>
 
+#include "esphome/core/time_utc.h"
+
 #ifdef USE_TIME_TIMEZONE
 #include "esphome/components/time/posix_tz.h"
 #endif
@@ -141,11 +143,9 @@ struct ESPTime {
    * @return The generated ESPTime
    */
   static ESPTime from_epoch_utc(time_t epoch) {
-    struct tm *c_tm = ::gmtime(&epoch);
-    if (c_tm == nullptr) {
-      return ESPTime{};  // Return an invalid ESPTime
-    }
-    return ESPTime::from_c_tm(c_tm, epoch);
+    struct tm c_tm;
+    internal::epoch_to_tm_utc(epoch, &c_tm);
+    return ESPTime::from_c_tm(&c_tm, epoch);
   }
 
   /// Recalculate the timestamp field from the other fields of this ESPTime instance (must be UTC).
