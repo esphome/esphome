@@ -1,0 +1,60 @@
+# /events stream checks (stream_retest.py): ESP32 ESP-IDF, a 20 ms template sensor, a "Wifi Drop" button that turns
+# Wi-Fi off for 8 s, internal heap logged every 5 s. Substitution: name (set with -s name).
+esphome:
+  name: ${name}
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+logger:
+  level: DEBUG
+  logs:
+    sensor: INFO
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  power_save_mode: none
+
+api:
+  reboot_timeout: 0s
+
+web_server:
+  version: 3
+
+interval:
+  - interval: 5s
+    then:
+      - lambda: |-
+          ESP_LOGI("heap", "free=%u min=%u largest=%u",
+                   (unsigned) heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+                   (unsigned) heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL),
+                   (unsigned) heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL));
+
+sensor:
+  - platform: template
+    name: "fast"
+    lambda: return millis() % 100000;
+    update_interval: 20ms
+  - platform: template
+    name: "slow"
+    lambda: return millis() / 1000;
+    update_interval: 1s
+
+switch:
+  - platform: template
+    name: "Relay"
+    optimistic: true
+
+button:
+  - platform: template
+    name: "Wifi Drop"
+    on_press:
+      - delay: 500ms
+      - logger.log: "wifi drop: disable"
+      - wifi.disable:
+      - delay: 8s
+      - logger.log: "wifi drop: enable"
+      - wifi.enable:

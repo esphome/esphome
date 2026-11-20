@@ -1,0 +1,59 @@
+# ESP32 Pico kit: trf7962a driven by a fake chip (trfsim.hpp) behind the SPI delegates; the phase table in trfsim.hpp
+# runs from on_boot (name set with -s name). The 1 ms interval tick is the validated timing source; keep it.
+esphome:
+  name: ${name}
+  includes: [trfsim.hpp]
+  on_boot:
+    - priority: 800
+      then:
+        - lambda: trfsim::install(id(spibus), 5, 4);
+    - priority: -100
+      then:
+        - lambda: trfsim::late_pin_setup();
+        - delay: 2s
+        - script.execute: scenarios
+esp32:
+  board: pico32
+  framework:
+    type: esp-idf
+logger:
+  level: DEBUG
+spi:
+  id: spibus
+  clk_pin: GPIO18
+  mosi_pin: GPIO23
+  miso_pin: GPIO19
+trf7962a:
+  id: nfcc
+  cs_pin: GPIO5
+  irq_pin: GPIO4
+  vin: 3.3v
+  rf_power: half
+  on_tag:
+    then:
+      - lambda: 'ESP_LOGI("ev", "EV on_tag %s type=%s", x.c_str(), tag.get_tag_type().c_str());'
+  on_tag_removed:
+    then:
+      - lambda: 'ESP_LOGI("ev", "EV on_tag_removed %s", x.c_str());'
+binary_sensor:
+  - platform: nfc
+    nfcc_id: nfcc
+    name: tagA
+    uid: E0-04-01-00-00-00-00-01
+    on_state:
+      - lambda: 'ESP_LOGI("ev", "EV bs_tagA %s", x ? "ON" : "OFF");'
+interval:
+  - interval: 1ms
+    then:
+      - lambda: trfsim::tick();
+script:
+  - id: scenarios
+    then:
+      - lambda: |-
+          ESP_LOGI("ev", "SETUP failed=%d", id(nfcc).is_failed());
+          trfsim::stats("boot");
+      - repeat:
+          count: !lambda return trfsim::NUM_PHASES;
+          then:
+            - delay: !lambda return trfsim::start_phase(iteration);
+      - lambda: 'trfsim::stats(trfsim::PHASES[trfsim::NUM_PHASES - 1].name); ESP_LOGI("ev", "DONE");'
