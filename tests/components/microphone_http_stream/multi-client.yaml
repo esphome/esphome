@@ -5,4 +5,3 @@ microphone_http_stream:
   max_clients: 3
   source:
     microphone: microphone_http_test_mic
-    channels: [0]

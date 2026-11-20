@@ -42,7 +42,6 @@ ClientSlot = microphone_http_stream_ns.struct("ClientSlot")
 
 
 def validate_stream_id(value: str) -> str:
-    value = cv.string_strict(value)
     if not _STREAM_ID_RE.fullmatch(value):
         raise cv.Invalid(
             f"stream_id must be 1-{STREAM_ID_MAX_LEN} lowercase ASCII letters, digits, _ or -,"
@@ -91,7 +90,7 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(CONF_WEB_SERVER_BASE_ID): cv.use_id(
                 web_server_base.WebServerBase
             ),
-            cv.Optional(CONF_STREAM_ID): validate_stream_id,
+            cv.Optional(CONF_STREAM_ID): cv.All(cv.string_strict, validate_stream_id),
             cv.Optional(CONF_MAX_CLIENTS, default=1): cv.int_range(min=1, max=3),
             cv.Required(CONF_SOURCE): microphone.microphone_source_schema(
                 min_bits_per_sample=16,

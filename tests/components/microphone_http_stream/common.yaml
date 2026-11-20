@@ -2,11 +2,6 @@ wifi:
   ap:
     ssid: "Microphone HTTP Test"
 
-web_server:
-  port: 80
-  allowed_origins:
-    - https://example.com
-
 microphone:
   - platform: i2s_audio
     id: microphone_http_test_mic

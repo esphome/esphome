@@ -8,6 +8,7 @@
 #include "esphome/components/microphone/microphone_source.h"
 #include "esphome/components/ring_buffer/ring_buffer.h"
 #include "esphome/components/web_server_base/web_server_base.h"
+#include "esphome/components/web_server_idf/sse_chunk.h"
 #include "esphome/core/component.h"
 #include "esphome/core/log.h"
 #include "esphome/core/string_ref.h"
