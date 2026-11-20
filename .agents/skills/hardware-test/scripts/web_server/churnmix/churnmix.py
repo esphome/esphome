@@ -169,6 +169,7 @@ class Observer(threading.Thread):
         self.last_ev_age = None
         self.t_last_counter = None
         self.reboots = 0
+        self.bad_json = 0
 
     def handle(self, ev, data):
         self.events += 1
@@ -177,6 +178,7 @@ class Observer(threading.Thread):
         try:
             j = json.loads(data)
         except ValueError:
+            self.bad_json += 1
             return
         i = j.get("id", "")
         detail = "domain" in j
@@ -556,6 +558,7 @@ def main():
                 "relisted_counter": o.detail_counter,
                 "reconnects": o.reconnects,
                 "reboots": o.reboots,
+                "bad_json": o.bad_json,
                 "relay_final_ok": o.relay_last == relay_now,
                 "dup_log": o.dup_log,
                 "uptime_last": o.uptime_prev,
@@ -598,7 +601,7 @@ def main():
             if v and all(isinstance(x, (int, float)) for x in v)
         )
         print(
-            f"observer {i}: events={o['events']} counter={o['bare_counter']} dup={o['dup']} back={o['back']} missed={o['missed']} {o['missed_by_phase']} relay_events={o['relay_events']} relisted={o['relisted_counter']} reconnects={o['reconnects']} reboots={o['reboots']} relay_final_ok={o['relay_final_ok']} uptime={o['uptime_last']} max_gap={o['max_gap_s']}s heap(min/last) {hs}"
+            f"observer {i}: events={o['events']} counter={o['bare_counter']} dup={o['dup']} back={o['back']} missed={o['missed']} {o['missed_by_phase']} relay_events={o['relay_events']} relisted={o['relisted_counter']} reconnects={o['reconnects']} reboots={o['reboots']} bad_json={o['bad_json']} relay_final_ok={o['relay_final_ok']} uptime={o['uptime_last']} max_gap={o['max_gap_s']}s heap(min/last) {hs}"
         )
     for i, r in sorted(pres.items()):
         print(f"post client {i}: {r}")
@@ -612,6 +615,8 @@ def main():
             bad.append(f"relay {o['relay_events']} != {toggles}")
         if o["reconnects"]:
             bad.append("observer reconnect")
+        if o["bad_json"]:
+            bad.append("bad state json")
     bad.extend(
         f"post {r}"
         for r in pres.values()
