@@ -29,7 +29,17 @@ class Number;
 
 class NumberTraits {
  public:
-  // Set/get the number value boundaries.
+  NumberTraits() = default;
+  // A copy reads the same range but writes to its own copy of it
+  NumberTraits(const NumberTraits &other) : range_(other.range_), mode_(other.mode_) {}
+  NumberTraits &operator=(const NumberTraits &other) {
+    this->range_ = other.range_;
+    this->mode_ = other.mode_;
+    this->owns_range_ = false;
+    return *this;
+  }
+
+  // Set/get the number value boundaries. Without set_range_storage(), the first setter copies the range to the heap.
   void set_min_value(float min_value) { this->writable_range_()->min_value = min_value; }
   float get_min_value() const { return this->range_->min_value; }
   void set_max_value(float max_value) { this->writable_range_()->max_value = max_value; }
@@ -44,6 +54,7 @@ class NumberTraits {
   /// The range in use, to share it with another number (it may be in PROGMEM).
   const NumberRange *get_range() const { return this->range_; }
   /// Writable RAM for bounds that change after setup; the setters then write there.
+  /// Its number must skip the codegen range table (range_in_flash=False).
   void set_range_storage(NumberRange *storage) {
     this->range_ = storage;
     this->owns_range_ = true;
@@ -56,7 +67,6 @@ class NumberTraits {
  protected:
   friend class Number;
 
-  // Without storage, the first set_min_value/set_max_value/set_step copies the range into a heap block of its own.
   NumberRange *writable_range_();
 
   const NumberRange *range_{&DEFAULT_NUMBER_RANGE};

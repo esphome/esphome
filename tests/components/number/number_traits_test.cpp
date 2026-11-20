@@ -2,6 +2,7 @@
 
 #include <cmath>
 
+#include "esphome/components/number/number.h"
 #include "esphome/components/number/number_traits.h"
 
 namespace esphome::number::testing {
@@ -87,6 +88,36 @@ TEST(NumberTraits, SharedRangeFollowsTheSource) {
   source.set_max_value(2.0f);
   EXPECT_EQ(copy.get_min_value(), 1.0f);
   EXPECT_EQ(copy.get_max_value(), 2.0f);
+}
+
+TEST(NumberTraits, CopyWritesToItsOwnRange) {
+  NumberTraits original;
+  original.set_max_value(10.0f);
+  NumberTraits copy = original;
+  copy.set_max_value(20.0f);
+  EXPECT_EQ(original.get_max_value(), 10.0f);
+  EXPECT_EQ(copy.get_max_value(), 20.0f);
+
+  NumberRange storage{};
+  NumberTraits with_storage;
+  with_storage.set_range_storage(&storage);
+  NumberTraits assigned;
+  assigned = with_storage;
+  assigned.set_step(0.5f);
+  EXPECT_EQ(storage.step, 0.0f);
+  EXPECT_EQ(assigned.get_step(), 0.5f);
+}
+
+static void ignore_value(Number * /*entity*/, float /*value*/) {}
+
+TEST(NumberTraits, CodegenTableAfterStorageIsNeverWritten) {
+  NumberRange storage{};
+  ApplyNumber<ignore_value> number;
+  number.traits.set_range_storage(&storage);
+  number.set_range(TABLE);
+  number.traits.set_max_value(50.0f);
+  EXPECT_EQ(number.traits.get_max_value(), 50.0f);
+  EXPECT_EQ(TABLE[0].max_value, 10.0f);
 }
 
 TEST(NumberTraits, HoldsAPointerInsteadOfThreeFloats) { EXPECT_LE(sizeof(NumberTraits), 2 * sizeof(void *)); }

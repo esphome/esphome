@@ -41,7 +41,11 @@ class Number : public EntityBase {
   NumberTraits traits;
 
   /// For codegen only, before any setter: points the traits at a constant range table.
-  void set_range(const NumberRange *range) { this->traits.range_ = range; }
+  void set_range(const NumberRange *range) {
+    this->traits.range_ = range;
+    // A later setter then copies the table instead of writing into it
+    this->traits.owns_range_ = false;
+  }
 
  protected:
   friend class NumberCall;
