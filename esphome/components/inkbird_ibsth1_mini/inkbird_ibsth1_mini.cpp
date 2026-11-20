@@ -1,11 +1,12 @@
 #include "inkbird_ibsth1_mini.h"
 #include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::inkbird_ibsth1_mini {
 
 ESPHOME_LOG_TAG(TAG, "inkbird_ibsth1_mini");
 
-void InkbirdIbstH1Mini::dump_config() {
+void InkbirdIbstH1Mini::dump_child_config() {
   ESP_LOGCONFIG(TAG, "Inkbird IBS TH1 MINI");
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "External Temperature", this->external_temperature_sensor_);
@@ -82,7 +83,7 @@ bool InkbirdIbstH1Mini::parse_device(const ble_device_base::ESPBTDevice &device)
   }
 
   auto battery_level = mnf_data.data[5];
-  auto humidity = ((mnf_data.data[1] << 8) + mnf_data.data[0]) / 100.0f;
+  auto humidity = encode_value_le<uint16_t>(mnf_data.data.data()) / 100.0f;
 
   // Send temperature only if the value is set
   if (!std::isnan(temperature) && this->temperature_sensor_ != nullptr) {

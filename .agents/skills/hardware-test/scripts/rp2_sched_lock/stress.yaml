@@ -1,0 +1,91 @@
+# RP2 scheduler lock check (#22688): the IRQ stress component with its API actions, REST entities for the churn
+# loops (Sw, Lt, Num, Btn), a 50 ms self re-arming script and a 16 ms interval that logs its gaps every 5 s as
+# "n=... avg_gap_us=... max_gap_us=... btn=... rearms=..." (read by looptime.sh).
+external_components:
+  - source:
+      type: local
+      path: components
+    components: [irq_sched_stress]
+irq_sched_stress:
+  id: irqss
+api:
+  actions:
+    - action: run_test
+      then:
+        - script.execute: run_test_script
+    - action: run_defer
+      then:
+        - lambda: id(irqss)->run_defer();
+    - action: run_cancel
+      then:
+        - lambda: id(irqss)->run_cancel();
+switch:
+  - platform: template
+    name: Sw
+    optimistic: true
+output:
+  - platform: template
+    id: lt_out
+    type: float
+    write_action:
+      - lambda: id(lt_level) = state;
+light:
+  - platform: monochromatic
+    name: Lt
+    output: lt_out
+    default_transition_length: 0s
+number:
+  - platform: template
+    name: Num
+    optimistic: true
+    min_value: 0
+    max_value: 100
+    step: 1
+globals:
+  - id: lt_level
+    type: float
+    initial_value: '0'
+  - id: btn_presses
+    type: uint32_t
+    initial_value: '0'
+  - id: rearms
+    type: uint32_t
+    initial_value: '0'
+button:
+  - platform: template
+    name: Btn
+    on_press:
+      - lambda: id(btn_presses)++;
+script:
+  - id: rearm
+    mode: restart
+    then:
+      - delay: 50ms
+      - lambda: id(rearms)++;
+      - script.execute: rearm
+esphome:
+  on_boot:
+    - script.execute: rearm
+interval:
+  - interval: 16ms
+    then:
+      - lambda: |-
+          static uint32_t last = 0, n = 0, sum = 0, mx = 0, t0 = 0;
+          uint32_t now = micros();
+          if (last != 0) {
+            uint32_t g = now - last;
+            n++;
+            sum += g;
+            if (g > mx)
+              mx = g;
+          }
+          last = now;
+          if (t0 == 0)
+            t0 = now;
+          if (now - t0 >= 5000000) {
+            ESP_LOGI("lt", "n=%u avg_gap_us=%u max_gap_us=%u btn=%u rearms=%u level=%.2f", (unsigned) n,
+                     (unsigned) (n ? sum / n : 0), (unsigned) mx, (unsigned) id(btn_presses),
+                     (unsigned) id(rearms), id(lt_level));
+            n = sum = mx = 0;
+            t0 = now;
+          }
