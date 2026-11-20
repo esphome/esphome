@@ -17,6 +17,10 @@
 #include <driver/usb_serial_jtag_vfs.h>
 #endif
 #endif
+// The logger accepts USB_CDC on targets without USB OTG (C3, C6, H2, ...), where IDF has no CDC console
+#if defined(USE_LOGGER_CONSOLE) && defined(USE_LOGGER_UART_SELECTION_USB_CDC) && defined(CONFIG_ESP_CONSOLE_USB_CDC)
+#include <esp_private/usb_console.h>
+#endif
 #if defined(CONFIG_PM_ENABLE) && defined(CONFIG_FREERTOS_USE_TICKLESS_IDLE) && \
     (ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0))
 #include "esp_sleep.h"
@@ -73,7 +77,8 @@ static void init_usb_serial_jtag() {
 }
 #endif
 
-void init_uart(uart_port_t uart_num, uint32_t baud_rate, int tx_buffer_size) {
+#if !defined(USE_LOGGER_UART_SELECTION_USB_CDC) && !defined(USE_LOGGER_UART_SELECTION_USB_SERIAL_JTAG)
+static void init_uart(uart_port_t uart_num, uint32_t baud_rate, int tx_buffer_size) {
   uart_config_t uart_config{};
   uart_config.baud_rate = (int) baud_rate;
   uart_config.data_bits = UART_DATA_8_BITS;
@@ -97,37 +102,22 @@ void init_uart(uart_port_t uart_num, uint32_t baud_rate, int tx_buffer_size) {
   esp_sleep_set_console_uart_handling_mode(ESP_SLEEP_ALWAYS_FLUSH_UART);
 #endif
 }
+#endif
+
+// get_uart_num() and pre_setup() cast the selection straight to a port
+static_assert(static_cast<int>(UART_SELECTION_UART0) == static_cast<int>(UART_NUM_0) &&
+              static_cast<int>(UART_SELECTION_UART1) == static_cast<int>(UART_NUM_1));
+#ifdef USE_ESP32_VARIANT_ESP32
+static_assert(static_cast<int>(UART_SELECTION_UART2) == static_cast<int>(UART_NUM_2));
+#endif
 
 void Logger::pre_setup() {
   if (this->baud_rate_ > 0) {
-    this->uart_num_ = UART_NUM_0;
-    switch (this->uart_) {
-      case UART_SELECTION_UART0:
-        this->uart_num_ = UART_NUM_0;
-        init_uart(this->uart_num_, baud_rate_, ESPHOME_LOGGER_TX_BUFFER_SIZE);
-        break;
-      case UART_SELECTION_UART1:
-        this->uart_num_ = UART_NUM_1;
-        init_uart(this->uart_num_, baud_rate_, ESPHOME_LOGGER_TX_BUFFER_SIZE);
-        break;
-#ifdef USE_ESP32_VARIANT_ESP32
-      case UART_SELECTION_UART2:
-        this->uart_num_ = UART_NUM_2;
-        init_uart(this->uart_num_, baud_rate_, ESPHOME_LOGGER_TX_BUFFER_SIZE);
-        break;
-#endif
-#ifdef USE_LOGGER_USB_CDC
-      case UART_SELECTION_USB_CDC:
-        break;
-#endif
-#ifdef USE_LOGGER_USB_SERIAL_JTAG
-      case UART_SELECTION_USB_SERIAL_JTAG:
 #ifdef USE_LOGGER_UART_SELECTION_USB_SERIAL_JTAG
-        init_usb_serial_jtag();
+    init_usb_serial_jtag();
+#elif !defined(USE_LOGGER_UART_SELECTION_USB_CDC)
+    init_uart(this->get_uart_num(), this->baud_rate_, ESPHOME_LOGGER_TX_BUFFER_SIZE);
 #endif
-        break;
-#endif
-    }
   }
 
   global_logger = this;
@@ -139,28 +129,35 @@ void Logger::pre_setup() {
 #endif
 }
 
-const LogString *Logger::get_uart_selection_() {
-  switch (this->uart_) {
-    case UART_SELECTION_UART0:
-      return LOG_STR("UART0");
-    case UART_SELECTION_UART1:
-      return LOG_STR("UART1");
-#ifdef USE_ESP32_VARIANT_ESP32
-    case UART_SELECTION_UART2:
-      return LOG_STR("UART2");
+#ifdef USE_LOGGER_CONSOLE
+size_t Logger::console_write(const uint8_t *data, size_t len) {
+  int written = 0;
+#if defined(USE_LOGGER_UART_SELECTION_USB_CDC)
+#ifdef CONFIG_ESP_CONSOLE_USB_CDC  // keep: not set without USB OTG, see the include above
+  written = esp_usb_console_write_buf(reinterpret_cast<const char *>(data), len);
 #endif
-#ifdef USE_LOGGER_USB_CDC
-    case UART_SELECTION_USB_CDC:
-      return LOG_STR("USB_CDC");
+#elif defined(USE_LOGGER_UART_SELECTION_USB_SERIAL_JTAG)
+  written = usb_serial_jtag_write_bytes(data, len, pdMS_TO_TICKS(20));
+#else
+  written = uart_write_bytes(this->get_uart_num(), data, len);
 #endif
-#ifdef USE_LOGGER_USB_SERIAL_JTAG
-    case UART_SELECTION_USB_SERIAL_JTAG:
-      return LOG_STR("USB_SERIAL_JTAG");
-#endif
-    default:
-      return LOG_STR("UNKNOWN");
-  }
+  return written > 0 ? written : 0;
 }
+
+bool Logger::console_read(uint8_t &byte) {
+#if defined(USE_LOGGER_UART_SELECTION_USB_CDC)
+#ifdef CONFIG_ESP_CONSOLE_USB_CDC  // keep: not set without USB OTG, see the include above
+  return esp_usb_console_available_for_read() && esp_usb_console_read_buf(reinterpret_cast<char *>(&byte), 1) == 1;
+#else
+  return false;
+#endif
+#elif defined(USE_LOGGER_UART_SELECTION_USB_SERIAL_JTAG)
+  return usb_serial_jtag_read_bytes(&byte, 1, 0) > 0;
+#else
+  return uart_read_bytes(this->get_uart_num(), &byte, 1, 0) > 0;
+#endif
+}
+#endif
 
 #ifdef USE_CRASH_HANDLER
 bool crash_log_pending() { return esp32::crash_handler_has_data(); }
