@@ -54,9 +54,28 @@ void DallasTemperatureSensor::update() {
   }
 }
 
-// Any status: the conversion only starts here, and the read reports what is wrong with the bus
+bool DallasTemperatureSensor::check_transaction_status_(one_wire::TransactionStatus status) {
+  switch (status) {
+    case one_wire::TransactionStatus::TRANSACTION_STATUS_OK:
+      return true;
+    case one_wire::TransactionStatus::TRANSACTION_STATUS_NO_PRESENCE:
+    case one_wire::TransactionStatus::TRANSACTION_STATUS_BUS_LOW:
+      this->status_set_warning(LOG_STR("bus reset failed"));
+      return false;
+    default:
+      this->status_set_warning(LOG_STR("bus transaction failed"));
+      return false;
+  }
+}
+
+// Without a confirmed Convert T the scratch pad can still hold the previous reading with a valid checksum.
+// A failed conversion therefore ends the cycle here instead of reading.
 void DallasTemperatureSensor::on_convert_done(void *context, one_wire::TransactionStatus status) {
   auto *self = static_cast<DallasTemperatureSensor *>(context);
+  if (!self->check_transaction_status_(status)) {
+    self->publish_state(NAN);
+    return;
+  }
   self->set_timeout(CONVERSION_TIMEOUT_ID, self->millis_to_wait_for_conversion_(), [self] {
     if (!self->bus_->submit(&self->read_)) {
       ESP_LOGD(TAG, "'%s': skipping a cycle, still reading", LOG_STR_ARG(self->get_log_name()));
@@ -67,11 +86,10 @@ void DallasTemperatureSensor::on_convert_done(void *context, one_wire::Transacti
 void DallasTemperatureSensor::on_read_done(void *context, one_wire::TransactionStatus status) {
   auto *self = static_cast<DallasTemperatureSensor *>(context);
   float tempc = NAN;
-  if (status == one_wire::TransactionStatus::TRANSACTION_STATUS_NO_PRESENCE || status == one_wire::TransactionStatus::TRANSACTION_STATUS_BUS_LOW) {
-    self->status_set_warning(LOG_STR("bus reset failed"));
-  } else if (status != one_wire::TransactionStatus::TRANSACTION_STATUS_OK) {
-    self->status_set_warning(LOG_STR("bus transaction failed"));
-  } else if (self->check_scratch_pad_()) {
+  if (self->check_transaction_status_(status) && self->check_scratch_pad_()) {
+    // A new update() can clear the warning while an older read is still queued. If that older read then
+    // fails, the warning comes back, so a good reading has to clear it again here.
+    self->status_clear_warning();
     tempc = self->get_temp_c_();
     ESP_LOGD(TAG, "'%s': Got Temperature=%f°C", LOG_STR_ARG(self->get_log_name()), tempc);
   }

@@ -135,22 +135,39 @@ TEST_F(DallasAsync, UpdateClearsTheWarningAndStartsTheConversion) {
   EXPECT_EQ(this->publications_, 0u);
 }
 
-TEST_F(DallasAsync, ReadComesAfterTheWaitWhateverTheConversionReported) {
+TEST_F(DallasAsync, ReadComesAfterTheWaitOfAGoodConversion) {
+  this->sensor_.update();
+  this->bus_.finish(TransactionStatus::TRANSACTION_STATUS_OK);
+  EXPECT_TRUE(this->bus_.queue.empty());
+  run_timers(WAIT_10_BIT_MS + 30);
+  ASSERT_EQ(this->bus_.queue.size(), 1u);
+  const Transaction *read = this->bus_.queue.front();
+  EXPECT_EQ(read->address, ROM);
+  EXPECT_EQ(read->write_len, 1);
+  EXPECT_EQ(*read->write_data, READ_SCRATCH_PAD);
+  EXPECT_EQ(read->read_len, 9);
+}
+
+TEST_F(DallasAsync, EveryFailedConversionPublishesNanWithAWarningAndSkipsTheRead) {
   for (const auto status :
-       {TransactionStatus::TRANSACTION_STATUS_OK, TransactionStatus::TRANSACTION_STATUS_NO_PRESENCE, TransactionStatus::TRANSACTION_STATUS_BUS_LOW,
-        TransactionStatus::TRANSACTION_STATUS_CAPTURE_ERROR, TransactionStatus::TRANSACTION_STATUS_TIMEOUT, TransactionStatus::TRANSACTION_STATUS_HARDWARE_ERROR}) {
+       {TransactionStatus::TRANSACTION_STATUS_NO_PRESENCE, TransactionStatus::TRANSACTION_STATUS_BUS_LOW,
+        TransactionStatus::TRANSACTION_STATUS_CAPTURE_ERROR, TransactionStatus::TRANSACTION_STATUS_TIMEOUT,
+        TransactionStatus::TRANSACTION_STATUS_HARDWARE_ERROR}) {
+    // A good reading first: the sensor still holds it with a valid checksum, and it must not be published again
+    this->run_until_reading_();
+    this->bus_.finish(TransactionStatus::TRANSACTION_STATUS_OK);
+    EXPECT_FLOAT_EQ(this->sensor_.state, 25.0f);
+    const unsigned submits = this->bus_.submits;
+
     this->sensor_.update();
     this->bus_.finish(status);
-    EXPECT_TRUE(this->bus_.queue.empty());
+    EXPECT_TRUE(std::isnan(this->sensor_.state)) << static_cast<int>(status);
+    EXPECT_TRUE(this->sensor_.status_has_warning()) << static_cast<int>(status);
     run_timers(WAIT_10_BIT_MS + 30);
-    ASSERT_EQ(this->bus_.queue.size(), 1u) << static_cast<int>(status);
-    const Transaction *read = this->bus_.queue.front();
-    EXPECT_EQ(read->address, ROM);
-    EXPECT_EQ(read->write_len, 1);
-    EXPECT_EQ(*read->write_data, READ_SCRATCH_PAD);
-    EXPECT_EQ(read->read_len, 9);
-    this->bus_.finish(TransactionStatus::TRANSACTION_STATUS_OK);
+    EXPECT_TRUE(this->bus_.queue.empty()) << static_cast<int>(status);
+    EXPECT_EQ(this->bus_.submits, submits + 1) << "only the conversion, no read";
   }
+  EXPECT_EQ(this->publications_, 10u);
 }
 
 TEST_F(DallasAsync, TheWaitStartsWhenTheConversionIsDone) {
@@ -193,8 +210,9 @@ TEST_F(DallasAsync, TheResetValueOf85IsDropped) {
 
 TEST_F(DallasAsync, EveryFailedReadPublishesNanWithAWarning) {
   for (const auto status :
-       {TransactionStatus::TRANSACTION_STATUS_NO_PRESENCE, TransactionStatus::TRANSACTION_STATUS_BUS_LOW, TransactionStatus::TRANSACTION_STATUS_CAPTURE_ERROR,
-        TransactionStatus::TRANSACTION_STATUS_TIMEOUT, TransactionStatus::TRANSACTION_STATUS_HARDWARE_ERROR}) {
+       {TransactionStatus::TRANSACTION_STATUS_NO_PRESENCE, TransactionStatus::TRANSACTION_STATUS_BUS_LOW,
+        TransactionStatus::TRANSACTION_STATUS_CAPTURE_ERROR, TransactionStatus::TRANSACTION_STATUS_TIMEOUT,
+        TransactionStatus::TRANSACTION_STATUS_HARDWARE_ERROR}) {
     // A good reading first: valid bytes are left in the buffer and must not be taken for this one
     this->run_until_reading_();
     this->bus_.finish(TransactionStatus::TRANSACTION_STATUS_OK);
@@ -262,6 +280,25 @@ TEST_F(DallasAsync, UpdateDuringTheReadLeavesTheReadAlone) {
   run_timers(WAIT_10_BIT_MS + 30);
   ASSERT_EQ(this->bus_.queue.size(), 1u);
   EXPECT_EQ(*this->bus_.queue.front()->write_data, READ_SCRATCH_PAD);
+}
+
+TEST_F(DallasAsync, AGoodReadClearsTheWarningOfAFailedReadAfterTheNextUpdate) {
+  this->run_until_reading_();
+  this->sensor_.update();  // Clears the warning, the conversion queues up behind the read
+  ASSERT_EQ(this->bus_.queue.size(), 2u);
+
+  this->bus_.finish(TransactionStatus::TRANSACTION_STATUS_TIMEOUT);  // The read from the cycle before
+  EXPECT_TRUE(std::isnan(this->sensor_.state));
+  EXPECT_TRUE(this->sensor_.status_has_warning());
+
+  this->bus_.finish(TransactionStatus::TRANSACTION_STATUS_OK);  // The conversion from the update in between
+  run_timers(WAIT_10_BIT_MS + 30);
+  ASSERT_EQ(this->bus_.queue.size(), 1u);
+  this->bus_.finish(TransactionStatus::TRANSACTION_STATUS_OK);
+
+  EXPECT_EQ(this->publications_, 2u);
+  EXPECT_FLOAT_EQ(this->sensor_.state, 25.0f);
+  EXPECT_FALSE(this->sensor_.status_has_warning());
 }
 
 TEST_F(DallasAsync, ABusThatFinishesInsideSubmitWorksToo) {
