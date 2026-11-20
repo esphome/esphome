@@ -599,7 +599,7 @@ def legacy_platform_migration_warning(
     domain: str, platform: str, removal_version: str
 ) -> tuple[
     Callable[[ConfigType], ConfigType],
-    Callable[[ConfigType], ConfigType],
+    Callable[[ConfigType], None],
 ]:
     """Build the per-entry capture and one-shot warning validators for a
     deprecated top-level component that is now an ``image:`` platform.
@@ -618,7 +618,7 @@ def legacy_platform_migration_warning(
         data.setdefault(entries_key, []).append(dict(config))
         return config
 
-    def finalize(config: ConfigType) -> ConfigType:
+    def finalize(config: ConfigType) -> None:
         data = CORE.data.setdefault(domain, {})
         if not data.get(shown_key):
             data[shown_key] = True
@@ -639,7 +639,6 @@ def legacy_platform_migration_warning(
                 domain,
                 yaml_util.dump({DOMAIN: migrated}),
             )
-        return config
 
     return capture, finalize
 

@@ -74,10 +74,10 @@ _validate_unique_type = fv.unique_platform_key(
 )
 
 
-def _final_validate(config: ConfigType) -> ConfigType:
+def _final_validate(config: ConfigType) -> None:
     _validate_unique_type(config)
     if config[CONF_TYPE] != CONF_UNPAIRED_ACCESS:
-        return config
+        return
     hub_config = fv.full_config.get().get(DOMAIN, {})
     if CONF_UNPAIRED_ACCESS in hub_config:
         raise cv.Invalid(
@@ -91,7 +91,6 @@ def _final_validate(config: ConfigType) -> ConfigType:
             CONF_UNPAIRED_ACCESS,
             CONF_STATIC_PAIRING_CODE,
         )
-    return config
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
