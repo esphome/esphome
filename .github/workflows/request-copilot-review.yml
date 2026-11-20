@@ -1,0 +1,56 @@
+name: Request Copilot review
+
+# Requests a Copilot code review when a ready pull request against dev is
+# opened, reopened or marked ready for review; like the ruleset, not on every
+# push. The ruleset reviews these too, but it runs the review as the PR author
+# (or whoever marked it ready), so a contributor without Copilot access gets
+# none. This runs it as esphome-review-bot, which needs a Copilot seat and
+# Triage on this repo. COPILOT_REVIEW_TOKEN is an org secret holding its
+# fine-grained token (Pull requests read and write) and expires: when it is
+# rejected the run fails, and an org owner signs in as the bot, creates a new
+# one and replaces the secret.
+
+on:
+  pull_request_target:
+    types:
+      - opened
+      - reopened
+      - ready_for_review
+    branches:
+      - dev
+
+permissions: {}
+
+# Overlapping runs could each take the other's request as their own confirmation.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  request:
+    name: Request Copilot review
+    runs-on: ubuntu-latest
+    # Forks have no review bot token, bot PRs (Dependabot) get no repo secrets,
+    # and drafts are not reviewed.
+    if: >-
+      github.repository == 'esphome/esphome'
+      && github.event.pull_request.user.type != 'Bot'
+      && !github.event.pull_request.draft
+    permissions:
+      contents: read  # to check out the script below
+    steps:
+      # Checks out the base repo (trusted) only to load the script below,
+      # never the PR's code - this job holds the review bot's token.
+      - name: Checkout scripts
+        uses: actions/checkout@v7.0.1
+        with:
+          sparse-checkout: .github/scripts/request-copilot-review
+          persist-credentials: false
+
+      - name: Request Copilot review
+        uses: actions/github-script@v9.0.0
+        with:
+          github-token: ${{ secrets.COPILOT_REVIEW_TOKEN }}
+          script: |
+            const script = require('./.github/scripts/request-copilot-review/index.js');
+            await script({ github, context, core });
