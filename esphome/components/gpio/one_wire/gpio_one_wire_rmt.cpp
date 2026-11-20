@@ -11,7 +11,6 @@
 
 namespace esphome::gpio {
 
-using rmt_one_wire::Engine;
 using rmt_one_wire::Symbol;
 
 ESPHOME_LOG_TAG(TAG, "gpio.one_wire");
@@ -24,7 +23,6 @@ static constexpr rmt_transmit_config_t TRANSMIT_CONFIG = {.flags = {.eot_level =
 
 static_assert(sizeof(Symbol) == sizeof(rmt_symbol_word_t), "Symbol must have the layout of rmt_symbol_word_t");
 static_assert(alignof(Symbol) == alignof(rmt_symbol_word_t), "the copy encoder reads Symbol as rmt_symbol_word_t");
-static_assert(SOC_RMT_MEM_WORDS_PER_CHANNEL <= Engine::MAX_MEM_WORDS, "the buffers of Engine are too small");
 
 GPIORMTOneWireBus::GPIORMTOneWireBus(const rmt_one_wire::Timing &timing)
     : timing_(timing), engine_(this, SOC_RMT_MEM_WORDS_PER_CHANNEL, timing) {}

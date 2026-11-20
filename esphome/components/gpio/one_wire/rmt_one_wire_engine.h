@@ -6,6 +6,10 @@
 
 #include <atomic>
 
+#ifdef USE_ESP32
+#include <soc/soc_caps.h>
+#endif
+
 #include "esphome/components/one_wire/one_wire_bus.h"
 #include "rmt_one_wire_codec.h"
 
@@ -27,7 +31,12 @@ class Port {
 
 class Engine {
  public:
-  static constexpr size_t MAX_MEM_WORDS = 64;  // ESP32 and S2, the others have 48
+#ifdef USE_ESP32
+  /// The memory of one RMT channel: 64 words on ESP32 and S2, 48 on the others
+  static constexpr size_t MAX_MEM_WORDS = SOC_RMT_MEM_WORDS_PER_CHANNEL;
+#else
+  static constexpr size_t MAX_MEM_WORDS = 64;  // The host tests run with 64 and 48
+#endif
 
   /// RX idle outside RESET: max(100, slot + 20) us. The RESET section keeps 600 us.
   Engine(Port *port, size_t mem_words, const Timing &timing = {});
