@@ -54,8 +54,17 @@ struct NPM1300Config {
   NPM1300OutputConfig outputs[NPM1300_OUTPUT_COUNT];
   NPM1300ChargerConfig charger;  // only applied when charger_configured
   uint16_t thermistor_beta;
-  uint8_t thermistor;  // ADCNTCRSEL code: 1 for 10 kOhm, 2 for 47 kOhm, 3 for 100 kOhm, or NPM1300_UNSET
+  uint8_t thermistor;  // ADCNTCRSEL code: 0 for none, 1 for 10 kOhm, 2 for 47 kOhm, 3 for 100 kOhm, or NPM1300_UNSET
   bool charger_configured;
+};
+
+/// The status registers read on every update
+struct NPM1300Status {
+  uint8_t vbus;            // VBUSINSTATUS
+  uint8_t charger_enable;  // BCHGENABLESET
+  uint8_t ntc;             // NTCSTATUS
+  uint8_t charge;          // BCHGCHARGESTATUS
+  uint8_t error_reason;    // BCHGERRREASON
 };
 
 #ifdef USE_NPM1300_DATA_PUBLISHER
@@ -68,8 +77,7 @@ float ntc_temperature(uint16_t code, float inv_beta);
 #endif
 #ifdef USE_TEXT_SENSOR
 /// Publish the charger status text, only when it differs from `last`
-void publish_charger_status(text_sensor::TextSensor *sensor, uint8_t &last, uint8_t vbus_status, uint8_t charge_status,
-                            uint8_t error_reason);
+void publish_charger_status(text_sensor::TextSensor *sensor, uint8_t &last, const NPM1300Status &status);
 #endif
 
 class NPM1300Component : public PollingComponent, public i2c::I2CDevice {
@@ -95,7 +103,7 @@ class NPM1300Component : public PollingComponent, public i2c::I2CDevice {
   float get_setup_priority() const override { return setup_priority::BUS - 1.0f; }
 
 #ifdef USE_NPM1300_STATUS_PUBLISHER
-  HUB_PUBLISHER(status, uint8_t, uint8_t, uint8_t)
+  HUB_PUBLISHER(status, const NPM1300Status &)
 #endif
 #ifdef USE_NPM1300_DATA_PUBLISHER
   HUB_PUBLISHER(data, const uint8_t *, float)
@@ -128,7 +136,7 @@ class NPM1300Component : public PollingComponent, public i2c::I2CDevice {
 #endif
 #ifdef USE_SWITCH
   /// Returns false when a status read failed
-  bool publish_switches_();
+  bool publish_switches_(const NPM1300Status &status);
 #endif
 
   const NPM1300Config *config_;

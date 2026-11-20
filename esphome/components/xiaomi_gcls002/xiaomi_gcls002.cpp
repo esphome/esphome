@@ -5,7 +5,7 @@ namespace esphome::xiaomi_gcls002 {
 
 ESPHOME_LOG_TAG(TAG, "xiaomi_gcls002");
 
-void XiaomiGCLS002::dump_config() {
+void XiaomiGCLS002::dump_child_config() {
   ESP_LOGCONFIG(TAG, "Xiaomi GCLS002");
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Moisture", this->moisture_sensor_);
