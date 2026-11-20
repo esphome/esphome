@@ -7,7 +7,6 @@
 #include <fstream>
 #include <iterator>
 #include <memory>
-#include <pthread.h>
 #include <string>
 #include <thread>
 #include <utility>
@@ -15,8 +14,6 @@
 
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
-#include "esphome/components/audio/audio.h"
-#include "esphome/components/media_source/media_source.h"
 #include "platform/http_client.h"
 
 // Enable only this existing ESP adapter translation unit; the workers remain native pthreads.
@@ -66,6 +63,8 @@ class FixtureHttpClient : public micro_decoder::HttpClient {
 }  // namespace esphome::audio_http::testing
 
 #ifdef AUDIO_HTTP_TEST_COUNT_THREADS
+#include <pthread.h>
+
 // GNU ld --wrap requires these ABI symbols; C++ identifiers stay ordinary names.
 extern "C" int real_pthread_create(pthread_t *, const pthread_attr_t *, void *(*)(void *),
                                    void *) asm("__real_pthread_create");
@@ -105,10 +104,10 @@ void expect_workers_joined([[maybe_unused]] const std::pair<unsigned, unsigned> 
   EXPECT_EQ(at_idle, (std::pair<unsigned, unsigned>{workers, workers}));
 #endif
 }
-template<typename Predicate, typename Pump> bool pump_until(Predicate predicate, Pump pump) {
+template<typename Predicate> bool pump_until(AudioHTTPMediaSource &source, Predicate predicate) {
   auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
   while (!predicate() && std::chrono::steady_clock::now() < deadline) {
-    pump();
+    source.call();
     App.scheduler.call(millis());
     std::this_thread::sleep_for(std::chrono::milliseconds(1));
   }
@@ -122,14 +121,11 @@ class RetirementListener : public esphome::media_source::MediaSourceListener {
   }
   void report_state(esphome::media_source::MediaSourceState state) override {
     if (state == esphome::media_source::MediaSourceState::IDLE) {
-      this->at_idle.emplace_back(fixture().threads_created.load() - this->created_before,
-                                 fixture().threads_joined.load() - this->joined_before);
+      this->at_idle.emplace_back(fixture().threads_created.load(), fixture().threads_joined.load());
       if (this->at_idle.size() == 1 && this->restart_source != nullptr)
         this->restart_accepted = this->restart_source->play_uri("http://fixture.test/next.flac");
     }
   }
-  const unsigned created_before{fixture().threads_created.load()};
-  const unsigned joined_before{fixture().threads_joined.load()};
   std::vector<std::pair<unsigned, unsigned>> at_idle;
   std::vector<uint8_t> pcm;
   esphome::audio_http::AudioHTTPMediaSource *restart_source{nullptr};
@@ -143,6 +139,8 @@ class HttpRetirement : public ::testing::Test {
     ASSERT_GT(fixture().body.size(), 1024u);
     fixture().natural_end.store(true);
     fixture().transport_closed.store(0);
+    fixture().threads_created.store(0);
+    fixture().threads_joined.store(0);
   }
 };
 // One playback ends naturally; with two, the IDLE listener starts the second from inside its report.
@@ -159,7 +157,7 @@ TEST_P(HttpPlaybacks, WorkersJoinBeforeEachIdle) {
   source.set_task_stack_in_psram(true);
   source.call();
   ASSERT_TRUE(source.play_uri("http://fixture.test/first.flac"));
-  bool ended = pump_until([&] { return listener.at_idle.size() == playbacks; }, [&] { source.call(); });
+  bool ended = pump_until(source, [&] { return listener.at_idle.size() == playbacks; });
   // Capture before explicit cleanup, which must not hide retained workers on the baseline.
   const auto at_idle = listener.at_idle;
   source.handle_command(media_source::MediaSourceCommand::STOP);
@@ -188,8 +186,7 @@ TEST_F(HttpRetirement, ExplicitStopPublishesIdleOnceAfterJoiningWorkers) {
   source.media_source::MediaSource::set_listener(&listener);
   source.call();
   ASSERT_TRUE(source.play_uri("http://fixture.test/stream.flac"));
-  ASSERT_TRUE(pump_until([&] { return source.get_state() == media_source::MediaSourceState::PLAYING; },
-                         [&] { source.call(); }));
+  ASSERT_TRUE(pump_until(source, [&] { return source.get_state() == media_source::MediaSourceState::PLAYING; }));
 
   source.handle_command(media_source::MediaSourceCommand::STOP);
   EXPECT_TRUE(listener.at_idle.empty());

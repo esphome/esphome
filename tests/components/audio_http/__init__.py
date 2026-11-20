@@ -14,6 +14,27 @@ from esphome.loader import FileResource
 from esphome.types import ConfigType
 from tests.testing_helpers import ComponentManifestOverride
 
+# Library sources the decoder needs, from the releases the audio component builds with
+_DEPENDENCIES = (
+    (
+        "micro-decoder",
+        MICRO_DECODER_VERSION,
+        (
+            "audio_decoder",
+            "audio_reader",
+            "decoder_source",
+            "md_transfer_buffer",
+            "ring_buffer",
+            "types",
+        ),
+    ),
+    (
+        "micro-flac",
+        MICRO_FLAC_VERSION,
+        ("crc", "decorrelation", "flac_decoder", "frame_header", "lpc", "pcm_packing"),
+    ),
+)
+
 
 @dataclass(frozen=True, order=True)
 class DependencySource(FileResource):
@@ -30,36 +51,7 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
     manifest.config_schema = cv.Schema({})
 
     async def to_code_testing(config: ConfigType) -> None:
-        dependencies = (
-            (
-                "micro-decoder",
-                MICRO_DECODER_VERSION,
-                (
-                    "audio_decoder",
-                    "audio_reader",
-                    "decoder_source",
-                    "md_transfer_buffer",
-                    "ring_buffer",
-                    "types",
-                ),
-            ),
-            (
-                "micro-flac",
-                MICRO_FLAC_VERSION,
-                (
-                    "crc",
-                    "decorrelation",
-                    "flac_decoder",
-                    "frame_header",
-                    "lpc",
-                    "lpc_analysis",
-                    "pcm_packing",
-                    "rice_partitions",
-                    "subframe_coding",
-                ),
-            ),
-        )
-        for name, version, sources in dependencies:
+        for name, version, sources in _DEPENDENCIES:
             root, _ = git.clone_or_update(
                 url=f"https://github.com/esphome-libs/{name}.git",
                 ref=f"v{version}",
