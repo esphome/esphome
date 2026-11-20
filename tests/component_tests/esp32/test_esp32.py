@@ -972,7 +972,7 @@ _IDF61 = cv.Version(6, 1, 1)
         pytest.param(
             # So does esp_wifi_remote's Enterprise option on IDF 6.1.
             PlatformFramework.ESP32_IDF,
-            _IDF6,
+            _IDF61,
             MbedtlsSdkconfigData(tls_required=True),
             {"CONFIG_WIFI_RMT_ENTERPRISE_SUPPORT": RawSdkconfigValue("y")},
             {

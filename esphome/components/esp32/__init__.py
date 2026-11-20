@@ -2789,6 +2789,13 @@ MBEDTLS_TLS_EXTRA_OPTIONS = (
     "CONFIG_MBEDTLS_ECDSA_DETERMINISTIC",
 )
 
+# Wi-Fi Enterprise options: native esp_wifi and, on IDF 6.1, esp_wifi_remote.
+# Each one selects TLS back on.
+_WIFI_ENTERPRISE_OPTIONS = (
+    "CONFIG_ESP_WIFI_ENTERPRISE_SUPPORT",
+    "CONFIG_WIFI_RMT_ENTERPRISE_SUPPORT",
+)
+
 # Curves public CAs never sign with and TLS servers never negotiate (they use
 # RSA, P-256, P-384, P-521 and X25519); TLS builds still link them on IDF 6.
 # Wi-Fi Enterprise keeps them: private RADIUS PKIs do use Brainpool.
@@ -2900,6 +2907,7 @@ _MBEDTLS_TRIM_KEPT_BY = {
     "CONFIG_MBEDTLS_ECP_DP_SECP384R1_ENABLED": (
         "CONFIG_SECURE_BOOT_ECDSA_KEY_LEN_384_BITS",
     ),
+    **dict.fromkeys(MBEDTLS_RARE_TLS_CURVE_OPTIONS, _WIFI_ENTERPRISE_OPTIONS),
 }
 
 
@@ -2958,8 +2966,7 @@ _MBEDTLS_TLS_ON_OPTIONS = (
     # Border router defaults the border agent (and its DTLS) on.
     "CONFIG_OPENTHREAD_BORDER_ROUTER",
     # Enterprise WiFi selects TLS back on (see the TLS-off block).
-    "CONFIG_ESP_WIFI_ENTERPRISE_SUPPORT",
-    "CONFIG_WIFI_RMT_ENTERPRISE_SUPPORT",
+    *_WIFI_ENTERPRISE_OPTIONS,
 )
 # Any user option under these prefixes only makes sense with TLS compiled in.
 _TLS_OPTION_PREFIXES = ("CONFIG_ESP_TLS_", "CONFIG_MBEDTLS_SSL_", "CONFIG_ESP_HTTPS_")
@@ -3097,13 +3104,7 @@ async def _reconcile_mbedtls_sdkconfig() -> None:
 
     # Arduino's libraries call mbedTLS directly, so its builds keep every mode.
     if idf6 and not CORE.using_arduino:
-        if not _mbedtls_tls_compiled_out() and not any(
-            is_idf_sdkconfig_option_enabled(option)
-            for option in (
-                "CONFIG_ESP_WIFI_ENTERPRISE_SUPPORT",
-                "CONFIG_WIFI_RMT_ENTERPRISE_SUPPORT",
-            )
-        ):
+        if not _mbedtls_tls_compiled_out():
             _trim_mbedtls_options(MBEDTLS_RARE_TLS_CURVE_OPTIONS)
         hardware_aes = _uses_hardware_aes()
         _trim_mbedtls_options(
