@@ -7,6 +7,7 @@ from esphome.components.const import CONF_ON_STOP
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_MODE, CONF_PARAMETERS, CONF_RESTART
 from esphome.core import CORE, EsphomeError
+from esphome.cpp_generator import AssignmentExpression, call_lambda
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
@@ -242,9 +243,13 @@ async def script_execute_action_to_code(config, action_id, template_arg, args):
                 raise EsphomeError(
                     f"Missing parameter: '{name}' in script.execute {config[CONF_ID]}"
                 )
-            arg = await cg.templatable(
-                config_args[name], args, type, convert(str(type))
-            )
+            value = config_args[name]
+            if cg.is_template(value):
+                arg = await automation.call_user_lambda(value, args, type)
+            else:
+                arg = call_lambda(
+                    await cg.templatable(value, args, type, convert(str(type)))
+                )
             script_args.append(arg)
         return script_args
 
@@ -255,14 +260,13 @@ async def script_execute_action_to_code(config, action_id, template_arg, args):
 
     paren = await cg.get_variable(config[CONF_ID])
     # Separate statements, because the order of evaluation inside one call is not defined
+    names = [cg.MockObj(f"esphome__arg_{index}") for index in range(len(script_args))]
     statements = [
-        f"auto esphome__arg_{index} = {automation.immediate_lambda_call(arg)};"
-        for index, arg in enumerate(script_args)
+        str(cg.statement(AssignmentExpression("auto", "", name, arg)))
+        for name, arg in zip(names, script_args, strict=True)
     ]
-    names = ", ".join(
-        f"std::move(esphome__arg_{index})" for index in range(len(script_args))
-    )
-    statements.append(f"{automation.parent_ref(paren)}->execute({names});")
+    moved = [cg.std_ns.move(name) for name in names]
+    statements.append(str(cg.statement(automation.parent_ref(paren).execute(*moved))))
     return automation.apply_statements_action(action_id, template_arg, args, statements)
 
 
