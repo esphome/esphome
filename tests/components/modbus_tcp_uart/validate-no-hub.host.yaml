@@ -1,0 +1,10 @@
+# No modbus hub: the link only converts frames for whatever reads its UART.
+tcp_uart:
+  - id: inbound
+    role: server
+    port: 1502
+
+modbus_tcp_uart:
+  - id: inbound_uart
+    tcp_uart_id: inbound
+    role: server
