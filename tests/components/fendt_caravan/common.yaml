@@ -1,0 +1,66 @@
+ble_client:
+  - mac_address: AA:BB:CC:DD:EE:FF
+    id: my_ble_client
+    auto_connect: true
+
+fendt_caravan:
+  id: my_caravan
+  ble_client_id: my_ble_client
+  bt_id: 11:22:33:44:55:66
+  main_control_unit:
+    id: fendt_caravan_mcu
+    update_interval: 60s
+
+sensor:
+  - platform: fendt_caravan
+    parent_id: fendt_caravan_mcu
+    type: temp_in
+    name: Temperature In
+    id: temp_in
+
+  - platform: fendt_caravan
+    parent_id: fendt_caravan_mcu
+    type: temp_out
+    name: Temperature Out
+    id: temp_out
+
+  - platform: fendt_caravan
+    parent_id: fendt_caravan_mcu
+    type: water_level
+    name: Water Level
+
+switch:
+  - platform: fendt_caravan
+    parent_id: fendt_caravan_mcu
+    type: main_switch
+    name: Main Switch
+    restore_mode: ALWAYS_OFF
+
+  - platform: fendt_caravan
+    parent_id: fendt_caravan_mcu
+    type: all_lights
+    name: All Lights Switch
+    restore_mode: RESTORE_DEFAULT_OFF
+
+  - platform: fendt_caravan
+    parent_id: fendt_caravan_mcu
+    type: floor_heater
+    name: Floor Heater
+    restore_mode: RESTORE_DEFAULT_OFF
+
+binary_sensor:
+  - platform: fendt_caravan
+    parent_id: fendt_caravan_mcu
+    type: power_status
+    name: Power Status
+
+text_sensor:
+  - platform: fendt_caravan
+    parent_id: fendt_caravan_mcu
+    type: software_version
+    name: Software Version
+
+  - platform: fendt_caravan
+    parent_id: fendt_caravan_mcu
+    type: panel_version
+    name: Panel Version
