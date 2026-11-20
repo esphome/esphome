@@ -1,0 +1,27 @@
+esphome:
+  name: test
+
+esp8266:
+  board: d1_mini
+
+external_components:
+  - source:
+      type: local
+      path: ../external_components
+
+event:
+  - platform: late_event
+    id: late
+    name: Late
+    after: turn
+
+button:
+  - platform: template
+    id: turn
+    name: Turn
+    on_press:
+      - event.trigger:
+          id: late
+          event_type: press
+          data:
+            steps: 3
