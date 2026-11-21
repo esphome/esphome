@@ -88,8 +88,8 @@ TEST(MqMath, ZeroRatioFollowsTheCurveDirection) {
   // A negative ratio is not a sensor resistance: unknown, never a concentration.
   EXPECT_TRUE(std::isnan(ppm_from_ratio(10.0f, 2.0f, -0.5f, RegressionMethod::REGRESSION_EXPONENTIAL)));
   // The R0/RS end of a collapsed sensor resistance mirrors the above.
-  EXPECT_EQ(FLT_MAX, ppm_at_infinity(10.0f, 2.0f, RegressionMethod::REGRESSION_EXPONENTIAL));
-  EXPECT_FLOAT_EQ(0.0f, ppm_at_infinity(H2_A, H2_B, RegressionMethod::REGRESSION_EXPONENTIAL));
+  EXPECT_EQ(FLT_MAX, mqmath::ppm_at_infinity(10.0f, 2.0f, RegressionMethod::REGRESSION_EXPONENTIAL));
+  EXPECT_FLOAT_EQ(0.0f, mqmath::ppm_at_infinity(H2_A, H2_B, RegressionMethod::REGRESSION_EXPONENTIAL));
   // The MQ-131 ozone curve gives 0.12 ppm in clean air (ratio 15), far below the
   // 1 ppm top of its 10 - 1000 ppb range.
   EXPECT_NEAR(0.115f, ppm_from_ratio(0.41195f, -0.4708f, 15.0f, RegressionMethod::REGRESSION_EXPONENTIAL), 0.001f);
