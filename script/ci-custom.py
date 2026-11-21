@@ -1488,9 +1488,10 @@ CPP_SKIP_RE = (
     CPP_COMMENT_RE
     + r'|R"(?P<raw_delim>[^(\s]*)\(.*?\)(?P=raw_delim)"|"(?:[^"\\]|\\.)*"|\'(?:[^\'\\\n]|\\.)\''
 )
-LOG_CALL_TOKEN_RE = re.compile(CPP_SKIP_RE + r"|[()\[\]{},]", re.DOTALL)
-# Also template brackets for splitting arguments: clang-format writes a comparison as `a < b`, so a
-# `<` right after a name opens a template argument list, and `>` closes one unless it is `->` or `>=`
+LOG_CALL_TOKEN_RE = re.compile(CPP_SKIP_RE + r"|[()]", re.DOTALL)
+# Splitting arguments also needs brackets, braces, commas and template brackets: clang-format writes a
+# comparison as `a < b`, so a `<` right after a name opens a template argument list, and `>` closes
+# one unless it is `->` or `>=`
 LOG_ARG_TOKEN_RE = re.compile(
     CPP_SKIP_RE + r"|[()\[\]{},]|(?<=\w)<(?![<=])|(?<!-)>(?!=)", re.DOTALL
 )
@@ -1669,22 +1670,32 @@ def lint_log_no_bare_literal_ternary(
     return errs
 
 
-def _log_call_arg(call: str, index: int) -> tuple[int, str] | None:
+def _log_call_arg(
+    call: str, index: int, templates: bool = True
+) -> tuple[int, str] | None:
     """(offset, text as written) of a top level argument of a balanced log call, None if it has fewer."""
-    depth, templates, start, arg = 0, 0, call.index("(") + 1, 0
+    depth, start, arg = 0, call.index("(") + 1, 0
+    opened: list[int] = []  # depth at which each open template argument list started
     for tok in LOG_ARG_TOKEN_RE.finditer(call, start):
         t = tok.group(0)
         if t == "<":
-            templates += 1
+            if templates:
+                opened.append(depth)
         elif t == ">":
-            templates = max(templates - 1, 0)
+            if opened and opened[-1] == depth:
+                opened.pop()
         elif t in "([{":
             depth += 1
         elif depth > 0 and t in ")]}":
             depth -= 1
-        elif templates > 0 and t == ",":
+            while opened and opened[-1] > depth:
+                opened.pop()  # a `<` that never closed inside these parens
+        elif opened and opened[-1] == depth and t == ",":
             continue
         elif depth == 0 and t in ",)":
+            if t == ")" and opened:
+                # A `<` that never closed was a comparison after all
+                return _log_call_arg(call, index, templates=False)
             if arg == index:
                 return start, call[start : tok.start()]
             if t == ")":
