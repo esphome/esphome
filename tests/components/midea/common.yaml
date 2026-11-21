@@ -63,3 +63,58 @@ climate:
       name: Power
     humidity_setpoint:
       name: Humidity
+
+sensor:
+  - platform: midea
+    midea_id: midea_unit
+    energy_format: BINARY
+    error_code:
+      name: Error Code
+    compressor_frequency:
+      name: Compressor Frequency
+    compressor_target_frequency:
+      name: Compressor Target Frequency
+    compressor_current:
+      name: Compressor Current
+    compressor_voltage:
+      name: Compressor Voltage
+    indoor_coil_temperature:
+      name: Indoor Coil Temperature
+    outdoor_coil_temperature:
+      name: Outdoor Coil Temperature
+    discharge_temperature:
+      name: Discharge Temperature
+    indoor_fan_speed:
+      name: Indoor Fan Speed
+    indoor_fan_target_speed:
+      name: Indoor Fan Target Speed
+    total_energy:
+      name: Total Energy
+    current_energy:
+      name: Current Energy
+    real_time_power:
+      name: Real Time Power
+    indoor_humidity:
+      name: Indoor Humidity
+    outdoor_fan_speed:
+      name: Outdoor Fan Speed
+    outdoor_unit_power:
+      name: Outdoor Unit Power
+    horizontal_louver_angle:
+      name: Horizontal Louver Angle
+    vertical_louver_angle:
+      name: Vertical Louver Angle
+
+binary_sensor:
+  - platform: midea
+    midea_id: midea_unit
+    defrost:
+      name: Defrost
+    water_pump:
+      name: Water Pump
+    filter_alert:
+      name: Filter Alert
+    display:
+      name: Display
+    follow_me:
+      name: Follow Me Active
