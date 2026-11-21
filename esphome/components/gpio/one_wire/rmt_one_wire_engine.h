@@ -48,6 +48,9 @@ class Engine {
   /// When the transaction on the bus ends, the same call starts the next one.
   void poll();
   bool is_idle() const { return this->queue_.empty(); }
+  /// While !is_idle(): ms until poll() has work even if no completion arrives. That is the time left until the
+  /// running section times out, or 0 when a transaction waits to start.
+  uint32_t next_poll_in_ms() const;
   /// True while poll() or a blocking method runs, except inside on_done.
   bool is_busy() const { return this->busy_; }
   /// All queued and future work ends in HARDWARE_ERROR: at once, or when the engine call that runs now returns.

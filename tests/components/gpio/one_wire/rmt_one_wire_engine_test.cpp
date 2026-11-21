@@ -801,6 +801,70 @@ TEST_P(RmtOneWireLostCompletion, TimeoutInALaterSection) {
   EXPECT_EQ(rig.port.abort_count, 1);
 }
 
+TEST(RmtOneWireEngine, NextPollInMsIsTheTimeLeftOfTheRunningSection) {
+  // The bus wakes the loop at this time, so a lost completion times out even with a raised loop_interval
+  Rig rig;
+  add_scratchpad_device(rig);
+  rig.port.manual = true;
+  DoneLog log;
+  Job job(&log, 1, ROM_A, {READ_SCRATCHPAD}, 9);
+  ASSERT_TRUE(rig.engine.submit(&job.t));
+  EXPECT_EQ(rig.engine.next_poll_in_ms(), 0u) << "waits to start";
+  rig.engine.poll();
+  ASSERT_EQ(rig.port.sections.size(), 1u);
+  EXPECT_EQ(rig.engine.next_poll_in_ms(), 50u);
+  rig.port.advance_us(20 * MS);
+  EXPECT_EQ(rig.engine.next_poll_in_ms(), 30u);
+
+  // The next section has a deadline of its own
+  rig.port.fire_tx();
+  rig.port.fire_rx();
+  rig.engine.poll();
+  ASSERT_EQ(rig.port.sections.size(), 2u);
+  EXPECT_EQ(rig.engine.next_poll_in_ms(), 50u);
+  rig.port.advance_us(49 * MS);
+  EXPECT_EQ(rig.engine.next_poll_in_ms(), 1u);
+  rig.engine.poll();
+  EXPECT_TRUE(log.empty());
+
+  // At the deadline, the poll() at that time ends the section
+  rig.port.advance_us(1 * MS);
+  EXPECT_EQ(rig.engine.next_poll_in_ms(), 0u);
+  rig.port.advance_us(1000 * MS);
+  EXPECT_EQ(rig.engine.next_poll_in_ms(), 0u) << "stays 0 past the deadline";
+  rig.engine.poll();
+  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_TIMEOUT}}));
+  EXPECT_TRUE(rig.engine.is_idle());
+}
+
+TEST(RmtOneWireEngine, NextPollInMsIsZeroWhileATransactionWaitsToStart) {
+  Rig rig;
+  add_scratchpad_device(rig);
+  rig.port.line_low_until_us = 1000;
+  DoneLog log;
+  Job first(&log, 1, ROM_A, {READ_SCRATCHPAD}, 9);
+  Job second(&log, 2, ROM_A, {READ_SCRATCHPAD}, 9);
+  ASSERT_TRUE(rig.engine.submit(&first.t));
+  ASSERT_TRUE(rig.engine.submit(&second.t));
+  rig.engine.poll();
+  ASSERT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_BUS_LOW}}));
+  ASSERT_FALSE(rig.engine.is_idle());
+  EXPECT_EQ(rig.engine.next_poll_in_ms(), 0u);
+}
+
+TEST(RmtOneWireEngine, NextPollInMsWorksAcrossTheClockWrap) {
+  Rig rig;
+  add_scratchpad_device(rig);
+  rig.port.manual = true;
+  rig.port.set_time_base_ms(0xFFFFFFFFu - 10u);
+  DoneLog log;
+  Job job(&log, 1, ROM_A, {READ_SCRATCHPAD}, 9);
+  ASSERT_TRUE(rig.engine.submit(&job.t));
+  rig.engine.poll();
+  rig.port.advance_us(20 * MS);
+  EXPECT_EQ(rig.engine.next_poll_in_ms(), 30u);
+}
+
 TEST(RmtOneWireEngine, TimeoutOfAWriteSectionOnlyNeedsTx) {
   Rig rig;
   add_scratchpad_device(rig);
