@@ -68,6 +68,10 @@ ProcessedOutput process_output(const float *output_data, int num_classes, Output
 /// float overload. Returns {0.0f, 0.0f} on error.
 ProcessedOutput process_output(TfLiteTensor *output_tensor, OutputProcessing mode, float scale_factor, bool debug);
 
+/// @brief Read one entry of an output tensor as a float, dequantizing int8/uint8.
+/// @return false when the tensor or its type cannot be read.
+bool read_tensor_value(const TfLiteTensor *tensor, size_t index, float *out);
+
 /// @brief Turns a model's output tensors into a result.
 ///
 /// A model kind implements this when its outputs are not one classification tensor:
