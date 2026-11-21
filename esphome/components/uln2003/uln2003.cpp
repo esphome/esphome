@@ -18,9 +18,9 @@ void ULN2003::setup() {
 }
 void ULN2003::loop() {
   int dir = this->should_step_();
-  if (dir == 0 && this->has_reached_target()) {
-    this->high_freq_.stop();
-
+  const bool done = dir == 0 && this->has_reached_target();
+  this->high_freq_.set(!done);
+  if (done) {
     if (this->sleep_when_done_) {
       this->pin_a_->digital_write(false);
       this->pin_b_->digital_write(false);
@@ -30,7 +30,6 @@ void ULN2003::loop() {
       return;
     }
   } else {
-    this->high_freq_.start();
     this->current_uln_pos_ += dir;
   }
 
