@@ -552,3 +552,199 @@ def test_generated_ids_are_named_by_position(
     finally:
         fv.full_config.reset(token)
     assert f"'{label}' (192), 'other' (192)" in messages[0]
+
+
+# A component without rmt_symbols that creates one RX and one TX channel of one block
+RX_AND_TX = (("RX", 1), ("TX", 1))
+
+
+def _bus(name: str, **extra: object) -> dict[str, Any]:
+    return {CONF_ID: ID(name, is_manual=True), **extra}
+
+
+def test_fixed_channels_count_in_each_pool() -> None:
+    """Each entry of request_rmt_channels() takes one channel per direction."""
+    _set_variant(VARIANT_ESP32C3)
+    buses = [_bus(f"bus{i}") for i in range(3)]
+    for bus in buses:
+        esp32_rmt.request_rmt_channels(RX_AND_TX, PRIORITY)(bus)
+    with pytest.raises(cv.Invalid) as error:
+        esp32_rmt.final_validate_rmt_channels(buses[0])
+    assert "ESP32C3 has 2 RMT channels for TX, but these 3 components" in str(
+        error.value
+    )
+    assert "ESP32C3 has 2 RMT channels for RX, but these 3 components" in str(
+        error.value
+    )
+
+
+def test_fixed_channels_share_the_pool_on_esp32() -> None:
+    """On the ESP32 both channels of an entry come from the shared pool."""
+    _set_variant(VARIANT_ESP32)
+    buses = [_bus(f"bus{i}") for i in range(4)]
+    for bus in buses:
+        esp32_rmt.request_rmt_channels(RX_AND_TX, PRIORITY)(bus)
+    esp32_rmt.final_validate_rmt_channels(buses[0])
+
+    _set_variant(VARIANT_ESP32)
+    buses.append(_bus("bus4"))
+    for bus in buses:
+        esp32_rmt.request_rmt_channels(RX_AND_TX, PRIORITY)(bus)
+    with pytest.raises(
+        cv.Invalid,
+        match=(
+            r"ESP32 has 8 RMT channels shared by TX and RX, but these components need "
+            r"10: 'bus0' \(2 channels\), 'bus1' \(2 channels\)"
+        ),
+    ):
+        esp32_rmt.final_validate_rmt_channels(buses[0])
+
+
+@pytest.mark.parametrize(
+    ("bus_priority", "usage"),
+    [
+        (800.0, "'rx' will not fit: 'bus' (RX 48), 'bus' (TX 48), 'rx' (96)"),
+        (500.0, "'bus' will not fit: 'rx' (96), 'bus' (RX 48), 'bus' (TX 48)"),
+    ],
+    ids=["bus_first", "bus_last"],
+)
+def test_fixed_channels_take_memory_in_setup_order(
+    caplog: pytest.LogCaptureFixture, bus_priority: float, usage: str
+) -> None:
+    """A receiver of two blocks and the RX block of the bus do not fit together on C3."""
+    _set_variant(VARIANT_ESP32C3)
+    bus = _bus("bus", **{CONF_SETUP_PRIORITY: bus_priority})
+    receiver = _entry("rx", 96)
+    with caplog.at_level(logging.WARNING):
+        esp32_rmt.request_rmt_channels(RX_AND_TX, 799.0)(bus)
+        esp32_rmt.request_rmt_channel("RX", PRIORITY)(receiver)
+        esp32_rmt.final_validate_rmt_channels(bus)
+        esp32_rmt.final_validate_rmt_channels(receiver)
+        _generate([bus, receiver])
+    messages = _rmt_messages(caplog)
+    assert len(messages) == 1
+    assert usage in messages[0]
+    assert "Set 'rmt_symbols: 48' on 'rx'" in messages[0]
+
+
+def test_fixed_channels_fit_next_to_a_small_receiver(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    _set_variant(VARIANT_ESP32C3)
+    bus = _bus("bus")
+    receiver = _entry("rx", 48)
+    with caplog.at_level(logging.WARNING):
+        esp32_rmt.request_rmt_channels(RX_AND_TX, 799.0)(bus)
+        esp32_rmt.request_rmt_channel("RX", PRIORITY)(receiver)
+        esp32_rmt.final_validate_rmt_channels(bus)
+        esp32_rmt.final_validate_rmt_channels(receiver)
+        _generate([bus, receiver])
+    assert len(esp32_rmt._get_data().channels) == 3
+    assert not _rmt_messages(caplog)
+
+
+@pytest.mark.parametrize("variant", [VARIANT_ESP32C2, "ESP32X1"])
+def test_fixed_channels_not_recorded_without_rmt_caps(variant: str) -> None:
+    _set_variant(variant)
+    esp32_rmt.request_rmt_channels(RX_AND_TX, PRIORITY)(_bus("bus"))
+    assert not esp32_rmt._get_data().channels
+
+
+def _check_fixed(
+    caplog: pytest.LogCaptureFixture,
+    variant: str,
+    buses: list[tuple[dict[str, Any], tuple[tuple[str, int], ...]]],
+    config: Config,
+) -> list[str]:
+    """Validate fixed size buses and rmt_symbols entries, then generate code in this order."""
+    _set_variant(variant)
+    entries = [bus for bus, _ in buses]
+    entries += [entry for values in config.values() for entry in values]
+    with caplog.at_level(logging.WARNING):
+        for bus, channels in buses:
+            esp32_rmt.request_rmt_channels(channels, 799.0)(bus)
+        for direction, values in config.items():
+            for entry in values:
+                esp32_rmt.request_rmt_channel(direction, PRIORITY)(entry)
+        for entry in entries:
+            esp32_rmt.final_validate_rmt_channels(entry)
+        _generate(entries)
+    return _rmt_messages(caplog)
+
+
+@pytest.mark.parametrize(
+    ("variant", "channels", "symbols", "advice"),
+    [
+        # The two RX blocks of the bus leave none for the receiver
+        (
+            VARIANT_ESP32C3,
+            (("RX", 2), ("TX", 1)),
+            48,
+            "Remove some of these components or use a chip with more RMT memory.",
+        ),
+        # The three RX blocks of the bus leave one for the receiver
+        (VARIANT_ESP32S3, (("RX", 3),), 96, "Set 'rmt_symbols: 48' on 'rx'."),
+    ],
+    ids=["nothing_to_reduce", "reduce_the_receiver"],
+)
+def test_suggestion_leaves_out_fixed_channels(
+    caplog: pytest.LogCaptureFixture,
+    variant: str,
+    channels: tuple[tuple[str, int], ...],
+    symbols: int,
+    advice: str,
+) -> None:
+    """A component without rmt_symbols is not told to set it, and keeps its blocks."""
+    messages = _check_fixed(
+        caplog, variant, [(_bus("bus"), channels)], {"RX": [_entry("rx", symbols)]}
+    )
+    assert len(messages) == 1
+    assert "'rx' will not fit" in messages[0]
+    assert advice in messages[0]
+    assert "on 'bus'" not in messages[0]
+
+
+def test_channels_of_one_component_keep_their_order(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """setup_priority cannot change the order of the channels inside one component."""
+    messages = _check_fixed(
+        caplog, VARIANT_ESP32C3, [(_bus("bus"), (("TX", 2), ("TX", 1)))], {}
+    )
+    assert len(messages) == 1
+    assert "'bus' will not fit" in messages[0]
+    assert "setup_priority" not in messages[0]
+    assert "Remove some of these components" in messages[0]
+
+
+def test_setup_priority_moves_a_whole_component(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A small strip set up before the bus fits, so setup_priority is suggested."""
+    messages = _check_fixed(
+        caplog, VARIANT_ESP32C3, [(_bus("bus"), (("TX", 2),))], _strips(48)
+    )
+    assert len(messages) == 1
+    assert "'strip0' will not fit" in messages[0]
+    assert "set 'setup_priority' so the smaller ones are set up first" in messages[0]
+
+
+def test_components_with_the_same_label_are_counted_apart(
+    run_check: CheckRunner,
+) -> None:
+    """A strip named 'ir' and a transmitter with the id 'ir' are two components."""
+    strip = {**_entry("strip", 96), CONF_NAME: "ir"}
+    config = {"TX": [strip, _entry("ir", 96), _entry("other", 96)]}
+    with pytest.raises(cv.Invalid) as error:
+        run_check(VARIANT_ESP32C3, config)
+    assert "these 3 components each need one: 'ir', 'ir', 'other'." in str(error.value)
+
+
+def test_warning_counts_components_with_the_same_label_apart(
+    run_check: CheckRunner,
+) -> None:
+    """The warning shows no direction for two single channel components named alike."""
+    strip = {**_entry("strip", 192), CONF_NAME: "ir"}
+    messages = run_check(VARIANT_ESP32S2, {"TX": [strip, _entry("ir", 192)]})
+    assert len(messages) == 1
+    assert "will not fit: 'ir' (192), 'ir' (192)." in messages[0]
