@@ -1488,7 +1488,16 @@ CPP_SKIP_RE = (
     CPP_COMMENT_RE
     + r'|R"(?P<raw_delim>[^(\s]*)\(.*?\)(?P=raw_delim)"|"(?:[^"\\]|\\.)*"|\'(?:[^\'\\\n]|\\.)\''
 )
-LOG_CALL_TOKEN_RE = re.compile(CPP_SKIP_RE + r"|[(),]", re.DOTALL)
+LOG_CALL_TOKEN_RE = re.compile(CPP_SKIP_RE + r"|[()\[\]{},]", re.DOTALL)
+# Call heads are found in the same pass that skips comments and literals, so commented-out code and
+# code examples inside strings are never taken for calls
+LOG_CALL_HEAD_SCAN_RE = re.compile(
+    CPP_SKIP_RE + "|" + LOG_CALL_START_RE.pattern, re.DOTALL
+)
+# A format argument that is a string literal, after any comments; raw and prefixed literals count too
+LOG_FORMAT_LITERAL_RE = re.compile(
+    r"(?:\s|" + CPP_COMMENT_RE + r')*(?P<fmt>(?:u8|u|U|L)?R?")', re.DOTALL
+)
 # The last alternative matches a ? or : followed (after spaces or comments) by an opening quote,
 # i.e. a string literal used as a ternary branch.
 LOG_TERNARY_LITERAL_RE = re.compile(
@@ -1507,7 +1516,9 @@ def _iter_log_calls(content: str) -> Iterator[tuple[int, str | None]]:
     """Yield (start, text) for every ESP_LOG*(...) and esp_log_printf_(...) call, text running to the
     matching close paren.
     text is None when no matching paren exists so callers can report the call instead of skipping it."""
-    for head in LOG_CALL_START_RE.finditer(content):
+    for head in LOG_CALL_HEAD_SCAN_RE.finditer(content):
+        if not LOG_CALL_START_RE.fullmatch(head.group(0)):
+            continue  # a comment or literal
         depth = 1
         for tok in LOG_CALL_TOKEN_RE.finditer(content, head.end()):
             if tok.group(0) == "(":
@@ -1654,18 +1665,17 @@ def lint_log_no_bare_literal_ternary(
 
 
 def _log_call_arg(call: str, index: int) -> tuple[int, str] | None:
-    """(offset, stripped text) of a top level argument of a balanced log call, None if it has fewer."""
+    """(offset, text as written) of a top level argument of a balanced log call, None if it has fewer."""
     depth, start, arg = 0, call.index("(") + 1, 0
     for tok in LOG_CALL_TOKEN_RE.finditer(call, start):
         t = tok.group(0)
-        if t == "(":
+        if t in "([{":
             depth += 1
-        elif depth > 0 and t == ")":
+        elif depth > 0 and t in ")]}":
             depth -= 1
         elif depth == 0 and t in ",)":
             if arg == index:
-                text = call[start : tok.start()]
-                return start + len(text) - len(text.lstrip()), text.strip()
+                return start, call[start : tok.start()]
             if t == ")":
                 return None
             arg += 1
@@ -1684,9 +1694,10 @@ def lint_log_direct_call_format_in_flash(
         if log_text is None or not log_text.startswith("esp_log_printf_"):
             continue
         fmt_arg = _log_call_arg(log_text, 3)
-        if fmt_arg is None or not fmt_arg[1].startswith('"'):
+        if fmt_arg is None or not (m := LOG_FORMAT_LITERAL_RE.match(fmt_arg[1])):
             continue
-        fmt_offset, fmt = fmt_arg
+        fmt_offset = fmt_arg[0] + m.start("fmt")
+        fmt = fmt_arg[1][m.start("fmt") :].strip()
         if _log_call_has_nolint(content, log_start, log_text):
             continue
         lineno, col = _line_col(content, log_start + fmt_offset)
