@@ -206,11 +206,35 @@ def sign_firmware(source, target, env):
 
     if result == 0:
         print("Successfully signed firmware")
+        _put_signed_app_in_factory_bin(env, firmware_path)
     else:
         print(f"Error: espsecure sign_data failed with code {result}")
         # Restore unsigned binary on failure
         shutil.copyfile(str(unsigned_path), str(firmware_path))
         env.Exit(1)
+
+
+def _put_signed_app_in_factory_bin(env, firmware_path):
+    """
+    Replace the app in firmware.factory.bin with the signed one.
+
+    PlatformIO's esp-idf builder merges firmware.factory.bin in a post-build
+    action that runs before sign_firmware, so that file holds the unsigned app,
+    and merge_factory_bin keeps it. A device flashed with it runs an app with no
+    signature block, trusts no key, and refuses every OTA update.
+    """
+    factory_path = firmware_path.with_suffix(".factory.bin")
+    if not factory_path.exists():
+        return
+    app_offset = int(env.subst("$ESP32_APP_OFFSET") or "0x10000", 16)
+    signed = firmware_path.read_bytes()
+    factory = bytearray(factory_path.read_bytes())
+    end = app_offset + len(signed)
+    if len(factory) < end:
+        factory.extend(b"\xff" * (end - len(factory)))
+    factory[app_offset:end] = signed
+    factory_path.write_bytes(factory)
+    print(f"Put the signed firmware in {factory_path.name}")
 
 
 def merge_factory_bin(source, target, env):
