@@ -13,27 +13,21 @@
 
 namespace esphome::tflite_op_processor {
 
-// Upper bound for tflite::MicroMutableOpResolver<N> used by the components that
-// register operators (model loader, arena probe). tflite_micro_runtime codegen
-// raises it to the largest operator count of the configured models through
-// cg.add_define(), so the name is prefixed to stay out of the global namespace.
+// Upper bound for tflite::MicroMutableOpResolver<N>; tflite_micro_runtime
+// codegen raises it for the widest configured model with cg.add_define().
 #ifndef TFLITE_MICRO_MAX_OPERATORS
 #define TFLITE_MICRO_MAX_OPERATORS 30  // NOLINT
 #endif
 
-// Non-template logging helpers - defined in op_resolver.cpp to avoid logging
-// macros in headers.
+// Non-template logging helpers, defined in op_resolver.cpp to keep the macros out of this header.
 void log_op_registering(const char *tag, const char *op_name);
 void log_op_unavailable(const char *tag, const char *op_name);
 void log_op_not_compiled(const char *tag, const char *op_name);
 void log_op_unknown(const char *tag, const char *op_name);
 void log_op_failed(const char *tag, const char *op_name);
 
-// Operators whose Add*() methods were only added in newer esp-tflite-micro
-// releases are detected at compile time, so the resolver also builds against
-// older releases. Expanding the operator table in traits mode defines one
-// has_<method> trait per TFLM_OP_CONDITIONAL entry, so the traits come from the
-// table and cannot drift from it.
+// TFLM_OP_CONDITIONAL entries get a has_<method> trait from the table, so the
+// resolver builds against releases without that Add*() method.
 #define TFLM_OP_AVAILABLE(op_suffix, method)
 #define TFLM_OP_UNAVAILABLE(op_suffix)
 #define TFLM_OP_CONDITIONAL(op_suffix, method) \
@@ -48,25 +42,12 @@ void log_op_failed(const char *tag, const char *op_name);
 #undef TFLM_OP_UNAVAILABLE
 #undef TFLM_OP_CONDITIONAL
 
-// Compiling every kernel in the table costs flash the firmware may not need.
-// When tflite_micro_runtime codegen knows the operator set of every configured
-// model, it emits USE_TFLITE_MICRO_SELECTIVE_OPS and one TFLM_OP_ENABLED_<suffix>
-// flag per table entry (1 = compiled in, 0 = left out). Without those defines
-// every operator stays available, which is what a model swap at run time needs;
-// the flags are then expanded from the table itself in flags mode.
-//
-// Both the flags and the switch below paste the name from the table suffix, so a
-// suffix is never macro-expanded on the way. A helper macro taking the suffix as
-// an argument would receive it already expanded: ARG_MAX is 65536 on ESP-IDF, so
-// that entry would turn into TFLM_OP_ENABLED_65536 and fail to compile.
-//
-// The two modes give the flags a different shape, so read them unqualified:
-//  - selective build: global #defines in defines.h, written by codegen
-//  - table-driven build: enumerators of an unnamed enum in this namespace
-// A qualified name (esphome::tflite_op_processor::TFLM_OP_ENABLED_X) can only
-// work where the flag is an enumerator; in the selective build the preprocessor
-// replaces TFLM_OP_ENABLED_X inside it and leaves a namespace followed by a
-// number. The bare name works in both modes here, in this namespace.
+// With USE_TFLITE_MICRO_SELECTIVE_OPS, codegen emits one TFLM_OP_ENABLED_<suffix>
+// flag per table entry (1 compiled in, 0 left out); without it every operator is
+// available, which a model swap at run time needs. The suffix is pasted from the
+// table because a macro argument would arrive expanded: ARG_MAX is 65536 on
+// ESP-IDF, which would become TFLM_OP_ENABLED_65536. The flags are read
+// unqualified: a global define in a selective build, an enumerator otherwise.
 #ifndef USE_TFLITE_MICRO_SELECTIVE_OPS
 #define TFLM_OP_AVAILABLE(op_suffix, method) TFLM_OP_ENABLED_##op_suffix = 1,
 #define TFLM_OP_UNAVAILABLE(op_suffix)
@@ -80,20 +61,16 @@ enum : uint8_t {
 #undef TFLM_OP_UNAVAILABLE
 #undef TFLM_OP_CONDITIONAL
 #endif
-
 #ifdef USE_TFLITE_MICRO_SELECTIVE_OPS
-// A selective build enables a kernel only because a configured model needs it, so
-// a library without that Add*() method cannot run the model: fail the build here
+// A selective build fails here when the library lacks an Add*() a model needs,
 // instead of reporting it at registration time on the device.
 #define TFLM_OP_REQUIRE_METHOD(method) \
   static_assert(has_##method<Resolver>::value, \
                 "esp-tflite-micro does not provide " #method "(), which a configured model needs");
 #else
-// The table-driven build stays compatible with older releases: every kernel is
-// included, and one the library lacks is reported when a model asks for it.
+// The table-driven build keeps every kernel; one the library lacks is reported at load.
 #define TFLM_OP_REQUIRE_METHOD(method)
 #endif
-
 class OpResolverManager {
  public:
   template<size_t tOpCount>
@@ -109,12 +86,8 @@ class OpResolverManager {
 
       TfLiteStatus add_status = kTfLiteError;
 
-      // X-Macro: generates case statements from tflm_operators.h
-      // For available operators: calls resolver.AddXxx() when the operator is
-      // compiled in, reports it as left out otherwise
-      // For unavailable operators: logs warning and returns false
-      // For conditional operators: same, but only when the library resolver
-      // provides the AddXxx() method
+      // X-macro: one case per table entry. A kernel left out of the build, an
+      // unavailable operator and an unknown code are reported and fail the load.
       switch (op) {
 #define TFLM_OP_AVAILABLE(op_suffix, method) \
   case tflite::BuiltinOperator_##op_suffix: \

@@ -1,9 +1,4 @@
-"""Read a TFLite model's flatbuffer without TensorFlow.
-
-The operators and tensor shapes live in the ``.tflite`` file, so reading them needs nothing beyond the standard
-library and cannot go stale like a report. Every read is bounds checked, so a truncated model raises
-:class:`ModelReadError` with the offset.
-"""
+"""Read a TFLite model's flatbuffer without TensorFlow; every read is bounds checked."""
 
 from __future__ import annotations
 
@@ -212,10 +207,7 @@ def _operator_name(code: int) -> str:
 
 
 def read_model_operators(model_path: str | Path) -> frozenset[str]:
-    """The operators a model declares, as ``tflm_operators.h`` names them.
-    One entry per distinct code, so ``len()`` is the resolver slots the model needs; raises
-    :class:`ModelReadError` when the file cannot be read or is not a model.
-    """
+    """The operators a model declares, one entry per code, so ``len()`` is the resolver slots it needs."""
     return frozenset(
         _operator_name(code) for code in _operator_codes(_load(model_path))
     )
@@ -228,11 +220,8 @@ def _subgraph(buffer: _FlatBuffer) -> int:
 
 
 def read_model_input(model_path: str | Path) -> ModelInput:
-    """The input tensor a model declares.
-
-    The shape is returned as the model stores it: ``[1, height, width, channels]`` for an image model and
-    ``[1, frames, features]`` for a streaming one, so each consumer checks the layout it can fill. A type the
-    runtime cannot fill raises :class:`ModelReadError`.
+    """The input tensor a model declares, with the shape as stored: ``[1, height, width, channels]`` for an image
+    model and ``[1, frames, features]`` for a streaming one. A type the runtime cannot fill is an error.
     """
     buffer = _load(model_path)
     subgraph = _subgraph(buffer)
@@ -330,10 +319,7 @@ def _peak_activation_bytes(
 
 
 def estimate_tensor_arena(model_path: str | Path) -> ArenaEstimate:
-    """Estimate the tensor arena a model needs, from the model itself.
-    The device measures the exact size, so this is only the seed the probe starts from; a close one keeps its first
-    attempt small.
-    """
+    """Estimate the arena size from the model; the device probe measures the exact size."""
     buffer = _load(model_path)
     subgraph = _subgraph(buffer)
     tensors = _read_tensors(buffer, subgraph, _buffers_with_data(buffer))

@@ -1,7 +1,4 @@
-"""Operator resolution for TFLite Micro models.
-
-Library-only component, loaded by tflite_micro_runtime: its C++ sources register the operators a model needs.
-"""
+"""Register the operators a TFLite Micro model needs; loaded by tflite_micro_runtime."""
 
 from dataclasses import dataclass
 import logging

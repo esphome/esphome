@@ -1,11 +1,8 @@
 """TFLite ``BuiltinOperator`` codes, for naming the operators a model declares.
 
-A ``.tflite`` model names its operators by number, so the reader needs this number-to-name table, which mirrors the
-``BuiltinOperator`` enum. The enum is append-only, so a code keeps its number across schema versions and the table is
-safe to compare against ``tflm_operators.h``, which the sync test does.
-
-Values verified against esp-tflite-micro 1.4.1 ``schema_generated.h``. DO NOT EDIT by hand; ``# fmt: off`` keeps
-the generated table from being exploded to one entry per line.
+A ``.tflite`` model names its operators by number, so the reader needs this number-to-name table. The enum is
+append-only, so a code keeps its number across schema versions; a sync test compares the names with
+``tflm_operators.h``. Values verified against esp-tflite-micro 1.4.1 ``schema_generated.h``; do not edit by hand.
 """
 
 # fmt: off

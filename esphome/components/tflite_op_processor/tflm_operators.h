@@ -1,12 +1,10 @@
-// X-macro body, #included inside a switch statement and an enum body in op_resolver.h, so it takes no namespace of
-// its own; the marker below satisfies the ci-custom.py regex check.
+// X-macro body, #included inside a switch and an enum in op_resolver.h, so it takes no namespace of its own; the
+// marker below satisfies the ci-custom.py regex check.
 // namespace esphome::tflite_op_processor
-// No #pragma once: it is expanded once per mode (TFLM_OPERATORS_ACTIVE for the switch, _TRAITS for has_<method>,
-// _FLAGS for the compiled-in flags). Each mode defines TFLM_OP_AVAILABLE, TFLM_OP_UNAVAILABLE and
-// TFLM_OP_CONDITIONAL first, and the guard below makes a stray include a no-op.
-// Verified against esp-tflite-micro 1.4.1 micro_mutable_op_resolver.h. DO NOT EDIT without cross-referencing it.
-// Format: TFLM_OP_AVAILABLE(suffix, AddMethod) exists in the ESP32 library; TFLM_OP_UNAVAILABLE(suffix) does not;
-// TFLM_OP_CONDITIONAL(suffix, AddMethod) is registered only if the resolver has AddMethod.
+// No #pragma once: it is expanded once per mode (ACTIVE for the switch, TRAITS for has_<method>, FLAGS for the
+// compiled-in flags), and each mode defines the three macros first; the guard below makes a stray include a no-op.
+// Verified against esp-tflite-micro 1.4.1; do not edit without cross-referencing it. Format: AVAILABLE(suffix,
+// AddMethod) exists in the library, UNAVAILABLE(suffix) does not, CONDITIONAL is registered only if AddMethod exists.
 
 #if defined(TFLM_OPERATORS_ACTIVE) || defined(TFLM_OPERATORS_TRAITS) || defined(TFLM_OPERATORS_FLAGS)
 
