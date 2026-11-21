@@ -84,13 +84,14 @@ uint16_t LibreTinyUARTComponent::get_config() {
   return config;
 }
 
-void LibreTinyUARTComponent::open_hardware_port_([[maybe_unused]] pin_size_t tx_pin,
+bool LibreTinyUARTComponent::open_hardware_port_([[maybe_unused]] pin_size_t tx_pin,
                                                  [[maybe_unused]] pin_size_t rx_pin) {
   SerialClass *hardware = hardware_serial(this->hardware_idx_);
   if (hardware == nullptr)
-    return;
+    return false;
   // LN882x: the port needs its SDK handle, at boot and after an end()
-  libretiny::ensure_serial_handle(this->hardware_idx_);
+  if (!libretiny::ensure_serial_handle(this->hardware_idx_))
+    return false;
 #ifdef USE_UART_LIBRETINY_PIN_ROUTING
   // Routes a port with pin choices to the configured pins (LibreTiny 1.12+, checked in codegen). setPins()
   // replaces a left-out pin (PIN_INVALID) with the port's default, so default-pin ports start as before.
@@ -98,6 +99,7 @@ void LibreTinyUARTComponent::open_hardware_port_([[maybe_unused]] pin_size_t tx_
 #else
   hardware->begin(this->baud_rate_, this->get_config());
 #endif
+  return true;
 }
 
 void LibreTinyUARTComponent::setup() {
@@ -128,7 +130,10 @@ void LibreTinyUARTComponent::setup() {
   SerialClass *hardware = should_fallback_to_software_serial() ? nullptr : hardware_serial(this->hardware_idx_);
   if (hardware != nullptr) {
     this->serial_ = hardware;
-    this->open_hardware_port_(tx_pin, rx_pin);
+    if (!this->open_hardware_port_(tx_pin, rx_pin)) {
+      ESP_LOGE(TAG, "UART%d could not be opened", this->hardware_idx_);
+      this->mark_failed(LOG_STR("Hardware UART could not be opened"));
+    }
     return;
   }
   this->hardware_idx_ = -1;
@@ -249,8 +254,8 @@ bool LibreTinyUARTComponent::set_tx_break(bool enable) {
 #endif
   if (enable == this->tx_break_)
     return true;
-  this->tx_break_ = enable;
   if (enable) {
+    this->tx_break_ = true;
     // the Arduino API has no break: the port is closed and the pin driven as a GPIO
     hardware->end();
     this->tx_pin_->setup();
@@ -265,7 +270,10 @@ bool LibreTinyUARTComponent::set_tx_break(bool enable) {
   // and LibreTiny would skip the setup of the next break for a pin on record as an output
   const pin_size_t tx_pin = this->tx_pin_->get_pin();
   pinModeRemove(tx_pin, PIN_GPIO);
-  this->open_hardware_port_(tx_pin, this->rx_pin_ == nullptr ? PIN_INVALID : this->rx_pin_->get_pin());
+  // the break stays on record until the port is open: a retry opens it again
+  if (!this->open_hardware_port_(tx_pin, this->rx_pin_ == nullptr ? PIN_INVALID : this->rx_pin_->get_pin()))
+    return false;
+  this->tx_break_ = false;
   return true;
 }
 #endif

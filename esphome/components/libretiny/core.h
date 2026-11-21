@@ -13,10 +13,10 @@ namespace esphome::libretiny {
 /// serial_init(), which fills it in, but only the default log port (UART1)
 /// has one at boot. Any other port hands it NULL and the chip faults before
 /// setup, so a logger or uart on UART0 never boots. Drop this once LibreTiny
-/// gives each port storage of its own.
-void ensure_serial_handle(uint8_t port);
+/// gives each port storage of its own. False for a port the SDK does not have.
+bool ensure_serial_handle(uint8_t port);
 #else
-inline void ensure_serial_handle(uint8_t /*port*/) {}
+inline bool ensure_serial_handle(uint8_t /*port*/) { return true; }
 #endif
 
 }  // namespace esphome::libretiny

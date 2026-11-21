@@ -1,0 +1,12 @@
+# action: reset, TX of the UART bus is held low. The bus is UART0: the logger must not write to it
+packages:
+  uart: !include ../../test_build_components/common/uart/esp8266-ard.yaml
+
+tuya:
+  mcu_watchdog:
+    action: reset
+    missed_heartbeats: 3
+    reset_time: 500ms
+
+logger:
+  baud_rate: 0

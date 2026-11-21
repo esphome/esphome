@@ -1,3 +1,5 @@
+from logging import getLogger
+
 from esphome import automation, pins
 from esphome.automation import parent_ref
 import esphome.codegen as cg
@@ -5,14 +7,27 @@ from esphome.components import time, uart
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ACTION,
+    CONF_BAUD_RATE,
     CONF_HEARTBEAT,
+    CONF_ID,
+    CONF_INVERTED,
+    CONF_MODE,
+    CONF_OPEN_DRAIN,
+    CONF_PULLDOWN,
+    CONF_PULLUP,
+    CONF_RX_PIN,
     CONF_SENSOR_DATAPOINT,
     CONF_TIME_ID,
+    CONF_TX_PIN,
+    CONF_UART_ID,
 )
 from esphome.core import CORE, AutoLoad, CoroPriority, coroutine_with_priority
 from esphome.cpp_generator import MockObj
+import esphome.final_validate as fv
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
+
+_LOGGER = getLogger(__name__)
 
 CODEOWNERS = ["@dwmw2", "@ssieb"]
 DOMAIN = "tuya"
@@ -33,9 +48,11 @@ CONF_STATUS_PIN = "status_pin"
 CONF_FORCE_TIME_SYNC = "force_time_sync"
 CONF_MCU_WATCHDOG = "mcu_watchdog"
 CONF_MISSED_HEARTBEATS = "missed_heartbeats"
+CONF_RESET_TIME = "reset_time"
 CONF_DATAPOINT_ACK = "datapoint_ack"
 
 ACTION_REBOOT = "reboot"
+ACTION_RESET = "reset"
 ACTION_DISABLE = "disable"
 
 tuya_ns = cg.esphome_ns.namespace("tuya")
@@ -114,13 +131,25 @@ def _validate_heartbeat(config: ConfigType) -> ConfigType:
     return config
 
 
+_MISSED_HEARTBEATS_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_MISSED_HEARTBEATS, default=6): cv.int_range(min=1, max=20),
+    }
+)
+
 # the options of each action: one without effect is rejected
 MCU_WATCHDOG_SCHEMA = cv.typed_schema(
     {
-        ACTION_REBOOT: cv.Schema(
+        ACTION_REBOOT: _MISSED_HEARTBEATS_SCHEMA,
+        # holds TX low for reset_time, which restarts the MCU's UART
+        ACTION_RESET: _MISSED_HEARTBEATS_SCHEMA.extend(
             {
-                cv.Optional(CONF_MISSED_HEARTBEATS, default=6): cv.int_range(
-                    min=1, max=20
+                cv.Optional(CONF_RESET_TIME, default="500ms"): cv.All(
+                    cv.positive_time_period_milliseconds,
+                    cv.Range(
+                        min=cv.TimePeriod(milliseconds=50),
+                        max=cv.TimePeriod(seconds=5),
+                    ),
                 ),
             }
         ),
@@ -177,6 +206,97 @@ def _validate_config(value: ConfigType | AutoLoad) -> ConfigType | AutoLoad | cv
 CONFIG_SCHEMA = _validate_config
 
 
+def _final_validate(config: ConfigType | AutoLoad) -> ConfigType | AutoLoad:
+    if isinstance(config, AutoLoad):
+        return config
+    if config.get(CONF_MCU_WATCHDOG, {}).get(CONF_ACTION) != ACTION_RESET:
+        return config
+    # the reset holds the TX pin of the bus low
+    path = [CONF_MCU_WATCHDOG, CONF_ACTION]
+    bus = fv.get_declaring_config(config[CONF_UART_ID])
+    if str(bus[CONF_ID].type) not in uart.NATIVE_UART_CLASSES:
+        raise cv.Invalid(
+            f"{CONF_ACTION}: {ACTION_RESET} requires a UART bus of the microcontroller itself",
+            path=path,
+        )
+    # another component on the bus would write while TX is held low
+    uart.claim_exclusive(config, DOMAIN)
+    # without the RX pin no heartbeat reply would end the resets
+    for pin in (CONF_TX_PIN, CONF_RX_PIN):
+        if pin not in bus:
+            raise cv.Invalid(
+                f"{CONF_ACTION}: {ACTION_RESET} requires a UART bus with a {pin}",
+                path=path,
+            )
+    if bus[CONF_TX_PIN].get(CONF_INVERTED, False):
+        raise cv.Invalid(
+            f"{CONF_ACTION}: {ACTION_RESET} requires a UART bus with a {CONF_TX_PIN} that is not inverted",
+            path=path,
+        )
+    if CORE.is_libretiny:
+        from esphome.components.libretiny import (
+            get_hardware_uarts,
+            get_libretiny_board,
+            has_software_serial,
+        )
+
+        # pin flags move the bus to SoftwareSerial where the family has it, and that cannot hold TX low
+        if has_software_serial():
+            for pin in (CONF_TX_PIN, CONF_RX_PIN):
+                if any(
+                    bus[pin][CONF_MODE].get(flag)
+                    for flag in (CONF_OPEN_DRAIN, CONF_PULLUP, CONF_PULLDOWN)
+                ):
+                    raise cv.Invalid(
+                        f"{CONF_ACTION}: {ACTION_RESET} requires a hardware UART: remove "
+                        f"{CONF_OPEN_DRAIN}, {CONF_PULLUP} and {CONF_PULLDOWN} from the {pin}",
+                        path=path,
+                    )
+        # so do pins that no hardware UART of the board takes
+        if uart.libretiny_uses_software_serial(bus):
+            raise cv.Invalid(
+                f"{CONF_ACTION}: {ACTION_RESET} requires a hardware UART: the board has none "
+                f"on these pins",
+                path=path,
+            )
+        # a board without pin data is matched to a hardware UART only at boot
+        if has_software_serial() and not get_hardware_uarts():
+            _LOGGER.warning(
+                "%s: %s needs a hardware UART, and board %s has no pin data to check the pins of %s. "
+                "On SoftwareSerial the device reboots in place of the reset.",
+                CONF_ACTION,
+                ACTION_RESET,
+                get_libretiny_board(),
+                bus[CONF_ID],
+            )
+        # the break is refused on the port the logger writes to
+        if (shared := uart.libretiny_logger_shares_port(bus)) is None:
+            _LOGGER.warning(
+                "%s: %s needs a UART that the logger does not write to, and the port of the logger "
+                "or of %s on board %s cannot be told. On the port of the logger the device reboots "
+                "in place of the reset.",
+                CONF_ACTION,
+                ACTION_RESET,
+                bus[CONF_ID],
+                get_libretiny_board(),
+            )
+    # ESP8266: a logger on UART0 writes while TX is held low
+    elif CORE.is_esp8266:
+        shared = uart.esp8266_logger_shares_port(bus)
+    else:
+        shared = False
+    if shared:
+        raise cv.Invalid(
+            f"{CONF_ACTION}: {ACTION_RESET} requires a UART that the logger does not write to: "
+            f"set the logger {CONF_BAUD_RATE} to 0 or move it to another hardware_uart",
+            path=path,
+        )
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
+
+
 async def setup_tuya(var: MockObj, config: ConfigType) -> None:
     """Apply the base-class options; called from a transport's to_code()."""
     for dp in config.get(CONF_IGNORE_MCU_UPDATE_ON_DATAPOINTS, []):
@@ -214,6 +334,12 @@ async def to_code(config: ConfigType | AutoLoad) -> None:
     ):
         cg.add_define("USE_TUYA_MCU_WATCHDOG")
         cg.add(var.set_mcu_watchdog(watchdog[CONF_MISSED_HEARTBEATS]))
+        if watchdog[CONF_ACTION] == ACTION_RESET:
+            cg.add_define("USE_TUYA_MCU_WATCHDOG_RESET")
+            uart.request_tx_break()
+            cg.add(
+                var.set_mcu_watchdog_reset(watchdog[CONF_RESET_TIME].total_milliseconds)
+            )
     await setup_tuya(var, config)
 
 
