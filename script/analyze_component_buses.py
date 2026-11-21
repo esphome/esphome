@@ -108,6 +108,7 @@ ISOLATED_COMPONENTS = {
     "uart_mux": "Depends on tinyusb which conflicts with usb_host",
     "usb_cdc_acm": "Depends on tinyusb which conflicts with usb_host",
     "web_server_idf": "Its HTTPS variant (test-ssl) can't be merged with web_server or captive_portal, and grouped runs skip variants",
+    "bt_spp": "Uses the Bluetooth controller in Classic-only mode, so it conflicts with esp32_ble and every BLE component",
     "brizlabs_led_string": "Takes SPI2_HOST for itself, which the shared spi: test bus also uses",
 }
 
