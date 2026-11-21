@@ -100,12 +100,12 @@ class Preprocessor final {
  protected:
   void release_();
 
-  std::array<uint32_t, 256> histogram_{};
   uint8_t *working_{nullptr};
   uint8_t *scratch_{nullptr};
   uint8_t *scratch_2_{nullptr};
   size_t capacity_{0};
   RAMAllocator<uint8_t> allocator_;
+  std::array<uint32_t, 256> histogram_{};
 };
 
 #ifdef USE_GAUGE_NEEDLE_INTENSITY_SCAN
