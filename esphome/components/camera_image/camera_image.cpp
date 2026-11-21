@@ -60,7 +60,7 @@ void rotate_crop_into(uint8_t *output, const uint8_t *crop, int crop_width, int 
         }
       }
       break;
-    case 270:
+    default:  // 270
       for (int y = 0; y < output_height; y++) {
         for (int x = 0; x < output_width; x++) {
           std::memcpy(output + static_cast<size_t>(y) * output_stride + x * PIXEL_SIZE,
