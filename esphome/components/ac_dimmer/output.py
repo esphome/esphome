@@ -54,12 +54,6 @@ async def to_code(config: ConfigType) -> None:
         # Re-enable the gptimer driver (excluded by default to save compile time)
         include_builtin_idf_component("esp_driver_gptimer")
 
-    if CORE.is_esp8266:
-        # ac_dimmer uses setTimer1Callback which requires the waveform generator
-        from esphome.components.esp8266.const import require_waveform
-
-        require_waveform()
-
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
