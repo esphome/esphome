@@ -894,7 +894,7 @@ void Display::test_card() {
   }
   this->rectangle(shift_x, shift_y, image_w, image_h, Color(127, 127, 0));
 
-  int min_size = std::min(line_w * 2, image_h);
+  int min_size = std::max(std::min(line_w * 2, image_h), 0);
   uint8_t font_size = std::min(6, min_size / 8);
 
   if (font_size > 0) {
