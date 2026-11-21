@@ -47,9 +47,6 @@ static_assert(FM_QOUT == 1, "Flash mode enum values must match table indices");
 static_assert(FM_DIO == 2, "Flash mode enum values must match table indices");
 static_assert(FM_DOUT == 3, "Flash mode enum values must match table indices");
 
-// Get reset reason string from reason code (no heap allocation)
-// Returns LogString* pointing to flash (PROGMEM) on ESP8266
-
 // Size for core version hex buffer
 static constexpr size_t CORE_VERSION_BUFFER_SIZE = 12;
 

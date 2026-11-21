@@ -478,8 +478,10 @@ class Sprinkler final : public Component {
   void log_multiplier_zero_warning_(const LogString *method_name);
 
   /// return the specified SprinklerValveRunRequestOrigin as a string
+  const LogString *req_as_str_(SprinklerValveRunRequestOrigin origin);
 
   /// return the specified SprinklerState state as a string
+  const LogString *state_as_str_(SprinklerState state);
 
   /// Start/cancel/get status of valve timers
   void start_timer_(SprinklerTimerIndex timer_index);

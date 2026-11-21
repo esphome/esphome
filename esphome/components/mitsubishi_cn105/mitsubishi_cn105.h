@@ -194,6 +194,7 @@ class MitsubishiCN105 {
   bool has_timed_out_(uint32_t timeout) const { return ((get_loop_time_ms() - this->operation_start_ms_) >= timeout); }
   void set_remote_temperature_half_deg_(uint8_t temperature_half_deg);
   static bool should_transition(State from, State to);
+  static const LogString *state_to_string(State state);
 
   uart::UARTDevice &device_;
   // Default 1s; legacy climate-owned hub compatibility relies on this when update_interval is omitted.

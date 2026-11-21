@@ -14,6 +14,8 @@ static constexpr uint32_t VERIFY_SETTINGS_TIMEOUT_ID = 0;
 PROGMEM_STRING_TABLE(SettingStrings, "gain", "resolution", "oversampling", "digital filtering",
                      "temperature oversampling", "temperature compensation", "hallconf", "error", "unknown");
 
+const LogString *settings_to_string(MLX90393Setting setting) { return SettingStrings::get_log_str(setting); };
+
 bool MLX90393Cls::transceive(const uint8_t *request, size_t request_size, uint8_t *response, size_t response_size) {
   i2c::ErrorCode e = this->write(request, request_size);
   if (e != i2c::ErrorCode::ERROR_OK) {
@@ -68,7 +70,7 @@ uint8_t MLX90393Cls::apply_setting_(MLX90393Setting which) {
       break;
   }
   if (ret != MLX90393::STATUS_OK) {
-    ESP_LOGE(TAG, "failed to apply %s", LOG_STR_ARG(SettingStrings::get_log_str(which)));
+    ESP_LOGE(TAG, "failed to apply %s", LOG_STR_ARG(settings_to_string(which)));
   }
   return ret;
 }
@@ -195,7 +197,7 @@ bool MLX90393Cls::verify_setting_(MLX90393Setting which) {
     }
   }
   if (read_status != MLX90393::STATUS_OK) {
-    ESP_LOGE(TAG, "verify error: failed to read %s", LOG_STR_ARG(SettingStrings::get_log_str(which)));
+    ESP_LOGE(TAG, "verify error: failed to read %s", LOG_STR_ARG(settings_to_string(which)));
     return false;
   }
   if (read_back_str[0] == 0x0) {
@@ -203,11 +205,10 @@ bool MLX90393Cls::verify_setting_(MLX90393Setting which) {
   }
   bool is_correct = read_value == expected_value;
   if (!is_correct) {
-    ESP_LOGW(TAG, "verify failed: read back wrong %s: got %s", LOG_STR_ARG(SettingStrings::get_log_str(which)),
-             read_back_str);
+    ESP_LOGW(TAG, "verify failed: read back wrong %s: got %s", LOG_STR_ARG(settings_to_string(which)), read_back_str);
     return false;
   }
-  ESP_LOGD(TAG, "verify succeeded for %s. got %s", LOG_STR_ARG(SettingStrings::get_log_str(which)), read_back_str);
+  ESP_LOGD(TAG, "verify succeeded for %s. got %s", LOG_STR_ARG(settings_to_string(which)), read_back_str);
   return true;
 }
 
