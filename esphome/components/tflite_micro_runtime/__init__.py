@@ -57,7 +57,7 @@ def _runtime_data() -> _RuntimeData:
 # Library-only sub-components, auto-loaded so users only configure this component.
 AUTO_LOAD = [
     "tflite_memory_handler",
-    "tflite_model_debug",
+    "tflite_model_debug",`n    "tflite_model_io",
     "tflite_model_loader",
     "tflite_model_source",
     "tflite_op_processor",
