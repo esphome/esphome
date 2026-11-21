@@ -242,7 +242,8 @@ UART_CLOCK_SOURCES_BY_VARIANT = {
 
 # Variants whose default UART clock is APB, which power management slows down with
 # the CPU; the receiver then samples at the wrong rate. The clock each switches to
-# keeps its rate, and REF_TICK (1 MHz) stays accurate up to this baud rate.
+# keeps its rate, and REF_TICK (1 MHz) stays accurate up to this baud rate; a faster
+# rate set at runtime falls back to the default clock in uart_component_esp_idf.cpp.
 _PM_STABLE_CLOCK_SOURCE = {
     VARIANT_ESP32: "REF_TICK",
     VARIANT_ESP32S2: "REF_TICK",
@@ -380,6 +381,8 @@ def _libretiny_hardware_uart(config: ConfigType) -> "HardwareUart | None":
 def _final_validate(config: ConfigType) -> None:
     if CORE.is_libretiny:
         _validate_libretiny_pins(config)
+    elif CORE.is_esp32:
+        _warn_power_managed_apb(config)
 
 
 def _validate_libretiny_pins(config: ConfigType) -> None:
@@ -472,15 +475,25 @@ def _power_managed_clock_source(config: ConfigType) -> str:
         return "DEFAULT"
     stable = _PM_STABLE_CLOCK_SOURCE.get(get_esp32_variant(), "DEFAULT")
     if stable == "REF_TICK" and config[CONF_BAUD_RATE] > _REF_TICK_MAX_BAUD_RATE:
-        _LOGGER.warning(
-            "UART %s at %d baud stays on the APB clock, which power management "
-            "slows down; received bytes are corrupted unless min_frequency equals "
-            "max_frequency",
-            config[CONF_ID],
-            config[CONF_BAUD_RATE],
-        )
         return "DEFAULT"
     return stable
+
+
+def _warn_power_managed_apb(config: ConfigType) -> None:
+    if (
+        CONF_CLOCK_SOURCE in config
+        or POWER_MANAGEMENT_DOMAIN not in fv.full_config.get()
+        or _PM_STABLE_CLOCK_SOURCE.get(get_esp32_variant()) != "REF_TICK"
+        or config[CONF_BAUD_RATE] <= _REF_TICK_MAX_BAUD_RATE
+    ):
+        return
+    _LOGGER.warning(
+        "UART %s at %d baud stays on the APB clock, which power management "
+        "slows down; received bytes are corrupted unless min_frequency equals "
+        "max_frequency",
+        config[CONF_ID],
+        config[CONF_BAUD_RATE],
+    )
 
 
 async def to_code(config):

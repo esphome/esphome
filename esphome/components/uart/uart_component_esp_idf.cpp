@@ -39,6 +39,11 @@ static constexpr bool is_default_uart0_pin(int8_t pin_num) {
   return pin_num == U0TXD_GPIO_NUM || pin_num == U0RXD_GPIO_NUM;
 }
 
+#if SOC_UART_SUPPORT_REF_TICK
+// REF_TICK runs at 1 MHz; above this rate its divider error is too large. Keep in sync with uart/__init__.py.
+static constexpr uint32_t REF_TICK_MAX_BAUD_RATE = 250000;
+#endif
+
 // clock_source_ is stored in a byte; every uart_sclk_t value is a soc_module_clk_t below SOC_MOD_CLK_INVALID
 static_assert(SOC_MOD_CLK_INVALID <= UINT8_MAX, "uart_sclk_t no longer fits in uint8_t clock_source_");
 
@@ -99,6 +104,12 @@ uart_config_t IDFUARTComponent::get_config_() {
   uart_config.stop_bits = this->stop_bits_ == 1 ? UART_STOP_BITS_1 : UART_STOP_BITS_2;
   uart_config.flow_ctrl = UART_HW_FLOWCTRL_DISABLE;
   uart_config.source_clk = static_cast<uart_sclk_t>(this->clock_source_);
+#if SOC_UART_SUPPORT_REF_TICK
+  // A rate raised at runtime (serial_proxy) cannot come from REF_TICK, so use the default clock for it.
+  if (uart_config.source_clk == UART_SCLK_REF_TICK && this->baud_rate_ > REF_TICK_MAX_BAUD_RATE) {
+    uart_config.source_clk = UART_SCLK_DEFAULT;
+  }
+#endif
   uart_config.rx_flow_ctrl_thresh = 122;
 
   return uart_config;

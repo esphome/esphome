@@ -273,7 +273,8 @@ def _final_validate(config: ConfigType) -> ConfigType:
     ):
         raise cv.Invalid(
             f"{CONF_ENABLE_LIGHT_SLEEP} loses the bytes received by UART "
-            f"{', '.join(receiving)}; turn light sleep off on a device that reads a UART",
+            f"{', '.join(receiving)}; on a device that reads a UART, turn light sleep "
+            f"off and save power with {CONF_MIN_FREQUENCY} instead",
             path=[CONF_ENABLE_LIGHT_SLEEP],
         )
     if config[CONF_POWER_DOWN_FLASH] and PSRAM_DOMAIN in full_config:

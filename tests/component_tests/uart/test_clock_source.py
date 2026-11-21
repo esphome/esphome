@@ -12,8 +12,10 @@ from esphome.components.uart import (
     UART_CLOCK_SOURCES,
     UART_CLOCK_SOURCES_BY_VARIANT,
 )
+from esphome.config import read_config
 import esphome.config_validation as cv
 from esphome.const import PlatformFramework
+from esphome.core import CORE
 from tests.component_tests.types import SetCoreConfigCallable
 
 
@@ -119,6 +121,7 @@ def test_clock_source_codegen(
         pytest.param("esp32s3", 115200, None, True, "XTAL", id="s3_xtal"),
         pytest.param("esp32", 9600, None, True, "REF_TICK", id="esp32_ref_tick"),
         pytest.param("esp32s2", 250000, None, True, "REF_TICK", id="s2_ref_tick"),
+        pytest.param("esp32", 250001, None, True, None, id="esp32_above_limit_apb"),
         pytest.param("esp32", 460800, None, True, None, id="esp32_fast_stays_apb"),
         pytest.param("esp32c6", 9600, None, True, None, id="c6_unchanged"),
         pytest.param("esp32c3", 9600, None, False, None, id="no_power_management"),
@@ -154,3 +157,34 @@ def test_clock_source_with_power_management(
         assert "set_clock_source(" not in main_cpp
     else:
         assert f"test_uart->set_clock_source(::UART_SCLK_{expected});" in main_cpp
+
+
+@pytest.mark.parametrize(
+    ("baud_rate", "source", "warned"),
+    [
+        pytest.param(250001, None, True, id="above_limit"),
+        pytest.param(250000, None, False, id="at_limit"),
+        pytest.param(460800, "apb", False, id="user_choice"),
+    ],
+)
+def test_apb_fallback_warning_at_validation(
+    baud_rate: int,
+    source: str | None,
+    warned: bool,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """`esphome config` shows the warning, not just a compile."""
+    config = tmp_path / "uart.yaml"
+    config.write_text(
+        "esphome:\n  name: uart-clock-test\n"
+        "esp32:\n  variant: esp32\n  framework:\n    type: esp-idf\n"
+        f"uart:\n  id: test_uart\n  rx_pin: GPIO4\n  baud_rate: {baud_rate}\n"
+        + (f"  clock_source: {source}\n" if source else "")
+        + "power_management:\n  - platform: esp32_power_management\n",
+        encoding="utf-8",
+    )
+    CORE.config_path = config
+    result = read_config({})
+    assert result is not None
+    assert ("stays on the APB clock" in caplog.text) is warned
