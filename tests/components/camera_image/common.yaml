@@ -1,0 +1,18 @@
+image:
+  - platform: camera_image
+    id: test_camera_image
+    camera_id: test_camera
+    format: JPEG
+    type: RGB565
+    resize: 320x240
+    crop:
+      x: 0
+      y: 0
+      width: 200
+      height: 100
+    rotation: 90
+    update_interval: 1s
+    on_image:
+      - logger.log: "Camera image decoded"
+    on_error:
+      - logger.log: "Camera image failed"
