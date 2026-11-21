@@ -35,10 +35,8 @@ FINAL_VALIDATE_SCHEMA = cv.All(
 
 
 async def to_code(config: ConfigType) -> None:
-    # setup() shares the source number's range
-    var = await number.new_number(
-        config, min_value=0, max_value=0, step=0, range_in_flash=False
-    )
+    # Zero bounds until setup() shares the source number's range, as before ranges moved to flash
+    var = await number.new_number(config, min_value=0, max_value=0, step=0)
     await cg.register_component(var, config)
 
     await cg.add_variable(var.set_source_number, config[CONF_SOURCE_ID])
