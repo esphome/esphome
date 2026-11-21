@@ -56,6 +56,7 @@ def _runtime_data() -> _RuntimeData:
 
 # Library-only sub-components, auto-loaded so users only configure this component.
 AUTO_LOAD = [
+    "tflite_audio",
     "tflite_detection",
     "tflite_image",
     "tflite_memory_handler",
@@ -143,6 +144,10 @@ async def to_code(config: ConfigType) -> None:
         from esphome.components.tflite_text import to_code as text_to_code
 
         await text_to_code(var, config, model_path)
+    elif config.get(_schema.CONF_MODEL_TYPE) == "audio":
+        from esphome.components.tflite_audio import to_code as audio_to_code
+
+        await audio_to_code(var, config, model_path)
     esp32.add_idf_component(name="espressif/esp-tflite-micro", ref="1.4.1")
     esp32.add_idf_component(name="espressif/esp-nn", ref="1.5.0")
 

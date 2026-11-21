@@ -1,6 +1,7 @@
 """Configuration schema for the tflite_micro_runtime component."""
 
 import esphome.codegen as cg
+from esphome.components.tflite_audio import AUDIO_SCHEMA
 from esphome.components.tflite_detection import DETECTION_SCHEMA
 from esphome.components.tflite_image import IMAGE_SCHEMA
 from esphome.components.tflite_model_source.model_metadata import datasize_to_bytes
@@ -39,6 +40,7 @@ PER_MODEL_SCHEMA = (
                 "pose",
                 "tabular",
                 "text",
+                "audio",
             ),
         }
     )
@@ -48,6 +50,7 @@ PER_MODEL_SCHEMA = (
     .extend(POSE_SCHEMA)
     .extend(TABULAR_SCHEMA)
     .extend(TEXT_SCHEMA)
+    .extend(AUDIO_SCHEMA)
 )
 
 MULTI_CONF = True
