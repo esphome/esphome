@@ -613,6 +613,7 @@ haier_protocol::HaierMessage HonClimate::get_control_message() {
   hon_protocol::HaierPacketControl *out_data = (hon_protocol::HaierPacketControl *) control_out_buffer;
   control_out_buffer[4] = 0;  // This byte should be cleared before setting values
   bool has_hvac_settings = false;
+  bool quiet_mode = this->get_quiet_mode_state();
   if (this->current_hvac_settings_.valid) {
     has_hvac_settings = true;
     HvacSettings &climate_control = this->current_hvac_settings_;
@@ -710,29 +711,40 @@ haier_protocol::HaierMessage HonClimate::get_control_message() {
           out_data->fast_mode = 0;
           out_data->sleep_mode = 0;
           out_data->ten_degree = 0;
+          quiet_mode = false;
           break;
         case CLIMATE_PRESET_BOOST:
           // Boost is not supported in Fan only mode
           out_data->fast_mode = (this->mode != CLIMATE_MODE_FAN_ONLY) ? 1 : 0;
           out_data->sleep_mode = 0;
           out_data->ten_degree = 0;
+          quiet_mode = false;
           break;
         case CLIMATE_PRESET_AWAY:
           out_data->fast_mode = 0;
           out_data->sleep_mode = 0;
           // 10 degrees allowed only in heat mode
           out_data->ten_degree = (this->mode == CLIMATE_MODE_HEAT) ? 1 : 0;
+          quiet_mode = false;
+          break;
+        case CLIMATE_PRESET_ECO:
+          out_data->fast_mode = 0;
+          out_data->sleep_mode = 0;
+          out_data->ten_degree = 0;
+          quiet_mode = true;
           break;
         case CLIMATE_PRESET_SLEEP:
           out_data->fast_mode = 0;
           out_data->sleep_mode = 1;
           out_data->ten_degree = 0;
+          quiet_mode = false;
           break;
         default:
           ESP_LOGE("Control", "Unsupported preset");
           out_data->fast_mode = 0;
           out_data->sleep_mode = 0;
           out_data->ten_degree = 0;
+          quiet_mode = false;
           break;
       }
     }
@@ -760,7 +772,7 @@ haier_protocol::HaierMessage HonClimate::get_control_message() {
       // If AC is off or in fan only mode - no quiet mode allowed
       out_data->quiet_mode = 0;
     } else {
-      out_data->quiet_mode = this->get_quiet_mode_state() ? 1 : 0;
+      out_data->quiet_mode = quiet_mode ? 1 : 0;
     }
     // Clean quiet mode state pending flag
     this->quiet_mode_state_ = (SwitchState) ((uint8_t) this->quiet_mode_state_ & 0b01);
@@ -1016,6 +1028,8 @@ haier_protocol::HandlerError HonClimate::process_status_message_(const uint8_t *
       this->preset = CLIMATE_PRESET_SLEEP;
     } else if (packet.control.ten_degree != 0) {
       this->preset = CLIMATE_PRESET_AWAY;
+    } else if (packet.control.quiet_mode != 0) {
+      this->preset = CLIMATE_PRESET_ECO;
     } else {
       this->preset = CLIMATE_PRESET_NONE;
     }
@@ -1315,33 +1329,56 @@ void HonClimate::fill_control_messages_queue_() {
   {
     uint8_t fast_mode_buf[] = {0x00, 0xFF};
     uint8_t away_mode_buf[] = {0x00, 0xFF};
+    uint8_t sleep_mode_buf[] = {0x00, 0xFF};
+    bool quiet_mode = this->get_quiet_mode_state();
     if (!new_power) {
       // If AC is off - no presets allowed
       fast_mode_buf[1] = 0x00;
       away_mode_buf[1] = 0x00;
+      sleep_mode_buf[1] = 0x00;
+      quiet_mode = false;
     } else if (climate_control.preset.has_value()) {
       switch (climate_control.preset.value()) {
         case CLIMATE_PRESET_NONE:
           fast_mode_buf[1] = 0x00;
           away_mode_buf[1] = 0x00;
+          sleep_mode_buf[1] = 0x00;
+          quiet_mode = false;
           break;
         case CLIMATE_PRESET_BOOST:
           // Boost is not supported in Fan only mode
           fast_mode_buf[1] = (this->mode != CLIMATE_MODE_FAN_ONLY) ? 0x01 : 0x00;
           away_mode_buf[1] = 0x00;
+          sleep_mode_buf[1] = 0x00;
+          quiet_mode = false;
           break;
         case CLIMATE_PRESET_AWAY:
           fast_mode_buf[1] = 0x00;
           away_mode_buf[1] = (this->mode == CLIMATE_MODE_HEAT) ? 0x01 : 0x00;
+          sleep_mode_buf[1] = 0x00;
+          quiet_mode = false;
+          break;
+        case CLIMATE_PRESET_ECO:
+          fast_mode_buf[1] = 0x00;
+          away_mode_buf[1] = 0x00;
+          sleep_mode_buf[1] = 0x00;
+          quiet_mode = true;
+          break;
+        case CLIMATE_PRESET_SLEEP:
+          fast_mode_buf[1] = 0x00;
+          away_mode_buf[1] = 0x00;
+          sleep_mode_buf[1] = 0x01;
+          quiet_mode = false;
           break;
         default:
           ESP_LOGE("Control", "Unsupported preset");
+          quiet_mode = false;
           break;
       }
     }
     {
       // Quiet mode
-      if (new_power && (climate_mode != CLIMATE_MODE_FAN_ONLY) && this->get_quiet_mode_state()) {
+      if (new_power && (climate_mode != CLIMATE_MODE_FAN_ONLY) && quiet_mode) {
         quiet_mode_buf[1] = 0x01;
       } else {
         quiet_mode_buf[1] = 0x00;
@@ -1367,6 +1404,12 @@ void HonClimate::fill_control_messages_queue_() {
                                             (uint16_t) hon_protocol::SubcommandsControl::SET_SINGLE_PARAMETER +
                                                 (uint8_t) hon_protocol::DataParameters::TEN_DEGREE,
                                             away_mode_buf, 2);
+    }
+    if ((sleep_mode_buf[1] != 0xFF) && presets.count(climate::ClimatePreset::CLIMATE_PRESET_SLEEP)) {
+      this->control_messages_queue_.emplace(haier_protocol::FrameType::CONTROL,
+                                            (uint16_t) hon_protocol::SubcommandsControl::SET_SINGLE_PARAMETER +
+                                                (uint8_t) hon_protocol::DataParameters::SLEEP_MODE,
+                                            sleep_mode_buf, 2);
     }
   }
   // Target temperature
