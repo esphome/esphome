@@ -79,6 +79,8 @@ class _Channel:
     symbols: int
     dma: bool
     setup_priority: float
+    # False for a channel of a fixed size, from request_rmt_channels()
+    adjustable: bool = True
     # Set in final validation, where the config path of a generated id is known
     label: str = ""
 
@@ -214,6 +216,7 @@ def request_rmt_channels(
                 blocks * memory.symbols_per_block,
                 False,
                 config.get(CONF_SETUP_PRIORITY, setup_priority),
+                adjustable=False,
             )
             for direction, blocks in channels
         )
@@ -312,20 +315,36 @@ def _pools(
     ]
 
 
-def _suggestions(
-    memory: RMTMemory, pools: list[tuple[str, list[_Channel], int]]
-) -> list[str]:
-    """Suggest an rmt_symbols value for the components of each overrun pool."""
+def _advice(memory: RMTMemory, pools: list[tuple[str, list[_Channel], int]]) -> str:
+    """Suggest an rmt_symbols value for the components of each overrun pool.
+
+    A DMA channel and a channel of a fixed size keep their blocks, whatever rmt_symbols
+    is. When they leave too little for the other channels, or there are no others,
+    suggest to remove components instead.
+    """
     size = memory.symbols_per_block
     suggestions = []
+    stuck = False
     for _, channels, blocks in pools:
         if sum(channel.blocks(size) for channel in channels) <= blocks:
             continue
-        others = [channel for channel in channels if not channel.dma]
-        fair = (blocks - (len(channels) - len(others))) // len(others) * size
+        others = [c for c in channels if c.adjustable and not c.dma]
+        free = blocks - sum(
+            c.blocks(size) for c in channels if c.dma or not c.adjustable
+        )
+        fair = free // len(others) * size if others else 0
+        if fair < size:
+            stuck = True
+            continue
         shrink = [channel for channel in others if channel.symbols > fair]
         suggestions.append(f"'{CONF_RMT_SYMBOLS}: {fair}' on {_labels(shrink)}")
-    return suggestions
+    advice = [f"Set {' and '.join(suggestions)}"] if suggestions else []
+    if stuck or not suggestions:
+        advice.append(
+            "remove some of these components or use a chip with more RMT memory"
+        )
+    text = " and ".join(advice)
+    return text[0].upper() + text[1:]
 
 
 def final_validate_rmt_channels(config: ConfigType) -> None:
@@ -401,7 +420,7 @@ async def _check_memory() -> None:
     )
     _LOGGER.warning(
         "RMT memory on %s holds %d blocks of %d symbols, but in the order ESPHome sets "
-        "up these components, %s will not fit: %s. Set %s%s. Otherwise ESP-IDF logs %s "
+        "up these components, %s will not fit: %s. %s%s. Otherwise ESP-IDF logs %s "
         "at boot, and ESPHome logs 'Channel creation failed' or 'out of RMT symbol "
         "memory'.",
         esp32.get_esp32_variant(),
@@ -409,7 +428,7 @@ async def _check_memory() -> None:
         size,
         _labels(failed),
         usage,
-        " and ".join(_suggestions(memory, _pools(memory, channels))),
+        _advice(memory, _pools(memory, channels)),
         fix,
         " or ".join(sorted({_IDF_ERRORS[channel.direction] for channel in failed})),
     )
