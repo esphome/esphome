@@ -21,6 +21,9 @@ void ZigbeeTime::setup() {
     this->register_zb_time_();
   } else {
     this->parent_->add_on_start_callback([this]() { this->register_zb_time_(); });
+    if (this->parent_->is_started() && !this->registered_) {
+      this->register_zb_time_();
+    }
   }
 }
 
