@@ -51,11 +51,24 @@ INPUT_TENSOR_TYPES: dict[int, str] = {0: "float32", 3: "uint8", 9: "int8"}
 # The TFLite TensorType names, for describing any input or output tensor.
 TENSOR_TYPE_NAMES: dict[int, str] = {
     0: "float32",
+    1: "float16",
     2: "int32",
     3: "uint8",
     4: "int64",
+    5: "string",
     6: "bool",
+    7: "int16",
+    8: "complex64",
     9: "int8",
+    10: "float64",
+    11: "complex128",
+    12: "uint64",
+    13: "resource",
+    14: "variant",
+    15: "uint32",
+    16: "uint16",
+    17: "int4",
+    18: "bfloat16",
 }
 
 # Calibrated against TFLM's arena_used_bytes() on quantized models: TFLM needed 1.8x to 2.1x the live peak.
