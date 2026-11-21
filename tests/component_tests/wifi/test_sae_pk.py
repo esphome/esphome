@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from esphome import config_validation as cv
+from esphome.components.esp32 import RawSdkconfigValue
 from esphome.components.wifi import CONFIG_SCHEMA
 from esphome.const import PlatformFramework
 from tests.component_tests.network import sdkconfig_option
@@ -18,17 +19,20 @@ from tests.component_tests.types import SetCoreConfigCallable
     [
         pytest.param("esp32_idf.yaml", False, id="default_off"),
         pytest.param("sae_pk.yaml", True, id="enabled"),
+        pytest.param(
+            "sae_pk_sdkconfig.yaml", RawSdkconfigValue("y"), id="user_sdkconfig_wins"
+        ),
     ],
 )
 def test_sae_pk_sdkconfig(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
     config_file: str,
-    expected: bool,
+    expected: bool | RawSdkconfigValue,
 ) -> None:
     generate_main(component_config_path(config_file))
 
-    assert sdkconfig_option("CONFIG_ESP_WIFI_ENABLE_SAE_PK") is expected
+    assert sdkconfig_option("CONFIG_ESP_WIFI_ENABLE_SAE_PK") == expected
 
 
 def test_sae_pk_esp32_only(set_core_config: SetCoreConfigCallable) -> None:
