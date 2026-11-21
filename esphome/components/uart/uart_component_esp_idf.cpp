@@ -267,6 +267,11 @@ uint32_t IDFUARTComponent::line_inversion_mask_() {
   if (this->flow_control_pin_ != nullptr && this->flow_control_pin_->is_inverted()) {
     invert |= UART_SIGNAL_RTS_INV;
   }
+#ifdef USE_UART_TX_BREAK
+  // the idle level of an inverted TX signal is the break level; in the mask, so a settings reload applies it again
+  if (this->tx_break_)
+    invert ^= UART_SIGNAL_TXD_INV;
+#endif
   return invert;
 }
 
@@ -274,13 +279,12 @@ uint32_t IDFUARTComponent::line_inversion_mask_() {
 bool IDFUARTComponent::set_tx_break(bool enable) {
   if (this->tx_pin_ == nullptr || this->is_failed())
     return false;
-  // the idle level of an inverted TX signal is the break level
-  uint32_t invert = this->line_inversion_mask_();
-  if (enable)
-    invert ^= UART_SIGNAL_TXD_INV;
-  esp_err_t err = uart_set_line_inverse(this->uart_num_, invert);
+  const bool before = this->tx_break_;
+  this->tx_break_ = enable;
+  esp_err_t err = uart_set_line_inverse(this->uart_num_, this->line_inversion_mask_());
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "uart_set_line_inverse failed: %s", esp_err_to_name(err));
+    this->tx_break_ = before;
     return false;
   }
   return true;

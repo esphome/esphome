@@ -37,6 +37,8 @@ class LibreTinyUARTComponent final : public UARTComponent, public Component {
 
  protected:
   void check_logger_conflict() override;
+  /// Opens the hardware port of hardware_idx_, at setup and after a break.
+  void open_hardware_port_();
 
   HardwareSerial *serial_{nullptr};
   int8_t hardware_idx_{-1};

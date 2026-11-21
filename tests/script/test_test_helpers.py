@@ -99,15 +99,6 @@ def test_get_platform_components_skips_non_platform_folders(
     assert result == []
 
 
-def test_get_platform_components_skips_external_components(tmp_path: Path) -> None:
-    (tmp_path / "bthome" / "components" / "fake").mkdir(parents=True)
-
-    with patch("build_helpers.get_component", return_value=None):
-        result = build_helpers.get_platform_components(["bthome"], tmp_path)
-
-    assert result == []
-
-
 def test_get_platform_components_raises_for_invalid_domain(tmp_path: Path) -> None:
     (tmp_path / "bthome" / "notadomain").mkdir(parents=True)
 

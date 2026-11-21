@@ -102,6 +102,9 @@ class ESP8266UartComponent final : public UARTComponent, public Component {
 
   HardwareSerial *hw_serial_{nullptr};
   ESP8266SoftwareSerial *sw_serial_{nullptr};
+#ifdef USE_UART_TX_BREAK
+  bool tx_break_{false};
+#endif
 
  private:
   static bool serial0_in_use;   // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
