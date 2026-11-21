@@ -21,14 +21,6 @@ using mqmath::r0_from_clean_air;
 using mqmath::ratio_from_rs;
 using mqmath::rs_from_voltage;
 using mqmath::source_is_fresh;
-using mqmath::CLAMP_ABSOLUTE;
-using mqmath::CLAMP_SCALED;
-using mqmath::REGRESSION_EXPONENTIAL;
-using mqmath::REGRESSION_INVERSE;
-using mqmath::REGRESSION_LINEAR;
-using mqmath::RATIO_RS_R0;
-using mqmath::RATIO_R0_RS;
-using mqmath::RegressionMethod;
 
 // A fixture of the built-in table: independent copies, so a change in
 // `coefficients.py` cannot quietly change what these tests mean (the Python

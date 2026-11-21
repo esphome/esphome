@@ -31,20 +31,34 @@
 #include <cmath>
 #include <cstdint>
 
-namespace esphome::mq_gas_sensors::mqmath {
+namespace esphome::mq_gas_sensors {
 
 /// Regression model, mirrors MQUnifiedsensor's `_regressionMethod`.
-enum RegressionMethod : uint8_t {
+enum class RegressionMethod : uint8_t {
   REGRESSION_EXPONENTIAL = 1,  ///< _PPM = a * ratio^b
   REGRESSION_LINEAR = 2,       ///< log10(_PPM) = (log10(ratio) - b) / a
   REGRESSION_INVERSE = 3,      ///< _PPM = (ratio / a)^(1 / b), MQDataScience inverseYaxb()
 };
 
 /// Ratio convention used to evaluate the regression curve.
-enum RatioMode : uint8_t {
+enum class RatioMode : uint8_t {
   RATIO_RS_R0 = 0,  ///< RS / R0 - what the published datasheet coefficients expect.
   RATIO_R0_RS = 1,  ///< R0 / RS - MQUnifiedsensor::readSensorR0Rs() convention.
 };
+
+/// Where the correction comes from (mirrors `CORRECTION_MODES` in `__init__.py`).
+enum class CorrectionMode : uint8_t {
+  CORRECTION_NONE = 0,           ///< no compensation (default)
+  CORRECTION_MQDATASCIENCE = 1,  ///< `a + c * exp(b * T)`
+};
+
+/// How the corrected value is clipped to the configured range.
+enum class CorrectionClamp : uint8_t {
+  CLAMP_ABSOLUTE = 0,  ///< clip to `max_ppm` - the alarm ceiling never moves
+  CLAMP_SCALED = 1,    ///< clip to `max_ppm * correction` (MQDataScience behaviour)
+};
+
+namespace mqmath {
 
 /// Upper clamp for `setA()` / `setB()` as in MQUnifiedsensor.h.
 static constexpr double MQ_MAX_A = 1e30;
@@ -119,7 +133,7 @@ inline float ratio_from_rs(float rs, float r0, float correction_factor, RatioMod
   if (!std::isfinite(r0) || r0 <= 0.0f)
     return NAN;
   double ratio;
-  if (mode == RATIO_R0_RS) {
+  if (mode == RatioMode::RATIO_R0_RS) {
     ratio = static_cast<double>(r0) / static_cast<double>(rs);
   } else {
     ratio = static_cast<double>(rs) / static_cast<double>(r0);
@@ -133,7 +147,7 @@ inline float ratio_from_rs(float rs, float r0, float correction_factor, RatioMod
     // the range the curve covers: it reports as the saturated end instead of
     // `unknown`, which would hide it. R0 / RS moves the other way, so the ratio
     // then sits below the clean-air end of the curve: that stays unknown.
-    return mode == RATIO_R0_RS ? NAN : 0.0f;
+    return mode == RatioMode::RATIO_R0_RS ? NAN : 0.0f;
   }
   return static_cast<float>(ratio);
 }
@@ -188,12 +202,12 @@ inline float ppm_from_ratio(float a, float b, float ratio, RegressionMethod meth
     return FLT_MAX;
 
   double log_ppm;
-  if (method == REGRESSION_EXPONENTIAL) {
+  if (method == RegressionMethod::REGRESSION_EXPONENTIAL) {
     log_ppm = std::log10(static_cast<double>(a)) + static_cast<double>(b) * std::log10(static_cast<double>(ratio));
-  } else if (method == REGRESSION_INVERSE) {
+  } else if (method == RegressionMethod::REGRESSION_INVERSE) {
     // PPM = (ratio / a)^(1/b), MQDataScience inverseYaxb().
     log_ppm = (std::log10(static_cast<double>(ratio)) - std::log10(static_cast<double>(a))) / static_cast<double>(b);
-  } else if (method == REGRESSION_LINEAR) {
+  } else if (method == RegressionMethod::REGRESSION_LINEAR) {
     log_ppm = (std::log10(static_cast<double>(ratio)) - static_cast<double>(b)) / static_cast<double>(a);
   } else {
     // An unknown method has no formula; evaluating it as one of the known ones
@@ -314,26 +328,16 @@ inline float apply_correction_inverse(float ratio, float correction) {
   return static_cast<float>(static_cast<double>(ratio) * static_cast<double>(correction));
 }
 
-/// Where the correction comes from (mirrors `CORRECTION_MODES` in `__init__.py`).
-enum CorrectionMode : uint8_t {
-  CORRECTION_NONE = 0,           ///< no compensation (default)
-  CORRECTION_MQDATASCIENCE = 1,  ///< `a + c * exp(b * T)`
-};
-
-/// How the corrected value is clipped to the configured range.
-enum CorrectionClamp : uint8_t {
-  CLAMP_ABSOLUTE = 0,  ///< clip to `max_ppm` - the alarm ceiling never moves
-  CLAMP_SCALED = 1,    ///< clip to `max_ppm * correction` (MQDataScience behaviour)
-};
-
 /// Clamp a (possibly corrected) PPM value to the configured range.
 inline float clamp_ppm_corrected(float ppm, float min_ppm, float max_ppm, float correction, CorrectionClamp mode) {
   float upper = max_ppm;
-  if (mode == CLAMP_SCALED)
+  if (mode == CorrectionClamp::CLAMP_SCALED)
     upper = static_cast<float>(static_cast<double>(max_ppm) * static_cast<double>(correction));
   if (!std::isfinite(upper) || upper < min_ppm)
     upper = max_ppm;
   return clamp_ppm(ppm, min_ppm, upper);
 }
 
-}  // namespace esphome::mq_gas_sensors::mqmath
+}  // namespace mqmath
+
+}  // namespace esphome::mq_gas_sensors

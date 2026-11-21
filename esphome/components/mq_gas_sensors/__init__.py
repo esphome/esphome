@@ -53,11 +53,10 @@ MQGasSensor = mq_gas_sensors_ns.class_(
 
 # The C++ enums of `mq_math.h`, so the code generation passes the named values
 # instead of bare integers and a renamed enumerator breaks the build.
-mqmath_ns = mq_gas_sensors_ns.namespace("mqmath")
-RegressionMethod = mqmath_ns.enum("RegressionMethod")
-RatioMode = mqmath_ns.enum("RatioMode")
-CorrectionMode = mqmath_ns.enum("CorrectionMode")
-CorrectionClamp = mqmath_ns.enum("CorrectionClamp")
+RegressionMethod = mq_gas_sensors_ns.enum("RegressionMethod", is_class=True)
+RatioMode = mq_gas_sensors_ns.enum("RatioMode", is_class=True)
+CorrectionMode = mq_gas_sensors_ns.enum("CorrectionMode", is_class=True)
+CorrectionClamp = mq_gas_sensors_ns.enum("CorrectionClamp", is_class=True)
 
 # ---------------------------------------------------------------------------
 # Configuration keys
