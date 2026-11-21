@@ -1,0 +1,3 @@
+packages:
+  i2s_audio: !include ../../test_build_components/common/i2s_audio/esp32-idf.yaml
+  voice_assistant: !include common-media-player.yaml
