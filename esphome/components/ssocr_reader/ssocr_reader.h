@@ -20,7 +20,7 @@ namespace esphome::ssocr_reader {
 /// JPEG; a shared camera::Decoder decodes each frame once, the configured
 /// rectangle is cropped out of that buffer as grayscale, and seven_segment_ocr
 /// reads the digits.
-class SSOCRReader : public PollingComponent, public esphome::camera::CameraListener {
+class SSOCRReader final : public PollingComponent, public esphome::camera::CameraListener {
  public:
   /// The camera, decoder, frame size and crop buffer never change, so they are constructor parameters.
   SSOCRReader(esphome::camera::Camera *camera, esphome::camera::Decoder *decoder, int frame_width, int frame_height,

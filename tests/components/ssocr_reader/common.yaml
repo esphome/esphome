@@ -10,8 +10,6 @@ ssocr_reader:
   crop_y: 16
   crop_w: 160
   crop_h: 40
-  threshold_level: 128
-  digit_count: 6
 
 sensor:
   - platform: ssocr_reader

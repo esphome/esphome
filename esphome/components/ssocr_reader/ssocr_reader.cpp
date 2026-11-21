@@ -2,7 +2,6 @@
 
 #include "esphome/components/camera_decoder/jpeg_grayscale.h"
 #include "esphome/core/application.h"
-#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
 #include <cinttypes>
@@ -17,12 +16,11 @@ namespace esphome::ssocr_reader {
 ESPHOME_LOG_TAG(TAG, "ssocr_reader");
 
 void SSOCRReader::setup() {
-  if (this->crop_ == nullptr) {
-    this->mark_failed(LOG_STR("Could not allocate the crop buffer"));
+  if (this->crop_ == nullptr || !this->ocr_.reserve(this->crop_w_)) {
+    this->mark_failed(LOG_STR("Could not allocate the OCR buffers"));
     return;
   }
   this->camera_->add_listener(this);
-  this->ocr_.reserve(this->crop_w_);
 
   // The decoder allocates the decoded frame, which needs PSRAM. Report a missing
   // PSRAM instead of failing later with an out-of-memory decode.
@@ -32,12 +30,15 @@ void SSOCRReader::setup() {
 }
 
 void SSOCRReader::dump_config() {
-  ESP_LOGCONFIG(TAG, "SSOCR Reader:");
-  ESP_LOGCONFIG(TAG, "  Frame: %dx%d", this->img_width_, this->img_height_);
-  ESP_LOGCONFIG(TAG, "  Crop: x=%d, y=%d, w=%d, h=%d", this->crop_x_, this->crop_y_, this->crop_w_, this->crop_h_);
-  ESP_LOGCONFIG(TAG, "  Threshold: %u, Digits: %u, Debug: %s", this->ocr_.get_threshold_level(), this->digit_count_,
-                this->debug_ ? LOG_STR_LITERAL("YES") : LOG_STR_LITERAL("NO"));
-  ESP_LOGCONFIG(TAG, "  Update Interval: %" PRIu32 " ms", this->get_update_interval());
+  ESP_LOGCONFIG(TAG,
+                "SSOCR Reader:\n"
+                "  Frame: %dx%d\n"
+                "  Crop: x=%d, y=%d, w=%d, h=%d\n"
+                "  Threshold: %u, Digits: %u, Debug: %s\n"
+                "  Update Interval: %" PRIu32 " ms",
+                this->img_width_, this->img_height_, this->crop_x_, this->crop_y_, this->crop_w_, this->crop_h_,
+                this->ocr_.get_threshold_level(), this->digit_count_,
+                this->debug_ ? LOG_STR_LITERAL("YES") : LOG_STR_LITERAL("NO"), this->get_update_interval());
   this->decoder_->dump_config();
 }
 
