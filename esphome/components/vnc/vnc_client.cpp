@@ -298,11 +298,7 @@ void VncClient::loop() {
     this->pace_(now);
   }
   this->link_.flush_tx();
-  if (this->rx_pending_ && !(this->in_update_ && this->display_busy_)) {
-    this->high_freq_.start();
-  } else {
-    this->high_freq_.stop();
-  }
+  this->high_freq_.set(this->rx_pending_ && !(this->in_update_ && this->display_busy_));
 }
 
 void VncClient::connect() {
