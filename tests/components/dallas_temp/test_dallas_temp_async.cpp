@@ -254,6 +254,43 @@ TEST_F(DallasAsync, UpdateDuringTheConversionSkipsTheCycle) {
   EXPECT_EQ(this->publications_, 1u);
 }
 
+TEST_F(DallasAsync, UpdateDuringTheWaitStartsTheWaitAgain) {
+  this->sensor_.update();
+  this->bus_.finish(TransactionStatus::TRANSACTION_STATUS_OK);
+  this->sensor_.update();  // The new conversion is held up on a busy bus
+  ASSERT_EQ(this->bus_.queue.size(), 1u);
+
+  run_timers(WAIT_10_BIT_MS + 30);  // Past the wait of the first conversion
+  ASSERT_EQ(this->bus_.queue.size(), 1u) << "no read right behind the new conversion";
+  EXPECT_EQ(*this->bus_.queue.front()->write_data, CONVERT);
+
+  this->bus_.finish(TransactionStatus::TRANSACTION_STATUS_OK);
+  run_timers(WAIT_10_BIT_MS - 30);
+  EXPECT_TRUE(this->bus_.queue.empty()) << "the read waits for the new conversion";
+  run_timers(60);
+  ASSERT_EQ(this->bus_.queue.size(), 1u);
+  EXPECT_EQ(*this->bus_.queue.front()->write_data, READ_SCRATCH_PAD);
+  this->bus_.finish(TransactionStatus::TRANSACTION_STATUS_OK);
+  EXPECT_EQ(this->publications_, 1u);
+  EXPECT_FLOAT_EQ(this->sensor_.state, 25.0f);
+}
+
+TEST_F(DallasAsync, AFailedConversionDuringTheWaitEndsTheCycle) {
+  this->sensor_.update();
+  this->bus_.finish(TransactionStatus::TRANSACTION_STATUS_OK);
+  this->sensor_.update();
+  const unsigned submits = this->bus_.submits;
+  this->bus_.finish(TransactionStatus::TRANSACTION_STATUS_NO_PRESENCE);
+  EXPECT_TRUE(std::isnan(this->sensor_.state));
+
+  run_timers(WAIT_10_BIT_MS + 30);
+  EXPECT_TRUE(this->bus_.queue.empty()) << "the wait of the first conversion must not read";
+  EXPECT_EQ(this->bus_.submits, submits);
+  EXPECT_EQ(this->publications_, 1u);
+  EXPECT_TRUE(std::isnan(this->sensor_.state));
+  EXPECT_TRUE(this->sensor_.status_has_warning());
+}
+
 TEST_F(DallasAsync, UpdateDuringTheReadLeavesTheReadAlone) {
   this->run_until_reading_();
   const Transaction *read = this->bus_.queue.front();
