@@ -228,7 +228,8 @@ bool HttpContainerIDF::socket_ready_(bool write) {
 
 // Each stage either finishes, or returns PENDING after a call that did not wait. The waits left are
 // the name lookup and TCP connection in the first esp_http_client_open() of each hop: a non-blocking
-// esp-tls connect that times out once never completes, as select() clears the sets it keeps.
+// esp-tls connect that times out once never completes, as select() clears the sets it keeps. The TLS
+// handshake also runs inside whichever connect call finds the TCP connection up, and its crypto can take seconds.
 HttpRequestProgress HttpContainerIDF::poll() {
   while (true) {
     switch (this->stage_) {
