@@ -7,6 +7,7 @@
 
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome::mq_gas_sensors {
 
@@ -108,9 +109,12 @@ void MQGasSensor::log_reading_(float ppm) {
 
 void MQGasSensor::setup() {
   // The wiring hash is folded into the key so that the stored R0 of a different
-  // supply, scaling or load resistor is never read back.
-  this->r0_pref_ = this->make_entity_preference<float>(R0_PREFERENCE_VERSION ^ this->preference_key_,
-                                                       /*in_flash=*/true);
+  // supply, scaling or load resistor is never read back. Without persistence there
+  // is nothing to store, and a preference slot is a limited resource on ESP8266.
+  if (this->persist_) {
+    this->r0_pref_ = this->make_entity_preference<float>(R0_PREFERENCE_VERSION ^ this->preference_key_,
+                                                         /*in_flash=*/true);
+  }
 
   if (this->r0_configured_) {
     this->log_message_(LOG_SEVERITY_INFO, LOG_STR("using the R0 from the configuration (%.4f kOhm)"), this->r0_);
@@ -176,7 +180,11 @@ void MQGasSensor::setup() {
     }
   }
 
-  this->disable_loop();
+  // A calibration started by the R0 sensor's on_value during publish_r0_() above
+  // owns the loop from here: disabling it would leave the run without samples.
+  if (!this->calibrating_) {
+    this->disable_loop();
+  }
 }
 
 void MQGasSensor::log_config_() {
@@ -324,9 +332,9 @@ void MQGasSensor::publish_diagnostics_() {
 }
 
 void MQGasSensor::publish_r0_() {
-  if (this->r0_sensor_ == nullptr || !this->has_r0())
+  if (!this->has_r0())
     return;
-  this->r0_sensor_->publish_state(this->r0_);
+  PUBLISH_STATE(this->r0_sensor_, this->r0_);
 }
 
 void MQGasSensor::publish_fault_diagnostics_() {
@@ -427,6 +435,9 @@ void MQGasSensor::update() {
   if (this->calibrating_) {
     // The persisted R0 is about to change: never keep a value that was computed
     // with the previous one.  The message also reaches `log_sensor:`.
+    this->ratio_ = NAN;
+    this->correction_ = NAN;
+    this->publish_diagnostics_();
     this->publish_state(NAN);
     this->log_message_(LOG_SEVERITY_DEBUG,
                        LOG_STR("update skipped, a calibration is running - the sensor must be in clean air"));
@@ -585,14 +596,21 @@ void MQGasSensor::clear_reading_warnings_() {
 
 void MQGasSensor::warn_ceiling_(float ppm) {
   // The value is clamped to the range and a saturated sensor reports its ceiling, so
-  // say so once: neither may pass for a measurement at that value.
-  const bool at_ceiling = ppm >= this->max_ppm_;
+  // say so once: neither may pass for a measurement at that value. With
+  // `correction_clamp: scaled` the ceiling is the corrected one, the same value
+  // `clamp_ppm_corrected()` clips to.
+  const float scaled = this->max_ppm_ * this->correction_;
+  const float ceiling =
+      this->correction_clamp_ == CorrectionClamp::CLAMP_SCALED && std::isfinite(scaled) && scaled >= this->min_ppm_
+          ? scaled
+          : this->max_ppm_;
+  const bool at_ceiling = ppm >= ceiling;
   if (at_ceiling == this->warned_over_range_)
     return;
   this->warned_over_range_ = at_ceiling;
   if (at_ceiling) {
     this->log_message_(LOG_SEVERITY_WARN, LOG_STR("V=%.4f V is beyond %.1f ppm - reporting the top of the range"),
-                       this->sensor_voltage_, this->max_ppm_);
+                       this->sensor_voltage_, ceiling);
   }
 }
 
@@ -642,6 +660,13 @@ void MQGasSensor::loop() {
     return;
 
   const uint32_t now = App.get_loop_component_start_time();
+  // The duration bounds the window, so it is checked before the spacing gate: a
+  // long sample_interval must not push the run past its end and take a sample
+  // outside it.
+  if (this->calibration_duration_ > 0 && now - this->calibration_start_ >= this->calibration_duration_) {
+    this->finish_calibration_();
+    return;
+  }
   if (now - this->calibration_last_sample_ < this->sample_interval_)
     return;
 
@@ -668,6 +693,10 @@ void MQGasSensor::begin_calibration_() {
   // A new attempt supersedes the warning of an earlier failed one.
   this->r0_warning_clears_on_reading_ = false;
   this->enable_loop();
+
+  // The R0 is about to change: a value computed with the previous one must not stay
+  // visible through the run and after it. The next poll publishes the new one.
+  this->publish_state(NAN);
 
   this->log_message_(
       LOG_SEVERITY_INFO,
@@ -697,7 +726,20 @@ void MQGasSensor::process_calibration_() {
   } else {
     this->sensor_voltage_ = voltage;
     this->rs_ = this->current_rs_();
-    const float r0 = mqmath::r0_from_clean_air(this->rs_, this->ratio_in_clean_air_);
+    // The compensation is applied to every reading, so the reference has to be
+    // measured the same way: solving R0 for "the clean-air ratio after the
+    // correction" keeps a replay of this input at ratio_in_clean_air.
+    const float correction = this->compute_correction_();
+    const float effective =
+        this->ratio_mode_ == RatioMode::RATIO_R0_RS
+            ? this->ratio_in_clean_air_ / (correction > 0.0f ? correction : 1.0f) - this->correction_factor_
+            : this->ratio_in_clean_air_ * (correction > 0.0f ? correction : 1.0f) - this->correction_factor_;
+    const float r0 = mqmath::r0_from_clean_air(this->rs_, effective);
+    // The wiring is being watched through the voltage and RS diagnostics while the
+    // run samples; the ratio, correction and PPM stay unknown until an R0 exists.
+    this->ratio_ = NAN;
+    this->correction_ = NAN;
+    this->publish_diagnostics_();
     if (r0 > 0.0f) {
       if (this->calibration_count_ == 0) {
         this->calibration_min_ = r0;

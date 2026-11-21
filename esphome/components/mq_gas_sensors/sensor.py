@@ -313,17 +313,28 @@ def _voltage_multiplier(config: ConfigType) -> float:
 
 
 def _preference_key(
-    vcc: float, multiplier: float, rl: float, ratio_in_clean_air: float
+    vcc: float,
+    multiplier: float,
+    rl: float,
+    ratio_in_clean_air: float,
+    *,
+    sensor: str,
+    sampler: str,
+    correction_mode: str,
 ) -> int:
     """Identity of the wiring a stored R0 was measured with.
 
     A calibration derives ``R0 = RS / ratio_in_clean_air`` from a clean-air
     reading, so a value kept in flash only describes the sensor while the supply,
-    the scaling, the load resistor and the clean-air ratio stay the same. All four
-    go into the key, so a configuration change never reads back an R0 that belongs
-    to different hardware.
+    the scaling, the load resistor, the clean-air ratio and the compensation stay
+    the same. The sensor type and the sampler it reads from are part of the key
+    too, so swapping the sensor or rewiring a ``voltage:`` source cannot restore a
+    reference that belongs to different hardware.
     """
-    return fnv1_hash(f"{vcc:g}:{multiplier:g}:{rl:g}:{ratio_in_clean_air:g}")
+    return fnv1_hash(
+        f"{sensor}:{sampler}:{correction_mode}:"
+        f"{vcc:g}:{multiplier:g}:{rl:g}:{ratio_in_clean_air:g}"
+    )
 
 
 CALIBRATION_SCHEMA = cv.Schema(
@@ -969,6 +980,13 @@ async def to_code(config: ConfigType) -> None:
                 multiplier,
                 _effective_rl(config, resolved.rl),
                 ratio_in_clean_air,
+                sensor=f"{resolved.type_key}/{resolved.gas}",
+                sampler=(
+                    f"pin:{config[CONF_PIN]}"
+                    if CONF_PIN in config
+                    else f"voltage:{config[CONF_VOLTAGE].id}"
+                ),
+                correction_mode=str(config[CONF_CORRECTION_MODE]),
             )
         )
     )
