@@ -14,7 +14,7 @@ from .op_manifest import build_selective_op_defines
 _LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@nliaudat"]
-DEPENDENCIES = ["esp32"]
+DEPENDENCIES = ["esp32", "tflite_model_io"]
 DOMAIN = "tflite_op_processor"
 
 CONF_OPERATORS = "operators"

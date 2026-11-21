@@ -8,14 +8,15 @@ import struct
 import pytest
 
 from esphome.components import tflite_op_processor
-from esphome.components.tflite_op_processor import CONF_OPERATORS
-from esphome.components.tflite_op_processor.builtin_codes import BUILTIN_OPERATOR_NAMES
-from esphome.components.tflite_op_processor.model_reader import (
+from esphome.components.tflite_model_io.builtin_codes import BUILTIN_OPERATOR_NAMES
+from esphome.components.tflite_model_io.model_reader import (
     ModelReadError,
     estimate_tensor_arena,
     read_model_input,
+    read_model_io,
     read_model_operators,
 )
+from esphome.components.tflite_op_processor import CONF_OPERATORS
 from esphome.components.tflite_op_processor.op_manifest import (
     OpTable,
     build_selective_op_defines,
@@ -98,6 +99,7 @@ def write_model(
     *,
     subgraph: bool = True,
     inputs: Sequence[int] = (),
+    outputs: Sequence[int] = (),
     tensors: Sequence[tuple[Sequence[int], int, int]] = (),
     buffers: Sequence[bytes | None] = (),
     operators: Sequence[tuple[Sequence[int], Sequence[int]]] = (),
@@ -146,6 +148,7 @@ def write_model(
                     [partial(write_tensor, *tensor) for tensor in tensors],
                 ),
                 **({1: partial(writer.i32_vector, inputs)} if inputs else {}),
+                **({2: partial(writer.i32_vector, outputs)} if outputs else {}),
                 3: partial(
                     writer.table_vector,
                     [partial(write_operator, *operator) for operator in operators],
@@ -546,6 +549,49 @@ def test_read_model_input_requires_an_input_tensor(tmp_path: Path) -> None:
 
     with pytest.raises(ModelReadError, match="no input tensor"):
         read_model_input(model)
+
+
+def test_read_model_io_lists_every_input_and_output(tmp_path: Path) -> None:
+    """A detection or text model has several tensors on both sides."""
+    model = write_model_file(
+        tmp_path,
+        write_model(
+            [(None, 9)],
+            inputs=(0, 1),
+            outputs=(2, 3),
+            tensors=(
+                ([1, 32, 20, 3], 3, 0),
+                ([1, 2], 2, 0),
+                ([1, 4, 4], 0, 0),
+                ([1, 1], 0, 0),
+            ),
+            buffers=(None,),
+        ),
+    )
+
+    model_io = read_model_io(model)
+
+    assert [spec.shape for spec in model_io.inputs] == [(1, 32, 20, 3), (1, 2)]
+    assert [spec.type for spec in model_io.inputs] == ["uint8", "int32"]
+    assert [spec.shape for spec in model_io.outputs] == [(1, 4, 4), (1, 1)]
+    assert [spec.type for spec in model_io.outputs] == ["float32", "float32"]
+
+
+def test_read_model_io_rejects_a_tensor_index_outside_the_graph(
+    tmp_path: Path,
+) -> None:
+    model = write_model_file(
+        tmp_path,
+        write_model(
+            [(None, 9)],
+            inputs=(4,),
+            tensors=(([1, 8], 3, 0),),
+            buffers=(None,),
+        ),
+    )
+
+    with pytest.raises(ModelReadError, match="tensor 4"):
+        read_model_io(model)
 
 
 def test_read_model_input_rejects_a_type_the_runtime_cannot_fill(

@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 import re
 
-from .model_reader import read_model_operators
+from esphome.components.tflite_model_io.model_reader import read_model_operators
 
 # X-macro entry patterns of tflm_operators.h, after inline comments are stripped.
 _AVAILABLE_RE = re.compile(r"^TFLM_OP_AVAILABLE\(([A-Za-z0-9_]+),\s*([A-Za-z0-9_]+)\)$")
@@ -55,18 +55,24 @@ def parse_op_table(path: str | Path | None = None) -> OpTable:
     unavailable: set[str] = set()
     in_table = False
     seen_table = False
+    continued = False
     try:
         lines = table.read_text(encoding="utf-8").splitlines()
     except OSError as err:
         raise ValueError(f"{table}: cannot read the operator table: {err}") from err
     for lineno, raw_line in enumerate(lines, start=1):
         line = raw_line.split("//", 1)[0].strip()
+        if continued:
+            # The #if guard may wrap onto the next line with a trailing backslash.
+            continued = raw_line.rstrip().endswith("\\")
+            continue
         if not line:
             continue
         if not in_table:
             if line.startswith("#if") and _TABLE_GUARD in line:
                 in_table = True
                 seen_table = True
+                continued = raw_line.rstrip().endswith("\\")
                 continue
             # An entry outside the block would be compiled out of the C++ table while this parser ignored it.
             if _is_op_entry(line):
