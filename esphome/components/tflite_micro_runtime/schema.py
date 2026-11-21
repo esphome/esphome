@@ -8,6 +8,7 @@ from esphome.components.tflite_model_source.model_source import MODEL_SOURCE_SCH
 from esphome.components.tflite_pose import POSE_SCHEMA
 from esphome.components.tflite_segmentation import SEGMENTATION_SCHEMA
 from esphome.components.tflite_tabular import TABULAR_SCHEMA
+from esphome.components.tflite_text import TEXT_SCHEMA
 import esphome.config_validation as cv
 from esphome.const import CONF_DEBUG, CONF_MODEL, CONF_RAW_DATA_ID
 
@@ -37,6 +38,7 @@ PER_MODEL_SCHEMA = (
                 "segmentation",
                 "pose",
                 "tabular",
+                "text",
             ),
         }
     )
@@ -45,6 +47,7 @@ PER_MODEL_SCHEMA = (
     .extend(SEGMENTATION_SCHEMA)
     .extend(POSE_SCHEMA)
     .extend(TABULAR_SCHEMA)
+    .extend(TEXT_SCHEMA)
 )
 
 MULTI_CONF = True
