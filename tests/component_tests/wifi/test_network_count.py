@@ -7,6 +7,7 @@ import pytest
 
 from esphome.components import wifi
 from esphome.core import CORE, EsphomeError
+from esphome.coroutine import CoroPriority, coroutine_with_priority
 
 
 @pytest.mark.parametrize(
@@ -64,3 +65,38 @@ def test_requested_slots_over_the_limit_raise(
 
     with pytest.raises(EsphomeError, match="add up to 128"):
         generate_main(component_config_path("three_networks.yaml"))
+
+
+@pytest.mark.parametrize("count", [0, -1])
+def test_request_below_one_raises(count: int) -> None:
+    """A request can only add slots, never take away the YAML networks' slots."""
+    with pytest.raises(ValueError, match="at least 1"):
+        wifi.request_wifi_network_slots(count)
+
+
+def test_request_from_a_later_job_is_counted(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """A component whose code generation runs after wifi's still gets its slots."""
+
+    @coroutine_with_priority(CoroPriority.LATE)
+    async def late_request() -> None:
+        wifi.request_wifi_network_slots(4)
+
+    CORE.add_job(late_request)
+    generate_main(component_config_path("three_networks.yaml"))
+
+    defines = {define.name: define.value for define in CORE.defines}
+    assert str(defines["WIFI_NETWORK_COUNT"]) == "7"
+
+
+def test_request_after_the_count_is_emitted_raises(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """Once the station list size is in the build, a new request cannot grow it."""
+    generate_main(component_config_path("three_networks.yaml"))
+
+    with pytest.raises(ValueError, match="after the count define was emitted"):
+        wifi.request_wifi_network_slots(1)

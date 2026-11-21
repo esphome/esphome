@@ -855,8 +855,8 @@ async def to_code(config):
         return manual_ip_entries.index(entry)
 
     networks = config.get(CONF_NETWORKS, [])
-    # final_step() adds slots other components request and sets WIFI_NETWORK_COUNT
-    CORE.data[CONFIGURED_NETWORKS_KEY] = len(networks)
+    for _ in networks:
+        _request_network_slot()
     if networks:
         if len(networks) > 1:
             # The ESP32 scan can filter one SSID in the driver; with several the whole list is kept
@@ -1149,8 +1149,11 @@ SCAN_RESULTS_LISTENERS_KEY = "wifi_scan_results_listeners"
 CONNECT_STATE_LISTENERS_KEY = "wifi_connect_state_listeners"
 POWER_SAVE_LISTENERS_KEY = "wifi_power_save_listeners"
 SCAN_RESULTS_LOCK_KEY = "wifi_scan_results_lock"
-CONFIGURED_NETWORKS_KEY = "wifi_configured_networks"
-NETWORK_SLOTS_KEY = "wifi_network_slots"
+
+# Size of the station list: one slot per YAML network plus the slots
+# components request with request_wifi_network_slots().
+NETWORK_COUNT_DEFINE = "WIFI_NETWORK_COUNT"
+_request_network_slot = cg.slot_counter(NETWORK_COUNT_DEFINE)
 
 
 def request_wifi_scan_results():
@@ -1251,9 +1254,15 @@ def request_wifi_network_slots(count: int) -> None:
     The station list is sized at build time from the networks in the YAML.
     Components that call add_sta() with networks of their own must call this
     function during their code generation, or add_sta() drops those networks.
-    Requests from several components add up.
+    Requests from several components add up. A request made after the station
+    list size was emitted raises.
     """
-    CORE.data[NETWORK_SLOTS_KEY] = CORE.data.get(NETWORK_SLOTS_KEY, 0) + count
+    if count < 1:
+        raise ValueError(
+            f"request_wifi_network_slots() needs a count of at least 1, got {count}"
+        )
+    for _ in range(count):
+        _request_network_slot()
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
@@ -1270,16 +1279,15 @@ async def final_step():
     if CORE.data.get(SCAN_RESULTS_LOCK_KEY):
         cg.add_define("USE_WIFI_SCAN_RESULTS_LOCK")
 
-    network_count = CORE.data.get(CONFIGURED_NETWORKS_KEY, 0) + CORE.data.get(
-        NETWORK_SLOTS_KEY, 0
-    )
+    network_count = cg.get_slot_count(NETWORK_COUNT_DEFINE)
     if network_count > MAX_WIFI_NETWORKS:
         raise EsphomeError(
             f"wifi networks and requested network slots add up to {network_count}, "
             f"more than the {MAX_WIFI_NETWORKS} allowed"
         )
-    # set_sta() stores one network at run time even when none is configured
-    cg.add_define("WIFI_NETWORK_COUNT", max(1, network_count))
+    if not network_count:
+        # set_sta() stores one network at run time even when none is configured
+        cg.add_define(NETWORK_COUNT_DEFINE, 1)
 
     # Generate listener defines - each listener type has its own #ifdef
     ip_state_count = CORE.data.get(IP_STATE_LISTENERS_KEY, 0)
