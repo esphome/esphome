@@ -10,9 +10,12 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/core/component.h"
 
+#include <algorithm>
 #include <atomic>
+#include <cmath>
 #include <cstdint>
 #include <memory>
+#include <numeric>
 #include <utility>
 #include <vector>
 
@@ -59,10 +62,113 @@ struct DialConfig {
   std::vector<std::pair<float, float>> calibration_mapping;
 };
 
+/// One dial's reading, published only once the whole frame has been read.
 struct DialReading {
   const DialConfig *dial;
   float value;
+  float angle;
+  float confidence;
 };
+
+/// Maps a detector angle (0 = East, clockwise) to the dial's value.
+inline float angle_to_value(float image_angle, const DialConfig &dial) {
+  // Image angles start at East, dial angles at North, so rotate by 90 degrees.
+  float dial_angle = fmodf(image_angle + 90.0f, 360.0f);
+  // The offset is the dial's physical origin, so it applies before the mirror.
+  dial_angle = fmodf(dial_angle - dial.angle_offset + 360.0f, 360.0f);
+  if (!dial.clockwise)
+    dial_angle = fmodf(360.0f - dial_angle, 360.0f);
+
+  // A calibration map wins over the angle range, including a wrap-around range.
+  if (!dial.calibration_mapping.empty()) {
+    const auto &points = dial.calibration_mapping;
+    if (dial_angle <= points.front().first)
+      return points.front().second;
+    if (dial_angle >= points.back().first)
+      return points.back().second;
+    for (size_t i = 0; i < points.size() - 1; i++) {
+      const float x1 = points[i].first;
+      const float x2 = points[i + 1].first;
+      if (dial_angle >= x1 && dial_angle <= x2) {
+        if (std::abs(x2 - x1) < 0.001f)
+          return points[i].second;
+        const float t = (dial_angle - x1) / (x2 - x1);
+        return points[i].second + t * (points[i + 1].second - points[i].second);
+      }
+    }
+    return points.back().second;
+  }
+
+  float fraction;
+  if (dial.min_angle > dial.max_angle) {
+    if (dial_angle < dial.min_angle)
+      dial_angle += 360.0f;
+    fraction = (dial_angle - dial.min_angle) / ((dial.max_angle + 360.0f) - dial.min_angle);
+  } else {
+    fraction = (dial_angle - dial.min_angle) / (dial.max_angle - dial.min_angle);
+  }
+  return dial.min_value + std::clamp(fraction, 0.0f, 1.0f) * (dial.max_value - dial.min_value);
+}
+
+/// Carry-corrects stacked dials and returns the combined value.
+/// `order`, `phase` and `digits` are scratch arrays of `count` entries; `digits`
+/// is filled in reading order. Returns NAN when the value cannot be represented.
+inline float combine_stacked_digits(const DialReading *readings, size_t count, int *order, float *phase, int *digits) {
+  auto wrap10 = [](float x) -> float {
+    x = fmodf(x, 10.0f);
+    return x < 0.0f ? x + 10.0f : x;
+  };
+  auto round_digit10 = [](float x) -> int {
+    const int digit = static_cast<int>(floorf(x + 0.5f));
+    return digit >= 10 ? digit - 10 : digit;
+  };
+
+  std::iota(order, order + count, 0);
+  // The index tie-break keeps equal scales in config order.
+  std::sort(order, order + count, [readings](int a, int b) {
+    const float sa = readings[a].dial->scale;
+    const float sb = readings[b].dial->scale;
+    return sa < sb || (sa == sb && a < b);
+  });
+
+  for (size_t p = 0; p < count; p++) {
+    const int i = order[p];
+    const float raw = wrap10(readings[i].value);
+    const float lower_fraction = p == 0 ? 0.0f : phase[order[p - 1]] / 10.0f;
+    const int digit = round_digit10(wrap10(raw - lower_fraction));
+    digits[i] = digit;
+    // The finest dial has no lower dial, so keep its continuous phase.
+    phase[i] = p == 0 ? raw : wrap10(static_cast<float>(digit) + lower_fraction);
+  }
+
+  // Sum from the continuous phase, or 9.9 -> 0 loses the carry.
+  const int finest_i = order[0];
+  const float finest_scale = readings[finest_i].dial->scale;
+  float total = phase[finest_i] * finest_scale;
+  for (size_t p = 1; p < count; p++) {
+    const int i = order[p];
+    total += static_cast<float>(digits[i]) * readings[i].dial->scale;
+  }
+
+  // Round without llroundf(), which not every ESP-IDF target provides.
+  const float steps = total / finest_scale;
+  if (!std::isfinite(steps) || std::abs(steps) > 1e15f)
+    return NAN;
+  const long long rounded_steps = static_cast<long long>(steps + (steps >= 0.0f ? 0.5f : -0.5f));
+
+  // Derive the digits from the rounded total so the carry is consistent.
+  for (size_t i = 0; i < count; i++) {
+    const float ratio = readings[i].dial->scale / finest_scale;
+    if (!std::isfinite(ratio) || std::abs(ratio) > 1e15f)
+      continue;
+    long long place = static_cast<long long>(ratio + (ratio >= 0.0f ? 0.5f : -0.5f));
+    if (place <= 0)
+      place = 1;
+    const int digit = static_cast<int>((rounded_steps / place) % 10);
+    digits[i] = digit < 0 ? digit + 10 : digit;
+  }
+  return static_cast<float>(rounded_steps) * finest_scale;
+}
 
 /// Reads dials out of esp32_camera frames: one shared decode, then one crop per dial.
 class AnalogGaugeReader : public PollingComponent, public esphome::camera::CameraListener {
@@ -77,6 +183,9 @@ class AnalogGaugeReader : public PollingComponent, public esphome::camera::Camer
   void on_camera_image(const std::shared_ptr<esphome::camera::CameraImage> &image) override;
   void dump_config() override;
   void set_value_sensor(sensor::Sensor *s) { this->value_sensor_ = s; }
+  void set_dial_value_sensor(size_t index, sensor::Sensor *s) { this->dials_[index].value_sensor = s; }
+  void set_dial_confidence_sensor(size_t index, sensor::Sensor *s) { this->dials_[index].confidence_sensor = s; }
+  void set_dial_angle_sensor(size_t index, sensor::Sensor *s) { this->dials_[index].angle_sensor = s; }
   void set_pause_processing(bool paused) { this->paused_ = paused; }
   void set_debug(bool debug) { this->debug_ = debug; }
   // Combine dials as odometer digits with carry correction instead of a weighted sum.
@@ -107,7 +216,6 @@ class AnalogGaugeReader : public PollingComponent, public esphome::camera::Camer
   bool debug_{false};
   std::shared_ptr<esphome::camera::CameraImage> pending_frame_{nullptr};
   std::vector<uint8_t> scratch_buffer_;
-  std::vector<uint8_t> scratch_buffer_2_;
   std::vector<DialReading> readings_;
   std::vector<int> digits_;
   std::vector<float> phase_;
@@ -115,8 +223,6 @@ class AnalogGaugeReader : public PollingComponent, public esphome::camera::Camer
   void process_image_from_buffer(const uint8_t *data, size_t len);
   /// Copies a dial rectangle out of a frame, converting to luma when colour is not needed.
   bool crop_dial_(const uint8_t *src, const camera::CameraImageSpec &spec, const DialConfig &dial, DialBuffer &out);
-  [[nodiscard]] float angle_to_value(float angle, const DialConfig &dial);
-  void debug_angle_calculation(float image_angle, const DialConfig &dial);
 };
 
 }  // namespace analog_gauge_reader

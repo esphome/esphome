@@ -1,0 +1,5 @@
+packages:
+  base: !include base.yaml
+
+camera_decoder:
+  output_type: RGB565

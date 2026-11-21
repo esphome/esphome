@@ -1,16 +1,17 @@
 """Reads analog gauges out of frames from an esp32_camera."""
 
+from itertools import pairwise
+import math
+
 import esphome.codegen as cg
 from esphome.components import (
     camera,
     camera_decoder,
     esp32_camera,
     gauge_needle_detector,
-    sensor,
 )
 import esphome.config_validation as cv
 from esphome.const import (
-    CONF_ANGLE,
     CONF_CALIBRATION,
     CONF_CONTRAST,
     CONF_DEBUG,
@@ -19,7 +20,7 @@ from esphome.const import (
     CONF_MIN_VALUE,
     CONF_RAW,
     CONF_RESOLUTION,
-    CONF_VALUE,
+    CONF_ROTATION,
 )
 import esphome.final_validate as fv
 from esphome.types import ConfigType
@@ -32,7 +33,6 @@ DOMAIN = "analog_gauge_reader"
 CONF_CAMERA_ID = "camera_id"
 CONF_DECODER_ID = "decoder_id"
 CONF_DIALS = "dials"
-CONF_VALUE_SENSOR = "value_sensor"
 CONF_MIN_ANGLE = "min_angle"
 CONF_MAX_ANGLE = "max_angle"
 CONF_ANGLE_OFFSET = "angle_offset"
@@ -46,7 +46,6 @@ CONF_COLOR_TOLERANCE = "color_tolerance"
 CONF_PAUSED = "paused"
 CONF_AUTO_CONTRAST = "auto_contrast"
 CONF_STACKED_DIGITS = "stacked_digits"
-
 CONF_NEEDLE_TYPE = "needle_type"
 CONF_ALGORITHM = "algorithm"
 CONF_CONFIDENCE = "confidence"
@@ -87,7 +86,7 @@ PROCESS_CHANNELS: dict[str, cg.MockObj] = ProcessChannel.options(
 
 DIAL_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_ID): cv.string,  # String ID for logs
+        cv.Required(CONF_ID): cv.string,  # String ID for logs and sensor entries
         cv.Optional(CONF_NEEDLE_TYPE, default="DARK"): cv.one_of(
             "DARK", "LIGHT", upper=True
         ),
@@ -97,7 +96,7 @@ DIAL_SCHEMA = cv.Schema(
         cv.Optional(CONF_ALGORITHM, default="radial_profile"): cv.one_of(
             *ALGORITHMS, lower=True
         ),
-        cv.Optional("scale", default=1.0): cv.positive_float,
+        cv.Optional("scale", default=1.0): cv.positive_not_null_float,
         cv.Optional(CONF_CROP_X, default=0): cv.int_range(min=0),
         cv.Optional(CONF_CROP_Y, default=0): cv.int_range(min=0),
         cv.Optional(CONF_CROP_W, default=64): cv.positive_int,
@@ -123,9 +122,6 @@ DIAL_SCHEMA = cv.Schema(
         cv.Optional(CONF_COLOR_TOLERANCE, default=0.0): cv.float_range(
             min=0.0, max=442.0
         ),
-        cv.Optional(CONF_VALUE): sensor.sensor_schema(),
-        cv.Optional(CONF_CONFIDENCE): sensor.sensor_schema(),
-        cv.Optional(CONF_ANGLE): sensor.sensor_schema(),
         cv.Optional(CONF_CALIBRATION): cv.ensure_list(
             cv.Schema(
                 {
@@ -137,30 +133,24 @@ DIAL_SCHEMA = cv.Schema(
     }
 )
 
-
-_CONFIG_SCHEMA = {
-    cv.GenerateID(): cv.declare_id(AnalogGaugeReader),
-    cv.Required(CONF_CAMERA_ID): cv.use_id(esp32_camera.ESP32Camera),
-    cv.Required(CONF_DECODER_ID): cv.use_id(camera.Decoder),
-    cv.Optional(CONF_VALUE_SENSOR): sensor.sensor_schema(),
-    cv.Required(CONF_DIALS): cv.ensure_list(DIAL_SCHEMA),
-    cv.Optional(CONF_PAUSED, default=False): cv.boolean,
-    cv.Optional(CONF_DEBUG, default=False): cv.boolean,
-    cv.Optional(CONF_STACKED_DIGITS, default=False): cv.boolean,
-}
-
-CONFIG_SCHEMA = cv.Schema(_CONFIG_SCHEMA).extend(cv.polling_component_schema("60s"))
+CONFIG_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.declare_id(AnalogGaugeReader),
+        cv.Required(CONF_CAMERA_ID): cv.use_id(esp32_camera.ESP32Camera),
+        cv.Required(CONF_DECODER_ID): cv.use_id(camera.Decoder),
+        cv.Required(CONF_DIALS): cv.ensure_list(DIAL_SCHEMA),
+        cv.Optional(CONF_PAUSED, default=False): cv.boolean,
+        cv.Optional(CONF_DEBUG, default=False): cv.boolean,
+        cv.Optional(CONF_STACKED_DIGITS, default=False): cv.boolean,
+    }
+).extend(cv.polling_component_schema("60s"))
 
 # Frame size resolved in final_validate and read back by to_code.
 _KEY_CAMERA_FRAME = "_analog_gauge_camera_frame"
 
 
 def _enum_name(value: object) -> str:
-    """Return the C++ enumerator name behind a validated ``cv.enum`` value.
-
-    The option name is a string with the codegen expression attached as
-    ``enum_value``, so an alias such as ``VGA`` still resolves to its enumerator.
-    """
+    """Return the C++ enumerator name behind a validated ``cv.enum`` value."""
     return str(getattr(value, "enum_value", value)).rsplit("::", 1)[-1]
 
 
@@ -191,21 +181,51 @@ def _final_validate(config: ConfigType) -> ConfigType:
             f"so the camera converts the frame to JPEG.",
             path=[CONF_CAMERA_ID],
         )
+    decoder_config = fv.get_declaring_config(config[CONF_DECODER_ID])
+    # The decoder rotates the frame before it is handed over, so a quarter turn
+    # swaps the dimensions the crops and the frame-size check are based on.
+    if decoder_config[CONF_ROTATION] in (90, 270):
+        width, height = height, width
+    output_format = _enum_name(decoder_config[camera_decoder.CONF_OUTPUT_TYPE])
+    if output_format not in ("PIXEL_FORMAT_RGB888", "PIXEL_FORMAT_GRAYSCALE"):
+        raise cv.Invalid(
+            f"analog_gauge_reader reads RGB888 or GRAYSCALE frames, but the "
+            f"referenced camera_decoder outputs {output_format}. Set "
+            f"output_type: RGB888 or GRAYSCALE.",
+            path=[CONF_DECODER_ID],
+        )
     needs_color = any(
         CONF_TARGET_COLOR in dial or dial[CONF_PROCESS_CHANNEL] != "GRAYSCALE"
         for dial in config[CONF_DIALS]
     )
-    if needs_color:
-        decoder_config = fv.get_declaring_config(config[CONF_DECODER_ID])
-        output_format = _enum_name(decoder_config[camera_decoder.CONF_OUTPUT_TYPE])
-        if output_format != "PIXEL_FORMAT_RGB888":
-            raise cv.Invalid(
-                "Dials using target_color or a colour process_channel need the "
-                "decoder's RGB888 output. Set output_type: RGB888 on the "
-                "referenced camera_decoder.",
-                path=[CONF_DECODER_ID],
-            )
+    if needs_color and output_format != "PIXEL_FORMAT_RGB888":
+        raise cv.Invalid(
+            "Dials using target_color or a colour process_channel need the "
+            "decoder's RGB888 output. Set output_type: RGB888 on the "
+            "referenced camera_decoder.",
+            path=[CONF_DECODER_ID],
+        )
+    if config[CONF_STACKED_DIGITS]:
+        # Each dial carries one digit, so adjacent dials must be one decade apart.
+        scales = sorted(dial["scale"] for dial in config[CONF_DIALS])
+        for lower, upper in pairwise(scales):
+            if not math.isclose(upper, lower * 10.0, rel_tol=1e-6):
+                raise cv.Invalid(
+                    f"stacked_digits needs dial scales that are consecutive powers "
+                    f"of ten (1, 10, 100, ...), got "
+                    f"{', '.join(f'{scale:g}' for scale in scales)}",
+                    path=[CONF_DIALS],
+                )
     for dial in config[CONF_DIALS]:
+        sweep = (dial[CONF_MAX_ANGLE] - dial[CONF_MIN_ANGLE]) % 360.0
+        full_circle = (dial[CONF_MIN_ANGLE], dial[CONF_MAX_ANGLE]) == (0.0, 360.0)
+        if CONF_CALIBRATION not in dial and abs(sweep) < 1e-6 and not full_circle:
+            raise cv.Invalid(
+                f"Dial '{dial[CONF_ID]}' has a zero-width angle sweep "
+                f"({dial[CONF_MIN_ANGLE]} to {dial[CONF_MAX_ANGLE]}). Set the "
+                f"range the needle travels, or a full 0 to 360.",
+                path=[CONF_DIALS],
+            )
         if (
             dial[CONF_CROP_X] + dial[CONF_CROP_W] > width
             or dial[CONF_CROP_Y] + dial[CONF_CROP_H] > height
@@ -238,7 +258,6 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID], cam, decoder, frame_width, frame_height)
     await cg.register_component(var, config)
     cg.add_define("USE_ANALOG_GAUGE_READER")
-
     # Compile in only the detectors this config uses; "auto" and debug compare all.
     algorithms = {dial[CONF_ALGORITHM] for dial in config[CONF_DIALS]}
     if "auto" in algorithms or config[CONF_DEBUG]:
@@ -248,19 +267,7 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_debug(config[CONF_DEBUG]))
     cg.add(var.set_stacked_digits(config[CONF_STACKED_DIGITS]))
 
-    if CONF_VALUE_SENSOR in config:
-        sens = await sensor.new_sensor(config[CONF_VALUE_SENSOR])
-        cg.add(var.set_value_sensor(sens))
-
     for dial in config[CONF_DIALS]:
-        dial_sensors = {}
-        for key, field in (
-            (CONF_VALUE, "value_sensor"),
-            (CONF_CONFIDENCE, "confidence_sensor"),
-            (CONF_ANGLE, "angle_sensor"),
-        ):
-            if key in dial:
-                dial_sensors[field] = await sensor.new_sensor(dial[key])
         s = cg.StructInitializer(
             analog_gauge_reader_ns.struct("DialConfig"),
             ("id", dial[CONF_ID]),
@@ -286,7 +293,6 @@ async def to_code(config: ConfigType) -> None:
             ("min_scan_radius", dial[CONF_MIN_SCAN_RADIUS]),
             ("max_scan_radius", dial[CONF_MAX_SCAN_RADIUS]),
             ("deadzone_diameter", dial[CONF_DEADZONE_DIAMETER]),
-            *dial_sensors.items(),
         )
         if CONF_CALIBRATION in dial:
             points = ", ".join(

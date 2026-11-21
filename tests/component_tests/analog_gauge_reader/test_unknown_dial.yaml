@@ -1,0 +1,10 @@
+packages:
+  base: !include base.yaml
+
+sensor:
+  - platform: analog_gauge_reader
+    analog_gauge_reader_id: gauge
+    dials:
+      - dial: missing
+        value:
+          name: Missing Dial

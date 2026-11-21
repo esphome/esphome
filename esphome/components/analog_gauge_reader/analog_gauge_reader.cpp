@@ -10,7 +10,6 @@
 #include <cmath>
 #include <cstring>
 #include <memory>
-#include <numeric>  // std::iota
 #include <vector>
 
 #ifdef USE_ESP32
@@ -25,7 +24,6 @@ ESPHOME_LOG_TAG(TAG, "analog_gauge_reader");
 static constexpr float DECIMAL_PRECISION = 10000.0f;  // 4 decimal places (10^4)
 
 void AnalogGaugeReader::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up Analog Gauge Reader...");
   this->camera_->add_listener(this);
 
   // Sort calibration mappings for correct interpolation
@@ -54,7 +52,6 @@ void AnalogGaugeReader::setup() {
   }
   if (max_crop_area > 0) {
     this->scratch_buffer_.reserve(max_crop_area);
-    this->scratch_buffer_2_.reserve(max_crop_area);
     this->detector_.reserve(max_crop_w, max_crop_h);
     ESP_LOGD(TAG, "Reserved scratch buffers for max area: %d pixels", static_cast<int>(max_crop_area));
   }
@@ -81,11 +78,9 @@ void AnalogGaugeReader::setup() {
 }
 
 void AnalogGaugeReader::dump_config() {
-  ESP_LOGCONFIG(TAG, "Analog Gauge Reader:");
-  ESP_LOGCONFIG(TAG, "  Frame: %dx%d", this->img_width_, this->img_height_);
-  ESP_LOGCONFIG(TAG, "  Debug: %s", this->debug_ ? LOG_STR_LITERAL("YES") : LOG_STR_LITERAL("NO"));
-  ESP_LOGCONFIG(TAG, "  Update Interval: %" PRIu32 " ms", this->get_update_interval());
-  ESP_LOGCONFIG(TAG, "  Stacked Digits: %s", this->stacked_digits_ ? LOG_STR_LITERAL("YES") : LOG_STR_LITERAL("NO"));
+  ESP_LOGCONFIG(TAG, "Analog Gauge Reader: Frame=%dx%d, Debug=%s, Update Interval=%" PRIu32 " ms, Stacked Digits=%s",
+                this->img_width_, this->img_height_, this->debug_ ? LOG_STR_LITERAL("YES") : LOG_STR_LITERAL("NO"),
+                this->get_update_interval(), this->stacked_digits_ ? LOG_STR_LITERAL("YES") : LOG_STR_LITERAL("NO"));
   for (const auto &dial : this->dials_) {
     ESP_LOGCONFIG(TAG,
                   "  Dial '%s': Algorithm=%s, Scale=%.3f, Crop=[%d,%d,%d,%d], AutoContrast=%s, Contrast=%.2f, "
@@ -99,10 +94,6 @@ void AnalogGaugeReader::dump_config() {
 }
 
 void AnalogGaugeReader::update() {
-  if (this->debug_) {
-    ESP_LOGD(TAG, "Update triggered (Interval cycle)");
-  }
-
   if (this->paused_) {
     return;
   }
@@ -218,75 +209,42 @@ void AnalogGaugeReader::process_image_from_buffer(const uint8_t *data, size_t le
     DialBuffer &buffer = this->dial_buffers_[index];
     if (!this->crop_dial_(pixels, spec, dial, buffer)) {
       ESP_LOGE(TAG, "Could not crop dial %s from the %dx%d frame", dial.id, processing_w, processing_h);
-      continue;
+      return;
     }
-    uint8_t *raw = buffer.data.get();
-    size_t raw_len = buffer.size;
     const int crop_w = dial.crop_w;
     const int crop_h = dial.crop_h;
-    const uint8_t *input_for_algo = raw;
-    if (this->debug_) {
-      ESP_LOGD(TAG, "Processing Dial: %s (Algorithm: %s)", dial.id,
-               LOG_STR_ARG(gauge_needle_detector::algorithm_name(dial.algorithm)));
-    }
-    if (dial.process_channel != PROCESS_CHANNEL_GRAYSCALE && !dial.use_color) {
-      if (this->scratch_buffer_.size() != static_cast<size_t>(crop_w * crop_h)) {
-        this->scratch_buffer_.resize(crop_w * crop_h);
-      }
-
-      const int offset = static_cast<int>(dial.process_channel) - 1;
-      if (buffer.channels == 3) {
-        for (int i = 0; i < crop_w * crop_h; i++) {
-          this->scratch_buffer_[i] = raw[i * 3 + offset];
-        }
-        input_for_algo = this->scratch_buffer_.data();
-        if (dial.auto_contrast) {
-          apply_auto_contrast(this->scratch_buffer_.data(), crop_w * crop_h);
-        }
-        if (std::abs(dial.contrast - 1.0f) > 0.01f) {
-          apply_contrast(this->scratch_buffer_.data(), crop_w * crop_h, dial.contrast);
-        }
-      } else {
-        ESP_LOGW(TAG, "Dial %s configured for channel %d but input is Grayscale", dial.id,
-                 static_cast<int>(dial.process_channel));
-      }
-    } else if (dial.use_color) {
-      if (this->scratch_buffer_.size() != static_cast<size_t>(crop_w * crop_h)) {
-        this->scratch_buffer_.resize(crop_w * crop_h);
-      }
-      uint8_t tr = (dial.target_color >> 16) & 0xFF;
-      uint8_t tg = (dial.target_color >> 8) & 0xFF;
-      uint8_t tb = dial.target_color & 0xFF;
-
+    uint8_t *gray = buffer.data.get();
+    if (dial.use_color) {
+      this->scratch_buffer_.resize(crop_w * crop_h);
+      const uint8_t tr = (dial.target_color >> 16) & 0xFF;
+      const uint8_t tg = (dial.target_color >> 8) & 0xFF;
+      const uint8_t tb = dial.target_color & 0xFF;
       // A tolerance flattens off-colour pixels, leaving only the needle.
-      float tol = dial.color_tolerance;
-      bool use_tol = tol > 0.0f && tol < 442.0f;
-
+      const float tol = dial.color_tolerance;
+      const bool use_tol = tol > 0.0f && tol < 442.0f;
       for (int i = 0; i < crop_w * crop_h; i++) {
-        uint8_t r = raw[i * 3 + 0];
-        uint8_t g = raw[i * 3 + 1];
-        uint8_t b = raw[i * 3 + 2];
-        float dr = static_cast<float>(r - tr);
-        float dg = static_cast<float>(g - tg);
-        float db = static_cast<float>(b - tb);
-        float dist = sqrtf(dr * dr + dg * dg + db * db);
-        float val;
-        if (use_tol) {
-          val = (dist >= tol) ? 255.0f : (dist * 255.0f / tol);
-        } else {
-          val = (dist * 255.0f / 442.0f);
-        }
-        if (val > 255)
-          val = 255;
-        this->scratch_buffer_[i] = static_cast<uint8_t>(val);
+        const float dr = static_cast<float>(gray[i * 3 + 0] - tr);
+        const float dg = static_cast<float>(gray[i * 3 + 1] - tg);
+        const float db = static_cast<float>(gray[i * 3 + 2] - tb);
+        const float dist = sqrtf(dr * dr + dg * dg + db * db);
+        const float val = use_tol ? (dist >= tol ? 255.0f : dist * 255.0f / tol) : dist * 255.0f / 442.0f;
+        this->scratch_buffer_[i] = static_cast<uint8_t>(std::min(val, 255.0f));
       }
-      input_for_algo = this->scratch_buffer_.data();
-    } else if (dial.process_channel == PROCESS_CHANNEL_GRAYSCALE) {
+      gray = this->scratch_buffer_.data();
+    } else {
+      if (dial.process_channel != PROCESS_CHANNEL_GRAYSCALE) {
+        this->scratch_buffer_.resize(crop_w * crop_h);
+        const int offset = static_cast<int>(dial.process_channel) - 1;
+        for (int i = 0; i < crop_w * crop_h; i++) {
+          this->scratch_buffer_[i] = gray[i * 3 + offset];
+        }
+        gray = this->scratch_buffer_.data();
+      }
       if (dial.auto_contrast) {
-        apply_auto_contrast(raw, static_cast<int>(raw_len));
+        apply_auto_contrast(gray, crop_w * crop_h);
       }
       if (std::abs(dial.contrast - 1.0f) > 0.01f) {
-        apply_contrast(raw, static_cast<int>(raw_len), dial.contrast);
+        apply_contrast(gray, crop_w * crop_h, dial.contrast);
       }
     }
 
@@ -300,129 +258,48 @@ void AnalogGaugeReader::process_image_from_buffer(const uint8_t *data, size_t le
     detector_config.debug = this->debug_;
 
     const uint32_t start_algo = micros();
-    const gauge_needle_detector::DetectionResult result =
-        this->detector_.detect(input_for_algo, crop_w, crop_h, detector_config);
+    const gauge_needle_detector::DetectionResult result = this->detector_.detect(gray, crop_w, crop_h, detector_config);
     const uint32_t dur_algo = micros() - start_algo;
-
-    float angle = result.angle;
-    float confidence = result.confidence;
-    if (this->debug_) {
-      this->debug_angle_calculation(angle, dial);
+    // The detector reports zero confidence when it found no needle, so the
+    // sentinel angle must not be turned into a plausible value.
+    if (result.confidence <= 0.0f) {
+      ESP_LOGW(TAG, "No needle found for dial %s; dropping this frame", dial.id);
+      return;
     }
 
-    float val = this->angle_to_value(angle, dial);
-    const float display_angle = fmodf(angle + 90.0f, 360.0f);
+    const float val = angle_to_value(result.angle, dial);
+    const float display_angle = fmodf(result.angle + 90.0f, 360.0f);
     ESP_LOGD(TAG, "Dial %s: Angle=%.1f (North), Val=%.2f, Conf=%.2f, Time=%" PRIu32 " us", dial.id, display_angle, val,
-             confidence, dur_algo);
-
-    PUBLISH_STATE(dial.angle_sensor, display_angle);
-    PUBLISH_STATE(dial.confidence_sensor, confidence);
-    this->readings_.push_back({&dial, val});
+             result.confidence, dur_algo);
+    this->readings_.push_back({&dial, val, display_angle, result.confidence});
   }
 
+  // Publish the per-dial states only now, so a dropped frame leaves every sensor untouched.
+  for (const auto &r : this->readings_) {
+    PUBLISH_STATE(r.dial->angle_sensor, r.angle);
+    PUBLISH_STATE(r.dial->confidence_sensor, r.confidence);
+  }
+
+  // Round away float noise; stacked digits keep the finest dial's resolution.
+  float precision = DECIMAL_PRECISION;
   if (this->stacked_digits_) {
-    const int n = static_cast<int>(this->readings_.size());
+    const size_t n = this->readings_.size();
     if (n == 0) {
       ESP_LOGW(TAG, "No valid dial readings available for stacked digit calculation");
       return;
     }
-    auto wrap10 = [](float x) -> float {
-      x = fmodf(x, 10.0f);
-      if (x < 0.0f)
-        x += 10.0f;
-      return x;
-    };
-    auto round_digit10 = [&](float x) -> int {
-      x = wrap10(x);
-      int d = static_cast<int>(floorf(x + 0.5f));
-      if (d >= 10)
-        d -= 10;
-      return d;
-    };
-    auto &digits = this->digits_;
-
-    // Resolved dial phase in [0, 10), which is not always the raw reading.
-    auto &phase = this->phase_;
-    // Smallest scale = least significant dial.
-    auto &order = this->order_;
-
-    std::iota(order.begin(), order.begin() + n, 0);
-    for (int i = 0; i < n; ++i) {
-      float s = this->readings_[i].dial->scale;
-      if (s <= 0.0f || !std::isfinite(s)) {
-        ESP_LOGE(TAG, "Dial '%s' has invalid scale (%.3f); cannot compute stacked digits", this->readings_[i].dial->id,
-                 s);
-        return;
-      }
-    }
-
-    std::stable_sort(order.begin(), order.begin() + n,
-                     [&](int a, int b) { return this->readings_[a].dial->scale < this->readings_[b].dial->scale; });
-
-    for (int p = 0; p < n; ++p) {
-      const int i = order[p];
-      const float raw = wrap10(this->readings_[i].value);
-      float lower_fraction = 0.0f;
-      if (p > 0) {
-        const int lower_i = order[p - 1];
-        // Use the RESOLVED lower phase, not the raw lower reading.
-        lower_fraction = phase[lower_i] / 10.0f;
-      }
-      const float corrected = wrap10(raw - lower_fraction);
-      const int d = round_digit10(corrected);
-      digits[i] = d;
-      if (p == 0) {
-        // Finest dial has no lower dial, so keep its actual continuous phase.
-        phase[i] = raw;
-      } else {
-        phase[i] = wrap10(static_cast<float>(d) + lower_fraction);
-      }
-      if (this->debug_) {
-        ESP_LOGD(TAG, "Stacked dial %s: raw=%.3f lower_frac=%.3f corrected=%.3f local_digit=%d phase=%.3f",
-                 this->readings_[i].dial->id, raw, lower_fraction, corrected, d, phase[i]);
-      }
-    }
-
-    // Sum from the continuous phase, or 9.9 -> 0 loses the carry.
-    const int finest_i = order[0];
-    const float finest_scale = this->readings_[finest_i].dial->scale;
-    if (finest_scale <= 0.0f) {
-      ESP_LOGE(TAG, "Finest dial scale must be greater than 0");
+    total_value = combine_stacked_digits(this->readings_.data(), n, this->order_.data(), this->phase_.data(),
+                                         this->digits_.data());
+    if (!std::isfinite(total_value)) {
+      ESP_LOGE(TAG, "Stacked dial values cannot be combined; dropping this frame");
       return;
     }
-
-    float continuous_total = phase[finest_i] * finest_scale;
-    for (int p = 1; p < n; ++p) {
-      const int i = order[p];
-      continuous_total += static_cast<float>(digits[i]) * this->readings_[i].dial->scale;
-    }
-
-    // Round without llroundf(), which not every ESP-IDF target provides.
-    const float steps = continuous_total / finest_scale;
-    if (!std::isfinite(steps) || std::abs(steps) > 1e15f) {
-      ESP_LOGE(TAG, "Continuous total steps are non-finite or too large; cannot compute rounded steps");
-      return;
-    }
-    const long long rounded_steps = static_cast<long long>(steps + (steps >= 0.0f ? 0.5f : -0.5f));
-    total_value = static_cast<float>(rounded_steps) * finest_scale;
-
-    // Derive the digits from the rounded total so the carry is consistent.
-    for (int i = 0; i < n; ++i) {
+    precision = 1.0f / this->readings_[this->order_[0]].dial->scale;
+    for (size_t i = 0; i < n; i++) {
       const DialConfig *dial = this->readings_[i].dial;
-      const float ratio_f = dial->scale / finest_scale;
-      if (!std::isfinite(ratio_f) || std::abs(ratio_f) > 1e15f) {
-        ESP_LOGW(TAG, "Scale ratio for dial '%s' is non-finite or too large; skipping", dial->id);
-        continue;
-      }
-      long long place = static_cast<long long>(ratio_f + (ratio_f >= 0.0f ? 0.5f : -0.5f));
-      if (place <= 0)
-        place = 1;
-      int published_digit = static_cast<int>((rounded_steps / place) % 10);
-      if (published_digit < 0)
-        published_digit += 10;
-      PUBLISH_STATE(dial->value_sensor, static_cast<float>(published_digit));
+      PUBLISH_STATE(dial->value_sensor, static_cast<float>(this->digits_[i]));
       if (this->debug_) {
-        ESP_LOGD(TAG, "Stacked dial %s: final_digit=%d scale=%.7f", dial->id, published_digit, dial->scale);
+        ESP_LOGD(TAG, "Stacked dial %s: final_digit=%d scale=%.7f", dial->id, this->digits_[i], dial->scale);
       }
     }
   } else {
@@ -430,17 +307,6 @@ void AnalogGaugeReader::process_image_from_buffer(const uint8_t *data, size_t le
       total_value += r.value * r.dial->scale;
       PUBLISH_STATE(r.dial->value_sensor, r.value);
     }
-  }
-  // Round away float noise; in stacked mode the finest scale is the precision.
-  float precision = DECIMAL_PRECISION;
-  if (this->stacked_digits_ && !this->dials_.empty()) {
-    float min_scale = this->dials_.front().scale;
-    for (const auto &d : this->dials_) {
-      if (d.scale > 0.0f && d.scale < min_scale)
-        min_scale = d.scale;
-    }
-    if (min_scale > 0.0f)
-      precision = 1.0f / min_scale;
   }
   total_value = roundf(total_value * precision) / precision;
   ESP_LOGI(TAG, "Result: %.6f", total_value);
@@ -490,79 +356,6 @@ bool AnalogGaugeReader::crop_dial_(const uint8_t *src, const camera::CameraImage
     }
   }
   return true;
-}
-
-float AnalogGaugeReader::angle_to_value(float image_angle, const DialConfig &dial) {
-  // Image angles start at East, dial angles at North, so rotate by 90 degrees.
-  float dial_angle = fmodf(image_angle + 90.0f, 360.0f);
-
-  // Mirror the angle when the value increases counter-clockwise.
-  if (!dial.clockwise) {
-    dial_angle = fmodf(360.0f - dial_angle, 360.0f);
-  }
-  dial_angle = fmodf(dial_angle - dial.angle_offset + 360.0f, 360.0f);
-
-  if (dial.min_angle > dial.max_angle) {
-    if (dial_angle < dial.min_angle)
-      dial_angle += 360.0f;
-    const float range = (dial.max_angle + 360.0f) - dial.min_angle;
-    const float rel_angle = dial_angle - dial.min_angle;
-    const float fraction = rel_angle / range;
-    return dial.min_value + fraction * (dial.max_value - dial.min_value);
-  }
-
-  if (!dial.calibration_mapping.empty()) {
-    float input_x = dial_angle;
-    if (input_x <= dial.calibration_mapping.front().first)
-      return dial.calibration_mapping.front().second;
-    if (input_x >= dial.calibration_mapping.back().first)
-      return dial.calibration_mapping.back().second;
-    for (size_t i = 0; i < dial.calibration_mapping.size() - 1; i++) {
-      float x1 = dial.calibration_mapping[i].first;
-      float y1 = dial.calibration_mapping[i].second;
-      float x2 = dial.calibration_mapping[i + 1].first;
-      float y2 = dial.calibration_mapping[i + 1].second;
-      if (input_x >= x1 && input_x <= x2) {
-        if (std::abs(x2 - x1) < 0.001f)
-          return y1;
-        float t = (input_x - x1) / (x2 - x1);
-        return y1 + t * (y2 - y1);
-      }
-    }
-    return dial.calibration_mapping.back().second;
-  }
-
-  float fraction = (dial_angle - dial.min_angle) / (dial.max_angle - dial.min_angle);
-  fraction = std::max(0.0f, std::min(1.0f, fraction));
-  return dial.min_value + fraction * (dial.max_value - dial.min_value);
-}
-
-void AnalogGaugeReader::debug_angle_calculation(float image_angle, const DialConfig &dial) {
-  ESP_LOGD(TAG, "=== DEBUG ANGLE CONVERSION for %s ===", dial.id);
-  ESP_LOGD(TAG, "Input image angle: %.1f deg (0 deg=East, clockwise)", image_angle);
-  float dial_angle = fmodf(image_angle + 90.0f, 360.0f);
-  ESP_LOGD(TAG, "Dial angle (after +90 to North): %.1f deg", dial_angle);
-  dial_angle = fmodf(dial_angle - dial.angle_offset + 360.0f, 360.0f);
-  ESP_LOGD(TAG, "After angle_offset (%.1f): %.1f deg", dial.angle_offset, dial_angle);
-  float range_angle = dial.max_angle - dial.min_angle;
-  if (dial.min_angle > dial.max_angle) {
-    range_angle = (dial.max_angle + 360.0f) - dial.min_angle;
-  }
-  float effective_dial_angle = dial_angle;
-  if (dial.min_angle > dial.max_angle && effective_dial_angle < dial.min_angle) {
-    effective_dial_angle += 360.0f;
-  }
-  float rel_angle = effective_dial_angle - dial.min_angle;
-  float fraction = 0.0f;
-  if (range_angle > 0) {
-    fraction = rel_angle / range_angle;
-    fraction = std::max(0.0f, std::min(1.0f, fraction));
-  }
-  float value = dial.min_value + fraction * (dial.max_value - dial.min_value);
-  ESP_LOGD(TAG, "Range: %.1f deg to %.1f deg (span=%.1f deg)", dial.min_angle, dial.max_angle, range_angle);
-  ESP_LOGD(TAG, "Rel angle: %.1f deg, Fraction: %.3f", rel_angle, fraction);
-  ESP_LOGD(TAG, "Value: %.3f (%.1f to %.1f)", value, dial.min_value, dial.max_value);
-  ESP_LOGD(TAG, "=====================================");
 }
 
 }  // namespace analog_gauge_reader
