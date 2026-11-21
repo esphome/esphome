@@ -1,0 +1,14 @@
+# Alternate network shim for tests that exercise the Ethernet transport
+# path (matter_ethernet_stub.cpp + PATCH1 of _apply_patches.py) instead of
+# Wi-Fi. Matter requires IPv6, so enable_ipv6 stays on.
+network:
+  enable_ipv6: true
+
+ethernet:
+  type: W5500
+  clk_pin: 19
+  mosi_pin: 21
+  miso_pin: 17
+  cs_pin: 18
+  interrupt_pin: 36
+  reset_pin: 12
