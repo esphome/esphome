@@ -2,6 +2,8 @@
 # operator resolver), so both components are configured here.
 tflite_op_processor:
 
+tflite_model_io:
+
 tflite_memory_handler:
 
 esphome:
