@@ -4,6 +4,7 @@
 /// @details The classes declared in this file can be used by the Weikai family
 
 #include "weikai_i2c.h"
+#include "esphome/core/hal.h"
 
 namespace esphome::weikai_i2c {
 ESPHOME_LOG_TAG(TAG, "weikai_i2c");
@@ -29,15 +30,41 @@ inline uint8_t i2c_address(uint8_t base_address, uint8_t channel, RegType fifo) 
   return addr;
 }
 
+/// @brief Splits a register number into channel bits (C1,C0) and the 4 bit register address
+/// @details GPDIR (0x21) and GPDAT (0x31) carry C1,C0 in bits 5-4; they go in the device address
+inline uint8_t i2c_register(uint8_t reg, uint8_t &channel) {
+  if (reg > 0x0F) {
+    channel = (reg >> 4) & 0x03;
+  }
+  return reg & 0x0F;
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // The WeikaiRegisterI2C methods
 ///////////////////////////////////////////////////////////////////////////////
 uint8_t WeikaiRegisterI2C::read_reg() const {
   uint8_t value = 0x00;
   WeikaiComponentI2C *comp_i2c = static_cast<WeikaiComponentI2C *>(this->comp_);
-  uint8_t address = i2c_address(comp_i2c->base_address_, this->channel_, REG);
+  uint8_t channel = this->channel_;
+  uint8_t const reg = i2c_register(this->register_, channel);
+  uint8_t address = i2c_address(comp_i2c->base_address_, channel, REG);
   comp_i2c->set_i2c_address(address);
-  auto error = comp_i2c->read_register(this->register_, &value, 1);
+  // Write the register address + STOP, then read. Retry once, only if no data byte was read
+  // (clear-on-read registers).
+  i2c::ErrorCode error;
+  for (uint8_t attempt = 0;; attempt++) {
+    bool data_phase = false;
+    error = comp_i2c->write(&reg, 1);
+    if (error == i2c::NO_ERROR) {
+      error = comp_i2c->read(&value, 1);
+      data_phase = error != i2c::ERROR_NOT_ACKNOWLEDGED;
+    }
+    if (error == i2c::NO_ERROR || data_phase || attempt == 1)
+      break;
+    ESP_LOGV(TAG, "WeikaiRegisterI2C::read_reg() @%02X reg=%s ch=%u I2C_code:%d, retrying", address,
+             LOG_STR_ARG(reg_to_str(this->register_, comp_i2c->page1())), this->channel_, (int) error);
+    delayMicroseconds(100);
+  }
   if (error == i2c::NO_ERROR) {
     this->comp_->status_clear_warning();
     ESP_LOGVV(TAG, "WeikaiRegisterI2C::read_reg() @%02X reg=%s ch=%u I2C_code:%d, buf=%02X", address,
@@ -71,9 +98,11 @@ void WeikaiRegisterI2C::read_fifo(uint8_t *data, size_t length) const {
 
 void WeikaiRegisterI2C::write_reg(uint8_t value) {
   WeikaiComponentI2C *comp_i2c = static_cast<WeikaiComponentI2C *>(this->comp_);
-  uint8_t address = i2c_address(comp_i2c->base_address_, this->channel_, REG);  // update the i2c bus
+  uint8_t channel = this->channel_;
+  uint8_t const reg = i2c_register(this->register_, channel);
+  uint8_t address = i2c_address(comp_i2c->base_address_, channel, REG);  // update the i2c bus
   comp_i2c->set_i2c_address(address);
-  auto error = comp_i2c->write_register(this->register_, &value, 1);
+  auto error = comp_i2c->write_register(reg, &value, 1);
   if (error == i2c::NO_ERROR) {
     this->comp_->status_clear_warning();
     ESP_LOGVV(TAG, "WK2168Reg::write_reg() @%02X reg=%s ch=%d I2C_code:%d buf=%02X", address,
