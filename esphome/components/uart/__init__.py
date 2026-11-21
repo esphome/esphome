@@ -242,8 +242,8 @@ UART_CLOCK_SOURCES_BY_VARIANT = {
 
 # Variants whose default UART clock is APB, which power management slows down with
 # the CPU; the receiver then samples at the wrong rate. The clock each switches to
-# keeps its rate, and REF_TICK (1 MHz) stays accurate up to this baud rate; a faster
-# rate set at runtime falls back to the default clock in uart_component_esp_idf.cpp.
+# keeps its rate, and REF_TICK (1 MHz) stays accurate up to this baud rate; above it
+# uart_component_esp_idf.cpp uses the default clock.
 _PM_STABLE_CLOCK_SOURCE = {
     VARIANT_ESP32: "REF_TICK",
     VARIANT_ESP32S2: "REF_TICK",
@@ -474,10 +474,9 @@ def _power_managed_clock_source(config: ConfigType) -> str:
     """The clock source a UART without clock_source gets on ESP32."""
     if POWER_MANAGEMENT_DOMAIN not in CORE.config:
         return "DEFAULT"
-    stable = _PM_STABLE_CLOCK_SOURCE.get(get_esp32_variant(), "DEFAULT")
-    if stable == "REF_TICK" and config[CONF_BAUD_RATE] > _REF_TICK_MAX_BAUD_RATE:
-        return "DEFAULT"
-    return stable
+    # A baud rate REF_TICK cannot make falls back to the default clock in C++, so a
+    # rate lowered at runtime gets REF_TICK again.
+    return _PM_STABLE_CLOCK_SOURCE.get(get_esp32_variant(), "DEFAULT")
 
 
 def _warn_power_managed_apb(config: ConfigType) -> None:
