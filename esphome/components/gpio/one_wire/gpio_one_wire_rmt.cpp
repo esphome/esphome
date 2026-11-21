@@ -30,11 +30,10 @@ GPIORMTOneWireBus::GPIORMTOneWireBus(const rmt_one_wire::Timing &timing)
 
 void GPIORMTOneWireBus::setup() {
   const auto gpio = static_cast<gpio_num_t>(this->pin_->get_pin());
-#ifdef USE_GPIO_HOLD
   // pin_->setup() is left out, as it could drive the line Low before RMT takes over. So release a hold here
-  // that an earlier boot left on the pin, or the pad keeps its old state.
+  // that an earlier boot left on the pin, or the pad keeps its old state. Not only with USE_GPIO_HOLD: the
+  // firmware before an OTA update may have held this pin. The pin can output, so its pad supports a hold.
   gpio_hold_dis(gpio);
-#endif
 
   rmt_copy_encoder_config_t encoder_config{};
 
