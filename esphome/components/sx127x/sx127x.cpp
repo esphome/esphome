@@ -143,9 +143,7 @@ const LogString *SX127x::configure_radio_() {
   this->applied_ = {this->frequency_, this->payload_length_, this->modulation_, this->packet_mode_, this->rx_start_};
 
   // toggle chip reset
-  this->rst_pin_->digital_write(false);
-  delayMicroseconds(1000);
-  this->rst_pin_->digital_write(true);
+  pulse_pin(this->rst_pin_, false, 1000);
   delayMicroseconds(10000);
 
   // check silicon version to make sure hw is ok
