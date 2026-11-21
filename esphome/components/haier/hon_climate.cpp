@@ -106,6 +106,17 @@ bool HonClimate::get_quiet_mode_state() const {
   return (this->quiet_mode_state_ == SwitchState::SWITCH_ON) || (this->quiet_mode_state_ == SwitchState::PENDING_ON);
 }
 
+void HonClimate::set_quiet_mode_state_from_preset_(bool state) {
+  this->quiet_mode_state_ = state ? SwitchState::SWITCH_ON : SwitchState::SWITCH_OFF;
+  if (state != this->settings_.quiet_mode_state) {
+    this->settings_.quiet_mode_state = state;
+#ifdef USE_SWITCH
+    PUBLISH_STATE(this->quiet_mode_switch_, state);
+#endif
+    this->hon_rtc_.save(&this->settings_);
+  }
+}
+
 esphome::optional<hon_protocol::VerticalSwingMode> HonClimate::get_vertical_airflow() const {
   if (!this->current_vertical_swing_.has_value()) {
     return this->current_vertical_swing_;
@@ -748,6 +759,9 @@ haier_protocol::HaierMessage HonClimate::get_control_message() {
           break;
       }
     }
+    if (climate_control.preset.has_value()) {
+      this->set_quiet_mode_state_from_preset_(climate_control.preset.value() == CLIMATE_PRESET_ECO);
+    }
   }
   const ClimateSwingMode target_swing_mode = this->current_hvac_settings_.swing_mode.value_or(this->swing_mode);
   if (this->pending_vertical_direction_.has_value()) {
@@ -1376,6 +1390,9 @@ void HonClimate::fill_control_messages_queue_() {
           break;
       }
     }
+    if (climate_control.preset.has_value()) {
+      this->set_quiet_mode_state_from_preset_(climate_control.preset.value() == CLIMATE_PRESET_ECO);
+    }
     {
       // Quiet mode
       if (new_power && (climate_mode != CLIMATE_MODE_FAN_ONLY) && quiet_mode) {
@@ -1393,19 +1410,22 @@ void HonClimate::fill_control_messages_queue_() {
                                                 (uint8_t) hon_protocol::DataParameters::QUIET_MODE,
                                             quiet_mode_buf, 2);
     }
-    if ((fast_mode_buf[1] != 0xFF) && presets.count(climate::ClimatePreset::CLIMATE_PRESET_BOOST)) {
+    if ((fast_mode_buf[1] != 0xFF) &&
+        ((fast_mode_buf[1] == 0) || presets.count(climate::ClimatePreset::CLIMATE_PRESET_BOOST))) {
       this->control_messages_queue_.emplace(haier_protocol::FrameType::CONTROL,
                                             (uint16_t) hon_protocol::SubcommandsControl::SET_SINGLE_PARAMETER +
                                                 (uint8_t) hon_protocol::DataParameters::FAST_MODE,
                                             fast_mode_buf, 2);
     }
-    if ((away_mode_buf[1] != 0xFF) && presets.count(climate::ClimatePreset::CLIMATE_PRESET_AWAY)) {
+    if ((away_mode_buf[1] != 0xFF) &&
+        ((away_mode_buf[1] == 0) || presets.count(climate::ClimatePreset::CLIMATE_PRESET_AWAY))) {
       this->control_messages_queue_.emplace(haier_protocol::FrameType::CONTROL,
                                             (uint16_t) hon_protocol::SubcommandsControl::SET_SINGLE_PARAMETER +
                                                 (uint8_t) hon_protocol::DataParameters::TEN_DEGREE,
                                             away_mode_buf, 2);
     }
-    if ((sleep_mode_buf[1] != 0xFF) && presets.count(climate::ClimatePreset::CLIMATE_PRESET_SLEEP)) {
+    if ((sleep_mode_buf[1] != 0xFF) &&
+        ((sleep_mode_buf[1] == 0) || presets.count(climate::ClimatePreset::CLIMATE_PRESET_SLEEP))) {
       this->control_messages_queue_.emplace(haier_protocol::FrameType::CONTROL,
                                             (uint16_t) hon_protocol::SubcommandsControl::SET_SINGLE_PARAMETER +
                                                 (uint8_t) hon_protocol::DataParameters::SLEEP_MODE,
