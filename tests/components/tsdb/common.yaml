@@ -1,4 +1,4 @@
-# Component-only configuration: tsdb brings its own LittleFS partition.
+# Component configuration: tsdb brings its own LittleFS partition.
 # sntp needs the network stack; the database itself does not.
 wifi:
   ssid: MySSID
