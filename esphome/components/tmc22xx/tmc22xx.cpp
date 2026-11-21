@@ -246,11 +246,11 @@ void TMC22XXStepper::loop() {
     }
   }
 
-  if (this->has_reached_target()) {
-    this->high_freq_.stop();
+  const bool reached = this->has_reached_target();
+  this->high_freq_.set(!reached);
+  if (reached) {
     this->moving_ = false;
   } else {
-    this->high_freq_.start();
     if (!this->enabled_)
       this->set_enabled(true);
     // An unreachable driver is polled only every 10 s. Read it before the first step, so settings lost when the
