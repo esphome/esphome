@@ -179,6 +179,13 @@ void SpeakerSourceMediaPlayer::handle_media_state_changed_(uint8_t pipeline, med
         ps.pending_source = nullptr;
       }
     }
+  } else if (state == media_source::MediaSourceState::ERROR) {
+    // A source that fails before reaching PLAYING never becomes the active source, so its IDLE never advances the
+    // playlist and every item enqueued after it would wait behind it. Advance past it now, unless it is being stopped.
+    // It stays pending so a stop still reaches it; its later IDLE advances nothing because it was never active.
+    if (ps.pending_source == source && ps.active_source != source && ps.stopping_source != source) {
+      this->queue_command_(MediaPlayerControlCommand::PLAYLIST_ADVANCE, pipeline);
+    }
   }
 }
 
