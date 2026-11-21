@@ -251,6 +251,7 @@ _PM_STABLE_CLOCK_SOURCE = {
     VARIANT_ESP32S3: "XTAL",
 }
 _REF_TICK_MAX_BAUD_RATE = 250000
+CONF_MIN_FREQUENCY = "min_frequency"
 
 UARTDirection = uart_ns.enum("UARTDirection")
 UART_DIRECTIONS = UARTDirection.options("RX", "TX", "BOTH", prefix="UART_DIRECTION_")
@@ -482,9 +483,11 @@ def _power_managed_clock_source(config: ConfigType) -> str:
 def _warn_power_managed_apb(config: ConfigType) -> None:
     if (
         CONF_CLOCK_SOURCE in config
-        or POWER_MANAGEMENT_DOMAIN not in fv.full_config.get()
+        or (pm_configs := fv.full_config.get().get(POWER_MANAGEMENT_DOMAIN)) is None
         or _PM_STABLE_CLOCK_SOURCE.get(get_esp32_variant()) != "REF_TICK"
         or config[CONF_BAUD_RATE] <= _REF_TICK_MAX_BAUD_RATE
+        # APB stays at 80MHz while the CPU runs at 80MHz or more
+        or all(pm.get(CONF_MIN_FREQUENCY, 0) >= 80 for pm in pm_configs)
     ):
         return
     _LOGGER.warning(

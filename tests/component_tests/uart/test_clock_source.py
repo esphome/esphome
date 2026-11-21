@@ -165,16 +165,19 @@ def test_clock_source_with_power_management(
 
 
 @pytest.mark.parametrize(
-    ("baud_rate", "source", "warned"),
+    ("baud_rate", "source", "min_frequency", "warned"),
     [
-        pytest.param(250001, None, True, id="above_limit"),
-        pytest.param(250000, None, False, id="at_limit"),
-        pytest.param(460800, "apb", False, id="user_choice"),
+        pytest.param(250001, None, None, True, id="above_limit"),
+        pytest.param(250000, None, None, False, id="at_limit"),
+        pytest.param(460800, "apb", None, False, id="user_choice"),
+        pytest.param(460800, None, "40MHz", True, id="min_below_80"),
+        pytest.param(460800, None, "80MHz", False, id="min_keeps_apb"),
     ],
 )
 def test_apb_fallback_warning_at_validation(
     baud_rate: int,
     source: str | None,
+    min_frequency: str | None,
     warned: bool,
     tmp_path: Path,
     caplog: pytest.LogCaptureFixture,
@@ -186,7 +189,8 @@ def test_apb_fallback_warning_at_validation(
         "esp32:\n  variant: esp32\n  framework:\n    type: esp-idf\n"
         f"uart:\n  id: test_uart\n  rx_pin: GPIO4\n  baud_rate: {baud_rate}\n"
         + (f"  clock_source: {source}\n" if source else "")
-        + "power_management:\n  - platform: esp32_power_management\n",
+        + "power_management:\n  - platform: esp32_power_management\n"
+        + (f"    min_frequency: {min_frequency}\n" if min_frequency else ""),
         encoding="utf-8",
     )
     CORE.config_path = config
