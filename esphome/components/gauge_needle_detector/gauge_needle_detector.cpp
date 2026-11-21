@@ -2,6 +2,7 @@
 
 #ifdef USE_GAUGE_NEEDLE_DETECTOR
 
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
 
@@ -21,30 +22,45 @@ const LogString *algorithm_name(Algorithm algorithm) {
 
 namespace {
 
-/// Sine and cosine of every whole degree, built once on first use.
-struct TrigTables {
-  std::array<float, 360> sine{};
-  std::array<float, 360> cosine{};
-
-  TrigTables() {
-    for (size_t i = 0; i < this->sine.size(); i++) {
-      const float radians = degrees_to_radians(static_cast<float>(i));
-      this->sine[i] = std::sin(radians);
-      this->cosine[i] = std::cos(radians);
-    }
-  }
+/// Sine of 0 to 90 degrees; the other quadrants mirror these values.
+const float SINE_TABLE[91] PROGMEM = {
+    0.000000000f, 0.017452406f, 0.034899497f, 0.052335956f, 0.069756474f, 0.087155743f, 0.104528463f, 0.121869343f,
+    0.139173101f, 0.156434465f, 0.173648178f, 0.190808995f, 0.207911691f, 0.224951054f, 0.241921896f, 0.258819045f,
+    0.275637356f, 0.292371705f, 0.309016994f, 0.325568154f, 0.342020143f, 0.358367950f, 0.374606593f, 0.390731128f,
+    0.406736643f, 0.422618262f, 0.438371147f, 0.453990500f, 0.469471563f, 0.484809620f, 0.500000000f, 0.515038075f,
+    0.529919264f, 0.544639035f, 0.559192903f, 0.573576436f, 0.587785252f, 0.601815023f, 0.615661475f, 0.629320391f,
+    0.642787610f, 0.656059029f, 0.669130606f, 0.681998360f, 0.694658370f, 0.707106781f, 0.719339800f, 0.731353702f,
+    0.743144825f, 0.754709580f, 0.766044443f, 0.777145961f, 0.788010754f, 0.798635510f, 0.809016994f, 0.819152044f,
+    0.829037573f, 0.838670568f, 0.848048096f, 0.857167301f, 0.866025404f, 0.874619707f, 0.882947593f, 0.891006524f,
+    0.898794046f, 0.906307787f, 0.913545458f, 0.920504853f, 0.927183855f, 0.933580426f, 0.939692621f, 0.945518576f,
+    0.951056516f, 0.956304756f, 0.961261696f, 0.965925826f, 0.970295726f, 0.974370065f, 0.978147601f, 0.981627183f,
+    0.984807753f, 0.987688341f, 0.990268069f, 0.992546152f, 0.994521895f, 0.996194698f, 0.997564050f, 0.998629535f,
+    0.999390827f, 0.999847695f, 1.000000000f,
 };
 
-const TrigTables &trig_tables() {
-  static const TrigTables TABLES;
-  return TABLES;
+/// Reads one table entry; on ESP8266 the table lives in flash and needs a copy.
+inline float sine_at(int index) {
+  float value;
+  progmem_memcpy(&value, &SINE_TABLE[index], sizeof(value));
+  return value;
 }
 
 }  // namespace
 
-float sin_lut(int degrees) { return trig_tables().sine[degrees]; }
+float sin_lut(int degrees) {
+  degrees %= 360;
+  if (degrees < 0)
+    degrees += 360;
+  if (degrees <= 90)
+    return sine_at(degrees);
+  if (degrees <= 180)
+    return sine_at(180 - degrees);
+  if (degrees <= 270)
+    return -sine_at(degrees - 180);
+  return -sine_at(360 - degrees);
+}
 
-float cos_lut(int degrees) { return trig_tables().cosine[degrees]; }
+float cos_lut(int degrees) { return sin_lut(degrees + 90); }
 
 NeedleDetector::NeedleDetector() {
 #ifdef USE_GAUGE_NEEDLE_INTENSITY_SCAN
@@ -61,10 +77,15 @@ NeedleDetector::NeedleDetector() {
 #endif
 }
 
-void NeedleDetector::reserve(int width, int height) {
-  this->preprocessor_.reserve(width, height);
-#ifdef USE_GAUGE_NEEDLE_HOUGH_TRANSFORM
-  this->hough_transform_.reserve(width, height);
+bool NeedleDetector::reserve(int width, int height) {
+#if defined(USE_GAUGE_NEEDLE_RADIAL_PROFILE) || defined(USE_GAUGE_NEEDLE_HOUGH_TRANSFORM) || \
+    defined(USE_GAUGE_NEEDLE_TEMPLATE_MATCH)
+  return this->preprocessor_.reserve(width, height);
+#else
+  // A legacy-only build never touches the filtered image.
+  (void) width;
+  (void) height;
+  return true;
 #endif
 }
 
@@ -87,11 +108,13 @@ DetectionResult NeedleDetector::detect(const uint8_t *img, int width, int height
   }
 
   const uint8_t *filtered = nullptr;
+  bool preprocessing_failed = false;
   if (needs_filtered) {
     if (this->preprocessor_.prepare(img, width, height, radius, config.needle_type, config.debug)) {
       filtered = this->preprocessor_.data();
     } else {
       ESP_LOGE(TAG, "%s: preprocessing failed, skipping the filtered detectors", config.id);
+      preprocessing_failed = true;
     }
   }
 
@@ -111,7 +134,8 @@ DetectionResult NeedleDetector::detect(const uint8_t *img, int width, int height
     if (wants_filtered && filtered == nullptr)
       continue;
 
-    const DetectionResult result = detector->detect(img, wants_filtered ? filtered : nullptr, width, height, config);
+    const DetectionResult result =
+        detector->detect(img, wants_filtered ? filtered : nullptr, width, height, config, this->scores_.data());
 
     if (config.debug) {
       ESP_LOGD(TAG, "  %s: angle=%.1f deg, conf=%.2f", LOG_STR_ARG(algorithm_name(detector->algorithm())), result.angle,
@@ -131,8 +155,18 @@ DetectionResult NeedleDetector::detect(const uint8_t *img, int width, int height
 
   const bool is_auto = config.algorithm == ALGORITHM_AUTO;
   if (is_auto ? !have_best : !have_selected) {
-    ESP_LOGE(TAG, "%s: no compiled-in detector for algorithm %s", config.id,
-             LOG_STR_ARG(algorithm_name(config.algorithm)));
+    bool target_compiled = false;
+    for (size_t i = 0; i < this->detector_count_; i++) {
+      if (is_auto || this->detectors_[i]->algorithm() == config.algorithm) {
+        target_compiled = true;
+        break;
+      }
+    }
+    // Preprocessing already reported its own failure; do not blame a missing detector.
+    if (!preprocessing_failed || !target_compiled) {
+      ESP_LOGE(TAG, "%s: no compiled-in detector for algorithm %s", config.id,
+               LOG_STR_ARG(algorithm_name(config.algorithm)));
+    }
     return {};
   }
 

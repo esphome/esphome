@@ -5,12 +5,7 @@
 #include "esphome/core/log.h"
 
 #include <algorithm>
-#include <array>
 #include <cstring>
-
-#ifdef USE_ESP32
-#include <esp_heap_caps.h>
-#endif
 
 namespace esphome::gauge_needle_detector {
 
@@ -18,183 +13,158 @@ ESPHOME_LOG_TAG(TAG, "gauge_needle_detector");
 
 namespace {
 
-/// Largest free contiguous block the heap can hand out, or SIZE_MAX if unknown.
-size_t largest_free_block() {
-#ifdef USE_ESP32
-  return heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
-#else
-  return SIZE_MAX;
-#endif
-}
+/// Stretches the histogram, clipping dominant bins so a large flat background
+/// cannot flatten the mapping of the needle. Unlike per-tile equalization this
+/// keeps one mapping for the whole crop, so it adds no tile edges.
+void apply_contrast_stretch(uint8_t *img, size_t pixels, std::array<uint32_t, 256> &hist) {
+  hist.fill(0);
+  for (size_t i = 0; i < pixels; i++)
+    hist[img[i]]++;
 
-/// Grows a buffer, refusing the allocation without a large enough free block.
-bool resize_buffer(std::vector<uint8_t> &buffer, size_t size, const char *name) {
-  if (buffer.size() == size)
-    return true;
-  if (buffer.capacity() < size) {
-    // A resize needs a new block before the old one is released.
-    const size_t available = largest_free_block();
-    if (available < size) {
-      ESP_LOGE(TAG, "Not enough memory to resize %s: need %zu bytes, largest free block is %zu", name, size, available);
-      return false;
+  const uint32_t limit = std::max<uint32_t>(1, static_cast<uint32_t>(pixels / 32));
+  uint32_t excess = 0;
+  for (auto &bin : hist) {
+    if (bin > limit) {
+      excess += bin - limit;
+      bin = limit;
     }
   }
-  buffer.resize(size);
-  return true;
+  const uint32_t add = excess / 256;
+  for (auto &bin : hist)
+    bin += add;
+
+  for (size_t i = 1; i < hist.size(); i++)
+    hist[i] += hist[i - 1];
+
+  const uint32_t total = hist[255];
+  if (total == 0)
+    return;
+  for (size_t i = 0; i < pixels; i++)
+    img[i] = static_cast<uint8_t>((hist[img[i]] * 255u) / total);
 }
 
-void apply_clahe(uint8_t *img, int width, int height, std::array<uint16_t, 256> &hist, int tile_size = 8) {
-  // Tiled histogram equalization, using the member histogram to avoid allocation.
-  for (int tile_y = 0; tile_y < height; tile_y += tile_size) {
-    for (int tile_x = 0; tile_x < width; tile_x += tile_size) {
-      hist.fill(0);
-      int tile_pixels = 0;
+enum class MorphOp : uint8_t { ERODE, DILATE };
 
-      for (int y = tile_y; y < std::min(tile_y + tile_size, height); y++) {
-        for (int x = tile_x; x < std::min(tile_x + tile_size, width); x++) {
-          hist[img[y * width + x]]++;
-          tile_pixels++;
-        }
-      }
-
-      // Cumulative distribution, in place.
-      for (size_t i = 1; i < hist.size(); i++) {
-        hist[i] += hist[i - 1];
-      }
-
-      for (int y = tile_y; y < std::min(tile_y + tile_size, height); y++) {
-        for (int x = tile_x; x < std::min(tile_x + tile_size, width); x++) {
-          const uint8_t val = img[y * width + x];
-          if (tile_pixels > 0) {
-            img[y * width + x] = static_cast<uint8_t>((hist[val] * 255) / tile_pixels);
-          }
-        }
-      }
-    }
-  }
+inline uint8_t morph_pick(uint8_t a, uint8_t b, MorphOp op) {
+  return op == MorphOp::ERODE ? std::min(a, b) : std::max(a, b);
 }
 
-void erode(const uint8_t *src, uint8_t *dst, int width, int height, int kernel_size) {
-  const int r = kernel_size / 2;
+/// One horizontal pass of a square min/max kernel.
+void morph_horizontal(const uint8_t *src, uint8_t *dst, int width, int height, int r, MorphOp op) {
   for (int y = 0; y < height; y++) {
+    const uint8_t *row = src + static_cast<size_t>(y) * width;
+    uint8_t *out = dst + static_cast<size_t>(y) * width;
     for (int x = 0; x < width; x++) {
-      uint8_t min_val = 255;
-      for (int dy = -r; dy <= r; dy++) {
-        for (int dx = -r; dx <= r; dx++) {
-          const int ny = y + dy;
-          const int nx = x + dx;
-          if (ny >= 0 && ny < height && nx >= 0 && nx < width) {
-            const uint8_t val = src[ny * width + nx];
-            if (val < min_val)
-              min_val = val;
-          }
-        }
-      }
-      dst[y * width + x] = min_val;
+      const int x0 = std::max(0, x - r);
+      const int x1 = std::min(width - 1, x + r);
+      uint8_t best = row[x0];
+      for (int nx = x0 + 1; nx <= x1; nx++)
+        best = morph_pick(best, row[nx], op);
+      out[x] = best;
     }
   }
 }
 
-void dilate_in_place(uint8_t *img, int width, int height, int kernel_size, uint8_t *tmp) {
-  const int r = kernel_size / 2;
-  memcpy(tmp, img, static_cast<size_t>(width) * height);
-
-  for (int y = 0; y < height; y++) {
-    for (int x = 0; x < width; x++) {
-      uint8_t max_val = 0;
-      for (int dy = -r; dy <= r; dy++) {
-        for (int dx = -r; dx <= r; dx++) {
-          const int ny = y + dy;
-          const int nx = x + dx;
-          if (ny >= 0 && ny < height && nx >= 0 && nx < width) {
-            const uint8_t val = tmp[ny * width + nx];
-            if (val > max_val)
-              max_val = val;
-          }
-        }
-      }
-      img[y * width + x] = max_val;
+/// One vertical pass of a square min/max kernel.
+void morph_vertical(const uint8_t *src, uint8_t *dst, int width, int height, int r, MorphOp op) {
+  for (int x = 0; x < width; x++) {
+    for (int y = 0; y < height; y++) {
+      const int y0 = std::max(0, y - r);
+      const int y1 = std::min(height - 1, y + r);
+      uint8_t best = src[static_cast<size_t>(y0) * width + x];
+      for (int ny = y0 + 1; ny <= y1; ny++)
+        best = morph_pick(best, src[static_cast<size_t>(ny) * width + x], op);
+      dst[static_cast<size_t>(y) * width + x] = best;
     }
   }
 }
 
-void apply_tophat(uint8_t *img, int width, int height, int radial_pixels, uint8_t *scratch, uint8_t *scratch2,
+/// A square min/max kernel is separable, so two 1-D passes replace the k*k scan.
+/// `horizontal` must differ from `src`; `result` may be `src` because the
+/// horizontal pass finishes before the vertical pass writes it.
+void morph(const uint8_t *src, uint8_t *horizontal, uint8_t *result, int width, int height, int r, MorphOp op) {
+  morph_horizontal(src, horizontal, width, height, r, op);
+  morph_vertical(horizontal, result, width, height, r, op);
+}
+
+void apply_tophat(uint8_t *img, int width, int height, int radial_pixels, uint8_t *scratch, uint8_t *scratch_2,
                   NeedleType needle_type, int min_kernel = 3, int radius_divisor = 10) {
-  const size_t pixels = static_cast<size_t>(width) * height;
   int kernel_size = std::max(min_kernel, radial_pixels / radius_divisor);
   if (kernel_size % 2 == 0)
     kernel_size++;
+  const int r = kernel_size / 2;
+  const size_t pixels = static_cast<size_t>(width) * height;
 
   // White top hat: Original - Opening. Opening = Dilate(Erode(Original)).
   // Black top hat: Closing - Original. Closing = Erode(Dilate(Original)).
   if (needle_type == NEEDLE_TYPE_LIGHT) {
-    erode(img, scratch, width, height, kernel_size);
-    dilate_in_place(scratch, width, height, kernel_size, scratch2);
+    morph(img, scratch, scratch_2, width, height, r, MorphOp::ERODE);
+    morph(scratch_2, scratch, scratch_2, width, height, r, MorphOp::DILATE);
     for (size_t i = 0; i < pixels; i++) {
-      const int val = static_cast<int>(img[i]) - static_cast<int>(scratch[i]);
+      const int val = static_cast<int>(img[i]) - static_cast<int>(scratch_2[i]);
       img[i] = (val < 0) ? 0 : static_cast<uint8_t>(val);
     }
   } else {
-    memcpy(scratch, img, pixels);
-    dilate_in_place(scratch, width, height, kernel_size, scratch2);
-    erode(scratch, scratch2, width, height, kernel_size);
+    morph(img, scratch, scratch_2, width, height, r, MorphOp::DILATE);
+    morph(scratch_2, scratch, scratch_2, width, height, r, MorphOp::ERODE);
     for (size_t i = 0; i < pixels; i++) {
-      const int val = static_cast<int>(scratch2[i]) - static_cast<int>(img[i]);
+      const int val = static_cast<int>(scratch_2[i]) - static_cast<int>(img[i]);
       img[i] = (val < 0) ? 0 : static_cast<uint8_t>(val);
-    }
-  }
-}
-
-void median_filter_3x3(uint8_t *img, int width, int height, uint8_t *scratch) {
-  if (width < 3 || height < 3)
-    return;
-
-  memcpy(scratch, img, static_cast<size_t>(width) * height);
-
-  // Fixed-size window on the stack, so no allocation per pixel.
-  uint8_t window[9];
-  for (int y = 1; y < height - 1; y++) {
-    for (int x = 1; x < width - 1; x++) {
-      int count = 0;
-      for (int dy = -1; dy <= 1; dy++) {
-        for (int dx = -1; dx <= 1; dx++) {
-          window[count++] = scratch[(y + dy) * width + (x + dx)];
-        }
-      }
-      std::nth_element(window, window + 4, window + count);
-      img[y * width + x] = window[4];
     }
   }
 }
 
 }  // namespace
 
-void Preprocessor::reserve(int width, int height) {
+Preprocessor::~Preprocessor() { this->release_(); }
+
+void Preprocessor::release_() {
+  if (this->working_ != nullptr)
+    this->allocator_.deallocate(this->working_, this->capacity_);
+  if (this->scratch_ != nullptr)
+    this->allocator_.deallocate(this->scratch_, this->capacity_);
+  if (this->scratch_2_ != nullptr)
+    this->allocator_.deallocate(this->scratch_2_, this->capacity_);
+  this->working_ = nullptr;
+  this->scratch_ = nullptr;
+  this->scratch_2_ = nullptr;
+  this->capacity_ = 0;
+}
+
+bool Preprocessor::reserve(int width, int height) {
+  if (width <= 0 || height <= 0)
+    return false;
   const size_t pixels = static_cast<size_t>(width) * height;
-  this->working_buffer_.reserve(pixels);
-  this->scratch_buffer_.reserve(pixels);
-  this->scratch_buffer_2_.reserve(pixels);
+  if (pixels <= this->capacity_)
+    return this->working_ != nullptr;
+
+  this->release_();
+  this->working_ = this->allocator_.allocate(pixels);
+  this->scratch_ = this->allocator_.allocate(pixels);
+  this->scratch_2_ = this->allocator_.allocate(pixels);
+  if (this->working_ == nullptr || this->scratch_ == nullptr || this->scratch_2_ == nullptr) {
+    ESP_LOGE(TAG, "Could not allocate three %zu-byte detector buffers", pixels);
+    this->release_();
+    return false;
+  }
+  this->capacity_ = pixels;
+  return true;
 }
 
 bool Preprocessor::prepare(const uint8_t *raw, int width, int height, int radial_pixels, NeedleType needle_type,
                            bool debug) {
+  if (raw == nullptr || width <= 0 || height <= 0)
+    return false;
   const size_t required_size = static_cast<size_t>(width) * height;
-  if (!resize_buffer(this->working_buffer_, required_size, "working"))
+  if (this->working_ == nullptr || required_size > this->capacity_) {
+    ESP_LOGE(TAG, "Crop %dx%d needs %zu bytes but only %zu are reserved", width, height, required_size,
+             this->capacity_);
     return false;
-  if (!resize_buffer(this->scratch_buffer_, required_size, "scratch1"))
-    return false;
-  if (!resize_buffer(this->scratch_buffer_2_, required_size, "scratch2"))
-    return false;
+  }
 
-  memcpy(this->working_buffer_.data(), raw, required_size);
-
-  apply_clahe(this->working_buffer_.data(), width, height, this->histogram_);
-
-  // Top-hat filter with a kernel that scales with the dial radius.
-  apply_tophat(this->working_buffer_.data(), width, height, radial_pixels, this->scratch_buffer_.data(),
-               this->scratch_buffer_2_.data(), needle_type);
-
-  median_filter_3x3(this->working_buffer_.data(), width, height, this->scratch_buffer_2_.data());
+  memcpy(this->working_, raw, required_size);
+  apply_contrast_stretch(this->working_, required_size, this->histogram_);
+  apply_tophat(this->working_, width, height, radial_pixels, this->scratch_, this->scratch_2_, needle_type);
 
   if (debug) {
     ESP_LOGD(TAG, "Preprocessing complete. NeedleType: %s, Radius: %d",

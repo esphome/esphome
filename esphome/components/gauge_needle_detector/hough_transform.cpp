@@ -19,21 +19,29 @@ namespace {
 
 /// Votes edge pixels into a radial histogram, weighted by edge magnitude.
 DetectionResult detect_hough(const uint8_t *filtered, int width, int height, const DetectorConfig &config,
-                             std::vector<uint8_t> &edges, std::array<int, NUM_ANGLES> &accumulator,
-                             int edge_magnitude_min = 30, int vote_magnitude_min = 40, float confidence_scale = 0.1f) {
+                             std::array<int, NUM_ANGLES> &accumulator, int vote_magnitude_min = 40) {
   if (filtered == nullptr)
     return {};
 
   const int cx = width / 2;
   const int cy = height / 2;
   const int radius = std::min(cx, cy) - 2;
+  // A 4x4 or 5x5 crop has no usable radius; without this the confidence below
+  // would divide zero by a zero scan length.
+  if (radius <= 0)
+    return {};
 
-  // Sobel edge magnitude. The map grows to the largest crop seen and never shrinks.
-  const size_t pixels = static_cast<size_t>(width) * height;
-  if (edges.size() < pixels)
-    edges.resize(pixels);
-  std::fill_n(edges.begin(), pixels, 0);
+  const int deadzone_r = static_cast<int>(std::max(0.0f, config.deadzone_diameter * 0.5f));
+  const int min_r = std::max({1, static_cast<int>(radius * config.min_scan_radius), deadzone_r});
+  const int max_r = static_cast<int>(radius * config.max_scan_radius);
+  if (min_r >= max_r)
+    return {};
 
+  std::fill(accumulator.begin(), accumulator.end(), 0);
+  int total_votes = 0;
+
+  // Sobel magnitude and the vote from that pixel happen together, so no
+  // full-image edge map is needed.
   for (int y = 1; y < height - 1; y++) {
     for (int x = 1; x < width - 1; x++) {
       const int gx = -filtered[(y - 1) * width + (x - 1)] - 2 * filtered[y * width + (x - 1)] -
@@ -45,19 +53,7 @@ DetectionResult detect_hough(const uint8_t *filtered, int width, int height, con
                      2 * filtered[(y + 1) * width + x] + filtered[(y + 1) * width + (x + 1)];
 
       const int magnitude = static_cast<int>(std::sqrt(static_cast<float>(gx * gx + gy * gy)));
-      if (magnitude > edge_magnitude_min)
-        edges[y * width + x] = static_cast<uint8_t>(std::min<int>(UINT8_MAX, magnitude));
-    }
-  }
-
-  const int min_r = static_cast<int>(radius * config.min_scan_radius);
-  const int max_r = static_cast<int>(radius * config.max_scan_radius);
-
-  std::fill(accumulator.begin(), accumulator.end(), 0);
-  for (int y = 0; y < height; y++) {
-    for (int x = 0; x < width; x++) {
-      const uint8_t mag = edges[y * width + x];
-      if (mag <= vote_magnitude_min)
+      if (magnitude <= vote_magnitude_min)
         continue;
 
       const float dx = x - cx;
@@ -70,8 +66,9 @@ DetectionResult detect_hough(const uint8_t *filtered, int width, int height, con
       if (theta < 0)
         theta += 360.0f;
 
-      const int angle_idx = static_cast<int>(theta) % NUM_ANGLES;
-      accumulator[angle_idx] += mag;
+      const int vote = std::min(magnitude, 255);
+      accumulator[static_cast<int>(theta) % NUM_ANGLES] += vote;
+      total_votes += vote;
     }
   }
 
@@ -84,7 +81,12 @@ DetectionResult detect_hough(const uint8_t *filtered, int width, int height, con
     }
   }
 
-  const float confidence = std::min(1.0f, static_cast<float>(max_votes) / (radius * confidence_scale));
+  // Support is how much of one full ray voted; separation says the votes
+  // concentrate on that angle instead of being spread around all 360.
+  const float support = static_cast<float>(max_votes) / ((max_r - min_r + 1) * 255.0f);
+  const float mean = static_cast<float>(total_votes) / NUM_ANGLES;
+  const float separation = max_votes > 0 ? (max_votes - mean) / max_votes : 0.0f;
+  const float confidence = std::clamp(support * separation, 0.0f, 1.0f);
 
   if (config.debug) {
     ESP_LOGD(TAG, "Hough Transform: Best Angle Index=%d, Conf=%.2f", best_angle_idx, confidence);
@@ -95,13 +97,9 @@ DetectionResult detect_hough(const uint8_t *filtered, int width, int height, con
 
 }  // namespace
 
-void HoughTransformDetector::reserve(int width, int height) {
-  this->edges_.reserve(static_cast<size_t>(width) * height);
-}
-
 DetectionResult HoughTransformDetector::detect(const uint8_t * /*raw*/, const uint8_t *filtered, int width, int height,
-                                               const DetectorConfig &config) {
-  return detect_hough(filtered, width, height, config, this->edges_, this->accumulator_);
+                                               const DetectorConfig &config, float * /*scores*/) {
+  return detect_hough(filtered, width, height, config, this->accumulator_);
 }
 
 #endif  // USE_GAUGE_NEEDLE_HOUGH_TRANSFORM

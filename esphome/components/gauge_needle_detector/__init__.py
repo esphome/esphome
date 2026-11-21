@@ -27,7 +27,12 @@ async def to_code(config: ConfigType) -> None:
 
 
 def enable_detectors(algorithms: Iterable[str]) -> None:
-    """Compiles in the given detectors; unknown names are ignored."""
+    """Compile in the given detectors; "auto" enables all of them."""
     for algorithm in algorithms:
-        if (define := ALGORITHM_DEFINES.get(algorithm)) is not None:
+        if algorithm == "auto":
+            for define in ALGORITHM_DEFINES.values():
+                cg.add_define(define)
+        elif (define := ALGORITHM_DEFINES.get(algorithm)) is not None:
             cg.add_define(define)
+        else:
+            raise ValueError(f"Unknown gauge needle algorithm: {algorithm}")

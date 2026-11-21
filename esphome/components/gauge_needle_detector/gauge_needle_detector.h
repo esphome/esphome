@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/defines.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 #ifdef USE_GAUGE_NEEDLE_DETECTOR
@@ -9,7 +10,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <numbers>
-#include <vector>
 
 namespace esphome::gauge_needle_detector {
 
@@ -38,13 +38,13 @@ const LogString *algorithm_name(Algorithm algorithm);
 
 /// Parameters that change how one dial crop is analysed.
 struct DetectorConfig {
-  const char *id{"dial"};                    // Dial name used in log lines
-  NeedleType needle_type{NEEDLE_TYPE_DARK};  // Dark needle or light (white) needle
-  Algorithm algorithm{ALGORITHM_RADIAL_PROFILE};
+  const char *id{"dial"};       // Dial name used in log lines
   float min_scan_radius{0.3f};  // Scan window, as a fraction of the radius
   float max_scan_radius{0.9f};
   float deadzone_diameter{0.0f};  // Ignored centre circle, in pixels
-  bool debug{false};              // Log every compiled-in detector's result
+  NeedleType needle_type{NEEDLE_TYPE_DARK};
+  Algorithm algorithm{ALGORITHM_RADIAL_PROFILE};
+  bool debug{false};  // Log every compiled-in detector's result
 };
 
 /// Result of one detection pass.
@@ -53,7 +53,7 @@ struct DetectionResult {
   float confidence{0.0f};
 };
 
-/// Sine and cosine of a whole degree, from tables built on first use.
+/// Sine and cosine of a whole degree, read from a flash-backed table.
 float sin_lut(int degrees);
 float cos_lut(int degrees);
 
@@ -72,92 +72,98 @@ class Detector {
   /// @param raw      the crop as delivered by the camera
   /// @param filtered raw after Preprocessor::prepare(), or nullptr when
   ///                 needs_filtered_image() is false
+  /// @param scores   360-entry scratch workspace owned by the caller
   virtual DetectionResult detect(const uint8_t *raw, const uint8_t *filtered, int width, int height,
-                                 const DetectorConfig &config) = 0;
+                                 const DetectorConfig &config, float *scores) = 0;
 };
 
-/// Shared preprocessing (CLAHE, top-hat filter, median filter). Buffers only grow.
-class Preprocessor {
+/// Shared preprocessing (contrast stretch and top-hat filter).
+class Preprocessor final {
  public:
-  /// Reserves the working buffers for crops of up to width x height pixels,
-  /// so the first frame does not allocate.
-  void reserve(int width, int height);
+  Preprocessor() = default;
+  ~Preprocessor();
+  Preprocessor(const Preprocessor &) = delete;
+  Preprocessor &operator=(const Preprocessor &) = delete;
+  Preprocessor(Preprocessor &&) = delete;
+  Preprocessor &operator=(Preprocessor &&) = delete;
+
+  /// Allocates the working buffers for crops of up to width x height pixels.
+  /// Returns false when the buffers cannot be allocated; prepare() then fails
+  /// for any crop instead of growing at runtime.
+  bool reserve(int width, int height);
 
   /// @param radial_pixels dial radius in pixels, used to size the top-hat kernel
   bool prepare(const uint8_t *raw, int width, int height, int radial_pixels, NeedleType needle_type, bool debug);
 
-  const uint8_t *data() const { return this->working_buffer_.data(); }
+  const uint8_t *data() const { return this->working_; }
 
  protected:
-  std::array<uint16_t, 256> histogram_{};
-  std::vector<uint8_t> working_buffer_;
-  std::vector<uint8_t> scratch_buffer_;
-  std::vector<uint8_t> scratch_buffer_2_;
+  void release_();
+
+  std::array<uint32_t, 256> histogram_{};
+  uint8_t *working_{nullptr};
+  uint8_t *scratch_{nullptr};
+  uint8_t *scratch_2_{nullptr};
+  size_t capacity_{0};
+  RAMAllocator<uint8_t> allocator_;
 };
 
 #ifdef USE_GAUGE_NEEDLE_INTENSITY_SCAN
 /// Scores each ray of the raw crop by how much needle-coloured pixels it crosses.
-class IntensityScanDetector : public Detector {
+class IntensityScanDetector final : public Detector {
  public:
   Algorithm algorithm() const override { return ALGORITHM_LEGACY; }
   bool needs_filtered_image() const override { return false; }
   DetectionResult detect(const uint8_t *raw, const uint8_t *filtered, int width, int height,
-                         const DetectorConfig &config) override;
-
- protected:
-  std::array<float, 360> scores_{};
+                         const DetectorConfig &config, float *scores) override;
 };
 #endif  // USE_GAUGE_NEEDLE_INTENSITY_SCAN
 
 #ifdef USE_GAUGE_NEEDLE_RADIAL_PROFILE
 /// Traces rays from the centre and keeps the one with the longest bright run.
-class RadialProfileDetector : public Detector {
+class RadialProfileDetector final : public Detector {
  public:
   Algorithm algorithm() const override { return ALGORITHM_RADIAL_PROFILE; }
   DetectionResult detect(const uint8_t *raw, const uint8_t *filtered, int width, int height,
-                         const DetectorConfig &config) override;
-
- protected:
-  std::array<float, 360> scores_{};
+                         const DetectorConfig &config, float *scores) override;
 };
 #endif  // USE_GAUGE_NEEDLE_RADIAL_PROFILE
 
 #ifdef USE_GAUGE_NEEDLE_HOUGH_TRANSFORM
 /// Votes every edge pixel into a radial histogram, weighted by edge magnitude.
-class HoughTransformDetector : public Detector {
+class HoughTransformDetector final : public Detector {
  public:
   Algorithm algorithm() const override { return ALGORITHM_HOUGH_TRANSFORM; }
   DetectionResult detect(const uint8_t *raw, const uint8_t *filtered, int width, int height,
-                         const DetectorConfig &config) override;
-  /// Grows the edge map so a crop of width x height pixels does not allocate.
-  void reserve(int width, int height);
+                         const DetectorConfig &config, float *scores) override;
 
  protected:
   std::array<int, 360> accumulator_{};
-  /// Edge magnitude map, grown to the largest crop seen. Never shrinks, so
-  /// alternating dial sizes do not reallocate.
-  std::vector<uint8_t> edges_;
 };
 #endif  // USE_GAUGE_NEEDLE_HOUGH_TRANSFORM
 
 #ifdef USE_GAUGE_NEEDLE_TEMPLATE_MATCH
 /// Searches ray angles for the brightest average line.
-class TemplateMatchDetector : public Detector {
+class TemplateMatchDetector final : public Detector {
  public:
   Algorithm algorithm() const override { return ALGORITHM_TEMPLATE_MATCH; }
   DetectionResult detect(const uint8_t *raw, const uint8_t *filtered, int width, int height,
-                         const DetectorConfig &config) override;
+                         const DetectorConfig &config, float *scores) override;
 };
 #endif  // USE_GAUGE_NEEDLE_TEMPLATE_MATCH
 
 /// Picks a detector per dial, preprocesses once and dispatches to it.
-class NeedleDetector {
+class NeedleDetector final {
  public:
   NeedleDetector();
+  NeedleDetector(const NeedleDetector &) = delete;
+  NeedleDetector &operator=(const NeedleDetector &) = delete;
+  NeedleDetector(NeedleDetector &&) = delete;
+  NeedleDetector &operator=(NeedleDetector &&) = delete;
 
-  /// Reserves the working buffers for crops of up to width x height pixels, so
-  /// the first frame does not allocate.
-  void reserve(int width, int height);
+  /// Allocates the working buffers for crops of up to width x height pixels.
+  /// Returns false when a needed buffer cannot be allocated.
+  bool reserve(int width, int height);
 
   /// Runs the configured algorithm on a width x height grayscale crop.
   DetectionResult detect(const uint8_t *img, int width, int height, const DetectorConfig &config);
@@ -169,6 +175,8 @@ class NeedleDetector {
   Preprocessor preprocessor_;
   std::array<Detector *, MAX_DETECTORS> detectors_{};
   size_t detector_count_{0};
+  /// Shared angle-score workspace; the detectors run one at a time.
+  std::array<float, 360> scores_{};
 
 #ifdef USE_GAUGE_NEEDLE_INTENSITY_SCAN
   IntensityScanDetector intensity_scan_;
