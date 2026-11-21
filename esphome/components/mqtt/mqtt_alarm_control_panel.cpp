@@ -18,7 +18,7 @@ PROGMEM_STRING_TABLE(AlarmMqttStateStrings, "disarmed", "armed_home", "armed_awa
                      "armed_custom_bypass", "pending", "arming", "disarming", "triggered", "unknown");
 
 static ProgmemStr alarm_state_to_mqtt_str(AlarmControlPanelState state) {
-  return AlarmMqttStateStrings::get_progmem_str(static_cast<uint8_t>(state), AlarmMqttStateStrings::LAST_INDEX);
+  return AlarmMqttStateStrings::get_progmem_str(state);
 }
 
 MQTTAlarmControlPanelComponent::MQTTAlarmControlPanelComponent(AlarmControlPanel *alarm_control_panel)

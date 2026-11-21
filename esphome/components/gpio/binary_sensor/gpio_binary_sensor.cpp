@@ -13,7 +13,7 @@ ESPHOME_LOG_TAG(TAG, "gpio.binary_sensor");
 PROGMEM_STRING_TABLE(InterruptTypeStrings, "UNKNOWN", "RISING_EDGE", "FALLING_EDGE", "ANY_EDGE");
 
 static const LogString *interrupt_type_to_string(gpio::InterruptType type) {
-  return InterruptTypeStrings::get_log_str(static_cast<uint8_t>(type), 0);
+  return InterruptTypeStrings::get_log_str(type, 0);
 }
 #endif
 #endif

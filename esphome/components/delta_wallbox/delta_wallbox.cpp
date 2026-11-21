@@ -64,9 +64,7 @@ PROGMEM_STRING_TABLE(DeltaStateStrings, "CHECK_PAIRING", "CONNECTED", "GET_CHARG
                      "GET_SERIAL_NUMBER", "HALTED", "IDLE", "SEND_LOGIN_CREDENTIALS", "TIME_SYNC");
 static_assert(DeltaStateStrings::LAST_INDEX == static_cast<uint8_t>(DeltaState::DELTA_STATE_TIME_SYNC),
               "DeltaStateStrings must list every DeltaState");
-static const LogString *delta_state_to_string(DeltaState state) {
-  return DeltaStateStrings::get_log_str(static_cast<uint8_t>(state), DeltaStateStrings::LAST_INDEX);
-}
+static const LogString *delta_state_to_string(DeltaState state) { return DeltaStateStrings::get_log_str(state); }
 
 // The function code a handshake step waits for; 0 where any frame is handled
 static uint8_t expected_function_code(DeltaState state) {

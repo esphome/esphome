@@ -761,9 +761,7 @@ PROGMEM_STRING_TABLE(StateStrings, "IDLE", "START_MICROPHONE", "STARTING_MICROPH
                      "START_PIPELINE", "STARTING_PIPELINE", "STREAMING_MICROPHONE", "STOP_MICROPHONE",
                      "STOPPING_MICROPHONE", "AWAITING_RESPONSE", "STREAMING_RESPONSE", "RESPONSE_FINISHED", "UNKNOWN");
 
-static const LogString *voice_assistant_state_to_string(State state) {
-  return StateStrings::get_log_str(static_cast<uint8_t>(state), StateStrings::LAST_INDEX);
-}
+static const LogString *voice_assistant_state_to_string(State state) { return StateStrings::get_log_str(state); }
 
 #ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
 static bool is_microphone_streaming_state(State state) {

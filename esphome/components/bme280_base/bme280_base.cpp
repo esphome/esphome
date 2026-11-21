@@ -56,14 +56,14 @@ static const uint8_t BME280_STATUS_IM_UPDATE = 0b01;
 PROGMEM_STRING_TABLE(IIRFilterStrings, "OFF", "2x", "4x", "8x", "16x", "UNKNOWN");
 
 [[maybe_unused]] static const LogString *iir_filter_to_str(BME280IIRFilter value) {
-  return IIRFilterStrings::get_log_str(static_cast<uint8_t>(value), IIRFilterStrings::LAST_INDEX);
+  return IIRFilterStrings::get_log_str(value);
 }
 
 // Indexed by BME280Oversampling
 PROGMEM_STRING_TABLE(OversamplingStrings, "None", "1x", "2x", "4x", "8x", "16x", "UNKNOWN");
 
 [[maybe_unused]] static const LogString *oversampling_to_str(BME280Oversampling value) {
-  return OversamplingStrings::get_log_str(static_cast<uint8_t>(value), OversamplingStrings::LAST_INDEX);
+  return OversamplingStrings::get_log_str(value);
 }
 
 void BME280Component::setup() {

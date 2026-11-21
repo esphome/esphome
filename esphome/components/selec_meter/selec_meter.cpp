@@ -22,9 +22,7 @@ static constexpr uint8_t MAX_OPTIONAL_READ_FAILURES = 5;
 // Indexed by ReadState
 PROGMEM_STRING_TABLE(ReadStateStrings, "main block", "serial number", "DG sensing", "idle");
 
-static const LogString *read_state_name(ReadState state) {
-  return ReadStateStrings::get_log_str(static_cast<uint8_t>(state), ReadStateStrings::LAST_INDEX);
-}
+static const LogString *read_state_name(ReadState state) { return ReadStateStrings::get_log_str(state); }
 
 // FP32 at `reg` in the configured word order (MSRF high word first, LSRF low word first); NaN when
 // `reg` is not wholly inside `registers`

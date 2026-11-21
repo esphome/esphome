@@ -24,7 +24,7 @@ PROGMEM_STRING_TABLE(OversamplingStrings, "1024x", "2048x", "4096x", "8192x", "2
                      "UNKNOWN");
 
 [[maybe_unused]] static const LogString *oversampling_to_str(XGZP68XXOversampling value) {
-  return OversamplingStrings::get_log_str(static_cast<uint8_t>(value), OversamplingStrings::LAST_INDEX);
+  return OversamplingStrings::get_log_str(value);
 }
 
 void XGZP68XXComponent::update() {

@@ -45,9 +45,7 @@ void ULN2003::dump_config() {
   LOG_PIN("  Pin B: ", this->pin_b_);
   LOG_PIN("  Pin C: ", this->pin_c_);
   LOG_PIN("  Pin D: ", this->pin_d_);
-  ESP_LOGCONFIG(
-      TAG, "  Step Mode: %s",
-      LOG_STR_ARG(StepModeStrings::get_log_str(static_cast<uint8_t>(this->step_mode_), StepModeStrings::LAST_INDEX)));
+  ESP_LOGCONFIG(TAG, "  Step Mode: %s", LOG_STR_ARG(StepModeStrings::get_log_str(this->step_mode_)));
 }
 void ULN2003::write_step_(int32_t step) {
   int32_t n = this->step_mode_ == ULN2003_STEP_MODE_HALF_STEP ? 8 : 4;

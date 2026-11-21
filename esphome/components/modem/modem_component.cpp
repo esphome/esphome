@@ -81,9 +81,7 @@ static constexpr int FALLBACK_BAUD_RATE = 115200;
 // Indexed by ModemState
 PROGMEM_STRING_TABLE(ModemStateStrings, "DISABLED", "ENABLING", "SYNCED", "CONNECTING", "WAIT_IP", "CONNECTED",
                      "DISCONNECTING", "UNKNOWN");
-static const LogString *state_to_str(ModemState state) {
-  return ModemStateStrings::get_log_str(static_cast<uint8_t>(state), ModemStateStrings::LAST_INDEX);
-}
+static const LogString *state_to_str(ModemState state) { return ModemStateStrings::get_log_str(state); }
 
 // Indexed by ModemFault
 PROGMEM_STRING_TABLE(ModemFaultStrings, "", "Modem not responding", "Configured baud rate failed",
@@ -102,14 +100,12 @@ static const LogString *registration_to_str(int registration) {
   if (registration < 0) {
     return LOG_STR("not reported");
   }
-  return RegistrationStrings::get_log_str(static_cast<uint8_t>(registration), RegistrationStrings::LAST_INDEX);
+  return RegistrationStrings::get_log_str(registration);
 }
 
 // Indexed by esp_modem::command_result
 PROGMEM_STRING_TABLE(CommandResultStrings, "OK", "FAIL", "TIMEOUT");
-static const LogString *result_to_str(command_result result) {
-  return CommandResultStrings::get_log_str(static_cast<uint8_t>(result), CommandResultStrings::LAST_INDEX);
-}
+static const LogString *result_to_str(command_result result) { return CommandResultStrings::get_log_str(result); }
 
 ModemComponent::ModemComponent(InternalGPIOPin *tx_pin, InternalGPIOPin *rx_pin, const char *model, DceFactory factory,
                                const char *apn)
@@ -231,7 +227,7 @@ void ModemComponent::publish_status_() {
     this->status_clear_error();
     return;
   }
-  const LogString *message = ModemFaultStrings::get_log_str(static_cast<uint8_t>(fault), ModemFaultStrings::LAST_INDEX);
+  const LogString *message = ModemFaultStrings::get_log_str(fault);
   // These stop the modem until the SIM or pin_code is fixed
   if (fault == ModemFault::MODEM_FAULT_SIM_LOCKED || fault == ModemFault::MODEM_FAULT_PIN_NOT_SENT ||
       fault == ModemFault::MODEM_FAULT_PIN_RECORD) {
@@ -1381,8 +1377,7 @@ void ModemComponent::publish_readings_([[maybe_unused]] uint8_t rssi, [[maybe_un
   PUBLISH_STATE(this->ber_sensor_, ber < std::size(BER_PERCENT) ? BER_PERCENT[ber] : NAN);
 #endif
 #ifdef USE_MODEM_NETWORK_TYPE
-  PUBLISH_STATE(this->network_type_text_sensor_,
-                NetworkModeStrings::get_progmem_str(mode, NetworkModeStrings::LAST_INDEX));
+  PUBLISH_STATE(this->network_type_text_sensor_, NetworkModeStrings::get_progmem_str(mode));
 #endif
 }
 #endif

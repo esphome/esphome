@@ -49,9 +49,7 @@ static constexpr uint16_t SAMPLE_RATE = 16000;
 PROGMEM_STRING_TABLE(RtttlStateStrings, "State::STOPPED", "State::INIT", "State::STARTING", "State::RUNNING",
                      "State::STOPPING", "UNKNOWN");
 
-static const LogString *state_to_string(State state) {
-  return RtttlStateStrings::get_log_str(static_cast<uint8_t>(state), RtttlStateStrings::LAST_INDEX);
-}
+static const LogString *state_to_string(State state) { return RtttlStateStrings::get_log_str(state); }
 #endif  // ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
 
 static uint8_t note_index_from_char(char note) {

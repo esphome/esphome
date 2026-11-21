@@ -367,9 +367,7 @@ void Logger::set_boot_log_level(const char *tag, uint8_t log_level) { this->boot
 // Log level strings - packed into flash on ESP8266, indexed by log level (0-7)
 PROGMEM_STRING_TABLE(LogLevelStrings, "NONE", "ERROR", "WARN", "INFO", "CONFIG", "DEBUG", "VERBOSE", "VERY_VERBOSE");
 
-static const LogString *get_log_level_str(uint8_t level) {
-  return LogLevelStrings::get_log_str(level, LogLevelStrings::LAST_INDEX);
-}
+static const LogString *get_log_level_str(uint8_t level) { return LogLevelStrings::get_log_str(level); }
 
 #ifndef USE_HOST
 const LogString *Logger::get_uart_selection_() {

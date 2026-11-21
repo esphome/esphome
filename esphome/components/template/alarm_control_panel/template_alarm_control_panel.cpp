@@ -31,7 +31,7 @@ void TemplateAlarmControlPanel::add_sensor(binary_sensor::BinarySensor *sensor, 
 PROGMEM_STRING_TABLE(AlarmSensorTypeStrings, "delayed", "instant", "delayed_follower", "instant_always");
 
 static const LogString *sensor_type_to_string(AlarmSensorType type) {
-  return AlarmSensorTypeStrings::get_log_str(static_cast<uint8_t>(type), 0);
+  return AlarmSensorTypeStrings::get_log_str(type, 0);
 }
 #endif
 

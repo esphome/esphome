@@ -11,7 +11,7 @@ ESPHOME_LOG_TAG(TAG, "sy6970");
 PROGMEM_STRING_TABLE(I2CWatchdogTimeoutStrings, "Disabled", "40s", "80s", "160s", "Unknown");
 
 static const LogString *i2c_watchdog_timeout_to_string(I2CWatchdogTimeout timeout) {
-  return I2CWatchdogTimeoutStrings::get_log_str(static_cast<uint8_t>(timeout), I2CWatchdogTimeoutStrings::LAST_INDEX);
+  return I2CWatchdogTimeoutStrings::get_log_str(timeout);
 }
 
 static constexpr uint32_t I2C_WATCHDOG_KICK_INTERVAL_ID = 0;

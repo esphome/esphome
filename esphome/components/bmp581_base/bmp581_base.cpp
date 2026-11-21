@@ -26,15 +26,13 @@ static constexpr uint32_t MEASUREMENT_TIMEOUT_ID = 0;
 PROGMEM_STRING_TABLE(OversamplingStrings, "None", "2x", "4x", "8x", "16x", "32x", "64x", "128x", "");
 
 static const LogString *oversampling_to_str(Oversampling oversampling) {
-  return OversamplingStrings::get_log_str(static_cast<uint8_t>(oversampling), OversamplingStrings::LAST_INDEX);
+  return OversamplingStrings::get_log_str(oversampling);
 }
 
 // IIR filter strings indexed by IIRFilter enum (0-7): OFF, 2, 4, 8, 16, 32, 64, 128
 PROGMEM_STRING_TABLE(IIRFilterStrings, "OFF", "2x", "4x", "8x", "16x", "32x", "64x", "128x", "");
 
-static const LogString *iir_filter_to_str(IIRFilter filter) {
-  return IIRFilterStrings::get_log_str(static_cast<uint8_t>(filter), IIRFilterStrings::LAST_INDEX);
-}
+static const LogString *iir_filter_to_str(IIRFilter filter) { return IIRFilterStrings::get_log_str(filter); }
 
 void BMP581Component::dump_config() {
   ESP_LOGCONFIG(TAG, "BMP581:");

@@ -19,7 +19,7 @@ ESPHOME_LOG_TAG(TAG, "mcp251xfd");
 PROGMEM_STRING_TABLE(CanModeStrings, "NORMAL", "SLEEP", "LOOPBACK", "LISTENONLY", "CONFIGURATION", "EXTERNAL LOOPBACK",
                      "CLASSIC", "UNKNOWN");
 
-static const LogString *mode_str(uint8_t mode) { return CanModeStrings::get_log_str(mode, CanModeStrings::LAST_INDEX); }
+static const LogString *mode_str(uint8_t mode) { return CanModeStrings::get_log_str(mode); }
 
 bool MCP251XFD::setup_internal() {
   this->spi_setup();

@@ -49,9 +49,7 @@ static_assert(FM_DOUT == 3, "Flash mode enum values must match table indices");
 
 // Get reset reason string from reason code (no heap allocation)
 // Returns LogString* pointing to flash (PROGMEM) on ESP8266
-static const LogString *get_reset_reason_str(uint32_t reason) {
-  return ResetReasonStrings::get_log_str(static_cast<uint8_t>(reason), ResetReasonStrings::LAST_INDEX);
-}
+static const LogString *get_reset_reason_str(uint32_t reason) { return ResetReasonStrings::get_log_str(reason); }
 
 // Size for core version hex buffer
 static constexpr size_t CORE_VERSION_BUFFER_SIZE = 12;
@@ -103,9 +101,8 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
   constexpr size_t size = DEVICE_INFO_BUFFER_SIZE;
   char *buf = buffer.data();
 
-  const LogString *flash_mode = FlashModeStrings::get_log_str(
-      static_cast<uint8_t>(ESP.getFlashChipMode()),  // NOLINT(readability-static-accessed-through-instance)
-      FlashModeStrings::LAST_INDEX);
+  // NOLINTNEXTLINE(readability-static-accessed-through-instance)
+  const LogString *flash_mode = FlashModeStrings::get_log_str(ESP.getFlashChipMode());
   uint32_t flash_size = ESP.getFlashChipSize() / 1024;       // NOLINT(readability-static-accessed-through-instance)
   uint32_t flash_speed = ESP.getFlashChipSpeed() / 1000000;  // NOLINT(readability-static-accessed-through-instance)
   ESP_LOGD(TAG, "Flash Chip: Size=%" PRIu32 "kB Speed=%" PRIu32 "MHz Mode=%s", flash_size, flash_speed,

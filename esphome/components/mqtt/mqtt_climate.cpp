@@ -16,9 +16,7 @@ using namespace esphome::climate;
 // Climate mode MQTT strings indexed by ClimateMode enum (0-6): OFF, HEAT_COOL, COOL, HEAT, FAN_ONLY, DRY, AUTO
 PROGMEM_STRING_TABLE(ClimateMqttModeStrings, "off", "heat_cool", "cool", "heat", "fan_only", "dry", "auto", "unknown");
 
-static ProgmemStr climate_mode_to_mqtt_str(ClimateMode mode) {
-  return ClimateMqttModeStrings::get_progmem_str(static_cast<uint8_t>(mode), ClimateMqttModeStrings::LAST_INDEX);
-}
+static ProgmemStr climate_mode_to_mqtt_str(ClimateMode mode) { return ClimateMqttModeStrings::get_progmem_str(mode); }
 
 // Climate action MQTT strings indexed by ClimateAction enum (0,2-7): OFF, (gap), COOLING, HEATING, IDLE, DRYING, FAN,
 // DEFROSTING
@@ -26,7 +24,7 @@ PROGMEM_STRING_TABLE(ClimateMqttActionStrings, "off", "unknown", "cooling", "hea
                      "defrosting", "unknown");
 
 static ProgmemStr climate_action_to_mqtt_str(ClimateAction action) {
-  return ClimateMqttActionStrings::get_progmem_str(static_cast<uint8_t>(action), ClimateMqttActionStrings::LAST_INDEX);
+  return ClimateMqttActionStrings::get_progmem_str(action);
 }
 
 // Climate fan mode MQTT strings indexed by ClimateFanMode enum (0-9)
@@ -34,16 +32,14 @@ PROGMEM_STRING_TABLE(ClimateMqttFanModeStrings, "on", "off", "auto", "low", "med
                      "diffuse", "quiet", "unknown");
 
 static ProgmemStr climate_fan_mode_to_mqtt_str(ClimateFanMode fan_mode) {
-  return ClimateMqttFanModeStrings::get_progmem_str(static_cast<uint8_t>(fan_mode),
-                                                    ClimateMqttFanModeStrings::LAST_INDEX);
+  return ClimateMqttFanModeStrings::get_progmem_str(fan_mode);
 }
 
 // Climate swing mode MQTT strings indexed by ClimateSwingMode enum (0-3): OFF, BOTH, VERTICAL, HORIZONTAL
 PROGMEM_STRING_TABLE(ClimateMqttSwingModeStrings, "off", "both", "vertical", "horizontal", "unknown");
 
 static ProgmemStr climate_swing_mode_to_mqtt_str(ClimateSwingMode swing_mode) {
-  return ClimateMqttSwingModeStrings::get_progmem_str(static_cast<uint8_t>(swing_mode),
-                                                      ClimateMqttSwingModeStrings::LAST_INDEX);
+  return ClimateMqttSwingModeStrings::get_progmem_str(swing_mode);
 }
 
 // Climate preset MQTT strings indexed by ClimatePreset enum (0-7)
@@ -51,7 +47,7 @@ PROGMEM_STRING_TABLE(ClimateMqttPresetStrings, "none", "home", "away", "boost", 
                      "unknown");
 
 static ProgmemStr climate_preset_to_mqtt_str(ClimatePreset preset) {
-  return ClimateMqttPresetStrings::get_progmem_str(static_cast<uint8_t>(preset), ClimateMqttPresetStrings::LAST_INDEX);
+  return ClimateMqttPresetStrings::get_progmem_str(preset);
 }
 
 void MQTTClimateComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {

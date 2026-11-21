@@ -14,9 +14,7 @@ static constexpr size_t EPAPER_MAX_CMD_LOG_BYTES = 128;
 PROGMEM_STRING_TABLE(EPaperStateStrings, "IDLE", "UPDATE", "RESET", "RESET_END", "SHOULD_WAIT", "INITIALISE",
                      "TRANSFER_DATA", "POWER_ON", "REFRESH_SCREEN", "POWER_OFF", "DEEP_SLEEP", "Unknown");
 
-const LogString *EPaperBase::epaper_state_to_string_() {
-  return EPaperStateStrings::get_log_str(static_cast<uint8_t>(this->state_), EPaperStateStrings::LAST_INDEX);
-}
+const LogString *EPaperBase::epaper_state_to_string_() { return EPaperStateStrings::get_log_str(this->state_); }
 
 void EPaperBase::setup() {
   if (!this->setup_check(this->init_buffer_(this->buffer_length_), LOG_STR("Failed to initialise buffer")))
