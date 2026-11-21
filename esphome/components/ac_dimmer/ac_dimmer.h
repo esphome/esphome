@@ -25,12 +25,17 @@ struct AcDimmerDataStore {
   uint16_t min_power;
   /// Zero-cross pin number - used to share ZC pin across multiple dimmers
   uint8_t zero_cross_pin_number;
+  /// Zero-cross edges that did not fit the measured timing lately; at 8 the timing is measured again
+  uint8_t doubtful_edges{0};
   /// Set to send the first half ac cycle complete
   bool init_cycle;
   /// Dimmer method
   DimMethod method;
 
   uint32_t timer_intr(uint32_t now);
+
+  /// Handles a zero-cross edge at `now`; returns true if it starts a new half cycle
+  bool take_zero_cross_edge(uint32_t now);
 
   void gpio_intr();
   static void s_gpio_intr(AcDimmerDataStore *store);

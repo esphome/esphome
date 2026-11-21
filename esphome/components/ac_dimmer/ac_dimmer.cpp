@@ -1,6 +1,8 @@
 #include "ac_dimmer.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include <algorithm>
 #include <cmath>
 #include <numbers>
 
@@ -27,9 +29,8 @@ static AcDimmerDataStore *all_dimmers[32];  // NOLINT(cppcoreguidelines-avoid-no
 /// See also: https://github.com/esphome/issues/issues/1632
 static constexpr uint32_t GATE_ENABLE_TIME = 50;
 
-/// Shortest time between two accepted zero crossings. A half cycle is 10 ms at 50 Hz and 8.33 ms at 60 Hz,
-/// so any edge sooner than this after the last crossing is noise (for example from the triac switching)
-/// or the second edge of the same zero-cross pulse.
+/// Edges sooner than this after a crossing are noise or the second edge of the same zero-cross pulse.
+/// A half cycle is 10 ms at 50 Hz and 8.33 ms at 60 Hz.
 static constexpr uint32_t MIN_HALF_CYCLE_US = 6000;
 
 #ifdef USE_ESP8266
@@ -54,6 +55,8 @@ uint32_t IRAM_ATTR HOT AcDimmerDataStore::timer_intr(uint32_t now) {
     return 0;
 
   uint32_t time_since_zc = now - this->crossed_zero_at;
+  if (static_cast<int32_t>(time_since_zc) < 0)
+    return -time_since_zc;  // the expected crossing (see take_zero_cross_edge) is still ahead
   if (this->value == 65535 || this->value == 0) {
     return 0;
   }
@@ -107,20 +110,49 @@ uint32_t IRAM_ATTR HOT timer_interrupt() {
   return min_dt_us;
 }
 
+bool IRAM_ATTR HOT AcDimmerDataStore::take_zero_cross_edge(uint32_t now) {
+  if (this->crossed_zero_at == 0) {
+    this->crossed_zero_at = now;
+    return false;
+  }
+  // Signed: the last crossing can be an expected one that is still ahead
+  const auto since = static_cast<int32_t>(now - this->crossed_zero_at);
+  if (since < static_cast<int32_t>(MIN_HALF_CYCLE_US))
+    return false;
+  const auto cycle = static_cast<int32_t>(this->cycle_time_us);
+  // Whole half cycles since the last crossing (a crossing can be missed) and how far this edge is from the
+  // time expected from the measured half cycle
+  const int32_t cycles = cycle == 0 ? 1 : std::max<int32_t>((since + cycle / 2) / cycle, 1);
+  const int32_t error = cycle == 0 ? 0 : since - cycles * cycle;
+  if (cycle == 0 || (error >= -cycle / 32 && error <= cycle / 32)) {
+    // The mains frequency is steady and single edges jitter: follow the edges slowly
+    this->crossed_zero_at = now - error / 2;
+    this->cycle_time_us = cycle == 0 ? since : cycle + error / 16;
+    if (this->doubtful_edges != 0)
+      this->doubtful_edges--;
+    return true;
+  }
+  // The edge does not fit: noise if it is far too early, otherwise an early zero-cross pulse or one that
+  // was served late. Too many of them in a row mean the timing is lost and is measured again.
+  const bool noise = error < -cycle / 4;
+  this->doubtful_edges += noise ? 2 : 1;
+  if (cycles > 4 || this->doubtful_edges >= 8) {
+    this->doubtful_edges = 0;
+    this->crossed_zero_at = now;
+    this->cycle_time_us = 0;
+    return false;
+  }
+  if (noise)
+    return false;
+  // Use the expected crossing time, not the time of this edge
+  this->crossed_zero_at += cycles * cycle;
+  return true;
+}
+
 /// GPIO interrupt routine, called when ZC pin triggers
 void IRAM_ATTR HOT AcDimmerDataStore::gpio_intr() {
-  uint32_t prev_crossed = this->crossed_zero_at;
-  uint32_t now = micros();
-  uint32_t cycle_time = now - prev_crossed;
-
-  // Ignore noise and the extra edges of the same zero-cross pulse: keep the timing of the real crossing,
-  // so that the gate events already scheduled for this half cycle are not moved
-  if (prev_crossed != 0 && cycle_time < MIN_HALF_CYCLE_US)
+  if (!this->take_zero_cross_edge(micros()) || this->cycle_time_us == 0)
     return;
-  this->crossed_zero_at = now;
-  if (prev_crossed == 0)
-    return;  // first crossing: the half cycle length is not known yet
-  this->cycle_time_us = cycle_time;
 
   if (this->value == 65535) {
     // fully on, enable output immediately
@@ -175,13 +207,17 @@ void IRAM_ATTR HOT AcDimmerDataStore::s_gpio_intr(AcDimmerDataStore *store) {
 }
 
 #ifdef USE_ESP8266
-// ESP8266: a one-shot interrupt on the CPU cycle counter (CCOMPARE0, the Arduino core's timer0), fired only
-// at the gate events and right after each zero crossing (a few hundred per second).
-// The Arduino waveform generator used before runs timer1 as a non-maskable interrupt (NMI) at least every
-// 1 ms (every 100 µs while waiting for a zero crossing), which together with WiFi traffic ended in
-// hardware watchdog resets, and it could interrupt the zero-cross handler halfway through an update.
+// ESP8266: a one-shot maskable interrupt on CCOMPARE0 (timer0), only at the gate events. Not timer1: the waveform
+// generator runs it as an NMI at 1-10 kHz, too much load with WiFi. Masked sections can delay a gate event slightly.
+// The cycle counter runs twice as fast during a CpuFrequencyBoost; the timer then fires early and re-arms.
 static void IRAM_ATTR esp8266_timer_in(uint32_t us) {
-  timer0_write(ESP.getCycleCount() + us * clockCyclesPerMicrosecond());
+  const uint32_t cycles = us * (arch_get_cpu_freq_hz() / 1000000);
+  uint32_t target;
+  do {
+    target = arch_get_cpu_cycle_count() + cycles;
+    timer0_write(target);
+    // An NMI between reading the counter and writing the compare can leave the target in the past
+  } while (static_cast<int32_t>(target - arch_get_cpu_cycle_count()) <= 0);
 }
 static void IRAM_ATTR HOT esp8266_timer_isr() { esp8266_timer_in(timer_interrupt()); }
 #endif
