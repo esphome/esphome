@@ -239,8 +239,9 @@ HttpRequestProgress HttpContainerIDF::poll() {
         return HttpRequestProgress::HTTP_REQUEST_PROGRESS_FAILED;
 
       case Stage::STAGE_CONNECT: {
-        // Only the first call of a hop waits
-        watchdog::WatchdogManager wdm(this->connecting_ ? 0 : this->get_watchdog_timeout());
+        // Only the first call of a hop waits for the network, but the TLS handshake runs inside whichever
+        // call finds the TCP connection up, and its crypto can take seconds
+        watchdog::WatchdogManager wdm(this->get_watchdog_timeout());
         esp_http_client_set_timeout_ms(this->client_, this->connecting_ ? 1 : this->timeout_ms_);
         this->feed_wdt();
         esp_err_t err = esp_http_client_open(this->client_, this->body_.size());
