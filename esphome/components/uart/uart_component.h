@@ -122,8 +122,9 @@ class UARTComponent {
   virtual void set_flush_timeout(uint32_t flush_timeout_ms) {}
 
 #ifdef USE_UART_TX_BREAK
-  // Holds the TX line at the level opposite to idle (low for a pin that is not inverted) until released, nothing
-  // may be written meanwhile. Needs uart.request_tx_break() in codegen. A LibreTiny hardware port is closed for it.
+  // Holds the TX line at the level opposite to idle (low for a pin that is not inverted) until released.
+  // flush() before it; no read or write on the bus meanwhile: a LibreTiny hardware port is closed for it and
+  // loses its RX buffer. load_settings() applies a held break again. Needs uart.request_tx_break() in codegen.
   // @return false when the bus cannot do it, e.g. no TX pin of the microcontroller (see the platform files).
   virtual bool set_tx_break(bool enable) { return false; }
 #endif

@@ -155,6 +155,11 @@ void ESP8266UartComponent::load_settings(bool dump_config) {
     this->sw_serial_->setup(this->tx_pin_, this->rx_pin_, this->baud_rate_, this->stop_bits_, this->data_bits_,
                             this->parity_, this->rx_buffer_size_);
   }
+#ifdef USE_UART_TX_BREAK
+  // begin() and the software serial setup put TX back to idle
+  if (this->tx_break_)
+    this->set_tx_break(true);
+#endif
   if (dump_config) {
     ESP_LOGCONFIG(TAG, "UART bus was reloaded.");
     this->dump_config();
@@ -165,6 +170,7 @@ void ESP8266UartComponent::load_settings(bool dump_config) {
 bool ESP8266UartComponent::set_tx_break(bool enable) {
   if (this->tx_pin_ == nullptr)
     return false;
+  this->tx_break_ = enable;
   if (this->hw_serial_ == nullptr) {
     // software serial drives the pin as a GPIO
     this->tx_pin_->digital_write(!enable);

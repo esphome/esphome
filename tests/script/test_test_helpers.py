@@ -87,16 +87,11 @@ def test_get_platform_components_discovers_subdirectory(tmp_path: Path) -> None:
     assert result == ["sensor.bthome"]
 
 
-def test_get_platform_components_skips_pycache(tmp_path: Path) -> None:
-    (tmp_path / "bthome" / "__pycache__").mkdir(parents=True)
-
-    result = build_helpers.get_platform_components(["bthome"], tmp_path)
-
-    assert result == []
-
-
-def test_get_platform_components_skips_external_components(tmp_path: Path) -> None:
-    (tmp_path / "bthome" / "components" / "fake").mkdir(parents=True)
+@pytest.mark.parametrize("folder", ["__pycache__", "components/fake"])
+def test_get_platform_components_skips_non_platform_folders(
+    tmp_path: Path, folder: str
+) -> None:
+    (tmp_path / "bthome" / folder).mkdir(parents=True)
 
     with patch("build_helpers.get_component", return_value=None):
         result = build_helpers.get_platform_components(["bthome"], tmp_path)
