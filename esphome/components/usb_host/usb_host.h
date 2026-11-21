@@ -277,6 +277,13 @@ class USBHost final : public Component {
   void setup() override;
 
  protected:
+#if defined(USE_USB_HOST_FULL_SPEED_ONLY) && defined(USE_ESP32_VARIANT_ESP32P4)
+  void hold_full_speed_();
+#endif
+#ifdef USE_USB_HOST_LIB_TASK
+  static void lib_task_fn(void *arg);
+  TaskHandle_t lib_task_handle_{nullptr};
+#endif
   std::vector<USBClient *> clients_{};
 };
 

@@ -42,6 +42,7 @@ CONF_PRODUCT = "product"
 CONF_INTERFACE_DESCRIPTION = "interface_description"
 CONF_ENABLE_HUBS = "enable_hubs"
 CONF_MAX_TRANSFER_REQUESTS = "max_transfer_requests"
+CONF_FULL_SPEED_ONLY = "full_speed_only"
 
 
 # VID/PID set to 0 or `None` strings are wildcards
@@ -262,6 +263,14 @@ def get_max_packet_size() -> int:
     return CORE.data.get(DOMAIN, {}).get(CONF_MAX_PACKET_SIZE, 64)
 
 
+def _validate_full_speed_only(config: ConfigType) -> ConfigType:
+    if config[CONF_FULL_SPEED_ONLY] and get_esp32_variant() != VARIANT_ESP32P4:
+        raise cv.Invalid(
+            f"{CONF_FULL_SPEED_ONLY} is only for the high-speed port of the ESP32-P4"
+        )
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     cv.COMPONENT_SCHEMA.extend(
         {
@@ -274,8 +283,12 @@ CONFIG_SCHEMA = cv.All(
                 64, 128, 256, 512, 1024, int=True
             ),
             cv.Optional(CONF_DEVICES): cv.ensure_list(usb_device_schema()),
+            # The high-speed port as a full/low-speed host: full and low speed devices behind a
+            # USB 2.0 hub need split transactions, which the ESP-IDF host stack does not do
+            cv.Optional(CONF_FULL_SPEED_ONLY, default=False): cv.boolean,
         }
     ),
+    _validate_full_speed_only,
     only_on_variant(
         supported=[
             VARIANT_ESP32H4,
@@ -315,6 +328,8 @@ async def to_code(config: ConfigType) -> None:
     set_idf_sdkconfig_default("CONFIG_USB_HOST_CONTROL_TRANSFER_MAX_SIZE", 1024)
     if config.get(CONF_ENABLE_HUBS):
         add_idf_sdkconfig_option("CONFIG_USB_HOST_HUBS_SUPPORTED", True)
+    if config[CONF_FULL_SPEED_ONLY]:
+        cg.add_define("USE_USB_HOST_FULL_SPEED_ONLY")
 
     cg.add_define("USB_HOST_MAX_REQUESTS", config[CONF_MAX_TRANSFER_REQUESTS])
     cg.add_define("USB_HOST_MAX_PACKET_SIZE", config[CONF_MAX_PACKET_SIZE])
