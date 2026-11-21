@@ -342,7 +342,12 @@ def _read_operators(
     """The input and output tensor indexes of every operator, in execution order."""
     return [
         (
-            buffer.i32_vector(table, _OPERATOR_INPUTS),
+            # -1 is TFLite's "optional tensor omitted", such as a fully connected bias.
+            [
+                index
+                for index in buffer.i32_vector(table, _OPERATOR_INPUTS)
+                if index != -1
+            ],
             buffer.i32_vector(table, _OPERATOR_OUTPUTS),
         )
         for table in buffer.table_vector(subgraph, _SUBGRAPH_OPERATORS)
@@ -350,20 +355,41 @@ def _read_operators(
 
 
 def _peak_activation_bytes(
-    tensors: list[_Tensor], operators: list[tuple[list[int], list[int]]]
+    tensors: list[_Tensor],
+    operators: list[tuple[list[int], list[int]]],
+    inputs: list[int],
+    outputs: list[int],
 ) -> int:
-    """Largest total size of the tensors live at the same point, from the first operator that mentions each to the last."""
+    """Largest total size of the tensors live at the same point.
+
+    Subgraph inputs are live from the start and subgraph outputs until the end, so a
+    graph whose branches only meet at the output does not understate the peak.
+    """
     first_use: dict[int, int] = {}
     last_use: dict[int, int] = {}
-    for index, (inputs, outputs) in enumerate(operators):
-        for tensor in (*inputs, *outputs):
+    last_operator = len(operators) - 1
+    for tensor in inputs:
+        if not 0 <= tensor < len(tensors):
+            raise ModelReadError(
+                f"the subgraph input {tensor} is outside the {len(tensors)} tensors"
+            )
+        first_use[tensor] = 0
+        last_use.setdefault(tensor, 0)
+    for tensor in outputs:
+        if not 0 <= tensor < len(tensors):
+            raise ModelReadError(
+                f"the subgraph output {tensor} is outside the {len(tensors)} tensors"
+            )
+        last_use[tensor] = last_operator
+    for index, (op_inputs, op_outputs) in enumerate(operators):
+        for tensor in (*op_inputs, *op_outputs):
             if not 0 <= tensor < len(tensors):
                 raise ModelReadError(
                     f"operator {index} refers to tensor {tensor}, but the subgraph has "
                     f"{len(tensors)}"
                 )
             first_use.setdefault(tensor, index)
-            last_use[tensor] = index
+            last_use[tensor] = max(index, last_use.get(tensor, index))
     arena_tensors = [
         (index, tensor.size)
         for index, tensor in enumerate(tensors)
@@ -385,7 +411,12 @@ def estimate_tensor_arena(model_path: str | Path) -> ArenaEstimate:
     buffer = _load(model_path)
     subgraph = _subgraph(buffer)
     tensors = _read_tensors(buffer, subgraph, _buffers_with_data(buffer))
-    peak = _peak_activation_bytes(tensors, _read_operators(buffer, subgraph))
+    peak = _peak_activation_bytes(
+        tensors,
+        _read_operators(buffer, subgraph),
+        buffer.i32_vector(subgraph, _SUBGRAPH_INPUTS),
+        buffer.i32_vector(subgraph, _SUBGRAPH_OUTPUTS),
+    )
     head = (_ARENA_HEAD_OVERHEAD + _ARENA_HEAD_PER_TENSOR * len(tensors) + 63) & ~63
     raw = head + peak * _ARENA_SAFETY_FACTOR_TENTHS // 10
     return ArenaEstimate(
