@@ -111,16 +111,14 @@ TEST(OutputProcessor, TensorOverloadDequantizesAndRejectsAnUnsupportedType) {
   tensor.params.zero_point = 10;
   tensor.data.uint8 = const_cast<uint8_t *>(values);
 
-  const ProcessedOutput result =
-      process_output(&tensor, OutputProcessing::OUTPUT_PROCESSING_ARGMAX, 1.0f, false);
+  const ProcessedOutput result = process_output(&tensor, OutputProcessing::OUTPUT_PROCESSING_ARGMAX, 1.0f, false);
   EXPECT_TRUE(result.valid);
   EXPECT_FLOAT_EQ(result.value, 1.0f);
   EXPECT_NEAR(result.confidence, 2.0f, TOLERANCE);
 
   // A tensor of a type the reader does not handle is not class 0.
   tensor.type = kTfLiteInt32;
-  const ProcessedOutput unsupported =
-      process_output(&tensor, OutputProcessing::OUTPUT_PROCESSING_ARGMAX, 1.0f, false);
+  const ProcessedOutput unsupported = process_output(&tensor, OutputProcessing::OUTPUT_PROCESSING_ARGMAX, 1.0f, false);
   EXPECT_FALSE(unsupported.valid);
 
   TfLiteIntArrayFree(dims);
