@@ -4,6 +4,7 @@
 
 #include "esphome/core/log.h"
 
+#include <cstdint>
 #include <cstring>
 
 namespace esphome::camera_image {
@@ -158,7 +159,7 @@ bool CameraImage::decode_frame_(const uint8_t *data, size_t length) {
 }
 
 bool CameraImage::apply_crop_rotation_() {
-  if (this->rotation_ == 0 && !this->has_crop_)
+  if (this->rotation_ == 0 && this->crop_width_ == 0)
     return true;
 
   if (this->buffer_ == nullptr || this->buffer_width_ <= 0 || this->buffer_height_ <= 0) {
@@ -169,10 +170,11 @@ bool CameraImage::apply_crop_rotation_() {
 
   const int source_width = this->buffer_width_;
   const int source_height = this->buffer_height_;
-  const int crop_x = this->has_crop_ ? this->crop_x_ : 0;
-  const int crop_y = this->has_crop_ ? this->crop_y_ : 0;
-  const int crop_width = this->has_crop_ ? this->crop_width_ : source_width;
-  const int crop_height = this->has_crop_ ? this->crop_height_ : source_height;
+  const bool has_crop = this->crop_width_ > 0;
+  const int crop_x = has_crop ? this->crop_x_ : 0;
+  const int crop_y = has_crop ? this->crop_y_ : 0;
+  const int crop_width = has_crop ? this->crop_width_ : source_width;
+  const int crop_height = has_crop ? this->crop_height_ : source_height;
 
   if (crop_x < 0 || crop_y < 0 || crop_width <= 0 || crop_height <= 0 || crop_x + crop_width > source_width ||
       crop_y + crop_height > source_height) {
@@ -252,7 +254,7 @@ void CameraImage::dump_config() {
   ESP_LOGCONFIG(TAG, "Camera Image:");
   ESP_LOGCONFIG(TAG, "  Format: %s", LOG_STR_ARG(runtime_image::get_format_name(this->get_format())));
   ESP_LOGCONFIG(TAG, "  Type: %s", LOG_STR_ARG(image_type_name(this->get_type())));
-  if (this->has_crop_) {
+  if (this->crop_width_ > 0) {
     ESP_LOGCONFIG(TAG, "  Crop: %d,%d %dx%d", this->crop_x_, this->crop_y_, this->crop_width_, this->crop_height_);
   }
   if (this->rotation_ != 0) {

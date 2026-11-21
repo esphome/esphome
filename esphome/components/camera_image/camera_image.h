@@ -16,7 +16,7 @@
 namespace esphome::camera_image {
 
 /// An ``image`` platform that requests camera frames and decodes them into its buffer.
-class CameraImage : public PollingComponent, public runtime_image::RuntimeImage, public camera::CameraListener {
+class CameraImage final : public PollingComponent, public runtime_image::RuntimeImage, public camera::CameraListener {
  public:
   CameraImage(camera::Camera *camera, int width, int height, runtime_image::ImageFormat format, image::ImageType type,
               image::Transparency transparency, image::Image *placeholder, bool is_big_endian);
@@ -32,7 +32,6 @@ class CameraImage : public PollingComponent, public runtime_image::RuntimeImage,
     this->crop_y_ = y;
     this->crop_width_ = width;
     this->crop_height_ = height;
-    this->has_crop_ = true;
   }
 
   void set_rotation(int rotation) { this->rotation_ = rotation; }
@@ -57,7 +56,7 @@ class CameraImage : public PollingComponent, public runtime_image::RuntimeImage,
 
   camera::Camera *camera_;
   bool waiting_{false};
-  bool has_crop_{false};
+  /// Crop rectangle; a zero width means no crop is configured.
   int crop_x_{0};
   int crop_y_{0};
   int crop_width_{0};
