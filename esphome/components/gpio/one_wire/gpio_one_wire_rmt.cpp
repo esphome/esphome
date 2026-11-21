@@ -18,6 +18,7 @@ ESPHOME_LOG_TAG(TAG, "gpio.one_wire");
 static constexpr uint32_t RESOLUTION_HZ = 1000000;  // one tick per microsecond, the unit of the codec
 static constexpr uint32_t GLITCH_FILTER_NS = 1000;
 static constexpr int LINE_RELEASE_TIMEOUT_MS = 5;
+static constexpr uint32_t POLL_TIMEOUT_ID = 0;
 
 static constexpr rmt_transmit_config_t TRANSMIT_CONFIG = {.flags = {.eot_level = 1, .queue_nonblocking = 1}};
 
@@ -129,8 +130,16 @@ void GPIORMTOneWireBus::loop() {
   this->engine_.poll();
   // mark_failed() took the bus out of the loop, and disable_loop() would undo the failed state. A failed engine
   // ends all queued work itself.
-  if (!this->engine_.is_idle() || this->is_failed())
+  if (this->is_failed())
     return;
+  if (!this->engine_.is_idle()) {
+    // Only a completion or loop_interval runs loop() again, and a raised loop_interval can be seconds. So wake the
+    // loop when the engine has work without a completion: a section that lost its completion times out, or a
+    // transaction waits to start. A timer that fires alone does not run loop(), so it wakes the loop.
+    this->set_timeout(POLL_TIMEOUT_ID, this->engine_.next_poll_in_ms(), []() { App.wake_loop_threadsafe(); });
+    return;
+  }
+  this->cancel_timeout(POLL_TIMEOUT_ID);
   this->disable_loop();
   // disable_loop() logs before it takes the bus out of the loop. A log handler that submits there calls
   // enable_loop() while the loop is still enabled, which does nothing. So enable it again here.
