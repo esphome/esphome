@@ -42,6 +42,22 @@ void log_op_failed(const char *tag, const char *op_name);
 #undef TFLM_OP_UNAVAILABLE
 #undef TFLM_OP_CONDITIONAL
 
+// Codes of the operators esp-tflite-micro does not provide. They are rejected
+// before the switch maps the others to their Add*() method, so the switch holds
+// no two identical case bodies (clang-tidy's bugprone-branch-clone) and the
+// rejection stays one shared path.
+inline constexpr tflite::BuiltinOperator UNAVAILABLE_OPERATORS[] = {
+#define TFLM_OP_AVAILABLE(op_suffix, method)
+#define TFLM_OP_UNAVAILABLE(op_suffix) tflite::BuiltinOperator_##op_suffix,
+#define TFLM_OP_CONDITIONAL(op_suffix, method)
+#define TFLM_OPERATORS_UNAVAILABLE
+#include "tflm_operators.h"
+#undef TFLM_OPERATORS_UNAVAILABLE
+#undef TFLM_OP_AVAILABLE
+#undef TFLM_OP_UNAVAILABLE
+#undef TFLM_OP_CONDITIONAL
+};
+
 // With USE_TFLITE_MICRO_SELECTIVE_OPS, codegen emits one TFLM_OP_ENABLED_<suffix>
 // flag per table entry (1 compiled in, 0 left out); without it every operator is
 // available, which a model swap at run time needs. The suffix is pasted from the
@@ -84,10 +100,17 @@ class OpResolverManager {
         op_name = "(unknown)";
       log_op_registering(tag, op_name);
 
+      for (tflite::BuiltinOperator unavailable : UNAVAILABLE_OPERATORS) {
+        if (unavailable == op) {
+          log_op_unavailable(tag, op_name);
+          return false;
+        }
+      }
+
       TfLiteStatus add_status = kTfLiteError;
 
-      // X-macro: one case per table entry. A kernel left out of the build, an
-      // unavailable operator and an unknown code are reported and fail the load.
+      // X-macro: one case per table entry. A kernel left out of the build, and an
+      // unknown code, are reported and fail the load.
       switch (op) {
 #define TFLM_OP_AVAILABLE(op_suffix, method) \
   case tflite::BuiltinOperator_##op_suffix: \
@@ -99,10 +122,7 @@ class OpResolverManager {
     } \
     break;
 
-#define TFLM_OP_UNAVAILABLE(op_suffix) \
-  case tflite::BuiltinOperator_##op_suffix: \
-    log_op_unavailable(tag, op_name); \
-    return false;
+#define TFLM_OP_UNAVAILABLE(op_suffix)
 
 #define TFLM_OP_CONDITIONAL(op_suffix, method) \
   case tflite::BuiltinOperator_##op_suffix: \

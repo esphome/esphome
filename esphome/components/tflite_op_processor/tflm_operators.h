@@ -2,11 +2,13 @@
 // marker below satisfies the ci-custom.py regex check.
 // namespace esphome::tflite_op_processor
 // No #pragma once: it is expanded once per mode (ACTIVE for the switch, TRAITS for has_<method>, FLAGS for the
-// compiled-in flags), and each mode defines the three macros first; the guard below makes a stray include a no-op.
+// compiled-in flags, UNAVAILABLE for the codes the library lacks), and each mode defines the three macros first; the
+// guard below makes a stray include a no-op.
 // Verified against esp-tflite-micro 1.4.1; do not edit without cross-referencing it. Format: AVAILABLE(suffix,
 // AddMethod) exists in the library, UNAVAILABLE(suffix) does not, CONDITIONAL is registered only if AddMethod exists.
 
-#if defined(TFLM_OPERATORS_ACTIVE) || defined(TFLM_OPERATORS_TRAITS) || defined(TFLM_OPERATORS_FLAGS)
+#if defined(TFLM_OPERATORS_ACTIVE) || defined(TFLM_OPERATORS_TRAITS) || defined(TFLM_OPERATORS_FLAGS) || \
+    defined(TFLM_OPERATORS_UNAVAILABLE)
 
 TFLM_OP_AVAILABLE(CONV_2D, AddConv2D)
 TFLM_OP_AVAILABLE(DEPTHWISE_CONV_2D, AddDepthwiseConv2D)
@@ -126,4 +128,4 @@ TFLM_OP_UNAVAILABLE(CUSTOM)
 TFLM_OP_UNAVAILABLE(HASHTABLE_LOOKUP)
 TFLM_OP_UNAVAILABLE(CALL)
 
-#endif  // TFLM_OPERATORS_ACTIVE || TFLM_OPERATORS_TRAITS || TFLM_OPERATORS_FLAGS
+#endif  // TFLM_OPERATORS_ACTIVE || TFLM_OPERATORS_TRAITS || TFLM_OPERATORS_FLAGS || TFLM_OPERATORS_UNAVAILABLE
