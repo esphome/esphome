@@ -9,6 +9,24 @@ binary_sensor:
       name: BS Plus Relay 2 On
     sensor1_error:
       name: BS Plus Sensor 1 Error
+    collector_max:
+      name: BS Plus Option Collector Max
+    collector_min:
+      name: BS Plus Option Collector Min
+    collector_frost:
+      name: BS Plus Option Collector Frost
+    tube_collector:
+      name: BS Plus Option Tube Collector
+    recooling:
+      name: BS Plus Option Recooling
+    hqm:
+      name: BS Plus Option Heat Quantity Measurement
+  - platform: vbus
+    model: deltasol_bs_2009
+    sensor1_error:
+      name: BS 2009 Sensor 1 Error
+    frost_protection_active:
+      name: BS 2009 Frost Protection Active
   - platform: vbus
     model: deltasol_bs2
     sensor1_error:
@@ -20,9 +38,17 @@ binary_sensor:
     sensor4_error:
       name: BS2 Sensor 4 Error
   - platform: vbus
+    model: deltasol_cs2
+    sensor1_error:
+      name: "DeltaSol CS2 Sensor 1 Error"
+  - platform: vbus
     model: deltasol_cs4
     sensor1_error:
       name: "DeltaSol CS4 Sensor 1 Error"
+  - platform: vbus
+    model: deltasol_cs_plus
+    sensor1_error:
+      name: "DeltaSol CS Plus Sensor 1 Error"
   - platform: vbus
     model: custom
     command: 0x100
@@ -49,9 +75,37 @@ sensor:
     time:
       name: DeltaSol C System Time
   - platform: vbus
+    model: deltasol_bs_2009
+    temperature_1:
+      name: BS 2009 Temperature 1
+    heat_quantity:
+      name: BS 2009 Heat Quantity
+    version:
+      name: BS 2009 Firmware Version
+  - platform: vbus
+    model: deltasol_cs2
+    temperature_1:
+      name: "DeltaSol CS2 Temperature 1"
+    pump_speed:
+      name: "DeltaSol CS2 Pump Speed"
+    operating_hours:
+      name: "DeltaSol CS2 Operating Hours"
+  - platform: vbus
     model: deltasol_cs4
     temperature_1:
       name: "DeltaSol CS4 Temperature 1"
+    temperature_5:
+      name: "DeltaSol CS4 Temperature 5"
+    flow_rate:
+      name: "DeltaSol CS4 Flow Rate"
+  - platform: vbus
+    model: deltasol_cs_plus
+    temperature_1:
+      name: "DeltaSol CS Plus Temperature 1"
+    temperature_5:
+      name: "DeltaSol CS Plus Temperature 5"
+    flow_rate:
+      name: "DeltaSol CS Plus Flow Rate"
   - platform: vbus
     model: deltasol_bs2
     temperature_1:

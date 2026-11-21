@@ -3,9 +3,19 @@
 #include "esphome/core/component.h"
 #include "esphome/components/uart/uart.h"
 
+#include <cstddef>
+#include <vector>
+
 namespace esphome::vbus {
 
 using message_parser_t = std::function<float(std::vector<uint8_t> &)>;
+
+// Payload offsets are fixed per model; a short message means the controller is not the configured
+// model or the telegram was truncated. Listeners guard each field with this so a telegram missing
+// only the tail fields still publishes the ones that fit.
+inline bool fits(const std::vector<uint8_t> &message, size_t start, size_t width) {
+  return message.size() >= start + width;
+}
 
 class VBus;
 
@@ -33,16 +43,20 @@ class VBus final : public uart::UARTDevice, public Component {
   void register_listener(VBusListener *listener) { this->listeners_.push_back(listener); }
 
  protected:
-  int state_{0};
+  // A telegram is <sync 0xaa> <9 or 15 byte header> [<6 byte frame> ...]; every other byte is 7-bit,
+  // so a byte with bit 7 set that is not the sync byte always aborts the telegram in progress.
+  enum class ParseState : uint8_t { PARSE_STATE_IDLE, PARSE_STATE_HEADER, PARSE_STATE_FRAMES };
+
+  ParseState state_{ParseState::PARSE_STATE_IDLE};
   std::vector<uint8_t> buffer_;
-  uint8_t protocol_;
-  uint16_t source_;
-  uint16_t dest_;
-  uint16_t command_;
-  uint8_t frames_;
-  uint8_t cframe_;
-  uint8_t fbytes_[6];
-  int fbcount_;
+  uint8_t protocol_{0};
+  uint16_t source_{0};
+  uint16_t dest_{0};
+  uint16_t command_{0};
+  uint8_t frames_{0};
+  uint8_t cframe_{0};
+  uint8_t fbytes_[6]{};
+  uint8_t fbcount_{0};
   std::vector<VBusListener *> listeners_{};
 };
 

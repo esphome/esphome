@@ -13,6 +13,7 @@ from esphome.const import (
     DEVICE_CLASS_PROBLEM,
     ENTITY_CATEGORY_DIAGNOSTIC,
 )
+from esphome.cpp_generator import MockObjClass
 from esphome.types import ConfigType
 
 from .. import (
@@ -52,187 +53,88 @@ CONF_RECOOLING = "recooling"
 CONF_HQM = "hqm"
 CONF_FROST_PROTECTION_ACTIVE = "frost_protection_active"
 
+RELAY_SCHEMA = binary_sensor.binary_sensor_schema()
+ERROR_SCHEMA = binary_sensor.binary_sensor_schema(
+    device_class=DEVICE_CLASS_PROBLEM,
+    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+)
+OPTION_SCHEMA = binary_sensor.binary_sensor_schema(
+    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+)
+
+# Configuration key -> (schema of that value, C++ setter to pass it to)
+BSENSOR_FIELDS = {
+    CONF_RELAY1: (RELAY_SCHEMA, "set_relay1_binary_sensor"),
+    CONF_RELAY2: (RELAY_SCHEMA, "set_relay2_binary_sensor"),
+    CONF_SENSOR1_ERROR: (ERROR_SCHEMA, "set_s1_error_binary_sensor"),
+    CONF_SENSOR2_ERROR: (ERROR_SCHEMA, "set_s2_error_binary_sensor"),
+    CONF_SENSOR3_ERROR: (ERROR_SCHEMA, "set_s3_error_binary_sensor"),
+    CONF_SENSOR4_ERROR: (ERROR_SCHEMA, "set_s4_error_binary_sensor"),
+    CONF_COLLECTOR_MAX: (OPTION_SCHEMA, "set_collector_max_binary_sensor"),
+    CONF_COLLECTOR_MIN: (OPTION_SCHEMA, "set_collector_min_binary_sensor"),
+    CONF_COLLECTOR_FROST: (OPTION_SCHEMA, "set_collector_frost_binary_sensor"),
+    CONF_TUBE_COLLECTOR: (OPTION_SCHEMA, "set_tube_collector_binary_sensor"),
+    CONF_RECOOLING: (OPTION_SCHEMA, "set_recooling_binary_sensor"),
+    CONF_HQM: (OPTION_SCHEMA, "set_hqm_binary_sensor"),
+    CONF_FROST_PROTECTION_ACTIVE: (
+        OPTION_SCHEMA,
+        "set_frost_protection_active_binary_sensor",
+    ),
+}
+
+SENSOR_ERRORS = [
+    CONF_SENSOR1_ERROR,
+    CONF_SENSOR2_ERROR,
+    CONF_SENSOR3_ERROR,
+    CONF_SENSOR4_ERROR,
+]
+
+# Model -> (C++ class, VBus source address of that controller, supported fields)
+MODELS = {
+    CONF_DELTASOL_BS_PLUS: (
+        DeltaSol_BS_Plus,
+        0x4221,
+        [
+            CONF_RELAY1,
+            CONF_RELAY2,
+            *SENSOR_ERRORS,
+            CONF_COLLECTOR_MAX,
+            CONF_COLLECTOR_MIN,
+            CONF_COLLECTOR_FROST,
+            CONF_TUBE_COLLECTOR,
+            CONF_RECOOLING,
+            CONF_HQM,
+        ],
+    ),
+    CONF_DELTASOL_BS_2009: (
+        DeltaSol_BS_2009,
+        0x427B,
+        [*SENSOR_ERRORS, CONF_FROST_PROTECTION_ACTIVE],
+    ),
+    CONF_DELTASOL_BS2: (DeltaSol_BS2, 0x4278, SENSOR_ERRORS),
+    CONF_DELTASOL_C: (DeltaSol_C, 0x4212, SENSOR_ERRORS),
+    CONF_DELTASOL_CS2: (DeltaSol_CS2, 0x1121, SENSOR_ERRORS),
+    CONF_DELTASOL_CS4: (DeltaSol_CS4, 0x1122, SENSOR_ERRORS),
+    CONF_DELTASOL_CS_PLUS: (DeltaSol_CS_Plus, 0x2211, SENSOR_ERRORS),
+}
+
+
+def _model_schema(model_class: MockObjClass, fields: list[str]) -> cv.Schema:
+    return cv.COMPONENT_SCHEMA.extend(
+        {
+            cv.GenerateID(): cv.declare_id(model_class),
+            cv.GenerateID(CONF_VBUS_ID): cv.use_id(VBus),
+            **{cv.Optional(field): BSENSOR_FIELDS[field][0] for field in fields},
+        }
+    )
+
+
 CONFIG_SCHEMA = cv.typed_schema(
     {
-        CONF_DELTASOL_BS_PLUS: cv.COMPONENT_SCHEMA.extend(
-            {
-                cv.GenerateID(): cv.declare_id(DeltaSol_BS_Plus),
-                cv.GenerateID(CONF_VBUS_ID): cv.use_id(VBus),
-                cv.Optional(CONF_RELAY1): binary_sensor.binary_sensor_schema(),
-                cv.Optional(CONF_RELAY2): binary_sensor.binary_sensor_schema(),
-                cv.Optional(CONF_SENSOR1_ERROR): binary_sensor.binary_sensor_schema(
-                    device_class=DEVICE_CLASS_PROBLEM,
-                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-                ),
-                cv.Optional(CONF_SENSOR2_ERROR): binary_sensor.binary_sensor_schema(
-                    device_class=DEVICE_CLASS_PROBLEM,
-                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-                ),
-                cv.Optional(CONF_SENSOR3_ERROR): binary_sensor.binary_sensor_schema(
-                    device_class=DEVICE_CLASS_PROBLEM,
-                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-                ),
-                cv.Optional(CONF_SENSOR4_ERROR): binary_sensor.binary_sensor_schema(
-                    device_class=DEVICE_CLASS_PROBLEM,
-                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-                ),
-                cv.Optional(CONF_COLLECTOR_MAX): binary_sensor.binary_sensor_schema(
-                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-                ),
-                cv.Optional(CONF_COLLECTOR_MIN): binary_sensor.binary_sensor_schema(
-                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-                ),
-                cv.Optional(CONF_COLLECTOR_FROST): binary_sensor.binary_sensor_schema(
-                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-                ),
-                cv.Optional(CONF_TUBE_COLLECTOR): binary_sensor.binary_sensor_schema(
-                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-                ),
-                cv.Optional(CONF_RECOOLING): binary_sensor.binary_sensor_schema(
-                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-                ),
-                cv.Optional(CONF_HQM): binary_sensor.binary_sensor_schema(
-                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-                ),
-            }
-        ),
-        CONF_DELTASOL_BS_2009: cv.COMPONENT_SCHEMA.extend(
-            {
-                cv.GenerateID(): cv.declare_id(DeltaSol_BS_2009),
-                cv.GenerateID(CONF_VBUS_ID): cv.use_id(VBus),
-                cv.Optional(CONF_SENSOR1_ERROR): binary_sensor.binary_sensor_schema(
-                    device_class=DEVICE_CLASS_PROBLEM,
-                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-                ),
-                cv.Optional(CONF_SENSOR2_ERROR): binary_sensor.binary_sensor_schema(
-                    device_class=DEVICE_CLASS_PROBLEM,
-                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-                ),
-                cv.Optional(CONF_SENSOR3_ERROR): binary_sensor.binary_sensor_schema(
-                    device_class=DEVICE_CLASS_PROBLEM,
-                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-                ),
-                cv.Optional(CONF_SENSOR4_ERROR): binary_sensor.binary_sensor_schema(
-                    device_class=DEVICE_CLASS_PROBLEM,
-                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-                ),
-                cv.Optional(
-                    CONF_FROST_PROTECTION_ACTIVE
-                ): binary_sensor.binary_sensor_schema(
-                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-                ),
-            }
-        ),
-        CONF_DELTASOL_BS2: cv.COMPONENT_SCHEMA.extend(
-            {
-                cv.GenerateID(): cv.declare_id(DeltaSol_BS2),
-                cv.GenerateID(CONF_VBUS_ID): cv.use_id(VBus),
-                cv.Optional(CONF_SENSOR1_ERROR): binary_sensor.binary_sensor_schema(
-                    device_class=DEVICE_CLASS_PROBLEM,
-                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-                ),
-                cv.Optional(CONF_SENSOR2_ERROR): binary_sensor.binary_sensor_schema(
-                    device_class=DEVICE_CLASS_PROBLEM,
-                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-                ),
-                cv.Optional(CONF_SENSOR3_ERROR): binary_sensor.binary_sensor_schema(
-                    device_class=DEVICE_CLASS_PROBLEM,
-                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-                ),
-                cv.Optional(CONF_SENSOR4_ERROR): binary_sensor.binary_sensor_schema(
-                    device_class=DEVICE_CLASS_PROBLEM,
-                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-                ),
-            }
-        ),
-        CONF_DELTASOL_C: cv.COMPONENT_SCHEMA.extend(
-            {
-                cv.GenerateID(): cv.declare_id(DeltaSol_C),
-                cv.GenerateID(CONF_VBUS_ID): cv.use_id(VBus),
-                cv.Optional(CONF_SENSOR1_ERROR): binary_sensor.binary_sensor_schema(
-                    device_class=DEVICE_CLASS_PROBLEM,
-                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-                ),
-                cv.Optional(CONF_SENSOR2_ERROR): binary_sensor.binary_sensor_schema(
-                    device_class=DEVICE_CLASS_PROBLEM,
-                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-                ),
-                cv.Optional(CONF_SENSOR3_ERROR): binary_sensor.binary_sensor_schema(
-                    device_class=DEVICE_CLASS_PROBLEM,
-                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-                ),
-                cv.Optional(CONF_SENSOR4_ERROR): binary_sensor.binary_sensor_schema(
-                    device_class=DEVICE_CLASS_PROBLEM,
-                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-                ),
-            }
-        ),
-        CONF_DELTASOL_CS2: cv.COMPONENT_SCHEMA.extend(
-            {
-                cv.GenerateID(): cv.declare_id(DeltaSol_CS2),
-                cv.GenerateID(CONF_VBUS_ID): cv.use_id(VBus),
-                cv.Optional(CONF_SENSOR1_ERROR): binary_sensor.binary_sensor_schema(
-                    device_class=DEVICE_CLASS_PROBLEM,
-                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-                ),
-                cv.Optional(CONF_SENSOR2_ERROR): binary_sensor.binary_sensor_schema(
-                    device_class=DEVICE_CLASS_PROBLEM,
-                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-                ),
-                cv.Optional(CONF_SENSOR3_ERROR): binary_sensor.binary_sensor_schema(
-                    device_class=DEVICE_CLASS_PROBLEM,
-                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-                ),
-                cv.Optional(CONF_SENSOR4_ERROR): binary_sensor.binary_sensor_schema(
-                    device_class=DEVICE_CLASS_PROBLEM,
-                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-                ),
-            }
-        ),
-        CONF_DELTASOL_CS4: cv.COMPONENT_SCHEMA.extend(
-            {
-                cv.GenerateID(): cv.declare_id(DeltaSol_CS4),
-                cv.GenerateID(CONF_VBUS_ID): cv.use_id(VBus),
-                cv.Optional(CONF_SENSOR1_ERROR): binary_sensor.binary_sensor_schema(
-                    device_class=DEVICE_CLASS_PROBLEM,
-                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-                ),
-                cv.Optional(CONF_SENSOR2_ERROR): binary_sensor.binary_sensor_schema(
-                    device_class=DEVICE_CLASS_PROBLEM,
-                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-                ),
-                cv.Optional(CONF_SENSOR3_ERROR): binary_sensor.binary_sensor_schema(
-                    device_class=DEVICE_CLASS_PROBLEM,
-                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-                ),
-                cv.Optional(CONF_SENSOR4_ERROR): binary_sensor.binary_sensor_schema(
-                    device_class=DEVICE_CLASS_PROBLEM,
-                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-                ),
-            }
-        ),
-        CONF_DELTASOL_CS_PLUS: cv.COMPONENT_SCHEMA.extend(
-            {
-                cv.GenerateID(): cv.declare_id(DeltaSol_CS_Plus),
-                cv.GenerateID(CONF_VBUS_ID): cv.use_id(VBus),
-                cv.Optional(CONF_SENSOR1_ERROR): binary_sensor.binary_sensor_schema(
-                    device_class=DEVICE_CLASS_PROBLEM,
-                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-                ),
-                cv.Optional(CONF_SENSOR2_ERROR): binary_sensor.binary_sensor_schema(
-                    device_class=DEVICE_CLASS_PROBLEM,
-                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-                ),
-                cv.Optional(CONF_SENSOR3_ERROR): binary_sensor.binary_sensor_schema(
-                    device_class=DEVICE_CLASS_PROBLEM,
-                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-                ),
-                cv.Optional(CONF_SENSOR4_ERROR): binary_sensor.binary_sensor_schema(
-                    device_class=DEVICE_CLASS_PROBLEM,
-                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-                ),
-            }
-        ),
+        **{
+            model: _model_schema(model_class, fields)
+            for model, (model_class, _, fields) in MODELS.items()
+        },
         CONF_CUSTOM: cv.COMPONENT_SCHEMA.extend(
             {
                 cv.GenerateID(): cv.declare_id(VBusCustom),
@@ -240,7 +142,7 @@ CONFIG_SCHEMA = cv.typed_schema(
                 cv.Optional(CONF_COMMAND): cv.uint16_t,
                 cv.Optional(CONF_SOURCE): cv.uint16_t,
                 cv.Optional(CONF_DEST): cv.uint16_t,
-                cv.Optional(CONF_BINARY_SENSORS): cv.ensure_list(
+                cv.Required(CONF_BINARY_SENSORS): cv.ensure_list(
                     binary_sensor.binary_sensor_schema().extend(
                         {
                             cv.GenerateID(): cv.declare_id(VBusCustomSub),
@@ -260,88 +162,11 @@ CONFIG_SCHEMA = cv.typed_schema(
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
-    binary_sensors = binary_sensor.sub_binary_sensors(config)
 
-    if config[CONF_MODEL] == CONF_DELTASOL_BS_PLUS:
-        cg.add(var.set_command(0x0100))
-        cg.add(var.set_source(0x4221))
-        cg.add(var.set_dest(0x0010))
-        await binary_sensors(CONF_RELAY1, var.set_relay1_binary_sensor)
-        await binary_sensors(CONF_RELAY2, var.set_relay2_binary_sensor)
-        await binary_sensors(CONF_SENSOR1_ERROR, var.set_s1_error_binary_sensor)
-        await binary_sensors(CONF_SENSOR2_ERROR, var.set_s2_error_binary_sensor)
-        await binary_sensors(CONF_SENSOR3_ERROR, var.set_s3_error_binary_sensor)
-        await binary_sensors(CONF_SENSOR4_ERROR, var.set_s4_error_binary_sensor)
-        await binary_sensors(CONF_COLLECTOR_MAX, var.set_collector_max_binary_sensor)
-        await binary_sensors(CONF_COLLECTOR_MIN, var.set_collector_min_binary_sensor)
-        await binary_sensors(
-            CONF_COLLECTOR_FROST, var.set_collector_frost_binary_sensor
-        )
-        await binary_sensors(CONF_TUBE_COLLECTOR, var.set_tube_collector_binary_sensor)
-        await binary_sensors(CONF_RECOOLING, var.set_recooling_binary_sensor)
-        await binary_sensors(CONF_HQM, var.set_hqm_binary_sensor)
-
-    elif config[CONF_MODEL] == CONF_DELTASOL_BS_2009:
-        cg.add(var.set_command(0x0100))
-        cg.add(var.set_source(0x427B))
-        cg.add(var.set_dest(0x0010))
-        await binary_sensors(CONF_SENSOR1_ERROR, var.set_s1_error_binary_sensor)
-        await binary_sensors(CONF_SENSOR2_ERROR, var.set_s2_error_binary_sensor)
-        await binary_sensors(CONF_SENSOR3_ERROR, var.set_s3_error_binary_sensor)
-        await binary_sensors(CONF_SENSOR4_ERROR, var.set_s4_error_binary_sensor)
-        await binary_sensors(
-            CONF_FROST_PROTECTION_ACTIVE, var.set_frost_protection_active_binary_sensor
-        )
-
-    elif config[CONF_MODEL] == CONF_DELTASOL_BS2:
-        cg.add(var.set_command(0x0100))
-        cg.add(var.set_source(0x4278))
-        cg.add(var.set_dest(0x0010))
-        await binary_sensors(CONF_SENSOR1_ERROR, var.set_s1_error_binary_sensor)
-        await binary_sensors(CONF_SENSOR2_ERROR, var.set_s2_error_binary_sensor)
-        await binary_sensors(CONF_SENSOR3_ERROR, var.set_s3_error_binary_sensor)
-        await binary_sensors(CONF_SENSOR4_ERROR, var.set_s4_error_binary_sensor)
-
-    elif config[CONF_MODEL] == CONF_DELTASOL_C:
-        cg.add(var.set_command(0x0100))
-        cg.add(var.set_source(0x4212))
-        cg.add(var.set_dest(0x0010))
-        await binary_sensors(CONF_SENSOR1_ERROR, var.set_s1_error_binary_sensor)
-        await binary_sensors(CONF_SENSOR2_ERROR, var.set_s2_error_binary_sensor)
-        await binary_sensors(CONF_SENSOR3_ERROR, var.set_s3_error_binary_sensor)
-        await binary_sensors(CONF_SENSOR4_ERROR, var.set_s4_error_binary_sensor)
-
-    elif config[CONF_MODEL] == CONF_DELTASOL_CS2:
-        cg.add(var.set_command(0x0100))
-        cg.add(var.set_source(0x1121))
-        cg.add(var.set_dest(0x0010))
-        await binary_sensors(CONF_SENSOR1_ERROR, var.set_s1_error_binary_sensor)
-        await binary_sensors(CONF_SENSOR2_ERROR, var.set_s2_error_binary_sensor)
-        await binary_sensors(CONF_SENSOR3_ERROR, var.set_s3_error_binary_sensor)
-        await binary_sensors(CONF_SENSOR4_ERROR, var.set_s4_error_binary_sensor)
-
-    elif config[CONF_MODEL] == CONF_DELTASOL_CS4:
-        cg.add(var.set_command(0x0100))
-        cg.add(var.set_source(0x1122))
-        cg.add(var.set_dest(0x0010))
-        await binary_sensors(CONF_SENSOR1_ERROR, var.set_s1_error_binary_sensor)
-        await binary_sensors(CONF_SENSOR2_ERROR, var.set_s2_error_binary_sensor)
-        await binary_sensors(CONF_SENSOR3_ERROR, var.set_s3_error_binary_sensor)
-        await binary_sensors(CONF_SENSOR4_ERROR, var.set_s4_error_binary_sensor)
-
-    elif config[CONF_MODEL] == CONF_DELTASOL_CS_PLUS:
-        cg.add(var.set_command(0x0100))
-        cg.add(var.set_source(0x2211))
-        cg.add(var.set_dest(0x0010))
-        await binary_sensors(CONF_SENSOR1_ERROR, var.set_s1_error_binary_sensor)
-        await binary_sensors(CONF_SENSOR2_ERROR, var.set_s2_error_binary_sensor)
-        await binary_sensors(CONF_SENSOR3_ERROR, var.set_s3_error_binary_sensor)
-        await binary_sensors(CONF_SENSOR4_ERROR, var.set_s4_error_binary_sensor)
-
-    elif config[CONF_MODEL] == CONF_CUSTOM:
-        cg.add_optional(var.set_command, config.get(CONF_COMMAND))
-        cg.add_optional(var.set_source, config.get(CONF_SOURCE))
-        cg.add_optional(var.set_dest, config.get(CONF_DEST))
+    if config[CONF_MODEL] == CONF_CUSTOM:
+        for key in (CONF_COMMAND, CONF_SOURCE, CONF_DEST):
+            if (value := config.get(key)) is not None:
+                cg.add(getattr(var, f"set_{key}")(value))
         bsensors = []
         for conf in config[CONF_BINARY_SENSORS]:
             bsens = await binary_sensor.new_binary_sensor(conf)
@@ -353,6 +178,14 @@ async def to_code(config: ConfigType) -> None:
             cg.add(bsens.set_message_parser(lambda_))
             bsensors.append(bsens)
         cg.add(var.set_bsensors(bsensors))
+    else:
+        _, source, fields = MODELS[config[CONF_MODEL]]
+        cg.add(var.set_command(0x0100))
+        cg.add(var.set_source(source))
+        cg.add(var.set_dest(0x0010))
+        sub_sensors = binary_sensor.sub_binary_sensors(config)
+        for field in fields:
+            await sub_sensors(field, getattr(var, BSENSOR_FIELDS[field][1]))
 
     vbus = await cg.get_variable(config[CONF_VBUS_ID])
     cg.add(vbus.register_listener(var))
