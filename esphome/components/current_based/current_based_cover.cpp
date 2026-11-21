@@ -3,9 +3,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 #include <cfloat>
-#ifdef USE_CURRENT_BASED_COVER_LEARN_DURATIONS
 #include <cmath>
-#endif
 
 namespace esphome::current_based {
 
@@ -170,7 +168,7 @@ void CurrentBasedCover::end_reached_(float position, uint32_t measured) {
   const bool end_confirmed = this->motor_current_seen_ && std::isfinite(current_sensor->get_state());
   uint32_t &duration = opened ? this->open_duration_ : this->close_duration_;
   const float change = std::fabs(static_cast<float>(measured) - static_cast<float>(duration));
-  if (this->moving_from_end_ && end_confirmed && change > duration * MIN_CHANGE_TO_LEARN) {
+  if (this->moving_from_end_ && end_confirmed && measured > 0 && change > duration * MIN_CHANGE_TO_LEARN) {
     duration = measured;
     ESP_LOGD(TAG, "'%s' - Learned %s duration: %.1fs", LOG_STR_ARG(this->get_log_name()),
              opened ? LOG_STR_LITERAL("open") : LOG_STR_LITERAL("close"), measured / 1e3f);
