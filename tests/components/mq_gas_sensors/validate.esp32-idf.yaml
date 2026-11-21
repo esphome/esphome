@@ -3,9 +3,8 @@
 # dataset with the scaled clamp, the compensation opt-out, a sensor type without
 # a correction model and a type without built-in coefficients
 # (coefficient_a/coefficient_b required).
-i2c:
-  sda: GPIO21
-  scl: GPIO22
+packages:
+  i2c: !include ../../test_build_components/common/i2c/esp32-idf.yaml
 
 ads1115:
   - address: 0x48

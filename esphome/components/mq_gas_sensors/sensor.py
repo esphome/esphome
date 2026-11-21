@@ -314,7 +314,7 @@ CALIBRATION_SCHEMA = cv.Schema(
         cv.Optional(CONF_RATIO_IN_CLEAN_AIR): positive_finite_float,
         cv.Optional(CONF_DELAY, default="60s"): cv.positive_time_period_milliseconds,
         cv.Optional(CONF_DURATION, default="0s"): cv.positive_time_period_milliseconds,
-        cv.Optional(CONF_SAMPLE_COUNT, default=50): cv.int_range(min=1, max=1000),
+        cv.Optional(CONF_SAMPLE_COUNT, default=50): cv.int_range(min=2, max=1000),
         cv.Optional(CONF_PERSIST, default=True): cv.boolean,
     }
 )

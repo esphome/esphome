@@ -581,9 +581,9 @@ def test_esp32_attenuation_ranges_follow_the_variant() -> None:
 def test_variant_without_a_row_uses_the_narrowest_range(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """An unverified variant must not be trusted with the classic ESP32 range."""
+    """An unverified variant gets the narrowest known range, not the S2 row."""
     with caplog.at_level("WARNING"):
-        assert esp32_attenuation_input_max("ESP32P4", "12db") == pytest.approx(2.5)
+        assert esp32_attenuation_input_max("ESP32P4", "12db") == pytest.approx(2.45)
     assert "ESP32P4" in caplog.text
     assert "narrowest known range" in caplog.text
 
@@ -914,3 +914,91 @@ def test_ads1115_burst_is_bounded(
     captured = capsys.readouterr()
     assert "waits 2016 ms on the ADS1115" in captured.out
     assert "raise the sampler's 'sample_rate:'" in captured.out
+
+
+def _base_entry() -> dict:
+    return {
+        "id": "mq8",
+        "name": "MQ-8",
+        "sensor_type": "MQ-8",
+        "gas": "H2",
+        "voltage": "mq8_adc",
+        "r0": 10.0,
+    }
+
+
+def test_incomplete_ambient_links_are_rejected(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """Both ambient values are needed, so half a link is a configuration error."""
+    set_core_config(PlatformFramework.ESP32_IDF, platform_data=ESP32_PLATFORM_DATA)
+    with pytest.raises(cv.Invalid, match="must be linked together"):
+        CONFIG_SCHEMA({**_base_entry(), "temperature": "air_temperature"})
+
+
+def test_explicit_compensation_needs_sources(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """Asking for the compensation without a source to correct with cannot work."""
+    set_core_config(PlatformFramework.ESP32_IDF, platform_data=ESP32_PLATFORM_DATA)
+    with pytest.raises(cv.Invalid, match="needs ambient measurements"):
+        CONFIG_SCHEMA({**_base_entry(), "correction_mode": "mqdatascience"})
+
+
+def test_compensation_on_a_type_without_a_model_is_rejected(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """The model exists only for the types whose coefficients were fitted with it."""
+    set_core_config(PlatformFramework.ESP32_IDF, platform_data=ESP32_PLATFORM_DATA)
+    base = {
+        "id": "mq9",
+        "name": "MQ-9",
+        "sensor_type": "MQ-9",
+        "gas": "CO",
+        "voltage": "mq8_adc",
+        "r0": 10.0,
+    }
+    with pytest.raises(
+        cv.Invalid, match="has no temperature/humidity correction model"
+    ):
+        CONFIG_SCHEMA(
+            {
+                **base,
+                "correction_mode": "mqdatascience",
+                "temperature": "air_temperature",
+                "humidity": "air_humidity",
+            }
+        )
+
+
+def test_curve_without_that_dataset_is_rejected(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """A dataset name the type/gas pair does not define cannot be selected."""
+    set_core_config(PlatformFramework.ESP32_IDF, platform_data=ESP32_PLATFORM_DATA)
+    base = {
+        "id": "mq9",
+        "name": "MQ-9",
+        "sensor_type": "MQ-9",
+        "gas": "CO",
+        "voltage": "mq8_adc",
+        "r0": 10.0,
+    }
+    with pytest.raises(cv.Invalid, match="has no 'mqdatascience' curve"):
+        CONFIG_SCHEMA({**base, "curve": "mqdatascience"})
+
+
+def test_curve_and_explicit_coefficients_conflict(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """The dataset defines its own coefficients, so both at once is ambiguous."""
+    set_core_config(PlatformFramework.ESP32_IDF, platform_data=ESP32_PLATFORM_DATA)
+    with pytest.raises(cv.Invalid, match="remove the explicit"):
+        CONFIG_SCHEMA(
+            {
+                **_base_entry(),
+                "curve": "mqdatascience",
+                "coefficient_a": 10.0,
+                "coefficient_b": 2.0,
+            }
+        )

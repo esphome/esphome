@@ -328,7 +328,7 @@ SENSOR_TYPES: dict[str, dict] = {
         "ratio_in_clean_air": None,
         "primary_gas": "",
         "max_ppm": 200.0,  # datasheet: 1 - 200 ppm H2S
-        "heater_note": "MQ-136 needs a 2-phase heater (5V pre-heat, then 1.5V)",
+        "heater_note": "MQ-136 needs a constant 5.0V +/- 0.1V heater supply",
         "gases": {},  # no published coefficients - set a: / b: in the YAML
     },
     "MQ137": {
@@ -367,7 +367,7 @@ SENSOR_TYPES: dict[str, dict] = {
         "ratio_in_clean_air": None,
         "primary_gas": "",
         "max_ppm": 1000.0,  # datasheet: 20 - 1000 ppm alcohol
-        "heater_note": "MQ-303A drives an internal heater and needs 5V +/- 0.1V",
+        "heater_note": "MQ-303A needs a 0.9V +/- 0.1V heater supply (circuit supply up to 6V DC)",
         "gases": {},  # no published coefficients - set a: / b: in the YAML
     },
     "MQ309A": {
@@ -376,7 +376,7 @@ SENSOR_TYPES: dict[str, dict] = {
         "ratio_in_clean_air": None,
         "primary_gas": "",
         "max_ppm": 1000.0,  # datasheet: 20 - 1000 ppm CO
-        "heater_note": "MQ-309A needs a 2-phase heater (1.5V low / 5V high cycle)",
+        "heater_note": "MQ-309A needs a 2-phase heater (0.2V low / 0.9V high cycle)",
         "gases": {},  # no published coefficients - set a: / b: in the YAML
     },
     CUSTOM_TYPE: {

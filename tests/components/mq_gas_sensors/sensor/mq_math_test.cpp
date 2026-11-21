@@ -62,6 +62,9 @@ TEST(MqMath, MidRangeReadingsFollowTheCurve) {
   EXPECT_NEAR(52.5f, ppm_from_ratio(H2_A, H2_B, 70.0f, RegressionMethod::REGRESSION_EXPONENTIAL), 0.1f);
   // Linear: log10(ppm) = (log10(1) - 0.4491) / -0.47712 = 0.9413 -> 8.73 ppm.
   EXPECT_NEAR(8.73f, ppm_from_ratio(NH3_A, NH3_B, 1.0f, RegressionMethod::REGRESSION_LINEAR), 0.01f);
+  // MQDataScience MQ-8 H2: PPM = (ratio / 18391.5667)^(1 / -1.4494).
+  EXPECT_NEAR(875.66f, ppm_from_ratio(18391.5667f, -1.4494f, 1.0f, RegressionMethod::REGRESSION_INVERSE), 0.1f);
+  EXPECT_NEAR(46.70f, ppm_from_ratio(18391.5667f, -1.4494f, 70.0f, RegressionMethod::REGRESSION_INVERSE), 0.05f);
 }
 
 TEST(MqMath, SaturatedSensorReportsTheTopOfTheRange) {

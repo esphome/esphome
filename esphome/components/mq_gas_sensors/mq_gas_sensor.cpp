@@ -273,6 +273,11 @@ float MQGasSensor::compute_correction_() {
       std::isfinite(this->temperature_source_->state);
   const bool humidity_ok = mqmath::source_is_fresh(this->humidity_seen_, this->humidity_last_ms_, now, max_age) &&
                            std::isfinite(this->humidity_source_->state);
+  // Keep the seen flag in step with the check: a source that stopped publishing
+  // must stay stale even once `millis()` wraps, which would otherwise make its old
+  // timestamp look recent again. A new publication sets the flag again.
+  this->temperature_seen_ = temperature_ok;
+  this->humidity_seen_ = humidity_ok;
   if (!temperature_ok || !humidity_ok) {
     this->correction_degraded_ = true;
     if (!this->warned_correction_) {
@@ -734,7 +739,7 @@ void MQGasSensor::finish_calibration_() {
 
   const uint32_t attempts = this->calibration_attempts_;
   const uint32_t valid = this->calibration_count_;
-  const uint32_t required = std::min<uint32_t>(std::max<uint32_t>((attempts + 1) / 2, 2), attempts);
+  const uint32_t required = std::max<uint32_t>((attempts + 1) / 2, 2);
 
   if (valid < required) {
     // Name the reason each rejected sample failed, so a wrong `vcc:` is not
