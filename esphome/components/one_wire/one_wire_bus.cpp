@@ -78,6 +78,7 @@ bool OneWireBus::submit(Transaction *transaction) {
       status = TransactionStatus::TRANSACTION_STATUS_OK;
       break;
     case -1:
+      ESP_LOGE(TAG, "1-wire bus is held low");
       status = TransactionStatus::TRANSACTION_STATUS_BUS_LOW;
       break;
     default:
