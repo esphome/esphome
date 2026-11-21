@@ -582,6 +582,7 @@ esphome/components/sendspin/text_sensor/* @kahrendt
 esphome/components/sensirion_common/* @martgras
 esphome/components/sensor/* @esphome/core
 esphome/components/serial_proxy/* @kbx81
+esphome/components/seven_segment_ocr/* @nliaudat
 esphome/components/sfa30/* @ghsensdev
 esphome/components/sfa40/* @NoQuarrel
 esphome/components/sgp40/* @SenexCrenshaw
