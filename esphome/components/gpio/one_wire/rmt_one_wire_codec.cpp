@@ -27,9 +27,10 @@ enum class SymbolClass : uint8_t {
 };
 
 static SymbolClass classify(const Symbol &symbol) {
-  if (symbol.level0 == 0)
+  if (symbol.level0 == 0) {
     return symbol.duration0 == 0 || symbol.level1 == 0 ? SymbolClass::SYMBOL_CLASS_ENDS_ON_LOW
                                                        : SymbolClass::SYMBOL_CLASS_TIME;
+  }
   const bool empty = symbol.duration0 == 0 && symbol.duration1 == 0 && symbol.level1 == 1;
   return empty ? SymbolClass::SYMBOL_CLASS_END_MARKER : SymbolClass::SYMBOL_CLASS_MALFORMED;
 }
