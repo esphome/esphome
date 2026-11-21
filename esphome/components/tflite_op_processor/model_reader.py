@@ -264,12 +264,19 @@ def _read_tensors(
     """Every tensor of a subgraph, with the bytes it occupies in the arena."""
     tensors = []
     for table in buffer.table_vector(subgraph, _SUBGRAPH_TENSORS):
-        element_size = TENSOR_TYPE_SIZES.get(
-            buffer.i8_field(table, _TENSOR_TYPE) or 0, 0
-        )
+        type_code = buffer.i8_field(table, _TENSOR_TYPE) or 0
+        if (element_size := TENSOR_TYPE_SIZES.get(type_code)) is None:
+            raise ModelReadError(
+                f"{buffer.path}: tensor type {type_code} has no known element size, "
+                f"so the arena it needs cannot be estimated"
+            )
         elements = 1
         for dimension in buffer.i32_vector(table, _TENSOR_SHAPE):
-            elements *= max(dimension, 0)
+            if dimension < 0:
+                raise ModelReadError(
+                    f"{buffer.path}: tensor dimension {dimension} is negative"
+                )
+            elements *= dimension
         # A tensor whose buffer holds data is a constant read in place from the model; the converter gives the
         # others a buffer entry too, usually empty.
         index = buffer.u32_field(table, _TENSOR_BUFFER) or 0
@@ -300,7 +307,10 @@ def _peak_activation_bytes(
     for index, (inputs, outputs) in enumerate(operators):
         for tensor in (*inputs, *outputs):
             if not 0 <= tensor < len(tensors):
-                continue
+                raise ModelReadError(
+                    f"operator {index} refers to tensor {tensor}, but the subgraph has "
+                    f"{len(tensors)}"
+                )
             first_use.setdefault(tensor, index)
             last_use[tensor] = index
     arena_tensors = [

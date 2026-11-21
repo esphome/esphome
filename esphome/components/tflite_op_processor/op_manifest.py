@@ -60,9 +60,11 @@ def parse_op_table(path: str | Path | None = None) -> OpTable:
     unavailable: set[str] = set()
     in_table = False
     seen_table = False
-    for lineno, raw_line in enumerate(
-        table.read_text(encoding="utf-8").splitlines(), start=1
-    ):
+    try:
+        lines = table.read_text(encoding="utf-8").splitlines()
+    except OSError as err:
+        raise ValueError(f"{table}: cannot read the operator table: {err}") from err
+    for lineno, raw_line in enumerate(lines, start=1):
         line = raw_line.split("//", 1)[0].strip()
         if not line:
             continue

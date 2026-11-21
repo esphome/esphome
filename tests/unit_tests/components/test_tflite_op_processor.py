@@ -251,8 +251,10 @@ def test_schema_rejects_an_empty_operator_list() -> None:
 
 
 @pytest.mark.parametrize("operator", ["softmax", "POW"])
-def test_schema_rejects_an_unavailable_operator(operator: str) -> None:
-    """A typo must be a config error, not a traceback from code generation."""
+def test_schema_rejects_an_operator_the_table_cannot_register(
+    operator: str,
+) -> None:
+    """A typo or an unavailable kernel is a config error, not a traceback."""
     with pytest.raises(cv.Invalid, match=operator):
         tflite_op_processor.CONFIG_SCHEMA({CONF_OPERATORS: [operator]})
 
@@ -639,6 +641,59 @@ def test_estimate_tensor_arena_requires_a_subgraph(tmp_path: Path) -> None:
     model = write_model_file(tmp_path, write_model([(None, 9)], subgraph=False))
 
     with pytest.raises(ModelReadError, match="no subgraph"):
+        estimate_tensor_arena(model)
+
+
+def test_estimate_tensor_arena_rejects_an_unknown_tensor_type(
+    tmp_path: Path,
+) -> None:
+    """An element size the reader does not know would under-estimate the arena."""
+    model = write_model_file(
+        tmp_path,
+        write_model(
+            [(None, 9)],
+            inputs=(0,),
+            tensors=(([1, 8, 8, 3], 99, 0),),
+            buffers=(None,),
+        ),
+    )
+
+    with pytest.raises(ModelReadError, match="tensor type 99"):
+        estimate_tensor_arena(model)
+
+
+def test_estimate_tensor_arena_rejects_a_negative_dimension(
+    tmp_path: Path,
+) -> None:
+    model = write_model_file(
+        tmp_path,
+        write_model(
+            [(None, 9)],
+            inputs=(0,),
+            tensors=(([1, -4, 3], 3, 0),),
+            buffers=(None,),
+        ),
+    )
+
+    with pytest.raises(ModelReadError, match="negative"):
+        estimate_tensor_arena(model)
+
+
+def test_estimate_tensor_arena_rejects_an_operator_outside_the_graph(
+    tmp_path: Path,
+) -> None:
+    model = write_model_file(
+        tmp_path,
+        write_model(
+            [(None, 9)],
+            inputs=(0,),
+            tensors=(([1, 8, 8, 3], 3, 0),),
+            buffers=(None,),
+            operators=(([0], [7]),),
+        ),
+    )
+
+    with pytest.raises(ModelReadError, match="tensor 7"):
         estimate_tensor_arena(model)
 
 

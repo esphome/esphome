@@ -103,6 +103,8 @@ class OpResolverManager {
 
     for (auto op : required_ops) {
       const char *op_name = tflite::EnumNameBuiltinOperator(op);
+      if (op_name == nullptr)
+        op_name = "(unknown)";
       log_op_registering(tag, op_name);
 
       TfLiteStatus add_status = kTfLiteError;

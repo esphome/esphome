@@ -10,6 +10,7 @@ import esphome.codegen as cg
 from esphome.components import esp32
 import esphome.config_validation as cv
 from esphome.core import CORE, EsphomeError
+from esphome.types import ConfigType
 
 from .op_manifest import build_selective_op_defines
 
@@ -56,7 +57,7 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     # Emit the flag this component's sources need, so it also works standalone.
     cg.add_define("USE_TFLITE_MICRO_HELPER")
     # Verified against 1.4.1, which provides the TFLM_OP_CONDITIONAL Add*() methods. Keep in sync with
