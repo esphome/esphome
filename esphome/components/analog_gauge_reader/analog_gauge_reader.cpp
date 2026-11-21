@@ -50,7 +50,7 @@ void AnalogGaugeReader::setup() {
     max_crop_w = std::max(max_crop_w, dial.crop_w);
     max_crop_h = std::max(max_crop_h, dial.crop_h);
   }
-  this->scratch_buffer_.reserve(max_crop_area);
+  this->scratch_buffer_ = std::make_unique<uint8_t[]>(max_crop_area);
   if (!this->detector_.reserve(max_crop_w, max_crop_h)) {
     this->mark_failed(LOG_STR("Could not allocate the detector buffers"));
     return;
@@ -217,7 +217,7 @@ void AnalogGaugeReader::process_image_from_buffer(const uint8_t *data, size_t le
     const int crop_h = dial.crop_h;
     uint8_t *gray = buffer.data.get();
     if (dial.target_color != NO_TARGET_COLOR) {
-      this->scratch_buffer_.resize(crop_w * crop_h);
+      uint8_t *scratch = this->scratch_buffer_.get();
       const uint8_t tr = (dial.target_color >> 16) & 0xFF;
       const uint8_t tg = (dial.target_color >> 8) & 0xFF;
       const uint8_t tb = dial.target_color & 0xFF;
@@ -230,17 +230,17 @@ void AnalogGaugeReader::process_image_from_buffer(const uint8_t *data, size_t le
         const float db = static_cast<float>(gray[i * 3 + 2] - tb);
         const float dist = sqrtf(dr * dr + dg * dg + db * db);
         const float val = use_tol ? (dist >= tol ? 255.0f : dist * 255.0f / tol) : dist * 255.0f / 442.0f;
-        this->scratch_buffer_[i] = static_cast<uint8_t>(std::min(val, 255.0f));
+        scratch[i] = static_cast<uint8_t>(std::min(val, 255.0f));
       }
-      gray = this->scratch_buffer_.data();
+      gray = scratch;
     } else {
       if (dial.process_channel != PROCESS_CHANNEL_GRAYSCALE) {
-        this->scratch_buffer_.resize(crop_w * crop_h);
+        uint8_t *scratch = this->scratch_buffer_.get();
         const int offset = static_cast<int>(dial.process_channel) - 1;
         for (int i = 0; i < crop_w * crop_h; i++) {
-          this->scratch_buffer_[i] = gray[i * 3 + offset];
+          scratch[i] = gray[i * 3 + offset];
         }
-        gray = this->scratch_buffer_.data();
+        gray = scratch;
       }
       if (dial.auto_contrast) {
         apply_auto_contrast(gray, crop_w * crop_h);

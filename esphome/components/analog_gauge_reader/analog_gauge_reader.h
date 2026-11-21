@@ -217,7 +217,7 @@ class AnalogGaugeReader final : public PollingComponent, public esphome::camera:
   std::vector<DialBuffer> dial_buffers_;
   bool debug_{false};
   std::shared_ptr<esphome::camera::CameraImage> pending_frame_{nullptr};
-  std::vector<uint8_t> scratch_buffer_;
+  std::unique_ptr<uint8_t[]> scratch_buffer_;
   std::vector<DialReading> readings_;
   std::vector<int> digits_;
   std::vector<float> phase_;
