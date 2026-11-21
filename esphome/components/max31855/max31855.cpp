@@ -51,6 +51,14 @@ void MAX31855Sensor::read_data_() {
     return;
   }
 
+  // D17 and D3 are reserved and always read 0 (datasheet Table 2). If either
+  // is set, the read is corrupt.
+  if ((mem & 0x00020008) != 0) {
+    ESP_LOGW(TAG, "Discarding corrupt read from MAX31855 (0x%08" PRIX32 ")", mem);
+    this->status_set_warning();
+    return;
+  }
+
   // Internal reference temperature always works
   if (this->reference_sensor_) {
     int16_t val = (mem & 0x0000FFF0) >> 4;
