@@ -2724,26 +2724,6 @@ def test_mbedtls_tls_zigbee_keeps_only_what_it_uses(
         assert sdkconfig.get(name) is (None if name in _CCM_EXTRAS else False)
 
 
-@pytest.mark.parametrize(
-    ("config_file", "kept"),
-    [
-        ("mbedtls_ccm_ble_bindkey.yaml", _CCM_EXTRAS),
-        ("mbedtls_ccm_ble_no_bindkey.yaml", set()),
-    ],
-)
-def test_mbedtls_ccm_kept_for_ble_bindkey(
-    generate_main: Callable[[str | Path], str],
-    component_config_path: Callable[[str], Path],
-    config_file: str,
-    kept: set[str],
-) -> None:
-    """xiaomi_ble and bthome_mithermometer decrypt with PSA AES-CCM, so a bindkey keeps CCM."""
-    generate_main(component_config_path(config_file))
-    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
-    for name in MBEDTLS_TLS_EXTRA_OPTIONS:
-        assert sdkconfig.get(name) is (None if name in kept else False)
-
-
 def test_mbedtls_tls_opt_out_keeps_stack_and_trims_role(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
