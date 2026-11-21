@@ -1,0 +1,35 @@
+m5pm1:
+  id: m5pm1_hub
+  i2c_id: i2c_bus
+  interrupt_pin: GPIO2
+  interrupt_gpio: 4
+
+binary_sensor:
+  - platform: gpio
+    name: "M5PM1 Input"
+    pin:
+      m5pm1_id: m5pm1_hub
+      number: 0
+      mode:
+        input: true
+        pullup: true
+      interrupt: true
+
+  - platform: gpio
+    name: "M5PM1 Wakeup Input"
+    pin:
+      m5pm1_id: m5pm1_hub
+      number: 2
+      mode:
+        input: true
+      wakeup: true
+      wakeup_edge: rising
+
+switch:
+  - platform: gpio
+    name: "M5PM1 Output"
+    pin:
+      m5pm1_id: m5pm1_hub
+      number: 3
+      mode:
+        output: true
