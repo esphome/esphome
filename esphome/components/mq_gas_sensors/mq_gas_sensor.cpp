@@ -7,18 +7,18 @@
 
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome::mq_gas_sensors {
 
 ESPHOME_LOG_TAG(TAG, "mq_gas_sensors");
 
-/// Human readable name of a `mqmath::RegressionMethod` value.
-static const LogString *regression_method_name(uint8_t method) {
-  if (method == mqmath::REGRESSION_LINEAR)
-    return LOG_STR("linear");
-  if (method == mqmath::REGRESSION_INVERSE)
-    return LOG_STR("inverse");
-  return LOG_STR("exponential");
+/// Indexed by `RegressionMethod - 1`, so the order matches the enum values.
+PROGMEM_STRING_TABLE(RegressionMethodNames, "exponential", "linear", "inverse");
+
+/// Human readable name of a `RegressionMethod` value.
+static const LogString *regression_method_name(RegressionMethod method) {
+  return RegressionMethodNames::get_log_str(static_cast<uint8_t>(method) - 1, 0);
 }
 
 #ifdef USE_MQ_GAS_SENSORS_LOG_SENSOR
@@ -93,9 +93,7 @@ void MQGasSensor::log_reading_(float ppm) {
 }
 
 void MQGasSensor::setup() {
-  if (this->r0_configured_) {
-    this->log_message_(LOG_SEVERITY_INFO, LOG_STR("using the R0 from the configuration (%.4f kOhm)"), this->r0_);
-  } else if (this->calibration_enabled_) {
+  if (this->calibration_enabled_) {
     this->calibration_pending_ = true;
     this->set_timeout(CALIBRATION_START_ID, this->calibration_delay_, [this]() { this->begin_calibration_(); });
     this->log_message_(LOG_SEVERITY_INFO, LOG_STR("R0 calibration in %" PRIu32 " s - the sensor must be in clean air"),
@@ -108,22 +106,23 @@ void MQGasSensor::setup() {
 void MQGasSensor::dump_config() {
   LOG_SENSOR("", "MQ gas sensor", this);
   LOG_UPDATE_INTERVAL(this);
-  ESP_LOGCONFIG(TAG, "  Type: %s, target gas: %s", this->type_.c_str(), this->gas_.c_str());
-  ESP_LOGCONFIG(TAG, "  Curve: %s (a=%.6g, b=%.6g)", LOG_STR_ARG(regression_method_name(this->regression_method_)),
-                this->a_, this->b_);
-  ESP_LOGCONFIG(TAG, "  VCC: %.2f V, RL: %.2f kOhm, AO multiplier: x%.3f, range: %.1f - %.1f ppm", this->vcc_,
-                this->rl_, this->voltage_multiplier_, this->min_ppm_, this->max_ppm_);
-  ESP_LOGCONFIG(TAG, "  RS/R0 in clean air: %.2f", this->ratio_in_clean_air_);
+  ESP_LOGCONFIG(TAG,
+                "  Type: %s, target gas: %s\n"
+                "  Curve: %s (a=%.6g, b=%.6g)\n"
+                "  VCC: %.2f V, RL: %.2f kOhm, AO multiplier: x%.3f, range: %.1f - %.1f ppm\n"
+                "  RS/R0 in clean air: %.2f\n"
+                "  AO samples per reading: %u, calibration: %s, sample spacing: %" PRIu32 " ms",
+                this->type_.c_str(), this->gas_.c_str(), LOG_STR_ARG(regression_method_name(this->regression_method_)),
+                this->a_, this->b_, this->vcc_, this->rl_, this->voltage_multiplier_, this->min_ppm_, this->max_ppm_,
+                this->ratio_in_clean_air_, static_cast<unsigned>(this->samples_),
+                this->calibration_enabled_ ? LOG_STR_LITERAL("enabled") : LOG_STR_LITERAL("disabled"),
+                this->sample_interval_);
   if (this->has_r0()) {
     ESP_LOGCONFIG(TAG, "  R0: %.4f kOhm (%s)", this->r0_,
-                  this->r0_configured_ ? LOG_STR_LITERAL("configured") : LOG_STR_LITERAL("calibrated"));
+                  this->calibration_enabled_ ? LOG_STR_LITERAL("calibrated") : LOG_STR_LITERAL("configured"));
   } else {
     ESP_LOGCONFIG(TAG, "  R0: not available yet");
   }
-  ESP_LOGCONFIG(TAG, "  AO samples per reading: %u, calibration: %s, sample spacing: %" PRIu32 " ms",
-                static_cast<unsigned>(this->samples_),
-                this->calibration_enabled_ ? LOG_STR_LITERAL("enabled") : LOG_STR_LITERAL("disabled"),
-                this->sample_interval_);
 }
 
 float MQGasSensor::sample_voltage_() {
@@ -146,13 +145,11 @@ float MQGasSensor::sample_voltage_() {
 float MQGasSensor::current_rs_() const { return mqmath::rs_from_voltage(this->sensor_voltage_, this->vcc_, this->rl_); }
 
 float MQGasSensor::current_ratio_() const {
-  return mqmath::ratio_from_rs(this->rs_, this->r0_, this->correction_factor_,
-                               static_cast<mqmath::RatioMode>(this->ratio_mode_));
+  return mqmath::ratio_from_rs(this->rs_, this->r0_, this->correction_factor_, this->ratio_mode_);
 }
 
 float MQGasSensor::read_ppm_() {
-  const float ppm = mqmath::ppm_from_ratio(this->a_, this->b_, this->ratio_,
-                                           static_cast<mqmath::RegressionMethod>(this->regression_method_));
+  const float ppm = mqmath::ppm_from_ratio(this->a_, this->b_, this->ratio_, this->regression_method_);
   if (!std::isfinite(ppm))
     return NAN;
   return mqmath::clamp_ppm(ppm, this->min_ppm_, this->max_ppm_);

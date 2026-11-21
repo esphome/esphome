@@ -20,7 +20,7 @@ namespace esphome::mq_gas_sensors {
 /// One MQ gas sensor: samples the analog output, converts it into the RS/R0
 /// ratio and evaluates the built-in regression curve (`PPM = a * ratio^b`).
 /// R0 comes from the configuration or from a clean air calibration at boot.
-class MQGasSensor : public sensor::Sensor, public PollingComponent {
+class MQGasSensor final : public sensor::Sensor, public PollingComponent {
   SUB_SENSOR(ratio)
   SUB_SENSOR(rs)
   SUB_SENSOR(voltage)
@@ -37,13 +37,10 @@ class MQGasSensor : public sensor::Sensor, public PollingComponent {
   void set_gas(const char *gas) { this->gas_ = StringRef(gas); }
   void set_a(float a) { this->a_ = mqmath::clamp_a(a); }
   void set_b(float b) { this->b_ = mqmath::clamp_b(b); }
-  void set_regression_method(uint8_t method) { this->regression_method_ = method; }
-  void set_ratio_mode(uint8_t mode) { this->ratio_mode_ = mode; }
+  void set_regression_method(RegressionMethod method) { this->regression_method_ = method; }
+  void set_ratio_mode(RatioMode mode) { this->ratio_mode_ = mode; }
   void set_rl(float rl) { this->rl_ = rl; }
-  void set_r0(float r0) {
-    this->r0_ = r0;
-    this->r0_configured_ = true;
-  }
+  void set_r0(float r0) { this->r0_ = r0; }
   void set_vcc(float vcc) { this->vcc_ = vcc; }
   void set_ratio_in_clean_air(float ratio) { this->ratio_in_clean_air_ = ratio; }
   void set_voltage_multiplier(float multiplier) { this->voltage_multiplier_ = multiplier; }
@@ -148,12 +145,12 @@ class MQGasSensor : public sensor::Sensor, public PollingComponent {
 
   StringRef type_{StringRef::from_lit("MQ")};
   StringRef gas_{StringRef::from_lit("CUSTOM")};
+
   voltage_sampler::VoltageSampler *source_{nullptr};
+  const LogString *r0_warning_{nullptr};
 
   float a_{0.0f};
   float b_{0.0f};
-  uint8_t regression_method_{mqmath::REGRESSION_EXPONENTIAL};
-  uint8_t ratio_mode_{mqmath::RATIO_RS_R0};
   float rl_{10.0f};  ///< load resistor of the module (kOhm)
   float r0_{0.0f};   ///< sensor resistance in clean air (kOhm)
   float vcc_{5.0f};  ///< sensor supply (V)
@@ -162,22 +159,16 @@ class MQGasSensor : public sensor::Sensor, public PollingComponent {
   float min_ppm_{0.0f};
   float max_ppm_{10000.0f};
   float correction_factor_{0.0f};
-  uint8_t samples_{2};
-  bool r0_configured_{false};
-  bool log_ppm_{false};  ///< log the published value at INFO on every update (`log_ppm: true`)
+  float calibration_sum_{0.0f};
+  float sensor_voltage_{0.0f};
+  float rs_{0.0f};
+  float ratio_{0.0f};
 
-  bool calibration_enabled_{false};
   uint32_t calibration_delay_{0};
   uint32_t calibration_samples_{10};
   /// Minimum spacing between two clean-air calibration samples (ms); a normal reading
   /// never waits for it.  The ~16 ms main loop tick is the practical floor.
   uint32_t sample_interval_{20};
-
-  /// Scheduler id of the deferred calibration start.
-  static constexpr uint32_t CALIBRATION_START_ID = 0;
-
-  bool calibrating_{false};
-  bool calibration_pending_{false};
   uint32_t calibration_last_sample_{0};
   uint32_t calibration_count_{0};
   uint32_t calibration_attempts_{0};
@@ -187,10 +178,25 @@ class MQGasSensor : public sensor::Sensor, public PollingComponent {
   uint32_t calibration_rejected_high_{0};
   uint32_t calibration_rejected_nonfinite_{0};
   uint32_t calibration_rejected_rs_{0};
-  float calibration_sum_{0.0f};
   /// Windows in which the sampler answered only part of the conversions: a
   /// degrading sampler that never fails outright.
   uint32_t calibration_partial_{0};
+#ifdef USE_MQ_GAS_SENSORS_LOG_SENSOR
+  text_sensor::TextSensor *log_sensor_{nullptr};
+  uint32_t last_log_sensor_debug_{0};  ///< `App.get_loop_component_start_time()` of the last mirrored DEBUG message
+#endif
+
+  RegressionMethod regression_method_{RegressionMethod::REGRESSION_EXPONENTIAL};
+  RatioMode ratio_mode_{RatioMode::RATIO_RS_R0};
+  uint8_t samples_{2};
+  /// Usable conversions of the last sampling window, so a partially answered
+  /// window is visible instead of a silently shorter average.
+  uint8_t sample_count_{0};
+
+  bool log_ppm_{false};  ///< log the published value at INFO on every update (`log_ppm: true`)
+  bool calibration_enabled_{false};
+  bool calibrating_{false};
+  bool calibration_pending_{false};
   /// The first rejected calibration sample was logged (debug only).
   bool calibration_rejection_logged_{false};
   /// One flag per fault kind, so each is reported once - and again when the
@@ -207,20 +213,9 @@ class MQGasSensor : public sensor::Sensor, public PollingComponent {
   /// True while a voltage fault is the reason the status warning is up, so a
   /// reading that turns good again clears that warning and no other.
   bool wiring_warning_{false};
-  /// The warning the status slot holds for R0 (a failed calibration): it is restated
-  /// when another warning that took the slot clears.
-  const LogString *r0_warning_{nullptr};
-  float sensor_voltage_{0.0f};
-  float rs_{0.0f};
-  float ratio_{0.0f};
-  /// Usable conversions of the last sampling window, so a partially answered
-  /// window is visible instead of a silently shorter average.
-  uint8_t sample_count_{0};
 
-#ifdef USE_MQ_GAS_SENSORS_LOG_SENSOR
-  text_sensor::TextSensor *log_sensor_{nullptr};
-  uint32_t last_log_sensor_debug_{0};  ///< `App.get_loop_component_start_time()` of the last mirrored DEBUG message
-#endif
+  /// Scheduler id of the deferred calibration start.
+  static constexpr uint32_t CALIBRATION_START_ID = 0;
 };
 
 }  // namespace esphome::mq_gas_sensors

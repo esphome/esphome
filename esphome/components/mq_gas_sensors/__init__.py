@@ -39,6 +39,9 @@ MQGasSensor = mq_gas_sensors_ns.class_(
     "MQGasSensor", sensor.Sensor, cg.PollingComponent
 )
 
+RegressionMethod = mq_gas_sensors_ns.enum("RegressionMethod", is_class=True)
+RatioMode = mq_gas_sensors_ns.enum("RatioMode", is_class=True)
+
 # ---------------------------------------------------------------------------
 # Configuration keys
 # ---------------------------------------------------------------------------
@@ -72,16 +75,16 @@ CONF_VOLTAGE_SENSOR = "voltage_sensor"
 
 # MQUnifiedsensor::setRegressionMethod() values.
 REGRESSION_METHODS = {
-    "exponential": 1,  # _PPM = a * ratio^b
-    "linear": 2,  # log10(_PPM) = (log10(ratio) - b) / a
-    "inverse": 3,  # _PPM = (ratio / a)^(1 / b)
+    "exponential": RegressionMethod.REGRESSION_EXPONENTIAL,
+    "linear": RegressionMethod.REGRESSION_LINEAR,
+    "inverse": RegressionMethod.REGRESSION_INVERSE,
 }
 
 # MQUnifiedsensor uses R0/RS (see readSensorR0Rs(), "INVERTED for MQ-131"),
 # while the published datasheet coefficients are fitted against RS/R0.
 RATIO_MODES = {
-    "rs_r0": 0,  # datasheet convention (default)
-    "r0_rs": 1,  # MQUnifiedsensor readSensorR0Rs() convention
+    "rs_r0": RatioMode.RATIO_RS_R0,  # datasheet convention (default)
+    "r0_rs": RatioMode.RATIO_R0_RS,  # MQUnifiedsensor readSensorR0Rs() convention
 }
 
 # Default ADC input limits used by the divider guard when the attenuation of an

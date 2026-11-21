@@ -59,7 +59,10 @@ def test_built_in_curve_reaches_the_sensor(
     assert 'mq8_boot->set_gas("H2");' in main_cpp
     assert "mq8_boot->set_a(976.97f);" in main_cpp
     assert "mq8_boot->set_b(-0.688f);" in main_cpp
-    assert "mq8_boot->set_regression_method(1);" in main_cpp
+    assert (
+        "mq8_boot->set_regression_method(mq_gas_sensors::RegressionMethod::REGRESSION_EXPONENTIAL);"
+        in main_cpp
+    )
     assert "mq8_boot->set_ratio_in_clean_air(70.0f);" in main_cpp
     assert "mq8_boot->set_voltage_multiplier(3.0f);" in main_cpp
     assert "mq8_boot->set_samples(4);" in main_cpp
@@ -667,8 +670,14 @@ def test_custom_coefficients_reach_the_sensor(
 
     assert "mq136_custom->set_a(36.0f);" in main_cpp
     assert "mq136_custom->set_b(-2.0f);" in main_cpp
-    assert "mq136_custom->set_regression_method(2);" in main_cpp
-    assert "mq136_custom->set_ratio_mode(1);" in main_cpp
+    assert (
+        "mq136_custom->set_regression_method(mq_gas_sensors::RegressionMethod::REGRESSION_LINEAR);"
+        in main_cpp
+    )
+    assert (
+        "mq136_custom->set_ratio_mode(mq_gas_sensors::RatioMode::RATIO_R0_RS);"
+        in main_cpp
+    )
     assert "mq136_custom->set_min_ppm(1.0f);" in main_cpp
     assert "mq136_custom->set_max_ppm(200.0f);" in main_cpp
 
