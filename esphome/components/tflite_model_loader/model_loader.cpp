@@ -234,29 +234,33 @@ bool ModelLoader::load_with_arena_(const uint8_t *model_data, size_t model_size,
   return true;
 }
 
-TfLiteTensor *ModelLoader::input_tensor() {
-  if (!this->is_loaded())
-    return nullptr;
-  return this->interpreter_->input(0);
+size_t ModelLoader::input_count() const { return this->is_loaded() ? this->interpreter_->inputs_size() : 0; }
+
+TfLiteTensor *ModelLoader::input(size_t index) {
+  return index < this->input_count() ? this->interpreter_->input(index) : nullptr;
 }
 
-const TfLiteTensor *ModelLoader::input_tensor() const {
-  if (!this->is_loaded())
-    return nullptr;
-  return this->interpreter_->input(0);
+const TfLiteTensor *ModelLoader::input(size_t index) const {
+  return index < this->input_count() ? this->interpreter_->input(index) : nullptr;
 }
 
-TfLiteTensor *ModelLoader::output_tensor() {
-  if (!this->is_loaded())
-    return nullptr;
-  return this->interpreter_->output(0);
+size_t ModelLoader::output_count() const { return this->is_loaded() ? this->interpreter_->outputs_size() : 0; }
+
+TfLiteTensor *ModelLoader::output(size_t index) {
+  return index < this->output_count() ? this->interpreter_->output(index) : nullptr;
 }
 
-const TfLiteTensor *ModelLoader::output_tensor() const {
-  if (!this->is_loaded())
-    return nullptr;
-  return this->interpreter_->output(0);
+const TfLiteTensor *ModelLoader::output(size_t index) const {
+  return index < this->output_count() ? this->interpreter_->output(index) : nullptr;
 }
+
+TfLiteTensor *ModelLoader::input_tensor() { return this->input(0); }
+
+const TfLiteTensor *ModelLoader::input_tensor() const { return this->input(0); }
+
+TfLiteTensor *ModelLoader::output_tensor() { return this->output(0); }
+
+const TfLiteTensor *ModelLoader::output_tensor() const { return this->output(0); }
 
 TfLiteStatus ModelLoader::invoke() {
   if (!this->is_loaded())

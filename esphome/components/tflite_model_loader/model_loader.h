@@ -57,6 +57,20 @@ class ModelLoader final {
   /// @brief True when a model is loaded and tensors are allocated.
   bool is_loaded() const { return this->interpreter_ != nullptr && this->tflite_model_ != nullptr; }
 
+  /// @brief Number of input tensors of the loaded model, 0 when none is loaded.
+  size_t input_count() const;
+
+  /// @brief Input tensor by index, nullptr when out of range or no model is loaded.
+  TfLiteTensor *input(size_t index);
+  const TfLiteTensor *input(size_t index) const;
+
+  /// @brief Number of output tensors of the loaded model, 0 when none is loaded.
+  size_t output_count() const;
+
+  /// @brief Output tensor by index, nullptr when out of range or no model is loaded.
+  TfLiteTensor *output(size_t index);
+  const TfLiteTensor *output(size_t index) const;
+
   /// @brief Get a pointer to the input tensor (nullptr when no model is loaded).
   TfLiteTensor *input_tensor();
 

@@ -63,6 +63,13 @@ class ModelHandler final {
 
   TfLiteStatus invoke() { return this->loader_.invoke(); }
 
+  size_t input_count() const { return this->loader_.input_count(); }
+  TfLiteTensor *input(size_t index) { return this->loader_.input(index); }
+  const TfLiteTensor *input(size_t index) const { return this->loader_.input(index); }
+  size_t output_count() const { return this->loader_.output_count(); }
+  TfLiteTensor *output(size_t index) { return this->loader_.output(index); }
+  const TfLiteTensor *output(size_t index) const { return this->loader_.output(index); }
+
   TfLiteTensor *input_tensor() { return this->loader_.input_tensor(); }
 
   const TfLiteTensor *input_tensor() const { return this->loader_.input_tensor(); }
