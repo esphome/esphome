@@ -35,6 +35,42 @@ const LogString *image_type_name(image::ImageType type) {
   return LOG_STR("UNKNOWN");
 }
 
+/// Rotates the crop rectangle into `output`. The pixel size is a template
+/// parameter, so every copy has a compile-time length the compiler inlines
+/// instead of calling memcpy once per pixel with a run-time size.
+template<size_t PIXEL_SIZE>
+void rotate_crop_into(uint8_t *output, const uint8_t *crop, int crop_width, int crop_height, int output_width,
+                      int output_height, size_t source_stride, size_t output_stride, int rotation) {
+  switch (rotation) {
+    case 90:
+      for (int y = 0; y < output_height; y++) {
+        for (int x = 0; x < output_width; x++) {
+          std::memcpy(output + static_cast<size_t>(y) * output_stride + x * PIXEL_SIZE,
+                      crop + static_cast<size_t>(crop_height - 1 - x) * source_stride + y * PIXEL_SIZE, PIXEL_SIZE);
+        }
+      }
+      break;
+    case 180:
+      for (int y = 0; y < output_height; y++) {
+        for (int x = 0; x < output_width; x++) {
+          std::memcpy(
+              output + static_cast<size_t>(y) * output_stride + x * PIXEL_SIZE,
+              crop + static_cast<size_t>(crop_height - 1 - y) * source_stride + (crop_width - 1 - x) * PIXEL_SIZE,
+              PIXEL_SIZE);
+        }
+      }
+      break;
+    case 270:
+      for (int y = 0; y < output_height; y++) {
+        for (int x = 0; x < output_width; x++) {
+          std::memcpy(output + static_cast<size_t>(y) * output_stride + x * PIXEL_SIZE,
+                      crop + static_cast<size_t>(x) * source_stride + (crop_width - 1 - y) * PIXEL_SIZE, PIXEL_SIZE);
+        }
+      }
+      break;
+  }
+}
+
 }  // namespace
 
 CameraImage::CameraImage(camera::Camera *camera, int width, int height, runtime_image::ImageFormat format,
@@ -208,35 +244,23 @@ bool CameraImage::apply_crop_rotation_() {
       return false;
     }
     uint8_t *output = this->transform_buffer_.get();
-    switch (this->rotation_) {
-      case 90:
-        for (int y = 0; y < output_height; y++) {
-          for (int x = 0; x < output_width; x++) {
-            std::memcpy(output + static_cast<size_t>(y) * output_stride + x * pixel_size,
-                        crop_origin + static_cast<size_t>(crop_height - 1 - x) * source_stride + y * pixel_size,
-                        pixel_size);
-          }
-        }
+    // Dispatch once per frame so each rotation loop copies a fixed-size pixel.
+    switch (pixel_size) {
+      case 1:
+        rotate_crop_into<1>(output, crop_origin, crop_width, crop_height, output_width, output_height, source_stride,
+                            output_stride, this->rotation_);
         break;
-      case 180:
-        for (int y = 0; y < output_height; y++) {
-          for (int x = 0; x < output_width; x++) {
-            std::memcpy(output + static_cast<size_t>(y) * output_stride + x * pixel_size,
-                        crop_origin + static_cast<size_t>(crop_height - 1 - y) * source_stride +
-                            (crop_width - 1 - x) * pixel_size,
-                        pixel_size);
-          }
-        }
+      case 2:
+        rotate_crop_into<2>(output, crop_origin, crop_width, crop_height, output_width, output_height, source_stride,
+                            output_stride, this->rotation_);
         break;
-      default:  // 270
-        for (int y = 0; y < output_height; y++) {
-          for (int x = 0; x < output_width; x++) {
-            std::memcpy(output + static_cast<size_t>(y) * output_stride + x * pixel_size,
-                        crop_origin + static_cast<size_t>(x) * source_stride + (crop_width - 1 - y) * pixel_size,
-                        pixel_size);
-          }
-        }
+      case 3:
+        rotate_crop_into<3>(output, crop_origin, crop_width, crop_height, output_width, output_height, source_stride,
+                            output_stride, this->rotation_);
         break;
+      default:
+        ESP_LOGE(TAG, "Cannot rotate a frame with %zu-byte pixels", pixel_size);
+        return false;
     }
     // Publish from the decoded buffer: it keeps its own size, so the next decode
     // reuses it and no frame allocates.
