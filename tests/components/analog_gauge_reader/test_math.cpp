@@ -3,7 +3,6 @@
 #include <cmath>
 
 // The reader is guarded by its USE_ macro, which is only set for ESP32 builds.
-#define USE_GAUGE_NEEDLE_DETECTOR
 #define USE_ANALOG_GAUGE_READER
 #include "esphome/components/analog_gauge_reader/analog_gauge_reader.h"
 
