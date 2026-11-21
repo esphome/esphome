@@ -1478,7 +1478,8 @@ def lint_log_tag_as_string(fname, match):
     )
 
 
-LOG_CALL_START_RE = re.compile(r"ESP_LOG\w+\s*\(")
+# The ESP_LOG* macros, and esp_log_printf_ for calls that pick the log level at run time
+LOG_CALL_START_RE = re.compile(r"ESP_LOG\w+\s*\(|\besp_log_printf_\s*\(")
 # Comments, raw/plain string literals and single char literals are consumed whole so ; ( ) ? :
 # inside them are never seen. A char literal is exactly one (escaped) char so a digit separator
 # like 1'000'000 cannot open one.
@@ -1487,7 +1488,7 @@ CPP_SKIP_RE = (
     CPP_COMMENT_RE
     + r'|R"(?P<raw_delim>[^(\s]*)\(.*?\)(?P=raw_delim)"|"(?:[^"\\]|\\.)*"|\'(?:[^\'\\\n]|\\.)\''
 )
-LOG_CALL_TOKEN_RE = re.compile(CPP_SKIP_RE + r"|[()]", re.DOTALL)
+LOG_CALL_TOKEN_RE = re.compile(CPP_SKIP_RE + r"|[(),]", re.DOTALL)
 # The last alternative matches a ? or : followed (after spaces or comments) by an opening quote,
 # i.e. a string literal used as a ternary branch.
 LOG_TERNARY_LITERAL_RE = re.compile(
@@ -1503,7 +1504,8 @@ def _line_col(content: str, pos: int) -> tuple[int, int]:
 
 
 def _iter_log_calls(content: str) -> Iterator[tuple[int, str | None]]:
-    """Yield (start, text) for every ESP_LOG*(...) call, text running to the matching close paren.
+    """Yield (start, text) for every ESP_LOG*(...) and esp_log_printf_(...) call, text running to the
+    matching close paren.
     text is None when no matching paren exists so callers can report the call instead of skipping it."""
     for head in LOG_CALL_START_RE.finditer(content):
         depth = 1
@@ -1524,7 +1526,16 @@ def _unbalanced_log_call_error(content: str, pos: int) -> tuple[int, int, str]:
     return (
         lineno,
         col,
-        "ESP_LOG call has no matching closing parenthesis, so it cannot be checked.",
+        "Log call has no matching closing parenthesis, so it cannot be checked.",
+    )
+
+
+def _log_call_has_nolint(content: str, log_start: int, log_text: str) -> bool:
+    """True when a bare NOLINT is on any line the log call spans."""
+    first_line = content.rfind("\n", 0, log_start) + 1
+    last_line = content.find("\n", log_start + len(log_text))
+    return bool(
+        NOLINT_RE.search(content[first_line : last_line if last_line != -1 else None])
     )
 
 
@@ -1620,11 +1631,7 @@ def lint_log_no_bare_literal_ternary(
         if log_text is None:
             continue  # reported by lint_log_multiline_continuation, which sees every file
         # A NOLINT anywhere on the lines the call spans silences every branch in it
-        first_line = content.rfind("\n", 0, log_start) + 1
-        last_line = content.find("\n", log_start + len(log_text))
-        if NOLINT_RE.search(
-            content[first_line : last_line if last_line != -1 else None]
-        ):
+        if _log_call_has_nolint(content, log_start, log_text):
             continue
         for offset, literal in _find_ternary_literals(log_text):
             lineno, col = _line_col(content, log_start + offset)
@@ -1643,6 +1650,59 @@ def lint_log_no_bare_literal_ternary(
                     ),
                 )
             )
+    return errs
+
+
+def _log_call_arg(call: str, index: int) -> tuple[int, str] | None:
+    """(offset, stripped text) of a top level argument of a balanced log call, None if it has fewer."""
+    depth, start, arg = 0, call.index("(") + 1, 0
+    for tok in LOG_CALL_TOKEN_RE.finditer(call, start):
+        t = tok.group(0)
+        if t == "(":
+            depth += 1
+        elif depth > 0 and t == ")":
+            depth -= 1
+        elif depth == 0 and t in ",)":
+            if arg == index:
+                text = call[start : tok.start()]
+                return start + len(text) - len(text.lstrip()), text.strip()
+            if t == ")":
+                return None
+            arg += 1
+            start = tok.end()
+    return None
+
+
+@lint_content_check(include=cpp_include, exclude=LOG_LITERAL_LINT_EXCLUDE)
+def lint_log_direct_call_format_in_flash(
+    fname: Path, content: str
+) -> list[tuple[int, int, str]]:
+    if "esp_log_printf_" not in content:
+        return []
+    errs = []
+    for log_start, log_text in _iter_log_calls(content):
+        if log_text is None or not log_text.startswith("esp_log_printf_"):
+            continue
+        fmt_arg = _log_call_arg(log_text, 3)
+        if fmt_arg is None or not fmt_arg[1].startswith('"'):
+            continue
+        fmt_offset, fmt = fmt_arg
+        if _log_call_has_nolint(content, log_start, log_text):
+            continue
+        lineno, col = _line_col(content, log_start + fmt_offset)
+        errs.append(
+            (
+                lineno,
+                col,
+                (
+                    "esp_log_printf_ called with a bare format string. The ESP_LOG* macros move the "
+                    "format string to flash on ESP8266, a direct call does not. Wrap it in "
+                    f"{highlight('ESPHOME_LOG_FORMAT(...)')}:\n"
+                    f"  Before: {highlight(fmt)}\n"
+                    f"  After:  {highlight(f'ESPHOME_LOG_FORMAT({fmt})')}"
+                ),
+            )
+        )
     return errs
 
 
