@@ -1,0 +1,9 @@
+# action: reset, TX of the UART bus is held low
+packages:
+  uart: !include ../../test_build_components/common/uart/bk72xx-ard.yaml
+
+tuya:
+  mcu_watchdog:
+    action: reset
+    missed_heartbeats: 3
+    reset_time: 500ms

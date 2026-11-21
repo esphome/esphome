@@ -70,7 +70,7 @@ tuya:
 """
 
 
-def _validation_errors(yaml: str, tmp_path: Path) -> list[str]:
+def validation_errors(yaml: str, tmp_path: Path) -> list[str]:
     path = tmp_path / "tuya.yaml"
     path.write_text(yaml, encoding="utf-8")
     CORE.config_path = path
@@ -79,7 +79,7 @@ def _validation_errors(yaml: str, tmp_path: Path) -> list[str]:
 
 
 def test_mcu_watchdog_default_is_reboot_on_any_platform(tmp_path: Path) -> None:
-    assert _validation_errors(WATCHDOG_DEFAULT_CONFIG, tmp_path) == []
+    assert validation_errors(WATCHDOG_DEFAULT_CONFIG, tmp_path) == []
     assert CONFIG_SCHEMA({CONF_MCU_WATCHDOG: {}})[CONF_MCU_WATCHDOG] == {
         CONF_ACTION: "reboot",
         CONF_MISSED_HEARTBEATS: 6,
@@ -120,7 +120,7 @@ def test_heartbeat_off_accepts_disabled_watchdog() -> None:
 
 def test_heartbeat_off_rejects_reboot_watchdog_in_a_full_config(tmp_path: Path) -> None:
     yaml = WATCHDOG_DEFAULT_CONFIG + "  heartbeat: false" + chr(10)
-    errors = _validation_errors(yaml, tmp_path)
+    errors = validation_errors(yaml, tmp_path)
     assert any("mcu_watchdog requires heartbeat" in err for err in errors), errors
 
 

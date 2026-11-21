@@ -58,6 +58,9 @@ struct TuyaCommand {
 #ifdef USE_TUYA_MCU_WATCHDOG
 namespace testing {
 class TuyaWatchdogTest;
+#ifdef USE_TUYA_MCU_WATCHDOG_RESET
+class TuyaResetTest;
+#endif
 }  // namespace testing
 #endif
 
@@ -72,6 +75,10 @@ class TuyaUART final : public Tuya, public uart::UARTDevice {
   void set_datapoint_ack(bool datapoint_ack) { this->datapoint_ack_ = datapoint_ack; }
 #ifdef USE_TUYA_MCU_WATCHDOG
   void set_mcu_watchdog(uint8_t missed_heartbeats) { this->watchdog_missed_heartbeats_ = missed_heartbeats; }
+#endif
+#ifdef USE_TUYA_MCU_WATCHDOG_RESET
+  /// Time TX is held low to reset the MCU instead of a reboot.
+  void set_mcu_watchdog_reset(uint32_t reset_time) { this->watchdog_reset_time_ = reset_time; }
 #endif
   TuyaInitState get_init_state();
 #ifdef USE_TIME
@@ -111,6 +118,18 @@ class TuyaUART final : public Tuya, public uart::UARTDevice {
   bool unarmed_misses_logged_{false};  // count reached before the working mode reply, logged once
 #else
   bool heartbeat_missed_{false};  // unanswered heartbeat logged, until the next reply
+#endif
+#ifdef USE_TUYA_MCU_WATCHDOG_RESET
+  // clang-tidy compiles the host tests without USE_HOST, so the friend is unconditional
+  friend class testing::TuyaResetTest;
+  void start_tx_break_();
+  void end_tx_break_();
+  uint32_t watchdog_reset_time_{0};  // 0 = reboot
+  uint32_t tx_break_start_{0};
+  uint32_t mcu_resets_{0};
+  bool tx_break_active_{false};
+  bool tx_break_unconfirmed_{false};  // no heartbeat answered in time since the last reset
+  uint8_t tx_break_failures_{0};      // resets in a row that brought no such answer
 #endif
 #ifdef USE_TIME
   void register_local_time_sync_callback_();
