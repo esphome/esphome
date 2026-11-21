@@ -27,32 +27,7 @@ void USBHost::setup() {
 #if defined(USE_USB_HOST_FULL_SPEED_ONLY) && defined(USE_ESP32_VARIANT_ESP32P4)
   this->hold_full_speed_();
 #endif
-#ifdef USE_USB_HOST_LIB_TASK
-  xTaskCreate(USBHost::lib_task_fn, "usb_lib", USB_TASK_STACK_SIZE, this, USB_TASK_PRIORITY, &this->lib_task_handle_);
-  if (this->lib_task_handle_ == nullptr) {
-    this->mark_failed(LOG_STR("USB library task not created"));
-    return;
-  }
-  this->disable_loop();
-#endif
 }
-
-#ifdef USE_USB_HOST_LIB_TASK
-// The library's processing (URB completions, hubs, enumeration) runs in usb_host_lib_handle_events(). With a
-// caller that blocks the main loop until a USB device answers (Bluedroid starting on a USB dongle), it cannot
-// wait for the main loop, so it gets a task of its own, as in the ESP-IDF USB host examples.
-void USBHost::lib_task_fn(void *arg) {
-  auto *host = static_cast<USBHost *>(arg);
-  while (true) {
-    uint32_t event_flags;
-    usb_host_lib_handle_events(portMAX_DELAY, &event_flags);
-#if defined(USE_USB_HOST_FULL_SPEED_ONLY) && defined(USE_ESP32_VARIANT_ESP32P4)
-    // A port recovery runs inside usb_host_lib_handle_events() and soft resets the core
-    host->hold_full_speed_();
-#endif
-  }
-}
-#endif
 
 #if defined(USE_USB_HOST_FULL_SPEED_ONLY) && defined(USE_ESP32_VARIANT_ESP32P4)
 // espressif/usb 1.6 has usb_host_config_t.fsls_only, but it needs USB DWC HAL support that ESP-IDF 6.1 does not
