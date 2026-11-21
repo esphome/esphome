@@ -14,6 +14,7 @@ from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
 from esphome.components import sensor, text_sensor, voltage_sampler
 from esphome.components.adc import ATTENUATION_MODES, DOMAIN as ADC_DOMAIN
+from esphome.components.const import CONF_SAMPLE_INTERVAL
 from esphome.components.esp32 import VARIANT_ESP32S31, get_esp32_variant
 import esphome.config_validation as cv
 from esphome.const import (
@@ -73,7 +74,6 @@ from . import (
     CONF_RL,
     CONF_RS_SENSOR,
     CONF_SAMPLE_COUNT,
-    CONF_SAMPLE_INTERVAL,
     CONF_SENSOR_TYPE,
     CONF_VCC,
     CONF_VOLTAGE_MULTIPLIER,
