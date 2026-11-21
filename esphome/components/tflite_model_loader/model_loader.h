@@ -27,7 +27,7 @@ struct ModelConfig {
 
 /// @brief Loads a TFLite model into an interpreter with the given tensor arena.
 /// Owns the interpreter and op resolver for the loaded model.
-class ModelLoader {
+class ModelLoader final {
  public:
   /// @brief Tensor arena size used when none was requested explicitly.
   static constexpr size_t DEFAULT_TENSOR_ARENA_SIZE = 100 * 1024;

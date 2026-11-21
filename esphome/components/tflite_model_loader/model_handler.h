@@ -46,7 +46,7 @@ struct ConfigTestResult {
 
 /// @brief Facade over the tflite_* sub-components (model loader, output
 /// processor, memory handler) keeping the historical ModelHandler API.
-class ModelHandler {
+class ModelHandler final {
  public:
   // High-level load model that handles memory allocation
   [[nodiscard]] bool load_model(const uint8_t *model_data, size_t model_size, const ModelConfig &config);
