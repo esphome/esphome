@@ -89,8 +89,8 @@ def resolve_image_config(entry: ConfigType, model_path: Path) -> ConfigType:
     return values
 
 
-async def to_code(var, config: ConfigType, model_path: Path) -> None:
-    """Create the image pipeline and the classification decoder for one model."""
+def build_pipeline(config: ConfigType, model_path: Path):
+    """Create the frame pipeline a kind that consumes images reuses."""
     values = resolve_image_config(config, model_path)
     pipeline = cg.new_Pvariable(
         ID(
@@ -109,7 +109,12 @@ async def to_code(var, config: ConfigType, model_path: Path) -> None:
     cg.add(pipeline.set_channel_order(CHANNEL_ORDERS[values[CONF_INPUT_ORDER]]))
     cg.add(pipeline.set_normalize(values[CONF_NORMALIZE]))
     cg.add(pipeline.set_invert(values[CONF_INVERT]))
-    cg.add(var.set_input_pipeline(pipeline))
+    return pipeline
+
+
+async def to_code(var, config: ConfigType, model_path: Path) -> None:
+    """Create the image pipeline and the classification decoder for one model."""
+    cg.add(var.set_input_pipeline(build_pipeline(config, model_path)))
     decoder = cg.new_Pvariable(
         ID(
             f"{config[CONF_ID].id}_decoder",
