@@ -1,0 +1,16 @@
+packages:
+  base: !include base.yaml
+
+analog_gauge_reader:
+  dials:
+    - id: dial_1
+    - id: dial_1
+      crop_x: 100
+
+sensor:
+  - platform: analog_gauge_reader
+    analog_gauge_reader_id: gauge
+    dials:
+      - dial: dial_1
+        value:
+          name: Duplicate Dial

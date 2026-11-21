@@ -36,14 +36,23 @@ CONFIG_SCHEMA = cv.Schema(
 def _final_validate(config: ConfigType) -> ConfigType:
     """Match every dial entry to its position in the hub's dial list."""
     hub = fv.get_declaring_config(config[CONF_ANALOG_GAUGE_READER_ID])
-    indices = {dial[CONF_ID]: index for index, dial in enumerate(hub[CONF_DIALS])}
     for entry in config.get(CONF_DIALS, []):
-        if (index := indices.get(entry[CONF_DIAL])) is None:
+        matches = [
+            index
+            for index, dial in enumerate(hub[CONF_DIALS])
+            if dial[CONF_ID] == entry[CONF_DIAL]
+        ]
+        if not matches:
             raise cv.Invalid(
                 f"analog_gauge_reader has no dial '{entry[CONF_DIAL]}'",
                 path=[CONF_DIALS],
             )
-        entry[_KEY_DIAL_INDEX] = index
+        if len(matches) > 1:
+            raise cv.Invalid(
+                f"analog_gauge_reader has more than one dial '{entry[CONF_DIAL]}'",
+                path=[CONF_DIALS],
+            )
+        entry[_KEY_DIAL_INDEX] = matches[0]
     return config
 
 

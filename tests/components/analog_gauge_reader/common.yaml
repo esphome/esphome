@@ -29,6 +29,7 @@ analog_gauge_reader:
       crop_h: 80
       scale: 0.1
       process_channel: RED
+      target_color: 0xFF0000
       algorithm: hough_transform
       min_value: 0
       max_value: 10

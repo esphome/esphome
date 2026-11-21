@@ -50,20 +50,19 @@ void AnalogGaugeReader::setup() {
     max_crop_w = std::max(max_crop_w, dial.crop_w);
     max_crop_h = std::max(max_crop_h, dial.crop_h);
   }
-  if (max_crop_area > 0) {
-    this->scratch_buffer_.reserve(max_crop_area);
-    if (!this->detector_.reserve(max_crop_w, max_crop_h)) {
-      this->mark_failed(LOG_STR("Could not allocate the detector buffers"));
-      return;
-    }
-    ESP_LOGD(TAG, "Reserved scratch buffers for max area: %d pixels", static_cast<int>(max_crop_area));
+  this->scratch_buffer_.reserve(max_crop_area);
+  if (!this->detector_.reserve(max_crop_w, max_crop_h)) {
+    this->mark_failed(LOG_STR("Could not allocate the detector buffers"));
+    return;
   }
+  ESP_LOGD(TAG, "Reserved scratch buffers for max area: %d pixels", static_cast<int>(max_crop_area));
 
   this->dial_buffers_.clear();
   this->dial_buffers_.reserve(this->dials_.size());
   for (const auto &dial : this->dials_) {
     DialBuffer buffer;
-    buffer.channels = (dial.use_color || dial.process_channel != PROCESS_CHANNEL_GRAYSCALE) ? 3 : 1;
+    buffer.channels =
+        (dial.target_color != NO_TARGET_COLOR || dial.process_channel != PROCESS_CHANNEL_GRAYSCALE) ? 3 : 1;
     buffer.size = static_cast<size_t>(dial.crop_w) * static_cast<size_t>(dial.crop_h) * buffer.channels;
     buffer.data = std::make_unique<uint8_t[]>(buffer.size);
     this->dial_buffers_.push_back(std::move(buffer));
@@ -217,7 +216,7 @@ void AnalogGaugeReader::process_image_from_buffer(const uint8_t *data, size_t le
     const int crop_w = dial.crop_w;
     const int crop_h = dial.crop_h;
     uint8_t *gray = buffer.data.get();
-    if (dial.use_color) {
+    if (dial.target_color != NO_TARGET_COLOR) {
       this->scratch_buffer_.resize(crop_w * crop_h);
       const uint8_t tr = (dial.target_color >> 16) & 0xFF;
       const uint8_t tg = (dial.target_color >> 8) & 0xFF;

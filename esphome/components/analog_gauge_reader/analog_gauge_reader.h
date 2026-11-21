@@ -30,6 +30,9 @@ enum ProcessChannel : uint8_t {
   PROCESS_CHANNEL_BLUE = 3,
 };
 
+/// `target_color` value when the dial is read by brightness instead of a colour.
+inline constexpr uint32_t NO_TARGET_COLOR = 0xFFFFFFFF;
+
 struct DialConfig {
   /// Dial name used in logs. Points to a string literal.
   const char *id{""};
@@ -46,10 +49,10 @@ struct DialConfig {
   float contrast{1.0f};  // Multiplier (1.0 = original)
   // Colour match tolerance (0 = legacy 0-442 linear map); off-colour pixels become background.
   float color_tolerance{0.0f};
-  float min_scan_radius{0.3f};    // % of radius (0.0-1.0)
-  float max_scan_radius{0.9f};    // % of radius (0.0-1.0)
-  float deadzone_diameter{0.0f};  // Pixels (center circle ignored by detection)
-  uint32_t target_color{0};       // RGB hex
+  float min_scan_radius{0.3f};             // % of radius (0.0-1.0)
+  float max_scan_radius{0.9f};             // % of radius (0.0-1.0)
+  float deadzone_diameter{0.0f};           // Pixels (center circle ignored by detection)
+  uint32_t target_color{NO_TARGET_COLOR};  // RGB hex, or NO_TARGET_COLOR
   sensor::Sensor *value_sensor{nullptr};
   sensor::Sensor *confidence_sensor{nullptr};
   sensor::Sensor *angle_sensor{nullptr};
@@ -58,7 +61,6 @@ struct DialConfig {
   ProcessChannel process_channel{PROCESS_CHANNEL_GRAYSCALE};
   bool clockwise{true};      // Needle sweep direction (false = counter-clockwise)
   bool auto_contrast{true};  // Normalization (Min-Max Stretch)
-  bool use_color{false};
   std::vector<std::pair<float, float>> calibration_mapping;
 };
 

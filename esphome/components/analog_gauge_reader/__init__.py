@@ -25,8 +25,8 @@ from esphome.const import (
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
-CODEOWNERS = ["@nliaudat"]
 AUTO_LOAD = ["gauge_needle_detector", "sensor"]
+CODEOWNERS = ["@nliaudat"]
 DEPENDENCIES = ["esp32_camera", "camera_decoder"]
 DOMAIN = "analog_gauge_reader"
 
@@ -138,7 +138,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.GenerateID(): cv.declare_id(AnalogGaugeReader),
         cv.Required(CONF_CAMERA_ID): cv.use_id(esp32_camera.ESP32Camera),
         cv.Required(CONF_DECODER_ID): cv.use_id(camera.Decoder),
-        cv.Required(CONF_DIALS): cv.ensure_list(DIAL_SCHEMA),
+        cv.Required(CONF_DIALS): cv.All(cv.ensure_list(DIAL_SCHEMA), cv.Length(min=1)),
         cv.Optional(CONF_PAUSED, default=False): cv.boolean,
         cv.Optional(CONF_DEBUG, default=False): cv.boolean,
         cv.Optional(CONF_STACKED_DIGITS, default=False): cv.boolean,
@@ -287,13 +287,12 @@ async def to_code(config: ConfigType) -> None:
             ("min_scan_radius", dial[CONF_MIN_SCAN_RADIUS]),
             ("max_scan_radius", dial[CONF_MAX_SCAN_RADIUS]),
             ("deadzone_diameter", dial[CONF_DEADZONE_DIAMETER]),
-            ("target_color", target_color if target_color is not None else 0),
+            ("target_color", target_color if target_color is not None else 0xFFFFFFFF),
             ("needle_type", NEEDLE_TYPES[dial[CONF_NEEDLE_TYPE]]),
             ("algorithm", ALGORITHMS[dial[CONF_ALGORITHM]]),
             ("process_channel", PROCESS_CHANNELS[dial[CONF_PROCESS_CHANNEL]]),
             ("clockwise", dial[CONF_CLOCKWISE]),
             ("auto_contrast", dial[CONF_AUTO_CONTRAST]),
-            ("use_color", target_color is not None),
         )
         if (calibration := dial.get(CONF_CALIBRATION)) is not None:
             points = ", ".join(
