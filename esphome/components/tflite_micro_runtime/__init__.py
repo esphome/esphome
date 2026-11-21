@@ -13,6 +13,7 @@ import zlib
 
 import esphome.codegen as cg
 from esphome.components import esp32
+from esphome.components.tflite_model_io.model_reader import estimate_tensor_arena
 from esphome.components.tflite_model_source import resolve_model_source
 from esphome.components.tflite_op_processor import (
     emit_all_ops,
@@ -56,8 +57,10 @@ def _runtime_data() -> _RuntimeData:
 
 # Library-only sub-components, auto-loaded so users only configure this component.
 AUTO_LOAD = [
+    "tflite_image",
     "tflite_memory_handler",
-    "tflite_model_debug",`n    "tflite_model_io",
+    "tflite_model_debug",
+    "tflite_model_io",
     "tflite_model_loader",
     "tflite_model_source",
     "tflite_op_processor",
@@ -110,6 +113,10 @@ async def to_code(config: ConfigType) -> None:
             estimate.tensor_count,
         )
         cg.add(var.set_tensor_arena_size(estimate.bytes))
+    if config.get(_schema.CONF_MODEL_TYPE, "raw") == "image":
+        from esphome.components.tflite_image import to_code as image_to_code
+
+        await image_to_code(var, config, model_path)
     esp32.add_idf_component(name="espressif/esp-tflite-micro", ref="1.4.1")
     esp32.add_idf_component(name="espressif/esp-nn", ref="1.5.0")
 
