@@ -38,29 +38,29 @@ DOMAIN = "mq_gas_sensors"
 
 _LOGGER = logging.getLogger(__name__)
 
-#No ``AUTO_LOAD`` here : for a platform component ESPHome processes the list of the
-#platform module, and ``sensor.py`` declares ``sensor`` and ``voltage_sampler``,
-#plus ``adc`` (the internal ADC sensor of a ``pin :`` configuration) and
+# No ``AUTO_LOAD`` here : for a platform component ESPHome processes the list of the
+# platform module, and ``sensor.py`` declares ``sensor`` and ``voltage_sampler``,
+# plus ``adc`` (the internal ADC sensor of a ``pin :`` configuration) and
 # ``text_sensor`` (the ``log_sensor :`` mirror) only for the configurations that use
-#them.
+# them.
 
 mq_gas_sensors_ns = cg.esphome_ns.namespace("mq_gas_sensors")
 
-#C++ class : class MQGasSensor : public sensor::Sensor, public PollingComponent
+# C++ class : class MQGasSensor : public sensor::Sensor, public PollingComponent
 MQGasSensor = mq_gas_sensors_ns.class_(
     "MQGasSensor", sensor.Sensor, cg.PollingComponent
 )
 
-#The C++ enums of `mq_math.h`, so the code generation passes the named values
-#instead of bare integers and a renamed enumerator breaks the build.
+# The C++ enums of `mq_math.h`, so the code generation passes the named values
+# instead of bare integers and a renamed enumerator breaks the build.
 RegressionMethod = mq_gas_sensors_ns.enum("RegressionMethod", is_class=True)
 RatioMode = mq_gas_sensors_ns.enum("RatioMode", is_class=True)
 CorrectionMode = mq_gas_sensors_ns.enum("CorrectionMode", is_class=True)
 CorrectionClamp = mq_gas_sensors_ns.enum("CorrectionClamp", is_class=True)
 
-#-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -
-#Configuration keys
-#-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -
+# -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -
+# Configuration keys
+# -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -
 CONF_SENSOR_TYPE = "sensor_type"
 CONF_GAS = "gas"
 CONF_VOLTAGE_MULTIPLIER = "voltage_multiplier"
@@ -94,38 +94,38 @@ CONF_RATIO_SENSOR = "ratio_sensor"
 CONF_RS_SENSOR = "rs_sensor"
 CONF_VOLTAGE_SENSOR = "voltage_sensor"
 
-#MQUnifiedsensor::setRegressionMethod() values plus the MQDataScience inverse
-#form(used by their published MQ - 8 H2 coefficients : ppm = (ratio / a) ^ (1 / b)).
-#exponential : _PPM = a * ratio ^ b; linear : log10(_PPM) = (log10(ratio) - b) / a;
-#inverse : _PPM = (ratio / a) ^ (1 / b).
+# MQUnifiedsensor::setRegressionMethod() values plus the MQDataScience inverse
+# form(used by their published MQ - 8 H2 coefficients : ppm = (ratio / a) ^ (1 / b)).
+# exponential : _PPM = a * ratio ^ b; linear : log10(_PPM) = (log10(ratio) - b) / a;
+# inverse : _PPM = (ratio / a) ^ (1 / b).
 REGRESSION_METHODS = RegressionMethod.options(
     "exponential", "linear", "inverse", prefix="REGRESSION_"
 )
 
-#Temperature / humidity compensation of the RS / R0 ratio.
-#none : no compensation(default); mqdatascience : a + c * exp(b * T).
+# Temperature / humidity compensation of the RS / R0 ratio.
+# none : no compensation(default); mqdatascience : a + c * exp(b * T).
 CORRECTION_MODES = CorrectionMode.options("none", "mqdatascience", prefix="CORRECTION_")
 
-#How the corrected PPM value is clamped : absolute clips to the configured
-#max_ppm, so the alarm ceiling never moves; scaled clips to max_ppm *
-#correction, MQDataScience's own behaviour, where the ceiling drops with the
-#correction(not recommended for a safety limit).
+# How the corrected PPM value is clamped : absolute clips to the configured
+# max_ppm, so the alarm ceiling never moves; scaled clips to max_ppm *
+# correction, MQDataScience's own behaviour, where the ceiling drops with the
+# correction(not recommended for a safety limit).
 CORRECTION_CLAMPS = CorrectionClamp.options("absolute", "scaled", prefix="CLAMP_")
 
-#Default ADC input limits used by the divider guard when the attenuation of an
-#owned ESP32 pin does not apply(an external sampler, or a non - ESP32 target):
-#the recommended maximum input voltage(VDD) and the datasheet's absolute
-#maximum(VDD + 0.3 V).Override them per sensor for other samplers, e.g.
+# Default ADC input limits used by the divider guard when the attenuation of an
+# owned ESP32 pin does not apply(an external sampler, or a non - ESP32 target):
+# the recommended maximum input voltage(VDD) and the datasheet's absolute
+# maximum(VDD + 0.3 V).Override them per sensor for other samplers, e.g.
 # `adc_input_max : 6.144` / `adc_pin_max : 6.144` for an ADS1115 at the widest gain.
 ESP32_ADC_INPUT_MAX_V = 3.3
 ESP32_ADC_PIN_MAX_V = 3.6
 
-#The ESP8266 A0 is a fixed 0 - 1.0 V input rather than a supply referenced one,
-#so the divider guard uses this range when the component owns the pin.
+# The ESP8266 A0 is a fixed 0 - 1.0 V input rather than a supply referenced one,
+# so the divider guard uses this range when the component owns the pin.
 ESP8266_ADC_INPUT_MAX_V = 1.0
 
-#Top of the recommended input range of each ESP32 ADC attenuation, in volts, from
-#the ESP - IDF ADC calibration documentation; above it the reading flattens.
+# Top of the recommended input range of each ESP32 ADC attenuation, in volts, from
+# the ESP - IDF ADC calibration documentation; above it the reading flattens.
 _ESP32_ATTENUATION_INPUT_MAX_V = {
     VARIANT_ESP32: {"0db": 0.95, "2.5db": 1.25, "6db": 1.75, "12db": 2.45},
     VARIANT_ESP32S2: {"0db": 0.75, "2.5db": 1.05, "6db": 1.3, "12db": 2.5},
@@ -139,7 +139,7 @@ _ESP32_ATTENUATION_INPUT_MAX_V = {
 # : divider guard stricter, never let a wiring that clips the top of the reading
 # : through.
 _ESP32_NARROWEST_INPUT_MAX_V = {
-attenuation: min(
+    attenuation: min(
         row[attenuation] for row in _ESP32_ATTENUATION_INPUT_MAX_V.values()
     )
     for attenuation in _ESP32_ATTENUATION_INPUT_MAX_V[VARIANT_ESP32]
@@ -168,12 +168,13 @@ def esp32_attenuation_range_is_known(variant: str) -> bool:
     """Whether the attenuation table has a row for this ESP32 variant."""
     return variant in _ESP32_ATTENUATION_INPUT_MAX_V
 
+
 # : Comparison margin of the divider guard(V) : a declared limit is honoured even
 # : when the divider arithmetic lands a few millivolts above it, so that
 # : `adc_input_max : 3.33` accepts the 5 V *(20 / 30) = 3.3333 V of a 10k / 20k divider.
 ADC_LIMIT_MARGIN_V = 0.01
 
-#MQUnifiedsensor uses R0 / RS(see readSensorR0Rs(), "INVERTED for MQ-131"),
-#while the published datasheet coefficients are fitted against RS / R0:
-#rs_r0 is the datasheet convention(default), r0_rs the MQUnifiedsensor one.
+# MQUnifiedsensor uses R0 / RS(see readSensorR0Rs(), "INVERTED for MQ-131"),
+# while the published datasheet coefficients are fitted against RS / R0:
+# rs_r0 is the datasheet convention(default), r0_rs the MQUnifiedsensor one.
 RATIO_MODES = RatioMode.options("rs_r0", "r0_rs", prefix="RATIO_")
