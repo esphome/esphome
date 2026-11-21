@@ -1,8 +1,9 @@
 import esphome.codegen as cg
 from esphome.components import ble_device_base
+from esphome.components.esp32 import require_mbedtls_tls_extras
 import esphome.config_validation as cv
 from esphome.const import CONF_BINDKEY, CONF_ID, CONF_MAC_ADDRESS
-from esphome.core import HexInt
+from esphome.core import CORE, HexInt
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
@@ -37,3 +38,6 @@ def setup_xiaomi_device(var: MockObj, config: ConfigType) -> None:
     if bindkey := config.get(CONF_BINDKEY):
         key = (HexInt(byte) for byte in bytes.fromhex(bindkey))
         cg.add(var.set_bindkey(cg.ArrayInitializer(*key)))
+        if CORE.is_esp32:
+            # Decryption uses PSA AES-CCM on ESP-IDF 6, which the esp32 mbedTLS trim removes
+            require_mbedtls_tls_extras({"CONFIG_MBEDTLS_CCM_C"})

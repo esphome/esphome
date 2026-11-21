@@ -1,8 +1,9 @@
 import esphome.codegen as cg
 from esphome.components import ble_device_base
+from esphome.components.esp32 import require_mbedtls_tls_extras
 import esphome.config_validation as cv
 from esphome.const import CONF_BINDKEY, CONF_ID, CONF_MAC_ADDRESS
-from esphome.core import HexInt
+from esphome.core import CORE, HexInt
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
@@ -58,6 +59,9 @@ async def setup_bthome_mithermometer(var: MockObj, config: ConfigType) -> None:
             for index in range(0, len(bindkey), 2)
         ]
         cg.add(var.set_bindkey(cg.ArrayInitializer(*bindkey_bytes)))
+        if CORE.is_esp32:
+            # Decryption uses PSA AES-CCM on ESP-IDF 6, which the esp32 mbedTLS trim removes
+            require_mbedtls_tls_extras({"CONFIG_MBEDTLS_CCM_C"})
     if config[CONF_REPLAY_PROTECTION]:
         cg.add_define("USE_BTHOME_MITHERMOMETER_REPLAY_PROTECTION")
         cg.add(var.set_replay_protection(True))

@@ -1,0 +1,19 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+esp32_ble_tracker:
+
+sensor:
+  - platform: xiaomi_lywsdcgq
+    mac_address: A4:C1:38:00:00:0A
+    temperature:
+      name: "Xiaomi Temperature"
+  - platform: bthome_mithermometer
+    mac_address: A4:C1:38:00:00:0B
+    temperature:
+      name: "BTHome Temperature"
