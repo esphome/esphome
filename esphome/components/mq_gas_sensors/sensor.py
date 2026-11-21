@@ -9,15 +9,8 @@ import logging
 
 import esphome.codegen as cg
 from esphome.components import sensor, voltage_sampler
-from esphome.components.const import CONF_SAMPLE_INTERVAL
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_CALIBRATION,
-    CONF_DELAY,
-    CONF_VOLTAGE,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_PARTS_PER_MILLION,
-)
+from esphome.const import CONF_VOLTAGE, STATE_CLASS_MEASUREMENT, UNIT_PARTS_PER_MILLION
 from esphome.types import ConfigType
 
 from . import (
@@ -45,8 +38,6 @@ _LOGGER = logging.getLogger(__name__)
 
 AUTO_LOAD = ["sensor", "voltage_sampler"]
 
-MIN_SAMPLE_INTERVAL_MS = 16
-
 MAX_SAMPLE_COUNT = 16
 
 
@@ -68,18 +59,6 @@ def validate_gas(value: str) -> str:
     return gas
 
 
-CALIBRATION_SCHEMA = cv.Schema(
-    {
-        cv.Optional(CONF_DELAY, default="60s"): cv.positive_time_period_milliseconds,
-        cv.Optional(CONF_SAMPLE_COUNT, default=50): cv.int_range(min=1, max=1000),
-        cv.Optional(CONF_SAMPLE_INTERVAL, default="20ms"): cv.All(
-            cv.positive_time_period_milliseconds,
-            cv.Range(min=cv.TimePeriod(milliseconds=MIN_SAMPLE_INTERVAL_MS)),
-        ),
-    }
-)
-
-
 def _resolve_sensor(config: ConfigType) -> ResolvedSensor:
     """Resolve the curve of the entry.
 
@@ -97,16 +76,11 @@ def _resolve_sensor(config: ConfigType) -> ResolvedSensor:
 
 
 def _validate_config(config: ConfigType) -> ConfigType:
-    """Enforce the type/gas combination and the clean-air ratio at compile time."""
+    """Enforce the type/gas combination at compile time."""
     try:
-        resolved = _resolve_sensor(config)
+        _resolve_sensor(config)
     except ValueError as err:
         raise cv.Invalid(str(err)) from err
-
-    if config.get(CONF_CALIBRATION) is not None and resolved.ratio_in_clean_air <= 0.0:
-        raise cv.Invalid(
-            f"{resolved.label} has no published RS/R0 in clean air - set '{CONF_RATIO_IN_CLEAN_AIR}:'"
-        )
 
     return config
 
@@ -129,16 +103,14 @@ CONFIG_SCHEMA = cv.All(
             ): cv.positive_not_null_float,
             cv.Optional(CONF_VCC, default=5.0): cv.positive_not_null_float,
             cv.Optional(CONF_RL, default=10.0): cv.positive_not_null_float,
-            cv.Optional(CONF_R0): cv.positive_not_null_float,
+            cv.Required(CONF_R0): cv.positive_not_null_float,
             cv.Optional(CONF_RATIO_IN_CLEAN_AIR): cv.positive_not_null_float,
             cv.Optional(CONF_SAMPLE_COUNT, default=2): cv.int_range(
                 min=1, max=MAX_SAMPLE_COUNT
             ),
-            cv.Optional(CONF_CALIBRATION): CALIBRATION_SCHEMA,
         }
     )
     .extend(cv.polling_component_schema("60s")),
-    cv.has_exactly_one_key(CONF_R0, CONF_CALIBRATION),
     _validate_config,
 )
 
@@ -161,14 +133,4 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_max_ppm(resolved.max_ppm))
     cg.add(var.set_voltage_multiplier(config[CONF_VOLTAGE_MULTIPLIER]))
     cg.add(var.set_samples(config[CONF_SAMPLE_COUNT]))
-
-    if (r0 := config.get(CONF_R0)) is not None:
-        cg.add(var.set_r0(r0))
-    elif (calibration := config.get(CONF_CALIBRATION)) is not None:
-        cg.add(
-            var.set_calibration(
-                calibration[CONF_DELAY],
-                calibration[CONF_SAMPLE_COUNT],
-                calibration[CONF_SAMPLE_INTERVAL],
-            )
-        )
+    cg.add(var.set_r0(config[CONF_R0]))

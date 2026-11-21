@@ -40,10 +40,8 @@ def test_built_in_curve_reaches_the_sensor(
     assert "mq8_boot->set_ratio_in_clean_air(70.0f);" in main_cpp
     assert "mq8_boot->set_voltage_multiplier(1.5f);" in main_cpp
     assert "mq8_boot->set_samples(4);" in main_cpp
-    assert "mq8_boot->set_calibration(5000, 5, 20);" in main_cpp
-    # A fixed R0 skips the boot calibration.
+    assert "mq8_boot->set_r0(10.0f);" in main_cpp
     assert "mq4_fixed->set_r0(10.0f);" in main_cpp
-    assert "mq4_fixed->set_calibration(" not in main_cpp
     # The primary gas is assumed when `gas:` is not written.
     assert 'mq4_fixed->set_gas("CH4");' in main_cpp
 
@@ -101,24 +99,9 @@ def test_unknown_gas_for_type_is_rejected() -> None:
         )
 
 
-def test_r0_and_calibration_are_exclusive() -> None:
-    """A fixed R0 and a boot calibration cannot both define the reference."""
-    with pytest.raises(cv.Invalid, match="Cannot specify more than one of"):
-        CONFIG_SCHEMA(
-            {
-                "id": "mq8",
-                "name": "MQ-8",
-                "sensor_type": "MQ-8",
-                "voltage": "mq8_adc",
-                "r0": 9.5,
-                "calibration": {"delay": "5s"},
-            }
-        )
-
-
-def test_r0_or_calibration_is_required() -> None:
-    """Without either of them the sensor can never produce a PPM value."""
-    with pytest.raises(cv.Invalid, match="Must contain exactly one of"):
+def test_r0_is_required() -> None:
+    """Without the clean-air reference the sensor cannot produce a PPM value."""
+    with pytest.raises(cv.Invalid, match="required key not provided"):
         CONFIG_SCHEMA(
             {
                 "id": "mq8",
@@ -145,42 +128,19 @@ def test_empty_gas_is_rejected() -> None:
 
 
 def test_published_clean_air_ratios() -> None:
-    """A placeholder ratio would make every calibrated reading wrong."""
+    """A placeholder ratio would make the datasheet values wrong."""
     assert resolve_sensor("MQ131", "O3").ratio_in_clean_air == pytest.approx(15.0)
     assert resolve_sensor("MQ135", "NH3").ratio_in_clean_air == pytest.approx(3.6)
-    # No published value: the sensor cannot guess one for a boot calibration.
+    # No published value: the type has no clean-air anchor of its own.
     assert resolve_sensor("MQ137", "NH3").ratio_in_clean_air == 0.0
     assert resolve_sensor("MQ138", "TOLUENE").ratio_in_clean_air == 0.0
 
 
-def test_calibration_requires_a_clean_air_ratio() -> None:
-    """A type without a published ratio needs `ratio_in_clean_air:` to calibrate."""
-    base = {
-        "id": "mq137",
-        "name": "MQ-137",
-        "sensor_type": "MQ-137",
-        "voltage": "mq8_adc",
-    }
-    with pytest.raises(cv.Invalid, match="has no published RS/R0 in clean air"):
-        CONFIG_SCHEMA({**base, "calibration": {}})
-    assert CONFIG_SCHEMA(
-        {
-            **base,
-            "id": "mq137_ratio",
-            "name": "MQ-137 calibrated",
-            "calibration": {},
-            "ratio_in_clean_air": 3.0,
-        }
-    )["calibration"]
-
-
 def test_sample_limits_follow_the_main_loop() -> None:
-    """A burst longer than 16 conversions and a spacing under the loop tick are rejected."""
+    """A burst longer than 16 conversions is rejected."""
     base = {"id": "mq8", "name": "MQ-8", "sensor_type": "MQ-8", "voltage": "mq8_adc"}
     with pytest.raises(cv.Invalid, match="at most 16"):
         CONFIG_SCHEMA({**base, "r0": 10.0, "sample_count": 17})
-    with pytest.raises(cv.Invalid, match="at least 16ms"):
-        CONFIG_SCHEMA({**base, "calibration": {"sample_interval": "10ms"}})
 
 
 def test_mq131_clean_air_is_far_below_the_ceiling() -> None:

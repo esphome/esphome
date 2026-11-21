@@ -65,17 +65,6 @@ inline float ratio_from_rs(float rs, float r0) {
   return static_cast<float>(ratio);
 }
 
-/// R0 from a clean air reading, MQUnifiedsensor::calibrate().
-/// `ratio_in_clean_air` is the RS/R0 value taken from the sensor datasheet.
-inline float r0_from_clean_air(float rs_air, float ratio_in_clean_air) {
-  if (!std::isfinite(rs_air) || rs_air <= 0.0f || !std::isfinite(ratio_in_clean_air) || ratio_in_clean_air <= 0.0f)
-    return 0.0f;
-  const double r0 = static_cast<double>(rs_air) / static_cast<double>(ratio_in_clean_air);
-  if (!std::isfinite(r0) || r0 < 0.0)
-    return 0.0f;
-  return static_cast<float>(r0);
-}
-
 /// Limit of a curve as the ratio falls to 0. A curve that grows as the ratio
 /// shrinks (the datasheet direction) approaches FLT_MAX, one that falls
 /// approaches 0, and one the coefficients cannot evaluate returns NaN. The caller

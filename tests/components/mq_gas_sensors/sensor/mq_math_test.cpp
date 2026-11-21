@@ -26,13 +26,6 @@ TEST(MqMath, RatioIsRsOverR0) {
   EXPECT_TRUE(std::isnan(ratio_from_rs(-1.0f, 10.0f)));
 }
 
-TEST(MqMath, CleanAirReadingGivesR0) {
-  // RS/R0 in clean air is 70 for the MQ-8: 700 kOhm of RS is 10 kOhm of R0.
-  EXPECT_FLOAT_EQ(10.0f, r0_from_clean_air(700.0f, 70.0f));
-  EXPECT_FLOAT_EQ(0.0f, r0_from_clean_air(0.0f, 70.0f));
-  EXPECT_FLOAT_EQ(0.0f, r0_from_clean_air(700.0f, 0.0f));
-}
-
 TEST(MqMath, MidRangeReadingsFollowTheCurve) {
   // 976.97 * 1^-0.688 = 976.97 ppm.
   EXPECT_NEAR(976.97f, ppm_from_ratio(H2_A, H2_B, 1.0f, RegressionMethod::REGRESSION_EXPONENTIAL), 0.01f);

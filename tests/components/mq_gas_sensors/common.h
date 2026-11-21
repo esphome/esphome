@@ -10,7 +10,6 @@ namespace esphome::mq_gas_sensors::testing {
 
 using mqmath::clamp_ppm;
 using mqmath::ppm_from_ratio;
-using mqmath::r0_from_clean_air;
 using mqmath::ratio_from_rs;
 using mqmath::rs_from_voltage;
 
