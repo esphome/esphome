@@ -7,7 +7,6 @@
 #include "esphome/core/progmem.h"
 
 #include <algorithm>
-#include <cmath>
 
 namespace esphome::gauge_needle_detector {
 
