@@ -60,6 +60,7 @@ AUTO_LOAD = [
     "tflite_image",
     "tflite_memory_handler",
     "tflite_model_debug",
+    "tflite_segmentation",
     "tflite_model_io",
     "tflite_model_loader",
     "tflite_model_source",
@@ -121,6 +122,12 @@ async def to_code(config: ConfigType) -> None:
         from esphome.components.tflite_detection import to_code as detection_to_code
 
         await detection_to_code(var, config, model_path)
+    elif config.get(_schema.CONF_MODEL_TYPE) == "segmentation":
+        from esphome.components.tflite_segmentation import (
+            to_code as segmentation_to_code,
+        )
+
+        await segmentation_to_code(var, config, model_path)
     esp32.add_idf_component(name="espressif/esp-tflite-micro", ref="1.4.1")
     esp32.add_idf_component(name="espressif/esp-nn", ref="1.5.0")
 

@@ -3,6 +3,7 @@
 import esphome.codegen as cg
 from esphome.components.tflite_detection import DETECTION_SCHEMA
 from esphome.components.tflite_image import IMAGE_SCHEMA
+from esphome.components.tflite_segmentation import SEGMENTATION_SCHEMA
 from esphome.components.tflite_model_source.model_metadata import datasize_to_bytes
 from esphome.components.tflite_model_source.model_source import MODEL_SOURCE_SCHEMA
 import esphome.config_validation as cv
@@ -28,12 +29,16 @@ PER_MODEL_SCHEMA = (
             cv.Optional(CONF_TENSOR_ARENA_SIZE): TENSOR_ARENA_SIZE_SCHEMA,
             cv.Optional(CONF_DEBUG, default=False): cv.boolean,
             cv.Optional(CONF_MODEL_TYPE, default="raw"): cv.one_of(
-                "raw", "image", "detection"
+                "raw",
+                "image",
+                "detection",
+                "segmentation",
             ),
         }
     )
     .extend(IMAGE_SCHEMA)
     .extend(DETECTION_SCHEMA)
+    .extend(SEGMENTATION_SCHEMA)
 )
 
 MULTI_CONF = True
