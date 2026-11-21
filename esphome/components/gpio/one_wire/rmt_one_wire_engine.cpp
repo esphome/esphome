@@ -79,7 +79,7 @@ void Engine::poll_() {
     return;
   }
   switch (this->step_) {
-    case Step::LINE_UNCHECKED:
+    case Step::STEP_LINE_UNCHECKED:
       // RX sees no edge on a line that is already Low, so this would end as a timeout much later
       if (this->port_->line_is_high()) {
         this->start_reset_();
@@ -87,9 +87,9 @@ void Engine::poll_() {
         this->finish_(TransactionStatus::TRANSACTION_STATUS_BUS_LOW);
       }
       break;
-    case Step::RESET:
-    case Step::WRITE:
-    case Step::READ:
+    case Step::STEP_RESET:
+    case Step::STEP_WRITE:
+    case Step::STEP_READ:
       // The completion goes first: a main loop that was blocked for long is no 1-Wire error
       if (this->pending_ == 0) {
         this->section_done_();
@@ -130,7 +130,7 @@ void Engine::start_reset_() {
   this->write_pos_ = 0;
   this->read_pos_ = 0;
 
-  this->step_ = Step::RESET;
+  this->step_ = Step::STEP_RESET;
   this->tx_[0] = reset_symbol();
   if (!this->start_section_(1, RX_IDLE_RESET_US))
     this->finish_(TransactionStatus::TRANSACTION_STATUS_HARDWARE_ERROR);
@@ -139,9 +139,9 @@ void Engine::start_reset_() {
 void Engine::section_done_() {
   const Transaction *transaction = this->queue_.front();
   TransactionStatus status = TransactionStatus::TRANSACTION_STATUS_OK;
-  if (this->step_ == Step::RESET) {
+  if (this->step_ == Step::STEP_RESET) {
     status = decode_reset(this->rx_, this->rx_count_);
-  } else if (this->step_ == Step::READ &&
+  } else if (this->step_ == Step::STEP_READ &&
              !this->decode_read_(this->read_slots_, transaction->read_data, this->read_pos_ - this->read_slots_)) {
     status = TransactionStatus::TRANSACTION_STATUS_CAPTURE_ERROR;
   }
@@ -156,7 +156,7 @@ void Engine::section_done_() {
   size_t count = 0;
   uint32_t idle_us = NO_RX;
   if (this->write_pos_ < write_end) {
-    this->step_ = Step::WRITE;
+    this->step_ = Step::STEP_WRITE;
     const size_t room = max_tx_slots(this->mem_words_);
     for (; count < room && this->write_pos_ < write_end; count++, this->write_pos_++) {
       const bool in_rom = this->write_pos_ < this->rom_bits_;
@@ -169,7 +169,7 @@ void Engine::section_done_() {
     // read_data may share its memory with write_data.
     if (this->read_pos_ == 0)
       std::memset(transaction->read_data, 0, transaction->read_len);
-    this->step_ = Step::READ;
+    this->step_ = Step::STEP_READ;
     count = encode_read_slots(std::min(max_rx_slots(this->mem_words_), read_end - this->read_pos_), this->tx_,
                               this->timing_);
     this->read_slots_ = count;
@@ -199,7 +199,7 @@ bool Engine::decode_read_(size_t num_bits, uint8_t *out, size_t bit_offset) {
 
 void Engine::finish_(TransactionStatus status) {
   Transaction *done = this->queue_.pop();
-  this->step_ = Step::LINE_UNCHECKED;
+  this->step_ = Step::STEP_LINE_UNCHECKED;
   if (done->on_done == nullptr)
     return;
   // Comes last. The queue and step_ are consistent now, so on_done may submit() or call a blocking method.
@@ -234,11 +234,11 @@ bool Engine::abort_section_() {
 }
 
 void Engine::drain_() {
-  // poll_() starts a transaction only from LINE_UNCHECKED, so this only ends the one on the bus. The rest of the
+  // poll_() starts a transaction only from STEP_LINE_UNCHECKED, so this only ends the one on the bus. The rest of the
   // queue waits behind the blocking method, and a client that submits again from on_done cannot hold it up.
-  while (this->step_ != Step::LINE_UNCHECKED) {
+  while (this->step_ != Step::STEP_LINE_UNCHECKED) {
     this->poll_();
-    if (this->step_ != Step::LINE_UNCHECKED)
+    if (this->step_ != Step::STEP_LINE_UNCHECKED)
       this->port_->wait_for_event(BLOCKING_WAIT_MS);
   }
 }

@@ -70,7 +70,7 @@ class Engine {
 
  protected:
   /// Where the transaction at the head of the FIFO stands.
-  enum class Step : uint8_t { LINE_UNCHECKED, RESET, WRITE, READ };
+  enum class Step : uint8_t { STEP_LINE_UNCHECKED, STEP_RESET, STEP_WRITE, STEP_READ };
 
   static constexpr uint32_t PENDING_TX = 1;
   static constexpr uint32_t PENDING_RX = 2;
@@ -107,7 +107,7 @@ class Engine {
 
   one_wire::TransactionQueue queue_;
 
-  Step step_{Step::LINE_UNCHECKED};
+  Step step_{Step::STEP_LINE_UNCHECKED};
   uint32_t since_ms_{0};  ///< Start of the running section
   uint8_t rom_selection_[9]{};
   size_t rom_bits_{0};

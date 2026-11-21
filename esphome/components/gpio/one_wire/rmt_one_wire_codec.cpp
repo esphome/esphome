@@ -20,17 +20,18 @@ static constexpr uint32_t PRESENCE_LATEST_START_US = 300;  // after the release:
 
 /// The classes of a received symbol. L's duration1 is stale memory and must never be read.
 enum class SymbolClass : uint8_t {
-  TIME,         ///< T: Low, then High
-  ENDS_ON_LOW,  ///< L: the Low phase reached the RX idle
-  END_MARKER,   ///< M: empty symbol behind the end
-  MALFORMED,
+  SYMBOL_CLASS_TIME,         ///< T: Low, then High
+  SYMBOL_CLASS_ENDS_ON_LOW,  ///< L: the Low phase reached the RX idle
+  SYMBOL_CLASS_END_MARKER,   ///< M: empty symbol behind the end
+  SYMBOL_CLASS_MALFORMED,
 };
 
 static SymbolClass classify(const Symbol &symbol) {
   if (symbol.level0 == 0)
-    return symbol.duration0 == 0 || symbol.level1 == 0 ? SymbolClass::ENDS_ON_LOW : SymbolClass::TIME;
+    return symbol.duration0 == 0 || symbol.level1 == 0 ? SymbolClass::SYMBOL_CLASS_ENDS_ON_LOW
+                                                       : SymbolClass::SYMBOL_CLASS_TIME;
   const bool empty = symbol.duration0 == 0 && symbol.duration1 == 0 && symbol.level1 == 1;
-  return empty ? SymbolClass::END_MARKER : SymbolClass::MALFORMED;
+  return empty ? SymbolClass::SYMBOL_CLASS_END_MARKER : SymbolClass::SYMBOL_CLASS_MALFORMED;
 }
 
 static Symbol slot_symbol(uint8_t low_us, const Timing &timing) {
@@ -60,14 +61,14 @@ TransactionStatus decode_reset(const Symbol *capture, size_t count) {
 
   // The only allowed forms are T+ M* and T* L
   size_t times = 0;
-  while (times < count && classify(capture[times]) == SymbolClass::TIME)
+  while (times < count && classify(capture[times]) == SymbolClass::SYMBOL_CLASS_TIME)
     times++;
-  if (times == count - 1 && classify(capture[times]) == SymbolClass::ENDS_ON_LOW)
+  if (times == count - 1 && classify(capture[times]) == SymbolClass::SYMBOL_CLASS_ENDS_ON_LOW)
     return TransactionStatus::TRANSACTION_STATUS_BUS_LOW;
   if (times == 0)
     return TransactionStatus::TRANSACTION_STATUS_CAPTURE_ERROR;
   for (size_t i = times; i < count; i++) {
-    if (classify(capture[i]) != SymbolClass::END_MARKER)
+    if (classify(capture[i]) != SymbolClass::SYMBOL_CLASS_END_MARKER)
       return TransactionStatus::TRANSACTION_STATUS_CAPTURE_ERROR;
   }
   if (capture[0].duration0 < RESET_MIN_LOW_US)
@@ -88,11 +89,11 @@ bool decode_read_slots(const Symbol *capture, size_t count, size_t num_bits, uin
   if (count < num_bits)
     return false;
   for (size_t i = num_bits; i < count; i++) {
-    if (classify(capture[i]) != SymbolClass::END_MARKER)
+    if (classify(capture[i]) != SymbolClass::SYMBOL_CLASS_END_MARKER)
       return false;
   }
   for (size_t i = 0; i < num_bits; i++) {
-    if (classify(capture[i]) != SymbolClass::TIME || capture[i].duration0 >= timing.slot_us)
+    if (classify(capture[i]) != SymbolClass::SYMBOL_CLASS_TIME || capture[i].duration0 >= timing.slot_us)
       return false;
     const size_t bit = bit_offset + i;
     const uint8_t mask = 1u << (bit % 8);
