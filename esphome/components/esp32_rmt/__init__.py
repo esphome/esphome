@@ -222,13 +222,23 @@ def request_rmt_channels(
     return _validator
 
 
+def _by_component(channels: list[_Channel]) -> dict[ID, list[_Channel]]:
+    """The channels of each component, by its id, in the order of the channels."""
+    components: dict[ID, list[_Channel]] = {}
+    for channel in channels:
+        components.setdefault(channel.id, []).append(channel)
+    return components
+
+
 def _labels(channels: list[_Channel]) -> str:
-    """The labels once each, with the count of a component that has several channels."""
-    labels = [channel.label for channel in channels]
+    """The label of each component once, with the count of one with several channels.
+
+    Components are told apart by id: two of them can have the same label, when the name
+    of one is the id of the other.
+    """
     return ", ".join(
-        f"'{label}'"
-        + (f" ({count} channels)" if (count := labels.count(label)) > 1 else "")
-        for label in dict.fromkeys(labels)
+        f"'{own[0].label}'" + (f" ({len(own)} channels)" if len(own) > 1 else "")
+        for own in _by_component(channels).values()
     )
 
 
@@ -377,11 +387,11 @@ async def _check_memory() -> None:
     size = memory.symbols_per_block
     if not _allocate(memory, sorted(channels, key=lambda c: c.blocks(size))):
         fix = f", or set '{CONF_SETUP_PRIORITY}' so the smaller ones are set up first"
-    labels = [channel.label for channel in channels]
+    components = _by_component(channels)
     # A component with several channels gets the direction of each
     usage = ", ".join(
         f"'{channel.label}' ("
-        + (f"{channel.direction} " if labels.count(channel.label) > 1 else "")
+        + (f"{channel.direction} " if len(components[channel.id]) > 1 else "")
         + f"{'DMA' if channel.dma else channel.symbols})"
         for channel in channels
     )
