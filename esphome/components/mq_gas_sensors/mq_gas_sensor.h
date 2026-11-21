@@ -26,7 +26,6 @@ class MQGasSensor final : public sensor::Sensor, public PollingComponent {
 
   explicit MQGasSensor(voltage_sampler::VoltageSampler *source) : source_(source) {}
 
-  void setup() override;
   void update() override;
   void dump_config() override;
 

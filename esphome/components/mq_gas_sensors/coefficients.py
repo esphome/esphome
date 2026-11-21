@@ -55,7 +55,6 @@ SENSOR_TYPES: dict[str, dict] = {
         "gases": {  # combustible gas / smoke
             "LPG": (574.25, -2.222),
             "H2": (987.99, -2.162),
-            "CH4": (36974.0, -3.109),
             "CO": (36974.0, -3.109),
             "ALCOHOL": (3616.1, -2.675),
             "PROPANE": (658.71, -2.168),
