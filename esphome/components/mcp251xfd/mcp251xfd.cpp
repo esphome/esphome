@@ -97,8 +97,7 @@ void MCP251XFD::dump_config() {
                 "  Nominal Bit Timing: 0x%08" PRIX32 "\n"
                 "  Data Bit Timing: 0x%08" PRIX32 "\n"
                 "  Transmitter Delay Compensation: 0x%08" PRIX32,
-                static_cast<uint8_t>(this->mcp_clock_),
-                LOG_STR_ARG(CanModeStrings::get_log_str(static_cast<uint8_t>(this->mcp_mode_))),
+                static_cast<uint8_t>(this->mcp_clock_), LOG_STR_ARG(CanModeStrings::get_log_str(this->mcp_mode_)),
                 this->nominal_bit_timing_, this->data_bit_timing_, this->transmitter_delay_compensation_);
   LOG_PIN("  CS Pin: ", this->cs_);
   LOG_PIN("  Interrupt Pin: ", this->interrupt_pin_);
