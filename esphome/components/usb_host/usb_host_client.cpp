@@ -359,7 +359,7 @@ bool USBClient::process_usb_events_() {
     if (this->state_ == USB_CLIENT_GET_DESC) {
       const usb_str_desc_t *desc = this->string_result_();
       if (desc != nullptr && descriptor_string_equals(desc, this->interface_filter_))
-        this->interface_matched_ = true;
+        this->matched_interface_ = this->string_interface_;
       this->handle_get_desc_state_();
     } else if (this->state_ == USB_CLIENT_CONNECTED) {
       this->on_interface_string(this->string_interface_, this->string_result_());
@@ -425,7 +425,7 @@ void USBClient::handle_open_state_() {
   }
   // The interface strings are not cached by the host stack, so the filter reads them itself
   this->state_ = USB_CLIENT_GET_DESC;
-  this->interface_matched_ = false;
+  this->matched_interface_ = NO_INTERFACE;
   this->filter_interface_ = 0;
   this->handle_get_desc_state_();
 }
@@ -441,11 +441,11 @@ void USBClient::handle_get_desc_state_() {
     this->disconnect();
     return;
   }
-  while (!this->interface_matched_ && this->filter_interface_ < config_desc->bNumInterfaces) {
+  while (this->matched_interface_ == NO_INTERFACE && this->filter_interface_ < config_desc->bNumInterfaces) {
     if (this->read_interface_string_(this->filter_interface_++))
       return;
   }
-  if (!this->interface_matched_) {
+  if (this->matched_interface_ == NO_INTERFACE) {
     ESP_LOGD(TAG, "Device does not match interface filter, closing");
     this->disconnect();
     return;
