@@ -1,0 +1,52 @@
+esphome:
+  name: uart-mock-modbus-crc-zero
+
+host:
+api:
+logger:
+  level: VERBOSE
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+
+# Dummy uart entry to satisfy modbus's DEPENDENCIES = ["uart"]
+# The actual UART bus used is the uart_mock component below
+uart:
+  baud_rate: 115200
+  port: /dev/null
+
+uart_mock:
+  - id: virtual_uart_dev
+    baud_rate: 9600
+    debug:
+    responses:
+      # Request to device 2: function code 0x49 (no known length), data 01, CRC 0x5026 low byte first.
+      - expect_tx: [0x02, 0x49, 0x01, 0x26, 0x50]
+        # Reply: data 02 AA 51, CRC 0x0055 low byte first, so the reply ends in 0x00.
+        inject_rx: [0x02, 0x49, 0x02, 0xAA, 0x51, 0x55, 0x00]
+
+modbus:
+  uart_id: virtual_uart_dev
+  turnaround_time: 10ms
+
+text_sensor:
+  - platform: template
+    name: "reply"
+    id: reply
+
+button:
+  - platform: template
+    name: "Start Scenario"
+    id: start_scenario_btn
+    on_press:
+      - modbus_client.send:
+          address: 2
+          pdu: [0x49, 0x01]
+          on_response:
+            then:
+              # Publishes the reply PDU as hex, e.g. "49 02 AA 51".
+              - lambda: |-
+                  char hex[format_hex_pretty_size(8)];
+                  id(reply).publish_state(format_hex_pretty_to(hex, response.data(), response.size(), ' '));

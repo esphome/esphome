@@ -72,6 +72,9 @@ class InjectableUART : public RecordingUART {
     this->rx_.push_back(crc >> 8);
   }
 
+  // Queues raw bytes as they arrive on the wire, such as a stray byte behind a frame.
+  void inject_bytes(std::span<const uint8_t> bytes) { this->rx_.insert(this->rx_.end(), bytes.begin(), bytes.end()); }
+
  private:
   std::vector<uint8_t> rx_;
 };
