@@ -28,6 +28,7 @@ enum class OutputProcessing : uint8_t {
 struct ProcessedOutput {
   float value;       // winning class index divided by scale_factor, in every mode
   float confidence;  // winning probability, or the winning tensor entry for argmax
+  bool valid{true};  // false when the tensor could not be read; the figures above are placeholders
 };
 
 /// @brief Map a configured mode name to its enum value.

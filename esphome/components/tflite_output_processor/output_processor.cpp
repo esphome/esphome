@@ -3,6 +3,7 @@
 #include "esphome/core/log.h"
 
 #include <algorithm>
+#include <climits>
 #include <cmath>
 
 namespace esphome::tflite_output_processor {
@@ -117,11 +118,11 @@ ProcessedOutput process_output(const float *output_data, int num_classes, Output
                                bool debug) {
   if (output_data == nullptr) {
     ESP_LOGE(TAG, "Null output data pointer");
-    return {0.0f, 0.0f};
+    return {};
   }
   if (num_classes <= 0) {
     ESP_LOGE(TAG, "Invalid number of output classes: %d", num_classes);
-    return {0.0f, 0.0f};
+    return {};
   }
   return process_values(num_classes, mode, scale_factor, debug,
                         [output_data](int i) -> float { return output_data[i]; });
@@ -135,13 +136,15 @@ namespace {
 int tensor_element_count(const TfLiteTensor *tensor) {
   if (tensor->dims == nullptr || tensor->dims->size <= 0)
     return 0;
-  int count = 1;
+  size_t count = 1;
   for (int i = 0; i < tensor->dims->size; i++) {
     if (tensor->dims->data[i] <= 0)
       return 0;
-    count *= tensor->dims->data[i];
+    count *= static_cast<size_t>(tensor->dims->data[i]);
+    if (count > INT_MAX)
+      return 0;
   }
-  return count;
+  return static_cast<int>(count);
 }
 
 }  // namespace
@@ -149,40 +152,40 @@ int tensor_element_count(const TfLiteTensor *tensor) {
 ProcessedOutput process_output(TfLiteTensor *output_tensor, OutputProcessing mode, float scale_factor, bool debug) {
   if (output_tensor == nullptr) {
     ESP_LOGE(TAG, "Null output tensor");
-    return {0.0f, 0.0f};
+    return {};
   }
 
   const int count = tensor_element_count(output_tensor);
   if (count <= 0) {
     ESP_LOGE(TAG, "Output tensor has no usable dimensions");
-    return {0.0f, 0.0f};
+    return {};
   }
 
   if (output_tensor->type == kTfLiteFloat32) {
     if (output_tensor->data.f == nullptr) {
       ESP_LOGE(TAG, "Output tensor has no data");
-      return {0.0f, 0.0f};
+      return {};
     }
     return process_output(output_tensor->data.f, count, mode, scale_factor, debug);
   }
 
   if (output_tensor->type != kTfLiteUInt8 && output_tensor->type != kTfLiteInt8) {
     ESP_LOGE(TAG, "Unsupported output tensor type: %d", output_tensor->type);
-    return {0.0f, 0.0f};
+    return {};
   }
 
   float scale = output_tensor->params.scale;
   const int32_t zero_point = output_tensor->params.zero_point;
-  if (scale == 0.0f) {
+  if (!(scale > 0.0f)) {
     scale = 1.0f;
-    ESP_LOGW(TAG, "Output tensor has scale 0.0, assuming 1.0 -- probabilities may be garbage");
+    ESP_LOGW(TAG, "Output tensor has a non-positive scale, assuming 1.0 -- probabilities may be garbage");
   }
 
   if (output_tensor->type == kTfLiteUInt8) {
     const uint8_t *data = output_tensor->data.uint8;
     if (data == nullptr) {
       ESP_LOGE(TAG, "Output tensor has no data");
-      return {0.0f, 0.0f};
+      return {};
     }
     return process_values(count, mode, scale_factor, debug,
                           [data, zero_point, scale](int i) -> float { return (data[i] - zero_point) * scale; });
@@ -191,7 +194,7 @@ ProcessedOutput process_output(TfLiteTensor *output_tensor, OutputProcessing mod
   const int8_t *data = output_tensor->data.int8;
   if (data == nullptr) {
     ESP_LOGE(TAG, "Output tensor has no data");
-    return {0.0f, 0.0f};
+    return {};
   }
   return process_values(count, mode, scale_factor, debug,
                         [data, zero_point, scale](int i) -> float { return (data[i] - zero_point) * scale; });
