@@ -184,11 +184,7 @@ void EPaperBase::loop() {
   int diff = now - this->delay_until_;
   if (diff < 0) {
     // Running the loop continuously cannot shorten a delay longer than one loop interval
-    if (-diff > static_cast<int>(App.get_loop_interval())) {
-      this->high_frequency_loop_.stop();
-    } else {
-      this->high_frequency_loop_.start();
-    }
+    this->high_frequency_loop_.set(-diff <= static_cast<int>(App.get_loop_interval()));
     return;
   }
   if (this->waiting_for_idle_) {
