@@ -1,37 +1,42 @@
 #include "sm300d2.h"
-#include "esphome/core/frame_reader.h"
 #include "esphome/core/log.h"
+#include <cstring>
 
 namespace esphome::sm300d2 {
 
 ESPHOME_LOG_TAG(TAG, "sm300d2");
-static constexpr uint8_t SM300D2_RESPONSE_LENGTH = 17;
+
+void SM300D2Sensor::loop() {
+  // The sensor sends frames on its own; read them as they arrive so the RX buffer does not overflow between polls
+  this->read_available([this](uint8_t c) {
+    const uint8_t *response = this->reader_.feed(c);
+    if (response == nullptr)
+      return;
+    uint16_t calculated_checksum = sum_bytes(response, SM300D2_RESPONSE_LENGTH - 1);
+    // Occasionally the checksum has a +/- 0x80 offset. Negative temperatures are
+    // responsible for some of these. The rest are unknown/undocumented.
+    if ((calculated_checksum != response[SM300D2_RESPONSE_LENGTH - 1]) &&
+        (calculated_checksum - 0x80 != response[SM300D2_RESPONSE_LENGTH - 1]) &&
+        (calculated_checksum + 0x80 != response[SM300D2_RESPONSE_LENGTH - 1])) {
+      ESP_LOGV(TAG, "SM300D2 Checksum doesn't match: 0x%02X!=0x%02X", response[SM300D2_RESPONSE_LENGTH - 1],
+               calculated_checksum);
+      // The header may have been part of the payload of a misaligned frame, so realign instead of dropping everything
+      this->reader_.resync();
+      return;
+    }
+    memcpy(this->frame_, response, SM300D2_RESPONSE_LENGTH);
+    this->has_frame_ = true;
+  });
+}
 
 void SM300D2Sensor::update() {
-  // Takes the first frame already received; only one cut off at the end of the buffer is waited for
-  FrameReader<SM300D2_RESPONSE_LENGTH, 0x3C, 0x02> reader;
-  const uint8_t *response = nullptr;
-  this->read_available<1>([&](uint8_t c) { return (response = reader.feed(c)) == nullptr; });
-  for (uint8_t c; response == nullptr && reader.length() > 0 && this->read_byte(&c);)
-    response = reader.feed(c);
-
-  if (response == nullptr) {
+  if (!this->has_frame_) {
     ESP_LOGW(TAG, "Reading data from SM300D2 failed!");
     this->status_set_warning();
     return;
   }
-
-  uint16_t calculated_checksum = sum_bytes(response, SM300D2_RESPONSE_LENGTH - 1);
-  // Occasionally the checksum has a +/- 0x80 offset. Negative temperatures are
-  // responsible for some of these. The rest are unknown/undocumented.
-  if ((calculated_checksum != response[SM300D2_RESPONSE_LENGTH - 1]) &&
-      (calculated_checksum - 0x80 != response[SM300D2_RESPONSE_LENGTH - 1]) &&
-      (calculated_checksum + 0x80 != response[SM300D2_RESPONSE_LENGTH - 1])) {
-    ESP_LOGW(TAG, "SM300D2 Checksum doesn't match: 0x%02X!=0x%02X", response[SM300D2_RESPONSE_LENGTH - 1],
-             calculated_checksum);
-    this->status_set_warning();
-    return;
-  }
+  this->has_frame_ = false;
+  const uint8_t *response = this->frame_;
 
   this->status_clear_warning();
 
