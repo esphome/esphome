@@ -2,6 +2,7 @@
 import argparse
 from collections.abc import Callable
 from contextlib import suppress
+import copy
 import functools
 import importlib
 import logging
@@ -1874,6 +1875,14 @@ def command_upload(args: ArgsProtocol, config: ConfigType) -> int | None:
         purpose=Purpose.UPLOADING,
     )
 
+    if getattr(args, "factory", False):
+        exit_code = _upload_factory_image(config, args, devices)
+        if exit_code == 0:
+            _LOGGER.info("Successfully uploaded the complete factory image.")
+        else:
+            _LOGGER.warning("Failed to upload to %s", devices)
+        return exit_code
+
     exit_code, _ = upload_program(config, args, devices)
     if exit_code == 0:
         _LOGGER.info("Successfully uploaded program.")
@@ -1891,6 +1900,11 @@ def command_upload_without_config(args: ArgsProtocol) -> int:
     from esphome import espota2
     from esphome.ota_image import detect_platform, is_factory_image, is_partition_table
 
+    if getattr(args, "factory", False):
+        raise EsphomeError(
+            "--factory builds the complete image from the device's YAML; "
+            "without a configuration there is nothing to compose"
+        )
     if args.file is None or not args.device:
         raise EsphomeError(
             "Give a YAML configuration, or --file and --device to upload a "
@@ -1969,6 +1983,101 @@ def command_upload_without_config(args: ArgsProtocol) -> int:
             port,
         )
     return exit_code
+
+
+# Device reboot plus Wi-Fi rejoin between factory-ota steps; the following
+# upload's own connect timeout and retries cover the rest of the window.
+OTA_REBOOT_WAIT_SECONDS = 20
+
+
+def _upload_factory_ota_step(
+    config: ConfigType, args: ArgsProtocol, devices: list[str], **overrides
+) -> tuple[int, str | None]:
+    """One upload step of the factory-ota flow: a native-API upload with
+    per-step ota-type overrides (--partition-table / --bootloader). Returns
+    the exit code and the device the upload landed on."""
+    step_args = copy.copy(args)
+    for key, value in overrides.items():
+        setattr(step_args, key, value)
+    return _upload_via_native_api(config, devices, step_args)
+
+
+def _upload_factory_image(
+    config: ConfigType, args: ArgsProtocol, devices: list[str]
+) -> int:
+    """Upload the complete factory image over OTA, step by step: bootloader,
+    partition table and app image.
+
+    Every successful OTA upload ends in a device reboot, so each step waits
+    for the device to come back before the next one starts. The order keeps
+    every intermediate state bootable:
+
+    - The bootloader step stages the new bootloader into the inactive OTA
+      slot; the reboot copies it to the bootloader offset and boots the
+      still-active previous app (a newer bootloader boots an older app), so
+      the app never has to run with an unmatched bootloader.
+    - The partition-table step is safe by construction: the device verifies
+      the new table can host the RUNNING app before writing anything - an
+      app partition at the same offset (no copy) or one it can populate
+      with esp_partition_copy - and rejects the upload without touching
+      flash otherwise. The device's YAML must enable 'allow_partition_access'.
+    - The app step writes the new app into the inactive OTA slot. The
+      previous app stays in the active slot and is only marked invalid once
+      the new app confirms itself, so rollback protection survives the
+      whole flow.
+
+    Once a step has resolved a device, later steps are pinned to it: with
+    several candidate devices, a rebooting one could otherwise make a later
+    stage land on a different device.
+    """
+    if _esphome_ota_conf(config) is None:
+        raise EsphomeError(
+            "--factory requires the esphome OTA platform in the "
+            "device's YAML configuration"
+        )
+    for flag in ("bootloader", "partition_table", "file"):
+        if getattr(args, flag, None):
+            raise EsphomeError(
+                "--factory uploads the complete image itself and cannot be "
+                f"combined with --{flag.replace('_', '-')}"
+            )
+
+    # Preflight every artifact before the first write: a missing one must
+    # fail before any flash change, not after two stages are committed.
+    artifacts = (
+        ("bootloader", CORE.bootloader_bin),
+        ("partition table", CORE.partition_table_bin),
+        ("app image", _app_ota_image(args)),
+    )
+    for name, binary in artifacts:
+        if not Path(binary).exists():
+            raise EsphomeError(
+                f"--factory needs the {name} image; compile the firmware "
+                f"first (missing: {binary})"
+            )
+
+    steps = (
+        ("bootloader", {"bootloader": True}),
+        ("partition table", {"partition_table": True}),
+        ("app image", {}),
+    )
+    for name, overrides in steps:
+        exit_code, resolved = _upload_factory_ota_step(
+            config, args, devices, **overrides
+        )
+        if exit_code != 0:
+            _LOGGER.warning("Failed to upload the %s.", name)
+            return exit_code
+        if resolved:
+            devices = [resolved]
+        if name != steps[-1][0]:
+            _LOGGER.info(
+                "Waiting %d seconds for the device to reboot ...",
+                OTA_REBOOT_WAIT_SECONDS,
+            )
+            time.sleep(OTA_REBOOT_WAIT_SECONDS)
+
+    return 0
 
 
 def command_discover(args: ArgsProtocol, config: ConfigType) -> int | None:
@@ -2626,8 +2735,9 @@ def parse_args(argv):
 
     parser_upload = subparsers.add_parser(
         "upload",
-        help="Validate the configuration and upload the latest binary, or upload "
-        "a prebuilt image named by --file to the device named by --device.",
+        help="Validate the configuration and upload the latest binary, upload "
+        "a prebuilt image named by --file to the device named by --device, "
+        "or with --factory upload the complete factory image over the air.",
         parents=[mqtt_options],
     )
     parser_upload.add_argument(
@@ -2685,6 +2795,13 @@ def parse_args(argv):
     parser_upload.add_argument(
         "--bootloader",
         help="Upload as bootloader (OTA).",
+        action="store_true",
+    )
+    parser_upload.add_argument(
+        "--factory",
+        help="Upload the complete factory image (partition table, app and "
+        "bootloader) over the air. Requires 'allow_partition_access: true' "
+        "on the esphome OTA platform in the device's YAML configuration.",
         action="store_true",
     )
 
