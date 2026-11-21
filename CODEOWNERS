@@ -637,6 +637,7 @@ esphome/components/st7123/* @miniskipper
 esphome/components/st7305/* @clydebarrow
 esphome/components/st7567_base/* @latonita
 esphome/components/st7567_i2c/* @latonita
+esphome/components/ssocr_reader/* @nliaudat
 esphome/components/st7567_spi/* @latonita
 esphome/components/st7701s/* @clydebarrow
 esphome/components/st7735/* @SenexCrenshaw

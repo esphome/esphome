@@ -1,0 +1,12 @@
+packages:
+  i2c_camera: !include ../../test_build_components/common/i2c_camera/esp32-idf.yaml
+
+camera_decoder:
+  id: ssocr_decoder
+  output_type: RGB888
+
+ssocr_reader:
+  camera_id: test_camera
+  decoder_id: ssocr_decoder
+  crop_w: 64
+  crop_h: 32

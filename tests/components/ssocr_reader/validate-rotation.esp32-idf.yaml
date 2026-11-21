@@ -1,0 +1,20 @@
+packages:
+  i2c_camera: !include ../../test_build_components/common/i2c_camera/esp32-idf.yaml
+
+camera_decoder:
+  id: ssocr_decoder
+  output_type: GRAYSCALE
+  rotation: 90
+
+ssocr_reader:
+  id: ssocr_reader_1
+  camera_id: test_camera
+  decoder_id: ssocr_decoder
+  crop_w: 40
+  crop_h: 600
+
+sensor:
+  - platform: ssocr_reader
+    ssocr_reader_id: ssocr_reader_1
+    value:
+      name: Rotated Value

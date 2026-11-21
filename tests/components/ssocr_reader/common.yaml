@@ -1,0 +1,20 @@
+camera_decoder:
+  id: ssocr_decoder
+  output_type: GRAYSCALE
+
+ssocr_reader:
+  id: ssocr_reader_1
+  camera_id: test_camera
+  decoder_id: ssocr_decoder
+  crop_x: 8
+  crop_y: 16
+  crop_w: 160
+  crop_h: 40
+
+sensor:
+  - platform: ssocr_reader
+    ssocr_reader_id: ssocr_reader_1
+    value:
+      name: SSOCR Value
+    confidence:
+      name: SSOCR Confidence
