@@ -1630,6 +1630,18 @@ TEST(RmtOneWireEngine, RxIdleIsSlotPlus20WithAFloorOf100) {
   }
 }
 
+TEST(RmtOneWireEngine, GetTimingReturnsTheTimingOfTheConstructor) {
+  // dump_config() of the bus reads the timing from here
+  Rig rig(64, Timing{60, 100, 12});
+  EXPECT_EQ(rig.engine.get_timing().write0_low_us, 60);
+  EXPECT_EQ(rig.engine.get_timing().slot_us, 100);
+  EXPECT_EQ(rig.engine.get_timing().read_threshold_us, 12);
+  Rig defaults;
+  EXPECT_EQ(defaults.engine.get_timing().write0_low_us, Timing{}.write0_low_us);
+  EXPECT_EQ(defaults.engine.get_timing().slot_us, Timing{}.slot_us);
+  EXPECT_EQ(defaults.engine.get_timing().read_threshold_us, Timing{}.read_threshold_us);
+}
+
 TEST(RmtOneWireEngine, ReachesTheWire) {
   Rig rig(64, Timing{90, 120, 14});
   read_scratchpad_ok(rig);

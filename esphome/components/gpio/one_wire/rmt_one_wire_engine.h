@@ -53,6 +53,7 @@ class Engine {
   uint32_t next_poll_in_ms() const;
   /// True while poll() or a blocking method runs, except inside on_done.
   bool is_busy() const { return this->busy_; }
+  const Timing &get_timing() const { return this->timing_; }
   /// All queued and future work ends in HARDWARE_ERROR: at once, or when the engine call that runs now returns.
   void set_failed();
 

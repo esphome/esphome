@@ -59,7 +59,6 @@ class GPIORMTOneWireBus final : public one_wire::OneWireBus, public Component, p
   static bool rx_done_isr(rmt_channel_handle_t channel, const rmt_rx_done_event_data_t *data, void *context);
 
   InternalGPIOPin *pin_{nullptr};
-  rmt_one_wire::Timing timing_;
   rmt_channel_handle_t tx_channel_{nullptr};
   rmt_channel_handle_t rx_channel_{nullptr};
   rmt_encoder_handle_t encoder_{nullptr};

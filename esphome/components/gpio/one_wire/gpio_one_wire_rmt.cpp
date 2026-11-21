@@ -26,7 +26,7 @@ static_assert(sizeof(Symbol) == sizeof(rmt_symbol_word_t), "Symbol must have the
 static_assert(alignof(Symbol) == alignof(rmt_symbol_word_t), "the copy encoder reads Symbol as rmt_symbol_word_t");
 
 GPIORMTOneWireBus::GPIORMTOneWireBus(const rmt_one_wire::Timing &timing)
-    : timing_(timing), engine_(this, SOC_RMT_MEM_WORDS_PER_CHANNEL, timing) {}
+    : engine_(this, SOC_RMT_MEM_WORDS_PER_CHANNEL, timing) {}
 
 void GPIORMTOneWireBus::setup() {
   const auto gpio = static_cast<gpio_num_t>(this->pin_->get_pin());
@@ -115,11 +115,12 @@ void GPIORMTOneWireBus::release_(bool rx_enabled, bool tx_enabled) {
 void GPIORMTOneWireBus::dump_config() {
   ESP_LOGCONFIG(TAG, "GPIO 1-wire bus (RMT):");
   LOG_PIN("  Pin: ", this->pin_);
+  const rmt_one_wire::Timing &timing = this->engine_.get_timing();
   ESP_LOGCONFIG(TAG,
                 "  Timing: write 0 low %u us, slot %u us, read threshold %u us\n"
                 "  Parasite power: not supported, the bus never drives a strong pullup",
-                this->timing_.write0_low_us, this->timing_.slot_us, this->timing_.read_threshold_us);
-  if (this->timing_.read_threshold_us > 15) {
+                timing.write0_low_us, timing.slot_us, timing.read_threshold_us);
+  if (timing.read_threshold_us > 15) {
     ESP_LOGW(TAG, "  Read threshold above 15 us: a DS18B20 only keeps a 0 valid for that long");
   }
   this->dump_devices_(TAG);
