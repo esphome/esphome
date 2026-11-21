@@ -114,7 +114,7 @@ static constexpr uint8_t TARGET_STATE_BG_SUCCESS = 0x05;
 static constexpr uint8_t TARGET_STATE_BG_FAILED = 0x06;
 PROGMEM_STRING_TABLE(BgCorrectionResultStrings, "Success", "Failed", "Unconfirmed", "Refused", "Timed out", "Running");
 // An unknown result never reads as a pass
-static constexpr auto UNCONFIRMED_INDEX = BgCorrectionResult::BG_CORRECTION_RESULT_UNCONFIRMED;
+static constexpr auto UNKNOWN_RESULT_FALLBACK = BgCorrectionResult::BG_CORRECTION_RESULT_UNCONFIRMED;
 #endif
 using ld24xx::CMD_FRAME_FOOTER;
 using ld24xx::CMD_FRAME_HEADER;
@@ -694,7 +694,7 @@ void LD2410Component::finish_background_correction_(BgCorrectionResult result) {
   this->cancel_interval(BG_CORRECTION_POLL_ID);
   this->cancel_timeout(BG_CORRECTION_DEADLINE_ID);
   ESP_LOGI(TAG, "Background correction: %s",
-           LOG_STR_ARG(BgCorrectionResultStrings::get_log_str(result, UNCONFIRMED_INDEX)));
+           LOG_STR_ARG(BgCorrectionResultStrings::get_log_str(result, UNKNOWN_RESULT_FALLBACK)));
   this->publish_calibration_result_(result);
   // The module may have rewritten the gate thresholds
   this->set_config_mode_(true);
@@ -714,7 +714,7 @@ void LD2410Component::publish_calibration_running_(bool running) {
 void LD2410Component::publish_calibration_result_(BgCorrectionResult result) {
 #ifdef USE_TEXT_SENSOR
   PUBLISH_STATE(this->calibration_result_text_sensor_,
-                BgCorrectionResultStrings::get_progmem_str(result, UNCONFIRMED_INDEX));
+                BgCorrectionResultStrings::get_progmem_str(result, UNKNOWN_RESULT_FALLBACK));
 #endif
 }
 #endif
