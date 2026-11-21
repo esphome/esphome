@@ -3,9 +3,10 @@
 import esphome.codegen as cg
 from esphome.components.tflite_detection import DETECTION_SCHEMA
 from esphome.components.tflite_image import IMAGE_SCHEMA
-from esphome.components.tflite_segmentation import SEGMENTATION_SCHEMA
 from esphome.components.tflite_model_source.model_metadata import datasize_to_bytes
 from esphome.components.tflite_model_source.model_source import MODEL_SOURCE_SCHEMA
+from esphome.components.tflite_pose import POSE_SCHEMA
+from esphome.components.tflite_segmentation import SEGMENTATION_SCHEMA
 import esphome.config_validation as cv
 from esphome.const import CONF_DEBUG, CONF_MODEL, CONF_RAW_DATA_ID
 
@@ -33,12 +34,14 @@ PER_MODEL_SCHEMA = (
                 "image",
                 "detection",
                 "segmentation",
+                "pose",
             ),
         }
     )
     .extend(IMAGE_SCHEMA)
     .extend(DETECTION_SCHEMA)
     .extend(SEGMENTATION_SCHEMA)
+    .extend(POSE_SCHEMA)
 )
 
 MULTI_CONF = True

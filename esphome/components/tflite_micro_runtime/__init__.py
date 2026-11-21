@@ -65,6 +65,7 @@ AUTO_LOAD = [
     "tflite_model_loader",
     "tflite_model_source",
     "tflite_op_processor",
+    "tflite_pose",
     "tflite_output_processor",
 ]
 
@@ -128,6 +129,10 @@ async def to_code(config: ConfigType) -> None:
         )
 
         await segmentation_to_code(var, config, model_path)
+    elif config.get(_schema.CONF_MODEL_TYPE) == "pose":
+        from esphome.components.tflite_pose import to_code as pose_to_code
+
+        await pose_to_code(var, config, model_path)
     esp32.add_idf_component(name="espressif/esp-tflite-micro", ref="1.4.1")
     esp32.add_idf_component(name="espressif/esp-nn", ref="1.5.0")
 
