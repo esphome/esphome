@@ -25,8 +25,9 @@ class DallasTemperatureSensor final : public PollingComponent, public sensor::Se
   bool check_scratch_pad_();
   float get_temp_c_();
 #ifdef USE_ONE_WIRE_TRANSACTION
-  /// Set the warning and return false unless the transaction ended with TRANSACTION_STATUS_OK.
-  bool check_transaction_status_(one_wire::TransactionStatus status);
+  /// Log a warning naming this sensor, the step and the reason, set the status warning and return false
+  /// unless the transaction ended with TRANSACTION_STATUS_OK.
+  bool check_transaction_status_(one_wire::TransactionStatus status, const LogString *step);
   static void on_convert_done(void *context, one_wire::TransactionStatus status);
   static void on_read_done(void *context, one_wire::TransactionStatus status);
 
