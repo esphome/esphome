@@ -2,6 +2,7 @@
 
 from collections.abc import Callable
 from pathlib import Path
+import re
 
 import pytest
 
@@ -879,3 +880,37 @@ def test_mqdatascience_curve_reaches_the_sensor(
         in main_cpp
     )
     assert "mq8_curve->set_max_ppm(20000.0f);" in main_cpp
+
+
+def test_mq131_clean_air_is_far_below_the_ceiling() -> None:
+    """The ozone curve reports clean air near its bottom, not at its 1 ppm top."""
+    resolved = resolve_sensor("MQ131", "O3")
+
+    # The datasheet range is 10 - 1000 ppb (0.01 - 1 ppm); the exponential fit gives
+    # 0.12 ppm at the clean-air ratio of 15.
+    assert resolved.method == "exponential"
+    assert resolved.max_ppm == pytest.approx(1.0)
+
+
+def test_two_owned_pins_without_ids_do_not_collide(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """An omitted id: is assigned late, so two hidden ADCs must not share one."""
+    main_cpp = generate_main(component_config_path("two_owned_pins.yaml"))
+
+    sources = re.findall(r"MQGasSensor\((\w+)\)", main_cpp)
+    assert len(sources) == 2
+    assert len(set(sources)) == 2
+
+
+def test_ads1115_burst_is_bounded(
+    component_config_path: Callable[[str], Path],
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A burst of slow external conversions is refused, not run in one loop pass."""
+    CORE.config_path = component_config_path("ads1115_burst.yaml")
+    assert read_config({}) is None
+    captured = capsys.readouterr()
+    assert "waits 2016 ms on the ADS1115" in captured.out
+    assert "raise the sampler's 'sample_rate:'" in captured.out
