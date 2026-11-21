@@ -53,9 +53,17 @@ class CalibrationRegisterDelegate final : public spi::SPIDelegate {
       return;
 
     const uint16_t address = static_cast<uint16_t>(((data[0] & 0x03) << 8) | data[1]);
+    ++this->read_counts_[address];
     const uint16_t value = this->registers_[address];
-    data[2] = static_cast<uint8_t>(value >> 8);
-    data[3] = static_cast<uint8_t>(value);
+    uint16_t received = address == this->corrupt_read_address_ ? value ^ 0x8000 : value;
+    if (address == ATM90E32_REGISTER_LASTSPIDATA && this->unstable_last_spi_)
+      received = value ^ this->read_counts_[address];
+    data[2] = static_cast<uint8_t>(received >> 8);
+    data[3] = static_cast<uint8_t>(received);
+    if (address != ATM90E32_REGISTER_LASTSPIDATA)
+      this->registers_[ATM90E32_REGISTER_LASTSPIDATA] = value;
+    if (address >= ATM90E32_REGISTER_APENERGYA && address <= ATM90E32_REGISTER_ANENERGYC)
+      this->registers_[address] = 0;
   }
 
   void write_array(const uint8_t *data, size_t length) override {
@@ -101,6 +109,10 @@ class CalibrationRegisterDelegate final : public spi::SPIDelegate {
 
   void drop_next_calibration_write() { this->drop_calibration_writes_++; }
   void corrupt_calibration_writes() { this->corrupt_calibration_writes_ = true; }
+  void corrupt_read(uint16_t address) { this->corrupt_read_address_ = address; }
+  void set_register(uint16_t address, uint16_t value) { this->registers_[address] = value; }
+  void unstable_last_spi(bool unstable = true) { this->unstable_last_spi_ = unstable; }
+  unsigned read_count(uint16_t address) const { return this->read_counts_[address]; }
 
  private:
   bool is_calibration_register_(uint16_t address) const {
@@ -118,8 +130,11 @@ class CalibrationRegisterDelegate final : public spi::SPIDelegate {
 
   const ATM90E32Component &component_;
   std::array<uint16_t, 1024> registers_{};
+  std::array<unsigned, 1024> read_counts_{};
+  bool unstable_last_spi_{false};
   uint8_t drop_calibration_writes_{0};
   bool corrupt_calibration_writes_{false};
+  uint16_t corrupt_read_address_{0xFFFF};
 };
 
 struct CalibrationTraits {
@@ -232,6 +247,8 @@ class ATM90E32CalibrationTestAccess {
   }
 
   ~ATM90E32CalibrationTestAccess() {
+    if (this->component.offset_calibration_pending_)
+      this->settle_calibration();
     global_preferences = this->previous_preferences_;
     host::host_preferences = this->previous_host_preferences_;
     if (this->had_prefdir_) {
@@ -250,6 +267,28 @@ class ATM90E32CalibrationTestAccess {
   uint16_t read16(uint16_t reg) { return this->component.read16_(reg); }
   void write16(uint16_t reg, uint16_t value) { this->component.write16_(reg, value); }
   void configure_chip() { this->component.configure_chip_(); }
+  float voltage_average() { return this->component.get_phase_voltage_avg_(0); }
+  float current_average() { return this->component.get_phase_current_avg_(0); }
+  float energy(bool reverse) {
+    return reverse ? this->component.get_phase_reverse_active_energy_(0)
+                   : this->component.get_phase_forward_active_energy_(0);
+  }
+  void run_offsets(const CalibrationTraits &kind) {
+    if (kind.offset_type == OffsetCalibrationType::OFFSET_CALIBRATION_TYPE_POWER)
+      this->component.run_power_offset_calibrations();
+    else
+      this->component.run_offset_calibrations();
+    App.scheduler.call(millis());
+  }
+  void advance_calibration() {
+    delay(1100);  // NOLINT - The host scheduler uses real time.
+    App.scheduler.call(millis());
+  }
+  void settle_calibration() {
+    for (uint8_t step = 0; step < 3 && this->component.offset_calibration_pending_; ++step)
+      this->advance_calibration();
+    EXPECT_FALSE(this->component.offset_calibration_pending_);
+  }
 
   ESPPreferenceObject &preference(const CalibrationTraits &kind) { return this->component.*kind.preference; }
 
@@ -429,6 +468,238 @@ TEST(ATM90E32RegisterAccess, HandlesFullTenBitAddress) {
   EXPECT_EQ(access.read16(0x3FF), 0xABCD);
 }
 
+TEST(ATM90E32Measurements, RejectsCorruptSamplesAndRecovers) {
+  for (const uint16_t address : {ATM90E32_REGISTER_URMS, ATM90E32_REGISTER_IRMS, ATM90E32_REGISTER_PFMEAN,
+                                 ATM90E32_REGISTER_PMEAN, ATM90E32_REGISTER_PMEANLSB}) {
+    SCOPED_TRACE(address);
+    Access access;
+    sensor::Sensor measurement;
+    auto &component = access.component;
+    switch (address) {
+      case ATM90E32_REGISTER_URMS:
+        component.set_voltage_sensor(0, &measurement);
+        break;
+      case ATM90E32_REGISTER_IRMS:
+        component.set_current_sensor(0, &measurement);
+        break;
+      case ATM90E32_REGISTER_PFMEAN:
+        component.set_power_factor_sensor(0, &measurement);
+        break;
+      default:
+        component.set_power_sensor(0, &measurement);
+    }
+    access.delegate.set_register(ATM90E32_REGISTER_METEREN, 1);
+    access.delegate.set_register(address, 100);
+    access.delegate.corrupt_read(address);
+
+    component.update();
+    component.loop();
+
+    EXPECT_TRUE(std::isnan(measurement.get_state()));
+    EXPECT_TRUE(component.status_has_warning());
+    access.delegate.corrupt_read(0xFFFF);
+    access.delegate.set_register(address, 0);
+    component.update();
+    component.loop();
+    EXPECT_FLOAT_EQ(measurement.get_state(), 0.0f);
+    EXPECT_FALSE(component.status_has_warning());
+  }
+}
+
+TEST(ATM90E32Measurements, RecoversReadClearEnergyWithoutReadingItTwice) {
+  for (const bool reverse : {false, true}) {
+    for (const bool corrupt : {false, true}) {
+      Access access;
+      const uint16_t address = reverse ? ATM90E32_REGISTER_ANENERGY : ATM90E32_REGISTER_APENERGY;
+      access.delegate.set_register(address, 65535);
+      if (corrupt)
+        access.delegate.corrupt_read(address);
+      EXPECT_FLOAT_EQ(access.energy(reverse), 65535 * (10.0f / 3200.0f));
+      EXPECT_EQ(access.delegate.read_count(address), 1);
+      EXPECT_EQ(access.delegate.read_count(ATM90E32_REGISTER_LASTSPIDATA), corrupt ? 3 : 1);
+      EXPECT_FALSE(access.component.status_has_warning());
+      access.delegate.corrupt_read(0xFFFF);
+      EXPECT_FLOAT_EQ(access.energy(reverse), 65535 * (10.0f / 3200.0f));
+    }
+  }
+}
+
+TEST(ATM90E32Measurements, BoundsEnergyRecoveryWhenLastSpiRemainsUnstable) {
+  Access access;
+  access.delegate.set_register(ATM90E32_REGISTER_APENERGY, 100);
+  access.delegate.unstable_last_spi();
+  EXPECT_TRUE(std::isnan(access.energy(false)));
+  EXPECT_TRUE(access.component.status_has_warning());
+  EXPECT_EQ(access.delegate.read_count(ATM90E32_REGISTER_APENERGY), 1);
+  EXPECT_EQ(access.delegate.read_count(ATM90E32_REGISTER_LASTSPIDATA), 3);
+}
+
+TEST(ATM90E32Measurements, CapturesEnergyBeforeLoggingCallbacksReadOtherRegisters) {
+  for (const uint8_t level : {ESPHOME_LOG_LEVEL_WARN, ESPHOME_LOG_LEVEL_VERY_VERBOSE}) {
+    if (level > ESPHOME_LOG_LEVEL)
+      continue;
+    for (const bool reverse : {false, true}) {
+      Access access;
+      logger::Logger callback_logger(0);
+      auto *previous_logger = logger::global_logger;
+      callback_logger.pre_setup();
+      callback_logger.set_log_level(level);
+      unsigned callbacks = 0;
+      struct Context {
+        Access &access;
+        unsigned &callbacks;
+      } context{access, callbacks};
+      callback_logger.add_log_callback(&context, [](void *instance, uint8_t, const char *, const char *, size_t) {
+        auto &context = *static_cast<Context *>(instance);
+        ++context.callbacks;
+        context.access.read16(ATM90E32_REGISTER_URMS);
+      });
+      const uint16_t address = reverse ? ATM90E32_REGISTER_ANENERGY : ATM90E32_REGISTER_APENERGY;
+      access.delegate.set_register(ATM90E32_REGISTER_URMS, 12000);
+      access.delegate.set_register(address, 100);
+      access.delegate.corrupt_read(address);
+      EXPECT_FLOAT_EQ(access.energy(reverse), 100 * (10.0f / 3200.0f));
+      EXPECT_EQ(access.delegate.read_count(address), 1);
+      EXPECT_GT(callbacks, 0);
+      logger::global_logger = previous_logger;
+    }
+  }
+}
+
+TEST(ATM90E32Measurements, SkipsUnrecoverableEnergyPublicationsAndResumesAccumulating) {
+  for (const bool reverse : {false, true}) {
+    Access access;
+    sensor::Sensor energy;
+    unsigned publications = 0;
+    energy.add_on_raw_state_callback([&](float) { ++publications; });
+    if (reverse)
+      access.component.set_reverse_active_energy_sensor(0, &energy);
+    else
+      access.component.set_forward_active_energy_sensor(0, &energy);
+    const uint16_t address = reverse ? ATM90E32_REGISTER_ANENERGY : ATM90E32_REGISTER_APENERGY;
+    access.delegate.set_register(ATM90E32_REGISTER_METEREN, 1);
+    access.delegate.set_register(address, 100);
+    access.component.update();
+    access.component.loop();
+    EXPECT_EQ(publications, 1);
+    access.component.update();
+    access.delegate.set_register(address, 200);
+    access.delegate.unstable_last_spi();
+    access.component.loop();
+    EXPECT_FLOAT_EQ(energy.get_state(), 100 * (10.0f / 3200.0f));
+    EXPECT_EQ(publications, 1);
+    access.delegate.unstable_last_spi(false);
+    access.delegate.set_register(address, 50);
+    access.component.update();
+    access.component.loop();
+    EXPECT_FLOAT_EQ(energy.get_state(), 150 * (10.0f / 3200.0f));
+    EXPECT_EQ(publications, 2);
+  }
+}
+
+TEST(ATM90E32Measurements, PreservesFullRegisterRange) {
+  Access access;
+  sensor::Sensor voltage;
+  sensor::Sensor power;
+  access.component.set_voltage_sensor(0, &voltage);
+  access.component.set_power_sensor(0, &power);
+  access.delegate.set_register(ATM90E32_REGISTER_METEREN, 1);
+  for (const uint16_t raw : {0, 1, 0x7FFF, 0x8000, 0xFFFF}) {
+    access.delegate.set_register(ATM90E32_REGISTER_URMS, raw);
+    access.component.update();
+    access.component.loop();
+    EXPECT_FLOAT_EQ(voltage.get_state(), raw / 100.0f);
+    EXPECT_FALSE(access.component.status_has_warning());
+  }
+  for (const int32_t raw : {INT32_MIN, -1, 0, 1, INT32_MAX}) {
+    access.delegate.set_register(ATM90E32_REGISTER_PMEAN, static_cast<uint32_t>(raw) >> 16);
+    access.delegate.set_register(ATM90E32_REGISTER_PMEANLSB, static_cast<uint16_t>(raw));
+    access.component.update();
+    access.component.loop();
+    EXPECT_FLOAT_EQ(power.get_state(), raw * 0.00032f);
+    EXPECT_FALSE(access.component.status_has_warning());
+  }
+}
+
+TEST(ATM90E32GainCalibration, RejectsInvalidAveragesWithoutChangingCalibration) {
+  for (const uint16_t address : {ATM90E32_REGISTER_URMS, ATM90E32_REGISTER_IRMS}) {
+    SCOPED_TRACE(address);
+    Access access;
+    auto &component = access.component;
+    const auto &kind = Access::GAIN;
+    auto &preference = access.make_preference(kind);
+    save_values(preference, kind, SavedValue::SAVED_VALUE_OLD);
+    access.restore(kind);
+    component.set_enable_gain_calibration(true);
+    for (uint8_t phase = 0; phase < 3; ++phase) {
+      access.delegate.set_register(ATM90E32_REGISTER_URMS + phase, 12000);
+      access.delegate.set_register(ATM90E32_REGISTER_IRMS + phase, 5000);
+    }
+    access.delegate.corrupt_read(address);
+
+    EXPECT_TRUE(std::isnan(address == ATM90E32_REGISTER_URMS ? access.voltage_average() : access.current_average()));
+    component.run_gain_calibrations();
+
+    expect_values(preference, kind, SavedValue::SAVED_VALUE_OLD);
+    access.expect_previous_runtime_values(kind, true);
+    EXPECT_EQ(access.read16(component.voltage_gain_registers[0]), 1000);
+    EXPECT_EQ(access.read16(component.current_gain_registers[0]), 2000);
+  }
+}
+
+TEST(ATM90E32GainCalibration, LaterReadFailureDoesNotApplyPartialGains) {
+  for (const uint16_t address :
+       {ATM90E32_REGISTER_URMSC, ATM90E32_REGISTER_IRMSC, ATM90E32_REGISTER_UGAINC, ATM90E32_REGISTER_IGAINC}) {
+    SCOPED_TRACE(address);
+    Access access;
+    auto &component = access.component;
+    auto &preference = access.make_preference(Access::GAIN);
+    save_values(preference, Access::GAIN, SavedValue::SAVED_VALUE_OLD);
+    access.restore(Access::GAIN);
+    component.set_enable_gain_calibration(true);
+    for (uint8_t phase = 0; phase < 3; ++phase) {
+      access.delegate.set_register(ATM90E32_REGISTER_URMS + phase, 6000);
+      access.delegate.set_register(ATM90E32_REGISTER_IRMS + phase, 2500);
+    }
+    access.delegate.corrupt_read(address);
+
+    component.run_gain_calibrations();
+
+    expect_values(preference, Access::GAIN, SavedValue::SAVED_VALUE_OLD);
+    access.expect_previous_runtime_values(Access::GAIN, true);
+  }
+}
+
+TEST(ATM90E32GainCalibration, AppliesAllGainsOrRestoresPreviousValues) {
+  for (const bool drop : {false, true}) {
+    SCOPED_TRACE(drop);
+    Access access;
+    auto &component = access.component;
+    auto &preference = access.make_preference(Access::GAIN);
+    save_values(preference, Access::GAIN, SavedValue::SAVED_VALUE_OLD);
+    access.restore(Access::GAIN);
+    component.set_enable_gain_calibration(true);
+    for (uint8_t phase = 0; phase < 3; ++phase) {
+      access.delegate.set_register(ATM90E32_REGISTER_URMS + phase, 6000);
+      access.delegate.set_register(ATM90E32_REGISTER_IRMS + phase, 2500);
+    }
+    if (drop)
+      access.delegate.drop_next_calibration_write();
+
+    component.run_gain_calibrations();
+
+    GainCalibration saved[3];
+    ASSERT_TRUE(preference.load(&saved));
+    for (uint8_t phase = 0; phase < 3; ++phase) {
+      const auto previous = gain_values(SavedValue::SAVED_VALUE_OLD, phase);
+      EXPECT_EQ(saved[phase].voltage_gain, previous.voltage_gain * (drop ? 1 : 2));
+      EXPECT_EQ(saved[phase].current_gain, previous.current_gain * (drop ? 1 : 2));
+      EXPECT_EQ(access.read16(component.voltage_gain_registers[phase]), saved[phase].voltage_gain);
+      EXPECT_EQ(access.read16(component.current_gain_registers[phase]), saved[phase].current_gain);
+    }
+  }
+}
+
 TEST(ATM90E32Setup, ConfiguresGainsAndThresholdsWithCalibrationEnabledOrDisabled) {
   for (const bool offsets : {false, true}) {
     for (const bool gains : {false, true}) {
@@ -496,6 +767,273 @@ INSTANTIATE_TEST_SUITE_P(CalibrationKinds, ATM90E32OffsetPersistence,
                          ::testing::Values(Access::OFFSET, Access::POWER_OFFSET),
                          [](const auto &info) { return info.param.name; });
 
+TEST_P(ATM90E32CalibrationPersistence, FailedClearWritePreservesStoredAndRuntimeCalibration) {
+  const auto &kind = GetParam();
+  Access access;
+  auto &preference = access.make_preference(kind);
+  save_values(preference, kind, SavedValue::SAVED_VALUE_OLD);
+  access.restore(kind);
+  access.delegate.drop_next_calibration_write();
+
+  (access.component.*kind.clear)();
+
+  expect_values(preference, kind, SavedValue::SAVED_VALUE_OLD);
+  access.expect_previous_runtime_values(kind, true);
+  EXPECT_TRUE(access.component.*kind.has_stored);
+  EXPECT_TRUE(access.component.*kind.restored);
+  const auto first = kind.gain ? access.component.voltage_gain_registers[0]
+                     : kind.offset_type == OffsetCalibrationType::OFFSET_CALIBRATION_TYPE_POWER
+                         ? access.component.power_offset_registers[0]
+                         : access.component.voltage_offset_registers[0];
+  EXPECT_EQ(access.read16(first), kind.gain ? 1000 : 11);
+}
+
+TEST_P(ATM90E32CalibrationPersistence, FailedClearPersistenceRestoresOriginalPayload) {
+  const auto &kind = GetParam();
+  Access access;
+  access.fail_sync();
+  auto &preference = access.make_preference(kind);
+  save_values(preference, kind, SavedValue::SAVED_VALUE_OLD);
+  access.restore(kind);
+
+  (access.component.*kind.clear)();
+
+  expect_values(preference, kind, SavedValue::SAVED_VALUE_OLD);
+  access.expect_previous_runtime_values(kind, true);
+  EXPECT_TRUE(access.component.*kind.has_stored);
+  EXPECT_TRUE(access.component.*kind.restored);
+}
+
+TEST_P(ATM90E32OffsetPersistence, MinusOneOffsetRequiresValidReadback) {
+  const auto &kind = GetParam();
+  const bool power = kind.offset_type == OffsetCalibrationType::OFFSET_CALIBRATION_TYPE_POWER;
+  for (const bool corrupt : {false, true}) {
+    SCOPED_TRACE(corrupt);
+    Access access;
+    auto &component = access.component;
+    for (uint8_t phase = 0; phase < 3; ++phase) {
+      if (power) {
+        component.set_active_power_offset(phase, -1);
+        component.set_reactive_power_offset(phase, -1);
+      } else {
+        component.set_voltage_offset(phase, -1);
+        component.set_current_offset(phase, -1);
+      }
+    }
+    auto &preference = access.make_preference(kind);
+    save_values(preference, kind, SavedValue::SAVED_VALUE_OLD);
+    access.restore(kind);
+    if (corrupt)
+      access.delegate.corrupt_read(power ? component.power_offset_registers[0] : component.voltage_offset_registers[0]);
+
+    (component.*kind.clear)();
+
+    EXPECT_EQ(component.*kind.has_stored, corrupt);
+    expect_values(preference, kind, corrupt ? SavedValue::SAVED_VALUE_OLD : SavedValue::SAVED_VALUE_ZERO);
+  }
+}
+
+TEST_P(ATM90E32OffsetPersistence, RepeatedCalibrationZerosOffsetsAndWaitsForFreshMeasurements) {
+  const auto &kind = GetParam();
+  const bool power = kind.offset_type == OffsetCalibrationType::OFFSET_CALIBRATION_TYPE_POWER;
+  Access access;
+  auto &component = access.component;
+  auto &preference = access.make_preference(kind);
+  save_values(preference, kind, SavedValue::SAVED_VALUE_OLD);
+  access.restore(kind);
+  component.set_enable_offset_calibration(true);
+  const uint16_t first_offset = power ? component.power_offset_registers[0] : component.voltage_offset_registers[0];
+  const uint16_t second_offset =
+      power ? component.reactive_power_offset_registers[0] : component.current_offset_registers[0];
+  for (uint8_t attempt = 0; attempt < 2; ++attempt) {
+    SCOPED_TRACE(attempt);
+    for (uint8_t phase = 0; phase < 3; ++phase) {
+      access.delegate.set_register((power ? ATM90E32_REGISTER_PMEAN : ATM90E32_REGISTER_URMS) + phase, 0);
+      access.delegate.set_register((power ? ATM90E32_REGISTER_PMEANLSB : ATM90E32_REGISTER_URMSLSB) + phase, 0);
+      access.delegate.set_register((power ? ATM90E32_REGISTER_QMEAN : ATM90E32_REGISTER_IRMS) + phase, 0);
+      access.delegate.set_register((power ? ATM90E32_REGISTER_QMEANLSB : ATM90E32_REGISTER_IRMSLSB) + phase, 0);
+    }
+    access.run_offsets(kind);
+    EXPECT_EQ(access.read16(first_offset), 0);
+    EXPECT_EQ(access.read16(second_offset), 0);
+    if (attempt == 0)
+      expect_values(preference, kind, SavedValue::SAVED_VALUE_OLD);
+    // Old compensated samples remain zero until the chip completes a new measurement window.
+    for (uint8_t phase = 0; phase < 3; ++phase) {
+      access.delegate.set_register((power ? ATM90E32_REGISTER_PMEAN : ATM90E32_REGISTER_URMS) + phase, power ? 0 : 4);
+      access.delegate.set_register((power ? ATM90E32_REGISTER_PMEANLSB : ATM90E32_REGISTER_URMSLSB) + phase,
+                                   power ? 1024 : 0);
+      access.delegate.set_register((power ? ATM90E32_REGISTER_QMEAN : ATM90E32_REGISTER_IRMS) + phase,
+                                   power ? 0xFFFF : 2);
+      access.delegate.set_register((power ? ATM90E32_REGISTER_QMEANLSB : ATM90E32_REGISTER_IRMSLSB) + phase,
+                                   power ? 0xFE00 : 0);
+    }
+    const auto output = capture_calibration_logs([&]() { access.settle_calibration(); });
+    EXPECT_NE(output.find(power ? "Power Offset Calibration" : "Offset Calibration"), std::string::npos);
+    EXPECT_EQ(static_cast<int16_t>(access.read16(first_offset)), power ? -1024 : -2048);
+    EXPECT_EQ(static_cast<int16_t>(access.read16(second_offset)), power ? 512 : -1024);
+  }
+}
+
+TEST_P(ATM90E32OffsetPersistence, CorruptCalibrationSampleRollsBackWithoutSaving) {
+  const auto &kind = GetParam();
+  Access access;
+  auto &preference = access.make_preference(kind);
+  save_values(preference, kind, SavedValue::SAVED_VALUE_OLD);
+  access.restore(kind);
+  access.component.set_enable_offset_calibration(true);
+  access.run_offsets(kind);
+  access.delegate.corrupt_read(kind.offset_type == OffsetCalibrationType::OFFSET_CALIBRATION_TYPE_POWER
+                                   ? ATM90E32_REGISTER_PMEANLSB
+                                   : ATM90E32_REGISTER_URMSLSB);
+
+  access.settle_calibration();
+
+  expect_values(preference, kind, SavedValue::SAVED_VALUE_OLD);
+  access.expect_previous_runtime_values(kind, true);
+}
+
+TEST_P(ATM90E32OffsetPersistence, BlocksMeasurementsAndActionsUntilCompensatedSamplesAreReady) {
+  const auto &kind = GetParam();
+  Access access;
+  auto &component = access.component;
+  for (const auto &table : CALIBRATIONS) {
+    save_values(access.make_preference(table), table, SavedValue::SAVED_VALUE_OLD);
+    access.restore(table);
+  }
+  component.set_enable_offset_calibration(true);
+  component.set_enable_gain_calibration(true);
+  sensor::Sensor voltage;
+  component.set_voltage_sensor(0, &voltage);
+  voltage.publish_state(42.0f);
+  access.delegate.set_register(ATM90E32_REGISTER_METEREN, 1);
+  access.delegate.set_register(ATM90E32_REGISTER_URMS, 400);
+  access.run_offsets(kind);
+
+  component.run_gain_calibrations();
+  component.run_offset_calibrations();
+  component.run_power_offset_calibrations();
+  for (const auto &table : CALIBRATIONS) {
+    (component.*table.clear)();
+    expect_values(access.preference(table), table, SavedValue::SAVED_VALUE_OLD);
+  }
+  access.expect_previous_runtime_values(Access::GAIN, true);
+  component.update();
+  component.loop();
+  EXPECT_FLOAT_EQ(voltage.get_state(), 42.0f);
+
+  const auto sample_output = capture_calibration_logs([&]() { access.advance_calibration(); });
+  EXPECT_EQ(sample_output.find("completed and verified"), std::string::npos);
+  component.update();
+  component.loop();
+  EXPECT_FLOAT_EQ(voltage.get_state(), 42.0f);
+
+  const auto completion_output = capture_calibration_logs([&]() { access.settle_calibration(); });
+  EXPECT_NE(completion_output.find("completed and verified"), std::string::npos);
+  access.delegate.set_register(ATM90E32_REGISTER_URMS, 100);
+  component.update();
+  component.loop();
+  EXPECT_FLOAT_EQ(voltage.get_state(), 1.0f);
+}
+
+TEST_P(ATM90E32OffsetPersistence, FailedZeroingRestoresPreviousCalibration) {
+  const auto &kind = GetParam();
+  Access access;
+  auto &preference = access.make_preference(kind);
+  save_values(preference, kind, SavedValue::SAVED_VALUE_OLD);
+  access.restore(kind);
+  access.component.set_enable_offset_calibration(true);
+  access.delegate.drop_next_calibration_write();
+
+  access.run_offsets(kind);
+  access.settle_calibration();
+
+  expect_values(preference, kind, SavedValue::SAVED_VALUE_OLD);
+  access.expect_previous_runtime_values(kind, true);
+  EXPECT_TRUE(access.component.*kind.restored);
+}
+
+TEST_P(ATM90E32OffsetPersistence, DefersOffsetWritesUntilSensorCallbacksReturn) {
+  const auto &kind = GetParam();
+  for (const bool raw_callback : {false, true}) {
+    Access access;
+    auto &component = access.component;
+    save_values(access.make_preference(kind), kind, SavedValue::SAVED_VALUE_OLD);
+    access.restore(kind);
+    component.set_enable_offset_calibration(true);
+    sensor::Sensor first, later;
+    component.set_voltage_sensor(0, &first);
+    component.set_voltage_sensor(1, &later);
+    const uint16_t offset_register = kind.offset_type == OffsetCalibrationType::OFFSET_CALIBRATION_TYPE_POWER
+                                         ? component.power_offset_registers[0]
+                                         : component.voltage_offset_registers[0];
+    const auto start = [&](float) {
+      if (kind.offset_type == OffsetCalibrationType::OFFSET_CALIBRATION_TYPE_POWER)
+        component.run_power_offset_calibrations();
+      else
+        component.run_offset_calibrations();
+    };
+    if (raw_callback)
+      first.add_on_raw_state_callback(start);
+    else
+      first.add_on_state_callback(start);
+    later.add_on_state_callback([&](float) { EXPECT_EQ(access.read16(offset_register), 11); });
+    access.delegate.set_register(ATM90E32_REGISTER_METEREN, 1);
+    access.delegate.set_register(ATM90E32_REGISTER_URMS + 1, 12000);
+    component.update();
+    component.loop();
+    EXPECT_FLOAT_EQ(later.get_state(), 120.0f);
+    EXPECT_EQ(access.read16(offset_register), 11);
+    App.scheduler.call(millis());
+    EXPECT_EQ(access.read16(offset_register), 0);
+    access.settle_calibration();
+  }
+}
+
+TEST_P(ATM90E32OffsetPersistence, SuppressesRestoreTablesWhileRecalibrationIsPending) {
+  const auto &kind = GetParam();
+  for (const bool mismatch : {false, true}) {
+    Access access;
+    auto &component = access.component;
+    component.set_enable_offset_calibration(true);
+    save_values(access.make_preference(kind), kind, SavedValue::SAVED_VALUE_OLD);
+    access.restore(kind);
+    (component.*kind.mismatches)[0] = mismatch;
+    access.run_offsets(kind);
+    for (unsigned step = 0; step < 2; ++step) {
+      const auto dump = capture_calibration_logs([&]() { component.dump_config(); });
+      EXPECT_EQ(dump.find("restore verified"), std::string::npos);
+      EXPECT_EQ(dump.find("from memory"), std::string::npos);
+      EXPECT_EQ(dump.find("using flash values"), std::string::npos);
+      access.advance_calibration();
+    }
+    access.settle_calibration();
+    const auto dump = capture_calibration_logs([&]() { component.dump_config(); });
+    EXPECT_NE(dump.find("restore verified"), std::string::npos);
+  }
+}
+
+TEST(ATM90E32CalibrationActions, ReportsWhyEachActionIsRejected) {
+  for (const bool failed : {false, true}) {
+    Access access;
+    auto &component = access.component;
+    if (failed) {
+      component.mark_failed();
+    } else {
+      access.make_preference(Access::OFFSET);
+      component.set_enable_offset_calibration(true);
+      access.run_offsets(Access::OFFSET);
+    }
+    for (const auto action :
+         {&ATM90E32Component::run_gain_calibrations, &ATM90E32Component::run_offset_calibrations,
+          &ATM90E32Component::run_power_offset_calibrations, &ATM90E32Component::clear_gain_calibrations,
+          &ATM90E32Component::clear_offset_calibrations, &ATM90E32Component::clear_power_offset_calibrations}) {
+      const auto output = capture_calibration_logs([&]() { (component.*action)(); });
+      EXPECT_NE(output.find(failed ? "Component failed" : "Calibration in progress"), std::string::npos);
+    }
+  }
+}
+
 TEST_P(ATM90E32CalibrationPersistence, RestoreVerifiesStoredValuesAndConfigFallback) {
   const auto &kind = GetParam();
   for (const bool stored : {false, true}) {
@@ -524,6 +1062,14 @@ TEST_P(ATM90E32CalibrationPersistence, RestoreVerifiesStoredValuesAndConfigFallb
         const bool restored = stored && !corrupt && !drop;
         EXPECT_EQ(component.*kind.has_stored, stored);
         EXPECT_EQ(component.*kind.restored, restored);
+        if (!kind.gain) {
+          component.set_enable_offset_calibration(true);
+          const auto dump = capture_calibration_logs([&]() { component.dump_config(); });
+          const char *marker = kind.offset_type == OffsetCalibrationType::OFFSET_CALIBRATION_TYPE_POWER
+                                   ? "Power offset calibration restore verified."
+                                   : "Offset calibration restore verified.";
+          EXPECT_EQ(dump.find(marker) != std::string::npos, restored);
+        }
         expect_values(preference, kind, stored ? SavedValue::SAVED_VALUE_OLD : SavedValue::SAVED_VALUE_ZERO);
         if (!restored)
           access.expect_previous_runtime_values(kind);
@@ -534,6 +1080,36 @@ TEST_P(ATM90E32CalibrationPersistence, RestoreVerifiesStoredValuesAndConfigFallb
         }
       }
     }
+  }
+}
+
+TEST_P(ATM90E32OffsetPersistence, ReconnectReportsVerifiedRestoreWithAndWithoutConfigMismatch) {
+  const auto &kind = GetParam();
+  const bool power = kind.offset_type == OffsetCalibrationType::OFFSET_CALIBRATION_TYPE_POWER;
+  const char *marker = power ? "Power offset calibration restore verified." : "Offset calibration restore verified.";
+  for (const bool mismatch : {false, true}) {
+    Access access;
+    auto &component = access.component;
+    component.set_enable_offset_calibration(true);
+    if (mismatch) {
+      if (power)
+        component.set_active_power_offset(0, 999);
+      else
+        component.set_voltage_offset(0, 999);
+    }
+    save_values(access.make_preference(kind), kind, SavedValue::SAVED_VALUE_OLD);
+    access.restore(kind);
+    ASSERT_TRUE(component.*kind.restored);
+    EXPECT_EQ((component.*kind.mismatches)[0], mismatch);
+    for (unsigned reconnect = 0; reconnect < 2; ++reconnect) {
+      const auto output = capture_calibration_logs([&]() { component.dump_config(); });
+      const auto position = output.find(marker);
+      ASSERT_NE(position, std::string::npos);
+      EXPECT_EQ(output.find(marker, position + 1), std::string::npos);
+    }
+    component.set_enable_offset_calibration(false);
+    const auto disabled = capture_calibration_logs([&]() { component.dump_config(); });
+    EXPECT_EQ(disabled.find(marker), std::string::npos);
   }
 }
 
@@ -619,9 +1195,10 @@ static void check_clear_retry(const CalibrationTraits &kind, bool other_restored
   const auto first_output = capture_calibration_logs([&]() { (component.*kind.clear)(); });
 
   EXPECT_TRUE(component.*kind.has_stored);
-  EXPECT_FALSE(component.*kind.restored);
+  EXPECT_TRUE(component.*kind.restored);
   EXPECT_EQ(component.*kind.other_restored, other_restored);
-  access.expect_mismatches_cleared(kind);
+  EXPECT_TRUE((component.*kind.mismatches)[1]);
+  expect_values(preference, kind, SavedValue::SAVED_VALUE_OLD);
   EXPECT_NE(first_output.find("Failed to clear"), std::string::npos);
   EXPECT_EQ(first_output.find("Offsets cleared."), std::string::npos);
   EXPECT_EQ(first_output.find("Power offsets cleared."), std::string::npos);
