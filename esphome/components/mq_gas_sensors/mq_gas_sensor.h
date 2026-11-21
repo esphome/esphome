@@ -223,9 +223,13 @@ class MQGasSensor final : public sensor::Sensor, public PollingComponent {
   mqmath::TcCorrectionCoefficients tc_{};
 
   /// Last state of the linked correction sources, used to detect a source that
-  /// has stopped updating while `has_state()` stays true.
+  /// has stopped updating while `has_state()` stays true. The observed gap is the
+  /// longest interval between two publications, so a slow source is not treated as
+  /// stale between its own updates.
   uint32_t temperature_last_ms_{0};
   uint32_t humidity_last_ms_{0};
+  uint32_t temperature_gap_ms_{0};
+  uint32_t humidity_gap_ms_{0};
   uint32_t sample_interval_{20};
   uint32_t warmup_time_{0};
   uint32_t calibration_delay_{0};

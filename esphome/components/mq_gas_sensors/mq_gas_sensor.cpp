@@ -161,7 +161,10 @@ void MQGasSensor::setup() {
   const uint32_t now = App.get_loop_component_start_time();
   if (this->temperature_source_ != nullptr) {
     this->temperature_source_->add_on_raw_state_callback([this](float value) {
-      this->temperature_last_ms_ = App.get_loop_component_start_time();
+      const uint32_t now_ms = App.get_loop_component_start_time();
+      if (this->temperature_last_ms_ != 0 && now_ms - this->temperature_last_ms_ > this->temperature_gap_ms_)
+        this->temperature_gap_ms_ = now_ms - this->temperature_last_ms_;
+      this->temperature_last_ms_ = now_ms;
       this->temperature_seen_ = std::isfinite(value);
     });
     if (this->temperature_source_->has_state()) {
@@ -171,7 +174,10 @@ void MQGasSensor::setup() {
   }
   if (this->humidity_source_ != nullptr) {
     this->humidity_source_->add_on_raw_state_callback([this](float value) {
-      this->humidity_last_ms_ = App.get_loop_component_start_time();
+      const uint32_t now_ms = App.get_loop_component_start_time();
+      if (this->humidity_last_ms_ != 0 && now_ms - this->humidity_last_ms_ > this->humidity_gap_ms_)
+        this->humidity_gap_ms_ = now_ms - this->humidity_last_ms_;
+      this->humidity_last_ms_ = now_ms;
       this->humidity_seen_ = std::isfinite(value);
     });
     if (this->humidity_source_->has_state()) {
@@ -275,11 +281,15 @@ float MQGasSensor::compute_correction_() {
   // updating cannot contribute; the last good value must not silently keep the
   // correction alive.
   const uint32_t now = App.get_loop_component_start_time();
-  const uint32_t max_age = std::max(SOURCE_STALE_MS, this->get_update_interval() * 3u);
+  // A source that publishes every few minutes is not stale between its own
+  // updates: the allowed age follows the longest gap it has shown, with the fixed
+  // floor covering the first interval after boot.
+  const uint32_t temperature_age = std::max<uint32_t>(SOURCE_STALE_MS, this->temperature_gap_ms_ * 3u);
+  const uint32_t humidity_age = std::max<uint32_t>(SOURCE_STALE_MS, this->humidity_gap_ms_ * 3u);
   const bool temperature_ok =
-      mqmath::source_is_fresh(this->temperature_seen_, this->temperature_last_ms_, now, max_age) &&
+      mqmath::source_is_fresh(this->temperature_seen_, this->temperature_last_ms_, now, temperature_age) &&
       std::isfinite(this->temperature_source_->state);
-  const bool humidity_ok = mqmath::source_is_fresh(this->humidity_seen_, this->humidity_last_ms_, now, max_age) &&
+  const bool humidity_ok = mqmath::source_is_fresh(this->humidity_seen_, this->humidity_last_ms_, now, humidity_age) &&
                            std::isfinite(this->humidity_source_->state);
   // Keep the seen flag in step with the check: a source that stopped publishing
   // must stay stale even once `millis()` wraps, which would otherwise make its old
