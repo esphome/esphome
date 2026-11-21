@@ -1489,6 +1489,11 @@ CPP_SKIP_RE = (
     + r'|R"(?P<raw_delim>[^(\s]*)\(.*?\)(?P=raw_delim)"|"(?:[^"\\]|\\.)*"|\'(?:[^\'\\\n]|\\.)\''
 )
 LOG_CALL_TOKEN_RE = re.compile(CPP_SKIP_RE + r"|[()\[\]{},]", re.DOTALL)
+# Also template brackets for splitting arguments: clang-format writes a comparison as `a < b`, so a
+# `<` right after a name opens a template argument list, and `>` closes one unless it is `->` or `>=`
+LOG_ARG_TOKEN_RE = re.compile(
+    CPP_SKIP_RE + r"|[()\[\]{},]|(?<=\w)<(?![<=])|(?<!-)>(?!=)", re.DOTALL
+)
 # Call heads are found in the same pass that skips comments and literals, so commented-out code and
 # code examples inside strings are never taken for calls
 LOG_CALL_HEAD_SCAN_RE = re.compile(
@@ -1666,13 +1671,19 @@ def lint_log_no_bare_literal_ternary(
 
 def _log_call_arg(call: str, index: int) -> tuple[int, str] | None:
     """(offset, text as written) of a top level argument of a balanced log call, None if it has fewer."""
-    depth, start, arg = 0, call.index("(") + 1, 0
-    for tok in LOG_CALL_TOKEN_RE.finditer(call, start):
+    depth, templates, start, arg = 0, 0, call.index("(") + 1, 0
+    for tok in LOG_ARG_TOKEN_RE.finditer(call, start):
         t = tok.group(0)
-        if t in "([{":
+        if t == "<":
+            templates += 1
+        elif t == ">":
+            templates = max(templates - 1, 0)
+        elif t in "([{":
             depth += 1
         elif depth > 0 and t in ")]}":
             depth -= 1
+        elif templates > 0 and t == ",":
+            continue
         elif depth == 0 and t in ",)":
             if arg == index:
                 return start, call[start : tok.start()]
