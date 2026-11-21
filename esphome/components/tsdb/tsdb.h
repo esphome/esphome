@@ -3,6 +3,7 @@
 #ifdef USE_ESP_IDF
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
 
 #include "esphome/core/component.h"
@@ -116,6 +117,7 @@ class TsdbComponent : public PollingComponent {
   bool write_record_();
   void publish_errors_();
   void flush_(bool force);
+  void format_path_(char *buffer, size_t size) const;
   void publish_aggregates_();
   void publish_stats_();
   void dump_csv_(uint32_t rows);

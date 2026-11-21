@@ -2,13 +2,13 @@
 
 #ifdef USE_ESP_IDF
 
+#include <algorithm>
 #include <array>
 #include <cinttypes>
 #include <cmath>
 #include <cstddef>
 #include <cstdio>
 #include <ctime>
-#include <string>
 #include <sys/stat.h>
 
 #include "esphome/core/application.h"
@@ -37,6 +37,8 @@ static constexpr size_t CSV_LINE_SIZE = 256;
 // Dump window margin for jitter and single gaps.
 static constexpr uint32_t DUMP_WINDOW_MARGIN = 2;
 static constexpr uint32_t REOPEN_RETRY_MS = 300000;
+// mount_point is at most 32 characters and file at most 64, plus the slash and the terminator.
+static constexpr size_t PATH_BUFFER_SIZE = 128;
 
 // dump_config() names, indexed by the tsdbmath enums (last entry is the fallback).
 PROGMEM_STRING_TABLE(MissingPolicyStrings, "skip", "hold", "sentinel", "unknown");
@@ -107,10 +109,13 @@ void TsdbComponent::add_column(const char *name, double scale, double offset) {
 
 void TsdbComponent::set_column_source(size_t index, sensor::Sensor *source) { this->columns_[index].source = source; }
 
+void TsdbComponent::format_path_(char *buffer, size_t size) const {
+  snprintf(buffer, size, "%s/%s", this->mount_point_.c_str(), this->file_.c_str());
+}
+
 void TsdbComponent::setup() {
   if (this->columns_.empty()) {
-    ESP_LOGE(TAG, "tsdb: no columns configured");
-    this->log_init_failure_();
+    ESP_LOGE(TAG, "no columns configured");
     this->fail_setup_(LOG_STR("no columns configured"));
     return;
   }
@@ -210,8 +215,8 @@ bool TsdbComponent::mount_filesystem_() {
   return true;
 }
 
-static bool database_file_exists(const std::string &path) {
-  FILE *file = fopen(path.c_str(), "rb");
+static bool database_file_exists(const char *path) {
+  FILE *file = fopen(path, "rb");
   if (file == nullptr)
     return false;
   fclose(file);
@@ -219,19 +224,20 @@ static bool database_file_exists(const std::string &path) {
 }
 
 // Deletes the database and its .h0/.h1 header sidecars.
-static void remove_database_files(const std::string &path) {
+static void remove_database_files(const char *path) {
   static const char *const SUFFIXES[] = {"", ".h0", ".h1"};
   for (const char *suffix : SUFFIXES) {
-    const std::string file = path + suffix;
-    if (remove(file.c_str()) != 0) {
-      ESP_LOGW(TAG, "%s: could not be deleted", file.c_str());
+    char file[PATH_BUFFER_SIZE];
+    snprintf(file, sizeof(file), "%s%s", path, suffix);
+    if (remove(file) != 0) {
+      ESP_LOGW(TAG, "%s: could not be deleted", file);
     }
   }
 }
 
 // Stored column count, or 0 when absent/unreadable (never a delete reason).
-static uint32_t read_stored_columns(const std::string &path) {
-  FILE *file = fopen(path.c_str(), "rb");
+static uint32_t read_stored_columns(const char *path) {
+  FILE *file = fopen(path, "rb");
   if (file == nullptr)
     return 0;
   uint8_t header[tsdbmath::HEADER_BYTES] = {};
@@ -242,7 +248,8 @@ static uint32_t read_stored_columns(const std::string &path) {
 
 // One stat() covers both the presence and the size of the database file.
 void TsdbComponent::log_init_failure_() {
-  const std::string path = this->mount_point_ + "/" + this->file_;
+  char path[PATH_BUFFER_SIZE];
+  this->format_path_(path, sizeof(path));
   const esp_partition_t *partition = esp_partition_find_first(
       ESP_PARTITION_TYPE_DATA, static_cast<esp_partition_subtype_t>(LITTLEFS_SUBTYPE), this->partition_label_.c_str());
   if (partition == nullptr) {
@@ -252,8 +259,8 @@ void TsdbComponent::log_init_failure_() {
              static_cast<uint32_t>(partition->address), static_cast<uint32_t>(partition->size));
   }
   struct stat info = {};
-  const bool present = ::stat(path.c_str(), &info) == 0;
-  ESP_LOGE(TAG, "  mount: %s, %s: %s", esp_err_to_name(this->mount_error_), path.c_str(),
+  const bool present = ::stat(path, &info) == 0;
+  ESP_LOGE(TAG, "  mount: %s, %s: %s", esp_err_to_name(this->mount_error_), path,
            present ? LOG_STR_LITERAL("present") : LOG_STR_LITERAL("missing"));
   if (present) {
     ESP_LOGE(TAG, "    %" PRIu32 " bytes", static_cast<uint32_t>(info.st_size));
@@ -287,10 +294,11 @@ bool TsdbComponent::open_database_() {
     ESP_LOGE(TAG, "%s: max_file_size too small for %" PRIu32 " columns", this->file_.c_str(), columns);
     return false;
   }
-  const std::string path = this->mount_point_ + "/" + this->file_;
+  char path[PATH_BUFFER_SIZE];
+  this->format_path_(path, sizeof(path));
 
   tsdb_config_t config = {};
-  config.filepath = path.c_str();
+  config.filepath = path;
   config.num_params = static_cast<uint8_t>(columns);
   config.param_names = names.data();
   config.max_records = max_records;
@@ -322,7 +330,7 @@ bool TsdbComponent::open_database_() {
   }
   if (this->db_ == nullptr) {
     ESP_LOGE(TAG, "%s: esp_tsdb refused to open %s (%" PRIu32 " columns, up to %" PRIu32 " records)",
-             this->file_.c_str(), path.c_str(), columns, max_records);
+             this->file_.c_str(), path, columns, max_records);
     return false;
   }
 
@@ -341,7 +349,7 @@ bool TsdbComponent::open_database_() {
   const uint32_t stride = have_stride ? saved_stride : this->index_stride_;
   const uint64_t bytes = tsdbmath::file_bytes_for(records, columns, stride);
   ESP_LOGI(TAG, "%s: %" PRIu32 " columns, %" PRIu32 " records (up to %" PRIu32 " KB) at %s", this->file_.c_str(),
-           static_cast<uint32_t>(names.size()), records, static_cast<uint32_t>(bytes / 1024), path.c_str());
+           static_cast<uint32_t>(names.size()), records, static_cast<uint32_t>(bytes / 1024), path);
   if (records != max_records) {
     ESP_LOGW(TAG,
              "%s: saved capacity is %" PRIu32 " records, the configured budget asks for %" PRIu32
@@ -358,8 +366,9 @@ bool TsdbComponent::open_database_() {
 }
 
 bool TsdbComponent::read_saved_index_stride_(uint32_t *stride) const {
-  const std::string path = this->mount_point_ + "/" + this->file_;
-  FILE *file = fopen(path.c_str(), "rb");
+  char path[PATH_BUFFER_SIZE];
+  this->format_path_(path, sizeof(path));
+  FILE *file = fopen(path, "rb");
   const int32_t field = static_cast<int32_t>(offsetof(tsdb_header_t, index_stride));
   uint32_t value = 0;
   const bool ok = file != nullptr && fseek(file, field, SEEK_SET) == 0 && fread(&value, sizeof(value), 1, file) == 1;
@@ -654,10 +663,8 @@ bool TsdbComponent::write_record_() {
 // - so data loss or corruption is visible.
 void TsdbComponent::publish_errors_() {
 #ifdef USE_SENSOR
-  if (this->errors_sensor_ == nullptr)
-    return;
-  this->errors_sensor_->publish_state(this->write_errors_ + this->dropped_ + this->saturated_ + this->held_ +
-                                      this->sentinel_);
+  PUBLISH_STATE(this->errors_sensor_,
+                this->write_errors_ + this->dropped_ + this->saturated_ + this->held_ + this->sentinel_);
 #endif
 }
 
@@ -783,10 +790,8 @@ void TsdbComponent::publish_stats_() {
   }
   this->records_ = stats.total_records;
 #ifdef USE_SENSOR
-  if (this->records_sensor_ != nullptr)
-    this->records_sensor_->publish_state(stats.total_records);
-  if (this->evictions_sensor_ != nullptr)
-    this->evictions_sensor_->publish_state(stats.total_evictions);
+  PUBLISH_STATE(this->records_sensor_, stats.total_records);
+  PUBLISH_STATE(this->evictions_sensor_, stats.total_evictions);
 
   // Ages rather than timestamps: a uint32 epoch in a float state loses about
   // two minutes, which is more than a retention window's usable resolution.
@@ -794,10 +799,8 @@ void TsdbComponent::publish_stats_() {
   const bool ages_known = now != 0 && stats.total_records > 0 && tsdbmath::is_valid_timestamp(stats.oldest_timestamp);
   const uint32_t oldest_age = ages_known && now > stats.oldest_timestamp ? now - stats.oldest_timestamp : 0;
   const uint32_t newest_age = ages_known && now > stats.newest_timestamp ? now - stats.newest_timestamp : 0;
-  if (this->oldest_age_sensor_ != nullptr)
-    this->oldest_age_sensor_->publish_state(ages_known ? static_cast<float>(oldest_age) : NAN);
-  if (this->newest_age_sensor_ != nullptr)
-    this->newest_age_sensor_->publish_state(ages_known ? static_cast<float>(newest_age) : NAN);
+  PUBLISH_STATE(this->oldest_age_sensor_, ages_known ? static_cast<float>(oldest_age) : NAN);
+  PUBLISH_STATE(this->newest_age_sensor_, ages_known ? static_cast<float>(newest_age) : NAN);
   this->publish_errors_();
 
   // esp_littlefs_info() walks the filesystem, so it only runs when a sensor needs it.
@@ -805,10 +808,8 @@ void TsdbComponent::publish_stats_() {
   size_t used = 0;
   if ((this->used_sensor_ != nullptr || this->free_sensor_ != nullptr) &&
       esp_littlefs_info(this->partition_label_.c_str(), &total, &used) == ESP_OK) {
-    if (this->used_sensor_ != nullptr)
-      this->used_sensor_->publish_state(static_cast<float>(used));
-    if (this->free_sensor_ != nullptr)
-      this->free_sensor_->publish_state(static_cast<float>(total - used));
+    PUBLISH_STATE(this->used_sensor_, static_cast<float>(used));
+    PUBLISH_STATE(this->free_sensor_, static_cast<float>(total - used));
   }
 #endif
   ESP_LOGD(
@@ -897,9 +898,7 @@ void TsdbComponent::dump_csv_(uint32_t rows) {
 
 void TsdbComponent::publish_log_(const char *message) {
 #ifdef USE_TEXT_SENSOR
-  if (this->log_sensor_ == nullptr)
-    return;
-  this->log_sensor_->publish_state(message);
+  PUBLISH_STATE(this->log_sensor_, message);
 #endif
 }
 

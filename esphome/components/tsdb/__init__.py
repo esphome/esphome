@@ -23,7 +23,6 @@ from esphome.const import (
     CONF_SENSOR,
     CONF_TIME,
     CONF_TIME_ID,
-    CONF_UPDATE_INTERVAL,
     Framework,
 )
 import esphome.final_validate as fv
@@ -222,6 +221,8 @@ COLUMN_SCHEMA = cv.Schema(
 
 CONFIG_SCHEMA = cv.All(
     cv.only_on_esp32,
+    # The engines are ESP-IDF components from the registry and the component is
+    # built and tested with esp-idf only; arduino-esp32 is not exercised.
     cv.only_with_framework(Framework.ESP_IDF),
     cv.Schema(
         {
@@ -250,7 +251,6 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_PAGE_SIZE, default="2KB"): cv.All(
                 _validate_size, cv.Range(min=1024, max=64 * 1024)
             ),
-            cv.Optional(CONF_UPDATE_INTERVAL, default="60s"): cv.update_interval,
             cv.Optional(
                 CONF_SYNC_INTERVAL, default="15min"
             ): cv.positive_time_period_milliseconds,
@@ -272,7 +272,7 @@ CONFIG_SCHEMA = cv.All(
                 cv.Length(min=1, max=TSDB_MAX_BASE_PARAMS),
             ),
         }
-    ),
+    ).extend(cv.polling_component_schema("60s")),
     _validate_config,
 )
 

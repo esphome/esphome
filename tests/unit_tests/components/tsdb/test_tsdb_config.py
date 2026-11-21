@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -243,7 +244,7 @@ def test_idf_manifest_declares_the_engine_versions() -> None:
         assert deps[name]["version"] == version
 
 
-def _with_full_config(full_config: dict, func) -> None:
+def _with_full_config(full_config: dict, func: Callable[[], None]) -> None:
     token = fv.full_config.set(full_config)
     try:
         func()
