@@ -49,6 +49,7 @@ CONF_ANSWER_TIMEOUT = "answer_timeout"
 CONF_CONTROL_METHOD = "control_method"
 CONF_CONTROL_PACKET_SIZE = "control_packet_size"
 CONF_HORIZONTAL_AIRFLOW = "horizontal_airflow"
+CONF_HVAC_ACTION = "hvac_action"
 CONF_ON_ALARM_START = "on_alarm_start"
 CONF_ON_ALARM_END = "on_alarm_end"
 CONF_ON_STATUS_MESSAGE = "on_status_message"
@@ -215,6 +216,7 @@ CONFIG_SCHEMA = cv.All(
                         CONF_STATUS_MESSAGE_HEADER_SIZE,
                         default=PROTOCOL_STATUS_MESSAGE_HEADER_SIZE,
                     ): cv.int_range(min=PROTOCOL_STATUS_MESSAGE_HEADER_SIZE),
+                    cv.Optional(CONF_HVAC_ACTION, default=False): cv.boolean,
                     cv.Optional(
                         CONF_SUPPORTED_PRESETS,
                         default=["BOOST", "SLEEP"],  # No AWAY by default
@@ -366,6 +368,7 @@ async def to_code(config):
 
     cg.add(var.set_send_wifi(config[CONF_WIFI_SIGNAL]))
     cg.add_optional(var.set_control_method, config.get(CONF_CONTROL_METHOD))
+    cg.add_optional(var.set_hvac_action, config.get(CONF_HVAC_ACTION))
     cg.add_optional(var.set_beeper_state, config.get(CONF_BEEPER))
     cg.add_optional(var.set_display_state, config.get(CONF_DISPLAY))
     cg.add_optional(var.set_supported_modes, config.get(CONF_SUPPORTED_MODES))

@@ -12,10 +12,12 @@ TextSensorTypeEnum = HonClimate.enum("SubTextSensorType", True)
 CONF_CLEANING_STATUS = "cleaning_status"
 CONF_PROTOCOL_VERSION = "protocol_version"
 CONF_APPLIANCE_NAME = "appliance_name"
+CONF_ACTIVE_ALARMS_TEXT = "active_alarms_text"
 
 # Additional icons
 ICON_SPRAY_BOTTLE = "mdi:spray-bottle"
 ICON_TEXT_BOX = "mdi:text-box-outline"
+ICON_ALARM = "mdi:alarm-light"
 
 TEXT_SENSOR_TYPES = {
     CONF_CLEANING_STATUS: text_sensor.text_sensor_schema(
@@ -28,6 +30,10 @@ TEXT_SENSOR_TYPES = {
     ),
     CONF_APPLIANCE_NAME: text_sensor.text_sensor_schema(
         icon=ICON_TEXT_BOX,
+        entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+    ),
+    CONF_ACTIVE_ALARMS_TEXT: text_sensor.text_sensor_schema(
+        icon=ICON_ALARM,
         entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
     ),
 }
