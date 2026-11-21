@@ -11,6 +11,10 @@ ESPHOME_LOG_TAG(TAG, "canopen");
 // Only the CAN module and the SDO client, without CO_CANopenInit(): it needs a node id and starts NMT, heartbeat,
 // EMCY and the SDO server. The OD holds only the client's 0x1280.
 void CANopenComponent::setup() {
+  if (this->canbus_->is_failed()) {
+    this->fail_setup_(LOG_STR("CAN bus failed"));
+    return;
+  }
   this->add_sdo_client_od_();
   this->config_.CNT_SDO_CLI = 1;
   this->config_.ENTRY_H1280 = &this->od_entries_[0];

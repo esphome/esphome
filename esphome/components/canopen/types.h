@@ -57,8 +57,8 @@ struct SDOReply {
   }
 };
 
-// Called exactly once per request: from CANopenComponent::loop() / frame processing, or synchronously (REJECTED)
-// before read_sdo() / write_sdo() return false.
+// Called exactly once per request: from CANopenComponent::loop() / frame processing, or with REJECTED, synchronously
+// before read_sdo() / write_sdo() return false (from setup() for requests made before a failed setup).
 using SDOCallback = void (*)(void *context, const SDOReply &reply);
 
 }  // namespace esphome::canopen

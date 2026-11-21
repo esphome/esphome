@@ -20,8 +20,6 @@ static bool send_frame(CO_CANmodule_t *mod, CO_CANtx_t *buf) {
 }
 
 void CANopenComponent::on_frame_(const canbus::CanFrame &frame) {
-  if (this->co_ == nullptr || this->is_failed())
-    return;
   // CANopen (CiA 301) uses classic CAN frames with 11-bit ids
 #ifdef USE_CANBUS_FD
   if (frame.fd)

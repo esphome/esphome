@@ -298,4 +298,22 @@ TEST(CanopenSdoClient, RequestBeforeSetupWaitsForIt) {
   EXPECT_TRUE(replies[0].ok());
 }
 
+// e.g. a CAN controller that didn't initialize: its loop never runs, so requests would only time out
+TEST(CanopenSdoClient, FailedBusFailsTheHub) {
+  FakeCanbus bus;
+  TestHub hub(&bus);
+  std::vector<SDOReply> replies;
+  auto on_reply = [](void *context, const SDOReply &reply) {
+    static_cast<std::vector<SDOReply> *>(context)->push_back(reply);
+  };
+  ASSERT_TRUE(hub.read_sdo<uint8_t>(0x21, 0x1001, 0, on_reply, &replies));
+  bus.mark_failed();
+  hub.setup();
+  EXPECT_TRUE(hub.is_failed());
+  ASSERT_EQ(replies.size(), 1u);  // the request made before setup()
+  EXPECT_EQ(replies[0].result, SDOResult::SDO_RESULT_REJECTED);
+  EXPECT_FALSE(hub.read_sdo<uint8_t>(0x21, 0x1001, 0, on_reply, &replies));
+  EXPECT_TRUE(bus.sent.empty());
+}
+
 }  // namespace esphome::canopen::testing
