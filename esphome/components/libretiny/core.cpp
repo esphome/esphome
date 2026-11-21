@@ -14,10 +14,26 @@ extern "C" Serial_t *serial_handles[SER_PORT_NUM];
 namespace esphome::libretiny {
 
 void ensure_serial_handle(uint8_t port) {
-  if (port >= SER_PORT_NUM || serial_handles[port] != nullptr)
+  if (port >= SER_PORT_NUM)
+    return;
+#ifdef USE_UART_TX_BREAK
+  // serial_deinit() clears the SDK's entry, not the storage: a port that is opened again after a break
+  // gets the storage it had, the one of the SDK's boot handle included.
+  static Serial_t *storage[SER_PORT_NUM];
+  if (serial_handles[port] != nullptr) {
+    storage[port] = serial_handles[port];
+    return;
+  }
+  // serial_init() zeroes and opens it.
+  if (storage[port] == nullptr)
+    storage[port] = new Serial_t();
+  serial_handles[port] = storage[port];
+#else
+  if (serial_handles[port] != nullptr)
     return;
   // serial_init() zeroes and opens it; the port stays open for good.
   serial_handles[port] = new Serial_t();
+#endif
 }
 
 }  // namespace esphome::libretiny

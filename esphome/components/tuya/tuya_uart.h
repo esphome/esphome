@@ -55,6 +55,15 @@ struct TuyaCommand {
   std::vector<uint8_t> payload;
 };
 
+#ifdef USE_TUYA_MCU_WATCHDOG
+namespace testing {
+class TuyaWatchdogTest;
+#ifdef USE_TUYA_MCU_WATCHDOG_RESET
+class TuyaResetTest;
+#endif
+}  // namespace testing
+#endif
+
 /// Tuya MCU controller connected over UART (the standard Tuya serial protocol).
 class TuyaUART final : public Tuya, public uart::UARTDevice {
  public:
@@ -62,6 +71,15 @@ class TuyaUART final : public Tuya, public uart::UARTDevice {
   void loop() override;
   void dump_config() override;
   void set_status_pin(InternalGPIOPin *status_pin) { this->status_pin_ = status_pin; }
+  void set_heartbeat(bool heartbeat) { this->heartbeat_ = heartbeat; }
+  void set_datapoint_ack(bool datapoint_ack) { this->datapoint_ack_ = datapoint_ack; }
+#ifdef USE_TUYA_MCU_WATCHDOG
+  void set_mcu_watchdog(uint8_t missed_heartbeats) { this->watchdog_missed_heartbeats_ = missed_heartbeats; }
+#endif
+#ifdef USE_TUYA_MCU_WATCHDOG_RESET
+  /// Time TX is held low to reset the MCU instead of a reboot.
+  void set_mcu_watchdog_reset(uint32_t reset_time) { this->watchdog_reset_time_ = reset_time; }
+#endif
   TuyaInitState get_init_state();
 #ifdef USE_TIME
   void set_time_id(time::RealTimeClock *time_id) { this->time_id_ = time_id; }
@@ -71,7 +89,7 @@ class TuyaUART final : public Tuya, public uart::UARTDevice {
  protected:
   void dump_mcu_config_();
   void handle_char_(uint8_t c);
-  void handle_datapoints_(const uint8_t *buffer, size_t len);
+  void handle_datapoints_(const uint8_t *buffer, size_t len, bool ack);
   bool validate_message_();
 
   void handle_command_(uint8_t command, uint8_t version, const uint8_t *buffer, size_t len);
@@ -82,10 +100,37 @@ class TuyaUART final : public Tuya, public uart::UARTDevice {
   void send_datapoint_command(uint8_t datapoint_id, TuyaDatapointType datapoint_type, const uint8_t *data,
                               size_t len) override;
   void set_status_pin_();
+  void set_heartbeat_interval_(uint32_t interval);
+  void retry_init_();
+  void log_init_failure_();
+  void start_network_status_();
   void send_wifi_status_();
   uint8_t get_wifi_status_code_();
   uint8_t get_wifi_rssi_();
 
+#ifdef USE_TUYA_MCU_WATCHDOG
+  // clang-tidy compiles the host tests without USE_HOST, so the friend is unconditional
+  friend class testing::TuyaWatchdogTest;
+  void note_missed_heartbeat_();
+  uint8_t watchdog_missed_heartbeats_{0};
+  uint8_t heartbeat_misses_{0};        // unanswered heartbeats, less one per two answered in a row at the first send
+  uint8_t heartbeat_answers_{0};       // heartbeats in a row answered at the first send, 0 or 1
+  bool unarmed_misses_logged_{false};  // count reached before the working mode reply, logged once
+#else
+  bool heartbeat_missed_{false};  // unanswered heartbeat logged, until the next reply
+#endif
+#ifdef USE_TUYA_MCU_WATCHDOG_RESET
+  // clang-tidy compiles the host tests without USE_HOST, so the friend is unconditional
+  friend class testing::TuyaResetTest;
+  void start_tx_break_();
+  void end_tx_break_();
+  uint32_t watchdog_reset_time_{0};  // 0 = reboot
+  uint32_t tx_break_start_{0};
+  uint32_t mcu_resets_{0};
+  bool tx_break_active_{false};
+  bool tx_break_unconfirmed_{false};  // no heartbeat answered in time since the last reset
+  uint8_t tx_break_failures_{0};      // resets in a row that brought no such answer
+#endif
 #ifdef USE_TIME
   void register_local_time_sync_callback_();
   void check_force_time_sync_();
@@ -99,7 +144,9 @@ class TuyaUART final : public Tuya, public uart::UARTDevice {
 #endif
   TuyaInitState init_state_ = TuyaInitState::INIT_HEARTBEAT;
   bool init_failed_{false};
-  int init_retries_{0};
+  bool init_failure_logged_{false};
+  TuyaInitState init_failure_state_{TuyaInitState::INIT_HEARTBEAT};  // step of the last logged failure
+  uint8_t wifi_status_retries_{0};  // heartbeat: false, WiFi status sends without a reply
   uint8_t protocol_version_ = -1;
   InternalGPIOPin *status_pin_{nullptr};
   int status_pin_reported_ = -1;
@@ -112,6 +159,10 @@ class TuyaUART final : public Tuya, public uart::UARTDevice {
   optional<TuyaCommandType> expected_response_{};
   uint8_t wifi_status_ = -1;
   bool product_invalid_{false};
+  bool working_mode_received_{false};
+  bool resent_{false};
+  bool heartbeat_{true};
+  bool datapoint_ack_{false};
 };
 
 }  // namespace esphome::tuya
