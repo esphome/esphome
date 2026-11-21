@@ -3,6 +3,9 @@
 #include "buffer.h"
 #include "camera.h"
 
+#include <cstddef>
+#include <cstdint>
+
 namespace esphome::camera {
 
 /// Result codes from a decoder used to control camera pipeline flow.

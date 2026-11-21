@@ -71,8 +71,12 @@ bool ESP32CameraJPEGDecoder::open_decoder_() {
       config.output_type = JPEG_PIXEL_FORMAT_CbYCrY;
       break;
     default:
-      config.output_type = JPEG_PIXEL_FORMAT_RGB888;
-      break;
+      // Python only accepts the formats above. An unmapped one means the
+      // shared PixelFormat enum grew without the decoder being updated, and
+      // falling back to RGB888 would publish the wrong pixels.
+      ESP_LOGE(TAG, "Cannot decode to %s", camera::to_string(this->output_format_));
+      this->open_failed_ = true;
+      return false;
   }
   config.block_enable = false;
   config.rotate = rotation_to_jpeg(this->rotation_degrees_);

@@ -1,4 +1,2 @@
 camera_decoder:
   id: test_camera_decoder
-  output_type: RGB888
-  rotation: 0
