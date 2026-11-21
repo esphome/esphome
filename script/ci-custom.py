@@ -1500,9 +1500,10 @@ LOG_ARG_TOKEN_RE = re.compile(
 LOG_CALL_HEAD_SCAN_RE = re.compile(
     CPP_SKIP_RE + "|" + LOG_CALL_START_RE.pattern, re.DOTALL
 )
-# A format argument that is a string literal, after any comments; raw and prefixed literals count too
+# A format argument that is a string literal, after any comments or macro line continuations; raw and
+# prefixed literals count too
 LOG_FORMAT_LITERAL_RE = re.compile(
-    r"(?:\s|" + CPP_COMMENT_RE + r')*(?P<fmt>(?:u8|u|U|L)?R?")', re.DOTALL
+    r"(?:\s|\\\n|" + CPP_COMMENT_RE + r')*(?P<fmt>(?:u8|u|U|L)?R?")', re.DOTALL
 )
 # The last alternative matches a ? or : followed (after spaces or comments) by an opening quote,
 # i.e. a string literal used as a ternary branch.

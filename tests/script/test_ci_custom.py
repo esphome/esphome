@@ -445,6 +445,11 @@ def _format_errors(content: str) -> list[tuple[int, int]]:
         ),
         # An unspaced comparison never closes, so the split falls back to plain commas
         ('esp_log_printf_(level, TAG, i<n ? 1 : 2, "x");', [(1, 42)]),
+        # A line continuation inside a multi-line macro before the format
+        (
+            '#define LOG_X(l) esp_log_printf_(l, TAG, __LINE__, \\\n    "x")',
+            [(2, 5)],
+        ),
         # A comment before the format, raw and prefixed literals
         ('esp_log_printf_(level, TAG, __LINE__, /* fmt */ "x");', [(1, 49)]),
         ('esp_log_printf_(level, TAG, __LINE__, R"(x)");', [(1, 39)]),
