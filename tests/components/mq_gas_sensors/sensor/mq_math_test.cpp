@@ -51,6 +51,22 @@ TEST(MqMath, SaturatedSensorReportsTheTopOfTheRange) {
                                         0.0f, H2_MAX_PPM));
 }
 
+TEST(MqMath, ZeroRatioFollowsTheCurveDirection) {
+  // A curve that falls as the ratio falls reaches 0 ppm at a ratio of 0: that is
+  // the bottom of the range, not the saturated top the datasheet curve reports.
+  EXPECT_FLOAT_EQ(0.0f, ppm_from_ratio(10.0f, 2.0f, 0.0f, RegressionMethod::REGRESSION_EXPONENTIAL));
+  EXPECT_FLOAT_EQ(0.0f, ppm_from_ratio(10.0f, 2.0f, 0.0f, RegressionMethod::REGRESSION_INVERSE));
+  // A coefficient pair the curve cannot evaluate stays unknown instead of picking
+  // one end.
+  EXPECT_TRUE(std::isnan(ppm_from_ratio(0.0f, 2.0f, 0.0f, RegressionMethod::REGRESSION_EXPONENTIAL)));
+  EXPECT_TRUE(std::isnan(ppm_from_ratio(10.0f, 0.0f, 0.0f, RegressionMethod::REGRESSION_INVERSE)));
+  // A negative ratio is not a sensor resistance: unknown, never a concentration.
+  EXPECT_TRUE(std::isnan(ppm_from_ratio(10.0f, 2.0f, -0.5f, RegressionMethod::REGRESSION_EXPONENTIAL)));
+  // The MQ-131 ozone curve gives 0.12 ppm in clean air (ratio 15), far below the
+  // 1 ppm top of its 10 - 1000 ppb range.
+  EXPECT_NEAR(0.115f, ppm_from_ratio(0.41195f, -0.4708f, 15.0f, RegressionMethod::REGRESSION_EXPONENTIAL), 0.001f);
+}
+
 TEST(MqMath, UnusableInputReadsUnknown) {
   EXPECT_TRUE(std::isnan(ppm_from_ratio(H2_A, H2_B, NAN, RegressionMethod::REGRESSION_EXPONENTIAL)));
   EXPECT_TRUE(std::isnan(clamp_ppm(NAN, 0.0f, H2_MAX_PPM)));

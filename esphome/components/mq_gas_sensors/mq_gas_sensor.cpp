@@ -129,11 +129,28 @@ void MQGasSensor::update() {
   this->warned_low_voltage_ = false;
   this->warned_high_voltage_ = false;
 
-  // At the supply, RS has collapsed to 0 and the ratio is 0, so the curve reports
-  // the top of its range: a real high concentration must not look like a fault.
+  // At the supply, RS has collapsed to 0. The curve decides what that means: one
+  // that grows as the ratio falls reports its top, a real high concentration that
+  // must not look like a fault; one that falls there has no concentration to
+  // report, and the maximum would contradict the configured curve.
   const float rs = saturated ? 0.0f : this->current_rs_(voltage);
   const float ratio = saturated ? 0.0f : this->current_ratio_(rs);
-  const float ppm = saturated ? this->max_ppm_ : this->read_ppm_(ratio);
+
+  float ppm = this->max_ppm_;
+  if (saturated) {
+    if (!(mqmath::ppm_at_zero(this->a_, this->b_, this->regression_method_) >= this->max_ppm_)) {
+      if (!this->warned_curve_failure_) {
+        this->warned_curve_failure_ = true;
+        ESP_LOGW(TAG, "'%s %s': V=%.4f V is at the supply, but the configured curve does not reach its maximum there",
+                 this->type_.c_str(), this->gas_.c_str(), voltage);
+      }
+      this->status_set_warning(LOG_STR("the input is saturated, but the curve has no top there"));
+      this->publish_state(NAN);
+      return;
+    }
+  } else {
+    ppm = this->read_ppm_(ratio);
+  }
 
   if (!std::isfinite(ppm)) {
     // The wiring reads fine but the curve cannot evaluate the ratio: publishing

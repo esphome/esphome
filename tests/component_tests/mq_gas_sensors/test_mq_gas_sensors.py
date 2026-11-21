@@ -181,3 +181,13 @@ def test_sample_limits_follow_the_main_loop() -> None:
         CONFIG_SCHEMA({**base, "r0": 10.0, "sample_count": 17})
     with pytest.raises(cv.Invalid, match="at least 16ms"):
         CONFIG_SCHEMA({**base, "calibration": {"sample_interval": "10ms"}})
+
+
+def test_mq131_clean_air_is_far_below_the_ceiling() -> None:
+    """The ozone curve reports clean air near its bottom, not at its 1 ppm top."""
+    resolved = resolve_sensor("MQ131", "O3")
+
+    # The datasheet range is 10 - 1000 ppb (0.01 - 1 ppm); the exponential fit gives
+    # 0.12 ppm at the clean-air ratio of 15.
+    assert resolved.method == "exponential"
+    assert resolved.max_ppm == pytest.approx(1.0)

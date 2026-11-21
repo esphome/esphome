@@ -160,10 +160,12 @@ SENSOR_TYPES: dict[str, dict] = {
     },
     "MQ131": {
         "label": "MQ-131",
-        "method": "linear",
+        "method": "exponential",
         "ratio_in_clean_air": 15.0,  # RatioMQ131CleanAir of the reference examples
         "primary_gas": "O3",
-        "max_ppm": 10.0,  # datasheet range is given in ppb (10 - 1000 ppb)
+        # The datasheet range is 10 - 1000 ppb, i.e. 0.01 - 1 ppm. The curve gives
+        # 0.12 ppm at the clean-air ratio of 15, so the top of the range is 1 ppm.
+        "max_ppm": 1.0,
         "gases": {  # ozone
             "O3": (0.41195, -0.4708),
         },
