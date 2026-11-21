@@ -240,6 +240,8 @@ class Canbus : public Component {
 #endif
   }
   virtual CanStatus get_status() { return {}; }
+  /// Whether the last receive pass stopped at max_frames_per_loop, so frames may still wait in the controller
+  bool rx_capped() const { return this->rx_capped_; }
 
   /// The frame is only valid during the call.
   template<typename F> void add_frame_callback(F &&callback) { this->frame_callbacks_.add(std::forward<F>(callback)); }
@@ -276,7 +278,8 @@ class Canbus : public Component {
   bool supports_fd_{false};
 #endif
   uint8_t events_to_log_{0};
-  bool bus_off_{false};
+  bool bus_off_ : 1 {false};  // bit fields: the byte fields above already fill their word
+  bool rx_capped_ : 1 {false};
   CallbackManager<void(const CanFrame &frame)> frame_callbacks_{};
 
   // interval in which to check for new can bus events (bus-off, passive, active)

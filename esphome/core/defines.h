@@ -48,6 +48,11 @@
 #define ESPHOME_LOGGER_BOOT_LOG_LEVEL ESPHOME_LOG_LEVEL_WARN
 #define ESPHOME_LOGGER_BOOT_LOG_MAX_LEVEL ESPHOME_LOG_LEVEL_WARN
 
+// CANopenNode configuration: canopen sets these as build flags, not as USE_* defines
+#define CO_CONFIG_SDO_CLI 0x03
+#define CO_CONFIG_FIFO 0x01
+#define CO_CONFIG_SDO_CLI_BUFFER_SIZE 7
+
 // Feature flags
 #define USE_ALARM_CONTROL_PANEL
 #define USE_AREAS

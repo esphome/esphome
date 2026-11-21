@@ -1,0 +1,52 @@
+canopen:
+  - id: canopen_hub
+    canbus_id: can_bus
+    response_timeout: 200ms
+
+script:
+  - id: canopen_sdo
+    then:
+      - canopen.sdo_write:
+          id: canopen_hub
+          node_id: 0x01
+          index: 0x1017
+          value: 1000
+          size: 2
+          on_success:
+            - logger.log: "heartbeat time set"
+          on_error:
+            - logger.log:
+                format: "sdo_write: %s, abort 0x%08x"
+                args: ["LOG_STR_ARG(esphome::canopen::sdo_result_to_string(result))", "(unsigned) abort_code"]
+      - canopen.sdo_write:
+          id: canopen_hub
+          node_id: !lambda "return 0x02;"
+          index: 0x6040
+          value: !lambda "return 0x0F;"
+      - canopen.sdo_write:
+          node_id: 0x02
+          index: 0x607A
+          value: -1000
+      - canopen.sdo_read:
+          id: canopen_hub
+          node_id: 0x01
+          index: 0x1018
+          subindex: 1
+          size: 4
+          on_value:
+            - logger.log:
+                format: "vendor id 0x%08x"
+                args: ["(unsigned) x"]
+          on_error:
+            - logger.log:
+                format: "sdo_read: %s, abort 0x%08x"
+                args: ["LOG_STR_ARG(esphome::canopen::sdo_result_to_string(result))", "(unsigned) abort_code"]
+      - canopen.sdo_read:
+          id: canopen_hub
+          node_id: !lambda "return 0x02;"
+          index: 0x1000
+      - lambda: |-
+          id(canopen_hub).read_sdo<uint32_t>(0x01, 0x1018, 1, +[](void *, const esphome::canopen::SDOReply &reply) {
+            if (reply.ok())
+              ESP_LOGI("canopen_test", "vendor id 0x%08x", (unsigned) reply.value);
+          }, nullptr);
