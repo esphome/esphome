@@ -18,7 +18,7 @@ from esphome.components.tflite_op_processor import (
     emit_all_ops,
     emit_selective_op_defines,
 )
-from esphome.components.tflite_op_processor.model_reader import estimate_tensor_arena
+from esphome.components.tflite_model_io.model_reader import estimate_tensor_arena
 from esphome.components.tflite_op_processor.op_manifest import (
     extract_model_ops,
     parse_op_table,
