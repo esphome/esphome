@@ -21,13 +21,15 @@ void ZigbeeTime::setup() {
     this->register_zb_time_();
   } else {
     this->parent_->add_on_start_callback([this]() { this->register_zb_time_(); });
-    if (this->parent_->is_started() && !this->registered_) {
+    if (this->parent_->is_started()) {
       this->register_zb_time_();
     }
   }
 }
 
 void ZigbeeTime::register_zb_time_() {
+  if (this->registered_)
+    return;
   ezb_zcl_time_interface_t time_interface = {
       .get_utc_time = esphome::zigbee::ZigbeeTime::get_utc_time,
       .set_utc_time = esphome::zigbee::ZigbeeTime::set_utc_time,
