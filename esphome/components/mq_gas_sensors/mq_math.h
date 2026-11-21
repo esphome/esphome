@@ -10,14 +10,16 @@
 #include <cmath>
 #include <cstdint>
 
-namespace esphome::mq_gas_sensors::mqmath {
+namespace esphome::mq_gas_sensors {
 
 /// Regression model, mirrors MQUnifiedsensor's `_regressionMethod`.
-enum RegressionMethod : uint8_t {
+enum class RegressionMethod : uint8_t {
   REGRESSION_EXPONENTIAL = 1,  ///< _PPM = a * ratio^b
   REGRESSION_LINEAR = 2,       ///< log10(_PPM) = (log10(ratio) - b) / a
   REGRESSION_INVERSE = 3,      ///< _PPM = (ratio / a)^(1 / b)
 };
+
+namespace mqmath {
 
 inline double safe_pow(double base, double exponent) {
   if (exponent == 0.0)
@@ -86,12 +88,12 @@ inline float ppm_from_ratio(float a, float b, float ratio, RegressionMethod meth
     return FLT_MAX;
 
   double log_ppm;
-  if (method == REGRESSION_EXPONENTIAL) {
+  if (method == RegressionMethod::REGRESSION_EXPONENTIAL) {
     log_ppm = std::log10(static_cast<double>(a)) + static_cast<double>(b) * std::log10(static_cast<double>(ratio));
-  } else if (method == REGRESSION_INVERSE) {
+  } else if (method == RegressionMethod::REGRESSION_INVERSE) {
     // PPM = (ratio / a)^(1/b).
     log_ppm = (std::log10(static_cast<double>(ratio)) - std::log10(static_cast<double>(a))) / static_cast<double>(b);
-  } else if (method == REGRESSION_LINEAR) {
+  } else if (method == RegressionMethod::REGRESSION_LINEAR) {
     log_ppm = (std::log10(static_cast<double>(ratio)) - static_cast<double>(b)) / static_cast<double>(a);
   } else {
     // An unknown method has no formula; evaluating it as one of the known ones
@@ -131,4 +133,6 @@ inline float clamp_ppm(float ppm, float min_ppm, float max_ppm) {
   return ppm;
 }
 
-}  // namespace esphome::mq_gas_sensors::mqmath
+}  // namespace mqmath
+
+}  // namespace esphome::mq_gas_sensors

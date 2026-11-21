@@ -19,6 +19,8 @@ MQGasSensor = mq_gas_sensors_ns.class_(
     "MQGasSensor", sensor.Sensor, cg.PollingComponent
 )
 
+RegressionMethod = mq_gas_sensors_ns.enum("RegressionMethod", is_class=True)
+
 CONF_SENSOR_TYPE = "sensor_type"
 CONF_GAS = "gas"
 CONF_VOLTAGE_MULTIPLIER = "voltage_multiplier"
@@ -30,7 +32,7 @@ CONF_SAMPLE_COUNT = "sample_count"
 CONF_SAMPLE_INTERVAL = "sample_interval"
 
 REGRESSION_METHODS = {
-    "exponential": 1,  # _PPM = a * ratio^b
-    "linear": 2,  # log10(_PPM) = (log10(ratio) - b) / a
-    "inverse": 3,  # _PPM = (ratio / a)^(1 / b)
+    "exponential": RegressionMethod.REGRESSION_EXPONENTIAL,
+    "linear": RegressionMethod.REGRESSION_LINEAR,
+    "inverse": RegressionMethod.REGRESSION_INVERSE,
 }

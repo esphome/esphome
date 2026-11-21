@@ -41,10 +41,6 @@ def sensor_types() -> list[str]:
     return list(SENSOR_TYPES)
 
 
-def label_for(type_key: str) -> str:
-    return SENSOR_TYPES[type_key]["label"]
-
-
 # ---------------------------------------------------------------------------
 # type key -> label, method, RS/R0 in clean air, primary gas, max ppm, gases
 # (gas -> (a, b) regression coefficients)
