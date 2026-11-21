@@ -672,6 +672,38 @@ def _check_fixed(
     return _rmt_messages(caplog)
 
 
+@pytest.mark.parametrize(
+    ("variant", "channels", "symbols", "advice"),
+    [
+        # The two RX blocks of the bus leave none for the receiver
+        (
+            VARIANT_ESP32C3,
+            (("RX", 2), ("TX", 1)),
+            48,
+            "Remove some of these components or use a chip with more RMT memory.",
+        ),
+        # The three RX blocks of the bus leave one for the receiver
+        (VARIANT_ESP32S3, (("RX", 3),), 96, "Set 'rmt_symbols: 48' on 'rx'."),
+    ],
+    ids=["nothing_to_reduce", "reduce_the_receiver"],
+)
+def test_suggestion_leaves_out_fixed_channels(
+    caplog: pytest.LogCaptureFixture,
+    variant: str,
+    channels: tuple[tuple[str, int], ...],
+    symbols: int,
+    advice: str,
+) -> None:
+    """A component without rmt_symbols is not told to set it, and keeps its blocks."""
+    messages = _check_fixed(
+        caplog, variant, [(_bus("bus"), channels)], {"RX": [_entry("rx", symbols)]}
+    )
+    assert len(messages) == 1
+    assert "'rx' will not fit" in messages[0]
+    assert advice in messages[0]
+    assert "on 'bus'" not in messages[0]
+
+
 def test_channels_of_one_component_keep_their_order(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
@@ -682,6 +714,7 @@ def test_channels_of_one_component_keep_their_order(
     assert len(messages) == 1
     assert "'bus' will not fit" in messages[0]
     assert "setup_priority" not in messages[0]
+    assert "Remove some of these components" in messages[0]
 
 
 def test_setup_priority_moves_a_whole_component(
