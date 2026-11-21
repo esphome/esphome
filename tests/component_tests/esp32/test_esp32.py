@@ -1331,6 +1331,55 @@ def test_reconcile_mbedtls_psa_user_config_not_applied(
 
 
 @pytest.mark.parametrize(
+    ("wifi_included", "net", "preset", "keeps_sha1"),
+    [
+        pytest.param(False, NetworkSdkconfigData(), {}, False, id="ethernet_only"),
+        pytest.param(True, NetworkSdkconfigData(), {}, True, id="esp_wifi_included"),
+        pytest.param(
+            False,
+            NetworkSdkconfigData(bluetooth=True),
+            {},
+            True,
+            id="bluetooth_links_esp_wifi",
+        ),
+        pytest.param(
+            False,
+            NetworkSdkconfigData(),
+            {"CONFIG_HTTPD_WS_SUPPORT": RawSdkconfigValue("y")},
+            True,
+            id="websocket_server",
+        ),
+        pytest.param(
+            False,
+            NetworkSdkconfigData(),
+            {"CONFIG_LWIP_PPP_SUPPORT": True},
+            True,
+            id="ppp",
+        ),
+    ],
+)
+def test_reconcile_mbedtls_sha1_without_tls(
+    set_core_config: SetCoreConfigCallable,
+    wifi_included: bool,
+    net: NetworkSdkconfigData,
+    preset: dict[str, Any],
+    keeps_sha1: bool,
+) -> None:
+    """Without TLS, SHA-1 stays whenever esp_wifi is linked (re-included by
+    wifi:, espnow, esp32_hosted or an external component, or pulled in by
+    Bluetooth), for a websocket server or for PPP."""
+    set_core_config(PlatformFramework.ESP32_IDF)
+    _seed_mbedtls(idf=_IDF6, preset=preset, net=net)
+    if not wifi_included:
+        CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS].add("esp_wifi")
+
+    asyncio.run(_reconcile_mbedtls_sdkconfig())
+
+    opts = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert opts.get("CONFIG_MBEDTLS_SHA1_C") is (None if keeps_sha1 else False)
+
+
+@pytest.mark.parametrize(
     ("variant", "idf", "preset", "keeps_xts"),
     [
         pytest.param(VARIANT_ESP32, _IDF6, {}, False, id="hardware_aes"),
@@ -2752,6 +2801,30 @@ def test_vasprintf_stub_only_on_rom_vsnprintf_variants(
     assert (CORE.build_flags >= _VASPRINTF_STUB_FLAGS) is expected
     defines = {define.name for define in CORE.defines}
     assert ("USE_ESP32_VASPRINTF_STUB" in defines) is expected
+
+
+_TZSET_STUB_FLAGS = {
+    "-Wl,--wrap=_tzset_unlocked",
+    "-Wl,--undefined=__wrap__tzset_unlocked",
+}
+
+
+@pytest.mark.parametrize(
+    ("config_file", "expected"),
+    [
+        pytest.param("tzset_stub_idf6.yaml", True, id="idf6"),
+        pytest.param("tzset_stub_idf5.yaml", False, id="idf5"),
+    ],
+)
+def test_tzset_stub_only_with_picolibc(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+    config_file: str,
+    expected: bool,
+) -> None:
+    """The _tzset_unlocked wrap is emitted only on ESP-IDF 6, whose picolibc it targets."""
+    generate_main(component_config_path(config_file))
+    assert (CORE.build_flags >= _TZSET_STUB_FLAGS) is expected
 
 
 @pytest.mark.parametrize(
