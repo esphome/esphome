@@ -10,50 +10,38 @@ from esphome.core import CORE, EsphomeError
 from esphome.coroutine import CoroPriority, coroutine_with_priority
 
 
+def network_count_defines() -> list[str]:
+    """Every WIFI_NETWORK_COUNT value the build emitted."""
+    return [str(d.value) for d in CORE.defines if d.name == "WIFI_NETWORK_COUNT"]
+
+
 @pytest.mark.parametrize(
-    ("config_file", "count"),
+    ("config_file", "requests", "count"),
     [
         # set_sta() stores one network at run time even when none is configured
-        ("ap_only.yaml", 1),
-        ("bare.yaml", 1),
-        ("three_networks.yaml", 3),
+        ("ap_only.yaml", [], 1),
+        ("bare.yaml", [], 1),
+        ("three_networks.yaml", [], 3),
+        ("ap_only.yaml", [5], 5),
+        ("three_networks.yaml", [5], 8),
+        ("three_networks.yaml", [2, 4], 9),
+        ("three_networks.yaml", [wifi.MAX_WIFI_NETWORKS - 3], wifi.MAX_WIFI_NETWORKS),
     ],
 )
 def test_network_count_define(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
     config_file: str,
-    count: int,
-) -> None:
-    """The station list holds every configured network and at least one."""
-    generate_main(component_config_path(config_file))
-    defines = {define.name: define.value for define in CORE.defines}
-    assert str(defines["WIFI_NETWORK_COUNT"]) == str(count)
-
-
-@pytest.mark.parametrize(
-    ("config_file", "requests", "count"),
-    [
-        ("ap_only.yaml", [5], 5),
-        ("three_networks.yaml", [5], 8),
-        ("three_networks.yaml", [2, 4], 9),
-    ],
-)
-def test_requested_slots_add_to_network_count(
-    generate_main: Callable[[str | Path], str],
-    component_config_path: Callable[[str], Path],
-    config_file: str,
     requests: list[int],
     count: int,
 ) -> None:
-    """Slots components request add to the configured networks and to each other."""
+    """The list holds the configured networks plus every request, at least one."""
     for request in requests:
         wifi.request_wifi_network_slots(request)
 
     generate_main(component_config_path(config_file))
 
-    defines = {define.name: define.value for define in CORE.defines}
-    assert str(defines["WIFI_NETWORK_COUNT"]) == str(count)
+    assert network_count_defines() == [str(count)]
 
 
 def test_requested_slots_over_the_limit_raise(
@@ -87,16 +75,27 @@ def test_request_from_a_later_job_is_counted(
     CORE.add_job(late_request)
     generate_main(component_config_path("three_networks.yaml"))
 
-    defines = {define.name: define.value for define in CORE.defines}
-    assert str(defines["WIFI_NETWORK_COUNT"]) == "7"
+    assert network_count_defines() == ["7"]
 
 
+@pytest.mark.parametrize("config_file", ["ap_only.yaml", "three_networks.yaml"])
 def test_request_after_the_count_is_emitted_raises(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
+    config_file: str,
 ) -> None:
-    """Once the station list size is in the build, a new request cannot grow it."""
-    generate_main(component_config_path("three_networks.yaml"))
+    """A request from a job that runs after the size is emitted cannot grow it."""
+
+    @coroutine_with_priority(CoroPriority.FINAL)
+    async def final_request() -> None:
+        wifi.request_wifi_network_slots(4)
+
+    # Queued from a LATE job, so it runs after wifi's FINAL jobs
+    @coroutine_with_priority(CoroPriority.LATE)
+    async def schedule() -> None:
+        CORE.add_job(final_request)
+
+    CORE.add_job(schedule)
 
     with pytest.raises(ValueError, match="after the count define was emitted"):
-        wifi.request_wifi_network_slots(1)
+        generate_main(component_config_path(config_file))

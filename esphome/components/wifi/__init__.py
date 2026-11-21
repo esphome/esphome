@@ -855,8 +855,10 @@ async def to_code(config):
         return manual_ip_entries.index(entry)
 
     networks = config.get(CONF_NETWORKS, [])
+    # set_sta() stores one network at run time even when none is configured
+    _request_network_slot(_MINIMUM_KEY)
     for _ in networks:
-        _request_network_slot()
+        _request_network_slot(_NETWORKS_KEY)
     if networks:
         if len(networks) > 1:
             # The ESP32 scan can filter one SSID in the driver; with several the whole list is kept
@@ -1150,9 +1152,12 @@ CONNECT_STATE_LISTENERS_KEY = "wifi_connect_state_listeners"
 POWER_SAVE_LISTENERS_KEY = "wifi_power_save_listeners"
 SCAN_RESULTS_LOCK_KEY = "wifi_scan_results_lock"
 
-# Size of the station list: one slot per YAML network plus the slots
-# components request with request_wifi_network_slots().
+# Size of the station list: one slot per YAML network plus the slots components
+# request with request_wifi_network_slots(), at least one. The counter emits the
+# largest count of any key, so the minimum is its own key.
 NETWORK_COUNT_DEFINE = "WIFI_NETWORK_COUNT"
+_NETWORKS_KEY = "networks"
+_MINIMUM_KEY = "minimum"
 _request_network_slot = cg.slot_counter(NETWORK_COUNT_DEFINE)
 
 
@@ -1262,7 +1267,7 @@ def request_wifi_network_slots(count: int) -> None:
             f"request_wifi_network_slots() needs a count of at least 1, got {count}"
         )
     for _ in range(count):
-        _request_network_slot()
+        _request_network_slot(_NETWORKS_KEY)
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
@@ -1285,9 +1290,6 @@ async def final_step():
             f"wifi networks and requested network slots add up to {network_count}, "
             f"more than the {MAX_WIFI_NETWORKS} allowed"
         )
-    if not network_count:
-        # set_sta() stores one network at run time even when none is configured
-        cg.add_define(NETWORK_COUNT_DEFINE, 1)
 
     # Generate listener defines - each listener type has its own #ifdef
     ip_state_count = CORE.data.get(IP_STATE_LISTENERS_KEY, 0)
