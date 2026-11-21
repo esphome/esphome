@@ -5,9 +5,11 @@
 
 #include "esphome/components/usb_host/usb_host.h"
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 
 #include <atomic>
 #include <cstdint>
+#include <span>
 #include <vector>
 
 namespace esphome::usb_bluetooth {
@@ -22,9 +24,20 @@ class USBBluetooth final : public usb_host::USBClient {
  public:
   using usb_host::USBClient::USBClient;
 
+  /// One Realtek patch: the bytes downloaded into a controller with this lmp_subver and ROM version.
+  struct RealtekImage {
+    const uint8_t *data;
+    size_t length;
+    uint16_t lmp_subver;
+    uint8_t rom_version;
+  };
+
+  void setup() override;
   void loop() override;
   void dump_config() override;
 
+  /// Storage for the Realtek patches, sized by code generation.
+  void set_realtek_firmware_storage(std::span<RealtekImage> storage) { this->realtek_images_.init(storage); }
   /// A Realtek patch for one ROM version of the chip with this lmp_subver, prepared by realtek.py.
   void add_realtek_firmware(uint16_t lmp_subver, uint8_t rom_version, const uint8_t *data, size_t length) {
     this->realtek_images_.push_back({data, length, lmp_subver, rom_version});
@@ -49,13 +62,6 @@ class USBBluetooth final : public usb_host::USBClient {
     PROBE_STEP_FAILED,
   };
 
-  struct RealtekImage {
-    const uint8_t *data;
-    size_t length;
-    uint16_t lmp_subver;
-    uint8_t rom_version;
-  };
-
   // An event is code, parameter length and up to 255 parameter bytes.
   static constexpr size_t EVENT_MAX = 2 + 255;
 
@@ -64,15 +70,21 @@ class USBBluetooth final : public usb_host::USBClient {
   bool reports_connection_itself() const override { return true; }
 
   bool find_interface_();
-  // USB task.
-  void read_event_(uint32_t generation);
+  // Main loop: open the next device that is plugged in and not yet looked at, after one was declined.
+  void try_next_device_();
+  // USB task (main loop for the first read). False when no transfer slot was free.
+  bool read_event_(uint32_t generation);
   // Main loop.
   void send_command_(uint16_t opcode, const uint8_t *params, size_t len);
   void handle_command_complete_(const uint8_t *ret, size_t len);
   void next_fragment_();
   void finish_probe_(bool ok);
 
-  std::vector<RealtekImage> realtek_images_{};
+  StaticFixedVector<RealtekImage> realtek_images_;
+  // The HCI command being sent, reserved in setup() so sending allocates nothing
+  std::vector<uint8_t> command_{};
+  // Device addresses (0..127) declined for having no Bluetooth controller interface
+  uint32_t declined_[4]{};
   const RealtekImage *download_{nullptr};
 
   // Bumped on connect and disconnect, so completions of an earlier device are dropped.

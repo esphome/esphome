@@ -84,12 +84,24 @@ bool USBBluetooth::find_interface_() {
   return true;
 }
 
+void USBBluetooth::setup() {
+  usb_host::USBClient::setup();
+  // The longest command is a Realtek download fragment: opcode, length, index and RTL_FRAGMENT bytes
+  this->command_.reserve(3 + 1 + RTL_FRAGMENT);
+}
+
 void USBBluetooth::on_connected() {
   const uint32_t generation = this->generation_.fetch_add(1, std::memory_order_acq_rel) + 1;
   if (!this->find_interface_()) {
-    // Not a Bluetooth dongle: leave it to the other clients
+    // Not a Bluetooth dongle: leave it to the other clients, and look at the next device. The host
+    // library announces a device once, so one plugged in together with this one (behind a hub) was
+    // not offered to this client while it was busy with this one.
     ESP_LOGD(TAG, "No Bluetooth controller interface, closing");
+    const int addr = this->device_addr_;
+    if (addr >= 0 && addr < 128)
+      this->declined_[addr / 32] |= 1u << (addr % 32);
     this->disconnect();
+    this->try_next_device_();
     return;
   }
   const esp_err_t err = usb_host_interface_claim(this->handle_, this->device_handle_, this->intf_, 0);
@@ -102,7 +114,10 @@ void USBBluetooth::on_connected() {
   ESP_LOGI(TAG, "Bluetooth controller on interface %u", this->intf_);
   this->event_len_ = 0;
   this->complete_ready_.store(false, std::memory_order_release);
-  this->read_event_(generation);
+  if (!this->read_event_(generation)) {
+    this->finish_probe_(false);
+    return;
+  }
   this->step_ = ProbeStep::PROBE_STEP_RESET;
   this->send_command_(OP_RESET, nullptr, 0);
 }
@@ -116,7 +131,17 @@ void USBBluetooth::on_disconnected() {
   this->download_ = nullptr;
   memset(this->address_, 0, sizeof(this->address_));
   if (this->intf_ != 0xFF) {
-    usb_host_interface_release(this->handle_, this->device_handle_, this->intf_);
+    // Stop and cancel the transfers still queued on the interface's endpoints; it cannot be released before
+    for (const uint8_t ep : {this->evt_ep_, this->acl_in_ep_, this->acl_out_ep_}) {
+      if (ep == 0)
+        continue;
+      usb_host_endpoint_halt(this->device_handle_, ep);
+      usb_host_endpoint_flush(this->device_handle_, ep);
+    }
+    const esp_err_t err = usb_host_interface_release(this->handle_, this->device_handle_, this->intf_);
+    if (err != ESP_OK) {
+      ESP_LOGW(TAG, "Releasing interface %u failed: %s", this->intf_, esp_err_to_name(err));
+    }
     this->intf_ = 0xFF;
     ESP_LOGI(TAG, "Bluetooth controller removed");
   }
@@ -125,7 +150,7 @@ void USBBluetooth::on_disconnected() {
 
 // USB task. One read is one wMaxPacketSize packet; events are put back together by their own length
 // field, because an event that is a whole number of packets long ends without a short packet.
-void USBBluetooth::read_event_(uint32_t generation) {
+bool USBBluetooth::read_event_(uint32_t generation) {
   const bool submitted = this->transfer_in(
       this->evt_ep_,
       [this, generation](const usb_host::TransferStatus &status) {
@@ -158,24 +183,48 @@ void USBBluetooth::read_event_(uint32_t generation) {
   if (!submitted) {
     ESP_LOGE(TAG, "Event read not submitted");
   }
+  return submitted;
+}
+
+void USBBluetooth::try_next_device_() {
+  uint8_t addrs[32];
+  int count = 0;
+  if (usb_host_device_addr_list_fill(sizeof(addrs), addrs, &count) != ESP_OK)
+    return;
+  // Addresses are reused: forget declined devices that are gone
+  uint32_t present[4]{};
+  for (int i = 0; i < count; i++) {
+    if (addrs[i] < 128)
+      present[addrs[i] / 32] |= 1u << (addrs[i] % 32);
+  }
+  for (size_t i = 0; i < 4; i++)
+    this->declined_[i] &= present[i];
+  for (int i = 0; i < count; i++) {
+    const uint8_t addr = addrs[i];
+    if (addr < 128 && (this->declined_[addr / 32] & (1u << (addr % 32))) == 0) {
+      this->on_opened(addr);
+      return;
+    }
+  }
 }
 
 void USBBluetooth::send_command_(uint16_t opcode, const uint8_t *params, size_t len) {
-  std::vector<uint8_t> command(3 + len);
-  command[0] = static_cast<uint8_t>(opcode & 0xFF);
-  command[1] = static_cast<uint8_t>(opcode >> 8);
-  command[2] = static_cast<uint8_t>(len);
-  if (len != 0)
-    memcpy(command.data() + 3, params, len);
+  // Reserved in setup(): assign() reuses the buffer
+  this->command_.assign(3, 0);
+  this->command_[0] = static_cast<uint8_t>(opcode & 0xFF);
+  this->command_[1] = static_cast<uint8_t>(opcode >> 8);
+  this->command_[2] = static_cast<uint8_t>(len);
+  this->command_.insert(this->command_.end(), params, params + len);
   this->pending_opcode_.store(opcode, std::memory_order_release);
+  // A device-recipient class request: wIndex is 0 (Bluetooth Core, USB transport)
   const bool sent = this->control_transfer(
-      HCI_COMMAND_REQUEST_TYPE, 0, 0, this->intf_,
+      HCI_COMMAND_REQUEST_TYPE, 0, 0, 0,
       [opcode](const usb_host::TransferStatus &status) {
         if (!status.success) {
           ESP_LOGW(TAG, "HCI command 0x%04X not taken (status %u)", opcode, status.error_code);
         }
       },
-      command);
+      this->command_);
   if (!sent) {
     ESP_LOGE(TAG, "HCI command 0x%04X not submitted", opcode);
     this->finish_probe_(false);
@@ -262,9 +311,9 @@ void USBBluetooth::handle_command_complete_(const uint8_t *ret, size_t len) {
           this->download_ = &image;
       }
       if (this->download_ == nullptr) {
+        // On its ROM the controller does not work on the air
         ESP_LOGE(TAG, "The firmware has no patch for ROM version %u", ret[0]);
-        this->step_ = ProbeStep::PROBE_STEP_READ_ADDRESS;
-        this->send_command_(OP_READ_BD_ADDR, nullptr, 0);
+        this->finish_probe_(false);
         return;
       }
       ESP_LOGD(TAG, "Realtek ROM version %u: downloading %u bytes", ret[0],
@@ -277,6 +326,12 @@ void USBBluetooth::handle_command_complete_(const uint8_t *ret, size_t len) {
     }
 
     case ProbeStep::PROBE_STEP_RTL_DOWNLOAD:
+      // The return parameters carry the index of the fragment taken
+      if (len < 1) {
+        ESP_LOGE(TAG, "Realtek download fragment %u not acknowledged", static_cast<unsigned>(this->fragment_));
+        this->finish_probe_(false);
+        return;
+      }
       if (++this->fragment_ < this->fragment_count_) {
         this->next_fragment_();
         return;
@@ -287,10 +342,12 @@ void USBBluetooth::handle_command_complete_(const uint8_t *ret, size_t len) {
       return;
 
     case ProbeStep::PROBE_STEP_READ_ADDRESS:
-      if (len >= 6) {
-        for (size_t i = 0; i < 6; i++)
-          this->address_[i] = ret[5 - i];
+      if (len < 6) {
+        this->finish_probe_(false);
+        return;
       }
+      for (size_t i = 0; i < 6; i++)
+        this->address_[i] = ret[5 - i];
       this->step_ = ProbeStep::PROBE_STEP_READ_NAME;
       this->send_command_(OP_READ_LOCAL_NAME, nullptr, 0);
       return;

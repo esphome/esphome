@@ -2,7 +2,9 @@ usb_host:
   max_packet_size: 512
 
 usb_bluetooth:
-  - id: usb_bt_any
   - id: usb_bt_tp_link
     vid: 0x2357
     pid: 0x0604
+  - id: usb_bt_realtek
+    vid: 0x0BDA
+    pid: 0x8771

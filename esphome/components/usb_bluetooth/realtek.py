@@ -67,7 +67,7 @@ def _project_id(fw: bytes) -> int:
 
 
 def _subsections(section: bytes) -> list[tuple[int, int, bytes]]:
-    """(eco, prio, data) of one section; btrtl_parse_section() stops at the first that does not fit."""
+    """(eco, prio, data) of one section; a subsection that does not fit makes the file invalid."""
     if len(section) < 4:
         raise NotFirmware("section header runs past the end of the file")
     (count,) = struct.unpack_from("<H", section)
@@ -75,11 +75,11 @@ def _subsections(section: bytes) -> list[tuple[int, int, bytes]]:
     at = 4
     for _ in range(count):
         if len(section) - at < 8:
-            break
+            raise NotFirmware("subsection header runs past the end of its section")
         eco, prio, _cb, length = struct.unpack_from("<BBHI", section, at)
         at += 8
         if len(section) - at < length:
-            break
+            raise NotFirmware("subsection runs past the end of its section")
         out.append((eco, prio, section[at : at + length]))
         at += length
     return out
@@ -93,11 +93,11 @@ def _images_v2(fw: bytes) -> dict[int, bytes]:
     at = EPATCH_V2_HEADER_LEN
     for _ in range(num_sections):
         if end - at < 8:
-            break
+            raise NotFirmware("section header runs past the end of the file")
         opcode, length = struct.unpack_from("<II", fw, at)
         at += 8
         if end - at < length:
-            break
+            raise NotFirmware("section runs past the end of the file")
         section = fw[at : at + length]
         at += length
         if opcode == PATCH_SECURITY_HEADER:
@@ -168,6 +168,12 @@ def images(fw: bytes, config: bytes) -> tuple[dict[int, bytes], int]:
 
     out: dict[int, bytes] = {}
     for chip_id, length, offset in zip(chip_ids, lengths, offsets, strict=True):
+        # The controller reports its ROM version in one byte, and takes the patch with chip id ROM + 1
+        if not 1 <= chip_id <= 256:
+            raise NotFirmware(f"chip id {chip_id} is not 1 to 256")
+        if chip_id - 1 in out:
+            # Like btrtl, the first patch for a chip id is the one used
+            continue
         if length < 4 or offset > len(fw) or length > len(fw) - offset:
             raise NotFirmware(f"patch for chip id {chip_id} does not fit in the file")
         image = bytearray(fw[offset : offset + length])
