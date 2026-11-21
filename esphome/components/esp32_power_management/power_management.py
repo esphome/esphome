@@ -22,10 +22,11 @@ from esphome.components.esp32 import (
 )
 from esphome.components.openthread.const import CONF_POLL_PERIOD
 from esphome.components.psram import DOMAIN as PSRAM_DOMAIN
+from esphome.components.uart import DOMAIN as UART_DOMAIN
 from esphome.components.zigbee import DOMAIN as ZIGBEE_DOMAIN
 from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_OPENTHREAD
+from esphome.const import CONF_ID, CONF_OPENTHREAD, CONF_RX_PIN
 from esphome.core import CORE
 import esphome.final_validate as fv
 from esphome.types import ConfigType
@@ -261,6 +262,20 @@ def _final_validate(config: ConfigType) -> ConfigType:
                 max_mhz,
                 max_mhz,
             )
+    # A UART cannot receive while the chip sleeps: the byte that wakes it is garbled
+    # and the ones after it are lost.
+    if config[CONF_ENABLE_LIGHT_SLEEP] and (
+        receiving := [
+            str(uart[CONF_ID])
+            for uart in full_config.get(UART_DOMAIN, [])
+            if CONF_RX_PIN in uart
+        ]
+    ):
+        raise cv.Invalid(
+            f"{CONF_ENABLE_LIGHT_SLEEP} loses the bytes received by UART "
+            f"{', '.join(receiving)}; turn light sleep off on a device that reads a UART",
+            path=[CONF_ENABLE_LIGHT_SLEEP],
+        )
     if config[CONF_POWER_DOWN_FLASH] and PSRAM_DOMAIN in full_config:
         raise cv.Invalid(
             f"{CONF_POWER_DOWN_FLASH} is not allowed when the device has PSRAM",

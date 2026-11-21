@@ -82,6 +82,7 @@ ISOLATED_SIGNATURE_PREFIX = "isolated_"
 ISOLATED_COMPONENTS = {
     "animation": "Has display lambda in common.yaml that requires existing display platform - breaks when merged without display",
     "cdc_acm_uart": "Depends on tinyusb which conflicts with usb_host",
+    "esp32_power_management": "Tests light sleep, which rejects a UART with an RX pin that merged builds bring in",
     "esphome": "Defines devices/areas in esphome: section that are referenced in other sections - breaks when merged",
     "daikin_madoka": "Needs esp32_ble with io_capability: display_yes_no, which a merged esp32_ble: block overrides",
     "ecocomfort2": "Needs esp32_ble with io_capability: none and sc_bond, which a merged esp32_ble: block overrides",

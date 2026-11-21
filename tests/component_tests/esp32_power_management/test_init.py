@@ -278,6 +278,41 @@ def test_rejects_power_down_flash_with_psram(
         )
 
 
+@pytest.mark.parametrize(
+    ("config", "uart", "expectation"),
+    [
+        pytest.param(
+            LIGHT_SLEEP,
+            {"id": "pms_uart", "rx_pin": {"number": 20}},
+            pytest.raises(
+                cv.Invalid, match="loses the bytes received by UART pms_uart"
+            ),
+            id="light_sleep_rx",
+        ),
+        pytest.param(
+            LIGHT_SLEEP,
+            {"id": "tx_uart", "tx_pin": {"number": 21}},
+            nullcontext(),
+            id="tx_only",
+        ),
+        pytest.param(
+            {},
+            {"id": "pms_uart", "rx_pin": {"number": 20}},
+            nullcontext(),
+            id="no_light_sleep",
+        ),
+    ],
+)
+def test_light_sleep_with_receiving_uart(
+    set_core_config: SetCoreConfigCallable,
+    config: ConfigType,
+    uart: ConfigType,
+    expectation,
+) -> None:
+    with expectation:
+        _final_validate_config(set_core_config, config, {"uart": [uart]})
+
+
 @pytest.fixture
 def sdkconfig_calls() -> dict[str, object]:
     """Run to_code() without codegen and collect the sdkconfig options it sets."""

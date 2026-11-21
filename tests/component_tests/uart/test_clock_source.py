@@ -110,3 +110,47 @@ def test_clock_source_codegen(
         assert "set_clock_source(" not in main_cpp
     else:
         assert f"test_uart->set_clock_source(::UART_SCLK_{source.upper()});" in main_cpp
+
+
+@pytest.mark.parametrize(
+    ("variant", "baud_rate", "source", "power_management", "expected"),
+    [
+        pytest.param("esp32c3", 9600, None, True, "XTAL", id="c3_xtal"),
+        pytest.param("esp32s3", 115200, None, True, "XTAL", id="s3_xtal"),
+        pytest.param("esp32", 9600, None, True, "REF_TICK", id="esp32_ref_tick"),
+        pytest.param("esp32s2", 250000, None, True, "REF_TICK", id="s2_ref_tick"),
+        pytest.param("esp32", 460800, None, True, None, id="esp32_fast_stays_apb"),
+        pytest.param("esp32c6", 9600, None, True, None, id="c6_unchanged"),
+        pytest.param("esp32c3", 9600, None, False, None, id="no_power_management"),
+        pytest.param("esp32c3", 9600, "apb", True, "APB", id="user_choice_wins"),
+        pytest.param("esp32c3", 9600, "default", True, None, id="user_default_wins"),
+    ],
+)
+def test_clock_source_with_power_management(
+    variant: str,
+    baud_rate: int,
+    source: str | None,
+    power_management: bool,
+    expected: str | None,
+    tmp_path: Path,
+    generate_main: Callable[[str | Path], str],
+) -> None:
+    """Power management moves an APB-clocked UART to a clock that keeps its rate."""
+    config = tmp_path / "uart.yaml"
+    config.write_text(
+        "esphome:\n  name: uart-clock-test\n"
+        f"esp32:\n  variant: {variant}\n  framework:\n    type: esp-idf\n"
+        f"uart:\n  id: test_uart\n  rx_pin: GPIO4\n  baud_rate: {baud_rate}\n"
+        + (f"  clock_source: {source}\n" if source else "")
+        + (
+            "power_management:\n  - platform: esp32_power_management\n"
+            if power_management
+            else ""
+        ),
+        encoding="utf-8",
+    )
+    main_cpp = generate_main(config)
+    if expected is None:
+        assert "set_clock_source(" not in main_cpp
+    else:
+        assert f"test_uart->set_clock_source(::UART_SCLK_{expected});" in main_cpp

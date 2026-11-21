@@ -22,8 +22,10 @@ from esphome.components.esp32 import (
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
     VARIANT_ESP32S31,
+    get_esp32_variant,
     variant_filtered_enum,
 )
+from esphome.components.power_management import DOMAIN as POWER_MANAGEMENT_DOMAIN
 from esphome.config_helpers import (
     filter_source_files_from_defines,
     filter_source_files_from_platform,
@@ -237,6 +239,17 @@ UART_CLOCK_SOURCES_BY_VARIANT = {
     VARIANT_ESP32S3: ["DEFAULT", "APB", "XTAL", "RTC"],
     VARIANT_ESP32S31: ["DEFAULT", "XTAL", "RTC"],
 }
+
+# Variants whose default UART clock is APB, which power management slows down with
+# the CPU; the receiver then samples at the wrong rate. The clock each switches to
+# keeps its rate, and REF_TICK (1 MHz) stays accurate up to this baud rate.
+_PM_STABLE_CLOCK_SOURCE = {
+    VARIANT_ESP32: "REF_TICK",
+    VARIANT_ESP32S2: "REF_TICK",
+    VARIANT_ESP32C3: "XTAL",
+    VARIANT_ESP32S3: "XTAL",
+}
+_REF_TICK_MAX_BAUD_RATE = 250000
 
 UARTDirection = uart_ns.enum("UARTDirection")
 UART_DIRECTIONS = UARTDirection.options("RX", "TX", "BOTH", prefix="UART_DIRECTION_")
@@ -453,6 +466,23 @@ async def debug_to_code(config, parent):
     cg.add_define("USE_UART_DEBUGGER")
 
 
+def _power_managed_clock_source(config: ConfigType) -> str:
+    """The clock source a UART without clock_source gets on ESP32."""
+    if POWER_MANAGEMENT_DOMAIN not in CORE.config:
+        return "DEFAULT"
+    stable = _PM_STABLE_CLOCK_SOURCE.get(get_esp32_variant(), "DEFAULT")
+    if stable == "REF_TICK" and config[CONF_BAUD_RATE] > _REF_TICK_MAX_BAUD_RATE:
+        _LOGGER.warning(
+            "UART %s at %d baud stays on the APB clock, which power management "
+            "slows down; received bytes are corrupted unless min_frequency equals "
+            "max_frequency",
+            config[CONF_ID],
+            config[CONF_BAUD_RATE],
+        )
+        return "DEFAULT"
+    return stable
+
+
 async def to_code(config):
     cg.add_global(uart_ns.using)
     var = cg.new_Pvariable(config[CONF_ID])
@@ -483,7 +513,10 @@ async def to_code(config):
         cg.add_optional(var.set_flush_timeout, config.get(CONF_FLUSH_TIMEOUT))
         cg.add_optional(var.set_tx_buffer_size, config.get(CONF_TX_BUFFER_SIZE))
         # The member already defaults to UART_SCLK_DEFAULT, so only emit a real choice
-        if (clock_source := config.get(CONF_CLOCK_SOURCE, "DEFAULT")) != "DEFAULT":
+        clock_source = config.get(CONF_CLOCK_SOURCE) or _power_managed_clock_source(
+            config
+        )
+        if clock_source != "DEFAULT":
             cg.add(var.set_clock_source(UART_CLOCK_SOURCES[clock_source]))
     cg.add(var.set_stop_bits(config[CONF_STOP_BITS]))
     cg.add(var.set_data_bits(config[CONF_DATA_BITS]))
