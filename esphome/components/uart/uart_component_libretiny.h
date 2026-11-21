@@ -31,11 +31,20 @@ class LibreTinyUARTComponent final : public UARTComponent, public Component {
   HardwareSerial *get_hw_serial() { return this->serial_; }
   int8_t get_hw_serial_number() { return this->hardware_idx_; }
 
+#ifdef USE_UART_TX_BREAK
+  bool set_tx_break(bool enable) override;
+#endif
+
  protected:
   void check_logger_conflict() override;
+  /// Opens the hardware port of hardware_idx_, at setup and after a break.
+  void open_hardware_port_();
 
   HardwareSerial *serial_{nullptr};
   int8_t hardware_idx_{-1};
+#ifdef USE_UART_TX_BREAK
+  bool tx_break_{false};
+#endif
 };
 
 }  // namespace esphome::uart

@@ -86,6 +86,10 @@ class IDFUARTComponent final : public UARTComponent, public Component {
    */
   esp_err_t apply_settings_live();
 
+#ifdef USE_UART_TX_BREAK
+  bool set_tx_break(bool enable) override;
+#endif
+
   void on_shutdown() override;
 
  protected:
@@ -118,6 +122,9 @@ class IDFUARTComponent final : public UARTComponent, public Component {
   uint8_t clock_source_{UART_SCLK_DEFAULT};  ///< uart_sclk_t stored in a byte; the IDF values are all small.
   uint32_t flush_timeout_ms_{0};             ///< 0 means wait indefinitely (portMAX_DELAY).
   size_t tx_buffer_size_{0};
+#ifdef USE_UART_TX_BREAK
+  bool tx_break_{false};
+#endif
 
 #ifdef USE_UART_WAKE_LOOP_ON_RX
   // ISR callback for UART RX data notification — wakes the main loop directly.

@@ -130,3 +130,11 @@ binary_sensor:
     id: down
     uart_id: uart_id
     data: [0x1B, 0x5B, 0x42]
+
+# set_tx_break() of the bus is built and called once
+external_components:
+  - source: ../../components/uart/components
+    components: [uart_tx_break_test]
+
+uart_tx_break_test:
+  - uart_id: uart_id
