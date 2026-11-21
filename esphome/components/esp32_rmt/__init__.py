@@ -385,9 +385,13 @@ async def _check_memory() -> None:
         return
     fix = ""
     size = memory.symbols_per_block
-    if not _allocate(memory, sorted(channels, key=lambda c: c.blocks(size))):
-        fix = f", or set '{CONF_SETUP_PRIORITY}' so the smaller ones are set up first"
     components = _by_component(channels)
+    # setup_priority moves a whole component: its setup() creates its channels in order
+    smallest_first = sorted(
+        components.values(), key=lambda own: sum(c.blocks(size) for c in own)
+    )
+    if not _allocate(memory, [channel for own in smallest_first for channel in own]):
+        fix = f", or set '{CONF_SETUP_PRIORITY}' so the smaller ones are set up first"
     # A component with several channels gets the direction of each
     usage = ", ".join(
         f"'{channel.label}' ("
