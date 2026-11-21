@@ -43,6 +43,11 @@ class IDFUARTComponent final : public UARTComponent, public Component {
   void set_tx_buffer_size(size_t tx_buffer_size) { this->tx_buffer_size_ = tx_buffer_size; }
 
   void set_clock_source(uart_sclk_t clock_source) { this->clock_source_ = static_cast<uint8_t>(clock_source); }
+  /// A clock ESPHome picked for power management; a baud rate it cannot make falls back to the default clock.
+  void set_automatic_clock_source(uart_sclk_t clock_source) {
+    this->set_clock_source(clock_source);
+    this->clock_source_automatic_ = true;
+  }
 
   uint8_t get_hw_serial_number() { return this->uart_num_; }
 
@@ -110,13 +115,15 @@ class IDFUARTComponent final : public UARTComponent, public Component {
     return {this->baud_rate_, this->data_bits_, this->stop_bits_, this->parity_, this->rx_full_threshold_};
   }
   void set_framing_(const Framing &framing);
+  uart_sclk_t clock_source_for_baud_rate_() const;
   // Last framing the driver accepted; baud_rate 0 means none yet.
   Framing last_good_framing_{};
 
   bool has_peek_{false};
   uint8_t peek_byte_{0};
   uint8_t clock_source_{UART_SCLK_DEFAULT};  ///< uart_sclk_t stored in a byte; the IDF values are all small.
-  uint32_t flush_timeout_ms_{0};             ///< 0 means wait indefinitely (portMAX_DELAY).
+  bool clock_source_automatic_{false};
+  uint32_t flush_timeout_ms_{0};  ///< 0 means wait indefinitely (portMAX_DELAY).
   size_t tx_buffer_size_{0};
 
 #ifdef USE_UART_WAKE_LOOP_ON_RX

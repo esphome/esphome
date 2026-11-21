@@ -154,7 +154,12 @@ def test_clock_source_with_power_management(
     )
     main_cpp = generate_main(config)
     if expected is None:
-        assert "set_clock_source(" not in main_cpp
+        assert "clock_source(" not in main_cpp
+    elif source is None:
+        assert (
+            f"test_uart->set_automatic_clock_source(::UART_SCLK_{expected});"
+            in main_cpp
+        )
     else:
         assert f"test_uart->set_clock_source(::UART_SCLK_{expected});" in main_cpp
 

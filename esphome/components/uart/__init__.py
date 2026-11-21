@@ -488,9 +488,9 @@ def _warn_power_managed_apb(config: ConfigType) -> None:
     ):
         return
     _LOGGER.warning(
-        "UART %s at %d baud stays on the APB clock, which power management "
-        "slows down; received bytes are corrupted unless min_frequency equals "
-        "max_frequency",
+        "UART %s at %d baud stays on the APB clock, which drops below 80MHz with "
+        "the CPU; received bytes are corrupted unless min_frequency is at least "
+        "80MHz",
         config[CONF_ID],
         config[CONF_BAUD_RATE],
     )
@@ -526,11 +526,11 @@ async def to_code(config):
         cg.add_optional(var.set_flush_timeout, config.get(CONF_FLUSH_TIMEOUT))
         cg.add_optional(var.set_tx_buffer_size, config.get(CONF_TX_BUFFER_SIZE))
         # The member already defaults to UART_SCLK_DEFAULT, so only emit a real choice
-        clock_source = config.get(CONF_CLOCK_SOURCE) or _power_managed_clock_source(
-            config
-        )
-        if clock_source != "DEFAULT":
-            cg.add(var.set_clock_source(UART_CLOCK_SOURCES[clock_source]))
+        if (clock_source := config.get(CONF_CLOCK_SOURCE)) is not None:
+            if clock_source != "DEFAULT":
+                cg.add(var.set_clock_source(UART_CLOCK_SOURCES[clock_source]))
+        elif (clock_source := _power_managed_clock_source(config)) != "DEFAULT":
+            cg.add(var.set_automatic_clock_source(UART_CLOCK_SOURCES[clock_source]))
     cg.add(var.set_stop_bits(config[CONF_STOP_BITS]))
     cg.add(var.set_data_bits(config[CONF_DATA_BITS]))
     # Skip the setter when the config matches the C++ initializer (UART_CONFIG_PARITY_NONE).

@@ -103,16 +103,22 @@ uart_config_t IDFUARTComponent::get_config_() {
   uart_config.parity = parity;
   uart_config.stop_bits = this->stop_bits_ == 1 ? UART_STOP_BITS_1 : UART_STOP_BITS_2;
   uart_config.flow_ctrl = UART_HW_FLOWCTRL_DISABLE;
-  uart_config.source_clk = static_cast<uart_sclk_t>(this->clock_source_);
-#if SOC_UART_SUPPORT_REF_TICK
-  // A rate raised at runtime (serial_proxy) cannot come from REF_TICK, so use the default clock for it.
-  if (uart_config.source_clk == UART_SCLK_REF_TICK && this->baud_rate_ > REF_TICK_MAX_BAUD_RATE) {
-    uart_config.source_clk = UART_SCLK_DEFAULT;
-  }
-#endif
+  uart_config.source_clk = this->clock_source_for_baud_rate_();
   uart_config.rx_flow_ctrl_thresh = 122;
 
   return uart_config;
+}
+
+uart_sclk_t IDFUARTComponent::clock_source_for_baud_rate_() const {
+  const auto clock_source = static_cast<uart_sclk_t>(this->clock_source_);
+#if SOC_UART_SUPPORT_REF_TICK
+  // An automatic REF_TICK cannot make a rate raised at runtime (serial_proxy); use the default clock for it.
+  if (this->clock_source_automatic_ && clock_source == UART_SCLK_REF_TICK &&
+      this->baud_rate_ > REF_TICK_MAX_BAUD_RATE) {
+    return UART_SCLK_DEFAULT;
+  }
+#endif
+  return clock_source;
 }
 
 void IDFUARTComponent::setup() {
@@ -389,7 +395,7 @@ void IDFUARTComponent::dump_config() {
 #endif
                 ,
                 this->baud_rate_, this->data_bits_, LOG_STR_ARG(parity_to_str(this->parity_)), this->stop_bits_,
-                LOG_STR_ARG(clock_source_to_str(static_cast<uart_sclk_t>(this->clock_source_))));
+                LOG_STR_ARG(clock_source_to_str(this->clock_source_for_baud_rate_())));
   this->check_logger_conflict();
 }
 
