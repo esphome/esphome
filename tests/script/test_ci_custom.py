@@ -438,6 +438,11 @@ def _format_errors(content: str) -> list[tuple[int, int]]:
         ('esp_log_printf_(p->level, TAG, x >= 2, "x");', [(1, 40)]),
         # A `>` inside parentheses does not close a template opened outside them
         ('esp_log_printf_(level, TAG, pick<(N > 0), 42>(), "x");', [(1, 50)]),
+        # A templated lambda's parameter list holds commas too
+        (
+            'esp_log_printf_([]<typename A, typename B>(A a) { return a; }(1), TAG, __LINE__, "x");',
+            [(1, 82)],
+        ),
         # An unspaced comparison never closes, so the split falls back to plain commas
         ('esp_log_printf_(level, TAG, i<n ? 1 : 2, "x");', [(1, 42)]),
         # A comment before the format, raw and prefixed literals

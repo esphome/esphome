@@ -1490,10 +1490,10 @@ CPP_SKIP_RE = (
 )
 LOG_CALL_TOKEN_RE = re.compile(CPP_SKIP_RE + r"|[()]", re.DOTALL)
 # Splitting arguments also needs brackets, braces, commas and template brackets: clang-format writes a
-# comparison as `a < b`, so a `<` right after a name opens a template argument list, and `>` closes
-# one unless it is `->` or `>=`
+# comparison as `a < b`, so a `<` right after a name (or after `]`, a templated lambda) opens a
+# template argument list, and `>` closes one unless it is `->` or `>=`
 LOG_ARG_TOKEN_RE = re.compile(
-    CPP_SKIP_RE + r"|[()\[\]{},]|(?<=\w)<(?![<=])|(?<!-)>(?!=)", re.DOTALL
+    CPP_SKIP_RE + r"|[()\[\]{},]|(?<=[\w\]])<(?![<=])|(?<!-)>(?!=)", re.DOTALL
 )
 # Call heads are found in the same pass that skips comments and literals, so commented-out code and
 # code examples inside strings are never taken for calls
