@@ -4,6 +4,8 @@ tflite_output_processor:
 
 tflite_op_processor:
 
+tflite_model_io:
+
 tflite_memory_handler:
 
 tflite_model_loader:
