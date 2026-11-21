@@ -165,19 +165,22 @@ void CurrentBasedCover::direction_idle_(float new_position) {
 
 void CurrentBasedCover::end_reached_(float position, uint32_t measured) {
 #ifdef USE_CURRENT_BASED_COVER_LEARN_DURATIONS
-  uint32_t &duration = position == COVER_OPEN ? this->open_duration_ : this->close_duration_;
+  const bool opened = position == COVER_OPEN;
+  const sensor::Sensor *current_sensor = opened ? this->open_sensor_ : this->close_sensor_;
+  const bool end_confirmed = this->motor_current_seen_ && std::isfinite(current_sensor->get_state());
+  uint32_t &duration = opened ? this->open_duration_ : this->close_duration_;
   const float change = std::fabs(static_cast<float>(measured) - static_cast<float>(duration));
-  if (this->moving_from_end_ && this->motor_current_seen_ && change > duration * MIN_CHANGE_TO_LEARN) {
+  if (this->moving_from_end_ && end_confirmed && change > duration * MIN_CHANGE_TO_LEARN) {
     duration = measured;
     ESP_LOGD(TAG, "'%s' - Learned %s duration: %.1fs", LOG_STR_ARG(this->get_log_name()),
-             position == COVER_OPEN ? LOG_STR_LITERAL("open") : LOG_STR_LITERAL("close"), measured / 1e3f);
+             opened ? LOG_STR_LITERAL("open") : LOG_STR_LITERAL("close"), measured / 1e3f);
     const LearnedDurations learned{this->configured_open_duration_, this->configured_close_duration_,
                                    this->open_duration_, this->close_duration_};
     if (!this->durations_pref_.save(&learned)) {
       ESP_LOGW(TAG, "'%s' - Saving learned durations failed", LOG_STR_ARG(this->get_log_name()));
     }
   }
-  this->stopped_at_end_ = this->learn_durations_;
+  this->stopped_at_end_ = this->learn_durations_ && end_confirmed;
 #endif
   this->direction_idle_(position);
 }

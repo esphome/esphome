@@ -1,3 +1,5 @@
+#ifdef USE_HOST
+
 #include <gtest/gtest.h>
 
 #include "esphome/components/current_based/current_based_cover.h"
@@ -5,6 +7,8 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
+
+#include <cmath>
 
 namespace esphome::current_based::testing {
 
@@ -144,6 +148,38 @@ TEST_F(CurrentBasedCoverTest, DoesNotLearnTravelThatWasReversed) {
   EXPECT_EQ(cover.get_close_duration(), 1000);
 }
 
+TEST_F(CurrentBasedCoverTest, DoesNotLearnFromEndReachedWithoutMotorCurrent) {
+  CurrentBasedCover cover;
+  this->setup_cover_(cover, true);
+
+  cover.make_call().set_command_open().perform();
+  this->stop_drawing_current_(cover, 1000);
+  ASSERT_EQ(cover.position, COVER_OPEN);
+  this->close_(cover, 3000);
+
+  EXPECT_EQ(cover.get_close_duration(), CONFIGURED_DURATION);
+}
+
+TEST_F(CurrentBasedCoverTest, DoesNotLearnFromInvalidCurrentReading) {
+  CurrentBasedCover cover;
+  this->setup_cover_(cover, true);
+  this->close_(cover, 1000);
+
+  cover.make_call().set_command_open().perform();
+  this->draw_current_(cover);
+  this->open_current_.publish_state(NAN);
+  delay(2);
+  {
+    LoopBlockingGuard guard{nullptr, nullptr, millis() + 4000};
+    cover.loop();
+  }
+  ASSERT_EQ(cover.position, COVER_OPEN);
+  this->close_(cover, 3000);
+
+  EXPECT_EQ(cover.get_open_duration(), CONFIGURED_DURATION);
+  EXPECT_EQ(cover.get_close_duration(), CONFIGURED_DURATION);
+}
+
 enum class Interruption : uint8_t { INTERRUPTION_STOP, INTERRUPTION_TOGGLE, INTERRUPTION_MALFUNCTION };
 
 class CurrentBasedCoverInterruptionTest : public CurrentBasedCoverTest,
@@ -209,3 +245,5 @@ TEST_F(CurrentBasedCoverTest, DiscardsLearnedDurationsWhenConfiguredDurationsCha
 }
 
 }  // namespace esphome::current_based::testing
+
+#endif
