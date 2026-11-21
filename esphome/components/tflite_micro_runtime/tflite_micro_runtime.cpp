@@ -144,7 +144,7 @@ void TFLiteMicroHelper::dump_config() {
 void TFLiteMicroHelper::set_tensor_arena_size(size_t size) { this->tensor_arena_size_requested_ = size; }
 
 bool TFLiteMicroHelper::set_model(const uint8_t *model_data, size_t model_size) {
-  if (this->state_.load() != LoadState::UNLOADED) {
+  if (this->state_.load() != LoadState::LOAD_STATE_UNLOADED) {
     // READY: the interpreter still uses the old buffer. LOADING: it is being read now.
     ESP_LOGE(TAG, "set_model() while a model is loaded or loading -- call unload_model() first");
     return false;
@@ -232,7 +232,12 @@ optional<ProcessedOutput> TFLiteMicroHelper::run_inference(const uint8_t *src_da
     ESP_LOGE(TAG, "Model has no output tensor after a successful invocation");
     return nullopt;
   }
-  return this->model_handler_.process_output(output);
+  const ProcessedOutput result = this->model_handler_.process_output(output);
+  if (!result.valid) {
+    // The reason is already logged by the output processor.
+    return nullopt;
+  }
+  return result;
 }
 
 // Image model setters
@@ -274,9 +279,9 @@ bool TFLiteMicroHelper::load_model() {
     ESP_LOGE(TAG, "load_model() cannot load an audio model; its streaming consumer must call load_model_with_arena()");
     return false;
   }
-  LoadState expected = LoadState::UNLOADED;
-  if (!this->state_.compare_exchange_strong(expected, LoadState::LOADING)) {
-    if (expected == LoadState::READY) {
+  LoadState expected = LoadState::LOAD_STATE_UNLOADED;
+  if (!this->state_.compare_exchange_strong(expected, LoadState::LOAD_STATE_LOADING)) {
+    if (expected == LoadState::LOAD_STATE_READY) {
       ESP_LOGE(TAG, "load_model called while a model is loaded -- call unload_model() first");
       return false;
     }
@@ -290,7 +295,7 @@ bool TFLiteMicroHelper::load_model() {
     ESP_LOGE(TAG, "%s", LOG_STR_ARG(reason));
     stats.total_load_time_ms = millis() - stats.load_start_ms;
     this->last_load_stats_ = stats;
-    this->state_.store(LoadState::UNLOADED);
+    this->state_.store(LoadState::LOAD_STATE_UNLOADED);
     return false;
   }
   // Probe the arena size; the result is kept apart from the configured value so a
@@ -318,7 +323,7 @@ bool TFLiteMicroHelper::load_model() {
     stats.arena_alloc_time_ms = millis() - arena_alloc_start;
     stats.total_load_time_ms = millis() - stats.load_start_ms;
     this->last_load_stats_ = stats;
-    this->state_.store(LoadState::UNLOADED);
+    this->state_.store(LoadState::LOAD_STATE_UNLOADED);
     return false;
   }
   stats.arena_alloc_time_ms = millis() - arena_alloc_start;
@@ -328,7 +333,7 @@ bool TFLiteMicroHelper::load_model() {
     this->tensor_arena_allocation_.reset();
     stats.total_load_time_ms = millis() - stats.load_start_ms;
     this->last_load_stats_ = stats;
-    this->state_.store(LoadState::UNLOADED);
+    this->state_.store(LoadState::LOAD_STATE_UNLOADED);
     return false;
   };
   ModelConfig config = this->build_config_();
@@ -375,7 +380,7 @@ bool TFLiteMicroHelper::load_model() {
   stats.success = true;
   stats.total_load_time_ms = millis() - stats.load_start_ms;
   this->last_load_stats_ = stats;
-  this->state_.store(LoadState::READY);
+  this->state_.store(LoadState::LOAD_STATE_READY);
   ESP_LOGI(TAG, "Model loaded successfully");
   if (this->debug_) {
     ESP_LOGI(TAG, "Load stats: parse=%" PRIu32 " ms, arena_alloc=%" PRIu32 " ms, total=%" PRIu32 " ms",
@@ -386,9 +391,9 @@ bool TFLiteMicroHelper::load_model() {
 
 bool TFLiteMicroHelper::unload_model(bool reset_config) {
   // A load in progress owns the buffers, so only a completed load may unload.
-  LoadState state = LoadState::READY;
-  if (!this->state_.compare_exchange_strong(state, LoadState::UNLOADED)) {
-    if (state == LoadState::UNLOADED) {
+  LoadState state = LoadState::LOAD_STATE_READY;
+  if (!this->state_.compare_exchange_strong(state, LoadState::LOAD_STATE_UNLOADED)) {
+    if (state == LoadState::LOAD_STATE_UNLOADED) {
       // Already unloaded: a reload path must not read this as a failure. The reset
       // still runs, because a failed load leaves the fields describing that model.
       ESP_LOGD(TAG, "unload_model() while no model is loaded");

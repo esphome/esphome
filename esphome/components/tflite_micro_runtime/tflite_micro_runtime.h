@@ -124,8 +124,7 @@ class TFLiteMicroHelper final : public Component {
   bool load_model();
   /// Unload the model and free the arena; true when unloaded on return.
   bool unload_model(bool reset_config = false);
-  void reset_config();
-  bool is_model_loaded() const { return this->state_.load() == LoadState::READY; }
+  bool is_model_loaded() const { return this->state_.load() == LoadState::LOAD_STATE_READY; }
 
   /// Run the model on whatever is in input_tensor().
   TfLiteStatus invoke();
@@ -168,6 +167,8 @@ class TFLiteMicroHelper final : public Component {
 #endif
 
  private:
+  /// Clear the model configuration after the arena and interpreter are gone.
+  void reset_config();
   ModelType model_type_{ModelType::MODEL_TYPE_IMAGE};
   InputType input_type_{InputType::INPUT_TYPE_UINT8};
   int input_channels_{3};
@@ -192,8 +193,8 @@ class TFLiteMicroHelper final : public Component {
   LoadStats last_load_stats_{};
 
   // One atomic value, so there is no check-then-act across flags.
-  enum class LoadState : uint8_t { UNLOADED, LOADING, READY };
-  std::atomic<LoadState> state_{LoadState::UNLOADED};
+  enum class LoadState : uint8_t { LOAD_STATE_UNLOADED, LOAD_STATE_LOADING, LOAD_STATE_READY };
+  std::atomic<LoadState> state_{LoadState::LOAD_STATE_UNLOADED};
   uint32_t expected_crc32_{0};  // 0 = skip verification, set from __init__.py
 
   /// Why the model data does not match the configured checksum, or nullptr.

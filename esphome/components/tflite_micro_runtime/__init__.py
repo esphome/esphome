@@ -453,4 +453,7 @@ async def _configure_audio_model(
         cg.add(var.set_sliding_window_size(window))
     if (step := report.get(CONF_FEATURES_STEP_SIZE)) is not None:
         cg.add(var.set_features_step_size(step))
-    cg.add(var.set_feature_count(report.get(CONF_FEATURE_COUNT) or model_features))
+    if (feature_count := report.get(CONF_FEATURE_COUNT)) is not None:
+        cg.add(var.set_feature_count(feature_count))
+    else:
+        cg.add(var.set_feature_count(model_features))
