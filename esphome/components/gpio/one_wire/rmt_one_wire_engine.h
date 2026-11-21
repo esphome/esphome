@@ -45,6 +45,7 @@ class Engine {
   /// On a failed engine, on_done runs before this returns, or when the engine call that runs now returns.
   bool submit(one_wire::Transaction *transaction);
   /// Does nothing while is_busy(): a log handler inside the engine may call back into the bus.
+  /// When the transaction on the bus ends, the same call starts the next one.
   void poll();
   bool is_idle() const { return this->queue_.empty(); }
   /// True while poll() or a blocking method runs, except inside on_done.
