@@ -26,9 +26,19 @@ DEPENDENCIES = ["network", "web_server_base"]
 web_server_ns = cg.esphome_ns.namespace("web_server")
 WebServerOTAComponent = web_server_ns.class_("WebServerOTAComponent", OTAComponent)
 
+_HTTP_SERVER_PROVIDERS = (DOMAIN, "prometheus", "captive_portal")
+_HTTP_SERVER_PROVIDER_MESSAGE = ", ".join(
+    f"'{provider}:'" for provider in _HTTP_SERVER_PROVIDERS
+)
+
+
+def _http_server_available(full_conf: ConfigType) -> bool:
+    """Whether a configured component will start the shared HTTP server."""
+    return any(provider in full_conf for provider in _HTTP_SERVER_PROVIDERS)
+
 
 def _web_server_ota_final_validate(config: ConfigType) -> None:
-    """Merge multiple web_server OTA instances into one.
+    """Require an HTTP server and merge multiple web_server OTA instances into one.
 
     Multiple web_server OTA instances register duplicate HTTP handlers for /update,
     causing undefined behavior. Merge them into a single instance.
@@ -44,6 +54,12 @@ def _web_server_ota_final_validate(config: ConfigType) -> None:
             web_server_ota_configs.append(ota_conf)
         else:
             other_ota_configs.append(ota_conf)
+
+    if not _http_server_available(full_conf):
+        raise cv.Invalid(
+            "The web_server OTA platform requires a component that starts the HTTP "
+            f"server: {_HTTP_SERVER_PROVIDER_MESSAGE}"
+        )
 
     if len(web_server_ota_configs) <= 1:
         return
