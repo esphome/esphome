@@ -6,18 +6,12 @@ namespace esphome::lcd_gpio {
 ESPHOME_LOG_TAG(TAG, "lcd_gpio");
 
 void GPIOLCDDisplay::setup() {
-  this->rs_pin_->setup();  // OUTPUT
-  this->rs_pin_->digital_write(false);
-  if (this->rw_pin_ != nullptr) {
-    this->rw_pin_->setup();  // OUTPUT
-    this->rw_pin_->digital_write(false);
-  }
-  this->enable_pin_->setup();  // OUTPUT
-  this->enable_pin_->digital_write(false);
+  setup_output_pin(this->rs_pin_, false);
+  setup_output_pin(this->rw_pin_, false);
+  setup_output_pin(this->enable_pin_, false);
 
   for (uint8_t i = 0; i < (uint8_t) (this->is_four_bit_mode() ? 4u : 8u); i++) {
-    this->data_pins_[i]->setup();  // OUTPUT
-    this->data_pins_[i]->digital_write(false);
+    setup_output_pin(this->data_pins_[i], false);
   }
   LCDDisplay::setup();
 }

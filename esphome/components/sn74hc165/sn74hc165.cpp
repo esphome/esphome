@@ -7,16 +7,11 @@ ESPHOME_LOG_TAG(TAG, "sn74hc165");
 
 void SN74HC165Component::setup() {
   // initialize pins
-  this->clock_pin_->setup();
+  setup_output_pin(this->clock_pin_, false);
   this->data_pin_->setup();
-  this->load_pin_->setup();
-  this->clock_pin_->digital_write(false);
-  this->load_pin_->digital_write(false);
+  setup_output_pin(this->load_pin_, false);
 
-  if (this->clock_inhibit_pin_ != nullptr) {
-    this->clock_inhibit_pin_->setup();
-    this->clock_inhibit_pin_->digital_write(true);
-  }
+  setup_output_pin(this->clock_inhibit_pin_, true);
 
   // read state from shift register
   this->read_gpio_();
