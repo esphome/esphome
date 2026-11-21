@@ -149,8 +149,12 @@ void RpiDpiRgb::dump_config() {
 
 void RpiDpiRgb::reset_display_() const {
   if (this->reset_pin_ != nullptr) {
-    setup_output_pin(this->reset_pin_, false);
-    setup_output_pin(this->enable_pin_, false);
+    this->reset_pin_->setup();
+    this->reset_pin_->digital_write(false);
+    if (this->enable_pin_ != nullptr) {
+      this->enable_pin_->setup();
+      this->enable_pin_->digital_write(false);
+    }
     delay(1);
     this->reset_pin_->digital_write(true);
     if (this->enable_pin_ != nullptr) {
