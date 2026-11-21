@@ -1,5 +1,7 @@
 // Requests a Copilot code review on a pull request. A failed request only
-// warns: Copilot review is advisory and must never block the PR.
+// warns: Copilot review is advisory and must never block the PR. A token that
+// is rejected or lacks write access fails the run (not a required check) so an
+// org owner sees it and fixes the secret.
 //
 // GitHub answers a request it will not act on (one made by an identity without
 // a Copilot seat, which includes GITHUB_TOKEN and GitHub Apps when the PR
@@ -48,6 +50,16 @@ async function requestCopilotReview({ github, core, owner, repo, prNumber }) {
       reviewers: [COPILOT_REVIEWER],
     });
   } catch (err) {
+    // The token works but lacks Pull requests write on this repo (wrong resource
+    // owner, repo not selected, or org approval pending): fails loudly like a
+    // rejected token. A 403 from a rate limit says something else and only warns.
+    if (err.status === 403 && /not accessible by/i.test(err.message)) {
+      core.setFailed(
+        `COPILOT_REVIEW_TOKEN cannot request reviewers on ${owner}/${repo} (${err.message}); ` +
+          "give esphome-review-bot's token Pull requests write on it."
+      );
+      return;
+    }
     core.warning(`Could not request a Copilot review on #${prNumber}: ${err.message}`);
     return;
   }

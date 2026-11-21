@@ -1,4 +1,5 @@
 #include "mitsubishi_cn105.h"
+#include "esphome/core/progmem.h"
 
 #include <algorithm>
 #include <array>
@@ -531,32 +532,13 @@ void MitsubishiCN105::apply_settings_() {
   this->send_packet_(make_packet(PACKET_TYPE_WRITE_SETTINGS_REQUEST, payload));
 }
 
+// Indexed by State
+PROGMEM_STRING_TABLE(StateStrings, "Not connected", "Connecting", "Connected", "UpdatingStatus", "StatusUpdated",
+                     "DeferredStatusRequest", "ScheduleNextStatusUpdate", "WaitingForScheduledStatusUpdate",
+                     "ApplyingSettings", "SettingsApplied", "ReadTimeout", "Unknown");
+
 const LogString *MitsubishiCN105::state_to_string(State state) {
-  switch (state) {
-    case State::NOT_CONNECTED:
-      return LOG_STR("Not connected");
-    case State::CONNECTING:
-      return LOG_STR("Connecting");
-    case State::CONNECTED:
-      return LOG_STR("Connected");
-    case State::UPDATING_STATUS:
-      return LOG_STR("UpdatingStatus");
-    case State::STATUS_UPDATED:
-      return LOG_STR("StatusUpdated");
-    case State::DEFERRED_STATUS_REQUEST:
-      return LOG_STR("DeferredStatusRequest");
-    case State::SCHEDULE_NEXT_STATUS_UPDATE:
-      return LOG_STR("ScheduleNextStatusUpdate");
-    case State::WAITING_FOR_SCHEDULED_STATUS_UPDATE:
-      return LOG_STR("WaitingForScheduledStatusUpdate");
-    case State::APPLYING_SETTINGS:
-      return LOG_STR("ApplyingSettings");
-    case State::SETTINGS_APPLIED:
-      return LOG_STR("SettingsApplied");
-    case State::READ_TIMEOUT:
-      return LOG_STR("ReadTimeout");
-  }
-  return LOG_STR("Unknown");
+  return StateStrings::get_log_str(static_cast<uint8_t>(state), StateStrings::LAST_INDEX);
 }
 
 template<typename Callback>
