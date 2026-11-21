@@ -22,9 +22,10 @@ namespace esphome::ssocr_reader {
 /// reads the digits.
 class SSOCRReader : public PollingComponent, public esphome::camera::CameraListener {
  public:
-  /// The camera, decoder and frame size never change, so they are constructor parameters.
-  SSOCRReader(esphome::camera::Camera *camera, esphome::camera::Decoder *decoder, int frame_width, int frame_height)
-      : camera_(camera), decoder_(decoder), img_width_(frame_width), img_height_(frame_height) {}
+  /// The camera, decoder, frame size and crop buffer never change, so they are constructor parameters.
+  SSOCRReader(esphome::camera::Camera *camera, esphome::camera::Decoder *decoder, int frame_width, int frame_height,
+              uint8_t *crop)
+      : camera_(camera), decoder_(decoder), img_width_(frame_width), img_height_(frame_height), crop_(crop) {}
 
   void setup() override;
   void update() override;
@@ -32,8 +33,6 @@ class SSOCRReader : public PollingComponent, public esphome::camera::CameraListe
   void on_camera_image(const std::shared_ptr<esphome::camera::CameraImage> &image) override;
   void dump_config() override;
 
-  void set_value_sensor(sensor::Sensor *sensor) { this->value_sensor_ = sensor; }
-  void set_confidence_sensor(sensor::Sensor *sensor) { this->confidence_sensor_ = sensor; }
   void set_threshold_level(uint8_t level) { this->ocr_.set_threshold_level(level); }
   void set_crop(int x, int y, int width, int height) {
     this->crop_x_ = x;
@@ -43,6 +42,9 @@ class SSOCRReader : public PollingComponent, public esphome::camera::CameraListe
   }
   void set_digit_count(uint8_t count) { this->digit_count_ = count; }
   void set_debug(bool debug) { this->debug_ = debug; }
+
+  SUB_SENSOR(value)
+  SUB_SENSOR(confidence)
 
  protected:
   // The camera calls its listeners from the main loop, so a single atomic state machine is enough.
@@ -56,12 +58,10 @@ class SSOCRReader : public PollingComponent, public esphome::camera::CameraListe
 
   esphome::camera::Camera *camera_{nullptr};
   esphome::camera::Decoder *decoder_{nullptr};
-  sensor::Sensor *value_sensor_{nullptr};
-  sensor::Sensor *confidence_sensor_{nullptr};
-  seven_segment_ocr::SevenSegmentOCR ocr_;
-  std::unique_ptr<uint8_t[]> crop_;
   int img_width_{0};
   int img_height_{0};
+  uint8_t *crop_{nullptr};
+  seven_segment_ocr::SevenSegmentOCR ocr_;
   int crop_x_{0};
   int crop_y_{0};
   int crop_w_{0};

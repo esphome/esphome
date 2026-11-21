@@ -12,7 +12,11 @@ ssocr_reader:
   crop_h: 40
   threshold_level: 128
   digit_count: 6
-  value:
-    name: SSOCR Value
-  confidence:
-    name: SSOCR Confidence
+
+sensor:
+  - platform: ssocr_reader
+    ssocr_reader_id: ssocr_reader_1
+    value:
+      name: SSOCR Value
+    confidence:
+      name: SSOCR Confidence

@@ -17,9 +17,11 @@ namespace esphome::ssocr_reader {
 ESPHOME_LOG_TAG(TAG, "ssocr_reader");
 
 void SSOCRReader::setup() {
+  if (this->crop_ == nullptr) {
+    this->mark_failed(LOG_STR("Could not allocate the crop buffer"));
+    return;
+  }
   this->camera_->add_listener(this);
-  const size_t crop_size = static_cast<size_t>(this->crop_w_) * static_cast<size_t>(this->crop_h_);
-  this->crop_ = std::make_unique<uint8_t[]>(crop_size);
   this->ocr_.reserve(this->crop_w_);
 
   // The decoder allocates the decoded frame, which needs PSRAM. Report a missing
@@ -111,9 +113,11 @@ void SSOCRReader::process_frame_(const std::shared_ptr<esphome::camera::CameraIm
     return;
   }
 
+  // Read one digit past the configured count so a crop that contains more digits is rejected
+  // instead of publishing a truncated reading. The engine stops at the count it is given.
   const seven_segment_ocr::OcrResult result =
-      this->ocr_.recognize(this->crop_.get(), this->crop_w_, this->crop_h_, this->digit_count_);
-  if (!result.complete()) {
+      this->ocr_.recognize(this->crop_, this->crop_w_, this->crop_h_, static_cast<uint8_t>(this->digit_count_ + 1));
+  if (result.digits != this->digit_count_ || result.unknown != 0 || result.overflow) {
     ESP_LOGW(TAG, "Could not read %u digits (found %u, unknown %u)", this->digit_count_, result.digits, result.unknown);
     return;
   }
@@ -139,7 +143,7 @@ bool SSOCRReader::crop_frame_(const uint8_t *src, const camera::CameraImageSpec 
       src + static_cast<size_t>(this->crop_y_) * source_stride + static_cast<size_t>(this->crop_x_) * source_bpp;
   for (int y = 0; y < this->crop_h_; y++) {
     const uint8_t *row = source_row + static_cast<size_t>(y) * source_stride;
-    uint8_t *dst = this->crop_.get() + static_cast<size_t>(y) * this->crop_w_;
+    uint8_t *dst = this->crop_ + static_cast<size_t>(y) * this->crop_w_;
     if (source_is_gray) {
       std::memcpy(dst, row, this->crop_w_);
       continue;
