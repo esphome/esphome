@@ -36,14 +36,14 @@ CONFIG_SCHEMA = cv.Schema(
 def _final_validate(config: ConfigType) -> ConfigType:
     """Match every dial entry to its position in the hub's dial list."""
     hub = fv.get_declaring_config(config[CONF_ANALOG_GAUGE_READER_ID])
-    ids = [dial[CONF_ID] for dial in hub[CONF_DIALS]]
+    indices = {dial[CONF_ID]: index for index, dial in enumerate(hub[CONF_DIALS])}
     for entry in config.get(CONF_DIALS, []):
-        if entry[CONF_DIAL] not in ids:
+        if (index := indices.get(entry[CONF_DIAL])) is None:
             raise cv.Invalid(
                 f"analog_gauge_reader has no dial '{entry[CONF_DIAL]}'",
                 path=[CONF_DIALS],
             )
-        entry[_KEY_DIAL_INDEX] = ids.index(entry[CONF_DIAL])
+        entry[_KEY_DIAL_INDEX] = index
     return config
 
 
@@ -52,16 +52,16 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_ANALOG_GAUGE_READER_ID])
-    if CONF_VALUE in config:
-        cg.add(hub.set_value_sensor(await sensor.new_sensor(config[CONF_VALUE])))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_VALUE, hub.set_value_sensor)
     for entry in config.get(CONF_DIALS, []):
         index = entry[_KEY_DIAL_INDEX]
-        if CONF_VALUE in entry:
-            sens = await sensor.new_sensor(entry[CONF_VALUE])
+        if (value := entry.get(CONF_VALUE)) is not None:
+            sens = await sensor.new_sensor(value)
             cg.add(hub.set_dial_value_sensor(index, sens))
-        if CONF_CONFIDENCE in entry:
-            sens = await sensor.new_sensor(entry[CONF_CONFIDENCE])
+        if (confidence := entry.get(CONF_CONFIDENCE)) is not None:
+            sens = await sensor.new_sensor(confidence)
             cg.add(hub.set_dial_confidence_sensor(index, sens))
-        if CONF_ANGLE in entry:
-            sens = await sensor.new_sensor(entry[CONF_ANGLE])
+        if (angle := entry.get(CONF_ANGLE)) is not None:
+            sens = await sensor.new_sensor(angle)
             cg.add(hub.set_dial_angle_sensor(index, sens))

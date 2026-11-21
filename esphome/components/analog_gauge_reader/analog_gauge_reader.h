@@ -33,8 +33,6 @@ enum ProcessChannel : uint8_t {
 struct DialConfig {
   /// Dial name used in logs. Points to a string literal.
   const char *id{""};
-  gauge_needle_detector::NeedleType needle_type{gauge_needle_detector::NEEDLE_TYPE_DARK};
-  gauge_needle_detector::Algorithm algorithm{gauge_needle_detector::ALGORITHM_RADIAL_PROFILE};
   float scale{1.0f};
   int crop_x{0};
   int crop_y{0};
@@ -43,22 +41,24 @@ struct DialConfig {
   float min_angle{0.0f};     // Degrees
   float max_angle{360.0f};   // Degrees
   float angle_offset{0.0f};  // 0 = North, 90 = East
-  bool clockwise{true};      // Needle sweep direction (false = counter-clockwise)
   float min_value{0.0f};
   float max_value{10.0f};
-  bool auto_contrast{true};  // Normalization (Min-Max Stretch)
-  float contrast{1.0f};      // Multiplier (1.0 = original)
-  uint32_t target_color{0};  // RGB hex
-  bool use_color{false};
+  float contrast{1.0f};  // Multiplier (1.0 = original)
   // Colour match tolerance (0 = legacy 0-442 linear map); off-colour pixels become background.
   float color_tolerance{0.0f};
-  ProcessChannel process_channel{PROCESS_CHANNEL_GRAYSCALE};
   float min_scan_radius{0.3f};    // % of radius (0.0-1.0)
   float max_scan_radius{0.9f};    // % of radius (0.0-1.0)
   float deadzone_diameter{0.0f};  // Pixels (center circle ignored by detection)
+  uint32_t target_color{0};       // RGB hex
   sensor::Sensor *value_sensor{nullptr};
   sensor::Sensor *confidence_sensor{nullptr};
   sensor::Sensor *angle_sensor{nullptr};
+  gauge_needle_detector::NeedleType needle_type{gauge_needle_detector::NEEDLE_TYPE_DARK};
+  gauge_needle_detector::Algorithm algorithm{gauge_needle_detector::ALGORITHM_RADIAL_PROFILE};
+  ProcessChannel process_channel{PROCESS_CHANNEL_GRAYSCALE};
+  bool clockwise{true};      // Needle sweep direction (false = counter-clockwise)
+  bool auto_contrast{true};  // Normalization (Min-Max Stretch)
+  bool use_color{false};
   std::vector<std::pair<float, float>> calibration_mapping;
 };
 
@@ -171,7 +171,7 @@ inline float combine_stacked_digits(const DialReading *readings, size_t count, i
 }
 
 /// Reads dials out of esp32_camera frames: one shared decode, then one crop per dial.
-class AnalogGaugeReader : public PollingComponent, public esphome::camera::CameraListener {
+class AnalogGaugeReader final : public PollingComponent, public esphome::camera::CameraListener {
  public:
   /// The camera, decoder and frame size never change, so they are constructor parameters.
   AnalogGaugeReader(esphome::camera::Camera *camera, esphome::camera::Decoder *decoder, int frame_width,

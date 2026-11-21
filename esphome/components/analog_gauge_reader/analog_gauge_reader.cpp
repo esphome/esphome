@@ -52,7 +52,10 @@ void AnalogGaugeReader::setup() {
   }
   if (max_crop_area > 0) {
     this->scratch_buffer_.reserve(max_crop_area);
-    this->detector_.reserve(max_crop_w, max_crop_h);
+    if (!this->detector_.reserve(max_crop_w, max_crop_h)) {
+      this->mark_failed(LOG_STR("Could not allocate the detector buffers"));
+      return;
+    }
     ESP_LOGD(TAG, "Reserved scratch buffers for max area: %d pixels", static_cast<int>(max_crop_area));
   }
 

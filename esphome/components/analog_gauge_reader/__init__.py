@@ -268,11 +268,10 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_stacked_digits(config[CONF_STACKED_DIGITS]))
 
     for dial in config[CONF_DIALS]:
+        target_color = dial.get(CONF_TARGET_COLOR)
         s = cg.StructInitializer(
             analog_gauge_reader_ns.struct("DialConfig"),
             ("id", dial[CONF_ID]),
-            ("needle_type", NEEDLE_TYPES[dial[CONF_NEEDLE_TYPE]]),
-            ("algorithm", ALGORITHMS[dial[CONF_ALGORITHM]]),
             ("scale", dial["scale"]),
             ("crop_x", dial[CONF_CROP_X]),
             ("crop_y", dial[CONF_CROP_Y]),
@@ -281,23 +280,24 @@ async def to_code(config: ConfigType) -> None:
             ("min_angle", dial[CONF_MIN_ANGLE]),
             ("max_angle", dial[CONF_MAX_ANGLE]),
             ("angle_offset", dial[CONF_ANGLE_OFFSET]),
-            ("clockwise", dial[CONF_CLOCKWISE]),
             ("min_value", dial[CONF_MIN_VALUE]),
             ("max_value", dial[CONF_MAX_VALUE]),
-            ("auto_contrast", dial[CONF_AUTO_CONTRAST]),
             ("contrast", dial[CONF_CONTRAST]),
-            ("target_color", dial.get(CONF_TARGET_COLOR, 0)),
-            ("use_color", CONF_TARGET_COLOR in dial),
             ("color_tolerance", dial[CONF_COLOR_TOLERANCE]),
-            ("process_channel", PROCESS_CHANNELS[dial[CONF_PROCESS_CHANNEL]]),
             ("min_scan_radius", dial[CONF_MIN_SCAN_RADIUS]),
             ("max_scan_radius", dial[CONF_MAX_SCAN_RADIUS]),
             ("deadzone_diameter", dial[CONF_DEADZONE_DIAMETER]),
+            ("target_color", target_color if target_color is not None else 0),
+            ("needle_type", NEEDLE_TYPES[dial[CONF_NEEDLE_TYPE]]),
+            ("algorithm", ALGORITHMS[dial[CONF_ALGORITHM]]),
+            ("process_channel", PROCESS_CHANNELS[dial[CONF_PROCESS_CHANNEL]]),
+            ("clockwise", dial[CONF_CLOCKWISE]),
+            ("auto_contrast", dial[CONF_AUTO_CONTRAST]),
+            ("use_color", target_color is not None),
         )
-        if CONF_CALIBRATION in dial:
+        if (calibration := dial.get(CONF_CALIBRATION)) is not None:
             points = ", ".join(
-                f"{{ {item[CONF_RAW]}f, {item[CONF_MAPPED]}f }}"
-                for item in dial[CONF_CALIBRATION]
+                f"{{ {item[CONF_RAW]}f, {item[CONF_MAPPED]}f }}" for item in calibration
             )
             s.args["calibration_mapping"] = cg.RawExpression(f"{{ {points} }}")
         cg.add(var.add_dial(s))
