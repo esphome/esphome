@@ -87,20 +87,8 @@ _SENSOR_FORMATS = {
 # the file replaces the tuning for the whole build.
 _SENSOR_TUNING = {"sc202cs": "sc202cs.json"}
 
-# Also pinned in esphome/idf_component.yml for the clang-tidy builds.
-#
-# ESP-IDF 5.5.6 rewrote the MIPI-CSI driver. The colour the driver is told
-# about is now the one entering the CSI, which is the ISP's output, and an
-# ESP32-P4 below rev v3.0 has no converter in that path. Every published
-# esp_video, 2.5.0 included, still passes the sensor's own format there, so the
-# bridge is asked for a conversion the chip cannot do: esp_cam_new_csi_ctlr
-# reports "failed to configure format conversion" and VIDIOC_STREAMON fails
-# with ESRCH, whatever resolution is asked for. esp_video fixes it in one line
-# by moving the version bound to 5.5.6; the commit is from 2 November and no
-# release carries it yet, 2.5.0 being from September. Replace this with a plain
-# version once one does.
-_ESP_VIDEO_REPO = "https://github.com/espressif/esp-video-components"
-_ESP_VIDEO_REF = "79ae6117e58e0cf831c8e96820af72e877b5fb82"
+# ESP-IDF 5.5.6 CSI fix; keep in sync with esphome/idf_component.yml.
+_ESP_VIDEO_VERSION = "2.6.0"
 
 # The SC2356 module (M5Stack Tab5, reTerminal) is SC202CS silicon behind a
 # different part number, and is driven by the SC202CS driver.
@@ -382,15 +370,9 @@ async def to_code(config):
     cg.add(var.set_jpeg_quality(config[CONF_JPEG_QUALITY]))
     cg.add(var.set_min_frame_interval(int(1000 / config[CONF_MAX_FRAMERATE])))
 
-    add_idf_component(
-        name="espressif/esp_video",
-        repo=_ESP_VIDEO_REPO,
-        ref=_ESP_VIDEO_REF,
-        path="esp_video",
-    )
+    add_idf_component(name="espressif/esp_video", ref=_ESP_VIDEO_VERSION)
     if uvc:
-        # USB-UVC host driver. The pinned esp_video wants the unit-control API
-        # added in 2.6.0, so this has to follow or the solver rejects the pair.
+        # esp_video requires the UVC unit-control API introduced in 2.6.0.
         add_idf_component(name="espressif/usb_host_uvc", ref="2.6.*")
 
     # The ISP pipeline controller runs auto white balance and exposure; without it the image is unprocessed.
