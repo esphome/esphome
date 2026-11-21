@@ -7,13 +7,13 @@ from esphome.const import CONF_ANGLE, CONF_ID, CONF_VALUE
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
-from . import CONF_CONFIDENCE, CONF_DIALS, DOMAIN, AnalogGaugeReader
+from . import CONF_CONFIDENCE, CONF_DIALS, AnalogGaugeReader
 
 DEPENDENCIES = ["analog_gauge_reader"]
 
-CONF_ANALOG_GAUGE_READER_ID = f"{DOMAIN}_id"
+CONF_ANALOG_GAUGE_READER_ID = "analog_gauge_reader_id"
 CONF_DIAL = "dial"
-_KEY_DIAL_INDEX = f"_{DOMAIN}_dial_index"
+_KEY_DIAL_INDEX = "_analog_gauge_reader_dial_index"
 
 DIAL_SCHEMA = cv.Schema(
     {

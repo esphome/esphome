@@ -190,7 +190,7 @@ class AnalogGaugeReader : public PollingComponent, public esphome::camera::Camer
   void set_debug(bool debug) { this->debug_ = debug; }
   // Combine dials as odometer digits with carry correction instead of a weighted sum.
   void set_stacked_digits(bool enabled) { this->stacked_digits_ = enabled; }
-  void add_dial(DialConfig config) { this->dials_.push_back(config); }
+  void add_dial(DialConfig config) { this->dials_.push_back(std::move(config)); }
 
  protected:
   enum class FrameState : uint8_t { IDLE, REQUESTED, AVAILABLE, PROCESSING };
