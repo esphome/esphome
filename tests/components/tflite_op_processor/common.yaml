@@ -1,5 +1,7 @@
 tflite_op_processor:
 
+tflite_model_io:
+
 esphome:
   on_boot:
     - lambda: |-

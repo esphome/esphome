@@ -1,4 +1,6 @@
 tflite_op_processor:
+
+tflite_model_io:
   # Only these kernels are compiled in; every other operator is left out.
   operators:
     - SOFTMAX
