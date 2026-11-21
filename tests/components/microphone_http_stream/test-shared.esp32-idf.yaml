@@ -7,7 +7,6 @@ packages:
   multi_client: !include multi-client.yaml
 
 web_server:
-  port: 80
   allowed_origins:
     - https://example.com
 
