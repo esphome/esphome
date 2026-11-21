@@ -1,0 +1,415 @@
+#include <gtest/gtest.h>
+
+#include <array>
+#include <netinet/in.h>
+#include <span>
+#include <string>
+#include <sys/socket.h>
+#include <unistd.h>
+#include <vector>
+
+#include "esphome/components/api/api_frame_helper_plaintext.h"
+#include "esphome/components/api/api_server.h"
+#include "esphome/components/voice_assistant/voice_assistant.h"
+#include "esphome/core/application.h"
+#include "esphome/core/base_automation.h"
+#include "esphome/core/string_ref.h"
+
+// Only PCM capture is doubled. The complete VA, scheduler, Automation and API connection are production code.
+namespace esphome::microphone {
+void MicrophoneSource::start() {
+  this->enabled_ = true;
+  this->mic_->start();
+}
+void MicrophoneSource::stop() {
+  this->enabled_ = false;
+  this->mic_->stop();
+}
+void MicrophoneSource::process_audio_(std::span<const uint8_t>, const audio::AudioStreamInfo &,
+                                      std::vector<uint8_t> &) {
+  ADD_FAILURE() << "Unexpected PCM in a lifecycle test";
+}
+audio::AudioStreamInfo MicrophoneSource::get_audio_stream_info() { return {16, 1, 16000}; }
+}  // namespace esphome::microphone
+
+namespace esphome::voice_assistant::testing {
+class IdleMicrophone : public microphone::Microphone {
+ public:
+  unsigned starts{0};
+  void start() override {
+    ++this->starts;
+    this->state_ = microphone::STATE_RUNNING;
+  }
+  void stop() override { this->state_ = microphone::STATE_STOPPED; }
+};
+
+class IdleSpeaker : public speaker::Speaker {
+ public:
+  std::vector<uint8_t> pcm;
+  bool buffered{false};
+  unsigned stops{0};
+  void start() override { this->state_ = speaker::STATE_RUNNING; }
+  void stop() override {
+    ++this->stops;
+    this->state_ = speaker::STATE_STOPPED;
+    this->buffered = false;
+  }
+  size_t play(const uint8_t *data, size_t size) override {
+    this->pcm.insert(this->pcm.end(), data, data + size);
+    this->buffered = true;
+    this->state_ = speaker::STATE_RUNNING;
+    return size;
+  }
+  bool has_buffered_data() const override { return this->buffered; }
+  void drain_buffer() { this->buffered = false; }
+  void finish_output() {
+    this->buffered = false;
+    this->state_ = speaker::STATE_STOPPED;
+  }
+};
+
+class IdleMediaPlayer : public media_player::MediaPlayer {
+ public:
+  unsigned urls{0}, stops{0};
+  media_player::MediaPlayerTraits get_traits() override { return {}; }
+  void report(media_player::MediaPlayerState next) {
+    this->state = next;
+    this->publish_state();
+  }
+
+ protected:
+  void control(const media_player::MediaPlayerCall &call) override {
+    if (call.get_media_url().has_value()) {
+      EXPECT_EQ(call.get_announcement(), true);
+      ++this->urls;
+    }
+    if (call.get_command() == media_player::MEDIA_PLAYER_COMMAND_STOP) {
+      ++this->stops;
+      this->report(media_player::MEDIA_PLAYER_STATE_IDLE);
+    }
+  }
+};
+
+class VoiceAssistantIdleTest : public ::testing::Test {
+ protected:
+  virtual void attach_output() {}
+  virtual void clear_output() {}
+  void SetUp() override {
+    int listener = ::socket(AF_INET, SOCK_STREAM, 0);
+    ASSERT_GE(listener, 0);
+    sockaddr_in address{};
+    address.sin_family = AF_INET;
+    address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    ASSERT_EQ(::bind(listener, reinterpret_cast<sockaddr *>(&address), sizeof(address)), 0);
+    socklen_t size = sizeof(address);
+    ASSERT_EQ(::getsockname(listener, reinterpret_cast<sockaddr *>(&address), &size), 0);
+    ASSERT_EQ(::listen(listener, 1), 0);
+    int peer = ::socket(AF_INET, SOCK_STREAM, 0);
+    ASSERT_GE(peer, 0);
+    ASSERT_EQ(::connect(peer, reinterpret_cast<sockaddr *>(&address), size), 0);
+    int client = ::accept(listener, nullptr, nullptr);
+    ::close(listener);
+    ASSERT_GE(client, 0);
+    this->peer_fd_ = peer;
+    this->peer_ = std::make_unique<api::APIPlaintextFrameHelper>(std::make_unique<socket::Socket>(peer));
+    ASSERT_EQ(this->peer_->init(), api::APIError::OK);
+    this->client_ = std::make_unique<api::APIConnection>(std::make_unique<socket::Socket>(client), &this->server_);
+    this->client_->start();
+    this->voice_.set_microphone_source(&this->source_);
+    this->voice_.set_use_wake_word(false);
+    this->voice_.set_noise_suppression_level(0);
+    this->voice_.set_auto_gain(0);
+    this->voice_.set_volume_multiplier(1.0f);
+    this->voice_.set_conversation_timeout(300000);
+    this->idle_automation_.add_action(&this->idle_action_);
+    this->end_automation_.add_action(&this->end_action_);
+    this->voice_.client_subscription(this->client_.get(), true);
+    this->attach_output();
+    this->voice_.setup();
+  }
+  void TearDown() override {
+    this->restart_once_ = false;
+    this->clear_output();
+    if (this->client_ && this->voice_.get_api_connection() == this->client_.get())
+      this->voice_.client_subscription(this->client_.get(), false);
+    this->voice_.request_stop();
+    this->pump_(4);
+    for (uint32_t id = 0; id <= 5; ++id) {
+      App.scheduler.cancel_timeout(&this->voice_, id);
+      App.scheduler.cancel_interval(&this->voice_, id);
+    }
+    this->client_.reset();
+    this->peer_.reset();
+    global_voice_assistant = this->previous_voice_;
+    api::global_api_server = this->previous_server_;
+  }
+  void flush_() {
+    App.scheduler.process_to_add();
+    App.scheduler.call(millis());
+  }
+  void pump_(unsigned count) {
+    for (unsigned step = 0; step < count; ++step) {
+      this->voice_.loop();
+      this->flush_();
+    }
+  }
+  void event_(api::enums::VoiceAssistantEvent type, const char *name = nullptr, const char *value = nullptr) {
+    api::VoiceAssistantEventResponse message;
+    message.event_type = type;
+    if (name != nullptr) {
+      api::VoiceAssistantEventData argument;
+      argument.name = StringRef::from_maybe_nullptr(name);
+      argument.value = StringRef::from_maybe_nullptr(value);
+      message.data.push_back(argument);
+    }
+    this->voice_.on_event(message);
+  }
+  void begin_request_(bool continuous = false) {
+    this->voice_.request_start(continuous, false);
+    this->pump_(3);
+    this->voice_.start_streaming();
+    this->event_(api::enums::VOICE_ASSISTANT_RUN_START);
+  }
+  void start_tts_() {
+    this->event_(api::enums::VOICE_ASSISTANT_TTS_START, "text", "fixture response");
+    this->flush_();
+    this->event_(api::enums::VOICE_ASSISTANT_TTS_END, "url", "http://example.test/response.wav");
+    this->flush_();
+  }
+  void disconnect_client_() {
+    this->peer_.reset();
+    // Same production destructor/unsubscribe path used when APIServer drops the connection.
+    this->client_.reset();
+    ASSERT_EQ(this->voice_.get_api_connection(), nullptr);
+  }
+  void await_response_() {
+    this->event_(api::enums::VOICE_ASSISTANT_STT_VAD_END);
+    this->pump_(2);
+    ASSERT_TRUE(this->microphone_.is_stopped());
+    ASSERT_TRUE(this->voice_.is_running());
+  }
+  unsigned start_requests_() {
+    unsigned starts = 0;
+    api::ReadPacketBuffer packet;
+    while (this->peer_->read_packet(&packet) == api::APIError::OK) {
+      if (packet.type == api::VoiceAssistantRequest::MESSAGE_TYPE && packet.data_len >= 2 && packet.data[0] == 0x08 &&
+          packet.data[1] == 1) {
+        ++starts;
+      }
+    }
+    return starts;
+  }
+
+  VoiceAssistant *previous_voice_{global_voice_assistant};
+  api::APIServer *previous_server_{api::global_api_server};
+  IdleMicrophone microphone_;
+  microphone::MicrophoneSource source_{&this->microphone_, 16, 1, false};
+  VoiceAssistant voice_;
+  unsigned idle_count_{0}, end_count_{0};
+  bool restart_once_{false};
+  LambdaAction<> idle_action_{[this]() {
+    ++this->idle_count_;
+    if (this->restart_once_ && this->idle_count_ == 1)
+      this->voice_.request_start(false, false);
+  }};
+  Automation<> idle_automation_{this->voice_.get_idle_trigger()};
+  LambdaAction<> end_action_{[this]() { ++this->end_count_; }};
+  Automation<> end_automation_{this->voice_.get_end_trigger()};
+  api::APIServer server_;
+  std::unique_ptr<api::APIConnection> client_;
+  std::unique_ptr<api::APIPlaintextFrameHelper> peer_;
+  int peer_fd_{-1};  // Owned by peer_.
+};
+
+TEST_F(VoiceAssistantIdleTest, InitialAndRepeatedIdleDoNotInventACompletion) {
+  this->pump_(3);
+  EXPECT_EQ(this->idle_count_, 0u);
+  EXPECT_EQ(this->end_count_, 0u);
+}
+
+TEST_F(VoiceAssistantIdleTest, NoncontinuousRunEndReportsLocalIdleOnce) {
+  this->begin_request_();
+  this->await_response_();
+  this->event_(api::enums::VOICE_ASSISTANT_RUN_END);
+  EXPECT_FALSE(this->voice_.is_running());
+  EXPECT_EQ(this->idle_count_, 1u);
+  this->pump_(3);
+  EXPECT_EQ(this->idle_count_, 1u);
+  EXPECT_EQ(this->end_count_, 1u);
+}
+
+TEST_F(VoiceAssistantIdleTest, IdleAutomationCanStartTheNextRequest) {
+  this->begin_request_();
+  ASSERT_EQ(this->start_requests_(), 1u);
+  this->await_response_();
+  this->restart_once_ = true;
+  this->event_(api::enums::VOICE_ASSISTANT_RUN_END);
+  this->pump_(3);
+  EXPECT_EQ(this->idle_count_, 1u);
+  EXPECT_EQ(this->microphone_.starts, 2u);
+  EXPECT_EQ(this->start_requests_(), 1u);
+  EXPECT_TRUE(this->voice_.is_running());
+}
+
+TEST_F(VoiceAssistantIdleTest, FailedStartReportsErrorAndLetsTheIdleAutomationRequestAnotherRun) {
+  this->voice_.request_start(false, false);
+  this->pump_(2);
+  // The client goes away between microphone startup and sending the API request.
+  const linger reset_on_close{1, 0};
+  ASSERT_EQ(::setsockopt(this->peer_fd_, SOL_SOCKET, SO_LINGER, &reset_on_close, sizeof(reset_on_close)), 0);
+
+  std::string error_code;
+  LambdaAction<std::string, std::string> capture_error{
+      [&](const std::string &code, const std::string &) { error_code = code; }};
+  Automation<std::string, std::string> on_error{this->voice_.get_error_trigger()};
+  on_error.add_action(&capture_error);
+
+  this->peer_.reset();
+  this->restart_once_ = true;
+  this->pump_(1);
+  this->voice_.get_error_trigger()->set_automation_parent(nullptr);
+  EXPECT_EQ(error_code, "not-connected");
+  EXPECT_EQ(this->idle_count_, 1u);
+  EXPECT_TRUE(this->voice_.is_running());
+
+  // Once the server removes the disconnected client, the requested retry cannot run.
+  this->disconnect_client_();
+  this->pump_(4);
+  EXPECT_FALSE(this->voice_.is_running());
+  EXPECT_EQ(this->microphone_.starts, 1u);
+}
+
+TEST_F(VoiceAssistantIdleTest, ContinuousIdleRetainsItsExistingLoopTiming) {
+  this->begin_request_(true);
+  this->await_response_();
+  this->event_(api::enums::VOICE_ASSISTANT_RUN_END);
+  EXPECT_EQ(this->idle_count_, 0u);
+  this->pump_(1);
+  EXPECT_EQ(this->idle_count_, 1u);
+  this->pump_(3);
+  EXPECT_EQ(this->idle_count_, 1u);
+  EXPECT_EQ(this->microphone_.starts, 2u);
+}
+
+TEST_F(VoiceAssistantIdleTest, ExplicitStopReportsIdleIndependentlyOfDeferredRunEnd) {
+  this->begin_request_();
+  this->voice_.request_stop();
+  this->pump_(2);
+  EXPECT_FALSE(this->voice_.is_running());
+  EXPECT_EQ(this->idle_count_, 1u);
+  EXPECT_EQ(this->end_count_, 0u);
+  this->event_(api::enums::VOICE_ASSISTANT_RUN_END);
+  this->flush_();
+  EXPECT_EQ(this->idle_count_, 1u);
+  EXPECT_EQ(this->end_count_, 1u);
+}
+
+class VoiceAssistantSpeakerIdleTest : public VoiceAssistantIdleTest {
+ protected:
+  void attach_output() override { this->voice_.set_speaker(&this->speaker_); }
+  void clear_output() override { this->speaker_.stop(); }
+  void begin_speaker_response_() {
+    this->begin_request_();
+    ASSERT_EQ(this->start_requests_(), 1u);
+    this->await_response_();
+    this->start_tts_();
+    this->event_(api::enums::VOICE_ASSISTANT_TTS_STREAM_START);
+    const std::array<uint8_t, 6> pcm{1, 2, 3, 4, 5, 6};
+    api::VoiceAssistantAudio message;
+    message.data = pcm.data();
+    message.data_len = pcm.size();
+    this->voice_.on_audio(message);
+    ASSERT_EQ(this->speaker_.pcm, std::vector<uint8_t>({1, 2, 3, 4, 5, 6}));
+  }
+  IdleSpeaker speaker_;
+};
+
+class VoiceAssistantMediaPlayerIdleTest : public VoiceAssistantIdleTest {
+ protected:
+  void attach_output() override { this->voice_.set_media_player(&this->player_); }
+  void clear_output() override { this->player_.report(media_player::MEDIA_PLAYER_STATE_IDLE); }
+  void begin_player_response_() {
+    this->begin_request_();
+    ASSERT_EQ(this->start_requests_(), 1u);
+    this->await_response_();
+    this->start_tts_();
+    ASSERT_EQ(this->player_.urls, 1u);
+    this->player_.report(media_player::MEDIA_PLAYER_STATE_ANNOUNCING);
+  }
+  IdleMediaPlayer player_;
+};
+
+TEST_F(VoiceAssistantSpeakerIdleTest, TtsDrainReportsIdleOnceAndCanRestartFromTheCallback) {
+  this->begin_speaker_response_();
+  this->event_(api::enums::VOICE_ASSISTANT_TTS_STREAM_END);
+  this->event_(api::enums::VOICE_ASSISTANT_RUN_END);
+  this->pump_(2);
+  EXPECT_TRUE(this->voice_.is_running());
+  EXPECT_EQ(this->idle_count_, 0u);
+  this->speaker_.drain_buffer();
+  this->pump_(1);
+  EXPECT_EQ(this->idle_count_, 0u);  // The output driver is still running.
+  this->restart_once_ = true;
+  this->speaker_.finish_output();
+  this->pump_(6);
+  EXPECT_EQ(this->idle_count_, 1u);
+  EXPECT_EQ(this->end_count_, 1u);
+  EXPECT_EQ(this->microphone_.starts, 2u);
+  EXPECT_EQ(this->start_requests_(), 1u);
+  EXPECT_TRUE(this->voice_.is_running());
+}
+
+TEST_F(VoiceAssistantMediaPlayerIdleTest, TtsFinishReportsIdleOnceAndCanRestartFromTheCallback) {
+  this->begin_player_response_();
+  this->event_(api::enums::VOICE_ASSISTANT_RUN_END);
+  this->pump_(2);
+  EXPECT_TRUE(this->voice_.is_running());
+  EXPECT_EQ(this->idle_count_, 0u);
+  this->restart_once_ = true;
+  this->player_.report(media_player::MEDIA_PLAYER_STATE_IDLE);
+  this->pump_(6);
+  EXPECT_EQ(this->idle_count_, 1u);
+  EXPECT_EQ(this->end_count_, 1u);
+  EXPECT_EQ(this->microphone_.starts, 2u);
+  EXPECT_EQ(this->start_requests_(), 1u);
+  EXPECT_TRUE(this->voice_.is_running());
+  EXPECT_EQ(this->player_.stops, 0u);
+}
+
+TEST_F(VoiceAssistantSpeakerIdleTest, DisconnectNotifiesVaIdleAndPreservesExistingSpeakerPolicy) {
+  this->begin_speaker_response_();
+  ASSERT_TRUE(this->speaker_.is_running());
+  this->restart_once_ = true;
+  this->disconnect_client_();
+  this->pump_(2);
+  EXPECT_FALSE(this->voice_.is_running());
+  EXPECT_EQ(this->idle_count_, 1u);
+  EXPECT_EQ(this->end_count_, 0u);
+  EXPECT_EQ(this->microphone_.starts, 1u);
+  // Disconnect relinquishes VA activity; existing queued output is not a new Stop request.
+  EXPECT_TRUE(this->speaker_.is_running());
+  EXPECT_TRUE(this->speaker_.has_buffered_data());
+  EXPECT_EQ(this->speaker_.stops, 0u);
+  this->speaker_.finish_output();
+  this->pump_(3);
+  EXPECT_EQ(this->idle_count_, 1u);
+  EXPECT_EQ(this->microphone_.starts, 1u);
+}
+
+TEST_F(VoiceAssistantMediaPlayerIdleTest, DisconnectNotifiesVaIdleAndPreservesExistingPlayerPolicy) {
+  this->begin_player_response_();
+  this->restart_once_ = true;
+  this->disconnect_client_();
+  this->pump_(2);
+  EXPECT_FALSE(this->voice_.is_running());
+  EXPECT_EQ(this->idle_count_, 1u);
+  EXPECT_EQ(this->end_count_, 0u);
+  EXPECT_EQ(this->microphone_.starts, 1u);
+  EXPECT_EQ(this->player_.state, media_player::MEDIA_PLAYER_STATE_ANNOUNCING);
+  EXPECT_EQ(this->player_.stops, 0u);
+  this->player_.report(media_player::MEDIA_PLAYER_STATE_IDLE);
+  this->pump_(3);
+  EXPECT_EQ(this->idle_count_, 1u);
+  EXPECT_EQ(this->microphone_.starts, 1u);
+}
+}  // namespace esphome::voice_assistant::testing
