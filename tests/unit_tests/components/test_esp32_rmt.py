@@ -648,3 +648,24 @@ def test_fixed_channels_not_recorded_without_rmt_caps(variant: str) -> None:
     _set_variant(variant)
     esp32_rmt.request_rmt_channels(RX_AND_TX, PRIORITY)(_bus("bus"))
     assert not esp32_rmt._get_data().channels
+
+
+def test_components_with_the_same_label_are_counted_apart(
+    run_check: CheckRunner,
+) -> None:
+    """A strip named 'ir' and a transmitter with the id 'ir' are two components."""
+    strip = {**_entry("strip", 96), CONF_NAME: "ir"}
+    config = {"TX": [strip, _entry("ir", 96), _entry("other", 96)]}
+    with pytest.raises(cv.Invalid) as error:
+        run_check(VARIANT_ESP32C3, config)
+    assert "these 3 components each need one: 'ir', 'ir', 'other'." in str(error.value)
+
+
+def test_warning_counts_components_with_the_same_label_apart(
+    run_check: CheckRunner,
+) -> None:
+    """The warning shows no direction for two single channel components named alike."""
+    strip = {**_entry("strip", 192), CONF_NAME: "ir"}
+    messages = run_check(VARIANT_ESP32S2, {"TX": [strip, _entry("ir", 192)]})
+    assert len(messages) == 1
+    assert "will not fit: 'ir' (192), 'ir' (192)." in messages[0]
