@@ -49,7 +49,6 @@ static_assert(FM_DOUT == 3, "Flash mode enum values must match table indices");
 
 // Get reset reason string from reason code (no heap allocation)
 // Returns LogString* pointing to flash (PROGMEM) on ESP8266
-static const LogString *get_reset_reason_str(uint32_t reason) { return ResetReasonStrings::get_log_str(reason); }
 
 // Size for core version hex buffer
 static constexpr size_t CORE_VERSION_BUFFER_SIZE = 12;
@@ -74,16 +73,16 @@ static const char *get_reset_info_str(std::span<char, RESET_INFO_BUFFER_SIZE> bu
     snprintf_P(buffer.data(), RESET_INFO_BUFFER_SIZE,
                PSTR("Fatal exception:%d flag:%d (%s) epc1:0x%08x epc2:0x%08x epc3:0x%08x excvaddr:0x%08x depc:0x%08x"),
                static_cast<int>(resetInfo.exccause), static_cast<int>(reason),
-               LOG_STR_ARG(get_reset_reason_str(reason)), resetInfo.epc1, resetInfo.epc2, resetInfo.epc3,
+               LOG_STR_ARG(ResetReasonStrings::get_log_str(reason)), resetInfo.epc1, resetInfo.epc2, resetInfo.epc3,
                resetInfo.excvaddr, resetInfo.depc);
     return buffer.data();
   }
-  return LOG_STR_ARG(get_reset_reason_str(reason));
+  return LOG_STR_ARG(ResetReasonStrings::get_log_str(reason));
 }
 
 const char *DebugComponent::get_reset_reason_(std::span<char, RESET_REASON_BUFFER_SIZE> buffer) {
   // Copy from flash to provided buffer
-  strncpy_P(buffer.data(), (PGM_P) get_reset_reason_str(resetInfo.reason), RESET_REASON_BUFFER_SIZE - 1);
+  strncpy_P(buffer.data(), (PGM_P) ResetReasonStrings::get_log_str(resetInfo.reason), RESET_REASON_BUFFER_SIZE - 1);
   buffer[RESET_REASON_BUFFER_SIZE - 1] = '\0';
   return buffer.data();
 }

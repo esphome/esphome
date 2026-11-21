@@ -38,8 +38,6 @@ PROGMEM_STRING_TABLE(DriverEventStrings, "Driver reset", "Driver error", "Charge
                      "Open load on phase A", "Open load on phase B", "Temperature above 120C", "Temperature above 143C",
                      "Temperature above 150C", "Temperature above 157C", "Unknown");
 
-static const LogString *driver_event_to_string(DriverEvent event) { return DriverEventStrings::get_log_str(event); }
-
 // CRC-8 with polynomial 0x07 over the datagram bits in the order they go out on the wire, LSB first
 static uint8_t datagram_crc(const uint8_t *data, size_t len) {
   uint8_t crc = 0;
@@ -189,9 +187,9 @@ bool TMC22XXStepper::update_status_() {
     bool active = (status & (1u << event)) != 0;
     // Open load and temperature levels are informational, the driver keeps running
     if (active && event < DRIVER_EVENT_OPEN_LOAD_A) {
-      ESP_LOGW(TAG, "%s", LOG_STR_ARG(driver_event_to_string(static_cast<DriverEvent>(event))));
+      ESP_LOGW(TAG, "%s", LOG_STR_ARG(DriverEventStrings::get_log_str(static_cast<DriverEvent>(event))));
     } else {
-      ESP_LOGD(TAG, "%s: %s", LOG_STR_ARG(driver_event_to_string(static_cast<DriverEvent>(event))),
+      ESP_LOGD(TAG, "%s: %s", LOG_STR_ARG(DriverEventStrings::get_log_str(static_cast<DriverEvent>(event))),
                active ? LOG_STR_LITERAL("active") : LOG_STR_LITERAL("cleared"));
     }
     this->status_callback_.call(static_cast<DriverEvent>(event), active);
