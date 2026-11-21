@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 
-@pytest.mark.parametrize("timeout", [None, "2s", "2000ms", "1ms", "10s"])
+@pytest.mark.parametrize("timeout", [None, "15s", "15000ms", "1ms", "2s", "10s"])
 def test_playback_timeout_codegen(
     timeout: str | None,
     tmp_path: Path,
@@ -37,8 +37,8 @@ voice_assistant:
         + (f"  tts_playback_start_timeout: {timeout}\n" if timeout else "")
     )
     main = generate_main(config)
-    if timeout in (None, "2s", "2000ms"):
+    if timeout in (None, "15s", "15000ms"):
         assert "set_tts_playback_start_timeout(" not in main
     else:
-        milliseconds = 1 if timeout == "1ms" else 10000
+        milliseconds = {"1ms": 1, "2s": 2000, "10s": 10000}[timeout]
         assert f"set_tts_playback_start_timeout({milliseconds});" in main

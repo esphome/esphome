@@ -2,6 +2,7 @@
 #ifdef USE_OPENTHREAD
 #include "openthread.h"
 
+#include <openthread/child_supervision.h>
 #include <openthread/cli.h>
 #include <openthread/instance.h>
 #include <openthread/ip6.h>
@@ -9,6 +10,7 @@
 #include <openthread/netdata.h>
 #include <openthread/tasklet.h>
 
+#include <algorithm>
 #include <cstring>
 #include <utility>
 
@@ -364,6 +366,13 @@ void OpenThreadComponent::on_factory_reset(const std::function<void()> &callback
 
 void OpenThreadComponent::apply_poll_period(uint32_t poll_period) {
 #if CONFIG_OPENTHREAD_MTD
+  // MAX_POLL_PERIOD in __init__.py; the schema cannot check lambda values
+  static constexpr uint32_t MAX_POLL_PERIOD_MS = 7200 * 1000;
+  if (poll_period > MAX_POLL_PERIOD_MS) {
+    ESP_LOGW(TAG, "poll_period %" PRIu32 " ms exceeds the maximum, using %" PRIu32 " ms", poll_period,
+             MAX_POLL_PERIOD_MS);
+    poll_period = MAX_POLL_PERIOD_MS;
+  }
   this->set_poll_period(poll_period);
   if (!this->is_lock_initialized()) {
     // The action may run before the stack is up, e.g. from a restore mode; setup() applies the stored value.
@@ -388,13 +397,43 @@ void OpenThreadComponent::apply_linkmode_(otInstance *instance) {
   link_mode_config.mDeviceType = true;
   link_mode_config.mNetworkData = true;
 #elif CONFIG_OPENTHREAD_MTD
-  if (this->poll_period_ > 0) {
-    if (otLinkSetPollPeriod(instance, this->poll_period_) != OT_ERROR_NONE) {
-      ESP_LOGE(TAG, "Failed to set pollperiod");
-    }
-    ESP_LOGD(TAG, "Link Polling Period: %" PRIu32, otLinkGetPollPeriod(instance));
+  // The core_options values, or the OpenThread defaults (src/core/config/mle.h, child_supervision.h)
+  static constexpr uint32_t CHILD_TIMEOUT_MIN_SEC = ESPHOME_OPENTHREAD_CHILD_TIMEOUT_MIN;
+  static constexpr uint32_t CHILD_SUPERVISION_CHECK_TIMEOUT_MIN_SEC =
+      ESPHOME_OPENTHREAD_CHILD_SUPERVISION_CHECK_TIMEOUT_MIN;
+  static constexpr uint32_t CHILD_SUPERVISION_INTERVAL_MIN_SEC = ESPHOME_OPENTHREAD_CHILD_SUPERVISION_INTERVAL_MIN;
+  const bool polling = this->poll_period_ > 0;
+  if (polling && otLinkSetPollPeriod(instance, this->poll_period_) != OT_ERROR_NONE) {
+    ESP_LOGE(TAG, "Failed to set pollperiod");
   }
-  link_mode_config.mRxOnWhenIdle = this->poll_period_ == 0;
+  // When polling stops the minimums are restored exactly: 0 turns a supervision check off
+  if (polling || this->timeouts_derived_) {
+    this->timeouts_derived_ = polling;
+    // Round up so the derived timeouts are never below their multiples of poll_period.
+    const uint32_t poll_period_sec = (this->poll_period_ + 999) / 1000;
+    otThreadSetChildTimeout(
+        instance, polling ? std::max<uint32_t>(poll_period_sec * 4, CHILD_TIMEOUT_MIN_SEC) : CHILD_TIMEOUT_MIN_SEC);
+    // At most 3 * 7200 + 10, so both fit the uint16_t setters; a 0 core_option keeps that setting off
+    otChildSupervisionSetCheckTimeout(
+        instance, static_cast<uint16_t>(
+                      polling && CHILD_SUPERVISION_CHECK_TIMEOUT_MIN_SEC != 0
+                          ? std::max<uint32_t>(poll_period_sec * 3 + 10, CHILD_SUPERVISION_CHECK_TIMEOUT_MIN_SEC)
+                          : CHILD_SUPERVISION_CHECK_TIMEOUT_MIN_SEC));
+    // Ends just before a poll so the parent holds the frame briefly
+    otChildSupervisionSetInterval(
+        instance, static_cast<uint16_t>(
+                      polling && CHILD_SUPERVISION_INTERVAL_MIN_SEC != 0
+                          ? std::max<uint32_t>(poll_period_sec * 2, CHILD_SUPERVISION_INTERVAL_MIN_SEC + 10) - 10
+                          : CHILD_SUPERVISION_INTERVAL_MIN_SEC));
+    // Read after the child timeout is set: OpenThread caps the effective period by one derived from it.
+    ESP_LOGD(TAG,
+             "Child Timeout: %" PRIu32 " sec, Child Supervision Check Timeout: %u sec, "
+             "Child Supervision Interval: %u sec, Link Polling Period: %" PRIu32,
+             otThreadGetChildTimeout(instance), otChildSupervisionGetCheckTimeout(instance),
+             otChildSupervisionGetInterval(instance), otLinkGetPollPeriod(instance));
+  }
+
+  link_mode_config.mRxOnWhenIdle = !polling;
   link_mode_config.mDeviceType = false;
   link_mode_config.mNetworkData = false;
 #endif

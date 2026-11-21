@@ -22,7 +22,6 @@ constexpr const char *const ERROR_I2S = "I2S error";
 // (1/3 duty cycle) and a 1-bit expands into 110 (2/3 duty cycle.  Each byte of LED strip data becomes
 // one 24-bit I2S sample to be transmitted at a rate of 100000 samples per second in I2S TDM mode.
 constexpr uint32_t I2S_SAMPLE_RATE_HZ = 100000;
-constexpr size_t I2S_BYTES_PER_SAMPLE = 3;
 
 // Determine how many I2S samples are needed to feed the output for the specified duration and vice-versa.
 constexpr size_t num_i2s_samples_from_duration_us(uint32_t duration_us) {
@@ -45,11 +44,15 @@ constexpr uint32_t I2S_BUFFER_DURATION_US_IDEAL = 2500;
 constexpr size_t I2S_BUFFER_SAMPLES = (num_i2s_samples_from_duration_us(I2S_BUFFER_DURATION_US_IDEAL) + 2) / 3 * 3;
 constexpr uint32_t I2S_BUFFER_DURATION_US_ACTUAL = num_i2s_samples_to_duration_us(I2S_BUFFER_SAMPLES);
 
-I2SClocklessLedStrip::I2SClocklessLedStrip(uint8_t pin, uint16_t num_leds, light::ChannelColors channel_colors)
+I2SClocklessLedStrip::I2SClocklessLedStrip(uint8_t *buffer, uint8_t pin, uint16_t num_leds,
+                                           light::ChannelColors channel_colors)
     : internal_accessor_{nullptr, nullptr, channel_colors, &this->correction_},
       color_data_bytes_(num_leds * channel_colors.bytes_per_led()),
       num_leds_(num_leds),
-      pin_(pin) {}
+      pin_(pin) {
+  this->internal_accessor_.set_buffer(buffer, num_leds);
+  this->i2s_data_ = buffer + i2s_data_offset(num_leds, channel_colors.bytes_per_led());
+}
 
 void I2SClocklessLedStrip::dump_config() {
   ESP_LOGCONFIG(TAG,
@@ -68,11 +71,6 @@ void I2SClocklessLedStrip::dump_config() {
 float I2SClocklessLedStrip::get_setup_priority() const { return setup_priority::IO; }
 
 void I2SClocklessLedStrip::setup() {
-  if (!this->allocate_buffers_()) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_ALLOC_FAIL));
-    return;
-  }
-
   i2s_chan_config_t chan_config = {
       .id = I2S_NUM_AUTO,
       .role = I2S_ROLE_MASTER,
@@ -142,22 +140,6 @@ void I2SClocklessLedStrip::setup() {
     this->tx_handle_ = {};
   }
   this->mark_failed(LOG_STR(ERROR_I2S));
-}
-
-bool I2SClocklessLedStrip::allocate_buffers_() {
-  const size_t i2s_data_bytes = this->color_data_bytes_ * I2S_BYTES_PER_SAMPLE;
-
-  RAMAllocator<uint8_t> allocator(RAMAllocator<uint8_t>::ALLOC_INTERNAL);
-  this->i2s_data_ = allocator.allocate(i2s_data_bytes);
-  if (this->i2s_data_ != nullptr) {
-    if (this->internal_accessor_.allocate(allocator, this->num_leds_)) {
-      memset(this->i2s_data_, 0, i2s_data_bytes);
-      return true;
-    }
-    allocator.deallocate(this->i2s_data_, i2s_data_bytes);
-    this->i2s_data_ = nullptr;
-  }
-  return false;
 }
 
 void I2SClocklessLedStrip::write_state(light::LightState *state) {

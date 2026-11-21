@@ -1,0 +1,14 @@
+{
+  "recommendations": [
+    // python
+    "ms-python.python",
+    "ms-python.pylint",
+    "charliermarsh.ruff",
+    // yaml
+    "redhat.vscode-yaml",
+    // cpp
+    "ms-vscode.cpptools",
+    // editorconfig
+    "editorconfig.editorconfig"
+  ]
+}

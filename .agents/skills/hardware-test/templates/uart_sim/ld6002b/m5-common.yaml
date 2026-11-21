@@ -1,0 +1,103 @@
+packages:
+  base: !include ld6-base.yaml
+
+ld6004:
+  id: radar4
+  uart_id: uart_radar
+
+globals:
+  - id: boots
+    type: int
+    restore_value: true
+    initial_value: "0"
+  - id: restore_ok
+    type: bool
+    initial_value: "false"
+
+binary_sensor:
+  - platform: ld6004
+    ld6004_id: radar4
+    target:
+      name: Presence
+
+sensor:
+  - platform: ld6004
+    ld6004_id: radar4
+    target_count:
+      name: Target Count
+    point_count:
+      name: Point Count
+    target_1:
+      x:
+        name: T1 X
+
+switch:
+  - platform: ld6004
+    ld6004_id: radar4
+    point_cloud:
+      id: sw_pc
+      name: Point Cloud
+    target_display:
+      id: sw_td
+      name: Target Display
+
+script:
+  - id: cases
+    then:
+      - lambda: |-
+          id(boots) += 1;
+          ESP_LOGI("ld6sim", "BOOT %d pc=%d td=%d", id(boots), (int) id(sw_pc).state, (int) id(sw_td).state);
+          // Boot 1 left point cloud on and target display off; check before the cases overwrite them.
+          id(restore_ok) = id(sw_pc).state && !id(sw_td).state;
+          if (id(boots) == 2 && !id(restore_ok))
+            ESP_LOGE("ld6sim", "CASE restore_failed boot=2");
+      - lambda: |-
+          ESP_LOGI("ld6sim", "CASE p1_defaults");
+          ld6sim::mod.send("target x=1", ld6sim::targets_n(1, 1));
+          ld6sim::mod.out(0x0A08, ld6sim::u32(5));
+      - delay: 600ms
+      - switch.turn_on: sw_pc
+      - delay: 600ms
+      - lambda: |-
+          ESP_LOGI("ld6sim", "CASE p2_pc_on");
+          ld6sim::mod.send("target x=2", ld6sim::targets_n(1, 2));
+          ld6sim::mod.out(0x0A08, ld6sim::u32(7));
+      - delay: 600ms
+      - switch.turn_off: sw_td
+      - delay: 600ms
+      - lambda: |-
+          ESP_LOGI("ld6sim", "CASE p3_td_off");
+          ld6sim::mod.send("target x=3", ld6sim::targets_n(1, 3));
+          ld6sim::mod.out(0x0A08, ld6sim::u32(8));
+      - delay: 600ms
+      - switch.turn_on: sw_td
+      - delay: 600ms
+      - lambda: |-
+          ESP_LOGI("ld6sim", "CASE p4_td_on");
+          ld6sim::mod.send("target x=4", ld6sim::targets_n(1, 4));
+          ld6sim::mod.out(0x0A08, ld6sim::u32(9));
+      - delay: 600ms
+      - switch.turn_off: sw_pc
+      - delay: 600ms
+      - lambda: |-
+          ESP_LOGI("ld6sim", "CASE p5_pc_off");
+          ld6sim::mod.send("target x=5", ld6sim::targets_n(1, 5));
+          ld6sim::mod.out(0x0A08, ld6sim::u32(11));
+      - delay: 600ms
+      - lambda: ESP_LOGI("ld6sim", "CASE p6_set_for_reboot");
+      - switch.turn_on: sw_pc
+      - switch.turn_off: sw_td
+      - delay: 3s
+      # CASE done only on the second boot with restored switches, so a skipped reboot or a lost state fails run.sh.
+      - lambda: |-
+          if (id(boots) == 1) {
+            ESP_LOGI("ld6sim", "CASE reboot boot=1");
+            global_preferences->sync();
+            App.safe_reboot();
+          } else if (id(boots) == 2 && id(restore_ok)) {
+            ESP_LOGI("ld6sim", "CASE done boot=2");
+          } else if (id(boots) == 2) {
+            ESP_LOGE("ld6sim", "CASE end boot=2 without restored switches");
+          } else {
+            ESP_LOGE("ld6sim", "CASE stale boot=%d, rerun with ERASE=1", id(boots));
+          }

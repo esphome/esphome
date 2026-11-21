@@ -1,24 +1,17 @@
 #include "sy6970.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome::sy6970 {
 
 ESPHOME_LOG_TAG(TAG, "sy6970");
 
+// Indexed by I2CWatchdogTimeout
+PROGMEM_STRING_TABLE(I2CWatchdogTimeoutStrings, "Disabled", "40s", "80s", "160s", "Unknown");
+
 static const LogString *i2c_watchdog_timeout_to_string(I2CWatchdogTimeout timeout) {
-  switch (timeout) {
-    case I2C_WATCHDOG_DISABLED:
-      return LOG_STR("Disabled");
-    case I2C_WATCHDOG_40S:
-      return LOG_STR("40s");
-    case I2C_WATCHDOG_80S:
-      return LOG_STR("80s");
-    case I2C_WATCHDOG_160S:
-      return LOG_STR("160s");
-    default:
-      return LOG_STR("Unknown");
-  }
+  return I2CWatchdogTimeoutStrings::get_log_str(static_cast<uint8_t>(timeout), I2CWatchdogTimeoutStrings::LAST_INDEX);
 }
 
 static constexpr uint32_t I2C_WATCHDOG_KICK_INTERVAL_ID = 0;
@@ -56,10 +49,8 @@ void SY6970Component::setup() {
 
   // Try to read chip ID
   uint8_t reg_value;
-  if (!this->read_byte(SY6970_REG_DEVICE_ID, &reg_value)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->read_byte(SY6970_REG_DEVICE_ID, &reg_value)))
     return;
-  }
 
   uint8_t chip_id = reg_value & 0x03;
   if (chip_id != 0x00) {
@@ -125,10 +116,10 @@ void SY6970Component::update() {
     return;
   }
 
-  // Notify all listeners with the new data
-  for (auto *listener : this->listeners_) {
-    listener->on_data(this->data_);
-  }
+#ifdef USE_SY6970_DATA_PUBLISHER
+  if (this->data_publisher_ != nullptr)
+    this->data_publisher_(this->data_);
+#endif
 }
 
 void SY6970Component::set_input_current_limit(uint16_t milliamps) {

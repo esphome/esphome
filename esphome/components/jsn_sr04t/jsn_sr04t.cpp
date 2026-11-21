@@ -16,33 +16,26 @@ void Jsnsr04tComponent::update() {
 void Jsnsr04tComponent::loop() {
   this->read_available([this](uint8_t data) {
     ESP_LOGV(TAG, "Read byte from sensor: %x", data);
-
-    if (this->buffer_.empty() && data != 0xFF)
-      return;
-
-    this->buffer_.push_back(data);
-    if (this->buffer_.size() == 4)
-      this->check_buffer_();
+    if (const uint8_t *frame = this->reader_.feed(data))
+      this->check_frame_(frame);
   });
 }
 
-void Jsnsr04tComponent::check_buffer_() {
-  uint8_t checksum = this->buffer_[0] + this->buffer_[1] + this->buffer_[2];
-  if (this->buffer_[3] == checksum) {
-    uint16_t distance = encode_uint16(this->buffer_[1], this->buffer_[2]);
+void Jsnsr04tComponent::check_frame_(const uint8_t *frame) {
+  uint8_t checksum = sum_bytes(frame, 3);
+  if (frame[3] == checksum) {
+    uint16_t distance = encode_uint16(frame[1], frame[2]);
     if (distance > ((this->model_ == AJ_SR04M) ? 200 : 250)) {
       float meters = distance / 1000.0f;
       ESP_LOGV(TAG, "Distance from sensor: %umm, %.3fm", distance, meters);
       this->publish_state(meters);
     } else {
       char hex_buf[format_hex_pretty_size(4)];
-      ESP_LOGW(TAG, "Invalid data read from sensor: %s",
-               format_hex_pretty_to(hex_buf, this->buffer_.data(), this->buffer_.size()));
+      ESP_LOGW(TAG, "Invalid data read from sensor: %s", format_hex_pretty_to(hex_buf, frame, 4));
     }
   } else {
-    ESP_LOGW(TAG, "checksum failed: %02x != %02x", checksum, this->buffer_[3]);
+    ESP_LOGW(TAG, "checksum failed: %02x != %02x", checksum, frame[3]);
   }
-  this->buffer_.clear();
 }
 
 void Jsnsr04tComponent::dump_config() {

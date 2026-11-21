@@ -422,10 +422,15 @@ void ESPHomeOTAComponent::handle_handshake_() {
       } else
 #endif
       {
-        // No password, move directly to data phase
+        // No password, move directly to data phase. Not a fallthrough: the next
+        // case is AUTH_SEND, which would demand a password that is not set.
         this->transition_ota_state_(OTAState::DATA);
+        this->handle_data_();
+        return;
       }
+#ifdef USE_OTA_PASSWORD
       [[fallthrough]];
+#endif
     }
 
 #ifdef USE_OTA_PASSWORD

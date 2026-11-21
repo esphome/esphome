@@ -1,0 +1,27 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+display:
+  - platform: tm1638
+    id: panel
+    clk_pin: GPIO16
+    stb_pin: GPIO17
+    dio_pin: GPIO18
+  - platform: tm1638
+    id: idle_panel
+    clk_pin: GPIO19
+    stb_pin: GPIO21
+    dio_pin: GPIO22
+
+binary_sensor:
+  - platform: tm1638
+    tm1638_id: panel
+    id: button0
+    key: 0
+  - platform: tm1638
+    tm1638_id: panel
+    id: button7
+    key: 7

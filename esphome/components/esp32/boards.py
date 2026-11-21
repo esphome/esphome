@@ -9,6 +9,7 @@ from .const import (
     VARIANT_ESP32P4,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
+    VARIANT_ESP32S31,
 )
 
 STANDARD_BOARDS = {
@@ -22,6 +23,7 @@ STANDARD_BOARDS = {
     VARIANT_ESP32P4: "esp32-p4_r3-evboard",
     VARIANT_ESP32S2: "esp32-s2-kaluga-1",
     VARIANT_ESP32S3: "esp32-s3-devkitc-1",
+    VARIANT_ESP32S31: "esp32-s31-coreboard-1",
 }
 
 ESP32_BASE_PINS = {
@@ -1769,7 +1771,7 @@ BOARDS = {
         "variant": VARIANT_ESP32C6,
     },
     "esp32-c61-devkitc1": {
-        "name": "Espressif ESP32-C61-DevKitC-1 (4 MB Flash)",
+        "name": "Espressif ESP32-C61-DevKitC-1 (4 MB Flash + 2 MB PSRAM)",
         "variant": VARIANT_ESP32C61,
     },
     "esp32-c61-devkitc1-n8r2": {
@@ -1882,12 +1884,20 @@ BOARDS = {
         "name": "Espressif ESP32-S3-FH4R2 (4 MB QD, 2MB PSRAM)",
         "variant": VARIANT_ESP32S3,
     },
+    "esp32-s31-coreboard-1": {
+        "name": "Espressif ESP32-S31-Function-CoreBoard-1 (16 MB Flash Quad, 16 MB PSRAM Octal)",
+        "variant": VARIANT_ESP32S31,
+    },
     "esp32-solo1": {
         "name": "Espressif Generic ESP32-solo1 4M Flash",
         "variant": VARIANT_ESP32,
     },
     "esp320": {
         "name": "Electronic SweetPeas ESP320",
+        "variant": VARIANT_ESP32,
+    },
+    "esp32_26M": {
+        "name": "Espressif ESP32 26Mhz clock Module",
         "variant": VARIANT_ESP32,
     },
     "esp32cam": {
@@ -2086,6 +2096,10 @@ BOARDS = {
         "name": "ArtronShop IOXESP32PS",
         "variant": VARIANT_ESP32,
     },
+    "isno-super": {
+        "name": "ISNO Super",
+        "variant": VARIANT_ESP32S3,
+    },
     "jczn_2432s028r": {
         "name": "ESP32-2432S028R CYD",
         "variant": VARIANT_ESP32,
@@ -2255,6 +2269,10 @@ BOARDS = {
         "name": "MagicBit",
         "variant": VARIANT_ESP32,
     },
+    "makergo_esp32c6_supermini": {
+        "name": "MakerGo ESP32-C6 SuperMini",
+        "variant": VARIANT_ESP32C6,
+    },
     "mgbot-iotik32a": {
         "name": "MGBOT IOTIK 32A",
         "variant": VARIANT_ESP32,
@@ -2414,6 +2432,10 @@ BOARDS = {
     "sparkfun_esp32_iot_redboard": {
         "name": "SparkFun ESP32 IoT RedBoard",
         "variant": VARIANT_ESP32,
+    },
+    "sparkfun_esp32c5_thing_plus": {
+        "name": "SparkFun Thing Plus ESP32-C5",
+        "variant": VARIANT_ESP32C5,
     },
     "sparkfun_esp32c6_thing_plus": {
         "name": "Sparkfun ESP32-C6 Thing Plus",
@@ -2599,6 +2621,10 @@ BOARDS = {
         "name": "SQFMI Watchy v2.0",
         "variant": VARIANT_ESP32,
     },
+    "waveshare_esp32_c6_zero": {
+        "name": "Waveshare ESP32-C6-Zero",
+        "variant": VARIANT_ESP32C6,
+    },
     "waveshare_esp32_s3_zero": {
         "name": "Waveshare ESP32-S3-Zero",
         "variant": VARIANT_ESP32S3,
@@ -2685,6 +2711,10 @@ BOARDS = {
     },
     "yb_esp32s3_eth": {
         "name": "YelloByte YB-ESP32-S3-ETH",
+        "variant": VARIANT_ESP32S3,
+    },
+    "yb_esp32s3_rs485": {
+        "name": "YelloByte YB-ESP32-S3-RS485",
         "variant": VARIANT_ESP32S3,
     },
 }

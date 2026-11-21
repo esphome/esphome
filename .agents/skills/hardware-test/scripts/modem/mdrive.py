@@ -1,6 +1,6 @@
 """Drive the modem test build over the API: press buttons, print sensor states, save the device log.
 usage: mdrive.py HOST LOGFILE OP [OP ...]
-  OP: list | press:NAME | wait:SECONDS
+  OP: list | press:NAME | text:VALUE (sets the first text entity, the AT line of modem-passthrough.yaml) | wait:SECONDS
 """
 
 import asyncio
@@ -14,6 +14,7 @@ from aioesphomeapi import (
     LogLevel,
     SensorInfo,
     SensorState,
+    TextInfo,
     TextSensorInfo,
     TextSensorState,
 )
@@ -38,6 +39,7 @@ async def main() -> None:
         ents, _ = await c.list_entities_services()
         by_key = {e.key: e for e in ents}
         buttons = {e.name: e for e in ents if isinstance(e, ButtonInfo)}
+        texts = [e for e in ents if isinstance(e, TextInfo)]
 
         def on_state(s) -> None:
             e = by_key.get(s.key)
@@ -76,6 +78,14 @@ async def main() -> None:
                 print(f"{stamp()} >>> press {rest}", flush=True)
                 log.write(f"{stamp()} >>> press {rest}\n")
                 c.button_command(buttons[rest].key)
+            elif kind == "text":
+                if len(texts) != 1:
+                    sys.exit(
+                        f"text op needs exactly one text entity; the build has {len(texts)}"
+                    )
+                print(f"{stamp()} >>> {rest}", flush=True)
+                log.write(f"{stamp()} >>> {rest}\n")
+                c.text_command(texts[0].key, rest)
             else:
                 sys.exit(f"unknown op {op!r}")
             await asyncio.sleep(2.0)

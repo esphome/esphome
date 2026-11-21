@@ -161,15 +161,16 @@ static std::vector<int32_t> make_ir_timings_100() {
   return v;
 }
 
-static const std::vector<int32_t> &get_ir_timings_100() {
+static const std::span<const int32_t> *get_ir_timings_100() {
   static const std::vector<int32_t> timings = make_ir_timings_100();
-  return timings;
+  static const std::span<const int32_t> span(timings);
+  return &span;
 }
 
 static void Encode_InfraredRFReceiveEvent(benchmark::State &state) {
   InfraredRFReceiveEvent msg;
   msg.key = 0xDEADBEEF;
-  msg.timings = &get_ir_timings_100();
+  msg.timings = get_ir_timings_100();
   APIBuffer buffer;
   (void) buffer.resize(msg.calculate_size());
 
@@ -187,7 +188,7 @@ BENCHMARK(Encode_InfraredRFReceiveEvent);
 static void CalculateSize_InfraredRFReceiveEvent(benchmark::State &state) {
   InfraredRFReceiveEvent msg;
   msg.key = 0xDEADBEEF;
-  msg.timings = &get_ir_timings_100();
+  msg.timings = get_ir_timings_100();
 
   for (auto _ : state) {
     uint32_t result = 0;

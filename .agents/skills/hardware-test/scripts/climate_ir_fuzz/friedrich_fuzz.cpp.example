@@ -1,0 +1,17 @@
+#include <gtest/gtest.h>
+#include <memory>
+#include "climate_fuzz.hpp"
+#include "esphome/components/friedrich/friedrich.h"
+namespace esphome::fuzz22773 {
+TEST(Fuzz22773, Friedrich) {
+  run("friedrich", [] { return std::make_unique<friedrich::FriedrichClimate>(); },
+      [](std::mt19937 &rng, remote_base::RawTimings &raw) {
+        size_t len = (rng() % 3 == 0) ? 2 + rng() % 34 : ((rng() & 1) ? 14 : 5);
+        aeha_random(rng, raw, len, 0x28C6, [](uint8_t *d) {
+          d[0] = 0x00;
+          d[1] = 0x08;
+          d[2] = 0x08;
+        });
+      });
+}
+}  // namespace esphome::fuzz22773

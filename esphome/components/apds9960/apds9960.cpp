@@ -60,10 +60,8 @@ static constexpr i2c::I2CRegValue APDS9960_GESTURE_OFFSETS[] PROGMEM = {
 
 void APDS9960::setup() {
   uint8_t id;
-  if (!this->read_byte(0x92, &id)) {  // ID register
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->read_byte(0x92, &id)))  // ID register
     return;
-  }
 
   if (id != 0xAB && id != 0x9C && id != 0xA8 && id != 0x9E) {  // APDS9960 all should have one of these IDs
     this->mark_failed(LOG_STR("APDS9960 has invalid id"));

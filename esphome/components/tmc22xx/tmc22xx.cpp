@@ -1,6 +1,7 @@
 #include "tmc22xx.h"
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 #include <cmath>
 #include <cstring>
@@ -30,41 +31,15 @@ static constexpr uint8_t UNREACHABLE_POLL_SKIP = 9;
 static constexpr uint32_t GSTAT_FLAGS = 0x07;  // reset, drv_err, uv_cp
 static constexpr uint32_t DRV_STATUS_FLAGS = 0x0FFF;
 
+// Indexed by DriverEvent
+PROGMEM_STRING_TABLE(DriverEventStrings, "Driver reset", "Driver error", "Charge pump undervoltage",
+                     "Overtemperature prewarning", "Overtemperature shutdown", "Short to ground on phase A",
+                     "Short to ground on phase B", "Low side short on phase A", "Low side short on phase B",
+                     "Open load on phase A", "Open load on phase B", "Temperature above 120C", "Temperature above 143C",
+                     "Temperature above 150C", "Temperature above 157C", "Unknown");
+
 static const LogString *driver_event_to_string(DriverEvent event) {
-  switch (event) {
-    case DRIVER_EVENT_RESET:
-      return LOG_STR("Driver reset");
-    case DRIVER_EVENT_DRIVER_ERROR:
-      return LOG_STR("Driver error");
-    case DRIVER_EVENT_CHARGE_PUMP_UNDERVOLTAGE:
-      return LOG_STR("Charge pump undervoltage");
-    case DRIVER_EVENT_OVERTEMPERATURE_PREWARNING:
-      return LOG_STR("Overtemperature prewarning");
-    case DRIVER_EVENT_OVERTEMPERATURE:
-      return LOG_STR("Overtemperature shutdown");
-    case DRIVER_EVENT_SHORT_TO_GROUND_A:
-      return LOG_STR("Short to ground on phase A");
-    case DRIVER_EVENT_SHORT_TO_GROUND_B:
-      return LOG_STR("Short to ground on phase B");
-    case DRIVER_EVENT_LOW_SIDE_SHORT_A:
-      return LOG_STR("Low side short on phase A");
-    case DRIVER_EVENT_LOW_SIDE_SHORT_B:
-      return LOG_STR("Low side short on phase B");
-    case DRIVER_EVENT_OPEN_LOAD_A:
-      return LOG_STR("Open load on phase A");
-    case DRIVER_EVENT_OPEN_LOAD_B:
-      return LOG_STR("Open load on phase B");
-    case DRIVER_EVENT_TEMPERATURE_120C:
-      return LOG_STR("Temperature above 120C");
-    case DRIVER_EVENT_TEMPERATURE_143C:
-      return LOG_STR("Temperature above 143C");
-    case DRIVER_EVENT_TEMPERATURE_150C:
-      return LOG_STR("Temperature above 150C");
-    case DRIVER_EVENT_TEMPERATURE_157C:
-      return LOG_STR("Temperature above 157C");
-    default:
-      return LOG_STR("Unknown");
-  }
+  return DriverEventStrings::get_log_str(static_cast<uint8_t>(event), DriverEventStrings::LAST_INDEX);
 }
 
 // CRC-8 with polynomial 0x07 over the datagram bits in the order they go out on the wire, LSB first

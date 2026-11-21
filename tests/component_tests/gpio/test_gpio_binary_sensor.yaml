@@ -9,3 +9,8 @@ binary_sensor:
     pin: 5
     name: "Test GPIO Binary Sensor"
     id: bs_gpio
+  - platform: gpio
+    pin: 4
+    name: "Test GPIO Binary Sensor Rising"
+    id: bs_rising
+    interrupt_type: RISING

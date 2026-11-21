@@ -1,0 +1,68 @@
+# Waveshare ESP32-S3-ETH on PoE, logs over the API on Ethernet (the native USB port is the USB host port), web_server
+# on 80, mic start and stop buttons and a heap line every 5 s. Used by mh-fake.yaml and mh-usb.yaml. The board block
+# is the one in ../usb-audio-waveshare-s3-eth-dut.yaml; keep the two in step.
+esp32:
+  board: esp32-s3-devkitc-1
+  variant: esp32s3
+  flash_size: 16MB
+  framework:
+    type: esp-idf
+
+psram:
+  mode: octal
+  speed: 80MHz
+
+logger:
+  level: DEBUG
+  hardware_uart: UART0
+
+ethernet:
+  type: W5500
+  clk_pin: GPIO13
+  mosi_pin: GPIO11
+  miso_pin: GPIO12
+  cs_pin: GPIO14
+  interrupt_pin: GPIO10
+  reset_pin: GPIO9
+
+api:
+  encryption:
+    key: !secret api_key
+  reboot_timeout: 0s
+
+ota:
+  - platform: esphome
+
+web_server:
+  port: 80
+
+sensor:
+  - platform: template
+    id: dummy_temp
+    name: Dummy Temp
+    lambda: return 21.5;
+    update_interval: 5s
+
+switch:
+  - platform: template
+    id: dummy_switch
+    name: Dummy Switch
+    optimistic: true
+
+interval:
+  - interval: 5s
+    then:
+      - lambda: |-
+          ESP_LOGI("mhs", "mic running=%d heap int=%u psram=%u", (int) id(mic).is_running(),
+                   (unsigned) heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+                   (unsigned) heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+
+button:
+  - platform: template
+    name: Mic start
+    on_press:
+      - microphone.capture: mic
+  - platform: template
+    name: Mic stop
+    on_press:
+      - microphone.stop_capture: mic
