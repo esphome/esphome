@@ -426,14 +426,10 @@ static_assert(AUTH_OPEN == 0 && AUTH_WEP == 1 && AUTH_WPA_PSK == 2 && AUTH_WPA2_
               "AUTH_* constants are not contiguous");
 PROGMEM_STRING_TABLE(AuthModeStrings, "OPEN", "WEP", "WPA PSK", "WPA2 PSK", "WPA/WPA2 PSK", "UNKNOWN");
 
-const LogString *get_auth_mode_str(uint8_t mode) { return AuthModeStrings::get_log_str(mode); }
-
 // WiFi op mode strings indexed by WIFI_* constants (0-3), with UNKNOWN at last index
 static_assert(WIFI_OFF == 0 && WIFI_STA == 1 && WIFI_AP == 2 && WIFI_AP_STA == 3,
               "WIFI_* op mode constants are not contiguous");
 PROGMEM_STRING_TABLE(OpModeStrings, "OFF", "STA", "AP", "AP+STA", "UNKNOWN");
-
-const LogString *get_op_mode_str(uint8_t mode) { return OpModeStrings::get_log_str(mode); }
 
 // Use if-chain instead of switch to avoid jump tables in RODATA (wastes RAM on ESP8266).
 // A single switch would generate a sparse lookup table with ~175 default entries, wasting 700 bytes of RAM.
@@ -538,8 +534,8 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
     }
     case EVENT_STAMODE_AUTHMODE_CHANGE: {
       auto it = event->event_info.auth_change;
-      ESP_LOGV(TAG, "Changed Authmode old=%s new=%s", LOG_STR_ARG(get_auth_mode_str(it.old_mode)),
-               LOG_STR_ARG(get_auth_mode_str(it.new_mode)));
+      ESP_LOGV(TAG, "Changed Authmode old=%s new=%s", LOG_STR_ARG(AuthModeStrings::get_log_str(it.old_mode)),
+               LOG_STR_ARG(AuthModeStrings::get_log_str(it.new_mode)));
       // Mitigate CVE-2020-12638
       // https://lbsfilm.at/blog/wpa2-authenticationmode-downgrade-in-espressif-microprocessors
       if (it.old_mode != AUTH_OPEN && it.new_mode == AUTH_OPEN) {
@@ -605,8 +601,8 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
     }
     case EVENT_OPMODE_CHANGED: {
       auto it = event->event_info.opmode_changed;
-      ESP_LOGV(TAG, "Changed Mode old=%s new=%s", LOG_STR_ARG(get_op_mode_str(it.old_opmode)),
-               LOG_STR_ARG(get_op_mode_str(it.new_opmode)));
+      ESP_LOGV(TAG, "Changed Mode old=%s new=%s", LOG_STR_ARG(OpModeStrings::get_log_str(it.old_opmode)),
+               LOG_STR_ARG(OpModeStrings::get_log_str(it.new_opmode)));
       break;
     }
     case EVENT_SOFTAPMODE_DISTRIBUTE_STA_IP: {

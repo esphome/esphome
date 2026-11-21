@@ -18,8 +18,6 @@ const FanPresetModes &FanTraits::supported_preset_modes() const {
 // Fan direction strings indexed by FanDirection enum (0-1): FORWARD, REVERSE, plus UNKNOWN
 PROGMEM_STRING_TABLE(FanDirectionStrings, "FORWARD", "REVERSE", "UNKNOWN");
 
-const LogString *fan_direction_to_string(FanDirection direction) { return FanDirectionStrings::get_log_str(direction); }
-
 FanCall &FanCall::set_preset_mode(const std::string &preset_mode) {
   return this->set_preset_mode(preset_mode.data(), preset_mode.size());
 }
@@ -61,7 +59,7 @@ void FanCall::perform() {
     ESP_LOGV(TAG, "  Speed: %d", *this->speed_);
   }
   if (this->direction_.has_value()) {
-    ESP_LOGV(TAG, "  Direction: %s", LOG_STR_ARG(fan_direction_to_string(*this->direction_)));
+    ESP_LOGV(TAG, "  Direction: %s", LOG_STR_ARG(FanDirectionStrings::get_log_str(*this->direction_)));
   }
   if (this->preset_mode_ != nullptr) {
     ESP_LOGV(TAG, "  Preset Mode: %s", this->preset_mode_);
@@ -215,7 +213,7 @@ void Fan::publish_state() {
     ESP_LOGV(TAG, "  Oscillating: %s", YESNO(this->oscillating));
   }
   if (traits.supports_direction()) {
-    ESP_LOGV(TAG, "  Direction: %s", LOG_STR_ARG(fan_direction_to_string(this->direction)));
+    ESP_LOGV(TAG, "  Direction: %s", LOG_STR_ARG(FanDirectionStrings::get_log_str(this->direction)));
   }
   if (this->preset_mode_ != nullptr) {
     ESP_LOGV(TAG, "  Preset Mode: %s", this->preset_mode_);

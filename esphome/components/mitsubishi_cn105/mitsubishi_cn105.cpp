@@ -10,6 +10,11 @@ namespace esphome::mitsubishi_cn105 {
 
 ESPHOME_LOG_TAG(TAG, "mitsubishi_cn105.driver");
 
+// Indexed by State
+PROGMEM_STRING_TABLE(StateStrings, "Not connected", "Connecting", "Connected", "UpdatingStatus", "StatusUpdated",
+                     "DeferredStatusRequest", "ScheduleNextStatusUpdate", "WaitingForScheduledStatusUpdate",
+                     "ApplyingSettings", "SettingsApplied", "ReadTimeout", "Unknown");
+
 static constexpr uint32_t RESPONSE_TIMEOUT_MS = 2000;
 
 static constexpr size_t REQUEST_PAYLOAD_LEN = 0x10;
@@ -106,13 +111,13 @@ bool MitsubishiCN105::update() {
 
 void MitsubishiCN105::set_state_(State new_state) {
   if (should_transition(this->state_, new_state)) {
-    ESP_LOGV(TAG, "Did transition: %s -> %s", LOG_STR_ARG(state_to_string(this->state_)),
-             LOG_STR_ARG(state_to_string(new_state)));
+    ESP_LOGV(TAG, "Did transition: %s -> %s", LOG_STR_ARG(StateStrings::get_log_str(this->state_)),
+             LOG_STR_ARG(StateStrings::get_log_str(new_state)));
     this->state_ = new_state;
     this->did_transition_(new_state);
   } else {
-    ESP_LOGV(TAG, "Ignoring unexpected transition %s -> %s", LOG_STR_ARG(state_to_string(this->state_)),
-             LOG_STR_ARG(state_to_string(new_state)));
+    ESP_LOGV(TAG, "Ignoring unexpected transition %s -> %s", LOG_STR_ARG(StateStrings::get_log_str(this->state_)),
+             LOG_STR_ARG(StateStrings::get_log_str(new_state)));
   }
 }
 
@@ -531,13 +536,6 @@ void MitsubishiCN105::apply_settings_() {
 
   this->send_packet_(make_packet(PACKET_TYPE_WRITE_SETTINGS_REQUEST, payload));
 }
-
-// Indexed by State
-PROGMEM_STRING_TABLE(StateStrings, "Not connected", "Connecting", "Connected", "UpdatingStatus", "StatusUpdated",
-                     "DeferredStatusRequest", "ScheduleNextStatusUpdate", "WaitingForScheduledStatusUpdate",
-                     "ApplyingSettings", "SettingsApplied", "ReadTimeout", "Unknown");
-
-const LogString *MitsubishiCN105::state_to_string(State state) { return StateStrings::get_log_str(state); }
 
 template<typename Callback>
 bool MitsubishiCN105::FrameParser::read_and_parse(uart::UARTDevice &device, Callback &&callback) {

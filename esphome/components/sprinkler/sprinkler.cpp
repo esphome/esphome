@@ -12,6 +12,11 @@ namespace esphome::sprinkler {
 
 ESPHOME_LOG_TAG(TAG, "sprinkler");
 
+// Request origin strings indexed by SprinklerValveRunRequestOrigin enum (0-2): USER, CYCLE, QUEUE
+PROGMEM_STRING_TABLE(SprinklerRequestOriginStrings, "USER", "CYCLE", "QUEUE", "UNKNOWN");
+// Sprinkler state strings indexed by SprinklerState enum (0-4): IDLE, STARTING, ACTIVE, STOPPING, BYPASS
+PROGMEM_STRING_TABLE(SprinklerStateStrings, "IDLE", "STARTING", "ACTIVE", "STOPPING", "BYPASS", "UNKNOWN");
+
 void SprinklerControllerNumber::setup() {
   float value;
   if (!this->restore_value_) {
@@ -1299,8 +1304,8 @@ void Sprinkler::start_valve_(SprinklerValveRunRequest *req) {
     if (vo.state() == IDLE) {
       auto run_duration = req->run_duration() ? req->run_duration() : this->valve_run_duration_adjusted(req->valve());
       ESP_LOGD(TAG, "%s is starting valve %zu for %" PRIu32 " seconds, cycle %" PRIu32 " of %" PRIu32,
-               LOG_STR_ARG(this->req_as_str_(req->request_is_from())), req->valve(), run_duration,
-               this->repeat_count_ + 1, this->repeat().value_or(0) + 1);
+               LOG_STR_ARG(SprinklerRequestOriginStrings::get_log_str(req->request_is_from())), req->valve(),
+               run_duration, this->repeat_count_ + 1, this->repeat().value_or(0) + 1);
       req->set_valve_operator(&vo);
       vo.set_controller(this);
       vo.set_valve(&this->valve_[req->valve()]);
@@ -1362,7 +1367,7 @@ void Sprinkler::fsm_kick_() {
 }
 
 void Sprinkler::fsm_transition_() {
-  ESP_LOGVV(TAG, "fsm_transition_ called; state is %s", LOG_STR_ARG(this->state_as_str_(this->state_)));
+  ESP_LOGVV(TAG, "fsm_transition_ called; state is %s", LOG_STR_ARG(SprinklerStateStrings::get_log_str(this->state_)));
   switch (this->state_) {
     case IDLE:  // the system was off -> start it up
       // advances to ACTIVE
@@ -1408,7 +1413,8 @@ void Sprinkler::fsm_transition_() {
     this->set_timer_duration_(sprinkler::TIMER_SM, this->manual_selection_delay_.value_or(1));
     this->start_timer_(sprinkler::TIMER_SM);
   }
-  ESP_LOGVV(TAG, "fsm_transition_ complete; new state is %s", LOG_STR_ARG(this->state_as_str_(this->state_)));
+  ESP_LOGVV(TAG, "fsm_transition_ complete; new state is %s",
+            LOG_STR_ARG(SprinklerStateStrings::get_log_str(this->state_)));
 }
 
 void Sprinkler::fsm_transition_from_shutdown_() {
@@ -1496,18 +1502,6 @@ void Sprinkler::log_standby_warning_(const LogString *method_name) {
 void Sprinkler::log_multiplier_zero_warning_(const LogString *method_name) {
   ESP_LOGW(TAG, "%s called but multiplier is set to zero; no action taken", LOG_STR_ARG(method_name));
 }
-
-// Request origin strings indexed by SprinklerValveRunRequestOrigin enum (0-2): USER, CYCLE, QUEUE
-PROGMEM_STRING_TABLE(SprinklerRequestOriginStrings, "USER", "CYCLE", "QUEUE", "UNKNOWN");
-
-const LogString *Sprinkler::req_as_str_(SprinklerValveRunRequestOrigin origin) {
-  return SprinklerRequestOriginStrings::get_log_str(origin);
-}
-
-// Sprinkler state strings indexed by SprinklerState enum (0-4): IDLE, STARTING, ACTIVE, STOPPING, BYPASS
-PROGMEM_STRING_TABLE(SprinklerStateStrings, "IDLE", "STARTING", "ACTIVE", "STOPPING", "BYPASS", "UNKNOWN");
-
-const LogString *Sprinkler::state_as_str_(SprinklerState state) { return SprinklerStateStrings::get_log_str(state); }
 
 void Sprinkler::start_timer_(const SprinklerTimerIndex timer_index) {
   if (this->timer_duration_(timer_index) > 0) {

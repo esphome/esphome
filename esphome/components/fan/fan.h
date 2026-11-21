@@ -31,8 +31,6 @@ enum class FanRestoreMode {
   RESTORE_INVERTED_DEFAULT_ON,
 };
 
-const LogString *fan_direction_to_string(FanDirection direction);
-
 class Fan;
 
 class FanCall {
