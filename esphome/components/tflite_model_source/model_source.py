@@ -27,6 +27,8 @@ from esphome.const import (
     TYPE_LOCAL,
 )
 from esphome.core import CORE
+from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
+from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -139,7 +141,7 @@ def _is_missing_report(err: Exception) -> bool:
     return status == 404
 
 
-def _git_model_path(config) -> Path:
+def _git_model_path(config: ConfigType) -> Path:
     """Clone (or update) the repository and return the model file inside it."""
     key = (TYPE_GIT, config[CONF_URL], config.get(CONF_REF, ""), config[CONF_FILE])
     resolved = _resolved_paths()
@@ -219,7 +221,7 @@ def _http_model_path(url: str) -> Path:
     return model_path
 
 
-def _validate_git_shorthand(value: str):
+def _validate_git_shorthand(value: str) -> ConfigType:
     from esphome import git
 
     try:
@@ -245,7 +247,7 @@ def _validate_git_shorthand(value: str):
         raise cv.Invalid(f"Could not resolve git model '{value}': {err}") from err
 
 
-def _validate_source_shorthand(value):
+def _validate_source_shorthand(value: object) -> ConfigType:
     if not isinstance(value, str):
         raise cv.Invalid("Model source must be a string or a mapping")
 
@@ -266,7 +268,7 @@ def _validate_source_shorthand(value):
         ) from err
 
 
-def _process_git_source(config):
+def _process_git_source(config: ConfigType) -> ConfigType:
     _git_model_path(config)
     return config
 
@@ -284,7 +286,7 @@ GIT_SCHEMA = cv.All(
 )
 
 
-def _process_http_source(config):
+def _process_http_source(config: ConfigType) -> ConfigType:
     _http_model_path(config[CONF_URL])
     return config
 
@@ -304,8 +306,13 @@ MODEL_SOURCE_MAPPING_SCHEMA = cv.typed_schema(
 )
 
 
-def validate_model_source(value):
+@schema_extractor("schema")
+def validate_model_source(value: ConfigType | str) -> ConfigType:
     """Validate a model source shorthand string or typed mapping."""
+    if value is SCHEMA_EXTRACT:
+        # The dumper cannot call the shorthand validator, so expose the mapping
+        # shape behind it and keep its keys in the generated language schema.
+        return MODEL_SOURCE_MAPPING_SCHEMA
     if isinstance(value, dict):
         return MODEL_SOURCE_MAPPING_SCHEMA(value)
     return _validate_source_shorthand(value)
@@ -314,7 +321,7 @@ def validate_model_source(value):
 MODEL_SOURCE_SCHEMA = validate_model_source
 
 
-def resolve_model_source(entry_config):
+def resolve_model_source(entry_config: ConfigType) -> tuple[Path, bytes]:
     """Return the resolved ``(path, bytes)`` of the configured model."""
     model_spec = entry_config[CONF_MODEL]
     source_type = model_spec[CONF_TYPE]
@@ -327,7 +334,7 @@ def resolve_model_source(entry_config):
     raise cv.Invalid(f"Unknown model source type: {source_type}")
 
 
-def _read_model_file(model_path) -> tuple[Path, bytes]:
+def _read_model_file(model_path: str | Path) -> tuple[Path, bytes]:
     model_path = Path(model_path)
     try:
         model_data = model_path.read_bytes()

@@ -56,7 +56,7 @@ _PROBABILITY_CUTOFF_RE = re.compile(r"probability_cutoff:\s*([\d.]+)")
 _FEATURES_STEP_SIZE_RE = re.compile(r"features_step_size:\s*(\d+)")
 
 
-def datasize_to_bytes(value):
+def datasize_to_bytes(value: object) -> int:
     try:
         text = re.sub(r"\bbytes?\b", "B", str(value).strip(), flags=re.IGNORECASE)
         text = text.upper()
@@ -77,7 +77,7 @@ def datasize_to_bytes(value):
         raise cv.Invalid(f"Invalid data size: {value}") from e
 
 
-def read_report(txt_path):
+def read_report(txt_path: Path) -> str:
     """Read a model report, reporting an unreadable file as a config error.
 
     Shared by every component that reads a report, so an undecodable or missing
@@ -89,7 +89,7 @@ def read_report(txt_path):
         raise cv.Invalid(f"Could not read the model report {txt_path}: {err}") from err
 
 
-def _parse_arena_size(content, txt_path):
+def _parse_arena_size(content: str, txt_path: Path) -> int | None:
     """Return the recommended arena size in bytes, in whatever unit it is given."""
     if (match := _ARENA_SIZE_RE.search(content)) is None:
         return None
@@ -101,7 +101,9 @@ def _parse_arena_size(content, txt_path):
     return datasize_to_bytes(size_match.group(1))
 
 
-def _check_input_type(dtype, model_path, supported, kind=""):
+def _check_input_type(
+    dtype: str, model_path: str | Path, supported: set[str], kind: str = ""
+) -> None:
     if dtype not in supported:
         raise cv.Invalid(
             f"Model '{Path(model_path).name}' has unsupported {kind}input type "
@@ -109,7 +111,9 @@ def _check_input_type(dtype, model_path, supported, kind=""):
         )
 
 
-def _check_hybrid_quantization(dtype, content, model_path):
+def _check_hybrid_quantization(
+    dtype: str, content: str, model_path: str | Path
+) -> None:
     if dtype == "float32" and _INT8_WEIGHT_RE.search(content):
         raise cv.Invalid(
             f"Model '{Path(model_path).name}' uses hybrid quantization "
@@ -119,7 +123,7 @@ def _check_hybrid_quantization(dtype, content, model_path):
         )
 
 
-def _check_delegate_ops(content, model_path):
+def _check_delegate_ops(content: str, model_path: str | Path) -> None:
     if _DELEGATE_RE.search(content):
         raise cv.Invalid(
             f"Model '{Path(model_path).name}' contains DELEGATE operations, which "
@@ -140,19 +144,19 @@ def _parse_number(pattern, content, txt_path, field, convert):
         ) from err
 
 
-def _scale_factor_for_classes(num_classes):
+def _scale_factor_for_classes(num_classes: int) -> float:
     """Class index scale factor: 100-class models report tens rather than units."""
     return 10.0 if num_classes == 100 else 1.0
 
 
-def _scale_factor_from_filename(model_path):
+def _scale_factor_from_filename(model_path: str | Path) -> float:
     """The scale factor a ``_100cls`` file name tag implies."""
     name = Path(model_path).stem
     num_classes = 100 if "_100cls_" in name or name.endswith("_100cls") else 10
     return _scale_factor_for_classes(num_classes)
 
 
-def parse_model_txt_file(model_path):
+def parse_model_txt_file(model_path: str | Path) -> dict[str, object] | None:
     """Parse an image-model ``.txt`` report, or return None if it is unusable."""
     txt_path = Path(model_path).with_suffix(".txt")
     if not txt_path.exists():
@@ -192,16 +196,24 @@ def parse_model_txt_file(model_path):
     }
     if (output_match := _IMAGE_OUTPUT_RE.search(content)) is not None:
         config["scale_factor"] = _scale_factor_for_classes(int(output_match.group(1)))
-    elif _OUTPUT_LINE_RE.search(content) is not None:
-        # An output shape this parser cannot read must not silently leave the
-        # default, which is wrong for a 100-class model.
+    else:
+        # An output shape this parser cannot read, or no output line at all, must
+        # not silently leave the default, which is wrong for a 100-class model.
         config["scale_factor"] = _scale_factor_from_filename(model_path)
-        _LOGGER.warning(
-            "Model report %s has an output shape this parser cannot read; taking the "
-            "class scale factor %s from the file name instead",
-            txt_path.name,
-            config["scale_factor"],
-        )
+        if _OUTPUT_LINE_RE.search(content) is not None:
+            _LOGGER.warning(
+                "Model report %s has an output shape this parser cannot read; taking the "
+                "class scale factor %s from the file name instead",
+                txt_path.name,
+                config["scale_factor"],
+            )
+        else:
+            _LOGGER.warning(
+                "Model report %s has no output shape; taking the class scale factor %s "
+                "from the file name instead",
+                txt_path.name,
+                config["scale_factor"],
+            )
     if (arena_size := _parse_arena_size(content, txt_path)) is not None:
         config["tensor_arena_size"] = arena_size
     # A model that ends in SOFTMAX already outputs probabilities, so the class
@@ -210,7 +222,7 @@ def parse_model_txt_file(model_path):
     return config
 
 
-def parse_audio_txt_file(model_path):
+def parse_audio_txt_file(model_path: str | Path) -> dict[str, object] | None:
     """Parse an audio-model ``.txt`` report, or return None if it is unusable."""
     txt_path = Path(model_path).with_suffix(".txt")
     if not txt_path.exists():
@@ -264,7 +276,7 @@ def parse_audio_txt_file(model_path):
     return config
 
 
-def infer_model_config_from_filename(model_filename):
+def infer_model_config_from_filename(model_filename: str) -> dict[str, object]:
     config = {}
     name = Path(model_filename).stem
     guessed = []
