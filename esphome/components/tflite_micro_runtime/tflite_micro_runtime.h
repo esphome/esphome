@@ -94,6 +94,11 @@ class InputPipeline {
   virtual ~InputPipeline() = default;
   /// @return true when the tensors were filled.
   virtual bool fill(TfLiteTensor *input, const uint8_t *src, size_t size) = 0;
+  /// The runtime calls this with every input tensor; a kind that fills more
+  /// than one (text needs ids, mask and segment) overrides it.
+  virtual bool fill_all(TfLiteTensor *const *inputs, size_t count, const uint8_t *src, size_t size) {
+    return count > 0 && this->fill(inputs[0], src, size);
+  }
   /// Name for dump_config(), e.g. "image".
   virtual const char *name() const = 0;
 };
@@ -156,6 +161,8 @@ class TFLiteMicroHelper final : public Component {
   bool run(const uint8_t *src_data, size_t src_size);
 
   void set_input_pipeline(InputPipeline *pipeline) { this->input_pipeline_ = pipeline; }
+  /// Leave the load to a streaming consumer; setup() only checks the checksum.
+  void set_defer_load(bool defer) { this->defer_load_ = defer; }
   void set_output_decoder(tflite_output_processor::OutputDecoder *decoder) { this->output_decoder_ = decoder; }
 
   /// Model spec of the loaded model; all defaults when none is loaded.
@@ -208,6 +215,7 @@ class TFLiteMicroHelper final : public Component {
 
   tflite_model_loader::ModelHandler model_handler_;
   InputPipeline *input_pipeline_{nullptr};
+  bool defer_load_{false};
   tflite_output_processor::OutputDecoder *output_decoder_{nullptr};
   MemoryManager::AllocationResult tensor_arena_allocation_;  // owned here, freed in unload_model()
   ArenaHeap arena_heap_{ArenaHeap::ARENA_HEAP_UNKNOWN};      // cached for reports after an unload

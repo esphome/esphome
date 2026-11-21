@@ -95,6 +95,15 @@ const LogString *tensor_type_name(TfLiteType type) {
 }  // namespace
 
 void TFLiteMicroHelper::setup() {
+  if (this->defer_load_) {
+    // A streaming consumer owns the model and its resource variables.
+    if (const LogString *reason = this->check_model_integrity_(); reason != nullptr) {
+      this->mark_failed(reason);
+      return;
+    }
+    ESP_LOGI(TAG, "Model load left to the streaming consumer");
+    return;
+  }
   // Usable without a consumer: load here so the model is verified and reported at boot.
   if (!this->load_model())
     this->mark_failed(LOG_STR("Model load failed"));
@@ -209,7 +218,16 @@ bool TFLiteMicroHelper::run(const uint8_t *src_data, size_t src_size) {
     return false;
   }
   if (this->input_pipeline_ != nullptr) {
-    if (!this->input_pipeline_->fill(this->model_handler_.input_tensor(), src_data, src_size))
+    static constexpr size_t MAX_INPUTS = 8;
+    const size_t input_count = this->model_handler_.input_count();
+    if (input_count > MAX_INPUTS) {
+      ESP_LOGE(TAG, "Model has %zu inputs, more than the %zu a pipeline can take", input_count, MAX_INPUTS);
+      return false;
+    }
+    TfLiteTensor *inputs[MAX_INPUTS];
+    for (size_t i = 0; i < input_count; i++)
+      inputs[i] = this->model_handler_.input(i);
+    if (!this->input_pipeline_->fill_all(inputs, input_count, src_data, src_size))
       return false;
   } else {
     if (!this->validate_input_tensor_(src_data, src_size))
