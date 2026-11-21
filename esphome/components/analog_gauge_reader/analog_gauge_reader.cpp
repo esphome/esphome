@@ -1,4 +1,4 @@
-#include "analog_gauge_reader.h"
+﻿#include "analog_gauge_reader.h"
 
 #include "esphome/components/camera_decoder/jpeg_grayscale.h"
 #include "esphome/core/application.h"
@@ -104,7 +104,7 @@ void AnalogGaugeReader::update() {
   if (this->frame_state_.compare_exchange_strong(expected, FrameState::REQUESTED)) {
     this->last_request_time_ = App.get_loop_component_start_time();
     this->camera_->request_image(camera::IDLE);
-    ESP_LOGD(TAG, "Requesting frame");
+    ESP_LOGV(TAG, "Requesting frame");
   }
 }
 
@@ -272,7 +272,7 @@ void AnalogGaugeReader::process_image_from_buffer(const uint8_t *data, size_t le
 
     const float val = angle_to_value(result.angle, dial);
     const float display_angle = fmodf(result.angle + 90.0f, 360.0f);
-    ESP_LOGD(TAG, "Dial %s: Angle=%.1f (North), Val=%.2f, Conf=%.2f, Time=%" PRIu32 " us", dial.id, display_angle, val,
+    ESP_LOGV(TAG, "Dial %s: Angle=%.1f (North), Val=%.2f, Conf=%.2f, Time=%" PRIu32 " us", dial.id, display_angle, val,
              result.confidence, dur_algo);
     this->readings_.push_back({&dial, val, display_angle, result.confidence});
   }
@@ -312,7 +312,7 @@ void AnalogGaugeReader::process_image_from_buffer(const uint8_t *data, size_t le
     }
   }
   total_value = roundf(total_value * precision) / precision;
-  ESP_LOGI(TAG, "Result: %.6f", total_value);
+  ESP_LOGV(TAG, "Result: %.6f", total_value);
   PUBLISH_STATE(this->value_sensor_, total_value);
 }
 
