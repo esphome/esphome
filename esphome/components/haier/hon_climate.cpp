@@ -1002,7 +1002,12 @@ bool HonClimate::update_hvac_action_(const hon_protocol::HaierPacketBigData *bd_
   if (this->mode == CLIMATE_MODE_FAN_ONLY) {
     new_action = CLIMATE_ACTION_FAN;
   } else if (this->mode != CLIMATE_MODE_OFF) {
-    if ((bd_packet == nullptr) || (bd_packet->compressor_status >= 2)) {
+    if (bd_packet == nullptr) {
+      return false;
+    }
+    const bool defrosting = (this->mode == CLIMATE_MODE_HEAT || this->mode == CLIMATE_MODE_HEAT_COOL) &&
+                           bd_packet->defrost_status == 1;
+    if (!defrosting && bd_packet->compressor_status >= 2) {
       return false;
     }
     const bool compressor_on = bd_packet->compressor_status == 1;
