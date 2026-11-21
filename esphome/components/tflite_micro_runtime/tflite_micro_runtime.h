@@ -93,7 +93,7 @@ class InputPipeline {
  public:
   virtual ~InputPipeline() = default;
   /// @return true when the tensors were filled.
-  virtual bool fill(const uint8_t *src, size_t size) = 0;
+  virtual bool fill(TfLiteTensor *input, const uint8_t *src, size_t size) = 0;
   /// Name for dump_config(), e.g. "image".
   virtual const char *name() const = 0;
 };

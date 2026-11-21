@@ -209,7 +209,7 @@ bool TFLiteMicroHelper::run(const uint8_t *src_data, size_t src_size) {
     return false;
   }
   if (this->input_pipeline_ != nullptr) {
-    if (!this->input_pipeline_->fill(src_data, src_size))
+    if (!this->input_pipeline_->fill(this->model_handler_.input_tensor(), src_data, src_size))
       return false;
   } else {
     if (!this->validate_input_tensor_(src_data, src_size))
