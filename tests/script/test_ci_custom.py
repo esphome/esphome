@@ -386,6 +386,8 @@ def test_iter_log_calls_includes_direct_calls() -> None:
     assert _calls(content + ";\nint other = (1);") == [content]
     # Only the call is scanned, never a name that merely ends in esp_log_printf_
     assert _calls('my_esp_log_printf_(level, "x");') == []
+    # Nor a call that is commented out or inside a string
+    assert _calls('// ESP_LOGD(TAG, "x");\nconst char *s = "ESP_LOGD(TAG, x)";') == []
 
 
 def test_ternary_literal_in_direct_call() -> None:
@@ -422,6 +424,18 @@ def _format_errors(content: str) -> list[tuple[int, int]]:
         # The form the log macros expand to
         ('::esphome::esp_log_printf_(l, TAG, 1, "x");', [(1, 39)]),
         ("esp_log_printf_(level, TAG, __LINE__);", []),
+        # Lambda captures and braced initializers in earlier arguments do not shift the format
+        (
+            'esp_log_printf_(level, [a, b]() { return TAG; }(), Pos{1, 2}.line, "x");',
+            [(1, 68)],
+        ),
+        # A comment before the format, raw and prefixed literals
+        ('esp_log_printf_(level, TAG, __LINE__, /* fmt */ "x");', [(1, 49)]),
+        ('esp_log_printf_(level, TAG, __LINE__, R"(x)");', [(1, 39)]),
+        # Commented-out calls and calls inside strings are not code
+        ('// esp_log_printf_(level, TAG, __LINE__, "x");', []),
+        ('/* esp_log_printf_(level, TAG, __LINE__, "x"); */', []),
+        ('const char *doc = "esp_log_printf_(level, TAG, __LINE__, \\"x\\");";', []),
     ],
 )
 def test_direct_call_format_detection(
