@@ -156,12 +156,9 @@ float MQGasSensor::read_ppm_() {
 }
 
 void MQGasSensor::publish_diagnostics_() {
-  if (this->voltage_sensor_ != nullptr)
-    this->voltage_sensor_->publish_state(this->sensor_voltage_);
-  if (this->rs_sensor_ != nullptr)
-    this->rs_sensor_->publish_state(this->rs_);
-  if (this->ratio_sensor_ != nullptr)
-    this->ratio_sensor_->publish_state(this->ratio_);
+  PUBLISH_STATE(this->voltage_sensor_, this->sensor_voltage_);
+  PUBLISH_STATE(this->rs_sensor_, this->rs_);
+  PUBLISH_STATE(this->ratio_sensor_, this->ratio_);
 }
 
 void MQGasSensor::publish_fault_diagnostics_() {

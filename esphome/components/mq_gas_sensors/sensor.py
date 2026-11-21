@@ -9,6 +9,7 @@ attenuation).
 
 import logging
 import math
+from typing import Any
 
 import esphome.codegen as cg
 from esphome.components import sensor, text_sensor, voltage_sampler
@@ -36,6 +37,7 @@ from esphome.const import (
 )
 from esphome.core import CORE
 import esphome.final_validate as fv
+from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
 
 from . import (
@@ -259,6 +261,21 @@ DIVIDER_SCHEMA = cv.Schema(
         cv.Required(CONF_R2): positive_finite_float,
     }
 )
+
+
+def _effective_rl(config: ConfigType, rl: float) -> float:
+    """RL seen by the sensor element: the module's load resistor with the divider.
+
+    A passive divider across the analog output draws current through the module's
+    own load resistor, so the resistance the element actually works into is lower.
+    ``rl:`` stays the physical resistor; ``voltage_multiplier:`` alone does not
+    describe the divider, so the declared value is then used as it is.
+    """
+    divider = config.get(CONF_VOLTAGE_DIVIDER)
+    if divider is None:
+        return rl
+    kohm = divider[CONF_R1] + divider[CONF_R2]
+    return rl * kohm / (rl + kohm)
 
 
 def _voltage_multiplier(config: ConfigType) -> float:
@@ -651,6 +668,21 @@ def _validate_esp32_attenuation(value: str) -> str:
     return value
 
 
+@schema_extractor("schema")
+def _deferred_adc_pin(value: Any) -> Any:
+    """Keep the ADC pin schema visible while validating the pin later.
+
+    The pin is validated for real in ``_build_internal_adc()``, together with the
+    rest of the generated ``adc`` entry. Returning the ADC's own validator during
+    schema extraction keeps the GPIO metadata in the generated language schema.
+    """
+    from esphome.components.adc import validate_adc_pin
+
+    if value == SCHEMA_EXTRACT:
+        return validate_adc_pin
+    return value
+
+
 CONFIG_SCHEMA = cv.All(
     sensor.sensor_schema(
         MQGasSensor,
@@ -664,7 +696,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_SENSOR_TYPE): cv.All(cv.string, validate_sensor_type),
             cv.Optional(CONF_GAS): cv.All(cv.string, validate_gas),
             cv.Optional(CONF_VOLTAGE): cv.use_id(voltage_sampler.VoltageSampler),
-            cv.Optional(CONF_PIN): cv.valid,
+            cv.Optional(CONF_PIN): _deferred_adc_pin,
             cv.Optional(CONF_ADC_ATTENUATION): cv.All(
                 cv.only_on_esp32,
                 cv.one_of(*ATTENUATION_MODES, lower=True),
@@ -746,7 +778,7 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_b(resolved.b))
     cg.add(var.set_regression_method(REGRESSION_METHODS[resolved.method]))
     cg.add(var.set_ratio_mode(RATIO_MODES[config[CONF_RATIO_MODE]]))
-    cg.add(var.set_rl(resolved.rl))
+    cg.add(var.set_rl(_effective_rl(config, resolved.rl)))
     cg.add(var.set_vcc(resolved.vcc))
     cg.add(var.set_ratio_in_clean_air(resolved.ratio_in_clean_air))
     cg.add(var.set_min_ppm(resolved.min_ppm))
