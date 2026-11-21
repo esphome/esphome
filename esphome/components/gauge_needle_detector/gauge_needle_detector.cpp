@@ -1,4 +1,4 @@
-#include "gauge_needle_detector.h"
+﻿#include "gauge_needle_detector.h"
 
 #ifdef USE_GAUGE_NEEDLE_DETECTOR
 
@@ -23,7 +23,7 @@ const LogString *algorithm_name(Algorithm algorithm) {
 namespace {
 
 /// Sine of 0 to 90 degrees; the other quadrants mirror these values.
-const float SINE_TABLE[91] PROGMEM = {
+const std::array<float, 91> SINE_TABLE PROGMEM = {
     0.000000000f, 0.017452406f, 0.034899497f, 0.052335956f, 0.069756474f, 0.087155743f, 0.104528463f, 0.121869343f,
     0.139173101f, 0.156434465f, 0.173648178f, 0.190808995f, 0.207911691f, 0.224951054f, 0.241921896f, 0.258819045f,
     0.275637356f, 0.292371705f, 0.309016994f, 0.325568154f, 0.342020143f, 0.358367950f, 0.374606593f, 0.390731128f,

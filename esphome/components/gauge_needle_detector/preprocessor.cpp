@@ -1,4 +1,4 @@
-#include "gauge_needle_detector.h"
+﻿#include "gauge_needle_detector.h"
 
 #ifdef USE_GAUGE_NEEDLE_DETECTOR
 
@@ -43,10 +43,10 @@ void apply_contrast_stretch(uint8_t *img, size_t pixels, std::array<uint32_t, 25
     img[i] = static_cast<uint8_t>((hist[img[i]] * 255u) / total);
 }
 
-enum class MorphOp : uint8_t { ERODE, DILATE };
+enum class MorphOp : uint8_t { MORPH_OP_ERODE, MORPH_OP_DILATE };
 
 inline uint8_t morph_pick(uint8_t a, uint8_t b, MorphOp op) {
-  return op == MorphOp::ERODE ? std::min(a, b) : std::max(a, b);
+  return op == MorphOp::MORPH_OP_ERODE ? std::min(a, b) : std::max(a, b);
 }
 
 /// One horizontal pass of a square min/max kernel.
@@ -98,15 +98,15 @@ void apply_tophat(uint8_t *img, int width, int height, int radial_pixels, uint8_
   // White top hat: Original - Opening. Opening = Dilate(Erode(Original)).
   // Black top hat: Closing - Original. Closing = Erode(Dilate(Original)).
   if (needle_type == NEEDLE_TYPE_LIGHT) {
-    morph(img, scratch, scratch_2, width, height, r, MorphOp::ERODE);
-    morph(scratch_2, scratch, scratch_2, width, height, r, MorphOp::DILATE);
+    morph(img, scratch, scratch_2, width, height, r, MorphOp::MORPH_OP_ERODE);
+    morph(scratch_2, scratch, scratch_2, width, height, r, MorphOp::MORPH_OP_DILATE);
     for (size_t i = 0; i < pixels; i++) {
       const int val = static_cast<int>(img[i]) - static_cast<int>(scratch_2[i]);
       img[i] = (val < 0) ? 0 : static_cast<uint8_t>(val);
     }
   } else {
-    morph(img, scratch, scratch_2, width, height, r, MorphOp::DILATE);
-    morph(scratch_2, scratch, scratch_2, width, height, r, MorphOp::ERODE);
+    morph(img, scratch, scratch_2, width, height, r, MorphOp::MORPH_OP_DILATE);
+    morph(scratch_2, scratch, scratch_2, width, height, r, MorphOp::MORPH_OP_ERODE);
     for (size_t i = 0; i < pixels; i++) {
       const int val = static_cast<int>(scratch_2[i]) - static_cast<int>(img[i]);
       img[i] = (val < 0) ? 0 : static_cast<uint8_t>(val);
