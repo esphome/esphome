@@ -95,16 +95,6 @@ const LogString *tensor_type_name(TfLiteType type) {
 }  // namespace
 
 void TFLiteMicroHelper::setup() {
-  if (this->model_type_ == ModelType::MODEL_TYPE_AUDIO) {
-    // A streaming model needs MicroResourceVariables that only its consumer owns, so
-    // the load is left to that consumer. The checksum is still checked here.
-    if (const LogString *reason = this->check_model_integrity_(); reason != nullptr) {
-      this->mark_failed(reason);
-      return;
-    }
-    ESP_LOGI(TAG, "Audio model: load left to the streaming consumer");
-    return;
-  }
   // Usable without a consumer: load here so the model is verified and reported at boot.
   if (!this->load_model())
     this->mark_failed(LOG_STR("Model load failed"));
@@ -117,17 +107,7 @@ void TFLiteMicroHelper::dump_config() {
                 "  Model size: %zu bytes\n"
                 "  Tensor arena: %zu bytes configured",
                 model_type_name(this->model_type_), this->model_length_, this->tensor_arena_size_requested_);
-  if (this->model_type_ == ModelType::MODEL_TYPE_AUDIO) {
-    // setup() leaves this model to the consumer, so only the pass-through settings exist.
-    ESP_LOGCONFIG(TAG,
-                  "  Load left to the streaming consumer\n"
-                  "  Probability cutoff: %u/255, sliding window: %zu frames\n"
-                  "  Features step: %u ms, feature count: %zu",
-                  static_cast<unsigned>(this->audio_config_.probability_cutoff),
-                  this->audio_config_.sliding_window_size,
-                  static_cast<unsigned>(this->audio_config_.features_step_size), this->audio_config_.feature_count);
-    return;
-  }
+
   if (!this->is_model_loaded()) {
     ESP_LOGCONFIG(TAG, "  Model not loaded");
     return;
@@ -275,10 +255,6 @@ const LogString *TFLiteMicroHelper::check_model_integrity_() {
 }
 
 bool TFLiteMicroHelper::load_model() {
-  if (this->model_type_ == ModelType::MODEL_TYPE_AUDIO) {
-    ESP_LOGE(TAG, "load_model() cannot load an audio model; its streaming consumer must call load_model_with_arena()");
-    return false;
-  }
   LoadState expected = LoadState::LOAD_STATE_UNLOADED;
   if (!this->state_.compare_exchange_strong(expected, LoadState::LOAD_STATE_LOADING)) {
     if (expected == LoadState::LOAD_STATE_READY) {
@@ -343,40 +319,7 @@ bool TFLiteMicroHelper::load_model() {
     ESP_LOGE(TAG, "Failed to load model into interpreter");
     return fail_load();
   }
-  // A configured input that does not match the model's tensor would only show up
-  // as bad predictions.
-  if (this->model_type_ == ModelType::MODEL_TYPE_IMAGE) {
-    ImageModelConfig img_cfg;
-    img_cfg.input_type = input_type_name(this->input_type_);
-    img_cfg.input_channels = this->input_channels_;
-    img_cfg.input_order = input_order_name(this->input_order_);
-    img_cfg.input_size = {this->input_width_, this->input_height_};
-    img_cfg.normalize = this->normalize_;
-    img_cfg.invert = this->invert_;
-    this->model_handler_.set_image_config(img_cfg);
-    const int model_width = this->model_handler_.get_input_width();
-    const int model_height = this->model_handler_.get_input_height();
-    const int model_channels = this->model_handler_.get_input_channels();
-    if (model_width != this->input_width_ || model_height != this->input_height_ ||
-        model_channels != this->input_channels_) {
-      ESP_LOGE(TAG, "Configured input %dx%dx%d does not match the model's %dx%dx%d", this->input_width_,
-               this->input_height_, this->input_channels_, model_width, model_height, model_channels);
-      ESP_LOGE(TAG, "  Set input_width/input_height/input_channels to the model's values");
-      return fail_load();
-    }
-    const TfLiteType expected_type = configured_input_tensor_type(this->input_type_);
-    const TfLiteTensor *input = this->model_handler_.input_tensor();
-    if (input == nullptr) {
-      ESP_LOGE(TAG, "Model has no input tensor");
-      return fail_load();
-    }
-    if (input->type != expected_type) {
-      ESP_LOGE(TAG, "Configured input_type '%s' does not match the model's %s input tensor",
-               input_type_name(this->input_type_), LOG_STR_ARG(tensor_type_name(input->type)));
-      ESP_LOGE(TAG, "  Set input_type to the tensor's type");
-      return fail_load();
-    }
-  }
+
   stats.success = true;
   stats.total_load_time_ms = millis() - stats.load_start_ms;
   this->last_load_stats_ = stats;
