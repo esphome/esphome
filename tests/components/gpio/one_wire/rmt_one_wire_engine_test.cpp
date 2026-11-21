@@ -556,6 +556,59 @@ TEST(RmtOneWireEngine, TransactionsRunInFifoOrderWithoutInterleaving) {
   EXPECT_EQ(a.read_bytes, PAYLOAD);
 }
 
+TEST(RmtOneWireEngine, ThePollThatEndsATransactionStartsTheNext) {
+  // The completion of the last section wakes the loop only once. With a raised loop_interval, the next loop pass
+  // can be seconds away, so the queued transaction must not wait for it.
+  Rig rig;
+  add_scratchpad_device(rig);
+  rig.port.manual = true;
+  DoneLog log;
+  Job first(&log, 1, 0, {0x44}, 0);
+  Job second(&log, 2, ROM_A, {READ_SCRATCHPAD}, 9);
+  ASSERT_TRUE(rig.engine.submit(&first.t));
+  ASSERT_TRUE(rig.engine.submit(&second.t));
+  rig.engine.poll();
+  // One poll() per completion, as the bus has no other loop pass
+  const auto complete_section_and_poll = [&rig]() {
+    ASSERT_FALSE(rig.port.sections.empty());
+    const bool armed = rig.port.sections.back().armed;
+    rig.port.fire_tx();
+    if (armed)
+      rig.port.fire_rx();
+    rig.engine.poll();
+  };
+  for (int guard = 0; guard < 20 && log.empty(); guard++)
+    complete_section_and_poll();
+  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_OK}}));
+  EXPECT_EQ(rig.port.summary(), "RESET WRITE:16 RESET") << "the second one is on the bus without another poll()";
+  for (int guard = 0; guard < 20 && log.size() < 2; guard++)
+    complete_section_and_poll();
+  EXPECT_EQ(log,
+            (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_OK}, {2, TransactionStatus::TRANSACTION_STATUS_OK}}));
+  EXPECT_EQ(second.read_bytes, PAYLOAD);
+}
+
+TEST(RmtOneWireEngine, ATransactionThatEndsAtTheStartDoesNotStartTheNext) {
+  // Only an end on the bus starts the next one at once, so a client that submits again from on_done while the
+  // line is Low cannot keep poll() from returning
+  Rig rig;
+  add_scratchpad_device(rig);
+  rig.port.line_low_until_us = 1000;
+  DoneLog log;
+  Job job(&log, 1, ROM_A, {READ_SCRATCHPAD}, 9);
+  job.then = [&](TransactionStatus) { EXPECT_TRUE(rig.engine.submit(&job.t)); };
+  ASSERT_TRUE(rig.engine.submit(&job.t));
+  rig.engine.poll();
+  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_BUS_LOW}}));
+  EXPECT_FALSE(rig.engine.is_idle());
+  EXPECT_TRUE(rig.port.sections.empty());
+  job.then = nullptr;
+  rig.port.advance_us(2000);
+  rig.pump();
+  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_BUS_LOW},
+                          {1, TransactionStatus::TRANSACTION_STATUS_OK}}));
+}
+
 TEST(RmtOneWireEngine, SubmitDuringEverySectionDoesNotDisturbTheRunningOne) {
   Rig rig;
   add_scratchpad_device(rig);
@@ -720,6 +773,7 @@ TEST_P(RmtOneWireLostCompletion, TimeoutAt50msThenNextRunsNormally) {
   EXPECT_EQ(rig.port.abort_count, 1);
   ASSERT_FALSE(log.empty());
   EXPECT_EQ(log[0], (DoneEntry{1, TransactionStatus::TRANSACTION_STATUS_TIMEOUT}));
+  EXPECT_EQ(rig.port.sections.size(), 2u) << "the poll() of the timeout also starts the next one";
 
   rig.pump();
   EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_TIMEOUT},

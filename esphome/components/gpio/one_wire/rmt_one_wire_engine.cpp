@@ -68,7 +68,12 @@ void Engine::poll() {
   if (this->busy_)
     return;
   BusyScope scope(this);
+  const bool on_bus = this->step_ != Step::STEP_LINE_UNCHECKED;
   this->poll_();
+  // When the transaction on the bus ended, the next one starts now. Nothing else would wake the loop for it,
+  // so it would wait for the next loop pass, which can be loop_interval later.
+  if (on_bus && this->step_ == Step::STEP_LINE_UNCHECKED)
+    this->poll_();
 }
 
 void Engine::poll_() {
