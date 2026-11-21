@@ -57,25 +57,42 @@ void DallasTemperatureSensor::update() {
   }
 }
 
-bool DallasTemperatureSensor::check_transaction_status_(one_wire::TransactionStatus status) {
+static const LogString *transaction_status_to_str(one_wire::TransactionStatus status) {
   switch (status) {
-    case one_wire::TransactionStatus::TRANSACTION_STATUS_OK:
-      return true;
     case one_wire::TransactionStatus::TRANSACTION_STATUS_NO_PRESENCE:
+      return LOG_STR("no device answered the reset");
     case one_wire::TransactionStatus::TRANSACTION_STATUS_BUS_LOW:
-      this->status_set_warning(LOG_STR("bus reset failed"));
-      return false;
+      return LOG_STR("bus held low");
+    case one_wire::TransactionStatus::TRANSACTION_STATUS_CAPTURE_ERROR:
+      return LOG_STR("capture error");
+    case one_wire::TransactionStatus::TRANSACTION_STATUS_TIMEOUT:
+      return LOG_STR("timeout");
+    case one_wire::TransactionStatus::TRANSACTION_STATUS_HARDWARE_ERROR:
+      return LOG_STR("hardware error");
     default:
-      this->status_set_warning(LOG_STR("bus transaction failed"));
-      return false;
+      return LOG_STR("unknown error");
   }
+}
+
+bool DallasTemperatureSensor::check_transaction_status_(one_wire::TransactionStatus status, const LogString *step) {
+  if (status == one_wire::TransactionStatus::TRANSACTION_STATUS_OK)
+    return true;
+  ESP_LOGW(TAG, "'%s' - %s failed: %s", LOG_STR_ARG(this->get_log_name()), LOG_STR_ARG(step),
+           LOG_STR_ARG(transaction_status_to_str(status)));
+  if (status == one_wire::TransactionStatus::TRANSACTION_STATUS_NO_PRESENCE ||
+      status == one_wire::TransactionStatus::TRANSACTION_STATUS_BUS_LOW) {
+    this->status_set_warning(LOG_STR("bus reset failed"));
+  } else {
+    this->status_set_warning(LOG_STR("bus transaction failed"));
+  }
+  return false;
 }
 
 // Without a confirmed Convert T the scratch pad can still hold the previous reading with a valid checksum.
 // A failed conversion therefore ends the cycle here instead of reading.
 void DallasTemperatureSensor::on_convert_done(void *context, one_wire::TransactionStatus status) {
   auto *self = static_cast<DallasTemperatureSensor *>(context);
-  if (!self->check_transaction_status_(status)) {
+  if (!self->check_transaction_status_(status, LOG_STR("starting the conversion"))) {
     self->publish_state(NAN);
     return;
   }
@@ -89,7 +106,7 @@ void DallasTemperatureSensor::on_convert_done(void *context, one_wire::Transacti
 void DallasTemperatureSensor::on_read_done(void *context, one_wire::TransactionStatus status) {
   auto *self = static_cast<DallasTemperatureSensor *>(context);
   float tempc = NAN;
-  if (self->check_transaction_status_(status) && self->check_scratch_pad_()) {
+  if (self->check_transaction_status_(status, LOG_STR("reading scratch pad")) && self->check_scratch_pad_()) {
     // A new update() can clear the warning while an older read is still queued. If that older read then
     // fails, the warning comes back, so a good reading has to clear it again here.
     self->status_clear_warning();
