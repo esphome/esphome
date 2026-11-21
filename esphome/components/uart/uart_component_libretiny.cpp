@@ -176,7 +176,8 @@ void LibreTinyUARTComponent::load_settings(bool dump_config) {
     ESP_LOGW(TAG, "LN882x keeps 8N1; only the baud rate changes");
   serial_setbaudrate(serial_handles[this->hardware_idx_], this->baud_rate_);
 #elif defined(USE_BK72XX)
-  // The BK72xx configure() registers the port with the SDK again on every call, which fills its fixed device table.
+  // The BK72xx configure() registers the port with the SDK again on every call, and each call grows the SDK's device
+  // table on the heap.
   // uart_hw_set_change() only rewrites the port's registers, the way configure() ends.
   bk_uart_config_t cfg{};
   cfg.baud_rate = this->baud_rate_;
