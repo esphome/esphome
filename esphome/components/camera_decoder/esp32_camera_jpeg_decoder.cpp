@@ -70,10 +70,14 @@ bool ESP32CameraJPEGDecoder::open_decoder_() {
     case camera::PIXEL_FORMAT_CBYCRY:
       config.output_type = JPEG_PIXEL_FORMAT_CbYCrY;
       break;
-    default:
-      // Python only accepts the formats above. An unmapped one means the
-      // shared PixelFormat enum grew without the decoder being updated, and
-      // falling back to RGB888 would publish the wrong pixels.
+    case camera::PIXEL_FORMAT_RGB888:
+      config.output_type = JPEG_PIXEL_FORMAT_RGB888;
+      break;
+    // Every enumerator is listed and there is no default, so -Wswitch reports a
+    // PixelFormat that grows without this mapping being updated. BGR888 has no
+    // layout the library takes, so it fails the open instead of being decoded
+    // as a different format.
+    case camera::PIXEL_FORMAT_BGR888:
       ESP_LOGE(TAG, "Cannot decode to %s", camera::to_string(this->output_format_));
       this->open_failed_ = true;
       return false;
