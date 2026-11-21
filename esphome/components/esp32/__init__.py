@@ -2796,8 +2796,9 @@ _WIFI_ENTERPRISE_OPTIONS = (
     "CONFIG_WIFI_RMT_ENTERPRISE_SUPPORT",
 )
 
-# Curves public CAs never sign with and TLS servers never negotiate (they use
-# RSA, P-256, P-384, P-521 and X25519); TLS builds still link them on IDF 6.
+# Curves public CAs never sign with and few TLS servers use (most use RSA,
+# P-256, P-384, P-521 and X25519); a private server or client certificate on
+# one of them needs it re-enabled in sdkconfig_options. TLS builds link them on IDF 6.
 # Wi-Fi Enterprise keeps them: private RADIUS PKIs do use Brainpool.
 MBEDTLS_RARE_TLS_CURVE_OPTIONS = (
     "CONFIG_MBEDTLS_ECP_DP_SECP256K1_ENABLED",
