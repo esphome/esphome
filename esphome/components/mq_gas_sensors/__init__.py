@@ -109,9 +109,15 @@ _ESP32_ATTENUATION_INPUT_MAX_V = {
 }
 
 #: Row used for a variant the table has no entry for: it is the narrowest one, so
-#: an unverified range can only make the divider guard stricter, never let a wiring
-#: that clips the top of the reading through.
-_ESP32_NARROWEST_INPUT_MAX_V = _ESP32_ATTENUATION_INPUT_MAX_V[VARIANT_ESP32S2]
+#: the narrowest value at each attenuation across the variants, so an unverified
+#: range can only make the divider guard stricter, never let a wiring that clips the
+#: top of the reading through.
+_ESP32_NARROWEST_INPUT_MAX_V = {
+    attenuation: min(
+        row[attenuation] for row in _ESP32_ATTENUATION_INPUT_MAX_V.values()
+    )
+    for attenuation in _ESP32_ATTENUATION_INPUT_MAX_V[VARIANT_ESP32]
+}
 
 
 def esp32_attenuation_input_max(variant: str, attenuation: str) -> float:

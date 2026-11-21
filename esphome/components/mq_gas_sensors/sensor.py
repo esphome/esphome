@@ -279,7 +279,7 @@ def _voltage_multiplier(config: ConfigType) -> float:
 CALIBRATION_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_DELAY, default="60s"): cv.positive_time_period_milliseconds,
-        cv.Optional(CONF_SAMPLE_COUNT, default=50): cv.int_range(min=1, max=1000),
+        cv.Optional(CONF_SAMPLE_COUNT, default=50): cv.int_range(min=2, max=1000),
         cv.Optional(CONF_SAMPLE_INTERVAL, default="20ms"): cv.All(
             cv.positive_time_period_milliseconds,
             cv.Range(min=cv.TimePeriod(milliseconds=MIN_SAMPLE_INTERVAL_MS)),

@@ -468,7 +468,7 @@ def test_variant_without_a_row_uses_the_narrowest_range(
 ) -> None:
     """An unverified variant must not be trusted with the classic ESP32 range."""
     with caplog.at_level("WARNING"):
-        assert esp32_attenuation_input_max("ESP32P4", "12db") == pytest.approx(2.5)
+        assert esp32_attenuation_input_max("ESP32P4", "12db") == pytest.approx(2.45)
     assert "ESP32P4" in caplog.text
     assert "narrowest known range" in caplog.text
 
