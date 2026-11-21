@@ -497,8 +497,14 @@ def final_validation(config: ConfigType) -> None:
     max_connections = config.get(CONF_MAX_CONNECTIONS, DEFAULT_MAX_CONNECTIONS)
     validate_connection_slots(max_connections)
 
+    # A USB Bluetooth dongle as the controller (usb_bluetooth with bluedroid: true)
+    if _uses_usb_bluetooth(full_config):
+        add_idf_sdkconfig_option("CONFIG_BT_CLASSIC_ENABLED", False)
+        add_idf_sdkconfig_option("CONFIG_BT_BLE_ENABLED", True)
+        add_idf_sdkconfig_option("CONFIG_BT_BLUEDROID_ENABLED", True)
+        add_idf_sdkconfig_option("CONFIG_BT_CONTROLLER_DISABLED", True)
     # Check if hosted bluetooth is being used
-    if ESP32_HOSTED_DOMAIN in full_config:
+    elif ESP32_HOSTED_DOMAIN in full_config:
         add_idf_sdkconfig_option("CONFIG_BT_CLASSIC_ENABLED", False)
         add_idf_sdkconfig_option("CONFIG_BT_BLE_ENABLED", True)
         add_idf_sdkconfig_option("CONFIG_BT_BLUEDROID_ENABLED", True)
@@ -662,6 +668,8 @@ async def to_code(config: ConfigType) -> None:
         )
 
     cg.add_define("USE_ESP32_BLE")
+    if _uses_usb_bluetooth(CORE.config):
+        cg.add_define("USE_ESP32_BLE_USB_HCI")
 
     if config[CONF_ADVERTISING]:
         cg.add_define("USE_ESP32_BLE_ADVERTISING")
@@ -676,6 +684,11 @@ for _name, _call in (("ble.enable", "enable()"), ("ble.disable", "disable()")):
     automation.register_apply_action(
         _name, BLE_AUTOMATION_SCHEMA, automation.ApplyCall(_call)
     )
+
+
+def _uses_usb_bluetooth(full_config: ConfigType) -> bool:
+    """Whether a USB Bluetooth dongle (usb_bluetooth with bluedroid: true) is the controller."""
+    return any(c.get("bluedroid") for c in full_config.get("usb_bluetooth") or [])
 
 
 def _has_gatt_client(config: ConfigType) -> bool:

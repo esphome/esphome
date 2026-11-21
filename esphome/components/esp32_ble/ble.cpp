@@ -9,6 +9,10 @@
 
 #ifndef CONFIG_BT_CONTROLLER_DISABLED
 #include <esp_bt.h>
+#elif defined(USE_ESP32_BLE_USB_HCI)
+// Bluedroid runs on a USB Bluetooth dongle, through the host-only HCI transport of usb_bluetooth
+#include "esphome/components/usb_bluetooth/usb_bluetooth.h"
+#include "esphome/components/watchdog/watchdog.h"
 #else
 #include "esphome/components/watchdog/watchdog.h"
 #include <cinttypes>
@@ -325,6 +329,11 @@ bool ESP32BLE::ble_setup_() {
 #endif
 
   esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT);
+#elif defined(USE_ESP32_BLE_USB_HCI)
+  if (!usb_bluetooth::attach_bluedroid()) {
+    ESP_LOGE(TAG, "Attaching the USB Bluetooth dongle failed; BLE disabled");
+    return false;
+  }
 #else
   if (esp_hosted_connect_to_slave() != ESP_OK) {  // NOLINT
     ESP_LOGE(TAG, "Co-processor transport failed; BLE disabled");
@@ -495,6 +504,8 @@ bool ESP32BLE::ble_dismantle_() {
       return false;
     }
   }
+#elif defined(USE_ESP32_BLE_USB_HCI)
+  usb_bluetooth::detach_bluedroid();
 #else
   if (esp_hosted_bt_host_stack_teardown() != ESP_OK) {
     ESP_LOGE(TAG, "esp_hosted_bt_host_stack_teardown failed");
@@ -645,6 +656,11 @@ void ESP32BLE::loop_handle_state_transition_not_active_() {
     this->state_ =
         this->state_ == BLE_COMPONENT_STATE_ACTIVE ? BLE_COMPONENT_STATE_ENABLE : BLE_COMPONENT_STATE_DISABLED;
   } else if (this->state_ == BLE_COMPONENT_STATE_ENABLE) {
+#ifdef USE_ESP32_BLE_USB_HCI
+    // Bluedroid talks to the controller as soon as it starts: wait until the dongle is plugged in and set up
+    if (!usb_bluetooth::bluedroid_controller_ready())
+      return;
+#endif
     ESP_LOGD(TAG, "Enabling");
     this->state_ = BLE_COMPONENT_STATE_OFF;
 

@@ -1,0 +1,12 @@
+usb_host:
+  max_packet_size: 512
+  full_speed_only: true
+
+usb_bluetooth:
+  - id: usb_bt
+    bluedroid: true
+
+esp32_ble_tracker:
+
+bluetooth_proxy:
+  active: true
