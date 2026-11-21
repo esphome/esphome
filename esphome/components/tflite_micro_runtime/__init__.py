@@ -19,7 +19,6 @@ from esphome.components.tflite_op_processor import (
     emit_all_ops,
     emit_selective_op_defines,
 )
-from esphome.components.tflite_model_io.model_reader import estimate_tensor_arena
 from esphome.components.tflite_op_processor.op_manifest import (
     extract_model_ops,
     parse_op_table,
@@ -57,6 +56,7 @@ def _runtime_data() -> _RuntimeData:
 
 # Library-only sub-components, auto-loaded so users only configure this component.
 AUTO_LOAD = [
+    "tflite_detection",
     "tflite_image",
     "tflite_memory_handler",
     "tflite_model_debug",
@@ -117,6 +117,10 @@ async def to_code(config: ConfigType) -> None:
         from esphome.components.tflite_image import to_code as image_to_code
 
         await image_to_code(var, config, model_path)
+    elif config.get(_schema.CONF_MODEL_TYPE) == "detection":
+        from esphome.components.tflite_detection import to_code as detection_to_code
+
+        await detection_to_code(var, config, model_path)
     esp32.add_idf_component(name="espressif/esp-tflite-micro", ref="1.4.1")
     esp32.add_idf_component(name="espressif/esp-nn", ref="1.5.0")
 
