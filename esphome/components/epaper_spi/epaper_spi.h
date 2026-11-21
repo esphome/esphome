@@ -202,6 +202,16 @@ class EPaperBase : public Display,
 
   void start_data_();
 
+  // Panels without a D/C line frame commands with the chip select alone
+  void dc_command_() const {
+    if (this->dc_pin_ != nullptr)
+      this->dc_pin_->digital_write(false);
+  }
+  void dc_data_() const {
+    if (this->dc_pin_ != nullptr)
+      this->dc_pin_->digital_write(true);
+  }
+
   // properties initialised in the constructor
   const char *name_;
   uint16_t width_;

@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 
+#include <vector>
+
 #include "../common.h"
 #include "esphome/components/epaper_spi/epaper_spi_t133a01.h"
 
@@ -8,7 +10,9 @@ namespace esphome::epaper_spi::testing {
 /// Exposes the protected transfer machinery so the yield behaviour can be driven directly.
 class TestableT133A01 : public EPaperT133A01 {
  public:
-  TestableT133A01(uint16_t width, uint16_t height) : EPaperT133A01("test", width, height, nullptr, 0) {}
+  TestableT133A01(uint16_t width, uint16_t height, const uint8_t *init_sequence = nullptr,
+                  size_t init_sequence_length = 0)
+      : EPaperT133A01("test", width, height, init_sequence, init_sequence_length) {}
 
   void install(spi::SPIDelegate *delegate) {
     this->delegate_ = delegate;
@@ -17,6 +21,7 @@ class TestableT133A01 : public EPaperT133A01 {
     ASSERT_TRUE(this->init_buffer_(this->buffer_length_));
   }
 
+  using EPaperT133A01::initialise;
   using EPaperT133A01::transfer_data;
 
   RecordingPin dc, cs, cs1;
@@ -72,6 +77,85 @@ TEST(EPaperT133A01, TransferReportsDoneOnlyAfterReleasingTheBus) {
   EXPECT_TRUE(display.cs1.level) << "transfer reported done with CS1 still asserted";
   EXPECT_EQ(delegate.begin_count, delegate.end_count)
       << "transfer reported done with an SPI transaction still open -- the next enable() would deadlock";
+}
+
+/// Records the first byte of each transaction (the command) with the chip-select levels at that moment.
+class RoutingDelegate : public spi::SPIDelegate {
+ public:
+  struct Command {
+    uint8_t command;
+    bool cs;
+    bool cs1;
+  };
+
+  RoutingDelegate(const RecordingPin *cs, const RecordingPin *cs1) : cs_(cs), cs1_(cs1) {}
+
+  uint8_t transfer(uint8_t data) override { return 0; }
+  void begin_transaction() override { this->first_ = true; }
+  void write_array(const uint8_t *ptr, size_t length) override {
+    if (this->first_ && length != 0) {
+      this->commands.push_back({ptr[0], !this->cs_->level, !this->cs1_->level});
+      this->first_ = false;
+    }
+  }
+
+  std::vector<Command> commands;
+
+ protected:
+  const RecordingPin *cs_;
+  const RecordingPin *cs1_;
+  bool first_{false};
+};
+
+/// The init sequence is sent to both controllers, except the analog and power setup commands,
+/// which go to the CS controller only. This matches the E1004 init the driver used to hard code.
+TEST(EPaperT133A01, InitSequenceRoutesCommandsByOpcode) {
+  static constexpr uint8_t SEQUENCE[] = {
+      0x74, 2, 0x00, 0x0C,  // CS only
+      0xF0, 1, 0x49,        // both
+      0x00, 1, 0xDF,        // both
+      0xA5, 1, 0x44,        // CS only
+      0x01, 1, 0x0F,        // CS only
+      0x61, 1, 0x04,        // both
+      0xB6, 1, 0x07,        // CS only
+      0x06, 1, 0xE0,        // CS only
+      0xB7, 1, 0x01,        // CS only
+      0x05, 1, 0xE0,        // CS only
+      0xB0, 1, 0x01,        // CS only
+      0xB1, 1, 0x02,        // CS only
+  };
+  TestableT133A01 display(8, 2, SEQUENCE, sizeof(SEQUENCE));
+  RoutingDelegate delegate(&display.cs, &display.cs1);
+  display.install(&delegate);
+
+  ASSERT_TRUE(display.initialise(false));
+
+  static constexpr uint8_t SENT_TO_BOTH[] = {0xF0, 0x00, 0x61};
+  ASSERT_EQ(delegate.commands.size(), 12u);
+  for (const auto &cmd : delegate.commands) {
+    bool to_both = false;
+    for (uint8_t command : SENT_TO_BOTH)
+      to_both |= cmd.command == command;
+    EXPECT_TRUE(cmd.cs) << "command 0x" << std::hex << +cmd.command << " not sent to CS";
+    EXPECT_EQ(cmd.cs1, to_both) << "command 0x" << std::hex << +cmd.command << " routed wrongly to CS1";
+  }
+  EXPECT_TRUE(display.cs.level);
+  EXPECT_TRUE(display.cs1.level);
+}
+
+/// A command whose argument count runs past the end of the sequence fails the component instead of
+/// reading past the array.
+TEST(EPaperT133A01, MalformedInitSequenceMarksFailed) {
+  static constexpr uint8_t SEQUENCE[] = {0xF0, 1, 0x49, 0x00, 3, 0xDF};
+  TestableT133A01 display(8, 2, SEQUENCE, sizeof(SEQUENCE));
+  RoutingDelegate delegate(&display.cs, &display.cs1);
+  display.install(&delegate);
+
+  display.initialise(false);
+
+  EXPECT_TRUE(display.is_failed());
+  ASSERT_EQ(delegate.commands.size(), 1u);
+  EXPECT_EQ(delegate.commands[0].command, 0xF0);
 }
 
 }  // namespace esphome::epaper_spi::testing

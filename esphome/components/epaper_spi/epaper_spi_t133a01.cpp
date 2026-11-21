@@ -19,8 +19,10 @@ static constexpr uint8_t T133A01_RED = 0x06;
 static constexpr uint8_t T133A01_YELLOW = 0x0B;
 static constexpr uint8_t T133A01_BLUE = 0x0D;
 
+// Widest panel the row buffer in transfer_data() holds; MAX_WIDTH in models/t133a01.py must match
+static constexpr uint16_t T133A01_MAX_WIDTH = 1600;
+
 // T133A01 register addresses
-static constexpr uint8_t R00_PSR = 0x00;
 static constexpr uint8_t R01_PWR = 0x01;
 static constexpr uint8_t R02_POF = 0x02;
 static constexpr uint8_t R04_PON = 0x04;
@@ -28,11 +30,8 @@ static constexpr uint8_t R05_BTST_N = 0x05;
 static constexpr uint8_t R06_BTST_P = 0x06;
 static constexpr uint8_t R10_DTM = 0x10;
 static constexpr uint8_t R12_DRF = 0x12;
-static constexpr uint8_t R50_CDI = 0x50;
-static constexpr uint8_t R61_TRES = 0x61;
 static constexpr uint8_t RA5_DCDC = 0xA5;
 static constexpr uint8_t RE0_CCSET = 0xE0;
-static constexpr uint8_t RE3_PWS = 0xE3;
 
 /**
  * COLOR_GET remap table from T133A01_Defines.h.
@@ -125,86 +124,43 @@ bool EPaperT133A01::reset() {
   return true;
 }
 
-/**
- * Initialise the T133A01 display.
- *
- * The init sequence uses a mix of CS and CS1 commands as per the Arduino driver.
- * The base class init_sequence is NOT used for T133A01 because the dual-CS
- * protocol requires per-command routing.
- */
+// Analog and power setup commands go to the CS controller only, everything else to both
+static bool is_cs_only_command(uint8_t command) {
+  switch (command) {
+    case 0x74:
+    case RA5_DCDC:
+    case R01_PWR:
+    case 0xB6:
+    case R06_BTST_P:
+    case 0xB7:
+    case R05_BTST_N:
+    case 0xB0:
+    case 0xB1:
+      return true;
+    default:
+      return false;
+  }
+}
+
+// The base class init sequence format, with each command routed to one or both controllers
 bool EPaperT133A01::initialise(bool partial) {
-  // Init sequence mirrors the Arduino GFX library's EPD_INIT() macro
-  // (T133A01_Defines.h). Commands routed to CS only leave CS1 deselected;
-  // commands routed to both controllers assert CS and CS1 together.
-
-  // 0x74 - panel config (CS only)
-  this->write_command_(0x74, {0x00, 0x0C, 0x0C, 0xD9, 0xDD, 0xDD, 0x15, 0x15, 0x55}, true, false);
-  delay(10);
-
-  // 0xF0 - panel config (CS + CS1)
-  this->write_command_(0xF0, {0x49, 0x55, 0x13, 0x5D, 0x05, 0x10}, true, true);
-  delay(10);
-
-  // PSR - Panel Setting Register (CS + CS1)
-  this->write_command_(0x00, {0xDF, 0x69}, true, true);
-  delay(10);
-
-  // DCDC (CS only)
-  this->write_command_(RA5_DCDC, {0x44, 0x54, 0x00}, true, false);
-  delay(10);
-
-  // CDI (CS + CS1)
-  this->write_command_(R50_CDI, {0x37}, true, true);
-  delay(10);
-
-  // 0x60 (CS + CS1)
-  this->write_command_(0x60, {0x03, 0x03}, true, true);
-  delay(10);
-
-  // 0x86 (CS + CS1)
-  this->write_command_(0x86, {0x10}, true, true);
-  delay(10);
-
-  // PWS - Phase Width Setting (CS + CS1)
-  this->write_command_(RE3_PWS, {0x22}, true, true);
-  delay(10);
-
-  // TRES - Resolution Setting (CS + CS1).
-  // With width=1200, height=1600: first word = width = 1200, second word = height/2 = 800.
-  this->write_command_(R61_TRES,
-                       {(uint8_t) (this->width_ >> 8), (uint8_t) (this->width_ & 0xFF),
-                        (uint8_t) ((this->height_ / 2) >> 8), (uint8_t) ((this->height_ / 2) & 0xFF)},
-                       true, true);
-  delay(10);
-
-  // PWR - Power Setting (CS only)
-  this->write_command_(R01_PWR, {0x0F, 0x00, 0x28, 0x2C, 0x28, 0x38}, true, false);
-  delay(10);
-
-  // 0xB6 (CS only)
-  this->write_command_(0xB6, {0x07}, true, false);
-  delay(10);
-
-  // BTST_P (CS only)
-  this->write_command_(R06_BTST_P, {0xE0, 0x20}, true, false);
-  delay(10);
-
-  // 0xB7 (CS only)
-  this->write_command_(0xB7, {0x01}, true, false);
-  delay(10);
-
-  // BTST_N (CS only)
-  this->write_command_(R05_BTST_N, {0xE0, 0x20}, true, false);
-  delay(10);
-
-  // 0xB0 (CS only)
-  this->write_command_(0xB0, {0x01}, true, false);
-  delay(10);
-
-  // 0xB1 (CS only)
-  this->write_command_(0xB1, {0x02}, true, false);
-  delay(10);
-
+  const uint8_t *sequence = this->init_sequence_;
+  size_t index = 0;
+  while (this->init_sequence_length_ - index >= 2) {
+    const uint8_t command = sequence[index++];
+    const uint8_t num_args = sequence[index++];
+    if (num_args == DELAY_FLAG) {
+      delay(command);
+      continue;
+    }
+    if (this->init_sequence_length_ - index < num_args) {
+      this->mark_failed(LOG_STR("Malformed init sequence"));
+      return true;
+    }
+    this->write_command_(command, sequence + index, num_args, true, !is_cs_only_command(command));
+    index += num_args;
+    delay(10);
+  }
   return true;
 }
 
@@ -213,11 +169,11 @@ void EPaperT133A01::write_command_(uint8_t command, const uint8_t *data, size_t 
   // Chip-selects are active-low: assert the requested controllers.
   this->cs_pin_->digital_write(!use_cs);
   this->cs1_pin_->digital_write(!use_cs1);
-  this->dc_pin_->digital_write(false);
+  this->dc_command_();
   this->enable();
   this->write_byte(command);
   if (length > 0) {
-    this->dc_pin_->digital_write(true);
+    this->dc_data_();
     this->write_array(data, length);
   }
   this->disable();
@@ -275,7 +231,7 @@ bool HOT EPaperT133A01::transfer_data() {
   const uint16_t bytes_per_half_row = this->width_ / 4;
   const uint16_t total_rows = this->height_;
   const uint16_t bytes_per_row = this->width_ / 2;
-  uint8_t line_data[400] = {};
+  uint8_t line_data[T133A01_MAX_WIDTH / 4] = {};
 
   size_t half = this->current_data_index_;
 
@@ -295,10 +251,10 @@ bool HOT EPaperT133A01::transfer_data() {
     if (half == 0) {
       this->cs_pin_->digital_write(false);  // select CS
       this->cs1_pin_->digital_write(true);  // deselect CS1
-      this->dc_pin_->digital_write(false);
+      this->dc_command_();
       this->enable();
       this->write_byte(R10_DTM);
-      this->dc_pin_->digital_write(true);
+      this->dc_data_();
     }
 
     while (half < total_rows) {
@@ -333,9 +289,9 @@ bool HOT EPaperT133A01::transfer_data() {
       this->cs_pin_->digital_write(true);    // deselect CS
       this->cs1_pin_->digital_write(false);  // select CS1
       this->enable();
-      this->dc_pin_->digital_write(false);
+      this->dc_command_();
       this->write_byte(R10_DTM);
-      this->dc_pin_->digital_write(true);
+      this->dc_data_();
     }
 
     while (half < total_rows * 2) {
