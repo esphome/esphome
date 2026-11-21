@@ -2,12 +2,13 @@
 
 #ifdef USE_ESP_IDF
 
+#include <algorithm>
+#include <array>
 #include <cinttypes>
 #include <cmath>
 #include <cstddef>
 #include <cstdio>
 #include <ctime>
-#include <string>
 
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
@@ -26,6 +27,7 @@ ESPHOME_LOG_TAG(TAG, "tsdb");
 static constexpr uint8_t LITTLEFS_SUBTYPE = 0x83;
 static constexpr uint32_t DROP_LOG_EVERY = 10;
 static constexpr uint32_t REOPEN_RETRY_MS = 300000;
+static constexpr size_t PATH_BUFFER_SIZE = 128;
 
 static_assert(tsdbmath::BLOCK_SIZE == TSDB_BLOCK_SIZE, "esp_tsdb changed TSDB_BLOCK_SIZE");
 static_assert(tsdbmath::BLOCK_HEADER_SIZE == TSDB_BLOCK_HEADER_SIZE, "esp_tsdb changed the block header");
@@ -42,8 +44,7 @@ static bool partition_is_blank(const esp_partition_t *partition) {
   static constexpr size_t CHUNK = 256;
   uint8_t buffer[CHUNK];
   for (uint32_t offset = 0; offset < partition->size; offset += CHUNK) {
-    const size_t remaining = static_cast<size_t>(partition->size) - offset;
-    const size_t length = remaining < CHUNK ? remaining : CHUNK;
+    const size_t length = std::min<size_t>(CHUNK, partition->size - offset);
     const esp_err_t err = esp_partition_read(partition, offset, buffer, length);
     if (err != ESP_OK) {
       ESP_LOGW(TAG, "partition read at offset %" PRIu32 " failed: %s", offset, esp_err_to_name(err));
@@ -67,13 +68,16 @@ void TsdbComponent::add_column(const char *name, double scale, double offset) {
 
 void TsdbComponent::set_column_source(size_t index, sensor::Sensor *source) { this->columns_[index].source = source; }
 
+void TsdbComponent::format_path_(char *buffer, size_t size) const {
+  snprintf(buffer, size, "%s/%s", this->mount_point_.c_str(), this->file_.c_str());
+}
+
 void TsdbComponent::setup() {
   if (this->columns_.empty()) {
-    ESP_LOGE(TAG, "tsdb: no columns configured");
+    ESP_LOGE(TAG, "no columns configured");
     this->mark_failed(LOG_STR("no columns configured"));
     return;
   }
-  this->values_.reserve(this->columns_.size());
   if (!this->mount_filesystem_()) {
     this->mark_failed(LOG_STR("mounting the LittleFS partition"));
     return;
@@ -83,9 +87,8 @@ void TsdbComponent::setup() {
     this->mark_failed(LOG_STR("opening the database"));
     return;
   }
-  if (this->db_ != nullptr) {
+  if (this->db_ != nullptr)
     ESP_LOGI(TAG, "%s: history opened", this->file_.c_str());
-  }
 }
 
 void TsdbComponent::on_shutdown() {
@@ -162,22 +165,23 @@ void TsdbComponent::unmount_filesystem_() {
 }
 
 bool TsdbComponent::open_database_() {
-  std::vector<const char *> names;
-  names.reserve(this->columns_.size());
-  for (const TsdbColumn &column : this->columns_)
-    names.push_back(column.name.c_str());
+  std::array<const char *, TSDB_COLUMN_COUNT> names{};
+  for (size_t index = 0; index < this->columns_.size(); index++)
+    names[index] = this->columns_[index].name.c_str();
 
-  const uint32_t max_records = tsdbmath::capacity_for_bytes(this->max_file_size_, names.size(), this->index_stride_);
+  const uint32_t max_records = tsdbmath::capacity_for_bytes(
+      this->max_file_size_, static_cast<uint32_t>(this->columns_.size()), this->index_stride_);
   if (max_records == 0) {
     ESP_LOGE(TAG, "%s: max_file_size too small for %" PRIu32 " columns", this->file_.c_str(),
-             static_cast<uint32_t>(names.size()));
+             static_cast<uint32_t>(this->columns_.size()));
     return false;
   }
-  const std::string path = this->mount_point_ + "/" + this->file_;
+  char path[PATH_BUFFER_SIZE];
+  this->format_path_(path, sizeof(path));
 
   tsdb_config_t config = {};
-  config.filepath = path.c_str();
-  config.num_params = static_cast<uint8_t>(names.size());
+  config.filepath = path;
+  config.num_params = static_cast<uint8_t>(this->columns_.size());
   config.param_names = names.data();
   config.max_records = max_records;
   config.index_stride = this->index_stride_;
@@ -189,7 +193,7 @@ bool TsdbComponent::open_database_() {
   this->db_ = tsdb_open(&config);
   if (this->db_ == nullptr) {
     ESP_LOGE(TAG, "%s: esp_tsdb refused to open %s (%" PRIu32 " columns, up to %" PRIu32 " records)",
-             this->file_.c_str(), path.c_str(), static_cast<uint32_t>(names.size()), max_records);
+             this->file_.c_str(), path, static_cast<uint32_t>(this->columns_.size()), max_records);
     return false;
   }
 
@@ -206,9 +210,9 @@ bool TsdbComponent::open_database_() {
   const bool have_stride = this->read_saved_index_stride_(&saved_stride);
   const uint32_t records = stats.max_records > 0 ? stats.max_records : max_records;
   const uint32_t stride = have_stride ? saved_stride : this->index_stride_;
-  const uint64_t bytes = tsdbmath::file_bytes_for(records, names.size(), stride);
+  const uint64_t bytes = tsdbmath::file_bytes_for(records, static_cast<uint32_t>(this->columns_.size()), stride);
   ESP_LOGI(TAG, "%s: %" PRIu32 " columns, %" PRIu32 " records (up to %" PRIu32 " KB) at %s", this->file_.c_str(),
-           static_cast<uint32_t>(names.size()), records, static_cast<uint32_t>(bytes / 1024), path.c_str());
+           static_cast<uint32_t>(this->columns_.size()), records, static_cast<uint32_t>(bytes / 1024), path);
   if (records != max_records) {
     ESP_LOGW(TAG,
              "%s: saved capacity is %" PRIu32 " records, the configured budget asks for %" PRIu32
@@ -225,8 +229,9 @@ bool TsdbComponent::open_database_() {
 }
 
 bool TsdbComponent::read_saved_index_stride_(uint32_t *stride) const {
-  const std::string path = this->mount_point_ + "/" + this->file_;
-  FILE *file = fopen(path.c_str(), "rb");
+  char path[PATH_BUFFER_SIZE];
+  this->format_path_(path, sizeof(path));
+  FILE *file = fopen(path, "rb");
   const int32_t field = static_cast<int32_t>(offsetof(tsdb_header_t, index_stride));
   uint32_t value = 0;
   const bool ok = file != nullptr && fseek(file, field, SEEK_SET) == 0 && fread(&value, sizeof(value), 1, file) == 1;
@@ -469,19 +474,15 @@ void TsdbComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "  file: %s/%s", this->mount_point_.c_str(), this->file_.c_str());
   ESP_LOGCONFIG(TAG, "  partition: %s, %" PRIu32 " KB", this->partition_label_.c_str(), this->partition_size_ / 1024);
   ESP_LOGCONFIG(TAG, "  columns: %" PRIu32, static_cast<uint32_t>(this->columns_.size()));
-  for (const TsdbColumn &column : this->columns_) {
+  for (const TsdbColumn &column : this->columns_)
     ESP_LOGCONFIG(TAG, "    %s: scale %.6g, offset %.6g", column.name.c_str(), column.scale, column.offset);
-  }
   ESP_LOGCONFIG(TAG, "  write interval: %" PRIu32 " ms, sync interval: %" PRIu32 " ms", this->get_update_interval(),
                 this->sync_interval_);
   ESP_LOGCONFIG(TAG,
                 "  writes: %" PRIu32 ", errors: %" PRIu32 ", dropped: %" PRIu32 ", clamped: %" PRIu32 ", held: %" PRIu32
-                ", sentinel: %" PRIu32 ", uptime: %" PRIu32,
+                ", sentinel: %" PRIu32 ", uptime: %" PRIu32 ", failed reopens: %" PRIu32,
                 this->writes_, this->write_errors_, this->dropped_, this->saturated_, this->held_, this->sentinel_,
-                this->uptime_timestamps_);
-  if (this->reopen_errors_ > 0) {
-    ESP_LOGCONFIG(TAG, "  failed reopens: %" PRIu32, this->reopen_errors_);
-  }
+                this->uptime_timestamps_, this->reopen_errors_);
 }
 
 }  // namespace esphome::tsdb

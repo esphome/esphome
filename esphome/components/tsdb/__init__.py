@@ -22,7 +22,6 @@ from esphome.const import (
     CONF_SENSOR,
     CONF_TIME,
     CONF_TIME_ID,
-    CONF_UPDATE_INTERVAL,
     Framework,
 )
 import esphome.final_validate as fv
@@ -82,12 +81,13 @@ _SIZE_UNITS = {
     "mib": 1024 * 1024,
 }
 _SIZE_PATTERN = re.compile(r"^([0-9]+(?:\.[0-9]+)?)\s*([A-Za-z]*)$")
+_SIZE_HINT = " (use e.g. 512KB, 2MB or 524288)"
 
 
 def _validate_size(value: object, *, allow_zero: bool = False) -> int:
     """Accept 512KB, 2MB, 0x40000 or a plain byte count."""
     if isinstance(value, bool):
-        raise cv.Invalid(f"'{value}' is not a size (use e.g. 512KB, 2MB or 524288)")
+        raise cv.Invalid(f"'{value}' is not a size{_SIZE_HINT}")
     if isinstance(value, int):
         bytes_ = value
     else:
@@ -96,25 +96,19 @@ def _validate_size(value: object, *, allow_zero: bool = False) -> int:
             try:
                 bytes_ = int(text, 16)
             except ValueError as err:
-                raise cv.Invalid(
-                    f"'{value}' is not a valid size (use e.g. 512KB, 2MB or 524288)"
-                ) from err
+                raise cv.Invalid(f"'{value}' is not a size{_SIZE_HINT}") from err
         else:
             match = _SIZE_PATTERN.match(text)
             factor = _SIZE_UNITS.get(match.group(2).lower()) if match else None
             if match is None:
-                raise cv.Invalid(
-                    f"'{value}' is not a valid size (use e.g. 512KB, 2MB or 524288)"
-                )
+                raise cv.Invalid(f"'{value}' is not a size{_SIZE_HINT}")
             if factor is None:
                 raise cv.Invalid(
                     f"unknown unit '{match.group(2)}' in '{value}' (use B, KB or MB)"
                 )
             scaled = float(match.group(1)) * factor
             if not scaled.is_integer():
-                raise cv.Invalid(
-                    f"'{value}' does not resolve to a whole number of bytes"
-                )
+                raise cv.Invalid(f"'{value}' is not a whole number of bytes")
             bytes_ = int(scaled)
     if bytes_ < 0 or (bytes_ == 0 and not allow_zero):
         raise cv.Invalid(f"'{value}' must be a positive size")
@@ -132,9 +126,7 @@ def _validate_partition_size(value: object) -> int:
 
 def _validate_mount_point(value: str) -> str:
     if not value.startswith("/") or value.endswith("/"):
-        raise cv.Invalid(
-            f"mount_point must be absolute without trailing slash, got '{value}'"
-        )
+        raise cv.Invalid(f"mount_point must be absolute, no trailing slash: {value}")
     return value
 
 
@@ -147,8 +139,7 @@ def _validate_file_name(value: str) -> str:
 def _validate_config(config: ConfigType) -> ConfigType:
     columns = config[CONF_COLUMNS]
     names = [column[CONF_NAME] for column in columns]
-    duplicates = sorted({name for name in names if names.count(name) > 1})
-    if duplicates:
+    if duplicates := sorted({name for name in names if names.count(name) > 1}):
         raise cv.Invalid(f"duplicate column name(s): {', '.join(duplicates)}")
     for column in columns:
         name = column[CONF_NAME]
@@ -184,6 +175,7 @@ COLUMN_SCHEMA = cv.Schema(
 
 CONFIG_SCHEMA = cv.All(
     cv.only_on_esp32,
+    # The engines are ESP-IDF components from the registry; arduino-esp32 is untested.
     cv.only_with_framework(Framework.ESP_IDF),
     cv.Schema(
         {
@@ -206,7 +198,6 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_BUFFER_POOL_SIZE, default="4KB"): cv.All(
                 _validate_size, cv.Range(min=1024, max=256 * 1024)
             ),
-            cv.Optional(CONF_UPDATE_INTERVAL, default="60s"): cv.update_interval,
             cv.Optional(
                 CONF_SYNC_INTERVAL, default="15min"
             ): cv.positive_time_period_milliseconds,
@@ -220,7 +211,7 @@ CONFIG_SCHEMA = cv.All(
                 cv.Length(min=1, max=TSDB_MAX_BASE_PARAMS),
             ),
         }
-    ),
+    ).extend(cv.polling_component_schema("60s")),
     _validate_config,
 )
 
@@ -266,6 +257,7 @@ async def to_code(config: ConfigType) -> None:
     if CONF_TIME_ID in config:
         cg.add(var.set_time_source(await cg.get_variable(config[CONF_TIME_ID])))
 
+    cg.add_define("TSDB_COLUMN_COUNT", len(config[CONF_COLUMNS]))
     for index, column in enumerate(config[CONF_COLUMNS]):
         cg.add(
             var.add_column(

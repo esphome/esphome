@@ -2,10 +2,12 @@
 
 #ifdef USE_ESP_IDF
 
+#include <array>
+#include <cstddef>
 #include <cstdint>
-#include <vector>
 
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/string_ref.h"
 #include "esphome/components/sensor/sensor.h"
@@ -55,8 +57,6 @@ class TsdbComponent : public PollingComponent {
   void add_column(const char *name, double scale, double offset);
   void set_column_source(size_t index, sensor::Sensor *source);
 
-  bool is_ready() const { return this->db_ != nullptr; }
-
  protected:
   bool mount_filesystem_();
   void unmount_filesystem_();
@@ -69,9 +69,11 @@ class TsdbComponent : public PollingComponent {
   bool collect_values_(const LogString *&degraded);
   bool write_record_();
   void flush_(bool force);
+  void format_path_(char *buffer, size_t size) const;
 
-  std::vector<TsdbColumn> columns_{};
-  std::vector<int16_t> values_{};
+  // Sized by TSDB_COLUMN_COUNT, emitted by the Python config; defines.h covers static analysis.
+  StaticVector<TsdbColumn, TSDB_COLUMN_COUNT> columns_;
+  StaticVector<int16_t, TSDB_COLUMN_COUNT> values_;
   StringRef file_{"history.tsdb"};
   StringRef mount_point_{"/littlefs"};
   StringRef partition_label_{"littlefs"};
@@ -107,7 +109,7 @@ class TsdbComponent : public PollingComponent {
   bool db_lost_{false};
   bool dirty_{false};
   bool warned_time_{false};
-  // Raised by a failed sync and cleared by the next one, never by a successful write.
+  // Raised by a failed sync and cleared only by the next successful one.
   bool sync_failed_{false};
 };
 
