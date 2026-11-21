@@ -286,10 +286,30 @@ void MQGasSensor::update() {
   }
 
   if (saturated) {
-    // RS has collapsed to 0, so the ratio is 0 and the curve reports the top of its
-    // range: a real high concentration must not look like a broken sensor.
+    // RS has collapsed to 0. The curve decides what that means: one that grows as
+    // the ratio falls reports its top, which is a real high concentration and must
+    // not look like a broken sensor; one that falls there has no concentration to
+    // report, and the maximum would contradict the configured curve.
+    const float saturation_ppm = this->ratio_mode_ == RatioMode::RATIO_R0_RS
+                                     ? mqmath::ppm_at_infinity(this->a_, this->b_, this->regression_method_)
+                                     : mqmath::ppm_at_zero(this->a_, this->b_, this->regression_method_);
     this->rs_ = 0.0f;
-    this->ratio_ = 0.0f;
+    this->ratio_ = saturation_ppm >= this->max_ppm_ ? 0.0f : NAN;
+
+    if (!(saturation_ppm >= this->max_ppm_)) {
+      if (!this->warned_unusable_ratio_) {
+        this->warned_unusable_ratio_ = true;
+        this->log_message_(LOG_SEVERITY_WARN,
+                           LOG_STR("V=%.4f V is at the supply, but the configured curve does not reach its "
+                                   "maximum there - publishing unknown"),
+                           this->sensor_voltage_);
+      }
+      this->status_set_warning(LOG_STR("the input is saturated, but the curve has no top there"));
+      this->publish_diagnostics_();
+      this->publish_state(NAN);
+      return;
+    }
+
     // A ratio fault from an earlier update is over: this is a valid reading.
     this->clear_ratio_warning_();
     this->log_reading_(this->max_ppm_);

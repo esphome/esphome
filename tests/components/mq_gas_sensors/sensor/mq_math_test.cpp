@@ -66,11 +66,30 @@ TEST(MqMath, MidRangeReadingsFollowTheCurve) {
 
 TEST(MqMath, SaturatedSensorReportsTheTopOfTheRange) {
   // A ratio of 0 is RS at 0 (V_AO at VCC), the output of a saturated sensor:
-  // the model reports the top of the range there, so it is clamped to max_ppm
-  // instead of reading as clean air.
+  // the datasheet curve grows as the ratio falls, so the model reports the top of
+  // the range there and the caller clamps it to max_ppm.
   EXPECT_EQ(FLT_MAX, ppm_from_ratio(H2_A, H2_B, 0.0f, RegressionMethod::REGRESSION_EXPONENTIAL));
   EXPECT_FLOAT_EQ(H2_MAX_PPM, clamp_ppm(ppm_from_ratio(H2_A, H2_B, 0.0f, RegressionMethod::REGRESSION_EXPONENTIAL),
                                         0.0f, H2_MAX_PPM));
+}
+
+TEST(MqMath, ZeroRatioFollowsTheCurveDirection) {
+  // A curve that falls as the ratio falls reaches 0 ppm at a ratio of 0: that is
+  // the bottom of the range, not the saturated top the datasheet curve reports.
+  EXPECT_FLOAT_EQ(0.0f, ppm_from_ratio(10.0f, 2.0f, 0.0f, RegressionMethod::REGRESSION_EXPONENTIAL));
+  EXPECT_FLOAT_EQ(0.0f, ppm_from_ratio(10.0f, 2.0f, 0.0f, RegressionMethod::REGRESSION_INVERSE));
+  // A coefficient pair the curve cannot evaluate stays unknown instead of picking
+  // one end.
+  EXPECT_TRUE(std::isnan(ppm_from_ratio(0.0f, 2.0f, 0.0f, RegressionMethod::REGRESSION_EXPONENTIAL)));
+  EXPECT_TRUE(std::isnan(ppm_from_ratio(10.0f, 0.0f, 0.0f, RegressionMethod::REGRESSION_INVERSE)));
+  // A negative ratio is not a sensor resistance: unknown, never a concentration.
+  EXPECT_TRUE(std::isnan(ppm_from_ratio(10.0f, 2.0f, -0.5f, RegressionMethod::REGRESSION_EXPONENTIAL)));
+  // The R0/RS end of a collapsed sensor resistance mirrors the above.
+  EXPECT_EQ(FLT_MAX, ppm_at_infinity(10.0f, 2.0f, RegressionMethod::REGRESSION_EXPONENTIAL));
+  EXPECT_FLOAT_EQ(0.0f, ppm_at_infinity(H2_A, H2_B, RegressionMethod::REGRESSION_EXPONENTIAL));
+  // The MQ-131 ozone curve gives 0.12 ppm in clean air (ratio 15), far below the
+  // 1 ppm top of its 10 - 1000 ppb range.
+  EXPECT_NEAR(0.115f, ppm_from_ratio(0.41195f, -0.4708f, 15.0f, RegressionMethod::REGRESSION_EXPONENTIAL), 0.001f);
 }
 
 TEST(MqMath, UnusableInputReadsUnknown) {

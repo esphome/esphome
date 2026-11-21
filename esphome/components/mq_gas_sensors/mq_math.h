@@ -130,17 +130,68 @@ inline float r0_from_clean_air(float rs_air, float ratio_in_clean_air) {
   return static_cast<float>(r0);
 }
 
+/// Limit of a curve as the ratio falls to 0. A curve that grows as the ratio
+/// shrinks (the datasheet direction) approaches FLT_MAX, one that falls
+/// approaches 0, and one the coefficients cannot evaluate returns NaN. The caller
+/// clamps FLT_MAX to its maximum.
+inline float ppm_at_zero(float a, float b, RegressionMethod method) {
+  switch (method) {
+    case RegressionMethod::REGRESSION_EXPONENTIAL:
+      if (!(a > 0.0f))
+        return NAN;
+      if (b > 0.0f)
+        return 0.0f;
+      if (b < 0.0f)
+        return FLT_MAX;
+      return a;
+    case RegressionMethod::REGRESSION_INVERSE:
+      if (!(a > 0.0f) || b == 0.0f)
+        return NAN;
+      return b > 0.0f ? 0.0f : FLT_MAX;
+    case RegressionMethod::REGRESSION_LINEAR:
+      if (a == 0.0f)
+        return NAN;
+      return a > 0.0f ? 0.0f : FLT_MAX;
+  }
+  return NAN;
+}
+
+/// Limit of a curve as the ratio grows without bound, the `r0_rs` end of a
+/// collapsed sensor resistance. Mirrors `ppm_at_zero()`.
+inline float ppm_at_infinity(float a, float b, RegressionMethod method) {
+  switch (method) {
+    case RegressionMethod::REGRESSION_EXPONENTIAL:
+      if (!(a > 0.0f))
+        return NAN;
+      if (b > 0.0f)
+        return FLT_MAX;
+      if (b < 0.0f)
+        return 0.0f;
+      return a;
+    case RegressionMethod::REGRESSION_INVERSE:
+      if (!(a > 0.0f) || b == 0.0f)
+        return NAN;
+      return b > 0.0f ? FLT_MAX : 0.0f;
+    case RegressionMethod::REGRESSION_LINEAR:
+      if (a == 0.0f)
+        return NAN;
+      return a > 0.0f ? FLT_MAX : 0.0f;
+  }
+  return NAN;
+}
+
 /// ratio (+ a, b) -> PPM, MQUnifiedsensor::readSensorR0Rs().
-/// FLT_MAX signals "above the range" so the caller can clamp it: a ratio of
-/// exactly 0 is RS at 0 (V_AO at VCC), the output of a saturated sensor, and
-/// must never be read as clean air. NaN (unusable input, or coefficients the
+/// FLT_MAX signals "above the range" so the caller can clamp it. A ratio of 0 is
+/// the limit of the curve, not automatically the top of the range: a custom curve
+/// can fall towards 0 there, and it is the caller that decides whether a collapsed
+/// sensor resistance means saturation. NaN (unusable input, or coefficients the
 /// method cannot evaluate - a curve with a = 0 has no solution) makes the caller
 /// publish `unknown`.
 inline float ppm_from_ratio(float a, float b, float ratio, RegressionMethod method) {
-  if (!std::isfinite(ratio))
+  if (!std::isfinite(ratio) || ratio < 0.0f)
     return NAN;
-  if (ratio <= 0.0f)
-    return FLT_MAX;
+  if (ratio == 0.0f)
+    return ppm_at_zero(a, b, method);
 
   double log_ppm;
   if (method == RegressionMethod::REGRESSION_EXPONENTIAL) {

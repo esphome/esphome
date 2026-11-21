@@ -26,6 +26,8 @@ from esphome.const import (
     CONF_PIN,
     CONF_PLATFORM,
     CONF_RAW,
+    CONF_RESOLUTION,
+    CONF_SAMPLE_RATE,
     CONF_UPDATE_INTERVAL,
     CONF_VOLTAGE,
     CONF_VOLTAGE_DIVIDER,
@@ -123,6 +125,40 @@ MAX_SAMPLE_COUNT = 16
 #: runs its whole ``adc_samples:`` burst inside the same loop pass as the reading.
 MAX_CONVERSIONS_PER_READING = 64
 
+#: Longest blocking burst of conversions for one reading (ms). A sampler whose
+#: conversion time is known from its configuration is limited by this instead of a
+#: count: the ``sample_count:`` conversions of a reading run back to back inside one
+#: pass of the main loop, and the rest of the firmware waits for all of them.
+MAX_BURST_TIME_MS = 250
+
+#: Platform name of the ADS1115 sensor, whose conversion time is known here.
+ADS1115_DOMAIN = "ads1115"
+
+#: Blocking time of one conversion of an ADS1115 in single-shot mode, from the
+#: delays its component waits for: resolution -> sample rate -> milliseconds.
+_ADS1115_CONVERSION_MS = {
+    "16_BITS": {
+        "8": 126,
+        "16": 63,
+        "32": 32,
+        "64": 17,
+        "128": 9,
+        "250": 5,
+        "475": 3,
+        "860": 2,
+    },
+    "12_BITS": {
+        "8": 9,
+        "16": 5,
+        "32": 3,
+        "64": 2,
+        "128": 2,
+        "250": 1,
+        "475": 1,
+        "860": 1,
+    },
+}
+
 
 def validate_sensor_type(value: str) -> str:
     key = normalize_type(value)
@@ -185,17 +221,26 @@ def _build_internal_adc(config: ConfigType) -> ConfigType:
     from esphome.components.adc import sensor as adc_sensor
 
     # A suffix a YAML id is unlikely to use: the generated id must not collide with
-    # one the user wrote, which would read as an "ID ... redefined" error.
-    adc_id = f"{config[CONF_ID].id}_internal_adc"
+    # one the user wrote, which would read as an "ID ... redefined" error. Without an
+    # explicit `id:` on the parent, ESPHome assigns the automatic id only after this
+    # validation, so naming the hidden sensor from it would give every owned pin the
+    # same "None_internal_adc" - leave the id (and the name it would build) out.
     adc_config: ConfigType = {
-        CONF_ID: adc_id,
         CONF_PIN: config[CONF_PIN],
-        CONF_NAME: f"{adc_id} voltage",
         CONF_INTERNAL: True,
         CONF_RAW: False,
         adc_sensor.CONF_SAMPLING_MODE: "avg",
         CONF_UPDATE_INTERVAL: "never",
     }
+    if (parent_id := config.get(CONF_ID)) is not None and parent_id.id is not None:
+        adc_id = f"{parent_id.id}_internal_adc"
+        adc_config[CONF_ID] = adc_id
+        adc_config[CONF_NAME] = f"{adc_id} voltage"
+    else:
+        # The parent has no explicit id, so ESPHome assigns it after this
+        # validation and any id built here would collide. The name is unique per
+        # entity and is what the hidden ADC can be told apart by.
+        adc_config[CONF_NAME] = f"{config[CONF_NAME]} voltage"
     if (samples := config.get(CONF_ADC_SAMPLES)) is not None:
         adc_config[adc_sensor.CONF_SAMPLES] = samples
     if (attenuation := config.get(CONF_ADC_ATTENUATION)) is not None:
@@ -475,6 +520,53 @@ def _validate_config(config: ConfigType) -> ConfigType:
     return config
 
 
+def _ads1115_conversion_ms(sampler: ConfigType) -> float:
+    """Blocking time of one ``sample()`` on an ADS1115, from its configuration."""
+    from esphome.components.ads1115 import CONF_ADS1115_ID, CONF_CONTINUOUS_MODE
+
+    if fv.get_declaring_config(sampler[CONF_ADS1115_ID]).get(
+        CONF_CONTINUOUS_MODE, False
+    ):
+        # A conversion is always running; the sensor reads the last result.
+        return 0.0
+    # The validated config keeps the YAML keys ('8', '16_BITS').
+    resolution = str(sampler.get(CONF_RESOLUTION, "16_BITS"))
+    rate = str(sampler.get(CONF_SAMPLE_RATE, "860"))
+    return _ADS1115_CONVERSION_MS[resolution][rate]
+
+
+def _check_burst_time(
+    config: ConfigType, platform: str | None, sampler: ConfigType
+) -> None:
+    """Keep one reading's back-to-back conversions from blocking the main loop.
+
+    Only a platform that exposes its conversion time can be checked; an unknown one
+    is reported, because ``sample_count:`` conversions still run in one loop pass.
+    """
+    sample_count = config[CONF_SAMPLE_COUNT]
+    if platform != ADS1115_DOMAIN:
+        if sample_count > 1:
+            _LOGGER.warning(
+                "%s: the conversion time of the sampler 'voltage:' reads from is not "
+                "known to this component; 'sample_count: %s' conversions run back to "
+                "back inside one pass of the main loop",
+                label_for(config[CONF_SENSOR_TYPE]),
+                sample_count,
+            )
+        return
+
+    conversion_ms = _ads1115_conversion_ms(sampler)
+    burst_ms = sample_count * conversion_ms
+    if burst_ms > MAX_BURST_TIME_MS:
+        raise cv.Invalid(
+            f"'sample_count: {sample_count}' waits {burst_ms:.0f} ms on the ADS1115 "
+            f"'voltage:' reads from (one conversion takes {conversion_ms:.0f} ms), and "
+            f"those conversions run back to back inside one pass of the main loop - at "
+            f"most {MAX_BURST_TIME_MS} ms are allowed, lower 'sample_count:' or raise "
+            "the sampler's 'sample_rate:'"
+        )
+
+
 def _final_validate_voltage_source(config: ConfigType) -> ConfigType:
     """Check the sampler `voltage:` reads from and the wiring that feeds it.
 
@@ -501,6 +593,7 @@ def _final_validate_voltage_source(config: ConfigType) -> ConfigType:
                 "'adc_pin_max:' when it takes more) so the wiring is checked against it",
                 label_for(config[CONF_SENSOR_TYPE]),
             )
+        _check_burst_time(config, sampler.get(CONF_PLATFORM), sampler)
         return config
 
     if sampler.get(CONF_RAW):

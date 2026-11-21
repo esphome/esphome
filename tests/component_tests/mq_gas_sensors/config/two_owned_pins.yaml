@@ -1,0 +1,31 @@
+# Config-only fixture: two sensors that own their ADC pin and leave `id:` out. The
+# hidden ADC of each has to stay distinct even though ESPHome assigns both parent
+# ids only after this validation.
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+sensor:
+  - platform: mq_gas_sensors
+    name: MQ-8 first
+    sensor_type: MQ-8
+    gas: H2
+    pin: GPIO34
+    voltage_divider:
+      r1: 10.0
+      r2: 20.0
+    adc_input_max: 3.33
+    r0: 10.0
+
+  - platform: mq_gas_sensors
+    name: MQ-8 second
+    sensor_type: MQ-8
+    gas: H2
+    pin: GPIO35
+    voltage_divider:
+      r1: 10.0
+      r2: 20.0
+    adc_input_max: 3.33
+    r0: 10.0
