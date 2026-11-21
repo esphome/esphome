@@ -650,6 +650,52 @@ def test_fixed_channels_not_recorded_without_rmt_caps(variant: str) -> None:
     assert not esp32_rmt._get_data().channels
 
 
+def _check_fixed(
+    caplog: pytest.LogCaptureFixture,
+    variant: str,
+    buses: list[tuple[dict[str, Any], tuple[tuple[str, int], ...]]],
+    config: Config,
+) -> list[str]:
+    """Validate fixed size buses and rmt_symbols entries, then generate code in this order."""
+    _set_variant(variant)
+    entries = [bus for bus, _ in buses]
+    entries += [entry for values in config.values() for entry in values]
+    with caplog.at_level(logging.WARNING):
+        for bus, channels in buses:
+            esp32_rmt.request_rmt_channels(channels, 799.0)(bus)
+        for direction, values in config.items():
+            for entry in values:
+                esp32_rmt.request_rmt_channel(direction, PRIORITY)(entry)
+        for entry in entries:
+            esp32_rmt.final_validate_rmt_channels(entry)
+        _generate(entries)
+    return _rmt_messages(caplog)
+
+
+def test_channels_of_one_component_keep_their_order(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """setup_priority cannot change the order of the channels inside one component."""
+    messages = _check_fixed(
+        caplog, VARIANT_ESP32C3, [(_bus("bus"), (("TX", 2), ("TX", 1)))], {}
+    )
+    assert len(messages) == 1
+    assert "'bus' will not fit" in messages[0]
+    assert "setup_priority" not in messages[0]
+
+
+def test_setup_priority_moves_a_whole_component(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A small strip set up before the bus fits, so setup_priority is suggested."""
+    messages = _check_fixed(
+        caplog, VARIANT_ESP32C3, [(_bus("bus"), (("TX", 2),))], _strips(48)
+    )
+    assert len(messages) == 1
+    assert "'strip0' will not fit" in messages[0]
+    assert "set 'setup_priority' so the smaller ones are set up first" in messages[0]
+
+
 def test_components_with_the_same_label_are_counted_apart(
     run_check: CheckRunner,
 ) -> None:
