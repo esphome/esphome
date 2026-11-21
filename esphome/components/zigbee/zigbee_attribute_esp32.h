@@ -45,8 +45,9 @@ class ZigbeeAttribute final : public ZigbeeAttributeBase {
   template<typename T> void connect(switch_::Switch *device);
 #endif
 #ifdef USE_NUMBER
-  ESPDEPRECATED("Use ZigbeeNumber class instead. Will be removed in ESPHome 2027.6.0", "2026.12.0");
-  template<typename T> void connect(number::Number *device);
+  template<typename T>
+  ESPDEPRECATED("Use ZigbeeNumber class instead. Will be removed in ESPHome 2027.6.0", "2026.12.0")
+  void connect(number::Number *device);
 #endif
 };
 
