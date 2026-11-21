@@ -9,6 +9,7 @@ import logging
 
 import esphome.codegen as cg
 from esphome.components import sensor, voltage_sampler
+from esphome.components.const import CONF_SAMPLE_INTERVAL
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CALIBRATION,
@@ -25,7 +26,6 @@ from . import (
     CONF_RATIO_IN_CLEAN_AIR,
     CONF_RL,
     CONF_SAMPLE_COUNT,
-    CONF_SAMPLE_INTERVAL,
     CONF_SENSOR_TYPE,
     CONF_VCC,
     CONF_VOLTAGE_MULTIPLIER,

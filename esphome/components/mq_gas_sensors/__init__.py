@@ -29,7 +29,6 @@ CONF_R0 = "r0"
 CONF_VCC = "vcc"
 CONF_RATIO_IN_CLEAN_AIR = "ratio_in_clean_air"
 CONF_SAMPLE_COUNT = "sample_count"
-CONF_SAMPLE_INTERVAL = "sample_interval"
 
 REGRESSION_METHODS = {
     "exponential": RegressionMethod.REGRESSION_EXPONENTIAL,
