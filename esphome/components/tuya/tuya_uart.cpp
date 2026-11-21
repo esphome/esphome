@@ -22,10 +22,6 @@ namespace esphome::tuya {
 
 ESPHOME_LOG_TAG(TAG, "tuya");
 
-static constexpr uint32_t HEARTBEAT_INTERVAL_ID = 0;
-static constexpr uint32_t WIFI_STATUS_INTERVAL_ID = 1;
-static constexpr uint32_t DATAPOINT_DUMP_TIMEOUT_ID = 2;
-static constexpr uint32_t FORCE_TIME_SYNC_INTERVAL_ID = 3;
 static const int COMMAND_DELAY = 10;
 static const int RECEIVE_TIMEOUT = 300;
 static const int MAX_RETRIES = 5;
@@ -89,6 +85,9 @@ void TuyaUART::dump_mcu_config_() {
   if (this->time_id_ != nullptr) {
     ESP_LOGCONFIG(TAG, "  Force time sync: %s", YESNO(this->force_time_sync_));
   }
+#endif
+#ifdef USE_TUYA_WEATHER
+  this->dump_weather_config_();
 #endif
 }
 
@@ -174,6 +173,9 @@ void TuyaUART::handle_command_(uint8_t command, uint8_t version, const uint8_t *
       if (buffer[0] == 0) {
         ESP_LOGI(TAG, "MCU restarted");
         this->init_state_ = TuyaInitState::INIT_HEARTBEAT;
+#ifdef USE_TUYA_WEATHER
+        this->reset_weather_();
+#endif
       }
       if (this->init_state_ == TuyaInitState::INIT_HEARTBEAT) {
         this->init_state_ = TuyaInitState::INIT_PRODUCT;
@@ -276,6 +278,11 @@ void TuyaUART::handle_command_(uint8_t command, uint8_t version, const uint8_t *
         this->init_state_ = TuyaInitState::INIT_DONE;
         this->set_timeout(DATAPOINT_DUMP_TIMEOUT_ID, 1000, [this] { this->dump_mcu_config_(); });
         this->mark_initialized_();
+#ifdef USE_TUYA_WEATHER
+        // a request the MCU made during the initialization got no frame
+        if (this->weather_enabled_ && !this->weather_answer_queued_())
+          this->answer_weather_enable_();
+#endif
       }
       this->handle_datapoints_(buffer, len);
 
@@ -333,9 +340,22 @@ void TuyaUART::handle_command_(uint8_t command, uint8_t version, const uint8_t *
       ESP_LOGV(TAG, "Network status requested, reported as %i", wifi_status);
       break;
     }
+#ifdef USE_TUYA_WEATHER
+    case TuyaCommandType::WEATHER_ENABLE:
+      this->handle_weather_enable_(buffer, len);
+      break;
+    case TuyaCommandType::WEATHER_DATA:
+      this->handle_weather_ack_();
+      break;
+#endif
     case TuyaCommandType::EXTENDED_SERVICES: {
       uint8_t subcommand = buffer[0];
       switch ((TuyaExtendedServicesCommandType) subcommand) {
+#ifdef USE_TUYA_WEATHER
+        case TuyaExtendedServicesCommandType::REQUEST_WEATHER:
+          this->handle_weather_request_();
+          break;
+#endif
         case TuyaExtendedServicesCommandType::RESET_NOTIFICATION: {
           this->send_command_(
               TuyaCommand{.cmd = TuyaCommandType::EXTENDED_SERVICES,
@@ -451,6 +471,14 @@ void TuyaUART::send_raw_command_(TuyaCommand command) {
   uint8_t version = 0;
 
   this->last_command_timestamp_ = millis();
+#ifdef USE_TUYA_WEATHER
+  // a reply cannot come before the frame has left: header, payload and checksum at the settings of the bus
+  uint32_t baud_rate = this->parent_->get_baud_rate();
+  uint32_t frame_bits = static_cast<uint32_t>(7 + command.payload.size()) *
+                        (1 + this->parent_->get_data_bits() + this->parent_->get_stop_bits() +
+                         (this->parent_->get_parity() != uart::UART_CONFIG_PARITY_NONE ? 1 : 0));
+  this->command_tx_time_ = baud_rate == 0 ? 0 : frame_bits * 1000 / baud_rate;
+#endif
   switch (command.cmd) {
     case TuyaCommandType::HEARTBEAT:
       this->expected_response_ = TuyaCommandType::HEARTBEAT;
@@ -465,6 +493,12 @@ void TuyaUART::send_raw_command_(TuyaCommand command) {
     case TuyaCommandType::DATAPOINT_QUERY:
       this->expected_response_ = TuyaCommandType::DATAPOINT_REPORT_ASYNC;
       break;
+#ifdef USE_TUYA_WEATHER
+    case TuyaCommandType::WEATHER_DATA:
+      this->expected_response_ = TuyaCommandType::WEATHER_DATA;
+      this->weather_in_flight_ = true;
+      break;
+#endif
     default:
       break;
   }
@@ -492,7 +526,13 @@ void TuyaUART::process_command_queue_() {
     this->rx_message_.clear();
   }
 
-  if (this->expected_response_.has_value() && delay > RECEIVE_TIMEOUT) {
+#ifdef USE_TUYA_WEATHER
+  // a weather frame can take longer on the wire than the reply timeout
+  const uint32_t reply_timeout = RECEIVE_TIMEOUT + this->command_tx_time_;
+#else
+  const uint32_t reply_timeout = RECEIVE_TIMEOUT;
+#endif
+  if (this->expected_response_.has_value() && delay > reply_timeout) {
     this->expected_response_.reset();
     if (init_state_ != TuyaInitState::INIT_DONE) {
       if (++this->init_retries_ >= MAX_RETRIES) {
@@ -502,6 +542,10 @@ void TuyaUART::process_command_queue_() {
         this->init_retries_ = 0;
       }
     } else {
+#ifdef USE_TUYA_WEATHER
+      if (this->command_queue_.front().cmd == TuyaCommandType::WEATHER_DATA)
+        this->handle_weather_lost_();
+#endif
       this->command_queue_.erase(command_queue_.begin());
     }
   }
