@@ -470,7 +470,7 @@ async def debug_to_code(config, parent):
     cg.add_define("USE_UART_DEBUGGER")
 
 
-def _power_managed_clock_source(config: ConfigType) -> str:
+def _power_managed_clock_source() -> str:
     """The clock source a UART without clock_source gets on ESP32."""
     if POWER_MANAGEMENT_DOMAIN not in CORE.config:
         return "DEFAULT"
@@ -531,7 +531,7 @@ async def to_code(config):
         if (clock_source := config.get(CONF_CLOCK_SOURCE)) is not None:
             if clock_source != "DEFAULT":
                 cg.add(var.set_clock_source(UART_CLOCK_SOURCES[clock_source]))
-        elif (clock_source := _power_managed_clock_source(config)) != "DEFAULT":
+        elif (clock_source := _power_managed_clock_source()) != "DEFAULT":
             cg.add(var.set_automatic_clock_source(UART_CLOCK_SOURCES[clock_source]))
     cg.add(var.set_stop_bits(config[CONF_STOP_BITS]))
     cg.add(var.set_data_bits(config[CONF_DATA_BITS]))

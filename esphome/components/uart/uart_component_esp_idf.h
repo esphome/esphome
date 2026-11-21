@@ -42,10 +42,13 @@ class IDFUARTComponent final : public UARTComponent, public Component {
   /// the FIFO has taken everything.
   void set_tx_buffer_size(size_t tx_buffer_size) { this->tx_buffer_size_ = tx_buffer_size; }
 
-  void set_clock_source(uart_sclk_t clock_source) { this->clock_source_ = static_cast<uint8_t>(clock_source); }
+  void set_clock_source(uart_sclk_t clock_source) {
+    this->clock_source_ = static_cast<uint8_t>(clock_source);
+    this->clock_source_automatic_ = false;
+  }
   /// A clock ESPHome picked for power management; a baud rate it cannot make falls back to the default clock.
   void set_automatic_clock_source(uart_sclk_t clock_source) {
-    this->set_clock_source(clock_source);
+    this->clock_source_ = static_cast<uint8_t>(clock_source);
     this->clock_source_automatic_ = true;
   }
 
