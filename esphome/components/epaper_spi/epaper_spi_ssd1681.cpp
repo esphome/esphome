@@ -1,53 +1,24 @@
 #include "epaper_spi_ssd1681.h"
 
-#include <algorithm>
-
-#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
 namespace esphome::epaper_spi {
 ESPHOME_LOG_TAG(TAG, "epaper_spi.ssd1681");
 
-bool HOT EPaperSSD1681::transfer_previous_frame_() {
-  const uint32_t start_time = millis();
-  if (this->current_data_index_ == 0) {
-    this->set_window();
-    this->command(0x26);
-  }
-  this->start_data_();
-  const size_t end = this->sent_.size();
-  while (this->current_data_index_ != end) {
-    size_t length;
-    const uint8_t *bytes = this->sent_.get_span(this->current_data_index_, length);
-    length = std::min<size_t>({length, end - this->current_data_index_, this->row_width_});
-    this->write_array(bytes, length);
-    this->current_data_index_ += length;
-    if (millis() - start_time > MAX_TRANSFER_TIME) {
-      // Let the main loop run and come back next loop
-      this->disable();
-      return false;
-    }
-  }
-  this->disable();
-  this->current_data_index_ = 0;
-  this->send_red_ = false;
-  return false;
-}
-
 bool HOT EPaperSSD1681::transfer_data() {
   if (this->current_data_index_ == 0 && this->send_red_) {
-    // Both banks always get the whole frame: the RAM ping-pong the panel's OTP enables swaps the bank each
-    // command writes after every refresh, so a bank that is only partly written keeps an image from two frames ago
+    // Always write the whole new frame to 0x24: the RAM ping-pong the panel's OTP enables swaps 0x24's bank
+    // after each refresh, so a window-only write would land on a bank left two frames stale. 0x26 is the
+    // previous frame the controller carried over from the last 0x24, so it is left untouched.
     this->x_low_ = 0;
     this->x_high_ = this->width_;
     this->y_low_ = 0;
     this->y_high_ = this->height_;
-    // Without the previous frame there is nothing to compare against, so refresh the whole panel
-    if (this->partial_ && !this->sent_valid_)
-      this->partial_ = false;
+    if (this->partial_) {
+      this->set_window();
+      this->send_red_ = false;
+    }
   }
-  if (this->partial_ && this->send_red_)
-    return this->transfer_previous_frame_();
   return EPaperSSD1683::transfer_data();
 }
 

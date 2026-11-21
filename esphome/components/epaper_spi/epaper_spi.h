@@ -139,10 +139,8 @@ class EPaperBase : public Display,
   // Allocates the copy of the previous frame; only drivers that diff against it (needs_previous_frame) call this
   bool init_sent_frame_(size_t length);
   void record_sent_(size_t index, const uint8_t *data, size_t length) {
-    if (this->sent_.is_valid()) {
+    if (this->sent_.is_valid())
       this->sent_.write(index, data, length);
-      this->sent_count_ += length;
-    }
   }
   // Whether the driver reads the previous frame (sent_) for its differential refresh
   virtual bool needs_previous_frame() const { return false; }
@@ -217,9 +215,7 @@ class EPaperBase : public Display,
   size_t current_data_index_{};  // used by data transfer to track progress
   split_buffer::SplitBuffer buffer_{};
   split_buffer::SplitBuffer sent_{};  // the previous frame, kept only by drivers that diff against it
-  bool sent_valid_{};                 // sent_ holds a whole frame
   bool sent_init_failed_{};           // sent_ could not be allocated, so it is not tried again
-  size_t sent_count_{};               // bytes recorded into sent_ by the update in progress
   uint32_t shown_hash_{};             // hash of the frame on the panel, to skip an unchanged update
   bool shown_hash_valid_{};           // shown_hash_ holds the hash of a frame whose refresh completed
   bool sent_hash_intact_{};           // the buffer was unchanged by the end of the push of shown_hash_
