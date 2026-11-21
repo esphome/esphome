@@ -429,6 +429,13 @@ def _format_errors(content: str) -> list[tuple[int, int]]:
             'esp_log_printf_(level, [a, b]() { return TAG; }(), Pos{1, 2}.line, "x");',
             [(1, 68)],
         ),
+        # Template argument lists in earlier arguments; a spaced `<` is a comparison
+        (
+            'esp_log_printf_(level, TAG, std::integral_constant<int, 42>::value, "x");',
+            [(1, 69)],
+        ),
+        ('esp_log_printf_(a < b ? 1 : 2, TAG, n > 0, "x");', [(1, 44)]),
+        ('esp_log_printf_(p->level, TAG, x >= 2, "x");', [(1, 40)]),
         # A comment before the format, raw and prefixed literals
         ('esp_log_printf_(level, TAG, __LINE__, /* fmt */ "x");', [(1, 49)]),
         ('esp_log_printf_(level, TAG, __LINE__, R"(x)");', [(1, 39)]),
