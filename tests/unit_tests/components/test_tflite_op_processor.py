@@ -511,55 +511,32 @@ def test_read_model_operators_rejects_a_missing_file(tmp_path: Path) -> None:
         read_model_operators(tmp_path / "missing.tflite")
 
 
-def test_read_model_input_describes_the_input_tensor(tmp_path: Path) -> None:
-    """An image model keeps its input as [batch, height, width, channels]."""
+@pytest.mark.parametrize(
+    ("shape", "type_code", "expected_type"),
+    [
+        ((1, 32, 20, 3), 3, "uint8"),
+        ((1, 49, 40), 9, "int8"),
+        ((1, 8, 8, 1), 0, "float32"),
+    ],
+)
+def test_read_model_input_reports_the_tensor_as_stored(
+    tmp_path: Path, shape: tuple[int, ...], type_code: int, expected_type: str
+) -> None:
+    """The shape is reported as stored, with the type the runtime fills."""
     model = write_model_file(
         tmp_path,
         write_model(
             [(None, 9)],
             inputs=(0,),
-            tensors=(([1, 32, 20, 3], 3, 0),),
+            tensors=((list(shape), type_code, 0),),
             buffers=(None,),
         ),
     )
 
     model_input = read_model_input(model)
 
-    assert model_input.shape == (1, 32, 20, 3)
-    assert model_input.type == "uint8"
-
-
-def test_read_model_input_describes_a_streaming_input(tmp_path: Path) -> None:
-    """A streaming model's [batch, frames, features] input is reported as it is."""
-    model = write_model_file(
-        tmp_path,
-        write_model(
-            [(None, 9)],
-            inputs=(0,),
-            tensors=(([1, 49, 40], 9, 0),),
-            buffers=(None,),
-        ),
-    )
-
-    model_input = read_model_input(model)
-
-    assert model_input.shape == (1, 49, 40)
-    assert model_input.type == "int8"
-
-
-def test_read_model_input_names_the_type_the_runtime_fills(tmp_path: Path) -> None:
-    """The float32 input of a non-quantized model must be recognised as such."""
-    model = write_model_file(
-        tmp_path,
-        write_model(
-            [(None, 9)],
-            inputs=(0,),
-            tensors=(([1, 8, 8, 1], 0, 0),),
-            buffers=(None,),
-        ),
-    )
-
-    assert read_model_input(model).type == "float32"
+    assert model_input.shape == shape
+    assert model_input.type == expected_type
 
 
 def test_read_model_input_requires_an_input_tensor(tmp_path: Path) -> None:
