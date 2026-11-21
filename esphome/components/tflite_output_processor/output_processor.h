@@ -2,6 +2,7 @@
 
 #include "esphome/core/defines.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <string>
 
@@ -66,6 +67,42 @@ ProcessedOutput process_output(const float *output_data, int num_classes, Output
 /// @brief Process a model output tensor: dequantizes uint8/int8 tensors, then delegates to the
 /// float overload. Returns {0.0f, 0.0f} on error.
 ProcessedOutput process_output(TfLiteTensor *output_tensor, OutputProcessing mode, float scale_factor, bool debug);
+
+/// @brief Turns a model's output tensors into a result.
+///
+/// A model kind implements this when its outputs are not one classification tensor:
+/// detection has four, segmentation a mask, pose keypoints, text logits or positions.
+class OutputDecoder {
+ public:
+  virtual ~OutputDecoder() = default;
+
+  /// @param outputs The model's output tensors, in flatbuffer order.
+  /// @param count   Number of entries in @p outputs.
+  /// @return true when the tensors were read.
+  virtual bool decode(TfLiteTensor *const *outputs, size_t count) = 0;
+};
+
+/// @brief Classification: the first output tensor, processed as today.
+class ClassificationDecoder final : public OutputDecoder {
+ public:
+  ClassificationDecoder(OutputProcessing mode, float scale_factor, bool debug)
+      : mode_(mode), scale_factor_(scale_factor), debug_(debug) {}
+
+  bool decode(TfLiteTensor *const *outputs, size_t count) override {
+    if (count == 0)
+      return false;
+    this->result_ = process_output(outputs[0], this->mode_, this->scale_factor_, this->debug_);
+    return this->result_.valid;
+  }
+
+  const ProcessedOutput &result() const { return this->result_; }
+
+ private:
+  OutputProcessing mode_;
+  float scale_factor_;
+  bool debug_;
+  ProcessedOutput result_{};
+};
 #endif
 
 }  // namespace esphome::tflite_output_processor

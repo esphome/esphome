@@ -149,3 +149,26 @@ TEST(OutputProcessor, UnknownModeNameFallsBackToArgmax) {
 }
 
 }  // namespace esphome::tflite_output_processor::testing
+
+TEST(OutputProcessor, ClassificationDecoderReadsTheFirstTensor) {
+  TfLiteIntArray *dims = TfLiteIntArrayCreate(1);
+  dims->data[0] = 2;
+  const uint8_t values[2] = {10, 30};
+
+  TfLiteTensor tensor{};
+  tensor.dims = dims;
+  tensor.type = kTfLiteUInt8;
+  tensor.params.scale = 1.0f;
+  tensor.params.zero_point = 0;
+  tensor.data.uint8 = const_cast<uint8_t *>(values);
+
+  ClassificationDecoder decoder(OutputProcessing::OUTPUT_PROCESSING_ARGMAX, 1.0f, false);
+  TfLiteTensor *outputs[1] = {&tensor};
+
+  EXPECT_TRUE(decoder.decode(outputs, 1));
+  EXPECT_FLOAT_EQ(decoder.result().value, 1.0f);
+  EXPECT_FLOAT_EQ(decoder.result().confidence, 30.0f);
+  EXPECT_FALSE(decoder.decode(outputs, 0));
+
+  TfLiteIntArrayFree(dims);
+}
