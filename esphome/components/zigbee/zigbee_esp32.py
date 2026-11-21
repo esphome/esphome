@@ -355,9 +355,12 @@ def validate_number_esp32(config: ConfigType) -> ConfigType:
             CONF_TYPE: "ENUM16",
         },
     )
-    config[KEY_ZIGBEE_EP] = ep
+    ep_ref: dict[str, Any] = {}
+    config[KEY_ZIGBEE_EP] = ep_ref
     setup_attributes(config, ep[CONF_CLUSTERS])
-    add_ep(ep, config.get(CONF_ENDPOINT), config.get(CONF_USE_DEVICE_TYPE))
+    add_ep(
+        ep, config.get(CONF_ENDPOINT), config.get(CONF_USE_DEVICE_TYPE), ep_ref=ep_ref
+    )
     config[CONF_ZIGBEE_CLASS] = cv.declare_id(ZigbeeNumber)(None)
     config[CONF_ZIGBEE_ID] = cv.use_id(ZigbeeComponent)(None)
     return config
@@ -535,7 +538,7 @@ async def add_class_component(entity: cg.MockObj, config: ConfigType) -> None:
         zb,
         ep_num,
     )
-    await cg.register_component(var, config[KEY_ZIGBEE_EP])
+    await cg.register_component(var, {})
     if (report := config.get(CONF_REPORT, "default")) not in (
         "default",
         "coordinator",

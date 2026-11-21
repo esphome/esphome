@@ -37,7 +37,7 @@ void ZigbeeNumber::setup() {
   this->device_->add_on_state_callback([this](float value) {
     if (this->synchronizing_from_zigbee_)
       return;
-    this->set_attr(this->scale_value_<float>(this->device_->state));
+    this->set_attr(value);
   });
 }
 

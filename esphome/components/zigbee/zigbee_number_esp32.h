@@ -21,7 +21,7 @@ class ZigbeeNumber final : public ZigbeeAttributeBase {
  public:
   ZigbeeNumber(ZigbeeComponent *parent, uint8_t endpoint_id)
       : ZigbeeAttributeBase(parent, endpoint_id, EZB_ZCL_CLUSTER_ID_ANALOG_OUTPUT, EZB_ZCL_CLUSTER_SERVER,
-                            EZB_ZCL_ATTR_ANALOG_OUTPUT_PRESENT_VALUE_ID, EZB_ZCL_ATTR_TYPE_SINGLE, 0, 1) {}
+                            EZB_ZCL_ATTR_ANALOG_OUTPUT_PRESENT_VALUE_ID, EZB_ZCL_ATTR_TYPE_SINGLE) {}
   void setup() override;
   void connect(number::Number *device) { this->device_ = device; }
 
