@@ -24,6 +24,7 @@ DOMAIN = "tinyusb_keyboard"
 
 CONF_MODIFIERS = "modifiers"
 CONF_TINYUSB_ID = "tinyusb_id"
+CONF_TINYUSB_KEYBOARD_ID = "tinyusb_keyboard_id"
 CONF_USAGE = "usage"
 
 # Keyboard page usage ids run without gaps from HID_KEY_A (0x04) through a..z, 1..9 and 0
