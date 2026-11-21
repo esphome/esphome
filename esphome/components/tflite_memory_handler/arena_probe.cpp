@@ -22,6 +22,12 @@ size_t probe_arena_size(const uint8_t *model_start, size_t model_size, size_t in
     return 0;
   }
 
+  if (model_start == nullptr || model_size == 0) {
+    // The verifier would read the buffer, so an empty one is reported here.
+    ESP_LOGE(TAG, "probe_arena_size: the model buffer is null or empty");
+    return 0;
+  }
+
   // GetModel() only casts the buffer, so a truncated or corrupt model would be
   // read through the flatbuffer accessors as undefined behaviour. Verify the
   // buffer first and report it as its own failure.

@@ -41,7 +41,9 @@ def test_psram_arena_with_the_component_is_accepted() -> None:
     _validate("psram", {CONF_DISABLED: False})
 
 
-def test_psram_arena_warns_when_psram_may_be_missing(caplog) -> None:
+def test_psram_arena_warns_when_psram_may_be_missing(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     """ignore_not_found keeps a board without PSRAM failing only at boot."""
     with caplog.at_level("WARNING", logger=tflite_memory_handler.__name__):
         _validate("psram", {CONF_DISABLED: False, "ignore_not_found": True})
