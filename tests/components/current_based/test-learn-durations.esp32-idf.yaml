@@ -1,0 +1,25 @@
+substitutions:
+  irq_pin: GPIO15
+
+packages:
+  i2c: !include ../../test_build_components/common/i2c/esp32-idf.yaml
+  current_based: !include common.yaml
+
+cover:
+  - platform: current_based
+    name: Learning Current Based Cover
+    id: learning_current_based_cover
+    open_sensor: ade7953_current_a
+    open_moving_current_threshold: 0.5
+    open_duration: 12s
+    open_action:
+      - switch.turn_on: current_based_template_switch1
+    close_sensor: ade7953_current_b
+    close_moving_current_threshold: 0.5
+    close_duration: 10s
+    close_action:
+      - switch.turn_on: template_switch2
+    stop_action:
+      - switch.turn_off: current_based_template_switch1
+      - switch.turn_off: template_switch2
+    learn_durations: true
