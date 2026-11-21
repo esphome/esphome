@@ -1,0 +1,16 @@
+esphome:
+  name: analog-threshold-test
+
+host:
+
+sensor:
+  - platform: template
+    id: source_sensor
+
+binary_sensor:
+  - platform: analog_threshold
+    name: Threshold
+    sensor_id: source_sensor
+    threshold:
+      lower: 0.78
+      upper: 0.27
