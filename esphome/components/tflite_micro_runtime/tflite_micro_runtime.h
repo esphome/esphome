@@ -85,6 +85,19 @@ struct ModelSpec {
 
 /// Model loading, tensor arena and inference. A Component on its own, so setup()
 /// loads the configured model; an audio model is left to its streaming consumer.
+/// @brief Fills the model's input tensor(s) from a payload.
+///
+/// A model kind implements this when the input is not a raw byte copy: image frames
+/// need channel order and normalization, text needs several int32 tensors.
+class InputPipeline {
+ public:
+  virtual ~InputPipeline() = default;
+  /// @return true when the tensors were filled.
+  virtual bool fill(const uint8_t *src, size_t size) = 0;
+  /// Name for dump_config(), e.g. "image".
+  virtual const char *name() const = 0;
+};
+
 class TFLiteMicroHelper final : public Component {
  public:
   TFLiteMicroHelper() = default;
@@ -139,6 +152,12 @@ class TFLiteMicroHelper final : public Component {
   /// run_inference_on_buffer() plus output processing; nullopt (logged) on failure.
   optional<ProcessedOutput> run_inference(const uint8_t *src_data, size_t src_size);
 
+  /// Fill through the pipeline when one is set, invoke, then decode every output.
+  bool run(const uint8_t *src_data, size_t src_size);
+
+  void set_input_pipeline(InputPipeline *pipeline) { this->input_pipeline_ = pipeline; }
+  void set_output_decoder(tflite_output_processor::OutputDecoder *decoder) { this->output_decoder_ = decoder; }
+
   /// Model spec of the loaded model; all defaults when none is loaded.
   ModelSpec get_model_spec() const;
 
@@ -188,6 +207,8 @@ class TFLiteMicroHelper final : public Component {
   AudioModelConfig audio_config_;
 
   tflite_model_loader::ModelHandler model_handler_;
+  InputPipeline *input_pipeline_{nullptr};
+  tflite_output_processor::OutputDecoder *output_decoder_{nullptr};
   MemoryManager::AllocationResult tensor_arena_allocation_;  // owned here, freed in unload_model()
   ArenaHeap arena_heap_{ArenaHeap::ARENA_HEAP_UNKNOWN};      // cached for reports after an unload
   LoadStats last_load_stats_{};

@@ -203,6 +203,35 @@ TfLiteStatus TFLiteMicroHelper::invoke() {
   return this->model_handler_.invoke();
 }
 
+bool TFLiteMicroHelper::run(const uint8_t *src_data, size_t src_size) {
+  if (!this->is_model_loaded()) {
+    ESP_LOGE(TAG, "Cannot run inference -- model not loaded");
+    return false;
+  }
+  if (this->input_pipeline_ != nullptr) {
+    if (!this->input_pipeline_->fill(src_data, src_size))
+      return false;
+  } else {
+    if (!this->validate_input_tensor_(src_data, src_size))
+      return false;
+    memcpy(this->model_handler_.input_tensor()->data.raw, src_data, src_size);
+  }
+  if (this->invoke() != kTfLiteOk)
+    return false;
+  if (this->output_decoder_ == nullptr)
+    return true;
+  static constexpr size_t MAX_OUTPUTS = 8;
+  const size_t count = this->model_handler_.output_count();
+  if (count > MAX_OUTPUTS) {
+    ESP_LOGE(TAG, "Model has %zu outputs, more than the %zu a decoder can take", count, MAX_OUTPUTS);
+    return false;
+  }
+  TfLiteTensor *outputs[MAX_OUTPUTS];
+  for (size_t i = 0; i < count; i++)
+    outputs[i] = this->model_handler_.output(i);
+  return this->output_decoder_->decode(outputs, count);
+}
+
 optional<ProcessedOutput> TFLiteMicroHelper::run_inference(const uint8_t *src_data, size_t src_size) {
   if (!this->run_inference_on_buffer(src_data, src_size)) {
     return nullopt;  // the reason is already logged
