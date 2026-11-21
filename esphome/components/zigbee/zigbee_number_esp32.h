@@ -23,13 +23,13 @@ class ZigbeeNumber final : public ZigbeeAttributeBase {
       : ZigbeeAttributeBase(parent, endpoint_id, EZB_ZCL_CLUSTER_ID_ANALOG_OUTPUT, EZB_ZCL_CLUSTER_SERVER,
                             EZB_ZCL_ATTR_ANALOG_OUTPUT_PRESENT_VALUE_ID, EZB_ZCL_ATTR_TYPE_SINGLE, 0, 1) {}
   void setup() override;
-  void connect(number::Number *device) { this->device = device; };
+  void connect(number::Number *device) { this->device_ = device; }
 
   // need to run setup before the zigbee component and after number
   float get_setup_priority() const override { return setup_priority::AFTER_BLUETOOTH; }
 
  protected:
-  number::Number *device{nullptr};
+  number::Number *device_{nullptr};
   bool synchronizing_from_zigbee_{false};
 };
 
