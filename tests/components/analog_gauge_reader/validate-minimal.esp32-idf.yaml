@@ -10,3 +10,13 @@ analog_gauge_reader:
   decoder_id: gauge_decoder
   dials:
     - id: dial_1
+
+sensor:
+  # The reader id is omitted: with one reader it is resolved automatically.
+  - platform: analog_gauge_reader
+    value:
+      name: Gauge Value
+    dials:
+      - dial: dial_1
+        value:
+          name: Gauge Dial 1

@@ -26,7 +26,7 @@ DIAL_SCHEMA = cv.Schema(
 
 CONFIG_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_ANALOG_GAUGE_READER_ID): cv.use_id(AnalogGaugeReader),
+        cv.GenerateID(CONF_ANALOG_GAUGE_READER_ID): cv.use_id(AnalogGaugeReader),
         cv.Optional(CONF_VALUE): sensor.sensor_schema(),
         cv.Optional(CONF_DIALS): cv.ensure_list(DIAL_SCHEMA),
     }
