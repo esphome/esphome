@@ -13,13 +13,9 @@ static constexpr size_t QSPI_DBI_MAX_LOG_BYTES = 64;
 
 void QspiDbi::setup() {
   this->spi_setup();
-  if (this->enable_pin_ != nullptr) {
-    this->enable_pin_->setup();
-    this->enable_pin_->digital_write(true);
-  }
+  setup_output_pin(this->enable_pin_, true);
   if (this->reset_pin_ != nullptr) {
-    this->reset_pin_->setup();
-    this->reset_pin_->digital_write(true);
+    setup_output_pin(this->reset_pin_, true);
     delay(5);
     this->reset_pin_->digital_write(false);
     delay(5);

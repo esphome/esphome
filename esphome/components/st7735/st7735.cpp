@@ -234,11 +234,8 @@ ST7735::ST7735(ST7735Model model, int width, int height, int colstart, int rowst
 void ST7735::setup() {
   this->spi_setup();
 
-  this->dc_pin_->setup();  // OUTPUT
-  this->cs_->setup();      // OUTPUT
-
-  this->dc_pin_->digital_write(true);
-  this->cs_->digital_write(true);
+  setup_output_pin(this->dc_pin_, true);
+  setup_output_pin(this->cs_, true);
 
   this->init_reset_();
   delay(100);  // NOLINT
@@ -323,8 +320,7 @@ void HOT ST7735::draw_absolute_pixel_internal(int x, int y, Color color) {
 
 void ST7735::init_reset_() {
   if (this->reset_pin_ != nullptr) {
-    this->reset_pin_->setup();
-    this->reset_pin_->digital_write(true);
+    setup_output_pin(this->reset_pin_, true);
     delay(1);
     // Trigger Reset
     this->reset_pin_->digital_write(false);

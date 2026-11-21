@@ -81,8 +81,7 @@ static const LogString *mixer_mode_name(MixerMode mixer_mode) {
 
 void TAS58xx::setup() {
   if (this->enable_pin_ != nullptr) {
-    this->enable_pin_->setup();
-    this->enable_pin_->digital_write(false);
+    setup_output_pin(this->enable_pin_, false);
     delay(PDN_LOW_MS);
     this->enable_pin_->digital_write(true);
     delay(PDN_TO_I2C_MS);

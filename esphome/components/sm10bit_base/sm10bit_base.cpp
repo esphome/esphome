@@ -32,10 +32,8 @@ static constexpr uint8_t SM10BIT_DELAY = 2;
 // 0xF | 1111   | RGB 160mA | CW 80mA     | 15
 
 void Sm10BitBase::setup() {
-  this->data_pin_->setup();
-  this->data_pin_->digital_write(true);
-  this->clock_pin_->setup();
-  this->clock_pin_->digital_write(true);
+  setup_output_pin(this->data_pin_, true);
+  setup_output_pin(this->clock_pin_, true);
 }
 
 void Sm10BitBase::loop() {

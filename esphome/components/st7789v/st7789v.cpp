@@ -202,8 +202,7 @@ void ST7789V::write_display_data() {
 
 void ST7789V::init_reset_() {
   if (this->reset_pin_ != nullptr) {
-    this->reset_pin_->setup();
-    this->reset_pin_->digital_write(true);
+    setup_output_pin(this->reset_pin_, true);
     delay(1);
     // Trigger Reset
     this->reset_pin_->digital_write(false);
@@ -214,12 +213,7 @@ void ST7789V::init_reset_() {
   }
 }
 
-void ST7789V::backlight_(bool onoff) {
-  if (this->backlight_pin_ != nullptr) {
-    this->backlight_pin_->setup();
-    this->backlight_pin_->digital_write(onoff);
-  }
-}
+void ST7789V::backlight_(bool onoff) { setup_output_pin(this->backlight_pin_, onoff); }
 
 void ST7789V::write_command_(uint8_t value) {
   this->enable();

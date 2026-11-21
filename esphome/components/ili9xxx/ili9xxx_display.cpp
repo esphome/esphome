@@ -75,12 +75,8 @@ void ILI9XXXDisplay::alloc_buffer_() {
 }
 
 void ILI9XXXDisplay::setup_pins_() {
-  this->dc_pin_->setup();  // OUTPUT
-  this->dc_pin_->digital_write(false);
-  if (this->reset_pin_ != nullptr) {
-    this->reset_pin_->setup();  // OUTPUT
-    this->reset_pin_->digital_write(true);
-  }
+  setup_output_pin(this->dc_pin_, false);
+  setup_output_pin(this->reset_pin_, true);
 
   this->spi_setup();
 

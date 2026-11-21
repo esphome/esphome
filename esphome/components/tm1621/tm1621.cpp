@@ -28,14 +28,10 @@ const uint8_t TM1621_DIGIT_ROW[2][12] = {{0x5F, 0x50, 0x3D, 0x79, 0x72, 0x6B, 0x
                                          {0xF5, 0x05, 0xB6, 0x97, 0x47, 0xD3, 0xF3, 0x85, 0xF7, 0xD7, 0x02, 0x00}};
 
 void TM1621Display::setup() {
-  this->cs_pin_->setup();  // OUTPUT
-  this->cs_pin_->digital_write(true);
-  this->data_pin_->setup();  // OUTPUT
-  this->data_pin_->digital_write(true);
-  this->read_pin_->setup();  // OUTPUT
-  this->read_pin_->digital_write(true);
-  this->write_pin_->setup();  // OUTPUT
-  this->write_pin_->digital_write(true);
+  setup_output_pin(this->cs_pin_, true);
+  setup_output_pin(this->data_pin_, true);
+  setup_output_pin(this->read_pin_, true);
+  setup_output_pin(this->write_pin_, true);
 
   this->state_ = 100;
 

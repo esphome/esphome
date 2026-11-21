@@ -19,11 +19,9 @@ static constexpr uint8_t BP5758D_ALL_DATA_CHANNEL_ENABLEMENT = 0b00011111;
 static constexpr uint8_t BP5758D_DELAY = 2;
 
 void BP5758D::setup() {
-  this->data_pin_->setup();
-  this->data_pin_->digital_write(false);
+  setup_output_pin(this->data_pin_, false);
   delayMicroseconds(BP5758D_DELAY);
-  this->clock_pin_->setup();
-  this->clock_pin_->digital_write(false);
+  setup_output_pin(this->clock_pin_, false);
   delayMicroseconds(BP5758D_DELAY);
 }
 void BP5758D::dump_config() {

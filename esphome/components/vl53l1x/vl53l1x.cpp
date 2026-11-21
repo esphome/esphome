@@ -214,10 +214,7 @@ void VL53L1XSensor::setup() {
   // comes back at the default address only when its own setup() releases it.
   if (VL53L1XSensor::first_sensor != nullptr) {
     for (auto *other = VL53L1XSensor::first_sensor; other != nullptr; other = other->next_) {
-      if (other->enable_pin_ != nullptr) {
-        other->enable_pin_->setup();
-        other->enable_pin_->digital_write(false);
-      }
+      setup_output_pin(other->enable_pin_, false);
     }
     VL53L1XSensor::first_sensor = nullptr;
   }
