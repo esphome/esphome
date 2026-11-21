@@ -26,12 +26,14 @@ from esphome.const import (
     CONF_MAX_LENGTH,
     CONF_MODEL,
     CONF_NAME,
+    CONF_NUMBER,
     CONF_POLLING_INTERVAL,
     CONF_TYPE,
     CONF_UNIT_OF_MEASUREMENT,
     CONF_VALUE,
     CONF_VERSION,
     CONF_WIFI,
+    CONF_ZIGBEE_ID,
     DEVICE_CLASS_BATTERY,
     DEVICE_CLASS_OUTLET,
     DEVICE_CLASS_VOLTAGE,
@@ -59,6 +61,7 @@ from .const import (
     POWER_SOURCE,
     ZigbeeAttribute,
     ZigbeeComponent,
+    ZigbeeNumber,
 )
 from .const_esp32 import (
     ACCESS,
@@ -70,6 +73,7 @@ from .const_esp32 import (
     CONF_ATTRIBUTE_ID,
     CONF_ATTRIBUTES,
     CONF_CLUSTERS,
+    CONF_ZIGBEE_CLASS,
     CONNECT,
     DEVICE_ID,
     DEVICE_TYPE,
@@ -351,8 +355,11 @@ def validate_number_esp32(config: ConfigType) -> ConfigType:
             CONF_TYPE: "ENUM16",
         },
     )
+    config[KEY_ZIGBEE_EP] = ep
     setup_attributes(config, ep[CONF_CLUSTERS])
     add_ep(ep, config.get(CONF_ENDPOINT), config.get(CONF_USE_DEVICE_TYPE))
+    config[CONF_ZIGBEE_CLASS] = cv.declare_id(ZigbeeNumber)(None)
+    config[CONF_ZIGBEE_ID] = cv.use_id(ZigbeeComponent)(None)
     return config
 
 
@@ -516,6 +523,25 @@ async def add_component(entity: cg.MockObj, config: ConfigType) -> None:
             cg.add(zb_attr.connect(template_arg, entity, lambda_))
         else:
             cg.add(zb_attr.connect(template_arg, entity))
+
+
+async def add_class_component(entity: cg.MockObj, config: ConfigType) -> None:
+    ep_num = config.get(CONF_ENDPOINT)
+    if ep_num is None:
+        ep_num = config[KEY_ZIGBEE_EP][CONF_NUMBER]
+    zb = await cg.get_variable(config[CONF_ZIGBEE_ID])
+    var = cg.new_Pvariable(
+        config[CONF_ZIGBEE_CLASS],
+        zb,
+        ep_num,
+    )
+    await cg.register_component(var, config[KEY_ZIGBEE_EP])
+    if (report := config.get(CONF_REPORT, "default")) not in (
+        "default",
+        "coordinator",
+    ):
+        cg.add(var.set_report(report))
+    cg.add(var.connect(entity))
 
 
 ZIGBEE_ACTION_SCHEMA_ESP32 = automation.maybe_simple_id(

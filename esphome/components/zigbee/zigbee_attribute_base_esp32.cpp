@@ -8,7 +8,7 @@ namespace esphome::zigbee {
 
 ESPHOME_LOG_TAG(TAG, "zigbee.attribute");
 
-void ZigbeeAttribute::set_attr_internal() {
+void ZigbeeAttributeBase::set_attr_internal() {
   if (!this->zb_->is_started()) {
     return;
   }
@@ -28,7 +28,7 @@ void ZigbeeAttribute::set_attr_internal() {
   }
 }
 
-void ZigbeeAttribute::report_internal(bool has_lock) {
+void ZigbeeAttributeBase::report_internal(bool has_lock) {
   if (!this->report_enabled) {
     return;
   }
