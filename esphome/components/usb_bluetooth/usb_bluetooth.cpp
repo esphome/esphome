@@ -8,10 +8,6 @@
 #include <algorithm>
 #include <cstring>
 
-#ifdef USE_USB_BLUETOOTH_BLUEDROID
-#include "esphome/components/esp32_ble/ble.h"
-#include "esp_bluedroid_hci.h"
-#endif
 
 namespace esphome::usb_bluetooth {
 
@@ -36,181 +32,6 @@ static constexpr uint16_t OP_RTL_READ_ROM_VERSION = 0xFC6D;
 static constexpr size_t RTL_FRAGMENT = 252;
 static constexpr uint16_t MANUFACTURER_REALTEK = 93;
 
-#ifdef USE_USB_BLUETOOTH_BLUEDROID
-// H4 packet types, the byte Bluedroid's transport puts in front of every packet
-static constexpr uint8_t H4_COMMAND = 0x01;
-static constexpr uint8_t H4_ACL = 0x02;
-static constexpr uint8_t H4_EVENT = 0x04;
-// Transfer slots the two readers hold all the time, plus one kept for the next command
-static constexpr size_t RESERVED_SLOTS = 3;
-
-// The transport operations are plain C functions without a user argument
-static USBBluetooth *g_bluedroid_dongle = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-
-static void hci_drv_send(uint8_t *data, uint16_t len) { g_bluedroid_dongle->hci_send(data, len); }
-static bool hci_drv_check_send_available() { return g_bluedroid_dongle->hci_send_available(); }
-static esp_err_t hci_drv_register_host_callback(const esp_bluedroid_hci_driver_callbacks_t *callbacks) {
-  g_bluedroid_dongle->hci_attach(callbacks);
-  return ESP_OK;
-}
-static constexpr esp_bluedroid_hci_driver_operations_t HCI_OPS = {
-    .send = hci_drv_send,
-    .check_send_available = hci_drv_check_send_available,
-    .register_host_callback = hci_drv_register_host_callback,
-};
-
-bool attach_bluedroid() {
-  if (!bluedroid_controller_ready())
-    return false;
-  return esp_bluedroid_attach_hci_driver(&HCI_OPS) == ESP_OK;
-}
-
-void detach_bluedroid() {
-  if (g_bluedroid_dongle != nullptr)
-    g_bluedroid_dongle->hci_attach(nullptr);
-  esp_bluedroid_detach_hci_driver();
-}
-
-bool bluedroid_controller_ready() { return g_bluedroid_dongle != nullptr && g_bluedroid_dongle->is_ready(); }
-
-void USBBluetooth::set_bluedroid() {
-  g_bluedroid_dongle = this;
-  this->hci_command_.reserve(3 + 255);
-}
-
-// Bluedroid's tasks. Commands go to endpoint 0, ACL data to the bulk OUT endpoint; the H4 type byte is not sent.
-void USBBluetooth::hci_send(const uint8_t *h4, uint16_t len) {
-  if (len < 2)
-    return;
-  if (!this->is_ready()) {
-    // The dongle is gone. Bluedroid still sends commands while esp32_ble takes it down and waits for
-    // their answers, so they are answered here and it can finish
-    if (h4[0] == H4_COMMAND && len >= 3)
-      this->answer_without_controller_(encode_uint16(h4[2], h4[1]));
-    return;
-  }
-  bool sent = false;
-  auto done = [this](const usb_host::TransferStatus &status) {
-    if (!status.success)
-      ESP_LOGW(TAG, "Send to the dongle failed (status %u)", status.error_code);
-    this->send_done_();
-  };
-  if (h4[0] == H4_COMMAND) {
-    // Bluedroid sends one command at a time from its HCI task: one buffer, reserved once, holds it
-    this->hci_command_.assign(h4 + 1, h4 + len);
-    sent = this->control_transfer(HCI_COMMAND_REQUEST_TYPE, 0, 0, this->intf_, done, this->hci_command_);
-  } else if (h4[0] == H4_ACL) {
-    sent = this->transfer_out(this->acl_out_ep_, done, h4 + 1, len - 1);
-  }
-  if (!sent) {
-    ESP_LOGW(TAG, "HCI packet type %u dropped", h4[0]);
-    this->send_blocked_.store(true, std::memory_order_release);
-  }
-}
-
-// Commands the controller answers with a Command Status event; it answers all others with Command Complete
-static constexpr uint16_t STATUS_OPCODES[] = {
-    0x0406,  // Disconnect
-    0x041D,  // Read Remote Version Information
-    0x200D,  // LE Create Connection
-    0x2013,  // LE Connection Update
-    0x2016,  // LE Read Remote Features
-    0x2019,  // LE Enable Encryption
-    0x2025,  // LE Read Local P-256 Public Key
-    0x2026,  // LE Generate DHKey
-    0x2032,  // LE Set PHY
-    0x2043,  // LE Extended Create Connection
-};
-
-// Bluedroid's HCI task. A Command Complete with status success, or a Command Status with Command Disallowed for
-// commands that would otherwise start something on the air, so no completion event is waited for.
-void USBBluetooth::answer_without_controller_(uint16_t opcode) {
-  static constexpr uint8_t STATUS_COMMAND_DISALLOWED = 0x0C;
-  bool status_event = false;
-  for (uint16_t op : STATUS_OPCODES)
-    status_event |= op == opcode;
-  // H4 type, event code, parameter length, then the parameters; Command Complete gets zeroed return
-  // parameters, so a reader of a few more bytes finds them
-  uint8_t event[3 + 4 + 8]{};
-  event[0] = H4_EVENT;
-  size_t len;
-  if (status_event) {
-    event[1] = 0x0F;
-    event[2] = 4;
-    event[3] = STATUS_COMMAND_DISALLOWED;
-    event[4] = 1;
-    event[5] = static_cast<uint8_t>(opcode & 0xFF);
-    event[6] = static_cast<uint8_t>(opcode >> 8);
-    len = 7;
-  } else {
-    event[1] = HCI_EVENT_COMMAND_COMPLETE;
-    event[2] = 4 + 8;
-    event[3] = 1;
-    event[4] = static_cast<uint8_t>(opcode & 0xFF);
-    event[5] = static_cast<uint8_t>(opcode >> 8);
-    len = sizeof(event);
-  }
-  this->to_host_(event, len);
-}
-
-bool USBBluetooth::hci_send_available() const {
-  const size_t used = __builtin_popcount(this->trq_in_use_.load(std::memory_order_acquire));
-  if (used + RESERVED_SLOTS <= usb_host::MAX_REQUESTS)
-    return true;
-  this->send_blocked_.store(true, std::memory_order_release);
-  return false;
-}
-
-void USBBluetooth::hci_attach(const esp_bluedroid_hci_driver_callbacks_t *callbacks) {
-  this->host_ = callbacks;
-  this->host_attached_.store(callbacks != nullptr, std::memory_order_release);
-  if (callbacks != nullptr)
-    ESP_LOGI(TAG, "Bluedroid attached to the dongle");
-}
-
-// USB task
-void USBBluetooth::send_done_() {
-  if (this->send_blocked_.exchange(false, std::memory_order_acq_rel) && this->host_ != nullptr)
-    this->host_->notify_host_send_available();
-}
-
-// USB task. Bluedroid copies the packet before returning.
-void USBBluetooth::to_host_(uint8_t *h4, size_t len) {
-  const auto *host = this->host_;
-  if (host != nullptr && this->host_attached_.load(std::memory_order_acquire))
-    host->notify_host_recv(h4, static_cast<uint16_t>(len));
-}
-
-// USB task. ACL packets are put back together by their own length field, like events.
-void USBBluetooth::read_acl_(uint32_t generation) {
-  const bool submitted = this->transfer_in(
-      this->acl_in_ep_,
-      [this, generation](const usb_host::TransferStatus &status) {
-        if (generation != this->generation_.load(std::memory_order_acquire))
-          return;
-        if (!status.success) {
-          ESP_LOGW(TAG, "ACL endpoint stopped (status %u)", status.error_code);
-          return;
-        }
-        uint8_t *acl = this->acl_h4_ + 1;
-        const size_t take = std::min(status.data_len, ACL_MAX - this->acl_len_);
-        memcpy(acl + this->acl_len_, status.data, take);
-        this->acl_len_ += take;
-        if (this->acl_len_ >= 4) {
-          const size_t len = 4u + encode_uint16(acl[3], acl[2]);
-          if (this->acl_len_ >= len || this->acl_len_ == ACL_MAX) {
-            this->acl_h4_[0] = H4_ACL;
-            this->to_host_(this->acl_h4_, 1 + std::min(len, this->acl_len_));
-            this->acl_len_ = 0;
-          }
-        }
-        this->read_acl_(generation);
-      },
-      this->acl_in_mps_);
-  if (!submitted)
-    ESP_LOGE(TAG, "ACL read not submitted");
-}
-#endif
 
 // Bluetooth SIG assigned numbers for the HCI version
 static const char *core_version(uint8_t version) {
@@ -284,12 +105,6 @@ void USBBluetooth::on_connected() {
   this->event_len_ = 0;
   this->complete_ready_.store(false, std::memory_order_release);
   this->read_event_(generation);
-#ifdef USE_USB_BLUETOOTH_BLUEDROID
-  if (g_bluedroid_dongle == this) {
-    this->acl_len_ = 0;
-    this->read_acl_(generation);
-  }
-#endif
   this->step_ = ProbeStep::PROBE_STEP_RESET;
   this->send_command_(OP_RESET, nullptr, 0);
 }
@@ -307,14 +122,6 @@ void USBBluetooth::on_disconnected() {
     this->intf_ = 0xFF;
     ESP_LOGI(TAG, "Bluetooth controller removed");
   }
-#ifdef USE_USB_BLUETOOTH_BLUEDROID
-  // Bluedroid reads its controller once, when it starts: take it down now and bring it back on the next dongle
-  // Bluedroid stays attached until esp32_ble has taken it down; answer_without_controller_() answers it meanwhile
-  if (this->host_attached_.load(std::memory_order_acquire) && !this->restart_host_) {
-    this->restart_host_ = true;
-    esp32_ble::global_ble->disable();
-  }
-#endif
   usb_host::USBClient::on_disconnected();
 }
 
@@ -336,14 +143,6 @@ void USBBluetooth::read_event_(uint32_t generation) {
         if (this->event_len_ >= 2 && this->event_len_ >= 2u + this->event_[1]) {
           const size_t len = 2u + this->event_[1];
           this->event_len_ = 0;
-#ifdef USE_USB_BLUETOOTH_BLUEDROID
-          if (this->host_attached_.load(std::memory_order_acquire)) {
-            this->event_h4_[0] = H4_EVENT;
-            this->to_host_(this->event_h4_, len + 1);
-            this->read_event_(generation);
-            return;
-          }
-#endif
           // Command Complete: code, length, number of packets, opcode, status, return parameters
           const uint16_t pending = this->pending_opcode_.load(std::memory_order_acquire);
           if (this->event_[0] == HCI_EVENT_COMMAND_COMPLETE && len >= 6 && pending != 0 &&
@@ -540,12 +339,6 @@ void USBBluetooth::finish_probe_(bool ok) {
   this->step_ = ok ? ProbeStep::PROBE_STEP_READY : ProbeStep::PROBE_STEP_FAILED;
   if (ok) {
     this->status_clear_warning();
-#ifdef USE_USB_BLUETOOTH_BLUEDROID
-    if (this->restart_host_) {
-      this->restart_host_ = false;
-      esp32_ble::global_ble->enable();
-    }
-#endif
   } else {
     this->status_set_warning(LOG_STR("Bluetooth controller did not start"));
   }

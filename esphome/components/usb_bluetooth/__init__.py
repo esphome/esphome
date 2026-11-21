@@ -33,7 +33,6 @@ DEPENDENCIES = ["esp32"]
 AUTO_LOAD = ["usb_host"]
 MULTI_CONF = True
 
-CONF_BLUEDROID = "bluedroid"
 CONF_FIRMWARE = "firmware"
 CONF_FIRMWARE_CONFIG = "firmware_config"
 
@@ -81,9 +80,6 @@ CONFIG_SCHEMA = cv.All(
             # <chip>_config.bin. Downloaded into a Realtek controller still running its ROM.
             cv.Optional(CONF_FIRMWARE): cv.file_,
             cv.Optional(CONF_FIRMWARE_CONFIG): cv.file_,
-            # The dongle is the controller of ESP-IDF's Bluedroid host, so esp32_ble and everything on top
-            # of it (bluetooth_proxy, ble_client, esp32_ble_tracker) runs on the dongle's radio
-            cv.Optional(CONF_BLUEDROID, default=False): cv.boolean,
         }
     ),
     _validate_firmware,
@@ -116,34 +112,11 @@ def _final_validate(config: ConfigType) -> ConfigType:
     return config
 
 
-def _final_validate_bluedroid(config: ConfigType) -> ConfigType:
-    if not config[CONF_BLUEDROID]:
-        return config
-    full = fv.full_config.get()
-    if "esp32_ble" not in full:
-        raise cv.Invalid(
-            f"{CONF_BLUEDROID} is for esp32_ble, which this configuration does not have"
-        )
-    if "esp32_hosted" in full:
-        raise cv.Invalid(
-            f"{CONF_BLUEDROID}: esp32_ble already uses the co-processor of esp32_hosted as its controller"
-        )
-    if sum(1 for c in full.get(DOMAIN) or [] if c[CONF_BLUEDROID]) > 1:
-        raise cv.Invalid(f"Only one usb_bluetooth entry can have {CONF_BLUEDROID}")
-    return config
-
-
-FINAL_VALIDATE_SCHEMA = cv.All(_final_validate, _final_validate_bluedroid)
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config: ConfigType) -> None:
     var = await register_usb_client(config)
-    if config[CONF_BLUEDROID]:
-        cg.add_define("USE_USB_BLUETOOTH_BLUEDROID")
-        # esp_bluedroid_enable() holds the main loop until the dongle answers its commands, so the USB
-        # library cannot be serviced from the main loop
-        cg.add_define("USE_USB_HOST_LIB_TASK")
-        cg.add(var.set_bluedroid())
     if CONF_FIRMWARE in config:
         images, lmp_subver = _read_firmware(config)
         for rom, data in sorted(images.items()):
