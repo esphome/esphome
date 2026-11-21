@@ -67,6 +67,7 @@ AUTO_LOAD = [
     "tflite_op_processor",
     "tflite_pose",
     "tflite_output_processor",
+    "tflite_tabular",
 ]
 
 # Attributes consumed by the ESPHome config loader.
@@ -133,6 +134,10 @@ async def to_code(config: ConfigType) -> None:
         from esphome.components.tflite_pose import to_code as pose_to_code
 
         await pose_to_code(var, config, model_path)
+    elif config.get(_schema.CONF_MODEL_TYPE) == "tabular":
+        from esphome.components.tflite_tabular import to_code as tabular_to_code
+
+        await tabular_to_code(var, config, model_path)
     esp32.add_idf_component(name="espressif/esp-tflite-micro", ref="1.4.1")
     esp32.add_idf_component(name="espressif/esp-nn", ref="1.5.0")
 

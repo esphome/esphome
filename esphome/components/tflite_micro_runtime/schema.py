@@ -7,6 +7,7 @@ from esphome.components.tflite_model_source.model_metadata import datasize_to_by
 from esphome.components.tflite_model_source.model_source import MODEL_SOURCE_SCHEMA
 from esphome.components.tflite_pose import POSE_SCHEMA
 from esphome.components.tflite_segmentation import SEGMENTATION_SCHEMA
+from esphome.components.tflite_tabular import TABULAR_SCHEMA
 import esphome.config_validation as cv
 from esphome.const import CONF_DEBUG, CONF_MODEL, CONF_RAW_DATA_ID
 
@@ -35,6 +36,7 @@ PER_MODEL_SCHEMA = (
                 "detection",
                 "segmentation",
                 "pose",
+                "tabular",
             ),
         }
     )
@@ -42,6 +44,7 @@ PER_MODEL_SCHEMA = (
     .extend(DETECTION_SCHEMA)
     .extend(SEGMENTATION_SCHEMA)
     .extend(POSE_SCHEMA)
+    .extend(TABULAR_SCHEMA)
 )
 
 MULTI_CONF = True
