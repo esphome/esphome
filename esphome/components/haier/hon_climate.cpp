@@ -1,4 +1,5 @@
 #include <chrono>
+#include <cmath>
 #include <string>
 #include "esphome/components/climate/climate.h"
 #include "esphome/components/uart/uart.h"
@@ -40,6 +41,7 @@ constexpr int PROTOCOL_OUTDOOR_TEMPERATURE_OFFSET = -64;
 constexpr uint8_t CONTROL_MESSAGE_RETRIES = 5;
 constexpr std::chrono::milliseconds CONTROL_MESSAGE_RETRIES_INTERVAL = std::chrono::milliseconds(500);
 constexpr size_t ALARM_STATUS_REQUEST_INTERVAL_MS = 600000;
+constexpr size_t ACTIVE_ALARMS_TEXT_BUFFER_SIZE = 256;
 const uint8_t ONE_BUF[] = {0x00, 0x01};
 const uint8_t ZERO_BUF[] = {0x00, 0x00};
 
@@ -73,6 +75,13 @@ HonClimate::HonClimate()
 }
 
 HonClimate::~HonClimate() {}
+
+void HonClimate::set_hvac_action(bool state) {
+  this->hvac_action_enabled_ = state;
+  if (state) {
+    this->traits_.add_feature_flags(climate::CLIMATE_SUPPORTS_ACTION);
+  }
+}
 
 void HonClimate::set_beeper_state(bool state) {
   if (state != this->settings_.beeper_state) {
@@ -778,7 +787,7 @@ haier_protocol::HaierMessage HonClimate::get_control_message() {
 void HonClimate::process_alarm_message_(const uint8_t *packet, uint8_t size, bool check_new) {
   constexpr size_t active_alarms_size = sizeof(this->active_alarms_);
   if (size >= active_alarms_size + 2) {
-    if (check_new) {
+    if (check_new && !std::isnan(this->active_alarm_count_)) {
       size_t alarm_code = 0;
       for (int i = active_alarms_size - 1; i >= 0; i--) {
         if (packet[2 + i] != active_alarms_[i]) {
@@ -825,7 +834,45 @@ void HonClimate::process_alarm_message_(const uint8_t *packet, uint8_t size, boo
       this->active_alarm_count_ = alarm_count;
       memcpy(this->active_alarms_, packet + 2, sizeof(this->active_alarms_));
     }
+    this->publish_alarm_entities_();
   }
+}
+
+void HonClimate::publish_alarm_entities_() {
+#ifdef USE_TEXT_SENSOR
+  if (this->sub_text_sensors_[(size_t) SubTextSensorType::ACTIVE_ALARMS_TEXT] != nullptr) {
+    char alarm_text[ACTIVE_ALARMS_TEXT_BUFFER_SIZE]{};
+    size_t pos = 0;
+    bool has_alarm = false;
+    for (int alarm_byte = sizeof(this->active_alarms_) - 1; alarm_byte >= 0; alarm_byte--) {
+      uint8_t alarm_bit = 1;
+      for (int bit = 0; bit < 8; bit++) {
+        if ((this->active_alarms_[alarm_byte] & alarm_bit) != 0) {
+          const size_t code = (sizeof(this->active_alarms_) - 1 - alarm_byte) * 8 + bit;
+          if (has_alarm)
+            pos = buf_append_str(alarm_text, sizeof(alarm_text), pos, ", ");
+          if (code < HonAlarmMessages::LAST_INDEX) {
+            pos = buf_append_str_p(alarm_text, sizeof(alarm_text), pos,
+                                   reinterpret_cast<const char *>(HonAlarmMessages::get_progmem_str(code)));
+          } else {
+            pos = buf_append_printf(alarm_text, sizeof(alarm_text), pos, "Unknown(%zu)", code);
+          }
+          has_alarm = true;
+        }
+        alarm_bit <<= 1;
+      }
+    }
+    if (!has_alarm) {
+      buf_append_str(alarm_text, sizeof(alarm_text), 0, "No alarm");
+    } else if (pos >= sizeof(alarm_text) - 1) {
+      memcpy(alarm_text + sizeof(alarm_text) - 4, "...", 4);
+    }
+    this->update_sub_text_sensor_(SubTextSensorType::ACTIVE_ALARMS_TEXT, alarm_text);
+  }
+#endif
+#ifdef USE_BINARY_SENSOR
+  this->update_sub_binary_sensor_(SubBinarySensorType::ALARM_ACTIVE, this->active_alarm_count_ > 0);
+#endif
 }
 
 #ifdef USE_SENSOR
@@ -855,10 +902,12 @@ void HonClimate::update_sub_sensor_(SubSensorType type, float value) {
 #ifdef USE_BINARY_SENSOR
 void HonClimate::set_sub_binary_sensor(SubBinarySensorType type, binary_sensor::BinarySensor *sens) {
   if (type < SubBinarySensorType::SUB_BINARY_SENSOR_TYPE_COUNT) {
-    if ((this->sub_binary_sensors_[(size_t) type] != nullptr) && (sens == nullptr)) {
-      this->big_data_sensors_--;
-    } else if ((this->sub_binary_sensors_[(size_t) type] == nullptr) && (sens != nullptr)) {
-      this->big_data_sensors_++;
+    if (type != SubBinarySensorType::ALARM_ACTIVE) {
+      if ((this->sub_binary_sensors_[(size_t) type] != nullptr) && (sens == nullptr)) {
+        this->big_data_sensors_--;
+      } else if ((this->sub_binary_sensors_[(size_t) type] == nullptr) && (sens != nullptr)) {
+        this->big_data_sensors_++;
+      }
     }
     this->sub_binary_sensors_[(size_t) type] = sens;
   }
@@ -948,6 +997,50 @@ void HonClimate::publish_airflow_selects_() {
 }
 #endif  // USE_SELECT
 
+bool HonClimate::update_hvac_action_(const hon_protocol::HaierPacketBigData *bd_packet) {
+  ClimateAction new_action = CLIMATE_ACTION_OFF;
+  if (this->mode == CLIMATE_MODE_FAN_ONLY) {
+    new_action = CLIMATE_ACTION_FAN;
+  } else if (this->mode != CLIMATE_MODE_OFF) {
+    if ((bd_packet == nullptr) || (bd_packet->compressor_status >= 2)) {
+      return false;
+    }
+    const bool compressor_on = bd_packet->compressor_status == 1;
+
+    switch (this->mode) {
+      case CLIMATE_MODE_COOL:
+        new_action = compressor_on ? CLIMATE_ACTION_COOLING : CLIMATE_ACTION_IDLE;
+        break;
+      case CLIMATE_MODE_DRY:
+        new_action = compressor_on ? CLIMATE_ACTION_DRYING : CLIMATE_ACTION_IDLE;
+        break;
+      case CLIMATE_MODE_HEAT:
+        new_action = (bd_packet->defrost_status == 1) ? CLIMATE_ACTION_DEFROSTING
+                                                      : (compressor_on ? CLIMATE_ACTION_HEATING : CLIMATE_ACTION_IDLE);
+        break;
+      case CLIMATE_MODE_HEAT_COOL:
+        if (bd_packet->defrost_status == 1) {
+          new_action = CLIMATE_ACTION_DEFROSTING;
+        } else if (!compressor_on) {
+          new_action = CLIMATE_ACTION_IDLE;
+        } else if (bd_packet->indoor_coil_temperature == 0xFF) {
+          return false;
+        } else {
+          const float indoor_coil_temperature = bd_packet->indoor_coil_temperature / 2.0f - 20.0f;
+          new_action =
+              (this->current_temperature > indoor_coil_temperature) ? CLIMATE_ACTION_COOLING : CLIMATE_ACTION_HEATING;
+        }
+        break;
+      default:
+        break;
+    }
+  }
+
+  const bool changed = this->action != new_action;
+  this->action = new_action;
+  return changed;
+}
+
 haier_protocol::HandlerError HonClimate::process_status_message_(const uint8_t *packet_buffer, uint8_t size) {
   size_t expected_size =
       2 + this->status_message_header_size_ + this->real_control_packet_size_ + this->real_sensors_packet_size_;
@@ -956,10 +1049,10 @@ haier_protocol::HandlerError HonClimate::process_status_message_(const uint8_t *
     return haier_protocol::HandlerError::WRONG_MESSAGE_STRUCTURE;
   }
   uint16_t subtype = (((uint16_t) packet_buffer[0]) << 8) + packet_buffer[1];
+  const hon_protocol::HaierPacketBigData *bd_packet = nullptr;
   if ((subtype == 0x7D01) && (size >= expected_size + sizeof(hon_protocol::HaierPacketBigData))) {
     // Got BigData packet
-    const hon_protocol::HaierPacketBigData *bd_packet =
-        (const hon_protocol::HaierPacketBigData *) (&packet_buffer[expected_size]);
+    bd_packet = (const hon_protocol::HaierPacketBigData *) (&packet_buffer[expected_size]);
 #ifdef USE_SENSOR
     this->update_sub_sensor_(SubSensorType::INDOOR_COIL_TEMPERATURE, bd_packet->indoor_coil_temperature / 2.0 - 20);
     this->update_sub_sensor_(SubSensorType::OUTDOOR_COIL_TEMPERATURE, bd_packet->outdoor_coil_temperature - 64);
@@ -1142,6 +1235,9 @@ haier_protocol::HandlerError HonClimate::process_status_message_(const uint8_t *
       }
     }
     should_publish = should_publish || (old_mode != this->mode);
+  }
+  if (this->hvac_action_enabled_) {
+    should_publish = this->update_hvac_action_(bd_packet) || should_publish;
   }
   {
     // Quiet mode, should be after climate mode
@@ -1526,6 +1622,9 @@ bool HonClimate::prepare_pending_action() {
 }
 
 void HonClimate::process_protocol_reset() {
+  if (this->hvac_action_enabled_) {
+    this->action = CLIMATE_ACTION_OFF;
+  }
   HaierClimateBase::process_protocol_reset();
 #ifdef USE_SENSOR
   for (auto &sub_sensor : this->sub_sensors_) {
@@ -1533,13 +1632,14 @@ void HonClimate::process_protocol_reset() {
       sub_sensor->publish_state(NAN);
   }
 #endif  // USE_SENSOR
+  this->active_alarm_count_ = NAN;
   this->got_valid_outdoor_temp_ = false;
   this->hvac_hardware_info_.reset();
   this->last_status_message_.reset(nullptr);
 }
 
 bool HonClimate::should_get_big_data_() {
-  if (this->big_data_sensors_ > 0) {
+  if ((this->big_data_sensors_ > 0) || this->hvac_action_enabled_) {
     this->big_data_counter_ = (this->big_data_counter_ + 1) % 3;
     return this->big_data_counter_ == 1;
   }

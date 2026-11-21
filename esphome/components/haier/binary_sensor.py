@@ -1,7 +1,12 @@
 import esphome.codegen as cg
 from esphome.components import binary_sensor
 import esphome.config_validation as cv
-from esphome.const import ENTITY_CATEGORY_DIAGNOSTIC, ICON_FAN, ICON_RADIATOR
+from esphome.const import (
+    DEVICE_CLASS_PROBLEM,
+    ENTITY_CATEGORY_DIAGNOSTIC,
+    ICON_FAN,
+    ICON_RADIATOR,
+)
 
 from .climate import CONF_HAIER_ID, HonClimate
 
@@ -15,11 +20,13 @@ CONF_COMPRESSOR_STATUS = "compressor_status"
 CONF_INDOOR_FAN_STATUS = "indoor_fan_status"
 CONF_FOUR_WAY_VALVE_STATUS = "four_way_valve_status"
 CONF_INDOOR_ELECTRIC_HEATING_STATUS = "indoor_electric_heating_status"
+CONF_ALARM_ACTIVE = "alarm_active"
 
 # Additional icons
 ICON_SNOWFLAKE_THERMOMETER = "mdi:snowflake-thermometer"
 ICON_HVAC = "mdi:hvac"
 ICON_VALVE = "mdi:valve"
+ICON_ALARM = "mdi:alarm-light"
 
 SENSOR_TYPES = {
     CONF_OUTDOOR_FAN_STATUS: binary_sensor.binary_sensor_schema(
@@ -44,6 +51,11 @@ SENSOR_TYPES = {
     ),
     CONF_INDOOR_ELECTRIC_HEATING_STATUS: binary_sensor.binary_sensor_schema(
         icon=ICON_RADIATOR,
+        entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+    ),
+    CONF_ALARM_ACTIVE: binary_sensor.binary_sensor_schema(
+        icon=ICON_ALARM,
+        device_class=DEVICE_CLASS_PROBLEM,
         entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
     ),
 }
