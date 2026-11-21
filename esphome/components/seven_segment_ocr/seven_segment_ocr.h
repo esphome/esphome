@@ -5,17 +5,18 @@
 #ifdef USE_SEVEN_SEGMENT_OCR
 
 #include <cstdint>
-#include <memory>
+
+#include "esphome/core/helpers.h"
 
 namespace esphome::seven_segment_ocr {
 
 /// The digits read from one image of a seven-segment display.
 struct OcrResult {
   uint32_t value{0};       // The digits as a number; only meaningful when complete().
+  float confidence{0.0f};  // Mean segment decision margin, 0 (boundary) to 1 (decisive).
   uint8_t digits{0};       // Digit runs found, capped at the expected count.
   uint8_t expected{0};     // Digit count the caller asked for.
   uint8_t unknown{0};      // Runs whose lit segments matched no digit.
-  float confidence{0.0f};  // Mean segment decision margin, 0 (boundary) to 1 (decisive).
   bool overflow{false};    // The digits do not fit in value; they were not accumulated.
 
   /// True when exactly the expected digits were found, all of them were recognised
@@ -32,10 +33,11 @@ struct OcrResult {
 /// whose lit segments match a digit contributes that digit to the result.
 /// Digits must be bright on a dark background. A run narrower than a third
 /// of the image height is read as a 1 when both of its halves are lit.
-class SevenSegmentOCR {
+class SevenSegmentOCR final {
  public:
   /// Allocates the column projection. Call once with the widest image width.
-  void reserve(int width);
+  /// Returns false when the allocation fails, in which case recognize() returns an empty result.
+  bool reserve(int width);
 
   /// Thresholds image in place and reads up to expected_digits digits.
   /// The image must be at most as wide as the width passed to reserve().
@@ -49,9 +51,9 @@ class SevenSegmentOCR {
   static int8_t recognize_digit(const uint8_t *image, int width, int height, int stride, float *confidence);
   static int8_t recognize_narrow(const uint8_t *image, int width, int height, int stride, float *confidence);
 
-  uint8_t threshold_level_{128};
-  std::unique_ptr<uint16_t[]> column_sums_;
+  RAMUniquePtr<uint16_t[]> column_sums_;
   size_t column_capacity_{0};
+  uint8_t threshold_level_{128};
 };
 
 }  // namespace esphome::seven_segment_ocr

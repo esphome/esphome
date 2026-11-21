@@ -96,7 +96,7 @@ TEST(SevenSegmentOcr, ReadsEveryDigit) {
   for (char digit = '0'; digit <= '9'; digit++) {
     Image image = render(std::string(1, digit));
     SevenSegmentOCR ocr;
-    ocr.reserve(image.width);
+    ASSERT_TRUE(ocr.reserve(image.width));
     const OcrResult result = ocr.recognize(image.pixels.data(), image.width, DIGIT_HEIGHT, 1);
     EXPECT_TRUE(result.complete()) << "digit " << digit;
     EXPECT_EQ(result.value, static_cast<uint32_t>(digit - '0')) << "digit " << digit;
@@ -108,7 +108,7 @@ TEST(SevenSegmentOcr, ReadsEveryDigit) {
 TEST(SevenSegmentOcr, ReadsSeveralDigits) {
   Image image = render("120875");
   SevenSegmentOCR ocr;
-  ocr.reserve(image.width);
+  ASSERT_TRUE(ocr.reserve(image.width));
   const OcrResult result = ocr.recognize(image.pixels.data(), image.width, DIGIT_HEIGHT, 6);
   EXPECT_TRUE(result.complete());
   EXPECT_EQ(result.digits, 6);
@@ -118,7 +118,7 @@ TEST(SevenSegmentOcr, ReadsSeveralDigits) {
 TEST(SevenSegmentOcr, ReadsDigitsWithInsetStrokes) {
   Image image = render("120875", INSET_LEFT, INSET_RIGHT);
   SevenSegmentOCR ocr;
-  ocr.reserve(image.width);
+  ASSERT_TRUE(ocr.reserve(image.width));
   const OcrResult result = ocr.recognize(image.pixels.data(), image.width, DIGIT_HEIGHT, 6);
   EXPECT_TRUE(result.complete());
   EXPECT_EQ(result.value, 120875u);
@@ -128,7 +128,7 @@ TEST(SevenSegmentOcr, ReadsDigitsWithInsetStrokes) {
 TEST(SevenSegmentOcr, StopsAtExpectedDigits) {
   Image image = render("12345678");
   SevenSegmentOCR ocr;
-  ocr.reserve(image.width);
+  ASSERT_TRUE(ocr.reserve(image.width));
   const OcrResult result = ocr.recognize(image.pixels.data(), image.width, DIGIT_HEIGHT, 4);
   EXPECT_TRUE(result.complete());
   EXPECT_EQ(result.digits, 4);
@@ -138,7 +138,7 @@ TEST(SevenSegmentOcr, StopsAtExpectedDigits) {
 TEST(SevenSegmentOcr, ReportsMissingDigits) {
   Image image = render("12");
   SevenSegmentOCR ocr;
-  ocr.reserve(image.width);
+  ASSERT_TRUE(ocr.reserve(image.width));
   const OcrResult result = ocr.recognize(image.pixels.data(), image.width, DIGIT_HEIGHT, 6);
   EXPECT_FALSE(result.complete());
   EXPECT_EQ(result.digits, 2);
@@ -149,7 +149,7 @@ TEST(SevenSegmentOcr, ReportsMissingDigits) {
 TEST(SevenSegmentOcr, ReportsUnknownSegments) {
   Image image = render_mask(1 << 6);  // Only the middle segment, which is no digit.
   SevenSegmentOCR ocr;
-  ocr.reserve(image.width);
+  ASSERT_TRUE(ocr.reserve(image.width));
   const OcrResult result = ocr.recognize(image.pixels.data(), image.width, DIGIT_HEIGHT, 1);
   EXPECT_FALSE(result.complete());
   EXPECT_EQ(result.digits, 1);
@@ -160,7 +160,7 @@ TEST(SevenSegmentOcr, ReportsUnknownSegments) {
 TEST(SevenSegmentOcr, RejectsOverflowingValue) {
   Image image = render("9999999999");  // Ten nines do not fit in a uint32_t.
   SevenSegmentOCR ocr;
-  ocr.reserve(image.width);
+  ASSERT_TRUE(ocr.reserve(image.width));
   const OcrResult result = ocr.recognize(image.pixels.data(), image.width, DIGIT_HEIGHT, 10);
   EXPECT_FALSE(result.complete());
   EXPECT_TRUE(result.overflow);
@@ -170,7 +170,7 @@ TEST(SevenSegmentOcr, RejectsOverflowingValue) {
 TEST(SevenSegmentOcr, ReadsLargestValue) {
   Image image = render("4294967295");
   SevenSegmentOCR ocr;
-  ocr.reserve(image.width);
+  ASSERT_TRUE(ocr.reserve(image.width));
   const OcrResult result = ocr.recognize(image.pixels.data(), image.width, DIGIT_HEIGHT, 10);
   EXPECT_TRUE(result.complete());
   EXPECT_FALSE(result.overflow);
@@ -180,7 +180,7 @@ TEST(SevenSegmentOcr, ReadsLargestValue) {
 TEST(SevenSegmentOcr, RejectsUnreservedWidth) {
   Image image = render("1");
   SevenSegmentOCR ocr;
-  ocr.reserve(image.width - 1);
+  EXPECT_TRUE(ocr.reserve(image.width - 1));
   const OcrResult result = ocr.recognize(image.pixels.data(), image.width, DIGIT_HEIGHT, 1);
   EXPECT_FALSE(result.complete());
   EXPECT_EQ(result.digits, 0);
@@ -189,7 +189,7 @@ TEST(SevenSegmentOcr, RejectsUnreservedWidth) {
 TEST(SevenSegmentOcr, RejectsEmptyInput) {
   Image image = render("1");
   SevenSegmentOCR ocr;
-  ocr.reserve(image.width);
+  ASSERT_TRUE(ocr.reserve(image.width));
   EXPECT_FALSE(ocr.recognize(nullptr, image.width, DIGIT_HEIGHT, 1).complete());
   EXPECT_FALSE(ocr.recognize(image.pixels.data(), 0, DIGIT_HEIGHT, 1).complete());
   EXPECT_FALSE(ocr.recognize(image.pixels.data(), image.width, 0, 1).complete());
@@ -206,7 +206,7 @@ TEST(SevenSegmentOcr, ThresholdsTheImage) {
   Image image = render("1");
   dim(image);
   SevenSegmentOCR ocr;
-  ocr.reserve(image.width);
+  ASSERT_TRUE(ocr.reserve(image.width));
   EXPECT_FALSE(ocr.recognize(image.pixels.data(), image.width, DIGIT_HEIGHT, 1).complete());
 
   image = render("1");

@@ -4,7 +4,6 @@
 
 #include "esphome/core/hal.h"
 
-#include <algorithm>
 #include <cmath>
 
 namespace esphome::seven_segment_ocr {
@@ -22,11 +21,12 @@ constexpr int MIN_DIGIT_WIDTH = 6;  // narrower runs are noise between digits
 
 }  // namespace
 
-void SevenSegmentOCR::reserve(int width) {
+bool SevenSegmentOCR::reserve(int width) {
   if (width <= 0)
-    return;
-  this->column_sums_ = std::make_unique<uint16_t[]>(width);
-  this->column_capacity_ = static_cast<size_t>(width);
+    return false;
+  this->column_sums_ = RAMAllocator<uint16_t>().make_unique_array_for_overwrite(static_cast<size_t>(width));
+  this->column_capacity_ = this->column_sums_ != nullptr ? static_cast<size_t>(width) : 0;
+  return this->column_sums_ != nullptr;
 }
 
 OcrResult SevenSegmentOCR::recognize(uint8_t *image, int width, int height, uint8_t expected_digits) {
@@ -37,7 +37,6 @@ OcrResult SevenSegmentOCR::recognize(uint8_t *image, int width, int height, uint
   if (static_cast<size_t>(width) > this->column_capacity_)
     return result;
 
-  std::fill_n(this->column_sums_.get(), width, 0);
   for (int x = 0; x < width; x++) {
     uint16_t lit = 0;
     for (int y = 0; y < height; y++) {
