@@ -732,7 +732,7 @@ CONFIG_SCHEMA = cv.All(
             cv.SplitDefault(CONF_ENABLE_RRM, esp32=False): cv.All(
                 cv.boolean, cv.only_on_esp32
             ),
-            # WPA3 SAE public key, for joining SAE-PK hotspots; about 6 KB.
+            # Verifies WPA3 SAE-PK access points; they also accept plain SAE. About 6 KB.
             cv.SplitDefault(CONF_ENABLE_SAE_PK, esp32=False): cv.All(
                 cv.boolean, cv.only_on_esp32
             ),
