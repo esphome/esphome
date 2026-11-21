@@ -26,6 +26,11 @@ _OPERATOR_OUTPUTS = 2
 _TENSOR_SHAPE = 0
 _TENSOR_TYPE = 1
 _TENSOR_BUFFER = 2
+_TENSOR_QUANTIZATION = 4
+
+# Fields of the QuantizationParameters table, one entry per tensor.
+_QUANT_SCALE = 2
+_QUANT_ZERO_POINT = 3
 
 # Bytes per element, following ``TensorTypeGetSize()``; an unsupported type is absent.
 TENSOR_TYPE_SIZES: dict[int, int] = {
@@ -93,10 +98,12 @@ class ArenaEstimate:
 
 @dataclass(frozen=True)
 class TensorSpec:
-    """The shape and element type of one model tensor."""
+    """The shape, element type and quantization of one model tensor."""
 
     shape: tuple[int, ...]
     type: str  # the TFLite type name of the tensor
+    scale: float = 1.0  # dequantization scale, 1.0 for a float tensor
+    zero_point: int = 0
 
 
 @dataclass(frozen=True)
@@ -184,6 +191,13 @@ class _FlatBuffer:
             return []
         return list(struct.unpack_from(f"<{count}i", self._data, elements))
 
+    def f32_vector(self, table: int, field_id: int) -> list[float]:
+        """Elements of a float vector field, empty when absent."""
+        elements, count = self._vector(table, field_id, 4)
+        if not count:
+            return []
+        return list(struct.unpack_from(f"<{count}f", self._data, elements))
+
     def table_vector(self, table: int, field_id: int) -> list[int]:
         """Positions of the tables in a table vector field, empty when absent."""
         elements, count = self._vector(table, field_id, 4)
@@ -252,14 +266,24 @@ def _subgraph(buffer: _FlatBuffer) -> int:
 
 
 def _tensor_spec(buffer: _FlatBuffer, table: int) -> TensorSpec:
-    """The shape and type of one tensor table."""
+    """The shape, type and per-tensor quantization of one tensor table."""
     code = buffer.i8_field(table, _TENSOR_TYPE) or 0
     if (type_name := TENSOR_TYPE_NAMES.get(code)) is None:
         raise ModelReadError(
             f"{buffer.path}: tensor type {code} is not one of the known types"
         )
+    scale, zero_point = 1.0, 0
+    if (position := buffer.field(table, _TENSOR_QUANTIZATION)) is not None:
+        quantization = buffer.indirect(position)
+        if scales := buffer.f32_vector(quantization, _QUANT_SCALE):
+            scale = scales[0]
+        if zero_points := buffer.i32_vector(quantization, _QUANT_ZERO_POINT):
+            zero_point = zero_points[0]
     return TensorSpec(
-        shape=tuple(buffer.i32_vector(table, _TENSOR_SHAPE)), type=type_name
+        shape=tuple(buffer.i32_vector(table, _TENSOR_SHAPE)),
+        type=type_name,
+        scale=scale,
+        zero_point=zero_point,
     )
 
 
