@@ -8,7 +8,6 @@
 #include <algorithm>
 #include <cstring>
 
-
 namespace esphome::usb_bluetooth {
 
 ESPHOME_LOG_TAG(TAG, "usb_bluetooth");
@@ -31,7 +30,6 @@ static constexpr uint16_t OP_RTL_DOWNLOAD = 0xFC20;
 static constexpr uint16_t OP_RTL_READ_ROM_VERSION = 0xFC6D;
 static constexpr size_t RTL_FRAGMENT = 252;
 static constexpr uint16_t MANUFACTURER_REALTEK = 93;
-
 
 // Bluetooth SIG assigned numbers for the HCI version
 static const char *core_version(uint8_t version) {

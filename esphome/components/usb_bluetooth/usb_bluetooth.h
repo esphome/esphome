@@ -10,7 +10,6 @@
 #include <cstdint>
 #include <vector>
 
-
 namespace esphome::usb_bluetooth {
 
 /// A USB Bluetooth dongle (Bluetooth Core Specification, USB transport) as a usb_host client.
@@ -30,7 +29,6 @@ class USBBluetooth final : public usb_host::USBClient {
   void add_realtek_firmware(uint16_t lmp_subver, uint8_t rom_version, const uint8_t *data, size_t length) {
     this->realtek_images_.push_back({data, length, lmp_subver, rom_version});
   }
-
 
   /// Whether a controller is connected and answered the start-up commands.
   bool is_ready() const { return this->step_ == ProbeStep::PROBE_STEP_READY; }
@@ -106,7 +104,6 @@ class USBBluetooth final : public usb_host::USBClient {
   uint8_t acl_out_ep_{0};
   ProbeStep step_{ProbeStep::PROBE_STEP_IDLE};
 };
-
 
 }  // namespace esphome::usb_bluetooth
 
