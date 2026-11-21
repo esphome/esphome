@@ -155,8 +155,9 @@ void USBBluetooth::read_event_(uint32_t generation) {
         this->read_event_(generation);
       },
       this->evt_mps_);
-  if (!submitted)
+  if (!submitted) {
     ESP_LOGE(TAG, "Event read not submitted");
+  }
 }
 
 void USBBluetooth::send_command_(uint16_t opcode, const uint8_t *params, size_t len) {
@@ -170,8 +171,9 @@ void USBBluetooth::send_command_(uint16_t opcode, const uint8_t *params, size_t 
   const bool sent = this->control_transfer(
       HCI_COMMAND_REQUEST_TYPE, 0, 0, this->intf_,
       [opcode](const usb_host::TransferStatus &status) {
-        if (!status.success)
+        if (!status.success) {
           ESP_LOGW(TAG, "HCI command 0x%04X not taken (status %u)", opcode, status.error_code);
+        }
       },
       command);
   if (!sent) {
