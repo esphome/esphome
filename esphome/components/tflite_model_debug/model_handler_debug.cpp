@@ -257,22 +257,30 @@ std::vector<ImageModelConfig> ModelHandler::generate_debug_configs() const {
 }
 
 bool ModelHandler::invoke_model(const uint8_t *data, size_t len) {
-  if (this->interpreter() == nullptr)
+  if (this->interpreter() == nullptr) {
+    ESP_LOGD(TAG, "invoke_model: no interpreter");
     return false;
+  }
   TfLiteTensor *input = this->input_tensor();
-  if (input == nullptr || data == nullptr)
+  if (input == nullptr || data == nullptr) {
+    ESP_LOGD(TAG, "invoke_model: no input tensor or no data");
     return false;
+  }
 
   const int width = this->get_input_width();
   const int height = this->get_input_height();
   const int channels = this->get_input_channels();
-  if (width <= 0 || height <= 0 || channels <= 0 || channels > 3)
+  if (width <= 0 || height <= 0 || channels <= 0 || channels > 3) {
+    ESP_LOGD(TAG, "invoke_model: unusable input dimensions %dx%dx%d", width, height, channels);
     return false;
+  }
 
   // The zone buffer is RGB888: three bytes per pixel, in RGB order.
   const size_t pixel_count = static_cast<size_t>(width) * height;
-  if (len < pixel_count * 3)
+  if (len < pixel_count * 3) {
+    ESP_LOGD(TAG, "invoke_model: %zu bytes is shorter than the %zu the zone needs", len, pixel_count * 3);
     return false;
+  }
 
   const ImageModelConfig &config = this->image_config_;
   const bool swap_red_blue = config.input_order == "BGR" && channels == 3;
@@ -382,8 +390,12 @@ void ModelHandler::test_configuration(const ImageModelConfig &config,
     success++;
   }
 
-  if (success > 0)
-    res.avg_confidence = total_conf / success;
+  if (success == 0) {
+    // A candidate that never ran is not a 0.000-confidence result.
+    ESP_LOGW(TAG, "Skipping config: no zone could be run with it");
+    return;
+  }
+  res.avg_confidence = total_conf / success;
   results.push_back(res);
 }
 
