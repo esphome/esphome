@@ -53,6 +53,11 @@ void ResamplerSpeaker::dump_config() {
                   "  Target Sample Rate: %" PRIu32 " Hz",
                   this->target_bits_per_sample_, this->target_sample_rate_);
   }
+  if (this->task_core_ == -1) {
+    ESP_LOGCONFIG(TAG, "  Task Core: any");
+  } else {
+    ESP_LOGCONFIG(TAG, "  Task Core: %" PRId8, this->task_core_);
+  }
 }
 
 void ResamplerSpeaker::setup() {
@@ -274,7 +279,7 @@ esp_err_t ResamplerSpeaker::start_() {
   if (this->requires_resampling_()) {
     // Start the resampler task to handle converting sample rates
     if (!this->task_.create(resample_task, "resampler", TASK_STACK_SIZE, (void *) this, RESAMPLER_TASK_PRIORITY,
-                            this->task_stack_in_psram_)) {
+                            this->task_stack_in_psram_, this->task_core_ == -1 ? tskNO_AFFINITY : this->task_core_)) {
       return ESP_ERR_NO_MEM;
     }
   }

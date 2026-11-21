@@ -43,6 +43,11 @@ class ResamplerSpeaker final : public Component, public speaker::Speaker {
   void set_output_speaker(speaker::Speaker *speaker) { this->output_speaker_ = speaker; }
   void set_task_stack_in_psram(bool task_stack_in_psram) { this->task_stack_in_psram_ = task_stack_in_psram; }
 
+  template<int8_t CORE> void set_task_core() {
+    static_assert(CORE == -1 || (CORE >= 0 && CORE < portNUM_PROCESSORS), "Invalid resampler task core");
+    this->task_core_ = CORE;
+  }
+
   void set_target_bits_per_sample(uint8_t target_bits_per_sample) {
     this->target_bits_per_sample_ = target_bits_per_sample;
   }
@@ -99,6 +104,7 @@ class ResamplerSpeaker final : public Component, public speaker::Speaker {
   uint16_t filters_;
 
   uint8_t target_bits_per_sample_{0};
+  int8_t task_core_{-1};
 
   bool passthrough_bits_per_sample_{false};
   bool task_stack_in_psram_{false};

@@ -2,17 +2,14 @@
 
 import pytest
 
-from esphome.components import audio, micro_wake_word as mww
+from esphome.components import audio, esp32, micro_wake_word as mww
 import esphome.config_validation as cv
 from esphome.const import KEY_CORE, KEY_ESP32, KEY_TARGET_PLATFORM, KEY_VARIANT
 from esphome.core import CORE
 import esphome.final_validate as fv
 
 
-@pytest.mark.parametrize(
-    "variant",
-    ["ESP32", "ESP32S3", "ESP32P4", "ESP32H4", "ESP32S31", "ESP32S2", "ESP32C3"],
-)
+@pytest.mark.parametrize("variant", esp32.VARIANTS)
 @pytest.mark.parametrize("core", [-1, 0, 1])
 def test_task_core_matches_target(variant: str, core: int) -> None:
     CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: "esp32"}
@@ -20,11 +17,17 @@ def test_task_core_matches_target(variant: str, core: int) -> None:
     token = fv.full_config.set({"esp32": {"framework": {"sdkconfig_options": {}}}})
     try:
         config = mww.CONFIG_SCHEMA({"task_core": core})
-        if core == 1 and variant in ("ESP32S2", "ESP32C3"):
+        if core == 1 and variant not in (
+            "ESP32",
+            "ESP32S3",
+            "ESP32P4",
+            "ESP32H4",
+            "ESP32S31",
+        ):
             with pytest.raises(cv.Invalid, match="only available"):
-                mww._validate_task_core(config)
+                esp32.final_validate_task_core(config)
         else:
-            assert mww._validate_task_core(config)["task_core"] == core
+            assert esp32.final_validate_task_core(config)["task_core"] == core
     finally:
         fv.full_config.reset(token)
 
@@ -55,9 +58,9 @@ def test_core_one_matches_freertos_unicore_setting(unicore: str) -> None:
     try:
         if unicore == "y":
             with pytest.raises(cv.Invalid, match="dual-core"):
-                mww._validate_task_core({"task_core": 1})
+                esp32.final_validate_task_core({"task_core": 1})
         else:
-            assert mww._validate_task_core({"task_core": 1})["task_core"] == 1
+            assert esp32.final_validate_task_core({"task_core": 1})["task_core"] == 1
     finally:
         fv.full_config.reset(token)
 

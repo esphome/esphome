@@ -1,5 +1,6 @@
 import esphome.codegen as cg
-from esphome.components import audio, psram, speaker
+from esphome.components import audio, esp32, psram, speaker
+from esphome.components.const import CONF_TASK_CORE
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BITS_PER_SAMPLE,
@@ -69,6 +70,7 @@ CONFIG_SCHEMA = cv.All(
                 CONF_BUFFER_DURATION, default="100ms"
             ): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_TASK_STACK_IN_PSRAM): psram.validate_task_stack_in_psram,
+            cv.Optional(CONF_TASK_CORE, default=-1): cv.int_range(min=-1, max=1),
             cv.Optional(CONF_FILTERS, default=16): cv.int_range(min=2, max=1024),
             cv.Optional(CONF_TAPS, default=16): validate_taps,
         }
@@ -78,7 +80,9 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-FINAL_VALIDATE_SCHEMA = _validate_audio_compatibility
+FINAL_VALIDATE_SCHEMA = cv.All(
+    esp32.final_validate_task_core, _validate_audio_compatibility
+)
 
 
 async def to_code(config: ConfigType) -> None:
@@ -89,6 +93,7 @@ async def to_code(config: ConfigType) -> None:
     await cg.add_variable(var.set_output_speaker, config[CONF_OUTPUT_SPEAKER])
 
     cg.add(var.set_buffer_duration(config[CONF_BUFFER_DURATION]))
+    cg.add(var.set_task_core(cg.TemplateArguments(config[CONF_TASK_CORE])))
 
     if config.get(CONF_TASK_STACK_IN_PSRAM):
         cg.add(var.set_task_stack_in_psram(True))
