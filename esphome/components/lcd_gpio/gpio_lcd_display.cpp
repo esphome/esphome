@@ -46,10 +46,8 @@ void GPIOLCDDisplay::write_n_bits(uint8_t value, uint8_t n) {
   for (uint8_t i = 0; i < n; i++)
     this->data_pins_[i]->digital_write(value & (1 << i));
 
-  this->enable_pin_->digital_write(true);
-  delayMicroseconds(1);  // >450ns
-  this->enable_pin_->digital_write(false);
-  delayMicroseconds(40);  // >37us
+  pulse_pin(this->enable_pin_, true, 1);  // >450ns
+  delayMicroseconds(40);                  // >37us
 }
 void GPIOLCDDisplay::send(uint8_t value, bool rs) {
   this->rs_pin_->digital_write(rs);

@@ -129,10 +129,8 @@ void ADCSensor::dump_config() {
                 "    Calibration:  %s\n"
                 "    Overall Init: %s",
                 this->channel_, LOG_STR_ARG(adc_unit_to_str(this->adc_unit_)),
-                this->autorange_ ? "Auto"
-                                 : LOG_STR_ARG(AttenuationStrings::get_log_str(static_cast<uint8_t>(this->attenuation_),
-                                                                               AttenuationStrings::LAST_INDEX)),
-                this->sample_count_, LOG_STR_ARG(sampling_mode_to_str(this->sampling_mode_)),
+                this->autorange_ ? "Auto" : LOG_STR_ARG(AttenuationStrings::get_log_str(this->attenuation_)),
+                this->sample_count_, LOG_STR_ARG(SamplingModeStrings::get_log_str(this->sampling_mode_)),
                 this->setup_flags_.handle_init_complete ? "OK" : "FAILED",
                 this->setup_flags_.config_complete ? "OK" : "FAILED", calibration_status,
                 this->setup_flags_.init_complete ? "OK" : "FAILED");

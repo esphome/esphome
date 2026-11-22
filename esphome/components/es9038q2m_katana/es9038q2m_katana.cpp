@@ -69,8 +69,7 @@ void ES9038Q2MKatana::dump_config() {
                 "  De-emphasis: %s\n"
                 "  Format register: 0x%02X\n"
                 "  DoP: %s",
-                LOG_STR_ARG(FilterShapeStrings::get_log_str(static_cast<uint8_t>(this->filter_shape_),
-                                                            FilterShapeStrings::LAST_INDEX)),
+                LOG_STR_ARG(FilterShapeStrings::get_log_str(this->filter_shape_)),
                 LOG_STR_ARG(DeemphasisStrings::get_log_str(this->deemphasis_mode_, DEEMPHASIS_BYPASS)), this->format_,
                 ONOFF(this->dop_enabled_));
   LOG_I2C_DEVICE(this);

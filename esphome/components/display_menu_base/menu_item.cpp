@@ -9,9 +9,7 @@ namespace esphome::display_menu_base {
 PROGMEM_STRING_TABLE(MenuItemTypeStrings, "MENU_ITEM_LABEL", "MENU_ITEM_MENU", "MENU_ITEM_BACK", "MENU_ITEM_SELECT",
                      "MENU_ITEM_NUMBER", "MENU_ITEM_SWITCH", "MENU_ITEM_COMMAND", "MENU_ITEM_CUSTOM", "UNKNOWN");
 
-const LogString *menu_item_type_to_string(MenuItemType type) {
-  return MenuItemTypeStrings::get_log_str(static_cast<uint8_t>(type), MenuItemTypeStrings::LAST_INDEX);
-}
+const LogString *menu_item_type_to_string(MenuItemType type) { return MenuItemTypeStrings::get_log_str(type); }
 
 void MenuItem::on_enter() { this->on_enter_callbacks_.call(); }
 

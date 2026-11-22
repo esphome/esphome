@@ -35,9 +35,7 @@ from .. import (
     register_mk2pvrouter_listener,
 )
 
-Mk2PVRouterSensor = mk2pvrouter_ns.class_(
-    "Mk2PVRouterSensor", sensor.Sensor, cg.Component
-)
+Mk2PVRouterSensor = mk2pvrouter_ns.class_("Mk2PVRouterSensor", sensor.Sensor)
 
 
 @dataclass(frozen=True)
@@ -122,7 +120,6 @@ async def to_code(config: ConfigType) -> None:
     tag = config[CONF_TAG]
     kind = tag_kind(tag)
     var = cg.new_Pvariable(config[CONF_ID], tag, kind is not None and kind.scale_centi)
-    await cg.register_component(var, config)
     await sensor.register_sensor(var, config)
     mk2pvrouter = await cg.get_variable(config[CONF_MK2PVROUTER_ID])
     await register_mk2pvrouter_listener(mk2pvrouter, var)
