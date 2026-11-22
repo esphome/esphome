@@ -32,7 +32,7 @@ void ZigbeeNumber::dump_config() {
                 this->endpoint_, this->cluster_attributes_->present_value);
 }
 
-void ZigbeeNumber::on_zcl_device_cb(zb_bufid_t bufid) {
+void ZigbeeNumber::on_zcl_device_event(zb_bufid_t bufid) {
   zb_zcl_device_callback_param_t *p_device_cb_param = ZB_BUF_GET_PARAM(bufid, zb_zcl_device_callback_param_t);
   zb_zcl_device_callback_id_t device_cb_id = p_device_cb_param->device_cb_id;
   zb_uint16_t cluster_id = p_device_cb_param->cb_param.set_attr_value_param.cluster_id;

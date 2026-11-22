@@ -65,7 +65,7 @@ class ZigbeeSwitch final : public ZigbeeEntity, public ZigbeeEndpointListener, p
   void dump_config() override;
 
  protected:
-  void on_zcl_device_cb(zb_bufid_t bufid) override;
+  void on_zcl_device_event(zb_bufid_t bufid) override;
 
   BinaryAttrs *cluster_attributes_{nullptr};
   switch_::Switch *switch_;

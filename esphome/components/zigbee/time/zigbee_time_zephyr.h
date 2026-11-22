@@ -27,7 +27,7 @@ class ZigbeeTime final : public time::RealTimeClock, public ZigbeeEntity, public
  protected:
   static void sync_time(zb_ret_t status, zb_uint32_t auth_level, zb_uint16_t short_addr, zb_uint8_t endpoint,
                         zb_uint32_t nw_time);
-  void on_zcl_device_cb(zb_bufid_t bufid) override;
+  void on_zcl_device_event(zb_bufid_t bufid) override;
   zb_zcl_time_attrs_t *cluster_attributes_{nullptr};
 
   bool has_time_{false};

@@ -69,7 +69,7 @@ struct AnalogAttrsOutput : AnalogAttrs {
 /// Receives the ZCL device callbacks (attribute writes) for one endpoint.
 class ZigbeeEndpointListener {
  public:
-  virtual void on_zcl_device_cb(zb_bufid_t bufid) = 0;
+  virtual void on_zcl_device_event(zb_bufid_t bufid) = 0;
 };
 
 class ZigbeeComponent final : public Component {

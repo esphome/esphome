@@ -95,7 +95,7 @@ class ZigbeeNumber final : public ZigbeeEntity, public ZigbeeEndpointListener, p
  protected:
   number::Number *number_;
   AnalogAttrsOutput *cluster_attributes_{nullptr};
-  void on_zcl_device_cb(zb_bufid_t bufid) override;
+  void on_zcl_device_event(zb_bufid_t bufid) override;
 };
 
 }  // namespace esphome::zigbee
