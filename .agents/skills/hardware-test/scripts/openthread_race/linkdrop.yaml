@@ -8,6 +8,9 @@ globals:
   - id: race_delay
     type: int
     initial_value: '-1'
+  - id: link_down  # the power-down took effect, so the power-up and its marker belong to it
+    type: bool
+    initial_value: 'false'
 logger:
   on_message:
     - level: INFO
@@ -23,23 +26,29 @@ script:
     then:
       # the start and end markers only when the PHY really changed ("HWT phy failed" otherwise)
       - lambda: |-
-          if (hwt_phy_power(false))
+          id(link_down) = hwt_phy_power(false);
+          if (id(link_down))
             ESP_LOGI("hwt", "HWT link drop start");
+          else
+            ESP_LOGW("hwt", "HWT link drop none");
       - delay: !lambda 'return secs * 1000;'
       - lambda: |-
-          if (hwt_phy_power(true))
+          if (id(link_down) && hwt_phy_power(true))
             ESP_LOGI("hwt", "HWT link drop end");
   - id: race_fire
     mode: single
     then:
       - delay: !lambda 'return id(race_delay);'
       - lambda: |-
-          if (hwt_phy_power(false))
+          id(link_down) = hwt_phy_power(false);
+          if (id(link_down))
             ESP_LOGI("hwt", "HWT race link down after %d ms", id(race_delay));
+          else
+            ESP_LOGW("hwt", "HWT race link drop none");
           id(race_delay) = -1;
       - delay: 20s
       - lambda: |-
-          if (hwt_phy_power(true))
+          if (id(link_down) && hwt_phy_power(true))
             ESP_LOGI("hwt", "HWT race link up");
 api:
   actions:

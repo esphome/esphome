@@ -32,7 +32,8 @@ for i in $(seq 1 "$C"); do
       up=${st##*uptime=}; up=${up%%.*}
       if [ "$up" -lt $(( $(date +%s) - t0 )) ]; then m=1; r=1; else r=0; fi
     fi
-    [ $p = 1 ] || { ping6 -c 1 -i 1 "$T6" > /dev/null 2>&1 && p=1; }
+    # only after the restart is proven, so a ping from before it cannot count as recovery
+    [ $p = 1 ] || [ $m = 0 ] || { ping6 -c 1 -i 1 "$T6" > /dev/null 2>&1 && p=1; }
     [ $m$a$p = 111 ] && { ok=1; break; }
     sleep 1
   done
