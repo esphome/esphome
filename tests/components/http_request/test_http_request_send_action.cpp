@@ -635,7 +635,6 @@ template<typename... Ts> struct JsonActionHarness {
   }
 };
 
-static std::string plain_url(std::string &) { return "http://example.invalid/"; }
 static std::string arg_url(std::string &s) { return "http://example.invalid/" + s; }
 
 TEST_F(HttpRequestSendActionTest, JsonEntriesBuildTheBody) {
@@ -689,7 +688,7 @@ TEST(HttpRequestSendActionJson, JsonEntryDoesNotChangeReferenceArgs) {
 // A string linked from a reference arg, not copied into the document, stays alive until the body is serialized;
 // the host build's address sanitizer catches it otherwise
 TEST(HttpRequestSendActionJson, LinkedReferenceArgLivesThroughSerialize) {
-  JsonActionHarness<std::string &> h{plain_url};
+  JsonActionHarness<std::string &> h{[](std::string &) -> std::string { return "http://example.invalid/"; }};
   h.action.set_json([](std::string &s, JsonObject root) { root["s"] = JsonString(s.c_str(), s.size(), true); });
   std::string arg(64, 'a');  // longer than the small string buffer, so the copy is on the heap
   h.trigger.trigger(arg);
