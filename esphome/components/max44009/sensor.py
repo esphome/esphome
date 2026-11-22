@@ -1,12 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_MODE,
-    DEVICE_CLASS_ILLUMINANCE,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_LUX,
-)
+from esphome.const import CONF_MODE
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@berfenger"]
@@ -23,12 +18,7 @@ MODE_OPTIONS = MAX44009Mode.options(
 )
 
 CONFIG_SCHEMA = (
-    sensor.sensor_schema(
-        unit_of_measurement=UNIT_LUX,
-        accuracy_decimals=3,
-        device_class=DEVICE_CLASS_ILLUMINANCE,
-        state_class=STATE_CLASS_MEASUREMENT,
-    )
+    sensor.sensor_schema(kind=sensor.ILLUMINANCE, accuracy_decimals=3)
     .extend(
         {
             cv.GenerateID(): cv.declare_id(MAX44009Sensor),

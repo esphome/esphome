@@ -154,6 +154,7 @@ async def light_entity(
 
 
 @pytest.mark.asyncio
+@pytest.mark.shared_yaml("api_homeassistant_light")
 async def test_api_homeassistant_light(
     yaml_config: str,
     run_compiled: RunCompiledFunction,

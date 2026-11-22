@@ -1,0 +1,8 @@
+# commonlite.yaml plus a 20 ms sensor for busy event streams.
+packages:
+  lite: !include commonlite.yaml
+sensor:
+  - platform: template
+    name: "Fast"
+    lambda: return millis() % 100000;
+    update_interval: 20ms

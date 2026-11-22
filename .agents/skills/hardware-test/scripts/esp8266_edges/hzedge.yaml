@@ -1,0 +1,21 @@
+packages:
+  base: !include hz-base.yaml
+esphome:
+  includes: [edges.hpp]
+  on_boot:
+    priority: -100
+    then:
+      - lambda: edges::start();
+uart:
+  id: u
+  tx_pin: GPIO14
+  baud_rate: 9600
+interval:
+  - interval: 1s
+    then:
+      - lambda: |-
+          static uint32_t n = 0;
+          n++;
+          edges::dump(n <= 10 ? "silent" : (n <= 25 ? "after55" : (n <= 40 ? "after01" : "silent2")));
+          if (n > 10 && n <= 25) id(u).write_byte(0x55);
+          else if (n > 25 && n <= 40) id(u).write_byte(0x01);
