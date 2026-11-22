@@ -83,8 +83,8 @@ class TxBrk : public Component {
     delay(20 + 8 * 11 * 1000 / this->u_->get_baud_rate());
     uint8_t got[16];
     size_t k = 0;
-    while (this->u_->available() > 0 && k < sizeof(got))
-      this->u_->read_array(&got[k++], 1);
+    while (this->u_->available() > 0 && k < sizeof(got) && this->u_->read_array(&got[k], 1))
+      k++;
     bool ok = k == sizeof(msg) && memcmp(got, msg, sizeof(msg)) == 0;
     if (!ok)
       ESP_LOGW(TAG, "[%s] echo mismatch: got %u bytes", this->label_, (unsigned) k);
