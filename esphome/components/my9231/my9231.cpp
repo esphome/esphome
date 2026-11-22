@@ -27,10 +27,8 @@ static constexpr uint8_t MY9231_CMD_SCATTER_APDM = 0x0 << 0;
 static constexpr uint8_t MY9231_CMD_SCATTER_PWM = 0x1 << 0;
 
 void MY9231OutputComponent::setup() {
-  this->pin_di_->setup();
-  this->pin_di_->digital_write(false);
-  this->pin_dcki_->setup();
-  this->pin_dcki_->digital_write(false);
+  setup_output_pin(this->pin_di_, false);
+  setup_output_pin(this->pin_dcki_, false);
   uint8_t command = MY9231_CMD_BIT_WIDTH_16;
   switch (this->bit_depth_) {
     case 8:

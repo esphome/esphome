@@ -33,11 +33,13 @@ _FFDH = (
 )
 _RSA_PSS = ("PSA_WANT_ALG_RSA_PSS", "PSA_WANT_ALG_RSA_PSS_ANY_SALT")
 _SHA_224 = ("PSA_WANT_ALG_SHA_224",)
+_STORAGE = ("MBEDTLS_PSA_CRYPTO_STORAGE_C",)
 
 
 def _defines(config: tuple[str, ...]) -> set[str]:
     source = "".join(
-        f"#define {name} 1\n" for name in (*config, *_FFDH, *_RSA_PSS, *_SHA_224)
+        f"#define {name} 1\n"
+        for name in (*config, *_FFDH, *_RSA_PSS, *_SHA_224, *_STORAGE)
     )
     source += f'#include "{PSA_USER_CONFIG_SOURCE.as_posix()}"\n'
     out = subprocess.run(
@@ -52,29 +54,54 @@ def _defines(config: tuple[str, ...]) -> set[str]:
 
 @pytest.mark.skipif(_COMPILER is None, reason="needs a host C compiler")
 @pytest.mark.parametrize(
-    ("config", "ffdh", "rsa_pss", "sha_224"),
+    ("config", "ffdh", "rsa_pss", "sha_224", "storage"),
     [
-        pytest.param((), False, False, False, id="nothing_needs_them"),
+        pytest.param((), False, False, False, False, id="nothing_needs_them"),
         pytest.param(
-            ("CONFIG_MBEDTLS_DHM_C",), True, False, False, id="dhe_keeps_ffdh"
+            ("CONFIG_MBEDTLS_DHM_C",), True, False, False, False, id="dhe_keeps_ffdh"
         ),
         pytest.param(
             ("CONFIG_MBEDTLS_SSL_PROTO_TLS1_3",),
             True,
             False,
             False,
+            False,
             id="tls13_keeps_ffdh",
         ),
-        pytest.param(("CONFIG_MBEDTLS_RSA_C",), False, True, False, id="rsa_keeps_pss"),
         pytest.param(
-            ("CONFIG_MBEDTLS_TLS_ENABLED",), False, False, True, id="tls_keeps_sha224"
+            ("CONFIG_MBEDTLS_RSA_C",), False, True, False, False, id="rsa_keeps_pss"
+        ),
+        pytest.param(
+            ("CONFIG_MBEDTLS_TLS_ENABLED",),
+            False,
+            False,
+            True,
+            False,
+            id="tls_keeps_sha224",
+        ),
+        pytest.param(
+            ("CONFIG_OPENTHREAD_ENABLED",),
+            False,
+            False,
+            False,
+            True,
+            id="openthread_keeps_storage",
+        ),
+        pytest.param(
+            ("CONFIG_MBEDTLS_PSA_ITS_CUSTOM_STORAGE_BACKEND",),
+            False,
+            False,
+            False,
+            True,
+            id="custom_its_backend_keeps_storage",
         ),
     ],
 )
 def test_psa_user_config_conditions(
-    config: tuple[str, ...], ffdh: bool, rsa_pss: bool, sha_224: bool
+    config: tuple[str, ...], ffdh: bool, rsa_pss: bool, sha_224: bool, storage: bool
 ) -> None:
     defines = _defines(config)
     assert {name for name in _FFDH if (name in defines) is not ffdh} == set()
     assert {name for name in _RSA_PSS if (name in defines) is not rsa_pss} == set()
     assert {name for name in _SHA_224 if (name in defines) is not sha_224} == set()
+    assert {name for name in _STORAGE if (name in defines) is not storage} == set()

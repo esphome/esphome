@@ -7,13 +7,7 @@ from esphome.components.motion import (
     temperature_sensor_to_code,
 )
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_TEMPERATURE,
-    CONF_TYPE,
-    ICON_MAGNET,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_MICROTESLA,
-)
+from esphome.const import CONF_TEMPERATURE, CONF_TYPE
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -34,12 +28,9 @@ def _parent_schema() -> cv.Schema:
 
 
 def _magnetic_field_sensor_schema() -> cv.Schema:
-    return sensor.sensor_schema(
-        unit_of_measurement=UNIT_MICROTESLA,
-        icon=ICON_MAGNET,
-        accuracy_decimals=2,
-        state_class=STATE_CLASS_MEASUREMENT,
-    ).extend(_parent_schema())
+    return sensor.sensor_schema(kind=sensor.MAGNETIC_FIELD, accuracy_decimals=2).extend(
+        _parent_schema()
+    )
 
 
 # `type` defaults to temperature so existing configs that omit it keep working unchanged.

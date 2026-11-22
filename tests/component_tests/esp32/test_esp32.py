@@ -33,6 +33,7 @@ from esphome.components.esp32 import (
     _ota_downgrade_protection_errors,
     _reconcile_mbedtls_sdkconfig,
     _reconcile_network_sdkconfig,
+    _reconcile_unused_idf_features,
     _reconcile_vfs_fatfs_sdkconfig,
     _user_sdkconfig_wants_tls,
     allow_insecure_tls,
@@ -3101,3 +3102,42 @@ def test_task_watchdog_sdkconfig_and_define(
     assert sdkconfig["CONFIG_ESP_TASK_WDT_PANIC"] is True
     assert sdkconfig["CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU0"] is False
     assert sdkconfig["CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU1"] is False
+
+
+_UNUSED_IDF_FEATURES_OFF = {
+    "CONFIG_ESP_WIFI_SOFTAP_SAE_SUPPORT": False,
+    "CONFIG_ESP_TLS_USE_DS_PERIPHERAL": False,
+}
+
+
+@pytest.mark.parametrize(
+    ("framework", "preset", "expected"),
+    [
+        pytest.param(
+            PlatformFramework.ESP32_IDF, {}, _UNUSED_IDF_FEATURES_OFF, id="idf"
+        ),
+        pytest.param(PlatformFramework.ESP32_ARDUINO, {}, {}, id="arduino_skipped"),
+        pytest.param(
+            PlatformFramework.ESP32_IDF,
+            {"CONFIG_ESP_TLS_USE_DS_PERIPHERAL": RawSdkconfigValue("y")},
+            {
+                **_UNUSED_IDF_FEATURES_OFF,
+                "CONFIG_ESP_TLS_USE_DS_PERIPHERAL": RawSdkconfigValue("y"),
+            },
+            id="user_value_wins",
+        ),
+    ],
+)
+def test_reconcile_unused_idf_features(
+    set_core_config: SetCoreConfigCallable,
+    framework: PlatformFramework,
+    preset: dict[str, Any],
+    expected: dict[str, Any],
+) -> None:
+    """Unused ESP-IDF features default off on ESP-IDF builds; user values win."""
+    set_core_config(framework)
+    CORE.data[KEY_ESP32] = {KEY_SDKCONFIG_OPTIONS: dict(preset)}
+
+    asyncio.run(_reconcile_unused_idf_features())
+
+    assert CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS] == expected
