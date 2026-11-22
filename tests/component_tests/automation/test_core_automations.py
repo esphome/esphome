@@ -148,3 +148,15 @@ def test_on_boot_registered_before_its_actions_are_built(
         "interval_intervaltrigger_id",
         "some_sensor",
     ]
+
+
+def test_on_boot_function_name_skips_config_ids(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """A config id that matches the generated name pushes the function to another name."""
+    main_cpp = generate_main(component_config_path("on_boot_name_collision.yaml"))
+    match = re.search(r"new\(startuptrigger_id\) StartupCallback<(\w+), ", main_cpp)
+    assert match is not None
+    assert match.group(1) != "esphome__startuptrigger_id__fn"
+    assert f"static void {match.group(1)}()" in main_cpp
