@@ -301,14 +301,10 @@ void IT8951Display::setup() {
 
   // Power on the panel before reset and the init handshake.
   for (auto *pin : this->enable_pins_) {
-    pin->setup();
-    pin->digital_write(true);
+    setup_output_pin(pin, true);
   }
 
-  if (this->reset_pin_ != nullptr) {
-    this->reset_pin_->setup();
-    this->reset_pin_->digital_write(true);
-  }
+  setup_output_pin(this->reset_pin_, true);
   if (this->busy_pin_ != nullptr) {
     this->busy_pin_->setup();
   }

@@ -7,9 +7,8 @@ namespace esphome::hx711 {
 ESPHOME_LOG_TAG(TAG, "hx711");
 
 void HX711Sensor::setup() {
-  this->sck_pin_->setup();
+  setup_output_pin(this->sck_pin_, false);
   this->dout_pin_->setup();
-  this->sck_pin_->digital_write(false);
 
   // Read sensor once without publishing to set the gain
   this->read_sensor_(nullptr);
