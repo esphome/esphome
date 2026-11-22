@@ -7,7 +7,7 @@ namespace esphome::uponor_smatrix {
 
 ESPHOME_LOG_TAG(TAG, "uponor_smatrix.sensor");
 
-void UponorSmatrixSensor::dump_config() {
+void UponorSmatrixSensor::dump_child_config() {
   ESP_LOGCONFIG(TAG,
                 "Uponor Smatrix Sensor\n"
                 "  Device address: 0x%08" PRIX32,

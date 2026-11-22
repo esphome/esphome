@@ -91,6 +91,7 @@ class Stream(threading.Thread):
                 s.settimeout(0.5)
                 buf = body = b""
                 headers = False
+                chunked = True
                 cur = None
                 while not self.stop:
                     try:
@@ -105,8 +106,11 @@ class Stream(threading.Thread):
                         i = buf.find(b"\r\n\r\n")
                         if i < 0:
                             continue
+                        chunked = b"chunked" in buf[:i].lower()
                         headers, buf = True, buf[i + 4 :]
-                    while (i := buf.find(b"\r\n")) >= 0:
+                    if not chunked:
+                        body, buf = body + buf, b""
+                    while chunked and (i := buf.find(b"\r\n")) >= 0:
                         size = int(buf[:i].split(b";")[0], 16)
                         if len(buf) < i + 4 + size:
                             break

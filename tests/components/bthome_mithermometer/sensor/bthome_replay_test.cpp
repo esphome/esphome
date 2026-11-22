@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <array>
+#include <cmath>
 #include <cstdint>
 
 #include "../common.h"
@@ -57,6 +58,16 @@ TEST(BTHomeMiThermometerReplay, AcceptsIncreasingCounters) {
   EXPECT_NEAR(h.temperature.state, 22.5f, 0.001f);
   ASSERT_TRUE(h.thermometer.parse_device(advert(COUNTER_11)));
   EXPECT_NEAR(h.temperature.state, 23.48f, 0.001f);
+}
+
+TEST(BTHomeMiThermometerReplay, RejectsCorruptedMic) {
+  Harness h;
+  Frame corrupted = COUNTER_10;
+  corrupted.back() ^= 0x01;
+  EXPECT_FALSE(h.thermometer.parse_device(advert(corrupted)));
+  EXPECT_TRUE(std::isnan(h.temperature.state));
+  ASSERT_TRUE(h.thermometer.parse_device(advert(COUNTER_10)));
+  EXPECT_NEAR(h.temperature.state, 22.5f, 0.001f);
 }
 
 TEST(BTHomeMiThermometerReplay, DropsExactRepeat) {

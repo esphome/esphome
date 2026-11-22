@@ -6,6 +6,7 @@ from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import sensor, voltage_sampler
 from esphome.components.adc import ATTENUATION_MODES
+from esphome.components.const import CONF_SAMPLE_INTERVAL
 from esphome.components.esp32 import get_esp32_variant
 import esphome.config_validation as cv
 from esphome.const import (
@@ -53,7 +54,6 @@ from . import (
     CONF_RL,
     CONF_RS_SENSOR,
     CONF_SAMPLE_COUNT,
-    CONF_SAMPLE_INTERVAL,
     CONF_VCC,
     CONF_VOLTAGE_MULTIPLIER,
     CONF_VOLTAGE_SENSOR,
