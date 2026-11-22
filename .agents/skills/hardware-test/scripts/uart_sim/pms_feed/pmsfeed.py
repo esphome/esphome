@@ -192,6 +192,9 @@ def main() -> None:
         sys.exit("esp_pm_configure() failed: the run is not under power management")
     if a.expect_pm and not pm_ok:
         sys.exit("--expect-pm: no proof in the capture that power management was on")
+    # the device cannot parse more frames than were fed: more means a garbled cnt line that read too high
+    if dev is not None and dev > win + 1:
+        sys.exit(f"{dev} parses counted for {win} frames fed: a cnt line is garbled")
     if a.expect_all is not None and dev is not None and win - dev > a.expect_all:
         sys.exit(f"--expect-all: {win - dev} of {win} frames not parsed")
     if a.expect_light_sleep and not ls_ok:

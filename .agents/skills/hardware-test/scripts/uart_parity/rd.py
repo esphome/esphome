@@ -54,6 +54,16 @@ a[4] = a[5] = termios.B115200
 a[6][termios.VMIN] = 0
 a[6][termios.VTIME] = 0
 termios.tcsetattr(fd, termios.TCSANOW, a)
+# tcsetattr succeeds when any change applied: read it back so the header states the framing the port really has
+b = termios.tcgetattr(fd)
+want_par = termios.PARENB if mode == "e" else 0
+if (
+    (b[2] & termios.PARENB) != want_par
+    or (b[2] & termios.CSIZE) != termios.CS8
+    or b[4] != termios.B115200
+):
+    os.close(fd)
+    sys.exit("the port did not take 115200 8 data bits with the requested parity")
 termios.tcflush(fd, termios.TCIOFLUSH)
 t0 = time.time()
 end = t0 + secs
