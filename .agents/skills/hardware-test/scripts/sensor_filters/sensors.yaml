@@ -1,0 +1,315 @@
+sensor:
+  - platform: template
+    id: x
+    update_interval: never
+  - platform: template
+    id: factor
+    update_interval: never
+  - platform: template
+    id: src
+    update_interval: never
+  # 1: offset 2.5
+  - platform: template
+    id: flt1
+    update_interval: never
+    filters:
+      - offset: 2.5
+    on_value:
+      - lambda: sf::rec(1, x);
+  # 2: offset lambda id x
+  - platform: template
+    id: flt2
+    update_interval: never
+    filters:
+      - offset: !lambda return id(x).state;
+    on_value:
+      - lambda: sf::rec(2, x);
+  # 3: multiply 1.7
+  - platform: template
+    id: flt3
+    update_interval: never
+    filters:
+      - multiply: 1.7
+    on_value:
+      - lambda: sf::rec(3, x);
+  # 4: multiply lambda
+  - platform: template
+    id: flt4
+    update_interval: never
+    filters:
+      - multiply: !lambda return id(factor).state;
+    on_value:
+      - lambda: sf::rec(4, x);
+  # 5: clamp 1..110
+  - platform: template
+    id: flt5
+    update_interval: never
+    filters:
+      - clamp:
+          min_value: 1
+          max_value: 110
+    on_value:
+      - lambda: sf::rec(5, x);
+  # 6: clamp 1..110 ignore
+  - platform: template
+    id: flt6
+    update_interval: never
+    filters:
+      - clamp:
+          min_value: 1
+          max_value: 110
+          ignore_out_of_range: true
+    on_value:
+      - lambda: sf::rec(6, x);
+  # 7: clamp max 50
+  - platform: template
+    id: flt7
+    update_interval: never
+    filters:
+      - clamp:
+          max_value: 50
+    on_value:
+      - lambda: sf::rec(7, x);
+  # 8: clamp min -5 ignore
+  - platform: template
+    id: flt8
+    update_interval: never
+    filters:
+      - clamp:
+          min_value: -5
+          ignore_out_of_range: true
+    on_value:
+      - lambda: sf::rec(8, x);
+  # 9: clamp FLT_MAX / beyond float
+  - platform: template
+    id: flt9
+    update_interval: never
+    filters:
+      - clamp:
+          min_value: -3.4028236e38
+          max_value: 3.4028235e38
+    on_value:
+      - lambda: sf::rec(9, x);
+  # 10: ntc res b
+  - platform: template
+    id: flt10
+    update_interval: never
+    filters:
+      - to_ntc_resistance:
+          calibration:
+            b_constant: 3950
+            reference_temperature: 25°C
+            reference_resistance: 10kOhm
+    on_value:
+      - lambda: sf::rec(10, x);
+  # 11: ntc temp b
+  - platform: template
+    id: flt11
+    update_interval: never
+    filters:
+      - to_ntc_temperature:
+          calibration:
+            b_constant: 3950
+            reference_temperature: 25°C
+            reference_resistance: 10kOhm
+    on_value:
+      - lambda: sf::rec(11, x);
+  # 12: ntc temp 3pt
+  - platform: template
+    id: flt12
+    update_interval: never
+    filters:
+      - to_ntc_temperature:
+          calibration:
+            - 32.762kOhm -> 0°C
+            - 10.0kOhm -> 25°C
+            - 3.601kOhm -> 50°C
+    on_value:
+      - lambda: sf::rec(12, x);
+  # 13: cal least squares
+  - platform: template
+    id: flt13
+    update_interval: never
+    filters:
+      - calibrate_linear:
+          method: least_squares
+          datapoints:
+            - 0.0 -> 1.0
+            - 10.0 -> 12.0
+            - 20.0 -> 22.5
+    on_value:
+      - lambda: sf::rec(13, x);
+  # 14: cal exact 1 seg
+  - platform: template
+    id: flt14
+    update_interval: never
+    filters:
+      - calibrate_linear:
+          method: exact
+          datapoints:
+            - 0.0 -> 1.0
+            - 20.0 -> 22.0
+    on_value:
+      - lambda: sf::rec(14, x);
+  # 15: cal exact 3 seg
+  - platform: template
+    id: flt15
+    update_interval: never
+    filters:
+      - calibrate_linear:
+          method: exact
+          datapoints:
+            - 0.0 -> 0.0
+            - 5.0 -> 6.0
+            - 10.0 -> 9.0
+            - 30.0 -> 40.0
+    on_value:
+      - lambda: sf::rec(15, x);
+  # 16: shared offset+clamp
+  - platform: template
+    id: flt16
+    update_interval: never
+    filters:
+      - offset: 2.5
+      - clamp:
+          min_value: 1
+          max_value: 110
+    on_value:
+      - lambda: sf::rec(16, x);
+  # 17: chain
+  - platform: template
+    id: flt17
+    update_interval: never
+    filters:
+      - offset: -1
+      - multiply: 2
+      - clamp:
+          min_value: 0
+          max_value: 100
+      - calibrate_linear:
+          method: exact
+          datapoints:
+            - 0.0 -> 1.0
+            - 20.0 -> 22.0
+    on_value:
+      - lambda: sf::rec(17, x);
+  # 18: delta 0.5
+  - platform: template
+    id: flt18
+    update_interval: never
+    filters:
+      - delta: 0.5
+    on_value:
+      - lambda: sf::rec(18, x);
+  # 19: delta 5%
+  - platform: template
+    id: flt19
+    update_interval: never
+    filters:
+      - delta: 5%
+    on_value:
+      - lambda: sf::rec(19, x);
+  # 20: delta min1 max10%
+  - platform: template
+    id: flt20
+    update_interval: never
+    filters:
+      - delta:
+          min_value: 1
+          max_value: 10%
+    on_value:
+      - lambda: sf::rec(20, x);
+  # 21: delta 1..10 baseline factor*4
+  - platform: template
+    id: flt21
+    update_interval: never
+    filters:
+      - delta:
+          min_value: 1
+          max_value: 10
+          baseline: !lambda return id(factor).state * 4.0f;
+    on_value:
+      - lambda: sf::rec(21, x);
+  # 22: delta max3 baseline 20
+  - platform: template
+    id: flt22
+    update_interval: never
+    filters:
+      - delta:
+          max_value: 3
+          baseline: ${baseline}
+    on_value:
+      - lambda: sf::rec(22, x);
+  # 23: delta 0.5 again
+  - platform: template
+    id: flt23
+    update_interval: never
+    filters:
+      - delta: 0.5
+    on_value:
+      - lambda: sf::rec(23, x);
+  # 24: delta 1..10% baseline x
+  - platform: template
+    id: flt24
+    update_interval: never
+    filters:
+      - delta:
+          min_value: 1
+          max_value: 10%
+          baseline: !lambda |-
+            float half = x / 2.0f;
+            return half * 2.0f;
+    on_value:
+      - lambda: sf::rec(24, x);
+  # 25: lambda drop >100
+  - platform: template
+    id: flt25
+    update_interval: never
+    filters:
+      - lambda: |-
+          if (x > 100.0f) return {};
+          return x * 1.5f;
+    on_value:
+      - lambda: sf::rec(25, x);
+  # 26: lambda id + nan drop
+  - platform: template
+    id: flt26
+    update_interval: never
+    filters:
+      - lambda: |-
+          if (std::isnan(x)) return {};
+          return x + id(factor).state;
+    on_value:
+      - lambda: sf::rec(26, x);
+  # 27: delta pct max
+  - platform: template
+    id: flt27
+    update_interval: never
+    filters:
+      - delta:
+          max_value: 50%
+    on_value:
+      - lambda: sf::rec(27, x);
+  # 28: clamp nan bounds none
+  - platform: template
+    id: flt28
+    update_interval: never
+    filters:
+      - clamp:
+          min_value: 2
+          max_value: 7
+          ignore_out_of_range: false
+    on_value:
+      - lambda: sf::rec(28, x);
+  # 29: cal 1seg again
+  - platform: template
+    id: flt29
+    update_interval: never
+    filters:
+      - calibrate_linear:
+          method: exact
+          datapoints:
+            - 0.0 -> 1.0
+            - 20.0 -> 22.0
+    on_value:
+      - lambda: sf::rec(29, x);

@@ -26,10 +26,7 @@ WiFiScanResult make_result(const char *ssid, const bssid_t &bssid) {
 
 class WiFiRetryPhaseTest : public ::testing::Test {
  protected:
-  void SetUp() override {
-    host_hooks = HostHooks{};
-    this->wifi_.init_sta(4);
-  }
+  void SetUp() override { host_hooks = HostHooks{}; }
   // The constructor points the global at this instance, which the other components' tests must not see
   void TearDown() override { global_wifi_component = this->previous_global_; }
 
@@ -64,6 +61,19 @@ TEST_F(WiFiRetryPhaseTest, NetworkMissingFromScanIsTriedAsHidden) {
   ASSERT_EQ(host_hooks.connects, 1);
   EXPECT_EQ(host_hooks.last_connect.get_ssid(), "home");
   EXPECT_FALSE(host_hooks.last_connect.has_bssid());
+}
+
+TEST_F(WiFiRetryPhaseTest, PinnedBssidMissingFromScanRestartsAtOnce) {
+  WiFiAP ap = make_ap("home");
+  ap.set_bssid(BSSID_A);
+  this->add_network_(ap);
+
+  // The SSID is visible, but on another access point, so no hidden network is left to try
+  this->scan_({make_result("home", BSSID_B)});
+
+  // The adapter restarts now instead of after the scan timeout
+  EXPECT_EQ(host_hooks.station_offs, 1);
+  EXPECT_EQ(host_hooks.connects, 0);
 }
 
 }  // namespace

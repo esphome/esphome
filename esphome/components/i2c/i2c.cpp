@@ -1,24 +1,37 @@
 #include "i2c.h"
 
+#include <span>
+
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+
+#include <cstring>
 
 namespace esphome::i2c {
 
 ESPHOME_LOG_TAG(TAG, "i2c");
 
+// Addresses 0x08 to 0x77; the others are reserved
+static constexpr uint8_t SCAN_FIRST_ADDRESS = 0x08;
+static constexpr uint8_t SCAN_END_ADDRESS = 0x78;
+static constexpr uint8_t SCAN_RESULT_ERROR = 0x80;
+
 void I2CBus::i2c_scan_() {
-  for (uint8_t address = 8; address != 120; address++) {
-    auto err = write_readv(address, nullptr, 0, nullptr, 0);
+  uint8_t results[SCAN_END_ADDRESS - SCAN_FIRST_ADDRESS];
+  size_t count = 0;
+  for (uint8_t address = SCAN_FIRST_ADDRESS; address != SCAN_END_ADDRESS; address++) {
+    auto err = this->write_readv(address, nullptr, 0, nullptr, 0);
     if (err == ERROR_OK) {
-      scan_results_.emplace_back(address, true);
+      results[count++] = address;
     } else if (err == ERROR_UNKNOWN) {
-      scan_results_.emplace_back(address, false);
+      results[count++] = address | SCAN_RESULT_ERROR;
     }
     // it takes 16sec to scan on nrf52. It prevents board reset.
     arch_feed_wdt();
   }
+  this->scan_results_.set(results, count);
 }
 
 void I2CBus::dump_scan_results_() {
@@ -29,11 +42,11 @@ void I2CBus::dump_scan_results_() {
     ESP_LOGCONFIG(TAG, "Found no devices");
     return;
   }
-  for (const auto &s : this->scan_results_) {
-    if (s.second) {
-      ESP_LOGCONFIG(TAG, "Found device at address 0x%02X", s.first);
+  for (uint8_t result : std::span<const uint8_t>(this->scan_results_)) {
+    if (result & SCAN_RESULT_ERROR) {
+      ESP_LOGE(TAG, "Unknown error at address 0x%02X", result & ~SCAN_RESULT_ERROR);
     } else {
-      ESP_LOGE(TAG, "Unknown error at address 0x%02X", s.first);
+      ESP_LOGCONFIG(TAG, "Found device at address 0x%02X", result);
     }
   }
 }
@@ -51,23 +64,26 @@ ErrorCode I2CDevice::read_register16(uint16_t a_register, uint8_t *data, size_t 
   return bus_->write_readv(this->address_, reinterpret_cast<const uint8_t *>(&a_register), 2, data, len);
 }
 
-ErrorCode I2CDevice::write_register(uint8_t a_register, const uint8_t *data, size_t len) const {
-  SmallBufferWithHeapFallback<17> buffer_alloc(len + 1);  // Most I2C writes are <= 16 bytes
+ErrorCode I2CBus::write_prefixed(uint8_t address, const uint8_t *prefix, size_t prefix_len, const uint8_t *data,
+                                 size_t len) {
+  SmallBufferWithHeapFallback<20> buffer_alloc(prefix_len + len);
   uint8_t *buffer = buffer_alloc.get();
+  // memcpy needs valid pointers even for a zero length
+  if (prefix_len != 0)
+    std::memcpy(buffer, prefix, prefix_len);
+  if (len != 0)
+    std::memcpy(buffer + prefix_len, data, len);
+  return this->write_readv(address, buffer, prefix_len + len, nullptr, 0);
+}
 
-  buffer[0] = a_register;
-  std::copy(data, data + len, buffer + 1);
-  return this->bus_->write_readv(this->address_, buffer, len + 1, nullptr, 0);
+ErrorCode I2CDevice::write_register(uint8_t a_register, const uint8_t *data, size_t len) const {
+  return this->bus_->write_prefixed(this->address_, &a_register, 1, data, len);
 }
 
 ErrorCode I2CDevice::write_register16(uint16_t a_register, const uint8_t *data, size_t len) const {
-  SmallBufferWithHeapFallback<18> buffer_alloc(len + 2);  // Most I2C writes are <= 16 bytes + 2 for register
-  uint8_t *buffer = buffer_alloc.get();
-
-  buffer[0] = a_register >> 8;
-  buffer[1] = a_register;
-  std::copy(data, data + len, buffer + 2);
-  return this->bus_->write_readv(this->address_, buffer, len + 2, nullptr, 0);
+  uint8_t reg[2];
+  put_be16(reg, a_register);
+  return this->bus_->write_prefixed(this->address_, reg, sizeof(reg), data, len);
 }
 
 bool I2CDevice::write_registers(const I2CRegValue *table, size_t count) const {
@@ -101,6 +117,15 @@ bool I2CDevice::update_register(uint8_t a_register, uint8_t mask, uint8_t value)
   return this->write_byte(a_register, updated);
 }
 
+bool I2CDevice::update_register16(uint16_t a_register, uint8_t mask, uint8_t value) {
+  uint8_t data;
+  if (!this->read_byte_reg16(a_register, &data))
+    return false;
+  const uint8_t updated = (data & ~mask) | (value & mask);
+  ESP_LOGV(TAG, "Register 0x%04X: 0x%02X -> 0x%02X", a_register, data, updated);
+  return this->write_byte_reg16(a_register, updated);
+}
+
 bool I2CDevice::write_bytes_16(uint8_t a_register, const uint16_t *data, uint8_t len) const {
   const size_t size = 1 + len * 2;
   SmallBufferWithHeapFallback<17> buffer_alloc(size);  // Register plus up to 8 words
@@ -108,9 +133,7 @@ bool I2CDevice::write_bytes_16(uint8_t a_register, const uint16_t *data, uint8_t
 
   buffer[0] = a_register;
   for (size_t i = 0; i < len; i++) {
-    const uint16_t word = data[i];
-    buffer[1 + i * 2] = word >> 8;
-    buffer[2 + i * 2] = word;
+    put_be16(buffer + 1 + i * 2, data[i]);
   }
   return this->bus_->write_readv(this->address_, buffer, size, nullptr, 0) == ERROR_OK;
 }

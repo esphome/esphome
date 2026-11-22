@@ -2,7 +2,7 @@
  * Adds support for Bosch's BMP581 high accuracy pressure and temperature sensor
  *  - Component structure based on ESPHome's BMP3XX component (as of March, 2023)
  *    - Implementation is easier as the sensor itself automatically compensates pressure for the temperature
- *      - Temperature and pressure data is converted via simple divison operations in this component
+ *      - Temperature and pressure data is converted via simple division operations in this component
  *    - IIR filter level can independently be applied to temperature and pressure measurements
  *  - Bosch's BMP5-Sensor-API was consulted to verify that sensor configuration is done correctly
  *    - Copyright (c) 2022 Bosch Sensortec Gmbh, SPDX-License-Identifier: BSD-3-Clause
@@ -25,16 +25,8 @@ static constexpr uint32_t MEASUREMENT_TIMEOUT_ID = 0;
 // Oversampling strings indexed by Oversampling enum (0-7): NONE, X2, X4, X8, X16, X32, X64, X128
 PROGMEM_STRING_TABLE(OversamplingStrings, "None", "2x", "4x", "8x", "16x", "32x", "64x", "128x", "");
 
-static const LogString *oversampling_to_str(Oversampling oversampling) {
-  return OversamplingStrings::get_log_str(static_cast<uint8_t>(oversampling), OversamplingStrings::LAST_INDEX);
-}
-
 // IIR filter strings indexed by IIRFilter enum (0-7): OFF, 2, 4, 8, 16, 32, 64, 128
 PROGMEM_STRING_TABLE(IIRFilterStrings, "OFF", "2x", "4x", "8x", "16x", "32x", "64x", "128x", "");
-
-static const LogString *iir_filter_to_str(IIRFilter filter) {
-  return IIRFilterStrings::get_log_str(static_cast<uint8_t>(filter), IIRFilterStrings::LAST_INDEX);
-}
 
 void BMP581Component::dump_config() {
   ESP_LOGCONFIG(TAG, "BMP581:");
@@ -48,8 +40,8 @@ void BMP581Component::dump_config() {
     ESP_LOGCONFIG(TAG,
                   "    IIR Filter: %s\n"
                   "    Oversampling: %s",
-                  LOG_STR_ARG(iir_filter_to_str(this->iir_temperature_level_)),
-                  LOG_STR_ARG(oversampling_to_str(this->temperature_oversampling_)));
+                  LOG_STR_ARG(IIRFilterStrings::get_log_str(this->iir_temperature_level_)),
+                  LOG_STR_ARG(OversamplingStrings::get_log_str(this->temperature_oversampling_)));
   }
 
   if (this->pressure_sensor_) {
@@ -57,8 +49,8 @@ void BMP581Component::dump_config() {
     ESP_LOGCONFIG(TAG,
                   "    IIR Filter: %s\n"
                   "    Oversampling: %s",
-                  LOG_STR_ARG(iir_filter_to_str(this->iir_pressure_level_)),
-                  LOG_STR_ARG(oversampling_to_str(this->pressure_oversampling_)));
+                  LOG_STR_ARG(IIRFilterStrings::get_log_str(this->iir_pressure_level_)),
+                  LOG_STR_ARG(OversamplingStrings::get_log_str(this->pressure_oversampling_)));
   }
 }
 
@@ -317,9 +309,9 @@ bool BMP581Component::prime_iir_filter_() {
     return false;
   }
 
-  // forces an intial measurement
+  // forces an initial measurement
   //  - this measurements flushes the IIR filter reflecting written DSP settings
-  //  - flushing with this initial reading avoids having the internal previous data aquisition being 0, which
+  //  - flushing with this initial reading avoids having the internal previous data acquisition being 0, which
   //    (I)nfinitely affects future values
   if (!this->start_measurement_()) {
     ESP_LOGE(TAG, "Failed to request a forced measurement");

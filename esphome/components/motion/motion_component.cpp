@@ -73,7 +73,10 @@ void MotionComponent::update() {
     return;
   this->map_axes_(motion_data.acceleration, raw_data.acceleration);
   this->map_axes_(motion_data.angular_rate, raw_data.angular_rate);
-  this->motion_data_callback_.call(motion_data);
+#ifdef USE_MOTION_DATA_PUBLISHER
+  if (this->data_publisher_ != nullptr)
+    this->data_publisher_(motion_data);
+#endif
 
   ESP_LOGV(TAG, "Accel: [%.3f, %.3f, %.3f] g; Gyro: [%.3f, %.3f, %.3f] °/s", motion_data.acceleration[X_AXIS],
            motion_data.acceleration[Y_AXIS], motion_data.acceleration[Z_AXIS], motion_data.angular_rate[X_AXIS],
@@ -119,8 +122,8 @@ bool MotionComponent::calibrate_level() {
   float r[9];
   if (nz < -0.9999f) {
     // Aligned with -Z — 180° rotation about X
-    float m[9] = {1, 0, 0, 0, -1, 0, 0, 0, -1};
-    memcpy(r, m, sizeof(r));
+    MotionComponent::set_identity(r);
+    r[4] = r[8] = -1.0f;
   } else {
     float f = 1.0f / (1.0f + nz);
     r[0] = 1.0f - nx * nx * f;

@@ -52,8 +52,7 @@ class T133A01Model(EpaperModel):
     # The driver drives CS and CS1 directly for the dual-CS protocol.
     manages_cs = True
 
-    def __init__(self, name, class_name="EPaperT133A01", **defaults):
-        super().__init__(name, class_name, **defaults)
+    class_name = "EPaperT133A01"
 
     def option(self, name, fallback=cv.UNDEFINED) -> cv.Optional | cv.Required:
         # Some panels have no D/C line and frame commands with the chip selects alone

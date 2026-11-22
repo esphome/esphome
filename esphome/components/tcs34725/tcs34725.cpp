@@ -18,26 +18,20 @@ static const uint8_t TCS34725_REGISTER_CRGBDATAL = TCS34725_COMMAND_BIT | 0x14;
 
 void TCS34725Component::setup() {
   uint8_t id;
-  if (this->read_register(TCS34725_REGISTER_ID, &id, 1) != i2c::ERROR_OK) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->read_register(TCS34725_REGISTER_ID, &id, 1) == i2c::ERROR_OK))
     return;
-  }
   if (this->write_config_register_(TCS34725_REGISTER_ATIME, this->integration_reg_) != i2c::ERROR_OK ||
       this->write_config_register_(TCS34725_REGISTER_CONTROL, this->gain_reg_) != i2c::ERROR_OK) {
     this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
-  if (this->write_config_register_(TCS34725_REGISTER_ENABLE, 0x01) !=
-      i2c::ERROR_OK) {  // Power on (internal oscillator on)
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  // Power on (internal oscillator on)
+  if (!this->setup_check(this->write_config_register_(TCS34725_REGISTER_ENABLE, 0x01) == i2c::ERROR_OK))
     return;
-  }
   delay(3);
-  if (this->write_config_register_(TCS34725_REGISTER_ENABLE, 0x03) !=
-      i2c::ERROR_OK) {  // Power on (internal oscillator on) + RGBC ADC Enable
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  // Power on (internal oscillator on) + RGBC ADC Enable
+  if (!this->setup_check(this->write_config_register_(TCS34725_REGISTER_ENABLE, 0x03) == i2c::ERROR_OK))
     return;
-  }
 }
 
 void TCS34725Component::dump_config() {
@@ -245,7 +239,7 @@ void TCS34725Component::update() {
     uint8_t gain_reg_val_new = this->gain_reg_;
     // increase gain if less than 20% of white channel used and high integration time
     // increase only if not already maximum
-    // do not use max gain, as ist will not get better
+    // do not use max gain, as it will not get better
     if (this->gain_reg_ < 3) {
       if (((float) raw_c / 655.35f < 20.f) && (this->integration_time_ > 600.f)) {
         gain_reg_val_new = this->gain_reg_ + 1;

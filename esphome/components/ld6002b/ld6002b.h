@@ -48,7 +48,11 @@ class LD6002BComponent final : public ld600x::LD600XComponent {
   GPIOPin *wakeup_pin_{nullptr};
   uint32_t wakeup_pulse_ms_{50};
   // Frame a pending wake pulse will write, snapshotted because active_command_ may move on first.
+  // Kept here rather than in the timeout's capture, which then fits std::function's inline buffer.
   std::array<uint8_t, ld600x::CMD_MAX_DATA_LEN> wake_scratch_{};
+  uint16_t wake_type_{0};
+  uint8_t wake_len_{0};
+  bool wake_track_{false};
   bool auto_wake_{true};
   bool wake_pulse_pending_{false};
   bool work_mode_reported_{false};

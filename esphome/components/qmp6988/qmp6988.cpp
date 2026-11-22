@@ -49,16 +49,8 @@ ESPHOME_LOG_TAG(TAG, "qmp6988");
 // Indexed by QMP6988Oversampling
 PROGMEM_STRING_TABLE(OversamplingStrings, "None", "1x", "2x", "4x", "8x", "16x", "32x", "64x", "UNKNOWN");
 
-[[maybe_unused]] static const LogString *oversampling_to_str(QMP6988Oversampling value) {
-  return OversamplingStrings::get_log_str(static_cast<uint8_t>(value), OversamplingStrings::LAST_INDEX);
-}
-
 // Indexed by QMP6988IIRFilter
 PROGMEM_STRING_TABLE(IIRFilterStrings, "OFF", "2x", "4x", "8x", "16x", "32x", "UNKNOWN");
-
-[[maybe_unused]] static const LogString *iir_filter_to_str(QMP6988IIRFilter value) {
-  return IIRFilterStrings::get_log_str(static_cast<uint8_t>(value), IIRFilterStrings::LAST_INDEX);
-}
 
 bool QMP6988Component::device_check_() {
   if (this->read_register(QMP6988_CHIP_ID_REG, &(qmp6988_data_.chip_id), 1) != i2c::ERROR_OK) {
@@ -198,24 +190,11 @@ void QMP6988Component::software_reset_() {
 }
 
 void QMP6988Component::set_power_mode_(uint8_t power_mode) {
-  uint8_t data;
-
   ESP_LOGD(TAG, "Setting Power mode to: %d", power_mode);
 
   qmp6988_data_.power_mode = power_mode;
-  this->read_register(QMP6988_CTRLMEAS_REG, &data, 1);
-  data = data & 0xfc;
-  if (power_mode == QMP6988_SLEEP_MODE) {
-    data |= 0x00;
-  } else if (power_mode == QMP6988_FORCED_MODE) {
-    data |= 0x01;
-  } else if (power_mode == QMP6988_NORMAL_MODE) {
-    data |= 0x03;
-  }
-  this->write_byte(QMP6988_CTRLMEAS_REG, data);
-
-  ESP_LOGD(TAG, "Set Power mode 0xf4=0x%x \r\n", data);
-
+  // The power mode values are the register's mode bits
+  this->update_register(QMP6988_CTRLMEAS_REG, QMP6988_CTRLMEAS_REG_MODE_MSK, power_mode);
   delay(10);
 }
 
@@ -228,22 +207,14 @@ void QMP6988Component::write_filter_(QMP6988IIRFilter filter) {
 }
 
 void QMP6988Component::write_oversampling_pressure_(QMP6988Oversampling oversampling_p) {
-  uint8_t data;
-
-  this->read_register(QMP6988_CTRLMEAS_REG, &data, 1);
-  data &= 0xe3;
-  data |= (oversampling_p << 2);
-  this->write_byte(QMP6988_CTRLMEAS_REG, data);
+  this->update_register(QMP6988_CTRLMEAS_REG, QMP6988_CTRLMEAS_REG_OSRSP_MSK,
+                        oversampling_p << QMP6988_CTRLMEAS_REG_OSRSP_POS);
   delay(10);
 }
 
 void QMP6988Component::write_oversampling_temperature_(QMP6988Oversampling oversampling_t) {
-  uint8_t data;
-
-  this->read_register(QMP6988_CTRLMEAS_REG, &data, 1);
-  data &= 0x1f;
-  data |= (oversampling_t << 5);
-  this->write_byte(QMP6988_CTRLMEAS_REG, data);
+  this->update_register(QMP6988_CTRLMEAS_REG, QMP6988_CTRLMEAS_REG_OSRST_MSK,
+                        oversampling_t << QMP6988_CTRLMEAS_REG_OSRST_POS);
   delay(10);
 }
 
@@ -281,10 +252,8 @@ bool QMP6988Component::calculate_pressure_() {
 }
 
 void QMP6988Component::setup() {
-  if (!this->device_check_()) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->device_check_()))
     return;
-  }
 
   this->software_reset_();
   this->get_calibration_data_();
@@ -301,13 +270,13 @@ void QMP6988Component::dump_config() {
 
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   ESP_LOGCONFIG(TAG, "    Temperature Oversampling: %s",
-                LOG_STR_ARG(oversampling_to_str(this->temperature_oversampling_)));
+                LOG_STR_ARG(OversamplingStrings::get_log_str(this->temperature_oversampling_)));
   LOG_SENSOR("  ", "Pressure", this->pressure_sensor_);
   ESP_LOGCONFIG(TAG,
                 "    Pressure Oversampling: %s\n"
                 "  IIR Filter: %s",
-                LOG_STR_ARG(oversampling_to_str(this->pressure_oversampling_)),
-                LOG_STR_ARG(iir_filter_to_str(this->iir_filter_)));
+                LOG_STR_ARG(OversamplingStrings::get_log_str(this->pressure_oversampling_)),
+                LOG_STR_ARG(IIRFilterStrings::get_log_str(this->iir_filter_)));
 }
 
 void QMP6988Component::update() {

@@ -315,10 +315,8 @@ void AS734XComponent::setup() {
            this->write_byte(AS7343_CHAIN_CMD, 0x46 + (i / len) * 0x10);
     }
   }
-  if (!ok) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(ok))
     return;
-  }
   this->disable_loop();
 }
 
@@ -336,7 +334,7 @@ void AS734XComponent::dump_config() {
   LOG_UPDATE_INTERVAL(this);
   for (uint8_t band = 0; band < NUM_BANDS; band++) {
     char label[24];
-    const char *name = LOG_STR_ARG(BandNames::get_log_str(band, BandNames::LAST_INDEX));
+    const char *name = LOG_STR_ARG(BandNames::get_log_str(band));
     snprintf(label, sizeof(label), "Counts %s", name);
     sensor::log_sensor(TAG, "  ", label, this->sensors_[band]);
     snprintf(label, sizeof(label), "Basic counts %s", name);

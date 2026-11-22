@@ -69,17 +69,9 @@ bool PCA6416AComponent::digital_read_hw(uint8_t pin) {
   if (!this->read_register_(reg_addr, &value)) {
     return false;
   }
-
-  // Update the appropriate part of input_mask_
-  if (pin < 8) {
-    this->input_mask_ = (this->input_mask_ & 0xFF00) | value;
-  } else {
-    this->input_mask_ = (this->input_mask_ & 0x00FF) | (uint16_t(value) << 8);
-  }
+  this->input_[pin / 8] = value;
   return true;
 }
-
-bool PCA6416AComponent::digital_read_cache(uint8_t pin) { return this->input_mask_ & (1 << pin); }
 
 void PCA6416AComponent::digital_write_hw(uint8_t pin, bool value) {
   uint8_t reg_addr = pin < 8 ? PCA6416A_OUTPUT0 : PCA6416A_OUTPUT1;

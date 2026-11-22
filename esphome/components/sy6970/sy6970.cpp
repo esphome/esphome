@@ -1,25 +1,14 @@
 #include "sy6970.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome::sy6970 {
 
 ESPHOME_LOG_TAG(TAG, "sy6970");
 
-static const LogString *i2c_watchdog_timeout_to_string(I2CWatchdogTimeout timeout) {
-  switch (timeout) {
-    case I2C_WATCHDOG_DISABLED:
-      return LOG_STR("Disabled");
-    case I2C_WATCHDOG_40S:
-      return LOG_STR("40s");
-    case I2C_WATCHDOG_80S:
-      return LOG_STR("80s");
-    case I2C_WATCHDOG_160S:
-      return LOG_STR("160s");
-    default:
-      return LOG_STR("Unknown");
-  }
-}
+// Indexed by I2CWatchdogTimeout
+PROGMEM_STRING_TABLE(I2CWatchdogTimeoutStrings, "Disabled", "40s", "80s", "160s", "Unknown");
 
 static constexpr uint32_t I2C_WATCHDOG_KICK_INTERVAL_ID = 0;
 // Well under the 40 s default, so a failed kick or a timeout the chip did not accept still leaves margin
@@ -56,10 +45,8 @@ void SY6970Component::setup() {
 
   // Try to read chip ID
   uint8_t reg_value;
-  if (!this->read_byte(SY6970_REG_DEVICE_ID, &reg_value)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->read_byte(SY6970_REG_DEVICE_ID, &reg_value)))
     return;
-  }
 
   uint8_t chip_id = reg_value & 0x03;
   if (chip_id != 0x00) {
@@ -68,7 +55,7 @@ void SY6970Component::setup() {
 
   // Service the watchdog first, so the settings below are not reverted while they are written
   ESP_LOGV(TAG, "Setting I2C watchdog timeout to %s",
-           LOG_STR_ARG(i2c_watchdog_timeout_to_string(this->i2c_watchdog_timeout_)));
+           LOG_STR_ARG(I2CWatchdogTimeoutStrings::get_log_str(this->i2c_watchdog_timeout_)));
   this->set_i2c_watchdog_timeout(this->i2c_watchdog_timeout_);
 
   // Apply configuration options (all have defaults now)
@@ -109,7 +96,7 @@ void SY6970Component::dump_config() {
                 "  I2C Watchdog Timeout: %s",
                 ONOFF(this->led_enabled_), this->input_current_limit_, this->charge_voltage_, this->charge_current_,
                 this->precharge_current_, ONOFF(this->charge_enabled_), ONOFF(this->enable_adc_),
-                LOG_STR_ARG(i2c_watchdog_timeout_to_string(this->i2c_watchdog_timeout_)));
+                LOG_STR_ARG(I2CWatchdogTimeoutStrings::get_log_str(this->i2c_watchdog_timeout_)));
   LOG_I2C_DEVICE(this);
   LOG_UPDATE_INTERVAL(this);
 }
@@ -125,10 +112,10 @@ void SY6970Component::update() {
     return;
   }
 
-  // Notify all listeners with the new data
-  for (auto *listener : this->listeners_) {
-    listener->on_data(this->data_);
-  }
+#ifdef USE_SY6970_DATA_PUBLISHER
+  if (this->data_publisher_ != nullptr)
+    this->data_publisher_(this->data_);
+#endif
 }
 
 void SY6970Component::set_input_current_limit(uint16_t milliamps) {
@@ -226,7 +213,8 @@ void SY6970Component::set_i2c_watchdog_timeout(I2CWatchdogTimeout timeout) {
   // REG07 bits 5:4 (WATCHDOG[1:0])
   bool written = this->update_register_(SY6970_REG_TIMER_CONTROL, 0x30, static_cast<uint8_t>(timeout) << 4);
   if (!written) {
-    ESP_LOGW(TAG, "Failed to set I2C watchdog timeout to %s", LOG_STR_ARG(i2c_watchdog_timeout_to_string(timeout)));
+    ESP_LOGW(TAG, "Failed to set I2C watchdog timeout to %s",
+             LOG_STR_ARG(I2CWatchdogTimeoutStrings::get_log_str(timeout)));
   }
 
   if (timeout == I2C_WATCHDOG_DISABLED && written) {

@@ -7,6 +7,7 @@ from typing import Any
 import esphome.codegen as cg
 from esphome.components.esp32 import add_idf_sdkconfig_option
 from esphome.components.psram import is_guaranteed as psram_is_guaranteed
+from esphome.components.socket import needs_tcp
 from esphome.components.zephyr import zephyr_add_prj_conf
 import esphome.config_validation as cv
 from esphome.const import (
@@ -292,9 +293,9 @@ def _ip_request(
     return validator
 
 
-def require_ipv4(name: str) -> Callable[[ConfigType], ConfigType]:
-    """Return a validator declaring that component `name` needs IPv4."""
-    return _ip_request(lambda data: data.require_ipv4.add(name))
+def require_ipv4(*path: str) -> Callable[[ConfigType], ConfigType]:
+    """Return a validator declaring that the component or option at `path` needs IPv4."""
+    return _ip_request(lambda data: data.require_ipv4.add(": ".join(path)))
 
 
 def require_ipv6(name: str) -> Callable[[ConfigType], ConfigType]:
@@ -455,7 +456,10 @@ def _final_validate(config: ConfigType) -> None:
         CONF_ENABLE_IPV4,
         "IPv4",
         data.require_ipv4,
-        default=not data.request_ipv4_off,
+        # Wi-Fi and Ethernet keep IPv4 unless the config turns it off explicitly
+        default=not data.request_ipv4_off
+        or CONF_WIFI in full_config
+        or CONF_ETHERNET in full_config,
     )
 
     if not config[CONF_ENABLE_IPV4] and not config[CONF_ENABLE_IPV6]:
@@ -630,35 +634,42 @@ async def to_code(config: ConfigType) -> None:
         zephyr_add_prj_conf("NETWORKING", True)
         zephyr_add_prj_conf("NET_IPV4", enable_ipv4)
         zephyr_add_prj_conf("NET_IPV6", enable_ipv6)
-        zephyr_add_prj_conf("NET_TCP", True)
+        tcp = needs_tcp()
+        if not tcp:
+            _LOGGER.info(
+                "No component registered a TCP socket, so the Zephyr TCP stack is left "
+                "out; a component that opens TCP sockets must register them with "
+                "socket.consume_sockets"
+            )
+        zephyr_add_prj_conf("NET_TCP", tcp)
         zephyr_add_prj_conf("NET_UDP", True)
-        # The nRF Connect SDK replaces mbedTLS with PSA/Oberon crypto and does not provide the
-        # legacy mbedtls_md5() symbol that Zephyr's RFC 6528 TCP ISN generator links against
-        # (selecting MBEDTLS_MAC_MD5_ENABLED does not bring in the legacy C API here). Disable it so
-        # TCP links; Zephyr falls back to sys_rand32_get() for the ISN (randomized, but not the
-        # RFC 6528 keyed hash).
-        zephyr_add_prj_conf("NET_TCP_ISN_RFC6528", False)
-        # Enlarge the Zephyr network buffer pool and TCP windows for the Thread path.
-        # Zephyr's defaults are tiny: NET_BUF_TX_COUNT=16 * NET_BUF_DATA_SIZE=128 is only
-        # ~2 KB of TX data -- barely one 1280-byte IPv6 packet once 6LoWPAN fragments it.
-        # The ESPHome API entity-sync burst overruns that instantly, so socket writes fail
-        # with ENOBUFS ("Buffer full") and the connection is dropped. ESP32 sidesteps this
-        # by enlarging the lwIP TCP window (CONFIG_LWIP_TCP_* above); give Zephyr the
-        # equivalent headroom, sized to RAM and the Thread 1280-byte MTU (not ESP32's 64 KB).
-        # The bounded send window also provides flow control so TCP stops queueing past
-        # what the buffer pool can hold instead of erroring.
-        zephyr_add_prj_conf("NET_PKT_RX_COUNT", 24)
-        zephyr_add_prj_conf("NET_PKT_TX_COUNT", 24)
-        zephyr_add_prj_conf("NET_BUF_RX_COUNT", 48)
-        zephyr_add_prj_conf("NET_BUF_TX_COUNT", 48)
-        zephyr_add_prj_conf("NET_TCP_MAX_RECV_WINDOW_SIZE", 2280)
-        zephyr_add_prj_conf("NET_TCP_MAX_SEND_WINDOW_SIZE", 2280)
+        if tcp:
+            # nRF Connect SDK has no legacy mbedtls_md5() for the RFC 6528 ISN generator;
+            # without it Zephyr seeds the ISN from sys_rand32_get().
+            zephyr_add_prj_conf("NET_TCP_ISN_RFC6528", False)
+            # Enlarge the Zephyr network buffer pool for the Thread path.
+            # Zephyr's defaults are tiny: NET_BUF_TX_COUNT=16 * NET_BUF_DATA_SIZE=128 is only
+            # ~2 KB of TX data -- barely one 1280-byte IPv6 packet once 6LoWPAN fragments it.
+            # The ESPHome API entity-sync burst overruns that instantly, so socket writes fail
+            # with ENOBUFS ("Buffer full") and the connection is dropped. ESP32 sidesteps this
+            # by enlarging the lwIP TCP window (CONFIG_LWIP_TCP_* above); give Zephyr the
+            # equivalent headroom, sized to RAM and the Thread 1280-byte MTU (not ESP32's 64 KB).
+            zephyr_add_prj_conf("NET_PKT_RX_COUNT", 24)
+            zephyr_add_prj_conf("NET_PKT_TX_COUNT", 24)
+            zephyr_add_prj_conf("NET_BUF_RX_COUNT", 48)
+            zephyr_add_prj_conf("NET_BUF_TX_COUNT", 48)
+            # The bounded send window provides flow control so TCP stops queueing past
+            # what the buffer pool can hold instead of erroring.
+            zephyr_add_prj_conf("NET_TCP_MAX_RECV_WINDOW_SIZE", 2280)
+            zephyr_add_prj_conf("NET_TCP_MAX_SEND_WINDOW_SIZE", 2280)
 
     cg.add_define("USE_NETWORK_IPV6", enable_ipv6)
     if enable_ipv6:
-        cg.add_define(
-            "USE_NETWORK_MIN_IPV6_ADDR_COUNT", config[CONF_MIN_IPV6_ADDR_COUNT]
-        )
+        # Without IPv4 an IPv6 address is the connection, so wait for at least one
+        min_count = config[CONF_MIN_IPV6_ADDR_COUNT]
+        if not enable_ipv4:
+            min_count = max(min_count, 1)
+        cg.add_define("USE_NETWORK_MIN_IPV6_ADDR_COUNT", min_count)
     if CORE.is_esp32:
         add_idf_sdkconfig_option("CONFIG_LWIP_IPV6", enable_ipv6)
         add_idf_sdkconfig_option("CONFIG_LWIP_IPV6_AUTOCONFIG", enable_ipv6)
@@ -675,6 +686,13 @@ async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_NETWORK_IPV4", enable_ipv4)
     if CORE.is_esp32:
         add_idf_sdkconfig_option("CONFIG_LWIP_IPV4", enable_ipv4)
+        # DNS over RDNSS or stateless DHCPv6 is for IPv6-only Wi-Fi and Ethernet; leave
+        # other IPv4-less builds (OpenThread) on the sdkconfig they already build with.
+        if not enable_ipv4 and CORE.has_at_least_one_component(
+            CONF_WIFI, CONF_ETHERNET
+        ):
+            add_idf_sdkconfig_option("CONFIG_LWIP_IPV6_RDNSS_MAX_DNS_SERVERS", 2)
+            add_idf_sdkconfig_option("CONFIG_LWIP_IPV6_DHCP6", True)
 
     # Pvariable creation lives in a separate coroutine at NETWORK_SERVICES so it
     # emits after wifi/ethernet at COMMUNICATION. This keeps compile-time config
