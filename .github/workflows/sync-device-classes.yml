@@ -64,6 +64,13 @@ jobs:
         run: |
           python ./script/sync-device_class.py
 
+      - name: Check the synced modules import
+        # A bad rewrite can still be valid Python that prek accepts; importing the modules catches it
+        run: >-
+          python -c "import importlib;
+          [importlib.import_module(f'esphome.components.{d}') for d in
+          ('binary_sensor', 'button', 'cover', 'event', 'number', 'sensor', 'switch', 'update', 'valve')]"
+
       - name: Apply prek auto-fixes
         # First pass: let formatters (ruff, end-of-file-fixer, etc.) modify
         # files. prek exits non-zero whenever a hook touches anything,

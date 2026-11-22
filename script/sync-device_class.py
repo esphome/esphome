@@ -34,10 +34,14 @@ DOMAINS = {
 }
 
 
-def sub(path, pattern, repl):
+def sub(path, pattern, repl, expected):
     with Path(path).open(encoding="utf-8") as handle:
         content = handle.read()
-    content = re.sub(pattern, repl, content, flags=re.MULTILINE)
+    content, count = re.subn(pattern, repl, content, flags=re.MULTILINE)
+    if count != expected:
+        raise RuntimeError(
+            f"{path}: expected {expected} DEVICE_CLASS_ blocks, found {count}"
+        )
     with Path(path).open("w", encoding="utf-8") as handle:
         handle.write(content)
 
@@ -58,7 +62,7 @@ def main():
     out = ""
     for cls in sorted(classes):
         out += f'DEVICE_CLASS_{cls.upper()} = "{classes[cls]}"\n'
-    sub("esphome/const.py", '(DEVICE_CLASS_\\w+ = "\\w*"\r?\n)+', out)
+    sub("esphome/const.py", '(DEVICE_CLASS_\\w+ = "\\w*"\r?\n)+', out, 1)
 
     for domain in sorted(allowed):
         # replace imports
@@ -66,12 +70,12 @@ def main():
         for item in sorted(allowed[domain]):
             out += f"    DEVICE_CLASS_{item.upper()},\n"
 
-        # Only the esphome.const import list and DEVICE_CLASSES; sensor presets also list DEVICE_CLASS_ constants
+        # The import list and DEVICE_CLASSES; 2+ lines skips the single class in sensor presets
         sub(
             f"esphome/components/{domain}/__init__.py",
-            r"((?:from esphome\.const import \(|DEVICE_CLASSES = \[)\r?\n(?:    (?!DEVICE_CLASS_)\w+,\r?\n)*)"
-            r"(?:    DEVICE_CLASS_\w+,\r?\n)+",
-            r"\g<1>" + out,
+            "(    DEVICE_CLASS_\\w+,\r?\n){2,}",
+            out,
+            2,
         )
 
 
