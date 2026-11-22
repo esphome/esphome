@@ -448,6 +448,9 @@ class MQTTClientComponent final : public Component {
   uint32_t last_connected_{0};
   optional<MQTTClientDisconnectReason> disconnect_reason_{};
   CallbackManager<MQTTBackend::on_disconnect_callback_t> on_disconnect_;
+#if defined(USE_ESP8266) || defined(USE_LIBRETINY)
+  LazyCallbackManager<MQTTBackend::on_connect_callback_t> on_connect_;
+#endif
 
   bool publish_nan_as_none_{false};
   bool wait_for_connection_{false};

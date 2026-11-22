@@ -125,6 +125,14 @@ void MQTTClientComponent::setup() {
         }
       });
   this->mqtt_backend_.set_on_disconnect([this](MQTTClientDisconnectReason reason) {
+    if (this->on_disconnect_.size() != 0) {
+#if defined(USE_ESP8266) || defined(USE_LIBRETINY)
+      // AsyncMqttClient calls this from its TCP context, so the automations run on the main loop
+      this->defer([this, reason]() { this->on_disconnect_.call(reason); });
+#else
+      this->on_disconnect_.call(reason);
+#endif
+    }
     if (this->state_ == MQTT_CLIENT_DISABLED)
       return;
     this->state_ = MQTT_CLIENT_DISCONNECTED;
@@ -968,13 +976,21 @@ bool MQTTClientComponent::teardown() {
 }
 
 void MQTTClientComponent::set_on_connect(mqtt_on_connect_callback_t &&callback) {
-  this->mqtt_backend_.set_on_connect(std::forward<mqtt_on_connect_callback_t>(callback));
+#if defined(USE_ESP8266) || defined(USE_LIBRETINY)
+  // AsyncMqttClient calls this from its TCP context, so the automations run on the main loop
+  if (this->on_connect_.empty()) {
+    this->mqtt_backend_.set_on_connect([this](bool session_present) {
+      this->defer([this, session_present]() { this->on_connect_.call(session_present); });
+    });
+  }
+  this->on_connect_.add(std::move(callback));
+#else
+  this->mqtt_backend_.set_on_connect(std::move(callback));
+#endif
 }
 
 void MQTTClientComponent::set_on_disconnect(mqtt_on_disconnect_callback_t &&callback) {
-  auto callback_copy = callback;
-  this->mqtt_backend_.set_on_disconnect(std::forward<mqtt_on_disconnect_callback_t>(callback));
-  this->on_disconnect_.add(std::move(callback_copy));
+  this->on_disconnect_.add(std::move(callback));
 }
 
 MQTTClientComponent *global_mqtt_client = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
