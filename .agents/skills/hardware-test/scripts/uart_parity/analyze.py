@@ -80,9 +80,12 @@ def main() -> None:
         b.startswith(b"\r\nRPT") or b == GVR or valid(b) or b in N1
         for b in (rx_parse(h)[0] for h in rx)
     )
-    if not rx or marks or hups or not known:
+    # a few OTHER bursts are boot noise; more of them than classified ones means a wrong framing or a broken line
+    other = len(rx) - known
+    print(f"{len(rx)} RX bursts, {known} classified, {other} OTHER")
+    if not rx or marks or hups or not known or other > known:
         sys.exit(
-            f"{len(rx)} RX bursts, {known} classified, {marks} PARMRK error marks, {hups} HUP lines"
+            f"{len(rx)} RX bursts, {known} classified, {other} OTHER, {marks} PARMRK error marks, {hups} HUP lines"
         )
 
 
