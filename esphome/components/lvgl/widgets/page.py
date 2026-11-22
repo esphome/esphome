@@ -1,9 +1,10 @@
-from typing import Any
-
 from esphome import automation, codegen as cg
 from esphome.automation import ApplyAction, Trigger
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_PAGES, CONF_TIME, CONF_TRIGGER_ID
+from esphome.core import ID
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType, Expression, TemplateArgsType
 
 from ..defines import (
     CONF_ANIMATION,
@@ -71,7 +72,14 @@ SHOW_SCHEMA = LVGL_SCHEMA.extend(
 page_spec = PageType()
 
 
-async def _show_page(config, action_id, template_arg, args, method: str, *page) -> Any:
+async def _show_page(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+    method: str,
+    *page: Expression,
+) -> MockObj:
     """Call ``method`` on the LVGL component with ``page`` and the animation settings."""
     async with LambdaContext(args, where=action_id) as context:
         animation = await LV_ANIM.process(config[CONF_ANIMATION])

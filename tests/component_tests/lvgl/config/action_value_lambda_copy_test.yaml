@@ -43,6 +43,12 @@ lvgl:
                     - 1,1
               - lvgl.page.next:
                   time: !lambda return ++x + 4;
+              - if:
+                  condition:
+                    lvgl.is_idle:
+                      timeout: !lambda return ++x + 5;
+                  then:
+                    - lvgl.page.previous:
         - slider:
             id: target_slider
         - canvas:

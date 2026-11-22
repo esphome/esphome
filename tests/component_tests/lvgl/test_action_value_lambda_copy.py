@@ -18,6 +18,7 @@ CASES = [
     ("canvas width", 2),
     ("set_pixels opa", 3),
     ("page time", 4),
+    ("is_idle timeout", 5),
 ]
 
 
