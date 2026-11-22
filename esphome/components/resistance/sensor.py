@@ -1,13 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import sensor
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_REFERENCE_VOLTAGE,
-    CONF_SENSOR,
-    ICON_FLASH,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_OHM,
-)
+from esphome.const import CONF_REFERENCE_VOLTAGE, CONF_SENSOR, ICON_FLASH
 from esphome.types import ConfigType
 
 resistance_ns = cg.esphome_ns.namespace("resistance")
@@ -21,11 +15,7 @@ CONFIGURATIONS = ResistanceConfiguration.options("DOWNSTREAM", "UPSTREAM")
 
 CONFIG_SCHEMA = (
     sensor.sensor_schema(
-        ResistanceSensor,
-        unit_of_measurement=UNIT_OHM,
-        icon=ICON_FLASH,
-        accuracy_decimals=1,
-        state_class=STATE_CLASS_MEASUREMENT,
+        ResistanceSensor, kind=sensor.RESISTANCE, icon=ICON_FLASH, accuracy_decimals=1
     )
     .extend(
         {

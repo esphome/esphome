@@ -48,13 +48,14 @@ def rpc_strings(data: bytes) -> bytes:
     return data[2 : 2 + data[1]]
 
 
-def strings(p: bytes) -> list[str]:
-    """Split length-prefixed strings; raise ValueError when a prefix runs past the end."""
+def strings(p: bytes, raw: bool = False) -> list:
+    """Split length-prefixed strings (bytes with raw); raise ValueError when a prefix runs past the end."""
     out = []
     while p:
         if 1 + p[0] > len(p):
             raise ValueError("string overruns the payload")
-        out.append(p[1 : 1 + p[0]].decode(errors="replace"))
+        b = p[1 : 1 + p[0]]
+        out.append(b if raw else b.decode(errors="replace"))
         p = p[1 + p[0] :]
     return out
 

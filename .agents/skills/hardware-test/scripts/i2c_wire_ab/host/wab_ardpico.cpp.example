@@ -1,0 +1,35 @@
+// Arduino bus body of the tree under test on the arduino-pico Wire model
+#include "esphome/core/application.h"
+#include "esphome/core/component.h"
+#include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
+#include "esphome/components/i2c/i2c_bus.h"
+#define WAB_WIRE_PICO
+#define USE_ARDUINO
+#define USE_RP2
+#define ArduinoI2CBus ArduinoI2CBusPico
+#include "esphome/components/i2c/i2c_bus_arduino.h"
+TwoWire Wire;
+TwoWire Wire1;
+namespace esphome::i2c {
+ESPHOME_LOG_TAG(TAG, "i2c");
+static constexpr size_t I2C_MAX_LOG_BYTES = 32;
+void ArduinoI2CBus::setup() {}
+void ArduinoI2CBus::dump_config() {}
+void ArduinoI2CBus::set_pins_and_clock_() {}
+#include "wab_gen_arduino.inc"
+}  // namespace esphome::i2c
+#undef USE_RP2
+#undef USE_ARDUINO
+struct APInit { using type = bool esphome::i2c::ArduinoI2CBus::*; friend type get(APInit); };
+struct APWire { using type = TwoWire *esphome::i2c::ArduinoI2CBus::*; friend type get(APWire); };
+template struct WabRob<APInit, &esphome::i2c::ArduinoI2CBus::initialized_>;
+template struct WabRob<APWire, &esphome::i2c::ArduinoI2CBus::wire_>;
+esphome::i2c::I2CBus *wab_make_pico() {
+  auto *b = new esphome::i2c::ArduinoI2CBus();
+  b->*get(APInit()) = true;
+  b->*get(APWire()) = &Wire;
+  return b;
+}
+void wab_reset_pico() { Wire.wab_reset(); }
