@@ -240,8 +240,8 @@ async def to_code(config: ConfigType) -> None:
 
     if pixel_mode := config.get(CONF_PIXEL_MODE):
         cg.add(var.set_pixel_mode(pixel_mode))
-    if (color_order := config.get(CONF_COLOR_ORDER)) is not None:
-        cg.add(var.set_color_order(COLOR_ORDERS[color_order]))
+    if CONF_COLOR_ORDER in config:
+        cg.add(var.set_color_order(COLOR_ORDERS[config[CONF_COLOR_ORDER]]))
     if CONF_TRANSFORM in config:
         transform = config[CONF_TRANSFORM]
         cg.add(var.set_swap_xy(transform[CONF_SWAP_XY]))
