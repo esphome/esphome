@@ -181,7 +181,8 @@ template<auto Fn> class LoopCallback final : public Component {
 };
 
 #ifdef ESPHOME_PROJECT_NAME
-class ProjectUpdateTrigger : public Trigger<std::string>, public Component {
+/// Calls Fn with the previous version from setup() when the project version went up, for project on_update.
+template<auto Fn> class ProjectUpdateCallback final : public Component {
  public:
   void setup() override {
     uint32_t hash = fnv1_hash(ESPHOME_PROJECT_NAME);
@@ -191,7 +192,7 @@ class ProjectUpdateTrigger : public Trigger<std::string>, public Component {
     if (pref.load(&previous_version)) {
       int cmp = strcmp(previous_version, current_version);
       if (cmp < 0) {
-        this->trigger(previous_version);
+        Fn(previous_version);
       }
     }
     pref.save(&current_version);

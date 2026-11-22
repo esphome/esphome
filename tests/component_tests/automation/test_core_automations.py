@@ -1,4 +1,4 @@
-"""Tests for on_boot, on_shutdown and on_loop codegen."""
+"""Tests for on_boot, on_shutdown, on_loop and project on_update codegen."""
 
 from collections.abc import Callable
 from pathlib import Path
@@ -132,3 +132,29 @@ def test_on_boot_function_name_skips_config_ids(
     function = callback_function(main_cpp, "startupcallback_id")
     assert function != "esphome__automation_id__fn"
     assert f"static void {function}()" in main_cpp
+
+
+def test_project_on_update(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """on_update calls its function with the previous version; a delay keeps the Automation."""
+    main_cpp = generate_main(component_config_path("project_on_update.yaml"))
+    inline = callback_function(main_cpp, "projectupdatecallback_id")
+    assert constructed(main_cpp, "projectupdatecallback_id") == (
+        f"ProjectUpdateCallback<{inline}>()"
+    )
+    assert (
+        f"static void {inline}(const std::remove_cvref_t<std::string> & version)"
+        in main_cpp
+    )
+    body = function_body(main_cpp, inline)
+    assert "updated from %s" in body
+    assert "Automation" not in body
+    assert "ProjectUpdateTrigger" not in main_cpp
+    delayed = callback_function(main_cpp, "projectupdatecallback_id_2")
+    automation = re.fullmatch(
+        r"\n  ::(\w+)->trigger\(version\);", function_body(main_cpp, delayed)
+    )
+    assert automation is not None
+    assert f"new({automation.group(1)}) Automation<std::string>();" in main_cpp
