@@ -139,6 +139,12 @@ api:
         - api.respond:
             data: !lambda |-
               root["count"] = ++count;
+    # A data lambda that adds nothing still builds
+    - action: respond_data_bare_return
+      supports_response: only
+      then:
+        - api.respond:
+            data: !lambda return;
     - action: respond_error_constant
       supports_response: status
       then:

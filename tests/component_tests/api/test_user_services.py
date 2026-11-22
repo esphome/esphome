@@ -233,6 +233,16 @@ def test_respond_data_copies_named_args(generate_main) -> None:
     assert "int32_t & count" not in body
 
 
+def test_respond_data_bare_return(generate_main) -> None:
+    """A data lambda whose only statement is `return;` is called, not reduced to a cast."""
+    main_cpp = generate_main(CONFIG)
+    body = _function_body(
+        main_cpp, _service_function(main_cpp, "respond_data_bare_return", ONLY)
+    )
+    assert "send_action_response_json(" in body
+    assert "static_cast<void>()" not in body
+
+
 def test_respond_status_lambdas(generate_main) -> None:
     """Lambdas for the status and the error text are bound before the response is sent."""
     main_cpp = generate_main(CONFIG)
@@ -346,6 +356,7 @@ def test_services_registered_in_order(generate_main) -> None:
         "respond_only_bool_named_return_response",
         "respond_optional_in_repeat",
         "respond_data_copies_named_args",
+        "respond_data_bare_return",
         "respond_error_constant",
         "status_inline",
         "self_reference",
