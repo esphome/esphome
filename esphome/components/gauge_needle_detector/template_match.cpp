@@ -13,21 +13,9 @@ namespace esphome::gauge_needle_detector {
 
 ESPHOME_LOG_TAG(TAG, "gauge_needle_detector");
 
-DetectionResult TemplateMatchDetector::detect(const uint8_t * /*raw*/, const uint8_t *filtered, int width, int height,
-                                              const DetectorConfig &config, float *scores) {
-  if (filtered == nullptr)
-    return {};
-
-  const int cx = width / 2;
-  const int cy = height / 2;
-  const int radius = std::min(cx, cy) - 2;
-  if (radius <= 0)
-    return {};
-
-  const int deadzone_r = static_cast<int>(std::max(0.0f, config.deadzone_diameter * 0.5f));
-  const int start_r = std::max({1, static_cast<int>(radius * config.min_scan_radius), deadzone_r});
-  const int end_r = static_cast<int>(radius * config.max_scan_radius);
-  if (start_r >= end_r)
+DetectionResult TemplateMatchDetector::detect(const uint8_t * /*raw*/, const uint8_t *filtered,
+                                              const ScanWindow &window, const DetectorConfig &config, float *scores) {
+  if (filtered == nullptr || !window.valid())
     return {};
 
   auto ray_score = [&](int degrees) -> float {
@@ -35,11 +23,11 @@ DetectionResult TemplateMatchDetector::detect(const uint8_t * /*raw*/, const uin
     const float dy = sin_lut(degrees);
     float score = 0.0f;
     int count = 0;
-    for (int r = start_r; r < end_r; r++) {
-      const int px = cx + static_cast<int>(r * dx);
-      const int py = cy + static_cast<int>(r * dy);
-      if (px >= 0 && px < width && py >= 0 && py < height) {
-        score += filtered[py * width + px];
+    for (int r = window.start_r; r < window.end_r; r++) {
+      const int px = window.cx + static_cast<int>(r * dx);
+      const int py = window.cy + static_cast<int>(r * dy);
+      if (px >= 0 && px < window.width && py >= 0 && py < window.height) {
+        score += filtered[py * window.width + px];
         count++;
       }
     }

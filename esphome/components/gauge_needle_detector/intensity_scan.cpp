@@ -10,21 +10,10 @@ namespace esphome::gauge_needle_detector {
 
 namespace {
 
-DetectionResult scan_intensity(const uint8_t *raw, int width, int height, const DetectorConfig &config, float *scores,
-                               int max_gap = 5, int dark_background_min = 150, int light_background_max = 100) {
-  if (raw == nullptr)
-    return {};
-
-  const int cx = width / 2;
-  const int cy = height / 2;
-  const int radius = std::min(cx, cy) - 2;
-  if (radius <= 0)
-    return {};
-
-  const int deadzone_r = static_cast<int>(std::max(0.0f, config.deadzone_diameter * 0.5f));
-  const int start_r = std::max({1, static_cast<int>(radius * config.min_scan_radius), deadzone_r});
-  const int end_r = static_cast<int>(radius * config.max_scan_radius);
-  if (start_r >= end_r)
+DetectionResult scan_intensity(const uint8_t *raw, const ScanWindow &window, const DetectorConfig &config,
+                               float *scores, int max_gap = 5, int dark_background_min = 150,
+                               int light_background_max = 100) {
+  if (raw == nullptr || !window.valid())
     return {};
 
   for (int deg = 0; deg < 360; deg++) {
@@ -34,12 +23,12 @@ DetectionResult scan_intensity(const uint8_t *raw, int width, int height, const 
     float score = 0.0f;
     int gap_count = 0;
 
-    for (int r = start_r; r < end_r; r++) {
-      const int px = cx + static_cast<int>(r * dx);
-      const int py = cy + static_cast<int>(r * dy);
+    for (int r = window.start_r; r < window.end_r; r++) {
+      const int px = window.cx + static_cast<int>(r * dx);
+      const int py = window.cy + static_cast<int>(r * dy);
 
-      if (px >= 0 && px < width && py >= 0 && py < height) {
-        const uint8_t val = raw[py * width + px];
+      if (px >= 0 && px < window.width && py >= 0 && py < window.height) {
+        const uint8_t val = raw[py * window.width + px];
 
         // A light needle scores on brightness, a dark needle on darkness.
         score += (config.needle_type == NEEDLE_TYPE_LIGHT) ? val : (255 - val);
@@ -76,9 +65,9 @@ DetectionResult scan_intensity(const uint8_t *raw, int width, int height, const 
 
 }  // namespace
 
-DetectionResult IntensityScanDetector::detect(const uint8_t *raw, const uint8_t * /*filtered*/, int width, int height,
-                                              const DetectorConfig &config, float *scores) {
-  return scan_intensity(raw, width, height, config, scores);
+DetectionResult IntensityScanDetector::detect(const uint8_t *raw, const uint8_t * /*filtered*/,
+                                              const ScanWindow &window, const DetectorConfig &config, float *scores) {
+  return scan_intensity(raw, window, config, scores);
 }
 
 #endif  // USE_GAUGE_NEEDLE_INTENSITY_SCAN

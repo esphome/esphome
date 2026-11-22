@@ -96,15 +96,18 @@ DetectionResult NeedleDetector::detect(const uint8_t *img, int width, int height
   const bool is_auto = config.algorithm == ALGORITHM_AUTO;
   const int radius = std::min(width, height) / 2 - 2;
 
-  // Report an empty scan window once, not on every frame.
+  // A crop too small for a radius has an invalid window, which the detectors
+  // report as no needle; only a configured window can be worth a warning.
+  ScanWindow window{width, height, width / 2, height / 2, 1, 0};
   if (radius > 0) {
     const int deadzone_r = static_cast<int>(std::max(0.0f, config.deadzone_diameter * 0.5f));
-    const int scan_start = std::max({1, static_cast<int>(radius * config.min_scan_radius), deadzone_r});
-    const int scan_end = static_cast<int>(radius * config.max_scan_radius);
-    if (scan_start >= scan_end) {
+    window.start_r = std::max({1, static_cast<int>(radius * config.min_scan_radius), deadzone_r});
+    window.end_r = static_cast<int>(radius * config.max_scan_radius);
+    // The window never changes for a given config, so report it once.
+    if (!window.valid()) {
       if (!this->empty_scan_warned_) {
         ESP_LOGW(TAG, "%s: empty scan window (deadzone %d px, scan radius %d px); no needle can be found", config.id,
-                 deadzone_r, scan_end);
+                 deadzone_r, window.end_r);
         this->empty_scan_warned_ = true;
       }
       return {};
@@ -123,10 +126,10 @@ DetectionResult NeedleDetector::detect(const uint8_t *img, int width, int height
   const uint8_t *filtered = nullptr;
   bool preprocessing_failed = false;
   if (needs_filtered) {
+    // prepare() logs its own reason when the crop does not fit.
     if (this->preprocessor_.prepare(img, width, height, radius, config.needle_type, config.debug)) {
       filtered = this->preprocessor_.data();
     } else {
-      ESP_LOGE(TAG, "%s: preprocessing failed, skipping the filtered detectors", config.id);
       preprocessing_failed = true;
     }
   }
@@ -134,7 +137,7 @@ DetectionResult NeedleDetector::detect(const uint8_t *img, int width, int height
   DetectionResult output;
   Algorithm output_algorithm = config.algorithm;
   bool have_output = false;
-  bool target_compiled = is_auto;
+  bool target_compiled = is_auto && this->detector_count_ > 0;
 
   for (size_t i = 0; i < this->detector_count_; i++) {
     Detector *detector = this->detectors_[i];
@@ -148,7 +151,7 @@ DetectionResult NeedleDetector::detect(const uint8_t *img, int width, int height
       continue;
 
     const DetectionResult result =
-        detector->detect(img, wants_filtered ? filtered : nullptr, width, height, config, this->scores_.data());
+        detector->detect(img, wants_filtered ? filtered : nullptr, window, config, this->scores_.data());
 
     if (config.debug) {
       ESP_LOGD(TAG, "  %s: angle=%.1f deg, conf=%.2f", LOG_STR_ARG(algorithm_name(detector->algorithm())), result.angle,

@@ -143,6 +143,7 @@ bool Preprocessor::reserve(int width, int height) {
     return false;
   }
   this->capacity_ = pixels;
+  this->capacity_warned_ = false;
   return true;
 }
 
@@ -152,8 +153,11 @@ bool Preprocessor::prepare(const uint8_t *raw, int width, int height, int radial
     return false;
   const size_t required_size = static_cast<size_t>(width) * height;
   if (this->working_ == nullptr || required_size > this->capacity_) {
-    ESP_LOGE(TAG, "Crop %dx%d needs %zu bytes but only %zu are reserved", width, height, required_size,
-             this->capacity_);
+    if (!this->capacity_warned_) {
+      ESP_LOGE(TAG, "Crop %dx%d needs %zu bytes but only %zu are reserved", width, height, required_size,
+               this->capacity_);
+      this->capacity_warned_ = true;
+    }
     return false;
   }
 

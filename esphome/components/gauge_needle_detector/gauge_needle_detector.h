@@ -49,6 +49,18 @@ struct DetectionResult {
   float confidence{0.0f};
 };
 
+/// The crop region every detector samples, computed once per frame.
+struct ScanWindow {
+  int width;
+  int height;
+  int cx;
+  int cy;
+  int start_r;
+  int end_r;
+
+  bool valid() const { return this->start_r < this->end_r; }
+};
+
 /// Sine and cosine of a whole degree, read from a flash-backed table.
 float sin_lut(int degrees);
 float cos_lut(int degrees);
@@ -63,7 +75,7 @@ class Detector {
 
   /// Finds the needle angle; `filtered` is nullptr for a raw-crop detector and
   /// `scores` is the caller's 360-entry workspace.
-  virtual DetectionResult detect(const uint8_t *raw, const uint8_t *filtered, int width, int height,
+  virtual DetectionResult detect(const uint8_t *raw, const uint8_t *filtered, const ScanWindow &window,
                                  const DetectorConfig &config, float *scores) = 0;
 };
 
@@ -92,6 +104,8 @@ class Preprocessor final {
   uint8_t *scratch_{nullptr};
   uint8_t *scratch_2_{nullptr};
   size_t capacity_{0};
+  /// Set once the oversized-crop error has been logged, so it is logged once.
+  bool capacity_warned_{false};
   RAMAllocator<uint8_t> allocator_;
   std::array<uint32_t, 256> histogram_{};
 };
@@ -102,7 +116,7 @@ class IntensityScanDetector final : public Detector {
  public:
   Algorithm algorithm() const override { return ALGORITHM_LEGACY; }
   bool needs_filtered_image() const override { return false; }
-  DetectionResult detect(const uint8_t *raw, const uint8_t *filtered, int width, int height,
+  DetectionResult detect(const uint8_t *raw, const uint8_t *filtered, const ScanWindow &window,
                          const DetectorConfig &config, float *scores) override;
 };
 #endif  // USE_GAUGE_NEEDLE_INTENSITY_SCAN
@@ -112,7 +126,7 @@ class IntensityScanDetector final : public Detector {
 class RadialProfileDetector final : public Detector {
  public:
   Algorithm algorithm() const override { return ALGORITHM_RADIAL_PROFILE; }
-  DetectionResult detect(const uint8_t *raw, const uint8_t *filtered, int width, int height,
+  DetectionResult detect(const uint8_t *raw, const uint8_t *filtered, const ScanWindow &window,
                          const DetectorConfig &config, float *scores) override;
 };
 #endif  // USE_GAUGE_NEEDLE_RADIAL_PROFILE
@@ -122,7 +136,7 @@ class RadialProfileDetector final : public Detector {
 class HoughTransformDetector final : public Detector {
  public:
   Algorithm algorithm() const override { return ALGORITHM_HOUGH_TRANSFORM; }
-  DetectionResult detect(const uint8_t *raw, const uint8_t *filtered, int width, int height,
+  DetectionResult detect(const uint8_t *raw, const uint8_t *filtered, const ScanWindow &window,
                          const DetectorConfig &config, float *scores) override;
 
  protected:
@@ -135,7 +149,7 @@ class HoughTransformDetector final : public Detector {
 class TemplateMatchDetector final : public Detector {
  public:
   Algorithm algorithm() const override { return ALGORITHM_TEMPLATE_MATCH; }
-  DetectionResult detect(const uint8_t *raw, const uint8_t *filtered, int width, int height,
+  DetectionResult detect(const uint8_t *raw, const uint8_t *filtered, const ScanWindow &window,
                          const DetectorConfig &config, float *scores) override;
 };
 #endif  // USE_GAUGE_NEEDLE_TEMPLATE_MATCH
