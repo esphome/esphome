@@ -25,7 +25,7 @@ SETUP_ERR+='|ModuleNotFoundError|ImportError|no button'
 api() {
   local out rc; out=$(bound 8 $PY "$D/../api_button.py" "$IP" "${KEY:--}" "$@" 2>&1); rc=$?
   [ $rc = 0 ] && return 0
-  last=${out##*$'\n'}
+  last="rc=$rc ${out##*$'\n'}"  # 124 or 142: bound killed a hung client
   if [[ $out =~ $SETUP_ERR ]]; then
     echo "$(date +%T) aborted, setup error: $last" >> "$O"; echo "rb.sh: $last" >&2; exit 1
   fi

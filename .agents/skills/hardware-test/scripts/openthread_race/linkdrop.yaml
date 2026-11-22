@@ -8,6 +8,9 @@ globals:
   - id: race_delay
     type: int
     initial_value: '-1'
+  - id: race_gen  # bumped by every race action, so a late timeout cannot disarm a newer arm
+    type: int
+    initial_value: '0'
   # the power-down of each script took effect, so its power-up and marker belong to it
   - id: drop_down
     type: bool
@@ -24,6 +27,18 @@ logger:
               id(race_fire).execute();
             }
 script:
+  # the 15 s drop plus time for the restart: an arm of this generation still set by then never fired
+  - id: race_timeout
+    mode: parallel
+    parameters:
+      gen: int
+    then:
+      - delay: 75s
+      - lambda: |-
+          if (id(race_gen) == gen && id(race_delay) >= 0) {
+            ESP_LOGW("hwt", "HWT race not fired");
+            id(race_delay) = -1;
+          }
   - id: link_drop
     parameters:
       secs: int
@@ -87,17 +102,15 @@ api:
             condition:
               lambda: 'return delay_ms >= 0 && delay_ms <= 10000;'
             then:
-              - lambda: 'id(race_delay) = delay_ms;'
+              - lambda: |-
+                  id(race_delay) = delay_ms;
+                  id(race_gen)++;
               - script.execute:
                   id: link_drop
                   secs: 15
-              # the 15 s drop plus time for the restart: an arm still set by then never fired
-              - delay: 75s
-              - lambda: |-
-                  if (id(race_delay) >= 0) {
-                    ESP_LOGW("hwt", "HWT race not fired");
-                    id(race_delay) = -1;
-                  }
+              - script.execute:
+                  id: race_timeout
+                  gen: !lambda 'return id(race_gen);'
             else:
               - logger.log:
                   format: "HWT race refused: delay_ms must be 0-10000"

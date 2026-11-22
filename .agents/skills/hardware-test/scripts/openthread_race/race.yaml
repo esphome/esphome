@@ -12,6 +12,9 @@ globals:
   - id: race_delay
     type: int
     initial_value: '0'
+  - id: race_gen  # bumped by every race action, so a late timeout cannot disarm a newer arm
+    type: int
+    initial_value: '0'
 logger:
   on_message:
     - level: INFO
@@ -29,6 +32,18 @@ logger:
               }
             }
 script:
+  # the 15 s drop plus time for the restart: an arm of this generation still set by then never fired
+  - id: race_timeout
+    mode: parallel
+    parameters:
+      gen: int
+    then:
+      - delay: 75s
+      - lambda: |-
+          if (id(race_gen) == gen && id(race_mode) != 0) {
+            ESP_LOGW("hwt", "HWT race not fired");
+            id(race_mode) = 0;
+          }
   - id: race_fire
     mode: single
     parameters:
@@ -94,14 +109,11 @@ api:
               - lambda: |-
                   id(race_mode) = mode;
                   id(race_delay) = delay_ms;
+                  id(race_gen)++;
               - script.execute: race_drop
-              # the 15 s drop plus time for the restart: an arm still set by then never fired
-              - delay: 75s
-              - lambda: |-
-                  if (id(race_mode) != 0) {
-                    ESP_LOGW("hwt", "HWT race not fired");
-                    id(race_mode) = 0;
-                  }
+              - script.execute:
+                  id: race_timeout
+                  gen: !lambda 'return id(race_gen);'
             else:
               - logger.log:
                   format: "HWT race refused: mode must be 1-3 and delay_ms 0-10000"

@@ -77,6 +77,11 @@ interval:
               }
             }
             id(auto_armed) = 0;
+            // save the verdict before clearing its evidence, so a crash loop cannot lose it
+            crashed->update();
+            not_fired->update();
+            auto_armed->update();
+            global_preferences->sync();
             race_rtc_fired = 0;
           }
           // Thread must have been attached for 40 s too: Border routing started does not mean the C6 joined
