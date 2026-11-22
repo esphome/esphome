@@ -15,6 +15,17 @@ def sec(hms: str) -> float:
     return int(h) * 3600 + int(m) * 60 + float(s)
 
 
+def unwrap(ts: list[float], ref: float | None = None) -> list[float]:
+    """Time of day stamps onto one timeline across midnight; ref is a time the first stamp cannot be 12 h before."""
+    out, day, prev = [], 0.0, ref
+    for t in ts:
+        if prev is not None and t + day < prev - 43200:
+            day += 86400
+        out.append(t + day)
+        prev = out[-1]
+    return out
+
+
 def med(v, nd: int | None = 1):
     v = [x for x in v if x is not None]
     return round(statistics.median(v), nd) if v else None

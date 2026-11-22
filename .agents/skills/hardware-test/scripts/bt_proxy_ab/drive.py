@@ -70,6 +70,8 @@ def save_handles(name: str, svcs) -> None:
 
 def find_chr(svcs, uuid, name=None):
     if svcs is None:
+        if not HFILE.exists():
+            return None
         h = json.loads(HFILE.read_text(encoding="utf-8")).get(name, {}).get(uuid)
         return H(*h) if h else None
     c = next(
@@ -440,19 +442,29 @@ async def main() -> None:
             "dups": 0,
             "drops": [],
             "reconnects": 0,
+            "missing_drop": 0,
         }
+        tick = find_chr(None, FF03, L)
+        if tick is None or tick.cccd is None:
+            d.rec(test="notify", result="no_handles", hint="run disc L first")
+            sys.exit(1)
         last = [None]
+        resumed = [False]
 
         def on_n(h, data) -> None:
             v = int.from_bytes(bytes(data[:4]), "little")
             stats["rx"] += 1
-            if last[0] is not None:
+            if last[0] is not None and resumed[0]:
+                # ticks sent while the link was down
+                stats["missing_drop"] += max(0, v - last[0] - 1)
+            elif last[0] is not None:
                 if v == last[0]:
                     stats["dups"] += 1
                 elif v > last[0] + 1:
                     stats["gaps"] += 1
                     stats["missing"] += v - last[0] - 1
             last[0] = v
+            resumed[0] = False
 
         while time.time() < t_end:
             check_api()
@@ -461,10 +473,9 @@ async def main() -> None:
                 continue
             addr = d.peers[L][0]
             st = d.st[addr]
-            tick = find_chr(None, FF03, L)
             stop, _rm = await cli.bluetooth_gatt_start_notify(addr, tick.handle, on_n)
             await cli.bluetooth_gatt_write_descriptor(addr, tick.cccd, b"\x01\x00")
-            last[0] = None
+            resumed[0] = True
             t_min = time.time()
             rx_min = stats["rx"]
             while time.time() < t_end and not st["lost"]:

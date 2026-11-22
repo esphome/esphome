@@ -2,12 +2,15 @@
 
 --burst (the bt_proxy_ab server): ff01 writes are echoed as ff02 notifications, ff03 notifies a counter every
 200 ms, and a fe00 service sends notification bursts: a write [count_hi, count_lo, per_tick] to fe03 starts 2 byte
-sequence notifications on fe01, per_tick every 15 ms, then one indication on fe02. Logs on UART0.
+sequence notifications on fe01, per_tick every 15 ms, then one notification on fe02 (ble_server sends a subscribed
+indication without the ack). Logs on UART0.
 """
 
 import pathlib
 import sys
 
+if len(sys.argv) not in (7, 8) or sys.argv[7:] not in ([], ["--burst"]):
+    sys.exit(__doc__)
 out, name, variant, board, ns, nc = (
     sys.argv[1],
     sys.argv[2],

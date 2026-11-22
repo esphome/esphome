@@ -189,7 +189,7 @@ eve=MAC` (see `peers.py`); passive scans see no scan response, so `drive.py` als
   `handles.json` with `-s handle_l ... -s handle_m ...`. `stparse.py CAPTURE` summarises it. Its phase table is a
   fixed copy of the `suite.sh` steps; change both when a scenario changes.
 - Bursts: `burst.py HOST RUNS OUT [COUNT PER_TICK]` writes [count_hi, count_lo, per_tick] to fe03 on L, counts the
-  2 byte sequence notifications on fe01 and the final indication on fe02, and records gaps. `ndrop.hpp` with
+  2 byte sequence notifications on fe01 and the final notification on fe02, and records gaps. `ndrop.hpp` with
   `ndrop-pkg.yaml` prints temporary drop counters added to `BluetoothConnection::on_notify_data` in a local tree.
 - ESP-IDF 5.5.6 against 6.1.1 showed no Bluetooth difference on a classic ESP32, C3, S3 (Wi-Fi and W5500) or C6. Heap
   low-water drops land at "Service discovery complete" of a large table (the Bluedroid cache build, about 15 KB)

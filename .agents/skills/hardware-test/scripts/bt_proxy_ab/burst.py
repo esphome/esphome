@@ -1,7 +1,7 @@
 """burst.py HOST RUNS OUT [COUNT PER_TICK]: notification burst through a Bluetooth proxy (esphome#22955).
 
 Connects the burst server (PEER_L, built with gen_peri.py --burst) through the proxy, subscribes fe01 (2 byte
-sequence notifications) and fe02 (final indication), triggers a burst with a write to fe03, and counts what arrives.
+sequence notifications) and fe02 (final notification), triggers a burst with a write to fe03, and counts what arrives.
 One JSON line per run in OUT.
 env API_KEY (empty for plaintext), LOGS=1 to record the proxy's INFO log lines (the NDROP line of ndrop.hpp),
 WARNONLY=1 to record warnings only.
@@ -29,6 +29,8 @@ async def main() -> None:
     host, runs, out = sys.argv[1], int(sys.argv[2]), sys.argv[3]
     count = int(sys.argv[4]) if len(sys.argv) > 4 else 1000
     per = int(sys.argv[5]) if len(sys.argv) > 5 else 3
+    if not 0 < per < 256 or not 0 < count < 65536:
+        sys.exit("COUNT must be 1-65535 and PER_TICK 1-255")
     cli = await connect(host)
     d = D(cli, out)
     ndrop: list[str] = []
@@ -57,6 +59,13 @@ async def main() -> None:
         return
     svcs = await cli.bluetooth_gatt_get_services(addr)
     ch = {c.uuid: c for s in svcs.services for c in s.characteristics}
+    if any(u not in ch for u in (FE01, FE02, FE03)) or None in (
+        cccd(ch[FE01]),
+        cccd(ch[FE02]),
+    ):
+        d.rec(test="burst", result="no_burst_service", hint="build PEER_L with --burst")
+        await d.disconnect(L)
+        sys.exit(1)
     seqs: list[tuple[float, int]] = []
     final: list[float] = []
     done = asyncio.Event()
@@ -83,7 +92,7 @@ async def main() -> None:
             True,
             timeout=20,
         )
-        # the burst lasts count / (per / 15 ms); the final indication ends it unless it was lost
+        # the burst lasts count / (per / 15 ms); the final notification on fe02 ends it unless it was lost
         with contextlib.suppress(TimeoutError):
             await asyncio.wait_for(
                 done.wait(), t0 + count / (per / 0.015) + 8 - time.monotonic()

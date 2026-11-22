@@ -27,8 +27,8 @@ static esp_ble_addr_type_t atype[3] = {BLE_ADDR_TYPE_PUBLIC, BLE_ADDR_TYPE_PUBLI
 static bool seen[3];
 static uint32_t adv_n;
 // notify soak
-static uint32_t tk_last, tk_rx, tk_gaps, tk_missing;
-static bool tk_have, tk_count;
+static uint32_t tk_last, tk_rx, tk_gaps, tk_missing, tk_missing_drop;
+static bool tk_have, tk_count, tk_resumed;
 
 inline void on_adv(const espbt::ESPBTDevice &d) {
   adv_n++;
@@ -44,11 +44,16 @@ inline void on_tick(uint32_t v) {
     return;
   tk_rx++;
   if (tk_have && v > tk_last + 1) {
-    tk_gaps++;
-    tk_missing += v - tk_last - 1;
+    if (tk_resumed) {
+      tk_missing_drop += v - tk_last - 1;  // sent while the link was down
+    } else {
+      tk_gaps++;
+      tk_missing += v - tk_last - 1;
+    }
   }
   tk_last = v;
   tk_have = true;
+  tk_resumed = false;
 }
 
 // read/write round trips by handle
@@ -111,7 +116,9 @@ inline void connect(uint8_t p, bool cold) {
     esp_bd_addr_t bda;
     for (int i = 0; i < 6; i++)
       bda[i] = (ADDR[p] >> (40 - 8 * i)) & 0xFF;
-    esp_ble_gattc_cache_clean(bda);
+    esp_err_t err = esp_ble_gattc_cache_clean(bda);
+    if (err != ESP_OK)
+      ESP_LOGW(TAG, "ST cache_clean %s r=%u err=%d (this attempt may use the cache)", PNAME[p], rnd, err);
   }
   c->set_connection_type(cold ? espbt::ConnectionType::V3_WITHOUT_CACHE : espbt::ConnectionType::V3_WITH_CACHE);
   c->set_remote_addr_type(atype[p]);
@@ -304,12 +311,14 @@ inline void tick() {
       } else if (st == 1) {
         uint32_t budget = P.k == K_EVE ? 40000 : (P.cold ? 60000 : 30000);
         int r = attempt(p, budget);
-        if (r == 1) {
+        if (r == 1 && P.k == K_EVE) {
+          st = 7;
+        } else if (r == 1) {
           ok_n++;
           rtt_i = 0;
           rd_sum = wr_sum = 0;
           rd_n = wr_n = 0;
-          st = P.k == K_EVE ? 3 : 2;
+          st = 2;
         } else if (r < 0) {
           fail_n++;
           st = 3;
@@ -333,6 +342,35 @@ inline void tick() {
           t_wait = now;
           st = 5;
         }
+      } else if (st == 7) {
+        // Eve: success needs one read of the first readable characteristic, as in drive.py eve
+        esp_gattc_char_elem_t chars[20];
+        uint16_t n = 20, hnd = 0;
+        if (esp_ble_gattc_get_all_char(C[p]->get_gattc_if(), C[p]->get_conn_id(), 1, 0xFFFF, chars, &n, 0) ==
+            ESP_GATT_OK) {
+          for (uint16_t i = 0; i < n && hnd == 0; i++)
+            if (chars[i].properties & ESP_GATT_CHAR_PROP_BIT_READ)
+              hnd = chars[i].char_handle;
+        }
+        Rtt *rt = RT[p];
+        rt->ok = false;
+        rt->t0 = now;
+        rt->pending = 1;
+        if (hnd == 0 ||
+            esp_ble_gattc_read_char(C[p]->get_gattc_if(), C[p]->get_conn_id(), hnd, ESP_GATT_AUTH_REQ_NONE) != ESP_OK)
+          rt->pending = 0;
+        st = 8;
+      } else if (st == 8) {
+        Rtt *rt = RT[p];
+        if (rt->pending && up(p) && now - rt->t0 < 10000)
+          break;
+        rt->pending = 0;
+        if (rt->ok)
+          ok_n++;
+        else
+          fail_n++;
+        ESP_LOGI(TAG, "ST eve read r=%u ok=%d ms=%u", rnd, rt->ok, (unsigned) rt->done_ms);
+        st = 3;
       } else if (st == 5 && now - t_wait > (P.k == K_EVE ? 5000u : 2000u)) {
         rnd++;
         st = 0;
@@ -470,8 +508,8 @@ inline void tick() {
     case K_NOTIFY: {
       // V1 connect so the ble_client sensor finds the tick characteristic and subscribes
       if (st == 0) {
-        tk_rx = tk_gaps = tk_missing = 0;
-        tk_have = false;
+        tk_rx = tk_gaps = tk_missing = tk_missing_drop = 0;
+        tk_have = tk_resumed = false;
         tk_count = true;
         st = 1;
         t_wait = now;
@@ -480,7 +518,7 @@ inline void tick() {
         C[PL]->set_connection_type(espbt::ConnectionType::V1);
         C[PL]->set_remote_addr_type(atype[PL]);
         C[PL]->set_state(ClientState::DISCOVERED);
-        tk_have = false;
+        tk_resumed = true;
         st = 2;
       } else if (st == 2 && up(PL)) {
         st = 3;
@@ -493,8 +531,8 @@ inline void tick() {
       }
       if (now - t_ph >= 60000u * (rnd + 1)) {
         rnd++;
-        ESP_LOGI(TAG, "ST notify min=%u rx=%u gaps=%u missing=%u drops=%u", rnd, (unsigned) tk_rx, (unsigned) tk_gaps,
-                 (unsigned) tk_missing, fail_n);
+        ESP_LOGI(TAG, "ST notify min=%u rx=%u gaps=%u missing=%u drops=%u missing_drop=%u", rnd, (unsigned) tk_rx,
+                 (unsigned) tk_gaps, (unsigned) tk_missing, fail_n, (unsigned) tk_missing_drop);
         if (rnd * 60 >= P.n) {
           tk_count = false;
           drop(PL);

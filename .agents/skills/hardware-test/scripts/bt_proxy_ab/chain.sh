@@ -18,6 +18,9 @@ for spec in "$@"; do
   echo "$(date +%T) $TAG at $IP"
   [ "$LP" = "api" ] || pkill -f "[s]erial_capture.py $LP "
   # shellcheck disable=SC2086 # ST is a step list
-  NSEC=${NS:-600} ./suite.sh "$TAG" "$IP" "$LP" ${ST//,/ } > "suite-$TAG.log" 2>&1
-  echo "$(date +%T) === $TAG done"
+  if NSEC=${NS:-600} ./suite.sh "$TAG" "$IP" "$LP" ${ST//,/ } > "suite-$TAG.log" 2>&1; then
+    echo "$(date +%T) === $TAG done"
+  else
+    echo "$(date +%T) === $TAG FAILED, see suite-$TAG.log"
+  fi
 done

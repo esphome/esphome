@@ -9,7 +9,7 @@ import sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
-from capstats import med, p90, print_heap, print_warnings, sec  # noqa: E402
+from capstats import med, p90, print_heap, print_warnings, sec, unwrap  # noqa: E402
 from peers import addrs  # noqa: E402
 
 T = sys.argv[1]
@@ -25,6 +25,7 @@ for ln in (
     m = re.match(r"\[(\d\d:\d\d:\d\d(?:\.\d+)?)\]", ln)
     if m:
         lines.append((sec(m[1]), ln.rstrip("\n")))
+lines = list(zip(unwrap([t for t, _ in lines]), [ln for _, ln in lines], strict=True))
 
 # device attempts
 att, cur = [], {}
@@ -71,6 +72,13 @@ marks = []
 for ln in pathlib.Path(f"marks-{T}.txt").read_text(encoding="utf-8").splitlines():
     hms, rest = ln.split(" ", 1)
     marks.append((sec(hms), rest.strip()))
+marks = list(
+    zip(
+        unwrap([t for t, _ in marks], lines[0][0] if lines else None),
+        [r for _, r in marks],
+        strict=True,
+    )
+)
 steps = {}
 for t, r in marks:
     if r.startswith("start "):
@@ -95,6 +103,7 @@ def jl(s):
             .splitlines()
         ]
     except FileNotFoundError:
+        print(f"{s}: no {T}-{s}.jsonl, the driver wrote nothing")
         return []
 
 
@@ -104,6 +113,9 @@ for s in steps:
     R = jl(s)
     rounds = [r for r in R if "round" in r]
     d = {}
+    # results outside any round (not_seen, api_lost, connect_failed, no_handles) would otherwise vanish
+    if other := Counter(r["result"] for r in R if "round" not in r and "result" in r):
+        d["no_round"] = dict(other)
     if s == "adv":
         for r in R:
             if r.get("test") == "adv":
@@ -175,13 +187,14 @@ for s in steps:
             if r.get("test") == "notify":
                 d.update(
                     {
-                        k: r[k]
+                        k: r.get(k)
                         for k in (
                             "secs",
                             "expected",
                             "rx",
                             "gaps",
                             "missing",
+                            "missing_drop",
                             "dups",
                             "reconnects",
                         )

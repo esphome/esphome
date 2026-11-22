@@ -10,7 +10,7 @@ import sys
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
 import capstats  # noqa: E402
-from capstats import print_heap, print_warnings, sec  # noqa: E402
+from capstats import print_heap, print_warnings, sec, unwrap  # noqa: E402
 from peers import addrs  # noqa: E402
 
 ADDR = addrs()  # PEER_ADDRS=L=MAC,M=MAC,eve=MAC
@@ -25,6 +25,7 @@ for ln in (
     m = re.match(r"\[(\d\d:\d\d:\d\d\.\d+)\]", ln)
     if m:
         L.append((sec(m[1]), ln.rstrip()))
+L = list(zip(unwrap([t for t, _ in L]), [ln for _, ln in L], strict=True))
 phase, ph = None, defaultdict(list)
 for t, ln in L:
     if m := re.search(r"ST phase_start (\w+)", ln):
@@ -121,7 +122,8 @@ for name, lines in ph.items():
             d["held both"] = sum(a == "1" and b == "1" for *_, a, b in th)
         d["held_failed"] = txt.count("held_failed") or None
         nt = re.findall(
-            r"ST notify min=(\d+) rx=(\d+) gaps=(\d+) missing=(\d+) drops=(\d+)", txt
+            r"ST notify min=(\d+) rx=(\d+) gaps=(\d+) missing=(\d+) drops=(\d+)(?: missing_drop=(\d+))?",
+            txt,
         )
         if nt:
             d["notify last"] = nt[-1]
