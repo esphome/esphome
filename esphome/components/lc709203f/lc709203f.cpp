@@ -182,15 +182,12 @@ uint8_t Lc709203f::get_register_(uint8_t register_to_read, uint16_t *register_va
     //  from the registers.
     return_code = this->read_register(register_to_read, &read_buffer[3], 3);
     if (return_code != i2c::NO_ERROR) {
-      // Error on the i2c bus
-      char buf[64];
-      snprintf(buf, sizeof(buf), "Error code %d when reading from register 0x%02X", return_code, register_to_read);
-      this->status_set_warning(buf);
+      ESP_LOGV(TAG, "Read 0x%02X failed: %d", register_to_read, return_code);
+      this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     } else if (crc8(read_buffer, 5, 0x00, 0x07, true) != read_buffer[5]) {
-      // I2C indicated OK, but the CRC of the data does not matcth.
-      char buf[64];
-      snprintf(buf, sizeof(buf), "CRC error reading from register 0x%02X", register_to_read);
-      this->status_set_warning(buf);
+      // I2C indicated OK, but the CRC of the data does not match.
+      ESP_LOGV(TAG, "CRC error reading 0x%02X", register_to_read);
+      this->status_set_warning(LOG_STR("CRC error"));
     } else {
       *register_value = encode_uint16(read_buffer[4], read_buffer[3]);
       return i2c::NO_ERROR;
@@ -227,9 +224,8 @@ uint8_t Lc709203f::set_register_(uint8_t register_to_set, uint16_t value_to_set)
     if (return_code == i2c::NO_ERROR) {
       return return_code;
     } else {
-      char buf[64];
-      snprintf(buf, sizeof(buf), "Error code %d when writing to register 0x%02X", return_code, register_to_set);
-      this->status_set_warning(buf);
+      ESP_LOGV(TAG, "Write 0x%02X failed: %d", register_to_set, return_code);
+      this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     }
   }
 

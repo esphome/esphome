@@ -75,33 +75,26 @@ bool CH423Component::read_inputs_() {
   }
   uint8_t result = this->read_reg_(CH423_REG_IO_RD);
   this->input_bits_ = result;
-  this->status_clear_warning();
   return true;
 }
 
 // Write a register. Can't use the standard write_byte() method because there is no single pre-configured i2c address.
 bool CH423Component::write_reg_(uint8_t reg, uint8_t value) {
   auto err = this->bus_->write_readv(reg, &value, 1, nullptr, 0);
-  if (err != i2c::ERROR_OK) {
-    char buf[64];
-    ESPHOME_snprintf_P(buf, sizeof(buf), ESPHOME_PSTR("write failed for register 0x%X, error %d"), reg, err);
-    this->status_set_warning(buf);
+  if (!this->status_comm_result(err == i2c::ERROR_OK)) {
+    ESP_LOGV(TAG, "Write 0x%X failed: %d", reg, err);
     return false;
   }
-  this->status_clear_warning();
   return true;
 }
 
 uint8_t CH423Component::read_reg_(uint8_t reg) {
   uint8_t value;
   auto err = this->bus_->write_readv(reg, nullptr, 0, &value, 1);
-  if (err != i2c::ERROR_OK) {
-    char buf[64];
-    ESPHOME_snprintf_P(buf, sizeof(buf), ESPHOME_PSTR("read failed for register 0x%X, error %d"), reg, err);
-    this->status_set_warning(buf);
+  if (!this->status_comm_result(err == i2c::ERROR_OK)) {
+    ESP_LOGV(TAG, "Read 0x%X failed: %d", reg, err);
     return 0;
   }
-  this->status_clear_warning();
   return value;
 }
 
