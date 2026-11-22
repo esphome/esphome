@@ -117,3 +117,4 @@ ble_conn_interval/*.log
 ble_conn_interval/cap-*.txt
 ble_conn_interval/ping-*.txt
 ble_server_stack/*.log
+openthread_race/*.txt

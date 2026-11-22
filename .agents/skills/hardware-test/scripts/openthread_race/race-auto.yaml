@@ -1,0 +1,64 @@
+# Runs the race steps on the device, for a board whose API is too slow (a C6 under coexistence); include it with
+# race.yaml and wifi-drop.yaml. Each step waits until Thread has been up for 40 s with Wi-Fi connected; the step
+# counter survives reboots. Steps: 20 reboots, 3 Wi-Fi drops, then the race modes and delays in RACE_STEPS.
+globals:
+  - id: auto_step
+    type: int
+    restore_value: true
+    initial_value: '0'
+  - id: br_up
+    type: bool
+    initial_value: 'false'
+  - id: br_up_at
+    type: uint32_t
+    initial_value: '0'
+  - id: step_at
+    type: uint32_t
+    initial_value: '0'
+logger:
+  on_message:
+    - level: INFO
+      then:
+        - lambda: |-
+            if (strstr(message, "Border routing started") != nullptr) {
+              id(br_up) = true;
+              id(br_up_at) = millis();
+            }
+interval:
+  - interval: 1s
+    then:
+      - lambda: |-
+          struct RaceStep { int mode, delay_ms; };
+          static constexpr int REBOOTS = 20, DROPS = 3;
+          static constexpr RaceStep RACE_STEPS[] = {{1, 0},   {1, 0},   {1, 50},  {1, 100}, {1, 200}, {1, 300}, {1, 500},
+                                                    {3, 0},   {3, 0},   {3, 0},   {2, 0},   {2, 50},  {2, 150}, {2, 300}};
+          static constexpr int STEPS = REBOOTS + DROPS + sizeof(RACE_STEPS) / sizeof(RACE_STEPS[0]);
+          const uint32_t now = App.get_loop_component_start_time();
+          const int st = id(auto_step);
+          if (st >= STEPS)
+            return;
+          if (!(id(br_up) && wifi::global_wifi_component->is_connected() && now - id(br_up_at) > 40000)) {
+            if (now - id(step_at) > 300000 && now - id(br_up_at) > 300000) {
+              id(step_at) = now;
+              ESP_LOGW("hwt", "HWT auto stuck at step %d", st);
+            }
+            return;
+          }
+          id(auto_step) = st + 1;
+          id(step_at) = now;
+          id(br_up) = false;
+          if (st < REBOOTS) {
+            ESP_LOGI("hwt", "HWT auto step %d reboot", st);
+            App.safe_reboot();
+          } else if (st < REBOOTS + DROPS) {
+            ESP_LOGI("hwt", "HWT auto step %d wifi drop", st);
+            id(wifi_drop).execute(30);
+          } else {
+            const RaceStep &r = RACE_STEPS[st - REBOOTS - DROPS];
+            ESP_LOGI("hwt", "HWT auto step %d race mode %d after %d ms", st, r.mode, r.delay_ms);
+            id(race_mode) = r.mode;
+            id(race_delay) = r.delay_ms;
+            id(race_drop).execute();
+          }
+          if (st + 1 == STEPS)
+            ESP_LOGI("hwt", "HWT auto done");

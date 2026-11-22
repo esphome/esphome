@@ -20,7 +20,7 @@ One file per component, named after it:
 - [`nrf52.md`](nrf52.md): dongle board support, zephyr_ble_server connection slot under reordered callbacks, SMP over UDP OTA over Thread with reset faults, MCUboot swap limit and stuck slot recovery, TCP stack probe, sdk-nrf 3.4.1 build and USB notes, ItsyBitsy serial DFU and Thread MTD child table
 - [`npm1300.md`](npm1300.md): nPM1300 PMIC on the XIAO nRF54LM20A: probe build, every entity with a register dump and regulator toggles, power-on state and no-battery readings
 - [`online_image.md`](online_image.md): stalled and malformed downloads, PNG, JPEG, BMP and QOI decode time per loop pass with large images and small buffers
-- [`openthread.md`](openthread.md): border router on the S3 host plus H2 RCP, reboot, backbone loss and init retry flows, child supervision checks
+- [`openthread.md`](openthread.md): border router on the S3 host plus H2 RCP, reboot, backbone loss and init retry flows, child supervision checks, restart race package, Ethernet-only border router on the ESP32-S31 with a software link drop
 - [`ota.md`](ota.md): upload without a configuration and the refusal checks, overlap and lock, timeouts, deflate, upload timing A/B per build and board with deflate and raw, on-device inflate benchmark, OTA automations on two platforms
 - [`modem.md`](modem.md): PPPoS modem component boot check with no modem attached, loop blocking and disable timing, SIM7080G behaviour with no SIM and with no data plan through a raw UART passthrough, SIM7670G CMUX recovery and the retest flow for the modem fixes
 - [`mqtt.md`](mqtt.md): broker bench, QoS, reconnect, crash log over MQTT, WebSocket transports with a local and a public broker, TLS trust sources (own CA, client certificate, certificate bundle, no verification) with the CLI check, MAC suffix topics and will messages on two boards, shutdown message delivery on restart, disable and deep sleep, broker lookup at boot without DNS, broker restart and Wi-Fi drop
@@ -55,7 +55,7 @@ One file per component, named after it:
 - [`fake_i2c.md`](fake_i2c.md): fake I2C devices with no chip: in-firmware buses for many drivers, a Pico 2 W BME280/BMP280 target, a DS2482-800 simulator, NACK injection for vl53l0x, a CST816 touch controller with scripted frames
 - [`gpio_hold.md`](gpio_hold.md): GPIO hold through the ISR pin API, pad read back with no wiring, per chip pin notes
 - [`ble_event_inject.md`](ble_event_inject.md): made up GAP and GATTC events fed into the ESP32 BLE handlers from a button
-- [`light_sleep_gpio_wake.md`](light_sleep_gpio_wake.md): GPIO wakeup from auto light sleep with an LEDC wave that keeps running in sleep, and with an external wave and peripheral power-down on the ESP32-P4
+- [`light_sleep_gpio_wake.md`](light_sleep_gpio_wake.md): GPIO wakeup from auto light sleep with an LEDC wave that keeps running in sleep, and with an external wave and peripheral power-down on the ESP32-P4, why an S3 on native USB never light sleeps while the host is attached
 - [`manual_ip_and_web_handlers.md`](manual_ip_and_web_handlers.md): station, AP and Ethernet manual IP, web handlers added late and web OTA with web_server, captive_portal or prometheus
 - [`ble_server_security.md`](ble_server_security.md): esp32_ble_server pairing, encrypted and MITM characteristics, subscription before and after pairing, bond reuse per ESP-IDF version
 - [`prometheus.md`](prometheus.md): date, time and datetime metrics in UTC and another time zone

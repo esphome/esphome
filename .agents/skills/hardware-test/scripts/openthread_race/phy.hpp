@@ -1,0 +1,20 @@
+#pragma once
+#include "esp_eth_driver.h"
+#include "esphome/components/ethernet/ethernet_component.h"
+// Power the PHY down (BMCR bit 11) or back up with autonegotiation restarted: the link partner and the
+// driver see the same carrier loss as a pulled cable.
+inline void hwt_phy_power(bool on) {
+  esp_eth_handle_t h = esphome::ethernet::global_eth_component->get_eth_handle();
+  uint32_t v = 0;
+  esp_eth_phy_reg_rw_data_t rd{0, &v};
+  esp_err_t e1 = esp_eth_ioctl(h, ETH_CMD_READ_PHY_REG, &rd);
+  uint32_t before = v;
+  if (on)
+    v = (v & ~(1u << 11)) | (1u << 12) | (1u << 9);
+  else
+    v |= (1u << 11);
+  esp_eth_phy_reg_rw_data_t wr{0, &v};
+  esp_err_t e2 = esp_eth_ioctl(h, ETH_CMD_WRITE_PHY_REG, &wr);
+  ESP_LOGI("hwt", "HWT phy %s bmcr 0x%04x -> 0x%04x (%d/%d)", on ? "up" : "down", (unsigned) before, (unsigned) v, e1,
+           e2);
+}

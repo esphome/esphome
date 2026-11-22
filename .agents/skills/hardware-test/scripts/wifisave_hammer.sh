@@ -18,7 +18,7 @@
 # a failure); 2 RESULT INVALID (a precondition or the stimulus was missed, or a capture did not last the run);
 # 1 when a build, flash or port step fails (nothing is reported).
 set -u
-SKILL=$(cd "$(dirname "$0")/.." && pwd)
+SKILL=${SKILL:-$(cd "$(dirname "$0")/.." && pwd)}  # set SKILL when running a copy outside the skill
 KIND=$1; DPORT=$2; DYAML=$3; DTREE=$4; CPORT=$5; CYAML=$6; CTREE=$7; SETTLE=${8:-40}
 if [ -n "${PY:-}" ]; then [ -x "$PY" ] || { echo "[hammer] FAILED: PY=$PY is not executable"; exit 1; }
 else PY=$DTREE/venv/bin/python; [ -x "$PY" ] || PY=$(command -v python3) || { echo "[hammer] FAILED: no python found, set PY"; exit 1; }; fi
