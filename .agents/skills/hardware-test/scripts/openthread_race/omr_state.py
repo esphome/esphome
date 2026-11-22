@@ -1,5 +1,5 @@
-"""omr_state.py HOST KEY [SECS]: print the device's "OMR Prefix" text sensor and "Uptime" sensor (omr.yaml) as
-"omr=PREFIX uptime=SECONDS" once it holds a prefix.
+"""omr_state.py HOST KEY [SECS]: print the device's "OMR Prefix", "Reset Reason" and "Uptime" sensors (omr.yaml)
+as "omr=PREFIX reset=REASON uptime=SECONDS" once it holds a prefix.
 
 The values come from the device over a new API connection, so they cannot be a record cached from before a restart.
 Exits 1 when a sensor is missing or no prefix comes within SECS (default 15). KEY of - means a plaintext API.
@@ -31,15 +31,29 @@ async def main() -> int:
             (e.key for e in ents if isinstance(e, SensorInfo) and e.name == "Uptime"),
             None,
         )
-        if key is None or ukey is None:
-            print("no OMR Prefix or Uptime sensor (include omr.yaml)", file=sys.stderr)
+        rkey = next(
+            (
+                e.key
+                for e in ents
+                if isinstance(e, TextSensorInfo) and e.name == "Reset Reason"
+            ),
+            None,
+        )
+        if key is None or ukey is None or rkey is None:
+            print(
+                "no OMR Prefix, Uptime or Reset Reason sensor (include omr.yaml)",
+                file=sys.stderr,
+            )
             return 1
         got = asyncio.Event()
-        val, up, err = [""], [None], [""]
+        val, up, err, why = [""], [None], [""], [""]
 
         def on_state(s) -> None:
-            if s.missing_state:
+            # only these three: other entity states (a light, a fan) have no missing_state
+            if s.key not in (key, ukey, rkey) or s.missing_state:
                 return
+            if s.key == rkey:
+                why[0] = s.state
             # the latest state is the answer: an error or none after a prefix clears it
             if s.key == key and s.state.startswith("error:"):
                 err[0], val[0] = s.state, ""
@@ -49,7 +63,7 @@ async def main() -> int:
                 val[0] = s.state
             elif s.key == ukey:
                 up[0] = s.state
-            if val[0] and up[0] is not None:
+            if val[0] and up[0] is not None and why[0]:
                 got.set()
 
         c.subscribe_states(on_state)
@@ -61,7 +75,7 @@ async def main() -> int:
         if not val[0]:  # cleared by a later error or none
             print(f"omr={err[0] or 'none'} uptime={up[0]}")
             return 1
-        print(f"omr={val[0]} uptime={up[0]:.0f}")
+        print(f"omr={val[0]} reset={why[0]} uptime={up[0]:.0f}")
         return 0
     finally:
         await c.disconnect()

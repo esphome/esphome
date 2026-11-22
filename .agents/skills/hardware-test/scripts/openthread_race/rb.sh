@@ -2,7 +2,7 @@
 # rb.sh NAME COUNT OUT [TARGET6]: COUNT restarts of NAME through its Restart button; after each, wait up to 120 s for
 # the API, the OMR prefix (the device's own sensor from omr.yaml, read by omr_state.py) and, when given, a ping6 to a
 # Thread device's address TARGET6, and append one "cycle N ok=..." line to OUT (restarted=0: the uptime shows no
-# restart). The API key is API_KEY, else apikey.txt, else plaintext. env: PY
+# restart; bad_reset: a reset other than the requested reboot, such as a shutdown watchdog). The API key is API_KEY, else apikey.txt, else plaintext. env: PY
 D=$(cd "$(dirname "$0")" && pwd); N=$1; C=$2; O=$3; T6=$4
 if [ -z "$N" ] || [ -z "$O" ] || ! [[ $C =~ ^[1-9][0-9]*$ ]]; then
   echo "usage: rb.sh NAME COUNT OUT [TARGET6] (COUNT a positive number)" >&2; exit 2
@@ -65,8 +65,13 @@ for i in $(seq 1 "$C"); do
         # the result line itself, since a library warning on stderr can come after it
         res=$(grep -m1 '^omr=.* uptime=' <<< "$out")
         up=${res##*uptime=}; up=${up%%.*}
+        why=${res#*reset=}; why=${why% uptime=*}
         if ! [[ $up =~ ^[0-9]+$ ]]; then r="?"  # unreadable omr_state.py output, not a missed restart
-        elif [ "$up" -lt $(( $(date +%s) - t0 )) ]; then m=1; r=1; else r=0; fi
+        elif [ "$up" -ge $(( $(date +%s) - t0 )) ]; then r=0
+        # a low uptime only proves a reset: a shutdown watchdog or panic is not the requested reboot
+        elif [[ $why != "Reboot request"* && $why != "software via esp_restart" ]]; then
+          r="bad_reset"; last="reset: $why"
+        else m=1; r=1; fi
       fi
     fi
     # only after the restart is proven, so a ping from before it cannot count as recovery

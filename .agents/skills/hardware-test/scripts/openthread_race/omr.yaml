@@ -5,6 +5,9 @@ esphome:
   includes:
     - <openthread/border_routing.h>
 text_sensor:
+  - platform: debug
+    reset_reason:
+      name: Reset Reason
   - platform: template
     name: OMR Prefix
     update_interval: 2s
@@ -26,3 +29,6 @@ sensor:
   - platform: uptime
     name: Uptime
     update_interval: 2s
+# the reset reason tells a requested reboot ("Reboot request from ...") from a shutdown watchdog or panic
+debug:
+  update_interval: never

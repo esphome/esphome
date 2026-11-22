@@ -103,7 +103,9 @@ api:
             condition:
               # a link_drop still running would swallow this race's 15 s drop and leave it armed with no stimulus
               lambda: |-
-                return !hwt_phy_stuck && !id(link_drop).is_running() && delay_ms >= 0 && delay_ms <= 10000;
+                // nor while an earlier race is armed or firing: its callback would run into this one
+                return !hwt_phy_stuck && !id(link_drop).is_running() && id(race_delay) < 0 &&
+                       !id(race_fire).is_running() && delay_ms >= 0 && delay_ms <= 10000;
             then:
               - lambda: |-
                   id(race_delay) = delay_ms;

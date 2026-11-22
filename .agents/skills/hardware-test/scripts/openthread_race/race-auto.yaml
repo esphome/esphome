@@ -40,6 +40,11 @@ globals:
     type: int
     restore_value: true
     initial_value: '0'
+  # reboot steps that came back with another reset reason (a shutdown watchdog or panic)
+  - id: bad_reboot
+    type: int
+    restore_value: true
+    initial_value: '0'
 logger:
   on_message:
     - level: INFO
@@ -63,7 +68,7 @@ interval:
           if (id(auto_build) != build) {
             id(auto_build) = build;
             id(auto_step) = 0;
-            id(not_fired) = id(auto_armed) = id(crashed) = id(reset_armed) = 0;
+            id(not_fired) = id(auto_armed) = id(crashed) = id(reset_armed) = id(bad_reboot) = 0;
             ESP_LOGI("hwt", "HWT auto new build, step counter reset");
           }
           // first tick after a boot with a race armed: only a mode 2 race reboots by software (safe_reboot)
@@ -72,7 +77,10 @@ interval:
             booted = false;
             const esp_reset_reason_t why = esp_reset_reason();
             const uint32_t mark = race_rtc_fired;
-            if (id(auto_armed) != 0 && !(id(auto_armed) == 2 && why == ESP_RST_SW && mark == RACE_RTC_REBOOT)) {
+            if (id(auto_armed) == -1 && why != ESP_RST_SW) {  // a planned reboot step
+              ESP_LOGE("hwt", "HWT auto reboot step came back with reset reason %d", (int) why);
+              id(bad_reboot)++;
+            } else if (id(auto_armed) > 0 && !(id(auto_armed) == 2 && why == ESP_RST_SW && mark == RACE_RTC_REBOOT)) {
               if (mark == RACE_RTC_FIRED || mark == RACE_RTC_REBOOT) {
                 ESP_LOGE("hwt", "HWT auto race mode %d fired, then reset reason %d", id(auto_armed), (int) why);
                 id(crashed)++;
@@ -90,6 +98,7 @@ interval:
             // save the verdict before clearing its evidence, so a crash loop cannot lose it
             crashed->update();
             reset_armed->update();
+            bad_reboot->update();
             not_fired->update();
             auto_armed->update();
             global_preferences->sync();
@@ -127,14 +136,17 @@ interval:
           id(auto_armed) = 0;
           id(auto_step) = st + 1;
           if (st == STEPS) {  // the last step has recovered
-            ESP_LOGI("hwt", "HWT auto done, races not fired: %d, resets after a race: %d, resets before one: %d",
-                     id(not_fired), id(crashed), id(reset_armed));
+            ESP_LOGI("hwt",
+                     "HWT auto done, races not fired: %d, resets after a race: %d, resets before one: %d, "
+                     "bad reboots: %d",
+                     id(not_fired), id(crashed), id(reset_armed), id(bad_reboot));
             return;
           }
           id(step_at) = now;
           id(br_up) = false;
           if (st < REBOOTS) {
             ESP_LOGI("hwt", "HWT auto step %d reboot", st);
+            id(auto_armed) = -1;  // a planned reboot: the next boot checks it was the software reset
             App.safe_reboot();
           } else if (st < REBOOTS + DROPS) {
             ESP_LOGI("hwt", "HWT auto step %d wifi drop", st);
@@ -161,5 +173,5 @@ button:
     on_press:
       - lambda: |-
           id(auto_step) = 0;
-          id(not_fired) = id(auto_armed) = id(crashed) = id(reset_armed) = 0;
+          id(not_fired) = id(auto_armed) = id(crashed) = id(reset_armed) = id(bad_reboot) = 0;
           ESP_LOGI("hwt", "HWT auto step counter reset");

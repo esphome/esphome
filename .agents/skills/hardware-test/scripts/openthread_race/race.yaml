@@ -106,7 +106,9 @@ api:
             condition:
               # a wifi_drop still running would swallow this race's 15 s drop and leave it armed with no stimulus
               lambda: |-
-                return !id(wifi_drop).is_running() && mode >= 1 && mode <= 3 && delay_ms >= 0 && delay_ms <= 10000;
+                // nor while an earlier race is armed or firing: its callback would run into this one
+                return !id(wifi_drop).is_running() && id(race_mode) == 0 && !id(race_fire).is_running() &&
+                       mode >= 1 && mode <= 3 && delay_ms >= 0 && delay_ms <= 10000;
             then:
               - lambda: |-
                   id(race_mode) = mode;
