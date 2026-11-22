@@ -1797,7 +1797,7 @@ async def _polling_component_action(
 
     An if block, not an early return, so actions merged after this one still run.
     """
-    parent = await _apply_parent(config)
+    parent = await apply_parent(config)
     statements = [
         f"{cg.PollingComponent} &esphome__component = *{parent};",
         "if (esphome__component.is_ready()) {",
