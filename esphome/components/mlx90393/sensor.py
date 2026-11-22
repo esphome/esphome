@@ -1,6 +1,7 @@
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
+from esphome.components.const import CONF_DRDY_PIN
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_FILTER,
@@ -44,7 +45,6 @@ RESOLUTION = {
 CONF_X_AXIS = "x_axis"
 CONF_Y_AXIS = "y_axis"
 CONF_Z_AXIS = "z_axis"
-CONF_DRDY_PIN = "drdy_pin"
 CONF_HALLCONF = "hallconf"
 
 

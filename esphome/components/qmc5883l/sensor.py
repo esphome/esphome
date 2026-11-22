@@ -5,6 +5,7 @@ from typing import Any
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
+from esphome.components.const import CONF_DRDY_PIN
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADDRESS,
@@ -23,7 +24,6 @@ from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
-CONF_DRDY_PIN = "drdy_pin"
 
 DEPENDENCIES = ["i2c"]
 
