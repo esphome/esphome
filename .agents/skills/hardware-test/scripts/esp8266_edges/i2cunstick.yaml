@@ -1,0 +1,27 @@
+esphome:
+  name: i2cunstick
+  on_boot:
+    priority: 800
+    then:
+      - lambda: |-
+          pinMode(4, INPUT_PULLUP);
+          pinMode(5, INPUT_PULLUP);
+esp8266:
+  board: huzzah
+logger:
+  level: DEBUG
+interval:
+  - interval: 2s
+    then:
+      - lambda: |-
+          static int round = 0; round++;
+          int s0 = digitalRead(4), c0 = digitalRead(5);
+          int pulses = 0;
+          if (round >= 3 && round <= 6) {
+            // clock SCL by pulling low (open drain) up to 200 times while SDA is low
+            for (; pulses < 200 && digitalRead(4) == 0; pulses++) {
+              pinMode(5, OUTPUT); digitalWrite(5, LOW); delayMicroseconds(10);
+              pinMode(5, INPUT_PULLUP); delayMicroseconds(10);
+            }
+          }
+          ESP_LOGI("lvl", "round %d before SDA=%d SCL=%d pulses=%d after SDA=%d SCL=%d", round, s0, c0, pulses, digitalRead(4), digitalRead(5));

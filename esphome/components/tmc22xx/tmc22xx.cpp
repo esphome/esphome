@@ -62,10 +62,7 @@ void IRAM_ATTR IndexPulseStore::gpio_intr(IndexPulseStore *arg) { arg->pulses = 
 void IRAM_ATTR DiagPinStore::gpio_intr(DiagPinStore *arg) { arg->triggered = true; }
 
 void TMC22XXStepper::setup() {
-  if (this->enn_pin_ != nullptr) {
-    this->enn_pin_->setup();
-    this->enn_pin_->digital_write(true);
-  }
+  setup_output_pin(this->enn_pin_, true);
 
   auto version = this->read_field(VERSION);
   if (!version.has_value()) {
@@ -91,10 +88,8 @@ void TMC22XXStepper::setup() {
     this->index_pin_->setup();
     this->index_pin_->attach_interrupt(IndexPulseStore::gpio_intr, &this->index_store_, gpio::INTERRUPT_ANY_EDGE);
   } else {
-    this->step_pin_->setup();
-    this->step_pin_->digital_write(false);
-    this->dir_pin_->setup();
-    this->dir_pin_->digital_write(false);
+    setup_output_pin(this->step_pin_, false);
+    setup_output_pin(this->dir_pin_, false);
   }
 
   if (this->diag_pin_ != nullptr) {

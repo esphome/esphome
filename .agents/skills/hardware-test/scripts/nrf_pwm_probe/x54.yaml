@@ -1,0 +1,30 @@
+# XIAO nRF54LM20A: two LEDs on one PWM block (P1, 1 kHz), the third LED alone at 2 kHz (same port, other
+# frequency), and P3.04 (D15) at 1 kHz, which must get its own block because it is on another port.
+substitutions:
+  name: x54
+esphome:
+  name: ${name}
+nrf52:
+  board: xiao_nrf54lm20a
+logger:
+  hardware_uart: UART0
+packages:
+  sweep: !include sweep.yaml
+output:
+  - {platform: zephyr_pwm, id: led_r, pin: {number: P1.22, inverted: true}}
+  - {platform: zephyr_pwm, id: led_g, pin: {number: P1.24, inverted: true}}
+  - {platform: zephyr_pwm, id: led_b, pin: {number: P1.23, inverted: true}, frequency: 2kHz}
+  - {platform: zephyr_pwm, id: p3_04, pin: P3.04}
+script:
+  - id: probe_all
+    then:
+      - lambda: |-
+          id(led_r).set_level(id(level)); id(led_g).set_level(id(level));
+          id(led_b).set_level(id(level)); id(p3_04).set_level(id(level));
+      - delay: 300ms
+      - lambda: |-
+          pwmprobe::measure("led_r_P1.22", 32 + 22, id(level), 20);
+          pwmprobe::measure("led_g_P1.24", 32 + 24, id(level), 20);
+          pwmprobe::measure("led_b_P1.23", 32 + 23, id(level), 20);
+          pwmprobe::measure("p3_04", 96 + 4, id(level), 20);
+      - delay: 200ms
