@@ -72,12 +72,12 @@ void ADS131M0x::setup() {
     this->reset_pin_->digital_write(true);
   }
 
-  if (!this->task_.create(task_entry_, "ads131m0x", TASK_STACK_SIZE, this, TASK_PRIORITY, false)) {
+  if (!this->task_.create(task_entry, "ads131m0x", TASK_STACK_SIZE, this, TASK_PRIORITY, false)) {
     this->mark_failed(LOG_STR("Failed to create sampling task"));
     return;
   }
   this->task_handle_ = this->task_.get_handle();
-  this->drdy_pin_->attach_interrupt(&ADS131M0x::drdy_isr_, this, gpio::INTERRUPT_FALLING_EDGE);
+  this->drdy_pin_->attach_interrupt(&ADS131M0x::drdy_isr, this, gpio::INTERRUPT_FALLING_EDGE);
 
   this->last_health_check_ = millis();
   this->set_interval(HEALTH_CHECK_INTERVAL_MS, [this]() { this->check_health_(); });
@@ -156,13 +156,13 @@ void ADS131M0x::check_health_() {
   }
 }
 
-void IRAM_ATTR ADS131M0x::drdy_isr_(ADS131M0x *self) {
+void IRAM_ATTR ADS131M0x::drdy_isr(ADS131M0x *self) {
   BaseType_t woken = pdFALSE;
   vTaskNotifyGiveFromISR(self->task_handle_, &woken);
   portYIELD_FROM_ISR(woken);
 }
 
-void ADS131M0x::task_entry_(void *arg) { static_cast<ADS131M0x *>(arg)->task_loop_(); }
+void ADS131M0x::task_entry(void *arg) { static_cast<ADS131M0x *>(arg)->task_loop_(); }
 
 size_t ADS131M0x::frame_bytes_() const { return (2 + this->num_channels_) * WORD_BYTES; }
 

@@ -73,8 +73,8 @@ class ADS131M0x : public Component,
   float get_full_scale(uint8_t channel) const;
 
  protected:
-  static void task_entry_(void *arg);
-  static void drdy_isr_(ADS131M0x *self);
+  static void task_entry(void *arg);
+  static void drdy_isr(ADS131M0x *self);
   void task_loop_();
   void check_health_();
 
