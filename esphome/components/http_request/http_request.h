@@ -617,6 +617,9 @@ template<typename... Ts> class HttpRequestSendAction final : public Action<Ts...
 
   /// Code generation passes a captureless lambda.
   using json_func_t = void (*)(Ts..., JsonObject);
+  template<typename T>
+  using json_arg_t = std::conditional_t<std::is_lvalue_reference_v<T> && !std::is_const_v<std::remove_reference_t<T>>,
+                                        std::remove_cvref_t<T>, const T &>;
   void set_json(json_func_t json_func) { this->json_func_ = json_func; }
 
 #ifdef USE_HTTP_REQUEST_RESPONSE
@@ -676,9 +679,9 @@ template<typename... Ts> class HttpRequestSendAction final : public Action<Ts...
       // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
       json::JsonBuilder builder;
       JsonObject root = builder.root();
-      // The JSON gets its own copies of the args, so a lambda that changes a reference arg does not change the
-      // request's saved args; they live until the body is serialized, as the document may point into them
-      [&](std::remove_cvref_t<Ts>... copy) {
+      // Mutable reference args are copied, so a lambda that changes one does not change the request's saved args;
+      // the copies live until the body is serialized, as the document may point into them
+      [&](json_arg_t<Ts>... copy) {
         if (this->json_func_ != nullptr) {
           this->json_func_(copy..., root);
         } else {
