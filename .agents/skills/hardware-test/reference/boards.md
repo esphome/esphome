@@ -46,6 +46,8 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
   reaches the chip, `esptool --baud 460800 write-flash 0x0 firmware.bin` works and the log at 115200 is clean.
 - ESP8266 Wi-Fi join time: about 7.8 s with a passphrase, about 0.65 s with a 64 hex PSK and `fast_connect: true`.
   Use the PSK form when a test depends on early boot timing.
+- A CH340 on macOS reports no parity or framing errors (PARMRK marks nothing); tell 8N1 from 8E1 by the data
+  (recipes/uart_parity.md).
 
 ## ESP32 classic devkit
 
@@ -74,6 +76,13 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
 - On modules where GPIO16 and GPIO17 are taken by the module itself (PSRAM on WROVER modules, for example), a
   `uart:` bus on those pins boot-loops with a watchdog reset during setup. Use GPIO21 and GPIO22. The ESP32-PICO-D4 uses
   GPIO16 and GPIO17 for its internal flash: never put any pin there.
+- The USB adapter's TX also reaches GPIO3, so a second hardware UART with `rx_pin: GPIO3` receives what the host
+  writes while the logger stays on UART0 (recipes/uart_sim.md, PMS5003T feed).
+- Any `esp32_power_management` with `min_frequency` below `max_frequency` breaks APB-clocked UART RX (the IDF
+  driver holds the APB lock only while sending): about 60 % of PMS5003T frames parsed, about 20 % with light sleep,
+  the same with `esp_pm_configure()` by hand. `clock_source: REF_TICK` on the UART fixes frequency scaling, not
+  light sleep. A bare `min_frequency: 10` means 10 Hz; write `10MHz`. Light sleep builds restarted once per run with
+  an unreadable reason, and the logger output garbles under frequency scaling (#23038).
 
 ## ESP32-S3, C3, C6, H2 with native USB
 
