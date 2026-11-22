@@ -1,0 +1,18 @@
+esphome:
+  includes:
+    - lfhraw.hpp
+
+interval:
+  - interval: 10ms
+    then:
+      - lambda: lfhraw::poll(id(bus));
+
+script:
+  - id: run_cases
+    then:
+      - lambda: lfh::seen.clear(); ESP_LOGI("lfh", "RUN start");
+      - script.execute: {id: play, tuya: false}
+      - script.wait: play
+      - script.execute: {id: play, tuya: true}
+      - script.wait: play
+      - lambda: ESP_LOGI("lfh", "RUN end rejected=%u", (unsigned) lfhraw::rejected);

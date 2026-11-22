@@ -2,13 +2,7 @@ from esphome.automation import parent_ref
 import esphome.codegen as cg
 from esphome.components import sensor
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_BATTERY_VOLTAGE,
-    CONF_ID,
-    DEVICE_CLASS_CURRENT,
-    ENTITY_CATEGORY_DIAGNOSTIC,
-    UNIT_AMPERE,
-)
+from esphome.const import CONF_BATTERY_VOLTAGE, CONF_ID, ENTITY_CATEGORY_DIAGNOSTIC
 from esphome.core import CORE
 import esphome.final_validate as fv
 from esphome.types import ConfigType
@@ -78,9 +72,8 @@ CONFIG_SCHEMA = NPM1300_CHILD_SCHEMA.extend(
             kind=sensor.VOLTAGE, accuracy_decimals=3
         ),
         cv.Optional(CONF_VBUS_CURRENT_LIMIT): sensor.sensor_schema(
-            unit_of_measurement=UNIT_AMPERE,
+            kind=sensor.CURRENT,
             accuracy_decimals=1,
-            device_class=DEVICE_CLASS_CURRENT,
             entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
         ),
     }
