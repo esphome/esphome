@@ -213,9 +213,14 @@ async def context_action(
     )
 
 
+async def lv_global(id_: ID) -> MockObj:
+    """The global ``id_`` names, qualified so an action's trigger args cannot shadow it."""
+    return automation.parent_ref(await cg.get_variable(id_))
+
+
 async def lvgl_parent(config: ConfigType) -> MockObj:
-    """The LVGL component ``config`` names, as ``parent_ref`` spells it."""
-    return automation.parent_ref(await cg.get_variable(config[CONF_LVGL_ID]))
+    """The LVGL component ``config`` names."""
+    return await lv_global(config[CONF_LVGL_ID])
 
 
 class LvContext(LambdaContext):

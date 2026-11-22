@@ -1,3 +1,5 @@
+from typing import Any
+
 from esphome import automation, codegen as cg
 from esphome.automation import ApplyAction, Trigger
 import esphome.config_validation as cv
@@ -15,9 +17,9 @@ from ..lv_validation import lv_bool, lv_milliseconds
 from ..lvcode import (
     EVENT_ARG,
     LambdaContext,
-    add_line_marks,
     context_action,
     lv_add,
+    lv_global,
     lvgl_parent,
     lvgl_static,
 )
@@ -69,6 +71,15 @@ SHOW_SCHEMA = LVGL_SCHEMA.extend(
 page_spec = PageType()
 
 
+async def _show_page(config, action_id, template_arg, args, method: str, *page) -> Any:
+    """Call ``method`` on the LVGL component with ``page`` and the animation settings."""
+    async with LambdaContext(args, where=action_id) as context:
+        animation = await LV_ANIM.process(config[CONF_ANIMATION])
+        time = await lv_milliseconds.process(config[CONF_TIME])
+        lv_add(getattr(await lvgl_parent(config), method)(*page, animation, time))
+    return await context_action(context, action_id, template_arg, args)
+
+
 @automation.register_action(
     "lvgl.page.next",
     ApplyAction,
@@ -76,12 +87,7 @@ page_spec = PageType()
     synchronous=True,
 )
 async def page_next_to_code(config, action_id, template_arg, args):
-    async with LambdaContext(args) as context:
-        animation = await LV_ANIM.process(config[CONF_ANIMATION])
-        time = await lv_milliseconds.process(config[CONF_TIME])
-        add_line_marks(action_id)
-        lv_add((await lvgl_parent(config)).show_next_page(animation, time))
-    return await context_action(context, action_id, template_arg, args)
+    return await _show_page(config, action_id, template_arg, args, "show_next_page")
 
 
 automation.register_apply_condition(
@@ -101,12 +107,7 @@ automation.register_apply_condition(
     synchronous=True,
 )
 async def page_previous_to_code(config, action_id, template_arg, args):
-    async with LambdaContext(args) as context:
-        animation = await LV_ANIM.process(config[CONF_ANIMATION])
-        time = await lv_milliseconds.process(config[CONF_TIME])
-        add_line_marks(action_id)
-        lv_add((await lvgl_parent(config)).show_prev_page(animation, time))
-    return await context_action(context, action_id, template_arg, args)
+    return await _show_page(config, action_id, template_arg, args, "show_prev_page")
 
 
 @automation.register_action(
@@ -123,13 +124,10 @@ async def page_previous_to_code(config, action_id, template_arg, args):
     synchronous=True,
 )
 async def page_show_to_code(config, action_id, template_arg, args):
-    widget = automation.parent_ref(await cg.get_variable(config[CONF_ID]))
-    async with LambdaContext(args) as context:
-        animation = await LV_ANIM.process(config[CONF_ANIMATION])
-        time = await lv_milliseconds.process(config[CONF_TIME])
-        add_line_marks(action_id)
-        lv_add((await lvgl_parent(config)).show_page(widget.index, animation, time))
-    return await context_action(context, action_id, template_arg, args)
+    widget = await lv_global(config[CONF_ID])
+    return await _show_page(
+        config, action_id, template_arg, args, "show_page", widget.index
+    )
 
 
 async def add_pages(lv_component, config):

@@ -63,7 +63,15 @@ from ..lv_validation import (
     pixels_or_percent,
     size,
 )
-from ..lvcode import LambdaContext, LocalVariable, lv, lv_add, lv_expr, lv_obj
+from ..lvcode import (
+    LambdaContext,
+    LocalVariable,
+    lv,
+    lv_add,
+    lv_expr,
+    lv_global,
+    lv_obj,
+)
 from ..schemas import STATE_SCHEMA
 from ..styles import LVStyle, create_style
 from ..types import LV_EVENT, LvCompound, LvType, lv_event_t, lv_image_t, lv_obj_t
@@ -611,9 +619,7 @@ async def indicator_update_to_code(config, action_id, template_arg, args):
             return
         opa = await opacity.process(opa)
         if w.type is arc_indicator_type:
-            style = automation.parent_ref(
-                await cg.get_variable(ID(_arc_style_name(str(w.var))))
-            )
+            style = await lv_global(ID(_arc_style_name(str(w.var))))
             lv.style_set_arc_opa(style, opa)
             lv_obj.invalidate(w.parent)
         else:

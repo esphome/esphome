@@ -15,7 +15,7 @@ from esphome.const import (
     CONF_TIMEOUT,
 )
 from esphome.core import Lambda
-from esphome.cpp_generator import StaticCastExpression, get_variable
+from esphome.cpp_generator import StaticCastExpression
 from esphome.cpp_types import nullptr
 
 from .defines import (
@@ -49,6 +49,7 @@ from .lvcode import (
     lv,
     lv_add,
     lv_expr,
+    lv_global,
     lv_obj,
     lvgl_parent,
 )
@@ -410,7 +411,7 @@ async def widget_focus(config, action_id, template_arg, args):
             lv_group_t.operator("ptr"), lv_expr.obj_get_group(widget.obj)
         )
     elif group := config.get(CONF_GROUP):
-        group = automation.parent_ref(await get_variable(group))
+        group = await lv_global(group)
     else:
         group = lv_expr.group_get_default()
 

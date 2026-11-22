@@ -17,7 +17,8 @@ This module implements the canvas widget for LVGL 9.4. Key changes from LVGL 8.4
    - lv_canvas_set_px_color + lv_canvas_set_px_opa → lv_canvas_set_px(color, opa)
 """
 
-from contextlib import ExitStack
+from contextlib import nullcontext
+from typing import Any
 
 from esphome import automation, codegen as cg, config_validation as cv
 from esphome.components.display_menu_base import CONF_LABEL
@@ -148,6 +149,13 @@ async def canvas_fill(config, action_id, template_arg, args):
     return await action_to_code(widget, do_fill, action_id, template_arg, args)
 
 
+async def _process_points(points: list[dict], validator: Any) -> list[list[Any]]:
+    return [
+        [await validator.process(p[CONF_X]), await validator.process(p[CONF_Y])]
+        for p in points
+    ]
+
+
 @automation.register_action(
     "lvgl.canvas.set_pixels",
     automation.ApplyAction,
@@ -167,17 +175,8 @@ async def canvas_set_pixel(config, action_id, template_arg, args):
     async def do_set_pixels(w: Widget):
         color = await lv_color.process(config[CONF_COLOR])
         opa = await opacity.process(config[CONF_OPA])
-        points = [
-            (
-                await pixels.process(p[CONF_X]),
-                await pixels.process(p[CONF_Y]),
-            )
-            for p in config[CONF_POINTS]
-        ]
         # LVGL 9.4: lv_canvas_set_px combines color and opacity
-        # Could optimize this for lambda values
-        for point in points:
-            x, y = point
+        for x, y in await _process_points(config[CONF_POINTS], pixels):
             lv.canvas_set_px(w.obj, x, y, color, opa)
 
     return await action_to_code(widget, do_set_pixels, action_id, template_arg, args)
@@ -194,29 +193,35 @@ DRAW_OPA_SCHEMA = {
 }
 
 
-async def draw_to_code(
-    config, dsc_type, props, do_draw, action_id, template_arg, args, text_key=None
-):
-    """``text_key`` names the config text that the descriptor points to."""
+async def _drawn_text(text: Any) -> tuple[Any, Any]:
+    """The text for a descriptor and the block that keeps it alive until the layer is drawn.
+
+    A computed text is a temporary std::string; a const reference to it keeps it alive without a copy.
+    """
+    value = await lv_text.process(text)
+    if isinstance(text, str) or not str(value).endswith(".c_str()"):
+        return value, nullcontext()
+    return None, LocalVariable(
+        "text",
+        "const std::string",
+        MockObj(str(value)[: -len(".c_str()")]),
+        modifier="&",
+    )
+
+
+async def draw_to_code(config, dsc_type, props, do_draw, action_id, template_arg, args):
     widget = await get_widgets(config)
 
     async def action_func(w: Widget):
         x = await pixels.process(config.get(CONF_X))
         y = await pixels.process(config.get(CONF_Y))
-        with ExitStack() as stack:
-            text = config.get(text_key) if text_key is not None else None
-            if isinstance(text, str):
-                text = await lv_text.process(text)
-            elif text is not None:
-                # The layer draws when it is finished, so a computed text must outlive it
-                text = stack.enter_context(
-                    LocalVariable(
-                        "text",
-                        "const std::string",
-                        await lv_text.process(text),
-                        modifier="",
-                    )
-                ).c_str()
+        text, keep = (None, nullcontext())
+        if CONF_TEXT in config:
+            text, keep = await _drawn_text(config[CONF_TEXT])
+        # The layer draws when it is finished, so a computed text must outlive it
+        with keep as owned:
+            if owned is not None:
+                text = owned.c_str()
             # LVGL 9.4: Create a layer for drawing on canvas
             with LocalVariable("layer", "lv_layer_t", modifier="") as layer:
                 lv.canvas_init_layer(w.obj, addr(layer))
@@ -384,7 +389,6 @@ async def canvas_draw_text(config, action_id, template_arg, args):
         action_id,
         template_arg,
         args,
-        text_key=CONF_TEXT,
     )
 
 
@@ -502,14 +506,7 @@ def _validate_points(config):
 )
 async def canvas_draw_line(config, action_id, template_arg, args):
     async def do_draw_line(layer, _x, _y, dsc):
-        points = [
-            [
-                await pixels.process(p[CONF_X]),
-                await pixels.process(p[CONF_Y]),
-            ]
-            for p in config[CONF_POINTS]
-        ]
-        _draw_line(layer, dsc, points)
+        _draw_line(layer, dsc, await _process_points(config[CONF_POINTS], pixels))
 
     return await draw_to_code(
         config, "line", LINE_PROPS, do_draw_line, action_id, template_arg, args
@@ -530,13 +527,7 @@ async def canvas_draw_line(config, action_id, template_arg, args):
 )
 async def canvas_draw_polygon(config, action_id, template_arg, args):
     async def do_draw_polygon(layer, x, y, dsc):
-        points = [
-            [
-                await pixels_or_percent.process(p[CONF_X]),
-                await pixels_or_percent.process(p[CONF_Y]),
-            ]
-            for p in config[CONF_POINTS]
-        ]
+        points = await _process_points(config[CONF_POINTS], pixels_or_percent)
         # Close the polygon
         points.append(points[0])
         # LVGL 9.4: Draw polygon using line drawing in a closed path

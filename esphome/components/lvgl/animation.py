@@ -32,7 +32,7 @@ from .lv_validation import (
     lv_positive_float,
     lv_zero_to_one_float,
 )
-from .lvcode import LambdaContext, LvglComponent, context_action, lv_add
+from .lvcode import LambdaContext, LvglComponent, context_action, lv_add, lv_global
 from .schemas import STYLE_PROPS
 from .types import LvAnimation, lv_color_t, lv_coord_t, lv_obj_t, lvgl_ns
 from .widgets import get_widgets
@@ -273,7 +273,7 @@ async def start_animation(config, action_id, template_arg, args):
     loop = config.get(CONF_LOOP)
     async with LambdaContext(args, where=action_id) as context:
         for animation in animations:
-            anim_var = automation.parent_ref(await cg.get_variable(animation))
+            anim_var = await lv_global(animation)
             if loop is not None:
                 context.add(anim_var.set_loop(loop))
             if (duration := config.get(CONF_DURATION)) is not None:
@@ -304,6 +304,6 @@ async def stop_animation(config, action_id, template_arg, args):
     animations = config[CONF_ID]
     async with LambdaContext(args, where=action_id) as context:
         for animation in animations:
-            anim_var = automation.parent_ref(await cg.get_variable(animation))
+            anim_var = await lv_global(animation)
             context.add(anim_var.stop())
     return await context_action(context, action_id, template_arg, args)
