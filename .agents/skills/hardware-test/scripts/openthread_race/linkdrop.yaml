@@ -85,14 +85,15 @@ api:
       then:
         - if:
             condition:
-              lambda: 'return !hwt_phy_stuck && secs >= 1 && secs <= 600;'
+              # a link_drop still running would skip this one without a marker
+              lambda: 'return !hwt_phy_stuck && !id(link_drop).is_running() && secs >= 1 && secs <= 600;'
             then:
               - script.execute:
                   id: link_drop
                   secs: !lambda 'return secs;'
             else:
               - logger.log:
-                  format: "HWT drop refused: secs must be 1-600, or the PHY is stuck down"
+                  format: "HWT drop refused: secs not 1-600, a drop still running, or the PHY stuck down"
                   level: WARN
     - action: race
       variables:

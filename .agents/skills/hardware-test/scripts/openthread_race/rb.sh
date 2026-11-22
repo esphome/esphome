@@ -19,6 +19,11 @@ bound() {
   if command -v timeout > /dev/null; then timeout "$t" "$@"; else perl -e 'alarm shift; exec @ARGV' "$t" "$@"; fi
 }
 PY=${PY:-python3}
+# ping6 on macOS, ping -6 where there is no ping6 (many Linux hosts)
+if [ -n "$T6" ]; then
+  if command -v ping6 > /dev/null; then PING6=(ping6); elif ping -6 -c 1 ::1 > /dev/null 2>&1; then PING6=(ping -6)
+  else echo "rb.sh: no ping6 and no ping -6 for TARGET6" >&2; exit 2; fi
+fi
 # api_button.py: run it, keep its last output line in $last, and abort on errors no restart can fix
 SETUP_ERR='InvalidEncryptionKey|EncryptionPlaintext|RequiresEncryption|InvalidAuth'
 SETUP_ERR+='|ModuleNotFoundError|ImportError|no button'
@@ -65,7 +70,9 @@ for i in $(seq 1 "$C"); do
       fi
     fi
     # only after the restart is proven, so a ping from before it cannot count as recovery
-    [ $p = 1 ] || [ $m = 0 ] || { ping6 -c 1 -i 1 "$T6" > /dev/null 2>&1 && p=1; }
+    if [ $p = 0 ] && [ $m = 1 ]; then
+      pout=$("${PING6[@]}" -c 1 -i 1 "$T6" 2>&1) && p=1 || last="ping: ${pout##*$'\n'}"
+    fi
     [ $m$a$p = 111 ] && { ok=1; break; }
     sleep 1
   done
