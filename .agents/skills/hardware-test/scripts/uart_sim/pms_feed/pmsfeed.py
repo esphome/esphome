@@ -137,15 +137,18 @@ def main() -> None:
         b"Light Sleep Enabled" in log or b"esp_pm_configure(ls=1) = 0" in log
     )
     feeds = log.count(b"[feed] n=")
-    # frames fed inside the window the device counter covers, to compare with dev
-    win = (
-        sum(
-            cnt[0][3] < m.start() < cnt[-1][3]
-            for m in re.finditer(rb"\[feed\] n=", log)
-        )
-        if len(cnt) > 1
-        else 0
-    )
+    # frames fed inside the window the device counter covers, to compare with dev; a frame sent less than
+    # 0.3 s before the last cnt line can still be in flight when the device takes that count
+    win = 0
+    for m in re.finditer(
+        rb"^\[(\d\d):(\d\d):(\d\d(?:\.\d+)?)\]\[feed\] n=", log, re.MULTILINE
+    ):
+        if len(cnt) < 2 or not cnt[0][3] < m.start() < cnt[-1][3]:
+            continue
+        wall = int(m[1]) * 3600 + int(m[2]) * 60 + float(m[3])
+        if wall < cnt[0][2] - 43200:
+            wall += 86400  # midnight
+        win += wall < cnt[-1][2] - 0.3
     print(
         f"pm_configure={','.join(x.decode() for x in pm) or ('MISSING' if a.expect_pm else '-')} "
         f"pm_failed={pm_failed} cnt_lines={len(cnt)} "
@@ -158,10 +161,14 @@ def main() -> None:
         sys.exit("no frame was fed: the run tested nothing")
     if len(cnt) < 2:
         sys.exit("fewer than two cnt lines: the device parse count is unknown")
-    # dead only when the counter window held frames and no parse line shows up anywhere either
-    if win and not dev and not parses:
+    # dead when neither the counter nor a parse line shows any frame (parse lines cover frames past the window)
+    if not dev and not parses:
         sys.exit(
             "frames were fed but the device parsed none: check the GPIO3 wiring and the second UART"
+        )
+    if not win:
+        sys.exit(
+            "no frame was fed inside the device counter window: the run measured nothing"
         )
     if pm_failed:
         sys.exit("esp_pm_configure() failed: the run is not under power management")

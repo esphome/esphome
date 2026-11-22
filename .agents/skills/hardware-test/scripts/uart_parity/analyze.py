@@ -71,6 +71,12 @@ def main() -> None:
         if marks:
             k += f" [{marks} PARMRK error marks]"
         print(f"{t:8.3f} {k}")
+    # like txt.py: a capture with no data, a lost port or error marks is not a clean classification
+    rx = [h for _, d, h in bursts if d == "RX"]
+    marks = sum(rx_parse(h)[1] for h in rx)
+    hups = sum(d == "HUP" for _, d, _ in bursts)
+    if not rx or marks or hups:
+        sys.exit(f"{len(rx)} RX bursts, {marks} PARMRK error marks, {hups} HUP lines")
 
 
 if __name__ == "__main__":
