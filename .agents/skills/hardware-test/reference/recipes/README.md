@@ -38,9 +38,11 @@ One file per component, named after it:
 - [`dfrobot_sen0395.md`](dfrobot_sen0395.md): SEN0395 mmWave command flow, module quirks and overlong lines through its error reply
 - [`speaker.md`](speaker.md): media player pipeline tasks on the Connect AUX-2 with the `speaker` platform player
 - [`web_server.md`](web_server.md): state SSE stress and the HTTPD task stack on web_server_idf, entity icon and device class readback, per-session `/events` listing, `/events` head, stall, Wi-Fi drop and churn checks, byte-level JSON output A/B, `/events` close pattern churn with observers, REST and the HTTPS 501 check
+- [`speaker.md`](speaker.md): media player pipeline tasks on the Connect AUX-2 with the `speaker` platform player, FLAC stream changes and announcements without a DAC
+- [`web_server.md`](web_server.md): state SSE stress and the HTTPD task stack on web_server_idf, entity icon and device class readback, per-session `/events` listing, `/events` head, stall, Wi-Fi drop and churn checks
 - [`uart_sim.md`](uart_sim.md): UART sensors simulated on a classic ESP32 with loopback and cross-wired UARTs, a Duco ventilation box model on a second UART
 - [`gpio_expander.md`](gpio_expander.md): interrupt driven expander inputs, loop idle checks, testing a device out of reach
-- [`led_strip.md`](led_strip.md): forcing a failed strip allocation, RMT symbols per chip, loop cost per strip
+- [`led_strip.md`](led_strip.md): forcing a failed strip allocation, RMT symbols per chip, loop cost per strip, colour correction and partition A/B on the PIO probe, RMT power management lock under light sleep
 - [`remote_base.md`](remote_base.md): remote_receiver protocol decoding through a one-pin loopback on ESP32 and ESP8266, no IR hardware
 - [`xiaomi_ble.md`](xiaomi_ble.md): Xiaomi, ATC and PVVX parsing by injecting scan results into the ESP32 tracker or advertising them from a second ESP32, real AES-CCM frames, duplicate filter model
 - [`ble_terminate.md`](ble_terminate.md): proxy disconnect against a peer with peripheral latency

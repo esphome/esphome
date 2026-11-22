@@ -1,22 +1,13 @@
 #include "uln2003.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome::uln2003 {
 
 ESPHOME_LOG_TAG(TAG, "uln2003.stepper");
 
-static const LogString *step_mode_to_log_string(ULN2003StepMode mode) {
-  switch (mode) {
-    case ULN2003_STEP_MODE_FULL_STEP:
-      return LOG_STR("FULL STEP");
-    case ULN2003_STEP_MODE_HALF_STEP:
-      return LOG_STR("HALF STEP");
-    case ULN2003_STEP_MODE_WAVE_DRIVE:
-      return LOG_STR("WAVE DRIVE");
-    default:
-      return LOG_STR("UNKNOWN");
-  }
-}
+// Indexed by ULN2003StepMode
+PROGMEM_STRING_TABLE(StepModeStrings, "FULL STEP", "HALF STEP", "WAVE DRIVE", "UNKNOWN");
 
 void ULN2003::setup() {
   this->pin_a_->setup();
@@ -54,7 +45,9 @@ void ULN2003::dump_config() {
   LOG_PIN("  Pin B: ", this->pin_b_);
   LOG_PIN("  Pin C: ", this->pin_c_);
   LOG_PIN("  Pin D: ", this->pin_d_);
-  ESP_LOGCONFIG(TAG, "  Step Mode: %s", LOG_STR_ARG(step_mode_to_log_string(this->step_mode_)));
+  ESP_LOGCONFIG(
+      TAG, "  Step Mode: %s",
+      LOG_STR_ARG(StepModeStrings::get_log_str(static_cast<uint8_t>(this->step_mode_), StepModeStrings::LAST_INDEX)));
 }
 void ULN2003::write_step_(int32_t step) {
   int32_t n = this->step_mode_ == ULN2003_STEP_MODE_HALF_STEP ? 8 : 4;

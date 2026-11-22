@@ -2484,10 +2484,12 @@ class CpuFrequencyBoost {
  */
 class HighFrequencyLoopRequester {
  public:
+  /// Run the loop continuously while \p active is true. Repeating the current value does nothing.
+  void set(bool active);
   /// Start running the loop continuously.
-  void start();
+  void start() { this->set(true); }
   /// Stop running the loop continuously.
-  void stop();
+  void stop() { this->set(false); }
 
   /// Check whether the loop is running continuously.
   static bool is_high_frequency() { return num_requests > 0; }
