@@ -36,7 +36,6 @@ def test_action_text_uses_a_stack_buffer(main_cpp: str) -> None:
 
 
 def test_setup_text_stays_on_the_heap(main_cpp: str) -> None:
-    # Setup is one long function, so a buffer there would hold its stack throughout
     # Only the two action texts get a buffer
     assert main_cpp.count("char text_buf_") == 2
     assert (

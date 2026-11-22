@@ -149,6 +149,9 @@ class LambdaContext(CodeContext):
     A context that will accumulate code for use in a lambda.
     """
 
+    # Code runs in its own function, so a stack buffer there ends with it
+    local_scope = True
+
     def __init__(
         self,
         parameters: list[tuple[SafeExpType, str]] = None,
@@ -230,6 +233,8 @@ class LvContext(LambdaContext):
     """
 
     added_lambda_count = 0
+    # Adds to setup(), which runs as one long function
+    local_scope = False
 
     def add(self, expression: Expression | Statement):
         cg.add(expression)
