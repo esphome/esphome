@@ -53,6 +53,14 @@ static constexpr size_t MQTT_DEFAULT_TOPIC_MAX_LEN =
 /// Stored callback of an MQTT subscription: the topic, then the payload.
 using mqtt_subscription_callback_t = Callback<void(const std::string &, const std::string &)>;
 
+// Remove before 2027.6.0
+using mqtt_on_connect_callback_t ESPDEPRECATED(
+    "set_on_connect() takes any callable; pass the lambda directly. Removed in 2027.6.0",
+    "2026.12.0") = std::function<MQTTBackend::on_connect_callback_t>;
+using mqtt_on_disconnect_callback_t ESPDEPRECATED(
+    "set_on_disconnect() takes any callable; pass the lambda directly. Removed in 2027.6.0",
+    "2026.12.0") = std::function<MQTTBackend::on_disconnect_callback_t>;
+
 // Remove before 2027.5.0
 using mqtt_callback_t ESPDEPRECATED("subscribe() takes any callable; pass the lambda directly. Removed in 2027.5.0",
                                     "2026.11.0") = std::function<void(const std::string &, const std::string &)>;
