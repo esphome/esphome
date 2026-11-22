@@ -52,7 +52,7 @@ script:
             ESP_LOGW("hwt", "HWT link drop none");
       - delay: !lambda 'return secs * 1000;'
       - lambda: |-
-          if (id(drop_down) && hwt_phy_power(true))
+          if (id(drop_down) && hwt_phy_up_retry())
             ESP_LOGI("hwt", "HWT link drop end");
   - id: race_fire
     mode: single
@@ -75,7 +75,7 @@ script:
           }
       - delay: 20s
       - lambda: |-
-          if (id(race_down) && hwt_phy_power(true))
+          if (id(race_down) && hwt_phy_up_retry())
             ESP_LOGI("hwt", "HWT race link up");
 api:
   actions:
@@ -85,14 +85,14 @@ api:
       then:
         - if:
             condition:
-              lambda: 'return secs >= 1 && secs <= 600;'
+              lambda: 'return !hwt_phy_stuck && secs >= 1 && secs <= 600;'
             then:
               - script.execute:
                   id: link_drop
                   secs: !lambda 'return secs;'
             else:
               - logger.log:
-                  format: "HWT drop refused: secs must be 1-600"
+                  format: "HWT drop refused: secs must be 1-600, or the PHY is stuck down"
                   level: WARN
     - action: race
       variables:
@@ -100,7 +100,7 @@ api:
       then:
         - if:
             condition:
-              lambda: 'return delay_ms >= 0 && delay_ms <= 10000;'
+              lambda: 'return !hwt_phy_stuck && delay_ms >= 0 && delay_ms <= 10000;'
             then:
               - lambda: |-
                   id(race_delay) = delay_ms;
@@ -113,5 +113,5 @@ api:
                   gen: !lambda 'return id(race_gen);'
             else:
               - logger.log:
-                  format: "HWT race refused: delay_ms must be 0-10000"
+                  format: "HWT race refused: delay_ms must be 0-10000, or the PHY is stuck down"
                   level: WARN

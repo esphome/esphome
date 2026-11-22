@@ -35,6 +35,11 @@ globals:
     type: int
     restore_value: true
     initial_value: '0'
+  # resets other than a software reboot or power on while a race was armed but before it fired
+  - id: reset_armed
+    type: int
+    restore_value: true
+    initial_value: '0'
 logger:
   on_message:
     - level: INFO
@@ -58,7 +63,7 @@ interval:
           if (id(auto_build) != build) {
             id(auto_build) = build;
             id(auto_step) = 0;
-            id(not_fired) = id(auto_armed) = id(crashed) = 0;
+            id(not_fired) = id(auto_armed) = id(crashed) = id(reset_armed) = 0;
             ESP_LOGI("hwt", "HWT auto new build, step counter reset");
           }
           // first tick after a boot with a race armed: only a mode 2 race reboots by software (safe_reboot)
@@ -71,6 +76,11 @@ interval:
               if (mark == RACE_RTC_FIRED || mark == RACE_RTC_REBOOT) {
                 ESP_LOGE("hwt", "HWT auto race mode %d fired, then reset reason %d", id(auto_armed), (int) why);
                 id(crashed)++;
+              } else if (why != ESP_RST_SW && why != ESP_RST_POWERON) {
+                // a panic or watchdog while armed, not a missed race
+                ESP_LOGE("hwt", "HWT auto race mode %d armed, reset reason %d before it fired", id(auto_armed),
+                         (int) why);
+                id(reset_armed)++;
               } else {
                 ESP_LOGW("hwt", "HWT auto race mode %d not fired, reset reason %d", id(auto_armed), (int) why);
                 id(not_fired)++;
@@ -79,6 +89,7 @@ interval:
             id(auto_armed) = 0;
             // save the verdict before clearing its evidence, so a crash loop cannot lose it
             crashed->update();
+            reset_armed->update();
             not_fired->update();
             auto_armed->update();
             global_preferences->sync();
@@ -116,8 +127,8 @@ interval:
           id(auto_armed) = 0;
           id(auto_step) = st + 1;
           if (st == STEPS) {  // the last step has recovered
-            ESP_LOGI("hwt", "HWT auto done, races not fired: %d, resets after a race: %d", id(not_fired),
-                     id(crashed));
+            ESP_LOGI("hwt", "HWT auto done, races not fired: %d, resets after a race: %d, resets before one: %d",
+                     id(not_fired), id(crashed), id(reset_armed));
             return;
           }
           id(step_at) = now;
@@ -150,5 +161,5 @@ button:
     on_press:
       - lambda: |-
           id(auto_step) = 0;
-          id(not_fired) = id(auto_armed) = id(crashed) = 0;
+          id(not_fired) = id(auto_armed) = id(crashed) = id(reset_armed) = 0;
           ESP_LOGI("hwt", "HWT auto step counter reset");

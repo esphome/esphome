@@ -32,3 +32,17 @@ inline bool hwt_phy_power(bool on) {
            e2);
   return true;
 }
+
+// Power the PHY back up, retrying: a PHY left down would show as a lost backbone in every later cycle. After three
+// failures it logs "HWT phy stuck down" and sets hwt_phy_stuck, which blocks further drop and race actions.
+static bool hwt_phy_stuck = false;
+inline bool hwt_phy_up_retry() {
+  for (int i = 0; i < 3; i++) {
+    if (hwt_phy_power(true))
+      return true;
+    esphome::delay(200);
+  }
+  hwt_phy_stuck = true;
+  ESP_LOGE("hwt", "HWT phy stuck down: drop and race actions are blocked, later results are not valid");
+  return false;
+}
