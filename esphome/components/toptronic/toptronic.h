@@ -48,7 +48,7 @@ using SetRequest = std::array<uint8_t, MAX_SET_REQUEST_LEN>;
 #ifdef TOPTRONIC_OPTION_COUNT
 static constexpr size_t MAX_OPTIONS = TOPTRONIC_OPTION_COUNT;
 #else
-static constexpr size_t MAX_OPTIONS = 1;
+static constexpr size_t MAX_OPTIONS = 8;
 #endif
 struct Option {
   uint8_t value;
