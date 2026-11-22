@@ -89,10 +89,7 @@ void Sensor::add_filter(Filter *filter) {
   if (this->filter_list_ == nullptr) {
     this->filter_list_ = filter;
   } else {
-    Filter *last_filter = this->filter_list_;
-    while (last_filter->next_ != nullptr)
-      last_filter = last_filter->next_;
-    last_filter->initialize(this, filter);
+    this->filter_list_->last_()->initialize(this, filter);
   }
   filter->initialize(this, nullptr);
 }

@@ -3,11 +3,14 @@
 
 #include "filter.h"
 #include "text_sensor.h"
+
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
 namespace esphome::text_sensor {
+
+static_assert(alignof(TextSensor) >= 2, "Filter::link_ tags the sensor in the low bit");
 
 ESPHOME_LOG_TAG(TAG, "text_sensor.filter");
 
@@ -18,24 +21,28 @@ void Filter::input(std::string value) {
     this->output(value);
 }
 void Filter::output(std::string &value) {
-  if (this->next_ == nullptr) {
+  if (this->is_last_()) {
     ESP_LOGVV(TAG, "Filter(%p)::output(%s) -> SENSOR", this, value.c_str());
-    this->parent_->internal_send_state_to_frontend(value);
+    this->sensor_()->internal_send_state_to_frontend(value);
   } else {
-    ESP_LOGVV(TAG, "Filter(%p)::output(%s) -> %p", this, value.c_str(), this->next_);
-    this->next_->input(std::move(value));
+    ESP_LOGVV(TAG, "Filter(%p)::output(%s) -> %p", this, value.c_str(), this->next_());
+    this->next_()->input(std::move(value));
   }
 }
 #ifdef USE_TEXT_SENSOR_FILTER_RESET
 void Filter::reset_chain() {
-  for (Filter *filter = this; filter != nullptr; filter = filter->next_)
-    filter->initialize(filter->parent_, filter->next_);
+  TextSensor *parent = this->get_parent_();
+  for (Filter *filter = this;; filter = filter->next_()) {
+    const bool last = filter->is_last_();
+    filter->initialize(parent, last ? nullptr : filter->next_());
+    if (last)
+      return;
+  }
 }
 #endif
 void Filter::initialize(TextSensor *parent, Filter *next) {
   ESP_LOGVV(TAG, "Filter(%p)::initialize(parent=%p next=%p)", this, parent, next);
-  this->parent_ = parent;
-  this->next_ = next;
+  this->link_to_(parent, next);
 }
 
 // LambdaFilter
@@ -147,10 +154,10 @@ void TimeoutFilterBase::loop() {
 }
 
 void TimeoutFilterBase::send_(const char *text, size_t len) {
-  if (this->next_ == nullptr) {
-    this->parent_->internal_send_state_to_frontend(text, len);
+  if (this->is_last_()) {
+    this->sensor_()->internal_send_state_to_frontend(text, len);
   } else {
-    this->next_->input(std::string(text, len));
+    this->next_()->input(std::string(text, len));
   }
 }
 

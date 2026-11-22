@@ -4,17 +4,20 @@
 #include "filter.h"
 
 #include "binary_sensor.h"
+
 #include "esphome/core/application.h"
 
 namespace esphome::binary_sensor {
 
+static_assert(alignof(BinarySensor) >= 2, "Filter::link_ tags the sensor in the low bit");
+
 ESPHOME_LOG_TAG(TAG, "sensor.filter");
 
 void Filter::output(bool value) {
-  if (this->next_ == nullptr) {
-    this->parent_->send_state_internal(value);
+  if (this->is_last_()) {
+    this->sensor_()->send_state_internal(value);
   } else {
-    this->next_->input(value);
+    this->next_()->input(value);
   }
 }
 
@@ -38,7 +41,7 @@ optional<bool> delay_output(Filter *filter, uint32_t delay, bool value) {
 }
 
 void TimeoutFilter::input(bool value) {
-  App.scheduler.set_timeout(this, this->timeout_delay_.value(), [this]() { this->parent_->invalidate_state(); });
+  App.scheduler.set_timeout(this, this->timeout_delay_.value(), [this]() { this->get_parent_()->invalidate_state(); });
   // Every input re-arms the timeout, including repeats, so this filter must not de-dup
   this->output(value);
 }

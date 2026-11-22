@@ -11,6 +11,8 @@
 
 namespace esphome::sensor {
 
+static_assert(alignof(Sensor) >= 2, "Filter::link_ tags the sensor in the low bit");
+
 ESPHOME_LOG_TAG(TAG, "sensor.filter");
 
 /// Shared pass check for throttle_with_priority (NaN only): passes and stamps `last_input` when the
@@ -32,18 +34,17 @@ void Filter::input(float value) {
     this->output(*out);
 }
 void Filter::output(float value) {
-  if (this->next_ == nullptr) {
+  if (this->is_last_()) {
     ESP_LOGVV(TAG, "Filter(%p)::output(%f) -> SENSOR", this, value);
-    this->parent_->internal_send_state_to_frontend(value);
+    this->sensor_()->internal_send_state_to_frontend(value);
   } else {
-    ESP_LOGVV(TAG, "Filter(%p)::output(%f) -> %p", this, value, this->next_);
-    this->next_->input(value);
+    ESP_LOGVV(TAG, "Filter(%p)::output(%f) -> %p", this, value, this->next_());
+    this->next_()->input(value);
   }
 }
 void Filter::initialize(Sensor *parent, Filter *next) {
   ESP_LOGVV(TAG, "Filter(%p)::initialize(parent=%p next=%p)", this, parent, next);
-  this->parent_ = parent;
-  this->next_ = next;
+  this->link_to_(parent, next);
 }
 
 // SlidingWindowFilter
@@ -227,7 +228,7 @@ optional<float> MultiplyFilter::new_value(float value) { return value * this->mu
 
 // ValueListFilter
 bool ValueListFilter::value_matches_any_(float sensor_value) {
-  int8_t accuracy = this->parent_->get_accuracy_decimals();
+  int8_t accuracy = this->get_parent_()->get_accuracy_decimals();
   float accuracy_mult = pow10_int(accuracy);
   float rounded_sensor = roundf(accuracy_mult * sensor_value);
 

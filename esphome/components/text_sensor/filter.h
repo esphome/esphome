@@ -43,8 +43,26 @@ class Filter {
  protected:
   friend TextSensor;
 
-  Filter *next_{nullptr};
-  TextSensor *parent_{nullptr};
+  static constexpr uintptr_t LAST_TAG = 1;
+  /// True for the last filter, whose link holds the text sensor instead of a next filter.
+  bool is_last_() const { return this->link_ & LAST_TAG; }
+  Filter *next_() const { return reinterpret_cast<Filter *>(this->link_); }
+  /// The text sensor; only valid on the last filter.
+  TextSensor *sensor_() const { return reinterpret_cast<TextSensor *>(this->link_ - LAST_TAG); }
+  Filter *last_() {
+    Filter *filter = this;
+    while (!filter->is_last_())
+      filter = filter->next_();
+    return filter;
+  }
+  /// Walks to the end of the chain on every call.
+  TextSensor *get_parent_() { return this->last_()->sensor_(); }
+  void link_to_(TextSensor *parent, Filter *next) {
+    this->link_ = next != nullptr ? reinterpret_cast<uintptr_t>(next) : reinterpret_cast<uintptr_t>(parent) | LAST_TAG;
+  }
+
+  /// The next filter, or the text sensor tagged with LAST_TAG for the last filter.
+  uintptr_t link_{0};
 };
 
 using lambda_filter_t = std::function<optional<std::string>(std::string)>;

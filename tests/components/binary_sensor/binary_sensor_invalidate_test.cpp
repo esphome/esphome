@@ -127,4 +127,30 @@ TEST(BinarySensorInvalidate, AutorepeatResetFromItsOwnOutputStopsTheRepeat) {
   EXPECT_FALSE(sensor.has_state());
 }
 
+TEST(BinarySensorInvalidate, EveryFilterInTheChainIsReset) {
+  BinarySensor sensor;
+  InvertFilter invert;
+  DelayedOnFilter delayed_on;
+  delayed_on.set_delay([]() -> uint32_t { return 10; });
+  sensor.add_filter(&invert);
+  sensor.add_filter(&delayed_on);
+  sensor.publish_state(false);
+  sensor.invalidate_state();
+  run_scheduler_after(30);
+  EXPECT_FALSE(sensor.has_state());
+}
+
+TEST(BinarySensorInvalidate, ValuesPassEveryFilterBeforeTheSensor) {
+  BinarySensor sensor;
+  InvertFilter first;
+  InvertFilter second;
+  InvertFilter third;
+  sensor.add_filter(&first);
+  sensor.add_filter(&second);
+  sensor.add_filter(&third);
+  sensor.publish_state(true);
+  ASSERT_TRUE(sensor.has_state());
+  EXPECT_FALSE(sensor.state);
+}
+
 }  // namespace esphome::binary_sensor::testing
