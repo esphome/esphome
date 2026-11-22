@@ -154,6 +154,11 @@ def main() -> None:
     )
     feeds = log.count(b"[feed] n=")
     # frames fed between the first and last cnt line (all of them when feeding and draining ran as planned)
+    # a garbled digit in a cnt line also looks like a restart: a real one leaves a boot line between the counts
+    suspect = sum(
+        not re.search(rb"Running through setup|ESPHome version|rst:", log[a:b])
+        for a, b in restarts
+    )
     fed = [m.start() for m in re.finditer(rb"\[feed\] n=", log)]
     across = sum(any(a < f < b for a, b in restarts) for f in fed)  # not UART RX losses
     win = sum(cnt[0][3] < f < cnt[-1][3] for f in fed) - across if len(cnt) > 1 else 0
@@ -162,7 +167,7 @@ def main() -> None:
         f"pm_failed={pm_failed} cnt_lines={len(cnt)} "
         f"feeds={feeds} feeds_between_cnt_lines={win} feeds_across_restarts={across} parses={parses} "
         f"dev_parses_between_cnt_lines={dev} "
-        f"boots={boots} "
+        f"boots={boots} restarts_without_boot_line={suspect} "
         f"start_char={log.count(b'Start character')} payload_len={log.count(b'Payload length')} "
         f"checksum={log.count(b'checksum mismatch')}"
     )
@@ -170,6 +175,10 @@ def main() -> None:
         sys.exit("no frame was fed: the run tested nothing")
     if len(cnt) < 2:
         sys.exit("fewer than two cnt lines: the device parse count is unknown")
+    if suspect:
+        sys.exit(
+            f"{suspect} restarts with no boot line between the counts: likely a garbled cnt line"
+        )
     # dead when neither the counter nor a parse line shows any frame (parse lines cover frames past the window)
     if not dev and not parses:
         sys.exit(
