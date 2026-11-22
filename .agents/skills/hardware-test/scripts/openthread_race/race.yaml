@@ -46,6 +46,7 @@ script:
                 secs: 20
   - id: race_reenable
     then:
+      - delay: 0s  # leave the log callback first; the logger drops log calls made inside it
       - logger.log: "HWT race sync disable done"
       - delay: 20s
       - logger.log: "HWT race enable"

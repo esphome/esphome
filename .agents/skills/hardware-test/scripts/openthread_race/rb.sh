@@ -17,7 +17,9 @@ for i in $(seq 1 "$C"); do
   ok=0; m=0; a=0; p=0
   [ -n "$T6" ] || p=1
   while (( $(date +%s) - t0 < 120 )); do
-    [ $a = 1 ] || { timeout 8 $PY "$D/../api_button.py" "$IP" "${KEY:--}" list > /dev/null 2>&1 && a=1; }
+    # a failed probe looks the name up again, in case the restart got a new address
+    [ $a = 1 ] || { timeout 8 $PY "$D/../api_button.py" "$IP" "${KEY:--}" list > /dev/null 2>&1 && a=1; } ||
+      IP=$("$D/../resolve.sh" "$N" 1 2> /dev/null || echo "$IP")
     # only after the API is back, so a TXT record cached from before the restart cannot count
     [ $m = 1 ] || [ $a = 0 ] || { "$D/meshcop.sh" "$N" | grep -q "omr_present=1" && m=1; }
     [ $p = 1 ] || { ping6 -c 1 -i 1 "$T6" > /dev/null 2>&1 && p=1; }

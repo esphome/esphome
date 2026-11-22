@@ -43,9 +43,17 @@ api:
       variables:
         secs: int
       then:
-        - script.execute:
-            id: link_drop
-            secs: !lambda 'return secs;'
+        - if:
+            condition:
+              lambda: 'return secs >= 1 && secs <= 600;'
+            then:
+              - script.execute:
+                  id: link_drop
+                  secs: !lambda 'return secs;'
+            else:
+              - logger.log:
+                  format: "HWT drop refused: secs must be 1-600"
+                  level: WARN
     - action: race
       variables:
         delay_ms: int

@@ -1,6 +1,7 @@
 # Runs the race steps on the device, for a board whose API is too slow (a C6 under coexistence); include it with
 # race.yaml and wifi-drop.yaml. Each step waits until Thread has been up for 40 s with Wi-Fi connected; the step
-# counter survives reboots. Steps: 20 reboots, 3 Wi-Fi drops, then the race modes and delays in RACE_STEPS.
+# counter survives reboots and starts again at 0 on a new build. Steps: 20 reboots, 3 Wi-Fi drops, then the race
+# modes and delays in RACE_STEPS.
 globals:
   - id: auto_step
     type: int
@@ -14,6 +15,11 @@ globals:
     initial_value: '0'
   - id: step_at
     type: uint32_t
+    initial_value: '0'
+  # build time of the firmware that ran the steps: a new build starts again at step 0
+  - id: auto_build
+    type: uint32_t
+    restore_value: true
     initial_value: '0'
 logger:
   on_message:
@@ -34,6 +40,19 @@ interval:
                                                     {3, 0},   {3, 0},   {3, 0},   {2, 0},   {2, 50},  {2, 150}, {2, 300}};
           static constexpr int STEPS = REBOOTS + DROPS + sizeof(RACE_STEPS) / sizeof(RACE_STEPS[0]);
           const uint32_t now = App.get_loop_component_start_time();
+          const uint32_t build = (uint32_t) App.get_build_time();
+          if (id(auto_build) != build) {
+            id(auto_build) = build;
+            id(auto_step) = 0;
+            ESP_LOGI("hwt", "HWT auto new build, step counter reset");
+          }
+          // Thread must have been attached for 40 s too: Border routing started does not mean the C6 joined
+          static uint32_t thread_up_at = 0;
+          const bool thread_up = openthread::global_openthread_component->is_connected();
+          if (!thread_up)
+            thread_up_at = 0;
+          else if (thread_up_at == 0)
+            thread_up_at = now | 1;
           const int st = id(auto_step);
           if (st > STEPS)
             return;
@@ -43,7 +62,7 @@ interval:
           if (wifi_was_up && !wifi_up)
             id(br_up) = false;
           wifi_was_up = wifi_up;
-          if (!(id(br_up) && wifi_up && now - id(br_up_at) > 40000)) {
+          if (!(id(br_up) && wifi_up && thread_up && now - thread_up_at > 40000 && now - id(br_up_at) > 40000)) {
             if (now - id(step_at) > 300000 && now - id(br_up_at) > 300000) {
               id(step_at) = now;
               ESP_LOGW("hwt", "HWT auto stuck at step %d", st);
