@@ -1,0 +1,46 @@
+# Shared part of the harness: API, Run button and the case player. The board files set the UART pins (tx, rx).
+esphome:
+  name: ${name}
+  includes:
+    - lfh.hpp
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+api:
+  reboot_timeout: 0s
+
+logger:
+  level: VERBOSE
+
+uart:
+  id: bus
+  tx_pin: ${tx}
+  rx_pin: ${rx}
+  baud_rate: ${baud}
+  rx_buffer_size: 512
+
+button:
+  - platform: template
+    name: Run
+    on_press:
+      - script.execute: run_cases
+
+  - platform: restart
+    name: Restart
+
+script:
+  # Plays the ld2410 or the tuya case steps from lfh.hpp
+  - id: play
+    parameters:
+      tuya: bool
+    then:
+      - repeat:
+          count: !lambda return lfh::steps(tuya).size();
+          then:
+            - uart.write:
+                id: bus
+                data: !lambda return lfh::steps(tuya)[iteration].make();
+            - delay: !lambda return lfh::steps(tuya)[iteration].wait_ms;
+            - lambda: lfh::report(lfh::steps(tuya)[iteration].name);

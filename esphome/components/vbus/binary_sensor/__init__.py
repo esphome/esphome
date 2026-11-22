@@ -240,7 +240,7 @@ CONFIG_SCHEMA = cv.typed_schema(
                 cv.Optional(CONF_COMMAND): cv.uint16_t,
                 cv.Optional(CONF_SOURCE): cv.uint16_t,
                 cv.Optional(CONF_DEST): cv.uint16_t,
-                cv.Optional(CONF_BINARY_SENSORS): cv.ensure_list(
+                cv.Required(CONF_BINARY_SENSORS): cv.ensure_list(
                     binary_sensor.binary_sensor_schema().extend(
                         {
                             cv.GenerateID(): cv.declare_id(VBusCustomSub),
