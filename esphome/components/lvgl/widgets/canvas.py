@@ -196,12 +196,12 @@ DRAW_OPA_SCHEMA = {
 async def _drawn_text(text: Any) -> tuple[Any, Any]:
     """The text for a descriptor and the block that keeps it alive until the layer is drawn.
 
-    A computed text ending in ``.c_str()`` is a temporary std::string, kept by a const reference;
-    any other computed text (``if_nan:`` picks between two) is copied into a local.
+    A literal or a format buffer needs no keeping. A temporary std::string's ``.c_str()`` is kept by a
+    const reference; a choice that may hold one (``if_nan:`` with a heap format) is copied into a local.
     """
     value = await lv_text.process(text)
     code = str(value)
-    if isinstance(text, str) or (code.startswith('"') and code.endswith('"')):
+    if ".c_str()" not in code:
         return value, nullcontext()
     if code.endswith(".c_str()"):
         return None, LocalVariable(

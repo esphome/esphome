@@ -78,8 +78,9 @@ def test_computed_text_outlives_the_layer(main_cpp: str) -> None:
     main_cpp.index("lv_canvas_finish_layer(", assign)
 
 
-def test_conditional_text_is_copied_until_the_layer_is_drawn(main_cpp: str) -> None:
-    # An if_nan text picks between a temporary's c_str() and a literal, so it is copied
-    text = main_cpp.index("const std::string text_VAR_ = (std::isfinite(")
-    layer = main_cpp.index("lv_canvas_init_layer(", text)
-    main_cpp.index("dsc_VAR_.text = text_VAR_.c_str();", layer)
+def test_format_text_buffer_outlives_the_layer(main_cpp: str) -> None:
+    # A format text is a stack buffer declared before the layer, so it needs no copy
+    buf = main_cpp.index('snprintf(text_buf_1, sizeof(text_buf_1), "%.1f", NAN);')
+    layer = main_cpp.index("lv_canvas_init_layer(", buf)
+    main_cpp.index('dsc_VAR_.text = (std::isfinite(NAN) ? text_buf_1 : "--");', layer)
+    assert "const std::string text_VAR_ = " not in main_cpp
