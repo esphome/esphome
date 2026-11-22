@@ -20,7 +20,6 @@
 #include <cstdint>
 #include <unordered_map>
 #include <utility>
-#include <vector>
 
 namespace esphome::toptronic {
 
@@ -44,6 +43,17 @@ using GetRequest = std::array<uint8_t, GET_REQUEST_LEN>;
 static constexpr size_t MAX_SET_VALUE_LEN = 8;
 static constexpr size_t MAX_SET_REQUEST_LEN = GET_REQUEST_LEN + MAX_SET_VALUE_LEN;
 using SetRequest = std::array<uint8_t, MAX_SET_REQUEST_LEN>;
+
+// Options are fixed by the configuration, so they live in a codegen-sized vector
+#ifdef TOPTRONIC_OPTION_COUNT
+static constexpr size_t MAX_OPTIONS = TOPTRONIC_OPTION_COUNT;
+#else
+static constexpr size_t MAX_OPTIONS = 1;
+#endif
+struct Option {
+  uint8_t value;
+  const char *text;  // codegen string literal, valid for the life of the program
+};
 
 // Shared entity base. update() fires the GET wired up by the hub.
 class TopTronicBase : public PollingComponent {
@@ -112,17 +122,13 @@ class TopTronicTextSensor final : public text_sensor::TextSensor, public TopTron
  public:
   /// Returns the text for a value, or nullptr when it is not in the option list. The caller then
   /// keeps the last state instead of publishing an invalid one.
-  const char *parse_value(const uint8_t *data, size_t len);
+  const char *parse_value(const uint8_t *data, size_t len) const;
   SensorType type() const override { return SensorType::SENSOR_TYPE_TEXT; }
   const LogString *get_log_name() const override { return this->text_sensor::TextSensor::get_log_name(); }
   void add_option(uint8_t value, const char *text) { this->options_.push_back({value, text}); }
 
  protected:
-  struct Option {
-    uint8_t value;
-    const char *text;  // codegen string literal, valid for the life of the program
-  };
-  std::vector<Option> options_;
+  StaticVector<Option, MAX_OPTIONS> options_;
 };
 #endif
 #ifdef USE_SELECT
@@ -136,7 +142,7 @@ class TopTronicSelect final : public select::Select, public TopTronicBase {
 
  protected:
   void control(size_t index) override;
-  std::vector<uint8_t> values_;  // SET value per option index, in the same order as the options
+  StaticVector<uint8_t, MAX_OPTIONS> values_;  // SET value per option index, in the same order as the options
   TypeName type_{TypeName::TYPE_NAME_U8};
 };
 #endif

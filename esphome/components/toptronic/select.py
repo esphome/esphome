@@ -13,6 +13,7 @@ from . import (
     CONFIG_SCHEMA_BASE,
     TT_TYPE_OPTIONS,
     TopTronicComponent,
+    _request_option,
     _validate_options_values_lengths,
     toptronic,
 )
@@ -57,7 +58,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     tt = await cg.get_variable(config[CONF_TOPTRONIC_ID])
     var = cg.new_Pvariable(config[CONF_ID])
     await select.register_select(var, config, options=config[CONF_OPTIONS])
@@ -69,6 +70,7 @@ async def to_code(config):
     cg.add(var.set_type(config[CONF_TYPE]))
 
     for value in config[CONF_VALUES]:
+        _request_option(str(var))
         cg.add(var.add_option(value))
 
     cg.add(tt.add_input(var))
