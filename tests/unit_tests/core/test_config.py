@@ -406,8 +406,8 @@ async def test_suspend_loop_and_loop_interval(
 
     mock_cg.add_define.assert_any_call("ESPHOME_SUSPEND_LOOP")
     mock_cg.add_define.assert_any_call("ESPHOME_DEBUG_SCHEDULER")
-    mock_cg.App.set_loop_interval.assert_called_once_with(
-        cv.TimePeriodMilliseconds(milliseconds=50)
+    mock_cg.add_optional.assert_any_call(
+        mock_cg.App.set_loop_interval, cv.TimePeriodMilliseconds(milliseconds=50)
     )
 
 
