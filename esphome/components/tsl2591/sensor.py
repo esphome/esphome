@@ -19,8 +19,6 @@
 # Here is the project that started me down the TSL2591 device trail in the first
 # place: https://hackaday.io/project/176690-the-water-watcher
 
-from typing import Any
-
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
 import esphome.config_validation as cv
@@ -39,7 +37,6 @@ from esphome.const import (
     ICON_BRIGHTNESS_6,
     STATE_CLASS_MEASUREMENT,
 )
-from esphome.core import EnumValue
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["i2c"]
@@ -70,11 +67,6 @@ GAINS = {
     "MAXIMUM": TSL2591ComponentGain.TSL2591_CGAIN_MAX,
     "AUTO": TSL2591ComponentGain.TSL2591_CGAIN_AUTO,
 }
-
-
-def validate_integration_time(value: Any) -> EnumValue:
-    value = cv.positive_time_period_milliseconds(value).total_milliseconds
-    return cv.enum(INTEGRATION_TIMES, int=True)(value)
 
 
 TSL2591Component = tsl2591_ns.class_(
@@ -108,9 +100,9 @@ CONFIG_SCHEMA = (
                 accuracy_decimals=0,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
-            cv.Optional(
-                CONF_INTEGRATION_TIME, default="100ms"
-            ): validate_integration_time,
+            cv.Optional(CONF_INTEGRATION_TIME, default="100ms"): cv.time_period_enum(
+                INTEGRATION_TIMES
+            ),
             cv.Optional(CONF_NAME, default="TLS2591"): cv.string,
             cv.Optional(CONF_GAIN, default="AUTO"): cv.enum(GAINS, upper=True),
             cv.Optional(CONF_POWER_SAVE_MODE, default=True): cv.boolean,

@@ -190,3 +190,18 @@ applied).
   per-step scenario, maps the NACK sweep through the merged stream and lists every log difference.
   `bmm150-sweep.cpp.example` compares a decoder against a namespace-renamed copy of the base header bit for bit.
 - A planted one byte burst offset gave INTERNAL_STATUS 0x02 and "Config file upload failed" at both burst sizes.
+
+## Fake CST816 touch controller (#22435)
+
+`templates/i2c_fake/cstfake.hpp` + `cst-common.yaml` (per-run file: `substitutions: name: X` plus
+`<<: !include cst-common.yaml`). The fake answers 0x15: chip ID register 0xA7 = 0xB5 (CST816T), accepts the 0xFA IRQ
+write and returns a scripted 13 byte status frame for reads of register 0x00 (count at byte 2, X/Y 12 bit at 3..6, or an
+all 0xFF frame). An `interval` advances one step every 600 ms (12 polls at the 50 ms touchscreen default), three rounds,
+then prints a `SUMMARY` line per step (on_touch, on_update and on_release counts, last scaled and raw coordinates) and a
+`TOTAL`. Every stimulus step is followed by a count 0 step, so releases land on a named step.
+- The touchscreen needs a display: an ILI9341 on unconnected S3 pins (SPI 40/41, CS 42, DC 39, `color_palette: 8BIT`,
+  `update_interval: never`) is enough. Calibration 0..240 / 0..320 makes the scaled point raw minus one.
+- A global named `round` collides with libm `round()`; use another id.
+- Capture 60 s from a reset over USB_SERIAL_JTAG. Before #22435 the all 0xFF frame, counts 3 and 5, and 0xFFF on X or
+  Y were reported as touches (at 239/319); after it none are. Real, two-point and out-of-range (clamped) touches are
+  the same on both builds.
