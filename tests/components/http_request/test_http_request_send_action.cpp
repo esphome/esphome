@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <array>
 #include <cstring>
 #include <memory>
 #include <string>
@@ -57,6 +58,7 @@ class FakeHttpRequest : public HttpRequestComponent {
                                        const std::vector<std::string> &lower_case_collect_headers,
                                        uint32_t timeout_ms) override {
     this->begins++;
+    this->request_body = body;
     if (this->refuse)
       return nullptr;
     auto container = std::make_shared<FakeContainer>();
@@ -70,6 +72,7 @@ class FakeHttpRequest : public HttpRequestComponent {
   }
 
   int begins{0};
+  std::string request_body;
   bool refuse{false};
   int pending_polls{2};
   uint32_t poll_delay_ms{0};
@@ -607,6 +610,35 @@ TEST_F(HttpRequestSendActionTest, MaxConcurrentRequestsKeepsTheQueueLimit) {
   this->run_until_idle_();
   EXPECT_EQ(this->responses_, 6);
   EXPECT_EQ(this->next_count_, 8);
+}
+
+TEST_F(HttpRequestSendActionTest, JsonLambdaBuildsTheBody) {
+  this->action_.set_json([](JsonObject root) { root["status"] = "ok"; });
+  this->trigger_.trigger();
+  EXPECT_EQ(this->http_.request_body, R"({"status":"ok"})");
+}
+
+TEST_F(HttpRequestSendActionTest, JsonEntriesBuildTheBody) {
+  std::array<HttpRequestSendAction<>::JsonEntry, 2> storage;
+  this->action_.set_json_storage(storage);
+  this->action_.add_json("key", std::string("value"));
+  this->action_.add_json("dynamic", []() -> std::string { return "x"; });
+  this->trigger_.trigger();
+  EXPECT_EQ(this->http_.request_body, R"({"key":"value","dynamic":"x"})");
+}
+
+// The lambda gets the trigger's arguments through the function pointer
+TEST(HttpRequestSendActionJson, JsonLambdaGetsTheTriggerArgs) {
+  FakeHttpRequest http;
+  HttpRequestSendAction<int> action{&http};
+  action.set_url([](int) -> std::string { return "http://example.invalid/"; });
+  action.set_method([](int) -> const char * { return "POST"; });
+  action.set_json([](int x, JsonObject root) { root["x"] = x; });
+  Trigger<int> trigger;
+  Automation<int> automation{&trigger};
+  automation.add_action(&action);
+  trigger.trigger(7);
+  EXPECT_EQ(http.request_body, R"({"x":7})");
 }
 
 }  // namespace esphome::http_request::testing
