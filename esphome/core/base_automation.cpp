@@ -11,7 +11,7 @@ void ProjectUpdateComponent::setup() {
   char previous_version[30];
   char current_version[30] = ESPHOME_PROJECT_VERSION_30;
   if (pref.load(&previous_version) && strcmp(previous_version, current_version) < 0)
-    this->fire_(previous_version);
+    this->fire(previous_version);
   pref.save(&current_version);
   global_preferences->sync();
 }
