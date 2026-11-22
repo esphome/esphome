@@ -130,7 +130,11 @@ def jl(s):
         ]
     except FileNotFoundError:
         print(f"{s}: no {T}-{s}.jsonl, the driver wrote nothing")
+        flagged.append(f"{s}: no driver file")
         return []
+
+
+flagged: list[str] = []
 
 
 out = {}
@@ -312,6 +316,9 @@ for s in steps:
     d["rejected"] = sum("Rejected" in ln for ln in L)
     d["tcp_full"] = sum("TCP buffer full" in ln for ln in L)
     out[s] = d
+    # a partial or faulted step must not pass as a clean result
+    if bad := [k for k in ("warn", "no_round", "aborted_runs", *HARNESS) if d.get(k)]:
+        flagged.append(f"{s}: {','.join(bad)}")
     print(s, json.dumps(d, default=str))
 
 # whole run
@@ -339,3 +346,6 @@ try:
     )
 except FileNotFoundError:
     print(f"no ping-{T}.txt, ping not measured")
+if flagged:
+    print("FLAGGED:", "; ".join(flagged))
+    sys.exit(1)

@@ -502,20 +502,28 @@ inline void tick() {
           }
         }
       } else if (st == 8) {
+        // like drive.py: one 10 s budget from the connect start to the command, five attempts per round
         Rtt *rt = RT[p];
-        if (rt->pending && up(p) && now - rt->t0 < 10000)
+        if (rt->pending && up(p) && now - t0 < 10000)
           break;
         rt->pending = 0;
         if (rt->ok) {
           ok_n++;
           if (att == 0)
             first_ok_n++;
-        } else {
+          ESP_LOGI(TAG, "ST retry %s r=%u attempts=%u ok=1", PNAME[p], rnd, att + 1);
+          att = 0;
+          st = 3;
+        } else if (++att >= 5) {
           fail_n++;
+          ESP_LOGI(TAG, "ST retry %s r=%u attempts=5 ok=0", PNAME[p], rnd);
+          att = 0;
+          st = 3;
+        } else {
+          drop(p);  // the command failed on an up link: disconnect and try the next attempt
+          st = 6;
+          t_wait = now;
         }
-        ESP_LOGI(TAG, "ST retry %s r=%u attempts=%u ok=%d", PNAME[p], rnd, att + 1, rt->ok);
-        att = 0;
-        st = 3;
       } else if (st == 6) {
         if ((idle(p) && now - t_wait > 1000) || now - t_wait > 15000)
           st = 0;
