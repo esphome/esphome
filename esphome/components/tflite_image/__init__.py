@@ -14,6 +14,7 @@ from esphome.components.tflite_micro_runtime import (
     final_validate,
 )
 from esphome.components.tflite_model_io.model_reader import read_model_io
+from esphome.components.tflite_output_processor import OUTPUT_PROCESSING
 import esphome.config_validation as cv
 from esphome.const import CONF_DEBUG
 from esphome.types import ConfigType
@@ -46,7 +47,6 @@ ChannelOrder = tflite_image_ns.enum("ChannelOrder", is_class=True)
 
 output_ns = cg.esphome_ns.namespace("tflite_output_processor")
 ClassificationDecoder = output_ns.class_("ClassificationDecoder")
-OutputProcessing = output_ns.enum("OutputProcessing", is_class=True)
 
 CHANNEL_ORDERS = {
     "RGB": ChannelOrder.CHANNEL_ORDER_RGB,
@@ -54,12 +54,6 @@ CHANNEL_ORDERS = {
     "GRAY": ChannelOrder.CHANNEL_ORDER_GRAY,
 }
 INPUT_TYPES = {"uint8", "float32"}
-OUTPUT_PROCESSING_MODES = {
-    "argmax": OutputProcessing.OUTPUT_PROCESSING_ARGMAX,
-    "softmax": OutputProcessing.OUTPUT_PROCESSING_SOFTMAX,
-    "qat_quantized": OutputProcessing.OUTPUT_PROCESSING_QAT_QUANTIZED,
-    "auto_detect": OutputProcessing.OUTPUT_PROCESSING_AUTO_DETECT,
-}
 
 IMAGE_SCHEMA = cv.Schema(
     {
@@ -70,8 +64,8 @@ IMAGE_SCHEMA = cv.Schema(
         cv.Optional(CONF_INPUT_ORDER): cv.enum(CHANNEL_ORDERS, upper=True),
         cv.Optional(CONF_NORMALIZE): cv.boolean,
         cv.Optional(CONF_INVERT): cv.boolean,
-        cv.Optional(CONF_OUTPUT_PROCESSING, default="argmax"): cv.one_of(
-            *OUTPUT_PROCESSING_MODES, lower=True
+        cv.Optional(CONF_OUTPUT_PROCESSING, default="argmax"): cv.enum(
+            OUTPUT_PROCESSING, lower=True
         ),
         cv.Optional(CONF_SCALE_FACTOR, default=1.0): cv.float_range(min=0.1, max=100.0),
         cv.GenerateID(CONF_PIPELINE_ID): cv.declare_id(ImageInputPipeline),
@@ -149,7 +143,7 @@ async def configure(var, config: ConfigType, model_path: Path) -> None:
     cg.add(var.set_input_pipeline(build_pipeline(config, model_path)))
     decoder = cg.new_Pvariable(
         config[CONF_DECODER_ID],
-        OUTPUT_PROCESSING_MODES[config[CONF_OUTPUT_PROCESSING]],
+        config[CONF_OUTPUT_PROCESSING],
         config[CONF_SCALE_FACTOR],
         config.get(CONF_DEBUG, False),
     )
