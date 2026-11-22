@@ -39,7 +39,7 @@
 struct device;
 #endif
 
-// ESP32 UART or USB Serial/JTAG console, whose TX buffer a restart does not wait for
+// ESP32 UART or USB Serial/JTAG console
 #if defined(USE_ESP32) && !defined(USE_LOGGER_UART_SELECTION_USB_CDC)
 #define USE_LOGGER_WAIT_TX_DONE
 #endif

@@ -22,7 +22,7 @@ ESPHOME_LOG_TAG(TAG, "logger");
 #ifdef USE_LOGGER_DEFER_UNDER_LWIP_LOCK
 // lwIP code run under the core lock (tcpip_api_call, netif callbacks) can log. A listener that writes to a socket would
 // take that lock again and deadlock, so such a line is queued for loop() instead. It can print after later inline
-// lines, and is lost if loop() never runs again (safe_reboot()).
+// lines; on_powerdown() prints what is still queued at a restart.
 static inline bool HOT ESPHOME_ALWAYS_INLINE under_lwip_core_lock() {
   return sys_thread_tcpip(LWIP_CORE_LOCK_QUERY_HOLDER) && sys_thread_tcpip(LWIP_CORE_IS_TCPIP_INITIALIZED);
 }
