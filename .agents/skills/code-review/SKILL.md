@@ -132,6 +132,17 @@ helper; `AGENTS.md` section 4 and the `component-codegen` skill have the detail.
 | `x < lo ? lo : (x > hi ? hi : x)` | `std::clamp(x, lo, hi)` |
 | I2C read, mask, write by hand; private 16-bit register byte helpers | `update_register`, `update_register16`, `read_byte_reg16`, `write_byte_reg16` |
 | custom validator that checks which keys are set, or one schema with model checks | `cv.has_exactly_one_key`, `cv.has_at_most_one_key`, `cv.Inclusive`/`cv.Exclusive`, `cv.typed_schema` per model |
+| validator that turns a time period into one of a few allowed values | `cv.time_period_enum({10: Rate.RATE_10MS, ...})` (`unit="us"` for microseconds) |
+| `unit_of_measurement=`, `device_class=` and `state_class=` written out in `sensor_schema` | `sensor.sensor_schema(kind=sensor.TEMPERATURE)` (or another preset), plus only what it leaves unset |
+| `pin->setup(); pin->digital_write(level);`, often inside `if (pin != nullptr)` | `setup_output_pin(pin, level)` (`esphome/core/gpio_pin.h`), null-safe |
+| write level, `delayMicroseconds(n)`, write the opposite level | `pulse_pin(pin, level, n)`; width 0 for back-to-back writes |
+| reset pin setup, then low, `delay`, high, `delay` | `pulse_reset(pin, {.high_before_ms = ..., .low_ms = ..., .high_after_ms = ...})`, null-safe |
+| `if (cond) this->high_freq_.start(); else this->high_freq_.stop();` | `this->high_freq_.set(cond)` |
+| `b >> 4`, `b & 0x0F`, `(hi << 4) \| lo` for 4-bit fields and 12-bit values | `high_nibble`, `low_nibble`, `encode_uint12` (`esphome/core/helpers.h`) |
+| `#ifdef USE_ESP8266` around appending a flash string to a buffer | `buf_append_str(buf, size, pos, "...")` / `buf_append_str_p` on every platform |
+| `remote_base` protocol whose data is plain fields, with hand-written binary sensor and action registration | `register_simple_protocol(name, protocol, schema, *fields)` |
+| buffer sized from the config and allocated in `setup()` | `cg.static_buffer` (`component-codegen` skill) |
+| hub keeping a list of child objects that each take a value, or per-child listener classes | `cg.HubFunction` publishers (`component-codegen` skill) |
 
 
 ## Cleanups automated reviews keep missing
