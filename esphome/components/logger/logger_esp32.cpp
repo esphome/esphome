@@ -111,6 +111,14 @@ static_assert(static_cast<int>(UART_SELECTION_UART0) == static_cast<int>(UART_NU
 static_assert(static_cast<int>(UART_SELECTION_UART2) == static_cast<int>(UART_NUM_2));
 #endif
 
+#if !defined(USE_LOGGER_UART_SELECTION_USB_CDC) && !defined(USE_LOGGER_UART_SELECTION_USB_SERIAL_JTAG)
+void Logger::on_powerdown() {
+  // esp_restart() drains the UART FIFO but not the driver's TX ring buffer
+  if (this->baud_rate_ > 0)
+    uart_wait_tx_done(this->get_uart_num(), pdMS_TO_TICKS(100));
+}
+#endif
+
 void Logger::pre_setup() {
   if (this->baud_rate_ > 0) {
 #ifdef USE_LOGGER_UART_SELECTION_USB_SERIAL_JTAG
