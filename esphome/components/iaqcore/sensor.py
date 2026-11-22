@@ -5,7 +5,7 @@ from esphome.const import (
     CONF_CO2,
     CONF_ID,
     CONF_TVOC,
-    DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS,
+    DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS,
     STATE_CLASS_MEASUREMENT,
     UNIT_PARTS_PER_BILLION,
 )
@@ -26,7 +26,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_TVOC): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PARTS_PER_BILLION,
                 accuracy_decimals=0,
-                device_class=DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS,
+                device_class=DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
         }

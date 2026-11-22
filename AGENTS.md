@@ -240,9 +240,10 @@ file does, and it is the authority when they disagree. The most useful starting 
         `publish_state(Table::get_progmem_str(idx, fallback))`, which copies it out of flash on ESP8266.
         A `dump_config` helper that picks a name returns `const LogString *` from `LOG_STR(...)`.
     *   **CRCs and bit tricks** come from `esphome/core/helpers.h` (`crc8`, `crc16`, `xor_bytes`, `sum16_bytes`,
-        `reverse_bits`, `encode_uint16`, `encode_value_le`, `sign_extend<BITS>`, `bcd_to_uint8`, `assign_bits`); pick
-        the helper's arguments instead of writing a loop. `put_be16`/`24`/`32`, `put_le16` and `put_le32` write an
-        integer into a byte buffer and return the pointer past it. 7-byte BCD RTC calendars use
+        `reverse_bits`, `encode_uint16`, `encode_value_le`, `sign_extend<BITS>`, `bcd_to_uint8`, `assign_bits`,
+        `high_nibble`, `low_nibble`, `encode_uint12`); pick the helper's arguments instead of writing a loop.
+        `put_be16`/`24`/`32`, `put_le16` and `put_le32` write an integer into a byte buffer and return the pointer
+        past it. 7-byte BCD RTC calendars use
         `time::decode_bcd_calendar<LAYOUT>` and `encode_bcd_calendar<LAYOUT>` with `EPSON_BCD_CALENDAR`,
         `DS_BCD_CALENDAR` or `PCF_BCD_CALENDAR`.
     *   **Bus helpers:** UART drains with `read_available(on_byte)` and `discard_available()`, text lines with
@@ -252,6 +253,17 @@ file does, and it is the authority when they disagree. The most useful starting 
         `if (!this->status_comm_result(ok)) return;` sets or clears the warning; an earlier step of a multi-step
         poll uses `status_comm_check(ok)`, which only sets it, so the last step must clear it; in `setup()`,
         `if (!this->setup_check(ok)) return;` marks the component failed on error.
+    *   **Output pins** (`esphome/core/gpio_pin.h`): `setup_output_pin(pin, level)` sets a pin up at its starting
+        level and does nothing for a null pin, so an optional pin needs no check.
+        `pulse_pin(pin, level, width_us)` drives a clock, latch or strobe pulse; width 0 writes the two levels back
+        to back, and the pin must not be null. `pulse_reset(pin, {.low_ms = 10, .high_after_ms = 5})` sets up an
+        active-low reset pin and drives its whole reset sequence (`.high_before_ms` drives it high first); it is
+        null-safe too.
+    *   **Fast loop on a condition:** `this->high_freq_.set(condition)` on a `HighFrequencyLoopRequester`, not an
+        `if` that picks `start()` or `stop()`.
+    *   **Text into a fixed buffer:** `buf_append_str(buf, size, pos, "literal")` (a literal only) and
+        `buf_append_str_p(...)` for a `PGM_P` string already in flash work on every platform, so no
+        `#ifdef USE_ESP8266` is needed around them.
     *   **A hub's pointer to a child entity** comes from `SUB_SENSOR(name)`, `SUB_BINARY_SENSOR`, `SUB_TEXT_SENSOR`,
         `SUB_SWITCH`, `SUB_NUMBER`, `SUB_SELECT` or `SUB_BUTTON`, which declare the `set_<name>_<type>()` setter and
         the `<name>_<type>_` member (`SUB_SWITCH(turbo)` gives `set_turbo_switch()`); do not write the pair by hand.
@@ -346,6 +358,12 @@ file does, and it is the authority when they disagree. The most useful starting 
 
 *   **Type Hints:** Type-hint all function signatures, including test functions and config validators (e.g. `def validate_x(config: ConfigType) -> ConfigType:`, `def test_x() -> None:`). Import `ConfigType` from `esphome.types`.
     An intentionally empty body (an unused `register_dumper` builder, for example) gets a one-line docstring, not `pass`.
+
+*   **Sensor schemas:** `sensor.sensor_schema(kind=sensor.TEMPERATURE)` (also `HUMIDITY`, `PRESSURE`, `VOLTAGE`,
+    `CURRENT`, `POWER`, `ENERGY_KWH`, `ILLUMINANCE`, `DISTANCE_MM`, ... in `esphome/components/sensor`) always
+    sets the state class (measurement, or total increasing for energy) and whichever of the unit, device class,
+    icon (`DURATION_H`, `PM25`, ...) and default accuracy the preset defines. Pass only what it leaves unset;
+    `accuracy_decimals` may override its default, and repeating any other value it sets is an error.
 
 *   **Configuration Validation:** follow the `config-validation` skill. In short: one `cv.typed_schema` per
     model, reuse validators from `config_validation.py`, and never add `CONF_` constants to the frozen
