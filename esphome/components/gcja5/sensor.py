@@ -11,7 +11,7 @@ from esphome.const import (
     CONF_PMC_10_0,
     ICON_COUNTER,
     STATE_CLASS_MEASUREMENT,
-    UNIT_MICROGRAMS_PER_CUBIC_METER,
+    UNIT_COUNT_DECILITRE,
 )
 from esphome.types import ConfigType
 
@@ -39,37 +39,37 @@ CONFIG_SCHEMA = (
                 kind=sensor.PM10, accuracy_decimals=2
             ),
             cv.Optional(CONF_PMC_0_3): sensor.sensor_schema(
-                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
+                unit_of_measurement=UNIT_COUNT_DECILITRE,
                 icon=ICON_COUNTER,
                 accuracy_decimals=0,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_PMC_0_5): sensor.sensor_schema(
-                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
+                unit_of_measurement=UNIT_COUNT_DECILITRE,
                 icon=ICON_COUNTER,
                 accuracy_decimals=0,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_PMC_1_0): sensor.sensor_schema(
-                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
+                unit_of_measurement=UNIT_COUNT_DECILITRE,
                 icon=ICON_COUNTER,
                 accuracy_decimals=0,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_PMC_2_5): sensor.sensor_schema(
-                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
+                unit_of_measurement=UNIT_COUNT_DECILITRE,
                 icon=ICON_COUNTER,
                 accuracy_decimals=0,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_PMC_5_0): sensor.sensor_schema(
-                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
+                unit_of_measurement=UNIT_COUNT_DECILITRE,
                 icon=ICON_COUNTER,
                 accuracy_decimals=0,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_PMC_10_0): sensor.sensor_schema(
-                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
+                unit_of_measurement=UNIT_COUNT_DECILITRE,
                 icon=ICON_COUNTER,
                 accuracy_decimals=0,
                 state_class=STATE_CLASS_MEASUREMENT,
