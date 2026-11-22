@@ -906,18 +906,6 @@ void HonClimate::update_sub_text_sensor_(SubTextSensorType type, const char *val
 }
 #endif  // USE_TEXT_SENSOR
 
-#ifdef USE_SWITCH
-void HonClimate::set_beeper_switch(switch_::Switch *sw) {
-  this->beeper_switch_ = sw;
-  PUBLISH_STATE(this->beeper_switch_, this->get_beeper_state());
-}
-
-void HonClimate::set_quiet_mode_switch(switch_::Switch *sw) {
-  this->quiet_mode_switch_ = sw;
-  PUBLISH_STATE(this->quiet_mode_switch_, this->settings_.quiet_mode_state);
-}
-#endif  // USE_SWITCH
-
 #ifdef USE_SELECT
 template<typename Mode, size_t N>
 static void publish_airflow_index(select::Select *sel, const std::array<Mode, N> &order, Mode mode) {
