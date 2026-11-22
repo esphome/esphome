@@ -73,8 +73,7 @@ void TLC5971::transfer_(uint8_t send) {
       lastmosi = towrite;
     }
 
-    this->clock_pin_->digital_write(true);
-    this->clock_pin_->digital_write(false);
+    pulse_pin(this->clock_pin_, true);
   }
 }
 void TLC5971::set_channel_value(uint16_t channel, uint16_t value) {

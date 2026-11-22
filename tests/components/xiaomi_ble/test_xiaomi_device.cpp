@@ -115,6 +115,18 @@ TEST(XiaomiDevice, FailedDecryptionDoesNotAdvanceFrameCount) {
   EXPECT_TRUE(sensor.parse_device(device));
 }
 
+TEST(XiaomiDevice, DropsFrameWithCorruptedTag) {
+  std::vector<uint8_t> corrupted = ENCRYPTED_FRAME;
+  corrupted.back() ^= 0x01;
+  auto device = device_from(MAC, corrupted);
+  RecordingEncryptedDevice sensor;
+  sensor.set_address(device.address_uint64());
+  sensor.set_bindkey(BINDKEY);
+  EXPECT_FALSE(sensor.parse_device(device));
+  EXPECT_TRUE(sensor.results.empty());
+  EXPECT_TRUE(sensor.parse_device(device_from(MAC, ENCRYPTED_FRAME)));
+}
+
 TEST(XiaomiDevice, DecryptsLywsd02mmcAlternateProductId) {
   auto device = device_from(MAC, LYWSD02MMC_16E4_FRAME);
   RecordingEncryptedDevice sensor;

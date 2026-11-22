@@ -188,8 +188,8 @@ void BMI270Component::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "  Accel range : %s\n"
                 "  Gyro  range : %s",
-                LOG_STR_ARG(AccelRangeStrings::get_log_str(this->accel_range_, AccelRangeStrings::LAST_INDEX)),
-                LOG_STR_ARG(GyroRangeStrings::get_log_str(this->gyro_range_, GyroRangeStrings::LAST_INDEX)));
+                LOG_STR_ARG(AccelRangeStrings::get_log_str(this->accel_range_)),
+                LOG_STR_ARG(GyroRangeStrings::get_log_str(this->gyro_range_)));
 #ifdef USE_BMI270_BMM150
   if (this->aux_device_ == BMI270_AUX_DEVICE_BMM150) {
     ESP_LOGCONFIG(TAG, "  Aux device  : BMM150 magnetometer (%s)",

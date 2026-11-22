@@ -58,8 +58,7 @@ void SN74HC595GPIOComponent::write_gpio() {
     for (int8_t i = 7; i >= 0; i--) {
       bool bit = (output_byte >> i) & 1;
       this->data_pin_->digital_write(bit);
-      this->clock_pin_->digital_write(true);
-      this->clock_pin_->digital_write(false);
+      pulse_pin(this->clock_pin_, true);
     }
   }
   SN74HC595Component::write_gpio();
@@ -78,8 +77,7 @@ void SN74HC595SPIComponent::write_gpio() {
 
 void SN74HC595Component::write_gpio() {
   // pulse latch to activate new values
-  this->latch_pin_->digital_write(true);
-  this->latch_pin_->digital_write(false);
+  pulse_pin(this->latch_pin_, true);
 
   // enable output if configured
   if (this->oe_pin_ != nullptr) {

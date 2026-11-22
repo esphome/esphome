@@ -4,12 +4,10 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
     DEVICE_CLASS_EMPTY,
-    DEVICE_CLASS_VOLTAGE,
     ENTITY_CATEGORY_DIAGNOSTIC,
     ENTITY_CATEGORY_NONE,
     STATE_CLASS_MEASUREMENT,
     STATE_CLASS_NONE,
-    UNIT_VOLT,
 )
 
 from . import EzoPMP
@@ -65,10 +63,8 @@ CONFIG_SCHEMA = cv.Schema(
             entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
         ),
         cv.Optional(CONF_PUMP_VOLTAGE): sensor.sensor_schema(
-            unit_of_measurement=UNIT_VOLT,
+            kind=sensor.VOLTAGE,
             accuracy_decimals=2,
-            device_class=DEVICE_CLASS_VOLTAGE,
-            state_class=STATE_CLASS_MEASUREMENT,
             entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
         ),
     }

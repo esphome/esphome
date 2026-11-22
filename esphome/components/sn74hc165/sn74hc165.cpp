@@ -36,9 +36,7 @@ bool SN74HC165Component::digital_read_(uint16_t pin) {
 }
 
 void SN74HC165Component::read_gpio_() {
-  this->load_pin_->digital_write(false);
-  delayMicroseconds(10);
-  this->load_pin_->digital_write(true);
+  pulse_pin(this->load_pin_, false, 10);
   delayMicroseconds(10);
 
   if (this->clock_inhibit_pin_ != nullptr)
@@ -49,9 +47,7 @@ void SN74HC165Component::read_gpio_() {
     for (uint8_t j = 0; j < 8; j++) {
       input_byte = (input_byte << 1) | this->data_pin_->digital_read();
 
-      this->clock_pin_->digital_write(true);
-      delayMicroseconds(10);
-      this->clock_pin_->digital_write(false);
+      pulse_pin(this->clock_pin_, true, 10);
       delayMicroseconds(10);
     }
   }
