@@ -143,6 +143,11 @@ class FunctionEndpointListener final : public ZigbeeEndpointListener {
 }  // namespace
 
 void ZigbeeComponent::add_callback(zb_uint8_t endpoint, std::function<void(zb_bufid_t bufid)> &&cb) {
+  if (!cb) {
+    // An empty callable clears the endpoint, as assigning it did before
+    this->set_endpoint_listener(endpoint, nullptr);
+    return;
+  }
   // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
   this->set_endpoint_listener(endpoint, new FunctionEndpointListener(std::move(cb)));
 }
