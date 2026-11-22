@@ -2242,8 +2242,15 @@ async def build_component_automation(
 
 
 def _float_bits(value: float) -> HexInt:
-    """``value`` as a C++ float's bit pattern, for a template argument."""
-    (bits,) = struct.unpack("<I", struct.pack("<f", value))
+    """``value`` as a C++ float's bit pattern, for a template argument.
+
+    Out of float range becomes signed infinity, as the C++ conversion does.
+    """
+    try:
+        packed = struct.pack("<f", value)
+    except OverflowError:
+        packed = struct.pack("<f", math.copysign(math.inf, value))
+    (bits,) = struct.unpack("<I", packed)
     return HexInt(bits)
 
 
