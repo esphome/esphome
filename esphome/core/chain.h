@@ -4,11 +4,10 @@
 
 namespace esphome {
 
-/** One pointer that holds the next node of a chain, or on the last node the chain's owner.
+/** One pointer per node that holds the next node of a chain, or on the last node the chain's owner.
  *
- * Replaces a next pointer plus an owner pointer that only the last node needs, saving a pointer per node.
- * The owner is tagged in the low bit, so it needs an alignment of at least 2; any class with a vtable or a
- * pointer member has it. A chain may also end in nullptr, with no owner.
+ * The owner is tagged in the low bit, so it needs an alignment of at least 2. A chain may also end in nullptr,
+ * with no owner.
  */
 template<typename Next, typename Owner> class ChainLink {
  public:
@@ -21,9 +20,11 @@ template<typename Next, typename Owner> class ChainLink {
   Next **next_slot() { return &this->ptr_; }
   void set_next(Next *next) { this->ptr_ = next; }
   /// Makes this the last node.
-  void set_owner(Owner *owner) {
+  void set_owner(Owner *owner) { this->ptr_ = tagged(owner); }
+  /// The value set_owner() stores, for writing through next_slot().
+  static Next *tagged(Owner *owner) {
     static_assert(alignof(Owner) > OWNER_TAG, "the owner tag needs a free low bit");
-    this->ptr_ = reinterpret_cast<Next *>(reinterpret_cast<char *>(owner) + OWNER_TAG);
+    return reinterpret_cast<Next *>(reinterpret_cast<char *>(owner) + OWNER_TAG);
   }
   /// Link to next, or to owner when next is nullptr.
   void set(Next *next, Owner *owner) {
@@ -43,10 +44,11 @@ template<typename Next, typename Owner> class ChainLink {
 /// Base for a node of a ChainLink chain: holds the link and finds the chain's owner.
 template<typename Node, typename Owner> class ChainNode {
  protected:
+  /// Only for a chain that ends in its owner.
   Node *chain_last_() {
     Node *node = static_cast<Node *>(this);
-    while (Node *next = node->link_.next())
-      node = next;
+    while (!node->link_.is_owner())
+      node = node->link_.next();
     return node;
   }
   /// Walks to the end of the chain on every call.

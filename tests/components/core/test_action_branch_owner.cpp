@@ -91,9 +91,8 @@ class CountdownCondition : public Condition<> {
 // Exposes Action's protected link_
 class TaggedOwner : public RecordAction {
  public:
+  using RecordAction::link_;
   using RecordAction::RecordAction;
-  static bool is_tagged(const TaggedOwner *a) { return a->link_.is_owner(); }
-  static Action<> *owner_of(const TaggedOwner *a) { return a->link_.owner(); }
 };
 
 class InspectList : public ActionList<> {
@@ -112,10 +111,10 @@ TEST(ActionBranchOwner, SetOwnerTagsOnlyTheLastAction) {
   EXPECT_EQ(list.head(), &a);
   EXPECT_EQ(a.next(), &b);
   EXPECT_EQ(b.next(), &c);
-  EXPECT_FALSE(TaggedOwner::is_tagged(&a));
-  EXPECT_FALSE(TaggedOwner::is_tagged(&b));
-  EXPECT_TRUE(TaggedOwner::is_tagged(&c));
-  EXPECT_EQ(TaggedOwner::owner_of(&c), &owner);
+  EXPECT_FALSE(a.link_.is_owner());
+  EXPECT_FALSE(b.link_.is_owner());
+  EXPECT_TRUE(c.link_.is_owner());
+  EXPECT_EQ(c.link_.owner(), &owner);
 }
 
 TEST(ActionBranchOwner, EmptyListStaysEmpty) {

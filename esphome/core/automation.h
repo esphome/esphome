@@ -690,8 +690,9 @@ template<typename... Ts> class ActionList {
   }
   /// Resume `owner` via play() when the list finishes; call once, after adding actions.
   void set_owner(Action<Ts...> *owner) {
+    // Nothing to tag in an empty list
     if (this->actions_ != nullptr)
-      this->actions_->chain_last_()->link_.set_owner(owner);
+      *this->tail_() = ChainLink<Action<Ts...>, Action<Ts...>>::tagged(owner);
   }
   // Force-inline: part of the Trigger→Automation→ActionList forwarding
   // chain collapsed to reduce automation call stack depth.
