@@ -210,7 +210,10 @@ SENSOR_TYPES: dict[str, dict] = {
         "gases": {  # alcohol
             "LPG": (44771.0, -3.245),
             "CO": (521853.0, -3.821),
-            "ALCOHOL": (0.3934, -1.504),
+            # The reference fit is in mg/L (the MQ-3 output is reported that way);
+            # 1 mg/L of ethanol is 1000 * 24.45 / 46.07 = 531 ppm at 25 C, so the
+            # curve is scaled to the ppm the sensor publishes.
+            "ALCOHOL": (208.9, -1.504),
             "BENZENE": (4.8387, -2.68),
             "HEXANE": (7585.3, -2.849),
         },

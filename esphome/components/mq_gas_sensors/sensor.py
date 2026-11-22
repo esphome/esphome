@@ -429,7 +429,7 @@ def _check_adc_range(
             f"'adc_pin_max' ({pin_max:.2f} V) - that can damage the pin. Use "
             f"'voltage_divider: {{r1: 10.0, r2: 20.0}}' (-> 1.5) or "
             f"'{{r1: 10.0, r2: 10.0}}' (-> 2.0), or set 'adc_pin_max' to your "
-            f"sampler's limit (6.144 for an ADS1115)"
+            f"sampler's input limit (its supply voltage plus 0.3 V)"
         )
     if expected_max > input_max + ADC_LIMIT_MARGIN_V:
         raise cv.Invalid(
