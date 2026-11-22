@@ -1103,7 +1103,9 @@ async def to_code(config):
             )
             add_idf_sdkconfig_option("CONFIG_WIFI_RMT_STATIC_RX_BUFFER_NUM", 16)
             add_idf_sdkconfig_option("CONFIG_WIFI_RMT_DYNAMIC_RX_BUFFER_NUM", 64)
-            add_idf_sdkconfig_option("CONFIG_WIFI_RMT_DYNAMIC_TX_BUFFER_NUM", 64)
+            # With guaranteed PSRAM, esp_wifi_remote only offers static TX buffers
+            if not psram_guaranteed:
+                add_idf_sdkconfig_option("CONFIG_WIFI_RMT_DYNAMIC_TX_BUFFER_NUM", 64)
             add_idf_sdkconfig_option("CONFIG_WIFI_RMT_AMPDU_TX_ENABLED", True)
             add_idf_sdkconfig_option("CONFIG_WIFI_RMT_TX_BA_WIN", 32)
             add_idf_sdkconfig_option("CONFIG_WIFI_RMT_AMPDU_RX_ENABLED", True)

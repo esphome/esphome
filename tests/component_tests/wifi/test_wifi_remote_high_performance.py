@@ -13,10 +13,12 @@ import pytest
 from esphome.components.network import require_high_performance_wifi
 from tests.component_tests.network import sdkconfig_option
 
+_DYNAMIC_TX = "CONFIG_WIFI_RMT_DYNAMIC_TX_BUFFER_NUM"
+
 _C6_VALUES = {
     "CONFIG_WIFI_RMT_STATIC_RX_BUFFER_NUM": 16,
     "CONFIG_WIFI_RMT_DYNAMIC_RX_BUFFER_NUM": 64,
-    "CONFIG_WIFI_RMT_DYNAMIC_TX_BUFFER_NUM": 64,
+    _DYNAMIC_TX: 64,
     "CONFIG_WIFI_RMT_AMPDU_TX_ENABLED": True,
     "CONFIG_WIFI_RMT_TX_BA_WIN": 32,
     "CONFIG_WIFI_RMT_AMPDU_RX_ENABLED": True,
@@ -44,16 +46,23 @@ def _write(tmp_path: Path, chip: str, hosted_variant: str | None, psram: bool) -
     return config
 
 
-@pytest.mark.parametrize("psram", [False, True], ids=["no_psram", "psram"])
+@pytest.mark.parametrize(
+    ("psram", "dynamic_tx"),
+    [
+        pytest.param(False, 64, id="no_psram"),
+        # with guaranteed PSRAM only static TX buffers exist, so no dynamic count
+        pytest.param(True, None, id="psram"),
+    ],
+)
 def test_c6_coprocessor_gets_the_settings(
     generate_main: Callable[[str | Path], str],
     tmp_path: Path,
     psram: bool,
+    dynamic_tx: int | None,
 ) -> None:
-    """The co-processor's buffers are its own, so PSRAM on the host changes nothing."""
     require_high_performance_wifi()
     generate_main(_write(tmp_path, "esp32p4", "ESP32C6", psram))
-    for name, value in _C6_VALUES.items():
+    for name, value in (_C6_VALUES | {_DYNAMIC_TX: dynamic_tx}).items():
         assert sdkconfig_option(name) == value, name
 
 
