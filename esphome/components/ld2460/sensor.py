@@ -8,7 +8,6 @@ from esphome.const import (
     CONF_X,
     CONF_Y,
     DEVICE_CLASS_DISTANCE,
-    UNIT_DEGREES,
     UNIT_METER,
 )
 from esphome.types import ConfigType
@@ -46,8 +45,8 @@ _TARGET_SCHEMA = cv.Schema(
             accuracy_decimals=2,
         ),
         cv.Optional(CONF_ANGLE): sensor.sensor_schema(
+            kind=sensor.ANGLE,
             icon=ICON_FORMAT_TEXT_ROTATION_ANGLE_UP,
-            unit_of_measurement=UNIT_DEGREES,
             accuracy_decimals=1,
         ),
     }

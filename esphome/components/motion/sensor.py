@@ -12,7 +12,6 @@ from esphome.const import (
     ICON_SCREEN_ROTATION,
     STATE_CLASS_MEASUREMENT,
     UNIT_DEGREE_PER_SECOND,
-    UNIT_DEGREES,
     UNIT_G,
 )
 from esphome.cpp_types import std_ns
@@ -71,9 +70,7 @@ def _orientation_sensor_schema() -> cv.Schema:
     # continuous measurement (no state_class).
     return (
         sensor.sensor_schema(
-            unit_of_measurement=UNIT_DEGREES,
-            icon=ICON_SCREEN_ROTATION,
-            accuracy_decimals=0,
+            kind=sensor.ANGLE, icon=ICON_SCREEN_ROTATION, accuracy_decimals=0
         )
         .extend(SENSOR_SCHEMA)
         .extend(
