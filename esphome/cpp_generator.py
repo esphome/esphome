@@ -1543,14 +1543,15 @@ def call_lambda(lamb: LambdaExpression) -> Expression:
     expr = lamb.content.strip()
     # A lone `return <expr>;` reduces to the expression; a longer body, a braced (`return {};`)
     # or a bare (`return;`) return is called.
+    body = expr[6:-1].strip()
     if (
         re.match(r"^return\b", expr)
         and expr.endswith(";")
         and expr.count(";") == 1
-        and expr[6:-1].strip()
-        and not expr[6:].lstrip().startswith("{")
+        and body
+        and not body.startswith("{")
     ):
-        expr = RawExpression(expr[6:-1].strip())
+        expr = RawExpression(body)
         # Don't cast if the return type is a class
         if isinstance(lamb.return_type, MockObjClass):
             return expr
