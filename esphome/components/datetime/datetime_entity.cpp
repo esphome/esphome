@@ -226,7 +226,7 @@ void OnDateTimeBase::loop() {
         break;
 
       if (this->matches_(*this->last_check_)) {
-        this->fire_();
+        this->fire();
         break;
       }
     }
@@ -240,7 +240,7 @@ void OnDateTimeBase::loop() {
   }
 
   if (this->matches_(time))
-    this->fire_();
+    this->fire();
 }
 
 bool OnDateTimeBase::matches_(const ESPTime &time) const {

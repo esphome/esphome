@@ -100,14 +100,14 @@ class TimeCall {
 inline TimeCall TimeEntity::make_call() { return TimeCall(this); }
 
 #ifdef USE_TIME
-/// Runs fire_() when the clock reaches the entity's time, for on_time.
+/// Runs fire() when the clock reaches the entity's time, for on_time.
 class OnTimeBase : public Component, public Parented<TimeEntity> {
  public:
   explicit OnTimeBase(TimeEntity *parent) : Parented(parent) {}
   void loop() override;
 
  protected:
-  virtual void fire_() = 0;
+  virtual void fire() = 0;
   bool matches_(const ESPTime &time) const;
 
   optional<ESPTime> last_check_;
@@ -118,7 +118,7 @@ template<auto Fn> class OnTimeCallback final : public OnTimeBase {
   using OnTimeBase::OnTimeBase;
 
  protected:
-  void fire_() override { Fn(); }
+  void fire() override { Fn(); }
 };
 #endif
 

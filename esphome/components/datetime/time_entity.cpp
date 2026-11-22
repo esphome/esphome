@@ -126,7 +126,7 @@ void OnTimeBase::loop() {
         break;
 
       if (this->matches_(*this->last_check_)) {
-        this->fire_();
+        this->fire();
         break;
       }
     }
@@ -139,7 +139,7 @@ void OnTimeBase::loop() {
   }
 
   if (this->matches_(time))
-    this->fire_();
+    this->fire();
 }
 
 bool OnTimeBase::matches_(const ESPTime &time) const {
