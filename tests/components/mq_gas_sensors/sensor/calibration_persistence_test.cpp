@@ -127,6 +127,13 @@ TEST_F(CalibrationPersistenceTest, StoredReferenceIsRestoredForTheSameKey) {
     ASSERT_TRUE(sensor.has_r0());
   }
 
+  // A fresh backend reads the value from the scratch directory, so the reference
+  // has to come from the saved file rather than from the in-memory cache of the
+  // instance that stored it.
+  host::HostPreferences reloaded;
+  global_preferences = &reloaded;
+  host::host_preferences = &reloaded;
+
   MQGasSensor restored{&sampler};
   configure(restored);
   restored.setup();
