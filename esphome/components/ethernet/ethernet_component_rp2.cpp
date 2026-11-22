@@ -230,7 +230,7 @@ void EthernetComponent::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "Ethernet:\n"
                 "  Type: %s\n"
-                "  Connected: %s\n",
+                "  Connected: %s",
                 type_str, YESNO(this->is_connected()));
 #endif
   this->dump_connect_params_();
