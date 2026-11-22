@@ -21,6 +21,7 @@ from esphome.components.tsdb import (
     CONF_SENSOR,
     IDF_COMPONENTS,
     _final_validate,
+    _validate_buffer_pool_size,
     _validate_config,
     _validate_file_name,
     _validate_memory,
@@ -119,6 +120,38 @@ def test_validate_file_name_accepts_plain() -> None:
 def test_validate_min_free_bytes_allows_zero() -> None:
     assert _validate_min_free_bytes(0) == 0
     assert _validate_min_free_bytes("32KB") == 32 * 1024
+
+
+@pytest.mark.parametrize("value", ["1KB", "2KB", "3KB", 3072])
+def test_validate_buffer_pool_size_keeps_the_query_block(value: object) -> None:
+    # The engine needs 1KB each for its read block, write cache and query block.
+    with pytest.raises(cv.Invalid, match="larger than 3KB"):
+        _validate_buffer_pool_size(value)
+
+
+def test_validate_buffer_pool_size_accepts_a_usable_pool() -> None:
+    assert _validate_buffer_pool_size("4KB") == 4096
+    assert _validate_buffer_pool_size("32KB") == 32 * 1024
+
+
+@pytest.mark.parametrize("page_size", [1500, 3000, 512])
+def test_validate_config_rejects_a_page_that_splits_the_query_block(
+    page_size: object,
+) -> None:
+    config = _config(paged_allocation=True, page_size=page_size)
+    with pytest.raises(cv.Invalid, match="splits the engine's query block"):
+        _validate_config(config)
+
+
+@pytest.mark.parametrize("page_size", [1024, 2048, 4096])
+def test_validate_config_accepts_a_contiguous_page(page_size: int) -> None:
+    config = _config(paged_allocation=True, page_size=page_size)
+    assert _validate_config(config) is config
+
+
+def test_validate_config_ignores_the_page_size_without_paged_allocation() -> None:
+    config = _config(paged_allocation=False, page_size=1500)
+    assert _validate_config(config) is config
 
 
 def _column(name: str = "value", **kwargs: object) -> dict:

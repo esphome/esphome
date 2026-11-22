@@ -55,6 +55,11 @@ TSDB_MAX_BASE_PARAMS = 16
 TSDB_MAX_NAME_LENGTH = 31
 # Mirrors tsdbmath::INDEX_DEFAULT_STRIDE; keep the two in step.
 TSDB_DEFAULT_INDEX_STRIDE = 380
+# The engine's block size and the offset of its query block inside the buffer pool
+# (read block, write cache, then the query block).
+TSDB_BLOCK_BYTES = 1024
+TSDB_QUERY_BLOCK_OFFSET = 2 * TSDB_BLOCK_BYTES
+TSDB_DEFAULT_PAGE_SIZE = 2 * TSDB_BLOCK_BYTES
 LITTLEFS_BLOCK_BYTES = 0x1000
 LITTLEFS_RESERVED_BYTES = 4 * LITTLEFS_BLOCK_BYTES
 
@@ -166,6 +171,31 @@ def _validate_min_free_bytes(value: object) -> int:
     return _validate_size(value, allow_zero=True)
 
 
+def _validate_buffer_pool_size(value: object) -> int:
+    bytes_ = _validate_size(value)
+    # The engine slices the pool into a read block, a write cache and a query block, so
+    # a smaller pool leaves the query block outside it and every query allocates one.
+    if bytes_ <= TSDB_QUERY_BLOCK_OFFSET + TSDB_BLOCK_BYTES:
+        raise cv.Invalid(
+            "buffer_pool_size must be larger than 3KB: the engine needs 1KB each "
+            "for its read, write and query blocks"
+        )
+    return bytes_
+
+
+def _validate_page_geometry(config: ConfigType) -> None:
+    if not config.get(CONF_PAGED_ALLOCATION, False):
+        return
+    page = config.get(CONF_PAGE_SIZE, TSDB_DEFAULT_PAGE_SIZE)
+    # A paged query block has to stay inside one page, otherwise the engine allocates
+    # and frees a fallback buffer for every aggregate and CSV query.
+    if TSDB_QUERY_BLOCK_OFFSET % page + TSDB_BLOCK_BYTES > page:
+        raise cv.Invalid(
+            f"page_size {page} splits the engine's query block across pages: use "
+            "1KB or 2KB pages, or turn paged_allocation off"
+        )
+
+
 def _validate_memory(value: str) -> str:
     mode = cv.one_of(*MEMORY_MODES, lower=True)(value)
     if mode == "psram":
@@ -204,6 +234,7 @@ def _validate_config(config: ConfigType) -> ConfigType:
             f"metadata in partition_size (at least {LITTLEFS_RESERVED_BYTES // 1024}KB "
             "is needed)"
         )
+    _validate_page_geometry(config)
     return config
 
 
@@ -244,12 +275,12 @@ CONFIG_SCHEMA = cv.All(
                 CONF_INDEX_STRIDE, default=TSDB_DEFAULT_INDEX_STRIDE
             ): cv.int_range(min=1, max=100000),
             cv.Optional(CONF_BUFFER_POOL_SIZE, default="4KB"): cv.All(
-                _validate_size, cv.Range(min=1024, max=256 * 1024)
+                _validate_buffer_pool_size, cv.Range(max=256 * 1024)
             ),
             cv.Optional(CONF_MEMORY, default="auto"): _validate_memory,
             cv.Optional(CONF_PAGED_ALLOCATION, default=False): cv.boolean,
-            cv.Optional(CONF_PAGE_SIZE, default="2KB"): cv.All(
-                _validate_size, cv.Range(min=1024, max=64 * 1024)
+            cv.Optional(CONF_PAGE_SIZE, default=TSDB_DEFAULT_PAGE_SIZE): cv.All(
+                _validate_size, cv.Range(min=TSDB_BLOCK_BYTES, max=64 * 1024)
             ),
             cv.Optional(
                 CONF_SYNC_INTERVAL, default="15min"
@@ -341,9 +372,9 @@ async def to_code(config: ConfigType) -> None:
 
     cg.add_define("TSDB_COLUMN_COUNT", len(config[CONF_COLUMNS]))
     for index, column in enumerate(config[CONF_COLUMNS]):
-        cg.add(
-            var.add_column(
-                column[CONF_NAME], column[CONF_SCALE_FACTOR], column[CONF_OFFSET]
-            )
-        )
+        # add_column() takes doubles: a plain float becomes a `1.0f` literal, which
+        # underflows or overflows the scales the config accepts.
+        scale = cg.RawExpression(repr(column[CONF_SCALE_FACTOR]))
+        offset = cg.RawExpression(repr(column[CONF_OFFSET]))
+        cg.add(var.add_column(column[CONF_NAME], scale, offset))
         cg.add(var.set_column_source(index, await cg.get_variable(column[CONF_SENSOR])))

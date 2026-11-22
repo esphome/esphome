@@ -1,6 +1,7 @@
 #pragma once
 // Core math of the tsdb logger: int16 encoding and esp_tsdb 2.4.3 file geometry, checked in tsdb.cpp.
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <limits>
@@ -54,6 +55,10 @@ constexpr uint32_t stored_columns(const uint8_t *buffer, size_t length) {
 
 // Timestamps below this are a boot counter, not a clock.
 static constexpr uint32_t MIN_VALID_TIMESTAMP = 1000000000;
+
+// Schema limits, mirrored from TSDB_MAX_BASE_PARAMS and TSDB_MAX_NAME_LENGTH in __init__.py.
+static constexpr uint32_t MAX_BASE_PARAMS = 16;
+static constexpr uint32_t MAX_NAME_LENGTH = 31;
 
 inline bool is_missing(float value) { return !std::isfinite(value); }
 constexpr bool is_valid_timestamp(uint32_t timestamp) { return timestamp >= MIN_VALID_TIMESTAMP; }
@@ -129,12 +134,38 @@ inline double decode(int16_t raw, double scale, double offset = 0.0) {
   return (static_cast<double>(raw) - offset) / scale;
 }
 
-// Aggregation decode (AVG/MIN/MAX stay in int16 domain).
-inline double decode_aggregate(int32_t raw, double scale, double offset = 0.0) {
-  if (raw == RAW_UNKNOWN || scale == 0.0)
-    return std::numeric_limits<double>::quiet_NaN();
-  return (static_cast<double>(raw) - offset) / scale;
-}
+// Average, minimum and maximum over decoded samples. Decoding before comparing keeps
+// the order right on a negative scale, and the unknown sentinel is not a sample.
+class Aggregate {
+ public:
+  void add_raw(int16_t raw, double scale, double offset = 0.0) {
+    if (raw == RAW_UNKNOWN)
+      return;
+    const double value = decode(raw, scale, offset);
+    if (this->count_ == 0) {
+      this->min_ = value;
+      this->max_ = value;
+    } else {
+      this->min_ = std::min(this->min_, value);
+      this->max_ = std::max(this->max_, value);
+    }
+    this->sum_ += value;
+    this->count_++;
+  }
+
+  uint32_t count() const { return this->count_; }
+  double average() const {
+    return this->count_ == 0 ? std::numeric_limits<double>::quiet_NaN() : this->sum_ / this->count_;
+  }
+  double min() const { return this->count_ == 0 ? std::numeric_limits<double>::quiet_NaN() : this->min_; }
+  double max() const { return this->count_ == 0 ? std::numeric_limits<double>::quiet_NaN() : this->max_; }
+
+ protected:
+  double sum_{0.0};
+  double min_{0.0};
+  double max_{0.0};
+  uint32_t count_{0};
+};
 
 // Start of a "newest rows" CSV window: rows intervals back from newest with margin.
 constexpr uint32_t dump_window_start(uint32_t newest, uint32_t oldest, uint32_t rows, uint32_t interval_seconds,

@@ -118,6 +118,7 @@ class TsdbComponent : public PollingComponent {
   void publish_errors_();
   void flush_(bool force);
   void format_path_(char *buffer, size_t size) const;
+  bool remove_sidecars_();
   void publish_aggregates_();
   void publish_stats_();
   void dump_csv_(uint32_t rows);

@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cerrno>
 #include <cinttypes>
 #include <cmath>
 #include <cstddef>
@@ -12,6 +13,7 @@
 #include <sys/stat.h>
 
 #include "esphome/core/application.h"
+#include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
@@ -34,6 +36,20 @@ static constexpr uint32_t DROP_LOG_EVERY = 10;
 static constexpr uint32_t PROBE_LOG_EVERY = 100;
 // One CSV dump line.
 static constexpr size_t CSV_LINE_SIZE = 256;
+// "timestamp" plus one maximum-length name per column with its comma and terminator.
+static constexpr size_t CSV_HEADER_SIZE =
+    (sizeof("timestamp") - 1) + tsdbmath::MAX_BASE_PARAMS * (1 + tsdbmath::MAX_NAME_LENGTH) + 1;
+// The logger drops what does not fit its line buffer and writes the level and tag in
+// front of the line, so a header can only be dumped when it fits what remains.
+#ifdef ESPHOME_LOGGER_TX_BUFFER_SIZE
+static constexpr size_t LOG_LINE_SIZE = ESPHOME_LOGGER_TX_BUFFER_SIZE;
+#else
+static constexpr size_t LOG_LINE_SIZE = 512;
+#endif
+static constexpr size_t LOG_LINE_OVERHEAD = 64;
+static constexpr size_t CSV_HEADER_LIMIT = LOG_LINE_SIZE > LOG_LINE_OVERHEAD
+                                               ? std::min(CSV_HEADER_SIZE, LOG_LINE_SIZE - LOG_LINE_OVERHEAD)
+                                               : 0;
 // Dump window margin for jitter and single gaps.
 static constexpr uint32_t DUMP_WINDOW_MARGIN = 2;
 static constexpr uint32_t REOPEN_RETRY_MS = 300000;
@@ -111,6 +127,24 @@ void TsdbComponent::set_column_source(size_t index, sensor::Sensor *source) { th
 
 void TsdbComponent::format_path_(char *buffer, size_t size) const {
   snprintf(buffer, size, "%s/%s", this->mount_point_.c_str(), this->file_.c_str());
+}
+
+// The engine keeps two alternating header copies beside the database (<file>.h0/.h1)
+// and adopts the newer one on open when it describes at least as many records.
+bool TsdbComponent::remove_sidecars_() {
+  static constexpr const char *SUFFIXES[] = {".h0", ".h1"};
+  char path[PATH_BUFFER_SIZE];
+  this->format_path_(path, sizeof(path));
+  bool removed = true;
+  for (const char *suffix : SUFFIXES) {
+    char sidecar[PATH_BUFFER_SIZE + 4];
+    snprintf(sidecar, sizeof(sidecar), "%s%s", path, suffix);
+    if (remove(sidecar) != 0 && errno != ENOENT) {
+      ESP_LOGE(TAG, "%s: deleting %s failed", this->file_.c_str(), sidecar);
+      removed = false;
+    }
+  }
+  return removed;
 }
 
 void TsdbComponent::setup() {
@@ -446,6 +480,10 @@ void TsdbComponent::update() {
     return;
   }
   this->handle_requests_();
+  // A requested flush can fail and drop the handle; a record must not be written
+  // against it after that.
+  if (this->db_ == nullptr)
+    return;
   this->write_record_();
   this->flush_(false);
   // A write or sync that failed dropped the handle; the aggregates and stats
@@ -478,17 +516,37 @@ void TsdbComponent::handle_requests_() {
     } else {
       this->records_ = 0;
       this->writes_ = 0;
+      // The guard and the uptime fallback follow the deleted history, so a corrected
+      // clock would otherwise be refused until it passes the old newest record.
+      this->last_timestamp_ = 0;
+      this->dropped_backwards_ = 0;
+      this->uptime_offset_ = 1 - static_cast<uint32_t>(::time(nullptr));
       this->dirty_ = false;
-      ESP_LOGW(TAG, "%s: history cleared on request", this->file_.c_str());
-      this->publish_log_("history cleared");
+      // The engine's alternating .h0/.h1 copies still hold the cleared history and
+      // win an open, so they have to go before the clear counts as done.
+      if (this->remove_sidecars_()) {
+        ESP_LOGW(TAG, "%s: history cleared on request", this->file_.c_str());
+        this->publish_log_("history cleared");
+      } else {
+        this->write_errors_++;
+        this->publish_errors_();
+        ESP_LOGE(TAG, "%s: history cleared, but its reboot copies could not be removed - a reboot may restore it",
+                 this->file_.c_str());
+        this->publish_log_("history cleared, its reboot copies remain");
+        this->status_set_warning(LOG_STR("clearing the reboot copies failed"));
+      }
     }
   }
 
   if (this->flush_requested_) {
     this->flush_requested_ = false;
     this->flush_(true);
-    ESP_LOGI(TAG, "%s: flushed on request", this->file_.c_str());
-    this->publish_log_("history flushed");
+    // A failed sync invalidates the handle and raises its own warning; announcing
+    // success here would contradict both.
+    if (this->db_ != nullptr && !this->sync_failed_) {
+      ESP_LOGI(TAG, "%s: flushed on request", this->file_.c_str());
+      this->publish_log_("history flushed");
+    }
   }
 
   // A requested flush that failed dropped the handle; the remaining requests
@@ -737,33 +795,32 @@ void TsdbComponent::publish_aggregates_() {
   const uint32_t end = static_cast<uint32_t>(now.timestamp);
   const uint32_t start = end > this->aggregate_window_ ? end - this->aggregate_window_ : 1;
 
-  auto *db = static_cast<tsdb_t *>(this->db_);
-  uint32_t count = 0;
-  const bool has_records = tsdb_query_count_h(db, start, end, &count) == ESP_OK && count > 0;
+  // The engine aggregates the raw codes: it counts the unknown sentinel, and a
+  // negative scale reverses the order of MIN/MAX. Read the window once and
+  // aggregate the decoded values instead.
+  std::array<tsdbmath::Aggregate, TSDB_COLUMN_COUNT> windows{};
 
-  auto publish = [&](sensor::Sensor *target, uint8_t param, tsdb_agg_type_t aggregation, const TsdbColumn &column) {
-    if (!has_records) {
-      target->publish_state(NAN);
-      return;
+  auto *db = static_cast<tsdb_t *>(this->db_);
+  // Static, like the dump query: the query handle is large and the database lock
+  // keeps the two from running at once.
+  static tsdb_query_t query = {};
+  if (tsdb_query_init_h(db, &query, start, end, nullptr, 0) != ESP_OK)
+    return;
+  this->values_.resize(this->columns_.size());
+  uint32_t timestamp = 0;
+  while (tsdb_query_next(&query, &timestamp, this->values_.data()) == ESP_OK) {
+    for (size_t index = 0; index < this->columns_.size(); index++) {
+      windows[index].add_raw(this->values_[index], this->columns_[index].scale, this->columns_[index].offset);
     }
-    int32_t result = 0;
-    if (tsdb_aggregate_h(db, start, end, param, aggregation, &result) != ESP_OK) {
-      target->publish_state(NAN);
-      return;
-    }
-    target->publish_state(static_cast<float>(tsdbmath::decode_aggregate(result, column.scale, column.offset)));
-  };
+  }
+  tsdb_query_close(&query);
 
   for (size_t index = 0; index < this->columns_.size(); index++) {
-    const TsdbColumn &column = this->columns_[index];
     const TsdbAggregateSensors &sensors = this->aggregates_[index];
-    const auto param = static_cast<uint8_t>(index);
-    if (sensors.average != nullptr)
-      publish(sensors.average, param, TSDB_AGG_AVG, column);
-    if (sensors.min != nullptr)
-      publish(sensors.min, param, TSDB_AGG_MIN, column);
-    if (sensors.max != nullptr)
-      publish(sensors.max, param, TSDB_AGG_MAX, column);
+    // A window with no valid sample leaves the aggregate unknown.
+    PUBLISH_STATE(sensors.average, static_cast<float>(windows[index].average()));
+    PUBLISH_STATE(sensors.min, static_cast<float>(windows[index].min()));
+    PUBLISH_STATE(sensors.max, static_cast<float>(windows[index].max()));
   }
 #endif
 }
@@ -845,12 +902,21 @@ void TsdbComponent::dump_csv_(uint32_t rows) {
     skip = tsdbmath::dump_skip(stats.total_records, rows);
   }
 
+  // A header that a log line truncates would name fewer columns than the rows carry.
+  size_t header_bytes = sizeof("timestamp") - 1;
+  for (const TsdbColumn &column : this->columns_)
+    header_bytes += 1 + column.name.size();
+  if (header_bytes >= CSV_HEADER_LIMIT) {
+    ESP_LOGE(TAG,
+             "%s: csv-dump header needs %" PRIu32 " bytes, a log line holds %" PRIu32
+             " - shorten the column names or raise the logger's tx_buffer_size",
+             this->file_.c_str(), static_cast<uint32_t>(header_bytes), static_cast<uint32_t>(CSV_HEADER_LIMIT));
+    return;
+  }
   // Column names in a stack buffer: header and rows stay heap free.
-  char header[CSV_LINE_SIZE];
+  char header[CSV_HEADER_SIZE];
   int header_length = snprintf(header, sizeof(header), "timestamp");
-  for (size_t index = 0;
-       index < this->columns_.size() && header_length > 0 && header_length < static_cast<int>(sizeof(header));
-       index++) {
+  for (size_t index = 0; index < this->columns_.size(); index++) {
     header_length += snprintf(header + header_length, sizeof(header) - static_cast<size_t>(header_length), ",%s",
                               this->columns_[index].name.c_str());
   }

@@ -150,11 +150,39 @@ TEST(TsdbMath, StoredColumnsReadsOnlyAValidHeader) {
   EXPECT_EQ(tsdbmath::stored_columns(buffer, sizeof(buffer)), 0u);
 }
 
-TEST(TsdbMath, DecodeAggregateUsesTheColumnScale) {
-  EXPECT_TRUE(std::isnan(tsdbmath::decode_aggregate(tsdbmath::RAW_UNKNOWN, 1.0)));
-  EXPECT_TRUE(std::isnan(tsdbmath::decode_aggregate(5, 0.0)));
-  EXPECT_DOUBLE_EQ(tsdbmath::decode_aggregate(214, 10.0), 21.4);
-  EXPECT_DOUBLE_EQ(tsdbmath::decode_aggregate(96, 10.0, -40.0), 13.6);
+TEST(TsdbMath, AggregateSkipsTheUnknownSentinel) {
+  tsdbmath::Aggregate aggregate;
+  EXPECT_TRUE(std::isnan(aggregate.average()));
+  EXPECT_TRUE(std::isnan(aggregate.min()));
+  EXPECT_TRUE(std::isnan(aggregate.max()));
+  aggregate.add_raw(tsdbmath::RAW_UNKNOWN, 1.0);
+  EXPECT_EQ(aggregate.count(), 0u);
+  aggregate.add_raw(tsdbmath::encode(21.4, 10.0), 10.0);
+  EXPECT_DOUBLE_EQ(aggregate.average(), 21.4);
+  aggregate.add_raw(tsdbmath::RAW_UNKNOWN, 1.0);
+  aggregate.add_raw(tsdbmath::encode(10.0, 10.0), 10.0);
+  EXPECT_EQ(aggregate.count(), 2u);
+  EXPECT_NEAR(aggregate.average(), 15.7, 1e-9);
+  EXPECT_DOUBLE_EQ(aggregate.min(), 10.0);
+  EXPECT_DOUBLE_EQ(aggregate.max(), 21.4);
+}
+
+// Encoded values sort backwards on a negative scale, so min and max must come from
+// the decoded values rather than from the raw codes the engine compares.
+TEST(TsdbMath, AggregateKeepsOrderOnANegativeScale) {
+  tsdbmath::Aggregate aggregate;
+  aggregate.add_raw(tsdbmath::encode(10.0, -1.0), -1.0);
+  aggregate.add_raw(tsdbmath::encode(20.0, -1.0), -1.0);
+  EXPECT_DOUBLE_EQ(aggregate.min(), 10.0);
+  EXPECT_DOUBLE_EQ(aggregate.max(), 20.0);
+  EXPECT_NEAR(aggregate.average(), 15.0, 1e-9);
+}
+
+TEST(TsdbMath, AggregateAppliesTheOffset) {
+  tsdbmath::Aggregate aggregate;
+  aggregate.add_raw(tsdbmath::encode(21.4, 100.0, -40.0), 100.0, -40.0);
+  EXPECT_NEAR(aggregate.average(), 21.4, 1e-9);
+  EXPECT_NEAR(aggregate.min(), 21.4, 1e-9);
 }
 
 TEST(TsdbMath, DumpWindowStartKeepsTheNewestRows) {
