@@ -44,6 +44,12 @@ class I2CBus {
   virtual ErrorCode write_readv(uint8_t address, const uint8_t *write_buffer, size_t write_count, uint8_t *read_buffer,
                                 size_t read_count) = 0;
 
+  /// @brief Writes `prefix` then `data` in one transaction, as for a register address followed by its data.
+  /// The built-in buses send the two parts without copying them; the default joins them in a buffer for
+  /// write_readv(), on the stack for up to 20 bytes.
+  virtual ErrorCode write_prefixed(uint8_t address, const uint8_t *prefix, size_t prefix_len, const uint8_t *data,
+                                   size_t len);
+
   // Legacy functions for compatibility
 
   ErrorCode read(uint8_t address, uint8_t *buffer, size_t len) {
