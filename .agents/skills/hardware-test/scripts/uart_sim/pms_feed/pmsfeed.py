@@ -1,6 +1,9 @@
 """Bounded capture at 9600 that also feeds PMS5003T frames on the same port (esphome#23038).
 
-  pmsfeed.py PORT SECONDS OUT [--reset] [--start S] [--period 1.0] [--selftest]
+  pmsfeed.py PORT SECONDS OUT [--reset] [--start S] [--period 1.0] [--expect-pm] [--selftest]
+
+--expect-pm (pms-manual-pm.yaml runs): exit 1 unless an esp_pm_configure() result of 0 was captured.
+Exits 1 too when fewer than two device cnt lines were captured, so the device count is unknown.
 
 Frame n: PM1.0 std and atm = n, PM2.5 = n+1000, PM10 = n+2000, temp = 20.0+n%10, hum = 40.0+n%10.
 Writes "[feed] n=..." lines into OUT so parses can be matched to frames; device lines go through
@@ -47,6 +50,7 @@ def main() -> None:
     ap.add_argument("--reset", action="store_true")
     ap.add_argument("--start", type=float, default=5.0)
     ap.add_argument("--period", type=float, default=1.0)
+    ap.add_argument("--expect-pm", action="store_true")
     ap.add_argument("--selftest", action="store_true")
     a = ap.parse_args()
     if a.selftest:
@@ -80,6 +84,8 @@ def main() -> None:
             while b"\n" in buf:
                 line, buf = buf.split(b"\n", 1)
                 serial_capture.write_line(out, b"", line.rstrip(b"\r"), True)
+        if buf.strip():  # a last line cut off at the deadline
+            serial_capture.write_line(out, b"[partial] ", buf.rstrip(b"\r"), True)
         serial_capture.write_line(out, b"[feed] ", f"total={n}".encode(), True)
     s.close()
     log = pathlib.Path(a.out).read_bytes()
@@ -108,12 +114,20 @@ def main() -> None:
         dev += prev[0] - base
     # builds with pmh.hpp log the esp_pm_configure() result; anything but 0 means no power management
     pm = re.findall(rb"esp_pm_configure\(ls=\d\) = (-?\d+)", log)
+    pm_ok = bool(pm) and all(x == b"0" for x in pm)
     print(
-        f"pm_configure={','.join(x.decode() for x in pm) or '-'} "
+        f"pm_configure={','.join(x.decode() for x in pm) or ('MISSING' if a.expect_pm else '-')} "
+        f"cnt_lines={len(cnt)} "
         f"feeds={log.count(b'[feed] n=')} parses={parses} dev_parses_between_cnt_lines={dev} boots={boots} "
         f"start_char={log.count(b'Start character')} payload_len={log.count(b'Payload length')} "
         f"checksum={log.count(b'checksum mismatch')}"
     )
+    if len(cnt) < 2:
+        sys.exit("fewer than two cnt lines: the device parse count is unknown")
+    if a.expect_pm and not pm_ok:
+        sys.exit(
+            "--expect-pm: no successful esp_pm_configure() line, power management not proven"
+        )
 
 
 if __name__ == "__main__":
