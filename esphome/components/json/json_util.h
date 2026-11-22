@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstring>
 #include <string>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -171,22 +172,23 @@ struct JsonBuildRef {
   void operator()(JsonObject root) const { this->fn(this->ctx, root); }
 };
 
+/// A lambda or other callable object that can be called as passed. Anything else (function names and
+/// pointers, a const mutable lambda) goes through the json_build_t overloads as before.
+template<typename F>
+concept JsonBuildCallable =
+    std::is_class_v<std::remove_cvref_t<F>> && std::is_invocable_v<std::remove_reference_t<F> &, JsonObject>;
+
 /// Wrap `f` without copying it; `f` must outlive the returned reference.
 template<typename F> JsonBuildRef json_build_ref(F &f) {
   return {[](void *ctx, JsonObject root) { (*static_cast<F *>(ctx))(root); },
           const_cast<void *>(static_cast<const void *>(&f))};
-}
-/// A plain function name has no address to point at; the function pointer is the context.
-inline JsonBuildRef json_build_ref(void (&f)(JsonObject)) {
-  return {[](void *ctx, JsonObject root) { reinterpret_cast<void (*)(JsonObject)>(ctx)(root); },
-          reinterpret_cast<void *>(&f)};
 }
 
 /// Build a JSON string with the provided json build function.
 /// Returns SerializationBuffer for stack-first allocation; implicitly converts to std::string.
 SerializationBuffer<> build_json(JsonBuildRef f);
 /// Build a JSON string from any callable taking a JsonObject; it is not copied or allocated.
-template<typename F> SerializationBuffer<> build_json(F &&f) { return build_json(json_build_ref(f)); }
+template<JsonBuildCallable F> SerializationBuffer<> build_json(F &&f) { return build_json(json_build_ref(f)); }
 inline SerializationBuffer<> build_json(const json_build_t &f) { return build_json(json_build_ref(f)); }
 
 /// Parse a JSON string and run the provided json parse function if it's valid.

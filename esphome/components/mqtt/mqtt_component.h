@@ -238,7 +238,7 @@ class MQTTComponent : public Component {
   bool publish_json(const std::string &topic, const json::json_build_t &f) {
     return this->publish_json(topic.c_str(), json::json_build_ref(f));
   }
-  template<typename F> bool publish_json(const std::string &topic, F &&f) {
+  template<json::JsonBuildCallable F> bool publish_json(const std::string &topic, F &&f) {
     return this->publish_json(topic.c_str(), json::json_build_ref(f));
   }
 
@@ -251,7 +251,7 @@ class MQTTComponent : public Component {
     return this->publish_json(topic, json::json_build_ref(f));
   }
   /// Any callable taking a JsonObject; it is not copied, so its captures never allocate
-  template<typename F> bool publish_json(const char *topic, F &&f) {
+  template<json::JsonBuildCallable F> bool publish_json(const char *topic, F &&f) {
     return this->publish_json(topic, json::json_build_ref(f));
   }
   bool publish_json(const char *topic, json::JsonBuildRef f);
@@ -264,7 +264,7 @@ class MQTTComponent : public Component {
   bool publish_json(StringRef topic, const json::json_build_t &f) {
     return this->publish_json(topic.c_str(), json::json_build_ref(f));
   }
-  template<typename F> bool publish_json(StringRef topic, F &&f) {
+  template<json::JsonBuildCallable F> bool publish_json(StringRef topic, F &&f) {
     return this->publish_json(topic.c_str(), json::json_build_ref(f));
   }
 

@@ -11,7 +11,10 @@ using esphome::json::JsonBuildRef;
 
 namespace {
 
+// NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
 void build_plain(JsonObject root) { root["plain"] = true; }
+bool build_returns_bool(JsonObject root) { return root["kept"].set(true); }
+void build_const_ref(const JsonObject &root) { root["ref"] = true; }
 
 // 16 bytes of captures on 32-bit, past what std::function keeps inline
 TEST(BuildJson, LargeCaptureLambdaMatchesStdFunction) {
@@ -47,5 +50,17 @@ TEST(BuildJson, CallableKindsAllBuild) {
   const JsonBuildRef ref = esphome::json::json_build_ref(counter);
   EXPECT_EQ(std::string(build_json(ref)), R"({"n":3})");
 }
+
+// Builders json_build_t accepted before still build, through the std::function overload
+TEST(BuildJson, OtherBuildersStillBuild) {
+  EXPECT_EQ(std::string(build_json(build_returns_bool)), R"({"kept":true})");
+  EXPECT_EQ(std::string(build_json(build_const_ref)), R"({"ref":true})");
+  const auto const_counter = [n = 0](JsonObject root) mutable { root["n"] = ++n; };
+  EXPECT_EQ(std::string(build_json(const_counter)), R"({"n":1})");
+  EXPECT_EQ(std::string(build_json(const_counter)), R"({"n":1})");  // copied each call, as before
+  static_assert(!esphome::json::JsonBuildCallable<decltype(build_plain) &>);
+  static_assert(!esphome::json::JsonBuildCallable<const decltype(const_counter) &>);
+}
+// NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
 
 }  // namespace

@@ -166,7 +166,7 @@ class CustomMQTTDevice {
   bool publish_json(const std::string &topic, const json::json_build_t &f, uint8_t qos, bool retain) {
     return global_mqtt_client->publish_json(topic, f, qos, retain);
   }
-  template<typename F> bool publish_json(const std::string &topic, F &&f, uint8_t qos, bool retain) {
+  template<json::JsonBuildCallable F> bool publish_json(const std::string &topic, F &&f, uint8_t qos, bool retain) {
     return global_mqtt_client->publish_json(topic, f, qos, retain);
   }
 
@@ -188,7 +188,7 @@ class CustomMQTTDevice {
   bool publish_json(const std::string &topic, const json::json_build_t &f) {
     return global_mqtt_client->publish_json(topic, f);
   }
-  template<typename F> bool publish_json(const std::string &topic, F &&f) {
+  template<json::JsonBuildCallable F> bool publish_json(const std::string &topic, F &&f) {
     return global_mqtt_client->publish_json(topic, f);
   }
 
