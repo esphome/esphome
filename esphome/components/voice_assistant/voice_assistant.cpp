@@ -761,10 +761,6 @@ PROGMEM_STRING_TABLE(StateStrings, "IDLE", "START_MICROPHONE", "STARTING_MICROPH
                      "START_PIPELINE", "STARTING_PIPELINE", "STREAMING_MICROPHONE", "STOP_MICROPHONE",
                      "STOPPING_MICROPHONE", "AWAITING_RESPONSE", "STREAMING_RESPONSE", "RESPONSE_FINISHED", "UNKNOWN");
 
-static const LogString *voice_assistant_state_to_string(State state) {
-  return StateStrings::get_log_str(static_cast<uint8_t>(state), StateStrings::LAST_INDEX);
-}
-
 #ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
 static bool is_microphone_streaming_state(State state) {
   return (state == State::START_PIPELINE) || (state == State::STARTING_PIPELINE) ||
@@ -775,8 +771,8 @@ static bool is_microphone_streaming_state(State state) {
 void VoiceAssistant::set_state_(State state) {
   State old_state = this->state_;
   this->state_ = state;
-  ESP_LOGD(TAG, "State changed from %s to %s", LOG_STR_ARG(voice_assistant_state_to_string(old_state)),
-           LOG_STR_ARG(voice_assistant_state_to_string(state)));
+  ESP_LOGD(TAG, "State changed from %s to %s", LOG_STR_ARG(StateStrings::get_log_str(old_state)),
+           LOG_STR_ARG(StateStrings::get_log_str(state)));
 #ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
   if (this->wake_word_audio_buffering_ && is_microphone_streaming_state(old_state) &&
       !is_microphone_streaming_state(state)) {
@@ -812,14 +808,14 @@ void VoiceAssistant::end_session_() {
 void VoiceAssistant::set_state_(State state, State desired_state) {
   this->set_state_(state);
   this->desired_state_ = desired_state;
-  ESP_LOGD(TAG, "Desired state set to %s", LOG_STR_ARG(voice_assistant_state_to_string(desired_state)));
+  ESP_LOGD(TAG, "Desired state set to %s", LOG_STR_ARG(StateStrings::get_log_str(desired_state)));
 }
 
 void VoiceAssistant::set_state_after_mic_stop_(State state) {
   if (this->state_ == State::STOP_MICROPHONE || this->state_ == State::STOPPING_MICROPHONE) {
     // loop() moves to the desired state once the microphone has stopped
     this->desired_state_ = state;
-    ESP_LOGD(TAG, "Desired state set to %s", LOG_STR_ARG(voice_assistant_state_to_string(state)));
+    ESP_LOGD(TAG, "Desired state set to %s", LOG_STR_ARG(StateStrings::get_log_str(state)));
   } else if (state != this->state_) {
     this->set_state_(state, state);
   }

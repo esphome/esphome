@@ -115,8 +115,8 @@ void LSM6DSComponent::dump_config() {
                 "  Accel data rate : %dHz\n"
                 "  Gyro  range : %s\n"
                 "  Gyro  data rate : %dHz",
-                LOG_STR_ARG(AccelRangeStrings::get_log_str(this->accel_range_, AccelRangeStrings::LAST_INDEX)),
-                accel_odr, LOG_STR_ARG(gyro_range_to_str(this->gyro_range_)), gyro_odr);
+                LOG_STR_ARG(AccelRangeStrings::get_log_str(this->accel_range_)), accel_odr,
+                LOG_STR_ARG(gyro_range_to_str(this->gyro_range_)), gyro_odr);
 }
 
 //  update_data()

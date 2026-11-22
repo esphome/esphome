@@ -8,9 +8,6 @@ from esphome.const import (
     CONF_NOTIFY,
     CONF_SERVICE_UUID,
     CONF_TYPE,
-    DEVICE_CLASS_SIGNAL_STRENGTH,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_DECIBEL_MILLIWATT,
 )
 
 from .. import (
@@ -67,11 +64,7 @@ CONFIG_SCHEMA = cv.All(
                 }
             ),
             TYPE_RSSI: sensor.sensor_schema(
-                BLEClientRssiSensor,
-                accuracy_decimals=0,
-                unit_of_measurement=UNIT_DECIBEL_MILLIWATT,
-                device_class=DEVICE_CLASS_SIGNAL_STRENGTH,
-                state_class=STATE_CLASS_MEASUREMENT,
+                BLEClientRssiSensor, kind=sensor.SIGNAL_STRENGTH
             )
             .extend(cv.polling_component_schema("60s"))
             .extend(ble_client.BLE_CLIENT_SCHEMA),

@@ -2,7 +2,6 @@
 
 #include "esphome/components/number/number.h"
 #include "esphome/components/modbus_controller/modbus_controller.h"
-#include "esphome/core/component.h"
 
 #include <vector>
 
@@ -10,7 +9,7 @@ namespace esphome::modbus_controller {
 
 using value_to_data_t = std::function<float>(float);
 
-class ModbusNumber final : public number::Number, public Component, public SensorItem, public WriterEntity {
+class ModbusNumber final : public number::Number, public SensorItem, public WriterEntity {
  public:
   ModbusNumber(modbus::EntityType register_type, uint16_t start_address, uint8_t offset, uint32_t bitmask,
                SensorValueType value_type, RangeReuse reuse_previous_range) {
@@ -22,9 +21,8 @@ class ModbusNumber final : public number::Number, public Component, public Senso
     this->reuse_previous_range = reuse_previous_range;
   };
 
-  void dump_config() override;
+  void dump_child_config() override;
   void parse_and_publish(std::span<const uint8_t> data) override;
-  float get_setup_priority() const override { return setup_priority::HARDWARE; }
   void set_parent(ModbusController *parent) { this->set_controller_(parent); }
   void set_write_multiply(float factor) { this->multiply_by_ = factor; }
 
