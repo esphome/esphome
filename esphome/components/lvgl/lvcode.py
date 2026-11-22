@@ -18,16 +18,14 @@ from esphome.cpp_generator import (
     VariableDeclarationExpression,
     statement,
 )
+from esphome.types import ConfigType
 from esphome.yaml_util import ESPHomeDataBase
 
-from .defines import literal
+from .defines import CONF_LVGL_ID, literal
 from .types import lvgl_ns
 
-LVGL_COMP = "lv_component"  # used as a lambda argument in lvgl_comp()
-
-# Argument tuple for use in lambdas
 LvglComponent = lvgl_ns.class_("LvglComponent", cg.PollingComponent)
-LVGL_COMP_ARG = [(LvglComponent.operator("ptr"), LVGL_COMP)]
+# Argument tuple for use in lambdas
 lv_event_t_ptr = cg.global_ns.namespace("lv_event_t").operator("ptr")
 EVENT_ARG = [(lv_event_t_ptr, "event")]
 # One custom event;
@@ -215,6 +213,11 @@ async def context_action(
     )
 
 
+async def lvgl_parent(config: ConfigType) -> MockObj:
+    """The LVGL component ``config`` names, as ``parent_ref`` spells it."""
+    return automation.parent_ref(await cg.get_variable(config[CONF_LVGL_ID]))
+
+
 class LvContext(LambdaContext):
     """
     Code generation into the LVGL initialisation code, called before setup() and loop()
@@ -223,17 +226,9 @@ class LvContext(LambdaContext):
 
     added_lambda_count = 0
 
-    def __init__(self):
-        super().__init__(parameters=LVGL_COMP_ARG)
-
     def add(self, expression: Expression | Statement):
         cg.add(expression)
         return expression
-
-    def get_automation_parameters(self) -> list[tuple[SafeExpType, str]]:
-        # When generating automations, we don't want the `lv_component` parameter to be passed
-        # to the lambda.
-        return []
 
     def __call__(self, *args):
         return self.add(*args)
@@ -391,8 +386,6 @@ LV = MockLv("LV_")
 lv_expr = LvExpr("lv_")
 # Mock for lv_obj_ calls
 lv_obj = MockLv("lv_obj_")
-# Operations on the LVGL component
-lvgl_comp = MockObj(LVGL_COMP, "->")
 lvgl_static = MockObj("LvglComponent", "::")
 
 

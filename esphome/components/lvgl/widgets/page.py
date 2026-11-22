@@ -5,7 +5,6 @@ from esphome.const import CONF_ID, CONF_PAGES, CONF_TIME, CONF_TRIGGER_ID
 
 from ..defines import (
     CONF_ANIMATION,
-    CONF_LVGL_ID,
     CONF_PAGE,
     CONF_PAGE_WRAP,
     CONF_SKIP,
@@ -19,6 +18,7 @@ from ..lvcode import (
     add_line_marks,
     context_action,
     lv_add,
+    lvgl_parent,
     lvgl_static,
 )
 from ..schemas import LVGL_SCHEMA
@@ -80,11 +80,7 @@ async def page_next_to_code(config, action_id, template_arg, args):
     time = await lv_milliseconds.process(config[CONF_TIME])
     async with LambdaContext(args) as context:
         add_line_marks(action_id)
-        lv_add(
-            automation.parent_ref(
-                await cg.get_variable(config[CONF_LVGL_ID])
-            ).show_next_page(animation, time)
-        )
+        lv_add((await lvgl_parent(config)).show_next_page(animation, time))
     return await context_action(context, action_id, template_arg, args)
 
 
@@ -109,11 +105,7 @@ async def page_previous_to_code(config, action_id, template_arg, args):
     time = await lv_milliseconds.process(config[CONF_TIME])
     async with LambdaContext(args) as context:
         add_line_marks(action_id)
-        lv_add(
-            automation.parent_ref(
-                await cg.get_variable(config[CONF_LVGL_ID])
-            ).show_prev_page(animation, time)
-        )
+        lv_add((await lvgl_parent(config)).show_prev_page(animation, time))
     return await context_action(context, action_id, template_arg, args)
 
 
@@ -136,11 +128,7 @@ async def page_show_to_code(config, action_id, template_arg, args):
     time = await lv_milliseconds.process(config[CONF_TIME])
     async with LambdaContext(args) as context:
         add_line_marks(action_id)
-        lv_add(
-            automation.parent_ref(
-                await cg.get_variable(config[CONF_LVGL_ID])
-            ).show_page(widget.index, animation, time)
-        )
+        lv_add((await lvgl_parent(config)).show_page(widget.index, animation, time))
     return await context_action(context, action_id, template_arg, args)
 
 

@@ -50,6 +50,7 @@ from .lvcode import (
     lv_add,
     lv_expr,
     lv_obj,
+    lvgl_parent,
 )
 from .schemas import (
     ALL_STYLES,
@@ -176,7 +177,7 @@ def _validate_rotation(value):
     synchronous=True,
 )
 async def lvgl_set_rotation(config, action_id, template_arg, args):
-    lv_comp = automation.parent_ref(await cg.get_variable(config[CONF_LVGL_ID]))
+    lv_comp = await lvgl_parent(config)
     async with LambdaContext(args, where=action_id) as context:
         rotation = await lv_rotation.process(config[CONF_ROTATION])
         lv_add(lv_comp.set_rotation(rotation))
@@ -199,7 +200,7 @@ async def lvgl_set_rotation(config, action_id, template_arg, args):
 )
 async def obj_invalidate_to_code(config, action_id, template_arg, args):
     if CONF_LVGL_ID in config:
-        lv_comp = automation.parent_ref(await cg.get_variable(config[CONF_LVGL_ID]))
+        lv_comp = await lvgl_parent(config)
         widgets = [get_screen_active(lv_comp)]
     else:
         widgets = await get_widgets(config)
@@ -263,11 +264,7 @@ async def lvgl_update_to_code(config, action_id, template_arg, args):
 async def pause_action_to_code(config, action_id, template_arg, args):
     async with LambdaContext(args) as context:
         add_line_marks(where=action_id)
-        lv_add(
-            automation.parent_ref(
-                await cg.get_variable(config[CONF_LVGL_ID])
-            ).set_paused(True, config[CONF_SHOW_SNOW])
-        )
+        lv_add((await lvgl_parent(config)).set_paused(True, config[CONF_SHOW_SNOW]))
     return await context_action(context, action_id, template_arg, args)
 
 
@@ -279,11 +276,7 @@ async def pause_action_to_code(config, action_id, template_arg, args):
 )
 async def resume_action_to_code(config, action_id, template_arg, args):
     async with LambdaContext(args, where=action_id) as context:
-        lv_add(
-            automation.parent_ref(
-                await cg.get_variable(config[CONF_LVGL_ID])
-            ).set_paused(False, False)
-        )
+        lv_add((await lvgl_parent(config)).set_paused(False, False))
     return await context_action(context, action_id, template_arg, args)
 
 
@@ -430,7 +423,7 @@ async def widget_focus(config, action_id, template_arg, args):
                 lv.group_set_editing(group, True)
         else:
             action = config[CONF_ACTION]
-            lv_comp = automation.parent_ref(await get_variable(config[CONF_LVGL_ID]))
+            lv_comp = await lvgl_parent(config)
             if action == "MARK":
                 context.add(lv_comp.set_focus_mark(group))
             else:
