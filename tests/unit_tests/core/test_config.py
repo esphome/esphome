@@ -400,14 +400,18 @@ async def test_suspend_loop_and_loop_interval(
     assert esphome_config.get(CONF_SUSPEND_LOOP)
 
     with patch("esphome.core.config.cg") as mock_cg:
+        # Call through so the setter assertion below checks what is emitted.
+        mock_cg.add_optional.side_effect = lambda setter, value: (
+            None if value is None else setter(value)
+        )
         mock_cg.RawStatement.side_effect = lambda *args, **kwargs: MagicMock()
         mock_cg.RawExpression.side_effect = lambda *args, **kwargs: MagicMock()
         await config.to_code(result[CONF_ESPHOME])
 
     mock_cg.add_define.assert_any_call("ESPHOME_SUSPEND_LOOP")
     mock_cg.add_define.assert_any_call("ESPHOME_DEBUG_SCHEDULER")
-    mock_cg.add_optional.assert_any_call(
-        mock_cg.App.set_loop_interval, cv.TimePeriodMilliseconds(milliseconds=50)
+    mock_cg.App.set_loop_interval.assert_called_once_with(
+        cv.TimePeriodMilliseconds(milliseconds=50)
     )
 
 
