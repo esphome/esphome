@@ -14,6 +14,7 @@
 
 #include "esphome/core/application.h"
 #include "esphome/core/defines.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
@@ -52,6 +53,10 @@ static constexpr size_t CSV_HEADER_LIMIT =
 // Dump window margin for jitter and single gaps.
 static constexpr uint32_t DUMP_WINDOW_MARGIN = 2;
 static constexpr uint32_t REOPEN_RETRY_MS = 300000;
+// The sync task only folds the header into the file: 4 KB of stack is enough for the
+// stdio and littlefs calls, and it runs below the main loop.
+static constexpr uint32_t SYNC_TASK_STACK_SIZE = 4096;
+static constexpr UBaseType_t SYNC_TASK_PRIORITY = 1;
 // mount_point is at most 32 characters and file at most 64, plus the slash and the terminator.
 static constexpr size_t PATH_BUFFER_SIZE = 128;
 
@@ -94,6 +99,34 @@ static_assert(static_cast<int>(tsdbmath::MEMORY_PSRAM) == static_cast<int>(TSDB_
               "esp_tsdb changed tsdb_alloc_strategy_t");
 static_assert(static_cast<int>(tsdbmath::MEMORY_AUTO) == static_cast<int>(TSDB_ALLOC_AUTO),
               "esp_tsdb changed tsdb_alloc_strategy_t");
+static_assert(sizeof(tsdb_block_t) == tsdbmath::BLOCK_IN_MEMORY_BYTES, "esp_tsdb changed sizeof(tsdb_block_t)");
+
+// The engine's own header check (tsdb_header_is_sane), used to tell a readable history
+// from one tsdb_open() would unlink before any schema check.
+static bool header_is_sane(const tsdb_header_t &header) {
+  if (header.num_params == 0 || header.num_params > TSDB_MAX_PARAMS)
+    return false;
+  if (header.num_params > 16 && header.version < TSDB_VERSION_WIDE)
+    return false;
+  if (header.base_params != 0 && header.base_params > header.num_params)
+    return false;
+  if (header.param_size != 0 && header.param_size != 2)
+    return false;
+  const uint16_t record_size = static_cast<uint16_t>(4 + header.num_params * 2);
+  if (header.record_size != 0 && header.record_size != record_size)
+    return false;
+  const uint16_t max_records_per_block =
+      static_cast<uint16_t>((tsdbmath::BLOCK_SIZE - tsdbmath::BLOCK_HEADER_SIZE) / record_size);
+  if (header.records_per_block == 0 || header.records_per_block > max_records_per_block)
+    return false;
+  if (header.index_offset < 512 || header.index_offset > 0x10000)
+    return false;
+  if (header.index_entries > 0x100000)
+    return false;
+  if (header.index_stride == 0)
+    return false;
+  return header.max_records <= 100000000UL;
+}
 
 static bool partition_is_blank(const esp_partition_t *partition) {
   static constexpr size_t CHUNK = 256;
@@ -128,15 +161,16 @@ void TsdbComponent::format_path_(char *buffer, size_t size) const {
   snprintf(buffer, size, "%s/%s", this->mount_point_.c_str(), this->file_.c_str());
 }
 
-// The engine keeps two alternating header copies beside the database (<file>.h0/.h1)
-// and adopts the newer one on open when it describes at least as many records.
+// The engine keeps two alternating durable header copies beside the database: the legacy
+// <file>.h0/.h1 and, from 2.4.4, <file>.d/h0 and h1. It adopts the newer one on open when
+// it describes at least as many records.
 bool TsdbComponent::remove_sidecars_() {
-  static constexpr const char *SUFFIXES[] = {".h0", ".h1"};
+  static constexpr const char *SUFFIXES[] = {".h0", ".h1", ".d/h0", ".d/h1"};
   char path[PATH_BUFFER_SIZE];
   this->format_path_(path, sizeof(path));
   bool removed = true;
   for (const char *suffix : SUFFIXES) {
-    char sidecar[PATH_BUFFER_SIZE + 4];
+    char sidecar[PATH_BUFFER_SIZE + 8];
     snprintf(sidecar, sizeof(sidecar), "%s%s", path, suffix);
     if (remove(sidecar) != 0 && errno != ENOENT) {
       ESP_LOGE(TAG, "%s: deleting %s failed", this->file_.c_str(), sidecar);
@@ -144,6 +178,32 @@ bool TsdbComponent::remove_sidecars_() {
     }
   }
   return removed;
+}
+
+// Both durable header slot formats start with {uint32 magic; uint32 seq}. The engine
+// ignores the result of its slot write, so a record that returns OK can still be
+// missing from the durable header: require the newest slot's sequence to advance.
+bool TsdbComponent::sidecar_advanced_() {
+  static constexpr const char *SLOT_SUFFIXES[] = {".h0", ".h1", ".d/h0", ".d/h1"};
+  char path[PATH_BUFFER_SIZE];
+  this->format_path_(path, sizeof(path));
+  uint32_t newest = 0;
+  for (const char *suffix : SLOT_SUFFIXES) {
+    char slot[PATH_BUFFER_SIZE + 8];
+    snprintf(slot, sizeof(slot), "%s%s", path, suffix);
+    FILE *file = fopen(slot, "rb");
+    if (file == nullptr)
+      continue;
+    uint32_t prefix[2] = {0, 0};
+    const bool ok = fread(prefix, sizeof(prefix), 1, file) == 1;
+    fclose(file);
+    if (ok && prefix[0] != 0 && prefix[1] > newest)
+      newest = prefix[1];
+  }
+  if (newest == 0 || newest <= this->newest_sidecar_seq_)
+    return false;
+  this->newest_sidecar_seq_ = newest;
+  return true;
 }
 
 void TsdbComponent::setup() {
@@ -170,6 +230,12 @@ void TsdbComponent::setup() {
     this->last_stats_ = millis();
     this->publish_stats_();
   }
+  // The periodic fold rewrites the whole file (seconds on a large history), so it runs
+  // on its own task instead of stalling the main loop. Without it the syncs stay inline.
+  if (!this->sync_task_.create(TsdbComponent::sync_task_fn_, "tsdb_sync", SYNC_TASK_STACK_SIZE, this,
+                               SYNC_TASK_PRIORITY, false)) {
+    ESP_LOGW(TAG, "%s: no sync task - folding the history on the main loop", this->file_.c_str());
+  }
 }
 
 // Count the failed initialisation so the diagnostics sensor reports it instead
@@ -181,11 +247,14 @@ void TsdbComponent::fail_setup_(const LogString *reason) {
 }
 
 void TsdbComponent::on_shutdown() {
+  // Wait for an in-flight sync, then fold once more inline: a shutdown may block.
+  this->wait_for_sync_();
   if (this->db_ == nullptr) {
     this->unmount_filesystem_();
     return;
   }
-  this->flush_(true);
+  if (this->dirty_)
+    this->sync_now_();
   ESP_LOGI(TAG, "%s: closing on shutdown", this->file_.c_str());
   this->close_database_();
   this->unmount_filesystem_();
@@ -316,6 +385,40 @@ void TsdbComponent::unmount_filesystem_() {
   g_free_space_label = nullptr;
 }
 
+HistoryState TsdbComponent::inspect_history_(const char *path, const LogString **reason) const {
+  FILE *file = fopen(path, "rb");
+  if (file == nullptr) {
+    if (errno == ENOENT)
+      return HistoryState::HISTORY_STATE_MISSING;
+    *reason = LOG_STR("cannot be opened");
+    return HistoryState::HISTORY_STATE_UNREADABLE;
+  }
+  tsdb_header_t header = {};
+  const size_t read = fread(&header, 1, sizeof(header), file);
+  fclose(file);
+  if (read == 0) {
+    // An empty file holds no history; the engine recreates it.
+    return HistoryState::HISTORY_STATE_MISSING;
+  }
+  if (read < sizeof(header)) {
+    *reason = LOG_STR("shorter than its header");
+    return HistoryState::HISTORY_STATE_UNREADABLE;
+  }
+  if (header.magic != static_cast<uint32_t>(TSDB_MAGIC)) {
+    *reason = LOG_STR("header magic mismatch");
+    return HistoryState::HISTORY_STATE_UNREADABLE;
+  }
+  if (header.version == 99) {
+    *reason = LOG_STR("interrupted layout migration");
+    return HistoryState::HISTORY_STATE_UNREADABLE;
+  }
+  if (!header_is_sane(header)) {
+    *reason = LOG_STR("implausible header fields");
+    return HistoryState::HISTORY_STATE_UNREADABLE;
+  }
+  return HistoryState::HISTORY_STATE_READABLE;
+}
+
 bool TsdbComponent::open_database_() {
   const uint32_t columns = static_cast<uint32_t>(this->columns_.size());
   std::array<const char *, TSDB_COLUMN_COUNT> names{};
@@ -329,6 +432,15 @@ bool TsdbComponent::open_database_() {
   }
   char path[PATH_BUFFER_SIZE];
   this->format_path_(path, sizeof(path));
+
+  // tsdb_open() unlinks a history file it cannot read or reconstruct, before any schema
+  // check. Inspect it first so only a column mismatch the config allows may delete it.
+  const LogString *unreadable = nullptr;
+  if (this->inspect_history_(path, &unreadable) == HistoryState::HISTORY_STATE_UNREADABLE) {
+    ESP_LOGE(TAG, "%s: not opening an unreadable history (%s) - delete %s to start over", this->file_.c_str(),
+             LOG_STR_ARG(unreadable), path);
+    return false;
+  }
 
   tsdb_config_t config = {};
   config.filepath = path;
@@ -395,6 +507,8 @@ bool TsdbComponent::open_database_() {
              " - recreate the history to change it",
              this->file_.c_str(), saved_stride, this->index_stride_);
   }
+  // The next record must leave a header slot whose sequence the engine advances.
+  this->newest_sidecar_seq_ = 0;
   return true;
 }
 
@@ -470,6 +584,11 @@ uint64_t TsdbComponent::free_space_probe() {
 }
 
 void TsdbComponent::update() {
+  this->consume_sync_result_();
+  // The sync task holds the engine lock for the whole fold; touching the database here
+  // would park the main loop behind it.
+  if (this->sync_pending_)
+    return;
   if (this->db_ == nullptr) {
     if (this->db_lost_) {
       this->dropped_++;
@@ -539,12 +658,14 @@ void TsdbComponent::handle_requests_() {
 
   if (this->flush_requested_) {
     this->flush_requested_ = false;
-    this->flush_(true);
-    // A failed sync invalidates the handle and raises its own warning; announcing
-    // success here would contradict both.
-    if (this->db_ != nullptr && !this->sync_failed_) {
+    if (!this->dirty_) {
+      // Nothing pending: the file already holds every record.
       ESP_LOGI(TAG, "%s: flushed on request", this->file_.c_str());
       this->publish_log_("history flushed");
+    } else {
+      // The fold runs on the sync task; its outcome is reported when it finishes.
+      this->report_flush_ = true;
+      this->flush_(true);
     }
   }
 
@@ -700,19 +821,29 @@ bool TsdbComponent::write_record_() {
     this->publish_errors_();
     return false;
   }
-  this->writes_++;
-  if (this->warned_time_)
-    this->uptime_timestamps_++;
   this->last_timestamp_ = timestamp;
   this->dropped_backwards_ = 0;
   this->dirty_ = true;
-  // Only a clean record clears the warning: a held, sentinel or clamped value is not healthy.
-  if (degraded != nullptr) {
-    this->status_set_warning(degraded);
-  } else if (!this->sync_failed_) {
-    this->status_clear_warning();
+  // The record block is in the file, but its durable header slot write can fail without
+  // the engine reporting it; a reboot would then drop the record from the history.
+  const bool durable = this->sidecar_advanced_();
+  if (durable) {
+    this->writes_++;
+    if (this->warned_time_)
+      this->uptime_timestamps_++;
+    // Only a clean record clears the warning: a held, sentinel or clamped value is not healthy.
+    if (degraded != nullptr) {
+      this->status_set_warning(degraded);
+    } else if (!this->sync_failed_) {
+      this->status_clear_warning();
+    }
+    return true;
   }
-  return true;
+  this->write_errors_++;
+  ESP_LOGE(TAG, "%s: the record's durable header write failed - a reboot may drop it", this->file_.c_str());
+  this->status_set_warning(LOG_STR("the durable header write failed"));
+  this->publish_errors_();
+  return false;
 }
 
 // The diagnostics sensor counts every anomaly - failed writes/syncs, dropped
@@ -726,31 +857,104 @@ void TsdbComponent::publish_errors_() {
 }
 
 void TsdbComponent::flush_(bool force) {
-  if (this->db_ == nullptr)
-    return;
-  if (!this->dirty_)
+  if (this->db_ == nullptr || !this->dirty_ || this->sync_pending_)
     return;
   const uint32_t now = App.get_loop_component_start_time();
   if (!force && this->last_sync_ != 0 && this->sync_interval_ > 0 && now - this->last_sync_ < this->sync_interval_)
     return;
   this->last_sync_ = now == 0 ? 1 : now;
-
-  // The sync copy-on-writes to end of file (3.7-5.1 s) and stalls the loop; the sidecar header holds the count.
-  const esp_err_t err = tsdb_sync_h(static_cast<tsdb_t *>(this->db_));
-  if (err != ESP_OK) {
-    this->write_errors_++;
-    this->sync_failed_ = true;
-    ESP_LOGE(TAG, "%s: sync failed: %s", this->file_.c_str(), esp_err_to_name(err));
-    // A later successful write must not clear this: only a sync that works may.
-    this->status_set_warning(LOG_STR("syncing the history failed"));
-    if (!tsdb_is_initialized_h(static_cast<tsdb_t *>(this->db_)))
-      this->invalidate_database_(LOG_STR("a sync failed and closed the database"));
-    this->publish_errors_();
+  if (!this->sync_task_.is_created()) {
+    this->sync_now_();
     return;
   }
-  this->sync_failed_ = false;
-  this->dirty_ = false;
-  ESP_LOGD(TAG, "%s: synced after %" PRIu32 " writes", this->file_.c_str(), this->writes_);
+  // The fold rewrites the whole file (seconds on a large history); leave it to the task.
+  this->sync_pending_ = true;
+  xTaskNotify(this->sync_task_.get_handle(), 1, eSetValueWithOverwrite);
+}
+
+// Folds the sidecar header into the file, on the main loop (no task) or at shutdown.
+void TsdbComponent::sync_now_() {
+  auto *db = static_cast<tsdb_t *>(this->db_);
+  // A later successful write must not clear the warning raised here: only a sync that
+  // works may.
+  const esp_err_t err = tsdb_sync_h(db);
+  if (err == ESP_OK) {
+    this->sync_failed_ = false;
+    this->dirty_ = false;
+    ESP_LOGD(TAG, "%s: synced after %" PRIu32 " writes", this->file_.c_str(), this->writes_);
+    if (this->report_flush_) {
+      this->report_flush_ = false;
+      ESP_LOGI(TAG, "%s: flushed on request", this->file_.c_str());
+      this->publish_log_("history flushed");
+    }
+    return;
+  }
+  this->report_flush_ = false;
+  this->write_errors_++;
+  this->sync_failed_ = true;
+  ESP_LOGE(TAG, "%s: sync failed: %s", this->file_.c_str(), esp_err_to_name(err));
+  this->status_set_warning(LOG_STR("syncing the history failed"));
+  this->publish_errors_();
+  if (!tsdb_is_initialized_h(db))
+    this->invalidate_database_(LOG_STR("a sync failed and closed the database"));
+}
+
+void TsdbComponent::sync_task_fn_(void *arg) {
+  auto *self = static_cast<TsdbComponent *>(arg);
+  for (;;) {
+    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+    auto *db = static_cast<tsdb_t *>(self->db_);
+    esp_err_t err = ESP_ERR_INVALID_STATE;
+    if (db != nullptr)
+      err = tsdb_sync_h(db);
+    SyncResult result = SyncResult::SYNC_RESULT_CLOSED;
+    if (err == ESP_OK) {
+      result = SyncResult::SYNC_RESULT_OK;
+    } else if (db != nullptr && tsdb_is_initialized_h(db)) {
+      result = SyncResult::SYNC_RESULT_FAILED;
+    }
+    self->sync_state_.store(static_cast<uint8_t>(result), std::memory_order_release);
+  }
+}
+
+// Consumes the sync task's outcome on the main loop; true when one was pending.
+bool TsdbComponent::consume_sync_result_() {
+  if (!this->sync_pending_)
+    return false;
+  const auto result = static_cast<SyncResult>(this->sync_state_.load(std::memory_order_acquire));
+  if (result == SyncResult::SYNC_RESULT_IDLE)
+    return false;
+  this->sync_state_.store(static_cast<uint8_t>(SyncResult::SYNC_RESULT_IDLE), std::memory_order_relaxed);
+  this->sync_pending_ = false;
+
+  if (result == SyncResult::SYNC_RESULT_OK) {
+    this->sync_failed_ = false;
+    this->dirty_ = false;
+    ESP_LOGD(TAG, "%s: synced after %" PRIu32 " writes", this->file_.c_str(), this->writes_);
+    if (this->report_flush_) {
+      this->report_flush_ = false;
+      ESP_LOGI(TAG, "%s: flushed on request", this->file_.c_str());
+      this->publish_log_("history flushed");
+    }
+    return true;
+  }
+
+  this->report_flush_ = false;
+  this->write_errors_++;
+  this->sync_failed_ = true;
+  ESP_LOGE(TAG, "%s: sync failed", this->file_.c_str());
+  this->status_set_warning(LOG_STR("syncing the history failed"));
+  this->publish_errors_();
+  if (result == SyncResult::SYNC_RESULT_CLOSED)
+    this->invalidate_database_(LOG_STR("a sync failed and closed the database"));
+  return true;
+}
+
+void TsdbComponent::wait_for_sync_() {
+  while (this->sync_pending_) {
+    if (!this->consume_sync_result_())
+      delay(10);
+  }
 }
 
 void TsdbComponent::dump_config() {
@@ -787,6 +991,13 @@ void TsdbComponent::dump_config() {
 void TsdbComponent::publish_aggregates_() {
 #if defined(USE_SENSOR) && defined(USE_TIME)
   if (this->time_ == nullptr || this->aggregate_window_ == 0)
+    return;
+  // Nothing to publish: skip scanning the window when no aggregate sensor is configured.
+  const bool has_aggregates =
+      std::any_of(this->aggregates_.begin(), this->aggregates_.end(), [](const TsdbAggregateSensors &sensors) {
+        return sensors.average != nullptr || sensors.min != nullptr || sensors.max != nullptr;
+      });
+  if (!has_aggregates)
     return;
   const ESPTime now = this->time_->now();
   if (!now.is_valid())
@@ -919,7 +1130,10 @@ void TsdbComponent::dump_csv_(uint32_t rows) {
     header_length += snprintf(header + header_length, sizeof(header) - static_cast<size_t>(header_length), ",%s",
                               this->columns_[index].name.c_str());
   }
-  ESP_LOGI(TAG, "%s: csv-dump begin (newest %" PRIu32 " records): %s", this->file_.c_str(), rows, header);
+  // The preamble goes on its own line so the header gets the whole log line, which is
+  // what the budget above measured.
+  ESP_LOGI(TAG, "%s: csv-dump begin (newest %" PRIu32 " records)", this->file_.c_str(), rows);
+  ESP_LOGI(TAG, "%s", header);
 
   static tsdb_query_t query = {};
   if (tsdb_query_init_h(db, &query, window_start, end, nullptr, 0) != ESP_OK) {

@@ -122,28 +122,29 @@ def test_validate_min_free_bytes_allows_zero() -> None:
     assert _validate_min_free_bytes("32KB") == 32 * 1024
 
 
-@pytest.mark.parametrize("value", ["1KB", "2KB", "3KB", 3072])
+@pytest.mark.parametrize("value", ["1KB", "2KB", "3KB", 3072, 3424])
 def test_validate_buffer_pool_size_keeps_the_query_block(value: object) -> None:
-    # The engine needs 1KB each for its read block, write cache and query block.
-    with pytest.raises(cv.Invalid, match="larger than 3KB"):
+    # The engine needs a full in-memory block for its read block, write cache and query block.
+    with pytest.raises(cv.Invalid, match="larger than 3424 bytes"):
         _validate_buffer_pool_size(value)
 
 
 def test_validate_buffer_pool_size_accepts_a_usable_pool() -> None:
+    assert _validate_buffer_pool_size(3425) == 3425
     assert _validate_buffer_pool_size("4KB") == 4096
     assert _validate_buffer_pool_size("32KB") == 32 * 1024
 
 
-@pytest.mark.parametrize("page_size", [1500, 3000, 512])
-def test_validate_config_rejects_a_page_that_splits_the_query_block(
+@pytest.mark.parametrize("page_size", [1024, 1500, 2048, 3000, 3072])
+def test_validate_config_rejects_a_page_that_splits_a_pool_block(
     page_size: object,
 ) -> None:
     config = _config(paged_allocation=True, page_size=page_size)
-    with pytest.raises(cv.Invalid, match="splits the engine's query block"):
+    with pytest.raises(cv.Invalid, match="splits an engine block across pages"):
         _validate_config(config)
 
 
-@pytest.mark.parametrize("page_size", [1024, 2048, 4096])
+@pytest.mark.parametrize("page_size", [4096, 6144, 8192])
 def test_validate_config_accepts_a_contiguous_page(page_size: int) -> None:
     config = _config(paged_allocation=True, page_size=page_size)
     assert _validate_config(config) is config

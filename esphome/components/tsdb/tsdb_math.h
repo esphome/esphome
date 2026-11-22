@@ -27,6 +27,8 @@ enum MemoryMode : uint8_t {
 
 static constexpr uint32_t BLOCK_SIZE = 1024;
 static constexpr uint32_t BLOCK_HEADER_SIZE = 8;
+// sizeof(tsdb_block_t): the engine's in-memory block, checked in tsdb.cpp.
+static constexpr uint32_t BLOCK_IN_MEMORY_BYTES = 1376;
 static constexpr uint32_t HEADER_BYTES = 584;
 static constexpr uint32_t TIMESTAMP_BYTES = 4;
 static constexpr uint32_t COLUMN_BYTES = 2;

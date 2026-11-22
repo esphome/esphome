@@ -55,11 +55,15 @@ TSDB_MAX_BASE_PARAMS = 16
 TSDB_MAX_NAME_LENGTH = 31
 # Mirrors tsdbmath::INDEX_DEFAULT_STRIDE; keep the two in step.
 TSDB_DEFAULT_INDEX_STRIDE = 380
-# The engine's block size and the offset of its query block inside the buffer pool
-# (read block, write cache, then the query block).
+# The engine's on-disk block size, its offset inside the buffer pool (read block,
+# write cache, then the query block), and the in-memory block the pool hands out.
+# Mirrors tsdbmath::BLOCK_SIZE and tsdbmath::BLOCK_IN_MEMORY_BYTES; keep in step.
 TSDB_BLOCK_BYTES = 1024
+TSDB_BLOCK_IN_MEMORY_BYTES = 1376
 TSDB_QUERY_BLOCK_OFFSET = 2 * TSDB_BLOCK_BYTES
-TSDB_DEFAULT_PAGE_SIZE = 2 * TSDB_BLOCK_BYTES
+TSDB_POOL_BLOCKS = (0, TSDB_BLOCK_BYTES, TSDB_QUERY_BLOCK_OFFSET)
+# Smallest page that holds every block of the pool inside one page.
+TSDB_DEFAULT_PAGE_SIZE = 4 * TSDB_BLOCK_BYTES
 LITTLEFS_BLOCK_BYTES = 0x1000
 LITTLEFS_RESERVED_BYTES = 4 * LITTLEFS_BLOCK_BYTES
 
@@ -173,12 +177,14 @@ def _validate_min_free_bytes(value: object) -> int:
 
 def _validate_buffer_pool_size(value: object) -> int:
     bytes_ = _validate_size(value)
-    # The engine slices the pool into a read block, a write cache and a query block, so
-    # a smaller pool leaves the query block outside it and every query allocates one.
-    if bytes_ <= TSDB_QUERY_BLOCK_OFFSET + TSDB_BLOCK_BYTES:
+    # The engine slices the pool into a read block, a write cache and a query block, each
+    # a full in-memory block, so a smaller pool leaves them outside it and every read,
+    # write and query has to allocate one.
+    minimum = TSDB_QUERY_BLOCK_OFFSET + TSDB_BLOCK_IN_MEMORY_BYTES
+    if bytes_ <= minimum:
         raise cv.Invalid(
-            "buffer_pool_size must be larger than 3KB: the engine needs 1KB each "
-            "for its read, write and query blocks"
+            f"buffer_pool_size must be larger than {minimum} bytes: the engine needs a "
+            f"{TSDB_BLOCK_IN_MEMORY_BYTES}-byte read block, write cache and query block"
         )
     return bytes_
 
@@ -187,13 +193,14 @@ def _validate_page_geometry(config: ConfigType) -> None:
     if not config.get(CONF_PAGED_ALLOCATION, False):
         return
     page = config.get(CONF_PAGE_SIZE, TSDB_DEFAULT_PAGE_SIZE)
-    # A paged query block has to stay inside one page, otherwise the engine allocates
-    # and frees a fallback buffer for every aggregate and CSV query.
-    if TSDB_QUERY_BLOCK_OFFSET % page + TSDB_BLOCK_BYTES > page:
-        raise cv.Invalid(
-            f"page_size {page} splits the engine's query block across pages: use "
-            "1KB or 2KB pages, or turn paged_allocation off"
-        )
+    # Every pool block has to stay inside one page, otherwise the engine allocates and
+    # frees a fallback buffer for each read, write, aggregate and CSV query.
+    for offset in TSDB_POOL_BLOCKS:
+        if offset % page + TSDB_BLOCK_IN_MEMORY_BYTES > page:
+            raise cv.Invalid(
+                f"page_size {page} splits an engine block across pages: use a page of "
+                f"{TSDB_DEFAULT_PAGE_SIZE} bytes or more, or turn paged_allocation off"
+            )
 
 
 def _validate_memory(value: str) -> str:

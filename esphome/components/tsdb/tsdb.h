@@ -3,12 +3,14 @@
 #ifdef USE_ESP_IDF
 
 #include <array>
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/static_task.h"
 #include "esphome/core/string_ref.h"
 #include "esphome/components/sensor/sensor.h"
 #ifdef USE_TEXT_SENSOR
@@ -23,6 +25,22 @@
 #include "tsdb_math.h"
 
 namespace esphome::tsdb {
+
+// Result of the header inspection done before tsdb_open(), which unlinks a file it
+// cannot read before any schema check.
+enum class HistoryState : uint8_t {
+  HISTORY_STATE_MISSING = 0,
+  HISTORY_STATE_READABLE = 1,
+  HISTORY_STATE_UNREADABLE = 2,
+};
+
+// State the sync task leaves for the main loop to consume.
+enum class SyncResult : uint8_t {
+  SYNC_RESULT_IDLE = 0,
+  SYNC_RESULT_OK = 1,
+  SYNC_RESULT_FAILED = 2,
+  SYNC_RESULT_CLOSED = 3,
+};
 
 struct TsdbColumn {
   StringRef name;
@@ -105,6 +123,7 @@ class TsdbComponent : public PollingComponent {
   bool mount_filesystem_();
   void unmount_filesystem_();
   bool open_database_();
+  HistoryState inspect_history_(const char *path, const LogString **reason) const;
   void log_init_failure_();
   void fail_setup_(const LogString *reason);
   void close_database_();
@@ -117,8 +136,13 @@ class TsdbComponent : public PollingComponent {
   bool write_record_();
   void publish_errors_();
   void flush_(bool force);
+  void sync_now_();
+  bool consume_sync_result_();
+  void wait_for_sync_();
+  static void sync_task_fn_(void *arg);
   void format_path_(char *buffer, size_t size) const;
   bool remove_sidecars_();
+  bool sidecar_advanced_();
   void publish_aggregates_();
   void publish_stats_();
   void dump_csv_(uint32_t rows);
@@ -164,6 +188,11 @@ class TsdbComponent : public PollingComponent {
   uint32_t last_stats_{0};
   uint32_t records_{0};
   uint32_t dump_requested_{0};
+  // Newest durable header slot sequence seen, so a failed slot write is noticed.
+  uint32_t newest_sidecar_seq_{0};
+  StaticTask sync_task_;
+  // Written by the sync task, read and reset by the main loop.
+  std::atomic<uint8_t> sync_state_{static_cast<uint8_t>(SyncResult::SYNC_RESULT_IDLE)};
   uint32_t writes_{0};
   uint32_t write_errors_{0};
   uint32_t reopen_errors_{0};
@@ -188,6 +217,10 @@ class TsdbComponent : public PollingComponent {
   bool clear_requested_{false};
   bool format_attempted_{false};
   bool warned_time_{false};
+  // Main loop only: a sync is outstanding, so db_ must not be closed or replaced.
+  bool sync_pending_{false};
+  // Report the next completed sync as the answer to a flush request.
+  bool report_flush_{false};
   // Raised by a failed sync and cleared by the next one, never by a successful write.
   bool sync_failed_{false};
 };
