@@ -7,8 +7,6 @@
 
 namespace esphome::modbus_controller {
 
-using value_to_data_t = std::function<float>(float);
-
 class ModbusNumber final : public number::Number, public SensorItem, public WriterEntity {
  public:
   ModbusNumber(modbus::EntityType register_type, uint16_t start_address, uint8_t offset, uint32_t bitmask,
