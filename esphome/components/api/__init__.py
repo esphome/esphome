@@ -52,7 +52,14 @@ from esphome.const import (
     CONF_TYPE,
     CONF_VARIABLES,
 )
-from esphome.core import CORE, ID, CoroPriority, EsphomeError, coroutine_with_priority
+from esphome.core import (
+    CORE,
+    ID,
+    CoroPriority,
+    EsphomeError,
+    Lambda,
+    coroutine_with_priority,
+)
 from esphome.cpp_generator import Expression, MockObj, TemplateArgsType
 from esphome.helpers import fnv1_hash
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
@@ -99,7 +106,6 @@ ActionResponse = api_ns.class_("ActionResponse")
 HomeAssistantActionResponseTrigger = api_ns.class_(
     "HomeAssistantActionResponseTrigger", automation.Trigger
 )
-APIRespondAction = api_ns.class_("APIRespondAction", automation.Action)
 UserServiceCallback = api_ns.class_("UserServiceCallback")
 ListEntitiesServicesArgument = api_ns.class_("ListEntitiesServicesArgument")
 # Owning element type for each YAML service variable type.  Used to derive both
@@ -1083,7 +1089,7 @@ API_RESPOND_ACTION_SCHEMA = cv.All(
 
 @automation.register_action(
     "api.respond",
-    APIRespondAction,
+    automation.ApplyAction,
     API_RESPOND_ACTION_SCHEMA,
     synchronous=True,
 )
@@ -1097,39 +1103,52 @@ async def api_respond_to_code(
     # We can't easily validate this at config time since the schema validation
     # doesn't have access to the parent action context. Validating here in to_code
     # is still much better than a cryptic C++ compile error.
-    has_call_id = any(name == "call_id" for _, name in args)
-    if not has_call_id:
+    if not any(name == "call_id" for _, name in args):
         raise EsphomeError(
             "api.respond can only be used inside an API action's 'then:' block. "
             "The 'call_id' variable is required to send a response."
         )
 
     cg.add_define("USE_API_USER_DEFINED_ACTION_RESPONSES")
-    serv = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, serv)
-
-    # Check if we're in optional mode (has return_response arg)
-    is_optional = any(name == "return_response" for _, name in args)
-    if is_optional:
-        cg.add(var.set_is_optional_mode(True))
-
-    templ = await cg.templatable(config[CONF_SUCCESS], args, cg.bool_)
-    cg.add(var.set_success(templ))
-
-    templ = await cg.templatable(config[CONF_ERROR_MESSAGE], args, cg.std_string)
-    cg.add(var.set_error_message(templ))
-
-    if CONF_DATA in config:
-        cg.add_define("USE_API_USER_DEFINED_ACTION_RESPONSES_JSON")
-        # Lambda populates the JsonObject root - no return value needed
-        lambda_ = await cg.process_lambda(
-            config[CONF_DATA],
-            args + [(cg.JsonObject, "root")],
-            return_type=cg.void,
+    parent = await automation.apply_parent(config)
+    # Lambdas are bound in order before the response is sent
+    statements: list[str] = []
+    if isinstance(success := config[CONF_SUCCESS], Lambda):
+        statements.append(
+            await automation.bind_lambda(success, args, cg.bool_, "esphome__success")
         )
-        cg.add(var.set_data(lambda_))
-
-    return var
+        success = "esphome__success"
+    else:
+        success = cg.safe_exp(success)
+    if isinstance(error := config[CONF_ERROR_MESSAGE], Lambda):
+        statements.append(
+            await automation.bind_lambda(
+                error, args, cg.std_string, "esphome__error_message"
+            )
+        )
+        error = "::esphome::StringRef(esphome__error_message)"
+    else:
+        error = f"::esphome::StringRef::from_lit({cg.safe_exp(error)})"
+    if CONF_DATA not in config:
+        call = f"send_action_response(call_id, {success}, {error})"
+    else:
+        cg.add_define("USE_API_USER_DEFINED_ACTION_RESPONSES_JSON")
+        # Fills root; only args the lambda names are copied, so it may modify them
+        data = await automation.call_user_lambda(
+            config[CONF_DATA], [*args, (cg.JsonObject, "root")], cg.void
+        )
+        build = f"[&]({cg.JsonObject} root) {{ {data}; }}"
+        # Optional mode passes bool return_response right after call_id (repeat: may put iteration first)
+        after = [name for _, name in args].index("call_id") + 1
+        optional = [(str(t), n) for t, n in args[after : after + 1]] == [
+            ("bool", "return_response")
+        ]
+        data_arg = ", return_response" if optional else ""
+        call = (
+            f"send_action_response_json(call_id, {success}, {error}, {build}{data_arg})"
+        )
+    statements.append(f"{parent}->{call};")
+    return automation.apply_statements_action(action_id, template_arg, args, statements)
 
 
 API_CONNECTED_CONDITION_SCHEMA = cv.Schema(
