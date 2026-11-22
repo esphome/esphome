@@ -25,7 +25,7 @@ TABULAR_SCHEMA = cv.Schema({})
 CONFIG_SCHEMA = cv.Schema({})
 
 
-async def to_code(var, config: ConfigType, model_path: Path) -> None:
+async def configure(var, config: ConfigType, model_path: Path) -> None:
     """Create the feature pipeline and the output decoder for one model."""
     pipeline = cg.new_Pvariable(
         ID(
