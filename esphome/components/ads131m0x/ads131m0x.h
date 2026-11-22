@@ -51,7 +51,6 @@ class ADS131M0x : public Component,
  public:
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
 
   void set_num_channels(uint8_t num_channels) { this->num_channels_ = num_channels; }
   void set_drdy_pin(InternalGPIOPin *pin) { this->drdy_pin_ = pin; }
@@ -78,7 +77,8 @@ class ADS131M0x : public Component,
   void task_loop_();
   void check_health_();
 
-  bool configure_();
+  /// Resets (if a reset pin is set) and configures the device. Returns nullptr on success, else the reason.
+  const LogString *configure_();
   /// Clocks one full frame. Returns false on an output CRC mismatch. `response` receives the first word.
   bool transfer_frame_(uint16_t command, uint16_t data, uint16_t *response, int32_t *samples);
   bool read_register_(uint8_t address, uint16_t *value);

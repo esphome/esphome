@@ -10,7 +10,9 @@ from esphome.const import (
     CONF_POWER_MODE,
     CONF_RESET_PIN,
     CONF_SAMPLE_RATE,
+    CONF_SPI_ID,
 )
+import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@Nawo"]
@@ -57,7 +59,7 @@ GAINS = {1: 0, 2: 1, 4: 2, 8: 3, 16: 4, 32: 5, 64: 6, 128: 7}
 OSR_CODES = {0: 128, 1: 256, 2: 512, 3: 1024, 4: 2048, 5: 4096, 6: 8192, 7: 16256}
 # Relative tolerance when matching sample_rate to an achievable data rate
 SAMPLE_RATE_TOLERANCE = 0.01
-# The task accumulates squared 24-bit codes in int64; 2^46 * 2^17 stays below 2^63.
+# The task accumulates squared 24-bit codes in uint64: at most 2^46 * 2^17 = 2^63.
 MAX_WINDOW_SAMPLES = 1 << 17
 
 
@@ -140,6 +142,21 @@ CONFIG_SCHEMA = cv.All(
     cv.only_on_esp32,
     _validate,
 )
+
+
+def _final_validate(config: ConfigType) -> ConfigType:
+    # The sampling task shares the bus with the main loop. Only the hardware SPI driver locks the bus for each
+    # transaction; a software bus could interleave this chip's frames with another device's transfer.
+    bus = fv.get_declaring_config(config[CONF_SPI_ID])
+    if bus.get(spi.CONF_INTERFACE_INDEX) is None:
+        raise cv.Invalid(
+            "ads131m0x needs a hardware SPI bus; set 'interface: hardware' on the spi bus",
+            [CONF_SPI_ID],
+        )
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config: ConfigType) -> None:

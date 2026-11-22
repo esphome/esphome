@@ -202,22 +202,22 @@ bool ADS131M0x::read_register_(uint8_t address, uint16_t *value) {
 bool ADS131M0x::write_register_(uint8_t address, uint16_t value) {
   if (!this->transfer_frame_(CMD_WREG | (uint16_t(address) << REG_ADDRESS_SHIFT), value, nullptr, nullptr) ||
       !this->transfer_frame_(CMD_NULL, 0, nullptr, nullptr)) {
-    ESP_LOGW(TAG, "Register 0x%02X: write failed (CRC)", address);
+    ESP_LOGD(TAG, "Register 0x%02X: write failed (CRC)", address);
     return false;
   }
   uint16_t readback = 0;
   if (!this->read_register_(address, &readback)) {
-    ESP_LOGW(TAG, "Register 0x%02X: readback failed (CRC)", address);
+    ESP_LOGD(TAG, "Register 0x%02X: readback failed (CRC)", address);
     return false;
   }
   if (readback != value) {
-    ESP_LOGW(TAG, "Register 0x%02X: wrote 0x%04X, read back 0x%04X", address, value, readback);
+    ESP_LOGD(TAG, "Register 0x%02X: wrote 0x%04X, read back 0x%04X", address, value, readback);
     return false;
   }
   return true;
 }
 
-bool ADS131M0x::configure_() {
+const LogString *ADS131M0x::configure_() {
   if (this->reset_pin_ != nullptr) {
     this->reset_pin_->digital_write(false);
     vTaskDelay(pdMS_TO_TICKS(RESET_LOW_MS));
@@ -229,13 +229,12 @@ bool ADS131M0x::configure_() {
 
   uint16_t id = 0;
   if (!this->read_register_(REG_ID, &id)) {
-    ESP_LOGW(TAG, "No valid response from device (CRC)");
-    return false;
+    return LOG_STR("no valid response from device (CRC)");
   }
   this->chip_id_.store(id);
   if ((id >> 12) != ID_FAMILY || ((id >> 8) & 0x0F) != this->num_channels_) {
-    ESP_LOGW(TAG, "Unexpected chip ID 0x%04X for a %u-channel model", id, this->num_channels_);
-    return false;
+    ESP_LOGD(TAG, "Chip ID 0x%04X, expected a %u-channel model", id, this->num_channels_);
+    return LOG_STR("unexpected chip ID");
   }
 
   const uint16_t channel_mask = (1u << this->num_channels_) - 1;
@@ -258,10 +257,11 @@ bool ADS131M0x::configure_() {
   if (this->num_channels_ > GAIN_CHANNELS_PER_REGISTER) {
     ok = ok && this->write_register_(REG_GAIN2, gain2);
   }
-  if (ok) {
-    ESP_LOGD(TAG, "Configured (chip ID 0x%04X)", id);
+  if (!ok) {
+    return LOG_STR("register write not verified by readback");
   }
-  return ok;
+  ESP_LOGD(TAG, "Configured (chip ID 0x%04X)", id);
+  return nullptr;
 }
 
 void ADS131M0x::task_loop_() {
@@ -270,21 +270,34 @@ void ADS131M0x::task_loop_() {
   const uint32_t drdy_timeout_ms =
       std::max<uint32_t>(MIN_DRDY_TIMEOUT_MS, uint32_t(std::ceil(4000.0f / this->data_rate_)));
   std::array<int64_t, MAX_CHANNELS> sum{};
-  std::array<int64_t, MAX_CHANNELS> sum_sq{};
+  // A square is never negative; unsigned keeps a full window of -2^23 codes (2^63) representable
+  std::array<uint64_t, MAX_CHANNELS> sum_sq{};
   std::array<int32_t, MAX_CHANNELS> samples{};
   uint32_t count = 0;
   uint32_t consecutive_timeouts = 0;
   uint32_t consecutive_crc_errors = 0;
+  uint32_t failed_attempts = 0;
   bool configured = false;
 
   while (true) {
     if (!configured) {
       this->configured_.store(false);
-      configured = this->configure_();
-      if (!configured) {
+      const LogString *error = this->configure_();
+      if (error != nullptr) {
+        // Warn once; a missing or miswired chip would otherwise log a warning every retry
+        if (failed_attempts++ == 0) {
+          ESP_LOGW(TAG, "Configuration failed: %s; retrying every %" PRIu32 " ms", LOG_STR_ARG(error), RETRY_DELAY_MS);
+        } else {
+          ESP_LOGD(TAG, "Configuration failed: %s", LOG_STR_ARG(error));
+        }
         vTaskDelay(pdMS_TO_TICKS(RETRY_DELAY_MS));
         continue;
       }
+      if (failed_attempts > 0) {
+        ESP_LOGI(TAG, "Configured after %" PRIu32 " failed attempts", failed_attempts);
+        failed_attempts = 0;
+      }
+      configured = true;
       this->configured_.store(true);
       count = 0;
       sum.fill(0);
@@ -327,7 +340,7 @@ void ADS131M0x::task_loop_() {
     this->frames_++;
     for (uint8_t ch = 0; ch < this->num_channels_; ch++) {
       sum[ch] += samples[ch];
-      sum_sq[ch] += int64_t(samples[ch]) * samples[ch];
+      sum_sq[ch] += uint64_t(int64_t(samples[ch]) * samples[ch]);
     }
     if (++count < window_samples) {
       continue;
