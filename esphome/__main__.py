@@ -1706,69 +1706,35 @@ def command_config(args: ArgsProtocol, config: ConfigType) -> int | None:
         config = strip_default_ids(config)
     output = yaml_util.dump(config, args.show_secrets)
     if not args.show_secrets:
-        output = _redact_with_legacy_fallback(output)
+        output = _redact_substitutions(output)
     if not CORE.quiet:
         safe_print(output)
     _LOGGER.info("Configuration is valid!")
     return 0
 
 
-# Legacy substring redaction fallback for unmigrated schemas; removed in
-# 2026.12.0 once canonical sensitive fields are tagged. The lookahead skips
-# values that already render themselves: ``\033[8m`` (SensitiveStr wrap),
-# ``!secret`` (preserves the user-friendly tag), ``!lambda`` (multi-line
-# block; first line is structural). The fragment must either start the
-# field name or follow ``_`` so the warning names a real field; this avoids
-# false positives like ``monkey:`` matching the ``key`` fragment.
-_LEGACY_REDACTION_RE = re.compile(
-    r"(?P<key>\b(?:\w+_)?(?:password|key|psk|ssid))\: "
+# Substitution keys are user-named with no schema behind them, so values in
+# the top-level ``substitutions:`` block cannot be marked with cv.sensitive.
+# Redact the secret-shaped ones by name. The lookahead skips values that already
+# render themselves: ``\033[8m`` (SensitiveStr wrap), ``!secret`` and ``!lambda``.
+_SUBSTITUTION_REDACTION_RE = re.compile(
+    r"^(?P<prefix>\s+(?:\w+_)?(?:password|key|psk|ssid)): "
     r"(?!\\033\[8m|!secret\b|!lambda\b)(?P<val>.+)"
 )
-_LEGACY_REDACTION_REMOVAL = "2026.12.0"
 
 
-def _redact_with_legacy_fallback(output: str) -> str:
-    unmarked: set[str] = set()
-    # Track the top-level ``substitutions:`` block. Its keys are arbitrary
-    # user-chosen names with no schema validator, so the ``cv.sensitive(...)``
-    # migration named in the warning can't be applied to them. Their values are
-    # still redacted, but emitting the (unactionable) deprecation warning would
-    # only confuse users.
+def _redact_substitutions(output: str) -> str:
     in_substitutions = False
-
     lines = output.split("\n")
     for i, line in enumerate(lines):
         # A non-indented, non-blank line is a top-level key that opens or
         # closes the substitutions block.
         if line and not line[0].isspace():
             in_substitutions = line.startswith(f"{CONF_SUBSTITUTIONS}:")
-        m = _LEGACY_REDACTION_RE.search(line)
-        if m is None:
             continue
-        key = m.group("key")
-        if not in_substitutions:
-            # Public keys (e.g. wireguard's peer_public_key) are not secret;
-            # redacting them and telling maintainers to mark them cv.sensitive
-            # would be wrong on both counts. Substitution keys are user-named
-            # with no schema behind them, so anything secret-shaped there
-            # (public or not) stays conservatively redacted.
-            if "public" in key.split("_"):
-                continue
-            unmarked.add(key)
-        lines[i] = (
-            f"{line[: m.start()]}{key}: "
-            f"\\033[8m{m.group('val')}\\033[28m{line[m.end() :]}"
-        )
-    output = "\n".join(lines)
-    for key in sorted(unmarked):
-        _LOGGER.warning(
-            "Field '%s' is being redacted by a legacy substring heuristic. "
-            "Mark this field's schema validator with cv.sensitive(...) for "
-            "deterministic redaction; the heuristic will be removed in %s.",
-            key,
-            _LEGACY_REDACTION_REMOVAL,
-        )
-    return output
+        if in_substitutions and (m := _SUBSTITUTION_REDACTION_RE.match(line)):
+            lines[i] = f"{m.group('prefix')}: \\033[8m{m.group('val')}\\033[28m"
+    return "\n".join(lines)
 
 
 def command_config_hash(args: ArgsProtocol, config: ConfigType) -> int | None:

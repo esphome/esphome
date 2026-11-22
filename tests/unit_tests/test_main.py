@@ -26,7 +26,7 @@ from esphome.__main__ import (
     _get_configured_xtal_freq,
     _make_crystal_freq_callback,
     _read_ota_key,
-    _redact_with_legacy_fallback,
+    _redact_substitutions,
     _resolve_network_devices,
     _should_subscribe_states,
     _split_network_devices,
@@ -376,181 +376,56 @@ def mock_ram_strings_analyzer() -> Generator[Mock]:
         yield mock_class
 
 
-def test_redact_with_legacy_fallback__wraps_unmarked_field(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """Unmarked sensitive-shaped fields are redacted; a deprecation warning
-    is emitted naming the field."""
-    with caplog.at_level(logging.WARNING, logger="esphome.__main__"):
-        out = _redact_with_legacy_fallback("password: hunter2\n")
-    assert "password: \\033[8mhunter2\\033[28m" in out
-    assert any(
-        "password" in rec.message and "cv.sensitive" in rec.message
-        for rec in caplog.records
-    )
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        pytest.param(
+            "substitutions:\n  ota_password: hunter2\n  wifi_ssid: home\n",
+            "substitutions:\n  ota_password: \\033[8mhunter2\\033[28m\n"
+            "  wifi_ssid: \\033[8mhome\\033[28m\n",
+            id="secret_shaped_substitutions_redacted",
+        ),
+        pytest.param(
+            "substitutions:\n  public_key: abc\n",
+            "substitutions:\n  public_key: \\033[8mabc\\033[28m\n",
+            id="public_substitution_still_redacted",
+        ),
+        pytest.param(
+            "substitutions:\n  monkey: 1\n  key_value_pair: 2\n",
+            "substitutions:\n  monkey: 1\n  key_value_pair: 2\n",
+            id="fragment_not_a_whole_name_segment",
+        ),
+        pytest.param(
+            "substitutions:\n  password: !secret wifi_password\n"
+            "  key: \\033[8mx\\033[28m\n",
+            "substitutions:\n  password: !secret wifi_password\n"
+            "  key: \\033[8mx\\033[28m\n",
+            id="secret_reference_and_wrapped_value_unchanged",
+        ),
+        pytest.param(
+            "substitutions:\n  name: x\nmqtt:\n  password: hunter2\n",
+            "substitutions:\n  name: x\nmqtt:\n  password: hunter2\n",
+            id="schema_fields_left_to_cv_sensitive",
+        ),
+    ],
+)
+def test_redact_substitutions(text: str, expected: str) -> None:
+    """Only values in the top-level substitutions block are redacted by name;
+    schema fields rely on cv.sensitive."""
+    assert _redact_substitutions(text) == expected
 
 
-def test_redact_with_legacy_fallback__skips_already_wrapped(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """Values already wrapped by the SensitiveStr representer don't trigger
-    the heuristic or the warning."""
-    wrapped = "password: \\033[8mhunter2\\033[28m\n"
-    with caplog.at_level(logging.WARNING, logger="esphome.__main__"):
-        out = _redact_with_legacy_fallback(wrapped)
-    assert out == wrapped
-    assert not any("legacy substring" in rec.message for rec in caplog.records)
-
-
-def test_redact_with_legacy_fallback__captures_full_field_name(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """The warning names the actual field, not just the matched fragment."""
-    with caplog.at_level(logging.WARNING, logger="esphome.__main__"):
-        _redact_with_legacy_fallback("encryption_key: abc\n")
-    assert any("encryption_key" in rec.message for rec in caplog.records)
-
-
-def test_redact_with_legacy_fallback__deduplicates_warnings(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """One warning per unique field name even if it appears many times."""
-    text = "password: a\npassword: b\npassword: c\n"
-    with caplog.at_level(logging.WARNING, logger="esphome.__main__"):
-        _redact_with_legacy_fallback(text)
-    password_warnings = [rec for rec in caplog.records if "'password'" in rec.message]
-    assert len(password_warnings) == 1
-
-
-def test_redact_with_legacy_fallback__skips_lambda_values(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """``!lambda`` first line is structural, body is unreachable by a
-    single-line regex anyway, and tagged fields shouldn't trigger a warning."""
-    text = '          ssid: !lambda |-\n            return "x";\n'
-    with caplog.at_level(logging.WARNING, logger="esphome.__main__"):
-        out = _redact_with_legacy_fallback(text)
-    assert out == text
-    assert not any("legacy substring" in rec.message for rec in caplog.records)
-
-
-def test_redact_with_legacy_fallback__skips_secret_references(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """``!secret name`` is the dumper's user-friendly representation; the
-    name isn't the secret, so wrapping it would clobber the round-trip."""
-    text = "          password: !secret wifi_password\n"
-    with caplog.at_level(logging.WARNING, logger="esphome.__main__"):
-        out = _redact_with_legacy_fallback(text)
-    assert out == text
-    assert not any("legacy substring" in rec.message for rec in caplog.records)
-
-
-def test_redact_with_legacy_fallback__does_not_match_fragment_in_middle(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """Fragment must end the field name; embedded matches like
-    ``key_value_pair`` are unrelated to a sensitive key and must not be
-    redacted (matching the prior regex's scope)."""
-    with caplog.at_level(logging.WARNING, logger="esphome.__main__"):
-        out = _redact_with_legacy_fallback("key_value_pair: abc\n")
-    assert "\\033[8m" not in out
-    assert not any("legacy substring" in rec.message for rec in caplog.records)
-
-
-def test_redact_with_legacy_fallback__does_not_match_fragment_as_suffix(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """Fragment must start the name or follow ``_``; ``monkey:`` shouldn't
-    fire a 'legacy heuristic' warning because there's no sensitive field
-    here — the user has nothing to migrate."""
-    with caplog.at_level(logging.WARNING, logger="esphome.__main__"):
-        out = _redact_with_legacy_fallback("monkey: 1234\n")
-    assert "\\033[8m" not in out
-    assert not any("legacy substring" in rec.message for rec in caplog.records)
-
-
-@pytest.mark.parametrize("field", ["public_key", "peer_public_key"])
-def test_redact_with_legacy_fallback__skips_public_key_fields(
-    field: str,
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """Public keys are not secret; fields with a ``public`` name segment
-    must pass through unredacted and without the migration warning
-    (see issue #17718)."""
-    text = f"{field}: c29tZXB1YmxpY2tleQ==\n"
-    with caplog.at_level(logging.WARNING, logger="esphome.__main__"):
-        out = _redact_with_legacy_fallback(text)
-    assert out == text
-    assert not any("legacy substring" in rec.message for rec in caplog.records)
-
-
-def test_redact_with_legacy_fallback__public_substitution_still_redacted(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """Substitution keys are user-named with no schema behind them, so the
-    public-key exemption does not apply there; a ``public``-named substitution
-    keeps the conservative silent redaction."""
-    text = "substitutions:\n  public_key: something\nesphome:\n  name: x\n"
-    with caplog.at_level(logging.WARNING, logger="esphome.__main__"):
-        out = _redact_with_legacy_fallback(text)
-    assert "public_key: \\033[8msomething\\033[28m" in out
-    assert not any("legacy substring" in rec.message for rec in caplog.records)
-
-
-def test_redact_with_legacy_fallback__public_must_be_a_whole_segment(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """The exemption matches ``public`` as an underscore-separated segment,
-    not a substring; an unrelated name like ``republic_key`` keeps the
-    conservative redaction."""
-    with caplog.at_level(logging.WARNING, logger="esphome.__main__"):
-        out = _redact_with_legacy_fallback("republic_key: abc\n")
-    assert "republic_key: \\033[8mabc\\033[28m" in out
-    assert any("'republic_key'" in rec.message for rec in caplog.records)
-
-
-def test_redact_with_legacy_fallback__substitutions_redacted_without_warning(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """Substitution keys have no schema validator, so their values are still
-    redacted but the unactionable cv.sensitive migration warning is suppressed
-    (see issue #17225)."""
-    text = "substitutions:\n  ota_password: apolloautomation\nesphome:\n  name: x\n"
-    with caplog.at_level(logging.WARNING, logger="esphome.__main__"):
-        out = _redact_with_legacy_fallback(text)
-    assert "ota_password: \\033[8mapolloautomation\\033[28m" in out
-    assert not any("legacy substring" in rec.message for rec in caplog.records)
-
-
-def test_redact_with_legacy_fallback__warns_after_substitutions_block(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """The suppression ends at the next top-level key; a sensitive-shaped field
-    in a later block (a real schema field) still warns, while the substitution
-    above it does not."""
-    text = (
-        "substitutions:\n  ota_password: apolloautomation\nwifi:\n  password: hunter2\n"
-    )
-    with caplog.at_level(logging.WARNING, logger="esphome.__main__"):
-        out = _redact_with_legacy_fallback(text)
-    assert "ota_password: \\033[8mapolloautomation\\033[28m" in out
-    assert "password: \\033[8mhunter2\\033[28m" in out
-    assert any("'password'" in rec.message for rec in caplog.records)
-    assert not any("ota_password" in rec.message for rec in caplog.records)
-
-
-def test_command_config__invokes_legacy_fallback_when_redacting(
+def test_command_config__redacts_substitutions(
     tmp_path: Path, capfd: CaptureFixture[str]
 ) -> None:
-    """``command_config`` runs the legacy fallback on the dumped output when
+    """``command_config`` redacts secret-shaped substitutions when
     ``--show-secrets`` is off. Cover the wiring (not just the helper).
     """
     setup_core(tmp_path=tmp_path, config={"esphome": {"name": "test"}})
     args = MockArgs()
     args.show_secrets = False
 
-    result = command_config(args, {"wifi": {"password": "hunter2"}})
+    result = command_config(args, {"substitutions": {"wifi_password": "hunter2"}})
 
     assert result == 0
     output = capfd.readouterr().out
