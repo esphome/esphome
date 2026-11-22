@@ -21,8 +21,8 @@ void MenuItem::on_value_() { this->on_value_callbacks_.call(); }
 std::string MenuItemSelect::get_value_text() const {
   std::string result;
 
-  if (this->value_getter_.has_value()) {
-    result = this->value_getter_.value()(this);
+  if (this->value_getter_ != nullptr) {
+    result = this->value_getter_(this);
   } else {
     if (this->variable_select_ != nullptr) {
       auto option = this->variable_select_->current_option();
@@ -62,8 +62,8 @@ bool MenuItemSelect::select_prev() {
 std::string MenuItemNumber::get_value_text() const {
   std::string result;
 
-  if (this->value_getter_.has_value()) {
-    result = this->value_getter_.value()(this);
+  if (this->value_getter_ != nullptr) {
+    result = this->value_getter_(this);
   } else {
     char data[32];
     snprintf(data, sizeof(data), this->format_, get_number_value_());
@@ -127,8 +127,8 @@ float MenuItemNumber::get_number_value_() const {
 std::string MenuItemSwitch::get_value_text() const {
   std::string result;
 
-  if (this->value_getter_.has_value()) {
-    result = this->value_getter_.value()(this);
+  if (this->value_getter_ != nullptr) {
+    result = this->value_getter_(this);
   } else {
     result = this->get_switch_state_() ? this->switch_on_text_ : this->switch_off_text_;
   }
@@ -158,7 +158,7 @@ bool MenuItemSwitch::toggle_switch_() {
 #endif  // USE_SWITCH
 
 std::string MenuItemCustom::get_value_text() const {
-  return (this->value_getter_.has_value()) ? this->value_getter_.value()(this) : "";
+  return (this->value_getter_ != nullptr) ? this->value_getter_(this) : "";
 }
 
 bool MenuItemCommand::select_next() {
