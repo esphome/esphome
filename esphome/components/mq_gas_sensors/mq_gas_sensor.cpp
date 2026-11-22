@@ -295,7 +295,9 @@ void MQGasSensor::update() {
                                      ? mqmath::ppm_at_infinity(this->a_, this->b_, this->regression_method_)
                                      : mqmath::ppm_from_ratio(this->a_, this->b_, rail_ratio, this->regression_method_);
     this->rs_ = 0.0f;
-    this->ratio_ = std::isfinite(saturation_ppm) ? rail_ratio : NAN;
+    // In r0_rs mode R0/RS grows without bound when RS reaches zero, so there is no
+    // finite ratio to report; the PPM above uses the curve's limit at that end.
+    this->ratio_ = this->ratio_mode_ == RatioMode::RATIO_R0_RS || !std::isfinite(saturation_ppm) ? NAN : rail_ratio;
 
     // The rail limit is clamped like a normal reading: a curve at the top of the
     // range reports the ceiling, one with a positive correction offset reports its
