@@ -91,7 +91,66 @@ api:
       then:
         - api.respond:
             success: true
+        - delay: 1ms
         - logger.log: "RESPONDED"
+    # Lambdas for the status and the error text
+    - action: respond_error_lambda
+      supports_response: status
+      then:
+        - api.respond:
+            success: !lambda "return call_id > 1;"
+            error_message: !lambda 'return std::string("failed");'
+    # A response-only variable that only shares its name with the optional mode argument
+    - action: respond_only_named_return_response
+      supports_response: only
+      variables:
+        return_response: int
+      then:
+        - api.respond:
+            data: !lambda |-
+              root["n"] = return_response;
+    # A response-only bool variable of that name, after another one, does not make the data optional
+    - action: respond_only_bool_named_return_response
+      supports_response: only
+      variables:
+        value: int
+        return_response: bool
+      then:
+        - api.respond:
+            data: !lambda |-
+              root["value"] = value;
+    # repeat: puts its iteration before call_id and return_response
+    - action: respond_optional_in_repeat
+      supports_response: optional
+      then:
+        - repeat:
+            count: 1
+            then:
+              - api.respond:
+                  data: !lambda |-
+                    root["n"] = iteration;
+    # A data lambda copies only the args it names, and may modify them
+    - action: respond_data_copies_named_args
+      supports_response: only
+      variables:
+        big: string
+        count: int
+      then:
+        - api.respond:
+            data: !lambda |-
+              root["count"] = ++count;
+    # A data lambda that adds nothing still builds
+    - action: respond_data_bare_return
+      supports_response: only
+      then:
+        - api.respond:
+            data: !lambda return;
+    - action: respond_error_constant
+      supports_response: status
+      then:
+        - api.respond:
+            success: false
+            error_message: "not ready"
     # Only inline actions: the lambda reports the status itself
     - action: status_inline
       supports_response: status
@@ -113,3 +172,5 @@ api:
         - api.respond:
             data: !lambda |-
               root["ok"] = true;
+        # Not inline, so the cleanup is an action of its own
+        - delay: 1ms
