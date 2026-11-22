@@ -26,29 +26,25 @@ def main_cpp(request: pytest.FixtureRequest) -> str:
 
 
 def test_action_text_uses_a_stack_buffer(main_cpp: str) -> None:
-    decl = main_cpp.index("char text_buf_1[46];")
+    decl = main_cpp.index("char text_buf_2[46];")
     fmt = main_cpp.index(
-        'snprintf(text_buf_1, sizeof(text_buf_1), "%.1f\\302\\260C", temp->state);',
+        'snprintf(text_buf_2, sizeof(text_buf_2), "%.1f\\302\\260C", temp->state);',
         decl,
     )
-    main_cpp.index("lv_label_set_text(temp_label, text_buf_1);", fmt)
+    main_cpp.index("lv_label_set_text(temp_label, text_buf_2);", fmt)
     assert 'str_sprintf("%.1f' not in main_cpp
 
 
-def test_setup_text_stays_on_the_heap(main_cpp: str) -> None:
-    # Setup is one long function, so a buffer there would hold its stack throughout
-    # Only the two action texts get a buffer
-    assert main_cpp.count("char text_buf_") == 2
-    assert (
-        'lv_label_set_text(temp_label, str_sprintf("%5.2f", id(temp).state).c_str());'
-        in main_cpp
-    )
+def test_setup_text_uses_a_stack_buffer(main_cpp: str) -> None:
+    decl = main_cpp.index("char text_buf_1[44];")
+    fmt = main_cpp.index("snprintf(text_buf_1, sizeof(text_buf_1), ", decl)
+    main_cpp.index("lv_label_set_text(temp_label, text_buf_1);", fmt)
 
 
 def test_if_nan_picks_the_buffer_or_the_nan_text(main_cpp: str) -> None:
-    decl = main_cpp.index("char text_buf_2[42];")
+    decl = main_cpp.index("char text_buf_3[42];")
     main_cpp.index(
-        'lv_label_set_text(nan_label, (std::isfinite(temp->state) ? text_buf_2 : "--"));',
+        'lv_label_set_text(nan_label, (std::isfinite(temp->state) ? text_buf_3 : "--"));',
         decl,
     )
 
