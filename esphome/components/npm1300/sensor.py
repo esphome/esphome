@@ -6,13 +6,8 @@ from esphome.const import (
     CONF_BATTERY_VOLTAGE,
     CONF_ID,
     DEVICE_CLASS_CURRENT,
-    DEVICE_CLASS_TEMPERATURE,
-    DEVICE_CLASS_VOLTAGE,
     ENTITY_CATEGORY_DIAGNOSTIC,
-    STATE_CLASS_MEASUREMENT,
     UNIT_AMPERE,
-    UNIT_CELSIUS,
-    UNIT_VOLT,
 )
 from esphome.core import CORE
 import esphome.final_validate as fv
@@ -21,7 +16,6 @@ from esphome.types import ConfigType
 from . import (
     ADC,
     CONF_NPM1300_ID,
-    CONF_THERMISTOR_BETA,
     CONF_THERMISTOR_RESISTANCE,
     CONF_VBUS_CURRENT_LIMIT,
     DATA_PUBLISHER,
@@ -30,7 +24,9 @@ from . import (
     DUMP_TAG,
     IBAT_SCALE,
     NPM1300_CHILD_SCHEMA,
+    THERMISTOR_NONE,
     npm1300_ns,
+    thermistor_beta,
 )
 
 DEPENDENCIES = ["npm1300"]
@@ -61,40 +57,26 @@ STATES = {
 }
 
 
-def _voltage_schema() -> cv.Schema:
-    return sensor.sensor_schema(
-        unit_of_measurement=UNIT_VOLT,
-        accuracy_decimals=3,
-        device_class=DEVICE_CLASS_VOLTAGE,
-        state_class=STATE_CLASS_MEASUREMENT,
-    )
-
-
-def _temperature_schema(**extra: str) -> cv.Schema:
-    return sensor.sensor_schema(
-        unit_of_measurement=UNIT_CELSIUS,
-        accuracy_decimals=1,
-        device_class=DEVICE_CLASS_TEMPERATURE,
-        state_class=STATE_CLASS_MEASUREMENT,
-        **extra,
-    )
-
-
 CONFIG_SCHEMA = NPM1300_CHILD_SCHEMA.extend(
     {
-        cv.Optional(CONF_BATTERY_VOLTAGE): _voltage_schema(),
+        cv.Optional(CONF_BATTERY_VOLTAGE): sensor.sensor_schema(
+            kind=sensor.VOLTAGE, accuracy_decimals=3
+        ),
         cv.Optional(CONF_BATTERY_CURRENT): sensor.sensor_schema(
-            unit_of_measurement=UNIT_AMPERE,
-            accuracy_decimals=3,
-            device_class=DEVICE_CLASS_CURRENT,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.CURRENT, accuracy_decimals=3
         ),
-        cv.Optional(CONF_BATTERY_TEMPERATURE): _temperature_schema(),
-        cv.Optional(CONF_DIE_TEMPERATURE): _temperature_schema(
-            entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+        cv.Optional(CONF_BATTERY_TEMPERATURE): sensor.sensor_schema(
+            kind=sensor.TEMPERATURE
         ),
-        cv.Optional(CONF_SYSTEM_VOLTAGE): _voltage_schema(),
-        cv.Optional(CONF_VBUS_VOLTAGE): _voltage_schema(),
+        cv.Optional(CONF_DIE_TEMPERATURE): sensor.sensor_schema(
+            kind=sensor.TEMPERATURE, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+        ),
+        cv.Optional(CONF_SYSTEM_VOLTAGE): sensor.sensor_schema(
+            kind=sensor.VOLTAGE, accuracy_decimals=3
+        ),
+        cv.Optional(CONF_VBUS_VOLTAGE): sensor.sensor_schema(
+            kind=sensor.VOLTAGE, accuracy_decimals=3
+        ),
         cv.Optional(CONF_VBUS_CURRENT_LIMIT): sensor.sensor_schema(
             unit_of_measurement=UNIT_AMPERE,
             accuracy_decimals=1,
@@ -109,10 +91,10 @@ def _final_validate(config: ConfigType) -> None:
     if CONF_BATTERY_TEMPERATURE not in config:
         return
     hub = fv.get_declaring_config(config[CONF_NPM1300_ID])
-    if CONF_THERMISTOR_RESISTANCE not in hub:
+    if hub.get(CONF_THERMISTOR_RESISTANCE, THERMISTOR_NONE) == THERMISTOR_NONE:
         raise cv.Invalid(
-            f"'{CONF_BATTERY_TEMPERATURE}' needs '{CONF_THERMISTOR_RESISTANCE}' "
-            "set on the npm1300 component",
+            f"'{CONF_BATTERY_TEMPERATURE}' needs '{CONF_THERMISTOR_RESISTANCE}' set to the "
+            "nominal resistance of the battery thermistor on the npm1300 component",
             path=[CONF_BATTERY_TEMPERATURE],
         )
 
@@ -145,7 +127,7 @@ async def to_code(config: ConfigType) -> None:
     if (var := await sensors(CONF_BATTERY_TEMPERATURE, None)) is not None:
         hub_config = next(c for c in CORE.config[DOMAIN] if c[CONF_ID] == hub_id)
         state = npm1300_ns.ntc_temperature(
-            _adc(2, 5, 2), 1.0 / hub_config[CONF_THERMISTOR_BETA]
+            _adc(2, 5, 2), 1.0 / thermistor_beta(hub_config)
         )
         _add_adc_sensor(hub, var, state, "Battery Temperature")
     await sensors(CONF_VBUS_CURRENT_LIMIT, hub.set_vbus_current_limit_sensor)

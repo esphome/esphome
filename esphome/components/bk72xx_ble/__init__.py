@@ -36,8 +36,6 @@ from esphome.const import (
     CONF_ESPHOME,
     CONF_ID,
     CONF_PLATFORMIO_OPTIONS,
-    KEY_CORE,
-    KEY_FRAMEWORK_VERSION,
 )
 from esphome.core import CORE, EsphomeError
 import esphome.final_validate as fv
@@ -128,7 +126,7 @@ def _final_validate(config: ConfigType) -> None:
         _LOGGER.warning("%s (this configuration cannot compile)", msg)
     options = fv.full_config.get()[CONF_ESPHOME].get(CONF_PLATFORMIO_OPTIONS) or {}
     check_bdk_version(options.get(BEKEN_BDK_VERSION_OPTION))
-    check_libretiny_version(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION])
+    check_libretiny_version(CORE.framework_version)
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
