@@ -40,7 +40,7 @@ rounds() {
 incomplete=
 # run STEP ROUNDS CMD ARGS...: an ARG of @N is replaced by the rounds still missing; reruns after an API drop
 run() {
-  local s=$1 want=$2; shift 2; local out=$T-$s.jsonl
+  local s=$1 want=$2; shift 2; local out=$T-$s.jsonl rc=0
   mark "start $s"
   for chunk in 1 2 3 4; do
     local have; have=$(rounds "$out")
@@ -51,7 +51,8 @@ run() {
     mark "$s chunk $chunk rc=$rc rounds=$have"
     [ "$have" -ge "$want" ] || sleep 10
   done
-  [ "$(rounds "$out")" -ge "$want" ] || incomplete="$incomplete $s"
+  # enough rounds is not enough: a driver that then failed (timeout, crash, links left held) fails the step
+  [ "$(rounds "$out")" -ge "$want" ] && [ "$rc" = 0 ] || incomplete="$incomplete $s"
   mark "end $s"
 }
 once() {

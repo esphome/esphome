@@ -92,6 +92,13 @@ async def main() -> None:
     for c, v in ((ch[FE01], b"\x01\x00"), (ch[FE02], b"\x02\x00")):
         await cli.bluetooth_gatt_write_descriptor(addr, cccd(c), v)
     for r in range(runs):
+        # notifications of an earlier run still in flight carry the same numbers: wait for quiet first
+        q_end = time.monotonic() + 10
+        while time.monotonic() < q_end:
+            n0 = len(seqs)
+            await asyncio.sleep(1)
+            if len(seqs) == n0:
+                break
         seqs.clear()
         final.clear()
         srv_fail.clear()

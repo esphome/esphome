@@ -93,12 +93,18 @@ for name, lines in ph.items():
         txt = "\n".join(ln for _, ln in lines)
         if m := re.search(
             r"ST phase_end \w+ rounds=(\d+) ok=(\d+) first_ok=(\d+) fail=(\d+) stuck=(\d+)"
-            r"(?: cache_clean_fail=(\d+))?",
+            r"(?: cache_clean_fail=(\d+))?(?: handle_bad=(\d+))?",
             txt,
         ):
             d["rounds,ok,first_ok,fail,stuck"] = m.groups()[:5]
             if m[6] and m[6] != "0":  # cold attempts that may have used the cache
                 d["cache_clean_fail"] = int(m[6])
+            if (
+                m[7] and m[7] != "0"
+            ):  # rounds against a wrong ff01 handle, out of ok and fail
+                d["handle_bad"] = int(m[7])
+        if hm := txt.count("ST handle_mismatch"):
+            d["handle_mismatch"] = hm
         ups = [int(x) for x in re.findall(r"ST conn_up \S+ r=\d+ total=(\d+)", txt)]
         d["up_total_ms"] = (med(ups), p90(ups), max(ups) if ups else None)
         for pe in ("L", "M", "eve"):

@@ -107,7 +107,8 @@ static int st;        // step inside the phase
 static uint16_t rnd;  // round or cycle
 static uint8_t att;   // retry attempt
 static uint32_t t_ph, t0, t_wait, t_open, t_round;
-static uint16_t ok_n, first_ok_n, fail_n, stuck_n, adv_mode_n, cc_fail_n;
+static uint16_t ok_n, first_ok_n, fail_n, stuck_n, adv_mode_n, cc_fail_n, hb_n;
+static bool bad_handle[2];  // handle_l/handle_m do not point at this server's ff01: RTTs hit another characteristic
 static uint32_t adv0;
 static uint8_t rtt_i;
 static uint32_t rd_sum, wr_sum;
@@ -144,13 +145,13 @@ inline void drop(uint8_t p) {
 
 inline void next_phase() {
   const Phase &P = PHASES[ph];
-  ESP_LOGI(TAG, "ST phase_end %s rounds=%u ok=%u first_ok=%u fail=%u stuck=%u cache_clean_fail=%u", P.name, rnd, ok_n,
-           first_ok_n, fail_n, stuck_n, cc_fail_n);
+  ESP_LOGI(TAG, "ST phase_end %s rounds=%u ok=%u first_ok=%u fail=%u stuck=%u cache_clean_fail=%u handle_bad=%u",
+           P.name, rnd, ok_n, first_ok_n, fail_n, stuck_n, cc_fail_n, hb_n);
   ph++;
   st = 0;
   rnd = 0;
   att = 0;
-  ok_n = first_ok_n = fail_n = stuck_n = cc_fail_n = 0;
+  ok_n = first_ok_n = fail_n = stuck_n = cc_fail_n = hb_n = 0;
   t_ph = t_wait = t_round = millis();
   ESP_LOGI(TAG, "ST phase_start %s", PHASES[ph].name);
 }
@@ -206,6 +207,7 @@ inline void check_handle(uint8_t p) {
   esp_gatt_status_t ret =
       esp_ble_gattc_get_char_by_uuid(C[p]->get_gattc_if(), C[p]->get_conn_id(), 1, 0xFFFF, u, &el, &n);
   if (ret != ESP_GATT_OK || n == 0 || el.char_handle != FF01[p]) {
+    bad_handle[p] = true;
     ESP_LOGW(TAG, "ST handle_mismatch %s handle_%s=%u server_ff01=%u (ret=%d): RTTs use another characteristic",
              PNAME[p], p == PL ? "l" : "m", FF01[p], n ? el.char_handle : 0, ret);
   } else {
@@ -372,8 +374,11 @@ inline void tick() {
         }
       } else if (st == 2) {
         if (!up(p) || rtt_step(p)) {
-          // ok only when the link held and a command went through, as drive.py counts t_cmd
-          if (up(p) && (rd_n || wr_n))
+          // ok only when the link held and a command went through, as drive.py counts t_cmd; a wrong handle is a
+          // harness fault, counted apart like drive.py's stale_handles
+          if (p <= PM && bad_handle[p])
+            hb_n++;
+          else if (up(p) && (rd_n || wr_n))
             ok_n++;
           else
             fail_n++;
