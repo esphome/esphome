@@ -465,7 +465,7 @@ TopTronicPolled *TopTronic::get_sensor_(uint32_t sensor_id) {
 void TopTronic::link_inputs_() {
   for (const auto &i : this->inputs_) {
     auto *input = i.second;
-    if (input->type() == BUTTON)
+    if (input->type() == SensorType::SENSOR_TYPE_BUTTON)
       continue;  // nothing to sync for a fire-and-forget command
     auto *sensor_base = this->get_sensor_(input->get_id());
     if (sensor_base == nullptr) {
