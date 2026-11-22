@@ -27,7 +27,9 @@ short = sum(
     p[1] == "TX" and "SHORT" in p[2] for p in lines
 )  # rd.py could not write all of an ack or feed
 # an ack or feed that was asked for but never written: the run lacks its stimulus
-hdr = next((p[2] for p in lines if p[1] == "TX" and p[2].startswith("framing=")), "")
+hdr = next((p[2] for p in lines if p[1] == "TX" and p[2].startswith("framing=")), None)
+if hdr is None:  # without the rd.py header the ack and feed check cannot run
+    sys.exit("no framing= header: not an rd.py capture")
 syncs = sum(p[1] == "RX" and p[2].strip() == "7f" for p in lines)
 if missing := missing_stimulus(
     hdr, [p[2] for p in lines if p[1] == "TX"], syncs, data.count(b"\r\nRPT")

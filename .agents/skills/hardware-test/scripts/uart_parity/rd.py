@@ -61,6 +61,8 @@ if (
     (b[2] & termios.PARENB) != want_par
     or (b[2] & termios.CSIZE) != termios.CS8
     or b[4] != termios.B115200
+    or b[5]
+    != termios.B115200  # the output speed too, or acks and feeds go out at another baud
 ):
     os.close(fd)
     sys.exit("the port did not take 115200 8 data bits with the requested parity")
