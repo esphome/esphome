@@ -102,11 +102,17 @@ def capture(args: argparse.Namespace, out) -> int:
     received = 0
     serial_number, index = None, 0
     dtr_at = None if args.dtr_after is None else time.time() + args.dtr_after
+    dtr_port = None  # the open port DTR was asserted on; a reopened port needs it again
     while time.time() < deadline:
-        if s is not None and dtr_at is not None and time.time() >= dtr_at:
+        if (
+            s is not None
+            and dtr_at is not None
+            and time.time() >= dtr_at
+            and dtr_port is not s
+        ):
             try:
                 s.dtr = True
-                dtr_at = None
+                dtr_port = s
                 note(out, "DTR asserted", args.ms)
             except PORT_ERRORS as err:  # kept pending, retried on the next pass
                 note(out, f"DTR assert failed: {err}", args.ms)

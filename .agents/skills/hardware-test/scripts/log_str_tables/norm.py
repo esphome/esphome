@@ -30,5 +30,7 @@ with pathlib.Path(sys.argv[1]).open(encoding="utf-8", errors="replace") as f:
         out.append(line)
         if "MARK ALLDONE" in line:
             break
+    else:
+        sys.exit(f"{sys.argv[1]}: no MARK ALLDONE, the scripted test did not finish")
 start = next((i for i, ln in enumerate(out) if re.match(r"^\[[A-Z]\]\[", ln)), 0)
 print("\n".join(out[start:]))
