@@ -1,13 +1,13 @@
 import esphome.codegen as cg
 from esphome.components import select
+from esphome.components.const import CONF_OPERATING_MODE
 import esphome.config_validation as cv
 from esphome.const import ENTITY_CATEGORY_CONFIG
 from esphome.types import ConfigType
 
 from .. import CONF_LD2420_ID, LD2420Component
 
-CONF_OPERATING_MODE = "operating_mode"
-CONF_SELECTS = [
+SELECT_OPTIONS = [
     "Normal",
     "Calibrate",
     "Simple",
@@ -29,6 +29,6 @@ async def to_code(config: ConfigType) -> None:
     await selects(
         CONF_OPERATING_MODE,
         hub.set_operating_mode_select,
-        options=CONF_SELECTS,
+        options=SELECT_OPTIONS,
         apply="change_operating_mode(static_cast<ld2420::OpMode>(index + 1))",
     )

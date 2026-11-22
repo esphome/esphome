@@ -103,17 +103,6 @@ def _udp_mode(
         yield used
 
 
-@contextmanager
-def _reserve_port() -> Generator[tuple[int, socket.socket]]:
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    s.bind(("", 0))
-    try:
-        yield s.getsockname()[1], s
-    finally:
-        s.close()
-
-
 async def _wait_for_line(lines: list[str], needle: str, timeout: float = 5.0) -> None:
     """The config dump prints after every setup, a little after the api port
     opens, so wait for it rather than assert on the lines seen so far."""
@@ -143,18 +132,17 @@ async def _build(
     write_yaml_config: ConfigWriter,
     compile_esphome: CompileFunction,
     reserved_tcp_port: tuple[int, socket.socket],
+    reserved_ota_port: tuple[int, socket.socket],
 ) -> tuple[int, int, Path, Path]:
-    """Reserve an OTA port, compile the fixture with it, and release both
-    ports right before the binary is started. Returns the stripped binary to
-    run and upload, then the unstripped build for crash backtraces."""
+    """Compile the fixture, which conftest already gave the reserved OTA port, and
+    release both ports right before the binary is started. Returns the stripped
+    binary to run and upload, then the unstripped build for crash backtraces."""
     api_port, api_socket = reserved_tcp_port
-    with _reserve_port() as (ota_port, ota_socket):
-        config_path = await write_yaml_config(
-            yaml_config.replace("__OTA_PORT__", str(ota_port))
-        )
-        binary_path = await compile_esphome(config_path)
-        api_socket.close()
-        ota_socket.close()
+    ota_port, ota_socket = reserved_ota_port
+    config_path = await write_yaml_config(yaml_config)
+    binary_path = await compile_esphome(config_path)
+    api_socket.close()
+    ota_socket.close()
     return api_port, ota_port, await _strip_debug(binary_path), binary_path
 
 
@@ -294,16 +282,22 @@ async def _provision_key(
 
 
 @pytest.mark.asyncio
+@pytest.mark.shared_yaml("host_ota_self_update")
 async def test_host_ota_self_update(
     yaml_config: str,
     write_yaml_config: ConfigWriter,
     compile_esphome: CompileFunction,
     reserved_tcp_port: tuple[int, socket.socket],
+    reserved_ota_port: tuple[int, socket.socket],
 ) -> None:
     """Self-OTA: upload the running binary back to itself, expect re-exec."""
     dev = _Device(
         *await _build(
-            yaml_config, write_yaml_config, compile_esphome, reserved_tcp_port
+            yaml_config,
+            write_yaml_config,
+            compile_esphome,
+            reserved_tcp_port,
+            reserved_ota_port,
         )
     )
     async with run_binary(
@@ -328,17 +322,23 @@ async def test_host_ota_self_update(
 
 
 @pytest.mark.asyncio
+@pytest.mark.shared_yaml("host_ota_self_update")
 async def test_host_ota_deflate_rtl8710b_bit(
     yaml_config: str,
     write_yaml_config: ConfigWriter,
     compile_esphome: CompileFunction,
     reserved_tcp_port: tuple[int, socket.socket],
+    reserved_ota_port: tuple[int, socket.socket],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """The device inflates an upload asked for with the RTL8710B deflate bit."""
     dev = _Device(
         *await _build(
-            yaml_config, write_yaml_config, compile_esphome, reserved_tcp_port
+            yaml_config,
+            write_yaml_config,
+            compile_esphome,
+            reserved_tcp_port,
+            reserved_ota_port,
         )
     )
     monkeypatch.setattr(espota2, "_is_rtl8710b_image", lambda image: True)
@@ -354,18 +354,24 @@ async def test_host_ota_deflate_rtl8710b_bit(
 
 
 @pytest.mark.asyncio
+@pytest.mark.shared_yaml("host_ota_self_update")
 async def test_host_ota_deflate(
     yaml_config: str,
     write_yaml_config: ConfigWriter,
     compile_esphome: CompileFunction,
     reserved_tcp_port: tuple[int, socket.socket],
+    reserved_ota_port: tuple[int, socket.socket],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Deflate is negotiated by default, an old client gets an uncompressed
     upload, and a corrupt stream is rejected without taking the device down."""
     dev = _Device(
         *await _build(
-            yaml_config, write_yaml_config, compile_esphome, reserved_tcp_port
+            yaml_config,
+            write_yaml_config,
+            compile_esphome,
+            reserved_tcp_port,
+            reserved_ota_port,
         )
     )
 
@@ -445,6 +451,7 @@ async def test_host_ota_encrypted(
     write_yaml_config: ConfigWriter,
     compile_esphome: CompileFunction,
     reserved_tcp_port: tuple[int, socket.socket],
+    reserved_ota_port: tuple[int, socket.socket],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A client that leaves right after the handshake, as a key probe does,
@@ -453,7 +460,11 @@ async def test_host_ota_encrypted(
     pytest.importorskip("aioesphomeapi.noise")
     dev = _Device(
         *await _build(
-            yaml_config, write_yaml_config, compile_esphome, reserved_tcp_port
+            yaml_config,
+            write_yaml_config,
+            compile_esphome,
+            reserved_tcp_port,
+            reserved_ota_port,
         )
     )
     async with run_binary(
@@ -483,13 +494,18 @@ async def test_host_ota_encrypted_safe_mode(
     write_yaml_config: ConfigWriter,
     compile_esphome: CompileFunction,
     reserved_tcp_port: tuple[int, socket.socket],
+    reserved_ota_port: tuple[int, socket.socket],
 ) -> None:
     """Safe mode never constructs the api server, so an encrypted OTA with the
     api key has to run on the ota component's own copy of that key."""
     pytest.importorskip("aioesphomeapi.noise")
     dev = _Device(
         *await _build(
-            yaml_config, write_yaml_config, compile_esphome, reserved_tcp_port
+            yaml_config,
+            write_yaml_config,
+            compile_esphome,
+            reserved_tcp_port,
+            reserved_ota_port,
         )
     )
     # The api port never opens in safe mode, so wait for the log line instead
@@ -510,6 +526,7 @@ async def test_host_ota_api_key_offer_with_password(
     write_yaml_config: ConfigWriter,
     compile_esphome: CompileFunction,
     reserved_tcp_port: tuple[int, socket.socket],
+    reserved_ota_port: tuple[int, socket.socket],
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """With only an api key the device offers encryption without requiring
@@ -520,7 +537,11 @@ async def test_host_ota_api_key_offer_with_password(
     wrong_key = base64.b64encode(b"w" * 32).decode()
     dev = _Device(
         *await _build(
-            yaml_config, write_yaml_config, compile_esphome, reserved_tcp_port
+            yaml_config,
+            write_yaml_config,
+            compile_esphome,
+            reserved_tcp_port,
+            reserved_ota_port,
         )
     )
     async with run_binary(
@@ -557,12 +578,43 @@ async def test_host_ota_api_key_offer_with_password(
 
 
 @pytest.mark.asyncio
+async def test_host_ota_cleared_password(
+    yaml_config: str,
+    write_yaml_config: ConfigWriter,
+    compile_esphome: CompileFunction,
+    reserved_tcp_port: tuple[int, socket.socket],
+    reserved_ota_port: tuple[int, socket.socket],
+) -> None:
+    """A password cleared at boot with set_auth_password("") must not be
+    asked for: the auth path is compiled in but the device skips it."""
+    dev = _Device(
+        *await _build(
+            yaml_config,
+            write_yaml_config,
+            compile_esphome,
+            reserved_tcp_port,
+            reserved_ota_port,
+        )
+    )
+    async with run_binary(
+        dev.binary_path, symbols_path=dev.symbols_path, line_callback=dev.on_log
+    ) as (proc, lines):
+        dev.proc = proc
+        await _wait_for_port(LOCALHOST, dev.api_port, PORT_WAIT_TIMEOUT)
+        await _wait_for_line(lines, "Over-The-Air updates")
+        assert not any("Password configured" in line for line in lines)
+
+        await dev.ota(None, None, "upload without a password must succeed")
+
+
+@pytest.mark.asyncio
 @pytest.mark.usefixtures("isolated_preferences")
 async def test_host_ota_provisioned_api_key(
     yaml_config: str,
     write_yaml_config: ConfigWriter,
     compile_esphome: CompileFunction,
     reserved_tcp_port: tuple[int, socket.socket],
+    reserved_ota_port: tuple[int, socket.socket],
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """A key provisioned over the api feeds the OTA offer: plaintext works
@@ -572,7 +624,11 @@ async def test_host_ota_provisioned_api_key(
     pytest.importorskip("aioesphomeapi.noise")
     dev = _Device(
         *await _build(
-            yaml_config, write_yaml_config, compile_esphome, reserved_tcp_port
+            yaml_config,
+            write_yaml_config,
+            compile_esphome,
+            reserved_tcp_port,
+            reserved_ota_port,
         )
     )
     async with run_binary(
@@ -602,6 +658,7 @@ async def test_host_ota_provisioned_api_key_safe_mode(
     write_yaml_config: ConfigWriter,
     compile_esphome: CompileFunction,
     reserved_tcp_port: tuple[int, socket.socket],
+    reserved_ota_port: tuple[int, socket.socket],
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Safe mode never constructs the api server, so the OTA has to load the
@@ -609,7 +666,11 @@ async def test_host_ota_provisioned_api_key_safe_mode(
     pytest.importorskip("aioesphomeapi.noise")
     dev = _Device(
         *await _build(
-            yaml_config, write_yaml_config, compile_esphome, reserved_tcp_port
+            yaml_config,
+            write_yaml_config,
+            compile_esphome,
+            reserved_tcp_port,
+            reserved_ota_port,
         )
     )
     async with run_binary(
@@ -640,17 +701,23 @@ async def test_host_ota_provisioned_api_key_safe_mode(
 
 
 @pytest.mark.asyncio
+@pytest.mark.shared_yaml("host_ota_self_update")
 async def test_host_ota_rejects_garbage(
     yaml_config: str,
     write_yaml_config: ConfigWriter,
     compile_esphome: CompileFunction,
     reserved_tcp_port: tuple[int, socket.socket],
+    reserved_ota_port: tuple[int, socket.socket],
     integration_test_dir,
 ) -> None:
     """Bogus payload is rejected and the device keeps running."""
     dev = _Device(
         *await _build(
-            yaml_config, write_yaml_config, compile_esphome, reserved_tcp_port
+            yaml_config,
+            write_yaml_config,
+            compile_esphome,
+            reserved_tcp_port,
+            reserved_ota_port,
         )
     )
     # 192 bytes that are neither ELF nor Mach-O.
@@ -708,6 +775,7 @@ async def test_host_ota_automations(
     write_yaml_config: ConfigWriter,
     compile_esphome: CompileFunction,
     reserved_tcp_port: tuple[int, socket.socket],
+    reserved_ota_port: tuple[int, socket.socket],
     integration_test_dir: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -715,7 +783,11 @@ async def test_host_ota_automations(
     automation on one key fires."""
     dev = _Device(
         *await _build(
-            yaml_config, write_yaml_config, compile_esphome, reserved_tcp_port
+            yaml_config,
+            write_yaml_config,
+            compile_esphome,
+            reserved_tcp_port,
+            reserved_ota_port,
         )
     )
     bogus_path = integration_test_dir / "bogus.bin"

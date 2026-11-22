@@ -12,6 +12,7 @@ from esphome.components.nrf52 import framework
 from esphome.components.nrf52.framework import (
     _NRFUTIL_LAUNCHERS,
     NRF5SDK_TOOLS_VERSION,
+    NRFUTIL_LAUNCHER_VERSION,
     _nrfutil_target_triple,
     ensure_nordic_nrfutil,
 )
@@ -32,7 +33,7 @@ LINUX = ("linux", "x86_64", "tar.xz")
 def test_launcher_triple_follows_the_host(
     host: tuple[str, str, str], triple: str
 ) -> None:
-    with patch.object(framework, "_get_toolchain_platform_info", return_value=host):
+    with patch.object(framework, "get_sdk_host_info", return_value=host):
         assert _nrfutil_target_triple() == triple
 
 
@@ -40,7 +41,7 @@ def test_unknown_host_is_a_clear_error() -> None:
     with (
         patch.object(
             framework,
-            "_get_toolchain_platform_info",
+            "get_sdk_host_info",
             return_value=("freebsd", "x86_64", "tar.xz"),
         ),
         pytest.raises(EsphomeError, match="freebsd x86_64"),
@@ -68,7 +69,7 @@ def test_first_use_downloads_and_installs_into_the_cache(tmp_path: Path) -> None
     env: dict[str, str] = {}
     with (
         patch.object(framework, "get_sdk_nrf_tools_path", return_value=tmp_path),
-        patch.object(framework, "_get_toolchain_platform_info", return_value=LINUX),
+        patch.object(framework, "get_sdk_host_info", return_value=LINUX),
         patch.object(
             framework, "download_with_resume", side_effect=_fake_download
         ) as download,
@@ -79,10 +80,11 @@ def test_first_use_downloads_and_installs_into_the_cache(tmp_path: Path) -> None
     # The launcher sits outside the home it installs into, and the command version is pinned
     assert exe == str(tmp_path / "nrfutil" / "launcher" / f"nrfutil{SUFFIX}")
     assert env["NRFUTIL_HOME"] == str(tmp_path / "nrfutil" / "home")
-    # The launcher comes from the host's URL and is checked against the pinned digest
+    # The pinned launcher version comes from the host's URL and is checked against its digest
     size, sha256 = _NRFUTIL_LAUNCHERS["x86_64-unknown-linux-gnu"]
     assert download.call_args[0][0].endswith(
-        f"/x86_64-unknown-linux-gnu/nrfutil{SUFFIX}"
+        "/x86_64-unknown-linux-gnu/nrfutil-x86_64-unknown-linux-gnu-"
+        f"{NRFUTIL_LAUNCHER_VERSION}{SUFFIX}"
     )
     assert download.call_args[1] == {"sha256": sha256, "size": size}
     assert install.call_args[0][0] == [
@@ -124,7 +126,7 @@ def test_a_cache_that_lost_its_command_is_installed_again(tmp_path: Path) -> Non
     _installed_cache(tmp_path, with_command=False)
     with (
         patch.object(framework, "get_sdk_nrf_tools_path", return_value=tmp_path),
-        patch.object(framework, "_get_toolchain_platform_info", return_value=LINUX),
+        patch.object(framework, "get_sdk_host_info", return_value=LINUX),
         patch.object(framework, "download_with_resume", side_effect=_fake_download),
         patch.object(framework, "run_command_ok", side_effect=_fake_install) as install,
     ):
@@ -136,7 +138,7 @@ def test_install_without_the_command_file_is_a_failure(tmp_path: Path) -> None:
     """The launcher's exit code alone does not prove the command is in place."""
     with (
         patch.object(framework, "get_sdk_nrf_tools_path", return_value=tmp_path),
-        patch.object(framework, "_get_toolchain_platform_info", return_value=LINUX),
+        patch.object(framework, "get_sdk_host_info", return_value=LINUX),
         patch.object(framework, "download_with_resume", side_effect=_fake_download),
         patch.object(framework, "run_command_ok", return_value=True),
         pytest.raises(EsphomeError, match="nrf5sdk-tools"),
@@ -148,7 +150,7 @@ def test_install_without_the_command_file_is_a_failure(tmp_path: Path) -> None:
 def test_failed_install_leaves_no_ready_marker(tmp_path: Path) -> None:
     with (
         patch.object(framework, "get_sdk_nrf_tools_path", return_value=tmp_path),
-        patch.object(framework, "_get_toolchain_platform_info", return_value=LINUX),
+        patch.object(framework, "get_sdk_host_info", return_value=LINUX),
         patch.object(framework, "download_with_resume", side_effect=_fake_download),
         patch.object(framework, "run_command_ok", return_value=False),
         pytest.raises(EsphomeError, match="nrf5sdk-tools"),

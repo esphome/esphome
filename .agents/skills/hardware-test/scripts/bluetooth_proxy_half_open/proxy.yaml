@@ -1,0 +1,38 @@
+# bluetooth_proxy under test: VERBOSE with the busy tags at DEBUG, logs on UART0.
+substitutions:
+  name: btprox
+
+esphome:
+  name: ${name}
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  power_save_mode: none
+
+api:
+  encryption:
+    key: !secret api_key
+  reboot_timeout: 0s
+
+logger:
+  level: VERBOSE
+  logs:
+    esp32_ble_tracker: DEBUG
+    esp32_ble: DEBUG
+    api.service: DEBUG
+    scheduler: DEBUG
+    component: DEBUG
+    wifi: DEBUG
+
+esp32_ble_tracker:
+  scan_parameters:
+    active: true
+
+bluetooth_proxy:
+  active: true

@@ -2,12 +2,15 @@
 #ifdef USE_ESP32
 #ifdef USE_ZIGBEE
 
+#include <algorithm>
+#include <cstdint>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_check.h"
 #include "zigbee_attribute_esp32.h"
 #include "zigbee_esp32.h"
 #include "esphome/core/application.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include "zigbee_helpers_esp32.h"
 #ifdef USE_WIFI
@@ -19,6 +22,16 @@ namespace esphome::zigbee {
 ESPHOME_LOG_TAG(TAG, "zigbee");
 
 static constexpr uint32_t COMMISSIONING_RETRY_TIMEOUT_ID = 0;
+static constexpr uint32_t PARENT_LINK_TIMEOUT_ID = 1;
+static constexpr uint32_t PARENT_LINK_RETRY_TIMEOUT_ID = 2;
+
+// Since esp-zigbee-lib 2.0.5 every lost poll or transmission raises PARENT_LINK_FAILURE, even during a short radio
+// outage such as a BLE scan. After a failure the device polls at least every 3 s. It rejoins only after failures in
+// 4 polls that span at least 6 s; failures less than two thirds of a polling interval apart (poll retries, fast
+// polls) count once. Two intervals without a counted failure mean that a poll got through.
+static constexpr uint8_t PARENT_LINK_MISSED_POLLS = 4;
+static constexpr uint32_t PARENT_LINK_POLL_INTERVAL_MS = 3000;
+static constexpr uint32_t PARENT_LINK_MIN_SPAN_MS = 6000;
 
 static ZigbeeComponent *global_zigbee = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
@@ -130,24 +143,16 @@ bool ZigbeeComponent::app_signal_handler(const ezb_app_signal_t *app_signal) {
         esp_zigbee_factory_reset();  // triggers a reboot
       }
       global_zigbee->joined_ = false;
+      // For a leave asked for by the network: failures before it must not count after the rejoin
+      global_zigbee->reset_parent_link_failures_();
     } break;
     case EZB_NWK_SIGNAL_NETWORK_STATUS: {
       const ezb_nwk_signal_network_status_params_t *network_status_params =
           (const ezb_nwk_signal_network_status_params_t *) ezb_app_signal_get_params(app_signal);
       if (network_status_params->status == EZB_NWK_NETWORK_STATUS_PARENT_LINK_FAILURE) {
-        global_zigbee->joined_ = false;
-        ESP_LOGW(TAG, "Parent link failure, attempting rejoin");
-        ezb_zdo_nwk_mgmt_leave_req_t leave_req = {
-            .dst_nwk_addr = ezb_nwk_get_short_address(),
-            .field =
-                {
-                    .remove_children = false,
-                    .rejoin = true,
-                },
-        };
-        // Send leave request to the network to rejoin
-        // triggers EZB_ZDO_SIGNAL_LEAVE signal first, then EZB_BDB_SIGNAL_DEVICE_REBOOT
-        ezb_zdo_nwk_mgmt_leave_req(&leave_req);
+        if (global_zigbee->joined_) {  // else not joined yet, or a rejoin is running
+          global_zigbee->on_parent_link_failure_();
+        }
       } else {
         ESP_LOGD(TAG, "Zigbee APP Signal NETWORK_STATUS: 0x%02x", network_status_params->status);
       }
@@ -157,6 +162,93 @@ bool ZigbeeComponent::app_signal_handler(const ezb_app_signal_t *app_signal) {
       break;
   }
   return true;
+}
+
+// Runs on the Zigbee task with the stack lock held
+void ZigbeeComponent::on_parent_link_failure_() {
+  const uint32_t now = millis();
+  if (this->link_failures_ == 0) {
+    // Poll faster for now, so that a lost parent is noticed soon also with a long polling interval
+    this->saved_keep_alive_ = ezb_nwk_get_keepalive_interval();
+    if (this->saved_keep_alive_ > PARENT_LINK_POLL_INTERVAL_MS) {
+      ezb_nwk_set_keepalive_interval(PARENT_LINK_POLL_INTERVAL_MS);
+    }
+  }
+  // The polling interval during the series
+  const uint32_t interval = std::min(this->saved_keep_alive_, PARENT_LINK_POLL_INTERVAL_MS);
+  if (this->link_failures_ > 0) {
+    if (now - this->last_link_failure_ms_ >= 2 * interval) {
+      // The series has ended, but its timeout has not run yet: start a new one, keep the saved interval
+      this->link_failures_ = 0;
+    } else if (now - this->last_link_failure_ms_ < 2 * interval / 3) {
+      ESP_LOGV(TAG, "Parent link failure (same poll)");
+      return;
+    }
+  }
+  if (this->link_failures_ == 0) {
+    this->first_link_failure_ms_ = now;
+  }
+  this->last_link_failure_ms_ = now;
+  this->link_failure_seq_++;
+  if (this->link_failures_ < UINT8_MAX) {
+    this->link_failures_++;
+  }
+  if (this->link_failures_ < PARENT_LINK_MISSED_POLLS || now - this->first_link_failure_ms_ < PARENT_LINK_MIN_SPAN_MS) {
+    ESP_LOGD(TAG, "Parent link failure %u", this->link_failures_);
+    // The stack does not report a poll that got through, so the series ends when no failure follows
+    const uint8_t seq = this->link_failure_seq_;
+    this->set_timeout(PARENT_LINK_TIMEOUT_ID, 2 * interval, [this, seq]() { this->end_parent_link_failures_(seq); });
+    return;
+  }
+  ESP_LOGW(TAG, "Parent link failed in %u polls, attempting rejoin", this->link_failures_);
+  this->cancel_timeout(PARENT_LINK_TIMEOUT_ID);
+  this->reset_parent_link_failures_();
+  this->joined_ = false;
+  ezb_zdo_nwk_mgmt_leave_req_t leave_req = {
+      .dst_nwk_addr = ezb_nwk_get_short_address(),
+      .field =
+          {
+              .remove_children = false,
+              .rejoin = true,
+          },
+  };
+  // Send leave request to the network to rejoin
+  // triggers EZB_ZDO_SIGNAL_LEAVE signal first, then EZB_BDB_SIGNAL_DEVICE_REBOOT
+  if (ezb_zdo_nwk_mgmt_leave_req(&leave_req) != EZB_ERR_NONE) {
+    ESP_LOGW(TAG, "Leave request for rejoin failed");
+    this->joined_ = true;  // still joined, so later failures can start a rejoin again
+  }
+}
+
+// Runs on the main loop when no failure was counted for two poll intervals
+void ZigbeeComponent::end_parent_link_failures_(uint8_t seq) {
+  if (!esp_zigbee_lock_acquire(10 / portTICK_PERIOD_MS)) {
+    // Retry with its own id, so that it cannot replace the timeout of a newer failure
+    this->set_timeout(PARENT_LINK_RETRY_TIMEOUT_ID, 100, [this, seq]() { this->end_parent_link_failures_(seq); });
+    return;
+  }
+  // A newer failure has set its own timeout, which ends the series instead
+  const uint8_t failures = seq == this->link_failure_seq_ ? this->link_failures_ : 0;
+  if (failures > 0) {
+    this->reset_parent_link_failures_();
+  }
+  esp_zigbee_lock_release();
+  if (failures > 0) {  // after the release: the main task writes log lines out at once
+    ESP_LOGD(TAG, "Parent link failures ended (%u)", failures);
+  }
+}
+
+// Ends the current series, if any. Needs the stack lock
+void ZigbeeComponent::reset_parent_link_failures_() {
+  if (this->link_failures_ == 0) {
+    return;  // no series: the saved interval is stale
+  }
+  this->link_failures_ = 0;
+  // Put the polling interval back, unless something else changed it in the meantime
+  if (this->saved_keep_alive_ > PARENT_LINK_POLL_INTERVAL_MS &&
+      ezb_nwk_get_keepalive_interval() == PARENT_LINK_POLL_INTERVAL_MS) {
+    ezb_nwk_set_keepalive_interval(this->saved_keep_alive_);
+  }
 }
 
 void load_zb_event(ZBEvent *event, ezb_zcl_message_info_t info, ezb_zcl_attribute_t attribute) {
