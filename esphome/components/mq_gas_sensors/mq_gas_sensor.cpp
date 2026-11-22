@@ -28,6 +28,12 @@ static constexpr float SATURATION_TOLERANCE = 0.05f;
 /// floor avoids flagging a slower source during its first interval.
 static constexpr uint32_t SOURCE_STALE_MS = 5 * 60 * 1000;
 
+/// Allowed age before the first publication gap has been learned: a source slower
+/// than the floor above (a 15-minute forecast, say) must not be declared stale
+/// while its own interval is still unknown. Bounded, so a source that published
+/// once and died is still caught.
+static constexpr uint32_t SOURCE_UNLEARNED_MS = 30 * 60 * 1000;
+
 /// Indexed by `RegressionMethod - 1`, so the order matches the enum values.
 PROGMEM_STRING_TABLE(RegressionMethodNames, "exponential", "linear", "inverse");
 
@@ -308,10 +314,14 @@ float MQGasSensor::compute_correction_() {
   // correction alive.
   const uint32_t now = App.get_loop_component_start_time();
   // A source that publishes every few minutes is not stale between its own
-  // updates: the allowed age follows the longest gap it has shown, with the fixed
-  // floor covering the first interval after boot.
-  const uint32_t temperature_age = std::max<uint32_t>(SOURCE_STALE_MS, this->temperature_gap_ms_ * 3u);
-  const uint32_t humidity_age = std::max<uint32_t>(SOURCE_STALE_MS, this->humidity_gap_ms_ * 3u);
+  // updates: the allowed age is the longest observed gap (three publication
+  // periods), a generous bounded window until the first gap is known.
+  const uint32_t temperature_age = this->temperature_gap_ms_ == 0
+                                       ? SOURCE_UNLEARNED_MS
+                                       : std::max<uint32_t>(SOURCE_STALE_MS, this->temperature_gap_ms_ * 3u);
+  const uint32_t humidity_age = this->humidity_gap_ms_ == 0
+                                    ? SOURCE_UNLEARNED_MS
+                                    : std::max<uint32_t>(SOURCE_STALE_MS, this->humidity_gap_ms_ * 3u);
   const bool temperature_ok =
       mqmath::source_is_fresh(this->temperature_seen_, this->temperature_last_ms_, now, temperature_age) &&
       std::isfinite(this->temperature_source_->state);
