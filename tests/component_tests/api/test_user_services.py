@@ -230,7 +230,7 @@ def test_respond_data_copies_named_args(generate_main) -> None:
     )
     body = _function_body(main_cpp, function)
     assert "const std::remove_cvref_t<StringRef> & big, int32_t count, " in body
-    assert "++count" in body
+    assert "int32_t & count" not in body
 
 
 def test_respond_status_lambdas(generate_main) -> None:

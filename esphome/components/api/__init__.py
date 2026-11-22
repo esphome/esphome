@@ -1133,8 +1133,7 @@ async def api_respond_to_code(
         call = f"send_action_response(call_id, {success}, {error})"
     else:
         cg.add_define("USE_API_USER_DEFINED_ACTION_RESPONSES_JSON")
-        # Populates the JsonObject root
-        # Only the args the lambda names are copied, so it may still modify them
+        # Fills root; only args the lambda names are copied, so it may modify them
         data = await automation.call_user_lambda(
             config[CONF_DATA], [*args, (cg.JsonObject, "root")], cg.void
         )
