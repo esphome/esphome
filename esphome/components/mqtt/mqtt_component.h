@@ -250,7 +250,7 @@ class MQTTComponent : public Component {
   bool publish_json(const char *topic, const json::json_build_t &f) {
     return this->publish_json(topic, json::json_build_ref(f));
   }
-  /// Any callable taking a JsonObject; it is not copied, so its captures never allocate
+  /// A JsonBuildCallable; it is not copied, so its captures never allocate
   template<json::JsonBuildCallable F> bool publish_json(const char *topic, F &&f) {
     return this->publish_json(topic, json::json_build_ref(f));
   }

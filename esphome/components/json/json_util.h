@@ -173,7 +173,7 @@ struct JsonBuildRef {
 };
 
 /// A lambda or other callable object that can be called as passed. Anything else (function names and
-/// pointers, a const mutable lambda) goes through the json_build_t overloads as before.
+/// pointers, a const mutable lambda) goes through the json_build_t overloads.
 template<typename F>
 concept JsonBuildCallable =
     std::is_class_v<std::remove_cvref_t<F>> && std::is_invocable_v<std::remove_reference_t<F> &, JsonObject>;
@@ -187,7 +187,7 @@ template<typename F> JsonBuildRef json_build_ref(F &f) {
 /// Build a JSON string with the provided json build function.
 /// Returns SerializationBuffer for stack-first allocation; implicitly converts to std::string.
 SerializationBuffer<> build_json(JsonBuildRef f);
-/// Build a JSON string from any callable taking a JsonObject; it is not copied or allocated.
+/// Build a JSON string from a JsonBuildCallable; it is not copied, so its captures never allocate.
 template<JsonBuildCallable F> SerializationBuffer<> build_json(F &&f) { return build_json(json_build_ref(f)); }
 inline SerializationBuffer<> build_json(const json_build_t &f) { return build_json(json_build_ref(f)); }
 

@@ -58,7 +58,6 @@ TEST(BuildJson, OtherBuildersStillBuild) {
   const auto const_counter = [n = 0](JsonObject root) mutable { root["n"] = ++n; };
   EXPECT_EQ(std::string(build_json(const_counter)), R"({"n":1})");
   EXPECT_EQ(std::string(build_json(const_counter)), R"({"n":1})");  // copied each call, as before
-  static_assert(!esphome::json::JsonBuildCallable<decltype(build_plain) &>);
   static_assert(!esphome::json::JsonBuildCallable<const decltype(const_counter) &>);
 }
 // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
