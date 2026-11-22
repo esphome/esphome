@@ -9,10 +9,7 @@ from esphome.const import (
     CONF_RESOLUTION,
     CONF_TEMPERATURE,
     CONF_TEMPERATURE_COMPENSATION,
-    ICON_MAGNET,
     ICON_THERMOMETER,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_MICROTESLA,
 )
 from esphome.core import CORE
 from esphome.types import ConfigType
@@ -74,12 +71,7 @@ def _validate(config: ConfigType) -> ConfigType:
 
 
 def mlx90393_axis_schema() -> cv.Schema:
-    return sensor.sensor_schema(
-        unit_of_measurement=UNIT_MICROTESLA,
-        accuracy_decimals=0,
-        icon=ICON_MAGNET,
-        state_class=STATE_CLASS_MEASUREMENT,
-    ).extend(
+    return sensor.sensor_schema(kind=sensor.MAGNETIC_FIELD, accuracy_decimals=0).extend(
         cv.Schema(
             {
                 cv.Optional(CONF_RESOLUTION, default="DIV_4"): cv.enum(
