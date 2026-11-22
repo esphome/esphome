@@ -57,7 +57,7 @@ class ParentRecordingFilter : public Filter {
   optional<float> new_value(float value) override { return value; }
   void initialize(Sensor *parent, Filter *next) override {
     Filter::initialize(parent, next);
-    this->seen = this->get_parent_();
+    this->seen = this->chain_owner_();
   }
   Sensor *seen{nullptr};
 };

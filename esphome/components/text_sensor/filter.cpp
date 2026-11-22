@@ -3,7 +3,6 @@
 
 #include "filter.h"
 #include "text_sensor.h"
-
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
@@ -19,19 +18,19 @@ void Filter::input(std::string value) {
     this->output(value);
 }
 void Filter::output(std::string &value) {
-  Filter *next = this->link_.next();
-  if (next == nullptr) {
+  if (this->link_.is_owner()) {
     TextSensor *sensor = this->link_.owner();
     ESP_LOGVV(TAG, "Filter(%p)::output(%s) -> SENSOR", this, value.c_str());
     sensor->internal_send_state_to_frontend(value);
   } else {
+    Filter *next = this->link_.next();
     ESP_LOGVV(TAG, "Filter(%p)::output(%s) -> %p", this, value.c_str(), next);
     next->input(std::move(value));
   }
 }
 #ifdef USE_TEXT_SENSOR_FILTER_RESET
 void Filter::reset_chain() {
-  TextSensor *parent = this->get_parent_();
+  TextSensor *parent = this->chain_owner_();
   for (Filter *filter = this; filter != nullptr;) {
     Filter *next = filter->link_.next();
     filter->initialize(parent, next);
@@ -153,10 +152,10 @@ void TimeoutFilterBase::loop() {
 }
 
 void TimeoutFilterBase::send_(const char *text, size_t len) {
-  if (Filter *next = this->link_.next()) {
-    next->input(std::string(text, len));
-  } else {
+  if (this->link_.is_owner()) {
     this->link_.owner()->internal_send_state_to_frontend(text, len);
+  } else {
+    this->link_.next()->input(std::string(text, len));
   }
 }
 

@@ -15,7 +15,7 @@ class TextSensor;
  * This class is purposefully kept quite simple, since more complicated
  * filters should really be done with the filter sensor in Home Assistant.
  */
-class Filter {
+class Filter : public ChainNode<Filter, TextSensor> {
  public:
   /** This will be called every time the filter receives a new value.
    *
@@ -42,18 +42,6 @@ class Filter {
 
  protected:
   friend TextSensor;
-
-  Filter *last_() {
-    Filter *filter = this;
-    while (Filter *next = filter->link_.next())
-      filter = next;
-    return filter;
-  }
-  /// Walks to the end of the chain on every call.
-  TextSensor *get_parent_() { return this->last_()->link_.owner(); }
-
-  /// The next filter, or the text sensor on the last filter.
-  ChainLink<Filter, TextSensor> link_;
 };
 
 using lambda_filter_t = std::function<optional<std::string>(std::string)>;

@@ -13,7 +13,7 @@ namespace esphome::binary_sensor {
 
 class BinarySensor;
 
-class Filter {
+class Filter : public ChainNode<Filter, BinarySensor> {
  public:
   virtual optional<bool> new_value(bool value) = 0;
 
@@ -27,17 +27,6 @@ class Filter {
   /// Forget the last value and drop any pending scheduled output; called when the sensor's state is invalidated.
   virtual void reset();
 
-  Filter *last_() {
-    Filter *filter = this;
-    while (Filter *next = filter->link_.next())
-      filter = next;
-    return filter;
-  }
-  /// Walks to the end of the chain on every call.
-  BinarySensor *get_parent_() { return this->last_()->link_.owner(); }
-
-  /// The next filter, or the binary sensor on the last filter.
-  ChainLink<Filter, BinarySensor> link_;
   Deduplicator<bool> dedup_;
 };
 

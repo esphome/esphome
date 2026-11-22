@@ -13,7 +13,7 @@ class RecordAction : public Action<> {
  public:
   RecordAction(Log *log, int id) : log_(log), id_(id) {}
   void play() override { this->log_->push_back(this->id_); }
-  Action<> *next() const { return this->next_; }
+  Action<> *next() const { return this->link_.next(); }
 
  protected:
   Log *log_;
@@ -88,12 +88,12 @@ class CountdownCondition : public Condition<> {
   int passes_;
 };
 
-// Reads an action's next_ through Action's own tag helpers
+// Reads an action's link through Action's own chain link
 class TaggedOwner : public RecordAction {
  public:
   using RecordAction::RecordAction;
-  static bool is_tagged(const TaggedOwner *a) { return a->next_is_owner_(); }
-  static Action<> *owner_of(const TaggedOwner *a) { return a->owner_(); }
+  static bool is_tagged(const TaggedOwner *a) { return a->link_.is_owner(); }
+  static Action<> *owner_of(const TaggedOwner *a) { return a->link_.owner(); }
 };
 
 class InspectList : public ActionList<> {

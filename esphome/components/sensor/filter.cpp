@@ -32,12 +32,12 @@ void Filter::input(float value) {
     this->output(*out);
 }
 void Filter::output(float value) {
-  Filter *next = this->link_.next();
-  if (next == nullptr) {
+  if (this->link_.is_owner()) {
     Sensor *sensor = this->link_.owner();
     ESP_LOGVV(TAG, "Filter(%p)::output(%f) -> SENSOR", this, value);
     sensor->internal_send_state_to_frontend(value);
   } else {
+    Filter *next = this->link_.next();
     ESP_LOGVV(TAG, "Filter(%p)::output(%f) -> %p", this, value, next);
     next->input(value);
   }
@@ -228,7 +228,7 @@ optional<float> MultiplyFilter::new_value(float value) { return value * this->mu
 
 // ValueListFilter
 bool ValueListFilter::value_matches_any_(float sensor_value) {
-  int8_t accuracy = this->get_parent_()->get_accuracy_decimals();
+  int8_t accuracy = this->chain_owner_()->get_accuracy_decimals();
   float accuracy_mult = pow10_int(accuracy);
   float rounded_sensor = roundf(accuracy_mult * sensor_value);
 

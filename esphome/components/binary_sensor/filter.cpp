@@ -4,7 +4,6 @@
 #include "filter.h"
 
 #include "binary_sensor.h"
-
 #include "esphome/core/application.h"
 
 namespace esphome::binary_sensor {
@@ -12,10 +11,10 @@ namespace esphome::binary_sensor {
 ESPHOME_LOG_TAG(TAG, "sensor.filter");
 
 void Filter::output(bool value) {
-  if (Filter *next = this->link_.next()) {
-    next->input(value);
-  } else {
+  if (this->link_.is_owner()) {
     this->link_.owner()->send_state_internal(value);
+  } else {
+    this->link_.next()->input(value);
   }
 }
 
@@ -39,7 +38,7 @@ optional<bool> delay_output(Filter *filter, uint32_t delay, bool value) {
 }
 
 void TimeoutFilter::input(bool value) {
-  App.scheduler.set_timeout(this, this->timeout_delay_.value(), [this]() { this->get_parent_()->invalidate_state(); });
+  App.scheduler.set_timeout(this, this->timeout_delay_.value(), [this]() { this->chain_owner_()->invalidate_state(); });
   // Every input re-arms the timeout, including repeats, so this filter must not de-dup
   this->output(value);
 }

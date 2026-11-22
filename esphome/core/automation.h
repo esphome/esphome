@@ -610,7 +610,9 @@ template<typename... Ts> class Trigger {
 
 template<typename... Ts> class ActionList;
 
-template<typename... Ts> class Action {
+// A branch's last action links to its owner (if, while). Only Action objects are tagged, never function pointers,
+// which use the low bit on ARM Thumb (#9283).
+template<typename... Ts> class Action : public ChainNode<Action<Ts...>, Action<Ts...>> {
  public:
   virtual void play_complex(const Ts &...x) {
     this->num_running_++;
@@ -631,7 +633,7 @@ template<typename... Ts> class Action {
   /// the following actions in the chain.
   int num_running_total() {
     int total = this->num_running_;
-    if (Action *next = this->chain_next_())
+    if (Action *next = this->link_.next())
       total += next->num_running_total();
     return total;
   }
@@ -644,10 +646,10 @@ template<typename... Ts> class Action {
   void play_next_(const Ts &...x) {
     if (this->num_running_ > 0) {
       this->num_running_--;
-      if (this->next_is_owner_()) {
-        this->owner_()->play(x...);
-      } else if (this->next_ != nullptr) {
-        this->next_->play_complex(x...);
+      if (this->link_.is_owner()) {
+        this->link_.owner()->play(x...);
+      } else if (Action *next = this->link_.next()) {
+        next->play_complex(x...);
       }
     }
   }
@@ -660,56 +662,46 @@ template<typename... Ts> class Action {
 
   virtual void stop() {}
   void stop_next_() {
-    if (Action *next = this->chain_next_())
+    if (Action *next = this->link_.next())
       next->stop_complex();
   }
 
   bool is_running_next_() {
-    Action *next = this->chain_next_();
+    Action *next = this->link_.next();
     return next != nullptr && next->is_running();
   }
-
-  // A branch's last action points at its owner with the low bit set. Only Action objects are
-  // tagged, never function pointers, which use that bit on ARM Thumb (#9283).
-  static constexpr uintptr_t OWNER_TAG = 1;
-  bool next_is_owner_() const { return reinterpret_cast<uintptr_t>(this->next_) & OWNER_TAG; }
-  /// Only valid when next_is_owner_().
-  Action *owner_() const { return reinterpret_cast<Action *>(reinterpret_cast<char *>(this->next_) - OWNER_TAG); }
-  Action *chain_next_() const { return this->next_is_owner_() ? nullptr : this->next_; }
-  static Action *tag_owner(Action *owner) {
-    return reinterpret_cast<Action *>(reinterpret_cast<char *>(owner) + OWNER_TAG);
-  }
-
-  Action<Ts...> *next_{nullptr};
 
   /// The number of instances of this sequence in the list of actions
   /// that is currently being executed.
   int num_running_{0};
 };
 
-// The vtable pointer gives every instantiation this alignment.
-static_assert(alignof(Action<>) >= 2, "the owner tag needs a free low bit in Action object pointers");
-
 template<typename... Ts> class ActionList {
  public:
   void add_action(Action<Ts...> *action) {
-    // Walk to end of chain - action lists are short and only built during setup()
-    *this->tail_() = action;
+    if (Action<Ts...> *last = this->last_()) {
+      last->link_.set_next(action);
+    } else {
+      this->actions_ = action;
+    }
   }
   void add_actions(const std::initializer_list<Action<Ts...> *> &actions) {
-    // Find tail once, then append all actions in a single pass
-    Action<Ts...> **tail = this->tail_();
+    // Find the last action once, then append all actions in a single pass
+    Action<Ts...> *last = this->last_();
     for (auto *action : actions) {
-      *tail = action;
-      tail = &action->next_;
+      if (last == nullptr) {
+        this->actions_ = action;
+      } else {
+        last->link_.set_next(action);
+      }
+      last = action;
     }
   }
   /// Resume `owner` via play() when the list finishes; call once, after adding actions.
   void set_owner(Action<Ts...> *owner) {
     // Nothing to tag in an empty list
-    if (this->actions_ == nullptr)
-      return;
-    *this->tail_() = Action<Ts...>::tag_owner(owner);
+    if (Action<Ts...> *last = this->last_())
+      last->link_.set_owner(owner);
   }
   // Force-inline: part of the Trigger→Automation→ActionList forwarding
   // chain collapsed to reduce automation call stack depth.
@@ -743,16 +735,16 @@ template<typename... Ts> class ActionList {
   template<size_t... S> void play_tuple_(const std::tuple<Ts...> &tuple, std::index_sequence<S...> /*unused*/) {
     this->play(std::get<S>(tuple)...);
   }
-  // Lists with an owner are complete; never append after set_owner()
-  Action<Ts...> **tail_() {
-    Action<Ts...> **tail = &this->actions_;
-    while (*tail != nullptr) {
-      // Not checked in release builds: only automation.py builds these lists, appending each action and
-      // then finishing the branch once, so appending after set_owner() would be a codegen bug.
-      ESPHOME_DEBUG_ASSERT(!(*tail)->next_is_owner_());
-      tail = &(*tail)->next_;
-    }
-    return tail;
+  // Lists with an owner are complete; never append after set_owner(). Action lists are short and only built
+  // during setup(), so walking to the end each time is fine.
+  Action<Ts...> *last_() {
+    if (this->actions_ == nullptr)
+      return nullptr;
+    Action<Ts...> *last = this->actions_->chain_last_();
+    // Not checked in release builds: only automation.py builds these lists, appending each action and
+    // then finishing the branch once, so appending after set_owner() would be a codegen bug.
+    ESPHOME_DEBUG_ASSERT(!last->link_.is_owner());
+    return last;
   }
 
   Action<Ts...> *actions_{nullptr};

@@ -54,11 +54,11 @@ bool BinarySensor::set_new_state(const optional<bool> &new_state) {
 
 #ifdef USE_BINARY_SENSOR_FILTER
 void BinarySensor::add_filter(Filter *filter) {
-  filter->link_.set(nullptr, this);
+  filter->link_.set_owner(this);
   if (this->filter_list_ == nullptr) {
     this->filter_list_ = filter;
   } else {
-    this->filter_list_->last_()->link_.set(filter, this);
+    this->filter_list_->chain_last_()->link_.set_next(filter);
   }
 }
 void BinarySensor::add_filters(std::initializer_list<Filter *> filters) {

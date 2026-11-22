@@ -55,15 +55,13 @@ void TextSensor::publish_state(ProgmemStr state) {
 
 #ifdef USE_TEXT_SENSOR_FILTER
 void TextSensor::add_filter(Filter *filter) {
-  // inefficient, but only happens once on every sensor setup and nobody's going to have massive amounts of
-  // filters
   ESP_LOGVV(TAG, "TextSensor(%p)::add_filter(%p)", this, filter);
   // Link the new filter before the chain can reach it
   filter->initialize(this, nullptr);
   if (this->filter_list_ == nullptr) {
     this->filter_list_ = filter;
   } else {
-    this->filter_list_->last_()->initialize(this, filter);
+    this->filter_list_->chain_last_()->initialize(this, filter);
   }
 }
 void TextSensor::add_filters(std::initializer_list<Filter *> filters) {
