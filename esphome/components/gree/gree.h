@@ -119,6 +119,25 @@ enum Model : uint8_t {
   GREE_YAW1F
 };
 
+// Direction enums (used for default fixed vane positions)
+enum HorizontalDirections {
+  HORIZONTAL_DIRECTION_AUTO = GREE_HDIR_AUTO,
+  HORIZONTAL_DIRECTION_LEFT = GREE_HDIR_LEFT,
+  HORIZONTAL_DIRECTION_MLEFT = GREE_HDIR_MLEFT,
+  HORIZONTAL_DIRECTION_MIDDLE = GREE_HDIR_MIDDLE,
+  HORIZONTAL_DIRECTION_MRIGHT = GREE_HDIR_MRIGHT,
+  HORIZONTAL_DIRECTION_RIGHT = GREE_HDIR_RIGHT,
+};
+
+enum VerticalDirections {
+  VERTICAL_DIRECTION_AUTO = GREE_VDIR_AUTO,
+  VERTICAL_DIRECTION_UP = GREE_VDIR_UP,
+  VERTICAL_DIRECTION_MUP = GREE_VDIR_MUP,
+  VERTICAL_DIRECTION_MIDDLE = GREE_VDIR_MIDDLE,
+  VERTICAL_DIRECTION_MDOWN = GREE_VDIR_MDOWN,
+  VERTICAL_DIRECTION_DOWN = GREE_VDIR_DOWN,
+};
+
 enum GreeFeature : uint8_t {
   GREE_FEATURE_TURBO = 0,
   GREE_FEATURE_LIGHT = 1,
@@ -140,6 +159,9 @@ struct GreeClimateData {
   // The unit's panel shows Fahrenheit; half_degree adds half a degree Celsius to target_temperature
   bool fahrenheit{false};
   bool half_degree{false};
+  // Fixed vane positions sent while the matching swing axis is not swinging
+  uint8_t horizontal_default{GREE_HDIR_AUTO};
+  uint8_t vertical_default{GREE_VDIR_AUTO};
 };
 
 class GreeProtocol {
@@ -171,8 +193,8 @@ class GreeClimateCodec {
  protected:
   static uint8_t encode_operation_mode(climate::ClimateMode mode);
   static uint8_t encode_fan_mode(Model model, climate::ClimateFanMode fan_mode);
-  static uint8_t encode_horizontal_swing(climate::ClimateSwingMode swing_mode);
-  static uint8_t encode_vertical_swing(climate::ClimateSwingMode swing_mode);
+  static uint8_t encode_horizontal_swing(climate::ClimateSwingMode swing_mode, uint8_t default_direction);
+  static uint8_t encode_vertical_swing(climate::ClimateSwingMode swing_mode, uint8_t default_direction);
 #ifdef USE_GREE_RECEIVER
   static optional<GreeClimateData> decode_legacy(Model model, const GreeState &state);
   static optional<GreeClimateData> decode_model_a(Model model, const GreeState &state);
@@ -195,6 +217,12 @@ class GreeClimate final : public climate_ir::ClimateIR {
 #ifdef USE_GREE_FAHRENHEIT
   void set_use_fahrenheit(bool use_fahrenheit) { this->use_fahrenheit_ = use_fahrenheit; }
 #endif
+  void set_horizontal_default(HorizontalDirections horizontal_direction) {
+    this->default_horizontal_direction_ = horizontal_direction;
+  }
+  void set_vertical_default(VerticalDirections vertical_direction) {
+    this->default_vertical_direction_ = vertical_direction;
+  }
   void set_feature_state(GreeFeature feature, bool enabled);
   bool get_feature_state(GreeFeature feature) const;
 #ifdef USE_GREE_FEATURE_SWITCH
@@ -220,6 +248,8 @@ class GreeClimate final : public climate_ir::ClimateIR {
 
   Model model_{};
   uint8_t feature_bits_{0};
+  HorizontalDirections default_horizontal_direction_{HORIZONTAL_DIRECTION_AUTO};
+  VerticalDirections default_vertical_direction_{VERTICAL_DIRECTION_AUTO};
 #ifdef USE_GREE_FAHRENHEIT
   bool use_fahrenheit_{false};
 #endif
