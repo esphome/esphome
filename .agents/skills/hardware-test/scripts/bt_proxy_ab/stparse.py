@@ -180,6 +180,16 @@ for name, lines in ph.items():
     d["rejected"] = sum("Rejected" in ln for _, ln in lines) or None
     d["x3e"] = sum("rsn 0x3e" in ln for _, ln in lines) or None
     print(name, {k: v for k, v in d.items() if v is not None})
+# a run where the servers were never seen, or no phase started, measured nothing
+txt_all = "\n".join(ln for _, ln in L)
+nothing = "ST not_seen" in txt_all or not ph
+if nothing:
+    print(
+        "NOTHING RUN:",
+        "servers not seen (ST not_seen)"
+        if "ST not_seen" in txt_all
+        else "no phase started",
+    )
 print_heap(L, None)
 print(
     "resets",
@@ -188,3 +198,6 @@ print(
     sorted({re.search(r"idf=(\S+)", ln)[1] for _, ln in L if "idf=" in ln}),
 )
 print_warnings(L, 25, r"[0-9A-F]{2}(:[0-9A-F]{2}){5}|0x[0-9a-f]+|\d+")
+
+if nothing:
+    sys.exit(1)

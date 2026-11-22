@@ -65,6 +65,7 @@ struct Rtt : public esphome::ble_client::BLEClientNode {
   int pending{0};  // 1 read, 2 write
   uint32_t done_ms{0};
   bool ok{false};
+  bool len_bad{false};  // a read of ff01 (one byte) returned another length: the handle points elsewhere
   void gattc_event_handler(esp_gattc_cb_event_t e, esp_gatt_if_t, esp_ble_gattc_cb_param_t *p) override {
     // uses fixed handles only, so it must not keep BLEClient from releasing the service table
     if (e == ESP_GATTC_SEARCH_CMPL_EVT)
@@ -72,6 +73,8 @@ struct Rtt : public esphome::ble_client::BLEClientNode {
     if (e == ESP_GATTC_READ_CHAR_EVT && this->pending == 1) {
       this->done_ms = millis() - this->t0;
       this->ok = p->read.status == ESP_GATT_OK;
+      if (this->ok && p->read.value_len != 1)
+        this->len_bad = true;
       this->pending = 0;
     } else if (e == ESP_GATTC_WRITE_CHAR_EVT && this->pending == 2) {
       this->done_ms = millis() - this->t0;
@@ -298,6 +301,7 @@ inline void tick() {
       ESP_LOGW(TAG, "ST not_seen L=%d M=%d, nothing run", seen[PL], seen[PM]);
       ph = sizeof(PHASES) / sizeof(PHASES[0]) - 1;
       st = 0;
+      ESP_LOGI(TAG, "ST phase_start %s", PHASES[ph].name);
       return;
     }
     if (millis() - t_ph > 20000 && seen[PL] && seen[PM] && (seen[PE] || millis() - t_ph > 180000)) {
@@ -387,6 +391,11 @@ inline void tick() {
         if (!up(p) || rtt_step(p)) {
           // ok only when the link held and a command went through, as drive.py counts t_cmd; a wrong handle is a
           // harness fault, counted apart like drive.py's stale_handles
+          // also checked by the read length, which covers cached phases and failed handle lookups
+          if (p <= PM && RT[p]->len_bad && !bad_handle[p]) {
+            bad_handle[p] = true;
+            ESP_LOGW(TAG, "ST handle_mismatch %s: ff01 read returned another length", PNAME[p]);
+          }
           if (p <= PM && bad_handle[p])
             hb_n++;
           else if (up(p) && wr_n)  // a write went through, as drive.py's t_cmd
