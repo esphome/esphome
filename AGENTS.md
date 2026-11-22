@@ -256,8 +256,9 @@ file does, and it is the authority when they disagree. The most useful starting 
     *   **Output pins** (`esphome/core/gpio_pin.h`): `setup_output_pin(pin, level)` sets a pin up at its starting
         level and does nothing for a null pin, so an optional pin needs no check.
         `pulse_pin(pin, level, width_us)` drives a clock, latch or strobe pulse; width 0 writes the two levels back
-        to back, and the pin must not be null. `pulse_reset(pin, {.high_before_ms, .low_ms, .high_after_ms})` sets
-        up an active-low reset pin and drives its whole reset sequence; it is null-safe too.
+        to back, and the pin must not be null. `pulse_reset(pin, {.low_ms = 10, .high_after_ms = 5})` sets up an
+        active-low reset pin and drives its whole reset sequence (`.high_before_ms` drives it high first); it is
+        null-safe too.
     *   **Fast loop on a condition:** `this->high_freq_.set(condition)` on a `HighFrequencyLoopRequester`, not an
         `if` that picks `start()` or `stop()`.
     *   **Text into a fixed buffer:** `buf_append_str(buf, size, pos, "literal")` (a literal only) and
