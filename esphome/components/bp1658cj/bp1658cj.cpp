@@ -14,10 +14,8 @@ static constexpr uint8_t BP1658CJ_ADDR_START_5CH = 0x30;
 static constexpr uint8_t BP1658CJ_DELAY = 2;
 
 void BP1658CJ::setup() {
-  this->data_pin_->setup();
-  this->data_pin_->digital_write(false);
-  this->clock_pin_->setup();
-  this->clock_pin_->digital_write(false);
+  setup_output_pin(this->data_pin_, false);
+  setup_output_pin(this->clock_pin_, false);
 }
 void BP1658CJ::dump_config() {
   ESP_LOGCONFIG(TAG,
