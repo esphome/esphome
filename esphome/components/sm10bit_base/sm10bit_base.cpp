@@ -77,9 +77,7 @@ void Sm10BitBase::write_channel(uint8_t channel, float state) {
 void Sm10BitBase::write_bit_(bool value) {
   this->data_pin_->digital_write(value);
   delayMicroseconds(SM10BIT_DELAY);
-  this->clock_pin_->digital_write(true);
-  delayMicroseconds(SM10BIT_DELAY);
-  this->clock_pin_->digital_write(false);
+  pulse_pin(this->clock_pin_, true, SM10BIT_DELAY);
   delayMicroseconds(SM10BIT_DELAY);
 }
 
@@ -90,9 +88,7 @@ void Sm10BitBase::write_byte_(uint8_t data) {
 
   // ack bit
   this->data_pin_->pin_mode(gpio::FLAG_INPUT);
-  this->clock_pin_->digital_write(true);
-  delayMicroseconds(SM10BIT_DELAY);
-  this->clock_pin_->digital_write(false);
+  pulse_pin(this->clock_pin_, true, SM10BIT_DELAY);
   delayMicroseconds(SM10BIT_DELAY);
   this->data_pin_->pin_mode(gpio::FLAG_OUTPUT);
 }
