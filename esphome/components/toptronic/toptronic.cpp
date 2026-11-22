@@ -180,7 +180,7 @@ void TopTronicNumber::control(float value) {
 }
 #endif
 #ifdef USE_TEXT_SENSOR
-const char *TopTronicTextSensor::parse_value(const uint8_t *data, size_t len) {
+const char *TopTronicTextSensor::parse_value(const uint8_t *data, size_t len) const {
   const uint8_t raw = bytes_to_number<uint8_t>(data, len);
   for (const auto &option : this->options_) {
     if (option.value == raw)
