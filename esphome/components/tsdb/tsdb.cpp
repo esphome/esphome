@@ -623,16 +623,24 @@ uint64_t TsdbComponent::free_space_probe() {
   return static_cast<uint64_t>(total) - static_cast<uint64_t>(used);
 }
 
+// One scheduled sample was skipped, so the counters and the errors sensor report it like
+// any other dropped record instead of hiding the loss.
+void TsdbComponent::note_dropped_() {
+  this->dropped_++;
+  this->publish_errors_();
+}
+
 void TsdbComponent::update() {
   this->consume_sync_result_();
   // The sync task holds the engine lock for the whole fold; touching the database here
-  // would park the main loop behind it.
-  if (this->sync_pending_)
+  // would park the main loop behind it, so this interval's sample is dropped and counted.
+  if (this->sync_pending_) {
+    this->note_dropped_();
     return;
+  }
   if (this->db_ == nullptr) {
     if (this->db_lost_) {
-      this->dropped_++;
-      this->publish_errors_();
+      this->note_dropped_();
     }
     this->reopen_if_lost_();
     return;
@@ -640,11 +648,13 @@ void TsdbComponent::update() {
   this->handle_requests_();
   // A requested flush can fail and drop the handle, and it may have just started a fold
   // that holds the engine lock; leave the rest of this pass to the next interval.
-  if (this->db_ == nullptr || this->sync_pending_)
+  if (this->db_ == nullptr || this->sync_pending_) {
+    this->note_dropped_();
     return;
+  }
   this->write_record_();
-  // A write that failed dropped the handle; the aggregates and stats have no database
-  // to read until a later interval reopens it.
+  // A write that failed dropped the handle; it already counted the write error, and the
+  // aggregates and stats have no database to read until a later interval reopens it.
   if (this->db_ == nullptr)
     return;
 

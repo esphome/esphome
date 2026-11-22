@@ -129,6 +129,7 @@ class TsdbComponent : public PollingComponent {
   void fail_setup_(const LogString *reason);
   void close_database_();
   void handle_requests_();
+  void note_dropped_();
   void invalidate_database_(const LogString *reason);
   void reopen_if_lost_();
   bool read_saved_index_stride_(uint32_t *stride) const;
