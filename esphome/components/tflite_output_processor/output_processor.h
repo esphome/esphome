@@ -59,13 +59,13 @@ bool parse_output_processing(const std::string &name, OutputProcessing &mode);
 /// @param mode          How to interpret the values.
 /// @param scale_factor  Divides the reported class index.
 /// @param debug         Log the per-inference details.
-/// @return The winning class and its confidence; {0.0f, 0.0f} on invalid arguments.
+/// @return The winning class and its confidence; {0.0f, 0.0f, valid=false} on invalid arguments.
 ProcessedOutput process_output(const float *output_data, int num_classes, OutputProcessing mode, float scale_factor,
                                bool debug);
 
 #ifdef USE_TFLITE_MICRO_HELPER
 /// @brief Process a model output tensor: dequantizes uint8/int8 tensors, then delegates to the
-/// float overload. Returns {0.0f, 0.0f} on error.
+/// float overload. Returns {0.0f, 0.0f, valid=false} on error.
 ProcessedOutput process_output(TfLiteTensor *output_tensor, OutputProcessing mode, float scale_factor, bool debug);
 
 /// @brief Read one entry of an output tensor as a float, dequantizing int8/uint8.
