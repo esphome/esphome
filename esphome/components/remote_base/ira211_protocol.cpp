@@ -2,6 +2,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome::remote_base {
 
@@ -222,24 +223,9 @@ optional<IRA211Data> IRA211Protocol::decode(RemoteReceiveData src) {
   return out;
 }
 
-static const LogString *command_to_string(IRA211Command command) {
-  switch (command) {
-    case IRA211Command::IRA211_COMMAND_TEMP_UP:
-      return LOG_STR("TEMP_UP");
-    case IRA211Command::IRA211_COMMAND_TEMP_DOWN:
-      return LOG_STR("TEMP_DOWN");
-    case IRA211Command::IRA211_COMMAND_MODE:
-      return LOG_STR("MODE");
-    case IRA211Command::IRA211_COMMAND_FAN:
-      return LOG_STR("FAN");
-    case IRA211Command::IRA211_COMMAND_POWER:
-      return LOG_STR("POWER");
-    case IRA211Command::IRA211_COMMAND_SYNC:
-      return LOG_STR("SYNC");
-    default:
-      return LOG_STR("UNKNOWN");
-  }
-}
+// Indexed by IRA211Command
+PROGMEM_STRING_TABLE(IRA211CommandStrings, "UNKNOWN", "TEMP_UP", "TEMP_DOWN", "UNKNOWN", "MODE", "FAN", "POWER",
+                     "SYNC");
 
 static const LogString *mode_to_string(IRA211Mode mode) {
   switch (mode) {
@@ -274,7 +260,7 @@ void IRA211Protocol::dump(const IRA211Data &data) {
   const uint8_t fields = layout.has_value() ? layout->fields : 0;
   const unsigned whole = data.half_degrees / 2;
   const unsigned tenths = (data.half_degrees & 1) ? 5 : 0;
-  const auto *command = LOG_STR_ARG(command_to_string(data.command));
+  const auto *command = LOG_STR_ARG(IRA211CommandStrings::get_log_str(static_cast<uint8_t>(data.command), 0));
   if (fields == (FIELD_TEMPERATURE | FIELD_MODE | FIELD_FAN)) {
     ESP_LOGI(TAG, "Received IRA211: command=%s, temperature=%u.%uC, mode=%s, fan=%s", command, whole, tenths,
              LOG_STR_ARG(mode_to_string(data.mode)), LOG_STR_ARG(fan_to_string(data.fan)));

@@ -160,8 +160,10 @@ void AudioHTTPMediaSource::on_stream_info(const micro_decoder::AudioStreamInfo &
 void AudioHTTPMediaSource::on_state_change(micro_decoder::DecoderState state) {
   switch (state) {
     case micro_decoder::DecoderState::IDLE:
-      this->set_state_(media_source::MediaSourceState::IDLE);
+      // Retire completed workers before an IDLE listener can start another playback.
+      this->decoder_->stop();
       this->disable_loop();
+      this->set_state_(media_source::MediaSourceState::IDLE);
       break;
     case micro_decoder::DecoderState::PLAYING:
       this->set_state_(media_source::MediaSourceState::PLAYING);
