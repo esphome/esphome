@@ -30,6 +30,11 @@ globals:
     type: int
     restore_value: true
     initial_value: '0'
+  # resets that followed a fired race (other than the mode 2 reboot itself): the crashes this test looks for
+  - id: crashed
+    type: int
+    restore_value: true
+    initial_value: '0'
 logger:
   on_message:
     - level: INFO
@@ -53,7 +58,7 @@ interval:
           if (id(auto_build) != build) {
             id(auto_build) = build;
             id(auto_step) = 0;
-            id(not_fired) = id(auto_armed) = 0;
+            id(not_fired) = id(auto_armed) = id(crashed) = 0;
             ESP_LOGI("hwt", "HWT auto new build, step counter reset");
           }
           // first tick after a boot with a race armed: only a mode 2 race reboots by software (safe_reboot)
@@ -62,11 +67,16 @@ interval:
             booted = false;
             const esp_reset_reason_t why = esp_reset_reason();
             if (id(auto_armed) != 0 && !(id(auto_armed) == 2 && why == ESP_RST_SW && id(race_rebooted))) {
-              ESP_LOGW("hwt", "HWT auto race mode %d not fired, reset reason %d", id(auto_armed), (int) why);
-              id(not_fired)++;
+              if (id(race_fired)) {
+                ESP_LOGE("hwt", "HWT auto race mode %d fired, then reset reason %d", id(auto_armed), (int) why);
+                id(crashed)++;
+              } else {
+                ESP_LOGW("hwt", "HWT auto race mode %d not fired, reset reason %d", id(auto_armed), (int) why);
+                id(not_fired)++;
+              }
             }
             id(auto_armed) = 0;
-            id(race_rebooted) = false;
+            id(race_rebooted) = id(race_fired) = false;
           }
           // Thread must have been attached for 40 s too: Border routing started does not mean the C6 joined
           static uint32_t thread_up_at = 0;
@@ -100,7 +110,8 @@ interval:
           id(auto_armed) = 0;
           id(auto_step) = st + 1;
           if (st == STEPS) {  // the last step has recovered
-            ESP_LOGI("hwt", "HWT auto done, races not fired: %d", id(not_fired));
+            ESP_LOGI("hwt", "HWT auto done, races not fired: %d, resets after a race: %d", id(not_fired),
+                     id(crashed));
             return;
           }
           id(step_at) = now;
@@ -117,13 +128,15 @@ interval:
             id(race_mode) = r.mode;
             id(race_delay) = r.delay_ms;
             id(auto_armed) = r.mode;
-            id(race_rebooted) = false;
+            id(race_rebooted) = id(race_fired) = false;
             // restored globals save on their own update(): store the step and the arm now, so a crash during
             // the race restores them and counts the race as not fired
             auto_step->update();
             auto_armed->update();
             not_fired->update();
             race_rebooted->update();
+            race_fired->update();
+            crashed->update();
             global_preferences->sync();
             id(race_drop).execute();
           }
@@ -133,5 +146,5 @@ button:
     on_press:
       - lambda: |-
           id(auto_step) = 0;
-          id(not_fired) = id(auto_armed) = 0;
+          id(not_fired) = id(auto_armed) = id(crashed) = 0;
           ESP_LOGI("hwt", "HWT auto step counter reset");

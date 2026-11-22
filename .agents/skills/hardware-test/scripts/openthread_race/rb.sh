@@ -16,21 +16,34 @@ bound() {
   if command -v timeout > /dev/null; then timeout "$t" "$@"; else perl -e 'alarm shift; exec @ARGV' "$t" "$@"; fi
 }
 PY=${PY:-python3}
+# api_button.py: run it, keep its last output line in $last, and abort on errors no restart can fix
+SETUP_ERR='InvalidEncryptionKey|EncryptionPlaintext|RequiresEncryption|InvalidAuth'
+SETUP_ERR+='|ModuleNotFoundError|ImportError|no button'
+api() {
+  local out rc; out=$(bound 8 $PY "$D/../api_button.py" "$IP" "${KEY:--}" "$@" 2>&1); rc=$?
+  [ $rc = 0 ] && return 0
+  last=${out##*$'\n'}
+  if [[ $out =~ $SETUP_ERR ]]; then
+    echo "$(date +%T) aborted, setup error: $last" >> "$O"; echo "rb.sh: $last" >&2; exit 1
+  fi
+  return 1
+}
 IP=$("$D/../resolve.sh" "$N" 20) || exit 1
 for i in $(seq 1 "$C"); do
   t0=$(date +%s)
-  if ! $PY "$D/../api_button.py" "$IP" "${KEY:--}" press Restart > /dev/null 2>&1; then
-    echo "$(date +%T) cycle $i press failed" >> "$O"
+  last=
+  if ! api press Restart; then
+    echo "$(date +%T) cycle $i press failed: $last" >> "$O"
     IP=$("$D/../resolve.sh" "$N" 20) ||
       { echo "$(date +%T) $N did not resolve, aborted at cycle $i/$C" >> "$O"; exit 1; }
     continue
   fi
   sleep 8
-  ok=0; m=0; a=0; p=0; r=-; last=
+  ok=0; m=0; a=0; p=0; r=-
   [ -n "$T6" ] || p=1
   while (( $(date +%s) - t0 < 120 )); do
     # a failed probe looks the name up again, in case the restart got a new address
-    [ $a = 1 ] || { bound 8 $PY "$D/../api_button.py" "$IP" "${KEY:--}" list > /dev/null 2>&1 && a=1; } ||
+    [ $a = 1 ] || { api list && a=1; } ||
       IP=$("$D/../resolve.sh" "$N" 1 2> /dev/null || echo "$IP")
     # the OMR prefix from the device itself (omr.yaml), not the host's mDNS cache, which can predate the restart
     # its uptime also proves the restart: under the time since the press, or the press did nothing
@@ -53,5 +66,5 @@ for i in $(seq 1 "$C"); do
   done
   pv=-; [ -n "$T6" ] && pv=$p  # - when no TARGET6 was given
   echo "$(date +%T) cycle $i ok=$ok restarted=$r omr=$m api=$a ping=$pv back_after=$(( $(date +%s) - t0 ))s" \
-    "${last:+omr_state: $last}" >> "$O"
+    "${last:+last: $last}" >> "$O"
 done

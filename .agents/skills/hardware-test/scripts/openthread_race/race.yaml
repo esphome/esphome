@@ -14,6 +14,11 @@ globals:
     type: bool
     restore_value: true
     initial_value: 'false'
+  # set when any race fired, so a reset right after it reads as a crash, not as a race that never ran
+  - id: race_fired
+    type: bool
+    restore_value: true
+    initial_value: 'false'
 logger:
   on_message:
     - level: INFO
@@ -50,7 +55,9 @@ script:
             - lambda: |-
                 id(race_mode) = 0;
                 id(race_rebooted) = true;
+                id(race_fired) = true;
                 race_rebooted->update();
+                race_fired->update();
                 global_preferences->sync();
                 ESP_LOGI("hwt", "HWT race reboot after %d ms", id(race_delay));
                 App.safe_reboot();
@@ -65,6 +72,9 @@ script:
                   ESP_LOGW("hwt", "HWT race drop skipped, a Wi-Fi drop is still running");
                 } else {
                   id(race_mode) = 0;
+                  id(race_fired) = true;
+                  race_fired->update();
+                  global_preferences->sync();
                   ESP_LOGI("hwt", "HWT race disable after %d ms", id(race_delay));
                 }
             - script.execute:
@@ -73,6 +83,10 @@ script:
   - id: race_reenable
     then:
       - delay: 0s  # leave the log callback first; the logger drops log calls made inside it
+      - lambda: |-
+          id(race_fired) = true;
+          race_fired->update();
+          global_preferences->sync();
       - logger.log: "HWT race sync disable done"
       - delay: 20s
       - logger.log: "HWT race enable"

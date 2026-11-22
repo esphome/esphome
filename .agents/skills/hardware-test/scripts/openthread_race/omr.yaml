@@ -11,7 +11,7 @@ text_sensor:
     lambda: |-
       auto lock = openthread::InstanceLock::try_acquire(50);
       if (!lock)
-        return {};
+        return std::string("error:lock");  // a stuck OpenThread task must not keep showing the last prefix
       otIp6Prefix prefix{};
       otRoutePreference pref;
       otError err = otBorderRoutingGetFavoredOmrPrefix(lock.get_instance(), &prefix, &pref);
