@@ -28,9 +28,14 @@ static const size_t MAX_READ_SIZE = 256;
 static constexpr uint32_t INITIAL_CHECK_INTERVAL_ID = 0;
 static constexpr uint32_t INITIAL_CHECK_INTERVAL_MS = 10000;
 static constexpr uint8_t INITIAL_CHECK_MAX_ATTEMPTS = 6;
+// Entity preference slot for the forced-install guard.
+static constexpr uint32_t FORCED_VERSION_PREF_VERSION = 1;
 
 void HttpRequestUpdate::setup() {
   this->ota_parent_->add_state_listener(this);
+
+  if (this->allow_forced_update_)
+    this->forced_version_pref_ = this->make_entity_preference<uint32_t>(FORCED_VERSION_PREF_VERSION, true);
 
   // Check periodically until network is ready
   // Only if update interval is > total retry window to avoid redundant checks
@@ -283,9 +288,22 @@ defer:
 
     if (trigger_update_available) {
       this_update->get_update_available_trigger()->trigger(this_update->update_info_);
+    }
 
-      if (this_update->allow_forced_update_ && force_update) {
-        ESP_LOGI(TAG, "Manifest requests forced update to %s", this_update->update_info_.latest_version.c_str());
+    // A forced version is remembered across the reboot that ends the install, so firmware that
+    // still reports an older version is not flashed again on every boot.
+    if (this_update->allow_forced_update_ && force_update && new_state == update::UPDATE_STATE_AVAILABLE) {
+      const std::string &latest = this_update->update_info_.latest_version;
+      const uint32_t latest_hash = fnv1a_hash(latest);
+      uint32_t forced_hash = 0;
+      if (this_update->forced_version_pref_.load(&forced_hash) && forced_hash == latest_hash) {
+        ESP_LOGW(TAG, "Manifest asks for a forced update to %s, which was already installed; not forcing again",
+                 latest.c_str());
+      } else {
+        // Saved before flashing, as the install ends in a reboot.
+        if (this_update->forced_version_pref_.save(&latest_hash))
+          global_preferences->sync();
+        ESP_LOGI(TAG, "Manifest asks for a forced update to %s, installing", latest.c_str());
         this_update->perform(false);
       }
     }

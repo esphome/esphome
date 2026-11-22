@@ -67,6 +67,8 @@ class HttpRequestUpdate final : public update::UpdateEntity, public PollingCompo
 #ifdef USE_ESP32
   TaskResult *task_result_{nullptr};  // set while a check runs on the update task
 #endif
+  // Hash of the version a forced install started, kept across the reboot that ends it.
+  ESPPreferenceObject forced_version_pref_;
   uint8_t initial_check_remaining_{0};
   bool allow_forced_update_{false};  // a manifest may start the update on its own
 
