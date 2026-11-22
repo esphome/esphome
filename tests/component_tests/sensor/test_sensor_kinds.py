@@ -207,6 +207,19 @@ def test_accuracy_decimals_can_be_overridden(kind: sensor.SensorKind) -> None:
     assert _defaults(schema)["accuracy_decimals"] == 3
 
 
+def test_state_class_can_be_overridden() -> None:
+    by_kind = sensor.sensor_schema(
+        kind=sensor.DURATION_S, state_class=STATE_CLASS_TOTAL_INCREASING
+    )
+    by_hand = sensor.sensor_schema(
+        unit_of_measurement=UNIT_SECOND,
+        accuracy_decimals=0,
+        device_class=DEVICE_CLASS_DURATION,
+        state_class=STATE_CLASS_TOTAL_INCREASING,
+    )
+    assert _defaults(by_kind) == _defaults(by_hand)
+
+
 def test_extra_arguments_pass_through() -> None:
     extra = {
         "accuracy_decimals": 2,
@@ -230,7 +243,6 @@ def test_extra_arguments_pass_through() -> None:
     [
         (sensor.TEMPERATURE, "unit_of_measurement"),
         (sensor.TEMPERATURE, "device_class"),
-        (sensor.TEMPERATURE, "state_class"),
         (sensor.PM10, "icon"),
     ],
 )
