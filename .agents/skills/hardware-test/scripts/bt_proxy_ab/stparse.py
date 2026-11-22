@@ -99,6 +99,8 @@ for name, lines in ph.items():
             txt,
         ):
             d["rounds,ok,first_ok,fail,stuck"] = m.groups()[:5]
+        else:  # a reset or the end of the capture cut the phase short
+            d["incomplete"] = True
             if m[6] and m[6] != "0":  # cold attempts that may have used the cache
                 d["cache_clean_fail"] = int(m[6])
             if (

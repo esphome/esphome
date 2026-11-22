@@ -541,12 +541,19 @@ async def main() -> None:
                 )
                 await cli.bluetooth_gatt_write_descriptor(addr, tick.cccd, b"\x01\x00")
             except Exception as e:  # noqa: BLE001
-                # the link dropped before the subscription: a drop, then hold again
                 print(f"notify subscribe failed: {e}", flush=True)
-                stats["drops"].append([type(e).__name__, round(time.time(), 1)])
-                stats["reconnects"] += 1
-                d.st.pop(addr, None)
-                st["cancel"]()
+                if st[
+                    "lost"
+                ]:  # the link dropped before the subscription: a drop, then hold again
+                    stats["drops"].append([type(e).__name__, round(time.time(), 1)])
+                    stats["reconnects"] += 1
+                    d.st.pop(addr, None)
+                    st["cancel"]()
+                else:  # the link is up but a read or write failed: free the slot before holding again
+                    stats.setdefault("subscribe_errors", []).append(
+                        [f"{type(e).__name__}: {e}", round(time.time(), 1)]
+                    )
+                    await d.disconnect(L)
                 await asyncio.sleep(2)
                 continue
             resumed[0] = True

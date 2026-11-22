@@ -247,6 +247,7 @@ for s in steps:
                             "backwards",
                             "dups",
                             "reconnects",
+                            "subscribe_errors",
                         )
                     }
                 )
@@ -307,9 +308,11 @@ print_heap(lines)
 boots = sum(
     ("Reset reason" in ln or "rst:" in ln or "ESP-ROM" in ln) for _, ln in lines
 )
+# a capture over the API (apilogcap.py) never sees ROM or early boot lines: 0 there does not mean no reboot
+gaps = sum("APILOGCAP CONNECT FAILED" in ln for _, ln in lines)
 print(
     "boots/reset lines",
-    boots,
+    boots or f"0 (not visible in an API capture; {gaps} API reconnect failures)",
     "idf",
     sorted({re.search(r"idf=(\S+)", ln)[1] for _, ln in lines if "idf=" in ln}),
 )

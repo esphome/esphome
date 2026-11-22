@@ -112,7 +112,7 @@ static bool bad_handle[2];  // handle_l/handle_m do not point at this server's f
 static uint32_t adv0;
 static uint8_t rtt_i;
 static uint32_t rd_sum, wr_sum;
-static uint8_t rd_n, wr_n;
+static uint8_t rd_n, wr_n, rtt_err, rtt_to;  // send errors and timeouts of the round's ops
 
 inline void connect(uint8_t p, bool cold) {
   BLEClient *c = C[p];
@@ -222,6 +222,7 @@ inline bool rtt_step(uint8_t p) {
     if (millis() - r->t0 > 10000) {
       ESP_LOGW(TAG, "ST rtt timeout %s", PNAME[p]);
       r->pending = 0;
+      rtt_to++;
       return true;
     }
     return false;
@@ -253,6 +254,8 @@ inline bool rtt_step(uint8_t p) {
   if (err != ESP_OK) {
     r->pending = 0;
     r->ok = false;
+    rtt_err++;
+    ESP_LOGW(TAG, "ST rtt %s %s send err=%d", PNAME[p], rtt_i < 5 ? "read" : "write", err);
   }
   rtt_i++;
   return false;
@@ -366,7 +369,7 @@ inline void tick() {
             check_handle(p);
           rtt_i = 0;
           rd_sum = wr_sum = 0;
-          rd_n = wr_n = 0;
+          rd_n = wr_n = rtt_err = rtt_to = 0;
           st = 2;
         } else if (r < 0) {
           fail_n++;
@@ -378,12 +381,13 @@ inline void tick() {
           // harness fault, counted apart like drive.py's stale_handles
           if (p <= PM && bad_handle[p])
             hb_n++;
-          else if (up(p) && (rd_n || wr_n))
+          else if (up(p) && wr_n)  // a write went through, as drive.py's t_cmd
             ok_n++;
           else
             fail_n++;
-          ESP_LOGI(TAG, "ST rtt %s r=%u read_avg=%u write_avg=%u n=%u/%u", PNAME[p], rnd,
-                   rd_n ? (unsigned) (rd_sum / rd_n) : 0, wr_n ? (unsigned) (wr_sum / wr_n) : 0, rd_n, wr_n);
+          ESP_LOGI(TAG, "ST rtt %s r=%u read_avg=%u write_avg=%u n=%u/%u err=%u timeout=%u", PNAME[p], rnd,
+                   rd_n ? (unsigned) (rd_sum / rd_n) : 0, wr_n ? (unsigned) (wr_sum / wr_n) : 0, rd_n, wr_n, rtt_err,
+                   rtt_to);
           st = 3;
         }
       } else if (st == 3) {

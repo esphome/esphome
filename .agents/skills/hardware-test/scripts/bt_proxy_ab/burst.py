@@ -91,6 +91,7 @@ async def main() -> None:
     )
     for c, v in ((ch[FE01], b"\x01\x00"), (ch[FE02], b"\x02\x00")):
         await cli.bluetooth_gatt_write_descriptor(addr, cccd(c), v)
+    clean = 0
     for r in range(runs):
         # notifications of an earlier run still in flight carry the same numbers: wait for quiet first
         q_end, quiet = time.monotonic() + 10, False
@@ -159,11 +160,14 @@ async def main() -> None:
         )
         if st["lost"]:
             break
+        clean += 1
         await asyncio.sleep(3)
     await d.disconnect(L)
     with contextlib.suppress(Exception):
         await asyncio.wait_for(cli.disconnect(), 5)
-    if st["lost"]:  # fewer than RUNS clean runs
+    if (
+        clean < runs
+    ):  # a lost link or runs skipped as not_quiet: fewer than RUNS clean runs
         sys.exit(1)
 
 
