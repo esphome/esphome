@@ -66,6 +66,7 @@ from esphome.const import (
     CONF_TTLS_PHASE_2,
     CONF_USE_ADDRESS,
     CONF_USERNAME,
+    CONF_VARIANT,
     PLACEHOLDER_WIFI_SSID,
     Platform,
     PlatformFramework,
@@ -1089,6 +1090,24 @@ async def to_code(config):
             add_idf_sdkconfig_option("CONFIG_ESP_WIFI_TX_BA_WIN", 32)
             add_idf_sdkconfig_option("CONFIG_ESP_WIFI_AMPDU_RX_ENABLED", True)
             add_idf_sdkconfig_option("CONFIG_ESP_WIFI_RX_BA_WIN", 32)
+
+        # Without a radio, the options above are ignored; the co-processor uses these.
+        # Espressif's ESP32-C6 values (esp-idf wifi/iperf sdkconfig.defaults.esp32p4)
+        if (
+            get_esp32_variant() in NO_WIFI_VARIANTS
+            and (hosted := CORE.config.get("esp32_hosted")) is not None
+            and hosted[CONF_VARIANT] == const.VARIANT_ESP32C6
+        ):
+            _LOGGER.info(
+                "Applying high-performance WiFi settings to the ESP32-C6 co-processor"
+            )
+            add_idf_sdkconfig_option("CONFIG_WIFI_RMT_STATIC_RX_BUFFER_NUM", 16)
+            add_idf_sdkconfig_option("CONFIG_WIFI_RMT_DYNAMIC_RX_BUFFER_NUM", 64)
+            add_idf_sdkconfig_option("CONFIG_WIFI_RMT_DYNAMIC_TX_BUFFER_NUM", 64)
+            add_idf_sdkconfig_option("CONFIG_WIFI_RMT_AMPDU_TX_ENABLED", True)
+            add_idf_sdkconfig_option("CONFIG_WIFI_RMT_TX_BA_WIN", 32)
+            add_idf_sdkconfig_option("CONFIG_WIFI_RMT_AMPDU_RX_ENABLED", True)
+            add_idf_sdkconfig_option("CONFIG_WIFI_RMT_RX_BA_WIN", 32)
 
     cg.add_define("USE_WIFI")
 
