@@ -2,8 +2,6 @@
 
 #include "esphome/components/tflite_output_processor/output_processor.h"
 
-#ifdef USE_TFLITE_MICRO_HELPER
-
 namespace esphome::tflite_output_processor::testing {
 
 static constexpr float TOLERANCE = 1e-5f;
@@ -101,31 +99,6 @@ TEST(OutputProcessor, InvalidArgumentsAreMarkedInvalid) {
   EXPECT_FLOAT_EQ(no_classes.confidence, 0.0f);
 }
 
-TEST(OutputProcessor, TensorOverloadDequantizesAndRejectsAnUnsupportedType) {
-  TfLiteIntArray *dims = TfLiteIntArrayCreate(1);
-  dims->data[0] = 3;
-  const uint8_t values[3] = {10, 30, 20};
-
-  TfLiteTensor tensor{};
-  tensor.dims = dims;
-  tensor.type = kTfLiteUInt8;
-  tensor.params.scale = 0.1f;
-  tensor.params.zero_point = 10;
-  tensor.data.uint8 = const_cast<uint8_t *>(values);
-
-  const ProcessedOutput result = process_output(&tensor, OutputProcessing::OUTPUT_PROCESSING_ARGMAX, 1.0f, false);
-  EXPECT_TRUE(result.valid);
-  EXPECT_FLOAT_EQ(result.value, 1.0f);
-  EXPECT_NEAR(result.confidence, 2.0f, TOLERANCE);
-
-  // A tensor of a type the reader does not handle is not class 0.
-  tensor.type = kTfLiteInt32;
-  const ProcessedOutput unsupported = process_output(&tensor, OutputProcessing::OUTPUT_PROCESSING_ARGMAX, 1.0f, false);
-  EXPECT_FALSE(unsupported.valid);
-
-  TfLiteIntArrayFree(dims);
-}
-
 TEST(OutputProcessor, ModeNameParsesToItsEnumValue) {
   OutputProcessing mode{};
   ASSERT_TRUE(parse_output_processing("argmax", mode));
@@ -152,6 +125,38 @@ TEST(OutputProcessor, UnknownModeNameFallsBackToArgmax) {
 
 }  // namespace esphome::tflite_output_processor::testing
 
+// The tensor overload and the decoder need the TFLM types, which exist only when the
+// component is built with the helper flag. The host unit-test build leaves it off, so
+// these cases are covered by the ESP32 build tests instead.
+#ifdef USE_TFLITE_MICRO_HELPER
+
+namespace esphome::tflite_output_processor::testing {
+
+TEST(OutputProcessor, TensorOverloadDequantizesAndRejectsAnUnsupportedType) {
+  TfLiteIntArray *dims = TfLiteIntArrayCreate(1);
+  dims->data[0] = 3;
+  const uint8_t values[3] = {10, 30, 20};
+
+  TfLiteTensor tensor{};
+  tensor.dims = dims;
+  tensor.type = kTfLiteUInt8;
+  tensor.params.scale = 0.1f;
+  tensor.params.zero_point = 10;
+  tensor.data.uint8 = const_cast<uint8_t *>(values);
+
+  const ProcessedOutput result = process_output(&tensor, OutputProcessing::OUTPUT_PROCESSING_ARGMAX, 1.0f, false);
+  EXPECT_TRUE(result.valid);
+  EXPECT_FLOAT_EQ(result.value, 1.0f);
+  EXPECT_NEAR(result.confidence, 2.0f, TOLERANCE);
+
+  // A tensor of a type the reader does not handle is not class 0.
+  tensor.type = kTfLiteInt32;
+  const ProcessedOutput unsupported = process_output(&tensor, OutputProcessing::OUTPUT_PROCESSING_ARGMAX, 1.0f, false);
+  EXPECT_FALSE(unsupported.valid);
+
+  TfLiteIntArrayFree(dims);
+}
+
 TEST(OutputProcessor, ClassificationDecoderReadsTheFirstTensor) {
   TfLiteIntArray *dims = TfLiteIntArrayCreate(1);
   dims->data[0] = 2;
@@ -174,5 +179,7 @@ TEST(OutputProcessor, ClassificationDecoderReadsTheFirstTensor) {
 
   TfLiteIntArrayFree(dims);
 }
+
+}  // namespace esphome::tflite_output_processor::testing
 
 #endif  // USE_TFLITE_MICRO_HELPER
