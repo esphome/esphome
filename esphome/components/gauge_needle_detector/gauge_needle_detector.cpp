@@ -1,4 +1,4 @@
-﻿#include "gauge_needle_detector.h"
+#include "gauge_needle_detector.h"
 
 #ifdef USE_GAUGE_NEEDLE_DETECTOR
 
@@ -95,8 +95,25 @@ DetectionResult NeedleDetector::detect(const uint8_t *img, int width, int height
   // "auto" and debug logging run every compiled-in detector.
   const bool compare_all = config.algorithm == ALGORITHM_AUTO || config.debug;
 
-  // Preprocess once for all detectors that will run on the filtered image.
   const int radius = std::min(width, height) / 2 - 2;
+
+  // Every detector samples the same window, so a window that cannot hold a
+  // single pixel is reported here, once, instead of on every frame.
+  if (radius > 0) {
+    const int deadzone_r = static_cast<int>(std::max(0.0f, config.deadzone_diameter * 0.5f));
+    const int scan_start = std::max({1, static_cast<int>(radius * config.min_scan_radius), deadzone_r});
+    const int scan_end = static_cast<int>(radius * config.max_scan_radius);
+    if (scan_start >= scan_end) {
+      if (!this->empty_scan_warned_) {
+        ESP_LOGW(TAG, "%s: empty scan window (deadzone %d px, scan radius %d px); no needle can be found", config.id,
+                 deadzone_r, scan_end);
+        this->empty_scan_warned_ = true;
+      }
+      return {};
+    }
+  }
+
+  // Preprocess once for all detectors that will run on the filtered image.
   bool needs_filtered = false;
   for (size_t i = 0; i < this->detector_count_; i++) {
     if (this->detectors_[i]->needs_filtered_image() &&

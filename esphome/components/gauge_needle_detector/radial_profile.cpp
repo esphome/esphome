@@ -32,11 +32,9 @@ DetectionResult scan_radial_profile(const uint8_t *filtered, int width, int heig
   const int deadzone_r = static_cast<int>(std::max(0.0f, config.deadzone_diameter * 0.5f));
   const int start_r = std::max({1, static_cast<int>(radius * config.min_scan_radius), deadzone_r});
   const int max_radius_scan = static_cast<int>(radius * config.max_scan_radius);
-  if (start_r >= max_radius_scan) {
-    ESP_LOGW(TAG, "Deadzone (%dpx radius) exceeds scan radius (%dpx); no pixels can be sampled", deadzone_r,
-             max_radius_scan);
+  // NeedleDetector::detect() already reported an empty window; return quietly.
+  if (start_r >= max_radius_scan)
     return {};
-  }
 
   for (int deg = 0; deg < 360; deg++) {
     const float dx = cos_lut(deg);

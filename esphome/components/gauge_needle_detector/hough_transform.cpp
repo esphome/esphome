@@ -82,8 +82,11 @@ DetectionResult detect_hough(const uint8_t *filtered, int width, int height, con
   }
 
   // Support is how much of one full ray voted; separation says the votes
-  // concentrate on that angle instead of being spread around all 360.
-  const float support = static_cast<float>(max_votes) / ((max_r - min_r + 1) * 255.0f);
+  // concentrate on that angle instead of being spread around all 360. A needle
+  // puts a Sobel edge on each side and a diagonal one can reach the same degree
+  // bin more than once per radius step, so allow two votes per step before
+  // support saturates.
+  const float support = static_cast<float>(max_votes) / (2.0f * (max_r - min_r + 1) * 255.0f);
   const float mean = static_cast<float>(total_votes) / NUM_ANGLES;
   const float separation = max_votes > 0 ? (max_votes - mean) / max_votes : 0.0f;
   const float confidence = std::clamp(support * separation, 0.0f, 1.0f);

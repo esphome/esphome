@@ -177,6 +177,8 @@ class NeedleDetector final {
   size_t detector_count_{0};
   /// Shared angle-score workspace; the detectors run one at a time.
   std::array<float, 360> scores_{};
+  /// Set once an empty scan window has been reported, so it is logged once.
+  bool empty_scan_warned_{false};
 
 #ifdef USE_GAUGE_NEEDLE_INTENSITY_SCAN
   IntensityScanDetector intensity_scan_;

@@ -18,12 +18,12 @@ constexpr float CENTER_Y = HEIGHT / 2.0f;
 constexpr int NEEDLE_LENGTH = 30;
 
 /// Crop with a one-pixel needle of value `needle` on a flat `background`.
-std::vector<uint8_t> make_plain_crop(float degrees, int background, int needle) {
+std::vector<uint8_t> make_plain_crop(float degrees, int background, int needle, int length = NEEDLE_LENGTH) {
   std::vector<uint8_t> crop(static_cast<size_t>(WIDTH) * HEIGHT, static_cast<uint8_t>(background));
   const float rad = degrees_to_radians(degrees);
   const float dx = std::cos(rad);
   const float dy = std::sin(rad);
-  for (int r = 0; r < NEEDLE_LENGTH; r++) {
+  for (int r = 0; r < length; r++) {
     const int x = static_cast<int>(CENTER_X + r * dx);
     const int y = static_cast<int>(CENTER_Y + r * dy);
     if (x >= 0 && x < WIDTH && y >= 0 && y < HEIGHT)
@@ -151,6 +151,30 @@ TEST(GaugeNeedleDetector, TinyCropDoesNotReportConfidence) {
     EXPECT_TRUE(std::isfinite(result.confidence));
     EXPECT_FLOAT_EQ(0.0f, result.confidence);
   }
+}
+
+TEST(GaugeNeedleDetector, HoughSupportRanksLongerNeedles) {
+  // Preprocessing normalises intensity, so the number of edge pixels voting for
+  // the winning angle is what separates a strong needle from a weak one.
+  const DetectionResult weak = run(make_plain_crop(0.0f, 0, 255, 12), ALGORITHM_HOUGH_TRANSFORM, NEEDLE_TYPE_LIGHT);
+  const DetectionResult strong =
+      run(make_plain_crop(0.0f, 0, 255, NEEDLE_LENGTH), ALGORITHM_HOUGH_TRANSFORM, NEEDLE_TYPE_LIGHT);
+  EXPECT_GT(weak.confidence, 0.0f);
+  EXPECT_GT(strong.confidence, weak.confidence);
+  // Both Sobel edges per radius step are budgeted for, so a clean needle does
+  // not pin support at 1.
+  EXPECT_LT(strong.confidence, 1.0f);
+}
+
+TEST(GaugeNeedleDetector, EmptyScanWindowHasNoConfidence) {
+  const std::vector<uint8_t> crop = make_plain_crop(45.0f, 0, 255);
+  NeedleDetector detector;
+  ASSERT_TRUE(detector.reserve(WIDTH, HEIGHT));
+  DetectorConfig config = make_config(ALGORITHM_RADIAL_PROFILE, NEEDLE_TYPE_LIGHT);
+  config.deadzone_diameter = static_cast<float>(WIDTH);
+  // Two calls, because the warning is reported once and then stays quiet.
+  for (int i = 0; i < 2; i++)
+    EXPECT_FLOAT_EQ(0.0f, detector.detect(crop.data(), WIDTH, HEIGHT, config).confidence);
 }
 
 TEST(GaugeNeedleDetector, PreprocessorKeepsTheNeedle) {

@@ -1,4 +1,4 @@
-﻿#include "gauge_needle_detector.h"
+#include "gauge_needle_detector.h"
 
 #ifdef USE_GAUGE_NEEDLE_DETECTOR
 
