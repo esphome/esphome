@@ -1691,7 +1691,7 @@ def command_wizard(args: ArgsProtocol) -> int | None:
 
 def command_config(args: ArgsProtocol, config: ConfigType) -> int | None:
     from esphome import yaml_util
-    from esphome.config import strip_default_ids
+    from esphome.config import mark_sensitive_user_values, strip_default_ids
 
     if getattr(args, "no_defaults", False):
         user_config = getattr(config, "user_config", None)
@@ -1701,6 +1701,8 @@ def command_config(args: ArgsProtocol, config: ConfigType) -> int | None:
                 "unavailable; falling back to the validated configuration."
             )
         else:
+            # The snapshot predates validation, so it has no cv.sensitive marks.
+            mark_sensitive_user_values(user_config, config)
             config = user_config
     elif not CORE.verbose:
         config = strip_default_ids(config)
@@ -1715,10 +1717,12 @@ def command_config(args: ArgsProtocol, config: ConfigType) -> int | None:
 
 # Substitution keys are user-named with no schema behind them, so values in
 # the top-level ``substitutions:`` block cannot be marked with cv.sensitive.
-# Redact the secret-shaped ones by name. The lookahead skips values that already
-# render themselves: ``\033[8m`` (SensitiveStr wrap), ``!secret`` and ``!lambda``.
+# Redact the secret-shaped ones by name, including punctuated keys such as
+# ``mqtt-password`` or ``wifi.password``; ``\b`` keeps ``monkey`` unmatched. The
+# lookahead skips values that already render themselves: ``\033[8m``
+# (SensitiveStr wrap), ``!secret`` and ``!lambda``.
 _SUBSTITUTION_REDACTION_RE = re.compile(
-    r"^(?P<prefix>[\s-]+(?:\w+_)?(?:password|key|psk|ssid)): "
+    r"^(?P<prefix>[\s-]+[^\s:]*?\b(?:\w+_)?(?:password|key|psk|ssid)): "
     r"(?!\\033\[8m|!secret\b|!lambda\b)(?P<val>.+)"
 )
 

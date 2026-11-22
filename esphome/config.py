@@ -1775,6 +1775,48 @@ def strip_default_ids(config):
     return config
 
 
+def _collect_sensitive_values(conf: Any, strs: set[str], ints: set[int]) -> None:
+    if isinstance(conf, dict):
+        for v in conf.values():
+            _collect_sensitive_values(v, strs, ints)
+    elif isinstance(conf, list):
+        for v in conf:
+            _collect_sensitive_values(v, strs, ints)
+    elif isinstance(conf, yaml_util.SensitiveStr):
+        strs.add(str(conf))
+    elif isinstance(conf, yaml_util.SensitiveInt):
+        ints.add(int(conf))
+
+
+def _mark_sensitive(conf: Any, strs: set[str], ints: set[int]) -> Any:
+    if isinstance(conf, dict):
+        for k, v in conf.items():
+            conf[k] = _mark_sensitive(v, strs, ints)
+    elif isinstance(conf, list):
+        conf[:] = [_mark_sensitive(v, strs, ints) for v in conf]
+    elif isinstance(conf, (yaml_util.Sensitive, bool)):
+        pass
+    elif isinstance(conf, str) and str(conf) in strs:
+        return yaml_util.SensitiveStr(conf)
+    elif isinstance(conf, int) and (conf in ints or str(conf) in strs):
+        return yaml_util.SensitiveInt(conf)
+    return conf
+
+
+def mark_sensitive_user_values(user_config: ConfigType, validated: ConfigType) -> None:
+    """Mark values in the pre-validation snapshot that the schema marked sensitive.
+
+    Matched by value, not path: validators move fields (wifi's top-level
+    ``password`` ends up under ``networks``), so paths do not line up.
+    """
+    strs: set[str] = set()
+    ints: set[int] = set()
+    _collect_sensitive_values(validated, strs, ints)
+    strs.discard("")
+    if strs or ints:
+        _mark_sensitive(user_config, strs, ints)
+
+
 def read_config(
     command_line_substitutions: dict[str, Any],
     skip_external_update: bool = False,
