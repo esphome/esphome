@@ -95,7 +95,7 @@ class MultiClickBase : public Component {
   MultiClickBase &operator=(const MultiClickBase &) = delete;
 
  protected:
-  virtual void fire_() = 0;
+  virtual void fire() = 0;
   void on_state_(bool state);
   void schedule_cooldown_();
   void schedule_is_valid_(uint32_t min_length);
@@ -118,7 +118,7 @@ template<auto Fn> class MultiClickCallback final : public MultiClickBase {
   using MultiClickBase::MultiClickBase;
 
  protected:
-  void fire_() override { Fn(); }
+  void fire() override { Fn(); }
 };
 
 }  // namespace esphome::binary_sensor

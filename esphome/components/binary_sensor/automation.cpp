@@ -123,7 +123,7 @@ void MultiClickBase::trigger_() {
   this->cancel_timeout(MULTICLICK_TRIGGER_ID);
   this->cancel_timeout(MULTICLICK_IS_VALID_ID);
   this->cancel_timeout(MULTICLICK_IS_NOT_VALID_ID);
-  this->fire_();
+  this->fire();
 }
 
 #endif  // USE_BINARY_SENSOR_MULTI_CLICK_TRIGGER
