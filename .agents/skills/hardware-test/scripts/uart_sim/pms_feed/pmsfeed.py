@@ -112,7 +112,7 @@ def main() -> None:
     parses = log.count(b"Got PM1.0 Standard")
     # the device counter, which a garbled log line cannot lose; it starts again at 0 on boot. A new boot shows as
     # the uptime or the counter going back, or the uptime gaining less than the host clock (lost cnt lines around
-    # the restart). The first boot counts from its first cnt line, a later one (started in the capture) from 0.
+    # the restart). Each boot counts from its first cnt line; frames fed across a restart are left out of both.
     cnt = []
     for m in re.finditer(
         rb"^\[(\d\d):(\d\d):(\d\d(?:\.\d+)?)\].*?\[cnt\S*: parses=(\d+) uptime=(\d+)",
@@ -123,14 +123,20 @@ def main() -> None:
         if cnt and wall < cnt[-1][2]:
             wall += 86400  # midnight
         cnt.append((int(m[4]), int(m[5]), wall, m.start()))
-    dev, boots = None, 0
+    dev, boots, restarts = None, 0, []
     if len(cnt) > 1:
         dev, boots, base, prev = 0, 1, cnt[0][0], cnt[0]
-        for p, u, w, _ in cnt[1:]:
+        for c in cnt[1:]:
+            p, u, w, _ = c
             if u <= prev[1] or p < prev[0] or u - prev[1] < w - prev[2] - 5:
                 dev += prev[0] - base
-                boots, base = boots + 1, 0
-            prev = (p, u, w)
+                boots, base = (
+                    boots + 1,
+                    p,
+                )  # from its first count, matching the feeds left out below
+                # parses after the old boot's last count and frames fed while booting are lost to the restart
+                restarts.append((prev[3], c[3]))
+            prev = c
         dev += prev[0] - base
     # builds with pmh.hpp log the esp_pm_configure() result; anything but 0 means no power management
     pm = re.findall(rb"esp_pm_configure\(ls=\d\) = (-?\d+)", log)
@@ -148,18 +154,14 @@ def main() -> None:
     )
     feeds = log.count(b"[feed] n=")
     # frames fed between the first and last cnt line (all of them when feeding and draining ran as planned)
-    win = (
-        sum(
-            cnt[0][3] < m.start() < cnt[-1][3]
-            for m in re.finditer(rb"\[feed\] n=", log)
-        )
-        if len(cnt) > 1
-        else 0
-    )
+    fed = [m.start() for m in re.finditer(rb"\[feed\] n=", log)]
+    across = sum(any(a < f < b for a, b in restarts) for f in fed)  # not UART RX losses
+    win = sum(cnt[0][3] < f < cnt[-1][3] for f in fed) - across if len(cnt) > 1 else 0
     print(
         f"pm_configure={','.join(x.decode() for x in pm) or ('MISSING' if a.expect_pm else '-')} "
         f"pm_failed={pm_failed} cnt_lines={len(cnt)} "
-        f"feeds={feeds} feeds_between_cnt_lines={win} parses={parses} dev_parses_between_cnt_lines={dev} "
+        f"feeds={feeds} feeds_between_cnt_lines={win} feeds_across_restarts={across} parses={parses} "
+        f"dev_parses_between_cnt_lines={dev} "
         f"boots={boots} "
         f"start_char={log.count(b'Start character')} payload_len={log.count(b'Payload length')} "
         f"checksum={log.count(b'checksum mismatch')}"

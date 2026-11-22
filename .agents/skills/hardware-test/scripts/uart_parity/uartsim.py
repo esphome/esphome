@@ -52,18 +52,20 @@ def rx_parse(hexes: str) -> tuple[bytes, int]:
     return bytes(out), marks
 
 
-def missing_stimulus(header: str, tx: list[str]) -> list[str]:
-    """Options in the rd.py header (options=ack,feed) with no matching TX line: requested but never written."""
+def missing_stimulus(header: str, tx: list[str], syncs: int, reports: int) -> list[str]:
+    """Options in the rd.py header (options=ack,feed) whose writes fell short: rd.py acks each lone 7F sync and
+    feeds after each RPT report line, so a split or merged read skips one; only the last may go unanswered."""
     opts = (
         header.rsplit("options=", maxsplit=1)[-1].split(",")
         if "options=" in header
         else []
     )
-    return [
-        o
-        for o, p in (("ack", "79"), ("feed", "55"))
-        if o in opts and not any(h.startswith(p) for h in tx)
-    ]
+    out = []
+    for o, p, want in (("ack", "79", syncs), ("feed", "55", reports)):
+        got = sum(h.startswith(p) for h in tx)
+        if o in opts and (not got or got < want - 1):
+            out.append(f"{o} {got}/{want}")
+    return out
 
 
 def rx_bytes(hexes: str) -> bytes:

@@ -74,7 +74,7 @@ def main() -> None:
         sys.exit(
             f"{' '.join(header or ['no framing header'])}: analyze.py needs an rd.py capture in mode e"
         )
-    known = other = marks = hups = short = parity = 0
+    known = other = marks = hups = short = parity = syncs = reports = 0
     for t, d, h in bursts:
         if d != "RX":
             k = f"{d} {h}"
@@ -89,6 +89,8 @@ def main() -> None:
             )  # frames and GVR show the parity
             other += not ok
             marks += m
+            syncs += b == b"\x7f"
+            reports += b.startswith(b"\r\nRPT")
             if m:
                 k += f" [{m} PARMRK error marks]"
         print(f"{t:8.3f} {k}")
@@ -96,7 +98,9 @@ def main() -> None:
     # bursts are boot noise, more of them than parity-showing frames means a wrong framing or a broken line (report
     # lines and 7F syncs say nothing about the frames, so they do not offset unrecognised ones)
     # an ack or feed that was asked for but never written leaves the run without its stimulus
-    missing = missing_stimulus(" ".join(header), [h for _, d, h in bursts if d == "TX"])
+    missing = missing_stimulus(
+        " ".join(header), [h for _, d, h in bursts if d == "TX"], syncs, reports
+    )
     summary = (
         f"{known} classified, {parity} showing parity, {other} OTHER, {marks} PARMRK error marks, {hups} HUP lines, "
         f"{short} short writes, requested but not written: {','.join(missing) or '-'}"
