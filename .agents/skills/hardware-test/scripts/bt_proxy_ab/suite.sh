@@ -31,8 +31,10 @@ for w in cap ping; do
   kill -0 "$(cat "$w-$T.pid")" 2> /dev/null || { echo "the $w process exited at start, see $w-$T.err" >&2; exit 1; }
 done
 mark() { echo "$(date +%T) $*" | tee -a "marks-$T.txt"; }
-# rounds that tried the measured link (held_failed and clear_failed rounds did not)
-rounds() { local n; n=$(grep '"round"' "$1" 2> /dev/null | grep -vcE 'held_failed|clear_failed'); echo "${n:-0}"; }
+# rounds that tried the measured link (held_failed, clear_failed and no_ff01 rounds did not)
+rounds() {
+  local n; n=$(grep '"round"' "$1" 2> /dev/null | grep -vcE 'held_failed|clear_failed|no_ff01'); echo "${n:-0}"
+}
 incomplete=
 # run STEP ROUNDS CMD ARGS...: an ARG of @N is replaced by the rounds still missing; reruns after an API drop
 run() {

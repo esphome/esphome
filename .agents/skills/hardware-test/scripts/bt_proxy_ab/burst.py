@@ -73,6 +73,7 @@ async def main() -> None:
         sys.exit(1)
     seqs: list[tuple[float, int]] = []
     final: list[float] = []
+    srv_fail: list[int] = []
     done = asyncio.Event()
     await cli.bluetooth_gatt_start_notify(
         addr,
@@ -80,13 +81,20 @@ async def main() -> None:
         lambda h, x: seqs.append((time.monotonic(), x[0] | x[1] << 8)),
     )
     await cli.bluetooth_gatt_start_notify(
-        addr, ch[FE02].handle, lambda h, x: (final.append(time.monotonic()), done.set())
+        addr,
+        ch[FE02].handle,
+        lambda h, x: (
+            final.append(time.monotonic()),
+            srv_fail.append(x[1] | x[2] << 8) if len(x) >= 3 else None,
+            done.set(),
+        ),
     )
     for c, v in ((ch[FE01], b"\x01\x00"), (ch[FE02], b"\x02\x00")):
         await cli.bluetooth_gatt_write_descriptor(addr, cccd(c), v)
     for r in range(runs):
         seqs.clear()
         final.clear()
+        srv_fail.clear()
         ndrop.clear()
         done.clear()
         t0 = time.monotonic()
@@ -129,6 +137,8 @@ async def main() -> None:
             gap_runs=runs_missing,
             longest_gap=longest,
             final=bool(final),
+            # notifications the server failed to send; the rest of missing was lost after the server
+            server_send_failed=srv_fail[-1] if srv_fail else None,
             span_s=round(span, 2),
             rate=round(len(got) / span, 1) if span else None,
             lost_link=st["lost"][:1],

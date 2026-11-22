@@ -362,7 +362,6 @@ inline void tick() {
         } else if (r == 1) {
           if (P.cold)
             check_handle(p);
-          ok_n++;
           rtt_i = 0;
           rd_sum = wr_sum = 0;
           rd_n = wr_n = 0;
@@ -373,6 +372,11 @@ inline void tick() {
         }
       } else if (st == 2) {
         if (!up(p) || rtt_step(p)) {
+          // ok only when the link held and a command went through, as drive.py counts t_cmd
+          if (up(p) && (rd_n || wr_n))
+            ok_n++;
+          else
+            fail_n++;
           ESP_LOGI(TAG, "ST rtt %s r=%u read_avg=%u write_avg=%u n=%u/%u", PNAME[p], rnd,
                    rd_n ? (unsigned) (rd_sum / rd_n) : 0, wr_n ? (unsigned) (wr_sum / wr_n) : 0, rd_n, wr_n);
           st = 3;

@@ -262,7 +262,7 @@ class D:
             return {
                 "connected": False,
                 "exc": "clear cache failed",
-                "clear_failed": True,
+                "harness": "clear_failed",
             }
         adv0 = self.adv
         st = await self.connect(name, not cold, timeout=budget)
@@ -289,6 +289,10 @@ class D:
                 ]
                 save_handles(name, svcs)
             ch = find_chr(svcs, FF01, name)
+            if ch is None:  # wrong server or peer: a harness fault, not the build's
+                res["harness"] = "no_ff01"
+                await self.disconnect(name)
+                return res
             rem = budget - (time.monotonic() - st["t0"])
             await asyncio.wait_for(
                 self.cli.bluetooth_gatt_write(addr, ch.handle, b"\x01", True),
@@ -388,10 +392,9 @@ async def main() -> None:
                     if "t_cmd" in res:
                         break
                     await asyncio.sleep(1)
-                if any(
-                    a.get("clear_failed") for a in att
-                ):  # a harness fault, not the build's
-                    d.rec(test="retry", round=r, name=name, result="clear_failed")
+                # a harness fault (clear_failed, no_ff01) is not the build's
+                if h := next((a["harness"] for a in att if a.get("harness")), None):
+                    d.rec(test="retry", round=r, name=name, result=h)
                     continue
                 d.rec(
                     test="retry",
@@ -406,8 +409,8 @@ async def main() -> None:
                 res = await d.disc_once(
                     name, 60 if mode == "free" else 30, mode == "free", True
                 )
-                if res.get("clear_failed"):
-                    d.rec(test=mode, round=r, name=name, result="clear_failed")
+                if h := res.get("harness"):
+                    d.rec(test=mode, round=r, name=name, result=h)
                     continue
                 d.rec(test=mode, round=r, name=name, ok="t_cmd" in res, **res)
             await asyncio.sleep(2)
@@ -551,7 +554,12 @@ async def main() -> None:
         cycles = int(sys.argv[4])
         await d.start([L, M])
         await asyncio.sleep(2)
-        limit = d.free[1] if d.free else None
+        if (
+            d.free is None
+        ):  # no connections-free state: every cycle would read as a stuck slot
+            d.rec(test="churn", result="no_free_state")
+            sys.exit(1)
+        limit = d.free[1]
         stuck = errs = 0
         for c in range(cycles):
             check_api()

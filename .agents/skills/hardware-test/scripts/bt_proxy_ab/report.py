@@ -116,6 +116,10 @@ def window(s):
     return [x for x in att if inside(x["t0"])], [ln for t, ln in lines if inside(t)]
 
 
+# harness faults: kept out of the ratios and counted on their own
+HARNESS = ("clear_failed", "no_ff01")
+
+
 def jl(s):
     try:
         return [
@@ -134,10 +138,11 @@ for s in steps:
     A, L = window(s)
     R = jl(s)
     # a failed cache clear is a harness fault: out of the ratios, counted on its own
-    rounds = [r for r in R if "round" in r and r.get("result") != "clear_failed"]
+    rounds = [r for r in R if "round" in r and r.get("result") not in HARNESS]
     d = {}
-    if cf := sum(r.get("result") == "clear_failed" for r in R):
-        d["clear_failed"] = cf
+    for h in HARNESS:
+        if n := sum(r.get("result") == h for r in R):
+            d[h] = n
     # results outside any round (not_seen, api_lost, connect_failed, no_handles) would otherwise vanish
     if other := Counter(r["result"] for r in R if "round" not in r and "result" in r):
         d["no_round"] = dict(other)

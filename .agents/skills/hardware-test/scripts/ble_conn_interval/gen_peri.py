@@ -3,7 +3,7 @@
 --burst (the bt_proxy_ab server): ff01 writes are echoed as ff02 notifications, ff03 notifies a counter every
 200 ms, and a fe00 service sends notification bursts: a write [count_hi, count_lo, per_tick] to fe03 starts 2 byte
 sequence notifications on fe01, per_tick every 15 ms, then one notification on fe02 (ble_server sends a subscribed
-indication without the ack). Logs on UART0.
+indication without the ack) whose bytes 1-2 are the server's own send failures. Logs on UART0.
 """
 
 import pathlib
@@ -36,7 +36,17 @@ L = [
     "  level: DEBUG",
 ]
 if burst:
-    L.append("  hardware_uart: UART0")
+    L += [
+        "  hardware_uart: UART0",
+        "  on_message:",
+        "    - level: ERROR",
+        "      then:",
+        "        - lambda: |-",
+        "            // notify() returns nothing: count the stack's send failures while a burst runs",
+        "            if (id(b_sent) < id(b_total) &&",
+        '                strstr(message, "esp_ble_gatts_send_indicate failed") != nullptr)',
+        "              id(b_fail)++;",
+    ]
 elif variant != "ESP32":
     L.append("  hardware_uart: USB_SERIAL_JTAG")
 L += [
@@ -115,10 +125,12 @@ BURST = """\
                 id(b_total) = x.size() >= 2 ? (x[0] << 8 | x[1]) : 1000;
                 id(b_per) = x.size() >= 3 ? x[2] : 3;
                 id(b_sent) = 0;
+                id(b_fail) = 0;
                 ESP_LOGI("srv", "SRV burst start total=%u per_tick=%u", (unsigned) id(b_total), (unsigned) id(b_per));
 globals:
   - {id: b_total, type: uint32_t, initial_value: "0"}
   - {id: b_sent, type: uint32_t, initial_value: "0"}
+  - {id: b_fail, type: uint32_t, initial_value: "0"}
   - {id: b_per, type: uint32_t, initial_value: "3"}
   - {id: tick_n, type: uint32_t, initial_value: "0"}
 interval:
@@ -133,10 +145,11 @@ interval:
             id(burstc)->notify();
           }
           if (id(b_sent) == id(b_total)) {
-            const uint8_t f = 0xF1;
-            id(finalc)->set_value(&f, 1);
+            // the final value carries the server's own send failures, so they are not taken for proxy loss
+            const uint8_t f[3] = {0xF1, (uint8_t) id(b_fail), (uint8_t) (id(b_fail) >> 8)};
+            id(finalc)->set_value(f, sizeof(f));
             id(finalc)->notify();
-            ESP_LOGI("srv", "SRV burst done sent=%u", (unsigned) id(b_sent));
+            ESP_LOGI("srv", "SRV burst done sent=%u send_failed=%u", (unsigned) id(b_sent), (unsigned) id(b_fail));
           }
   - interval: 200ms
     then:
