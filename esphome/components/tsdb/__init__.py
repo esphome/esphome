@@ -259,9 +259,8 @@ async def to_code(config: ConfigType) -> None:
 
     cg.add_define("TSDB_COLUMN_COUNT", len(config[CONF_COLUMNS]))
     for index, column in enumerate(config[CONF_COLUMNS]):
-        cg.add(
-            var.add_column(
-                column[CONF_NAME], column[CONF_SCALE_FACTOR], column[CONF_OFFSET]
-            )
-        )
+        # repr() is a double literal; cg's float form appends `f` and loses the range.
+        scale = cg.RawExpression(repr(column[CONF_SCALE_FACTOR]))
+        offset = cg.RawExpression(repr(column[CONF_OFFSET]))
+        cg.add(var.add_column(column[CONF_NAME], scale, offset))
         cg.add(var.set_column_source(index, await cg.get_variable(column[CONF_SENSOR])))
