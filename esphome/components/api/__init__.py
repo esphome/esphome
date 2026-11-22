@@ -1143,10 +1143,14 @@ async def api_respond_to_code(
         config[CONF_DATA], [*args, (cg.JsonObject, "root")], return_type=cg.void
     )
     build = f"[&]({cg.JsonObject} root) {{ {automation.immediate_lambda_call(data)}; }}"
-    # Optional mode passes a bool return_response; only then is the data up to the client. It is found by name and
-    # type, not position, as repeat: puts its iteration first; a response-only variable of that name is not a bool.
-    optional = any(
-        name == "return_response" and str(type_) == "bool" for type_, name in args
+    # Optional mode passes a bool return_response right after call_id; repeat: can put its iteration before both,
+    # and user variables only come after them.
+    names = [name for _, name in args]
+    after = names.index("call_id") + 1
+    optional = (
+        after < len(args)
+        and names[after] == "return_response"
+        and str(args[after][0]) == "bool"
     )
     with_data = ", return_response" if optional else ""
     statements.append(

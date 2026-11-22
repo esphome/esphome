@@ -109,6 +109,16 @@ api:
         - api.respond:
             data: !lambda |-
               root["n"] = return_response;
+    # A response-only bool variable of that name, after another one, does not make the data optional
+    - action: respond_only_bool_named_return_response
+      supports_response: only
+      variables:
+        value: int
+        return_response: bool
+      then:
+        - api.respond:
+            data: !lambda |-
+              root["value"] = value;
     # repeat: puts its iteration before call_id and return_response
     - action: respond_optional_in_repeat
       supports_response: optional

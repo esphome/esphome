@@ -200,6 +200,16 @@ def test_respond_only_variable_named_return_response(generate_main) -> None:
     assert "}(call_id, return_response, root); });" in body
 
 
+def test_respond_only_bool_variable_named_return_response(generate_main) -> None:
+    """A response-only bool variable named return_response, after another variable, keeps the data required."""
+    main_cpp = generate_main(CONFIG)
+    function = _service_function(
+        main_cpp, "respond_only_bool_named_return_response", ONLY, "int32_t, bool"
+    )
+    body = _function_body(main_cpp, function)
+    assert "}(call_id, value, return_response, root); });" in body
+
+
 def test_respond_optional_inside_repeat(generate_main) -> None:
     """Inside repeat:, return_response is not the second argument and still makes the data optional."""
     main_cpp = generate_main(CONFIG)
@@ -318,6 +328,7 @@ def test_services_registered_in_order(generate_main) -> None:
         "respond_then_log",
         "respond_error_lambda",
         "respond_only_named_return_response",
+        "respond_only_bool_named_return_response",
         "respond_optional_in_repeat",
         "respond_error_constant",
         "status_inline",
