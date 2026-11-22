@@ -31,8 +31,9 @@ struct OcrResult {
 /// The image is thresholded in place, split into digit runs by a column
 /// projection, and each run is sampled at the seven segment positions. A run
 /// whose lit segments match a digit contributes that digit to the result.
-/// Digits must be bright on a dark background. A run narrower than a third
-/// of the image height is read as a 1 when both of its halves are lit.
+/// Digits must be bright on a dark background and upright: correct the skew of slanted
+/// displays before calling recognize(). A run narrower than a third of the image height is
+/// read as a 1 when both of its halves are lit.
 class SevenSegmentOCR final {
  public:
   /// Allocates the column projection. Call once with the widest image width.

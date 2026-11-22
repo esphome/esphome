@@ -65,7 +65,7 @@ OcrResult SevenSegmentOCR::recognize(uint8_t *image, int width, int height, uint
     }
   }
 
-  const uint16_t min_signal = static_cast<uint16_t>(height / 20);
+  const uint16_t min_signal = std::max<uint16_t>(1, static_cast<uint16_t>(height / 40));
   const uint16_t min_peak = static_cast<uint16_t>(height / 3);
   const int min_width = std::max(2, height / 30);
   float confidence_sum = 0.0f;

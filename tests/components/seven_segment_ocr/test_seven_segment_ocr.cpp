@@ -149,6 +149,17 @@ TEST(SevenSegmentOcr, ReadsDigitsWithInsetStrokes) {
   EXPECT_NEAR(result.confidence, 1.0f, 0.01f);
 }
 
+TEST(SevenSegmentOcr, ReadsThinStrokedSeven) {
+  Metrics thin = NORMAL;
+  thin.stroke = 3;
+  Image image = render("7", thin);
+  SevenSegmentOCR ocr;
+  ASSERT_TRUE(ocr.reserve(image.width));
+  const OcrResult result = ocr.recognize(image.pixels.data(), image.width, NORMAL.height, 1);
+  EXPECT_TRUE(result.complete());
+  EXPECT_EQ(result.value, 7u);
+}
+
 TEST(SevenSegmentOcr, SkipsDecimalPoint) {
   Image image = render("125");
   draw_point(image, NORMAL.width + (DIGIT_GAP - 6) / 2, NORMAL.bottom - 4, NORMAL);
