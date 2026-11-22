@@ -614,6 +614,7 @@ TEST_F(HttpRequestSendActionTest, MaxConcurrentRequestsKeepsTheQueueLimit) {
   EXPECT_EQ(this->next_count_, 8);
 }
 
+// NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
 TEST_F(HttpRequestSendActionTest, JsonLambdaBuildsTheBody) {
   this->action_.set_json([](JsonObject root) { root["status"] = "ok"; });
   this->trigger_.trigger();
@@ -652,7 +653,7 @@ TEST(HttpRequestSendActionJson, JsonLambdaDoesNotChangeReferenceArgs) {
   action.set_url([](std::string &s) -> std::string { return "http://example.invalid/" + s; });
   action.set_method([](std::string &) -> const char * { return "POST"; });
   action.set_json([](std::string &s, JsonObject root) {
-    s += "!";
+    s += '!';
     root["s"] = s;
   });
   Trigger<std::string &> trigger;
@@ -673,7 +674,7 @@ TEST(HttpRequestSendActionJson, JsonEntryDoesNotChangeReferenceArgs) {
   alignas(Entry) static unsigned char raw[sizeof(Entry)];
   action.set_json_storage(std::span<Entry>(reinterpret_cast<Entry *>(raw), 1));
   action.add_json("s", [](std::string &s) -> std::string {
-    s += "!";
+    s += '!';
     return s;
   });
   Trigger<std::string &> trigger;
@@ -684,5 +685,7 @@ TEST(HttpRequestSendActionJson, JsonEntryDoesNotChangeReferenceArgs) {
   EXPECT_EQ(http.request_body, R"({"s":"a!"})");
   EXPECT_EQ(http.request_url, "http://example.invalid/a");
 }
+
+// NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
 
 }  // namespace esphome::http_request::testing

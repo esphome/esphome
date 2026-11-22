@@ -677,7 +677,7 @@ template<typename... Ts> class HttpRequestSendAction final : public Action<Ts...
       json::JsonBuilder builder;
       JsonObject root = builder.root();
       // The JSON gets its own copies of the args, so a lambda that changes a reference arg does not change the
-      // request's saved args
+      // request's saved args; they live until the body is serialized, as the document may point into them
       [&](std::remove_cvref_t<Ts>... copy) {
         if (this->json_func_ != nullptr) {
           this->json_func_(copy..., root);
@@ -685,8 +685,8 @@ template<typename... Ts> class HttpRequestSendAction final : public Action<Ts...
           for (const auto &item : this->json_)
             root[item.first] = item.second.value(copy...);
         }
+        body = builder.serialize();
       }(x...);
-      body = builder.serialize();
       // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
     }
     std::vector<Header> request_headers;
