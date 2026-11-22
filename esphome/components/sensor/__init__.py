@@ -113,6 +113,7 @@ from esphome.const import (
     DEVICE_CLASS_WIND_SPEED,
     ENTITY_CATEGORY_CONFIG,
     ICON_CHEMICAL_WEAPON,
+    ICON_MAGNET,
     ICON_RADIATOR,
     ICON_TIMER,
     STATE_CLASS_MEASUREMENT,
@@ -528,7 +529,7 @@ PERCENT = SensorKind(UNIT_PERCENT, accuracy_decimals=0)
 ANGLE = SensorKind(UNIT_DEGREES)
 LENGTH_M = SensorKind(UNIT_METER, accuracy_decimals=2)
 RESISTANCE = SensorKind(UNIT_OHM, accuracy_decimals=0)
-MAGNETIC_FIELD = SensorKind(UNIT_MICROTESLA)
+MAGNETIC_FIELD = SensorKind(UNIT_MICROTESLA, icon=ICON_MAGNET)
 
 
 def _kind_value(kind: SensorKind, name: str, value: Any) -> Any:
