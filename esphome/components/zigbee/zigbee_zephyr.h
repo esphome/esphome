@@ -3,7 +3,6 @@
 #if defined(USE_ZIGBEE) && defined(USE_NRF52)
 #include "esphome/core/component.h"
 #include "esphome/core/automation.h"
-#include "zigbee_endpoint_listeners.h"
 #include <functional>
 extern "C" {
 #include <zboss_api.h>
@@ -68,15 +67,13 @@ struct AnalogAttrsOutput : AnalogAttrs {
   float resolution;
 };
 
-class ZigbeeEndpointListener;
-
 class ZigbeeComponent final : public Component {
  public:
   void setup() override;
   void dump_config() override;
-  void add_endpoint_listener(ZigbeeEndpointListener *listener);
-  ESPDEPRECATED("Derive from ZigbeeEndpointListener and use add_endpoint_listener() instead. Removed in 2027.6.0",
-                "2026.12.0")
+  // Each switch, number and time entity adds its handler, matched by endpoint, in codegen
+  HUB_PUBLISHER_RETURNING(bool, zcl_device, uint8_t, uint8_t)
+  ESPDEPRECATED("Entities are dispatched from codegen; handle writes in your entity. Removed in 2027.6.0", "2026.12.0")
   void add_callback(zb_uint8_t endpoint, std::function<void(zb_bufid_t bufid)> &&cb);
   template<typename F> void add_on_join_callback(F &&cb) { this->join_cb_.add(std::forward<F>(cb)); }
   template<typename F> void add_on_start_callback(F &&cb) { this->start_cb_.add(std::forward<F>(cb)); }
@@ -90,14 +87,19 @@ class ZigbeeComponent final : public Component {
 
  protected:
   static void zcl_device_cb(zb_bufid_t bufid);
-  void log_callback_registration_error_(zb_uint8_t endpoint);
   void on_join_(bool factory_new);
   void on_start_();
 #ifdef USE_ZIGBEE_WIPE_ON_BOOT
   void erase_flash_(int area);
 #endif
   void dump_reporting_();
-  EndpointListeners<ZigbeeEndpointListener, ZIGBEE_ENDPOINTS_COUNT> listeners_;
+  // Filled only by the deprecated add_callback(), newest first
+  struct LegacyCallback {
+    zb_uint8_t endpoint;
+    std::function<void(zb_bufid_t bufid)> cb;
+    LegacyCallback *next;
+  };
+  LegacyCallback *legacy_callbacks_{nullptr};
   CallbackManager<void(bool)> join_cb_;
   LazyCallbackManager<void()> start_cb_;
   bool force_report_{false};
@@ -112,17 +114,10 @@ class ZigbeeEntity {
  public:
   void set_parent(ZigbeeComponent *parent) { this->parent_ = parent; }
   void set_endpoint(zb_uint8_t endpoint) { this->endpoint_ = endpoint; }
-  zb_uint8_t get_endpoint() const { return this->endpoint_; }
 
  protected:
   zb_uint8_t endpoint_{0};
   ZigbeeComponent *parent_{nullptr};
-};
-
-/// An entity that receives the ZCL device callbacks (attribute writes) for its endpoint.
-class ZigbeeEndpointListener : public ZigbeeEntity {
- public:
-  virtual void on_zcl_device_event(zb_bufid_t bufid) = 0;
 };
 
 extern ZigbeeComponent *global_zigbee;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

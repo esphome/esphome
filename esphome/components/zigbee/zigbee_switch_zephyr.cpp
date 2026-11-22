@@ -23,7 +23,6 @@ void ZigbeeSwitch::dump_config() {
 }
 
 void ZigbeeSwitch::setup() {
-  this->parent_->add_endpoint_listener(this);
   this->switch_->add_on_state_callback([this](bool state) {
     this->cluster_attributes_->present_value = state ? ZB_TRUE : ZB_FALSE;
     ESP_LOGD(TAG, "Set attribute endpoint: %d, present_value %d", this->endpoint_,

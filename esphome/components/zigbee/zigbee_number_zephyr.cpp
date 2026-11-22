@@ -13,7 +13,6 @@ namespace esphome::zigbee {
 ESPHOME_LOG_TAG(TAG, "zigbee.number");
 
 void ZigbeeNumber::setup() {
-  this->parent_->add_endpoint_listener(this);
   this->number_->add_on_state_callback([this](float state) {
     this->cluster_attributes_->present_value = state;
     ESP_LOGD(TAG, "Set attribute endpoint: %d, present_value %f", this->endpoint_,

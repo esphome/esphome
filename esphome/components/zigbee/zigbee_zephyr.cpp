@@ -4,6 +4,7 @@
 #include <zephyr/settings/settings.h>
 #include <zephyr/storage/flash_map.h>
 #include "esphome/core/hal.h"
+#include <type_traits>
 
 extern "C" {
 #include <zboss_api.h>
@@ -20,11 +21,6 @@ ESPHOME_LOG_TAG(TAG, "zigbee");
 ZigbeeComponent *global_zigbee = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 const uint8_t IEEE_ADDR_BUF_SIZE = 17;
-
-void ZigbeeComponent::log_callback_registration_error_(zb_uint8_t endpoint) {
-  ESP_LOGE(TAG, "Cannot register callback for endpoint %u: invalid ID, duplicate or full table", endpoint);
-  this->status_set_error();
-}
 
 void ZigbeeComponent::zboss_signal_handler_esphome(zb_bufid_t bufid) {
   zb_zdo_app_signal_hdr_t *sig_hndler = nullptr;
@@ -121,34 +117,27 @@ void ZigbeeComponent::zcl_device_cb(zb_bufid_t bufid) {
   /* Set default response value. */
   p_device_cb_param->status = RET_OK;
 
-  if (!global_zigbee->listeners_.dispatch(endpoint, bufid))
+  auto *zb = global_zigbee;
+  // A deprecated add_callback() replaces the entity's handler, and an empty one clears it, as before
+  for (auto *legacy = zb->legacy_callbacks_; legacy != nullptr; legacy = legacy->next) {
+    if (legacy->endpoint == endpoint) {
+      if (legacy->cb) {
+        legacy->cb(bufid);
+      } else {
+        p_device_cb_param->status = RET_NOT_IMPLEMENTED;
+      }
+      return;
+    }
+  }
+  if (zb->zcl_device_publisher_ == nullptr || !zb->zcl_device_publisher_(endpoint, bufid))
     p_device_cb_param->status = RET_NOT_IMPLEMENTED;
 }
 
-void ZigbeeComponent::add_endpoint_listener(ZigbeeEndpointListener *listener) {
-  if (!this->listeners_.add(listener))
-    this->log_callback_registration_error_(listener->get_endpoint());
-}
-
-namespace {
-// Adapter for the deprecated std::function registration; allocated once at setup.
-class FunctionEndpointListener final : public ZigbeeEndpointListener {
- public:
-  FunctionEndpointListener(zb_uint8_t endpoint, std::function<void(zb_bufid_t bufid)> &&cb) : cb_(std::move(cb)) {
-    this->set_endpoint(endpoint);
-  }
-  void on_zcl_device_event(zb_bufid_t bufid) override { this->cb_(bufid); }
-
- protected:
-  std::function<void(zb_bufid_t bufid)> cb_;
-};
-}  // namespace
+static_assert(std::is_same_v<zb_bufid_t, uint8_t>, "zcl_device publisher passes the buffer as uint8_t");
 
 void ZigbeeComponent::add_callback(zb_uint8_t endpoint, std::function<void(zb_bufid_t bufid)> &&cb) {
-  if (!cb)
-    return;
   // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
-  this->add_endpoint_listener(new FunctionEndpointListener(endpoint, std::move(cb)));
+  this->legacy_callbacks_ = new LegacyCallback{endpoint, std::move(cb), this->legacy_callbacks_};
 }
 
 void ZigbeeComponent::on_join_(bool factory_new) {

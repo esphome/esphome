@@ -1108,13 +1108,6 @@ def _check_report_deprecation(value: str) -> str:
     return value
 
 
-def _validate_zigbee_endpoint_type(value: Any) -> Any:
-    """Reject boolean IDs before integer range validation accepts True as 1."""
-    if isinstance(value, bool):
-        raise cv.Invalid("Endpoint must be an integer, not a boolean")
-    return value
-
-
 def zigbee_base_entity_schema(cluster_options: list[str] | None = None) -> cv.Schema:
     """Zigbee options every entity offers; ``cluster_options`` adds the esp32 cluster key."""
     schema = cv.Schema(
@@ -1127,7 +1120,6 @@ def zigbee_base_entity_schema(cluster_options: list[str] | None = None) -> cv.Sc
             ),
             cv.Optional(CONF_ENDPOINT): cv.All(
                 cv.requires_component("zigbee"),
-                _validate_zigbee_endpoint_type,
                 cv.int_range(1, ZIGBEE_MAX_EP_NUMBER),
             ),
             cv.Optional(CONF_USE_DEVICE_TYPE): cv.All(

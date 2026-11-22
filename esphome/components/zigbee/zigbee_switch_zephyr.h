@@ -55,8 +55,9 @@ void zb_zcl_binary_output_init_client();
 
 namespace esphome::zigbee {
 
-class ZigbeeSwitch final : public ZigbeeEndpointListener, public Component {
+class ZigbeeSwitch final : public ZigbeeEntity, public Component {
  public:
+  void on_zcl_device_event(zb_bufid_t bufid);
   ZigbeeSwitch(switch_::Switch *s) : switch_(s) {}
   void set_cluster_attributes(BinaryAttrs &cluster_attributes) { this->cluster_attributes_ = &cluster_attributes; }
 
@@ -65,8 +66,6 @@ class ZigbeeSwitch final : public ZigbeeEndpointListener, public Component {
   void dump_config() override;
 
  protected:
-  void on_zcl_device_event(zb_bufid_t bufid) override;
-
   BinaryAttrs *cluster_attributes_{nullptr};
   switch_::Switch *switch_;
 };

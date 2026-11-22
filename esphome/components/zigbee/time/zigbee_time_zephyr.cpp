@@ -27,7 +27,6 @@ void ZigbeeTime::sync_time(zb_ret_t status, zb_uint32_t auth_level, zb_uint16_t 
 
 void ZigbeeTime::setup() {
   global_time = this;
-  this->parent_->add_endpoint_listener(this);
   this->parent_->add_on_join_callback([this](bool x) { zb_zcl_time_server_synchronize(this->endpoint_, sync_time); });
 }
 

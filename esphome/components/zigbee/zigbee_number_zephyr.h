@@ -82,8 +82,9 @@ void zb_zcl_analog_output_init_client();
 
 namespace esphome::zigbee {
 
-class ZigbeeNumber final : public ZigbeeEndpointListener, public Component {
+class ZigbeeNumber final : public ZigbeeEntity, public Component {
  public:
+  void on_zcl_device_event(zb_bufid_t bufid);
   ZigbeeNumber(number::Number *n) : number_(n) {}
   void set_cluster_attributes(AnalogAttrsOutput &cluster_attributes) {
     this->cluster_attributes_ = &cluster_attributes;
@@ -95,7 +96,6 @@ class ZigbeeNumber final : public ZigbeeEndpointListener, public Component {
  protected:
   number::Number *number_;
   AnalogAttrsOutput *cluster_attributes_{nullptr};
-  void on_zcl_device_event(zb_bufid_t bufid) override;
 };
 
 }  // namespace esphome::zigbee

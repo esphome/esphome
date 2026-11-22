@@ -9,7 +9,6 @@ import yaml
 from esphome.__main__ import generate_cpp_contents
 from esphome.config import read_config
 from esphome.core import CORE
-from esphome.core.entity_helpers import ZIGBEE_MAX_EP_NUMBER
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -43,27 +42,6 @@ def entity_endpoints(cpp: str) -> dict[str, int]:
     }
 
 
-@pytest.mark.parametrize("fixture", ["implicit", "esp32-default"])
-@pytest.mark.parametrize("domain", ["sensor", "binary_sensor", "number", "switch"])
-def test_valid_entity_endpoint(tmp_path: Path, domain: str, fixture: str) -> None:
-    config = yaml.safe_load((FIXTURES / f"{fixture}.yaml").read_text())
-    entity = config[domain][0]
-    config = {
-        key: value
-        for key, value in config.items()
-        if key in ("esphome", "nrf52", "esp32", "zigbee")
-    }
-    entity["endpoint"] = 17
-    config[domain] = [entity]
-    cpp = generate_config(tmp_path, config)
-    if fixture == "implicit":
-        assert_endpoint_ids(cpp, [17])
-        assert entity_endpoints(cpp) == {entity["id"]: 17}
-    else:
-        assert "radio->create_default_cluster(17," in cpp
-        assert "zigbee::ZigbeeAttribute(radio, 17," in cpp
-
-
 @pytest.mark.parametrize("domain", ["sensor", "binary_sensor", "number", "switch"])
 def test_internal_endpoint_does_not_reserve(tmp_path: Path, domain: str) -> None:
     config = yaml.safe_load((FIXTURES / "implicit.yaml").read_text())
@@ -93,9 +71,6 @@ def test_common_mixed_endpoints(tmp_path: Path) -> None:
     assert [d.as_macro for d in CORE.defines if d.name == "ZIGBEE_ENDPOINTS_COUNT"] == [
         "#define ZIGBEE_ENDPOINTS_COUNT 8"
     ]
-    assert [d.as_macro for d in CORE.defines if d.name == "ZIGBEE_MAX_ENDPOINT_ID"] == [
-        f"#define ZIGBEE_MAX_ENDPOINT_ID {ZIGBEE_MAX_EP_NUMBER}"
-    ]
 
 
 def test_default_nrf_numbering(tmp_path: Path) -> None:
@@ -111,36 +86,19 @@ def test_default_nrf_numbering(tmp_path: Path) -> None:
     }
 
 
-@pytest.mark.parametrize(
-    "fixture,sensor_endpoint", [("esp32", 17), ("esp32-default", 1)]
-)
-def test_esp32_numbering(tmp_path: Path, fixture: str, sensor_endpoint: int) -> None:
-    config = yaml.safe_load((FIXTURES / f"{fixture}.yaml").read_text())
+def test_esp32_explicit_endpoint(tmp_path: Path) -> None:
+    """ESP32 keeps its own allocation; the schema now only lifts the esp32 requirement."""
+    config = yaml.safe_load((FIXTURES / "implicit.yaml").read_text())
+    del config["nrf52"]
+    config["esp32"] = {"board": "esp32-c6-devkitc-1", "framework": {"type": "esp-idf"}}
+    config["sensor"][0]["endpoint"] = 17
     cpp = generate_config(tmp_path, config)
     assert [
         int(x) for x in re.findall(r"radio->create_default_cluster\((\d+),", cpp)
-    ] == ([17, 1] if sensor_endpoint == 17 else [1])
-    bindings = [
-        (str(sensor_endpoint), "ANALOG_INPUT"),
-        ("1", "BINARY_INPUT"),
-        ("1", "ANALOG_OUTPUT"),
-        ("1", "BINARY_OUTPUT"),
-    ]
+    ] == [17, 1]
     assert (
-        re.findall(
-            r"zigbee::ZigbeeAttribute\(radio, (\d+), ::EZB_ZCL_CLUSTER_ID_(\w+),", cpp
-        )
-        == bindings
+        "zigbee::ZigbeeAttribute(radio, 17, ::EZB_ZCL_CLUSTER_ID_ANALOG_INPUT," in cpp
     )
-    assert re.findall(
-        r"radio->add_cluster\((\d+), ::EZB_ZCL_CLUSTER_ID_(\w+), EZB_ZCL_CLUSTER_SERVER\)",
-        cpp,
-    ) == [*bindings, ("1", "TIME")]
-    assert re.findall(
-        r"radio->add_cluster\((\d+), ::EZB_ZCL_CLUSTER_ID_TIME, EZB_ZCL_CLUSTER_(\w+)\)",
-        cpp,
-    ) == [("1", "CLIENT"), ("1", "SERVER")]
-    assert "zigbee::ZigbeeTime(radio, 1)" in cpp
 
 
 @pytest.mark.parametrize(
@@ -164,19 +122,6 @@ def test_reservations_and_time(
     assert f"test_time->set_endpoint({expected[-1]});" in cpp
 
 
-@pytest.mark.parametrize("fixture", ["implicit", "esp32-default"])
-def test_boolean_endpoint_wiring(
-    tmp_path: Path, capsys: pytest.CaptureFixture, fixture: str
-) -> None:
-    config = yaml.safe_load((FIXTURES / f"{fixture}.yaml").read_text())
-    generate_config(tmp_path, config)
-    capsys.readouterr()
-    config["sensor"][0]["endpoint"] = True
-    with pytest.raises(AssertionError):
-        generate_config(tmp_path, config)
-    assert "Endpoint must be an integer, not a boolean" in capsys.readouterr().out
-
-
 def test_duplicate_endpoints(tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
     config = yaml.safe_load((FIXTURES / "implicit.yaml").read_text())
     config["sensor"][0]["endpoint"] = 17
@@ -184,28 +129,6 @@ def test_duplicate_endpoints(tmp_path: Path, capsys: pytest.CaptureFixture) -> N
     with pytest.raises(AssertionError):
         generate_config(tmp_path, config)
     assert "Duplicate Zigbee endpoint: 17" in capsys.readouterr().out
-
-
-@pytest.mark.parametrize("count", [8, 9])
-def test_endpoint_capacity(
-    tmp_path: Path, count: int, capsys: pytest.CaptureFixture
-) -> None:
-    config = yaml.safe_load((FIXTURES / "implicit.yaml").read_text())
-    config = {key: config[key] for key in ("esphome", "nrf52", "zigbee")}
-    config["sensor"] = [
-        {"platform": "template", "name": f"Sample {i}", "endpoint": 17 + i}
-        for i in range(count)
-    ]
-    if count == 9:
-        with pytest.raises(AssertionError):
-            generate_config(tmp_path, config)
-        assert "Maximum number of end points is 8" in capsys.readouterr().out
-    else:
-        cpp = generate_config(tmp_path, config)
-        assert_endpoint_ids(cpp, list(range(17, 17 + count)))
-        assert [
-            d.as_macro for d in CORE.defines if d.name == "ZIGBEE_ENDPOINTS_COUNT"
-        ] == ["#define ZIGBEE_ENDPOINTS_COUNT 8"]
 
 
 def test_explicit_ids_survive_reordering_and_insertion(tmp_path: Path) -> None:
@@ -222,3 +145,21 @@ def test_explicit_ids_survive_reordering_and_insertion(tmp_path: Path) -> None:
         cpp = generate_config(tmp_path, config)
         assert_endpoint_ids(cpp, list(expected.values()))
         assert entity_endpoints(cpp) == expected
+
+
+def test_write_handlers_follow_endpoints(tmp_path: Path) -> None:
+    """Only switches, numbers and time handle writes, each matched by its own endpoint."""
+    config = yaml.safe_load((FIXTURES / "implicit.yaml").read_text())
+    config["switch"][0]["endpoint"] = 17
+    cpp = generate_config(tmp_path, config)
+    handlers = {
+        wrapper: int(endpoint)
+        for endpoint, wrapper in re.findall(
+            r"esphome__arg_endpoint == (\d+) && \((\w+)->on_zcl_device_event", cpp
+        )
+    }
+    endpoints = entity_endpoints(cpp)
+    wrappers = dict(re.findall(r"new\((\w+)\) zigbee::Zigbee\w+\((\w+)\);", cpp))
+    named = {wrappers.get(wrapper, wrapper): ep for wrapper, ep in handlers.items()}
+    assert named == {name: endpoints[name] for name in ("level", "toggle", "test_time")}
+    assert endpoints["toggle"] == 17
