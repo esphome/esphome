@@ -69,8 +69,11 @@ class USBBluetooth final : public usb_host::USBClient {
   void on_disconnected() override;
   bool reports_connection_itself() const override { return true; }
 
-  bool find_interface_();
-  // Main loop: open the next device that is plugged in and not yet looked at, after one was declined.
+  enum class FindResult : uint8_t { FIND_RESULT_FOUND, FIND_RESULT_NONE, FIND_RESULT_ERROR };
+  FindResult find_interface_();
+  void decline_();
+  // Main loop: open the next device that is plugged in and not yet looked at, after one was closed
+  // without being claimed.
   void try_next_device_();
   // USB task (main loop for the first read). False when no transfer slot was free.
   bool read_event_(uint32_t generation);
@@ -83,7 +86,7 @@ class USBBluetooth final : public usb_host::USBClient {
   StaticFixedVector<RealtekImage> realtek_images_;
   // The HCI command being sent, reserved in setup() so sending allocates nothing
   std::vector<uint8_t> command_{};
-  // Device addresses (0..127) declined for having no Bluetooth controller interface
+  // Device addresses (0..127) already looked at and not to be opened again while they stay plugged in
   uint32_t declined_[4]{};
   const RealtekImage *download_{nullptr};
 
@@ -92,6 +95,8 @@ class USBBluetooth final : public usb_host::USBClient {
   // The USB task stores the Command Complete of the pending command here and sets the flag;
   // the main loop handles it and clears the flag.
   std::atomic<bool> complete_ready_{false};
+  // Set by the USB task when the event read stopped and could not be queued again.
+  std::atomic<bool> events_stopped_{false};
   uint8_t complete_[EVENT_MAX]{};
   size_t complete_len_{0};
   // Event reassembly, USB task only. Byte 0 is kept free for the H4 packet type.
@@ -107,6 +112,8 @@ class USBBluetooth final : public usb_host::USBClient {
   uint16_t acl_out_mps_{0};
   uint16_t manufacturer_{0};
   uint16_t lmp_subver_{0};
+  // The lmp_subver reported before the firmware download, to check that the download took
+  uint16_t rom_lmp_subver_{0};
   uint16_t hci_revision_{0};
   uint8_t address_[6]{};
   uint8_t hci_version_{0};

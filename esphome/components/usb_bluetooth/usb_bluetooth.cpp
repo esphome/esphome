@@ -38,10 +38,10 @@ static const char *core_version(uint8_t version) {
   return version < sizeof(NAMES) / sizeof(NAMES[0]) ? NAMES[version] : "?";
 }
 
-bool USBBluetooth::find_interface_() {
+USBBluetooth::FindResult USBBluetooth::find_interface_() {
   const usb_config_desc_t *cfg;
   if (usb_host_get_active_config_descriptor(this->device_handle_, &cfg) != ESP_OK)
-    return false;
+    return FindResult::FIND_RESULT_ERROR;
   this->intf_ = 0xFF;
   this->evt_ep_ = this->acl_in_ep_ = this->acl_out_ep_ = 0;
   uint8_t found = 0xFF;
@@ -74,14 +74,20 @@ bool USBBluetooth::find_interface_() {
     }
   }
   if (found == 0xFF)
-    return false;
+    return FindResult::FIND_RESULT_NONE;
   if (this->evt_ep_ == 0 || this->acl_in_ep_ == 0 || this->acl_out_ep_ == 0 || this->evt_mps_ == 0 ||
       this->evt_mps_ > usb_host::USB_MAX_PACKET_SIZE) {
     ESP_LOGE(TAG, "Bluetooth interface %u lacks usable event or ACL endpoints", found);
-    return false;
+    return FindResult::FIND_RESULT_ERROR;
   }
   this->intf_ = found;
-  return true;
+  return FindResult::FIND_RESULT_FOUND;
+}
+
+void USBBluetooth::decline_() {
+  const int addr = this->device_addr_;
+  if (addr >= 0 && addr < 128)
+    this->declined_[addr / 32] |= 1u << (addr % 32);
 }
 
 void USBBluetooth::setup() {
@@ -92,28 +98,31 @@ void USBBluetooth::setup() {
 
 void USBBluetooth::on_connected() {
   const uint32_t generation = this->generation_.fetch_add(1, std::memory_order_acq_rel) + 1;
-  if (!this->find_interface_()) {
-    // Not a Bluetooth dongle: leave it to the other clients, and look at the next device. The host
-    // library announces a device once, so one plugged in together with this one (behind a hub) was
-    // not offered to this client while it was busy with this one.
-    ESP_LOGD(TAG, "No Bluetooth controller interface, closing");
-    const int addr = this->device_addr_;
-    if (addr >= 0 && addr < 128)
-      this->declined_[addr / 32] |= 1u << (addr % 32);
+  // A device that is closed here is not opened again until it is plugged in again; on_disconnected()
+  // then looks at the next device
+  const FindResult found = this->find_interface_();
+  if (found != FindResult::FIND_RESULT_FOUND) {
+    if (found == FindResult::FIND_RESULT_ERROR) {
+      ESP_LOGW(TAG, "Device %d not usable; plug it in again to retry", this->device_addr_);
+    } else {
+      ESP_LOGD(TAG, "No Bluetooth controller interface, closing");
+    }
+    this->decline_();
     this->disconnect();
-    this->try_next_device_();
     return;
   }
   const esp_err_t err = usb_host_interface_claim(this->handle_, this->device_handle_, this->intf_, 0);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "Claiming interface %u failed: %s", this->intf_, esp_err_to_name(err));
     this->intf_ = 0xFF;
+    this->decline_();
     this->disconnect();
     return;
   }
   ESP_LOGI(TAG, "Bluetooth controller on interface %u", this->intf_);
   this->event_len_ = 0;
   this->complete_ready_.store(false, std::memory_order_release);
+  this->events_stopped_.store(false, std::memory_order_release);
   if (!this->read_event_(generation)) {
     this->finish_probe_(false);
     return;
@@ -144,6 +153,12 @@ void USBBluetooth::on_disconnected() {
     }
     this->intf_ = 0xFF;
     ESP_LOGI(TAG, "Bluetooth controller removed");
+  } else {
+    // Closed without being claimed (not a Bluetooth dongle, or refused by the vid/pid filter). The
+    // host library announces a device once, so one plugged in together with this one (behind a hub)
+    // was not offered to this client while it was busy with this one. Deferred: the device is still
+    // open here.
+    this->defer([this]() { this->try_next_device_(); });
   }
   usb_host::USBClient::on_disconnected();
 }
@@ -157,7 +172,12 @@ bool USBBluetooth::read_event_(uint32_t generation) {
         if (generation != this->generation_.load(std::memory_order_acquire))
           return;
         if (!status.success) {
-          ESP_LOGW(TAG, "Event endpoint stopped (status %u)", status.error_code);
+          // A removed or closed device is handled by the disconnect
+          if (status.error_code != USB_TRANSFER_STATUS_NO_DEVICE && status.error_code != USB_TRANSFER_STATUS_CANCELED) {
+            ESP_LOGW(TAG, "Event endpoint stopped (status %u)", status.error_code);
+            this->events_stopped_.store(true, std::memory_order_release);
+            this->enable_loop_soon_any_context();
+          }
           return;
         }
         const size_t take = std::min(status.data_len, EVENT_MAX - this->event_len_);
@@ -176,8 +196,15 @@ bool USBBluetooth::read_event_(uint32_t generation) {
             this->complete_ready_.store(true, std::memory_order_release);
             this->enable_loop_soon_any_context();
           }
+        } else if (this->event_len_ > 0 && (status.data_len < this->evt_mps_ || this->event_len_ == EVENT_MAX)) {
+          // Each event starts a transfer, so a short packet ends it: drop a broken one and start over
+          ESP_LOGW(TAG, "Dropped an incomplete HCI event (%u bytes)", static_cast<unsigned>(this->event_len_));
+          this->event_len_ = 0;
         }
-        this->read_event_(generation);
+        if (!this->read_event_(generation)) {
+          this->events_stopped_.store(true, std::memory_order_release);
+          this->enable_loop_soon_any_context();
+        }
       },
       this->evt_mps_);
   if (!submitted) {
@@ -202,6 +229,8 @@ void USBBluetooth::try_next_device_() {
   for (int i = 0; i < count; i++) {
     const uint8_t addr = addrs[i];
     if (addr < 128 && (this->declined_[addr / 32] & (1u << (addr % 32))) == 0) {
+      // Each device is looked at once, also when the vid/pid filter refuses it
+      this->declined_[addr / 32] |= 1u << (addr % 32);
       this->on_opened(addr);
       return;
     }
@@ -238,6 +267,12 @@ void USBBluetooth::send_command_(uint16_t opcode, const uint8_t *params, size_t 
 
 void USBBluetooth::loop() {
   bool work = this->process_usb_events_();
+  // After process_usb_events_(): a stop caused by removing the dongle is then already a disconnect
+  if (this->events_stopped_.exchange(false, std::memory_order_acq_rel) && this->intf_ != 0xFF &&
+      this->step_ != ProbeStep::PROBE_STEP_FAILED) {
+    ESP_LOGE(TAG, "No more HCI events from the controller; plug it in again");
+    this->finish_probe_(false);
+  }
   if (this->complete_ready_.load(std::memory_order_acquire)) {
     work = true;
     this->cancel_timeout(COMMAND_TIMEOUT_ID);
@@ -279,20 +314,31 @@ void USBBluetooth::handle_command_complete_(const uint8_t *ret, size_t len) {
       this->manufacturer_ = encode_uint16(ret[5], ret[4]);
       this->lmp_subver_ = encode_uint16(ret[7], ret[6]);
       if (this->step_ == ProbeStep::PROBE_STEP_READ_VERSION_PATCHED) {
-        ESP_LOGI(TAG, "Firmware loaded: revision 0x%04X, LMP subversion 0x%04X", this->hci_revision_,
-                 this->lmp_subver_);
+        if (this->lmp_subver_ == this->rom_lmp_subver_) {
+          // Linux btrtl does not check this either; the controller may still work
+          ESP_LOGW(TAG, "Controller still reports its ROM version after the download (LMP subversion 0x%04X)",
+                   this->lmp_subver_);
+        } else {
+          ESP_LOGI(TAG, "Firmware loaded: revision 0x%04X, LMP subversion 0x%04X", this->hci_revision_,
+                   this->lmp_subver_);
+        }
       } else if (this->manufacturer_ == MANUFACTURER_REALTEK) {
         // A controller on its ROM reports the lmp_subver of its chip, a patched one that of its firmware
         bool for_chip = false;
         for (const auto &image : this->realtek_images_)
           for_chip |= image.lmp_subver == this->lmp_subver_;
         if (for_chip) {
+          this->rom_lmp_subver_ = this->lmp_subver_;
           this->step_ = ProbeStep::PROBE_STEP_RTL_READ_ROM_VERSION;
           this->send_command_(OP_RTL_READ_ROM_VERSION, nullptr, 0);
           return;
         }
         if (this->realtek_images_.empty()) {
           ESP_LOGW(TAG, "Realtek controller without firmware configured: on its ROM it does not work on the air");
+        } else {
+          // Already patched (after a reboot of the ESP), or firmware for another chip
+          ESP_LOGI(TAG, "No firmware for LMP subversion 0x%04X (configured: 0x%04X); treated as patched",
+                   this->lmp_subver_, this->realtek_images_[0].lmp_subver);
         }
       }
       this->step_ = ProbeStep::PROBE_STEP_READ_ADDRESS;
@@ -396,10 +442,11 @@ void USBBluetooth::finish_probe_(bool ok) {
   this->step_ = ok ? ProbeStep::PROBE_STEP_READY : ProbeStep::PROBE_STEP_FAILED;
   if (ok) {
     this->status_clear_warning();
+    this->report_connected_();
   } else {
+    // Not reported as connected: is_ready() stays false until the dongle is plugged in again
     this->status_set_warning(LOG_STR("Bluetooth controller did not start"));
   }
-  this->report_connected_();
 }
 
 void USBBluetooth::dump_config() {

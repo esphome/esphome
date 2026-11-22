@@ -5,6 +5,9 @@ usb_bluetooth:
   - id: usb_bt_tp_link
     vid: 0x2357
     pid: 0x0604
+    # A tiny synthetic epatch v1 file, so the firmware path is compiled
+    firmware: $component_dir/rtl_test_fw.bin
+    firmware_config: $component_dir/rtl_test_config.bin
   - id: usb_bt_realtek
     vid: 0x0BDA
     pid: 0x8771
