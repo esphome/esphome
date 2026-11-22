@@ -613,7 +613,7 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
   build the same target" (the /tmp to /private/tmp alias); put the yaml, build and PLATFORMIO_CORE_DIR elsewhere. Its
   IDF penv under Python 3.14 lacks the tools: install `-r packages/framework-espidf/tools/requirements/requirements.core.txt`,
   then pin `idf-component-manager~=2.1.0 esp-idf-kconfig~=2.5.0` (newer ones reject interface_version 3).
-- `ESP.restart()` from a lambda counts toward safe mode: after 10 boots within 60 s the device boots into safe mode
-  (OTA only, no API). Use `App.safe_reboot()` in reset loops, or `safe_mode: disabled: true`.
+- `ESP.restart()` from a lambda counts toward safe mode: after 10 boots in a row that each end before
+  `boot_is_good_after` (60 s by default) the device boots into safe mode (OTA only, no API), however long the gaps. Use `App.safe_reboot()` in reset loops, or `safe_mode: disabled: true`.
 - pioarduino 61.x (ESP-IDF 6.1, Arduino 4.0) needs PlatformIO 6.2.0; with an older PlatformIO in the shared venv,
   install 6.2.0 with `pip install --target <dir>` and put that directory on PYTHONPATH for the build.
