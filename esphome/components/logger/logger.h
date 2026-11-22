@@ -39,6 +39,11 @@
 struct device;
 #endif
 
+// ESP32 UART or USB Serial/JTAG console, whose TX buffer a restart does not wait for
+#if defined(USE_ESP32) && !defined(USE_LOGGER_UART_SELECTION_USB_CDC)
+#define USE_LOGGER_WAIT_TX_DONE
+#endif
+
 namespace esphome::logger {
 
 /** Lightweight callback for receiving log messages without virtual dispatch overhead.
@@ -155,7 +160,7 @@ class Logger final : public Component {
 #if defined(USE_RP2_CRASH_HANDLER) && defined(USE_LOGGER_UART_SELECTION_USB_CDC)
   void setup() override;
 #endif
-#if defined(USE_ESPHOME_TASK_LOG_BUFFER) || (defined(USE_ESP32) && !defined(USE_LOGGER_UART_SELECTION_USB_CDC))
+#if defined(USE_ESPHOME_TASK_LOG_BUFFER) || defined(USE_LOGGER_WAIT_TX_DONE)
   void on_powerdown() override;
 #endif
   /// Manually set the baud rate for serial, set to 0 to disable.
@@ -287,7 +292,7 @@ class Logger final : public Component {
   void cdc_loop_();
 #endif
   void process_messages_();
-#if defined(USE_ESP32) && !defined(USE_LOGGER_UART_SELECTION_USB_CDC)
+#ifdef USE_LOGGER_WAIT_TX_DONE
   void wait_tx_done_();
 #endif
   // msg already ends in a newline

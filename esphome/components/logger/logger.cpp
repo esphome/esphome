@@ -257,11 +257,12 @@ void Logger::loop() {
 }
 #endif
 
-#if defined(USE_ESPHOME_TASK_LOG_BUFFER) || (defined(USE_ESP32) && !defined(USE_LOGGER_UART_SELECTION_USB_CDC))
+#if defined(USE_ESPHOME_TASK_LOG_BUFFER) || defined(USE_LOGGER_WAIT_TX_DONE)
 void Logger::on_powerdown() {
-  // The loop no longer runs, so print what other tasks logged
-  this->process_messages_();
-#if defined(USE_ESP32) && !defined(USE_LOGGER_UART_SELECTION_USB_CDC)
+  // The loop no longer runs, so print what other tasks logged; not when a log listener itself restarted
+  if (!this->main_task_recursion_guard_)
+    this->process_messages_();
+#ifdef USE_LOGGER_WAIT_TX_DONE
   this->wait_tx_done_();
 #endif
 }
