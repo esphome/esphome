@@ -10,7 +10,6 @@ from esphome.const import (
     CONF_RADON,
     CONF_SIGNAL_STRENGTH,
     CONF_TEMPERATURE,
-    DEVICE_CLASS_DURATION,
     DEVICE_CLASS_RADON,
     ENTITY_CATEGORY_DIAGNOSTIC,
     ICON_RADIOACTIVE,
@@ -18,7 +17,6 @@ from esphome.const import (
     STATE_CLASS_TOTAL_INCREASING,
     UNIT_BECQUEREL_PER_CUBIC_METER,
     UNIT_MICROSILVERTS_PER_HOUR,
-    UNIT_SECOND,
 )
 from esphome.types import ConfigType
 
@@ -73,10 +71,7 @@ CONFIG_SCHEMA = cv.Schema(
             state_class=STATE_CLASS_TOTAL_INCREASING,
         ),
         cv.Optional(CONF_RADIATION_DURATION): sensor.sensor_schema(
-            unit_of_measurement=UNIT_SECOND,
-            accuracy_decimals=0,
-            device_class=DEVICE_CLASS_DURATION,
-            state_class=STATE_CLASS_TOTAL_INCREASING,
+            kind=sensor.DURATION_S, state_class=STATE_CLASS_TOTAL_INCREASING
         ),
     }
 ).extend(ble_device_base.BLE_DEVICE_SCHEMA)
