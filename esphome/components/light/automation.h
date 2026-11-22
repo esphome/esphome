@@ -3,6 +3,7 @@
 #include "esphome/core/automation.h"
 #include "light_state.h"
 #include "addressable_light.h"
+#include "light_color_values.h"
 
 namespace esphome::light {
 
@@ -108,7 +109,7 @@ template<typename... Ts> class AddressableSet final : public Action<Ts...> {
 
   static inline int32_t interpret_index(int32_t index, int32_t size) { return index < 0 ? index + size : index; }
 
-  static inline uint8_t to_uint8_clamped(float value) { return to_uint8_scale(clamp(value, 0.0f, 1.0f)); }
+  static inline uint8_t to_uint8_clamped(float value) { return to_uint8_scale(clamp_unit_float(value)); }
 };
 
 }  // namespace esphome::light
