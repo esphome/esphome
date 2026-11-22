@@ -60,6 +60,18 @@ TEST(BuildJson, OtherBuildersStillBuild) {
   EXPECT_EQ(std::string(build_json(const_counter)), R"({"n":1})");  // copied each call, as before
   static_assert(!esphome::json::JsonBuildCallable<const decltype(const_counter) &>);
 }
+
+// Callable objects that only work through std::function's forwarding
+struct NoAddressBuilder {
+  void operator()(JsonObject root) const { root["no_address"] = true; }
+  void operator&() const = delete;
+};
+
+TEST(BuildJson, UnusualCallablesTakeTheFastPath) {
+  EXPECT_EQ(std::string(build_json([](JsonObject &&root) { root["rvalue"] = true; })), R"({"rvalue":true})");
+  const NoAddressBuilder no_address;
+  EXPECT_EQ(std::string(build_json(no_address)), R"({"no_address":true})");
+}
 // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
 
 }  // namespace

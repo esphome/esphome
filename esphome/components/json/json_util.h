@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstring>
+#include <memory>
 #include <string>
 #include <type_traits>
 #include <utility>
@@ -180,8 +181,8 @@ concept JsonBuildCallable =
 
 /// Wrap `f` without copying it; `f` must outlive the returned reference.
 template<typename F> JsonBuildRef json_build_ref(F &f) {
-  return {[](void *ctx, JsonObject root) { (*static_cast<F *>(ctx))(root); },
-          const_cast<void *>(static_cast<const void *>(&f))};
+  return {[](void *ctx, JsonObject root) { (*static_cast<F *>(ctx))(std::move(root)); },
+          const_cast<void *>(static_cast<const void *>(std::addressof(f)))};
 }
 
 /// Build a JSON string with the provided json build function.
