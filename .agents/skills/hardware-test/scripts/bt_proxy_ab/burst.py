@@ -133,6 +133,8 @@ async def main() -> None:
             rate=round(len(got) / span, 1) if span else None,
             lost_link=st["lost"][:1],
             ndrop=ndrop[-2:],
+            # notifications missed after the link dropped are not burst loss
+            **({"result": "link_lost"} if st["lost"] else {}),
         )
         if st["lost"]:
             break
@@ -140,6 +142,8 @@ async def main() -> None:
     await d.disconnect(L)
     with contextlib.suppress(Exception):
         await asyncio.wait_for(cli.disconnect(), 5)
+    if st["lost"]:  # fewer than RUNS clean runs
+        sys.exit(1)
 
 
 if __name__ == "__main__":

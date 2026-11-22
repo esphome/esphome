@@ -349,9 +349,15 @@ async def main() -> None:
                 await asyncio.sleep(10)
                 per.append((d.adv - c0) / 10)
                 check_api()
+            applied = d.scanner is not None and d.scanner[1] == mode
+            if (
+                not applied
+            ):  # the proxy ignored the request: these counts are not for this mode
+                print(f"scanner mode {mode.name} not applied: {d.scanner}", flush=True)
             d.rec(
                 test="adv",
                 mode=mode.name,
+                applied=applied,
                 scanner=str(d.scanner),
                 mean=round(statistics.mean(per), 1),
                 min10=min(per),
@@ -363,6 +369,10 @@ async def main() -> None:
     elif cmd == "disc":
         name, rounds, mode = sys.argv[4], int(sys.argv[5]), sys.argv[6]
         name = {"L": L, "M": M}.get(name, name)
+        if mode == "cached" and find_chr(None, FF01, name) is None:
+            # a missing handles.json is a harness fault, not a cached connect failure of the build
+            d.rec(test=mode, name=name, result="no_handles", hint="run disc free first")
+            sys.exit(1)
         await d.start([name])
         for r in range(rounds):
             check_api()

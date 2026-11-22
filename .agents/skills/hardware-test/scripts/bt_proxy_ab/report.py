@@ -146,6 +146,11 @@ for s in steps:
             if r.get("test") == "adv":
                 d[r["mode"]] = (
                     f"{r['mean']}/s ({r['min10']}-{r['max10']}), {r['unique']} addr"
+                    + (
+                        ""
+                        if r.get("applied", True)
+                        else f", MODE NOT APPLIED {r['scanner']}"
+                    )
                 )
     elif s.startswith(("disc", "cache")):
         d["ok"] = f"{sum(r['ok'] for r in rounds)}/{len(rounds)}"

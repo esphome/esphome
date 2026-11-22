@@ -107,7 +107,7 @@ static int st;        // step inside the phase
 static uint16_t rnd;  // round or cycle
 static uint8_t att;   // retry attempt
 static uint32_t t_ph, t0, t_wait, t_open, t_round;
-static uint16_t ok_n, first_ok_n, fail_n, stuck_n, adv_mode_n;
+static uint16_t ok_n, first_ok_n, fail_n, stuck_n, adv_mode_n, cc_fail_n;
 static uint32_t adv0;
 static uint8_t rtt_i;
 static uint32_t rd_sum, wr_sum;
@@ -120,8 +120,10 @@ inline void connect(uint8_t p, bool cold) {
     for (int i = 0; i < 6; i++)
       bda[i] = (ADDR[p] >> (40 - 8 * i)) & 0xFF;
     esp_err_t err = esp_ble_gattc_cache_clean(bda);
-    if (err != ESP_OK)
+    if (err != ESP_OK) {
+      cc_fail_n++;  // in the phase_end line: these cold attempts may have used the cache
       ESP_LOGW(TAG, "ST cache_clean %s r=%u err=%d (this attempt may use the cache)", PNAME[p], rnd, err);
+    }
   }
   c->set_connection_type(cold ? espbt::ConnectionType::V3_WITHOUT_CACHE : espbt::ConnectionType::V3_WITH_CACHE);
   c->set_remote_addr_type(atype[p]);
@@ -142,13 +144,13 @@ inline void drop(uint8_t p) {
 
 inline void next_phase() {
   const Phase &P = PHASES[ph];
-  ESP_LOGI(TAG, "ST phase_end %s rounds=%u ok=%u first_ok=%u fail=%u stuck=%u", P.name, rnd, ok_n, first_ok_n, fail_n,
-           stuck_n);
+  ESP_LOGI(TAG, "ST phase_end %s rounds=%u ok=%u first_ok=%u fail=%u stuck=%u cache_clean_fail=%u", P.name, rnd, ok_n,
+           first_ok_n, fail_n, stuck_n, cc_fail_n);
   ph++;
   st = 0;
   rnd = 0;
   att = 0;
-  ok_n = first_ok_n = fail_n = stuck_n = 0;
+  ok_n = first_ok_n = fail_n = stuck_n = cc_fail_n = 0;
   t_ph = t_wait = t_round = millis();
   ESP_LOGI(TAG, "ST phase_start %s", PHASES[ph].name);
 }

@@ -92,10 +92,13 @@ for name, lines in ph.items():
     else:
         txt = "\n".join(ln for _, ln in lines)
         if m := re.search(
-            r"ST phase_end \w+ rounds=(\d+) ok=(\d+) first_ok=(\d+) fail=(\d+) stuck=(\d+)",
+            r"ST phase_end \w+ rounds=(\d+) ok=(\d+) first_ok=(\d+) fail=(\d+) stuck=(\d+)"
+            r"(?: cache_clean_fail=(\d+))?",
             txt,
         ):
-            d["rounds,ok,first_ok,fail,stuck"] = m.groups()
+            d["rounds,ok,first_ok,fail,stuck"] = m.groups()[:5]
+            if m[6] and m[6] != "0":  # cold attempts that may have used the cache
+                d["cache_clean_fail"] = int(m[6])
         ups = [int(x) for x in re.findall(r"ST conn_up \S+ r=\d+ total=(\d+)", txt)]
         d["up_total_ms"] = (med(ups), p90(ups), max(ups) if ups else None)
         for pe in ("L", "M", "eve"):
