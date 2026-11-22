@@ -35,6 +35,7 @@
 #include <cstring>
 #include <memory>
 #include <span>
+#include <type_traits>
 #include <vector>
 
 namespace esphome::api {
@@ -197,7 +198,8 @@ class APIServer final : public Component
                                  bool with_data = true) {
     this->send_action_response_json_(
         action_call_id, success, error_message,
-        [](void *ctx, JsonObject root) { (*static_cast<std::remove_reference_t<F> *>(ctx))(root); }, &build, with_data);
+        [](void *ctx, JsonObject root) { (*static_cast<std::remove_reference_t<F> *>(ctx))(root); },
+        const_cast<void *>(static_cast<const void *>(&build)), with_data);
   }
 #endif  // USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
 #endif  // USE_API_USER_DEFINED_ACTION_RESPONSES

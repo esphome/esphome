@@ -949,11 +949,13 @@ void APIServer::send_action_response_json_(uint32_t action_call_id, bool success
     this->send_action_response(action_call_id, success, error_message);
     return;
   }
+  // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
   json::JsonBuilder builder;
   build(ctx, builder.root());
   const auto json = builder.serialize();
   this->send_action_response(action_call_id, success, error_message, reinterpret_cast<const uint8_t *>(json.data()),
                              json.size());
+  // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
 }
 #endif  // USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
 #endif  // USE_API_USER_DEFINED_ACTION_RESPONSES
