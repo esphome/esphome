@@ -360,10 +360,10 @@ file does, and it is the authority when they disagree. The most useful starting 
     An intentionally empty body (an unused `register_dumper` builder, for example) gets a one-line docstring, not `pass`.
 
 *   **Sensor schemas:** `sensor.sensor_schema(kind=sensor.TEMPERATURE)` (also `HUMIDITY`, `PRESSURE`, `VOLTAGE`,
-    `CURRENT`, `POWER`, `ENERGY_KWH`, `ILLUMINANCE`, `DISTANCE_MM`, ... in `esphome/components/sensor`) sets the
-    unit, device class, state class and usual accuracy at once, and some presets (`DURATION_H`) the icon too.
-    Pass only what the preset leaves unset: `accuracy_decimals` may override it, and repeating any other preset
-    value, an icon included, is an error.
+    `CURRENT`, `POWER`, `ENERGY_KWH`, `ILLUMINANCE`, `DISTANCE_MM`, ... in `esphome/components/sensor`) always
+    sets the state class (measurement, or total increasing for energy) and whichever of the unit, device class,
+    icon (`DURATION_H`, `PM25`, ...) and default accuracy the preset defines. Pass only what it leaves unset;
+    `accuracy_decimals` may override its default, and repeating any other value it sets is an error.
 
 *   **Configuration Validation:** follow the `config-validation` skill. In short: one `cv.typed_schema` per
     model, reuse validators from `config_validation.py`, and never add `CONF_` constants to the frozen
