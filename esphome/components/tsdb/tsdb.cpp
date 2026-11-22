@@ -678,11 +678,12 @@ void TsdbComponent::handle_requests_() {
     if (!durable) {
       this->write_errors_++;
       this->publish_errors_();
-      if (err != ESP_OK)
+      if (err != ESP_OK) {
         ESP_LOGE(TAG, "%s: clearing the history failed: %s", this->file_.c_str(), esp_err_to_name(err));
-      else
+      } else {
         ESP_LOGE(TAG, "%s: the cleared header did not reach the file - keeping the recovery copies",
                  this->file_.c_str());
+      }
       this->publish_log_("clearing the history did not persist");
       this->status_set_warning(LOG_STR("clearing the history did not persist"));
     } else {
@@ -948,10 +949,11 @@ void TsdbComponent::sync_now_() {
   this->report_flush_ = false;
   this->write_errors_++;
   this->sync_failed_ = true;
-  if (err != ESP_OK)
+  if (err != ESP_OK) {
     ESP_LOGE(TAG, "%s: sync failed: %s", this->file_.c_str(), esp_err_to_name(err));
-  else
+  } else {
     ESP_LOGE(TAG, "%s: sync did not persist the header", this->file_.c_str());
+  }
   this->status_set_warning(LOG_STR("syncing the history failed"));
   this->publish_errors_();
   if (!tsdb_is_initialized_h(db))
