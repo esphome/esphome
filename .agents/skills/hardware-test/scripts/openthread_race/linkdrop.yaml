@@ -100,7 +100,9 @@ api:
       then:
         - if:
             condition:
-              lambda: 'return !hwt_phy_stuck && delay_ms >= 0 && delay_ms <= 10000;'
+              # a link_drop still running would swallow this race's 15 s drop and leave it armed with no stimulus
+              lambda: |-
+                return !hwt_phy_stuck && !id(link_drop).is_running() && delay_ms >= 0 && delay_ms <= 10000;
             then:
               - lambda: |-
                   id(race_delay) = delay_ms;
@@ -113,5 +115,5 @@ api:
                   gen: !lambda 'return id(race_gen);'
             else:
               - logger.log:
-                  format: "HWT race refused: delay_ms must be 0-10000, or the PHY is stuck down"
+                  format: "HWT race refused: delay_ms not 0-10000, a drop still running, or the PHY stuck down"
                   level: WARN

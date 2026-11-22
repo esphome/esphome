@@ -57,7 +57,9 @@ for i in $(seq 1 "$C"); do
         echo "$(date +%T) cycle $i aborted: $last" >> "$O"; echo "rb.sh: $last" >&2; exit 1 ;;
       esac
       if [ $rc = 0 ]; then
-        up=${last##*uptime=}; up=${up%%.*}
+        # the result line itself, since a library warning on stderr can come after it
+        res=$(grep -m1 '^omr=.* uptime=' <<< "$out")
+        up=${res##*uptime=}; up=${up%%.*}
         if ! [[ $up =~ ^[0-9]+$ ]]; then r="?"  # unreadable omr_state.py output, not a missed restart
         elif [ "$up" -lt $(( $(date +%s) - t0 )) ]; then m=1; r=1; else r=0; fi
       fi
