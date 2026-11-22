@@ -142,13 +142,14 @@ class TxBrk : public Component {
       this->sample(20, brk, &rx_rel, &tx_rel);
       reg_rel = this->regbit();
     }
+    // no UART reads while the break is held (set_tx_break() contract): release first, then drain what came in
+    bool r2 = this->u_->set_tx_break(false);
     char junk[64];
     int njunk;
     this->drain(junk, sizeof(junk), &njunk);  // anything during the hold
     char junk_hold[64];
     strncpy(junk_hold, junk, sizeof(junk_hold));
     int nhold = njunk;
-    bool r2 = this->u_->set_tx_break(false);
     delay(5);
     int reg_after = this->regbit();
     this->dbg("released");
@@ -157,7 +158,9 @@ class TxBrk : public Component {
     delay(20);
     this->drain(junk, sizeof(junk), &njunk);
     bool post = this->echo(i + 100);
-    bool pass = live_ok && r1 && r2 && pre && post && (this->rx_ < 0 || rx_held == 50) &&
+    // the line must idle before the break too, or a wrong initial level could still pass with loopback off
+    bool idle_ok = (pin_idle_pre < 0 || pin_idle_pre == idle) && (tx_idle_pre < 0 || tx_idle_pre == idle);
+    bool pass = live_ok && idle_ok && r1 && r2 && pre && post && (this->rx_ < 0 || rx_held == 50) &&
                 (this->tx_ < 0 || tx_held == 50) &&
                 (mode == 0 || ((this->rx_ < 0 || rx_rel == 20) && (this->tx_ < 0 || tx_rel == 20))) &&
                 (this->rx_ < 0 || rx_after == 5) && (this->tx_ < 0 || tx_after == 5);
