@@ -87,6 +87,12 @@ vl6180x/*.log
 scd30/run-*.txt
 vl6180x/run-*.txt
 vl6180x/ext/
+mqtt/dns_boot/*.txt
+mqtt/dns_boot/*.log
+mqtt/dns_boot/*.err
+web_server/churnmix/*.json
+web_server/churnmix/evbody.txt
+web_server/churnmix/ext/components/https_test/certs.h
 ble_conn_interval/*.jsonl
 ble_conn_interval/*.err
 ble_conn_interval/*.log

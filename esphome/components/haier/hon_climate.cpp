@@ -792,11 +792,10 @@ void HonClimate::process_alarm_message_(const uint8_t *packet, uint8_t size, boo
               // alarm change, including a later one in this packet; `code` stays correct
               static char alarm_message[HonAlarmMessages::MAX_LENGTH + 1];
               ESPHOME_strncpy_P(alarm_message,
-                                reinterpret_cast<const char *>(
-                                    HonAlarmMessages::get_progmem_str(alarm_code, HonAlarmMessages::LAST_INDEX)),
+                                reinterpret_cast<const char *>(HonAlarmMessages::get_progmem_str(alarm_code)),
                                 sizeof(alarm_message));
 #else
-              const char *alarm_message = HonAlarmMessages::get_progmem_str(alarm_code, HonAlarmMessages::LAST_INDEX);
+              const char *alarm_message = HonAlarmMessages::get_progmem_str(alarm_code);
 #endif
               esp_log_printf_(log_level, TAG, __LINE__, ESPHOME_LOG_FORMAT("Alarm %s (%d): %s"),
                               alarm_status ? LOG_STR_LITERAL("activated") : LOG_STR_LITERAL("deactivated"), alarm_code,

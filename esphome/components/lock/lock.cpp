@@ -13,9 +13,7 @@ ESPHOME_LOG_TAG(TAG, "lock");
 PROGMEM_STRING_TABLE(LockStateStrings, "UNKNOWN", "LOCKED", "UNLOCKED", "JAMMED", "LOCKING", "UNLOCKING", "OPENING",
                      "OPEN");
 
-const LogString *lock_state_to_string(LockState state) {
-  return LockStateStrings::get_log_str(static_cast<uint8_t>(state), 0);
-}
+const LogString *lock_state_to_string(LockState state) { return LockStateStrings::get_log_str(state, 0); }
 
 Lock::Lock() : state(LOCK_STATE_NONE) {}
 LockCall Lock::make_call() { return LockCall(this); }

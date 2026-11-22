@@ -116,22 +116,20 @@ bool LIS2DW12Component::configure_registers_() {
 
 void LIS2DW12Component::dump_config() {
   ESP_LOGCONFIG(TAG, "LIS2DW12:");
-  ESP_LOGCONFIG(
-      TAG,
-      "  Power Mode: %s\n"
-      "  Data Rate: %s\n"
-      "  Range: %s\n"
-      "  Filter Bandwidth: %s\n"
-      "  Low Noise: %s\n"
-      "  Offsets: {%.3f m/s², %.3f m/s², %.3f m/s²}\n"
-      "  Transform: {mirror_x=%s, mirror_y=%s, mirror_z=%s, swap_xy=%s}",
-      LOG_STR_ARG(PowerModeStrings::get_log_str(static_cast<uint8_t>(this->power_mode_), PowerModeStrings::LAST_INDEX)),
-      LOG_STR_ARG(DataRateStrings::get_log_str(static_cast<uint8_t>(this->data_rate_), 0)),
-      LOG_STR_ARG(RangeStrings::get_log_str(static_cast<uint8_t>(this->range_), RangeStrings::LAST_INDEX)),
-      LOG_STR_ARG(FilterBandwidthStrings::get_log_str(static_cast<uint8_t>(this->filter_bandwidth_),
-                                                      FilterBandwidthStrings::LAST_INDEX)),
-      YESNO(this->low_noise_), this->offset_x_, this->offset_y_, this->offset_z_, YESNO(this->mirror_x_),
-      YESNO(this->mirror_y_), YESNO(this->mirror_z_), YESNO(this->swap_xy_));
+  ESP_LOGCONFIG(TAG,
+                "  Power Mode: %s\n"
+                "  Data Rate: %s\n"
+                "  Range: %s\n"
+                "  Filter Bandwidth: %s\n"
+                "  Low Noise: %s\n"
+                "  Offsets: {%.3f m/s², %.3f m/s², %.3f m/s²}\n"
+                "  Transform: {mirror_x=%s, mirror_y=%s, mirror_z=%s, swap_xy=%s}",
+                LOG_STR_ARG(PowerModeStrings::get_log_str(this->power_mode_)),
+                LOG_STR_ARG(DataRateStrings::get_log_str(this->data_rate_, 0)),
+                LOG_STR_ARG(RangeStrings::get_log_str(this->range_)),
+                LOG_STR_ARG(FilterBandwidthStrings::get_log_str(this->filter_bandwidth_)), YESNO(this->low_noise_),
+                this->offset_x_, this->offset_y_, this->offset_z_, YESNO(this->mirror_x_), YESNO(this->mirror_y_),
+                YESNO(this->mirror_z_), YESNO(this->swap_xy_));
   LOG_UPDATE_INTERVAL(this);
 
 #ifdef USE_BINARY_SENSOR
