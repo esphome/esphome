@@ -1,0 +1,10 @@
+# ESPHome build test: an image model through the runtime.
+tflite_image:
+
+tflite_micro_runtime:
+  - id: test_image
+    model_type: image
+    model: https://raw.githubusercontent.com/nliaudat/esphome_ai_component/4ca8470aba1b226071bcc3258f3b95fab08895d6/models/digit_recognizer_v24_quantized_integer_quant_uint8.tflite
+    input_width: 32
+    input_height: 20
+    input_channels: 3
