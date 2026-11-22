@@ -14,7 +14,7 @@ namespace esphome::seven_segment_ocr {
 struct OcrResult {
   uint32_t value{0};       // The digits as a number; only meaningful when complete().
   float confidence{0.0f};  // Mean segment decision margin, 0 (boundary) to 1 (decisive).
-  uint8_t digits{0};       // Digit runs found, capped at the expected count.
+  uint8_t digits{0};       // Digit runs found, including runs past the expected count.
   uint8_t expected{0};     // Digit count the caller asked for.
   uint8_t unknown{0};      // Runs whose lit segments matched no digit.
   bool overflow{false};    // The digits do not fit in value; they were not accumulated.
@@ -48,7 +48,8 @@ class SevenSegmentOCR final {
   uint8_t get_threshold_level() const { return this->threshold_level_; }
 
  protected:
-  static int8_t recognize_digit(const uint8_t *image, int width, int height, int stride, float *confidence);
+  static int8_t recognize_digit(const uint8_t *image, const uint16_t *columns, int width, int height, int stride,
+                                float *confidence);
   static int8_t recognize_narrow(const uint8_t *image, int width, int height, int stride, float *confidence);
 
   RAMUniquePtr<uint16_t[]> column_sums_;
