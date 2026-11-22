@@ -4,6 +4,8 @@ substitutions:
   name: s31-br
 esphome:
   name: ${name}
+packages:
+  omr: !include omr.yaml
 esp32:
   variant: esp32s31
   flash_size: 16MB

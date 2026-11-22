@@ -1,7 +1,8 @@
 #!/bin/bash
 # rb.sh NAME COUNT OUT [TARGET6]: COUNT restarts of NAME through its Restart button; after each, wait up to 120 s for
-# the meshcop omr field, the API and, when given, a ping6 to a Thread device's address TARGET6, and append one
-# "cycle N ok=..." line to OUT. The API key is API_KEY, else apikey.txt, else plaintext. env: PY
+# the API, the OMR prefix (the device's own sensor from omr.yaml, read by omr_state.py) and, when given, a ping6 to a
+# Thread device's address TARGET6, and append one "cycle N ok=..." line to OUT. The API key is API_KEY, else
+# apikey.txt, else plaintext. env: PY
 D=$(cd "$(dirname "$0")" && pwd); N=$1; C=$2; O=$3; T6=$4
 KEY=${API_KEY:-$(cat "$D/apikey.txt" 2>/dev/null)}
 PY=${PY:-python3}
@@ -20,11 +21,11 @@ for i in $(seq 1 "$C"); do
     # a failed probe looks the name up again, in case the restart got a new address
     [ $a = 1 ] || { timeout 8 $PY "$D/../api_button.py" "$IP" "${KEY:--}" list > /dev/null 2>&1 && a=1; } ||
       IP=$("$D/../resolve.sh" "$N" 1 2> /dev/null || echo "$IP")
-    # only after the API is back, so a TXT record cached from before the restart cannot count
-    [ $m = 1 ] || [ $a = 0 ] || { "$D/meshcop.sh" "$N" | grep -q "omr_present=1" && m=1; }
+    # the OMR prefix from the device itself (omr.yaml), not the host's mDNS cache, which can predate the restart
+    [ $m = 1 ] || [ $a = 0 ] || { timeout 25 $PY "$D/omr_state.py" "$IP" "${KEY:--}" 5 > /dev/null 2>&1 && m=1; }
     [ $p = 1 ] || { ping6 -c 1 -i 1 "$T6" > /dev/null 2>&1 && p=1; }
     [ $m$a$p = 111 ] && { ok=1; break; }
     sleep 1
   done
-  echo "$(date +%T) cycle $i ok=$ok meshcop=$m api=$a ping=$p back_after=$(( $(date +%s) - t0 ))s" >> "$O"
+  echo "$(date +%T) cycle $i ok=$ok omr=$m api=$a ping=$p back_after=$(( $(date +%s) - t0 ))s" >> "$O"
 done

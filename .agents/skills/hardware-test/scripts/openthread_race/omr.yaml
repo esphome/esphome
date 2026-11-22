@@ -1,0 +1,21 @@
+# A text sensor "OMR Prefix" with the favored OMR prefix of the border router's own OpenThread instance (what the
+# meshcop omr TXT field carries), "none" while it has none. omr_state.py reads it over the API after a restart.
+esphome:
+  includes:
+    - <openthread/border_routing.h>
+text_sensor:
+  - platform: template
+    name: OMR Prefix
+    update_interval: 2s
+    lambda: |-
+      auto lock = openthread::InstanceLock::try_acquire(50);
+      if (!lock)
+        return {};
+      otIp6Prefix prefix{};
+      otRoutePreference pref;
+      if (otBorderRoutingGetFavoredOmrPrefix(lock.get_instance(), &prefix, &pref) != OT_ERROR_NONE ||
+          prefix.mLength == 0)
+        return std::string("none");
+      char buf[OT_IP6_PREFIX_STRING_SIZE];
+      otIp6PrefixToString(&prefix, buf, sizeof(buf));
+      return std::string(buf);

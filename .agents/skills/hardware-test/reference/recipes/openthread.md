@@ -41,7 +41,9 @@ dataset (erase its flash first), with an `interval:` lambda logging `get_ip_addr
 the SRP advertising proxy, and the API works over Thread.
 
 - `rb.sh NAME COUNT OUT [TARGET6]` restarts the border router through its Restart button COUNT times and waits for
-  the meshcop `omr` field (`meshcop.sh`), the API and a ping6 to the end device.
+  the API, the OMR prefix and a ping6 to the end device. The OMR prefix comes from the device: `omr.yaml` adds an
+  `OMR Prefix` text sensor and `omr_state.py` reads it over the API. The `meshcop.sh` TXT record can come from the
+  host's mDNS cache and predate the restart.
 - Software link loss that looks like a pulled cable: `linkdrop.yaml` with `phy.hpp` sets BMCR bit 11 (power down)
   through `esp_eth_ioctl(..., ETH_CMD_WRITE_PHY_REG, ...)` and later clears it with bits 12 and 9 (autonegotiation
   enable and restart). The driver logs `Ethernet backbone lost` within 1 to 2 s. Read the recovery times from the
