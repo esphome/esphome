@@ -26,7 +26,7 @@ SEGMENTATION_SCHEMA = IMAGE_SCHEMA
 CONFIG_SCHEMA = cv.Schema({})
 
 
-async def to_code(var, config: ConfigType, model_path: Path) -> None:
+async def configure(var, config: ConfigType, model_path: Path) -> None:
     """Create the frame pipeline and the mask decoder for one model."""
     cg.add(var.set_input_pipeline(build_pipeline(config, model_path)))
     decoder = cg.new_Pvariable(
