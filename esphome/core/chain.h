@@ -27,10 +27,13 @@ template<typename Next, typename Owner> class ChainLink {
   }
   /// Makes this the last node.
   void set_owner(Owner *owner) { this->ptr_ = tagged(owner); }
-  /// The value set_owner() stores, for writing through next_slot().
+  /// The value set_owner() stores, for writing through next_slot(). The owner is never null.
   static Next *tagged(Owner *owner) {
     static_assert(alignof(Owner) > OWNER_TAG, "the owner tag needs a free low bit");
-    return reinterpret_cast<Next *>(reinterpret_cast<char *>(owner) + OWNER_TAG);
+    char *base = reinterpret_cast<char *>(owner);
+    // The analyzer cannot see that an owner read back through owner() is non-null
+    // NOLINTNEXTLINE(clang-analyzer-core.NullPointerArithm)
+    return reinterpret_cast<Next *>(base + OWNER_TAG);
   }
   /// Link to next, or to owner when next is nullptr.
   void set(Next *next, Owner *owner) {
