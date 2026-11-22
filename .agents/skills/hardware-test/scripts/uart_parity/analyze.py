@@ -40,21 +40,24 @@ def main() -> None:
             bursts.append((float(t), "TX", h.strip()))
             last = -1.0
             continue
-        b = rx_bytes(h)
+        # unescape a whole burst, since a doubled FF can be split across two reads
         if last >= 0 and float(t) - last < 0.015 and bursts[-1][1] == "RX":
-            bursts[-1] = (bursts[-1][0], "RX", bursts[-1][2] + b)
+            bursts[-1] = (bursts[-1][0], "RX", bursts[-1][2] + " " + h)
         else:
-            bursts.append((float(t), "RX", b))
+            bursts.append((float(t), "RX", h))
         last = float(t)
-    for t, d, b in bursts:
+    for t, d, h in bursts:
+        b = rx_bytes(h) if d == "RX" else b""
         if d == "TX":
-            k = "TX " + b
+            k = "TX " + h
         elif b.startswith(b"\r\nRPT"):
-            k = "8E1 report: " + b.decode().strip()
+            k = "8E1 report: " + b.decode("latin1").strip()
         elif b == b"\x7f":
             k = "7F sync (parity not visible)"
         elif b == GVR:
             k = "8E1 GVR 01 FE (exact)"
+        elif N1.get(b) == GVR:
+            k = "8N1 GVR 01 FE (matches 8N1 model)"
         elif valid(b):
             k = f"8E1 frame cmd {b[2]:02x} (exact)"
         elif b in N1:
