@@ -66,8 +66,6 @@ struct SavedWaterHeaterState {
 } __attribute__((packed));
 
 class WaterHeaterCall {
-  friend struct WaterHeaterCallInternal;
-
  public:
   WaterHeaterCall() : parent_(nullptr) {}
 
@@ -116,16 +114,6 @@ class WaterHeaterCall {
 
 struct WaterHeaterCallInternal : public WaterHeaterCall {
   WaterHeaterCallInternal(WaterHeater *parent) : WaterHeaterCall(parent) {}
-
-  WaterHeaterCallInternal &set_from_restore(const WaterHeaterCall &restore) {
-    this->mode_ = restore.mode_;
-    this->target_temperature_ = restore.target_temperature_;
-    this->target_temperature_low_ = restore.target_temperature_low_;
-    this->target_temperature_high_ = restore.target_temperature_high_;
-    this->state_ = restore.state_;
-    this->state_mask_ = restore.state_mask_;
-    return *this;
-  }
 };
 
 class WaterHeaterTraits {
