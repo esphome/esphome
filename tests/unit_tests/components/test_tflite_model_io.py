@@ -34,9 +34,8 @@ def test_a_subgraph_input_is_live_from_the_start() -> None:
     assert _peak_activation_bytes(tensors, operators, [0], [1]) == 30
 
 
-def test_omitted_optional_tensors_are_not_an_error() -> None:
-    """TFLite writes -1 for an omitted optional input, such as a bias."""
-    # -1 is filtered by _read_operators, so a tensor list without it is enough here.
+def test_an_operator_may_read_and_write_the_same_tensor() -> None:
+    """One tensor used as both the input and the output is live for a single step."""
     tensors = [_Tensor(10, True)]
     operators = [([0], [0])]
 

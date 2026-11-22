@@ -203,9 +203,14 @@ class _FlatBuffer:
         start = self.indirect(position)
         length = self.u32(start)
         self._require(start + 4, length)
-        return self._data[start + 4 : start + 4 + length].decode(
-            "utf-8", errors="replace"
-        )
+        end = start + 4 + length
+        try:
+            return self._data[start + 4 : end].decode("utf-8")
+        except UnicodeDecodeError as err:
+            # A replacement character would silently turn into a name no resolver has.
+            raise ModelReadError(
+                f"{self.path}: the string at offset {start + 4} is not valid UTF-8"
+            ) from err
 
     def f32_vector(self, table: int, field_id: int) -> list[float]:
         """Elements of a float vector field, empty when absent."""
@@ -285,6 +290,12 @@ def read_model_operators(model_path: str | Path) -> frozenset[str]:
 def _subgraph(buffer: _FlatBuffer) -> int:
     if not (subgraphs := buffer.table_vector(buffer.root(), _MODEL_SUBGRAPHS)):
         raise ModelReadError(f"{buffer.path}: the model has no subgraph")
+    if len(subgraphs) > 1:
+        # The estimate covers one subgraph, so a control-flow model would be undersized.
+        raise ModelReadError(
+            f"{buffer.path}: the model has {len(subgraphs)} subgraphs, but the arena "
+            f"estimate covers one"
+        )
     return subgraphs[0]
 
 
@@ -472,12 +483,16 @@ def estimate_tensor_arena(model_path: str | Path) -> ArenaEstimate:
     buffer = _load(model_path)
     subgraph = _subgraph(buffer)
     tensors = _read_tensors(buffer, subgraph, _buffers_with_data(buffer))
-    peak = _peak_activation_bytes(
-        tensors,
-        _read_operators(buffer, subgraph),
-        buffer.i32_vector(subgraph, _SUBGRAPH_INPUTS),
-        buffer.i32_vector(subgraph, _SUBGRAPH_OUTPUTS),
-    )
+    try:
+        peak = _peak_activation_bytes(
+            tensors,
+            _read_operators(buffer, subgraph),
+            buffer.i32_vector(subgraph, _SUBGRAPH_INPUTS),
+            buffer.i32_vector(subgraph, _SUBGRAPH_OUTPUTS),
+        )
+    except ModelReadError as err:
+        # The helper stays pure; the configuration error still names the model.
+        raise ModelReadError(f"{buffer.path}: {err}") from err
     head = (_ARENA_HEAD_OVERHEAD + _ARENA_HEAD_PER_TENSOR * len(tensors) + 63) & ~63
     raw = head + peak * _ARENA_SAFETY_FACTOR_TENTHS // 10
     return ArenaEstimate(
