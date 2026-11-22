@@ -42,6 +42,7 @@ for t, ln in L:
         phase = m[1] if seen[m[1]] == 1 else f"{m[1]}#{seen[m[1]]}"
     if phase:
         ph[phase].append((t, ln))
+flagged: list[str] = []
 for name, lines in ph.items():
     d = {}
     att, cur = [], {}
@@ -98,7 +99,7 @@ for name, lines in ph.items():
         txt = "\n".join(ln for _, ln in lines)
         if m := re.search(
             r"ST phase_end \w+ rounds=(\d+) ok=(\d+) first_ok=(\d+) fail=(\d+) stuck=(\d+)"
-            r"(?: cache_clean_fail=(\d+))?(?: handle_bad=(\d+))?(?: held_dropped=(\d+))?",
+            r"(?: cache_clean_fail=(\d+))?(?: handle_bad=(\d+))?(?: held_dropped=(\d+))?(?: hold_failed=(\d+))?",
             txt,
         ):
             d["rounds,ok,first_ok,fail,stuck"] = m.groups()[:5]
@@ -110,6 +111,10 @@ for name, lines in ph.items():
                 d["handle_bad"] = int(m[7])
             if m[8] and m[8] != "0":  # third connects with a held link gone, out of ok
                 d["held_dropped"] = int(m[8])
+            if (
+                m[9] and m[9] != "0"
+            ):  # rounds whose held links never came up, out of ok and fail
+                d["hold_failed_rounds"] = int(m[9])
         elif name.split("#")[0] != "done" or "ST DONE" not in txt:
             d["incomplete"] = (
                 True  # a reset or the end of the capture cut the phase short
@@ -161,8 +166,10 @@ for name, lines in ph.items():
             d["third results"] = dict(Counter(r for r, *_ in th))
             d["third ok t_ms"] = med([int(t) for r, t, *_ in th if r == "1"])
             d["held both"] = sum(a == "1" and b == "1" for *_, a, b in th)
-        d["held_failed"] = txt.count("held_failed") or None
-        d["hold_failed"] = txt.count("hold_failed") or None  # h1 or h2 never settled
+        d["held_failed"] = txt.count("ST third held_failed") or None
+        d["hold_failed"] = (
+            txt.count("ST third hold_failed") or None
+        )  # h1 or h2 never settled
         nt = re.findall(
             r"ST notify min=(\d+) rx=(\d+) gaps=(\d+) missing=(\d+) drops=(\d+)(?: missing_drop=(\d+))?(?: backwards=(\d+))?",
             txt,
@@ -180,6 +187,13 @@ for name, lines in ph.items():
     d["rejected"] = sum("Rejected" in ln for _, ln in lines) or None
     d["x3e"] = sum("rsn 0x3e" in ln for _, ln in lines) or None
     print(name, {k: v for k, v in d.items() if v is not None})
+    # a partial or empty measurement must not pass as a clean run
+    if bad := [
+        k
+        for k in ("incomplete", "notify_no_ticks", "handle_mismatch", "handle_bad")
+        if d.get(k)
+    ]:
+        flagged.append(f"{name}: {','.join(bad)}")
 # a run where the servers were never seen, or no phase started, measured nothing
 txt_all = "\n".join(ln for _, ln in L)
 nothing = "ST not_seen" in txt_all or not ph
@@ -199,5 +213,7 @@ print(
 )
 print_warnings(L, 25, r"[0-9A-F]{2}(:[0-9A-F]{2}){5}|0x[0-9a-f]+|\d+")
 
-if nothing:
+if flagged:
+    print("FLAGGED:", "; ".join(flagged))
+if nothing or flagged:
     sys.exit(1)

@@ -110,7 +110,7 @@ static int st;        // step inside the phase
 static uint16_t rnd;  // round or cycle
 static uint8_t att;   // retry attempt
 static uint32_t t_ph, t0, t_wait, t_open, t_round;
-static uint16_t ok_n, first_ok_n, fail_n, stuck_n, adv_mode_n, cc_fail_n, hb_n, hd_n;
+static uint16_t ok_n, first_ok_n, fail_n, stuck_n, adv_mode_n, cc_fail_n, hb_n, hd_n, hf_n;
 static bool bad_handle[2];  // handle_l/handle_m do not point at this server's ff01: RTTs hit another characteristic
 static uint32_t adv0;
 static uint8_t rtt_i;
@@ -150,13 +150,13 @@ inline void next_phase() {
   const Phase &P = PHASES[ph];
   ESP_LOGI(TAG,
            "ST phase_end %s rounds=%u ok=%u first_ok=%u fail=%u stuck=%u cache_clean_fail=%u handle_bad=%u "
-           "held_dropped=%u",
-           P.name, rnd, ok_n, first_ok_n, fail_n, stuck_n, cc_fail_n, hb_n, hd_n);
+           "held_dropped=%u hold_failed=%u",
+           P.name, rnd, ok_n, first_ok_n, fail_n, stuck_n, cc_fail_n, hb_n, hd_n, hf_n);
   ph++;
   st = 0;
   rnd = 0;
   att = 0;
-  ok_n = first_ok_n = fail_n = stuck_n = cc_fail_n = hb_n = hd_n = 0;
+  ok_n = first_ok_n = fail_n = stuck_n = cc_fail_n = hb_n = hd_n = hf_n = 0;
   t_ph = t_wait = t_round = millis();
   ESP_LOGI(TAG, "ST phase_start %s", PHASES[ph].name);
 }
@@ -532,7 +532,7 @@ inline void tick() {
       } else if (st == 1 && now - t_round > 90000) {
         // h1 or h2 never settled: end the round instead of retrying forever
         ESP_LOGI(TAG, "ST third hold_failed r=%u h1=%d h2=%d", rnd, (int) s(h1), (int) s(h2));
-        fail_n++;
+        hf_n++;  // the held links never came up: a harness fault, not a third-link result
         att = 0;
         t_wait = now;
         st = 5;
@@ -561,7 +561,7 @@ inline void tick() {
           drop(h2);
           if (++att >= 3) {  // an absent peer (Eve may never be seen) ends the round
             att = 0;
-            fail_n++;
+            hf_n++;
             t_wait = now;
             st = 5;
           } else {
