@@ -8,8 +8,10 @@
 #include "esphome/components/tflite_model_loader/model_handler.h"
 #include "esphome/components/tflite_output_processor/output_processor.h"
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/optional.h"
+#include "esphome/core/string_ref.h"
 
 #include <atomic>
 #include <string>
@@ -49,22 +51,11 @@ struct LoadStats {
   bool success{false};
 };
 
-enum class ModelType : uint8_t {
-  MODEL_TYPE_IMAGE,
-  MODEL_TYPE_AUDIO,
-};
-
 enum class InputType : uint8_t {
   INPUT_TYPE_UNKNOWN,  // no model loaded, or its input type is unsupported
   INPUT_TYPE_UINT8,
   INPUT_TYPE_INT8,
   INPUT_TYPE_FLOAT32,
-};
-
-enum class InputOrder : uint8_t {
-  INPUT_ORDER_RGB,
-  INPUT_ORDER_BGR,
-  INPUT_ORDER_GRAY,
 };
 
 enum class ArenaHeap : uint8_t {
@@ -78,8 +69,6 @@ struct ModelSpec {
   int input_width{0};
   int input_height{0};
   int input_channels{0};
-  bool normalize{false};
-  InputOrder input_order{InputOrder::INPUT_ORDER_RGB};
   InputType input_type{InputType::INPUT_TYPE_UNKNOWN};
 };
 
@@ -113,24 +102,16 @@ class TFLiteMicroHelper final : public Component {
   void setup() override;
   void dump_config() override;
 
-  void set_model_type(ModelType t) { this->model_type_ = t; }
   void set_tensor_arena_size(size_t size);
   /// Point the helper at the model data in flash; false while a model is loaded or loading.
   bool set_model(const uint8_t *model_data, size_t model_size);
-  void set_output_processing(const std::string &p) { this->output_processing_ = p; }
+  /// The name must outlive the component; code generation passes a string literal.
+  void set_output_processing(const char *p) { this->output_processing_ = StringRef(p); }
   void set_scale_factor(float f) { this->scale_factor_ = f; }
   void set_debug(bool d) {
     this->debug_ = d;
     this->model_handler_.set_debug(d);
   }
-
-  void set_input_type(InputType t) { this->input_type_ = t; }
-  void set_input_channels(int c);
-  void set_input_width(int w);
-  void set_input_height(int h);
-  void set_input_order(InputOrder o) { this->input_order_ = o; }
-  void set_normalize(bool n);
-  void set_invert(bool i);
 
   void set_probability_cutoff(float f);  // 0.0-1.0, quantized internally
   void set_sliding_window_size(size_t n);
@@ -140,7 +121,7 @@ class TFLiteMicroHelper final : public Component {
 
   void set_expected_crc32(uint32_t crc) { this->expected_crc32_ = crc; }
 
-  /// Load the model and allocate the arena. An audio model is rejected.
+  /// Load the model and allocate the arena; false when one is already loaded.
   bool load_model();
   /// Unload the model and free the arena; true when unloaded on return.
   bool unload_model(bool reset_config = false);
@@ -197,16 +178,8 @@ class TFLiteMicroHelper final : public Component {
  private:
   /// Clear the model configuration after the arena and interpreter are gone.
   void reset_config();
-  ModelType model_type_{ModelType::MODEL_TYPE_IMAGE};
-  InputType input_type_{InputType::INPUT_TYPE_UINT8};
-  int input_channels_{3};
-  int input_width_{32};
-  int input_height_{20};
-  std::string output_processing_{"argmax"};  // passed by name; ModelConfig parses it
+  StringRef output_processing_{"argmax"};  // passed by name; ModelConfig parses it
   float scale_factor_{1.0f};
-  InputOrder input_order_{InputOrder::INPUT_ORDER_RGB};
-  bool normalize_{false};
-  bool invert_{false};
   bool debug_{false};
 
   const uint8_t *model_data_{nullptr};
@@ -232,6 +205,14 @@ class TFLiteMicroHelper final : public Component {
   };
   std::atomic<LoadState> state_{LoadState::LOAD_STATE_UNLOADED};
   uint32_t expected_crc32_{0};  // 0 = skip verification, set from __init__.py
+
+  /// Serializes load, unload, inference and set_model(), so an unload from another
+  /// task cannot free the arena while it is in use. The tensor pointers the accessors
+  /// return stay valid only for the caller of run()/invoke(); do not keep them across
+  /// an unload. The mutex is not recursive, so the locked helpers are used internally.
+  esphome::Mutex mutex_;
+  TfLiteStatus invoke_locked_();
+  bool run_inference_on_buffer_locked_(const uint8_t *src_data, size_t src_size);
 
   /// Why the model data does not match the configured checksum, or nullptr.
   const LogString *check_model_integrity_();

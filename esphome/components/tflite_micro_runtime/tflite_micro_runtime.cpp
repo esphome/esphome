@@ -16,16 +16,6 @@ ESPHOME_LOG_TAG(TAG, "tflite_micro_runtime");
 
 namespace {
 
-const char *model_type_name(ModelType type) {
-  switch (type) {
-    case ModelType::MODEL_TYPE_IMAGE:
-      return "image";
-    case ModelType::MODEL_TYPE_AUDIO:
-      return "audio";
-  }
-  return "unknown";
-}
-
 const char *input_type_name(InputType type) {
   switch (type) {
     case InputType::INPUT_TYPE_UINT8:
@@ -36,18 +26,6 @@ const char *input_type_name(InputType type) {
       return "float32";
     case InputType::INPUT_TYPE_UNKNOWN:
       break;
-  }
-  return "unknown";
-}
-
-const char *input_order_name(InputOrder order) {
-  switch (order) {
-    case InputOrder::INPUT_ORDER_RGB:
-      return "RGB";
-    case InputOrder::INPUT_ORDER_BGR:
-      return "BGR";
-    case InputOrder::INPUT_ORDER_GRAY:
-      return "GRAY";
   }
   return "unknown";
 }
@@ -85,10 +63,11 @@ void TFLiteMicroHelper::setup() {
 void TFLiteMicroHelper::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "TFLite Micro Runtime:\n"
-                "  Model type: %s\n"
+                "  Input pipeline: %s\n"
                 "  Model size: %zu bytes\n"
                 "  Tensor arena: %zu bytes configured",
-                model_type_name(this->model_type_), this->model_length_, this->tensor_arena_size_requested_);
+                this->input_pipeline_ != nullptr ? this->input_pipeline_->name() : "raw", this->model_length_,
+                this->tensor_arena_size_requested_);
 
   if (!this->is_model_loaded()) {
     ESP_LOGCONFIG(TAG, "  Model not loaded");
@@ -96,16 +75,16 @@ void TFLiteMicroHelper::dump_config() {
   }
   const ModelSpec spec = this->get_model_spec();
   ESP_LOGCONFIG(TAG,
-                "  Input: %dx%dx%d %s (%s)\n"
+                "  Input: %dx%dx%d %s\n"
                 "  Tensor arena allocated: %zu bytes, %zu bytes requested after probing, %zu bytes in use",
-                spec.input_width, spec.input_height, spec.input_channels, input_type_name(this->input_type_),
-                input_order_name(this->input_order_), this->get_tensor_arena_size_actual(),
-                this->tensor_arena_size_effective_, this->get_arena_used_bytes());
+                spec.input_width, spec.input_height, spec.input_channels, input_type_name(spec.input_type),
+                this->get_tensor_arena_size_actual(), this->tensor_arena_size_effective_, this->get_arena_used_bytes());
 }
 
 void TFLiteMicroHelper::set_tensor_arena_size(size_t size) { this->tensor_arena_size_requested_ = size; }
 
 bool TFLiteMicroHelper::set_model(const uint8_t *model_data, size_t model_size) {
+  LockGuard guard(this->mutex_);
   if (this->state_.load() != LoadState::LOAD_STATE_UNLOADED) {
     // READY: the interpreter still uses the old buffer. LOADING: it is being read now.
     ESP_LOGE(TAG, "set_model() while a model is loaded or loading -- call unload_model() first");
@@ -133,8 +112,8 @@ bool TFLiteMicroHelper::allocate_tensor_arena_() {
 
 ModelConfig TFLiteMicroHelper::build_config_() {
   ModelConfig config;
-  config.description = model_type_name(this->model_type_);
-  config.output_processing = this->output_processing_;
+  config.description = this->input_pipeline_ != nullptr ? this->input_pipeline_->name() : "raw";
+  config.output_processing = this->output_processing_.str();
   config.scale_factor = this->scale_factor_;
   return config;
 }
@@ -161,6 +140,11 @@ bool TFLiteMicroHelper::validate_input_tensor_(const uint8_t *src_data, size_t s
 }
 
 bool TFLiteMicroHelper::run_inference_on_buffer(const uint8_t *src_data, size_t src_size) {
+  LockGuard guard(this->mutex_);
+  return this->run_inference_on_buffer_locked_(src_data, src_size);
+}
+
+bool TFLiteMicroHelper::run_inference_on_buffer_locked_(const uint8_t *src_data, size_t src_size) {
   if (!this->is_model_loaded()) {
     ESP_LOGE(TAG, "Cannot run inference -- model not loaded");
     return false;
@@ -178,6 +162,11 @@ bool TFLiteMicroHelper::run_inference_on_buffer(const uint8_t *src_data, size_t 
 }
 
 TfLiteStatus TFLiteMicroHelper::invoke() {
+  LockGuard guard(this->mutex_);
+  return this->invoke_locked_();
+}
+
+TfLiteStatus TFLiteMicroHelper::invoke_locked_() {
   if (!this->is_model_loaded()) {
     ESP_LOGE(TAG, "Cannot invoke -- model not loaded");
     return kTfLiteError;
@@ -186,6 +175,7 @@ TfLiteStatus TFLiteMicroHelper::invoke() {
 }
 
 bool TFLiteMicroHelper::run(const uint8_t *src_data, size_t src_size) {
+  LockGuard guard(this->mutex_);
   if (!this->is_model_loaded()) {
     ESP_LOGE(TAG, "Cannot run inference -- model not loaded");
     return false;
@@ -211,7 +201,7 @@ bool TFLiteMicroHelper::run(const uint8_t *src_data, size_t src_size) {
       return false;
     memcpy(this->model_handler_.input_tensor()->data.raw, src_data, src_size);
   }
-  if (this->invoke() != kTfLiteOk) {
+  if (this->invoke_locked_() != kTfLiteOk) {
     ESP_LOGE(TAG, "Model invocation failed");
     return false;
   }
@@ -230,7 +220,8 @@ bool TFLiteMicroHelper::run(const uint8_t *src_data, size_t src_size) {
 }
 
 optional<ProcessedOutput> TFLiteMicroHelper::run_inference(const uint8_t *src_data, size_t src_size) {
-  if (!this->run_inference_on_buffer(src_data, src_size)) {
+  LockGuard guard(this->mutex_);
+  if (!this->run_inference_on_buffer_locked_(src_data, src_size)) {
     return nullopt;  // the reason is already logged
   }
   TfLiteTensor *output = this->model_handler_.output_tensor();
@@ -245,13 +236,6 @@ optional<ProcessedOutput> TFLiteMicroHelper::run_inference(const uint8_t *src_da
   }
   return result;
 }
-
-// Image model setters
-void TFLiteMicroHelper::set_input_channels(int c) { this->input_channels_ = c; }
-void TFLiteMicroHelper::set_input_width(int w) { this->input_width_ = w; }
-void TFLiteMicroHelper::set_input_height(int h) { this->input_height_ = h; }
-void TFLiteMicroHelper::set_normalize(bool n) { this->normalize_ = n; }
-void TFLiteMicroHelper::set_invert(bool i) { this->invert_ = i; }
 
 // Audio model setters: configuration-only, the streaming runtime belongs to the consumer.
 void TFLiteMicroHelper::set_probability_cutoff(float f) {
@@ -281,6 +265,7 @@ const LogString *TFLiteMicroHelper::check_model_integrity_() {
 }
 
 bool TFLiteMicroHelper::load_model() {
+  LockGuard guard(this->mutex_);
   LoadState expected = LoadState::LOAD_STATE_UNLOADED;
   if (!this->state_.compare_exchange_strong(expected, LoadState::LOAD_STATE_LOADING)) {
     if (expected == LoadState::LOAD_STATE_READY) {
@@ -364,8 +349,9 @@ bool TFLiteMicroHelper::load_model() {
 }
 
 bool TFLiteMicroHelper::unload_model(bool reset_config) {
+  LockGuard guard(this->mutex_);
   // A load in progress owns the buffers, so only a completed load may unload.
-  LoadState state = LoadState::LOAD_STATE_READY;
+  LoadState state = this->state_.load();
   if (state == LoadState::LOAD_STATE_UNLOADED) {
     // Stay busy while the reset runs, so no load can install a model under it.
     if (!this->state_.compare_exchange_strong(state, LoadState::LOAD_STATE_UNLOADING)) {
@@ -402,16 +388,8 @@ void TFLiteMicroHelper::reset_config() {
   this->tensor_arena_size_effective_ = 0;
   this->arena_heap_ = ArenaHeap::ARENA_HEAP_UNKNOWN;
   this->expected_crc32_ = 0;
-  this->model_type_ = ModelType::MODEL_TYPE_IMAGE;
-  this->input_type_ = InputType::INPUT_TYPE_UINT8;
-  this->input_channels_ = 3;
-  this->input_width_ = 32;
-  this->input_height_ = 20;
-  this->output_processing_ = "argmax";
+  this->output_processing_ = StringRef("argmax");
   this->scale_factor_ = 1.0f;
-  this->input_order_ = InputOrder::INPUT_ORDER_RGB;
-  this->normalize_ = false;
-  this->invert_ = false;
   this->audio_config_ = AudioModelConfig{};
 }
 
@@ -422,8 +400,6 @@ ModelSpec TFLiteMicroHelper::get_model_spec() const {
   spec.input_width = this->get_input_width();
   spec.input_height = this->get_input_height();
   spec.input_channels = this->get_input_channels();
-  spec.normalize = this->normalize_;
-  spec.input_order = this->input_order_;
   // From the tensor the model was converted with: a byte-count heuristic mis-reads
   // 3D/audio tensors, whose element count is not width*height*channels.
   const TfLiteTensor *input = this->model_handler_.input_tensor();
