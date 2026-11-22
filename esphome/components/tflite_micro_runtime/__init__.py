@@ -24,12 +24,12 @@ from esphome.components.tflite_op_processor.op_manifest import (
     parse_op_table,
 )
 import esphome.config_validation as cv
-from esphome.const import CONF_DEBUG, CONF_ID, CONF_RAW_DATA_ID
+from esphome.const import CONF_DEBUG, CONF_ID, CONF_MODEL, CONF_RAW_DATA_ID
 from esphome.core import CORE, EsphomeError, HexInt
 from esphome.types import ConfigType
 
 from . import schema as _schema
-from .schema import CONF_TENSOR_ARENA_SIZE, TFLiteMicroHelper
+from .schema import CONF_TENSOR_ARENA_SIZE, PER_MODEL_SCHEMA, TFLiteMicroHelper
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -76,11 +76,20 @@ __all__ = [
     "CONFIG_SCHEMA",
     "FINAL_VALIDATE_SCHEMA",
     "MULTI_CONF",
+    "PER_MODEL_SCHEMA",
+    "declare_model",
     "to_code",
 ]
 
 
-async def to_code(config: ConfigType) -> None:
+async def declare_model(config: ConfigType) -> tuple[cg.MockObj, Path]:
+    """Create and configure the runtime helper for one model.
+
+    A model kind calls this from its own ``to_code()``, so the kind is the
+    configuration entry and this component is loaded in the background.
+
+    @return The helper and the resolved model path, for the kind's own setup.
+    """
     _add_build_defines()
     model_path, model_data = resolve_model_source(config)
     var = cg.new_Pvariable(config[CONF_ID])
@@ -119,6 +128,11 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_tensor_arena_size(estimate.bytes))
     esp32.add_idf_component(name="espressif/esp-tflite-micro", ref="1.4.1")
     esp32.add_idf_component(name="espressif/esp-nn", ref="1.5.0")
+    return var, model_path
+
+
+async def to_code(config: ConfigType) -> None:
+    await declare_model(config)
 
 
 def _model_filename(model_path: Path) -> str:
@@ -176,13 +190,17 @@ def _validate_model_operators(model_path: Path) -> None:
         )
 
 
-def _final_validate(config: ConfigType) -> None:
-    """Check the model itself once every component has validated."""
+def final_validate(config: ConfigType) -> None:
+    """Check the model itself once every component has validated.
+
+    A model kind points its own ``FINAL_VALIDATE_SCHEMA`` here, so the operator check
+    also runs for kind entries, which do not go through this component's schema.
+    """
     model_path, _ = resolve_model_source(config)
     _validate_model_operators(model_path)
 
 
-FINAL_VALIDATE_SCHEMA = _final_validate
+FINAL_VALIDATE_SCHEMA = final_validate
 
 
 def _add_build_defines() -> None:
@@ -220,8 +238,27 @@ def _configured_model_ops() -> list[set[str]]:
         return []
     return [
         extract_model_ops(resolve_model_source(entry)[0])
-        for entry in CORE.config.get(DOMAIN, [])
+        for entry in _model_entries(CORE.config)
     ]
+
+
+def _model_entries(config: ConfigType) -> list[ConfigType]:
+    """Every model entry in the configuration, whichever component owns it.
+
+    A model kind is the entry of its own component, so the operators cannot be
+    gathered from this component's key alone.
+    """
+    entries: list[ConfigType] = []
+    for value in config.values():
+        candidates = value if isinstance(value, list) else [value]
+        entries.extend(
+            entry
+            for entry in candidates
+            if isinstance(entry, dict)
+            and CONF_MODEL in entry
+            and CONF_RAW_DATA_ID in entry
+        )
+    return entries
 
 
 def _add_operator_defines() -> None:

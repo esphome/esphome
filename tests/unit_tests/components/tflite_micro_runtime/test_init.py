@@ -23,6 +23,14 @@ def _model_id() -> ID:
     return ID("tflite_model", is_declaration=True, type=ct.uint8)
 
 
+def _model_entry() -> ConfigType:
+    """A validated model entry, as any component built on the runtime stores it."""
+    return {
+        tflm.CONF_MODEL: "model.tflite",
+        tflm.CONF_RAW_DATA_ID: ID("model_data", is_declaration=True, type=ct.uint8),
+    }
+
+
 def _run_to_code(
     config: ConfigType,
     *,
@@ -111,7 +119,7 @@ def test_the_model_buffer_falls_back_to_an_explicit_declaration(
 
 def test_every_configured_model_contributes_its_operators(setup_core: Path) -> None:
     """A selective build must contain a kernel whichever model needs it."""
-    CORE.config = {tflm.DOMAIN: [{}, {}]}
+    CORE.config = {tflm.DOMAIN: [_model_entry(), _model_entry()]}
     with (
         patch.object(tflm, "resolve_model_source", return_value=(MODEL_PATH, b"")),
         patch.object(
@@ -125,9 +133,37 @@ def test_every_configured_model_contributes_its_operators(setup_core: Path) -> N
     emit.assert_called_once_with(["ADD", "SOFTMAX"])
 
 
+def test_a_kind_entry_contributes_its_operators(setup_core: Path) -> None:
+    """The kind is the YAML entry, so its model is not under this component's key."""
+    CORE.config = {"tflite_image": [_model_entry()]}
+    with (
+        patch.object(tflm, "resolve_model_source", return_value=(MODEL_PATH, b"")),
+        patch.object(tflm, "extract_model_ops", return_value={"ADD"}),
+        patch.object(tflm, "emit_selective_op_defines") as emit,
+        patch("esphome.codegen.add_define"),
+    ):
+        tflm._add_operator_defines()
+
+    emit.assert_called_once_with(["ADD"])
+
+
+def test_entries_without_a_model_are_not_models(setup_core: Path) -> None:
+    """A component entry that does not describe a model must not narrow the kernels."""
+    CORE.config = {"esphome": {"name": "test"}, tflm.DOMAIN: [{"debug": True}]}
+    with (
+        patch.object(tflm, "emit_all_ops") as emit_all,
+        patch.object(tflm, "emit_selective_op_defines") as emit_selective,
+        patch("esphome.codegen.add_define"),
+    ):
+        tflm._add_operator_defines()
+
+    emit_all.assert_called_once_with()
+    emit_selective.assert_not_called()
+
+
 def test_the_resolver_is_sized_by_the_widest_model(setup_core: Path) -> None:
     """One resolver slot per distinct operator code, with no margin to spare."""
-    CORE.config = {tflm.DOMAIN: [{}, {}]}
+    CORE.config = {tflm.DOMAIN: [_model_entry(), _model_entry()]}
     with (
         patch.object(tflm, "resolve_model_source", return_value=(MODEL_PATH, b"")),
         patch.object(
@@ -158,7 +194,7 @@ def test_no_configured_models_keep_the_full_operator_table(setup_core: Path) -> 
 
 def test_operator_defines_are_emitted_once(setup_core: Path) -> None:
     """MULTI_CONF calls to_code() per model, but the defines are build-wide."""
-    CORE.config = {tflm.DOMAIN: [{}, {}]}
+    CORE.config = {tflm.DOMAIN: [_model_entry(), _model_entry()]}
     with (
         patch.object(tflm, "resolve_model_source", return_value=(MODEL_PATH, b"")),
         patch.object(tflm, "extract_model_ops", return_value={"ADD"}),
