@@ -78,11 +78,11 @@ class _FlatBufferWriter:
         self.data += struct.pack("<I", len(values)) + values
         return position
 
-    def string(self, value: str) -> int:
-        """Write a length-prefixed UTF-8 string and return its position."""
+    def string(self, value: str | bytes) -> int:
+        """Write a length-prefixed string and return its position."""
         self._pad(4)
         position = len(self.data)
-        encoded = value.encode("utf-8")
+        encoded = value.encode("utf-8") if isinstance(value, str) else value
         self.data += struct.pack("<I", len(encoded)) + encoded + b"\x00"
         return position
 
@@ -103,9 +103,10 @@ class _FlatBufferWriter:
 
 
 def write_model(
-    operator_codes: Sequence[tuple[int | str | None, ...]],
+    operator_codes: Sequence[tuple[int | str | bytes | None, ...]],
     *,
     subgraph: bool = True,
+    extra_subgraphs: int = 0,
     inputs: Sequence[int] = (),
     outputs: Sequence[int] = (),
     tensors: Sequence[tuple[Sequence[int], int, int]] = (),
@@ -119,7 +120,8 @@ def write_model(
     ``inputs`` holds the tensor
     indexes of the subgraph's inputs, ``tensors`` (shape, TensorType, buffer
     index) per tensor, ``buffers`` the data of each buffer (None for an empty one)
-    and ``operators`` the (inputs, outputs) per operator.
+    and ``operators`` the (inputs, outputs) per operator. ``extra_subgraphs`` adds
+    copies of the subgraph, for the models the reader has to reject.
     """
     writer = _FlatBufferWriter()
 
@@ -175,7 +177,16 @@ def write_model(
                 writer.table_vector,
                 [partial(write_opcode, *code) for code in operator_codes],
             ),
-            **({2: partial(writer.table_vector, [write_subgraph])} if subgraph else {}),
+            **(
+                {
+                    2: partial(
+                        writer.table_vector,
+                        [write_subgraph] * (1 + extra_subgraphs),
+                    )
+                }
+                if subgraph
+                else {}
+            ),
             4: partial(
                 writer.table_vector,
                 [partial(write_buffer, data) for data in buffers],
@@ -524,6 +535,16 @@ def test_read_model_operators_requires_a_custom_name(tmp_path: Path) -> None:
         read_model_operators(model)
 
 
+def test_read_model_operators_rejects_a_custom_name_that_is_not_utf8(
+    tmp_path: Path,
+) -> None:
+    """Invalid bytes must not become replacement characters in a resolver name."""
+    model = write_model_file(tmp_path, write_model([(None, 32, b"\xff\xfe")]))
+
+    with pytest.raises(ModelReadError, match="UTF-8"):
+        read_model_operators(model)
+
+
 def test_read_model_operators_rejects_a_file_that_is_not_a_model(
     tmp_path: Path,
 ) -> None:
@@ -689,6 +710,56 @@ def test_estimate_tensor_arena_rejects_a_subgraph_without_operators(
     )
 
     with pytest.raises(ModelReadError, match="no operators"):
+        estimate_tensor_arena(model)
+
+
+def test_estimate_tensor_arena_names_the_model_in_its_errors(
+    tmp_path: Path,
+) -> None:
+    """A configuration with several models must say which one cannot be estimated."""
+    model = write_model_file(tmp_path, write_model([(None, 9)]))
+
+    with pytest.raises(ModelReadError) as raised:
+        estimate_tensor_arena(model)
+
+    assert str(model) in str(raised.value)
+
+
+def test_estimate_tensor_arena_ignores_an_omitted_optional_tensor(
+    tmp_path: Path,
+) -> None:
+    """TFLite writes -1 for an omitted optional input, such as a bias."""
+    model = write_model_file(
+        tmp_path,
+        write_model(
+            [(None, 9)],
+            tensors=(([1, 4], 0, 1), ([1, 4], 0, 2)),
+            buffers=(None, None, None),
+            operators=(([0, -1], [1]),),
+        ),
+    )
+
+    estimate = estimate_tensor_arena(model)
+
+    assert estimate.tensor_count == 2
+
+
+def test_estimate_tensor_arena_rejects_a_model_with_several_subgraphs(
+    tmp_path: Path,
+) -> None:
+    """The estimate covers one subgraph, so a control-flow model must be rejected."""
+    model = write_model_file(
+        tmp_path,
+        write_model(
+            [(None, 9)],
+            extra_subgraphs=1,
+            tensors=(([1, 4], 0, 1),),
+            buffers=(None, None),
+            operators=(([0], [0]),),
+        ),
+    )
+
+    with pytest.raises(ModelReadError, match="2 subgraphs"):
         estimate_tensor_arena(model)
 
 
