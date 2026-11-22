@@ -1,5 +1,4 @@
 #include <gtest/gtest.h>
-#include <cmath>
 
 #include "esphome/components/sensor/filter.h"
 #include "esphome/components/sensor/sensor.h"
