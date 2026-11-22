@@ -3,7 +3,7 @@
 import esphome.codegen as cg
 from esphome.components import sensor
 import esphome.config_validation as cv
-from esphome.const import CONF_VALUE
+from esphome.const import CONF_VALUE, UNIT_PERCENT
 from esphome.types import ConfigType
 
 from . import SSOCRReader
@@ -17,7 +17,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.GenerateID(CONF_SSOCR_READER_ID): cv.use_id(SSOCRReader),
         cv.Optional(CONF_VALUE): sensor.sensor_schema(),
         cv.Optional(CONF_CONFIDENCE): sensor.sensor_schema(
-            unit_of_measurement="%", accuracy_decimals=1, icon="mdi:percent"
+            unit_of_measurement=UNIT_PERCENT, accuracy_decimals=1, icon="mdi:percent"
         ),
     }
 )

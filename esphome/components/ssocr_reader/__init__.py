@@ -34,7 +34,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Required(CONF_CROP_W): cv.positive_not_null_int,
         cv.Required(CONF_CROP_H): cv.positive_not_null_int,
         cv.Optional(CONF_THRESHOLD_LEVEL, default=128): cv.int_range(min=0, max=255),
-        cv.Optional(CONF_DIGIT_COUNT, default=6): cv.int_range(min=1, max=9),
+        cv.Optional(CONF_DIGIT_COUNT, default=6): cv.int_range(min=1, max=7),
     }
 ).extend(cv.polling_component_schema("60s"))
 
