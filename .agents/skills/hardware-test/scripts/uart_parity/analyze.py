@@ -36,7 +36,9 @@ def main() -> None:
     for line in pathlib.Path(sys.argv[1]).read_text(encoding="utf-8").splitlines():
         t, d, h = line.split(" ", 2)
         if d != "RX":
-            bursts.append((float(t), "TX", h.strip()))
+            bursts.append(
+                (float(t), d, h.strip())
+            )  # TX, or HUP when the port went away
             last = -1.0
             continue
         # unescape a whole burst, since a doubled FF can be split across two reads
@@ -47,8 +49,8 @@ def main() -> None:
         last = float(t)
     for t, d, h in bursts:
         b, marks = rx_parse(h) if d == "RX" else (b"", 0)
-        if d == "TX":
-            k = "TX " + h
+        if d != "RX":
+            k = f"{d} {h}"
         elif b.startswith(b"\r\nRPT"):
             k = "8E1 report: " + b.decode("latin1").strip()
         elif b == b"\x7f":

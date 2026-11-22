@@ -63,13 +63,17 @@ try:
                 b = os.read(fd, 4096)
             except BlockingIOError:
                 continue
-            if not b:
-                continue
+            except OSError as e:  # the adapter went away
+                f.write(f"{time.time() - t0:.4f} HUP {e}\n")
+                sys.exit(1)
+            if not b:  # readable with no data: hangup
+                f.write(f"{time.time() - t0:.4f} HUP port closed\n")
+                sys.exit(1)
             f.write(f"{time.time() - t0:.4f} RX {b.hex(' ')}\n")
             f.flush()
             if ack and b == b"\x7f":
-                write_all(fd, b"\x79")
-                f.write(f"{time.time() - t0:.4f} TX 79\n")
+                n = write_all(fd, b"\x79")
+                f.write(f"{time.time() - t0:.4f} TX 79*{n}\n")
             tail = (tail + b)[-200:]
             if feed and b"RPT" in tail and tail.endswith(b"\r\n"):
                 tail = b""

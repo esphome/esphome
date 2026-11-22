@@ -84,8 +84,8 @@ def main() -> None:
     s.close()
     log = pathlib.Path(a.out).read_bytes()
     parses = log.count(b"Got PM1.0 Standard")
-    # the device counter, which a garbled log line cannot lose; it restarts at 0 on boot, seen as the uptime going
-    # back. The first boot counts from its first cnt line, a later boot (started inside the capture) from 0.
+    # the device counter, which a garbled log line cannot lose; it restarts at 0 on boot, seen as the uptime not
+    # rising or the counter going back. The first boot counts from its first cnt line, a later boot (started inside the capture) from 0.
     cnt = [
         (int(p), int(u))
         for p, u in re.findall(rb"\[cnt\S*: parses=(\d+) uptime=(\d+)", log)
@@ -94,7 +94,9 @@ def main() -> None:
     if len(cnt) > 1:
         dev, boots, base, prev = 0, 1, cnt[0][0], cnt[0]
         for p, u in cnt[1:]:
-            if u < prev[1]:
+            if (
+                u <= prev[1] or p < prev[0]
+            ):  # lines are 10 s apart, so a same uptime is a new boot
                 dev += prev[0] - base
                 boots, base = boots + 1, 0
             prev = (p, u)
