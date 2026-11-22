@@ -23,8 +23,8 @@ class TxBrk : public Component {
   TxBrk(uart::UARTComponent *u, int tx, int rx, const char *label, bool loopback, bool live, bool hw_uart1)
       : u_(u), tx_(tx), rx_(rx), label_(label), loopback_(loopback), live_(live), hw_uart1_(hw_uart1) {}
   void setup() override {
-    bool r = this->u_->set_tx_break(false);
-    ESP_LOGI(TAG, "[%s] release without break returned %d", this->label_, r);
+    this->rel_ok_ = this->u_->set_tx_break(false);
+    ESP_LOGI(TAG, "[%s] release without break returned %d", this->label_, this->rel_ok_);
   }
   int level(int pin) {
     if (pin < 0)
@@ -127,12 +127,16 @@ class TxBrk : public Component {
     this->dbg("held");
     int rx_rel = -1, tx_rel = -1, reg_rel = -1;
     uint32_t newbaud = this->u_->get_baud_rate() == 9600 ? 115200 : 9600;
+    bool live_ok = true;
     if (mode != 0) {
       this->u_->set_baud_rate(newbaud);
 #ifdef USE_ESP32
-      if (mode == 2)
-        static_cast<uart::IDFUARTComponent *>(this->u_)->apply_settings_live();
-      else
+      if (mode == 2) {
+        esp_err_t err = static_cast<uart::IDFUARTComponent *>(this->u_)->apply_settings_live();
+        live_ok = err == ESP_OK;
+        if (!live_ok)
+          ESP_LOGW(TAG, "[%s] apply_settings_live failed: %d", this->label_, err);
+      } else
 #endif
         this->u_->load_settings(false);
       this->sample(20, brk, &rx_rel, &tx_rel);
@@ -153,7 +157,8 @@ class TxBrk : public Component {
     delay(20);
     this->drain(junk, sizeof(junk), &njunk);
     bool post = this->echo(i + 100);
-    bool pass = r1 && r2 && pre && post && (this->rx_ < 0 || rx_held == 50) && (this->tx_ < 0 || tx_held == 50) &&
+    bool pass = live_ok && r1 && r2 && pre && post && (this->rx_ < 0 || rx_held == 50) &&
+                (this->tx_ < 0 || tx_held == 50) &&
                 (mode == 0 || ((this->rx_ < 0 || rx_rel == 20) && (this->tx_ < 0 || tx_rel == 20))) &&
                 (this->rx_ < 0 || rx_after == 5) && (this->tx_ < 0 || tx_after == 5);
     ESP_LOGI(TAG,
@@ -170,7 +175,10 @@ class TxBrk : public Component {
   void run_next(bool inverted) {
     if (this->runs_ >= 21) {
       if (this->runs_ == 21) {
-        ESP_LOGI(TAG, "[%s] DONE %d/%d passed", this->label_, this->passes_, this->runs_);
+        // a failed release without break in setup() costs one pass
+        int passes = this->passes_ - (this->rel_ok_ || this->passes_ == 0 ? 0 : 1);
+        ESP_LOGI(TAG, "[%s] DONE %d/%d passed%s", this->label_, passes, this->runs_,
+                 this->rel_ok_ ? "" : ", release without break failed");
         this->runs_++;
       }
       return;
@@ -184,5 +192,6 @@ class TxBrk : public Component {
   int tx_, rx_;
   const char *label_;
   bool loopback_, live_, hw_uart1_;
+  bool rel_ok_{true};
 };
 }  // namespace esphome::txbrk

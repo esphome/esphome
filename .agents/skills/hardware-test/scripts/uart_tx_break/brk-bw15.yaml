@@ -26,3 +26,4 @@ brkbench:
   tx_gpio: {number: PA03, allow_other_uses: true}
   probe_gpio: {number: PA02, allow_other_uses: true}
   probe_is_rx: true
+  rx_num: 2  # PA02, used by fix: true

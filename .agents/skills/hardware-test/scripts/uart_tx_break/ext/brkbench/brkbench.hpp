@@ -68,6 +68,8 @@ class BrkBench : public Component, public uart::UARTDevice {
     // release without a break: no-op, expect true
     bool r0 = this->parent_->set_tx_break(false);
     ESP_LOGI(TAG, "API release-without-break ret=%d", r0);
+    if (!r0)
+      this->ret_bad_++;
     if (this->inv_ != nullptr) {
       bool ri = this->inv_->set_tx_break(true);
       bool ri2 = this->inv_->set_tx_break(false);
