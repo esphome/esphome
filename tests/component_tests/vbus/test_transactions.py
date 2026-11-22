@@ -23,7 +23,6 @@ def test_write_command_is_limited_to_standard_write_requests(command: int) -> No
         vbus.WRITE_VALUE_SCHEMA(
             {
                 "id": "bus",
-                "grant_id": 1,
                 "value_id": 2,
                 "value": 123,
                 "command": command,
@@ -35,15 +34,12 @@ def test_write_command_is_limited_to_standard_write_requests(command: int) -> No
 @pytest.mark.parametrize(
     "field,value",
     [
-        ("grant_id", 0),
-        ("grant_id", -1),
-        ("grant_id", 0x100000000),
         ("value_id", -1),
         ("value_id", 65536),
     ],
 )
 def test_request_bounds(schema: cv.Schema, field: str, value: int) -> None:
-    request = {"id": "bus", "grant_id": 1, "value_id": 2}
+    request = {"id": "bus", "value_id": 2}
     if schema is vbus.WRITE_VALUE_SCHEMA:
         request["value"] = 123
     request[field] = value
@@ -54,14 +50,12 @@ def test_request_bounds(schema: cv.Schema, field: str, value: int) -> None:
 @pytest.mark.parametrize("value", [-1, 0x100000000])
 def test_write_value_has_a_32_bit_raw_payload(value: int) -> None:
     with pytest.raises(cv.Invalid):
-        vbus.WRITE_VALUE_SCHEMA(
-            {"id": "bus", "grant_id": 1, "value_id": 2, "value": value}
-        )
+        vbus.WRITE_VALUE_SCHEMA({"id": "bus", "value_id": 2, "value": value})
 
 
 def test_defaults_and_full_raw_value_range() -> None:
     conf = vbus.WRITE_VALUE_SCHEMA(
-        {"id": "bus", "grant_id": 0xFFFFFFFF, "value_id": 0xFFFF, "value": 0xFFFFFFFF}
+        {"id": "bus", "value_id": 0xFFFF, "value": 0xFFFFFFFF}
     )
     assert conf["command"] == 0x0200
     assert conf["value"] == 0xFFFFFFFF
@@ -80,8 +74,10 @@ def test_transactions_codegen(
     assert "legacy_bus->set_transactions(" not in code
     assert "add_on_result_callback(" in code
     assert "vbus::TransactionStatus status" in code
-    assert "read_value(" in code
-    assert "write_value(" in code
+    assert "USE_VBUS_TRANSACTION_ACTION" in defines
+    assert "enable_standalone()" in code
+    assert "request_read_value(" in code
+    assert "request_write_value(" in code
 
 
 @pytest.mark.parametrize(
@@ -108,7 +104,7 @@ def test_value_actions_require_transactions_on_the_referenced_hub(
         "uart:\n  baud_rate: 9600\n  rx_pin: GPIO13\n  tx_pin: GPIO12\n"
         f"vbus:\n  id: bus\n  {settings}\n"
         "button:\n  - platform: template\n    name: Read\n    on_press:\n"
-        "      - vbus.read_value:\n          id: bus\n          grant_id: 1\n          value_id: 2\n",
+        "      - vbus.read_value:\n          id: bus\n          value_id: 2\n",
         encoding="utf-8",
     )
     CORE.config_path = path

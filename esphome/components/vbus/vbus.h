@@ -50,15 +50,24 @@ class VBus final : public uart::UARTDevice, public Component {
 #endif
 #ifdef USE_VBUS_TX
   void set_transmitter(VBusTransmitter *transmitter) { this->transmitter_ = transmitter; }
-  bool request_bus();
-  bool has_bus() const { return this->transmitter_ != nullptr && this->transmitter_->has_bus(); }
-  bool send_datagram(uint32_t grant_id, uint16_t command, uint16_t value_id, uint32_t value, bool expect_reply = true);
-  void release_bus(uint32_t grant_id);
+#ifdef USE_VBUS_SEND_ACTION
+  bool request_datagram(uint16_t command, uint16_t value_id, uint32_t value, bool expect_reply = true);
+#endif
 #endif
 #ifdef USE_VBUS_TRANSACTIONS
   void set_transactions(VBusTransactions *transactions) { this->transactions_ = transactions; }
-  bool read_value(uint32_t grant_id, uint16_t value_id);
-  bool write_value(uint32_t grant_id, uint16_t value_id, uint32_t value, uint16_t command = 0x0200);
+#ifdef USE_VBUS_TRANSACTION_ACTION
+  bool request_read_value(uint16_t value_id) {
+    return this->manual_tx_allowed_() && this->transactions_ != nullptr &&
+           this->transactions_->request_value(0x0300, value_id, 0);
+  }
+  bool request_write_value(uint16_t value_id, uint32_t value, uint16_t command = 0x0200) {
+    if (command != 0x0200 && command != 0x0400)
+      return false;
+    return this->manual_tx_allowed_() && this->transactions_ != nullptr &&
+           this->transactions_->request_value(command, value_id, value);
+  }
+#endif
 #endif
 #ifdef USE_VBUS_POLLING
   void set_polling(VBusPolling *polling) { this->polling_ = polling; }
@@ -86,6 +95,9 @@ class VBus final : public uart::UARTDevice, public Component {
 #endif
 
  protected:
+#if defined(USE_VBUS_SEND_ACTION) || defined(USE_VBUS_TRANSACTION_ACTION)
+  bool manual_tx_allowed_() const;
+#endif
 #ifdef USE_VBUS_TX
   friend class VBusTransmitter;
   VBusTransmitter *transmitter_{nullptr};
