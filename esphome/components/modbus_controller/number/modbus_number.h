@@ -3,7 +3,6 @@
 #include "esphome/components/number/number.h"
 #include "esphome/components/modbus_controller/modbus_controller.h"
 
-
 namespace esphome::modbus_controller {
 
 class ModbusNumber final : public number::Number, public SensorItem, public WriterEntity {
