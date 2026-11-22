@@ -159,13 +159,8 @@ void IT8951Display::set_phase_(Phase next) {
   // and restore phases (register polls, 1bpp enable/restore, DPY) would dominate
   // a partial update's latency. The LUT-idle polls are DELAY_MS-paced, so this
   // doesn't hammer SPI — it only spends a little extra CPU during the (short,
-  // infrequent) update instead of sleeping between ops. start()/stop() are
-  // idempotent, so driving them off the transition is safe.
-  if (next == Phase::IDLE) {
-    this->high_freq_.stop();
-  } else {
-    this->high_freq_.start();
-  }
+  // infrequent) update instead of sleeping between ops.
+  this->high_freq_.set(next != Phase::IDLE);
   this->phase_ = next;
   this->phase_started_at_ = millis();
 }

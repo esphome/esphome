@@ -19,6 +19,13 @@ void log_pin(const char *tag, const char *prefix, GPIOPin *pin) {
 }
 #endif
 
+void pulse_pin(GPIOPin *pin, bool level, uint32_t width_us) {
+  pin->digital_write(level);
+  if (width_us != 0)
+    delayMicroseconds(width_us);
+  pin->digital_write(!level);
+}
+
 namespace internal {
 void pulse_reset_ms(GPIOPin *pin, uint32_t high_before_ms, uint32_t low_ms, uint32_t high_after_ms) {
   if (pin == nullptr)

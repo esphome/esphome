@@ -719,7 +719,7 @@ void LD2420Component::set_reg_value(uint16_t reg, uint16_t value) {
 
 void LD2420Component::handle_cmd_error(uint16_t error) {
   if (error < ErrMessages::COUNT) {
-    ESP_LOGE(TAG, "Command failed: %s", LOG_STR_ARG(ErrMessages::get_log_str(error, ErrMessages::LAST_INDEX)));
+    ESP_LOGE(TAG, "Command failed: %s", LOG_STR_ARG(ErrMessages::get_log_str(error)));
   } else {
     // The error word comes from the device reply frame; unknown codes must not index the table
     ESP_LOGE(TAG, "Command failed: error 0x%04X", error);
