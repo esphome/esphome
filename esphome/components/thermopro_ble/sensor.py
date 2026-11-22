@@ -22,18 +22,18 @@ ThermoProBLE = thermopro_ble_ns.class_(
 )
 
 
-def _temperature_schema() -> cv.Schema:
-    return sensor.sensor_schema(kind=sensor.TEMPERATURE)
-
-
 CONFIG_SCHEMA = cv.All(
     ble_device_base.rename_legacy_hub_id("thermopro_ble"),
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(ThermoProBLE),
             cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
-            cv.Optional(CONF_TEMPERATURE): _temperature_schema(),
-            cv.Optional(CONF_EXTERNAL_TEMPERATURE): _temperature_schema(),
+            cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
+                kind=sensor.TEMPERATURE
+            ),
+            cv.Optional(CONF_EXTERNAL_TEMPERATURE): sensor.sensor_schema(
+                kind=sensor.TEMPERATURE
+            ),
             cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(
                 kind=sensor.HUMIDITY, accuracy_decimals=0
             ),
