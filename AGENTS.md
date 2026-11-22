@@ -254,11 +254,10 @@ file does, and it is the authority when they disagree. The most useful starting 
         poll uses `status_comm_check(ok)`, which only sets it, so the last step must clear it; in `setup()`,
         `if (!this->setup_check(ok)) return;` marks the component failed on error.
     *   **Output pins** (`esphome/core/gpio_pin.h`): `setup_output_pin(pin, level)` sets a pin up at its starting
-        level and does nothing for a null pin, so an optional pin needs no check. `pulse_pin(pin, level, width_us)`
-        drives a clock, latch or strobe pulse (width 0 writes the two levels back to back; the pin must not be
-        null); `pulse_reset(pin,
-        {.high_before_ms = ..., .low_ms = ..., .high_after_ms = ...})` sets up an active-low reset pin and drives
-        its whole reset sequence, also null-safe.
+        level and does nothing for a null pin, so an optional pin needs no check.
+        `pulse_pin(pin, level, width_us)` drives a clock, latch or strobe pulse; width 0 writes the two levels back
+        to back, and the pin must not be null. `pulse_reset(pin, {.high_before_ms, .low_ms, .high_after_ms})` sets
+        up an active-low reset pin and drives its whole reset sequence; it is null-safe too.
     *   **Fast loop on a condition:** `this->high_freq_.set(condition)` on a `HighFrequencyLoopRequester`, not an
         `if` that picks `start()` or `stop()`.
     *   **Text into a fixed buffer:** `buf_append_str(buf, size, pos, "literal")` (a literal only) and
@@ -361,8 +360,9 @@ file does, and it is the authority when they disagree. The most useful starting 
 
 *   **Sensor schemas:** `sensor.sensor_schema(kind=sensor.TEMPERATURE)` (also `HUMIDITY`, `PRESSURE`, `VOLTAGE`,
     `CURRENT`, `POWER`, `ENERGY_KWH`, `ILLUMINANCE`, `DISTANCE_MM`, ... in `esphome/components/sensor`) sets the
-    unit, device class, state class and usual accuracy at once. Pass only what the preset leaves unset, such as
-    an icon; `accuracy_decimals` may override it, and repeating any other preset value is an error.
+    unit, device class, state class and usual accuracy at once, and some presets (`DURATION_H`) the icon too.
+    Pass only what the preset leaves unset: `accuracy_decimals` may override it, and repeating any other preset
+    value, an icon included, is an error.
 
 *   **Configuration Validation:** follow the `config-validation` skill. In short: one `cv.typed_schema` per
     model, reuse validators from `config_validation.py`, and never add `CONF_` constants to the frozen
