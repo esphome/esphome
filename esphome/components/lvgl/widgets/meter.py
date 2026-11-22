@@ -611,7 +611,9 @@ async def indicator_update_to_code(config, action_id, template_arg, args):
             return
         opa = await opacity.process(opa)
         if w.type is arc_indicator_type:
-            style = await cg.get_variable(ID(_arc_style_name(str(w.var))))
+            style = automation.parent_ref(
+                await cg.get_variable(ID(_arc_style_name(str(w.var))))
+            )
             lv.style_set_arc_opa(style, opa)
             lv_obj.invalidate(w.parent)
         else:

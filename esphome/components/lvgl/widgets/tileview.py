@@ -121,7 +121,7 @@ async def tileview_select(config, action_id, template_arg, args):
 
     async def do_select(w: Widget):
         if tile := config.get(CONF_TILE_ID):
-            tile = await cg.get_variable(tile)
+            tile = automation.parent_ref(await cg.get_variable(tile))
             lv.tileview_set_tile(w.obj, tile, literal(config[CONF_ANIMATED]))
         else:
             row = await lv_int.process(config[CONF_ROW])

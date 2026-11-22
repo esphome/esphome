@@ -22,7 +22,7 @@ from esphome.helpers import cpp_string_escape
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import Expression, SafeExpType
 
-from ..mapping import INDEX_TYPES, get_mapping_metadata
+from ..mapping import INDEX_TYPES, MappingMetaData, get_mapping_metadata
 from . import types as ty
 from .defines import (
     CONF_END_VALUE,
@@ -251,6 +251,15 @@ def _image_validator(value):
     return value
 
 
+async def _mapping_index(
+    metadata: MappingMetaData, index: Any, args: list[tuple[SafeExpType, str]]
+) -> Expression:
+    """The key a ``mapping:`` lookup uses: a lambda's result or the converted constant."""
+    if isinstance(index, Lambda):
+        return await automation.call_user_lambda(index, args, metadata.from_.data_type)
+    return await metadata.from_.convert_value(index)
+
+
 class ImageValidator(LValidator):
     def __init__(self):
         super().__init__(
@@ -271,15 +280,10 @@ class ImageValidator(LValidator):
         args = args or get_lambda_context_args()
         if isinstance(value, dict) and CONF_MAPPING in value:
             mapping_id = value[CONF_MAPPING]
-            mapping_var = await cg.get_variable(mapping_id)
+            # Global scope like parent_ref, but a mapping is a value, not a pointer
+            mapping_var = MockObj(f"::{await cg.get_variable(mapping_id)}")
             metadata = get_mapping_metadata(mapping_id.id)
-            index = value[CONF_VALUE]
-            if isinstance(index, Lambda):
-                index = await automation.call_user_lambda(
-                    index, args, metadata.from_.data_type
-                )
-            else:
-                index = await metadata.from_.convert_value(index)
+            index = await _mapping_index(metadata, value[CONF_VALUE], args)
             return mapping_var.get(index)
 
         return await super().process(value, args, raw_lambda)
@@ -340,19 +344,14 @@ class TextValidator(LValidator):
                     )
                 return literal(sprintf_str)
             if mapping_id := value.get(CONF_MAPPING):
-                mapping_var = await cg.get_variable(mapping_id)
+                # Global scope like parent_ref, but a mapping is a value, not a pointer
+                mapping_var = MockObj(f"::{await cg.get_variable(mapping_id)}")
                 metadata = get_mapping_metadata(mapping_id.id)
                 if metadata.to_ != INDEX_TYPES["string"]:
                     raise ValueError(
                         f"Mapping {mapping_id} does not map to strings, cannot use in text"
                     )
-                index = value[CONF_VALUE]
-                if isinstance(index, Lambda):
-                    index = await automation.call_user_lambda(
-                        index, args, metadata.from_.data_type
-                    )
-                else:
-                    index = await metadata.from_.convert_value(index)
+                index = await _mapping_index(metadata, value[CONF_VALUE], args)
                 return mapping_var.get(index).c_str()
 
             if time_format := value.get(CONF_TIME_FORMAT):
@@ -363,7 +362,7 @@ class TextValidator(LValidator):
                     )
                 # must be an ID
                 else:
-                    source = (await cg.get_variable(source)).now()
+                    source = automation.parent_ref(await cg.get_variable(source)).now()
                 return source.strftime(time_format).c_str()
         if isinstance(value, Lambda):
             value = await automation.call_user_lambda(value, args, self.rtype)

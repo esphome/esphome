@@ -250,10 +250,13 @@ class LValidator:
         if self.retmapper is not None:
             return self.retmapper(value)
         if isinstance(value, ID):
-            return await cg.get_variable(value)
+            return automation.parent_ref(await cg.get_variable(value))
         if isinstance(value, list):
             value = [
-                await cg.get_variable(x) if isinstance(x, ID) else x for x in value
+                automation.parent_ref(await cg.get_variable(x))
+                if isinstance(x, ID)
+                else x
+                for x in value
             ]
         if self.rtype is cg.int_:
             value = int(value)

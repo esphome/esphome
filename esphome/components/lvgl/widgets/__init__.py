@@ -3,7 +3,7 @@ from contextlib import ExitStack
 import sys
 from typing import Any
 
-from esphome import codegen as cg, config_validation as cv
+from esphome import automation, codegen as cg, config_validation as cv
 from esphome.automation import ApplyAction, register_action
 from esphome.config_validation import Schema
 from esphome.const import (
@@ -736,7 +736,7 @@ async def set_obj_properties(w: Widget, config):
                     for prop_r, value in values:
                         target.set_style(prop_r, value, lv_state)
     if group := config.get(CONF_GROUP):
-        group = await cg.get_variable(group)
+        group = automation.parent_ref(await cg.get_variable(group))
         lv.group_add_obj(group, w.obj)
     props = parts[CONF_MAIN][CONF_DEFAULT]
     for flag, value in props.items():
