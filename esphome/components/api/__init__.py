@@ -100,11 +100,7 @@ HomeAssistantActionResponseTrigger = api_ns.class_(
     "HomeAssistantActionResponseTrigger", automation.Trigger
 )
 APIRespondAction = api_ns.class_("APIRespondAction", automation.Action)
-APIUnregisterServiceCallAction = api_ns.class_(
-    "APIUnregisterServiceCallAction", automation.Action
-)
-
-UserServiceTrigger = api_ns.class_("UserServiceTrigger", automation.Trigger)
+UserServiceCallback = api_ns.class_("UserServiceCallback")
 ListEntitiesServicesArgument = api_ns.class_("ListEntitiesServicesArgument")
 # Owning element type for each YAML service variable type.  Used to derive both
 # the zero-copy native types and the owning fallback types below.
@@ -313,9 +309,23 @@ VARIABLE_SCHEMA = cv.All(
 validate_variable = cv.maybe_simple_value(VARIABLE_SCHEMA, key=CONF_TYPE)
 
 
+def _validate_reserved_variables(config: ConfigType) -> ConfigType:
+    """Reject variables named like the arguments a response service passes first."""
+    mode = config[CONF_SUPPORTS_RESPONSE]
+    reserved = {"none": (), "optional": ("call_id", "return_response")}
+    for name in reserved.get(mode, ("call_id",)):
+        if name in config[CONF_VARIABLES]:
+            raise cv.Invalid(
+                f"'{name}' is reserved with supports_response: {mode}, "
+                "give the variable another name",
+                path=[CONF_VARIABLES, name],
+            )
+    return config
+
+
 ACTIONS_SCHEMA = automation.validate_automation(
     {
-        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(UserServiceTrigger),
+        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(UserServiceCallback),
         cv.Exclusive(CONF_SERVICE, group_of_exclusion=CONF_ACTION): cv.valid_name,
         cv.Exclusive(CONF_ACTION, group_of_exclusion=CONF_ACTION): cv.valid_name,
         cv.Optional(CONF_DESCRIPTION): cv.string_strict,
@@ -338,6 +348,7 @@ ACTIONS_SCHEMA = automation.validate_automation(
             {cv.Required(CONF_SUPPORTS_RESPONSE): _validate_supports_response},
             extra=cv.ALLOW_EXTRA,
         ),
+        _validate_reserved_variables,
     ),
 )
 
@@ -631,8 +642,8 @@ async def to_code(config: ConfigType) -> None:
         has_optional = _has_optional_args(actions)
         if has_optional:
             cg.add_define("USE_API_USER_DEFINED_ACTION_OPTIONAL_ARGS")
-        # Collect all triggers first, then register all at once with initializer_list
-        triggers: list[cg.MockObj] = []
+        # Collect all services first, then register all at once with initializer_list
+        services: list[cg.MockObj] = []
         for index, conf in enumerate(actions):
             func_args: list[tuple[MockObj, str]] = []
             service_template_args: list[MockObj] = []  # User service argument types
@@ -645,7 +656,7 @@ async def to_code(config: ConfigType) -> None:
             is_optional = supports_response_key == "optional"
 
             # Add call_id and return_response based on supports_response mode
-            # These must match the C++ Trigger template arguments
+            # These must match the arguments UserServiceCallback passes
             # - none: no extra args
             # - status: call_id only (for reporting success/error without data)
             # - only: call_id only (response always expected with data)
@@ -676,32 +687,24 @@ async def to_code(config: ConfigType) -> None:
                 func_args.append((native, name))
             strings = _action_strings(conf, has_metadata, has_optional)
             table = _add_action_strings(index, strings)
-            # Template args: supports_response mode, then user service arg types
-            templ = cg.TemplateArguments(supports_response, *service_template_args)
-            # Key is hashed here because the name is not readable at runtime on ESP8266
-            trigger = cg.new_Pvariable(
-                conf[CONF_TRIGGER_ID], templ, table, fnv1_hash(conf[CONF_ACTION])
-            )
-            triggers.append(trigger)
-            auto = await automation.build_automation(trigger, func_args, conf)
-
-            # For non-none response modes, automatically append unregister action
-            # This ensures the call is unregistered after all actions complete (including async ones)
+            # A call that can respond is unregistered once every action has finished
+            after = None
             if not is_none:
-                arg_types = [arg[0] for arg in func_args]
-                action_templ = cg.TemplateArguments(*arg_types)
-                unregister_id = ID(
-                    f"{conf[CONF_TRIGGER_ID]}__unregister",
-                    is_declaration=True,
-                    type=APIUnregisterServiceCallAction.template(action_templ),
+                server = automation.parent_ref(var)
+                after = [
+                    f"if (call_id != 0)\n  {server}->unregister_active_action_call(call_id);"
+                ]
+            fn, build = automation.declare_automation_function(func_args, conf, after)
+            templ = cg.TemplateArguments(fn, supports_response, *service_template_args)
+            # Key is hashed here because the name is not readable at runtime on ESP8266
+            services.append(
+                cg.new_Pvariable(
+                    conf[CONF_TRIGGER_ID], templ, table, fnv1_hash(conf[CONF_ACTION])
                 )
-                unregister_action = cg.new_Pvariable(
-                    unregister_id,
-                    var,
-                )
-                cg.add(auto.add_action(unregister_action))
+            )
+            await build()
         # Register all services at once - single allocation, no reallocations
-        cg.add(var.initialize_user_services(triggers))
+        cg.add(var.initialize_user_services(services))
 
     if (wizard_config := config.get(wizard.CONF_WIZARD)) is not None:
         await wizard.to_code(wizard_config)
