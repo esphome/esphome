@@ -38,7 +38,7 @@ AUDIO_SCHEMA = cv.Schema(
 CONFIG_SCHEMA = cv.Schema({})
 
 
-async def to_code(var, config: ConfigType, model_path: Path) -> None:
+async def configure(var, config: ConfigType, model_path: Path) -> None:
     """Pass the tuning values through and leave the load to the consumer."""
     cg.add(var.set_defer_load(True))
     if (cutoff := config.get(CONF_PROBABILITY_CUTOFF)) is not None:
