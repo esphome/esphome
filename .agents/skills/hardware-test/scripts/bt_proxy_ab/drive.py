@@ -220,8 +220,12 @@ class D:
         try:
             for _ in range(n):
                 t = time.monotonic()
-                await self.cli.bluetooth_gatt_read(addr, ch.handle, timeout=10)
+                v = await self.cli.bluetooth_gatt_read(addr, ch.handle, timeout=10)
                 rd.append(time.monotonic() - t)
+                if (
+                    len(v) != 1
+                ):  # ff01 holds one byte: a stored handle from an older server table
+                    return {"harness": "stale_handles"}
             for i in range(n):
                 t = time.monotonic()
                 await self.cli.bluetooth_gatt_write(
@@ -519,8 +523,29 @@ async def main() -> None:
                 continue
             addr = d.peers[L][0]
             st = d.st[addr]
-            stop, _rm = await cli.bluetooth_gatt_start_notify(addr, tick.handle, on_n)
-            await cli.bluetooth_gatt_write_descriptor(addr, tick.cccd, b"\x01\x00")
+            try:
+                # the tick holds 4 bytes; anything else is a stored handle from an older server table
+                if (
+                    len(await cli.bluetooth_gatt_read(addr, tick.handle, timeout=10))
+                    != 4
+                ):
+                    d.rec(
+                        test="notify", result="stale_handles", hint="run disc L first"
+                    )
+                    sys.exit(1)
+                stop, _rm = await cli.bluetooth_gatt_start_notify(
+                    addr, tick.handle, on_n
+                )
+                await cli.bluetooth_gatt_write_descriptor(addr, tick.cccd, b"\x01\x00")
+            except Exception as e:  # noqa: BLE001
+                # the link dropped before the subscription: a drop, then hold again
+                print(f"notify subscribe failed: {e}", flush=True)
+                stats["drops"].append([type(e).__name__, round(time.time(), 1)])
+                stats["reconnects"] += 1
+                d.st.pop(addr, None)
+                st["cancel"]()
+                await asyncio.sleep(2)
+                continue
             resumed[0] = True
             t_min = time.time()
             rx_min = stats["rx"]

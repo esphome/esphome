@@ -117,7 +117,7 @@ def window(s):
 
 
 # harness faults: kept out of the ratios and counted on their own
-HARNESS = ("clear_failed", "no_ff01")
+HARNESS = ("clear_failed", "no_ff01", "stale_handles")
 
 
 def jl(s):
@@ -241,10 +241,14 @@ for s in steps:
                         )
                     }
                 )
-                d["drops"] = r["drops"]
+                d["drops"] = r.get("drops")
+        if "rx" not in d:
+            d["warn"] = "no notify summary record"
     elif s == "churn":
         for r in R:
-            if r.get("test") == "churn":
+            if (
+                r.get("test") == "churn" and "result" not in r
+            ):  # no_free_state is in no_round
                 d.update(
                     {
                         k: r[k]

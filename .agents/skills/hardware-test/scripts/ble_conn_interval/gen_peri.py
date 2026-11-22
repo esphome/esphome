@@ -24,6 +24,15 @@ L = [
     f"# {name}: idle GATT server, {ns} services x {nc} readable characteristics, each with a 2901 description",
     "esphome:",
     f"  name: {name}",
+]
+if burst:  # srvconf.hpp counts the stack's late send failures (bad ESP_GATTS_CONF_EVT)
+    L += [
+        f"  includes: [{pathlib.Path(__file__).resolve().parent / 'srvconf.hpp'}]",
+        "  platformio_options:",
+        "    build_flags:",
+        "      - -Wl,--wrap=esp_ble_gatts_register_callback",
+    ]
+L += [
     "esp32:",
     f"  variant: {variant}",
     f"  board: {board}",
@@ -126,6 +135,8 @@ BURST = """\
                 id(b_per) = x.size() >= 3 ? x[2] : 3;
                 id(b_sent) = 0;
                 id(b_fail) = 0;
+                srvconf::bad = 0;
+                srvconf::active = true;
                 ESP_LOGI("srv", "SRV burst start total=%u per_tick=%u", (unsigned) id(b_total), (unsigned) id(b_per));
 globals:
   - {id: b_total, type: uint32_t, initial_value: "0"}
@@ -139,17 +150,22 @@ interval:
       - lambda: |-
           if (id(b_sent) >= id(b_total)) return;
           for (uint32_t i = 0; i < id(b_per) && id(b_sent) < id(b_total); i++) {
-            uint16_t n = id(b_sent)++;
+            // b_sent moves on after notify(), so a failure of the last one is still inside the count window
+            uint16_t n = id(b_sent);
             const uint8_t v[2] = {(uint8_t) n, (uint8_t) (n >> 8)};
             id(burstc)->set_value(v, sizeof(v));
             id(burstc)->notify();
+            id(b_sent)++;
           }
           if (id(b_sent) == id(b_total)) {
-            // the final value carries the server's own send failures, so they are not taken for proxy loss
-            const uint8_t f[3] = {0xF1, (uint8_t) id(b_fail), (uint8_t) (id(b_fail) >> 8)};
+            // the final value carries the server's own send failures (refused at once, or reported late by the
+            // stack), so they are not taken for proxy loss; a lower bound, late reports after this one are missed
+            srvconf::active = false;
+            const uint32_t fails = id(b_fail) + srvconf::bad;
+            const uint8_t f[3] = {0xF1, (uint8_t) fails, (uint8_t) (fails >> 8)};
             id(finalc)->set_value(f, sizeof(f));
             id(finalc)->notify();
-            ESP_LOGI("srv", "SRV burst done sent=%u send_failed=%u", (unsigned) id(b_sent), (unsigned) id(b_fail));
+            ESP_LOGI("srv", "SRV burst done sent=%u send_failed=%u", (unsigned) id(b_sent), (unsigned) fails);
           }
   - interval: 200ms
     then:
