@@ -106,7 +106,7 @@ async def styles_to_code(config):
     synchronous=True,
 )
 async def style_update_to_code(config, action_id, template_arg, args):
-    style = await cg.get_variable(config[CONF_ID])
+    style = automation.parent_ref(await cg.get_variable(config[CONF_ID]))
     async with LambdaContext(parameters=args, where=action_id) as context:
         await style_set(style, config)
         # Refresh and redraw every widget using this style -- otherwise the
@@ -195,8 +195,10 @@ async def theme_update_to_code(config, action_id, template_arg, args) -> MockObj
                 # Skip states with no properties to set.
                 if not props:
                     continue
-                style_var = await cg.get_variable(
-                    ID(_get_theme_style_name(w_name, part, state))
+                style_var = automation.parent_ref(
+                    await cg.get_variable(
+                        ID(_get_theme_style_name(w_name, part, state))
+                    )
                 )
                 to_update.append((style_var, props))
     async with LambdaContext(parameters=args, where=action_id) as context:

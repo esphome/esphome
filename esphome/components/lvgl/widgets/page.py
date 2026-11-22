@@ -123,7 +123,7 @@ async def page_previous_to_code(config, action_id, template_arg, args):
     synchronous=True,
 )
 async def page_show_to_code(config, action_id, template_arg, args):
-    widget = await cg.get_variable(config[CONF_ID])
+    widget = automation.parent_ref(await cg.get_variable(config[CONF_ID]))
     animation = await LV_ANIM.process(config[CONF_ANIMATION])
     time = await lv_milliseconds.process(config[CONF_TIME])
     async with LambdaContext(args) as context:

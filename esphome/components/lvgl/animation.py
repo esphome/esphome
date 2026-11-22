@@ -273,7 +273,7 @@ async def start_animation(config, action_id, template_arg, args):
     loop = config.get(CONF_LOOP)
     async with LambdaContext(args, where=action_id) as context:
         for animation in animations:
-            anim_var = await cg.get_variable(animation)
+            anim_var = automation.parent_ref(await cg.get_variable(animation))
             if loop is not None:
                 context.add(anim_var.set_loop(loop))
             if (duration := config.get(CONF_DURATION)) is not None:
@@ -304,6 +304,6 @@ async def stop_animation(config, action_id, template_arg, args):
     animations = config[CONF_ID]
     async with LambdaContext(args, where=action_id) as context:
         for animation in animations:
-            anim_var = await cg.get_variable(animation)
+            anim_var = automation.parent_ref(await cg.get_variable(animation))
             context.add(anim_var.stop())
     return await context_action(context, action_id, template_arg, args)

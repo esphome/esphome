@@ -239,15 +239,14 @@ def _layer_update_schema() -> cv.Schema:
     synchronous=True,
 )
 async def lvgl_update_to_code(config, action_id, template_arg, args):
-    widgets = await get_widgets(config, CONF_LVGL_ID)
-    w = widgets[0]
+    lv_comp = await lvgl_parent(config)
     async with LambdaContext(args, where=action_id) as context:
         # Apply the top-level properties (styles and layout) to the active screen...
-        await set_obj_properties(get_screen_active(w.var), config)
+        await set_obj_properties(get_screen_active(lv_comp), config)
         # ...the deprecated flat `disp_*` background properties...
-        await lvgl_update(w.var, config)
+        await lvgl_update(lv_comp, config)
         # ...and the `top_layer`/`bottom_layer` keys (styling and layout updates).
-        await layers_to_code(w.var, config)
+        await layers_to_code(lv_comp, config)
     return await context_action(context, action_id, template_arg, args)
 
 
@@ -411,7 +410,7 @@ async def widget_focus(config, action_id, template_arg, args):
             lv_group_t.operator("ptr"), lv_expr.obj_get_group(widget.obj)
         )
     elif group := config.get(CONF_GROUP):
-        group = await get_variable(group)
+        group = automation.parent_ref(await get_variable(group))
     else:
         group = lv_expr.group_get_default()
 
