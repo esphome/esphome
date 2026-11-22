@@ -2,6 +2,8 @@
 
 #include "esphome/components/tflite_output_processor/output_processor.h"
 
+#ifdef USE_TFLITE_MICRO_HELPER
+
 namespace esphome::tflite_output_processor::testing {
 
 static constexpr float TOLERANCE = 1e-5f;
@@ -172,3 +174,5 @@ TEST(OutputProcessor, ClassificationDecoderReadsTheFirstTensor) {
 
   TfLiteIntArrayFree(dims);
 }
+
+#endif  // USE_TFLITE_MICRO_HELPER
