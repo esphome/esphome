@@ -108,6 +108,10 @@ void MQGasSensor::log_reading_(float ppm) {
 }
 
 void MQGasSensor::setup() {
+  // The warm-up window starts at setup entry: an on_value action of the R0 sensor
+  // below can request calibration synchronously, and it measures the window from
+  // this timestamp.
+  this->warmup_start_ = App.get_loop_component_start_time();
   // The wiring hash is folded into the key so that the stored R0 of a different
   // supply, scaling or load resistor is never read back. Without persistence there
   // is nothing to store, and a preference slot is a limited resource on ESP8266.
@@ -124,7 +128,6 @@ void MQGasSensor::setup() {
   this->publish_r0_();
 
   if (this->warmup_time_ > 0) {
-    this->warmup_start_ = App.get_loop_component_start_time();
     this->log_message_(LOG_SEVERITY_INFO,
                        LOG_STR("warm-up/burn-in of %" PRIu32 " s - no readings published before that"),
                        this->warmup_time_ / 1000);
@@ -162,8 +165,14 @@ void MQGasSensor::setup() {
   if (this->temperature_source_ != nullptr) {
     this->temperature_source_->add_on_raw_state_callback([this](float value) {
       const uint32_t now_ms = App.get_loop_component_start_time();
-      if (this->temperature_last_ms_ != 0 && now_ms - this->temperature_last_ms_ > this->temperature_gap_ms_)
-        this->temperature_gap_ms_ = now_ms - this->temperature_last_ms_;
+      if (this->temperature_last_ms_ != 0) {
+        const uint32_t gap = now_ms - this->temperature_last_ms_;
+        // A dropout is not the cadence: a gap far beyond the current estimate is
+        // ignored, so one outage cannot raise the staleness limit for hours.
+        if (this->temperature_gap_ms_ == 0 || gap < this->temperature_gap_ms_ * 3u)
+          this->temperature_gap_ms_ =
+              this->temperature_gap_ms_ == 0 ? gap : (this->temperature_gap_ms_ * 7u + gap) / 8u;
+      }
       this->temperature_last_ms_ = now_ms;
       this->temperature_seen_ = std::isfinite(value);
     });
@@ -175,8 +184,11 @@ void MQGasSensor::setup() {
   if (this->humidity_source_ != nullptr) {
     this->humidity_source_->add_on_raw_state_callback([this](float value) {
       const uint32_t now_ms = App.get_loop_component_start_time();
-      if (this->humidity_last_ms_ != 0 && now_ms - this->humidity_last_ms_ > this->humidity_gap_ms_)
-        this->humidity_gap_ms_ = now_ms - this->humidity_last_ms_;
+      if (this->humidity_last_ms_ != 0) {
+        const uint32_t gap = now_ms - this->humidity_last_ms_;
+        if (this->humidity_gap_ms_ == 0 || gap < this->humidity_gap_ms_ * 3u)
+          this->humidity_gap_ms_ = this->humidity_gap_ms_ == 0 ? gap : (this->humidity_gap_ms_ * 7u + gap) / 8u;
+      }
       this->humidity_last_ms_ = now_ms;
       this->humidity_seen_ = std::isfinite(value);
     });
@@ -445,6 +457,9 @@ void MQGasSensor::update() {
   if (this->calibrating_) {
     // The persisted R0 is about to change: never keep a value that was computed
     // with the previous one.  The message also reaches `log_sensor:`.
+    // The voltage just sampled belongs to this update; RS follows it so both
+    // diagnostics describe the same reading. At the rail RS is 0.
+    this->rs_ = this->sensor_voltage_ >= this->vcc_ ? 0.0f : this->current_rs_();
     this->ratio_ = NAN;
     this->correction_ = NAN;
     this->publish_diagnostics_();
@@ -740,15 +755,9 @@ void MQGasSensor::process_calibration_() {
   } else {
     this->sensor_voltage_ = voltage;
     this->rs_ = this->current_rs_();
-    // The compensation is applied to every reading, so the reference has to be
-    // measured the same way: solving R0 for "the clean-air ratio after the
-    // correction" keeps a replay of this input at ratio_in_clean_air.
     const float correction = this->compute_correction_();
-    const float effective =
-        this->ratio_mode_ == RatioMode::RATIO_R0_RS
-            ? this->ratio_in_clean_air_ / (correction > 0.0f ? correction : 1.0f) - this->correction_factor_
-            : this->ratio_in_clean_air_ * (correction > 0.0f ? correction : 1.0f) - this->correction_factor_;
-    const float r0 = mqmath::r0_from_clean_air(this->rs_, effective);
+    const float r0 =
+        mqmath::r0_from_clean_air(this->rs_ / (correction > 0.0f ? correction : 1.0f), this->ratio_in_clean_air_);
     // The wiring is being watched through the voltage and RS diagnostics while the
     // run samples; the ratio, correction and PPM stay unknown until an R0 exists.
     this->ratio_ = NAN;
