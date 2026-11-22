@@ -103,9 +103,7 @@ def _validate_size(value: object, *, allow_zero: bool = False) -> int:
             if match is None:
                 raise cv.Invalid(f"'{value}' is not a size{_SIZE_HINT}")
             if factor is None:
-                raise cv.Invalid(
-                    f"unknown unit '{match.group(2)}' in '{value}' (use B, KB or MB)"
-                )
+                raise cv.Invalid(f"unknown unit '{match.group(2)}' in '{value}'")
             scaled = float(match.group(1)) * factor
             if not scaled.is_integer():
                 raise cv.Invalid(f"'{value}' is not a whole number of bytes")

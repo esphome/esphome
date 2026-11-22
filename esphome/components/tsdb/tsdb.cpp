@@ -87,8 +87,9 @@ void TsdbComponent::setup() {
     this->mark_failed(LOG_STR("opening the database"));
     return;
   }
-  if (this->db_ != nullptr)
+  if (this->db_ != nullptr) {
     ESP_LOGI(TAG, "%s: history opened", this->file_.c_str());
+  }
 }
 
 void TsdbComponent::on_shutdown() {
@@ -474,8 +475,9 @@ void TsdbComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "  file: %s/%s", this->mount_point_.c_str(), this->file_.c_str());
   ESP_LOGCONFIG(TAG, "  partition: %s, %" PRIu32 " KB", this->partition_label_.c_str(), this->partition_size_ / 1024);
   ESP_LOGCONFIG(TAG, "  columns: %" PRIu32, static_cast<uint32_t>(this->columns_.size()));
-  for (const TsdbColumn &column : this->columns_)
+  for (const TsdbColumn &column : this->columns_) {
     ESP_LOGCONFIG(TAG, "    %s: scale %.6g, offset %.6g", column.name.c_str(), column.scale, column.offset);
+  }
   ESP_LOGCONFIG(TAG, "  write interval: %" PRIu32 " ms, sync interval: %" PRIu32 " ms", this->get_update_interval(),
                 this->sync_interval_);
   ESP_LOGCONFIG(TAG,
