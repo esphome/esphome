@@ -367,7 +367,12 @@ def _read_tensors(
         # A tensor whose buffer holds data is a constant read in place from the model; the converter gives the
         # others a buffer entry too, usually empty.
         index = buffer.u32_field(table, _TENSOR_BUFFER) or 0
-        in_arena = not (index < len(constant_buffers) and constant_buffers[index])
+        if index >= len(constant_buffers):
+            raise ModelReadError(
+                f"{buffer.path}: tensor names buffer {index}, but the model has "
+                f"{len(constant_buffers)}"
+            )
+        in_arena = not constant_buffers[index]
         type_code = buffer.i8_field(table, _TENSOR_TYPE) or 0
         element_size = TENSOR_TYPE_SIZES.get(type_code)
         if element_size is None and in_arena:
