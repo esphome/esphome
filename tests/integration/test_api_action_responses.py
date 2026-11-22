@@ -163,6 +163,23 @@ async def test_api_action_responses(
             f"Expected doubled=84, got {response_json.get('doubled')}"
         )
 
+        # Optional without return_response: the device answers with the status only
+        response = await client.execute_service(
+            action_optional_response,
+            {"value": 7},
+            return_response=False,
+        )
+        await waiter.wait_for(
+            "ACTION_OPTIONAL_RESPONSE (call_id=",
+            "return_response=0, value=7)",
+            timeout=5.0,
+        )
+        assert response is not None, "Expected a status response for optional action"
+        assert response.success is True
+        assert not response.response_data, (
+            f"Expected no response data, got {response.response_data!r}"
+        )
+
         # Test action_only_response (supports_response: only)
         response = await client.execute_service(
             action_only_response,

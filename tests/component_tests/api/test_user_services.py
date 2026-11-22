@@ -102,16 +102,6 @@ def _action_class(main_cpp: str, action: str) -> str:
     return re.match(r"[\w:]+", _constructed(main_cpp, action)).group(0)
 
 
-def _assert_unregister_after(main_cpp: str, automation: str, types: str) -> None:
-    """The last action of ``automation`` only unregisters the call."""
-    last = _actions_of(main_cpp, automation)[-1]
-    assert last == f"{automation}__after"
-    assert _constructed(main_cpp, last) == (
-        f"ApplyAction<esphome__{automation}__after__fn, {types}>()"
-    )
-    assert _action_code(main_cpp, last) == f"\n  {UNREGISTER}"
-
-
 def test_no_args_service(generate_main) -> None:
     """Inline actions run in one function the service calls, with no Automation."""
     main_cpp = generate_main(CONFIG)
@@ -173,36 +163,61 @@ def test_delay_uses_owning_args(generate_main) -> None:
 
 
 def test_respond_optional(generate_main) -> None:
-    """An optional response passes call_id and return_response; the call is unregistered last."""
+    """An optional response sends the data only when the client asked for it, all in one function."""
     main_cpp = generate_main(CONFIG)
-    types = "uint32_t, bool, int32_t"
     function = _service_function(main_cpp, "respond_optional", OPTIONAL, "int32_t")
-    automation = _triggered_automation(
-        main_cpp, function, "call_id, return_response, value"
+    body = _function_body(main_cpp, function)
+    assert "->trigger(" not in body
+    without_data = (
+        "::api_apiserver_id->send_action_response(call_id, true, StringRef());"
     )
-    assert _constructed(main_cpp, automation) == f"Automation<{types}>()"
-    respond, _ = _actions_of(main_cpp, automation)
-    assert _constructed(main_cpp, respond) == (
-        f"api::APIRespondAction<{types}>(api_apiserver_id)"
+    with_data = (
+        "::api_apiserver_id->send_action_response(call_id, true, StringRef(), "
+        "reinterpret_cast<const uint8_t *>(esphome__json.data()), esphome__json.size());"
     )
-    assert f"{respond}->set_is_optional_mode(true);" in main_cpp
-    _assert_unregister_after(main_cpp, automation, types)
+    assert body.index("if (!return_response) {") < body.index(without_data)
+    assert body.index("} else {") < body.index('root["value"] = value;')
+    assert body.index('root["value"] = value;') < body.index(with_data)
+    assert "ArduinoJson::JsonObject root = esphome__builder.root();" in body
+    assert "(call_id, return_response, value, root);" in body
+    assert body.endswith(f"\n  {{\n  {UNREGISTER}\n  }}")
 
 
 def test_respond_only(generate_main) -> None:
-    """A response-only service passes call_id; the call is unregistered after every action."""
+    """A response-only service sends its data after the actions before it, then unregisters."""
     main_cpp = generate_main(CONFIG)
-    types = "uint32_t, StringRef"
     function = _service_function(main_cpp, "respond_only", ONLY, "StringRef")
-    automation = _triggered_automation(main_cpp, function, "call_id, name")
-    assert _constructed(main_cpp, automation) == f"Automation<{types}>()"
-    log, respond, _ = _actions_of(main_cpp, automation)
-    assert "RESPOND_ONLY %s" in _action_code(main_cpp, log)
-    assert _constructed(main_cpp, respond) == (
-        f"api::APIRespondAction<{types}>(api_apiserver_id)"
+    body = _function_body(main_cpp, function)
+    assert "->trigger(" not in body
+    assert "return_response" not in body
+    assert body.index("RESPOND_ONLY %s") < body.index('root["name"] = name;')
+    assert "(call_id, name, root);" in body
+    assert body.index("esphome__json.size());") < body.index(UNREGISTER)
+
+
+def test_respond_status_lambdas(generate_main) -> None:
+    """Lambdas for the status and the error text are bound before the response is sent."""
+    main_cpp = generate_main(CONFIG)
+    function = _service_function(main_cpp, "respond_error_lambda", STATUS)
+    body = _function_body(main_cpp, function)
+    send = (
+        "::api_apiserver_id->send_action_response(call_id, esphome__success, "
+        "StringRef(esphome__error_message));"
     )
-    assert f"{respond}->set_is_optional_mode" not in main_cpp
-    _assert_unregister_after(main_cpp, automation, types)
+    assert body.index("const bool esphome__success = ") < body.index(send)
+    assert body.index("const std::string esphome__error_message = ") < body.index(send)
+    assert "esphome__json" not in body
+
+
+def test_respond_constant_error(generate_main) -> None:
+    """A constant error text is a literal, with no string copy."""
+    main_cpp = generate_main(CONFIG)
+    function = _service_function(main_cpp, "respond_error_constant", STATUS)
+    body = _function_body(main_cpp, function)
+    assert (
+        '::api_apiserver_id->send_action_response(call_id, false, StringRef::from_lit("not ready"));'
+        in body
+    )
 
 
 def test_unregister_merges_with_trailing_inline_actions(generate_main) -> None:
@@ -210,8 +225,11 @@ def test_unregister_merges_with_trailing_inline_actions(generate_main) -> None:
     main_cpp = generate_main(CONFIG)
     function = _service_function(main_cpp, "respond_then_log", STATUS)
     automation = _triggered_automation(main_cpp, function, "call_id")
-    respond, log = _actions_of(main_cpp, automation)
-    assert _action_class(main_cpp, respond) == "api::APIRespondAction"
+    respond, delay, log = _actions_of(main_cpp, automation)
+    assert "send_action_response(call_id, true, StringRef());" in _action_code(
+        main_cpp, respond
+    )
+    assert _action_class(main_cpp, delay) == "DelayAction"
     body = _action_code(main_cpp, log)
     assert body.index("RESPONDED") < body.index("if (!esphome__running)")
     assert body.endswith(f"{UNREGISTER}\n  }}")
@@ -285,6 +303,8 @@ def test_services_registered_in_order(generate_main) -> None:
         "respond_only",
         "manual_trigger_id",
         "respond_then_log",
+        "respond_error_lambda",
+        "respond_error_constant",
         "status_inline",
         "self_reference",
         "respond_named",

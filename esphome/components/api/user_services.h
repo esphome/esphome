@@ -1,7 +1,6 @@
 #pragma once
 
 #include <span>
-#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -197,75 +196,7 @@ class UserServiceCallback final : public UserServiceBase<Ts...> {
 #endif  // USE_API_USER_DEFINED_ACTIONS
 
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
-// Include full definition of APIServer for template implementation
+// Full definition of APIServer for the generated api.respond code.
 // Must be outside namespace to avoid including STL headers inside namespace
 #include "api_server.h"
-
-namespace esphome::api {
-
-template<typename... Ts> class APIRespondAction final : public Action<Ts...> {
- public:
-  explicit APIRespondAction(APIServer *parent) : parent_(parent) {}
-
-  template<typename V> void set_success(V success) { this->success_ = success; }
-  template<typename V> void set_error_message(V error) { this->error_message_ = error; }
-  void set_is_optional_mode(bool is_optional) { this->is_optional_mode_ = is_optional; }
-
-#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
-  void set_data(std::function<void(Ts..., JsonObject)> &&func) {
-    this->json_builder_ = std::move(func);
-    this->has_data_ = true;
-  }
-#endif
-
-  void play(const Ts &...x) override {
-    // Extract call_id from first argument - it's always first for optional/only/status modes.
-    // By reference: array args are non-copyable FixedVector views.
-    auto args = std::forward_as_tuple(x...);
-    uint32_t call_id = std::get<0>(args);
-
-    bool success = this->success_.value(x...);
-    std::string error_message = this->error_message_.value(x...);
-
-#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
-    if (this->has_data_) {
-      // For optional mode, check return_response (second arg) to decide if client wants data
-      // Use nested if constexpr to avoid compile error when tuple doesn't have enough elements
-      // (std::tuple_element_t is evaluated before the && short-circuit, so we must nest)
-      if constexpr (sizeof...(Ts) >= 2) {
-        if constexpr (std::is_same_v<std::tuple_element_t<1, std::tuple<Ts...>>, bool>) {
-          if (this->is_optional_mode_) {
-            bool return_response = std::get<1>(args);
-            if (!return_response) {
-              // Client doesn't want response data, just send success/error
-              this->parent_->send_action_response(call_id, success, StringRef(error_message));
-              return;
-            }
-          }
-        }
-      }
-      // Build and send JSON response
-      json::JsonBuilder builder;
-      this->json_builder_(x..., builder.root());
-      auto json_buf = builder.serialize();
-      this->parent_->send_action_response(call_id, success, StringRef(error_message),
-                                          reinterpret_cast<const uint8_t *>(json_buf.data()), json_buf.size());
-      return;
-    }
-#endif
-    this->parent_->send_action_response(call_id, success, StringRef(error_message));
-  }
-
- protected:
-  APIServer *parent_;
-  TemplatableFn<bool, Ts...> success_{[](Ts...) -> bool { return true; }};
-  TemplatableValue<std::string, Ts...> error_message_{""};
-#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
-  std::function<void(Ts..., JsonObject)> json_builder_;
-  bool has_data_{false};
-#endif
-  bool is_optional_mode_{false};
-};
-
-}  // namespace esphome::api
 #endif  // USE_API_USER_DEFINED_ACTION_RESPONSES
