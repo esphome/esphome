@@ -3,6 +3,7 @@
 #pragma once
 #include <esp_gattc_api.h>
 #include <esp_gap_ble_api.h>
+#include <cstring>
 #include <vector>
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
@@ -27,7 +28,7 @@ static esp_ble_addr_type_t atype[3] = {BLE_ADDR_TYPE_PUBLIC, BLE_ADDR_TYPE_PUBLI
 static bool seen[3];
 static uint32_t adv_n;
 // notify soak
-static uint32_t tk_last, tk_rx, tk_gaps, tk_missing, tk_missing_drop;
+static uint32_t tk_last, tk_rx, tk_gaps, tk_missing, tk_missing_drop, tk_back;
 static bool tk_have, tk_count, tk_resumed;
 
 inline void on_adv(const espbt::ESPBTDevice &d) {
@@ -43,6 +44,8 @@ inline void on_tick(uint32_t v) {
   if (!tk_count)
     return;
   tk_rx++;
+  if (tk_have && v < tk_last)
+    tk_back++;  // the server restarted or the order broke
   if (tk_have && v > tk_last + 1) {
     if (tk_resumed) {
       tk_missing_drop += v - tk_last - 1;  // sent while the link was down
@@ -184,6 +187,30 @@ inline bool wait_idle(uint8_t p, uint32_t now) {
   return false;
 }
 
+// after a discovery: the ff01 handle from the substitutions must be the ff01 characteristic of this server
+inline void check_handle(uint8_t p) {
+  static bool done[2];
+  if (p > PM || done[p])
+    return;
+  done[p] = true;
+  // 5ec2ff01-0000-1000-8000-00805f9b34fb, least significant byte first
+  esp_bt_uuid_t u{};
+  u.len = ESP_UUID_LEN_128;
+  static constexpr uint8_t FF01_UUID[16] = {0xfb, 0x34, 0x9b, 0x5f, 0x80, 0x00, 0x00, 0x80,
+                                            0x00, 0x10, 0x00, 0x00, 0x01, 0xff, 0xc2, 0x5e};
+  memcpy(u.uuid.uuid128, FF01_UUID, 16);
+  esp_gattc_char_elem_t el{};
+  uint16_t n = 1;
+  esp_gatt_status_t ret =
+      esp_ble_gattc_get_char_by_uuid(C[p]->get_gattc_if(), C[p]->get_conn_id(), 1, 0xFFFF, u, &el, &n);
+  if (ret != ESP_GATT_OK || n == 0 || el.char_handle != FF01[p]) {
+    ESP_LOGW(TAG, "ST handle_mismatch %s handle_%s=%u server_ff01=%u (ret=%d): RTTs use another characteristic",
+             PNAME[p], p == PL ? "l" : "m", FF01[p], n ? el.char_handle : 0, ret);
+  } else {
+    ESP_LOGI(TAG, "ST handle_ok %s ff01=%u", PNAME[p], FF01[p]);
+  }
+}
+
 // one RTT op on peer p; returns true when all 10 are done
 inline bool rtt_step(uint8_t p) {
   Rtt *r = RT[p];
@@ -248,6 +275,18 @@ inline int attempt(uint8_t p, uint32_t budget) {
 inline void tick() {
   if (st == -1) {
     // wait for the three peers to be seen (the Eve Flare may take a while) and the boot to settle
+    static uint32_t t_log = 0;
+    if (millis() - t_log > 30000) {
+      t_log = millis();
+      ESP_LOGI(TAG, "ST waiting seen L=%d M=%d eve=%d", seen[PL], seen[PM], seen[PE]);
+    }
+    if (millis() - t_ph > 600000 && !(seen[PL] && seen[PM])) {
+      // wrong mac_l/mac_m substitutions or a server that is off: nothing can run
+      ESP_LOGW(TAG, "ST not_seen L=%d M=%d, nothing run", seen[PL], seen[PM]);
+      ph = sizeof(PHASES) / sizeof(PHASES[0]) - 1;
+      st = 0;
+      return;
+    }
     if (millis() - t_ph > 20000 && seen[PL] && seen[PM] && (seen[PE] || millis() - t_ph > 180000)) {
       ESP_LOGI(TAG, "ST ready seen L=%d M=%d eve=%d eve_type=%d", seen[PL], seen[PM], seen[PE], atype[PE]);
       st = 0;
@@ -319,6 +358,8 @@ inline void tick() {
         if (r == 1 && P.k == K_EVE) {
           st = 7;
         } else if (r == 1) {
+          if (P.cold)
+            check_handle(p);
           ok_n++;
           rtt_i = 0;
           rd_sum = wr_sum = 0;
@@ -360,15 +401,22 @@ inline void tick() {
         Rtt *rt = RT[p];
         rt->ok = false;
         rt->t0 = now;
+        rt->done_ms = 0;
         rt->pending = 1;
-        if (hnd == 0 ||
-            esp_ble_gattc_read_char(C[p]->get_gattc_if(), C[p]->get_conn_id(), hnd, ESP_GATT_AUTH_REQ_NONE) != ESP_OK)
+        esp_err_t err =
+            hnd == 0 ? ESP_FAIL
+                     : esp_ble_gattc_read_char(C[p]->get_gattc_if(), C[p]->get_conn_id(), hnd, ESP_GATT_AUTH_REQ_NONE);
+        if (err != ESP_OK) {
           rt->pending = 0;
+          ESP_LOGI(TAG, "ST eve read r=%u failed: %s %d", rnd, hnd == 0 ? "no_readable_char" : "read_err", err);
+        }
         st = 8;
       } else if (st == 8) {
         Rtt *rt = RT[p];
         if (rt->pending && up(p) && now - rt->t0 < 10000)
           break;
+        if (rt->pending)
+          ESP_LOGI(TAG, "ST eve read r=%u failed: %s", rnd, up(p) ? "timeout" : "link_lost");
         rt->pending = 0;
         if (rt->ok)
           ok_n++;
@@ -521,7 +569,7 @@ inline void tick() {
     case K_NOTIFY: {
       // V1 connect so the ble_client sensor finds the tick characteristic and subscribes
       if (st == 0) {
-        tk_rx = tk_gaps = tk_missing = tk_missing_drop = 0;
+        tk_rx = tk_gaps = tk_missing = tk_missing_drop = tk_back = 0;
         tk_have = tk_resumed = false;
         tk_count = true;
         st = 1;
@@ -544,8 +592,9 @@ inline void tick() {
       }
       if (now - t_ph >= 60000u * (rnd + 1)) {
         rnd++;
-        ESP_LOGI(TAG, "ST notify min=%u rx=%u gaps=%u missing=%u drops=%u missing_drop=%u", rnd, (unsigned) tk_rx,
-                 (unsigned) tk_gaps, (unsigned) tk_missing, fail_n, (unsigned) tk_missing_drop);
+        ESP_LOGI(TAG, "ST notify min=%u rx=%u gaps=%u missing=%u drops=%u missing_drop=%u backwards=%u", rnd,
+                 (unsigned) tk_rx, (unsigned) tk_gaps, (unsigned) tk_missing, fail_n, (unsigned) tk_missing_drop,
+                 (unsigned) tk_back);
         if (rnd * 60 >= P.n) {
           tk_count = false;
           drop(PL);

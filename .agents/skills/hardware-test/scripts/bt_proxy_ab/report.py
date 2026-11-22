@@ -29,6 +29,10 @@ for ln in (
     m = re.match(r"\[(\d\d:\d\d:\d\d(?:\.\d+)?)\]", ln)
     if m:
         lines.append((sec(m[1]), ln.rstrip("\n")))
+if not lines:
+    sys.exit(
+        f"no time stamped lines in cap-{T}.txt (capture with --ms or apilogcap.py)"
+    )
 lines = list(zip(unwrap([t for t, _ in lines]), [ln for _, ln in lines], strict=True))
 
 # device attempts
@@ -211,6 +215,7 @@ for s in steps:
                             "gaps",
                             "missing",
                             "missing_drop",
+                            "backwards",
                             "dups",
                             "reconnects",
                         )
@@ -284,4 +289,4 @@ try:
         f"ping {len(ok)}/{len(p)} answered ({100 * len(ok) / max(len(p), 1):.0f}%), median {med(ok)} ms, p90 {p90(ok)} ms"
     )
 except FileNotFoundError:
-    pass
+    print(f"no ping-{T}.txt, ping not measured")

@@ -29,6 +29,10 @@ for ln in (
     m = re.match(r"\[(\d\d:\d\d:\d\d\.\d+)\]", ln)
     if m:
         L.append((sec(m[1]), ln.rstrip()))
+if not L:
+    sys.exit(
+        "no lines with millisecond time stamps (capture with serial_capture.py --ms)"
+    )
 L = list(zip(unwrap([t for t, _ in L]), [ln for _, ln in L], strict=True))
 phase, ph = None, defaultdict(list)
 for t, ln in L:
@@ -125,8 +129,9 @@ for name, lines in ph.items():
             d["third ok t_ms"] = med([int(t) for r, t, *_ in th if r == "1"])
             d["held both"] = sum(a == "1" and b == "1" for *_, a, b in th)
         d["held_failed"] = txt.count("held_failed") or None
+        d["hold_failed"] = txt.count("hold_failed") or None  # h1 or h2 never settled
         nt = re.findall(
-            r"ST notify min=(\d+) rx=(\d+) gaps=(\d+) missing=(\d+) drops=(\d+)(?: missing_drop=(\d+))?",
+            r"ST notify min=(\d+) rx=(\d+) gaps=(\d+) missing=(\d+) drops=(\d+)(?: missing_drop=(\d+))?(?: backwards=(\d+))?",
             txt,
         )
         if nt:

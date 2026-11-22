@@ -4,7 +4,8 @@ drive.py HOST adv OUT SECONDS              adverts per second, active then passi
 drive.py HOST disc OUT PEER ROUNDS MODE    MODE free (cold, 60 s budget, RTTs), retry (cold, 10 s budget, 5 attempts),
                                            cached (has_cache, 30 s budget, RTTs)
 drive.py HOST third OUT ROUNDS VARIANT     VARIANT eve: hold L+M (cached), connect Eve cold;
-                                           pd: hold L (cached) + fresh Eve (cached), connect M cold
+                                           pd: hold L (cached) + fresh Eve (cached), connect M cold;
+                                           L: hold M (cached) + fresh Eve (cached), connect L cold
 drive.py HOST notify OUT SECONDS           hold L (cached), subscribe the 200 ms tick, count gaps and drops
 drive.py HOST churn OUT CYCLES             cached connect/disconnect alternating L and M, slot accounting
 drive.py HOST eve OUT ROUNDS               Eve Flare alone, cold, read as first command
@@ -168,7 +169,10 @@ class D:
         try:
             await asyncio.wait_for(self.cli.bluetooth_device_disconnect(addr), 15)
         except Exception as e:  # noqa: BLE001
-            print(f"disconnect {name}: {e}", flush=True)
+            # the proxy may still hold the slot; later slot errors are not the build's
+            self.rec(
+                result="disconnect_failed", name=name, exc=f"{type(e).__name__}: {e}"
+            )
         if st and st.get("cancel"):
             st["cancel"]()
 
@@ -303,6 +307,16 @@ class D:
 
 
 async def main() -> None:
+    # a typo must not run some other scenario
+    nargs = {"adv": 5, "disc": 7, "third": 6, "notify": 5, "churn": 5, "eve": 5}
+    a = sys.argv
+    if (
+        len(a) < 3
+        or nargs.get(a[2]) != len(a)
+        or (a[2] == "disc" and a[6] not in ("free", "retry", "cached"))
+        or (a[2] == "third" and a[5] not in ("eve", "pd", "L"))
+    ):
+        sys.exit(__doc__)
     host, cmd, out = sys.argv[1], sys.argv[2], sys.argv[3]
     lost_api = asyncio.Event()
 
@@ -443,6 +457,7 @@ async def main() -> None:
             "drops": [],
             "reconnects": 0,
             "missing_drop": 0,
+            "backwards": 0,
         }
         tick = find_chr(None, FF03, L)
         if tick is None or tick.cccd is None:
@@ -463,6 +478,8 @@ async def main() -> None:
                 elif v > last[0] + 1:
                     stats["gaps"] += 1
                     stats["missing"] += v - last[0] - 1
+                elif v < last[0]:  # the server restarted or the order broke
+                    stats["backwards"] += 1
             last[0] = v
             resumed[0] = False
 

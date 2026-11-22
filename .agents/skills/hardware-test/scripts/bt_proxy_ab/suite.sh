@@ -74,6 +74,9 @@ for s in $STEPS; do
     *) mark "unknown step $s"; incomplete="$incomplete $s" ;;
   esac
 done
+for w in cap ping; do  # one that died during the run leaves the report short
+  kill -0 "$(cat "$w-$T.pid")" 2> /dev/null || incomplete="$incomplete $w"
+done
 kill "$(cat "ping-$T.pid")" "$(cat "cap-$T.pid")" 2>/dev/null
 if [ -n "$incomplete" ]; then mark "suite incomplete:$incomplete"; exit 1; fi
 mark "suite done"

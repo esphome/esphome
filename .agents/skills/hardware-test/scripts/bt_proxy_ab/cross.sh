@@ -17,17 +17,20 @@ for _ in $(seq "${6:-2}"); do
   for W in a b; do
     i=$((i + 1)); T=x$i$W; TR=$TA; [ $W = b ] && TR=$TB
     TREE=$TR ../pio_build.sh upload "$N-$W" "$Y" "$PORT" > /dev/null || { echo "$T flash failed"; fail=1; continue; }
-    $PY ../serial_capture.py "$PORT" 700 "cap-$T.txt" --ms > /dev/null 2>&1 &
+    $PY ../serial_capture.py "$PORT" 700 "cap-$T.txt" --ms > /dev/null 2> "cap-$T.err" &
     CP=$!
+    sleep 2; kill -0 $CP 2> /dev/null || { echo "$T capture did not start, see cap-$T.err"; fail=1; continue; }
     IP=$(../resolve.sh "$N-$W" 60) || { echo "$T did not resolve"; fail=1; kill $CP; continue; }
     echo "$(date +%T) $T at $IP"
     sleep 20
-    $PY ../ble_conn_interval/pinger.py "$IP" 240 "ping-$T-idle.txt"
+    $PY ../ble_conn_interval/pinger.py "$IP" 240 "ping-$T-idle.txt" || { echo "$T idle pinger failed"; fail=1; }
     $PY ../ble_conn_interval/pinger.py "$IP" 300 "ping-$T-adv.txt" &
     PP=$!
     timeout 400 $PY drive.py "$IP" adv "$T-adv.jsonl" 120 > "$T-adv.err" 2>&1; rc=$?
     echo "$(date +%T) $T adv rc=$rc"; [ $rc = 0 ] || fail=1
-    wait $PP; kill $CP 2>/dev/null
+    wait $PP || { echo "$T advert pinger failed"; fail=1; }
+    kill -0 $CP 2> /dev/null || { echo "$T capture ended early, see cap-$T.err"; fail=1; }
+    kill $CP 2>/dev/null
   done
 done
 echo ALLDONE fail=$fail
