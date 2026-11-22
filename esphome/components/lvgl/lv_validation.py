@@ -38,7 +38,6 @@ from .defines import (
     get_lv_fonts_used,
     get_lv_images_used,
     literal,
-    next_text_buffer_name,
 )
 from .helpers import CONF_IF_NAN
 from .types import lv_coord_t, lv_gradient_t, lv_opa_t
@@ -315,72 +314,6 @@ lv_milliseconds = LValidator(
 )
 
 
-# Groups: flags, width, precision, length, conversion
-_PRINTF_SPEC = re.compile(
-    r"%([-+ #0]*)(\d*)(?:\.(\d*))?(hh|h|ll|l|j|z|t)?(.)", re.DOTALL
-)
-# Longest 32-bit and 64-bit output of each integer conversion, with the sign of a signed value
-_INT_DIGITS = {
-    "d": (11, 20),
-    "i": (11, 20),
-    "u": (10, 20),
-    "x": (8, 16),
-    "X": (8, 16),
-    "o": (11, 22),
-}
-# Above this a format text is built on the heap rather than on the stack
-MAX_FORMAT_BUFFER = 256
-
-
-def format_buffer_size(fmt: str) -> int | None:
-    """The buffer size that holds any output of ``fmt``, or None when it has no bound.
-
-    Floats are bounded for a float argument: a sign, 39 integer digits, the point and the precision.
-    ``l`` counts as 64-bit for the host build.
-    """
-    total = 1
-    for match in _PRINTF_SPEC.finditer(fmt):
-        flags, width, precision, length, conv = match.groups()
-        prec = None if precision is None else int(precision or 0)
-        if conv == "%" and not (flags or width or precision is not None or length):
-            out = 1
-        elif conv in _INT_DIGITS:
-            digits = _INT_DIGITS[conv][length in ("l", "ll", "j", "z", "t")]
-            # A precision adds leading zeros, '#' a 0x or 0 prefix
-            out = max(digits, (prec or 0) + 1) + ("#" in flags) * 2
-        elif conv == "c" and length is None:
-            out = 1
-        elif conv in "fF" and length is None:
-            prec = 6 if prec is None else prec
-            out = 1 + 39 + (1 + prec if prec or "#" in flags else 0)
-        elif conv in "eEgG" and length is None:
-            # Sign, digit, point, precision digits and an exponent such as e+038
-            out = 1 + 1 + 1 + (6 if prec is None else max(prec, 1)) + 5
-        else:
-            return None
-        total += max(out, int(width or 0))
-    literal_text = _PRINTF_SPEC.sub("", fmt)
-    # A stray '%' is not a conversion this can bound
-    if "%" in literal_text:
-        return None
-    total += len(literal_text.encode())
-    return total if total <= MAX_FORMAT_BUFFER else None
-
-
-def _format_buffer(format_str: str, buf_size: int, arg_expr: Expression) -> MockObj:
-    """Format into a stack buffer declared in the current code context and return the buffer."""
-    from .lvcode import lv_add
-
-    buf = MockObj(next_text_buffer_name())
-    lv_add(cg.RawStatement(f"char {buf}[{buf_size}];"))
-    lv_add(
-        MockObj("snprintf")(
-            buf, MockObj(f"sizeof({buf})"), cg.RawExpression(format_str), arg_expr
-        )
-    )
-    return buf
-
-
 class TextValidator(LValidator):
     def __init__(self):
         super().__init__(cv.string, cg.std_string, lambda s: cg.safe_exp(f"{s}"))
@@ -397,25 +330,23 @@ class TextValidator(LValidator):
         raw_lambda: bool = False,
     ) -> Expression:
         # Local import to avoid circular import at module level
-        from .lvcode import CodeContext, get_lambda_context_args
+        from .lvcode import get_lambda_context_args
 
         args = args or get_lambda_context_args()
 
         if isinstance(value, dict):
-            if fmt := value.get(CONF_FORMAT):
+            if format_str := value.get(CONF_FORMAT):
                 str_args = [str(x) for x in value[CONF_ARGS]]
                 arg_expr = cg.RawExpression(",".join(str_args))
-                format_str = cpp_string_escape(fmt)
-                buf_size = format_buffer_size(fmt)
-                if buf_size is not None and CodeContext.code_context is not None:
-                    text = _format_buffer(format_str, buf_size, arg_expr)
-                else:
-                    # A format without a size bound, or no code block to declare a buffer in
-                    text = literal(f"str_sprintf({format_str}, {arg_expr}).c_str()")
+                format_str = cpp_string_escape(format_str)
+                # str_sprintf justified: user-defined format, can't optimize without permanent RAM cost
+                sprintf_str = f"str_sprintf({format_str}, {arg_expr}).c_str()"
                 if nanval := value.get(CONF_IF_NAN):
                     nanval = cpp_string_escape(nanval)
-                    return literal(f"(std::isfinite({arg_expr}) ? {text} : {nanval})")
-                return text
+                    return literal(
+                        f"(std::isfinite({arg_expr}) ? {sprintf_str} : {nanval})"
+                    )
+                return literal(sprintf_str)
             if mapping_id := value.get(CONF_MAPPING):
                 mapping_var = await _mapping_var(mapping_id)
                 metadata = get_mapping_metadata(mapping_id.id)

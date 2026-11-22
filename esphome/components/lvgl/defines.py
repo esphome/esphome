@@ -38,7 +38,6 @@ KEY_WARNINGS = "warnings"
 KEY_WIDGET_MAP = "widget_map"
 KEY_WIDGET_THEME_STYLES = "widget_theme_styles"
 KEY_DEBUG_OUTLINE_COUNT = "debug_outline_count"
-KEY_TEXT_BUFFER_COUNT = "text_buffer_count"
 
 # Colours for the debug outline, in (red, green, blue) order. They are picked to stay
 # distinct from each other and to show up on both light and dark backgrounds.
@@ -180,13 +179,6 @@ def get_menu_set_page_actions() -> list:
 
 def get_list_triggers() -> dict:
     return _get_data(KEY_LIST_TRIGGERS, {})
-
-
-def next_text_buffer_name() -> str:
-    """A name for a local text buffer that no other buffer in the generated code uses."""
-    count = _get_data(KEY_TEXT_BUFFER_COUNT, [0])
-    count[0] += 1
-    return f"text_buf_{count[0]}"
 
 
 def add_define(macro: str, value="1"):

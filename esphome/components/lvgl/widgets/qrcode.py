@@ -1,7 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_SIZE, CONF_TEXT
-from esphome.cpp_generator import MockObj
 
 from ..defines import CONF_MAIN
 from ..lv_validation import color, lv_color, lv_int, lv_text
@@ -58,10 +57,6 @@ class QrCodeType(WidgetType):
                 lv.qrcode_update(w.obj, value, len(value))
                 return
             value = await lv_text.process(value)
-            # A format buffer or a literal needs no std::string to get its length
-            if ".c_str()" not in str(value):
-                lv.qrcode_update(w.obj, value, MockObj("strlen")(value))
-                return
             with LocalVariable("qr_text", cg.std_string, value, modifier="") as str_obj:
                 lv.qrcode_update(w.obj, str_obj.c_str(), str_obj.size())
 
