@@ -12,9 +12,11 @@ from . import (
     CONF_VALUES,
     CONFIG_SCHEMA_BASE,
     TT_TYPE_OPTIONS,
+    TYPE_RANGES,
     TopTronicComponent,
-    _request_option,
+    _request_input,
     _validate_options_values_lengths,
+    _value_array,
     toptronic,
 )
 
@@ -22,19 +24,18 @@ TopTronicSelect = toptronic.class_(
     "TopTronicSelect", select.Select, cg.PollingComponent
 )
 
-# 'values' is written with the configured type, so it has to fit that type's range
-TYPE_MAX_VALUE = {"U8": 255, "S8": 127}
-
 
 def _validate_values_fit_type(config: ConfigType) -> ConfigType:
     """Reject an option value the configured type cannot carry."""
-    if (max_value := TYPE_MAX_VALUE.get(config[CONF_TYPE])) is None:
-        return config
+    type_name = str(config[CONF_TYPE])
+    low, high = TYPE_RANGES[type_name]
     for value in config[CONF_VALUES]:
-        if value > max_value:
+        if not low <= value <= high:
             raise cv.Invalid(
-                f"value {value} does not fit type {config[CONF_TYPE]}, whose maximum is {max_value}"
+                f"value {value} does not fit type {type_name}, whose range is {low}..{high}"
             )
+    if len(set(config[CONF_OPTIONS])) != len(config[CONF_OPTIONS]):
+        raise cv.Invalid("'options' must be unique for a select")
     return config
 
 
@@ -69,8 +70,7 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_datapoint(config[CONF_DATAPOINT]))
     cg.add(var.set_type(config[CONF_TYPE]))
 
-    for value, text in zip(config[CONF_VALUES], config[CONF_OPTIONS], strict=True):
-        _request_option(str(var))
-        cg.add(var.add_option(value, text))
-
+    values = _value_array(config[CONF_ID], config[CONF_VALUES])
+    cg.add(var.set_values(values, len(config[CONF_VALUES])))
+    _request_input(str(tt))
     cg.add(tt.add_input(var))

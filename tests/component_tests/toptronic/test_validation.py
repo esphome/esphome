@@ -17,6 +17,8 @@ from esphome.components.toptronic import (
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_OPTIONS, CONF_TYPE, PlatformFramework
 from esphome.core import ID
+from esphome.types import ConfigType
+from tests.component_tests.types import SetCoreConfigCallable
 
 HUB = "tt_hub"
 COORDS = {
@@ -28,12 +30,14 @@ COORDS = {
 HUB_CONFIG = {CONF_ID: ID(HUB), CONF_DEVICE_TYPE: "HV"}
 
 
-def _entity(**extra: object) -> dict:
+def _entity(**extra: object) -> ConfigType:
     """A hand-written entity config as it appears in the validated config tree."""
     return {"platform": "toptronic", **COORDS, **extra}
 
 
-def test_two_read_entities_on_one_datapoint_are_rejected(set_core_config) -> None:
+def test_two_read_entities_on_one_datapoint_are_rejected(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
     """The second entity would never be polled, so it has to fail at config time."""
     set_core_config(
         PlatformFramework.ESP32_IDF,
@@ -43,7 +47,9 @@ def test_two_read_entities_on_one_datapoint_are_rejected(set_core_config) -> Non
         _final_validate(HUB_CONFIG)
 
 
-def test_number_and_sensor_on_one_datapoint_are_allowed(set_core_config) -> None:
+def test_number_and_sensor_on_one_datapoint_are_allowed(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
     """A write entity takes its state from the read entity, so sharing the key is the normal case."""
     set_core_config(
         PlatformFramework.ESP32_IDF,
@@ -52,7 +58,9 @@ def test_number_and_sensor_on_one_datapoint_are_allowed(set_core_config) -> None
     _final_validate(HUB_CONFIG)
 
 
-def test_select_paired_with_a_numeric_sensor_is_rejected(set_core_config) -> None:
+def test_select_paired_with_a_numeric_sensor_is_rejected(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
     """The hub would cast the select to a number, which is undefined behaviour."""
     set_core_config(
         PlatformFramework.ESP32_IDF,
@@ -62,7 +70,9 @@ def test_select_paired_with_a_numeric_sensor_is_rejected(set_core_config) -> Non
         _final_validate(HUB_CONFIG)
 
 
-def test_preset_entity_counts_as_the_read_entity(set_core_config) -> None:
+def test_preset_entity_counts_as_the_read_entity(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
     """HV ships a preset sensor on 50/0/40651; a second sensor on that key is a duplicate."""
     set_core_config(
         PlatformFramework.ESP32_IDF,
@@ -156,3 +166,82 @@ def test_number_range_and_step_are_raw_units() -> None:
     assert config["min_value"] == 100
     assert config["max_value"] == 300
     assert config["step"] == 5
+
+
+NUMBER = {"type": "U16", "min_value": 0, "max_value": 100, "step": 1}
+
+
+def test_two_writers_on_one_datapoint_are_rejected(set_core_config) -> None:
+    """The hub keys inputs by datapoint, so the second writer would be dropped."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        full_config={"number": [_entity(**NUMBER), _entity(**NUMBER)]},
+    )
+    with pytest.raises(cv.Invalid, match="already written"):
+        _final_validate(HUB_CONFIG)
+
+
+def test_linked_number_and_sensor_must_share_the_wire_type(set_core_config) -> None:
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        full_config={
+            "sensor": [_entity(type="U16")],
+            "number": [_entity(**{**NUMBER, "type": "S16"})],
+        },
+    )
+    with pytest.raises(cv.Invalid, match="wire types must match"):
+        _final_validate(HUB_CONFIG)
+
+
+def test_linked_select_and_text_sensor_must_share_the_mapping(set_core_config) -> None:
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        full_config={
+            "text_sensor": [_entity(options=["Off", "On"], values=[0, 1])],
+            "select": [_entity(options=["Low", "High"], values=[0, 1])],
+        },
+    )
+    with pytest.raises(cv.Invalid, match="mapping differs"):
+        _final_validate(HUB_CONFIG)
+
+
+def test_number_bounds_must_fit_the_wire_type() -> None:
+    with pytest.raises(cv.Invalid, match="must fit type U8"):
+        tt_number.CONFIG_SCHEMA(
+            {
+                "name": "Setpoint",
+                **COORDS,
+                **NUMBER,
+                CONF_TYPE: "U8",
+                "max_value": 1000,
+            }
+        )
+
+
+def test_number_step_must_be_positive() -> None:
+    with pytest.raises(cv.Invalid):
+        tt_number.CONFIG_SCHEMA({"name": "Setpoint", **COORDS, **NUMBER, "step": 0})
+
+
+def test_duplicate_option_values_are_rejected() -> None:
+    with pytest.raises(cv.Invalid, match="'values' must be unique"):
+        tt_select.CONFIG_SCHEMA(
+            {
+                "name": "Choice",
+                **COORDS,
+                CONF_OPTIONS: ["Off", "On"],
+                CONF_VALUES: [1, 1],
+            }
+        )
+
+
+def test_duplicate_select_labels_are_rejected() -> None:
+    with pytest.raises(cv.Invalid, match="must be unique for a select"):
+        tt_select.CONFIG_SCHEMA(
+            {
+                "name": "Choice",
+                **COORDS,
+                CONF_OPTIONS: ["Off", "Off"],
+                CONF_VALUES: [0, 1],
+            }
+        )

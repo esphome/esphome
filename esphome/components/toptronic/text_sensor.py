@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import text_sensor
 import esphome.config_validation as cv
-from esphome.const import CONF_OPTIONS
+from esphome.const import CONF_ID, CONF_OPTIONS
 from esphome.types import ConfigType
 
 from . import (
@@ -11,7 +11,8 @@ from . import (
     CONF_TOPTRONIC_ID,
     CONF_VALUES,
     TopTronicComponent,
-    _request_option,
+    _option_array,
+    _request_sensor,
     _validate_options_values_lengths,
     config_schema_polling,
     toptronic,
@@ -50,8 +51,7 @@ async def to_code(config: ConfigType) -> None:
     cg.add(sens.set_function_number(config[CONF_FUNCTION_NUMBER]))
     cg.add(sens.set_datapoint(config[CONF_DATAPOINT]))
 
-    for value, text in zip(config[CONF_VALUES], config[CONF_OPTIONS], strict=True):
-        _request_option(str(sens))
-        cg.add(sens.add_option(value, text))
-
+    options = _option_array(config[CONF_ID], config[CONF_VALUES], config[CONF_OPTIONS])
+    cg.add(sens.set_options(options, len(config[CONF_VALUES])))
+    _request_sensor(str(tt))
     cg.add(tt.add_sensor(sens))

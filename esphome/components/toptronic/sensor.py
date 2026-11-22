@@ -11,6 +11,7 @@ from . import (
     CONF_TOPTRONIC_ID,
     TT_TYPE_OPTIONS,
     TopTronicComponent,
+    _request_sensor,
     config_schema_polling,
     toptronic,
 )
@@ -43,4 +44,5 @@ async def to_code(config: ConfigType) -> None:
     cg.add(sens.set_datapoint(config[CONF_DATAPOINT]))
     cg.add(sens.set_type(config[CONF_TYPE]))
 
+    _request_sensor(str(tt))
     cg.add(tt.add_sensor(sens))

@@ -110,6 +110,9 @@ class TopTronicTest : public ::testing::Test {
 
 const std::vector<uint8_t> MESSAGE{0x42, 0x01, 0x02, 0x00, 0x10, 0xAA, 0xBB, 0xCC, 0xDD};
 
+const Option TEXT_OPTIONS[] = {{0, "Off"}, {1, "On"}};
+const uint8_t SELECT_VALUES[] = {0, 1};
+
 // Wire bytes of a two frame response in the order they appear on the bus. The CRC is a literal computed with a
 // standalone CRC-16/CCITT reference implementation (poly 0x1021, init 0xB006, reflected), so a wrong init value,
 // polynomial or byte order in the hub's own check cannot match itself here.
@@ -272,7 +275,8 @@ TEST_F(TopTronicTest, NumberSendsScaledSetRequestInOneFrame) {
   number.set_multiplier(10.0f);
   this->hub_.add_input(&number);
   this->hub_.register_input_callbacks();
-  number.control(21.5f);
+  // Not an exact multiple: 21.46 * 10 must still round to 215 (0xD7), not truncate
+  number.control(21.46f);
   ASSERT_EQ(this->bus_.sent.size(), 1u);
   const auto &frame = this->bus_.sent[0];
   EXPECT_TRUE(frame.use_extended_id);
@@ -311,8 +315,7 @@ TEST_F(TopTronicTest, ResponsePublishesTheMatchingTextOption) {
   sensor.set_function_group(0x01);
   sensor.set_function_number(0x02);
   sensor.set_datapoint(0x0010);
-  sensor.add_option(0, "Off");
-  sensor.add_option(1, "On");
+  sensor.set_options(TEXT_OPTIONS, 2);
   this->hub_.add_sensor(&sensor);
   this->hub_.interpret({0x42, 0x01, 0x02, 0x00, 0x10, 0x01});
   EXPECT_EQ(sensor.state, "On");
@@ -367,14 +370,67 @@ TEST_F(TopTronicTest, MismatchedLinkIsSkippedInsteadOfCast) {
   select.set_function_group(50);
   select.set_function_number(0);
   select.set_datapoint(40651);
-  select.add_option(0, "Off");
-  select.add_option(1, "On");
+  select.set_values(SELECT_VALUES, 2);
   this->hub_.add_sensor(&sensor);
   this->hub_.add_input(&select);
   // A select paired with a numeric sensor is rejected in config validation; the hub
   // must not downcast it if an external component still sets up that pairing.
   this->hub_.setup();
   EXPECT_FALSE(select.has_state());
+}
+#endif
+
+#ifdef USE_SELECT
+TEST_F(TopTronicTest, SelectSendsTheValueOfTheChosenOption) {
+  this->set_now_(1000);
+  TopTronicSelect select;
+  select.set_function_group(50);
+  select.set_function_number(0);
+  select.set_datapoint(40651);
+  select.set_type(TypeName::TYPE_NAME_U8);
+  select.set_values(SELECT_VALUES, 2);
+  select.traits.set_options({"Off", "On"});
+  this->hub_.add_input(&select);
+  this->hub_.setup();
+  select.make_call().set_index(1).perform();
+  ASSERT_EQ(this->bus_.sent.size(), 1u);
+  const auto &frame = this->bus_.sent[0];
+  EXPECT_EQ(std::vector<uint8_t>(frame.data, frame.data + frame.can_data_length_code),
+            (std::vector<uint8_t>{0x01, 0x46, 50, 0, 40651 >> 8, 40651 & 0xFF, 0x01}));
+}
+
+TEST_F(TopTronicTest, WriteOnlySelectPublishesTheChosenOption) {
+  TopTronicSelect select;
+  select.set_function_group(50);
+  select.set_function_number(0);
+  select.set_datapoint(40651);
+  select.set_values(SELECT_VALUES, 2);
+  select.traits.set_options({"Off", "On"});
+  this->hub_.add_input(&select);
+  this->hub_.setup();
+  select.make_call().set_index(1).perform();
+  ASSERT_TRUE(select.has_state());
+  EXPECT_EQ(select.state, "On");
+}
+
+TEST_F(TopTronicTest, LinkedSelectTakesItsStateFromTheTextSensor) {
+  TopTronicTextSensor sensor;
+  sensor.set_function_group(50);
+  sensor.set_function_number(0);
+  sensor.set_datapoint(40651);
+  sensor.set_options(TEXT_OPTIONS, 2);
+  TopTronicSelect select;
+  select.set_function_group(50);
+  select.set_function_number(0);
+  select.set_datapoint(40651);
+  select.set_values(SELECT_VALUES, 2);
+  select.traits.set_options({"Off", "On"});
+  this->hub_.add_sensor(&sensor);
+  this->hub_.add_input(&select);
+  this->hub_.setup();
+  this->hub_.interpret({0x42, 50, 0, 40651 >> 8, 40651 & 0xFF, 0x01});
+  ASSERT_TRUE(select.has_state());
+  EXPECT_EQ(select.state, "On");
 }
 #endif
 
