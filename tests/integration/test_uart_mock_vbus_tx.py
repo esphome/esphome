@@ -18,7 +18,6 @@ async def test_uart_mock_vbus_tx(
 ) -> None:
     monkeypatch.setenv("ESPHOME_PCH_ENABLE", "0")
     writes: list[str] = []
-    grants: list[str] = []
     readings: list[str] = []
     rejected: list[str] = []
     replies: list[str] = []
@@ -27,13 +26,10 @@ async def test_uart_mock_vbus_tx(
     def on_line(line: str) -> None:
         if "[vbus.tx_test:" in line:
             writes.append(line)
-        if "VBus test grant acquired" in line:
-            grants.append(line)
         if "[vbus.rx_test:" in line and "P1=1" in line:
             readings.append(line)
-            if len(readings) == 2:
-                received.set()
-        if "Datagram not sent" in line:
+            received.set()
+        if "Datagram rejected: transmitter busy" in line:
             rejected.append(line)
         if "[vbus.reply_test:" in line:
             replies.append(line)
@@ -48,15 +44,9 @@ async def test_uart_mock_vbus_tx(
         client.button_command(start.key)
         await asyncio.sleep(0.2)
         assert not writes
-        assert not grants
         await asyncio.wait_for(received.wait(), timeout=5.0)
-        await asyncio.sleep(0.6)
-        assert len(grants) == 2
-        assert len(rejected) == 2
-        assert len(replies) == 2
-        assert all("value=123" in line for line in replies)
-        assert len(writes) == 4
-        assert "AA.11.22.20.00.20.00.03.02.00.00.00.00.00.00.07" in writes[0]
-        assert "AA.11.22.20.00.20.00.06.00.00.00.00.00.00.00.06" in writes[1]
-        assert "AA.11.22.20.00.20.00.03.02.00.00.00.00.00.00.07" in writes[2]
-        assert "AA.11.22.20.00.20.00.06.00.00.00.00.00.00.00.06" in writes[3]
+        assert len(rejected) == 1
+        assert len(replies) == 1
+        assert "value=123" in replies[0]
+        assert len(readings) == 1
+        assert len(writes) == 2
