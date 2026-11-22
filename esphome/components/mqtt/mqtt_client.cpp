@@ -129,19 +129,16 @@ void MQTTClientComponent::setup() {
     // State first, so an automation that loop() runs for this reason is not overwritten
     if (this->state_ != MQTT_CLIENT_DISABLED)
       this->state_ = MQTT_CLIENT_DISCONNECTED;
-    this->disconnect_reason_ = reason;
+    this->disconnect_reason_ = static_cast<int8_t>(reason);
   });
-#ifndef USE_MQTT_SESSION_PERSISTENCE
-  // Only on_connect automations need it; they are added before setup()
-  if (!this->on_connect_.empty())
-#endif
-    this->mqtt_backend_.set_on_connect([this](bool session_present) {
-      this->session_present_ = session_present;
+  // Always set, so a callback added after setup() still sees whether the session was kept
+  this->mqtt_backend_.set_on_connect([this](bool session_present) {
+    this->session_present_ = session_present;
 #if defined(USE_MQTT_SESSION_PERSISTENCE) && !defined(USE_ESP32)
-      // AsyncMqttClient delivers CONNACK and SUBACK in the same context, so the counter has one writer
-      this->subacks_.reset();
+    // AsyncMqttClient delivers CONNACK and SUBACK in the same context, so the counter has one writer
+    this->subacks_.reset();
 #endif
-    });
+  });
 #ifdef USE_MQTT_SESSION_PERSISTENCE
 #ifndef USE_ESP32
   this->mqtt_backend_.set_on_subscribe([this](uint16_t, uint8_t return_code) { this->subacks_.add(return_code); });
@@ -372,7 +369,7 @@ void MQTTClientComponent::start_dnslookup_() {
       // The lookup never started, so there is no answer to wait for; loop() tries again in 5 seconds
       ESP_LOGW(TAG, "Error resolving broker IP address: %d", err);
       this->state_ = MQTT_CLIENT_DISCONNECTED;
-      this->disconnect_reason_ = MQTTClientDisconnectReason::DNS_RESOLVE_ERROR;
+      this->disconnect_reason_ = static_cast<int8_t>(MQTTClientDisconnectReason::DNS_RESOLVE_ERROR);
       this->connect_begin_ = millis();
       return;
     }
@@ -389,7 +386,7 @@ void MQTTClientComponent::check_dnslookup_() {
   if (this->dns_resolve_error_) {
     ESP_LOGW(TAG, "Couldn't resolve IP address for '%s'", this->credentials_.address.c_str());
     this->state_ = MQTT_CLIENT_DISCONNECTED;
-    this->disconnect_reason_ = MQTTClientDisconnectReason::DNS_RESOLVE_ERROR;
+    this->disconnect_reason_ = static_cast<int8_t>(MQTTClientDisconnectReason::DNS_RESOLVE_ERROR);
     return;
   }
 
@@ -503,14 +500,20 @@ void MQTTClientComponent::loop() {
   // Call the backend loop first
   mqtt_backend_.loop();
 
-  if (this->disconnect_reason_.has_value()) {
-    const LogString *reason_s = MQTTDisconnectReasonStrings::get_log_str(*this->disconnect_reason_);
+  if (this->disconnect_reason_ != NO_DISCONNECT) {
+    int8_t raw;
+    {
+      // Read and clear in one step; the backend may report another disconnect from its network task
+      InterruptLock lock;
+      raw = this->disconnect_reason_;
+      this->disconnect_reason_ = NO_DISCONNECT;
+    }
+    const auto reason = static_cast<MQTTClientDisconnectReason>(raw);
+    const LogString *reason_s = MQTTDisconnectReasonStrings::get_log_str(reason);
     if (!network::is_connected()) {
       reason_s = LOG_STR("WiFi disconnected");
     }
     ESP_LOGW(TAG, "Disconnected: %s", LOG_STR_ARG(reason_s));
-    const MQTTClientDisconnectReason reason = *this->disconnect_reason_;
-    this->disconnect_reason_.reset();
     this->on_disconnect_.call(reason);
   }
 

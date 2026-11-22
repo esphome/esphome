@@ -28,6 +28,7 @@
 #endif
 #include "lwip/ip_addr.h"
 
+#include <atomic>
 #include <span>
 #include <vector>
 
@@ -449,7 +450,9 @@ class MQTTClientComponent final : public Component {
   uint32_t reboot_timeout_{300000};
   uint32_t connect_begin_;
   uint32_t last_connected_{0};
-  optional<MQTTClientDisconnectReason> disconnect_reason_{};
+  // Reason for loop() to report, or NO_DISCONNECT; written from the backend's network context
+  static constexpr int8_t NO_DISCONNECT = -1;
+  std::atomic<int8_t> disconnect_reason_{NO_DISCONNECT};
   bool session_present_{false};
   LazyCallbackManager<MQTTBackend::on_disconnect_callback_t> on_disconnect_;
   LazyCallbackManager<MQTTBackend::on_connect_callback_t> on_connect_;
