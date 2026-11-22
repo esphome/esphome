@@ -20,7 +20,8 @@ DIR = Path("tests/component_tests/analog_gauge_reader")
         ("test_unrotated_crop.yaml", "does not fit"),
         ("test_unknown_dial.yaml", "has no dial"),
         ("test_empty_dials.yaml", "at least 1"),
-        ("test_duplicate_dial_ids.yaml", "more than one dial"),
+        ("test_duplicate_dial_ids.yaml", "Duplicate dial id"),
+        ("test_target_color_channel.yaml", "both target_color and process_channel"),
     ],
 )
 def test_invalid_config_is_rejected(

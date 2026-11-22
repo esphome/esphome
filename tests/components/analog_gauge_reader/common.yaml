@@ -9,27 +9,28 @@ analog_gauge_reader:
   update_interval: 60s
   stacked_digits: true
   dials:
-    # Grayscale dial with the default radial profile algorithm.
+    # Single-channel dial with the default radial profile algorithm.
     - id: dial_1
       crop_x: 0
       crop_y: 0
       crop_w: 64
       crop_h: 64
       scale: 1.0
+      process_channel: GREEN
       min_value: 0
       max_value: 10
       min_angle: 0
       max_angle: 360
       angle_offset: 0
-    # Colour channel dial with a wrap-around angle range and a calibration map.
+    # Colour-target dial with a wrap-around angle range, contrast and a calibration map.
     - id: dial_2
       crop_x: 200
       crop_y: 100
       crop_w: 80
       crop_h: 80
       scale: 0.1
-      process_channel: RED
       target_color: 0xFF0000
+      contrast: 1.5
       algorithm: hough_transform
       min_value: 0
       max_value: 10

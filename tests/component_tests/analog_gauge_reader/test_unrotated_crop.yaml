@@ -4,6 +4,6 @@ packages:
 # Same crop as test_rotation_crop.yaml, but without the quarter turn.
 analog_gauge_reader:
   dials:
-    - id: dial_1
+    - id: dial_2
       crop_w: 64
       crop_h: 600

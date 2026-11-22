@@ -11,7 +11,6 @@
 #include "esphome/core/component.h"
 
 #include <algorithm>
-#include <atomic>
 #include <cmath>
 #include <cstdint>
 #include <memory>
@@ -103,9 +102,20 @@ inline float angle_to_value(float image_angle, const DialConfig &dial) {
 
   float fraction;
   if (dial.min_angle > dial.max_angle) {
-    if (dial_angle < dial.min_angle)
-      dial_angle += 360.0f;
-    fraction = (dial_angle - dial.min_angle) / ((dial.max_angle + 360.0f) - dial.min_angle);
+    // The sweep runs from min_angle, through 360, to max_angle; the rest of the
+    // circle is the gap where the needle rests off the scale. There it is
+    // clamped to the nearer stop, so a needle just before the start reads the
+    // minimum instead of wrapping round to the maximum.
+    const float span = dial.max_angle - dial.min_angle + 360.0f;
+    float delta = dial_angle - dial.min_angle;
+    if (delta < 0.0f)
+      delta += 360.0f;
+    if (delta > span) {
+      const float past_end = delta - span;
+      const float before_start = 360.0f - delta;
+      delta = before_start <= past_end ? 0.0f : span;
+    }
+    fraction = delta / span;
   } else {
     fraction = (dial_angle - dial.min_angle) / (dial.max_angle - dial.min_angle);
   }
@@ -195,8 +205,10 @@ class AnalogGaugeReader final : public PollingComponent, public esphome::camera:
   void add_dial(DialConfig config) { this->dials_.push_back(std::move(config)); }
 
  protected:
-  enum class FrameState : uint8_t { IDLE, REQUESTED, AVAILABLE, PROCESSING };
-  std::atomic<FrameState> frame_state_{FrameState::IDLE};
+  /// How long a requested frame may take before the request is abandoned.
+  static constexpr uint32_t FRAME_TIMEOUT_MS = 5000;
+  /// Set by update(), cleared when the frame arrives or times out.
+  bool requested_{false};
   uint32_t last_request_time_{0};
   /// One dial crop, allocated once in setup(); channels is 3 for colour, 1 otherwise.
   struct DialBuffer {

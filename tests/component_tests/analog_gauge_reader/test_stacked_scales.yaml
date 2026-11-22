@@ -4,8 +4,8 @@ packages:
 analog_gauge_reader:
   stacked_digits: true
   dials:
-    - id: dial_1
-      scale: 1
     - id: dial_2
+      scale: 1
+    - id: dial_3
       crop_x: 100
       scale: 100

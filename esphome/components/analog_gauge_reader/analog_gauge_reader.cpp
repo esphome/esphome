@@ -1,8 +1,7 @@
-﻿#include "analog_gauge_reader.h"
+#include "analog_gauge_reader.h"
 
 #include "esphome/components/camera_decoder/jpeg_grayscale.h"
 #include "esphome/core/application.h"
-#include "esphome/core/entity_base.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
@@ -10,7 +9,6 @@
 #include <cmath>
 #include <cstring>
 #include <memory>
-#include <vector>
 
 #ifdef USE_ESP32
 #include <esp_heap_caps.h>
@@ -25,6 +23,8 @@ static constexpr float DECIMAL_PRECISION = 10000.0f;  // 4 decimal places (10^4)
 
 void AnalogGaugeReader::setup() {
   this->camera_->add_listener(this);
+  // The loop only has work between a request and its frame.
+  this->disable_loop();
 
   // Sort calibration mappings for correct interpolation
   for (auto &dial : this->dials_) {
@@ -96,46 +96,39 @@ void AnalogGaugeReader::dump_config() {
 }
 
 void AnalogGaugeReader::update() {
-  if (this->paused_) {
+  if (this->paused_ || this->requested_)
     return;
-  }
-  FrameState expected = FrameState::IDLE;
-  if (this->frame_state_.compare_exchange_strong(expected, FrameState::REQUESTED)) {
-    this->last_request_time_ = App.get_loop_component_start_time();
-    this->camera_->request_image(camera::IDLE);
-    ESP_LOGV(TAG, "Requesting frame");
-  }
+  this->requested_ = true;
+  this->last_request_time_ = App.get_loop_component_start_time();
+  this->enable_loop();
+  this->camera_->request_image(camera::IDLE);
+  ESP_LOGV(TAG, "Requesting frame");
 }
 
 void AnalogGaugeReader::on_camera_image(const std::shared_ptr<esphome::camera::CameraImage> &image) {
-  if (this->paused_)
+  // Frames the camera captures for other listeners are not ours to process.
+  if (!this->requested_ || this->paused_)
     return;
-  FrameState expected = FrameState::REQUESTED;
-  if (this->frame_state_.compare_exchange_strong(expected, FrameState::AVAILABLE)) {
-    this->pending_frame_ = image;
-  }
+  this->pending_frame_ = image;
+  this->requested_ = false;
 }
 
 void AnalogGaugeReader::loop() {
   // The camera calls its listeners from the main loop, so no locking is needed.
   std::shared_ptr<esphome::camera::CameraImage> frame = std::move(this->pending_frame_);
   if (frame) {
-    this->frame_state_.store(FrameState::PROCESSING);
+    this->disable_loop();
     if (frame->get_data_length() > 0) {
       this->process_image_from_buffer(frame->get_data_buffer(), frame->get_data_length());
     }
-    frame.reset();
-    this->frame_state_.store(FrameState::IDLE);
+    return;
   }
 
   // Watchdog: a requested frame that never arrives must not block later polls.
-  const uint32_t now = App.get_loop_component_start_time();
-  if (this->frame_state_.load() == FrameState::REQUESTED && now - this->last_request_time_ > 5000) {
+  if (this->requested_ && App.get_loop_component_start_time() - this->last_request_time_ > FRAME_TIMEOUT_MS) {
     ESP_LOGW(TAG, "Frame timeout");
-    FrameState expected = FrameState::REQUESTED;
-    if (this->frame_state_.compare_exchange_strong(expected, FrameState::IDLE)) {
-      this->pending_frame_ = nullptr;
-    }
+    this->requested_ = false;
+    this->disable_loop();
   }
 }
 
@@ -233,22 +226,19 @@ void AnalogGaugeReader::process_image_from_buffer(const uint8_t *data, size_t le
         scratch[i] = static_cast<uint8_t>(std::min(val, 255.0f));
       }
       gray = scratch;
-    } else {
-      if (dial.process_channel != PROCESS_CHANNEL_GRAYSCALE) {
-        uint8_t *scratch = this->scratch_buffer_.get();
-        const int offset = static_cast<int>(dial.process_channel) - 1;
-        for (int i = 0; i < crop_w * crop_h; i++) {
-          scratch[i] = gray[i * 3 + offset];
-        }
-        gray = scratch;
+    } else if (dial.process_channel != PROCESS_CHANNEL_GRAYSCALE) {
+      uint8_t *scratch = this->scratch_buffer_.get();
+      const int offset = static_cast<int>(dial.process_channel) - 1;
+      for (int i = 0; i < crop_w * crop_h; i++) {
+        scratch[i] = gray[i * 3 + offset];
       }
-      if (dial.auto_contrast) {
-        apply_auto_contrast(gray, crop_w * crop_h);
-      }
-      if (std::abs(dial.contrast - 1.0f) > 0.01f) {
-        apply_contrast(gray, crop_w * crop_h, dial.contrast);
-      }
+      gray = scratch;
     }
+    // Both maps end on one byte per pixel, so the contrast options apply to either.
+    if (dial.auto_contrast) {
+      apply_auto_contrast(gray, crop_w * crop_h);
+    }
+    apply_contrast(gray, crop_w * crop_h, dial.contrast);
 
     gauge_needle_detector::DetectorConfig detector_config;
     detector_config.id = dial.id;

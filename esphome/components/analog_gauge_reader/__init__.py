@@ -216,7 +216,18 @@ def _final_validate(config: ConfigType) -> ConfigType:
                     f"{', '.join(f'{scale:g}' for scale in scales)}",
                     path=[CONF_DIALS],
                 )
+    # Sensor entries and logs name a dial by this id, so it must be unique.
+    dial_ids = [dial[CONF_ID] for dial in config[CONF_DIALS]]
+    if len(set(dial_ids)) != len(dial_ids):
+        raise cv.Invalid("Duplicate dial id; ids must be unique", path=[CONF_DIALS])
     for dial in config[CONF_DIALS]:
+        if CONF_TARGET_COLOR in dial and dial[CONF_PROCESS_CHANNEL] != "GRAYSCALE":
+            raise cv.Invalid(
+                f"Dial '{dial[CONF_ID]}' sets both target_color and process_channel. "
+                f"target_color compares all three channels, so it cannot be combined "
+                f"with a single-channel process_channel; remove one of the two.",
+                path=[CONF_DIALS],
+            )
         sweep = (dial[CONF_MAX_ANGLE] - dial[CONF_MIN_ANGLE]) % 360.0
         full_circle = (dial[CONF_MIN_ANGLE], dial[CONF_MAX_ANGLE]) == (0.0, 360.0)
         if CONF_CALIBRATION not in dial and abs(sweep) < 1e-6 and not full_circle:

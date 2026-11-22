@@ -35,8 +35,19 @@ TEST(AngleMapping, WrapAroundRange) {
   const DialConfig dial = make_dial(300.0f, 60.0f, 0.0f, 10.0f);
   EXPECT_NEAR(angle_to_value(-90.0f, dial), 5.0f, 1e-4f);   // dial angle 0
   EXPECT_NEAR(angle_to_value(-30.0f, dial), 10.0f, 1e-4f);  // dial angle 60
-  // An angle in the gap between the end and the start counts as past the end.
+  // The gap between the end and the start clamps to the nearer stop.
   EXPECT_NEAR(angle_to_value(30.0f, dial), 10.0f, 1e-4f);  // dial angle 120
+}
+
+TEST(AngleMapping, NeedleBeforeTheStartReadsTheMinimum) {
+  // A 270 degree gauge: 225 -> 360 -> 135. At rest the needle sits just before
+  // the zero mark, against the stop pin.
+  const DialConfig dial = make_dial(225.0f, 135.0f, 0.0f, 10.0f);
+  EXPECT_NEAR(angle_to_value(135.0f, dial), 0.0f, 1e-4f);  // dial angle 225, start
+  EXPECT_NEAR(angle_to_value(-90.0f, dial), 5.0f, 1e-4f);  // dial angle 0, halfway
+  EXPECT_NEAR(angle_to_value(45.0f, dial), 10.0f, 1e-4f);  // dial angle 135, end
+  EXPECT_NEAR(angle_to_value(130.0f, dial), 0.0f, 1e-4f);  // dial angle 220, before the start
+  EXPECT_NEAR(angle_to_value(50.0f, dial), 10.0f, 1e-4f);  // dial angle 140, past the end
 }
 
 TEST(AngleMapping, CounterClockwise) {
