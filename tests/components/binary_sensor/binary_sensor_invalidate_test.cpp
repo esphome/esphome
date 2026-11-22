@@ -139,7 +139,7 @@ TEST(BinarySensorInvalidate, EveryFilterInTheChainIsReset) {
     for (int i = 0; i < 3; i++)
       sensor.add_filter(i == pending ? static_cast<Filter *>(&delayed_on) : &inverts[i]);
     // Send the value that reaches the delay as true, so it holds an output
-    sensor.publish_state(pending == 1 ? false : true);
+    sensor.publish_state(pending != 1);
     sensor.invalidate_state();
     run_scheduler_after(30);
     EXPECT_FALSE(sensor.has_state()) << "pending in filter " << pending;
