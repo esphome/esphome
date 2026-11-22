@@ -46,7 +46,7 @@ INPUT_TYPES = {"uint8", "float32"}
 IMAGE_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_INPUT_TYPE): cv.one_of(*INPUT_TYPES, lower=True),
-        cv.Optional(CONF_INPUT_CHANNELS): cv.int_range(min=1, max=4),
+        cv.Optional(CONF_INPUT_CHANNELS): cv.one_of(1, 3),
         cv.Optional(CONF_INPUT_WIDTH): cv.int_range(min=8, max=512),
         cv.Optional(CONF_INPUT_HEIGHT): cv.int_range(min=8, max=512),
         cv.Optional(CONF_INPUT_ORDER): cv.enum(CHANNEL_ORDERS, upper=True),
@@ -62,7 +62,11 @@ def resolve_image_config(entry: ConfigType, model_path: Path) -> ConfigType:
         model_io = read_model_io(model_path)
     except ValueError as err:
         raise cv.Invalid(str(err)) from err
-    if not model_io.inputs or len(model_io.inputs[0].shape) != 4:
+    if (
+        len(model_io.inputs) != 1
+        or len(model_io.inputs[0].shape) != 4
+        or model_io.inputs[0].shape[0] != 1
+    ):
         raise cv.Invalid(
             f"Model '{Path(str(model_path)).name}' does not declare the "
             f"[1, height, width, channels] image input tensor an image model needs"
@@ -86,6 +90,11 @@ def resolve_image_config(entry: ConfigType, model_path: Path) -> ConfigType:
     for key in values:
         if (value := entry.get(key)) is not None:
             values[key] = value
+    if values[CONF_INPUT_ORDER] == "GRAY" and values[CONF_INPUT_CHANNELS] != 1:
+        raise cv.Invalid(
+            "input_order: GRAY needs input_channels: 1; a three-channel model has a "
+            "colour order to apply"
+        )
     return values
 
 
