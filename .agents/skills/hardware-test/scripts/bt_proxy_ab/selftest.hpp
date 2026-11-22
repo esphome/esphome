@@ -479,12 +479,16 @@ inline void tick() {
       } else if (st == 1) {
         int r = attempt(p, 10000);
         if (r == 1) {
-          ok_n++;
-          if (att == 0)
-            first_ok_n++;
-          ESP_LOGI(TAG, "ST retry %s r=%u attempts=%u ok=1", PNAME[p], rnd, att + 1);
-          att = 0;
-          st = 3;
+          // one ff01 write must go through, as drive.py's retry counts t_cmd
+          Rtt *rt = RT[p];
+          uint8_t v = 0xC0;
+          rt->ok = false;
+          rt->t0 = now;
+          rt->pending = 2;
+          if (esp_ble_gattc_write_char(C[p]->get_gattc_if(), C[p]->get_conn_id(), FF01[p], 1, &v,
+                                       ESP_GATT_WRITE_TYPE_RSP, ESP_GATT_AUTH_REQ_NONE) != ESP_OK)
+            rt->pending = 0;
+          st = 8;
         } else if (r < 0) {
           att++;
           if (att >= 5) {
@@ -497,6 +501,21 @@ inline void tick() {
             t_wait = now;
           }
         }
+      } else if (st == 8) {
+        Rtt *rt = RT[p];
+        if (rt->pending && up(p) && now - rt->t0 < 10000)
+          break;
+        rt->pending = 0;
+        if (rt->ok) {
+          ok_n++;
+          if (att == 0)
+            first_ok_n++;
+        } else {
+          fail_n++;
+        }
+        ESP_LOGI(TAG, "ST retry %s r=%u attempts=%u ok=%d", PNAME[p], rnd, att + 1, rt->ok);
+        att = 0;
+        st = 3;
       } else if (st == 6) {
         if ((idle(p) && now - t_wait > 1000) || now - t_wait > 15000)
           st = 0;

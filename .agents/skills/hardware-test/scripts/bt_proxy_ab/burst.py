@@ -163,8 +163,8 @@ async def main() -> None:
             out_of_range=out_of_range,
             dups=dups,
             short=len(short),
-            # notifications the server failed to send; the rest of missing was lost after the server
-            server_send_failed=srv_fail[-1] if srv_fail else None,
+            # a lower bound of the server's own send failures: late reports after the final are missed
+            server_send_failed_min=srv_fail[-1] if srv_fail else None,
             span_s=round(span, 2),
             rate=round(len(got) / span, 1) if span else None,
             lost_link=st["lost"][:1],

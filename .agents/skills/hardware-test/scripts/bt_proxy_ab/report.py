@@ -298,6 +298,13 @@ for s in steps:
         )
         d["iv"] = dict(Counter(a.get("iv") for a in dev))
         d["upd"] = dict(Counter(str(a.get("upd", [])) for a in dev))
+    # driver rounds but no device connect line: the log format is not the one these patterns read
+    if rounds and not A and s != "adv":
+        d.setdefault("warn", []).append(
+            "driver rounds but no device Connecting line matched"
+        )
+    if partial := sum(bool(r.get("rtt_partial")) for r in rounds):
+        d["rtt_partial"] = partial
     if A and not any("t_open" in a for a in A):
         d.setdefault("warn", []).append(
             "device attempts but no Connection open line matched"

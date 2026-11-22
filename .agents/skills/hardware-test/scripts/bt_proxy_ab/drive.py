@@ -242,21 +242,25 @@ class D:
                 stop, _rm = await self.cli.bluetooth_gatt_start_notify(
                     addr, echo.handle, lambda h, d: q.put_nowait(time.monotonic())
                 )
-                await self.cli.bluetooth_gatt_write_descriptor(
-                    addr, echo.cccd, b"\x01\x00", timeout=10
-                )
-                for i in range(n):
-                    while not q.empty():
-                        q.get_nowait()
-                    t = time.monotonic()
-                    await self.cli.bluetooth_gatt_write(
-                        addr, ch.handle, bytes([0xA0 + i]), True, timeout=10
+                try:  # the subscription goes away even when an echo fails
+                    await self.cli.bluetooth_gatt_write_descriptor(
+                        addr, echo.cccd, b"\x01\x00", timeout=10
                     )
-                    tr = await asyncio.wait_for(q.get(), 10)
-                    nt.append(tr - t)
-                await stop()
+                    for i in range(n):
+                        while not q.empty():
+                            q.get_nowait()
+                        t = time.monotonic()
+                        await self.cli.bluetooth_gatt_write(
+                            addr, ch.handle, bytes([0xA0 + i]), True, timeout=10
+                        )
+                        tr = await asyncio.wait_for(q.get(), 10)
+                        nt.append(tr - t)
+                finally:
+                    with contextlib.suppress(Exception):
+                        await stop()
         except Exception as e:  # noqa: BLE001
             res["rtt_exc"] = f"{type(e).__name__}: {e}"[:120]
+            res["rtt_partial"] = True  # report.py counts these rounds apart
         if rd:
             res["read_ms"] = round(1000 * statistics.median(rd), 1)
         if wr:
@@ -598,15 +602,10 @@ async def main() -> None:
         d.rec(test="notify", secs=secs, expected=round(secs * 5), **stats)
         # ticks seen or known missing should cover the held time; far less means the subscription went quiet
         want = secs * 5 - stats["unheld_s"] * 5
-        if (
-            stats["rx"]
-            and stats["rx"] + stats["missing"] + stats["missing_drop"] < 0.9 * want
-        ):
+        covered = stats["rx"] + stats["missing"] + stats["missing_drop"]
+        if stats["rx"] and covered < 0.9 * want:
             d.rec(
-                test="notify",
-                result="notify_short",
-                covered=stats["rx"] + stats["missing"],
-                want=round(want),
+                test="notify", result="notify_short", covered=covered, want=round(want)
             )
             sys.exit(1)
         if (
