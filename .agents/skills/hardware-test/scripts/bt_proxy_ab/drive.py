@@ -508,7 +508,9 @@ async def main() -> None:
             v = int.from_bytes(bytes(data[:4]), "little")
             stats["rx"] += 1
             if last[0] is not None and resumed[0]:
-                # ticks sent while the link was down
+                # ticks sent while the link was down; lower means the server restarted meanwhile
+                if v < last[0]:
+                    stats["backwards"] += 1
                 stats["missing_drop"] += max(0, v - last[0] - 1)
             elif last[0] is not None:
                 if v == last[0]:

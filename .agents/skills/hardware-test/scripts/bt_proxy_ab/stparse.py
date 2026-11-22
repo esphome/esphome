@@ -83,6 +83,10 @@ for name, lines in ph.items():
         # the scanner never stopped: the phase was abandoned and later phases may scan passively
         if sc := sum("ST adv scanner_stuck" in ln for _, ln in lines):
             d["scanner_stuck"] = sc
+        if not any("ST phase_end" in ln for _, ln in lines):
+            d["incomplete"] = (
+                True  # a reset or the end of the capture cut the adv phase short
+            )
         for mode in ("active", "passive"):
             v = [
                 int(x) / 10
@@ -187,12 +191,16 @@ for name, lines in ph.items():
     d["rejected"] = sum("Rejected" in ln for _, ln in lines) or None
     d["x3e"] = sum("rsn 0x3e" in ln for _, ln in lines) or None
     print(name, {k: v for k, v in d.items() if v is not None})
-    # a partial or empty measurement must not pass as a clean run
-    if bad := [
-        k
-        for k in ("incomplete", "notify_no_ticks", "handle_mismatch", "handle_bad")
-        if d.get(k)
-    ]:
+    # a partial or empty measurement must not pass as a clean run, nor cold rounds that may have used the cache
+    keys = (
+        "incomplete",
+        "notify_no_ticks",
+        "handle_mismatch",
+        "handle_bad",
+        "scanner_stuck",
+        "cache_clean_fail",
+    )
+    if bad := [k for k in keys if d.get(k)]:
         flagged.append(f"{name}: {','.join(bad)}")
 # a run where the servers were never seen, or no phase started, measured nothing
 txt_all = "\n".join(ln for _, ln in L)
