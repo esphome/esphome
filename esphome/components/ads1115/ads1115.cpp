@@ -146,8 +146,8 @@ float ADS1115Component::request_measurement(ADS1115Multiplexer multiplexer, ADS1
     if (!this->continuous_mode_) {
       uint32_t start = millis();
       while (true) {
-        // A failed read must not end the wait: the conversion register still holds the previous result,
-        // which can come from another multiplexer input.
+        // A failed read is not a finished conversion: the conversion register still holds the previous
+        // result, which can come from another multiplexer input.
         if (!this->status_comm_check(this->read_byte_16(ADS1115_REGISTER_CONFIG, &config)))
           return NAN;
         if ((config >> 15) != 0)
