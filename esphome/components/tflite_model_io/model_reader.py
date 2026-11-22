@@ -291,10 +291,11 @@ def _subgraph(buffer: _FlatBuffer) -> int:
     if not (subgraphs := buffer.table_vector(buffer.root(), _MODEL_SUBGRAPHS)):
         raise ModelReadError(f"{buffer.path}: the model has no subgraph")
     if len(subgraphs) > 1:
-        # The estimate covers one subgraph, so a control-flow model would be undersized.
+        # Every reader here describes one subgraph, so a control-flow model cannot be
+        # reported or estimated correctly.
         raise ModelReadError(
-            f"{buffer.path}: the model has {len(subgraphs)} subgraphs, but the arena "
-            f"estimate covers one"
+            f"{buffer.path}: the model has {len(subgraphs)} subgraphs, but only one is "
+            f"supported"
         )
     return subgraphs[0]
 
