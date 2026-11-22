@@ -56,6 +56,8 @@ once() {
   local s=$1; shift; local out=$T-$s.jsonl
   mark "start $s"
   for chunk in 1 2; do
+    # an aborted first try is moved aside, so the rerun's medians do not mix in its partial records
+    [ $chunk = 1 ] || [ ! -f "$out" ] || mv "$out" "$T-$s.aborted$chunk.jsonl"
     timeout 3600 $PY drive.py "$H" "$1" "$out" "${@:2}" >> "$T-$s.err" 2>&1; local rc=$?
     mark "$s chunk $chunk rc=$rc"; [ $rc = 0 ] && break; sleep 10
   done

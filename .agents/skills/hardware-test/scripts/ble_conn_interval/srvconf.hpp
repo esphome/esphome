@@ -1,12 +1,14 @@
 // Counts notifications the GATT server's stack reported as not sent (ESP_GATTS_CONF_EVT with a bad status) while
 // srvconf::active is set; gen_peri.py --burst wraps the register call (-Wl,--wrap=esp_ble_gatts_register_callback).
 #pragma once
+#include <atomic>
 #include <esp_gatts_api.h>
 
 namespace srvconf {
 static esp_gatts_cb_t real_gatts = nullptr;
-static volatile bool active = false;
-static volatile uint32_t bad = 0;
+// the Bluetooth task writes these while the main loop resets and reads them
+static std::atomic<bool> active{false};
+static std::atomic<uint32_t> bad{0};
 static void gatts_shim(esp_gatts_cb_event_t e, esp_gatt_if_t i, esp_ble_gatts_cb_param_t *p) {
   if (e == ESP_GATTS_CONF_EVT && active && p->conf.status != ESP_GATT_OK)
     bad++;

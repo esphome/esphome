@@ -140,6 +140,10 @@ for s in steps:
     # a failed cache clear is a harness fault: out of the ratios, counted on its own
     rounds = [r for r in R if "round" in r and r.get("result") not in HARNESS]
     d = {}
+    if ab := len(list(pathlib.Path().glob(f"{T}-{s}.aborted*.jsonl"))):
+        d["aborted_runs"] = (
+            ab  # partial records of a run that was retried, left out of the numbers
+        )
     for h in HARNESS:
         if n := sum(r.get("result") == h for r in R):
             d[h] = n

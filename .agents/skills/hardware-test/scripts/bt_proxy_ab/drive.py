@@ -396,6 +396,7 @@ async def main() -> None:
                     if "t_cmd" in res:
                         break
                     await asyncio.sleep(1)
+                check_api()  # an API drop during the round is not the build's result
                 # a harness fault (clear_failed, no_ff01) is not the build's
                 if h := next((a["harness"] for a in att if a.get("harness")), None):
                     d.rec(test="retry", round=r, name=name, result=h)
@@ -416,6 +417,7 @@ async def main() -> None:
                 if h := res.get("harness"):
                     d.rec(test=mode, round=r, name=name, result=h)
                     continue
+                check_api()  # an API drop during the round is not the build's result
                 d.rec(test=mode, round=r, name=name, ok="t_cmd" in res, **res)
             await asyncio.sleep(2)
     elif cmd == "third":
@@ -464,6 +466,7 @@ async def main() -> None:
                     res["t_svc_after"] = round(time.monotonic() - t, 3)
                 except Exception as e:  # noqa: BLE001
                     res["svc_exc"] = f"{type(e).__name__}: {e}"
+            check_api()  # an API drop during the round is not the build's result
             d.rec(
                 test="third",
                 variant=variant,
@@ -656,6 +659,7 @@ async def main() -> None:
                     res["exc"] = f"{type(e).__name__}: {e}"
                     res["t_fail"] = round(time.monotonic() - st["t0"], 3)
                 res["lost"] = [(e, round(t - st["t0"], 3)) for e, t in st["lost"]]
+            check_api()  # an API drop during the round is not the build's result
             d.rec(test="eve", round=r, ok="t_cmd" in res, **res)
             await d.disconnect(EVE)
             await asyncio.sleep(5)
