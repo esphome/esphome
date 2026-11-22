@@ -11,6 +11,7 @@ for i in $(seq 1 "$C"); do
   if ! $PY "$D/../api_button.py" "$IP" "${KEY:--}" press Restart > /dev/null 2>&1; then
     echo "$(date +%T) cycle $i press failed" >> "$O"
     IP=$("$D/../resolve.sh" "$N" 20) || exit 1
+    continue
   fi
   sleep 8
   ok=0; m=0; a=0; p=0

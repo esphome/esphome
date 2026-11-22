@@ -35,9 +35,15 @@ interval:
           static constexpr int STEPS = REBOOTS + DROPS + sizeof(RACE_STEPS) / sizeof(RACE_STEPS[0]);
           const uint32_t now = App.get_loop_component_start_time();
           const int st = id(auto_step);
-          if (st >= STEPS)
+          if (st > STEPS)
             return;
-          if (!(id(br_up) && wifi::global_wifi_component->is_connected() && now - id(br_up_at) > 40000)) {
+          // each Wi-Fi loss needs a fresh "Border routing started", or a failed restart passes on the old one
+          static bool wifi_was_up = false;
+          const bool wifi_up = wifi::global_wifi_component->is_connected();
+          if (wifi_was_up && !wifi_up)
+            id(br_up) = false;
+          wifi_was_up = wifi_up;
+          if (!(id(br_up) && wifi_up && now - id(br_up_at) > 40000)) {
             if (now - id(step_at) > 300000 && now - id(br_up_at) > 300000) {
               id(step_at) = now;
               ESP_LOGW("hwt", "HWT auto stuck at step %d", st);
@@ -45,6 +51,10 @@ interval:
             return;
           }
           id(auto_step) = st + 1;
+          if (st == STEPS) {  // the last step has recovered
+            ESP_LOGI("hwt", "HWT auto done");
+            return;
+          }
           id(step_at) = now;
           id(br_up) = false;
           if (st < REBOOTS) {
@@ -60,5 +70,3 @@ interval:
             id(race_delay) = r.delay_ms;
             id(race_drop).execute();
           }
-          if (st + 1 == STEPS)
-            ESP_LOGI("hwt", "HWT auto done");
