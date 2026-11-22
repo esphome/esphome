@@ -288,7 +288,6 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_FULL_SPEED_ONLY, default=False): cv.boolean,
         }
     ),
-    _validate_full_speed_only,
     only_on_variant(
         supported=[
             VARIANT_ESP32H4,
@@ -298,6 +297,7 @@ CONFIG_SCHEMA = cv.All(
             VARIANT_ESP32S31,
         ]
     ),
+    _validate_full_speed_only,
     _set_max_packet_size,
 )
 

@@ -32,11 +32,16 @@ void USBHost::setup() {
 #if defined(USE_USB_HOST_FULL_SPEED_ONLY) && defined(USE_ESP32_VARIANT_ESP32P4)
 // espressif/usb 1.6 has usb_host_config_t.fsls_only, but it needs USB DWC HAL support that ESP-IDF 6.1 does not
 // have and refuses the option there. HCFG.FSLSSupp is only cleared by a core soft reset (at install and when the
-// root port recovers), so it is set after install and again whenever it reads back clear.
-void USBHost::hold_full_speed_() {
-  if (!USB_DWC_HS.hcfg_reg.fslssupp)
-    USB_DWC_HS.hcfg_reg.fslssupp = 1;
+// root port recovers), so it is set after install and again whenever it reads back clear. Returns true when it was
+// clear.
+bool USBHost::hold_full_speed_() {
+  if (USB_DWC_HS.hcfg_reg.fslssupp)
+    return false;
+  USB_DWC_HS.hcfg_reg.fslssupp = 1;
+  return true;
 }
+
+void USBHost::dump_config() { ESP_LOGCONFIG(TAG, "USB Host:\n  Full speed only: YES"); }
 #endif
 
 void USBHost::loop() {
@@ -51,7 +56,9 @@ void USBHost::loop() {
   }
 #if defined(USE_USB_HOST_FULL_SPEED_ONLY) && defined(USE_ESP32_VARIANT_ESP32P4)
   // A port recovery runs inside usb_host_lib_handle_events() and soft resets the core
-  this->hold_full_speed_();
+  if (this->hold_full_speed_()) {
+    ESP_LOGI(TAG, "Root port reset; full speed only set again");
+  }
 #endif
 }
 

@@ -275,10 +275,13 @@ class USBHost final : public Component {
   float get_setup_priority() const override { return setup_priority::BUS; }
   void loop() override;
   void setup() override;
+#if defined(USE_USB_HOST_FULL_SPEED_ONLY) && defined(USE_ESP32_VARIANT_ESP32P4)
+  void dump_config() override;
+#endif
 
  protected:
 #if defined(USE_USB_HOST_FULL_SPEED_ONLY) && defined(USE_ESP32_VARIANT_ESP32P4)
-  void hold_full_speed_();
+  bool hold_full_speed_();
 #endif
   std::vector<USBClient *> clients_{};
 };
