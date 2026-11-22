@@ -171,25 +171,27 @@ void TopTronicNumber::control(float value) {
 }
 #endif
 #ifdef USE_TEXT_SENSOR
-std::string TopTronicTextSensor::parse_value(const uint8_t *data, size_t len) {
-  auto it = this->to_text_.find(bytes_to_number<uint8_t>(data, len));
-  if (it == this->to_text_.end()) {
-    ESP_LOGW(TAG, "Unknown text sensor value");
-    return "";
+const char *TopTronicTextSensor::parse_value(const uint8_t *data, size_t len) const {
+  const uint8_t raw = bytes_to_number<uint8_t>(data, len);
+  for (const auto &option : this->options_) {
+    if (option.value == raw)
+      return option.text;
   }
-  return it->second;
+  ESP_LOGW(TAG, "Unknown text sensor value %u", raw);
+  return nullptr;
 }
 #endif
 #ifdef USE_SELECT
 void TopTronicSelect::control(const std::string &text) {
-  auto it = this->to_value_.find(text);
-  if (it == this->to_value_.end()) {
-    ESP_LOGW(TAG, "[SET] Unknown option '%s'", text.c_str());
-    return;
+  for (const auto &option : this->options_) {
+    if (text == option.text) {
+      this->send_set_(static_cast<float>(option.value), this->type_);
+      if (this->optimistic_)
+        this->publish_state(text);
+      return;
+    }
   }
-  this->send_set_(static_cast<float>(it->second), this->type_);
-  if (this->optimistic_)
-    this->publish_state(text);
+  ESP_LOGW(TAG, "[SET] Unknown option '%s'", text.c_str());
 }
 #endif
 
@@ -413,7 +415,8 @@ void TopTronic::interpret_message_(const uint8_t *data, size_t len) {
 #ifdef USE_TEXT_SENSOR
   if (sensor_base->type() == SensorType::SENSOR_TYPE_TEXT) {
     auto *sensor = static_cast<TopTronicTextSensor *>(sensor_base);
-    sensor->publish_state(sensor->parse_value(data + value_off, value_len));
+    if (const char *text = sensor->parse_value(data + value_off, value_len); text != nullptr)
+      sensor->publish_state(text);
   }
 #endif
 }

@@ -15,10 +15,11 @@
 #endif
 
 #include <array>
-#include <utility>
-#include <map>
+#include <cstddef>
+#include <cstdint>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 namespace esphome::toptronic {
@@ -43,6 +44,17 @@ using GetRequest = std::array<uint8_t, GET_REQUEST_LEN>;
 static constexpr size_t MAX_SET_VALUE_LEN = 8;
 static constexpr size_t MAX_SET_REQUEST_LEN = GET_REQUEST_LEN + MAX_SET_VALUE_LEN;
 using SetRequest = std::array<uint8_t, MAX_SET_REQUEST_LEN>;
+
+// Options are fixed by the configuration, so they live in a codegen-sized vector
+#ifdef TOPTRONIC_OPTION_COUNT
+static constexpr size_t MAX_OPTIONS = TOPTRONIC_OPTION_COUNT;
+#else
+static constexpr size_t MAX_OPTIONS = 1;
+#endif
+struct Option {
+  uint8_t value;
+  const char *text;  // codegen string literal, valid for the life of the program
+};
 
 // Shared entity base. update() fires the GET wired up by the hub.
 class TopTronicBase : public PollingComponent {
@@ -109,17 +121,15 @@ class TopTronicNumber final : public number::Number, public TopTronicBase {
 #ifdef USE_TEXT_SENSOR
 class TopTronicTextSensor final : public text_sensor::TextSensor, public TopTronicBase {
  public:
-  std::string parse_value(const uint8_t *data, size_t len);
+  /// Returns the text for a value, or nullptr when the value is not in the option list. The caller then
+  /// keeps the last state instead of publishing an invalid one.
+  const char *parse_value(const uint8_t *data, size_t len) const;
   SensorType type() const override { return SensorType::SENSOR_TYPE_TEXT; }
   const LogString *get_log_name() const override { return this->text_sensor::TextSensor::get_log_name(); }
-  void add_option(uint8_t value, const std::string &text) {
-    this->to_text_[value] = text;
-    this->to_value_[text] = value;
-  }
+  void add_option(uint8_t value, const char *text) { this->options_.push_back({value, text}); }
 
  protected:
-  std::map<uint8_t, std::string> to_text_;
-  std::map<std::string, uint8_t> to_value_;
+  StaticVector<Option, MAX_OPTIONS> options_;
 };
 #endif
 #ifdef USE_SELECT
@@ -129,16 +139,12 @@ class TopTronicSelect final : public select::Select, public TopTronicBase {
   void set_type(TypeName type) { this->type_ = type; }
   SensorType type() const override { return SensorType::SENSOR_TYPE_TEXT; }
   const LogString *get_log_name() const override { return this->select::Select::get_log_name(); }
-  void add_option(uint8_t value, const std::string &text) {
-    this->to_text_[value] = text;
-    this->to_value_[text] = value;
-  }
+  void add_option(uint8_t value, const char *text) { this->options_.push_back({value, text}); }
   void control(const std::string &text) override;
 
  protected:
-  std::map<uint8_t, std::string> to_text_;
-  std::map<std::string, uint8_t> to_value_;
-  TypeName type_{U8};
+  StaticVector<Option, MAX_OPTIONS> options_;
+  TypeName type_{TypeName::TYPE_NAME_U8};
 };
 #endif
 
