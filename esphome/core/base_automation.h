@@ -181,24 +181,20 @@ template<auto Fn> class LoopCallback final : public Component {
 };
 
 #ifdef ESPHOME_PROJECT_NAME
-/// Calls Fn with the previous version from setup() when the project version went up, for project on_update.
-template<auto Fn> class ProjectUpdateCallback final : public Component {
+/// Stores the project version; calls fire_() from setup() with the stored one when it was lower.
+class ProjectUpdateComponent : public Component {
  public:
-  void setup() override {
-    uint32_t hash = fnv1_hash(ESPHOME_PROJECT_NAME);
-    ESPPreferenceObject pref = global_preferences->make_preference<char[30]>(hash, true);
-    char previous_version[30];
-    char current_version[30] = ESPHOME_PROJECT_VERSION_30;
-    if (pref.load(&previous_version)) {
-      int cmp = strcmp(previous_version, current_version);
-      if (cmp < 0) {
-        Fn(previous_version);
-      }
-    }
-    pref.save(&current_version);
-    global_preferences->sync();
-  }
+  void setup() override;
   float get_setup_priority() const override { return setup_priority::PROCESSOR; }
+
+ protected:
+  virtual void fire_(const char *previous_version) = 0;
+};
+
+/// Calls Fn with the previous version, for project on_update.
+template<auto Fn> class ProjectUpdateCallback final : public ProjectUpdateComponent {
+ protected:
+  void fire_(const char *previous_version) override { Fn(previous_version); }
 };
 #endif
 
