@@ -191,9 +191,3 @@ class UserServiceCallback final : public UserServiceBase<Ts...> {
 
 }  // namespace esphome::api
 #endif  // USE_API_USER_DEFINED_ACTIONS
-
-#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
-// Full definition of APIServer for the generated api.respond code.
-// Must be outside namespace to avoid including STL headers inside namespace
-#include "api_server.h"
-#endif  // USE_API_USER_DEFINED_ACTION_RESPONSES

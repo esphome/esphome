@@ -36,7 +36,7 @@ async def test_api_action_responses(
         _, services = await client.list_entities_services()
 
         # Should have 5 services
-        assert len(services) == 5, f"Expected 5 services, found {len(services)}"
+        assert len(services) == 6, f"Expected 6 services, found {len(services)}"
 
         # Find our services
         action_no_response = require_service(services, "action_no_response")
@@ -218,3 +218,27 @@ async def test_api_action_responses(
         assert response_json["config"]["api"]["port"] == 6053
         assert response_json["items"][0] == "first"
         assert response_json["items"][1] == "second"
+
+        # Responds after a delay, with lambdas for the status, the error text and the data
+        action_delayed_response = require_service(services, "action_delayed_response")
+        response = await client.execute_service(
+            action_delayed_response, {"name": "late"}, return_response=True
+        )
+        await waiter.wait_for(
+            "ACTION_DELAYED_RESPONSE (call_id=",
+            "return_response=1, name=late)",
+            timeout=5.0,
+        )
+        assert response is not None and response.success is True
+        assert response.error_message == ""
+        assert json.loads(response.response_data.decode("utf-8")) == {
+            "name": "late",
+            "after_delay": True,
+        }
+
+        response = await client.execute_service(
+            action_delayed_response, {"name": "fail"}, return_response=False
+        )
+        assert response is not None and response.success is False
+        assert response.error_message == "failed: fail"
+        assert not response.response_data
