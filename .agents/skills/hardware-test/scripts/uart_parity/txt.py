@@ -23,5 +23,8 @@ if (
     b"RPT" not in data
 ):  # the report line this exists to show; garble only means a wrong framing
     sys.exit("no RPT report line in the capture")
-if marks or hups:
-    sys.exit(f"{marks} PARMRK error marks, {hups} HUP lines")
+short = sum(
+    p[1] == "TX" and "SHORT" in p[2] for p in lines
+)  # rd.py could not write all of an ack or feed
+if marks or hups or short:
+    sys.exit(f"{marks} PARMRK error marks, {hups} HUP lines, {short} short writes")

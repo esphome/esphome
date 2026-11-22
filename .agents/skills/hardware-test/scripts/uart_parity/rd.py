@@ -78,11 +78,15 @@ try:
             f.flush()
             if ack and b == b"\x7f":
                 n = write_all(fd, b"\x79", f, t0)
-                f.write(f"{time.time() - t0:.4f} TX 79*{n}\n")
+                f.write(
+                    f"{time.time() - t0:.4f} TX 79*{n}{'' if n else ' SHORT 0/1'}\n"
+                )
             tail = (tail + b)[-200:]
             if feed and b"RPT" in tail and tail.endswith(b"\r\n"):
                 tail = b""
                 n = write_all(fd, b"\x55" * 400, f, t0)
-                f.write(f"{time.time() - t0:.4f} TX 55*{n}\n")
+                f.write(
+                    f"{time.time() - t0:.4f} TX 55*{n}{'' if n == 400 else f' SHORT {n}/400'}\n"
+                )
 finally:
     os.close(fd)

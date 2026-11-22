@@ -31,6 +31,26 @@ for seq in range(256):
 N1.setdefault(decode_8e1(encode(GVR, False), "edge"), []).append(GVR)
 
 
+def classify(b: bytes) -> tuple[str, bool]:
+    """Label of an RX burst, and whether it matched anything known (the totals use the same decision)."""
+    if b.startswith(b"\r\nRPT"):
+        return "8E1 report: " + b.decode("latin1").strip(), True
+    if b == b"\x7f":
+        return "7F sync (parity not visible)", True
+    if b == GVR:
+        return "8E1 GVR 01 FE (exact)", True
+    if N1.get(b) == [GVR]:
+        return "8N1 GVR 01 FE (matches 8N1 model)", True
+    if valid(b):
+        return f"8E1 frame cmd {b[2]:02x} (exact)", True
+    if b in N1:
+        fs = " or ".join(
+            "GVR" if f == GVR else f"cmd {f[2]:02x} seq {f[1]}" for f in N1[b]
+        )
+        return f"8N1 frame {fs} (matches 8N1 model)", True
+    return "OTHER " + b[:40].hex(" "), False
+
+
 def main() -> None:
     bursts, last = [], -1.0
     for line in pathlib.Path(sys.argv[1]).read_text(encoding="utf-8").splitlines():
@@ -47,46 +67,27 @@ def main() -> None:
         else:
             bursts.append((float(t), "RX", h))
         last = float(t)
+    known = other = marks = hups = short = 0
     for t, d, h in bursts:
-        b, marks = rx_parse(h) if d == "RX" else (b"", 0)
         if d != "RX":
             k = f"{d} {h}"
-        elif b.startswith(b"\r\nRPT"):
-            k = "8E1 report: " + b.decode("latin1").strip()
-        elif b == b"\x7f":
-            k = "7F sync (parity not visible)"
-        elif b == GVR:
-            k = "8E1 GVR 01 FE (exact)"
-        elif N1.get(b) == [GVR]:
-            k = "8N1 GVR 01 FE (matches 8N1 model)"
-        elif valid(b):
-            k = f"8E1 frame cmd {b[2]:02x} (exact)"
-        elif b in N1:
-            fs = " or ".join(
-                "GVR" if f == GVR else f"cmd {f[2]:02x} seq {f[1]}" for f in N1[b]
-            )
-            k = f"8N1 frame {fs} (matches 8N1 model)"
+            hups += d == "HUP"
+            short += "SHORT" in h  # rd.py could not write all of an ack or feed
         else:
-            k = "OTHER " + b[:40].hex(" ")
-        if marks:
-            k += f" [{marks} PARMRK error marks]"
+            b, m = rx_parse(h)
+            k, ok = classify(b)
+            known += ok
+            other += not ok
+            marks += m
+            if m:
+                k += f" [{m} PARMRK error marks]"
         print(f"{t:8.3f} {k}")
-    # like txt.py: a capture with no data, a lost port or error marks is not a clean classification
-    rx = [h for _, d, h in bursts if d == "RX"]
-    marks = sum(rx_parse(h)[1] for h in rx)
-    hups = sum(d == "HUP" for _, d, _ in bursts)
-    # wrong baud, wrong port or noise: nothing matched a frame, the GVR request or a report line
-    known = sum(
-        b.startswith(b"\r\nRPT") or b == GVR or valid(b) or b in N1
-        for b in (rx_parse(h)[0] for h in rx)
-    )
-    # a few OTHER bursts are boot noise; more of them than classified ones means a wrong framing or a broken line
-    other = len(rx) - known
-    print(f"{len(rx)} RX bursts, {known} classified, {other} OTHER")
-    if not rx or marks or hups or not known or other > known:
-        sys.exit(
-            f"{len(rx)} RX bursts, {known} classified, {other} OTHER, {marks} PARMRK error marks, {hups} HUP lines"
-        )
+    # like txt.py: no data, a lost port, error marks or a short write is not a clean classification; a few OTHER
+    # bursts are boot noise, more of them than classified ones means a wrong framing or a broken line
+    summary = f"{known} classified, {other} OTHER, {marks} PARMRK error marks, {hups} HUP lines, {short} short writes"
+    print(summary)
+    if not known or other > known or marks or hups or short:
+        sys.exit(summary)
 
 
 if __name__ == "__main__":
