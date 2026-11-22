@@ -9,8 +9,7 @@ from pathlib import Path
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.const import CONF_DEBUG, CONF_ID
-from esphome.core import ID
+from esphome.const import CONF_DEBUG
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@nliaudat"]
@@ -20,6 +19,7 @@ CONF_PROBABILITY_CUTOFF = "probability_cutoff"
 CONF_SLIDING_WINDOW_SIZE = "sliding_window_size"
 CONF_FEATURES_STEP_SIZE = "features_step_size"
 CONF_FEATURE_COUNT = "feature_count"
+CONF_DECODER_ID = "decoder_id"
 
 output_ns = cg.esphome_ns.namespace("tflite_output_processor")
 ClassificationDecoder = output_ns.class_("ClassificationDecoder")
@@ -31,6 +31,7 @@ AUDIO_SCHEMA = cv.Schema(
         cv.Optional(CONF_SLIDING_WINDOW_SIZE): cv.positive_int,
         cv.Optional(CONF_FEATURES_STEP_SIZE): cv.int_range(min=0, max=30),
         cv.Optional(CONF_FEATURE_COUNT): cv.int_range(min=10, max=80),
+        cv.GenerateID(CONF_DECODER_ID): cv.declare_id(ClassificationDecoder),
     }
 )
 
@@ -50,11 +51,7 @@ async def configure(var, config: ConfigType, model_path: Path) -> None:
     if (count := config.get(CONF_FEATURE_COUNT)) is not None:
         cg.add(var.set_feature_count(count))
     decoder = cg.new_Pvariable(
-        ID(
-            f"{config[CONF_ID].id}_audio_decoder",
-            is_declaration=True,
-            type=ClassificationDecoder,
-        ),
+        config[CONF_DECODER_ID],
         OutputProcessing.OUTPUT_PROCESSING_ARGMAX,
         1.0,
         config.get(CONF_DEBUG, False),
