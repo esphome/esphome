@@ -79,6 +79,9 @@ for name, lines in ph.items():
             if a := cur.pop(k, None):
                 a["end"], a["te"] = m[2] or m[4], t
     if name.split("#")[0] == "adv":
+        # the scanner never stopped: the phase was abandoned and later phases may scan passively
+        if sc := sum("ST adv scanner_stuck" in ln for _, ln in lines):
+            d["scanner_stuck"] = sc
         for mode in ("active", "passive"):
             v = [
                 int(x) / 10
@@ -99,14 +102,16 @@ for name, lines in ph.items():
             txt,
         ):
             d["rounds,ok,first_ok,fail,stuck"] = m.groups()[:5]
-        else:  # a reset or the end of the capture cut the phase short
-            d["incomplete"] = True
             if m[6] and m[6] != "0":  # cold attempts that may have used the cache
                 d["cache_clean_fail"] = int(m[6])
             if (
                 m[7] and m[7] != "0"
             ):  # rounds against a wrong ff01 handle, out of ok and fail
                 d["handle_bad"] = int(m[7])
+        elif name.split("#")[0] != "done" or "ST DONE" not in txt:
+            d["incomplete"] = (
+                True  # a reset or the end of the capture cut the phase short
+            )
         if hm := txt.count("ST handle_mismatch"):
             d["handle_mismatch"] = hm
         ups = [int(x) for x in re.findall(r"ST conn_up \S+ r=\d+ total=(\d+)", txt)]

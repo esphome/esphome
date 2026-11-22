@@ -317,6 +317,8 @@ inline void tick() {
       if (st == 3 || st == 4) {
         if (now - t_wait > 30000) {
           ESP_LOGW(TAG, "ST adv scanner_stuck state=%d, phase abandoned", (int) trk->get_scanner_state());
+          trk->set_scan_active(true);  // later phases need the active scan they normally get
+          trk->start_scan();
           next_phase();
           break;
         }
