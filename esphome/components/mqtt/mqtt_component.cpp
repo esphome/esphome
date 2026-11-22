@@ -181,11 +181,7 @@ bool MQTTComponent::publish_float_(StringRef topic, float value, int8_t accuracy
   return this->publish(topic, buf, len);
 }
 
-bool MQTTComponent::publish_json(const std::string &topic, const json::json_build_t &f) {
-  return this->publish_json(topic.c_str(), f);
-}
-
-bool MQTTComponent::publish_json(const char *topic, const json::json_build_t &f) {
+bool MQTTComponent::publish_json(const char *topic, json::JsonBuildRef f) {
   if (topic[0] == '\0')
     return false;
   return global_mqtt_client->publish_json(topic, f, this->qos_, this->retain_);

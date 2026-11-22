@@ -300,10 +300,22 @@ class MQTTClientComponent final : public Component {
    * @param f The Json Message builder.
    * @param retain Whether to retain the message.
    */
-  bool publish_json(const std::string &topic, const json::json_build_t &f, uint8_t qos = 0, bool retain = false);
+  bool publish_json(const std::string &topic, const json::json_build_t &f, uint8_t qos = 0, bool retain = false) {
+    return this->publish_json(topic.c_str(), json::json_build_ref(f), qos, retain);
+  }
+  template<typename F> bool publish_json(const std::string &topic, F &&f, uint8_t qos = 0, bool retain = false) {
+    return this->publish_json(topic.c_str(), json::json_build_ref(f), qos, retain);
+  }
 
   /// Publish JSON directly without heap allocation for topic
-  bool publish_json(const char *topic, const json::json_build_t &f, uint8_t qos = 0, bool retain = false);
+  bool publish_json(const char *topic, const json::json_build_t &f, uint8_t qos = 0, bool retain = false) {
+    return this->publish_json(topic, json::json_build_ref(f), qos, retain);
+  }
+  /// Any callable taking a JsonObject; it is not copied, so its captures never allocate
+  template<typename F> bool publish_json(const char *topic, F &&f, uint8_t qos = 0, bool retain = false) {
+    return this->publish_json(topic, json::json_build_ref(f), qos, retain);
+  }
+  bool publish_json(const char *topic, json::JsonBuildRef f, uint8_t qos = 0, bool retain = false);
 
   /// Setup the MQTT client, registering a bunch of callbacks and attempting to connect.
   void setup() override;

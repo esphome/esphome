@@ -163,9 +163,31 @@ using json_parse_t = std::function<bool(JsonObject)>;
 /// Callback function typedef for building JsonObjects.
 using json_build_t = std::function<void(JsonObject)>;
 
+/// Non-owning reference to a JSON build callable, valid only for the call it is passed to. Lets one
+/// out-of-line body run any callable without a std::function, which allocates for captures over 8 bytes.
+struct JsonBuildRef {
+  void (*fn)(void *ctx, JsonObject root);
+  void *ctx;
+  void operator()(JsonObject root) const { this->fn(this->ctx, root); }
+};
+
+/// Wrap `f` without copying it; `f` must outlive the returned reference.
+template<typename F> JsonBuildRef json_build_ref(F &f) {
+  return {[](void *ctx, JsonObject root) { (*static_cast<F *>(ctx))(root); },
+          const_cast<void *>(static_cast<const void *>(&f))};
+}
+/// A plain function name has no address to point at; the function pointer is the context.
+inline JsonBuildRef json_build_ref(void (&f)(JsonObject)) {
+  return {[](void *ctx, JsonObject root) { reinterpret_cast<void (*)(JsonObject)>(ctx)(root); },
+          reinterpret_cast<void *>(&f)};
+}
+
 /// Build a JSON string with the provided json build function.
 /// Returns SerializationBuffer for stack-first allocation; implicitly converts to std::string.
-SerializationBuffer<> build_json(const json_build_t &f);
+SerializationBuffer<> build_json(JsonBuildRef f);
+/// Build a JSON string from any callable taking a JsonObject; it is not copied or allocated.
+template<typename F> SerializationBuffer<> build_json(F &&f) { return build_json(json_build_ref(f)); }
+inline SerializationBuffer<> build_json(const json_build_t &f) { return build_json(json_build_ref(f)); }
 
 /// Parse a JSON string and run the provided json parse function if it's valid.
 bool parse_json(const std::string &data, const json_parse_t &f);
