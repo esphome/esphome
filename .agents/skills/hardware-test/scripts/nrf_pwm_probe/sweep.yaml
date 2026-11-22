@@ -1,0 +1,27 @@
+# Shared sweep: sets every output to each level, waits, probes each pin. Needs a `probe_all` script in the board file.
+esphome:
+  includes:
+    - probe.hpp
+  on_boot:
+    - priority: -100
+      then:
+        - delay: 5s
+        - lambda: 'pwmprobe::calibrate();'
+        - repeat:
+            count: 12
+            then:
+              - lambda: |-
+                  static constexpr float LEVELS[] = {0.0f, 0.1f, 0.25f, 0.5f, 0.9f, 1.0f};
+                  id(level) = LEVELS[iteration % 6];
+              - script.execute: probe_all
+              - script.wait: probe_all
+        - lambda: 'id(level) = 0.5f;'
+        - script.execute: probe_all
+        - script.wait: probe_all
+        - logger.log: "DONE"
+globals:
+  - id: level
+    type: float
+    initial_value: '0'
+logger:
+  level: DEBUG
