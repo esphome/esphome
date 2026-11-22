@@ -19,6 +19,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, ID
 from esphome.cpp_types import Component
+from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
@@ -82,7 +83,10 @@ DEVICE_TYPES = {
 DEVICE_TYPE_ALIASES = {"BD": "BM"}
 
 
+@schema_extractor("enum")
 def validate_device_type(value: object) -> str:
+    if value is SCHEMA_EXTRACT:
+        return {**DEVICE_TYPES, "BD": DEVICE_TYPES["BM"]}
     value = cv.string(value).upper()
     return cv.enum(DEVICE_TYPES)(DEVICE_TYPE_ALIASES.get(value, value))
 
