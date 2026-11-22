@@ -55,6 +55,11 @@ def main() -> None:
     bursts, last = [], -1.0
     for line in pathlib.Path(sys.argv[1]).read_text(encoding="utf-8").splitlines():
         t, d, h = line.split(" ", 2)
+        if d == "TX" and h.startswith("framing=") and h.strip() != "framing=8E1":
+            # the model reads an 8E1 capture; at 8N1 every 8N1 frame would decode as an exact 8E1 one
+            sys.exit(
+                f"{h.strip()}: analyze.py needs an rd.py capture made in mode e (8E1)"
+            )
         if d != "RX":
             bursts.append(
                 (float(t), d, h.strip())
