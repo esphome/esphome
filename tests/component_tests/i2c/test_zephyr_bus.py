@@ -35,6 +35,9 @@ def test_zephyr_i2c_instance(
     assert "<NRF_PSEL(TWIM_SCL, 1, 8)>" in overlay
     assert f"{label}_default: {label}_default {{" in overlay
     assert (f"pinctrl-0 = <&{label}_default>;" in overlay) is enabled_here
+    default_group, _, sleep_group = overlay.partition(f"{label}_sleep: {label}_sleep")
+    assert "bias-pull-up;" in default_group
+    assert "bias-pull-up;" not in sleep_group
 
 
 @pytest.mark.parametrize(
