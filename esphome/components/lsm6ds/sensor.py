@@ -2,25 +2,14 @@
 import esphome.codegen as cg
 from esphome.components import sensor
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_TEMPERATURE,
-    CONF_TYPE,
-    DEVICE_CLASS_TEMPERATURE,
-    ICON_THERMOMETER,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS,
-)
+from esphome.const import CONF_TEMPERATURE, CONF_TYPE, ICON_THERMOMETER
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 from . import CONF_LSM6DS_ID, LSM6DSComponent
 
 CONFIG_SCHEMA = sensor.sensor_schema(
-    unit_of_measurement=UNIT_CELSIUS,
-    icon=ICON_THERMOMETER,
-    accuracy_decimals=2,
-    state_class=STATE_CLASS_MEASUREMENT,
-    device_class=DEVICE_CLASS_TEMPERATURE,
+    kind=sensor.TEMPERATURE, icon=ICON_THERMOMETER, accuracy_decimals=2
 ).extend(
     {
         cv.Optional(CONF_TYPE): CONF_TEMPERATURE,

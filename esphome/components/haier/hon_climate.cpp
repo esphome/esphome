@@ -1,4 +1,5 @@
 #include <chrono>
+#include <cmath>
 #include <string>
 #include "esphome/components/climate/climate.h"
 #include "esphome/components/uart/uart.h"
@@ -605,6 +606,10 @@ void HonClimate::initialization() {
   this->current_vertical_swing_ = this->settings_.last_vertiacal_swing;
   this->current_horizontal_swing_ = this->settings_.last_horizontal_swing;
   this->quiet_mode_state_ = this->settings_.quiet_mode_state ? SwitchState::SWITCH_ON : SwitchState::SWITCH_OFF;
+#ifdef USE_SWITCH
+  PUBLISH_STATE(this->beeper_switch_, this->get_beeper_state());
+  PUBLISH_STATE(this->quiet_mode_switch_, this->settings_.quiet_mode_state);
+#endif
 }
 
 haier_protocol::HaierMessage HonClimate::get_control_message() {
@@ -778,7 +783,7 @@ haier_protocol::HaierMessage HonClimate::get_control_message() {
 void HonClimate::process_alarm_message_(const uint8_t *packet, uint8_t size, bool check_new) {
   constexpr size_t active_alarms_size = sizeof(this->active_alarms_);
   if (size >= active_alarms_size + 2) {
-    if (check_new) {
+    if (check_new && !std::isnan(this->active_alarm_count_)) {
       size_t alarm_code = 0;
       for (int i = active_alarms_size - 1; i >= 0; i--) {
         if (packet[2 + i] != active_alarms_[i]) {
@@ -792,14 +797,14 @@ void HonClimate::process_alarm_message_(const uint8_t *packet, uint8_t size, boo
               // alarm change, including a later one in this packet; `code` stays correct
               static char alarm_message[HonAlarmMessages::MAX_LENGTH + 1];
               ESPHOME_strncpy_P(alarm_message,
-                                reinterpret_cast<const char *>(
-                                    HonAlarmMessages::get_progmem_str(alarm_code, HonAlarmMessages::LAST_INDEX)),
+                                reinterpret_cast<const char *>(HonAlarmMessages::get_progmem_str(alarm_code)),
                                 sizeof(alarm_message));
 #else
-              const char *alarm_message = HonAlarmMessages::get_progmem_str(alarm_code, HonAlarmMessages::LAST_INDEX);
+              const char *alarm_message = HonAlarmMessages::get_progmem_str(alarm_code);
 #endif
-              esp_log_printf_(log_level, TAG, __LINE__, "Alarm %s (%d): %s", alarm_status ? "activated" : "deactivated",
-                              alarm_code, alarm_message);
+              esp_log_printf_(log_level, TAG, __LINE__, ESPHOME_LOG_FORMAT("Alarm %s (%d): %s"),
+                              alarm_status ? LOG_STR_LITERAL("activated") : LOG_STR_LITERAL("deactivated"), alarm_code,
+                              alarm_message);
               if (alarm_status) {
                 this->alarm_start_callback_.call(alarm_code, alarm_message);
                 this->active_alarm_count_ += 1.0f;
@@ -900,18 +905,6 @@ void HonClimate::update_sub_text_sensor_(SubTextSensorType type, const char *val
   PUBLISH_STATE(this->sub_text_sensors_[index], value);
 }
 #endif  // USE_TEXT_SENSOR
-
-#ifdef USE_SWITCH
-void HonClimate::set_beeper_switch(switch_::Switch *sw) {
-  this->beeper_switch_ = sw;
-  PUBLISH_STATE(this->beeper_switch_, this->get_beeper_state());
-}
-
-void HonClimate::set_quiet_mode_switch(switch_::Switch *sw) {
-  this->quiet_mode_switch_ = sw;
-  PUBLISH_STATE(this->quiet_mode_switch_, this->settings_.quiet_mode_state);
-}
-#endif  // USE_SWITCH
 
 #ifdef USE_SELECT
 template<typename Mode, size_t N>
@@ -1213,11 +1206,13 @@ haier_protocol::HandlerError HonClimate::process_status_message_(const uint8_t *
     ESP_LOGI(TAG, "HVAC values changed");
   }
   int log_level = should_publish ? ESPHOME_LOG_LEVEL_INFO : ESPHOME_LOG_LEVEL_DEBUG;
-  esp_log_printf_(log_level, TAG, __LINE__, "HVAC Mode = 0x%X", packet.control.ac_mode);
-  esp_log_printf_(log_level, TAG, __LINE__, "Fan speed Status = 0x%X", packet.control.fan_mode);
-  esp_log_printf_(log_level, TAG, __LINE__, "Horizontal Swing Status = 0x%X", packet.control.horizontal_swing_mode);
-  esp_log_printf_(log_level, TAG, __LINE__, "Vertical Swing Status = 0x%X", packet.control.vertical_swing_mode);
-  esp_log_printf_(log_level, TAG, __LINE__, "Set Point Status = 0x%X", packet.control.set_point);
+  esp_log_printf_(log_level, TAG, __LINE__, ESPHOME_LOG_FORMAT("HVAC Mode = 0x%X"), packet.control.ac_mode);
+  esp_log_printf_(log_level, TAG, __LINE__, ESPHOME_LOG_FORMAT("Fan speed Status = 0x%X"), packet.control.fan_mode);
+  esp_log_printf_(log_level, TAG, __LINE__, ESPHOME_LOG_FORMAT("Horizontal Swing Status = 0x%X"),
+                  packet.control.horizontal_swing_mode);
+  esp_log_printf_(log_level, TAG, __LINE__, ESPHOME_LOG_FORMAT("Vertical Swing Status = 0x%X"),
+                  packet.control.vertical_swing_mode);
+  esp_log_printf_(log_level, TAG, __LINE__, ESPHOME_LOG_FORMAT("Set Point Status = 0x%X"), packet.control.set_point);
   return haier_protocol::HandlerError::HANDLER_OK;
 }
 
@@ -1533,6 +1528,8 @@ void HonClimate::process_protocol_reset() {
       sub_sensor->publish_state(NAN);
   }
 #endif  // USE_SENSOR
+  this->active_alarm_count_ = NAN;
+  memset(this->active_alarms_, 0, sizeof(this->active_alarms_));
   this->got_valid_outdoor_temp_ = false;
   this->hvac_hardware_info_.reset();
   this->last_status_message_.reset(nullptr);

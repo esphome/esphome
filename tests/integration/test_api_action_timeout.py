@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import re
 
 import pytest
 
@@ -29,6 +30,7 @@ async def test_api_action_timeout(
     1. Actions that respond within the timeout work correctly
     2. Actions that exceed the timeout have their calls cleaned up
     3. Late responses log a warning but don't crash
+    4. A call to a service of only inline actions is unregistered after them
     """
     waiter = LineWaiter()
 
@@ -43,13 +45,26 @@ async def test_api_action_timeout(
         # List services
         _, services = await client.list_entities_services()
 
-        # Should have 3 services
-        assert len(services) == 3, f"Expected 3 services, found {len(services)}"
+        # Should have 4 services
+        assert len(services) == 4, f"Expected 4 services, found {len(services)}"
 
         # Find our services
         action_immediate = require_service(services, "action_immediate")
         action_short_delay = require_service(services, "action_short_delay")
         action_long_delay = require_service(services, "action_long_delay")
+        action_inline_status = require_service(services, "action_inline_status")
+
+        # Test 0: an inline-only service responds from a lambda, then is unregistered;
+        # the timed-out check at the end shows the unregister ran
+        response = await client.execute_service(
+            action_inline_status,
+            {},
+            return_response=True,
+        )
+        assert response is not None, "Expected response for inline status action"
+        assert response.success is True
+        line = await waiter.wait_for("ACTION_INLINE_STATUS call_id=", timeout=1.0)
+        inline_call_id = re.search(r"call_id=(\d+)", line).group(1)
 
         # Test 1: Immediate response should work
         response = await client.execute_service(
@@ -114,3 +129,7 @@ async def test_api_action_timeout(
         )
         assert response is not None, "System should still work after timeout"
         assert response.success is True
+
+        # Well over 500 ms have passed: only the long delay call timed out
+        assert waiter.count(re.compile(r"Action call \d+ timed out")) == 1
+        assert waiter.count(f"Action call {inline_call_id} timed out") == 0

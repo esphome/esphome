@@ -62,6 +62,37 @@ frame of two LEDs set to `Color(0xA5, 0x3C, 0x0F)` reads `3ca50f3ca50f`.
   during component setup boot-loops before USB CDC enumerates and the board looks dead (no port, no BOOTSEL drive).
   Hold BOOTSEL while plugging it in and flash the UF2 drive. To see such a fault, trigger it after boot.
 
+## Colour correction A/B on the probe (#22868)
+
+`scripts/pio_probe/color_correct/`: `color-correct.yaml` puts six 2-LED `rp2040_pio_led_strip` strips on the Pico 2 W
+(WS2812 RGB and SK6812 GRBW at gamma 2.8, the same with `gamma_correct` omitted, RGB at gamma 1.0, and an RGBW strip
+whose `color_correct` each case sets with `AddressableLight::set_correction()`) plus two `partition` lights over one
+RGB and one RGBW strip in both orders. `cccases.hpp` steps a case list (brightness, `color_brightness`, RGBW, channel
+corrections, optional direct pixel writes) and logs `IN` and `PIN` (the colour and local brightness the light passes
+to the strip) plus three probe `RESULT` frames per strip. `model.py` rebuilds the gamma table like
+`light/__init__.py` and applies the base and PR rules; `analyze.py BASE_CAPTURE PR_CAPTURE` compares every full
+capture with the model. `run.sh LABEL` (env as for `pio_probe/run.sh`) flashes and captures 160 s, enough for two
+rounds of every case.
+
+- RGB-only lights carry white at 100% in `LightColorValues` (the default `white_`), so `color_from_light_color_values`
+  passes W=255 to an RGB strip; any per-pixel rule over four channels must ignore it.
+- Call `out->update_state(state)` before probing so the frame uses the correction just set.
+- `pioscope.hpp` splits bits at the midpoint of the shortest and longest high pulse, or at 500 ns when they differ by
+  150 ns or less (an all-zero or all-ones frame, which a midpoint decodes as noise).
+- About 1 in 600 captures has a single 1 bit read as 0; judge a case by its other captures.
+- Eight PIO strips is the limit here: `rp2040_pio_led_strip` takes PIO 0 or 1 only and PIO2 holds the probe.
+- A partition takes its traits from its first segment. Before #22868, a partition whose first segment is RGB lit a
+  later RGBW segment's white at the colour's level (white stays 100% in RGB mode); with it that white stays dark.
+
+## RMT power management lock and light sleep (#22631)
+
+Config: the issue's config with `profiling: true` under `esp32_power_management` (the lock and mode times need it), plus Wi-Fi, API, OTA, `logger: baud_rate: 0` (the native USB console holds a light sleep
+lock otherwise, see `reference/boards.md`) and an interval that writes `esp_pm_dump_locks()` into an `fmemopen`
+buffer and logs it line by line, so the lock table arrives over the API. An API driver walks idle, red, six changes
+2 s apart, rainbow, effect None and off (65 s each), then soaks to 16 min, logging everything with host timestamps;
+compare lock and mode times between dumps per step. Single digit percentages print as `5 %` in the mode rows, which
+adds a field when splitting on spaces.
+
 ## Counting a PIO strip's edges on its own pin (#16243)
 
 A GPIO interrupt on the strip's own data pin (`gpio_set_irq_enabled_with_callback(pin, GPIO_IRQ_EDGE_RISE, ...)`)
