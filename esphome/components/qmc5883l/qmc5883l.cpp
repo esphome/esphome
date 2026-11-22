@@ -101,7 +101,6 @@ void QMC5883LComponent::loop() {
 }
 
 void QMC5883LComponent::read_sensor_() {
-  i2c::ErrorCode err;
   uint8_t status = false;
 
   // Status byte gets cleared when data is read, so we have to read this first.
@@ -110,13 +109,8 @@ void QMC5883LComponent::read_sensor_() {
   // If status and all three axes are desired, using ROL_PNT saves you 3 bytes.
   // But simply not reading status saves you 4 bytes always and is much simpler.
   if (ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE) {
-    err = this->read_register(QMC5883L_REGISTER_STATUS, &status, 1);
-    if (err != i2c::ERROR_OK) {
-      char buf[32];
-      snprintf(buf, sizeof(buf), "status read failed (%d)", err);
-      this->status_set_warning(buf);
+    if (!this->status_comm_check(this->read_register(QMC5883L_REGISTER_STATUS, &status, 1) == i2c::ERROR_OK))
       return;
-    }
   }
 
   uint16_t raw[3] = {0};
@@ -134,13 +128,8 @@ void QMC5883LComponent::read_sensor_() {
     start = QMC5883L_REGISTER_DATA_Z_LSB;
     dest = 2;
   }
-  err = this->read_bytes_16_le_(start, &raw[dest], 3 - dest);
-  if (err != i2c::ERROR_OK) {
-    char buf[32];
-    snprintf(buf, sizeof(buf), "mag read failed (%d)", err);
-    this->status_set_warning(buf);
+  if (!this->status_comm_check(this->read_bytes_16_le_(start, &raw[dest], 3 - dest) == i2c::ERROR_OK))
     return;
-  }
 
   float mg_per_bit;
   switch (this->range_) {
@@ -164,15 +153,12 @@ void QMC5883LComponent::read_sensor_() {
   float temp = NAN;
   if (this->temperature_sensor_ != nullptr) {
     uint16_t raw_temp;
-    err = this->read_bytes_16_le_(QMC5883L_REGISTER_TEMPERATURE_LSB, &raw_temp);
-    if (err != i2c::ERROR_OK) {
-      char buf[32];
-      snprintf(buf, sizeof(buf), "temp read failed (%d)", err);
-      this->status_set_warning(buf);
+    if (!this->status_comm_check(this->read_bytes_16_le_(QMC5883L_REGISTER_TEMPERATURE_LSB, &raw_temp) ==
+                                 i2c::ERROR_OK))
       return;
-    }
     temp = int16_t(raw_temp) * 0.01f;
   }
+  this->status_clear_warning();
 
   ESP_LOGV(TAG, "Got x=%0.02fµT y=%0.02fµT z=%0.02fµT heading=%0.01f° temperature=%0.01f°C status=%u", x, y, z, heading,
            temp, status);
