@@ -17,8 +17,14 @@ template<typename Next, typename Owner> class ChainLink {
   /// Only valid when is_owner().
   Owner *owner() const { return reinterpret_cast<Owner *>(reinterpret_cast<char *>(this->ptr_) - OWNER_TAG); }
   /// Where the next node goes, for appending without a branch; only valid when !is_owner().
-  Next **next_slot() { return &this->ptr_; }
-  void set_next(Next *next) { this->ptr_ = next; }
+  Next **next_slot() {
+    static_assert(alignof(Next) > OWNER_TAG, "a node address must leave the owner tag bit free");
+    return &this->ptr_;
+  }
+  void set_next(Next *next) {
+    static_assert(alignof(Next) > OWNER_TAG, "a node address must leave the owner tag bit free");
+    this->ptr_ = next;
+  }
   /// Makes this the last node.
   void set_owner(Owner *owner) { this->ptr_ = tagged(owner); }
   /// The value set_owner() stores, for writing through next_slot().
