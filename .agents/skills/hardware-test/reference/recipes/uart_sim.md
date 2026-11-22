@@ -135,5 +135,5 @@ counts the pm_1_0 publishes on the device. `pms-dut.yaml` is the plain build, `p
 which fails unless the capture proves power management was on (add `--expect-light-sleep` for the light sleep
 case); an `esp_pm_configure()` failure always fails.
 
-- The plain build parses every frame; frequency scaling and light sleep lose frames in UART RX (boards.md, ESP32
+- The plain build parses every frame (run it with `--expect-all 0`); frequency scaling and light sleep lose frames in UART RX (boards.md, ESP32
   classic devkit, has the numbers and the REF_TICK workaround).

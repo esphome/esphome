@@ -1,11 +1,14 @@
 """Bounded capture at 9600 that also feeds PMS5003T frames on the same port (esphome#23038).
 
-  pmsfeed.py PORT SECONDS OUT [--reset] [--start S] [--period 1.0] [--expect-pm] [--expect-light-sleep] [--selftest]
+  pmsfeed.py PORT SECONDS OUT [--reset] [--start S] [--period 1.0] [--expect-pm] [--expect-light-sleep]
+             [--expect-all N] [--selftest]
 
 --expect-pm (pms-dfs.yaml and pms-manual-pm.yaml runs): exit 1 unless the capture proves power management was
 on (an esp_pm_configure() result of 0 from pmh.hpp, or the esp32_power_management config block). Any
 esp_pm_configure() failure, or the component marked FAILED, exits 1 with or without it.
 --expect-light-sleep (light sleep runs) also needs proof light sleep was on: "Light Sleep Enabled" or ls=1 = 0.
+--expect-all N (the plain pms-dut.yaml baseline): exit 1 when the device parsed more than N fewer frames than were
+fed between its first and last cnt line.
 Exits 1 too when no frame was fed, none was parsed, or fewer than two device cnt lines were captured.
 
 Frame n: PM1.0 std and atm = n, PM2.5 = n+1000, PM10 = n+2000, temp = 20.0+n%10, hum = 40.0+n%10.
@@ -55,6 +58,7 @@ def main() -> None:
     ap.add_argument("--period", type=float, default=1.0)
     ap.add_argument("--expect-pm", action="store_true")
     ap.add_argument("--expect-light-sleep", action="store_true")
+    ap.add_argument("--expect-all", type=int, metavar="N")
     ap.add_argument("--selftest", action="store_true")
     a = ap.parse_args()
     if not a.selftest and a.seconds <= a.start:
@@ -108,11 +112,11 @@ def main() -> None:
         wall = int(m[1]) * 3600 + int(m[2]) * 60 + float(m[3])
         if cnt and wall < cnt[-1][2]:
             wall += 86400  # midnight
-        cnt.append((int(m[4]), int(m[5]), wall))
+        cnt.append((int(m[4]), int(m[5]), wall, m.start()))
     dev, boots = None, 0
     if len(cnt) > 1:
         dev, boots, base, prev = 0, 1, cnt[0][0], cnt[0]
-        for p, u, w in cnt[1:]:
+        for p, u, w, _ in cnt[1:]:
             if u <= prev[1] or p < prev[0] or u - prev[1] < w - prev[2] - 5:
                 dev += prev[0] - base
                 boots, base = boots + 1, 0
@@ -133,10 +137,20 @@ def main() -> None:
         b"Light Sleep Enabled" in log or b"esp_pm_configure(ls=1) = 0" in log
     )
     feeds = log.count(b"[feed] n=")
+    # frames fed inside the window the device counter covers, to compare with dev
+    win = (
+        sum(
+            cnt[0][3] < m.start() < cnt[-1][3]
+            for m in re.finditer(rb"\[feed\] n=", log)
+        )
+        if len(cnt) > 1
+        else 0
+    )
     print(
         f"pm_configure={','.join(x.decode() for x in pm) or ('MISSING' if a.expect_pm else '-')} "
         f"pm_failed={pm_failed} cnt_lines={len(cnt)} "
-        f"feeds={feeds} parses={parses} dev_parses_between_cnt_lines={dev} boots={boots} "
+        f"feeds={feeds} feeds_between_cnt_lines={win} parses={parses} dev_parses_between_cnt_lines={dev} "
+        f"boots={boots} "
         f"start_char={log.count(b'Start character')} payload_len={log.count(b'Payload length')} "
         f"checksum={log.count(b'checksum mismatch')}"
     )
@@ -144,9 +158,8 @@ def main() -> None:
         sys.exit("no frame was fed: the run tested nothing")
     if len(cnt) < 2:
         sys.exit("fewer than two cnt lines: the device parse count is unknown")
-    if (
-        not dev
-    ):  # frames went out but none was parsed: the receive path of the rig is dead
+    # dead only when the counter window held frames and no parse line shows up anywhere either
+    if win and not dev and not parses:
         sys.exit(
             "frames were fed but the device parsed none: check the GPIO3 wiring and the second UART"
         )
@@ -154,6 +167,8 @@ def main() -> None:
         sys.exit("esp_pm_configure() failed: the run is not under power management")
     if a.expect_pm and not pm_ok:
         sys.exit("--expect-pm: no proof in the capture that power management was on")
+    if a.expect_all is not None and dev is not None and win - dev > a.expect_all:
+        sys.exit(f"--expect-all: {win - dev} of {win} frames not parsed")
     if a.expect_light_sleep and not ls_ok:
         sys.exit(
             "--expect-light-sleep: no proof in the capture that light sleep was on"
