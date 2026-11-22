@@ -141,7 +141,7 @@ dependencies:
   # clang-tidy project never runs, so they are declared here for its headers.
   # Keep in sync with esphome/components/tsdb/__init__.py
   zakery292/esp_tsdb:
-    version: 2.4.3
+    version: 2.4.4
     rules:
       - if: "$ESPHOME_ARDUINO_COMPONENT == 0"
   joltwallet/littlefs:

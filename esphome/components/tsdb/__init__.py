@@ -41,7 +41,7 @@ MissingPolicy = tsdbmath_ns.enum("MissingPolicy")
 MemoryMode = tsdbmath_ns.enum("MemoryMode")
 
 ESP_TSDB_COMPONENT = "zakery292/esp_tsdb"
-ESP_TSDB_VERSION = "2.4.3"
+ESP_TSDB_VERSION = "2.4.4"
 ESP_LITTLEFS_COMPONENT = "joltwallet/littlefs"
 ESP_LITTLEFS_VERSION = "1.22.3"
 
