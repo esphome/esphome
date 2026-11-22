@@ -7,6 +7,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
 
+#include <cmath>
 #include <iterator>
 
 namespace esphome::vl53l1x {
@@ -330,7 +331,7 @@ void VL53L1XSensor::update() {
   if (!this->start_ranging_()) {
     ESP_LOGW(TAG, "Starting measurement failed");
     this->status_set_warning();
-    this->publish_state(NAN);
+    this->publish_distance_(NAN);
     return;
   }
   this->measurement_start_ = App.get_loop_component_start_time();
@@ -347,7 +348,7 @@ void VL53L1XSensor::loop() {
     if (elapsed > static_cast<uint32_t>(this->budget_ms_) * 2 + 100) {
       ESP_LOGW(TAG, "Measurement timed out");
       this->status_set_warning();
-      this->publish_state(NAN);
+      this->publish_distance_(NAN);
       this->disable_loop();
     }
     return;
@@ -358,7 +359,7 @@ void VL53L1XSensor::loop() {
       !this->write_byte_reg16(SYSTEM_INTERRUPT_CLEAR, 0x01)) {
     ESP_LOGW(TAG, "Reading result failed");
     this->status_set_warning();
-    this->publish_state(NAN);
+    this->publish_distance_(NAN);
     this->disable_loop();
     return;
   }
@@ -377,11 +378,40 @@ void VL53L1XSensor::loop() {
   const uint8_t range_status = result[0] & 0x1F;
   if (range_status != RANGE_STATUS_VALID) {
     ESP_LOGD(TAG, "Range status %u", range_status);
-    this->publish_state(NAN);
+    this->publish_distance_(NAN);
     return;
   }
   const uint16_t distance_mm = encode_uint16(result[13], result[14]);
-  this->publish_state(distance_mm / 1000.0f);
+  this->publish_distance_(distance_mm / 1000.0f);
+}
+
+void VL53L1XSensor::publish_distance_(float distance_m) {
+  // Compute the speed and commit the baseline BEFORE publishing: the publish
+  // callbacks run synchronously, so their duration must not skew the timing,
+  // and a nested publish from one of them (e.g. a failed component.update)
+  // must stay the last write to the baseline.
+  const uint32_t now = App.get_loop_component_start_time();
+  float speed = 0.0f;
+  bool publish_speed = false;
+  if (this->speed_sensor_ != nullptr) {
+    if (std::isnan(distance_m)) {
+      // No valid reading to derive a speed from: reset the baseline.
+      this->last_distance_m_ = NAN;
+    } else {
+      if (!std::isnan(this->last_distance_m_)) {
+        const float dt = (now - this->last_distance_time_) / 1000.0f;
+        if (dt > 0) {
+          speed = (distance_m - this->last_distance_m_) / dt;
+          publish_speed = true;
+        }
+      }
+      this->last_distance_m_ = distance_m;
+      this->last_distance_time_ = now;
+    }
+  }
+  this->publish_state(distance_m);
+  if (publish_speed)
+    this->speed_sensor_->publish_state(speed);
 }
 
 // Indexed by DistanceMode
@@ -392,6 +422,7 @@ void VL53L1XSensor::dump_config() {
   LOG_UPDATE_INTERVAL(this);
   LOG_I2C_DEVICE(this);
   LOG_PIN("  Enable Pin: ", this->enable_pin_);
+  LOG_SENSOR("  ", "Speed", this->speed_sensor_);
   ESP_LOGCONFIG(TAG,
                 "  Distance Mode: %s\n"
                 "  Timing Budget: %u ms\n"

@@ -7,7 +7,11 @@ from esphome.const import (
     CONF_ADDRESS,
     CONF_ENABLE_PIN,
     CONF_OFFSET,
+    CONF_SPEED,
     ICON_ARROW_EXPAND_VERTICAL,
+    ICON_GAUGE,
+    STATE_CLASS_MEASUREMENT,
+    UNIT_METER_PER_SECOND,
 )
 import esphome.final_validate as fv
 from esphome.types import ConfigType
@@ -135,6 +139,13 @@ CONFIG_SCHEMA = cv.All(
             # Defaults to the chip's optical centre, or 199 for a ROI larger than 10x10
             cv.Optional(CONF_ROI_CENTER): cv.int_range(min=1, max=255),
             cv.Optional(CONF_OFFSET, default=0): cv.int_range(min=-1024, max=1023),
+            # Speed derived from consecutive valid ranges, in m/s (positive: the target moves away)
+            cv.Optional(CONF_SPEED): sensor.sensor_schema(
+                unit_of_measurement=UNIT_METER_PER_SECOND,
+                accuracy_decimals=2,
+                icon=ICON_GAUGE,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
         }
     )
     .extend(cv.polling_component_schema("1s"))
@@ -158,5 +169,8 @@ async def to_code(config: ConfigType) -> None:
     if (roi_center := config.get(CONF_ROI_CENTER)) is not None:
         cg.add(var.set_roi_center(roi_center))
     cg.add(var.set_offset(config[CONF_OFFSET]))
+    if (speed_config := config.get(CONF_SPEED)) is not None:
+        speed = await sensor.new_sensor(speed_config)
+        cg.add(var.set_speed_sensor(speed))
 
     await cg.add_pin(var.set_enable_pin, config.get(CONF_ENABLE_PIN))
