@@ -20,22 +20,32 @@ display:
     dc_pin: GPIO3
 
 lvgl:
-  widgets:
-    - slider:
-        id: source_slider
-        on_value:
-          - lvgl.slider.update:
-              id: target_slider
-              value: !lambda return ++x;
-          - lvgl.canvas.draw_rectangle:
-              id: test_canvas
-              x: 0
-              y: 0
-              width: !lambda return ++x;
-              height: 10
-    - slider:
-        id: target_slider
-    - canvas:
-        id: test_canvas
-        width: 32
-        height: 32
+  pages:
+    - id: test_page
+      widgets:
+        - slider:
+            id: source_slider
+            on_value:
+              - lvgl.slider.update:
+                  id: target_slider
+                  value: !lambda return ++x + 1;
+              - lvgl.canvas.draw_rectangle:
+                  id: test_canvas
+                  x: 0
+                  y: 0
+                  width: !lambda return ++x + 2;
+                  height: 10
+              - lvgl.canvas.set_pixels:
+                  id: test_canvas
+                  color: red
+                  opa: !lambda return ++x + 3;
+                  points:
+                    - 1,1
+              - lvgl.page.next:
+                  time: !lambda return ++x + 4;
+        - slider:
+            id: target_slider
+        - canvas:
+            id: test_canvas
+            width: 32
+            height: 32

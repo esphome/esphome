@@ -10,16 +10,23 @@ from collections.abc import Callable
 from pathlib import Path
 import re
 
+import pytest
+
 CONFIG = Path(__file__).parent / "config" / "action_value_lambda_copy_test.yaml"
 
 
+@pytest.mark.parametrize(
+    ("case", "marker"),
+    [("slider value", 1), ("canvas width", 2), ("set_pixels opa", 3), ("page time", 4)],
+)
 def test_value_lambda_takes_trigger_arg_by_value(
-    generate_main: Callable[[str | Path], str],
+    generate_main: Callable[[str | Path], str], case: str, marker: int
 ) -> None:
     main_cpp = generate_main(CONFIG)
     assert "const std::remove_cvref_t<float> & x" in main_cpp
-    # Each lambda that runs `++x` (slider value, canvas width) declares its own by-value `float x`
-    copies = re.findall(
-        r"\]\(float x\b[^)]*\)[^{]*\{\s*(?:#line[^\n]*\n\s*)?return \+\+x;", main_cpp
+    # The lambda that runs `++x + <marker>` declares its own by-value `float x`
+    pattern = (
+        r"\]\(float x\b[^)]*\)[^{]*\{\s*(?:#line[^\n]*\n\s*)?"
+        rf"return \+\+x \+ {marker};"
     )
-    assert len(copies) == 2
+    assert len(re.findall(pattern, main_cpp)) == 1, case
