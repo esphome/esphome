@@ -1,10 +1,21 @@
 """Tests for the model_io arena estimate rules that do not need a model file."""
 
+import pytest
+
 from esphome.components.tflite_model_io.model_reader import (
     TENSOR_TYPE_NAMES,
+    ModelReadError,
     _peak_activation_bytes,
     _Tensor,
 )
+
+
+def test_a_subgraph_without_operators_is_an_error() -> None:
+    """An empty operator list leaves nothing live, so the estimate would be too small."""
+    tensors = [_Tensor(10, True)]
+
+    with pytest.raises(ModelReadError, match="no operators"):
+        _peak_activation_bytes(tensors, [], [0], [0])
 
 
 def test_a_subgraph_output_stays_live_until_the_end() -> None:

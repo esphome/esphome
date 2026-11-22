@@ -247,20 +247,6 @@ def _load(model_path: str | Path) -> _FlatBuffer:
     return _FlatBuffer(data, path)
 
 
-def _operator_codes(buffer: _FlatBuffer) -> list[int]:
-    """The builtin code of every operator the model declares."""
-    codes = []
-    for table in buffer.table_vector(buffer.root(), _MODEL_OPERATOR_CODES):
-        # GetBuiltinCode() takes the larger field: the older schema leaves builtin_code at 0, and a code past 127
-        # does not fit the byte field.
-        deprecated = buffer.i8_field(table, _OPCODE_DEPRECATED_BUILTIN_CODE) or 0
-        builtin = buffer.i32_field(table, _OPCODE_BUILTIN_CODE) or 0
-        codes.append(max(builtin, deprecated))
-    if not codes:
-        raise ModelReadError(f"{buffer.path}: the model declares no operator codes")
-    return codes
-
-
 def _operator_name(code: int) -> str:
     """Name of a builtin code, or its number when the schema is newer than this table."""
     if (name := BUILTIN_OPERATOR_NAMES.get(code)) is not None:
@@ -272,12 +258,17 @@ def _operator_names(buffer: _FlatBuffer) -> list[str]:
     """The name of every operator code, with custom codes kept distinct."""
     names = []
     for table in buffer.table_vector(buffer.root(), _MODEL_OPERATOR_CODES):
+        # GetBuiltinCode() takes the larger field: the older schema leaves builtin_code at 0, and a code past 127
+        # does not fit the byte field.
         deprecated = buffer.i8_field(table, _OPCODE_DEPRECATED_BUILTIN_CODE) or 0
         builtin = buffer.i32_field(table, _OPCODE_BUILTIN_CODE) or 0
         code = max(builtin, deprecated)
         if code == _BUILTIN_CUSTOM:
-            # Each custom operator takes its own resolver slot, so keep the code.
-            custom = buffer.string_field(table, _OPCODE_CUSTOM_CODE) or ""
+            # Each custom operator takes its own resolver slot, so keep its name.
+            if not (custom := buffer.string_field(table, _OPCODE_CUSTOM_CODE)):
+                raise ModelReadError(
+                    f"{buffer.path}: a custom operator has no custom_code"
+                )
             names.append(f"CUSTOM:{custom}")
         else:
             names.append(_operator_name(code))
@@ -432,6 +423,9 @@ def _peak_activation_bytes(
     Subgraph inputs are live from the start and subgraph outputs until the end, so a
     graph whose branches only meet at the output does not understate the peak.
     """
+    if not operators:
+        # Without an operator nothing is live, which would understate the estimate.
+        raise ModelReadError("the subgraph has no operators")
     first_use: dict[int, int] = {}
     last_use: dict[int, int] = {}
     last_operator = len(operators) - 1
