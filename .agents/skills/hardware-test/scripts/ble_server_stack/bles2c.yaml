@@ -1,0 +1,19 @@
+# bles2.yaml plus a Battery service (0x180F, 2A19 read+notify with a CCCD, value 87) created at boot with
+# create_service(), so dev builds have it too (#22877). -s name NAME
+packages:
+  base: !include bles2.yaml
+esphome:
+  on_boot:
+    priority: -100
+    then:
+      - lambda: |-
+          auto *srv = esp32_ble_server::global_ble_server;
+          auto *bat = srv->create_service(esp32_ble::ESPBTUUID::from_uint16(0x180F), false, 6);
+          auto *lvl = bat->create_characteristic(0x2A19,
+              esp32_ble_server::BLECharacteristic::PROPERTY_READ | esp32_ble_server::BLECharacteristic::PROPERTY_NOTIFY,
+              ESP_GATT_PERM_READ);
+          lvl->add_descriptor(new esp32_ble_server::BLE2902());
+          lvl->set_value({87});
+          srv->enqueue_start_service(bat);
+          auto i = esp32_ble_server::svc_info(*srv);
+          ESP_LOGI("T", "BATTERY created, services size %u cap %u", (unsigned) i.size, (unsigned) i.cap);

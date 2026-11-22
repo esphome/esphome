@@ -1,0 +1,16 @@
+# proxy.yaml on an ESP32-S3 with 16 MB flash (Wi-Fi, OTA), plus the coexlog.hpp coexistence logger. -s name, flags, window
+packages:
+  base: !include proxy.yaml
+esphome:
+  includes:
+    - coexlog.hpp
+  platformio_options:
+    build_flags:
+      - -Wl,--wrap=esp_coex_status_bit_set
+      - -Wl,--wrap=esp_coex_status_bit_clear
+esp32:
+  variant: ESP32S3
+  board: esp32-s3-devkitc-1
+  flash_size: 16MB
+ota:
+  - platform: esphome
