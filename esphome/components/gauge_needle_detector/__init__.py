@@ -28,6 +28,9 @@ async def to_code(config: ConfigType) -> None:
 
 def enable_detectors(algorithms: Iterable[str]) -> None:
     """Compile in the given detectors; "auto" enables all of them."""
+    # Also set here, so a consumer that calls this from its own to_code() gets
+    # the component even when it does not list it in AUTO_LOAD.
+    cg.add_define("USE_GAUGE_NEEDLE_DETECTOR")
     for algorithm in algorithms:
         if algorithm == "auto":
             for define in ALGORITHM_DEFINES.values():
