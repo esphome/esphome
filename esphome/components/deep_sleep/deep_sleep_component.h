@@ -91,33 +91,28 @@ inline bool woke_from_deep_sleep() { return get_wakeup_cause() != WAKEUP_CAUSE_N
  */
 inline constexpr float ON_WAKE_TRIGGER_SETUP_PRIORITY = 700.0f;
 
-/// Fires once on boot when the device woke from deep sleep, with the wakeup cause.
-class WakeTrigger : public Trigger<WakeupCause>, public Component {
+/// Calls Fn once on boot when the device woke from deep sleep, with the wakeup cause.
+template<auto Fn> class WakeCallback final : public Component {
  public:
   void setup() override {
     const WakeupCause cause = get_wakeup_cause();
     if (cause != WAKEUP_CAUSE_NONE) {
-      this->trigger(cause);
+      Fn(cause);
     }
   }
   float get_setup_priority() const override { return ON_WAKE_TRIGGER_SETUP_PRIORITY; }
 };
 
 #if defined(USE_ESP32) && SOC_PM_SUPPORT_EXT1_WAKEUP
-/// Fires once on boot when the device was woken from deep sleep by the given ext1 pin.
-class Ext1WakeTrigger : public Trigger<>, public Component {
+/// Calls Fn once on boot when the device was woken from deep sleep by ext1 pin PIN.
+template<auto Fn, uint8_t PIN> class Ext1WakeCallback final : public Component {
  public:
-  explicit Ext1WakeTrigger(uint8_t pin) : pin_(pin) {}
   void setup() override {
-    if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_EXT1 &&
-        (esp_sleep_get_ext1_wakeup_status() & (1ULL << this->pin_))) {
-      this->trigger();
+    if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_EXT1 && (esp_sleep_get_ext1_wakeup_status() & (1ULL << PIN))) {
+      Fn();
     }
   }
   float get_setup_priority() const override { return ON_WAKE_TRIGGER_SETUP_PRIORITY; }
-
- protected:
-  uint8_t pin_;
 };
 #endif
 
