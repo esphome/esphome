@@ -5,10 +5,8 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_BATTERY_VOLTAGE,
     DEVICE_CLASS_CURRENT,
-    DEVICE_CLASS_VOLTAGE,
     STATE_CLASS_MEASUREMENT,
     UNIT_MILLIAMP,
-    UNIT_VOLT,
 )
 from esphome.types import ConfigType
 
@@ -76,22 +74,13 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_SY6970_ID): cv.use_id(SY6970Component),
         cv.Optional(CONF_VBUS_VOLTAGE): sensor.sensor_schema(
-            unit_of_measurement=UNIT_VOLT,
-            accuracy_decimals=2,
-            device_class=DEVICE_CLASS_VOLTAGE,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.VOLTAGE, accuracy_decimals=2
         ),
         cv.Optional(CONF_BATTERY_VOLTAGE): sensor.sensor_schema(
-            unit_of_measurement=UNIT_VOLT,
-            accuracy_decimals=2,
-            device_class=DEVICE_CLASS_VOLTAGE,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.VOLTAGE, accuracy_decimals=2
         ),
         cv.Optional(CONF_SYSTEM_VOLTAGE): sensor.sensor_schema(
-            unit_of_measurement=UNIT_VOLT,
-            accuracy_decimals=2,
-            device_class=DEVICE_CLASS_VOLTAGE,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.VOLTAGE, accuracy_decimals=2
         ),
         cv.Optional(CONF_CHARGE_CURRENT): sensor.sensor_schema(
             unit_of_measurement=UNIT_MILLIAMP,

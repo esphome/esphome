@@ -7,14 +7,11 @@ ESPHOME_LOG_TAG(TAG, "a4988.stepper");
 
 void A4988::setup() {
   if (this->sleep_pin_ != nullptr) {
-    this->sleep_pin_->setup();
-    this->sleep_pin_->digital_write(false);
+    setup_output_pin(this->sleep_pin_, false);
     this->sleep_pin_state_ = false;
   }
-  this->step_pin_->setup();
-  this->step_pin_->digital_write(false);
-  this->dir_pin_->setup();
-  this->dir_pin_->digital_write(false);
+  setup_output_pin(this->step_pin_, false);
+  setup_output_pin(this->dir_pin_, false);
 }
 void A4988::dump_config() {
   ESP_LOGCONFIG(TAG, "A4988:");
@@ -41,9 +38,7 @@ void A4988::loop() {
 
   this->dir_pin_->digital_write(dir == 1);
   delayMicroseconds(50);
-  this->step_pin_->digital_write(true);
-  delayMicroseconds(5);
-  this->step_pin_->digital_write(false);
+  pulse_pin(this->step_pin_, true, 5);
 }
 
 }  // namespace esphome::a4988

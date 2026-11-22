@@ -1,0 +1,8 @@
+interval:
+  - interval: 1s
+    then:
+      - lambda: |-
+          const uint32_t s = millis() / 1000;
+          const bool nt = s >= 20 && s < 40, ov = s >= 50 && s < 70;
+          if (nt != vl_inject_no_target) { vl_inject_no_target = nt; ESP_LOGW("inject", "range no-target injection %s at %u s", nt ? "ON" : "OFF", (unsigned) s); }
+          if (ov != vl_inject_als_overflow) { vl_inject_als_overflow = ov; ESP_LOGW("inject", "ALS overflow injection %s at %u s", ov ? "ON" : "OFF", (unsigned) s); }

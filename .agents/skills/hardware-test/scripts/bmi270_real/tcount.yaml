@@ -1,0 +1,24 @@
+substitutions:
+  name: bmit
+packages:
+  common: !include common.yaml
+globals:
+  - id: t_pubs
+    type: uint32_t
+    initial_value: "0"
+  - id: t_nan
+    type: uint32_t
+    initial_value: "0"
+sensor:
+  - id: !extend s_t
+    on_raw_value:
+      - lambda: |-
+          id(t_pubs) += 1;
+          if (std::isnan(x)) id(t_nan) += 1;
+          if (id(t_pubs) <= 3) ESP_LOGI("bmiprobe", "TEMP raw #%u %.4f at %u ms", id(t_pubs), x, millis());
+interval:
+  - interval: 10s
+    then:
+      - lambda: |-
+          ESP_LOGI("bmiprobe", "TCOUNT pubs=%u nan=%u state=%.4f decimals=%d unit=%s uptime=%u", id(t_pubs), id(t_nan),
+                   id(s_t).state, id(s_t).get_accuracy_decimals(), id(s_t).get_unit_of_measurement_ref().c_str(), millis());
