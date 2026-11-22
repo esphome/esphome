@@ -81,3 +81,9 @@ nrf54_xiao/*-cap.txt
 nrf54_xiao/*-cap.err
 nrf54_xiao/*.log
 nrf54_xiao/*-events.txt
+ble_conn_interval/*.jsonl
+ble_conn_interval/*.err
+ble_conn_interval/*.log
+ble_conn_interval/cap-*.txt
+ble_conn_interval/ping-*.txt
+ble_server_stack/*.log
