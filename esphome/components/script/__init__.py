@@ -258,15 +258,15 @@ async def script_execute_action_to_code(config, action_id, template_arg, args):
     _, script_params = parameters_to_template(params)
     script_args = await get_ordered_args(config, script_params)
 
-    paren = await cg.get_variable(config[CONF_ID])
+    parent = await automation.apply_parent(config)
     # Separate statements, because the order of evaluation inside one call is not defined
     names = [cg.MockObj(f"esphome__arg_{index}") for index in range(len(script_args))]
     statements = [
         str(cg.statement(AssignmentExpression("auto", "", name, arg)))
         for name, arg in zip(names, script_args, strict=True)
     ]
-    moved = [cg.std_ns.move(name) for name in names]
-    statements.append(str(cg.statement(automation.parent_ref(paren).execute(*moved))))
+    moved = ", ".join(str(cg.std_ns.move(name)) for name in names)
+    statements.append(f"{parent}->execute({moved});")
     return automation.apply_statements_action(action_id, template_arg, args, statements)
 
 
