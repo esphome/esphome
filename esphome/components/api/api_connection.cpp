@@ -1464,7 +1464,7 @@ bool APIConnection::send_sendspin_pairing_token_response_() {
   auto token = sendspin_::global_sendspin_hub->get_pairing_token();
   if (token.has_value()) {
     resp.status = enums::SENDSPIN_PAIRING_TOKEN_STATUS_OK;
-    resp.token = StringRef(*token);
+    resp.token = StringRef(token->data(), token->size());
   } else if (sendspin_::global_sendspin_hub->status_has_error()) {
     resp.status = enums::SENDSPIN_PAIRING_TOKEN_STATUS_FAILED;
   } else if (sendspin_::global_sendspin_hub->is_disabled()) {
