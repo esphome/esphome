@@ -89,6 +89,20 @@ TEST_F(ESPectreTargetMacTest, EmbeddedNulKeepsActiveAndSavedTarget) {
   EXPECT_EQ(restored_text.state, target);
 }
 
+TEST_F(ESPectreTargetMacTest, MalformedTargetLogsExpectedFormat) {
+  component_.setup();
+  const auto baud_rate = logger::global_logger->get_baud_rate();
+  logger::global_logger->set_baud_rate(115200);
+  for (const auto &target : {std::string("aa:bb:cc:dd:ee:02:03"), std::string("auto\0suffix", 11)}) {
+    ::testing::internal::CaptureStdout();
+    component_.request_traffic_generator_target_mac(target);
+    component_.loop();
+    const std::string log = ::testing::internal::GetCapturedStdout();
+    EXPECT_NE(log.find("Invalid target MAC: expected 'auto'"), std::string::npos) << log;
+  }
+  logger::global_logger->set_baud_rate(baud_rate);
+}
+
 TEST_F(ESPectreTargetMacTest, RequestWithoutText) {
   ESPectreComponent component;
   component.setup();

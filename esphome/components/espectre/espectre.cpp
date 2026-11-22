@@ -301,7 +301,11 @@ void ESPectreComponent::apply_pending_controls_() {
         this->target_mac_text_->publish_state(target.data());
       }
     } else {
-      ESP_LOGW(TAG, "Target MAC '%s' was rejected", target.data());
+      if (target.front() == '\0') {
+        ESP_LOGW(TAG, "Invalid target MAC: expected 'auto' or a 17-character MAC address without NUL bytes");
+      } else {
+        ESP_LOGW(TAG, "Target MAC '%s' was rejected", target.data());
+      }
       if (this->target_mac_text_ != nullptr)
         this->target_mac_text_->publish_state(this->target_mac_text_->state);
     }
