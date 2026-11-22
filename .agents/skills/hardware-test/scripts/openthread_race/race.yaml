@@ -2,6 +2,9 @@
 # "border routing restarts" fires the armed race: after race_delay ms a 20 s Wi-Fi drop (mode 1) or a safe reboot
 # (mode 2), or Wi-Fi disabled inside the log callback itself (mode 3). The API action race(mode, delay_ms) arms it
 # and starts a 15 s Wi-Fi drop. race-auto.yaml runs the steps on the device instead.
+esphome:
+  includes:
+    - race_rtc.hpp
 globals:
   - id: race_mode
     type: int
@@ -28,6 +31,7 @@ logger:
               if (id(race_mode) == 3) {
                 // inside loop(), before the start request is set: Wi-Fi goes down as the task starts
                 id(race_mode) = 0;
+                race_rtc_fired = RACE_RTC_FIRED;  // before the disable: a reset inside it is a fired race
                 wifi::global_wifi_component->disable();
                 id(race_reenable).execute();
               } else {
@@ -83,10 +87,6 @@ script:
   - id: race_reenable
     then:
       - delay: 0s  # leave the log callback first; the logger drops log calls made inside it
-      - lambda: |-
-          id(race_fired) = true;
-          race_fired->update();
-          global_preferences->sync();
       - logger.log: "HWT race sync disable done"
       - delay: 20s
       - logger.log: "HWT race enable"

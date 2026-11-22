@@ -4,6 +4,9 @@
 # Thread device's address TARGET6, and append one "cycle N ok=..." line to OUT (restarted=0: the uptime shows no
 # restart). The API key is API_KEY, else apikey.txt, else plaintext. env: PY
 D=$(cd "$(dirname "$0")" && pwd); N=$1; C=$2; O=$3; T6=$4
+if [ -z "$N" ] || [ -z "$O" ] || ! [[ $C =~ ^[1-9][0-9]*$ ]]; then
+  echo "usage: rb.sh NAME COUNT OUT [TARGET6] (COUNT a positive number)" >&2; exit 2
+fi
 if [ -n "${API_KEY+x}" ]; then KEY=$API_KEY; src="API_KEY"
 elif [ -f "$D/apikey.txt" ]; then KEY=$(cat "$D/apikey.txt") || exit 1; src="apikey.txt"
 else KEY=; src="none, plaintext API"; fi

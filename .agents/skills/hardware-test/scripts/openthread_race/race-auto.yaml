@@ -67,7 +67,7 @@ interval:
             booted = false;
             const esp_reset_reason_t why = esp_reset_reason();
             if (id(auto_armed) != 0 && !(id(auto_armed) == 2 && why == ESP_RST_SW && id(race_rebooted))) {
-              if (id(race_fired)) {
+              if (id(race_fired) || race_rtc_fired == RACE_RTC_FIRED) {
                 ESP_LOGE("hwt", "HWT auto race mode %d fired, then reset reason %d", id(auto_armed), (int) why);
                 id(crashed)++;
               } else {
@@ -77,6 +77,7 @@ interval:
             }
             id(auto_armed) = 0;
             id(race_rebooted) = id(race_fired) = false;
+            race_rtc_fired = 0;
           }
           // Thread must have been attached for 40 s too: Border routing started does not mean the C6 joined
           static uint32_t thread_up_at = 0;
@@ -129,6 +130,7 @@ interval:
             id(race_delay) = r.delay_ms;
             id(auto_armed) = r.mode;
             id(race_rebooted) = id(race_fired) = false;
+            race_rtc_fired = 0;
             // restored globals save on their own update(): store the step and the arm now, so a crash during
             // the race restores them and counts the race as not fired
             auto_step->update();

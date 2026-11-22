@@ -40,9 +40,12 @@ async def main() -> int:
         def on_state(s) -> None:
             if s.missing_state:
                 return
+            # the latest state is the answer: an error or none after a prefix clears it
             if s.key == key and s.state.startswith("error:"):
-                err[0] = s.state
-            elif s.key == key and s.state not in ("", "none"):
+                err[0], val[0] = s.state, ""
+            elif s.key == key and s.state in ("", "none"):
+                val[0] = ""
+            elif s.key == key:
                 val[0] = s.state
             elif s.key == ukey:
                 up[0] = s.state
@@ -54,6 +57,9 @@ async def main() -> int:
             await asyncio.wait_for(got.wait(), SECS)
         except TimeoutError:
             print(f"omr={val[0] or err[0] or 'none'} uptime={up[0]}")
+            return 1
+        if not val[0]:  # cleared by a later error or none
+            print(f"omr={err[0] or 'none'} uptime={up[0]}")
             return 1
         print(f"omr={val[0]} uptime={up[0]:.0f}")
         return 0
