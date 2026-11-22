@@ -60,7 +60,7 @@ namespace {
 
 /// A gray that lands squarely on each of the four levels.
 Color color_for_level(uint8_t level) {
-  static const uint8_t GRAYS[4] = {0, 64, 128, 255};
+  static const uint8_t GRAYS[4] = {0, 85, 170, 255};
   const uint8_t v = GRAYS[level];
   return Color(v, v, v);
 }
