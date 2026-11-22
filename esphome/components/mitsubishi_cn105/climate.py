@@ -173,12 +173,10 @@ async def to_code(config: ConfigType) -> None:
         parent = cg.new_Pvariable(config[CONF_LEGACY_MITSUBISHI_CN105_ID])
         await cg.register_component(parent, config)
         await uart.register_uart_device(parent, config)
-        if CONF_CURRENT_TEMPERATURE_MIN_INTERVAL in config:
-            cg.add(
-                parent.set_telemetry_request_min_interval(
-                    config[CONF_CURRENT_TEMPERATURE_MIN_INTERVAL]
-                )
-            )
+        cg.add_optional(
+            parent.set_telemetry_request_min_interval,
+            config.get(CONF_CURRENT_TEMPERATURE_MIN_INTERVAL),
+        )
         cg.add(var.set_parent(parent))
     cg.add(var.set_supported_swing_mode(config[CONF_SUPPORTED_SWING_MODES]))
 

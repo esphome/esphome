@@ -367,10 +367,6 @@ void Logger::set_boot_log_level(const char *tag, uint8_t log_level) { this->boot
 // Log level strings - packed into flash on ESP8266, indexed by log level (0-7)
 PROGMEM_STRING_TABLE(LogLevelStrings, "NONE", "ERROR", "WARN", "INFO", "CONFIG", "DEBUG", "VERBOSE", "VERY_VERBOSE");
 
-static const LogString *get_log_level_str(uint8_t level) {
-  return LogLevelStrings::get_log_str(level, LogLevelStrings::LAST_INDEX);
-}
-
 #ifndef USE_HOST
 const LogString *Logger::get_uart_selection_() {
 #ifdef USE_LOGGER_UART_SELECTION_DEFAULT
@@ -395,8 +391,8 @@ void Logger::dump_config() {
                 "Logger:\n"
                 "  Max Level: %s\n"
                 "  Initial Level: %s",
-                LOG_STR_ARG(get_log_level_str(ESPHOME_LOG_LEVEL)),
-                LOG_STR_ARG(get_log_level_str(this->current_level_)));
+                LOG_STR_ARG(LogLevelStrings::get_log_str(ESPHOME_LOG_LEVEL)),
+                LOG_STR_ARG(LogLevelStrings::get_log_str(this->current_level_)));
 #ifndef USE_HOST
   ESP_LOGCONFIG(TAG,
                 "  Log Baud Rate: %" PRIu32 "\n"
@@ -416,12 +412,12 @@ void Logger::dump_config() {
 
 #ifdef USE_LOGGER_RUNTIME_TAG_LEVELS
   for (auto &it : this->log_levels_) {
-    ESP_LOGCONFIG(TAG, "  Level for '%s': %s", it.first, LOG_STR_ARG(get_log_level_str(it.second)));
+    ESP_LOGCONFIG(TAG, "  Level for '%s': %s", it.first, LOG_STR_ARG(LogLevelStrings::get_log_str(it.second)));
   }
 #endif
 #ifdef USE_LOGGER_BOOT_LOG_PER_TAG_LEVELS
   for (auto &it : this->boot_log_levels_) {
-    ESP_LOGCONFIG(TAG, "  Boot Level for '%s': %s", it.first, LOG_STR_ARG(get_log_level_str(it.second)));
+    ESP_LOGCONFIG(TAG, "  Boot Level for '%s': %s", it.first, LOG_STR_ARG(LogLevelStrings::get_log_str(it.second)));
   }
 #endif
 #ifdef USE_ZEPHYR
@@ -449,7 +445,7 @@ void Logger::set_log_level(uint8_t level) {
   if (level > ESPHOME_LOG_LEVEL) {
     level = ESPHOME_LOG_LEVEL;
     ESP_LOGW(TAG, "Cannot set log level higher than pre-compiled %s",
-             LOG_STR_ARG(get_log_level_str(ESPHOME_LOG_LEVEL)));
+             LOG_STR_ARG(LogLevelStrings::get_log_str(ESPHOME_LOG_LEVEL)));
   }
   this->current_level_ = level;
 #ifdef USE_LOGGER_LEVEL_LISTENERS

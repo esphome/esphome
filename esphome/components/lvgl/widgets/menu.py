@@ -40,7 +40,7 @@ from ..lvcode import (
     lv_obj,
 )
 from ..schemas import container_schema, part_schema
-from ..types import LV_EVENT, LvType, ObjUpdateAction, lv_obj_t, lv_obj_t_ptr, lvgl_ns
+from ..types import LV_EVENT, LvType, lv_obj_t, lv_obj_t_ptr, lvgl_ns
 from . import (
     Widget,
     WidgetType,
@@ -299,7 +299,7 @@ def _record_set_page_action(config: ConfigType) -> ConfigType:
 
 @automation.register_action(
     "lvgl.menu.set_page",
-    ObjUpdateAction,
+    automation.ApplyAction,
     cv.All(
         cv.Schema(
             {

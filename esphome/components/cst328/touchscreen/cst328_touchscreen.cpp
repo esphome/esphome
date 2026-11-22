@@ -12,8 +12,7 @@ static constexpr uint32_t CST328_TRANSITION_TIMEOUT = 300;   // 200 ms from data
 void CST328Touchscreen::setup() {
   ESP_LOGCONFIG(TAG, "Setting up CST328 Touchscreen...");
   if (this->reset_pin_ != nullptr) {
-    this->reset_pin_->setup();
-    this->reset_pin_->digital_write(true);
+    setup_output_pin(this->reset_pin_, true);
     this->set_timeout(CST328_BEFORE_RESET_TIMEOUT, [this] { this->reset_device_(); });
   } else {
     this->continue_setup_();

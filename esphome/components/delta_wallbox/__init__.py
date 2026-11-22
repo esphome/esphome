@@ -22,7 +22,9 @@ CONFIG_SCHEMA = (
     cv.COMPONENT_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(DeltaWallbox),
-            cv.Required(CONF_PASSWORD): cv.All(cv.string_strict, cv.Length(max=22)),
+            cv.Required(CONF_PASSWORD): cv.sensitive(
+                cv.All(cv.string_strict, cv.Length(max=22))
+            ),
             cv.Optional(CONF_PIN): cv.int_range(min=0, max=999999),
             cv.Optional(CONF_USER, default="admin"): cv.All(
                 cv.string_strict, cv.Length(max=6)

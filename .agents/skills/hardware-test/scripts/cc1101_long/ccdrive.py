@@ -2,7 +2,7 @@
 each receiver logs. Writes all log lines to OUT and prints one summary line per case.
 
 MODE: short, long, r2long, r2mid, lambda, r2lambda, fast (fast38, fast100 for one rate), and the dev bug repros crc,
-rxtx, txback, txrx, txset and nocrc64 (see recipes/cc1101.md).
+rxtx, txback, txrx, txset and nocrc64, and btx for begin_tx() in packet mode (see recipes/cc1101.md).
 
 Exits 1 on a failed action, a missing CFG/RATE/SENT line or a lost API connection (INVALID), a MISSED case, or error
 lines from the radios outside the repros."""
@@ -337,6 +337,47 @@ async def main():
                 for line in rx.lines
                 if "TX_SETTERS" in line
             ],
+            flush=True,
+        )
+    elif MODE == "btx":
+        # begin_tx() in packet mode (#22636); no cfg between btx and the counts, cfg runs begin_rx() and hides it
+        await case(tx, rx, f"{TXN}->{RXN} before", 10, 32, 80, 150)
+        n = sum(1 for line in rx.lines if "BTX " in line)
+        await rx.act("btx")
+        await wait_mark(rx, "BTX ", n)
+        await asyncio.sleep(0.5)
+        await case(tx, rx, f"begin_tx, {TXN}->{RXN}", 20, 32, 81, 150, rx_len=-1)
+        await case(
+            rx, tx, f"then {RXN} send -> {TXN}", 10, 32, 82, 150, rx_len=-1, tx_len=-1
+        )
+        await case(tx, rx, f"then {TXN}->{RXN}", 20, 32, 83, 150, rx_len=-1)
+        n = sum(1 for line in rx.lines if "SWPACKET" in line)
+        await rx.act("swasync")
+        await wait_mark(rx, "SWPACKET", n)
+        await asyncio.sleep(0.5)
+        await case(
+            tx, rx, f"after async and back, {TXN}->{RXN}", 20, 32, 84, 150, rx_len=-1
+        )
+        await case(
+            rx,
+            tx,
+            f"after async and back, {RXN} send -> {TXN}",
+            10,
+            32,
+            85,
+            150,
+            rx_len=-1,
+            tx_len=-1,
+        )
+        marks = ("BTX ", "SW", "begin_tx is")
+        print(
+            "lines:",
+            *[
+                line[line.find("cct") :]
+                for line in rx.lines
+                if any(m in line for m in marks)
+            ],
+            sep="\n  ",
             flush=True,
         )
     elif MODE == "txback":

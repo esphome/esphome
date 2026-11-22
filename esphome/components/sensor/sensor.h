@@ -81,8 +81,8 @@ class Sensor : public EntityBase {
    * This may look like:
    *
    * sensor->add_filters({
-   *   LambdaFilter([&](float value) -> optional<float> { return 42/value; }),
-   *   SlidingWindowMovingAverageFilter(15, 15), // average over last 15 values
+   *   new RoundFilter(1),
+   *   new SlidingWindowMovingAverageFilter(15, 15, 1), // average over last 15 values
    * });
    */
   void add_filters(std::initializer_list<Filter *> filters);

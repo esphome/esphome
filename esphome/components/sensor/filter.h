@@ -272,28 +272,6 @@ class ThrottleAverageFilter : public Filter {
   uint32_t have_nan_ : 1 {0};
 };
 
-using lambda_filter_t = std::function<optional<float>(float)>;
-
-/** This class allows for creation of simple template filters.
- *
- * The constructor accepts a lambda of the form float -> optional<float>.
- * It will be called with each new value in the filter chain and returns the modified
- * value that shall be passed down the filter chain. Returning an empty Optional
- * means that the value shall be discarded.
- */
-class LambdaFilter : public Filter {
- public:
-  explicit LambdaFilter(lambda_filter_t lambda_filter);
-
-  optional<float> new_value(float value) override;
-
-  const lambda_filter_t &get_lambda_filter() const;
-  void set_lambda_filter(const lambda_filter_t &lambda_filter) { this->lambda_filter_ = lambda_filter; }
-
- protected:
-  lambda_filter_t lambda_filter_;
-};
-
 /// Codegen use only: the filter's work and constants are one generated function, so the object is only the base.
 template<auto Fn> class ApplyFilter final : public Filter {
  public:
