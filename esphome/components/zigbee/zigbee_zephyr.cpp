@@ -118,27 +118,11 @@ void ZigbeeComponent::zcl_device_cb(zb_bufid_t bufid) {
   p_device_cb_param->status = RET_OK;
 
   auto *zb = global_zigbee;
-  // A deprecated add_callback() replaces the entity's handler, and an empty one clears it, as before
-  for (auto *legacy = zb->legacy_callbacks_; legacy != nullptr; legacy = legacy->next) {
-    if (legacy->endpoint == endpoint) {
-      if (legacy->cb) {
-        legacy->cb(bufid);
-      } else {
-        p_device_cb_param->status = RET_NOT_IMPLEMENTED;
-      }
-      return;
-    }
-  }
   if (zb->zcl_device_publisher_ == nullptr || !zb->zcl_device_publisher_(endpoint, bufid))
     p_device_cb_param->status = RET_NOT_IMPLEMENTED;
 }
 
 static_assert(std::is_same_v<zb_bufid_t, uint8_t>, "zcl_device publisher passes the buffer as uint8_t");
-
-void ZigbeeComponent::add_callback(zb_uint8_t endpoint, std::function<void(zb_bufid_t bufid)> &&cb) {
-  // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
-  this->legacy_callbacks_ = new LegacyCallback{endpoint, std::move(cb), this->legacy_callbacks_};
-}
 
 void ZigbeeComponent::on_join_(bool factory_new) {
   this->defer([this, factory_new]() {

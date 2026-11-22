@@ -3,7 +3,6 @@
 #if defined(USE_ZIGBEE) && defined(USE_NRF52)
 #include "esphome/core/component.h"
 #include "esphome/core/automation.h"
-#include <functional>
 extern "C" {
 #include <zboss_api.h>
 #include <zboss_api_addons.h>
@@ -73,8 +72,6 @@ class ZigbeeComponent final : public Component {
   void dump_config() override;
   // Each switch, number and time entity adds its handler, matched by endpoint, in codegen
   HUB_PUBLISHER_RETURNING(bool, zcl_device, uint8_t, uint8_t)
-  ESPDEPRECATED("Entities are dispatched from codegen; handle writes in your entity. Removed in 2027.6.0", "2026.12.0")
-  void add_callback(zb_uint8_t endpoint, std::function<void(zb_bufid_t bufid)> &&cb);
   template<typename F> void add_on_join_callback(F &&cb) { this->join_cb_.add(std::forward<F>(cb)); }
   template<typename F> void add_on_start_callback(F &&cb) { this->start_cb_.add(std::forward<F>(cb)); }
   void zboss_signal_handler_esphome(zb_bufid_t bufid);
@@ -93,13 +90,6 @@ class ZigbeeComponent final : public Component {
   void erase_flash_(int area);
 #endif
   void dump_reporting_();
-  // Filled only by the deprecated add_callback(), newest first
-  struct LegacyCallback {
-    zb_uint8_t endpoint;
-    std::function<void(zb_bufid_t bufid)> cb;
-    LegacyCallback *next;
-  };
-  LegacyCallback *legacy_callbacks_{nullptr};
   CallbackManager<void(bool)> join_cb_;
   LazyCallbackManager<void()> start_cb_;
   bool force_report_{false};
