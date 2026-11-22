@@ -2229,8 +2229,10 @@ async def build_component_automation(
         await build_automation(var, [], config)
         return var
     # Declared and registered before the actions are built, which can wait for other ids
-    name = _apply_function_name(trigger_id)
+    fn_id = cg.unique_global_id(_apply_function_name(trigger_id), None)
+    name = fn_id.id
     define = cg.declare_static_function(name, cg.void, [])
+    CORE.register_variable(fn_id, cg.RawExpression(name))
     id_ = trigger_id.copy()
     id_.type = component_class
     bits = [] if priority is None else [_float_bits(priority)]
