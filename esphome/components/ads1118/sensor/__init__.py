@@ -2,14 +2,7 @@ import esphome.codegen as cg
 from esphome.components import sensor, voltage_sampler
 from esphome.components.ads1xxx import MUX_GAIN_SCHEMA, mux_gain_bits
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_TYPE,
-    DEVICE_CLASS_TEMPERATURE,
-    DEVICE_CLASS_VOLTAGE,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS,
-    UNIT_VOLT,
-)
+from esphome.const import CONF_TYPE
 from esphome.types import ConfigType
 
 from .. import ADS1118, CONF_ADS1118_ID, ads1118_ns
@@ -31,11 +24,7 @@ TYPE_TEMPERATURE = "temperature"
 CONFIG_SCHEMA = cv.typed_schema(
     {
         TYPE_ADC: sensor.sensor_schema(
-            ADS1118Sensor,
-            unit_of_measurement=UNIT_VOLT,
-            accuracy_decimals=3,
-            device_class=DEVICE_CLASS_VOLTAGE,
-            state_class=STATE_CLASS_MEASUREMENT,
+            ADS1118Sensor, kind=sensor.VOLTAGE, accuracy_decimals=3
         )
         .extend(
             {
@@ -45,11 +34,7 @@ CONFIG_SCHEMA = cv.typed_schema(
         )
         .extend(cv.polling_component_schema("60s")),
         TYPE_TEMPERATURE: sensor.sensor_schema(
-            ADS1118Sensor,
-            unit_of_measurement=UNIT_CELSIUS,
-            accuracy_decimals=2,
-            device_class=DEVICE_CLASS_TEMPERATURE,
-            state_class=STATE_CLASS_MEASUREMENT,
+            ADS1118Sensor, kind=sensor.TEMPERATURE, accuracy_decimals=2
         )
         .extend(
             {

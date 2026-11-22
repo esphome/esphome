@@ -395,4 +395,4 @@ async def to_code(config):
         )
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
     # https://github.com/paveldn/HaierProtocol
-    cg.add_library("pavlodn/HaierProtocol", "0.9.31")
+    cg.add_library("pavlodn/HaierProtocol", "0.9.32")

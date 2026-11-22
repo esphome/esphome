@@ -4,13 +4,7 @@ import esphome.codegen as cg
 from esphome.components import sensor, voltage_sampler
 from esphome.components.ads1xxx import MUX_GAIN_SCHEMA, mux_gain_bits
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_RESOLUTION,
-    CONF_SAMPLE_RATE,
-    DEVICE_CLASS_VOLTAGE,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_VOLT,
-)
+from esphome.const import CONF_RESOLUTION, CONF_SAMPLE_RATE
 from esphome.types import ConfigType
 
 from .. import CONF_ADS1115_ID, ADS1115Component, ads1115_ns
@@ -31,13 +25,7 @@ ADS1115Sensor = ads1115_ns.class_(
 )
 
 CONFIG_SCHEMA = (
-    sensor.sensor_schema(
-        ADS1115Sensor,
-        unit_of_measurement=UNIT_VOLT,
-        accuracy_decimals=3,
-        device_class=DEVICE_CLASS_VOLTAGE,
-        state_class=STATE_CLASS_MEASUREMENT,
-    )
+    sensor.sensor_schema(ADS1115Sensor, kind=sensor.VOLTAGE, accuracy_decimals=3)
     .extend(
         {
             cv.GenerateID(CONF_ADS1115_ID): cv.use_id(ADS1115Component),
