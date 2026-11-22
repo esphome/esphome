@@ -177,7 +177,7 @@ void APC1Component::parse_measurement_frame_() {
     if (error_code != 0) {
       for (uint8_t bit = 0; bit < ErrorStrings::COUNT; bit++) {
         if (error_code & (1 << bit)) {
-          ESP_LOGW(TAG, "APC1: %s", LOG_STR_ARG(ErrorStrings::get_log_str(bit, ErrorStrings::LAST_INDEX)));
+          ESP_LOGW(TAG, "APC1: %s", LOG_STR_ARG(ErrorStrings::get_log_str(bit)));
         }
       }
       this->status_set_warning(LOG_STR("Sensor reported hardware error"));

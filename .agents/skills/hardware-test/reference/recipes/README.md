@@ -10,7 +10,7 @@ One file per component, named after it:
 - [`cse7766.md`](cse7766.md): Sonoff S31 parser check over the API
 - [`espnow.md`](espnow.md): ESP8266 broadcast receive
 - [`hdmi_cec.md`](hdmi_cec.md): two-board wire
-- [`http_request.md`](http_request.md): update manifest URL changed at run time, every setter shape, a swap under a running check, non-blocking request actions with loop gap, queue, cancel and reboot checks, OTA request cases with basic auth and MD5 sources
+- [`http_request.md`](http_request.md): update manifest URL changed at run time, every setter shape, a swap under a running check, non-blocking request actions with loop gap, queue, cancel and reboot checks, OTA request cases with basic auth and MD5 sources, LibreTiny http_request, update and OTA on the RTL8720C
 - [`ld2420.md`](ld2420.md): hub setup and sensor states with a simulated module on a UART0 loopback (energy and simple mode)
 - [`ld2450.md`](ld2450.md): polygon zones, zone number round trip through the radar's readback, ESP8266 loopback harness without a radar, presence hold and link loss on a frame stream, BT MAC readback
 - [`ld2412.md`](ld2412.md): output pin level through the basic configuration command, held back writes
@@ -22,6 +22,11 @@ One file per component, named after it:
 - [`online_image.md`](online_image.md): stalled and malformed downloads, PNG, JPEG, BMP and QOI decode time per loop pass with large images and small buffers
 - [`openthread.md`](openthread.md): border router on the S3 host plus H2 RCP, reboot, backbone loss and init retry flows, child supervision checks
 - [`ota.md`](ota.md): upload without a configuration and the refusal checks, overlap and lock, timeouts, deflate, upload timing A/B per build and board with deflate and raw, on-device inflate benchmark, OTA automations on two platforms
+- [`modem.md`](modem.md): PPPoS modem component boot check with no modem attached, loop blocking and disable timing, SIM7080G behaviour with no SIM and with no data plan through a raw UART passthrough, SIM7670G CMUX recovery and the retest flow for the modem fixes
+- [`mqtt.md`](mqtt.md): broker bench, QoS, reconnect, crash log over MQTT, WebSocket transports with a local and a public broker, TLS trust sources (own CA, client certificate, certificate bundle, no verification) with the CLI check, MAC suffix topics and will messages on two boards, shutdown message delivery on restart, disable and deep sleep, broker lookup at boot without DNS, broker restart and Wi-Fi drop
+- [`nrf52.md`](nrf52.md): dongle board support, zephyr_ble_server connection slot under reordered callbacks, SMP over UDP OTA over Thread with reset faults, MCUboot swap limit and stuck slot recovery, TCP stack probe, sdk-nrf 3.4.1 build and USB notes
+- [`openthread.md`](openthread.md): border router on the S3 host plus H2 RCP
+- [`ota.md`](ota.md): upload without a configuration and the refusal checks, overlap and lock, timeouts, deflate, upload timing A/B per build and board with deflate and raw, on-device inflate benchmark, OTA automations on two platforms, app rollback self-test without a bad build, ESP-IDF 6 TLS notes
 - [`rtsp_server.md`](rtsp_server.md): camera streaming on the Waveshare ESP32-S3-ETH
 - [`scheduler.md`](scheduler.md): loop wake A/B, interval startup delay and control from lambdas, RP2 scheduler lock under IRQ and lwIP load
 - [`udp.md`](udp.md): datagrams, multicast, sockets, `udp.write` payload shapes
@@ -36,6 +41,8 @@ One file per component, named after it:
 - [`homeassistant.md`](homeassistant.md): light platform mirrored from a local Home Assistant, held reports versus later calls, wizard-linked entities on every platform, homeassistant switch on a script with a host build
 - [`usb_audio.md`](usb_audio.md): USB audio speaker and microphone, the usb_host FIFO split, and Music Assistant playback through sendspin
 - [`dfrobot_sen0395.md`](dfrobot_sen0395.md): SEN0395 mmWave command flow, module quirks and overlong lines through its error reply
+- [`speaker.md`](speaker.md): media player pipeline tasks on the Connect AUX-2 with the `speaker` platform player
+- [`web_server.md`](web_server.md): state SSE stress and the HTTPD task stack on web_server_idf, entity icon and device class readback, per-session `/events` listing, `/events` head, stall, Wi-Fi drop and churn checks, byte-level JSON output A/B, `/events` close pattern churn with observers, REST and the HTTPS 501 check
 - [`speaker.md`](speaker.md): media player pipeline tasks on the Connect AUX-2 with the `speaker` platform player, FLAC stream changes and announcements without a DAC
 - [`web_server.md`](web_server.md): state SSE stress and the HTTPD task stack on web_server_idf, entity icon and device class readback, per-session `/events` listing, `/events` head, stall, Wi-Fi drop and churn checks
 - [`uart_sim.md`](uart_sim.md): UART sensors simulated on a classic ESP32 with loopback and cross-wired UARTs, a Duco ventilation box model on a second UART
