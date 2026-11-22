@@ -72,9 +72,7 @@ class TopTronicBase : public PollingComponent {
   template<typename F> void add_on_update_callback(F &&callback) {
     this->update_callback_.add(std::forward<F>(callback));
   }
-  template<typename F> void add_on_set_callback(F &&callback) {
-    this->set_callback_.add(std::forward<F>(callback));
-  }
+  template<typename F> void add_on_set_callback(F &&callback) { this->set_callback_.add(std::forward<F>(callback)); }
   virtual const LogString *get_log_name() const = 0;
   // Set once a complete RESPONSE arrived; unlocks writes to this datapoint (reject_writes_before_read)
   void mark_read() { this->read_ = true; }
