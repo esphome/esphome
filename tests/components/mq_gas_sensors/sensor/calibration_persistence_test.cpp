@@ -6,6 +6,8 @@
 
 #include <gtest/gtest.h>
 
+#ifdef USE_HOST
+
 #include "esphome/components/host/preferences.h"
 #include "esphome/components/mq_gas_sensors/mq_gas_sensor.h"
 #include "esphome/core/preferences.h"
@@ -60,8 +62,10 @@ class CalibrationPersistenceTest : public ::testing::Test {
     sensor.set_calibration(true, 70.0f, 0, 0, 2, true);
   }
 
-  /// One loop pass per sample while the interval is zero.
+  /// One loop pass per sample while the interval is zero. setup() creates the
+  /// preference handle the calibration stores its result through.
   static void run_calibration(MQGasSensor &sensor) {
+    sensor.setup();
     sensor.start_calibration();
     for (int i = 0; i < 8 && !sensor.has_r0(); i++)
       sensor.loop();
@@ -135,3 +139,5 @@ TEST_F(CalibrationPersistenceTest, ADifferentKeyDoesNotRestoreTheReference) {
 }
 
 }  // namespace esphome::mq_gas_sensors::testing
+
+#endif  // USE_HOST
