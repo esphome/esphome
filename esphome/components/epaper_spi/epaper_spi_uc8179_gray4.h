@@ -57,6 +57,7 @@ class EPaperUC8179Gray4 : public EPaperUC8179 {
   bool transfer_data() override;
   bool transfer_gray_();
   bool transfer_mono_();
+  void send_resolution_();
   void send_waveforms_();
   void send_waveform_(uint8_t command, const uint8_t *waveform);
   void select_stored_waveforms_();

@@ -103,12 +103,16 @@ void EPaperUC8179Gray4::send_waveform_(uint8_t command, const uint8_t *waveform)
   this->cmd_data(command, data, LUT_SIZE);
 }
 
+void EPaperUC8179Gray4::send_resolution_() {
+  this->cmd_data(CMD_RESOLUTION, {(uint8_t) (this->width_ >> 8), (uint8_t) this->width_, (uint8_t) (this->height_ >> 8),
+                                  (uint8_t) this->height_});
+}
+
 // The panel settings which follow power-on in the EPD_7in5_V2_old example, and the waveforms.
 // The border takes the K-to-W waveform, so that is the one given to white.
 void EPaperUC8179Gray4::send_waveforms_() {
   this->cmd_data(CMD_PANEL_SETTING, {0x3F});  // black/white mode, waveforms from registers
-  this->cmd_data(CMD_RESOLUTION, {(uint8_t) (this->width_ >> 8), (uint8_t) this->width_, (uint8_t) (this->height_ >> 8),
-                                  (uint8_t) this->height_});
+  this->send_resolution_();
   this->cmd_data(CMD_DUAL_SPI, {0x00});
   this->cmd_data(CMD_CDI, {0x10, 0x00});
   this->cmd_data(CMD_TCON, {0x22});
@@ -134,12 +138,12 @@ bool EPaperUC8179Gray4::initialise(bool partial) {
   this->mono_push_ = partial && this->sent_valid_;
   if (!this->mono_push_)
     return EPaperUC8179::initialise(partial);
-  // As the black-and-white model sets the panel up, with its waveforms from the OTP
+  // As the black-and-white model sets the panel up, with its waveforms from the OTP. Keep this the
+  // same as UC8179.get_init_sequence() in models/uc8179.py.
   this->cmd_data(CMD_POWER_SETTING, {0x07, 0x07, 0x3F, 0x3F});
   this->cmd_data(CMD_BOOSTER_SOFT_START, {0x17, 0x17, 0x28, 0x17});
   this->cmd_data(CMD_PANEL_SETTING, {0x1F});
-  this->cmd_data(CMD_RESOLUTION, {(uint8_t) (this->width_ >> 8), (uint8_t) this->width_, (uint8_t) (this->height_ >> 8),
-                                  (uint8_t) this->height_});
+  this->send_resolution_();
   this->cmd_data(CMD_DUAL_SPI, {0x00});
   this->cmd_data(CMD_CDI, {0x10, 0x07});
   this->cmd_data(CMD_TCON, {0x22});
@@ -166,6 +170,9 @@ bool HOT EPaperUC8179Gray4::transfer_gray_() {
   const size_t plane_length = this->buffer_length_ / 2;
   if (this->current_data_index_ == 0) {
     ESP_LOGV(TAG, "Four-level refresh");
+    // A black-and-white update leaves the controller in partial mode, and without a reset pin
+    // nothing else takes it out
+    this->command(CMD_PARTIAL_OUT);
     if (this->driver_waveforms_) {
       this->send_waveforms_();
     } else {
