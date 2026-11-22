@@ -90,7 +90,7 @@ template<typename... Ts> class AddressableSet final : public Action<Ts...> {
       range_to = size;
 
     uint8_t color_brightness =
-        to_uint8_scale(this->color_brightness_.value_or(x..., this->parent_->remote_values.get_color_brightness()));
+        to_uint8_clamped(this->color_brightness_.value_or(x..., this->parent_->remote_values.get_color_brightness()));
     auto range = out->range(range_from, range_to);
     if (this->red_.has_value())
       range.set_red(esp_scale8(to_uint8_clamped(this->red_.value(x...)), color_brightness));
