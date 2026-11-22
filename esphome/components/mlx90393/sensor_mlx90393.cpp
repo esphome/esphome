@@ -2,6 +2,7 @@
 
 #include "sensor_mlx90393.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome::mlx90393 {
 
@@ -9,28 +10,11 @@ ESPHOME_LOG_TAG(TAG, "mlx90393");
 
 static constexpr uint32_t VERIFY_SETTINGS_TIMEOUT_ID = 0;
 
-const LogString *settings_to_string(MLX90393Setting setting) {
-  switch (setting) {
-    case MLX90393_GAIN_SEL:
-      return LOG_STR("gain");
-    case MLX90393_RESOLUTION:
-      return LOG_STR("resolution");
-    case MLX90393_OVER_SAMPLING:
-      return LOG_STR("oversampling");
-    case MLX90393_DIGITAL_FILTERING:
-      return LOG_STR("digital filtering");
-    case MLX90393_TEMPERATURE_OVER_SAMPLING:
-      return LOG_STR("temperature oversampling");
-    case MLX90393_TEMPERATURE_COMPENSATION:
-      return LOG_STR("temperature compensation");
-    case MLX90393_HALLCONF:
-      return LOG_STR("hallconf");
-    case MLX90393_LAST:
-      return LOG_STR("error");
-    default:
-      return LOG_STR("unknown");
-  }
-};
+// Indexed by MLX90393Setting
+PROGMEM_STRING_TABLE(SettingStrings, "gain", "resolution", "oversampling", "digital filtering",
+                     "temperature oversampling", "temperature compensation", "hallconf", "error", "unknown");
+
+const LogString *settings_to_string(MLX90393Setting setting) { return SettingStrings::get_log_str(setting); };
 
 bool MLX90393Cls::transceive(const uint8_t *request, size_t request_size, uint8_t *response, size_t response_size) {
   i2c::ErrorCode e = this->write(request, request_size);

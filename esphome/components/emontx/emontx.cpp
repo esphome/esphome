@@ -258,6 +258,7 @@ void EmonTx::dump_config() {
   ESP_LOGCONFIG(TAG, "  Registered sensors: %zu", this->sensors_.size());
   for (const auto &sensor_pair : this->sensors_) {
     ESP_LOGCONFIG(TAG, "    Sensor: %s", sensor_pair.first);
+    LOG_SENSOR("  ", "EmonTx Sensor", sensor_pair.second);
   }
 #else
   ESP_LOGCONFIG(TAG, "  Sensor support: DISABLED");
