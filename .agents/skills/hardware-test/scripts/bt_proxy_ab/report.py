@@ -79,19 +79,25 @@ marks = list(
         strict=True,
     )
 )
-steps = {}
+# every start/end interval of a step (a resumed run adds more); an interrupted one ends at the next start
+steps: dict[str, list[list]] = {}
+open_iv = None
 for t, r in marks:
     if r.startswith("start "):
-        steps[r[6:]] = [t, None]
-    elif r.startswith("end "):
-        steps[r[4:]][1] = t
+        if open_iv:
+            open_iv[1] = t
+        open_iv = [t, None]
+        steps.setdefault(r[6:], []).append(open_iv)
+    elif r.startswith("end ") and open_iv:
+        open_iv[1] = t
+        open_iv = None
 
 
 def window(s):
-    a, b = steps[s]
-    return [x for x in att if a <= x["t0"] <= (b or 1e9)], [
-        ln for t, ln in lines if a <= t <= (b or 1e9)
-    ]
+    def inside(t):
+        return any(a <= t <= (b or 1e9) for a, b in steps[s])
+
+    return [x for x in att if inside(x["t0"])], [ln for t, ln in lines if inside(t)]
 
 
 def jl(s):

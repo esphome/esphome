@@ -19,7 +19,8 @@ fi
 if [ "$P" = api ]; then
   ($PY ../ble_conn_interval/apilogcap.py "$H" 30000 "cap-$T.txt" > /dev/null 2> "cap-$T.err" & echo $! > "cap-$T.pid")
 else
-  ($PY ../serial_capture.py "$P" 30000 "cap-$T.txt" --ms > /dev/null 2>&1 & echo $! > "cap-$T.pid"); fi
+  ($PY ../serial_capture.py "$P" 30000 "cap-$T.txt" --ms ${RESUME:+--append} > /dev/null 2>&1 &
+    echo $! > "cap-$T.pid"); fi
 ($PY ../ble_conn_interval/pinger.py "$H" 30000 "ping-$T.txt" > /dev/null 2>&1 & echo $! > "ping-$T.pid")
 sleep 3
 mark() { echo "$(date +%T) $*" | tee -a "marks-$T.txt"; }
