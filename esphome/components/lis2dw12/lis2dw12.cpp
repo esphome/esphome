@@ -2,6 +2,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome::lis2dw12 {
 
@@ -13,73 +14,19 @@ static constexpr uint32_t EVENT_COOLDOWN_MS = 500;
 static constexpr uint32_t POLL_INTERVAL_MS = 50;
 static constexpr uint8_t SIXD_POSITION_MASK = 0x3F;  // XL..ZH, leaving out D6D_IA
 
-static const LogString *power_mode_to_string(PowerMode mode) {
-  switch (mode) {
-    case PowerMode::HIGH_PERF:
-      return LOG_STR("High Performance");
-    case PowerMode::LOW_POWER_1:
-      return LOG_STR("Low Power 1 (12-bit)");
-    case PowerMode::LOW_POWER_2:
-      return LOG_STR("Low Power 2");
-    case PowerMode::LOW_POWER_3:
-      return LOG_STR("Low Power 3");
-    case PowerMode::LOW_POWER_4:
-      return LOG_STR("Low Power 4");
-  }
-  return LOG_STR("Unknown");
-}
+// Indexed by PowerMode
+PROGMEM_STRING_TABLE(PowerModeStrings, "High Performance", "Low Power 1 (12-bit)", "Low Power 2", "Low Power 3",
+                     "Low Power 4", "Unknown");
 
-static const LogString *range_to_string(Range range) {
-  switch (range) {
-    case Range::RANGE_2G:
-      return LOG_STR("±2g");
-    case Range::RANGE_4G:
-      return LOG_STR("±4g");
-    case Range::RANGE_8G:
-      return LOG_STR("±8g");
-    case Range::RANGE_16G:
-      return LOG_STR("±16g");
-  }
-  return LOG_STR("Unknown");
-}
+// Indexed by Range
+PROGMEM_STRING_TABLE(RangeStrings, "±2g", "±4g", "±8g", "±16g", "Unknown");
 
-static const LogString *data_rate_to_string(DataRate rate) {
-  switch (rate) {
-    case DataRate::RATE_1_6HZ:
-      return LOG_STR("1.6 Hz");
-    case DataRate::RATE_12_5HZ:
-      return LOG_STR("12.5 Hz");
-    case DataRate::RATE_25HZ:
-      return LOG_STR("25 Hz");
-    case DataRate::RATE_50HZ:
-      return LOG_STR("50 Hz");
-    case DataRate::RATE_100HZ:
-      return LOG_STR("100 Hz");
-    case DataRate::RATE_200HZ:
-      return LOG_STR("200 Hz");
-    case DataRate::RATE_400HZ:
-      return LOG_STR("400 Hz");
-    case DataRate::RATE_800HZ:
-      return LOG_STR("800 Hz");
-    case DataRate::RATE_1600HZ:
-      return LOG_STR("1600 Hz");
-  }
-  return LOG_STR("Unknown");
-}
+// Indexed by DataRate
+PROGMEM_STRING_TABLE(DataRateStrings, "Unknown", "1.6 Hz", "12.5 Hz", "25 Hz", "50 Hz", "100 Hz", "200 Hz", "400 Hz",
+                     "800 Hz", "1600 Hz");
 
-static const LogString *filter_bandwidth_to_string(FilterBandwidth bw) {
-  switch (bw) {
-    case FilterBandwidth::BW_ODR_DIV_2:
-      return LOG_STR("ODR/2");
-    case FilterBandwidth::BW_ODR_DIV_4:
-      return LOG_STR("ODR/4");
-    case FilterBandwidth::BW_ODR_DIV_10:
-      return LOG_STR("ODR/10");
-    case FilterBandwidth::BW_ODR_DIV_20:
-      return LOG_STR("ODR/20");
-  }
-  return LOG_STR("Unknown");
-}
+// Indexed by FilterBandwidth
+PROGMEM_STRING_TABLE(FilterBandwidthStrings, "ODR/2", "ODR/4", "ODR/10", "ODR/20", "Unknown");
 
 void LIS2DW12Component::setup() {
   uint8_t who_am_i{0};
@@ -169,19 +116,22 @@ bool LIS2DW12Component::configure_registers_() {
 
 void LIS2DW12Component::dump_config() {
   ESP_LOGCONFIG(TAG, "LIS2DW12:");
-  ESP_LOGCONFIG(TAG,
-                "  Power Mode: %s\n"
-                "  Data Rate: %s\n"
-                "  Range: %s\n"
-                "  Filter Bandwidth: %s\n"
-                "  Low Noise: %s\n"
-                "  Offsets: {%.3f m/s², %.3f m/s², %.3f m/s²}\n"
-                "  Transform: {mirror_x=%s, mirror_y=%s, mirror_z=%s, swap_xy=%s}",
-                LOG_STR_ARG(power_mode_to_string(this->power_mode_)),
-                LOG_STR_ARG(data_rate_to_string(this->data_rate_)), LOG_STR_ARG(range_to_string(this->range_)),
-                LOG_STR_ARG(filter_bandwidth_to_string(this->filter_bandwidth_)), YESNO(this->low_noise_),
-                this->offset_x_, this->offset_y_, this->offset_z_, YESNO(this->mirror_x_), YESNO(this->mirror_y_),
-                YESNO(this->mirror_z_), YESNO(this->swap_xy_));
+  ESP_LOGCONFIG(
+      TAG,
+      "  Power Mode: %s\n"
+      "  Data Rate: %s\n"
+      "  Range: %s\n"
+      "  Filter Bandwidth: %s\n"
+      "  Low Noise: %s\n"
+      "  Offsets: {%.3f m/s², %.3f m/s², %.3f m/s²}\n"
+      "  Transform: {mirror_x=%s, mirror_y=%s, mirror_z=%s, swap_xy=%s}",
+      LOG_STR_ARG(PowerModeStrings::get_log_str(static_cast<uint8_t>(this->power_mode_), PowerModeStrings::LAST_INDEX)),
+      LOG_STR_ARG(DataRateStrings::get_log_str(static_cast<uint8_t>(this->data_rate_), 0)),
+      LOG_STR_ARG(RangeStrings::get_log_str(static_cast<uint8_t>(this->range_), RangeStrings::LAST_INDEX)),
+      LOG_STR_ARG(FilterBandwidthStrings::get_log_str(static_cast<uint8_t>(this->filter_bandwidth_),
+                                                      FilterBandwidthStrings::LAST_INDEX)),
+      YESNO(this->low_noise_), this->offset_x_, this->offset_y_, this->offset_z_, YESNO(this->mirror_x_),
+      YESNO(this->mirror_y_), YESNO(this->mirror_z_), YESNO(this->swap_xy_));
   LOG_UPDATE_INTERVAL(this);
 
 #ifdef USE_BINARY_SENSOR
