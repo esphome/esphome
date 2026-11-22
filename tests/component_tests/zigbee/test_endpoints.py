@@ -178,3 +178,12 @@ def test_write_handlers_follow_endpoints(fixture_config: Config, build: Build) -
         name: endpoints[name] for name in ("level", "toggle", "test_time")
     }
     assert endpoints["toggle"] == 17
+
+
+def test_boolean_endpoint_generates_valid_cpp(
+    fixture_config: Config, build: Build
+) -> None:
+    fixture_config["switch"][0]["endpoint"] = True
+    cpp = build(fixture_config)
+    assert not re.search(r"\bTrue\b", cpp)
+    assert entity_endpoints(cpp)["toggle"] == 1

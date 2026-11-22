@@ -342,7 +342,8 @@ async def _add_zigbee_ep(
     extra_field_values: dict[str, int] | None = None,
 ) -> tuple[cg.MockObj, int]:
     slot_index = get_slot_index()
-    ep_id = config.get(CONF_ENDPOINT) or endpoint_ids().allocate()
+    # int(): YAML true passes cv.int_ as a bool, which would print as Python's True in the C++
+    ep_id = int(config.get(CONF_ENDPOINT) or endpoint_ids().allocate())
 
     prefix = f"zigbee_ep{slot_index + 1}"
     attrs_name = f"{prefix}_attrs"
