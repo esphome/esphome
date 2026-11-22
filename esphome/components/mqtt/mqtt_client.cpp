@@ -323,12 +323,18 @@ bool MQTTClientComponent::can_proceed() {
 }
 
 void MQTTClientComponent::start_dnslookup_() {
+  this->status_set_warning();
+  // No lookup can start before the network is up: there is no DNS server to ask yet.
+  // Stay disconnected, and loop() calls this again as soon as it is up.
+  this->waiting_for_network_ = !network::is_connected();
+  if (this->waiting_for_network_)
+    return;
+
   for (auto &subscription : this->subscriptions_) {
     subscription.subscribed = false;
     subscription.resubscribe_timeout = 0;
   }
 
-  this->status_set_warning();
   this->dns_resolve_error_ = false;
   this->dns_resolved_ = false;
   ip_addr_t addr;
@@ -358,9 +364,13 @@ void MQTTClientComponent::start_dnslookup_() {
     }
     default:
     case ERR_ARG: {
-      // error
+      // The lookup never started, so there is no answer to wait for; loop() tries again in 5 seconds
       ESP_LOGW(TAG, "Error resolving broker IP address: %d", err);
-      break;
+      this->state_ = MQTT_CLIENT_DISCONNECTED;
+      this->disconnect_reason_ = MQTTClientDisconnectReason::DNS_RESOLVE_ERROR;
+      this->on_disconnect_.call(MQTTClientDisconnectReason::DNS_RESOLVE_ERROR);
+      this->connect_begin_ = millis();
+      return;
     }
   }
 
@@ -490,8 +500,7 @@ void MQTTClientComponent::loop() {
   mqtt_backend_.loop();
 
   if (this->disconnect_reason_.has_value()) {
-    const LogString *reason_s = MQTTDisconnectReasonStrings::get_log_str(
-        static_cast<uint8_t>(*this->disconnect_reason_), MQTTDisconnectReasonStrings::LAST_INDEX);
+    const LogString *reason_s = MQTTDisconnectReasonStrings::get_log_str(*this->disconnect_reason_);
     if (!network::is_connected()) {
       reason_s = LOG_STR("WiFi disconnected");
     }
@@ -505,7 +514,9 @@ void MQTTClientComponent::loop() {
     case MQTT_CLIENT_DISABLED:
       return;  // Return to avoid a reboot when disabled
     case MQTT_CLIENT_DISCONNECTED:
-      if (now - this->connect_begin_ > 5000) {
+      // Back off 5 s after a failed attempt. Without a network no attempt was made, so the
+      // first one starts as soon as the network is up instead of 5 s after boot.
+      if (this->waiting_for_network_ || now - this->connect_begin_ > 5000) {
         this->start_dnslookup_();
       }
       break;
@@ -833,7 +844,9 @@ __attribute__((noinline)) static bool topic_matches(const char *message, const M
 }
 
 void MQTTClientComponent::on_message(const std::string &topic, const std::string &payload) {
-#ifdef USE_ESP8266
+#if defined(USE_ESP8266) || defined(USE_LIBRETINY)
+  // LibreTiny: this runs in the async_tcp task, and a command such as restart would block that task while its
+  // teardown waits for the MQTT and API traffic only that task can send, so commands run on the main loop.
   // IMPORTANT: This defer is REQUIRED to prevent stack overflow crashes on ESP8266.
   //
   // On ESP8266, this callback is invoked directly from the lwIP/AsyncTCP network stack
@@ -874,7 +887,7 @@ void MQTTClientComponent::on_message(const std::string &topic, const std::string
       this->removed_while_dispatching_ = false;
       this->erase_removed_subscriptions_();
     }
-#ifdef USE_ESP8266
+#if defined(USE_ESP8266) || defined(USE_LIBRETINY)
   });
 #endif
 }
