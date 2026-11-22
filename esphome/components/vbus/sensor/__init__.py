@@ -214,7 +214,7 @@ CONFIG_SCHEMA = cv.typed_schema(
                 cv.Optional(CONF_COMMAND): cv.uint16_t,
                 cv.Optional(CONF_SOURCE): cv.uint16_t,
                 cv.Optional(CONF_DEST): cv.uint16_t,
-                cv.Optional(CONF_SENSORS): cv.ensure_list(
+                cv.Required(CONF_SENSORS): cv.ensure_list(
                     sensor.sensor_schema().extend(
                         {
                             cv.GenerateID(): cv.declare_id(VBusCustomSub),
