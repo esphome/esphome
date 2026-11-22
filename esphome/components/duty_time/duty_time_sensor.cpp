@@ -1,5 +1,6 @@
 #include "duty_time_sensor.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/optional.h"
 
 namespace esphome::duty_time_sensor {
 
