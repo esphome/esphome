@@ -1204,9 +1204,9 @@ void TsdbComponent::dump_csv_(uint32_t rows) {
   // Column names in a stack buffer: header and rows stay heap free.
   char header[CSV_HEADER_SIZE];
   int header_length = snprintf(header, sizeof(header), "timestamp");
-  for (size_t index = 0; index < this->columns_.size(); index++) {
+  for (const auto &column : this->columns_) {
     header_length += snprintf(header + header_length, sizeof(header) - static_cast<size_t>(header_length), ",%s",
-                              this->columns_[index].name.c_str());
+                              column.name.c_str());
   }
   // The preamble goes on its own line so the header gets the whole log line, which is
   // what the budget above measured.
