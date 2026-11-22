@@ -141,8 +141,8 @@ class TsdbComponent : public PollingComponent {
   void sync_now_();
   bool consume_sync_result_();
   void wait_for_sync_();
-  static void sync_task_fn_(void *arg);
-  void format_path_(char *buffer, size_t size) const;
+  static void sync_task_fn(void *arg);
+  void format_path_(char *buffer, size_t size) const;  // NOLINT(readability-non-const-parameter)
   bool remove_sidecars_();
   bool sidecar_advanced_();
   uint32_t newest_sidecar_seq_on_disk_() const;

@@ -162,6 +162,7 @@ void TsdbComponent::add_column(const char *name, double scale, double offset) {
 
 void TsdbComponent::set_column_source(size_t index, sensor::Sensor *source) { this->columns_[index].source = source; }
 
+// NOLINTNEXTLINE(readability-non-const-parameter) -- snprintf() writes through the buffer.
 void TsdbComponent::format_path_(char *buffer, size_t size) const {
   snprintf(buffer, size, "%s/%s", this->mount_point_.c_str(), this->file_.c_str());
 }
@@ -225,9 +226,14 @@ bool TsdbComponent::read_disk_header_(tsdb_header_t *header) const {
   FILE *file = fopen(path, "rb");
   if (file == nullptr)
     return false;
-  const size_t read = fread(header, 1, sizeof(*header), file);
+  tsdb_header_t persisted = {};
+  const size_t read = fread(&persisted, 1, sizeof(persisted), file);
   fclose(file);
-  return read == sizeof(*header);
+  if (read != sizeof(persisted))
+    return false;
+  // Writing through the parameter keeps it a genuine output argument.
+  *header = persisted;
+  return true;
 }
 
 // A fold is only durable when the file's header describes what the engine holds in
@@ -271,8 +277,8 @@ void TsdbComponent::setup() {
   }
   // The periodic fold rewrites the whole file (seconds on a large history), so it runs
   // on its own task instead of stalling the main loop. Without it the syncs stay inline.
-  if (!this->sync_task_.create(TsdbComponent::sync_task_fn_, "tsdb_sync", SYNC_TASK_STACK_SIZE, this,
-                               SYNC_TASK_PRIORITY, false)) {
+  if (!this->sync_task_.create(TsdbComponent::sync_task_fn, "tsdb_sync", SYNC_TASK_STACK_SIZE, this, SYNC_TASK_PRIORITY,
+                               false)) {
     ESP_LOGW(TAG, "%s: no sync task - folding the history on the main loop", this->file_.c_str());
   }
 }
@@ -970,7 +976,7 @@ void TsdbComponent::sync_now_() {
     this->invalidate_database_(LOG_STR("a sync failed and closed the database"));
 }
 
-void TsdbComponent::sync_task_fn_(void *arg) {
+void TsdbComponent::sync_task_fn(void *arg) {
   auto *self = static_cast<TsdbComponent *>(arg);
   for (;;) {
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
