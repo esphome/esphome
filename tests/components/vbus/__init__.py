@@ -1,5 +1,4 @@
 import esphome.codegen as cg
-from esphome.components import vbus
 from esphome.components.logger import request_log_listener
 from esphome.types import ConfigType
 from tests.testing_helpers import ComponentManifestOverride
@@ -8,16 +7,14 @@ from tests.testing_helpers import ComponentManifestOverride
 def override_manifest(manifest: ComponentManifestOverride) -> None:
     async def to_code_testing(config: ConfigType) -> None:
         request_log_listener()
-        if hasattr(vbus, "CONF_ON_DATAGRAM"):
-            cg.add_define("USE_VBUS_DATAGRAM")
-        if hasattr(vbus, "CONF_TRANSMIT"):
-            cg.add_define("USE_VBUS_TX")
-        if hasattr(vbus, "CONF_TRANSACTIONS"):
-            cg.add_define("USE_VBUS_TRANSACTIONS")
+        cg.add_define("USE_VBUS_DATAGRAM")
+        cg.add_define("USE_VBUS_TX")
+        cg.add_define("USE_VBUS_SEND_ACTION")
+        cg.add_define("USE_VBUS_TRANSACTIONS")
+        cg.add_define("USE_VBUS_TRANSACTION_ACTION")
 
-        if hasattr(vbus, "CONF_POLLING"):
-            cg.add_define("USE_VBUS_POLLING")
-            cg.add_define("VBUS_POLL_VALUE_COUNT", 32)
+        cg.add_define("USE_VBUS_POLLING")
+        cg.add_define("VBUS_POLL_VALUE_COUNT", 32)
 
     manifest.multi_conf = False
     manifest.to_code = to_code_testing
