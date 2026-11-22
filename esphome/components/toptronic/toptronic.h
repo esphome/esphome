@@ -25,15 +25,27 @@
 
 #include <algorithm>
 #include <array>
-#include <string>
+#include <cstddef>
+#include <cstdint>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 namespace esphome::toptronic {
 
 class TopTronic;
-enum TypeName { U8, U16, U32, S8, S16, S32, S64 };  // value encoding of a datapoint
-enum SensorType { SENSOR, TEXTSENSOR, BUTTON };     // downcast discriminator (no dynamic_cast in ESPHome builds)
+// Value encoding of a datapoint
+enum class TypeName : uint8_t {
+  TYPE_NAME_U8,
+  TYPE_NAME_U16,
+  TYPE_NAME_U32,
+  TYPE_NAME_S8,
+  TYPE_NAME_S16,
+  TYPE_NAME_S32,
+  TYPE_NAME_S64,
+};
+// Downcast discriminator; ESPHome builds run without RTTI, so there is no dynamic_cast
+enum class SensorType : uint8_t { SENSOR_TYPE_SENSOR, SENSOR_TYPE_TEXT, SENSOR_TYPE_BUTTON };
 
 static constexpr size_t GET_REQUEST_LEN = 6;
 using GetRequest = std::array<uint8_t, GET_REQUEST_LEN>;
@@ -53,8 +65,8 @@ class TopTronicBase {
   void set_function_group(uint8_t function_group) { this->function_group_ = function_group; }
   void set_function_number(uint8_t function_number) { this->function_number_ = function_number; }
   void set_datapoint(uint16_t datapoint) { this->datapoint_ = datapoint; }
-  uint32_t get_id();  // fg | fn << 8 | datapoint << 16; hub map key
-  virtual SensorType type() = 0;
+  uint32_t get_id() const;  // fg | fn << 8 | datapoint << 16; hub map key
+  virtual SensorType type() const = 0;
   virtual const LogString *get_log_name() const = 0;
   // Set once a complete RESPONSE arrived; unlocks writes to this datapoint (reject_writes_before_read)
   void mark_read() { this->read_ = true; }
@@ -101,47 +113,49 @@ class TopTronicPolled : public TopTronicBase, public PollingComponent {
   void update() override;
   const GetRequest &get_request_data() const { return this->request_data_; }
   void cache_request_data();
-  void add_on_update_callback(std::function<void()> &&callback);
+  template<typename F> void add_on_update_callback(F &&callback) {
+    this->update_callback_.add(std::forward<F>(callback));
+  }
 
  protected:
   GetRequest request_data_{};  // GET payload, built once at setup
   CallbackManager<void()> update_callback_;
 };
 
-class TopTronicSensor : public sensor::Sensor, public TopTronicPolled {
+class TopTronicSensor final : public sensor::Sensor, public TopTronicPolled {
  public:
   void set_type(TypeName type) { this->type_ = type; }
   float parse_value(const uint8_t *data, size_t len);
   size_t value_width() const;
-  SensorType type() override { return SENSOR; }
+  SensorType type() const override { return SensorType::SENSOR_TYPE_SENSOR; }
   const LogString *get_log_name() const override { return this->sensor::Sensor::get_log_name(); }
 
  protected:
-  TypeName type_;
+  TypeName type_{TypeName::TYPE_NAME_U8};
 };
 
 #ifdef USE_NUMBER
-class TopTronicNumber : public number::Number, public TopTronicInput {
+class TopTronicNumber final : public number::Number, public TopTronicInput {
  public:
   void set_type(TypeName type) { this->type_ = type; }
   void set_multiplier(float multiplier) { this->multiplier_ = multiplier; }
   float get_multiplier() { return this->multiplier_; }
-  SensorType type() override { return SENSOR; }
+  SensorType type() const override { return SensorType::SENSOR_TYPE_SENSOR; }
   const LogString *get_log_name() const override { return this->number::Number::get_log_name(); }
   void control(float value) override;
 
  protected:
-  TypeName type_;
+  TypeName type_{TypeName::TYPE_NAME_U8};
   float multiplier_{1.0f};  // from YAML decimal (decimal: 1 -> x10)
 };
 #endif
 #ifdef USE_TEXT_SENSOR
-class TopTronicTextSensor : public text_sensor::TextSensor, public TopTronicPolled {
+class TopTronicTextSensor final : public text_sensor::TextSensor, public TopTronicPolled {
  public:
   /// Returns the text for a value, or nullptr when it is not in the option list. The caller then
   /// keeps the last state instead of publishing an invalid one.
-  const char *parse_value(const uint8_t *data, size_t len);
-  SensorType type() override { return TEXTSENSOR; }
+  const char *parse_value(const uint8_t *data, size_t len) const;
+  SensorType type() const override { return SensorType::SENSOR_TYPE_TEXT; }
   const LogString *get_log_name() const override { return this->text_sensor::TextSensor::get_log_name(); }
   void add_option(uint8_t value, const char *text) { this->options_.push_back({value, text}); }
 
@@ -154,34 +168,34 @@ class TopTronicTextSensor : public text_sensor::TextSensor, public TopTronicPoll
 };
 #endif
 #ifdef USE_SELECT
-class TopTronicSelect : public select::Select, public TopTronicInput {
+class TopTronicSelect final : public select::Select, public TopTronicInput {
  public:
   void set_type(TypeName type) { this->type_ = type; }
-  SensorType type() override { return TEXTSENSOR; }
+  SensorType type() const override { return SensorType::SENSOR_TYPE_TEXT; }
   const LogString *get_log_name() const override { return this->select::Select::get_log_name(); }
   void add_option(uint8_t value) { this->values_.push_back(value); }
 
  protected:
   void control(size_t index) override;
   std::vector<uint8_t> values_;  // SET value per option index, in the same order as the options
-  TypeName type_{U8};
+  TypeName type_{TypeName::TYPE_NAME_U8};
 };
 #endif
 
 #ifdef USE_BUTTON
 // Sends a fixed SET (an acknowledge or reset command) when pressed. Never polls, like number and select.
-class TopTronicButton : public button::Button, public TopTronicInput {
+class TopTronicButton final : public button::Button, public TopTronicInput {
  public:
   void set_type(TypeName type) { this->type_ = type; }
   void set_value(int64_t value) { this->value_ = value; }
-  SensorType type() override { return BUTTON; }
+  SensorType type() const override { return SensorType::SENSOR_TYPE_BUTTON; }
   const LogString *get_log_name() const override { return this->button::Button::get_log_name(); }
 
  protected:
   void press_action() override { this->send_set_raw_(this->value_, this->type_); }
 
   int64_t value_{0};
-  TypeName type_{U8};
+  TypeName type_{TypeName::TYPE_NAME_U8};
 };
 #endif
 
