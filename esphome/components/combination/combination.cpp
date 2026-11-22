@@ -64,6 +64,16 @@ void CombinationNoParameterComponent::setup() {
   }
 }
 
+void CombinationOneParameterComponent::setup() {
+  for (const auto &source : this->sensor_sources_) {
+    // All sensor updates are deferred until the next loop. This avoids publishing the combined sensor's result
+    // repeatedly in the same loop if multiple source senors update.
+    source.sensor->add_on_state_callback([this](float value) -> void {
+      this->defer(NEW_VALUE_DEFER_ID, [this, value]() { this->handle_new_value(value); });
+    });
+  }
+}
+
 void KalmanCombinationComponent::dump_config() {
   this->log_config_(LOG_STR("kalman"));
   ESP_LOGCONFIG(TAG, "  Update variance: %f per ms", this->update_variance_value_);
@@ -82,6 +92,8 @@ void KalmanCombinationComponent::setup() {
     });
   }
 }
+
+void KalmanCombinationComponent::handle_new_value(float) {}
 
 void KalmanCombinationComponent::update_variance_() {
   uint32_t now = millis();
@@ -127,16 +139,6 @@ void KalmanCombinationComponent::correct_(float value, float stddev) {
   PUBLISH_STATE(this->std_dev_sensor_, std::sqrt(var));
 }
 
-void LinearCombinationComponent::setup() {
-  for (auto &source : this->sensor_sources_) {
-    // All sensor updates are deferred until the next loop. This avoids publishing the combined sensor's result
-    // repeatedly in the same loop if multiple source senors update.
-    source.sensor->add_on_state_callback([this](float value) -> void {
-      this->defer(NEW_VALUE_DEFER_ID, [this, value]() { this->handle_new_value(value); });
-    });
-  }
-}
-
 void LinearCombinationComponent::handle_new_value(float value) {
   // Multiplies each sensor state by a configured coefficient and then sums
 
@@ -154,15 +156,6 @@ void LinearCombinationComponent::handle_new_value(float value) {
 
   this->publish_state(sum);
 };
-
-void WeightedMeanCombinationComponent::setup() {
-  for (auto &source : this->sensor_sources_) {
-    // Defer updates so the result includes all source changes from the current loop.
-    source.sensor->add_on_state_callback([this](float value) -> void {
-      this->defer(NEW_VALUE_DEFER_ID, [this, value]() { this->handle_new_value(value); });
-    });
-  }
-}
 
 void WeightedMeanCombinationComponent::handle_new_value(float value) {
   if (!std::isfinite(value))
