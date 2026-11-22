@@ -126,9 +126,10 @@ void MQTTClientComponent::setup() {
       });
   // AsyncMqttClient calls this from its TCP context; loop() logs it and runs the automations
   this->mqtt_backend_.set_on_disconnect([this](MQTTClientDisconnectReason reason) {
-    this->disconnect_reason_ = reason;
+    // State first, so an automation that loop() runs for this reason is not overwritten
     if (this->state_ != MQTT_CLIENT_DISABLED)
       this->state_ = MQTT_CLIENT_DISCONNECTED;
+    this->disconnect_reason_ = reason;
   });
 #ifndef USE_MQTT_SESSION_PERSISTENCE
   // Only on_connect automations need it; they are added before setup()
@@ -493,7 +494,9 @@ void MQTTClientComponent::check_connected() {
 
   for (MQTTComponent *component : this->children_)
     component->schedule_resend_state();
-  this->on_connect_.call(this->session_present_);
+  // The delay above yields, so the link may already be gone
+  if (this->is_connected())
+    this->on_connect_.call(this->session_present_);
 }
 
 void MQTTClientComponent::loop() {
