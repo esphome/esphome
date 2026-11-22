@@ -17,6 +17,8 @@ This module implements the canvas widget for LVGL 9.4. Key changes from LVGL 8.4
    - lv_canvas_set_px_color + lv_canvas_set_px_opa → lv_canvas_set_px(color, opa)
 """
 
+from contextlib import ExitStack
+
 from esphome import automation, codegen as cg, config_validation as cv
 from esphome.components.display_menu_base import CONF_LABEL
 from esphome.const import (
@@ -192,27 +194,48 @@ DRAW_OPA_SCHEMA = {
 }
 
 
-async def draw_to_code(config, dsc_type, props, do_draw, action_id, template_arg, args):
+async def draw_to_code(
+    config, dsc_type, props, do_draw, action_id, template_arg, args, text_key=None
+):
+    """``text_key`` names the config text that the descriptor points to."""
     widget = await get_widgets(config)
 
     async def action_func(w: Widget):
         x = await pixels.process(config.get(CONF_X))
         y = await pixels.process(config.get(CONF_Y))
-        # LVGL 9.4: Create a layer for drawing on canvas
-        with LocalVariable("layer", "lv_layer_t", modifier="") as layer:
-            lv.canvas_init_layer(w.obj, addr(layer))
-            with LocalVariable("dsc", f"lv_draw_{dsc_type}_dsc_t", modifier="") as dsc:
-                lv.call(f"draw_{dsc_type}_dsc_init", addr(dsc))
-                if CONF_OPA in config:
-                    opa = await opacity.process(config[CONF_OPA])
-                    lv_assign(dsc.opa, opa)
-                for prop, validator in props.items():
-                    if prop in config:
-                        value = await validator.process(config[prop])
-                        mapped_prop = remap_property(prop)
-                        lv_assign(getattr(dsc, mapped_prop), value)
-                await do_draw(addr(layer), x, y, dsc)
-            lv.canvas_finish_layer(w.obj, addr(layer))
+        with ExitStack() as stack:
+            text = config.get(text_key) if text_key is not None else None
+            if isinstance(text, str):
+                text = await lv_text.process(text)
+            elif text is not None:
+                # The layer draws when it is finished, so a computed text must outlive it
+                text = stack.enter_context(
+                    LocalVariable(
+                        "text",
+                        "const std::string",
+                        await lv_text.process(text),
+                        modifier="",
+                    )
+                ).c_str()
+            # LVGL 9.4: Create a layer for drawing on canvas
+            with LocalVariable("layer", "lv_layer_t", modifier="") as layer:
+                lv.canvas_init_layer(w.obj, addr(layer))
+                with LocalVariable(
+                    "dsc", f"lv_draw_{dsc_type}_dsc_t", modifier=""
+                ) as dsc:
+                    lv.call(f"draw_{dsc_type}_dsc_init", addr(dsc))
+                    if CONF_OPA in config:
+                        opa = await opacity.process(config[CONF_OPA])
+                        lv_assign(dsc.opa, opa)
+                    for prop, validator in props.items():
+                        if prop in config:
+                            value = await validator.process(config[prop])
+                            mapped_prop = remap_property(prop)
+                            lv_assign(getattr(dsc, mapped_prop), value)
+                    if text is not None:
+                        lv_assign(dsc.text, text)
+                    await do_draw(addr(layer), x, y, dsc)
+                lv.canvas_finish_layer(w.obj, addr(layer))
 
     return await action_to_code(widget, action_func, action_id, template_arg, args)
 
@@ -344,7 +367,6 @@ TEXT_PROPS = {
 )
 async def canvas_draw_text(config, action_id, template_arg, args):
     async def do_draw_text(layer, x, y, dsc):
-        text = await lv_text.process(config[CONF_TEXT])
         max_width = await pixels.process(config[CONF_MAX_WIDTH])
         # LVGL 9.4: Use lv_draw_label with area and hint
         with LocalVariable("area", "lv_area_t", modifier="") as area:
@@ -352,11 +374,17 @@ async def canvas_draw_text(config, action_id, template_arg, args):
             lv_assign(area.y1, y)
             lv_assign(area.x2, literal(f"{x} + {max_width} - 1"))
             lv_assign(area.y2, literal(f"{y} + LV_COORD_MAX"))
-            lv_assign(dsc.text, text)
             lv.draw_label(layer, addr(dsc), addr(area))
 
     return await draw_to_code(
-        config, "label", TEXT_PROPS, do_draw_text, action_id, template_arg, args
+        config,
+        "label",
+        TEXT_PROPS,
+        do_draw_text,
+        action_id,
+        template_arg,
+        args,
+        text_key=CONF_TEXT,
     )
 
 

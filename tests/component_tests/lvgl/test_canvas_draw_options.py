@@ -67,3 +67,13 @@ def test_polygon_accepts_border_keys() -> None:
         }
     )
     assert config["border_width"] == 2
+
+
+def test_computed_text_outlives_the_layer(main_cpp: str) -> None:
+    # The layer draws the label when it is finished, so the text must still be alive then
+    text = main_cpp.index("const std::string text_VAR_ = ")
+    assign = main_cpp.index("dsc_VAR_.text = text_VAR_.c_str();", text)
+    draw = main_cpp.index("lv_draw_label(", assign)
+    finish = main_cpp.index("lv_canvas_finish_layer(", draw)
+    # Still inside the block that holds the text
+    assert main_cpp[text:finish].count("{") > main_cpp[text:finish].count("}")
