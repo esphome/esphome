@@ -30,7 +30,7 @@ def decode_8e1(bits: list[int], mode: str) -> bytes:
 
 def rx_parse(hexes: str) -> tuple[bytes, int]:
     """Bytes of RX hex and the number of PARMRK error marks: FF FF is a real 0xFF, FF 00 X a parity or framing
-    error on X (kept as X). An escape cut off at the end also counts as a mark, with no data byte."""
+    error on X (kept as X). A cut off escape or a lone FF also counts as a mark, with no data byte."""
     raw, out, marks, i = bytes.fromhex(hexes), bytearray(), 0, 0
     while i < len(raw):
         if raw[i] == 0xFF and raw[i + 1 : i + 2] == b"\xff":
@@ -43,6 +43,9 @@ def rx_parse(hexes: str) -> tuple[bytes, int]:
         elif raw[i] == 0xFF and (i + 1 == len(raw) or raw[i + 1 :] == b"\x00"):
             marks += 1  # truncated escape: a real 0xFF would be doubled
             break
+        elif raw[i] == 0xFF:
+            marks += 1  # a lone 0xFF breaks the escaping; not kept as data
+            i += 1
         else:
             out.append(raw[i])
             i += 1

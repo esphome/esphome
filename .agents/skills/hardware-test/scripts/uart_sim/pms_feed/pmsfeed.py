@@ -84,22 +84,27 @@ def main() -> None:
     s.close()
     log = pathlib.Path(a.out).read_bytes()
     parses = log.count(b"Got PM1.0 Standard")
-    # the device counter, which a garbled log line cannot lose; it restarts at 0 on boot, seen as the uptime not
-    # rising or the counter going back. The first boot counts from its first cnt line, a later boot (started inside the capture) from 0.
-    cnt = [
-        (int(p), int(u))
-        for p, u in re.findall(rb"\[cnt\S*: parses=(\d+) uptime=(\d+)", log)
-    ]
+    # the device counter, which a garbled log line cannot lose; it starts again at 0 on boot. A new boot shows as
+    # the uptime or the counter going back, or the uptime gaining less than the host clock (lost cnt lines around
+    # the restart). The first boot counts from its first cnt line, a later one (started in the capture) from 0.
+    cnt = []
+    for m in re.finditer(
+        rb"^\[(\d\d):(\d\d):(\d\d(?:\.\d+)?)\].*?\[cnt\S*: parses=(\d+) uptime=(\d+)",
+        log,
+        re.MULTILINE,
+    ):
+        wall = int(m[1]) * 3600 + int(m[2]) * 60 + float(m[3])
+        if cnt and wall < cnt[-1][2]:
+            wall += 86400  # midnight
+        cnt.append((int(m[4]), int(m[5]), wall))
     dev, boots = None, 0
     if len(cnt) > 1:
         dev, boots, base, prev = 0, 1, cnt[0][0], cnt[0]
-        for p, u in cnt[1:]:
-            if (
-                u <= prev[1] or p < prev[0]
-            ):  # lines are 10 s apart, so a same uptime is a new boot
+        for p, u, w in cnt[1:]:
+            if u <= prev[1] or p < prev[0] or u - prev[1] < w - prev[2] - 5:
                 dev += prev[0] - base
                 boots, base = boots + 1, 0
-            prev = (p, u)
+            prev = (p, u, w)
         dev += prev[0] - base
     # builds with pmh.hpp log the esp_pm_configure() result; anything but 0 means no power management
     pm = re.findall(rb"esp_pm_configure\(ls=\d\) = (-?\d+)", log)
