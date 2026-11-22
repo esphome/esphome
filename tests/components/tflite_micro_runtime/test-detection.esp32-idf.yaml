@@ -1,0 +1,12 @@
+# ESPHome build test: a detection model through the runtime.
+tflite_detection:
+
+tflite_micro_runtime:
+  - id: test_detection
+    model_type: detection
+    model: https://raw.githubusercontent.com/nliaudat/esphome_ai_component/4ca8470aba1b226071bcc3258f3b95fab08895d6/models/digit_recognizer_v24_quantized_integer_quant_uint8.tflite
+    input_width: 32
+    input_height: 20
+    input_channels: 3
+    score_threshold: 0.5
+    max_detections: 10
