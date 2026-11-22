@@ -28,34 +28,19 @@ def test_invalid_commands(command: int) -> None:
         vbus.validate_command(command)
 
 
-@pytest.mark.parametrize("grant", [0, -1, 0x100000000])
-def test_send_requires_a_nonzero_32_bit_grant(grant: int) -> None:
-    with pytest.raises(cv.Invalid):
-        vbus.SEND_SCHEMA({"id": "bus", "grant_id": grant, "command": 0x0300})
-
-
-def test_send_requires_a_grant_identifier() -> None:
-    with pytest.raises(cv.Invalid):
-        vbus.SEND_SCHEMA({"id": "bus", "command": 0x0300})
-
-
 def test_send_waits_for_a_reply_by_default() -> None:
-    conf = vbus.SEND_SCHEMA({"id": "bus", "grant_id": 1, "command": 0x0300})
+    conf = vbus.SEND_SCHEMA({"id": "bus", "command": 0x0300})
     assert conf["expect_reply"] is True
 
 
 @pytest.mark.parametrize("command", [0x0200, 0x0300, 0x0400])
 def test_standard_requests_cannot_disable_reply_waiting(command: int) -> None:
     with pytest.raises(cv.Invalid, match="require expect_reply"):
-        vbus.SEND_SCHEMA(
-            {"id": "bus", "grant_id": 1, "command": command, "expect_reply": False}
-        )
+        vbus.SEND_SCHEMA({"id": "bus", "command": command, "expect_reply": False})
 
 
 def test_one_way_datagram_can_disable_reply_waiting() -> None:
-    conf = vbus.SEND_SCHEMA(
-        {"id": "bus", "grant_id": 1, "command": 0x0100, "expect_reply": False}
-    )
+    conf = vbus.SEND_SCHEMA({"id": "bus", "command": 0x0100, "expect_reply": False})
     assert conf["expect_reply"] is False
 
 
@@ -78,12 +63,8 @@ def test_transmit_codegen(
     assert any(define.name == "USE_VBUS_TX" for define in CORE.defines)
     assert "vbus::VBusTransmitter(test_bus);" in code
     assert "test_bus->set_transmitter(" in code
-    assert "add_on_bus_grant_callback(" in code
-    assert "send_datagram(" in code
-    assert "request_bus()" in code
-    assert "release_bus(" in code
-    assert "uint32_t grant_id" in code
-    assert "()()" not in code
+    assert any(define.name == "USE_VBUS_SEND_ACTION" for define in CORE.defines)
+    assert "test_bus->request_datagram(" in code
 
 
 def test_rx_only_does_not_generate_transmit(
@@ -131,7 +112,7 @@ def test_tx_final_validation(
         "esphome:\n  name: vbus-validation\nesp8266:\n  board: d1_mini\n"
         f"uart:\n  baud_rate: 9600\n  {uart_config}\nvbus:\n  id: bus\n  {transmit_config}\n"
         "button:\n  - platform: template\n    name: Request\n    on_press:\n"
-        "      - vbus.request_bus:\n          id: bus\n",
+        "      - vbus.send_datagram:\n          id: bus\n          command: 0x0300\n",
         encoding="utf-8",
     )
     CORE.config_path = path
@@ -173,7 +154,7 @@ def test_action_validation_state_is_cleared_between_configurations(
     )
     path.write_text(
         base
-        + "button:\n  - platform: template\n    name: Request\n    on_press:\n      - vbus.request_bus:\n          id: bus\n",
+        + "button:\n  - platform: template\n    name: Request\n    on_press:\n      - vbus.send_datagram:\n          id: bus\n          command: 0x0300\n",
         encoding="utf-8",
     )
     CORE.config_path = path

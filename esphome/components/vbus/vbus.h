@@ -39,16 +39,12 @@ class VBus final : public uart::UARTDevice, public Component {
   void register_listener(VBusListener *listener) { this->listeners_.push_back(listener); }
 #ifdef USE_VBUS_TX
   void set_transmitter(VBusTransmitter *transmitter) { this->transmitter_ = transmitter; }
-  bool request_bus() { return this->transmitter_ != nullptr && this->transmitter_->request_bus(); }
-  bool has_bus() const { return this->transmitter_ != nullptr && this->transmitter_->has_bus(); }
-  bool send_datagram(uint32_t grant_id, uint16_t command, uint16_t value_id, uint32_t value, bool expect_reply = true) {
+#ifdef USE_VBUS_SEND_ACTION
+  bool request_datagram(uint16_t command, uint16_t value_id, uint32_t value, bool expect_reply = true) {
     return this->transmitter_ != nullptr &&
-           this->transmitter_->send_datagram(grant_id, command, value_id, value, expect_reply);
+           this->transmitter_->request_datagram(command, value_id, value, expect_reply);
   }
-  void release_bus(uint32_t grant_id) {
-    if (this->transmitter_ != nullptr)
-      this->transmitter_->release_bus(grant_id);
-  }
+#endif
 #endif
 #ifdef USE_VBUS_DATAGRAM
   template<typename F> void add_on_datagram_callback(F &&callback) {
