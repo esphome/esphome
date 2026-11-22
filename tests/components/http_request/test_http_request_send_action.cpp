@@ -665,6 +665,22 @@ TEST(HttpRequestSendActionJson, JsonLambdaDoesNotChangeReferenceArgs) {
   EXPECT_EQ(http.request_url, "http://example.invalid/a");
 }
 
+// A string linked from a reference arg, not copied into the document, stays alive until the body is serialized;
+// the host build's address sanitizer catches it otherwise
+TEST(HttpRequestSendActionJson, LinkedReferenceArgLivesThroughSerialize) {
+  FakeHttpRequest http;
+  HttpRequestSendAction<std::string &> action{&http};
+  action.set_url([](std::string &) -> std::string { return "http://example.invalid/"; });
+  action.set_method([](std::string &) -> const char * { return "POST"; });
+  action.set_json([](std::string &s, JsonObject root) { root["s"] = JsonString(s.c_str(), s.size(), true); });
+  Trigger<std::string &> trigger;
+  Automation<std::string &> automation{&trigger};
+  automation.add_action(&action);
+  std::string arg(64, 'a');  // longer than the small string buffer, so the copy is on the heap
+  trigger.trigger(arg);
+  EXPECT_EQ(http.request_body, R"({"s":")" + arg + R"("})");
+}
+
 TEST(HttpRequestSendActionJson, JsonEntryDoesNotChangeReferenceArgs) {
   FakeHttpRequest http;
   HttpRequestSendAction<std::string &> action{&http};
