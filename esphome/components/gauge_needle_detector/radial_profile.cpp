@@ -16,7 +16,6 @@ ESPHOME_LOG_TAG(TAG, "gauge_needle_detector");
 
 namespace {
 
-/// Traces rays from the centre and keeps the longest bright run.
 DetectionResult scan_radial_profile(const uint8_t *filtered, int width, int height, const DetectorConfig &config,
                                     float *scores, int max_gap = 5, int signal_threshold = 20,
                                     float parabola_epsilon = 0.0001f) {
@@ -91,8 +90,7 @@ DetectionResult scan_radial_profile(const uint8_t *filtered, int width, int heig
   if (best_angle >= 360.0f)
     best_angle -= 360.0f;
 
-  // Support is the share of the sampled ray the needle covers; contrast says
-  // the best ray stands out from the darkest one.
+  // Support is the covered share of the ray; contrast says the best ray stands out.
   const float sampled = static_cast<float>(max_radius_scan - start_r);
   const float support = sampled > 0.0f ? best_score / (sampled * 255.0f) : 0.0f;
   const float contrast = best_score > 0.0f ? (best_score - min_score) / best_score : 0.0f;

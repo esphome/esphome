@@ -13,8 +13,7 @@
 
 namespace esphome::gauge_needle_detector {
 
-/// Degree/radian conversion. Functions because the Arduino cores define
-/// `DEG_TO_RAD` and `RAD_TO_DEG` as macros.
+/// Degree/radian conversion; functions because the Arduino cores define macros.
 inline constexpr float degrees_to_radians(float degrees) { return degrees * std::numbers::pi_v<float> / 180.0f; }
 inline constexpr float radians_to_degrees(float radians) { return radians * 180.0f / std::numbers::pi_v<float>; }
 
@@ -33,10 +32,8 @@ enum Algorithm : uint8_t {
   ALGORITHM_AUTO = 4,  ///< Runs every compiled-in detector and keeps the most confident one.
 };
 
-/// Returns the configuration name of an algorithm, for logging with LOG_STR_ARG().
 const LogString *algorithm_name(Algorithm algorithm);
 
-/// Parameters that change how one dial crop is analysed.
 struct DetectorConfig {
   const char *id{"dial"};       // Dial name used in log lines
   float min_scan_radius{0.3f};  // Scan window, as a fraction of the radius
@@ -47,7 +44,6 @@ struct DetectorConfig {
   bool debug{false};  // Log every compiled-in detector's result
 };
 
-/// Result of one detection pass.
 struct DetectionResult {
   float angle{0.0f};
   float confidence{0.0f};
@@ -57,22 +53,16 @@ struct DetectionResult {
 float sin_lut(int degrees);
 float cos_lut(int degrees);
 
-/// One needle-finding strategy; it holds no per-frame state.
 class Detector {
  public:
   virtual ~Detector() = default;
 
-  /// Algorithm this detector implements.
   virtual Algorithm algorithm() const = 0;
 
-  /// False when the detector works on the raw crop and can skip preprocessing.
   virtual bool needs_filtered_image() const { return true; }
 
-  /// Finds the needle angle in a width x height grayscale crop.
-  /// @param raw      the crop as delivered by the camera
-  /// @param filtered raw after Preprocessor::prepare(), or nullptr when
-  ///                 needs_filtered_image() is false
-  /// @param scores   360-entry scratch workspace owned by the caller
+  /// Finds the needle angle; `filtered` is nullptr for a raw-crop detector and
+  /// `scores` is the caller's 360-entry workspace.
   virtual DetectionResult detect(const uint8_t *raw, const uint8_t *filtered, int width, int height,
                                  const DetectorConfig &config, float *scores) = 0;
 };
@@ -87,12 +77,10 @@ class Preprocessor final {
   Preprocessor(Preprocessor &&) = delete;
   Preprocessor &operator=(Preprocessor &&) = delete;
 
-  /// Allocates the working buffers for crops of up to width x height pixels.
-  /// Returns false when the buffers cannot be allocated; prepare() then fails
-  /// for any crop instead of growing at runtime.
+  /// Allocates the buffers once; false when they cannot be allocated, so
+  /// prepare() fails instead of growing at runtime.
   bool reserve(int width, int height);
 
-  /// @param radial_pixels dial radius in pixels, used to size the top-hat kernel
   bool prepare(const uint8_t *raw, int width, int height, int radial_pixels, NeedleType needle_type, bool debug);
 
   const uint8_t *data() const { return this->working_; }
@@ -161,15 +149,12 @@ class NeedleDetector final {
   NeedleDetector(NeedleDetector &&) = delete;
   NeedleDetector &operator=(NeedleDetector &&) = delete;
 
-  /// Allocates the working buffers for crops of up to width x height pixels.
-  /// Returns false when a needed buffer cannot be allocated.
+  /// Allocates the buffers once; false when a needed one cannot be allocated.
   bool reserve(int width, int height);
 
-  /// Runs the configured algorithm on a width x height grayscale crop.
   DetectionResult detect(const uint8_t *img, int width, int height, const DetectorConfig &config);
 
  protected:
-  /// One slot per built-in detector.
   static constexpr size_t MAX_DETECTORS = 4;
 
   Preprocessor preprocessor_;

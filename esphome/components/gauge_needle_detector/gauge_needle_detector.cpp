@@ -92,13 +92,11 @@ DetectionResult NeedleDetector::detect(const uint8_t *img, int width, int height
   if (img == nullptr || width <= 0 || height <= 0)
     return {};
 
-  // "auto" and debug logging run every compiled-in detector.
   const bool compare_all = config.algorithm == ALGORITHM_AUTO || config.debug;
-
+  const bool is_auto = config.algorithm == ALGORITHM_AUTO;
   const int radius = std::min(width, height) / 2 - 2;
 
-  // Every detector samples the same window, so a window that cannot hold a
-  // single pixel is reported here, once, instead of on every frame.
+  // Report an empty scan window once, not on every frame.
   if (radius > 0) {
     const int deadzone_r = static_cast<int>(std::max(0.0f, config.deadzone_diameter * 0.5f));
     const int scan_start = std::max({1, static_cast<int>(radius * config.min_scan_radius), deadzone_r});
@@ -113,7 +111,6 @@ DetectionResult NeedleDetector::detect(const uint8_t *img, int width, int height
     }
   }
 
-  // Preprocess once for all detectors that will run on the filtered image.
   bool needs_filtered = false;
   for (size_t i = 0; i < this->detector_count_; i++) {
     if (this->detectors_[i]->needs_filtered_image() &&
@@ -134,17 +131,17 @@ DetectionResult NeedleDetector::detect(const uint8_t *img, int width, int height
     }
   }
 
-  DetectionResult selected;
-  bool have_selected = false;
-  DetectionResult best;
-  Algorithm best_algorithm = ALGORITHM_AUTO;
-  bool have_best = false;
+  DetectionResult output;
+  Algorithm output_algorithm = config.algorithm;
+  bool have_output = false;
+  bool target_compiled = is_auto;
 
   for (size_t i = 0; i < this->detector_count_; i++) {
     Detector *detector = this->detectors_[i];
     const bool is_target = config.algorithm == detector->algorithm();
     if (!is_target && !compare_all)
       continue;
+    target_compiled |= is_target;
 
     const bool wants_filtered = detector->needs_filtered_image();
     if (wants_filtered && filtered == nullptr)
@@ -157,27 +154,15 @@ DetectionResult NeedleDetector::detect(const uint8_t *img, int width, int height
       ESP_LOGD(TAG, "  %s: angle=%.1f deg, conf=%.2f", LOG_STR_ARG(algorithm_name(detector->algorithm())), result.angle,
                result.confidence);
     }
-    if (is_target) {
-      selected = result;
-      have_selected = true;
-    }
     // The first detector wins ties, so the built-in order decides equal scores.
-    if (config.algorithm == ALGORITHM_AUTO && (!have_best || result.confidence > best.confidence)) {
-      best = result;
-      best_algorithm = detector->algorithm();
-      have_best = true;
+    if (is_auto ? (!have_output || result.confidence > output.confidence) : is_target) {
+      output = result;
+      output_algorithm = detector->algorithm();
+      have_output = true;
     }
   }
 
-  const bool is_auto = config.algorithm == ALGORITHM_AUTO;
-  if (is_auto ? !have_best : !have_selected) {
-    bool target_compiled = false;
-    for (size_t i = 0; i < this->detector_count_; i++) {
-      if (is_auto || this->detectors_[i]->algorithm() == config.algorithm) {
-        target_compiled = true;
-        break;
-      }
-    }
+  if (!have_output) {
     // Preprocessing already reported its own failure; do not blame a missing detector.
     if (!preprocessing_failed || !target_compiled) {
       ESP_LOGE(TAG, "%s: no compiled-in detector for algorithm %s", config.id,
@@ -185,9 +170,6 @@ DetectionResult NeedleDetector::detect(const uint8_t *img, int width, int height
     }
     return {};
   }
-
-  const DetectionResult output = is_auto ? best : selected;
-  const Algorithm output_algorithm = is_auto ? best_algorithm : config.algorithm;
 
   if (config.debug) {
     ESP_LOGD(TAG, "%s using %s: angle=%.1f deg, confidence=%.2f", config.id,

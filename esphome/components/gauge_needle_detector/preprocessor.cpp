@@ -13,9 +13,8 @@ ESPHOME_LOG_TAG(TAG, "gauge_needle_detector");
 
 namespace {
 
-/// Stretches the histogram, clipping dominant bins so a large flat background
-/// cannot flatten the mapping of the needle. Unlike per-tile equalization this
-/// keeps one mapping for the whole crop, so it adds no tile edges.
+/// Stretches the histogram, clipping dominant bins so a flat background cannot
+/// flatten the needle. One mapping for the whole crop, so it adds no tile edges.
 void apply_contrast_stretch(uint8_t *img, size_t pixels, std::array<uint32_t, 256> &hist) {
   hist.fill(0);
   for (size_t i = 0; i < pixels; i++)
@@ -49,7 +48,6 @@ inline uint8_t morph_pick(uint8_t a, uint8_t b, MorphOp op) {
   return op == MorphOp::MORPH_OP_ERODE ? std::min(a, b) : std::max(a, b);
 }
 
-/// One horizontal pass of a square min/max kernel.
 void morph_horizontal(const uint8_t *src, uint8_t *dst, int width, int height, int r, MorphOp op) {
   for (int y = 0; y < height; y++) {
     const uint8_t *row = src + static_cast<size_t>(y) * width;
@@ -65,7 +63,6 @@ void morph_horizontal(const uint8_t *src, uint8_t *dst, int width, int height, i
   }
 }
 
-/// One vertical pass of a square min/max kernel.
 void morph_vertical(const uint8_t *src, uint8_t *dst, int width, int height, int r, MorphOp op) {
   for (int x = 0; x < width; x++) {
     for (int y = 0; y < height; y++) {
@@ -79,9 +76,7 @@ void morph_vertical(const uint8_t *src, uint8_t *dst, int width, int height, int
   }
 }
 
-/// A square min/max kernel is separable, so two 1-D passes replace the k*k scan.
-/// `horizontal` must differ from `src`; `result` may be `src` because the
-/// horizontal pass finishes before the vertical pass writes it.
+/// A square kernel is separable; `horizontal` must differ from `src`, `result` may be `src`.
 void morph(const uint8_t *src, uint8_t *horizontal, uint8_t *result, int width, int height, int r, MorphOp op) {
   morph_horizontal(src, horizontal, width, height, r, op);
   morph_vertical(horizontal, result, width, height, r, op);

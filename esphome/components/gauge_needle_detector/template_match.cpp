@@ -30,7 +30,6 @@ DetectionResult TemplateMatchDetector::detect(const uint8_t * /*raw*/, const uin
   if (start_r >= end_r)
     return {};
 
-  // Average brightness along one ray.
   auto ray_score = [&](int degrees) -> float {
     const float dx = cos_lut(degrees);
     const float dy = sin_lut(degrees);
@@ -61,8 +60,7 @@ DetectionResult TemplateMatchDetector::detect(const uint8_t * /*raw*/, const uin
     min_score = std::min(min_score, score);
   }
 
-  // Same scale as radial_profile: support is how bright the best ray is and
-  // contrast says it stands out, so `auto` can rank the two against each other.
+  // Same scale as radial_profile, so `auto` can rank the two.
   const float support = std::max(0.0f, best_score) / 255.0f;
   const float contrast = best_score > 0.0f ? (best_score - min_score) / best_score : 0.0f;
   const float confidence = std::clamp(support * (0.5f + 0.5f * contrast), 0.0f, 1.0f);

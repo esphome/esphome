@@ -10,7 +10,6 @@ namespace esphome::gauge_needle_detector {
 
 namespace {
 
-/// Intensity along each ray, stopping at the first long background run.
 DetectionResult scan_intensity(const uint8_t *raw, int width, int height, const DetectorConfig &config, float *scores,
                                int max_gap = 5, int dark_background_min = 150, int light_background_max = 100) {
   if (raw == nullptr)
