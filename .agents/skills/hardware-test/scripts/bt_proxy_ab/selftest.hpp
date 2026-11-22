@@ -103,7 +103,7 @@ static uint8_t ph;
 static int st;        // step inside the phase
 static uint16_t rnd;  // round or cycle
 static uint8_t att;   // retry attempt
-static uint32_t t_ph, t0, t_wait, t_open;
+static uint32_t t_ph, t0, t_wait, t_open, t_round;
 static uint16_t ok_n, first_ok_n, fail_n, stuck_n, adv_mode_n;
 static uint32_t adv0;
 static uint8_t rtt_i;
@@ -146,7 +146,7 @@ inline void next_phase() {
   rnd = 0;
   att = 0;
   ok_n = first_ok_n = fail_n = stuck_n = 0;
-  t_ph = t_wait = millis();
+  t_ph = t_wait = t_round = millis();
   ESP_LOGI(TAG, "ST phase_start %s", PHASES[ph].name);
 }
 
@@ -269,6 +269,11 @@ inline void tick() {
         st = 1;
       }
       if (st == 3 || st == 4) {
+        if (now - t_wait > 30000) {
+          ESP_LOGW(TAG, "ST adv scanner_stuck state=%d, phase abandoned", (int) trk->get_scanner_state());
+          next_phase();
+          break;
+        }
         if (trk->get_scanner_state() == espbt::ScannerState::IDLE) {
           trk->start_scan();
           ESP_LOGI(TAG, "ST adv scan restarted %s", st == 3 ? "passive" : "active");
@@ -441,6 +446,13 @@ inline void tick() {
           t_wait = now;
         }
         st = 1;
+      } else if (st == 1 && now - t_round > 90000) {
+        // h1 or h2 never settled: end the round instead of retrying forever
+        ESP_LOGI(TAG, "ST third hold_failed r=%u h1=%d h2=%d", rnd, (int) s(h1), (int) s(h2));
+        fail_n++;
+        att = 0;
+        t_wait = now;
+        st = 5;
       } else if (st == 1) {
         if (up(h1)) {
           if (P.k != K_THIRD_EVE && !idle(h2)) {
@@ -494,6 +506,7 @@ inline void tick() {
       } else if (st == 5) {
         if ((idle(third) && now - t_wait > 3000) || now - t_wait > 15000) {
           rnd++;
+          t_round = now;
           st = 0;
           if (rnd >= P.n) {
             drop(PL);

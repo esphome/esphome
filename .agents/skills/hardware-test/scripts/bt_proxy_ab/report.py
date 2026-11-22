@@ -14,6 +14,10 @@ from peers import addrs  # noqa: E402
 
 T = sys.argv[1]
 ADDR = addrs()  # PEER_ADDRS=L=MAC,M=MAC,eve=MAC
+if not ADDR:
+    print(
+        "PEER_ADDRS is not set: the per-peer device stats stay empty", file=sys.stderr
+    )
 
 
 lines = []
@@ -41,7 +45,9 @@ for t, ln in lines:
             "x3e": 0,
         }
         att.append(cur[m[1]])
-    elif m := re.search(r"\]: \[(\d)\] Connection open$", ln):
+    elif m := re.search(
+        r"\]: \[(\d)\] \[[0-9A-F:]{17}\] Connection open(?! error)", ln
+    ):
         if (a := cur.get(m[1])) and "t_open" not in a:
             a["t_open"] = t
     elif m := re.search(r"IVLOG connect (\S+) if=\d+ interval=(\d+)", ln):
@@ -52,7 +58,9 @@ for t, ln in lines:
         for a in cur.values():
             if a["sfx"] == m[1]:
                 a.setdefault("upd", []).append(int(m[3]))
-    elif m := re.search(r"\]: \[(\d)\] Service discovery complete", ln):
+    elif m := re.search(
+        r"\]: \[(\d)\] \[[0-9A-F:]{17}\] Service discovery complete", ln
+    ):
         if (a := cur.get(m[1])) and "t_disc" not in a:
             a["t_disc"] = t
     elif m := re.search(
@@ -60,7 +68,9 @@ for t, ln in lines:
     ):
         if a := cur.pop(m[1], None):
             a["end"], a["t_end"] = m[2], t
-    elif m := re.search(r"\]: \[(\d)\] Connection open failed, status=(\d+)", ln):
+    elif m := re.search(
+        r"\]: \[(\d)\] \[[0-9A-F:]{17}\] Connection open error, status=(\d+)", ln
+    ):
         if a := cur.get(m[1]):
             a["fail"] = int(m[2])
     elif "rsn 0x3e" in ln:
@@ -245,6 +255,8 @@ for s in steps:
         )
         d["iv"] = dict(Counter(a.get("iv") for a in dev))
         d["upd"] = dict(Counter(str(a.get("upd", [])) for a in dev))
+    if A and not any("t_open" in a for a in A):
+        d["warn"] = "device attempts but no Connection open line matched"
     d["rejected"] = sum("Rejected" in ln for ln in L)
     d["tcp_full"] = sum("TCP buffer full" in ln for ln in L)
     out[s] = d

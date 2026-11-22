@@ -17,7 +17,7 @@ import time
 HERE = pathlib.Path(__file__).resolve().parent
 sys.path[:0] = [str(HERE), str(HERE.parent)]  # peers.py here, apiconn.py one level up
 from aioesphomeapi import LogLevel  # noqa: E402
-from apiconn import connect, log_text  # noqa: E402
+from apiconn import connect, log_text, stop_event  # noqa: E402
 from drive import D, L, cccd  # noqa: E402
 
 FE01 = "5ec2fe01-0000-1000-8000-00805f9b34fb"
@@ -31,7 +31,8 @@ async def main() -> None:
     per = int(sys.argv[5]) if len(sys.argv) > 5 else 3
     if not 0 < per < 256 or not 0 < count < 65536:
         sys.exit("COUNT must be 1-65535 and PER_TICK 1-255")
-    cli = await connect(host)
+    lost_api, on_stop = stop_event()
+    cli = await connect(host, on_stop=on_stop)
     d = D(cli, out)
     ndrop: list[str] = []
     logs = os.environ.get("LOGS") == "1"
@@ -55,8 +56,12 @@ async def main() -> None:
         sys.exit(1)
     st = await d.connect(L, False, timeout=60)
     if not st["connected"]:
-        d.rec(result="connect_failed", err=st.get("err"), exc=st.get("exc"))
-        return
+        d.rec(
+            test="burst", result="connect_failed", err=st.get("err"), exc=st.get("exc")
+        )
+        with contextlib.suppress(Exception):
+            await asyncio.wait_for(cli.disconnect(), 5)
+        sys.exit(1)
     svcs = await cli.bluetooth_gatt_get_services(addr)
     ch = {c.uuid: c for s in svcs.services for c in s.characteristics}
     if any(u not in ch for u in (FE01, FE02, FE03)) or None in (
@@ -99,6 +104,11 @@ async def main() -> None:
             )
         if logs:
             await asyncio.sleep(3)  # ndrop.hpp prints after 2 s without notifications
+        if (
+            lost_api.is_set()
+        ):  # notifications missed with the API down are not burst loss
+            d.rec(test="burst", round=r, result="api_lost")
+            sys.exit(3)
         got = sorted({s for _, s in seqs})
         missing = count - len(got)
         runs_missing, longest, prev = 0, 0, -1

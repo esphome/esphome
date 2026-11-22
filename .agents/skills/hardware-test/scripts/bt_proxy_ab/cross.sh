@@ -8,6 +8,10 @@ D=$(cd "$(dirname "$0")" && pwd); cd "$D" || exit 1
 [ -z "${API_KEY+x}" ] && [ -f apikey.txt ] && API_KEY=$(cat apikey.txt)
 export API_KEY PYTHONUNBUFFERED=1
 PY=${PY:-python3}
+# drive.py appends, so results of an earlier crossed run here would mix into this one
+if compgen -G "x*-adv.jsonl" > /dev/null; then
+  echo "x*-adv.jsonl from an earlier run exist here; move them away" >&2; exit 2
+fi
 i=0 fail=0
 for _ in $(seq "${6:-2}"); do
   for W in a b; do

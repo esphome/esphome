@@ -19,13 +19,16 @@ fi
 if [ "$P" = api ]; then
   ($PY ../ble_conn_interval/apilogcap.py "$H" 30000 "cap-$T.txt" > /dev/null 2> "cap-$T.err" & echo $! > "cap-$T.pid")
 else
-  ($PY ../serial_capture.py "$P" 30000 "cap-$T.txt" --ms ${RESUME:+--append} > /dev/null 2>&1 &
+  ($PY ../serial_capture.py "$P" 30000 "cap-$T.txt" --ms ${RESUME:+--append} > /dev/null 2> "cap-$T.err" &
     echo $! > "cap-$T.pid"); fi
-($PY ../ble_conn_interval/pinger.py "$H" 30000 "ping-$T.txt" > /dev/null 2>&1 & echo $! > "ping-$T.pid")
+($PY ../ble_conn_interval/pinger.py "$H" 30000 "ping-$T.txt" > /dev/null 2> "ping-$T.err" & echo $! > "ping-$T.pid")
 sleep 3
+for w in cap ping; do
+  kill -0 "$(cat "$w-$T.pid")" 2> /dev/null || { echo "the $w process exited at start, see $w-$T.err" >&2; exit 1; }
+done
 mark() { echo "$(date +%T) $*" | tee -a "marks-$T.txt"; }
-# rounds that tried the measured link (held_failed rounds did not, as in ble_conn_interval/suite.sh)
-rounds() { local n; n=$(grep '"round"' "$1" 2>/dev/null | grep -vc held_failed); echo "${n:-0}"; }
+# rounds that tried the measured link (held_failed and clear_failed rounds did not)
+rounds() { local n; n=$(grep '"round"' "$1" 2> /dev/null | grep -vcE 'held_failed|clear_failed'); echo "${n:-0}"; }
 incomplete=
 # run STEP ROUNDS CMD ARGS...: an ARG of @N is replaced by the rounds still missing; reruns after an API drop
 run() {

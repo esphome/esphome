@@ -1,8 +1,8 @@
 """Bluetooth proxy A/B driver (aioesphomeapi). Writes JSON lines to OUT.
 
 drive.py HOST adv OUT SECONDS              adverts per second, active then passive scan (scanner mode set over the API)
-drive.py HOST disc OUT PEER ROUNDS MODE    MODE free (cold, 40 s budget, RTTs), retry (cold, 10 s budget, 5 attempts),
-                                           cached (has_cache, RTTs)
+drive.py HOST disc OUT PEER ROUNDS MODE    MODE free (cold, 60 s budget, RTTs), retry (cold, 10 s budget, 5 attempts),
+                                           cached (has_cache, 30 s budget, RTTs)
 drive.py HOST third OUT ROUNDS VARIANT     VARIANT eve: hold L+M (cached), connect Eve cold;
                                            pd: hold L (cached) + fresh Eve (cached), connect M cold
 drive.py HOST notify OUT SECONDS           hold L (cached), subscribe the 200 ms tick, count gaps and drops

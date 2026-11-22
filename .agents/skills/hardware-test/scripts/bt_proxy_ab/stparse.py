@@ -14,6 +14,10 @@ from capstats import print_heap, print_warnings, sec, unwrap  # noqa: E402
 from peers import addrs  # noqa: E402
 
 ADDR = addrs()  # PEER_ADDRS=L=MAC,M=MAC,eve=MAC
+if not ADDR:
+    print(
+        "PEER_ADDRS is not set: the per-peer device stats stay empty", file=sys.stderr
+    )
 med = partial(capstats.med, nd=None)  # whole numbers here
 p90 = partial(capstats.p90, nd=None)
 
