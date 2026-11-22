@@ -200,6 +200,14 @@ def test_respond_only_variable_named_return_response(generate_main) -> None:
     assert "}(call_id, return_response, root); });" in body
 
 
+def test_respond_optional_inside_repeat(generate_main) -> None:
+    """Inside repeat:, return_response is not the second argument and still makes the data optional."""
+    main_cpp = generate_main(CONFIG)
+    assert (
+        "}(iteration, call_id, return_response, root); }, return_response);" in main_cpp
+    )
+
+
 def test_respond_status_lambdas(generate_main) -> None:
     """Lambdas for the status and the error text are bound before the response is sent."""
     main_cpp = generate_main(CONFIG)
@@ -310,6 +318,7 @@ def test_services_registered_in_order(generate_main) -> None:
         "respond_then_log",
         "respond_error_lambda",
         "respond_only_named_return_response",
+        "respond_optional_in_repeat",
         "respond_error_constant",
         "status_inline",
         "self_reference",

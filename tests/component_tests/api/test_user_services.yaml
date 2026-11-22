@@ -109,6 +109,16 @@ api:
         - api.respond:
             data: !lambda |-
               root["n"] = return_response;
+    # repeat: puts its iteration before call_id and return_response
+    - action: respond_optional_in_repeat
+      supports_response: optional
+      then:
+        - repeat:
+            count: 1
+            then:
+              - api.respond:
+                  data: !lambda |-
+                    root["n"] = iteration;
     - action: respond_error_constant
       supports_response: status
       then:
