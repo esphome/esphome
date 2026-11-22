@@ -248,6 +248,8 @@ for s in steps:
                             "dups",
                             "reconnects",
                             "subscribe_errors",
+                            "hold_failed",
+                            "unheld_s",
                         )
                     }
                 )

@@ -107,7 +107,7 @@ static int st;        // step inside the phase
 static uint16_t rnd;  // round or cycle
 static uint8_t att;   // retry attempt
 static uint32_t t_ph, t0, t_wait, t_open, t_round;
-static uint16_t ok_n, first_ok_n, fail_n, stuck_n, adv_mode_n, cc_fail_n, hb_n;
+static uint16_t ok_n, first_ok_n, fail_n, stuck_n, adv_mode_n, cc_fail_n, hb_n, hd_n;
 static bool bad_handle[2];  // handle_l/handle_m do not point at this server's ff01: RTTs hit another characteristic
 static uint32_t adv0;
 static uint8_t rtt_i;
@@ -145,13 +145,15 @@ inline void drop(uint8_t p) {
 
 inline void next_phase() {
   const Phase &P = PHASES[ph];
-  ESP_LOGI(TAG, "ST phase_end %s rounds=%u ok=%u first_ok=%u fail=%u stuck=%u cache_clean_fail=%u handle_bad=%u",
-           P.name, rnd, ok_n, first_ok_n, fail_n, stuck_n, cc_fail_n, hb_n);
+  ESP_LOGI(TAG,
+           "ST phase_end %s rounds=%u ok=%u first_ok=%u fail=%u stuck=%u cache_clean_fail=%u handle_bad=%u "
+           "held_dropped=%u",
+           P.name, rnd, ok_n, first_ok_n, fail_n, stuck_n, cc_fail_n, hb_n, hd_n);
   ph++;
   st = 0;
   rnd = 0;
   att = 0;
-  ok_n = first_ok_n = fail_n = stuck_n = cc_fail_n = hb_n = 0;
+  ok_n = first_ok_n = fail_n = stuck_n = cc_fail_n = hb_n = hd_n = 0;
   t_ph = t_wait = t_round = millis();
   ESP_LOGI(TAG, "ST phase_start %s", PHASES[ph].name);
 }
@@ -572,7 +574,9 @@ inline void tick() {
         if (r != 0) {
           ESP_LOGI(TAG, "ST third %s r=%u result=%d t=%u held=%d%d", PNAME[third], rnd, r, (unsigned) (now - t0),
                    up(h1), up(h2));
-          if (r == 1)
+          if (r == 1 && !(up(h1) && up(h2)))
+            hd_n++;  // a held link dropped: this was a second-link connect, kept out of ok as report.py does
+          else if (r == 1)
             ok_n++;
           else
             fail_n++;
@@ -631,6 +635,10 @@ inline void tick() {
                  (unsigned) tk_rx, (unsigned) tk_gaps, (unsigned) tk_missing, fail_n, (unsigned) tk_missing_drop,
                  (unsigned) tk_back);
         if (rnd * 60 >= P.n) {
+          if (tk_rx == 0) {  // the sensor never subscribed to the tick: the phase measured nothing
+            fail_n++;
+            ESP_LOGW(TAG, "ST notify no_ticks");
+          }
           tk_count = false;
           drop(PL);
           C[PL]->set_connection_type(espbt::ConnectionType::V3_WITH_CACHE);

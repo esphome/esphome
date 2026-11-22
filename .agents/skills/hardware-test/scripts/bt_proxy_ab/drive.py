@@ -493,6 +493,8 @@ async def main() -> None:
             "drops": [],
             "reconnects": 0,
             "missing_drop": 0,
+            "hold_failed": 0,
+            "unheld_s": 0.0,
             "backwards": 0,
         }
         tick = find_chr(None, FF03, L)
@@ -521,8 +523,12 @@ async def main() -> None:
 
         while time.time() < t_end:
             check_api()
+            t_hold = time.time()
             if not await d.hold(L):
+                # time without a link shows as missing ticks; count it so it is not taken for loss
+                stats["hold_failed"] += 1
                 await asyncio.sleep(5)
+                stats["unheld_s"] = round(stats["unheld_s"] + time.time() - t_hold, 1)
                 continue
             addr = d.peers[L][0]
             st = d.st[addr]

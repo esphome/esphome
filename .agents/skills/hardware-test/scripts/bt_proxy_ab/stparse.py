@@ -98,7 +98,7 @@ for name, lines in ph.items():
         txt = "\n".join(ln for _, ln in lines)
         if m := re.search(
             r"ST phase_end \w+ rounds=(\d+) ok=(\d+) first_ok=(\d+) fail=(\d+) stuck=(\d+)"
-            r"(?: cache_clean_fail=(\d+))?(?: handle_bad=(\d+))?",
+            r"(?: cache_clean_fail=(\d+))?(?: handle_bad=(\d+))?(?: held_dropped=(\d+))?",
             txt,
         ):
             d["rounds,ok,first_ok,fail,stuck"] = m.groups()[:5]
@@ -108,6 +108,8 @@ for name, lines in ph.items():
                 m[7] and m[7] != "0"
             ):  # rounds against a wrong ff01 handle, out of ok and fail
                 d["handle_bad"] = int(m[7])
+            if m[8] and m[8] != "0":  # third connects with a held link gone, out of ok
+                d["held_dropped"] = int(m[8])
         elif name.split("#")[0] != "done" or "ST DONE" not in txt:
             d["incomplete"] = (
                 True  # a reset or the end of the capture cut the phase short
@@ -167,6 +169,8 @@ for name, lines in ph.items():
         )
         if nt:
             d["notify last"] = nt[-1]
+        if "ST notify no_ticks" in txt or (nt and nt[-1][1] == "0"):
+            d["notify_no_ticks"] = True  # the phase measured nothing
         fr = [int(x) for x in re.findall(r"ST churn c=\d+ freed_ms=(\d+)", txt)]
         if fr:
             d["churn freed_ms"] = (med(fr), max(fr))

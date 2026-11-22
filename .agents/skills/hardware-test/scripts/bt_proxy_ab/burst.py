@@ -155,11 +155,20 @@ async def main() -> None:
             rate=round(len(got) / span, 1) if span else None,
             lost_link=st["lost"][:1],
             ndrop=ndrop[-2:],
-            # notifications missed after the link dropped are not burst loss
-            **({"result": "link_lost"} if st["lost"] else {}),
+            # notifications missed after the link dropped are not burst loss; nothing at all (no final either)
+            # means the write never started a burst (wrong table, server rebooted), not 100 % proxy loss
+            **(
+                {"result": "link_lost"}
+                if st["lost"]
+                else {"result": "no_burst"}
+                if not got and not final
+                else {}
+            ),
         )
         if st["lost"]:
             break
+        if not got and not final:
+            continue
         clean += 1
         await asyncio.sleep(3)
     await d.disconnect(L)
