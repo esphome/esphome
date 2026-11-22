@@ -155,7 +155,7 @@ class Logger final : public Component {
 #if defined(USE_RP2_CRASH_HANDLER) && defined(USE_LOGGER_UART_SELECTION_USB_CDC)
   void setup() override;
 #endif
-#if defined(USE_ESP32) && !defined(USE_LOGGER_UART_SELECTION_USB_CDC)
+#if defined(USE_ESPHOME_TASK_LOG_BUFFER) || (defined(USE_ESP32) && !defined(USE_LOGGER_UART_SELECTION_USB_CDC))
   void on_powerdown() override;
 #endif
   /// Manually set the baud rate for serial, set to 0 to disable.
@@ -287,6 +287,9 @@ class Logger final : public Component {
   void cdc_loop_();
 #endif
   void process_messages_();
+#if defined(USE_ESP32) && !defined(USE_LOGGER_UART_SELECTION_USB_CDC)
+  void wait_tx_done_();
+#endif
   // msg already ends in a newline
 #if defined(USE_ARDUINO) && !defined(USE_ESP32)
   inline void HOT write_msg_(const char *msg, uint16_t len) { this->hw_serial_->write(msg, len); }

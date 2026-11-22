@@ -112,7 +112,7 @@ static_assert(static_cast<int>(UART_SELECTION_UART2) == static_cast<int>(UART_NU
 #endif
 
 #ifndef USE_LOGGER_UART_SELECTION_USB_CDC
-void Logger::on_powerdown() {
+void Logger::wait_tx_done_() {
   // A restart or deep sleep does not wait for the driver's TX buffer
   if (this->baud_rate_ == 0)
     return;
