@@ -66,10 +66,12 @@ def main():
         for item in sorted(allowed[domain]):
             out += f"    DEVICE_CLASS_{item.upper()},\n"
 
+        # Only the esphome.const import list and DEVICE_CLASSES; sensor presets also list DEVICE_CLASS_ constants
         sub(
             f"esphome/components/{domain}/__init__.py",
-            "(    DEVICE_CLASS_\\w+,\r?\n)+",
-            out,
+            r"((?:from esphome\.const import \(|DEVICE_CLASSES = \[)\r?\n(?:    (?!DEVICE_CLASS_)\w+,\r?\n)*)"
+            r"(?:    DEVICE_CLASS_\w+,\r?\n)+",
+            r"\g<1>" + out,
         )
 
 
