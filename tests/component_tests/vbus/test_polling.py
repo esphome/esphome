@@ -57,17 +57,6 @@ def test_queued_write_rejects_non_write_commands(command: int) -> None:
         )
 
 
-def test_polling_owns_grant_automations() -> None:
-    with pytest.raises(cv.Invalid, match="owns bus grants"):
-        vbus.TRANSMIT_SCHEMA(
-            {
-                "destination": 0x2211,
-                "transactions": {"polling": {"value_ids": [1]}},
-                "on_bus_grant": {"then": []},
-            }
-        )
-
-
 def test_polling_codegen(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
@@ -127,17 +116,14 @@ def test_queue_actions_require_polling_on_the_referenced_hub(
     )
 
 
-@pytest.mark.parametrize(
-    "action", ["request_bus", "read_value", "send_datagram", "release_bus"]
-)
+@pytest.mark.parametrize("action", ["read_value", "send_datagram", "write_value"])
 def test_manual_actions_are_rejected_on_scheduler_owned_hub(
     action: str, tmp_path: Path
 ) -> None:
     extra = {
-        "request_bus": "",
-        "release_bus": "",
-        "read_value": "\n          grant_id: 1\n          value_id: 1",
-        "send_datagram": "\n          grant_id: 1\n          command: 0x0300",
+        "write_value": "\n          value_id: 1\n          value: 2",
+        "read_value": "\n          value_id: 1",
+        "send_datagram": "\n          command: 0x0300",
     }[action]
     path = tmp_path / "invalid.yaml"
     path.write_text(
