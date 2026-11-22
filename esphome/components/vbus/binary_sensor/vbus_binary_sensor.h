@@ -5,9 +5,9 @@
 
 namespace esphome::vbus {
 
-class DeltaSolBSPlusBSensor final : public VBusListener, public Component {
+class DeltaSolBSPlusBSensor final : public VBusListener {
  public:
-  void dump_config() override;
+  void dump_child_config() override;
   SUB_BINARY_SENSOR(relay1)
   SUB_BINARY_SENSOR(relay2)
   SUB_BINARY_SENSOR(s1_error)
@@ -25,9 +25,9 @@ class DeltaSolBSPlusBSensor final : public VBusListener, public Component {
   void handle_message(std::vector<uint8_t> &message) override;
 };
 
-class DeltaSolBS2009BSensor final : public VBusListener, public Component {
+class DeltaSolBS2009BSensor final : public VBusListener {
  public:
-  void dump_config() override;
+  void dump_child_config() override;
   SUB_BINARY_SENSOR(s1_error)
   SUB_BINARY_SENSOR(s2_error)
   SUB_BINARY_SENSOR(s3_error)
@@ -38,9 +38,9 @@ class DeltaSolBS2009BSensor final : public VBusListener, public Component {
   void handle_message(std::vector<uint8_t> &message) override;
 };
 
-class DeltaSolCBSensor final : public VBusListener, public Component {
+class DeltaSolCBSensor final : public VBusListener {
  public:
-  void dump_config() override;
+  void dump_child_config() override;
   SUB_BINARY_SENSOR(s1_error)
   SUB_BINARY_SENSOR(s2_error)
   SUB_BINARY_SENSOR(s3_error)
@@ -50,9 +50,9 @@ class DeltaSolCBSensor final : public VBusListener, public Component {
   void handle_message(std::vector<uint8_t> &message) override;
 };
 
-class DeltaSolCS2BSensor final : public VBusListener, public Component {
+class DeltaSolCS2BSensor final : public VBusListener {
  public:
-  void dump_config() override;
+  void dump_child_config() override;
   SUB_BINARY_SENSOR(s1_error)
   SUB_BINARY_SENSOR(s2_error)
   SUB_BINARY_SENSOR(s3_error)
@@ -62,9 +62,9 @@ class DeltaSolCS2BSensor final : public VBusListener, public Component {
   void handle_message(std::vector<uint8_t> &message) override;
 };
 
-class DeltaSolCS4BSensor final : public VBusListener, public Component {
+class DeltaSolCS4BSensor final : public VBusListener {
  public:
-  void dump_config() override;
+  void dump_child_config() override;
   SUB_BINARY_SENSOR(s1_error)
   SUB_BINARY_SENSOR(s2_error)
   SUB_BINARY_SENSOR(s3_error)
@@ -74,9 +74,9 @@ class DeltaSolCS4BSensor final : public VBusListener, public Component {
   void handle_message(std::vector<uint8_t> &message) override;
 };
 
-class DeltaSolCSPlusBSensor final : public VBusListener, public Component {
+class DeltaSolCSPlusBSensor final : public VBusListener {
  public:
-  void dump_config() override;
+  void dump_child_config() override;
   SUB_BINARY_SENSOR(s1_error)
   SUB_BINARY_SENSOR(s2_error)
   SUB_BINARY_SENSOR(s3_error)
@@ -86,9 +86,9 @@ class DeltaSolCSPlusBSensor final : public VBusListener, public Component {
   void handle_message(std::vector<uint8_t> &message) override;
 };
 
-class DeltaSolBS2BSensor final : public VBusListener, public Component {
+class DeltaSolBS2BSensor final : public VBusListener {
  public:
-  void dump_config() override;
+  void dump_child_config() override;
   SUB_BINARY_SENSOR(s1_error)
   SUB_BINARY_SENSOR(s2_error)
   SUB_BINARY_SENSOR(s3_error)
@@ -100,9 +100,9 @@ class DeltaSolBS2BSensor final : public VBusListener, public Component {
 
 class VBusCustomSubBSensor;
 
-class VBusCustomBSensor final : public VBusListener, public Component {
+class VBusCustomBSensor final : public VBusListener {
  public:
-  void dump_config() override;
+  void dump_child_config() override;
   void set_bsensors(std::vector<VBusCustomSubBSensor *> bsensors) { this->bsensors_ = std::move(bsensors); };
 
  protected:

@@ -35,7 +35,7 @@ class CST3240Test : public ::testing::Test {
 
   bool cleared_() const {
     return this->bus_.writes.size() == 1 && this->bus_.writes[0].reg == cstxxx::REG_TOUCH_DATA &&
-           this->bus_.writes[0].size == 2u + CST3240_REPORT_SIZE;
+           this->bus_.writes[0].size == 2u + CST3240_REPORT_SIZE && this->bus_.writes[0].zero_data;
   }
 
   RegisterBus bus_;
