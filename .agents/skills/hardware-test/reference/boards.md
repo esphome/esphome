@@ -5,13 +5,15 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
 
 ## ESP8266 (D1 mini, NodeMCU, CH340 or CP2102)
 
-- Opening the port usually resets the board through DTR, but not always; `serial_capture.py --reset`
-  pulses RTS to capture from boot. 74880 baud shows the ROM boot messages (`rst cause`, `boot mode`).
+- Opening the port usually resets the board through DTR, but not always, and on a CH340 even with `--released`, so
+  the first boot (or `Connection lost`) in a capture can be that reset; `serial_capture.py --reset` pulses RTS to
+  capture from boot. 74880 baud shows the ROM boot messages (`rst cause`, `boot mode`).
 - UART0 can be looped back onto itself (`USC0(0) |= (1 << UCLBE)` in an `on_boot` lambda) so a UART
   component is testable without its device: frames written with `uart.write` arrive on RX. Log over the
   API with `logger: baud_rate: 0`, since the serial port carries the component's bytes.
 - `esphome logs` on some CH340s emits thousands of duplicated garbage lines right after the RTS reset;
-  a plain pyserial capture at 115200 is reliable.
+  a plain pyserial capture at 115200 is reliable. A CH340 can also give garbage at 921600 baud;
+  `logger: baud_rate: 460800` with `serial_capture.py --baud 460800` carries long `dump: raw` frames cleanly.
 - A failed esptool write can wedge the adapter (`termios` error 22, or an open that hangs) until replug.
 - The preference sector survives a reflash: a provisioned API key or saved Wi-Fi credentials stay
   active. `esptool erase_flash` gives a clean device.
@@ -32,6 +34,10 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
 - Cover positions and other restored entity state live in RTC memory by default, so they survive `erase_flash`
   and a dev build's state carries into the next build's first boot. Set `esp8266: restore_from_flash: true` on A/B
   configs that erase between builds.
+- The ROM `rijndaelKeySetupEnc` at 0x40009300 builds a correct 128-bit schedule (FIPS-197 A.1 words match) but does not
+  return the round count, so the SDK's `aes_encrypt` loops on garbage rounds and the board Soft WDT resets in
+  `rijndaelEncrypt`. Do not `--defsym` it over the libcrypto copy; a wrapper in the SDK signature (returns -1 unless
+  128 bits, calls the ROM, returns 10) passed the FIPS vectors and a WPA2 soft AP join.
 
 ## ESP32 classic devkit
 
@@ -53,6 +59,10 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
 - An ESP32 whose bootloader has no app rollback is protected only by `safe_mode` after a bad OTA. Before sending a
   change to such a device that nobody can reach by hand, boot the same code on a devkit first and keep a fallback
   image of the merge base built.
+- A downgrade OTA (a dev build to an older release, seen on an ESP32-C6) can report `OTA successful` while the board
+  comes back on the previous image, with `safe_mode: OTA rollback detected! Rolled back from partition ...` in the
+  device log. `esphome logs` from the older tree prints the CLI's version, not the firmware's, so it hides this. After
+  every OTA, check the device's own `app: ESPHome version ... compiled on` line before trusting a result.
 - On modules where GPIO16 and GPIO17 are taken by the module itself (PSRAM on WROVER modules, for example), a
   `uart:` bus on those pins boot-loops with a watchdog reset during setup. Use GPIO21 and GPIO22.
 
@@ -86,10 +96,20 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
   and the nested `LwIPLock` in `setsockopt(TCP_NODELAY)` releases the core lock it did not take, so `udp_recv`
   asserts. No crash with IPv6 off, with no log subscriber (a connected client that does not subscribe is fine), or
   on RMII Ethernet. Reading the crash record afterwards: `recipes/crash_report.md`.
-- `usb_serial_jtag` holds a `NO_LIGHT_SLEEP` power lock by itself, so a light sleep soak on a native USB board logs
-  to UART0 instead (see `recipes/light_sleep_gpio_wake.md`).
+- `usb_serial_jtag` holds a `NO_LIGHT_SLEEP` power lock the whole time the board is plugged into a host (seen on
+  the S3 and C6, #22631). Logging on UART0 does not help: logger adds the USB JTAG console as a secondary console
+  whenever serial logging is on. Only `logger: baud_rate: 0` (logs over the API) lets the chip light sleep (see also
+  `recipes/light_sleep_gpio_wake.md`). A light sleeping C6 does not answer the esptool USB reset ("No serial data
+  received"): flash it by OTA.
 - The Waveshare ESP32-P4-WIFI6 needs `engineering_sample: true`. Its Wi-Fi is an ESP32-C6 over SDIO through
   `esp32_hosted`; a test with no network logs over UART0 to the CH343 console.
+  Its C6 co-processor logs "major version mismatch" and an SDIO RX overflow under HTTPS on dev too; a boot without
+  TLS, the Wi-Fi join and the API work.
+- After an OTA, wait at least 80 s before a hard reset (`esptool chip_id` to wake a silent USB console, say): until
+  safe mode marks the new image valid, the bootloader rolls back to the previous one. Log the image name from an
+  `interval:` to be sure which build runs.
+- ESP32-S3: GPIO43/44 cannot be used to cross-wire two UARTs: the UART0 IOMUX TX is lost when another UART takes the
+  pad as RX. TX17/RX16 and TX16/RX17 work. A task woken by `vTaskDelay` runs about 0.5 ms after the tick, on dev too.
 
 ## ESP32-C2 (ESP8684, 26 MHz crystal)
 
@@ -142,6 +162,8 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
   `--keep-dtr`) sees silence.
 - Powering a breakout from the Pico: use 3V3(OUT), pin 36. Pin 37 is 3V3_EN, which switches the Pico off when pulled
   low.
+- W5100S-EVB-Pico with its USB attached shows a CDC port (`2e8a:1027`) while it runs ESPHome, so `esphome upload
+  --device <that port>` (picotool) flashes it with or without `interrupt_pin`.
 
 ## BW15 kit (RTL8720CF, LibreTiny rtl87xx)
 
@@ -189,6 +211,8 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
 - A config with no Wi-Fi network and no `ap:` resets about 10 s into setup when it has `web_server:` (dev too):
   `web_server` setup blocks with no interface up, and no crash record is left. VERBOSE logs show the last
   `Setup <component>` line.
+- A BW15 kit whose CH340 drops off the bus at "Initializing WIFI" on every boot (a boot loop on any image) is short of
+  USB power: use another hub port or a powered hub. Read the results over API logs between resets meanwhile.
 
 ## BK7238, WB3S, CB3S (BK7231N) (LibreTiny bk72xx, CH340, RTS on CEN)
 
@@ -240,6 +264,9 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
   ... !=`) and the old image stays.
 - Power save: on the BK7238, `power_save_mode: light` with LibreTiny 1.14.0 gives ping times of 3 to 6 s because
   the BDK sets a listen interval of 30 beacons when `CFG_LOW_VOLTAGE_PS` is 1 (esphome#19491).
+- LibreTiny's builder adds `-D'delay(ms)=delayMilliseconds(ms)'`, so `esphome::delay` is really
+  `esphome::delayMilliseconds` on BK72xx and a YAML lambda calling `delay()` fails to compile on dev. In a header use
+  `(esphome::micros)()` to dodge the `main.cpp` function-like macros.
 
 ## BW12 and other AmebaZ boards (RTL8710BX, LibreTiny rtl87xx)
 
@@ -475,6 +502,13 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
   its 41.6 ms delay ends. Entering parallel mode at all needs gas estimates subscribed at `BSEC_SAMPLE_RATE_SCAN`
   and no IAQ outputs.
 
+## Espressif ESP32-S3-BOX-3
+
+- ESP32-S3 with 16 MB flash and octal PSRAM, a 2.4" 320x240 LCD (ILI9342C class) with capacitive touch, an ES8311
+  speaker codec and an ES7210 microphone ADC; native USB JTAG serial (`303a:1001`). Good for speaker, media player,
+  sendspin, voice and display tests. Take the pin maps from the ESPHome S3-BOX-3 example configs
+  (esphome/wake-word-voice-assistants) and confirm them before relying on them.
+
 ## mDNS responder tests (#22267)
 
 - When the host's multicast does not reach the device, query its port 5353 directly as legacy unicast (a
@@ -523,3 +557,17 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
 - ADS1015: `sample_rate: 8` maps to 128 SPS at `12_BITS`.
 - A bus held low (`Performing bus recovery`, no devices found) on a new breakout can be a bad header joint; reflow
   it before blaming the driver.
+
+## Harness tricks and old releases
+
+- Protected members and methods can be reached from a test header listed in `esphome: includes:` with the explicit
+  instantiation access trick (`template struct Rob<Tag, &C::member>;`), even on `final` classes; declare the robbers at
+  global scope.
+- API driven light effects that write template outputs every loop (about 5k writes/s) can lag API commands by seconds:
+  wait for the API state to show each command before reading results.
+- Building ESPHome 2025.10.x (pioarduino ESP-IDF 5.4.2) from a path under `/tmp` on macOS fails with "Multiple ways to
+  build the same target" (the /tmp to /private/tmp alias); put the yaml, build and PLATFORMIO_CORE_DIR elsewhere. Its
+  IDF penv under Python 3.14 lacks the tools: install `-r packages/framework-espidf/tools/requirements/requirements.core.txt`,
+  then pin `idf-component-manager~=2.1.0 esp-idf-kconfig~=2.5.0` (newer ones reject interface_version 3).
+- pioarduino 61.x (ESP-IDF 6.1, Arduino 4.0) needs PlatformIO 6.2.0; with an older PlatformIO in the shared venv,
+  install 6.2.0 with `pip install --target <dir>` and put that directory on PYTHONPATH for the build.

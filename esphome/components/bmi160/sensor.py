@@ -9,7 +9,6 @@ from esphome.const import (
     CONF_GYROSCOPE_Y,
     CONF_GYROSCOPE_Z,
     CONF_TEMPERATURE,
-    DEVICE_CLASS_TEMPERATURE,
     ICON_ACCELERATION_X,
     ICON_ACCELERATION_Y,
     ICON_ACCELERATION_Z,
@@ -17,7 +16,6 @@ from esphome.const import (
     ICON_GYROSCOPE_Y,
     ICON_GYROSCOPE_Z,
     STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS,
     UNIT_DEGREE_PER_SECOND,
     UNIT_METER_PER_SECOND_SQUARED,
 )
@@ -70,10 +68,7 @@ CONFIG_SCHEMA = (
                 **gyro_schema,
             ),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_CELSIUS,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_TEMPERATURE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.TEMPERATURE, accuracy_decimals=0
             ),
         }
     )

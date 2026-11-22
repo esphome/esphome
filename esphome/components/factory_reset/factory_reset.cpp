@@ -1,7 +1,6 @@
 #include "factory_reset.h"
 
 #include "esphome/core/application.h"
-#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
 
@@ -56,8 +55,6 @@ void FactoryResetComponent::setup() {
     if (count == this->required_count_) {
       ESP_LOGW(TAG, "Reset count reached, factory resetting");
       global_preferences->reset();
-      // delay to allow log to be sent
-      delay(100);         // NOLINT
       App.safe_reboot();  // should not return
     }
     this->save_(count);

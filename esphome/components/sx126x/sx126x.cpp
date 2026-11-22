@@ -142,9 +142,7 @@ SX126xError SX126x::transmit_packet(const uint8_t *data, size_t len) {
     }
   }
   if (result != SX126xError::SX126X_ERROR_NONE) {
-    ESP_LOGW(
-        TAG, "Packet send failed: %s",
-        LOG_STR_ARG(SX126xErrorStrings::get_log_str(static_cast<uint8_t>(result), SX126xErrorStrings::LAST_INDEX)));
+    ESP_LOGW(TAG, "Packet send failed: %s", LOG_STR_ARG(SX126xErrorStrings::get_log_str(result)));
   }
   return result;
 }

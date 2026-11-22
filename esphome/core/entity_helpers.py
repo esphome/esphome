@@ -846,7 +846,9 @@ def convert_visual_temperatures(
     that needs ``full_config`` is left for final validation, which runs this again with it."""
     if (unit := entity_temperature_unit(config, full_config)) is None:
         return config
-    visual = config[CONF_VISUAL]
+    # A platform entry that only holds nested entities has no visual section of its own
+    if (visual := config.get(CONF_VISUAL)) is None:
+        return config
     convert_temperature_keys(visual, (CONF_MIN_TEMPERATURE, CONF_MAX_TEMPERATURE), unit)
     section = visual if delta_section is None else visual.get(delta_section)
     if section is not None:
@@ -1155,7 +1157,11 @@ _ZIGBEE_ENTITY_CLASSES = {
         "ZigbeeBinarySensor",
         ["generic", "device_class"],
     ),
-    "sensor": (CONF_ZIGBEE_SENSOR, "ZigbeeSensor", ["generic", "device_class"]),
+    "sensor": (
+        CONF_ZIGBEE_SENSOR,
+        "ZigbeeSensor",
+        ["generic", "device_class", "power_config"],
+    ),
     "switch": (CONF_ZIGBEE_SWITCH, "ZigbeeSwitch", ["generic", "on_off"]),
     "number": (CONF_ZIGBEE_NUMBER, "ZigbeeNumber", ["generic"]),
 }

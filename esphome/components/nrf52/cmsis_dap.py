@@ -8,7 +8,7 @@ import subprocess
 import sys
 
 import esphome.config_validation as cv
-from esphome.const import CONF_OTA, CONF_PLATFORM, KEY_CORE, KEY_FRAMEWORK_VERSION
+from esphome.const import CONF_OTA, CONF_PLATFORM
 from esphome.core import CORE, EsphomeError
 from esphome.framework_helpers import run_command_ok
 
@@ -17,6 +17,7 @@ from .const import (
     VARIANT_NRF54LM20,
     VARIANT_NRF52832,
     VARIANT_NRF52840,
+    VARIANTS_NRF54L,
 )
 from .framework import (
     check_and_install,
@@ -81,7 +82,7 @@ def can_upload_using_cmsis_dap() -> bool:
     if (
         CORE.using_toolchain_platformio
         or variant not in _PYOCD_TARGETS
-        or CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] < cv.Version(2, 9, 2)
+        or CORE.framework_version < cv.Version(2, 9, 2)
     ):
         return False
     if (target_file := _PYOCD_TARGET_FILES.get(variant)) is None:
@@ -112,7 +113,7 @@ def _images(build_dir: Path) -> list[Path]:
     Chosen by SDK version and by whether MCUboot is built, so a file left by another build is
     never picked and a missing part is an error rather than a partial flash.
     """
-    framework_ver = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
+    framework_ver = CORE.framework_version
     if framework_ver < cv.Version(2, 9, 2):
         raise EsphomeError(
             "Flashing with pyOCD needs nRF52 framework version 2.9.2 or newer"
@@ -145,7 +146,7 @@ def upload_using_cmsis_dap(unique_id: str | None = None) -> None:
     pyocd = [str(paths["python_executable"]), "-m", "pyocd"]
     probe = ["-t", target] + (["-u", unique_id] if unique_id else [])
     cmd = [*pyocd, "flash", "--no-wait", *probe, "-e", "sector"]
-    if variant in (VARIANT_NRF54L15, VARIANT_NRF54LM20):
+    if variant in VARIANTS_NRF54L:
         cmd += ["--script", str(_NRF54L_WATCHDOG_SCRIPT)]
     cmd += [str(image) for image in images]
     if not run_command_ok(cmd, env=env, stream_output=True):

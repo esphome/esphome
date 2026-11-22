@@ -1501,16 +1501,13 @@ void Sprinkler::log_multiplier_zero_warning_(const LogString *method_name) {
 PROGMEM_STRING_TABLE(SprinklerRequestOriginStrings, "USER", "CYCLE", "QUEUE", "UNKNOWN");
 
 const LogString *Sprinkler::req_as_str_(SprinklerValveRunRequestOrigin origin) {
-  return SprinklerRequestOriginStrings::get_log_str(static_cast<uint8_t>(origin),
-                                                    SprinklerRequestOriginStrings::LAST_INDEX);
+  return SprinklerRequestOriginStrings::get_log_str(origin);
 }
 
 // Sprinkler state strings indexed by SprinklerState enum (0-4): IDLE, STARTING, ACTIVE, STOPPING, BYPASS
 PROGMEM_STRING_TABLE(SprinklerStateStrings, "IDLE", "STARTING", "ACTIVE", "STOPPING", "BYPASS", "UNKNOWN");
 
-const LogString *Sprinkler::state_as_str_(SprinklerState state) {
-  return SprinklerStateStrings::get_log_str(static_cast<uint8_t>(state), SprinklerStateStrings::LAST_INDEX);
-}
+const LogString *Sprinkler::state_as_str_(SprinklerState state) { return SprinklerStateStrings::get_log_str(state); }
 
 void Sprinkler::start_timer_(const SprinklerTimerIndex timer_index) {
   if (this->timer_duration_(timer_index) > 0) {
