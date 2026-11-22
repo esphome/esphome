@@ -1,0 +1,8 @@
+# Package for the "no DNS server" case; add it under packages: in a copy of e32.yaml or d1.yaml. A static address
+# with dns1 0.0.0.0 makes lwIP fail the broker lookup at once (-6). Set static_ip, gateway and subnet with -s.
+wifi:
+  manual_ip:
+    static_ip: ${static_ip}
+    gateway: ${gateway}
+    subnet: ${subnet}
+    dns1: 0.0.0.0

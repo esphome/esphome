@@ -32,10 +32,8 @@ static constexpr uint8_t SM10BIT_DELAY = 2;
 // 0xF | 1111   | RGB 160mA | CW 80mA     | 15
 
 void Sm10BitBase::setup() {
-  this->data_pin_->setup();
-  this->data_pin_->digital_write(true);
-  this->clock_pin_->setup();
-  this->clock_pin_->digital_write(true);
+  setup_output_pin(this->data_pin_, true);
+  setup_output_pin(this->clock_pin_, true);
 }
 
 void Sm10BitBase::loop() {
@@ -77,9 +75,7 @@ void Sm10BitBase::write_channel(uint8_t channel, float state) {
 void Sm10BitBase::write_bit_(bool value) {
   this->data_pin_->digital_write(value);
   delayMicroseconds(SM10BIT_DELAY);
-  this->clock_pin_->digital_write(true);
-  delayMicroseconds(SM10BIT_DELAY);
-  this->clock_pin_->digital_write(false);
+  pulse_pin(this->clock_pin_, true, SM10BIT_DELAY);
   delayMicroseconds(SM10BIT_DELAY);
 }
 
@@ -90,9 +86,7 @@ void Sm10BitBase::write_byte_(uint8_t data) {
 
   // ack bit
   this->data_pin_->pin_mode(gpio::FLAG_INPUT);
-  this->clock_pin_->digital_write(true);
-  delayMicroseconds(SM10BIT_DELAY);
-  this->clock_pin_->digital_write(false);
+  pulse_pin(this->clock_pin_, true, SM10BIT_DELAY);
   delayMicroseconds(SM10BIT_DELAY);
   this->data_pin_->pin_mode(gpio::FLAG_OUTPUT);
 }
