@@ -117,3 +117,6 @@ ble_conn_interval/*.log
 ble_conn_interval/cap-*.txt
 ble_conn_interval/ping-*.txt
 ble_server_stack/*.log
+flac_stream_changes/*.txt
+flac_stream_changes/*.err
+flac_stream_changes/media/
