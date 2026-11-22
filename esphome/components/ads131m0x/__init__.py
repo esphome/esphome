@@ -1,7 +1,7 @@
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import spi
-from esphome.components.const import CONF_WINDOW
+from esphome.components.const import CONF_DRDY_PIN, CONF_WINDOW
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_GAIN,
@@ -20,7 +20,6 @@ MULTI_CONF = True
 
 CONF_ADS131M0X_ID = "ads131m0x_id"
 CONF_CLOCK_FREQUENCY = "clock_frequency"
-CONF_DRDY_PIN = "drdy_pin"
 
 ads131m0x_ns = cg.esphome_ns.namespace("ads131m0x")
 ADS131M0x = ads131m0x_ns.class_("ADS131M0x", cg.Component, spi.SPIDevice)

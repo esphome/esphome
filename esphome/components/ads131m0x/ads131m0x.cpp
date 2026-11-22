@@ -5,8 +5,10 @@
 #include <algorithm>
 #include <cmath>
 
+#include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome::ads131m0x {
 
@@ -51,18 +53,8 @@ static constexpr uint32_t MAX_CONSECUTIVE_TIMEOUTS = 50;
 static constexpr uint32_t MAX_CONSECUTIVE_CRC_ERRORS = 50;
 static constexpr uint32_t HEALTH_CHECK_INTERVAL_MS = 1000;
 
-static const LogString *power_mode_to_str(ADS131M0xPowerMode mode) {
-  switch (mode) {
-    case ADS131M0X_POWER_MODE_VERY_LOW_POWER:
-      return LOG_STR("very low power");
-    case ADS131M0X_POWER_MODE_LOW_POWER:
-      return LOG_STR("low power");
-    case ADS131M0X_POWER_MODE_HIGH_RESOLUTION:
-      return LOG_STR("high resolution");
-    default:
-      return LOG_STR("unknown");
-  }
-}
+// Indexed by ADS131M0xPowerMode; the last entry is the fallback for out-of-range values
+PROGMEM_STRING_TABLE(PowerModeStrings, "very low power", "low power", "high resolution", "unknown");
 
 void ADS131M0x::setup() {
   this->spi_setup();
@@ -91,8 +83,8 @@ void ADS131M0x::dump_config() {
                 "  Power mode: %s\n"
                 "  Data rate: %.1f SPS\n"
                 "  Window: %" PRIu32 " ms",
-                this->num_channels_, this->chip_id_.load(), LOG_STR_ARG(power_mode_to_str(this->power_mode_)),
-                this->data_rate_, this->window_ms_);
+                this->num_channels_, this->chip_id_.load(),
+                LOG_STR_ARG(PowerModeStrings::get_log_str(this->power_mode_)), this->data_rate_, this->window_ms_);
   LOG_PIN("  CS Pin: ", this->cs_);
   LOG_PIN("  DRDY Pin: ", this->drdy_pin_);
   LOG_PIN("  RESET Pin: ", this->reset_pin_);
@@ -116,7 +108,7 @@ Snapshot ADS131M0x::get_snapshot() {
 }
 
 void ADS131M0x::check_health_() {
-  const uint32_t now = millis();
+  const uint32_t now = App.get_loop_component_start_time();
   const uint32_t elapsed = now - this->last_health_check_;
   this->last_health_check_ = now;
   if (elapsed == 0) {
