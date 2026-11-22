@@ -2,6 +2,7 @@
 #include "selec_meter_registers.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 #include <cinttypes>
 #include <cmath>
@@ -18,18 +19,11 @@ static constexpr uint8_t EM2M_REGISTER_COUNT = 34;  // 34 x 16-bit registers
 // Durable refusals an optional read tolerates before it is given up on
 static constexpr uint8_t MAX_OPTIONAL_READ_FAILURES = 5;
 
+// Indexed by ReadState
+PROGMEM_STRING_TABLE(ReadStateStrings, "main block", "serial number", "DG sensing", "idle");
+
 static const LogString *read_state_name(ReadState state) {
-  switch (state) {
-    case ReadState::READ_STATE_MAIN_BLOCK:
-      return LOG_STR("main block");
-    case ReadState::READ_STATE_SERIAL_NUMBER:
-      return LOG_STR("serial number");
-    case ReadState::READ_STATE_DG_SENSING:
-      return LOG_STR("DG sensing");
-    case ReadState::READ_STATE_IDLE:
-    default:
-      return LOG_STR("idle");
-  }
+  return ReadStateStrings::get_log_str(static_cast<uint8_t>(state), ReadStateStrings::LAST_INDEX);
 }
 
 // FP32 at `reg` in the configured word order (MSRF high word first, LSRF low word first); NaN when

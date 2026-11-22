@@ -6,9 +6,9 @@ name: Request Copilot review
 # (or whoever marked it ready), so a contributor without Copilot access gets
 # none. This runs it as esphome-review-bot, which needs a Copilot seat and
 # Triage on this repo. COPILOT_REVIEW_TOKEN is an org secret holding its
-# fine-grained token (Pull requests read and write) and expires: when it is
-# rejected the run fails, and an org owner signs in as the bot, creates a new
-# one and replaces the secret.
+# fine-grained token (resource owner esphome, this repo, Pull requests read and
+# write) and expires: when it is rejected or lacks write access the run fails,
+# and an org owner signs in as the bot, creates a new one and replaces the secret.
 
 on:
   pull_request_target:
