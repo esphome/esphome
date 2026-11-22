@@ -3,6 +3,7 @@ from esphome.components.canbus import CONF_CANBUS_ID, CanbusComponent
 from esphome.components.const import CONF_DEVICE_TYPE
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
+from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@nliaudat"]
@@ -31,7 +32,10 @@ DEVICE_TYPES = {
 DEVICE_TYPE_ALIASES = {"BD": "BM"}
 
 
+@schema_extractor("enum")
 def validate_device_type(value: object) -> str:
+    if value is SCHEMA_EXTRACT:
+        return {**DEVICE_TYPES, "BD": DEVICE_TYPES["BM"]}
     value = cv.string(value).upper()
     return cv.enum(DEVICE_TYPES)(DEVICE_TYPE_ALIASES.get(value, value))
 
