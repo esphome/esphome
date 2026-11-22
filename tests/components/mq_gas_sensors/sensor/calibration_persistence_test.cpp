@@ -27,7 +27,10 @@ class CalibrationSampler : public voltage_sampler::VoltageSampler {
 class CalibrationTimerGuard {
  public:
   explicit CalibrationTimerGuard(MQGasSensor &sensor) : sensor_(sensor) {}
-  ~CalibrationTimerGuard() { this->sensor_.cancel_timeout(uint32_t{0}); }  // CALIBRATION_START_ID
+  // start_calibration() is the public call that cancels a pending start/retry
+  // timer; the component is destroyed right after, so the run it begins never
+  // samples and leaves no timer behind.
+  ~CalibrationTimerGuard() { this->sensor_.start_calibration(); }
 
  private:
   MQGasSensor &sensor_;
