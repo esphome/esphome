@@ -77,19 +77,30 @@ NeedleDetector::NeedleDetector() {
 }
 
 bool NeedleDetector::reserve(int width, int height) {
+  if (width <= 0 || height <= 0)
+    return false;
 #ifdef USE_GAUGE_NEEDLE_PREPROCESSOR
-  return this->preprocessor_.reserve(width, height);
-#else
-  // A legacy-only build never touches the filtered image.
-  (void) width;
-  (void) height;
-  return true;
+  if (!this->preprocessor_.reserve(width, height))
+    return false;
 #endif
+  this->reserved_width_ = width;
+  this->reserved_height_ = height;
+  return true;
 }
 
 DetectionResult NeedleDetector::detect(const uint8_t *img, int width, int height, const DetectorConfig &config) {
   if (img == nullptr || width <= 0 || height <= 0)
     return {};
+
+  // A crop that does not fit the reservation is rejected before any algorithm runs.
+  if (width > this->reserved_width_ || height > this->reserved_height_) {
+    if (this->oversized_dial_ != config.id) {
+      ESP_LOGW(TAG, "%s: crop %dx%d does not fit the %dx%d reservation; call reserve() with the largest crop",
+               config.id, width, height, this->reserved_width_, this->reserved_height_);
+      this->oversized_dial_ = config.id;
+    }
+    return {};
+  }
 
   const bool compare_all = config.algorithm == ALGORITHM_AUTO || config.debug;
   const bool is_auto = config.algorithm == ALGORITHM_AUTO;

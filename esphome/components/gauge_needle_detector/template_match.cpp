@@ -38,7 +38,7 @@ DetectionResult TemplateMatchDetector::detect(const uint8_t * /*raw*/, const uin
   float best_score = -FLT_MAX;
   float min_score = FLT_MAX;
   int best_angle_int = 0;
-  for (int deg = 0; deg < 360; deg++) {
+  for (int deg = 0; deg < ANGLE_COUNT; deg++) {
     const float score = ray_score(deg);
     scores[deg] = score;
     if (score > best_score) {
@@ -49,9 +49,7 @@ DetectionResult TemplateMatchDetector::detect(const uint8_t * /*raw*/, const uin
   }
 
   // Same scale as radial_profile, so `auto` can rank the two.
-  const float support = std::max(0.0f, best_score) / 255.0f;
-  const float contrast = best_score > 0.0f ? (best_score - min_score) / best_score : 0.0f;
-  const float confidence = std::clamp(support * (0.5f + 0.5f * contrast), 0.0f, 1.0f);
+  const float confidence = ray_confidence(std::max(0.0f, best_score) / 255.0f, best_score, min_score);
   if (config.debug) {
     ESP_LOGD(TAG, "Template Match: Angle=%d, Conf=%.2f", best_angle_int, confidence);
   }

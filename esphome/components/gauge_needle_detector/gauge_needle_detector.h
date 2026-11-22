@@ -71,6 +71,18 @@ struct ScanWindow {
 float sin_lut(int degrees);
 float cos_lut(int degrees);
 
+/// Whole degrees a detection compares, one score per entry.
+inline constexpr int ANGLE_COUNT = 360;
+
+/// Confidence shared by the ray algorithms: the share of a ray the needle covers,
+/// combined with how the best score compares to the worst.
+inline float ray_confidence(float support, float best, float worst) {
+  if (best <= 0.0f || best <= worst)
+    return 0.0f;
+  const float contrast = (best - worst) / best;
+  return std::clamp(support * (0.5f + 0.5f * contrast), 0.0f, 1.0f);
+}
+
 class Detector {
  public:
   virtual ~Detector() = default;
@@ -180,9 +192,13 @@ class NeedleDetector final {
   std::array<Detector *, MAX_DETECTORS> detectors_{};
   size_t detector_count_{0};
   /// Shared angle-score workspace; the detectors run one at a time.
-  std::array<float, 360> scores_{};
-  /// Dial that already reported an empty window, so it is logged once. The id
-  /// is a configuration literal, so its address identifies the dial.
+  std::array<float, ANGLE_COUNT> scores_{};
+  /// Largest crop accepted by detect(); 0 until reserve() succeeds.
+  int reserved_width_{0};
+  int reserved_height_{0};
+  /// Dial that already reported a crop larger than the reservation.
+  const char *oversized_dial_{nullptr};
+  /// Dial that already reported an empty window; the id is a config literal.
   const char *empty_scan_dial_{nullptr};
   /// Dial and algorithm that already reported a missing detector.
   const char *missing_detector_dial_{nullptr};

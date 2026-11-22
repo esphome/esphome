@@ -16,39 +16,42 @@ constexpr int HEIGHT = 64;
 constexpr float CENTER_X = WIDTH / 2.0f;
 constexpr float CENTER_Y = HEIGHT / 2.0f;
 constexpr int NEEDLE_LENGTH = 30;
+constexpr int THICK_NEEDLE = 3;
 
-/// Crop with a one-pixel needle of value `needle` on a flat `background`.
-std::vector<uint8_t> make_plain_crop(float degrees, int background, int needle, int length = NEEDLE_LENGTH) {
-  std::vector<uint8_t> crop(static_cast<size_t>(WIDTH) * HEIGHT, static_cast<uint8_t>(background));
+/// Draws a needle of `thickness` pixels from the centre, so a bar wider than one
+/// pixel can be tested as well.
+void draw_needle(std::vector<uint8_t> &crop, float degrees, int length, int thickness, uint8_t value) {
   const float rad = degrees_to_radians(degrees);
   const float dx = std::cos(rad);
   const float dy = std::sin(rad);
   for (int r = 0; r < length; r++) {
-    const int x = static_cast<int>(CENTER_X + r * dx);
-    const int y = static_cast<int>(CENTER_Y + r * dy);
-    if (x >= 0 && x < WIDTH && y >= 0 && y < HEIGHT)
-      crop[static_cast<size_t>(y) * WIDTH + x] = static_cast<uint8_t>(needle);
+    for (int step = 0; step < thickness; step++) {
+      const float offset = static_cast<float>(step) - (thickness - 1) / 2.0f;
+      const int x = static_cast<int>(CENTER_X + r * dx - offset * dy);
+      const int y = static_cast<int>(CENTER_Y + r * dy + offset * dx);
+      if (x >= 0 && x < WIDTH && y >= 0 && y < HEIGHT)
+        crop[static_cast<size_t>(y) * WIDTH + x] = value;
+    }
   }
+}
+
+/// Crop of value `background` with a needle of value `needle`.
+std::vector<uint8_t> make_plain_crop(float degrees, int background, int needle, int length = NEEDLE_LENGTH,
+                                     int thickness = 1) {
+  std::vector<uint8_t> crop(static_cast<size_t>(WIDTH) * HEIGHT, static_cast<uint8_t>(background));
+  draw_needle(crop, degrees, length, thickness, static_cast<uint8_t>(needle));
   return crop;
 }
 
 /// Gradient background with a needle, so the contrast stretch has something to do.
-std::vector<uint8_t> make_textured_crop(float degrees, NeedleType needle_type) {
+std::vector<uint8_t> make_textured_crop(float degrees, NeedleType needle_type, int length = NEEDLE_LENGTH,
+                                        int thickness = 1) {
   std::vector<uint8_t> crop(static_cast<size_t>(WIDTH) * HEIGHT);
   for (int y = 0; y < HEIGHT; y++) {
     for (int x = 0; x < WIDTH; x++)
       crop[static_cast<size_t>(y) * WIDTH + x] = static_cast<uint8_t>(40 + (x + y) * 80 / (WIDTH + HEIGHT));
   }
-  const float rad = degrees_to_radians(degrees);
-  const float dx = std::cos(rad);
-  const float dy = std::sin(rad);
-  const uint8_t value = needle_type == NEEDLE_TYPE_LIGHT ? 255 : 0;
-  for (int r = 0; r < NEEDLE_LENGTH; r++) {
-    const int x = static_cast<int>(CENTER_X + r * dx);
-    const int y = static_cast<int>(CENTER_Y + r * dy);
-    if (x >= 0 && x < WIDTH && y >= 0 && y < HEIGHT)
-      crop[static_cast<size_t>(y) * WIDTH + x] = value;
-  }
+  draw_needle(crop, degrees, length, thickness, needle_type == NEEDLE_TYPE_LIGHT ? 255 : 0);
   return crop;
 }
 
@@ -110,12 +113,31 @@ TEST(GaugeNeedleDetector, FilteredDetectorsFindTexturedNeedle) {
   }
 }
 
-TEST(GaugeNeedleDetector, FilteredDetectorsFindNeedleOnFlatBackground) {
-  for (const Algorithm algorithm :
-       {ALGORITHM_RADIAL_PROFILE, ALGORITHM_HOUGH_TRANSFORM, ALGORITHM_TEMPLATE_MATCH, ALGORITHM_AUTO}) {
-    SCOPED_TRACE(::testing::Message() << "algorithm " << LOG_STR_ARG(algorithm_name(algorithm)));
-    expect_find(make_plain_crop(45.0f, 0, 255), algorithm, NEEDLE_TYPE_LIGHT, 45.0f, 8.0f);
-    expect_find(make_plain_crop(45.0f, 255, 0), algorithm, NEEDLE_TYPE_DARK, 45.0f, 8.0f);
+TEST(GaugeNeedleDetector, FilteredDetectorsFindNeedleAtEveryAngle) {
+  // The quadrants are not symmetric: the rays are rounded to pixels, and the
+  // radial interpolation wraps around at 0 and 360 degrees.
+  for (const float angle : {0.0f, 45.0f, 90.0f, 135.0f, 180.0f, 225.0f, 270.0f, 315.0f, 350.0f}) {
+    SCOPED_TRACE(::testing::Message() << "angle " << angle);
+    for (const Algorithm algorithm :
+         {ALGORITHM_RADIAL_PROFILE, ALGORITHM_HOUGH_TRANSFORM, ALGORITHM_TEMPLATE_MATCH, ALGORITHM_AUTO}) {
+      expect_find(make_plain_crop(angle, 0, 255), algorithm, NEEDLE_TYPE_LIGHT, angle, 8.0f);
+      expect_find(make_plain_crop(angle, 255, 0), algorithm, NEEDLE_TYPE_DARK, angle, 8.0f);
+    }
+  }
+}
+
+TEST(GaugeNeedleDetector, FilteredDetectorsKeepThickNeedles) {
+  // A three-pixel-wide needle is as thin as a 3x3 opening leaves alone; the
+  // top-hat then subtracts it and the filtered detectors found nothing.
+  for (const float angle : {0.0f, 90.0f}) {
+    SCOPED_TRACE(::testing::Message() << "angle " << angle);
+    for (const Algorithm algorithm :
+         {ALGORITHM_RADIAL_PROFILE, ALGORITHM_HOUGH_TRANSFORM, ALGORITHM_TEMPLATE_MATCH, ALGORITHM_AUTO}) {
+      expect_find(make_plain_crop(angle, 0, 255, NEEDLE_LENGTH, THICK_NEEDLE), algorithm, NEEDLE_TYPE_LIGHT, angle,
+                  8.0f);
+      expect_find(make_plain_crop(angle, 255, 0, NEEDLE_LENGTH, THICK_NEEDLE), algorithm, NEEDLE_TYPE_DARK, angle,
+                  8.0f);
+    }
   }
 }
 
@@ -134,12 +156,31 @@ TEST(GaugeNeedleDetector, BlankCropHasNoConfidence) {
 TEST(GaugeNeedleDetector, DetectRejectsBadInput) {
   const std::vector<uint8_t> crop = make_plain_crop(45.0f, 0, 255);
   NeedleDetector detector;
+  ASSERT_TRUE(detector.reserve(WIDTH, HEIGHT));
   EXPECT_FLOAT_EQ(0.0f,
                   detector.detect(nullptr, WIDTH, HEIGHT, make_config(ALGORITHM_LEGACY, NEEDLE_TYPE_LIGHT)).confidence);
   EXPECT_FLOAT_EQ(0.0f,
                   detector.detect(crop.data(), 0, HEIGHT, make_config(ALGORITHM_LEGACY, NEEDLE_TYPE_LIGHT)).confidence);
   EXPECT_FLOAT_EQ(0.0f,
                   detector.detect(crop.data(), WIDTH, 0, make_config(ALGORITHM_LEGACY, NEEDLE_TYPE_LIGHT)).confidence);
+}
+
+TEST(GaugeNeedleDetector, CropsOutsideTheReservationAreRejected) {
+  const std::vector<uint8_t> crop = make_plain_crop(45.0f, 0, 255);
+  const DetectorConfig config = make_config(ALGORITHM_LEGACY, NEEDLE_TYPE_LIGHT);
+  NeedleDetector detector;
+
+  // Nothing is accepted before reserve() succeeds.
+  EXPECT_FALSE(detector.reserve(0, HEIGHT));
+  EXPECT_FLOAT_EQ(0.0f, detector.detect(crop.data(), WIDTH, HEIGHT, config).confidence);
+
+  // A reservation smaller than the crop rejects it instead of reading past its end.
+  ASSERT_TRUE(detector.reserve(WIDTH / 2, HEIGHT / 2));
+  EXPECT_FLOAT_EQ(0.0f, detector.detect(crop.data(), WIDTH, HEIGHT, config).confidence);
+
+  // A large enough reservation accepts the same crop afterwards.
+  ASSERT_TRUE(detector.reserve(WIDTH, HEIGHT));
+  EXPECT_GT(detector.detect(crop.data(), WIDTH, HEIGHT, config).confidence, 0.0f);
 }
 
 TEST(GaugeNeedleDetector, TinyCropDoesNotReportConfidence) {
@@ -164,6 +205,16 @@ TEST(GaugeNeedleDetector, HoughSupportRanksLongerNeedles) {
   // Both Sobel edges per radius step are budgeted for, so a clean needle does
   // not pin support at 1.
   EXPECT_LT(strong.confidence, 1.0f);
+}
+
+TEST(GaugeNeedleDetector, LegacyConfidenceNeedsRaySupport) {
+  // One bright pixel inside the scan window is a lot of contrast but almost no
+  // support, so it must not report the confidence of a needle that fills the ray.
+  const DetectionResult single = run(make_plain_crop(0.0f, 0, 255, 10), ALGORITHM_LEGACY, NEEDLE_TYPE_LIGHT);
+  const DetectionResult full = run(make_plain_crop(0.0f, 0, 255, NEEDLE_LENGTH), ALGORITHM_LEGACY, NEEDLE_TYPE_LIGHT);
+  EXPECT_GT(single.confidence, 0.0f);
+  EXPECT_LT(single.confidence, 0.2f);
+  EXPECT_GT(full.confidence, 0.9f);
 }
 
 TEST(GaugeNeedleDetector, EmptyScanWindowHasNoConfidence) {
@@ -194,6 +245,22 @@ TEST(GaugeNeedleDetector, PreprocessorKeepsTheNeedle) {
       surviving++;
   }
   EXPECT_GT(surviving, static_cast<size_t>(NEEDLE_LENGTH) / 2);
+}
+
+TEST(GaugeNeedleDetector, PreprocessorRejectsCropsItCannotHold) {
+  const std::vector<uint8_t> small = make_plain_crop(45.0f, 0, 255, 8);
+  const std::vector<uint8_t> large = make_plain_crop(45.0f, 0, 255);
+  Preprocessor preprocessor;
+  ASSERT_TRUE(preprocessor.reserve(16, 16));
+
+  // A crop larger than the reservation is refused, and the buffers stay usable.
+  EXPECT_FALSE(preprocessor.prepare(large.data(), WIDTH, HEIGHT, NEEDLE_LENGTH, NEEDLE_TYPE_LIGHT, false));
+  EXPECT_TRUE(preprocessor.prepare(small.data(), 16, 16, 8, NEEDLE_TYPE_LIGHT, false));
+  EXPECT_NE(nullptr, preprocessor.data());
+
+  // Growing the reservation accepts the large crop again.
+  ASSERT_TRUE(preprocessor.reserve(WIDTH, HEIGHT));
+  EXPECT_TRUE(preprocessor.prepare(large.data(), WIDTH, HEIGHT, NEEDLE_LENGTH, NEEDLE_TYPE_LIGHT, false));
 }
 
 }  // namespace esphome::gauge_needle_detector::testing

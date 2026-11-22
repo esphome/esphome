@@ -13,8 +13,6 @@ namespace esphome::gauge_needle_detector {
 
 ESPHOME_LOG_TAG(TAG, "gauge_needle_detector");
 
-static constexpr int NUM_ANGLES = 360;
-
 namespace {
 
 /// Votes edge pixels into a radial histogram, weighted by edge magnitude.
@@ -23,7 +21,7 @@ DetectionResult detect_hough(const uint8_t *filtered, const ScanWindow &window, 
   if (filtered == nullptr || !window.valid())
     return {};
 
-  std::fill(scores, scores + NUM_ANGLES, 0.0f);
+  std::fill(scores, scores + ANGLE_COUNT, 0.0f);
   float total_votes = 0.0f;
 
   // Only the scan annulus is inspected, so no Sobel work is spent outside it.
@@ -59,24 +57,23 @@ DetectionResult detect_hough(const uint8_t *filtered, const ScanWindow &window, 
         theta += 360.0f;
 
       const int vote = std::min(magnitude, 255);
-      scores[static_cast<int>(theta) % NUM_ANGLES] += static_cast<float>(vote);
+      scores[static_cast<int>(theta) % ANGLE_COUNT] += static_cast<float>(vote);
       total_votes += static_cast<float>(vote);
     }
   }
 
   float max_votes = 0.0f;
   int best_angle_idx = 0;
-  for (int i = 0; i < NUM_ANGLES; i++) {
+  for (int i = 0; i < ANGLE_COUNT; i++) {
     if (scores[i] > max_votes) {
       max_votes = scores[i];
       best_angle_idx = i;
     }
   }
 
-  // Support is how much of one ray voted and separation says the votes
-  // concentrate; two edges per radius step are budgeted so it cannot saturate.
+  // Two edges per radius step are budgeted, so support cannot saturate.
   const float support = max_votes / (2.0f * (window.end_r - window.start_r + 1) * 255.0f);
-  const float mean = total_votes / NUM_ANGLES;
+  const float mean = total_votes / static_cast<float>(ANGLE_COUNT);
   const float separation = max_votes > 0.0f ? (max_votes - mean) / max_votes : 0.0f;
   const float confidence = std::clamp(support * separation, 0.0f, 1.0f);
 

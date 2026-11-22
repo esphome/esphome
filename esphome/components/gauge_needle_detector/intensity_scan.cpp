@@ -16,7 +16,7 @@ DetectionResult scan_intensity(const uint8_t *raw, const ScanWindow &window, con
   if (raw == nullptr || !window.valid())
     return {};
 
-  for (int deg = 0; deg < 360; deg++) {
+  for (int deg = 0; deg < ANGLE_COUNT; deg++) {
     const float dx = cos_lut(deg);
     const float dy = sin_lut(deg);
 
@@ -48,7 +48,7 @@ DetectionResult scan_intensity(const uint8_t *raw, const ScanWindow &window, con
   float best_angle = 0;
   float min_score = scores[0];
   float max_score = scores[0];
-  for (int deg = 0; deg < 360; deg++) {
+  for (int deg = 0; deg < ANGLE_COUNT; deg++) {
     if (scores[deg] > best_score) {
       best_score = scores[deg];
       best_angle = static_cast<float>(deg);
@@ -57,8 +57,9 @@ DetectionResult scan_intensity(const uint8_t *raw, const ScanWindow &window, con
     max_score = std::max(max_score, scores[deg]);
   }
 
-  // Equal scores mean there is no direction to report, including a blank crop.
-  const float confidence = (max_score > min_score && max_score > 0.0f) ? ((max_score - min_score) / max_score) : 0.0f;
+  // Same scale as the filtered detectors, so `auto` can rank them.
+  const float sampled = static_cast<float>(window.end_r - window.start_r);
+  const float confidence = ray_confidence(max_score / (sampled * 255.0f), max_score, min_score);
 
   return {best_angle, confidence};
 }

@@ -22,7 +22,7 @@ DetectionResult scan_radial_profile(const uint8_t *filtered, const ScanWindow &w
   if (filtered == nullptr || !window.valid())
     return {};
 
-  for (int deg = 0; deg < 360; deg++) {
+  for (int deg = 0; deg < ANGLE_COUNT; deg++) {
     const float dx = cos_lut(deg);
     const float dy = sin_lut(deg);
 
@@ -53,7 +53,7 @@ DetectionResult scan_radial_profile(const uint8_t *filtered, const ScanWindow &w
   float best_score = -FLT_MAX;
   float min_score = FLT_MAX;
   int best_angle_int = 0;
-  for (int deg = 0; deg < 360; deg++) {
+  for (int deg = 0; deg < ANGLE_COUNT; deg++) {
     if (scores[deg] > best_score) {
       best_score = scores[deg];
       best_angle_int = deg;
@@ -63,8 +63,8 @@ DetectionResult scan_radial_profile(const uint8_t *filtered, const ScanWindow &w
 
   // Parabolic interpolation around the peak for sub-degree precision.
   float best_angle = static_cast<float>(best_angle_int);
-  const int prev = (best_angle_int - 1 + 360) % 360;
-  const int next = (best_angle_int + 1) % 360;
+  const int prev = (best_angle_int - 1 + ANGLE_COUNT) % ANGLE_COUNT;
+  const int next = (best_angle_int + 1) % ANGLE_COUNT;
   const float y1 = scores[prev];
   const float y2 = scores[best_angle_int];
   const float y3 = scores[next];
@@ -74,14 +74,12 @@ DetectionResult scan_radial_profile(const uint8_t *filtered, const ScanWindow &w
 
   if (best_angle < 0)
     best_angle += 360.0f;
-  if (best_angle >= 360.0f)
-    best_angle -= 360.0f;
+  if (best_angle >= static_cast<float>(ANGLE_COUNT))
+    best_angle -= static_cast<float>(ANGLE_COUNT);
 
   // Support is the covered share of the ray; contrast says the best ray stands out.
   const float sampled = static_cast<float>(window.end_r - window.start_r);
-  const float support = sampled > 0.0f ? best_score / (sampled * 255.0f) : 0.0f;
-  const float contrast = best_score > 0.0f ? (best_score - min_score) / best_score : 0.0f;
-  const float confidence = std::clamp(support * (0.5f + 0.5f * contrast), 0.0f, 1.0f);
+  const float confidence = ray_confidence(best_score / (sampled * 255.0f), best_score, min_score);
 
   if (config.debug) {
     ESP_LOGD(TAG, "Radial Profile: Best Angle=%.1f, Conf=%.2f", best_angle, confidence);
