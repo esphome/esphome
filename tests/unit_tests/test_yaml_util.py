@@ -21,6 +21,7 @@ from esphome.yaml_util import (
     DiscoveredYamlFiles,
     ESPHomeDataBase,
     ESPLiteralValue,
+    SensitiveFloat,
     SensitiveStr,
     discover_user_yaml_files,
     force_load_include_files,
@@ -2205,11 +2206,18 @@ def test_dump__redacts_sensitive_integer(
     assert f"\\033[8m{rendered}\\033[28m" in out
 
 
+def test_dump__redacts_sensitive_float() -> None:
+    """Mask a float credential and keep it a float."""
+    out = yaml_util.dump({"password": SensitiveFloat(1234.5)})
+    assert "\\033[8m1234.5\\033[28m" in out
+
+
 @pytest.mark.parametrize(
     ("value", "expected"),
     [
         (SensitiveStr("hunter2"), "password: hunter2"),
         (cv.sensitive(cv.hex_int)(0x12345678), "password: 0x12345678"),
+        (SensitiveFloat(1234.5), "password: 1234.5"),
     ],
 )
 def test_dump__show_secrets_emits_sensitive_raw(value: object, expected: str) -> None:
@@ -2226,7 +2234,12 @@ def test_dump__plain_str_is_not_redacted() -> None:
 
 
 @pytest.mark.parametrize(
-    "value", [SensitiveStr("hunter2"), cv.sensitive(cv.uint32_t)(305419896)]
+    "value",
+    [
+        SensitiveStr("hunter2"),
+        cv.sensitive(cv.uint32_t)(305419896),
+        SensitiveFloat(1234.5),
+    ],
 )
 def test_dump__secret_reference_wins_over_redaction(
     value: object, monkeypatch: pytest.MonkeyPatch
