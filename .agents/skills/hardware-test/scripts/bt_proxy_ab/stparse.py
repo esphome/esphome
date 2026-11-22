@@ -34,10 +34,12 @@ if not L:
         "no lines with millisecond time stamps (capture with serial_capture.py --ms)"
     )
 L = list(zip(unwrap([t for t, _ in L]), [ln for _, ln in L], strict=True))
-phase, ph = None, defaultdict(list)
+phase, ph, seen = None, defaultdict(list), Counter()
 for t, ln in L:
     if m := re.search(r"ST phase_start (\w+)", ln):
-        phase = m[1]
+        # after a reset the self test starts over: a repeated phase gets its own bucket (adv#2)
+        seen[m[1]] += 1
+        phase = m[1] if seen[m[1]] == 1 else f"{m[1]}#{seen[m[1]]}"
     if phase:
         ph[phase].append((t, ln))
 for name, lines in ph.items():
@@ -76,7 +78,7 @@ for name, lines in ph.items():
             k = m[1] or m[3]
             if a := cur.pop(k, None):
                 a["end"], a["te"] = m[2] or m[4], t
-    if name == "adv":
+    if name.split("#")[0] == "adv":
         for mode in ("active", "passive"):
             v = [
                 int(x) / 10

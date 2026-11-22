@@ -209,7 +209,12 @@ for s in steps:
         th = [r for r in th if all(r.get("held_ok", [True]))]
         d["rounds"] = len(rounds)
         d["held_failed"] = sum(r.get("result") == "held_failed" for r in rounds)
-        d["connected"] = sum(bool(r.get("connected")) for r in th)
+        # a third link that connected but could not discover is not a third-link success
+        d["svc_failed"] = sum(bool(r.get("connected") and r.get("svc_exc")) for r in th)
+        d["connected"] = sum(
+            bool(r.get("connected") and not r.get("svc_exc")) for r in th
+        )
+        d["t_svc_after"] = med([r.get("t_svc_after") for r in th])
         d["errs"] = dict(Counter(r.get("err") for r in th if not r.get("connected")))
         d["api_conn_s"] = med(
             [r.get("t_conn") for r in th if r.get("connected") or r.get("err") == 19]

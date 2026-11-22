@@ -93,12 +93,16 @@ async def main() -> None:
         await cli.bluetooth_gatt_write_descriptor(addr, cccd(c), v)
     for r in range(runs):
         # notifications of an earlier run still in flight carry the same numbers: wait for quiet first
-        q_end = time.monotonic() + 10
+        q_end, quiet = time.monotonic() + 10, False
         while time.monotonic() < q_end:
             n0 = len(seqs)
             await asyncio.sleep(1)
             if len(seqs) == n0:
+                quiet = True
                 break
+        if not quiet:  # stale numbers would count as received: skip this run rather than report it clean
+            d.rec(test="burst", round=r, result="not_quiet")
+            continue
         seqs.clear()
         final.clear()
         srv_fail.clear()
