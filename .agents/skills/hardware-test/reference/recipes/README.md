@@ -51,8 +51,8 @@ One file per component, named after it:
 - [`remote_base.md`](remote_base.md): remote_receiver protocol decoding through a one-pin loopback on ESP32 and ESP8266, no IR hardware
 - [`xiaomi_ble.md`](xiaomi_ble.md): Xiaomi, ATC and PVVX parsing by injecting scan results into the ESP32 tracker or advertising them from a second ESP32, real AES-CCM frames, duplicate filter model
 - [`ble_terminate.md`](ble_terminate.md): proxy disconnect against a peer with peripheral latency
-- [`i2c_slave.md`](i2c_slave.md): fake I2C slave on a D1 mini, ESP32 hardware master as the control
-- [`fake_i2c.md`](fake_i2c.md): fake I2C devices with no chip: in-firmware buses for many drivers, a Pico 2 W BME280/BMP280 target, a DS2482-800 simulator, NACK injection for vl53l0x
+- [`i2c_slave.md`](i2c_slave.md): fake I2C slave on a D1 mini, ESP32 hardware master as the control, simulated TCA9548A on the host and on a target on the master's own pads
+- [`fake_i2c.md`](fake_i2c.md): fake I2C devices with no chip: in-firmware buses for many drivers, a Pico 2 W BME280/BMP280 target, a DS2482-800 simulator, NACK injection for vl53l0x, a CST816 touch controller with scripted frames
 - [`gpio_hold.md`](gpio_hold.md): GPIO hold through the ISR pin API, pad read back with no wiring, per chip pin notes
 - [`ble_event_inject.md`](ble_event_inject.md): made up GAP and GATTC events fed into the ESP32 BLE handlers from a button
 - [`light_sleep_gpio_wake.md`](light_sleep_gpio_wake.md): GPIO wakeup from auto light sleep with an LEDC wave that keeps running in sleep, and with an external wave and peripheral power-down on the ESP32-P4
@@ -98,4 +98,9 @@ One file per component, named after it:
 - [`serial_proxy.md`](serial_proxy.md): simulated serial device on a cross-wired UART, byte-exact client with read pauses, ASH tap ACK timing
 - [`network_dns.md`](network_dns.md): network.priority Ethernet plus Wi-Fi losing lwIP DNS servers (#19805)
 - [`tuya.md`](tuya.md): Tuya MCU simulator on a cross-wired second UART (handshake, every datapoint type, command frames logged), hub vs entity order, dump A/B
+- [`i2c_bus_recovery.md`](i2c_bus_recovery.md): bus recovery against a VL53L1X or Qwiic PIR wedged on purpose at every bit of a write and a read, RP2040 recovery probe
+- [`scd30.md`](scd30.md): SCD30 clock stretch timing, bus timeouts and a stuck SDA freed at boot
+- [`vl6180x.md`](vl6180x.md): VL6180X probe, config variants, XSHUT reset and injected range, overflow and read failures
+- [`bmi270.md`](bmi270.md): real BMI270 breakout, setup mallocs and timing, register dumps, axis map and calibration
+- [`tca9548a.md`](tca9548a.md): real PCA9548A with a BMI270 behind it, Wire transaction trace, soft watchdog during the config upload
 - [`esp32_ble_server.md`](esp32_ble_server.md): YAML server, Improv over BLE and runtime service create, stop, start and remove checked directly and through a proxy, a service created inside `on_write`

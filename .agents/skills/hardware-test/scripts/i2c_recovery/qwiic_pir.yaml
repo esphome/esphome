@@ -1,0 +1,17 @@
+# Per-run file: SparkFun Qwiic PIR (ATtiny84A firmware at 0x12, 8 bit registers; register 0x00 reads 0x72).
+substitutions:
+  name: i2cpir
+  addr: "0x12"
+  reg: "0x00"
+  reg2: "-1"
+
+packages:
+  rec: !include i2crec.yaml
+
+esp8266:
+  board: huzzah
+
+binary_sensor:
+  - platform: qwiic_pir
+    i2c_id: bus
+    name: Motion
