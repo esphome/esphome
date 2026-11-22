@@ -37,8 +37,10 @@ class DetectionDecoder final : public tflite_output_processor::OutputDecoder {
   size_t detection_count() const { return this->detection_count_; }
 
  protected:
-  /// Insert in score order, dropping a box that overlaps a kept one of the same class.
+  /// Insert in score order.
   void insert_(const Detection &detection);
+  /// Drop a box that overlaps a higher-scored one of the same class.
+  void suppress_();
 
   float score_threshold_;
   size_t max_detections_;
