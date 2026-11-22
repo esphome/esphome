@@ -2181,7 +2181,7 @@ def _call_target(
     plan: list[MockObj | list[_InlineAction]],
     args: TemplateArgsType,
     config: ConfigType,
-) -> MockObj | str:
+) -> MockObj:
     """What a generated callback calls: the direct function, else ``<automation>->trigger``."""
     if (target := _direct_function(plan, args, config)) is None:
         target = parent_ref(_automation_from_plan(plan, args, config)).trigger
@@ -2228,8 +2228,10 @@ async def build_component_automation(
     args = args or []
     trigger_id: ID = config[id_key]
     # Declared and registered before the actions are built, which can wait for other ids
-    name = _apply_function_name(trigger_id)
+    fn_id = cg.unique_global_id(_apply_function_name(trigger_id), None)
+    name = fn_id.id
     define = cg.declare_static_function(name, cg.void, _apply_params(args))
+    CORE.register_variable(fn_id, cg.RawExpression(name))
     id_ = trigger_id.copy()
     id_.type = component_class
     bits = [] if priority is None else [_float_bits(priority)]
@@ -2244,8 +2246,15 @@ async def build_component_automation(
 
 
 def _float_bits(value: float) -> HexInt:
-    """``value`` as a C++ float's bit pattern, for a template argument."""
-    (bits,) = struct.unpack("<I", struct.pack("<f", value))
+    """``value`` as a C++ float's bit pattern, for a template argument.
+
+    Out of float range becomes signed infinity, as the C++ conversion does.
+    """
+    try:
+        packed = struct.pack("<f", value)
+    except OverflowError:
+        packed = struct.pack("<f", math.copysign(math.inf, value))
+    (bits,) = struct.unpack("<I", packed)
     return HexInt(bits)
 
 
