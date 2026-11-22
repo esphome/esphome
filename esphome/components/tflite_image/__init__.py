@@ -24,6 +24,8 @@ DOMAIN = "tflite_image"
 # The runtime is loaded for the model; only this component appears in the YAML.
 AUTO_LOAD = ["tflite_micro_runtime"]
 MULTI_CONF = True
+# Detection, segmentation and pose auto-load this component without an entry of their own.
+MULTI_CONF_NO_DEFAULT = True
 FINAL_VALIDATE_SCHEMA = final_validate
 
 CONF_INPUT_TYPE = "input_type"
