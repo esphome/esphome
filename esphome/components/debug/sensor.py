@@ -17,7 +17,6 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_BYTES,
     UNIT_MILLISECOND,
-    UNIT_PERCENT,
 )
 from esphome.types import ConfigType
 
@@ -51,11 +50,10 @@ CONFIG_SCHEMA = {
             msg="This feature is only available on ESP8266 and ESP32",
         ),
         sensor.sensor_schema(
-            unit_of_measurement=UNIT_PERCENT,
+            kind=sensor.PERCENT,
             icon=ICON_COUNTER,
             accuracy_decimals=1,
             entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-            state_class=STATE_CLASS_MEASUREMENT,
         ),
     ),
     cv.Optional(CONF_MIN_FREE): cv.All(
