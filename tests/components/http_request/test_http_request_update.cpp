@@ -19,6 +19,7 @@
 
 // gtest prints the uint8_t-backed enum as a character; use the state names the entity logs.
 namespace esphome::update {
+// NOLINTNEXTLINE(readability-identifier-naming) - gtest finds the printer by this exact name
 inline void PrintTo(UpdateState state, std::ostream *os) { *os << LOG_STR_ARG(update_state_to_string(state)); }
 }  // namespace esphome::update
 
