@@ -33,6 +33,7 @@ class HttpRequestUpdate final : public update::UpdateEntity, public PollingCompo
  public:
   void setup() override;
   void update() override;
+  void dump_config() override;
 
   void perform(bool force) override;
   void check() override { this->update(); }
@@ -67,8 +68,8 @@ class HttpRequestUpdate final : public update::UpdateEntity, public PollingCompo
 #ifdef USE_ESP32
   TaskResult *task_result_{nullptr};  // set while a check runs on the update task
 #endif
-  // Hash of the version a forced install started, kept across the reboot that ends it.
-  ESPPreferenceObject forced_version_pref_;
+  ESPPreferenceObject forced_version_pref_;  // holds the version the last forced install finished
+  uint32_t forced_version_hash_{0};          // version the running forced install started, 0 when none
   uint8_t initial_check_remaining_{0};
   bool allow_forced_update_{false};  // a manifest may start the update on its own
 

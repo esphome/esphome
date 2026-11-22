@@ -61,9 +61,14 @@ void HttpRequestUpdate::on_ota_state(ota::OTAState state, float progress, uint8_
     this->update_info_.progress = progress;
     this->publish_state();
   } else if (state == ota::OTAState::OTA_ABORT || state == ota::OTAState::OTA_ERROR) {
+    this->forced_version_hash_ = 0;
     this->state_ = update::UPDATE_STATE_AVAILABLE;
     this->status_set_error(LOG_STR("Failed to install firmware"));
     this->publish_state();
+  } else if (state == ota::OTAState::OTA_COMPLETED) {
+    if (this->forced_version_hash_ != 0 && this->forced_version_pref_.save(&this->forced_version_hash_))
+      global_preferences->sync();
+    this->forced_version_hash_ = 0;
   }
 }
 
@@ -124,6 +129,12 @@ void HttpRequestUpdate::update() {
   this->update_task(result);
   this->end_check_(result);
 #endif
+}
+
+void HttpRequestUpdate::dump_config() {
+  ESP_LOGCONFIG(TAG, "HTTP Request Update:");
+  ESP_LOGCONFIG(TAG, "  Source URL: %s", this->source_url_);
+  ESP_LOGCONFIG(TAG, "  Allow Forced Update: %s", YESNO(this->allow_forced_update_));
 }
 
 void HttpRequestUpdate::update_task(void *params) {
@@ -305,9 +316,8 @@ void HttpRequestUpdate::process_result_(TaskResult *result) {
       ESP_LOGW(TAG, "Manifest asks for a forced update to %s, which was already installed; not forcing again",
                latest.c_str());
     } else {
-      // Saved before flashing, as the install ends in a reboot.
-      if (this->forced_version_pref_.save(&latest_hash))
-        global_preferences->sync();
+      // Kept in RAM until the install succeeds, see on_ota_state().
+      this->forced_version_hash_ = latest_hash;
       ESP_LOGI(TAG, "Manifest asks for a forced update to %s, installing", latest.c_str());
       this->perform(false);
     }
