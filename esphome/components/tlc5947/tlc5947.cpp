@@ -48,9 +48,7 @@ void TLC5947::loop() {
   this->clock_pin_->digital_write(false);
 
   // latch the values, so they will be applied
-  this->lat_pin_->digital_write(true);
-  delayMicroseconds(1);  // TWH1 > 30ns
-  this->lat_pin_->digital_write(false);
+  pulse_pin(this->lat_pin_, true, 1);  // TWH1 > 30ns
 }
 
 void TLC5947::set_channel_value(uint16_t channel, uint16_t value) {
