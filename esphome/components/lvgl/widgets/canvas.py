@@ -59,7 +59,6 @@ from ..lv_validation import (
     pixels,
     pixels_or_percent,
     size,
-    temporary_string,
     text_needs_owner,
 )
 from ..lvcode import LocalVariable, lv, lv_assign, lv_expr
@@ -204,8 +203,10 @@ async def _drawn_text(text: Any) -> tuple[Any, Any]:
     value = await lv_text.process(text)
     if not text_needs_owner(value):
         return value, nullcontext()
-    if (string := temporary_string(value)) is not None:
-        return None, LocalVariable("text", "const std::string", string, modifier="&")
+    if (code := str(value)).endswith(".c_str()"):
+        return None, LocalVariable(
+            "text", "const std::string", MockObj(code[: -len(".c_str()")]), modifier="&"
+        )
     return None, LocalVariable("text", "const std::string", value, modifier="")
 
 
