@@ -130,9 +130,14 @@ for name, lines in ph.items():
             r"ST rtt \S+ r=\d+ read_avg=(\d+) write_avg=(\d+) n=(\d)/(\d)", txt
         )
         if rr:
+            # a round where every read or write failed logs an average of 0: leave it out, count it
             d["rtt read/write ms"] = (
-                med([int(a) for a, *_ in rr]),
-                med([int(b) for _, b, *_ in rr]),
+                med([int(a) for a, _, rn, _ in rr if rn != "0"]),
+                med([int(b) for _, b, _, wn in rr if wn != "0"]),
+            )
+            d["rtt rounds without read/write"] = (
+                sum(rn == "0" for _, _, rn, _ in rr),
+                sum(wn == "0" for *_, wn in rr),
             )
         th = re.findall(r"ST third \S+ r=\d+ result=(-?\d) t=(\d+) held=(\d)(\d)", txt)
         if th:

@@ -338,6 +338,7 @@ async def main() -> None:
     if cmd == "adv":
         secs = float(sys.argv[4])
         await d.start([], 1)
+        not_applied = 0
         for mode in (BluetoothScannerMode.ACTIVE, BluetoothScannerMode.PASSIVE):
             cli.bluetooth_scanner_set_mode(mode)
             await asyncio.sleep(8)
@@ -354,6 +355,7 @@ async def main() -> None:
                 not applied
             ):  # the proxy ignored the request: these counts are not for this mode
                 print(f"scanner mode {mode.name} not applied: {d.scanner}", flush=True)
+                not_applied += 1
             d.rec(
                 test="adv",
                 mode=mode.name,
@@ -366,6 +368,8 @@ async def main() -> None:
             )
         cli.bluetooth_scanner_set_mode(BluetoothScannerMode.ACTIVE)
         await asyncio.sleep(2)
+        if not_applied:  # the counts are not for the requested modes
+            sys.exit(1)
     elif cmd == "disc":
         name, rounds, mode = sys.argv[4], int(sys.argv[5]), sys.argv[6]
         name = {"L": L, "M": M}.get(name, name)

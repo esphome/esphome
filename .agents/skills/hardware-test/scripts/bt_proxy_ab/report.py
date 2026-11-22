@@ -195,6 +195,9 @@ for s in steps:
         d["t_cmd_first"] = med([r["detail"][0].get("t_cmd") for r in rounds])
     elif s.startswith("third"):
         th = [r for r in rounds if "third" in r]
+        # a held link that dropped while the third connected: only two links were up
+        d["held_dropped"] = sum(not all(r.get("held_ok", [True])) for r in th)
+        th = [r for r in th if all(r.get("held_ok", [True]))]
         d["rounds"] = len(rounds)
         d["held_failed"] = sum(r.get("result") == "held_failed" for r in rounds)
         d["connected"] = sum(bool(r.get("connected")) for r in th)
@@ -214,7 +217,9 @@ for s in steps:
         d["x3e"] = sum(a["x3e"] for a in dev)
     elif s == "notify":
         for r in R:
-            if r.get("test") == "notify":
+            if (
+                r.get("test") == "notify" and "result" not in r
+            ):  # no_handles is in no_round
                 d.update(
                     {
                         k: r.get(k)

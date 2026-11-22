@@ -12,7 +12,10 @@ PY=${PY:-python3}
 if compgen -G "x*-adv.jsonl" > /dev/null; then
   echo "x*-adv.jsonl from an earlier run exist here; move them away" >&2; exit 2
 fi
-i=0 fail=0
+i=0 fail=0 CP= PP=
+# stop the capture and pinger on any exit, so the port is free for the next flash
+trap 'kill $CP $PP 2> /dev/null' EXIT
+trap 'exit 130' INT TERM
 for _ in $(seq "${6:-2}"); do
   for W in a b; do
     i=$((i + 1)); T=x$i$W; TR=$TA; [ $W = b ] && TR=$TB
