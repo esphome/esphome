@@ -10,6 +10,14 @@ namespace esphome::tflite_tabular {
 
 static const char *const TAG = "tflite_tabular";
 
+bool TabularInputPipeline::fill_all(TfLiteTensor *const *inputs, size_t count, const uint8_t *src, size_t size) {
+  if (count != 1) {
+    ESP_LOGE(TAG, "A tabular model has one input, this one has %zu", count);
+    return false;
+  }
+  return this->fill(inputs[0], src, size);
+}
+
 bool TabularInputPipeline::fill(TfLiteTensor *input, const uint8_t *src, size_t size) {
   if (input == nullptr || src == nullptr) {
     ESP_LOGE(TAG, "fill called without a tensor or features");

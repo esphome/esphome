@@ -14,7 +14,7 @@ bool TabularDecoder::decode(TfLiteTensor *const *outputs, size_t count) {
     return false;
   }
   TfLiteTensor *tensor = outputs[0];
-  if (tensor->dims == nullptr || tensor->dims->size != 2) {
+  if (tensor->dims == nullptr || tensor->dims->size != 2 || tensor->dims->data[0] != 1) {
     ESP_LOGE(TAG, "The output tensor is not [1, C]");
     return false;
   }

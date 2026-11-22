@@ -15,6 +15,7 @@ namespace esphome::tflite_tabular {
 class TabularInputPipeline final : public tflite_micro_runtime::InputPipeline {
  public:
   bool fill(TfLiteTensor *input, const uint8_t *src, size_t size) override;
+  bool fill_all(TfLiteTensor *const *inputs, size_t count, const uint8_t *src, size_t size) override;
   const char *name() const override { return "tabular"; }
 };
 
