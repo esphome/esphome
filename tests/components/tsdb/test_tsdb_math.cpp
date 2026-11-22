@@ -185,6 +185,57 @@ TEST(TsdbMath, AggregateAppliesTheOffset) {
   EXPECT_NEAR(aggregate.min(), 21.4, 1e-9);
 }
 
+TEST(TsdbMath, Crc32MatchesTheReferenceVector) {
+  const uint8_t data[] = {'1', '2', '3', '4', '5', '6', '7', '8', '9'};
+  EXPECT_EQ(tsdbmath::crc32_ieee(data, sizeof(data)), 0xCBF43926u);
+}
+
+namespace {
+
+void put_u32_le(uint8_t *data, uint32_t value) {
+  data[0] = static_cast<uint8_t>(value);
+  data[1] = static_cast<uint8_t>(value >> 8);
+  data[2] = static_cast<uint8_t>(value >> 16);
+  data[3] = static_cast<uint8_t>(value >> 24);
+}
+
+void seal_slot(uint8_t *slot, size_t size) {
+  put_u32_le(slot + tsdbmath::SIDECAR_CRC_OFFSET,
+             tsdbmath::crc32_ieee(slot + tsdbmath::SIDECAR_BODY_OFFSET, size - tsdbmath::SIDECAR_BODY_OFFSET));
+}
+
+}  // namespace
+
+// A reopen rejects a slot whose write stopped early or whose bytes are torn, so only a
+// complete slot with a matching CRC may count as durable.
+TEST(TsdbMath, SidecarSlotNeedsTheWholeSlotAndItsCrc) {
+  uint8_t slot[tsdbmath::SIDECAR1_BYTES] = {};
+  put_u32_le(slot, tsdbmath::SIDECAR1_MAGIC);
+  put_u32_le(slot + 4, 7);
+  slot[tsdbmath::SIDECAR_BODY_OFFSET] = 0x42;
+  seal_slot(slot, sizeof(slot));
+
+  EXPECT_EQ(tsdbmath::sidecar_slot_seq(slot, sizeof(slot)), 7u);
+  // Only the prefix reached the file.
+  EXPECT_EQ(tsdbmath::sidecar_slot_seq(slot, 8), 0u);
+  EXPECT_EQ(tsdbmath::sidecar_slot_seq(slot, sizeof(slot) - 1), 0u);
+  // A torn body fails the CRC.
+  slot[tsdbmath::SIDECAR_BODY_OFFSET] ^= 0xFF;
+  EXPECT_EQ(tsdbmath::sidecar_slot_seq(slot, sizeof(slot)), 0u);
+}
+
+TEST(TsdbMath, SidecarSlotValidatesTheSecondFormat) {
+  uint8_t slot[tsdbmath::SIDECAR2_BYTES] = {};
+  put_u32_le(slot, tsdbmath::SIDECAR2_MAGIC);
+  put_u32_le(slot + 4, 9);
+  put_u32_le(slot + 12, 3);  // legacy_seq is part of the CRC
+  seal_slot(slot, sizeof(slot));
+
+  EXPECT_EQ(tsdbmath::sidecar_slot_seq(slot, sizeof(slot)), 9u);
+  put_u32_le(slot, 0);
+  EXPECT_EQ(tsdbmath::sidecar_slot_seq(slot, sizeof(slot)), 0u);
+}
+
 TEST(TsdbMath, DumpWindowStartKeepsTheNewestRows) {
   // rows * interval * margin back from the newest record.
   EXPECT_EQ(tsdbmath::dump_window_start(10000, 100, 10, 60), 10000u - 10u * 60u * 2u);

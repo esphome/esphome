@@ -57,7 +57,8 @@ static constexpr uint32_t REOPEN_RETRY_MS = 300000;
 // stdio and littlefs calls, and it runs below the main loop.
 static constexpr uint32_t SYNC_TASK_STACK_SIZE = 4096;
 static constexpr UBaseType_t SYNC_TASK_PRIORITY = 1;
-// mount_point is at most 32 characters and file at most 64, plus the slash and the terminator.
+// mount_point is at most 32 bytes and file at most 64, plus the slash, a slot suffix
+// ("/.d/h0") and the terminator. The schema enforces the byte limits.
 static constexpr size_t PATH_BUFFER_SIZE = 128;
 
 // dump_config() names, indexed by the tsdbmath enums (last entry is the fallback).
@@ -100,6 +101,10 @@ static_assert(static_cast<int>(tsdbmath::MEMORY_PSRAM) == static_cast<int>(TSDB_
 static_assert(static_cast<int>(tsdbmath::MEMORY_AUTO) == static_cast<int>(TSDB_ALLOC_AUTO),
               "esp_tsdb changed tsdb_alloc_strategy_t");
 static_assert(sizeof(tsdb_block_t) == tsdbmath::BLOCK_IN_MEMORY_BYTES, "esp_tsdb changed sizeof(tsdb_block_t)");
+static_assert(tsdbmath::SIDECAR1_BYTES == 12 + sizeof(tsdb_header_t), "esp_tsdb changed the TSH1 slot");
+static_assert(tsdbmath::SIDECAR2_BYTES == 16 + offsetof(tsdb_header_t, param_names) +
+                                              (sizeof(tsdb_header_t) - offsetof(tsdb_header_t, base_params)),
+              "esp_tsdb changed the TSH2 slot");
 
 // The engine's own header check (tsdb_header_is_sane), used to tell a readable history
 // from one tsdb_open() would unlink before any schema check.
@@ -183,7 +188,16 @@ bool TsdbComponent::remove_sidecars_() {
 // Both durable header slot formats start with {uint32 magic; uint32 seq}. The engine
 // ignores the result of its slot write, so a record that returns OK can still be
 // missing from the durable header: require the newest slot's sequence to advance.
+// Only a complete slot with a matching CRC counts, since that is all a reopen accepts.
 bool TsdbComponent::sidecar_advanced_() {
+  const uint32_t newest = this->newest_sidecar_seq_on_disk_();
+  if (newest == 0 || newest <= this->newest_sidecar_seq_)
+    return false;
+  this->newest_sidecar_seq_ = newest;
+  return true;
+}
+
+uint32_t TsdbComponent::newest_sidecar_seq_on_disk_() const {
   static constexpr const char *SLOT_SUFFIXES[] = {".h0", ".h1", ".d/h0", ".d/h1"};
   char path[PATH_BUFFER_SIZE];
   this->format_path_(path, sizeof(path));
@@ -194,16 +208,41 @@ bool TsdbComponent::sidecar_advanced_() {
     FILE *file = fopen(slot, "rb");
     if (file == nullptr)
       continue;
-    uint32_t prefix[2] = {0, 0};
-    const bool ok = fread(prefix, sizeof(prefix), 1, file) == 1;
+    uint8_t buffer[tsdbmath::SIDECAR1_BYTES];  // the larger of the two slot formats
+    const size_t read = fread(buffer, 1, sizeof(buffer), file);
     fclose(file);
-    if (ok && prefix[0] != 0 && prefix[1] > newest)
-      newest = prefix[1];
+    const uint32_t seq = tsdbmath::sidecar_slot_seq(buffer, read);
+    if (seq > newest)
+      newest = seq;
   }
-  if (newest == 0 || newest <= this->newest_sidecar_seq_)
+  return newest;
+}
+
+// The header as it currently is on disk, independent of the engine's in-memory copy.
+bool TsdbComponent::read_disk_header_(tsdb_header_t *header) const {
+  char path[PATH_BUFFER_SIZE];
+  this->format_path_(path, sizeof(path));
+  FILE *file = fopen(path, "rb");
+  if (file == nullptr)
     return false;
-  this->newest_sidecar_seq_ = newest;
-  return true;
+  const size_t read = fread(header, 1, sizeof(*header), file);
+  fclose(file);
+  return read == sizeof(*header);
+}
+
+// A fold is only durable when the file's header describes what the engine holds in
+// memory; tsdb_sync_h() returns OK even when its header write failed.
+bool TsdbComponent::folded_header_matches_() {
+  tsdb_header_t persisted = {};
+  if (!this->read_disk_header_(&persisted) || persisted.magic != static_cast<uint32_t>(TSDB_MAGIC))
+    return false;
+  tsdb_stats_t stats = {};
+  if (tsdb_get_stats_h(static_cast<tsdb_t *>(this->db_), &stats) != ESP_OK)
+    return false;
+  // total_records is clamped to the ring capacity in the stats, so compare the fields
+  // the engine copies straight from the header.
+  return persisted.total_writes == stats.total_writes && persisted.total_evictions == stats.total_evictions &&
+         persisted.newest_timestamp == stats.newest_timestamp && persisted.max_records == stats.max_records;
 }
 
 void TsdbComponent::setup() {
@@ -507,8 +546,9 @@ bool TsdbComponent::open_database_() {
              " - recreate the history to change it",
              this->file_.c_str(), saved_stride, this->index_stride_);
   }
-  // The next record must leave a header slot whose sequence the engine advances.
-  this->newest_sidecar_seq_ = 0;
+  // Seed the durable-slot baseline from what is on disk now (an unclean shutdown leaves
+  // slots the engine will keep using), so the next write must really advance it.
+  this->newest_sidecar_seq_ = this->newest_sidecar_seq_on_disk_();
   return true;
 }
 
@@ -598,14 +638,13 @@ void TsdbComponent::update() {
     return;
   }
   this->handle_requests_();
-  // A requested flush can fail and drop the handle; a record must not be written
-  // against it after that.
-  if (this->db_ == nullptr)
+  // A requested flush can fail and drop the handle, and it may have just started a fold
+  // that holds the engine lock; leave the rest of this pass to the next interval.
+  if (this->db_ == nullptr || this->sync_pending_)
     return;
   this->write_record_();
-  this->flush_(false);
-  // A write or sync that failed dropped the handle; the aggregates and stats
-  // have no database to read until a later interval reopens it.
+  // A write that failed dropped the handle; the aggregates and stats have no database
+  // to read until a later interval reopens it.
   if (this->db_ == nullptr)
     return;
 
@@ -619,6 +658,9 @@ void TsdbComponent::update() {
     this->last_stats_ = now;
     this->publish_stats_();
   }
+  // Requested last: the fold keeps the engine lock for seconds on the sync task, so the
+  // diagnostics above still run on every pass, even with a zero sync_interval.
+  this->flush_(false);
 }
 
 void TsdbComponent::handle_requests_() {
@@ -627,10 +669,22 @@ void TsdbComponent::handle_requests_() {
   if (this->clear_requested_) {
     this->clear_requested_ = false;
     const esp_err_t err = tsdb_clear_h(db);
-    if (err != ESP_OK) {
+    // The engine ignores the error of the fold that persists the cleared header, so the
+    // disk may still describe the old history. Leave the recovery copies alone until it
+    // really is empty, or a reboot would mix the two states.
+    tsdb_header_t persisted = {};
+    const bool durable = err == ESP_OK && this->read_disk_header_(&persisted) &&
+                         persisted.magic == static_cast<uint32_t>(TSDB_MAGIC) && persisted.total_records == 0;
+    if (!durable) {
       this->write_errors_++;
       this->publish_errors_();
-      ESP_LOGE(TAG, "%s: clearing the history failed: %s", this->file_.c_str(), esp_err_to_name(err));
+      if (err != ESP_OK)
+        ESP_LOGE(TAG, "%s: clearing the history failed: %s", this->file_.c_str(), esp_err_to_name(err));
+      else
+        ESP_LOGE(TAG, "%s: the cleared header did not reach the file - keeping the recovery copies",
+                 this->file_.c_str());
+      this->publish_log_("clearing the history did not persist");
+      this->status_set_warning(LOG_STR("clearing the history did not persist"));
     } else {
       this->records_ = 0;
       this->writes_ = 0;
@@ -640,18 +694,18 @@ void TsdbComponent::handle_requests_() {
       this->dropped_backwards_ = 0;
       this->uptime_offset_ = 1 - static_cast<uint32_t>(::time(nullptr));
       this->dirty_ = false;
-      // The engine's alternating .h0/.h1 copies still hold the cleared history and
-      // win an open, so they have to go before the clear counts as done.
+      // The durable header slots still hold the cleared history and win an open, so
+      // they have to go before the clear counts as done.
       if (this->remove_sidecars_()) {
         ESP_LOGW(TAG, "%s: history cleared on request", this->file_.c_str());
         this->publish_log_("history cleared");
       } else {
         this->write_errors_++;
         this->publish_errors_();
-        ESP_LOGE(TAG, "%s: history cleared, but its reboot copies could not be removed - a reboot may restore it",
+        ESP_LOGE(TAG, "%s: history cleared, but its recovery copies could not be removed - a reboot may restore it",
                  this->file_.c_str());
-        this->publish_log_("history cleared, its reboot copies remain");
-        this->status_set_warning(LOG_STR("clearing the reboot copies failed"));
+        this->publish_log_("history cleared, its recovery copies remain");
+        this->status_set_warning(LOG_STR("clearing the recovery copies failed"));
       }
     }
   }
@@ -669,9 +723,9 @@ void TsdbComponent::handle_requests_() {
     }
   }
 
-  // A requested flush that failed dropped the handle; the remaining requests
-  // have no database to work on.
-  if (this->db_ == nullptr)
+  // A requested flush that failed dropped the handle; a running fold holds the engine
+  // lock, so the dump request stays queued for the next pass.
+  if (this->db_ == nullptr || this->sync_pending_)
     return;
 
   if (this->dump_requested_ > 0) {
@@ -878,7 +932,9 @@ void TsdbComponent::sync_now_() {
   // A later successful write must not clear the warning raised here: only a sync that
   // works may.
   const esp_err_t err = tsdb_sync_h(db);
-  if (err == ESP_OK) {
+  // The engine ignores the error of the header fold, so a sync that "succeeded" can
+  // still leave the old header in the file: confirm what reached the disk.
+  if (err == ESP_OK && this->folded_header_matches_()) {
     this->sync_failed_ = false;
     this->dirty_ = false;
     ESP_LOGD(TAG, "%s: synced after %" PRIu32 " writes", this->file_.c_str(), this->writes_);
@@ -892,7 +948,10 @@ void TsdbComponent::sync_now_() {
   this->report_flush_ = false;
   this->write_errors_++;
   this->sync_failed_ = true;
-  ESP_LOGE(TAG, "%s: sync failed: %s", this->file_.c_str(), esp_err_to_name(err));
+  if (err != ESP_OK)
+    ESP_LOGE(TAG, "%s: sync failed: %s", this->file_.c_str(), esp_err_to_name(err));
+  else
+    ESP_LOGE(TAG, "%s: sync did not persist the header", this->file_.c_str());
   this->status_set_warning(LOG_STR("syncing the history failed"));
   this->publish_errors_();
   if (!tsdb_is_initialized_h(db))
@@ -909,7 +968,8 @@ void TsdbComponent::sync_task_fn_(void *arg) {
       err = tsdb_sync_h(db);
     SyncResult result = SyncResult::SYNC_RESULT_CLOSED;
     if (err == ESP_OK) {
-      result = SyncResult::SYNC_RESULT_OK;
+      // Same check as the inline path: the engine does not report a failed fold.
+      result = self->folded_header_matches_() ? SyncResult::SYNC_RESULT_OK : SyncResult::SYNC_RESULT_FAILED;
     } else if (db != nullptr && tsdb_is_initialized_h(db)) {
       result = SyncResult::SYNC_RESULT_FAILED;
     }
@@ -1167,7 +1227,7 @@ void TsdbComponent::dump_csv_(uint32_t rows) {
                this->file_.c_str(), static_cast<uint32_t>(sizeof(line)));
     }
     if (length > 0) {
-      ESP_LOGI(TAG, "%s: %s", this->file_.c_str(), line);
+      ESP_LOGI(TAG, "%s", line);
     }
     count++;
   }

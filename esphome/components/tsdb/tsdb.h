@@ -21,6 +21,7 @@
 #endif
 
 #include "esp_err.h"
+#include "esp_tsdb.h"
 
 #include "tsdb_math.h"
 
@@ -143,6 +144,9 @@ class TsdbComponent : public PollingComponent {
   void format_path_(char *buffer, size_t size) const;
   bool remove_sidecars_();
   bool sidecar_advanced_();
+  uint32_t newest_sidecar_seq_on_disk_() const;
+  bool read_disk_header_(tsdb_header_t *header) const;
+  bool folded_header_matches_();
   void publish_aggregates_();
   void publish_stats_();
   void dump_csv_(uint32_t rows);

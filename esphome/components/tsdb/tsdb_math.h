@@ -58,6 +58,48 @@ constexpr uint32_t stored_columns(const uint8_t *buffer, size_t length) {
 // Timestamps below this are a boot counter, not a clock.
 static constexpr uint32_t MIN_VALID_TIMESTAMP = 1000000000;
 
+// esp_tsdb's durable header slots (tsdb_internal.h): TSH1 is
+// {magic, seq, header_crc, header} and TSH2 {magic, seq, crc, legacy_seq, header
+// slices}; both carry a CRC-32 over the bytes that follow it. A torn write is
+// therefore only durable when the whole slot and its CRC agree.
+static constexpr uint32_t SIDECAR1_MAGIC = 0x54534831u;        // "TSH1"
+static constexpr uint32_t SIDECAR2_MAGIC = 0x54534832u;        // "TSH2"
+static constexpr uint32_t SIDECAR1_BYTES = 12 + HEADER_BYTES;  // 596
+static constexpr uint32_t SIDECAR2_BYTES = 88;                 // checked in tsdb.cpp
+static constexpr uint32_t SIDECAR_CRC_OFFSET = 8;
+static constexpr uint32_t SIDECAR_BODY_OFFSET = 12;
+
+// CRC-32 (IEEE, reflected), the one esp_tsdb stores in its header slots.
+inline uint32_t crc32_ieee(const uint8_t *data, size_t length) {
+  uint32_t crc = 0xFFFFFFFFu;
+  for (size_t index = 0; index < length; index++) {
+    crc ^= data[index];
+    for (uint8_t bit = 0; bit < 8; bit++)
+      crc = (crc >> 1) ^ (0xEDB88320u & static_cast<uint32_t>(-static_cast<int32_t>(crc & 1)));
+  }
+  return ~crc;
+}
+
+inline uint32_t read_u32_le(const uint8_t *data) {
+  return static_cast<uint32_t>(data[0]) | (static_cast<uint32_t>(data[1]) << 8) |
+         (static_cast<uint32_t>(data[2]) << 16) | (static_cast<uint32_t>(data[3]) << 24);
+}
+
+// Sequence number of a complete, CRC-valid slot, or 0 when the bytes are not one.
+inline uint32_t sidecar_slot_seq(const uint8_t *buffer, size_t length) {
+  if (buffer == nullptr || length < SIDECAR_BODY_OFFSET)
+    return 0;
+  const uint32_t magic = read_u32_le(buffer);
+  const size_t expected = magic == SIDECAR1_MAGIC ? SIDECAR1_BYTES : magic == SIDECAR2_MAGIC ? SIDECAR2_BYTES : 0;
+  const uint32_t seq = read_u32_le(buffer + 4);
+  if (expected == 0 || length != expected || seq == 0)
+    return 0;
+  if (crc32_ieee(buffer + SIDECAR_BODY_OFFSET, length - SIDECAR_BODY_OFFSET) !=
+      read_u32_le(buffer + SIDECAR_CRC_OFFSET))
+    return 0;
+  return seq;
+}
+
 // Schema limits, mirrored from TSDB_MAX_BASE_PARAMS and TSDB_MAX_NAME_LENGTH in __init__.py.
 static constexpr uint32_t MAX_BASE_PARAMS = 16;
 static constexpr uint32_t MAX_NAME_LENGTH = 31;
