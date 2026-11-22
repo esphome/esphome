@@ -40,7 +40,11 @@ script:
           else:
             - lambda: |-
                 id(race_mode) = 0;
-                ESP_LOGI("hwt", "HWT race disable after %d ms", id(race_delay));
+                // wifi_drop is mode single: a drop still running would swallow this one
+                if (id(wifi_drop).is_running())
+                  ESP_LOGW("hwt", "HWT race drop skipped, a Wi-Fi drop is still running");
+                else
+                  ESP_LOGI("hwt", "HWT race disable after %d ms", id(race_delay));
             - script.execute:
                 id: wifi_drop
                 secs: 20
@@ -63,7 +67,22 @@ api:
         mode: int
         delay_ms: int
       then:
-        - lambda: |-
-            id(race_mode) = mode;
-            id(race_delay) = delay_ms;
-        - script.execute: race_drop
+        - if:
+            condition:
+              lambda: 'return mode >= 1 && mode <= 3 && delay_ms >= 0 && delay_ms <= 10000;'
+            then:
+              - lambda: |-
+                  id(race_mode) = mode;
+                  id(race_delay) = delay_ms;
+              - script.execute: race_drop
+              # the 15 s drop plus time for the restart: an arm still set by then never fired
+              - delay: 75s
+              - lambda: |-
+                  if (id(race_mode) != 0) {
+                    ESP_LOGW("hwt", "HWT race not fired");
+                    id(race_mode) = 0;
+                  }
+            else:
+              - logger.log:
+                  format: "HWT race refused: mode must be 1-3 and delay_ms 0-10000"
+                  level: WARN

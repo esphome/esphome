@@ -62,7 +62,22 @@ api:
       variables:
         delay_ms: int
       then:
-        - lambda: 'id(race_delay) = delay_ms;'
-        - script.execute:
-            id: link_drop
-            secs: 15
+        - if:
+            condition:
+              lambda: 'return delay_ms >= 0 && delay_ms <= 10000;'
+            then:
+              - lambda: 'id(race_delay) = delay_ms;'
+              - script.execute:
+                  id: link_drop
+                  secs: 15
+              # the 15 s drop plus time for the restart: an arm still set by then never fired
+              - delay: 75s
+              - lambda: |-
+                  if (id(race_delay) >= 0) {
+                    ESP_LOGW("hwt", "HWT race not fired");
+                    id(race_delay) = -1;
+                  }
+            else:
+              - logger.log:
+                  format: "HWT race refused: delay_ms must be 0-10000"
+                  level: WARN
