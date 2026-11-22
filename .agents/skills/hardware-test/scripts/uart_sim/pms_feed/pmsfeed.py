@@ -2,7 +2,9 @@
 
   pmsfeed.py PORT SECONDS OUT [--reset] [--start S] [--period 1.0] [--expect-pm] [--selftest]
 
---expect-pm (pms-manual-pm.yaml runs): exit 1 unless an esp_pm_configure() result of 0 was captured.
+--expect-pm (pms-dfs.yaml and pms-manual-pm.yaml runs): exit 1 unless the capture proves power management was
+on (an esp_pm_configure() result of 0 from pmh.hpp, or the esp32_power_management config block). Any
+esp_pm_configure() failure exits 1 with or without it.
 Exits 1 too when fewer than two device cnt lines were captured, so the device count is unknown.
 
 Frame n: PM1.0 std and atm = n, PM2.5 = n+1000, PM10 = n+2000, temp = 20.0+n%10, hum = 40.0+n%10.
@@ -114,20 +116,22 @@ def main() -> None:
         dev += prev[0] - base
     # builds with pmh.hpp log the esp_pm_configure() result; anything but 0 means no power management
     pm = re.findall(rb"esp_pm_configure\(ls=\d\) = (-?\d+)", log)
-    pm_ok = bool(pm) and all(x == b"0" for x in pm)
+    # esp32_power_management (pms-dfs.yaml) logs a failure, and its config block when it is set up
+    pm_failed = log.count(b"esp_pm_configure failed") + sum(x != b"0" for x in pm)
+    pm_ok = not pm_failed and (bool(pm) or b"Power Management:" in log)
     print(
         f"pm_configure={','.join(x.decode() for x in pm) or ('MISSING' if a.expect_pm else '-')} "
-        f"cnt_lines={len(cnt)} "
+        f"pm_failed={pm_failed} cnt_lines={len(cnt)} "
         f"feeds={log.count(b'[feed] n=')} parses={parses} dev_parses_between_cnt_lines={dev} boots={boots} "
         f"start_char={log.count(b'Start character')} payload_len={log.count(b'Payload length')} "
         f"checksum={log.count(b'checksum mismatch')}"
     )
     if len(cnt) < 2:
         sys.exit("fewer than two cnt lines: the device parse count is unknown")
+    if pm_failed:
+        sys.exit("esp_pm_configure() failed: the run is not under power management")
     if a.expect_pm and not pm_ok:
-        sys.exit(
-            "--expect-pm: no successful esp_pm_configure() line, power management not proven"
-        )
+        sys.exit("--expect-pm: no proof in the capture that power management was on")
 
 
 if __name__ == "__main__":
