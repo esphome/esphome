@@ -13,12 +13,12 @@ import zlib
 
 import esphome.codegen as cg
 from esphome.components import esp32
+from esphome.components.tflite_model_io.model_reader import estimate_tensor_arena
 from esphome.components.tflite_model_source import resolve_model_source
 from esphome.components.tflite_op_processor import (
     emit_all_ops,
     emit_selective_op_defines,
 )
-from esphome.components.tflite_model_io.model_reader import estimate_tensor_arena
 from esphome.components.tflite_op_processor.op_manifest import (
     extract_model_ops,
     parse_op_table,
@@ -101,7 +101,13 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_tensor_arena_size(arena_size))
     else:
         # A seed only: the device measures what the model needs and allocates that.
-        estimate = estimate_tensor_arena(model_path)
+        try:
+            estimate = estimate_tensor_arena(model_path)
+        except ValueError as err:
+            raise EsphomeError(
+                f"Could not estimate tensor_arena_size for '{_model_filename(model_path)}': "
+                f"{err}. Set tensor_arena_size explicitly to bypass estimation."
+            ) from err
         _LOGGER.info(
             "Estimated tensor arena for '%s': %d bytes (%d peak activation bytes "
             "over %d tensors)",

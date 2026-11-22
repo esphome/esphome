@@ -97,7 +97,8 @@ class InputPipeline {
   /// The runtime calls this with every input tensor; a kind that fills more
   /// than one (text needs ids, mask and segment) overrides it.
   virtual bool fill_all(TfLiteTensor *const *inputs, size_t count, const uint8_t *src, size_t size) {
-    return count > 0 && this->fill(inputs[0], src, size);
+    // The single-tensor fallback cannot fill a multi-input model.
+    return count == 1 && this->fill(inputs[0], src, size);
   }
   /// Name for dump_config(), e.g. "image".
   virtual const char *name() const = 0;
@@ -106,7 +107,8 @@ class InputPipeline {
 class TFLiteMicroHelper final : public Component {
  public:
   TFLiteMicroHelper() = default;
-  ~TFLiteMicroHelper() = default;
+  // The interpreter reads the arena in its destructor, so unload it first.
+  ~TFLiteMicroHelper() { this->model_handler_.unload(); }
 
   void setup() override;
   void dump_config() override;
@@ -222,7 +224,12 @@ class TFLiteMicroHelper final : public Component {
   LoadStats last_load_stats_{};
 
   // One atomic value, so there is no check-then-act across flags.
-  enum class LoadState : uint8_t { LOAD_STATE_UNLOADED, LOAD_STATE_LOADING, LOAD_STATE_READY };
+  enum class LoadState : uint8_t {
+    LOAD_STATE_UNLOADED,
+    LOAD_STATE_LOADING,
+    LOAD_STATE_READY,
+    LOAD_STATE_UNLOADING,
+  };
   std::atomic<LoadState> state_{LoadState::LOAD_STATE_UNLOADED};
   uint32_t expected_crc32_{0};  // 0 = skip verification, set from __init__.py
 

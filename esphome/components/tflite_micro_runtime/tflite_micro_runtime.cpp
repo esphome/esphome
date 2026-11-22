@@ -1,7 +1,7 @@
 #include "tflite_micro_runtime.h"
 
 #ifdef USE_TFLITE_MICRO_HELPER
-#include "esphome/core/application.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include <algorithm>
 #include <cinttypes>
@@ -52,20 +52,6 @@ const char *input_order_name(InputOrder order) {
   return "unknown";
 }
 
-TfLiteType configured_input_tensor_type(InputType type) {
-  switch (type) {
-    case InputType::INPUT_TYPE_UINT8:
-      return kTfLiteUInt8;
-    case InputType::INPUT_TYPE_INT8:
-      return kTfLiteInt8;
-    case InputType::INPUT_TYPE_FLOAT32:
-      return kTfLiteFloat32;
-    case InputType::INPUT_TYPE_UNKNOWN:
-      break;
-  }
-  return kTfLiteNoType;
-}
-
 InputType tensor_type_to_input_type(TfLiteType type) {
   switch (type) {
     case kTfLiteUInt8:
@@ -76,19 +62,6 @@ InputType tensor_type_to_input_type(TfLiteType type) {
       return InputType::INPUT_TYPE_FLOAT32;
     default:
       return InputType::INPUT_TYPE_UNKNOWN;
-  }
-}
-
-const LogString *tensor_type_name(TfLiteType type) {
-  switch (type) {
-    case kTfLiteUInt8:
-      return LOG_STR("uint8");
-    case kTfLiteInt8:
-      return LOG_STR("int8");
-    case kTfLiteFloat32:
-      return LOG_STR("float32");
-    default:
-      return LOG_STR("unknown");
   }
 }
 
@@ -230,12 +203,18 @@ bool TFLiteMicroHelper::run(const uint8_t *src_data, size_t src_size) {
     if (!this->input_pipeline_->fill_all(inputs, input_count, src_data, src_size))
       return false;
   } else {
+    if (this->model_handler_.input_count() != 1) {
+      ESP_LOGE(TAG, "A raw inference needs one input, this model has %zu", this->model_handler_.input_count());
+      return false;
+    }
     if (!this->validate_input_tensor_(src_data, src_size))
       return false;
     memcpy(this->model_handler_.input_tensor()->data.raw, src_data, src_size);
   }
-  if (this->invoke() != kTfLiteOk)
+  if (this->invoke() != kTfLiteOk) {
+    ESP_LOGE(TAG, "Model invocation failed");
     return false;
+  }
   if (this->output_decoder_ == nullptr)
     return true;
   static constexpr size_t MAX_OUTPUTS = 8;
@@ -280,7 +259,7 @@ void TFLiteMicroHelper::set_probability_cutoff(float f) {
     ESP_LOGW(TAG, "probability_cutoff is NaN -- using 0.5");
     f = 0.5f;
   } else if (f < 0.0f || f > 1.0f) {
-    ESP_LOGW(TAG, "probability_cutoff %d%% is outside 0-100%% -- clamping", static_cast<int>(f * 100.0f));
+    ESP_LOGW(TAG, "probability_cutoff is outside 0-100%% -- clamping");
     f = std::clamp(f, 0.0f, 1.0f);
   }
   this->audio_config_.probability_cutoff = static_cast<uint8_t>(f * 255.0f);
@@ -324,8 +303,13 @@ bool TFLiteMicroHelper::load_model() {
   // Probe the arena size; the result is kept apart from the configured value so a
   // reload asks for the same size and the report does not call it requested.
   this->tensor_arena_size_effective_ = this->tensor_arena_size_requested_;
-  const size_t probe_size =
+  size_t probe_size =
       this->model_handler_.probe_arena_size(this->model_data_, this->model_length_, this->tensor_arena_size_requested_);
+  if (probe_size == 0 && this->tensor_arena_size_requested_ > 1024) {
+    // An overestimate can exceed the heap's largest block; retry smaller before giving up.
+    probe_size = this->model_handler_.probe_arena_size(this->model_data_, this->model_length_,
+                                                       this->tensor_arena_size_requested_ / 2);
+  }
   if (probe_size == 0) {
     ESP_LOGW(TAG, "Arena probe failed, using configured size: %zu bytes", this->tensor_arena_size_requested_);
   } else {
@@ -382,15 +366,19 @@ bool TFLiteMicroHelper::load_model() {
 bool TFLiteMicroHelper::unload_model(bool reset_config) {
   // A load in progress owns the buffers, so only a completed load may unload.
   LoadState state = LoadState::LOAD_STATE_READY;
-  if (!this->state_.compare_exchange_strong(state, LoadState::LOAD_STATE_UNLOADED)) {
-    if (state == LoadState::LOAD_STATE_UNLOADED) {
-      // Already unloaded: a reload path must not read this as a failure. The reset
-      // still runs, because a failed load leaves the fields describing that model.
-      ESP_LOGD(TAG, "unload_model() while no model is loaded");
-      if (reset_config)
-        this->reset_config();
-      return true;
+  if (state == LoadState::LOAD_STATE_UNLOADED) {
+    // Stay busy while the reset runs, so no load can install a model under it.
+    if (!this->state_.compare_exchange_strong(state, LoadState::LOAD_STATE_UNLOADING)) {
+      ESP_LOGE(TAG, "unload_model() while a model is loading -- not unloading");
+      return false;
     }
+    ESP_LOGD(TAG, "unload_model() while no model is loaded");
+    if (reset_config)
+      this->reset_config();
+    this->state_.store(LoadState::LOAD_STATE_UNLOADED);
+    return true;
+  }
+  if (!this->state_.compare_exchange_strong(state, LoadState::LOAD_STATE_UNLOADING)) {
     ESP_LOGE(TAG, "unload_model() while a model is loading -- not unloading");
     return false;
   }
@@ -402,6 +390,7 @@ bool TFLiteMicroHelper::unload_model(bool reset_config) {
   if (reset_config) {
     this->reset_config();
   }
+  this->state_.store(LoadState::LOAD_STATE_UNLOADED);
   return true;
 }
 
