@@ -100,6 +100,9 @@ TEST_F(CalibrationPersistenceTest, OneSampleIsNotEnough) {
 
   EXPECT_FALSE(sensor.has_r0());
   EXPECT_TRUE(sensor.status_has_warning());
+  // The failed run leaves a retry timer that captures the component; beginning a
+  // run replaces it, so nothing outlives the test.
+  sensor.start_calibration();
 }
 
 TEST_F(CalibrationPersistenceTest, StoredReferenceIsRestoredForTheSameKey) {
@@ -134,6 +137,8 @@ TEST_F(CalibrationPersistenceTest, ADifferentKeyDoesNotRestoreTheReference) {
   configure(rewired);
   rewired.set_preference_key(0x87654321);
   rewired.setup();
+  // setup() schedules a boot calibration; replacing it leaves no timer behind.
+  rewired.start_calibration();
 
   EXPECT_FALSE(rewired.has_r0());
 }
