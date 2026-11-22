@@ -14,9 +14,7 @@ static constexpr uint32_t VERIFY_SETTINGS_TIMEOUT_ID = 0;
 PROGMEM_STRING_TABLE(SettingStrings, "gain", "resolution", "oversampling", "digital filtering",
                      "temperature oversampling", "temperature compensation", "hallconf", "error", "unknown");
 
-const LogString *settings_to_string(MLX90393Setting setting) {
-  return SettingStrings::get_log_str(static_cast<uint8_t>(setting), SettingStrings::LAST_INDEX);
-};
+const LogString *settings_to_string(MLX90393Setting setting) { return SettingStrings::get_log_str(setting); };
 
 bool MLX90393Cls::transceive(const uint8_t *request, size_t request_size, uint8_t *response, size_t response_size) {
   i2c::ErrorCode e = this->write(request, request_size);

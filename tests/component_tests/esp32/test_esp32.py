@@ -20,6 +20,7 @@ from esphome.components.esp32 import (
     KEY_VFS_SELECT_REQUIRED,
     KEY_VFS_TERMIOS_REQUIRED,
     MBEDTLS_NON_P256_CURVE_OPTIONS,
+    MBEDTLS_RARE_TLS_CURVE_OPTIONS,
     MBEDTLS_RSA_OPTIONS,
     MBEDTLS_TLS_EXTRA_OPTIONS,
     MBEDTLS_UNUSED_CIPHER_MODE_OPTIONS,
@@ -897,8 +898,9 @@ _IDF61 = cv.Version(6, 1, 1)
             id="idf61_remote_enterprise_off",
         ),
         pytest.param(
-            # With TLS kept, the curves, PEM, large-key MPI and SHA-384 (for
-            # certificate chains) stay; the unused cipher modes still go.
+            # With TLS kept, the curves servers use (P-256, P-384, P-521,
+            # X25519), PEM, large-key MPI and SHA-384 (for certificate chains)
+            # stay; Brainpool, secp256k1 and the unused cipher modes go.
             PlatformFramework.ESP32_IDF,
             _IDF6,
             MbedtlsSdkconfigData(tls_required=True),
@@ -907,10 +909,11 @@ _IDF61 = cv.Version(6, 1, 1)
                 **_TLS_CLIENT_ONLY,
                 **_TLS_EXTRAS_OFF,
                 **_PEER_CERT_PKCS7_OFF,
+                **dict.fromkeys(MBEDTLS_RARE_TLS_CURVE_OPTIONS, False),
                 **_CIPHER_MODES_OFF,
             },
             set(_ESP_TLS_LINKING_COMPONENTS),
-            id="idf6_tls_keeps_curves",
+            id="idf6_tls_keeps_common_curves",
         ),
         pytest.param(
             # A user sdkconfig_options value wins over a curve trim.
@@ -925,6 +928,62 @@ _IDF61 = cv.Version(6, 1, 1)
             },
             set(_ESP_TLS_LINKING_COMPONENTS),
             id="idf6_user_curve_wins",
+        ),
+        pytest.param(
+            # A user choice for a rare curve still wins with TLS on.
+            PlatformFramework.ESP32_IDF,
+            _IDF6,
+            MbedtlsSdkconfigData(tls_required=True),
+            {"CONFIG_MBEDTLS_ECP_DP_BP256R1_ENABLED": RawSdkconfigValue("y")},
+            {
+                "CONFIG_MBEDTLS_ECP_DP_BP256R1_ENABLED": RawSdkconfigValue("y"),
+                **_TLS_CLIENT_ONLY,
+                **_TLS_EXTRAS_OFF,
+                **_PEER_CERT_PKCS7_OFF,
+                **dict.fromkeys(
+                    (
+                        option
+                        for option in MBEDTLS_RARE_TLS_CURVE_OPTIONS
+                        if option != "CONFIG_MBEDTLS_ECP_DP_BP256R1_ENABLED"
+                    ),
+                    False,
+                ),
+                **_CIPHER_MODES_OFF,
+            },
+            set(_ESP_TLS_LINKING_COMPONENTS),
+            id="idf6_tls_user_rare_curve_wins",
+        ),
+        pytest.param(
+            # Wi-Fi Enterprise keeps the rare curves for private RADIUS PKIs.
+            PlatformFramework.ESP32_IDF,
+            _IDF6,
+            MbedtlsSdkconfigData(tls_required=True),
+            {"CONFIG_ESP_WIFI_ENTERPRISE_SUPPORT": True},
+            {
+                "CONFIG_ESP_WIFI_ENTERPRISE_SUPPORT": True,
+                **_TLS_CLIENT_ONLY,
+                **_TLS_EXTRAS_OFF,
+                **_PEER_CERT_PKCS7_OFF,
+                **_CIPHER_MODES_OFF,
+            },
+            set(_ESP_TLS_LINKING_COMPONENTS),
+            id="idf6_eap_keeps_rare_curves",
+        ),
+        pytest.param(
+            # So does esp_wifi_remote's Enterprise option on IDF 6.1.
+            PlatformFramework.ESP32_IDF,
+            _IDF61,
+            MbedtlsSdkconfigData(tls_required=True),
+            {"CONFIG_WIFI_RMT_ENTERPRISE_SUPPORT": RawSdkconfigValue("y")},
+            {
+                "CONFIG_WIFI_RMT_ENTERPRISE_SUPPORT": RawSdkconfigValue("y"),
+                **_TLS_CLIENT_ONLY,
+                **_TLS_EXTRAS_OFF,
+                **_PEER_CERT_PKCS7_OFF,
+                **_CIPHER_MODES_OFF,
+            },
+            set(_ESP_TLS_LINKING_COMPONENTS),
+            id="idf6_remote_eap_keeps_rare_curves",
         ),
         pytest.param(
             # A P-384 app signing key keeps the P-384 curve.

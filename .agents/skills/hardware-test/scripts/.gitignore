@@ -81,6 +81,12 @@ log_str_tables/*.norm
 log_str_tables/*-cap.txt
 log_str_tables/*.log
 log_str_tables/l[0-9][pbq]*.yaml
+mqtt/dns_boot/*.txt
+mqtt/dns_boot/*.log
+mqtt/dns_boot/*.err
+web_server/churnmix/*.json
+web_server/churnmix/evbody.txt
+web_server/churnmix/ext/components/https_test/certs.h
 ble_conn_interval/*.jsonl
 ble_conn_interval/*.err
 ble_conn_interval/*.log
