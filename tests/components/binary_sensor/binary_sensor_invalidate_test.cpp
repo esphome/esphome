@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 
+#include <string>
+
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/components/binary_sensor/filter.h"
 #include "esphome/core/application.h"
@@ -127,30 +129,50 @@ TEST(BinarySensorInvalidate, AutorepeatResetFromItsOwnOutputStopsTheRepeat) {
   EXPECT_FALSE(sensor.has_state());
 }
 
+// A pending output in the first, middle or last filter is dropped
 TEST(BinarySensorInvalidate, EveryFilterInTheChainIsReset) {
-  BinarySensor sensor;
-  InvertFilter invert;
-  DelayedOnFilter delayed_on;
-  delayed_on.set_delay([]() -> uint32_t { return 10; });
-  sensor.add_filter(&invert);
-  sensor.add_filter(&delayed_on);
-  sensor.publish_state(false);
-  sensor.invalidate_state();
-  run_scheduler_after(30);
-  EXPECT_FALSE(sensor.has_state());
+  for (int pending = 0; pending < 3; pending++) {
+    BinarySensor sensor;
+    InvertFilter inverts[3];
+    DelayedOnFilter delayed_on;
+    delayed_on.set_delay([]() -> uint32_t { return 10; });
+    for (int i = 0; i < 3; i++)
+      sensor.add_filter(i == pending ? static_cast<Filter *>(&delayed_on) : &inverts[i]);
+    // Send the value that reaches the delay as true, so it holds an output
+    sensor.publish_state(pending == 1 ? false : true);
+    sensor.invalidate_state();
+    run_scheduler_after(30);
+    EXPECT_FALSE(sensor.has_state()) << "pending in filter " << pending;
+  }
 }
 
-TEST(BinarySensorInvalidate, ValuesPassEveryFilterBeforeTheSensor) {
+// Records its id and passes the value on
+class RecordingFilter : public Filter {
+ public:
+  RecordingFilter(std::string *log, char id) : log_(log), id_(id) {}
+  optional<bool> new_value(bool value) override {
+    *this->log_ += this->id_;
+    return value;
+  }
+
+ protected:
+  std::string *log_;
+  char id_;
+};
+
+TEST(BinarySensorInvalidate, ValuesPassEveryFilterInOrderBeforeTheSensor) {
   BinarySensor sensor;
-  InvertFilter first;
-  InvertFilter second;
-  InvertFilter third;
+  std::string log;
+  RecordingFilter first(&log, '1');
+  RecordingFilter second(&log, '2');
+  RecordingFilter third(&log, '3');
   sensor.add_filter(&first);
   sensor.add_filter(&second);
   sensor.add_filter(&third);
   sensor.publish_state(true);
+  EXPECT_EQ(log, "123");
   ASSERT_TRUE(sensor.has_state());
-  EXPECT_FALSE(sensor.state);
+  EXPECT_TRUE(sensor.state);
 }
 
 }  // namespace esphome::binary_sensor::testing

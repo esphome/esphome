@@ -70,12 +70,13 @@ TEST_F(TextFilterTest, TimeoutSendsTheConfiguredValue) {
 }
 
 TEST_F(TextFilterTest, EveryFilterRunsInOrderThenTheSensorGetsTheValue) {
-  PrependFilter prepend("<");
-  AppendFilter append(">");
+  // Each step only gives this result in this order, and only if none is skipped
+  AppendFilter append_b("b");
   ToUpperFilter upper;
-  this->sensor_.add_filters({&prepend, &append, &upper});
+  AppendFilter append_c("c");
+  this->sensor_.add_filters({&append_b, &upper, &append_c});
   this->sensor_.publish_state("a");
-  EXPECT_EQ(this->seen_, (std::vector<std::string>{"<A>"}));
+  EXPECT_EQ(this->seen_, (std::vector<std::string>{"ABc"}));
 }
 
 // A timeout that is not the last filter sends its value on through the rest of the chain
