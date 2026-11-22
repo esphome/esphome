@@ -3070,7 +3070,7 @@ GIT_SCHEMA = Schema(
         Required(CONF_URL): url,
         Optional(CONF_REF): git_ref,
         Optional(CONF_USERNAME): string,
-        Optional(CONF_PASSWORD): string,
+        Optional(CONF_PASSWORD): sensitive(string),
         Optional(CONF_PATH): string,
     }
 )

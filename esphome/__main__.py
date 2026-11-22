@@ -1718,7 +1718,7 @@ def command_config(args: ArgsProtocol, config: ConfigType) -> int | None:
 # Redact the secret-shaped ones by name. The lookahead skips values that already
 # render themselves: ``\033[8m`` (SensitiveStr wrap), ``!secret`` and ``!lambda``.
 _SUBSTITUTION_REDACTION_RE = re.compile(
-    r"^(?P<prefix>\s+(?:\w+_)?(?:password|key|psk|ssid)): "
+    r"^(?P<prefix>[\s-]+(?:\w+_)?(?:password|key|psk|ssid)): "
     r"(?!\\033\[8m|!secret\b|!lambda\b)(?P<val>.+)"
 )
 

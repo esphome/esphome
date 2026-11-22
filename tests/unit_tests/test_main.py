@@ -391,16 +391,21 @@ def mock_ram_strings_analyzer() -> Generator[Mock]:
             id="public_substitution_still_redacted",
         ),
         pytest.param(
+            "substitutions:\n  hosts:\n    - password: hunter2\n",
+            "substitutions:\n  hosts:\n    - password: \\033[8mhunter2\\033[28m\n",
+            id="list_item_substitution_redacted",
+        ),
+        pytest.param(
             "substitutions:\n  monkey: 1\n  key_value_pair: 2\n",
             "substitutions:\n  monkey: 1\n  key_value_pair: 2\n",
             id="fragment_not_a_whole_name_segment",
         ),
         pytest.param(
             "substitutions:\n  password: !secret wifi_password\n"
-            "  key: \\033[8mx\\033[28m\n",
+            "  key: \\033[8mx\\033[28m\n  psk: !lambda return x;\n",
             "substitutions:\n  password: !secret wifi_password\n"
-            "  key: \\033[8mx\\033[28m\n",
-            id="secret_reference_and_wrapped_value_unchanged",
+            "  key: \\033[8mx\\033[28m\n  psk: !lambda return x;\n",
+            id="secret_reference_wrapped_value_and_lambda_unchanged",
         ),
         pytest.param(
             "substitutions:\n  name: x\nmqtt:\n  password: hunter2\n",
