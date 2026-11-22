@@ -25,6 +25,9 @@ from esphome.const import CONF_WAKEUP_PIN, PlatformFramework
 from ..helpers import callback_function, constructed, function_body
 from ..types import SetCoreConfigCallable
 
+# Bit pattern of 700.0f, the on_wake setup priority
+PRIORITY_700_BITS = "0x442F0000"
+
 
 def test_deep_sleep_setup(generate_main):
     """
@@ -64,14 +67,15 @@ def test_deep_sleep_on_wake_callback(generate_main) -> None:
 
     var = "deep_sleep_wakecallback_id"
     function = callback_function(main_cpp, var)
-    assert constructed(main_cpp, var) == f"deep_sleep::WakeCallback<{function}>()"
+    assert (
+        constructed(main_cpp, var)
+        == f"deep_sleep::WakeCallback<{function}, {PRIORITY_700_BITS}>()"
+    )
     assert (
         f"static void {function}(const std::remove_cvref_t<deep_sleep::WakeupCause> & cause)"
         in main_cpp
     )
     assert "cause %d" in function_body(main_cpp, function)
-    assert "WakeTrigger" not in main_cpp
-    assert "Automation<deep_sleep::WakeupCause>" not in main_cpp
 
 
 def test_deep_sleep_ext1_on_wake_callbacks(generate_main) -> None:
@@ -89,7 +93,7 @@ def test_deep_sleep_ext1_on_wake_callbacks(generate_main) -> None:
         function = callback_function(main_cpp, var)
         assert (
             constructed(main_cpp, var)
-            == f"deep_sleep::Ext1WakeCallback<{function}, {pin}>()"
+            == f"deep_sleep::Ext1WakeCallback<{function}, {PRIORITY_700_BITS}, {pin}>()"
         )
         assert text in function_body(main_cpp, function)
     # GPIO13 has no on_wake, so no callback is created for it

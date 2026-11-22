@@ -282,6 +282,10 @@ WakeupCause = deep_sleep_ns.enum("WakeupCause")
 WakeCallback = deep_sleep_ns.class_("WakeCallback", cg.Component)
 Ext1WakeCallback = deep_sleep_ns.class_("Ext1WakeCallback", cg.Component)
 
+# Between restoring globals (HARDWARE, 800) and on_boot at its default (600), so on_wake
+# can update state that on_boot then uses
+ON_WAKE_SETUP_PRIORITY = 700.0
+
 CONF_ON_WAKE = "on_wake"
 CONF_WAKEUP_PIN_MODE = "wakeup_pin_mode"
 CONF_ESP32_EXT1_WAKEUP = "esp32_ext1_wakeup"
@@ -437,7 +441,10 @@ async def to_code(config: ConfigType) -> None:
             mask |= 1 << number
             for wake_conf in pin_conf.get(CONF_ON_WAKE, []):
                 await automation.build_component_automation(
-                    wake_conf, Ext1WakeCallback, template_args=[number]
+                    wake_conf,
+                    Ext1WakeCallback,
+                    ON_WAKE_SETUP_PRIORITY,
+                    template_args=[number],
                 )
                 cg.add_define("USE_DEEP_SLEEP_ON_WAKE")
         struct = cg.StructInitializer(
@@ -447,7 +454,10 @@ async def to_code(config: ConfigType) -> None:
 
     for wake_conf in config.get(CONF_ON_WAKE, []):
         await automation.build_component_automation(
-            wake_conf, WakeCallback, args=[(WakeupCause, "cause")]
+            wake_conf,
+            WakeCallback,
+            ON_WAKE_SETUP_PRIORITY,
+            args=[(WakeupCause, "cause")],
         )
         cg.add_define("USE_DEEP_SLEEP_ON_WAKE")
 

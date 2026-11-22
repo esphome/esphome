@@ -1,6 +1,6 @@
 #pragma once
 
-#include "esphome/core/automation.h"
+#include "esphome/core/base_automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
@@ -83,16 +83,8 @@ inline bool woke_from_deep_sleep() { return get_wakeup_cause() != WAKEUP_CAUSE_N
 
 #ifdef USE_DEEP_SLEEP_ON_WAKE
 
-/** Setup priority of on_wake triggers.
- *
- * Between restoring global variables (setup_priority::HARDWARE, 800) and on_boot automations at
- * their default priority (600), so on_wake automations can update state (e.g. globals) that
- * on_boot automations then use.
- */
-inline constexpr float ON_WAKE_TRIGGER_SETUP_PRIORITY = 700.0f;
-
 /// Calls Fn once on boot when the device woke from deep sleep, with the wakeup cause.
-template<auto Fn> class WakeCallback final : public Component {
+template<auto Fn, uint32_t PRIORITY_BITS> class WakeCallback final : public PriorityComponent<PRIORITY_BITS> {
  public:
   void setup() override {
     const WakeupCause cause = get_wakeup_cause();
@@ -100,19 +92,18 @@ template<auto Fn> class WakeCallback final : public Component {
       Fn(cause);
     }
   }
-  float get_setup_priority() const override { return ON_WAKE_TRIGGER_SETUP_PRIORITY; }
 };
 
 #if defined(USE_ESP32) && SOC_PM_SUPPORT_EXT1_WAKEUP
 /// Calls Fn once on boot when the device was woken from deep sleep by ext1 pin PIN.
-template<auto Fn, uint8_t PIN> class Ext1WakeCallback final : public Component {
+template<auto Fn, uint32_t PRIORITY_BITS, uint8_t PIN>
+class Ext1WakeCallback final : public PriorityComponent<PRIORITY_BITS> {
  public:
   void setup() override {
     if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_EXT1 && (esp_sleep_get_ext1_wakeup_status() & (1ULL << PIN))) {
       Fn();
     }
   }
-  float get_setup_priority() const override { return ON_WAKE_TRIGGER_SETUP_PRIORITY; }
 };
 #endif
 
