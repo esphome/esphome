@@ -27,11 +27,10 @@ DEPENDENCIES = ["uponor_smatrix"]
 UponorSmatrixSensor = uponor_smatrix_ns.class_(
     "UponorSmatrixSensor",
     sensor.Sensor,
-    cg.Component,
     UponorSmatrixDevice,
 )
 
-CONFIG_SCHEMA = cv.COMPONENT_SCHEMA.extend(
+CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(UponorSmatrixSensor),
         cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
@@ -64,7 +63,6 @@ CONFIG_SCHEMA = cv.COMPONENT_SCHEMA.extend(
 
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
     await register_uponor_smatrix_device(var, config)
 
     sensors = sensor.sub_sensors(config)
