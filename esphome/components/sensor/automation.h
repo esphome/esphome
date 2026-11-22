@@ -6,7 +6,7 @@
 
 namespace esphome::sensor {
 
-/// on_value_range: runs fire_() when the state enters the range; the in-range state is saved.
+/// on_value_range: runs fire() when the state enters the range; the in-range state is saved.
 class ValueRangeBase : public Component {
  public:
   /// range is generated: it returns the bounds for the state x.
@@ -24,7 +24,7 @@ class ValueRangeBase : public Component {
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
 
  protected:
-  virtual void fire_(float x) = 0;
+  virtual void fire(float x) = 0;
 
   void on_state_(float state) {
     if (std::isnan(state))
@@ -32,7 +32,7 @@ class ValueRangeBase : public Component {
 
     bool in_range = this->range_(state).contains(state, this->previous_in_range_);
     if (in_range != this->previous_in_range_ && in_range) {
-      this->fire_(state);
+      this->fire(state);
     }
 
     this->previous_in_range_ = in_range;
@@ -51,7 +51,7 @@ template<auto Fn> class ValueRangeCallback final : public ValueRangeBase {
   using ValueRangeBase::ValueRangeBase;
 
  protected:
-  void fire_(float x) override { Fn(x); }
+  void fire(float x) override { Fn(x); }
 };
 
 }  // namespace esphome::sensor

@@ -30,7 +30,7 @@ void ValueRangeBase::on_state_(float state) {
   bool in_range = this->range_(state).contains(state, this->previous_in_range_);
 
   if (in_range != this->previous_in_range_ && in_range) {
-    this->fire_(state);
+    this->fire(state);
   }
 
   this->previous_in_range_ = in_range;
