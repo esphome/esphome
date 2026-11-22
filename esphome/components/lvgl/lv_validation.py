@@ -369,6 +369,8 @@ def format_buffer_size(fmt: str) -> int | None:
 
 def _format_buffer(format_str: str, buf_size: int, arg_expr: Expression) -> MockObj:
     """Format into a stack buffer declared in the current code context and return the buffer."""
+    # Safe until the action ends: LVGL text setters copy the text, and canvas draw_text and
+    # qrcode read it within the block that declares the buffer
     from .lvcode import lv_add
 
     buf = MockObj(next_text_buffer_name())
@@ -379,6 +381,11 @@ def _format_buffer(format_str: str, buf_size: int, arg_expr: Expression) -> Mock
         )
     )
     return buf
+
+
+def text_needs_owner(text: Expression) -> bool:
+    """Whether a processed text points into a temporary std::string that must be kept alive."""
+    return ".c_str()" in str(text)
 
 
 class TextValidator(LValidator):
@@ -397,7 +404,12 @@ class TextValidator(LValidator):
         raw_lambda: bool = False,
     ) -> Expression:
         # Local import to avoid circular import at module level
-        from .lvcode import CodeContext, get_lambda_context_args
+        from .lvcode import (
+            CodeContext,
+            LambdaContext,
+            LvContext,
+            get_lambda_context_args,
+        )
 
         args = args or get_lambda_context_args()
 
@@ -407,10 +419,15 @@ class TextValidator(LValidator):
                 arg_expr = cg.RawExpression(",".join(str_args))
                 format_str = cpp_string_escape(fmt)
                 buf_size = format_buffer_size(fmt)
-                if buf_size is not None and CodeContext.code_context is not None:
+                ctx = CodeContext.code_context
+                # Setup code is one long function, so a buffer there would hold its stack throughout
+                if (
+                    buf_size is not None
+                    and isinstance(ctx, LambdaContext)
+                    and not isinstance(ctx, LvContext)
+                ):
                     text = _format_buffer(format_str, buf_size, arg_expr)
                 else:
-                    # A format without a size bound, or no code block to declare a buffer in
                     text = literal(f"str_sprintf({format_str}, {arg_expr}).c_str()")
                 if nanval := value.get(CONF_IF_NAN):
                     nanval = cpp_string_escape(nanval)

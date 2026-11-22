@@ -59,6 +59,7 @@ from ..lv_validation import (
     pixels,
     pixels_or_percent,
     size,
+    text_needs_owner,
 )
 from ..lvcode import LocalVariable, lv, lv_assign, lv_expr
 from ..schemas import STYLE_PROPS, TEXT_SCHEMA, point_schema, remap_property
@@ -200,10 +201,9 @@ async def _drawn_text(text: Any) -> tuple[Any, Any]:
     const reference; a choice that may hold one (``if_nan:`` with a heap format) is copied into a local.
     """
     value = await lv_text.process(text)
-    code = str(value)
-    if ".c_str()" not in code:
+    if not text_needs_owner(value):
         return value, nullcontext()
-    if code.endswith(".c_str()"):
+    if (code := str(value)).endswith(".c_str()"):
         return None, LocalVariable(
             "text", "const std::string", MockObj(code[: -len(".c_str()")]), modifier="&"
         )
