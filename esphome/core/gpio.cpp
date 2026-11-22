@@ -40,4 +40,11 @@ void pulse_reset_ms(GPIOPin *pin, uint32_t high_before_ms, uint32_t low_ms, uint
 }
 }  // namespace internal
 
+void setup_output_pin(GPIOPin *pin, bool level) {
+  if (pin == nullptr)
+    return;
+  pin->setup();
+  pin->digital_write(level);
+}
+
 }  // namespace esphome

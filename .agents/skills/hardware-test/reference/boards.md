@@ -363,13 +363,14 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
   adafruit-nrfutil, GPREGRET 0x57 works. The running app enumerates as `1915:CAFE` or `239A:0029`. RGB LED
   active low (red P0.23, green P0.22, blue P0.24), button P0.18.
 - Both boards reflash without a button once they run a `dfu: true` build: `esphome upload --device <any app CDC
-  port>` on the PCA10059, a 1200 bps open of the log port plus a copy of `zephyr.uf2` to the volume on the ItsyBitsy.
+  port>` on the PCA10059, a 1200 bps open of the log port plus serial DFU on the ItsyBitsy (`recipes/nrf52.md`).
 - Adafruit ItsyBitsy nRF52840 Express (UF2 bootloader 0.9.0 with S140 6.1.1, bootloader port `239a:0051` plus an
   `ITSY840BOOT` volume): the board DTS already has `cdc_acm_uart0`, so the logger port is the first CDC
   port and a `usb_cdc_acm` interface 1 the second. A `dfu: true` build enters the bootloader on the
   1200 bps touch (an app without it needs a double tap on RESET); `adafruit-nrfutil` over the bootloader
-  serial port can fail, copying `.pioenvs/<name>/zephyr/zephyr.uf2` to the volume works (the copy reports
-  an I/O error as the board reboots, which is normal). Reboot a running `dfu: true` app with a 2001 bps touch.
+  serial port can fail; `nordicsemi dfu serial ... --singlebank` from the sdk-nrf Python works. Where the volume
+  accepts copies, copying `.pioenvs/<name>/zephyr/zephyr.uf2` works too (the copy reports an I/O error as the board
+  reboots, which is normal). Reboot a running `dfu: true` app with a 2001 bps touch.
 - The PCA10059 board DTS already defines a `cdc_acm_uart` node, so every ESPHome CDC port is one USB port
   later than its number (log on `cdc_acm_uart0` is the second port). A third CDC instance needs
   `CONFIG_USB_MAX_NUM_TRANSFERS` above 4 or it never moves data (see `recipes/usb_cdc_acm.md`).
@@ -424,6 +425,14 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
 - `dns-sd -L <name> _meshcop._udp local.` shows the `omr` prefix; it disappears when routing is dead.
   Keep one capture per chip; never reset the H2 over USB mid-test unless that is the test (the host
   logs `Unexpected RCP reset: RESET_OTHER` and recovers).
+- Some units ship with Espressif's factory `esp_ot_br` on the S3 (`CONFIG_AUTO_UPDATE_RCP`), which reflashes the H2
+  with its own old RCP over UART at every S3 boot: a fresh ot_rcp is overwritten and the H2 drops off USB mid flash.
+  Flash ESPHome to the S3 first, then the H2. An ESPHome S3 with an old RCP crash loops on
+  `ot_spinel_compatibility_error_callback`; a tiny S3 image that drives GPIO7 (RCP reset) and GPIO8 high stops that,
+  but the H2 can still need a USB replug.
+- ot_rcp from IDF 6.1.1 builds with the recipe above plus `ESP_IDF_VERSION=6.1` in the environment (the component
+  manager crashes without it) and the riscv toolchain `esp-15.2.0_20251204`.
+- Without the Ethernet sub-board the W5500 pins (clk 21, mosi 45, miso 38, cs 41, int 39, rst 40) read version 0x00.
 
 ## Building against a patched LibreTiny
 
@@ -546,7 +555,10 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
   It ships with a Seeed demo.
 - Flash with `esphome run` (pyOCD, MCUboot plus the signed app). A plain `esphome upload` flashed only the bare app
   on #22599, and the board stayed dark.
-- Reset: `<sdk-nrf python> -m pyocd reset -t nrf54lm20a -u <probe id>`.
+- Reset: `<sdk-nrf python> -m pyocd reset -t nrf54lm20a -u <probe id> -m sw`. `-m hw` does nothing on this board
+  (the SAMD11 probe has no working nRESET line); a power on or pin reset needs a person.
+- The settings backend is ZMS since #22840; ZMS data in the settings partition makes an older NVS build hang at boot
+  (`recipes/zephyr.md`).
 - nPM1300 PMIC at 0x6B on P1.18 (SDA) and P1.17 (SCL) (#22661; `i2c:` builds on i2c21 at 100 kHz). Per the upstream
   Zephyr board files, BUCK2 supplies VSYS_3V3, the nRF54 and the SAMD11 USB debugger: never switch it off (there is no
   way back without a power cycle, and the probe dies with it). LDO1 feeds the IMU and microphone (3.3 V, LDO mode) and
