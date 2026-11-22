@@ -49,6 +49,10 @@ template<typename Next, typename Owner> class ChainLink {
 
 /// Base for a node of a ChainLink chain: holds the link and finds the chain's owner.
 template<typename Node, typename Owner> class ChainNode {
+  // Only Node can be built on this base
+  friend Node;
+  ChainNode() = default;
+
  protected:
   /// Only for a chain that ends in its owner.
   Node *chain_last_() {
