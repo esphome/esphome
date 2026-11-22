@@ -295,17 +295,22 @@ void MQGasSensor::update() {
                                      ? mqmath::ppm_at_infinity(this->a_, this->b_, this->regression_method_)
                                      : mqmath::ppm_from_ratio(this->a_, this->b_, rail_ratio, this->regression_method_);
     this->rs_ = 0.0f;
-    this->ratio_ = saturation_ppm >= this->max_ppm_ ? 0.0f : NAN;
+    this->ratio_ = std::isfinite(saturation_ppm) ? rail_ratio : NAN;
 
-    if (!(saturation_ppm >= this->max_ppm_)) {
+    // The rail limit is clamped like a normal reading: a curve at the top of the
+    // range reports the ceiling, one with a positive correction offset reports its
+    // finite value there. Only a curve with no usable value - zero, or not
+    // evaluable - is reported as unknown.
+    const float ppm = mqmath::clamp_ppm(saturation_ppm, this->min_ppm_, this->max_ppm_);
+    if (!std::isfinite(ppm) || ppm <= 0.0f) {
       if (!this->warned_unusable_ratio_) {
         this->warned_unusable_ratio_ = true;
         this->log_message_(LOG_SEVERITY_WARN,
-                           LOG_STR("V=%.4f V is at the supply, but the configured curve does not reach its "
-                                   "maximum there - publishing unknown"),
+                           LOG_STR("V=%.4f V is at the supply, but the configured curve has no value there - "
+                                   "publishing unknown"),
                            this->sensor_voltage_);
       }
-      this->status_set_warning(LOG_STR("the input is saturated, but the curve has no top there"));
+      this->status_set_warning(LOG_STR("the input is saturated, but the curve has no value there"));
       this->publish_diagnostics_();
       this->publish_state(NAN);
       return;
@@ -313,13 +318,13 @@ void MQGasSensor::update() {
 
     // A ratio fault from an earlier update is over: this is a valid reading.
     this->clear_ratio_warning_();
-    this->log_reading_(this->max_ppm_);
-    this->warn_ceiling_(this->max_ppm_);
+    this->log_reading_(ppm);
+    this->warn_ceiling_(ppm);
     this->log_message_(LOG_SEVERITY_DEBUG,
                        LOG_STR("V=%.4f V is at the supply - the sensor is saturated, reporting the top of the range"),
                        this->sensor_voltage_);
     this->publish_diagnostics_();
-    this->publish_state(this->max_ppm_);
+    this->publish_state(ppm);
     return;
   }
 
