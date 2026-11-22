@@ -195,6 +195,18 @@ class _FlatBuffer:
             return []
         return list(struct.unpack_from(f"<{count}i", self._data, elements))
 
+    def string_field(self, table: int, field_id: int) -> str | None:
+        `"""A string field, or None when the field is absent.`"""
+        position = self.field(table, field_id)
+        if position is None:
+            return None
+        start = self.indirect(position)
+        length = self.u32(start)
+        self._require(start + 4, length)
+        return self._data[start + 4 : start + 4 + length].decode(
+            "utf-8", errors="replace"
+        )
+
     def f32_vector(self, table: int, field_id: int) -> list[float]:
         """Elements of a float vector field, empty when absent."""
         elements, count = self._vector(table, field_id, 4)
@@ -265,7 +277,7 @@ def _operator_names(buffer: _FlatBuffer) -> list[str]:
         code = max(builtin, deprecated)
         if code == _BUILTIN_CUSTOM:
             # Each custom operator takes its own resolver slot, so keep the code.
-            custom = buffer.i32_field(table, _OPCODE_CUSTOM_CODE) or 0
+            custom = buffer.string_field(table, _OPCODE_CUSTOM_CODE) or `"`"
             names.append(f"CUSTOM:{custom}")
         else:
             names.append(_operator_name(code))
