@@ -8,6 +8,7 @@
 #include <cmath>
 #include <cstring>
 #include <span>
+#include <string>
 
 namespace esphome::toptronic {
 
@@ -655,19 +656,21 @@ void TopTronic::log_debug_frame(uint32_t can_id, const uint8_t *data, size_t len
 
 void TopTronic::dump_config() {
   // The setters clamp these to the build-wide limits, so this prints what actually applies
-  ESP_LOGCONFIG(TAG, "TopTronic:");
-  ESP_LOGCONFIG(TAG, "  Device: 0x%04X (type 0x%04X, address 0x%02X)", (unsigned) this->device_id_,
-                (unsigned) (this->device_id_ & ~DEVICE_ADDR_MASK), (unsigned) (this->device_id_ & DEVICE_ADDR_MASK));
-  ESP_LOGCONFIG(TAG, "  Sensors: %zu, inputs: %zu", this->sensors_.size(), this->inputs_.size());
-  ESP_LOGCONFIG(TAG, "  Max pending messages: %u", (unsigned) this->max_pending_messages_);
-  ESP_LOGCONFIG(TAG, "  Max frames per message: %u", (unsigned) this->max_frames_per_message_);
-  ESP_LOGCONFIG(TAG, "  Max pending age: %u ms", (unsigned) this->max_pending_age_ms_);
-  ESP_LOGCONFIG(TAG, "  Write safety: min SET interval %" PRIu32 " ms, reject writes before read: %s",
-                this->write_min_interval_ms_, YESNO(this->reject_writes_before_read_));
   ESP_LOGCONFIG(TAG,
+                "TopTronic:\n"
+                "  Device: 0x%04X (type 0x%04X, address 0x%02X)\n"
+                "  Sensors: %zu, inputs: %zu\n"
+                "  Max pending messages: %u\n"
+                "  Max frames per message: %u\n"
+                "  Max pending age: %u ms\n"
+                "  Write safety: min SET interval %" PRIu32 " ms, reject writes before read: %s\n"
                 "  Refresh: boot delay %" PRIu32 " ms, one GET every %" PRIu32 " ms, %u retries after %" PRIu32 " ms",
-                this->boot_refresh_delay_ms_, this->refresh_interval_ms_, this->max_refresh_retries_,
-                this->refresh_retry_interval_ms_);
+                (unsigned) this->device_id_, (unsigned) (this->device_id_ & ~DEVICE_ADDR_MASK),
+                (unsigned) (this->device_id_ & DEVICE_ADDR_MASK), this->sensors_.size(), this->inputs_.size(),
+                (unsigned) this->max_pending_messages_, (unsigned) this->max_frames_per_message_,
+                (unsigned) this->max_pending_age_ms_, this->write_min_interval_ms_,
+                YESNO(this->reject_writes_before_read_), this->boot_refresh_delay_ms_, this->refresh_interval_ms_,
+                this->max_refresh_retries_, this->refresh_retry_interval_ms_);
 #ifdef USE_SWITCH
   LOG_SWITCH("  ", "CAN dump", this->debug_switches_[DEBUG_LOG_CANDUMP]);
   LOG_SWITCH("  ", "Find CAN id", this->debug_switches_[DEBUG_LOG_FIND_CAN_ID]);
@@ -774,7 +777,7 @@ bool TopTronic::parse_frame_(const uint8_t *data, size_t size, uint32_t can_id, 
 // [3..4] datapoint, [5..] value (0x56 value starts at [7]).
 void TopTronic::interpret_message_(const uint8_t *data, size_t len) {
   if (len < MIN_MESSAGE_LEN) {
-    ESP_LOGD(TAG, "Message too short (%zu bytes), ignoring", len);
+    ESP_LOGV(TAG, "Message too short (%zu bytes), ignoring", len);
     return;
   }
   // GET and SET requests sent by the device carry nothing to publish
@@ -784,12 +787,12 @@ void TopTronic::interpret_message_(const uint8_t *data, size_t len) {
     return;
   }
   if (data[0] != RESPONSE && data[0] != RESPONSE_EXT) {
-    ESP_LOGD_HEX(TAG, data, len, MAX_MESSAGE_LEN, "[UNK] dev 0x%04X Data: %s", this->device_id_);
+    ESP_LOGV_HEX(TAG, data, len, MAX_MESSAGE_LEN, "[UNK] dev 0x%04X Data: %s", this->device_id_);
     return;
   }
   const size_t value_off = data[0] == RESPONSE_EXT ? 7 : MIN_MESSAGE_LEN;
   if (len < value_off) {
-    ESP_LOGD(TAG, "Response without value bytes (%zu bytes), ignoring", len);
+    ESP_LOGV(TAG, "Response without value bytes (%zu bytes), ignoring", len);
     return;
   }
   const uint16_t datapoint = encode_uint16(data[3], data[4]);
@@ -813,7 +816,7 @@ void TopTronic::interpret_message_(const uint8_t *data, size_t len) {
   sensor_base->mark_read();
   if (this->refresh_in_progress_)
     this->remove_refresh_entry_(sensor_base);
-  ESP_LOGD_HEX(TAG, data, len, MAX_MESSAGE_LEN, "[RES] %s Data: %s", LOG_STR_ARG(sensor_base->get_log_name()));
+  ESP_LOGV_HEX(TAG, data, len, MAX_MESSAGE_LEN, "[RES] %s Data: %s", LOG_STR_ARG(sensor_base->get_log_name()));
   if (sensor_base->type() == SensorType::SENSOR_TYPE_SENSOR) {
     auto *sensor = static_cast<TopTronicSensor *>(sensor_base);
     sensor->publish_state(sensor->parse_value(data + value_off, required_value_len));
