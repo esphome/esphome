@@ -1,0 +1,50 @@
+esphome:
+  name: lvgl-canvas-text
+  # The test adds AddressSanitizer flags here on Linux
+  build_flags: []
+host:
+
+api:
+  actions:
+    - action: draw_text
+      variables:
+        message: string
+      then:
+        - lvgl.canvas.draw_text:
+            id: text_canvas
+            x: 0
+            y: 0
+            max_width: 120
+            color: 0xFFFFFF
+            # Names the action variable, so the lambda runs on its own copy and returns a
+            # temporary std::string that must outlive the layer
+            text: !lambda return message.c_str();
+    - action: take_screenshot
+      variables:
+        name: string
+      then:
+        - snapshot.take:
+            id: text_display
+            filename: !lambda return name;
+
+logger:
+  level: DEBUG
+
+display:
+  - platform: snapshot
+    id: text_display
+    auto_clear_enabled: false
+    dimensions:
+      width: 120
+      height: 40
+
+lvgl:
+  displays: text_display
+  default_font: montserrat_14
+  widgets:
+    - canvas:
+        id: text_canvas
+        width: 120
+        height: 40
+        bg_color: 0x000000
+        bg_opa: cover
