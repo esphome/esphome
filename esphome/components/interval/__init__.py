@@ -7,10 +7,6 @@ from esphome.types import ConfigType
 CODEOWNERS = ["@esphome/core"]
 DOMAIN = "interval"
 interval_ns = cg.esphome_ns.namespace("interval")
-IntervalTrigger = interval_ns.class_(
-    "IntervalTrigger", automation.Trigger.template(), cg.PollingComponent
-)
-DelayedIntervalTrigger = interval_ns.class_("DelayedIntervalTrigger", IntervalTrigger)
 IntervalCallback = interval_ns.class_("IntervalCallback", cg.PollingComponent)
 DelayedIntervalCallback = interval_ns.class_(
     "DelayedIntervalCallback", IntervalCallback
@@ -19,7 +15,7 @@ DelayedIntervalCallback = interval_ns.class_(
 CONFIG_SCHEMA = automation.validate_automation(
     cv.Schema(
         {
-            cv.GenerateID(): cv.declare_id(IntervalTrigger),
+            cv.GenerateID(): cv.declare_id(IntervalCallback),
             cv.Optional(
                 CONF_STARTUP_DELAY, default="0s"
             ): cv.positive_time_period_milliseconds,
@@ -33,8 +29,6 @@ async def to_code(config: list[ConfigType]) -> None:
     for conf in config:
         # Cut to 32 bits, as the uint32_t setter always did
         if startup_delay := conf[CONF_STARTUP_DELAY].total_milliseconds & 0xFFFFFFFF:
-            # A hand-set id keeps the trigger, which takes the delay in its constructor
-            conf[CONF_ID].type = DelayedIntervalTrigger
             component_class, template_args = DelayedIntervalCallback, [startup_delay]
         else:
             component_class, template_args = IntervalCallback, []

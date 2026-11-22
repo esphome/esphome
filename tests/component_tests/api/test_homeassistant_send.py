@@ -97,7 +97,7 @@ def test_action_then_log(main_cpp: str) -> None:
     on_boot calls the merged function directly, with no Automation and nothing that can stop it.
     """
     assert "automation_id->add_action" not in main_cpp
-    startup = static_function_body(main_cpp, "esphome__startuptrigger_id__fn")
+    startup = static_function_body(main_cpp, "esphome__startupcallback_id__fn")
     assert startup.strip() == "esphome__applyaction_id__fn();"
     body = static_function_body(main_cpp, "esphome__applyaction_id__fn")
     assert body.index(f"{SEND}false, ::ha_action_fields,") < body.index(

@@ -30,21 +30,25 @@ def _callback(var: str, startup_delay: int = 0) -> str:
 @pytest.mark.parametrize(
     ("var", "expected", "update_interval"),
     [
-        ("interval_intervaltrigger_id", _callback("interval_intervaltrigger_id"), 1000),
         (
-            "interval_intervaltrigger_id_2",
-            _callback("interval_intervaltrigger_id_2", 5000),
+            "interval_intervalcallback_id",
+            _callback("interval_intervalcallback_id"),
+            1000,
+        ),
+        (
+            "interval_intervalcallback_id_2",
+            _callback("interval_intervalcallback_id_2", 5000),
             2000,
         ),
         (
-            "interval_intervaltrigger_id_3",
-            _callback("interval_intervaltrigger_id_3"),
+            "interval_intervalcallback_id_3",
+            _callback("interval_intervalcallback_id_3"),
             3000,
         ),
-        ("named_interval", "interval::DelayedIntervalTrigger(3000)", 4000),
+        ("named_interval", _callback("named_interval", 3000), 4000),
         (
-            "interval_intervaltrigger_id_4",
-            _callback("interval_intervaltrigger_id_4"),
+            "interval_intervalcallback_id_4",
+            _callback("interval_intervalcallback_id_4"),
             5000,
         ),
     ],
@@ -59,20 +63,20 @@ def test_interval_constructed(
 
 def test_interval_delay_triggers_automation(main_cpp: str) -> None:
     """A delay keeps the Automation of separate actions, which the function triggers."""
-    delayed_automation(main_cpp, "esphome__interval_intervaltrigger_id_3__fn")
+    delayed_automation(main_cpp, "esphome__interval_intervalcallback_id_3__fn")
 
 
 def test_interval_registration_order(main_cpp: str) -> None:
     """Intervals register in config order; one waiting for a later id keeps its place."""
     registered = re.findall(r"App\.register_component_\((\w+), \d+\);", main_cpp)
     assert registered[-6:] == [
-        "interval_intervaltrigger_id",
-        "interval_intervaltrigger_id_2",
-        "interval_intervaltrigger_id_3",
+        "interval_intervalcallback_id",
+        "interval_intervalcallback_id_2",
+        "interval_intervalcallback_id_3",
         "named_interval",
-        "interval_intervaltrigger_id_4",
+        "interval_intervalcallback_id_4",
         "some_sensor",
     ]
     assert main_cpp.index(
-        "App.register_component_(interval_intervaltrigger_id_4"
+        "App.register_component_(interval_intervalcallback_id_4"
     ) < main_cpp.index("new(later_script)")

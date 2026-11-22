@@ -2220,23 +2220,16 @@ async def build_component_automation(
     *,
     id_key: str = CONF_TRIGGER_ID,
     template_args: Sequence[SafeExpType] = (),
+    args: TemplateArgsType | None = None,
 ) -> MockObj:
     """Create and register ``component_class<function[, priority bits], *template_args>``,
-    whose function runs the actions of a no-argument automation.
-
-    An id under ``id_key`` set by hand keeps its Trigger, built with ``priority`` if given and
-    ``template_args`` as constructor arguments.
+    whose function takes ``args`` and runs the automation's actions; ``config[id_key]`` names it.
     """
+    args = args or []
     trigger_id: ID = config[id_key]
-    priority_list = [] if priority is None else [priority]
-    if trigger_id.is_manual:
-        var = cg.new_Pvariable(trigger_id, *priority_list, *template_args)
-        await cg.register_component(var, config)
-        await build_automation(var, [], config)
-        return var
     # Declared and registered before the actions are built, which can wait for other ids
     name = _apply_function_name(trigger_id)
-    define = cg.declare_static_function(name, cg.void, [])
+    define = cg.declare_static_function(name, cg.void, _apply_params(args))
     id_ = trigger_id.copy()
     id_.type = component_class
     bits = [] if priority is None else [_float_bits(priority)]
@@ -2244,8 +2237,9 @@ async def build_component_automation(
         id_, cg.TemplateArguments(cg.RawExpression(name), *bits, *template_args)
     )
     await cg.register_component(var, config)
-    plan = await _build_automation_plan([], config)
-    define([str(cg.statement(CallExpression(_call_target(plan, [], config))))])
+    plan = await _build_automation_plan(args, config)
+    target = _call_target(plan, args, config)
+    define([str(cg.statement(CallExpression(target, *(MockObj(n) for _, n in args))))])
     return var
 
 
