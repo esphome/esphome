@@ -10,17 +10,22 @@ from pathlib import Path
 import esphome.codegen as cg
 from esphome.components.tflite_image import IMAGE_SCHEMA, build_pipeline
 import esphome.config_validation as cv
-from esphome.const import CONF_ID
-from esphome.core import ID
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@nliaudat"]
 DOMAIN = "tflite_segmentation"
 
+# The frame pipeline comes from tflite_image, so its sources must be built too.
+DEPENDENCIES = ["tflite_image"]
+
 tflite_segmentation_ns = cg.esphome_ns.namespace("tflite_segmentation")
 SegmentationDecoder = tflite_segmentation_ns.class_("SegmentationDecoder")
 
-SEGMENTATION_SCHEMA = IMAGE_SCHEMA
+CONF_DECODER_ID = "decoder_id"
+
+SEGMENTATION_SCHEMA = IMAGE_SCHEMA.extend(
+    {cv.GenerateID(CONF_DECODER_ID): cv.declare_id(SegmentationDecoder)}
+)
 
 # Library component: the runtime creates the pipeline from its own entry.
 CONFIG_SCHEMA = cv.Schema({})
@@ -29,11 +34,5 @@ CONFIG_SCHEMA = cv.Schema({})
 async def configure(var, config: ConfigType, model_path: Path) -> None:
     """Create the frame pipeline and the mask decoder for one model."""
     cg.add(var.set_input_pipeline(build_pipeline(config, model_path)))
-    decoder = cg.new_Pvariable(
-        ID(
-            f"{config[CONF_ID].id}_segmentation",
-            is_declaration=True,
-            type=SegmentationDecoder,
-        )
-    )
+    decoder = cg.new_Pvariable(config[CONF_DECODER_ID])
     cg.add(var.set_output_decoder(decoder))

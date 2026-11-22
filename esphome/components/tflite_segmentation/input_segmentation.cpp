@@ -3,6 +3,7 @@
 #ifdef USE_TFLITE_MICRO_HELPER
 
 #include <cmath>
+#include <new>
 
 #include "esphome/core/log.h"
 
@@ -16,21 +17,25 @@ bool SegmentationDecoder::decode(TfLiteTensor *const *outputs, size_t count) {
     return false;
   }
   TfLiteTensor *mask = outputs[0];
-  if (mask->dims == nullptr || mask->dims->size != 4) {
+  if (mask->dims == nullptr || mask->dims->size != 4 || mask->dims->data[0] != 1) {
     ESP_LOGE(TAG, "The mask tensor is not [1, height, width, classes]");
     return false;
   }
   const size_t height = mask->dims->data[1];
   const size_t width = mask->dims->data[2];
   const size_t classes = mask->dims->data[3];
-  if (height == 0 || width == 0 || classes == 0 || classes > 255) {
+  if (height == 0 || width == 0 || classes == 0 || classes > 256) {
     ESP_LOGE(TAG, "Unusable mask %zux%zu with %zu classes", width, height, classes);
     return false;
   }
   const size_t pixels = width * height;
   // Allocated once, when the shape is first seen; a decoder is reused per model.
   if (this->width_ != width || this->height_ != height || this->classes_ != classes) {
-    this->labels_ = std::make_unique<uint8_t[]>(pixels);
+    this->labels_.reset(new (std::nothrow) uint8_t[pixels]);
+    if (!this->labels_) {
+      ESP_LOGE(TAG, "Could not allocate the %zu-byte label image", pixels);
+      return false;
+    }
     this->width_ = width;
     this->height_ = height;
     this->classes_ = classes;
