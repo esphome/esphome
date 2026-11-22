@@ -68,10 +68,14 @@ void CurrentBasedCover::setup() {
     this->configured_close_duration_ = this->close_duration_;
     this->durations_pref_ = this->make_entity_preference<LearnedDurations>(LEARNED_DURATIONS_PREF_VERSION, true);
     LearnedDurations learned;
-    if (this->durations_pref_.load(&learned) && learned.configured_open_duration == this->configured_open_duration_ &&
-        learned.configured_close_duration == this->configured_close_duration_) {
-      this->open_duration_ = learned.open_duration;
-      this->close_duration_ = learned.close_duration;
+    if (this->durations_pref_.load(&learned)) {
+      if (learned.configured_open_duration == this->configured_open_duration_ &&
+          learned.configured_close_duration == this->configured_close_duration_) {
+        this->open_duration_ = learned.open_duration;
+        this->close_duration_ = learned.close_duration;
+      } else {
+        this->save_learned_durations_();
+      }
     }
   }
 #endif
@@ -85,7 +89,7 @@ void CurrentBasedCover::loop() {
 
   if (this->current_operation == COVER_OPERATION_OPENING) {
 #ifdef USE_CURRENT_BASED_COVER_LEARN_DURATIONS
-    if (this->is_opening_())
+    if (this->is_opening_() && std::isfinite(this->open_sensor_->get_state()))
       this->motor_current_seen_ = true;
 #endif
     if (this->malfunction_detection_ && this->is_closing_()) {  // Malfunction
@@ -110,7 +114,7 @@ void CurrentBasedCover::loop() {
     }
   } else if (this->current_operation == COVER_OPERATION_CLOSING) {
 #ifdef USE_CURRENT_BASED_COVER_LEARN_DURATIONS
-    if (this->is_closing_())
+    if (this->is_closing_() && std::isfinite(this->close_sensor_->get_state()))
       this->motor_current_seen_ = true;
 #endif
     if (this->malfunction_detection_ && this->is_opening_()) {  // Malfunction
@@ -172,16 +176,22 @@ void CurrentBasedCover::end_reached_(float position, uint32_t measured) {
     duration = measured;
     ESP_LOGD(TAG, "'%s' - Learned %s duration: %.1fs", LOG_STR_ARG(this->get_log_name()),
              opened ? LOG_STR_LITERAL("open") : LOG_STR_LITERAL("close"), measured / 1e3f);
-    const LearnedDurations learned{this->configured_open_duration_, this->configured_close_duration_,
-                                   this->open_duration_, this->close_duration_};
-    if (!this->durations_pref_.save(&learned)) {
-      ESP_LOGW(TAG, "'%s' - Saving learned durations failed", LOG_STR_ARG(this->get_log_name()));
-    }
+    this->save_learned_durations_();
   }
   this->stopped_at_end_ = this->learn_durations_ && end_confirmed;
 #endif
   this->direction_idle_(position);
 }
+
+#ifdef USE_CURRENT_BASED_COVER_LEARN_DURATIONS
+void CurrentBasedCover::save_learned_durations_() {
+  const LearnedDurations learned{this->configured_open_duration_, this->configured_close_duration_,
+                                 this->open_duration_, this->close_duration_};
+  if (!this->durations_pref_.save(&learned)) {
+    ESP_LOGW(TAG, "'%s' - Saving learned durations failed", LOG_STR_ARG(this->get_log_name()));
+  }
+}
+#endif
 
 void CurrentBasedCover::dump_config() {
   LOG_COVER("", "Endstop Cover", this);

@@ -180,6 +180,24 @@ TEST_F(CurrentBasedCoverTest, DoesNotLearnFromInvalidCurrentReading) {
   EXPECT_EQ(cover.get_close_duration(), CONFIGURED_DURATION);
 }
 
+TEST_F(CurrentBasedCoverTest, DoesNotLearnFromInfiniteCurrentReading) {
+  CurrentBasedCover cover;
+  this->setup_cover_(cover, true);
+  this->close_(cover, 1000);
+
+  cover.make_call().set_command_open().perform();
+  this->open_current_.publish_state(INFINITY);
+  delay(2);
+  cover.loop();
+  ASSERT_EQ(cover.current_operation, COVER_OPERATION_OPENING);
+  this->stop_drawing_current_(cover, 4000);
+  ASSERT_EQ(cover.position, COVER_OPEN);
+  this->close_(cover, 3000);
+
+  EXPECT_EQ(cover.get_open_duration(), CONFIGURED_DURATION);
+  EXPECT_EQ(cover.get_close_duration(), CONFIGURED_DURATION);
+}
+
 enum class Interruption : uint8_t { INTERRUPTION_STOP, INTERRUPTION_TOGGLE, INTERRUPTION_MALFUNCTION };
 
 class CurrentBasedCoverInterruptionTest : public CurrentBasedCoverTest,
@@ -242,6 +260,25 @@ TEST_F(CurrentBasedCoverTest, DiscardsLearnedDurationsWhenConfiguredDurationsCha
 
   EXPECT_EQ(reconfigured.get_open_duration(), 30000);
   EXPECT_EQ(reconfigured.get_close_duration(), 30000);
+}
+
+TEST_F(CurrentBasedCoverTest, DoesNotRestoreLearnedDurationsWhenConfiguredDurationsChangeBack) {
+  {
+    CurrentBasedCover cover;
+    this->setup_cover_(cover, true);
+    this->close_(cover, 1000);
+    this->open_(cover, 4000);
+  }
+  {
+    CurrentBasedCover reconfigured;
+    this->setup_cover_(reconfigured, true, 30000);
+  }
+
+  CurrentBasedCover reverted;
+  this->setup_cover_(reverted, true);
+
+  EXPECT_EQ(reverted.get_open_duration(), CONFIGURED_DURATION);
+  EXPECT_EQ(reverted.get_close_duration(), CONFIGURED_DURATION);
 }
 
 }  // namespace esphome::current_based::testing

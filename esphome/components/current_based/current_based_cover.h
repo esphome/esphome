@@ -81,6 +81,9 @@ class CurrentBasedCover final : public cover::Cover, public Component {
 
   void recompute_position_();
   void end_reached_(float position, uint32_t measured);
+#ifdef USE_CURRENT_BASED_COVER_LEARN_DURATIONS
+  void save_learned_durations_();
+#endif
 
   Trigger<> stop_trigger_;
 
