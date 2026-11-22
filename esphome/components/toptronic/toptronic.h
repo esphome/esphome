@@ -53,7 +53,7 @@ static constexpr uint32_t REFRESH_INTERVAL_MIN_MS = 16;
 #ifdef TOPTRONIC_OPTION_COUNT
 static constexpr size_t MAX_OPTIONS = TOPTRONIC_OPTION_COUNT;
 #else
-static constexpr size_t MAX_OPTIONS = 1;
+static constexpr size_t MAX_OPTIONS = 8;
 #endif
 struct Option {
   uint8_t value;
