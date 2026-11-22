@@ -69,43 +69,37 @@ bool CH422GComponent::read_inputs_() {
     return false;
   }
   uint8_t result;
+  bool ok;
   // reading inputs requires the chip to be in input mode, possibly temporarily.
   if (this->mode_value_ & CH422G_MODE_OUTPUT) {
-    this->set_mode_(this->mode_value_ & ~CH422G_MODE_OUTPUT);
-    result = this->read_reg_(CH422G_REG_IN);
-    this->set_mode_(this->mode_value_);
+    ok = this->set_mode_(this->mode_value_ & ~CH422G_MODE_OUTPUT) && this->read_reg_(CH422G_REG_IN, &result);
+    // Restore output mode even when the read failed
+    ok = this->set_mode_(this->mode_value_) && ok;
   } else {
-    result = this->read_reg_(CH422G_REG_IN);
+    ok = this->read_reg_(CH422G_REG_IN, &result);
   }
+  if (!this->status_comm_result(ok))
+    return false;
   this->input_bits_ = result;
   return true;
 }
 
 // Write a register. Can't use the standard write_byte() method because there is no single pre-configured i2c address.
+// Both only set the warning; the caller clears it after its last step.
 bool CH422GComponent::write_reg_(uint8_t reg, uint8_t value) {
-  auto err = this->bus_->write_readv(reg, &value, 1, nullptr, 0);
-  if (!this->status_comm_result(err == i2c::ERROR_OK)) {
-    ESP_LOGV(TAG, "Write 0x%X failed: %d", reg, err);
-    return false;
-  }
-  return true;
+  return this->status_comm_check(this->bus_->write_readv(reg, &value, 1, nullptr, 0) == i2c::ERROR_OK);
 }
 
-uint8_t CH422GComponent::read_reg_(uint8_t reg) {
-  uint8_t value;
-  auto err = this->bus_->write_readv(reg, nullptr, 0, &value, 1);
-  if (!this->status_comm_result(err == i2c::ERROR_OK)) {
-    ESP_LOGV(TAG, "Read 0x%X failed: %d", reg, err);
-    return 0;
-  }
-  return value;
+bool CH422GComponent::read_reg_(uint8_t reg, uint8_t *value) {
+  return this->status_comm_check(this->bus_->write_readv(reg, nullptr, 0, value, 1) == i2c::ERROR_OK);
 }
 
 bool CH422GComponent::set_mode_(uint8_t mode) { return this->write_reg_(CH422G_REG_MODE, mode); }
 
 bool CH422GComponent::write_outputs_() {
-  return this->write_reg_(CH422G_REG_OUT, static_cast<uint8_t>(this->output_bits_)) &&
-         this->write_reg_(CH422G_REG_OUT_UPPER, static_cast<uint8_t>(this->output_bits_ >> 8));
+  return this->status_comm_result(
+      this->write_reg_(CH422G_REG_OUT, static_cast<uint8_t>(this->output_bits_)) &&
+      this->write_reg_(CH422G_REG_OUT_UPPER, static_cast<uint8_t>(this->output_bits_ >> 8)));
 }
 
 float CH422GComponent::get_setup_priority() const { return setup_priority::IO; }
