@@ -15,6 +15,7 @@ from esphome.components.esp32 import (
     require_idf_version,
     require_mbedtls_tls,
     require_mbedtls_tls_extras,
+    set_idf_sdkconfig_default,
 )
 from esphome.components.network import (
     add_use_address,
@@ -142,6 +143,7 @@ CONF_SAVE = "save"
 CONF_BAND_MODE = "band_mode"
 CONF_DEVICE_INFO = "device_info"
 CONF_DPP = "dpp"
+CONF_ENABLE_SAE_PK = "enable_sae_pk"
 CONF_MIN_AUTH_MODE = "min_auth_mode"
 CONF_ON_AP_START = "on_ap_start"
 CONF_ON_AP_STOP = "on_ap_stop"
@@ -730,6 +732,10 @@ CONFIG_SCHEMA = cv.All(
             cv.SplitDefault(CONF_ENABLE_RRM, esp32=False): cv.All(
                 cv.boolean, cv.only_on_esp32
             ),
+            # Verifies WPA3 SAE-PK access points; they also accept plain SAE. About 6 KB.
+            cv.SplitDefault(CONF_ENABLE_SAE_PK, esp32=False): cv.All(
+                cv.boolean, cv.only_on_esp32
+            ),
             cv.Optional(CONF_BAND_MODE): cv.All(
                 cv.enum(WIFI_BAND_MODES, upper=True),
                 cv.only_on_esp32,
@@ -1025,6 +1031,9 @@ async def to_code(config):
             cg.add(var.set_btm(config[CONF_ENABLE_BTM]))
         if config[CONF_ENABLE_RRM]:
             cg.add(var.set_rrm(config[CONF_ENABLE_RRM]))
+        set_idf_sdkconfig_default(
+            "CONFIG_ESP_WIFI_ENABLE_SAE_PK", config[CONF_ENABLE_SAE_PK]
+        )
         cg.add_optional(var.set_band_mode, config.get(CONF_BAND_MODE))
 
     if config.get(CONF_USE_PSRAM):

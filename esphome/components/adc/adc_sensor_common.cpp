@@ -1,17 +1,9 @@
 #include "adc_sensor.h"
 #include "esphome/core/log.h"
-#include "esphome/core/progmem.h"
 
 namespace esphome::adc {
 
 ESPHOME_LOG_TAG(TAG, "adc");
-
-// Indexed by SamplingMode
-PROGMEM_STRING_TABLE(SamplingModeStrings, "average", "minimum", "maximum", "unknown");
-
-const LogString *sampling_mode_to_str(SamplingMode mode) {
-  return SamplingModeStrings::get_log_str(static_cast<uint8_t>(mode), SamplingModeStrings::LAST_INDEX);
-}
 
 template<typename T> Aggregator<T>::Aggregator(SamplingMode mode) {
   this->mode_ = mode;

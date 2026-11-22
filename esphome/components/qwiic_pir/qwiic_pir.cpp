@@ -74,7 +74,7 @@ void QwiicPIRComponent::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "Qwiic PIR:\n"
                 "  Debounce Mode: %s",
-                LOG_STR_ARG(DebounceModeStrings::get_log_str(static_cast<uint8_t>(this->debounce_mode_), 0)));
+                LOG_STR_ARG(DebounceModeStrings::get_log_str(this->debounce_mode_, 0)));
   if (this->debounce_mode_ == DebounceMode::DEBOUNCE_MODE_NATIVE) {
     ESP_LOGCONFIG(TAG, "  Debounce Time: %ums", this->debounce_time_);
   }

@@ -37,7 +37,7 @@ static_assert(StateClassStrings::COUNT == STATE_CLASS_LAST + 1, "StateClassStrin
 
 const LogString *state_class_to_string(StateClass state_class) {
   // Fallback to index 0 (empty string for STATE_CLASS_NONE) if out of range
-  return StateClassStrings::get_log_str(static_cast<uint8_t>(state_class), 0);
+  return StateClassStrings::get_log_str(state_class, 0);
 }
 
 Sensor::Sensor() : state(NAN) {}
