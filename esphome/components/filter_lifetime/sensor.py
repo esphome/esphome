@@ -2,7 +2,7 @@ from esphome import automation
 import esphome.codegen as cg
 from esphome.components import binary_sensor, sensor
 import esphome.config_validation as cv
-from esphome.const import DEVICE_CLASS_DURATION, STATE_CLASS_TOTAL_INCREASING, UNIT_HOUR
+from esphome.const import DEVICE_CLASS_DURATION, STATE_CLASS_TOTAL_INCREASING
 from esphome.types import ConfigType
 
 CONF_MAX_LIFETIME = "max_lifetime"
@@ -34,11 +34,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_CURRENT_SPEED): cv.returning_lambda,
             cv.Optional(CONF_CURRENT_SPEED_SENSOR): cv.use_id(sensor.Sensor),
             cv.Optional(CONF_RUNTIME_HOURS): sensor.sensor_schema(
-                unit_of_measurement=UNIT_HOUR,
+                kind=sensor.DURATION_H,
                 accuracy_decimals=1,
-                device_class=DEVICE_CLASS_DURATION,
                 state_class=STATE_CLASS_TOTAL_INCREASING,
-                icon="mdi:timer-outline",
             ),
             cv.Optional(CONF_REMAINING_DAYS): sensor.sensor_schema(
                 unit_of_measurement=UNIT_DAY,

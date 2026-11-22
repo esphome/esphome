@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from functools import partial
 import logging
 from typing import Any, NamedTuple
 
@@ -32,7 +33,7 @@ from esphome.const import (
     CONF_WHITE,
 )
 from esphome.core import CORE, ID, EsphomeError, Lambda
-from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.cpp_generator import MockObj, SafeExpType, TemplateArgsType
 import esphome.final_validate as fv
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
@@ -43,9 +44,8 @@ from .types import (
     AddressableLightState,
     AddressableSet,
     ColorMode,
-    DimRelativeAction,
-    LightEffectCycleAction,
     LightState,
+    light_ns,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -340,47 +340,29 @@ LIGHT_EFFECT_CYCLE_ACTION_SCHEMA = automation.maybe_simple_id(
 )
 
 
-@automation.register_action(
-    "light.effect.next",
-    LightEffectCycleAction,
-    LIGHT_EFFECT_CYCLE_ACTION_SCHEMA,
-    synchronous=True,
-)
-async def light_effect_next_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    return await _light_effect_cycle_to_code(config, action_id, template_arg, True)
-
-
-@automation.register_action(
-    "light.effect.previous",
-    LightEffectCycleAction,
-    LIGHT_EFFECT_CYCLE_ACTION_SCHEMA,
-    synchronous=True,
-)
-async def light_effect_previous_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    return await _light_effect_cycle_to_code(config, action_id, template_arg, False)
-
-
 async def _light_effect_cycle_to_code(
     config: ConfigType,
     action_id: ID,
     template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
     forward: bool,
 ) -> MockObj:
-    paren = await cg.get_variable(config[CONF_ID])
-    cycle_template_arg = cg.TemplateArguments(forward, *template_arg)
-    var = cg.new_Pvariable(action_id, cycle_template_arg, paren)
-    cg.add(var.set_include_none(config[CONF_INCLUDE_NONE]))
-    return var
+    light = automation.parent_ref(await cg.get_variable(config[CONF_ID]))
+    return automation.apply_statements_action(
+        action_id,
+        template_arg,
+        args,
+        [f"{light_ns.cycle_effect(light, forward, config[CONF_INCLUDE_NONE])};"],
+    )
+
+
+for _name, _forward in (("light.effect.next", True), ("light.effect.previous", False)):
+    automation.register_action(
+        _name,
+        automation.ApplyAction,
+        LIGHT_EFFECT_CYCLE_ACTION_SCHEMA,
+        synchronous=True,
+    )(partial(_light_effect_cycle_to_code, forward=_forward))
 
 
 CONF_RELATIVE_BRIGHTNESS = "relative_brightness"
@@ -406,30 +388,52 @@ LIGHT_DIM_RELATIVE_ACTION_SCHEMA = cv.Schema(
 )
 
 
+async def _called_with_args(
+    value: Any, args: TemplateArgsType, type_: SafeExpType
+) -> SafeExpType:
+    """A constant, or the user's lambda called with the trigger's by-value args (never reduced)."""
+    if not isinstance(value, Lambda):
+        return value
+    return automation.immediate_lambda_call(
+        await cg.process_lambda(value, args, return_type=type_)
+    )
+
+
 @automation.register_action(
     "light.dim_relative",
-    DimRelativeAction,
+    automation.ApplyAction,
     LIGHT_DIM_RELATIVE_ACTION_SCHEMA,
     synchronous=True,
 )
-async def light_dim_relative_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    has_transition_length = CONF_TRANSITION_LENGTH in config
-    dim_template_arg = cg.TemplateArguments(has_transition_length, *template_arg)
-    var = cg.new_Pvariable(action_id, dim_template_arg, paren)
-    templ = await cg.templatable(config[CONF_RELATIVE_BRIGHTNESS], args, cg.float_)
-    cg.add(var.set_relative_brightness(templ))
-    if has_transition_length:
-        templ = await cg.templatable(config[CONF_TRANSITION_LENGTH], args, cg.uint32)
-        cg.add(var.set_transition_length(templ))
-    if conf := config.get(CONF_BRIGHTNESS_LIMITS):
-        cg.add(
-            var.set_min_max_brightness(
-                conf[CONF_MIN_BRIGHTNESS], conf[CONF_MAX_BRIGHTNESS]
-            )
-        )
-        cg.add(var.set_limit_mode(conf[CONF_LIMIT_MODE]))
-    return var
+async def light_dim_relative_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
+    light = automation.parent_ref(await cg.get_variable(config[CONF_ID]))
+    call = MockObj("esphome__call", ".")
+    dim_args = [
+        light,
+        call,
+        await _called_with_args(config[CONF_RELATIVE_BRIGHTNESS], args, cg.float_),
+    ]
+    if limits := config.get(CONF_BRIGHTNESS_LIMITS):
+        dim_args += [
+            limits[CONF_MIN_BRIGHTNESS],
+            limits[CONF_MAX_BRIGHTNESS],
+            limits[CONF_LIMIT_MODE],
+        ]
+    # The transition length is only read once the limits allow the call
+    statements = [
+        f"auto {call} = {light}->make_call();",
+        f"if ({light_ns.dim_relative(*dim_args)}) {{",
+    ]
+    if (transition := config.get(CONF_TRANSITION_LENGTH)) is not None:
+        transition = await _called_with_args(transition, args, cg.uint32)
+        statements.append(f"  {call.set_transition_length(transition)};")
+    statements += [f"  {call.perform()};", "}"]
+    return automation.apply_statements_action(action_id, template_arg, args, statements)
 
 
 LIGHT_ADDRESSABLE_SET_ACTION_SCHEMA = cv.Schema(

@@ -412,8 +412,7 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
 
     for key, setter in SETTERS.items():
-        if key in config:
-            cg.add(getattr(var, setter)(config[key]))
+        cg.add_optional(getattr(var, setter), config.get(key))
 
     extclk = config[CONF_EXTERNAL_CLOCK]
     cg.add(var.set_external_clock(extclk[CONF_PIN], extclk[CONF_FREQUENCY]))
