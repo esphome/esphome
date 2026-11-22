@@ -33,6 +33,9 @@
 #ifdef USE_STATUS_LED
 #include "esphome/components/status_led/status_led.h"
 #endif
+#ifdef USE_ESP32_TASK_WDT
+#include "esp_task_wdt.h"
+#endif
 
 namespace esphome {
 
@@ -235,10 +238,26 @@ void Application::process_dump_config_() {
   this->dump_config_at_++;
 }
 
+#if !defined(USE_ESP32) || defined(USE_ESP32_TASK_WDT) || defined(USE_STATUS_LED)
 void Application::feed_wdt() {
   // Cold entry: callers without a millis() timestamp in hand. Fetches the
   // time and defers to the hot path.
   this->feed_wdt_with_time(MillisInternal::get());
+}
+#endif
+
+void Application::feed_wdt_if_watched() {
+#ifdef USE_ESP32_TASK_WDT
+  if (esp_task_wdt_status(nullptr) != ESP_OK)
+    return;
+#elif defined(USE_ESP32) && defined(USE_STATUS_LED)
+  // No watchdog, but the loop task keeps the status LED blinking through a long blocking call
+  if (xTaskGetCurrentTaskHandle() != esphome_main_task_handle)
+    return;
+#elif defined(USE_ESP32)
+  return;
+#endif
+  this->feed_wdt();
 }
 
 void HOT Application::feed_wdt_slow_(uint32_t time) {

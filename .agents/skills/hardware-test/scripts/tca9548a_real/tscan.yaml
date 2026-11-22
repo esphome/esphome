@@ -1,0 +1,42 @@
+# Root bus scan, then every mux at 0x70..0x77: control readback and a scan per channel, selected by hand.
+esphome:
+  name: ${name}
+  on_boot:
+    - priority: -100
+      then:
+        - lambda: |-
+            auto *bus = id(rootbus);
+            auto probe = [bus](uint8_t a) { return bus->write_readv(a, nullptr, 0, nullptr, 0) == i2c::ERROR_OK; };
+            std::string root;
+            for (uint8_t a = 8; a < 120; a++) if (probe(a)) { char b[8]; snprintf(b, sizeof b, " %02X", a); root += b; }
+            ESP_LOGI("tscan", "ROOT found:%s", root.c_str());
+            for (uint8_t m = 0x70; m <= 0x77; m++) {
+              if (!probe(m)) continue;
+              uint8_t ctl = 0xAA;
+              bool rok = bus->write_readv(m, nullptr, 0, &ctl, 1) == i2c::ERROR_OK;
+              ESP_LOGI("tscan", "MUX 0x%02X answers, control read ok=%d value=0x%02X", m, rok, ctl);
+              for (uint8_t ch = 0; ch < 8; ch++) {
+                uint8_t mask = 1 << ch;
+                bool sok = bus->write_readv(m, &mask, 1, nullptr, 0) == i2c::ERROR_OK;
+                uint8_t back = 0; bus->write_readv(m, nullptr, 0, &back, 1);
+                std::string s;
+                for (uint8_t a = 8; a < 120; a++) if (a < 0x70 || a > 0x77) if (probe(a)) { char b[8]; snprintf(b, sizeof b, " %02X", a); s += b; }
+                ESP_LOGI("tscan", "MUX 0x%02X ch%u select ok=%d readback=0x%02X found:%s", m, ch, sok, back, s.c_str());
+              }
+              uint8_t z = 0; bus->write_readv(m, &z, 1, nullptr, 0);
+              uint8_t back = 0xAA; bus->write_readv(m, nullptr, 0, &back, 1);
+              ESP_LOGI("tscan", "MUX 0x%02X all off, readback=0x%02X", m, back);
+            }
+            ESP_LOGI("tscan", "SDA=%d SCL=%d", digitalRead(4), digitalRead(5));
+            ESP_LOGI("tscan", "DONE");
+esp8266:
+  board: huzzah
+logger:
+  level: DEBUG
+i2c:
+  id: rootbus
+  sda: GPIO4
+  scl: GPIO5
+  scan: true
+substitutions:
+  name: tscan
