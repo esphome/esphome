@@ -68,6 +68,7 @@ void TsdbComponent::add_column(const char *name, double scale, double offset) {
 
 void TsdbComponent::set_column_source(size_t index, sensor::Sensor *source) { this->columns_[index].source = source; }
 
+// NOLINTNEXTLINE(readability-non-const-parameter) -- snprintf() writes through the buffer.
 void TsdbComponent::format_path_(char *buffer, size_t size) const {
   snprintf(buffer, size, "%s/%s", this->mount_point_.c_str(), this->file_.c_str());
 }

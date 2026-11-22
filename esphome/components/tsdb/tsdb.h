@@ -69,7 +69,7 @@ class TsdbComponent : public PollingComponent {
   bool collect_values_(const LogString *&degraded);
   bool write_record_();
   void flush_(bool force);
-  void format_path_(char *buffer, size_t size) const;
+  void format_path_(char *buffer, size_t size) const;  // NOLINT(readability-non-const-parameter)
 
   // Sized by TSDB_COLUMN_COUNT, emitted by the Python config; defines.h covers static analysis.
   StaticVector<TsdbColumn, TSDB_COLUMN_COUNT> columns_;
