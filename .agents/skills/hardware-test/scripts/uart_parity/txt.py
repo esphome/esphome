@@ -19,5 +19,9 @@ sys.stdout.write(data.decode("latin1").replace("\r", ""))
 hups = sum(p[1] == "HUP" for p in lines)
 if not data:  # wrong port, dead board or wrong baud: not a clean read
     sys.exit("no RX bytes in the capture")
+if (
+    b"RPT" not in data
+):  # the report line this exists to show; garble only means a wrong framing
+    sys.exit("no RPT report line in the capture")
 if marks or hups:
     sys.exit(f"{marks} PARMRK error marks, {hups} HUP lines")

@@ -11,6 +11,7 @@ esp_pm_configure() failure, or the component marked FAILED, exits 1 with or with
 fed between its first and last cnt line.
 Exits 1 too when no frame was fed, none was parsed, or fewer than two device cnt lines were captured.
 
+Frames go out from the first device cnt line until 12 s before the end, so a count follows the last one.
 Frame n: PM1.0 std and atm = n, PM2.5 = n+1000, PM10 = n+2000, temp = 20.0+n%10, hum = 40.0+n%10.
 Writes "[feed] n=..." lines into OUT so parses can be matched to frames; device lines go through
 serial_capture.write_line() (millisecond stamps, colours stripped, secrets masked).
@@ -48,6 +49,9 @@ def frame(n: int) -> bytes:
     return body + struct.pack(">H", sum(body) & 0xFFFF)
 
 
+DRAIN = 12  # s without feeding at the end: more than one cnt period (10 s), so a count follows the last frame
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("port")
@@ -61,8 +65,8 @@ def main() -> None:
     ap.add_argument("--expect-all", type=int, metavar="N")
     ap.add_argument("--selftest", action="store_true")
     a = ap.parse_args()
-    if not a.selftest and a.seconds <= a.start:
-        sys.exit("SECONDS must be longer than --start, or no frame is fed")
+    if not a.selftest and a.seconds <= a.start + DRAIN:
+        sys.exit(f"SECONDS must be longer than --start + {DRAIN}, or no frame is fed")
     if a.selftest:
         f = frame(7)
         assert len(f) == 32 and f[:4] == b"\x42\x4d\x00\x1c"
@@ -76,11 +80,14 @@ def main() -> None:
     t0 = time.time()
     deadline = t0 + a.seconds
     next_feed = t0 + a.start
+    # feeding starts after the first cnt line and stops DRAIN s before the end, so every frame is fed and
+    # parsed (or lost) between two device counts and the two edges cannot split a frame
+    counting = False
     n = 0
     buf = b""
     with pathlib.Path(a.out).open("wb") as out:
         while time.time() < deadline:
-            if time.time() >= next_feed:
+            if counting and next_feed <= time.time() < deadline - DRAIN:
                 s.write(frame(n))
                 serial_capture.write_line(
                     out, b"[feed] ", f"n={n & 0x3FF}".encode(), True
@@ -94,6 +101,9 @@ def main() -> None:
             while b"\n" in buf:
                 line, buf = buf.split(b"\n", 1)
                 serial_capture.write_line(out, b"", line.rstrip(b"\r"), True)
+                if not counting and b"[cnt" in line and b"parses=" in line:
+                    counting = True
+                    next_feed = max(next_feed, time.time() + 0.5)
         if buf.strip():  # a last line cut off at the deadline
             serial_capture.write_line(out, b"[partial] ", buf.rstrip(b"\r"), True)
         serial_capture.write_line(out, b"[feed] ", f"total={n}".encode(), True)
@@ -137,18 +147,15 @@ def main() -> None:
         b"Light Sleep Enabled" in log or b"esp_pm_configure(ls=1) = 0" in log
     )
     feeds = log.count(b"[feed] n=")
-    # frames fed inside the window the device counter covers, to compare with dev; a frame sent less than
-    # 0.3 s before the last cnt line can still be in flight when the device takes that count
-    win = 0
-    for m in re.finditer(
-        rb"^\[(\d\d):(\d\d):(\d\d(?:\.\d+)?)\]\[feed\] n=", log, re.MULTILINE
-    ):
-        if len(cnt) < 2 or not cnt[0][3] < m.start() < cnt[-1][3]:
-            continue
-        wall = int(m[1]) * 3600 + int(m[2]) * 60 + float(m[3])
-        if wall < cnt[0][2] - 43200:
-            wall += 86400  # midnight
-        win += wall < cnt[-1][2] - 0.3
+    # frames fed between the first and last cnt line (all of them when feeding and draining ran as planned)
+    win = (
+        sum(
+            cnt[0][3] < m.start() < cnt[-1][3]
+            for m in re.finditer(rb"\[feed\] n=", log)
+        )
+        if len(cnt) > 1
+        else 0
+    )
     print(
         f"pm_configure={','.join(x.decode() for x in pm) or ('MISSING' if a.expect_pm else '-')} "
         f"pm_failed={pm_failed} cnt_lines={len(cnt)} "

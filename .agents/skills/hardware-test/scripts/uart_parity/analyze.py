@@ -75,8 +75,15 @@ def main() -> None:
     rx = [h for _, d, h in bursts if d == "RX"]
     marks = sum(rx_parse(h)[1] for h in rx)
     hups = sum(d == "HUP" for _, d, _ in bursts)
-    if not rx or marks or hups:
-        sys.exit(f"{len(rx)} RX bursts, {marks} PARMRK error marks, {hups} HUP lines")
+    # wrong baud, wrong port or noise: nothing matched a frame, the GVR request or a report line
+    known = sum(
+        b.startswith(b"\r\nRPT") or b == GVR or valid(b) or b in N1
+        for b in (rx_parse(h)[0] for h in rx)
+    )
+    if not rx or marks or hups or not known:
+        sys.exit(
+            f"{len(rx)} RX bursts, {known} classified, {marks} PARMRK error marks, {hups} HUP lines"
+        )
 
 
 if __name__ == "__main__":
