@@ -74,11 +74,11 @@ def function_body(main_cpp: str, name: str) -> str:
     return match.group(1)
 
 
-def actions_body(main_cpp: str, function: str) -> str:
-    """The body of the function of inline actions that ``function`` calls."""
-    match = re.fullmatch(r"\n  (\w+)\(\);", function_body(main_cpp, function))
-    assert match is not None, function
-    return function_body(main_cpp, match.group(1))
+def callback_function(main_cpp: str, var: str) -> str:
+    """The function a callback component ``var`` is built on, its first template argument."""
+    match = re.match(r"[\w:]+<(\w+)[,>]", constructed(main_cpp, var))
+    assert match is not None, var
+    return match.group(1)
 
 
 def delayed_automation(main_cpp: str, function: str) -> str:

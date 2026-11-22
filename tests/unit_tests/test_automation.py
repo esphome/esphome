@@ -3540,11 +3540,12 @@ async def test_component_automation_args_inline(is_manual: bool) -> None:
 
     assert str(var) == "trig"
     main = CORE.cpp_main_section
-    assert "new(trig) FloatCallback<esphome__trig__fn>();" in main
+    assert "new(trig) FloatCallback<esphome__auto__fn>();" in main
     assert "Automation" not in main
     text = CORE.cpp_global_section
-    assert "static void esphome__trig__fn(const std::remove_cvref_t<float> & x)" in text
-    assert "esphome__act_a__fn(x);" in text
+    assert "static void esphome__auto__fn(const std::remove_cvref_t<float> & x)" in text
+    assert "::comp->do_a();" in text
+    assert "esphome__act_a__fn" not in text
 
 
 @pytest.mark.asyncio

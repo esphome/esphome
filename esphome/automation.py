@@ -2147,8 +2147,8 @@ def _automation_from_plan(
 def _is_direct(plan: list[MockObj | list[_InlineAction]], config: ConfigType) -> bool:
     """Whether a callback automation is all inline actions, so it needs no objects.
 
-    Without a Trigger or a manual id nothing can reach such an automation to stop it, so
-    no stop checks are needed either. Only for callers that create no Trigger.
+    Without a Trigger or an automation id set by hand nothing can reach such an automation
+    to stop it, so no stop checks are needed either. Only for callers that create no Trigger.
     """
     return (
         not config[CONF_AUTOMATION_ID].is_manual
@@ -2220,28 +2220,19 @@ async def build_component_automation(
     *,
     id_key: str = CONF_TRIGGER_ID,
     template_args: Sequence[SafeExpType] = (),
-    args: TemplateArgsType | None = None,
+    args: Sequence[tuple[SafeExpType, str]] = (),
 ) -> MockObj:
     """Create and register ``component_class<function[, priority bits], *template_args>``,
     whose function takes ``args`` and runs the automation's actions; ``config[id_key]`` names it.
     """
-    args = args or []
-    trigger_id: ID = config[id_key]
-    # Declared and registered before the actions are built, which can wait for other ids
-    fn_id = cg.unique_global_id(_apply_function_name(trigger_id), None)
-    name = fn_id.id
-    define = cg.declare_static_function(name, cg.void, _apply_params(args))
-    CORE.register_variable(fn_id, cg.RawExpression(name))
-    id_ = trigger_id.copy()
+    name, build = declare_automation_function(list(args), config)
+    id_ = config[id_key].copy()
     id_.type = component_class
     bits = [] if priority is None else [_float_bits(priority)]
-    var = cg.new_Pvariable(
-        id_, cg.TemplateArguments(cg.RawExpression(name), *bits, *template_args)
-    )
+    var = cg.new_Pvariable(id_, cg.TemplateArguments(name, *bits, *template_args))
+    # Registered before the actions are built, which can wait for other ids
     await cg.register_component(var, config)
-    plan = await _build_automation_plan(args, config)
-    target = _call_target(plan, args, config)
-    define([str(cg.statement(CallExpression(target, *(MockObj(n) for _, n in args))))])
+    await build()
     return var
 
 
@@ -2266,8 +2257,10 @@ def declare_automation_function(
     Await it once the object naming the function exists; ``after`` runs after the last action unless stopped.
     """
     automation_id = config[CONF_AUTOMATION_ID]
-    name = _apply_function_name(automation_id)
+    fn_id = cg.unique_global_id(_apply_function_name(automation_id), None)
+    name = fn_id.id
     define = cg.declare_static_function(name, cg.void, _apply_params(args))
+    CORE.register_variable(fn_id, cg.RawExpression(name))
 
     async def build() -> None:
         plan = await _build_automation_plan(args, config)

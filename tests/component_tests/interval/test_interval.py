@@ -3,6 +3,8 @@
 from collections.abc import Callable
 from pathlib import Path
 
+from tests.component_tests.helpers import callback_function, constructed
+
 
 def test_interval_startup_delay_class_per_entry(
     generate_main: Callable[[str | Path], str],
@@ -11,14 +13,18 @@ def test_interval_startup_delay_class_per_entry(
     """Only an interval with a non-zero startup delay uses DelayedIntervalCallback."""
     main_cpp = generate_main(component_config_path("interval_test.yaml"))
 
+    no_delay = callback_function(main_cpp, "no_delay")
     assert (
-        "new(no_delay) interval::IntervalCallback<esphome__no_delay__fn>();" in main_cpp
+        constructed(main_cpp, "no_delay") == f"interval::IntervalCallback<{no_delay}>()"
     )
-    assert (
-        "new(zero_delay) interval::IntervalCallback<esphome__zero_delay__fn>();"
-        in main_cpp
+    zero_delay = callback_function(main_cpp, "zero_delay")
+    assert constructed(main_cpp, "zero_delay") == (
+        f"interval::IntervalCallback<{zero_delay}>()"
     )
-    delayed = "interval::DelayedIntervalCallback<esphome__delayed__fn, 5000>"
-    assert f"new(delayed) {delayed}();" in main_cpp
+    delayed = (
+        "interval::DelayedIntervalCallback"
+        f"<{callback_function(main_cpp, 'delayed')}, 5000>"
+    )
+    assert constructed(main_cpp, "delayed") == f"{delayed}()"
     assert f"static {delayed} *const delayed = " in main_cpp
     assert "set_startup_delay" not in main_cpp

@@ -6,7 +6,12 @@ import re
 
 import pytest
 
-from tests.component_tests.helpers import actions_body, constructed, delayed_automation
+from tests.component_tests.helpers import (
+    callback_function,
+    constructed,
+    delayed_automation,
+    function_body,
+)
 
 CONFIG = "core_automations.yaml"
 
@@ -38,68 +43,70 @@ def test_core_automations_registration_order(main_cpp: str) -> None:
 
 
 def test_on_boot_inline_priorities(main_cpp: str) -> None:
-    """All-inline on_boot blocks call one function from setup() at their priority, default 600.
+    """All-inline on_boot blocks run their actions in one function from setup(), default 600.
 
     The priority is the float's bit pattern: 0x44480000 is 800.0f, 0x44160000 is 600.0f.
     """
+    high = callback_function(main_cpp, "startupcallback_id")
     assert constructed(main_cpp, "startupcallback_id") == (
-        "StartupCallback<esphome__startupcallback_id__fn, 0x44480000>()"
+        f"StartupCallback<{high}, 0x44480000>()"
     )
+    default = callback_function(main_cpp, "startupcallback_id_2")
     assert constructed(main_cpp, "startupcallback_id_2") == (
-        "StartupCallback<esphome__startupcallback_id_2__fn, 0x44160000>()"
+        f"StartupCallback<{default}, 0x44160000>()"
     )
-    assert "Automation<>(startupcallback_id" not in main_cpp
     # Both actions of the first block run in the one function, with no stop checks
-    body = actions_body(main_cpp, "esphome__startupcallback_id__fn")
+    body = function_body(main_cpp, high)
     assert "boot high" in body
     assert "boot high lambda" in body
     assert "esphome__running" not in body
+    assert "esphome__" not in body
     assert "Automation" not in body
-    assert "boot default" in actions_body(main_cpp, "esphome__startupcallback_id_2__fn")
+    assert "boot default" in function_body(main_cpp, default)
 
 
 def test_on_boot_delay_triggers_automation(main_cpp: str) -> None:
     """A delay keeps the Automation of separate actions, which the function triggers."""
+    function = callback_function(main_cpp, "startupcallback_id_3")
     assert constructed(main_cpp, "startupcallback_id_3") == (
-        "StartupCallback<esphome__startupcallback_id_3__fn, 0xC2C80000>()"
+        f"StartupCallback<{function}, 0xC2C80000>()"
     )
-    delayed_automation(main_cpp, "esphome__startupcallback_id_3__fn")
+    delayed_automation(main_cpp, function)
 
 
 def test_on_boot_manual_trigger_id_names_the_callback(main_cpp: str) -> None:
     """A trigger_id set by hand only names the callback component; no Trigger is built."""
+    function = callback_function(main_cpp, "manual_boot")
     assert constructed(main_cpp, "manual_boot") == (
-        "StartupCallback<esphome__manual_boot__fn, 0x437A8000>()"
+        f"StartupCallback<{function}, 0x437A8000>()"
     )
-    assert "boot manual" in actions_body(main_cpp, "esphome__manual_boot__fn")
+    assert "boot manual" in function_body(main_cpp, function)
     assert "Automation<>(manual_boot)" not in main_cpp
 
 
 def test_on_shutdown_priorities(main_cpp: str) -> None:
     """on_shutdown calls its function at its priority; a delay keeps the Automation."""
+    inline = callback_function(main_cpp, "shutdowncallback_id")
     assert constructed(main_cpp, "shutdowncallback_id") == (
-        "ShutdownCallback<esphome__shutdowncallback_id__fn, 0x442F0000>()"
+        f"ShutdownCallback<{inline}, 0x442F0000>()"
     )
-    assert "shutdown inline" in actions_body(
-        main_cpp, "esphome__shutdowncallback_id__fn"
-    )
+    assert "shutdown inline" in function_body(main_cpp, inline)
+    delayed = callback_function(main_cpp, "shutdowncallback_id_2")
     assert constructed(main_cpp, "shutdowncallback_id_2") == (
-        "ShutdownCallback<esphome__shutdowncallback_id_2__fn, 0x44160000>()"
+        f"ShutdownCallback<{delayed}, 0x44160000>()"
     )
-    delayed_automation(main_cpp, "esphome__shutdowncallback_id_2__fn")
+    delayed_automation(main_cpp, delayed)
 
 
 def test_on_loop(main_cpp: str) -> None:
     """on_loop calls its function each loop; a delay keeps the Automation."""
-    assert constructed(main_cpp, "loopcallback_id") == (
-        "LoopCallback<esphome__loopcallback_id__fn>()"
-    )
-    assert "loop inline" in actions_body(main_cpp, "esphome__loopcallback_id__fn")
-    assert "HasLoopOverride<LoopCallback<esphome__loopcallback_id__fn>>" in main_cpp
-    assert constructed(main_cpp, "loopcallback_id_2") == (
-        "LoopCallback<esphome__loopcallback_id_2__fn>()"
-    )
-    delayed_automation(main_cpp, "esphome__loopcallback_id_2__fn")
+    inline = callback_function(main_cpp, "loopcallback_id")
+    assert constructed(main_cpp, "loopcallback_id") == f"LoopCallback<{inline}>()"
+    assert "loop inline" in function_body(main_cpp, inline)
+    assert f"HasLoopOverride<LoopCallback<{inline}>>" in main_cpp
+    delayed = callback_function(main_cpp, "loopcallback_id_2")
+    assert constructed(main_cpp, "loopcallback_id_2") == f"LoopCallback<{delayed}>()"
+    delayed_automation(main_cpp, delayed)
 
 
 def test_on_boot_registered_before_its_actions_are_built(
@@ -122,7 +129,6 @@ def test_on_boot_function_name_skips_config_ids(
 ) -> None:
     """A config id that matches the generated name pushes the function to another name."""
     main_cpp = generate_main(component_config_path("on_boot_name_collision.yaml"))
-    match = re.search(r"new\(startupcallback_id\) StartupCallback<(\w+), ", main_cpp)
-    assert match is not None
-    assert match.group(1) != "esphome__startupcallback_id__fn"
-    assert f"static void {match.group(1)}()" in main_cpp
+    function = callback_function(main_cpp, "startupcallback_id")
+    assert function != "esphome__automation_id__fn"
+    assert f"static void {function}()" in main_cpp
