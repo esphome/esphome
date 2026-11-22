@@ -7,25 +7,22 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
-#include <span>
 
 namespace esphome::toptronic {
 
 ESPHOME_LOG_TAG(TAG, "toptronic");
 
 static constexpr uint8_t RESPONSE = 0x42;
-// Extended RESPONSE for larger values (cleaning and maintenance counters): the 0x42 layout with two extra
-// bytes (0x80 0x00) between the datapoint and the value
-static constexpr uint8_t RESPONSE_EXT = 0x56;
+static constexpr uint8_t RESPONSE_EXT = 0x56;  // same layout + 2 header bytes before value
 static constexpr uint8_t GET_REQ = 0x40;
 static constexpr uint8_t SET_REQ = 0x46;
-// A CAN frame holds 8 bytes: a start frame spends 2 on headers, a continuation frame 1.
-// Continuation CAN ids clear bits 28-22.
 static constexpr size_t MAX_FIRST_FRAME_PAYLOAD = 6;
 static constexpr uint32_t CONTINUATION_ID_MASK = 0x003FFFFF;
 static constexpr uint8_t START_OF_MESSAGE_ID = 0x1F;
 static constexpr size_t MIN_MESSAGE_LEN = 5;  // cmd | fg | fn | dp_hi | dp_lo
 static constexpr size_t CRC_LEN = 2;
+static constexpr uint16_t CRC_INIT = 0x600D;
+static constexpr uint16_t CRC_POLY = 0x8408;
 // Keep in sync with DEVICE_TYPES["GW"] in __init__.py: the low 6 bits carry the hub address
 static constexpr uint16_t GATEWAY_DEVICE_TYPE = 1152;  // GW
 // Device types are 64 apart, so the low 6 bits of a device id are its address
@@ -60,7 +57,10 @@ static constexpr size_t build_set_request(uint8_t function_group, uint8_t functi
   return GET_REQUEST_LEN + value_len;
 }
 
-TopTronic::TopTronic(canbus::Canbus *canbus, uint16_t device_id) : canbus_(canbus), device_id_(device_id) {
+TopTronic::TopTronic(canbus::Canbus *canbus, uint16_t device_id)
+    : canbus_(canbus),
+      can_id_(build_can_id(GATEWAY_DEVICE_TYPE | (device_id & DEVICE_ADDR_MASK), device_id)),
+      device_id_(device_id) {
   canbus->add_frame_callback([this](const canbus::CanFrame &frame) {
     // A remote frame has no payload; the bytes passed with it are left over from an earlier frame
     if (frame.remote_transmission_request || !frame.use_extended_id || sender_id(frame.can_id) != this->device_id_)
@@ -78,7 +78,10 @@ uint32_t TopTronicBase::get_id() const {
 void TopTronicBase::cache_request_data() {
   this->request_data_ = build_get_request(this->function_group_, this->function_number_, this->datapoint_);
 }
-void TopTronicBase::update() { this->update_callback_.call(); }
+void TopTronicBase::update() {
+  if (this->hub_ != nullptr)
+    this->hub_->send_get_(this);
+}
 
 template<typename T> T bytes_to_number(const uint8_t *data, size_t len) {
   uint64_t u = 0;
@@ -104,48 +107,53 @@ static size_t type_width(TypeName type) {
   return 1;
 }
 
-// Writes value big endian into out and returns its width. Rounds before narrowing (a scaled 21.5 must
-// not become 21.4) and clamps to the wire type so an out-of-range write cannot wrap to an unrelated value.
-static size_t float_to_bytes(float value, TypeName type, uint8_t *out) {
-  int64_t v = static_cast<int64_t>(llroundf(value));
+// Rounds to the nearest integer, saturating before the cast so values beyond the int64 range (including
+// the legitimate S64 endpoints) cannot wrap, then clamps to the wire type.
+static int64_t encode_value(float value, TypeName type) {
+  int64_t v;
+  if (value >= 0x1p63f) {
+    v = INT64_MAX;
+  } else if (value <= -0x1p63f) {
+    v = INT64_MIN;
+  } else {
+    v = static_cast<int64_t>(llroundf(value));
+  }
   switch (type) {
     case TypeName::TYPE_NAME_U8:
-      v = std::clamp<int64_t>(v, 0, UINT8_MAX);
-      break;
+      return std::clamp<int64_t>(v, 0, UINT8_MAX);
     case TypeName::TYPE_NAME_U16:
-      v = std::clamp<int64_t>(v, 0, UINT16_MAX);
-      break;
+      return std::clamp<int64_t>(v, 0, UINT16_MAX);
     case TypeName::TYPE_NAME_U32:
-      v = std::clamp<int64_t>(v, 0, UINT32_MAX);
-      break;
+      return std::clamp<int64_t>(v, 0, UINT32_MAX);
     case TypeName::TYPE_NAME_S8:
-      v = std::clamp<int64_t>(v, INT8_MIN, INT8_MAX);
-      break;
+      return std::clamp<int64_t>(v, INT8_MIN, INT8_MAX);
     case TypeName::TYPE_NAME_S16:
-      v = std::clamp<int64_t>(v, INT16_MIN, INT16_MAX);
-      break;
+      return std::clamp<int64_t>(v, INT16_MIN, INT16_MAX);
     case TypeName::TYPE_NAME_S32:
-      v = std::clamp<int64_t>(v, INT32_MIN, INT32_MAX);
-      break;
+      return std::clamp<int64_t>(v, INT32_MIN, INT32_MAX);
     case TypeName::TYPE_NAME_S64:
-      break;
+      return v;
   }
+  return v;
+}
+
+// Writes an encoded value big endian into out and returns its width.
+static size_t write_value(int64_t v, TypeName type, uint8_t *out) {
   const size_t width = type_width(type);
   for (size_t i = 0; i < width; i++)
     out[i] = static_cast<uint8_t>(v >> (8 * (width - 1 - i)));
   return width;
 }
 
-void TopTronicBase::send_set_(float value, TypeName type) {
+bool TopTronicBase::send_set_(float value, TypeName type, float *encoded) {
+  const int64_t v = encode_value(value, type);
+  *encoded = static_cast<float>(v);
   uint8_t bytes[MAX_SET_VALUE_LEN];
-  const size_t width = float_to_bytes(value, type, bytes);
+  const size_t width = write_value(v, type, bytes);
   SetRequest data{};
   const size_t len =
       build_set_request(this->function_group_, this->function_number_, this->datapoint_, bytes, width, data);
-  this->set_callback_.call(data.data(), len);
-  char hex[format_hex_size(MAX_SET_REQUEST_LEN)];
-  format_hex_to(hex, data.data(), len);
-  ESP_LOGD(TAG, "[SET] %s: %f, Data: 0x%s", LOG_STR_ARG(this->get_log_name()), value, hex);
+  return this->hub_ != nullptr && this->hub_->send_frames_(this->hub_->can_id_, data.data(), len);
 }
 
 float TopTronicSensor::parse_value(const uint8_t *data, size_t len) {
@@ -171,21 +179,32 @@ size_t TopTronicSensor::value_width() const { return type_width(this->type_); }
 
 #ifdef USE_NUMBER
 void TopTronicNumber::control(float value) {
-  float v = this->multiplier_ * value;
-  this->send_set_(v, this->type_);
-  if (this->optimistic_)
-    this->publish_state(value);
-  ESP_LOGD(TAG, "[SET] %s: %f", LOG_STR_ARG(this->get_log_name()), v);
+  const float scaled = this->multiplier_ * value;
+  float encoded;
+  if (this->send_set_(scaled, this->type_, &encoded) && this->optimistic_)
+    this->publish_state(encoded / this->multiplier_);
+  ESP_LOGD(TAG, "[SET] %s: %f", LOG_STR_ARG(this->get_log_name()), scaled);
 }
 #endif
 #ifdef USE_TEXT_SENSOR
 const char *TopTronicTextSensor::parse_value(const uint8_t *data, size_t len) const {
-  const uint8_t raw = bytes_to_number<uint8_t>(data, len);
+  if (len == 0)
+    return nullptr;
+  // The option list is keyed by uint8_t, so a wider value would be truncated into an unrelated
+  // option. Leading zero bytes are padding; anything else does not fit and keeps the last state.
+  for (size_t i = 0; i + 1 < len; i++) {
+    if (data[i] != 0) {
+      ESP_LOGW(TAG, "%s: %zu byte value does not fit U8, keeping the last state", LOG_STR_ARG(this->get_log_name()),
+               len);
+      return nullptr;
+    }
+  }
+  const uint8_t raw = data[len - 1];
   for (const auto &option : this->options_) {
     if (option.value == raw)
       return option.text;
   }
-  ESP_LOGW(TAG, "Unknown text sensor value: %u", raw);
+  ESP_LOGW(TAG, "%s: unknown value %u, keeping the last state", LOG_STR_ARG(this->get_log_name()), raw);
   return nullptr;
 }
 #endif
@@ -193,66 +212,57 @@ const char *TopTronicTextSensor::parse_value(const uint8_t *data, size_t len) co
 void TopTronicSelect::control(size_t index) {
   if (index >= this->values_.size())
     return;
-  this->send_set_(static_cast<float>(this->values_[index]), this->type_);
-  if (this->optimistic_)
+  float encoded;
+  if (this->send_set_(static_cast<float>(this->values_[index]), this->type_, &encoded) && this->optimistic_)
     this->publish_state(index);
 }
 #endif
 
 void TopTronic::add_sensor(TopTronicBase *sensor) {
   const uint32_t id = sensor->get_id();
-  if (auto existing = this->sensors_.find(id); existing != this->sensors_.end()) {
-    // Config validation rejects two read entities on one datapoint, so only external components get here
-    ESP_LOGW(TAG, "Duplicate datapoint: '%s' replaces '%s'", LOG_STR_ARG(sensor->get_log_name()),
-             LOG_STR_ARG(existing->second->get_log_name()));
+  for (TopTronicBase *existing : this->sensors_) {
+    if (existing->get_id() == id) {
+      // Config validation rejects two read entities on one datapoint, so only external components get here
+      ESP_LOGW(TAG, "Duplicate datapoint: '%s' replaces '%s'", LOG_STR_ARG(sensor->get_log_name()),
+               LOG_STR_ARG(existing->get_log_name()));
+      break;
+    }
   }
-  this->sensors_[id] = sensor;
+  sensor->set_hub(this);
+  this->sensors_.push_back(sensor);
 }
 
 void TopTronic::add_input(TopTronicBase *input) {
   const uint32_t id = input->get_id();
-  if (auto existing = this->inputs_.find(id); existing != this->inputs_.end()) {
-    ESP_LOGW(TAG, "Duplicate input: '%s' replaces '%s'", LOG_STR_ARG(input->get_log_name()),
-             LOG_STR_ARG(existing->second->get_log_name()));
+  for (TopTronicBase *existing : this->inputs_) {
+    if (existing->get_id() == id) {
+      ESP_LOGW(TAG, "Duplicate input: '%s' replaces '%s'", LOG_STR_ARG(input->get_log_name()),
+               LOG_STR_ARG(existing->get_log_name()));
+      break;
+    }
   }
-  this->inputs_[id] = input;
+  input->set_hub(this);
+  this->inputs_.push_back(input);
 }
 
 void TopTronic::register_sensor_callbacks() {
-  auto *canbus = this->canbus_;
-  const uint32_t can_id = build_can_id(GATEWAY_DEVICE_TYPE | (this->device_id_ & DEVICE_ADDR_MASK), this->device_id_);
-  const uint16_t receiver = this->device_id_;
-  for (const auto &s : this->sensors_) {
-    auto *sensor = s.second;
+  std::sort(this->sensors_.begin(), this->sensors_.end(),
+            [](const TopTronicBase *a, const TopTronicBase *b) { return a->get_id() < b->get_id(); });
+  for (TopTronicBase *sensor : this->sensors_)
     sensor->cache_request_data();
-    sensor->add_on_update_callback([canbus, sensor, can_id, receiver]() -> void {
-      const auto &data = sensor->get_request_data();
-      canbus->send_data(can_id, true, false, data.data(), data.size());
-      char hex[format_hex_size(GET_REQUEST_LEN)];
-      format_hex_to(hex, data);
-      ESP_LOGD(TAG, "[GET] dev 0x%04X Data: 0x%s", receiver, hex);
-    });
-  }
 }
 
-// A request longer than one frame goes out as a start frame plus continuation frames, the same layout
-// parse_frame_() reassembles:
-//   start frame (msg_id 0x1F): [total frames << 3 | 0x01, tag, payload[0..5]]
-//   continuation frames:       [tag, next 7 payload bytes]
-// The payload ends with a CRC-16 (poly 0x1021, init 0xB006, reflected) sent big endian.
-void TopTronic::send_frames_(uint32_t can_id, const uint8_t *data, size_t len) {
-  if (len <= 8) {
-    this->canbus_->send_data(can_id, true, false, data, len);
-    return;
-  }
+// A request longer than one frame goes out as a start frame plus continuation frames with a CRC appended,
+// the same layout parse_frame_() reassembles.
+bool TopTronic::send_frames_(uint32_t can_id, const uint8_t *data, size_t len) {
+  if (len <= 8)
+    return this->canbus_->send_data(can_id, true, false, data, len) == canbus::ERROR_OK;
   uint8_t msg_header = (++this->msg_counter_ == 0) ? ++this->msg_counter_ : this->msg_counter_;
   // Drop the single-frame header byte, append the CRC
   uint8_t msg[MAX_SET_REQUEST_LEN - 1 + CRC_LEN];
   const size_t body_len = std::min(len - 1, MAX_SET_REQUEST_LEN - 1);
   std::memcpy(msg, data + 1, body_len);
-  const uint16_t crc = crc16(msg, body_len, 0x600D, 0x8408);
-  msg[body_len] = static_cast<uint8_t>(crc >> 8);
-  msg[body_len + 1] = static_cast<uint8_t>(crc & 0xFF);
+  put_be16(msg + body_len, crc16(msg, body_len, CRC_INIT, CRC_POLY));
   const size_t msg_len = body_len + CRC_LEN;
   const size_t first_chunk = std::min(MAX_FIRST_FRAME_PAYLOAD, msg_len);
   const size_t after_first = msg_len - first_chunk;
@@ -261,34 +271,39 @@ void TopTronic::send_frames_(uint32_t can_id, const uint8_t *data, size_t len) {
   frame[0] = static_cast<uint8_t>(((num_cont + 1) << 3) | 0x01);
   frame[1] = msg_header;
   std::memcpy(frame + 2, msg, first_chunk);
-  this->canbus_->send_data(can_id, true, false, frame, first_chunk + 2);
+  if (this->canbus_->send_data(can_id, true, false, frame, first_chunk + 2) != canbus::ERROR_OK)
+    return false;
   const uint32_t cont_id = can_id & CONTINUATION_ID_MASK;
   for (size_t offset = first_chunk; offset < msg_len;) {
     const size_t chunk = std::min(MAX_CONT_FRAME_PAYLOAD, msg_len - offset);
     frame[0] = msg_header;
     std::memcpy(frame + 1, msg + offset, chunk);
     offset += chunk;
-    this->canbus_->send_data(cont_id, true, false, frame, chunk + 1);
+    if (this->canbus_->send_data(cont_id, true, false, frame, chunk + 1) != canbus::ERROR_OK)
+      return false;
   }
-  ESP_LOGD(TAG, "[SET] Sent %u CAN frames (msg_header=0x%02X, payload=%zu bytes)", 1 + num_cont, msg_header, len);
+  return true;
 }
 
 void TopTronic::register_input_callbacks() {
-  const uint32_t can_id = build_can_id(GATEWAY_DEVICE_TYPE | (this->device_id_ & DEVICE_ADDR_MASK), this->device_id_);
-  for (const auto &i : this->inputs_) {
-    i.second->add_on_set_callback(
-        [this, can_id](const uint8_t *data, size_t len) -> void { this->send_frames_(can_id, data, len); });
-  }
+  std::sort(this->sensors_.begin(), this->sensors_.end(),
+            [](const TopTronicBase *a, const TopTronicBase *b) { return a->get_id() < b->get_id(); });
+  this->link_inputs_();
 }
 
-TopTronicBase *TopTronic::get_sensor_(uint32_t sensor_id) {
-  auto it = this->sensors_.find(sensor_id);
-  return it == this->sensors_.end() ? nullptr : it->second;
+bool TopTronic::send_get_(TopTronicBase *sensor) {
+  const auto &data = sensor->get_request_data();
+  return this->send_frames_(this->can_id_, data.data(), data.size());
+}
+
+TopTronicBase *TopTronic::get_sensor_(uint32_t sensor_id) const {
+  auto it = std::lower_bound(this->sensors_.begin(), this->sensors_.end(), sensor_id,
+                             [](const TopTronicBase *sensor, uint32_t id) { return sensor->get_id() < id; });
+  return it != this->sensors_.end() && (*it)->get_id() == sensor_id ? *it : nullptr;
 }
 
 void TopTronic::link_inputs_() {
-  for (const auto &i : this->inputs_) {
-    auto *input_base = i.second;
+  for (TopTronicBase *input_base : this->inputs_) {
     auto *sensor_base = this->get_sensor_(input_base->get_id());
     if (sensor_base == nullptr) {
       // A write-only input (for example a select with no readback) is valid, so this
@@ -323,7 +338,6 @@ void TopTronic::link_inputs_() {
 
 void TopTronic::setup() {
   // Wire the callbacks here, after every platform's add_sensor()/add_input() has run.
-  this->link_inputs_();
   this->register_sensor_callbacks();
   this->register_input_callbacks();
   ESP_LOGI(TAG, "Hub 0x%04X (%zu sensors, %zu inputs)", (unsigned) this->device_id_, this->sensors_.size(),
@@ -331,12 +345,13 @@ void TopTronic::setup() {
 }
 
 void TopTronic::dump_config() {
-  // The setters clamp these to the build-wide limits, so this prints what actually applies
-  ESP_LOGCONFIG(TAG, "TopTronic:");
-  ESP_LOGCONFIG(TAG, "  Device id: 0x%04X", (unsigned) this->device_id_);
-  ESP_LOGCONFIG(TAG, "  Max pending messages: %u", (unsigned) this->max_pending_messages_);
-  ESP_LOGCONFIG(TAG, "  Max frames per message: %u", (unsigned) this->max_frames_per_message_);
-  ESP_LOGCONFIG(TAG, "  Max pending age: %u ms", (unsigned) this->max_pending_age_ms_);
+  ESP_LOGCONFIG(TAG,
+                "TopTronic 0x%04X:\n"
+                "  Max pending messages: %u\n"
+                "  Max frames per message: %u\n"
+                "  Max pending age: %u ms",
+                (unsigned) this->device_id_, (unsigned) this->max_pending_messages_,
+                (unsigned) this->max_frames_per_message_, (unsigned) this->max_pending_age_ms_);
 }
 
 bool TopTronic::parse_frame_(const uint8_t *data, size_t size, uint32_t can_id, const uint8_t **msg, size_t *len) {
@@ -362,15 +377,13 @@ bool TopTronic::parse_frame_(const uint8_t *data, size_t size, uint32_t can_id, 
       *len = size - 1;
       return true;
     }
-    // A message needs at least two frames; U32/S32 values use 2 and S64 uses 3, so a count above the
-    // configured limit is a corrupted header
-    if (total_frames == 1 || total_frames > this->max_frames_per_message_) {
-      ESP_LOGD(TAG, "Dropping start frame with implausible frame count %u (header 0x%02X)", total_frames, data[0]);
+    if (total_frames == 1) {
+      ESP_LOGV(TAG, "Dropping start frame with frame count 1");
       return false;
     }
     if (slot == nullptr) {
       // Take a free or stale slot, else evict the oldest
-      slot = &slots[0];
+      slot = &this->slots_[0];
       for (auto &s : slots) {
         if (!s.is_live(now, this->max_pending_age_ms_)) {
           slot = &s;
@@ -378,10 +391,6 @@ bool TopTronic::parse_frame_(const uint8_t *data, size_t size, uint32_t can_id, 
         }
         if (now - s.last_update_ms > now - slot->last_update_ms)
           slot = &s;
-      }
-      if (slot->remaining != 0) {
-        ESP_LOGD(TAG, "Expiring pending message 0x%02X (%u bytes, %u frames remaining)", slot->tag, slot->len,
-                 slot->remaining);
       }
     }
     slot->tag = tag;
@@ -406,7 +415,7 @@ bool TopTronic::parse_frame_(const uint8_t *data, size_t size, uint32_t can_id, 
   const size_t buf_len = slot->len;
   if (buf_len < MIN_MESSAGE_LEN + CRC_LEN)
     return false;
-  if (encode_uint16(buf[buf_len - 2], buf[buf_len - 1]) != crc16(buf, buf_len - CRC_LEN, 0x600D, 0x8408)) {
+  if (encode_uint16(buf[buf_len - 2], buf[buf_len - 1]) != crc16(buf, buf_len - CRC_LEN, CRC_INIT, CRC_POLY)) {
     ESP_LOGW(TAG, "CRC check failed");
     return false;
   }
@@ -424,10 +433,9 @@ void TopTronic::interpret_message_(const uint8_t *data, size_t len) {
   if (len < value_off)
     return;
   uint32_t id = data[1] + (data[2] << 8) + (static_cast<uint32_t>(encode_uint16(data[3], data[4])) << 16);
-  auto sensor_it = this->sensors_.find(id);
-  if (sensor_it == this->sensors_.end())
+  TopTronicBase *sensor_base = this->get_sensor_(id);
+  if (sensor_base == nullptr)
     return;
-  TopTronicBase *sensor_base = sensor_it->second;
   const size_t value_len = len - value_off;
   size_t required_value_len = 1;
   if (sensor_base->type() == SensorType::SENSOR_TYPE_SENSOR)
