@@ -111,6 +111,22 @@ static_assert(static_cast<int>(UART_SELECTION_UART0) == static_cast<int>(UART_NU
 static_assert(static_cast<int>(UART_SELECTION_UART2) == static_cast<int>(UART_NUM_2));
 #endif
 
+#ifndef USE_LOGGER_UART_SELECTION_USB_CDC
+void Logger::on_powerdown() {
+  // A restart or deep sleep does not wait for the driver's TX buffer
+  if (this->baud_rate_ == 0)
+    return;
+#ifdef USE_LOGGER_UART_SELECTION_USB_SERIAL_JTAG
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 4, 0)
+  if (usb_serial_jtag_is_connected())
+    usb_serial_jtag_wait_tx_done(pdMS_TO_TICKS(100));
+#endif
+#else
+  uart_wait_tx_done(this->get_uart_num(), pdMS_TO_TICKS(100));
+#endif
+}
+#endif
+
 void Logger::pre_setup() {
   if (this->baud_rate_ > 0) {
 #ifdef USE_LOGGER_UART_SELECTION_USB_SERIAL_JTAG

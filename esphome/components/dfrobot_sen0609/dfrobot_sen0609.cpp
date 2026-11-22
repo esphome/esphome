@@ -98,8 +98,7 @@ static bool answer_means_done(Operation operation, const char *line) {
 PROGMEM_STRING_TABLE(OperationStrings, "none", "stop", "start", "restart", "factory reset", "write", "save", "read");
 
 static const LogString *operation_to_str(Operation operation) {
-  return OperationStrings::get_log_str(static_cast<uint8_t>(operation),
-                                       static_cast<uint8_t>(Operation::OPERATION_NONE));
+  return OperationStrings::get_log_str(operation, Operation::OPERATION_NONE);
 }
 
 DFRobotSEN0609Component::DFRobotSEN0609Component(RunMode mode) : mode_(mode) {

@@ -28,14 +28,14 @@ from .. import (
     vbus_ns,
 )
 
-DeltaSol_BS_Plus = vbus_ns.class_("DeltaSolBSPlusBSensor", cg.Component)
-DeltaSol_BS_2009 = vbus_ns.class_("DeltaSolBS2009BSensor", cg.Component)
-DeltaSol_BS2 = vbus_ns.class_("DeltaSolBS2BSensor", cg.Component)
-DeltaSol_C = vbus_ns.class_("DeltaSolCBSensor", cg.Component)
-DeltaSol_CS2 = vbus_ns.class_("DeltaSolCS2BSensor", cg.Component)
-DeltaSol_CS4 = vbus_ns.class_("DeltaSolCS4BSensor", cg.Component)
-DeltaSol_CS_Plus = vbus_ns.class_("DeltaSolCSPlusBSensor", cg.Component)
-VBusCustom = vbus_ns.class_("VBusCustomBSensor", cg.Component)
+DeltaSol_BS_Plus = vbus_ns.class_("DeltaSolBSPlusBSensor")
+DeltaSol_BS_2009 = vbus_ns.class_("DeltaSolBS2009BSensor")
+DeltaSol_BS2 = vbus_ns.class_("DeltaSolBS2BSensor")
+DeltaSol_C = vbus_ns.class_("DeltaSolCBSensor")
+DeltaSol_CS2 = vbus_ns.class_("DeltaSolCS2BSensor")
+DeltaSol_CS4 = vbus_ns.class_("DeltaSolCS4BSensor")
+DeltaSol_CS_Plus = vbus_ns.class_("DeltaSolCSPlusBSensor")
+VBusCustom = vbus_ns.class_("VBusCustomBSensor")
 VBusCustomSub = vbus_ns.class_("VBusCustomSubBSensor", binary_sensor.BinarySensor)
 
 CONF_RELAY1 = "relay1"
@@ -54,7 +54,7 @@ CONF_FROST_PROTECTION_ACTIVE = "frost_protection_active"
 
 CONFIG_SCHEMA = cv.typed_schema(
     {
-        CONF_DELTASOL_BS_PLUS: cv.COMPONENT_SCHEMA.extend(
+        CONF_DELTASOL_BS_PLUS: cv.Schema(
             {
                 cv.GenerateID(): cv.declare_id(DeltaSol_BS_Plus),
                 cv.GenerateID(CONF_VBUS_ID): cv.use_id(VBus),
@@ -96,7 +96,7 @@ CONFIG_SCHEMA = cv.typed_schema(
                 ),
             }
         ),
-        CONF_DELTASOL_BS_2009: cv.COMPONENT_SCHEMA.extend(
+        CONF_DELTASOL_BS_2009: cv.Schema(
             {
                 cv.GenerateID(): cv.declare_id(DeltaSol_BS_2009),
                 cv.GenerateID(CONF_VBUS_ID): cv.use_id(VBus),
@@ -123,7 +123,7 @@ CONFIG_SCHEMA = cv.typed_schema(
                 ),
             }
         ),
-        CONF_DELTASOL_BS2: cv.COMPONENT_SCHEMA.extend(
+        CONF_DELTASOL_BS2: cv.Schema(
             {
                 cv.GenerateID(): cv.declare_id(DeltaSol_BS2),
                 cv.GenerateID(CONF_VBUS_ID): cv.use_id(VBus),
@@ -145,7 +145,7 @@ CONFIG_SCHEMA = cv.typed_schema(
                 ),
             }
         ),
-        CONF_DELTASOL_C: cv.COMPONENT_SCHEMA.extend(
+        CONF_DELTASOL_C: cv.Schema(
             {
                 cv.GenerateID(): cv.declare_id(DeltaSol_C),
                 cv.GenerateID(CONF_VBUS_ID): cv.use_id(VBus),
@@ -167,7 +167,7 @@ CONFIG_SCHEMA = cv.typed_schema(
                 ),
             }
         ),
-        CONF_DELTASOL_CS2: cv.COMPONENT_SCHEMA.extend(
+        CONF_DELTASOL_CS2: cv.Schema(
             {
                 cv.GenerateID(): cv.declare_id(DeltaSol_CS2),
                 cv.GenerateID(CONF_VBUS_ID): cv.use_id(VBus),
@@ -189,7 +189,7 @@ CONFIG_SCHEMA = cv.typed_schema(
                 ),
             }
         ),
-        CONF_DELTASOL_CS4: cv.COMPONENT_SCHEMA.extend(
+        CONF_DELTASOL_CS4: cv.Schema(
             {
                 cv.GenerateID(): cv.declare_id(DeltaSol_CS4),
                 cv.GenerateID(CONF_VBUS_ID): cv.use_id(VBus),
@@ -211,7 +211,7 @@ CONFIG_SCHEMA = cv.typed_schema(
                 ),
             }
         ),
-        CONF_DELTASOL_CS_PLUS: cv.COMPONENT_SCHEMA.extend(
+        CONF_DELTASOL_CS_PLUS: cv.Schema(
             {
                 cv.GenerateID(): cv.declare_id(DeltaSol_CS_Plus),
                 cv.GenerateID(CONF_VBUS_ID): cv.use_id(VBus),
@@ -233,7 +233,7 @@ CONFIG_SCHEMA = cv.typed_schema(
                 ),
             }
         ),
-        CONF_CUSTOM: cv.COMPONENT_SCHEMA.extend(
+        CONF_CUSTOM: cv.Schema(
             {
                 cv.GenerateID(): cv.declare_id(VBusCustom),
                 cv.GenerateID(CONF_VBUS_ID): cv.use_id(VBus),
@@ -259,7 +259,6 @@ CONFIG_SCHEMA = cv.typed_schema(
 
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
     binary_sensors = binary_sensor.sub_binary_sensors(config)
 
     if config[CONF_MODEL] == CONF_DELTASOL_BS_PLUS:

@@ -1,15 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import sensor, uart
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_PM_2_5,
-    CONF_UPDATE_INTERVAL,
-    DEVICE_CLASS_PM25,
-    ICON_BLUR,
-    SCHEDULER_DONT_RUN,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_MICROGRAMS_PER_CUBIC_METER,
-)
+from esphome.const import CONF_PM_2_5, CONF_UPDATE_INTERVAL, SCHEDULER_DONT_RUN
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@habbie"]
@@ -25,13 +17,7 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(PM1006Component),
-            cv.Optional(CONF_PM_2_5): sensor.sensor_schema(
-                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
-                icon=ICON_BLUR,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_PM25,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
+            cv.Optional(CONF_PM_2_5): sensor.sensor_schema(kind=sensor.PM25),
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
