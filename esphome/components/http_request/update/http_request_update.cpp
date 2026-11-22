@@ -168,7 +168,7 @@ void HttpRequestUpdate::update_task(void *params) {
 
     bool valid = false;
     {  // Scope to ensure JsonDocument is destroyed before deallocating buffer
-      valid = json::parse_json(data, read_index, [info](JsonObject root) -> bool {
+      valid = json::parse_json(data, read_index, [info, result](JsonObject root) -> bool {
         if (!root[ESPHOME_F("name")].is<const char *>() || !root[ESPHOME_F("version")].is<const char *>() ||
             !root[ESPHOME_F("builds")].is<JsonArray>()) {
           ESP_LOGE(TAG, "Manifest does not contain required fields");
@@ -178,7 +178,7 @@ void HttpRequestUpdate::update_task(void *params) {
         info->latest_version = root[ESPHOME_F("version")].as<std::string>();
 
         if (root[ESPHOME_F("force_update")].is<bool>())
-          info->force_update = root[ESPHOME_F("force_update")].as<bool>();
+          result->force_update = root[ESPHOME_F("force_update")].as<bool>();
 
         auto builds_array = root[ESPHOME_F("builds")].as<JsonArray>();
         for (auto build : builds_array) {
@@ -275,6 +275,7 @@ defer:
 
     this_update->update_info_ = std::move(result->info);
     this_update->state_ = new_state;
+    const bool force_update = result->force_update;
     delete result;  // Safe: moved-from state is valid for destruction
 
     this_update->status_clear_error();
@@ -282,10 +283,11 @@ defer:
 
     if (trigger_update_available) {
       this_update->get_update_available_trigger()->trigger(this_update->update_info_);
-    }
 
-    if (this_update->allow_forced_update_ && this_update->update_info_.force_update) {
-      this_update->perform(false);
+      if (this_update->allow_forced_update_ && force_update) {
+        ESP_LOGI(TAG, "Manifest requests forced update to %s", this_update->update_info_.latest_version.c_str());
+        this_update->perform(false);
+      }
     }
   });
 

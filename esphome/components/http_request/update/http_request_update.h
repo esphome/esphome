@@ -26,6 +26,7 @@ struct TaskResult {
   update::UpdateInfo info;
   const LogString *error_str{nullptr};  // set on failure, nullptr on success
   bool owns_source_url{false};          // the check holds the buffer until it ends, see begin_check_()
+  bool force_update{false};             // the manifest asked for the update to install on its own
 };
 
 class HttpRequestUpdate final : public update::UpdateEntity, public PollingComponent, public ota::OTAStateListener {
