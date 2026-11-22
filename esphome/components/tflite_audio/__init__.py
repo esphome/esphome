@@ -1,0 +1,62 @@
+"""Streaming audio kind for tflite_micro_runtime.
+
+The model is loaded by the streaming consumer, which owns the feature extractor,
+the sliding window and the MicroResourceVariables. This kind only carries the tuning
+values and the decoder for the windowed probabilities.
+"""
+
+from pathlib import Path
+
+import esphome.codegen as cg
+import esphome.config_validation as cv
+from esphome.const import CONF_DEBUG, CONF_ID
+from esphome.core import ID
+from esphome.types import ConfigType
+
+CODEOWNERS = ["@nliaudat"]
+DOMAIN = "tflite_audio"
+
+CONF_PROBABILITY_CUTOFF = "probability_cutoff"
+CONF_SLIDING_WINDOW_SIZE = "sliding_window_size"
+CONF_FEATURES_STEP_SIZE = "features_step_size"
+CONF_FEATURE_COUNT = "feature_count"
+
+output_ns = cg.esphome_ns.namespace("tflite_output_processor")
+ClassificationDecoder = output_ns.class_("ClassificationDecoder")
+OutputProcessing = output_ns.enum("OutputProcessing", is_class=True)
+
+AUDIO_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_PROBABILITY_CUTOFF): cv.percentage,
+        cv.Optional(CONF_SLIDING_WINDOW_SIZE): cv.positive_int,
+        cv.Optional(CONF_FEATURES_STEP_SIZE): cv.int_range(min=0, max=30),
+        cv.Optional(CONF_FEATURE_COUNT): cv.int_range(min=10, max=80),
+    }
+)
+
+# Library component: the runtime creates the decoder from its own entry.
+CONFIG_SCHEMA = cv.Schema({})
+
+
+async def to_code(var, config: ConfigType, model_path: Path) -> None:
+    """Pass the tuning values through and leave the load to the consumer."""
+    cg.add(var.set_defer_load(True))
+    if (cutoff := config.get(CONF_PROBABILITY_CUTOFF)) is not None:
+        cg.add(var.set_probability_cutoff(cutoff))
+    if (window := config.get(CONF_SLIDING_WINDOW_SIZE)) is not None:
+        cg.add(var.set_sliding_window_size(window))
+    if (step := config.get(CONF_FEATURES_STEP_SIZE)) is not None:
+        cg.add(var.set_features_step_size(step))
+    if (count := config.get(CONF_FEATURE_COUNT)) is not None:
+        cg.add(var.set_feature_count(count))
+    decoder = cg.new_Pvariable(
+        ID(
+            f"{config[CONF_ID].id}_audio_decoder",
+            is_declaration=True,
+            type=ClassificationDecoder,
+        ),
+        OutputProcessing.OUTPUT_PROCESSING_ARGMAX,
+        1.0,
+        config.get(CONF_DEBUG, False),
+    )
+    cg.add(var.set_output_decoder(decoder))
