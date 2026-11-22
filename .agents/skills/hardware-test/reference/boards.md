@@ -78,8 +78,9 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
   GPIO16 and GPIO17 for its internal flash: never put any pin there.
 - The USB adapter's TX also reaches GPIO3, so a second hardware UART with `rx_pin: GPIO3` receives what the host
   writes while the logger stays on UART0 (recipes/uart_sim.md, PMS5003T feed).
-- Any `esp32_power_management` with `min_frequency` below `max_frequency` breaks APB-clocked UART RX (the IDF
-  driver holds the APB lock only while sending): about 60 % of PMS5003T frames parsed, about 20 % with light sleep,
+- `esp32_power_management` with `min_frequency` below 80 MHz (tested 10 to 80 MHz) lowers the APB clock and breaks
+  APB-clocked UART RX (the IDF driver holds the APB lock only while sending); scaling between 80, 160 and 240 MHz
+  keeps APB at 80 MHz and does not. About 60 % of PMS5003T frames parsed, about 20 % with light sleep,
   the same with `esp_pm_configure()` by hand. `clock_source: REF_TICK` on the UART fixes frequency scaling, not
   light sleep. A bare `min_frequency: 10` means 10 Hz; write `10MHz`. Light sleep builds restarted once per run with
   an unreadable reason, and the logger output garbles under frequency scaling (#23038).

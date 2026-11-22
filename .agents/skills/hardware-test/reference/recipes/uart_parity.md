@@ -4,8 +4,9 @@
 
 A CH340 on macOS reports no parity or framing errors (boards.md, ESP8266), so read the board's TX at 115200 8E1
 with `scripts/uart_parity/rd.py PORT SECS OUT e [ack] [feed]` and look at the data instead: bytes sent back to back
-at 8E1 decode exactly, bytes sent at 8N1 lose step (the next start bit is taken as the parity bit) and give a fixed
-garble that `uartsim.py` (an edge-triggered 8E1 receiver model) predicts byte for byte.
+at 8E1 decode exactly, bytes sent at 8N1 lose step (the 8N1 stop bit is read as parity and the next start bit as the
+8E1 stop bit) and give a fixed garble that `uartsim.py` (an edge-triggered 8E1 receiver model) predicts byte for
+byte.
 
 - `cal.yaml` calibrates the method: `Serial.begin()` at 8N1, then 8E1, the same pattern each time.
 - An isolated byte with odd weight (0x7F) has the same waveform in both modes; prove parity with a back-to-back
