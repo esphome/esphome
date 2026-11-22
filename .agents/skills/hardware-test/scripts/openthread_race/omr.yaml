@@ -1,5 +1,6 @@
 # A text sensor "OMR Prefix" with the favored OMR prefix of the border router's own OpenThread instance (what the
-# meshcop omr TXT field carries), "none" while it has none. omr_state.py reads it over the API after a restart.
+# meshcop omr TXT field carries), "none" while it has none, and an "Uptime" sensor that proves a restart.
+# omr_state.py reads both over the API after a restart.
 esphome:
   includes:
     - <openthread/border_routing.h>
@@ -19,3 +20,7 @@ text_sensor:
       char buf[OT_IP6_PREFIX_STRING_SIZE];
       otIp6PrefixToString(&prefix, buf, sizeof(buf));
       return std::string(buf);
+sensor:
+  - platform: uptime
+    name: Uptime
+    update_interval: 2s

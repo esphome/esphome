@@ -1,5 +1,9 @@
 #!/bin/bash
 # meshcop.sh NAME: network name and whether omr is present in the _meshcop._udp TXT record of NAME (macOS dns-sd)
+# The host's mDNS cache can answer with a record from before a restart; rb.sh uses omr_state.py instead.
+command -v dns-sd > /dev/null || { echo "meshcop.sh needs dns-sd (macOS)" >&2; exit 2; }
 T=$(timeout 5 dns-sd -L "$1" _meshcop._udp local. 2>&1 | LC_ALL=C tr ' ' '\n' | LC_ALL=C grep -a -E "^(nn|omr)=")
-nn=$(echo "$T" | grep -a '^nn=' | head -1); omr=0; echo "$T" | grep -a -q '^omr=' && omr=1
-echo "$(date +%T) $1 ${nn:-nn=?} omr_present=$omr"
+nn=$(echo "$T" | grep -a '^nn=' | head -1)
+[ -n "$nn" ] || { echo "$(date +%T) $1 no record"; exit 1; }
+omr=0; echo "$T" | grep -a -q '^omr=' && omr=1
+echo "$(date +%T) $1 $nn omr_present=$omr"

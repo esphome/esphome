@@ -1,7 +1,7 @@
 # Runs the race steps on the device, for a board whose API is too slow (a C6 under coexistence); include it with
 # race.yaml and wifi-drop.yaml. Each step waits until Thread has been up for 40 s with Wi-Fi connected; the step
-# counter survives reboots and starts again at 0 on a new build. Steps: 20 reboots, 3 Wi-Fi drops, then the race
-# modes and delays in RACE_STEPS.
+# counter survives reboots and starts again at 0 on a new build or a press of Auto Reset. Steps: 20 reboots, 3 Wi-Fi
+# drops, then the race modes and delays in RACE_STEPS.
 globals:
   - id: auto_step
     type: int
@@ -52,7 +52,7 @@ interval:
           if (!thread_up)
             thread_up_at = 0;
           else if (thread_up_at == 0)
-            thread_up_at = now | 1;
+            thread_up_at = now != 0 ? now : 1;
           const int st = id(auto_step);
           if (st > STEPS)
             return;
@@ -89,3 +89,10 @@ interval:
             id(race_delay) = r.delay_ms;
             id(race_drop).execute();
           }
+button:
+  - platform: template
+    name: Auto Reset
+    on_press:
+      - lambda: |-
+          id(auto_step) = 0;
+          ESP_LOGI("hwt", "HWT auto step counter reset");
