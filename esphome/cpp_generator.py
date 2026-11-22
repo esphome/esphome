@@ -1533,7 +1533,7 @@ def call_lambda(lamb: LambdaExpression) -> Expression:
     """
     Given a lambda, either reduce to a simple expression or call it, possibly with parameters
     from the surrounding context.
-    This is for use only with value-returning lambdas, used in places where the value of a lambda call is needed.
+    This is for use where the lambda call is used as an expression (a value, or a void call).
     Use only where the surrounding scope declares the lambda's parameters with the same types.
     :param lamb: The LambdaExpression to call or reduce
     :return: An Expression representing the result of calling the lambda or reducing it to a simple expression
@@ -1541,12 +1541,13 @@ def call_lambda(lamb: LambdaExpression) -> Expression:
     # Developer error if this is called with a lambda that doesn't have a return type
     assert lamb.return_type is not None, "Lambda must have a return type to be called"
     expr = lamb.content.strip()
-    # A lone `return <expr>;` reduces to the expression; anything longer is called as is.
-    # A braced return such as `return {};` needs the lambda's return type, so it is called.
+    # A lone `return <expr>;` reduces to the expression; a longer body, a braced (`return {};`)
+    # or a bare (`return;`) return is called.
     if (
         re.match(r"^return\b", expr)
         and expr.endswith(";")
         and expr.count(";") == 1
+        and expr[6:-1].strip()
         and not expr[6:].lstrip().startswith("{")
     ):
         expr = RawExpression(expr[6:-1].strip())
