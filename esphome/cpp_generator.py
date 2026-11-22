@@ -883,6 +883,28 @@ def new_Pvariable(id_: ID, *args: SafeExpType) -> "MockObj":
     return Pvariable(id_, rhs)
 
 
+def declare_static_function(
+    name: str,
+    return_type: SafeExpType,
+    parameters: TemplateArgsType,
+) -> Callable[[list[str | Statement]], RawExpression]:
+    """Declare ``static <return_type> <name>(parameters)`` now; return the function that emits the body later.
+
+    The body goes after the user includes, where every id is in scope.
+    """
+    signature = (
+        f"static {safe_exp(return_type)} {name}({ParameterListExpression(*parameters)})"
+    )
+    add_global(RawStatement(f"{signature};"))
+
+    def define(body: list[str | Statement]) -> RawExpression:
+        lines = indent("\n".join(map(str, body)))
+        add_global_after_includes(RawStatement(f"{signature} {{\n{lines}\n}}"))
+        return RawExpression(name)
+
+    return define
+
+
 def static_function(
     name: str,
     return_type: SafeExpType,
@@ -891,19 +913,8 @@ def static_function(
 ) -> RawExpression:
     """Emit ``static <return_type> <name>(parameters) { body }`` at global scope and return an
     expression naming it, for use as a template argument or a function pointer.
-
-    The declaration goes with the other globals, so a template argument can name the function
-    at once; the body goes after the user includes, where every id and everything those
-    headers declare is in scope.
     """
-    signature = (
-        f"static {safe_exp(return_type)} {name}({ParameterListExpression(*parameters)})"
-    )
-    add_global(RawStatement(f"{signature};"))
-    add_global_after_includes(
-        RawStatement(f"{signature} {{\n{indent(chr(10).join(map(str, body)))}\n}}")
-    )
-    return RawExpression(name)
+    return declare_static_function(name, return_type, parameters)(body)
 
 
 @dataclass

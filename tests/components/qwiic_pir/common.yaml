@@ -2,3 +2,14 @@ binary_sensor:
   - platform: qwiic_pir
     i2c_id: i2c_bus
     name: Qwiic PIR Motion Sensor
+  - platform: qwiic_pir
+    i2c_id: i2c_bus
+    address: 0x13
+    name: Qwiic PIR Native
+    debounce_mode: NATIVE
+    debounce: 10ms
+  - platform: qwiic_pir
+    i2c_id: i2c_bus
+    address: 0x14
+    name: Qwiic PIR Raw
+    debounce_mode: RAW

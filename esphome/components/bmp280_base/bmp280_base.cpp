@@ -24,16 +24,8 @@ static const uint8_t BMP280_STATUS_IM_UPDATE = 0b01;
 // Indexed by BMP280Oversampling
 PROGMEM_STRING_TABLE(OversamplingStrings, "None", "1x", "2x", "4x", "8x", "16x", "UNKNOWN");
 
-[[maybe_unused]] static const LogString *oversampling_to_str(BMP280Oversampling value) {
-  return OversamplingStrings::get_log_str(static_cast<uint8_t>(value), OversamplingStrings::LAST_INDEX);
-}
-
 // Indexed by BMP280IIRFilter
 PROGMEM_STRING_TABLE(IIRFilterStrings, "OFF", "2x", "4x", "8x", "16x", "UNKNOWN");
-
-[[maybe_unused]] static const LogString *iir_filter_to_str(BMP280IIRFilter value) {
-  return IIRFilterStrings::get_log_str(static_cast<uint8_t>(value), IIRFilterStrings::LAST_INDEX);
-}
 
 void BMP280Component::setup() {
   uint8_t chip_id = 0;
@@ -90,13 +82,15 @@ void BMP280Component::setup() {
 }
 void BMP280Component::dump_config() {
   ESP_LOGCONFIG(TAG, "BMP280:");
-  ESP_LOGCONFIG(TAG, "  IIR Filter: %s", LOG_STR_ARG(iir_filter_to_str(this->iir_filter_)));
+  ESP_LOGCONFIG(TAG, "  IIR Filter: %s", LOG_STR_ARG(IIRFilterStrings::get_log_str(this->iir_filter_)));
   LOG_UPDATE_INTERVAL(this);
 
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
-  ESP_LOGCONFIG(TAG, "    Oversampling: %s", LOG_STR_ARG(oversampling_to_str(this->temperature_oversampling_)));
+  ESP_LOGCONFIG(TAG, "    Oversampling: %s",
+                LOG_STR_ARG(OversamplingStrings::get_log_str(this->temperature_oversampling_)));
   LOG_SENSOR("  ", "Pressure", this->pressure_sensor_);
-  ESP_LOGCONFIG(TAG, "    Oversampling: %s", LOG_STR_ARG(oversampling_to_str(this->pressure_oversampling_)));
+  ESP_LOGCONFIG(TAG, "    Oversampling: %s",
+                LOG_STR_ARG(OversamplingStrings::get_log_str(this->pressure_oversampling_)));
 }
 
 inline uint8_t oversampling_to_time(BMP280Oversampling over_sampling) { return (1 << uint8_t(over_sampling)) >> 1; }

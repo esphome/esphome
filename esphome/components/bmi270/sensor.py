@@ -5,11 +5,9 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_TEMPERATURE,
     CONF_TYPE,
-    DEVICE_CLASS_TEMPERATURE,
     ICON_MAGNET,
     ICON_THERMOMETER,
     STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS,
     UNIT_MICROTESLA,
 )
 from esphome.cpp_generator import MockObj
@@ -34,16 +32,6 @@ def _parent_schema() -> cv.Schema:
     return cv.Schema({cv.GenerateID(CONF_BMI270_ID): cv.use_id(BMI270Component)})
 
 
-def _temperature_sensor_schema() -> cv.Schema:
-    return sensor.sensor_schema(
-        unit_of_measurement=UNIT_CELSIUS,
-        icon=ICON_THERMOMETER,
-        accuracy_decimals=2,
-        state_class=STATE_CLASS_MEASUREMENT,
-        device_class=DEVICE_CLASS_TEMPERATURE,
-    ).extend(_parent_schema())
-
-
 def _magnetic_field_sensor_schema() -> cv.Schema:
     return sensor.sensor_schema(
         unit_of_measurement=UNIT_MICROTESLA,
@@ -56,7 +44,9 @@ def _magnetic_field_sensor_schema() -> cv.Schema:
 # `type` defaults to temperature so existing configs that omit it keep working unchanged.
 CONFIG_SCHEMA = cv.typed_schema(
     {
-        CONF_TEMPERATURE: _temperature_sensor_schema(),
+        CONF_TEMPERATURE: sensor.sensor_schema(
+            kind=sensor.TEMPERATURE, icon=ICON_THERMOMETER, accuracy_decimals=2
+        ).extend(_parent_schema()),
         **{x: _magnetic_field_sensor_schema() for x in _MAGNETIC_FIELDS},
     },
     default_type=CONF_TEMPERATURE,
