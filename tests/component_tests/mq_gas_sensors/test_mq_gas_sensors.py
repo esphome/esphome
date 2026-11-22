@@ -1003,6 +1003,7 @@ def test_curve_and_explicit_coefficients_conflict(
             }
         )
 
+
 def test_preference_key_identifies_the_hardware() -> None:
     """A stored R0 belongs to one sensor, sampler and compensation model."""
     from esphome.components.mq_gas_sensors.sensor import _preference_key
