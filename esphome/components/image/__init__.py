@@ -21,6 +21,7 @@ from esphome.const import (
     CONF_TYPE,
 )
 from esphome.core import CORE
+from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
@@ -61,8 +62,11 @@ TRANSPARENCY_TYPES = (
 validate_byte_order = cv.one_of("BIG_ENDIAN", "LITTLE_ENDIAN", upper=True)
 
 
-def validate_background_color(value: object) -> int:
+@schema_extractor("one_of")
+def validate_background_color(value: object) -> int | list[str]:
     """Validate an RGB background color (0xRRGGBB, #RRGGBB, #RGB, or CSS color name)."""
+    if value == SCHEMA_EXTRACT:
+        return ["hex color (0xRRGGBB, #RRGGBB, #RGB)", *CSS_COLORS]
     if isinstance(value, bool):
         raise cv.Invalid(f"Invalid background color '{value}'")
     if isinstance(value, str):
@@ -76,6 +80,10 @@ def validate_background_color(value: object) -> int:
             if len(hex_str) == 6 and all(c in "0123456789abcdef" for c in hex_str):
                 return int(hex_str, 16)
             raise cv.Invalid(f"Invalid hex color '{value}'")
+        if not s.startswith("0x"):
+            raise cv.Invalid(
+                f"Invalid background color '{value}': expected 0xRRGGBB, #RRGGBB, #RGB, or CSS color name"
+            )
     return cv.hex_int_range(0, 0xFFFFFF)(value)
 
 
@@ -448,11 +456,17 @@ def validate_settings(value, path=()):
         and CONF_INVERT_ALPHA not in type_class.allow_config
     ):
         raise cv.Invalid("No alpha channel to invert")
-    if CONF_BACKGROUND_COLOR in value and transparency == CONF_ALPHA_CHANNEL:
-        raise cv.Invalid(
-            "background_color cannot be used with transparency: alpha_channel",
-            path=path,
-        )
+    if CONF_BACKGROUND_COLOR in value:
+        if transparency == CONF_ALPHA_CHANNEL:
+            raise cv.Invalid(
+                "background_color cannot be used with transparency: alpha_channel",
+                path=path,
+            )
+        if conf_type == "BINARY":
+            raise cv.Invalid(
+                "background_color cannot be used with type: BINARY",
+                path=path,
+            )
     if value.get(CONF_BYTE_ORDER) is not None and not type_class.is_endian():
         raise cv.Invalid(
             f"Image format '{conf_type}' does not support byte order configuration",

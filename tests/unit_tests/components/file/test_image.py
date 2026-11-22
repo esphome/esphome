@@ -150,6 +150,7 @@ def test_validate_background_color() -> None:
         "#12_456",
         "# 12345",
         "#gggggg",
+        "123456",
         "notacolor",
         "",
         -1,
@@ -163,13 +164,21 @@ def test_validate_background_color() -> None:
             validate_background_color(invalid)
 
 
-def test_validate_settings_background_color_rejects_alpha_channel() -> None:
-    """background_color is rejected for alpha_channel and allowed for opaque/chroma_key."""
+def test_validate_settings_background_color_rejects_incompatible() -> None:
+    """background_color is rejected for alpha_channel and BINARY, allowed for other opaque/chroma_key types."""
     base = {CONF_TYPE: "RGB565", CONF_BACKGROUND_COLOR: 0x0F1929}
     validate_settings({**base, CONF_TRANSPARENCY: CONF_OPAQUE})
     validate_settings({**base, CONF_TRANSPARENCY: CONF_CHROMA_KEY})
     with pytest.raises(cv.Invalid, match="alpha_channel"):
         validate_settings({**base, CONF_TRANSPARENCY: CONF_ALPHA_CHANNEL})
+    with pytest.raises(cv.Invalid, match="BINARY"):
+        validate_settings(
+            {
+                CONF_TYPE: "BINARY",
+                CONF_TRANSPARENCY: CONF_OPAQUE,
+                CONF_BACKGROUND_COLOR: 0x0F1929,
+            }
+        )
 
 
 def test_animation_schema_supports_background_color(setup_core: Path) -> None:
@@ -330,10 +339,8 @@ async def test_write_image_background_color_png_and_svg(setup_core: Path) -> Non
     gs_chroma = await _run_write(png_path, "GRAYSCALE", CONF_CHROMA_KEY, 0xFFFFFF, 6)
     assert gs_chroma[0] == 1
     assert gs_chroma[1] == gs_opaque[1]
-    # BINARY opaque: white background (1) + black foreground -> 0b10_000000 = 0x80
-    assert await _run_write(png_path, "BINARY", CONF_OPAQUE, 0xFFFFFF, 7) == [0x80]
     # SVG opaque on blue
-    assert await _run_write(svg_path, "RGB565", CONF_OPAQUE, 0x0000FF, 8) == [
+    assert await _run_write(svg_path, "RGB565", CONF_OPAQUE, 0x0000FF, 7) == [
         0x1F,
         0x00,
         0x00,
