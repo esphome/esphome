@@ -847,18 +847,23 @@ void HonClimate::publish_alarm_entities_() {
   if (this->sub_text_sensors_[(size_t) SubTextSensorType::ACTIVE_ALARMS_TEXT] != nullptr) {
     char alarm_text[ACTIVE_ALARMS_TEXT_BUFFER_SIZE]{};
     size_t pos = 0;
+    size_t required_pos = 0;
     bool has_alarm = false;
     for (int alarm_byte = sizeof(this->active_alarms_) - 1; alarm_byte >= 0; alarm_byte--) {
       uint8_t alarm_bit = 1;
       for (int bit = 0; bit < 8; bit++) {
         if ((this->active_alarms_[alarm_byte] & alarm_bit) != 0) {
           const size_t code = (sizeof(this->active_alarms_) - 1 - alarm_byte) * 8 + bit;
-          if (has_alarm)
+          if (has_alarm) {
+            required_pos += 2;
             pos = buf_append_str(alarm_text, sizeof(alarm_text), pos, ", ");
+          }
           if (code < HonAlarmMessages::LAST_INDEX) {
-            pos = buf_append_str_p(alarm_text, sizeof(alarm_text), pos,
-                                   reinterpret_cast<const char *>(HonAlarmMessages::get_progmem_str(code)));
+            const auto message = reinterpret_cast<const char *>(HonAlarmMessages::get_progmem_str(code));
+            required_pos += ESPHOME_strlen_P(message);
+            pos = buf_append_str_p(alarm_text, sizeof(alarm_text), pos, message);
           } else {
+            required_pos += 9 + (code >= 10 ? 2 : 1);  // "Unknown(" + code + ")"
             pos = buf_append_printf(alarm_text, sizeof(alarm_text), pos, "Unknown(%zu)", code);
           }
           has_alarm = true;
@@ -868,7 +873,7 @@ void HonClimate::publish_alarm_entities_() {
     }
     if (!has_alarm) {
       buf_append_str(alarm_text, sizeof(alarm_text), 0, "No alarm");
-    } else if (pos >= sizeof(alarm_text) - 1) {
+    } else if (required_pos >= sizeof(alarm_text)) {
       memcpy(alarm_text + sizeof(alarm_text) - 4, "...", 4);
     }
     this->update_sub_text_sensor_(SubTextSensorType::ACTIVE_ALARMS_TEXT, alarm_text);
@@ -1020,7 +1025,7 @@ bool HonClimate::update_hvac_action_(const hon_protocol::HaierPacketBigData *bd_
           new_action = CLIMATE_ACTION_DEFROSTING;
         } else if (!compressor_on) {
           new_action = CLIMATE_ACTION_IDLE;
-        } else if (bd_packet->indoor_coil_temperature == 0xFF) {
+        } else if (bd_packet->indoor_coil_temperature == 0xFF || std::isnan(this->current_temperature)) {
           return false;
         } else {
           const float indoor_coil_temperature = bd_packet->indoor_coil_temperature / 2.0f - 20.0f;
@@ -1633,6 +1638,16 @@ void HonClimate::process_protocol_reset() {
 #endif  // USE_SENSOR
   this->active_alarm_count_ = NAN;
   memset(this->active_alarms_, 0, sizeof(this->active_alarms_));
+#ifdef USE_BINARY_SENSOR
+  auto *alarm_active = this->sub_binary_sensors_[(size_t) SubBinarySensorType::ALARM_ACTIVE];
+  if (alarm_active != nullptr && alarm_active->has_state())
+    alarm_active->invalidate_state();
+#endif  // USE_BINARY_SENSOR
+#ifdef USE_TEXT_SENSOR
+  auto *active_alarms_text = this->sub_text_sensors_[(size_t) SubTextSensorType::ACTIVE_ALARMS_TEXT];
+  if (active_alarms_text != nullptr && active_alarms_text->has_state())
+    active_alarms_text->publish_state("");
+#endif  // USE_TEXT_SENSOR
   this->got_valid_outdoor_temp_ = false;
   this->hvac_hardware_info_.reset();
   this->last_status_message_.reset(nullptr);
