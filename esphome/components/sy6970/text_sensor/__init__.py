@@ -32,7 +32,7 @@ CONFIG_SCHEMA = cv.Schema(
 def _status_string(table: str, index: cg.MockObj) -> cg.MockObj:
     """The string at ``index`` in the hub's PROGMEM_STRING_TABLE ``table``."""
     strings = sy6970_ns.namespace(table)
-    return strings.get_progmem_str(index, strings.LAST_INDEX)
+    return strings.get_progmem_str(index)
 
 
 STATES = {
