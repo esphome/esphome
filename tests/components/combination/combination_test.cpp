@@ -83,4 +83,19 @@ TEST(RangeCombination, NoFiniteStateIsNan) {
   EXPECT_TRUE(std::isnan(f.run()));
 }
 
+TEST(LinearCombination, SumsStatesTimesComputedCoefficients) {
+  LinearCombinationComponent combination;
+  std::array<sensor::Sensor, 3> sources;
+  std::array<LinearCombinationComponent::SensorSource, 3> storage{};
+  combination.set_source_storage(storage);
+  sources[0].state = 2.0f;
+  sources[1].state = NAN;
+  sources[2].state = 3.0f;
+  combination.add_source(&sources[0], [](float) -> float { return 1.5f; });
+  combination.add_source(&sources[1], [](float) -> float { return 1.0f; });
+  combination.add_source(&sources[2], [](float x) -> float { return x; });
+  combination.handle_new_value(0.0f);
+  EXPECT_FLOAT_EQ(combination.get_state(), 12.0f);
+}
+
 }  // namespace esphome::combination::testing
