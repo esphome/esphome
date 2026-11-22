@@ -30,7 +30,6 @@ DetectionResult scan_intensity(const uint8_t *raw, const ScanWindow &window, con
       if (px >= 0 && px < window.width && py >= 0 && py < window.height) {
         const uint8_t val = raw[py * window.width + px];
 
-        // A light needle scores on brightness, a dark needle on darkness.
         score += (config.needle_type == NEEDLE_TYPE_LIGHT) ? val : (255 - val);
 
         const bool background =

@@ -76,16 +76,21 @@ NeedleDetector::NeedleDetector() {
 #endif
 }
 
-bool NeedleDetector::first_report_(const char *dial) {
+bool NeedleDetector::first_report_(const char *dial, uint8_t kind) {
   if (dial == nullptr)
     return false;
   for (size_t i = 0; i < this->reported_count_; i++) {
-    if (this->reported_dials_[i] == dial)
-      return false;
+    if (this->reported_dials_[i] == dial) {
+      if ((this->reported_kinds_[i] & kind) != 0)
+        return false;
+      this->reported_kinds_[i] |= kind;
+      return true;
+    }
   }
   if (this->reported_count_ >= MAX_REPORTED_DIALS)
     return false;
-  this->reported_dials_[this->reported_count_++] = dial;
+  this->reported_dials_[this->reported_count_] = dial;
+  this->reported_kinds_[this->reported_count_++] = kind;
   return true;
 }
 
@@ -111,7 +116,7 @@ DetectionResult NeedleDetector::detect(const uint8_t *img, int width, int height
 
   // A crop that does not fit the reservation is rejected before any algorithm runs.
   if (width > this->reserved_width_ || height > this->reserved_height_) {
-    if (this->first_report_(config.id)) {
+    if (this->first_report_(config.id, REPORT_OVERSIZE)) {
       ESP_LOGW(TAG, "%s: crop %dx%d does not fit the %dx%d reservation; call reserve() with the largest crop",
                config.id, width, height, this->reserved_width_, this->reserved_height_);
     }
@@ -131,7 +136,7 @@ DetectionResult NeedleDetector::detect(const uint8_t *img, int width, int height
     window.end_r = static_cast<int>(radius * config.max_scan_radius);
     // The window never changes for a given config, so report it once per dial.
     if (!window.valid()) {
-      if (this->first_report_(config.id)) {
+      if (this->first_report_(config.id, REPORT_EMPTY_WINDOW)) {
         ESP_LOGW(TAG, "%s: empty scan window (deadzone %d px, scan radius %d px); no needle can be found", config.id,
                  deadzone_r, window.end_r);
       }
@@ -197,7 +202,7 @@ DetectionResult NeedleDetector::detect(const uint8_t *img, int width, int height
 
   if (!have_output) {
     // The build cannot change at runtime; preprocessing reports its own failure.
-    if ((!preprocessing_failed || !target_compiled) && this->first_report_(config.id)) {
+    if ((!preprocessing_failed || !target_compiled) && this->first_report_(config.id, REPORT_MISSING_DETECTOR)) {
       ESP_LOGE(TAG, "%s: no compiled-in detector for algorithm %s", config.id,
                LOG_STR_ARG(algorithm_name(config.algorithm)));
     }
