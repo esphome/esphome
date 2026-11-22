@@ -249,32 +249,33 @@ async def to_code(config):
         cg.add(var.set_tft_url(config[CONF_TFT_URL]))
 
         # TFT upload HTTP timeout (default: 4.5s)
-        if CONF_TFT_UPLOAD_HTTP_TIMEOUT in config:
+        if (
+            tft_upload_http_timeout := config.get(CONF_TFT_UPLOAD_HTTP_TIMEOUT)
+        ) is not None:
             cg.add(
                 var.set_tft_upload_http_timeout(
-                    config[CONF_TFT_UPLOAD_HTTP_TIMEOUT].total_milliseconds
+                    tft_upload_http_timeout.total_milliseconds
                 )
             )
 
         # TFT upload HTTP TX buffer size (ESP32 only; unset = ESP-IDF default)
-        if CONF_TFT_UPLOAD_HTTP_BUFFER_SIZE_TX in config:
-            cg.add(
-                var.set_tft_upload_http_buffer_size_tx(
-                    config[CONF_TFT_UPLOAD_HTTP_BUFFER_SIZE_TX]
-                )
-            )
+        cg.add_optional(
+            var.set_tft_upload_http_buffer_size_tx,
+            config.get(CONF_TFT_UPLOAD_HTTP_BUFFER_SIZE_TX),
+        )
 
         # TFT upload HTTP retries (default: 5)
-        if CONF_TFT_UPLOAD_HTTP_RETRIES in config:
-            cg.add(
-                var.set_tft_upload_http_retries(config[CONF_TFT_UPLOAD_HTTP_RETRIES])
-            )
+        cg.add_optional(
+            var.set_tft_upload_http_retries, config.get(CONF_TFT_UPLOAD_HTTP_RETRIES)
+        )
 
         # TFT upload watchdog timeout (default: 0 = no adjustment)
-        if CONF_TFT_UPLOAD_WATCHDOG_TIMEOUT in config:
+        if (
+            tft_upload_watchdog_timeout := config.get(CONF_TFT_UPLOAD_WATCHDOG_TIMEOUT)
+        ) is not None:
             cg.add(
                 var.set_tft_upload_watchdog_timeout(
-                    config[CONF_TFT_UPLOAD_WATCHDOG_TIMEOUT].total_milliseconds
+                    tft_upload_watchdog_timeout.total_milliseconds
                 )
             )
 

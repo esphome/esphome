@@ -417,10 +417,10 @@ async def to_code(config: ConfigType) -> None:
 
         cg.add(var.set_frequency(int(config[CONF_FREQUENCY])))
         cg.add(var.set_scan(config[CONF_SCAN]))
-        if CONF_TIMEOUT in config:
-            cg.add(var.set_timeout(int(config[CONF_TIMEOUT].total_microseconds)))
-        if CONF_LOW_POWER_MODE in config:
-            cg.add(var.set_lp_mode(bool(config[CONF_LOW_POWER_MODE])))
+        if (timeout := config.get(CONF_TIMEOUT)) is not None:
+            cg.add(var.set_timeout(int(timeout.total_microseconds)))
+        if (low_power_mode := config.get(CONF_LOW_POWER_MODE)) is not None:
+            cg.add(var.set_lp_mode(bool(low_power_mode)))
     elif CORE.is_libretiny:
         var = cg.new_Pvariable(config[CONF_ID])
         await cg.register_component(var, config)
@@ -429,8 +429,8 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_scl_pin(await cg.gpio_pin_expression(config[CONF_SCL])))
         cg.add(var.set_frequency(int(config[CONF_FREQUENCY])))
         cg.add(var.set_scan(config[CONF_SCAN]))
-        if CONF_TIMEOUT in config:
-            cg.add(var.set_timeout(int(config[CONF_TIMEOUT].total_microseconds)))
+        if (timeout := config.get(CONF_TIMEOUT)) is not None:
+            cg.add(var.set_timeout(int(timeout.total_microseconds)))
     else:
         var = cg.new_Pvariable(config[CONF_ID])
         await cg.register_component(var, config)
@@ -442,12 +442,12 @@ async def to_code(config: ConfigType) -> None:
 
         cg.add(var.set_frequency(int(config[CONF_FREQUENCY])))
         cg.add(var.set_scan(config[CONF_SCAN]))
-        if CONF_TIMEOUT in config:
-            cg.add(var.set_timeout(int(config[CONF_TIMEOUT].total_microseconds)))
+        if (timeout := config.get(CONF_TIMEOUT)) is not None:
+            cg.add(var.set_timeout(int(timeout.total_microseconds)))
         if CORE.using_arduino and not CORE.is_esp32:
             cg.add_library("Wire", None)
-        if CONF_LOW_POWER_MODE in config:
-            cg.add(var.set_lp_mode(bool(config[CONF_LOW_POWER_MODE])))
+        if (low_power_mode := config.get(CONF_LOW_POWER_MODE)) is not None:
+            cg.add(var.set_lp_mode(bool(low_power_mode)))
 
 
 def i2c_device_schema(default_address: int | None) -> cv.Schema:

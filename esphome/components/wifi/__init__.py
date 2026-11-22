@@ -825,8 +825,8 @@ def wifi_network(config, ap, manual_ip_index: int | None):
     if CONF_EAP in config:
         cg.add(ap.set_eap(eap_auth(config[CONF_EAP])))
         cg.add_define("USE_WIFI_WPA2_EAP")
-    if CONF_BSSID in config:
-        cg.add(ap.set_bssid([HexInt(i) for i in config[CONF_BSSID].parts]))
+    if (bssid := config.get(CONF_BSSID)) is not None:
+        cg.add(ap.set_bssid([HexInt(i) for i in bssid.parts]))
     cg.add_optional(ap.set_hidden, config.get(CONF_HIDDEN))
     cg.add_optional(ap.set_channel, config.get(CONF_CHANNEL))
     cg.add_optional(ap.set_manual_ip, manual_ip_index)
