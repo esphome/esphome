@@ -67,7 +67,7 @@ class LightStateTrigger final : public Trigger<>, public LightRemoteValuesListen
 };
 
 // This is slightly ugly, but we can't log in headers, and can't make this a static method on AddressableSet
-// due to the template. It's just a temporary warning anyway.
+// due to the template. Remove before 2027.6.0 together with to_uint8_compat().
 void addressableset_warn_about_scale(const char *field);
 
 template<typename... Ts> class AddressableSet final : public Action<Ts...> {
@@ -112,7 +112,8 @@ template<typename... Ts> class AddressableSet final : public Action<Ts...> {
 
   static inline int32_t interpret_index(int32_t index, int32_t size) { return index < 0 ? index + size : index; }
 
-  // Historically, this action required uint8_t (0-255) for RGBW values from lambdas. Keep compatibility.
+  // Historically, this action required uint8_t (0-255) for RGBW values from lambdas. Deprecated since 2021.8.0.
+  // Remove before 2027.6.0: lambdas must return 0.0-1.0 like the YAML values.
   static inline uint8_t to_uint8_compat(float value, const char *field) {
     if (value > 1.0f) {
       addressableset_warn_about_scale(field);
