@@ -75,6 +75,8 @@ class HttpRequestUpdate final : public update::UpdateEntity, public PollingCompo
  private:
   friend class testing::HttpRequestUpdateTest;
   void release_source_url_();
+  /// Handle one finished check on the main loop; takes ownership of result.
+  void process_result_(TaskResult *result);
   // A check reads the URL it started with until it ends, on the update task or inline through an
   // automation it triggers. Ownership of that buffer moves to the check, so a set_source_url in the
   // meantime cannot free it; end_check_() hands it back or frees it on the main loop.

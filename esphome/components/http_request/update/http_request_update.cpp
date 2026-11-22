@@ -255,61 +255,63 @@ defer:
   // same thread as readers (API, MQTT, web server). This is a single defer for
   // both success and error paths to avoid multiple std::function instantiations.
   // Lambda captures only 2 pointers (8 bytes) — fits in std::function SBO on supported toolchains.
-  this_update->defer([this_update, result]() {
-#ifdef USE_ESP32
-    this_update->task_result_ = nullptr;
-    this_update->end_check_(result);
-#endif
-    if (result->error_str != nullptr) {
-      this_update->status_set_error(result->error_str);
-      delete result;
-      return;
-    }
-
-    // Determine new state on main loop (avoids extra lambda captures from task)
-    bool trigger_update_available = false;
-    update::UpdateState new_state;
-    if (result->info.latest_version.empty() || result->info.latest_version == result->info.current_version) {
-      new_state = update::UPDATE_STATE_NO_UPDATE;
-    } else {
-      new_state = update::UPDATE_STATE_AVAILABLE;
-      if (this_update->state_ != update::UPDATE_STATE_AVAILABLE) {
-        trigger_update_available = true;
-      }
-    }
-
-    this_update->update_info_ = std::move(result->info);
-    this_update->state_ = new_state;
-    const bool force_update = result->force_update;
-    delete result;  // Safe: moved-from state is valid for destruction
-
-    this_update->status_clear_error();
-    this_update->publish_state();
-
-    if (trigger_update_available) {
-      this_update->get_update_available_trigger()->trigger(this_update->update_info_);
-    }
-
-    // A forced version is remembered across the reboot that ends the install, so firmware that
-    // still reports an older version is not flashed again on every boot.
-    if (this_update->allow_forced_update_ && force_update && new_state == update::UPDATE_STATE_AVAILABLE) {
-      const std::string &latest = this_update->update_info_.latest_version;
-      const uint32_t latest_hash = fnv1a_hash(latest);
-      uint32_t forced_hash = 0;
-      if (this_update->forced_version_pref_.load(&forced_hash) && forced_hash == latest_hash) {
-        ESP_LOGW(TAG, "Manifest asks for a forced update to %s, which was already installed; not forcing again",
-                 latest.c_str());
-      } else {
-        // Saved before flashing, as the install ends in a reboot.
-        if (this_update->forced_version_pref_.save(&latest_hash))
-          global_preferences->sync();
-        ESP_LOGI(TAG, "Manifest asks for a forced update to %s, installing", latest.c_str());
-        this_update->perform(false);
-      }
-    }
-  });
+  this_update->defer([this_update, result]() { this_update->process_result_(result); });
 
   UPDATE_RETURN;
+}
+
+void HttpRequestUpdate::process_result_(TaskResult *result) {
+#ifdef USE_ESP32
+  this->task_result_ = nullptr;
+  this->end_check_(result);
+#endif
+  if (result->error_str != nullptr) {
+    this->status_set_error(result->error_str);
+    delete result;
+    return;
+  }
+
+  // Determine the new state on the main loop, where all readers of it run.
+  bool trigger_update_available = false;
+  update::UpdateState new_state;
+  if (result->info.latest_version.empty() || result->info.latest_version == result->info.current_version) {
+    new_state = update::UPDATE_STATE_NO_UPDATE;
+  } else {
+    new_state = update::UPDATE_STATE_AVAILABLE;
+    if (this->state_ != update::UPDATE_STATE_AVAILABLE) {
+      trigger_update_available = true;
+    }
+  }
+
+  this->update_info_ = std::move(result->info);
+  this->state_ = new_state;
+  const bool force_update = result->force_update;
+  delete result;  // Safe: moved-from state is valid for destruction
+
+  this->status_clear_error();
+  this->publish_state();
+
+  if (trigger_update_available) {
+    this->get_update_available_trigger()->trigger(this->update_info_);
+  }
+
+  // A forced version is remembered across the reboot that ends the install, so firmware that
+  // still reports an older version is not flashed again on every boot.
+  if (this->allow_forced_update_ && force_update && new_state == update::UPDATE_STATE_AVAILABLE) {
+    const std::string &latest = this->update_info_.latest_version;
+    const uint32_t latest_hash = fnv1a_hash(latest);
+    uint32_t forced_hash = 0;
+    if (this->forced_version_pref_.load(&forced_hash) && forced_hash == latest_hash) {
+      ESP_LOGW(TAG, "Manifest asks for a forced update to %s, which was already installed; not forcing again",
+               latest.c_str());
+    } else {
+      // Saved before flashing, as the install ends in a reboot.
+      if (this->forced_version_pref_.save(&latest_hash))
+        global_preferences->sync();
+      ESP_LOGI(TAG, "Manifest asks for a forced update to %s, installing", latest.c_str());
+      this->perform(false);
+    }
+  }
 }
 
 void HttpRequestUpdate::perform(bool force) {

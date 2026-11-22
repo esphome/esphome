@@ -3,6 +3,8 @@
 #include <string>
 
 #include "esphome/components/http_request/update/http_request_update.h"
+#include "esphome/core/application.h"
+#include "esphome/core/hal.h"
 
 #if defined(__SANITIZE_ADDRESS__)
 #define HAS_ASAN
@@ -14,6 +16,11 @@
 #ifdef HAS_ASAN
 #include <sanitizer/asan_interface.h>
 #endif
+
+// gtest prints the uint8_t-backed enum as a character; use the state names the entity logs.
+namespace esphome::update {
+inline void PrintTo(UpdateState state, std::ostream *os) { *os << LOG_STR_ARG(update_state_to_string(state)); }
+}  // namespace esphome::update
 
 namespace esphome::http_request::testing {
 
@@ -43,6 +50,30 @@ class HttpRequestUpdateTest : public ::testing::Test {
  protected:
   static void begin_check(HttpRequestUpdate &update, TaskResult &result) { update.begin_check_(&result); }
   static void end_check(HttpRequestUpdate &update, TaskResult &result) { update.end_check_(&result); }
+
+  // One finished check: what the configuration allows, what the manifest asks, and the versions.
+  struct Check {
+    bool allow_force;
+    bool manifest_asks;
+    const char *current;
+    const char *latest;
+  };
+
+  // Runs the check through the deferred handler and returns the state it left behind.
+  static update::UpdateState state_after_check(const Check &check) {
+    HttpRequestUpdate update;
+    OtaHttpRequestComponent ota;
+    update.set_ota_parent(&ota);
+    update.set_allow_forced_update(check.allow_force);
+    auto *result = new TaskResult();  // process_result_() takes ownership and frees it
+    result->info.current_version = check.current;
+    result->info.latest_version = check.latest;
+    result->force_update = check.manifest_asks;
+    update.process_result_(result);
+    // The deferred flash stops on the empty firmware URL, but must not outlive the update object.
+    App.scheduler.call(millis());
+    return update.state;
+  }
 };
 
 TEST(HttpRequestUpdateSourceUrl, ConfigLiteralIsKeptByPointer) {
@@ -136,6 +167,21 @@ TEST_F(HttpRequestUpdateTest, ConfigLiteralDuringACheckIsNeverFreed) {
   end_check(update, result);
   EXPECT_STREQ(LITERAL, "http://example.invalid/manifest.json");
   EXPECT_STREQ(update.get_source_url(), "http://example.invalid/runtime-manifest.json");
+}
+
+TEST_F(HttpRequestUpdateTest, ForcedInstallFollowsAllowAndVersionChecks) {
+  // Forced installs are opt-in: the default leaves the update for the user.
+  EXPECT_EQ(state_after_check({.allow_force = false, .manifest_asks = true, .current = "1.0.0", .latest = "1.1.0"}),
+            update::UPDATE_STATE_AVAILABLE);
+  // A manifest that does not ask is not installed on its own.
+  EXPECT_EQ(state_after_check({.allow_force = true, .manifest_asks = false, .current = "1.0.0", .latest = "1.1.0"}),
+            update::UPDATE_STATE_AVAILABLE);
+  // Matching versions leave nothing to install.
+  EXPECT_EQ(state_after_check({.allow_force = true, .manifest_asks = true, .current = "1.0.0", .latest = "1.0.0"}),
+            update::UPDATE_STATE_NO_UPDATE);
+  // Opted in and asked for: the install starts.
+  EXPECT_EQ(state_after_check({.allow_force = true, .manifest_asks = true, .current = "1.0.0", .latest = "1.1.0"}),
+            update::UPDATE_STATE_INSTALLING);
 }
 
 }  // namespace esphome::http_request::testing
