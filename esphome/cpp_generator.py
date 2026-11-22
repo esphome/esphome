@@ -888,12 +888,9 @@ def declare_static_function(
     return_type: SafeExpType,
     parameters: TemplateArgsType,
 ) -> Callable[[list[str | Statement]], RawExpression]:
-    """Declare ``static <return_type> <name>(parameters)`` now and return the function that
-    emits its body, for a caller that names the function before the body is known.
+    """Declare ``static <return_type> <name>(parameters)`` now; return the function that emits the body later.
 
-    The declaration goes with the other globals, so a template argument can name the function
-    at once; the body goes after the user includes, where every id and everything those
-    headers declare is in scope.
+    The body goes after the user includes, where every id is in scope.
     """
     signature = (
         f"static {safe_exp(return_type)} {name}({ParameterListExpression(*parameters)})"
@@ -901,9 +898,8 @@ def declare_static_function(
     add_global(RawStatement(f"{signature};"))
 
     def define(body: list[str | Statement]) -> RawExpression:
-        add_global_after_includes(
-            RawStatement(f"{signature} {{\n{indent(chr(10).join(map(str, body)))}\n}}")
-        )
+        lines = indent("\n".join(map(str, body)))
+        add_global_after_includes(RawStatement(f"{signature} {{\n{lines}\n}}"))
         return RawExpression(name)
 
     return define
@@ -915,7 +911,9 @@ def static_function(
     parameters: TemplateArgsType,
     body: list[str | Statement],
 ) -> RawExpression:
-    """``declare_static_function`` with the body known at once."""
+    """Emit ``static <return_type> <name>(parameters) { body }`` at global scope and return an
+    expression naming it, for use as a template argument or a function pointer.
+    """
     return declare_static_function(name, return_type, parameters)(body)
 
 
