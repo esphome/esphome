@@ -54,7 +54,7 @@ template<typename Node, typename Owner> class ChainNode {
   ChainNode() = default;
 
  protected:
-  /// Only for a chain that ends in its owner.
+  /// Only for a chain that ends in its owner, never in nullptr.
   Node *chain_last_() {
     Node *node = static_cast<Node *>(this);
     while (!node->link_.is_owner())

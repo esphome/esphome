@@ -613,7 +613,7 @@ template<typename... Ts> class ActionList;
 
 // A branch's last action links to its owner (if, while). Only Action objects are tagged, never function pointers,
 // which use the low bit on ARM Thumb (#9283).
-template<typename... Ts> class Action : public ChainNode<Action<Ts...>, Action<Ts...>> {
+template<typename... Ts> class Action {
  public:
   virtual void play_complex(const Ts &...x) {
     this->num_running_++;
@@ -671,6 +671,9 @@ template<typename... Ts> class Action : public ChainNode<Action<Ts...>, Action<T
     Action *next = this->link_.next();
     return next != nullptr && next->is_running();
   }
+
+  /// The next action, or the owner on a branch's last action; nullptr ends a top-level list.
+  ChainLink<Action<Ts...>, Action<Ts...>> link_;
 
   /// The number of instances of this sequence in the list of actions
   /// that is currently being executed.
