@@ -1793,7 +1793,7 @@ def _collect_sensitive_values(
         form := _sensitive_form(conf)
     ):
         pairs.add((key, form))
-        if isinstance(conf, str) and len(form) >= 8:
+        if len(form) >= 8:
             long_values.add(form)
 
 
@@ -1821,7 +1821,8 @@ def mark_sensitive_user_values(user_config: ConfigType, validated: ConfigType) -
 
     Matched by key name and value, since validators move fields (wifi's top-level
     ``password`` ends up under ``networks``). Substitution definitions have
-    arbitrary names, so there long sensitive strings also match by value alone.
+    arbitrary names, so there sensitive values of 8 or more characters also match
+    by value alone; shorter ones (a 4-digit PIN) only by name.
     """
     pairs: set[tuple[Any, str]] = set()
     long_values: set[str] = set()

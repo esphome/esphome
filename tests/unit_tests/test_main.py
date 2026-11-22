@@ -608,6 +608,12 @@ def _marked(user_config: dict[str, Any], validated: dict[str, Any]) -> list[str]
             ["substitutions.mqtt_pw"],
             id="long_value_only_match_limited_to_substitutions",
         ),
+        pytest.param(
+            {"openthread": {"network_key": SensitiveInt(2**100)}},
+            {"substitutions": {"nk": 2**100}},
+            ["substitutions.nk"],
+            id="long_int_substitution_matched_by_value",
+        ),
     ],
 )
 def test_mark_sensitive_user_values(
