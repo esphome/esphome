@@ -240,7 +240,7 @@ TEST_F(TopTronicTest, ResponsePublishesToTheMatchingSensor) {
   sensor.set_function_group(0x01);
   sensor.set_function_number(0x02);
   sensor.set_datapoint(0x9ECB);
-  sensor.set_type(U16);
+  sensor.set_type(TypeName::TYPE_NAME_U16);
   this->hub_.add_sensor(&sensor);
   // Another datapoint is ignored
   this->hub_.interpret({0x42, 0x01, 0x02, 0x00, 0x10, 0x12, 0x34});
@@ -260,7 +260,7 @@ TEST_F(TopTronicTest, UpdateSendsGetRequestFromTheGateway) {
   sensor.set_function_group(50);
   sensor.set_function_number(0);
   sensor.set_datapoint(40651);
-  sensor.set_type(U8);
+  sensor.set_type(TypeName::TYPE_NAME_U8);
   this->hub_.add_sensor(&sensor);
   this->hub_.register_sensor_callbacks();
   sensor.update();
@@ -284,7 +284,7 @@ TEST_F(TopTronicTest, GatewaySenderIdKeepsTheHubAddress) {
     sensor->set_function_group(50);
     sensor->set_function_number(0);
     sensor->set_datapoint(40651);
-    sensor->set_type(U8);
+    sensor->set_type(TypeName::TYPE_NAME_U8);
   }
   hub_a.add_sensor(&sensor_a);
   hub_a.register_sensor_callbacks();
@@ -303,7 +303,7 @@ TEST_F(TopTronicTest, NumberSendsScaledSetRequestInOneFrame) {
   number.set_function_group(50);
   number.set_function_number(0);
   number.set_datapoint(40651);
-  number.set_type(S16);
+  number.set_type(TypeName::TYPE_NAME_S16);
   number.set_multiplier(10.0f);
   this->hub_.add_input(&number);
   this->hub_.register_input_callbacks();
@@ -323,7 +323,7 @@ TEST_F(TopTronicTest, LongSetRequestIsSplitAndReassembles) {
   number.set_function_group(50);
   number.set_function_number(0);
   number.set_datapoint(40651);
-  number.set_type(S32);
+  number.set_type(TypeName::TYPE_NAME_S32);
   this->hub_.add_input(&number);
   this->hub_.register_input_callbacks();
   // Out of range values are clamped to the wire type
@@ -360,7 +360,7 @@ TEST_F(TopTronicTest, WriteOnlyNumberPublishesTheWrittenValue) {
   number.set_function_group(50);
   number.set_function_number(0);
   number.set_datapoint(40651);
-  number.set_type(U16);
+  number.set_type(TypeName::TYPE_NAME_U16);
   this->hub_.add_input(&number);
   this->hub_.setup();
   number.control(42.0f);
@@ -373,12 +373,12 @@ TEST_F(TopTronicTest, LinkedNumberTakesItsStateFromTheSensor) {
   sensor.set_function_group(50);
   sensor.set_function_number(0);
   sensor.set_datapoint(40651);
-  sensor.set_type(U16);
+  sensor.set_type(TypeName::TYPE_NAME_U16);
   TopTronicNumber number;
   number.set_function_group(50);
   number.set_function_number(0);
   number.set_datapoint(40651);
-  number.set_type(U16);
+  number.set_type(TypeName::TYPE_NAME_U16);
   number.set_multiplier(10.0f);
   this->hub_.add_sensor(&sensor);
   this->hub_.add_input(&number);
@@ -397,7 +397,7 @@ TEST_F(TopTronicTest, MismatchedLinkIsSkippedInsteadOfCast) {
   sensor.set_function_group(50);
   sensor.set_function_number(0);
   sensor.set_datapoint(40651);
-  sensor.set_type(U16);
+  sensor.set_type(TypeName::TYPE_NAME_U16);
   TopTronicSelect select;
   select.set_function_group(50);
   select.set_function_number(0);
