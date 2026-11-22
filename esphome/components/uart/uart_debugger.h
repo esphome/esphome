@@ -47,7 +47,7 @@ class UARTDebugger : public Component {
  protected:
   explicit UARTDebugger(UARTComponent *parent);
   /// Runs the debug sequence.
-  virtual void run_sequence_(UARTDirection direction, const std::vector<uint8_t> &bytes, StringRef prefix) = 0;
+  virtual void run_sequence(UARTDirection direction, const std::vector<uint8_t> &bytes, StringRef prefix) = 0;
 
   UARTDirection for_direction_;
   UARTDirection last_direction_{};
@@ -78,7 +78,7 @@ template<auto Fn> class UARTDebugCallback final : public UARTDebugger {
   explicit UARTDebugCallback(UARTComponent *parent) : UARTDebugger(parent) {}
 
  protected:
-  void run_sequence_(UARTDirection direction, const std::vector<uint8_t> &bytes, StringRef prefix) override {
+  void run_sequence(UARTDirection direction, const std::vector<uint8_t> &bytes, StringRef prefix) override {
     Fn(direction, bytes, prefix);
   }
 };
