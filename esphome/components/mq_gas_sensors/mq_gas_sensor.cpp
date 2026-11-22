@@ -169,9 +169,10 @@ void MQGasSensor::setup() {
         const uint32_t gap = now_ms - this->temperature_last_ms_;
         // A dropout is not the cadence: a gap far beyond the current estimate is
         // ignored, so one outage cannot raise the staleness limit for hours.
-        if (this->temperature_gap_ms_ == 0 || gap < this->temperature_gap_ms_ * 3u)
+        if (this->temperature_gap_ms_ == 0 || gap < this->temperature_gap_ms_ * 3u) {
           this->temperature_gap_ms_ =
               this->temperature_gap_ms_ == 0 ? gap : (this->temperature_gap_ms_ * 7u + gap) / 8u;
+        }
       }
       this->temperature_last_ms_ = now_ms;
       this->temperature_seen_ = std::isfinite(value);
@@ -186,8 +187,9 @@ void MQGasSensor::setup() {
       const uint32_t now_ms = App.get_loop_component_start_time();
       if (this->humidity_last_ms_ != 0) {
         const uint32_t gap = now_ms - this->humidity_last_ms_;
-        if (this->humidity_gap_ms_ == 0 || gap < this->humidity_gap_ms_ * 3u)
+        if (this->humidity_gap_ms_ == 0 || gap < this->humidity_gap_ms_ * 3u) {
           this->humidity_gap_ms_ = this->humidity_gap_ms_ == 0 ? gap : (this->humidity_gap_ms_ * 7u + gap) / 8u;
+        }
       }
       this->humidity_last_ms_ = now_ms;
       this->humidity_seen_ = std::isfinite(value);
@@ -519,26 +521,28 @@ void MQGasSensor::update() {
                                      ? mqmath::ppm_at_infinity(this->a_, this->b_, this->regression_method_)
                                      : mqmath::ppm_from_ratio(this->a_, this->b_, rail_ratio, this->regression_method_);
     this->rs_ = 0.0f;
-    this->ratio_ = saturation_ppm >= this->max_ppm_ ? 0.0f : NAN;
+    this->ratio_ = std::isfinite(saturation_ppm) ? rail_ratio : NAN;
     this->correction_ = this->compute_correction_();
 
-    if (!(saturation_ppm >= this->max_ppm_)) {
+    // Compensate and clamp the rail limit like a normal reading: a curve with a
+    // positive correction offset has a finite value there (and a curve at the top
+    // of the range clamps to the ceiling). Only a curve with no usable value at
+    // this end - zero, or not evaluable - is reported as unknown.
+    const float ppm = mqmath::clamp_ppm_corrected(saturation_ppm, this->min_ppm_, this->max_ppm_, this->correction_,
+                                                  this->correction_clamp_);
+    if (!std::isfinite(ppm) || ppm <= 0.0f) {
       if (!this->warned_unusable_ratio_) {
         this->warned_unusable_ratio_ = true;
         this->log_message_(LOG_SEVERITY_WARN,
-                           LOG_STR("V=%.4f V is at the supply, but the configured curve does not reach its "
-                                   "maximum there - publishing unknown"),
+                           LOG_STR("V=%.4f V is at the supply, but the configured curve has no value there - "
+                                   "publishing unknown"),
                            this->sensor_voltage_);
       }
-      this->status_set_warning(LOG_STR("the input is saturated, but the curve has no top there"));
+      this->status_set_warning(LOG_STR("the input is saturated, but the curve has no value there"));
       this->publish_diagnostics_();
       this->publish_state(NAN);
       return;
     }
-    // Go through the same clamp as a normal reading so correction_clamp: scaled
-    // moves the ceiling the same way in both paths.
-    const float ppm = mqmath::clamp_ppm_corrected(saturation_ppm, this->min_ppm_, this->max_ppm_, this->correction_,
-                                                  this->correction_clamp_);
     // A ratio fault from an earlier update is over: this is a valid reading.
     this->clear_reading_warnings_();
     this->log_reading_(ppm);
