@@ -74,7 +74,8 @@ def test_controller_and_generic_polling_are_exclusive() -> None:
 
 
 @pytest.mark.parametrize(
-    "action", ["queue_read", "queue_write", "request_bus", "release_bus"]
+    "action",
+    ["queue_read", "queue_write", "read_value", "write_value", "send_datagram"],
 )
 def test_controller_rejects_raw_actions(
     action: str, tmp_path: Path, component_config_path: Callable[[str], Path]
@@ -85,16 +86,18 @@ def test_controller_rejects_raw_actions(
         + "button:\n  - platform: template\n    name: Raw\n    on_press:\n"
     )
     source += f"      - vbus.{action}:\n          id: controller_bus\n"
-    if action in ["queue_read", "queue_write"]:
+    if action == "send_datagram":
+        source += "          command: 0x0300\n"
+    else:
         source += "          value_id: 55\n"
-    if action == "queue_write":
+    if action in ["queue_write", "write_value"]:
         source += "          value: 4\n"
     path = tmp_path / "invalid.yaml"
     path.write_text(source)
     CORE.config_path = path
     result = config.validate_config(yaml_util.load_yaml(path), {})
     assert any("owns TX" in str(error) for error in result.errors), result.errors
-    if action in ["request_bus", "release_bus"]:
+    if action in ["read_value", "write_value", "send_datagram"]:
         assert any("vbus.scan_controller" in str(error) for error in result.errors)
         assert not any("use queue_read" in str(error) for error in result.errors)
 
