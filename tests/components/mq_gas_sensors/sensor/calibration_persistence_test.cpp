@@ -27,7 +27,7 @@ class CalibrationSampler : public voltage_sampler::VoltageSampler {
 class CalibrationTimerGuard {
  public:
   explicit CalibrationTimerGuard(MQGasSensor &sensor) : sensor_(sensor) {}
-  ~CalibrationTimerGuard() { this->sensor_.cancel_timeout(0); }  // CALIBRATION_START_ID
+  ~CalibrationTimerGuard() { this->sensor_.cancel_timeout(uint32_t{0}); }  // CALIBRATION_START_ID
 
  private:
   MQGasSensor &sensor_;
