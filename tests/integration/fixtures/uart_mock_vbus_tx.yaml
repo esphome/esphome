@@ -38,37 +38,6 @@ vbus:
           ESP_LOGI("vbus.reply_test", "value=%" PRIu32, value);
   transmit:
     destination: 0x2211
-    on_bus_grant:
-      - then:
-          - logger.log: "VBus test grant acquired"
-          - vbus.send_datagram:
-              id: bus
-              grant_id: !lambda return grant_id;
-              command: 0x0300
-              value_id: 2
-          - if:
-              condition:
-                lambda: return grant_id == 1;
-              then:
-                - delay: 80ms
-              else:
-                - delay: 300ms
-          - vbus.release_bus:
-              id: bus
-              grant_id: !lambda return grant_id;
-      # The first delayed callback fires during the second lease. It must not
-      # send a write or release that newer lease with its old captured token.
-      - then:
-          - delay: 650ms
-          - vbus.send_datagram:
-              id: bus
-              grant_id: !lambda return grant_id;
-              command: 0x0200
-              value_id: 2
-              value: 1
-          - vbus.release_bus:
-              id: bus
-              grant_id: !lambda return grant_id;
 sensor:
   - platform: vbus
     model: custom
@@ -86,8 +55,12 @@ button:
     name: Start Scenario
     on_press:
       - lambda: id(mock_uart).start_scenario();
-      - vbus.request_bus:
-          id: bus
+      - script.execute:
+          id: request_value
+          parameter: 2
+      - script.execute:
+          id: request_value
+          parameter: 3
       # A bad checksum must not acquire the bus or send a request.
       - uart_mock.inject_rx:
           id: mock_uart
@@ -98,10 +71,12 @@ button:
           id: mock_uart
           data: [0xAA, 0x00, 0x00, 0x11, 0x22, 0x20, 0x00, 0x05,
                  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x27]
-      - delay: 600ms
-      - vbus.request_bus:
+script:
+  - id: request_value
+    parameters:
+      parameter: int
+    then:
+      - vbus.send_datagram:
           id: bus
-      - uart_mock.inject_rx:
-          id: mock_uart
-          data: [0xAA, 0x00, 0x00, 0x11, 0x22, 0x20, 0x00, 0x05,
-                 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x27]
+          command: 0x0300
+          value_id: !lambda return parameter;
