@@ -38,10 +38,6 @@ PROGMEM_STRING_TABLE(DriverEventStrings, "Driver reset", "Driver error", "Charge
                      "Open load on phase A", "Open load on phase B", "Temperature above 120C", "Temperature above 143C",
                      "Temperature above 150C", "Temperature above 157C", "Unknown");
 
-static const LogString *driver_event_to_string(DriverEvent event) {
-  return DriverEventStrings::get_log_str(static_cast<uint8_t>(event), DriverEventStrings::LAST_INDEX);
-}
-
 // CRC-8 with polynomial 0x07 over the datagram bits in the order they go out on the wire, LSB first
 static uint8_t datagram_crc(const uint8_t *data, size_t len) {
   uint8_t crc = 0;
@@ -66,10 +62,7 @@ void IRAM_ATTR IndexPulseStore::gpio_intr(IndexPulseStore *arg) { arg->pulses = 
 void IRAM_ATTR DiagPinStore::gpio_intr(DiagPinStore *arg) { arg->triggered = true; }
 
 void TMC22XXStepper::setup() {
-  if (this->enn_pin_ != nullptr) {
-    this->enn_pin_->setup();
-    this->enn_pin_->digital_write(true);
-  }
+  setup_output_pin(this->enn_pin_, true);
 
   auto version = this->read_field(VERSION);
   if (!version.has_value()) {
@@ -95,10 +88,8 @@ void TMC22XXStepper::setup() {
     this->index_pin_->setup();
     this->index_pin_->attach_interrupt(IndexPulseStore::gpio_intr, &this->index_store_, gpio::INTERRUPT_ANY_EDGE);
   } else {
-    this->step_pin_->setup();
-    this->step_pin_->digital_write(false);
-    this->dir_pin_->setup();
-    this->dir_pin_->digital_write(false);
+    setup_output_pin(this->step_pin_, false);
+    setup_output_pin(this->dir_pin_, false);
   }
 
   if (this->diag_pin_ != nullptr) {
@@ -191,9 +182,9 @@ bool TMC22XXStepper::update_status_() {
     bool active = (status & (1u << event)) != 0;
     // Open load and temperature levels are informational, the driver keeps running
     if (active && event < DRIVER_EVENT_OPEN_LOAD_A) {
-      ESP_LOGW(TAG, "%s", LOG_STR_ARG(driver_event_to_string(static_cast<DriverEvent>(event))));
+      ESP_LOGW(TAG, "%s", LOG_STR_ARG(DriverEventStrings::get_log_str(event)));
     } else {
-      ESP_LOGD(TAG, "%s: %s", LOG_STR_ARG(driver_event_to_string(static_cast<DriverEvent>(event))),
+      ESP_LOGD(TAG, "%s: %s", LOG_STR_ARG(DriverEventStrings::get_log_str(event)),
                active ? LOG_STR_LITERAL("active") : LOG_STR_LITERAL("cleared"));
     }
     this->status_callback_.call(static_cast<DriverEvent>(event), active);
@@ -246,11 +237,11 @@ void TMC22XXStepper::loop() {
     }
   }
 
-  if (this->has_reached_target()) {
-    this->high_freq_.stop();
+  const bool reached = this->has_reached_target();
+  this->high_freq_.set(!reached);
+  if (reached) {
     this->moving_ = false;
   } else {
-    this->high_freq_.start();
     if (!this->enabled_)
       this->set_enabled(true);
     // An unreachable driver is polled only every 10 s. Read it before the first step, so settings lost when the
