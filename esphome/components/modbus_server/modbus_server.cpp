@@ -73,6 +73,20 @@ bool ServerRegister::write(int64_t number) const {
   });
 }
 
+const char *ServerRegister::format_value(int64_t value, char *buf, size_t buf_size) const {
+  visit_cpp_type(this->value_type, [&](auto tag) {
+    using T = decltype(tag);
+    if constexpr (std::is_same_v<T, float>) {
+      buf_append_printf(buf, buf_size, 0, "%.1f", bit_cast<float>(static_cast<uint32_t>(value)));
+    } else if constexpr (std::is_signed_v<T>) {
+      buf_append_printf(buf, buf_size, 0, "%" PRId64, value);
+    } else {
+      buf_append_printf(buf, buf_size, 0, "%" PRIu64, static_cast<uint64_t>(value));
+    }
+  });
+  return buf;
+}
+
 ServerRegister *ModbusServer::find_containing_register_(uint32_t address) const {
   for (auto *server_register : this->server_registers_) {
     if (address >= server_register->address &&

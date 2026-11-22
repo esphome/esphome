@@ -46,33 +46,7 @@ class ServerRegister final {
 
   // Formats a raw value into a caller-provided buffer based on the value type for debugging.
   // Returns buf for convenience.
-  const char *format_value(int64_t value, char *buf, size_t buf_size) const {
-    switch (this->value_type) {
-      case SensorValueType::U_WORD:
-      case SensorValueType::U_WORD_S:
-      case SensorValueType::U_DWORD:
-      case SensorValueType::U_DWORD_R:
-      case SensorValueType::U_QWORD:
-      case SensorValueType::U_QWORD_R:
-        buf_append_printf(buf, buf_size, 0, "%" PRIu64, static_cast<uint64_t>(value));
-        return buf;
-      case SensorValueType::S_WORD:
-      case SensorValueType::S_WORD_S:
-      case SensorValueType::S_DWORD:
-      case SensorValueType::S_DWORD_R:
-      case SensorValueType::S_QWORD:
-      case SensorValueType::S_QWORD_R:
-        buf_append_printf(buf, buf_size, 0, "%" PRId64, value);
-        return buf;
-      case SensorValueType::FP32_R:
-      case SensorValueType::FP32:
-        buf_append_printf(buf, buf_size, 0, "%.1f", bit_cast<float>(static_cast<uint32_t>(value)));
-        return buf;
-      default:
-        buf_append_printf(buf, buf_size, 0, "%" PRId64, value);
-        return buf;
-    }
-  }
+  const char *format_value(int64_t value, char *buf, size_t buf_size) const;
 
   void set_allow_partial_read(bool allow_partial_read) { this->allow_partial_read = allow_partial_read; }
 

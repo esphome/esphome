@@ -81,6 +81,25 @@ TEST(ModbusServerRegister, ReadAndWriteRoundTripEveryValueType) {
 }
 
 // A single writable WORD register is applied and the handler reports success (nullopt).
+// The log text follows the value type: unsigned, signed, or a float stored as its bits
+TEST(ModbusServerRegister, FormatValueFollowsValueType) {
+  struct Case {
+    SensorValueType value_type;
+    int64_t value;
+    const char *text;
+  };
+  static constexpr Case CASES[] = {
+      {SensorValueType::U_WORD, 65535, "65535"},    {SensorValueType::U_QWORD_R, -1, "18446744073709551615"},
+      {SensorValueType::S_WORD_S, -5, "-5"},        {SensorValueType::S_QWORD, INT64_MIN, "-9223372036854775808"},
+      {SensorValueType::FP32_R, 0x3FC00000, "1.5"},
+  };
+  for (const auto &c : CASES) {
+    ServerRegister reg(0x0000, c.value_type, 1);
+    char buf[ServerRegister::FORMAT_VALUE_BUF_SIZE]{};
+    EXPECT_STREQ(reg.format_value(c.value, buf, sizeof(buf)), c.text);
+  }
+}
+
 TEST(ModbusServerWrite, SingleWordSucceeds) {
   ModbusServer server;
   written_value = -1;
