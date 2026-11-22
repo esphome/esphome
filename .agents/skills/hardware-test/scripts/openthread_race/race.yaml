@@ -12,16 +12,6 @@ globals:
   - id: race_delay
     type: int
     initial_value: '0'
-  # set just before a mode 2 race reboots, so a reboot for another reason does not count as the race
-  - id: race_rebooted
-    type: bool
-    restore_value: true
-    initial_value: 'false'
-  # set when any race fired, so a reset right after it reads as a crash, not as a race that never ran
-  - id: race_fired
-    type: bool
-    restore_value: true
-    initial_value: 'false'
 logger:
   on_message:
     - level: INFO
@@ -58,11 +48,7 @@ script:
           then:
             - lambda: |-
                 id(race_mode) = 0;
-                id(race_rebooted) = true;
-                id(race_fired) = true;
-                race_rebooted->update();
-                race_fired->update();
-                global_preferences->sync();
+                race_rtc_fired = RACE_RTC_REBOOT;  // this reboot is the race, not a crash after it
                 ESP_LOGI("hwt", "HWT race reboot after %d ms", id(race_delay));
                 App.safe_reboot();
       - if:
@@ -76,9 +62,7 @@ script:
                   ESP_LOGW("hwt", "HWT race drop skipped, a Wi-Fi drop is still running");
                 } else {
                   id(race_mode) = 0;
-                  id(race_fired) = true;
-                  race_fired->update();
-                  global_preferences->sync();
+                  race_rtc_fired = RACE_RTC_FIRED;
                   ESP_LOGI("hwt", "HWT race disable after %d ms", id(race_delay));
                 }
             - script.execute:
