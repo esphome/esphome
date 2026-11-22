@@ -181,7 +181,7 @@ inline void log_pin_with_prefix(const char *tag, const char *prefix, GPIOPin *pi
   char buffer[GPIO_SUMMARY_MAX_LEN];
   size_t len = pin->dump_summary(buffer, sizeof(buffer));
   len = std::min(len, sizeof(buffer) - 1);
-  esp_log_printf_(ESPHOME_LOG_LEVEL_CONFIG, tag, __LINE__, "%s%.*s", prefix, (int) len, buffer);
+  esp_log_printf_(ESPHOME_LOG_LEVEL_CONFIG, tag, __LINE__, ESPHOME_LOG_FORMAT("%s%.*s"), prefix, (int) len, buffer);
 }
 
 // log_pin function declarations - implementation in gpio.cpp
