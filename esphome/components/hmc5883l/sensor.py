@@ -13,10 +13,7 @@ from esphome.const import (
     CONF_OVERSAMPLING,
     CONF_RANGE,
     CONF_UPDATE_INTERVAL,
-    ICON_MAGNET,
     ICON_SCREEN_ROTATION,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_MICROTESLA,
 )
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
@@ -83,10 +80,7 @@ def validate_enum(
 
 
 field_strength_schema = sensor.sensor_schema(
-    unit_of_measurement=UNIT_MICROTESLA,
-    icon=ICON_MAGNET,
-    accuracy_decimals=1,
-    state_class=STATE_CLASS_MEASUREMENT,
+    kind=sensor.MAGNETIC_FIELD, accuracy_decimals=1
 )
 heading_schema = sensor.sensor_schema(
     kind=sensor.ANGLE, icon=ICON_SCREEN_ROTATION, accuracy_decimals=1

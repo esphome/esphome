@@ -163,9 +163,9 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
 
     if config[CONF_MODEL] == CONF_CUSTOM:
-        for key in (CONF_COMMAND, CONF_SOURCE, CONF_DEST):
-            if (value := config.get(key)) is not None:
-                cg.add(getattr(var, f"set_{key}")(value))
+        cg.add_optional(var.set_command, config.get(CONF_COMMAND))
+        cg.add_optional(var.set_source, config.get(CONF_SOURCE))
+        cg.add_optional(var.set_dest, config.get(CONF_DEST))
         bsensors = []
         for conf in config[CONF_BINARY_SENSORS]:
             bsens = await binary_sensor.new_binary_sensor(conf)

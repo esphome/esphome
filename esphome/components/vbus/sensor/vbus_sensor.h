@@ -26,12 +26,8 @@ class DeltaSolSensorBase : public VBusListener {
   SUB_SENSOR(version)
 
  protected:
-  // Latches so a mismatched model/truncated telegram warns once instead of on every telegram (~1/s).
-  bool warned_short_message_{false};
-
   // Single relay models label the first pump / hour counter without a number, matching their config keys.
   void dump_sensors_(const LogString *model, bool single_relay = false);
-  void warn_short_message_(size_t actual, size_t expected);
 };
 
 class DeltaSolBSPlusSensor final : public DeltaSolSensorBase {

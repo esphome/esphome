@@ -6,13 +6,6 @@ namespace esphome::vbus {
 
 ESPHOME_LOG_TAG(TAG, "vbus.binary_sensor");
 
-void DeltaSolErrorsBSensorBase::warn_short_message_(size_t actual, size_t expected) {
-  if (this->warned_short_message_)
-    return;
-  this->warned_short_message_ = true;
-  ESP_LOGW(TAG, "message too short: %zu < %zu", actual, expected);
-}
-
 void DeltaSolErrorsBSensorBase::dump_sensor_errors_(const LogString *model) {
   ESP_LOGCONFIG(TAG, "%s:", LOG_STR_ARG(model));
   LOG_BINARY_SENSOR("  ", "Sensor 1 Error", this->s1_error_binary_sensor_);
@@ -22,10 +15,6 @@ void DeltaSolErrorsBSensorBase::dump_sensor_errors_(const LogString *model) {
 }
 
 void DeltaSolErrorsBSensorBase::publish_sensor_errors_(const std::vector<uint8_t> &message, size_t offset) {
-  if (!fits(message, offset, 1)) {
-    this->warn_short_message_(message.size(), offset + 1);
-    return;
-  }
   uint8_t errors = message[offset];
   PUBLISH_STATE(this->s1_error_binary_sensor_, errors & 1);
   PUBLISH_STATE(this->s2_error_binary_sensor_, errors & 2);
@@ -46,21 +35,17 @@ void DeltaSolBSPlusBSensor::dump_child_config() {
 }
 
 void DeltaSolBSPlusBSensor::handle_message(std::vector<uint8_t> &message) {
-  if (!fits(message, 0, 16))
-    this->warn_short_message_(message.size(), 16);
-  if (fits(message, 10, 1)) {
-    PUBLISH_STATE(this->relay1_binary_sensor_, message[10] & 1);
-    PUBLISH_STATE(this->relay2_binary_sensor_, message[10] & 2);
-  }
+  if (!this->check_payload_size_(message.size(), 16))
+    return;
+  PUBLISH_STATE(this->relay1_binary_sensor_, message[10] & 1);
+  PUBLISH_STATE(this->relay2_binary_sensor_, message[10] & 2);
   this->publish_sensor_errors_(message, 11);
-  if (fits(message, 15, 1)) {
-    PUBLISH_STATE(this->collector_max_binary_sensor_, message[15] & 1);
-    PUBLISH_STATE(this->collector_min_binary_sensor_, message[15] & 2);
-    PUBLISH_STATE(this->collector_frost_binary_sensor_, message[15] & 4);
-    PUBLISH_STATE(this->tube_collector_binary_sensor_, message[15] & 8);
-    PUBLISH_STATE(this->recooling_binary_sensor_, message[15] & 0x10);
-    PUBLISH_STATE(this->hqm_binary_sensor_, message[15] & 0x20);
-  }
+  PUBLISH_STATE(this->collector_max_binary_sensor_, message[15] & 1);
+  PUBLISH_STATE(this->collector_min_binary_sensor_, message[15] & 2);
+  PUBLISH_STATE(this->collector_frost_binary_sensor_, message[15] & 4);
+  PUBLISH_STATE(this->tube_collector_binary_sensor_, message[15] & 8);
+  PUBLISH_STATE(this->recooling_binary_sensor_, message[15] & 0x10);
+  PUBLISH_STATE(this->hqm_binary_sensor_, message[15] & 0x20);
 }
 
 void DeltaSolBS2009BSensor::dump_child_config() {
@@ -69,11 +54,10 @@ void DeltaSolBS2009BSensor::dump_child_config() {
 }
 
 void DeltaSolBS2009BSensor::handle_message(std::vector<uint8_t> &message) {
-  if (!fits(message, 0, 26))
-    this->warn_short_message_(message.size(), 26);
+  if (!this->check_payload_size_(message.size(), 26))
+    return;
   this->publish_sensor_errors_(message, 20);
-  if (fits(message, 25, 1))
-    PUBLISH_STATE(this->frost_protection_active_binary_sensor_, message[25] & 1);
+  PUBLISH_STATE(this->frost_protection_active_binary_sensor_, message[25] & 1);
 }
 
 void VBusCustomBSensor::dump_child_config() {

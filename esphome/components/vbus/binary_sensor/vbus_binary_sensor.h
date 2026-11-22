@@ -16,12 +16,8 @@ class DeltaSolErrorsBSensorBase : public VBusListener {
   SUB_BINARY_SENSOR(s4_error)
 
  protected:
-  // Latches so a mismatched model/truncated telegram warns once instead of on every telegram (~1/s).
-  bool warned_short_message_{false};
-
   void dump_sensor_errors_(const LogString *model);
   void publish_sensor_errors_(const std::vector<uint8_t> &message, size_t offset);
-  void warn_short_message_(size_t actual, size_t expected);
 };
 
 class DeltaSolBSPlusBSensor final : public DeltaSolErrorsBSensorBase {
@@ -54,7 +50,10 @@ class DeltaSolCBSensor final : public DeltaSolErrorsBSensorBase {
   void dump_child_config() override { this->dump_sensor_errors_(LOG_STR("Deltasol C")); }
 
  protected:
-  void handle_message(std::vector<uint8_t> &message) override { this->publish_sensor_errors_(message, 10); }
+  void handle_message(std::vector<uint8_t> &message) override {
+    if (this->check_payload_size_(message.size(), 11))
+      this->publish_sensor_errors_(message, 10);
+  }
 };
 
 class DeltaSolCS2BSensor final : public DeltaSolErrorsBSensorBase {
@@ -62,7 +61,10 @@ class DeltaSolCS2BSensor final : public DeltaSolErrorsBSensorBase {
   void dump_child_config() override { this->dump_sensor_errors_(LOG_STR("Deltasol CS2")); }
 
  protected:
-  void handle_message(std::vector<uint8_t> &message) override { this->publish_sensor_errors_(message, 18); }
+  void handle_message(std::vector<uint8_t> &message) override {
+    if (this->check_payload_size_(message.size(), 19))
+      this->publish_sensor_errors_(message, 18);
+  }
 };
 
 class DeltaSolCS4BSensor final : public DeltaSolErrorsBSensorBase {
@@ -70,7 +72,10 @@ class DeltaSolCS4BSensor final : public DeltaSolErrorsBSensorBase {
   void dump_child_config() override { this->dump_sensor_errors_(LOG_STR("Deltasol CS4")); }
 
  protected:
-  void handle_message(std::vector<uint8_t> &message) override { this->publish_sensor_errors_(message, 20); }
+  void handle_message(std::vector<uint8_t> &message) override {
+    if (this->check_payload_size_(message.size(), 21))
+      this->publish_sensor_errors_(message, 20);
+  }
 };
 
 class DeltaSolCSPlusBSensor final : public DeltaSolErrorsBSensorBase {
@@ -78,7 +83,10 @@ class DeltaSolCSPlusBSensor final : public DeltaSolErrorsBSensorBase {
   void dump_child_config() override { this->dump_sensor_errors_(LOG_STR("Deltasol CS Plus")); }
 
  protected:
-  void handle_message(std::vector<uint8_t> &message) override { this->publish_sensor_errors_(message, 20); }
+  void handle_message(std::vector<uint8_t> &message) override {
+    if (this->check_payload_size_(message.size(), 21))
+      this->publish_sensor_errors_(message, 20);
+  }
 };
 
 class DeltaSolBS2BSensor final : public DeltaSolErrorsBSensorBase {
@@ -86,7 +94,10 @@ class DeltaSolBS2BSensor final : public DeltaSolErrorsBSensorBase {
   void dump_child_config() override { this->dump_sensor_errors_(LOG_STR("DeltaSol BS/2 (DrainBack)")); }
 
  protected:
-  void handle_message(std::vector<uint8_t> &message) override { this->publish_sensor_errors_(message, 10); }
+  void handle_message(std::vector<uint8_t> &message) override {
+    if (this->check_payload_size_(message.size(), 11))
+      this->publish_sensor_errors_(message, 10);
+  }
 };
 
 class VBusCustomSubBSensor;

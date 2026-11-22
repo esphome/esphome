@@ -121,6 +121,16 @@ void VBus::loop() {
   });
 }
 
+bool VBusListener::check_payload_size_(size_t actual, size_t expected) {
+  if (actual >= expected)
+    return true;
+  if (!this->warned_short_message_) {
+    this->warned_short_message_ = true;
+    ESP_LOGW(TAG, "VBus payload too short: %zu bytes, expected at least %zu", actual, expected);
+  }
+  return false;
+}
+
 void VBusListener::on_message(uint16_t command, uint16_t source, uint16_t dest, std::vector<uint8_t> &message) {
   if ((this->command_ != 0xffff) && (this->command_ != command))
     return;

@@ -10,13 +10,6 @@ namespace esphome::vbus {
 
 using message_parser_t = std::function<float(std::vector<uint8_t> &)>;
 
-// Payload offsets are fixed per model; a short message means the controller is not the configured
-// model or the telegram was truncated. Listeners guard each field with this so a telegram missing
-// only the tail fields still publishes the ones that fit.
-inline bool fits(const std::vector<uint8_t> &message, size_t start, size_t width) {
-  return message.size() >= start + width;
-}
-
 class VBus;
 
 class VBusListener {
@@ -34,6 +27,9 @@ class VBusListener {
   uint16_t source_{0xffff};
   uint16_t dest_{0xffff};
 
+  bool warned_short_message_{false};
+
+  bool check_payload_size_(size_t actual, size_t expected);
   virtual void handle_message(std::vector<uint8_t> &message) = 0;
 };
 
