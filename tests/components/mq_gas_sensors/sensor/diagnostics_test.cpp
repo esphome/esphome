@@ -74,4 +74,26 @@ TEST_F(DiagnosticsTest, RecoveryClearsTheFaultAndPublishesAgain) {
   EXPECT_FALSE(this->sensor_.status_has_warning());
 }
 
+TEST_F(DiagnosticsTest, SupplyRailPublishesTheCeilingAndRecovers) {
+  // RS has collapsed to 0: the datasheet curve reports the top of its range.
+  this->sampler_.value = 5.0f;
+  this->sensor_.update();
+  EXPECT_FLOAT_EQ(10000.0f, this->sensor_.state);
+  EXPECT_FLOAT_EQ(0.0f, this->rs_sensor_.state);
+  EXPECT_FLOAT_EQ(0.0f, this->ratio_sensor_.state);
+  EXPECT_FALSE(this->sensor_.status_has_warning());
+
+  // Far above the supply is a wiring fault, not a reading.
+  this->sampler_.value = 5.5f;
+  this->sensor_.update();
+  EXPECT_TRUE(std::isnan(this->sensor_.state));
+  EXPECT_TRUE(this->sensor_.status_has_warning());
+
+  // A normal sample again publishes the chain and clears the fault.
+  this->sampler_.value = 1.0f;
+  this->sensor_.update();
+  EXPECT_FLOAT_EQ(40.0f, this->rs_sensor_.state);
+  EXPECT_FALSE(this->sensor_.status_has_warning());
+}
+
 }  // namespace esphome::mq_gas_sensors::testing
