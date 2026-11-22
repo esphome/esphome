@@ -39,6 +39,11 @@ void cycle_effect(LightState *state, bool forward, bool include_none) {
 }
 
 void addressableset_warn_about_scale(const char *field) {
+  // Once per boot: the lambda may run on every interval tick
+  static bool warned = false;
+  if (warned)
+    return;
+  warned = true;
   ESP_LOGW(TAG,
            "Lambda for parameter %s of light.addressable_set should return values in range 0-1 instead of 0-255. "
            "Support for 0-255 will be removed in 2027.6.0",
