@@ -1,9 +1,7 @@
 #pragma once
 
 #include "esphome/components/switch/switch.h"
-#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
-#include "esphome/core/preferences.h"
 
 namespace esphome::lvgl {
 

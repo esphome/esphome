@@ -1,13 +1,12 @@
 #pragma once
 
 #include "esphome/components/text/text.h"
-#include "esphome/core/automation.h"
-#include "esphome/core/component.h"
 
 namespace esphome::lvgl {
 
 class LVGLText final : public text::Text {
  public:
+  // A setter, as the widget exists only after LVGL init; control() before then is buffered
   void set_control_lambda(void (*control_lambda)(const std::string &)) {
     this->control_lambda_ = control_lambda;
     if (this->initial_state_.has_value()) {
