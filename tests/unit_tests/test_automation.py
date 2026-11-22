@@ -3550,6 +3550,25 @@ async def test_component_automation_args_inline(is_manual: bool) -> None:
 
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("apply_actions")
+async def test_component_automation_ctor_args() -> None:
+    """Constructor arguments follow the template arguments."""
+    conf = _component_conf(_action("my.a", "act_a"))
+
+    await build_component_automation(
+        conf,
+        FLOAT_CALLBACK,
+        template_args=[7],
+        ctor_args=[cg.RawExpression("parent"), 3],
+    )
+
+    assert (
+        "new(trig) FloatCallback<esphome__auto__fn, 7>(parent, 3);"
+        in CORE.cpp_main_section
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
 async def test_component_automation_args_delay_triggers_automation() -> None:
     """With a delay the function passes its arguments to the Automation."""
     conf = _component_conf(_action("my.a", "act_a"), _delay("act_d"))

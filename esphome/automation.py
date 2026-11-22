@@ -2221,15 +2221,18 @@ async def build_component_automation(
     id_key: str = CONF_TRIGGER_ID,
     template_args: Sequence[SafeExpType] = (),
     args: Sequence[tuple[SafeExpType, str]] = (),
+    ctor_args: Sequence[SafeExpType] = (),
 ) -> MockObj:
-    """Create and register ``component_class<function[, priority bits], *template_args>``,
+    """Create and register ``component_class<function[, priority bits], *template_args>(*ctor_args)``,
     whose function takes ``args`` and runs the automation's actions; ``config[id_key]`` names it.
     """
     name, build = declare_automation_function(list(args), config)
     id_ = config[id_key].copy()
     id_.type = component_class
     bits = [] if priority is None else [_float_bits(priority)]
-    var = cg.new_Pvariable(id_, cg.TemplateArguments(name, *bits, *template_args))
+    var = cg.new_Pvariable(
+        id_, cg.TemplateArguments(name, *bits, *template_args), *ctor_args
+    )
     # Registered before the actions are built, which can wait for other ids
     await cg.register_component(var, config)
     await build()
