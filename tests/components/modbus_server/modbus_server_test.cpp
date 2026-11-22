@@ -39,18 +39,19 @@ bool record_bit_write(uint16_t address, bool value) {
 template<typename T> T stored_value;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 // A read lambda's value comes out of read() as raw, and write(raw) hands the write lambda the same value.
-template<typename T> void expect_round_trip(SensorValueType value_type, T value, int64_t raw) {
-  SCOPED_TRACE(static_cast<int>(value_type));
-  ServerRegister reg(0x0042, value_type, 1);
+template<SensorValueType VALUE_TYPE> void expect_round_trip(RegisterValueType<VALUE_TYPE> value, int64_t raw) {
+  using T = RegisterValueType<VALUE_TYPE>;
+  SCOPED_TRACE(static_cast<int>(VALUE_TYPE));
+  ServerRegister reg(0x0042, VALUE_TYPE, 1);
   stored_value<T> = value;
-  reg.set_read_lambda<T>([](uint16_t address) -> optional<T> {
+  reg.set_read_lambda<VALUE_TYPE>([](uint16_t address) -> optional<T> {
     EXPECT_EQ(address, 0x0042);
     return stored_value<T>;
   });
   EXPECT_EQ(reg.read(), optional<int64_t>(raw));
 
   stored_value<T> = T{};
-  reg.set_write_lambda<T>([](uint16_t address, T x) {
+  reg.set_write_lambda<VALUE_TYPE>([](uint16_t address, T x) {
     EXPECT_EQ(address, 0x0042);
     stored_value<T> = x;
     return true;
@@ -62,22 +63,20 @@ template<typename T> void expect_round_trip(SensorValueType value_type, T value,
 }  // namespace
 
 TEST(ModbusServerRegister, ReadAndWriteRoundTripEveryValueType) {
-  expect_round_trip<uint16_t>(SensorValueType::U_WORD, 0xBEEF, 0xBEEF);
-  expect_round_trip<uint16_t>(SensorValueType::U_WORD_S, 0xBEEF, 0xBEEF);
-  expect_round_trip<int16_t>(SensorValueType::S_WORD, -2, -2);
-  expect_round_trip<int16_t>(SensorValueType::S_WORD_S, -2, -2);
-  expect_round_trip<uint32_t>(SensorValueType::U_DWORD, 0xDEADBEEF, 0xDEADBEEF);
-  expect_round_trip<uint32_t>(SensorValueType::U_DWORD_R, 0xDEADBEEF, 0xDEADBEEF);
-  expect_round_trip<int32_t>(SensorValueType::S_DWORD, -100000, -100000);
-  expect_round_trip<int32_t>(SensorValueType::S_DWORD_R, -100000, -100000);
-  expect_round_trip<uint64_t>(SensorValueType::U_QWORD, 0xFEDCBA9876543210ULL,
-                              static_cast<int64_t>(0xFEDCBA9876543210ULL));
-  expect_round_trip<uint64_t>(SensorValueType::U_QWORD_R, 0xFEDCBA9876543210ULL,
-                              static_cast<int64_t>(0xFEDCBA9876543210ULL));
-  expect_round_trip<int64_t>(SensorValueType::S_QWORD, -1234567890123LL, -1234567890123LL);
-  expect_round_trip<int64_t>(SensorValueType::S_QWORD_R, -1234567890123LL, -1234567890123LL);
-  expect_round_trip<float>(SensorValueType::FP32, 1.5f, 0x3FC00000);
-  expect_round_trip<float>(SensorValueType::FP32_R, -1.5f, 0xBFC00000);
+  expect_round_trip<SensorValueType::U_WORD>(0xBEEF, 0xBEEF);
+  expect_round_trip<SensorValueType::U_WORD_S>(0xBEEF, 0xBEEF);
+  expect_round_trip<SensorValueType::S_WORD>(-2, -2);
+  expect_round_trip<SensorValueType::S_WORD_S>(-2, -2);
+  expect_round_trip<SensorValueType::U_DWORD>(0xDEADBEEF, 0xDEADBEEF);
+  expect_round_trip<SensorValueType::U_DWORD_R>(0xDEADBEEF, 0xDEADBEEF);
+  expect_round_trip<SensorValueType::S_DWORD>(-100000, -100000);
+  expect_round_trip<SensorValueType::S_DWORD_R>(-100000, -100000);
+  expect_round_trip<SensorValueType::U_QWORD>(0xFEDCBA9876543210ULL, static_cast<int64_t>(0xFEDCBA9876543210ULL));
+  expect_round_trip<SensorValueType::U_QWORD_R>(0xFEDCBA9876543210ULL, static_cast<int64_t>(0xFEDCBA9876543210ULL));
+  expect_round_trip<SensorValueType::S_QWORD>(-1234567890123LL, -1234567890123LL);
+  expect_round_trip<SensorValueType::S_QWORD_R>(-1234567890123LL, -1234567890123LL);
+  expect_round_trip<SensorValueType::FP32>(1.5f, 0x3FC00000);
+  expect_round_trip<SensorValueType::FP32_R>(-1.5f, 0xBFC00000);
 }
 
 // The log text follows the value type: unsigned, signed, or a float stored as its bits.
@@ -104,7 +103,7 @@ TEST(ModbusServerWrite, SingleWordSucceeds) {
   ModbusServer server;
   written_value = -1;
   ServerRegister reg(0x0000, SensorValueType::U_WORD, 1);
-  reg.set_write_lambda<uint16_t>(record_write<uint16_t>);
+  reg.set_write_lambda<SensorValueType::U_WORD>(record_write<uint16_t>);
   server.add_server_register(&reg);
 
   auto status = server.on_write_registers(0x0000, make_registers({0x1234}));
@@ -116,7 +115,7 @@ TEST(ModbusServerWrite, SwappedWordSucceeds) {
   ModbusServer server;
   written_value = -1;
   ServerRegister reg(0x0000, SensorValueType::U_WORD_S, 1);
-  reg.set_write_lambda<uint16_t>(record_write<uint16_t>);
+  reg.set_write_lambda<SensorValueType::U_WORD_S>(record_write<uint16_t>);
   server.add_server_register(&reg);
 
   auto status = server.on_write_registers(0x0000, make_registers({0x3412}));
@@ -129,7 +128,7 @@ TEST(ModbusServerWrite, DwordSucceeds) {
   ModbusServer server;
   written_value = -1;
   ServerRegister reg(0x0000, SensorValueType::U_DWORD, 2);
-  reg.set_write_lambda<uint32_t>(record_write<uint32_t>);
+  reg.set_write_lambda<SensorValueType::U_DWORD>(record_write<uint32_t>);
   server.add_server_register(&reg);
 
   auto status = server.on_write_registers(0x0000, make_registers({0x1234, 0x5678}));
@@ -143,9 +142,9 @@ TEST(ModbusServerWrite, UnderSuppliedValueAppliesNothing) {
   ModbusServer server;
   write_calls = 0;
   ServerRegister word_reg(0x0000, SensorValueType::U_WORD, 1);
-  word_reg.set_write_lambda<uint16_t>(record_write<uint16_t>);
+  word_reg.set_write_lambda<SensorValueType::U_WORD>(record_write<uint16_t>);
   ServerRegister dword_reg(0x0001, SensorValueType::U_DWORD, 2);  // needs two registers
-  dword_reg.set_write_lambda<uint32_t>(record_write<uint32_t>);
+  dword_reg.set_write_lambda<SensorValueType::U_DWORD>(record_write<uint32_t>);
   server.add_server_register(&word_reg);
   server.add_server_register(&dword_reg);
 
@@ -174,7 +173,7 @@ TEST(ModbusServerWrite, UnwritableRegisterRejected) {
 TEST(ModbusServerWrite, UnmatchedAddressRejected) {
   ModbusServer server;
   ServerRegister reg(0x0000, SensorValueType::U_WORD, 1);
-  reg.set_write_lambda<uint16_t>(record_write<uint16_t>);
+  reg.set_write_lambda<SensorValueType::U_WORD>(record_write<uint16_t>);
   server.add_server_register(&reg);
 
   auto status = server.on_write_registers(0x0005, make_registers({0x1234}));
@@ -198,9 +197,9 @@ TEST(ModbusServerWrite, CallbackFailureIsServiceDeviceFailure) {
   ModbusServer server;
   write_calls = 0;
   ServerRegister first(0x0000, SensorValueType::U_WORD, 1);
-  first.set_write_lambda<uint16_t>(record_write<uint16_t>);
+  first.set_write_lambda<SensorValueType::U_WORD>(record_write<uint16_t>);
   ServerRegister second(0x0001, SensorValueType::U_WORD, 1);
-  second.set_write_lambda<uint16_t>(reject_write<uint16_t>);  // rejects at runtime
+  second.set_write_lambda<SensorValueType::U_WORD>(reject_write<uint16_t>);  // rejects at runtime
   server.add_server_register(&first);
   server.add_server_register(&second);
 
@@ -216,7 +215,7 @@ TEST(ModbusServerWrite, CallbackFailureIsServiceDeviceFailure) {
 TEST(ModbusServerRead, SingleWordSucceeds) {
   ModbusServer server;
   ServerRegister reg(0x0000, SensorValueType::U_WORD, 1);
-  reg.set_read_lambda<uint16_t>([](uint16_t) -> optional<uint16_t> { return 0x1234; });
+  reg.set_read_lambda<SensorValueType::U_WORD>([](uint16_t) -> optional<uint16_t> { return 0x1234; });
   server.add_server_register(&reg);
 
   RegisterValues out;
@@ -229,7 +228,7 @@ TEST(ModbusServerRead, SingleWordSucceeds) {
 TEST(ModbusServerRead, SwappedWordReturnsByteSwappedRegister) {
   ModbusServer server;
   ServerRegister reg(0x0000, SensorValueType::U_WORD_S, 1);
-  reg.set_read_lambda<uint16_t>([](uint16_t) -> optional<uint16_t> { return 0x1234; });
+  reg.set_read_lambda<SensorValueType::U_WORD_S>([](uint16_t) -> optional<uint16_t> { return 0x1234; });
   server.add_server_register(&reg);
 
   RegisterValues out;
@@ -242,7 +241,7 @@ TEST(ModbusServerRead, SwappedWordReturnsByteSwappedRegister) {
 TEST(ModbusServerRead, DwordReturnsTwoWordsHighFirst) {
   ModbusServer server;
   ServerRegister reg(0x0000, SensorValueType::U_DWORD, 2);
-  reg.set_read_lambda<uint32_t>([](uint16_t) -> optional<uint32_t> { return 0x12345678; });
+  reg.set_read_lambda<SensorValueType::U_DWORD>([](uint16_t) -> optional<uint32_t> { return 0x12345678; });
   server.add_server_register(&reg);
 
   RegisterValues out;
@@ -259,7 +258,7 @@ TEST(ModbusServerRead, StartInsideValueRejected) {
   ModbusServer server;
   read_called = false;
   ServerRegister reg(0x0010, SensorValueType::U_DWORD, 2);  // occupies 0x0010 and 0x0011
-  reg.set_read_lambda<uint32_t>([](uint16_t) -> optional<uint32_t> {
+  reg.set_read_lambda<SensorValueType::U_DWORD>([](uint16_t) -> optional<uint32_t> {
     read_called = true;
     return 0;
   });
@@ -280,7 +279,7 @@ TEST(ModbusServerRead, ClippedTailRejected) {
   ModbusServer server;
   read_called = false;
   ServerRegister reg(0x0000, SensorValueType::U_DWORD, 2);
-  reg.set_read_lambda<uint32_t>([](uint16_t) -> optional<uint32_t> {
+  reg.set_read_lambda<SensorValueType::U_DWORD>([](uint16_t) -> optional<uint32_t> {
     read_called = true;
     return 0;
   });
@@ -327,7 +326,7 @@ TEST(ModbusServerRead, CourtesyDefaultForUnregistered) {
 TEST(ModbusServerRead, UnregisteredRejectedWithoutCourtesy) {
   ModbusServer server;
   ServerRegister reg(0x0000, SensorValueType::U_WORD, 1);
-  reg.set_read_lambda<uint16_t>([](uint16_t) -> optional<uint16_t> { return 0x1234; });
+  reg.set_read_lambda<SensorValueType::U_WORD>([](uint16_t) -> optional<uint16_t> { return 0x1234; });
   server.add_server_register(&reg);
 
   RegisterValues out;
@@ -353,7 +352,7 @@ TEST(ModbusServerRead, EmptyServerRejectsWithIllegalFunction) {
 TEST(ModbusServerRead, ReadLambdaDecliningIsServiceDeviceFailure) {
   ModbusServer server;
   ServerRegister reg(0x0000, SensorValueType::U_WORD, 1);
-  reg.set_read_lambda<uint16_t>([](uint16_t) -> optional<uint16_t> { return {}; });
+  reg.set_read_lambda<SensorValueType::U_WORD>([](uint16_t) -> optional<uint16_t> { return {}; });
   server.add_server_register(&reg);
 
   RegisterValues out;
@@ -368,7 +367,7 @@ TEST(ModbusServerRead, PartialReadHighWord) {
   ModbusServer server;
   ServerRegister reg(0x0010, SensorValueType::U_DWORD, 2);
   reg.allow_partial_read = true;
-  reg.set_read_lambda<uint32_t>([](uint16_t) -> optional<uint32_t> { return 0x12345678; });
+  reg.set_read_lambda<SensorValueType::U_DWORD>([](uint16_t) -> optional<uint32_t> { return 0x12345678; });
   server.add_server_register(&reg);
 
   RegisterValues out;
@@ -383,7 +382,7 @@ TEST(ModbusServerRead, PartialReadLowWordFromInterior) {
   ModbusServer server;
   ServerRegister reg(0x0010, SensorValueType::U_DWORD, 2);
   reg.allow_partial_read = true;
-  reg.set_read_lambda<uint32_t>([](uint16_t) -> optional<uint32_t> { return 0x12345678; });
+  reg.set_read_lambda<SensorValueType::U_DWORD>([](uint16_t) -> optional<uint32_t> { return 0x12345678; });
   server.add_server_register(&reg);
 
   RegisterValues out;
@@ -399,7 +398,7 @@ TEST(ModbusServerRead, PartialReadReversedType) {
   ModbusServer server;
   ServerRegister reg(0x0010, SensorValueType::U_DWORD_R, 2);
   reg.allow_partial_read = true;
-  reg.set_read_lambda<uint32_t>([](uint16_t) -> optional<uint32_t> { return 0x12345678; });
+  reg.set_read_lambda<SensorValueType::U_DWORD_R>([](uint16_t) -> optional<uint32_t> { return 0x12345678; });
   server.add_server_register(&reg);
 
   RegisterValues first;

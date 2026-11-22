@@ -10,6 +10,7 @@
 
 namespace esphome::modbus_server {
 
+using modbus::helpers::RegisterValueType;
 using modbus::helpers::SensorValueType;
 
 struct ServerCourtesyResponse {
@@ -26,10 +27,12 @@ class ServerRegister final {
   ServerRegister(uint16_t address, SensorValueType value_type, uint8_t register_count)
       : address(address), value_type(value_type), register_count(register_count) {}
 
-  /// T must be RegisterValueType<value_type> (CPP_TYPE_REGISTER_MAP in codegen); read() and write() cast back by it.
+  /// VALUE_TYPE must be this register's value_type; read() and write() cast back by it.
   /// An empty optional declines the read, answering the whole request with SERVICE_DEVICE_FAILURE.
-  template<typename T> void set_read_lambda(ReadFn<T> read_fn) { this->read_fn_ = reinterpret_cast<ErasedFn>(read_fn); }
-  template<typename T> void set_write_lambda(WriteFn<T> write_fn) {
+  template<SensorValueType VALUE_TYPE> void set_read_lambda(ReadFn<RegisterValueType<VALUE_TYPE>> read_fn) {
+    this->read_fn_ = reinterpret_cast<ErasedFn>(read_fn);
+  }
+  template<SensorValueType VALUE_TYPE> void set_write_lambda(WriteFn<RegisterValueType<VALUE_TYPE>> write_fn) {
     this->write_fn_ = reinterpret_cast<ErasedFn>(write_fn);
   }
 

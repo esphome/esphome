@@ -5,7 +5,6 @@
 namespace esphome::modbus_server {
 using modbus::ExceptionCode;
 using modbus::helpers::registers_to_number;
-using modbus::helpers::RegisterValueType;
 
 ESPHOME_LOG_TAG(TAG, "modbus_server");
 
