@@ -1,6 +1,7 @@
 import re
 from typing import Any
 
+from esphome import automation
 import esphome.codegen as cg
 from esphome.components import image
 from esphome.components.color import (
@@ -15,7 +16,7 @@ from esphome.components.image import Image_
 import esphome.config_validation as cv
 from esphome.const import CONF_ARGS, CONF_FORMAT, CONF_ID, CONF_TIME, CONF_VALUE
 from esphome.core import CORE, ID, Lambda
-from esphome.cpp_generator import MockObj, StaticCastExpression, call_lambda
+from esphome.cpp_generator import MockObj, StaticCastExpression
 from esphome.cpp_types import ESPTime, int32, uint32
 from esphome.helpers import cpp_string_escape
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
@@ -274,10 +275,8 @@ class ImageValidator(LValidator):
             metadata = get_mapping_metadata(mapping_id.id)
             index = value[CONF_VALUE]
             if isinstance(index, Lambda):
-                index = call_lambda(
-                    await cg.process_lambda(
-                        index, args, return_type=metadata.from_.data_type
-                    )
+                index = await automation.call_user_lambda(
+                    index, args, metadata.from_.data_type
                 )
             else:
                 index = await metadata.from_.convert_value(index)
@@ -349,10 +348,8 @@ class TextValidator(LValidator):
                     )
                 index = value[CONF_VALUE]
                 if isinstance(index, Lambda):
-                    index = call_lambda(
-                        await cg.process_lambda(
-                            index, args, return_type=metadata.from_.data_type
-                        )
+                    index = await automation.call_user_lambda(
+                        index, args, metadata.from_.data_type
                     )
                 else:
                     index = await metadata.from_.convert_value(index)
@@ -362,18 +359,14 @@ class TextValidator(LValidator):
                 source = value[CONF_TIME]
                 if isinstance(source, Lambda):
                     source = MockObj(
-                        call_lambda(
-                            await cg.process_lambda(source, args, return_type=ESPTime)
-                        )
+                        await automation.call_user_lambda(source, args, ESPTime)
                     )
                 # must be an ID
                 else:
                     source = (await cg.get_variable(source)).now()
                 return source.strftime(time_format).c_str()
         if isinstance(value, Lambda):
-            value = call_lambda(
-                await cg.process_lambda(value, args, return_type=self.rtype)
-            )
+            value = await automation.call_user_lambda(value, args, self.rtype)
             textvalue = str(value)
 
             # Was the lambda call reduced to a string?
