@@ -2181,7 +2181,7 @@ def _call_target(
     plan: list[MockObj | list[_InlineAction]],
     args: TemplateArgsType,
     config: ConfigType,
-) -> MockObj | str:
+) -> MockObj:
     """What a generated callback calls: the direct function, else ``<automation>->trigger``."""
     if (target := _direct_function(plan, args, config)) is None:
         target = parent_ref(_automation_from_plan(plan, args, config)).trigger
