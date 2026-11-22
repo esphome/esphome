@@ -35,7 +35,6 @@ async def test_api_action_responses(
         # List services
         _, services = await client.list_entities_services()
 
-        # Should have 5 services
         assert len(services) == 6, f"Expected 6 services, found {len(services)}"
 
         # Find our services
