@@ -64,7 +64,7 @@ TEST(BuildJson, OtherBuildersStillBuild) {
 // Callable objects that only work through std::function's forwarding
 struct NoAddressBuilder {
   void operator()(JsonObject root) const { root["no_address"] = true; }
-  void operator&() const = delete;
+  void operator&() const = delete;  // NOLINT(google-runtime-operator): the case under test
 };
 
 TEST(BuildJson, UnusualCallablesTakeTheFastPath) {
