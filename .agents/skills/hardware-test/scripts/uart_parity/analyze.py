@@ -52,14 +52,11 @@ def classify(b: bytes) -> tuple[str, bool]:
 
 
 def main() -> None:
-    bursts, last = [], -1.0
+    bursts, last, header = [], -1.0, None
     for line in pathlib.Path(sys.argv[1]).read_text(encoding="utf-8").splitlines():
         t, d, h = line.split(" ", 2)
-        if d == "TX" and h.startswith("framing=") and h.strip() != "framing=8E1":
-            # the model reads an 8E1 capture; at 8N1 every 8N1 frame would decode as an exact 8E1 one
-            sys.exit(
-                f"{h.strip()}: analyze.py needs an rd.py capture made in mode e (8E1)"
-            )
+        if d == "TX" and h.startswith("framing="):
+            header = h.split()
         if d != "RX":
             bursts.append(
                 (float(t), d, h.strip())
@@ -72,7 +69,13 @@ def main() -> None:
         else:
             bursts.append((float(t), "RX", h))
         last = float(t)
-    known = other = marks = hups = short = 0
+    # the model reads an 8E1 capture; at 8N1 every 8N1 frame would decode as an exact 8E1 one
+    if not header or header[0] != "framing=8E1":
+        sys.exit(
+            f"{' '.join(header or ['no framing header'])}: analyze.py needs an rd.py capture in mode e"
+        )
+    opts = header[1].removeprefix("options=").split(",") if len(header) > 1 else []
+    known = other = marks = hups = short = parity = 0
     for t, d, h in bursts:
         if d != "RX":
             k = f"{d} {h}"
@@ -82,6 +85,9 @@ def main() -> None:
             b, m = rx_parse(h)
             k, ok = classify(b)
             known += ok
+            parity += ok and not (
+                b.startswith(b"\r\nRPT") or b == b"\x7f"
+            )  # frames and GVR show the parity
             other += not ok
             marks += m
             if m:
@@ -89,9 +95,19 @@ def main() -> None:
         print(f"{t:8.3f} {k}")
     # like txt.py: no data, a lost port, error marks or a short write is not a clean classification; a few OTHER
     # bursts are boot noise, more of them than classified ones means a wrong framing or a broken line
-    summary = f"{known} classified, {other} OTHER, {marks} PARMRK error marks, {hups} HUP lines, {short} short writes"
+    # an ack or feed that was asked for but never written leaves the run without its stimulus
+    tx = [h for _, d, h in bursts if d == "TX"]
+    missing = [
+        o
+        for o, p in (("ack", "79"), ("feed", "55"))
+        if o in opts and not any(h.startswith(p) for h in tx)
+    ]
+    summary = (
+        f"{known} classified, {parity} showing parity, {other} OTHER, {marks} PARMRK error marks, {hups} HUP lines, "
+        f"{short} short writes, requested but not written: {','.join(missing) or '-'}"
+    )
     print(summary)
-    if not known or other > known or marks or hups or short:
+    if not parity or other > known or marks or hups or short or missing:
         sys.exit(summary)
 
 

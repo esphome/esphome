@@ -26,5 +26,11 @@ if (
 short = sum(
     p[1] == "TX" and "SHORT" in p[2] for p in lines
 )  # rd.py could not write all of an ack or feed
+# a feed that was asked for but never written: the RX buffer probe did not run
+hdr = next((p[2] for p in lines if p[1] == "TX" and p[2].startswith("framing=")), "")
+if "feed" in hdr.split("options=")[-1].split(",") and not any(
+    p[1] == "TX" and p[2].startswith("55") for p in lines
+):
+    sys.exit("feed was requested but never written")
 if marks or hups or short:
     sys.exit(f"{marks} PARMRK error marks, {hups} HUP lines, {short} short writes")

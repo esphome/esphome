@@ -2,7 +2,8 @@
 
 ack answers a lone 0x7F with 0x79 (a fake STM32 bootloader ACK, so stm32flash goes on to GVR 01 FE); feed writes
 400 bytes of 0x55 after each RPT line (RX buffer probe). Writes go out in the reader's own framing.
-OUT gets "<seconds> RX <hex>" and "<seconds> TX <what>" lines.
+OUT starts with "0.0000 TX framing=8E1 options=ack,feed" (analyze.py checks both), then "<seconds> RX <hex>" and
+"<seconds> TX <what>" lines.
 """
 
 import os
@@ -59,7 +60,8 @@ end = t0 + secs
 tail = b""
 try:
     with pathlib.Path(out).open("w", encoding="utf-8") as f:
-        f.write(f"0.0000 TX framing={'8E1' if mode == 'e' else '8N1'}\n")
+        opts = ",".join(o for o, on in (("ack", ack), ("feed", feed)) if on) or "-"
+        f.write(f"0.0000 TX framing={'8E1' if mode == 'e' else '8N1'} options={opts}\n")
         while time.time() < end:
             r, _, _ = select.select([fd], [], [], 0.02)
             if not r:
