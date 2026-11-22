@@ -54,7 +54,7 @@ using Wiznet6300lwIPFixed = LwipIntfDev<Wiznet6300NoSPI>;
 #elif defined(USE_ETHERNET_USB)
 #include <NCMEthernetlwIP.h>
 #else
-#error "Unsupported RP2040 SPI Ethernet type"
+#error "Unsupported RP2040 Ethernet type"
 #endif
 #endif
 
@@ -346,7 +346,7 @@ class EthernetComponent final : public Component {
 #elif defined(USE_ETHERNET_USB)
   NCMEthernetlwIP *eth_{nullptr};
 #else
-#error "Unsupported RP2040 SPI Ethernet type"
+#error "Unsupported RP2040 Ethernet type"
 #endif
   uint32_t last_link_check_{0};
   uint8_t clk_pin_;
