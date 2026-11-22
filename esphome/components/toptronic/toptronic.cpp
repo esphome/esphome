@@ -540,7 +540,10 @@ void TopTronic::setup() {
   // Wire the callbacks here, after every platform's add_sensor()/add_input() has run.
   this->link_inputs_();
   this->register_sensor_callbacks();
-  this->refresh_queue_.init(this->sensors_.size());
+  if (!this->refresh_queue_.try_init(this->sensors_.size())) {
+    this->mark_failed(LOG_STR("Out of memory for the refresh queue"));
+    return;
+  }
   if (this->boot_refresh_delay_ms_ != 0) {
     // Every hub arms its own delay; the first to expire refreshes all of them
     this->set_timeout(BOOT_REFRESH_TIMEOUT_ID, this->boot_refresh_delay_ms_, [this]() {
