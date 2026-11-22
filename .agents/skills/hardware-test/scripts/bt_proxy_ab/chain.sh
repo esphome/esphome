@@ -10,8 +10,8 @@ for spec in "$@"; do
   if [ "$DEV" != "-" ]; then
     ok=0
     for t in 1 2 3 4 5; do
-      TREE=$W ../pio_build.sh upload "$TAG" "$Y" "$DEV" > /dev/null && { ok=1; break; }
-      echo "$(date +%T) $TAG upload try $t failed"; sleep 20
+      TREE=$W ../pio_build.sh upload "$TAG" "$Y" "$DEV" > "flash-$TAG.log" 2>&1 && { ok=1; break; }
+      echo "$(date +%T) $TAG upload try $t failed, see flash-$TAG.log"; sleep 20
     done
     [ $ok = 1 ] || { echo "$TAG flash failed"; fail=1; continue; }
   fi

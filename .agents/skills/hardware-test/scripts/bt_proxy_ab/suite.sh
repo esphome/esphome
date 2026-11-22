@@ -1,7 +1,7 @@
 #!/bin/bash
 # suite.sh TAG HOST PORT|api [steps...]: run the drive.py scenarios against the proxy at HOST, with the device log
 # from serial PORT (or over the API) and a pinger for the whole run. Results in TAG-<step>.jsonl, stderr in
-# TAG-<step>.err, log in cap-TAG.txt, pings in ping-TAG.txt, step marks in marks-TAG.txt; then report.py TAG.
+# TAG-<step>.err, log in cap-TAG.txt, pings in ping-TAG.txt, step marks in marks-TAG.txt; run report.py TAG after it.
 # Exits 1 when a step falls short of its rounds or its driver fails, 2 when TAG already has results.
 # env: RESUME=1 (continue an earlier run of TAG), PY, API_KEY (else apikey.txt), PEER_L, PEER_M, HK_NAME,
 #      PEER_ADDRS (peers.py), NSEC (notify seconds, 600), R (disc and retry rounds, 15), TL (thirdL rounds, 8)

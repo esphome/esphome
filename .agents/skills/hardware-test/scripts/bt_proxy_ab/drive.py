@@ -259,7 +259,11 @@ class D:
 
     async def disc_once(self, name: str, budget: float, cold: bool, rtt: bool) -> dict:
         if cold and not await self.clear(name):
-            return {"connected": False, "exc": "clear cache failed"}
+            return {
+                "connected": False,
+                "exc": "clear cache failed",
+                "clear_failed": True,
+            }
         adv0 = self.adv
         st = await self.connect(name, not cold, timeout=budget)
         res = {k: st.get(k) for k in ("connected", "t_conn", "err", "exc", "mtu")}
@@ -370,6 +374,11 @@ async def main() -> None:
                     if "t_cmd" in res:
                         break
                     await asyncio.sleep(1)
+                if any(
+                    a.get("clear_failed") for a in att
+                ):  # a harness fault, not the build's
+                    d.rec(test="retry", round=r, name=name, result="clear_failed")
+                    continue
                 d.rec(
                     test="retry",
                     round=r,
@@ -383,6 +392,9 @@ async def main() -> None:
                 res = await d.disc_once(
                     name, 60 if mode == "free" else 30, mode == "free", True
                 )
+                if res.get("clear_failed"):
+                    d.rec(test=mode, round=r, name=name, result="clear_failed")
+                    continue
                 d.rec(test=mode, round=r, name=name, ok="t_cmd" in res, **res)
             await asyncio.sleep(2)
     elif cmd == "third":
@@ -517,6 +529,10 @@ async def main() -> None:
                 await stop()
         await d.disconnect(L)
         d.rec(test="notify", secs=secs, expected=round(secs * 5), **stats)
+        if (
+            stats["rx"] == 0
+        ):  # L was never held or sent nothing: the step measured nothing
+            sys.exit(1)
     elif cmd == "churn":
         cycles = int(sys.argv[4])
         await d.start([L, M])
@@ -558,6 +574,8 @@ async def main() -> None:
             limit=limit,
             free_end=d.free,
         )
+        if errs == cycles:  # no cycle connected: nothing was measured
+            sys.exit(1)
     elif cmd == "eve":
         rounds = int(sys.argv[4])
         await d.start([EVE], 180)

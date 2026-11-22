@@ -16,7 +16,8 @@ i=0 fail=0
 for _ in $(seq "${6:-2}"); do
   for W in a b; do
     i=$((i + 1)); T=x$i$W; TR=$TA; [ $W = b ] && TR=$TB
-    TREE=$TR ../pio_build.sh upload "$N-$W" "$Y" "$PORT" > /dev/null || { echo "$T flash failed"; fail=1; continue; }
+    TREE=$TR ../pio_build.sh upload "$N-$W" "$Y" "$PORT" > "flash-$T.log" 2>&1 ||
+      { echo "$T flash failed, see flash-$T.log"; fail=1; continue; }
     $PY ../serial_capture.py "$PORT" 700 "cap-$T.txt" --ms > /dev/null 2> "cap-$T.err" &
     CP=$!
     sleep 2; kill -0 $CP 2> /dev/null || { echo "$T capture did not start, see cap-$T.err"; fail=1; continue; }

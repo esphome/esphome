@@ -392,8 +392,11 @@ inline void tick() {
         // Eve: success needs one read of the first readable characteristic, as in drive.py eve
         esp_gattc_char_elem_t chars[20];
         uint16_t n = 20, hnd = 0;
-        if (esp_ble_gattc_get_all_char(C[p]->get_gattc_if(), C[p]->get_conn_id(), 1, 0xFFFF, chars, &n, 0) ==
-            ESP_GATT_OK) {
+        esp_gatt_status_t gs =
+            esp_ble_gattc_get_all_char(C[p]->get_gattc_if(), C[p]->get_conn_id(), 1, 0xFFFF, chars, &n, 0);
+        if (gs != ESP_GATT_OK)
+          ESP_LOGW(TAG, "ST eve get_all_char_err=%d r=%u (GATT cache or discovery)", gs, rnd);
+        if (gs == ESP_GATT_OK) {
           for (uint16_t i = 0; i < n && hnd == 0; i++)
             if (chars[i].properties & ESP_GATT_CHAR_PROP_BIT_READ)
               hnd = chars[i].char_handle;

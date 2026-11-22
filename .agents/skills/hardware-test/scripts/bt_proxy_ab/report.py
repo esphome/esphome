@@ -133,8 +133,11 @@ out = {}
 for s in steps:
     A, L = window(s)
     R = jl(s)
-    rounds = [r for r in R if "round" in r]
+    # a failed cache clear is a harness fault: out of the ratios, counted on its own
+    rounds = [r for r in R if "round" in r and r.get("result") != "clear_failed"]
     d = {}
+    if cf := sum(r.get("result") == "clear_failed" for r in R):
+        d["clear_failed"] = cf
     # results outside any round (not_seen, api_lost, connect_failed, no_handles) would otherwise vanish
     if other := Counter(r["result"] for r in R if "round" not in r and "result" in r):
         d["no_round"] = dict(other)

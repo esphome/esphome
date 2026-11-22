@@ -49,7 +49,15 @@ for name, lines in ph.items():
             sfx = m[2][-5:] if m[2] in ADDR else None
             cur[m[1]] = {"t0": t, "p": ADDR.get(m[2], m[2]), "sfx": sfx}
             att.append(cur[m[1]])
-        elif m := re.search(r"\]: \[(\d)\] \[[0-9A-F:]{17}\] Connection open", ln):
+        elif m := re.search(
+            r"\]: \[(\d)\] (?:\[[0-9A-F:]{17}\] )?Connection open (?:error|failed), status=(\d+)",
+            ln,
+        ):
+            if a := cur.get(m[1]):
+                a["fail"] = int(m[2])
+        elif m := re.search(
+            r"\]: \[(\d)\] (?:\[[0-9A-F:]{17}\] )?Connection open(?! error| failed)", ln
+        ):
             if (a := cur.get(m[1])) and "to" not in a:
                 a["to"] = t
         elif m := re.search(r"IVLOG connect (\S+) if=\d+ interval=(\d+)", ln):
