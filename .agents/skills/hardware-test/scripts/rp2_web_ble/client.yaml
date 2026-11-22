@@ -1,0 +1,12 @@
+# Classic ESP32 that joins the Pico W's fallback AP and provisions it once through /wifisave (name set with -s name).
+substitutions:
+  ap_ssid: rp2webap
+  real_ssid: !secret wifi_ssid
+  real_psk: !secret wifi_password
+  bogus_saves: "1"
+esp32:
+  board: pico32
+  framework:
+    type: esp-idf
+packages:
+  hwtest: !include ../../templates/client-wifisave.yaml

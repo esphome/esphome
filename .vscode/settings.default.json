@@ -1,0 +1,32 @@
+{
+  // Default workspace settings. script/setup copies this file to settings.json
+  // when that file does not exist yet; settings.json is not tracked, so change it freely.
+  "pylint.args": [
+    "--rcfile=${workspaceFolder}/pyproject.toml"
+  ],
+  "ruff.configuration": "${workspaceFolder}/pyproject.toml",
+  "[python]": {
+    "editor.defaultFormatter": "charliermarsh.ruff",
+    "editor.formatOnSave": true
+  },
+  "files.trimTrailingWhitespace": true,
+  "yaml.customTags": [
+    "!secret scalar",
+    "!env_var scalar",
+    "!include scalar",
+    "!include mapping",
+    "!lambda scalar",
+    "!literal scalar",
+    "!literal sequence",
+    "!literal mapping",
+    "!extend scalar",
+    "!remove scalar",
+    "!include_dir_named scalar",
+    "!include_dir_list scalar",
+    "!include_dir_merge_list scalar",
+    "!include_dir_merge_named scalar"
+  ],
+  "files.associations": {
+    "**/.vscode/*.json": "jsonc"
+  }
+}

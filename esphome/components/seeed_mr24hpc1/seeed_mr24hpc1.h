@@ -79,7 +79,7 @@ enum PollingState {
 enum OutputSwitch {
   OUTPUT_SWITCH_INIT,
   OUTPUT_SWITCH_ON,
-  OUTPUT_SWTICH_OFF,
+  OUTPUT_SWITCH_OFF,
 };
 
 class MR24HPC1Component final : public Component,
@@ -89,7 +89,7 @@ class MR24HPC1Component final : public Component,
   SUB_TEXT_SENSOR(product_model)
   SUB_TEXT_SENSOR(product_id)
   SUB_TEXT_SENSOR(hardware_model)
-  SUB_TEXT_SENSOR(firware_version)
+  SUB_TEXT_SENSOR(firmware_version)
   SUB_TEXT_SENSOR(keep_away)
   SUB_TEXT_SENSOR(motion_status)
   SUB_TEXT_SENSOR(custom_mode_end)

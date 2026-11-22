@@ -1,7 +1,7 @@
 from ipaddress import IPv4Address
 
 import esphome.codegen as cg
-from esphome.components import esp32, wifi
+from esphome.components import esp32, network, wifi
 from esphome.components.const import CONF_ENABLED, CONF_WINDOW
 from esphome.components.esp32.const import (
     VARIANT_ESP32,
@@ -194,6 +194,7 @@ CONFIG_SCHEMA = cv.All(
     cv.require_framework_version(
         esp_idf=cv.Version(5, 5, 3), esp32_arduino=cv.Version(3, 3, 7)
     ),
+    network.require_ipv4("espectre"),
     validate_config,
 )
 
@@ -248,7 +249,7 @@ async def to_code(config: ConfigType) -> None:
         )
 
     wifi.enable_runtime_roaming_suppression()
-    esp32.add_idf_component(name="francescopace/espectre", ref="3.1.0")
+    esp32.add_idf_component(name="francescopace/espectre", ref="3.2.0")
     esp32.add_idf_sdkconfig_option("CONFIG_ESP_WIFI_CSI_ENABLED", True)
     # CSI is reported once per received transmission, so aggregation hides frames from sensing.
     # Disabling TX aggregation also lets the SDK fix the station TX rate (6.5 Mbps on ESP32).

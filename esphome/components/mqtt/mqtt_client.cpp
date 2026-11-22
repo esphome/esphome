@@ -323,12 +323,18 @@ bool MQTTClientComponent::can_proceed() {
 }
 
 void MQTTClientComponent::start_dnslookup_() {
+  this->status_set_warning();
+  // No lookup can start before the network is up: there is no DNS server to ask yet.
+  // Stay disconnected, and loop() calls this again as soon as it is up.
+  this->waiting_for_network_ = !network::is_connected();
+  if (this->waiting_for_network_)
+    return;
+
   for (auto &subscription : this->subscriptions_) {
     subscription.subscribed = false;
     subscription.resubscribe_timeout = 0;
   }
 
-  this->status_set_warning();
   this->dns_resolve_error_ = false;
   this->dns_resolved_ = false;
   ip_addr_t addr;
@@ -358,9 +364,13 @@ void MQTTClientComponent::start_dnslookup_() {
     }
     default:
     case ERR_ARG: {
-      // error
+      // The lookup never started, so there is no answer to wait for; loop() tries again in 5 seconds
       ESP_LOGW(TAG, "Error resolving broker IP address: %d", err);
-      break;
+      this->state_ = MQTT_CLIENT_DISCONNECTED;
+      this->disconnect_reason_ = MQTTClientDisconnectReason::DNS_RESOLVE_ERROR;
+      this->on_disconnect_.call(MQTTClientDisconnectReason::DNS_RESOLVE_ERROR);
+      this->connect_begin_ = millis();
+      return;
     }
   }
 
@@ -490,8 +500,7 @@ void MQTTClientComponent::loop() {
   mqtt_backend_.loop();
 
   if (this->disconnect_reason_.has_value()) {
-    const LogString *reason_s = MQTTDisconnectReasonStrings::get_log_str(
-        static_cast<uint8_t>(*this->disconnect_reason_), MQTTDisconnectReasonStrings::LAST_INDEX);
+    const LogString *reason_s = MQTTDisconnectReasonStrings::get_log_str(*this->disconnect_reason_);
     if (!network::is_connected()) {
       reason_s = LOG_STR("WiFi disconnected");
     }
@@ -505,7 +514,9 @@ void MQTTClientComponent::loop() {
     case MQTT_CLIENT_DISABLED:
       return;  // Return to avoid a reboot when disabled
     case MQTT_CLIENT_DISCONNECTED:
-      if (now - this->connect_begin_ > 5000) {
+      // Back off 5 s after a failed attempt. Without a network no attempt was made, so the
+      // first one starts as soon as the network is up instead of 5 s after boot.
+      if (this->waiting_for_network_ || now - this->connect_begin_ > 5000) {
         this->start_dnslookup_();
       }
       break;
@@ -521,17 +532,16 @@ void MQTTClientComponent::loop() {
         ESP_LOGW(TAG, "Lost client connection");
         this->start_dnslookup_();
       } else {
-        if (!this->birth_message_.topic.empty() && !this->sent_birth_message_) {
+        this->last_connected_ = now;
+        const bool all_subscribed = this->resubscribe_subscriptions_();
+#ifdef USE_MQTT_SESSION_PERSISTENCE
+        if (all_subscribed && !this->subacks_settled_)
+          this->check_subacks_();
+#endif
+        // Online only once every paced SUBSCRIBE is out, so no command for an unsubscribed topic is lost
+        if (all_subscribed && !this->birth_message_.topic.empty() && !this->sent_birth_message_) {
           this->sent_birth_message_ = this->publish(this->birth_message_);
         }
-
-        this->last_connected_ = now;
-#ifdef USE_MQTT_SESSION_PERSISTENCE
-        if (this->resubscribe_subscriptions_() && !this->subacks_settled_)
-          this->check_subacks_();
-#else
-        this->resubscribe_subscriptions_();
-#endif
 
         // Process pending resends for all MQTT components centrally
         // Limit work per loop iteration to avoid triggering task WDT on reconnect
@@ -586,7 +596,8 @@ void MQTTClientComponent::resubscribe_subscription_(MQTTSubscription *sub) {
   const uint32_t now = millis();
   bool do_resub = sub->resubscribe_timeout == 0 || now - sub->resubscribe_timeout > 1000;
 
-  if (do_resub) {
+  // Paced so the connect burst fits the backend queue
+  if (do_resub && this->mqtt_backend_.can_subscribe()) {
     sub->subscribed = this->subscribe_topic_(sub->topic, sub->qos);
     sub->resubscribe_timeout = now;
 #ifdef USE_MQTT_SESSION_PERSISTENCE
@@ -833,7 +844,9 @@ __attribute__((noinline)) static bool topic_matches(const char *message, const M
 }
 
 void MQTTClientComponent::on_message(const std::string &topic, const std::string &payload) {
-#ifdef USE_ESP8266
+#if defined(USE_ESP8266) || defined(USE_LIBRETINY)
+  // LibreTiny: this runs in the async_tcp task, and a command such as restart would block that task while its
+  // teardown waits for the MQTT and API traffic only that task can send, so commands run on the main loop.
   // IMPORTANT: This defer is REQUIRED to prevent stack overflow crashes on ESP8266.
   //
   // On ESP8266, this callback is invoked directly from the lwIP/AsyncTCP network stack
@@ -859,21 +872,22 @@ void MQTTClientComponent::on_message(const std::string &topic, const std::string
 #endif
     // Indexed with the count taken up front: a callback may subscribe, which can reallocate the
     // vector, and the new entry waits for the next message.
-    // Restored rather than cleared, so only the outermost dispatch erases what was unsubscribed meanwhile.
-    const bool was_dispatching = this->dispatching_;
-    this->dispatching_ = true;
-    const size_t count = this->subscriptions_.size();
-    for (size_t i = 0; i < count; i++) {
-      const auto &subscription = this->subscriptions_[i];
-      if (!subscription.removed && topic_matches(topic.c_str(), subscription.topic))
-        subscription.callback.call(topic, payload);
+    // Only the outermost dispatch erases what was unsubscribed meanwhile.
+    const bool outermost = !this->dispatching_;
+    {
+      DispatchGuard dispatching(this->dispatching_);
+      const size_t count = this->subscriptions_.size();
+      for (size_t i = 0; i < count; i++) {
+        const auto &subscription = this->subscriptions_[i];
+        if (!subscription.removed && topic_matches(topic.c_str(), subscription.topic))
+          subscription.callback.call(topic, payload);
+      }
     }
-    this->dispatching_ = was_dispatching;
-    if (!was_dispatching && this->removed_while_dispatching_) {
+    if (outermost && this->removed_while_dispatching_) {
       this->removed_while_dispatching_ = false;
       this->erase_removed_subscriptions_();
     }
-#ifdef USE_ESP8266
+#if defined(USE_ESP8266) || defined(USE_LIBRETINY)
   });
 #endif
 }
@@ -883,9 +897,7 @@ void MQTTClientComponent::disable_log_message() { this->log_message_.topic = "";
 bool MQTTClientComponent::is_log_message_enabled() const { return !this->log_message_.topic.empty(); }
 void MQTTClientComponent::register_mqtt_component(MQTTComponent *component) { this->children_.push_back(component); }
 void MQTTClientComponent::set_keep_alive(uint16_t keep_alive_s) { this->mqtt_backend_.set_keep_alive(keep_alive_s); }
-void MQTTClientComponent::set_log_message_template(MQTTMessage &&message) { this->log_message_ = std::move(message); }
 const MQTTDiscoveryInfo &MQTTClientComponent::get_discovery_info() const { return this->discovery_info_; }
-void MQTTClientComponent::set_topic_prefix(std::string topic_prefix) { this->topic_prefix_ = std::move(topic_prefix); }
 const std::string &MQTTClientComponent::get_topic_prefix() const { return this->topic_prefix_; }
 void MQTTClientComponent::disable_birth_message() {
   this->birth_message_.topic = "";
@@ -917,8 +929,6 @@ void MQTTClientComponent::set_birth_message(MQTTMessage &&message) {
   this->birth_message_ = std::move(message);
   this->recalculate_availability_();
 }
-
-void MQTTClientComponent::set_shutdown_message(MQTTMessage &&message) { this->shutdown_message_ = std::move(message); }
 
 void MQTTClientComponent::set_discovery_info(std::string &&prefix, MQTTDiscoveryUniqueIdGenerator unique_id_generator,
                                              MQTTDiscoveryObjectIdGenerator object_id_generator, bool retain,

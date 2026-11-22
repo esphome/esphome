@@ -9,6 +9,7 @@ switch:
     pin: 12
     id: sw_a
     interlock: [sw_b, sw_c]
+    interlock_wait_time: 50ms
   - platform: gpio
     pin: 13
     id: sw_b

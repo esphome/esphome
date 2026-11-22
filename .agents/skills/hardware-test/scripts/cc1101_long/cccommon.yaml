@@ -1,0 +1,157 @@
+esphome:
+  name: ${name}
+  includes: [cclong.hpp]
+logger:
+  hardware_uart: USB_SERIAL_JTAG
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  power_save_mode: none
+spi:
+  clk_pin: ${clk}
+  mosi_pin: ${mosi}
+  miso_pin: ${miso}
+globals:
+  - {id: seq, type: uint8_t, initial_value: "0"}
+  - {id: txerr, type: uint32_t, initial_value: "0"}
+  - {id: txpoll, type: uint32_t, initial_value: "300"}
+api:
+  reboot_timeout: 0s
+  encryption:
+    key: !secret api_key
+  actions:
+    - action: cfg
+      variables: {len: int, crc: bool}
+      then:
+        - lambda: |-
+            auto *c = id(radio);
+            c->set_idle();
+            c->set_crc_enable(crc);
+            c->set_packet_length(len);
+            c->begin_rx();
+            ESP_LOGI("cct", "CFG len=%d crc=%d PKTLEN=%u PKTCTRL0=0x%02X MARC=0x%02X", len, (int) crc, ccl::rd(c, 0x06), ccl::rd(c, 0x08), ccl::rdst(c, 0x35) & 0x1F);
+    - action: send
+      variables: {count: int, len: int, b0: int, gap_ms: int}
+      then:
+        - lambda: 'id(txerr) = 0;'
+        - repeat:
+            count: !lambda return count;
+            then:
+              - lambda: |-
+                  std::vector<uint8_t> b;
+                  ccl::fill(b, len, b0, id(seq)++);
+                  if (len <= 64) {
+                    if (id(radio).transmit_packet(b) != cc1101::CC1101Error::NONE) id(txerr)++;
+                  } else if (ccl::long_tx(id(radio), b.data(), b.size(), id(txpoll)) != 0) {
+                    id(txerr)++;
+                  }
+              - delay: !lambda return gap_ms;
+        - lambda: 'ESP_LOGI("cct", "SENT count=%d len=%d b0=%d errors=%u", count, len, b0, (unsigned) id(txerr));'
+    - action: rate
+      variables: {sr: float, mod: int, dev: float, bw: float, poll: int, sync: int}
+      then:
+        - lambda: |-
+            auto *c = id(radio);
+            c->set_idle();
+            c->set_modulation_type(static_cast<cc1101::Modulation>(mod));
+            c->set_symbol_rate(sr);
+            c->set_fsk_deviation(dev);
+            c->set_filter_bandwidth(bw);
+            c->set_sync_mode(static_cast<cc1101::SyncMode>(sync));
+            c->begin_rx();
+            id(txpoll) = poll;
+            ESP_LOGI("cct", "RATE sync=%d sr=%.0f mod=%d dev=%.0f bw=%.0f MDMCFG4=0x%02X MDMCFG3=0x%02X MDMCFG2=0x%02X DEVIATN=0x%02X MARC=0x%02X", sync, sr, mod, dev, bw, ccl::rd(c, 0x10), ccl::rd(c, 0x11), ccl::rd(c, 0x12), ccl::rd(c, 0x15), ccl::rdst(c, 0x35) & 0x1F);
+    - action: pdown
+      then:
+        - lambda: 'id(radio).power_down(); ESP_LOGI("cct", "POWER_DOWN");'
+    - action: wup
+      then:
+        - lambda: 'id(radio).wake_up(); id(radio).begin_rx(); ESP_LOGI("cct", "WAKE_UP MARC=0x%02X", ccl::rdst(id(radio), 0x35) & 0x1F);'
+    - action: setlen
+      variables: {len: int}
+      then:
+        - lambda: 'id(radio).set_packet_length(len); ESP_LOGI("cct", "SETLEN %d PKTLEN=%u PKTCTRL0=0x%02X", len, ccl::rd(id(radio), 0x06), ccl::rd(id(radio), 0x08));'
+    - action: pmode
+      variables: {enable: bool}
+      then:
+        - lambda: 'id(radio).set_packet_mode(enable); ESP_LOGI("cct", "PMODE %d PKTCTRL0=0x%02X", (int) enable, ccl::rd(id(radio), 0x08));'
+    - action: whiten
+      variables: {enable: bool}
+      then:
+        - lambda: 'id(radio).set_idle(); id(radio).set_whitening(enable); id(radio).begin_rx(); ESP_LOGI("cct", "WHITEN %d PKTCTRL0=0x%02X", (int) enable, ccl::rd(id(radio), 0x08));'
+    - action: tx_idle_rx
+      then:
+        - lambda: 'id(radio).begin_tx(); delay(5); id(radio).set_idle(); id(radio).begin_rx(); ESP_LOGI("cct", "TX_IDLE_RX MARC=0x%02X", ccl::rdst(id(radio), 0x35) & 0x1F);'
+    - action: tx_reset
+      then:
+        - lambda: 'id(radio).begin_tx(); delay(5); id(radio).reset(); ESP_LOGI("cct", "TX_RESET MARC=0x%02X", ccl::rdst(id(radio), 0x35) & 0x1F);'
+    - action: tx_setters
+      then:
+        - lambda: |-
+            auto *c = id(radio);
+            c->begin_tx();
+            delay(5);
+            const uint8_t before = ccl::rd(c, 0x08);
+            c->set_crc_enable(false);
+            c->set_whitening(false);
+            c->set_packet_length(32);
+            const uint8_t after = ccl::rd(c, 0x08);
+            ESP_LOGI("cct", "TX_SETTERS PKTCTRL0 before=0x%02X after=0x%02X MARC=0x%02X", before, after, ccl::rdst(c, 0x35) & 0x1F);
+            c->begin_rx();
+            ESP_LOGI("cct", "TX_SETTERS begin_rx PKTCTRL0=0x%02X MARC=0x%02X", ccl::rd(c, 0x08), ccl::rdst(c, 0x35) & 0x1F);
+    - action: tx_only
+      then:
+        - lambda: 'id(radio).begin_tx(); delay(5); ESP_LOGI("cct", "TX_ONLY MARC=0x%02X", ccl::rdst(id(radio), 0x35) & 0x1F);'
+    - action: hf
+      then:
+        - lambda: 'ESP_LOGI("cct", "HF %d", (int) esphome::HighFrequencyLoopRequester::is_high_frequency());'
+    - action: idle_rx
+      then:
+        - lambda: |-
+            id(radio).set_idle();
+            id(radio).begin_rx();
+            ESP_LOGI("cct", "IDLE_RX MARC=0x%02X", ccl::rdst(id(radio), 0x35) & 0x1F);
+    - action: tx_rx
+      then:
+        - lambda: |-
+            id(radio).begin_tx();
+            delay(5);
+            id(radio).begin_rx();
+            ESP_LOGI("cct", "TX_RX MARC=0x%02X", ccl::rdst(id(radio), 0x35) & 0x1F);
+    - action: btx
+      then:
+        - lambda: |-
+            auto *c = id(radio);
+            const uint8_t before = ccl::rd(c, 0x08);
+            c->begin_tx();
+            delay(5);
+            ESP_LOGI("cct", "BTX PKTCTRL0 before=0x%02X after=0x%02X MARC=0x%02X", before, ccl::rd(c, 0x08), ccl::rdst(c, 0x35) & 0x1F);
+    - action: swasync
+      then:
+        - lambda: |-
+            auto *c = id(radio);
+            c->set_packet_mode(false);
+            c->begin_tx();
+            delay(5);
+            ESP_LOGI("cct", "SWASYNC begin_tx PKTCTRL0=0x%02X IOCFG0=0x%02X MARC=0x%02X", ccl::rd(c, 0x08), ccl::rd(c, 0x02), ccl::rdst(c, 0x35) & 0x1F);
+            c->begin_rx();
+            ESP_LOGI("cct", "SWASYNC begin_rx MARC=0x%02X", ccl::rdst(c, 0x35) & 0x1F);
+            c->set_idle();
+            c->set_packet_mode(true);
+            c->begin_rx();
+            ESP_LOGI("cct", "SWPACKET PKTCTRL0=0x%02X IOCFG0=0x%02X MARC=0x%02X", ccl::rd(c, 0x08), ccl::rd(c, 0x02), ccl::rdst(c, 0x35) & 0x1F);
+cc1101:
+  id: radio
+  cs_pin: ${cs}
+  gdo0_pin: ${gdo0}
+  frequency: 433.92MHz
+  modulation_type: GFSK
+  symbol_rate: 4800
+  packet_mode: true
+  packet_length: ${plen}
+  sync_mode: "16/16"
+  output_power: 0
+  on_packet:
+    then:
+      - lambda: |-
+          ESP_LOGI("cct", "RX len=%u b0=%u seq=%u ok=%d rssi=%.1f lqi=%u fo=%.1f", (unsigned) x.size(), x.empty() ? 0 : x[0], x.size() > 1 ? x[1] : 0, (int) ccl::check(x), rssi, lqi, freq_offset);

@@ -11,12 +11,10 @@ float HBridgeSwitch::get_setup_priority() const { return setup_priority::HARDWAR
 void HBridgeSwitch::setup() {
   // Like GPIOSwitch does, set the pin state both before and after pin setup()
   this->on_pin_->digital_write(false);
-  this->on_pin_->setup();
-  this->on_pin_->digital_write(false);
+  setup_output_pin(this->on_pin_, false);
 
   this->off_pin_->digital_write(false);
-  this->off_pin_->setup();
-  this->off_pin_->digital_write(false);
+  setup_output_pin(this->off_pin_, false);
 
   this->restore();
 }

@@ -1,0 +1,16 @@
+# dbg.yaml plus a busy loop 20 s after a software reset, so the watchdog resets the board next.
+packages:
+  dbg: !include dbg.yaml
+logger:
+  level: DEBUG
+interval:
+  - interval: 20s
+    startup_delay: 20s
+    then:
+      - lambda: |-
+          if (id(rr).state.find("Software") != std::string::npos &&
+              id(rr).state.find("Watchdog") == std::string::npos) {
+            ESP_LOGW("test", "HANG to trigger the watchdog");
+            while (true) {
+            }
+          }

@@ -1,0 +1,34 @@
+esphome:
+  name: vbus-dump-listeners
+
+host:
+api:
+logger:
+  level: DEBUG
+
+uart:
+  baud_rate: 9600
+  port: /dev/null
+
+vbus:
+
+sensor:
+  - platform: vbus
+    model: deltasol_cs4
+    temperature_1:
+      name: CS4 Temp 1
+  - platform: vbus
+    model: custom
+    command: 0x0100
+    source: 0x1234
+    sensors:
+      - name: Custom Value
+        lambda: return x[0];
+
+binary_sensor:
+  - platform: vbus
+    model: custom
+    dest: 0x0010
+    binary_sensors:
+      - name: Custom Flag
+        lambda: return x[0] & 1;

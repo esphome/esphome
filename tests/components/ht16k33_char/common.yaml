@@ -1,5 +1,6 @@
 display:
   - platform: ht16k33_char
+    i2c_id: i2c_bus
     device: ADAFRUIT_7_SEG_.56IN
     address: 0x70
     intensity: 10
@@ -15,6 +16,7 @@ display:
       it.printf(5, "%d°", 21);
   # No add_characters, beside one that has them
   - platform: ht16k33_char
+    i2c_id: i2c_bus
     device: ADAFRUIT_7_SEG_.56IN
     address: 0x72
     lambda: |-

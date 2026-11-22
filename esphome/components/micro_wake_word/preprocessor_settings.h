@@ -8,7 +8,7 @@ namespace esphome::micro_wake_word {
 
 // Settings for controlling the spectrogram feature generation by the preprocessor.
 // These must match the settings used when training a particular model.
-// All microWakeWord models have been trained with these specific paramters.
+// All microWakeWord models have been trained with these specific parameters.
 
 // The number of features the audio preprocessor generates per slice
 static const uint8_t PREPROCESSOR_FEATURE_SIZE = 40;
