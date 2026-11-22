@@ -4,6 +4,7 @@
 // Power the PHY down (BMCR bit 11) or back up with autonegotiation restarted: the link partner and the
 // driver see the same carrier loss as a pulled cable. A failure logs "HWT phy failed": the link did not change.
 static bool hwt_phy_stuck = false;
+inline bool hwt_phy_up_retry();
 inline bool hwt_phy_power(bool on) {
   auto *eth = esphome::ethernet::global_eth_component;
   esp_eth_handle_t h = eth != nullptr ? eth->get_eth_handle() : nullptr;
@@ -34,16 +35,8 @@ inline bool hwt_phy_power(bool on) {
   esp_eth_phy_reg_rw_data_t rb{0, &check};
   if (esp_eth_ioctl(h, ETH_CMD_READ_PHY_REG, &rb) != ESP_OK || ((check >> 11) & 1) != (on ? 0u : 1u)) {
     ESP_LOGE("hwt", "HWT phy failed: %s bmcr reads 0x%04x after the write", on ? "up" : "down", (unsigned) check);
-    if (!on) {
-      // the power-down may have taken effect anyway: bring the PHY back now, as the callers skip the power-up
-      for (int i = 0; i < 3; i++) {
-        if (hwt_phy_power(true))
-          return false;
-        esphome::delay(200);
-      }
-      hwt_phy_stuck = true;
-      ESP_LOGE("hwt", "HWT phy stuck down: drop and race actions are blocked, later results are not valid");
-    }
+    if (!on)  // the power-down may have taken effect anyway: bring the PHY back now, as the callers skip the power-up
+      hwt_phy_up_retry();
     return false;
   }
   ESP_LOGI("hwt", "HWT phy %s bmcr 0x%04x -> 0x%04x (%d/%d)", on ? "up" : "down", (unsigned) before, (unsigned) v, e1,
