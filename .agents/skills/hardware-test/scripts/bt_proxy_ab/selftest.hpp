@@ -306,6 +306,8 @@ inline void tick() {
     }
     if (millis() - t_ph > 20000 && seen[PL] && seen[PM] && (seen[PE] || millis() - t_ph > 180000)) {
       ESP_LOGI(TAG, "ST ready seen L=%d M=%d eve=%d eve_type=%d", seen[PL], seen[PM], seen[PE], atype[PE]);
+      if (!seen[PE])  // the Eve phases will fail on the missing peer, not on the proxy
+        ESP_LOGW(TAG, "ST eve_not_seen");
       st = 0;
       t_ph = millis();
       ESP_LOGI(TAG, "ST phase_start %s", PHASES[ph].name);

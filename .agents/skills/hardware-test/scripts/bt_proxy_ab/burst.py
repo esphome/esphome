@@ -159,6 +159,7 @@ async def main() -> None:
             # means the write never started a burst (wrong table, server rebooted), not 100 % proxy loss
             # without the final notification the server's own failures are unknown, so the loss cannot be
             # put on the proxy
+            # a final without the failure count (another server build) leaves them unknown just the same
             **(
                 {"result": "link_lost"}
                 if st["lost"]
@@ -166,12 +167,14 @@ async def main() -> None:
                 if not got and not final
                 else {"result": "no_final"}
                 if not final
+                else {"result": "bad_final"}
+                if not srv_fail
                 else {}
             ),
         )
         if st["lost"]:
             break
-        if not final:
+        if not final or not srv_fail:
             continue
         clean += 1
         await asyncio.sleep(3)

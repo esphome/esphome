@@ -200,11 +200,22 @@ for name, lines in ph.items():
         "scanner_stuck",
         "cache_clean_fail",
     )
+    # every round failed to hold its links (or ran on a wrong handle): the phase measured nothing
+    rounds = d.get("rounds,ok,first_ok,fail,stuck", ("0",))[0]
+    if int(rounds) and (d.get("hold_failed_rounds", 0) + d.get("handle_bad", 0)) >= int(
+        rounds
+    ):
+        d["nothing_measured"] = True
+    keys += ("nothing_measured",)
     if bad := [k for k in keys if d.get(k)]:
         flagged.append(f"{name}: {','.join(bad)}")
 # a run where the servers were never seen, or no phase started, measured nothing
 txt_all = "\n".join(ln for _, ln in L)
 nothing = "ST not_seen" in txt_all or not ph
+if "ST eve_not_seen" in txt_all:  # the Eve phases failed on the missing peer
+    flagged.append(
+        "eve not seen: thirdeve, thirdpd, thirdL and eve results are not about the proxy"
+    )
 if nothing:
     print(
         "NOTHING RUN:",

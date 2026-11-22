@@ -118,7 +118,11 @@ class D:
                 n = adv_name(bytes(a.data)) or ADDRS.get(a.address)
                 if n and n.startswith(EVE):
                     n = EVE
-                if n in (L, M, EVE):
+                if n and n in (
+                    L,
+                    M,
+                    EVE,
+                ):  # an unset PEER_M ("") must not match a nameless advertiser
                     self.peers[n] = (a.address, a.address_type)
 
         self.cli.subscribe_bluetooth_le_raw_advertisements(on_adv)
@@ -329,6 +333,9 @@ async def main() -> None:
         or (a[2] == "third" and a[5] not in ("eve", "pd", "L"))
     ):
         sys.exit(__doc__)
+    # third and churn always use M, disc when asked to
+    if not M and (a[2] in ("third", "churn") or (a[2] == "disc" and a[4] == "M")):
+        sys.exit("set PEER_M to the local name of the M server")
     host, cmd, out = sys.argv[1], sys.argv[2], sys.argv[3]
     lost_api = asyncio.Event()
 
