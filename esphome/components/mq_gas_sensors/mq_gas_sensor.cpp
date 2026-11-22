@@ -828,7 +828,7 @@ void MQGasSensor::finish_calibration_() {
 
   const uint32_t attempts = this->calibration_attempts_;
   const uint32_t valid = this->calibration_count_;
-  const uint32_t required = std::max<uint32_t>((attempts + 1) / 2, 2);
+  const uint32_t required = mqmath::calibration_required(attempts);
 
   if (valid < required) {
     // Name the reason each rejected sample failed, so a wrong `vcc:` is not

@@ -27,6 +27,7 @@
 // same code can be unit tested on the host (see tests/components/mq_gas_sensors/mq_math_test.cpp).
 //
 
+#include <algorithm>
 #include <cfloat>
 #include <cmath>
 #include <cstdint>
@@ -178,6 +179,10 @@ inline bool calibration_is_stable(float min_value, float max_value, float mean) 
   const double spread = static_cast<double>(max_value) - static_cast<double>(min_value);
   return spread <= static_cast<double>(MAX_CALIBRATION_SPREAD) * static_cast<double>(mean);
 }
+
+/// Valid samples a calibration needs: a majority of its attempts, two at least, so
+/// a one-sample run can never become the reference.
+inline uint32_t calibration_required(uint32_t attempts) { return std::max<uint32_t>((attempts + 1) / 2, 2); }
 
 /// True when a source state is recent enough to be used.
 ///

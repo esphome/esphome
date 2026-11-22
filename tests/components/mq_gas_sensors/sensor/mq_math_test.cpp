@@ -67,6 +67,17 @@ TEST(MqMath, MidRangeReadingsFollowTheCurve) {
   EXPECT_NEAR(46.70f, ppm_from_ratio(18391.5667f, -1.4494f, 70.0f, RegressionMethod::REGRESSION_INVERSE), 0.05f);
 }
 
+TEST(MqMath, CalibrationNeedsTwoValidSamplesAndAMajority) {
+  // Two samples at least, so a one-sample run can never become the reference.
+  EXPECT_EQ(2u, calibration_required(0));
+  EXPECT_EQ(2u, calibration_required(1));
+  EXPECT_EQ(2u, calibration_required(2));
+  EXPECT_EQ(2u, calibration_required(3));
+  // Then a majority of the attempts.
+  EXPECT_EQ(3u, calibration_required(5));
+  EXPECT_EQ(25u, calibration_required(50));
+}
+
 TEST(MqMath, RailLimitFollowsTheCurveAndRatioConvention) {
   // Datasheet direction: the curve grows as the ratio falls, so the limit at the
   // rail is the top of the range.

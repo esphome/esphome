@@ -13,6 +13,7 @@ using mqmath::apply_correction_inverse;
 using mqmath::calibration_is_stable;
 using mqmath::clamp_a;
 using mqmath::clamp_b;
+using mqmath::calibration_required;
 using mqmath::clamp_ppm;
 using mqmath::clamp_ppm_corrected;
 using mqmath::correction_coefficient;

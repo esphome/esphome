@@ -1002,3 +1002,23 @@ def test_curve_and_explicit_coefficients_conflict(
                 "coefficient_b": 2.0,
             }
         )
+
+def test_preference_key_identifies_the_hardware() -> None:
+    """A stored R0 belongs to one sensor, sampler and compensation model."""
+    from esphome.components.mq_gas_sensors.sensor import _preference_key
+
+    base = {
+        "vcc": 5.0,
+        "multiplier": 1.5,
+        "rl": 7.5,
+        "ratio_in_clean_air": 70.0,
+        "sensor_type": "MQ8/H2",
+        "sampler": "pin:34",
+        "correction_mode": "none",
+    }
+    key = _preference_key(**base)
+    assert key == _preference_key(**base)
+    assert key != _preference_key(**{**base, "sensor_type": "MQ9/LPG"})
+    assert key != _preference_key(**{**base, "sampler": "voltage:mq_adc"})
+    assert key != _preference_key(**{**base, "correction_mode": "mqdatascience"})
+    assert key != _preference_key(**{**base, "vcc": 3.3})
