@@ -50,6 +50,22 @@ TEST(AngleMapping, NeedleBeforeTheStartReadsTheMinimum) {
   EXPECT_NEAR(angle_to_value(50.0f, dial), 10.0f, 1e-4f);  // dial angle 140, past the end
 }
 
+TEST(AngleMapping, RangeStartingAtNorth) {
+  // Zero at North, 270 degrees clockwise. The needle rests just before the zero
+  // mark, which folds to 355 degrees.
+  const DialConfig dial = make_dial(0.0f, 270.0f, 0.0f, 10.0f);
+  EXPECT_NEAR(angle_to_value(265.0f, dial), 0.0f, 1e-4f);   // dial angle 355, before the start
+  EXPECT_NEAR(angle_to_value(180.0f, dial), 10.0f, 1e-4f);  // dial angle 270, end
+}
+
+TEST(AngleMapping, RangeEndingAtNorth) {
+  // 90 degrees clockwise to 360, which is North and folds to 0.
+  const DialConfig dial = make_dial(90.0f, 360.0f, 0.0f, 10.0f);
+  EXPECT_NEAR(angle_to_value(-90.0f, dial), 10.0f, 1e-4f);  // dial angle 0, full scale
+  EXPECT_NEAR(angle_to_value(135.0f, dial), 5.0f, 1e-4f);   // dial angle 225, halfway
+  EXPECT_NEAR(angle_to_value(-5.0f, dial), 0.0f, 1e-4f);    // dial angle 85, before the start
+}
+
 TEST(AngleMapping, CounterClockwise) {
   const DialConfig dial = make_dial(0.0f, 360.0f, 0.0f, 10.0f);
   DialConfig mirrored = dial;

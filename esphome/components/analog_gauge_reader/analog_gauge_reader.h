@@ -100,25 +100,21 @@ inline float angle_to_value(float image_angle, const DialConfig &dial) {
     return points.back().second;
   }
 
-  float fraction;
-  if (dial.min_angle > dial.max_angle) {
-    // The sweep runs from min_angle, through 360, to max_angle; the rest of the
-    // circle is the gap where the needle rests off the scale. There it is
-    // clamped to the nearer stop, so a needle just before the start reads the
-    // minimum instead of wrapping round to the maximum.
-    const float span = dial.max_angle - dial.min_angle + 360.0f;
-    float delta = dial_angle - dial.min_angle;
-    if (delta < 0.0f)
-      delta += 360.0f;
-    if (delta > span) {
-      const float past_end = delta - span;
-      const float before_start = 360.0f - delta;
-      delta = before_start <= past_end ? 0.0f : span;
-    }
-    fraction = delta / span;
-  } else {
-    fraction = (dial_angle - dial.min_angle) / (dial.max_angle - dial.min_angle);
+  // Measure from min_angle, clockwise, whatever the range: a sweep that crosses
+  // North and a plain one differ only in where they stop.
+  float span = dial.max_angle - dial.min_angle;
+  if (span <= 0.0f)
+    span += 360.0f;
+  float delta = fmodf(dial_angle - dial.min_angle + 360.0f, 360.0f);
+  // Past the end of the sweep the needle is off the scale, so it reads the
+  // nearer stop instead of the far one; a needle before the start therefore
+  // reads the minimum rather than wrapping round to the maximum.
+  if (delta > span) {
+    const float past_end = delta - span;
+    const float before_start = 360.0f - delta;
+    delta = before_start <= past_end ? 0.0f : span;
   }
+  const float fraction = delta / span;
   return dial.min_value + std::clamp(fraction, 0.0f, 1.0f) * (dial.max_value - dial.min_value);
 }
 
