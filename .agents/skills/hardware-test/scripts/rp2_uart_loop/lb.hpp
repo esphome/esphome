@@ -93,7 +93,7 @@ inline void check(const char *label, uart::UARTComponent *u, int tx, int rx, boo
     size_t n = got > 64 ? 64 : got;
     if (n)
       u->read_array(in, n);
-    bool match = n == 64 && memcmp(in, out, 64) == 0;
+    bool match = got == 64 && memcmp(in, out, 64) == 0;
     good_rounds += match;
     ESP_LOGI(TAG, "LOOP %s round %d sent 64 got %u %s", label, r, (unsigned) got, match ? "MATCH" : "MISMATCH");
     while (u->available())

@@ -53,7 +53,8 @@ async def wait_mark(dev: Dev, mark: str, before: int, timeout: float = 30) -> No
     while dev.count(mark) <= before and time.monotonic() - t < timeout:
         await asyncio.sleep(0.1)
     if dev.count(mark) <= before:
-        print(f"  INVALID: {dev.tag} never logged {mark.strip()}", flush=True)
+        # Stop: the case would otherwise report the previous mark as this run's evidence.
+        raise SystemExit(f"INVALID: {dev.tag} never logged {mark.strip()}")
 
 
 async def case(
