@@ -33,11 +33,7 @@ void A4988::loop() {
       delayMicroseconds(1000);
     }
   }
-  if (at_target) {
-    this->high_freq_.stop();
-  } else {
-    this->high_freq_.start();
-  }
+  this->high_freq_.set(!at_target);
 
   int32_t dir = this->should_step_();
   if (dir == 0)
