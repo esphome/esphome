@@ -1134,12 +1134,11 @@ async def api_respond_to_code(
     else:
         cg.add_define("USE_API_USER_DEFINED_ACTION_RESPONSES_JSON")
         # Populates the JsonObject root
-        data = await cg.process_lambda(
-            config[CONF_DATA], [*args, (cg.JsonObject, "root")], return_type=cg.void
+        # Only the args the lambda names are copied, so it may still modify them
+        data = await automation.call_user_lambda(
+            config[CONF_DATA], [*args, (cg.JsonObject, "root")], cg.void
         )
-        build = (
-            f"[&]({cg.JsonObject} root) {{ {automation.immediate_lambda_call(data)}; }}"
-        )
+        build = f"[&]({cg.JsonObject} root) {{ {data}; }}"
         # Optional mode passes bool return_response right after call_id (repeat: may put iteration first)
         after = [name for _, name in args].index("call_id") + 1
         optional = [(str(t), n) for t, n in args[after : after + 1]] == [
