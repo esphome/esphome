@@ -9,7 +9,7 @@ tsdb:
   file: events.tsdb
   time_id: tsdb_validate_time
   partition_size: 1MB
-  max_file_size: 768KB
+  max_file_size: 448KB
   min_free_bytes: 64KB
   index_stride: 190
   buffer_pool_size: 8KB

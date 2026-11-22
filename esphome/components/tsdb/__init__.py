@@ -1,5 +1,6 @@
 """tsdb - ESPHome data-logging hub on the esp_tsdb engine and LittleFS."""
 
+from collections.abc import Callable
 import math
 import re
 
@@ -8,9 +9,17 @@ import esphome.codegen as cg
 from esphome.components import sensor
 from esphome.components.const import CONF_COLUMNS
 from esphome.components.esp32 import (
+    VARIANT_ESP32,
+    VARIANT_ESP32C3,
+    VARIANT_ESP32C6,
+    VARIANT_ESP32H2,
+    VARIANT_ESP32P4,
+    VARIANT_ESP32S2,
+    VARIANT_ESP32S3,
     add_idf_component,
     add_idf_sdkconfig_option,
     add_partition,
+    only_on_variant,
     require_vfs_dir,
 )
 from esphome.components.time import RealTimeClock
@@ -66,6 +75,11 @@ TSDB_POOL_BLOCKS = (0, TSDB_BLOCK_BYTES, TSDB_QUERY_BLOCK_OFFSET)
 TSDB_DEFAULT_PAGE_SIZE = 4 * TSDB_BLOCK_BYTES
 LITTLEFS_BLOCK_BYTES = 0x1000
 LITTLEFS_RESERVED_BYTES = 4 * LITTLEFS_BLOCK_BYTES
+# The engine keeps those names in a 32-byte field, and tsdb.cpp builds paths in a
+# 128-byte buffer: both limits are bytes, not characters.
+TSDB_MAX_NAME_BYTES = 31
+FILE_NAME_MAX_BYTES = 64
+MOUNT_POINT_MAX_BYTES = 32
 
 CONF_MOUNT_POINT = "mount_point"
 CONF_PARTITION = "partition"
@@ -171,6 +185,29 @@ def _validate_file_name(value: str) -> str:
     return value
 
 
+def _utf8_bytes(max_bytes: int) -> Callable[[str], str]:
+    """Bound a string by its UTF-8 byte length, which is what a char buffer holds."""
+
+    def validate(value: str) -> str:
+        if (length := len(value.encode("utf-8"))) > max_bytes:
+            raise cv.Invalid(
+                f"must be at most {max_bytes} bytes when UTF-8 encoded, got {length}"
+            )
+        return value
+
+    return validate
+
+
+def _validate_column_name(value: str) -> str:
+    # The name is written into the CSV header, so a separator or a line break would
+    # split it into extra columns the records do not have.
+    if any(character in value for character in ',"\n\r'):
+        raise cv.Invalid(
+            "column name must not contain a comma, a double quote or a line break"
+        )
+    return value
+
+
 def _validate_min_free_bytes(value: object) -> int:
     return _validate_size(value, allow_zero=True)
 
@@ -231,15 +268,16 @@ def _validate_config(config: ConfigType) -> ConfigType:
     max_file = config[CONF_MAX_FILE_SIZE]
     if min_free >= partition:
         raise cv.Invalid("min_free_bytes must stay below partition_size")
-    if max_file + min_free > partition:
+    # Folding the header rewrites the whole file, and LittleFS is copy-on-write, so the
+    # partition needs room for a second copy of the history at the same time, on top of
+    # the free-space reserve and the filesystem metadata.
+    needed = 2 * max_file + min_free + LITTLEFS_RESERVED_BYTES
+    if needed > partition:
         raise cv.Invalid(
-            "max_file_size + min_free_bytes do not fit into partition_size"
-        )
-    if max_file + min_free + LITTLEFS_RESERVED_BYTES > partition:
-        raise cv.Invalid(
-            "max_file_size + min_free_bytes leave no room for the filesystem "
-            f"metadata in partition_size (at least {LITTLEFS_RESERVED_BYTES // 1024}KB "
-            "is needed)"
+            "partition_size must hold a second copy of max_file_size while the header "
+            f"folds: 2 * {max_file} + {min_free} (min_free_bytes) + "
+            f"{LITTLEFS_RESERVED_BYTES} (filesystem metadata) needs {needed} bytes, "
+            f"partition_size is {partition}"
         )
     _validate_page_geometry(config)
     return config
@@ -251,6 +289,8 @@ COLUMN_SCHEMA = cv.Schema(
         cv.Required(CONF_NAME): cv.All(
             cv.string_strict,
             cv.Length(min=1, max=TSDB_MAX_NAME_LENGTH),
+            _utf8_bytes(TSDB_MAX_NAME_BYTES),
+            _validate_column_name,
         ),
         cv.Optional(CONF_SCALE_FACTOR, default=1.0): cv.float_,
         cv.Optional(CONF_OFFSET, default=0.0): cv.float_,
@@ -262,14 +302,34 @@ CONFIG_SCHEMA = cv.All(
     # The engines are ESP-IDF components from the registry and the component is
     # built and tested with esp-idf only; arduino-esp32 is not exercised.
     cv.only_with_framework(Framework.ESP_IDF),
+    # The pinned esp_tsdb release declares targets ESP32, S2, S3, C3, C6, H2 and P4;
+    # any other variant would pass validation and then fail dependency resolution.
+    only_on_variant(
+        supported=[
+            VARIANT_ESP32,
+            VARIANT_ESP32S2,
+            VARIANT_ESP32S3,
+            VARIANT_ESP32C3,
+            VARIANT_ESP32C6,
+            VARIANT_ESP32H2,
+            VARIANT_ESP32P4,
+        ],
+        msg_prefix="tsdb",
+    ),
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(TsdbComponent),
             cv.Optional(CONF_FILE, default="history.tsdb"): cv.All(
-                cv.string_strict, cv.Length(min=1, max=64), _validate_file_name
+                cv.string_strict,
+                cv.Length(min=1, max=FILE_NAME_MAX_BYTES),
+                _utf8_bytes(FILE_NAME_MAX_BYTES),
+                _validate_file_name,
             ),
             cv.Optional(CONF_MOUNT_POINT, default="/littlefs"): cv.All(
-                cv.string_strict, cv.Length(min=2, max=32), _validate_mount_point
+                cv.string_strict,
+                cv.Length(min=2, max=MOUNT_POINT_MAX_BYTES),
+                _utf8_bytes(MOUNT_POINT_MAX_BYTES),
+                _validate_mount_point,
             ),
             cv.Optional(CONF_PARTITION, default="littlefs"): cv.All(
                 cv.string_strict, cv.Length(min=1, max=15)
@@ -277,7 +337,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_PARTITION_SIZE, default="512KB"): _validate_partition_size,
             cv.Optional(CONF_FORMAT_ON_FIRST_BOOT, default=True): cv.boolean,
             cv.Optional(CONF_RECREATE_ON_SCHEMA_CHANGE, default=False): cv.boolean,
-            cv.Optional(CONF_MAX_FILE_SIZE, default="384KB"): _validate_size,
+            cv.Optional(CONF_MAX_FILE_SIZE, default="224KB"): _validate_size,
             cv.Optional(
                 CONF_INDEX_STRIDE, default=TSDB_DEFAULT_INDEX_STRIDE
             ): cv.int_range(min=1, max=100000),

@@ -21,7 +21,9 @@ from esphome.components.tsdb import (
     CONF_SENSOR,
     IDF_COMPONENTS,
     _final_validate,
+    _utf8_bytes,
     _validate_buffer_pool_size,
+    _validate_column_name,
     _validate_config,
     _validate_file_name,
     _validate_memory,
@@ -117,6 +119,24 @@ def test_validate_file_name_accepts_plain() -> None:
     assert _validate_file_name("history.tsdb") == "history.tsdb"
 
 
+def test_utf8_bytes_counts_encoded_length() -> None:
+    validate = _utf8_bytes(4)
+    assert validate("abcd") == "abcd"
+    # Three characters, but six bytes once UTF-8 encoded.
+    with pytest.raises(cv.Invalid, match="at most 4 bytes"):
+        validate("äöü")
+
+
+@pytest.mark.parametrize("name", ["a,b", 'a"b', "a\nb", "a\rb"])
+def test_validate_column_name_rejects_csv_specials(name: str) -> None:
+    with pytest.raises(cv.Invalid, match="comma, a double quote or a line break"):
+        _validate_column_name(name)
+
+
+def test_validate_column_name_accepts_plain() -> None:
+    assert _validate_column_name("temperature") == "temperature"
+
+
 def test_validate_min_free_bytes_allows_zero() -> None:
     assert _validate_min_free_bytes(0) == 0
     assert _validate_min_free_bytes("32KB") == 32 * 1024
@@ -171,7 +191,7 @@ def _config(**kwargs: object) -> dict:
         CONF_COLUMNS: [_column()],
         CONF_PARTITION_SIZE: 512 * 1024,
         CONF_MIN_FREE_BYTES: 32 * 1024,
-        CONF_MAX_FILE_SIZE: 384 * 1024,
+        CONF_MAX_FILE_SIZE: 224 * 1024,
     }
     config.update(kwargs)
     return config
@@ -242,7 +262,7 @@ def test_validate_config_accepts_finite_boundaries() -> None:
 
 
 def test_validate_config_rejects_budget_over_partition() -> None:
-    with pytest.raises(cv.Invalid, match="do not fit into partition_size"):
+    with pytest.raises(cv.Invalid, match="must hold a second copy of max_file_size"):
         _validate_config(_config(max_file_size=500 * 1024))
 
 
@@ -261,12 +281,12 @@ def test_validate_memory_requires_the_psram_component() -> None:
         _validate_memory("psram")
 
 
-def test_validate_config_reserves_room_for_filesystem_metadata() -> None:
-    # 480KB + 32KB exactly fills a 512KB partition, which LittleFS cannot write
-    # to because it needs blocks for its own metadata.
-    with pytest.raises(cv.Invalid, match="filesystem metadata"):
-        _validate_config(_config(max_file_size=480 * 1024))
-    assert _validate_config(_config())[CONF_MAX_FILE_SIZE] == 384 * 1024
+def test_validate_config_reserves_room_for_the_header_fold() -> None:
+    # Folding the header rewrites the file, so LittleFS needs a second copy of the
+    # history next to it: 2 * 336KB + 32KB + 16KB does not fit a 512KB partition.
+    with pytest.raises(cv.Invalid, match="second copy of max_file_size"):
+        _validate_config(_config(max_file_size=336 * 1024))
+    assert _validate_config(_config())[CONF_MAX_FILE_SIZE] == 224 * 1024
 
 
 def test_idf_manifest_declares_the_engine_versions() -> None:
