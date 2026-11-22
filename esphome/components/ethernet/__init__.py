@@ -565,6 +565,8 @@ CONFIG_SCHEMA = cv.All(
             "W6100": cv.All(SPI_SCHEMA, cv.only_on([Platform.RP2])),
             "W6300": cv.All(SPI_SCHEMA, cv.only_on([Platform.RP2])),
             "LAN8670": RMII_SCHEMA,
+            "GENERIC": GENERIC_SCHEMA,
+            "YT8531": GENERIC_SCHEMA,
             "USB": cv.All(BASE_SCHEMA, cv.only_on([Platform.RP2])),
         },
         upper=True,
