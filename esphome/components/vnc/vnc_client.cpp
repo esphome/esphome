@@ -177,8 +177,7 @@ void VncClient::dump_config() {
                 "  Pixel Format: %s\n"
                 "  Tile Cache: %u tiles",
                 this->link_.host(), this->link_.port(), this->link_.reconnect_interval(), this->update_delay_ms_,
-                this->max_update_delay_ms_,
-                LOG_STR_ARG(PixelFormatStrings::get_log_str(static_cast<uint8_t>(this->pixel_format_), 0)),
+                this->max_update_delay_ms_, LOG_STR_ARG(PixelFormatStrings::get_log_str(this->pixel_format_, 0)),
                 this->hash_capacity_);
 #ifdef USE_VNC_AUTH
   ESP_LOGCONFIG(TAG, "  Password: %s", this->auth_key_ != nullptr ? LOG_STR_LITERAL("set") : LOG_STR_LITERAL("none"));
@@ -298,11 +297,7 @@ void VncClient::loop() {
     this->pace_(now);
   }
   this->link_.flush_tx();
-  if (this->rx_pending_ && !(this->in_update_ && this->display_busy_)) {
-    this->high_freq_.start();
-  } else {
-    this->high_freq_.stop();
-  }
+  this->high_freq_.set(this->rx_pending_ && !(this->in_update_ && this->display_busy_));
 }
 
 void VncClient::connect() {
