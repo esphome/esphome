@@ -1,9 +1,9 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
-#include <array>
 #include <cstring>
 #include <memory>
+#include <span>
 #include <string>
 #include <vector>
 
@@ -58,6 +58,7 @@ class FakeHttpRequest : public HttpRequestComponent {
                                        const std::vector<std::string> &lower_case_collect_headers,
                                        uint32_t timeout_ms) override {
     this->begins++;
+    this->request_url = url;
     this->request_body = body;
     if (this->refuse)
       return nullptr;
@@ -72,6 +73,7 @@ class FakeHttpRequest : public HttpRequestComponent {
   }
 
   int begins{0};
+  std::string request_url;
   std::string request_body;
   bool refuse{false};
   int pending_polls{2};
@@ -619,8 +621,10 @@ TEST_F(HttpRequestSendActionTest, JsonLambdaBuildsTheBody) {
 }
 
 TEST_F(HttpRequestSendActionTest, JsonEntriesBuildTheBody) {
-  std::array<HttpRequestSendAction<>::JsonEntry, 2> storage;
-  this->action_.set_json_storage(storage);
+  // Raw storage that outlives the action, which constructs and destroys the entries itself
+  using Entry = HttpRequestSendAction<>::JsonEntry;
+  alignas(Entry) static unsigned char raw[sizeof(Entry) * 2];
+  this->action_.set_json_storage(std::span<Entry>(reinterpret_cast<Entry *>(raw), 2));
   this->action_.add_json("key", std::string("value"));
   this->action_.add_json("dynamic", []() -> std::string { return "x"; });
   this->trigger_.trigger();
@@ -639,6 +643,46 @@ TEST(HttpRequestSendActionJson, JsonLambdaGetsTheTriggerArgs) {
   automation.add_action(&action);
   trigger.trigger(7);
   EXPECT_EQ(http.request_body, R"({"x":7})");
+}
+
+// The JSON gets copies of reference args, so changing one does not change the URL read after it
+TEST(HttpRequestSendActionJson, JsonLambdaDoesNotChangeReferenceArgs) {
+  FakeHttpRequest http;
+  HttpRequestSendAction<std::string &> action{&http};
+  action.set_url([](std::string &s) -> std::string { return "http://example.invalid/" + s; });
+  action.set_method([](std::string &) -> const char * { return "POST"; });
+  action.set_json([](std::string &s, JsonObject root) {
+    s += "!";
+    root["s"] = s;
+  });
+  Trigger<std::string &> trigger;
+  Automation<std::string &> automation{&trigger};
+  automation.add_action(&action);
+  std::string arg = "a";
+  trigger.trigger(arg);
+  EXPECT_EQ(http.request_body, R"({"s":"a!"})");
+  EXPECT_EQ(http.request_url, "http://example.invalid/a");
+}
+
+TEST(HttpRequestSendActionJson, JsonEntryDoesNotChangeReferenceArgs) {
+  FakeHttpRequest http;
+  HttpRequestSendAction<std::string &> action{&http};
+  action.set_url([](std::string &s) -> std::string { return "http://example.invalid/" + s; });
+  action.set_method([](std::string &) -> const char * { return "POST"; });
+  using Entry = HttpRequestSendAction<std::string &>::JsonEntry;
+  alignas(Entry) static unsigned char raw[sizeof(Entry)];
+  action.set_json_storage(std::span<Entry>(reinterpret_cast<Entry *>(raw), 1));
+  action.add_json("s", [](std::string &s) -> std::string {
+    s += "!";
+    return s;
+  });
+  Trigger<std::string &> trigger;
+  Automation<std::string &> automation{&trigger};
+  automation.add_action(&action);
+  std::string arg = "a";
+  trigger.trigger(arg);
+  EXPECT_EQ(http.request_body, R"({"s":"a!"})");
+  EXPECT_EQ(http.request_url, "http://example.invalid/a");
 }
 
 }  // namespace esphome::http_request::testing

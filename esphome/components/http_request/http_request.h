@@ -3,6 +3,8 @@
 #include <list>
 #include <memory>
 #include <set>
+#include <span>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -609,7 +611,9 @@ template<typename... Ts> class HttpRequestSendAction final : public Action<Ts...
 
   using JsonEntry = std::pair<const char *, TemplatableValue<std::string, Ts...>>;
   void set_json_storage(std::span<JsonEntry> storage) { this->json_.init(storage); }
-  void add_json(const char *key, TemplatableValue<std::string, Ts...> value) { this->json_.push_back({key, value}); }
+  void add_json(const char *key, const TemplatableValue<std::string, Ts...> &value) {
+    this->json_.push_back({key, value});
+  }
 
   /// Code generation passes a captureless lambda.
   using json_func_t = void (*)(Ts..., JsonObject);
@@ -669,15 +673,21 @@ template<typename... Ts> class HttpRequestSendAction final : public Action<Ts...
       body = this->body_.value(x...);
     }
     if (this->json_func_ != nullptr || !this->json_.empty()) {
+      // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
       json::JsonBuilder builder;
       JsonObject root = builder.root();
-      if (this->json_func_ != nullptr) {
-        this->json_func_(x..., root);
-      } else {
-        for (const auto &item : this->json_)
-          root[item.first] = item.second.value(x...);
-      }
+      // The JSON gets its own copies of the args, so a lambda that changes a reference arg does not change the
+      // request's saved args
+      [&](std::remove_cvref_t<Ts>... copy) {
+        if (this->json_func_ != nullptr) {
+          this->json_func_(copy..., root);
+        } else {
+          for (const auto &item : this->json_)
+            root[item.first] = item.second.value(copy...);
+        }
+      }(x...);
       body = builder.serialize();
+      // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
     }
     std::vector<Header> request_headers;
     request_headers.reserve(this->request_headers_.size());
