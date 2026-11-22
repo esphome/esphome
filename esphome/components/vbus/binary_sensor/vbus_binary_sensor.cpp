@@ -33,7 +33,7 @@ void DeltaSolErrorsBSensorBase::publish_sensor_errors_(const std::vector<uint8_t
   PUBLISH_STATE(this->s4_error_binary_sensor_, errors & 8);
 }
 
-void DeltaSolBSPlusBSensor::dump_config() {
+void DeltaSolBSPlusBSensor::dump_child_config() {
   this->dump_sensor_errors_(LOG_STR("Deltasol BS Plus"));
   LOG_BINARY_SENSOR("  ", "Relay 1 On", this->relay1_binary_sensor_);
   LOG_BINARY_SENSOR("  ", "Relay 2 On", this->relay2_binary_sensor_);
@@ -63,7 +63,7 @@ void DeltaSolBSPlusBSensor::handle_message(std::vector<uint8_t> &message) {
   }
 }
 
-void DeltaSolBS2009BSensor::dump_config() {
+void DeltaSolBS2009BSensor::dump_child_config() {
   this->dump_sensor_errors_(LOG_STR("Deltasol BS 2009"));
   LOG_BINARY_SENSOR("  ", "Frost Protection Active", this->frost_protection_active_binary_sensor_);
 }
@@ -76,7 +76,7 @@ void DeltaSolBS2009BSensor::handle_message(std::vector<uint8_t> &message) {
     PUBLISH_STATE(this->frost_protection_active_binary_sensor_, message[25] & 1);
 }
 
-void VBusCustomBSensor::dump_config() {
+void VBusCustomBSensor::dump_child_config() {
   ESP_LOGCONFIG(TAG, "VBus Custom Binary Sensor:");
   if (this->source_ == 0xffff) {
     ESP_LOGCONFIG(TAG, "  Source address: ANY");

@@ -213,7 +213,7 @@ void DeltaSolBS2Sensor::handle_message(std::vector<uint8_t> &message) {
     PUBLISH_STATE(this->version_sensor_, get_u16(message, 24) * 0.01f);
 }
 
-void VBusCustomSensor::dump_config() {
+void VBusCustomSensor::dump_child_config() {
   ESP_LOGCONFIG(TAG, "VBus Custom Sensor:");
   if (this->source_ == 0xffff) {
     ESP_LOGCONFIG(TAG, "  Source address: ANY");

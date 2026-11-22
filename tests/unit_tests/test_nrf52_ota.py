@@ -4,6 +4,7 @@ import asyncio
 from collections.abc import Callable
 import logging
 from pathlib import Path
+import struct
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -13,6 +14,7 @@ from smp.image_management import (
     ImageUploadWriteRequest,
     ImageUploadWriteResponse,
 )
+from smpclient.mcuboot import IMAGE_TLV
 from smpclient.requests.image_management import ImageStatesRead
 
 from esphome.components.nrf52 import ble_logger, ota, ota_udp, show_logs
@@ -97,7 +99,7 @@ def test_upload_transport(monkeypatch, device: str, udp: bool, transport: str) -
         async def disconnect(self) -> None:
             pass
 
-    monkeypatch.setattr(ota, "_get_image_tlv_sha256", lambda firmware: b"")
+    monkeypatch.setattr(ota, "_get_image_hash", lambda firmware: b"")
     monkeypatch.setattr(ota, "_smpmgr_upload_connected", AsyncMock())
     monkeypatch.setattr(ota, "SMPSerialTransport", lambda: "serial")
     monkeypatch.setattr(ota, "SMPBLETransport", lambda: "ble")
@@ -548,3 +550,32 @@ def test_upload_keeps_the_same_pending_image(
     )
     # Image states, mark for test, reset; no upload
     assert client.request.await_count == 3
+
+
+def _mcuboot_image(tlvs: list[tuple[int, bytes]]) -> bytes:
+    """A minimal MCUboot image: header, 16-byte body and an unprotected TLV area."""
+    hdr_size, body = 32, bytes(16)
+    header = struct.pack(
+        "<LLHHLLBBHL4x", 0x96F3B83D, 0, hdr_size, 0, len(body), 0, 0, 0, 0, 0
+    )
+    tlv_area = b"".join(struct.pack("<BxH", t, len(v)) + v for t, v in tlvs)
+    info = struct.pack("<HH", 0x6907, 4 + len(tlv_area))
+    return header + body + info + tlv_area
+
+
+@pytest.mark.parametrize(
+    ("tlv_type", "length"),
+    [(IMAGE_TLV.SHA256, 32), (IMAGE_TLV.SHA384, 48), (IMAGE_TLV.SHA512, 64)],
+)
+def test_get_image_hash(tmp_path: Path, tlv_type: IMAGE_TLV, length: int) -> None:
+    digest = bytes(range(length))
+    firmware = tmp_path / "app_update.bin"
+    firmware.write_bytes(_mcuboot_image([(tlv_type, digest), (0x24, bytes(64))]))
+    assert ota._get_image_hash(firmware) == digest
+
+
+def test_get_image_hash_missing(tmp_path: Path) -> None:
+    firmware = tmp_path / "app_update.bin"
+    firmware.write_bytes(_mcuboot_image([(0x24, bytes(64))]))
+    with pytest.raises(EsphomeError, match="image hash TLV"):
+        ota._get_image_hash(firmware)

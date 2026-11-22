@@ -8,7 +8,7 @@ namespace esphome::vbus {
 
 // Every supported model reports the four sensor failure flags as one bitmask byte with the same
 // bit order; only the offset of that byte within the payload differs per model.
-class DeltaSolErrorsBSensorBase : public VBusListener, public Component {
+class DeltaSolErrorsBSensorBase : public VBusListener {
  public:
   SUB_BINARY_SENSOR(s1_error)
   SUB_BINARY_SENSOR(s2_error)
@@ -26,7 +26,7 @@ class DeltaSolErrorsBSensorBase : public VBusListener, public Component {
 
 class DeltaSolBSPlusBSensor final : public DeltaSolErrorsBSensorBase {
  public:
-  void dump_config() override;
+  void dump_child_config() override;
   SUB_BINARY_SENSOR(relay1)
   SUB_BINARY_SENSOR(relay2)
   SUB_BINARY_SENSOR(collector_max)
@@ -42,7 +42,7 @@ class DeltaSolBSPlusBSensor final : public DeltaSolErrorsBSensorBase {
 
 class DeltaSolBS2009BSensor final : public DeltaSolErrorsBSensorBase {
  public:
-  void dump_config() override;
+  void dump_child_config() override;
   SUB_BINARY_SENSOR(frost_protection_active)
 
  protected:
@@ -51,7 +51,7 @@ class DeltaSolBS2009BSensor final : public DeltaSolErrorsBSensorBase {
 
 class DeltaSolCBSensor final : public DeltaSolErrorsBSensorBase {
  public:
-  void dump_config() override { this->dump_sensor_errors_(LOG_STR("Deltasol C")); }
+  void dump_child_config() override { this->dump_sensor_errors_(LOG_STR("Deltasol C")); }
 
  protected:
   void handle_message(std::vector<uint8_t> &message) override { this->publish_sensor_errors_(message, 10); }
@@ -59,7 +59,7 @@ class DeltaSolCBSensor final : public DeltaSolErrorsBSensorBase {
 
 class DeltaSolCS2BSensor final : public DeltaSolErrorsBSensorBase {
  public:
-  void dump_config() override { this->dump_sensor_errors_(LOG_STR("Deltasol CS2")); }
+  void dump_child_config() override { this->dump_sensor_errors_(LOG_STR("Deltasol CS2")); }
 
  protected:
   void handle_message(std::vector<uint8_t> &message) override { this->publish_sensor_errors_(message, 18); }
@@ -67,7 +67,7 @@ class DeltaSolCS2BSensor final : public DeltaSolErrorsBSensorBase {
 
 class DeltaSolCS4BSensor final : public DeltaSolErrorsBSensorBase {
  public:
-  void dump_config() override { this->dump_sensor_errors_(LOG_STR("Deltasol CS4")); }
+  void dump_child_config() override { this->dump_sensor_errors_(LOG_STR("Deltasol CS4")); }
 
  protected:
   void handle_message(std::vector<uint8_t> &message) override { this->publish_sensor_errors_(message, 20); }
@@ -75,7 +75,7 @@ class DeltaSolCS4BSensor final : public DeltaSolErrorsBSensorBase {
 
 class DeltaSolCSPlusBSensor final : public DeltaSolErrorsBSensorBase {
  public:
-  void dump_config() override { this->dump_sensor_errors_(LOG_STR("Deltasol CS Plus")); }
+  void dump_child_config() override { this->dump_sensor_errors_(LOG_STR("Deltasol CS Plus")); }
 
  protected:
   void handle_message(std::vector<uint8_t> &message) override { this->publish_sensor_errors_(message, 20); }
@@ -83,7 +83,7 @@ class DeltaSolCSPlusBSensor final : public DeltaSolErrorsBSensorBase {
 
 class DeltaSolBS2BSensor final : public DeltaSolErrorsBSensorBase {
  public:
-  void dump_config() override { this->dump_sensor_errors_(LOG_STR("DeltaSol BS/2 (DrainBack)")); }
+  void dump_child_config() override { this->dump_sensor_errors_(LOG_STR("DeltaSol BS/2 (DrainBack)")); }
 
  protected:
   void handle_message(std::vector<uint8_t> &message) override { this->publish_sensor_errors_(message, 10); }
@@ -91,9 +91,9 @@ class DeltaSolBS2BSensor final : public DeltaSolErrorsBSensorBase {
 
 class VBusCustomSubBSensor;
 
-class VBusCustomBSensor final : public VBusListener, public Component {
+class VBusCustomBSensor final : public VBusListener {
  public:
-  void dump_config() override;
+  void dump_child_config() override;
   void set_bsensors(std::vector<VBusCustomSubBSensor *> bsensors) { this->bsensors_ = std::move(bsensors); };
 
  protected:

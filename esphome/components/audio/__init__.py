@@ -29,6 +29,9 @@ AudioFile = audio_ns.struct("AudioFile")
 AudioFileType = audio_ns.enum("AudioFileType", is_class=True)
 AUDIO_FILE_TYPE_ENUM = AudioFileType.options("NONE", "WAV", "MP3", "FLAC", "OPUS")
 
+MICRO_DECODER_VERSION = "0.4.0"
+MICRO_FLAC_VERSION = "0.3.2"
+
 MEMORY_PSRAM = "psram"
 MEMORY_INTERNAL = "internal"
 MEMORY_LOCATIONS = [MEMORY_PSRAM, MEMORY_INTERNAL]
@@ -249,7 +252,7 @@ def final_validate_audio_schema(
         audio_device_issue (bool, optional): Format the error message to indicate the problem is in the configuration for the ``audio_device`` component. Defaults to False.
     """
 
-    def validate_audio_compatiblity(audio_config: ConfigType) -> ConfigType:
+    def validate_audio_compatibility(audio_config: ConfigType) -> ConfigType:
         audio_schema = {}
 
         if bits_per_sample is not cv.UNDEFINED:
@@ -311,7 +314,7 @@ def final_validate_audio_schema(
     return cv.Schema(
         {
             cv.Required(audio_device): fv.id_declaration_match_schema(
-                validate_audio_compatiblity
+                validate_audio_compatibility
             )
         },
         extra=cv.ALLOW_EXTRA,
@@ -367,7 +370,7 @@ async def to_code(config: ConfigType) -> None:
             data.wav_support = True
 
     if data.micro_decoder_support:
-        add_idf_component(name="esphome/micro-decoder", ref="0.4.0")
+        add_idf_component(name="esphome/micro-decoder", ref=MICRO_DECODER_VERSION)
 
         # All codecs are enabled by default in micro-decoder, so disable the ones that aren't requested to save flash
         if not data.flac_support:
@@ -385,7 +388,7 @@ async def to_code(config: ConfigType) -> None:
     # Adds a define and IDF component for legacy `audio_decoder.cpp`.
     if data.flac_support:
         cg.add_define("USE_AUDIO_FLAC_SUPPORT")
-        add_idf_component(name="esphome/micro-flac", ref="0.3.0")
+        add_idf_component(name="esphome/micro-flac", ref=MICRO_FLAC_VERSION)
         _emit_memory_pair(
             data.flac.buffer_memory,
             "CONFIG_MICRO_FLAC_PREFER_PSRAM",

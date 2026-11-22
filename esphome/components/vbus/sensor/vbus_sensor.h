@@ -8,7 +8,7 @@ namespace esphome::vbus {
 
 // Values shared by most DeltaSol controllers. A model only wires up the fields it actually has;
 // the rest stay null and are skipped when publishing and logging.
-class DeltaSolSensorBase : public VBusListener, public Component {
+class DeltaSolSensorBase : public VBusListener {
  public:
   SUB_SENSOR(temperature1)
   SUB_SENSOR(temperature2)
@@ -36,7 +36,7 @@ class DeltaSolSensorBase : public VBusListener, public Component {
 
 class DeltaSolBSPlusSensor final : public DeltaSolSensorBase {
  public:
-  void dump_config() override { this->dump_sensors_(LOG_STR("Deltasol BS Plus")); }
+  void dump_child_config() override { this->dump_sensors_(LOG_STR("Deltasol BS Plus")); }
 
  protected:
   void handle_message(std::vector<uint8_t> &message) override;
@@ -44,7 +44,7 @@ class DeltaSolBSPlusSensor final : public DeltaSolSensorBase {
 
 class DeltaSolBS2009Sensor final : public DeltaSolSensorBase {
  public:
-  void dump_config() override { this->dump_sensors_(LOG_STR("Deltasol BS 2009")); }
+  void dump_child_config() override { this->dump_sensors_(LOG_STR("Deltasol BS 2009")); }
 
  protected:
   void handle_message(std::vector<uint8_t> &message) override;
@@ -52,7 +52,7 @@ class DeltaSolBS2009Sensor final : public DeltaSolSensorBase {
 
 class DeltaSolCSensor final : public DeltaSolSensorBase {
  public:
-  void dump_config() override { this->dump_sensors_(LOG_STR("Deltasol C")); }
+  void dump_child_config() override { this->dump_sensors_(LOG_STR("Deltasol C")); }
 
  protected:
   void handle_message(std::vector<uint8_t> &message) override;
@@ -60,7 +60,7 @@ class DeltaSolCSensor final : public DeltaSolSensorBase {
 
 class DeltaSolCS2Sensor final : public DeltaSolSensorBase {
  public:
-  void dump_config() override { this->dump_sensors_(LOG_STR("Deltasol CS2"), true); }
+  void dump_child_config() override { this->dump_sensors_(LOG_STR("Deltasol CS2"), true); }
 
  protected:
   void handle_message(std::vector<uint8_t> &message) override;
@@ -68,7 +68,7 @@ class DeltaSolCS2Sensor final : public DeltaSolSensorBase {
 
 class DeltaSolCS4Sensor : public DeltaSolSensorBase {
  public:
-  void dump_config() override { this->dump_cs4_sensors_(LOG_STR("Deltasol CS4")); }
+  void dump_child_config() override { this->dump_cs4_sensors_(LOG_STR("Deltasol CS4")); }
   // Only the CS4 family has these fields.
   SUB_SENSOR(temperature5)
   SUB_SENSOR(flow_rate)
@@ -81,12 +81,12 @@ class DeltaSolCS4Sensor : public DeltaSolSensorBase {
 // The CS Plus reports the same payload layout as the CS4.
 class DeltaSolCSPlusSensor final : public DeltaSolCS4Sensor {
  public:
-  void dump_config() override { this->dump_cs4_sensors_(LOG_STR("Deltasol CS Plus")); }
+  void dump_child_config() override { this->dump_cs4_sensors_(LOG_STR("Deltasol CS Plus")); }
 };
 
 class DeltaSolBS2Sensor final : public DeltaSolSensorBase {
  public:
-  void dump_config() override { this->dump_sensors_(LOG_STR("DeltaSol BS/2 (DrainBack)")); }
+  void dump_child_config() override { this->dump_sensors_(LOG_STR("DeltaSol BS/2 (DrainBack)")); }
 
  protected:
   void handle_message(std::vector<uint8_t> &message) override;
@@ -94,9 +94,9 @@ class DeltaSolBS2Sensor final : public DeltaSolSensorBase {
 
 class VBusCustomSubSensor;
 
-class VBusCustomSensor : public VBusListener, public Component {
+class VBusCustomSensor : public VBusListener {
  public:
-  void dump_config() override;
+  void dump_child_config() override;
   void set_sensors(std::vector<VBusCustomSubSensor *> sensors) { this->sensors_ = std::move(sensors); };
 
  protected:

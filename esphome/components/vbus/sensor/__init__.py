@@ -45,14 +45,14 @@ from .. import (
     vbus_ns,
 )
 
-DeltaSol_BS_Plus = vbus_ns.class_("DeltaSolBSPlusSensor", cg.Component)
-DeltaSol_BS_2009 = vbus_ns.class_("DeltaSolBS2009Sensor", cg.Component)
-DeltaSol_BS2 = vbus_ns.class_("DeltaSolBS2Sensor", cg.Component)
-DeltaSol_C = vbus_ns.class_("DeltaSolCSensor", cg.Component)
-DeltaSol_CS2 = vbus_ns.class_("DeltaSolCS2Sensor", cg.Component)
-DeltaSol_CS4 = vbus_ns.class_("DeltaSolCS4Sensor", cg.Component)
-DeltaSol_CS_Plus = vbus_ns.class_("DeltaSolCSPlusSensor", cg.Component)
-VBusCustom = vbus_ns.class_("VBusCustomSensor", cg.Component)
+DeltaSol_BS_Plus = vbus_ns.class_("DeltaSolBSPlusSensor")
+DeltaSol_BS_2009 = vbus_ns.class_("DeltaSolBS2009Sensor")
+DeltaSol_BS2 = vbus_ns.class_("DeltaSolBS2Sensor")
+DeltaSol_C = vbus_ns.class_("DeltaSolCSensor")
+DeltaSol_CS2 = vbus_ns.class_("DeltaSolCS2Sensor")
+DeltaSol_CS4 = vbus_ns.class_("DeltaSolCS4Sensor")
+DeltaSol_CS_Plus = vbus_ns.class_("DeltaSolCSPlusSensor")
+VBusCustom = vbus_ns.class_("VBusCustomSensor")
 VBusCustomSub = vbus_ns.class_("VBusCustomSubSensor", sensor.Sensor)
 
 CONF_FLOW_RATE = "flow_rate"
@@ -222,7 +222,7 @@ MODELS = {
 
 
 def _model_schema(model_class: MockObjClass, fields: list[str]) -> cv.Schema:
-    return cv.COMPONENT_SCHEMA.extend(
+    return cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(model_class),
             cv.GenerateID(CONF_VBUS_ID): cv.use_id(VBus),
@@ -237,7 +237,7 @@ CONFIG_SCHEMA = cv.typed_schema(
             model: _model_schema(model_class, fields)
             for model, (model_class, _, fields) in MODELS.items()
         },
-        CONF_CUSTOM: cv.COMPONENT_SCHEMA.extend(
+        CONF_CUSTOM: cv.Schema(
             {
                 cv.GenerateID(): cv.declare_id(VBusCustom),
                 cv.GenerateID(CONF_VBUS_ID): cv.use_id(VBus),
@@ -263,7 +263,6 @@ CONFIG_SCHEMA = cv.typed_schema(
 
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
 
     if config[CONF_MODEL] == CONF_CUSTOM:
         for key in (CONF_COMMAND, CONF_SOURCE, CONF_DEST):
