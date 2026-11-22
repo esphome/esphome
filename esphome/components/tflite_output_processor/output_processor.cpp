@@ -200,6 +200,27 @@ ProcessedOutput process_output(TfLiteTensor *output_tensor, OutputProcessing mod
                         [data, zero_point, scale](int i) -> float { return (data[i] - zero_point) * scale; });
 }
 
+bool read_tensor_value(const TfLiteTensor *tensor, size_t index, float *out) {
+  if (tensor == nullptr || tensor->data.raw == nullptr)
+    return false;
+  switch (tensor->type) {
+    case kTfLiteFloat32:
+      *out = tensor->data.f[index];
+      return true;
+    case kTfLiteUInt8:
+      *out = (static_cast<int>(tensor->data.uint8[index]) - tensor->params.zero_point) * tensor->params.scale;
+      return true;
+    case kTfLiteInt8:
+      *out = (static_cast<int>(tensor->data.int8[index]) - tensor->params.zero_point) * tensor->params.scale;
+      return true;
+    case kTfLiteInt32:
+      *out = static_cast<float>(tensor->data.i32[index]);
+      return true;
+    default:
+      return false;
+  }
+}
+
 #endif  // USE_TFLITE_MICRO_HELPER
 
 bool parse_output_processing(const std::string &name, OutputProcessing &mode) {
@@ -223,27 +244,6 @@ bool parse_output_processing(const std::string &name, OutputProcessing &mode) {
   // Keep processing the output, but tell the caller so it can report the name.
   mode = OutputProcessing::OUTPUT_PROCESSING_ARGMAX;
   return false;
-}
-
-bool read_tensor_value(const TfLiteTensor *tensor, size_t index, float *out) {
-  if (tensor == nullptr || tensor->data.raw == nullptr)
-    return false;
-  switch (tensor->type) {
-    case kTfLiteFloat32:
-      *out = tensor->data.f[index];
-      return true;
-    case kTfLiteUInt8:
-      *out = (static_cast<int>(tensor->data.uint8[index]) - tensor->params.zero_point) * tensor->params.scale;
-      return true;
-    case kTfLiteInt8:
-      *out = (static_cast<int>(tensor->data.int8[index]) - tensor->params.zero_point) * tensor->params.scale;
-      return true;
-    case kTfLiteInt32:
-      *out = static_cast<float>(tensor->data.i32[index]);
-      return true;
-    default:
-      return false;
-  }
 }
 
 }  // namespace esphome::tflite_output_processor
