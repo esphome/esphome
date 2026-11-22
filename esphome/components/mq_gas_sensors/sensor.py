@@ -318,7 +318,7 @@ def _preference_key(
     rl: float,
     ratio_in_clean_air: float,
     *,
-    sensor: str,
+    sensor_type: str,
     sampler: str,
     correction_mode: str,
 ) -> int:
@@ -332,7 +332,7 @@ def _preference_key(
     reference that belongs to different hardware.
     """
     return fnv1_hash(
-        f"{sensor}:{sampler}:{correction_mode}:"
+        f"{sensor_type}:{sampler}:{correction_mode}:"
         f"{vcc:g}:{multiplier:g}:{rl:g}:{ratio_in_clean_air:g}"
     )
 
@@ -980,7 +980,7 @@ async def to_code(config: ConfigType) -> None:
                 multiplier,
                 _effective_rl(config, resolved.rl),
                 ratio_in_clean_air,
-                sensor=f"{resolved.type_key}/{resolved.gas}",
+                sensor_type=f"{resolved.type_key}/{resolved.gas}",
                 sampler=(
                     f"pin:{config[CONF_PIN]}"
                     if CONF_PIN in config
