@@ -215,4 +215,7 @@ ESPHOME_ALWAYS_INLINE inline void pulse_reset(GPIOPin *pin, ResetPulse pulse) {
   internal::pulse_reset_ms(pin, pulse.high_before_ms, pulse.low_ms, pulse.high_after_ms);
 }
 
+/// Set up \p pin and drive it to \p level. Does nothing when pin is null, so an optional pin needs no check.
+void setup_output_pin(GPIOPin *pin, bool level);
+
 }  // namespace esphome

@@ -1,0 +1,127 @@
+esphome:
+  name: ${name}
+  includes: [fakes.hpp]
+  on_boot:
+    - priority: 1100
+      then:
+        - lambda: |-
+            fk::bus.regs[1][0x00] = 0x10;
+            fk::bus.regs[1][0x01] = 0x02;
+            id(ens)->set_i2c_bus(&fk::bus);
+            id(sen)->set_uart_parent(&fk::sen);
+    - priority: -100
+      then:
+        - logger.log: "MARK ens phase crc"
+        - lambda: 'fk::ens_set(3, 0x7000, true, false);'
+        - delay: 12s
+        - logger.log: "MARK ens phase invalid"
+        - lambda: 'fk::ens_set(3, 0x7000, false, true);'
+        - delay: 12s
+        - logger.log: "MARK ens phase temp crc"
+        - lambda: |-
+            fk::ens_set(3, 0x7000, true, true);
+            fk::ens_set(0, 0x4A00, true, false);
+        - delay: 12s
+        - logger.log: "MARK ens phase temp invalid"
+        - lambda: 'fk::ens_set(0, 0x4A00, false, true);'
+        - delay: 12s
+        - logger.log: "MARK ens ok"
+        - lambda: 'fk::ens_set(0, 0x4A00, true, true);'
+        - logger.log: "MARK mhz19 ranges"
+        - mhz19.detection_range_set: {id: co2a, detection_range: 2000ppm}
+        - mhz19.detection_range_set: {id: co2a, detection_range: 5000ppm}
+        - mhz19.detection_range_set: {id: co2a, detection_range: 10000ppm}
+        - logger.log: "MARK sen0609 buttons"
+        - switch.turn_on: s_led
+        - delay: 20s
+        - button.press: s_restart
+        - delay: 20s
+        - button.press: s_factory
+        - delay: 20s
+        - button.press: s_query
+        - delay: 40s
+        - logger.log: "MARK ALLDONE"
+
+logger:
+  baud_rate: 460800
+  level: DEBUG
+
+uart:
+  - id: uart_bus
+    tx_pin: ${uart_tx}
+    rx_pin: ${uart_rx}
+    baud_rate: 9600
+
+i2c:
+  - id: i2c_bus
+    sda: ${sda}
+    scl: ${scl}
+    scan: false
+
+modbus:
+  - id: modbus_bus
+    uart_id: uart_bus
+
+dfrobot_sen0609:
+  id: sen
+  uart_id: uart_bus
+  mode: presence
+
+button:
+  - platform: dfrobot_sen0609
+    dfrobot_sen0609_id: sen
+    factory_reset: {id: s_factory, name: Factory Reset}
+    query_params: {id: s_query, name: Query Params}
+    restart: {id: s_restart, name: Restart}
+
+switch:
+  - platform: dfrobot_sen0609
+    dfrobot_sen0609_id: sen
+    run_led: {id: s_led, name: Run LED, restore_mode: ALWAYS_OFF}
+
+text_sensor:
+  - platform: dfrobot_sen0609
+    dfrobot_sen0609_id: sen
+    version: {name: Software Version}
+
+sensor:
+  - platform: ens210
+    id: ens
+    i2c_id: i2c_bus
+    update_interval: 5s
+    temperature: {name: ENS T}
+    humidity: {name: ENS H}
+  - platform: mhz19
+    id: co2a
+    uart_id: uart_bus
+    co2: {name: CO2 a}
+    update_interval: 60s
+  - platform: mhz19
+    uart_id: uart_bus
+    co2: {name: CO2 b}
+    detection_range: 2000ppm
+    update_interval: 60s
+  - platform: mhz19
+    uart_id: uart_bus
+    co2: {name: CO2 c}
+    detection_range: 5000ppm
+    update_interval: 60s
+  - platform: mhz19
+    uart_id: uart_bus
+    co2: {name: CO2 d}
+    detection_range: 10000ppm
+    update_interval: 60s
+  - platform: mlx90393
+    i2c_id: i2c_bus
+    address: 0x0C
+    update_interval: 60s
+    x_axis: {name: mlx x}
+  - platform: selec_meter
+    id: selec
+    modbus_id: modbus_bus
+    model: em4m
+    update_interval: 15s
+    phase_a:
+      voltage: {name: Selec V}
+    serial_number: {name: Selec SN}
+    dg_sensing: {name: Selec DG}
