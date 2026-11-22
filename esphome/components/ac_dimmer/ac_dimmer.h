@@ -11,10 +11,12 @@ enum DimMethod : uint8_t { DIM_METHOD_LEADING_PULSE = 0, DIM_METHOD_LEADING, DIM
 struct AcDimmerDataStore {
   /// Output pin to write to
   ISRInternalGPIOPin gate_pin;
-  /// Time between the last two ZC pulses
+  /// Length of a half cycle, measured between zero-cross edges and then following them slowly
   uint32_t cycle_time_us;
-  /// Time (in micros()) of last ZC signal
+  /// Time (in micros()) of the last zero crossing; an expected one can be a little ahead (see take_zero_cross_edge)
   uint32_t crossed_zero_at;
+  /// The zero crossing the gate events below are counted from
+  uint32_t schedule_zero_at;
   /// Time since last ZC pulse to enable gate pin. 0 means not set.
   uint32_t enable_time_us;
   /// Time since last ZC pulse to disable gate pin. 0 means no disable.
@@ -25,8 +27,12 @@ struct AcDimmerDataStore {
   uint16_t min_power;
   /// Zero-cross pin number - used to share ZC pin across multiple dimmers
   uint8_t zero_cross_pin_number;
-  /// Zero-cross edges that did not fit the measured timing lately; at 8 the timing is measured again
+  /// Zero-cross edges in a row that did not fit the measured timing; too many and it is measured again
   uint8_t doubtful_edges{0};
+  /// Edges that confirmed a new measurement of the half cycle; gate events start when it is confirmed
+  uint8_t confirmed_edges{0};
+  /// The last crossing was taken from an edge that came before its expected time
+  bool crossing_early{false};
   /// Set to send the first half ac cycle complete
   bool init_cycle;
   /// Dimmer method
@@ -36,6 +42,16 @@ struct AcDimmerDataStore {
 
   /// Handles a zero-cross edge at `now`; returns true if it starts a new half cycle
   bool take_zero_cross_edge(uint32_t now);
+  /// True once a measured half cycle has been confirmed by the edges after it
+  bool timing_locked() const;
+  /// Starts measuring the half cycle again, from an edge at `now`
+  void restart_timing(uint32_t now);
+  /// Zero-cross edge at `now`: tracks the timing and starts the half cycle, now or at the expected crossing
+  void zero_cross_edge(uint32_t now);
+  /// Sets up the gate events of the half cycle that starts at crossed_zero_at
+  void start_half_cycle();
+  /// Drops pending gate events and switches a partly-on output off
+  void cancel_schedule();
 
   void gpio_intr();
   static void s_gpio_intr(AcDimmerDataStore *store);
