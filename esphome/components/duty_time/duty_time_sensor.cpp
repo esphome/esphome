@@ -7,7 +7,11 @@ ESPHOME_LOG_TAG(TAG, "duty_time_sensor");
 
 #ifdef USE_BINARY_SENSOR
 void DutyTimeSensor::set_sensor(binary_sensor::BinarySensor *const sensor) {
-  sensor->add_on_state_callback([this](bool state) { this->process_state_(state); });
+  // Every change, the first state too: an on_state callback skips it unless trigger_on_initial_state is set
+  sensor->add_full_state_callback([this](optional<bool> /*previous*/, optional<bool> state) {
+    if (state.has_value())
+      this->process_state_(*state);
+  });
 }
 #endif
 
