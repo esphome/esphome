@@ -4,6 +4,7 @@ from esphome.components import spi
 from esphome.components.const import CONF_DRDY_PIN, CONF_WINDOW
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_CS_PIN,
     CONF_GAIN,
     CONF_ID,
     CONF_MODEL,
@@ -121,7 +122,8 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): cv.declare_id(ADS131M0x),
             cv.Required(CONF_MODEL): cv.enum(MODELS, upper=True),
             cv.Required(CONF_DRDY_PIN): pins.internal_gpio_input_pin_schema,
-            cv.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,
+            # Driven from the sampling task: an I/O expander pin would be written concurrently with the main loop
+            cv.Optional(CONF_RESET_PIN): pins.internal_gpio_output_pin_schema,
             cv.Optional(CONF_CLOCK_FREQUENCY, default="8.192MHz"): cv.frequency,
             cv.Optional(CONF_POWER_MODE, default="HIGH_RESOLUTION"): cv.enum(
                 POWER_MODES, upper=True, space="_"
@@ -138,13 +140,29 @@ CONFIG_SCHEMA = cv.All(
         spi.spi_device_schema(
             cs_pin_required=True, default_data_rate=8e6, default_mode="MODE1"
         )
+    )
+    .extend(
+        {
+            # Toggled from the sampling task for every frame, like the reset pin
+            cv.Required(CONF_CS_PIN): pins.internal_gpio_output_pin_schema,
+            # Would add and remove the SPI device for every conversion
+            cv.Optional(spi.CONF_RELEASE_DEVICE): cv.invalid(
+                "release_device is not supported: the device is read continuously"
+            ),
+        }
     ),
     cv.only_on_esp32,
     _validate,
 )
 
 
+_FINAL_VALIDATE_SPI_PINS = spi.final_validate_device_schema(
+    DOMAIN, require_mosi=True, require_miso=True
+)
+
+
 def _final_validate(config: ConfigType) -> ConfigType:
+    _FINAL_VALIDATE_SPI_PINS(config)
     # The sampling task shares the bus with the main loop. Only the hardware SPI driver locks the bus for each
     # transaction; a software bus could interleave this chip's frames with another device's transfer.
     bus = fv.get_declaring_config(config[CONF_SPI_ID])
@@ -177,7 +195,7 @@ async def to_code(config: ConfigType) -> None:
     osr_code = _osr_code(clock_hz, config[CONF_SAMPLE_RATE])
     cg.add(var.set_power_mode(config[CONF_POWER_MODE]))
     cg.add(var.set_osr_code(osr_code))
-    cg.add(var.set_data_rate(clock_hz / 2 / OSR_CODES[osr_code]))
+    cg.add(var.set_sample_rate(clock_hz / 2 / OSR_CODES[osr_code]))
     cg.add(var.set_window_ms(config[CONF_WINDOW].total_milliseconds))
 
     gains = config[CONF_GAIN]

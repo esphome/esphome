@@ -28,7 +28,7 @@ enum ADS131M0xPowerMode : uint8_t {
 struct Snapshot {
   std::array<float, MAX_CHANNELS> rms{};   ///< RMS of the AC component (DC offset removed)
   std::array<float, MAX_CHANNELS> mean{};  ///< Mean (DC) value
-  uint32_t sequence{0};                    ///< Incremented with every completed window; 0 = no data yet
+  uint32_t sequence{0};                    ///< Incremented with every completed window; 0 = no valid data
   uint32_t timestamp_ms{0};                ///< millis() at the end of the window
 };
 
@@ -36,10 +36,11 @@ struct Snapshot {
  * TI ADS131M02/03/04/06/08 simultaneous-sampling 24-bit delta-sigma ADC.
  * Datasheet: https://www.ti.com/lit/ds/symlink/ads131m08.pdf
  *
- * The chip has no FIFO: every conversion must be read before the next DRDY. Sampling therefore runs in a
- * dedicated FreeRTOS task woken by the DRDY interrupt, so the main loop never waits for SPI. The task
- * accumulates every sample and publishes mean and AC RMS per window as a Snapshot. The ESP-IDF SPI driver
- * locks the bus for each transaction, so other devices on the same bus stay usable from the main loop.
+ * The chip buffers only two conversions per channel, so every conversion must be read within about two DRDY
+ * periods (1 ms at 2 kSPS). Sampling therefore runs in a dedicated FreeRTOS task woken by the DRDY interrupt,
+ * so the main loop never waits for SPI. The task accumulates every sample and publishes mean and AC RMS per
+ * window as a Snapshot. The hardware SPI driver locks the bus for each transaction, so other devices on the
+ * same bus stay usable from the main loop.
  *
  * Every frame is checked with the output CRC and the STATUS word. After an unexpected device reset (STATUS
  * RESET flag, e.g. a supply dip) the registers are back at their defaults, so the task reconfigures the
@@ -54,19 +55,20 @@ class ADS131M0x : public Component,
 
   void set_num_channels(uint8_t num_channels) { this->num_channels_ = num_channels; }
   void set_drdy_pin(InternalGPIOPin *pin) { this->drdy_pin_ = pin; }
-  void set_reset_pin(GPIOPin *pin) { this->reset_pin_ = pin; }
+  void set_reset_pin(InternalGPIOPin *pin) { this->reset_pin_ = pin; }
   void set_power_mode(ADS131M0xPowerMode power_mode) { this->power_mode_ = power_mode; }
   void set_osr_code(uint8_t code) { this->osr_code_ = code; }
-  void set_data_rate(float data_rate) { this->data_rate_ = data_rate; }
+  void set_sample_rate(float sample_rate) { this->sample_rate_ = sample_rate; }
   void set_window_ms(uint32_t window_ms) { this->window_ms_ = window_ms; }
   void set_gain(uint8_t channel, uint8_t gain_code) { this->gain_codes_[channel] = gain_code; }
 
-  /// Copy of the latest completed window. Safe to call from any task.
+  /// Copy of the latest completed window; sequence is 0 until the first window after (re)configuration.
+  /// Safe to call from any task.
   Snapshot get_snapshot();
   /// True while the device is configured and delivers samples at the expected rate.
   bool is_healthy() const { return this->healthy_.load(); }
   uint8_t get_num_channels() const { return this->num_channels_; }
-  float get_data_rate() const { return this->data_rate_; }
+  float get_sample_rate() const { return this->sample_rate_; }
   uint32_t get_window_ms() const { return this->window_ms_; }
   /// Input full scale of a channel in volts (the input range is +/- this value).
   float get_full_scale(uint8_t channel) const;
@@ -76,6 +78,8 @@ class ADS131M0x : public Component,
   static void drdy_isr(ADS131M0x *self);
   void task_loop_();
   void check_health_();
+  /// Averages the sample rate over several health checks and warns when conversions are being lost.
+  void check_rate_(uint32_t elapsed_ms, uint32_t frames);
 
   /// Resets (if a reset pin is set) and configures the device. Returns nullptr on success, else the reason.
   const LogString *configure_();
@@ -84,13 +88,17 @@ class ADS131M0x : public Component,
   bool read_register_(uint8_t address, uint16_t *value);
   bool write_register_(uint8_t address, uint16_t value);
   size_t frame_bytes_() const;
+  /// Reads both FIFO slots back to back, as the datasheet requires after a gap in reading.
+  void drain_fifo_();
+  /// Marks the snapshot as invalid (sequence 0) until a full window has been sampled again.
+  void invalidate_snapshot_();
 
   InternalGPIOPin *drdy_pin_{nullptr};
-  GPIOPin *reset_pin_{nullptr};
+  InternalGPIOPin *reset_pin_{nullptr};
   uint8_t num_channels_{MAX_CHANNELS};
   ADS131M0xPowerMode power_mode_{ADS131M0X_POWER_MODE_HIGH_RESOLUTION};
   uint8_t osr_code_{3};
-  float data_rate_{4000.0f};
+  float sample_rate_{4000.0f};
   uint32_t window_ms_{100};
   std::array<uint8_t, MAX_CHANNELS> gain_codes_{};
 
@@ -98,6 +106,11 @@ class ADS131M0x : public Component,
   TaskHandle_t task_handle_{nullptr};
   portMUX_TYPE lock_ = portMUX_INITIALIZER_UNLOCKED;
   Snapshot snapshot_{};
+  uint8_t *frame_buf_{nullptr};  ///< DMA-capable, allocated once in setup()
+  size_t transfer_bytes_{0};     ///< Frame length, padded where the DMA requires it
+
+  // Sampling task only
+  uint32_t window_sequence_{0};
 
   // Written by the sampling task, read by the main loop
   std::atomic<bool> healthy_{false};
@@ -113,6 +126,10 @@ class ADS131M0x : public Component,
   uint32_t last_frames_{0};
   uint32_t last_crc_errors_{0};
   uint32_t last_device_resets_{0};
+  uint32_t rate_start_frames_{0};
+  uint32_t rate_elapsed_ms_{0};
+  uint8_t rate_checks_{0};
+  bool rate_degraded_{false};
 };
 
 }  // namespace esphome::ads131m0x
