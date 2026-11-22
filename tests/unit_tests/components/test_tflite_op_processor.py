@@ -78,6 +78,14 @@ class _FlatBufferWriter:
         self.data += struct.pack("<I", len(values)) + values
         return position
 
+    def string(self, value: str) -> int:
+        """Write a length-prefixed UTF-8 string and return its position."""
+        self._pad(4)
+        position = len(self.data)
+        encoded = value.encode("utf-8")
+        self.data += struct.pack("<I", len(encoded)) + encoded + b"\x00"
+        return position
+
     def table_vector(self, build: Sequence[Callable[[], int]]) -> int:
         self._pad(4)
         position = len(self.data)
@@ -95,7 +103,7 @@ class _FlatBufferWriter:
 
 
 def write_model(
-    operator_codes: Sequence[tuple[int | None, int | None]],
+    operator_codes: Sequence[tuple[int | str | None, ...]],
     *,
     subgraph: bool = True,
     inputs: Sequence[int] = (),
@@ -106,18 +114,23 @@ def write_model(
 ) -> bytes:
     """Build a minimal .tflite model.
 
-    ``operator_codes`` holds (deprecated_builtin_code, builtin_code) per entry,
-    with None for a field the writer leaves out. ``inputs`` holds the tensor
+    ``operator_codes`` holds (deprecated_builtin_code, builtin_code) per entry, with
+    an optional custom_code name third and None for a field the writer leaves out.
+    ``inputs`` holds the tensor
     indexes of the subgraph's inputs, ``tensors`` (shape, TensorType, buffer
     index) per tensor, ``buffers`` the data of each buffer (None for an empty one)
     and ``operators`` the (inputs, outputs) per operator.
     """
     writer = _FlatBufferWriter()
 
-    def write_opcode(deprecated: int | None, builtin: int | None) -> int:
-        fields: dict[int, int] = {}
+    def write_opcode(
+        deprecated: int | None, builtin: int | None, custom: str | None = None
+    ) -> int:
+        fields: dict[int, int | Callable[[], int]] = {}
         if deprecated is not None:
             fields[0] = deprecated
+        if custom is not None:
+            fields[1] = partial(writer.string, custom)
         if builtin is not None:
             fields[3] = builtin
         return writer.table(fields)
@@ -494,6 +507,23 @@ def test_read_model_operators_requires_operator_codes(tmp_path: Path) -> None:
         read_model_operators(model)
 
 
+def test_read_model_operators_keeps_each_custom_name(tmp_path: Path) -> None:
+    """Two equal-length names must not collapse into one resolver slot."""
+    model = write_model_file(
+        tmp_path, write_model([(None, 32, "Foo"), (None, 32, "Bar")])
+    )
+
+    assert read_model_operators(model) == frozenset({"CUSTOM:Foo", "CUSTOM:Bar"})
+
+
+def test_read_model_operators_requires_a_custom_name(tmp_path: Path) -> None:
+    """A CUSTOM opcode without its string is a malformed model, not a shared slot."""
+    model = write_model_file(tmp_path, write_model([(None, 32)]))
+
+    with pytest.raises(ModelReadError, match="custom_code"):
+        read_model_operators(model)
+
+
 def test_read_model_operators_rejects_a_file_that_is_not_a_model(
     tmp_path: Path,
 ) -> None:
@@ -634,6 +664,32 @@ def test_estimate_tensor_arena_excludes_constants(tmp_path: Path) -> None:
     # The 16-byte input and the 16-byte output are live together; the weight is not.
     assert estimate.peak_activation_bytes == 32
     assert estimate.bytes == 1024
+
+
+def test_estimate_tensor_arena_rejects_a_buffer_the_model_lacks(
+    tmp_path: Path,
+) -> None:
+    """An index past the buffer list is corrupt, not a tensor that lives in the arena."""
+    model = write_model_file(
+        tmp_path,
+        write_model([(None, 9)], tensors=(([1, 4], 0, 5),), buffers=(None,)),
+    )
+
+    with pytest.raises(ModelReadError, match="buffer 5"):
+        estimate_tensor_arena(model)
+
+
+def test_estimate_tensor_arena_rejects_a_subgraph_without_operators(
+    tmp_path: Path,
+) -> None:
+    """Nothing would be live, so a zero peak would understate the arena."""
+    model = write_model_file(
+        tmp_path,
+        write_model([(None, 9)], tensors=(([1, 4], 0, 1),), buffers=(None, None)),
+    )
+
+    with pytest.raises(ModelReadError, match="no operators"):
+        estimate_tensor_arena(model)
 
 
 def test_estimate_tensor_arena_finds_the_peak_of_the_graph(tmp_path: Path) -> None:
