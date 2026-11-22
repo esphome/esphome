@@ -15,6 +15,7 @@ from esphome.components.esp32 import (
     require_idf_version,
     require_mbedtls_tls,
     require_mbedtls_tls_extras,
+    set_idf_sdkconfig_default,
 )
 from esphome.components.network import (
     add_use_address,
@@ -142,6 +143,7 @@ CONF_SAVE = "save"
 CONF_BAND_MODE = "band_mode"
 CONF_DEVICE_INFO = "device_info"
 CONF_DPP = "dpp"
+CONF_ENABLE_SAE_PK = "enable_sae_pk"
 CONF_MIN_AUTH_MODE = "min_auth_mode"
 CONF_ON_AP_START = "on_ap_start"
 CONF_ON_AP_STOP = "on_ap_stop"
@@ -730,6 +732,10 @@ CONFIG_SCHEMA = cv.All(
             cv.SplitDefault(CONF_ENABLE_RRM, esp32=False): cv.All(
                 cv.boolean, cv.only_on_esp32
             ),
+            # Verifies WPA3 SAE-PK access points; they also accept plain SAE. About 6 KB.
+            cv.SplitDefault(CONF_ENABLE_SAE_PK, esp32=False): cv.All(
+                cv.boolean, cv.only_on_esp32
+            ),
             cv.Optional(CONF_BAND_MODE): cv.All(
                 cv.enum(WIFI_BAND_MODES, upper=True),
                 cv.only_on_esp32,
@@ -819,14 +825,14 @@ def wifi_network(config, ap, manual_ip_index: int | None):
     if CONF_EAP in config:
         cg.add(ap.set_eap(eap_auth(config[CONF_EAP])))
         cg.add_define("USE_WIFI_WPA2_EAP")
-    if CONF_BSSID in config:
-        cg.add(ap.set_bssid([HexInt(i) for i in config[CONF_BSSID].parts]))
+    if (bssid := config.get(CONF_BSSID)) is not None:
+        cg.add(ap.set_bssid([HexInt(i) for i in bssid.parts]))
     cg.add_optional(ap.set_hidden, config.get(CONF_HIDDEN))
     cg.add_optional(ap.set_channel, config.get(CONF_CHANNEL))
     cg.add_optional(ap.set_manual_ip, manual_ip_index)
     # priority_ is 0 in C++; skip the setter when the config matches it.
-    if config.get(CONF_PRIORITY, 0) != 0:
-        cg.add(ap.set_priority(config[CONF_PRIORITY]))
+    if (priority := config.get(CONF_PRIORITY, 0)) != 0:
+        cg.add(ap.set_priority(priority))
 
     return ap
 
@@ -856,7 +862,9 @@ async def to_code(config):
 
     networks = config.get(CONF_NETWORKS, [])
     # set_sta() stores one network at run time even when none is configured
-    cg.add_define("WIFI_NETWORK_COUNT", max(1, len(networks)))
+    _request_network_slot(_MINIMUM_KEY)
+    for _ in networks:
+        _request_network_slot(_NETWORKS_KEY)
     if networks:
         if len(networks) > 1:
             # The ESP32 scan can filter one SSID in the driver; with several the whole list is kept
@@ -983,14 +991,14 @@ async def to_code(config):
     # passive_scan defaults to false in C++ - only set if true
     if config[CONF_PASSIVE_SCAN]:
         cg.add(var.set_passive_scan(True))
-    if CONF_OUTPUT_POWER in config:
-        cg.add(var.set_output_power(config[CONF_OUTPUT_POWER]))
+    if (output_power := config.get(CONF_OUTPUT_POWER)) is not None:
+        cg.add(var.set_output_power(output_power))
         if CORE.is_esp32:
             # Set PHY max TX power to match output_power so calibration also uses
             # reduced power. This prevents brownout during PHY init on marginal
             # power supplies, which is critical for OTA updates with rollback enabled.
             # Kconfig range is 10-20, ESPHome allows 8.5-20.5
-            phy_tx_power = max(10, min(20, math.ceil(config[CONF_OUTPUT_POWER])))
+            phy_tx_power = max(10, min(20, math.ceil(output_power)))
             add_idf_sdkconfig_option("CONFIG_ESP_PHY_MAX_WIFI_TX_POWER", phy_tx_power)
     # enable_on_boot defaults to true in C++ - only set if false
     if not config[CONF_ENABLE_ON_BOOT]:
@@ -1011,9 +1019,9 @@ async def to_code(config):
 
     if CORE.is_esp8266:
         cg.add_library("ESP8266WiFi", None)
-        if CONF_PHY_MODE in config:
+        if (phy_mode := config.get(CONF_PHY_MODE)) is not None:
             cg.add_define("USE_WIFI_PHY_MODE")
-            cg.add(var.set_phy_mode(config[CONF_PHY_MODE]))
+            cg.add(var.set_phy_mode(phy_mode))
     elif CORE.is_rp2:
         cg.add_library("WiFi", None)
 
@@ -1025,6 +1033,9 @@ async def to_code(config):
             cg.add(var.set_btm(config[CONF_ENABLE_BTM]))
         if config[CONF_ENABLE_RRM]:
             cg.add(var.set_rrm(config[CONF_ENABLE_RRM]))
+        set_idf_sdkconfig_default(
+            "CONFIG_ESP_WIFI_ENABLE_SAE_PK", config[CONF_ENABLE_SAE_PK]
+        )
         cg.add_optional(var.set_band_mode, config.get(CONF_BAND_MODE))
 
     if config.get(CONF_USE_PSRAM):
@@ -1150,6 +1161,14 @@ CONNECT_STATE_LISTENERS_KEY = "wifi_connect_state_listeners"
 POWER_SAVE_LISTENERS_KEY = "wifi_power_save_listeners"
 SCAN_RESULTS_LOCK_KEY = "wifi_scan_results_lock"
 
+# Size of the station list: one slot per YAML network plus the slots components
+# request with request_wifi_network_slots(), at least one. The counter emits the
+# largest count of any key, so the minimum is its own key.
+NETWORK_COUNT_DEFINE = "WIFI_NETWORK_COUNT"
+_NETWORKS_KEY = "networks"
+_MINIMUM_KEY = "minimum"
+_request_network_slot = cg.slot_counter(NETWORK_COUNT_DEFINE)
+
 
 def request_wifi_scan_results():
     """Request that WiFi scan results be kept in memory after connection.
@@ -1243,6 +1262,23 @@ def request_wifi_power_save_listener() -> None:
     CORE.data[POWER_SAVE_LISTENERS_KEY] = CORE.data.get(POWER_SAVE_LISTENERS_KEY, 0) + 1
 
 
+def request_wifi_network_slots(count: int) -> None:
+    """Request station slots for networks a component adds at run time.
+
+    The station list is sized at build time from the networks in the YAML.
+    Components that call add_sta() with networks of their own must call this
+    function during their code generation, or add_sta() drops those networks.
+    Requests from several components add up. A request made after the station
+    list size was emitted raises.
+    """
+    if count < 1:
+        raise ValueError(
+            f"request_wifi_network_slots() needs a count of at least 1, got {count}"
+        )
+    for _ in range(count):
+        _request_network_slot(_NETWORKS_KEY)
+
+
 @coroutine_with_priority(CoroPriority.FINAL)
 async def final_step():
     """Final code generation step to configure optional WiFi features."""
@@ -1256,6 +1292,13 @@ async def final_step():
         cg.add_define("USE_WIFI_RUNTIME_ROAMING_SUPPRESSION")
     if CORE.data.get(SCAN_RESULTS_LOCK_KEY):
         cg.add_define("USE_WIFI_SCAN_RESULTS_LOCK")
+
+    network_count = cg.get_slot_count(NETWORK_COUNT_DEFINE)
+    if network_count > MAX_WIFI_NETWORKS:
+        raise EsphomeError(
+            f"wifi networks and requested network slots add up to {network_count}, "
+            f"more than the {MAX_WIFI_NETWORKS} allowed"
+        )
 
     # Generate listener defines - each listener type has its own #ifdef
     ip_state_count = CORE.data.get(IP_STATE_LISTENERS_KEY, 0)

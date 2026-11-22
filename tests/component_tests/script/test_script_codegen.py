@@ -133,7 +133,11 @@ def test_parameters_by_value(generate_main) -> None:
     )
     body = _script_body(main_cpp, "with_params")
     assert body.count("[](int x, std::string s) -> void {") == 2
-    assert body.count("[](int x, std::string s) -> int {") == 2
+    # A lambda passed to another script copies only the parameters it names
+    assert (
+        body.count("[](int x, const std::remove_cvref_t<std::string> & s) -> int {")
+        == 2
+    )
     assert "x *= 2;\n    ESP_LOGI(" in body
     assert '"BY_VALUE again %d", x *= 2' in body
     assert "return x *= 2;" in body

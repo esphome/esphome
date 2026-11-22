@@ -600,8 +600,7 @@ void LD2450Component::handle_periodic_data_() {
       direction = DIRECTION_STATIONARY;
     }
     if (this->direction_dedup_[index].next(direction)) {
-      PUBLISH_STATE(this->direction_text_sensors_[index],
-                    DirectionStrings::get_progmem_str(direction, DirectionStrings::LAST_INDEX));
+      PUBLISH_STATE(this->direction_text_sensors_[index], DirectionStrings::get_progmem_str(direction));
     }
 #endif
 
@@ -1015,7 +1014,7 @@ void LD2450Component::update_target_xy_(uint8_t target, bool changed) {
     return;
   const Target &pos = this->target_info_[target];
   if (pos.x == 0 && pos.y == 0) {
-    s->publish_state(DirectionStrings::get_progmem_str(DIRECTION_NA, DirectionStrings::LAST_INDEX));
+    s->publish_state(DirectionStrings::get_progmem_str(DIRECTION_NA));
     return;
   }
   // Longest is "-32767,-32767"
