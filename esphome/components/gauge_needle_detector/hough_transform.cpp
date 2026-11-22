@@ -19,12 +19,12 @@ namespace {
 
 /// Votes edge pixels into a radial histogram, weighted by edge magnitude.
 DetectionResult detect_hough(const uint8_t *filtered, const ScanWindow &window, const DetectorConfig &config,
-                             std::array<int, NUM_ANGLES> &accumulator, int vote_magnitude_min = 40) {
+                             float *scores, int vote_magnitude_min = 40) {
   if (filtered == nullptr || !window.valid())
     return {};
 
-  std::fill(accumulator.begin(), accumulator.end(), 0);
-  int total_votes = 0;
+  std::fill(scores, scores + NUM_ANGLES, 0.0f);
+  float total_votes = 0.0f;
 
   // Only the scan annulus is inspected, so no Sobel work is spent outside it.
   const int min_r_sq = window.start_r * window.start_r;
@@ -59,25 +59,25 @@ DetectionResult detect_hough(const uint8_t *filtered, const ScanWindow &window, 
         theta += 360.0f;
 
       const int vote = std::min(magnitude, 255);
-      accumulator[static_cast<int>(theta) % NUM_ANGLES] += vote;
-      total_votes += vote;
+      scores[static_cast<int>(theta) % NUM_ANGLES] += static_cast<float>(vote);
+      total_votes += static_cast<float>(vote);
     }
   }
 
-  int max_votes = 0;
+  float max_votes = 0.0f;
   int best_angle_idx = 0;
   for (int i = 0; i < NUM_ANGLES; i++) {
-    if (accumulator[i] > max_votes) {
-      max_votes = accumulator[i];
+    if (scores[i] > max_votes) {
+      max_votes = scores[i];
       best_angle_idx = i;
     }
   }
 
   // Support is how much of one ray voted and separation says the votes
   // concentrate; two edges per radius step are budgeted so it cannot saturate.
-  const float support = static_cast<float>(max_votes) / (2.0f * (window.end_r - window.start_r + 1) * 255.0f);
-  const float mean = static_cast<float>(total_votes) / NUM_ANGLES;
-  const float separation = max_votes > 0 ? (max_votes - mean) / max_votes : 0.0f;
+  const float support = max_votes / (2.0f * (window.end_r - window.start_r + 1) * 255.0f);
+  const float mean = total_votes / NUM_ANGLES;
+  const float separation = max_votes > 0.0f ? (max_votes - mean) / max_votes : 0.0f;
   const float confidence = std::clamp(support * separation, 0.0f, 1.0f);
 
   if (config.debug) {
@@ -90,9 +90,8 @@ DetectionResult detect_hough(const uint8_t *filtered, const ScanWindow &window, 
 }  // namespace
 
 DetectionResult HoughTransformDetector::detect(const uint8_t * /*raw*/, const uint8_t *filtered,
-                                               const ScanWindow &window, const DetectorConfig &config,
-                                               float * /*scores*/) {
-  return detect_hough(filtered, window, config, this->accumulator_);
+                                               const ScanWindow &window, const DetectorConfig &config, float *scores) {
+  return detect_hough(filtered, window, config, scores);
 }
 
 #endif  // USE_GAUGE_NEEDLE_HOUGH_TRANSFORM

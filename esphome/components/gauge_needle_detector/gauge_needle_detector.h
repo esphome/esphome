@@ -17,6 +17,12 @@ namespace esphome::gauge_needle_detector {
 inline constexpr float degrees_to_radians(float degrees) { return degrees * std::numbers::pi_v<float> / 180.0f; }
 inline constexpr float radians_to_degrees(float radians) { return radians * 180.0f / std::numbers::pi_v<float>; }
 
+// The preprocessor buffers are only needed by the detectors that filter the crop.
+#if defined(USE_GAUGE_NEEDLE_RADIAL_PROFILE) || defined(USE_GAUGE_NEEDLE_HOUGH_TRANSFORM) || \
+    defined(USE_GAUGE_NEEDLE_TEMPLATE_MATCH)
+#define USE_GAUGE_NEEDLE_PREPROCESSOR
+#endif
+
 /// Whether the needle is darker or brighter than the dial face.
 enum NeedleType : uint8_t {
   NEEDLE_TYPE_DARK = 0,   ///< Needle darker than the dial face.
@@ -138,9 +144,6 @@ class HoughTransformDetector final : public Detector {
   Algorithm algorithm() const override { return ALGORITHM_HOUGH_TRANSFORM; }
   DetectionResult detect(const uint8_t *raw, const uint8_t *filtered, const ScanWindow &window,
                          const DetectorConfig &config, float *scores) override;
-
- protected:
-  std::array<int, 360> accumulator_{};
 };
 #endif  // USE_GAUGE_NEEDLE_HOUGH_TRANSFORM
 
@@ -171,13 +174,19 @@ class NeedleDetector final {
  protected:
   static constexpr size_t MAX_DETECTORS = 4;
 
+#ifdef USE_GAUGE_NEEDLE_PREPROCESSOR
   Preprocessor preprocessor_;
+#endif
   std::array<Detector *, MAX_DETECTORS> detectors_{};
   size_t detector_count_{0};
   /// Shared angle-score workspace; the detectors run one at a time.
   std::array<float, 360> scores_{};
-  /// Set once an empty scan window has been reported, so it is logged once.
-  bool empty_scan_warned_{false};
+  /// Dial that already reported an empty window, so it is logged once. The id
+  /// is a configuration literal, so its address identifies the dial.
+  const char *empty_scan_dial_{nullptr};
+  /// Dial and algorithm that already reported a missing detector.
+  const char *missing_detector_dial_{nullptr};
+  Algorithm missing_detector_algorithm_{ALGORITHM_AUTO};
 
 #ifdef USE_GAUGE_NEEDLE_INTENSITY_SCAN
   IntensityScanDetector intensity_scan_;

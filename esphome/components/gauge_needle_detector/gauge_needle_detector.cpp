@@ -77,8 +77,7 @@ NeedleDetector::NeedleDetector() {
 }
 
 bool NeedleDetector::reserve(int width, int height) {
-#if defined(USE_GAUGE_NEEDLE_RADIAL_PROFILE) || defined(USE_GAUGE_NEEDLE_HOUGH_TRANSFORM) || \
-    defined(USE_GAUGE_NEEDLE_TEMPLATE_MATCH)
+#ifdef USE_GAUGE_NEEDLE_PREPROCESSOR
   return this->preprocessor_.reserve(width, height);
 #else
   // A legacy-only build never touches the filtered image.
@@ -103,17 +102,20 @@ DetectionResult NeedleDetector::detect(const uint8_t *img, int width, int height
     const int deadzone_r = static_cast<int>(std::max(0.0f, config.deadzone_diameter * 0.5f));
     window.start_r = std::max({1, static_cast<int>(radius * config.min_scan_radius), deadzone_r});
     window.end_r = static_cast<int>(radius * config.max_scan_radius);
-    // The window never changes for a given config, so report it once.
+    // The window never changes for a given config, so report it once per dial.
     if (!window.valid()) {
-      if (!this->empty_scan_warned_) {
+      if (this->empty_scan_dial_ != config.id) {
         ESP_LOGW(TAG, "%s: empty scan window (deadzone %d px, scan radius %d px); no needle can be found", config.id,
                  deadzone_r, window.end_r);
-        this->empty_scan_warned_ = true;
+        this->empty_scan_dial_ = config.id;
       }
       return {};
     }
   }
 
+  const uint8_t *filtered = nullptr;
+  bool preprocessing_failed = false;
+#ifdef USE_GAUGE_NEEDLE_PREPROCESSOR
   bool needs_filtered = false;
   for (size_t i = 0; i < this->detector_count_; i++) {
     if (this->detectors_[i]->needs_filtered_image() &&
@@ -122,9 +124,6 @@ DetectionResult NeedleDetector::detect(const uint8_t *img, int width, int height
       break;
     }
   }
-
-  const uint8_t *filtered = nullptr;
-  bool preprocessing_failed = false;
   if (needs_filtered) {
     // prepare() logs its own reason when the crop does not fit.
     if (this->preprocessor_.prepare(img, width, height, radius, config.needle_type, config.debug)) {
@@ -133,6 +132,7 @@ DetectionResult NeedleDetector::detect(const uint8_t *img, int width, int height
       preprocessing_failed = true;
     }
   }
+#endif
 
   DetectionResult output;
   Algorithm output_algorithm = config.algorithm;
@@ -166,10 +166,15 @@ DetectionResult NeedleDetector::detect(const uint8_t *img, int width, int height
   }
 
   if (!have_output) {
+    // The build cannot change at runtime, so report each dial and algorithm once.
+    const bool reported =
+        this->missing_detector_dial_ == config.id && this->missing_detector_algorithm_ == config.algorithm;
     // Preprocessing already reported its own failure; do not blame a missing detector.
-    if (!preprocessing_failed || !target_compiled) {
+    if ((!preprocessing_failed || !target_compiled) && !reported) {
       ESP_LOGE(TAG, "%s: no compiled-in detector for algorithm %s", config.id,
                LOG_STR_ARG(algorithm_name(config.algorithm)));
+      this->missing_detector_dial_ = config.id;
+      this->missing_detector_algorithm_ = config.algorithm;
     }
     return {};
   }
