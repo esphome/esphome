@@ -15,7 +15,7 @@ CONF_CONFIDENCE = "confidence"
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_SSOCR_READER_ID): cv.use_id(SSOCRReader),
-        cv.Optional(CONF_VALUE): sensor.sensor_schema(),
+        cv.Optional(CONF_VALUE): sensor.sensor_schema(accuracy_decimals=0),
         cv.Optional(CONF_CONFIDENCE): sensor.sensor_schema(
             unit_of_measurement=UNIT_PERCENT, accuracy_decimals=1, icon="mdi:percent"
         ),
