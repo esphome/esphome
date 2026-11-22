@@ -1,11 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
 import esphome.config_validation as cv
-from esphome.const import (
-    ICON_ARROW_EXPAND_VERTICAL,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_METER,
-)
+from esphome.const import ICON_ARROW_EXPAND_VERTICAL
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@wstrzalka"]
@@ -19,10 +15,9 @@ TOF10120Sensor = tof10120_ns.class_(
 CONFIG_SCHEMA = (
     sensor.sensor_schema(
         TOF10120Sensor,
-        unit_of_measurement=UNIT_METER,
+        kind=sensor.LENGTH_M,
         icon=ICON_ARROW_EXPAND_VERTICAL,
         accuracy_decimals=3,
-        state_class=STATE_CLASS_MEASUREMENT,
     )
     .extend(cv.polling_component_schema("60s"))
     .extend(i2c.i2c_device_schema(0x52))

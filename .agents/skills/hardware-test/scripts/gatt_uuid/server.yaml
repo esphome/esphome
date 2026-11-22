@@ -1,0 +1,27 @@
+# GATT server (ESP32-S3) for the UUID form check: the ble_notify server (16 bit and 32-bit base UUIDs, notify) plus a
+# 128 bit service whose characteristics and descriptors use 128 bit, 32-bit base (zero and nonzero low half) and
+# 16 bit UUIDs, with a 2901 user description. Set the name with -s name.
+packages:
+  notify: !include ../ble_notify/server.yaml
+esp32_ble_server:
+  services:
+    - uuid: 0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0
+      characteristics:
+        - uuid: 0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f1
+          read: true
+          value: "c128"
+          description: "text value"
+          descriptors:
+            - uuid: 5ec1ab01-0000-1000-8000-00805f9b34fb
+              value: "d32"
+            - uuid: 7d3e0a51-9c1b-4f2e-8a6d-1c2b3a4d5e6f
+              value: "d128"
+        - uuid: 5ec20000-0000-1000-8000-00805f9b34fb
+          read: true
+          value: "c32zero"
+        - uuid: 5ec2abcd-0000-1000-8000-00805f9b34fb
+          read: true
+          value: "c32"
+        - uuid: 2a19
+          read: true
+          value: [77]

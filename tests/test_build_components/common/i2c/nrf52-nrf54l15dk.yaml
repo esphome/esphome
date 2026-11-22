@@ -1,0 +1,11 @@
+# Common I2C configuration for nRF54L15 DK tests: TWIM21 serves port 1 only
+
+substitutions:
+  scl_pin: P1.11
+  sda_pin: P1.12
+
+i2c:
+  - id: i2c_bus
+    scl: ${scl_pin}
+    sda: ${sda_pin}
+    scan: true

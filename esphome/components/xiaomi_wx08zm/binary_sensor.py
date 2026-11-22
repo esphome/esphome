@@ -5,11 +5,8 @@ from esphome.const import (
     CONF_BATTERY_LEVEL,
     CONF_MAC_ADDRESS,
     CONF_TABLET,
-    DEVICE_CLASS_BATTERY,
     ENTITY_CATEGORY_DIAGNOSTIC,
     ICON_BUG,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_PERCENT,
 )
 from esphome.types import ConfigType
 
@@ -20,7 +17,6 @@ XiaomiWX08ZM = xiaomi_wx08zm_ns.class_(
     "XiaomiWX08ZM",
     binary_sensor.BinarySensor,
     xiaomi_ble.XiaomiDevice,
-    cg.Component,
 )
 
 CONFIG_SCHEMA = cv.All(
@@ -30,28 +26,19 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
             cv.Optional(CONF_TABLET): sensor.sensor_schema(
-                unit_of_measurement=UNIT_PERCENT,
-                icon=ICON_BUG,
-                accuracy_decimals=0,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.PERCENT, icon=ICON_BUG
             ),
             cv.Optional(CONF_BATTERY_LEVEL): sensor.sensor_schema(
-                unit_of_measurement=UNIT_PERCENT,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_BATTERY,
-                state_class=STATE_CLASS_MEASUREMENT,
-                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+                kind=sensor.BATTERY, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
             ),
         }
     )
-    .extend(cv.COMPONENT_SCHEMA)
     .extend(ble_device_base.BLE_DEVICE_SCHEMA),
 )
 
 
 async def to_code(config: ConfigType) -> None:
     var = await binary_sensor.new_binary_sensor(config)
-    await cg.register_component(var, config)
     await ble_device_base.register_ble_device(var, config)
 
     xiaomi_ble.setup_xiaomi_device(var, config)

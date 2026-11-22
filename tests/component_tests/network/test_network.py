@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 from voluptuous import Invalid
 
+from esphome.components.esp32.const import KEY_ESP32, KEY_SDKCONFIG_OPTIONS
 from esphome.components.network import (
     CONF_ENABLE_IPV4,
     _final_validate,
@@ -57,9 +58,13 @@ def test_require_ipv6_and_request_ipv4_off_record_state() -> None:
         ("ipv6_off_nothing_required.yaml", "true", "false"),
         ("ipv4_and_ipv6_both_required.yaml", "true", "true"),
         ("openthread_with_wake_on_lan.yaml", "true", "true"),
+        ("openthread_border_router_wifi.yaml", "true", "true"),
+        ("openthread_with_ethernet.yaml", "true", "true"),
         ("esp32_arduino_ipv6_no_ipv4_requirement.yaml", "true", "true"),
         ("host_ipv6_no_ipv4_requirement.yaml", "true", "true"),
         ("nrf52_network_no_openthread.yaml", "false", "true"),
+        ("wifi_ipv6_only.yaml", "false", "true"),
+        ("ethernet_ipv6_only.yaml", "false", "true"),
     ],
 )
 def test_ip_family_defines(
@@ -78,7 +83,10 @@ def test_ip_family_defines(
 @pytest.mark.parametrize(
     "config_file",
     [
-        "wifi_ipv4_disabled_rejected.yaml",
+        "wifi_manual_ip_ipv4_disabled_rejected.yaml",
+        "wifi_ap_ipv4_disabled_rejected.yaml",
+        "wifi_lease_cache_ipv4_disabled_rejected.yaml",
+        "ethernet_manual_ip_ipv4_disabled_rejected.yaml",
         "wake_on_lan_ipv4_disabled_rejected.yaml",
         "udp_ipv4_disabled_rejected.yaml",
         "tcp_uart_ipv4_disabled_rejected.yaml",
@@ -102,14 +110,18 @@ def test_require_ipv4_registration_rejects_explicit_disable(
     [
         ("tcp_uart_ipv4_disabled_rejected.yaml", "tcp_uart"),
         ("uart_tcp_ipv4_disabled_rejected.yaml", "uart_tcp"),
+        ("wifi_manual_ip_ipv4_disabled_rejected.yaml", "wifi: manual_ip"),
+        ("wifi_ap_ipv4_disabled_rejected.yaml", "wifi: ap"),
+        ("wifi_lease_cache_ipv4_disabled_rejected.yaml", "wifi: lease_cache"),
+        ("ethernet_manual_ip_ipv4_disabled_rejected.yaml", "ethernet: manual_ip"),
     ],
 )
-def test_tcp_link_users_named_in_ipv4_error(
+def test_ipv4_error_names_the_requirer(
     component_config_path: Callable[[str], Path],
     config_file: str,
     component: str,
 ) -> None:
-    """The IPv4 requirement registered by the socket helper names the component."""
+    """The IPv4 error names the component or option that needs it."""
     CORE.config_path = component_config_path(config_file)
     res = load_config({})
     assert any(f"IPv4 is required by {component}" in str(err) for err in res.errors)
@@ -191,6 +203,31 @@ def test_no_ip_defines_without_network_component(
     generate_main(component_config_path(config_file))
     assert _define_value("USE_NETWORK_IPV4") is None
     assert _define_value("USE_NETWORK_IPV6") is None
+
+
+@pytest.mark.parametrize(
+    ("config_file", "min_count", "ipv6_dns"),
+    [
+        ("wifi_ipv6_only.yaml", "1", True),
+        ("ethernet_ipv6_only.yaml", "1", True),
+        ("wifi_ipv6_only_min_2.yaml", "2", True),
+        ("ipv6_only.yaml", "0", False),
+        ("openthread_no_explicit_network.yaml", "1", False),
+    ],
+)
+def test_ipv6_minimum_and_dns_options(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+    config_file: str,
+    min_count: str,
+    ipv6_dns: bool,
+) -> None:
+    """Without IPv4 a link needs an IPv6 address; IPv6 DNS options are only for IPv6-only Wi-Fi and Ethernet."""
+    generate_main(component_config_path(config_file))
+    assert _define_value("USE_NETWORK_MIN_IPV6_ADDR_COUNT") == min_count
+    options = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert ("CONFIG_LWIP_IPV6_DHCP6" in options) is ipv6_dns
+    assert ("CONFIG_LWIP_IPV6_RDNSS_MAX_DNS_SERVERS" in options) is ipv6_dns
 
 
 @pytest.mark.parametrize(

@@ -49,9 +49,6 @@ static constexpr uint16_t SAMPLE_RATE = 16000;
 PROGMEM_STRING_TABLE(RtttlStateStrings, "State::STOPPED", "State::INIT", "State::STARTING", "State::RUNNING",
                      "State::STOPPING", "UNKNOWN");
 
-static const LogString *state_to_string(State state) {
-  return RtttlStateStrings::get_log_str(static_cast<uint8_t>(state), RtttlStateStrings::LAST_INDEX);
-}
 #endif  // ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
 
 static uint8_t note_index_from_char(char note) {
@@ -504,8 +501,8 @@ void Rtttl::finish_() {
 void Rtttl::set_state_(State state) {
   State old_state = this->state_;
   this->state_ = state;
-  ESP_LOGV(TAG, "State changed from %s to %s", LOG_STR_ARG(state_to_string(old_state)),
-           LOG_STR_ARG(state_to_string(state)));
+  ESP_LOGV(TAG, "State changed from %s to %s", LOG_STR_ARG(RtttlStateStrings::get_log_str(old_state)),
+           LOG_STR_ARG(RtttlStateStrings::get_log_str(state)));
 
   // Clear loop_done when transitioning from `State::STOPPED` to any other state
   if (state == State::STOPPED) {
