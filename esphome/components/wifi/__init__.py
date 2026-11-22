@@ -15,6 +15,7 @@ from esphome.components.esp32 import (
     require_idf_version,
     require_mbedtls_tls,
     require_mbedtls_tls_extras,
+    set_idf_sdkconfig_default,
 )
 from esphome.components.network import (
     add_use_address,
@@ -86,32 +87,12 @@ _LOGGER = logging.getLogger(__name__)
 AUTO_LOAD = ["network"]
 DOMAIN = "wifi"
 
-NO_WIFI_VARIANTS = [
-    const.VARIANT_ESP32H2,
-    const.VARIANT_ESP32H4,
-    const.VARIANT_ESP32H21,
-    const.VARIANT_ESP32P4,
-]
+NO_WIFI_VARIANTS = const.NO_WIFI_VARIANTS
 
 
-def variant_has_wifi(variant: str) -> bool:
-    """Return True if *variant* has a native WiFi PHY.
-
-    Variants without a native PHY (see ``NO_WIFI_VARIANTS`` — currently
-    ESP32-H2, ESP32-H4, ESP32-H21, ESP32-P4) need the ``esp32_hosted``
-    co-processor to use ``wifi:``.
-
-    Case-insensitive on *variant* so external callers can pass either
-    the upstream uppercase form (e.g. ``"ESP32H2"`` from
-    ``const.VARIANT_ESP32H2``) or a lowercase form their own enum
-    surfaces (e.g. ``"esp32h2"`` from device-builder's
-    ``Esp32Variant``). Both classify identically.
-
-    Used by device-builder (esphome/device-builder) to decide whether
-    its basic-setup wizard emits a ``wifi:`` block — please keep the
-    signature stable.
-    """
-    return variant.upper() not in NO_WIFI_VARIANTS
+# Defined in esp32.const so esp32 can use it without importing wifi; kept here
+# for device-builder, which imports it from wifi.
+variant_has_wifi = const.variant_has_wifi
 
 
 _WIFI_FIRST_PLATFORMS: frozenset[str] = frozenset(
@@ -162,6 +143,7 @@ CONF_SAVE = "save"
 CONF_BAND_MODE = "band_mode"
 CONF_DEVICE_INFO = "device_info"
 CONF_DPP = "dpp"
+CONF_ENABLE_SAE_PK = "enable_sae_pk"
 CONF_MIN_AUTH_MODE = "min_auth_mode"
 CONF_ON_AP_START = "on_ap_start"
 CONF_ON_AP_STOP = "on_ap_stop"
@@ -298,11 +280,14 @@ AP_MANUAL_IP_SCHEMA = cv.Schema(
     }
 )
 
-STA_MANUAL_IP_SCHEMA = AP_MANUAL_IP_SCHEMA.extend(
-    {
-        cv.Optional(CONF_DNS1, default="0.0.0.0"): cv.ipv4address,
-        cv.Optional(CONF_DNS2, default="0.0.0.0"): cv.ipv4address,
-    }
+STA_MANUAL_IP_SCHEMA = cv.All(
+    AP_MANUAL_IP_SCHEMA.extend(
+        {
+            cv.Optional(CONF_DNS1, default="0.0.0.0"): cv.ipv4address,
+            cv.Optional(CONF_DNS2, default="0.0.0.0"): cv.ipv4address,
+        }
+    ),
+    require_ipv4(DOMAIN, CONF_MANUAL_IP),
 )
 
 TTLS_PHASE_2 = {
@@ -388,6 +373,7 @@ def wifi_network_ap(value):
     if value is None:
         value = {}
     config = WIFI_NETWORK_AP(value)
+    require_ipv4(DOMAIN, CONF_AP)(config)
     ap_mode = config[CONF_AP_MODE]
     if ap_mode == WIFI_AP_MODE_WISP and not config.get(CONF_PASSWORD):
         raise cv.Invalid(
@@ -688,6 +674,7 @@ def _lease_cache_schema(value: Any) -> ConfigType:
     value = LEASE_CACHE_SCHEMA(value)
     if value[CONF_ENABLED]:
         cv.only_on_esp32(value)
+        require_ipv4(DOMAIN, CONF_LEASE_CACHE)(value)
         if CONF_STORAGE not in value:
             if not preferences.rtc_supported():
                 raise cv.Invalid(
@@ -745,6 +732,10 @@ CONFIG_SCHEMA = cv.All(
             cv.SplitDefault(CONF_ENABLE_RRM, esp32=False): cv.All(
                 cv.boolean, cv.only_on_esp32
             ),
+            # Verifies WPA3 SAE-PK access points; they also accept plain SAE. About 6 KB.
+            cv.SplitDefault(CONF_ENABLE_SAE_PK, esp32=False): cv.All(
+                cv.boolean, cv.only_on_esp32
+            ),
             cv.Optional(CONF_BAND_MODE): cv.All(
                 cv.enum(WIFI_BAND_MODES, upper=True),
                 cv.only_on_esp32,
@@ -780,8 +771,12 @@ CONFIG_SCHEMA = cv.All(
     _apply_min_auth_mode_default,
     _validate,
     _report_provisioning_credentials,
-    require_ipv4(DOMAIN),
 )
+
+
+def _eap_string(value: str | None) -> cg.Expression | str:
+    """A std::string field whose literal stays in flash on ESP8266."""
+    return cg.progmem_string(value) if value else ""
 
 
 def eap_auth(config):
@@ -798,9 +793,9 @@ def eap_auth(config):
         key = wpa2_eap.read_relative_config_path(config[CONF_KEY])
     return cg.StructInitializer(
         EAPAuth,
-        ("identity", config.get(CONF_IDENTITY, "")),
-        ("username", config.get(CONF_USERNAME, "")),
-        ("password", config.get(CONF_PASSWORD, "")),
+        ("identity", _eap_string(config.get(CONF_IDENTITY))),
+        ("username", _eap_string(config.get(CONF_USERNAME))),
+        ("password", _eap_string(config.get(CONF_PASSWORD))),
         ("ca_cert", ca_cert),
         ("client_cert", client_cert),
         ("client_key", key),
@@ -822,8 +817,11 @@ def manual_ip_entry(config: ConfigType) -> bytes:
 
 
 def wifi_network(config, ap, manual_ip_index: int | None):
-    cg.add_optional(ap.set_ssid, config.get(CONF_SSID))
-    cg.add_optional(ap.set_password, config.get(CONF_PASSWORD))
+    # The setters copy the text, so the literal can stay in flash on ESP8266.
+    if (ssid := config.get(CONF_SSID)) is not None:
+        cg.add(ap.set_ssid(cg.FlashStringLiteral(ssid)))
+    if (password := config.get(CONF_PASSWORD)) is not None:
+        cg.add(ap.set_password(cg.FlashStringLiteral(password)))
     if CONF_EAP in config:
         cg.add(ap.set_eap(eap_auth(config[CONF_EAP])))
         cg.add_define("USE_WIFI_WPA2_EAP")
@@ -1033,6 +1031,9 @@ async def to_code(config):
             cg.add(var.set_btm(config[CONF_ENABLE_BTM]))
         if config[CONF_ENABLE_RRM]:
             cg.add(var.set_rrm(config[CONF_ENABLE_RRM]))
+        set_idf_sdkconfig_default(
+            "CONFIG_ESP_WIFI_ENABLE_SAE_PK", config[CONF_ENABLE_SAE_PK]
+        )
         cg.add_optional(var.set_band_mode, config.get(CONF_BAND_MODE))
 
     if config.get(CONF_USE_PSRAM):
