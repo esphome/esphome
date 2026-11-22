@@ -39,6 +39,14 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
   `rijndaelEncrypt`. Do not `--defsym` it over the libcrypto copy; a wrapper in the SDK signature (returns -1 unless
   128 bits, calls the ROM, returns 10) passed the FIPS vectors and a WPA2 soft AP join.
 
+- Adafruit Feather HUZZAH (`board: huzzah`, CP2104) and NodeMCU (`board: nodemcuv2`, CP2102, some with USB-C):
+  `ports.py` labels every Silicon Labs bridge as a classic ESP32 devkit, so confirm the chip with
+  `serial_capture.py PORT 5 OUT --reset --baud 74880` (ESP8266 ROM banner `ets Jan  8 2013,rst cause:2`) instead of
+  trusting the guess. A NodeMCU can ship with AT firmware. On the HUZZAH the RTS reset of `serial_capture.py --reset`
+  reaches the chip, `esptool --baud 460800 write-flash 0x0 firmware.bin` works and the log at 115200 is clean.
+- ESP8266 Wi-Fi join time: about 7.8 s with a passphrase, about 0.65 s with a 64 hex PSK and `fast_connect: true`.
+  Use the PSK form when a test depends on early boot timing.
+
 ## ESP32 classic devkit
 
 - Takes ESP-IDF and Arduino. Default Wi-Fi light sleep delays API driven actions by up to 6 s; judge
@@ -218,6 +226,12 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
 - A BW15 kit whose CH340 drops off the bus at "Initializing WIFI" on every boot (a boot loop on any image) is short of
   USB power: use another hub port or a powered hub. Read the results over API logs between resets meanwhile.
 
+- UART pins: every module pad is on the kit headers (silkscreen IOn is PAn). UART1 has two pairs, RX PA00 or PA02
+  and TX PA01 or PA03; UART0 is PA14/PA13 and UART2 (log) PA16/PA15. A UART RX on PA00 hangs the chip inside UART
+  setup (watchdog reset after 10 s) while a capture holds DTR released, because the kit's CH340 then keeps PA00 low
+  (a break). Asserting DTR after boot lets setup finish: `serial_capture.py PORT SECONDS OUT --released --reset
+  --dtr-after DELAY` resets with DTR released and asserts it DELAY seconds later. Use PA02 for UART1 RX.
+
 ## BK7238, WB3S, CB3S (BK7231N) (LibreTiny bk72xx, CH340, RTS on CEN)
 
 - Stock ltchiptool closes and reopens the port after its reset, and pyserial raises both lines on open,
@@ -229,6 +243,11 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
   what pyserial does with DTR and RTS; `serial_capture.py --reset` pulses RTS on CEN and always does, and
   `lt_get_reboot_reason()` reports that as Power-On. Check for the banner at the start of a capture before
   assuming either.
+- UART pins (xh-wb3s): UART1 TX P11 / RX P10 (on the flashing adapter), UART2 TX P0 / RX P1 (the default log port).
+  Beken has no SoftwareSerial (only realtek-ambz sets `LT_ARD_HAS_SOFTSERIAL`), so a `uart:` on other pins fails at
+  boot. P6/P7 are free for "not a UART pin" tests.
+- Restored globals survive a reflash under a different `name:` (the same global id gives the same preference key):
+  give each build's restart or marker flag its own id.
 - `flash_bk72xx.py` misses the link now and then (`Timed out attempting to link with chip`); retry up to 3
   times before suspecting the board.
 - Both flash wrappers pass ltchiptool `-L` with the newest installed LibreTiny platform (`scripts/lt_platform.py`):
@@ -484,6 +503,11 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
 - Native USB JTAG serial (`303a:1001`), 16 MB flash, 1.14" ST7789 LCD and TF card; the vendor docs give no GPIO
   numbers. Pins that read a fixed level against the internal pulls: 1, 2, 7, 20, 23 high, 6 low. Free for pad
   tests: 0, 3, 4, 5, 18, 19, 21, 22 (see `recipes/gpio_hold.md`).
+- LCD pins (Waveshare demo repo `lcd_st7789.h`, same on V1 and V2): SPI clock GPIO1, data GPIO2, CS GPIO5, DC GPIO3,
+  reset GPIO4, backlight GPIO6 (active high). TF card: MISO 20, CS 23, MOSI 18 and SCK 19 on V1 (V2 shares 1/2 with
+  the LCD). ESPHome: `mipi_spi`, `model: ST7789V`, `dimensions: {width: 135, height: 240, offset_width: 52,
+  offset_height: 40}`, `invert_colors: true`; init and draws log cleanly with that map. The data line is write only:
+  a bit-banged RDDID (0x04) read on GPIO2 returns all ones.
 
 ## Waveshare ESP32-P4-Module-DEV-KIT (USB host)
 
@@ -573,6 +597,10 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
 - ADS1015: `sample_rate: 8` maps to 128 SPS at `12_BITS`.
 - A bus held low (`Performing bus recovery`, no devices found) on a new breakout can be a bad header joint; reflow
   it before blaming the driver.
+- MLX90393 (0x0C): a burst mode (SB, 0x1E) left running across a restart makes a driver that does not send EX
+  before RT fail setup on every boot (`failed to apply ...`), even after a serial reflash, until a build sends EX
+  first. At rest with DIV_8 and gain 1X, Z reads tens of uT. The Z near -27,500 uT reading of #22747 showed up once
+  in about 250 boots right after a burst mode build and did not come back in replays or 100 resets.
 
 ## Harness tricks and old releases
 
@@ -585,5 +613,8 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
   build the same target" (the /tmp to /private/tmp alias); put the yaml, build and PLATFORMIO_CORE_DIR elsewhere. Its
   IDF penv under Python 3.14 lacks the tools: install `-r packages/framework-espidf/tools/requirements/requirements.core.txt`,
   then pin `idf-component-manager~=2.1.0 esp-idf-kconfig~=2.5.0` (newer ones reject interface_version 3).
+- `ESP.restart()` from a lambda counts toward safe mode: after 10 boots in a row that each end before
+  `boot_is_good_after` (60 s by default) the device boots into safe mode (OTA only, no API), however long the gaps.
+  Use `App.safe_reboot()` in reset loops, or `safe_mode: disabled: true`.
 - pioarduino 61.x (ESP-IDF 6.1, Arduino 4.0) needs PlatformIO 6.2.0; with an older PlatformIO in the shared venv,
   install 6.2.0 with `pip install --target <dir>` and put that directory on PYTHONPATH for the build.

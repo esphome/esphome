@@ -75,6 +75,12 @@ xiaomi_ble/expected_all.json
 xiaomi_ble/run_*.yaml
 ble_scan_complete/*.txt
 ble_scan_complete/*.err
+esp8266_edges/*-cap.txt
+esp8266_edges/*.log
+log_str_tables/*.norm
+log_str_tables/*-cap.txt
+log_str_tables/*.log
+log_str_tables/l[0-9][pbq]*.yaml
 i2c_wire_ab/mux/*-ser*.txt*
 i2c_wire_ab/mux/*.log
 i2c_recovery/*.log

@@ -98,6 +98,9 @@ One file per component, named after it:
 - [`serial_proxy.md`](serial_proxy.md): simulated serial device on a cross-wired UART, byte-exact client with read pauses, ASH tap ACK timing
 - [`network_dns.md`](network_dns.md): network.priority Ethernet plus Wi-Fi losing lwIP DNS servers (#19805)
 - [`tuya.md`](tuya.md): Tuya MCU simulator on a cross-wired second UART (handshake, every datapoint type, command frames logged), hub vs entity order, dump A/B
+- [`log_str_tables.md`](log_str_tables.md): name tables in PROGMEM checked byte for byte against the merge base with fake I2C and UART devices and a fake voice pipeline
+- [`jsn_sr04t.md`](jsn_sr04t.md): SR04M-2 / AJ-SR04M modes by R19 value on an ESP8266, edge capture and 8N1 decode, frame counters
+- [`vl53l1x.md`](vl53l1x.md): modules whose own microcontroller masters the I2C bus, bus sniffer, SDA unstick, register readback
 - [`i2c_bus_recovery.md`](i2c_bus_recovery.md): bus recovery against a VL53L1X or Qwiic PIR wedged on purpose at every bit of a write and a read, RP2040 recovery probe
 - [`scd30.md`](scd30.md): SCD30 clock stretch timing, bus timeouts and a stuck SDA freed at boot
 - [`vl6180x.md`](vl6180x.md): VL6180X probe, config variants, XSHUT reset and injected range, overflow and read failures

@@ -25,8 +25,13 @@ inline bool ld_frame(const uint8_t *f, size_t len) {
     rejected++;
     return false;
   }
-  if (f[0] == 0xF4 && len >= 23 && f[7] == 0xAA && f[len - 6] == 0x55 && f[len - 5] == 0x00)
+  if (f[0] == 0xF4) {
+    if (len < 23 || f[7] != 0xAA || f[len - 6] != 0x55 || f[len - 5] != 0x00) {
+      rejected++;
+      return false;
+    }
     lfh::record(f[9] | (f[10] << 8));
+  }
   return true;
 }
 inline bool tu_frame(const uint8_t *f, size_t len) {
