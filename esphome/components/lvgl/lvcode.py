@@ -203,20 +203,15 @@ async def context_action(
     action_id: ID,
     template_arg: cg.TemplateArguments,
     args: list[tuple[SafeExpType, str]],
-    lvgl_id: ID | None = None,
 ) -> MockObj:
-    """An ``ApplyAction`` that runs the lambda of ``context``.
+    """An ``ApplyAction`` that runs the code of ``context``, whose parameters are ``args``.
 
-    ``lvgl_id`` names the component passed to a context whose parameters are ``LVGL_COMP_ARG``.
+    The code is a lambda that captures the args by reference, so a ``return`` stays local.
     """
-    lamb = await context.get_lambda()
-    if lvgl_id is None:
-        call = automation.immediate_lambda_call(lamb)
-    else:
-        lv_component = await cg.get_variable(lvgl_id)
-        call = CallExpression(lamb, automation.parent_ref(lv_component))
+    code = Lambda("\n".join(context.get_code()) + "\n")
+    lamb = await cg.process_lambda(code, [], capture="&")
     return automation.apply_statements_action(
-        action_id, template_arg, args, [f"{call};"]
+        action_id, template_arg, args, [f"{CallExpression(lamb)};"]
     )
 
 

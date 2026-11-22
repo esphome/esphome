@@ -15,12 +15,10 @@ from ..defines import (
 from ..lv_validation import lv_bool, lv_milliseconds
 from ..lvcode import (
     EVENT_ARG,
-    LVGL_COMP_ARG,
     LambdaContext,
     add_line_marks,
     context_action,
     lv_add,
-    lvgl_comp,
     lvgl_static,
 )
 from ..schemas import LVGL_SCHEMA
@@ -80,12 +78,14 @@ page_spec = PageType()
 async def page_next_to_code(config, action_id, template_arg, args):
     animation = await LV_ANIM.process(config[CONF_ANIMATION])
     time = await lv_milliseconds.process(config[CONF_TIME])
-    async with LambdaContext(LVGL_COMP_ARG) as context:
+    async with LambdaContext(args) as context:
         add_line_marks(action_id)
-        lv_add(lvgl_comp.show_next_page(animation, time))
-    return await context_action(
-        context, action_id, template_arg, args, config[CONF_LVGL_ID]
-    )
+        lv_add(
+            automation.parent_ref(
+                await cg.get_variable(config[CONF_LVGL_ID])
+            ).show_next_page(animation, time)
+        )
+    return await context_action(context, action_id, template_arg, args)
 
 
 automation.register_apply_condition(
@@ -107,12 +107,14 @@ automation.register_apply_condition(
 async def page_previous_to_code(config, action_id, template_arg, args):
     animation = await LV_ANIM.process(config[CONF_ANIMATION])
     time = await lv_milliseconds.process(config[CONF_TIME])
-    async with LambdaContext(LVGL_COMP_ARG) as context:
+    async with LambdaContext(args) as context:
         add_line_marks(action_id)
-        lv_add(lvgl_comp.show_prev_page(animation, time))
-    return await context_action(
-        context, action_id, template_arg, args, config[CONF_LVGL_ID]
-    )
+        lv_add(
+            automation.parent_ref(
+                await cg.get_variable(config[CONF_LVGL_ID])
+            ).show_prev_page(animation, time)
+        )
+    return await context_action(context, action_id, template_arg, args)
 
 
 @automation.register_action(
@@ -132,12 +134,14 @@ async def page_show_to_code(config, action_id, template_arg, args):
     widget = await cg.get_variable(config[CONF_ID])
     animation = await LV_ANIM.process(config[CONF_ANIMATION])
     time = await lv_milliseconds.process(config[CONF_TIME])
-    async with LambdaContext(LVGL_COMP_ARG) as context:
+    async with LambdaContext(args) as context:
         add_line_marks(action_id)
-        lv_add(lvgl_comp.show_page(widget.index, animation, time))
-    return await context_action(
-        context, action_id, template_arg, args, config[CONF_LVGL_ID]
-    )
+        lv_add(
+            automation.parent_ref(
+                await cg.get_variable(config[CONF_LVGL_ID])
+            ).show_page(widget.index, animation, time)
+        )
+    return await context_action(context, action_id, template_arg, args)
 
 
 async def add_pages(lv_component, config):

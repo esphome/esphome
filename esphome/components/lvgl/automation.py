@@ -40,7 +40,6 @@ from .defines import (
 from .layout import layout_validator
 from .lv_validation import lv_bool, lv_milliseconds, lv_rotation
 from .lvcode import (
-    LVGL_COMP_ARG,
     UPDATE_EVENT,
     LambdaContext,
     LocalVariable,
@@ -51,7 +50,6 @@ from .lvcode import (
     lv_add,
     lv_expr,
     lv_obj,
-    lvgl_comp,
 )
 from .schemas import (
     ALL_STYLES,
@@ -178,7 +176,7 @@ def _validate_rotation(value):
     synchronous=True,
 )
 async def lvgl_set_rotation(config, action_id, template_arg, args):
-    lv_comp = await cg.get_variable(config[CONF_LVGL_ID])
+    lv_comp = automation.parent_ref(await cg.get_variable(config[CONF_LVGL_ID]))
     async with LambdaContext(args, where=action_id) as context:
         rotation = await lv_rotation.process(config[CONF_ROTATION])
         lv_add(lv_comp.set_rotation(rotation))
@@ -201,7 +199,7 @@ async def lvgl_set_rotation(config, action_id, template_arg, args):
 )
 async def obj_invalidate_to_code(config, action_id, template_arg, args):
     if CONF_LVGL_ID in config:
-        lv_comp = await cg.get_variable(config[CONF_LVGL_ID])
+        lv_comp = automation.parent_ref(await cg.get_variable(config[CONF_LVGL_ID]))
         widgets = [get_screen_active(lv_comp)]
     else:
         widgets = await get_widgets(config)
@@ -242,16 +240,14 @@ def _layer_update_schema() -> cv.Schema:
 async def lvgl_update_to_code(config, action_id, template_arg, args):
     widgets = await get_widgets(config, CONF_LVGL_ID)
     w = widgets[0]
-    async with LambdaContext(LVGL_COMP_ARG, where=action_id) as context:
+    async with LambdaContext(args, where=action_id) as context:
         # Apply the top-level properties (styles and layout) to the active screen...
         await set_obj_properties(get_screen_active(w.var), config)
         # ...the deprecated flat `disp_*` background properties...
         await lvgl_update(w.var, config)
         # ...and the `top_layer`/`bottom_layer` keys (styling and layout updates).
         await layers_to_code(w.var, config)
-    return await context_action(
-        context, action_id, template_arg, args, config[CONF_LVGL_ID]
-    )
+    return await context_action(context, action_id, template_arg, args)
 
 
 @automation.register_action(
@@ -265,12 +261,14 @@ async def lvgl_update_to_code(config, action_id, template_arg, args):
     synchronous=True,
 )
 async def pause_action_to_code(config, action_id, template_arg, args):
-    async with LambdaContext(LVGL_COMP_ARG) as context:
+    async with LambdaContext(args) as context:
         add_line_marks(where=action_id)
-        lv_add(lvgl_comp.set_paused(True, config[CONF_SHOW_SNOW]))
-    return await context_action(
-        context, action_id, template_arg, args, config[CONF_LVGL_ID]
-    )
+        lv_add(
+            automation.parent_ref(
+                await cg.get_variable(config[CONF_LVGL_ID])
+            ).set_paused(True, config[CONF_SHOW_SNOW])
+        )
+    return await context_action(context, action_id, template_arg, args)
 
 
 @automation.register_action(
@@ -280,11 +278,13 @@ async def pause_action_to_code(config, action_id, template_arg, args):
     synchronous=True,
 )
 async def resume_action_to_code(config, action_id, template_arg, args):
-    async with LambdaContext(LVGL_COMP_ARG, where=action_id) as context:
-        lv_add(lvgl_comp.set_paused(False, False))
-    return await context_action(
-        context, action_id, template_arg, args, config[CONF_LVGL_ID]
-    )
+    async with LambdaContext(args, where=action_id) as context:
+        lv_add(
+            automation.parent_ref(
+                await cg.get_variable(config[CONF_LVGL_ID])
+            ).set_paused(False, False)
+        )
+    return await context_action(context, action_id, template_arg, args)
 
 
 @automation.register_action(
@@ -430,7 +430,7 @@ async def widget_focus(config, action_id, template_arg, args):
                 lv.group_set_editing(group, True)
         else:
             action = config[CONF_ACTION]
-            lv_comp = await get_variable(config[CONF_LVGL_ID])
+            lv_comp = automation.parent_ref(await get_variable(config[CONF_LVGL_ID]))
             if action == "MARK":
                 context.add(lv_comp.set_focus_mark(group))
             else:

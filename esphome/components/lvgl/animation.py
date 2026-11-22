@@ -32,7 +32,7 @@ from .lv_validation import (
     lv_positive_float,
     lv_zero_to_one_float,
 )
-from .lvcode import LVGL_COMP_ARG, LambdaContext, LvglComponent, context_action, lv_add
+from .lvcode import LambdaContext, LvglComponent, context_action, lv_add
 from .schemas import STYLE_PROPS
 from .types import LvAnimation, lv_color_t, lv_coord_t, lv_obj_t, lvgl_ns
 from .widgets import get_widgets
@@ -271,7 +271,7 @@ async def add_animation_triggers(config):
 async def start_animation(config, action_id, template_arg, args):
     animations = config[CONF_ID]
     loop = config.get(CONF_LOOP)
-    async with LambdaContext(LVGL_COMP_ARG, where=action_id) as context:
+    async with LambdaContext(args, where=action_id) as context:
         for animation in animations:
             anim_var = await cg.get_variable(animation)
             if loop is not None:
@@ -285,9 +285,7 @@ async def start_animation(config, action_id, template_arg, args):
                     anim_var.set_start_delay(await lv_milliseconds.process(start_delay))
                 )
             context.add(anim_var.start())
-    return await context_action(
-        context, action_id, template_arg, args, config[CONF_LVGL_ID]
-    )
+    return await context_action(context, action_id, template_arg, args)
 
 
 @automation.register_action(
@@ -304,10 +302,8 @@ async def start_animation(config, action_id, template_arg, args):
 )
 async def stop_animation(config, action_id, template_arg, args):
     animations = config[CONF_ID]
-    async with LambdaContext(LVGL_COMP_ARG, where=action_id) as context:
+    async with LambdaContext(args, where=action_id) as context:
         for animation in animations:
             anim_var = await cg.get_variable(animation)
             context.add(anim_var.stop())
-    return await context_action(
-        context, action_id, template_arg, args, config[CONF_LVGL_ID]
-    )
+    return await context_action(context, action_id, template_arg, args)
