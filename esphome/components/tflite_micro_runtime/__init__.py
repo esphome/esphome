@@ -68,6 +68,8 @@ AUTO_LOAD = [
 # Attributes consumed by the ESPHome config loader.
 CONFIG_SCHEMA = _schema.CONFIG_SCHEMA
 MULTI_CONF = _schema.MULTI_CONF
+# A model kind auto-loads this component without a configuration entry of its own.
+MULTI_CONF_NO_DEFAULT = True
 DEPENDENCIES = _schema.DEPENDENCIES + ["tflite_model_source"]
 
 # Re-exported for consumers which reference the runtime class through this component.
