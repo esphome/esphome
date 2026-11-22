@@ -171,8 +171,7 @@ def _final_validate(config: ConfigType) -> ConfigType:
     # the listener receives JPEG even when pixel_format is not JPEG.
     jpeg_quality = camera_config[esp32_camera.CONF_JPEG_QUALITY]
     delivered = "JPEG" if pixel_format == "JPEG" or jpeg_quality != 0 else pixel_format
-    # The decoder only decodes JPEG, so reject raw frames at config time instead
-    # of doing nothing at runtime.
+    # The decoder only decodes JPEG, so reject raw frames at config time.
     if delivered != "JPEG":
         raise cv.Invalid(
             f"analog_gauge_reader needs JPEG frames, but the referenced camera "
@@ -181,8 +180,7 @@ def _final_validate(config: ConfigType) -> ConfigType:
             path=[CONF_CAMERA_ID],
         )
     decoder_config = fv.get_declaring_config(config[CONF_DECODER_ID])
-    # The decoder rotates the frame before it is handed over, so a quarter turn
-    # swaps the dimensions the crops and the frame-size check are based on.
+    # The decoder rotates first, so a quarter turn swaps the dimensions.
     if decoder_config[CONF_ROTATION] in (90, 270):
         width, height = height, width
     output_format = _enum_name(decoder_config[camera_decoder.CONF_OUTPUT_TYPE])

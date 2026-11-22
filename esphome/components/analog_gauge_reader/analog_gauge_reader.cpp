@@ -322,7 +322,6 @@ bool AnalogGaugeReader::crop_dial_(const uint8_t *src, const camera::CameraImage
       src + static_cast<size_t>(dial.crop_y) * source_stride + static_cast<size_t>(dial.crop_x) * source_bpp;
 
   if (out.channels == 3) {
-    // A dial that reads colour needs the decoder's RGB888 output.
     if (source_is_gray)
       return false;
     for (int y = 0; y < crop_h; y++) {

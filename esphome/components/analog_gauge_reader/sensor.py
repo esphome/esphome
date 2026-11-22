@@ -21,7 +21,6 @@ CONF_ANALOG_GAUGE_READER_ID = "analog_gauge_reader_id"
 CONF_DIAL = "dial"
 _KEY_DIAL_INDEX = "_analog_gauge_reader_dial_index"
 
-# Both the combined value and a dial value are measurements the reader publishes.
 VALUE_SCHEMA = sensor.sensor_schema(state_class=STATE_CLASS_MEASUREMENT)
 
 DIAL_SCHEMA = cv.Schema(

@@ -45,9 +45,8 @@ struct DialConfig {
   float angle_offset{0.0f};  // 0 = North, 90 = East
   float min_value{0.0f};
   float max_value{10.0f};
-  float contrast{1.0f};  // Multiplier (1.0 = original)
-  // Colour match tolerance (0 = legacy 0-442 linear map); off-colour pixels become background.
-  float color_tolerance{0.0f};
+  float contrast{1.0f};                    // Multiplier (1.0 = original)
+  float color_tolerance{0.0f};             // 0 = legacy 0-442 map; off-colour pixels become background
   float min_scan_radius{0.3f};             // % of radius (0.0-1.0)
   float max_scan_radius{0.9f};             // % of radius (0.0-1.0)
   float deadzone_diameter{0.0f};           // Pixels (center circle ignored by detection)
@@ -106,13 +105,12 @@ inline float angle_to_value(float image_angle, const DialConfig &dial) {
     return points.back().second;
   }
 
-  // Measure from min_angle, clockwise, whatever the range.
+  // Measure clockwise from min_angle; off the scale the needle reads the nearer
+  // stop, so one before the start reads the minimum, not the maximum.
   float span = dial.max_angle - dial.min_angle;
   if (span <= 0.0f)
     span += 360.0f;
   float delta = wrap360(dial_angle - dial.min_angle);
-  // Off the scale the needle reads the nearer stop, so one before the start
-  // reads the minimum instead of wrapping round to the maximum.
   if (delta > span) {
     const float past_end = delta - span;
     const float before_start = 360.0f - delta;
@@ -123,7 +121,6 @@ inline float angle_to_value(float image_angle, const DialConfig &dial) {
 }
 
 /// Carry-corrects stacked dials and returns the combined value, or NAN.
-/// The caller passes `count`-entry scratch arrays; `digits` is filled in reading order.
 inline float combine_stacked_digits(const DialReading *readings, size_t count, int *order, float *phase, int *digits) {
   auto wrap10 = [](float x) -> float {
     x = fmodf(x, 10.0f);
@@ -183,7 +180,6 @@ inline float combine_stacked_digits(const DialReading *readings, size_t count, i
 /// Reads dials out of esp32_camera frames: one shared decode, then one crop per dial.
 class AnalogGaugeReader final : public PollingComponent, public esphome::camera::CameraListener {
  public:
-  /// The camera, decoder and frame size never change, so they are constructor parameters.
   AnalogGaugeReader(esphome::camera::Camera *camera, esphome::camera::Decoder *decoder, int frame_width,
                     int frame_height)
       : camera_(camera), decoder_(decoder), img_width_(frame_width), img_height_(frame_height) {}
