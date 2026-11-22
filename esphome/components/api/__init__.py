@@ -1103,8 +1103,7 @@ async def api_respond_to_code(
     # We can't easily validate this at config time since the schema validation
     # doesn't have access to the parent action context. Validating here in to_code
     # is still much better than a cryptic C++ compile error.
-    names = {name for _, name in args}
-    if "call_id" not in names:
+    if not any(name == "call_id" for _, name in args):
         raise EsphomeError(
             "api.respond can only be used inside an API action's 'then:' block. "
             "The 'call_id' variable is required to send a response."
@@ -1127,11 +1126,9 @@ async def api_respond_to_code(
                 error, args, cg.std_string, "esphome__error_message"
             )
         )
-        error = "StringRef(esphome__error_message)"
-    elif error:
-        error = f"StringRef::from_lit({cg.safe_exp(error)})"
+        error = "::esphome::StringRef(esphome__error_message)"
     else:
-        error = "StringRef()"
+        error = f"::esphome::StringRef::from_lit({cg.safe_exp(error)})"
     if CONF_DATA not in config:
         statements.append(
             f"{parent}->send_action_response(call_id, {success}, {error});"
@@ -1153,7 +1150,7 @@ async def api_respond_to_code(
     )
     with_data = ", return_response" if optional else ""
     statements.append(
-        f"api::send_action_response_json({parent}, call_id, {success}, {error}, {build}{with_data});"
+        f"{parent}->send_action_response_json(call_id, {success}, {error}, {build}{with_data});"
     )
     return automation.apply_statements_action(action_id, template_arg, args, statements)
 

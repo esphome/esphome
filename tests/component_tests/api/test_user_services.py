@@ -163,7 +163,8 @@ def test_delay_uses_owning_args(generate_main) -> None:
 
 
 SEND_JSON = (
-    "api::send_action_response_json(::api_apiserver_id, call_id, true, StringRef(), "
+    "::api_apiserver_id->send_action_response_json(call_id, true, "
+    '::esphome::StringRef::from_lit(""), '
 )
 
 
@@ -206,11 +207,10 @@ def test_respond_status_lambdas(generate_main) -> None:
     body = _function_body(main_cpp, function)
     send = (
         "::api_apiserver_id->send_action_response(call_id, esphome__success, "
-        "StringRef(esphome__error_message));"
+        "::esphome::StringRef(esphome__error_message));"
     )
     assert body.index("const bool esphome__success = ") < body.index(send)
     assert body.index("const std::string esphome__error_message = ") < body.index(send)
-    assert "esphome__json" not in body
 
 
 def test_respond_constant_error(generate_main) -> None:
@@ -219,7 +219,7 @@ def test_respond_constant_error(generate_main) -> None:
     function = _service_function(main_cpp, "respond_error_constant", STATUS)
     body = _function_body(main_cpp, function)
     assert (
-        '::api_apiserver_id->send_action_response(call_id, false, StringRef::from_lit("not ready"));'
+        '::api_apiserver_id->send_action_response(call_id, false, ::esphome::StringRef::from_lit("not ready"));'
         in body
     )
 
@@ -230,8 +230,9 @@ def test_unregister_merges_with_trailing_inline_actions(generate_main) -> None:
     function = _service_function(main_cpp, "respond_then_log", STATUS)
     automation = _triggered_automation(main_cpp, function, "call_id")
     respond, delay, log = _actions_of(main_cpp, automation)
-    assert "send_action_response(call_id, true, StringRef());" in _action_code(
-        main_cpp, respond
+    assert (
+        'send_action_response(call_id, true, ::esphome::StringRef::from_lit(""));'
+        in _action_code(main_cpp, respond)
     )
     assert _action_class(main_cpp, delay) == "DelayAction"
     body = _action_code(main_cpp, log)

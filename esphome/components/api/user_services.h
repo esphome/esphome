@@ -7,9 +7,6 @@
 #include "api_pb2.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
-#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
-#include "esphome/components/json/json_util.h"
-#endif
 
 #ifdef USE_API_USER_DEFINED_ACTIONS
 namespace esphome::api {
@@ -199,27 +196,4 @@ class UserServiceCallback final : public UserServiceBase<Ts...> {
 // Full definition of APIServer for the generated api.respond code.
 // Must be outside namespace to avoid including STL headers inside namespace
 #include "api_server.h"
-
-#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
-namespace esphome::api {
-
-/// Send an action response whose data `build` writes into a JSON root, or no data when `with_data` is false
-/// (an optional response the client did not ask for). api.respond passes its data: lambda, which a template keeps
-/// inline with no std::function.
-template<typename F>
-void send_action_response_json(APIServer *server, uint32_t call_id, bool success, StringRef error_message, F &&build,
-                               bool with_data = true) {
-  if (!with_data) {
-    server->send_action_response(call_id, success, error_message);
-    return;
-  }
-  json::JsonBuilder builder;
-  build(builder.root());
-  const auto json = builder.serialize();
-  server->send_action_response(call_id, success, error_message, reinterpret_cast<const uint8_t *>(json.data()),
-                               json.size());
-}
-
-}  // namespace esphome::api
-#endif  // USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
 #endif  // USE_API_USER_DEFINED_ACTION_RESPONSES
