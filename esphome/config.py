@@ -1785,12 +1785,8 @@ def _user_forms(value: Any) -> set[str]:
     of a string (quoted hex ``"0x00ff"`` or zero-padded ``"0005"``)."""
     forms = {_sensitive_form(value)}
     if isinstance(value, str):
-        for base in (0, 10):
-            try:
-                forms.add(str(int(value, base)))
-                break
-            except ValueError:
-                pass
+        with suppress(cv.Invalid):
+            forms.add(str(cv.int_(value)))
     return forms
 
 
