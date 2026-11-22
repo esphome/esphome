@@ -46,20 +46,22 @@ DetectionResult scan_intensity(const uint8_t *raw, const ScanWindow &window, con
 
   float best_score = -1.0f;
   float best_angle = 0;
-  float min_score = scores[0];
-  float max_score = scores[0];
+  float total = 0.0f;
   for (int deg = 0; deg < ANGLE_COUNT; deg++) {
     if (scores[deg] > best_score) {
       best_score = scores[deg];
       best_angle = static_cast<float>(deg);
     }
-    min_score = std::min(min_score, scores[deg]);
-    max_score = std::max(max_score, scores[deg]);
+    total += scores[deg];
   }
 
-  // Same scale as the filtered detectors, so `auto` can rank them.
+  // Support is how far the best ray rises above the average ray, relative to the
+  // crop's headroom, so a bright or busy background does not count as needle.
   const float sampled = static_cast<float>(window.end_r - window.start_r);
-  const float confidence = ray_confidence(max_score / (sampled * 255.0f), max_score, min_score);
+  const float mean = total / (static_cast<float>(ANGLE_COUNT) * sampled);
+  const float headroom = 255.0f - mean;
+  const float confidence =
+      headroom > 0.0f ? std::clamp((best_score - mean * sampled) / (sampled * headroom), 0.0f, 1.0f) : 0.0f;
 
   return {best_angle, confidence};
 }

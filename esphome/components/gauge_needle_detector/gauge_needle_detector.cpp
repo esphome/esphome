@@ -171,6 +171,10 @@ DetectionResult NeedleDetector::detect(const uint8_t *img, int width, int height
     if (!is_target && !compare_all)
       continue;
     target_compiled |= is_target;
+    // `auto` leaves out the raw scan when a filtered detector is built: its
+    // confidence comes from raw brightness, which the others would not match.
+    if (is_auto && detector->algorithm() == ALGORITHM_LEGACY && this->detector_count_ > 1)
+      continue;
 
     const bool wants_filtered = detector->needs_filtered_image();
     if (wants_filtered && filtered == nullptr)

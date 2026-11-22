@@ -43,14 +43,20 @@ std::vector<uint8_t> make_plain_crop(float degrees, int background, int needle, 
   return crop;
 }
 
-/// Gradient background with a needle, so the contrast stretch has something to do.
-std::vector<uint8_t> make_textured_crop(float degrees, NeedleType needle_type, int length = NEEDLE_LENGTH,
-                                        int thickness = 1) {
+/// Gradient background without a needle, so the contrast stretch has something to do.
+std::vector<uint8_t> make_textured_background() {
   std::vector<uint8_t> crop(static_cast<size_t>(WIDTH) * HEIGHT);
   for (int y = 0; y < HEIGHT; y++) {
     for (int x = 0; x < WIDTH; x++)
       crop[static_cast<size_t>(y) * WIDTH + x] = static_cast<uint8_t>(40 + (x + y) * 80 / (WIDTH + HEIGHT));
   }
+  return crop;
+}
+
+/// The same background with a needle.
+std::vector<uint8_t> make_textured_crop(float degrees, NeedleType needle_type, int length = NEEDLE_LENGTH,
+                                        int thickness = 1) {
+  std::vector<uint8_t> crop = make_textured_background();
   draw_needle(crop, degrees, length, thickness, needle_type == NEEDLE_TYPE_LIGHT ? 255 : 0);
   return crop;
 }
@@ -215,6 +221,26 @@ TEST(GaugeNeedleDetector, LegacyConfidenceNeedsRaySupport) {
   EXPECT_GT(single.confidence, 0.0f);
   EXPECT_LT(single.confidence, 0.2f);
   EXPECT_GT(full.confidence, 0.9f);
+}
+
+TEST(GaugeNeedleDetector, LegacyCountsOnlyTheExcessOverTheBackground) {
+  // The raw scan used to add the brightness of every background pixel to the
+  // score, so a blank textured crop could reach 0.58 confidence.
+  const std::vector<uint8_t> blank = make_textured_background();
+  EXPECT_LT(run(blank, ALGORITHM_LEGACY, NEEDLE_TYPE_LIGHT).confidence, 0.3f);
+  EXPECT_LT(run(blank, ALGORITHM_LEGACY, NEEDLE_TYPE_DARK).confidence, 0.3f);
+  // A needle in the same crop still scores high.
+  EXPECT_GT(run(make_textured_crop(45.0f, NEEDLE_TYPE_LIGHT), ALGORITHM_LEGACY, NEEDLE_TYPE_LIGHT).confidence, 0.9f);
+}
+
+TEST(GaugeNeedleDetector, AutoLeavesOutTheRawScan) {
+  // `auto` compares the filtered detectors; the raw scan only runs when it is the
+  // only one compiled in, so a blank texture cannot win with its raw confidence.
+  const std::vector<uint8_t> blank = make_textured_background();
+  EXPECT_FLOAT_EQ(0.0f, run(blank, ALGORITHM_AUTO, NEEDLE_TYPE_LIGHT).confidence);
+  // A real needle still wins, and legacy is still available when selected.
+  EXPECT_GT(run(make_plain_crop(45.0f, 0, 255), ALGORITHM_AUTO, NEEDLE_TYPE_LIGHT).confidence, 0.5f);
+  EXPECT_GT(run(make_plain_crop(45.0f, 0, 255), ALGORITHM_LEGACY, NEEDLE_TYPE_LIGHT).confidence, 0.9f);
 }
 
 TEST(GaugeNeedleDetector, EmptyScanWindowHasNoConfidence) {
