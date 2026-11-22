@@ -170,6 +170,8 @@ interval:
   - interval: 200ms
     then:
       - lambda: |-
+          // paused during a burst, so every send failure counted then is a fe01 burst notification
+          if (id(b_sent) < id(b_total)) return;
           uint32_t n = ++id(tick_n);
           const uint8_t v[4] = {(uint8_t) n, (uint8_t) (n >> 8), (uint8_t) (n >> 16), (uint8_t) (n >> 24)};
           id(tickc)->set_value(v, sizeof(v));

@@ -543,6 +543,17 @@ inline void tick() {
           }
         }
       } else if (st == 3 && now - t_wait > 500) {
+        if (!idle(third)) {  // a stuck third slot fails the round instead of a confusing connect
+          if (now - t_wait > 20000) {
+            stuck_n++;
+            fail_n++;
+            ESP_LOGW(TAG, "ST stuck_start %s r=%u state=%d", PNAME[third], rnd, (int) s(third));
+            drop(third);
+            t_wait = now;
+            st = 5;
+          }
+          break;
+        }
         connect(third, true);
         st = 4;
       } else if (st == 4) {
@@ -562,6 +573,10 @@ inline void tick() {
         }
       } else if (st == 5) {
         if ((idle(third) && now - t_wait > 3000) || now - t_wait > 15000) {
+          if (!idle(third)) {
+            stuck_n++;
+            ESP_LOGW(TAG, "ST stuck %s state=%d", PNAME[third], (int) s(third));
+          }
           rnd++;
           t_round = now;
           st = 0;

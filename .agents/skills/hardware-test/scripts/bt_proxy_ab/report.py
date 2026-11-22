@@ -247,7 +247,7 @@ for s in steps:
                 )
                 d["drops"] = r.get("drops")
         if "rx" not in d:
-            d["warn"] = "no notify summary record"
+            d.setdefault("warn", []).append("no notify summary record")
     elif s == "churn":
         for r in R:
             if (
@@ -289,7 +289,9 @@ for s in steps:
         d["iv"] = dict(Counter(a.get("iv") for a in dev))
         d["upd"] = dict(Counter(str(a.get("upd", [])) for a in dev))
     if A and not any("t_open" in a for a in A):
-        d["warn"] = "device attempts but no Connection open line matched"
+        d.setdefault("warn", []).append(
+            "device attempts but no Connection open line matched"
+        )
     d["rejected"] = sum("Rejected" in ln for ln in L)
     d["tcp_full"] = sum("TCP buffer full" in ln for ln in L)
     out[s] = d
