@@ -113,6 +113,7 @@ from esphome.const import (
     DEVICE_CLASS_WIND_SPEED,
     ENTITY_CATEGORY_CONFIG,
     ICON_CHEMICAL_WEAPON,
+    ICON_MAGNET,
     ICON_TIMER,
     STATE_CLASS_MEASUREMENT,
     STATE_CLASS_TOTAL_INCREASING,
@@ -131,9 +132,11 @@ from esphome.const import (
     UNIT_LUX,
     UNIT_METER,
     UNIT_MICROGRAMS_PER_CUBIC_METER,
+    UNIT_MICROTESLA,
     UNIT_MILLIMETER,
     UNIT_MINUTE,
     UNIT_OHM,
+    UNIT_PARTS_PER_BILLION,
     UNIT_PARTS_PER_MILLION,
     UNIT_PERCENT,
     UNIT_SECOND,
@@ -462,6 +465,11 @@ CARBON_DIOXIDE = SensorKind(
     UNIT_PARTS_PER_MILLION, DEVICE_CLASS_CARBON_DIOXIDE, accuracy_decimals=0
 )
 MASS_CONCENTRATION = SensorKind(UNIT_MICROGRAMS_PER_CUBIC_METER, accuracy_decimals=0)
+VOC_PPB = SensorKind(
+    UNIT_PARTS_PER_BILLION,
+    DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS,
+    accuracy_decimals=0,
+)
 
 
 def _particulate(device_class: str) -> SensorKind:
@@ -519,6 +527,8 @@ PERCENT = SensorKind(UNIT_PERCENT, accuracy_decimals=0)
 ANGLE = SensorKind(UNIT_DEGREES)
 LENGTH_M = SensorKind(UNIT_METER, accuracy_decimals=2)
 RESISTANCE = SensorKind(UNIT_OHM, accuracy_decimals=0)
+# No Home Assistant device class, so the preset sets the icon.
+MAGNETIC_FIELD = SensorKind(UNIT_MICROTESLA, icon=ICON_MAGNET)
 
 
 def _kind_value(kind: SensorKind, name: str, value: Any) -> Any:
