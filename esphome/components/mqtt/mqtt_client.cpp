@@ -125,20 +125,24 @@ void MQTTClientComponent::setup() {
         }
       });
   this->mqtt_backend_.set_on_disconnect([this](MQTTClientDisconnectReason reason) {
-    if (this->on_disconnect_.size() != 0) {
-#if defined(USE_ESP8266) || defined(USE_LIBRETINY)
-      // AsyncMqttClient calls this from its TCP context, so the automations run on the main loop
-      this->defer([this, reason]() { this->on_disconnect_.call(reason); });
-#else
-      this->on_disconnect_.call(reason);
-#endif
+    // State first, so a deferred automation that disables MQTT is not overwritten
+    if (this->state_ != MQTT_CLIENT_DISABLED) {
+      this->state_ = MQTT_CLIENT_DISCONNECTED;
+      this->disconnect_reason_ = reason;
     }
-    if (this->state_ == MQTT_CLIENT_DISABLED)
-      return;
-    this->state_ = MQTT_CLIENT_DISCONNECTED;
-    this->disconnect_reason_ = reason;
+#ifdef USE_ESP32
+    this->on_disconnect_.call(reason);
+#else
+    // AsyncMqttClient calls this from its TCP context, so the automations run on the main loop
+    if (!this->on_disconnect_.empty())
+      this->defer([this, reason]() { this->on_disconnect_.call(reason); });
+#endif
   });
-#ifdef USE_MQTT_SESSION_PERSISTENCE
+#ifndef USE_MQTT_SESSION_PERSISTENCE
+  // The automations are added before setup(); they run from check_connected()
+  if (!this->on_connect_.empty())
+    this->mqtt_backend_.set_on_connect([this](bool session_present) { this->session_present_ = session_present; });
+#else
   this->mqtt_backend_.set_on_connect([this](bool session_present) {
     this->session_present_ = session_present;
 #ifndef USE_ESP32
@@ -445,9 +449,7 @@ void MQTTClientComponent::start_connect_() {
                                  this->last_will_.payload.c_str());
   }
 
-#ifdef USE_MQTT_SESSION_PERSISTENCE
   this->session_present_ = false;
-#endif
   this->mqtt_backend_.connect();
   this->state_ = MQTT_CLIENT_CONNECTING;
   this->connect_begin_ = millis();
@@ -501,6 +503,7 @@ void MQTTClientComponent::check_connected() {
 
   for (MQTTComponent *component : this->children_)
     component->schedule_resend_state();
+  this->on_connect_.call(this->session_present_);
 }
 
 void MQTTClientComponent::loop() {
@@ -973,24 +976,6 @@ bool MQTTClientComponent::teardown() {
     return false;
   this->mqtt_backend_.disconnect();
   return true;
-}
-
-void MQTTClientComponent::set_on_connect(mqtt_on_connect_callback_t &&callback) {
-#if defined(USE_ESP8266) || defined(USE_LIBRETINY)
-  // AsyncMqttClient calls this from its TCP context, so the automations run on the main loop
-  if (this->on_connect_.empty()) {
-    this->mqtt_backend_.set_on_connect([this](bool session_present) {
-      this->defer([this, session_present]() { this->on_connect_.call(session_present); });
-    });
-  }
-  this->on_connect_.add(std::move(callback));
-#else
-  this->mqtt_backend_.set_on_connect(std::move(callback));
-#endif
-}
-
-void MQTTClientComponent::set_on_disconnect(mqtt_on_disconnect_callback_t &&callback) {
-  this->on_disconnect_.add(std::move(callback));
 }
 
 MQTTClientComponent *global_mqtt_client = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

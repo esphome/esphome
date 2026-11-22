@@ -341,8 +341,8 @@ class MQTTClientComponent final : public Component {
   void set_password(const std::string &password) { this->credentials_.password = password; }
   void set_client_id(const std::string &client_id) { this->credentials_.client_id = client_id; }
   void set_clean_session(const bool &clean_session) { this->credentials_.clean_session = clean_session; }
-  void set_on_connect(mqtt_on_connect_callback_t &&callback);
-  void set_on_disconnect(mqtt_on_disconnect_callback_t &&callback);
+  template<typename F> void set_on_connect(F &&callback) { this->on_connect_.add(std::forward<F>(callback)); }
+  template<typename F> void set_on_disconnect(F &&callback) { this->on_disconnect_.add(std::forward<F>(callback)); }
 
   // Publish None state instead of NaN for Home Assistant
   void set_publish_nan_as_none(bool publish_nan_as_none) { this->publish_nan_as_none_ = publish_nan_as_none; }
@@ -447,17 +447,15 @@ class MQTTClientComponent final : public Component {
   uint32_t connect_begin_;
   uint32_t last_connected_{0};
   optional<MQTTClientDisconnectReason> disconnect_reason_{};
-  CallbackManager<MQTTBackend::on_disconnect_callback_t> on_disconnect_;
-#if defined(USE_ESP8266) || defined(USE_LIBRETINY)
+  LazyCallbackManager<MQTTBackend::on_disconnect_callback_t> on_disconnect_;
   LazyCallbackManager<MQTTBackend::on_connect_callback_t> on_connect_;
-#endif
 
   bool publish_nan_as_none_{false};
   bool wait_for_connection_{false};
   bool dispatching_{false};
   bool removed_while_dispatching_{false};
-#ifdef USE_MQTT_SESSION_PERSISTENCE
   bool session_present_{false};
+#ifdef USE_MQTT_SESSION_PERSISTENCE
   /// Set once every SUBACK of this connection is in (or the session was resumed without subscribing)
   bool subacks_settled_{false};
   /// SUBSCRIBEs sent on this connection for the subscriptions the fingerprint covers
