@@ -58,6 +58,9 @@ struct Rtt : public esphome::ble_client::BLEClientNode {
   uint32_t done_ms{0};
   bool ok{false};
   void gattc_event_handler(esp_gattc_cb_event_t e, esp_gatt_if_t, esp_ble_gattc_cb_param_t *p) override {
+    // uses fixed handles only, so it must not keep BLEClient from releasing the service table
+    if (e == ESP_GATTC_SEARCH_CMPL_EVT)
+      this->node_state = ClientState::ESTABLISHED;
     if (e == ESP_GATTC_READ_CHAR_EVT && this->pending == 1) {
       this->done_ms = millis() - this->t0;
       this->ok = p->read.status == ESP_GATT_OK;
@@ -136,7 +139,7 @@ inline void next_phase() {
   rnd = 0;
   att = 0;
   ok_n = first_ok_n = fail_n = stuck_n = 0;
-  t_ph = millis();
+  t_ph = t_wait = millis();
   ESP_LOGI(TAG, "ST phase_start %s", PHASES[ph].name);
 }
 
@@ -156,6 +159,22 @@ inline void start(BLEClient *l, BLEClient *m, BLEClient *e, espbt::ESP32BLETrack
   ph = 0;
   st = -1;
   t_ph = millis();
+}
+
+// round start: a client that never returns to IDLE fails the round instead of stalling the suite
+inline bool wait_idle(uint8_t p, uint32_t now) {
+  if (idle(p))
+    return true;
+  if (now - t_wait > 20000) {
+    stuck_n++;
+    fail_n++;
+    ESP_LOGW(TAG, "ST stuck_start %s r=%u state=%d", PNAME[p], rnd, (int) s(p));
+    drop(p);
+    t_wait = now;
+    if (++rnd >= PHASES[ph].n)
+      next_phase();
+  }
+  return false;
 }
 
 // one RTT op on peer p; returns true when all 10 are done
@@ -278,7 +297,7 @@ inline void tick() {
     case K_EVE: {
       uint8_t p = P.peer;
       if (st == 0) {
-        if (!idle(p))
+        if (!wait_idle(p, now))
           break;
         connect(p, P.cold);
         st = 1;
@@ -325,7 +344,7 @@ inline void tick() {
     case K_RETRY: {
       uint8_t p = P.peer;
       if (st == 0) {
-        if (!idle(p))
+        if (!wait_idle(p, now))
           break;
         connect(p, true);
         st = 1;
@@ -401,12 +420,20 @@ inline void tick() {
         }
       } else if (st == 2) {
         if (up(h2) && up(h1)) {
+          att = 0;
           t_wait = now;
           st = 3;
         } else if ((idle(h2) && now - t_wait > 500) || now - t_wait > 20000) {
           ESP_LOGI(TAG, "ST third held_failed r=%u", rnd);
           drop(h2);
-          st = 1;
+          if (++att >= 3) {  // an absent peer (Eve may never be seen) ends the round
+            att = 0;
+            fail_n++;
+            t_wait = now;
+            st = 5;
+          } else {
+            st = 1;
+          }
         }
       } else if (st == 3 && now - t_wait > 500) {
         connect(third, true);
@@ -480,7 +507,7 @@ inline void tick() {
     case K_CHURN: {
       uint8_t p = rnd % 2 ? PM : PL;
       if (st == 0) {
-        if (!idle(p))
+        if (!wait_idle(p, now))
           break;
         connect(p, false);
         st = 1;

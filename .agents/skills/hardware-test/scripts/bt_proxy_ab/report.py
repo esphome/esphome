@@ -160,7 +160,7 @@ for s in steps:
         d["api_conn_s"] = med(
             [r.get("t_conn") for r in th if r.get("connected") or r.get("err") == 19]
         )
-        peer = "eve" if s == "thirdeve" else "M"
+        peer = {"thirdeve": "eve", "thirdL": "L"}.get(s, "M")
         dev = [a for a in A if a["peer"] == peer and not a["cached"]]
         d["dev_attempts"] = len(dev)
         d["dev_linked"] = sum("t_open" in a for a in dev)

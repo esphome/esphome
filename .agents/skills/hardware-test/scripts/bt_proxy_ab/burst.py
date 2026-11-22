@@ -47,9 +47,10 @@ async def main() -> None:
         )
     await d.start([L])
     addr = d.peers[L][0]
-    await d.clear(
-        L
-    )  # a stale proxy GATT cache from an older server table must not answer
+    # a stale proxy GATT cache from an older server table must not answer
+    if not await d.clear(L):
+        d.rec(test="burst", result="clear_failed")
+        sys.exit(1)
     st = await d.connect(L, False, timeout=60)
     if not st["connected"]:
         d.rec(result="connect_failed", err=st.get("err"), exc=st.get("exc"))

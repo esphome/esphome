@@ -43,7 +43,7 @@ for name, lines in ph.items():
         elif m := re.search(r"\]: \[(\d)\] \[[0-9A-F:]{17}\] Connection open", ln):
             if (a := cur.get(m[1])) and "to" not in a:
                 a["to"] = t
-        elif m := re.search(r"IVLOG connect (\S+) if=3 interval=(\d+)", ln):
+        elif m := re.search(r"IVLOG connect (\S+) if=\d+ interval=(\d+)", ln):
             for a in cur.values():
                 if "iv" not in a and a["sfx"] == m[1]:
                     a["iv"] = int(m[2])
