@@ -12,15 +12,21 @@ for line in (
     pathlib.Path(sys.argv[1]).read_text(encoding="utf-8", errors="replace").splitlines()
 ):
     if "[probe" in line:
-        vals = [int(re.search(k + r" (\d+)", line).group(1)) for k in KEYS]
-        rows.append((line[1:13], *vals))
+        ms = [re.search(k + r" (\d+)", line) for k in KEYS]
+        if all(ms):  # a garbled probe line is skipped
+            rows.append((line[1:13], *(int(m.group(1)) for m in ms)))
 if not rows:
     sys.exit("no probe lines")
 if "--exact" in sys.argv[2:]:
     ma = [r[1:3] for r in rows]
-    i = max(i for i in range(1, len(ma)) if ma[i][1] != ma[i - 1][1])
-    while not (ma[i] == ma[i + 1] == ma[i + 2]):
+    ann = [i for i in range(1, len(ma)) if ma[i][1] != ma[i - 1][1]]
+    if not ann:
+        sys.exit("no announcement in the capture")
+    i = ann[-1]
+    while i + 2 < len(ma) and not (ma[i] == ma[i + 1] == ma[i + 2]):
         i += 1
+    if i + 2 >= len(ma):
+        sys.exit("the counters never hold still after the last announcement")
     print(
         sys.argv[1],
         "final play + 20 plays:",
