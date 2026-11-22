@@ -69,9 +69,16 @@ interval:
             }
             return;
           }
+          // the previous race step left race_mode armed: border routing never logged its restart
+          static int not_fired = 0;
+          if (id(race_mode) != 0) {
+            ESP_LOGW("hwt", "HWT auto step %d race not fired", st - 1);
+            id(race_mode) = 0;
+            not_fired++;
+          }
           id(auto_step) = st + 1;
           if (st == STEPS) {  // the last step has recovered
-            ESP_LOGI("hwt", "HWT auto done");
+            ESP_LOGI("hwt", "HWT auto done, races not fired: %d", not_fired);
             return;
           }
           id(step_at) = now;

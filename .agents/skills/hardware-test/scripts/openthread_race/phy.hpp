@@ -3,19 +3,19 @@
 #include "esphome/components/ethernet/ethernet_component.h"
 // Power the PHY down (BMCR bit 11) or back up with autonegotiation restarted: the link partner and the
 // driver see the same carrier loss as a pulled cable. A failure logs "HWT phy failed": the link did not change.
-inline void hwt_phy_power(bool on) {
+inline bool hwt_phy_power(bool on) {
   auto *eth = esphome::ethernet::global_eth_component;
   esp_eth_handle_t h = eth != nullptr ? eth->get_eth_handle() : nullptr;
   if (h == nullptr) {
     ESP_LOGE("hwt", "HWT phy failed: no Ethernet handle");
-    return;
+    return false;
   }
   uint32_t v = 0;
   esp_eth_phy_reg_rw_data_t rd{0, &v};
   esp_err_t e1 = esp_eth_ioctl(h, ETH_CMD_READ_PHY_REG, &rd);
   if (e1 != ESP_OK) {
     ESP_LOGE("hwt", "HWT phy failed: %s bmcr read error %d, not written", on ? "up" : "down", e1);
-    return;
+    return false;
   }
   uint32_t before = v;
   if (on)
@@ -26,8 +26,9 @@ inline void hwt_phy_power(bool on) {
   esp_err_t e2 = esp_eth_ioctl(h, ETH_CMD_WRITE_PHY_REG, &wr);
   if (e2 != ESP_OK) {
     ESP_LOGE("hwt", "HWT phy failed: %s bmcr write error %d", on ? "up" : "down", e2);
-    return;
+    return false;
   }
   ESP_LOGI("hwt", "HWT phy %s bmcr 0x%04x -> 0x%04x (%d/%d)", on ? "up" : "down", (unsigned) before, (unsigned) v, e1,
            e2);
+  return true;
 }

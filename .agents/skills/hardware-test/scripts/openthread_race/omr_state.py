@@ -35,12 +35,14 @@ async def main() -> int:
             print("no OMR Prefix or Uptime sensor (include omr.yaml)", file=sys.stderr)
             return 1
         got = asyncio.Event()
-        val, up = [""], [None]
+        val, up, err = [""], [None], [""]
 
         def on_state(s) -> None:
             if s.missing_state:
                 return
-            if s.key == key and s.state not in ("", "none"):
+            if s.key == key and s.state.startswith("error:"):
+                err[0] = s.state
+            elif s.key == key and s.state not in ("", "none"):
                 val[0] = s.state
             elif s.key == ukey:
                 up[0] = s.state
@@ -51,7 +53,7 @@ async def main() -> int:
         try:
             await asyncio.wait_for(got.wait(), SECS)
         except TimeoutError:
-            print(f"omr={val[0] or 'none'} uptime={up[0]}")
+            print(f"omr={val[0] or err[0] or 'none'} uptime={up[0]}")
             return 1
         print(f"omr={val[0]} uptime={up[0]:.0f}")
         return 0

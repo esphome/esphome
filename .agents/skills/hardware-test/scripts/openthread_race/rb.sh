@@ -8,6 +8,8 @@ if [ -n "$API_KEY" ]; then KEY=$API_KEY; src="API_KEY"
 elif [ -f "$D/apikey.txt" ]; then KEY=$(cat "$D/apikey.txt") || exit 1; src="apikey.txt"
 else KEY=; src="none, plaintext API"; fi
 echo "rb.sh: API key from $src" >&2
+# GNU timeout when installed, else a perl alarm (stock macOS has no timeout)
+bound() { local t=$1; shift; if command -v timeout >/dev/null; then timeout "$t" "$@"; else perl -e 'alarm shift; exec @ARGV' "$t" "$@"; fi; }
 PY=${PY:-python3}
 IP=$("$D/../resolve.sh" "$N" 20) || exit 1
 for i in $(seq 1 "$C"); do
@@ -22,11 +24,11 @@ for i in $(seq 1 "$C"); do
   [ -n "$T6" ] || p=1
   while (( $(date +%s) - t0 < 120 )); do
     # a failed probe looks the name up again, in case the restart got a new address
-    [ $a = 1 ] || { timeout 8 $PY "$D/../api_button.py" "$IP" "${KEY:--}" list > /dev/null 2>&1 && a=1; } ||
+    [ $a = 1 ] || { bound 8 $PY "$D/../api_button.py" "$IP" "${KEY:--}" list > /dev/null 2>&1 && a=1; } ||
       IP=$("$D/../resolve.sh" "$N" 1 2> /dev/null || echo "$IP")
     # the OMR prefix from the device itself (omr.yaml), not the host's mDNS cache, which can predate the restart
     # its uptime also proves the restart: under the time since the press, or the press did nothing
-    if [ $m = 0 ] && [ $a = 1 ] && st=$(timeout 25 $PY "$D/omr_state.py" "$IP" "${KEY:--}" 5 2> /dev/null); then
+    if [ $m = 0 ] && [ $a = 1 ] && st=$(bound 25 $PY "$D/omr_state.py" "$IP" "${KEY:--}" 5 2> /dev/null); then
       up=${st##*uptime=}; up=${up%%.*}
       if [ "$up" -lt $(( $(date +%s) - t0 )) ]; then m=1; r=1; else r=0; fi
     fi
@@ -34,5 +36,6 @@ for i in $(seq 1 "$C"); do
     [ $m$a$p = 111 ] && { ok=1; break; }
     sleep 1
   done
-  echo "$(date +%T) cycle $i ok=$ok restarted=$r omr=$m api=$a ping=$p back_after=$(( $(date +%s) - t0 ))s" >> "$O"
+  pv=-; [ -n "$T6" ] && pv=$p  # - when no TARGET6 was given
+  echo "$(date +%T) cycle $i ok=$ok restarted=$r omr=$m api=$a ping=$pv back_after=$(( $(date +%s) - t0 ))s" >> "$O"
 done

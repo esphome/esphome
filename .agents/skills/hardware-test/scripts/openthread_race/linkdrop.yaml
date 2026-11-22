@@ -21,22 +21,26 @@ script:
     parameters:
       secs: int
     then:
-      - logger.log: "HWT link drop start"
-      - lambda: 'hwt_phy_power(false);'
+      # the start and end markers only when the PHY really changed ("HWT phy failed" otherwise)
+      - lambda: |-
+          if (hwt_phy_power(false))
+            ESP_LOGI("hwt", "HWT link drop start");
       - delay: !lambda 'return secs * 1000;'
-      - lambda: 'hwt_phy_power(true);'
-      - logger.log: "HWT link drop end"
+      - lambda: |-
+          if (hwt_phy_power(true))
+            ESP_LOGI("hwt", "HWT link drop end");
   - id: race_fire
     mode: single
     then:
       - delay: !lambda 'return id(race_delay);'
       - lambda: |-
-          ESP_LOGI("hwt", "HWT race link down after %d ms", id(race_delay));
+          if (hwt_phy_power(false))
+            ESP_LOGI("hwt", "HWT race link down after %d ms", id(race_delay));
           id(race_delay) = -1;
-          hwt_phy_power(false);
       - delay: 20s
-      - lambda: 'hwt_phy_power(true);'
-      - logger.log: "HWT race link up"
+      - lambda: |-
+          if (hwt_phy_power(true))
+            ESP_LOGI("hwt", "HWT race link up");
 api:
   actions:
     - action: drop
