@@ -49,9 +49,10 @@ class SevenSegmentOCR final {
   uint8_t get_threshold_level() const { return this->threshold_level_; }
 
  protected:
-  static int8_t recognize_digit(const uint8_t *image, const uint16_t *columns, int width, int height, int stride,
-                                float *confidence);
-  static int8_t recognize_narrow(const uint8_t *image, int width, int height, int stride, float *confidence);
+  static int8_t recognize_digit(const uint8_t *image, const uint16_t *columns, int digit_width, int height,
+                                int image_stride, float *confidence);
+  static int8_t recognize_narrow(const uint8_t *image, int digit_width, int height, int image_stride,
+                                 float *confidence);
 
   RAMUniquePtr<uint16_t[]> column_sums_;
   size_t column_capacity_{0};

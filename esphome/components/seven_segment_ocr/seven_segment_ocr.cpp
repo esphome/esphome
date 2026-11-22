@@ -97,9 +97,10 @@ OcrResult SevenSegmentOCR::recognize(uint8_t *image, int width, int height, uint
 
       float confidence = 0.0f;
       const bool narrow = digit_width * 3 < height;
-      const int8_t digit = narrow ? recognize_narrow(image + digit_x, digit_width, height, width, &confidence)
+      const int image_stride = width;
+      const int8_t digit = narrow ? recognize_narrow(image + digit_x, digit_width, height, image_stride, &confidence)
                                   : recognize_digit(image + digit_x, this->column_sums_.get() + digit_x, digit_width,
-                                                    height, width, &confidence);
+                                                    height, image_stride, &confidence);
       if (digit < 0) {
         result.unknown++;
       } else if (result.value > (UINT32_MAX - static_cast<uint32_t>(digit)) / 10u) {
@@ -117,13 +118,14 @@ OcrResult SevenSegmentOCR::recognize(uint8_t *image, int width, int height, uint
   return result;
 }
 
-int8_t SevenSegmentOCR::recognize_narrow(const uint8_t *image, int width, int height, int stride, float *confidence) {
-  const int probe_x = width / 2;
+int8_t SevenSegmentOCR::recognize_narrow(const uint8_t *image, int digit_width, int height, int image_stride,
+                                         float *confidence) {
+  const int probe_x = digit_width / 2;
   float margin = 0.0f;
   bool complete = true;
   for (uint8_t half = 0; half < 2; half++) {
     const int probe_y = half == 0 ? height / 3 : (2 * height) / 3;
-    const float ratio = probe_ratio(image, width, height, stride, probe_x, probe_y);
+    const float ratio = probe_ratio(image, digit_width, height, image_stride, probe_x, probe_y);
     margin += std::abs(ratio - 0.5f) * 2.0f;
     if (ratio <= 0.5f)
       complete = false;
@@ -133,8 +135,8 @@ int8_t SevenSegmentOCR::recognize_narrow(const uint8_t *image, int width, int he
   return complete ? 1 : -1;
 }
 
-int8_t SevenSegmentOCR::recognize_digit(const uint8_t *image, const uint16_t *columns, int width, int height,
-                                        int stride, float *confidence) {
+int8_t SevenSegmentOCR::recognize_digit(const uint8_t *image, const uint16_t *columns, int digit_width, int height,
+                                        int image_stride, float *confidence) {
   // The horizontal strokes span the whole run, so the run width does not say where
   // the vertical strokes are. Use the strongest column of each half for them, which
   // also covers displays whose strokes sit at the outer edges.
@@ -144,8 +146,8 @@ int8_t SevenSegmentOCR::recognize_digit(const uint8_t *image, const uint16_t *co
   int right_sum = 0;
   int left_columns = 0;
   int right_columns = 0;
-  for (int x = 0; x < width; x++) {
-    if (x < width / 2) {
+  for (int x = 0; x < digit_width; x++) {
+    if (x < digit_width / 2) {
       if (columns[x] > left_best) {
         left_best = columns[x];
         left_sum = x;
@@ -164,14 +166,14 @@ int8_t SevenSegmentOCR::recognize_digit(const uint8_t *image, const uint16_t *co
     }
   }
   const int left_x = left_columns > 0 ? left_sum / left_columns : 0;
-  const int right_x = right_columns > 0 ? right_sum / right_columns : width - 1;
+  const int right_x = right_columns > 0 ? right_sum / right_columns : digit_width - 1;
 
   uint8_t mask = 0;
   float margin = 0.0f;
   for (uint8_t i = 0; i < 7; i++) {
     const int probe_y = static_cast<int>(progmem_read_byte(&PROBE_Y[i])) * height / 255;
-    const int probe_x = (i == 1 || i == 2) ? right_x : ((i == 4 || i == 5) ? left_x : width / 2);
-    const float ratio = probe_ratio(image, width, height, stride, probe_x, probe_y);
+    const int probe_x = (i == 1 || i == 2) ? right_x : ((i == 4 || i == 5) ? left_x : digit_width / 2);
+    const float ratio = probe_ratio(image, digit_width, height, image_stride, probe_x, probe_y);
     margin += std::abs(ratio - 0.5f) * 2.0f;
     if (ratio > 0.5f)
       mask |= static_cast<uint8_t>(1 << i);
