@@ -60,7 +60,7 @@ async def main() -> None:
         await asyncio.sleep(SECS)
         await c.disconnect()
     summary = "; ".join(
-        f"{k.split()[-1]} n={len(v)} min={min(v):.3f} max={max(v):.3f} last={v[-1]:.3f}"
+        f"{k} n={len(v)} min={min(v):.3f} max={max(v):.3f} last={v[-1]:.3f}"
         for k, v in sorted(readings.items())
     )
     print(f"{di.compilation_time}: {summary}; warnings/errors {len(warnings)}")

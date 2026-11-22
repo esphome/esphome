@@ -784,6 +784,15 @@ async def call_user_lambda(
     return expr
 
 
+async def bind_lambda(
+    value: Lambda, args: TemplateArgsType, return_type: SafeExpType, name: str
+) -> str:
+    """``const <return_type> <name> = <value>(args...);``, a statement of its own so the
+    order of evaluation is fixed; args are passed as ``call_user_lambda`` does."""
+    call = await call_user_lambda(value, args, return_type)
+    return f"const {return_type} {name} = {call};"
+
+
 async def _render_call(
     name: str,
     target: str,
@@ -925,10 +934,10 @@ async def _render_bytes(
         return f"{receiver}{target.format(data, parent=parent)};"
 
     if isinstance(value, Lambda):
-        call = await call_user_lambda(value, args, _BYTE_VECTOR)
+        bind = await bind_lambda(value, args, _BYTE_VECTOR, "esphome__bytes")
         return [
             "{",
-            f"  const std::vector<uint8_t> esphome__bytes = {call};",
+            f"  {bind}",
             f"  {send(spec.target, 'esphome__bytes.data(), esphome__bytes.size()')}",
             "}",
         ]
