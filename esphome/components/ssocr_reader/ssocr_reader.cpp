@@ -114,10 +114,9 @@ void SSOCRReader::process_frame_(const std::shared_ptr<esphome::camera::CameraIm
     return;
   }
 
-  // Read one digit past the configured count so a crop that contains more digits is rejected
-  // instead of publishing a truncated reading. The engine stops at the count it is given.
+  // The engine counts every run, so a crop that contains more digits than configured is rejected.
   const seven_segment_ocr::OcrResult result =
-      this->ocr_.recognize(this->crop_, this->crop_w_, this->crop_h_, static_cast<uint8_t>(this->digit_count_ + 1));
+      this->ocr_.recognize(this->crop_, this->crop_w_, this->crop_h_, this->digit_count_);
   if (result.digits != this->digit_count_ || result.unknown != 0 || result.overflow) {
     ESP_LOGW(TAG, "Could not read %u digits (found %u, unknown %u)", this->digit_count_, result.digits, result.unknown);
     return;
