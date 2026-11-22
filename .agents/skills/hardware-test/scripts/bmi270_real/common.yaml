@@ -1,0 +1,33 @@
+# Package: real BMI270 breakout (0x68) on an ESP8266 (Feather HUZZAH, SDA GPIO4, SCL GPIO5). probe.hpp counts mallocs
+# between on_boot 600.5 and 599.5 (the DATA setups) and dumps the main registers after setup; imu.yaml has the rest.
+esphome:
+  name: ${name}
+  includes:
+    - probe.hpp
+  platformio_options:
+    build_flags:
+      - -Wl,--wrap=malloc
+  on_boot:
+    - priority: 600.5
+      then:
+        - lambda: bmiprobe::start();
+    - priority: 599.5
+      then:
+        - lambda: bmiprobe::stop();
+    - priority: -100
+      then:
+        - lambda: |-
+            ESP_LOGI("bmiprobe", "BUILD ${name} imu_failed=%d", id(imu)->is_failed());
+            bmiprobe::report("${name}");
+            bmiprobe::regs(id(bus), 0x68, "after_setup");
+esp8266:
+  board: huzzah
+logger:
+  level: DEBUG
+i2c:
+  id: bus
+  sda: GPIO4
+  scl: GPIO5
+  scan: false
+packages:
+  imu: !include {file: imu.yaml, vars: {values_every: 2s}}

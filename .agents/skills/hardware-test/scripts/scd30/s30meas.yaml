@@ -1,0 +1,15 @@
+# SCL low phase timer: the longest clock stretch per 10 s window.
+substitutions:
+  name: s30meas
+packages:
+  common: !include s30common.yaml
+esphome:
+  includes: [scl_stretch.hpp]
+  on_boot:
+    priority: 900
+    then:
+      - lambda: 'sclst::start();'
+interval:
+  - interval: 10s
+    then:
+      - lambda: 'sclst::dump();'

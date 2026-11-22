@@ -1,0 +1,27 @@
+packages:
+  base: !include hz-base.yaml
+logger:
+  level: VERBOSE
+  initial_level: DEBUG
+  logs:
+    jsn_sr04t.sensor: VERBOSE
+uart:
+  tx_pin: GPIO14
+  rx_pin: GPIO12
+  baud_rate: 9600
+globals:
+  - id: nread
+    type: uint32_t
+    initial_value: '0'
+sensor:
+  - platform: jsn_sr04t
+    name: "Distance"
+    update_interval: 1s
+    on_raw_value:
+      - lambda: id(nread)++;
+interval:
+  - interval: 10s
+    then:
+      - logger.log:
+          format: "TALLY readings=%u"
+          args: [id(nread)]

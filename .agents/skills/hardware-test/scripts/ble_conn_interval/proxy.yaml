@@ -1,0 +1,51 @@
+# #22859 proxy on an ESP32-C3 with the reporter's BLE settings and the ivlog.hpp interval logger.
+# -s name NAME; -s flags y|n for CONFIG_BT_BLE_50_FEATURES_SUPPORTED; -s window W for the scan window
+substitutions:
+  name: i22859p
+  flags: "y"
+  window: 300ms
+
+esphome:
+  name: ${name}
+  includes:
+    - ivlog.hpp
+  platformio_options:
+    build_flags:
+      - -Wl,--wrap=esp_ble_gattc_register_callback
+      - -Wl,--wrap=esp_ble_gap_register_callback
+
+esp32:
+  variant: ESP32C3
+  board: esp32-c3-devkitm-1
+  framework:
+    type: esp-idf
+    log_level: INFO
+    sdkconfig_options:
+      CONFIG_BT_BLE_50_FEATURES_SUPPORTED: ${flags}
+      CONFIG_BT_BLE_42_FEATURES_SUPPORTED: y
+
+logger:
+  level: DEBUG
+  hardware_uart: USB_SERIAL_JTAG
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+api:
+  reboot_timeout: 0s
+  encryption:
+    key: !secret api_key
+
+esp32_ble:
+  max_connections: 5
+
+esp32_ble_tracker:
+  scan_parameters:
+    interval: 300ms
+    window: ${window}
+    active: true
+
+bluetooth_proxy:
+  active: true
+  connection_slots: 5
