@@ -71,14 +71,20 @@ struct DialReading {
   float confidence;
 };
 
+/// Folds an angle into [0, 360); fmodf() alone keeps the sign of its input.
+inline float wrap360(float degrees) {
+  float wrapped = fmodf(degrees, 360.0f);
+  return wrapped < 0.0f ? wrapped + 360.0f : wrapped;
+}
+
 /// Maps a detector angle (0 = East, clockwise) to the dial's value.
 inline float angle_to_value(float image_angle, const DialConfig &dial) {
   // Image angles start at East, dial angles at North, so rotate by 90 degrees.
-  float dial_angle = fmodf(image_angle + 90.0f, 360.0f);
+  float dial_angle = wrap360(image_angle + 90.0f);
   // The offset is the dial's physical origin, so it applies before the mirror.
-  dial_angle = fmodf(dial_angle - dial.angle_offset + 360.0f, 360.0f);
+  dial_angle = wrap360(dial_angle - dial.angle_offset);
   if (!dial.clockwise)
-    dial_angle = fmodf(360.0f - dial_angle, 360.0f);
+    dial_angle = wrap360(-dial_angle);
 
   // A calibration map wins over the angle range, including a wrap-around range.
   if (!dial.calibration_mapping.empty()) {
@@ -100,15 +106,13 @@ inline float angle_to_value(float image_angle, const DialConfig &dial) {
     return points.back().second;
   }
 
-  // Measure from min_angle, clockwise, whatever the range: a sweep that crosses
-  // North and a plain one differ only in where they stop.
+  // Measure from min_angle, clockwise, whatever the range.
   float span = dial.max_angle - dial.min_angle;
   if (span <= 0.0f)
     span += 360.0f;
-  float delta = fmodf(dial_angle - dial.min_angle + 360.0f, 360.0f);
-  // Past the end of the sweep the needle is off the scale, so it reads the
-  // nearer stop instead of the far one; a needle before the start therefore
-  // reads the minimum rather than wrapping round to the maximum.
+  float delta = wrap360(dial_angle - dial.min_angle);
+  // Off the scale the needle reads the nearer stop, so one before the start
+  // reads the minimum instead of wrapping round to the maximum.
   if (delta > span) {
     const float past_end = delta - span;
     const float before_start = 360.0f - delta;
@@ -118,9 +122,8 @@ inline float angle_to_value(float image_angle, const DialConfig &dial) {
   return dial.min_value + std::clamp(fraction, 0.0f, 1.0f) * (dial.max_value - dial.min_value);
 }
 
-/// Carry-corrects stacked dials and returns the combined value.
-/// `order`, `phase` and `digits` are scratch arrays of `count` entries; `digits`
-/// is filled in reading order. Returns NAN when the value cannot be represented.
+/// Carry-corrects stacked dials and returns the combined value, or NAN.
+/// The caller passes `count`-entry scratch arrays; `digits` is filled in reading order.
 inline float combine_stacked_digits(const DialReading *readings, size_t count, int *order, float *phase, int *digits) {
   auto wrap10 = [](float x) -> float {
     x = fmodf(x, 10.0f);

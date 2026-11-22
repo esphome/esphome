@@ -252,15 +252,14 @@ void AnalogGaugeReader::process_image_from_buffer(const uint8_t *data, size_t le
     const uint32_t start_algo = micros();
     const gauge_needle_detector::DetectionResult result = this->detector_.detect(gray, crop_w, crop_h, detector_config);
     const uint32_t dur_algo = micros() - start_algo;
-    // The detector reports zero confidence when it found no needle, so the
-    // sentinel angle must not be turned into a plausible value.
+    // Zero confidence means no needle; its angle must not become a value.
     if (result.confidence <= 0.0f) {
       ESP_LOGW(TAG, "No needle found for dial %s; dropping this frame", dial.id);
       return;
     }
 
     const float val = angle_to_value(result.angle, dial);
-    const float display_angle = fmodf(result.angle + 90.0f, 360.0f);
+    const float display_angle = wrap360(result.angle + 90.0f);
     ESP_LOGV(TAG, "Dial %s: Angle=%.1f (North), Val=%.2f, Conf=%.2f, Time=%" PRIu32 " us", dial.id, display_angle, val,
              result.confidence, dur_algo);
     this->readings_.push_back({&dial, val, display_angle, result.confidence});

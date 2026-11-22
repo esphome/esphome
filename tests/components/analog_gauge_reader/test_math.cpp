@@ -31,6 +31,14 @@ TEST(AngleMapping, ClockwiseFullCircle) {
   EXPECT_NEAR(angle_to_value(90.0f, dial), 5.0f, 1e-4f);
 }
 
+TEST(AngleMapping, Wrap360KeepsAnglesPositive) {
+  EXPECT_NEAR(wrap360(-1.0f), 359.0f, 1e-4f);
+  EXPECT_NEAR(wrap360(-370.0f), 350.0f, 1e-4f);
+  EXPECT_NEAR(wrap360(0.0f), 0.0f, 1e-4f);
+  EXPECT_NEAR(wrap360(720.0f), 0.0f, 1e-4f);
+  EXPECT_NEAR(wrap360(12.5f), 12.5f, 1e-4f);
+}
+
 TEST(AngleMapping, WrapAroundRange) {
   const DialConfig dial = make_dial(300.0f, 60.0f, 0.0f, 10.0f);
   EXPECT_NEAR(angle_to_value(-90.0f, dial), 5.0f, 1e-4f);   // dial angle 0
@@ -80,6 +88,15 @@ TEST(AngleMapping, OffsetAppliesBeforeTheMirror) {
   // The offset moves the needle to the start of the range, where mirroring
   // leaves it; mirroring first would land on the end instead.
   EXPECT_NEAR(angle_to_value(0.0f, dial), 0.0f, 1e-4f);
+}
+
+TEST(AngleMapping, LargeOffsetAndNegativeAngleStayInRange) {
+  // -170 + 90 - 300 folds to 340, which the calibration map must see as 340 and
+  // not as a negative angle before its first point.
+  DialConfig dial = make_dial(0.0f, 360.0f, 0.0f, 10.0f);
+  dial.angle_offset = 300.0f;
+  dial.calibration_mapping = {{0.0f, 100.0f}, {340.0f, 110.0f}};
+  EXPECT_NEAR(angle_to_value(-170.0f, dial), 110.0f, 1e-4f);
 }
 
 TEST(AngleMapping, CalibrationWinsOverWrapAround) {
