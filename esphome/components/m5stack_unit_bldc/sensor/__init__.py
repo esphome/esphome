@@ -3,10 +3,8 @@ from esphome.components import sensor
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_FREQUENCY,
-    DEVICE_CLASS_FREQUENCY,
     ICON_ROTATE_RIGHT,
     STATE_CLASS_MEASUREMENT,
-    UNIT_HERTZ,
     UNIT_REVOLUTIONS_PER_MINUTE,
 )
 from esphome.types import ConfigType
@@ -24,10 +22,7 @@ CONFIG_SCHEMA = {
         state_class=STATE_CLASS_MEASUREMENT,
     ),
     cv.Optional(CONF_FREQUENCY): sensor.sensor_schema(
-        unit_of_measurement=UNIT_HERTZ,
-        accuracy_decimals=1,
-        device_class=DEVICE_CLASS_FREQUENCY,
-        state_class=STATE_CLASS_MEASUREMENT,
+        kind=sensor.FREQUENCY, accuracy_decimals=1
     ),
 }
 

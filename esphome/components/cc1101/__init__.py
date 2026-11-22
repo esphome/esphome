@@ -300,8 +300,7 @@ async def to_code(config):
 
     for opt in CONFIG_MAP:
         key = opt.schema
-        if key in config:
-            cg.add(getattr(var, f"set_{key}")(config[key]))
+        cg.add_optional(getattr(var, f"set_{key}"), config.get(key))
 
     await cg.add_pin(var.set_gdo0_pin, config.get(CONF_GDO0_PIN))
     if (packet_length := config.get(CONF_PACKET_LENGTH)) is not None:
