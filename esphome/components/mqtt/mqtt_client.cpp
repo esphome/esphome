@@ -124,32 +124,24 @@ void MQTTClientComponent::setup() {
           this->payload_buffer_.clear();
         }
       });
+  // AsyncMqttClient calls this from its TCP context; loop() logs it and runs the automations
   this->mqtt_backend_.set_on_disconnect([this](MQTTClientDisconnectReason reason) {
-    // State first, so a deferred automation that disables MQTT is not overwritten
-    if (this->state_ != MQTT_CLIENT_DISABLED) {
+    this->disconnect_reason_ = reason;
+    if (this->state_ != MQTT_CLIENT_DISABLED)
       this->state_ = MQTT_CLIENT_DISCONNECTED;
-      this->disconnect_reason_ = reason;
-    }
-#ifdef USE_ESP32
-    this->on_disconnect_.call(reason);
-#else
-    // AsyncMqttClient calls this from its TCP context, so the automations run on the main loop
-    if (!this->on_disconnect_.empty())
-      this->defer([this, reason]() { this->on_disconnect_.call(reason); });
-#endif
   });
 #ifndef USE_MQTT_SESSION_PERSISTENCE
-  // The automations are added before setup(); they run from check_connected()
+  // Only on_connect automations need it; they are added before setup()
   if (!this->on_connect_.empty())
-    this->mqtt_backend_.set_on_connect([this](bool session_present) { this->session_present_ = session_present; });
-#else
-  this->mqtt_backend_.set_on_connect([this](bool session_present) {
-    this->session_present_ = session_present;
-#ifndef USE_ESP32
-    // AsyncMqttClient delivers CONNACK and SUBACK in the same context, so the counter has one writer
-    this->subacks_.reset();
 #endif
-  });
+    this->mqtt_backend_.set_on_connect([this](bool session_present) {
+      this->session_present_ = session_present;
+#if defined(USE_MQTT_SESSION_PERSISTENCE) && !defined(USE_ESP32)
+      // AsyncMqttClient delivers CONNACK and SUBACK in the same context, so the counter has one writer
+      this->subacks_.reset();
+#endif
+    });
+#ifdef USE_MQTT_SESSION_PERSISTENCE
 #ifndef USE_ESP32
   this->mqtt_backend_.set_on_subscribe([this](uint16_t, uint8_t return_code) { this->subacks_.add(return_code); });
 #endif
@@ -380,7 +372,6 @@ void MQTTClientComponent::start_dnslookup_() {
       ESP_LOGW(TAG, "Error resolving broker IP address: %d", err);
       this->state_ = MQTT_CLIENT_DISCONNECTED;
       this->disconnect_reason_ = MQTTClientDisconnectReason::DNS_RESOLVE_ERROR;
-      this->on_disconnect_.call(MQTTClientDisconnectReason::DNS_RESOLVE_ERROR);
       this->connect_begin_ = millis();
       return;
     }
@@ -398,7 +389,6 @@ void MQTTClientComponent::check_dnslookup_() {
     ESP_LOGW(TAG, "Couldn't resolve IP address for '%s'", this->credentials_.address.c_str());
     this->state_ = MQTT_CLIENT_DISCONNECTED;
     this->disconnect_reason_ = MQTTClientDisconnectReason::DNS_RESOLVE_ERROR;
-    this->on_disconnect_.call(MQTTClientDisconnectReason::DNS_RESOLVE_ERROR);
     return;
   }
 
@@ -516,7 +506,9 @@ void MQTTClientComponent::loop() {
       reason_s = LOG_STR("WiFi disconnected");
     }
     ESP_LOGW(TAG, "Disconnected: %s", LOG_STR_ARG(reason_s));
+    const MQTTClientDisconnectReason reason = *this->disconnect_reason_;
     this->disconnect_reason_.reset();
+    this->on_disconnect_.call(reason);
   }
 
   const uint32_t now = App.get_loop_component_start_time();

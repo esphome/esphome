@@ -50,11 +50,6 @@ static constexpr size_t MQTT_TOPIC_PREFIX_MAX_LEN = 64;  // Validated in Python:
 static constexpr size_t MQTT_DEFAULT_TOPIC_MAX_LEN =
     MQTT_TOPIC_PREFIX_MAX_LEN + 1 + MQTT_COMPONENT_TYPE_MAX_LEN + 1 + OBJECT_ID_MAX_LEN + 1 + MQTT_SUFFIX_MAX_LEN + 1;
 
-/** Callback for MQTT events.
- */
-using mqtt_on_connect_callback_t = std::function<MQTTBackend::on_connect_callback_t>;
-using mqtt_on_disconnect_callback_t = std::function<MQTTBackend::on_disconnect_callback_t>;
-
 /// Stored callback of an MQTT subscription: the topic, then the payload.
 using mqtt_subscription_callback_t = Callback<void(const std::string &, const std::string &)>;
 
@@ -447,6 +442,7 @@ class MQTTClientComponent final : public Component {
   uint32_t connect_begin_;
   uint32_t last_connected_{0};
   optional<MQTTClientDisconnectReason> disconnect_reason_{};
+  bool session_present_{false};
   LazyCallbackManager<MQTTBackend::on_disconnect_callback_t> on_disconnect_;
   LazyCallbackManager<MQTTBackend::on_connect_callback_t> on_connect_;
 
@@ -454,7 +450,6 @@ class MQTTClientComponent final : public Component {
   bool wait_for_connection_{false};
   bool dispatching_{false};
   bool removed_while_dispatching_{false};
-  bool session_present_{false};
 #ifdef USE_MQTT_SESSION_PERSISTENCE
   /// Set once every SUBACK of this connection is in (or the session was resumed without subscribing)
   bool subacks_settled_{false};
