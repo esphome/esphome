@@ -90,10 +90,10 @@ def _energy():
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_MIDEA_ID): cv.use_id(AirConditioner),
-        # Group 4 energy values come as BCD on most units and as binary on some
-        cv.Optional(CONF_ENERGY_FORMAT, default="BCD"): cv.enum(
-            ENERGY_FORMATS, upper=True
-        ),
+        # Group 4 energy values come as BCD on most units and as binary on some.
+        # No default here: the hub defaults to BCD, and another sensor entry for the same
+        # hub must not reset a format set in this one.
+        cv.Optional(CONF_ENERGY_FORMAT): cv.enum(ENERGY_FORMATS, upper=True),
         # 0xC0 status
         cv.Optional(CONF_ERROR_CODE): sensor.sensor_schema(
             icon=ICON_ALERT,
@@ -159,7 +159,8 @@ CONFIG_SCHEMA = cv.Schema(
 
 async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_MIDEA_ID])
-    cg.add(hub.set_energy_format(config[CONF_ENERGY_FORMAT]))
+    if CONF_ENERGY_FORMAT in config:
+        cg.add(hub.set_energy_format(config[CONF_ENERGY_FORMAT]))
     sensors = sensor.sub_sensors(config)
     await sensors(CONF_ERROR_CODE, hub.set_error_code_sensor)
     await sensors(CONF_COMPRESSOR_FREQUENCY, hub.set_compressor_frequency_sensor)

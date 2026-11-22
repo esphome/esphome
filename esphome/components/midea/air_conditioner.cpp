@@ -1,11 +1,13 @@
 #if (defined(USE_ARDUINO) && !defined(USE_RP2) && !defined(USE_LIBRETINY)) || defined(USE_ESP_IDF)
 
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "air_conditioner.h"
 #include "ac_adapter.h"
 #include <cmath>
 #include <cstdint>
+#include <cstdlib>
 #include <utility>
 
 namespace esphome::midea::ac {
@@ -79,17 +81,19 @@ void AirConditioner::on_status_change() {
 /* ################ */
 
 // Values of the select options, in option order
-static constexpr uint8_t SWING_ANGLE_VALUES[] = {0, 1, 25, 50, 75, 100};
-static constexpr uint8_t CASCADE_VALUES[] = {0, 1, 2};
-static constexpr uint8_t FRESH_AIR_VALUES[] = {0, 40, 60, 80, 100};
-static constexpr uint8_t RATE_SELECT_2_VALUES[] = {100, 75, 50};
-static constexpr uint8_t RATE_SELECT_5_VALUES[] = {100, 80, 60, 40, 20, 1};
-static constexpr uint8_t BREEZE_MODE_VALUES[] = {1, 2, 3, 4};
-static constexpr uint8_t BREEZE_AWAY_DIRECTION_VALUES[] = {0, 2, 3};
+static constexpr uint8_t SWING_ANGLE_VALUES[] PROGMEM = {0, 1, 25, 50, 75, 100};
+static constexpr uint8_t CASCADE_VALUES[] PROGMEM = {0, 1, 2};
+static constexpr uint8_t FRESH_AIR_VALUES[] PROGMEM = {0, 40, 60, 80, 100};
+static constexpr uint8_t RATE_SELECT_2_VALUES[] PROGMEM = {100, 75, 50};
+static constexpr uint8_t RATE_SELECT_5_VALUES[] PROGMEM = {100, 80, 60, 40, 20, 1};
+static constexpr uint8_t BREEZE_MODE_VALUES[] PROGMEM = {1, 2, 3, 4};
+static constexpr uint8_t BREEZE_AWAY_DIRECTION_VALUES[] PROGMEM = {0, 2, 3};
 
+// A select value table in flash; read the values with value()
 struct ValueTable {
   const uint8_t *values;
   uint8_t size;
+  uint8_t value(uint8_t idx) const { return progmem_read_byte(this->values + idx); }
 };
 template<size_t N> static constexpr ValueTable table(const uint8_t (&values)[N]) {
   return {values, static_cast<uint8_t>(N)};
@@ -227,16 +231,18 @@ static void publish_known(Sensor *sensor, float value) {
     set_sensor(sensor, value);
 }
 
+// The entity state is the output of the filters or the inversion, so it is not compared with the raw value here:
+// publish_state() skips repeated raw values itself
 #ifdef USE_BINARY_SENSOR
 static void publish_binary(binary_sensor::BinarySensor *sensor, bool value) {
-  if (sensor != nullptr && (!sensor->has_state() || sensor->state != value))
+  if (sensor != nullptr)
     sensor->publish_state(value);
 }
 #endif
 
 #ifdef USE_SWITCH
 static void publish_switch(switch_::Switch *sw, bool value) {
-  if (sw != nullptr && (!sw->has_state() || sw->state != value))
+  if (sw != nullptr)
     sw->publish_state(value);
 }
 #endif
@@ -255,7 +261,7 @@ static int find_option(ValueTable values, uint8_t value, bool nearest) {
   int best = -1;
   int best_diff = nearest ? 256 : 1;
   for (uint8_t idx = 0; idx < values.size; ++idx) {
-    const int diff = values.values[idx] > value ? values.values[idx] - value : value - values.values[idx];
+    const int diff = std::abs(static_cast<int>(values.value(idx)) - static_cast<int>(value));
     if (diff < best_diff) {
       best = idx;
       best_diff = diff;
@@ -392,7 +398,7 @@ void AirConditioner::control_select(MideaSelect setting, size_t index) {
   }
   const ValueTable values = select_values(setting, this->rate_select_levels_);
   if (index < values.size)
-    this->base_.set_property(select_property(setting), values.values[index]);
+    this->base_.set_property(select_property(setting), values.value(index));
 }
 
 void AirConditioner::control(const ClimateCall &call) {
@@ -420,7 +426,7 @@ void AirConditioner::control(const ClimateCall &call) {
     // get_custom_fan_mode() returns StringRef pointing to null-terminated string literals from codegen
     ctrl.fanMode = Converters::to_midea_fan_mode(call.get_custom_fan_mode().c_str());
   }
-  this->base_.control(ctrl);
+  this->base_.request_control(ctrl);
 }
 
 ClimateTraits AirConditioner::traits() {
@@ -542,8 +548,8 @@ using dudanov::midea::FrameType;
 using dudanov::midea::ResponseStatus;
 using dudanov::midea::ac::StatusData;
 
-static constexpr uint8_t GROUP_IDS[] = {1, 2, 4, 5, 7, 11};
-static constexpr uint16_t PROPERTY_IDS[] = {
+static constexpr uint8_t GROUP_IDS[] PROGMEM = {1, 2, 4, 5, 7, 11};
+static constexpr uint16_t PROPERTY_IDS[] PROGMEM = {
     0x0009,  // SWING_UD_ANGLE
     0x000A,  // SWING_LR_ANGLE
     0x0018,  // BREEZELESS
@@ -563,6 +569,8 @@ static_assert(sizeof(GROUP_IDS) == static_cast<uint8_t>(MideaGroup::MIDEA_GROUP_
 static_assert(sizeof(PROPERTY_IDS) / sizeof(PROPERTY_IDS[0]) ==
               static_cast<uint8_t>(MideaProperty::MIDEA_PROPERTY_COUNT));
 static constexpr uint16_t PROPERTY_ID_BUZZER = 0x001A;
+static uint8_t group_id(uint8_t idx) { return progmem_read_byte(&GROUP_IDS[idx]); }
+static uint16_t property_id(uint8_t idx) { return progmem_read_uint16(&PROPERTY_IDS[idx]); }
 
 /* ################## */
 /* ### FRAME DATA ### */
@@ -614,7 +622,29 @@ class StatusRequest : public StatusData {
     this->m_setMask(22, state, 0x08);
   }
   void set_target_humidity(uint8_t humidity) { this->m_setValue(19, humidity & 0x7F, 0x7F); }
+  // m_status holds report bytes 1-10 as reported and older request bytes past them. Encode the climate settings
+  // the way a request carries them, as MideaUART's control() does, so the request keeps them.
+  void set_climate(dudanov::midea::ac::Preset preset, float target_temp) {
+    this->m_setMask(9, false, 0x10);   // ECO as reported; the request has it in bit 0x80, which setPreset() sets
+    this->setPreset(preset);           // also sets freeze protection (byte 21), which reports do not refresh
+    this->setTargetTemp(target_temp);  // also sets byte 18, which reports do not refresh
+  }
 };
+
+static void apply_pending(const PendingStatus &pending, StatusRequest &status) {
+  if (pending.fields & PendingStatus::FAN_SPEED)
+    status.set_fan_speed(pending.fan_speed);
+  if (pending.fields & PendingStatus::PURIFIER)
+    status.set_purifier(pending.purifier);
+  if (pending.fields & PendingStatus::FAHRENHEIT)
+    status.setFahrenheits(pending.fahrenheit);
+  if (pending.fields & PendingStatus::TARGET_HUMIDITY)
+    status.set_target_humidity(pending.target_humidity);
+  if (pending.fields & PendingStatus::AUX_HEAT_MODE) {
+    status.set_aux_heat(pending.aux_heat_mode == MideaAuxHeatMode::MIDEA_AUX_HEAT_MODE_AUX_HEAT);
+    status.set_independent_aux_heat(pending.aux_heat_mode == MideaAuxHeatMode::MIDEA_AUX_HEAT_MODE_AUX_ONLY);
+  }
+}
 
 /* ############### */
 /* ### POLLING ### */
@@ -622,6 +652,10 @@ class StatusRequest : public StatusData {
 
 // Replaces MideaUART's m_onIdle(), which only queues the status query; its power usage query runs on its own timer
 void Appliance::m_onIdle() {
+  // Controls go first. They are queued only here, where the queue is empty, and built from the state at this
+  // point, so they are sent in order and a queued request never carries an older state than a later one.
+  if (this->queue_next_control_())
+    return;
   // Group and properties queries take turns with the status query, so the climate state keeps its refresh rate
   if (!this->status_turn_ && this->queue_next_data_query_()) {
     this->status_turn_ = true;
@@ -678,7 +712,7 @@ ResponseStatus Appliance::read_status_(FrameData data) {
 }
 
 void Appliance::queue_group_query_(MideaGroup group) {
-  const uint8_t id = GROUP_IDS[static_cast<uint8_t>(group)];
+  const uint8_t id = group_id(static_cast<uint8_t>(group));
   ESP_LOGV(Constants::TAG, "Enqueuing a GET_GROUP_DATA(0x41) request for group %u", id);
   GroupQueryData data(id);
   this->m_queueRequest(
@@ -690,7 +724,7 @@ void Appliance::queue_properties_query_() {
   PropertiesData data(0xB1);
   for (uint8_t idx = 0; idx < static_cast<uint8_t>(MideaProperty::MIDEA_PROPERTY_COUNT); ++idx) {
     if (this->polled_properties_ & (1U << idx))
-      data.add_id(PROPERTY_IDS[idx]);
+      data.add_id(property_id(idx));
   }
   data.finish();
   ESP_LOGV(Constants::TAG, "Enqueuing a GET_PROPERTIES(0xB1) request");
@@ -743,21 +777,22 @@ static uint8_t bcd(uint8_t value) { return 10 * (value >> 4) + (value & 0x0F); }
 // Louver angles are 0-180 degrees; a larger value (0xF0 seen on a unit without an angle setting) is not an angle
 static float angle(uint8_t value) { return value <= 180 ? static_cast<float>(value) : NAN; }
 // Shortest reply that holds every field read from it, per group
-static constexpr uint8_t GROUP_MIN_SIZES[] = {17, 11, 21, 13, 14, 15};
+static constexpr uint8_t GROUP_MIN_SIZES[] PROGMEM = {17, 11, 21, 13, 14, 15};
 static_assert(sizeof(GROUP_MIN_SIZES) == static_cast<uint8_t>(MideaGroup::MIDEA_GROUP_COUNT));
 
 ResponseStatus Appliance::read_group_(MideaGroup group, const FrameData &data) {
   const uint8_t *d = data.data();
   const uint8_t size = data.size();
   const uint8_t idx = static_cast<uint8_t>(group);
-  if (!data.hasID(0xC1) || size < 4 || (d[3] & 0x0F) != (GROUP_IDS[idx] & 0x0F))
+  const uint8_t id = group_id(idx);
+  if (!data.hasID(0xC1) || size < 4 || (d[3] & 0x0F) != (id & 0x0F))
     return ResponseStatus::RESPONSE_WRONG;
-  if (size < GROUP_MIN_SIZES[idx]) {
+  const uint8_t min_size = progmem_read_byte(&GROUP_MIN_SIZES[idx]);
+  if (size < min_size) {
     // A reply in a layout this code does not know; its entities stay unknown, so say why once
     if (!(this->short_groups_ & (1U << idx))) {
       this->short_groups_ |= 1U << idx;
-      ESP_LOGW(Constants::TAG, "Group %u reply has %u bytes, expected %u; its values stay unknown", GROUP_IDS[idx],
-               size, GROUP_MIN_SIZES[idx]);
+      ESP_LOGW(Constants::TAG, "Group %u reply has %u bytes, expected %u; its values stay unknown", id, size, min_size);
     }
     return ResponseStatus::RESPONSE_OK;
   }
@@ -827,8 +862,8 @@ ResponseStatus Appliance::read_group_(MideaGroup group, const FrameData &data) {
 }
 
 static int8_t property_index(uint16_t id) {
-  for (size_t idx = 0; idx < sizeof(PROPERTY_IDS) / sizeof(PROPERTY_IDS[0]); ++idx) {
-    if (PROPERTY_IDS[idx] == id)
+  for (uint8_t idx = 0; idx < static_cast<uint8_t>(MideaProperty::MIDEA_PROPERTY_COUNT); ++idx) {
+    if (property_id(idx) == id)
       return static_cast<int8_t>(idx);
   }
   return -1;
@@ -908,95 +943,201 @@ ResponseStatus Appliance::read_properties_(const FrameData &data) {
 /* ### CONTROLS ### */
 /* ################ */
 
-template<typename F> void Appliance::modify_status_(F &&modify) {
-  if (!this->state_.status_valid) {
-    // m_status is only a template until the first status report; sending it would change other settings
-    ESP_LOGW(Constants::TAG, "No status received from the appliance yet, control ignored");
+template<typename T> static void merge(dudanov::Optional<T> &dst, const dudanov::Optional<T> &src) {
+  if (src.hasValue())
+    dst = src.value();
+}
+
+void Appliance::request_control(const dudanov::midea::ac::Control &control) {
+  if (!this->control_in_flight_) {
+    this->send_climate_control_(control);
     return;
   }
+  // A climate request queued now would go out before the queued status or properties request, which was built
+  // without it; m_onIdle() sends it after that one instead
+  merge(this->deferred_control_.targetTemp, control.targetTemp);
+  merge(this->deferred_control_.mode, control.mode);
+  merge(this->deferred_control_.preset, control.preset);
+  merge(this->deferred_control_.fanMode, control.fanMode);
+  merge(this->deferred_control_.swingMode, control.swingMode);
+  this->has_deferred_control_ = true;
+}
+
+void Appliance::request_power(bool state) {
+  if (state == this->getPowerState())
+    return;
+  dudanov::midea::ac::Control control;
+  control.mode = state ? this->m_status.getRawMode() : dudanov::midea::ac::Mode::MODE_OFF;
+  this->request_control(control);
+}
+
+void Appliance::send_climate_control_(const dudanov::midea::ac::Control &control) {
+  if (this->pending_status_.fields) {
+    // control() builds its request from m_status; put the status controls not yet confirmed in it
+    StatusRequest status(this->m_status);
+    apply_pending(this->pending_status_, status);
+    this->m_status = std::move(status);
+  }
+  this->control(control);
+}
+
+bool Appliance::queue_next_control_() {
+  if (this->has_deferred_control_) {
+    this->has_deferred_control_ = false;
+    const dudanov::midea::ac::Control control = this->deferred_control_;
+    this->deferred_control_ = {};
+    this->send_climate_control_(control);
+    return true;
+  }
+  if (this->status_dirty_) {
+    this->queue_status_control_();
+    return true;
+  }
+  if (this->pending_properties_) {
+    this->queue_properties_control_();
+    return true;
+  }
+  return false;
+}
+
+bool Appliance::status_ready_() const {
+  if (this->state_.status_valid)
+    return true;
+  // m_status is only a template until the first status report; sending it would change other settings
+  ESP_LOGW(Constants::TAG, "No status received from the appliance yet, control ignored");
+  return false;
+}
+
+void Appliance::set_pending_status_(uint8_t field) {
+  this->pending_status_.fields |= field;
+  this->status_dirty_ = true;
+}
+
+void Appliance::queue_status_control_() {
+  this->status_dirty_ = false;
   StatusRequest status(this->m_status);
-  modify(status);
-  // Later climate controls start from m_status; read_status_() sets it back to what the appliance reports
-  this->m_status = status;
+  status.set_climate(this->m_preset, this->m_targetTemp);
+  apply_pending(this->pending_status_, status);
   status.setBeeper(this->m_beeper);
   status.appendCRC();
-  ESP_LOGD(Constants::TAG, "Enqueuing a priority SET_STATUS(0x40) request");
+  ESP_LOGD(Constants::TAG, "Enqueuing a SET_STATUS(0x40) request");
+  this->control_in_flight_ = true;
   // The entities change only when the status report in the reply shows that the appliance applied the request
-  this->m_queueRequestPriority(FrameType::DEVICE_CONTROL, std::move(status), [this](FrameData data) -> ResponseStatus {
-    return this->read_status_(std::move(data));
-  });
+  this->m_queueRequest(
+      FrameType::DEVICE_CONTROL, std::move(status),
+      [this](FrameData data) -> ResponseStatus { return this->read_status_(std::move(data)); },
+      [this]() { this->on_status_control_done_(); },
+      [this]() {
+        ESP_LOGW(Constants::TAG, "SET_STATUS(0x40) request failed");
+        this->on_status_control_done_();
+      });
+}
+
+void Appliance::on_status_control_done_() {
+  this->control_in_flight_ = false;
+  // The reply has been read into m_status; keep only the controls set after the request was built
+  if (!this->status_dirty_)
+    this->pending_status_.fields = 0;
 }
 
 void Appliance::set_fan_speed(uint8_t speed) {
-  if (speed < 1 || speed > 100)
+  if (speed < 1 || speed > 100 || !this->status_ready_())
     return;
-  this->modify_status_([speed](StatusRequest &s) { s.set_fan_speed(speed); });
+  this->pending_status_.fan_speed = speed;
+  this->set_pending_status_(PendingStatus::FAN_SPEED);
 }
 
 void Appliance::set_purifier(bool state) {
-  this->modify_status_([state](StatusRequest &s) { s.set_purifier(state); });
+  if (!this->status_ready_())
+    return;
+  this->pending_status_.purifier = state;
+  this->set_pending_status_(PendingStatus::PURIFIER);
 }
 
 void Appliance::set_fahrenheit(bool state) {
-  this->modify_status_([state](StatusRequest &s) { s.setFahrenheits(state); });
+  if (!this->status_ready_())
+    return;
+  this->pending_status_.fahrenheit = state;
+  this->set_pending_status_(PendingStatus::FAHRENHEIT);
 }
 
 void Appliance::set_target_humidity(uint8_t humidity) {
-  this->modify_status_([humidity](StatusRequest &s) { s.set_target_humidity(humidity); });
+  if (!this->status_ready_())
+    return;
+  this->pending_status_.target_humidity = humidity;
+  this->set_pending_status_(PendingStatus::TARGET_HUMIDITY);
 }
 
 void Appliance::set_aux_heat_mode(MideaAuxHeatMode mode) {
-  this->modify_status_([mode](StatusRequest &s) {
-    s.set_aux_heat(mode == MideaAuxHeatMode::MIDEA_AUX_HEAT_MODE_AUX_HEAT);
-    s.set_independent_aux_heat(mode == MideaAuxHeatMode::MIDEA_AUX_HEAT_MODE_AUX_ONLY);
-  });
+  if (!this->status_ready_())
+    return;
+  this->pending_status_.aux_heat_mode = mode;
+  this->set_pending_status_(PendingStatus::AUX_HEAT_MODE);
 }
 
 void Appliance::set_property(MideaProperty prop, uint8_t value) {
-  const uint8_t idx = static_cast<uint8_t>(prop);
   if (prop >= MideaProperty::MIDEA_PROPERTY_COUNT)
     return;
-  uint8_t raw[13]{};
-  uint8_t len = 1;
-  switch (prop) {
-    case MideaProperty::MIDEA_PROPERTY_BREEZE_AWAY:
-      raw[0] = value ? 2 : 1;
-      break;
-    case MideaProperty::MIDEA_PROPERTY_CASCADE:
-      raw[0] = value ? 1 : 0;
-      raw[1] = value;
-      len = 2;
-      break;
-    case MideaProperty::MIDEA_PROPERTY_FRESH_AIR:
-      raw[0] = value ? 1 : 0;
-      raw[1] = value;
-      raw[2] = 0xFF;
-      len = 3;
-      break;
-    case MideaProperty::MIDEA_PROPERTY_IECO:
-      // iECO frame, number, switch, then 10 reserved bytes
-      raw[1] = this->ieco_number_;
-      raw[2] = value ? 1 : 0;
-      len = sizeof(raw);
-      break;
-    case MideaProperty::MIDEA_PROPERTY_OUT_SILENT:
-      raw[0] = value ? 3 : 0;
-      break;
-    default:
-      raw[0] = value;
-      break;
-  }
+  const uint8_t idx = static_cast<uint8_t>(prop);
+  // A later write to the same property replaces one not sent yet
+  this->pending_property_values_[idx] = value;
+  this->pending_properties_ |= 1U << idx;
+}
+
+void Appliance::queue_properties_control_() {
   PropertiesData data(0xB0);
-  data.add_value(PROPERTY_IDS[idx], raw, len);
+  for (uint8_t idx = 0; idx < static_cast<uint8_t>(MideaProperty::MIDEA_PROPERTY_COUNT); ++idx) {
+    if (!(this->pending_properties_ & (1U << idx)))
+      continue;
+    const uint8_t value = this->pending_property_values_[idx];
+    uint8_t raw[13]{};
+    uint8_t len = 1;
+    switch (static_cast<MideaProperty>(idx)) {
+      case MideaProperty::MIDEA_PROPERTY_BREEZE_AWAY:
+        raw[0] = value ? 2 : 1;
+        break;
+      case MideaProperty::MIDEA_PROPERTY_CASCADE:
+        raw[0] = value ? 1 : 0;
+        raw[1] = value;
+        len = 2;
+        break;
+      case MideaProperty::MIDEA_PROPERTY_FRESH_AIR:
+        raw[0] = value ? 1 : 0;
+        raw[1] = value;
+        raw[2] = 0xFF;
+        len = 3;
+        break;
+      case MideaProperty::MIDEA_PROPERTY_IECO:
+        // iECO frame, number, switch, then 10 reserved bytes
+        raw[1] = this->ieco_number_;
+        raw[2] = value ? 1 : 0;
+        len = sizeof(raw);
+        break;
+      case MideaProperty::MIDEA_PROPERTY_OUT_SILENT:
+        raw[0] = value ? 3 : 0;
+        break;
+      default:
+        raw[0] = value;
+        break;
+    }
+    data.add_value(property_id(idx), raw, len);
+    ESP_LOGD(Constants::TAG, "SET_PROPERTIES(0xB0): 0x%04X = %u", property_id(idx), value);
+  }
+  this->pending_properties_ = 0;
   const uint8_t buzzer = this->m_beeper ? 1 : 0;
   data.add_value(PROPERTY_ID_BUZZER, &buzzer, 1);
   data.finish();
-  ESP_LOGD(Constants::TAG, "Enqueuing a priority SET_PROPERTIES(0xB0) request for 0x%04X = %u", PROPERTY_IDS[idx],
-           value);
+  ESP_LOGD(Constants::TAG, "Enqueuing a SET_PROPERTIES(0xB0) request");
+  this->control_in_flight_ = true;
   // The acknowledgement carries each property's value after the request, so a refused one keeps its old value
-  this->m_queueRequestPriority(
+  this->m_queueRequest(
       FrameType::DEVICE_CONTROL, std::move(data),
-      [this](const FrameData &data) -> ResponseStatus { return this->read_properties_(data); });
+      [this](const FrameData &data) -> ResponseStatus { return this->read_properties_(data); },
+      [this]() { this->control_in_flight_ = false; },
+      [this]() {
+        ESP_LOGW(Constants::TAG, "SET_PROPERTIES(0xB0) request failed");
+        this->control_in_flight_ = false;
+      });
 }
 
 }  // namespace esphome::midea::ac

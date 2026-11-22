@@ -114,6 +114,23 @@ enum class MideaEnergyFormat : uint8_t {
   MIDEA_ENERGY_FORMAT_BINARY,
 };
 
+/// Status controls not yet confirmed by a status report, sent with the next 0x40 set status request
+struct PendingStatus {
+  enum : uint8_t {
+    FAN_SPEED = 1 << 0,
+    PURIFIER = 1 << 1,
+    FAHRENHEIT = 1 << 2,
+    TARGET_HUMIDITY = 1 << 3,
+    AUX_HEAT_MODE = 1 << 4,
+  };
+  uint8_t fields{0};  // which of the values below are set
+  uint8_t fan_speed{0};
+  uint8_t target_humidity{0};
+  bool purifier{false};
+  bool fahrenheit{false};
+  MideaAuxHeatMode aux_heat_mode{MideaAuxHeatMode::MIDEA_AUX_HEAT_MODE_OFF};
+};
+
 /// Values MideaUART does not track. Floats are NAN and tri-state flags -1 until reported.
 struct ApplianceState {
   // 0xC0 status
@@ -168,6 +185,11 @@ class Appliance : public dudanov::midea::ac::AirConditioner {
   bool has_property(MideaProperty prop) const { return this->known_properties_ & (1U << static_cast<uint8_t>(prop)); }
   uint8_t get_property(MideaProperty prop) const { return this->property_values_[static_cast<uint8_t>(prop)]; }
 
+  /* Climate controls; use these instead of control() and setPowerState(), so they are sent in order with the
+   * controls below */
+  void request_control(const dudanov::midea::ac::Control &control);
+  void request_power(bool state);
+
   /* Controls sent with the 0x40 set status request */
   void set_fan_speed(uint8_t speed);
   void set_purifier(bool state);
@@ -191,9 +213,22 @@ class Appliance : public dudanov::midea::ac::AirConditioner {
   dudanov::midea::ResponseStatus read_group_(MideaGroup group, const dudanov::midea::FrameData &data);
   dudanov::midea::ResponseStatus read_properties_(const dudanov::midea::FrameData &data);
 
-  template<typename F> void modify_status_(F &&modify);
+  bool queue_next_control_();
+  void send_climate_control_(const dudanov::midea::ac::Control &control);
+  bool status_ready_() const;
+  void set_pending_status_(uint8_t field);
+  void queue_status_control_();
+  void on_status_control_done_();
+  void queue_properties_control_();
 
   ApplianceState state_{};
+  PendingStatus pending_status_{};
+  dudanov::midea::ac::Control deferred_control_{};  // climate controls held while a control request is out
+  uint8_t pending_property_values_[static_cast<uint8_t>(MideaProperty::MIDEA_PROPERTY_COUNT)]{};
+  uint16_t pending_properties_{0};  // properties to write with the next 0xB0 set properties request
+  bool status_dirty_{false};        // pending_status_ changed since the last 0x40 request was built
+  bool control_in_flight_{false};   // a 0x40 or 0xB0 request of these controls is queued or awaiting its reply
+  bool has_deferred_control_{false};
   uint8_t property_values_[static_cast<uint8_t>(MideaProperty::MIDEA_PROPERTY_COUNT)]{};
   uint16_t known_properties_{0};
   uint16_t polled_properties_{0};
@@ -278,9 +313,9 @@ class AirConditioner final : public ApplianceBase<Appliance>, public climate::Cl
   void do_swing_step();
   void do_beeper_on() { this->set_beeper_feedback(true); }
   void do_beeper_off() { this->set_beeper_feedback(false); }
-  void do_power_on() { this->base_.setPowerState(true); }
-  void do_power_off() { this->base_.setPowerState(false); }
-  void do_power_toggle() { this->base_.setPowerState(this->mode == ClimateMode::CLIMATE_MODE_OFF); }
+  void do_power_on() { this->base_.request_power(true); }
+  void do_power_off() { this->base_.request_power(false); }
+  void do_power_toggle() { this->base_.request_power(this->mode == ClimateMode::CLIMATE_MODE_OFF); }
   void set_supported_modes(ClimateModeMask modes) { this->supported_modes_ = modes; }
   void set_supported_swing_modes(ClimateSwingModeMask modes) { this->supported_swing_modes_ = modes; }
   void set_supported_presets(ClimatePresetMask presets) { this->supported_presets_ = presets; }
