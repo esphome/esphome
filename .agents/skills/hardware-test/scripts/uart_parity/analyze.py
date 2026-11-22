@@ -6,7 +6,7 @@ Knows the shelly_dimmer frames (01 seq cmd len payload sum16 04) and the stm32fl
 import pathlib
 import sys
 
-from uartsim import decode_8e1, encode, rx_parse
+from uartsim import decode_8e1, encode, missing_stimulus, rx_parse
 
 
 def frame(seq: int, cmd: int, payload: bytes = b"") -> bytes:
@@ -74,7 +74,6 @@ def main() -> None:
         sys.exit(
             f"{' '.join(header or ['no framing header'])}: analyze.py needs an rd.py capture in mode e"
         )
-    opts = header[1].removeprefix("options=").split(",") if len(header) > 1 else []
     known = other = marks = hups = short = parity = 0
     for t, d, h in bursts:
         if d != "RX":
@@ -94,20 +93,16 @@ def main() -> None:
                 k += f" [{m} PARMRK error marks]"
         print(f"{t:8.3f} {k}")
     # like txt.py: no data, a lost port, error marks or a short write is not a clean classification; a few OTHER
-    # bursts are boot noise, more of them than classified ones means a wrong framing or a broken line
+    # bursts are boot noise, more of them than parity-showing frames means a wrong framing or a broken line (report
+    # lines and 7F syncs say nothing about the frames, so they do not offset unrecognised ones)
     # an ack or feed that was asked for but never written leaves the run without its stimulus
-    tx = [h for _, d, h in bursts if d == "TX"]
-    missing = [
-        o
-        for o, p in (("ack", "79"), ("feed", "55"))
-        if o in opts and not any(h.startswith(p) for h in tx)
-    ]
+    missing = missing_stimulus(" ".join(header), [h for _, d, h in bursts if d == "TX"])
     summary = (
         f"{known} classified, {parity} showing parity, {other} OTHER, {marks} PARMRK error marks, {hups} HUP lines, "
         f"{short} short writes, requested but not written: {','.join(missing) or '-'}"
     )
     print(summary)
-    if not parity or other > known or marks or hups or short or missing:
+    if not parity or other > parity or marks or hups or short or missing:
         sys.exit(summary)
 
 

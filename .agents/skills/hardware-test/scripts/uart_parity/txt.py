@@ -7,7 +7,7 @@ not taken for a clean read.
 import pathlib
 import sys
 
-from uartsim import rx_parse
+from uartsim import missing_stimulus, rx_parse
 
 lines = [
     ln.split(" ", 2)
@@ -26,11 +26,9 @@ if (
 short = sum(
     p[1] == "TX" and "SHORT" in p[2] for p in lines
 )  # rd.py could not write all of an ack or feed
-# a feed that was asked for but never written: the RX buffer probe did not run
+# an ack or feed that was asked for but never written: the run lacks its stimulus
 hdr = next((p[2] for p in lines if p[1] == "TX" and p[2].startswith("framing=")), "")
-if "feed" in hdr.split("options=")[-1].split(",") and not any(
-    p[1] == "TX" and p[2].startswith("55") for p in lines
-):
-    sys.exit("feed was requested but never written")
+if missing := missing_stimulus(hdr, [p[2] for p in lines if p[1] == "TX"]):
+    sys.exit(f"requested but never written: {','.join(missing)}")
 if marks or hups or short:
     sys.exit(f"{marks} PARMRK error marks, {hups} HUP lines, {short} short writes")

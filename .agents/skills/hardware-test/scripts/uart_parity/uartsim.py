@@ -52,6 +52,20 @@ def rx_parse(hexes: str) -> tuple[bytes, int]:
     return bytes(out), marks
 
 
+def missing_stimulus(header: str, tx: list[str]) -> list[str]:
+    """Options in the rd.py header (options=ack,feed) with no matching TX line: requested but never written."""
+    opts = (
+        header.rsplit("options=", maxsplit=1)[-1].split(",")
+        if "options=" in header
+        else []
+    )
+    return [
+        o
+        for o, p in (("ack", "79"), ("feed", "55"))
+        if o in opts and not any(h.startswith(p) for h in tx)
+    ]
+
+
 def rx_bytes(hexes: str) -> bytes:
     """Bytes of RX hex, without the PARMRK escapes."""
     return rx_parse(hexes)[0]
