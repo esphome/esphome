@@ -102,3 +102,64 @@ mode. Both builds should close the stalled stream at about 20 s and close the st
   builds (flash A, 4 multi runs, flash B, repeat) before calling a rate difference.
 - Log text check for refactors: collect every `[web_server*]` line from all captures, mask timestamps, source line
   numbers and digits, `sort -u`, and diff the two builds' sets.
+
+## ESPAsyncWebServer / AsyncTCP bump A/B (#22682)
+
+Scripts: `scripts/web_server/async_bump/` (README there). ESP32 never uses ESPAsyncWebServer: `web_server_base` loads
+`web_server_idf` for every ESP32 build, Arduino included, so only ESP8266, RP2040/RP2350 and LibreTiny need a run.
+Per board: page loads, a 180 s SSE client, REST control, `/update` OTA with the build's own image, restart button,
+then the captive portal hammer (`scripts/wifisave_hammer.sh`, `bogus_saves: "5"`) on one board per family.
+- Library check: ESP8266 builds use the native toolchain; the library copies sit in
+  `.esphome/pio_components/arduino8266/<hash>/esp32async/*/library.json`, not in `.piolibdeps`.
+- Restart button over REST on LibreTiny: the HTTP reply is often lost (curl 000 after 5 to 10 s) although the board
+  restarts, on dev too. Not a regression signal.
+- LibreTiny AsyncTCP 3.5.0 does not build with `framework: loglevel: debug` (or more verbose): `AsyncTCP.cpp:332` logs
+  `xPortGetCoreID()`, undeclared on LibreTiny; `log_d` is empty at the default level, so normal builds pass. Any
+  library bump for LibreTiny needs one build with the framework loglevel at debug.
+- SSE rates on a board with a weak radio (a CB3S, say) are unreliable; decide SSE questions on a board with a good
+  link and the same SDK.
+- `/events` churn (`rp2_web_ble/churn.sh`) faults `AsyncEventSource::send` in `AsyncClient::connected()` from
+  `deferrable_send_state` on the Pico W and the W5500-EVB-Pico; 3.12.1 and the RPAsyncTCP fork do not fix it.
+- Stalled-reader runs need about 150 s: the client's receive window can take about 60 s to close, so a 60 s stall run
+  ends before the 20 s device timeout even starts.
+
+## JSON output A/B and the stack smoke (#22699, #22695)
+
+- `scripts/web_server/json_ab.py HOST OUT` records every JSON document web_server builds: the `/events` ping, sorting
+  groups and listing entries, `GET /<domain>/<name>` with and without `?detail=all`, and the state events of 9
+  commands sent after resetting each entity to a known state. Live values are masked and keys sorted, so a `diff`
+  between builds (after replacing the device names) must be empty; it exits 1 on any document that does not parse.
+  Entities: `scripts/web_server/json-ab-entities.yaml` (13 entities in 12 domains; add a `web_server: sorting_groups:`
+  entry with id `grp_a`), plus a template sensor named `Fast counter`. Run it on a fresh boot of each build, so run 1
+  of every build starts from the same states.
+- The JSON arena (`USE_JSON_ARENA`) is used only by `web_server/event_source.cpp`; REST documents never use it, so
+  they are a control within each run.
+- `sse_listing.py` also reads responses that are not chunked (ESPAsyncWebServer on RP2 and LibreTiny before #22695
+  sends raw SSE). On a dev RP2 build the listing is already per session, so the check only separates builds on
+  ESP-IDF.
+- Smoke after a change that only merges dev: greeting order, log text comparison and two churn rounds per build. Dev on
+  the BK7238 locked the main loop in the first churn round and then aborted in `operator new` from
+  `AsyncWebServerResponse::addHeader` (a build with the LibreTiny abort handler reboots instead of hanging).
+
+## /events churn with observers, REST and HTTPS 501
+
+`scripts/web_server/churnmix/` (`s3.yaml` per board file on `common.yaml`; `commonlite.yaml` drops the 20 ms sensor
+for slow boards): `churnmix.py HOST --cycles 400 --json OUT` keeps 2 observers on `/events` for the whole run, sends
+REST every 250 ms (GET sensor, GET switch, POST toggle, the page), then runs 4 workers through 7 close patterns (read
+to the first state, RST mid stream, RST or close right after the request, half a request line, full 2 KB receive
+buffer then RST, read 1 to 3 s), a settle phase, the final relay state against each observer, and 4 fresh clients. The
+`Counter` sensor counts up every 100 ms, so skipped (coalesced) and repeated values show; `--no-rest --no-post
+--cycles 0 --observers 1 --base 60` is a quiet single client rate run. `fin_first` failure reasons are in the JSON
+(`eof_nohead` means the device closed with no HTTP head). `summ.py NAME...` summarises `cm-NAME-1.json`,
+`cm-NAME-2.json` and `q-NAME.json`. Ends `RESULT PASS` or `RESULT CHECK` with the reasons.
+- Run one board at a time: parallel churn on two boards gives observer reconnects and half the events on both.
+- Repeated values are by design: `process_deferred_queue_()` builds the queued event from the current state, then the
+  new event goes out too. Coalescing on ESP8266 and RP2 comes from writing only after the last send is acked.
+- HTTPS: `web_server` with HTTPS is refused at validation. `ext/components/https_test` (used by `s3https.yaml`) is a
+  bench copy that patches `web_server_idf.require_plain_http` for `web_server` and sets port 443 and the certificate in
+  its constructor (calling `init()` in `setup()` is too late once `web_server` started the server on port 80). It
+  includes `certs.h`: run `scripts/https_idf/make_certs.sh` and copy its `ext/httpstest/certs.h` next to
+  `https_test.hpp`. `httpscheck.sh HOST [ROUNDS]` expects 501 on `/events` and 200 on REST and the page.
+- Findings: #22695 on the Pico 2 W closed about 40 % of the waiting churn clients with no response (the head was not
+  queued in `StreamHandoffResponse::_respond`). Dev locks the BK7238 main loop after about 150 s of churn and takes the
+  free heap of an ESP8266 down to 6 kB.

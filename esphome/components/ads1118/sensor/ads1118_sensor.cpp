@@ -8,15 +8,10 @@ ESPHOME_LOG_TAG(TAG, "ads1118.sensor");
 
 void ADS1118Sensor::dump_config() {
   LOG_SENSOR("  ", "ADS1118 Sensor", this);
-  ESP_LOGCONFIG(TAG,
-                "    Multiplexer: %u\n"
-                "    Gain: %u",
-                this->multiplexer_, this->gain_);
+  ESP_LOGCONFIG(TAG, "    Config: 0x%04X", this->config_bits_);
 }
 
-float ADS1118Sensor::sample() {
-  return this->parent_->request_measurement(this->multiplexer_, this->gain_, this->temperature_mode_);
-}
+float ADS1118Sensor::sample() { return this->parent_->request_measurement(this->config_bits_); }
 
 void ADS1118Sensor::update() {
   float v = this->sample();
