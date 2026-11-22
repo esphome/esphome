@@ -759,7 +759,8 @@ haier_protocol::HaierMessage HonClimate::get_control_message() {
           break;
       }
     }
-    if (climate_control.preset.has_value()) {
+    if (climate_control.preset.has_value() &&
+        this->traits_.get_supported_presets().count(CLIMATE_PRESET_ECO) != 0) {
       this->set_quiet_mode_state_from_preset_(climate_control.preset.value() == CLIMATE_PRESET_ECO);
     }
   }
@@ -1042,7 +1043,8 @@ haier_protocol::HandlerError HonClimate::process_status_message_(const uint8_t *
       this->preset = CLIMATE_PRESET_SLEEP;
     } else if (packet.control.ten_degree != 0) {
       this->preset = CLIMATE_PRESET_AWAY;
-    } else if (packet.control.quiet_mode != 0) {
+    } else if (packet.control.quiet_mode != 0 &&
+               this->traits_.get_supported_presets().count(CLIMATE_PRESET_ECO) != 0) {
       this->preset = CLIMATE_PRESET_ECO;
     } else {
       this->preset = CLIMATE_PRESET_NONE;
@@ -1390,7 +1392,8 @@ void HonClimate::fill_control_messages_queue_() {
           break;
       }
     }
-    if (climate_control.preset.has_value()) {
+    if (climate_control.preset.has_value() &&
+        this->traits_.get_supported_presets().count(CLIMATE_PRESET_ECO) != 0) {
       this->set_quiet_mode_state_from_preset_(climate_control.preset.value() == CLIMATE_PRESET_ECO);
     }
     {
