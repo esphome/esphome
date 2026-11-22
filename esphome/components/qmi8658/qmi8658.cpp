@@ -73,10 +73,8 @@ void QMI8658Component::dump_config() {
   if (this->is_failed())
     return;
 
-  ESP_LOGCONFIG(TAG, "  Accel range : %s",
-                LOG_STR_ARG(AccelRangeStrings::get_log_str(this->accel_range_ >> 4, AccelRangeStrings::LAST_INDEX)));
-  ESP_LOGCONFIG(TAG, "  Gyro  range : %s",
-                LOG_STR_ARG(GyroRangeStrings::get_log_str(this->gyro_range_ >> 4, GyroRangeStrings::LAST_INDEX)));
+  ESP_LOGCONFIG(TAG, "  Accel range : %s", LOG_STR_ARG(AccelRangeStrings::get_log_str(this->accel_range_ >> 4)));
+  ESP_LOGCONFIG(TAG, "  Gyro  range : %s", LOG_STR_ARG(GyroRangeStrings::get_log_str(this->gyro_range_ >> 4)));
   MotionComponent::dump_config();
 }
 

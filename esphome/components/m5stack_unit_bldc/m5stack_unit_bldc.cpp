@@ -136,8 +136,7 @@ void M5StackUnitBldc::update() {
       ok = false;
     } else if (status != this->last_status_) {
       this->last_status_ = status;
-      this->status_text_sensor_->publish_state(
-          MotorStatusStrings::get_progmem_str(status, MotorStatusStrings::LAST_INDEX));
+      this->status_text_sensor_->publish_state(MotorStatusStrings::get_progmem_str(status));
     }
   }
 #endif

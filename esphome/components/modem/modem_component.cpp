@@ -81,9 +81,6 @@ static constexpr int FALLBACK_BAUD_RATE = 115200;
 // Indexed by ModemState
 PROGMEM_STRING_TABLE(ModemStateStrings, "DISABLED", "ENABLING", "SYNCED", "CONNECTING", "WAIT_IP", "CONNECTED",
                      "DISCONNECTING", "UNKNOWN");
-static const LogString *state_to_str(ModemState state) {
-  return ModemStateStrings::get_log_str(static_cast<uint8_t>(state), ModemStateStrings::LAST_INDEX);
-}
 
 // Indexed by ModemFault
 PROGMEM_STRING_TABLE(ModemFaultStrings, "", "Modem not responding", "Configured baud rate failed",
@@ -102,14 +99,11 @@ static const LogString *registration_to_str(int registration) {
   if (registration < 0) {
     return LOG_STR("not reported");
   }
-  return RegistrationStrings::get_log_str(static_cast<uint8_t>(registration), RegistrationStrings::LAST_INDEX);
+  return RegistrationStrings::get_log_str(registration);
 }
 
 // Indexed by esp_modem::command_result
 PROGMEM_STRING_TABLE(CommandResultStrings, "OK", "FAIL", "TIMEOUT");
-static const LogString *result_to_str(command_result result) {
-  return CommandResultStrings::get_log_str(static_cast<uint8_t>(result), CommandResultStrings::LAST_INDEX);
-}
 
 ModemComponent::ModemComponent(InternalGPIOPin *tx_pin, InternalGPIOPin *rx_pin, const char *model, DceFactory factory,
                                const char *apn)
@@ -231,7 +225,7 @@ void ModemComponent::publish_status_() {
     this->status_clear_error();
     return;
   }
-  const LogString *message = ModemFaultStrings::get_log_str(static_cast<uint8_t>(fault), ModemFaultStrings::LAST_INDEX);
+  const LogString *message = ModemFaultStrings::get_log_str(fault);
   // These stop the modem until the SIM or pin_code is fixed
   if (fault == ModemFault::MODEM_FAULT_SIM_LOCKED || fault == ModemFault::MODEM_FAULT_PIN_NOT_SENT ||
       fault == ModemFault::MODEM_FAULT_PIN_RECORD) {
@@ -918,7 +912,7 @@ ModemState ModemComponent::handle_state_connecting_() {
         ESP_LOGW(TAG,
                  "The network refused registration (AT+CEER %s: %s); check the APN and that the SIM's plan covers "
                  "this modem's network types",
-                 LOG_STR_ARG(result_to_str(reason_read)), this->reply_);
+                 LOG_STR_ARG(CommandResultStrings::get_log_str(reason_read)), this->reply_);
       }
       this->connect_step_ = ConnectStep::CONNECT_STEP_RADIO_ON;  // request the attachment again
     }
@@ -992,7 +986,8 @@ void ModemComponent::transition_to_(ModemState next_state) {
     return;
   }
   const bool lost = next_state == ModemState::MODEM_STATE_DISCONNECTING && state == ModemState::MODEM_STATE_CONNECTED;
-  ESP_LOGD(TAG, "State change: %s -> %s", LOG_STR_ARG(state_to_str(state)), LOG_STR_ARG(state_to_str(next_state)));
+  ESP_LOGD(TAG, "State change: %s -> %s", LOG_STR_ARG(ModemStateStrings::get_log_str(state)),
+           LOG_STR_ARG(ModemStateStrings::get_log_str(next_state)));
   this->component_state_.store(next_state);
   // The automations run on the main loop
   if (next_state == ModemState::MODEM_STATE_SYNCED) {
@@ -1207,7 +1202,8 @@ command_result ModemComponent::at_(const char *cmd, uint32_t timeout) {
   if (result == command_result::OK) {
     ESP_LOGI(TAG, "AT '%s' -> OK: %s%s", cmd, cut, this->reply_);
   } else {
-    ESP_LOGW(TAG, "AT '%s' -> %s: %s%s", cmd, LOG_STR_ARG(result_to_str(result)), cut, this->reply_);
+    ESP_LOGW(TAG, "AT '%s' -> %s: %s%s", cmd, LOG_STR_ARG(CommandResultStrings::get_log_str(result)), cut,
+             this->reply_);
   }
   return result;
 }
@@ -1381,8 +1377,7 @@ void ModemComponent::publish_readings_([[maybe_unused]] uint8_t rssi, [[maybe_un
   PUBLISH_STATE(this->ber_sensor_, ber < std::size(BER_PERCENT) ? BER_PERCENT[ber] : NAN);
 #endif
 #ifdef USE_MODEM_NETWORK_TYPE
-  PUBLISH_STATE(this->network_type_text_sensor_,
-                NetworkModeStrings::get_progmem_str(mode, NetworkModeStrings::LAST_INDEX));
+  PUBLISH_STATE(this->network_type_text_sensor_, NetworkModeStrings::get_progmem_str(mode));
 #endif
 }
 #endif

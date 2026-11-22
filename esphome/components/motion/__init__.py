@@ -6,7 +6,11 @@ from esphome import automation
 from esphome.automation import parent_ref
 import esphome.codegen as cg
 from esphome.components.const import CONF_ON_DOUBLE_TAP, CONF_ON_TAP, CONF_TAP
-from esphome.components.sensor import new_sensor, sensor_schema
+from esphome.components.sensor import (
+    TEMPERATURE as TEMPERATURE_KIND,
+    new_sensor,
+    sensor_schema,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
@@ -16,10 +20,7 @@ from esphome.const import (
     CONF_THRESHOLD,
     CONF_TYPE,
     CONF_UPDATE_INTERVAL,
-    DEVICE_CLASS_TEMPERATURE,
     ICON_THERMOMETER,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS,
 )
 from esphome.core import CORE, ID
 from esphome.cpp_generator import MockObj, MockObjClass
@@ -83,11 +84,9 @@ def temperature_sensor_schema(
 ) -> cv.Schema:
     """Schema of an IMU temperature sensor; `type_key` adds the optional `type: temperature`."""
     schema = sensor_schema(
-        unit_of_measurement=UNIT_CELSIUS,
+        kind=TEMPERATURE_KIND,
         icon=ICON_THERMOMETER,
         accuracy_decimals=accuracy_decimals,
-        state_class=STATE_CLASS_MEASUREMENT,
-        device_class=DEVICE_CLASS_TEMPERATURE,
     ).extend({cv.GenerateID(hub_id_key): cv.use_id(hub_class)})
     if type_key:
         schema = schema.extend({cv.Optional(CONF_TYPE): cv.one_of(CONF_TEMPERATURE)})
