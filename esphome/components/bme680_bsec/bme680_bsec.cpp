@@ -204,9 +204,8 @@ void BME680BSECComponent::loop() {
       this->publish_sensor_(this->iaq_sensor_, this->pending_values_[slot]);
       break;
     case PUBLISH_SLOT_IAQ_ACCURACY_TEXT:
-      this->publish_sensor_(
-          this->iaq_accuracy_text_sensor_,
-          IaqAccuracyStrings::get_progmem_str(this->pending_accuracy_, IaqAccuracyStrings::LAST_INDEX));
+      this->publish_sensor_(this->iaq_accuracy_text_sensor_,
+                            IaqAccuracyStrings::get_progmem_str(this->pending_accuracy_));
       break;
     case PUBLISH_SLOT_IAQ_ACCURACY:
       this->publish_sensor_(this->iaq_accuracy_sensor_, this->pending_accuracy_, true);

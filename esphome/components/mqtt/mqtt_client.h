@@ -436,6 +436,8 @@ class MQTTClientComponent final : public Component {
   network::IPAddress ip_;
   bool dns_resolved_{false};
   bool dns_resolve_error_{false};
+  /// The last start_dnslookup_() found no network, so no attempt was made and there is nothing to back off from
+  bool waiting_for_network_{false};
   bool enable_on_boot_{true};
 #ifdef USE_MQTT_CRASH_LOG
   bool crash_log_offered_{false};
@@ -466,27 +468,6 @@ class MQTTClientComponent final : public Component {
 };
 
 extern MQTTClientComponent *global_mqtt_client;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-
-template<typename... Ts> class MQTTPublishJsonAction final : public Action<Ts...> {
- public:
-  MQTTPublishJsonAction(MQTTClientComponent *parent) : parent_(parent) {}
-  TEMPLATABLE_VALUE(std::string, topic)
-  TEMPLATABLE_VALUE(uint8_t, qos)
-  TEMPLATABLE_VALUE(bool, retain)
-
-  void set_payload(std::function<void(Ts..., JsonObject)> payload) { this->payload_ = payload; }
-
-  void play(const Ts &...x) override {
-    auto topic = this->topic_.value(x...);
-    auto qos = this->qos_.value(x...);
-    auto retain = this->retain_.value(x...);
-    this->parent_->publish_json(topic, [this, x...](JsonObject root) { this->payload_(x..., root); }, qos, retain);
-  }
-
- protected:
-  std::function<void(Ts..., JsonObject)> payload_;
-  MQTTClientComponent *parent_;
-};
 
 }  // namespace esphome::mqtt
 

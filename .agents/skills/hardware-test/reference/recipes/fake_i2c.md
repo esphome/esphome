@@ -2,13 +2,13 @@
 
 ## Fake devices on an in-firmware I2C bus
 
-When there is no chip and no wiring, subclass `i2c::I2CBus` in an include, implement `write_readv()` only, answer
-the registers the driver reads and check each write. Point the component at it from an `on_boot` lambda that runs
-before the component's `setup()`: `id(x)->set_i2c_bus(&fake::bus)` at priority 950, which is ahead of every I2C
-component (hubs set up at IO, 900, sensors at DATA, 600). The configs here that use 700 to 1000 work for their
-components; use 950 for a new one. Keep a real `i2c:` block in the config so validation passes. Bulk
-loops in a button lambda must call `App.feed_wdt()` and keep their per-iteration logs below INFO: 2000 DEBUG lines at
-115200 baud trip the task watchdog, which is a fault of the harness and not of the PR.
+When there is no chip and no wiring, subclass `i2c::I2CBus` in an include, implement `write_readv()` only, answer the
+registers the driver reads and check each write. Point the component at it from an `on_boot` lambda that runs before the
+component's `setup()`: `id(x)->set_i2c_bus(&fake::bus)` at a priority above the swapped component's own setup priority
+(a hub at BUS - 0.1 needs 999.95; 950 is ahead of hubs at IO, 900, and sensors at DATA, 600). Keep a real `i2c:` block
+in the config so validation passes. Bulk loops in a button lambda must call `App.feed_wdt()` and keep their
+per-iteration logs below INFO: 2000 DEBUG lines at 115200 baud trip the task watchdog, which is a fault of the harness
+and not of the PR. Sensor publishes log at VERBOSE, so log entity values from a lambda (`on_value` or an interval).
 
 `templates/i2c_fake/` holds the fakes; each `*-common.yaml` or `*-test.yaml` is a classic ESP32 or ESP32-S3 config
 that includes its `.hpp` (add `esphome: name:` for the `-common` ones):
@@ -151,3 +151,57 @@ Prefer this to glitching the wire. Holding SDA low by rerouting the pin (`esp_ro
 `SIG_GPIO_OUT_IDX` and back to `I2CEXT0_SDA_OUT_IDX`) wedges the ESP-IDF controller, which then needs
 `i2c_master_bus_reset()` after each glitch, and glitches timed onto writes left the VL53L0X answering 0x00 until a
 power cycle.
+
+## WeiKai WK2168 on I2C (#22759)
+
+`templates/i2c_fake/wkfake.hpp` + `wk-common.yaml`: answers 0x10 to 0x17 (`0 A1 A0 1 0 C1 C0 F`), keeps only A3..A0 of
+the register byte and builds the 6 bit address C1C0A3..A0, models the globals (a GRST write resets the channels in its
+low nibble and logs `!!!!! GRST WRITE`), per-channel SCR/LCR/FCR/baud/RFCNT/FSR and FIFOs (TX logged, RX injected with
+`inject_rx`, dropped when SCR is off), GPDIR/GPDAT with `set_input()`. It classifies each transaction W / P (1 byte
+pointer) / R / WR (repeated start); `fail_reads`, `fail_ptr` and `every_n` inject NACKs and the fake counts whether
+the next read is a retry of the same register. The driver polls RFCNT and FSR of every channel and GPDAT every loop:
+log only writes, changes and a `trace` window, never every read. `wk-map-check.cpp.example` is a host check with
+copies of the driver's `i2c_address()` (the same in both trees) and the PR's `i2c_register()`, comparing the address
+and register byte each tree sends for every register; paste the current bodies in before running it. On #22759 the
+base build's GPIO writes hit GRST and reset UART channel 0.
+
+## BMI270 config upload and BMM150 aux (#22778)
+
+`bmi270fake.hpp` + `bmi270-common.yaml` + `bmi270-motion-aux.yaml`: BMI270 register file with reset values; config
+upload port (INIT_ADDR word address, INIT_DATA into 8 KB) where INTERNAL_STATUS reads 0x01 only when every byte was
+written once and FNV-1a equals `expected_fnv` (default 0x95BB75B5, the current table, computed on the host from
+bmi270_config.h; the host harness takes an override in `BMI_EXPECTED_FNV`), else 0x02. Aux interface: AUX_DEV_ID selects
+the BMM150, manual mode turns AUX_WR_ADDR/AUX_RD_ADDR writes into BMM150 writes and 1/2/6/8 byte reads into AUX_X..,
+STATUS.aux_busy for two polls, auto mode mirrors the BMM150 data. Fault knobs: `bmm_mode` (absent, wrong chip id),
+`busy_stuck`, `stuck_from_aux_op` (busy stuck from the Nth aux transfer: 1 power-on, 2 soft reset, 3 chip id, 4 to 6
+trim, 7 normal mode), `nack_at` (main-bus transaction N). `norm_fnv` hashes register-level effects and leaves STATUS
+polls out (their count depends on timing). Heap is sampled at INIT_CTRL=0/1 and inside each INIT_DATA burst;
+`-DBMI_FAKE_WRAP_MALLOC` with `-Wl,--wrap=malloc` in `platformio_options: build_flags` counts malloc() during the upload
+through `alloc_count.hpp` (list it in `includes:` too; the link fails without the wrap, so a clean link proves it
+applied).
+- Host side: copy `bmi270-host-harness.cpp.example` (as a `.cpp`) and the fake into `tests/components/bmi270/` of both
+  worktrees, plus a `benchmark.yaml` with `esphome: build_flags: [-DUSE_BMI270_BMM150, -DUSE_LOG_LISTENERS,
+  -DESPHOME_LOG_MAX_LISTENERS=4]` (the unit test build does not use defines.h; this is how to get a component's
+  optional code and log capture into it); the base also needs the PR's `__init__.py` manifest override.
+  `bmi270-setters.py` turns each tree's generated main.cpp (`esphome compile --only-generate`) into the setter list
+  the harness applies, so codegen changes (setters skipped at defaults) are tested as generated.
+  `bmi270-host-run.sh.example TREE NAME SETTERS [32]` runs it (32 forces the Arduino burst branch);
+  `bmi270-host-compare.py BASE.report PR.report` merges base's split INIT_ADDR writes, compares every config, fault and
+  per-step scenario, maps the NACK sweep through the merged stream and lists every log difference.
+  `bmm150-sweep.cpp.example` compares a decoder against a namespace-renamed copy of the base header bit for bit.
+- A planted one byte burst offset gave INTERNAL_STATUS 0x02 and "Config file upload failed" at both burst sizes.
+
+## Fake CST816 touch controller (#22435)
+
+`templates/i2c_fake/cstfake.hpp` + `cst-common.yaml` (per-run file: `substitutions: name: X` plus
+`<<: !include cst-common.yaml`). The fake answers 0x15: chip ID register 0xA7 = 0xB5 (CST816T), accepts the 0xFA IRQ
+write and returns a scripted 13 byte status frame for reads of register 0x00 (count at byte 2, X/Y 12 bit at 3..6, or an
+all 0xFF frame). An `interval` advances one step every 600 ms (12 polls at the 50 ms touchscreen default), three rounds,
+then prints a `SUMMARY` line per step (on_touch, on_update and on_release counts, last scaled and raw coordinates) and a
+`TOTAL`. Every stimulus step is followed by a count 0 step, so releases land on a named step.
+- The touchscreen needs a display: an ILI9341 on unconnected S3 pins (SPI 40/41, CS 42, DC 39, `color_palette: 8BIT`,
+  `update_interval: never`) is enough. Calibration 0..240 / 0..320 makes the scaled point raw minus one.
+- A global named `round` collides with libm `round()`; use another id.
+- Capture 60 s from a reset over USB_SERIAL_JTAG. Before #22435 the all 0xFF frame, counts 3 and 5, and 0xFFF on X or
+  Y were reported as touches (at 239/319); after it none are. Real, two-point and out-of-range (clamped) touches are
+  the same on both builds.

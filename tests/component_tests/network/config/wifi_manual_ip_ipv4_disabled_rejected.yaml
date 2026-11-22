@@ -1,0 +1,19 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+network:
+  enable_ipv6: true
+  enable_ipv4: false
+
+wifi:
+  ssid: "test_ssid"
+  password: "test_password"
+  manual_ip:
+    static_ip: 192.168.1.10
+    gateway: 192.168.1.1
+    subnet: 255.255.255.0
