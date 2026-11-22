@@ -99,7 +99,10 @@ def main() -> None:
                 boots, base = boots + 1, 0
             prev = (p, u)
         dev += prev[0] - base
+    # builds with pmh.hpp log the esp_pm_configure() result; anything but 0 means no power management
+    pm = re.findall(rb"esp_pm_configure\(ls=\d\) = (-?\d+)", log)
     print(
+        f"pm_configure={','.join(x.decode() for x in pm) or '-'} "
         f"feeds={log.count(b'[feed] n=')} parses={parses} dev_parses_between_cnt_lines={dev} boots={boots} "
         f"start_char={log.count(b'Start character')} payload_len={log.count(b'Payload length')} "
         f"checksum={log.count(b'checksum mismatch')}"

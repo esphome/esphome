@@ -22,14 +22,14 @@ port, secs, out, mode = sys.argv[1], float(sys.argv[2]), sys.argv[3], sys.argv[4
 ack, feed = "ack" in sys.argv[5:], "feed" in sys.argv[5:]
 
 
-def write_all(fd: int, data: bytes) -> int:
-    """Write all of data to the non-blocking tty; returns the bytes written."""
-    n = 0
-    while n < len(data):
+def write_all(fd: int, data: bytes, limit: float = 2) -> int:
+    """Write data to the non-blocking tty for up to limit seconds; returns the bytes written."""
+    n, stop = 0, time.time() + limit
+    while n < len(data) and time.time() < stop:
         try:
             n += os.write(fd, data[n:])
         except BlockingIOError:
-            select.select([], [fd], [], 1)
+            select.select([], [fd], [], 0.1)
     return n
 
 
@@ -52,26 +52,28 @@ termios.tcflush(fd, termios.TCIOFLUSH)
 t0 = time.time()
 end = t0 + secs
 tail = b""
-with pathlib.Path(out).open("w", encoding="utf-8") as f:
-    f.write(f"0.0000 TX framing={'8E1' if mode == 'e' else '8N1'}\n")
-    while time.time() < end:
-        r, _, _ = select.select([fd], [], [], 0.02)
-        if not r:
-            continue
-        try:
-            b = os.read(fd, 4096)
-        except BlockingIOError:
-            continue
-        if not b:
-            continue
-        f.write(f"{time.time() - t0:.4f} RX {b.hex(' ')}\n")
-        f.flush()
-        if ack and b == b"\x7f":
-            write_all(fd, b"\x79")
-            f.write(f"{time.time() - t0:.4f} TX 79\n")
-        tail = (tail + b)[-200:]
-        if feed and b"RPT" in tail and tail.endswith(b"\r\n"):
-            tail = b""
-            n = write_all(fd, b"\x55" * 400)
-            f.write(f"{time.time() - t0:.4f} TX 55*{n}\n")
-os.close(fd)
+try:
+    with pathlib.Path(out).open("w", encoding="utf-8") as f:
+        f.write(f"0.0000 TX framing={'8E1' if mode == 'e' else '8N1'}\n")
+        while time.time() < end:
+            r, _, _ = select.select([fd], [], [], 0.02)
+            if not r:
+                continue
+            try:
+                b = os.read(fd, 4096)
+            except BlockingIOError:
+                continue
+            if not b:
+                continue
+            f.write(f"{time.time() - t0:.4f} RX {b.hex(' ')}\n")
+            f.flush()
+            if ack and b == b"\x7f":
+                write_all(fd, b"\x79")
+                f.write(f"{time.time() - t0:.4f} TX 79\n")
+            tail = (tail + b)[-200:]
+            if feed and b"RPT" in tail and tail.endswith(b"\r\n"):
+                tail = b""
+                n = write_all(fd, b"\x55" * 400)
+                f.write(f"{time.time() - t0:.4f} TX 55*{n}\n")
+finally:
+    os.close(fd)
