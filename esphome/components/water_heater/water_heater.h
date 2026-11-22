@@ -10,7 +10,6 @@
 namespace esphome::water_heater {
 
 class WaterHeater;
-struct WaterHeaterCallInternal;
 
 #define LOG_WATER_HEATER(prefix, type, obj) log_entity_header(TAG, prefix, LOG_STR_LITERAL(type), (obj))
 
