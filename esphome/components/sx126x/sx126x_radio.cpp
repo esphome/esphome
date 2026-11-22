@@ -36,9 +36,7 @@ const LogString *SX126xRadio::apply_configuration_(const RadioProfile &requested
   }
   this->rst_pin_->digital_write(true);
   delayMicroseconds(RESET_DELAY_HIGH_US);
-  this->rst_pin_->digital_write(false);
-  delayMicroseconds(RESET_DELAY_LOW_US);
-  this->rst_pin_->digital_write(true);
+  pulse_pin(this->rst_pin_, false, RESET_DELAY_LOW_US);
   delayMicroseconds(RESET_DELAY_HIGH_US);
   this->bus().begin();
   AppliedProfile applied;

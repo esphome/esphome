@@ -1,0 +1,13 @@
+wifi:
+  ap:
+    ssid: "Microphone HTTP Test"
+
+microphone:
+  - platform: i2s_audio
+    id: microphone_http_test_mic
+    i2s_audio_id: i2s_audio_bus
+    adc_type: external
+    i2s_din_pin: GPIO33
+    channel: right
+    bits_per_sample: 16bit
+    sample_rate: ${sample_rate}

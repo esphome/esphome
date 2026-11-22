@@ -1,0 +1,102 @@
+# Package: touchscreen cst816 against cstfake.hpp on an ESP32-S3; per-run file `substitutions: name: X` plus
+# `<<: !include cst-common.yaml`. The ILI9341 on unconnected pins only satisfies the touchscreen display reference.
+esphome:
+  name: ${name}
+  includes:
+    - cstfake.hpp
+  on_boot:
+    - priority: 700
+      then:
+        - lambda: id(ts)->set_i2c_bus(&cstfake::bus);
+
+esp32:
+  board: esp32-s3-devkitc-1
+  framework:
+    type: esp-idf
+
+logger:
+  hardware_uart: USB_SERIAL_JTAG
+  level: DEBUG
+
+i2c:
+  sda: GPIO1
+  scl: GPIO2
+  scan: false
+
+spi:
+  clk_pin: GPIO40
+  mosi_pin: GPIO41
+
+display:
+  - platform: ili9xxx
+    id: disp
+    model: ILI9341
+    dimensions: 240x320
+    cs_pin: GPIO42
+    dc_pin: GPIO39
+    color_palette: 8BIT
+    invert_colors: false
+    update_interval: never
+    auto_clear_enabled: false
+
+touchscreen:
+  - platform: cst816
+    id: ts
+    display: disp
+    update_interval: 50ms
+    calibration:
+      x_min: 0
+      x_max: 240
+      y_min: 0
+      y_max: 320
+    on_touch:
+      - lambda: |-
+          auto &b = cstfake::bus;
+          size_t s = b.step;
+          b.touches[s]++;
+          b.tx[s] = touch.x; b.ty[s] = touch.y; b.rx[s] = touch.x_raw; b.ry[s] = touch.y_raw;
+          ESP_LOGI("cstfake", "TOUCH step=%u %s x=%d y=%d raw=%d,%d", (unsigned) s, cstfake::STEPS[s].name,
+                   touch.x, touch.y, touch.x_raw, touch.y_raw);
+    on_update:
+      - lambda: |-
+          cstfake::bus.updates[cstfake::bus.step]++;
+    on_release:
+      - lambda: |-
+          auto &b = cstfake::bus;
+          size_t s = b.step;
+          b.releases[s]++;
+          ESP_LOGI("cstfake", "RELEASE step=%u %s", (unsigned) s, cstfake::STEPS[s].name);
+
+globals:
+  - id: cst_round
+    type: int
+    initial_value: "0"
+
+interval:
+  - interval: 600ms
+    startup_delay: 5s
+    then:
+      - lambda: |-
+          auto &b = cstfake::bus;
+          if (id(cst_round) >= 3) return;
+          b.step++;
+          if (b.step >= cstfake::NSTEPS) {
+            b.step = 0;
+            id(cst_round)++;
+            ESP_LOGI("cstfake", "ROUND %d done status_reads=%u", id(cst_round), (unsigned) b.status_reads);
+            if (id(cst_round) >= 3) {
+              uint32_t tt = 0, tr = 0;
+              for (size_t i = 0; i < cstfake::NSTEPS; i++) {
+                tt += b.touches[i]; tr += b.releases[i];
+                ESP_LOGI("cstfake", "SUMMARY %2u %-17s touch=%u update=%u release=%u last=%d,%d raw=%d,%d", (unsigned) i,
+                         cstfake::STEPS[i].name, (unsigned) b.touches[i], (unsigned) b.updates[i],
+                         (unsigned) b.releases[i], b.tx[i], b.ty[i], b.rx[i], b.ry[i]);
+              }
+              ESP_LOGI("cstfake", "TOTAL build=${name} touches=%u releases=%u status_reads=%u other_reads=%u writes=%u",
+                       (unsigned) tt, (unsigned) tr, (unsigned) b.status_reads, (unsigned) b.other_reads,
+                       (unsigned) b.writes);
+            }
+          }
+  - interval: 10s
+    then:
+      - lambda: ESP_LOGI("cstfake", "ALIVE build=${name} step=%u round=%d", (unsigned) cstfake::bus.step, id(cst_round));
