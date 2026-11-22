@@ -103,15 +103,13 @@ void MY9231OutputComponent::write_word_(uint16_t value, uint8_t bits) {
 void MY9231OutputComponent::send_di_pulses_(uint8_t count) {
   delayMicroseconds(12);
   for (uint8_t i = 0; i < count; i++) {
-    this->pin_di_->digital_write(true);
-    this->pin_di_->digital_write(false);
+    pulse_pin(this->pin_di_, true);
   }
 }
 void MY9231OutputComponent::send_dcki_pulses_(uint8_t count) {
   delayMicroseconds(12);
   for (uint8_t i = 0; i < count; i++) {
-    this->pin_dcki_->digital_write(true);
-    this->pin_dcki_->digital_write(false);
+    pulse_pin(this->pin_dcki_, true);
   }
 }
 

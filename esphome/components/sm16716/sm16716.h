@@ -30,8 +30,7 @@ class SM16716 final : public Component {
  protected:
   void write_bit_(bool value) {
     this->data_pin_->digital_write(value);
-    this->clock_pin_->digital_write(true);
-    this->clock_pin_->digital_write(false);
+    pulse_pin(this->clock_pin_, true);
   }
   void write_byte_(uint8_t data) {
     for (uint8_t mask = 0x80; mask; mask >>= 1) {

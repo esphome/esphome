@@ -500,8 +500,7 @@ void MQTTClientComponent::loop() {
   mqtt_backend_.loop();
 
   if (this->disconnect_reason_.has_value()) {
-    const LogString *reason_s = MQTTDisconnectReasonStrings::get_log_str(
-        static_cast<uint8_t>(*this->disconnect_reason_), MQTTDisconnectReasonStrings::LAST_INDEX);
+    const LogString *reason_s = MQTTDisconnectReasonStrings::get_log_str(*this->disconnect_reason_);
     if (!network::is_connected()) {
       reason_s = LOG_STR("WiFi disconnected");
     }
