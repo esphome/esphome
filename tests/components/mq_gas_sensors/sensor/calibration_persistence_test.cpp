@@ -10,6 +10,7 @@
 
 #include "esphome/components/host/preferences.h"
 #include "esphome/components/mq_gas_sensors/mq_gas_sensor.h"
+#include "esphome/core/application.h"
 #include "esphome/core/preferences.h"
 
 namespace esphome::mq_gas_sensors::testing {
@@ -27,10 +28,9 @@ class CalibrationSampler : public voltage_sampler::VoltageSampler {
 class CalibrationTimerGuard {
  public:
   explicit CalibrationTimerGuard(MQGasSensor &sensor) : sensor_(sensor) {}
-  // start_calibration() is the public call that cancels a pending start/retry
-  // timer; the component is destroyed right after, so the run it begins never
-  // samples and leaves no timer behind.
-  ~CalibrationTimerGuard() { this->sensor_.start_calibration(); }
+  /// The scheduler is public, unlike Component::cancel_timeout(); the calibration
+  /// start and its retry share id 0.
+  ~CalibrationTimerGuard() { App.scheduler.cancel_timeout(&this->sensor_, uint32_t{0}); }
 
  private:
   MQGasSensor &sensor_;
