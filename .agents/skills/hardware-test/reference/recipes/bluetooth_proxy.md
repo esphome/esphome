@@ -188,10 +188,11 @@ eve=MAC` (see `peers.py`); passive scans see no scan response, so `drive.py` als
   the three addresses with `-s mac_l ... -s mac_m ... -s mac_eve ...` and the ff01 handles of L and M from
   `handles.json` with `-s handle_l ... -s handle_m ...`. `stparse.py CAPTURE` summarises it. Its phase table is a
   fixed copy of the `suite.sh` steps; change both when a scenario changes.
-- Bursts: `burst.py HOST RUNS OUT [COUNT PER_TICK]` writes [count_hi, count_lo, per_tick] to fe03 on L, counts the
-  2 byte sequence notifications on fe01 and the final notification on fe02, and records gaps; the final value
-  carries the server's own send failures (`server_send_failed`, refused sends plus late failures counted by
-  `srvconf.hpp`; a lower bound), so they are not taken for proxy loss. `ndrop.hpp` with `ndrop-pkg.yaml` prints temporary drop counters added to `BluetoothConnection::on_notify_data` in a local tree.
+- Bursts: `burst.py HOST RUNS OUT [COUNT PER_TICK]` writes [count_hi, count_lo, per_tick] to fe03 on L, counts the 2
+  byte sequence notifications on fe01 and the final notification on fe02, and records gaps; the final value carries the
+  server's own send failures (`server_send_failed`, refused sends plus late failures counted by `srvconf.hpp`; a lower
+  bound), so they are not taken for proxy loss. `ndrop.hpp` with `ndrop-pkg.yaml` prints temporary drop counters added
+  to `BluetoothConnection::on_notify_data` in a local tree.
 - ESP-IDF 5.5.6 against 6.1.1 showed no Bluetooth difference on a classic ESP32, C3, S3 (Wi-Fi and W5500) or C6. Heap
   low-water drops land at "Service discovery complete" of a large table (the Bluedroid cache build, about 15 KB)
   and under a TCP backlog, on both versions.
