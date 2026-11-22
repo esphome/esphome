@@ -267,6 +267,8 @@ for s in steps:
                         for k in ("cycles", "failed", "stuck", "limit", "free_end")
                     }
                 )
+        if "cycles" not in d:
+            d.setdefault("warn", []).append("no churn summary record")
         cyc = [r for r in R if r.get("test") == "churn_cycle"]
         d["t_conn_med"] = med([r.get("t_conn") for r in cyc])
         d["t_free_med"] = med([r.get("t_free") for r in cyc])

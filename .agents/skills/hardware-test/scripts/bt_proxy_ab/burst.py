@@ -74,18 +74,25 @@ async def main() -> None:
     seqs: list[tuple[float, int]] = []
     final: list[float] = []
     srv_fail: list[int] = []
+    short: list[bytes] = []
     done = asyncio.Event()
     await cli.bluetooth_gatt_start_notify(
         addr,
         ch[FE01].handle,
-        lambda h, x: seqs.append((time.monotonic(), x[0] | x[1] << 8)),
+        # a payload under 2 bytes is malformed, not a lost notification
+        lambda h, x: (
+            seqs.append((time.monotonic(), x[0] | x[1] << 8))
+            if len(x) >= 2
+            else short.append(x)
+        ),
     )
     await cli.bluetooth_gatt_start_notify(
         addr,
         ch[FE02].handle,
         lambda h, x: (
             final.append(time.monotonic()),
-            srv_fail.append(x[1] | x[2] << 8) if len(x) >= 3 else None,
+            # the failure count is complete only with the late-failure shim in place (byte 3)
+            srv_fail.append(x[1] | x[2] << 8) if len(x) >= 4 and x[3] else None,
             done.set(),
         ),
     )
@@ -107,6 +114,7 @@ async def main() -> None:
         seqs.clear()
         final.clear()
         srv_fail.clear()
+        short.clear()
         ndrop.clear()
         done.clear()
         t0 = time.monotonic()
@@ -129,7 +137,10 @@ async def main() -> None:
         ):  # notifications missed with the API down are not burst loss
             d.rec(test="burst", round=r, result="api_lost")
             sys.exit(3)
-        got = sorted({s for _, s in seqs})
+        # numbers outside the burst (a leftover or garbled notification) must not count as received
+        got = sorted({s for _, s in seqs if 0 <= s < count})
+        out_of_range = sum(not 0 <= s < count for _, s in seqs)
+        dups = sum(0 <= s < count for _, s in seqs) - len(got)
         missing = count - len(got)
         runs_missing, longest, prev = 0, 0, -1
         for s in got + [count]:
@@ -149,6 +160,9 @@ async def main() -> None:
             gap_runs=runs_missing,
             longest_gap=longest,
             final=bool(final),
+            out_of_range=out_of_range,
+            dups=dups,
+            short=len(short),
             # notifications the server failed to send; the rest of missing was lost after the server
             server_send_failed=srv_fail[-1] if srv_fail else None,
             span_s=round(span, 2),

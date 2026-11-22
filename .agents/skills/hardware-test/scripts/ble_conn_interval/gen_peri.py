@@ -3,7 +3,8 @@
 --burst (the bt_proxy_ab server): ff01 writes are echoed as ff02 notifications, ff03 notifies a counter every
 200 ms, and a fe00 service sends notification bursts: a write [count_hi, count_lo, per_tick] to fe03 starts 2 byte
 sequence notifications on fe01, per_tick every 15 ms, then one notification on fe02 (ble_server sends a subscribed
-indication without the ack) whose bytes 1-2 are the server's own send failures. Logs on UART0.
+indication without the ack) whose bytes 1-2 are the server's own send failures and byte 3 is 1 when srvconf.hpp
+counts late failures too. Logs on UART0.
 """
 
 import pathlib
@@ -162,7 +163,8 @@ interval:
             // stack), so they are not taken for proxy loss; a lower bound, late reports after this one are missed
             srvconf::active = false;
             const uint32_t fails = id(b_fail) + srvconf::bad;
-            const uint8_t f[3] = {0xF1, (uint8_t) fails, (uint8_t) (fails >> 8)};
+            // byte 3: the late-failure shim is in place, so the count is complete
+            const uint8_t f[4] = {0xF1, (uint8_t) fails, (uint8_t) (fails >> 8), (uint8_t) srvconf::installed};
             id(finalc)->set_value(f, sizeof(f));
             id(finalc)->notify();
             ESP_LOGI("srv", "SRV burst done sent=%u send_failed=%u", (unsigned) id(b_sent), (unsigned) fails);

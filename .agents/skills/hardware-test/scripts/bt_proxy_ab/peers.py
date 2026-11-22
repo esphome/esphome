@@ -8,6 +8,8 @@ PEER_ADDRS  L=MAC,M=MAC,eve=MAC: report.py and stparse.py label device log lines
 """
 
 import os
+import re
+import sys
 
 L = os.environ.get("PEER_L", "bpab-l")
 M = os.environ.get("PEER_M", "")
@@ -17,7 +19,12 @@ HK_NAME = os.environ.get("HK_NAME", "Eve Flare")
 def addrs() -> dict[str, str]:
     """Label (L, M or eve) by upper case MAC, from PEER_ADDRS."""
     out = {}
+    labels = {"l": "L", "m": "M", "eve": "eve"}
     for item in filter(None, os.environ.get("PEER_ADDRS", "").split(",")):
         label, _, mac = item.partition("=")
-        out[mac.strip().upper()] = label.strip()
+        label, mac = labels.get(label.strip().lower()), mac.strip().upper()
+        # a typo would leave that peer's stats empty with no hint why
+        if not label or not re.fullmatch(r"[0-9A-F]{2}(:[0-9A-F]{2}){5}", mac):
+            sys.exit(f"PEER_ADDRS entry {item!r}: use L=MAC, M=MAC or eve=MAC")
+        out[mac] = label
     return out

@@ -9,6 +9,7 @@ static esp_gatts_cb_t real_gatts = nullptr;
 // the Bluetooth task writes these while the main loop resets and reads them
 static std::atomic<bool> active{false};
 static std::atomic<uint32_t> bad{0};
+static bool installed = false;  // the wrap ran: without it late failures are not counted at all
 static void gatts_shim(esp_gatts_cb_event_t e, esp_gatt_if_t i, esp_ble_gatts_cb_param_t *p) {
   if (e == ESP_GATTS_CONF_EVT && active && p->conf.status != ESP_GATT_OK)
     bad++;
@@ -20,6 +21,7 @@ extern "C" {
 esp_err_t __real_esp_ble_gatts_register_callback(esp_gatts_cb_t cb);
 esp_err_t __wrap_esp_ble_gatts_register_callback(esp_gatts_cb_t cb) {
   srvconf::real_gatts = cb;
+  srvconf::installed = true;
   return __real_esp_ble_gatts_register_callback(srvconf::gatts_shim);
 }
 }

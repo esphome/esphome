@@ -596,6 +596,19 @@ async def main() -> None:
                 await stop()
         await d.disconnect(L)
         d.rec(test="notify", secs=secs, expected=round(secs * 5), **stats)
+        # ticks seen or known missing should cover the held time; far less means the subscription went quiet
+        want = secs * 5 - stats["unheld_s"] * 5
+        if (
+            stats["rx"]
+            and stats["rx"] + stats["missing"] + stats["missing_drop"] < 0.9 * want
+        ):
+            d.rec(
+                test="notify",
+                result="notify_short",
+                covered=stats["rx"] + stats["missing"],
+                want=round(want),
+            )
+            sys.exit(1)
         if (
             stats["rx"] == 0
         ):  # L was never held or sent nothing: the step measured nothing
