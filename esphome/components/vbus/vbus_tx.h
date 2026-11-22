@@ -27,8 +27,14 @@ class VBusTransmitter final : public Component, public uart::UARTDevice {
     this->grant_callback_.add(std::forward<F>(callback));
   }
 
+#ifdef USE_VBUS_SEND_ACTION
+  bool request_datagram(uint16_t command, uint16_t value_id, uint32_t value, bool expect_reply);
+#endif
   bool request_bus();
   bool has_bus() const;
+  bool waiting_for_grant() const {
+    return this->state_ == State::STATE_WAIT_GRANT || this->state_ == State::STATE_CONTEND;
+  }
   bool owns_bus(uint32_t grant_id) const;
   bool ready_to_send(uint32_t grant_id) const {
     return grant_id == this->grant_id_ && this->has_bus() && this->can_send_();
@@ -57,9 +63,14 @@ class VBusTransmitter final : public Component, public uart::UARTDevice {
   uint32_t observed_at_{0};
   uint32_t packet_at_{0};
   uint32_t sent_at_{0};
-  uint16_t sent_command_{0};
-  uint16_t sent_value_id_{0};
-  uint32_t sent_value_{0};
+#ifdef USE_VBUS_SEND_ACTION
+  enum class PendingSend : uint8_t { NONE, ONE_WAY, EXPECT_REPLY };
+  PendingSend pending_send_{PendingSend::NONE};
+#endif
+  // Pending payload while acquiring the bus, then the last frame for echo/reply checks.
+  uint16_t frame_command_{0};
+  uint16_t frame_value_id_{0};
+  uint32_t frame_value_{0};
   uint32_t grant_id_{0};
   size_t rx_unread_{0};
   bool observed_{false};
