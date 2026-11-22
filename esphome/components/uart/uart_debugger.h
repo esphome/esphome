@@ -4,7 +4,6 @@
 
 #include <vector>
 #include "esphome/core/component.h"
-#include "esphome/core/automation.h"
 #include "esphome/core/string_ref.h"
 #include "uart.h"
 #include "uart_component.h"
@@ -18,9 +17,8 @@ namespace esphome::uart {
 /// 'appropriate time' means exactly, is determined by a number of
 /// configurable constraints. E.g. when a given number of bytes is gathered
 /// and/or when no more data has been seen for a given time interval.
-class UARTDebugger final : public Component, public Trigger<UARTDirection, std::vector<uint8_t>, StringRef> {
+class UARTDebugger : public Component {
  public:
-  explicit UARTDebugger(UARTComponent *parent);
   void loop() override;
 
   /// Set the direction in which to inspect the bytes: incoming, outgoing
@@ -47,6 +45,10 @@ class UARTDebugger final : public Component, public Trigger<UARTDirection, std::
   void set_debug_prefix(const char *prefix) { this->debug_prefix_ = StringRef(prefix); }
 
  protected:
+  explicit UARTDebugger(UARTComponent *parent);
+  /// Runs the debug sequence.
+  virtual void run_sequence_(UARTDirection direction, const std::vector<uint8_t> &bytes, StringRef prefix) = 0;
+
   UARTDirection for_direction_;
   UARTDirection last_direction_{};
   std::vector<uint8_t> bytes_{};
@@ -68,6 +70,17 @@ class UARTDebugger final : public Component, public Trigger<UARTDirection, std::
   void trigger_after_timeout_();
   bool has_buffered_bytes_();
   void fire_trigger_();
+};
+
+/// Calls Fn, the generated debug sequence, for the UARTDebugger.
+template<auto Fn> class UARTDebugCallback final : public UARTDebugger {
+ public:
+  explicit UARTDebugCallback(UARTComponent *parent) : UARTDebugger(parent) {}
+
+ protected:
+  void run_sequence_(UARTDirection direction, const std::vector<uint8_t> &bytes, StringRef prefix) override {
+    Fn(direction, bytes, prefix);
+  }
 };
 
 /// This UARTDevice is used by the serial debugger to read data from a
