@@ -87,6 +87,12 @@ vl6180x/*.log
 scd30/run-*.txt
 vl6180x/run-*.txt
 vl6180x/ext/
+nrf_pwm_probe/*-cap.txt
+nrf_pwm_probe/*-dfu.log
+nrf54_xiao/*-cap.txt
+nrf54_xiao/*-cap.err
+nrf54_xiao/*.log
+nrf54_xiao/*-events.txt
 mqtt/dns_boot/*.txt
 mqtt/dns_boot/*.log
 mqtt/dns_boot/*.err

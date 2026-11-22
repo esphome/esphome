@@ -31,14 +31,8 @@ uint32_t SerialProxy::stall_spent_ms = 0;
 
 void SerialProxy::setup() {
   // Set up modem control pins if configured
-  if (this->rts_pin_ != nullptr) {
-    this->rts_pin_->setup();
-    this->rts_pin_->digital_write(this->rts_state_);
-  }
-  if (this->dtr_pin_ != nullptr) {
-    this->dtr_pin_->setup();
-    this->dtr_pin_->digital_write(this->dtr_state_);
-  }
+  setup_output_pin(this->rts_pin_, this->rts_state_);
+  setup_output_pin(this->dtr_pin_, this->dtr_state_);
 #ifdef USE_API
   // instance_index_ is fixed at registration time; pre-set it so loop() only needs to update data
   this->outgoing_msg_.instance = this->instance_index_;

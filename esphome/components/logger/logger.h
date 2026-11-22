@@ -155,6 +155,9 @@ class Logger final : public Component {
 #if defined(USE_RP2_CRASH_HANDLER) && defined(USE_LOGGER_UART_SELECTION_USB_CDC)
   void setup() override;
 #endif
+#if defined(USE_ESP32) && !defined(USE_LOGGER_UART_SELECTION_USB_CDC)
+  void on_powerdown() override;
+#endif
   /// Manually set the baud rate for serial, set to 0 to disable.
   void set_baud_rate(uint32_t baud_rate) { this->baud_rate_ = baud_rate; }
   uint32_t get_baud_rate() const { return this->baud_rate_; }
