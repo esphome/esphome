@@ -91,6 +91,24 @@ def test_the_model_buffer_is_aligned_for_the_flatbuffer_cast(setup_core: Path) -
     )
 
 
+def test_the_model_buffer_falls_back_to_an_explicit_declaration(
+    setup_core: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """ESPHome 2026.11 has no align argument; the fallback keeps the buffer aligned."""
+    monkeypatch.setattr(tflm, "_PROGMEM_ARRAY_SUPPORTS_ALIGN", False)
+    CORE.global_statements = []
+
+    tflm._emit_model_buffer(
+        {tflm.CONF_RAW_DATA_ID: ID("model_data", is_declaration=True, type=ct.uint8)},
+        b"\x01\x02",
+    )
+
+    assert (
+        str(CORE.global_statements[-1])
+        == "alignas(16) static constexpr uint8_t model_data[] PROGMEM = {0x01, 0x02};"
+    )
+
+
 def test_every_configured_model_contributes_its_operators(setup_core: Path) -> None:
     """A selective build must contain a kernel whichever model needs it."""
     CORE.config = {tflm.DOMAIN: [{}, {}]}
