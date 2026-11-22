@@ -251,6 +251,11 @@ def _image_validator(value):
     return value
 
 
+async def _mapping_var(mapping_id: ID) -> MockObj:
+    """The ``mapping:`` global, qualified like ``parent_ref``; a mapping is a value, not a pointer."""
+    return MockObj(f"::{await cg.get_variable(mapping_id)}")
+
+
 async def _mapping_index(
     metadata: MappingMetaData, index: Any, args: list[tuple[SafeExpType, str]]
 ) -> Expression:
@@ -280,8 +285,7 @@ class ImageValidator(LValidator):
         args = args or get_lambda_context_args()
         if isinstance(value, dict) and CONF_MAPPING in value:
             mapping_id = value[CONF_MAPPING]
-            # Global scope like parent_ref, but a mapping is a value, not a pointer
-            mapping_var = MockObj(f"::{await cg.get_variable(mapping_id)}")
+            mapping_var = await _mapping_var(mapping_id)
             metadata = get_mapping_metadata(mapping_id.id)
             index = await _mapping_index(metadata, value[CONF_VALUE], args)
             return mapping_var.get(index)
@@ -344,8 +348,7 @@ class TextValidator(LValidator):
                     )
                 return literal(sprintf_str)
             if mapping_id := value.get(CONF_MAPPING):
-                # Global scope like parent_ref, but a mapping is a value, not a pointer
-                mapping_var = MockObj(f"::{await cg.get_variable(mapping_id)}")
+                mapping_var = await _mapping_var(mapping_id)
                 metadata = get_mapping_metadata(mapping_id.id)
                 if metadata.to_ != INDEX_TYPES["string"]:
                     raise ValueError(
