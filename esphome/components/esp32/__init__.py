@@ -866,6 +866,23 @@ def _is_idf_sdkconfig_option_not_disabled(name: str) -> bool:
     return value is None or _format_sdkconfig_val(value) == "y"
 
 
+@coroutine_with_priority(CoroPriority.FINAL)
+async def _reconcile_unused_idf_features() -> None:
+    """Default off ESP-IDF features nothing in ESPHome uses; user
+    sdkconfig_options win. Runs at FINAL priority, after every component's
+    requests. Arduino's libraries are prebuilt, so it is skipped."""
+    if CORE.using_arduino:
+        return
+    # ESPHome's access point is open or WPA2, never WPA3 SAE.
+    set_idf_sdkconfig_default("CONFIG_ESP_WIFI_SOFTAP_SAE_SUPPORT", False)
+    # Nothing provisions keys for the digital signature peripheral, yet esp-tls
+    # links its PSA driver whenever this is on.
+    set_idf_sdkconfig_default("CONFIG_ESP_TLS_USE_DS_PERIPHERAL", False)
+    # CONFIG_MBEDTLS_GCM_SUPPORT_NON_AES_CIPHER stays on: with hardware AES its
+    # software fallback is also the only path PSA AES-CCM has (xiaomi_ble,
+    # bthome_mithermometer).
+
+
 def task_wdt_timeout_ms() -> int:
     """Return the configured task watchdog timeout; 0 when it is disabled.
 
@@ -3852,6 +3869,7 @@ async def to_code(config):
     mbedtls.disable_peer_cert = advanced[CONF_DISABLE_MBEDTLS_PEER_CERT]
     mbedtls.disable_pkcs7 = advanced[CONF_DISABLE_MBEDTLS_PKCS7]
     CORE.add_job(_reconcile_mbedtls_sdkconfig)
+    CORE.add_job(_reconcile_unused_idf_features)
 
     # FINAL: require_*() calls can come from to_code at or below this priority, so an
     # inline read would be iteration-order-dependent; reconcile once after every job ran.
