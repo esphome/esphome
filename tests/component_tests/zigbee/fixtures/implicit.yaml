@@ -4,6 +4,7 @@ nrf52:
   board: xiao_ble
 zigbee:
   id: radio
+  model: endpoint-test
 sensor:
   - platform: template
     id: sample

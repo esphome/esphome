@@ -60,8 +60,15 @@ ZigbeeBinarySensor = zigbee_ns.class_("ZigbeeBinarySensor", cg.Component)
 
 # Switches, numbers and time each handle the ZCL writes to their endpoint; true when one matched
 ZCL_DEVICE_PUBLISHER = cg.HubFunction(
-    "zcl_device", cg.bool_, [(cg.uint8, "endpoint"), (cg.uint8, "bufid")]
+    "zcl_device",
+    cg.bool_,
+    [
+        (cg.global_ns.namespace("zb_uint8_t"), "endpoint"),
+        (cg.global_ns.namespace("zb_bufid_t"), "bufid"),
+    ],
 )
+ZCL_ENDPOINT = ZCL_DEVICE_PUBLISHER.param("endpoint")
+ZCL_BUFID = ZCL_DEVICE_PUBLISHER.param("bufid")
 
 
 async def add_zcl_device_handler(
@@ -69,12 +76,10 @@ async def add_zcl_device_handler(
 ) -> None:
     """Route the ZCL writes to endpoint ep_id to var->on_zcl_device_event()."""
     hub = await cg.get_variable(config[CONF_ZIGBEE_ID])
-    endpoint = ZCL_DEVICE_PUBLISHER.param("endpoint")
-    bufid = ZCL_DEVICE_PUBLISHER.param("bufid")
     ZCL_DEVICE_PUBLISHER.add(
         hub,
         cg.RawExpression(
-            f"({endpoint} == {ep_id} && ({var}->on_zcl_device_event({bufid}), true))"
+            f"({ZCL_ENDPOINT} == {ep_id} && ({var}->on_zcl_device_event({ZCL_BUFID}), true))"
         ),
     )
 
@@ -296,7 +301,6 @@ def zigbee_register_ep(
 
 @coroutine_with_priority(CoroPriority.LATE)
 async def _ctx_to_code(config: ConfigType) -> None:
-    cg.add_define("ZIGBEE_ENDPOINTS_COUNT", len(CORE.data[KEY_ZIGBEE][KEY_EP_NUMBER]))
     cg.add_global(
         cg.RawExpression(
             f"ZBOSS_DECLARE_DEVICE_CTX_EP_VA(zb_device_ctx, &{', &'.join(CORE.data[KEY_ZIGBEE][KEY_EP_NUMBER])})"
@@ -336,8 +340,7 @@ async def _add_zigbee_ep(
     cluster_id: str,
     app_device_id: str,
     extra_field_values: dict[str, int] | None = None,
-    handles_writes: bool = False,
-) -> None:
+) -> tuple[cg.MockObj, int]:
     slot_index = get_slot_index()
     ep_id = config.get(CONF_ENDPOINT) or endpoint_ids().allocate()
 
@@ -382,8 +385,7 @@ async def _add_zigbee_ep(
     cg.add(var.set_cluster_attributes(attrs))
 
     await cg.register_parented(var, config[CONF_ZIGBEE_ID])
-    if handles_writes:
-        await add_zcl_device_handler(config, var, ep_id)
+    return var, ep_id
 
 
 async def add_binary_sensor(entity: cg.MockObj, config: ConfigType) -> None:
@@ -416,7 +418,7 @@ async def add_sensor(entity: cg.MockObj, config: ConfigType) -> None:
 
 
 async def add_switch(entity: cg.MockObj, config: ConfigType) -> None:
-    await _add_zigbee_ep(
+    var, ep_id = await _add_zigbee_ep(
         entity,
         config,
         CONF_ZIGBEE_SWITCH,
@@ -424,8 +426,8 @@ async def add_switch(entity: cg.MockObj, config: ConfigType) -> None:
         "ESPHOME_ZB_ZCL_DECLARE_BINARY_OUTPUT_ATTRIB_LIST",
         ZB_ZCL_CLUSTER_ID_BINARY_OUTPUT,
         "ZB_HA_CUSTOM_ATTR_DEVICE_ID",
-        handles_writes=True,
     )
+    await add_zcl_device_handler(config, var, ep_id)
 
 
 async def _add_number(
@@ -439,7 +441,7 @@ async def _add_number(
     unit = config.get(CONF_UNIT_OF_MEASUREMENT, "")
     bacnet_unit = BACNET_UNITS.get(unit, BACNET_UNIT_NO_UNITS)
 
-    await _add_zigbee_ep(
+    var, ep_id = await _add_zigbee_ep(
         entity,
         config,
         CONF_ZIGBEE_NUMBER,
@@ -453,5 +455,5 @@ async def _add_number(
             "resolution": step,
             "engineering_units": bacnet_unit,
         },
-        handles_writes=True,
     )
+    await add_zcl_device_handler(config, var, ep_id)

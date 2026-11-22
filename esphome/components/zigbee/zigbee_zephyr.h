@@ -71,7 +71,7 @@ class ZigbeeComponent final : public Component {
   void setup() override;
   void dump_config() override;
   // Each switch, number and time entity adds its handler, matched by endpoint, in codegen
-  HUB_PUBLISHER_RETURNING(bool, zcl_device, uint8_t, uint8_t)
+  HUB_PUBLISHER_RETURNING(bool, zcl_device, zb_uint8_t, zb_bufid_t)
   template<typename F> void add_on_join_callback(F &&cb) { this->join_cb_.add(std::forward<F>(cb)); }
   template<typename F> void add_on_start_callback(F &&cb) { this->start_cb_.add(std::forward<F>(cb)); }
   void zboss_signal_handler_esphome(zb_bufid_t bufid);
@@ -92,11 +92,11 @@ class ZigbeeComponent final : public Component {
   void dump_reporting_();
   CallbackManager<void(bool)> join_cb_;
   LazyCallbackManager<void()> start_cb_;
-  bool force_report_{false};
   uint32_t sleep_time_{};
   uint32_t sleep_remainder_{};
   uint32_t radio_sleep_time_{};
   uint32_t radio_sleep_remainder_{};
+  bool force_report_{false};
   bool sleepy_{};
 };
 

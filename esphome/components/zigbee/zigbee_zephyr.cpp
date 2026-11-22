@@ -4,7 +4,6 @@
 #include <zephyr/settings/settings.h>
 #include <zephyr/storage/flash_map.h>
 #include "esphome/core/hal.h"
-#include <type_traits>
 
 extern "C" {
 #include <zboss_api.h>
@@ -121,8 +120,6 @@ void ZigbeeComponent::zcl_device_cb(zb_bufid_t bufid) {
   if (zb->zcl_device_publisher_ == nullptr || !zb->zcl_device_publisher_(endpoint, bufid))
     p_device_cb_param->status = RET_NOT_IMPLEMENTED;
 }
-
-static_assert(std::is_same_v<zb_bufid_t, uint8_t>, "zcl_device publisher passes the buffer as uint8_t");
 
 void ZigbeeComponent::on_join_(bool factory_new) {
   this->defer([this, factory_new]() {

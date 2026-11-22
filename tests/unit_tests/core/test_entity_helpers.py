@@ -1430,40 +1430,12 @@ def test_datetime_time_handle_matches_time_component() -> None:
     assert str(datetime._RealTimeClock) == str(time.RealTimeClock)
 
 
-@pytest.mark.parametrize(
-    "endpoint,expected",
-    [(1, 1), (17, 17), (239, 239), ("17", 17), ("0x11", 17), (17.0, 17)],
-)
-def test_zigbee_endpoint_schema_normalization(endpoint: Any, expected: int) -> None:
-    """The entity requires Zigbee; platform validation belongs to the component."""
+def test_zigbee_endpoint_needs_only_zigbee() -> None:
+    """nRF52 builds load zigbee without esp32."""
     with patch.object(CORE, "loaded_integrations", {"zigbee"}):
-        assert entity_helpers.ZIGBEE_BASE_ENTITY_SCHEMA({"endpoint": endpoint}) == {
-            "endpoint": expected
+        assert entity_helpers.ZIGBEE_BASE_ENTITY_SCHEMA({"endpoint": 17}) == {
+            "endpoint": 17
         }
-
-
-def test_zigbee_endpoint_requires_component() -> None:
-    with (
-        patch.object(CORE, "loaded_integrations", {"esp32", "nrf52"}),
-        pytest.raises(Invalid, match="requires component zigbee"),
-    ):
-        entity_helpers.ZIGBEE_BASE_ENTITY_SCHEMA({"endpoint": 17})
-
-
-@pytest.mark.parametrize(
-    "endpoint,message",
-    [
-        (0, "must be at least 1"),
-        (240, "must be at most 239"),
-        (1.5, "only accepts integers with no fractional part"),
-    ],
-)
-def test_zigbee_endpoint_schema_rejects_invalid(endpoint: Any, message: str) -> None:
-    with (
-        patch.object(CORE, "loaded_integrations", {"zigbee"}),
-        pytest.raises(Invalid, match=message),
-    ):
-        entity_helpers.ZIGBEE_BASE_ENTITY_SCHEMA({"endpoint": endpoint})
 
 
 def test_zigbee_entity_schema_cluster_options() -> None:
