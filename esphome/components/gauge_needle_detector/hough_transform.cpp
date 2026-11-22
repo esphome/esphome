@@ -2,8 +2,6 @@
 
 #ifdef USE_GAUGE_NEEDLE_DETECTOR
 
-#include "esphome/core/log.h"
-
 #include <algorithm>
 #include <cmath>
 
@@ -11,13 +9,11 @@ namespace esphome::gauge_needle_detector {
 
 #ifdef USE_GAUGE_NEEDLE_HOUGH_TRANSFORM
 
-ESPHOME_LOG_TAG(TAG, "gauge_needle_detector");
-
 namespace {
 
 /// Votes edge pixels into a radial histogram, weighted by edge magnitude.
-DetectionResult detect_hough(const uint8_t *filtered, const ScanWindow &window, const DetectorConfig &config,
-                             float *scores, int vote_magnitude_min = 40) {
+DetectionResult detect_hough(const uint8_t *filtered, const ScanWindow &window, float *scores,
+                             int vote_magnitude_min = 40) {
   if (filtered == nullptr || !window.valid())
     return {};
 
@@ -77,18 +73,15 @@ DetectionResult detect_hough(const uint8_t *filtered, const ScanWindow &window, 
   const float separation = max_votes > 0.0f ? (max_votes - mean) / max_votes : 0.0f;
   const float confidence = std::clamp(support * separation, 0.0f, 1.0f);
 
-  if (config.debug) {
-    ESP_LOGD(TAG, "Hough Transform: Best Angle Index=%d, Conf=%.2f", best_angle_idx, confidence);
-  }
-
   return {static_cast<float>(best_angle_idx), confidence};
 }
 
 }  // namespace
 
 DetectionResult HoughTransformDetector::detect(const uint8_t * /*raw*/, const uint8_t *filtered,
-                                               const ScanWindow &window, const DetectorConfig &config, float *scores) {
-  return detect_hough(filtered, window, config, scores);
+                                               const ScanWindow &window, const DetectorConfig & /*config*/,
+                                               float *scores) {
+  return detect_hough(filtered, window, scores);
 }
 
 #endif  // USE_GAUGE_NEEDLE_HOUGH_TRANSFORM

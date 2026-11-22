@@ -2,8 +2,6 @@
 
 #ifdef USE_GAUGE_NEEDLE_DETECTOR
 
-#include "esphome/core/log.h"
-
 #include <algorithm>
 #include <cfloat>
 
@@ -11,10 +9,9 @@ namespace esphome::gauge_needle_detector {
 
 #ifdef USE_GAUGE_NEEDLE_TEMPLATE_MATCH
 
-ESPHOME_LOG_TAG(TAG, "gauge_needle_detector");
-
 DetectionResult TemplateMatchDetector::detect(const uint8_t * /*raw*/, const uint8_t *filtered,
-                                              const ScanWindow &window, const DetectorConfig &config, float *scores) {
+                                              const ScanWindow &window, const DetectorConfig & /*config*/,
+                                              float *scores) {
   if (filtered == nullptr || !window.valid())
     return {};
 
@@ -50,9 +47,6 @@ DetectionResult TemplateMatchDetector::detect(const uint8_t * /*raw*/, const uin
 
   // Same scale as radial_profile, so `auto` can rank the two.
   const float confidence = ray_confidence(std::max(0.0f, best_score) / 255.0f, best_score, min_score);
-  if (config.debug) {
-    ESP_LOGD(TAG, "Template Match: Angle=%d, Conf=%.2f", best_angle_int, confidence);
-  }
 
   return {static_cast<float>(best_angle_int), confidence};
 }

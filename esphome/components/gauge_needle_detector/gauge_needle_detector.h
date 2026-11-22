@@ -185,6 +185,8 @@ class NeedleDetector final {
 
  protected:
   static constexpr size_t MAX_DETECTORS = 4;
+  /// Dials whose problems have already been reported; beyond this the log stays quiet.
+  static constexpr size_t MAX_REPORTED_DIALS = 4;
 
 #ifdef USE_GAUGE_NEEDLE_PREPROCESSOR
   Preprocessor preprocessor_;
@@ -196,13 +198,12 @@ class NeedleDetector final {
   /// Largest crop accepted by detect(); 0 until reserve() succeeds.
   int reserved_width_{0};
   int reserved_height_{0};
-  /// Dial that already reported a crop larger than the reservation.
-  const char *oversized_dial_{nullptr};
-  /// Dial that already reported an empty window; the id is a config literal.
-  const char *empty_scan_dial_{nullptr};
-  /// Dial and algorithm that already reported a missing detector.
-  const char *missing_detector_dial_{nullptr};
-  Algorithm missing_detector_algorithm_{ALGORITHM_AUTO};
+  /// Dials that already reported a problem, so each is reported once. The id is
+  /// a configuration literal, so its address identifies the dial.
+  std::array<const char *, MAX_REPORTED_DIALS> reported_dials_{};
+  size_t reported_count_{0};
+  /// True the first time `dial` reports a problem, false afterwards.
+  bool first_report_(const char *dial);
 
 #ifdef USE_GAUGE_NEEDLE_INTENSITY_SCAN
   IntensityScanDetector intensity_scan_;

@@ -2,8 +2,6 @@
 
 #ifdef USE_GAUGE_NEEDLE_DETECTOR
 
-#include "esphome/core/log.h"
-
 #include <algorithm>
 #include <cfloat>
 #include <cmath>
@@ -12,13 +10,10 @@ namespace esphome::gauge_needle_detector {
 
 #ifdef USE_GAUGE_NEEDLE_RADIAL_PROFILE
 
-ESPHOME_LOG_TAG(TAG, "gauge_needle_detector");
-
 namespace {
 
-DetectionResult scan_radial_profile(const uint8_t *filtered, const ScanWindow &window, const DetectorConfig &config,
-                                    float *scores, int max_gap = 5, int signal_threshold = 20,
-                                    float parabola_epsilon = 0.0001f) {
+DetectionResult scan_radial_profile(const uint8_t *filtered, const ScanWindow &window, float *scores, int max_gap = 5,
+                                    int signal_threshold = 20, float parabola_epsilon = 0.0001f) {
   if (filtered == nullptr || !window.valid())
     return {};
 
@@ -81,18 +76,15 @@ DetectionResult scan_radial_profile(const uint8_t *filtered, const ScanWindow &w
   const float sampled = static_cast<float>(window.end_r - window.start_r);
   const float confidence = ray_confidence(best_score / (sampled * 255.0f), best_score, min_score);
 
-  if (config.debug) {
-    ESP_LOGD(TAG, "Radial Profile: Best Angle=%.1f, Conf=%.2f", best_angle, confidence);
-  }
-
   return {best_angle, confidence};
 }
 
 }  // namespace
 
 DetectionResult RadialProfileDetector::detect(const uint8_t * /*raw*/, const uint8_t *filtered,
-                                              const ScanWindow &window, const DetectorConfig &config, float *scores) {
-  return scan_radial_profile(filtered, window, config, scores);
+                                              const ScanWindow &window, const DetectorConfig & /*config*/,
+                                              float *scores) {
+  return scan_radial_profile(filtered, window, scores);
 }
 
 #endif  // USE_GAUGE_NEEDLE_RADIAL_PROFILE
