@@ -33,7 +33,9 @@ done
 mark() { echo "$(date +%T) $*" | tee -a "marks-$T.txt"; }
 # rounds that tried the measured link (held_failed rounds and harness faults did not)
 rounds() {
-  local n; n=$(grep '"round"' "$1" 2> /dev/null | grep -vcE 'held_failed|clear_failed|no_ff01|stale_handles'); echo "${n:-0}"
+  local n
+  n=$(grep '"round"' "$1" 2> /dev/null | grep -vcE 'held_failed|clear_failed|no_ff01|stale_handles')
+  echo "${n:-0}"
 }
 incomplete=
 # run STEP ROUNDS CMD ARGS...: an ARG of @N is replaced by the rounds still missing; reruns after an API drop
