@@ -9,6 +9,7 @@ serial_capture.write_line() (millisecond stamps, colours stripped, secrets maske
 
 import argparse
 import pathlib
+import re
 import struct
 import sys
 import time
@@ -82,8 +83,12 @@ def main() -> None:
         serial_capture.write_line(out, b"[feed] ", f"total={n}".encode(), True)
     s.close()
     log = pathlib.Path(a.out).read_bytes()
+    parses = log.count(b"Got PM1.0 Standard")
+    # the device counter, which a garbled log line cannot lose (first to last cnt line of the capture)
+    cnt = [int(x) for x in re.findall(rb"\[cnt\S*: parses=(\d+)", log)]
+    dev = cnt[-1] - cnt[0] if len(cnt) > 1 else None
     print(
-        f"feeds={log.count(b'[feed] n=')} parses={log.count(b'Got PM1.0 Standard')} "
+        f"feeds={log.count(b'[feed] n=')} parses={parses} dev_parses_between_cnt_lines={dev} "
         f"start_char={log.count(b'Start character')} payload_len={log.count(b'Payload length')} "
         f"checksum={log.count(b'checksum mismatch')}"
     )

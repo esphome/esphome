@@ -28,9 +28,27 @@ def decode_8e1(bits: list[int], mode: str) -> bytes:
     return bytes(out)
 
 
+def rx_parse(hexes: str) -> tuple[bytes, int]:
+    """Bytes of RX hex and the number of PARMRK error marks: FF FF is a real 0xFF, FF 00 X a parity or framing
+    error on X (kept as X)."""
+    raw, out, marks, i = bytes.fromhex(hexes), bytearray(), 0, 0
+    while i < len(raw):
+        if raw[i] == 0xFF and raw[i + 1 : i + 2] == b"\xff":
+            out.append(0xFF)
+            i += 2
+        elif raw[i] == 0xFF and raw[i + 1 : i + 2] == b"\x00" and i + 2 < len(raw):
+            out.append(raw[i + 2])
+            marks += 1
+            i += 3
+        else:
+            out.append(raw[i])
+            i += 1
+    return bytes(out), marks
+
+
 def rx_bytes(hexes: str) -> bytes:
-    """Bytes of an RX line; PARMRK doubles a real 0xFF."""
-    return bytes.fromhex(hexes).replace(b"\xff\xff", b"\xff")
+    """Bytes of RX hex, without the PARMRK escapes."""
+    return rx_parse(hexes)[0]
 
 
 if __name__ == "__main__":

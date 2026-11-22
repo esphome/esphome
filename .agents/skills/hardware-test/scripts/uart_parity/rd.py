@@ -12,8 +12,27 @@ import sys
 import termios
 import time
 
+if (
+    len(sys.argv) < 5
+    or sys.argv[4] not in ("n", "e")
+    or set(sys.argv[5:]) - {"ack", "feed"}
+):
+    sys.exit(__doc__)
 port, secs, out, mode = sys.argv[1], float(sys.argv[2]), sys.argv[3], sys.argv[4]
 ack, feed = "ack" in sys.argv[5:], "feed" in sys.argv[5:]
+
+
+def write_all(fd: int, data: bytes) -> int:
+    """Write all of data to the non-blocking tty; returns the bytes written."""
+    n = 0
+    while n < len(data):
+        try:
+            n += os.write(fd, data[n:])
+        except BlockingIOError:
+            select.select([], [fd], [], 1)
+    return n
+
+
 fd = os.open(port, os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
 a = termios.tcgetattr(fd)
 a[0] = (termios.INPCK | termios.PARMRK) if mode == "e" else termios.PARMRK
@@ -34,6 +53,7 @@ t0 = time.time()
 end = t0 + secs
 tail = b""
 with pathlib.Path(out).open("w", encoding="utf-8") as f:
+    f.write(f"0.0000 TX framing={'8E1' if mode == 'e' else '8N1'}\n")
     while time.time() < end:
         r, _, _ = select.select([fd], [], [], 0.02)
         if not r:
@@ -47,11 +67,11 @@ with pathlib.Path(out).open("w", encoding="utf-8") as f:
         f.write(f"{time.time() - t0:.4f} RX {b.hex(' ')}\n")
         f.flush()
         if ack and b == b"\x7f":
-            os.write(fd, b"\x79")
+            write_all(fd, b"\x79")
             f.write(f"{time.time() - t0:.4f} TX 79\n")
         tail = (tail + b)[-200:]
         if feed and b"RPT" in tail and tail.endswith(b"\r\n"):
             tail = b""
-            os.write(fd, b"\x55" * 400)
-            f.write(f"{time.time() - t0:.4f} TX 55*400\n")
+            n = write_all(fd, b"\x55" * 400)
+            f.write(f"{time.time() - t0:.4f} TX 55*{n}\n")
 os.close(fd)

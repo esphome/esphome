@@ -6,7 +6,7 @@ Knows the shelly_dimmer frames (01 seq cmd len payload sum16 04) and the stm32fl
 import pathlib
 import sys
 
-from uartsim import decode_8e1, encode, rx_bytes
+from uartsim import decode_8e1, encode, rx_parse
 
 
 def frame(seq: int, cmd: int, payload: bytes = b"") -> bytes:
@@ -23,13 +23,12 @@ def valid(b: bytes) -> bool:
 
 
 GVR = b"\x01\xfe"
-# what an 8E1 reader shows for each frame sent at 8N1
-N1 = {
-    decode_8e1(encode(f, False), "edge"): f
-    for seq in range(256)
-    for f in (frame(seq, 0x10), frame(seq, 0x11))
-}
-N1[decode_8e1(encode(GVR, False), "edge")] = GVR
+# what an 8E1 reader shows for each frame sent at 8N1; some frames give the same garble
+N1: dict[bytes, list[bytes]] = {}
+for seq in range(256):
+    for f in (frame(seq, 0x10), frame(seq, 0x11)):
+        N1.setdefault(decode_8e1(encode(f, False), "edge"), []).append(f)
+N1.setdefault(decode_8e1(encode(GVR, False), "edge"), []).append(GVR)
 
 
 def main() -> None:
@@ -47,7 +46,7 @@ def main() -> None:
             bursts.append((float(t), "RX", h))
         last = float(t)
     for t, d, h in bursts:
-        b = rx_bytes(h) if d == "RX" else b""
+        b, marks = rx_parse(h) if d == "RX" else (b"", 0)
         if d == "TX":
             k = "TX " + h
         elif b.startswith(b"\r\nRPT"):
@@ -56,14 +55,19 @@ def main() -> None:
             k = "7F sync (parity not visible)"
         elif b == GVR:
             k = "8E1 GVR 01 FE (exact)"
-        elif N1.get(b) == GVR:
+        elif N1.get(b) == [GVR]:
             k = "8N1 GVR 01 FE (matches 8N1 model)"
         elif valid(b):
             k = f"8E1 frame cmd {b[2]:02x} (exact)"
         elif b in N1:
-            k = f"8N1 frame cmd {N1[b][2]:02x} seq {N1[b][1]} (matches 8N1 model)"
+            fs = " or ".join(
+                "GVR" if f == GVR else f"cmd {f[2]:02x} seq {f[1]}" for f in N1[b]
+            )
+            k = f"8N1 frame {fs} (matches 8N1 model)"
         else:
             k = "OTHER " + b[:40].hex(" ")
+        if marks:
+            k += f" [{marks} PARMRK error marks]"
         print(f"{t:8.3f} {k}")
 
 
