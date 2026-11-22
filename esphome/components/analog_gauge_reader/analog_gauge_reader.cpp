@@ -26,7 +26,6 @@ void AnalogGaugeReader::setup() {
   // The loop only has work between a request and its frame.
   this->disable_loop();
 
-  // Sort calibration mappings for correct interpolation
   for (auto &dial : this->dials_) {
     if (!dial.calibration_mapping.empty()) {
       std::sort(dial.calibration_mapping.begin(), dial.calibration_mapping.end(),
@@ -63,8 +62,8 @@ void AnalogGaugeReader::setup() {
     DialBuffer buffer;
     buffer.channels =
         (dial.target_color != NO_TARGET_COLOR || dial.process_channel != PROCESS_CHANNEL_GRAYSCALE) ? 3 : 1;
-    buffer.size = static_cast<size_t>(dial.crop_w) * static_cast<size_t>(dial.crop_h) * buffer.channels;
-    buffer.data = std::make_unique<uint8_t[]>(buffer.size);
+    const size_t size = static_cast<size_t>(dial.crop_w) * static_cast<size_t>(dial.crop_h) * buffer.channels;
+    buffer.data = std::make_unique<uint8_t[]>(size);
     this->dial_buffers_.push_back(std::move(buffer));
   }
 

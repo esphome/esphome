@@ -148,7 +148,6 @@ inline float combine_stacked_digits(const DialReading *readings, size_t count, i
     const float lower_fraction = p == 0 ? 0.0f : phase[order[p - 1]] / 10.0f;
     const int digit = round_digit10(wrap10(raw - lower_fraction));
     digits[i] = digit;
-    // The finest dial has no lower dial, so keep its continuous phase.
     phase[i] = p == 0 ? raw : wrap10(static_cast<float>(digit) + lower_fraction);
   }
 
@@ -212,7 +211,6 @@ class AnalogGaugeReader final : public PollingComponent, public esphome::camera:
   /// One dial crop, allocated once in setup(); channels is 3 for colour, 1 otherwise.
   struct DialBuffer {
     std::unique_ptr<uint8_t[]> data;
-    size_t size{0};
     uint8_t channels{1};
   };
   bool paused_{false};

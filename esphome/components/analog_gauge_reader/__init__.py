@@ -145,7 +145,6 @@ CONFIG_SCHEMA = cv.Schema(
     }
 ).extend(cv.polling_component_schema("60s"))
 
-# Frame size resolved in final_validate and read back by to_code.
 _KEY_CAMERA_FRAME = "_analog_gauge_camera_frame"
 
 
@@ -227,6 +226,10 @@ def _final_validate(config: ConfigType) -> ConfigType:
                 f"target_color compares all three channels, so it cannot be combined "
                 f"with a single-channel process_channel; remove one of the two.",
                 path=[CONF_DIALS],
+            )
+        if dial[CONF_MIN_SCAN_RADIUS] >= dial[CONF_MAX_SCAN_RADIUS]:
+            raise cv.Invalid(
+                f"Dial '{dial[CONF_ID]}' scan window is empty", path=[CONF_DIALS]
             )
         sweep = (dial[CONF_MAX_ANGLE] - dial[CONF_MIN_ANGLE]) % 360.0
         full_circle = (dial[CONF_MIN_ANGLE], dial[CONF_MAX_ANGLE]) == (0.0, 360.0)

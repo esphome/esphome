@@ -1,0 +1,8 @@
+packages:
+  base: !include base.yaml
+
+analog_gauge_reader:
+  dials:
+    - id: dial_2
+      min_scan_radius: 0.9
+      max_scan_radius: 0.3

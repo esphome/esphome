@@ -53,6 +53,9 @@ def _final_validate(config: ConfigType) -> ConfigType:
     hub = fv.get_declaring_config(config[CONF_ANALOG_GAUGE_READER_ID])
     # The hub rejects duplicate dial ids, so each name has exactly one position.
     index_by_id = {dial[CONF_ID]: index for index, dial in enumerate(hub[CONF_DIALS])}
+    names = [entry[CONF_DIAL] for entry in config.get(CONF_DIALS, [])]
+    if len(set(names)) != len(names):
+        raise cv.Invalid("A dial can have only one sensor entry", path=[CONF_DIALS])
     for entry in config.get(CONF_DIALS, []):
         if (index := index_by_id.get(entry[CONF_DIAL])) is None:
             raise cv.Invalid(
