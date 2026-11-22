@@ -10,7 +10,6 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/core/component.h"
 
-#include <atomic>
 #include <cstdint>
 #include <memory>
 
@@ -41,16 +40,12 @@ class SSOCRReader final : public PollingComponent, public esphome::camera::Camer
     this->crop_h_ = height;
   }
   void set_digit_count(uint8_t count) { this->digit_count_ = count; }
-  void set_debug(bool debug) { this->debug_ = debug; }
 
   SUB_SENSOR(value)
   SUB_SENSOR(confidence)
 
  protected:
-  // The camera calls its listeners from the main loop, so a single atomic state machine is enough.
-  enum class FrameState : uint8_t { IDLE, REQUESTED, AVAILABLE, PROCESSING };
-  std::atomic<FrameState> frame_state_{FrameState::IDLE};
-  uint32_t last_request_time_{0};
+  static constexpr uint32_t FRAME_TIMEOUT_ID = 0;
 
   void process_frame_(const std::shared_ptr<esphome::camera::CameraImage> &image);
   /// Copies the configured rectangle out of a decoded frame as one byte per pixel.
@@ -67,7 +62,7 @@ class SSOCRReader final : public PollingComponent, public esphome::camera::Camer
   int crop_w_{0};
   int crop_h_{0};
   uint8_t digit_count_{6};
-  bool debug_{false};
+  bool frame_requested_{false};
   std::shared_ptr<esphome::camera::CameraImage> pending_frame_{nullptr};
 };
 

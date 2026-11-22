@@ -1,15 +1,10 @@
 #include "ssocr_reader.h"
 
 #include "esphome/components/camera_decoder/jpeg_grayscale.h"
-#include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
 #include <cinttypes>
 #include <cstring>
-
-#ifdef USE_ESP32
-#include <esp_heap_caps.h>
-#endif
 
 namespace esphome::ssocr_reader {
 
@@ -21,12 +16,7 @@ void SSOCRReader::setup() {
     return;
   }
   this->camera_->add_listener(this);
-
-  // The decoder allocates the decoded frame, which needs PSRAM. Report a missing
-  // PSRAM instead of failing later with an out-of-memory decode.
-  if (heap_caps_get_free_size(MALLOC_CAP_SPIRAM) == 0) {
-    ESP_LOGW(TAG, "No PSRAM detected; the decoder may not be able to allocate the decoded frame");
-  }
+  this->disable_loop();  // loop only runs when a frame is pending
 }
 
 void SSOCRReader::dump_config() {
@@ -34,53 +24,39 @@ void SSOCRReader::dump_config() {
                 "SSOCR Reader:\n"
                 "  Frame: %dx%d\n"
                 "  Crop: x=%d, y=%d, w=%d, h=%d\n"
-                "  Threshold: %u, Digits: %u, Debug: %s\n"
+                "  Threshold: %u, Digits: %u\n"
                 "  Update Interval: %" PRIu32 " ms",
                 this->img_width_, this->img_height_, this->crop_x_, this->crop_y_, this->crop_w_, this->crop_h_,
-                this->ocr_.get_threshold_level(), this->digit_count_,
-                this->debug_ ? LOG_STR_LITERAL("YES") : LOG_STR_LITERAL("NO"), this->get_update_interval());
+                this->ocr_.get_threshold_level(), this->digit_count_, this->get_update_interval());
   this->decoder_->dump_config();
 }
 
 void SSOCRReader::update() {
-  if (this->debug_) {
-    ESP_LOGD(TAG, "Update triggered (Interval cycle)");
-  }
-
-  // Request one frame. The state machine rejects frames that arrive while no
-  // request is pending, so an idle camera frame cannot be processed twice.
-  FrameState expected = FrameState::IDLE;
-  if (this->frame_state_.compare_exchange_strong(expected, FrameState::REQUESTED)) {
-    this->last_request_time_ = App.get_loop_component_start_time();
-    this->camera_->request_image(camera::IDLE);
-    ESP_LOGD(TAG, "Requesting frame");
-  }
+  if (this->frame_requested_)
+    return;
+  this->frame_requested_ = true;
+  this->camera_->request_image(camera::IDLE);
+  ESP_LOGD(TAG, "Requesting frame");
+  this->set_timeout(FRAME_TIMEOUT_ID, 5000, [this]() {
+    this->frame_requested_ = false;
+    ESP_LOGW(TAG, "Frame timeout");
+  });
 }
 
 void SSOCRReader::on_camera_image(const std::shared_ptr<esphome::camera::CameraImage> &image) {
-  FrameState expected = FrameState::REQUESTED;
-  if (this->frame_state_.compare_exchange_strong(expected, FrameState::AVAILABLE)) {
-    this->pending_frame_ = image;
-  }
+  if (!this->frame_requested_)
+    return;
+  this->frame_requested_ = false;
+  this->cancel_timeout(FRAME_TIMEOUT_ID);
+  this->pending_frame_ = image;
+  this->enable_loop();
 }
 
 void SSOCRReader::loop() {
   std::shared_ptr<esphome::camera::CameraImage> frame = std::move(this->pending_frame_);
+  this->disable_loop();
   if (frame) {
-    this->frame_state_.store(FrameState::PROCESSING);
     this->process_frame_(frame);
-    frame.reset();
-    this->frame_state_.store(FrameState::IDLE);
-  }
-
-  // Watchdog: a requested frame that never arrives must not block later polls.
-  const uint32_t now = App.get_loop_component_start_time();
-  if (this->frame_state_.load() == FrameState::REQUESTED && now - this->last_request_time_ > 5000) {
-    ESP_LOGW(TAG, "Frame timeout");
-    FrameState expected = FrameState::REQUESTED;
-    if (this->frame_state_.compare_exchange_strong(expected, FrameState::IDLE)) {
-      this->pending_frame_ = nullptr;
-    }
   }
 }
 

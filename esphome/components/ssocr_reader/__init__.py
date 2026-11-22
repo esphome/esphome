@@ -3,7 +3,7 @@
 import esphome.codegen as cg
 from esphome.components import camera, camera_decoder, esp32_camera
 import esphome.config_validation as cv
-from esphome.const import CONF_DEBUG, CONF_ID, CONF_RESOLUTION, CONF_ROTATION
+from esphome.const import CONF_ID, CONF_RESOLUTION, CONF_ROTATION
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -35,7 +35,6 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Required(CONF_CROP_H): cv.positive_not_null_int,
         cv.Optional(CONF_THRESHOLD_LEVEL, default=128): cv.int_range(min=0, max=255),
         cv.Optional(CONF_DIGIT_COUNT, default=6): cv.int_range(min=1, max=9),
-        cv.Optional(CONF_DEBUG, default=False): cv.boolean,
     }
 ).extend(cv.polling_component_schema("60s"))
 
@@ -130,4 +129,3 @@ async def to_code(config: ConfigType) -> None:
         )
     )
     cg.add(var.set_digit_count(config[CONF_DIGIT_COUNT]))
-    cg.add(var.set_debug(config[CONF_DEBUG]))
