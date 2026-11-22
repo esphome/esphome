@@ -19,7 +19,7 @@ namespace esphome::datetime {
 
 class TimeCall;
 class TimeEntity;
-class OnTimeTrigger;
+class OnTimeBase;
 
 struct TimeEntityRestoreState {
   uint8_t hour;
@@ -55,7 +55,7 @@ class TimeEntity : public DateTimeBase {
  protected:
   friend class TimeCall;
   friend struct TimeEntityRestoreState;
-  friend class OnTimeTrigger;
+  friend class OnTimeBase;
 
   virtual void control(const TimeCall &call) = 0;
 };
@@ -100,14 +100,25 @@ class TimeCall {
 inline TimeCall TimeEntity::make_call() { return TimeCall(this); }
 
 #ifdef USE_TIME
-class OnTimeTrigger final : public Trigger<>, public Component, public Parented<TimeEntity> {
+/// Runs fire_() when the clock reaches the entity's time, for on_time.
+class OnTimeBase : public Component, public Parented<TimeEntity> {
  public:
+  explicit OnTimeBase(TimeEntity *parent) : Parented(parent) {}
   void loop() override;
 
  protected:
+  virtual void fire_() = 0;
   bool matches_(const ESPTime &time) const;
 
   optional<ESPTime> last_check_;
+};
+
+template<auto Fn> class OnTimeCallback final : public OnTimeBase {
+ public:
+  using OnTimeBase::OnTimeBase;
+
+ protected:
+  void fire_() override { Fn(); }
 };
 #endif
 

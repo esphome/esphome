@@ -57,7 +57,7 @@ class DateTimeEntity : public DateTimeBase {
  protected:
   friend class DateTimeCall;
   friend struct DateTimeEntityRestoreState;
-  friend class OnDateTimeTrigger;
+  friend class OnDateTimeBase;
 
   virtual void control(const DateTimeCall &call) = 0;
 };
@@ -123,14 +123,25 @@ class DateTimeCall {
 inline DateTimeCall DateTimeEntity::make_call() { return DateTimeCall(this); }
 
 #ifdef USE_TIME
-class OnDateTimeTrigger final : public Trigger<>, public Component, public Parented<DateTimeEntity> {
+/// Runs fire_() when the clock reaches the entity's date and time, for on_time.
+class OnDateTimeBase : public Component, public Parented<DateTimeEntity> {
  public:
+  explicit OnDateTimeBase(DateTimeEntity *parent) : Parented(parent) {}
   void loop() override;
 
  protected:
+  virtual void fire_() = 0;
   bool matches_(const ESPTime &time) const;
 
   optional<ESPTime> last_check_;
+};
+
+template<auto Fn> class OnDateTimeCallback final : public OnDateTimeBase {
+ public:
+  using OnDateTimeBase::OnDateTimeBase;
+
+ protected:
+  void fire_() override { Fn(); }
 };
 #endif
 
