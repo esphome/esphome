@@ -22,14 +22,19 @@ port, secs, out, mode = sys.argv[1], float(sys.argv[2]), sys.argv[3], sys.argv[4
 ack, feed = "ack" in sys.argv[5:], "feed" in sys.argv[5:]
 
 
-def write_all(fd: int, data: bytes, limit: float = 2) -> int:
-    """Write data to the non-blocking tty for up to limit seconds; returns the bytes written."""
+def write_all(fd: int, data: bytes, f, t0: float, limit: float = 2) -> int:
+    """Write data to the non-blocking tty for up to limit seconds; returns the bytes written.
+
+    A lost port writes the same HUP line to f as the read path and exits 1."""
     n, stop = 0, time.time() + limit
     while n < len(data) and time.time() < stop:
         try:
             n += os.write(fd, data[n:])
         except BlockingIOError:
             select.select([], [fd], [], 0.1)
+        except OSError as e:
+            f.write(f"{time.time() - t0:.4f} HUP {e}\n")
+            sys.exit(1)
     return n
 
 
@@ -72,12 +77,12 @@ try:
             f.write(f"{time.time() - t0:.4f} RX {b.hex(' ')}\n")
             f.flush()
             if ack and b == b"\x7f":
-                n = write_all(fd, b"\x79")
+                n = write_all(fd, b"\x79", f, t0)
                 f.write(f"{time.time() - t0:.4f} TX 79*{n}\n")
             tail = (tail + b)[-200:]
             if feed and b"RPT" in tail and tail.endswith(b"\r\n"):
                 tail = b""
-                n = write_all(fd, b"\x55" * 400)
+                n = write_all(fd, b"\x55" * 400, f, t0)
                 f.write(f"{time.time() - t0:.4f} TX 55*{n}\n")
 finally:
     os.close(fd)

@@ -6,7 +6,7 @@
 on (an esp_pm_configure() result of 0 from pmh.hpp, or the esp32_power_management config block). Any
 esp_pm_configure() failure, or the component marked FAILED, exits 1 with or without it.
 --expect-light-sleep (light sleep runs) also needs proof light sleep was on: "Light Sleep Enabled" or ls=1 = 0.
-Exits 1 too when no frame was fed, or fewer than two device cnt lines were captured (device count unknown).
+Exits 1 too when no frame was fed, none was parsed, or fewer than two device cnt lines were captured.
 
 Frame n: PM1.0 std and atm = n, PM2.5 = n+1000, PM10 = n+2000, temp = 20.0+n%10, hum = 40.0+n%10.
 Writes "[feed] n=..." lines into OUT so parses can be matched to frames; device lines go through
@@ -124,7 +124,8 @@ def main() -> None:
     # its config block is printed even after a failed setup, so the core's FAILED line counts as a failure
     pm_failed = (
         log.count(b"esp_pm_configure failed")
-        + log.count(b"esp32_power_management is marked FAILED")
+        # it registers through power_management, so the core names it that
+        + log.count(b"power_management is marked FAILED")
         + sum(x != b"0" for x in pm)
     )
     pm_ok = not pm_failed and (bool(pm) or b"Power Management:" in log)
@@ -143,6 +144,12 @@ def main() -> None:
         sys.exit("no frame was fed: the run tested nothing")
     if len(cnt) < 2:
         sys.exit("fewer than two cnt lines: the device parse count is unknown")
+    if (
+        not dev
+    ):  # frames went out but none was parsed: the receive path of the rig is dead
+        sys.exit(
+            "frames were fed but the device parsed none: check the GPIO3 wiring and the second UART"
+        )
     if pm_failed:
         sys.exit("esp_pm_configure() failed: the run is not under power management")
     if a.expect_pm and not pm_ok:
