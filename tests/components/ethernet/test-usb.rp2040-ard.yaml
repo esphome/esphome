@@ -1,0 +1,1 @@
+<<: !include common-usb-rp2040.yaml

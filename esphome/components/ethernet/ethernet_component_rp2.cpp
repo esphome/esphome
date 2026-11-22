@@ -18,7 +18,7 @@ ESPHOME_LOG_TAG(TAG, "ethernet");
 
 void EthernetComponent::setup() {
   // Configure SPI pins
-#if !defined(USE_ETHERNET_W6300)
+#if !defined(USE_ETHERNET_W6300) && defined(USE_ETHERNET_SPI)
   SPI.setRX(this->miso_pin_);
   SPI.setTX(this->mosi_pin_);
   SPI.setSCK(this->clk_pin_);
@@ -51,6 +51,8 @@ void EthernetComponent::setup() {
   this->eth_ = new Wiznet6300lwIPFixed(this->cs_pin_, SPI, this->interrupt_pin_);  // NOLINT
 #elif defined(USE_ETHERNET_ENC28J60)
   this->eth_ = new ENC28J60lwIP(this->cs_pin_, SPI, this->interrupt_pin_);  // NOLINT
+#elif defined(USE_ETHERNET_USB)
+  this->eth_ = new NCMEthernetlwIP();  // NOLINT
 #endif
 
   // Set hostname before begin() so the LWIP netif gets it
@@ -197,6 +199,8 @@ void EthernetComponent::dump_config() {
   const char *type_str = "W6300";
 #elif defined(USE_ETHERNET_ENC28J60)
   const char *type_str = "ENC28J60";
+#elif defined(USE_ETHERNET_USB)
+  const char *type_str = "USB";
 #else
   const char *type_str = "Unknown";
 #endif
@@ -209,7 +213,7 @@ void EthernetComponent::dump_config() {
                 "  IRQ Pin: %d\n"
                 "  Reset Pin: %d",
                 type_str, YESNO(this->is_connected()), this->interrupt_pin_, this->reset_pin_);
-#else
+#elif defined(USE_ETHERNET_SPI)
   ESP_LOGCONFIG(TAG,
                 "Ethernet:\n"
                 "  Type: %s\n"
@@ -222,6 +226,12 @@ void EthernetComponent::dump_config() {
                 "  Reset Pin: %d",
                 type_str, YESNO(this->is_connected()), this->clk_pin_, this->miso_pin_, this->mosi_pin_, this->cs_pin_,
                 this->interrupt_pin_, this->reset_pin_);
+#else
+  ESP_LOGCONFIG(TAG,
+                "Ethernet:\n"
+                "  Type: %s\n"
+                "  Connected: %s\n",
+                type_str, YESNO(this->is_connected()));
 #endif
   this->dump_connect_params_();
 }
@@ -263,8 +273,8 @@ eth_duplex_t EthernetComponent::get_duplex_mode() {
 }
 
 eth_speed_t EthernetComponent::get_link_speed() {
-#ifdef USE_ETHERNET_ENC28J60
-  // ENC28J60 is 10Mbps only
+#if defined(USE_ETHERNET_ENC28J60) || defined(USE_ETHERNET_USB)
+  // ENC28J60 is 10Mbps only. USB is either 12 or 1.5Mbps depending on negotiation.
   return ETH_SPEED_10M;
 #else
   // W5100 and W5500 are 100Mbps
