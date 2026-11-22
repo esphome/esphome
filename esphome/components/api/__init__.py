@@ -1132,11 +1132,10 @@ async def api_respond_to_code(
         error = f"StringRef::from_lit({cg.safe_exp(error)})"
     else:
         error = "StringRef()"
-    send = f"{parent}->send_action_response(call_id, {success}, {error}"
-    send_status = f"{send});"
-
     if CONF_DATA not in config:
-        statements.append(send_status)
+        statements.append(
+            f"{parent}->send_action_response(call_id, {success}, {error});"
+        )
         return automation.apply_statements_action(
             action_id, template_arg, args, statements
         )
@@ -1146,24 +1145,16 @@ async def api_respond_to_code(
     data = await cg.process_lambda(
         config[CONF_DATA], [*args, (cg.JsonObject, "root")], return_type=cg.void
     )
-    send_data = "\n  ".join(
-        [
-            "{",
-            "json::JsonBuilder esphome__builder;",
-            f"{cg.JsonObject} root = esphome__builder.root();",
-            f"{automation.immediate_lambda_call(data)};",
-            "const auto esphome__json = esphome__builder.serialize();",
-            f"{send}, reinterpret_cast<const uint8_t *>(esphome__json.data()), esphome__json.size());",
-        ]
+    build = f"[&]({cg.JsonObject} root) {{ {automation.immediate_lambda_call(data)}; }}"
+    # Optional mode passes return_response as the bool after call_id; only then is the data up to the client.
+    # Other modes may have a variable of that name, so it is not enough on its own.
+    optional = (
+        len(args) > 1 and args[1][1] == "return_response" and str(args[1][0]) == "bool"
     )
-    send_data += "\n}"
-    if "return_response" in names:
-        # Optional mode: send the data only when the client asked for it
-        statements.append(
-            f"if (!return_response) {{\n  {send_status}\n}} else {send_data}"
-        )
-    else:
-        statements.append(send_data)
+    with_data = ", return_response" if optional else ""
+    statements.append(
+        f"api::send_action_response_json({parent}, call_id, {success}, {error}, {build}{with_data});"
+    )
     return automation.apply_statements_action(action_id, template_arg, args, statements)
 
 

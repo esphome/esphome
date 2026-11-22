@@ -100,6 +100,15 @@ api:
         - api.respond:
             success: !lambda "return call_id > 1;"
             error_message: !lambda 'return std::string("failed");'
+    # A response-only variable that only shares its name with the optional mode argument
+    - action: respond_only_named_return_response
+      supports_response: only
+      variables:
+        return_response: int
+      then:
+        - api.respond:
+            data: !lambda |-
+              root["n"] = return_response;
     - action: respond_error_constant
       supports_response: status
       then:

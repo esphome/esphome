@@ -162,37 +162,41 @@ def test_delay_uses_owning_args(generate_main) -> None:
     assert "[](std::string name, std::vector<int32_t> int_arr) -> void" in after_code
 
 
+SEND_JSON = (
+    "api::send_action_response_json(::api_apiserver_id, call_id, true, StringRef(), "
+)
+
+
 def test_respond_optional(generate_main) -> None:
-    """An optional response sends the data only when the client asked for it, all in one function."""
+    """An optional response passes return_response, so the data goes only to a client that asked."""
     main_cpp = generate_main(CONFIG)
     function = _service_function(main_cpp, "respond_optional", OPTIONAL, "int32_t")
     body = _function_body(main_cpp, function)
     assert "->trigger(" not in body
-    without_data = (
-        "::api_apiserver_id->send_action_response(call_id, true, StringRef());"
-    )
-    with_data = (
-        "::api_apiserver_id->send_action_response(call_id, true, StringRef(), "
-        "reinterpret_cast<const uint8_t *>(esphome__json.data()), esphome__json.size());"
-    )
-    assert body.index("if (!return_response) {") < body.index(without_data)
-    assert body.index("} else {") < body.index('root["value"] = value;')
-    assert body.index('root["value"] = value;') < body.index(with_data)
-    assert "ArduinoJson::JsonObject root = esphome__builder.root();" in body
-    assert "(call_id, return_response, value, root);" in body
+    assert body.index(SEND_JSON) < body.index('root["value"] = value;')
+    assert "}(call_id, return_response, value, root); }, return_response);" in body
     assert body.endswith(f"\n  {{\n  {UNREGISTER}\n  }}")
 
 
 def test_respond_only(generate_main) -> None:
-    """A response-only service sends its data after the actions before it, then unregisters."""
+    """A response-only service always sends its data, after the actions before it, then unregisters."""
     main_cpp = generate_main(CONFIG)
     function = _service_function(main_cpp, "respond_only", ONLY, "StringRef")
     body = _function_body(main_cpp, function)
     assert "->trigger(" not in body
-    assert "return_response" not in body
-    assert body.index("RESPOND_ONLY %s") < body.index('root["name"] = name;')
-    assert "(call_id, name, root);" in body
-    assert body.index("esphome__json.size());") < body.index(UNREGISTER)
+    assert body.index("RESPOND_ONLY %s") < body.index(SEND_JSON)
+    assert "}(call_id, name, root); });" in body
+    assert body.index('root["name"] = name;') < body.index(UNREGISTER)
+
+
+def test_respond_only_variable_named_return_response(generate_main) -> None:
+    """A response-only variable named return_response does not make the data optional."""
+    main_cpp = generate_main(CONFIG)
+    function = _service_function(
+        main_cpp, "respond_only_named_return_response", ONLY, "int32_t"
+    )
+    body = _function_body(main_cpp, function)
+    assert "}(call_id, return_response, root); });" in body
 
 
 def test_respond_status_lambdas(generate_main) -> None:
@@ -304,6 +308,7 @@ def test_services_registered_in_order(generate_main) -> None:
         "manual_trigger_id",
         "respond_then_log",
         "respond_error_lambda",
+        "respond_only_named_return_response",
         "respond_error_constant",
         "status_inline",
         "self_reference",
