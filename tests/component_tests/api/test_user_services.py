@@ -190,24 +190,28 @@ def test_respond_only(generate_main) -> None:
     assert body.index('root["name"] = name;') < body.index(UNREGISTER)
 
 
-def test_respond_only_variable_named_return_response(generate_main) -> None:
+@pytest.mark.parametrize(
+    ("name", "types", "call"),
+    [
+        (
+            "respond_only_named_return_response",
+            "int32_t",
+            "}(call_id, return_response, root); });",
+        ),
+        (
+            "respond_only_bool_named_return_response",
+            "int32_t, bool",
+            "}(call_id, value, return_response, root); });",
+        ),
+    ],
+)
+def test_respond_only_variable_named_return_response(
+    generate_main, name: str, types: str, call: str
+) -> None:
     """A response-only variable named return_response does not make the data optional."""
     main_cpp = generate_main(CONFIG)
-    function = _service_function(
-        main_cpp, "respond_only_named_return_response", ONLY, "int32_t"
-    )
-    body = _function_body(main_cpp, function)
-    assert "}(call_id, return_response, root); });" in body
-
-
-def test_respond_only_bool_variable_named_return_response(generate_main) -> None:
-    """A response-only bool variable named return_response, after another variable, keeps the data required."""
-    main_cpp = generate_main(CONFIG)
-    function = _service_function(
-        main_cpp, "respond_only_bool_named_return_response", ONLY, "int32_t, bool"
-    )
-    body = _function_body(main_cpp, function)
-    assert "}(call_id, value, return_response, root); });" in body
+    body = _function_body(main_cpp, _service_function(main_cpp, name, ONLY, types))
+    assert call in body
 
 
 def test_respond_optional_inside_repeat(generate_main) -> None:
