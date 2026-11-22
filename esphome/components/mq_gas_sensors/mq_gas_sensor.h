@@ -230,6 +230,10 @@ class MQGasSensor final : public sensor::Sensor, public PollingComponent {
   uint32_t humidity_last_ms_{0};
   uint32_t temperature_gap_ms_{0};
   uint32_t humidity_gap_ms_{0};
+  /// Consecutive gaps that looked like outages; the estimate adopts the cadence
+  /// when a source turns out to be slower than its first gap suggested.
+  uint8_t temperature_slow_gaps_{0};
+  uint8_t humidity_slow_gaps_{0};
   uint32_t sample_interval_{20};
   uint32_t warmup_time_{0};
   uint32_t calibration_delay_{0};

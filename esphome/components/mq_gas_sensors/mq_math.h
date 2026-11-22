@@ -285,18 +285,6 @@ inline float ppm_from_ratio(float a, float b, float ratio, RegressionMethod meth
   return static_cast<float>(ppm);
 }
 
-/// Curve value at a collapsed sensor resistance, i.e. the analog output at the
-/// supply rail. In `rs_r0` mode the corrected ratio is the correction offset
-/// itself (RS/R0 is 0 there, plus the offset, clamped at zero like the reading
-/// path); in `r0_rs` mode it grows without bound. The result is the curve limit at
-/// that end: FLT_MAX for "the top of the range", 0 for a curve that falls to zero,
-/// NaN when the coefficients cannot evaluate it.
-inline float rail_ppm(float a, float b, RegressionMethod method, RatioMode mode, float correction_factor) {
-  if (mode == RatioMode::RATIO_R0_RS)
-    return ppm_at_infinity(a, b, method);
-  return ppm_from_ratio(a, b, correction_factor > 0.0f ? correction_factor : 0.0f, method);
-}
-
 /// Clamp a PPM reading to the measuring range (NaN stays NaN).
 inline float clamp_ppm(float ppm, float min_ppm, float max_ppm) {
   if (!std::isfinite(ppm))
@@ -389,6 +377,21 @@ inline float apply_correction_inverse(float ratio, float correction) {
   if (!std::isfinite(ratio) || !std::isfinite(correction) || correction <= 0.0f)
     return ratio;
   return static_cast<float>(static_cast<double>(ratio) * static_cast<double>(correction));
+}
+
+/// Curve value at a collapsed sensor resistance, i.e. the analog output at the
+/// supply rail. In `rs_r0` mode the corrected ratio is the correction offset
+/// itself (RS/R0 is 0 there, plus the offset, clamped at zero like the reading
+/// path) with the ambient correction applied; in `r0_rs` mode it grows without
+/// bound. The result is the curve limit at that end: FLT_MAX for "the top of the
+/// range", 0 for a curve that falls to zero, NaN when the coefficients cannot
+/// evaluate it.
+inline float rail_ppm(float a, float b, RegressionMethod method, RatioMode mode, float correction_factor,
+                      float correction = 1.0f) {
+  if (mode == RatioMode::RATIO_R0_RS)
+    return ppm_at_infinity(a, b, method);
+  const float ratio = correction_factor > 0.0f ? correction_factor : 0.0f;
+  return ppm_from_ratio(a, b, apply_correction(ratio, correction), method);
 }
 
 /// Clamp a (possibly corrected) PPM value to the configured range.

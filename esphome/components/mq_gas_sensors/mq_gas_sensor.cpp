@@ -167,11 +167,17 @@ void MQGasSensor::setup() {
       const uint32_t now_ms = App.get_loop_component_start_time();
       if (this->temperature_last_ms_ != 0) {
         const uint32_t gap = now_ms - this->temperature_last_ms_;
-        // A dropout is not the cadence: a gap far beyond the current estimate is
-        // ignored, so one outage cannot raise the staleness limit for hours.
-        if (this->temperature_gap_ms_ == 0 || gap < this->temperature_gap_ms_ * 3u) {
-          this->temperature_gap_ms_ =
-              this->temperature_gap_ms_ == 0 ? gap : (this->temperature_gap_ms_ * 7u + gap) / 8u;
+        // A dropout is not the cadence: a gap far beyond the estimate is ignored
+        // once, but two in a row mean the source really is slower, so a short
+        // first gap cannot lock the estimate.
+        if (this->temperature_gap_ms_ == 0) {
+          this->temperature_gap_ms_ = gap;
+        } else if (gap < this->temperature_gap_ms_ * 3u) {
+          this->temperature_gap_ms_ = (this->temperature_gap_ms_ * 7u + gap) / 8u;
+          this->temperature_slow_gaps_ = 0;
+        } else if (++this->temperature_slow_gaps_ >= 2u) {
+          this->temperature_gap_ms_ = gap;
+          this->temperature_slow_gaps_ = 0;
         }
       }
       this->temperature_last_ms_ = now_ms;
@@ -187,8 +193,14 @@ void MQGasSensor::setup() {
       const uint32_t now_ms = App.get_loop_component_start_time();
       if (this->humidity_last_ms_ != 0) {
         const uint32_t gap = now_ms - this->humidity_last_ms_;
-        if (this->humidity_gap_ms_ == 0 || gap < this->humidity_gap_ms_ * 3u) {
-          this->humidity_gap_ms_ = this->humidity_gap_ms_ == 0 ? gap : (this->humidity_gap_ms_ * 7u + gap) / 8u;
+        if (this->humidity_gap_ms_ == 0) {
+          this->humidity_gap_ms_ = gap;
+        } else if (gap < this->humidity_gap_ms_ * 3u) {
+          this->humidity_gap_ms_ = (this->humidity_gap_ms_ * 7u + gap) / 8u;
+          this->humidity_slow_gaps_ = 0;
+        } else if (++this->humidity_slow_gaps_ >= 2u) {
+          this->humidity_gap_ms_ = gap;
+          this->humidity_slow_gaps_ = 0;
         }
       }
       this->humidity_last_ms_ = now_ms;
@@ -517,13 +529,14 @@ void MQGasSensor::update() {
     // (clamped at zero like the reading path); evaluating the curve at 0 would
     // report the wrong end when a correction offset is configured.
     const float rail_ratio = std::max(this->correction_factor_, 0.0f);
-    const float saturation_ppm =
-        mqmath::rail_ppm(this->a_, this->b_, this->regression_method_, this->ratio_mode_, this->correction_factor_);
+    // The ambient correction applies to the rail like to any other reading.
+    this->correction_ = this->compute_correction_();
+    const float saturation_ppm = mqmath::rail_ppm(this->a_, this->b_, this->regression_method_, this->ratio_mode_,
+                                                  this->correction_factor_, this->correction_);
     this->rs_ = 0.0f;
     // In r0_rs mode R0/RS grows without bound when RS reaches zero, so there is no
     // finite ratio to report; the PPM above uses the curve's limit at that end.
     this->ratio_ = this->ratio_mode_ == RatioMode::RATIO_R0_RS || !std::isfinite(saturation_ppm) ? NAN : rail_ratio;
-    this->correction_ = this->compute_correction_();
 
     // Compensate and clamp the rail limit like a normal reading: a curve with a
     // positive correction offset has a finite value there (and a curve at the top
