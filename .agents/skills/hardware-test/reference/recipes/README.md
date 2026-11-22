@@ -36,11 +36,11 @@ One file per component, named after it:
 - [`homeassistant.md`](homeassistant.md): light platform mirrored from a local Home Assistant, held reports versus later calls, wizard-linked entities on every platform, homeassistant switch on a script with a host build
 - [`usb_audio.md`](usb_audio.md): USB audio speaker and microphone, the usb_host FIFO split, and Music Assistant playback through sendspin
 - [`dfrobot_sen0395.md`](dfrobot_sen0395.md): SEN0395 mmWave command flow, module quirks and overlong lines through its error reply
-- [`speaker.md`](speaker.md): media player pipeline tasks on the Connect AUX-2 with the `speaker` platform player
+- [`speaker.md`](speaker.md): media player pipeline tasks on the Connect AUX-2 with the `speaker` platform player, FLAC stream changes and announcements without a DAC
 - [`web_server.md`](web_server.md): state SSE stress and the HTTPD task stack on web_server_idf, entity icon and device class readback, per-session `/events` listing, `/events` head, stall, Wi-Fi drop and churn checks
 - [`uart_sim.md`](uart_sim.md): UART sensors simulated on a classic ESP32 with loopback and cross-wired UARTs, a Duco ventilation box model on a second UART
 - [`gpio_expander.md`](gpio_expander.md): interrupt driven expander inputs, loop idle checks, testing a device out of reach
-- [`led_strip.md`](led_strip.md): forcing a failed strip allocation, RMT symbols per chip, loop cost per strip
+- [`led_strip.md`](led_strip.md): forcing a failed strip allocation, RMT symbols per chip, loop cost per strip, colour correction and partition A/B on the PIO probe, RMT power management lock under light sleep
 - [`remote_base.md`](remote_base.md): remote_receiver protocol decoding through a one-pin loopback on ESP32 and ESP8266, no IR hardware
 - [`xiaomi_ble.md`](xiaomi_ble.md): Xiaomi, ATC and PVVX parsing by injecting scan results into the ESP32 tracker or advertising them from a second ESP32, real AES-CCM frames, duplicate filter model
 - [`ble_terminate.md`](ble_terminate.md): proxy disconnect against a peer with peripheral latency
@@ -64,7 +64,7 @@ One file per component, named after it:
 - [`rs485_frame.md`](rs485_frame.md): DLE/STX/ETX bus on an ESP32-C3 with a cross-wired simulated bus device (frame cases, gate timing)
 - [`hx711.md`](hx711.md): fake HX711 driven from the other core, every published value matched to the served conversion
 - [`automation_trace.md`](automation_trace.md): automation codegen A/B, a marker trace of chains, conditions, loops and script modes over the API
-- [`bluetooth_proxy.md`](bluetooth_proxy.md): held GATT link after a half-open API session, frozen Home Assistant stand-in, out-of-order GATT discovery responses injected on the proxy, GATT UUID forms (16 bit, 32-bit base, 128 bit) compared against an ESP32 proxy
+- [`bluetooth_proxy.md`](bluetooth_proxy.md): held GATT link after a half-open API session, frozen Home Assistant stand-in, out-of-order GATT discovery responses injected on the proxy, GATT UUID forms (16 bit, 32-bit base, 128 bit) compared against an ESP32 proxy, third link refusals, cold discovery time and the #22904 coexistence hold with the connection interval logger
 - [`crash_report.md`](crash_report.md): crash buttons, fetching the previous boot's crash report over the API, per-chip abort facts
 - [`https_idf.md`](https_idf.md): web_server_idf HTTPS test component, listener switch, stalled TLS clients, bad key
 - [`mdns.md`](mdns.md): legacy unicast mDNS dump, hammer and latency straight to the device
@@ -91,3 +91,4 @@ One file per component, named after it:
 - [`serial_proxy.md`](serial_proxy.md): simulated serial device on a cross-wired UART, byte-exact client with read pauses, ASH tap ACK timing
 - [`network_dns.md`](network_dns.md): network.priority Ethernet plus Wi-Fi losing lwIP DNS servers (#19805)
 - [`tuya.md`](tuya.md): Tuya MCU simulator on a cross-wired second UART (handshake, every datapoint type, command frames logged), hub vs entity order, dump A/B
+- [`esp32_ble_server.md`](esp32_ble_server.md): YAML server, Improv over BLE and runtime service create, stop, start and remove checked directly and through a proxy, a service created inside `on_write`
