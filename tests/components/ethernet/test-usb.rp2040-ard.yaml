@@ -1,1 +1,2 @@
-<<: !include common-usb-rp2040.yaml
+packages:
+  ethernet: !include common-usb-rp2040.yaml
