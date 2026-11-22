@@ -1,5 +1,6 @@
 #pragma once
 
+#include "esphome/core/chain.h"
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
@@ -678,30 +679,19 @@ template<typename... Ts> class Action : public ChainNode<Action<Ts...>, Action<T
 
 template<typename... Ts> class ActionList {
  public:
-  void add_action(Action<Ts...> *action) {
-    if (Action<Ts...> *last = this->last_()) {
-      last->link_.set_next(action);
-    } else {
-      this->actions_ = action;
-    }
-  }
+  void add_action(Action<Ts...> *action) { *this->tail_() = action; }
   void add_actions(const std::initializer_list<Action<Ts...> *> &actions) {
-    // Find the last action once, then append all actions in a single pass
-    Action<Ts...> *last = this->last_();
+    // Find tail once, then append all actions in a single pass
+    Action<Ts...> **tail = this->tail_();
     for (auto *action : actions) {
-      if (last == nullptr) {
-        this->actions_ = action;
-      } else {
-        last->link_.set_next(action);
-      }
-      last = action;
+      *tail = action;
+      tail = action->link_.next_slot();
     }
   }
   /// Resume `owner` via play() when the list finishes; call once, after adding actions.
   void set_owner(Action<Ts...> *owner) {
-    // Nothing to tag in an empty list
-    if (Action<Ts...> *last = this->last_())
-      last->link_.set_owner(owner);
+    if (this->actions_ != nullptr)
+      this->actions_->chain_last_()->link_.set_owner(owner);
   }
   // Force-inline: part of the Trigger→Automation→ActionList forwarding
   // chain collapsed to reduce automation call stack depth.
@@ -735,16 +725,16 @@ template<typename... Ts> class ActionList {
   template<size_t... S> void play_tuple_(const std::tuple<Ts...> &tuple, std::index_sequence<S...> /*unused*/) {
     this->play(std::get<S>(tuple)...);
   }
-  // Lists with an owner are complete; never append after set_owner(). Action lists are short and only built
-  // during setup(), so walking to the end each time is fine.
-  Action<Ts...> *last_() {
-    if (this->actions_ == nullptr)
-      return nullptr;
-    Action<Ts...> *last = this->actions_->chain_last_();
-    // Not checked in release builds: only automation.py builds these lists, appending each action and
-    // then finishing the branch once, so appending after set_owner() would be a codegen bug.
-    ESPHOME_DEBUG_ASSERT(!last->link_.is_owner());
-    return last;
+  // Walk to the end of the chain; action lists are short and only built during setup()
+  Action<Ts...> **tail_() {
+    Action<Ts...> **tail = &this->actions_;
+    while (*tail != nullptr) {
+      // Not checked in release builds: only automation.py builds these lists, appending each action and
+      // then finishing the branch once, so appending after set_owner() would be a codegen bug.
+      ESPHOME_DEBUG_ASSERT(!(*tail)->link_.is_owner());
+      tail = (*tail)->link_.next_slot();
+    }
+    return tail;
   }
 
   Action<Ts...> *actions_{nullptr};

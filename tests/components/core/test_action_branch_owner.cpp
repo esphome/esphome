@@ -88,7 +88,7 @@ class CountdownCondition : public Condition<> {
   int passes_;
 };
 
-// Reads an action's link through Action's own chain link
+// Exposes Action's protected link_
 class TaggedOwner : public RecordAction {
  public:
   using RecordAction::RecordAction;

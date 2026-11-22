@@ -33,9 +33,8 @@ void Filter::input(float value) {
 }
 void Filter::output(float value) {
   if (this->link_.is_owner()) {
-    Sensor *sensor = this->link_.owner();
     ESP_LOGVV(TAG, "Filter(%p)::output(%f) -> SENSOR", this, value);
-    sensor->internal_send_state_to_frontend(value);
+    this->link_.owner()->internal_send_state_to_frontend(value);
   } else {
     Filter *next = this->link_.next();
     ESP_LOGVV(TAG, "Filter(%p)::output(%f) -> %p", this, value, next);
@@ -311,6 +310,7 @@ optional<float> DeltaFilter::new_value(float value) {
 
 // OrFilter helpers
 void or_filter_initialize(Filter **filters, size_t count, Sensor *parent, Filter *phi) {
+  // Link the join node first, so the inner filters' chains reach the sensor when they are linked
   phi->initialize(parent, nullptr);
   for (size_t i = 0; i < count; i++) {
     filters[i]->initialize(parent, phi);

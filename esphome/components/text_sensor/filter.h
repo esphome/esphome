@@ -4,6 +4,7 @@
 #ifdef USE_TEXT_SENSOR_FILTER
 
 #include "esphome/core/component.h"
+#include "esphome/core/chain.h"
 #include "esphome/core/helpers.h"
 
 namespace esphome::text_sensor {

@@ -19,9 +19,8 @@ void Filter::input(std::string value) {
 }
 void Filter::output(std::string &value) {
   if (this->link_.is_owner()) {
-    TextSensor *sensor = this->link_.owner();
     ESP_LOGVV(TAG, "Filter(%p)::output(%s) -> SENSOR", this, value.c_str());
-    sensor->internal_send_state_to_frontend(value);
+    this->link_.owner()->internal_send_state_to_frontend(value);
   } else {
     Filter *next = this->link_.next();
     ESP_LOGVV(TAG, "Filter(%p)::output(%s) -> %p", this, value.c_str(), next);
