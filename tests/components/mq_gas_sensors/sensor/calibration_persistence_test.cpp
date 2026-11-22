@@ -22,6 +22,17 @@ class CalibrationSampler : public voltage_sampler::VoltageSampler {
   float value{1.0f};
 };
 
+/// Cancels the calibration timers a component owns when it leaves scope, also
+/// when an assertion returns early, so no timer outlives the sensor it captures.
+class CalibrationTimerGuard {
+ public:
+  explicit CalibrationTimerGuard(MQGasSensor &sensor) : sensor_(sensor) {}
+  ~CalibrationTimerGuard() { this->sensor_.cancel_timeout(0); }  // CALIBRATION_START_ID
+
+ private:
+  MQGasSensor &sensor_;
+};
+
 /// Scratch host preferences, so a calibration never touches the real store.
 class CalibrationPersistenceTest : public ::testing::Test {
  protected:
@@ -93,6 +104,7 @@ TEST_F(CalibrationPersistenceTest, OneSampleIsNotEnough) {
   CalibrationSampler sampler;
   sampler.value = 1.0f;
   MQGasSensor sensor{&sampler};
+  CalibrationTimerGuard guard(sensor);
   configure(sensor);
   sensor.set_calibration(true, 70.0f, 0, 0, 1, false);
 
@@ -100,9 +112,6 @@ TEST_F(CalibrationPersistenceTest, OneSampleIsNotEnough) {
 
   EXPECT_FALSE(sensor.has_r0());
   EXPECT_TRUE(sensor.status_has_warning());
-  // The failed run leaves a retry timer that captures the component; beginning a
-  // run replaces it, so nothing outlives the test.
-  sensor.start_calibration();
 }
 
 TEST_F(CalibrationPersistenceTest, StoredReferenceIsRestoredForTheSameKey) {
@@ -134,11 +143,10 @@ TEST_F(CalibrationPersistenceTest, ADifferentKeyDoesNotRestoreTheReference) {
   }
 
   MQGasSensor rewired{&sampler};
+  CalibrationTimerGuard guard(rewired);
   configure(rewired);
   rewired.set_preference_key(0x87654321);
   rewired.setup();
-  // setup() schedules a boot calibration; replacing it leaves no timer behind.
-  rewired.start_calibration();
 
   EXPECT_FALSE(rewired.has_r0());
 }
