@@ -69,9 +69,7 @@ class TopTronicBase : public PollingComponent {
   template<typename F> void add_on_update_callback(F &&callback) {
     this->update_callback_.add(std::forward<F>(callback));
   }
-  template<typename F> void add_on_set_callback(F &&callback) {
-    this->set_callback_.add(std::forward<F>(callback));
-  }
+  template<typename F> void add_on_set_callback(F &&callback) { this->set_callback_.add(std::forward<F>(callback)); }
   /// Set by the hub for an input without a read entity: control() then publishes the written value itself
   void set_optimistic(bool optimistic) { this->optimistic_ = optimistic; }
   virtual const LogString *get_log_name() const = 0;
