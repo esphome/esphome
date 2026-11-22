@@ -67,6 +67,20 @@ TEST(MqMath, MidRangeReadingsFollowTheCurve) {
   EXPECT_NEAR(46.70f, ppm_from_ratio(18391.5667f, -1.4494f, 70.0f, RegressionMethod::REGRESSION_INVERSE), 0.05f);
 }
 
+TEST(MqMath, RailLimitFollowsTheCurveAndRatioConvention) {
+  // Datasheet direction: the curve grows as the ratio falls, so the limit at the
+  // rail is the top of the range.
+  EXPECT_EQ(FLT_MAX, rail_ppm(H2_A, H2_B, RegressionMethod::REGRESSION_EXPONENTIAL, RatioMode::RATIO_RS_R0, 0.0f));
+  // A positive correction offset is the ratio at the rail, so the limit is finite.
+  EXPECT_NEAR(1574.0f, rail_ppm(H2_A, H2_B, RegressionMethod::REGRESSION_EXPONENTIAL, RatioMode::RATIO_RS_R0, 0.5f),
+              2.0f);
+  // R0/RS grows without bound there: the limit is the far end of the curve.
+  EXPECT_FLOAT_EQ(0.0f, rail_ppm(H2_A, H2_B, RegressionMethod::REGRESSION_EXPONENTIAL, RatioMode::RATIO_R0_RS, 0.0f));
+  // A curve that falls to zero at the rail has no ceiling there.
+  EXPECT_FLOAT_EQ(0.0f, rail_ppm(10.0f, 2.0f, RegressionMethod::REGRESSION_EXPONENTIAL, RatioMode::RATIO_RS_R0, 0.0f));
+  EXPECT_EQ(FLT_MAX, rail_ppm(10.0f, 2.0f, RegressionMethod::REGRESSION_EXPONENTIAL, RatioMode::RATIO_R0_RS, 0.0f));
+}
+
 TEST(MqMath, SaturatedSensorReportsTheTopOfTheRange) {
   // A ratio of 0 is RS at 0 (V_AO at VCC), the output of a saturated sensor:
   // the datasheet curve grows as the ratio falls, so the model reports the top of
