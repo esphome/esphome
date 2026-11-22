@@ -1,0 +1,43 @@
+packages:
+  base: !include ld6-base.yaml
+  parser_cases: !include ld6-parser-cases.yaml
+
+esphome:
+  on_boot:
+    - priority: 800
+      then:
+        - lambda: ld6sim::mod.replies = false;  # ACKs only, as for the parser A/B
+
+ld6002b:
+  id: radar
+  uart_id: uart_radar
+
+sensor:
+  - platform: ld6002b
+    ld6002b_id: radar
+    target_count:
+      name: Target Count
+    target_1:
+      x:
+        name: T1 X
+      cluster_id:
+        name: T1 Cluster
+
+binary_sensor:
+  - platform: ld6002b
+    ld6002b_id: radar
+    target:
+      name: Presence
+
+select:
+  - platform: ld6002b
+    ld6002b_id: radar
+    sensitivity:
+      name: Sensitivity
+
+script:
+  - id: cases
+    then:
+      - script.execute: parser_cases
+      - script.wait: parser_cases
+      - lambda: ESP_LOGI("ld6sim", "CASE done acks=%u", (unsigned) ld6sim::mod.acks);

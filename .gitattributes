@@ -3,3 +3,8 @@
 *.png binary
 *.gif binary
 *.apng binary
+*.ttf binary
+*.otf binary
+*.woff binary
+*.woff2 binary
+*.pcf binary

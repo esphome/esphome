@@ -1,7 +1,6 @@
 #include "ch423.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-#include "esphome/core/progmem.h"
 
 namespace esphome::ch423 {
 
@@ -24,10 +23,8 @@ void CH423Component::setup() {
   if (success && !(this->sys_params_ & CH423_SYS_IO_OE)) {
     success = this->read_inputs_();
   }
-  if (!success) {
-    this->mark_failed(LOG_STR("CH423 not detected"));
+  if (!this->setup_check(success, LOG_STR("CH423 not detected")))
     return;
-  }
 
   ESP_LOGCONFIG(TAG, "Initialization complete. Warning: %d, Error: %d", this->status_has_warning(),
                 this->status_has_error());
@@ -75,36 +72,21 @@ bool CH423Component::read_inputs_() {
   if (this->sys_params_ & CH423_SYS_IO_OE) {
     return false;
   }
-  uint8_t result = this->read_reg_(CH423_REG_IO_RD);
+  uint8_t result;
+  if (!this->status_comm_result(this->read_reg_(CH423_REG_IO_RD, &result)))
+    return false;
   this->input_bits_ = result;
-  this->status_clear_warning();
   return true;
 }
 
 // Write a register. Can't use the standard write_byte() method because there is no single pre-configured i2c address.
+// Both only set the warning; the caller clears it after its last step.
 bool CH423Component::write_reg_(uint8_t reg, uint8_t value) {
-  auto err = this->bus_->write_readv(reg, &value, 1, nullptr, 0);
-  if (err != i2c::ERROR_OK) {
-    char buf[64];
-    ESPHOME_snprintf_P(buf, sizeof(buf), ESPHOME_PSTR("write failed for register 0x%X, error %d"), reg, err);
-    this->status_set_warning(buf);
-    return false;
-  }
-  this->status_clear_warning();
-  return true;
+  return this->status_comm_check(this->bus_->write_readv(reg, &value, 1, nullptr, 0) == i2c::ERROR_OK);
 }
 
-uint8_t CH423Component::read_reg_(uint8_t reg) {
-  uint8_t value;
-  auto err = this->bus_->write_readv(reg, nullptr, 0, &value, 1);
-  if (err != i2c::ERROR_OK) {
-    char buf[64];
-    ESPHOME_snprintf_P(buf, sizeof(buf), ESPHOME_PSTR("read failed for register 0x%X, error %d"), reg, err);
-    this->status_set_warning(buf);
-    return 0;
-  }
-  this->status_clear_warning();
-  return value;
+bool CH423Component::read_reg_(uint8_t reg, uint8_t *value) {
+  return this->status_comm_check(this->bus_->write_readv(reg, nullptr, 0, value, 1) == i2c::ERROR_OK);
 }
 
 bool CH423Component::write_outputs_() {
@@ -115,7 +97,7 @@ bool CH423Component::write_outputs_() {
   success &= this->write_reg_(CH423_REG_OCL, static_cast<uint8_t>(this->output_bits_ >> 8));
   // Write OC15-OC8
   success &= this->write_reg_(CH423_REG_OCH, static_cast<uint8_t>(this->output_bits_ >> 16));
-  return success;
+  return this->status_comm_result(success);
 }
 
 float CH423Component::get_setup_priority() const { return setup_priority::IO; }

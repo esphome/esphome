@@ -29,14 +29,8 @@ static constexpr uint32_t APC1_NO_DATA_TIMEOUT_MS = 15000;
 static constexpr uint32_t APC1_RX_IDLE_TIMEOUT_MS = 200;
 
 void APC1Component::setup() {
-  if (this->set_pin_ != nullptr) {
-    this->set_pin_->setup();
-    this->set_pin_->digital_write(true);
-  }
-  if (this->reset_pin_ != nullptr) {
-    this->reset_pin_->setup();
-    this->reset_pin_->digital_write(true);
-  }
+  setup_output_pin(this->set_pin_, true);
+  setup_output_pin(this->reset_pin_, true);
 
   // Attempt initial communication immediately for warm restarts
   this->initialize_device_();
@@ -177,7 +171,7 @@ void APC1Component::parse_measurement_frame_() {
     if (error_code != 0) {
       for (uint8_t bit = 0; bit < ErrorStrings::COUNT; bit++) {
         if (error_code & (1 << bit)) {
-          ESP_LOGW(TAG, "APC1: %s", LOG_STR_ARG(ErrorStrings::get_log_str(bit, ErrorStrings::LAST_INDEX)));
+          ESP_LOGW(TAG, "APC1: %s", LOG_STR_ARG(ErrorStrings::get_log_str(bit)));
         }
       }
       this->status_set_warning(LOG_STR("Sensor reported hardware error"));
@@ -304,9 +298,7 @@ void APC1Component::send_command_(APC1Command cmd, uint16_t data) {
       0,
       0,
   };
-  uint16_t checksum = sum16_bytes(buf.data(), 5);
-  buf[5] = static_cast<uint8_t>((checksum >> 8) & 0xFF);
-  buf[6] = static_cast<uint8_t>(checksum & 0xFF);
+  put_be16(buf.data() + 5, sum16_bytes(buf.data(), 5));
   this->write_array(buf);
 }
 

@@ -12,6 +12,9 @@ bool global_has_deep_sleep = false;  // NOLINT(cppcoreguidelines-avoid-non-const
 
 void DeepSleepComponent::setup() {
   global_has_deep_sleep = true;
+#ifdef USE_BK72XX
+  this->setup_wakeup_pins_();
+#endif
   this->schedule_sleep_();
 }
 

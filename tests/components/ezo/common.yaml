@@ -5,11 +5,25 @@ sensor:
     address: 99
     unit_of_measurement: pH
     on_custom:
-      - logger.log: custom
+      - then:
+          - logger.log:
+              format: "custom %s"
+              args: [x.c_str()]
+          - lambda: |-
+              if (x == "?L,1") {
+                ESP_LOGD("ezo_test", "led on, %u bytes", (unsigned) x.size());
+              }
+      - then:
+          - delay: 1s
+          - logger.log:
+              format: "custom later %s"
+              args: [x.c_str()]
     on_calibration:
       - logger.log: calibration
     on_slope:
-      - logger.log: slope
+      - logger.log:
+          format: "slope %s"
+          args: [x.c_str()]
     on_t:
       - logger.log: temperature compensation
     on_device_information:

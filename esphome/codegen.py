@@ -31,6 +31,7 @@ from esphome.cpp_generator import (  # noqa: F401
     add_global,
     add_library,
     add_platformio_option,
+    declare_static_function,
     extern_progmem_array,
     get_variable,
     get_variable_with_full_id,
@@ -45,15 +46,19 @@ from esphome.cpp_generator import (  # noqa: F401
     set_cpp_standard,
     shared_progmem_array,
     shared_progmem_string,
+    shared_static_function,
     statement,
+    static_buffer,
     static_const_array,
     static_function,
+    static_storage,
     templatable,
     unique_global_id,
     variable,
     with_local_variable,
 )
 from esphome.cpp_helpers import (  # noqa: F401
+    HubFunction,
     add_optional,
     add_pin,
     add_variable,
@@ -69,6 +74,7 @@ from esphome.cpp_helpers import (  # noqa: F401
     register_parented,
     set_setup_priority,
     slot_counter,
+    slot_list,
 )
 from esphome.cpp_types import (  # noqa: F401
     NAN,
@@ -89,6 +95,7 @@ from esphome.cpp_types import (  # noqa: F401
     StringRef,
     arduino_json_ns,
     bool_,
+    byte_span,
     char,
     const_char_ptr,
     double,

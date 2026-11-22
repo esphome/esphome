@@ -1,4 +1,5 @@
 #include "remote_base.h"
+#include <algorithm>
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
@@ -56,6 +57,10 @@ bool RemoteReceiveData::peek_space_at_most(uint32_t length, uint32_t offset) con
   const int32_t value = this->peek(offset);
   const int32_t hi = this->upper_bound_(length);
   return value <= 0 && -value <= hi;
+}
+
+TimingRange RemoteReceiveData::timing_range(uint32_t length) const {
+  return {std::max<int32_t>(this->lower_bound_(length), 0), this->upper_bound_(length)};
 }
 
 bool RemoteReceiveData::expect_mark(uint32_t length) {
@@ -133,10 +138,10 @@ void RemoteReceiverBase::warn_extra_secondaries_() {
 }
 #endif
 
-void RemoteReceiverBase::call_listeners_dumpers_() {
+void RemoteReceiverBase::dispatch_(const RemoteReceiveData &src) {
 #ifdef REMOTE_BASE_LISTENER_COUNT
   for (auto *listener : this->listeners_)
-    listener->on_receive(RemoteReceiveData(this->temp_, this->tolerance_, this->tolerance_mode_));
+    listener->on_receive(src);
 #endif
 #ifdef REMOTE_BASE_DUMPER_COUNT
   bool success = false;
@@ -145,12 +150,12 @@ void RemoteReceiverBase::call_listeners_dumpers_() {
     if (dumper->is_secondary()) {
       if (secondary == nullptr)
         secondary = dumper;
-    } else if (dumper->dump(RemoteReceiveData(this->temp_, this->tolerance_, this->tolerance_mode_))) {
+    } else if (dumper->dump(src)) {
       success = true;
     }
   }
   if (!success && secondary != nullptr)
-    secondary->dump(RemoteReceiveData(this->temp_, this->tolerance_, this->tolerance_mode_));
+    secondary->dump(src);
 #endif
 }
 

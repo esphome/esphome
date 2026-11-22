@@ -8,7 +8,7 @@ namespace esphome::gpio {
 
 class GPIOBinaryOutput final : public output::BinaryOutput, public Component {
  public:
-  void set_pin(GPIOPin *pin) { pin_ = pin; }
+  void set_pin(GPIOPin *pin) { this->pin_ = pin; }
 
   void setup() override {
     const bool held = this->pin_->is_held();
@@ -24,7 +24,7 @@ class GPIOBinaryOutput final : public output::BinaryOutput, public Component {
  protected:
   void write_state(bool state) override { this->pin_->digital_write(state); }
 
-  GPIOPin *pin_;
+  GPIOPin *pin_{nullptr};
 };
 
 }  // namespace esphome::gpio

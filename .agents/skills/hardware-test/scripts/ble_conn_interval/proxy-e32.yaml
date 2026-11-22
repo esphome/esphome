@@ -1,0 +1,19 @@
+# proxy.yaml on a classic ESP32, plus the coexlog.hpp coexistence logger. -s name, flags, window, psm (power save)
+packages:
+  base: !include proxy.yaml
+substitutions:
+  psm: light
+esphome:
+  includes:
+    - coexlog.hpp
+  platformio_options:
+    build_flags:
+      - -Wl,--wrap=esp_coex_status_bit_set
+      - -Wl,--wrap=esp_coex_status_bit_clear
+esp32:
+  variant: ESP32
+  board: esp32dev
+logger:
+  hardware_uart: UART0
+wifi:
+  power_save_mode: ${psm}

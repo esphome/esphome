@@ -17,7 +17,7 @@ CODEOWNERS = ["@crnjan"]
 DEPENDENCIES = ["uart"]
 DOMAIN = "mitsubishi_cn105"
 
-CONF_MITSUBISHI_CN105_ID = f"{DOMAIN}_id"
+CONF_MITSUBISHI_CN105_ID = "mitsubishi_cn105_id"
 CONF_TELEMETRY_REQUEST_MIN_INTERVAL = "telemetry_request_min_interval"
 CONF_HORIZONTAL = "horizontal"
 CONF_VANE = "vane"

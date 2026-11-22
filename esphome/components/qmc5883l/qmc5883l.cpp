@@ -28,10 +28,8 @@ void IRAM_ATTR QMC5883LComponent::gpio_intr(QMC5883LComponent *arg) { arg->enabl
 
 void QMC5883LComponent::setup() {
   // Soft Reset
-  if (!this->write_byte(QMC5883L_REGISTER_CONTROL_2, 1 << 7)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->write_byte(QMC5883L_REGISTER_CONTROL_2, 1 << 7)))
     return;
-  }
   delay(10);
 
   if (this->drdy_pin_) {
@@ -49,25 +47,19 @@ void QMC5883LComponent::setup() {
   control_1 |= this->datarate_ << 2;
   control_1 |= this->range_ << 4;
   control_1 |= this->oversampling_ << 6;
-  if (!this->write_byte(QMC5883L_REGISTER_CONTROL_1, control_1)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->write_byte(QMC5883L_REGISTER_CONTROL_1, control_1)))
     return;
-  }
 
   uint8_t control_2 = 0;
   control_2 |= 0b0 << 7;  // SOFT_RST (Soft Reset) -> 0b00=disabled, 0b01=enabled
   control_2 |= 0b0 << 6;  // ROL_PNT (Pointer Roll Over) -> 0b00=disabled, 0b01=enabled
   control_2 |= 0b0 << 0;  // INT_ENB (Interrupt) -> 0b00=disabled, 0b01=enabled
-  if (!this->write_byte(QMC5883L_REGISTER_CONTROL_2, control_2)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->write_byte(QMC5883L_REGISTER_CONTROL_2, control_2)))
     return;
-  }
 
   uint8_t period = 0x01;  // recommended value
-  if (!this->write_byte(QMC5883L_REGISTER_PERIOD, period)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(this->write_byte(QMC5883L_REGISTER_PERIOD, period)))
     return;
-  }
 
   if (!this->drdy_use_isr_ && this->get_update_interval() < App.get_loop_interval()) {
     this->high_freq_.start();
@@ -109,7 +101,6 @@ void QMC5883LComponent::loop() {
 }
 
 void QMC5883LComponent::read_sensor_() {
-  i2c::ErrorCode err;
   uint8_t status = false;
 
   // Status byte gets cleared when data is read, so we have to read this first.
@@ -118,13 +109,8 @@ void QMC5883LComponent::read_sensor_() {
   // If status and all three axes are desired, using ROL_PNT saves you 3 bytes.
   // But simply not reading status saves you 4 bytes always and is much simpler.
   if (ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE) {
-    err = this->read_register(QMC5883L_REGISTER_STATUS, &status, 1);
-    if (err != i2c::ERROR_OK) {
-      char buf[32];
-      snprintf(buf, sizeof(buf), "status read failed (%d)", err);
-      this->status_set_warning(buf);
+    if (!this->status_comm_check(this->read_register(QMC5883L_REGISTER_STATUS, &status, 1) == i2c::ERROR_OK))
       return;
-    }
   }
 
   uint16_t raw[3] = {0};
@@ -142,13 +128,8 @@ void QMC5883LComponent::read_sensor_() {
     start = QMC5883L_REGISTER_DATA_Z_LSB;
     dest = 2;
   }
-  err = this->read_bytes_16_le_(start, &raw[dest], 3 - dest);
-  if (err != i2c::ERROR_OK) {
-    char buf[32];
-    snprintf(buf, sizeof(buf), "mag read failed (%d)", err);
-    this->status_set_warning(buf);
+  if (!this->status_comm_check(this->read_bytes_16_le_(start, &raw[dest], 3 - dest) == i2c::ERROR_OK))
     return;
-  }
 
   float mg_per_bit;
   switch (this->range_) {
@@ -172,15 +153,12 @@ void QMC5883LComponent::read_sensor_() {
   float temp = NAN;
   if (this->temperature_sensor_ != nullptr) {
     uint16_t raw_temp;
-    err = this->read_bytes_16_le_(QMC5883L_REGISTER_TEMPERATURE_LSB, &raw_temp);
-    if (err != i2c::ERROR_OK) {
-      char buf[32];
-      snprintf(buf, sizeof(buf), "temp read failed (%d)", err);
-      this->status_set_warning(buf);
+    if (!this->status_comm_check(this->read_bytes_16_le_(QMC5883L_REGISTER_TEMPERATURE_LSB, &raw_temp) ==
+                                 i2c::ERROR_OK))
       return;
-    }
     temp = int16_t(raw_temp) * 0.01f;
   }
+  this->status_clear_warning();
 
   ESP_LOGV(TAG, "Got x=%0.02fµT y=%0.02fµT z=%0.02fµT heading=%0.01f° temperature=%0.01f°C status=%u", x, y, z, heading,
            temp, status);

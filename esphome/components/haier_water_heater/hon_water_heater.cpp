@@ -278,20 +278,16 @@ void HonWaterHeater::publish_status_(const Status &status) {
                 status.secondary_temperature <= MAX_REPORTED_TEMPERATURE ? status.secondary_temperature : NAN);
   PUBLISH_STATE(this->target_temperature_sensor_, status.target_temperature);
   PUBLISH_STATE(this->estimated_heating_time_sensor_, status.estimated_heating_time);
-  if (this->available_water_sensor_ != nullptr) {
-    // Three segments of available hot water, published as 0, 33, 66 or 100 percent.
-    const uint8_t percent = status.available_water * 100 / 3;
-    this->available_water_sensor_->publish_state(status.available_water <= 3 ? percent : NAN);
-  }
+  // Three segments of available hot water, published as 0, 33, 66 or 100 percent.
+  PUBLISH_STATE(this->available_water_sensor_,
+                status.available_water <= 3 ? static_cast<uint8_t>(status.available_water * 100 / 3) : NAN);
 #endif
 #ifdef USE_BINARY_SENSOR
   PUBLISH_STATE(this->power_binary_sensor_, status.powered);
   PUBLISH_STATE(this->heating_binary_sensor_, status.heating);
 #endif
 #ifdef USE_TEXT_SENSOR
-  PUBLISH_STATE(this->mode_text_sensor_,
-                HonModeLabels::get_progmem_str(static_cast<uint8_t>(status.mode),
-                                               static_cast<uint8_t>(HonMode::HON_MODE_UNKNOWN)));
+  PUBLISH_STATE(this->mode_text_sensor_, HonModeLabels::get_progmem_str(status.mode, HonMode::HON_MODE_UNKNOWN));
 #endif
   this->publish_state();
 }
