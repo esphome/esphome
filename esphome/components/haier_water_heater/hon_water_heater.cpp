@@ -287,9 +287,7 @@ void HonWaterHeater::publish_status_(const Status &status) {
   PUBLISH_STATE(this->heating_binary_sensor_, status.heating);
 #endif
 #ifdef USE_TEXT_SENSOR
-  PUBLISH_STATE(this->mode_text_sensor_,
-                HonModeLabels::get_progmem_str(static_cast<uint8_t>(status.mode),
-                                               static_cast<uint8_t>(HonMode::HON_MODE_UNKNOWN)));
+  PUBLISH_STATE(this->mode_text_sensor_, HonModeLabels::get_progmem_str(status.mode, HonMode::HON_MODE_UNKNOWN));
 #endif
   this->publish_state();
 }
