@@ -172,7 +172,7 @@ TEST(GaugeNeedleDetector, EmptyScanWindowHasNoConfidence) {
   ASSERT_TRUE(detector.reserve(WIDTH, HEIGHT));
   DetectorConfig config = make_config(ALGORITHM_RADIAL_PROFILE, NEEDLE_TYPE_LIGHT);
   config.deadzone_diameter = static_cast<float>(WIDTH);
-  // Two calls, because the warning is reported once and then stays quiet.
+  // The second call takes the already-reported path and must behave the same.
   for (int i = 0; i < 2; i++)
     EXPECT_FLOAT_EQ(0.0f, detector.detect(crop.data(), WIDTH, HEIGHT, config).confidence);
 }
