@@ -181,7 +181,7 @@ inline void log_pin_with_prefix(const char *tag, const char *prefix, GPIOPin *pi
   char buffer[GPIO_SUMMARY_MAX_LEN];
   size_t len = pin->dump_summary(buffer, sizeof(buffer));
   len = std::min(len, sizeof(buffer) - 1);
-  esp_log_printf_(ESPHOME_LOG_LEVEL_CONFIG, tag, __LINE__, "%s%.*s", prefix, (int) len, buffer);
+  esp_log_printf_(ESPHOME_LOG_LEVEL_CONFIG, tag, __LINE__, ESPHOME_LOG_FORMAT("%s%.*s"), prefix, (int) len, buffer);
 }
 
 // log_pin function declarations - implementation in gpio.cpp
@@ -214,5 +214,8 @@ void pulse_reset_ms(GPIOPin *pin, uint32_t high_before_ms, uint32_t low_ms, uint
 ESPHOME_ALWAYS_INLINE inline void pulse_reset(GPIOPin *pin, ResetPulse pulse) {
   internal::pulse_reset_ms(pin, pulse.high_before_ms, pulse.low_ms, pulse.high_after_ms);
 }
+
+/// Set up \p pin and drive it to \p level. Does nothing when pin is null, so an optional pin needs no check.
+void setup_output_pin(GPIOPin *pin, bool level);
 
 }  // namespace esphome

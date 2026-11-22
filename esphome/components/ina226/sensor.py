@@ -16,13 +16,6 @@ from esphome.const import (
     CONF_SHUNT_RESISTANCE,
     CONF_SHUNT_VOLTAGE,
     CONF_VOLTAGE,
-    DEVICE_CLASS_CURRENT,
-    DEVICE_CLASS_POWER,
-    DEVICE_CLASS_VOLTAGE,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_AMPERE,
-    UNIT_VOLT,
-    UNIT_WATT,
 )
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
@@ -137,11 +130,6 @@ def _validate_alert(config: ConfigType) -> ConfigType:
     return config
 
 
-def validate_adc_time(value: Any) -> int:
-    value = cv.positive_time_period_microseconds(value).total_microseconds
-    return cv.enum(ADC_TIMES, int=True)(value)
-
-
 def _per_channel(validator: Callable[[Any], Any]) -> Callable[[Any], ConfigType]:
     """One value for both channels, or one each; always returns the per-channel dict."""
     return cv.Any(
@@ -160,28 +148,16 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(INA226Component),
             cv.Optional(CONF_BUS_VOLTAGE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_VOLT,
-                accuracy_decimals=2,
-                device_class=DEVICE_CLASS_VOLTAGE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.VOLTAGE, accuracy_decimals=2
             ),
             cv.Optional(CONF_SHUNT_VOLTAGE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_VOLT,
-                accuracy_decimals=2,
-                device_class=DEVICE_CLASS_VOLTAGE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.VOLTAGE, accuracy_decimals=2
             ),
             cv.Optional(CONF_CURRENT): sensor.sensor_schema(
-                unit_of_measurement=UNIT_AMPERE,
-                accuracy_decimals=3,
-                device_class=DEVICE_CLASS_CURRENT,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.CURRENT, accuracy_decimals=3
             ),
             cv.Optional(CONF_POWER): sensor.sensor_schema(
-                unit_of_measurement=UNIT_WATT,
-                accuracy_decimals=2,
-                device_class=DEVICE_CLASS_POWER,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.POWER, accuracy_decimals=2
             ),
             cv.Optional(CONF_SHUNT_RESISTANCE, default=0.1): cv.All(
                 cv.resistance, cv.Range(min=0.0)
@@ -189,8 +165,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_MAX_CURRENT, default=3.2): cv.All(
                 cv.current, cv.Range(min=0.0, min_included=False)
             ),
-            cv.Optional(CONF_ADC_TIME, default="1100 us"): _per_channel(
-                validate_adc_time
+            cv.Optional(CONF_ADC_TIME, default="1100us"): _per_channel(
+                cv.time_period_enum(ADC_TIMES, unit="us")
             ),
             cv.Optional(CONF_ADC_AVERAGING, default=4): cv.enum(
                 ADC_AVG_SAMPLES, int=True

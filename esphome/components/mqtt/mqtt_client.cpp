@@ -844,7 +844,9 @@ __attribute__((noinline)) static bool topic_matches(const char *message, const M
 }
 
 void MQTTClientComponent::on_message(const std::string &topic, const std::string &payload) {
-#ifdef USE_ESP8266
+#if defined(USE_ESP8266) || defined(USE_LIBRETINY)
+  // LibreTiny: this runs in the async_tcp task, and a command such as restart would block that task while its
+  // teardown waits for the MQTT and API traffic only that task can send, so commands run on the main loop.
   // IMPORTANT: This defer is REQUIRED to prevent stack overflow crashes on ESP8266.
   //
   // On ESP8266, this callback is invoked directly from the lwIP/AsyncTCP network stack
@@ -885,7 +887,7 @@ void MQTTClientComponent::on_message(const std::string &topic, const std::string
       this->removed_while_dispatching_ = false;
       this->erase_removed_subscriptions_();
     }
-#ifdef USE_ESP8266
+#if defined(USE_ESP8266) || defined(USE_LIBRETINY)
   });
 #endif
 }
