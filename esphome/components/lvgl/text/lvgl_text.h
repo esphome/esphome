@@ -8,7 +8,7 @@ namespace esphome::lvgl {
 
 class LVGLText final : public text::Text {
  public:
-  void set_control_lambda(const std::function<void(std::string)> &control_lambda) {
+  void set_control_lambda(void (*control_lambda)(const std::string &)) {
     this->control_lambda_ = control_lambda;
     if (this->initial_state_.has_value()) {
       this->control_lambda_(this->initial_state_.value());
@@ -24,7 +24,7 @@ class LVGLText final : public text::Text {
       this->initial_state_ = value;
     }
   }
-  std::function<void(std::string)> control_lambda_{};
+  void (*control_lambda_)(const std::string &){nullptr};
   optional<std::string> initial_state_{};
 };
 
