@@ -26,7 +26,7 @@ class ServerRegister final {
   ServerRegister(uint16_t address, SensorValueType value_type, uint8_t register_count)
       : address(address), value_type(value_type), register_count(register_count) {}
 
-  /// T must be the C++ type of value_type (see CPP_TYPE_REGISTER_MAP); read() and write() cast back by it.
+  /// T must be RegisterValueType<value_type> (CPP_TYPE_REGISTER_MAP in codegen); read() and write() cast back by it.
   /// An empty optional declines the read, answering the whole request with SERVICE_DEVICE_FAILURE.
   template<typename T> void set_read_lambda(ReadFn<T> read_fn) { this->read_fn_ = reinterpret_cast<ErasedFn>(read_fn); }
   template<typename T> void set_write_lambda(WriteFn<T> write_fn) {
@@ -44,7 +44,7 @@ class ServerRegister final {
   // plus null terminator = 43, rounded to 44 for 4-byte alignment
   static constexpr size_t FORMAT_VALUE_BUF_SIZE = 44;
 
-  // Formats a raw value into a caller-provided buffer based on the value type for debugging.
+  // Formats a raw value as verbose log text for the value type, into a caller-provided buffer.
   // Returns buf for convenience.
   const char *format_value(int64_t value, char *buf, size_t buf_size) const;
 

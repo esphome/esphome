@@ -80,8 +80,7 @@ TEST(ModbusServerRegister, ReadAndWriteRoundTripEveryValueType) {
   expect_round_trip<float>(SensorValueType::FP32_R, -1.5f, 0xBFC00000);
 }
 
-// A single writable WORD register is applied and the handler reports success (nullopt).
-// The log text follows the value type: unsigned, signed, or a float stored as its bits
+// The log text follows the value type: unsigned, signed, or a float stored as its bits.
 TEST(ModbusServerRegister, FormatValueFollowsValueType) {
   struct Case {
     SensorValueType value_type;
@@ -100,6 +99,7 @@ TEST(ModbusServerRegister, FormatValueFollowsValueType) {
   }
 }
 
+// A single writable WORD register is applied and the handler reports success (nullopt).
 TEST(ModbusServerWrite, SingleWordSucceeds) {
   ModbusServer server;
   written_value = -1;
