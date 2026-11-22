@@ -36,12 +36,9 @@ void BinarySensor::publish_initial_state(bool new_state) {
 bool BinarySensor::set_new_state(const optional<bool> &new_state) {
 #ifdef USE_BINARY_SENSOR_FILTER
   // An unknown state drops each filter's pending output and last value, so the next value is not dropped as a repeat
-  if (!new_state.has_value() && this->filter_list_ != nullptr) {
-    for (Filter *filter = this->filter_list_;; filter = filter->next_()) {
+  if (!new_state.has_value()) {
+    for (Filter *filter = this->filter_list_; filter != nullptr; filter = filter->link_.next())
       filter->reset();
-      if (filter->is_last_())
-        break;
-    }
   }
 #endif
   if (StatefulEntityBase::set_new_state(new_state)) {
@@ -57,11 +54,11 @@ bool BinarySensor::set_new_state(const optional<bool> &new_state) {
 
 #ifdef USE_BINARY_SENSOR_FILTER
 void BinarySensor::add_filter(Filter *filter) {
-  filter->link_to_(this, nullptr);
+  filter->link_.set(nullptr, this);
   if (this->filter_list_ == nullptr) {
     this->filter_list_ = filter;
   } else {
-    this->filter_list_->last_()->link_to_(this, filter);
+    this->filter_list_->last_()->link_.set(filter, this);
   }
 }
 void BinarySensor::add_filters(std::initializer_list<Filter *> filters) {

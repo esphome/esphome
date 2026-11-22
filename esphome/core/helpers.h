@@ -2284,6 +2284,34 @@ template<typename... Ts> class LazyCallbackManager<void(Ts...)> {
   CallbackManager<void(Ts...)> *callbacks_{nullptr};
 };
 
+/** One pointer that holds the next node of a chain, or on the last node the chain's owner.
+ *
+ * Replaces a next pointer plus an owner pointer that only the last node needs, saving a pointer per node.
+ * The owner is tagged in the low bit, so it needs an alignment of at least 2; any class with a vtable or a
+ * pointer member has it.
+ */
+template<typename Next, typename Owner> class ChainLink {
+ public:
+  bool is_owner() const { return reinterpret_cast<uintptr_t>(this->ptr_) & OWNER_TAG; }
+  /// The next node, or nullptr on the last one.
+  Next *next() const { return this->is_owner() ? nullptr : static_cast<Next *>(this->ptr_); }
+  /// Only valid when is_owner().
+  Owner *owner() const {
+    static_assert(alignof(Owner) > OWNER_TAG, "the owner tag needs a free low bit");
+    return reinterpret_cast<Owner *>(static_cast<char *>(this->ptr_) - OWNER_TAG);
+  }
+  /// Link to next, or to owner when next is nullptr (this node is the last one).
+  void set(Next *next, Owner *owner) {
+    static_assert(alignof(Owner) > OWNER_TAG, "the owner tag needs a free low bit");
+    this->ptr_ = next != nullptr ? static_cast<void *>(next) : reinterpret_cast<char *>(owner) + OWNER_TAG;
+  }
+
+ protected:
+  static constexpr uintptr_t OWNER_TAG = 1;
+  // A pointer, not a uintptr_t, so no integer is ever cast back to a pointer
+  void *ptr_{nullptr};
+};
+
 /// Helper class to deduplicate items in a series of values.
 template<typename T> class Deduplicator {
  public:

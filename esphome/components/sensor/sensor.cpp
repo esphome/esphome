@@ -86,12 +86,13 @@ void Sensor::add_filter(Filter *filter) {
   // inefficient, but only happens once on every sensor setup and nobody's going to have massive amounts of
   // filters
   ESP_LOGVV(TAG, "Sensor(%p)::add_filter(%p)", this, filter);
+  // Link the new filter before the chain can reach it
+  filter->initialize(this, nullptr);
   if (this->filter_list_ == nullptr) {
     this->filter_list_ = filter;
   } else {
     this->filter_list_->last_()->initialize(this, filter);
   }
-  filter->initialize(this, nullptr);
 }
 void Sensor::add_filters(std::initializer_list<Filter *> filters) {
   for (Filter *filter : filters) {

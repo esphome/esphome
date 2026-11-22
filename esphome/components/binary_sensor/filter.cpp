@@ -9,15 +9,13 @@
 
 namespace esphome::binary_sensor {
 
-static_assert(alignof(BinarySensor) >= 2, "Filter::link_ tags the sensor in the low bit");
-
 ESPHOME_LOG_TAG(TAG, "sensor.filter");
 
 void Filter::output(bool value) {
-  if (this->is_last_()) {
-    this->sensor_()->send_state_internal(value);
+  if (Filter *next = this->link_.next()) {
+    next->input(value);
   } else {
-    this->next_()->input(value);
+    this->link_.owner()->send_state_internal(value);
   }
 }
 

@@ -42,26 +42,17 @@ class Filter {
  protected:
   friend Sensor;
 
-  static constexpr uintptr_t LAST_TAG = 1;
-  /// True for the last filter, whose link holds the sensor instead of a next filter.
-  bool is_last_() const { return this->link_ & LAST_TAG; }
-  Filter *next_() const { return reinterpret_cast<Filter *>(this->link_); }
-  /// The sensor; only valid on the last filter.
-  Sensor *sensor_() const { return reinterpret_cast<Sensor *>(this->link_ - LAST_TAG); }
   Filter *last_() {
     Filter *filter = this;
-    while (!filter->is_last_())
-      filter = filter->next_();
+    while (Filter *next = filter->link_.next())
+      filter = next;
     return filter;
   }
   /// Walks to the end of the chain on every call.
-  Sensor *get_parent_() { return this->last_()->sensor_(); }
-  void link_to_(Sensor *parent, Filter *next) {
-    this->link_ = next != nullptr ? reinterpret_cast<uintptr_t>(next) : reinterpret_cast<uintptr_t>(parent) | LAST_TAG;
-  }
+  Sensor *get_parent_() { return this->last_()->link_.owner(); }
 
-  /// The next filter, or the sensor tagged with LAST_TAG for the last filter.
-  uintptr_t link_{0};
+  /// The next filter, or the sensor on the last filter.
+  ChainLink<Filter, Sensor> link_;
 };
 
 /** Base class for filters that use a sliding window of values.

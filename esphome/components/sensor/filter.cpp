@@ -11,8 +11,6 @@
 
 namespace esphome::sensor {
 
-static_assert(alignof(Sensor) >= 2, "Filter::link_ tags the sensor in the low bit");
-
 ESPHOME_LOG_TAG(TAG, "sensor.filter");
 
 /// Shared pass check for throttle_with_priority (NaN only): passes and stamps `last_input` when the
@@ -34,17 +32,19 @@ void Filter::input(float value) {
     this->output(*out);
 }
 void Filter::output(float value) {
-  if (this->is_last_()) {
+  Filter *next = this->link_.next();
+  if (next == nullptr) {
+    Sensor *sensor = this->link_.owner();
     ESP_LOGVV(TAG, "Filter(%p)::output(%f) -> SENSOR", this, value);
-    this->sensor_()->internal_send_state_to_frontend(value);
+    sensor->internal_send_state_to_frontend(value);
   } else {
-    ESP_LOGVV(TAG, "Filter(%p)::output(%f) -> %p", this, value, this->next_());
-    this->next_()->input(value);
+    ESP_LOGVV(TAG, "Filter(%p)::output(%f) -> %p", this, value, next);
+    next->input(value);
   }
 }
 void Filter::initialize(Sensor *parent, Filter *next) {
   ESP_LOGVV(TAG, "Filter(%p)::initialize(parent=%p next=%p)", this, parent, next);
-  this->link_to_(parent, next);
+  this->link_.set(next, parent);
 }
 
 // SlidingWindowFilter
@@ -311,10 +311,10 @@ optional<float> DeltaFilter::new_value(float value) {
 
 // OrFilter helpers
 void or_filter_initialize(Filter **filters, size_t count, Sensor *parent, Filter *phi) {
+  phi->initialize(parent, nullptr);
   for (size_t i = 0; i < count; i++) {
     filters[i]->initialize(parent, phi);
   }
-  phi->initialize(parent, nullptr);
 }
 
 optional<float> or_filter_new_value(Filter **filters, size_t count, float value, bool &has_value) {
