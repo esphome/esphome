@@ -2,6 +2,8 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
+#include <cstring>
+
 namespace esphome::senseair {
 
 ESPHOME_LOG_TAG(TAG, "senseair");
@@ -104,6 +106,19 @@ void SenseAirComponent::abc_disable() {
   uint8_t command_length = sizeof(SENSEAIR_COMMAND_ABC_DISABLE) / sizeof(SENSEAIR_COMMAND_ABC_DISABLE[0]);
   uint8_t response[command_length];
   this->senseair_write_command_(SENSEAIR_COMMAND_ABC_DISABLE, response, command_length);
+}
+
+void SenseAirComponent::abc_set_period(uint16_t hours) {
+  ESP_LOGD(TAG, "SenseAir Setting ABC period to %u hours", hours);
+  uint8_t command[SENSEAIR_REQUEST_LENGTH] = {0xFE, 0x06, 0x00, 0x1F};
+  put_be16(command + 4, hours);
+  put_le16(command + 6, crc16(command, 6));
+  // Response is an echo of the command
+  uint8_t response[SENSEAIR_REQUEST_LENGTH];
+  if (!this->senseair_write_command_(command, response, SENSEAIR_REQUEST_LENGTH) ||
+      memcmp(command, response, SENSEAIR_REQUEST_LENGTH) != 0) {
+    ESP_LOGE(TAG, "Setting ABC period on SenseAir failed!");
+  }
 }
 
 void SenseAirComponent::abc_get_period() {
