@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 import logging
 import pathlib
+from typing import Any
 
 import yaml
 
@@ -114,8 +115,7 @@ def _preset_device_type(conf: ConfigType) -> str:
     return DEVICE_TYPE_ALIASES.get(value, value)
 
 
-PRESETS_DIR = pathlib.Path(__file__).parent / "presets"
-_PRESETS_KEY = "toptronic_used_ids"
+PRESETS_DIR: pathlib.Path = pathlib.Path(__file__).parent / "presets"
 
 
 @dataclass
@@ -131,6 +131,8 @@ class TopTronicData:
     # Validated build-wide "Refresh all" button config, and whether a hub emitted it
     refresh_button: ConfigType | None = None
     refresh_button_generated: bool = False
+    # Build-wide set of used IDs, seeded once from the whole config tree
+    used_ids: set[str] | None = None
 
 
 def _get_data() -> TopTronicData:
@@ -140,9 +142,10 @@ def _get_data() -> TopTronicData:
     return CORE.data[DOMAIN]
 
 
-def _shared_used_ids():
+def _shared_used_ids() -> set[str]:
     """Build-wide set of used IDs, shared across all hub instances."""
-    if _PRESETS_KEY not in CORE.data:
+    data = _get_data()
+    if data.used_ids is None:
         # Seed with every ID name in the config tree (post ID pass, reached via
         # the final-validation context) so generated preset IDs cannot collide
         # with IDs the user already declared.
@@ -150,9 +153,8 @@ def _shared_used_ids():
         from esphome.config import iter_ids
 
         result = fv.full_config.get()
-        used = {id.id for id, _ in iter_ids(result) if id.id is not None}
-        CORE.data[_PRESETS_KEY] = used
-    return CORE.data[_PRESETS_KEY]
+        data.used_ids = {id.id for id, _ in iter_ids(result) if id.id is not None}
+    return data.used_ids
 
 
 def _validate_options_values_lengths(config: ConfigType) -> ConfigType:
@@ -174,7 +176,7 @@ CONFIG_SCHEMA_BASE = cv.Schema(
 )
 
 
-def config_schema_polling(update_interval: str = "30s"):
+def config_schema_polling(update_interval: str = "30s") -> cv.Schema:
     """Base schema plus a polling interval, for the read entities (sensor, text_sensor).
 
     Write entities use CONFIG_SCHEMA_BASE: they never poll.
@@ -241,7 +243,7 @@ def _final_validate(config: ConfigType) -> None:
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
-def _load_entities(device_type: str, language: str):
+def _load_entities(device_type: str, language: str) -> list[tuple[str, ConfigType]]:
     """Load the preset files for one device type and language.
 
     Presets are shipped per language. Each kind falls back to English on its own
@@ -295,7 +297,7 @@ def _hide_linked_text_sensors(entities: list[tuple[str, ConfigType]]) -> None:
             entity[CONF_INTERNAL] = True
 
 
-def _resolve_ids(obj, used=None):
+def _resolve_ids(obj: Any, used: set[str] | None = None) -> set[str]:
     """Resolve auto-generated IDs inside a validated entity config.
 
     Entities synthesized from presets bypass config.py's global ID pass, so
@@ -470,7 +472,7 @@ def _reject_mismatched_links(config: ConfigType) -> None:
             )
 
 
-async def _generate_entities(hub, config: ConfigType) -> None:
+async def _generate_entities(hub: cg.MockObj, config: ConfigType) -> None:
     """Generate the preset entities validated during final validation."""
     from . import button, number, select, sensor, text_sensor
 
@@ -505,7 +507,7 @@ def _register_refresh_button() -> None:
     data.refresh_button = cfg
 
 
-async def _generate_refresh_button(hub) -> None:
+async def _generate_refresh_button(hub: cg.MockObj) -> None:
     """Emit the "Refresh all" button once, on the first hub; refresh_all() covers every hub."""
     data = _get_data()
     if (cfg := data.refresh_button) is None or data.refresh_button_generated:
