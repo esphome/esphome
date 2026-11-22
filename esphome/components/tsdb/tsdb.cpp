@@ -47,9 +47,8 @@ static constexpr size_t LOG_LINE_SIZE = ESPHOME_LOGGER_TX_BUFFER_SIZE;
 static constexpr size_t LOG_LINE_SIZE = 512;
 #endif
 static constexpr size_t LOG_LINE_OVERHEAD = 64;
-static constexpr size_t CSV_HEADER_LIMIT = LOG_LINE_SIZE > LOG_LINE_OVERHEAD
-                                               ? std::min(CSV_HEADER_SIZE, LOG_LINE_SIZE - LOG_LINE_OVERHEAD)
-                                               : 0;
+static constexpr size_t CSV_HEADER_LIMIT =
+    LOG_LINE_SIZE > LOG_LINE_OVERHEAD ? std::min(CSV_HEADER_SIZE, LOG_LINE_SIZE - LOG_LINE_OVERHEAD) : 0;
 // Dump window margin for jitter and single gaps.
 static constexpr uint32_t DUMP_WINDOW_MARGIN = 2;
 static constexpr uint32_t REOPEN_RETRY_MS = 300000;
