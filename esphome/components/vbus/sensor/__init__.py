@@ -548,7 +548,7 @@ async def to_code(config: ConfigType) -> None:
         cg.add_optional(var.set_source, config.get(CONF_SOURCE))
         cg.add_optional(var.set_dest, config.get(CONF_DEST))
         custom_sensors = []
-        for conf in config[CONF_SENSORS]:
+        for conf in config.get(CONF_SENSORS, ()):
             sens = await sensor.new_sensor(conf)
             lambda_ = await cg.process_lambda(
                 conf[CONF_LAMBDA],
