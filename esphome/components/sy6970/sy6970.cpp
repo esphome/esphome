@@ -1,24 +1,17 @@
 #include "sy6970.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome::sy6970 {
 
 ESPHOME_LOG_TAG(TAG, "sy6970");
 
+// Indexed by I2CWatchdogTimeout
+PROGMEM_STRING_TABLE(I2CWatchdogTimeoutStrings, "Disabled", "40s", "80s", "160s", "Unknown");
+
 static const LogString *i2c_watchdog_timeout_to_string(I2CWatchdogTimeout timeout) {
-  switch (timeout) {
-    case I2C_WATCHDOG_DISABLED:
-      return LOG_STR("Disabled");
-    case I2C_WATCHDOG_40S:
-      return LOG_STR("40s");
-    case I2C_WATCHDOG_80S:
-      return LOG_STR("80s");
-    case I2C_WATCHDOG_160S:
-      return LOG_STR("160s");
-    default:
-      return LOG_STR("Unknown");
-  }
+  return I2CWatchdogTimeoutStrings::get_log_str(static_cast<uint8_t>(timeout), I2CWatchdogTimeoutStrings::LAST_INDEX);
 }
 
 static constexpr uint32_t I2C_WATCHDOG_KICK_INTERVAL_ID = 0;
