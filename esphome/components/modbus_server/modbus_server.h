@@ -6,7 +6,6 @@
 #include "esphome/components/modbus/modbus_helpers.h"
 #include "esphome/core/automation.h"
 
-#include <utility>
 #include <vector>
 
 namespace esphome::modbus_server {
@@ -19,43 +18,27 @@ struct ServerCourtesyResponse {
   uint16_t register_value{0};
 };
 
-class ServerRegister {
-  using ReadLambda = std::function<optional<int64_t>()>;
-  using WriteLambda = std::function<bool(int64_t value)>;
-
+class ServerRegister final {
  public:
-  ServerRegister(uint16_t address, SensorValueType value_type, uint8_t register_count) {
-    this->address = address;
-    this->value_type = value_type;
-    this->register_count = register_count;
+  template<typename T> using ReadFn = optional<T> (*)(uint16_t address);
+  template<typename T> using WriteFn = bool (*)(uint16_t address, T value);
+
+  ServerRegister(uint16_t address, SensorValueType value_type, uint8_t register_count)
+      : address(address), value_type(value_type), register_count(register_count) {}
+
+  /// T must be the C++ type of value_type (see CPP_TYPE_REGISTER_MAP); read() and write() cast back by it.
+  /// An empty optional declines the read, answering the whole request with SERVICE_DEVICE_FAILURE.
+  template<typename T> void set_read_lambda(ReadFn<T> read_fn) { this->read_fn_ = reinterpret_cast<ErasedFn>(read_fn); }
+  template<typename T> void set_write_lambda(WriteFn<T> write_fn) {
+    this->write_fn_ = reinterpret_cast<ErasedFn>(write_fn);
   }
 
-  /// The user lambda returns optional<T>: an empty optional declines the read, answering the whole
-  /// request with a SERVICE_DEVICE_FAILURE exception. Plain values convert implicitly.
-  template<typename T> void set_read_lambda(const std::function<optional<T>(uint16_t address)> &&user_read_lambda) {
-    this->read_lambda = [this, user_read_lambda]() -> optional<int64_t> {
-      const optional<T> user_value = user_read_lambda(this->address);
-      if (!user_value.has_value()) {
-        return {};
-      }
-      if constexpr (std::is_same_v<T, float>) {
-        return bit_cast<uint32_t>(*user_value);
-      } else {
-        return static_cast<int64_t>(*user_value);
-      }
-    };
-  }
-
-  template<typename T>
-  void set_write_lambda(const std::function<bool(uint16_t address, const T v)> &&user_write_lambda) {
-    this->write_lambda = [this, user_write_lambda](int64_t number) {
-      if constexpr (std::is_same_v<T, float>) {
-        float float_value = bit_cast<float>(static_cast<uint32_t>(number));
-        return user_write_lambda(this->address, float_value);
-      }
-      return user_write_lambda(this->address, static_cast<T>(number));
-    };
-  }
+  bool is_readable() const { return this->read_fn_ != nullptr; }
+  bool is_writable() const { return this->write_fn_ != nullptr; }
+  /// Calls the read lambda and returns its value as a raw number (floats as their IEEE 754 bits).
+  optional<int64_t> read() const;
+  /// Converts a raw number (floats as their IEEE 754 bits) to the register's type and calls the write lambda.
+  bool write(int64_t number) const;
 
   // max 44: float with %.1f can be up to 42 chars (3.4e38 → 39 integer digits + sign + decimal + 1 digit)
   // plus null terminator = 43, rounded to 44 for 4-byte alignment
@@ -98,27 +81,31 @@ class ServerRegister {
   uint8_t register_count{0};
   // When true, a read may cover only part of this multi-register value; otherwise it must read the whole value.
   bool allow_partial_read{false};
-  ReadLambda read_lambda;
-  WriteLambda write_lambda;
+
+ private:
+  using ErasedFn = void (*)();
+  // Typed by value_type, which is why these are private.
+  ErasedFn read_fn_{nullptr};
+  ErasedFn write_fn_{nullptr};
 };
 
 /// A single bit in the server's coil/discrete-input table. Coils (0x01/0x05/0x0F) and discrete
 /// inputs (0x02) share one bit address space, mirroring how holding and input registers share the
 /// register table: both read function codes are served from the same bits.
-class ServerBit {
+class ServerBit final {
+ public:
   /// Returning an empty optional declines the read: the whole request is answered with a
   /// SERVICE_DEVICE_FAILURE exception. `return true;`/`return false;` convert implicitly.
-  using ReadLambda = std::function<optional<bool>(uint16_t address)>;
-  using WriteLambda = std::function<bool(uint16_t address, bool value)>;
+  using ReadFn = optional<bool> (*)(uint16_t address);
+  using WriteFn = bool (*)(uint16_t address, bool value);
 
- public:
   explicit ServerBit(uint16_t address) : address(address) {}
-  void set_read_lambda(ReadLambda &&read_lambda) { this->read_lambda = std::move(read_lambda); }
-  void set_write_lambda(WriteLambda &&write_lambda) { this->write_lambda = std::move(write_lambda); }
+  void set_read_lambda(ReadFn read_fn) { this->read_lambda = read_fn; }
+  void set_write_lambda(WriteFn write_fn) { this->write_lambda = write_fn; }
 
+  ReadFn read_lambda{nullptr};
+  WriteFn write_lambda{nullptr};
   uint16_t address{0};
-  ReadLambda read_lambda;
-  WriteLambda write_lambda;
 };
 
 class ModbusServer final : public Component, public modbus::ModbusServerDevice {
