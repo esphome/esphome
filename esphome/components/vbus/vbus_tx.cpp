@@ -18,6 +18,29 @@ static constexpr uint32_t RELEASE_MARGIN_MS = 2 * FRAME_TIME_MS;
 
 static bool requires_reply(uint16_t command) { return command == 0x0200 || command == 0x0300 || command == 0x0400; }
 
+static bool valid_request(uint16_t command, bool expect_reply) {
+  return (command & 0x8080) == 0 && command != 0x0500 && command != 0x0600 &&
+         (expect_reply || !requires_reply(command));
+}
+
+#ifdef USE_VBUS_SEND_ACTION
+bool VBusTransmitter::request_datagram(uint16_t command, uint16_t value_id, uint32_t value, bool expect_reply) {
+  if (!valid_request(command, expect_reply)) {
+    ESP_LOGW(TAG, "Invalid datagram command or reply mode");
+    return false;
+  }
+  if (!this->request_bus()) {
+    ESP_LOGW(TAG, "Datagram rejected: transmitter busy or stopped");
+    return false;
+  }
+  this->frame_command_ = command;
+  this->frame_value_id_ = value_id;
+  this->frame_value_ = value;
+  this->pending_send_ = expect_reply ? PendingSend::EXPECT_REPLY : PendingSend::ONE_WAY;
+  return true;
+}
+#endif
+
 void VBusTransmitter::dump_config() {
   ESP_LOGCONFIG(TAG, "VBus TX:\n  Source: 0x%04x\n  Controller: 0x%04x\n  Lease: %" PRIu32 " ms", this->source_,
                 this->destination_, this->lease_duration_ms_);
@@ -65,8 +88,7 @@ bool VBusTransmitter::can_send_() const {
 
 bool VBusTransmitter::send_datagram(uint32_t grant_id, uint16_t command, uint16_t value_id, uint32_t value,
                                     bool expect_reply) {
-  if ((!expect_reply && requires_reply(command)) || grant_id != this->grant_id_ || (command & 0x8080) != 0 ||
-      command == 0x0500 || command == 0x0600 || !this->has_bus() || !this->can_send_()) {
+  if (!valid_request(command, expect_reply) || grant_id != this->grant_id_ || !this->has_bus() || !this->can_send_()) {
     ESP_LOGW(TAG, "Datagram not sent: invalid command/grant/reply mode, no lease or busy bus");
     return false;
   }
@@ -92,9 +114,9 @@ void VBusTransmitter::send_(uint16_t command, uint16_t value_id, uint32_t value,
     sum = (sum - bytes[i]) & 0x7f;
   bytes[15] = sum;
   this->sent_at_ = App.get_loop_component_start_time();
-  this->sent_command_ = command;
-  this->sent_value_id_ = value_id;
-  this->sent_value_ = value;
+  this->frame_command_ = command;
+  this->frame_value_id_ = value_id;
+  this->frame_value_ = value;
   this->sent_ = true;
   this->awaiting_reply_ = expect_reply;
   this->write_array(bytes);
@@ -105,6 +127,9 @@ void VBusTransmitter::send_(uint16_t command, uint16_t value_id, uint32_t value,
 }
 
 void VBusTransmitter::stop_() {
+#ifdef USE_VBUS_SEND_ACTION
+  this->pending_send_ = PendingSend::NONE;
+#endif
   this->state_ = State::STATE_IDLE;
   this->release_pending_ = false;
   this->awaiting_reply_ = false;
@@ -178,13 +203,13 @@ void VBusTransmitter::on_datagram(uint16_t command, uint16_t source, uint16_t de
     this->sent_ = false;
     this->state_ = State::STATE_CONTEND;
   } else if (this->state_ == State::STATE_OWNED &&
-             ((source == this->source_ && (!this->sent_ || command != this->sent_command_ ||
-                                           value_id != this->sent_value_id_ || value != this->sent_value_)) ||
+             ((source == this->source_ && (!this->sent_ || command != this->frame_command_ ||
+                                           value_id != this->frame_value_id_ || value != this->frame_value_)) ||
               command == 0x0500 || command == 0x0600)) {
     this->stop_();
   } else if (this->state_ == State::STATE_OWNED && source == this->destination_ && destination == this->source_ &&
              this->sent_ && now - this->sent_at_ >= FRAME_TIME_MS &&
-             (!requires_reply(this->sent_command_) || (command == 0x0100 && value_id == this->sent_value_id_))) {
+             (!requires_reply(this->frame_command_) || (command == 0x0100 && value_id == this->frame_value_id_))) {
     this->awaiting_reply_ = false;
   }
 }
@@ -217,6 +242,15 @@ void VBusTransmitter::loop() {
     this->state_ = State::STATE_OWNED;
     if (++this->grant_id_ == 0)
       ++this->grant_id_;
+#ifdef USE_VBUS_SEND_ACTION
+    if (this->pending_send_ != PendingSend::NONE) {
+      this->send_(this->frame_command_, this->frame_value_id_, this->frame_value_,
+                  this->pending_send_ == PendingSend::EXPECT_REPLY);
+      this->pending_send_ = PendingSend::NONE;
+      this->release_pending_ = true;
+      return;
+    }
+#endif
     this->grant_callback_.call(this->grant_id_);
   }
   if (this->state_ == State::STATE_OWNED &&
