@@ -73,8 +73,7 @@ bool CH422GComponent::read_inputs_() {
   // reading inputs requires the chip to be in input mode, possibly temporarily.
   if (this->mode_value_ & CH422G_MODE_OUTPUT) {
     ok = this->set_mode_(this->mode_value_ & ~CH422G_MODE_OUTPUT) && this->read_reg_(CH422G_REG_IN, &result);
-    // Restore output mode even when the read failed
-    ok = this->set_mode_(this->mode_value_) && ok;
+    ok &= this->set_mode_(this->mode_value_);  // restore output mode even when the read failed
   } else {
     ok = this->read_reg_(CH422G_REG_IN, &result);
   }
