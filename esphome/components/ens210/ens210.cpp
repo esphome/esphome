@@ -52,7 +52,7 @@ PROGMEM_STRING_TABLE(StatusStrings, "Status OK", "Invalid data", "CRC error",
 
 // Converts a status to a human readable string
 static __attribute__((noinline)) const LogString *ens210_status_to_human(int status) {
-  return StatusStrings::get_log_str(static_cast<uint8_t>(status), StatusStrings::LAST_INDEX);
+  return StatusStrings::get_log_str(status);
 }
 
 // Compute the CRC-7 of 'value' (should only have 17 bits)

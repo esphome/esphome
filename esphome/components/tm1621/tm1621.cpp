@@ -45,9 +45,7 @@ void TM1621Display::setup() {
   delayMicroseconds(15);
   this->write_pin_->digital_write(false);
   delayMicroseconds(25);
-  this->data_pin_->digital_write(false);
-  delayMicroseconds(TM1621_PULSE_WIDTH);
-  this->data_pin_->digital_write(true);
+  pulse_pin(this->data_pin_, false, TM1621_PULSE_WIDTH);
 
   for (uint8_t tm1621_command : TM1621_COMMANDS) {
     this->send_command_(tm1621_command);
