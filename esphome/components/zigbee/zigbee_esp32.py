@@ -537,6 +537,7 @@ async def add_class_component(entity: cg.MockObj, config: ConfigType) -> None:
         config[CONF_ZIGBEE_CLASS],
         zb,
         ep_num,
+        entity,
     )
     await cg.register_component(var, {})
     if (report := config.get(CONF_REPORT, "default")) not in (
@@ -544,7 +545,6 @@ async def add_class_component(entity: cg.MockObj, config: ConfigType) -> None:
         "coordinator",
     ):
         cg.add(var.set_report(report))
-    cg.add(var.connect(entity))
 
 
 ZIGBEE_ACTION_SCHEMA_ESP32 = automation.maybe_simple_id(

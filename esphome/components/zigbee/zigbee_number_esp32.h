@@ -19,17 +19,17 @@ namespace esphome::zigbee {
 
 class ZigbeeNumber final : public ZigbeeAttributeBase {
  public:
-  ZigbeeNumber(ZigbeeComponent *parent, uint8_t endpoint_id)
+  ZigbeeNumber(ZigbeeComponent *parent, uint8_t endpoint_id, number::Number *number)
       : ZigbeeAttributeBase(parent, endpoint_id, EZB_ZCL_CLUSTER_ID_ANALOG_OUTPUT, EZB_ZCL_CLUSTER_SERVER,
-                            EZB_ZCL_ATTR_ANALOG_OUTPUT_PRESENT_VALUE_ID, EZB_ZCL_ATTR_TYPE_SINGLE) {}
+                            EZB_ZCL_ATTR_ANALOG_OUTPUT_PRESENT_VALUE_ID, EZB_ZCL_ATTR_TYPE_SINGLE),
+        number_(number) {}
   void setup() override;
-  void connect(number::Number *device) { this->device_ = device; }
 
   // need to run setup before the zigbee component and after number
   float get_setup_priority() const override { return setup_priority::AFTER_BLUETOOTH; }
 
  protected:
-  number::Number *device_{nullptr};
+  number::Number *number_;
   bool synchronizing_from_zigbee_{false};
 };
 
