@@ -157,10 +157,7 @@ void LinearCombinationComponent::handle_new_value(float value) {
   this->publish_state(sum);
 };
 
-void WeightedMeanCombinationComponent::handle_new_value(float value) {
-  if (!std::isfinite(value))
-    return;
-
+void WeightedMeanCombinationComponent::handle_new_value(float) {
   float weighted_sum = 0.0f;
   float weight_sum = 0.0f;
 

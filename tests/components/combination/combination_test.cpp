@@ -48,6 +48,11 @@ template<size_t N> struct WeightedMeanFixture {
     this->combination.handle_new_value(0.0f);
     return this->combination.get_state();
   }
+
+  float run_with_trigger(float trigger) {
+    this->combination.handle_new_value(trigger);
+    return this->combination.get_state();
+  }
 };
 
 TEST(MedianCombination, OddCountTakesTheMiddle) {
@@ -117,6 +122,11 @@ TEST(WeightedMeanCombination, SkipsNonFiniteStatesAndNonPositiveWeights) {
 TEST(WeightedMeanCombination, NoPositiveWeightIsNan) {
   WeightedMeanFixture<2> f({10.0f, 20.0f}, {0.0f, 0.0f});
   EXPECT_TRUE(std::isnan(f.run()));
+}
+
+TEST(WeightedMeanCombination, RecomputesForNanTrigger) {
+  WeightedMeanFixture<2> f({NAN, 20.0f}, {1.0f, 1.0f});
+  EXPECT_FLOAT_EQ(f.run_with_trigger(NAN), 20.0f);
 }
 
 }  // namespace esphome::combination::testing
