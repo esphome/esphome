@@ -133,7 +133,13 @@ from esphome.platformio import toolchain
 from esphome.types import ConfigType
 from esphome.upload_targets import PortType
 from esphome.util import BootselResult, FlashImage
-from esphome.yaml_util import Sensitive, SensitiveInt, SensitiveStr
+from esphome.yaml_util import (
+    Sensitive,
+    SensitiveFloat,
+    SensitiveHexInt,
+    SensitiveInt,
+    SensitiveStr,
+)
 from esphome.zeroconf import _await_discovery, discover_mdns_devices
 
 
@@ -614,12 +620,79 @@ def _marked(user_config: dict[str, Any], validated: dict[str, Any]) -> list[str]
             ["substitutions.nk"],
             id="long_int_substitution_matched_by_value",
         ),
+        pytest.param(
+            {
+                "wifi": {
+                    "networks": [
+                        {"ssid": SensitiveStr("a"), "password": SensitiveStr("pw1")},
+                        {"ssid": SensitiveStr("b"), "password": SensitiveStr("pw2")},
+                    ]
+                }
+            },
+            {
+                "wifi": {
+                    "networks": [
+                        {"ssid": "a", "password": "pw1", "priority": 1},
+                        {"ssid": "b", "password": "pw2", "hidden": True},
+                    ]
+                },
+                "other": {"password": "pw3"},
+            },
+            [
+                "wifi.networks.0.ssid",
+                "wifi.networks.0.password",
+                "wifi.networks.1.ssid",
+                "wifi.networks.1.password",
+            ],
+            id="list_of_mappings",
+        ),
+        pytest.param(
+            {"x": {"keys": [SensitiveStr("k1"), SensitiveStr("k2")]}},
+            {"x": {"keys": ["k1", "k2"], "names": ["k1"]}},
+            ["x.keys.0", "x.keys.1"],
+            id="list_of_scalars_under_sensitive_key",
+        ),
+        pytest.param(
+            {"openthread": {"network_key": SensitiveHexInt(0x00112233)}},
+            {"openthread": {"network_key": "0x00112233"}},
+            ["openthread.network_key"],
+            id="quoted_hex_string_matches_int",
+        ),
+        pytest.param(
+            {"fp": {"password": SensitiveInt(5), "new_password": SensitiveInt(0)}},
+            {"fp": {"password": "0005", "new_password": 0x00}},
+            ["fp.password", "fp.new_password"],
+            id="zero_padded_and_hex_literal_ints",
+        ),
+        pytest.param(
+            {"mqtt": {"password": SensitiveStr("1234.5")}, "s": {"password": 1.5}},
+            {"mqtt": {"password": 1234.5}, "s": {"password": 1.5}},
+            ["mqtt.password"],
+            id="float_written_password",
+        ),
     ],
 )
 def test_mark_sensitive_user_values(
     validated: dict[str, Any], user_config: dict[str, Any], expected: list[str]
 ) -> None:
     assert _marked(user_config, validated) == expected
+
+
+def test_mark_sensitive_user_values_keeps_spelling_and_type() -> None:
+    user_config = {"mqtt": {"password": 1234.5}, "ot": {"pskc": "0x00FF"}}
+    mark_sensitive_user_values(
+        user_config,
+        {
+            "mqtt": {"password": SensitiveStr("1234.5")},
+            "ot": {"pskc": SensitiveHexInt(0xFF)},
+        },
+    )
+    password = user_config["mqtt"]["password"]
+    assert isinstance(password, SensitiveFloat)
+    assert password == 1234.5
+    pskc = user_config["ot"]["pskc"]
+    assert isinstance(pskc, SensitiveStr)
+    assert pskc == "0x00FF"
 
 
 def test_command_config__no_defaults_show_secrets_skips_marking(

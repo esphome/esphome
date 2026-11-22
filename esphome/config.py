@@ -1780,6 +1780,20 @@ def _sensitive_form(value: Any) -> str:
     return str(int(value)) if isinstance(value, int) else str(value).casefold()
 
 
+def _user_forms(value: Any) -> set[str]:
+    """Return the forms a snapshot value can match, including the integer form
+    of a string (quoted hex ``"0x00ff"`` or zero-padded ``"0005"``)."""
+    forms = {_sensitive_form(value)}
+    if isinstance(value, str):
+        for base in (0, 10):
+            try:
+                forms.add(str(int(value, base)))
+                break
+            except ValueError:
+                pass
+    return forms
+
+
 def _collect_sensitive_values(
     conf: Any, key: Any, pairs: set[tuple[Any, str]], long_values: set[str]
 ) -> None:
@@ -1805,14 +1819,16 @@ def _mark_sensitive(
             conf[k] = _mark_sensitive(v, k, pairs, long_values)
     elif isinstance(conf, list):
         conf[:] = [_mark_sensitive(v, key, pairs, long_values) for v in conf]
-    elif isinstance(conf, (str, int)) and not isinstance(
-        conf, (yaml_util.Sensitive, bool)
+    elif (
+        isinstance(conf, (str, int, float))
+        and not isinstance(conf, (yaml_util.Sensitive, bool))
+        and any((key, f) in pairs or f in long_values for f in _user_forms(conf))
     ):
-        form = _sensitive_form(conf)
-        if (key, form) in pairs or form in long_values:
-            if isinstance(conf, str):
-                return yaml_util.SensitiveStr(conf)
-            return yaml_util.SensitiveInt(conf)
+        if isinstance(conf, str):
+            return yaml_util.SensitiveStr(conf)
+        if isinstance(conf, float):
+            return yaml_util.SensitiveFloat(conf)
+        return yaml_util.SensitiveInt(conf)
     return conf
 
 
