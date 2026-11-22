@@ -64,6 +64,11 @@ if (
 ):
     os.close(fd)
     sys.exit("the port did not take 115200 8 data bits with the requested parity")
+# without PARMRK (and INPCK at 8E1) errors never become FF 00 X marks, and a zero mark count means nothing
+want_i = termios.PARMRK | (termios.INPCK if mode == "e" else 0)
+if b[0] & want_i != want_i:
+    os.close(fd)
+    sys.exit("the port did not take PARMRK/INPCK, so parity errors would not be marked")
 termios.tcflush(fd, termios.TCIOFLUSH)
 t0 = time.time()
 end = t0 + secs
