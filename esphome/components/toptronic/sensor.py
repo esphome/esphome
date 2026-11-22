@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import sensor
 import esphome.config_validation as cv
 from esphome.const import CONF_TYPE
+from esphome.types import ConfigType
 
 from . import (
     CONF_DATAPOINT,
@@ -32,7 +33,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     tt = await cg.get_variable(config[CONF_TOPTRONIC_ID])
     sens = await sensor.new_sensor(config)
     await cg.register_component(sens, config)

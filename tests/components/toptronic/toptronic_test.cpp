@@ -243,7 +243,7 @@ TEST_F(TopTronicTest, ResponsePublishesToTheMatchingSensor) {
   sensor.set_function_group(0x01);
   sensor.set_function_number(0x02);
   sensor.set_datapoint(0x9ECB);
-  sensor.set_type(U16);
+  sensor.set_type(TypeName::TYPE_NAME_U16);
   this->hub_.add_sensor(&sensor);
   // Another datapoint is ignored
   this->hub_.interpret({0x42, 0x01, 0x02, 0x00, 0x10, 0x12, 0x34});
@@ -263,7 +263,7 @@ TEST_F(TopTronicTest, UpdateSendsGetRequestFromTheGateway) {
   sensor.set_function_group(50);
   sensor.set_function_number(0);
   sensor.set_datapoint(40651);
-  sensor.set_type(U8);
+  sensor.set_type(TypeName::TYPE_NAME_U8);
   this->hub_.add_sensor(&sensor);
   this->hub_.register_sensor_callbacks();
   sensor.update();
@@ -287,7 +287,7 @@ TEST_F(TopTronicTest, GatewaySenderIdKeepsTheHubAddress) {
     sensor->set_function_group(50);
     sensor->set_function_number(0);
     sensor->set_datapoint(40651);
-    sensor->set_type(U8);
+    sensor->set_type(TypeName::TYPE_NAME_U8);
   }
   hub_a.add_sensor(&sensor_a);
   hub_a.register_sensor_callbacks();
@@ -306,7 +306,7 @@ TEST_F(TopTronicTest, NumberSendsScaledSetRequestInOneFrame) {
   number.set_function_group(50);
   number.set_function_number(0);
   number.set_datapoint(40651);
-  number.set_type(S16);
+  number.set_type(TypeName::TYPE_NAME_S16);
   number.set_multiplier(10.0f);
   this->hub_.add_input(&number);
   number.control(21.5f);
@@ -325,7 +325,7 @@ TEST_F(TopTronicTest, LongSetRequestIsSplitAndReassembles) {
   number.set_function_group(50);
   number.set_function_number(0);
   number.set_datapoint(40651);
-  number.set_type(S32);
+  number.set_type(TypeName::TYPE_NAME_S32);
   this->hub_.add_input(&number);
   // Out of range values are clamped to the wire type
   number.control(-1e12f);
@@ -346,7 +346,7 @@ TEST_F(TopTronicTest, RepeatedSetIsRateLimited) {
   number.set_function_group(50);
   number.set_function_number(0);
   number.set_datapoint(40651);
-  number.set_type(U8);
+  number.set_type(TypeName::TYPE_NAME_U8);
   this->hub_.add_input(&number);
   number.control(1.0f);
   EXPECT_EQ(this->bus_.sent.size(), 1u);
@@ -365,7 +365,7 @@ TEST_F(TopTronicTest, ZeroWriteIntervalDisablesTheRateLimit) {
   number.set_function_group(50);
   number.set_function_number(0);
   number.set_datapoint(40651);
-  number.set_type(U8);
+  number.set_type(TypeName::TYPE_NAME_U8);
   this->hub_.add_input(&number);
   number.control(1.0f);
   number.control(2.0f);
@@ -378,7 +378,7 @@ TEST_F(TopTronicTest, FailedSetDoesNotStartTheInterval) {
   number.set_function_group(50);
   number.set_function_number(0);
   number.set_datapoint(40651);
-  number.set_type(U8);
+  number.set_type(TypeName::TYPE_NAME_U8);
   this->hub_.add_input(&number);
   this->bus_.fail = true;
   number.control(1.0f);
@@ -397,8 +397,8 @@ TEST_F(TopTronicTest, SetIsRejectedUntilTheDatapointWasRead) {
     entity->set_function_number(0x02);
     entity->set_datapoint(0x0010);
   }
-  sensor.set_type(U8);
-  number.set_type(U8);
+  sensor.set_type(TypeName::TYPE_NAME_U8);
+  number.set_type(TypeName::TYPE_NAME_U8);
   this->hub_.add_sensor(&sensor);
   this->hub_.add_input(&number);
   number.control(1.0f);
@@ -422,7 +422,7 @@ TEST_F(TopTronicTest, ReadGuardCanBeDisabled) {
     entity->set_function_number(0x02);
     entity->set_datapoint(0x0010);
   }
-  number.set_type(U8);
+  number.set_type(TypeName::TYPE_NAME_U8);
   this->hub_.add_sensor(&sensor);
   this->hub_.add_input(&number);
   number.control(1.0f);
@@ -434,7 +434,7 @@ TEST_F(TopTronicTest, PausedHubDoesNotPoll) {
   sensor.set_function_group(50);
   sensor.set_function_number(0);
   sensor.set_datapoint(40651);
-  sensor.set_type(U8);
+  sensor.set_type(TypeName::TYPE_NAME_U8);
   this->hub_.add_sensor(&sensor);
   this->hub_.register_sensor_callbacks();
   this->hub_.pause();
@@ -468,7 +468,7 @@ TEST_F(TopTronicTest, WriteOnlyNumberPublishesTheWrittenValue) {
   number.set_function_group(50);
   number.set_function_number(0);
   number.set_datapoint(40651);
-  number.set_type(U16);
+  number.set_type(TypeName::TYPE_NAME_U16);
   this->hub_.add_input(&number);
   this->hub_.setup();
   number.control(42.0f);
@@ -482,7 +482,7 @@ TEST_F(TopTronicTest, RateLimitedWriteDoesNotPublish) {
   number.set_function_group(50);
   number.set_function_number(0);
   number.set_datapoint(40651);
-  number.set_type(U8);
+  number.set_type(TypeName::TYPE_NAME_U8);
   this->hub_.add_input(&number);
   this->hub_.setup();
   number.control(1.0f);
@@ -500,7 +500,7 @@ TEST_F(TopTronicTest, PausedWriteDoesNotPublish) {
   number.set_function_group(50);
   number.set_function_number(0);
   number.set_datapoint(40651);
-  number.set_type(U8);
+  number.set_type(TypeName::TYPE_NAME_U8);
   this->hub_.add_input(&number);
   this->hub_.setup();
   this->hub_.pause();
@@ -514,7 +514,7 @@ TEST_F(TopTronicTest, FailedWriteDoesNotPublish) {
   number.set_function_group(50);
   number.set_function_number(0);
   number.set_datapoint(40651);
-  number.set_type(U8);
+  number.set_type(TypeName::TYPE_NAME_U8);
   this->hub_.add_input(&number);
   this->hub_.setup();
   this->bus_.fail = true;
@@ -527,12 +527,12 @@ TEST_F(TopTronicTest, LinkedNumberTakesItsStateFromTheSensor) {
   sensor.set_function_group(50);
   sensor.set_function_number(0);
   sensor.set_datapoint(40651);
-  sensor.set_type(U16);
+  sensor.set_type(TypeName::TYPE_NAME_U16);
   TopTronicNumber number;
   number.set_function_group(50);
   number.set_function_number(0);
   number.set_datapoint(40651);
-  number.set_type(U16);
+  number.set_type(TypeName::TYPE_NAME_U16);
   number.set_multiplier(10.0f);
   this->hub_.add_sensor(&sensor);
   this->hub_.add_input(&number);
@@ -551,7 +551,7 @@ TEST_F(TopTronicTest, MismatchedLinkIsSkippedInsteadOfCast) {
   sensor.set_function_group(50);
   sensor.set_function_number(0);
   sensor.set_datapoint(40651);
-  sensor.set_type(U16);
+  sensor.set_type(TypeName::TYPE_NAME_U16);
   TopTronicSelect select;
   select.set_function_group(50);
   select.set_function_number(0);
@@ -573,7 +573,7 @@ TEST_F(TopTronicTest, SelectSendsTheValueOfTheChosenOption) {
   select.set_function_group(50);
   select.set_function_number(2);
   select.set_datapoint(40661);
-  select.set_type(S16);
+  select.set_type(TypeName::TYPE_NAME_S16);
   select.add_option(0);
   select.add_option(7);
   select.traits.set_options({"Off", "On"});
@@ -591,7 +591,7 @@ TEST_F(TopTronicTest, PausedSelectDoesNotPublish) {
   select.set_function_group(50);
   select.set_function_number(2);
   select.set_datapoint(40661);
-  select.set_type(U8);
+  select.set_type(TypeName::TYPE_NAME_U8);
   select.add_option(0);
   select.add_option(7);
   select.traits.set_options({"Off", "On"});
