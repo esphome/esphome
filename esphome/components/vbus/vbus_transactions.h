@@ -22,6 +22,10 @@ class VBusTransactions final : public Component {
  public:
   VBusTransactions(VBus *receiver, VBusTransmitter *transmitter) : receiver_(receiver), transmitter_(transmitter) {}
   void setup() override;
+#ifdef USE_VBUS_TRANSACTION_ACTION
+  void enable_standalone();
+  bool request_value(uint16_t command, uint16_t value_id, uint32_t value);
+#endif
   void loop() override;
   void dump_config() override;
   void on_shutdown() override;
@@ -35,7 +39,14 @@ class VBusTransactions final : public Component {
   }
 
  protected:
-  enum class Phase : uint8_t { PHASE_IDLE, PHASE_READ, PHASE_WRITE_ACK, PHASE_VERIFY_SEND, PHASE_VERIFY_REPLY };
+  enum class Phase : uint8_t {
+    PHASE_IDLE,
+    PHASE_READ,
+    PHASE_WRITE_ACK,
+    PHASE_VERIFY_SEND,
+    PHASE_VERIFY_REPLY,
+    PHASE_WAIT_GRANT
+  };
   bool start_(uint32_t grant_id, uint16_t command, uint16_t value_id, uint32_t value);
   void on_datagram_(uint16_t command, uint16_t source, uint16_t destination, uint16_t value_id, uint32_t value);
   void finish_(TransactionStatus status, uint32_t value = 0);
@@ -50,6 +61,9 @@ class VBusTransactions final : public Component {
   uint16_t value_id_{0};
   Phase phase_{Phase::PHASE_IDLE};
   bool stopped_{false};
+#ifdef USE_VBUS_TRANSACTION_ACTION
+  bool release_after_result_{false};
+#endif
   CallbackManager<void(uint32_t, uint16_t, uint16_t, uint32_t, TransactionStatus)> result_callback_;
 };
 

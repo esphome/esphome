@@ -19,6 +19,35 @@ void VBusTransactions::setup() {
   this->disable_loop();
 }
 
+#ifdef USE_VBUS_TRANSACTION_ACTION
+void VBusTransactions::enable_standalone() {
+  this->transmitter_->add_on_bus_grant_callback([this](uint32_t grant_id) {
+    if (this->phase_ != Phase::PHASE_WAIT_GRANT)
+      return;
+    this->phase_ = Phase::PHASE_IDLE;
+    if (!this->start_(grant_id, this->command_, this->value_id_, this->requested_value_)) {
+      this->grant_id_ = grant_id;
+      this->finish_(TransactionStatus::TRANSACTION_STATUS_BUS_LOST);
+    }
+  });
+}
+
+bool VBusTransactions::request_value(uint16_t command, uint16_t value_id, uint32_t value) {
+  if (this->stopped_ || this->is_busy() || !this->transmitter_->request_bus()) {
+    ESP_LOGW(TAG, "Transaction rejected: busy or stopped");
+    return false;
+  }
+  this->phase_ = Phase::PHASE_WAIT_GRANT;
+  this->grant_id_ = 0;
+  this->release_after_result_ = true;
+  this->command_ = command;
+  this->value_id_ = value_id;
+  this->requested_value_ = value;
+  this->enable_loop();
+  return true;
+}
+#endif
+
 void VBusTransactions::dump_config() {
   ESP_LOGCONFIG(TAG, "VBus transactions:\n  Response timeout: %" PRIu32 " ms", this->response_timeout_ms_);
 }
@@ -49,7 +78,12 @@ bool VBusTransactions::start_(uint32_t grant_id, uint16_t command, uint16_t valu
 }
 
 void VBusTransactions::finish_(TransactionStatus status, uint32_t value) {
-  if (status != TransactionStatus::TRANSACTION_STATUS_SUCCESS)
+  bool release = status != TransactionStatus::TRANSACTION_STATUS_SUCCESS;
+#ifdef USE_VBUS_TRANSACTION_ACTION
+  release |= this->release_after_result_;
+  this->release_after_result_ = false;
+#endif
+  if (release && this->grant_id_ != 0)
     this->transmitter_->release_bus(this->grant_id_);
   this->phase_ = Phase::PHASE_IDLE;
   this->disable_loop();
@@ -87,6 +121,13 @@ void VBusTransactions::on_datagram_(uint16_t command, uint16_t source, uint16_t 
 void VBusTransactions::loop() {
   if (!this->is_busy())
     return;
+#ifdef USE_VBUS_TRANSACTION_ACTION
+  if (this->phase_ == Phase::PHASE_WAIT_GRANT) {
+    if (!this->transmitter_->waiting_for_grant())
+      this->finish_(TransactionStatus::TRANSACTION_STATUS_BUS_LOST);
+    return;
+  }
+#endif
   if (!this->transmitter_->owns_bus(this->grant_id_)) {
     this->finish_(TransactionStatus::TRANSACTION_STATUS_BUS_LOST);
     return;
