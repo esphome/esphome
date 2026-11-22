@@ -8,15 +8,7 @@ from esphome.const import (
     CONF_MAC_ADDRESS,
     CONF_SIGNAL_STRENGTH,
     CONF_TEMPERATURE,
-    DEVICE_CLASS_BATTERY,
-    DEVICE_CLASS_HUMIDITY,
-    DEVICE_CLASS_SIGNAL_STRENGTH,
-    DEVICE_CLASS_TEMPERATURE,
     ENTITY_CATEGORY_DIAGNOSTIC,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS,
-    UNIT_DECIBEL_MILLIWATT,
-    UNIT_PERCENT,
 )
 from esphome.types import ConfigType
 
@@ -31,12 +23,7 @@ ThermoProBLE = thermopro_ble_ns.class_(
 
 
 def _temperature_schema() -> cv.Schema:
-    return sensor.sensor_schema(
-        unit_of_measurement=UNIT_CELSIUS,
-        accuracy_decimals=1,
-        device_class=DEVICE_CLASS_TEMPERATURE,
-        state_class=STATE_CLASS_MEASUREMENT,
-    )
+    return sensor.sensor_schema(kind=sensor.TEMPERATURE)
 
 
 CONFIG_SCHEMA = cv.All(
@@ -48,24 +35,13 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_TEMPERATURE): _temperature_schema(),
             cv.Optional(CONF_EXTERNAL_TEMPERATURE): _temperature_schema(),
             cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(
-                unit_of_measurement=UNIT_PERCENT,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_HUMIDITY,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.HUMIDITY, accuracy_decimals=0
             ),
             cv.Optional(CONF_BATTERY_LEVEL): sensor.sensor_schema(
-                unit_of_measurement=UNIT_PERCENT,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_BATTERY,
-                state_class=STATE_CLASS_MEASUREMENT,
-                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+                kind=sensor.BATTERY, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
             ),
             cv.Optional(CONF_SIGNAL_STRENGTH): sensor.sensor_schema(
-                unit_of_measurement=UNIT_DECIBEL_MILLIWATT,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_SIGNAL_STRENGTH,
-                state_class=STATE_CLASS_MEASUREMENT,
-                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+                kind=sensor.SIGNAL_STRENGTH, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
             ),
         }
     ).extend(ble_device_base.BLE_DEVICE_SCHEMA),

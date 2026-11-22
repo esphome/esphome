@@ -3,13 +3,7 @@ from typing import Any
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_GAIN,
-    CONF_INTEGRATION_TIME,
-    DEVICE_CLASS_ILLUMINANCE,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_LUX,
-)
+from esphome.const import CONF_GAIN, CONF_INTEGRATION_TIME
 from esphome.core import EnumValue
 from esphome.types import ConfigType
 
@@ -39,13 +33,7 @@ TSL2561Sensor = tsl2561_ns.class_(
 )
 
 CONFIG_SCHEMA = (
-    sensor.sensor_schema(
-        TSL2561Sensor,
-        unit_of_measurement=UNIT_LUX,
-        accuracy_decimals=1,
-        device_class=DEVICE_CLASS_ILLUMINANCE,
-        state_class=STATE_CLASS_MEASUREMENT,
-    )
+    sensor.sensor_schema(TSL2561Sensor, kind=sensor.ILLUMINANCE, accuracy_decimals=1)
     .extend(
         {
             cv.Optional(
