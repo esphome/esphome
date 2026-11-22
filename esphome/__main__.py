@@ -1701,8 +1701,9 @@ def command_config(args: ArgsProtocol, config: ConfigType) -> int | None:
                 "unavailable; falling back to the validated configuration."
             )
         else:
-            # The snapshot predates validation, so it has no cv.sensitive marks.
-            mark_sensitive_user_values(user_config, config)
+            if not args.show_secrets:
+                # The snapshot predates validation, so it has no cv.sensitive marks.
+                mark_sensitive_user_values(user_config, config)
             config = user_config
     elif not CORE.verbose:
         config = strip_default_ids(config)

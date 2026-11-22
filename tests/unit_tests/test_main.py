@@ -81,7 +81,7 @@ from esphome.components.esp32 import (
     VARIANT_ESP32,
     get_esp32_variant,
 )
-from esphome.config import Config
+from esphome.config import Config, mark_sensitive_user_values, read_config
 from esphome.const import (
     CONF_API,
     CONF_AUTH,
@@ -133,7 +133,7 @@ from esphome.platformio import toolchain
 from esphome.types import ConfigType
 from esphome.upload_targets import PortType
 from esphome.util import BootselResult, FlashImage
-from esphome.yaml_util import SensitiveInt, SensitiveStr
+from esphome.yaml_util import Sensitive, SensitiveInt, SensitiveStr
 from esphome.zeroconf import _await_discovery, discover_mdns_devices
 
 
@@ -497,51 +497,141 @@ def test_command_config__no_defaults_dumps_user_snapshot(
     assert "build_path" not in output
 
 
+_NO_DEFAULTS_YAML = """\
+substitutions:
+  creds:
+    mqtt-password: mqttpass99
+esphome:
+  name: test
+esp32:
+  board: esp32dev
+wifi:
+  ssid: MyNet
+  password: wifipass123
+  dpp:
+    private_key: 00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF
+mqtt:
+  broker: 10.0.0.2
+  password: mqttpass99
+api:
+  encryption:
+    key: "a2tra2tra2tra2tra2tra2tra2tra2tra2tra2tra2s="
+"""
+
+
 def test_command_config__no_defaults_masks_sensitive_values(
     tmp_path: Path, capfd: CaptureFixture[str]
 ) -> None:
     """The pre-validation snapshot has no cv.sensitive marks, so values the
-    validated config marks sensitive are masked in it too, even when a
-    validator moved them (wifi's top-level password goes under networks)."""
-    setup_core(tmp_path=tmp_path, config={"esphome": {"name": "test"}})
+    real schema marks sensitive are masked in it too, including ones a
+    validator moved (wifi's password) or lowercased (dpp private_key)."""
+    (tmp_path / "test.yaml").write_text(_NO_DEFAULTS_YAML)
+    CORE.config_path = tmp_path / "test.yaml"
+    config = read_config({}, snapshot_user_config=True)
+    assert config is not None
+    capfd.readouterr()
     args = MockArgs()
     args.show_secrets = False
     args.no_defaults = True
 
-    validated = Config()
-    validated["esphome"] = {"name": "test", "build_path": "build/test"}
-    validated["wifi"] = {
-        "networks": [{"ssid": "MyNet", "password": SensitiveStr("wifipass1")}],
-        "reboot_timeout": "15min",
-    }
-    validated["mqtt"] = {"broker": "10.0.0.2", "password": SensitiveStr("mqttpass")}
-    validated["api"] = {
-        "encryption": {"key": SensitiveStr("YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXo0NTY=")}
-    }
-    validated["fingerprint_grow"] = {"password": SensitiveInt(1234), "port": 80}
-    validated.user_config = {
-        "esphome": {"name": "test"},
-        "wifi": {"ssid": "MyNet", "password": "wifipass1"},
-        "mqtt": {"broker": "10.0.0.2", "password": "mqttpass"},
-        "api": {"encryption": {"key": "YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXo0NTY="}},
-        "fingerprint_grow": {"password": 1234, "port": 80},
-    }
+    assert command_config(args, config) == 0
 
-    result = command_config(args, validated)
-
-    assert result == 0
     output = capfd.readouterr().out
-    assert "password: \\033[8mwifipass1\\033[28m" in output
-    assert "password: \\033[8mmqttpass\\033[28m" in output
-    assert "key: \\033[8mYWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXo0NTY=\\033[28m" in output
-    assert "password: \\033[8m1234\\033[28m" in output
-    # Non-secret values stay plain and no defaults are added.
-    assert "ssid: MyNet" in output
-    assert "broker: 10.0.0.2" in output
-    assert "port: 80" in output
+    for line in (
+        "ssid: \\033[8mMyNet\\033[28m",
+        "password: \\033[8mwifipass123\\033[28m",
+        "private_key: \\033[8m00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF\\033[28m",
+        "  password: \\033[8mmqttpass99\\033[28m",
+        "mqtt-password: \\033[8mmqttpass99\\033[28m",
+        "key: \\033[8ma2tra2tra2tra2tra2tra2tra2tra2tra2tra2tra2s=\\033[28m",
+        "broker: 10.0.0.2",
+        "board: esp32dev",
+    ):
+        assert line in output
+    # No schema defaults are added.
     assert "reboot_timeout" not in output
-    assert "build_path" not in output
     assert "networks" not in output
+
+
+def _marked(user_config: dict[str, Any], validated: dict[str, Any]) -> list[str]:
+    """Return the dotted paths of leaves marked sensitive in ``user_config``."""
+    mark_sensitive_user_values(user_config, validated)
+    found: list[str] = []
+
+    def walk(conf: Any, path: str) -> None:
+        if isinstance(conf, dict):
+            for k, v in conf.items():
+                walk(v, f"{path}.{k}" if path else k)
+        elif isinstance(conf, list):
+            for i, v in enumerate(conf):
+                walk(v, f"{path}.{i}")
+        elif isinstance(conf, Sensitive):
+            found.append(path)
+
+    walk(user_config, "")
+    return found
+
+
+@pytest.mark.parametrize(
+    ("validated", "user_config", "expected"),
+    [
+        pytest.param(
+            {"fp": {"password": SensitiveInt(0), "channel": 0}, "x": {"min_value": 0}},
+            {"fp": {"password": 0, "channel": 0}, "x": {"min_value": 0}},
+            ["fp.password"],
+            id="sensitive_int_zero_does_not_mask_other_zeros",
+        ),
+        pytest.param(
+            {"ble": {"pin": SensitiveStr("1234")}, "web": {"port": 1234}},
+            {"ble": {"pin": 1234}, "web": {"port": 1234}},
+            ["ble.pin"],
+            id="short_value_matches_only_with_its_key",
+        ),
+        pytest.param(
+            {"a": {"password": SensitiveStr("")}, "b": {"password": ""}},
+            {"a": {"password": ""}, "b": {"password": ""}},
+            [],
+            id="empty_sensitive_value_masks_nothing",
+        ),
+        pytest.param(
+            {"wifi": {"dpp": {"private_key": SensitiveStr("abcdef0123")}}},
+            {"wifi": {"dpp": {"private_key": "ABCDEF0123"}}},
+            ["wifi.dpp.private_key"],
+            id="case_normalized_value_masked",
+        ),
+        pytest.param(
+            {"mqtt": {"password": SensitiveStr("longsecret"), "x": SensitiveStr("pw")}},
+            {
+                "substitutions": {"mqtt_pw": "longsecret", "short": "pw"},
+                "other": {"note": "longsecret"},
+            },
+            ["substitutions.mqtt_pw"],
+            id="long_value_only_match_limited_to_substitutions",
+        ),
+    ],
+)
+def test_mark_sensitive_user_values(
+    validated: dict[str, Any], user_config: dict[str, Any], expected: list[str]
+) -> None:
+    assert _marked(user_config, validated) == expected
+
+
+def test_command_config__no_defaults_show_secrets_skips_marking(
+    tmp_path: Path, capfd: CaptureFixture[str]
+) -> None:
+    setup_core(tmp_path=tmp_path, config={"esphome": {"name": "test"}})
+    args = MockArgs()
+    args.show_secrets = True
+    args.no_defaults = True
+    validated = Config()
+    validated["mqtt"] = {"password": SensitiveStr("mqttpass")}
+    validated.user_config = {"mqtt": {"password": "mqttpass"}}
+
+    with patch("esphome.config.mark_sensitive_user_values") as mock_mark:
+        assert command_config(args, validated) == 0
+
+    mock_mark.assert_not_called()
+    assert "password: mqttpass" in capfd.readouterr().out
 
 
 def test_command_config__no_defaults_warns_when_snapshot_missing(

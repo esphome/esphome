@@ -1775,46 +1775,63 @@ def strip_default_ids(config):
     return config
 
 
-def _collect_sensitive_values(conf: Any, strs: set[str], ints: set[int]) -> None:
-    if isinstance(conf, dict):
-        for v in conf.values():
-            _collect_sensitive_values(v, strs, ints)
-    elif isinstance(conf, list):
-        for v in conf:
-            _collect_sensitive_values(v, strs, ints)
-    elif isinstance(conf, yaml_util.SensitiveStr):
-        strs.add(str(conf))
-    elif isinstance(conf, yaml_util.SensitiveInt):
-        ints.add(int(conf))
+def _sensitive_form(value: Any) -> str:
+    # Validators may normalize case (wifi's dpp private_key is lowercased).
+    return str(int(value)) if isinstance(value, int) else str(value).casefold()
 
 
-def _mark_sensitive(conf: Any, strs: set[str], ints: set[int]) -> Any:
+def _collect_sensitive_values(
+    conf: Any, key: Any, pairs: set[tuple[Any, str]], long_values: set[str]
+) -> None:
     if isinstance(conf, dict):
         for k, v in conf.items():
-            conf[k] = _mark_sensitive(v, strs, ints)
+            _collect_sensitive_values(v, k, pairs, long_values)
     elif isinstance(conf, list):
-        conf[:] = [_mark_sensitive(v, strs, ints) for v in conf]
-    elif isinstance(conf, (yaml_util.Sensitive, bool)):
-        pass
-    elif isinstance(conf, str) and str(conf) in strs:
-        return yaml_util.SensitiveStr(conf)
-    elif isinstance(conf, int) and (conf in ints or str(conf) in strs):
-        return yaml_util.SensitiveInt(conf)
+        for v in conf:
+            _collect_sensitive_values(v, key, pairs, long_values)
+    elif isinstance(conf, (yaml_util.SensitiveStr, yaml_util.SensitiveInt)) and (
+        form := _sensitive_form(conf)
+    ):
+        pairs.add((key, form))
+        if isinstance(conf, str) and len(form) >= 8:
+            long_values.add(form)
+
+
+def _mark_sensitive(
+    conf: Any, key: Any, pairs: set[tuple[Any, str]], long_values: set[str]
+) -> Any:
+    if isinstance(conf, dict):
+        for k, v in conf.items():
+            conf[k] = _mark_sensitive(v, k, pairs, long_values)
+    elif isinstance(conf, list):
+        conf[:] = [_mark_sensitive(v, key, pairs, long_values) for v in conf]
+    elif isinstance(conf, (str, int)) and not isinstance(
+        conf, (yaml_util.Sensitive, bool)
+    ):
+        form = _sensitive_form(conf)
+        if (key, form) in pairs or form in long_values:
+            if isinstance(conf, str):
+                return yaml_util.SensitiveStr(conf)
+            return yaml_util.SensitiveInt(conf)
     return conf
 
 
 def mark_sensitive_user_values(user_config: ConfigType, validated: ConfigType) -> None:
     """Mark values in the pre-validation snapshot that the schema marked sensitive.
 
-    Matched by value, not path: validators move fields (wifi's top-level
-    ``password`` ends up under ``networks``), so paths do not line up.
+    Matched by key name and value, since validators move fields (wifi's top-level
+    ``password`` ends up under ``networks``). Substitution definitions have
+    arbitrary names, so there long sensitive strings also match by value alone.
     """
-    strs: set[str] = set()
-    ints: set[int] = set()
-    _collect_sensitive_values(validated, strs, ints)
-    strs.discard("")
-    if strs or ints:
-        _mark_sensitive(user_config, strs, ints)
+    pairs: set[tuple[Any, str]] = set()
+    long_values: set[str] = set()
+    _collect_sensitive_values(validated, None, pairs, long_values)
+    if not pairs:
+        return
+    for k, v in user_config.items():
+        user_config[k] = _mark_sensitive(
+            v, k, pairs, long_values if k == CONF_SUBSTITUTIONS else set()
+        )
 
 
 def read_config(
