@@ -66,14 +66,23 @@ struct AnalogAttrsOutput : AnalogAttrs {
   float resolution;
 };
 
+/// Receives the ZCL device callbacks (attribute writes) for one endpoint.
+class ZigbeeEndpointListener {
+ public:
+  virtual void on_zcl_device_cb(zb_bufid_t bufid) = 0;
+};
+
 class ZigbeeComponent final : public Component {
  public:
   void setup() override;
   void dump_config() override;
-  void add_callback(zb_uint8_t endpoint, std::function<void(zb_bufid_t bufid)> &&cb) {
+  void set_endpoint_listener(zb_uint8_t endpoint, ZigbeeEndpointListener *listener) {
     // endpoints are enumerated from 1
-    this->callbacks_[endpoint - 1] = std::move(cb);
+    this->listeners_[endpoint - 1] = listener;
   }
+  ESPDEPRECATED("Implement ZigbeeEndpointListener and use set_endpoint_listener() instead. Removed in 2027.6.0",
+                "2026.12.0")
+  void add_callback(zb_uint8_t endpoint, std::function<void(zb_bufid_t bufid)> &&cb);
   template<typename F> void add_on_join_callback(F &&cb) { this->join_cb_.add(std::forward<F>(cb)); }
   template<typename F> void add_on_start_callback(F &&cb) { this->start_cb_.add(std::forward<F>(cb)); }
   void zboss_signal_handler_esphome(zb_bufid_t bufid);
@@ -92,7 +101,7 @@ class ZigbeeComponent final : public Component {
   void erase_flash_(int area);
 #endif
   void dump_reporting_();
-  std::array<std::function<void(zb_bufid_t bufid)>, ZIGBEE_ENDPOINTS_COUNT> callbacks_{};
+  std::array<ZigbeeEndpointListener *, ZIGBEE_ENDPOINTS_COUNT> listeners_{};
   CallbackManager<void(bool)> join_cb_;
   LazyCallbackManager<void()> start_cb_;
   bool force_report_{false};

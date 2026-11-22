@@ -120,14 +120,31 @@ void ZigbeeComponent::zcl_device_cb(zb_bufid_t bufid) {
   p_device_cb_param->status = RET_OK;
 
   // endpoints are enumerated from 1
-  if (global_zigbee->callbacks_.size() >= endpoint) {
-    const auto &cb = global_zigbee->callbacks_[endpoint - 1];
-    if (cb) {
-      cb(bufid);
+  if (endpoint != 0 && endpoint <= global_zigbee->listeners_.size()) {
+    auto *listener = global_zigbee->listeners_[endpoint - 1];
+    if (listener != nullptr) {
+      listener->on_zcl_device_cb(bufid);
       return;
     }
   }
   p_device_cb_param->status = RET_NOT_IMPLEMENTED;
+}
+
+namespace {
+// Adapter for the deprecated std::function registration; allocated once at setup.
+class FunctionEndpointListener final : public ZigbeeEndpointListener {
+ public:
+  explicit FunctionEndpointListener(std::function<void(zb_bufid_t bufid)> &&cb) : cb_(std::move(cb)) {}
+  void on_zcl_device_cb(zb_bufid_t bufid) override { this->cb_(bufid); }
+
+ protected:
+  std::function<void(zb_bufid_t bufid)> cb_;
+};
+}  // namespace
+
+void ZigbeeComponent::add_callback(zb_uint8_t endpoint, std::function<void(zb_bufid_t bufid)> &&cb) {
+  // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+  this->set_endpoint_listener(endpoint, new FunctionEndpointListener(std::move(cb)));
 }
 
 void ZigbeeComponent::on_join_(bool factory_new) {
