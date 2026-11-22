@@ -75,6 +75,12 @@ xiaomi_ble/expected_all.json
 xiaomi_ble/run_*.yaml
 ble_scan_complete/*.txt
 ble_scan_complete/*.err
+rp2_uart_loop/u??.yaml
+rp2_uart_loop/*-cap.txt
+rp2_uart_loop/*-cap.err
+length_frame_reader/*.log
+length_frame_reader/*.txt
+length_frame_reader/*.json
 nrf_pwm_probe/*-cap.txt
 nrf_pwm_probe/*-dfu.log
 nrf54_xiao/*-cap.txt
