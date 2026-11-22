@@ -50,8 +50,20 @@ void IT8951Display::loop() {
       return;
     }
     this->advance_phase_();
-    if (this->queue_.empty())
+    if (this->queue_.empty()) {
+      // A non-IDLE phase that cannot enqueue anything never makes progress on its
+      // own; hand it to recovery instead of parking the panel until the next reboot.
+      if (this->stall_since_ == 0) {
+        this->stall_since_ = now;
+      } else if (now - this->stall_since_ > PHASE_STALL_TIMEOUT_MS) {
+        ESP_LOGW(TAG, "Phase %u queued no work for %" PRIu32 " ms; recovering", static_cast<unsigned>(this->phase_),
+                 static_cast<uint32_t>(now - this->stall_since_));
+        this->stall_since_ = 0;
+        this->recover_();
+      }
       return;
+    }
+    this->stall_since_ = 0;
   }
 
   // Gate SPI ops on HW_RDY. GPIO/DELAY ops run unconditionally — they're how
@@ -193,6 +205,11 @@ void IT8951Display::advance_phase_() {
         this->update_started_at_ = millis();
         this->set_phase_(Phase::UPDATE_PREPARE);
         this->advance_phase_();
+      } else if (this->update_pending_) {
+        // A pending frame with no initialised controller drops through to
+        // disable_loop() below, so every update() would be swallowed silently.
+        ESP_LOGW(TAG, "Update pending but the controller is not initialised; recovering");
+        this->recover_();
       } else {
         this->disable_loop();
       }
@@ -215,6 +232,14 @@ void IT8951Display::advance_phase_() {
           this->enqueue_init_dev_info_();
           return;
         }
+        if (this->recovery_attempts_ > 0) {
+          // A controller that only half-booted after a rail cycle lands here; the
+          // recovery is still running, so retry instead of failing for good.
+          ESP_LOGW(TAG, "DevInfo still invalid during recovery (W=%u H=%u); retrying via recovery",
+                   this->dev_info_.panel_width, this->dev_info_.panel_height);
+          this->recover_();
+          return;
+        }
         ESP_LOGE(TAG, "DevInfo invalid after %u attempts (W=%u H=%u)", this->dev_info_attempts_,
                  this->dev_info_.panel_width, this->dev_info_.panel_height);
         this->mark_failed(LOG_STR("Failed to read IT8951 device info"));
@@ -223,6 +248,12 @@ void IT8951Display::advance_phase_() {
       }
 
       if (this->dev_info_.panel_width != this->width_ || this->dev_info_.panel_height != this->height_) {
+        if (this->recovery_attempts_ > 0) {
+          ESP_LOGW(TAG, "Dimensions still mismatch during recovery (configured=%ux%u, DevInfo=%ux%u); retrying",
+                   this->width_, this->height_, this->dev_info_.panel_width, this->dev_info_.panel_height);
+          this->recover_();
+          return;
+        }
         ESP_LOGE(TAG, "Panel dimension mismatch: configured=%ux%u, DevInfo=%ux%u. Check model/dimensions settings.",
                  this->width_, this->height_, this->dev_info_.panel_width, this->dev_info_.panel_height);
         this->mark_failed(LOG_STR("IT8951 panel dimensions do not match DevInfo"));
@@ -262,9 +293,8 @@ void IT8951Display::advance_phase_() {
         this->spi_setup();
       }
       this->initialised_ = true;
-      this->recovery_attempts_ = 0;
-      this->recovery_backoff_ms_ = 0;
-      this->status_clear_warning();
+      // Retry state is cleared in UPDATE_SLEEP, once a frame is actually drawn: a
+      // controller that fails every redraw must keep escalating its back-off.
       ESP_LOGCONFIG(TAG, "IT8951 setup complete");
       this->set_phase_(Phase::IDLE);
       this->advance_phase_();
@@ -306,6 +336,11 @@ void IT8951Display::advance_phase_() {
     case Phase::UPDATE_SLEEP:
       ESP_LOGV(TAG, "Update took %" PRIu32 "ms (mode=%u area=%ux%u@%u,%u)", millis() - this->update_started_at_,
                static_cast<unsigned>(this->active_mode_), this->area_w_, this->area_h_, this->area_x_, this->area_y_);
+      // A frame reached the panel, so any recovery cycle finished. This is the only
+      // place the retry state is cleared.
+      this->recovery_attempts_ = 0;
+      this->recovery_backoff_ms_ = 0;
+      this->status_clear_warning();
       this->set_phase_(Phase::IDLE);
       this->advance_phase_();
       break;

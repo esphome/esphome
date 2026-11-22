@@ -244,11 +244,18 @@ class IT8951Display : public Display,
   // ROM-boot floor enqueue_init_reset_() uses.
   static constexpr uint16_t RAIL_POWER_OFF_MS = 250;
   static constexpr uint16_t RAIL_BOOT_MS = 300;
+  // Grace period for a phase that cannot enqueue any further work before it is
+  // handed to recover_(). The main loop runs every 16 ms, so 3 s is far longer
+  // than any legitimate gap between two phase transitions.
+  static constexpr uint32_t PHASE_STALL_TIMEOUT_MS = 3000;
 
   StaticRingBuffer<Op, OP_QUEUE_SIZE> queue_;
   Phase phase_{Phase::IDLE};
   uint32_t delay_until_{0};
   uint32_t phase_started_at_{0};
+  // Set while the current phase has produced no further queued work; cleared as
+  // soon as it does. Drives the stall watchdog in loop().
+  uint32_t stall_since_{0};
   // Requests a continuous (non-throttled) main loop while streaming image data
   // so 20ms transfer slices aren't separated by the ~16ms default loop interval.
   HighFrequencyLoopRequester high_freq_;
