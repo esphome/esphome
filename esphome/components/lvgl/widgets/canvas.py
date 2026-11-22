@@ -59,7 +59,7 @@ from ..lv_validation import (
 )
 from ..lvcode import LocalVariable, lv, lv_assign, lv_expr
 from ..schemas import STYLE_PROPS, TEXT_SCHEMA, point_schema, remap_property
-from ..types import LvType, ObjUpdateAction, lv_gradient_t, lv_point_precise_t
+from ..types import LvType, lv_gradient_t, lv_point_precise_t
 from . import Widget, WidgetType, get_widgets
 from .img import CONF_IMAGE
 
@@ -125,7 +125,7 @@ CanvasType()
 
 @automation.register_action(
     "lvgl.canvas.fill",
-    ObjUpdateAction,
+    automation.ApplyAction,
     cv.Schema(
         {
             cv.GenerateID(CONF_ID): cv.use_id(lv_canvas_t),
@@ -148,7 +148,7 @@ async def canvas_fill(config, action_id, template_arg, args):
 
 @automation.register_action(
     "lvgl.canvas.set_pixels",
-    ObjUpdateAction,
+    automation.ApplyAction,
     cv.Schema(
         {
             cv.GenerateID(CONF_ID): cv.use_id(lv_canvas_t),
@@ -286,7 +286,7 @@ def _draw_line(layer, dsc, points):
 
 @automation.register_action(
     "lvgl.canvas.draw_rectangle",
-    ObjUpdateAction,
+    automation.ApplyAction,
     cv.Schema(
         {
             **DRAW_SCHEMA,
@@ -332,7 +332,7 @@ TEXT_PROPS = {
 
 @automation.register_action(
     "lvgl.canvas.draw_text",
-    ObjUpdateAction,
+    automation.ApplyAction,
     cv.Schema(
         {
             **TEXT_SCHEMA,
@@ -402,7 +402,7 @@ def _prop_validator(prop):
 
 @automation.register_action(
     "lvgl.canvas.draw_image",
-    ObjUpdateAction,
+    automation.ApplyAction,
     cv.Schema(
         {
             **DRAW_OPA_SCHEMA,
@@ -464,7 +464,7 @@ def _validate_points(config):
 
 @automation.register_action(
     "lvgl.canvas.draw_line",
-    ObjUpdateAction,
+    automation.ApplyAction,
     cv.Schema(
         {
             cv.GenerateID(CONF_ID): cv.use_id(lv_canvas_t),
@@ -494,7 +494,7 @@ async def canvas_draw_line(config, action_id, template_arg, args):
 
 @automation.register_action(
     "lvgl.canvas.draw_polygon",
-    ObjUpdateAction,
+    automation.ApplyAction,
     cv.Schema(
         {
             cv.GenerateID(CONF_ID): cv.use_id(lv_canvas_t),
@@ -541,7 +541,7 @@ ARC_PROPS = {
 
 @automation.register_action(
     "lvgl.canvas.draw_arc",
-    ObjUpdateAction,
+    automation.ApplyAction,
     cv.Schema(
         {
             **DRAW_OPA_SCHEMA,

@@ -4,7 +4,7 @@ import sys
 from typing import Any
 
 from esphome import codegen as cg, config_validation as cv
-from esphome.automation import register_action
+from esphome.automation import ApplyAction, register_action
 from esphome.config_validation import Schema
 from esphome.const import (
     CONF_DEFAULT,
@@ -66,15 +66,7 @@ from ..lvcode import (
     lv_Pvariable,
     lvgl_static,
 )
-from ..types import (
-    LV_STATE,
-    LvCompound,
-    LvType,
-    ObjUpdateAction,
-    lv_coord_t,
-    lv_obj_t,
-    lv_obj_t_ptr,
-)
+from ..types import LV_STATE, LvCompound, LvType, lv_coord_t, lv_obj_t, lv_obj_t_ptr
 
 EVENT_LAMB = "event_lamb__"
 
@@ -156,7 +148,7 @@ class WidgetType:
 
             register_action(
                 f"lvgl.{self.name}.update",
-                ObjUpdateAction,
+                ApplyAction,
                 _update_action_schema(self),
                 synchronous=True,
             )(update_to_code)

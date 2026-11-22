@@ -1,7 +1,7 @@
 import abc
 import contextvars
 
-from esphome import codegen as cg
+from esphome import automation, codegen as cg
 from esphome.config import Config
 from esphome.core import CORE, ID, Lambda
 from esphome.cpp_generator import (
@@ -196,6 +196,28 @@ class LambdaContext(CodeContext):
         await super().__aenter__()
         add_line_marks(self.where)
         return self
+
+
+async def context_action(
+    context: LambdaContext,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: list[tuple[SafeExpType, str]],
+    lvgl_id: ID | None = None,
+) -> MockObj:
+    """An ``ApplyAction`` that runs the lambda of ``context``.
+
+    ``lvgl_id`` names the component passed to a context whose parameters are ``LVGL_COMP_ARG``.
+    """
+    lamb = await context.get_lambda()
+    if lvgl_id is None:
+        call = automation.immediate_lambda_call(lamb)
+    else:
+        lv_component = await cg.get_variable(lvgl_id)
+        call = CallExpression(lamb, automation.parent_ref(lv_component))
+    return automation.apply_statements_action(
+        action_id, template_arg, args, [f"{call};"]
+    )
 
 
 class LvContext(LambdaContext):

@@ -1,5 +1,5 @@
 from esphome import automation, codegen as cg, config_validation as cv
-from esphome.automation import Trigger, build_automation
+from esphome.automation import ApplyAction, Trigger, build_automation
 from esphome.config_validation import COMPONENT_SCHEMA
 from esphome.const import (
     CONF_ACCELERATION,
@@ -32,9 +32,9 @@ from .lv_validation import (
     lv_positive_float,
     lv_zero_to_one_float,
 )
-from .lvcode import LVGL_COMP_ARG, LambdaContext, LvglComponent, lv_add
+from .lvcode import LVGL_COMP_ARG, LambdaContext, LvglComponent, context_action, lv_add
 from .schemas import STYLE_PROPS
-from .types import LvAnimation, LvglAction, lv_color_t, lv_coord_t, lv_obj_t, lvgl_ns
+from .types import LvAnimation, lv_color_t, lv_coord_t, lv_obj_t, lvgl_ns
 from .widgets import get_widgets
 
 LvAnimationTimingRoundTrip = lvgl_ns.class_("LvAnimationTimingRoundTrip")
@@ -255,7 +255,7 @@ async def add_animation_triggers(config):
 
 @automation.register_action(
     "lvgl.animation.start",
-    LvglAction,
+    ApplyAction,
     cv.maybe_simple_value(
         {
             cv.Required(CONF_ID): cv.ensure_list(cv.use_id(LvAnimation)),
@@ -285,14 +285,14 @@ async def start_animation(config, action_id, template_arg, args):
                     anim_var.set_start_delay(await lv_milliseconds.process(start_delay))
                 )
             context.add(anim_var.start())
-    var = cg.new_Pvariable(action_id, template_arg, await context.get_lambda())
-    await cg.register_parented(var, config[CONF_LVGL_ID])
-    return var
+    return await context_action(
+        context, action_id, template_arg, args, config[CONF_LVGL_ID]
+    )
 
 
 @automation.register_action(
     "lvgl.animation.stop",
-    LvglAction,
+    ApplyAction,
     cv.maybe_simple_value(
         {
             cv.Required(CONF_ID): cv.ensure_list(cv.use_id(LvAnimation)),
@@ -308,6 +308,6 @@ async def stop_animation(config, action_id, template_arg, args):
         for animation in animations:
             anim_var = await cg.get_variable(animation)
             context.add(anim_var.stop())
-    var = cg.new_Pvariable(action_id, template_arg, await context.get_lambda())
-    await cg.register_parented(var, config[CONF_LVGL_ID])
-    return var
+    return await context_action(
+        context, action_id, template_arg, args, config[CONF_LVGL_ID]
+    )

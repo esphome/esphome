@@ -66,15 +66,7 @@ from ..lv_validation import (
 from ..lvcode import LambdaContext, LocalVariable, lv, lv_add, lv_expr, lv_obj
 from ..schemas import STATE_SCHEMA
 from ..styles import LVStyle, create_style
-from ..types import (
-    LV_EVENT,
-    LvCompound,
-    LvType,
-    ObjUpdateAction,
-    lv_event_t,
-    lv_image_t,
-    lv_obj_t,
-)
+from ..types import LV_EVENT, LvCompound, LvType, lv_event_t, lv_image_t, lv_obj_t
 from . import Widget, WidgetType, get_widgets, widget_to_code
 from .arc import CONF_ARC
 from .img import CONF_IMAGE
@@ -598,7 +590,7 @@ meter_spec = MeterType()
 
 @automation.register_action(
     "lvgl.indicator.update",
-    ObjUpdateAction,
+    automation.ApplyAction,
     cv.Schema(
         {
             cv.Required(CONF_ID): cv.use_id(lv_meter_indicator_t),
