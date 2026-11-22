@@ -13,6 +13,7 @@ from esphome.components.tflite_micro_runtime import (
     declare_model,
     final_validate,
 )
+from esphome.components.tflite_output_processor import OUTPUT_PROCESSING
 import esphome.config_validation as cv
 from esphome.const import CONF_DEBUG
 from esphome.types import ConfigType
@@ -35,13 +36,6 @@ CONF_DECODER_ID = "decoder_id"
 
 output_ns = cg.esphome_ns.namespace("tflite_output_processor")
 ClassificationDecoder = output_ns.class_("ClassificationDecoder")
-OutputProcessing = output_ns.enum("OutputProcessing", is_class=True)
-OUTPUT_PROCESSING_MODES = {
-    "argmax": OutputProcessing.OUTPUT_PROCESSING_ARGMAX,
-    "softmax": OutputProcessing.OUTPUT_PROCESSING_SOFTMAX,
-    "qat_quantized": OutputProcessing.OUTPUT_PROCESSING_QAT_QUANTIZED,
-    "auto_detect": OutputProcessing.OUTPUT_PROCESSING_AUTO_DETECT,
-}
 
 AUDIO_SCHEMA = cv.Schema(
     {
@@ -49,8 +43,8 @@ AUDIO_SCHEMA = cv.Schema(
         cv.Optional(CONF_SLIDING_WINDOW_SIZE): cv.positive_int,
         cv.Optional(CONF_FEATURES_STEP_SIZE): cv.int_range(min=0, max=30),
         cv.Optional(CONF_FEATURE_COUNT): cv.int_range(min=10, max=80),
-        cv.Optional(CONF_OUTPUT_PROCESSING, default="argmax"): cv.one_of(
-            *OUTPUT_PROCESSING_MODES, lower=True
+        cv.Optional(CONF_OUTPUT_PROCESSING, default="argmax"): cv.enum(
+            OUTPUT_PROCESSING, lower=True
         ),
         cv.Optional(CONF_SCALE_FACTOR, default=1.0): cv.float_range(min=0.1, max=100.0),
         cv.GenerateID(CONF_DECODER_ID): cv.declare_id(ClassificationDecoder),
@@ -76,7 +70,7 @@ async def configure(var, config: ConfigType, model_path: Path) -> None:
         cg.add(var.set_feature_count(count))
     decoder = cg.new_Pvariable(
         config[CONF_DECODER_ID],
-        OUTPUT_PROCESSING_MODES[config[CONF_OUTPUT_PROCESSING]],
+        config[CONF_OUTPUT_PROCESSING],
         config[CONF_SCALE_FACTOR],
         config.get(CONF_DEBUG, False),
     )
