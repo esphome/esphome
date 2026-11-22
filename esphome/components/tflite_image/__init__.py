@@ -8,6 +8,11 @@ normalization and inversion the model was trained with.
 from pathlib import Path
 
 import esphome.codegen as cg
+from esphome.components.tflite_micro_runtime import (
+    PER_MODEL_SCHEMA,
+    declare_model,
+    final_validate,
+)
 from esphome.components.tflite_model_io.model_reader import read_model_io
 import esphome.config_validation as cv
 from esphome.const import CONF_DEBUG
@@ -16,8 +21,10 @@ from esphome.types import ConfigType
 CODEOWNERS = ["@nliaudat"]
 DOMAIN = "tflite_image"
 
-# Library component: the runtime creates the pipeline from its own entry.
-CONFIG_SCHEMA = cv.Schema({})
+# The runtime is loaded for the model; only this component appears in the YAML.
+AUTO_LOAD = ["tflite_micro_runtime"]
+MULTI_CONF = True
+FINAL_VALIDATE_SCHEMA = final_validate
 
 CONF_INPUT_TYPE = "input_type"
 CONF_INPUT_CHANNELS = "input_channels"
@@ -56,6 +63,11 @@ IMAGE_SCHEMA = cv.Schema(
         cv.GenerateID(CONF_PIPELINE_ID): cv.declare_id(ImageInputPipeline),
         cv.GenerateID(CONF_DECODER_ID): cv.declare_id(ClassificationDecoder),
     }
+)
+
+CONFIG_SCHEMA = cv.All(
+    PER_MODEL_SCHEMA.extend(IMAGE_SCHEMA).extend(cv.COMPONENT_SCHEMA),
+    cv.only_on_esp32,
 )
 
 
@@ -128,3 +140,9 @@ async def configure(var, config: ConfigType, model_path: Path) -> None:
         config.get(CONF_DEBUG, False),
     )
     cg.add(var.set_output_decoder(decoder))
+
+
+async def to_code(config: ConfigType) -> None:
+    """Create the runtime helper from this entry, then the pipeline and decoder."""
+    var, model_path = await declare_model(config)
+    await configure(var, config, model_path)
