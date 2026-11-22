@@ -198,6 +198,7 @@ class DeepSleepComponent final : public Component {
   }
 
 #ifdef USE_BK72XX
+  void setup_wakeup_pins_();
   bool pin_prevents_sleep_(WakeUpPinItem &pin_item) const;
   bool get_real_pin_state_(InternalGPIOPin &pin) const { return (pin.digital_read() ^ pin.is_inverted()); }
 #endif  // USE_BK72XX

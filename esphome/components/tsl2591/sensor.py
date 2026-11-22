@@ -36,10 +36,8 @@ from esphome.const import (
     CONF_NAME,
     CONF_POWER_SAVE_MODE,
     CONF_VISIBLE,
-    DEVICE_CLASS_ILLUMINANCE,
     ICON_BRIGHTNESS_6,
     STATE_CLASS_MEASUREMENT,
-    UNIT_LUX,
 )
 from esphome.core import EnumValue
 from esphome.types import ConfigType
@@ -103,11 +101,7 @@ CONFIG_SCHEMA = (
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_CALCULATED_LUX): sensor.sensor_schema(
-                unit_of_measurement=UNIT_LUX,
-                icon=ICON_BRIGHTNESS_6,
-                accuracy_decimals=4,
-                device_class=DEVICE_CLASS_ILLUMINANCE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.ILLUMINANCE, icon=ICON_BRIGHTNESS_6, accuracy_decimals=4
             ),
             cv.Optional(CONF_ACTUAL_GAIN): sensor.sensor_schema(
                 icon=ICON_BRIGHTNESS_6,
