@@ -19,8 +19,6 @@ ESPHOME_LOG_TAG(TAG, "mcp251xfd");
 PROGMEM_STRING_TABLE(CanModeStrings, "NORMAL", "SLEEP", "LOOPBACK", "LISTENONLY", "CONFIGURATION", "EXTERNAL LOOPBACK",
                      "CLASSIC", "UNKNOWN");
 
-static const LogString *mode_str(uint8_t mode) { return CanModeStrings::get_log_str(mode, CanModeStrings::LAST_INDEX); }
-
 bool MCP251XFD::setup_internal() {
   this->spi_setup();
   return this->configure_();
@@ -99,7 +97,7 @@ void MCP251XFD::dump_config() {
                 "  Nominal Bit Timing: 0x%08" PRIX32 "\n"
                 "  Data Bit Timing: 0x%08" PRIX32 "\n"
                 "  Transmitter Delay Compensation: 0x%08" PRIX32,
-                static_cast<uint8_t>(this->mcp_clock_), LOG_STR_ARG(mode_str(static_cast<uint8_t>(this->mcp_mode_))),
+                static_cast<uint8_t>(this->mcp_clock_), LOG_STR_ARG(CanModeStrings::get_log_str(this->mcp_mode_)),
                 this->nominal_bit_timing_, this->data_bit_timing_, this->transmitter_delay_compensation_);
   LOG_PIN("  CS Pin: ", this->cs_);
   LOG_PIN("  Interrupt Pin: ", this->interrupt_pin_);
@@ -216,7 +214,7 @@ bool MCP251XFD::recover_mode_if_needed_(bool bus_off, bool retry_due) {
   if (current_mode == target_mode && requested_mode == target_mode) {
     if (this->mode_fault_active_) {
       this->mode_fault_active_ = false;
-      ESP_LOGI(TAG, "Mode %s restored", LOG_STR_ARG(mode_str(target_mode)));
+      ESP_LOGI(TAG, "Mode %s restored", LOG_STR_ARG(CanModeStrings::get_log_str(target_mode)));
     }
     return true;
   }
@@ -224,8 +222,10 @@ bool MCP251XFD::recover_mode_if_needed_(bool bus_off, bool retry_due) {
   const bool first_attempt = !this->mode_fault_active_;
   if (first_attempt) {
     this->mode_fault_active_ = true;
-    ESP_LOGW(TAG, "Unexpected mode %s, requested %s, expected %s", LOG_STR_ARG(mode_str(current_mode)),
-             LOG_STR_ARG(mode_str(requested_mode)), LOG_STR_ARG(mode_str(target_mode)));
+    ESP_LOGW(TAG, "Unexpected mode %s, requested %s, expected %s",
+             LOG_STR_ARG(CanModeStrings::get_log_str(current_mode)),
+             LOG_STR_ARG(CanModeStrings::get_log_str(requested_mode)),
+             LOG_STR_ARG(CanModeStrings::get_log_str(target_mode)));
   } else if (!retry_due) {
     // The first fault is fixed at once; the check interval spaces out later attempts.
     return true;

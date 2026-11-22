@@ -44,3 +44,23 @@ When posting results:
 - Mask IP addresses in the result URLs.
 - Cover a long password too: provision once against a network whose password is 20 characters or more (the client
   prints the length).
+
+## Improv serial scan reply over the logger UART (#22758)
+
+- `scripts/improv/improvscan.py PORT OUT [--settle S]` (on `improvcli.py`'s frame parser) sends an Improv RPC request
+  scan (command 0x04) and records each reply frame (checksum, strings, auth field bytes and length) until the
+  end-of-list reply. Opening the port resets a D1 mini and a classic ESP32 (see `reference/boards.md`), so it waits
+  30 s before sending.
+- A connected device frees its scan list, so the reply is just the end-of-list frame. Add a `wifi_info:`
+  `scan_results:` text sensor to keep the list.
+- For an auth `NO` entry you need an open network in range: run an AP-only build without a password on a second board
+  (`scripts/improv/openap32.yaml`).
+- Scan replies list the neighbours' SSIDs; filter them out of anything you post.
+
+## Log macro rewrites, A/B by log text (#22758)
+
+`scripts/log_macros/`: `lm-common.yaml` (one entity of every common platform plus `improv_serial` and `web_server`),
+`drive.py HOST OUT` (presses the exercise button, reads API sensor states and web_server JSON) and `norm.py SERIAL`
+(keeps config dump lines, `lm` lines and state lines, and replaces addresses, the device name, signal, setup times
+and per-boot values with placeholders instead of dropping the lines) so two builds' captures diff cleanly. Recent ESPHome logs sensor states and switch, light and fan calls only at VERBOSE; at
+DEBUG a log diff sees none of them, so `lm-common.yaml` logs at VERBOSE.
