@@ -19,7 +19,7 @@ from esphome.const import (
 from esphome.core import CORE
 from esphome.types import ConfigType
 
-CODEOWNERS = ["@ssieb"]
+CODEOWNERS = ["@ssieb", "@labodj"]
 DEPENDENCIES = ["uart"]
 DOMAIN = "vbus"
 MULTI_CONF = True
@@ -48,9 +48,7 @@ CONF_VBUS_ID = "vbus_id"
 CONF_ON_DATAGRAM = "on_datagram"
 CONF_TRANSMIT = "transmit"
 CONF_LEASE_DURATION = "lease_duration"
-CONF_ON_BUS_GRANT = "on_bus_grant"
 CONF_VALUE_ID = "value_id"
-CONF_GRANT_ID = "grant_id"
 CONF_EXPECT_REPLY = "expect_reply"
 CONF_TRANSACTIONS = "transactions"
 CONF_RESPONSE_TIMEOUT = "response_timeout"
@@ -106,11 +104,10 @@ def validate_transmit(config: ConfigType) -> ConfigType:
     if config[CONF_SOURCE] == config[CONF_DESTINATION]:
         raise cv.Invalid("VBus source and controller destination must differ")
     if CONF_POLLING in transactions or CONF_CONTROLLER in transactions:
-        if CONF_ON_BUS_GRANT in config:
-            raise cv.Invalid("Polling owns bus grants; remove on_bus_grant")
-        if config[CONF_LEASE_DURATION].total_milliseconds <= (
+        minimum_lease_ms = (
             140 + 3 * transactions[CONF_RESPONSE_TIMEOUT].total_milliseconds
-        ):
+        )
+        if config[CONF_LEASE_DURATION].total_milliseconds <= minimum_lease_ms:
             raise cv.Invalid(
                 "Polling lease_duration must exceed 140ms + 3 * response_timeout"
             )
@@ -223,7 +220,6 @@ TRANSMIT_SCHEMA = cv.All(
                     max=cv.TimePeriod(milliseconds=1000),
                 ),
             ),
-            cv.Optional(CONF_ON_BUS_GRANT): automation.validate_automation({}),
             cv.Optional(CONF_TRANSACTIONS): TRANSACTIONS_SCHEMA,
         }
     ),
@@ -380,6 +376,9 @@ async def to_code(config: ConfigType) -> None:
             manager = cg.new_Pvariable(transactions[CONF_ID], var, tx)
             await cg.register_component(manager, transactions)
             cg.add(var.set_transactions(manager))
+            if str(config[CONF_ID]) in _get_data().transaction_actions:
+                cg.add_define("USE_VBUS_TRANSACTION_ACTION")
+                cg.add(manager.enable_standalone())
             cg.add(manager.set_response_timeout(transactions[CONF_RESPONSE_TIMEOUT]))
             for conf in transactions.get(CONF_ON_RESULT, []):
                 await automation.build_callback_automation(
@@ -463,10 +462,8 @@ async def to_code(config: ConfigType) -> None:
                     await automation.build_callback_automation(
                         controller, "add_on_snapshot_callback", [], conf
                     )
-        for conf in transmit.get(CONF_ON_BUS_GRANT, []):
-            await automation.build_callback_automation(
-                tx, "add_on_bus_grant_callback", [(cg.uint32, "grant_id")], conf
-            )
+        if str(config[CONF_ID]) in _get_data().tx_actions:
+            cg.add_define("USE_VBUS_SEND_ACTION")
 
 
 def validate_tx_action(config: ConfigType) -> ConfigType:
@@ -475,7 +472,6 @@ def validate_tx_action(config: ConfigType) -> ConfigType:
 
 
 TX_ID_SCHEMA = cv.Schema({cv.Required(CONF_ID): cv.use_id(VBus)})
-TX_ACTION_SCHEMA = cv.All(TX_ID_SCHEMA, validate_tx_action)
 
 
 def validate_send(config: ConfigType) -> ConfigType:
@@ -492,9 +488,6 @@ def validate_send(config: ConfigType) -> ConfigType:
 SEND_SCHEMA = cv.All(
     TX_ID_SCHEMA.extend(
         {
-            cv.Required(CONF_GRANT_ID): cv.templatable(
-                cv.All(cv.uint32_t, cv.Range(min=1))
-            ),
             cv.Required(CONF_COMMAND): cv.templatable(validate_command),
             cv.Optional(CONF_VALUE_ID, default=0): cv.templatable(cv.uint16_t),
             cv.Optional(CONF_VALUE, default=0): cv.templatable(cv.uint32_t),
@@ -506,26 +499,11 @@ SEND_SCHEMA = cv.All(
 )
 
 automation.register_apply_action(
-    "vbus.request_bus", TX_ACTION_SCHEMA, automation.ApplyCall("request_bus()")
-)
-automation.register_apply_action(
-    "vbus.release_bus",
-    cv.All(
-        TX_ID_SCHEMA.extend(
-            {cv.Optional(CONF_GRANT_ID, default=0): cv.templatable(cv.uint32_t)}
-        ),
-        validate_tx_action,
-    ),
-    automation.ApplyCall("release_bus({})", ((CONF_GRANT_ID, cg.uint32),)),
-)
-
-automation.register_apply_action(
     "vbus.send_datagram",
     SEND_SCHEMA,
     automation.ApplyCall(
-        "send_datagram({}, {}, {}, {}, {})",
+        "request_datagram({}, {}, {}, {})",
         (
-            (CONF_GRANT_ID, cg.uint32),
             (CONF_COMMAND, cg.uint16),
             (CONF_VALUE_ID, cg.uint16),
             (CONF_VALUE, cg.uint32),
@@ -542,9 +520,6 @@ def validate_transaction_action(config: ConfigType) -> ConfigType:
 
 VALUE_SCHEMA = TX_ID_SCHEMA.extend(
     {
-        cv.Required(CONF_GRANT_ID): cv.templatable(
-            cv.All(cv.uint32_t, cv.Range(min=1))
-        ),
         cv.Required(CONF_VALUE_ID): cv.templatable(cv.uint16_t),
     }
 )
@@ -565,17 +540,14 @@ WRITE_VALUE_SCHEMA = cv.All(
 automation.register_apply_action(
     "vbus.read_value",
     READ_VALUE_SCHEMA,
-    automation.ApplyCall(
-        "read_value({}, {})", ((CONF_GRANT_ID, cg.uint32), (CONF_VALUE_ID, cg.uint16))
-    ),
+    automation.ApplyCall("request_read_value({})", ((CONF_VALUE_ID, cg.uint16),)),
 )
 automation.register_apply_action(
     "vbus.write_value",
     WRITE_VALUE_SCHEMA,
     automation.ApplyCall(
-        "write_value({}, {}, {}, {})",
+        "request_write_value({}, {}, {})",
         (
-            (CONF_GRANT_ID, cg.uint32),
             (CONF_VALUE_ID, cg.uint16),
             (CONF_VALUE, cg.uint32),
             (CONF_COMMAND, cg.uint16),
