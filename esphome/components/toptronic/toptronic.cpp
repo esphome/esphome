@@ -218,7 +218,7 @@ void TopTronicNumber::control(float value) {
 }
 #endif
 #ifdef USE_TEXT_SENSOR
-const char *TopTronicTextSensor::parse_value(const uint8_t *data, size_t len) {
+const char *TopTronicTextSensor::parse_value(const uint8_t *data, size_t len) const {
   if (len == 0)
     return nullptr;
   // The option list is keyed by uint8_t, so a wider value would be truncated into an unrelated

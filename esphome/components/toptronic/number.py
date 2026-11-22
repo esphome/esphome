@@ -44,7 +44,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     divider = pow(10, config[CONF_DECIMAL])
     tt = await cg.get_variable(config[CONF_TOPTRONIC_ID])
     var = await number.new_number(
