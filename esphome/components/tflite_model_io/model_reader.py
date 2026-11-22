@@ -196,7 +196,7 @@ class _FlatBuffer:
         return list(struct.unpack_from(f"<{count}i", self._data, elements))
 
     def string_field(self, table: int, field_id: int) -> str | None:
-        `"""A string field, or None when the field is absent.`"""
+        """A string field, or None when the field is absent."""
         position = self.field(table, field_id)
         if position is None:
             return None
@@ -277,7 +277,7 @@ def _operator_names(buffer: _FlatBuffer) -> list[str]:
         code = max(builtin, deprecated)
         if code == _BUILTIN_CUSTOM:
             # Each custom operator takes its own resolver slot, so keep the code.
-            custom = buffer.string_field(table, _OPCODE_CUSTOM_CODE) or `"`"
+            custom = buffer.string_field(table, _OPCODE_CUSTOM_CODE) or ""
             names.append(f"CUSTOM:{custom}")
         else:
             names.append(_operator_name(code))
