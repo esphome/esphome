@@ -130,6 +130,8 @@ void MQTTClientComponent::setup() {
     if (this->state_ != MQTT_CLIENT_DISABLED)
       this->state_ = MQTT_CLIENT_DISCONNECTED;
     this->disconnect_reason_ = static_cast<int8_t>(reason);
+    // Run the on_disconnect automations without waiting for the next loop interval
+    App.wake_loop_threadsafe();
   });
   // Always set, so a callback added after setup() still sees whether the session was kept
   this->mqtt_backend_.set_on_connect([this](bool session_present) {
