@@ -157,17 +157,21 @@ async def main() -> None:
             ndrop=ndrop[-2:],
             # notifications missed after the link dropped are not burst loss; nothing at all (no final either)
             # means the write never started a burst (wrong table, server rebooted), not 100 % proxy loss
+            # without the final notification the server's own failures are unknown, so the loss cannot be
+            # put on the proxy
             **(
                 {"result": "link_lost"}
                 if st["lost"]
                 else {"result": "no_burst"}
                 if not got and not final
+                else {"result": "no_final"}
+                if not final
                 else {}
             ),
         )
         if st["lost"]:
             break
-        if not got and not final:
+        if not final:
             continue
         clean += 1
         await asyncio.sleep(3)

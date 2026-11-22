@@ -197,7 +197,6 @@ inline void check_handle(uint8_t p) {
   static bool done[2];
   if (p > PM || done[p])
     return;
-  done[p] = true;
   // 5ec2ff01-0000-1000-8000-00805f9b34fb, least significant byte first
   esp_bt_uuid_t u{};
   u.len = ESP_UUID_LEN_128;
@@ -208,7 +207,12 @@ inline void check_handle(uint8_t p) {
   uint16_t n = 1;
   esp_gatt_status_t ret =
       esp_ble_gattc_get_char_by_uuid(C[p]->get_gattc_if(), C[p]->get_conn_id(), 1, 0xFFFF, u, &el, &n);
-  if (ret != ESP_GATT_OK || n == 0 || el.char_handle != FF01[p]) {
+  if (ret != ESP_GATT_OK) {  // a lookup error says nothing about the handle: check again on the next cold connect
+    ESP_LOGW(TAG, "ST handle_lookup_failed %s ret=%d", PNAME[p], ret);
+    return;
+  }
+  done[p] = true;
+  if (n == 0 || el.char_handle != FF01[p]) {
     bad_handle[p] = true;
     ESP_LOGW(TAG, "ST handle_mismatch %s handle_%s=%u server_ff01=%u (ret=%d): RTTs use another characteristic",
              PNAME[p], p == PL ? "l" : "m", FF01[p], n ? el.char_handle : 0, ret);
