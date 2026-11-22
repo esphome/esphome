@@ -72,7 +72,8 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
   device log. `esphome logs` from the older tree prints the CLI's version, not the firmware's, so it hides this. After
   every OTA, check the device's own `app: ESPHome version ... compiled on` line before trusting a result.
 - On modules where GPIO16 and GPIO17 are taken by the module itself (PSRAM on WROVER modules, for example), a
-  `uart:` bus on those pins boot-loops with a watchdog reset during setup. Use GPIO21 and GPIO22.
+  `uart:` bus on those pins boot-loops with a watchdog reset during setup. Use GPIO21 and GPIO22. The ESP32-PICO-D4 uses
+  GPIO16 and GPIO17 for its internal flash: never put any pin there.
 
 ## ESP32-S3, C3, C6, H2 with native USB
 
@@ -92,6 +93,9 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
   the port: hold BOOT, tap RST, keep BOOT held about 2 s, then flash with `--before no-reset`. A plain RTS hard reset
   leaves it in the loader on USB JTAG; `--after watchdog-reset` boots the app. Keep Arduino LED tests on the classic
   ESP32.
+- An S3 on ESP-IDF with `logger: hardware_uart: USB_CDC` enumerates as `303a:0009` ("ESP32-S3") with the MAC in
+  lowercase as the USB serial. After a software restart (OTA) that OTG console stays silent until a hard reset:
+  `esptool --port <port> chip_id` resets it, then capture after 4 s (the first open is sometimes still silent; retry).
 - A board left in the ROM bootloader after an upload (BOOT held, or the USB JTAG reset landing in download mode
   again) starts its app without a replug through `esptool --port <port> --after watchdog-reset chip-id`; flash a
   minimal Wi-Fi plus API image first when recovering from a crash-looping one.
