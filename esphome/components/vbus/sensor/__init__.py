@@ -1,5 +1,3 @@
-import re
-
 import esphome.codegen as cg
 from esphome.components import sensor
 import esphome.config_validation as cv
@@ -74,35 +72,47 @@ _PUMP_SPEED_SCHEMA = sensor.sensor_schema(
 )
 _OPERATING_HOURS_SCHEMA = sensor.sensor_schema(kind=sensor.DURATION_H)
 
-# Every sensor a model can have, with its schema, in the order setup() registers them.
-SENSOR_SCHEMAS = {
-    CONF_TEMPERATURE_1: _TEMPERATURE_SCHEMA,
-    CONF_TEMPERATURE_2: _TEMPERATURE_SCHEMA,
-    CONF_TEMPERATURE_3: _TEMPERATURE_SCHEMA,
-    CONF_TEMPERATURE_4: _TEMPERATURE_SCHEMA,
-    CONF_TEMPERATURE_5: _TEMPERATURE_SCHEMA,
-    CONF_PUMP_SPEED: _PUMP_SPEED_SCHEMA,
-    CONF_PUMP_SPEED_1: _PUMP_SPEED_SCHEMA,
-    CONF_PUMP_SPEED_2: _PUMP_SPEED_SCHEMA,
-    CONF_OPERATING_HOURS: _OPERATING_HOURS_SCHEMA,
-    CONF_OPERATING_HOURS_1: _OPERATING_HOURS_SCHEMA,
-    CONF_OPERATING_HOURS_2: _OPERATING_HOURS_SCHEMA,
-    CONF_HEAT_QUANTITY: sensor.sensor_schema(
-        kind=sensor.ENERGY_WH, icon=ICON_RADIATOR, accuracy_decimals=0
+# Each sensor key a model can have: (C++ setter name, schema).
+SENSORS = {
+    CONF_TEMPERATURE_1: ("temperature1", _TEMPERATURE_SCHEMA),
+    CONF_TEMPERATURE_2: ("temperature2", _TEMPERATURE_SCHEMA),
+    CONF_TEMPERATURE_3: ("temperature3", _TEMPERATURE_SCHEMA),
+    CONF_TEMPERATURE_4: ("temperature4", _TEMPERATURE_SCHEMA),
+    CONF_TEMPERATURE_5: ("temperature5", _TEMPERATURE_SCHEMA),
+    CONF_PUMP_SPEED: ("pump_speed", _PUMP_SPEED_SCHEMA),
+    CONF_PUMP_SPEED_1: ("pump_speed1", _PUMP_SPEED_SCHEMA),
+    CONF_PUMP_SPEED_2: ("pump_speed2", _PUMP_SPEED_SCHEMA),
+    CONF_OPERATING_HOURS: ("operating_hours", _OPERATING_HOURS_SCHEMA),
+    CONF_OPERATING_HOURS_1: ("operating_hours1", _OPERATING_HOURS_SCHEMA),
+    CONF_OPERATING_HOURS_2: ("operating_hours2", _OPERATING_HOURS_SCHEMA),
+    CONF_HEAT_QUANTITY: (
+        "heat_quantity",
+        sensor.sensor_schema(
+            kind=sensor.ENERGY_WH, icon=ICON_RADIATOR, accuracy_decimals=0
+        ),
     ),
-    CONF_TIME: sensor.sensor_schema(
-        kind=sensor.DURATION_MIN,
-        icon=ICON_TIMER,
-        entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+    CONF_TIME: (
+        "time",
+        sensor.sensor_schema(
+            kind=sensor.DURATION_MIN,
+            icon=ICON_TIMER,
+            entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+        ),
     ),
-    CONF_VERSION: sensor.sensor_schema(
-        accuracy_decimals=2,
-        entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+    CONF_VERSION: (
+        "version",
+        sensor.sensor_schema(
+            accuracy_decimals=2,
+            entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+        ),
     ),
-    CONF_FLOW_RATE: sensor.sensor_schema(
-        accuracy_decimals=0,
-        device_class=DEVICE_CLASS_EMPTY,
-        state_class=STATE_CLASS_MEASUREMENT,
+    CONF_FLOW_RATE: (
+        "flow_rate",
+        sensor.sensor_schema(
+            accuracy_decimals=0,
+            device_class=DEVICE_CLASS_EMPTY,
+            state_class=STATE_CLASS_MEASUREMENT,
+        ),
     ),
 }
 
@@ -111,7 +121,6 @@ _DUAL_PUMP = (
     CONF_PUMP_SPEED_2,
     CONF_OPERATING_HOURS_1,
     CONF_OPERATING_HOURS_2,
-    CONF_HEAT_QUANTITY,
 )
 _T1_T4 = (
     CONF_TEMPERATURE_1,
@@ -120,20 +129,28 @@ _T1_T4 = (
     CONF_TEMPERATURE_4,
 )
 
-# Model: (class, VBus source address, sensors). All models use command 0x0100 to 0x0010.
+# Model: (class, VBus source address, sensors in registration order).
 MODELS = {
     CONF_DELTASOL_BS_PLUS: (
         DeltaSol_BS_Plus,
         0x4221,
-        (*_T1_T4, *_DUAL_PUMP, CONF_TIME, CONF_VERSION),
+        (*_T1_T4, *_DUAL_PUMP, CONF_HEAT_QUANTITY, CONF_TIME, CONF_VERSION),
     ),
     CONF_DELTASOL_BS_2009: (
         DeltaSol_BS_2009,
         0x427B,
-        (*_T1_T4, *_DUAL_PUMP, CONF_TIME, CONF_VERSION),
+        (*_T1_T4, *_DUAL_PUMP, CONF_HEAT_QUANTITY, CONF_TIME, CONF_VERSION),
     ),
-    CONF_DELTASOL_BS2: (DeltaSol_BS2, 0x4278, (*_T1_T4, *_DUAL_PUMP, CONF_VERSION)),
-    CONF_DELTASOL_C: (DeltaSol_C, 0x4212, (*_T1_T4, *_DUAL_PUMP, CONF_TIME)),
+    CONF_DELTASOL_BS2: (
+        DeltaSol_BS2,
+        0x4278,
+        (*_T1_T4, *_DUAL_PUMP, CONF_HEAT_QUANTITY, CONF_VERSION),
+    ),
+    CONF_DELTASOL_C: (
+        DeltaSol_C,
+        0x4212,
+        (*_T1_T4, *_DUAL_PUMP, CONF_HEAT_QUANTITY, CONF_TIME),
+    ),
     CONF_DELTASOL_CS2: (
         DeltaSol_CS2,
         0x1121,
@@ -152,6 +169,7 @@ MODELS = {
             *_T1_T4,
             CONF_TEMPERATURE_5,
             *_DUAL_PUMP,
+            CONF_HEAT_QUANTITY,
             CONF_TIME,
             CONF_VERSION,
             CONF_FLOW_RATE,
@@ -164,6 +182,7 @@ MODELS = {
             *_T1_T4,
             CONF_TEMPERATURE_5,
             *_DUAL_PUMP,
+            CONF_HEAT_QUANTITY,
             CONF_TIME,
             CONF_VERSION,
             CONF_FLOW_RATE,
@@ -177,7 +196,7 @@ def _model_schema(class_: cg.MockObjClass, keys: tuple[str, ...]) -> cv.Schema:
         {
             cv.GenerateID(): cv.declare_id(class_),
             cv.GenerateID(CONF_VBUS_ID): cv.use_id(VBus),
-            **{cv.Optional(key): SENSOR_SCHEMAS[key] for key in keys},
+            **{cv.Optional(key): SENSORS[key][1] for key in keys},
         }
     )
 
@@ -222,11 +241,9 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_source(source))
         cg.add(var.set_dest(0x0010))
         for key in keys:
-            # temperature_1 -> set_temperature1_sensor
-            setter = f"set_{re.sub(r'_(\d)$', r'\1', key)}_sensor"
-            await sensors(key, getattr(var, setter))
+            await sensors(key, getattr(var, f"set_{SENSORS[key][0]}_sensor"))
 
-    elif config[CONF_MODEL] == CONF_CUSTOM:
+    else:
         cg.add_optional(var.set_command, config.get(CONF_COMMAND))
         cg.add_optional(var.set_source, config.get(CONF_SOURCE))
         cg.add_optional(var.set_dest, config.get(CONF_DEST))
