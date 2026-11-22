@@ -191,6 +191,10 @@ void log_pin(const char *tag, const __FlashStringHelper *prefix, GPIOPin *pin);
 void log_pin(const char *tag, const char *prefix, GPIOPin *pin);
 #endif
 
+/// Drive \p pin to \p level for \p width_us microseconds, then to the opposite level. A width of 0 writes the
+/// two levels back to back. Blocks for the pulse; pin must not be null.
+void pulse_pin(GPIOPin *pin, bool level, uint32_t width_us = 0);
+
 /// Waveform for pulse_reset(): high, low, then high again. Name the fields at the call site, e.g.
 /// pulse_reset(this->reset_pin_, {.high_before_ms = 1, .low_ms = 10}).
 struct ResetPulse {

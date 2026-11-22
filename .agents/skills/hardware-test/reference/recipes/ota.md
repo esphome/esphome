@@ -114,3 +114,17 @@ Results: https://github.com/esphome/esphome/pull/22398#issuecomment-6716330334
   boots the new image while curl never gets the reply (it waits 30 to 60 s). Both builds; classify, do not fail on it.
 - At OTA reboot the device does not close `/events`: a held client sees silence, rarely a FIN. Detect by idle time.
 - Max free block drops from about 45 kB to about 37 kB after the first OTA and stays (both builds).
+
+## Rollback self-test and ESP-IDF 6 TLS (#22902, #22930, #22931)
+
+- App rollback can be tested without a bad build: a `crash_major` global with `restore_value: true`, set over the API,
+  and an `on_boot` priority 700 lambda `if (id(crash_major) == ESP_IDF_VERSION_MAJOR) abort();` (priority 800 runs
+  before globals are restored). Arm it, OTA a build of the other IDF major, and the new image aborts before it is
+  marked valid, so the bootloader must go back to the old one. `esp_ota_get_bootloader_description()` reports which
+  IDF built the flashed bootloader; an OTA never replaces it.
+- ESP-IDF 6 trims SHA-384 from mbedTLS by default, so https to any server whose chain is signed with SHA-384 fails
+  verification (-0x3000 or -0x2700) unless `CONFIG_MBEDTLS_SHA384_C: y` is in `sdkconfig_options`.
+- A local TLS 1.3 test server: a threaded Python `ssl` server with `minimum_version = TLSv1_3`; for a server that
+  offers only FFDHE groups, point `OPENSSL_CONF` at a config with `Groups = ffdhe2048`.
+- Classic ESP32 boards on a busy network can lose 0 to 98 % of pings from run to run with either build while C3, C6
+  and S3 boards answer every ping; compare builds there only with both runs at the same time on two boards.

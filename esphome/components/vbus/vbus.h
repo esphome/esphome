@@ -11,6 +11,8 @@ class VBus;
 
 class VBusListener {
  public:
+  // Called from the hub's dump_config(); not dump_config() so Component children don't print twice
+  virtual void dump_child_config() {}
   void set_command(uint16_t command) { this->command_ = command; }
   void set_source(uint16_t source) { this->source_ = source; }
   void set_dest(uint16_t dest) { this->dest_ = dest; }
