@@ -196,17 +196,18 @@ DRAW_OPA_SCHEMA = {
 async def _drawn_text(text: Any) -> tuple[Any, Any]:
     """The text for a descriptor and the block that keeps it alive until the layer is drawn.
 
-    A computed text is a temporary std::string; a const reference to it keeps it alive without a copy.
+    A computed text ending in ``.c_str()`` is a temporary std::string, kept by a const reference;
+    any other computed text (``if_nan:`` picks between two) is copied into a local.
     """
     value = await lv_text.process(text)
-    if isinstance(text, str) or not str(value).endswith(".c_str()"):
+    code = str(value)
+    if isinstance(text, str) or (code.startswith('"') and code.endswith('"')):
         return value, nullcontext()
-    return None, LocalVariable(
-        "text",
-        "const std::string",
-        MockObj(str(value)[: -len(".c_str()")]),
-        modifier="&",
-    )
+    if code.endswith(".c_str()"):
+        return None, LocalVariable(
+            "text", "const std::string", MockObj(code[: -len(".c_str()")]), modifier="&"
+        )
+    return None, LocalVariable("text", "const std::string", value, modifier="")
 
 
 async def draw_to_code(config, dsc_type, props, do_draw, action_id, template_arg, args):

@@ -76,3 +76,10 @@ def test_computed_text_outlives_the_layer(main_cpp: str) -> None:
     layer = main_cpp.index("lv_canvas_init_layer(", text)
     assign = main_cpp.index("dsc_VAR_.text = text_VAR_.c_str();", layer)
     main_cpp.index("lv_canvas_finish_layer(", assign)
+
+
+def test_conditional_text_is_copied_until_the_layer_is_drawn(main_cpp: str) -> None:
+    # An if_nan text picks between a temporary's c_str() and a literal, so it is copied
+    text = main_cpp.index("const std::string text_VAR_ = (std::isfinite(")
+    layer = main_cpp.index("lv_canvas_init_layer(", text)
+    main_cpp.index("dsc_VAR_.text = text_VAR_.c_str();", layer)
