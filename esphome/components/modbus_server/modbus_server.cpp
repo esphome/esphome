@@ -5,6 +5,7 @@
 namespace esphome::modbus_server {
 using modbus::ExceptionCode;
 using modbus::helpers::registers_to_number;
+using modbus::helpers::RegisterValueType;
 
 ESPHOME_LOG_TAG(TAG, "modbus_server");
 
@@ -17,29 +18,29 @@ static constexpr uint8_t MAX_REGISTERS_PER_VALUE = 4;
 static_assert(MAX_REGISTERS_PER_VALUE == sizeof(int64_t) / sizeof(uint16_t),
               "MAX_REGISTERS_PER_VALUE must match the register span of the widest encodable value");
 
-// Calls f with a value of the C++ type that holds value_type (CPP_TYPE_REGISTER_MAP in modbus/helpers.py).
+// Calls f with a value of the C++ type that holds value_type, as registers_to_value() decodes it.
 template<typename F> static auto visit_cpp_type(SensorValueType value_type, F &&f) {
   switch (value_type) {
     case SensorValueType::S_WORD:
     case SensorValueType::S_WORD_S:
-      return f(int16_t{});
+      return f(RegisterValueType<SensorValueType::S_WORD>{});
     case SensorValueType::U_DWORD:
     case SensorValueType::U_DWORD_R:
-      return f(uint32_t{});
+      return f(RegisterValueType<SensorValueType::U_DWORD>{});
     case SensorValueType::S_DWORD:
     case SensorValueType::S_DWORD_R:
-      return f(int32_t{});
+      return f(RegisterValueType<SensorValueType::S_DWORD>{});
     case SensorValueType::U_QWORD:
     case SensorValueType::U_QWORD_R:
-      return f(uint64_t{});
+      return f(RegisterValueType<SensorValueType::U_QWORD>{});
     case SensorValueType::S_QWORD:
     case SensorValueType::S_QWORD_R:
-      return f(int64_t{});
+      return f(RegisterValueType<SensorValueType::S_QWORD>{});
     case SensorValueType::FP32:
     case SensorValueType::FP32_R:
-      return f(float{});
-    default:  // U_WORD, U_WORD_S and RAW
-      return f(uint16_t{});
+      return f(RegisterValueType<SensorValueType::FP32>{});
+    default:  // U_WORD and U_WORD_S
+      return f(RegisterValueType<SensorValueType::U_WORD>{});
   }
 }
 
