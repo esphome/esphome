@@ -859,7 +859,7 @@ void HonClimate::publish_alarm_entities_() {
             pos = buf_append_str(alarm_text, sizeof(alarm_text), pos, ", ");
           }
           if (code < HonAlarmMessages::LAST_INDEX) {
-            const auto message = reinterpret_cast<const char *>(HonAlarmMessages::get_progmem_str(code));
+            const auto *const message = reinterpret_cast<const char *>(HonAlarmMessages::get_progmem_str(code));
             required_pos += ESPHOME_strlen_P(message);
             pos = buf_append_str_p(alarm_text, sizeof(alarm_text), pos, message);
           } else {
