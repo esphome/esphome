@@ -44,6 +44,12 @@ script:
     then:
       - delay: !lambda 'return id(race_delay);'
       - lambda: |-
+          // the race action's timeout may have disarmed it during the delay
+          if (id(race_delay) < 0) {
+            id(race_down) = false;
+            ESP_LOGW("hwt", "HWT race disarmed during its delay, nothing done");
+            return;
+          }
           // a link_drop still running would power the PHY up in the middle of this race: keep it armed
           id(race_down) = !id(link_drop).is_running() && hwt_phy_power(false);
           if (id(race_down)) {

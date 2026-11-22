@@ -26,17 +26,26 @@ logger:
                 wifi::global_wifi_component->disable();
                 id(race_reenable).execute();
               } else {
-                id(race_fire).execute();
+                id(race_fire).execute(id(race_mode));
               }
             }
 script:
   - id: race_fire
     mode: single
+    parameters:
+      mode: int  # the armed mode when the restart was logged; the arm can be cleared during the delay
     then:
       - delay: !lambda 'return id(race_delay);'
       - if:
           condition:
-            lambda: 'return id(race_mode) == 2;'
+            lambda: 'return id(race_mode) == 0;'
+          then:
+            - logger.log:
+                format: "HWT race disarmed during its delay, nothing done"
+                level: WARN
+      - if:
+          condition:
+            lambda: 'return id(race_mode) != 0 && mode == 2;'
           then:
             - lambda: |-
                 id(race_mode) = 0;
@@ -45,7 +54,10 @@ script:
                 global_preferences->sync();
                 ESP_LOGI("hwt", "HWT race reboot after %d ms", id(race_delay));
                 App.safe_reboot();
-          else:
+      - if:
+          condition:
+            lambda: 'return id(race_mode) != 0 && mode != 2;'
+          then:
             - lambda: |-
                 // wifi_drop is mode single: a drop still running would swallow this one, so the arm stays
                 // set and the race counts as not fired

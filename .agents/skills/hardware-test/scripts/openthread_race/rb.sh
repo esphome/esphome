@@ -11,14 +11,18 @@ else KEY=; src="none, plaintext API"; fi
 [ "$src" = "none, plaintext API" ] || [ -n "$KEY" ] || { echo "rb.sh: $src is empty" >&2; exit 1; }
 echo "rb.sh: API key from $src" >&2
 # GNU timeout when installed, else a perl alarm (stock macOS has no timeout)
-bound() { local t=$1; shift; if command -v timeout >/dev/null; then timeout "$t" "$@"; else perl -e 'alarm shift; exec @ARGV' "$t" "$@"; fi; }
+bound() {
+  local t=$1; shift
+  if command -v timeout > /dev/null; then timeout "$t" "$@"; else perl -e 'alarm shift; exec @ARGV' "$t" "$@"; fi
+}
 PY=${PY:-python3}
 IP=$("$D/../resolve.sh" "$N" 20) || exit 1
 for i in $(seq 1 "$C"); do
   t0=$(date +%s)
   if ! $PY "$D/../api_button.py" "$IP" "${KEY:--}" press Restart > /dev/null 2>&1; then
     echo "$(date +%T) cycle $i press failed" >> "$O"
-    IP=$("$D/../resolve.sh" "$N" 20) || exit 1
+    IP=$("$D/../resolve.sh" "$N" 20) ||
+      { echo "$(date +%T) $N did not resolve, aborted at cycle $i/$C" >> "$O"; exit 1; }
     continue
   fi
   sleep 8
