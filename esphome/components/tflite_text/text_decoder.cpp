@@ -16,7 +16,7 @@ bool TextDecoder::decode(TfLiteTensor *const *outputs, size_t count) {
     return false;
   }
   TfLiteTensor *tensor = outputs[0];
-  if (tensor->dims == nullptr || tensor->dims->size != 2) {
+  if (tensor->dims == nullptr || tensor->dims->size != 2 || tensor->dims->data[0] != 1) {
     ESP_LOGE(TAG, "The output tensor is not [1, C]");
     return false;
   }
@@ -35,6 +35,7 @@ bool TextDecoder::decode(TfLiteTensor *const *outputs, size_t count) {
     return true;
   }
   this->position_ = false;
+  // The tensor holds logits, so the winning entry is not a probability: softmax it.
   float best = -INFINITY;
   for (int index = 0; index < classes; index++) {
     float value;
@@ -45,7 +46,14 @@ bool TextDecoder::decode(TfLiteTensor *const *outputs, size_t count) {
       this->class_id_ = index;
     }
   }
-  this->confidence_ = best;
+  float sum = 0.0f;
+  for (int index = 0; index < classes; index++) {
+    float value;
+    if (!tflite_output_processor::read_tensor_value(tensor, index, &value))
+      return false;
+    sum += expf(value - best);
+  }
+  this->confidence_ = sum > 0.0f ? 1.0f / sum : 0.0f;
   return true;
 }
 
