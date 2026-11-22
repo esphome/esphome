@@ -7,7 +7,14 @@ from benchres import FILES, load
 
 
 def rtf(path: str) -> dict[str, list[float]]:
-    return {f: [float(m[5]) for m in ms] for f, ms in load(path).items()}
+    """Real-time factors of the runs without a decode error."""
+    out = {}
+    for f, ms in load(path).items():
+        if bad := sum(m[7] != "0" for m in ms):
+            print(f"  {path} {f}: {bad} runs with err, left out")
+        if ok := [float(m[5]) for m in ms if m[7] == "0"]:
+            out[f] = ok
+    return out
 
 
 a, b = rtf(sys.argv[1]), rtf(sys.argv[2])

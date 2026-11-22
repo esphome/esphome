@@ -15,15 +15,17 @@ CP=$!
 for _ in $(seq 1 30); do grep -q "\[" "cap-$N.txt" 2>/dev/null && break; sleep 2; done
 grep -a -m1 "ESPHome version\|Project" "cap-$N.txt"
 if [ "$FLOW" = yes ]; then
-  $PY run.py "$H" "${BASEURL:?set BASEURL}" "$N" > "drive-$N.txt" 2>&1
+  $PY run.py "$H" "${BASEURL:?set BASEURL}" "$N" > "drive-$N.txt" 2>&1 || { kill $CP; echo "FAIL $N run.py"; exit 1; }
   sleep 3
 fi
 for _ in $(seq 1 "${PRESSES:-1}"); do
   B=$(grep -c BENCHDONE "cap-$N.txt")
-  $PY ../api_button.py "$H" "${API_KEY:--}" press "Flac Bench" >> "press-$N.txt" 2>&1
+  $PY ../api_button.py "$H" "${API_KEY:--}" press "Flac Bench" >> "press-$N.txt" 2>&1 \
+    || { kill $CP; echo "FAIL $N press"; exit 1; }
   for _ in $(seq 1 60); do
     C=$(grep -c BENCHDONE "cap-$N.txt"); [ "${C:-0}" -gt "${B:-0}" ] && break; sleep 2
   done
+  [ "${C:-0}" -gt "${B:-0}" ] || { kill $CP; echo "FAIL $N no BENCHDONE"; exit 1; }
 done
 sleep 2
 kill $CP

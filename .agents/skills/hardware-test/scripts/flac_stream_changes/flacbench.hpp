@@ -56,6 +56,8 @@ static void run_one(const File &f, int round) {
   uint8_t *out = alloc.allocate(out_cap);
   if (in == nullptr || out == nullptr) {
     ESP_LOGE(TAG, "alloc failed");
+    alloc.deallocate(in, IN_CAP);
+    alloc.deallocate(out, out_cap);
     return;
   }
   size_t dram0 = heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
@@ -67,9 +69,9 @@ static void run_one(const File &f, int round) {
   uint32_t h = 2166136261u, bps = 0, ch = 0, rate = 0;
   uint64_t samples = 0, dec_us = 0;
   int64_t wall0 = esp_timer_get_time();
-  bool decode_error = false;
+  bool decode_error = false, stalled = false;
   while (true) {
-    if (in_off > 0 && in_len - in_off < IN_CAP / 2) {  // refill like a transfer buffer
+    if (in_off > 0 && (stalled || in_len - in_off < IN_CAP / 2)) {  // refill like a transfer buffer
       memmove(in, in + in_off, in_len - in_off);
       in_len -= in_off;
       in_off = 0;
@@ -80,6 +82,7 @@ static void run_one(const File &f, int round) {
       src += n;
       in_len += n;
     }
+    stalled = false;
     size_t consumed = 0, decoded = 0;
     int64_t t0 = esp_timer_get_time();
     auto r = dec->decode(in + in_off, in_len - in_off, out, out_cap, consumed, decoded);
@@ -95,11 +98,13 @@ static void run_one(const File &f, int round) {
       ch = info.num_channels();
       rate = info.sample_rate();
       out_cap = dec->get_output_buffer_size_samples() * info.bytes_per_sample();
-      out = alloc.reallocate(out, out_cap);
-      if (out == nullptr) {
+      uint8_t *grown = alloc.reallocate(out, out_cap);
+      if (grown == nullptr) {
         ESP_LOGE(TAG, "out realloc failed");
+        decode_error = true;
         break;
       }
+      out = grown;
       in_off += consumed;
     } else if (r == micro_flac::FLAC_DECODER_END_OF_STREAM) {
       break;
@@ -107,6 +112,15 @@ static void run_one(const File &f, int round) {
       in_off += consumed;
       if (src == f.end && in_off >= in_len)
         break;
+      if (consumed == 0) {
+        // no progress: a truncated tail or a frame bigger than the input buffer would loop forever
+        if (src == f.end || in_len - in_off == IN_CAP) {
+          decode_error = true;
+          ESP_LOGE(TAG, "%s stuck on NEED_MORE_DATA", f.name);
+          break;
+        }
+        stalled = true;
+      }
     } else {
       decode_error = true;
       ESP_LOGE(TAG, "%s decode error %d", f.name, (int) r);
@@ -150,6 +164,9 @@ static void start(int rounds) {
     return;
   running = true;
   rounds_req = rounds;
-  xTaskCreatePinnedToCore(task, "flacbench", 8192, nullptr, 5, nullptr, 1);
+  if (xTaskCreatePinnedToCore(task, "flacbench", 8192, nullptr, 5, nullptr, 1) != pdPASS) {
+    ESP_LOGE(TAG, "task create failed");
+    running = false;
+  }
 }
 }  // namespace flacbench
