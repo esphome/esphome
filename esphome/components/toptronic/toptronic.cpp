@@ -49,14 +49,11 @@ TopTronic::TopTronic(canbus::Canbus *canbus, uint16_t device_id) : canbus_(canbu
   });
 }
 
-uint32_t TopTronicBase::get_id() {
+uint32_t TopTronicBase::get_id() const {
   return this->function_group_ + (this->function_number_ << 8) + (static_cast<uint32_t>(this->datapoint_) << 16);
 }
 void TopTronicBase::cache_request_data() {
   this->request_data_ = build_get_request(this->function_group_, this->function_number_, this->datapoint_);
-}
-void TopTronicBase::add_on_update_callback(std::function<void()> &&callback) {
-  this->update_callback_.add(std::move(callback));
 }
 void TopTronicBase::update() { this->update_callback_.call(); }
 
@@ -69,35 +66,35 @@ template<typename T> T bytes_to_number(const uint8_t *data, size_t len) {
 
 float TopTronicSensor::parse_value(const uint8_t *data, size_t len) {
   switch (this->type_) {
-    case U8:
+    case TypeName::TYPE_NAME_U8:
       return (float) bytes_to_number<uint8_t>(data, len);
-    case U16:
+    case TypeName::TYPE_NAME_U16:
       return (float) bytes_to_number<uint16_t>(data, len);
-    case U32:
+    case TypeName::TYPE_NAME_U32:
       return (float) bytes_to_number<uint32_t>(data, len);
-    case S8:
+    case TypeName::TYPE_NAME_S8:
       return (float) bytes_to_number<int8_t>(data, len);
-    case S16:
+    case TypeName::TYPE_NAME_S16:
       return (float) bytes_to_number<int16_t>(data, len);
-    case S32:
+    case TypeName::TYPE_NAME_S32:
       return (float) bytes_to_number<int32_t>(data, len);
-    case S64:
+    case TypeName::TYPE_NAME_S64:
       return (float) bytes_to_number<int64_t>(data, len);
   }
   return 0.0f;
 }
 size_t TopTronicSensor::value_width() const {
   switch (this->type_) {
-    case U8:
-    case S8:
+    case TypeName::TYPE_NAME_U8:
+    case TypeName::TYPE_NAME_S8:
       return 1;
-    case U16:
-    case S16:
+    case TypeName::TYPE_NAME_U16:
+    case TypeName::TYPE_NAME_S16:
       return 2;
-    case U32:
-    case S32:
+    case TypeName::TYPE_NAME_U32:
+    case TypeName::TYPE_NAME_S32:
       return 4;
-    case S64:
+    case TypeName::TYPE_NAME_S64:
       return 8;
   }
   return 1;
@@ -218,7 +215,7 @@ void TopTronic::interpret_message_(const uint8_t *data, size_t len) {
   TopTronicBase *sensor_base = sensor_it->second;
   const size_t value_len = len - value_off;
   size_t required_value_len = 1;
-  if (sensor_base->type() == SENSOR)
+  if (sensor_base->type() == SensorType::SENSOR_TYPE_SENSOR)
     required_value_len = static_cast<TopTronicSensor *>(sensor_base)->value_width();
   if (value_len < required_value_len)
     return;

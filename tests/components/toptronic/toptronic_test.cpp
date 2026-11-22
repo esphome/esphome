@@ -203,7 +203,7 @@ TEST_F(TopTronicTest, ResponsePublishesToTheMatchingSensor) {
   sensor.set_function_group(0x01);
   sensor.set_function_number(0x02);
   sensor.set_datapoint(0x9ECB);
-  sensor.set_type(U16);
+  sensor.set_type(TypeName::TYPE_NAME_U16);
   this->hub_.add_sensor(&sensor);
   // Another datapoint is ignored
   this->hub_.interpret({0x42, 0x01, 0x02, 0x00, 0x10, 0x12, 0x34});
@@ -223,7 +223,7 @@ TEST_F(TopTronicTest, UpdateSendsGetRequestFromTheGateway) {
   sensor.set_function_group(50);
   sensor.set_function_number(0);
   sensor.set_datapoint(40651);
-  sensor.set_type(U8);
+  sensor.set_type(TypeName::TYPE_NAME_U8);
   this->hub_.add_sensor(&sensor);
   this->hub_.register_sensor_callbacks();
   sensor.update();
@@ -247,7 +247,7 @@ TEST_F(TopTronicTest, GatewaySenderIdKeepsTheHubAddress) {
     sensor->set_function_group(50);
     sensor->set_function_number(0);
     sensor->set_datapoint(40651);
-    sensor->set_type(U8);
+    sensor->set_type(TypeName::TYPE_NAME_U8);
   }
   hub_a.add_sensor(&sensor_a);
   hub_a.register_sensor_callbacks();

@@ -7,13 +7,24 @@
 
 #include <array>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 namespace esphome::toptronic {
 
 class TopTronic;
-enum TypeName { U8, U16, U32, S8, S16, S32, S64 };  // value encoding of a datapoint
-enum SensorType { SENSOR };                         // downcast discriminator (no dynamic_cast in ESPHome builds)
+// Value encoding of a datapoint
+enum class TypeName : uint8_t {
+  TYPE_NAME_U8,
+  TYPE_NAME_U16,
+  TYPE_NAME_U32,
+  TYPE_NAME_S8,
+  TYPE_NAME_S16,
+  TYPE_NAME_S32,
+  TYPE_NAME_S64,
+};
+// Downcast discriminator; ESPHome builds run without RTTI, so there is no dynamic_cast
+enum class SensorType : uint8_t { SENSOR_TYPE_SENSOR };
 
 static constexpr size_t GET_REQUEST_LEN = 6;
 using GetRequest = std::array<uint8_t, GET_REQUEST_LEN>;
@@ -24,12 +35,14 @@ class TopTronicBase : public PollingComponent {
   void set_function_group(uint8_t function_group) { this->function_group_ = function_group; }
   void set_function_number(uint8_t function_number) { this->function_number_ = function_number; }
   void set_datapoint(uint16_t datapoint) { this->datapoint_ = datapoint; }
-  uint32_t get_id();  // fg | fn << 8 | datapoint << 16; hub map key
+  uint32_t get_id() const;  // fg | fn << 8 | datapoint << 16; hub map key
   const GetRequest &get_request_data() const { return this->request_data_; }
   void cache_request_data();
-  virtual SensorType type() = 0;
+  virtual SensorType type() const = 0;
   void update() override;
-  void add_on_update_callback(std::function<void()> &&callback);
+  template<typename F> void add_on_update_callback(F &&callback) {
+    this->update_callback_.add(std::forward<F>(callback));
+  }
   virtual const LogString *get_log_name() const = 0;
 
  protected:
@@ -40,12 +53,12 @@ class TopTronicBase : public PollingComponent {
   CallbackManager<void()> update_callback_;
 };
 
-class TopTronicSensor : public sensor::Sensor, public TopTronicBase {
+class TopTronicSensor final : public sensor::Sensor, public TopTronicBase {
  public:
   void set_type(TypeName type) { this->type_ = type; }
   float parse_value(const uint8_t *data, size_t len);
   size_t value_width() const;
-  SensorType type() override { return SENSOR; }
+  SensorType type() const override { return SensorType::SENSOR_TYPE_SENSOR; }
   const LogString *get_log_name() const override { return this->sensor::Sensor::get_log_name(); }
 
  protected:
