@@ -136,6 +136,44 @@ TEST_F(UnformattedLoggerTest, WorkerThreadLineGoesThroughTaskBuffer) {
   EXPECT_NE(this->lines_[0].message.find("from a worker"), std::string::npos) << this->lines_[0].message;
 #endif
 }
+
+#ifdef USE_ESPHOME_TASK_LOG_BUFFER
+TEST_F(UnformattedLoggerTest, PowerdownPrintsWorkerLinesTheLoopNeverReached) {
+  this->logger_.create_pthread_key();
+  std::thread worker([]() { esp_log_str_(ESPHOME_LOG_LEVEL_INFO, PLAIN_TAG, 7, "before reboot"); });
+  worker.join();
+  this->logger_.on_powerdown();
+  ASSERT_EQ(this->lines_.size(), 1u);
+  EXPECT_NE(this->lines_[0].message.find("before reboot"), std::string::npos) << this->lines_[0].message;
+}
+
+struct PowerdownListener {
+  Logger *logger;
+  int calls{0};
+};
+
+// A listener that restarts the device, as an on_message automation calling restart does
+static void powerdown_from_listener(void *instance, uint8_t level, const char *tag, const char *message, size_t len) {
+  auto *listener = static_cast<PowerdownListener *>(instance);
+  if (++listener->calls == 1)
+    listener->logger->on_powerdown();
+}
+
+TEST(PowerdownListenerTest, PowerdownFromAListenerDoesNotDeliverTheLineAgain) {
+  Logger *previous = global_logger;
+  Logger logger{0};
+  logger.pre_setup();
+  logger.set_log_level(ESPHOME_LOG_LEVEL_DEBUG);
+  PowerdownListener listener{&logger};
+  logger.add_log_callback(&listener, powerdown_from_listener);
+  logger.create_pthread_key();
+  std::thread worker([]() { esp_log_str_(ESPHOME_LOG_LEVEL_INFO, PLAIN_TAG, 7, "restart now"); });
+  worker.join();
+  logger.loop();
+  EXPECT_EQ(listener.calls, 1);
+  global_logger = previous;
+}
+#endif
 #endif  // USE_HOST
 
 }  // namespace esphome::logger::testing
