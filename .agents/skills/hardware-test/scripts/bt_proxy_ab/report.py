@@ -49,8 +49,9 @@ for t, ln in lines:
             "x3e": 0,
         }
         att.append(cur[m[1]])
+    # the address is in the line on dev and not with the Bluedroid proxy backend
     elif m := re.search(
-        r"\]: \[(\d)\] \[[0-9A-F:]{17}\] Connection open(?! error)", ln
+        r"\]: \[(\d)\] (?:\[[0-9A-F:]{17}\] )?Connection open(?! error| failed)", ln
     ):
         if (a := cur.get(m[1])) and "t_open" not in a:
             a["t_open"] = t
@@ -63,7 +64,7 @@ for t, ln in lines:
             if a["sfx"] == m[1]:
                 a.setdefault("upd", []).append(int(m[3]))
     elif m := re.search(
-        r"\]: \[(\d)\] \[[0-9A-F:]{17}\] Service discovery complete", ln
+        r"\]: \[(\d)\] (?:\[[0-9A-F:]{17}\] )?Service discovery complete", ln
     ):
         if (a := cur.get(m[1])) and "t_disc" not in a:
             a["t_disc"] = t
@@ -73,7 +74,8 @@ for t, ln in lines:
         if a := cur.pop(m[1], None):
             a["end"], a["t_end"] = m[2], t
     elif m := re.search(
-        r"\]: \[(\d)\] \[[0-9A-F:]{17}\] Connection open error, status=(\d+)", ln
+        r"\]: \[(\d)\] (?:\[[0-9A-F:]{17}\] )?Connection open (?:error|failed), status=(\d+)",
+        ln,
     ):
         if a := cur.get(m[1]):
             a["fail"] = int(m[2])
