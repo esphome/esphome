@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 
+import importlib
 from pathlib import Path
 import re
+import sys
 
 # pylint: disable=import-error
 from homeassistant.components.binary_sensor import BinarySensorDeviceClass
@@ -15,6 +17,8 @@ from homeassistant.components.update import UpdateDeviceClass
 from homeassistant.components.valve import ValveDeviceClass
 
 # pylint: enable=import-error
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 BLOCKLIST = (
     # requires special support on HA side
@@ -77,6 +81,10 @@ def main():
             out,
             2,
         )
+
+    # A bad rewrite can still be valid Python that prek accepts; importing the modules catches it
+    for domain in DOMAINS:
+        importlib.import_module(f"esphome.components.{domain}")
 
 
 if __name__ == "__main__":
