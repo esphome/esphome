@@ -291,9 +291,8 @@ void MQGasSensor::update() {
     // (clamped at zero like the reading path); evaluating the curve at 0 would
     // report the wrong end when a correction offset is configured.
     const float rail_ratio = std::max(this->correction_factor_, 0.0f);
-    const float saturation_ppm = this->ratio_mode_ == RatioMode::RATIO_R0_RS
-                                     ? mqmath::ppm_at_infinity(this->a_, this->b_, this->regression_method_)
-                                     : mqmath::ppm_from_ratio(this->a_, this->b_, rail_ratio, this->regression_method_);
+    const float saturation_ppm =
+        mqmath::rail_ppm(this->a_, this->b_, this->regression_method_, this->ratio_mode_, this->correction_factor_);
     this->rs_ = 0.0f;
     // In r0_rs mode R0/RS grows without bound when RS reaches zero, so there is no
     // finite ratio to report; the PPM above uses the curve's limit at that end.

@@ -12,6 +12,7 @@ using mqmath::clamp_ppm;
 using mqmath::ppm_from_ratio;
 using mqmath::r0_from_clean_air;
 using mqmath::ratio_from_rs;
+using mqmath::rail_ppm;
 using mqmath::rs_from_voltage;
 
 // A fixture of the built-in table: independent copies, so a change in
