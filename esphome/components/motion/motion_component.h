@@ -4,8 +4,10 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
+#include <algorithm>
 #include <array>
 #include <cmath>
+#include <iterator>
 #include <numbers>  // required for generated lambda code
 
 namespace esphome::motion {
@@ -13,8 +15,13 @@ namespace esphome::motion {
 // ---Data class
 
 struct MotionData {
-  float acceleration[3]{NAN, NAN, NAN};
-  float angular_rate[3]{NAN, NAN, NAN};
+  // Filled in the constructor: initialized arrays are copied from a constant, which is RAM on ESP8266
+  MotionData() {
+    std::fill(std::begin(this->acceleration), std::end(this->acceleration), NAN);
+    std::fill(std::begin(this->angular_rate), std::end(this->angular_rate), NAN);
+  }
+  float acceleration[3];
+  float angular_rate[3];
   // TODO - compass
 };
 
@@ -61,6 +68,11 @@ struct CalibrationPref {
 // Main component class
 class MotionComponent : public PollingComponent {
  public:
+  MotionComponent() {
+    MotionComponent::set_identity(this->matrix_);
+    MotionComponent::set_identity(this->base_matrix_);
+  }
+
   // Lifecycle
   void setup() override;
   void update() override;
@@ -110,14 +122,16 @@ class MotionComponent : public PollingComponent {
 #endif
 
   // for mapping axes
-  float matrix_[9]{
-      1, 0, 0, 0, 1, 0, 0, 0, 1,
-  };
+  // In code: a braced identity initializer is copied from a RAM constant on ESP8266
+  static void set_identity(float m[9]) {
+    for (uint8_t i = 0; i < 9; i++)
+      m[i] = i % 4 == 0 ? 1.0f : 0.0f;
+  }
+
+  float matrix_[9];
   // build-time base (axis_map / transform_matrix); used to detect config changes
   // and to restore on clear_calibration().
-  float base_matrix_[9]{
-      1, 0, 0, 0, 1, 0, 0, 0, 1,
-  };
+  float base_matrix_[9];
 
   void map_axes_(float output[3], const float input[3]) const {
     output[0] = input[X_AXIS] * this->matrix_[0] + input[Y_AXIS] * this->matrix_[1] + input[Z_AXIS] * this->matrix_[2];

@@ -6,10 +6,8 @@ namespace esphome::tlc5971 {
 ESPHOME_LOG_TAG(TAG, "tlc5971");
 
 void TLC5971::setup() {
-  this->data_pin_->setup();
-  this->data_pin_->digital_write(true);
-  this->clock_pin_->setup();
-  this->clock_pin_->digital_write(true);
+  setup_output_pin(this->data_pin_, true);
+  setup_output_pin(this->clock_pin_, true);
 }
 void TLC5971::dump_config() {
   ESP_LOGCONFIG(TAG,
@@ -73,8 +71,7 @@ void TLC5971::transfer_(uint8_t send) {
       lastmosi = towrite;
     }
 
-    this->clock_pin_->digital_write(true);
-    this->clock_pin_->digital_write(false);
+    pulse_pin(this->clock_pin_, true);
   }
 }
 void TLC5971::set_channel_value(uint16_t channel, uint16_t value) {

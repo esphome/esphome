@@ -29,8 +29,7 @@ static constexpr uint32_t RESET_SETTLE_MS = 5 + 50 + 1;
 
 void GT911Touchscreen::setup() {
   if (this->reset_pin_ != nullptr) {
-    this->reset_pin_->setup();
-    this->reset_pin_->digital_write(false);
+    setup_output_pin(this->reset_pin_, false);
     if (this->interrupt_pin_ != nullptr) {
       this->interrupt_pin_->setup();
       this->interrupt_pin_->pin_mode(gpio::FLAG_OUTPUT);

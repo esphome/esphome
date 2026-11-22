@@ -1,0 +1,239 @@
+# ESP-NOW packet_interface link test (esphome#21120), shared part. No Wi-Fi; espnow on a fixed channel.
+# Links per device:
+#   p2p    : peer_address = the other board, xxtea + hdlc reliability + session + fragmentation, entity_transport et_p2p
+#   bc     : broadcast, addressing (address ${my_addr}) with two ports:
+#              bc_rel : destination ${peer_addr}, xxtea with rolling code + reliability + session + fragmentation (et_bcrel)
+#              bc_all : destination broadcast, no layers (et_bcall, small dictionary)
+#   raw    : broadcast, no layers, max_packet_size ${raw_max}; size sweep with magic, seq and checked payload
+# substitutions: name, peer (peer's name), peer_mac, my_addr, peer_addr, raw_max, payload_max, long_id
+esphome:
+  name: ${name}
+  includes:
+    - entest.hpp
+  on_boot:
+    - priority: 600
+      then:
+        - lambda: |-
+            entest::RAW.listen(id(raw));
+            entest::P2P.listen(id(p2p)->top());
+            entest::BCR.listen(id(bc_rel)->top());
+    - priority: -100
+      then:
+        - delay: 20s
+        - lambda: |-
+            bool r = entest::RAW.send(id(raw), ${raw_max} + 1);
+            ESP_LOGI("raw", "OVERSEND %u byte send returned %d", (unsigned) (${raw_max} + 1), r);
+        - if:
+            condition:
+              lambda: return ${chaos};
+            then:
+              - delay: 60s
+              - logger.log: "CHAOS short start"
+              - espnow.set_channel: 6
+              - delay: 3s
+              - espnow.set_channel: 1
+              - logger.log: "CHAOS short end"
+              - delay: 80s
+              - logger.log: "CHAOS long start"
+              - espnow.set_channel: 6
+              - delay: 15s
+              - espnow.set_channel: 1
+              - logger.log: "CHAOS long end"
+
+logger:
+  level: DEBUG
+  baud_rate: 115200
+
+espnow:
+  id: espnow_c
+  channel: 1
+  max_payload_size: ${payload_max}
+
+globals:
+  - {id: counter, type: int, initial_value: "0"}
+
+packet_interface:
+  - platform: espnow
+    id: p2p
+    peer_address: ${peer_mac}
+    encryption: p2p key 21120
+    reliability:
+      timeout: 300ms
+      max_retries: 20
+      max_queue_length: 6
+    session:
+      keep_alive: 2s
+      timeout: 8s
+      binary_sensor:
+        id: p2p_sess
+        on_state:
+          - logger.log: {format: "SESS p2p %d", args: ["x ? 1 : 0"]}
+    fragmentation:
+      max_packet_size: 1024
+  - platform: espnow
+    id: bc
+    addressing:
+      address: ${my_addr}
+      peers:
+        - id: bc_rel
+          destination: ${peer_addr}
+          encryption:
+            key: bc key 21120
+            rolling_code_enable: true
+          reliability:
+            timeout: 300ms
+            max_retries: 20
+            max_queue_length: 6
+          session:
+            keep_alive: 2s
+            timeout: 8s
+            binary_sensor:
+              id: bcrel_sess
+              on_state:
+                - logger.log: {format: "SESS bc_rel %d", args: ["x ? 1 : 0"]}
+          fragmentation:
+            max_packet_size: 1024
+        - id: bc_all
+          destination: broadcast
+  - platform: espnow
+    id: raw
+    max_packet_size: ${raw_max}
+  # hears every broadcast; larger ones must be dropped with a warning at most once a minute
+  - platform: espnow
+    id: raw_small
+    max_packet_size: 100
+
+interval:
+  - interval: 1s
+    then:
+      - lambda: id(counter)++;
+  - interval: 500ms
+    then:
+      - lambda: |-
+          static const uint16_t SIZES[] = {${sizes}};
+          static const uint16_t RSIZES[] = {12, 200, 600};
+          entest::RAW.send(id(raw), SIZES[entest::RAW.idx++ % (sizeof(SIZES) / sizeof(SIZES[0]))]);
+          entest::P2P.send(id(p2p)->top(), RSIZES[entest::P2P.idx++ % 3]);
+          entest::BCR.send(id(bc_rel)->top(), RSIZES[entest::BCR.idx++ % 3]);
+  - interval: 10s
+    then:
+      - lambda: |-
+          entest::RAW.log();
+          entest::P2P.log();
+          entest::BCR.log();
+          ESP_LOGI("stat", "STAT cnt=%d sess=%d/%d", id(counter), id(p2p_sess).state, id(bcrel_sess).state);
+
+sensor:
+  - platform: template
+    id: cnt
+    lambda: return id(counter);
+    update_interval: 1s
+  - platform: template
+    id: flt
+    lambda: |-
+      int t = id(counter);
+      return 12345.678f + t * 0.001f - (t % 7) * 1000.5f;
+    update_interval: 1s
+    accuracy_decimals: 3
+  - platform: template
+    id: longa
+    lambda: return id(counter) * 0.5f;
+    update_interval: 5s
+  # p2p
+  - platform: entity_transport
+    id: rx1
+    entity_transport_id: et_p2p
+    provider: ${peer}
+    remote_id: cnt
+    on_value: [logger.log: {format: "ETRX p2p cnt=%.0f", args: [x]}]
+  - platform: entity_transport
+    id: rx2
+    entity_transport_id: et_p2p
+    provider: ${peer}
+    remote_id: flt
+    on_value: [logger.log: {format: "ETRX p2p flt=%.3f", args: [x]}]
+  - platform: entity_transport
+    id: rx3
+    entity_transport_id: et_p2p
+    provider: ${peer}
+    remote_id: ${long_id}8
+    on_value: [logger.log: {format: "ETRX p2p long=%.1f", args: [x]}]
+  # bc_rel
+  - platform: entity_transport
+    id: rx4
+    entity_transport_id: et_bcrel
+    provider: ${peer}
+    remote_id: cnt
+    on_value: [logger.log: {format: "ETRX bcrel cnt=%.0f", args: [x]}]
+  - platform: entity_transport
+    id: rx5
+    entity_transport_id: et_bcrel
+    provider: ${peer}
+    remote_id: flt
+    on_value: [logger.log: {format: "ETRX bcrel flt=%.3f", args: [x]}]
+  - platform: entity_transport
+    id: rx6
+    entity_transport_id: et_bcrel
+    provider: ${peer}
+    remote_id: ${long_id}8
+    on_value: [logger.log: {format: "ETRX bcrel long=%.1f", args: [x]}]
+  # bc_all
+  - platform: entity_transport
+    id: rx7
+    entity_transport_id: et_bcall
+    provider: ${peer}
+    remote_id: cnt
+    on_value: [logger.log: {format: "ETRX bcall cnt=%.0f", args: [x]}]
+  - platform: entity_transport
+    id: rx8
+    entity_transport_id: et_bcall
+    provider: ${peer}
+    remote_id: flt
+    on_value: [logger.log: {format: "ETRX bcall flt=%.3f", args: [x]}]
+
+binary_sensor:
+  - platform: template
+    id: bin
+    lambda: return (id(counter) / 3) % 2;
+  - platform: entity_transport
+    id: rx9
+    entity_transport_id: et_p2p
+    provider: ${peer}
+    remote_id: bin
+    on_state: [logger.log: {format: "ETRX p2p bin=%d", args: ["x ? 1 : 0"]}]
+  - platform: entity_transport
+    id: rx10
+    entity_transport_id: et_bcrel
+    provider: ${peer}
+    remote_id: bin
+    on_state: [logger.log: {format: "ETRX bcrel bin=%d", args: ["x ? 1 : 0"]}]
+  - platform: entity_transport
+    id: rx11
+    entity_transport_id: et_bcall
+    provider: ${peer}
+    remote_id: bin
+    on_state: [logger.log: {format: "ETRX bcall bin=%d", args: ["x ? 1 : 0"]}]
+
+entity_transport:
+  - id: et_p2p
+    packet_interface: p2p
+    sensors: &big_sensors
+      - cnt
+      - flt
+      - {id: longa, broadcast_id: "${long_id}1"}
+      - {id: longa, broadcast_id: "${long_id}2"}
+      - {id: longa, broadcast_id: "${long_id}3"}
+      - {id: longa, broadcast_id: "${long_id}4"}
+      - {id: longa, broadcast_id: "${long_id}5"}
+      - {id: longa, broadcast_id: "${long_id}6"}
+      - {id: longa, broadcast_id: "${long_id}7"}
+      - {id: longa, broadcast_id: "${long_id}8"}
+    binary_sensors: [bin]
+  - id: et_bcrel
+    packet_interface: bc_rel
+    sensors: *big_sensors
+    binary_sensors: [bin]
+  - id: et_bcall
+    packet_interface: bc_all
+    sensors: [cnt, flt]
+    binary_sensors: [bin]

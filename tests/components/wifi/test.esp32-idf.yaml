@@ -18,6 +18,7 @@ esphome:
 wifi:
   use_psram: true
   enable_btm: true
+  enable_sae_pk: true
   enable_rrm: true
   min_auth_mode: WPA
   post_connect_roaming: false

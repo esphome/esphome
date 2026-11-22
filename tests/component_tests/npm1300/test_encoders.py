@@ -15,6 +15,7 @@ from esphome.components.npm1300 import (
     _config,
     _output_config,
     _termination_voltage_code,
+    _thermistor_resistance,
     _vbus_current_limit_code,
     thermistor_beta,
 )
@@ -186,3 +187,21 @@ def test_config_thermistor(
     fields = _fields(_config(config))
     assert fields["thermistor"] == code
     assert fields["thermistor_beta"] == beta
+
+
+@pytest.mark.parametrize(
+    ("value", "result"),
+    [
+        ("10kOhm", 10000.0),
+        ("0.047MOhm", 47000.0),
+        ("100000", 100000.0),
+        ("None", "none"),
+    ],
+)
+def test_thermistor_resistance(value: str, result: float | str) -> None:
+    assert _thermistor_resistance(value) == result
+
+
+def test_thermistor_resistance_rejected() -> None:
+    with pytest.raises(cv.Invalid, match="10kOhm, 47kOhm, 100kOhm or none"):
+        _thermistor_resistance("22kOhm")

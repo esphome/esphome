@@ -26,7 +26,7 @@ _WRAP_FLAGS = {
         pytest.param("esp32c3", "{type: esp-idf}", True, id="c3"),
         pytest.param("esp32s3", "{type: esp-idf}", True, id="s3"),
         pytest.param("esp32c2", "{type: esp-idf}", True, id="c2"),
-        pytest.param("esp32c6", "{type: esp-idf}", False, id="c6_rom_sscanf"),
+        pytest.param("esp32c6", "{type: esp-idf}", True, id="c6"),
         pytest.param(
             "esp32", "{type: esp-idf, version: 6.0.1}", True, id="idf6_picolibc"
         ),

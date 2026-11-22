@@ -94,5 +94,7 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
             PlatformFramework.LN882X_ARDUINO,
         },
         "debug_zephyr.cpp": {PlatformFramework.NRF52_ZEPHYR},
+        "debug_nrf52.cpp": {PlatformFramework.NRF52_ZEPHYR},
+        "debug_nrf54l.cpp": {PlatformFramework.NRF52_ZEPHYR},
     }
 )
