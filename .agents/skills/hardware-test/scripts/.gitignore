@@ -117,3 +117,9 @@ ble_conn_interval/*.log
 ble_conn_interval/cap-*.txt
 ble_conn_interval/ping-*.txt
 ble_server_stack/*.log
+bt_proxy_ab/*.jsonl
+bt_proxy_ab/*.err
+bt_proxy_ab/*.txt
+bt_proxy_ab/*.pid
+bt_proxy_ab/*.log
+bt_proxy_ab/handles.json

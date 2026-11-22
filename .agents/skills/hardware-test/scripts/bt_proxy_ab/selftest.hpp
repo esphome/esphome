@@ -1,0 +1,529 @@
+// On-device version of the drive.py proxy scenarios, for boards whose Wi-Fi cannot carry the API test (classic ESP32).
+// Drives three ble_client instances through the proxy connection types (V3 without/with cache) and logs ST lines.
+#pragma once
+#include <esp_gattc_api.h>
+#include <esp_gap_ble_api.h>
+#include <vector>
+#include "esphome/core/hal.h"
+#include "esphome/core/log.h"
+#include "esphome/components/ble_client/ble_client.h"
+#include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
+
+namespace selftest {
+namespace espbt = esphome::esp32_ble_tracker;
+using esphome::ble_client::BLEClient;
+using esphome::millis;
+using espbt::ClientState;
+static const char *const TAG = "selftest";
+
+enum Peer : uint8_t { PL = 0, PM = 1, PE = 2 };
+static const char *const PNAME[3] = {"L", "M", "eve"};
+static uint64_t ADDR[3];  // from the ble_client mac_address entries (selftest-e32.yaml substitutions)
+static uint16_t FF01[3];  // ff01 handles of L and M (handle_l, handle_m substitutions); Eve has none
+
+static BLEClient *C[3];
+static espbt::ESP32BLETracker *trk;
+static esp_ble_addr_type_t atype[3] = {BLE_ADDR_TYPE_PUBLIC, BLE_ADDR_TYPE_PUBLIC, BLE_ADDR_TYPE_RANDOM};
+static bool seen[3];
+static uint32_t adv_n;
+// notify soak
+static uint32_t tk_last, tk_rx, tk_gaps, tk_missing;
+static bool tk_have, tk_count;
+
+inline void on_adv(const espbt::ESPBTDevice &d) {
+  adv_n++;
+  uint64_t a = d.address_uint64();
+  for (int i = 0; i < 3; i++)
+    if (a == ADDR[i]) {
+      seen[i] = true;
+      atype[i] = d.get_address_type();
+    }
+}
+inline void on_tick(uint32_t v) {
+  if (!tk_count)
+    return;
+  tk_rx++;
+  if (tk_have && v > tk_last + 1) {
+    tk_gaps++;
+    tk_missing += v - tk_last - 1;
+  }
+  tk_last = v;
+  tk_have = true;
+}
+
+// read/write round trips by handle
+struct Rtt : public esphome::ble_client::BLEClientNode {
+  uint32_t t0{0};
+  int pending{0};  // 1 read, 2 write
+  uint32_t done_ms{0};
+  bool ok{false};
+  void gattc_event_handler(esp_gattc_cb_event_t e, esp_gatt_if_t, esp_ble_gattc_cb_param_t *p) override {
+    if (e == ESP_GATTC_READ_CHAR_EVT && this->pending == 1) {
+      this->done_ms = millis() - this->t0;
+      this->ok = p->read.status == ESP_GATT_OK;
+      this->pending = 0;
+    } else if (e == ESP_GATTC_WRITE_CHAR_EVT && this->pending == 2) {
+      this->done_ms = millis() - this->t0;
+      this->ok = p->write.status == ESP_GATT_OK;
+      this->pending = 0;
+    } else if (e == ESP_GATTC_DISCONNECT_EVT && this->pending) {
+      this->pending = 0;
+      this->ok = false;
+    }
+  }
+};
+static Rtt *RT[3];
+
+enum Kind : uint8_t { K_ADV, K_CONN, K_RETRY, K_THIRD_EVE, K_THIRD_PD, K_THIRD_L, K_NOTIFY, K_CHURN, K_EVE, K_DONE };
+struct Phase {
+  Kind k;
+  uint8_t peer;
+  uint16_t n;  // rounds, cycles or seconds
+  bool cold;
+  const char *name;
+};
+static const Phase PHASES[] = {
+    {K_ADV, 0, 120, false, "adv"},      {K_CONN, PL, 15, true, "discL"},         {K_CONN, PL, 10, false, "cacheL"},
+    {K_CONN, PM, 15, true, "discM"},    {K_CONN, PM, 10, false, "cacheM"},       {K_RETRY, PL, 15, true, "retryL"},
+    {K_RETRY, PM, 15, true, "retryM"},  {K_THIRD_EVE, PE, 10, true, "thirdeve"}, {K_THIRD_PD, PM, 8, true, "thirdpd"},
+    {K_THIRD_L, PL, 8, true, "thirdL"}, {K_NOTIFY, PL, 600, false, "notify"},    {K_CHURN, 0, 50, false, "churn"},
+    {K_EVE, PE, 10, true, "eve"},       {K_DONE, 0, 0, false, "done"},
+};
+
+// per-phase state
+static uint8_t ph;
+static int st;        // step inside the phase
+static uint16_t rnd;  // round or cycle
+static uint8_t att;   // retry attempt
+static uint32_t t_ph, t0, t_wait, t_open;
+static uint16_t ok_n, first_ok_n, fail_n, stuck_n, adv_mode_n;
+static uint32_t adv0;
+static uint8_t rtt_i;
+static uint32_t rd_sum, wr_sum;
+static uint8_t rd_n, wr_n;
+
+inline void connect(uint8_t p, bool cold) {
+  BLEClient *c = C[p];
+  if (cold) {
+    esp_bd_addr_t bda;
+    for (int i = 0; i < 6; i++)
+      bda[i] = (ADDR[p] >> (40 - 8 * i)) & 0xFF;
+    esp_ble_gattc_cache_clean(bda);
+  }
+  c->set_connection_type(cold ? espbt::ConnectionType::V3_WITHOUT_CACHE : espbt::ConnectionType::V3_WITH_CACHE);
+  c->set_remote_addr_type(atype[p]);
+  c->set_auto_connect(false);
+  // the proxy path: a DISCOVERED client makes the tracker stop the scan and connect it
+  c->set_state(ClientState::DISCOVERED);
+  t0 = millis();
+  t_open = 0;
+  ESP_LOGI(TAG, "ST conn_start %s %s r=%u", PNAME[p], cold ? "cold" : "cached", rnd);
+}
+inline ClientState s(uint8_t p) { return C[p]->state(); }
+inline bool up(uint8_t p) { return s(p) == ClientState::ESTABLISHED; }
+inline bool idle(uint8_t p) { return s(p) == ClientState::IDLE; }
+inline void drop(uint8_t p) {
+  if (!idle(p))
+    C[p]->disconnect();
+}
+
+inline void next_phase() {
+  const Phase &P = PHASES[ph];
+  ESP_LOGI(TAG, "ST phase_end %s rounds=%u ok=%u first_ok=%u fail=%u stuck=%u", P.name, rnd, ok_n, first_ok_n, fail_n,
+           stuck_n);
+  ph++;
+  st = 0;
+  rnd = 0;
+  att = 0;
+  ok_n = first_ok_n = fail_n = stuck_n = 0;
+  t_ph = millis();
+  ESP_LOGI(TAG, "ST phase_start %s", PHASES[ph].name);
+}
+
+inline void start(BLEClient *l, BLEClient *m, BLEClient *e, espbt::ESP32BLETracker *t, uint16_t ff01_l,
+                  uint16_t ff01_m) {
+  FF01[PL] = ff01_l;
+  FF01[PM] = ff01_m;
+  C[PL] = l;
+  C[PM] = m;
+  C[PE] = e;
+  trk = t;
+  for (int i = 0; i < 3; i++) {
+    ADDR[i] = C[i]->get_address();
+    RT[i] = new Rtt();  // NOLINT: allocated once at boot
+    C[i]->register_ble_node(RT[i]);
+  }
+  ph = 0;
+  st = -1;
+  t_ph = millis();
+}
+
+// one RTT op on peer p; returns true when all 10 are done
+inline bool rtt_step(uint8_t p) {
+  Rtt *r = RT[p];
+  if (r->pending) {
+    if (millis() - r->t0 > 10000) {
+      ESP_LOGW(TAG, "ST rtt timeout %s", PNAME[p]);
+      r->pending = 0;
+      return true;
+    }
+    return false;
+  }
+  if (rtt_i > 0) {
+    if (r->ok) {
+      if (rtt_i <= 5) {
+        rd_sum += r->done_ms;
+        rd_n++;
+      } else {
+        wr_sum += r->done_ms;
+        wr_n++;
+      }
+    }
+  }
+  if (rtt_i == 10)
+    return true;
+  r->t0 = millis();
+  esp_err_t err;
+  if (rtt_i < 5) {
+    r->pending = 1;
+    err = esp_ble_gattc_read_char(C[p]->get_gattc_if(), C[p]->get_conn_id(), FF01[p], ESP_GATT_AUTH_REQ_NONE);
+  } else {
+    r->pending = 2;
+    uint8_t v = rtt_i;
+    err = esp_ble_gattc_write_char(C[p]->get_gattc_if(), C[p]->get_conn_id(), FF01[p], 1, &v, ESP_GATT_WRITE_TYPE_RSP,
+                                   ESP_GATT_AUTH_REQ_NONE);
+  }
+  if (err != ESP_OK) {
+    r->pending = 0;
+    r->ok = false;
+  }
+  rtt_i++;
+  return false;
+}
+
+// a connect attempt with a budget: 0 running, 1 up, -1 failed or dropped, -2 timed out
+inline int attempt(uint8_t p, uint32_t budget) {
+  if (up(p)) {
+    ESP_LOGI(TAG, "ST conn_up %s r=%u total=%u", PNAME[p], rnd, (unsigned) (millis() - t0));
+    return 1;
+  }
+  if (idle(p) && millis() - t0 > 200) {
+    ESP_LOGI(TAG, "ST conn_fail %s r=%u after=%u", PNAME[p], rnd, (unsigned) (millis() - t0));
+    return -1;
+  }
+  if (millis() - t0 > budget) {
+    ESP_LOGI(TAG, "ST conn_timeout %s r=%u", PNAME[p], rnd);
+    drop(p);
+    return -2;
+  }
+  return 0;
+}
+
+inline void tick() {
+  if (st == -1) {
+    // wait for the three peers to be seen (the Eve Flare may take a while) and the boot to settle
+    if (millis() - t_ph > 20000 && seen[PL] && seen[PM] && (seen[PE] || millis() - t_ph > 180000)) {
+      ESP_LOGI(TAG, "ST ready seen L=%d M=%d eve=%d eve_type=%d", seen[PL], seen[PM], seen[PE], atype[PE]);
+      st = 0;
+      t_ph = millis();
+      ESP_LOGI(TAG, "ST phase_start %s", PHASES[ph].name);
+    }
+    return;
+  }
+  const Phase &P = PHASES[ph];
+  uint32_t now = millis();
+  switch (P.k) {
+    case K_ADV: {
+      // 10 s buckets: active for n s, then passive for n s (first 5 s after the switch skipped), then active again
+      static uint32_t skip_until = 0;
+      if (st == 0) {
+        adv0 = adv_n;
+        t_wait = now;
+        adv_mode_n = 0;
+        st = 1;
+      }
+      if (st == 3 || st == 4) {
+        if (trk->get_scanner_state() == espbt::ScannerState::IDLE) {
+          trk->start_scan();
+          ESP_LOGI(TAG, "ST adv scan restarted %s", st == 3 ? "passive" : "active");
+          if (st == 4) {
+            next_phase();
+            break;
+          }
+          st = 2;
+          skip_until = now + 5000;
+        }
+        break;
+      }
+      if ((int32_t) (now - skip_until) < 0) {
+        adv0 = adv_n;
+        t_wait = now;
+        break;
+      }
+      if (now - t_wait >= 10000) {
+        ESP_LOGI(TAG, "ST adv mode=%s n10=%u", st == 1 ? "active" : "passive", (unsigned) (adv_n - adv0));
+        adv0 = adv_n;
+        t_wait = now;
+        adv_mode_n++;
+        if (adv_mode_n == P.n / 10) {
+          adv_mode_n = 0;
+          trk->set_scan_active(st == 2);
+          trk->stop_scan();
+          st = st == 1 ? 3 : 4;  // restart once the scanner is idle
+        }
+      }
+      break;
+    }
+    case K_CONN:
+    case K_EVE: {
+      uint8_t p = P.peer;
+      if (st == 0) {
+        if (!idle(p))
+          break;
+        connect(p, P.cold);
+        st = 1;
+      } else if (st == 1) {
+        uint32_t budget = P.k == K_EVE ? 40000 : (P.cold ? 60000 : 30000);
+        int r = attempt(p, budget);
+        if (r == 1) {
+          ok_n++;
+          rtt_i = 0;
+          rd_sum = wr_sum = 0;
+          rd_n = wr_n = 0;
+          st = P.k == K_EVE ? 3 : 2;
+        } else if (r < 0) {
+          fail_n++;
+          st = 3;
+        }
+      } else if (st == 2) {
+        if (!up(p) || rtt_step(p)) {
+          ESP_LOGI(TAG, "ST rtt %s r=%u read_avg=%u write_avg=%u n=%u/%u", PNAME[p], rnd,
+                   rd_n ? (unsigned) (rd_sum / rd_n) : 0, wr_n ? (unsigned) (wr_sum / wr_n) : 0, rd_n, wr_n);
+          st = 3;
+        }
+      } else if (st == 3) {
+        drop(p);
+        t_wait = now;
+        st = 4;
+      } else if (st == 4) {
+        if (idle(p) || now - t_wait > 15000) {
+          if (!idle(p)) {
+            stuck_n++;
+            ESP_LOGW(TAG, "ST stuck %s state=%d", PNAME[p], (int) s(p));
+          }
+          t_wait = now;
+          st = 5;
+        }
+      } else if (st == 5 && now - t_wait > (P.k == K_EVE ? 5000u : 2000u)) {
+        rnd++;
+        st = 0;
+        if (rnd >= P.n)
+          next_phase();
+      }
+      break;
+    }
+    case K_RETRY: {
+      uint8_t p = P.peer;
+      if (st == 0) {
+        if (!idle(p))
+          break;
+        connect(p, true);
+        st = 1;
+      } else if (st == 1) {
+        int r = attempt(p, 10000);
+        if (r == 1) {
+          ok_n++;
+          if (att == 0)
+            first_ok_n++;
+          ESP_LOGI(TAG, "ST retry %s r=%u attempts=%u ok=1", PNAME[p], rnd, att + 1);
+          att = 0;
+          st = 3;
+        } else if (r < 0) {
+          att++;
+          if (att >= 5) {
+            fail_n++;
+            ESP_LOGI(TAG, "ST retry %s r=%u attempts=5 ok=0", PNAME[p], rnd);
+            att = 0;
+            st = 3;
+          } else {
+            st = 6;  // wait idle, then the next attempt of the same round
+            t_wait = now;
+          }
+        }
+      } else if (st == 6) {
+        if ((idle(p) && now - t_wait > 1000) || now - t_wait > 15000)
+          st = 0;
+      } else if (st == 3) {
+        drop(p);
+        t_wait = now;
+        st = 4;
+      } else if (st == 4) {
+        if (idle(p) || now - t_wait > 15000) {
+          if (!idle(p))
+            stuck_n++;
+          t_wait = now;
+          st = 5;
+        }
+      } else if (st == 5 && now - t_wait > 2000) {
+        rnd++;
+        st = 0;
+        if (rnd >= P.n)
+          next_phase();
+      }
+      break;
+    }
+    case K_THIRD_EVE:
+    case K_THIRD_PD:
+    case K_THIRD_L: {
+      // hold two (cached; a fresh Eve link as the second for PD and L), then connect the third without cache
+      uint8_t third = P.k == K_THIRD_EVE ? PE : (P.k == K_THIRD_PD ? PM : PL);
+      uint8_t h1 = P.k == K_THIRD_L ? PM : PL, h2 = P.k == K_THIRD_EVE ? PM : PE;
+      if (st == 0) {
+        if (!up(h1) && idle(h1)) {
+          connect(h1, false);
+          t_wait = now;
+        }
+        st = 1;
+      } else if (st == 1) {
+        if (up(h1)) {
+          if (P.k != K_THIRD_EVE && !idle(h2)) {
+            drop(h2);
+            break;
+          }
+          if (idle(h2) || up(h2)) {
+            if (!up(h2))
+              connect(h2, false);
+            t_wait = now;
+            st = 2;
+          }
+        } else if (idle(h1) && now - t_wait > 500) {
+          st = 0;  // retry the hold
+        }
+      } else if (st == 2) {
+        if (up(h2) && up(h1)) {
+          t_wait = now;
+          st = 3;
+        } else if ((idle(h2) && now - t_wait > 500) || now - t_wait > 20000) {
+          ESP_LOGI(TAG, "ST third held_failed r=%u", rnd);
+          drop(h2);
+          st = 1;
+        }
+      } else if (st == 3 && now - t_wait > 500) {
+        connect(third, true);
+        st = 4;
+      } else if (st == 4) {
+        int r = attempt(third, 30000);
+        if (r != 0) {
+          ESP_LOGI(TAG, "ST third %s r=%u result=%d t=%u held=%d%d", PNAME[third], rnd, r, (unsigned) (now - t0),
+                   up(h1), up(h2));
+          if (r == 1)
+            ok_n++;
+          else
+            fail_n++;
+          drop(third);
+          if (P.k != K_THIRD_EVE)
+            drop(h2);
+          t_wait = now;
+          st = 5;
+        }
+      } else if (st == 5) {
+        if ((idle(third) && now - t_wait > 3000) || now - t_wait > 15000) {
+          rnd++;
+          st = 0;
+          if (rnd >= P.n) {
+            drop(PL);
+            drop(PM);
+            drop(PE);
+            next_phase();
+          }
+        }
+      }
+      break;
+    }
+    case K_NOTIFY: {
+      // V1 connect so the ble_client sensor finds the tick characteristic and subscribes
+      if (st == 0) {
+        tk_rx = tk_gaps = tk_missing = 0;
+        tk_have = false;
+        tk_count = true;
+        st = 1;
+        t_wait = now;
+      }
+      if (st == 1 && idle(PL)) {
+        C[PL]->set_connection_type(espbt::ConnectionType::V1);
+        C[PL]->set_remote_addr_type(atype[PL]);
+        C[PL]->set_state(ClientState::DISCOVERED);
+        tk_have = false;
+        st = 2;
+      } else if (st == 2 && up(PL)) {
+        st = 3;
+      } else if (st == 2 && idle(PL) && now - t_wait > 1000) {
+        st = 1;
+      } else if (st == 3 && !up(PL)) {
+        fail_n++;
+        ESP_LOGW(TAG, "ST notify drop state=%d", (int) s(PL));
+        st = 1;
+      }
+      if (now - t_ph >= 60000u * (rnd + 1)) {
+        rnd++;
+        ESP_LOGI(TAG, "ST notify min=%u rx=%u gaps=%u missing=%u drops=%u", rnd, (unsigned) tk_rx, (unsigned) tk_gaps,
+                 (unsigned) tk_missing, fail_n);
+        if (rnd * 60 >= P.n) {
+          tk_count = false;
+          drop(PL);
+          C[PL]->set_connection_type(espbt::ConnectionType::V3_WITH_CACHE);
+          next_phase();
+        }
+      }
+      break;
+    }
+    case K_CHURN: {
+      uint8_t p = rnd % 2 ? PM : PL;
+      if (st == 0) {
+        if (!idle(p))
+          break;
+        connect(p, false);
+        st = 1;
+      } else if (st == 1) {
+        int r = attempt(p, 20000);
+        if (r == 1) {
+          ok_n++;
+          t_wait = now;
+          st = 2;
+        } else if (r < 0) {
+          fail_n++;
+          st = 3;
+        }
+      } else if (st == 2 && now - t_wait > 300) {
+        st = 3;
+      } else if (st == 3) {
+        drop(p);
+        t_wait = now;
+        st = 4;
+      } else if (st == 4) {
+        if (idle(p) || now - t_wait > 10000) {
+          if (!idle(p)) {
+            stuck_n++;
+            ESP_LOGW(TAG, "ST churn stuck %s state=%d", PNAME[p], (int) s(p));
+          }
+          ESP_LOGI(TAG, "ST churn c=%u freed_ms=%u", rnd, (unsigned) (now - t_wait));
+          t_wait = now;
+          st = 5;
+        }
+      } else if (st == 5 && now - t_wait > 500) {
+        rnd++;
+        st = 0;
+        if (rnd >= P.n)
+          next_phase();
+      }
+      break;
+    }
+    case K_DONE:
+      if (st == 0) {
+        ESP_LOGI(TAG, "ST DONE");
+        st = 1;
+      }
+      break;
+  }
+}
+}  // namespace selftest
