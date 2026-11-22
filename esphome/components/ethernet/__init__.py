@@ -403,7 +403,7 @@ def _validate(config: ConfigType) -> ConfigType:
         and config[CONF_TYPE] not in RP2_SPI_ETHERNET_TYPES | RP2_NONSPI_ETHERNET_TYPES
     ):
         raise cv.Invalid(
-            f"Only {', '.join(sorted(RP2_SPI_ETHERNET_TYPES))} are supported on the RP2 "
+            f"Only {', '.join(sorted(RP2_SPI_ETHERNET_TYPES | RP2_NONSPI_ETHERNET_TYPES))} are supported on the RP2 "
             f"platform, not {config[CONF_TYPE]}"
         )
     return config
