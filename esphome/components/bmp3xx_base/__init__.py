@@ -9,11 +9,6 @@ from esphome.const import (
     CONF_PRESSURE,
     CONF_TEMPERATURE,
     CONF_UPDATE_INTERVAL,
-    DEVICE_CLASS_PRESSURE,
-    DEVICE_CLASS_TEMPERATURE,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS,
-    UNIT_HECTOPASCAL,
 )
 from esphome.cpp_generator import MockObj, MockObjClass
 from esphome.types import ConfigType
@@ -100,10 +95,7 @@ def _validate_data_rate(config: ConfigType) -> ConfigType:
 CONFIG_SCHEMA_BASE = cv.Schema(
     {
         cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-            unit_of_measurement=UNIT_CELSIUS,
-            accuracy_decimals=1,
-            device_class=DEVICE_CLASS_TEMPERATURE,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.TEMPERATURE
         ).extend(
             {
                 cv.Optional(CONF_OVERSAMPLING, default="2X"): cv.enum(
@@ -111,12 +103,7 @@ CONFIG_SCHEMA_BASE = cv.Schema(
                 ),
             }
         ),
-        cv.Optional(CONF_PRESSURE): sensor.sensor_schema(
-            unit_of_measurement=UNIT_HECTOPASCAL,
-            accuracy_decimals=1,
-            device_class=DEVICE_CLASS_PRESSURE,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ).extend(
+        cv.Optional(CONF_PRESSURE): sensor.sensor_schema(kind=sensor.PRESSURE).extend(
             {
                 cv.Optional(CONF_OVERSAMPLING, default="16X"): cv.enum(
                     OVERSAMPLING_OPTIONS, upper=True

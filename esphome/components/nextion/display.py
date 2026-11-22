@@ -244,38 +244,31 @@ async def to_code(config):
 
     await display.add_writer(var, config, nextion_ref)
 
-    if CONF_TFT_URL in config:
+    if (tft_url := config.get(CONF_TFT_URL)) is not None:
         cg.add_define("USE_NEXTION_TFT_UPLOAD")
-        cg.add(var.set_tft_url(config[CONF_TFT_URL]))
+        cg.add(var.set_tft_url(tft_url))
 
         # TFT upload HTTP timeout (default: 4.5s)
-        if CONF_TFT_UPLOAD_HTTP_TIMEOUT in config:
-            cg.add(
-                var.set_tft_upload_http_timeout(
-                    config[CONF_TFT_UPLOAD_HTTP_TIMEOUT].total_milliseconds
-                )
-            )
+        if (http_timeout := config.get(CONF_TFT_UPLOAD_HTTP_TIMEOUT)) is not None:
+            cg.add(var.set_tft_upload_http_timeout(http_timeout.total_milliseconds))
 
         # TFT upload HTTP TX buffer size (ESP32 only; unset = ESP-IDF default)
-        if CONF_TFT_UPLOAD_HTTP_BUFFER_SIZE_TX in config:
-            cg.add(
-                var.set_tft_upload_http_buffer_size_tx(
-                    config[CONF_TFT_UPLOAD_HTTP_BUFFER_SIZE_TX]
-                )
-            )
+        cg.add_optional(
+            var.set_tft_upload_http_buffer_size_tx,
+            config.get(CONF_TFT_UPLOAD_HTTP_BUFFER_SIZE_TX),
+        )
 
         # TFT upload HTTP retries (default: 5)
-        if CONF_TFT_UPLOAD_HTTP_RETRIES in config:
-            cg.add(
-                var.set_tft_upload_http_retries(config[CONF_TFT_UPLOAD_HTTP_RETRIES])
-            )
+        cg.add_optional(
+            var.set_tft_upload_http_retries, config.get(CONF_TFT_UPLOAD_HTTP_RETRIES)
+        )
 
         # TFT upload watchdog timeout (default: 0 = no adjustment)
-        if CONF_TFT_UPLOAD_WATCHDOG_TIMEOUT in config:
+        if (
+            watchdog_timeout := config.get(CONF_TFT_UPLOAD_WATCHDOG_TIMEOUT)
+        ) is not None:
             cg.add(
-                var.set_tft_upload_watchdog_timeout(
-                    config[CONF_TFT_UPLOAD_WATCHDOG_TIMEOUT].total_milliseconds
-                )
+                var.set_tft_upload_watchdog_timeout(watchdog_timeout.total_milliseconds)
             )
 
         if CORE.is_esp32:
@@ -288,9 +281,9 @@ async def to_code(config):
 
     cg.add_optional(var.set_wake_up_page, config.get(CONF_WAKE_UP_PAGE))
 
-    if CONF_START_UP_PAGE in config:
+    if (start_up_page := config.get(CONF_START_UP_PAGE)) is not None:
         cg.add_define("USE_NEXTION_CONF_START_UP_PAGE")
-        cg.add(var.set_start_up_page(config[CONF_START_UP_PAGE]))
+        cg.add(var.set_start_up_page(start_up_page))
 
     cg.add(var.set_auto_wake_on_touch(config[CONF_AUTO_WAKE_ON_TOUCH]))
 

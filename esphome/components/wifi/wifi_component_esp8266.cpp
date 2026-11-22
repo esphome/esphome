@@ -426,16 +426,14 @@ static_assert(AUTH_OPEN == 0 && AUTH_WEP == 1 && AUTH_WPA_PSK == 2 && AUTH_WPA2_
               "AUTH_* constants are not contiguous");
 PROGMEM_STRING_TABLE(AuthModeStrings, "OPEN", "WEP", "WPA PSK", "WPA2 PSK", "WPA/WPA2 PSK", "UNKNOWN");
 
-const LogString *get_auth_mode_str(uint8_t mode) {
-  return AuthModeStrings::get_log_str(mode, AuthModeStrings::LAST_INDEX);
-}
+const LogString *get_auth_mode_str(uint8_t mode) { return AuthModeStrings::get_log_str(mode); }
 
 // WiFi op mode strings indexed by WIFI_* constants (0-3), with UNKNOWN at last index
 static_assert(WIFI_OFF == 0 && WIFI_STA == 1 && WIFI_AP == 2 && WIFI_AP_STA == 3,
               "WIFI_* op mode constants are not contiguous");
 PROGMEM_STRING_TABLE(OpModeStrings, "OFF", "STA", "AP", "AP+STA", "UNKNOWN");
 
-const LogString *get_op_mode_str(uint8_t mode) { return OpModeStrings::get_log_str(mode, OpModeStrings::LAST_INDEX); }
+const LogString *get_op_mode_str(uint8_t mode) { return OpModeStrings::get_log_str(mode); }
 
 // Use if-chain instead of switch to avoid jump tables in RODATA (wastes RAM on ESP8266).
 // A single switch would generate a sparse lookup table with ~175 default entries, wasting 700 bytes of RAM.
