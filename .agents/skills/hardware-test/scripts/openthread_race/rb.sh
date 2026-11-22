@@ -16,8 +16,9 @@ for i in $(seq 1 "$C"); do
   ok=0; m=0; a=0; p=0
   [ -n "$T6" ] || p=1
   while (( $(date +%s) - t0 < 120 )); do
-    [ $m = 1 ] || { "$D/meshcop.sh" "$N" | grep -q "omr_present=1" && m=1; }
     [ $a = 1 ] || { timeout 8 $PY "$D/../api_button.py" "$IP" "${KEY:--}" list > /dev/null 2>&1 && a=1; }
+    # only after the API is back, so a TXT record cached from before the restart cannot count
+    [ $m = 1 ] || [ $a = 0 ] || { "$D/meshcop.sh" "$N" | grep -q "omr_present=1" && m=1; }
     [ $p = 1 ] || { ping6 -c 1 -i 1 "$T6" > /dev/null 2>&1 && p=1; }
     [ $m$a$p = 111 ] && { ok=1; break; }
     sleep 1

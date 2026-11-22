@@ -8,6 +8,10 @@ inline void hwt_phy_power(bool on) {
   uint32_t v = 0;
   esp_eth_phy_reg_rw_data_t rd{0, &v};
   esp_err_t e1 = esp_eth_ioctl(h, ETH_CMD_READ_PHY_REG, &rd);
+  if (e1 != ESP_OK) {
+    ESP_LOGE("hwt", "HWT phy %s bmcr read failed (%d), not written", on ? "up" : "down", e1);
+    return;
+  }
   uint32_t before = v;
   if (on)
     v = (v & ~(1u << 11)) | (1u << 12) | (1u << 9);
