@@ -18,7 +18,8 @@ namespace esphome::ssocr_reader {
 /// Reads a seven-segment display out of esp32_camera frames. The camera delivers
 /// JPEG; a shared camera::Decoder decodes each frame once, the configured
 /// rectangle is cropped out of that buffer as grayscale, and seven_segment_ocr
-/// reads the digits.
+/// reads the digits. Frames are requested with the camera's idle requester, so
+/// connected API clients receive the frames the reader asks for.
 class SSOCRReader final : public PollingComponent, public esphome::camera::CameraListener {
  public:
   /// The camera, decoder, frame size and crop buffer never change, so they are constructor parameters.
