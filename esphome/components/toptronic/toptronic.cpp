@@ -109,14 +109,11 @@ TopTronic::TopTronic(canbus::Canbus *canbus, uint16_t device_id) : canbus_(canbu
   });
 }
 
-uint32_t TopTronicBase::get_id() {
+uint32_t TopTronicBase::get_id() const {
   return this->function_group_ + (this->function_number_ << 8) + (static_cast<uint32_t>(this->datapoint_) << 16);
 }
 void TopTronicPolled::cache_request_data() {
   this->request_data_ = build_get_request(this->function_group_, this->function_number_, this->datapoint_);
-}
-void TopTronicPolled::add_on_update_callback(std::function<void()> &&callback) {
-  this->update_callback_.add(std::move(callback));
 }
 void TopTronicPolled::update() { this->update_callback_.call(); }
 
@@ -129,16 +126,16 @@ template<typename T> T bytes_to_number(const uint8_t *data, size_t len) {
 
 static size_t type_width(TypeName type) {
   switch (type) {
-    case U8:
-    case S8:
+    case TypeName::TYPE_NAME_U8:
+    case TypeName::TYPE_NAME_S8:
       return 1;
-    case U16:
-    case S16:
+    case TypeName::TYPE_NAME_U16:
+    case TypeName::TYPE_NAME_S16:
       return 2;
-    case U32:
-    case S32:
+    case TypeName::TYPE_NAME_U32:
+    case TypeName::TYPE_NAME_S32:
       return 4;
-    case S64:
+    case TypeName::TYPE_NAME_S64:
       return 8;
   }
   return 1;
@@ -148,25 +145,25 @@ static size_t type_width(TypeName type) {
 // write cannot wrap to an unrelated value.
 static size_t int_to_bytes(int64_t v, TypeName type, uint8_t *out) {
   switch (type) {
-    case U8:
+    case TypeName::TYPE_NAME_U8:
       v = std::clamp<int64_t>(v, 0, UINT8_MAX);
       break;
-    case U16:
+    case TypeName::TYPE_NAME_U16:
       v = std::clamp<int64_t>(v, 0, UINT16_MAX);
       break;
-    case U32:
+    case TypeName::TYPE_NAME_U32:
       v = std::clamp<int64_t>(v, 0, UINT32_MAX);
       break;
-    case S8:
+    case TypeName::TYPE_NAME_S8:
       v = std::clamp<int64_t>(v, INT8_MIN, INT8_MAX);
       break;
-    case S16:
+    case TypeName::TYPE_NAME_S16:
       v = std::clamp<int64_t>(v, INT16_MIN, INT16_MAX);
       break;
-    case S32:
+    case TypeName::TYPE_NAME_S32:
       v = std::clamp<int64_t>(v, INT32_MIN, INT32_MAX);
       break;
-    case S64:
+    case TypeName::TYPE_NAME_S64:
       break;
   }
   const size_t width = type_width(type);
@@ -194,19 +191,19 @@ bool TopTronicInput::send_set_raw_(int64_t value, TypeName type) {
 
 float TopTronicSensor::parse_value(const uint8_t *data, size_t len) {
   switch (this->type_) {
-    case U8:
+    case TypeName::TYPE_NAME_U8:
       return (float) bytes_to_number<uint8_t>(data, len);
-    case U16:
+    case TypeName::TYPE_NAME_U16:
       return (float) bytes_to_number<uint16_t>(data, len);
-    case U32:
+    case TypeName::TYPE_NAME_U32:
       return (float) bytes_to_number<uint32_t>(data, len);
-    case S8:
+    case TypeName::TYPE_NAME_S8:
       return (float) bytes_to_number<int8_t>(data, len);
-    case S16:
+    case TypeName::TYPE_NAME_S16:
       return (float) bytes_to_number<int16_t>(data, len);
-    case S32:
+    case TypeName::TYPE_NAME_S32:
       return (float) bytes_to_number<int32_t>(data, len);
-    case S64:
+    case TypeName::TYPE_NAME_S64:
       return (float) bytes_to_number<int64_t>(data, len);
   }
   return 0.0f;
@@ -468,7 +465,7 @@ TopTronicPolled *TopTronic::get_sensor_(uint32_t sensor_id) {
 void TopTronic::link_inputs_() {
   for (const auto &i : this->inputs_) {
     auto *input = i.second;
-    if (input->type() == BUTTON)
+    if (input->type() == SensorType::SENSOR_TYPE_BUTTON)
       continue;  // nothing to sync for a fire-and-forget command
     auto *sensor_base = this->get_sensor_(input->get_id());
     if (sensor_base == nullptr) {
@@ -485,14 +482,14 @@ void TopTronic::link_inputs_() {
                LOG_STR_ARG(input->get_log_name()), LOG_STR_ARG(sensor_base->get_log_name()));
       continue;
     }
-    if (sensor_base->type() == SENSOR) {
+    if (sensor_base->type() == SensorType::SENSOR_TYPE_SENSOR) {
 #ifdef USE_NUMBER
       auto *sensor = static_cast<TopTronicSensor *>(sensor_base);
       auto *number = static_cast<TopTronicNumber *>(input);
       sensor->add_on_raw_state_callback(
           [number](float state) -> void { number->publish_state(state / number->get_multiplier()); });
 #endif
-    } else if (sensor_base->type() == TEXTSENSOR) {
+    } else if (sensor_base->type() == SensorType::SENSOR_TYPE_TEXT) {
 #if defined(USE_TEXT_SENSOR) && defined(USE_SELECT)
       auto *sensor = static_cast<TopTronicTextSensor *>(sensor_base);
       auto *select = static_cast<TopTronicSelect *>(input);
@@ -780,7 +777,7 @@ void TopTronic::interpret_message_(const uint8_t *data, size_t len) {
   TopTronicPolled *sensor_base = sensor_it->second;
   const size_t value_len = len - value_off;
   size_t required_value_len = 1;
-  if (sensor_base->type() == SENSOR)
+  if (sensor_base->type() == SensorType::SENSOR_TYPE_SENSOR)
     required_value_len = static_cast<TopTronicSensor *>(sensor_base)->value_width();
   if (value_len < required_value_len) {
     ESP_LOGW(TAG, "Response for %s truncated (%zu of %zu value bytes), ignoring",
@@ -791,12 +788,12 @@ void TopTronic::interpret_message_(const uint8_t *data, size_t len) {
   if (this->refresh_in_progress_)
     this->remove_refresh_entry_(sensor_base);
   ESP_LOGD_HEX(TAG, data, len, MAX_MESSAGE_LEN, "[RES] %s Data: %s", LOG_STR_ARG(sensor_base->get_log_name()));
-  if (sensor_base->type() == SENSOR) {
+  if (sensor_base->type() == SensorType::SENSOR_TYPE_SENSOR) {
     auto *sensor = static_cast<TopTronicSensor *>(sensor_base);
     sensor->publish_state(sensor->parse_value(data + value_off, required_value_len));
   }
 #ifdef USE_TEXT_SENSOR
-  if (sensor_base->type() == TEXTSENSOR) {
+  if (sensor_base->type() == SensorType::SENSOR_TYPE_TEXT) {
     auto *sensor = static_cast<TopTronicTextSensor *>(sensor_base);
     if (const char *text = sensor->parse_value(data + value_off, value_len); text != nullptr)
       sensor->publish_state(text);
