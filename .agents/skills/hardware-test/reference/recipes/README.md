@@ -64,7 +64,7 @@ One file per component, named after it:
 - [`rs485_frame.md`](rs485_frame.md): DLE/STX/ETX bus on an ESP32-C3 with a cross-wired simulated bus device (frame cases, gate timing)
 - [`hx711.md`](hx711.md): fake HX711 driven from the other core, every published value matched to the served conversion
 - [`automation_trace.md`](automation_trace.md): automation codegen A/B, a marker trace of chains, conditions, loops and script modes over the API
-- [`bluetooth_proxy.md`](bluetooth_proxy.md): held GATT link after a half-open API session, frozen Home Assistant stand-in, out-of-order GATT discovery responses injected on the proxy, GATT UUID forms (16 bit, 32-bit base, 128 bit) compared against an ESP32 proxy
+- [`bluetooth_proxy.md`](bluetooth_proxy.md): held GATT link after a half-open API session, frozen Home Assistant stand-in, out-of-order GATT discovery responses injected on the proxy, GATT UUID forms (16 bit, 32-bit base, 128 bit) compared against an ESP32 proxy, third link refusals, cold discovery time and the #22904 coexistence hold with the connection interval logger
 - [`crash_report.md`](crash_report.md): crash buttons, fetching the previous boot's crash report over the API, per-chip abort facts
 - [`https_idf.md`](https_idf.md): web_server_idf HTTPS test component, listener switch, stalled TLS clients, bad key
 - [`mdns.md`](mdns.md): legacy unicast mDNS dump, hammer and latency straight to the device
@@ -96,3 +96,4 @@ One file per component, named after it:
 - [`vl6180x.md`](vl6180x.md): VL6180X probe, config variants, XSHUT reset and injected range, overflow and read failures
 - [`bmi270.md`](bmi270.md): real BMI270 breakout, setup mallocs and timing, register dumps, axis map and calibration
 - [`tca9548a.md`](tca9548a.md): real PCA9548A with a BMI270 behind it, Wire transaction trace, soft watchdog during the config upload
+- [`esp32_ble_server.md`](esp32_ble_server.md): YAML server, Improv over BLE and runtime service create, stop, start and remove checked directly and through a proxy, a service created inside `on_write`
