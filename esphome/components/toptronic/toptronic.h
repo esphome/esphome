@@ -15,6 +15,7 @@
 #endif
 
 #include <array>
+#include <utility>
 #include <map>
 #include <string>
 #include <unordered_map>
@@ -23,8 +24,18 @@
 namespace esphome::toptronic {
 
 class TopTronic;
-enum TypeName { U8, U16, U32, S8, S16, S32, S64 };  // value encoding of a datapoint
-enum SensorType { SENSOR, TEXTSENSOR };             // downcast discriminator (no dynamic_cast in ESPHome builds)
+// Value encoding of a datapoint
+enum class TypeName : uint8_t {
+  TYPE_NAME_U8,
+  TYPE_NAME_U16,
+  TYPE_NAME_U32,
+  TYPE_NAME_S8,
+  TYPE_NAME_S16,
+  TYPE_NAME_S32,
+  TYPE_NAME_S64,
+};
+// Downcast discriminator; ESPHome builds run without RTTI, so there is no dynamic_cast
+enum class SensorType : uint8_t { SENSOR_TYPE_SENSOR, SENSOR_TYPE_TEXT };
 
 static constexpr size_t GET_REQUEST_LEN = 6;
 using GetRequest = std::array<uint8_t, GET_REQUEST_LEN>;
@@ -39,13 +50,17 @@ class TopTronicBase : public PollingComponent {
   void set_function_group(uint8_t function_group) { this->function_group_ = function_group; }
   void set_function_number(uint8_t function_number) { this->function_number_ = function_number; }
   void set_datapoint(uint16_t datapoint) { this->datapoint_ = datapoint; }
-  uint32_t get_id();  // fg | fn << 8 | datapoint << 16; hub map key
+  uint32_t get_id() const;  // fg | fn << 8 | datapoint << 16; hub map key
   const GetRequest &get_request_data() const { return this->request_data_; }
   void cache_request_data();
-  virtual SensorType type() = 0;
+  virtual SensorType type() const = 0;
   void update() override;
-  void add_on_update_callback(std::function<void()> &&callback);
-  void add_on_set_callback(std::function<void(const uint8_t *, size_t)> &&callback);
+  template<typename F> void add_on_update_callback(F &&callback) {
+    this->update_callback_.add(std::forward<F>(callback));
+  }
+  template<typename F> void add_on_set_callback(F &&callback) {
+    this->set_callback_.add(std::forward<F>(callback));
+  }
   /// Set by the hub for an input without a read entity: control() then publishes the written value itself
   void set_optimistic(bool optimistic) { this->optimistic_ = optimistic; }
   virtual const LogString *get_log_name() const = 0;
@@ -63,39 +78,39 @@ class TopTronicBase : public PollingComponent {
   CallbackManager<void(const uint8_t *, size_t)> set_callback_;
 };
 
-class TopTronicSensor : public sensor::Sensor, public TopTronicBase {
+class TopTronicSensor final : public sensor::Sensor, public TopTronicBase {
  public:
   void set_type(TypeName type) { this->type_ = type; }
   float parse_value(const uint8_t *data, size_t len);
   size_t value_width() const;
-  SensorType type() override { return SENSOR; }
+  SensorType type() const override { return SensorType::SENSOR_TYPE_SENSOR; }
   const LogString *get_log_name() const override { return this->sensor::Sensor::get_log_name(); }
 
  protected:
-  TypeName type_;
+  TypeName type_{TypeName::TYPE_NAME_U8};
 };
 
 #ifdef USE_NUMBER
-class TopTronicNumber : public number::Number, public TopTronicBase {
+class TopTronicNumber final : public number::Number, public TopTronicBase {
  public:
   TopTronicNumber() { this->set_update_interval(SCHEDULER_DONT_RUN); }
   void set_type(TypeName type) { this->type_ = type; }
   void set_multiplier(float multiplier) { this->multiplier_ = multiplier; }
   float get_multiplier() { return this->multiplier_; }
-  SensorType type() override { return SENSOR; }
+  SensorType type() const override { return SensorType::SENSOR_TYPE_SENSOR; }
   const LogString *get_log_name() const override { return this->number::Number::get_log_name(); }
   void control(float value) override;
 
  protected:
-  TypeName type_;
+  TypeName type_{TypeName::TYPE_NAME_U8};
   float multiplier_{1.0f};  // from YAML decimal (decimal: 1 -> x10)
 };
 #endif
 #ifdef USE_TEXT_SENSOR
-class TopTronicTextSensor : public text_sensor::TextSensor, public TopTronicBase {
+class TopTronicTextSensor final : public text_sensor::TextSensor, public TopTronicBase {
  public:
   std::string parse_value(const uint8_t *data, size_t len);
-  SensorType type() override { return TEXTSENSOR; }
+  SensorType type() const override { return SensorType::SENSOR_TYPE_TEXT; }
   const LogString *get_log_name() const override { return this->text_sensor::TextSensor::get_log_name(); }
   void add_option(uint8_t value, const std::string &text) {
     this->to_text_[value] = text;
@@ -108,11 +123,11 @@ class TopTronicTextSensor : public text_sensor::TextSensor, public TopTronicBase
 };
 #endif
 #ifdef USE_SELECT
-class TopTronicSelect : public select::Select, public TopTronicBase {
+class TopTronicSelect final : public select::Select, public TopTronicBase {
  public:
   TopTronicSelect() { this->set_update_interval(SCHEDULER_DONT_RUN); }
   void set_type(TypeName type) { this->type_ = type; }
-  SensorType type() override { return TEXTSENSOR; }
+  SensorType type() const override { return SensorType::SENSOR_TYPE_TEXT; }
   const LogString *get_log_name() const override { return this->select::Select::get_log_name(); }
   void add_option(uint8_t value, const std::string &text) {
     this->to_text_[value] = text;
