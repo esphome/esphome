@@ -155,9 +155,7 @@ void BLEMidi::fail_session_() {
 }
 
 void BLEMidi::handle_message_(const MidiMessage &message) {
-  ESP_LOGV(
-      TAG, "Decoded %s",
-      LOG_STR_ARG(MessageTypeNames::get_log_str(static_cast<uint8_t>(message.type), MessageTypeNames::LAST_INDEX)));
+  ESP_LOGV(TAG, "Decoded %s", LOG_STR_ARG(MessageTypeNames::get_log_str(message.type)));
   // Only decoded messages reach on_message
   if (message.type == MessageType::SYSEX_INCOMPLETE) {
     ESP_LOGW(TAG, "SysEx of %u bytes dropped: cut short, or longer than max_sysex_size (%u)", message.length,

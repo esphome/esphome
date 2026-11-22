@@ -434,8 +434,7 @@ void MR24HPC1Component::r24_frame_parse_open_underlying_information_(uint8_t *da
     case 0x86:
       // none:0x00  close_to:0x01  far_away:0x02
       if ((this->keep_away_text_sensor_ != nullptr) && (data[FRAME_DATA_INDEX] < KeepAwayStrings::COUNT)) {
-        this->keep_away_text_sensor_->publish_state(
-            KeepAwayStrings::get_progmem_str(data[FRAME_DATA_INDEX], KeepAwayStrings::LAST_INDEX));
+        this->keep_away_text_sensor_->publish_state(KeepAwayStrings::get_progmem_str(data[FRAME_DATA_INDEX]));
       }
       break;
 #endif
@@ -589,16 +588,14 @@ void MR24HPC1Component::r24_frame_parse_human_information_(uint8_t *data) {
     case 0x02:
     case 0x82:
       if ((this->motion_status_text_sensor_ != nullptr) && (data[FRAME_DATA_INDEX] < MotionStatusStrings::COUNT)) {
-        this->motion_status_text_sensor_->publish_state(
-            MotionStatusStrings::get_progmem_str(data[FRAME_DATA_INDEX], MotionStatusStrings::LAST_INDEX));
+        this->motion_status_text_sensor_->publish_state(MotionStatusStrings::get_progmem_str(data[FRAME_DATA_INDEX]));
       }
       break;
     case 0x0B:
     case 0x8B:
       // none:0x00  close_to:0x01  far_away:0x02
       if ((this->keep_away_text_sensor_ != nullptr) && (data[FRAME_DATA_INDEX] < KeepAwayStrings::COUNT)) {
-        this->keep_away_text_sensor_->publish_state(
-            KeepAwayStrings::get_progmem_str(data[FRAME_DATA_INDEX], KeepAwayStrings::LAST_INDEX));
+        this->keep_away_text_sensor_->publish_state(KeepAwayStrings::get_progmem_str(data[FRAME_DATA_INDEX]));
       }
       break;
 #endif

@@ -75,3 +75,15 @@ xiaomi_ble/expected_all.json
 xiaomi_ble/run_*.yaml
 ble_scan_complete/*.txt
 ble_scan_complete/*.err
+mqtt/dns_boot/*.txt
+mqtt/dns_boot/*.log
+mqtt/dns_boot/*.err
+web_server/churnmix/*.json
+web_server/churnmix/evbody.txt
+web_server/churnmix/ext/components/https_test/certs.h
+ble_conn_interval/*.jsonl
+ble_conn_interval/*.err
+ble_conn_interval/*.log
+ble_conn_interval/cap-*.txt
+ble_conn_interval/ping-*.txt
+ble_server_stack/*.log

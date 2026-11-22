@@ -15,12 +15,10 @@ from esphome.const import (
     CONF_INTEGRATION_TIME,
     CONF_NAME,
     DEVICE_CLASS_EMPTY,
-    DEVICE_CLASS_ILLUMINANCE,
     ICON_BRIGHTNESS_5,
     ICON_BRIGHTNESS_6,
     ICON_TIMER,
     STATE_CLASS_MEASUREMENT,
-    UNIT_LUX,
     UNIT_MILLISECOND,
 )
 from esphome.types import ConfigType
@@ -74,11 +72,7 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_AMBIENT_LIGHT): cv.maybe_simple_value(
                 sensor.sensor_schema(
-                    unit_of_measurement=UNIT_LUX,
-                    icon=ICON_BRIGHTNESS_6,
-                    accuracy_decimals=1,
-                    device_class=DEVICE_CLASS_ILLUMINANCE,
-                    state_class=STATE_CLASS_MEASUREMENT,
+                    kind=sensor.ILLUMINANCE, icon=ICON_BRIGHTNESS_6, accuracy_decimals=1
                 ),
                 key=CONF_NAME,
             ),
@@ -94,11 +88,7 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_FULL_SPECTRUM): cv.maybe_simple_value(
                 sensor.sensor_schema(
-                    unit_of_measurement=UNIT_LUX,
-                    icon=ICON_BRIGHTNESS_7,
-                    accuracy_decimals=1,
-                    device_class=DEVICE_CLASS_ILLUMINANCE,
-                    state_class=STATE_CLASS_MEASUREMENT,
+                    kind=sensor.ILLUMINANCE, icon=ICON_BRIGHTNESS_7, accuracy_decimals=1
                 ),
                 key=CONF_NAME,
             ),
@@ -114,11 +104,7 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_INFRARED): cv.maybe_simple_value(
                 sensor.sensor_schema(
-                    unit_of_measurement=UNIT_LUX,
-                    icon=ICON_BRIGHTNESS_5,
-                    accuracy_decimals=1,
-                    device_class=DEVICE_CLASS_ILLUMINANCE,
-                    state_class=STATE_CLASS_MEASUREMENT,
+                    kind=sensor.ILLUMINANCE, icon=ICON_BRIGHTNESS_5, accuracy_decimals=1
                 ),
                 key=CONF_NAME,
             ),
