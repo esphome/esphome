@@ -466,7 +466,6 @@ async def main() -> None:
                 d.rec(test="third", variant=variant, round=r, result="clear_failed")
                 continue
             st = await d.connect(third, False, timeout=30)
-            held_ok = [d.held(h) for h in held] + ([d.held(EVE)] if eve_held else [])
             res = {k: st.get(k) for k in ("connected", "t_conn", "err", "exc")}
             if st["connected"]:
                 try:
@@ -477,6 +476,8 @@ async def main() -> None:
                     res["t_svc_after"] = round(time.monotonic() - t, 3)
                 except Exception as e:  # noqa: BLE001
                     res["svc_exc"] = f"{type(e).__name__}: {e}"
+            # after the discovery too: a held link that dropped during it leaves only two links up
+            held_ok = [d.held(h) for h in held] + ([d.held(EVE)] if eve_held else [])
             check_api()  # an API drop during the round is not the build's result
             d.rec(
                 test="third",

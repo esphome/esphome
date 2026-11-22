@@ -103,7 +103,7 @@ for name, lines in ph.items():
         txt = "\n".join(ln for _, ln in lines)
         if m := re.search(
             r"ST phase_end \w+ rounds=(\d+) ok=(\d+) first_ok=(\d+) fail=(\d+) stuck=(\d+)"
-            r"(?: cache_clean_fail=(\d+))?(?: handle_bad=(\d+))?(?: held_dropped=(\d+))?(?: hold_failed=(\d+))?",
+            r"(?: cache_clean_fail=(\d+))?(?: handle_bad=(\d+))?(?: held_dropped=(\d+))?(?: hold_failed=(\d+))?(?: send_err=(\d+))?",
             txt,
         ):
             d["rounds,ok,first_ok,fail,stuck"] = m.groups()[:5]
@@ -119,6 +119,8 @@ for name, lines in ph.items():
                 m[9] and m[9] != "0"
             ):  # rounds whose held links never came up, out of ok and fail
                 d["hold_failed_rounds"] = int(m[9])
+            if m[10] and m[10] != "0":  # retry writes the stack refused to send
+                d["send_err"] = int(m[10])
         elif name.split("#")[0] != "done" or "ST DONE" not in txt:
             d["incomplete"] = (
                 True  # a reset or the end of the capture cut the phase short
@@ -127,6 +129,9 @@ for name, lines in ph.items():
             d["handle_mismatch"] = hm
         ups = [int(x) for x in re.findall(r"ST conn_up \S+ r=\d+ total=(\d+)", txt)]
         d["up_total_ms"] = (med(ups), p90(ups), max(ups) if ups else None)
+        # connects were started but no device Connecting line matched: the log format is not the one read here
+        if "ST conn_start" in txt and not att:
+            d["no_device_attempts"] = True
         for pe in ("L", "M", "eve"):
             A = [a for a in att if a["p"] == pe]
             if not A:
@@ -199,6 +204,7 @@ for name, lines in ph.items():
         "handle_bad",
         "scanner_stuck",
         "cache_clean_fail",
+        "no_device_attempts",
     )
     # every round failed to hold its links (or ran on a wrong handle): the phase measured nothing
     rounds = d.get("rounds,ok,first_ok,fail,stuck", ("0",))[0]

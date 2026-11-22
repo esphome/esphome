@@ -346,6 +346,8 @@ try:
     )
 except FileNotFoundError:
     print(f"no ping-{T}.txt, ping not measured")
+if not steps:  # no start mark: nothing was run or the marks file is empty
+    flagged.append(f"no steps in marks-{T}.txt")
 if flagged:
     print("FLAGGED:", "; ".join(flagged))
     sys.exit(1)

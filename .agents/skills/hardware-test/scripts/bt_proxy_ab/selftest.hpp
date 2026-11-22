@@ -110,7 +110,7 @@ static int st;        // step inside the phase
 static uint16_t rnd;  // round or cycle
 static uint8_t att;   // retry attempt
 static uint32_t t_ph, t0, t_wait, t_open, t_round;
-static uint16_t ok_n, first_ok_n, fail_n, stuck_n, adv_mode_n, cc_fail_n, hb_n, hd_n, hf_n;
+static uint16_t ok_n, first_ok_n, fail_n, stuck_n, adv_mode_n, cc_fail_n, hb_n, hd_n, hf_n, se_n;
 static bool bad_handle[2];  // handle_l/handle_m do not point at this server's ff01: RTTs hit another characteristic
 static uint32_t adv0;
 static uint8_t rtt_i;
@@ -150,13 +150,13 @@ inline void next_phase() {
   const Phase &P = PHASES[ph];
   ESP_LOGI(TAG,
            "ST phase_end %s rounds=%u ok=%u first_ok=%u fail=%u stuck=%u cache_clean_fail=%u handle_bad=%u "
-           "held_dropped=%u hold_failed=%u",
-           P.name, rnd, ok_n, first_ok_n, fail_n, stuck_n, cc_fail_n, hb_n, hd_n, hf_n);
+           "held_dropped=%u hold_failed=%u send_err=%u",
+           P.name, rnd, ok_n, first_ok_n, fail_n, stuck_n, cc_fail_n, hb_n, hd_n, hf_n, se_n);
   ph++;
   st = 0;
   rnd = 0;
   att = 0;
-  ok_n = first_ok_n = fail_n = stuck_n = cc_fail_n = hb_n = hd_n = hf_n = 0;
+  ok_n = first_ok_n = fail_n = stuck_n = cc_fail_n = hb_n = hd_n = hf_n = se_n = 0;
   t_ph = t_wait = t_round = millis();
   ESP_LOGI(TAG, "ST phase_start %s", PHASES[ph].name);
 }
@@ -479,15 +479,26 @@ inline void tick() {
       } else if (st == 1) {
         int r = attempt(p, 10000);
         if (r == 1) {
+          if (p <= PM && bad_handle[p]) {  // the write would hit another characteristic: a harness fault
+            hb_n++;
+            ESP_LOGW(TAG, "ST retry %s r=%u handle_bad, not counted", PNAME[p], rnd);
+            att = 0;
+            st = 3;
+            break;
+          }
           // one ff01 write must go through, as drive.py's retry counts t_cmd
           Rtt *rt = RT[p];
           uint8_t v = 0xC0;
           rt->ok = false;
           rt->t0 = now;
           rt->pending = 2;
-          if (esp_ble_gattc_write_char(C[p]->get_gattc_if(), C[p]->get_conn_id(), FF01[p], 1, &v,
-                                       ESP_GATT_WRITE_TYPE_RSP, ESP_GATT_AUTH_REQ_NONE) != ESP_OK)
+          esp_err_t err = esp_ble_gattc_write_char(C[p]->get_gattc_if(), C[p]->get_conn_id(), FF01[p], 1, &v,
+                                                   ESP_GATT_WRITE_TYPE_RSP, ESP_GATT_AUTH_REQ_NONE);
+          if (err != ESP_OK) {
             rt->pending = 0;
+            se_n++;
+            ESP_LOGW(TAG, "ST retry %s r=%u send err=%d", PNAME[p], rnd, err);
+          }
           st = 8;
         } else if (r < 0) {
           att++;
