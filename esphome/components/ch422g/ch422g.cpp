@@ -68,7 +68,7 @@ bool CH422GComponent::read_inputs_() {
   if (this->is_failed()) {
     return false;
   }
-  uint8_t result;
+  uint8_t result{};
   bool ok;
   // reading inputs requires the chip to be in input mode, possibly temporarily.
   if (this->mode_value_ & CH422G_MODE_OUTPUT) {
