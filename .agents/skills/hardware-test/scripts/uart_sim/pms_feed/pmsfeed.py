@@ -11,7 +11,8 @@ esp_pm_configure() failure, or the component marked FAILED, exits 1 with or with
 fed between its first and last cnt line.
 Exits 1 too when no frame was fed, none was parsed, or fewer than two device cnt lines were captured.
 
-Frames go out from the first device cnt line until 12 s before the end, so a count follows the last one.
+Frames go out from the first device cnt line until 22 s before the end, so two counts follow the last one; they
+must agree, which catches a garbled final count.
 Frame n: PM1.0 std and atm = n, PM2.5 = n+1000, PM10 = n+2000, temp = 20.0+n%10, hum = 40.0+n%10.
 Writes "[feed] n=..." lines into OUT so parses can be matched to frames; device lines go through
 serial_capture.write_line() (millisecond stamps, colours stripped, secrets masked).
@@ -49,7 +50,7 @@ def frame(n: int) -> bytes:
     return body + struct.pack(">H", sum(body) & 0xFFFF)
 
 
-DRAIN = 12  # s without feeding at the end: more than one cnt period (10 s), so a count follows the last frame
+DRAIN = 22  # s without feeding at the end: over two cnt periods (10 s), so two counts follow the last frame
 
 
 def main() -> None:
@@ -175,6 +176,17 @@ def main() -> None:
         sys.exit("no frame was fed: the run tested nothing")
     if len(cnt) < 2:
         sys.exit("fewer than two cnt lines: the device parse count is unknown")
+    # nothing is fed after the last frame, so the counts after it must agree; a garbled digit makes them differ
+    fed_end = max((m.start() for m in re.finditer(rb"\[feed\] n=", log)), default=0)
+    tail = [c[0] for c in cnt if c[3] > fed_end]
+    if len(tail) < 2:
+        sys.exit(
+            "fewer than two cnt lines after the last frame: the final count cannot be checked"
+        )
+    if len(set(tail[-2:])) > 1:
+        sys.exit(
+            f"the last two cnt lines disagree ({tail[-2]} and {tail[-1]}): a cnt line is garbled"
+        )
     if suspect:
         sys.exit(
             f"{suspect} restarts with no boot line between the counts: likely a garbled cnt line"
