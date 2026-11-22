@@ -133,7 +133,6 @@ void HttpRequestUpdate::update() {
 
 void HttpRequestUpdate::dump_config() {
   ESP_LOGCONFIG(TAG, "HTTP Request Update:");
-  ESP_LOGCONFIG(TAG, "  Source URL: %s", this->source_url_);
   ESP_LOGCONFIG(TAG, "  Allow Forced Update: %s", YESNO(this->allow_forced_update_));
 }
 
