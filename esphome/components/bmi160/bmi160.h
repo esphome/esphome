@@ -7,6 +7,10 @@
 namespace esphome::bmi160 {
 
 class BMI160Component final : public PollingComponent, public i2c::I2CDevice {
+ protected:
+  // First so it packs into the padding after I2CDevice::address_
+  bool setup_complete_{false};
+
   SUB_SENSOR(accel_x)
   SUB_SENSOR(accel_y)
   SUB_SENSOR(accel_z)
@@ -20,12 +24,6 @@ class BMI160Component final : public PollingComponent, public i2c::I2CDevice {
   void dump_config() override;
 
   void update() override;
-
- protected:
-  void internal_setup_(int stage);
-  /// Run one setup stage; false on an I2C failure.
-  bool setup_stage_(int stage);
-  bool setup_complete_{false};
 };
 
 }  // namespace esphome::bmi160
