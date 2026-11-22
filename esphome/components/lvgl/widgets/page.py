@@ -76,8 +76,8 @@ page_spec = PageType()
     synchronous=True,
 )
 async def page_next_to_code(config, action_id, template_arg, args):
-    animation = await LV_ANIM.process(config[CONF_ANIMATION])
-    time = await lv_milliseconds.process(config[CONF_TIME])
+    animation = await LV_ANIM.process(config[CONF_ANIMATION], args)
+    time = await lv_milliseconds.process(config[CONF_TIME], args)
     async with LambdaContext(args) as context:
         add_line_marks(action_id)
         lv_add((await lvgl_parent(config)).show_next_page(animation, time))
@@ -101,8 +101,8 @@ automation.register_apply_condition(
     synchronous=True,
 )
 async def page_previous_to_code(config, action_id, template_arg, args):
-    animation = await LV_ANIM.process(config[CONF_ANIMATION])
-    time = await lv_milliseconds.process(config[CONF_TIME])
+    animation = await LV_ANIM.process(config[CONF_ANIMATION], args)
+    time = await lv_milliseconds.process(config[CONF_TIME], args)
     async with LambdaContext(args) as context:
         add_line_marks(action_id)
         lv_add((await lvgl_parent(config)).show_prev_page(animation, time))
@@ -124,8 +124,8 @@ async def page_previous_to_code(config, action_id, template_arg, args):
 )
 async def page_show_to_code(config, action_id, template_arg, args):
     widget = automation.parent_ref(await cg.get_variable(config[CONF_ID]))
-    animation = await LV_ANIM.process(config[CONF_ANIMATION])
-    time = await lv_milliseconds.process(config[CONF_TIME])
+    animation = await LV_ANIM.process(config[CONF_ANIMATION], args)
+    time = await lv_milliseconds.process(config[CONF_TIME], args)
     async with LambdaContext(args) as context:
         add_line_marks(action_id)
         lv_add((await lvgl_parent(config)).show_page(widget.index, animation, time))

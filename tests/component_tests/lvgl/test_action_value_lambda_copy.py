@@ -18,7 +18,8 @@ def test_value_lambda_takes_trigger_arg_by_value(
 ) -> None:
     main_cpp = generate_main(CONFIG)
     assert "const std::remove_cvref_t<float> & x" in main_cpp
-    # The lambda that runs `++x` declares its own by-value `float x`
-    assert re.search(
-        r"\]\(float x\b[^)]*\)[^{]*\{\s*(#line[^\n]*\n\s*)?return \+\+x;", main_cpp
+    # Each lambda that runs `++x` (slider value, canvas width) declares its own by-value `float x`
+    copies = re.findall(
+        r"\]\(float x\b[^)]*\)[^{]*\{\s*(?:#line[^\n]*\n\s*)?return \+\+x;", main_cpp
     )
+    assert len(copies) == 2

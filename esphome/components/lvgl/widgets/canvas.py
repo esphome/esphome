@@ -137,8 +137,8 @@ CanvasType()
 )
 async def canvas_fill(config, action_id, template_arg, args):
     widget = await get_widgets(config)
-    color = await lv_color.process(config[CONF_COLOR])
-    opa = await opacity.process(config[CONF_OPA])
+    color = await lv_color.process(config[CONF_COLOR], args)
+    opa = await opacity.process(config[CONF_OPA], args)
 
     async def do_fill(w: Widget):
         lv.canvas_fill_bg(w.obj, color, opa)
@@ -161,12 +161,12 @@ async def canvas_fill(config, action_id, template_arg, args):
 )
 async def canvas_set_pixel(config, action_id, template_arg, args):
     widget = await get_widgets(config)
-    color = await lv_color.process(config[CONF_COLOR])
-    opa = await opacity.process(config.get(CONF_OPA), "COVER")
+    color = await lv_color.process(config[CONF_COLOR], args)
+    opa = await opacity.process(config.get(CONF_OPA), args)
     points = [
         (
-            await pixels.process(p[CONF_X]),
-            await pixels.process(p[CONF_Y]),
+            await pixels.process(p[CONF_X], args),
+            await pixels.process(p[CONF_Y], args),
         )
         for p in config[CONF_POINTS]
     ]
@@ -194,8 +194,8 @@ DRAW_OPA_SCHEMA = {
 
 async def draw_to_code(config, dsc_type, props, do_draw, action_id, template_arg, args):
     widget = await get_widgets(config)
-    x = await pixels.process(config.get(CONF_X))
-    y = await pixels.process(config.get(CONF_Y))
+    x = await pixels.process(config.get(CONF_X), args)
+    y = await pixels.process(config.get(CONF_Y), args)
 
     async def action_func(w: Widget):
         # LVGL 9.4: Create a layer for drawing on canvas
@@ -298,8 +298,8 @@ def _draw_line(layer, dsc, points):
     synchronous=True,
 )
 async def canvas_draw_rect(config, action_id, template_arg, args):
-    width = await pixels.process(config[CONF_WIDTH])
-    height = await pixels.process(config[CONF_HEIGHT])
+    width = await pixels.process(config[CONF_WIDTH], args)
+    height = await pixels.process(config[CONF_HEIGHT], args)
 
     async def do_draw_rect(layer, x, y, dsc):
         # LVGL 9.4: Use lv_draw_rect with area
@@ -344,8 +344,8 @@ TEXT_PROPS = {
     synchronous=True,
 )
 async def canvas_draw_text(config, action_id, template_arg, args):
-    text = await lv_text.process(config[CONF_TEXT])
-    max_width = await pixels.process(config[CONF_MAX_WIDTH])
+    text = await lv_text.process(config[CONF_TEXT], args)
+    max_width = await pixels.process(config[CONF_MAX_WIDTH], args)
 
     async def do_draw_text(layer, x, y, dsc):
         # LVGL 9.4: Use lv_draw_label with area and hint
@@ -415,9 +415,9 @@ def _prop_validator(prop):
     synchronous=True,
 )
 async def canvas_draw_image(config, action_id, template_arg, args):
-    src = await lv_image.process(config[CONF_SRC])
-    pivot_x = await pixels.process(config[CONF_PIVOT_X])
-    pivot_y = await pixels.process(config[CONF_PIVOT_Y])
+    src = await lv_image.process(config[CONF_SRC], args)
+    pivot_x = await pixels.process(config[CONF_PIVOT_X], args)
+    pivot_y = await pixels.process(config[CONF_PIVOT_Y], args)
 
     async def do_draw_image(layer, x, y, dsc):
         # LVGL 9.4: Use lv_draw_image with area
@@ -478,8 +478,8 @@ def _validate_points(config):
 async def canvas_draw_line(config, action_id, template_arg, args):
     points = [
         [
-            await pixels.process(p[CONF_X]),
-            await pixels.process(p[CONF_Y]),
+            await pixels.process(p[CONF_X], args),
+            await pixels.process(p[CONF_Y], args),
         ]
         for p in config[CONF_POINTS]
     ]
@@ -507,8 +507,8 @@ async def canvas_draw_line(config, action_id, template_arg, args):
 async def canvas_draw_polygon(config, action_id, template_arg, args):
     points = [
         [
-            await pixels_or_percent.process(p[CONF_X]),
-            await pixels_or_percent.process(p[CONF_Y]),
+            await pixels_or_percent.process(p[CONF_X], args),
+            await pixels_or_percent.process(p[CONF_Y], args),
         ]
         for p in config[CONF_POINTS]
     ]
@@ -554,9 +554,9 @@ ARC_PROPS = {
     synchronous=True,
 )
 async def canvas_draw_arc(config, action_id, template_arg, args):
-    radius = await size.process(config[CONF_RADIUS])
-    start_angle = await lv_angle_degrees.process(config[CONF_START_ANGLE])
-    end_angle = await lv_angle_degrees.process(config[CONF_END_ANGLE])
+    radius = await size.process(config[CONF_RADIUS], args)
+    start_angle = await lv_angle_degrees.process(config[CONF_START_ANGLE], args)
+    end_angle = await lv_angle_degrees.process(config[CONF_END_ANGLE], args)
 
     async def do_draw_arc(layer, x, y, dsc):
         # LVGL 9.4: Use lv_draw_arc with center point
