@@ -190,11 +190,11 @@ class TopTronicSelect final : public select::Select, public TopTronicInput {
 
 #ifdef USE_BUTTON
 // Sends a fixed SET (an acknowledge or reset command) when pressed. Never polls, like number and select.
-class TopTronicButton : public button::Button, public TopTronicInput {
+class TopTronicButton final : public button::Button, public TopTronicInput {
  public:
   void set_type(TypeName type) { this->type_ = type; }
   void set_value(int64_t value) { this->value_ = value; }
-  SensorType type() override { return BUTTON; }
+  SensorType type() const override { return SensorType::SENSOR_TYPE_BUTTON; }
   const LogString *get_log_name() const override { return this->button::Button::get_log_name(); }
 
  protected:
