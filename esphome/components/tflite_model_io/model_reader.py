@@ -20,6 +20,10 @@ _OPCODE_BUILTIN_CODE = 3
 _SUBGRAPH_TENSORS = 0
 _SUBGRAPH_INPUTS = 1
 _SUBGRAPH_OUTPUTS = 2
+
+# OperatorCode fields and the custom builtin code.
+_OPCODE_CUSTOM_CODE = 1
+_BUILTIN_CUSTOM = 32
 _SUBGRAPH_OPERATORS = 3
 _OPERATOR_INPUTS = 1
 _OPERATOR_OUTPUTS = 2
@@ -252,11 +256,27 @@ def _operator_name(code: int) -> str:
     return f"BUILTIN_{code}"
 
 
+def _operator_names(buffer: _FlatBuffer) -> list[str]:
+    """The name of every operator code, with custom codes kept distinct."""
+    names = []
+    for table in buffer.table_vector(buffer.root(), _MODEL_OPERATOR_CODES):
+        deprecated = buffer.i8_field(table, _OPCODE_DEPRECATED_BUILTIN_CODE) or 0
+        builtin = buffer.i32_field(table, _OPCODE_BUILTIN_CODE) or 0
+        code = max(builtin, deprecated)
+        if code == _BUILTIN_CUSTOM:
+            # Each custom operator takes its own resolver slot, so keep the code.
+            custom = buffer.i32_field(table, _OPCODE_CUSTOM_CODE) or 0
+            names.append(f"CUSTOM:{custom}")
+        else:
+            names.append(_operator_name(code))
+    if not names:
+        raise ModelReadError(f"{buffer.path}: the model declares no operator codes")
+    return names
+
+
 def read_model_operators(model_path: str | Path) -> frozenset[str]:
     """The operators a model declares, one entry per code, so ``len()`` is the resolver slots it needs."""
-    return frozenset(
-        _operator_name(code) for code in _operator_codes(_load(model_path))
-    )
+    return frozenset(_operator_names(_load(model_path)))
 
 
 def _subgraph(buffer: _FlatBuffer) -> int:
@@ -275,10 +295,15 @@ def _tensor_spec(buffer: _FlatBuffer, table: int) -> TensorSpec:
     scale, zero_point = 1.0, 0
     if (position := buffer.field(table, _TENSOR_QUANTIZATION)) is not None:
         quantization = buffer.indirect(position)
-        if scales := buffer.f32_vector(quantization, _QUANT_SCALE):
-            scale = scales[0]
-        if zero_points := buffer.i32_vector(quantization, _QUANT_ZERO_POINT):
-            zero_point = zero_points[0]
+        scales = buffer.f32_vector(quantization, _QUANT_SCALE)
+        zero_points = buffer.i32_vector(quantization, _QUANT_ZERO_POINT)
+        if len(scales) > 1 or len(zero_points) > 1 or len(scales) != len(zero_points):
+            raise ModelReadError(
+                f"{buffer.path}: per-channel quantization is not supported "
+                f"({len(scales)} scales, {len(zero_points)} zero points)"
+            )
+        scale = scales[0] if scales else 1.0
+        zero_point = zero_points[0] if zero_points else 0
     return TensorSpec(
         shape=tuple(buffer.i32_vector(table, _TENSOR_SHAPE)),
         type=type_name,
@@ -339,8 +364,13 @@ def _read_tensors(
     """Every tensor of a subgraph, with the bytes it occupies in the arena."""
     tensors = []
     for table in buffer.table_vector(subgraph, _SUBGRAPH_TENSORS):
+        # A tensor whose buffer holds data is a constant read in place from the model; the converter gives the
+        # others a buffer entry too, usually empty.
+        index = buffer.u32_field(table, _TENSOR_BUFFER) or 0
+        in_arena = not (index < len(constant_buffers) and constant_buffers[index])
         type_code = buffer.i8_field(table, _TENSOR_TYPE) or 0
-        if (element_size := TENSOR_TYPE_SIZES.get(type_code)) is None:
+        element_size = TENSOR_TYPE_SIZES.get(type_code)
+        if element_size is None and in_arena:
             raise ModelReadError(
                 f"{buffer.path}: tensor type {type_code} has no known element size, "
                 f"so the arena it needs cannot be estimated"
@@ -352,11 +382,7 @@ def _read_tensors(
                     f"{buffer.path}: tensor dimension {dimension} is negative"
                 )
             elements *= dimension
-        # A tensor whose buffer holds data is a constant read in place from the model; the converter gives the
-        # others a buffer entry too, usually empty.
-        index = buffer.u32_field(table, _TENSOR_BUFFER) or 0
-        in_arena = not (index < len(constant_buffers) and constant_buffers[index])
-        tensors.append(_Tensor(element_size * elements, in_arena))
+        tensors.append(_Tensor((element_size or 0) * elements, in_arena))
     return tensors
 
 
