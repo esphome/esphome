@@ -7,6 +7,7 @@
 #include <esp_heap_caps.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
+#include <atomic>
 #include <cstring>
 #ifndef MALLOC_CAP_EXEC
 #define FB_IRAM_FREE() 0
@@ -40,7 +41,7 @@ struct File {
 static const File FILES[] = {
     {"s16", fb_s16, fb_s16_end}, {"m16", fb_m16, fb_m16_end}, {"s24", fb_s24, fb_s24_end}, {"m24", fb_m24, fb_m24_end}};
 static constexpr size_t IN_CAP = 16384;
-static volatile bool running = false;
+static std::atomic<bool> running{false};  // set by the button automation, cleared by the task on core 1
 static int rounds_req = 5;
 
 static inline uint32_t fnv(uint32_t h, const uint8_t *p, size_t n) {
@@ -67,7 +68,7 @@ static void run_one(const File &f, int round) {
   const uint8_t *src = f.begin;
   size_t in_len = 0, in_off = 0;
   uint32_t h = 2166136261u, bps = 0, ch = 0, rate = 0;
-  uint64_t samples = 0, dec_us = 0;
+  uint64_t samples = 0, dec_us = 0, total = 0;
   int64_t wall0 = esp_timer_get_time();
   bool decode_error = false, stalled = false;
   while (true) {
@@ -96,6 +97,7 @@ static void run_one(const File &f, int round) {
       const auto &info = dec->get_stream_info();
       bps = info.bits_per_sample();
       ch = info.num_channels();
+      total = info.total_samples_per_channel();
       rate = info.sample_rate();
       out_cap = dec->get_output_buffer_size_samples() * info.bytes_per_sample();
       uint8_t *grown = alloc.reallocate(out, out_cap);
@@ -126,6 +128,12 @@ static void run_one(const File &f, int round) {
       ESP_LOGE(TAG, "%s decode error %d", f.name, (int) r);
       break;
     }
+  }
+  // the decoder takes a truncated last frame without an error: input running out is not proof of a full decode
+  if (!decode_error && (ch == 0 || (total != 0 && samples / ch != total))) {
+    decode_error = true;
+    ESP_LOGE(TAG, "%s decoded %llu of %llu samples per channel", f.name, (unsigned long long) (ch ? samples / ch : 0),
+             (unsigned long long) total);
   }
   int64_t wall = esp_timer_get_time() - wall0;
   const int d_dram = (int) dram0 - (int) heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);

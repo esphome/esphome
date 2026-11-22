@@ -6,6 +6,8 @@
 N=$1 Y=$2 T=$3 FLOW=$4
 D=$(cd "$(dirname "$0")" && pwd); cd "$D" || exit 1
 H=${HOST:?set HOST}; PY=${PY:-python3}
+# before the capture starts, so a missing BASEURL cannot leave it running
+[ "$FLOW" != yes ] || [ -n "$BASEURL" ] || { echo "set BASEURL for the run.py flow" >&2; exit 1; }
 [ -z "${API_KEY+x}" ] && [ -f apikey.txt ] && API_KEY=$(cat apikey.txt)
 export API_KEY
 [ -n "$NOFLASH" ] || { TREE=$T ../pio_build.sh upload "$N" "$Y" "$H" && sleep 15; } || exit 1
@@ -15,7 +17,7 @@ CP=$!
 for _ in $(seq 1 30); do grep -q "\[" "cap-$N.txt" 2>/dev/null && break; sleep 2; done
 grep -a -m1 "ESPHome version\|Project" "cap-$N.txt"
 if [ "$FLOW" = yes ]; then
-  $PY run.py "$H" "${BASEURL:?set BASEURL}" "$N" > "drive-$N.txt" 2>&1 || { kill $CP; echo "FAIL $N run.py"; exit 1; }
+  $PY run.py "$H" "$BASEURL" "$N" > "drive-$N.txt" 2>&1 || { kill $CP; echo "FAIL $N run.py"; exit 1; }
   sleep 3
 fi
 for _ in $(seq 1 "${PRESSES:-1}"); do
