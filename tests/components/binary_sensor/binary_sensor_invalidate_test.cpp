@@ -160,7 +160,7 @@ class RecordingFilter : public Filter {
   char id_;
 };
 
-TEST(BinarySensorInvalidate, ValuesPassEveryFilterInOrderBeforeTheSensor) {
+TEST(BinarySensorFilterChain, ValuesPassEveryFilterInOrderBeforeTheSensor) {
   BinarySensor sensor;
   std::string log;
   RecordingFilter first(&log, '1');
