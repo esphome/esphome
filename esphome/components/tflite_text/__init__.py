@@ -27,7 +27,7 @@ TEXT_SCHEMA = cv.Schema({cv.Optional(CONF_MAX_SEQUENCE_LENGTH): cv.positive_int}
 CONFIG_SCHEMA = cv.Schema({})
 
 
-async def to_code(var, config: ConfigType, model_path: Path) -> None:
+async def configure(var, config: ConfigType, model_path: Path) -> None:
     """Create the token pipeline and the output decoder for one model."""
     pipeline = cg.new_Pvariable(
         ID(f"{config[CONF_ID].id}_text", is_declaration=True, type=TextInputPipeline)
