@@ -132,7 +132,8 @@ second (PM1.0 = frame number), captures the log and prints the feed, parse and w
 counts the pm_1_0 publishes on the device. `pms-dut.yaml` is the plain build, `pms-dfs.yaml` adds frequency scaling
 (`enable_light_sleep: true` for the light sleep case) and `pms-manual-pm.yaml` calls `esp_pm_configure()` by hand
 (`pmh.hpp`) for a tree without `esp32_power_management`. Run both power management builds with `--expect-pm`,
-which fails unless the capture proves power management was on; an `esp_pm_configure()` failure always fails.
+which fails unless the capture proves power management was on (add `--expect-light-sleep` for the light sleep
+case); an `esp_pm_configure()` failure always fails.
 
 - The plain build parses every frame; frequency scaling and light sleep lose frames in UART RX (boards.md, ESP32
   classic devkit, has the numbers and the REF_TICK workaround).

@@ -1,11 +1,12 @@
 """Bounded capture at 9600 that also feeds PMS5003T frames on the same port (esphome#23038).
 
-  pmsfeed.py PORT SECONDS OUT [--reset] [--start S] [--period 1.0] [--expect-pm] [--selftest]
+  pmsfeed.py PORT SECONDS OUT [--reset] [--start S] [--period 1.0] [--expect-pm] [--expect-light-sleep] [--selftest]
 
 --expect-pm (pms-dfs.yaml and pms-manual-pm.yaml runs): exit 1 unless the capture proves power management was
 on (an esp_pm_configure() result of 0 from pmh.hpp, or the esp32_power_management config block). Any
-esp_pm_configure() failure exits 1 with or without it.
-Exits 1 too when fewer than two device cnt lines were captured, so the device count is unknown.
+esp_pm_configure() failure, or the component marked FAILED, exits 1 with or without it.
+--expect-light-sleep (light sleep runs) also needs proof light sleep was on: "Light Sleep Enabled" or ls=1 = 0.
+Exits 1 too when no frame was fed, or fewer than two device cnt lines were captured (device count unknown).
 
 Frame n: PM1.0 std and atm = n, PM2.5 = n+1000, PM10 = n+2000, temp = 20.0+n%10, hum = 40.0+n%10.
 Writes "[feed] n=..." lines into OUT so parses can be matched to frames; device lines go through
@@ -53,8 +54,11 @@ def main() -> None:
     ap.add_argument("--start", type=float, default=5.0)
     ap.add_argument("--period", type=float, default=1.0)
     ap.add_argument("--expect-pm", action="store_true")
+    ap.add_argument("--expect-light-sleep", action="store_true")
     ap.add_argument("--selftest", action="store_true")
     a = ap.parse_args()
+    if not a.selftest and a.seconds <= a.start:
+        sys.exit("SECONDS must be longer than --start, or no frame is fed")
     if a.selftest:
         f = frame(7)
         assert len(f) == 32 and f[:4] == b"\x42\x4d\x00\x1c"
@@ -117,21 +121,36 @@ def main() -> None:
     # builds with pmh.hpp log the esp_pm_configure() result; anything but 0 means no power management
     pm = re.findall(rb"esp_pm_configure\(ls=\d\) = (-?\d+)", log)
     # esp32_power_management (pms-dfs.yaml) logs a failure, and its config block when it is set up
-    pm_failed = log.count(b"esp_pm_configure failed") + sum(x != b"0" for x in pm)
+    # its config block is printed even after a failed setup, so the core's FAILED line counts as a failure
+    pm_failed = (
+        log.count(b"esp_pm_configure failed")
+        + log.count(b"esp32_power_management is marked FAILED")
+        + sum(x != b"0" for x in pm)
+    )
     pm_ok = not pm_failed and (bool(pm) or b"Power Management:" in log)
+    ls_ok = pm_ok and (
+        b"Light Sleep Enabled" in log or b"esp_pm_configure(ls=1) = 0" in log
+    )
+    feeds = log.count(b"[feed] n=")
     print(
         f"pm_configure={','.join(x.decode() for x in pm) or ('MISSING' if a.expect_pm else '-')} "
         f"pm_failed={pm_failed} cnt_lines={len(cnt)} "
-        f"feeds={log.count(b'[feed] n=')} parses={parses} dev_parses_between_cnt_lines={dev} boots={boots} "
+        f"feeds={feeds} parses={parses} dev_parses_between_cnt_lines={dev} boots={boots} "
         f"start_char={log.count(b'Start character')} payload_len={log.count(b'Payload length')} "
         f"checksum={log.count(b'checksum mismatch')}"
     )
+    if feeds == 0:
+        sys.exit("no frame was fed: the run tested nothing")
     if len(cnt) < 2:
         sys.exit("fewer than two cnt lines: the device parse count is unknown")
     if pm_failed:
         sys.exit("esp_pm_configure() failed: the run is not under power management")
     if a.expect_pm and not pm_ok:
         sys.exit("--expect-pm: no proof in the capture that power management was on")
+    if a.expect_light_sleep and not ls_ok:
+        sys.exit(
+            "--expect-light-sleep: no proof in the capture that light sleep was on"
+        )
 
 
 if __name__ == "__main__":
