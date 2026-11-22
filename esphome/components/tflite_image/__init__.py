@@ -10,8 +10,7 @@ from pathlib import Path
 import esphome.codegen as cg
 from esphome.components.tflite_model_io.model_reader import read_model_io
 import esphome.config_validation as cv
-from esphome.const import CONF_DEBUG, CONF_ID
-from esphome.core import ID
+from esphome.const import CONF_DEBUG
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@nliaudat"]
@@ -27,6 +26,8 @@ CONF_INPUT_HEIGHT = "input_height"
 CONF_INPUT_ORDER = "input_order"
 CONF_NORMALIZE = "normalize"
 CONF_INVERT = "invert"
+CONF_PIPELINE_ID = "pipeline_id"
+CONF_DECODER_ID = "decoder_id"
 
 tflite_image_ns = cg.esphome_ns.namespace("tflite_image")
 ImageInputPipeline = tflite_image_ns.class_("ImageInputPipeline")
@@ -52,6 +53,8 @@ IMAGE_SCHEMA = cv.Schema(
         cv.Optional(CONF_INPUT_ORDER): cv.enum(CHANNEL_ORDERS, upper=True),
         cv.Optional(CONF_NORMALIZE): cv.boolean,
         cv.Optional(CONF_INVERT): cv.boolean,
+        cv.GenerateID(CONF_PIPELINE_ID): cv.declare_id(ImageInputPipeline),
+        cv.GenerateID(CONF_DECODER_ID): cv.declare_id(ClassificationDecoder),
     }
 )
 
@@ -101,13 +104,7 @@ def resolve_image_config(entry: ConfigType, model_path: Path) -> ConfigType:
 def build_pipeline(config: ConfigType, model_path: Path):
     """Create the frame pipeline a kind that consumes images reuses."""
     values = resolve_image_config(config, model_path)
-    pipeline = cg.new_Pvariable(
-        ID(
-            f"{config[CONF_ID].id}_image",
-            is_declaration=True,
-            type=ImageInputPipeline,
-        )
-    )
+    pipeline = cg.new_Pvariable(config[CONF_PIPELINE_ID])
     cg.add(
         pipeline.set_geometry(
             values[CONF_INPUT_WIDTH],
@@ -125,11 +122,7 @@ async def configure(var, config: ConfigType, model_path: Path) -> None:
     """Create the image pipeline and the classification decoder for one model."""
     cg.add(var.set_input_pipeline(build_pipeline(config, model_path)))
     decoder = cg.new_Pvariable(
-        ID(
-            f"{config[CONF_ID].id}_decoder",
-            is_declaration=True,
-            type=ClassificationDecoder,
-        ),
+        config[CONF_DECODER_ID],
         OutputProcessing.OUTPUT_PROCESSING_ARGMAX,
         1.0,
         config.get(CONF_DEBUG, False),

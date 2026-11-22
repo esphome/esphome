@@ -47,7 +47,11 @@ bool ImageInputPipeline::fill(TfLiteTensor *input, const uint8_t *src, size_t si
              this->width_, this->height_);
     return false;
   }
-  const bool gray = this->channels_ == 1 || this->channel_order_ == ChannelOrder::CHANNEL_ORDER_GRAY;
+  if (this->channel_order_ == ChannelOrder::CHANNEL_ORDER_GRAY && this->channels_ != 1) {
+    ESP_LOGE(TAG, "A GRAY model needs a single-channel tensor");
+    return false;
+  }
+  const bool gray = this->channels_ == 1;
   const bool swap = this->channel_order_ == ChannelOrder::CHANNEL_ORDER_BGR;
 
   if (input->type == kTfLiteFloat32) {
