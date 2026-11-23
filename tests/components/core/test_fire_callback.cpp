@@ -8,9 +8,9 @@ namespace esphome::core::testing {
 
 namespace {
 
-std::vector<float> values;
-std::vector<std::string> texts;
-std::vector<int> counts;
+std::vector<float> values;       // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+std::vector<std::string> texts;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+std::vector<int> counts;         // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 void on_value(const float &x) { values.push_back(x); }
 void on_text(const std::string &text, const int &count) {
