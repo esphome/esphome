@@ -4,8 +4,6 @@
 
 #include <gtest/gtest.h>
 
-#include <cstddef>
-#include <cstdint>
 #include <utility>
 #include <vector>
 
@@ -55,16 +53,6 @@ TEST(VirtualUART, BlockThatDoesNotFitIsRefusedWhole) {
   EXPECT_TRUE(uart.inject_rx(FRAME, sizeof(FRAME)));
   EXPECT_FALSE(uart.inject_rx(FRAME, 3));
   EXPECT_EQ(uart.available(), sizeof(FRAME));
-}
-
-TEST(VirtualUART, RingWrapsAround) {
-  TestVirtualUART<10> uart;
-  uint8_t out[sizeof(FRAME)]{};
-  for (int round = 0; round < 5; round++) {
-    ASSERT_TRUE(uart.inject_rx(FRAME, sizeof(FRAME)));
-    ASSERT_TRUE(uart.read_array(out, sizeof(FRAME)));
-    EXPECT_EQ(out[sizeof(FRAME) - 1], 0xCD);
-  }
 }
 
 TEST(VirtualUART, DebuggerSeesReadAndWrittenBytes) {

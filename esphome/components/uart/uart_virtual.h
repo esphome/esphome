@@ -3,14 +3,10 @@
 #include "uart_component.h"
 #include "esphome/core/helpers.h"
 
-#include <cstddef>
-#include <cstdint>
-
 namespace esphome::uart {
 
-/// Receive half of a UART without a wire. The derived class feeds the reader with inject_rx() and does the writing.
-/// Reads never wait; a short read takes nothing. Main loop only.
-/// RX_BUFFER_SIZE bytes of RX ring live in the object; a later set_rx_buffer_size() does not resize it.
+/// UART without a wire: the derived class writes and feeds reads with inject_rx(). Reads never wait. Main loop only.
+/// The RX_BUFFER_SIZE byte ring lives in the object; set_rx_buffer_size() does not resize it.
 template<size_t RX_BUFFER_SIZE> class VirtualUARTComponent : public UARTComponent {
  public:
   VirtualUARTComponent() { this->rx_buffer_size_ = RX_BUFFER_SIZE; }
