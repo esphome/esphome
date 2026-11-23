@@ -1,5 +1,6 @@
 """apilogcap.py HOST SECONDS OUT: DEBUG log lines over the API, stamped with the local receive time like
-serial_capture.py --ms, so devtime.py works on a proxy with no USB console; reconnects until the deadline."""
+serial_capture.py --ms, so devtime.py works on a proxy with no USB console; reconnects until the deadline and
+writes APILOGCAP SESSION LOST when a session ends and APILOGCAP CONNECT FAILED when a reconnect fails."""
 
 import asyncio
 import contextlib
@@ -40,6 +41,10 @@ async def main() -> None:
             cli.subscribe_logs(on_log, log_level=LogLevel.LOG_LEVEL_DEBUG)
             with contextlib.suppress(TimeoutError):
                 await asyncio.wait_for(ev.wait(), max(1, end - time.time()))
+            if ev.is_set():
+                # a quick reboot reconnects at the first try: mark every lost session, not only failed connects
+                f.write(time.strftime("[%H:%M:%S.000]") + " APILOGCAP SESSION LOST\n")
+                f.flush()
             with contextlib.suppress(Exception):
                 await cli.disconnect()
 

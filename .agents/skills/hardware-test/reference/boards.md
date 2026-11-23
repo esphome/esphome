@@ -46,6 +46,10 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
   reaches the chip, `esptool --baud 460800 write-flash 0x0 firmware.bin` works and the log at 115200 is clean.
 - ESP8266 Wi-Fi join time: about 7.8 s with a passphrase, about 0.65 s with a 64 hex PSK and `fast_connect: true`.
   Use the PSK form when a test depends on early boot timing.
+- The GPIO input register reads 0 for GPIO2 while it has the U1TXD function, not the pad level. Read the hardware
+  UART1 TX level through its own receiver: set `UCLBE` in `USC0(1)` and read `USS(1)` bit 15 (RXD); `USIR(1)` bit 7
+  is BRK_DET. With `UCTXI` set the loopback sees the inverted (pad) level. Software serial pins are GPIO function, so
+  the input register is the pad (recipes/uart_tx_break.md).
 
 ## ESP32 classic devkit
 
@@ -231,6 +235,11 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
   setup (watchdog reset after 10 s) while a capture holds DTR released, because the kit's CH340 then keeps PA00 low
   (a break). Asserting DTR after boot lets setup finish: `serial_capture.py PORT SECONDS OUT --released --reset
   --dtr-after DELAY` resets with DTR released and asserts it DELAY seconds later. Use PA02 for UART1 RX.
+- A pin belongs to one peripheral in the SDK pin mux. Once `pinMode()` has run on a UART pin, LibreTiny's GPIO
+  record keeps it, and a later `Serial.begin()` on that pin silently fails to claim it (`hal_uart_init()` ignores the
+  `hal_pinmux_register()` error): TX sends nothing. `pinModeRemove(pin, PIN_GPIO)` (`gpio_deinit()`) frees it.
+  Reading the RX pin as a GPIO while the port is closed is fine if it is freed the same way before the port reopens
+  (#22986, recipes/uart_tx_break.md).
 
 ## BK7238, WB3S, CB3S (BK7231N) (LibreTiny bk72xx, CH340, RTS on CEN)
 
@@ -290,6 +299,8 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
 - LibreTiny's builder adds `-D'delay(ms)=delayMilliseconds(ms)'`, so `esphome::delay` is really
   `esphome::delayMilliseconds` on BK72xx and a YAML lambda calling `delay()` fails to compile on dev. In a header use
   `(esphome::micros)()` to dodge the `main.cpp` function-like macros.
+- UART2 is P0 (TX) and P1 (RX), side by side on one header row of the WB3S module; a jumper between them makes a
+  loopback. UART2 TX carries about 40 bytes of boot text before ESPHome starts, which loop back into RX.
 
 ## BW12 and other AmebaZ boards (RTL8710BX, LibreTiny rtl87xx)
 

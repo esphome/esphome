@@ -8,7 +8,7 @@ namespace esphome::zigbee {
 
 ESPHOME_LOG_TAG(TAG, "zigbee.attribute");
 
-void ZigbeeAttribute::set_attr_internal() {
+void ZigbeeAttributeBase::set_attr_internal() {
   if (!this->zb_->is_started()) {
     return;
   }
@@ -19,16 +19,16 @@ void ZigbeeAttribute::set_attr_internal() {
     if (this->force_report_) {
       this->report_internal(true);
     }
+    esp_zigbee_lock_release();
     // Check for error
     if (state != EZB_ZCL_STATUS_SUCCESS) {
       ESP_LOGE(TAG, "Setting attribute 0x%04X on cluster 0x%04X failed, ZCL status: %u", this->attr_id_,
                this->cluster_id_, static_cast<unsigned>(state));
     }
-    esp_zigbee_lock_release();
   }
 }
 
-void ZigbeeAttribute::report_internal(bool has_lock) {
+void ZigbeeAttributeBase::report_internal(bool has_lock) {
   if (!this->report_enabled) {
     return;
   }

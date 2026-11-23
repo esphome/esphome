@@ -1908,6 +1908,14 @@ inline char *format_hex_pretty_to(char (&buffer)[N], const std::array<uint8_t, M
   return format_hex_pretty_to(buffer, data.data(), data.size(), separator);
 }
 
+/// Format an unsigned integer in uppercase hex without separators, starting with the most significant byte.
+template<size_t N, typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0>
+inline char *format_hex_pretty_to(char (&buffer)[N], T val) {
+  static_assert(N >= sizeof(T) * 2 + 1, "Buffer too small for type");
+  val = convert_big_endian(val);
+  return format_hex_pretty_to(buffer, N, reinterpret_cast<const uint8_t *>(&val), sizeof(T), 0);
+}
+
 /// Calculate buffer size needed for format_hex_pretty_to with uint16_t data: "XXXX:XXXX:...:XXXX\0"
 constexpr size_t format_hex_pretty_uint16_size(size_t count) { return count * 5; }
 

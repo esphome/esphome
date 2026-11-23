@@ -3,6 +3,7 @@
 #include "esphome/core/defines.h"
 #ifdef USE_TEXT_SENSOR_FILTER
 
+#include "esphome/core/chain.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 
@@ -15,7 +16,7 @@ class TextSensor;
  * This class is purposefully kept quite simple, since more complicated
  * filters should really be done with the filter sensor in Home Assistant.
  */
-class Filter {
+class Filter : public ChainNode<Filter, TextSensor> {
  public:
   /** This will be called every time the filter receives a new value.
    *
@@ -42,9 +43,6 @@ class Filter {
 
  protected:
   friend TextSensor;
-
-  Filter *next_{nullptr};
-  TextSensor *parent_{nullptr};
 };
 
 /// Codegen use only: the filter's work and constants are one generated function, so the object is only the base.
