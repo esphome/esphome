@@ -193,6 +193,7 @@ _CALLBACK_AUTOMATIONS = (
 @dataclass
 class SendspinConfiguration:
     artwork_support: bool = False
+    color_support: bool = False
     controller_support: bool = False
     metadata_support: bool = False
     # The TrackMetadata text fields a text sensor shows; the metadata role drops the others.
@@ -221,6 +222,11 @@ def request_artwork_support() -> None:
     _get_data().artwork_support = True
 
 
+def request_color_support() -> None:
+    """Request color role support for Sendspin."""
+    _get_data().color_support = True
+
+
 def request_controller_support() -> None:
     """Request controller role support for Sendspin."""
     _get_data().controller_support = True
@@ -240,8 +246,14 @@ def request_player_support() -> None:
 
 
 def request_visualizer_support() -> None:
-    """Request visualizer role support for Sendspin."""
-    _get_data().visualizer_support = True
+    """Request visualizer role support for Sendspin.
+
+    The visualizer role has a single consumer, so only one component may request it.
+    """
+    data = _get_data()
+    if data.visualizer_support:
+        raise cv.Invalid("Only one component can consume the sendspin visualizer role")
+    data.visualizer_support = True
 
 
 def request_pairing_code_display_support() -> None:
@@ -562,9 +574,6 @@ async def to_code(config: ConfigType) -> None:
 
     data = _get_data()
 
-    # The color role is not yet wired up in ESPHome; disable it in the library for now.
-    esp32.add_idf_sdkconfig_option("CONFIG_SENDSPIN_ENABLE_COLOR", False)
-
     # Configure Sendspin roles based on requested features (ESPHome internally via USE_SENDSPIN_*)
     # and disable building unused code paths in the sendspin-cpp library (IDF SDKConfig via CONFIG_SENDSPIN_ENABLE_*).
     if data.artwork_support:
@@ -594,6 +603,11 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_artwork_config(artwork_config))
     else:
         esp32.add_idf_sdkconfig_option("CONFIG_SENDSPIN_ENABLE_ARTWORK", False)
+
+    if data.color_support:
+        cg.add_define("USE_SENDSPIN_COLOR", True)
+    else:
+        esp32.add_idf_sdkconfig_option("CONFIG_SENDSPIN_ENABLE_COLOR", False)
 
     if data.controller_support:
         cg.add_define("USE_SENDSPIN_CONTROLLER", True)
