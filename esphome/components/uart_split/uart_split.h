@@ -14,9 +14,9 @@ static constexpr size_t RX_BUFFER_SIZE = 256;
 class UartSplit;
 
 /// One consumer of a shared UART. Writes go to the pins unless this output is receive-only.
-class UartSplitOutput final : public uart::VirtualUARTComponent {
+class UartSplitOutput final : public uart::VirtualUARTComponent<RX_BUFFER_SIZE> {
  public:
-  explicit UartSplitOutput(UartSplit *split) : VirtualUARTComponent(RX_BUFFER_SIZE), split_(split) {}
+  explicit UartSplitOutput(UartSplit *split) : split_(split) {}
   void set_rx_only(bool rx_only) { this->rx_only_ = rx_only; }
   void set_mirror_tx(bool mirror_tx) { this->mirror_tx_ = mirror_tx; }
 
