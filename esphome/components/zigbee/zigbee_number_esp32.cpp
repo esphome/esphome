@@ -41,8 +41,12 @@ void ZigbeeNumber::setup() {
 
   // connect callbacks
   this->number_->add_on_state_callback([this](float value) {
-    if (this->synchronizing_from_zigbee_ && value == this->value_)
+    if (this->synchronizing_from_zigbee_ && value == this->value_) {
+      // The attribute already holds it; only a forced report is still owed
+      if (this->force_report_)
+        this->report();
       return;
+    }
     this->set_attr(value);
   });
 }
