@@ -44,6 +44,11 @@ rounds() {
 # run STEP ROUNDS CMD ARGS...: an ARG of @N is replaced by the rounds still missing; reruns after an API drop
 run() {
   local s=$1 want=$2; shift 2; local out=$T-$s.jsonl rc=0
+  # a resumed step that already has its rounds keeps its last driver status; none recorded is not a pass
+  if [ -n "$RESUME" ]; then
+    rc=$(grep -E "^[0-9:]+ $s chunk [0-9]+ rc=" "marks-$T.txt" 2> /dev/null | tail -1 | sed 's/.* rc=\([0-9]*\).*/\1/')
+    rc=${rc:-1}
+  fi
   mark "start $s"; cur=" $s"
   for chunk in 1 2 3 4; do
     local have; have=$(rounds "$out")
