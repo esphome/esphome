@@ -78,6 +78,15 @@ CompactString::CompactString(const char *str, size_t len) {
   }
 }
 
+#ifdef USE_ESP8266
+CompactString CompactString::from_progmem(ProgmemStr str) {
+  char buf[MAX_LENGTH + 1];
+  ESPHOME_strncpy_P(buf, reinterpret_cast<const char *>(str), MAX_LENGTH);
+  buf[MAX_LENGTH] = '\0';
+  return CompactString(buf, strlen(buf));
+}
+#endif
+
 CompactString::CompactString(const CompactString &other) : CompactString(other.data(), other.size()) {}
 
 CompactString &CompactString::operator=(const CompactString &other) {

@@ -11,14 +11,12 @@ from esphome.cpp_generator import (
 from esphome.types import ConfigType
 
 from . import (
-    CHARGE_STATUS,
     CONF_NPM1300_ID,
     DUMP,
     DUMP_TAG,
-    ERROR_REASON,
     NPM1300_CHILD_SCHEMA,
+    STATUS,
     STATUS_PUBLISHER,
-    VBUS_STATUS,
     npm1300_ns,
 )
 
@@ -48,9 +46,7 @@ async def to_code(config: ConfigType) -> None:
     )
     STATUS_PUBLISHER.add(
         hub,
-        npm1300_ns.publish_charger_status(
-            parent_ref(var), last, VBUS_STATUS, CHARGE_STATUS, ERROR_REASON
-        ),
+        npm1300_ns.publish_charger_status(parent_ref(var), last, STATUS),
     )
     DUMP.add(
         hub,

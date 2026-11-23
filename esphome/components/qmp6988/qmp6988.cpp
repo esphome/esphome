@@ -49,16 +49,8 @@ ESPHOME_LOG_TAG(TAG, "qmp6988");
 // Indexed by QMP6988Oversampling
 PROGMEM_STRING_TABLE(OversamplingStrings, "None", "1x", "2x", "4x", "8x", "16x", "32x", "64x", "UNKNOWN");
 
-[[maybe_unused]] static const LogString *oversampling_to_str(QMP6988Oversampling value) {
-  return OversamplingStrings::get_log_str(static_cast<uint8_t>(value), OversamplingStrings::LAST_INDEX);
-}
-
 // Indexed by QMP6988IIRFilter
 PROGMEM_STRING_TABLE(IIRFilterStrings, "OFF", "2x", "4x", "8x", "16x", "32x", "UNKNOWN");
-
-[[maybe_unused]] static const LogString *iir_filter_to_str(QMP6988IIRFilter value) {
-  return IIRFilterStrings::get_log_str(static_cast<uint8_t>(value), IIRFilterStrings::LAST_INDEX);
-}
 
 bool QMP6988Component::device_check_() {
   if (this->read_register(QMP6988_CHIP_ID_REG, &(qmp6988_data_.chip_id), 1) != i2c::ERROR_OK) {
@@ -278,13 +270,13 @@ void QMP6988Component::dump_config() {
 
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   ESP_LOGCONFIG(TAG, "    Temperature Oversampling: %s",
-                LOG_STR_ARG(oversampling_to_str(this->temperature_oversampling_)));
+                LOG_STR_ARG(OversamplingStrings::get_log_str(this->temperature_oversampling_)));
   LOG_SENSOR("  ", "Pressure", this->pressure_sensor_);
   ESP_LOGCONFIG(TAG,
                 "    Pressure Oversampling: %s\n"
                 "  IIR Filter: %s",
-                LOG_STR_ARG(oversampling_to_str(this->pressure_oversampling_)),
-                LOG_STR_ARG(iir_filter_to_str(this->iir_filter_)));
+                LOG_STR_ARG(OversamplingStrings::get_log_str(this->pressure_oversampling_)),
+                LOG_STR_ARG(IIRFilterStrings::get_log_str(this->iir_filter_)));
 }
 
 void QMP6988Component::update() {

@@ -1050,9 +1050,10 @@ def should_run_benchmarks(branch: str | None = None) -> bool:
        the Python benchmarks exercise config loading (config.py,
        yaml_util.py, ...), so a slowdown there is invisible unless the
        benchmarks job runs
-    3. The host platform changed (esphome/components/host/*) — benchmarks
-       are built and run on the host platform, so its implementations of
-       ``millis()``/``micros()``/etc. affect every benchmark
+    3. The host platform or logger changed (esphome/components/host/*,
+       esphome/components/logger/*) — benchmarks are built and run on the host
+       platform, so its ``millis()``/``micros()``/etc. affect every benchmark,
+       and the core logger benchmarks run through logger
     4. A directly changed component has benchmark files (no dependency expansion)
     5. Benchmark infrastructure changed (tests/benchmarks/*, script/cpp_benchmark.py,
        script/build_helpers.py, script/setup_codspeed_lib.py)
@@ -1078,8 +1079,12 @@ def should_run_benchmarks(branch: str | None = None) -> bool:
     if base_python_changed(files):
         return True
 
-    # Host platform supplies the runtime that benchmarks execute on
-    if any(f.startswith("esphome/components/host/") for f in files):
+    # Host platform supplies the runtime that benchmarks execute on, and the core
+    # logger benchmarks (tests/benchmarks/core/bench_logger.cpp) run through logger
+    if any(
+        f.startswith(("esphome/components/host/", "esphome/components/logger/"))
+        for f in files
+    ):
         return True
 
     # Check if benchmark infrastructure changed

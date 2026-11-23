@@ -357,10 +357,14 @@ TX_POWER_LEVELS = {
     9: esp_power_level_t.ESP_PWR_LVL_P9,
 }
 
+# The C++ name buffer holds 20 bytes
+NAME_MAX_BYTES = 20
+MAC_SUFFIX_BYTES = len("-AABBCC")
+
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(ESP32BLE),
-        cv.Optional(CONF_NAME): cv.All(cv.string, cv.Length(max=20)),
+        cv.Optional(CONF_NAME): cv.All(cv.string, cv.ByteLength(max=NAME_MAX_BYTES)),
         cv.Optional(CONF_IO_CAPABILITY, default="none"): cv.enum(
             IO_CAPABILITY, lower=True
         ),
@@ -469,17 +473,24 @@ def validate_connection_slots(max_connections: int) -> None:
     )
 
 
+def validate_name_with_mac_suffix(config: ConfigType) -> None:
+    """With name_add_mac_suffix the ASCII "-AABBCC" is appended, leaving the name 7 fewer bytes."""
+    if (name := config.get(CONF_NAME)) is None:
+        return
+    if not fv.full_config.get()[CONF_ESPHOME][CONF_NAME_ADD_MAC_SUFFIX]:
+        return
+    try:
+        cv.ByteLength(max=NAME_MAX_BYTES - MAC_SUFFIX_BYTES)(name)
+    except cv.Invalid as err:
+        raise cv.Invalid(
+            f"{err.msg} name_add_mac_suffix appends {MAC_SUFFIX_BYTES} more.",
+            path=[CONF_NAME],
+        ) from err
+
+
 def final_validation(config: ConfigType) -> None:
     validate_variant(config)
-    if (name := config.get(CONF_NAME)) is not None:
-        full_config = fv.full_config.get()
-        max_length = 20
-        if full_config[CONF_ESPHOME][CONF_NAME_ADD_MAC_SUFFIX]:
-            max_length -= 7  # "-AABBCC" is appended when add mac suffix option is used
-        if len(name) > max_length:
-            raise cv.Invalid(
-                f"Name '{name}' is too long, maximum length is {max_length} characters"
-            )
+    validate_name_with_mac_suffix(config)
 
     # ESP32-C2 has very limited RAM (~272KB). Without releasing BLE IRAM,
     # esp_bt_controller_init fails with ESP_ERR_NO_MEM.
@@ -590,6 +601,22 @@ async def to_code(config: ConfigType) -> None:
         _wrap_bluedroid_symbols("smp_check_auth_req", "btm_sec_clear_ble_keys")
         add_src_cmake(bluedroid_headers_cmake("bluedroid_bond_keys.c"))
 
+    # Bluedroid runs a queued MTU or execute write request that fails at once again until the BTU task stack
+    # overflows (see bluedroid_gattc_queue.c); every ESP-IDF release so far. Private headers, as above.
+    if (
+        CORE.using_toolchain_esp_idf
+        and not IS_WINDOWS
+        and _has_gatt_client(CORE.config)
+    ):
+        cg.add_define("USE_ESP32_BLE_BLUEDROID_GATTC_QUEUE")
+        _wrap_bluedroid_symbols(
+            "bta_gattc_cfg_mtu",
+            "bta_gattc_execute",
+            "GATTC_ConfigureMTU",
+            "GATTC_ExecuteWrite",
+        )
+        add_src_cmake(bluedroid_headers_cmake("bluedroid_gattc_queue.c"))
+
     # ESP-IDF 5.5.6, 6.0.3 and 6.1.1 end GATT discovery on a response listing handles out of order
     # (see bluedroid_gattc_order.cpp). It needs no Bluedroid headers, so any toolchain works.
     if _has_gatt_client(CORE.config) and _has_strict_handle_order(idf_version()):
@@ -693,6 +720,7 @@ FILTER_SOURCE_FILES = filter_source_files_from_defines(
         "ble_advertising.cpp": "USE_ESP32_BLE_ADVERTISING",
         "bluedroid_hex_wraps.cpp": "USE_ESP32_BLE_BLUEDROID_HEX_WRAPS",
         "bluedroid_bond_keys.c": "USE_ESP32_BLE_BLUEDROID_BOND_KEYS",
+        "bluedroid_gattc_queue.c": "USE_ESP32_BLE_BLUEDROID_GATTC_QUEUE",
         "bluedroid_gattc_order.cpp": "USE_ESP32_BLE_GATTC_HANDLE_ORDER",
     }
 )

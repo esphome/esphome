@@ -355,7 +355,7 @@ void SEN6XComponent::dump_config() {
                 "  Firmware: %u.%u\n"
                 "  Address: 0x%02X\n"
                 "  Startup delay: %" PRIu32 " ms",
-                LOG_STR_ARG(TypeStrings::get_log_str(this->sen6x_type_, TypeStrings::LAST_INDEX)), this->serial_number_,
+                LOG_STR_ARG(TypeStrings::get_log_str(this->sen6x_type_)), this->serial_number_,
                 this->firmware_version_major_, this->firmware_version_minor_, this->address_, this->startup_delay_ms_);
   LOG_UPDATE_INTERVAL(this);
   if (this->temperature_compensation_.has_value()) {

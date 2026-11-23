@@ -1,0 +1,6 @@
+# Loads a local vl6180x copy with the test hook (see recipes/vl6180x.md) from ext/components.
+external_components:
+  - source:
+      type: local
+      path: ext/components
+    components: [vl6180x]

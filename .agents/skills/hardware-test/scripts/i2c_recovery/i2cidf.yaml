@@ -1,0 +1,26 @@
+# ESP32 ESP-IDF setup timing with nothing on the bus (internal pull ups only); build with `-s name NAME`.
+esphome:
+  name: ${name}
+  on_boot:
+    - priority: 1100
+      then:
+        - lambda: 'id(t0) = micros();'
+    - priority: 999
+      then:
+        - lambda: 'ESP_LOGI("rec", "i2c setup took %u us", (unsigned) (micros() - id(t0)));'
+esp32:
+  variant: esp32
+  board: esp32dev
+  framework:
+    type: esp-idf
+logger:
+  level: DEBUG
+i2c:
+  sda: GPIO21
+  scl: GPIO22
+  scan: true
+globals:
+  - id: t0
+    type: uint32_t
+substitutions:
+  name: i2cidf
