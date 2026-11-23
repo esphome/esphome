@@ -21,7 +21,7 @@ def main_cpp(
     ("var", "uart", "settings"),
     [
         (
-            "uart_uartdebugcallback_id",
+            "uart_uartdebugger_id",
             "uart_a",
             [
                 "set_direction(uart::UART_DIRECTION_RX)",
@@ -46,16 +46,16 @@ def test_debugger_constructed(
 ) -> None:
     """Each debugger is built on its sequence's function and gets its settings."""
     function = callback_function(main_cpp, var)
-    assert constructed(main_cpp, var) == f"uart::UARTDebugCallback<{function}>({uart})"
+    assert constructed(main_cpp, var) == (
+        f"FireCallback<{function}, uart::UARTDebugger>({uart})"
+    )
     for setting in settings:
         assert f"{var}->{setting};" in main_cpp
 
 
 def test_inline_sequence_runs_in_function(main_cpp: str) -> None:
     """A sequence of inline actions runs in the function, with the trigger's argument names."""
-    body = function_body(
-        main_cpp, callback_function(main_cpp, "uart_uartdebugcallback_id")
-    )
+    body = function_body(main_cpp, callback_function(main_cpp, "uart_uartdebugger_id"))
     assert "UARTDebug::log_string(direction, bytes, debug_prefix);" in body
     assert "}(direction, bytes, debug_prefix);" in body
     assert "->trigger(" not in body

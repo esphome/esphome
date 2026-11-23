@@ -128,8 +128,7 @@ HOST_BAUD_RATES = [
 ]
 
 UARTDevice = uart_ns.class_("UARTDevice")
-UARTDebugger = uart_ns.class_("UARTDebugger", cg.Component)
-UARTDebugCallback = uart_ns.class_("UARTDebugCallback", UARTDebugger)
+UARTDebugger = uart_ns.class_("UARTDebugger", automation.FiringComponent)
 UARTDummyReceiver = uart_ns.class_("UARTDummyReceiver", cg.Component)
 MULTI_CONF = True
 MULTI_CONF_NO_DEFAULT = True
@@ -273,7 +272,7 @@ def validate_port(value):
 
 DEBUG_SCHEMA = cv.Schema(
     {
-        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(UARTDebugCallback),
+        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(UARTDebugger),
         cv.Optional(CONF_DIRECTION, default="BOTH"): cv.enum(
             UART_DIRECTIONS, upper=True
         ),
@@ -429,7 +428,8 @@ async def debug_to_code(config: ConfigType, parent: cg.MockObj) -> None:
     sequence = {**config[CONF_SEQUENCE], CONF_TRIGGER_ID: config[CONF_TRIGGER_ID]}
     debugger = await automation.build_component_automation(
         sequence,
-        UARTDebugCallback,
+        automation.FireCallback,
+        template_args=[UARTDebugger],
         args=[
             (UARTDirection, "direction"),
             (cg.std_vector.template(cg.uint8), "bytes"),
