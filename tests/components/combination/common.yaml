@@ -47,7 +47,7 @@ sensor:
     name: Weighted mean of combined temperatures
     sources:
       - source: template_temperature1
-        weight: 1
+        weight: !lambda "return 0.4 + std::abs(x - 25) * 0.023;"
       - source: template_temperature2
         weight: 2
   - platform: combination

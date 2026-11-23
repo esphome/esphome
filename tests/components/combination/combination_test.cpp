@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cmath>
+#include <functional>
 #include <initializer_list>
 #include <span>
 
@@ -37,6 +38,17 @@ template<size_t N> struct WeightedMeanFixture {
   WeightedMeanCombinationComponent combination;
 
   WeightedMeanFixture(std::initializer_list<float> states, std::initializer_list<float> weights) {
+    this->combination.set_source_storage(std::span<WeightedMeanCombinationComponent::SensorSource>(
+        reinterpret_cast<WeightedMeanCombinationComponent::SensorSource *>(this->storage.data()), N));
+    size_t i = 0;
+    const auto *weight = weights.begin();
+    for (float state : states) {
+      this->sources[i].state = state;
+      this->combination.add_source(&this->sources[i++], *weight++);
+    }
+  }
+
+  WeightedMeanFixture(std::initializer_list<float> states, std::initializer_list<std::function<float(float)>> weights) {
     this->combination.set_source_storage(std::span<WeightedMeanCombinationComponent::SensorSource>(
         reinterpret_cast<WeightedMeanCombinationComponent::SensorSource *>(this->storage.data()), N));
     size_t i = 0;
@@ -130,6 +142,14 @@ TEST(WeightedMeanCombination, NoPositiveWeightIsNan) {
 TEST(WeightedMeanCombination, RecomputesForNanTrigger) {
   WeightedMeanFixture<2> f({NAN, 20.0f}, {1.0f, 1.0f});
   EXPECT_FLOAT_EQ(f.run_with_trigger(NAN), 20.0f);
+}
+
+TEST(WeightedMeanCombination, RecomputesLambdaWeightsWithSourceState) {
+  WeightedMeanFixture<2> f({10.0f, 20.0f}, {[](float x) -> float { return x; }, [](float) -> float { return 2.0f; }});
+  EXPECT_FLOAT_EQ(f.run(), 11.666666f);
+
+  f.sources[0].state = 30.0f;
+  EXPECT_FLOAT_EQ(f.run(), 29.375f);
 }
 
 }  // namespace esphome::combination::testing
