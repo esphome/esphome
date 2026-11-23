@@ -17,7 +17,7 @@ from ..defines import (
 )
 from ..lv_validation import lv_bool, lv_float
 from ..lvcode import lv
-from ..types import LvNumber, ObjUpdateAction
+from ..types import LvNumber
 from . import Widget, WidgetType, get_widgets
 from .label import CONF_LABEL
 from .textarea import CONF_TEXTAREA
@@ -140,7 +140,7 @@ spinbox_spec = SpinboxType()
 
 @automation.register_action(
     "lvgl.spinbox.increment",
-    ObjUpdateAction,
+    automation.ApplyAction,
     cv.maybe_simple_value(
         {
             cv.Required(CONF_ID): cv.use_id(lv_spinbox_t),
@@ -160,7 +160,7 @@ async def spinbox_increment(config, action_id, template_arg, args):
 
 @automation.register_action(
     "lvgl.spinbox.decrement",
-    ObjUpdateAction,
+    automation.ApplyAction,
     cv.maybe_simple_value(
         {
             cv.Required(CONF_ID): cv.use_id(lv_spinbox_t),

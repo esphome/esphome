@@ -77,3 +77,18 @@ replies, to check what the module does with no component in the way.
   through the module's own `AT+HTTPACTION` (706) and `AT+CPING`: that is the carrier side, not the component.
 - SMS: when the SIM's SM store is full, set the receive store to ME with `AT+CPMS="SM","SM","ME"`. Messages are UCS2
   hex in text mode; decode in memory only, never into a log, and keep SIM data (numbers, identifiers) out of results.
+
+### Retest flow for the modem fixes (#22816, #22817)
+
+- Drive config: Wi-Fi plus `api:`, a `Modem Connected` template binary sensor (`id(atmodem).is_connected()`) and
+  template buttons (enable, disable, `send_at` for `ATE1`, `AT+CFUN=1`, `ATD*99#`, an error and a long reply,
+  restart). Wait on the sensor from the API driver, but time each case from the serial log (reset to
+  `WAIT_IP -> CONNECTED`), not from the driver's wait.
+- Dev on the SIM7670G never reaches PPP after a warm reset that follows a PPP session: echo is back on after CMUX
+  closes, so dev takes the false data mode path. Before a dev run, flash the fixed build, let it connect, press
+  `Modem Disable`, then send `ATE0` through the passthrough, so both builds start from command mode with echo off.
+- The stuck CMUX recovery needs the `+++` escape before the 4 KB flush, on every probe pass; flushing first, or skipping
+  passes 2 and 3, recovered 0 of 6 times. Recovery takes about 15 to 20 s, or about 85 s.
+- `AT+COPS=2` does not survive the component's CFUN cycle, so "not searching" cannot be forced on the SIM7670G.
+- `modem.disable` after CMUX: `CFUN=0` times out on the SIM7670G ("Radio off failed"); `CFUN=4` works.
+- Never send `AT+CPIN=` with arguments as a test command on a live SIM; `AT+CPBR=999` gives a safe `+CME ERROR`.

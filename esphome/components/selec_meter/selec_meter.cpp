@@ -1,12 +1,11 @@
 #include "selec_meter.h"
 #include "selec_meter_registers.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
 
-#include <cinttypes>
 #include <cmath>
-#include <cstdio>
 
 namespace esphome::selec_meter {
 
@@ -21,10 +20,6 @@ static constexpr uint8_t MAX_OPTIONAL_READ_FAILURES = 5;
 
 // Indexed by ReadState
 PROGMEM_STRING_TABLE(ReadStateStrings, "main block", "serial number", "DG sensing", "idle");
-
-static const LogString *read_state_name(ReadState state) {
-  return ReadStateStrings::get_log_str(static_cast<uint8_t>(state), ReadStateStrings::LAST_INDEX);
-}
 
 // FP32 at `reg` in the configured word order (MSRF high word first, LSRF low word first); NaN when
 // `reg` is not wholly inside `registers`
@@ -113,7 +108,7 @@ void SelecMeter::on_read_input_registers(uint16_t start_address, std::span<const
   if (status.has_value()) {
     const auto code = *status;
     ESP_LOGW(TAG, "Modbus error 0x%02X while reading %s", static_cast<uint8_t>(code),
-             LOG_STR_ARG(read_state_name(current)));
+             LOG_STR_ARG(ReadStateStrings::get_log_str(current)));
     // Illegal function/address are durable; busy, acknowledge and the rest are transient
     const bool durable =
         code == modbus::ExceptionCode::ILLEGAL_FUNCTION || code == modbus::ExceptionCode::ILLEGAL_DATA_ADDRESS;
@@ -154,18 +149,18 @@ void SelecMeter::fail_current_read_(const LogString *reason, bool durable) {
   }
   ReadState failed_state = this->read_state_;
   if (reason != nullptr) {
-    ESP_LOGW(TAG, "%s while reading %s", LOG_STR_ARG(reason), LOG_STR_ARG(read_state_name(failed_state)));
+    ESP_LOGW(TAG, "%s while reading %s", LOG_STR_ARG(reason), LOG_STR_ARG(ReadStateStrings::get_log_str(failed_state)));
   }
   // Only the main block drives component health; an unsupported optional read is not a fault
   if (failed_state == ReadState::READ_STATE_MAIN_BLOCK)
     this->status_set_warning();
 #if defined(USE_SELEC_METER_EM4M) && defined(USE_TEXT_SENSOR)
   if (failed_state == ReadState::READ_STATE_SERIAL_NUMBER && durable)
-    note_optional_read_failure(this->serial_number_failures_, read_state_name(failed_state));
+    note_optional_read_failure(this->serial_number_failures_, ReadStateStrings::get_log_str(failed_state));
 #endif
 #if defined(USE_SELEC_METER_EM4M) && defined(USE_BINARY_SENSOR)
   if (failed_state == ReadState::READ_STATE_DG_SENSING && durable)
-    note_optional_read_failure(this->dg_sensing_failures_, read_state_name(failed_state));
+    note_optional_read_failure(this->dg_sensing_failures_, ReadStateStrings::get_log_str(failed_state));
 #endif
   this->start_read_(this->next_read_state_after_(failed_state));
 }
@@ -187,11 +182,12 @@ void SelecMeter::decode_serial_number_(std::span<const uint16_t> registers) {
           : helpers::value_at<helpers::SensorValueType::U_DWORD>(registers, EM4M_SERIAL_NUMBER, EM4M_SERIAL_NUMBER);
   if (!serial) {
     ESP_LOGW(TAG, "Unexpected response size for serial number");
-    note_optional_read_failure(this->serial_number_failures_, read_state_name(ReadState::READ_STATE_SERIAL_NUMBER));
+    note_optional_read_failure(this->serial_number_failures_,
+                               ReadStateStrings::get_log_str(ReadState::READ_STATE_SERIAL_NUMBER));
     return;
   }
   char buf[9];
-  snprintf(buf, sizeof(buf), "%08" PRIX32, *serial);
+  format_hex_pretty_to(buf, *serial);
   this->serial_number_text_sensor_->publish_state(buf);
   // The serial number never changes, so stop reading it
   this->serial_number_failures_ = MAX_OPTIONAL_READ_FAILURES;
@@ -203,7 +199,8 @@ void SelecMeter::decode_dg_sensing_(std::span<const uint16_t> registers) {
   float value = read_float(registers, EM4M_DG_SENSING, EM4M_DG_SENSING, this->word_swap_);
   if (!std::isfinite(value)) {
     ESP_LOGW(TAG, "Short or non-finite DG sensing response, ignoring");
-    note_optional_read_failure(this->dg_sensing_failures_, read_state_name(ReadState::READ_STATE_DG_SENSING));
+    note_optional_read_failure(this->dg_sensing_failures_,
+                               ReadStateStrings::get_log_str(ReadState::READ_STATE_DG_SENSING));
     return;
   }
   this->dg_sensing_binary_sensor_->publish_state(value != 0);
@@ -319,7 +316,7 @@ bool SelecMeter::decode_em4m_(std::span<const uint16_t> registers) {
 void SelecMeter::update() {
   if (this->read_state_ != ReadState::READ_STATE_IDLE) {
     ESP_LOGD(TAG, "Skipping update: previous read cycle (%s) still in progress",
-             LOG_STR_ARG(read_state_name(this->read_state_)));
+             LOG_STR_ARG(ReadStateStrings::get_log_str(this->read_state_)));
     return;
   }
   this->start_read_(ReadState::READ_STATE_MAIN_BLOCK);

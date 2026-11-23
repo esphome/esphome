@@ -284,7 +284,7 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   if (status != WL_CONNECTED) {
 #ifdef USE_RTL87XX
     ESP_LOGW(TAG, "WiFi.begin failed: %d (%s)", status,
-             LOG_STR_ARG(JoinErrorStrings::get_log_str(wifi_get_last_error(), JoinErrorStrings::LAST_INDEX)));
+             LOG_STR_ARG(JoinErrorStrings::get_log_str(wifi_get_last_error())));
 #else
     ESP_LOGW(TAG, "WiFi.begin failed: %d", status);
 #endif
