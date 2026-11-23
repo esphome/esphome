@@ -41,7 +41,9 @@ def test_zigbee_entity_validators_inject_ids(
     internal: bool,
     inject_ids: bool,
 ) -> None:
-    """Zigbee entity validators add Zephyr IDs only for public nrf52 entities."""
+    """Zigbee entity validators add IDs for public nrf52 entities and esp32 numbers."""
+    # ESP32 numbers are ZigbeeNumber components too
+    inject_ids |= platform == "esp32" and entity_key == "zigbee_number"
     config = {"cluster": "generic"}
     if internal:
         config[CONF_INTERNAL] = True
