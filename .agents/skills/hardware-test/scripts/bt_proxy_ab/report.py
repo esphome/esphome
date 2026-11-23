@@ -317,7 +317,12 @@ for s in steps:
     d["tcp_full"] = sum("TCP buffer full" in ln for ln in L)
     out[s] = d
     # a partial or faulted step must not pass as a clean result
-    if bad := [k for k in ("warn", "no_round", "aborted_runs", *HARNESS) if d.get(k)]:
+    # rtt_partial: RTT medians from rounds whose RTT loop broke off
+    if bad := [
+        k
+        for k in ("warn", "no_round", "aborted_runs", "rtt_partial", *HARNESS)
+        if d.get(k)
+    ]:
         flagged.append(f"{s}: {','.join(bad)}")
     print(s, json.dumps(d, default=str))
 

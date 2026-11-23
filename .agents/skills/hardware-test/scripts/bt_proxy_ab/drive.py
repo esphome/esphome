@@ -165,6 +165,11 @@ class D:
             st["connected"] = False
         if st["connected"]:
             self.st[addr] = st
+        elif st.get(
+            "cancel"
+        ):  # a failed connect's state handler would keep getting later links' messages
+            with contextlib.suppress(Exception):
+                st["cancel"]()
         return st
 
     async def disconnect(self, name: str) -> None:
@@ -206,7 +211,12 @@ class D:
     async def hold(self, name: str) -> bool:
         if self.held(name):
             return True
-        self.st.pop(self.peers[name][0], None)
+        old = self.st.pop(self.peers[name][0], None)
+        if old and old.get(
+            "cancel"
+        ):  # the lost link's handler must not see the next connect
+            with contextlib.suppress(Exception):
+                old["cancel"]()
         for _ in range(5):
             st = await self.connect(name, True)
             if st["connected"]:

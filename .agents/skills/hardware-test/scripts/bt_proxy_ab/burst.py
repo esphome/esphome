@@ -183,12 +183,15 @@ async def main() -> None:
                 if not final
                 else {"result": "bad_final"}
                 if not srv_fail
+                # stale or garbled notifications: the loss figure is not clean
+                else {"result": "dirty"}
+                if dups or out_of_range or short
                 else {}
             ),
         )
         if st["lost"]:
             break
-        if not final or not srv_fail:
+        if not final or not srv_fail or dups or out_of_range or short:
             continue
         clean += 1
         await asyncio.sleep(3)
