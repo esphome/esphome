@@ -154,7 +154,7 @@ def test_action_validation_state_is_cleared_between_configurations(
     )
     path.write_text(
         base
-        + "button:\n  - platform: template\n    name: Request\n    on_press:\n      - vbus.send_datagram:\n          id: bus\n          command: 0x0300\n",
+        + "button:\n  - platform: template\n    name: Request\n    on_press:\n      - vbus.send_datagram:\n          id: null\n          command: 0x0300\n",
         encoding="utf-8",
     )
     CORE.config_path = path
@@ -164,3 +164,42 @@ def test_action_validation_state_is_cleared_between_configurations(
     path.write_text(base, encoding="utf-8")
     CORE.config_path = path
     assert not config.validate_config(yaml_util.load_yaml(path), {}).errors
+
+
+@pytest.mark.parametrize(
+    ("rx", "tx", "threshold", "loop_ms", "error"),
+    [
+        ("wire", "wire", None, 50, None),
+        ("wire", "wire", 120, 16, "rx_full_threshold"),
+        ("wire", "wire", 1, 51, "loop_interval"),
+        ("bridge", "wire", None, 16, "serial line timing"),
+        ("wire", "bridge", None, 16, "serial line timing"),
+        ("bridge", None, 120, 100, None),  # Passive reception has no grant deadline.
+    ],
+)
+def test_transmit_timing(
+    rx: str,
+    tx: str | None,
+    threshold: int | None,
+    loop_ms: int,
+    error: str | None,
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "timing.yaml"
+    path.write_text(
+        f"esphome:\n  name: test-vbus\n  loop_interval: {loop_ms}ms\n"
+        "esp32:\n  board: esp32dev\nwifi:\n  ssid: test\n"
+        "tcp_uart:\n  id: bridge\n  role: server\n  port: 5000\n"
+        "uart:\n  id: wire\n  rx_pin: GPIO16\n  tx_pin: GPIO17\n  baud_rate: 9600\n"
+        + (f"  rx_full_threshold: {threshold}\n" if threshold else "")
+        + f"vbus:\n  uart_id: {rx}\n"
+        + (f"  transmit:\n    uart_id: {tx}\n    destination: 0x2211\n" if tx else ""),
+        encoding="utf-8",
+    )
+    CORE.config_path = path
+    result = config.validate_config(yaml_util.load_yaml(path), {})
+    if error:
+        assert any(error in str(err) for err in result.errors), result.errors
+    else:
+        assert not result.errors
+        assert result["uart"][0]["rx_full_threshold"] == (1 if tx else threshold)
