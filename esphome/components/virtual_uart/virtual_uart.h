@@ -26,8 +26,8 @@ class VirtualUART final : public uart::VirtualUARTComponent<RX_BUFFER_SIZE>, pub
       log_own_write_dropped();
       return;
     }
-    this->debug_tx_(data, len);
     this->in_tx_ = true;
+    this->debug_tx_(data, len);
     this->tx_callback_.call(std::span<const uint8_t>(data, len));
     this->in_tx_ = false;
   }
