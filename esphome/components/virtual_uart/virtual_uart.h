@@ -2,6 +2,7 @@
 
 #include "esphome/components/uart/uart_virtual.h"
 #include "esphome/core/component.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 
 #include <span>
@@ -39,6 +40,15 @@ class VirtualUART final : public uart::VirtualUARTComponent<RX_BUFFER_SIZE>, pub
     if (!this->inject_rx(data, len)) {
       log_inject_dropped(len);
     }
+  }
+  /// inject() for a constant payload in flash on ESP8266, read without a heap copy.
+  void inject_progmem(const uint8_t *data, size_t len) {
+    if (len > this->rx_.free_space()) {
+      log_inject_dropped(len);
+      return;
+    }
+    for (size_t i = 0; i < len; i++)
+      this->rx_.push(progmem_read_byte(data + i));
   }
 
  protected:

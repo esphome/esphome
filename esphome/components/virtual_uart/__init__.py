@@ -75,5 +75,5 @@ automation.register_apply_action(
         },
         key=CONF_DATA,
     ),
-    automation.ApplyBytes(CONF_DATA, "inject({})"),
+    automation.ApplyBytes(CONF_DATA, "inject({})", progmem_target="inject_progmem({})"),
 )
