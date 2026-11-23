@@ -6,6 +6,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/automation.h"
+#include "esphome/core/base_automation.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
@@ -74,8 +75,8 @@ class DoubleClickTrigger final : public Trigger<> {
   uint32_t max_length_;  /// Maximum length of click. 0 means no maximum.
 };
 
-/// The on_multi_click state machine; MultiClickCallback supplies the call to the automation.
-class MultiClickBase : public Component {
+/// The on_multi_click state machine; FireCallback supplies the call to the automation.
+class MultiClickBase : public FiringComponent<> {
  public:
   /// `timing` is a codegen PROGMEM table shared by automations with the same timing.
   MultiClickBase(BinarySensor *parent, const MultiClickTriggerEvent *timing, uint8_t timing_count)
@@ -95,7 +96,6 @@ class MultiClickBase : public Component {
   MultiClickBase &operator=(const MultiClickBase &) = delete;
 
  protected:
-  virtual void fire() = 0;
   void on_state_(bool state);
   void schedule_cooldown_();
   void schedule_is_valid_(uint32_t min_length);
@@ -110,15 +110,6 @@ class MultiClickBase : public Component {
   bool last_state_{false};
   bool is_in_cooldown_{false};
   bool is_valid_{false};
-};
-
-/// Calls Fn when the multi click sequence matches, for on_multi_click.
-template<auto Fn> class MultiClickCallback final : public MultiClickBase {
- public:
-  using MultiClickBase::MultiClickBase;
-
- protected:
-  void fire() override { Fn(); }
 };
 
 }  // namespace esphome::binary_sensor

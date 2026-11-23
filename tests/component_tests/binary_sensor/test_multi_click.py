@@ -20,7 +20,8 @@ def test_multi_click_timing_tables(generate_main: Callable[[str | Path], str]) -
     assert len(tables) == 2
     single, long_press = tables
     callbacks = re.findall(
-        r"binary_sensor::MultiClickCallback<(\w+)>\((\w+), (\w+), (\d+)\);", main_cpp
+        r"FireCallback<(\w+), binary_sensor::MultiClickBase>\((\w+), (\w+), (\d+)\);",
+        main_cpp,
     )
     assert [args for _, *args in callbacks] == [
         ["button_a", single, "2"],
