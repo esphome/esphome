@@ -29,6 +29,7 @@
 #include "freertos/FreeRTOS.h"
 
 #include <fcntl.h>
+#include <atomic>
 #include <cstdint>
 #include <cstdio>
 
@@ -104,24 +105,34 @@ static void init_uart(uart_port_t uart_num, uint32_t baud_rate, int tx_buffer_si
 #endif
 }
 
-void write_uart_line(uart_port_t uart_num, const char *msg, size_t len, bool main_task) {
 #if !defined(CONFIG_PM_ENABLE) || SOC_UART_SUPPORT_XTAL_CLK  // the driver takes a PM lock around its ring push
+// Driver writes in progress from other tasks; one can pause between chunks with the TX interrupt off
+static std::atomic<uint8_t> other_task_uart_writes{0};  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+#endif
+
+void write_uart_line(uart_port_t uart_num, const char *msg, size_t len, bool main_task) {
+#if !defined(CONFIG_PM_ENABLE) || SOC_UART_SUPPORT_XTAL_CLK
   // A cache-cold driver write costs ~14k cycles a line. The driver keeps the TX FIFO empty interrupt on until its
   // ring is drained, so with it off a line that fits goes straight to the FIFO without overtaking queued bytes.
-  // Only the main task writes directly; the critical section keeps the UART ISR, pinned to this core, out between
-  // the check and the write, so another task's driver write cannot fill the FIFO in that gap.
-  if (main_task) {
-    static portMUX_TYPE lock = portMUX_INITIALIZER_UNLOCKED;
-    uart_dev_t *hw = UART_LL_GET_HW(uart_num);
-    portENTER_CRITICAL(&lock);
-    const bool direct =
-        (uart_ll_get_intr_ena_status(hw) & UART_INTR_TXFIFO_EMPTY) == 0 && uart_ll_get_txfifo_len(hw) >= len;
-    if (direct)
-      uart_ll_write_txfifo(hw, reinterpret_cast<const uint8_t *>(msg), len);
-    portEXIT_CRITICAL(&lock);
-    if (direct)
-      return;
+  // Only the main task writes directly; the critical section keeps the UART ISR out between the check and the
+  // write, as pre_setup() installs the driver from the main task, which pins the ISR to its core.
+  if (!main_task) {
+    other_task_uart_writes.fetch_add(1);
+    uart_write_bytes(uart_num, msg, len);
+    other_task_uart_writes.fetch_sub(1);
+    return;
   }
+  static portMUX_TYPE lock = portMUX_INITIALIZER_UNLOCKED;
+  uart_dev_t *hw = UART_LL_GET_HW(uart_num);
+  portENTER_CRITICAL(&lock);
+  const bool direct = other_task_uart_writes.load() == 0 &&
+                      (uart_ll_get_intr_ena_status(hw) & UART_INTR_TXFIFO_EMPTY) == 0 &&
+                      uart_ll_get_txfifo_len(hw) >= len;
+  if (direct)
+    uart_ll_write_txfifo(hw, reinterpret_cast<const uint8_t *>(msg), len);
+  portEXIT_CRITICAL(&lock);
+  if (direct)
+    return;
 #endif
   uart_write_bytes(uart_num, msg, len);
 }
