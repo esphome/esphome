@@ -35,7 +35,13 @@ float ADS1115Component::request_measurement(uint16_t config_bits, uint8_t conver
     if (!this->continuous_mode_) {
       uint32_t start = millis();
       uint16_t status;
-      while (this->read_byte_16(REGISTER_CONFIG, &status) && (status & ads1xxx::CONFIG_START) == 0) {
+      while (true) {
+        // A failed read is not a finished conversion: the conversion register still holds the previous
+        // result, which can come from another multiplexer input.
+        if (!this->status_comm_check(this->read_byte_16(REGISTER_CONFIG, &status)))
+          return NAN;
+        if (status & ads1xxx::CONFIG_START)
+          break;
         if (millis() - start > 100) {
           this->status_comm_result(false, LOG_STR("Conversion timed out"));
           return NAN;

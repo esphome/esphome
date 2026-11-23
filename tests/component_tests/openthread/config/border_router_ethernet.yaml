@@ -1,0 +1,28 @@
+esphome:
+  name: otbr-ethernet
+
+esp32:
+  variant: esp32s31
+  framework:
+    type: esp-idf
+    version: 6.1.0
+
+ethernet:
+  type: YT8531
+  mdc_pin: GPIO5
+  mdio_pin: GPIO6
+  power_pin: GPIO7
+
+wifi:
+  ssid: test
+  password: password
+
+network:
+  priority:
+    - ethernet
+    - wifi
+
+openthread:
+  border_router:
+    backbone: ethernet
+  tlv: 0e080000000000010000000300001435060004001fffe0

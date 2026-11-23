@@ -170,6 +170,8 @@ class Application {
   void get_comment_string(std::span<char, ESPHOME_COMMENT_SIZE_MAX> buffer);
 
   /// Get the comment of this Application as a string
+  // Remove before 2027.6.0
+  ESPDEPRECATED("Use get_comment_string() instead. Removed in 2027.6.0", "2026.12.0")
   std::string get_comment() {
     char buffer[ESPHOME_COMMENT_SIZE_MAX];
     this->get_comment_string(buffer);
