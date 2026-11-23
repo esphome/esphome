@@ -1,5 +1,6 @@
 from esphome.components.zephyr import Section
-from esphome.components.zephyr.const import KEY_BOARD, KEY_BOOTLOADER, KEY_OVERLAY
+from esphome.components.zephyr.const import KEY_BOOTLOADER, KEY_OVERLAY
+from esphome.const import KEY_BOARD
 
 from .const import (
     BOOTLOADER_ADAFRUIT,

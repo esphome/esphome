@@ -43,6 +43,7 @@ from esphome.const import (
     CONF_VARIANT,
     CONF_VERSION,
     CONF_WATCHDOG_TIMEOUT,
+    KEY_BOARD,
     KEY_CORE,
     KEY_FRAMEWORK_VERSION,
     KEY_NAME,
@@ -71,7 +72,6 @@ from esphome.writer import clean_build, clean_cmake_cache
 from .boards import BOARDS, STANDARD_BOARDS
 from .const import (
     KEY_ARDUINO_LIBRARIES,
-    KEY_BOARD,
     KEY_CERT_BUNDLE,
     KEY_COMPONENTS,
     KEY_ESP32,

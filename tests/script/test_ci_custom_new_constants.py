@@ -89,7 +89,7 @@ B = "esphome/components/b/sensor.py"
 
 
 @pytest.mark.parametrize("annotation", ["", ": str"])
-@pytest.mark.parametrize("name", ["CONF_FOO_BAR", "UNIT_FOO_BAR"])
+@pytest.mark.parametrize("name", ["CONF_FOO_BAR", "UNIT_FOO_BAR", "KEY_FOO_BAR"])
 def test_new_constant_in_two_files_fails(
     ci_custom: ModuleType,
     repo: Path,
@@ -126,15 +126,17 @@ def test_new_constant_in_one_file_passes(
 
 
 @pytest.mark.parametrize("annotation", ["", ": str"])
+@pytest.mark.parametrize("name", ["UNIT_FOO_BAR", "KEY_FOO_BAR"])
 def test_constant_already_on_dev_added_in_second_file_passes(
     ci_custom: ModuleType,
     repo: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture,
+    name: str,
     annotation: str,
 ) -> None:
-    _on_branch_from_dev({A: f'UNIT_FOO_BAR{annotation} = "fb"\n'})
-    _write({B: 'UNIT_FOO_BAR = "fb"\n'})
+    _on_branch_from_dev({A: f'{name}{annotation} = "foo_bar"\n'})
+    _write({B: f'{name} = "foo_bar"\n'})
 
     assert _run(ci_custom, monkeypatch, capsys) == (0, "")
 

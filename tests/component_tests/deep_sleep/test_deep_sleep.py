@@ -9,7 +9,6 @@ import pytest
 from esphome import config_validation as cv
 from esphome.components import deep_sleep
 from esphome.components.esp32 import (
-    KEY_BOARD,
     KEY_VARIANT,
     VARIANT_ESP32C2,
     VARIANT_ESP32C3,
@@ -20,7 +19,7 @@ from esphome.components.esp32 import (
     VARIANT_ESP32P4,
     VARIANT_ESP32S31,
 )
-from esphome.const import CONF_WAKEUP_PIN, PlatformFramework
+from esphome.const import CONF_WAKEUP_PIN, KEY_BOARD, PlatformFramework
 
 from ..types import SetCoreConfigCallable
 

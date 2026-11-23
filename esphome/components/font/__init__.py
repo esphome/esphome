@@ -32,6 +32,7 @@ from esphome.const import (
     CONF_TYPE,
     CONF_URL,
     CONF_WEIGHT,
+    TYPE_LOCAL,
 )
 from esphome.core import CORE, HexInt
 from esphome.external_files import RemoteFile
@@ -261,7 +262,6 @@ def add_local_file(value: ConfigType) -> ConfigType:
     return value
 
 
-TYPE_LOCAL = "local"
 TYPE_GFONTS = "gfonts"
 TYPE_WEB = "web"
 LOCAL_SCHEMA = cv.All(

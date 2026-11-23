@@ -43,7 +43,6 @@ LT_DEBUG_MODULES = [
 ]
 
 KEY_LIBRETINY = "libretiny"
-KEY_BOARD = "board"
 KEY_COMPONENT = "component"
 KEY_COMPONENT_DATA = "component_data"
 KEY_FAMILY = "family"

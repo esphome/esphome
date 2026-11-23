@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Move CONF_ and UNIT_ constants that are defined in many files into a shared home.
+"""Move CONF_, UNIT_ and KEY_ constants that are defined in many files into a shared home.
 
-script/ci-custom.py fails when a CONF_ or UNIT_ constant is defined in three
-or more Python files. This script finds those constants and performs the move so a
+script/ci-custom.py fails when a CONF_, UNIT_ or KEY_ constant is defined in
+three or more Python files. This script finds those constants and performs the move so a
 bot can open one pull request that moves them.
 
 Subcommands:
@@ -30,10 +30,12 @@ import re
 import subprocess
 import sys
 
+# The optional annotation (`KEY_BOARD: Final = "board"`) is not part of the moved line.
 DEF_RE = re.compile(
-    r'^((?:CONF|UNIT)_[a-zA-Z0-9_]+)\s*=\s*([\'"].*?[\'"])\s*?$', re.MULTILINE
+    r'^((?:CONF|UNIT|KEY)_[a-zA-Z0-9_]+)\s*(?::[^=]*)?=\s*([\'"].*?[\'"])\s*?$',
+    re.MULTILINE,
 )
-NAME_RE = re.compile(r"^(?:CONF|UNIT)_[A-Z0-9_]+$")
+NAME_RE = re.compile(r"^(?:CONF|UNIT|KEY)_[A-Z0-9_]+$")
 VALUE_RE = re.compile(r"^[a-z0-9_.]+$")
 MAX_CONF_RE = re.compile(r"^(CONST_PY_MAX_CONF = )(\d+)$", re.MULTILINE)
 
@@ -44,7 +46,7 @@ COMPONENT_MODULE = "esphome.components.const"
 HOMES = (CORE_HOME, COMPONENT_HOME)
 CI_CUSTOM = "script/ci-custom.py"
 MIN_DEFINITIONS = 3
-PREFIXES = ("CONF_", "ICON_", "UNIT_")
+PREFIXES = ("CONF_", "ICON_", "KEY_", "UNIT_")
 REEXPORT_NOQA = "  # noqa: F401  # pylint: disable=unused-import"
 
 
@@ -80,7 +82,7 @@ def literal_value(literal: str) -> str | None:
 
 def is_valid_constant(name: str, values: set[str | None]) -> bool:
     """Check the name, that all definitions are one agreed string literal, and that
-    CONF_ values match the name."""
+    CONF_ and KEY_ values match the name. UNIT_ values can be anything."""
     if NAME_RE.match(name) is None or len(values) != 1:
         return False
     value = next(iter(values))
@@ -90,7 +92,7 @@ def is_valid_constant(name: str, values: set[str | None]) -> bool:
         return True
     return (
         VALUE_RE.match(value) is not None
-        and value.replace(".", "_") == name[5:].lower()
+        and value.replace(".", "_") == name.split("_", 1)[1].lower()
     )
 
 
@@ -153,7 +155,8 @@ def add_to_home(root: Path, home: str, name: str, literal: str) -> None:
     """Insert the definition into the home in sorted position within its prefix block."""
     new_line = f"{name} = {literal}"
     lines = read_text(root, home).splitlines()
-    positions = [i for i, line in enumerate(lines) if line.startswith(name[:5])]
+    prefix = name[: name.index("_") + 1]
+    positions = [i for i, line in enumerate(lines) if line.startswith(prefix)]
     if positions:
         at = next(
             (i for i in positions if sort_key(lines[i]) > sort_key(new_line)),
@@ -258,7 +261,9 @@ def replace_definition(
     this file's module. Returns whether an import was added.
     """
     text = read_text(root, rel)
-    text = re.sub(rf"^{name}\s*=.*\n?", "", text, count=1, flags=re.MULTILINE)
+    text = re.sub(
+        rf"^{name}\s*(?::[^=]*)?=.*\n?", "", text, count=1, flags=re.MULTILINE
+    )
     tree = ast.parse(text)
     used = any(isinstance(n, ast.Name) and n.id == name for n in ast.walk(tree))
     if not used and module_name(rel) not in importers:

@@ -13,7 +13,6 @@ from esphome import config_validation as cv
 import esphome.components.ch422g  # noqa: F401
 from esphome.components.display import get_display_metadata
 from esphome.components.esp32 import (
-    KEY_BOARD,
     VARIANT_ESP32C3,
     VARIANT_ESP32P4,
     VARIANT_ESP32S3,
@@ -33,6 +32,7 @@ from esphome.const import (
     CONF_RED,
     CONF_SWAP_XY,
     CONF_WIDTH,
+    KEY_BOARD,
     KEY_VARIANT,
     PlatformFramework,
 )

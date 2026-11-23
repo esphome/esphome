@@ -1,4 +1,4 @@
-"""Tests for the lint in script/ci-custom.py that requires CONF_ and UNIT_ constants to be plain strings."""
+"""Tests for the lint in script/ci-custom.py that requires CONF_, UNIT_ and KEY_ constants to be plain strings."""
 
 import importlib.util
 from pathlib import Path
@@ -38,6 +38,10 @@ def _lint(content: str) -> list[tuple[int, int, str]]:
         'CONF_FOO: str = "foo"\n',
         "CONF_FOO: str\n",
         "UNIT_OF_MEASUREMENT_MAX_LENGTH = 63\n",
+        "KEY_SALT = 8\n",
+        "KEY_VALUE_SCHEMA = cv.Schema({})\n",
+        'KEY_BOARD = "board"\n',
+        'KEY_BOARD: Final = "board"\n',
         "OTHER = 1 + 2\n",
         "ICON_FOO = some_call()\n",
         "MAX_FOO = CONF_BAR\n",
@@ -62,6 +66,9 @@ def test_accepts(content: str) -> None:
         ('CONF_FOO = "a" + "b"\n', "CONF_FOO", 1),
         ('UNIT_FOO = "%s" % "b"\n', "UNIT_FOO", 1),
         ('UNIT_FOO = f"{X}"\n', "UNIT_FOO", 1),
+        ("KEY_FOO = DOMAIN\n", "KEY_FOO", 1),
+        ("KEY_FOO = 8\n", "KEY_FOO", 1),
+        ('OTHER, KEY_FOO = "a", "b"\n', "KEY_FOO", 8),
         ('UNIT_FOO = b"x"\n', "UNIT_FOO", 1),
         ("CONF_FOO = OTHER_CONST\n", "CONF_FOO", 1),
         ("CONF_FOO = module.CONF_FOO\n", "CONF_FOO", 1),

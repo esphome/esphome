@@ -50,12 +50,12 @@ from esphome.components.esp8266.boards import (
 )
 from esphome.components.esp8266.const import (
     BUILD_FLASH_MODES,
-    KEY_BOARD,
     KEY_ESP8266,
     KEY_FLASH_SIZE,
     KEY_SCANF_FLOAT,
     THROW_STUBS_HEADER,
 )
+from esphome.const import KEY_BOARD
 from esphome.core import CORE, EsphomeError
 from esphome.framework_helpers import get_project_cxx_compile_flags
 from esphome.helpers import mkdir_p, write_file_if_changed

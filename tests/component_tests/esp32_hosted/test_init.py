@@ -5,12 +5,7 @@ import logging
 import pytest
 
 from esphome import config_validation as cv
-from esphome.components.esp32 import (
-    KEY_BOARD,
-    KEY_IDF_VERSION,
-    KEY_VARIANT,
-    VARIANT_ESP32P4,
-)
+from esphome.components.esp32 import KEY_IDF_VERSION, KEY_VARIANT, VARIANT_ESP32P4
 from esphome.components.esp32_hosted import (
     CONF_ACTIVE_HIGH,
     CONF_BUS_WIDTH,
@@ -29,6 +24,7 @@ from esphome.const import (
     CONF_PLATFORM,
     CONF_RESET_PIN,
     CONF_VARIANT,
+    KEY_BOARD,
     PlatformFramework,
 )
 from esphome.types import ConfigType

@@ -8,7 +8,7 @@ from esphome.components.const import CONF_ON_DOUBLE_TAP, CONF_ON_TAP, CONF_TAP
 from esphome.components.motion import (
     AXES,
     CONF_AXES,
-    KEY_TAP_THRESHOLD_IDS,
+    KEY_MOTION_TAP_THRESHOLD_IDS,
     _final_validate,
     tap_schema,
     validate_axes,
@@ -67,7 +67,7 @@ def test_set_tap_threshold_needs_tap_block(
     has_tap: bool, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """The threshold setter is compiled out without a tap block."""
-    monkeypatch.setitem(CORE.data, KEY_TAP_THRESHOLD_IDS, {"accel"})
+    monkeypatch.setitem(CORE.data, KEY_MOTION_TAP_THRESHOLD_IDS, {"accel"})
     conf = {CONF_ID: ID("accel")}
     if has_tap:
         conf[CONF_TAP] = {}

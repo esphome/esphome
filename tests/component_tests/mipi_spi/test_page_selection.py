@@ -10,11 +10,11 @@ from typing import Any
 
 import pytest
 
-from esphome.components.esp32 import KEY_BOARD, KEY_VARIANT, VARIANT_ESP32
+from esphome.components.esp32 import KEY_VARIANT, VARIANT_ESP32
 from esphome.components.mipi import MADCTL, PAGESEL, PAGESEL1, PIXFMT
 from esphome.components.mipi_spi.display import CONFIG_SCHEMA, FINAL_VALIDATE_SCHEMA
 import esphome.config_validation as cv
-from esphome.const import PlatformFramework
+from esphome.const import KEY_BOARD, PlatformFramework
 from tests.component_tests.types import SetCoreConfigCallable
 
 

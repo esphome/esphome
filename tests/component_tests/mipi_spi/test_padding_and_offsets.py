@@ -8,12 +8,7 @@ from typing import Any
 
 import pytest
 
-from esphome.components.esp32 import (
-    KEY_BOARD,
-    KEY_VARIANT,
-    VARIANT_ESP32,
-    VARIANT_ESP32S3,
-)
+from esphome.components.esp32 import KEY_VARIANT, VARIANT_ESP32, VARIANT_ESP32S3
 from esphome.components.mipi import (
     CONF_DIMENSIONS,
     CONF_HEIGHT,
@@ -36,6 +31,7 @@ from esphome.const import (
     CONF_DC_PIN,
     CONF_DISABLED,
     CONF_TRANSFORM,
+    KEY_BOARD,
     PlatformFramework,
 )
 from esphome.types import ConfigType

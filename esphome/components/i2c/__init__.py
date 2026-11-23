@@ -32,7 +32,6 @@ from esphome.components.zephyr import (
     zephyr_add_prj_conf,
     zephyr_data,
 )
-from esphome.components.zephyr.const import KEY_BOARD
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
@@ -47,6 +46,7 @@ from esphome.const import (
     CONF_SCL,
     CONF_SDA,
     CONF_TIMEOUT,
+    KEY_BOARD,
     PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,

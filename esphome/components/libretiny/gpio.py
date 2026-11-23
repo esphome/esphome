@@ -14,16 +14,11 @@ from esphome.const import (
     CONF_OUTPUT,
     CONF_PULLDOWN,
     CONF_PULLUP,
+    KEY_BOARD,
 )
 from esphome.core import CORE
 
-from .const import (
-    KEY_BOARD,
-    KEY_COMPONENT_DATA,
-    KEY_LIBRETINY,
-    LibreTinyComponent,
-    libretiny_ns,
-)
+from .const import KEY_COMPONENT_DATA, KEY_LIBRETINY, LibreTinyComponent, libretiny_ns
 
 _LOGGER = logging.getLogger(__name__)
 

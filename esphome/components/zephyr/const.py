@@ -12,7 +12,6 @@ KEY_PM_STATIC: Final = "pm_static"
 KEY_KCONFIG: Final = "kconfig"
 KEY_PRJ_CONF: Final = "prj_conf"
 KEY_ZEPHYR = "zephyr"
-KEY_BOARD: Final = "board"
 KEY_SYSBUILD: Final = "sysbuild"
 
 zephyr_ns = cg.esphome_ns.namespace("zephyr")

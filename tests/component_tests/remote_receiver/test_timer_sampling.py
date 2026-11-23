@@ -12,7 +12,6 @@ from esphome.components.libretiny.const import (
     FAMILY_BK7231Q,
     FAMILY_BK7231T,
     FAMILY_BK7238,
-    KEY_BOARD,
     KEY_FAMILY,
     KEY_LIBRETINY,
 )
@@ -25,7 +24,7 @@ from esphome.components.remote_receiver import (
     validate_sampling,
 )
 import esphome.config_validation as cv
-from esphome.const import CONF_FILTER, CONF_IDLE
+from esphome.const import CONF_FILTER, CONF_IDLE, KEY_BOARD
 from esphome.core import CORE
 from esphome.types import ConfigType
 

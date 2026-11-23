@@ -6,9 +6,9 @@ from pathlib import Path
 import pytest
 
 from esphome import config_validation as cv
-from esphome.components.esp32 import KEY_BOARD, KEY_VARIANT, VARIANT_ESP32
+from esphome.components.esp32 import KEY_VARIANT, VARIANT_ESP32
 from esphome.components.wifi import CONFIG_SCHEMA, FINAL_VALIDATE_SCHEMA
-from esphome.const import KEY_FRAMEWORK_VERSION, Platform, PlatformFramework
+from esphome.const import KEY_BOARD, KEY_FRAMEWORK_VERSION, Platform, PlatformFramework
 from esphome.core import CORE
 from esphome.types import ConfigType
 from tests.component_tests.network import sdkconfig_option

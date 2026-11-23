@@ -8,9 +8,9 @@ import pytest
 
 from esphome.components import network
 from esphome.components.api import CONFIG_SCHEMA, FINAL_VALIDATE_SCHEMA
-from esphome.components.esp32 import KEY_BOARD, KEY_VARIANT, VARIANT_ESP32
+from esphome.components.esp32 import KEY_VARIANT, VARIANT_ESP32
 import esphome.config_validation as cv
-from esphome.const import PlatformFramework
+from esphome.const import KEY_BOARD, PlatformFramework
 from esphome.core import CORE
 from esphome.types import ConfigType
 from tests.component_tests.types import SetCoreConfigCallable

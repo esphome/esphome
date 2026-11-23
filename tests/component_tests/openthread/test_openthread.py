@@ -16,7 +16,6 @@ from esphome.components.esp32 import (
     VARIANT_ESP32S31,
 )
 from esphome.components.esp32.const import (
-    KEY_BOARD,
     KEY_ESP32,
     KEY_IDF_VERSION,
     KEY_SDKCONFIG_OPTIONS,
@@ -57,6 +56,7 @@ from esphome.const import (
     CONF_TX_PIN,
     CONF_USE_ADDRESS,
     CONF_WIFI,
+    KEY_BOARD,
     KEY_FRAMEWORK_VERSION,
     PlatformFramework,
 )

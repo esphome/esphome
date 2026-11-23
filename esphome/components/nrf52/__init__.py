@@ -34,7 +34,6 @@ from esphome.components.zephyr.build_zephyr import (
 )
 from esphome.components.zephyr.const import (
     BOOTLOADER_MCUBOOT,
-    KEY_BOARD,
     KEY_BOOTLOADER,
     KEY_OVERLAY,
     KEY_SYSBUILD,
@@ -57,6 +56,7 @@ from esphome.const import (
     CONF_TOOLCHAIN,
     CONF_VERSION,
     CONF_VOLTAGE,
+    KEY_BOARD,
     KEY_CORE,
     KEY_FRAMEWORK_VERSION,
     KEY_TARGET_FRAMEWORK,

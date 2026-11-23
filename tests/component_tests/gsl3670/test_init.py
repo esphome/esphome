@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from esphome import config_validation as cv
-from esphome.components.esp32 import KEY_BOARD, KEY_VARIANT, VARIANT_ESP32
+from esphome.components.esp32 import KEY_VARIANT, VARIANT_ESP32
 from esphome.components.gsl3670 import touchscreen as gsl
 from esphome.const import (
     CONF_CALIBRATION,
@@ -15,6 +15,7 @@ from esphome.const import (
     CONF_MODEL,
     CONF_RESET_PIN,
     CONF_TRANSFORM,
+    KEY_BOARD,
     PlatformFramework,
 )
 from tests.component_tests.types import SetCoreConfigCallable

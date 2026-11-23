@@ -514,7 +514,7 @@ def lint_const_ordered(fname, content):
     """
     lines = content.splitlines()
     errs = []
-    for start in ["CONF_", "ICON_", "UNIT_"]:
+    for start in ["CONF_", "ICON_", "KEY_", "UNIT_"]:
         matching = [
             (i + 1, line) for i, line in enumerate(lines) if line.startswith(start)
         ]
@@ -539,38 +539,61 @@ def lint_const_ordered(fname, content):
     return errs
 
 
-@lint_re_check(r'^\s*CONF_([A-Z_0-9a-z]+)\s+=\s+[\'"](.*?)[\'"]\s*?$', include=["*.py"])
-def lint_conf_matches(fname, match):
-    const = match.group(1)
-    value = match.group(2)
+@lint_re_check(
+    r'^\s*(CONF|KEY)_([A-Z_0-9a-z]+)[ \t]*(?::[^=\n]*)?=\s+[\'"](.*?)[\'"]\s*?$',
+    include=["*.py"],
+)
+def lint_const_matches_value(fname, match):
+    """Require a CONF_ or KEY_ constant's name to match its value (UNIT_ may be anything)."""
+    prefix = match.group(1)
+    const = match.group(2)
+    value = match.group(3)
     const_norm = const.lower()
     value_norm = value.replace(".", "_")
     if const_norm == value_norm:
         return None
     return (
-        f"Constant {highlight('CONF_' + const)} does not match value {highlight(value)}! "
+        f"Constant {highlight(prefix + '_' + const)} does not match value {highlight(value)}! "
         "Please make sure the constant's name matches its value!"
     )
 
 
-CONF_RE = r'^(CONF_[a-zA-Z0-9_]+)\s*(?::[^=]*)?=\s*[\'"].*?[\'"]\s*?$'
-with codecs.open("esphome/const.py", "r", encoding="utf-8") as const_f_handle:
-    constants_content = const_f_handle.read()
-with codecs.open(
-    "esphome/components/const/__init__.py", "r", encoding="utf-8"
-) as component_const_f_handle:
-    component_constants_content = component_const_f_handle.read()
-
 # The two canonical homes for shared constants: esphome/const.py (core, frozen) and
-# esphome/components/const/__init__.py (shared by components). A constant defined in
-# either must be imported from there rather than redefined in a component.
+# esphome/components/const/__init__.py (shared by components). A name defined in either
+# must be imported from there rather than redefined in another module.
 CONST_HOMES = ["esphome/const.py", "esphome/components/const/__init__.py"]
 
-CONSTANTS = [m.group(1) for m in re.finditer(CONF_RE, constants_content, re.MULTILINE)]
-COMPONENT_CONSTANTS = [
-    m.group(1) for m in re.finditer(CONF_RE, component_constants_content, re.MULTILINE)
-]
+# Per-module metadata that every component defines by design, so it may repeat a home name.
+HOME_METADATA_NAMES = {"CODEOWNERS", "DOMAIN"}
 
+
+def _module_level_names(path: str) -> set[str]:
+    """Return the names a file binds with a top-level assignment, found with ast."""
+    with Path(path).open(encoding="utf-8") as handle:
+        tree = ast.parse(handle.read(), filename=path)
+    names: set[str] = set()
+    for node in tree.body:
+        if isinstance(node, ast.Assign):
+            targets = node.targets
+        elif isinstance(node, ast.AnnAssign):
+            targets = [node.target]
+        else:
+            continue
+        names.update(
+            n.id for t in targets for n in ast.walk(t) if isinstance(n, ast.Name)
+        )
+    return {
+        name
+        for name in names
+        if name not in HOME_METADATA_NAMES and not name.startswith("__")
+    }
+
+
+CONSTANTS = _module_level_names(CONST_HOMES[0])
+COMPONENT_CONSTANTS = _module_level_names(CONST_HOMES[1])
+
+# Definitions of CONF_, UNIT_ and KEY_ string constants outside the homes, for the 3+ files
+# and new constant checks.
 CONSTANTS_USES = collections.defaultdict(list)
 
 
@@ -590,44 +613,43 @@ def _const_home_error(name, core_constants, component_constants):
     return None
 
 
-@lint_re_check(CONF_RE, include=["*.py"], exclude=CONST_HOMES)
-def lint_conf_from_const_py(fname, match):
+@lint_re_check(
+    r"^([A-Za-z_][A-Za-z0-9_]*)\s*(?::[^=\n]*)?=(?!=)\s*(.*)$",
+    include=["*.py"],
+    exclude=CONST_HOMES,
+)
+def lint_const_from_const_py(fname, match):
+    """Reject a module-level name that esphome/const.py or components/const defines."""
     name = match.group(1)
     err = _const_home_error(name, CONSTANTS, COMPONENT_CONSTANTS)
-    if err is None:
+    if (
+        err is None
+        and name.startswith(("CONF_", "UNIT_", "KEY_"))
+        and re.fullmatch(r"""(['"]).*?\1\s*""", match.group(2))
+    ):
         CONSTANTS_USES[name].append(fname)
     return err
 
 
-UNIT_RE = r'^(UNIT_[a-zA-Z0-9_]+)\s*(?::[^=]*)?=\s*[\'"].*?[\'"]\s*?$'
-UNIT_CONSTANTS = [
-    m.group(1) for m in re.finditer(UNIT_RE, constants_content, re.MULTILINE)
-]
-COMPONENT_UNIT_CONSTANTS = [
-    m.group(1) for m in re.finditer(UNIT_RE, component_constants_content, re.MULTILINE)
-]
-
-UNIT_CONSTANTS_USES = collections.defaultdict(list)
-
-
-@lint_re_check(UNIT_RE, include=["*.py"], exclude=CONST_HOMES)
-def lint_unit_from_const_py(fname, match):
-    name = match.group(1)
-    err = _const_home_error(name, UNIT_CONSTANTS, COMPONENT_UNIT_CONSTANTS)
-    if err is None:
-        UNIT_CONSTANTS_USES[name].append(fname)
-    return err
-
-
-# Names that start with CONF_ or UNIT_ but are not config key or unit constants.
-NON_LITERAL_CONSTANT_ALLOWLIST = {"UNIT_OF_MEASUREMENT_MAX_LENGTH"}
+# Names that start with CONF_, UNIT_ or KEY_ but are not config key, unit or storage key
+# constants (the value is a schema, a table or a number, not a string).
+NON_LITERAL_CONSTANT_ALLOWLIST = {
+    "KEY_ACTIONS",
+    "KEY_CODES",
+    "KEY_COLLECTOR_ACTION_SCHEMA",
+    "KEY_ITERATIONS",
+    "KEY_PUBLISHER",
+    "KEY_SALT",
+    "KEY_VALUE_SCHEMA",
+    "UNIT_OF_MEASUREMENT_MAX_LENGTH",
+}
 
 
 def _constant_names(target: ast.expr) -> Iterator[ast.Name]:
-    """Yield the CONF_/UNIT_ names bound by an assignment target."""
+    """Yield the CONF_/UNIT_/KEY_ names bound by an assignment target."""
     if isinstance(target, ast.Name):
         if (
-            target.id.startswith(("CONF_", "UNIT_"))
+            target.id.startswith(("CONF_", "UNIT_", "KEY_"))
             and target.id not in NON_LITERAL_CONSTANT_ALLOWLIST
         ):
             yield target
@@ -658,7 +680,7 @@ def _module_level_statements(nodes: Iterable[ast.AST]) -> Iterator[ast.AST]:
 def lint_constant_is_plain_string(
     fname: Path, content: str
 ) -> list[tuple[int, int, str]]:
-    """Require module-level CONF_ and UNIT_ constants to be plain string literals.
+    """Require module-level CONF_, UNIT_ and KEY_ constants to be plain string literals.
 
     Other scripts and lints (for example the duplicate constant checks above) read these
     definitions as text, so a computed value would be missed or moved incorrectly.
@@ -695,8 +717,8 @@ def lint_constant_is_plain_string(
                     f"Constant {highlight(name.id)} must be set to a plain string "
                     f"literal, such as {example}. Do not build it from other "
                     "constants, f-strings, operators or function calls. If the value "
-                    "is not a config key or a unit, give it a name without the CONF_ "
-                    "or UNIT_ prefix."
+                    "is not a config key, a unit or a storage key, give it a name without "
+                    "the CONF_, UNIT_ or KEY_ prefix."
                 )
                 errs.append((name.lineno, name.col_offset + 1, msg))
     return errs
@@ -867,20 +889,6 @@ def lint_constants_usage():
     return errs
 
 
-@lint_post_check
-def lint_unit_constants_usage():
-    errs = []
-    for constant, uses in UNIT_CONSTANTS_USES.items():
-        if len(uses) < 3:
-            continue
-        errs.append(
-            f"Constant {highlight(constant)} is defined in {len(uses)} files. Please move all definitions of the "
-            f"constant to esphome/components/const/__init__.py (Uses: {', '.join(str(u) for u in uses)}) in a separate PR. "
-            "See https://developers.esphome.io/contributing/code/#python"
-        )
-    return errs
-
-
 def _git_output(*args: str) -> str | None:
     """Run a git command and return its stdout, or None if it fails."""
     proc = subprocess.run(
@@ -917,13 +925,13 @@ def _base_commit() -> str | None:
 
 
 def _constants_defined_at(commit: str) -> set[str]:
-    """Return the names of all CONF_/UNIT_ definitions in Python files at a commit."""
+    """Return the names of all CONF_/UNIT_/KEY_ definitions in Python files at a commit."""
     out = _git_output(
         "grep",
         "-h",
         "-o",
         "-E",
-        r"^(CONF|UNIT)_[A-Za-z0-9_]+[[:space:]]*(:[^=]*)?=",
+        r"^(CONF|UNIT|KEY)_[A-Za-z0-9_]+[[:space:]]*(:[^=]*)?=",
         commit,
         "--",
         "*.py",
@@ -941,7 +949,7 @@ def lint_new_constant_in_multiple_files() -> list[str]:
     above, which a workflow can fix by moving them. Skipped when no base commit is known.
     """
     candidates: dict[str, list[str]] = {}
-    for name, uses in (*CONSTANTS_USES.items(), *UNIT_CONSTANTS_USES.items()):
+    for name, uses in CONSTANTS_USES.items():
         files = sorted({str(u) for u in uses if fnmatch.fnmatch(str(u), "esphome/*")})
         if len(files) >= 2:
             candidates[name] = files

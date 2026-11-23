@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import text_sensor
 import esphome.config_validation as cv
-from esphome.const import CONF_NAME
+from esphome.const import CONF_NAME, ICON_SCREEN_ROTATION
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
@@ -12,7 +12,6 @@ DEPENDENCIES = ["msa3xx"]
 
 CONF_ORIENTATION_XY = "orientation_xy"
 CONF_ORIENTATION_Z = "orientation_z"
-ICON_SCREEN_ROTATION = "mdi:screen-rotation"
 
 ORIENTATION_SENSORS = (CONF_ORIENTATION_XY, CONF_ORIENTATION_Z)
 

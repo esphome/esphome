@@ -623,3 +623,72 @@ def test_two_moves_in_a_row_share_files(
     assert read(repo, "esphome/components/c0/__init__.py") == (
         "from esphome.const import CONF_MANY, CONF_MORE\n\nX = CONF_MANY, CONF_MORE\n"
     )
+
+
+@pytest.mark.parametrize(
+    ("name", "values", "expected"),
+    [
+        ("KEY_BOARD", {"board"}, True),
+        ("KEY_ANYTHING", {"Any Value-1"}, False),
+        ("KEY_DOT_VAL", {"dot.val"}, True),
+        ("UNIT_ANYTHING", {"Any Value-1"}, True),
+        ("KEY_BOARD", {"a", "b"}, False),
+        ("KEY_BOARD", {None}, False),
+        ("KEY_lower", {"x"}, False),
+        ("CONF_FOO", {"other"}, False),
+        ("CONF_FOO", {"foo"}, True),
+    ],
+)
+def test_is_valid_constant(name: str, values: set[str | None], expected: bool) -> None:
+    assert mod.is_valid_constant(name, values) is expected
+
+
+def test_find_key_constants_require_matching_value(
+    repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    add_definers(repo, "KEY_BOARD", "something else")
+    add_definers(repo, "KEY_OK", "ok")
+    mod.cmd_find(repo)
+    assert json.loads(capsys.readouterr().out) == ["KEY_OK"]
+
+
+def test_move_key_into_sorted_key_block(repo: Path) -> None:
+    write(
+        repo,
+        "esphome/components/const/__init__.py",
+        'CONF_BBB = "bbb"\n\nKEY_ALPHA = "a"\nKEY_OMEGA = "o"\n\nUNIT_X = "x"\n',
+    )
+    add_definers(repo, "KEY_MIDDLE", "middle")
+    assert mod.cmd_move(repo, "KEY_MIDDLE") == 0
+    assert read(repo, "esphome/components/const/__init__.py") == (
+        'CONF_BBB = "bbb"\n\nKEY_ALPHA = "a"\nKEY_MIDDLE = "middle"\n'
+        'KEY_OMEGA = "o"\n\nUNIT_X = "x"\n'
+    )
+    assert read(repo, "script/ci-custom.py") == CI_CUSTOM
+
+
+def test_move_key_without_block_goes_after_last_constant(repo: Path) -> None:
+    add_definers(repo, "KEY_NEW", "new")
+    write(repo, "esphome/core_user.py", "X = KEY_NEW\n")
+    mod.cmd_move(repo, "KEY_NEW")
+    assert read(repo, "esphome/const.py") == CORE_CONST + '\nKEY_NEW = "new"\n'
+
+
+def test_annotated_definition_is_found_and_removed(
+    repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    write(
+        repo,
+        "esphome/components/c0/__init__.py",
+        'from typing import Final\n\nKEY_BOARD: Final = "board"\n\nX = KEY_BOARD\n',
+    )
+    for i in (1, 2):
+        write(repo, f"esphome/components/c{i}/__init__.py", 'KEY_BOARD = "board"\n')
+    mod.cmd_find(repo)
+    assert json.loads(capsys.readouterr().out) == ["KEY_BOARD"]
+    assert mod.cmd_move(repo, "KEY_BOARD") == 0
+    moved = read(repo, "esphome/components/c0/__init__.py")
+    assert "Final =" not in moved
+    assert "from esphome.components.const import KEY_BOARD" in moved
+    assert 'KEY_BOARD = "board"\n' in read(repo, "esphome/components/const/__init__.py")
+    assert "KEY_BOARD" not in read(repo, "esphome/components/c1/__init__.py")

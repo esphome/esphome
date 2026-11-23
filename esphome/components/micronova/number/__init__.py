@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import number
 import esphome.config_validation as cv
-from esphome.const import CONF_STEP, DEVICE_CLASS_TEMPERATURE, UNIT_CELSIUS
+from esphome.const import CONF_STEP, DEVICE_CLASS_TEMPERATURE, ICON_FLASH, UNIT_CELSIUS
 from esphome.types import ConfigType
 
 from .. import (
@@ -13,8 +13,6 @@ from .. import (
     register_micronova_writer,
     to_code_micronova_listener,
 )
-
-ICON_FLASH = "mdi:flash"
 
 CONF_THERMOSTAT_TEMPERATURE = "thermostat_temperature"
 CONF_POWER_LEVEL = "power_level"

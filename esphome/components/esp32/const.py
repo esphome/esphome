@@ -15,7 +15,6 @@ from esphome.const import (  # noqa: F401  # pylint: disable=unused-import
 # from esphome.espidf directly.
 from esphome.espidf import variant_to_idf_target  # noqa: F401  # pylint: disable=unused-import
 
-KEY_BOARD = "board"
 KEY_SDKCONFIG_OPTIONS = "sdkconfig_options"
 KEY_COMPONENTS = "components"
 KEY_EXCLUDE_COMPONENTS = "exclude_components"

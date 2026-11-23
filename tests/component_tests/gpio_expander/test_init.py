@@ -7,9 +7,9 @@ import importlib
 import pytest
 
 from esphome import config_validation as cv
-from esphome.components.esp32 import KEY_BOARD, KEY_VARIANT, VARIANT_ESP32
+from esphome.components.esp32 import KEY_VARIANT, VARIANT_ESP32
 from esphome.components.gpio_expander import validate_interrupt_pin
-from esphome.const import PlatformFramework
+from esphome.const import KEY_BOARD, PlatformFramework
 from tests.component_tests.types import SetCoreConfigCallable
 
 

@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from esphome import final_validate
-from esphome.components.esp32 import KEY_BOARD, KEY_VARIANT, VARIANT_ESP32
+from esphome.components.esp32 import KEY_VARIANT, VARIANT_ESP32
 from esphome.components.mipi_spi.display import CONFIG_SCHEMA as DISPLAY_SCHEMA
 from esphome.components.mipi_spi.light import (
     CONFIG_SCHEMA as LIGHT_SCHEMA,
@@ -20,6 +20,7 @@ from esphome.const import (
     CONF_ID,
     CONF_MAX_BRIGHTNESS,
     CONF_MIN_BRIGHTNESS,
+    KEY_BOARD,
     PlatformFramework,
 )
 from esphome.core import ID
