@@ -109,25 +109,16 @@ void ZigbeeComponent::zboss_signal_handler_esphome(zb_bufid_t bufid) {
 void ZigbeeComponent::zcl_device_cb(zb_bufid_t bufid) {
   zb_zcl_device_callback_param_t *p_device_cb_param = ZB_BUF_GET_PARAM(bufid, zb_zcl_device_callback_param_t);
   zb_zcl_device_callback_id_t device_cb_id = p_device_cb_param->device_cb_id;
-  zb_uint16_t cluster_id = p_device_cb_param->cb_param.set_attr_value_param.cluster_id;
-  zb_uint16_t attr_id = p_device_cb_param->cb_param.set_attr_value_param.attr_id;
   auto endpoint = p_device_cb_param->endpoint;
 
-  ESP_LOGI(TAG, "%s id %hd, cluster_id %d, attr_id %d, endpoint: %d", __func__, device_cb_id, cluster_id, attr_id,
-           endpoint);
+  ESP_LOGI(TAG, "%s id %hd, endpoint: %d", __func__, device_cb_id, endpoint);
 
   /* Set default response value. */
   p_device_cb_param->status = RET_OK;
 
-  // endpoints are enumerated from 1
-  if (global_zigbee->callbacks_.size() >= endpoint) {
-    const auto &cb = global_zigbee->callbacks_[endpoint - 1];
-    if (cb) {
-      cb(bufid);
-      return;
-    }
-  }
-  p_device_cb_param->status = RET_NOT_IMPLEMENTED;
+  auto *zb = global_zigbee;
+  if (zb->zcl_device_publisher_ == nullptr || !zb->zcl_device_publisher_(endpoint, bufid))
+    p_device_cb_param->status = RET_NOT_IMPLEMENTED;
 }
 
 void ZigbeeComponent::on_join_(bool factory_new) {
