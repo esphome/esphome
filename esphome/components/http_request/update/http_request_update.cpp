@@ -310,7 +310,8 @@ void HttpRequestUpdate::process_result_(TaskResult *result) {
   // that still reports an older version is not flashed again on every boot.
   if (this->allow_auto_install_ && auto_install && new_state == update::UPDATE_STATE_AVAILABLE) {
     const std::string &latest = this->update_info_.latest_version;
-    const uint32_t latest_hash = fnv1a_hash(latest);
+    const uint32_t raw_hash = fnv1a_hash(latest);
+    const uint32_t latest_hash = raw_hash != 0 ? raw_hash : 1;
     uint32_t installed_hash = 0;
     if (this->auto_install_version_pref_.load(&installed_hash) && installed_hash == latest_hash) {
       ESP_LOGW(TAG, "Manifest asks for an auto install of %s, which was already installed; not installing again",
