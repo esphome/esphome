@@ -68,18 +68,6 @@ optional<uint32_t> DeepSleepComponent::get_run_duration_() const {
   return this->run_duration_;
 }
 
-void DeepSleepComponent::set_wakeup_pin_mode(WakeupPinMode wakeup_pin_mode) {
-  this->wakeup_pin_mode_ = wakeup_pin_mode;
-}
-
-#if SOC_PM_SUPPORT_EXT1_WAKEUP
-void DeepSleepComponent::set_ext1_wakeup(Ext1Wakeup ext1_wakeup) { this->ext1_wakeup_ = ext1_wakeup; }
-#endif
-
-void DeepSleepComponent::set_run_duration(WakeupCauseToRunDuration wakeup_cause_to_run_duration) {
-  wakeup_cause_to_run_duration_ = wakeup_cause_to_run_duration;
-}
-
 void DeepSleepComponent::dump_config_platform_() {
   if (wakeup_pin_ != nullptr) {
     LOG_PIN("  Wakeup Pin: ", this->wakeup_pin_);

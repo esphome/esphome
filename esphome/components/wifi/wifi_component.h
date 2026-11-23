@@ -6,6 +6,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/progmem.h"
 #ifdef USE_ESP32
 #include "esphome/core/lock_free_queue.h"
 #endif
@@ -241,6 +242,10 @@ class CompactString {
 
   CompactString() : length_(0), is_heap_(0) { this->storage_[0] = '\0'; }
   CompactString(const char *str, size_t len);
+#ifdef USE_ESP8266
+  /// Copy a string kept in flash with ESPHOME_F.
+  static CompactString from_progmem(ProgmemStr str);
+#endif
   CompactString(const CompactString &other);
   CompactString(CompactString &&other) noexcept;
   CompactString &operator=(const CompactString &other);
@@ -296,11 +301,17 @@ class WiFiAP {
   void set_ssid(const std::string &ssid) { this->ssid_ = CompactString(ssid.c_str(), ssid.size()); }
   void set_ssid(const char *ssid) { this->set_ssid(StringRef(ssid)); }
   void set_ssid(StringRef ssid) { this->ssid_ = CompactString(ssid.c_str(), ssid.size()); }
+#ifdef USE_ESP8266
+  void set_ssid(ProgmemStr ssid) { this->ssid_ = CompactString::from_progmem(ssid); }
+#endif
   void set_bssid(const bssid_t &bssid) { this->bssid_ = bssid; }
   void clear_bssid() { this->bssid_ = {}; }
   void set_password(const std::string &password) { this->password_ = CompactString(password.c_str(), password.size()); }
   void set_password(const char *password) { this->set_password(StringRef(password)); }
   void set_password(StringRef password) { this->password_ = CompactString(password.c_str(), password.size()); }
+#ifdef USE_ESP8266
+  void set_password(ProgmemStr password) { this->password_ = CompactString::from_progmem(password); }
+#endif
 #ifdef USE_WIFI_WPA2_EAP
   void set_eap(optional<EAPAuth> eap_auth) { this->eap_ = std::move(eap_auth); }
 #endif  // USE_WIFI_WPA2_EAP
@@ -471,6 +482,9 @@ class WiFiPowerSaveListener {
 static constexpr uint32_t AP_HANDOVER_TIMEOUT_ID = 0;
 static constexpr uint32_t LEASE_RENEW_TIMEOUT_ID = 1;
 static constexpr uint32_t AP_DEAUTH_RETRY_TIMEOUT_ID = 2;
+#if USE_NETWORK_IPV6 && (USE_NETWORK_MIN_IPV6_ADDR_COUNT > 0)
+static constexpr uint32_t IPV6_RECOUNT_TIMEOUT_ID = 3;
+#endif
 
 /// This component is responsible for managing the ESP WiFi interface.
 class WiFiComponent final : public Component {
@@ -563,7 +577,7 @@ class WiFiComponent final : public Component {
   // (In most use cases you won't need these)
   /// Setup WiFi interface.
   void setup() override;
-#if defined(USE_LN882X) || defined(USE_BK72XX)
+#if defined(USE_ESP32) || defined(USE_LN882X) || defined(USE_BK72XX)
   void on_powerdown() override;
 #endif
   void start();
@@ -639,6 +653,12 @@ class WiFiComponent final : public Component {
 #endif
 #ifdef USE_WIFI_DISCONNECT_TRIGGER
   Trigger<> *get_disconnect_trigger() { return &this->disconnect_trigger_; }
+#endif
+#ifdef USE_WIFI_AP_START_TRIGGER
+  void set_on_ap_start(void (*callback)()) { this->on_ap_start_ = callback; }
+#endif
+#ifdef USE_WIFI_AP_STOP_TRIGGER
+  void set_on_ap_stop(void (*callback)()) { this->on_ap_stop_ = callback; }
 #endif
 
   int32_t get_wifi_channel();
@@ -846,6 +866,8 @@ class WiFiComponent final : public Component {
   bool wifi_sta_pre_setup_();
   bool wifi_apply_output_power_(float output_power);
   bool wifi_apply_power_save_();
+  /// Output power and power save, wherever the radio first comes up: start() with networks, the AP without.
+  void apply_radio_settings_();
 #if defined(USE_ESP32) && defined(SOC_WIFI_SUPPORT_5G)
   bool wifi_apply_band_mode_();
 #endif
@@ -1027,6 +1049,12 @@ class WiFiComponent final : public Component {
 #ifdef USE_WIFI_DISCONNECT_TRIGGER
   Trigger<> disconnect_trigger_;
 #endif
+#ifdef USE_WIFI_AP_START_TRIGGER
+  void (*on_ap_start_)(){nullptr};
+#endif
+#ifdef USE_WIFI_AP_STOP_TRIGGER
+  void (*on_ap_stop_)(){nullptr};
+#endif
 #if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_POWER_SAVE)
   SemaphoreHandle_t high_performance_semaphore_{nullptr};
 #endif
@@ -1102,9 +1130,9 @@ class WiFiComponent final : public Component {
   // so no happens-before relationship with other memory needs to be established.
   std::atomic<uint8_t> roaming_suppression_count_{0};
 #endif
-#if USE_NETWORK_IPV6
+#if USE_NETWORK_IPV6 && (USE_NETWORK_MIN_IPV6_ADDR_COUNT > 0)
   uint8_t num_ipv6_addresses_{0};
-#endif /* USE_NETWORK_IPV6 */
+#endif
   bool error_from_callback_{false};
 #if defined(USE_ESP32) && !defined(USE_WIFI_MULTI_SSID)
   bool scan_driver_filtered_{false};
@@ -1156,6 +1184,9 @@ class WiFiComponent final : public Component {
   bool has_ap_{false};
 #if defined(USE_WIFI_CONNECT_TRIGGER) || defined(USE_WIFI_DISCONNECT_TRIGGER)
   bool handled_connected_state_{false};
+#endif
+#if defined(USE_WIFI_AP_START_TRIGGER) || defined(USE_WIFI_AP_STOP_TRIGGER)
+  bool handled_ap_state_{false};
 #endif
   bool scan_done_{false};
   bool ap_setup_{false};

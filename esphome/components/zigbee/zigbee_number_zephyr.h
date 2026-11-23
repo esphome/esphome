@@ -84,6 +84,7 @@ namespace esphome::zigbee {
 
 class ZigbeeNumber final : public ZigbeeEntity, public Component {
  public:
+  void on_zcl_device_event(zb_bufid_t bufid);
   ZigbeeNumber(number::Number *n) : number_(n) {}
   void set_cluster_attributes(AnalogAttrsOutput &cluster_attributes) {
     this->cluster_attributes_ = &cluster_attributes;
@@ -95,7 +96,6 @@ class ZigbeeNumber final : public ZigbeeEntity, public Component {
  protected:
   number::Number *number_;
   AnalogAttrsOutput *cluster_attributes_{nullptr};
-  void zcl_device_cb_(zb_bufid_t bufid);
 };
 
 }  // namespace esphome::zigbee

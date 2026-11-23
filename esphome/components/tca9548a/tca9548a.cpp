@@ -9,19 +9,37 @@ ESPHOME_LOG_TAG(TAG, "tca9548a");
 
 i2c::ErrorCode TCA9548AChannel::write_readv(uint8_t address, const uint8_t *write_buffer, size_t write_count,
                                             uint8_t *read_buffer, size_t read_count) {
+  return this->run_({address, nullptr, 0, write_buffer, write_count, read_buffer, read_count});
+}
+
+// Forwarded so the upstream bus writes the two parts without joining them
+i2c::ErrorCode TCA9548AChannel::write_prefixed(uint8_t address, const uint8_t *prefix, size_t prefix_len,
+                                               const uint8_t *data, size_t len) {
+  return this->run_({address, prefix, prefix_len, data, len, nullptr, 0});
+}
+
+i2c::ErrorCode TCA9548AChannel::run_(const Transfer &transfer) {
 #ifdef I2C_PORT_FREQUENCY_COUNT
   const uint32_t select_frequency = this->select_frequency_();
   if (select_frequency != 0) {
-    return this->write_readv_at_port_frequency_(select_frequency, address, write_buffer, write_count, read_buffer,
-                                                read_count);
+    return this->run_at_port_frequency_(select_frequency, transfer);
   }
 #endif
   auto err = this->parent_->switch_to_channel(this->channel_);
   if (err != i2c::ERROR_OK)
     return err;
-  err = this->parent_->bus_->write_readv(address, write_buffer, write_count, read_buffer, read_count);
+  err = this->forward_(transfer);
   this->parent_->disable_all_channels();
   return err;
+}
+
+i2c::ErrorCode TCA9548AChannel::forward_(const Transfer &transfer) {
+  if (transfer.prefix_len != 0) {
+    return this->parent_->bus_->write_prefixed(transfer.address, transfer.prefix, transfer.prefix_len,
+                                               transfer.write_buffer, transfer.write_count);
+  }
+  return this->parent_->bus_->write_readv(transfer.address, transfer.write_buffer, transfer.write_count,
+                                          transfer.read_buffer, transfer.read_count);
 }
 
 #ifdef I2C_PORT_FREQUENCY_COUNT
@@ -41,9 +59,7 @@ uint32_t TCA9548AChannel::transfer_frequency_() const {
   return this->frequency_ != 0 ? this->frequency_ : this->parent_->frequency_;
 }
 
-i2c::ErrorCode TCA9548AChannel::write_readv_at_port_frequency_(uint32_t select_frequency, uint8_t address,
-                                                               const uint8_t *write_buffer, size_t write_count,
-                                                               uint8_t *read_buffer, size_t read_count) {
+i2c::ErrorCode TCA9548AChannel::run_at_port_frequency_(uint32_t select_frequency, const Transfer &transfer) {
   const uint32_t original_frequency = this->parent_->bus_->get_frequency();
   // A failed switch leaves the bus as it was
   auto err = this->switch_bus_(select_frequency);
@@ -52,7 +68,7 @@ i2c::ErrorCode TCA9548AChannel::write_readv_at_port_frequency_(uint32_t select_f
 
   err = this->parent_->switch_to_channel(this->channel_);
   if (err == i2c::ERROR_OK) {
-    err = this->transfer_(select_frequency, address, write_buffer, write_count, read_buffer, read_count);
+    err = this->transfer_(select_frequency, transfer);
     this->parent_->disable_all_channels();
   }
   const i2c::ErrorCode restored = this->switch_bus_(original_frequency);
@@ -60,15 +76,14 @@ i2c::ErrorCode TCA9548AChannel::write_readv_at_port_frequency_(uint32_t select_f
 }
 
 // Transfer at the port frequency, back to the select frequency for the deselect
-i2c::ErrorCode TCA9548AChannel::transfer_(uint32_t select_frequency, uint8_t address, const uint8_t *write_buffer,
-                                          size_t write_count, uint8_t *read_buffer, size_t read_count) {
+i2c::ErrorCode TCA9548AChannel::transfer_(uint32_t select_frequency, const Transfer &transfer) {
   const uint32_t transfer_frequency = this->transfer_frequency_();
   if (transfer_frequency == select_frequency) {
-    return this->parent_->bus_->write_readv(address, write_buffer, write_count, read_buffer, read_count);
+    return this->forward_(transfer);
   }
   auto err = this->switch_bus_(transfer_frequency);
   if (err == i2c::ERROR_OK) {
-    err = this->parent_->bus_->write_readv(address, write_buffer, write_count, read_buffer, read_count);
+    err = this->forward_(transfer);
   }
   const i2c::ErrorCode restored = this->switch_bus_(select_frequency);
   return err != i2c::ERROR_OK ? err : restored;

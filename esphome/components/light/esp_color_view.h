@@ -36,6 +36,10 @@ class ESPColorAccessor {
 #if defined(USE_LIGHT_PARTITION) && defined(USE_LIGHT_POWER_ESTIMATION)
   virtual const ESPColorCorrection *get_color_correction_internal(int32_t index) const { return nullptr; }
 #endif
+#ifdef USE_LIGHT_PARTITION
+  // For internal use only: whether the LED at `index` stores a white level.
+  virtual bool has_white_internal(int32_t index) const { return true; }
+#endif
 };
 
 /// Color accessor that is completely at peace with the void of nothingness.
@@ -78,18 +82,33 @@ class BufferColorAccessor : public ESPColorAccessor {
   }
   void set_effect_data(int32_t index, uint8_t value) override { this->effect_data[index] = value; }
 
-  /// Allocate the color and effect data for `num_leds` LEDs as one zeroed block, followed by `extra_bytes` more
-  /// for the caller, which start at `effect_data + num_leds`. Returns false if it failed.
+#ifdef USE_LIGHT_PARTITION
+  bool has_white_internal(int32_t index) const override { return this->channel_colors.has_white(); }
+#endif
+
+  /// Allocate a zeroed block of buffer_bytes() plus `extra_bytes` for the caller, which start at
+  /// `effect_data + num_leds`, and pass it to set_buffer(). Returns false if it failed.
   bool allocate(RAMAllocator<uint8_t> &allocator, size_t num_leds, size_t extra_bytes = 0) {
-    const size_t color_bytes = num_leds * this->channel_colors.bytes_per_led();
-    const size_t total_bytes = color_bytes + num_leds + extra_bytes;
+    const size_t total_bytes = buffer_bytes(num_leds, this->channel_colors.bytes_per_led()) + extra_bytes;
     uint8_t *buf = allocator.allocate(total_bytes);
     if (buf == nullptr)
       return false;
     memset(buf, 0, total_bytes);
-    this->color_data = buf;
-    this->effect_data = buf + color_bytes;
+    this->set_buffer(buf, num_leds);
     return true;
+  }
+
+  /// The color data of `num_leds` LEDs followed by one effect byte per LED.
+  static constexpr size_t buffer_bytes(size_t num_leds, uint8_t bytes_per_led) {
+    return num_leds * (bytes_per_led + 1);
+  }
+
+  /// Use `buffer` for the color data of `num_leds` LEDs followed by their effect data, buffer_bytes() in all.
+  /// Returns the first byte after the effect data.
+  uint8_t *set_buffer(uint8_t *buffer, size_t num_leds) {
+    this->color_data = buffer;
+    this->effect_data = buffer + num_leds * this->channel_colors.bytes_per_led();
+    return this->effect_data + num_leds;
   }
 
   /// Zero the effect data of the first `num_leds` LEDs; does nothing before the effect data is allocated.
@@ -140,7 +159,12 @@ class CorrectedBufferColorAccessor final : public BufferColorAccessor {
     return this->color_correction->color_uncorrect_channel(channel, this->get_channel_raw(index, channel));
   }
 
-  void set(int32_t index, Color color) override { this->set_raw(index, this->color_correction->color_correct(color)); }
+  void set(int32_t index, Color color) override {
+    // A white level the strip cannot show must not count as the pixel's strongest channel
+    if (!this->channel_colors.has_white())
+      color.white = 0;
+    this->set_raw(index, this->color_correction->color_correct(color));
+  }
   void set_channel(int32_t index, uint8_t channel, uint8_t value) override {
     this->set_channel_raw(index, channel, this->color_correction->color_correct_channel(channel, value));
   }
@@ -261,6 +285,10 @@ class ESPColorView final : public ESPColorSettable {
   const ESPColorCorrection *get_color_correction_internal() const {
     return this->accessor_->get_color_correction_internal(this->index_);
   }
+#endif
+#ifdef USE_LIGHT_PARTITION
+  // This method is for internal use only.
+  bool has_white_internal() const { return this->accessor_->has_white_internal(this->index_); }
 #endif
 
  protected:

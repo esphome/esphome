@@ -9,6 +9,8 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any
 
+import voluptuous as vol
+
 from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -41,7 +43,7 @@ def _for_target(name: str) -> _PlatformAction:
 
 def _keys_schema(schema: cv.Schema | cv.All) -> cv.Schema:
     """The dict schema of ``schema``, or of a ``cv.All`` that adds validators after it."""
-    if isinstance(schema, cv.All):
+    if isinstance(schema, vol.All):
         return next(v for v in schema.validators if isinstance(v, cv.Schema))
     return schema
 

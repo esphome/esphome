@@ -192,7 +192,7 @@ void Smartair2Climate::process_phase(std::chrono::steady_clock::time_point now) 
           this->send_message_(this->action_request_.value().message.value(), this->use_crc_);
           this->action_request_.value().message.reset();  // NOLINT(bugprone-unchecked-optional-access)
         } else {
-          // Message already sent, reseting request and return to idle
+          // Message already sent, resetting request and return to idle
           this->action_request_.reset();
           this->set_phase(ProtocolPhases::IDLE);
         }
@@ -542,16 +542,14 @@ haier_protocol::HandlerError Smartair2Climate::process_status_message_(const uin
     ESP_LOGI(TAG, "HVAC values changed");
   }
   int log_level = should_publish ? ESPHOME_LOG_LEVEL_INFO : ESPHOME_LOG_LEVEL_DEBUG;
-  esp_log_printf_(log_level, TAG, __LINE__, "HVAC Mode = 0x%X", packet.control.ac_mode);
-  esp_log_printf_(log_level, TAG, __LINE__, "Fan speed Status = 0x%X", packet.control.fan_mode);
-  esp_log_printf_(log_level, TAG, __LINE__, "Horizontal Swing Status = 0x%X", packet.control.horizontal_swing);
-  esp_log_printf_(log_level, TAG, __LINE__, "Vertical Swing Status = 0x%X", packet.control.vertical_swing);
-  esp_log_printf_(log_level, TAG, __LINE__, "Set Point Status = 0x%X", packet.control.set_point);
+  esp_log_printf_(log_level, TAG, __LINE__, ESPHOME_LOG_FORMAT("HVAC Mode = 0x%X"), packet.control.ac_mode);
+  esp_log_printf_(log_level, TAG, __LINE__, ESPHOME_LOG_FORMAT("Fan speed Status = 0x%X"), packet.control.fan_mode);
+  esp_log_printf_(log_level, TAG, __LINE__, ESPHOME_LOG_FORMAT("Horizontal Swing Status = 0x%X"),
+                  packet.control.horizontal_swing);
+  esp_log_printf_(log_level, TAG, __LINE__, ESPHOME_LOG_FORMAT("Vertical Swing Status = 0x%X"),
+                  packet.control.vertical_swing);
+  esp_log_printf_(log_level, TAG, __LINE__, ESPHOME_LOG_FORMAT("Set Point Status = 0x%X"), packet.control.set_point);
   return haier_protocol::HandlerError::HANDLER_OK;
-}
-
-void Smartair2Climate::set_alternative_swing_control(bool swing_control) {
-  this->use_alternative_swing_control_ = swing_control;
 }
 
 }  // namespace esphome::haier

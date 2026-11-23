@@ -10,3 +10,65 @@ back with a repeated start, probes an absent address and reads both stretch regi
 (the read back matches, the absent address NACKs and both stretched reads succeed) or `RW BAD` with running totals.
 Control: the same blocks on a classic ESP32 devkit (SDA GPIO21, SCL GPIO22) with hardware I2C at 25 and 50 kHz got
 every repeated start read right, so failures on a bit banged master at a similar real clock point at the master.
+On the NiceMCU WB3S V1 board (BK7238), P26 and P24 are on the right-hand header.
+
+Fake devices that need no real chip (in-firmware buses, the Pico 2 W target, the DS2482-800 simulator, NACK
+injection) are in [fake_i2c.md](fake_i2c.md).
+
+## I2C wire A/B of a bus change (#22780, write_prefixed)
+
+`scripts/i2c_wire_ab/`.
+- Host (`host/run.sh TREE OUT`, then `host/compare.py BASE PR`): copies a harness into the tree's
+  `tests/components/i2c/` (removed again afterwards) and runs `script/cpp_unit_test.py i2c`. `extract.py` cuts the
+  Arduino and ESP-IDF `write_readv`/`transfer_` bodies out of the tree and compiles them against the tree's real headers
+  with stub `Wire.h` (esp8266 core 3.1.2 and arduino-pico 6.3.2 buffer rules, 128 and 256 bytes) and a stub
+  `driver/i2c_master.h` (IDF 5.5.5 checks: at most SOC_I2C_CMD_REG_NUM jobs, NACK before STOP); the software bus is
+  compiled whole with `#define InternalGPIOPin wab::FakePin` over a bit-level target. Every bus emits one token stream
+  (`S 90+ 02+ ... P`, `Sr`, `rA0+`), with mallocs counted through macOS `malloc_logger` (ASan is dropped on macOS).
+  Stub headers must live outside the test dir (a subfolder there is taken as a platform domain) and reach the build
+  through a `benchmark.yaml` `esphome: build_flags: [-I...]`; `.h` files in the test dir are included into main.cpp, so
+  generated bodies are `.inc`. Explicit-instantiation member robbers must be declared at global scope. The sources are
+  stored as `.cpp.example`, `.h.example` and `.hpp` so the repo's C++ lints skip them; `run.sh` copies them back.
+- Device: `dev/snf.hpp` is a GPIO interrupt sniffer on the I2C pads (an ESP32-C2 with an ADS1015: SDA 4, SCL 5,
+  `dev/c2common.yaml`) plus the same case sweep and a malloc counter; at 10 to 20 kHz on the C2 it still drops a bit in
+  about 0.5 % of transactions (mostly at the chip's NACK), so capture three runs per build with
+  `dev/flashrun.sh NAME YAML PORT SECONDS SUFFIX` (suffix empty, 2 and 3 write NAME-ser.txt, -ser2 and -ser3) and
+  judge with `clean.py` (`--nacks` sorts each DIFF into a chip NACK or not) and `maj.py`, which also takes one or two
+  captures. On the software bus it is exact. `dev/pdslave.hpp` with `snf.hpp` built with `-DSNF_PDSLAVE`
+  (`pdcommon.yaml`) turn an ESP32-PICO-D4 into its own target at 0x48 on GPIO32/33 (ACKs every byte, so 300-byte
+  writes reach the wire): exact on 6 of 6 captures at 25 kHz once one warm-up probe runs before the sweep (the ISR
+  runs from flash; IRAM_ATTR on header inline functions fails to link with l32r literal errors). `mksw.py` turns a
+  tree's LibreTiny-only software bus into a header so an ESP32 build can run it on real pins. The ADS1015 NACKs the
+  third byte after the pointer, so long writes on that chip end there on every build.
+- `ard/swp.hpp` is the same sweep for ESP8266 (GPIO interrupt sniffer on GPIO4/5), RP2 (raw IO_IRQ_BANK0 handler) and
+  BK72xx (no sniffer, so `ard/ardcmp.py --reads-by-data` compares reads by their data), with `ard/common.yaml` plus a
+  board file (`d1.yaml`, `pico.yaml`, `bk.yaml`). Both sweeps share the decoder in `wiredecode.hpp` and count heap
+  calls with `templates/i2c_fake/alloc_count.hpp`, which names the link flag for each platform. Each image checks
+  itself with `ALLOC_PROBE 1`. `buildall.sh YAML...` builds the configs of either folder, each under the `name` of
+  its substitutions (the file name without one), `x-pr.yaml` from PR_TREE and the rest from BASE_TREE.
+- Facts: on a D1 mini without a target, register writes up to 128 bytes total show `S 90- P`, longer ones fail with
+  rc 6 and nothing on the wire; a write+read whose address is NACKed leaves no STOP (`S 90-`), dev too.
+  arduino-pico: after a register write over 256 bytes, the next empty write (a probe) sends the stale buffer to the
+  failed write's address.
+
+## Simulated TCA9548A (#22827)
+
+`scripts/i2c_wire_ab/mux/`, the same A/B for the `tca9548a` hub.
+- Host: `run.sh TREE OUT [freq]` copies `test_muxab.cpp.example` into the tree's `tests/components/tca9548a/` and runs
+  the unit test: an upstream bus that models the mux at 0x70 with devices behind its channels and records the wire
+  plus every frequency switch (`F<kHz>`); `freq` builds with `I2C_PORT_FREQUENCY_COUNT=4`. `cmp.py BASE PR` compares
+  rc and stream per case and lists the allocating calls.
+- Device: `muxdev.hpp` sweeps register writes through a channel (8 and 16 bit registers up to 300 bytes, reads, 112
+  probes, a channel write followed by a root bus probe), then rounds of 500 SSD1306 shaped 24 byte writes with malloc
+  and free heap counts. `pd.yaml` runs it on a classic ESP32 against `pdmux.hpp` (the `dev/pdslave.hpp` target
+  extended to a mux at 0x70 with devices at 0x3C and 0x48, and the SCL rate per transaction as `@<kHz>`); `d1.yaml` on
+  an ESP8266 puts a `MuxShim` bus that answers 0x70 in front of the real Wire bus. Pass `-s xflags
+  -DMX_WRITE_PREFIXED` on trees that have `I2CBus::write_prefixed` (#22780; the host harness needs it in both trees),
+  and `-s xflags "-DMX_LOAD_ONLY -DMX_GAP_US=2000"` to run only the load rounds. `devruns.sh NAME YAML PORT
+  [SECONDS]` uploads and takes three captures; judge with `mxmaj.py BASE PR` (majority per case over the captures
+  that exist, so one capture each also works).
+- Target gotchas: clearing the GPIO status after a transaction loses a START that follows within microseconds, so the
+  ISR keeps listening 500 us after a STOP. Chaining transactions in the ISR must stay under the interrupt watchdog
+  (`CONFIG_ESP_INT_WDT_TIMEOUT_MS: "1000"`, the ISR gives up at 600 ms). Back to back writes still drop transactions
+  on both builds; a 2 ms gap does not. On ESP32 count mallocs only in the calling task (`xTaskGetCurrentTaskHandle`),
+  since other tasks run on the other core.
