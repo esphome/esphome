@@ -3,7 +3,7 @@
 # fixture: this test compiles the component, its frame pipeline and its decoder.
 tflite_detection:
   - id: test_detection
-    model: "model.tflite"
+    model: "../../components/tflite_detection/model.tflite"
     input_width: 32
     input_height: 20
     input_channels: 3
