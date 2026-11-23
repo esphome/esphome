@@ -360,10 +360,12 @@ file does, and it is the authority when they disagree. The most useful starting 
     An intentionally empty body (an unused `register_dumper` builder, for example) gets a one-line docstring, not `pass`.
 
 *   **Sensor schemas:** `sensor.sensor_schema(kind=sensor.TEMPERATURE)` (also `HUMIDITY`, `PRESSURE`, `VOLTAGE`,
-    `CURRENT`, `POWER`, `ENERGY_KWH`, `ILLUMINANCE`, `DISTANCE_MM`, ... in `esphome/components/sensor`) always
-    sets the state class (measurement, or total increasing for energy) and whichever of the unit, device class,
+    `CURRENT`, `POWER`, `ENERGY_KWH`, `ILLUMINANCE`, `DISTANCE_MM`, ... in `esphome/components/sensor`) sets a
+    default state class (measurement, or total increasing for energy) and whichever of the unit, device class,
     icon (`DURATION_H`, `PM25`, ...) and default accuracy the preset defines. Pass only what it leaves unset;
-    `accuracy_decimals` may override its default, and repeating any other value it sets is an error.
+    `accuracy_decimals` and `state_class` may override its defaults (a running total is
+    `kind=sensor.DURATION_S, state_class=STATE_CLASS_TOTAL_INCREASING`), and passing a unit, device class or
+    icon the preset already sets is an error.
 
 *   **Configuration Validation:** follow the `config-validation` skill. In short: one `cv.typed_schema` per
     model, reuse validators from `config_validation.py`, and never add `CONF_` constants to the frozen
@@ -399,6 +401,14 @@ file does, and it is the authority when they disagree. The most useful starting 
         `validate.*.yaml` config-only tests, CI grouping, C++ unit tests and integration tests are in the
         `component-tests` skill. Tests that differ only in their inputs are one `pytest.mark.parametrize` test
         or a table-driven gtest.
+    *   **On a real board:** a change to what a device does (a driver, a bus, a platform, a fix for a fault seen on a
+        device) is tested with the `hardware-test` skill on a board it targets, and once the PR is open its results are
+        posted on it as a comment, not in the description. "It compiles and runs on my board" does not show that the
+        changed path ran. When the fault cannot be made to happen on demand, simulate the device or inject the fault as
+        the skill's recipes do (a fake device on a UART loopback, an I2C fault bus, AT commands through a modem
+        passthrough). A contributor who tests by hand posts the same facts: the commit, the board and framework, the
+        steps including how the changed path was triggered, the log lines that show the result, and for a fix the same
+        steps on a `dev` build. Validation, codegen-only and documentation changes need no board.
 
 *   **Debugging and Troubleshooting:**
     *   **Debug Tools:**
@@ -416,7 +426,8 @@ file does, and it is the authority when they disagree. The most useful starting 
 *   **Contribution Workflow (Pull Request Process):** the `pr-workflow` skill walks through these steps.
     1.  **Fork & Branch:** Create a new branch based on the `dev` branch (always use `git checkout -b <branch-name> dev` to ensure you're branching from `dev`, not the currently checked out branch).
     2.  **Make Changes:** Adhere to all coding conventions and patterns.
-    3.  **Test:** Create component tests for all supported platforms and run the full test suite locally.
+    3.  **Test:** Create component tests for all supported platforms and run the full test suite locally. A change
+        to device behaviour is also tested on a board with the `hardware-test` skill (section 6).
     4.  **Lint:** Run `prek` to ensure code is compliant.
     5.  **Commit:** Commit your changes. There is no strict format for commit messages.
     6.  **Pull Request:** Submit a PR against the `dev` branch. The Pull Request title must start with a `[tag]` prefix. For component work, use the component name (e.g., `[display] Fix bug`, `[abc123] Add new component`); for changes to shared/core code that isn't tied to a single component, use `[core]` (e.g., `[core] Add validator`). Changes to shared code (`esphome/core/`, entity platform components such as `esphome/components/sensor/` or `esphome/components/text_sensor/`, buses, shared constants in `esphome/components/const/`, codegen) go in their own PR, never inside a component PR, unless the shared change must update several components at once to avoid breaking them; a component's own `USE_*` lines in `esphome/core/defines.h` are fine. Update documentation, examples, and add `CODEOWNERS` entries as needed. Pull requests should always be made using the `.github/PULL_REQUEST_TEMPLATE.md` template - fill out all sections completely without removing any parts of the template.
