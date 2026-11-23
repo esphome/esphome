@@ -41,6 +41,12 @@ bool VBusTransmitter::request_datagram(uint16_t command, uint16_t value_id, uint
 }
 #endif
 
+void VBusTransmitter::setup() {
+  // An automation may have requested the bus before transmitter setup.
+  if (this->state_ == State::STATE_IDLE)
+    this->disable_loop();
+}
+
 void VBusTransmitter::dump_config() {
   ESP_LOGCONFIG(TAG, "VBus TX:\n  Source: 0x%04x\n  Controller: 0x%04x\n  Lease: %" PRIu32 " ms", this->source_,
                 this->destination_, this->lease_duration_ms_);
@@ -55,6 +61,7 @@ bool VBusTransmitter::request_bus() {
     this->packet_fresh_ = false;
   }
   this->state_ = State::STATE_WAIT_GRANT;
+  this->enable_loop();
   return true;
 }
 
@@ -140,6 +147,7 @@ void VBusTransmitter::stop_(bool warn_unsent) {
   this->pending_send_ = PendingSend::NONE;
 #endif
   this->state_ = State::STATE_IDLE;
+  this->disable_loop();
   this->release_pending_ = false;
   this->awaiting_reply_ = false;
 }

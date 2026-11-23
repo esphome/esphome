@@ -569,6 +569,19 @@ TEST_F(VBusTransmitTest, LastOrdinaryFrameLeavesEnoughWireTimeForRelease) {
   EXPECT_EQ(this->uart_.writes[1], wire_datagram(0x0600, 0x0020, 0x2211));
 }
 
+TEST_F(VBusTransmitTest, IdleTransmitterWakesForARequestAndParksAfterRelease) {
+  this->tx_.call();  // setup
+  this->tx_.call();  // first scheduled loop, if enabled
+  EXPECT_FALSE(this->tx_.is_in_loop_state());
+  this->acquire_();
+  EXPECT_TRUE(this->tx_.is_in_loop_state());
+  this->tx_.release_bus(this->grant_id_);
+  this->cycle_();
+  EXPECT_FALSE(this->tx_.is_in_loop_state());
+  this->acquire_();
+  EXPECT_TRUE(this->tx_.is_in_loop_state());
+}
+
 TEST_F(VBusTransmitTest, PassiveHubRetainsChunkedReads) {
   VBus receiver{};
   receiver.set_uart_parent(&this->uart_);
