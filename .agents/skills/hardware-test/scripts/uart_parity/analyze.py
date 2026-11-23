@@ -90,7 +90,9 @@ def main() -> None:
             other += not ok
             marks += m
             syncs += b == b"\x7f"
-            reports += b.startswith(b"\r\nRPT")
+            reports += b.count(
+                b"RPT n="
+            )  # raw and logger reports, as txt.py counts them
             if m:
                 k += f" [{m} PARMRK error marks]"
         print(f"{t:8.3f} {k}")
