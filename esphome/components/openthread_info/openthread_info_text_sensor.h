@@ -71,7 +71,7 @@ class Rloc16OpenThreadInfo final : public OpenThreadInstancePollingComponent, pu
     if (this->last_rloc16_ != rloc16) {
       this->last_rloc16_ = rloc16;
       char buf[5];
-      snprintf(buf, sizeof(buf), "%04x", rloc16);
+      format_hex_to(buf, rloc16);
       this->publish_state(buf);
     }
   }
@@ -204,7 +204,7 @@ class PanIdOpenThreadInfo final : public DatasetOpenThreadInfo, public text_sens
     if (this->last_panid_ != panid) {
       this->last_panid_ = panid;
       char buf[5];
-      snprintf(buf, sizeof(buf), "%04x", panid);
+      format_hex_to(buf, panid);
       this->publish_state(buf);
     }
   }
