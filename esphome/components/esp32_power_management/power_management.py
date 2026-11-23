@@ -18,12 +18,14 @@ from esphome.components.esp32 import (
     VARIANT_ESP32S31,
     add_idf_sdkconfig_option,
     get_esp32_variant,
+    idf_version,
 )
 from esphome.components.openthread.const import CONF_POLL_PERIOD
 from esphome.components.psram import DOMAIN as PSRAM_DOMAIN
 from esphome.components.zigbee import DOMAIN as ZIGBEE_DOMAIN
+from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_OPENTHREAD, CONF_PLATFORM
+from esphome.const import CONF_ID, CONF_OPENTHREAD
 from esphome.core import CORE
 import esphome.final_validate as fv
 from esphome.types import ConfigType
@@ -31,6 +33,10 @@ from esphome.types import ConfigType
 from . import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
+
+FILTER_SOURCE_FILES = filter_source_files_from_defines(
+    {"tick_overflow_guard.cpp": "USE_ESP32_PM_TICK_OVERFLOW_GUARD"}
+)
 
 CODEOWNERS = ["@rwrozelle"]
 DEPENDENCIES = ["esp32"]
@@ -170,10 +176,8 @@ async def to_code(config: ConfigType) -> None:
     await power_management.register_power_management(var, config)
     add_idf_sdkconfig_option("CONFIG_PM_ENABLE", True)
 
-    if (max_mhz := config.get(CONF_MAX_FREQUENCY)) is not None:
-        cg.add(var.set_max_freq_mhz(max_mhz))
-    if (min_mhz := config.get(CONF_MIN_FREQUENCY)) is not None:
-        cg.add(var.set_min_freq_mhz(min_mhz))
+    cg.add_optional(var.set_max_freq_mhz, config.get(CONF_MAX_FREQUENCY))
+    cg.add_optional(var.set_min_freq_mhz, config.get(CONF_MIN_FREQUENCY))
     if config[CONF_PROFILING]:
         add_idf_sdkconfig_option("CONFIG_PM_PROFILING", True)
     if config[CONF_TRACE]:
@@ -189,6 +193,15 @@ async def to_code(config: ConfigType) -> None:
     add_idf_sdkconfig_option(
         "CONFIG_FREERTOS_IDLE_TIME_BEFORE_SLEEP", config[CONF_IDLE_TIME_BEFORE_SLEEP]
     )
+    # Stop vTaskStepTick asserting on a tick overshoot after light sleep; built into
+    # IDF 6.0.1, backported by tick_overflow_guard.cpp before that.
+    if idf_version() >= cv.Version(6, 0, 1):
+        add_idf_sdkconfig_option("CONFIG_PM_LIGHTSLEEP_TICK_OVERFLOW_PROTECTION", True)
+    else:
+        cg.add_define("USE_ESP32_PM_TICK_OVERFLOW_GUARD")
+        for symbol in ("vApplicationSleep", "vTaskStepTick"):
+            cg.add_build_flag(f"-Wl,--wrap={symbol}")
+            cg.add_build_flag(f"-Wl,--undefined=__wrap_{symbol}")
     if config[CONF_POWER_DOWN_PERIPHERALS]:
         add_idf_sdkconfig_option("CONFIG_PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP", True)
     if config[CONF_POWER_DOWN_FLASH]:
@@ -206,11 +219,16 @@ async def to_code(config: ConfigType) -> None:
         add_idf_sdkconfig_option("CONFIG_IEEE802154_SLEEP_ENABLE", True)
 
 
+_validate_single_instance = fv.unique_platform_key(
+    domain=power_management.DOMAIN,
+    platform=DOMAIN,
+    message=f"Only one {DOMAIN} instance is allowed",
+)
+
+
 def _final_validate(config: ConfigType) -> ConfigType:
+    _validate_single_instance(config)
     full_config = fv.full_config.get()
-    entries = full_config.get(power_management.DOMAIN, [])
-    if sum(entry.get(CONF_PLATFORM) == DOMAIN for entry in entries) > 1:
-        raise cv.Invalid(f"Only one {DOMAIN} instance is allowed")
     boot_freq = full_config[esp32.DOMAIN][esp32.CONF_CPU_FREQUENCY]
     boot_mhz = int(boot_freq[:-3])
     max_mhz = config.get(CONF_MAX_FREQUENCY)

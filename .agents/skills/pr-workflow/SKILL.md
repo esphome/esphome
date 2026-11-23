@@ -21,7 +21,18 @@ git checkout -b <branch-name> upstream/dev
 
 Before creating a PR, read `.github/PULL_REQUEST_TEMPLATE.md` to understand required fields.
 
-## 3. Create the PR
+## 3. Test on a Real Board
+
+When the change alters what a device does (a driver, a bus, a platform, a fix for a fault seen on a device), load the
+`hardware-test` skill and run it on the PR's branch on a board the change targets, with a `dev` build as the control.
+Keep the report for step 6, which posts it once the PR is open, and tick only the Test Environment boxes for boards
+that ran the test.
+
+If the fault being fixed cannot be made to happen on demand, simulate the device or inject the fault (the skill's
+`reference/recipes/` show how for UART devices, I2C buses, modems and more) so the changed path runs. If no board is
+available, say so in the PR description. Validation, codegen-only and documentation changes need no board.
+
+## 4. Fill in the PR Template
 
 Use `gh pr create` with the **full template** filled in. Never skip or abbreviate sections.
 
@@ -34,7 +45,7 @@ Required fields:
 - **Example config.yaml**: Include working example YAML
 - **Checklist**: Verify code is tested and tests added
 
-## 4. Example PR Body
+## 5. Example PR Body
 
 ```markdown
 # What does this implement/fix?
@@ -86,7 +97,7 @@ If user exposed functionality or configuration variables are added/changed:
   - [ ] Documentation added/updated in [esphome.io](https://github.com/esphome/esphome.io).
 ```
 
-## 5. Push and Create PR
+## 6. Push and Create PR
 
 ```bash
 git push -u origin <branch-name>
@@ -94,3 +105,25 @@ gh pr create --repo esphome/esphome --base dev --title "[component] Brief descri
 ```
 
 Title should be prefixed with the component name in brackets, e.g. `[safe_mode] Add feature`.
+
+Once the PR is open, post the hardware test results from step 3 as a comment on it (`gh pr comment <number> --body-file
+<report>`), not in the description. After a later push that changes device code, test again and post a new comment.
+
+## 7. Fixes for a Release Branch
+
+A fix that should ship in a beta or patch release still targets `dev`. Give it the milestone of that release
+(`gh pr create --milestone <version>`). The release manager cherry-picks each PR's squash-merge commit onto `beta` (beta
+releases) or `release` (patch releases), so test that same change in a throwaway worktree:
+
+```bash
+git worktree add --detach <scratch-dir> upstream/release   # or upstream/beta
+# Before the PR merges: the PR's whole change, as it will be squashed
+git diff $(git merge-base upstream/dev HEAD) HEAD | git -C <scratch-dir> apply --3way
+# After it merges: the squash commit itself
+git -C <scratch-dir> cherry-pick --no-commit <merge commit>
+```
+
+If it conflicts, resolve it there, commit it as one commit, push it to a branch of your fork, and declare it in the PR
+body as step 7 of the contribution workflow in `AGENTS.md` describes (a `release-cherry-pick` block with `branch` and
+`commit`). The release manager compares that commit with the PR's squash-merge commit before using it, so make a new one
+and update the block if the PR changes afterwards. Keep the branch until the release is out.

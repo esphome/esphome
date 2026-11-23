@@ -1,26 +1,28 @@
+from ipaddress import IPv4Address
 import logging
 import math
 from typing import Any
 
 from esphome import automation, preferences
-from esphome.automation import Condition
 import esphome.codegen as cg
-from esphome.components.const import CONF_ENABLED, CONF_USE_PSRAM
+from esphome.components.const import CONF_ENABLED, CONF_MODEM, CONF_USE_PSRAM
 from esphome.components.esp32 import (
     add_idf_sdkconfig_option,
     const,
     get_esp32_variant,
     only_on_variant,
     request_wifi,
+    require_idf_version,
     require_mbedtls_tls,
     require_mbedtls_tls_extras,
+    set_idf_sdkconfig_default,
 )
 from esphome.components.network import (
     add_use_address,
     get_network_priority,
     has_high_performance_wifi,
-    ip_address_literal,
     require_high_performance_wifi,
+    require_ipv4,
 )
 from esphome.components.psram import is_guaranteed as psram_is_guaranteed
 from esphome.config_helpers import filter_source_files_from_platform
@@ -39,6 +41,7 @@ from esphome.const import (
     CONF_ENABLE_BTM,
     CONF_ENABLE_ON_BOOT,
     CONF_ENABLE_RRM,
+    CONF_ETHERNET,
     CONF_FAST_CONNECT,
     CONF_GATEWAY,
     CONF_HIDDEN,
@@ -64,7 +67,6 @@ from esphome.const import (
     CONF_USE_ADDRESS,
     CONF_USERNAME,
     PLACEHOLDER_WIFI_SSID,
-    Framework,
     Platform,
     PlatformFramework,
 )
@@ -85,32 +87,12 @@ _LOGGER = logging.getLogger(__name__)
 AUTO_LOAD = ["network"]
 DOMAIN = "wifi"
 
-NO_WIFI_VARIANTS = [
-    const.VARIANT_ESP32H2,
-    const.VARIANT_ESP32H4,
-    const.VARIANT_ESP32H21,
-    const.VARIANT_ESP32P4,
-]
+NO_WIFI_VARIANTS = const.NO_WIFI_VARIANTS
 
 
-def variant_has_wifi(variant: str) -> bool:
-    """Return True if *variant* has a native WiFi PHY.
-
-    Variants without a native PHY (see ``NO_WIFI_VARIANTS`` — currently
-    ESP32-H2, ESP32-H4, ESP32-H21, ESP32-P4) need the ``esp32_hosted``
-    co-processor to use ``wifi:``.
-
-    Case-insensitive on *variant* so external callers can pass either
-    the upstream uppercase form (e.g. ``"ESP32H2"`` from
-    ``const.VARIANT_ESP32H2``) or a lowercase form their own enum
-    surfaces (e.g. ``"esp32h2"`` from device-builder's
-    ``Esp32Variant``). Both classify identically.
-
-    Used by device-builder (esphome/device-builder) to decide whether
-    its basic-setup wizard emits a ``wifi:`` block — please keep the
-    signature stable.
-    """
-    return variant.upper() not in NO_WIFI_VARIANTS
+# Defined in esp32.const so esp32 can use it without importing wifi; kept here
+# for device-builder, which imports it from wifi.
+variant_has_wifi = const.variant_has_wifi
 
 
 _WIFI_FIRST_PLATFORMS: frozenset[str] = frozenset(
@@ -161,7 +143,10 @@ CONF_SAVE = "save"
 CONF_BAND_MODE = "band_mode"
 CONF_DEVICE_INFO = "device_info"
 CONF_DPP = "dpp"
+CONF_ENABLE_SAE_PK = "enable_sae_pk"
 CONF_MIN_AUTH_MODE = "min_auth_mode"
+CONF_ON_AP_START = "on_ap_start"
+CONF_ON_AP_STOP = "on_ap_stop"
 CONF_ON_DPP_URI = "on_dpp_uri"
 CONF_PHY_MODE = "phy_mode"
 CONF_POST_CONNECT_ROAMING = "post_connect_roaming"
@@ -189,7 +174,6 @@ DEFAULT_DPP_TIMEOUT = "1min"
 
 wifi_ns = cg.esphome_ns.namespace("wifi")
 EAPAuth = wifi_ns.struct("EAPAuth")
-ManualIP = wifi_ns.struct("ManualIP")
 WiFiComponent = wifi_ns.class_("WiFiComponent", cg.Component)
 WiFiAP = wifi_ns.struct("WiFiAP")
 
@@ -217,16 +201,17 @@ WIFI_8266_PHY_MODES = WiFi8266PhyMode.options(
 )
 
 WIFI_AP_MODE_FALLBACK = "FALLBACK"
+WIFI_AP_MODE_ALWAYS_ON = "ALWAYS_ON"
 WIFI_AP_MODE_WISP = "WISP"
 
 
 def _validate_ap_mode(value: str) -> str:
-    value = cv.one_of(WIFI_AP_MODE_FALLBACK, WIFI_AP_MODE_WISP, upper=True)(value)
-    if value == WIFI_AP_MODE_WISP:
-        # esp_netif_napt_enable() exists from ESP-IDF 5.1
-        cv.require_framework_version(
-            esp_idf=cv.Version(5, 1, 0), extra_message="WISP mode routes through NAT"
-        )(value)
+    value = cv.one_of(
+        WIFI_AP_MODE_FALLBACK, WIFI_AP_MODE_ALWAYS_ON, WIFI_AP_MODE_WISP, upper=True
+    )(value)
+    if value != WIFI_AP_MODE_FALLBACK:
+        # The AP next to the station is part of the ESP32 backend, on both of its frameworks
+        cv.only_on_esp32(value)
     return value
 
 
@@ -234,22 +219,29 @@ def _validate_dns_servers(value: list) -> list:
     if any(ip.is_unspecified for ip in value):
         raise cv.Invalid("0.0.0.0 is not a DNS server the access point can offer")
     if len(value) > 1:
-        cv.require_framework_version(
-            esp_idf=cv.Version(6, 0, 0),
-            extra_message="The access point offers a second DNS server from ESP-IDF 6.0",
-        )(value)
+        require_idf_version(cv.Version(6, 0, 0), "A second DNS server")(value)
     return value
 
 
-WiFiConnectedCondition = wifi_ns.class_("WiFiConnectedCondition", Condition)
-WiFiEnabledCondition = wifi_ns.class_("WiFiEnabledCondition", Condition)
-WiFiAPActiveCondition = wifi_ns.class_("WiFiAPActiveCondition", Condition)
-WiFiEnableAction = wifi_ns.class_("WiFiEnableAction", automation.Action)
-WiFiDisableAction = wifi_ns.class_("WiFiDisableAction", automation.Action)
-WiFiRoamAction = wifi_ns.class_("WiFiRoamAction", automation.Action)
 WiFiConfigureAction = wifi_ns.class_(
     "WiFiConfigureAction", automation.Action, cg.Component
 )
+
+
+# The supplicant parses the bootstrapping key as a DER encoded P-256 private key in hex; these wrap the
+# 32 byte key the way the ESP-IDF enrollee example does
+DPP_KEY_DER_PREFIX = "30310201010420"
+DPP_KEY_DER_SUFFIX = "a00a06082a8648ce3d030107"
+
+
+def _validate_dpp_private_key(value: object) -> str:
+    """The key is 32 bytes written as 64 hexadecimal characters."""
+    value = cv.string_strict(value)
+    if len(value) != 64 or any(c not in "0123456789abcdefABCDEF" for c in value):
+        raise cv.Invalid(
+            "private_key must be 32 bytes written as 64 hexadecimal characters"
+        )
+    return value.lower()
 
 
 def _validate_dpp_device_info(value: object) -> str:
@@ -288,11 +280,14 @@ AP_MANUAL_IP_SCHEMA = cv.Schema(
     }
 )
 
-STA_MANUAL_IP_SCHEMA = AP_MANUAL_IP_SCHEMA.extend(
-    {
-        cv.Optional(CONF_DNS1, default="0.0.0.0"): cv.ipv4address,
-        cv.Optional(CONF_DNS2, default="0.0.0.0"): cv.ipv4address,
-    }
+STA_MANUAL_IP_SCHEMA = cv.All(
+    AP_MANUAL_IP_SCHEMA.extend(
+        {
+            cv.Optional(CONF_DNS1, default="0.0.0.0"): cv.ipv4address,
+            cv.Optional(CONF_DNS2, default="0.0.0.0"): cv.ipv4address,
+        }
+    ),
+    require_ipv4(DOMAIN, CONF_MANUAL_IP),
 )
 
 TTLS_PHASE_2 = {
@@ -329,7 +324,7 @@ EAP_AUTH_SCHEMA = cv.All(
 # Wi-Fi Easy Connect (DPP) enrollee; the ESP-IDF supplicant supports the QR code method
 DPP_SCHEMA = cv.Schema(
     {
-        cv.Optional(CONF_PRIVATE_KEY): cv.sensitive(cv.string_strict),
+        cv.Optional(CONF_PRIVATE_KEY): cv.sensitive(_validate_dpp_private_key),
         cv.Optional(CONF_DEVICE_INFO): _validate_dpp_device_info,
         cv.Optional(CONF_CHANNELS, default=[6]): cv.ensure_list(
             cv.int_range(min=1, max=14)
@@ -378,18 +373,22 @@ def wifi_network_ap(value):
     if value is None:
         value = {}
     config = WIFI_NETWORK_AP(value)
-    if config[CONF_AP_MODE] == WIFI_AP_MODE_WISP:
-        if not config.get(CONF_PASSWORD):
-            raise cv.Invalid(
-                "WISP mode requires a password for the access point",
-                path=[CONF_PASSWORD],
-            )
-        if config[CONF_AP_TIMEOUT].total_milliseconds == 0:
-            raise cv.Invalid(
-                "ap_timeout is how long the bridge waits before a failed start is tried again; it cannot be 0",
-                path=[CONF_AP_TIMEOUT],
-            )
-    elif CONF_DNS_SERVERS in config:
+    require_ipv4(DOMAIN, CONF_AP)(config)
+    ap_mode = config[CONF_AP_MODE]
+    if ap_mode == WIFI_AP_MODE_WISP and not config.get(CONF_PASSWORD):
+        raise cv.Invalid(
+            "WISP mode requires a password for the access point",
+            path=[CONF_PASSWORD],
+        )
+    if (
+        ap_mode != WIFI_AP_MODE_FALLBACK
+        and config[CONF_AP_TIMEOUT].total_milliseconds == 0
+    ):
+        raise cv.Invalid(
+            f"ap_timeout is how long ap_mode: {ap_mode} waits before a failed start is tried again; it cannot be 0",
+            path=[CONF_AP_TIMEOUT],
+        )
+    if ap_mode != WIFI_AP_MODE_WISP and CONF_DNS_SERVERS in config:
         raise cv.Invalid("dns_servers requires ap_mode: WISP", path=[CONF_DNS_SERVERS])
     if CONF_MANUAL_IP in config and CORE.is_rp2:
         raise cv.Invalid(
@@ -437,8 +436,35 @@ def _apply_min_auth_mode_default(config):
     return config
 
 
+def wifi_has_sta(config: ConfigType) -> bool:
+    """Whether the validated config has at least one station network."""
+    return bool(config.get(CONF_NETWORKS))
+
+
+def _has_upstream(config: ConfigType, full_config: ConfigType) -> bool:
+    """Whether a station network, ethernet or a modem can carry the AP that stays up."""
+    return (
+        wifi_has_sta(config)
+        or CONF_ETHERNET in full_config
+        or CONF_MODEM in full_config
+    )
+
+
+# Components that save station credentials at run time
+_PROVISIONERS = ("captive_portal", "improv_ble", "improv_serial")
+
+
+def wifi_stays_ap_only(config: ConfigType, full_config: ConfigType) -> bool:
+    """Whether no station can appear at run time: no networks, no DPP, no provisioner."""
+    return not (
+        wifi_has_sta(config)
+        or CONF_DPP in config
+        or any(c in full_config for c in _PROVISIONERS)
+    )
+
+
 def final_validate(config):
-    has_sta = bool(config.get(CONF_NETWORKS, True))
+    has_sta = wifi_has_sta(config)
     has_ap = CONF_AP in config
     has_dpp = CONF_DPP in config
     full_config = fv.full_config.get()
@@ -450,30 +476,57 @@ def final_validate(config):
         raise cv.Invalid(
             "Please specify at least an SSID or an Access Point to create, or configure DPP (Easy Connect)."
         )
-    if CONF_ON_DPP_URI in config and not has_dpp:
-        raise cv.Invalid(f"'{CONF_ON_DPP_URI}' requires '{CONF_DPP}'")
 
-    ap_is_wisp = has_ap and config[CONF_AP][CONF_AP_MODE] == WIFI_AP_MODE_WISP
+    ap_mode = config[CONF_AP][CONF_AP_MODE] if has_ap else WIFI_AP_MODE_FALLBACK
+    ap_is_wisp = ap_mode == WIFI_AP_MODE_WISP
+    # The AP stays up next to an upstream: the station, or ethernet or modem
+    if ap_mode != WIFI_AP_MODE_FALLBACK and not _has_upstream(config, full_config):
+        raise cv.Invalid(
+            f"ap_mode: {ap_mode} needs a station network (wifi.ssid or wifi.networks), "
+            "or ethernet or modem as the upstream interface"
+        )
+    # The scan after a connect would take the AP down again; with no way for a
+    # network to appear at run time there is nothing for it to roam to.
+    if (
+        ap_mode == WIFI_AP_MODE_ALWAYS_ON
+        and config[CONF_POST_CONNECT_ROAMING]
+        and not wifi_stays_ap_only(config, full_config)
+    ):
+        raise cv.Invalid(
+            "ap_mode: ALWAYS_ON is incompatible with post_connect_roaming. "
+            "Please set post_connect_roaming: false in the wifi block."
+        )
     if ap_is_wisp:
-        if not has_sta:
-            raise cv.Invalid(
-                "WISP mode requires at least one STA network (wifi.ssid or wifi.networks)"
-            )
-        if has_captive_portal:
-            raise cv.Invalid(
-                "captive_portal is not supported together with ap_mode: WISP"
-            )
         # Every client packet passes through the WiFi driver, none through the device's own sockets
         require_high_performance_wifi()
+        if has_captive_portal and CONF_DNS_SERVERS in config[CONF_AP]:
+            # Clients find the portal through the AP's own address as resolver, which dns_servers replaces
+            raise cv.Invalid(
+                "dns_servers cannot be combined with captive_portal in WISP mode",
+                path=[CONF_AP, CONF_DNS_SERVERS],
+            )
         if CONF_DNS_SERVERS not in config[CONF_AP]:
-            # The access point passes the station's resolvers on, which a static address has to name
-            for network in [config, *config.get(CONF_NETWORKS, [])]:
+            # The access point passes the upstream's resolvers on, which a static address has to name
+            upstreams = [
+                ([], config),
+                *(
+                    ([CONF_NETWORKS, i], network)
+                    for i, network in enumerate(config.get(CONF_NETWORKS, []))
+                ),
+                (None, full_config.get(CONF_ETHERNET, {})),
+            ]
+            for path, network in upstreams:
                 static = network.get(CONF_MANUAL_IP)
-                if static and static[CONF_DNS1].is_unspecified:
+                if not static or not static[CONF_DNS1].is_unspecified:
+                    continue
+                if path is None:
                     raise cv.Invalid(
-                        "manual_ip needs dns1 in WISP mode unless ap.dns_servers is set",
-                        path=[CONF_MANUAL_IP, CONF_DNS1],
+                        "ethernet manual_ip needs dns1 in WISP mode unless ap.dns_servers is set"
                     )
+                raise cv.Invalid(
+                    "manual_ip needs dns1 in WISP mode unless ap.dns_servers is set",
+                    path=[*path, CONF_MANUAL_IP, CONF_DNS1],
+                )
 
     if has_ap and not has_captive_portal and not has_web_server and not ap_is_wisp:
         _LOGGER.warning(
@@ -515,10 +568,7 @@ FINAL_VALIDATE_SCHEMA = cv.All(
 )
 
 
-def _validate(config):
-    if CONF_PASSWORD in config and CONF_SSID not in config:
-        raise cv.Invalid("Cannot have WiFi password without SSID!")
-
+def _validate(config: ConfigType) -> ConfigType:
     if CONF_SSID in config:
         # Automatically move single network to 'networks' section
         config = config.copy()
@@ -527,6 +577,8 @@ def _validate(config):
             network[CONF_PASSWORD] = config.pop(CONF_PASSWORD)
         if CONF_EAP in config:
             network[CONF_EAP] = config.pop(CONF_EAP)
+        if CONF_HIDDEN in config:
+            network[CONF_HIDDEN] = config.pop(CONF_HIDDEN)
         if CONF_NETWORKS in config:
             # In testing mode, merged component tests may have both ssid and networks
             # Just use the networks list and ignore the single ssid
@@ -574,7 +626,7 @@ def _report_provisioning_credentials(config):
     """
     from esphome.components import provisioning
 
-    if config.get(CONF_NETWORKS):
+    if wifi_has_sta(config):
         provisioning.report_hardcoded_credentials("wifi")
     elif CONF_AP in config:
         # An access point with no station credentials: the AP shuts down when the
@@ -622,7 +674,7 @@ def _lease_cache_schema(value: Any) -> ConfigType:
     value = LEASE_CACHE_SCHEMA(value)
     if value[CONF_ENABLED]:
         cv.only_on_esp32(value)
-        cv.only_with_framework(Framework.ESP_IDF)(value)
+        require_ipv4(DOMAIN, CONF_LEASE_CACHE)(value)
         if CONF_STORAGE not in value:
             if not preferences.rtc_supported():
                 raise cv.Invalid(
@@ -643,6 +695,7 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_SSID): cv.sensitive(cv.ssid),
             cv.Optional(CONF_PASSWORD): cv.sensitive(validate_password),
+            cv.Optional(CONF_HIDDEN): cv.boolean,
             cv.Optional(
                 CONF_MANUAL_IP, visibility=cv.Visibility.ADVANCED
             ): STA_MANUAL_IP_SCHEMA,
@@ -679,6 +732,10 @@ CONFIG_SCHEMA = cv.All(
             cv.SplitDefault(CONF_ENABLE_RRM, esp32=False): cv.All(
                 cv.boolean, cv.only_on_esp32
             ),
+            # Verifies WPA3 SAE-PK access points; they also accept plain SAE. About 6 KB.
+            cv.SplitDefault(CONF_ENABLE_SAE_PK, esp32=False): cv.All(
+                cv.boolean, cv.only_on_esp32
+            ),
             cv.Optional(CONF_BAND_MODE): cv.All(
                 cv.enum(WIFI_BAND_MODES, upper=True),
                 cv.only_on_esp32,
@@ -691,6 +748,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_PASSIVE_SCAN, default=False): cv.boolean,
             cv.Optional(CONF_ENABLE_ON_BOOT, default=True): cv.boolean,
             cv.Optional(CONF_POST_CONNECT_ROAMING, default=True): cv.boolean,
+            cv.Optional(CONF_ON_AP_START): automation.validate_automation(single=True),
+            cv.Optional(CONF_ON_AP_STOP): automation.validate_automation(single=True),
             cv.Optional(CONF_ON_CONNECT): automation.validate_automation(single=True),
             cv.Optional(CONF_ON_DISCONNECT): automation.validate_automation(
                 single=True
@@ -701,10 +760,23 @@ CONFIG_SCHEMA = cv.All(
             ),
         }
     ),
+    cv.key_requires((CONF_ON_AP_START, CONF_ON_AP_STOP), CONF_AP),
+    cv.key_requires(CONF_ON_DPP_URI, CONF_DPP),
+    cv.key_requires(CONF_PASSWORD, CONF_SSID),
+    cv.key_requires(
+        CONF_HIDDEN,
+        CONF_SSID,
+        hint="With 'networks', put 'hidden' inside the network entry",
+    ),
     _apply_min_auth_mode_default,
     _validate,
     _report_provisioning_credentials,
 )
+
+
+def _eap_string(value: str | None) -> cg.Expression | str:
+    """A std::string field whose literal stays in flash on ESP8266."""
+    return cg.progmem_string(value) if value else ""
 
 
 def eap_auth(config):
@@ -721,9 +793,9 @@ def eap_auth(config):
         key = wpa2_eap.read_relative_config_path(config[CONF_KEY])
     return cg.StructInitializer(
         EAPAuth,
-        ("identity", config.get(CONF_IDENTITY, "")),
-        ("username", config.get(CONF_USERNAME, "")),
-        ("password", config.get(CONF_PASSWORD, "")),
+        ("identity", _eap_string(config.get(CONF_IDENTITY))),
+        ("username", _eap_string(config.get(CONF_USERNAME))),
+        ("password", _eap_string(config.get(CONF_PASSWORD))),
         ("ca_cert", ca_cert),
         ("client_cert", client_cert),
         ("client_key", key),
@@ -731,42 +803,36 @@ def eap_auth(config):
     )
 
 
-def safe_ip(ip):
-    return ip_address_literal(ip)
-
-
-def manual_ip(config):
-    if config is None:
-        return None
-    return cg.StructInitializer(
-        ManualIP,
-        ("static_ip", safe_ip(config[CONF_STATIC_IP])),
-        ("gateway", safe_ip(config[CONF_GATEWAY])),
-        ("subnet", safe_ip(config[CONF_SUBNET])),
-        ("dns1", safe_ip(config.get(CONF_DNS1))),
-        ("dns2", safe_ip(config.get(CONF_DNS2))),
+def manual_ip_entry(config: ConfigType) -> bytes:
+    """Pack manual IP settings as one MANUAL_IP_TABLE row (MANUAL_IP_ENTRY_SIZE bytes)."""
+    no_dns = IPv4Address(0)
+    addresses = (
+        config[CONF_STATIC_IP],
+        config[CONF_GATEWAY],
+        config[CONF_SUBNET],
+        config.get(CONF_DNS1, no_dns),
+        config.get(CONF_DNS2, no_dns),
     )
+    return b"".join(address.packed for address in addresses)
 
 
-def wifi_network(config, ap, static_ip):
-    if CONF_SSID in config:
-        cg.add(ap.set_ssid(config[CONF_SSID]))
-    if CONF_PASSWORD in config:
-        cg.add(ap.set_password(config[CONF_PASSWORD]))
+def wifi_network(config, ap, manual_ip_index: int | None):
+    # The setters copy the text, so the literal can stay in flash on ESP8266.
+    if (ssid := config.get(CONF_SSID)) is not None:
+        cg.add(ap.set_ssid(cg.FlashStringLiteral(ssid)))
+    if (password := config.get(CONF_PASSWORD)) is not None:
+        cg.add(ap.set_password(cg.FlashStringLiteral(password)))
     if CONF_EAP in config:
         cg.add(ap.set_eap(eap_auth(config[CONF_EAP])))
         cg.add_define("USE_WIFI_WPA2_EAP")
-    if CONF_BSSID in config:
-        cg.add(ap.set_bssid([HexInt(i) for i in config[CONF_BSSID].parts]))
-    if CONF_HIDDEN in config:
-        cg.add(ap.set_hidden(config[CONF_HIDDEN]))
-    if CONF_CHANNEL in config:
-        cg.add(ap.set_channel(config[CONF_CHANNEL]))
-    if static_ip is not None:
-        cg.add(ap.set_manual_ip(manual_ip(static_ip)))
+    if (bssid := config.get(CONF_BSSID)) is not None:
+        cg.add(ap.set_bssid([HexInt(i) for i in bssid.parts]))
+    cg.add_optional(ap.set_hidden, config.get(CONF_HIDDEN))
+    cg.add_optional(ap.set_channel, config.get(CONF_CHANNEL))
+    cg.add_optional(ap.set_manual_ip, manual_ip_index)
     # priority_ is 0 in C++; skip the setter when the config matches it.
-    if config.get(CONF_PRIORITY, 0) != 0:
-        cg.add(ap.set_priority(config[CONF_PRIORITY]))
+    if (priority := config.get(CONF_PRIORITY, 0)) != 0:
+        cg.add(ap.set_priority(priority))
 
     return ap
 
@@ -782,45 +848,57 @@ async def to_code(config):
 
     # Track if any network uses Enterprise authentication
     has_eap = False
-    # Track if any network uses manual IP
-    has_manual_ip = False
+    # Rows of MANUAL_IP_TABLE; networks with the same settings share one. At most
+    # MAX_WIFI_NETWORKS + 1 (the AP) rows, so an index never reaches MANUAL_IP_NONE (0xFF).
+    manual_ip_entries: list[bytes] = []
 
-    # Initialize FixedVector with the count of networks
+    def manual_ip_index(ip_config: ConfigType | None) -> int | None:
+        if ip_config is None:
+            return None
+        entry = manual_ip_entry(ip_config)
+        if entry not in manual_ip_entries:
+            manual_ip_entries.append(entry)
+        return manual_ip_entries.index(entry)
+
     networks = config.get(CONF_NETWORKS, [])
+    # set_sta() stores one network at run time even when none is configured
+    _request_network_slot(_MINIMUM_KEY)
+    for _ in networks:
+        _request_network_slot(_NETWORKS_KEY)
     if networks:
-        cg.add(var.init_sta(len(networks)))
         if len(networks) > 1:
             # The ESP32 scan can filter one SSID in the driver; with several the whole list is kept
             cg.add_define("USE_WIFI_MULTI_SSID")
 
         def add_sta(ap: cg.MockObj, network: dict) -> None:
             ip_config = network.get(CONF_MANUAL_IP, config.get(CONF_MANUAL_IP))
-            cg.add(var.add_sta(wifi_network(network, ap, ip_config)))
+            cg.add(var.add_sta(wifi_network(network, ap, manual_ip_index(ip_config))))
 
         for network in networks:
             if CONF_EAP in network:
                 has_eap = True
-            if network.get(CONF_MANUAL_IP) or config.get(CONF_MANUAL_IP):
-                has_manual_ip = True
             cg.with_local_variable(network[CONF_ID], WiFiAP(), add_sta, network)
 
     if CONF_AP in config:
         conf = config[CONF_AP]
-        ip_config = conf.get(CONF_MANUAL_IP)
-        if ip_config:
-            has_manual_ip = True
+        ap_ip_index = manual_ip_index(conf.get(CONF_MANUAL_IP))
         cg.with_local_variable(
             conf[CONF_ID],
             WiFiAP(),
-            lambda ap: cg.add(var.set_ap(wifi_network(conf, ap, ip_config))),
+            lambda ap: cg.add(var.set_ap(wifi_network(conf, ap, ap_ip_index))),
         )
         # Skip the setter when the config matches the C++ initializer.
         if (ap_timeout := conf[CONF_AP_TIMEOUT]) != DEFAULT_AP_TIMEOUT_PERIOD:
             cg.add(var.set_ap_timeout(ap_timeout))
+        if conf[CONF_AP_MODE] != WIFI_AP_MODE_FALLBACK:
+            cg.add_define("USE_WIFI_AP_PERSISTENT")
         if conf[CONF_AP_MODE] == WIFI_AP_MODE_WISP:
             cg.add_define("USE_WIFI_AP_WISP")
             add_idf_sdkconfig_option("CONFIG_LWIP_IP_FORWARD", True)
             add_idf_sdkconfig_option("CONFIG_LWIP_IPV4_NAPT", True)
+            if "captive_portal" in CORE.config:
+                # Starts without a resolver, offering its own address so lookups reach the portal
+                cg.add_define("USE_WIFI_AP_WISP_PORTAL")
             if dns_servers := conf.get(CONF_DNS_SERVERS):
                 cg.add_define("USE_WIFI_AP_WISP_STATIC_DNS")
                 # As lwIP stores an IPv4 address: the four bytes read as one little-endian word
@@ -844,9 +922,9 @@ async def to_code(config):
 
     if (dpp := config.get(CONF_DPP)) is not None:
         add_idf_sdkconfig_option("CONFIG_ESP_WIFI_DPP_SUPPORT", True)
-        add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_ENABLE_DPP", True)
+        add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_HOST_FEAT_WIFI_EXT_DPP", True)
         if (key := dpp.get(CONF_PRIVATE_KEY)) is not None:
-            cg.add(var.set_dpp_key(key))
+            cg.add(var.set_dpp_key(f"{DPP_KEY_DER_PREFIX}{key}{DPP_KEY_DER_SUFFIX}"))
         if (info := dpp.get(CONF_DEVICE_INFO)) is not None:
             cg.add(var.set_dpp_device_info(info))
         cg.add(var.set_dpp_channels(",".join(str(c) for c in dpp[CONF_CHANNELS])))
@@ -865,8 +943,13 @@ async def to_code(config):
             require_mbedtls_tls_extras()
 
     # Only define USE_WIFI_MANUAL_IP if any AP uses manual IP
-    if has_manual_ip:
+    if manual_ip_entries:
         cg.add_define("USE_WIFI_MANUAL_IP")
+        cg.extern_progmem_array(
+            "esphome::wifi::MANUAL_IP_TABLE",
+            cg.uint8,
+            list(b"".join(manual_ip_entries)),
+        )
 
     # The C++ initializers are DEFAULT_REBOOT_TIMEOUT, power save NONE and minimum
     # auth WPA2; skip the setters when the config matches them.
@@ -908,14 +991,14 @@ async def to_code(config):
     # passive_scan defaults to false in C++ - only set if true
     if config[CONF_PASSIVE_SCAN]:
         cg.add(var.set_passive_scan(True))
-    if CONF_OUTPUT_POWER in config:
-        cg.add(var.set_output_power(config[CONF_OUTPUT_POWER]))
+    if (output_power := config.get(CONF_OUTPUT_POWER)) is not None:
+        cg.add(var.set_output_power(output_power))
         if CORE.is_esp32:
             # Set PHY max TX power to match output_power so calibration also uses
             # reduced power. This prevents brownout during PHY init on marginal
             # power supplies, which is critical for OTA updates with rollback enabled.
             # Kconfig range is 10-20, ESPHome allows 8.5-20.5
-            phy_tx_power = max(10, min(20, math.ceil(config[CONF_OUTPUT_POWER])))
+            phy_tx_power = max(10, min(20, math.ceil(output_power)))
             add_idf_sdkconfig_option("CONFIG_ESP_PHY_MAX_WIFI_TX_POWER", phy_tx_power)
     # enable_on_boot defaults to true in C++ - only set if false
     if not config[CONF_ENABLE_ON_BOOT]:
@@ -936,9 +1019,9 @@ async def to_code(config):
 
     if CORE.is_esp8266:
         cg.add_library("ESP8266WiFi", None)
-        if CONF_PHY_MODE in config:
+        if (phy_mode := config.get(CONF_PHY_MODE)) is not None:
             cg.add_define("USE_WIFI_PHY_MODE")
-            cg.add(var.set_phy_mode(config[CONF_PHY_MODE]))
+            cg.add(var.set_phy_mode(phy_mode))
     elif CORE.is_rp2:
         cg.add_library("WiFi", None)
 
@@ -950,8 +1033,10 @@ async def to_code(config):
             cg.add(var.set_btm(config[CONF_ENABLE_BTM]))
         if config[CONF_ENABLE_RRM]:
             cg.add(var.set_rrm(config[CONF_ENABLE_RRM]))
-        if CONF_BAND_MODE in config:
-            cg.add(var.set_band_mode(config[CONF_BAND_MODE]))
+        set_idf_sdkconfig_default(
+            "CONFIG_ESP_WIFI_ENABLE_SAE_PK", config[CONF_ENABLE_SAE_PK]
+        )
+        cg.add_optional(var.set_band_mode, config.get(CONF_BAND_MODE))
 
     if config.get(CONF_USE_PSRAM):
         add_idf_sdkconfig_option("CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP", True)
@@ -1012,6 +1097,14 @@ async def to_code(config):
 
     await cg.past_safe_mode()
 
+    for conf_key, define, setter in (
+        (CONF_ON_AP_START, "USE_WIFI_AP_START_TRIGGER", var.set_on_ap_start),
+        (CONF_ON_AP_STOP, "USE_WIFI_AP_STOP_TRIGGER", var.set_on_ap_stop),
+    ):
+        if (conf := config.get(conf_key)) is not None:
+            cg.add_define(define)
+            cg.add(setter(await automation.build_trigger_callback([], conf, params=[])))
+
     if on_connect_config := config.get(CONF_ON_CONNECT):
         cg.add_define("USE_WIFI_CONNECT_TRIGGER")
         await automation.build_automation(
@@ -1033,49 +1126,27 @@ async def to_code(config):
     CORE.add_job(final_step)
 
 
-automation.register_bare_condition(
-    "wifi.connected",
-    WiFiConnectedCondition,
-    cv.Schema({}),
+WIFI_AUTOMATION_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.use_id(WiFiComponent),
+    }
 )
 
+for _name, _check in (
+    ("wifi.connected", "is_connected()"),
+    ("wifi.enabled", "is_disabled() == false"),
+    ("wifi.ap_active", "is_ap_active()"),
+):
+    automation.register_apply_condition(_name, WIFI_AUTOMATION_SCHEMA, _check)
 
-automation.register_bare_condition(
-    "wifi.enabled",
-    WiFiEnabledCondition,
-    cv.Schema({}),
-)
-
-
-automation.register_bare_condition(
-    "wifi.ap_active",
-    WiFiAPActiveCondition,
-    cv.Schema({}),
-)
-
-
-automation.register_bare_action(
-    "wifi.enable",
-    WiFiEnableAction,
-    cv.Schema({}),
-    synchronous=True,
-)
-
-
-automation.register_bare_action(
-    "wifi.disable",
-    WiFiDisableAction,
-    cv.Schema({}),
-    synchronous=True,
-)
-
-
-automation.register_bare_action(
-    "wifi.roam",
-    WiFiRoamAction,
-    cv.Schema({}),
-    synchronous=True,
-)
+for _name, _call in (
+    ("wifi.enable", "enable()"),
+    ("wifi.disable", "disable()"),
+    ("wifi.roam", "force_roam_check()"),
+):
+    automation.register_apply_action(
+        _name, WIFI_AUTOMATION_SCHEMA, automation.ApplyCall(_call)
+    )
 
 
 KEEP_SCAN_RESULTS_KEY = "wifi_keep_scan_results"
@@ -1089,6 +1160,14 @@ SCAN_RESULTS_LISTENERS_KEY = "wifi_scan_results_listeners"
 CONNECT_STATE_LISTENERS_KEY = "wifi_connect_state_listeners"
 POWER_SAVE_LISTENERS_KEY = "wifi_power_save_listeners"
 SCAN_RESULTS_LOCK_KEY = "wifi_scan_results_lock"
+
+# Size of the station list: one slot per YAML network plus the slots components
+# request with request_wifi_network_slots(), at least one. The counter emits the
+# largest count of any key, so the minimum is its own key.
+NETWORK_COUNT_DEFINE = "WIFI_NETWORK_COUNT"
+_NETWORKS_KEY = "networks"
+_MINIMUM_KEY = "minimum"
+_request_network_slot = cg.slot_counter(NETWORK_COUNT_DEFINE)
 
 
 def request_wifi_scan_results():
@@ -1183,6 +1262,23 @@ def request_wifi_power_save_listener() -> None:
     CORE.data[POWER_SAVE_LISTENERS_KEY] = CORE.data.get(POWER_SAVE_LISTENERS_KEY, 0) + 1
 
 
+def request_wifi_network_slots(count: int) -> None:
+    """Request station slots for networks a component adds at run time.
+
+    The station list is sized at build time from the networks in the YAML.
+    Components that call add_sta() with networks of their own must call this
+    function during their code generation, or add_sta() drops those networks.
+    Requests from several components add up. A request made after the station
+    list size was emitted raises.
+    """
+    if count < 1:
+        raise ValueError(
+            f"request_wifi_network_slots() needs a count of at least 1, got {count}"
+        )
+    for _ in range(count):
+        _request_network_slot(_NETWORKS_KEY)
+
+
 @coroutine_with_priority(CoroPriority.FINAL)
 async def final_step():
     """Final code generation step to configure optional WiFi features."""
@@ -1196,6 +1292,13 @@ async def final_step():
         cg.add_define("USE_WIFI_RUNTIME_ROAMING_SUPPRESSION")
     if CORE.data.get(SCAN_RESULTS_LOCK_KEY):
         cg.add_define("USE_WIFI_SCAN_RESULTS_LOCK")
+
+    network_count = cg.get_slot_count(NETWORK_COUNT_DEFINE)
+    if network_count > MAX_WIFI_NETWORKS:
+        raise EsphomeError(
+            f"wifi networks and requested network slots add up to {network_count}, "
+            f"more than the {MAX_WIFI_NETWORKS} allowed"
+        )
 
     # Generate listener defines - each listener type has its own #ifdef
     ip_state_count = CORE.data.get(IP_STATE_LISTENERS_KEY, 0)

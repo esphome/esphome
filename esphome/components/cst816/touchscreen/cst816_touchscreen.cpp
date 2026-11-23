@@ -52,12 +52,7 @@ void CST816Touchscreen::continue_setup_() {
 
 void CST816Touchscreen::setup() {
   if (this->reset_pin_ != nullptr) {
-    this->reset_pin_->setup();
-    this->reset_pin_->digital_write(true);
-    delay(5);
-    this->reset_pin_->digital_write(false);
-    delay(5);
-    this->reset_pin_->digital_write(true);
+    pulse_reset(this->reset_pin_, {.high_before_ms = 5, .low_ms = 5});
     this->set_timeout(30, [this] { this->continue_setup_(); });
   } else {
     this->continue_setup_();
@@ -66,17 +61,27 @@ void CST816Touchscreen::setup() {
 
 void CST816Touchscreen::update_touches() {
   uint8_t data[13];
-  if (!this->read_bytes(REG_STATUS, data, sizeof data)) {
-    this->status_set_warning();
+  if (!this->status_comm_result(this->read_bytes(REG_STATUS, data, sizeof data)))
     return;
-  }
-  uint8_t num_of_touches = data[REG_TOUCH_NUM] & 3;
+
+  // The low nibble is the touch count. CST816/CST820 are single-touch;
+  // CST826/CST836 can report two points, but this driver only reads the first
+  // point. Some CST8xx controllers report an all-0xFF frame when idle or after
+  // disabling auto-sleep: the count lands above two and the coordinates are
+  // the 0xFFF sentinel, so both guards below reject it.
+  uint8_t num_of_touches = low_nibble(data[REG_TOUCH_NUM]);
   if (num_of_touches == 0) {
     return;
   }
+  if (num_of_touches > 2) {
+    return;
+  }
 
-  uint16_t x = encode_uint16(data[REG_XPOS_HIGH] & 0xF, data[REG_XPOS_LOW]);
-  uint16_t y = encode_uint16(data[REG_YPOS_HIGH] & 0xF, data[REG_YPOS_LOW]);
+  uint16_t x = encode_uint16(low_nibble(data[REG_XPOS_HIGH]), data[REG_XPOS_LOW]);
+  uint16_t y = encode_uint16(low_nibble(data[REG_YPOS_HIGH]), data[REG_YPOS_LOW]);
+  if (x == 0x0FFF || y == 0x0FFF) {
+    return;
+  }
   ESP_LOGV(TAG, "Read touch %d/%d", x, y);
   this->add_raw_touch_position_(0, x, y);
 }

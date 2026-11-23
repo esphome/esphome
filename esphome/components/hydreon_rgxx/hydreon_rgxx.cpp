@@ -38,9 +38,7 @@ void HydreonRGxxComponent::dump_config() {
 }
 
 void HydreonRGxxComponent::setup() {
-  while (this->available() != 0) {
-    this->read();
-  }
+  this->discard_available();
   this->schedule_reboot_();
 }
 
@@ -78,9 +76,7 @@ void HydreonRGxxComponent::update() {
       if (this->no_response_count_ > 15) {
         ESP_LOGE(TAG, "asking sensor to reboot");
         for (auto &sensor : this->sensors_) {
-          if (sensor != nullptr) {
-            sensor->publish_state(NAN);
-          }
+          PUBLISH_STATE(sensor, NAN);
         }
         this->schedule_reboot_();
         return;
@@ -90,15 +86,9 @@ void HydreonRGxxComponent::update() {
     }
     this->write_str("R\n");
 #ifdef USE_BINARY_SENSOR
-    if (this->too_cold_sensor_ != nullptr) {
-      this->too_cold_sensor_->publish_state(this->too_cold_);
-    }
-    if (this->lens_bad_sensor_ != nullptr) {
-      this->lens_bad_sensor_->publish_state(this->lens_bad_);
-    }
-    if (this->em_sat_sensor_ != nullptr) {
-      this->em_sat_sensor_->publish_state(this->em_sat_);
-    }
+    PUBLISH_STATE(this->too_cold_binary_sensor_, this->too_cold_);
+    PUBLISH_STATE(this->lens_bad_binary_sensor_, this->lens_bad_);
+    PUBLISH_STATE(this->em_sat_binary_sensor_, this->em_sat_);
 #endif
     this->too_cold_ = false;
     this->lens_bad_ = false;
@@ -108,18 +98,14 @@ void HydreonRGxxComponent::update() {
 }
 
 void HydreonRGxxComponent::loop() {
-  uint8_t data;
-  while (this->available() > 0) {
-    if (!this->read_byte(&data)) {
-      continue;
-    }
+  this->read_available([this](uint8_t data) {
     size_t len;
     const char *line = this->line_reader_.feed(data, len);
     this->line_reader_.log_if_overflowed(TAG);
     if (line != nullptr) {
       this->process_line_(StringRef(line, len));
     }
-  }
+  });
 }
 
 /**
@@ -147,9 +133,7 @@ void HydreonRGxxComponent::schedule_reboot_() {
     if (this->boot_count_ < -5) {
       ESP_LOGE(TAG, "hydreon_rgxx can't boot, giving up");
       for (auto &sensor : this->sensors_) {
-        if (sensor != nullptr) {
-          sensor->publish_state(NAN);
-        }
+        PUBLISH_STATE(sensor, NAN);
       }
       this->mark_failed(LOG_STR("Sensor did not boot"));
     }

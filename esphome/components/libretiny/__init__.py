@@ -1,8 +1,10 @@
+from dataclasses import dataclass
 import json
 import logging
 from pathlib import Path
 
 import esphome.codegen as cg
+from esphome.components.const import CONF_LIBRETINY
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BOARD,
@@ -23,9 +25,9 @@ from esphome.const import (
     ThreadModel,
     __version__,
 )
-from esphome.core import CORE
+from esphome.core import CORE, EsphomeCore
 from esphome.core.config import BOARD_MAX_LENGTH
-from esphome.helpers import copy_file_if_changed
+from esphome.helpers import copy_file_if_changed, write_file
 from esphome.platformio.toolchain import copy_ccache_script
 from esphome.storage_json import StorageJSON
 
@@ -39,10 +41,13 @@ from .const import (
     CONF_UART_PORT,
     FAMILIES,
     FAMILY_BK7231N,
+    FAMILY_BK7231T,
     FAMILY_BK7238,
     FAMILY_COMPONENT,
     FAMILY_FRIENDLY,
+    FAMILY_LN882H,
     FAMILY_RTL8710B,
+    FAMILY_RTL8720C,
     KEY_BOARD,
     KEY_COMPONENT,
     KEY_COMPONENT_DATA,
@@ -53,8 +58,22 @@ from .const import (
     LibreTinyComponent,
     LTComponent,
 )
+from .gpio import lookup_board_pins
 
 _LOGGER = logging.getLogger(__name__)
+# Fault handlers the crash handler wraps (BK7238, BK7231N)
+BK_TRAP_HANDLERS = ("bk_trap_udef", "bk_trap_pabt", "bk_trap_dabt")
+# Timing functions RTL8710B builds replace (rtl8710b_micros.c)
+RTL8710B_TIME_WRAPS = ("millis", "micros", "delay", "delayMicroseconds")
+# Families with a crash handler; the Cortex-M ones install it at run time (no wraps).
+CRASH_HANDLER_FAMILIES = (
+    FAMILY_BK7231N,
+    FAMILY_BK7238,
+    FAMILY_LN882H,
+    FAMILY_RTL8710B,
+    FAMILY_RTL8720C,
+)
+
 CODEOWNERS = ["@kuba2k2"]
 AUTO_LOAD = ["preferences"]
 DOMAIN = "libretiny"
@@ -143,12 +162,86 @@ def _update_core_data(config):
     return config
 
 
+def FILTER_SOURCE_FILES() -> list[str]:
+    """Leave the RTL8710B timing wrappers out of every other family's build."""
+    if (data := CORE.data.get(KEY_LIBRETINY)) is None or data.get(KEY_FAMILY) in (
+        None,
+        FAMILY_RTL8710B,
+    ):
+        return []
+    return ["rtl8710b_micros.c"]
+
+
 def get_libretiny_component(core_obj=None):
     return (core_obj or CORE).data[KEY_LIBRETINY][KEY_COMPONENT]
 
 
 def get_libretiny_family(core_obj=None):
     return (core_obj or CORE).data[KEY_LIBRETINY][KEY_FAMILY]
+
+
+def get_libretiny_board(core_obj: EsphomeCore | None = None) -> str:
+    return (core_obj or CORE).data[KEY_LIBRETINY][KEY_BOARD]
+
+
+def get_board_pins() -> dict[str, int]:
+    """Pin names of the configured board, such as SERIAL1_TX; empty for an unknown board."""
+    return lookup_board_pins(get_libretiny_board())
+
+
+@dataclass(frozen=True)
+class HardwareUart:
+    """A hardware UART of the configured board and the pin numbers it can use."""
+
+    port: int
+    tx_pins: tuple[int, ...]
+    rx_pins: tuple[int, ...]
+    # The board lists pin choices instead of a default pin for this direction
+    tx_pin_choices: bool
+    rx_pin_choices: bool
+
+    @property
+    def pin_choices(self) -> bool:
+        """True when the pins must be passed when the UART starts."""
+        return self.tx_pin_choices or self.rx_pin_choices
+
+
+def get_hardware_uarts() -> list[HardwareUart]:
+    """Hardware UARTs of the configured board; empty for a board without pin data."""
+    board_pins = get_board_pins()
+    uarts = []
+    for port in range(3):
+        pins: dict[str, list[int]] = {"TX": [], "RX": []}
+        choices: dict[str, bool] = {"TX": False, "RX": False}
+        for role, role_pins in pins.items():
+            name = f"SERIAL{port}_{role}"
+            for key, pin in board_pins.items():
+                if key == name:
+                    role_pins.append(pin)
+                elif key.startswith(f"{name}_"):
+                    role_pins.append(pin)
+                    choices[role] = True
+        if pins["TX"] or pins["RX"]:
+            uarts.append(
+                HardwareUart(
+                    port,
+                    tuple(pins["TX"]),
+                    tuple(pins["RX"]),
+                    choices["TX"],
+                    choices["RX"],
+                )
+            )
+    return uarts
+
+
+def has_software_serial() -> bool:
+    """True when the family's Arduino core has SoftwareSerial (LT_ARD_HAS_SOFTSERIAL)."""
+    return get_libretiny_family() == FAMILY_RTL8710B
+
+
+def can_choose_uart_pins() -> bool:
+    """True when SerialClass::begin() takes the pins, which LibreTiny added in 1.12.0."""
+    return CORE.framework_version >= cv.Version(1, 12, 0)
 
 
 def only_on_family(*, supported=None, unsupported=None):
@@ -232,14 +325,14 @@ def _notify_old_style(config):
 # The dev and latest branches will be at *least* this version, which is what matters.
 # Use GitHub releases directly to avoid PlatformIO moderation delays.
 ARDUINO_VERSIONS = {
-    "dev": (cv.Version(1, 13, 0), "https://github.com/libretiny-eu/libretiny.git"),
+    "dev": (cv.Version(1, 14, 0), "https://github.com/libretiny-eu/libretiny.git"),
     "latest": (
-        cv.Version(1, 13, 0),
-        "https://github.com/libretiny-eu/libretiny.git#v1.13.0",
+        cv.Version(1, 14, 0),
+        "https://github.com/libretiny-eu/libretiny.git#v1.14.0",
     ),
     "recommended": (
-        cv.Version(1, 13, 0),
-        "https://github.com/libretiny-eu/libretiny.git#v1.13.0",
+        cv.Version(1, 14, 0),
+        "https://github.com/libretiny-eu/libretiny.git#v1.14.0",
     ),
 }
 
@@ -304,6 +397,15 @@ FRAMEWORK_SCHEMA = cv.All(
 
 CONFIG_SCHEMA = cv.All(_notify_old_style, cv.require_platformio_toolchain("LibreTiny"))
 
+
+def _require_ipv4(config: dict) -> dict:
+    """Declares that LibreTiny builds need IPv4."""
+    # Imported here: logger imports this module, so a module level import would load network for every config
+    from esphome.components import network
+
+    return network.require_ipv4(CONF_LIBRETINY)(config)
+
+
 BASE_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(LTComponent),
@@ -318,6 +420,7 @@ BASE_SCHEMA = cv.Schema(
 BASE_SCHEMA.add_extra(_detect_variant)
 BASE_SCHEMA.add_extra(cv.require_platformio_toolchain("LibreTiny"))
 BASE_SCHEMA.add_extra(_update_core_data)
+BASE_SCHEMA.add_extra(_require_ipv4)
 
 
 def _configure_lwip(config: dict) -> None:
@@ -350,6 +453,7 @@ def _configure_lwip(config: dict) -> None:
     MEMP_NUM_NETCONN          0       10     38       4*****   =sum     =sum
     MEMP_NUM_NETBUF           0       2      16       2*****   8        4
     MEMP_NUM_TCPIP_MSG_INPKT  4       8      16       8*****   12       8
+    TCP_MSL (ms)              60000†  60000  250      60000    60000    250
 
     * ESP8266/ESP32/LN882H use MEM_LIBC_MALLOC=1 (system heap, no dedicated pool).
       ESP8266/ESP32 also use MEMP_MEM_MALLOC=1 (MEMP pools from heap, not static).
@@ -357,6 +461,8 @@ def _configure_lwip(config: dict) -> None:
     *** BK LT overlay: MAX_SOCKETS_UDP+2+1 = 25.
     **** RTL/LN LT overlay overrides to flat 7.
     ***** Not defined in RTL SDK — lwIP opt.h defaults shown.
+    † ESP8266's lwIP also caps TIME_WAIT at 5 PCBs; LibreTiny's stock lwIP has no
+      cap once MEMP_MEM_MALLOC=1.
     "dynamic" = auto-calculated from component socket registrations via
     socket.get_socket_counts() with minimums of 8 TCP / 6 UDP.
     """
@@ -433,6 +539,10 @@ def _configure_lwip(config: dict) -> None:
     #   both ship with MEMP_MEM_MALLOC=1.
     lwip_opts.append("MEM_LIBC_MALLOC=1")
     lwip_opts.append("MEMP_MEM_MALLOC=1")
+    # With MEMP_MEM_MALLOC=1, MEMP_NUM_TCP_PCB no longer limits PCBs, so every
+    # connection the device closes keeps its ~176 B PCB on the heap for TIME_WAIT
+    # (2 * TCP_MSL, 120 s by default). BK's lwIP port already uses 250.
+    lwip_opts.append("TCP_MSL=250")
 
     # BK72XX-specific: PBUF_POOL_SIZE override
     # BK SDK "reduced plan" sets this to only 3 — too few for multiple
@@ -504,6 +614,16 @@ async def component_to_code(config):
     # RTL8720C (ambz2) requires FreeRTOS 10.x so this only applies to RTL8710B
     if config[CONF_FAMILY] == FAMILY_RTL8710B:
         cg.add_platformio_option("custom_versions.freertos", "8.2.3")
+        # millis(), micros() and delays on the system timer and CPU cycles (see rtl8710b_micros.c)
+        for func in RTL8710B_TIME_WRAPS:
+            cg.add_build_flag(f"-Wl,--wrap={func}")
+
+    # LibreTiny bundles BDK 3.0.33 for these two but already builds BK7238 with 3.0.78,
+    # where STA+AP works (esphome#19430), the web server OTA does not trip the watchdog
+    # (esphome#19429) and the no WiFi reboot loop is gone (esphome#18268). A
+    # platformio_options custom_versions.beken-bdk entry in the config still wins.
+    if config[CONF_FAMILY] in (FAMILY_BK7231N, FAMILY_BK7231T):
+        cg.add_platformio_option("custom_versions.beken-bdk", "3.0.78")
 
     # force using arduino framework
     cg.add_platformio_option("framework", "arduino")
@@ -522,14 +642,25 @@ async def component_to_code(config):
         # it for project source files only. GCC uses the last -O flag.
         build_src_flags += " -Os"
     cg.add_platformio_option("build_src_flags", build_src_flags)
-    # Must run before the platform's builder scripts are loaded; see the script.
-    cg.add_platformio_option("extra_scripts", ["pre:scons_dont_inherit.py"])
+    # LibreTiny before 1.14.0 breaks under SCons 4.11 without this script; see the script
+    if CORE.framework_version < cv.Version(1, 14, 0):
+        cg.add_platformio_option("extra_scripts", ["pre:scons_dont_inherit.py"])
     cg.add_platformio_option("extra_scripts", ["pre:ccache.py"])
     # IRAM_ATTR is a no-op on BK72xx (SDK masks FIQ+IRQ around flash ops).
     # On other families, patch_linker.py routes .sram.text into the right
     # RAM-executable output section and prints a post-link placement summary.
     if FAMILY_COMPONENT[config[CONF_FAMILY]] != COMPONENT_BK72XX:
         cg.add_platformio_option("extra_scripts", ["pre:patch_linker.py"])
+    if config[CONF_FAMILY] in CRASH_HANDLER_FAMILIES:
+        # Crash handler (crash_handler.cpp)
+        cg.add_define("USE_LIBRETINY_CRASH_HANDLER")
+        cg.add_define("USE_CRASH_HANDLER")
+        cg.add_define("USE_CRASH_REPORT")
+        cg.add_build_flag("-Wl,--wrap=abort")
+    if config[CONF_FAMILY] in (FAMILY_BK7231N, FAMILY_BK7238):
+        for trap in BK_TRAP_HANDLERS:
+            cg.add_build_flag(f"-Wl,--wrap={trap}")
+        cg.add_platformio_option("extra_scripts", ["pre:patch_noinit.py"])
     # Match the 1-byte enums of the LN882H SDK's prebuilt WiFi library.
     if FAMILY_COMPONENT[config[CONF_FAMILY]] == COMPONENT_LN882X:
         cg.add_build_unflag("-fno-short-enums")
@@ -625,6 +756,26 @@ async def component_to_code(config):
     await cg.register_component(var, config)
 
 
+# Called by the OTA upload through the platforms' ota_image hook
+def device_ota_image(firmware: Path) -> Path:
+    """The file to send for an app update: the UF2 without the images the
+    device skips, written next to the build output, or ``firmware`` itself
+    when there is nothing to drop."""
+    from .ota_uf2 import device_ota_uf2
+
+    data = firmware.read_bytes()
+    if (trimmed := device_ota_uf2(data)) is None:
+        return firmware
+    image = CORE.relative_pioenvs_path(CORE.name, "firmware.ota.uf2")
+    write_file(image, trimmed)
+    _LOGGER.info(
+        "Sending the images this device writes: %s of %s bytes",
+        len(trimmed),
+        len(data),
+    )
+    return image
+
+
 # Called by writer.py
 def copy_files() -> None:
     script_dir = Path(__file__).parent
@@ -636,5 +787,9 @@ def copy_files() -> None:
     copy_file_if_changed(
         script_dir / "scons_dont_inherit.py.script",
         CORE.relative_build_path("scons_dont_inherit.py"),
+    )
+    copy_file_if_changed(
+        script_dir / "patch_noinit.py.script",
+        CORE.relative_build_path("patch_noinit.py"),
     )
     copy_ccache_script()

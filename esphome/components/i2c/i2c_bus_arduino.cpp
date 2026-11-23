@@ -18,17 +18,13 @@ void ArduinoI2CBus::setup() {
   this->recover_();
 
 #if defined(USE_ESP8266)
-  wire_ = new TwoWire();  // NOLINT(cppcoreguidelines-owning-memory)
+  this->wire_ = &Wire;  // TwoWire state is static on ESP8266, so every bus shares the global instance
 #elif defined(USE_RP2)
   // Select Wire instance based on pin assignment, not definition order.
   // I2C controller = (gpio / 2) % 2: even pairs (0-1,4-5,...) → I2C0, odd pairs (2-3,6-7,...) → I2C1
   // RP2040 datasheet Table 2 (section 1.4.3): https://datasheets.raspberrypi.com/rp2040/rp2040-datasheet.pdf
   // RP2350 datasheet Table 7 (section 9.4): https://datasheets.raspberrypi.com/rp2350/rp2350-datasheet.pdf
-  if ((this->sda_pin_ / 2) % 2 == 0) {
-    this->wire_ = &Wire;
-  } else {
-    this->wire_ = &Wire1;
-  }
+  this->wire_ = (this->sda_pin_ / 2) % 2 == 0 ? &Wire : &Wire1;
 #endif
 
   this->set_pins_and_clock_();
@@ -85,24 +81,12 @@ void ArduinoI2CBus::dump_config() {
       ESP_LOGCONFIG(TAG, "  Recovery: failed, SDA is held low on the bus");
       break;
   }
-  if (this->scan_) {
-    ESP_LOGI(TAG, "Results from bus scan:");
-    if (this->scan_results_.empty()) {
-      ESP_LOGI(TAG, "Found no devices");
-    } else {
-      for (const auto &s : this->scan_results_) {
-        if (s.second) {
-          ESP_LOGI(TAG, "Found device at address 0x%02X", s.first);
-        } else {
-          ESP_LOGE(TAG, "Unknown error at address 0x%02X", s.first);
-        }
-      }
-    }
-  }
+  this->dump_scan_results_();
 }
 
-ErrorCode ArduinoI2CBus::write_readv(uint8_t address, const uint8_t *write_buffer, size_t write_count,
-                                     uint8_t *read_buffer, size_t read_count) {
+ErrorCode ArduinoI2CBus::transfer_(uint8_t address, const uint8_t *prefix, size_t prefix_len,
+                                   const uint8_t *write_buffer, size_t write_count, uint8_t *read_buffer,
+                                   size_t read_count) {
 #if defined(USE_ESP8266)
   this->set_pins_and_clock_();  // reconfigure Wire global state in case there are multiple instances
 #endif
@@ -111,16 +95,23 @@ ErrorCode ArduinoI2CBus::write_readv(uint8_t address, const uint8_t *write_buffe
     return ERROR_NOT_INITIALIZED;
   }
 
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-  char hex_buf[format_hex_pretty_size(I2C_MAX_LOG_BYTES)];
-  ESP_LOGV(TAG, "0x%02X TX %s", address, format_hex_pretty_to(hex_buf, write_buffer, write_count));
-#endif
+  if (prefix_len != 0)
+    ESP_LOGV_HEX(TAG, prefix, prefix_len, I2C_MAX_LOG_BYTES, "0x%02X TX prefix %s", address);
+  ESP_LOGV_HEX(TAG, write_buffer, write_count, I2C_MAX_LOG_BYTES, "0x%02X TX %s", address);
 
   uint8_t status = 0;
-  if (write_count != 0 || read_count == 0) {
+  if (prefix_len != 0 || write_count != 0 || read_count == 0) {
+#ifdef USE_RP2
+    // arduino-pico leaves a transmission open when a write overflows its buffer, and every later
+    // beginTransmission() is then ignored, so refuse the write before starting it
+    if (prefix_len + write_count > WIRE_BUFFER_SIZE) {
+      ESP_LOGVV(TAG, "TX of %zu bytes exceeds the %u byte Wire buffer", prefix_len + write_count, WIRE_BUFFER_SIZE);
+      return ERROR_TOO_LARGE;
+    }
+#endif
     this->wire_->beginTransmission(address);
-    size_t ret = this->wire_->write(write_buffer, write_count);
-    if (ret != write_count) {
+    if ((prefix_len != 0 && this->wire_->write(prefix, prefix_len) != prefix_len) ||
+        this->wire_->write(write_buffer, write_count) != write_count) {
       ESP_LOGV(TAG, "TX failed");
       return ERROR_UNKNOWN;
     }
@@ -192,23 +183,18 @@ void ArduinoI2CBus::recover_() {
     return;
   }
 
-  // From the specification:
-  // "If the data line (SDA) is stuck LOW, send nine clock pulses. The
-  //  device that held the bus LOW should release it sometime within
-  //  those nine clocks."
-  // We don't really have to detect if SDA is stuck low. We'll simply send
-  // nine clock pulses here, just in case SDA is stuck. Actual checks on
-  // the SDA line status will be done after the clock pulses.
-
-  // Make sure that switching to output mode will make SCL low, just in
-  // case other code has setup the pin for a HIGH signal.
-  digitalWrite(this->scl_pin_, LOW);  // NOLINT
+  // Activate input and pull up resistor for the SDA pin, so it can be read during the pulses.
+  pinMode(this->sda_pin_, INPUT_PULLUP);  // NOLINT
 
   delayMicroseconds(half_period_usec);
-  for (auto i = 0; i < 9; i++) {
-    // Release pull up resistor and switch to output to make the signal LOW.
-    pinMode(this->scl_pin_, INPUT);   // NOLINT
-    pinMode(this->scl_pin_, OUTPUT);  // NOLINT
+  // Spec: "If the data line (SDA) is stuck LOW, send nine clock pulses."
+  // Pulse only while SDA is low: a device receiving a write ACKs every ninth pulse.
+  for (auto i = 0; i < 9 && digitalRead(this->sda_pin_) == LOW; i++) {  // NOLINT
+    // Drive LOW. Set the level while the pin is a plain input: on RP2040 a write to an
+    // INPUT_PULLUP pin drives it, which would leave SCL low if the loop never runs.
+    pinMode(this->scl_pin_, INPUT);     // NOLINT
+    digitalWrite(this->scl_pin_, LOW);  // NOLINT
+    pinMode(this->scl_pin_, OUTPUT);    // NOLINT
     delayMicroseconds(half_period_usec);
 
     // Release output and activate pull up resistor to make the signal HIGH.
@@ -235,14 +221,7 @@ void ArduinoI2CBus::recover_() {
     }
   }
 
-  // Activate input and pull resistor for the SDA pin, so we can verify
-  // that SDA is pulled HIGH in the following step.
-  pinMode(this->sda_pin_, INPUT_PULLUP);  // NOLINT
-  digitalWrite(this->sda_pin_, LOW);      // NOLINT
-
-  // By now, any stuck device ought to have sent all remaining bits of its
-  // transaction, meaning that it should have freed up the SDA line, resulting
-  // in SDA being pulled up.
+  // A device still holding SDA after nine pulses cannot be freed here.
   if (digitalRead(this->sda_pin_) == LOW) {  // NOLINT
     ESP_LOGE(TAG, "Recovery failed: SDA is held LOW after clock pulse cycle");
     this->recovery_result_ = RECOVERY_FAILED_SDA_LOW;
@@ -254,15 +233,13 @@ void ArduinoI2CBus::recover_() {
   //  a START or repeated START condition such that they all anticipate
   //  the sending of a target address, even if these START conditions are
   //  not positioned according to the proper format."
-  // While the 9 clock pulses from above might have drained all bits of a
-  // single byte within a transaction, a device might have more bytes to
-  // transmit. So here we'll generate a START condition to snap the device
-  // out of this state.
+  // SDA high does not mean the device is idle (it may be mid-byte); the START resets it.
   // SCL and SDA are already high at this point, so we can generate a START
   // condition by making the SDA signal LOW.
   delayMicroseconds(half_period_usec);
-  pinMode(this->sda_pin_, INPUT);   // NOLINT
-  pinMode(this->sda_pin_, OUTPUT);  // NOLINT
+  pinMode(this->sda_pin_, INPUT);     // NOLINT
+  digitalWrite(this->sda_pin_, LOW);  // NOLINT
+  pinMode(this->sda_pin_, OUTPUT);    // NOLINT
 
   // From the specification:
   // "A START condition immediately followed by a STOP condition (void

@@ -1,5 +1,5 @@
 #include "esphome/core/defines.h"
-#ifdef USE_ESP32
+#if defined(USE_ESP32) && defined(USE_FAN)
 #include "ecocomfort2_fan.h"
 #include "esphome/core/log.h"
 
@@ -138,4 +138,4 @@ void Ecocomfort2Fan::on_status() {
 
 }  // namespace esphome::ecocomfort2
 
-#endif  // USE_ESP32
+#endif  // USE_ESP32 && USE_FAN

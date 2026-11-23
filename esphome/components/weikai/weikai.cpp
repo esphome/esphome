@@ -4,7 +4,12 @@
 /// @details The classes declared in this file can be used by the Weikai family
 
 #include "weikai.h"
+
+#include <algorithm>
+
+#include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome::weikai {
 
@@ -40,35 +45,26 @@ const char *p2s(uart::UARTParityOptions parity) {
 }
 
 /// @brief Display a buffer in hexadecimal format (32 hex values / line) for debug
-void print_buffer(const uint8_t *data, size_t length) {
-  char hex_buffer[100];
-  hex_buffer[(3 * 32) + 1] = 0;
-  for (size_t i = 0; i < length; i++) {
-    snprintf(&hex_buffer[3 * (i % 32)], sizeof(hex_buffer), "%02X ", data[i]);
-    if (i % 32 == 31) {
-      ESP_LOGVV(TAG, "   %s", hex_buffer);
-    }
-  }
-  if (length % 32) {
-    // null terminate if incomplete line
-    hex_buffer[3 * (length % 32) + 2] = 0;
-    ESP_LOGVV(TAG, "   %s", hex_buffer);
+void print_buffer(const char *tag, const uint8_t *data, size_t length, int level) {
+  char hex_buffer[format_hex_pretty_size(32)];
+  for (size_t i = 0; i < length; i += 32) {
+    format_hex_pretty_to(hex_buffer, data + i, std::min<size_t>(32, length - i), ' ');
+    esp_log_printf_(level, tag, __LINE__, ESPHOME_LOG_FORMAT("   %s"), hex_buffer);
   }
 }
 
-static const char *const REG_TO_STR_P0[16] = {"GENA", "GRST",  "GMUT",  "SPAGE", "SCR", "LCR",  "FCR",  "SIER",
-                                              "SIFR", "TFCNT", "RFCNT", "FSR",   "LSR", "FDAT", "FWCR", "RS485"};
-static const char *const REG_TO_STR_P1[16] = {"GENA", "GRST", "GMUT", "SPAGE", "BAUD1", "BAUD0", "PRES", "RFTL",
-                                              "TFTL", "FWTH", "FWTL", "XON1",  "XOFF1", "SADR",  "SAEN", "RTSDLY"};
+PROGMEM_STRING_TABLE(RegNamesPage0, "GENA", "GRST", "GMUT", "SPAGE", "SCR", "LCR", "FCR", "SIER", "SIFR", "TFCNT",
+                     "RFCNT", "FSR", "LSR", "FDAT", "FWCR", "RS485");
+PROGMEM_STRING_TABLE(RegNamesPage1, "GENA", "GRST", "GMUT", "SPAGE", "BAUD1", "BAUD0", "PRES", "RFTL", "TFTL", "FWTH",
+                     "FWTL", "XON1", "XOFF1", "SADR", "SAEN", "RTSDLY");
 
-// method to print a register value as text: used in the log messages ...
-const char *reg_to_str(int reg, bool page1) {
+const LogString *reg_to_str(int reg, bool page1) {
   if (reg == WKREG_GPDAT) {
-    return "GPDAT";
+    return LOG_STR("GPDAT");
   } else if (reg == WKREG_GPDIR) {
-    return "GPDIR";
+    return LOG_STR("GPDIR");
   } else {
-    return page1 ? REG_TO_STR_P1[reg & 0x0F] : REG_TO_STR_P0[reg & 0x0F];
+    return page1 ? RegNamesPage1::get_log_str(reg & 0x0F, 0) : RegNamesPage0::get_log_str(reg & 0x0F, 0);
   }
 }
 
@@ -211,11 +207,7 @@ bool WeikaiComponent::read_pin_val_(uint8_t pin) {
 }
 
 void WeikaiComponent::write_pin_val_(uint8_t pin, bool value) {
-  if (value) {
-    this->output_state_ |= (1 << pin);
-  } else {
-    this->output_state_ &= ~(1 << pin);
-  }
+  assign_bits(this->output_state_, 1 << pin, value);
   char bin_buf[9];
   ESP_LOGVV(TAG, "writing output pin %d with %d out_state %s", pin, uint8_t(value),
             format_bin_to(bin_buf, this->output_state_));
@@ -282,7 +274,7 @@ void WeikaiChannel::reset_fifo_() {
 }
 
 void WeikaiChannel::set_line_param_() {
-  this->data_bits_ = 8;  // always equal to 8 for WeiKai (cant be changed)
+  this->data_bits_ = 8;  // always equal to 8 for WeiKai (can't be changed)
   uint8_t lcr = 0;
   if (this->stop_bits_ == 2)
     lcr |= LCR_STPL;
@@ -317,6 +309,9 @@ void WeikaiChannel::set_baudrate_() {
              this->parent_->crystal_);
     val_int = 0xFFFF;
     baud_dec = 9;
+    // the rate really used: crystal / (16 * 65536.9)
+    this->baud_rate_ =
+        std::max<uint32_t>(static_cast<uint32_t>(10ULL * this->parent_->crystal_ / (16ULL * 655369ULL)), 1);
   }
   uint8_t const baud_high = (uint8_t) (val_int >> 8);
   uint8_t const baud_low = (uint8_t) (val_int & 0xFF);
@@ -421,14 +416,14 @@ bool WeikaiChannel::check_channel_down_() {
 }
 
 bool WeikaiChannel::peek_byte(uint8_t *buffer) {
-  auto available = this->receive_buffer_.count();
-  if (!available)
-    xfer_fifo_to_buffer_();
-  return this->receive_buffer_.peek(*buffer);
+  if (this->receive_buffer_.empty() && this->xfer_fifo_to_buffer_() == 0)
+    return false;
+  *buffer = this->receive_buffer_.front();
+  return true;
 }
 
 size_t WeikaiChannel::available() {
-  size_t available = this->receive_buffer_.count();
+  size_t available = this->receive_buffer_.size();
   if (!available)
     available = xfer_fifo_to_buffer_();
   return available;
@@ -436,17 +431,33 @@ size_t WeikaiChannel::available() {
 
 bool WeikaiChannel::read_array(uint8_t *buffer, size_t length) {
   bool status = true;
-  auto available = this->receive_buffer_.count();
+  size_t available = this->receive_buffer_.size();
   if (length > available) {
     ESP_LOGW(TAG, "read_array: buffer underflow requested %d bytes only %d bytes available", length, available);
     length = available;
     status = false;
   }
   // retrieve the bytes from ring buffer
-  this->receive_buffer_.pop_bulk(buffer, length);
-  ESP_LOGVV(TAG, "read_array(ch=%d length=%d): status %s", this->channel_, length,
+  for (size_t i = 0; i < length; i++) {
+    buffer[i] = this->receive_buffer_.front();
+    this->receive_buffer_.pop();
+  }
+  ESP_LOGVV(TAG, "read_array(ch=%d buffer[0]=%02X, length=%d): status %s", this->channel_, *buffer, length,
             status ? LOG_STR_LITERAL("OK") : LOG_STR_LITERAL("ERROR"));
   return status;
+}
+
+/// Longest sleep between two watchdog feeds
+static constexpr uint32_t MAX_WAIT_SLICE_MS = 20;
+
+/// @brief Sleep for @p ms milliseconds in short slices and feed the watchdog after each one
+static void wait_feeding_wdt(uint32_t ms) {
+  while (ms > 0) {
+    uint32_t const slice = std::min(ms, MAX_WAIT_SLICE_MS);
+    delay(slice);
+    App.feed_wdt();
+    ms -= slice;
+  }
 }
 
 uint32_t WeikaiChannel::tx_time_ms_(size_t bytes) const {
@@ -469,7 +480,7 @@ void WeikaiChannel::write_array(const uint8_t *buffer, size_t length) {
           return;
         }
         // let the missing bytes leave the FIFO before reading the chip again
-        delay(std::max<uint32_t>(this->tx_time_ms_(chunk - this->tx_room_estimate_), 1));
+        wait_feeding_wdt(std::max<uint32_t>(this->tx_time_ms_(chunk - this->tx_room_estimate_), 1));
       }
     }
     this->reg(0).write_fifo(const_cast<uint8_t *>(buffer), chunk);
@@ -492,9 +503,10 @@ uart::UARTFlushResult WeikaiChannel::flush() {
     // let the bytes still in the FIFO leave before reading the chip again
     uint32_t const wait_ms = this->tx_time_ms_(this->tx_in_fifo_());
     if (wait_ms > 0) {
-      delay(wait_ms);
+      wait_feeding_wdt(wait_ms);
     } else {
       yield();  // reschedule our thread to avoid blocking
+      App.feed_wdt();
     }
   }
   return uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS;
@@ -502,20 +514,18 @@ uart::UARTFlushResult WeikaiChannel::flush() {
 
 size_t WeikaiChannel::xfer_fifo_to_buffer_() {
   size_t total = 0;
-  if (this->receive_buffer_.is_full())
+  if (this->receive_buffer_.size() >= RING_BUFFER_SIZE)
     return 0;  // no bus access when there is no room
   // The FIFO is polled once: its content can only grow while we read, bytes arriving meanwhile wait for the next call
-  size_t in_fifo = this->rx_in_fifo_();
-  while (in_fifo > 0) {
-    // read directly into the ring buffer, up to its wrap around point
-    size_t to_transfer = std::min(in_fifo, this->receive_buffer_.contiguous_free());
-    if (to_transfer == 0)
-      break;  // ring buffer is full: we'll do the rest next time
-    to_transfer = std::min(to_transfer, XFER_MAX_SIZE);
-    this->reg(0).read_fifo(this->receive_buffer_.write_ptr(), to_transfer);
-    this->receive_buffer_.commit(to_transfer);
-    in_fifo -= to_transfer;
-    total += to_transfer;
+  size_t to_read = std::min<size_t>(this->rx_in_fifo_(), RING_BUFFER_SIZE - this->receive_buffer_.size());
+  while (to_read > 0) {
+    uint8_t data[XFER_MAX_SIZE];
+    size_t const chunk = std::min(to_read, XFER_MAX_SIZE);
+    this->reg(0).read_fifo(data, chunk);
+    for (size_t i = 0; i < chunk; i++)
+      this->receive_buffer_.push(data[i]);
+    to_read -= chunk;
+    total += chunk;
   }
   return total;
 }
@@ -542,24 +552,6 @@ class Increment {
  private:
   uint8_t i_;
 };
-
-/// @brief Hex converter to print/display a buffer in hexadecimal format (32 hex values / line).
-/// @param buffer contains the values to display
-void print_buffer(std::vector<uint8_t> buffer) {
-  char hex_buffer[100];
-  hex_buffer[(3 * 32) + 1] = 0;
-  for (size_t i = 0; i < buffer.size(); i++) {
-    snprintf(&hex_buffer[3 * (i % 32)], sizeof(hex_buffer), "%02X ", buffer[i]);
-    if (i % 32 == 31) {
-      ESP_LOGI(TAG, "   %s", hex_buffer);
-    }
-  }
-  if (buffer.size() % 32) {
-    // null terminate if incomplete line
-    hex_buffer[3 * (buffer.size() % 32) + 1] = 0;
-    ESP_LOGI(TAG, "   %s", hex_buffer);
-  }
-}
 
 /// @brief test the write_array method
 void WeikaiChannel::uart_send_test_(char *message) {
@@ -608,7 +600,7 @@ bool WeikaiChannel::uart_receive_test_(char *message) {
   for (size_t i = 0; i < RING_BUFFER_SIZE; i++) {
     if (buffer[i] != i % XFER_MAX_SIZE) {
       ESP_LOGE(TAG, "Read buffer contains error b=%x i=%x", buffer[i], i % XFER_MAX_SIZE);
-      print_buffer(buffer);
+      print_buffer(TAG, buffer.data(), buffer.size(), ESPHOME_LOG_LEVEL_INFO);
       status = false;
       break;
     }

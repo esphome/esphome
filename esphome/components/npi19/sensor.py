@@ -1,13 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_ID,
-    CONF_TEMPERATURE,
-    DEVICE_CLASS_TEMPERATURE,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS,
-)
+from esphome.const import CONF_TEMPERATURE, STATE_CLASS_MEASUREMENT
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@bakerkj"]
@@ -24,10 +18,7 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(NPI19Component),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_CELSIUS,
-                accuracy_decimals=1,
-                device_class=DEVICE_CLASS_TEMPERATURE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.TEMPERATURE
             ),
             cv.Optional(CONF_RAW_PRESSURE): sensor.sensor_schema(
                 accuracy_decimals=0, state_class=STATE_CLASS_MEASUREMENT
@@ -40,9 +31,7 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
 
     sensors = sensor.sub_sensors(config)
     await sensors(CONF_TEMPERATURE, var.set_temperature_sensor)

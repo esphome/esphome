@@ -1,0 +1,16 @@
+---
+esphome:
+  name: xgzp68xx-test
+
+esp32:
+  board: esp32dev
+
+i2c:
+  sda: GPIO21
+  scl: GPIO22
+
+sensor:
+  - platform: xgzp68xx
+    variant: xgzp6899dc
+    temperature:
+      name: Temperature

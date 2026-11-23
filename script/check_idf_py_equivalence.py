@@ -51,6 +51,11 @@ def _ninja_logs(skip_bootloader: bool) -> list[str]:
 
 
 BOOTLOADER_BYPRODUCT = re.compile(r"(^|/build/)bootloader/")
+# The build step of any CMake ExternalProject. One with BUILD_ALWAYS (ESP-IDF's
+# ulp_embed_binary) re-runs on every build, and ninja re-records all of that
+# edge's byproducts with the new end time even though the files are untouched.
+# Real work on them still changes the hashed firmware.
+EXTERNAL_PROJECT_BUILD_STAMP = re.compile(r"-stamp/[^/]+-build$")
 MACRO_CHANGED = (
     "IDF changed __build_process_project_includes; update "
     "IDF_BOOTLOADER_OVERRIDE in esphome/build_gen/espidf.py"
@@ -96,10 +101,24 @@ def _ninja_mtimes(build_path: Path, logs: list[str]) -> dict[tuple[str, str], st
     for name in logs:
         log = build_path / name
         lines = log.read_text(encoding="utf-8").splitlines() if log.is_file() else []
-        for fields in (line.split("\t") for line in lines if not line.startswith("#")):
-            if len(fields) >= 4 and (
-                name != TOP_NINJA_LOG or not BOOTLOADER_BYPRODUCT.search(fields[3])
-            ):
+        rows = [
+            fields
+            for fields in (
+                line.split("\t") for line in lines if not line.startswith("#")
+            )
+            if len(fields) >= 5
+        ]
+        # Every output of an edge shares its command hash, so the stamp names
+        # the whole external project group.
+        external = {
+            fields[4]
+            for fields in rows
+            if EXTERNAL_PROJECT_BUILD_STAMP.search(fields[3])
+        }
+        for fields in rows:
+            if fields[4] in external:
+                continue
+            if name != TOP_NINJA_LOG or not BOOTLOADER_BYPRODUCT.search(fields[3]):
                 mtimes[name, fields[3]] = fields[2]
     return mtimes
 

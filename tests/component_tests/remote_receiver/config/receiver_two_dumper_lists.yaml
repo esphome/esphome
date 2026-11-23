@@ -1,0 +1,19 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+logger:
+
+remote_receiver:
+  - id: ir_rcvr
+    pin: GPIO4
+    dump:
+      - nec
+      - rc_switch
+      - raw
+  - id: rf_rcvr
+    pin: GPIO5
+    dump:
+      - rc_switch

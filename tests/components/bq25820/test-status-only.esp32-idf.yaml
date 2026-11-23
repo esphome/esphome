@@ -1,0 +1,19 @@
+# Status entities only: builds the one-byte ADC_CONTROL read without USE_BQ25820_SENSOR
+packages:
+  i2c: !include ../../test_build_components/common/i2c/esp32-idf.yaml
+
+bq25820:
+  id: bq25820_component
+  i2c_id: i2c_bus
+
+binary_sensor:
+  - platform: bq25820
+    bq25820_id: bq25820_component
+    charging:
+      name: "Charging"
+
+text_sensor:
+  - platform: bq25820
+    bq25820_id: bq25820_component
+    charge_status:
+      name: "Charge Status"

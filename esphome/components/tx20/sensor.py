@@ -7,10 +7,12 @@ from esphome.const import (
     CONF_PIN,
     CONF_WIND_DIRECTION_DEGREES,
     CONF_WIND_SPEED,
+    DEVICE_CLASS_WIND_DIRECTION,
     DEVICE_CLASS_WIND_SPEED,
     ICON_SIGN_DIRECTION,
     ICON_WEATHER_WINDY,
     STATE_CLASS_MEASUREMENT,
+    STATE_CLASS_MEASUREMENT_ANGLE,
     UNIT_DEGREES,
     UNIT_KILOMETER_PER_HOUR,
 )
@@ -33,7 +35,8 @@ CONFIG_SCHEMA = cv.Schema(
             unit_of_measurement=UNIT_DEGREES,
             icon=ICON_SIGN_DIRECTION,
             accuracy_decimals=1,
-            state_class=STATE_CLASS_MEASUREMENT,
+            device_class=DEVICE_CLASS_WIND_DIRECTION,
+            state_class=STATE_CLASS_MEASUREMENT_ANGLE,
         ),
         cv.Required(CONF_PIN): cv.All(pins.internal_gpio_input_pin_schema),
     }
@@ -48,5 +51,4 @@ async def to_code(config: ConfigType) -> None:
     await sensors(CONF_WIND_SPEED, var.set_wind_speed_sensor)
     await sensors(CONF_WIND_DIRECTION_DEGREES, var.set_wind_direction_degrees_sensor)
 
-    pin = await cg.gpio_pin_expression(config[CONF_PIN])
-    cg.add(var.set_pin(pin))
+    await cg.add_pin(var.set_pin, config[CONF_PIN])

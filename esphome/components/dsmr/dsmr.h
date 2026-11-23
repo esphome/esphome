@@ -16,33 +16,36 @@
 #include <span>
 #include <vector>
 
-// On ESP8266 Arduino, BearSSL is the native crypto. The mbedtls headers can
-// still be in scope when a sibling component (e.g. wireguard) pulls in
-// esp_mbedtls_esp8266, but that build leaves MBEDTLS_GCM_C disabled so the
-// gcm.h symbols are unresolved at link time. Force BearSSL on ESP8266 to
-// avoid that linker error.
-#if __has_include(<psa/crypto.h>)
+#if defined(USE_HOST) && __has_include(<mbedtls/gcm.h>)
+#include <dsmr_parser/decryption/aes128gcm_mbedtls.h>
+namespace esphome::dsmr {
+using Aes128GcmDecryptorImpl = dsmr_parser::Aes128GcmMbedTls;
+}  // namespace esphome::dsmr
+#elif __has_include(<psa/crypto.h>)
 #include <dsmr_parser/decryption/aes128gcm_tfpsa.h>
+namespace esphome::dsmr {
+using Aes128GcmDecryptorImpl = dsmr_parser::Aes128GcmTfPsa;
+}  // namespace esphome::dsmr
+#elif defined(USE_HOST)
+#error "dsmr on the host needs the Mbed TLS development files: apt install libmbedtls-dev or brew install mbedtls"
 #elif !defined(USE_ESP8266) && __has_include(<mbedtls/gcm.h>)
 #if __has_include(<mbedtls/esp_config.h>)
 #include <mbedtls/esp_config.h>
 #endif
 #include <dsmr_parser/decryption/aes128gcm_mbedtls.h>
+namespace esphome::dsmr {
+using Aes128GcmDecryptorImpl = dsmr_parser::Aes128GcmMbedTls;
+}  // namespace esphome::dsmr
 #elif __has_include(<bearssl/bearssl.h>)
 #include <dsmr_parser/decryption/aes128gcm_bearssl.h>
+namespace esphome::dsmr {
+using Aes128GcmDecryptorImpl = dsmr_parser::Aes128GcmBearSsl;
+}  // namespace esphome::dsmr
 #else
 #error "The platform doesn't provide a compatible encryption library for dsmr_parser"
 #endif
 
 namespace esphome::dsmr {
-
-#if __has_include(<psa/crypto.h>)
-using Aes128GcmDecryptorImpl = dsmr_parser::Aes128GcmTfPsa;
-#elif !defined(USE_ESP8266) && __has_include(<mbedtls/gcm.h>)
-using Aes128GcmDecryptorImpl = dsmr_parser::Aes128GcmMbedTls;
-#else
-using Aes128GcmDecryptorImpl = dsmr_parser::Aes128GcmBearSsl;
-#endif
 
 using namespace dsmr_parser::fields;
 
@@ -95,14 +98,6 @@ class Dsmr final : public Component, public uart::UARTDevice {
   };
 
   void dump_config() override;
-
-  // Remove before 2026.8.0
-  ESPDEPRECATED("Use 'decryption_key' configuration parameter. This method will be removed in 2026.8.0", "2026.2.0")
-  void set_decryption_key(const std::string &decryption_key) {
-    // Some YAML configs pass a string longer than 32 symbols. We only need the first 32 symbols,
-    // otherwise `Aes128GcmDecryptionKey::from_hex` will fail.
-    this->set_decryption_key_(std::string(decryption_key, 0, 32).c_str());
-  }
 
 // Sensor setters
 #define DSMR_SET_SENSOR(s) \

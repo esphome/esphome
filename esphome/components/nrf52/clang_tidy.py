@@ -93,6 +93,7 @@ CONFIG_NVS=y
 CONFIG_SETTINGS=y
 """,
     ),
+    _TidySubsystem("coredump", "CONFIG_DEBUG_COREDUMP=y\n"),
 )
 
 _TIDY_PRJ_CONF = "".join(

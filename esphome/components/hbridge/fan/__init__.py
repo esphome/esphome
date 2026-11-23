@@ -33,7 +33,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_DECAY_MODE, default="SLOW"): cv.enum(
                 DECAY_MODE_OPTIONS, upper=True
             ),
-            cv.Optional(CONF_SPEED_COUNT, default=100): cv.int_range(min=1),
+            cv.Optional(CONF_SPEED_COUNT, default=100): fan.validate_speed_count,
             cv.Optional(CONF_ENABLE_PIN): cv.use_id(output.FloatOutput),
             cv.Optional(CONF_PRESET_MODES): validate_preset_modes,
         }
@@ -56,14 +56,8 @@ async def to_code(config: ConfigType) -> None:
         config[CONF_DECAY_MODE],
     )
     await cg.register_component(var, config)
-    pin_a_ = await cg.get_variable(config[CONF_PIN_A])
-    cg.add(var.set_pin_a(pin_a_))
-    pin_b_ = await cg.get_variable(config[CONF_PIN_B])
-    cg.add(var.set_pin_b(pin_b_))
+    await cg.add_variable(var.set_pin_a, config[CONF_PIN_A])
+    await cg.add_variable(var.set_pin_b, config[CONF_PIN_B])
+    await cg.add_variable(var.set_enable_pin, config.get(CONF_ENABLE_PIN))
 
-    if CONF_ENABLE_PIN in config:
-        enable_pin = await cg.get_variable(config[CONF_ENABLE_PIN])
-        cg.add(var.set_enable_pin(enable_pin))
-
-    if CONF_PRESET_MODES in config:
-        cg.add(var.set_preset_modes(config[CONF_PRESET_MODES]))
+    fan.set_preset_modes(var, config.get(CONF_PRESET_MODES, []))

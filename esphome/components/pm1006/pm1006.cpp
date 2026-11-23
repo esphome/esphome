@@ -24,8 +24,8 @@ void PM1006Component::update() {
 }
 
 void PM1006Component::loop() {
-  while (this->available() != 0) {
-    this->read_byte(&this->data_[this->data_index_]);
+  this->read_available([this](uint8_t byte) {
+    this->data_[this->data_index_] = byte;
     auto check = this->check_byte_();
     if (!check.has_value()) {
       // finished
@@ -39,7 +39,7 @@ void PM1006Component::loop() {
       // next byte
       this->data_index_++;
     }
-  }
+  });
 }
 
 uint8_t PM1006Component::pm1006_checksum_(const uint8_t *command_data, uint8_t length) const {
@@ -82,9 +82,7 @@ void PM1006Component::parse_data_() {
 
   ESP_LOGD(TAG, "Got PM2.5 Concentration: %d µg/m³", pm_2_5_concentration);
 
-  if (this->pm_2_5_sensor_ != nullptr) {
-    this->pm_2_5_sensor_->publish_state(pm_2_5_concentration);
-  }
+  PUBLISH_STATE(this->pm_2_5_sensor_, pm_2_5_concentration);
 }
 
 }  // namespace esphome::pm1006

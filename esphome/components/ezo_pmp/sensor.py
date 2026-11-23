@@ -4,12 +4,10 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
     DEVICE_CLASS_EMPTY,
-    DEVICE_CLASS_VOLTAGE,
     ENTITY_CATEGORY_DIAGNOSTIC,
     ENTITY_CATEGORY_NONE,
     STATE_CLASS_MEASUREMENT,
     STATE_CLASS_NONE,
-    UNIT_VOLT,
 )
 
 from . import EzoPMP
@@ -65,10 +63,8 @@ CONFIG_SCHEMA = cv.Schema(
             entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
         ),
         cv.Optional(CONF_PUMP_VOLTAGE): sensor.sensor_schema(
-            unit_of_measurement=UNIT_VOLT,
+            kind=sensor.VOLTAGE,
             accuracy_decimals=2,
-            device_class=DEVICE_CLASS_VOLTAGE,
-            state_class=STATE_CLASS_MEASUREMENT,
             entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
         ),
     }
@@ -79,9 +75,11 @@ async def to_code(config):
     hub = await cg.get_variable(config[CONF_ID])
 
     sensors = sensor.sub_sensors(config)
-    await sensors(CONF_CURRENT_VOLUME_DOSED, hub.set_current_volume_dosed)
-    await sensors(CONF_LAST_VOLUME_REQUESTED, hub.set_last_volume_requested)
-    await sensors(CONF_TOTAL_VOLUME_DOSED, hub.set_total_volume_dosed)
-    await sensors(CONF_ABSOLUTE_TOTAL_VOLUME_DOSED, hub.set_absolute_total_volume_dosed)
-    await sensors(CONF_PUMP_VOLTAGE, hub.set_pump_voltage)
-    await sensors(CONF_MAX_FLOW_RATE, hub.set_max_flow_rate)
+    await sensors(CONF_CURRENT_VOLUME_DOSED, hub.set_current_volume_dosed_sensor)
+    await sensors(CONF_LAST_VOLUME_REQUESTED, hub.set_last_volume_requested_sensor)
+    await sensors(CONF_TOTAL_VOLUME_DOSED, hub.set_total_volume_dosed_sensor)
+    await sensors(
+        CONF_ABSOLUTE_TOTAL_VOLUME_DOSED, hub.set_absolute_total_volume_dosed_sensor
+    )
+    await sensors(CONF_PUMP_VOLTAGE, hub.set_pump_voltage_sensor)
+    await sensors(CONF_MAX_FLOW_RATE, hub.set_max_flow_rate_sensor)

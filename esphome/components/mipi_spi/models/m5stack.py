@@ -55,6 +55,8 @@ ILI9341.extend(
 
 GC9107 = ST7789V.extend(
     "GC9107",
+    native_width=132,
+    native_height=130,
     width=128,
     height=128,
     offset_width=2,
@@ -71,6 +73,15 @@ GC9107.extend(
     dc_pin=42,
     cs_pin=14,
     requires={"psram"},
+)
+
+GC9107.extend(
+    "M5STACK-ATOMS3",
+    data_rate="40MHz",
+    invert_colors=True,
+    reset_pin=34,
+    dc_pin=33,
+    cs_pin=15,
 )
 
 # M5Stack AtomS3R (ST7735 revision - May 14, 2026+)

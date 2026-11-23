@@ -61,8 +61,8 @@ struct Harness {
   Harness() {
     this->sensor.set_address(ADDRESS);
     this->sensor.set_bindkey(BINDKEY);
-    this->sensor.set_light(&this->light);
-    this->sensor.set_battery_level(&this->battery_level);
+    this->sensor.set_light_binary_sensor(&this->light);
+    this->sensor.set_battery_level_sensor(&this->battery_level);
     // The door sensor starts as "closed", so count changes to see whether anything was published
     this->sensor.add_full_state_callback([this](optional<bool>, optional<bool>) { this->door_changes++; });
   }

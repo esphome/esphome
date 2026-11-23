@@ -53,8 +53,7 @@ CONFIG_SCHEMA = cv.All(
 
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
-    if CONF_FREQUENCY in config:
-        cg.add(var.set_frequency(config[CONF_FREQUENCY]))
+    cg.add_optional(var.set_frequency, config.get(CONF_FREQUENCY))
     cg.add(var.set_extclk(config[CONF_EXTERNAL_CLOCK_INPUT]))
     cg.add(var.set_phase_balancer(config[CONF_PHASE_BALANCER]))
     await cg.register_component(var, config)

@@ -6,17 +6,12 @@ from esphome.components.aqi import AQI_CALCULATION_TYPE, CONF_CALCULATION_TYPE
 from esphome.components.const import CONF_AQI
 import esphome.config_validation as cv
 from esphome.const import (
-    CONF_ID,
     CONF_PM_1_0,
     CONF_PM_2_5,
     CONF_PM_10_0,
     DEVICE_CLASS_AQI,
-    DEVICE_CLASS_PM1,
-    DEVICE_CLASS_PM10,
-    DEVICE_CLASS_PM25,
     ICON_CHEMICAL_WEAPON,
     STATE_CLASS_MEASUREMENT,
-    UNIT_MICROGRAMS_PER_CUBIC_METER,
 )
 from esphome.types import ConfigType
 
@@ -46,27 +41,9 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(HM3301Component),
-            cv.Optional(CONF_PM_1_0): sensor.sensor_schema(
-                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
-                icon=ICON_CHEMICAL_WEAPON,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_PM1,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_PM_2_5): sensor.sensor_schema(
-                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
-                icon=ICON_CHEMICAL_WEAPON,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_PM25,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_PM_10_0): sensor.sensor_schema(
-                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
-                icon=ICON_CHEMICAL_WEAPON,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_PM10,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
+            cv.Optional(CONF_PM_1_0): sensor.sensor_schema(kind=sensor.PM1),
+            cv.Optional(CONF_PM_2_5): sensor.sensor_schema(kind=sensor.PM25),
+            cv.Optional(CONF_PM_10_0): sensor.sensor_schema(kind=sensor.PM10),
             cv.Optional(CONF_AQI): sensor.sensor_schema(
                 unit_of_measurement=UNIT_INDEX,
                 icon=ICON_CHEMICAL_WEAPON,
@@ -89,9 +66,7 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
 
     sensors = sensor.sub_sensors(config)
     await sensors(CONF_PM_1_0, var.set_pm_1_0_sensor)

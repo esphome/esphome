@@ -34,15 +34,9 @@ static constexpr bool is_bootloader_menu_byte(uint8_t byte) {
   return byte == 0 || byte == '\r' || byte == '\n' || (byte >= 0x20 && byte <= 0x7E);
 }
 
-static uint8_t calculate_frame_checksum(const uint8_t *data, uint8_t length) {
-  // Calculate Z-Wave frame checksum
-  // XOR all bytes between SOF and checksum position (exclusive)
+static uint8_t calculate_frame_checksum(const uint8_t *data, size_t length) {
   // Initial value is 0xFF per Z-Wave protocol specification
-  uint8_t checksum = 0xFF;
-  for (uint8_t i = 1; i < length - 1; i++) {
-    checksum ^= data[i];
-  }
-  return checksum;
+  return xor_bytes(data + 1, length - 2, 0xFF);
 }
 
 ZWaveProxy::ZWaveProxy() { global_zwave_proxy = this; }
@@ -317,10 +311,7 @@ void ZWaveProxy::send_frame_(const uint8_t *data, size_t length) {
     return;
   }
 
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
-  char hex_buf[format_hex_pretty_size(ZWAVE_MAX_LOG_BYTES)];
-#endif
-  ESP_LOGVV(TAG, "Sending: %s", format_hex_pretty_to(hex_buf, data, length));
+  ESP_LOGVV_HEX(TAG, data, length, ZWAVE_MAX_LOG_BYTES, "Sending: %s");
 
   this->write_array(data, length);
 }
@@ -401,10 +392,7 @@ bool ZWaveProxy::parse_byte_(uint8_t byte) {
         this->parsing_state_ = ZWAVE_PARSING_STATE_SEND_NAK;
       } else {
         this->parsing_state_ = ZWAVE_PARSING_STATE_SEND_ACK;
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
-        char hex_buf[format_hex_pretty_size(ZWAVE_MAX_LOG_BYTES)];
-#endif
-        ESP_LOGVV(TAG, "Received frame: %s", format_hex_pretty_to(hex_buf, this->buffer_.data(), this->buffer_index_));
+        ESP_LOGVV_HEX(TAG, this->buffer_.data(), this->buffer_index_, ZWAVE_MAX_LOG_BYTES, "Received frame: %s");
         frame_completed = true;
       }
       this->response_handler_();

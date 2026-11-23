@@ -5,18 +5,10 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_BATTERY_LEVEL,
     CONF_BATTERY_VOLTAGE,
-    CONF_ID,
     CONF_SIZE,
     CONF_TEMPERATURE,
     CONF_VOLTAGE,
-    DEVICE_CLASS_BATTERY,
-    DEVICE_CLASS_TEMPERATURE,
-    DEVICE_CLASS_VOLTAGE,
     ENTITY_CATEGORY_DIAGNOSTIC,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS,
-    UNIT_PERCENT,
-    UNIT_VOLT,
 )
 from esphome.types import ConfigType
 
@@ -40,28 +32,22 @@ CONFIG_SCHEMA = (
                 BATTERY_VOLTAGE_OPTIONS, upper=True
             ),
             cv.Optional(CONF_BATTERY_VOLTAGE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_VOLT,
+                kind=sensor.VOLTAGE,
                 accuracy_decimals=3,
-                device_class=DEVICE_CLASS_VOLTAGE,
-                state_class=STATE_CLASS_MEASUREMENT,
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
             cv.Optional(CONF_BATTERY_LEVEL): sensor.sensor_schema(
-                unit_of_measurement=UNIT_PERCENT,
+                kind=sensor.BATTERY,
                 accuracy_decimals=3,
-                device_class=DEVICE_CLASS_BATTERY,
-                state_class=STATE_CLASS_MEASUREMENT,
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_CELSIUS,
+                kind=sensor.TEMPERATURE,
                 accuracy_decimals=2,
-                device_class=DEVICE_CLASS_TEMPERATURE,
-                state_class=STATE_CLASS_MEASUREMENT,
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ).extend(
                 {
-                    cv.Required(CONF_B_CONSTANT): cv.int_range(0, 0xFFFF),
+                    cv.Required(CONF_B_CONSTANT): cv.uint16_t,
                 }
             ),
         }
@@ -72,9 +58,7 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
     cg.add(var.set_pack_size(config.get(CONF_SIZE)))
     cg.add(var.set_pack_voltage(BATTERY_VOLTAGE_OPTIONS[config[CONF_VOLTAGE]]))
 

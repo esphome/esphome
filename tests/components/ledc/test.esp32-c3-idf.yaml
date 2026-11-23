@@ -1,1 +1,6 @@
-<<: !include common.yaml
+substitutions:
+  ledc_output_inverted_pin: GPIO6
+  ledc_both_inverted_pin: GPIO7
+
+packages:
+  ledc: !include common.yaml

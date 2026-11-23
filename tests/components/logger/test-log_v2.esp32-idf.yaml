@@ -1,0 +1,8 @@
+packages:
+  logger: !include common-default_uart.yaml
+
+# IDF 6.1 is where Log V2 and the esp_log_format wrap are enabled; the default IDF has no V2
+esp32:
+  framework:
+    type: esp-idf
+    version: 6.1.0

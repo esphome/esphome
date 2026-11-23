@@ -81,35 +81,29 @@ class ABBWelcomeData {
   uint8_t get_message_type() const { return this->data_[3]; }
   void set_destination_address(uint32_t address) {
     if (this->get_address_length() == 2) {
-      this->data_[4] = (address >> 8) & 0xff;
-      this->data_[5] = address & 0xff;
+      put_be16(this->data_.data() + 4, address);
     } else {
-      this->data_[4] = (address >> 16) & 0xff;
-      this->data_[5] = (address >> 8) & 0xff;
-      this->data_[6] = address & 0xff;
+      put_be24(this->data_.data() + 4, address);
     }
   }
   uint32_t get_destination_address() const {
     if (this->get_address_length() == 2) {
-      return (this->data_[4] << 8) + this->data_[5];
+      return encode_uint16(this->data_[4], this->data_[5]);
     }
-    return (this->data_[4] << 16) + (this->data_[5] << 8) + this->data_[6];
+    return encode_uint24(this->data_[4], this->data_[5], this->data_[6]);
   }
   void set_source_address(uint32_t address) {
     if (this->get_address_length() == 2) {
-      this->data_[6] = (address >> 8) & 0xff;
-      this->data_[7] = address & 0xff;
+      put_be16(this->data_.data() + 6, address);
     } else {
-      this->data_[7] = (address >> 16) & 0xff;
-      this->data_[8] = (address >> 8) & 0xff;
-      this->data_[9] = address & 0xff;
+      put_be24(this->data_.data() + 7, address);
     }
   }
   uint32_t get_source_address() const {
     if (this->get_address_length() == 2) {
-      return (this->data_[6] << 8) + this->data_[7];
+      return encode_uint16(this->data_[6], this->data_[7]);
     }
-    return (this->data_[7] << 16) + (this->data_[8] << 8) + this->data_[9];
+    return encode_uint24(this->data_[7], this->data_[8], this->data_[9]);
   }
   void set_message_id(uint8_t message_id) { this->data_[4 + 2 * this->get_address_length()] = message_id; }
   /// A configured id, which finalize() keeps instead of picking one

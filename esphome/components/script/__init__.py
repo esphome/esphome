@@ -1,15 +1,19 @@
+from typing import Any
+
 from esphome import automation
 from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
+from esphome.components.const import CONF_ON_STOP
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_MODE, CONF_PARAMETERS, CONF_RESTART
 from esphome.core import CORE, EsphomeError
+from esphome.cpp_generator import AssignmentExpression, call_lambda
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
 DOMAIN = "script"
 script_ns = cg.esphome_ns.namespace("script")
 Script = script_ns.class_("Script", automation.Trigger.template())
-ScriptExecuteAction = script_ns.class_("ScriptExecuteAction", automation.Action)
 ScriptWaitAction = script_ns.class_("ScriptWaitAction", automation.Action, cg.Component)
 SingleScript = script_ns.class_("SingleScript", Script)
 RestartScript = script_ns.class_("RestartScript", Script)
@@ -20,6 +24,7 @@ CONF_SINGLE = "single"
 CONF_QUEUED = "queued"
 CONF_PARALLEL = "parallel"
 CONF_MAX_RUNS = "max_runs"
+CONF_SCRIPT_STOP = "script.stop"
 
 SCRIPT_MODES = {
     CONF_SINGLE: SingleScript,
@@ -109,22 +114,72 @@ def validate_parameter_type(value):
     raise cv.Invalid("Parameter type contains invalid characters")
 
 
-CONFIG_SCHEMA = automation.validate_automation(
-    {
-        # Don't declare id as cv.declare_id yet, because the ID type
-        # depends on the mode. Will be checked later with assign_declare_id
-        cv.Required(CONF_ID): cv.string_strict,
-        cv.Optional(CONF_MODE, default=CONF_SINGLE): cv.one_of(
-            *SCRIPT_MODES, lower=True
-        ),
-        cv.Optional(CONF_MAX_RUNS): cv.int_range(min=0, max=100),
-        cv.Optional(CONF_PARAMETERS, default={}): cv.Schema(
-            {
-                validate_parameter_name: validate_parameter_type,
-            }
-        ),
-    },
-    extra_validators=cv.All(check_max_runs, assign_declare_id),
+def _fill_script_stop_ids(value: Any, script_id: str) -> Any:
+    """Give `script.stop` actions without an id in a raw action tree the id `script_id`.
+
+    Containers are copied only along changed paths so untouched YAML nodes keep their source locations.
+    """
+    if isinstance(value, list):
+        result = [
+            {CONF_SCRIPT_STOP: {CONF_ID: script_id}}
+            if item == CONF_SCRIPT_STOP
+            else _fill_script_stop_ids(item, script_id)
+            for item in value
+        ]
+        if all(new is old for new, old in zip(result, value, strict=True)):
+            return value
+        return result
+    if not isinstance(value, dict):
+        return value
+    result = value
+    for key, item in value.items():
+        if key == CONF_SCRIPT_STOP and (
+            item is None or (isinstance(item, dict) and CONF_ID not in item)
+        ):
+            new_item = {**(item or {}), CONF_ID: script_id}
+        else:
+            new_item = _fill_script_stop_ids(item, script_id)
+        if new_item is not item:
+            if result is value:
+                result = value.copy()
+            result[key] = new_item
+    return result
+
+
+def _fill_script_stop_ids_in_script(item: Any) -> Any:
+    if isinstance(item, dict) and isinstance(script_id := item.get(CONF_ID), str):
+        return _fill_script_stop_ids(item, script_id)
+    return item
+
+
+def default_script_stop_ids(value: Any) -> Any:
+    """Make `script.stop` with no id, used inside a script, stop that script."""
+    if isinstance(value, list):
+        return [_fill_script_stop_ids_in_script(item) for item in value]
+    # A single script may be given as a mapping instead of a list
+    return _fill_script_stop_ids_in_script(value)
+
+
+CONFIG_SCHEMA = cv.All(
+    default_script_stop_ids,
+    automation.validate_automation(
+        {
+            # Don't declare id as cv.declare_id yet, because the ID type
+            # depends on the mode. Will be checked later with assign_declare_id
+            cv.Required(CONF_ID): cv.string_strict,
+            cv.Optional(CONF_MODE, default=CONF_SINGLE): cv.one_of(
+                *SCRIPT_MODES, lower=True
+            ),
+            cv.Optional(CONF_MAX_RUNS): cv.int_range(min=0, max=100),
+            cv.Optional(CONF_PARAMETERS, default={}): cv.Schema(
+                {
+                    validate_parameter_name: validate_parameter_type,
+                }
+            ),
+            cv.Optional(CONF_ON_STOP): automation.validate_automation(single=True),
+        },
+        extra_validators=cv.All(check_max_runs, assign_declare_id),
+    ),
 )
 
 
@@ -137,21 +192,24 @@ async def to_code(config):
         # Add a human-readable name to the script
         cg.add(trigger.set_name(cg.LogStringLiteral(conf[CONF_ID].id)))
 
-        if CONF_MAX_RUNS in conf:
-            cg.add(trigger.set_max_runs(conf[CONF_MAX_RUNS]))
+        cg.add_optional(trigger.set_max_runs, conf.get(CONF_MAX_RUNS))
 
         if conf[CONF_MODE] == CONF_QUEUED:
             await cg.register_component(trigger, conf)
 
         triggers.append((trigger, func_args, conf))
 
+    if any(CONF_ON_STOP in conf for conf in config):
+        cg.add_define("USE_SCRIPT_ON_STOP")
     for trigger, func_args, conf in triggers:
         await automation.build_automation(trigger, func_args, conf)
+        if (stop_conf := conf.get(CONF_ON_STOP)) is not None:
+            await automation.build_automation(trigger.get_stop_trigger(), [], stop_conf)
 
 
 @automation.register_action(
     "script.execute",
-    ScriptExecuteAction,
+    automation.ApplyAction,
     maybe_simple_id(
         {
             cv.Required(CONF_ID): cv.use_id(Script),
@@ -184,30 +242,46 @@ async def script_execute_action_to_code(config, action_id, template_arg, args):
                 raise EsphomeError(
                     f"Missing parameter: '{name}' in script.execute {config[CONF_ID]}"
                 )
-            arg = await cg.templatable(
-                config_args[name], args, type, convert(str(type))
-            )
+            value = config_args[name]
+            if cg.is_template(value):
+                arg = await automation.call_user_lambda(value, args, type)
+            else:
+                arg = call_lambda(
+                    await cg.templatable(value, args, type, convert(str(type)))
+                )
             script_args.append(arg)
         return script_args
 
     script = get_script(config[CONF_ID])
     params = script.get(CONF_PARAMETERS, [])
-    template, script_params = parameters_to_template(params)
+    _, script_params = parameters_to_template(params)
     script_args = await get_ordered_args(config, script_params)
 
-    # We need to use the parent class 'Script' as the template argument
-    # to match the partial specialization of the ScriptExecuteAction template
-    template_arg = cg.TemplateArguments(Script.template(template), *template_arg)
+    parent = await automation.apply_parent(config)
+    # Separate statements, because the order of evaluation inside one call is not defined
+    names = [cg.MockObj(f"esphome__arg_{index}") for index in range(len(script_args))]
+    statements = [
+        str(cg.statement(AssignmentExpression("auto", "", name, arg)))
+        for name, arg in zip(names, script_args, strict=True)
+    ]
+    moved = ", ".join(str(cg.std_ns.move(name)) for name in names)
+    statements.append(f"{parent}->execute({moved});")
+    return automation.apply_statements_action(action_id, template_arg, args, statements)
 
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    cg.add(var.set_args(*script_args))
-    return var
+
+def _require_script_stop_id(config: ConfigType) -> ConfigType:
+    # Inside a script the id has already been filled in by default_script_stop_ids
+    if CONF_ID not in config:
+        raise cv.Invalid(
+            "'script.stop' without an id can only be used inside a script",
+            path=[CONF_ID],
+        )
+    return config
 
 
 automation.register_apply_action(
-    "script.stop",
-    maybe_simple_id({cv.Required(CONF_ID): cv.use_id(Script)}),
+    CONF_SCRIPT_STOP,
+    maybe_simple_id({cv.Optional(CONF_ID): cv.use_id(Script)}, _require_script_stop_id),
     automation.ApplyCall("stop()"),
 )
 

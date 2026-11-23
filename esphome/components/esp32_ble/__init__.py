@@ -16,9 +16,12 @@ from esphome.components.ble_device_base import (  # noqa: F401  # pylint: disabl
 )
 from esphome.components.const import CONF_USE_PSRAM
 from esphome.components.esp32 import (
+    ROM_SSCANF_VARIANTS,
     add_idf_sdkconfig_option,
+    add_src_cmake,
     const,
     get_esp32_variant,
+    idf_version,
     request_bluetooth,
 )
 from esphome.components.esp32.const import VARIANT_ESP32C2
@@ -36,6 +39,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, TimePeriod
 import esphome.final_validate as fv
+from esphome.helpers import IS_WINDOWS
 from esphome.types import ConfigType
 
 AUTO_LOAD = ["ble_device_base"]  # ble_uuid.h builds on the neutral ESPBTUUID
@@ -293,12 +297,30 @@ __all__ = [
 
 NO_BLUETOOTH_VARIANTS = [const.VARIANT_ESP32S2]
 
+
+def _wrap_bluedroid_symbols(*symbols: str) -> None:
+    """Link calls to each Bluedroid symbol to its ``__wrap_`` replacement."""
+    for symbol in symbols:
+        cg.add_build_flag(f"-Wl,--wrap={symbol}")
+        # libsrc.a is scanned before libbt.a, so pull the wrap in explicitly
+        cg.add_build_flag(f"-Wl,--undefined=__wrap_{symbol}")
+
+
+def bluedroid_headers_cmake(source: str) -> str:
+    """Give one esp32_ble source Bluedroid's private include dirs (native ESP-IDF toolchain only)."""
+    return f"""\
+idf_component_get_property(esphome_bt_lib bt COMPONENT_LIB)
+set_source_files_properties(
+    "${{CMAKE_CURRENT_SOURCE_DIR}}/esphome/components/esp32_ble/{source}"
+    PROPERTIES
+        INCLUDE_DIRECTORIES "$<TARGET_PROPERTY:${{esphome_bt_lib}},INCLUDE_DIRECTORIES>"
+        COMPILE_DEFINITIONS USE_ESP32_BLE_BLUEDROID_HEADERS
+)
+"""
+
+
 esp32_ble_ns = cg.esphome_ns.namespace("esp32_ble")
 ESP32BLE = esp32_ble_ns.class_("ESP32BLE", cg.Component)
-
-BLEEnabledCondition = esp32_ble_ns.class_("BLEEnabledCondition", automation.Condition)
-BLEEnableAction = esp32_ble_ns.class_("BLEEnableAction", automation.Action)
-BLEDisableAction = esp32_ble_ns.class_("BLEDisableAction", automation.Action)
 
 IoCapability = esp32_ble_ns.enum("IoCapability")
 IO_CAPABILITY = {
@@ -335,10 +357,14 @@ TX_POWER_LEVELS = {
     9: esp_power_level_t.ESP_PWR_LVL_P9,
 }
 
+# The C++ name buffer holds 20 bytes
+NAME_MAX_BYTES = 20
+MAC_SUFFIX_BYTES = len("-AABBCC")
+
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(ESP32BLE),
-        cv.Optional(CONF_NAME): cv.All(cv.string, cv.Length(max=20)),
+        cv.Optional(CONF_NAME): cv.All(cv.string, cv.ByteLength(max=NAME_MAX_BYTES)),
         cv.Optional(CONF_IO_CAPABILITY, default="none"): cv.enum(
             IO_CAPABILITY, lower=True
         ),
@@ -447,17 +473,24 @@ def validate_connection_slots(max_connections: int) -> None:
     )
 
 
+def validate_name_with_mac_suffix(config: ConfigType) -> None:
+    """With name_add_mac_suffix the ASCII "-AABBCC" is appended, leaving the name 7 fewer bytes."""
+    if (name := config.get(CONF_NAME)) is None:
+        return
+    if not fv.full_config.get()[CONF_ESPHOME][CONF_NAME_ADD_MAC_SUFFIX]:
+        return
+    try:
+        cv.ByteLength(max=NAME_MAX_BYTES - MAC_SUFFIX_BYTES)(name)
+    except cv.Invalid as err:
+        raise cv.Invalid(
+            f"{err.msg} name_add_mac_suffix appends {MAC_SUFFIX_BYTES} more.",
+            path=[CONF_NAME],
+        ) from err
+
+
 def final_validation(config: ConfigType) -> None:
     validate_variant(config)
-    if (name := config.get(CONF_NAME)) is not None:
-        full_config = fv.full_config.get()
-        max_length = 20
-        if full_config[CONF_ESPHOME][CONF_NAME_ADD_MAC_SUFFIX]:
-            max_length -= 7  # "-AABBCC" is appended when add mac suffix option is used
-        if len(name) > max_length:
-            raise cv.Invalid(
-                f"Name '{name}' is too long, maximum length is {max_length} characters"
-            )
+    validate_name_with_mac_suffix(config)
 
     # ESP32-C2 has very limited RAM (~272KB). Without releasing BLE IRAM,
     # esp_bt_controller_init fails with ESP_ERR_NO_MEM.
@@ -477,22 +510,14 @@ def final_validation(config: ConfigType) -> None:
 
     # Check if hosted bluetooth is being used
     if ESP32_HOSTED_DOMAIN in full_config:
-        from esphome.components.esp32_hosted import uses_esp_hosted_3x
-
         add_idf_sdkconfig_option("CONFIG_BT_CLASSIC_ENABLED", False)
         add_idf_sdkconfig_option("CONFIG_BT_BLE_ENABLED", True)
         add_idf_sdkconfig_option("CONFIG_BT_BLUEDROID_ENABLED", True)
         add_idf_sdkconfig_option("CONFIG_BT_CONTROLLER_DISABLED", True)
-        if uses_esp_hosted_3x():
-            add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_HOST_FEAT_BT", True)
-        else:
-            add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID", True)
-            add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_BLUEDROID_HCI_VHCI", True)
+        add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_HOST_FEAT_BT", True)
 
     # Check if BLE Client is needed (via esp32_ble_tracker or esp32_ble_client)
-    has_ble_client = (
-        "esp32_ble_tracker" in full_config or "esp32_ble_client" in full_config
-    )
+    has_ble_client = _has_gatt_client(full_config)
 
     # Check if BLE Server is needed
     has_ble_server = "esp32_ble_server" in full_config
@@ -539,16 +564,12 @@ async def to_code(config: ConfigType) -> None:
     ):
         cg.add_define("ESPHOME_ESP32_BLE_EXTENDED_AUTH_PARAMS", None)
 
-    if CONF_AUTH_REQ_MODE in config:
-        cg.add(var.set_auth_req(config[CONF_AUTH_REQ_MODE]))
-    if CONF_MAX_KEY_SIZE in config:
-        cg.add(var.set_max_key_size(config[CONF_MAX_KEY_SIZE]))
-    if CONF_MIN_KEY_SIZE in config:
-        cg.add(var.set_min_key_size(config[CONF_MIN_KEY_SIZE]))
+    cg.add_optional(var.set_auth_req, config.get(CONF_AUTH_REQ_MODE))
+    cg.add_optional(var.set_max_key_size, config.get(CONF_MAX_KEY_SIZE))
+    cg.add_optional(var.set_min_key_size, config.get(CONF_MIN_KEY_SIZE))
 
     cg.add(var.set_advertising_cycle_time(config[CONF_ADVERTISING_CYCLE_TIME]))
-    if (name := config.get(CONF_NAME)) is not None:
-        cg.add(var.set_name(name))
+    cg.add_optional(var.set_name, config.get(CONF_NAME))
     await cg.register_component(var, config)
 
     # Define max connections for use in C++ code (e.g., ble_server.h)
@@ -556,6 +577,51 @@ async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_ESP32_BLE_MAX_CONNECTIONS", max_connections)
 
     request_bluetooth()
+
+    # Replace Bluedroid's only two sscanf callers so the C library's scanf engine is
+    # not linked; see bluedroid_hex_wraps.cpp. The ROM only provides sscanf for newlib,
+    # which IDF 6.0 replaced with picolibc.
+    if not CORE.using_arduino and (
+        idf_version() >= cv.Version(6, 0, 0)
+        or get_esp32_variant() not in ROM_SSCANF_VARIANTS
+    ):
+        cg.add_define("USE_ESP32_BLE_BLUEDROID_HEX_WRAPS")
+        _wrap_bluedroid_symbols("btc_config_get_bin", "string_to_bdaddr")
+        # The headers only feed bluedroid_hex_wraps.cpp's ESP-IDF drift checks
+        add_src_cmake(bluedroid_headers_cmake("bluedroid_hex_wraps.cpp"))
+
+    # ESP-IDF 5.5.6 and 6.1.1 drop bond keys on re-encryption (see bluedroid_bond_keys.c). Needs
+    # the native toolchain for Bluedroid's private headers; Windows response files lose them.
+    if (
+        CORE.using_toolchain_esp_idf
+        and not IS_WINDOWS
+        and _drops_bond_keys(idf_version())
+    ):
+        cg.add_define("USE_ESP32_BLE_BLUEDROID_BOND_KEYS")
+        _wrap_bluedroid_symbols("smp_check_auth_req", "btm_sec_clear_ble_keys")
+        add_src_cmake(bluedroid_headers_cmake("bluedroid_bond_keys.c"))
+
+    # Bluedroid runs a queued MTU or execute write request that fails at once again until the BTU task stack
+    # overflows (see bluedroid_gattc_queue.c); every ESP-IDF release so far. Private headers, as above.
+    if (
+        CORE.using_toolchain_esp_idf
+        and not IS_WINDOWS
+        and _has_gatt_client(CORE.config)
+    ):
+        cg.add_define("USE_ESP32_BLE_BLUEDROID_GATTC_QUEUE")
+        _wrap_bluedroid_symbols(
+            "bta_gattc_cfg_mtu",
+            "bta_gattc_execute",
+            "GATTC_ConfigureMTU",
+            "GATTC_ExecuteWrite",
+        )
+        add_src_cmake(bluedroid_headers_cmake("bluedroid_gattc_queue.c"))
+
+    # ESP-IDF 5.5.6, 6.0.3 and 6.1.1 end GATT discovery on a response listing handles out of order
+    # (see bluedroid_gattc_order.cpp). It needs no Bluedroid headers, so any toolchain works.
+    if _has_gatt_client(CORE.config) and _has_strict_handle_order(idf_version()):
+        cg.add_define("USE_ESP32_BLE_GATTC_HANDLE_ORDER")
+        _wrap_bluedroid_symbols("gatt_client_handle_server_rsp")
 
     # When PSRAM and BT are used together, Bluedroid should prefer SPIRAM for
     # heap allocations and use dynamic (heap-based) environment memory tables
@@ -613,31 +679,48 @@ async def to_code(config: ConfigType) -> None:
         cg.add_define("USE_ESP32_BLE_UUID")
 
 
-automation.register_bare_condition(
-    "ble.enabled",
-    BLEEnabledCondition,
-    cv.Schema({}),
-)
+BLE_AUTOMATION_SCHEMA = cv.Schema({cv.GenerateID(): cv.use_id(ESP32BLE)})
+
+automation.register_apply_condition("ble.enabled", BLE_AUTOMATION_SCHEMA, "is_active()")
+
+for _name, _call in (("ble.enable", "enable()"), ("ble.disable", "disable()")):
+    automation.register_apply_action(
+        _name, BLE_AUTOMATION_SCHEMA, automation.ApplyCall(_call)
+    )
 
 
-automation.register_bare_action(
-    "ble.enable",
-    BLEEnableAction,
-    cv.Schema({}),
-    synchronous=True,
-)
+def _has_gatt_client(config: ConfigType) -> bool:
+    """Whether Bluedroid's GATT client is built: the tracker (and bluetooth_proxy) or esp32_ble_client."""
+    return "esp32_ble_tracker" in config or "esp32_ble_client" in config
 
 
-automation.register_bare_action(
-    "ble.disable",
-    BLEDisableAction,
-    cv.Schema({}),
-    synchronous=True,
-)
+def _drops_bond_keys(version: cv.Version) -> bool:
+    """Whether this ESP-IDF clears a bonded device's keys when it re-encrypts."""
+    return cv.Version(5, 5, 6) <= version < cv.Version(
+        6, 0, 0
+    ) or version >= cv.Version(6, 1, 1)
+
+
+def _has_strict_handle_order(version: cv.Version) -> bool:
+    """Whether this ESP-IDF rejects discovery responses whose handles are out of order.
+
+    ESP-IDF 6.1.0 was released before the check reached the 6.1 line.
+    """
+    return (
+        cv.Version(5, 5, 6) <= version < cv.Version(6, 0, 0)
+        or cv.Version(6, 0, 3) <= version < cv.Version(6, 1, 0)
+        or version >= cv.Version(6, 1, 1)
+    )
 
 
 # ble_advertising.cpp is fully #ifdef'd on USE_ESP32_BLE_ADVERTISING, set
 # when advertising is enabled here or by esp32_ble_server / esp32_ble_beacon.
 FILTER_SOURCE_FILES = filter_source_files_from_defines(
-    {"ble_advertising.cpp": "USE_ESP32_BLE_ADVERTISING"}
+    {
+        "ble_advertising.cpp": "USE_ESP32_BLE_ADVERTISING",
+        "bluedroid_hex_wraps.cpp": "USE_ESP32_BLE_BLUEDROID_HEX_WRAPS",
+        "bluedroid_bond_keys.c": "USE_ESP32_BLE_BLUEDROID_BOND_KEYS",
+        "bluedroid_gattc_queue.c": "USE_ESP32_BLE_BLUEDROID_GATTC_QUEUE",
+        "bluedroid_gattc_order.cpp": "USE_ESP32_BLE_GATTC_HANDLE_ORDER",
+    }
 )

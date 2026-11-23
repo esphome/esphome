@@ -1,0 +1,59 @@
+# One fixed entity_id entity and one wizard-linked entity (no entity_id) per homeassistant platform that a wizard
+# input can stand for, on top of the three buttons of ha-button-common.yaml, on an ESP8266 (the ramchk interval reads
+# the ESP8266 heap). run.sh adds esphome name and board, and ha-wiz-light.yaml unless NO_LIGHT is set.
+packages:
+  buttons: !include ../homeassistant_button/ha-button-common.yaml
+
+api:
+  wizard:
+    pages:
+      - inputs:
+          - entity: s_wiz
+          - entity: sa_wiz
+          - entity: b_wiz
+          - entity: t_wiz
+          - entity: n_wiz
+          - entity: sw_wiz
+          - entity: sel_wiz
+          - entity: tx_wiz
+
+# Free heap every 5 s, and the heap size, for static + heap used
+interval:
+  - interval: 5s
+    then:
+      - lambda: |-
+          uint32_t heap_size = 0x3FFFC000u - reinterpret_cast<uint32_t>(&_heap_start);
+          ESP_LOGI("ramchk", "heap_size=%u free=%u max_block=%u", heap_size, ESP.getFreeHeap(), ESP.getMaxFreeBlockSize());
+
+# homeassistant entities are internal by default; internal: false lets the API client list and drive them
+sensor:
+  - {platform: homeassistant, id: s_fix, internal: false, name: S fix, entity_id: sensor.outside}
+  - {platform: homeassistant, id: s_wiz, internal: false, name: S wiz}
+  - {platform: homeassistant, id: sa_wiz, internal: false, name: SA wiz, attribute: temperature}
+
+binary_sensor:
+  - {platform: homeassistant, id: b_fix, internal: false, name: B fix, entity_id: binary_sensor.door}
+  - {platform: homeassistant, id: b_wiz, internal: false, name: B wiz}
+
+text_sensor:
+  - {platform: homeassistant, id: t_fix, internal: false, name: T fix, entity_id: sensor.weather}
+  - {platform: homeassistant, id: t_wiz, internal: false, name: T wiz}
+
+number:
+  - {platform: homeassistant, id: n_fix, internal: false, name: N fix, entity_id: input_number.target}
+  - {platform: homeassistant, id: n_wiz, internal: false, name: N wiz}
+
+switch:
+  - {platform: homeassistant, id: sw_fix, internal: false, name: SW fix, entity_id: switch.porch}
+  - {platform: homeassistant, id: sw_wiz, internal: false, name: SW wiz}
+
+select:
+  - {platform: homeassistant, id: sel_fix, internal: false, name: SEL fix, entity_id: input_select.mode}
+  - {platform: homeassistant, id: sel_wiz, internal: false, name: SEL wiz}
+
+text:
+  - {platform: homeassistant, id: tx_fix, internal: false, name: TX fix, entity_id: input_text.note}
+  - {platform: homeassistant, id: tx_wiz, internal: false, name: TX wiz}
+
+light:
+  - {platform: homeassistant, id: l_fix, internal: false, name: L fix, entity_id: light.kitchen}

@@ -6,6 +6,7 @@
 #include "esphome/core/helpers.h"
 #ifdef USE_ESP32
 #include <esp_sleep.h>
+#include "soc/soc_caps.h"
 #endif
 
 #ifdef USE_TIME
@@ -42,7 +43,7 @@ struct WakeUpPinItem {
 #endif  // USE_BK72XX
 
 #ifdef USE_ESP32
-#if defined(USE_ESP32) && !defined(USE_ESP32_VARIANT_ESP32C2) && !defined(USE_ESP32_VARIANT_ESP32C3)
+#if SOC_PM_SUPPORT_EXT1_WAKEUP
 struct Ext1Wakeup {
   uint64_t mask;
   esp_sleep_ext1_wakeup_mode_t wakeup_mode;
@@ -60,8 +61,6 @@ struct WakeupCauseToRunDuration {
 
 #endif  // USE_ESP32
 
-#ifdef USE_DEEP_SLEEP_ON_WAKE
-
 /// Why the device woke from deep sleep. Passed to on_wake automations.
 enum WakeupCause : uint8_t {
   /// The device did not wake from deep sleep (for example a cold boot, reset or OTA restart).
@@ -78,6 +77,11 @@ enum WakeupCause : uint8_t {
 
 /// Return why the device woke from deep sleep. Implemented per platform.
 WakeupCause get_wakeup_cause();
+
+/// Return true when this boot is a wake from deep sleep.
+inline bool woke_from_deep_sleep() { return get_wakeup_cause() != WAKEUP_CAUSE_NONE; }
+
+#ifdef USE_DEEP_SLEEP_ON_WAKE
 
 /** Setup priority of on_wake triggers.
  *
@@ -99,7 +103,7 @@ class WakeTrigger : public Trigger<WakeupCause>, public Component {
   float get_setup_priority() const override { return ON_WAKE_TRIGGER_SETUP_PRIORITY; }
 };
 
-#if defined(USE_ESP32) && !defined(USE_ESP32_VARIANT_ESP32C2) && !defined(USE_ESP32_VARIANT_ESP32C3)
+#if defined(USE_ESP32) && SOC_PM_SUPPORT_EXT1_WAKEUP
 /// Fires once on boot when the device was woken from deep sleep by the given ext1 pin.
 class Ext1WakeTrigger : public Trigger<>, public Component {
  public:
@@ -119,8 +123,6 @@ class Ext1WakeTrigger : public Trigger<>, public Component {
 
 #endif  // USE_DEEP_SLEEP_ON_WAKE
 
-template<typename... Ts> class EnterDeepSleepAction;
-
 /** This component allows setting up the node to go into deep sleep mode to conserve battery.
  *
  * To set this component up, first set *when* the deep sleep should trigger using set_run_cycles
@@ -131,13 +133,17 @@ class DeepSleepComponent final : public Component {
  public:
   /// Set the duration in ms the component should sleep once it's in deep sleep mode.
   void set_sleep_duration(uint32_t time_ms) { this->sleep_duration_ = uint64_t(time_ms) * 1000; }
+#ifdef USE_TIME
+  /// Set the sleep duration to end at the next hour:minute:second local time on the clock.
+  void set_sleep_until(time::RealTimeClock *clock, uint8_t hour, uint8_t minute, uint8_t second);
+#endif
 #if defined(USE_ESP32)
   /** Set the pin to wake up to on the ESP32 once it's in deep sleep mode.
    * Use the inverted property to set the wakeup level.
    */
   void set_wakeup_pin(InternalGPIOPin *pin) { this->wakeup_pin_ = pin; }
 
-  void set_wakeup_pin_mode(WakeupPinMode wakeup_pin_mode);
+  void set_wakeup_pin_mode(WakeupPinMode wakeup_pin_mode) { this->wakeup_pin_mode_ = wakeup_pin_mode; }
 #endif  // USE_ESP32
 
 #if defined(USE_BK72XX)
@@ -148,19 +154,19 @@ class DeepSleepComponent final : public Component {
 #endif  // USE_BK72XX
 
 #if defined(USE_ESP32)
-#if !defined(USE_ESP32_VARIANT_ESP32C2) && !defined(USE_ESP32_VARIANT_ESP32C3)
-  void set_ext1_wakeup(Ext1Wakeup ext1_wakeup);
+#if SOC_PM_SUPPORT_EXT1_WAKEUP
+  void set_ext1_wakeup(Ext1Wakeup ext1_wakeup) { this->ext1_wakeup_ = ext1_wakeup; }
 #endif
 
-#if !defined(USE_ESP32_VARIANT_ESP32C2) && !defined(USE_ESP32_VARIANT_ESP32C3) && \
-    !defined(USE_ESP32_VARIANT_ESP32C5) && !defined(USE_ESP32_VARIANT_ESP32C6) && \
-    !defined(USE_ESP32_VARIANT_ESP32C61) && !defined(USE_ESP32_VARIANT_ESP32H2)
+#if SOC_PM_SUPPORT_TOUCH_SENSOR_WAKEUP
   void set_touch_wakeup(bool touch_wakeup) { this->touch_wakeup_ = touch_wakeup; }
 #endif
 
   // Set the duration in ms for how long the code should run before entering
   // deep sleep mode, according to the cause the ESP32 has woken.
-  void set_run_duration(WakeupCauseToRunDuration wakeup_cause_to_run_duration);
+  void set_run_duration(WakeupCauseToRunDuration wakeup_cause_to_run_duration) {
+    this->wakeup_cause_to_run_duration_ = wakeup_cause_to_run_duration;
+  }
 #endif  // USE_ESP32
 
   /// Set a duration in ms for how long the code should run before entering deep sleep mode.
@@ -194,6 +200,7 @@ class DeepSleepComponent final : public Component {
   }
 
 #ifdef USE_BK72XX
+  void setup_wakeup_pins_();
   bool pin_prevents_sleep_(WakeUpPinItem &pin_item) const;
   bool get_real_pin_state_(InternalGPIOPin &pin) const { return (pin.digital_read() ^ pin.is_inverted()); }
 #endif  // USE_BK72XX
@@ -208,7 +215,7 @@ class DeepSleepComponent final : public Component {
   InternalGPIOPin *wakeup_pin_{nullptr};
   WakeupPinMode wakeup_pin_mode_{WAKEUP_PIN_MODE_IGNORE};
 
-#if !defined(USE_ESP32_VARIANT_ESP32C2) && !defined(USE_ESP32_VARIANT_ESP32C3)
+#if SOC_PM_SUPPORT_EXT1_WAKEUP
   optional<Ext1Wakeup> ext1_wakeup_;
 #endif
 
@@ -223,77 +230,5 @@ class DeepSleepComponent final : public Component {
 };
 
 extern bool global_has_deep_sleep;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-
-template<typename... Ts> class EnterDeepSleepAction final : public Action<Ts...> {
- public:
-  EnterDeepSleepAction(DeepSleepComponent *deep_sleep) : deep_sleep_(deep_sleep) {}
-  TEMPLATABLE_VALUE(uint32_t, sleep_duration);
-
-#ifdef USE_TIME
-  void set_until(uint8_t hour, uint8_t minute, uint8_t second) {
-    this->hour_ = hour;
-    this->minute_ = minute;
-    this->second_ = second;
-  }
-
-  void set_time(time::RealTimeClock *time) { this->time_ = time; }
-#endif
-
-  void play(const Ts &...x) override {
-    if (this->sleep_duration_.has_value()) {
-      this->deep_sleep_->set_sleep_duration(this->sleep_duration_.value(x...));
-    }
-#ifdef USE_TIME
-
-    if (this->hour_.has_value()) {
-      auto time = this->time_->now();
-      const uint32_t timestamp_now = time.timestamp;
-
-      bool after_time = false;
-      if (time.hour > this->hour_) {
-        after_time = true;
-      } else {
-        if (time.hour == this->hour_) {
-          if (time.minute > this->minute_) {
-            after_time = true;
-          } else {
-            if (time.minute == this->minute_) {
-              if (time.second > this->second_) {
-                after_time = true;
-              }
-            }
-          }
-        }
-      }
-
-      time.hour = *this->hour_;
-      time.minute = *this->minute_;
-      time.second = *this->second_;
-      time.recalc_timestamp_utc();
-
-      time_t timestamp = time.timestamp;  // timestamp in local time zone
-
-      if (after_time)
-        timestamp += 60 * 60 * 24;
-
-      int32_t offset = ESPTime::timezone_offset();
-      timestamp -= offset;  // Change timestamp to utc
-      const uint32_t ms_left = (timestamp - timestamp_now) * 1000;
-      this->deep_sleep_->set_sleep_duration(ms_left);
-    }
-#endif
-    this->deep_sleep_->begin_sleep(true);
-  }
-
- protected:
-  DeepSleepComponent *deep_sleep_;
-#ifdef USE_TIME
-  optional<uint8_t> hour_;
-  optional<uint8_t> minute_;
-  optional<uint8_t> second_;
-
-  time::RealTimeClock *time_;
-#endif
-};
 
 }  // namespace esphome::deep_sleep

@@ -4,7 +4,6 @@ from typing import Any
 
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components import mqtt, web_server, zigbee
 from esphome.components.const import CONF_B_CONSTANT
 from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
@@ -39,15 +38,16 @@ from esphome.const import (
     CONF_REFERENCE_TEMPERATURE,
     CONF_SEND_EVERY,
     CONF_SEND_FIRST_AT,
+    CONF_SENSOR_ID,
     CONF_STATE_CLASS,
     CONF_TEMPERATURE,
+    CONF_TEMPERATURE_OFFSET,
     CONF_TIMEOUT,
     CONF_TO,
     CONF_TRIGGER_ID,
-    CONF_TYPE_ID,
     CONF_UNIT_OF_MEASUREMENT,
+    CONF_USE_FAHRENHEIT,
     CONF_VALUE,
-    CONF_WEB_SERVER,
     CONF_WINDOW_SIZE,
     DEVICE_CLASS_ABSOLUTE_HUMIDITY,
     DEVICE_CLASS_APPARENT_POWER,
@@ -112,12 +112,57 @@ from esphome.const import (
     DEVICE_CLASS_WIND_DIRECTION,
     DEVICE_CLASS_WIND_SPEED,
     ENTITY_CATEGORY_CONFIG,
+    ICON_CHEMICAL_WEAPON,
+    ICON_MAGNET,
+    ICON_RADIATOR,
+    ICON_TIMER,
+    STATE_CLASS_MEASUREMENT,
+    STATE_CLASS_TOTAL_INCREASING,
+    UNIT_AMPERE,
+    UNIT_CELSIUS,
+    UNIT_DECIBEL_MILLIWATT,
+    UNIT_DEGREES,
+    UNIT_HECTOPASCAL,
+    UNIT_HERTZ,
+    UNIT_HOUR,
+    UNIT_KILOVOLT_AMPS,
+    UNIT_KILOVOLT_AMPS_REACTIVE,
+    UNIT_KILOVOLT_AMPS_REACTIVE_HOURS,
+    UNIT_KILOWATT,
+    UNIT_KILOWATT_HOURS,
+    UNIT_LUX,
+    UNIT_METER,
+    UNIT_MICROGRAMS_PER_CUBIC_METER,
+    UNIT_MICROTESLA,
+    UNIT_MILLIMETER,
+    UNIT_MINUTE,
+    UNIT_OHM,
+    UNIT_PARTS_PER_BILLION,
+    UNIT_PARTS_PER_MILLION,
+    UNIT_PERCENT,
+    UNIT_SECOND,
+    UNIT_VOLT,
+    UNIT_VOLT_AMPS,
+    UNIT_VOLT_AMPS_REACTIVE,
+    UNIT_WATT,
+    UNIT_WATT_HOURS,
 )
-from esphome.core import CORE, ID, CoroPriority, Lambda, coroutine_with_priority
+from esphome.core import (
+    CORE,
+    ID,
+    CoroPriority,
+    Lambda,
+    coroutine_with_priority,
+    entity_helpers,
+)
 from esphome.core.config import UNIT_OF_MEASUREMENT_MAX_LENGTH
 from esphome.core.entity_helpers import (
+    FollowEntity,
     SubEntities,
     entity_duplicate_validator,
+    lazy_load_setup,
+    lazy_load_validator,
+    mqtt_component_class,
     queue_entity_register,
     setup_device_class,
     setup_entity,
@@ -286,8 +331,10 @@ ExponentialMovingAverageFilter = sensor_ns.class_(
     "ExponentialMovingAverageFilter", Filter
 )
 ThrottleAverageFilter = sensor_ns.class_("ThrottleAverageFilter", Filter)
-LambdaFilter = sensor_ns.class_("LambdaFilter", Filter)
-StatelessLambdaFilter = sensor_ns.class_("StatelessLambdaFilter", Filter)
+ApplyFilter = sensor_ns.class_("ApplyFilter", Filter)
+APPLY_FILTER = automation.ApplyFilterDomain(
+    FILTER_REGISTRY, ApplyFilter, cg.optional.template(cg.float_), ((cg.float_, "x"),)
+)
 OffsetFilter = sensor_ns.class_("OffsetFilter", Filter)
 MultiplyFilter = sensor_ns.class_("MultiplyFilter", Filter)
 ValueListFilter = sensor_ns.class_("ValueListFilter", Filter)
@@ -310,8 +357,8 @@ OrFilter = sensor_ns.class_("OrFilter", Filter)
 CalibrateLinearFilter = sensor_ns.class_("CalibrateLinearFilter", Filter)
 ToNTCResistanceFilter = sensor_ns.class_("ToNTCResistanceFilter", Filter)
 ToNTCTemperatureFilter = sensor_ns.class_("ToNTCTemperatureFilter", Filter)
+RHCorrectionFilter = sensor_ns.class_("RHCorrectionFilter", Filter)
 CalibratePolynomialFilter = sensor_ns.class_("CalibratePolynomialFilter", Filter)
-SensorInRangeCondition = sensor_ns.class_("SensorInRangeCondition", Filter)
 ClampFilter = sensor_ns.class_("ClampFilter", Filter)
 RoundFilter = sensor_ns.class_("RoundFilter", Filter)
 RoundMultipleFilter = sensor_ns.class_("RoundMultipleFilter", Filter)
@@ -327,12 +374,14 @@ validate_icon = cv.icon
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
 
 _SENSOR_SCHEMA = (
-    cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
+    cv.ENTITY_BASE_SCHEMA.extend(entity_helpers.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMPONENT_SCHEMA)
-    .extend(zigbee.SENSOR_SCHEMA)
+    .extend(entity_helpers.ZIGBEE_SENSOR_SCHEMA)
     .extend(
         {
-            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTSensorComponent),
+            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(
+                mqtt_component_class("MQTTSensorComponent")
+            ),
             cv.GenerateID(): cv.declare_id(Sensor),
             cv.Optional(
                 CONF_UNIT_OF_MEASUREMENT, visibility=cv.Visibility.ADVANCED
@@ -374,12 +423,129 @@ _SENSOR_SCHEMA = (
 )
 
 _SENSOR_SCHEMA.add_extra(entity_duplicate_validator("sensor"))
-_SENSOR_SCHEMA.add_extra(zigbee.validate_sensor)
+_SENSOR_SCHEMA.add_extra(lazy_load_validator("zigbee", "validate_sensor"))
+
+
+class SensorKind:
+    """Values `sensor_schema(kind=...)` sets; unset fields are left to the caller.
+
+    `state_class` (measurement unless the kind says otherwise) and `accuracy_decimals` are
+    defaults, as sensors differ; the caller's value wins. Passing any other field the kind
+    sets is an error. A plain class, not a NamedTuple, which costs more to import.
+    """
+
+    __slots__ = (
+        "unit_of_measurement",
+        "device_class",
+        "state_class",
+        "icon",
+        "accuracy_decimals",
+    )
+
+    def __init__(
+        self,
+        unit_of_measurement: str = cv.UNDEFINED,
+        device_class: str = cv.UNDEFINED,
+        state_class: str = STATE_CLASS_MEASUREMENT,
+        icon: str = cv.UNDEFINED,
+        accuracy_decimals: int = cv.UNDEFINED,
+    ) -> None:
+        self.unit_of_measurement = unit_of_measurement
+        self.device_class = device_class
+        self.state_class = state_class
+        self.icon = icon
+        self.accuracy_decimals = accuracy_decimals
+
+
+TEMPERATURE = SensorKind(UNIT_CELSIUS, DEVICE_CLASS_TEMPERATURE, accuracy_decimals=1)
+HUMIDITY = SensorKind(UNIT_PERCENT, DEVICE_CLASS_HUMIDITY, accuracy_decimals=1)
+BATTERY = SensorKind(UNIT_PERCENT, DEVICE_CLASS_BATTERY, accuracy_decimals=0)
+PRESSURE = SensorKind(UNIT_HECTOPASCAL, DEVICE_CLASS_PRESSURE, accuracy_decimals=1)
+ILLUMINANCE = SensorKind(UNIT_LUX, DEVICE_CLASS_ILLUMINANCE, accuracy_decimals=0)
+CARBON_DIOXIDE = SensorKind(
+    UNIT_PARTS_PER_MILLION, DEVICE_CLASS_CARBON_DIOXIDE, accuracy_decimals=0
+)
+MASS_CONCENTRATION = SensorKind(UNIT_MICROGRAMS_PER_CUBIC_METER, accuracy_decimals=0)
+VOC_PPB = SensorKind(
+    UNIT_PARTS_PER_BILLION,
+    DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS,
+    icon=ICON_RADIATOR,
+    accuracy_decimals=0,
+)
+
+
+def _particulate(device_class: str) -> SensorKind:
+    return SensorKind(
+        UNIT_MICROGRAMS_PER_CUBIC_METER,
+        device_class,
+        icon=ICON_CHEMICAL_WEAPON,
+        accuracy_decimals=0,
+    )
+
+
+PM1 = _particulate(DEVICE_CLASS_PM1)
+PM25 = _particulate(DEVICE_CLASS_PM25)
+PM10 = _particulate(DEVICE_CLASS_PM10)
+SIGNAL_STRENGTH = SensorKind(
+    UNIT_DECIBEL_MILLIWATT, DEVICE_CLASS_SIGNAL_STRENGTH, accuracy_decimals=0
+)
+VOLTAGE = SensorKind(UNIT_VOLT, DEVICE_CLASS_VOLTAGE)
+CURRENT = SensorKind(UNIT_AMPERE, DEVICE_CLASS_CURRENT)
+FREQUENCY = SensorKind(UNIT_HERTZ, DEVICE_CLASS_FREQUENCY)
+POWER = SensorKind(UNIT_WATT, DEVICE_CLASS_POWER)
+POWER_KW = SensorKind(UNIT_KILOWATT, DEVICE_CLASS_POWER, accuracy_decimals=3)
+APPARENT_POWER = SensorKind(UNIT_VOLT_AMPS, DEVICE_CLASS_APPARENT_POWER)
+APPARENT_POWER_KVA = SensorKind(
+    UNIT_KILOVOLT_AMPS, DEVICE_CLASS_APPARENT_POWER, accuracy_decimals=3
+)
+REACTIVE_POWER = SensorKind(UNIT_VOLT_AMPS_REACTIVE, DEVICE_CLASS_REACTIVE_POWER)
+REACTIVE_POWER_KVAR = SensorKind(
+    UNIT_KILOVOLT_AMPS_REACTIVE, DEVICE_CLASS_REACTIVE_POWER, accuracy_decimals=3
+)
+POWER_FACTOR = SensorKind(device_class=DEVICE_CLASS_POWER_FACTOR)
+ENERGY_WH = SensorKind(
+    UNIT_WATT_HOURS, DEVICE_CLASS_ENERGY, STATE_CLASS_TOTAL_INCREASING
+)
+ENERGY_KWH = SensorKind(
+    UNIT_KILOWATT_HOURS,
+    DEVICE_CLASS_ENERGY,
+    STATE_CLASS_TOTAL_INCREASING,
+    accuracy_decimals=3,
+)
+# No device class, matching the meters that report it today.
+REACTIVE_ENERGY_KVARH = SensorKind(
+    UNIT_KILOVOLT_AMPS_REACTIVE_HOURS,
+    state_class=STATE_CLASS_TOTAL_INCREASING,
+    accuracy_decimals=3,
+)
+DISTANCE_MM = SensorKind(UNIT_MILLIMETER, DEVICE_CLASS_DISTANCE, accuracy_decimals=0)
+DURATION_H = SensorKind(
+    UNIT_HOUR, DEVICE_CLASS_DURATION, icon=ICON_TIMER, accuracy_decimals=0
+)
+DURATION_MIN = SensorKind(UNIT_MINUTE, DEVICE_CLASS_DURATION, accuracy_decimals=0)
+DURATION_S = SensorKind(UNIT_SECOND, DEVICE_CLASS_DURATION, accuracy_decimals=0)
+# Generic quantities with no device class.
+PERCENT = SensorKind(UNIT_PERCENT, accuracy_decimals=0)
+ANGLE = SensorKind(UNIT_DEGREES)
+LENGTH_M = SensorKind(UNIT_METER, accuracy_decimals=2)
+RESISTANCE = SensorKind(UNIT_OHM, accuracy_decimals=0)
+MAGNETIC_FIELD = SensorKind(UNIT_MICROTESLA, icon=ICON_MAGNET)
+
+
+def _kind_value(kind: SensorKind, name: str, value: Any) -> Any:
+    """The kind's value for `name`, or the caller's if the kind leaves it unset."""
+    preset = getattr(kind, name)
+    if preset is cv.UNDEFINED:
+        return value
+    if value is not cv.UNDEFINED:
+        raise ValueError(f"kind already sets {name}")
+    return preset
 
 
 def sensor_schema(
     class_: MockObjClass = cv.UNDEFINED,
     *,
+    kind: SensorKind = cv.UNDEFINED,
     unit_of_measurement: str = cv.UNDEFINED,
     icon: str = cv.UNDEFINED,
     accuracy_decimals: int = cv.UNDEFINED,
@@ -388,6 +554,18 @@ def sensor_schema(
     entity_category: str = cv.UNDEFINED,
     filters: list = cv.UNDEFINED,
 ) -> cv.Schema:
+    """Sensor schema; `kind` presets the unit, device class, state class, icon and decimals."""
+    if kind is not cv.UNDEFINED:
+        unit_of_measurement = _kind_value(
+            kind, "unit_of_measurement", unit_of_measurement
+        )
+        device_class = _kind_value(kind, "device_class", device_class)
+        icon = _kind_value(kind, "icon", icon)
+        if state_class is cv.UNDEFINED:
+            state_class = kind.state_class
+        if accuracy_decimals is cv.UNDEFINED:
+            accuracy_decimals = kind.accuracy_decimals
+
     schema = {}
 
     if class_ is not cv.UNDEFINED:
@@ -623,12 +801,12 @@ async def throttle_average_filter_to_code(config, filter_id):
     return cg.new_Pvariable(filter_id, config)
 
 
-@FILTER_REGISTRY.register("lambda", LambdaFilter, cv.returning_lambda)
+@FILTER_REGISTRY.register("lambda", ApplyFilter, cv.returning_lambda)
 async def lambda_filter_to_code(config, filter_id):
     lambda_ = await cg.process_lambda(
-        config, [(float, "x")], return_type=cg.optional.template(float)
+        config, [(float, "x")], return_type=APPLY_FILTER.return_type
     )
-    return automation.new_lambda_pvariable(filter_id, lambda_, StatelessLambdaFilter)
+    return APPLY_FILTER.new(filter_id, lambda_.body_lines)
 
 
 def validate_delta_value(value):
@@ -675,10 +853,9 @@ async def delta_filter_to_code(config, filter_id):
     else:
         min = _get_delta(config)
     var = cg.new_Pvariable(filter_id, *min, *max)
-    if isinstance(config, dict) and (baseline_lambda := config.get(CONF_BASELINE)):
-        baseline = await cg.process_lambda(
-            baseline_lambda, [(float, "x")], return_type=float
-        )
+    if isinstance(config, dict) and (baseline := config.get(CONF_BASELINE)) is not None:
+        # A plain number is wrapped in a lambda that returns it
+        baseline = await cg.templatable(baseline, [(float, "x")], float)
         cg.add(var.set_baseline(baseline))
     return var
 
@@ -811,12 +988,13 @@ def validate_calibrate_linear(config):
                 raise cv.Invalid(
                     "The 'from' values of the calibrate_linear filter must not contain duplicates."
                 )
-    elif config[CONF_METHOD] == "least_squares":
-        if all(conf[CONF_FROM] == datapoints[0][CONF_FROM] for conf in datapoints):
-            raise cv.Invalid(
-                "The 'from' values of the calibrate_linear filter cannot all point "
-                "to the same value! Please add more values to the filter."
-            )
+    elif config[CONF_METHOD] == "least_squares" and all(
+        conf[CONF_FROM] == datapoints[0][CONF_FROM] for conf in datapoints
+    ):
+        raise cv.Invalid(
+            "The 'from' values of the calibrate_linear filter cannot all point "
+            "to the same value! Please add more values to the filter."
+        )
     return config
 
 
@@ -995,26 +1173,17 @@ def _timeout_throttle_period(
     return timeout[CONF_TIMEOUT]
 
 
+def _timeout_throttle_merge(first: ConfigType, second: ConfigType) -> tuple | None:
+    if (period := _timeout_throttle_period(first, second)) is None:
+        return None
+    return TimeoutThrottleFilter, [period]
+
+
 async def _build_chain_filters(config: list[ConfigType]) -> list:
     """Like build_filters, but merges the radar `timeout` + `throttle_with_priority` pair into one filter."""
-    filters = []
-    i = 0
-    while i < len(config):
-        if (
-            i + 1 < len(config)
-            and (period := _timeout_throttle_period(config[i], config[i + 1]))
-            is not None
-        ):
-            filter_id = config[i][CONF_TYPE_ID].copy()
-            filter_id.type = TimeoutThrottleFilter
-            var = cg.new_Pvariable(filter_id, period)
-            await cg.register_component(var, {})
-            filters.append(var)
-            i += 2
-            continue
-        filters.append(await cg.build_registry_entry(FILTER_REGISTRY, config[i]))
-        i += 1
-    return filters
+    return await cg.build_registry_list_merged(
+        FILTER_REGISTRY, config, _timeout_throttle_merge
+    )
 
 
 _CALLBACK_AUTOMATIONS = (
@@ -1031,14 +1200,10 @@ _CALLBACK_AUTOMATIONS = (
 async def _build_sensor_automations(var, config):
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
     for conf in config.get(CONF_ON_VALUE_RANGE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        trigger = await automation.new_value_range_trigger(
+            conf[CONF_TRIGGER_ID], var, conf
+        )
         await cg.register_component(trigger, conf)
-        if (above := conf.get(CONF_ABOVE)) is not None:
-            template_ = await cg.templatable(above, [(float, "x")], cg.float_)
-            cg.add(trigger.set_min(template_))
-        if (below := conf.get(CONF_BELOW)) is not None:
-            template_ = await cg.templatable(below, [(float, "x")], cg.float_)
-            cg.add(trigger.set_max(template_))
         await automation.build_automation(trigger, [(float, "x")], conf)
 
 
@@ -1046,10 +1211,8 @@ async def _build_sensor_automations(var, config):
 async def setup_sensor_core_(var, config):
     setup_device_class(config)
     setup_unit_of_measurement(config)
-    if (state_class := config.get(CONF_STATE_CLASS)) is not None:
-        cg.add(var.set_state_class(state_class))
-    if (accuracy_decimals := config.get(CONF_ACCURACY_DECIMALS)) is not None:
-        cg.add(var.set_accuracy_decimals(accuracy_decimals))
+    cg.add_optional(var.set_state_class, config.get(CONF_STATE_CLASS))
+    cg.add_optional(var.set_accuracy_decimals, config.get(CONF_ACCURACY_DECIMALS))
     # Only set force_update if True (default is False)
     if config[CONF_FORCE_UPDATE]:
         cg.add(var.set_force_update(True))
@@ -1061,22 +1224,17 @@ async def setup_sensor_core_(var, config):
 
     CORE.add_job(_build_sensor_automations, var, config)
 
-    if (mqtt_id := config.get(CONF_MQTT_ID)) is not None:
-        mqtt_ = cg.new_Pvariable(mqtt_id, var)
-        await mqtt.register_mqtt_component(mqtt_, config)
+    mqtt_ = await entity_helpers.setup_entity_integrations(var, config)
+    if mqtt_ is not None and (
+        (expire_after := config.get(CONF_EXPIRE_AFTER, cv.UNDEFINED))
+        is not cv.UNDEFINED
+    ):
+        if expire_after is None:
+            cg.add(mqtt_.disable_expire_after())
+        else:
+            cg.add(mqtt_.set_expire_after(expire_after))
 
-        if (
-            expire_after := config.get(CONF_EXPIRE_AFTER, cv.UNDEFINED)
-        ) is not cv.UNDEFINED:
-            if expire_after is None:
-                cg.add(mqtt_.disable_expire_after())
-            else:
-                cg.add(mqtt_.set_expire_after(expire_after))
-
-    if web_server_config := config.get(CONF_WEB_SERVER):
-        await web_server.add_entity_config(var, web_server_config)
-
-    await zigbee.setup_sensor(var, config)
+    await lazy_load_setup("zigbee", "setup_sensor", var, config)
 
 
 async def register_sensor(var, config):
@@ -1100,6 +1258,10 @@ def sub_sensors(
     return SubEntities(new_sensor, config, parent)
 
 
+# Makes a plain sensor follow another sensor: follow_sensor(entity, source)
+follow_sensor = FollowEntity("add_on_state_callback", ((cg.float_, "x"),), "x")
+
+
 SENSOR_IN_RANGE_CONDITION_SCHEMA = cv.All(
     {
         cv.Required(CONF_ID): cv.use_id(Sensor),
@@ -1110,19 +1272,12 @@ SENSOR_IN_RANGE_CONDITION_SCHEMA = cv.All(
 )
 
 
-@automation.register_condition(
-    "sensor.in_range", SensorInRangeCondition, SENSOR_IN_RANGE_CONDITION_SCHEMA
+automation.register_apply_condition(
+    "sensor.in_range",
+    SENSOR_IN_RANGE_CONDITION_SCHEMA,
+    automation.IN_RANGE_CHECK,
+    defaults=automation.IN_RANGE_DEFAULTS,
 )
-async def sensor_in_range_to_code(config, condition_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(condition_id, template_arg, paren)
-
-    if (above := config.get(CONF_ABOVE)) is not None:
-        cg.add(var.set_min(above))
-    if (below := config.get(CONF_BELOW)) is not None:
-        cg.add(var.set_max(below))
-
-    return var
 
 
 def validate_ntc_calibration_parameter(value):
@@ -1283,6 +1438,23 @@ async def calibrate_ntc_temperature_filter_to_code(config, filter_id):
         calib[CONF_B],
         calib[CONF_C],
     )
+
+
+@FILTER_REGISTRY.register(
+    "rh_correction",
+    RHCorrectionFilter,
+    cv.Schema(
+        {
+            cv.Required(CONF_TEMPERATURE_OFFSET): cv.templatable(cv.float_),
+            cv.Required(CONF_SENSOR_ID): cv.use_id(Sensor),
+            cv.Optional(CONF_USE_FAHRENHEIT, default=False): cv.boolean,
+        }
+    ),
+)
+async def rh_correction_filter_to_code(config: ConfigType, filter_id: ID) -> MockObj:
+    sensor = await cg.get_variable(config[CONF_SENSOR_ID])
+    offset = await cg.templatable(config[CONF_TEMPERATURE_OFFSET], [], cg.float_)
+    return cg.new_Pvariable(filter_id, offset, sensor, config[CONF_USE_FAHRENHEIT])
 
 
 def _mean(xs):

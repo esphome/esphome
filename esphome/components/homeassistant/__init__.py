@@ -1,8 +1,12 @@
 from collections.abc import Callable, Iterable
+from dataclasses import dataclass
 
+from esphome.automation import parent_ref
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_ATTRIBUTE, CONF_ENTITY_ID, CONF_ID, CONF_INTERNAL
+from esphome.core import CORE, coroutine_with_priority
+from esphome.coroutine import CoroPriority
 from esphome.cpp_generator import MockObj
 import esphome.final_validate as fv
 from esphome.types import ConfigType
@@ -10,6 +14,14 @@ from esphome.types import ConfigType
 CODEOWNERS = ["@OttoWinter", "@esphome/core"]
 DOMAIN = "homeassistant"
 homeassistant_ns = cg.esphome_ns.namespace("homeassistant")
+
+# The API server subscribes the imported entities in its setup() and prints their dumps
+IMPORT_SUBSCRIBE = cg.HubFunction(
+    "homeassistant_subscribe", cg.void, [], define="USE_API_HOMEASSISTANT_IMPORTS"
+)
+IMPORT_DUMP = cg.HubFunction(
+    "homeassistant_dump", cg.void, [], define="USE_API_HOMEASSISTANT_IMPORTS"
+)
 
 
 def validate_entity_domain(
@@ -28,18 +40,16 @@ def validate_entity_domain(
     return validator
 
 
-HOME_ASSISTANT_IMPORT_SCHEMA = cv.Schema(
-    {
-        cv.Optional(CONF_ENTITY_ID): cv.entity_id,
-        cv.Optional(CONF_ATTRIBUTE): cv.string,
-        cv.Optional(CONF_INTERNAL, default=True): cv.boolean,
-    }
-)
-
 HOME_ASSISTANT_IMPORT_CONTROL_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_ENTITY_ID): cv.entity_id,
         cv.Optional(CONF_INTERNAL, default=True): cv.boolean,
+    }
+)
+
+HOME_ASSISTANT_IMPORT_SCHEMA = HOME_ASSISTANT_IMPORT_CONTROL_SCHEMA.extend(
+    {
+        cv.Optional(CONF_ATTRIBUTE): cv.string,
     }
 )
 
@@ -59,14 +69,49 @@ def final_validate_entity_id(config: ConfigType) -> ConfigType:
     return config
 
 
-def setup_home_assistant_entity(var: MockObj, config: ConfigType) -> None:
-    from esphome.components.api import wizard
+@dataclass
+class HomeAssistantData:
+    state_subscription_count: int = 0
 
-    if (buffer := wizard.wizard_input_buffer(config[CONF_ID])) is not None:
-        # The entity ID is chosen in the wizard and lives in a buffer the API owns
-        cg.add(var.set_entity_id(cg.RawExpression(buffer)))
-    else:
-        cg.add(var.set_entity_id(config[CONF_ENTITY_ID]))
-    if CONF_ATTRIBUTE in config:
-        cg.add(var.set_attribute(config[CONF_ATTRIBUTE]))
+
+def _get_data() -> HomeAssistantData:
+    if DOMAIN not in CORE.data:
+        CORE.data[DOMAIN] = HomeAssistantData()
+    return CORE.data[DOMAIN]
+
+
+@coroutine_with_priority(CoroPriority.FINAL)
+async def _emit_state_subscription_count_define() -> None:
+    """Emit the HOMEASSISTANT_STATE_SUBSCRIPTION_COUNT define with the total count."""
+    count = _get_data().state_subscription_count
+    if count > 0:
+        cg.add_define("HOMEASSISTANT_STATE_SUBSCRIPTION_COUNT", count)
+
+
+def setup_home_assistant_entity(
+    var: MockObj,
+    config: ConfigType,
+    state_subscription_count: int = 1,
+    services: bool = False,
+) -> None:
+    """Set up an imported entity; services for one that sends actions."""
+    if services:
+        cg.add_define("USE_API_HOMEASSISTANT_SERVICES")
+    # A wizard input has no entity_id; the api wizard sets it
+    cg.add_optional(var.set_entity_id, config.get(CONF_ENTITY_ID))
+    cg.add_optional(var.set_attribute, config.get(CONF_ATTRIBUTE))
     cg.add_define("USE_API_HOMEASSISTANT_STATES")
+    if state_subscription_count > 0:
+        data = _get_data()
+        if data.state_subscription_count == 0:
+            CORE.add_job(_emit_state_subscription_count_define)
+        data.state_subscription_count += state_subscription_count
+
+
+async def register_home_assistant_import(var: MockObj) -> None:
+    """Attach an imported entity to the API server, which subscribes it and prints its dump."""
+    from esphome.components.api import DOMAIN as API_DOMAIN
+
+    api = await cg.get_variable(CORE.config[API_DOMAIN][CONF_ID])
+    IMPORT_SUBSCRIBE.add(api, parent_ref(var).subscribe())
+    IMPORT_DUMP.add(api, parent_ref(var).dump_config())

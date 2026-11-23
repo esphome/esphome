@@ -1,0 +1,51 @@
+# Package: BMI270 `imu` on bus `bus` with its sensors, a VALUES line every ${values_every} and the probe.hpp register
+# dump and heap every 20 s. Shared by common.yaml and ../tca9548a_real/tca.yaml; variants change `imu` with !extend.
+motion:
+  - platform: bmi270
+    id: imu
+    i2c_id: bus
+    update_interval: 1s
+sensor:
+  - platform: bmi270
+    bmi270_id: imu
+    name: "BMI Temperature"
+    id: s_t
+  - platform: motion
+    type: acceleration_x
+    name: "BMI Accel X"
+    id: s_ax
+    accuracy_decimals: 4
+  - platform: motion
+    type: acceleration_y
+    name: "BMI Accel Y"
+    id: s_ay
+    accuracy_decimals: 4
+  - platform: motion
+    type: acceleration_z
+    name: "BMI Accel Z"
+    id: s_az
+    accuracy_decimals: 4
+  - platform: motion
+    type: gyroscope_x
+    name: "BMI Gyro X"
+    id: s_gx
+  - platform: motion
+    type: gyroscope_y
+    name: "BMI Gyro Y"
+    id: s_gy
+  - platform: motion
+    type: gyroscope_z
+    name: "BMI Gyro Z"
+    id: s_gz
+interval:
+  - interval: ${values_every}
+    then:
+      - lambda: |-
+          ESP_LOGI("bmiprobe", "VALUES ax=%.4f ay=%.4f az=%.4f gx=%.3f gy=%.3f gz=%.3f t=%.2f",
+                   id(s_ax).state, id(s_ay).state, id(s_az).state, id(s_gx).state, id(s_gy).state, id(s_gz).state,
+                   id(s_t).state);
+  - interval: 20s
+    then:
+      - lambda: |-
+          bmiprobe::regs(id(bus), 0x68, "periodic");
+          ESP_LOGI("bmiprobe", "HEAP periodic free=%u max_block=%u", ESP.getFreeHeap(), ESP.getMaxFreeBlockSize());

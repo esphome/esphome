@@ -83,9 +83,7 @@ async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
 
-    sens = await cg.get_variable(config[CONF_POWER_ID])
-    cg.add(var.set_parent(sens))
-    time_ = await cg.get_variable(config[CONF_TIME_ID])
-    cg.add(var.set_time(time_))
+    await cg.register_parented(var, config[CONF_POWER_ID])
+    await cg.add_variable(var.set_time, config[CONF_TIME_ID])
     cg.add(var.set_restore(config[CONF_RESTORE]))
     cg.add(var.set_method(config[CONF_METHOD]))

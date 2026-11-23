@@ -25,7 +25,6 @@ class MCP23X08Base : public mcp23xxx_base::MCP23XXXBase<8> {
  public:
   bool digital_read_hw(uint8_t pin) override;
   void digital_write_hw(uint8_t pin, bool value) override;
-  bool digital_read_cache(uint8_t pin) override;
 
   void pin_mode(uint8_t pin, gpio::Flags flags) override;
   void pin_interrupt_mode(uint8_t pin, mcp23xxx_base::MCP23XXXInterruptMode interrupt_mode) override;
@@ -34,9 +33,6 @@ class MCP23X08Base : public mcp23xxx_base::MCP23XXXBase<8> {
   void update_reg(uint8_t pin, bool pin_value, uint8_t reg_a) override;
 
   uint8_t olat_{0x00};
-
-  /// State read in digital_read_hw
-  uint8_t input_mask_{0x00};
 };
 
 }  // namespace esphome::mcp23x08_base

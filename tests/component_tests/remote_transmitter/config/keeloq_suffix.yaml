@@ -31,3 +31,11 @@ button:
           code: 0xd19ef0a9
           suffix: !lambda return 0x2A;
           suffix_bits: !lambda return 6;
+  - platform: template
+    name: Group frame
+    on_press:
+      - remote_transmitter.transmit_keeloq:
+          address: 0x1234500
+          command: 0x8
+          code: 0xF94A09F2
+          group: 0x0F

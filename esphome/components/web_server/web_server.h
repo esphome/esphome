@@ -60,6 +60,8 @@ struct EntityMatchResult {
 
 /// Internal helper struct that is used to parse incoming URLs
 struct UrlMatch {
+  // User-provided so GCC stores the defaults instead of copying a constant, which is RAM on ESP8266
+  UrlMatch() {}      // NOLINT(modernize-use-equals-default)
   StringRef domain;  ///< Domain within URL, for example "sensor"
   StringRef id;      ///< Entity name/id within URL, for example "Temperature"
   StringRef method;  ///< Method within URL, for example "turn_on"
@@ -162,21 +164,29 @@ class DeferredUpdateEventSource final : public AsyncEventSource {
 
   void loop();
 
-  void deferrable_send_state(void *source, const char *event_type, message_generator_t *message_generator);
+  // detail_all events go out while entities are still being listed; state events wait until listing is done
+  void deferrable_send_state(void *source, bool detail_all, message_generator_t *message_generator);
+  // The old event name argument would otherwise convert to true
+  void deferrable_send_state(void *source, const char *event_type, message_generator_t *message_generator) = delete;
   void try_send_nodefer(const char *message, size_t message_len, const char *event = nullptr, uint32_t id = 0,
                         uint32_t reconnect = 0);
 };
 
 class DeferredUpdateEventSourceList final : public std::list<DeferredUpdateEventSource *> {
+  friend class HeadAckedEventSourceResponse;  // ESPAsyncWebServer 3.12.1 workaround, remove with it
+
  protected:
   void on_client_connect_(DeferredUpdateEventSource *source);
   void on_client_disconnect_(DeferredUpdateEventSource *source);
+  void add_client_(WebServer *ws, AsyncClient *client);  // ESPAsyncWebServer 3.12.1 workaround, remove with it
 
  public:
   /// Returns true if there are event sources remaining (including pending cleanup).
   bool loop();
 
-  void deferrable_send_state(void *source, const char *event_type, message_generator_t *message_generator);
+  void deferrable_send_state(void *source, bool detail_all, message_generator_t *message_generator);
+  // The old event name argument would otherwise convert to true
+  void deferrable_send_state(void *source, const char *event_type, message_generator_t *message_generator) = delete;
   void try_send_nodefer(const char *message, size_t message_len, const char *event = nullptr, uint32_t id = 0,
                         uint32_t reconnect = 0);
 
@@ -244,22 +254,6 @@ class WebServer final : public Component, public AsyncWebHandler {
    * @param expose_log.
    */
   void set_expose_log(bool expose_log) { this->expose_log_ = expose_log; }
-
-#ifdef USE_WEBSERVER_ALLOWED_ORIGINS
-  /** Set the origins that browsers are allowed to make cross-origin requests from.
-   *
-   * Requests without an `Origin` header (e.g. non-browser clients like curl or the native API)
-   * are always allowed. Requests whose `Origin` matches the address the device is served on
-   * (same-origin) are always allowed. Any other browser origin must appear in this list, or the
-   * request is rejected. A single "*" entry allows any origin. Each other entry must exactly match
-   * the requesting page's `Origin` header (e.g. "https://example.com").
-   *
-   * This list is also used to authorize Private Network Access requests when that feature is enabled.
-   *
-   * @param origins nullptr-terminated table of allowed origins; must outlive the server.
-   */
-  void set_allowed_origins(const char *const *origins) { this->allowed_origins_ = origins; }
-#endif
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
@@ -534,7 +528,7 @@ class WebServer final : public Component, public AsyncWebHandler {
   void add_entity_config(EntityBase *entity, float weight, uint64_t group);
   void add_sorting_group(uint64_t group_id, const std::string &group_name, float weight);
 
-  std::map<EntityBase *, SortingComponents> sorting_entitys_;
+  std::map<EntityBase *, SortingComponents> sorting_entities_;
   std::map<uint64_t, SortingGroup> sorting_groups_;
 #endif
 
@@ -543,6 +537,13 @@ class WebServer final : public Component, public AsyncWebHandler {
  protected:
   // Declared here so it packs into the padding after include_internal_
   bool expose_log_{true};
+
+  // Out of line so the per-domain update callbacks stay small
+  // source stays the concrete entity pointer, since the generators cast it back to that type
+  template<typename T> void send_state_event_(T *obj, message_generator_t *generator) {
+    this->send_state_event_(obj, static_cast<const EntityBase *>(obj), generator);
+  }
+  void send_state_event_(void *source, const EntityBase *entity, message_generator_t *generator);
 
   void add_sorting_info_(JsonObject &root, EntityBase *entity);
 
@@ -631,16 +632,6 @@ class WebServer final : public Component, public AsyncWebHandler {
 #ifdef USE_WEBSERVER_JS_INCLUDE
   const char *js_include_{nullptr};
 #endif
-#ifdef USE_WEBSERVER_ALLOWED_ORIGINS
-  // Extra origins allowed to make cross-origin browser requests ("*" means any origin).
-  // Only compiled when allowed_origins is configured; same-origin is always allowed regardless.
-  const char *const *allowed_origins_{nullptr};
-#endif
-
-  /// Check whether the given request Origin is permitted. Same-origin (matching the Host the
-  /// request was sent to) and requests without an Origin header are always allowed; any other
-  /// origin must be listed in allowed_origins. The caller passes the already-read Origin header.
-  bool is_request_origin_allowed_(AsyncWebServerRequest *request, const std::string &origin);
 
  private:
 #ifdef USE_SENSOR

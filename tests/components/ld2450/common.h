@@ -6,6 +6,11 @@
 #include <gtest/gtest.h>
 #include "esphome/components/ld2450/ld2450.h"
 #include "esphome/components/uart/uart_component.h"
+#include "esphome/core/application.h"
+#include "esphome/core/hal.h"
+#ifdef USE_SWITCH
+#include "esphome/components/switch/switch.h"
+#endif
 
 namespace esphome::ld2450::testing {
 
@@ -13,8 +18,8 @@ namespace esphome::ld2450::testing {
 class MockUARTComponent : public uart::UARTComponent {
  public:
   void write_array(const uint8_t *data, size_t len) override {}
-  MOCK_METHOD(bool, read_array, (uint8_t * data, size_t len), (override));
-  MOCK_METHOD(bool, peek_byte, (uint8_t * data), (override));
+  MOCK_METHOD(bool, read_array, (uint8_t *data, size_t len), (override));
+  MOCK_METHOD(bool, peek_byte, (uint8_t *data), (override));
   MOCK_METHOD(size_t, available, (), (override));
   MOCK_METHOD(uart::UARTFlushResult, flush, (), (override));
   MOCK_METHOD(void, check_logger_conflict, (), (override));
@@ -27,9 +32,24 @@ class MockUARTComponent : public uart::UARTComponent {
 class TestableLD2450 : public LD2450Component {
  public:
   using LD2450Component::buffer_data_;
+  using LD2450Component::bluetooth_on_;
   using LD2450Component::buffer_pos_;
+  using LD2450Component::bytes_since_frame_;
+  using LD2450Component::get_timeout_status_;
+  using LD2450Component::invalid_frames_;
+  using LD2450Component::last_frame_ms_;
+  using LD2450Component::link_deadline_ms_;
+  using LD2450Component::link_state_;
+  using LD2450Component::mac_address_;
+  using LD2450Component::open_link_grace_;
   using LD2450Component::readline_;
+  using LD2450Component::timeout_;
+  using LD2450Component::version_;
   using LD2450Component::zone_config_;
+  using LD2450Component::zone_type_;
+#ifdef USE_NUMBER
+  using LD2450Component::pref_;
+#endif
 
   void feed(const std::vector<uint8_t> &data) {
     for (uint8_t byte : data) {
@@ -37,6 +57,19 @@ class TestableLD2450 : public LD2450Component {
     }
   }
 };
+
+// Runs the anonymous timeouts a test left on the hub in the shared App scheduler, for at most max_ms. They cannot be
+// cancelled, so a fixture calls this from TearDown() while the hub is still alive.
+inline void drain_scheduler(uint32_t max_ms) {
+  const uint32_t start = millis();
+  App.scheduler.process_to_add();
+  while (App.scheduler.next_schedule_in(millis()).has_value() && millis() - start < max_ms) {
+    App.scheduler.call(millis());
+    delay(1);
+    App.scheduler.process_to_add();
+  }
+  App.scheduler.trim_freelist();
+}
 
 // LD2450 periodic data frame: header (4) + 3 targets * 8 bytes + footer (2) = 30 bytes
 // All-zero targets means no presence detected.
@@ -61,5 +94,12 @@ inline std::vector<uint8_t> make_ack_frame() {
       0x04, 0x03, 0x02, 0x01   // CMD_FRAME_FOOTER
   };
 }
+
+#ifdef USE_SWITCH
+class TestSwitch : public switch_::Switch {
+ protected:
+  void write_state(bool state) override {}
+};
+#endif
 
 }  // namespace esphome::ld2450::testing

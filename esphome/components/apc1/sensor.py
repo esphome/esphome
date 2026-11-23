@@ -2,12 +2,11 @@ from esphome import automation, pins
 from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
 from esphome.components import sensor, uart
-from esphome.components.const import CONF_AQI
+from esphome.components.const import CONF_AQI, CONF_ERROR_CODE
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ECO2,
     CONF_HUMIDITY,
-    CONF_ID,
     CONF_PM_0_3UM,
     CONF_PM_0_5UM,
     CONF_PM_1_0,
@@ -24,26 +23,12 @@ from esphome.const import (
     CONF_TEMPERATURE,
     CONF_TVOC,
     DEVICE_CLASS_AQI,
-    DEVICE_CLASS_CARBON_DIOXIDE,
-    DEVICE_CLASS_HUMIDITY,
-    DEVICE_CLASS_PM1,
-    DEVICE_CLASS_PM10,
-    DEVICE_CLASS_PM25,
-    DEVICE_CLASS_TEMPERATURE,
-    DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS,
     ENTITY_CATEGORY_DIAGNOSTIC,
     ICON_CHEMICAL_WEAPON,
     ICON_MOLECULE_CO2,
     ICON_OMEGA,
-    ICON_RADIATOR,
     STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS,
     UNIT_COUNT_DECILITRE,
-    UNIT_MICROGRAMS_PER_CUBIC_METER,
-    UNIT_OHM,
-    UNIT_PARTS_PER_BILLION,
-    UNIT_PARTS_PER_MILLION,
-    UNIT_PERCENT,
 )
 from esphome.types import ConfigType
 
@@ -56,20 +41,9 @@ CONF_RAW_HUMIDITY = "raw_humidity"
 CONF_RS0 = "rs0"
 CONF_RS2 = "rs2"
 CONF_RS3 = "rs3"
-CONF_ERROR_CODE = "error_code"
 
 apc1_ns = cg.esphome_ns.namespace("apc1")
 APC1Component = apc1_ns.class_("APC1Component", uart.UARTDevice, cg.Component)
-
-
-def _pm_mass_schema(device_class: str) -> cv.Schema:
-    return sensor.sensor_schema(
-        unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
-        icon=ICON_CHEMICAL_WEAPON,
-        accuracy_decimals=0,
-        device_class=device_class,
-        state_class=STATE_CLASS_MEASUREMENT,
-    )
 
 
 _PM_COUNT_SCHEMA = sensor.sensor_schema(
@@ -78,54 +52,29 @@ _PM_COUNT_SCHEMA = sensor.sensor_schema(
     accuracy_decimals=0,
     state_class=STATE_CLASS_MEASUREMENT,
 )
-_TEMPERATURE_SCHEMA = sensor.sensor_schema(
-    unit_of_measurement=UNIT_CELSIUS,
-    accuracy_decimals=1,
-    device_class=DEVICE_CLASS_TEMPERATURE,
-    state_class=STATE_CLASS_MEASUREMENT,
-)
-_HUMIDITY_SCHEMA = sensor.sensor_schema(
-    unit_of_measurement=UNIT_PERCENT,
-    accuracy_decimals=1,
-    device_class=DEVICE_CLASS_HUMIDITY,
-    state_class=STATE_CLASS_MEASUREMENT,
-)
-_RESISTANCE_SCHEMA = sensor.sensor_schema(
-    unit_of_measurement=UNIT_OHM,
-    icon=ICON_OMEGA,
-    accuracy_decimals=0,
-    state_class=STATE_CLASS_MEASUREMENT,
-)
+_TEMPERATURE_SCHEMA = sensor.sensor_schema(kind=sensor.TEMPERATURE)
+_HUMIDITY_SCHEMA = sensor.sensor_schema(kind=sensor.HUMIDITY)
+_RESISTANCE_SCHEMA = sensor.sensor_schema(kind=sensor.RESISTANCE, icon=ICON_OMEGA)
 
 CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(APC1Component),
-            cv.Optional(CONF_PM_1_0): _pm_mass_schema(DEVICE_CLASS_PM1),
-            cv.Optional(CONF_PM_2_5): _pm_mass_schema(DEVICE_CLASS_PM25),
-            cv.Optional(CONF_PM_10_0): _pm_mass_schema(DEVICE_CLASS_PM10),
-            cv.Optional(CONF_PM_1_0_STD): _pm_mass_schema(DEVICE_CLASS_PM1),
-            cv.Optional(CONF_PM_2_5_STD): _pm_mass_schema(DEVICE_CLASS_PM25),
-            cv.Optional(CONF_PM_10_0_STD): _pm_mass_schema(DEVICE_CLASS_PM10),
+            cv.Optional(CONF_PM_1_0): sensor.sensor_schema(kind=sensor.PM1),
+            cv.Optional(CONF_PM_2_5): sensor.sensor_schema(kind=sensor.PM25),
+            cv.Optional(CONF_PM_10_0): sensor.sensor_schema(kind=sensor.PM10),
+            cv.Optional(CONF_PM_1_0_STD): sensor.sensor_schema(kind=sensor.PM1),
+            cv.Optional(CONF_PM_2_5_STD): sensor.sensor_schema(kind=sensor.PM25),
+            cv.Optional(CONF_PM_10_0_STD): sensor.sensor_schema(kind=sensor.PM10),
             cv.Optional(CONF_PM_0_3UM): _PM_COUNT_SCHEMA,
             cv.Optional(CONF_PM_0_5UM): _PM_COUNT_SCHEMA,
             cv.Optional(CONF_PM_1_0UM): _PM_COUNT_SCHEMA,
             cv.Optional(CONF_PM_2_5UM): _PM_COUNT_SCHEMA,
             cv.Optional(CONF_PM_5_0UM): _PM_COUNT_SCHEMA,
             cv.Optional(CONF_PM_10_0UM): _PM_COUNT_SCHEMA,
-            cv.Optional(CONF_TVOC): sensor.sensor_schema(
-                unit_of_measurement=UNIT_PARTS_PER_BILLION,
-                icon=ICON_RADIATOR,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
+            cv.Optional(CONF_TVOC): sensor.sensor_schema(kind=sensor.VOC_PPB),
             cv.Optional(CONF_ECO2): sensor.sensor_schema(
-                unit_of_measurement=UNIT_PARTS_PER_MILLION,
-                icon=ICON_MOLECULE_CO2,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_CARBON_DIOXIDE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.CARBON_DIOXIDE, icon=ICON_MOLECULE_CO2
             ),
             cv.Optional(CONF_AQI): sensor.sensor_schema(
                 icon=ICON_CHEMICAL_WEAPON,
@@ -165,9 +114,7 @@ FINAL_VALIDATE_SCHEMA = final_validate
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await uart.register_uart_device(var, config)
+    var = await uart.new_uart_component(config)
 
     sensors = sensor.sub_sensors(config)
     await sensors(CONF_PM_1_0, var.set_pm_1_0_sensor)
@@ -194,13 +141,8 @@ async def to_code(config: ConfigType) -> None:
     await sensors(CONF_RS3, var.set_rs3_sensor)
     await sensors(CONF_ERROR_CODE, var.set_error_code_sensor)
 
-    if (set_pin_config := config.get(CONF_SET_PIN)) is not None:
-        set_pin = await cg.gpio_pin_expression(set_pin_config)
-        cg.add(var.set_set_pin(set_pin))
-
-    if (reset_pin_config := config.get(CONF_RESET_PIN)) is not None:
-        reset_pin = await cg.gpio_pin_expression(reset_pin_config)
-        cg.add(var.set_reset_pin(reset_pin))
+    await cg.add_pin(var.set_set_pin, config.get(CONF_SET_PIN))
+    await cg.add_pin(var.set_reset_pin, config.get(CONF_RESET_PIN))
 
 
 APC1_ACTION_SCHEMA = maybe_simple_id(

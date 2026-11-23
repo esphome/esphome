@@ -2,6 +2,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
+#include "esphome/core/frame_reader.h"
 #ifdef USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #endif
@@ -25,6 +26,8 @@ class TestableUFM01;
 }  // namespace testing
 
 static constexpr size_t FRAME_SIZE = 32;
+static constexpr uint8_t FRAME_START_BYTE_1 = 0x3C;
+static constexpr uint8_t FRAME_START_BYTE_2 = 0x32;
 static constexpr size_t PASSIVE_FRAME_SIZE = 23;
 static constexpr size_t PASSIVE_FRAME_WITH_ID_SIZE = 39;
 #ifdef USE_UFM01_METER_ID
@@ -108,7 +111,7 @@ class UFM01Component : public uart::UARTDevice, public Component {
   bool consume_ack_();
   void flush_rx_();
   bool process_active_stream_(uint32_t now);
-  void on_active_frame_(uint8_t data[FRAME_SIZE], uint32_t now);
+  void on_active_frame_(const uint8_t data[FRAME_SIZE], uint32_t now);
 #ifdef USE_UFM01_METER_ID
   void publish_meter_id_from_frame_(const uint8_t data[FRAME_SIZE]);
 #endif
@@ -145,7 +148,6 @@ class UFM01Component : public uart::UARTDevice, public Component {
 #ifdef USE_UFM01_CLEAR_ACCUMULATED_FLOW_ACTION
   uint32_t pending_clear_start_ms_{0};
 #endif
-  int32_t read_index_{0};
 
   OperatingMode operating_mode_{OperatingMode::STARTUP};
   StartupPhase startup_phase_{StartupPhase::WAIT};
@@ -170,7 +172,7 @@ class UFM01Component : public uart::UARTDevice, public Component {
 #endif
 
   uint8_t passive_frame_[PASSIVE_FRAME_MAX_SIZE];
-  uint8_t data_[FRAME_SIZE];
+  FrameReader<FRAME_SIZE, FRAME_START_BYTE_1, FRAME_START_BYTE_2> active_reader_;
 
   friend class testing::TestableUFM01;
 };

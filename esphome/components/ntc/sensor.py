@@ -12,9 +12,6 @@ from esphome.const import (
     CONF_SENSOR,
     CONF_TEMPERATURE,
     CONF_VALUE,
-    DEVICE_CLASS_TEMPERATURE,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS,
 )
 from esphome.types import ConfigType
 
@@ -117,13 +114,7 @@ def process_calibration(value: Any) -> ConfigType:
 
 
 CONFIG_SCHEMA = (
-    sensor.sensor_schema(
-        NTC,
-        unit_of_measurement=UNIT_CELSIUS,
-        accuracy_decimals=1,
-        device_class=DEVICE_CLASS_TEMPERATURE,
-        state_class=STATE_CLASS_MEASUREMENT,
-    )
+    sensor.sensor_schema(NTC, kind=sensor.TEMPERATURE)
     .extend(
         {
             cv.Required(CONF_SENSOR): cv.use_id(sensor.Sensor),
@@ -138,8 +129,7 @@ async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
 
-    sens = await cg.get_variable(config[CONF_SENSOR])
-    cg.add(var.set_sensor(sens))
+    await cg.add_variable(var.set_source_sensor, config[CONF_SENSOR])
     calib = config[CONF_CALIBRATION]
     cg.add(var.set_a(calib[CONF_A]))
     cg.add(var.set_b(calib[CONF_B]))

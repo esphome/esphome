@@ -1,5 +1,6 @@
 display:
   - platform: tm1637
+    id: tm1637_display
     clk_pin: ${clk_pin}
     dio_pin: ${dio_pin}
     intensity: 3
@@ -7,3 +8,9 @@ display:
       it.print("1234");
       static const uint8_t buf[] = {0x3f, 0x06, 0x5b, 0x4f | 0x80};
       it.set_buffer(buf, sizeof(buf));
+
+binary_sensor:
+  - platform: tm1637
+    tm1637_id: tm1637_display
+    name: TM1637 Key 0
+    key: 0

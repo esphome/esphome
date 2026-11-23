@@ -14,8 +14,7 @@ static constexpr uint32_t CARRIER_FREQUENCY_HZ = 38000;
 static constexpr uint32_t HEADER_MARK_US = 3000;
 static constexpr uint32_t HEADER_SPACE_US = 9000;
 static constexpr uint32_t BIT_MARK_US = 500;
-static constexpr uint32_t ONE_SPACE_US = 1500;
-static constexpr uint32_t ZERO_SPACE_US = 500;
+static constexpr remote_base::BitTimings BIT_TIMINGS{.bit_mark = BIT_MARK_US, .one_space = 1500, .zero_space = 500};
 static constexpr uint32_t SECTION_SPACE_US = 2000;
 
 static constexpr uint8_t EXTENDED_LENGTH = 3 * SAMSUNG_AC_SECTION_LENGTH;
@@ -163,11 +162,7 @@ void SamsungClimate::send_sections_(const uint8_t *const *sections, uint8_t coun
     uint8_t section[SAMSUNG_AC_SECTION_LENGTH];
     memcpy(section, sections[s], SAMSUNG_AC_SECTION_LENGTH);
     store_checksum(section);
-    for (uint8_t byte : section) {
-      for (uint8_t bit = 0; bit < 8; bit++, byte >>= 1) {
-        data->item(BIT_MARK_US, (byte & 1) ? ONE_SPACE_US : ZERO_SPACE_US);
-      }
-    }
+    data->item_bytes<BIT_TIMINGS>(section, SAMSUNG_AC_SECTION_LENGTH);
   }
 
   data->mark(BIT_MARK_US);
@@ -180,29 +175,25 @@ bool SamsungClimate::on_receive(remote_base::RemoteReceiveData data) {
   }
 
   // Decode into a local buffer so a bad frame leaves the stored state untouched
-  uint8_t frame[EXTENDED_LENGTH] = {0};
+  uint8_t frame[EXTENDED_LENGTH];
   uint8_t length = EXTENDED_LENGTH;
-  for (uint8_t i = 0; i < EXTENDED_LENGTH; i++) {
-    if (i != 0 && i % SAMSUNG_AC_SECTION_LENGTH == 0) {
+  for (uint8_t s = 0; s < EXTENDED_LENGTH / SAMSUNG_AC_SECTION_LENGTH; s++) {
+    if (s != 0) {
       const bool have_separator =
           data.expect_item(BIT_MARK_US, SECTION_SPACE_US) && data.expect_item(HEADER_MARK_US, HEADER_SPACE_US);
       if (!have_separator) {
         // A third section is optional; a missing separator after the second one ends the frame
-        if (i >= SAMSUNG_AC_STATE_LENGTH) {
-          length = i;
+        if (s >= SAMSUNG_AC_STATE_LENGTH / SAMSUNG_AC_SECTION_LENGTH) {
+          length = s * SAMSUNG_AC_SECTION_LENGTH;
           break;
         }
-        ESP_LOGW(TAG, "Missing section separator before byte %u", i);
+        ESP_LOGW(TAG, "Missing section separator before section %u", s);
         return false;
       }
     }
-    for (uint8_t bit = 0; bit < 8; bit++) {
-      if (data.expect_item(BIT_MARK_US, ONE_SPACE_US)) {
-        frame[i] |= 1 << bit;
-      } else if (!data.expect_item(BIT_MARK_US, ZERO_SPACE_US)) {
-        ESP_LOGW(TAG, "Bad bit %u in byte %u", bit, i);
-        return false;
-      }
+    if (!data.expect_bytes<BIT_TIMINGS>(frame + s * SAMSUNG_AC_SECTION_LENGTH, SAMSUNG_AC_SECTION_LENGTH)) {
+      ESP_LOGW(TAG, "Bad bit in section %u", s);
+      return false;
     }
   }
   if (!data.expect_mark(BIT_MARK_US)) {

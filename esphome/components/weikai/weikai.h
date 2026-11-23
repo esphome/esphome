@@ -15,6 +15,7 @@
 #include <string>
 #include <vector>
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 #include "esphome/components/uart/uart.h"
 #include "wk_reg_def.h"
 
@@ -44,127 +45,14 @@ constexpr size_t FIFO_SIZE = 256;
 /// @brief size of the ring buffer set to size of the FIFO
 constexpr size_t RING_BUFFER_SIZE = FIFO_SIZE;
 
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// @brief This is an helper class that provides a simple ring buffers that works as a FIFO
-/// @details This ring buffer is used to buffer the bytes received in the FIFO of the Weika device. The best way to read
-/// characters from the device FIFO, is to first check how many bytes were received and then read them all at once.
-/// Unfortunately in all the code I have reviewed the characters are read one by one in a while loop by checking if
-/// bytes are available then reading the byte until no more byte available. This is pretty inefficient for two reasons:
-/// - Fist you need to perform a test for each byte to read
-/// - and second you call the read byte method for each character.
-/// .
-/// Assuming you need to read 100 bytes that results into 200 calls. This is to compare to 2 calls (one to find the
-/// number of bytes available plus one to read all the bytes) in the best case! If the registers you read are located on
-/// the micro-controller this is acceptable because the registers can be accessed fast. But when the registers are
-/// located on a remote device accessing them requires several cycles on a slow bus. As it it not possible to fix this
-/// problem by asking users to rewrite their code, I have implemented this ring buffer that store the bytes received
-/// locally.
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-template<typename T, size_t SIZE> class WKRingBuffer {
-  static_assert(SIZE > 0 && (SIZE & (SIZE - 1)) == 0, "WKRingBuffer SIZE must be a power of two");
-  static_assert(SIZE <= 0x8000, "WKRingBuffer SIZE too large for 16 bit indexes");
+/// @brief Name of a register for the log messages
+const LogString *reg_to_str(int reg, bool page1);
 
- public:
-  /// @brief pushes an item at the tail of the fifo
-  /// @param item item to push
-  /// @return true if item has been pushed, false il item could not pushed (buffer full)
-  bool push(const T item) {
-    if (is_full())
-      return false;
-    this->rb_[this->head_] = item;
-    this->head_ = (this->head_ + 1) & MASK;
-    this->count_++;
-    return true;
-  }
-
-  /// @brief return and remove the item at head of the fifo
-  /// @param item item read
-  /// @return true if an item has been retrieved, false il no item available (buffer empty)
-  bool pop(T &item) {
-    if (is_empty())
-      return false;
-    item = this->rb_[this->tail_];
-    this->tail_ = (this->tail_ + 1) & MASK;
-    if (--this->count_ == 0)
-      this->head_ = this->tail_ = 0;  // empty: restart at the beginning so that bulk writes stay contiguous
-    return true;
-  }
-
-  /// @brief removes up to n items from the buffer and copies them to dst (at most two contiguous copies)
-  /// @param dst destination array
-  /// @param n maximum number of items to retrieve
-  /// @return number of items actually retrieved
-  size_t pop_bulk(T *dst, size_t n) {
-    n = std::min<size_t>(n, this->count_);
-    size_t const first = std::min<size_t>(n, SIZE - this->tail_);
-    std::copy_n(this->rb_.data() + this->tail_, first, dst);
-    std::copy_n(this->rb_.data(), n - first, dst + first);
-    this->tail_ = (this->tail_ + n) & MASK;
-    this->count_ -= n;
-    if (this->count_ == 0)
-      this->head_ = this->tail_ = 0;  // empty: restart at the beginning so that bulk writes stay contiguous
-    return n;
-  }
-
-  /// @brief return the value of the item at fifo's head without removing it
-  /// @param item pointer to item to return
-  /// @return true if item has been retrieved, false il no item available (buffer empty)
-  bool peek(T &item) const {
-    if (is_empty())
-      return false;
-    item = this->rb_[this->tail_];
-    return true;
-  }
-
-  /// @brief pointer to the next free slot. Up to contiguous_free() items can be written there directly
-  /// (for example by a bus read) and then validated with commit().
-  inline T *write_ptr() { return this->rb_.data() + this->head_; }
-
-  /// @brief number of free slots that can be written starting at write_ptr() without wrapping around
-  inline size_t contiguous_free() const { return std::min<size_t>(SIZE - this->count_, SIZE - this->head_); }
-
-  /// @brief validate n items that have been written directly at write_ptr()
-  /// @param n number of items written (must be <= contiguous_free())
-  inline void commit(size_t n) {
-    this->head_ = (this->head_ + n) & MASK;
-    this->count_ += n;
-  }
-
-  /// @brief test is the Ring Buffer is empty ?
-  /// @return true if empty
-  inline bool is_empty() const { return (this->count_ == 0); }
-
-  /// @brief test is the ring buffer is full ?
-  /// @return true if full
-  inline bool is_full() const { return (this->count_ == SIZE); }
-
-  /// @brief return the number of item in the ring buffer
-  /// @return the number of items
-  inline size_t count() const { return this->count_; }
-
-  /// @brief returns the number of free positions in the buffer
-  /// @return how many items can be added
-  inline size_t free() const { return SIZE - this->count_; }
-
-  /// @brief clear the buffer content
-  inline void clear() { this->head_ = this->tail_ = this->count_ = 0; }
-
- protected:
-  static constexpr uint16_t MASK = SIZE - 1;
-  std::array<T, SIZE> rb_{};  ///< the ring buffer
-  uint16_t tail_{0};          ///< position of the next element to read
-  uint16_t head_{0};          ///< position of the next element to write
-  uint16_t count_{0};         ///< count number of element in the buffer
-};
+/// Logs a buffer in hexadecimal, 32 values per line, under @p tag at @p level.
+void print_buffer(const char *tag, const uint8_t *data, size_t length, int level = ESPHOME_LOG_LEVEL_VERY_VERBOSE);
 
 /// @brief Converts the parity enum value to a C string (shared by the SPI/I2C variants)
 const char *p2s(uart::UARTParityOptions parity);
-
-/// @brief Converts a register address to a C string (used in log messages)
-const char *reg_to_str(int reg, bool page1);
-
-/// @brief Displays a buffer in hexadecimal format (32 hex values / line) at VERY_VERBOSE level
-void print_buffer(const uint8_t *data, size_t length);
 
 class WeikaiComponent;
 // class WeikaiComponentSPI;
@@ -504,7 +392,7 @@ class WeikaiChannel final : public uart::UARTComponent {
 #endif
 
   /// @brief the buffer where we store temporarily the bytes received
-  WKRingBuffer<uint8_t, RING_BUFFER_SIZE> receive_buffer_;
+  StaticRingBuffer<uint8_t, RING_BUFFER_SIZE> receive_buffer_;
   WeikaiComponent *parent_;  ///< our WK2168component parent
   uint8_t channel_;          ///< our Channel number
   const char *name_{""};     ///< name of the entity (string literal, no heap allocation)

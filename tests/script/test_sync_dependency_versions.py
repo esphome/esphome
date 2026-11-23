@@ -19,10 +19,6 @@ repos:
     rev: v0.1.0
     hooks:
       - id: ruff
-  - repo: https://github.com/PyCQA/flake8
-    rev: 7.0.0
-    hooks:
-      - id: flake8
   - repo: https://github.com/asottile/pyupgrade
     rev: v3.0.0
     hooks:
@@ -32,7 +28,7 @@ repos:
     hooks:
       - id: clang-format
   - repo: https://github.com/adrienverge/yamllint.git
-    rev: v1.0.0
+    rev: 1.0.0
     hooks:
       - id: yamllint
   - repo: local
@@ -42,28 +38,27 @@ repos:
 
 REQ_TEST = """\
 pylint==4.0.8
-flake8==7.1.0
 ruff==0.2.0  # comment
 pyupgrade==3.0.0
 """
 
 REQ_DEV = """\
 clang-format==13.0.1
-yamllint==1.0.0
+yamllint==1.1.0
 """
 
 RUFF_REPO = "https://github.com/astral-sh/ruff-pre-commit"
 DUPLICATE_RUFF_BLOCK = f"  - repo: {RUFF_REPO}\n    rev: v0.3.0\n    hooks: []\n"
 
-EXPECTED_DRIFT = ["ruff: 0.1.0 -> 0.2.0", "flake8: 7.0.0 -> 7.1.0"]
+EXPECTED_DRIFT = ["ruff: 0.1.0 -> 0.2.0", "yamllint: 1.0.0 -> 1.1.0"]
 EXPECTED_PRECOMMIT = PRECOMMIT.replace("rev: v0.1.0", "rev: v0.2.0").replace(
-    "rev: 7.0.0", "rev: 7.1.0"
+    "rev: 1.0.0", "rev: 1.1.0"
 )
 
 
 @pytest.fixture
 def root(tmp_path: Path) -> Path:
-    """A fake checkout where ruff (v-prefixed) and flake8 (bare) have drifted."""
+    """A fake checkout where ruff (v-prefixed) and yamllint (bare) have drifted."""
     (tmp_path / ".pre-commit-config.yaml").write_text(PRECOMMIT)
     (tmp_path / "requirements_test.txt").write_text(REQ_TEST)
     (tmp_path / "requirements_dev.txt").write_text(REQ_DEV)

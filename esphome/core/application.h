@@ -170,6 +170,8 @@ class Application {
   void get_comment_string(std::span<char, ESPHOME_COMMENT_SIZE_MAX> buffer);
 
   /// Get the comment of this Application as a string
+  // Remove before 2027.6.0
+  ESPDEPRECATED("Use get_comment_string() instead. Removed in 2027.6.0", "2026.12.0")
   std::string get_comment() {
     char buffer[ESPHOME_COMMENT_SIZE_MAX];
     this->get_comment_string(buffer);
@@ -208,8 +210,8 @@ class Application {
    * Each component can request a high frequency loop execution by using the HighFrequencyLoopRequester
    * helper in helpers.h
    *
-   * Sleep per wake is capped at 2 * WDT_FEED_INTERVAL_MS (except host and ESP8266);
-   * raise the platform watchdog timeout to sleep longer.
+   * Sleep per wake is capped at 2 * WDT_FEED_INTERVAL_MS (except host, ESP8266, and ESP32
+   * with watchdog_timeout: 0s); raise the platform watchdog timeout to sleep longer.
    *
    * @param loop_interval The interval in milliseconds to run the core loop at. Defaults to 16 milliseconds.
    */
@@ -239,6 +241,7 @@ class Application {
   // https://github.com/libretiny-eu/framework-beken-bdk/blob/44800e7451ea30fbcbd3bb6e905315de59349fee/beken378/driver/wdt/wdt.c#L75-L87
   static constexpr uint32_t WDT_FEED_INTERVAL_MS = 2000;
 #elif defined(USE_ESP32)
+#ifdef USE_ESP32_TASK_WDT
   // Auto-scale to 1/5 of the configured ESP32 task WDT timeout so the safety
   // margin stays constant when the user raises esp32.watchdog_timeout (default
   // 5 s → 1000 ms feed; 10 s → 2000 ms; 60 s → 12000 ms). The esp32 component
@@ -252,6 +255,10 @@ class Application {
   static_assert(CONFIG_ESP_TASK_WDT_TIMEOUT_S >= 5,
                 "CONFIG_ESP_TASK_WDT_TIMEOUT_S must be at least 5s for a safe WDT feed interval");
   static constexpr uint32_t WDT_FEED_INTERVAL_MS = (CONFIG_ESP_TASK_WDT_TIMEOUT_S * 1000U) / 5U;
+#else
+  // No task watchdog to feed; the rate limit never fires.
+  static constexpr uint32_t WDT_FEED_INTERVAL_MS = std::numeric_limits<uint32_t>::max();
+#endif
 #elif defined(USE_ESP8266)
   // ESP8266 needs a tighter feed cadence than the other targets: the soft WDT
   // is ~1.6 s and the HW WDT ~6 s, but a single long iteration (mDNS reply,
@@ -267,7 +274,15 @@ class Application {
 
   /// Feed the task watchdog. Cold entry — callers without a millis()
   /// timestamp in hand. Out of line to keep call sites tiny.
+#if defined(USE_ESP32) && !defined(USE_ESP32_TASK_WDT) && !defined(USE_STATUS_LED)
+  // watchdog_timeout: 0s leaves no watchdog to feed, and no status LED needs the call
+  void feed_wdt() {}
+#else
   void feed_wdt();
+#endif
+  /// Feed from code that may run off the loop task (a long download or image decode): on ESP32 only a task the
+  /// watchdog watches feeds it. With watchdog_timeout: 0s only the loop task calls through, to run the status LED.
+  void feed_wdt_if_watched();
 
 #ifdef USE_STATUS_LED
   /// Dispatch interval for the status LED update. Deliberately shorter than
@@ -301,6 +316,9 @@ class Application {
   void reboot();
 
   void safe_reboot();
+
+  /// Run the safe shutdown hooks, give components up to timeout_ms to tear down, then run the powerdown hooks.
+  void safe_shutdown(uint32_t timeout_ms);
 
   void run_safe_shutdown_hooks();
 
@@ -427,19 +445,18 @@ class Application {
   void register_component_impl_(Component *comp, bool has_loop);
 
   void calculate_looping_components_() {
-    // FixedVector capacity was pre-initialized by codegen with the exact count
+    // Capacity was pre-initialized by codegen with the exact count
     // of components that override loop(), computed at C++ compile time.
 
-    // Add all components with loop override that aren't already LOOP_DONE
-    // Some components (like logger) may call disable_loop() during initialization
-    // before setup runs, so we need to respect their LOOP_DONE state
+    // Add all components with loop override that aren't already LOOP_DONE or FAILED
+    // Some components (like logger) may call disable_loop() during initialization,
+    // and some call mark_failed() from their constructor, before setup runs
     this->add_looping_components_by_state_(false);
     this->looping_components_active_end_ = this->looping_components_.size();
-    // Then add any components that are already LOOP_DONE to the inactive section
-    // This handles components that called disable_loop() during initialization
+    // Then add any components that are already LOOP_DONE or FAILED to the inactive section
     this->add_looping_components_by_state_(true);
   }
-  void add_looping_components_by_state_(bool match_loop_done);
+  void add_looping_components_by_state_(bool inactive);
 
   // These methods are called by Component::disable_loop() and Component::enable_loop()
   // Components should not call these directly - use this->disable_loop() or this->enable_loop()
@@ -507,7 +524,7 @@ class Application {
   // - When a component is enabled, it's swapped with the first inactive component
   //   and active_end_ is incremented
   // - This eliminates branch mispredictions from flag checking in the hot loop
-  FixedVector<Component *> looping_components_{};
+  StaticFixedVector<Component *> looping_components_{};
 
   // StringRef members (8 bytes each: pointer + size)
   StringRef name_;
@@ -784,6 +801,8 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
 #ifdef USE_RUNTIME_STATS
     loop_tail_start_us = micros();
 #endif
+    // process scheduler items added in component phase
+    this->scheduler.process_to_add();
     this->last_loop_ = last_op_end_time;
     now = last_op_end_time;
     // phase_guard destructor clears in_loop_ at scope exit
@@ -855,9 +874,9 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
   // SDK os_timer_arm() accepts at most 0x68D7A3 ms without system_timer_reinit();
   // the SDK feeds both watchdogs while the cont task is suspended, so no WDT cap needed.
   static constexpr uint32_t MAX_SLEEP_BASE = 0x68D7A3;
-#elif defined(USE_HOST)
-  // arch_feed_wdt() is a no-op on host and ESPHOME_SUSPEND_LOOP is rejected by
-  // the config validator, so delay_time is already bounded by loop_interval_.
+#elif defined(USE_HOST) || (defined(USE_ESP32) && !defined(USE_ESP32_TASK_WDT))
+  // No watchdog to feed (host, or ESP32 with watchdog_timeout: 0s), so nothing caps the sleep; with
+  // suspend_loop an ESP32 may sleep until a wake notification arrives.
   static constexpr uint32_t MAX_SLEEP_BASE = std::numeric_limits<uint32_t>::max();
 #else
   static constexpr uint32_t MAX_SLEEP_BASE = WDT_FEED_INTERVAL_MS * 2;

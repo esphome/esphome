@@ -46,6 +46,13 @@ text_sensor:
         - ezo_pmp.set_calibration_volume:
             id: hcl_pump
             volume: 10
+        - ezo_pmp.dose_with_constant_flow_rate:
+            id: hcl_pump
+            volume_per_minute: !lambda return 5.5f;
+            duration: !lambda return 3;
+        - ezo_pmp.set_calibration_volume:
+            id: hcl_pump
+            volume: !lambda return 12.5f;
         - ezo_pmp.find: hcl_pump
         - ezo_pmp.dose_continuously: hcl_pump
         - ezo_pmp.clear_total_volume_dosed: hcl_pump

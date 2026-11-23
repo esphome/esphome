@@ -3,7 +3,11 @@ import logging
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import climate, logger, uart
-from esphome.components.climate import ClimateMode, ClimatePreset, ClimateSwingMode
+from esphome.components.climate import (
+    CLIMATE_MODES,
+    CLIMATE_PRESETS,
+    CLIMATE_SWING_MODES,
+)
 from esphome.components.logger import DOMAIN as LOGGER_DOMAIN
 from esphome.components.wifi import DOMAIN as WIFI_DOMAIN
 import esphome.config_validation as cv
@@ -77,31 +81,19 @@ AIRFLOW_HORIZONTAL_DIRECTION_OPTIONS = AirflowHorizontalDirection.options(
 )
 
 SUPPORTED_SWING_MODES_OPTIONS = {
-    "OFF": ClimateSwingMode.CLIMATE_SWING_OFF,
-    "VERTICAL": ClimateSwingMode.CLIMATE_SWING_VERTICAL,
-    "HORIZONTAL": ClimateSwingMode.CLIMATE_SWING_HORIZONTAL,
-    "BOTH": ClimateSwingMode.CLIMATE_SWING_BOTH,
+    k: CLIMATE_SWING_MODES[k] for k in ("OFF", "VERTICAL", "HORIZONTAL", "BOTH")
 }
 
 SUPPORTED_CLIMATE_MODES_OPTIONS = {
-    "OFF": ClimateMode.CLIMATE_MODE_OFF,  # always available
-    "HEAT_COOL": ClimateMode.CLIMATE_MODE_HEAT_COOL,  # always available
-    "COOL": ClimateMode.CLIMATE_MODE_COOL,
-    "HEAT": ClimateMode.CLIMATE_MODE_HEAT,
-    "DRY": ClimateMode.CLIMATE_MODE_DRY,
-    "FAN_ONLY": ClimateMode.CLIMATE_MODE_FAN_ONLY,
+    k: CLIMATE_MODES[k] for k in ("OFF", "HEAT_COOL", "COOL", "HEAT", "DRY", "FAN_ONLY")
 }
 
 SUPPORTED_CLIMATE_PRESETS_SMARTAIR2_OPTIONS = {
-    "AWAY": ClimatePreset.CLIMATE_PRESET_AWAY,
-    "BOOST": ClimatePreset.CLIMATE_PRESET_BOOST,
-    "COMFORT": ClimatePreset.CLIMATE_PRESET_COMFORT,
+    k: CLIMATE_PRESETS[k] for k in ("AWAY", "BOOST", "COMFORT")
 }
 
 SUPPORTED_CLIMATE_PRESETS_HON_OPTIONS = {
-    "AWAY": ClimatePreset.CLIMATE_PRESET_AWAY,
-    "BOOST": ClimatePreset.CLIMATE_PRESET_BOOST,
-    "SLEEP": ClimatePreset.CLIMATE_PRESET_SLEEP,
+    k: CLIMATE_PRESETS[k] for k in ("AWAY", "BOOST", "SLEEP")
 }
 
 HonControlMethod = haier_ns.enum("HonControlMethod", True)
@@ -373,40 +365,33 @@ async def to_code(config):
     await uart.register_uart_device(var, config)
 
     cg.add(var.set_send_wifi(config[CONF_WIFI_SIGNAL]))
-    if CONF_CONTROL_METHOD in config:
-        cg.add(var.set_control_method(config[CONF_CONTROL_METHOD]))
-    if CONF_BEEPER in config:
-        cg.add(var.set_beeper_state(config[CONF_BEEPER]))
-    if CONF_DISPLAY in config:
-        cg.add(var.set_display_state(config[CONF_DISPLAY]))
-    if CONF_SUPPORTED_MODES in config:
-        cg.add(var.set_supported_modes(config[CONF_SUPPORTED_MODES]))
-    if CONF_SUPPORTED_SWING_MODES in config:
-        cg.add(var.set_supported_swing_modes(config[CONF_SUPPORTED_SWING_MODES]))
-    if CONF_SUPPORTED_PRESETS in config:
-        cg.add(var.set_supported_presets(config[CONF_SUPPORTED_PRESETS]))
-    if CONF_ANSWER_TIMEOUT in config:
-        cg.add(var.set_answer_timeout(config[CONF_ANSWER_TIMEOUT]))
-    if CONF_ALTERNATIVE_SWING_CONTROL in config:
-        cg.add(
-            var.set_alternative_swing_control(config[CONF_ALTERNATIVE_SWING_CONTROL])
-        )
-    if CONF_CONTROL_PACKET_SIZE in config:
+    cg.add_optional(var.set_control_method, config.get(CONF_CONTROL_METHOD))
+    cg.add_optional(var.set_beeper_state, config.get(CONF_BEEPER))
+    cg.add_optional(var.set_display_state, config.get(CONF_DISPLAY))
+    cg.add_optional(var.set_supported_modes, config.get(CONF_SUPPORTED_MODES))
+    cg.add_optional(
+        var.set_supported_swing_modes, config.get(CONF_SUPPORTED_SWING_MODES)
+    )
+    cg.add_optional(var.set_supported_presets, config.get(CONF_SUPPORTED_PRESETS))
+    cg.add_optional(var.set_answer_timeout, config.get(CONF_ANSWER_TIMEOUT))
+    cg.add_optional(
+        var.set_alternative_swing_control, config.get(CONF_ALTERNATIVE_SWING_CONTROL)
+    )
+    if (control_packet_size := config.get(CONF_CONTROL_PACKET_SIZE)) is not None:
         cg.add(
             var.set_extra_control_packet_bytes_size(
-                config[CONF_CONTROL_PACKET_SIZE] - PROTOCOL_CONTROL_PACKET_SIZE
+                control_packet_size - PROTOCOL_CONTROL_PACKET_SIZE
             )
         )
-    if CONF_SENSORS_PACKET_SIZE in config:
+    if (sensors_packet_size := config.get(CONF_SENSORS_PACKET_SIZE)) is not None:
         cg.add(
             var.set_extra_sensors_packet_bytes_size(
-                config[CONF_SENSORS_PACKET_SIZE] - PROTOCOL_MIN_SENSORS_PACKET_SIZE
+                sensors_packet_size - PROTOCOL_MIN_SENSORS_PACKET_SIZE
             )
         )
-    if CONF_STATUS_MESSAGE_HEADER_SIZE in config:
-        cg.add(
-            var.set_status_message_header_size(config[CONF_STATUS_MESSAGE_HEADER_SIZE])
-        )
+    cg.add_optional(
+        var.set_status_message_header_size, config.get(CONF_STATUS_MESSAGE_HEADER_SIZE)
+    )
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
     # https://github.com/paveldn/HaierProtocol
-    cg.add_library("pavlodn/HaierProtocol", "0.9.31")
+    cg.add_library("pavlodn/HaierProtocol", "0.9.32")

@@ -1,4 +1,5 @@
 #include <chrono>
+#include <cmath>
 #include <string>
 #include "esphome/components/climate/climate.h"
 #include "esphome/components/uart/uart.h"
@@ -65,9 +66,9 @@ PROGMEM_STRING_TABLE(
     "Formaldehyde sensor failure", "VOC sensor failure", "CO2 sensor failure", "Firewall failure", "Unknown");
 
 HonClimate::HonClimate()
-    : cleaning_status_(CleaningState::NO_CLEANING), got_valid_outdoor_temp_(false), active_alarms_{0x00, 0x00, 0x00,
-                                                                                                   0x00, 0x00, 0x00,
-                                                                                                   0x00, 0x00} {
+    : cleaning_status_(CleaningState::NO_CLEANING),
+      got_valid_outdoor_temp_(false),
+      active_alarms_{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00} {
   this->fan_mode_speed_ = (uint8_t) hon_protocol::FanMode::FAN_MID;
   this->other_modes_fan_speed_ = (uint8_t) hon_protocol::FanMode::FAN_AUTO;
 }
@@ -78,9 +79,7 @@ void HonClimate::set_beeper_state(bool state) {
   if (state != this->settings_.beeper_state) {
     this->settings_.beeper_state = state;
 #ifdef USE_SWITCH
-    if (this->beeper_switch_ != nullptr) {
-      this->beeper_switch_->publish_state(state);
-    }
+    PUBLISH_STATE(this->beeper_switch_, state);
 #endif
     this->hon_rtc_.save(&this->settings_);
   }
@@ -98,9 +97,7 @@ void HonClimate::set_quiet_mode_state(bool state) {
     }
     this->settings_.quiet_mode_state = state;
 #ifdef USE_SWITCH
-    if (this->quiet_mode_switch_ != nullptr) {
-      this->quiet_mode_switch_->publish_state(state);
-    }
+    PUBLISH_STATE(this->quiet_mode_switch_, state);
 #endif
     this->hon_rtc_.save(&this->settings_);
   }
@@ -536,7 +533,7 @@ void HonClimate::process_phase(std::chrono::steady_clock::time_point now) {
           this->send_message_(this->action_request_.value().message.value(), this->use_crc_);
           this->action_request_.value().message.reset();  // NOLINT(bugprone-unchecked-optional-access)
         } else {
-          // Message already sent, reseting request and return to idle
+          // Message already sent, resetting request and return to idle
           this->action_request_.reset();
           this->set_phase(ProtocolPhases::IDLE);
         }
@@ -564,7 +561,7 @@ void HonClimate::process_phase(std::chrono::steady_clock::time_point now) {
     default:
       // Shouldn't get here
       ESP_LOGE(TAG, "Wrong protocol handler state: %s (%d), resetting communication",
-               phase_to_string_(this->protocol_phase_), (int) this->protocol_phase_);
+               LOG_STR_ARG(phase_to_string_(this->protocol_phase_)), (int) this->protocol_phase_);
       this->set_phase(ProtocolPhases::SENDING_INIT_1);
       break;
   }
@@ -609,6 +606,10 @@ void HonClimate::initialization() {
   this->current_vertical_swing_ = this->settings_.last_vertiacal_swing;
   this->current_horizontal_swing_ = this->settings_.last_horizontal_swing;
   this->quiet_mode_state_ = this->settings_.quiet_mode_state ? SwitchState::SWITCH_ON : SwitchState::SWITCH_OFF;
+#ifdef USE_SWITCH
+  PUBLISH_STATE(this->beeper_switch_, this->get_beeper_state());
+  PUBLISH_STATE(this->quiet_mode_switch_, this->settings_.quiet_mode_state);
+#endif
 }
 
 haier_protocol::HaierMessage HonClimate::get_control_message() {
@@ -782,7 +783,7 @@ haier_protocol::HaierMessage HonClimate::get_control_message() {
 void HonClimate::process_alarm_message_(const uint8_t *packet, uint8_t size, bool check_new) {
   constexpr size_t active_alarms_size = sizeof(this->active_alarms_);
   if (size >= active_alarms_size + 2) {
-    if (check_new) {
+    if (check_new && !std::isnan(this->active_alarm_count_)) {
       size_t alarm_code = 0;
       for (int i = active_alarms_size - 1; i >= 0; i--) {
         if (packet[2 + i] != active_alarms_[i]) {
@@ -796,14 +797,14 @@ void HonClimate::process_alarm_message_(const uint8_t *packet, uint8_t size, boo
               // alarm change, including a later one in this packet; `code` stays correct
               static char alarm_message[HonAlarmMessages::MAX_LENGTH + 1];
               ESPHOME_strncpy_P(alarm_message,
-                                reinterpret_cast<const char *>(
-                                    HonAlarmMessages::get_progmem_str(alarm_code, HonAlarmMessages::LAST_INDEX)),
+                                reinterpret_cast<const char *>(HonAlarmMessages::get_progmem_str(alarm_code)),
                                 sizeof(alarm_message));
 #else
-              const char *alarm_message = HonAlarmMessages::get_progmem_str(alarm_code, HonAlarmMessages::LAST_INDEX);
+              const char *alarm_message = HonAlarmMessages::get_progmem_str(alarm_code);
 #endif
-              esp_log_printf_(log_level, TAG, __LINE__, "Alarm %s (%d): %s", alarm_status ? "activated" : "deactivated",
-                              alarm_code, alarm_message);
+              esp_log_printf_(log_level, TAG, __LINE__, ESPHOME_LOG_FORMAT("Alarm %s (%d): %s"),
+                              alarm_status ? LOG_STR_LITERAL("activated") : LOG_STR_LITERAL("deactivated"), alarm_code,
+                              alarm_message);
               if (alarm_status) {
                 this->alarm_start_callback_.call(alarm_code, alarm_message);
                 this->active_alarm_count_ += 1.0f;
@@ -901,26 +902,9 @@ void HonClimate::set_sub_text_sensor(SubTextSensorType type, text_sensor::TextSe
 
 void HonClimate::update_sub_text_sensor_(SubTextSensorType type, const char *value) {
   size_t index = (size_t) type;
-  if (this->sub_text_sensors_[index] != nullptr)
-    this->sub_text_sensors_[index]->publish_state(value);
+  PUBLISH_STATE(this->sub_text_sensors_[index], value);
 }
 #endif  // USE_TEXT_SENSOR
-
-#ifdef USE_SWITCH
-void HonClimate::set_beeper_switch(switch_::Switch *sw) {
-  this->beeper_switch_ = sw;
-  if (this->beeper_switch_ != nullptr) {
-    this->beeper_switch_->publish_state(this->get_beeper_state());
-  }
-}
-
-void HonClimate::set_quiet_mode_switch(switch_::Switch *sw) {
-  this->quiet_mode_switch_ = sw;
-  if (this->quiet_mode_switch_ != nullptr) {
-    this->quiet_mode_switch_->publish_state(this->settings_.quiet_mode_state);
-  }
-}
-#endif  // USE_SWITCH
 
 #ifdef USE_SELECT
 template<typename Mode, size_t N>
@@ -961,7 +945,7 @@ haier_protocol::HandlerError HonClimate::process_status_message_(const uint8_t *
   size_t expected_size =
       2 + this->status_message_header_size_ + this->real_control_packet_size_ + this->real_sensors_packet_size_;
   if (size < expected_size) {
-    ESP_LOGW(TAG, "Unexpected message size %u (expexted >= %zu)", size, expected_size);
+    ESP_LOGW(TAG, "Unexpected message size %u (expected >= %zu)", size, expected_size);
     return haier_protocol::HandlerError::WRONG_MESSAGE_STRUCTURE;
   }
   uint16_t subtype = (((uint16_t) packet_buffer[0]) << 8) + packet_buffer[1];
@@ -1071,6 +1055,8 @@ haier_protocol::HandlerError HonClimate::process_status_message_(const uint8_t *
       case (uint8_t) hon_protocol::FanMode::FAN_HIGH:
         this->fan_mode = CLIMATE_FAN_HIGH;
         break;
+      default:
+        break;
     }
     should_publish = should_publish || (!old_fan_mode.has_value()) ||
                      (old_fan_mode.value_or(CLIMATE_FAN_ON) != this->fan_mode.value_or(CLIMATE_FAN_ON));
@@ -1144,6 +1130,8 @@ haier_protocol::HandlerError HonClimate::process_status_message_(const uint8_t *
         case (uint8_t) hon_protocol::ConditioningMode::AUTO:
           this->mode = CLIMATE_MODE_HEAT_COOL;
           break;
+        default:
+          break;
       }
     }
     should_publish = should_publish || (old_mode != this->mode);
@@ -1158,9 +1146,7 @@ haier_protocol::HandlerError HonClimate::process_status_message_(const uint8_t *
         this->quiet_mode_state_ = new_quiet_mode ? SwitchState::SWITCH_ON : SwitchState::SWITCH_OFF;
         this->settings_.quiet_mode_state = new_quiet_mode;
 #ifdef USE_SWITCH
-        if (this->quiet_mode_switch_ != nullptr) {
-          this->quiet_mode_switch_->publish_state(new_quiet_mode);
-        }
+        PUBLISH_STATE(this->quiet_mode_switch_, new_quiet_mode);
 #endif  // USE_SWITCH
         this->hon_rtc_.save(&this->settings_);
       }
@@ -1220,11 +1206,13 @@ haier_protocol::HandlerError HonClimate::process_status_message_(const uint8_t *
     ESP_LOGI(TAG, "HVAC values changed");
   }
   int log_level = should_publish ? ESPHOME_LOG_LEVEL_INFO : ESPHOME_LOG_LEVEL_DEBUG;
-  esp_log_printf_(log_level, TAG, __LINE__, "HVAC Mode = 0x%X", packet.control.ac_mode);
-  esp_log_printf_(log_level, TAG, __LINE__, "Fan speed Status = 0x%X", packet.control.fan_mode);
-  esp_log_printf_(log_level, TAG, __LINE__, "Horizontal Swing Status = 0x%X", packet.control.horizontal_swing_mode);
-  esp_log_printf_(log_level, TAG, __LINE__, "Vertical Swing Status = 0x%X", packet.control.vertical_swing_mode);
-  esp_log_printf_(log_level, TAG, __LINE__, "Set Point Status = 0x%X", packet.control.set_point);
+  esp_log_printf_(log_level, TAG, __LINE__, ESPHOME_LOG_FORMAT("HVAC Mode = 0x%X"), packet.control.ac_mode);
+  esp_log_printf_(log_level, TAG, __LINE__, ESPHOME_LOG_FORMAT("Fan speed Status = 0x%X"), packet.control.fan_mode);
+  esp_log_printf_(log_level, TAG, __LINE__, ESPHOME_LOG_FORMAT("Horizontal Swing Status = 0x%X"),
+                  packet.control.horizontal_swing_mode);
+  esp_log_printf_(log_level, TAG, __LINE__, ESPHOME_LOG_FORMAT("Vertical Swing Status = 0x%X"),
+                  packet.control.vertical_swing_mode);
+  esp_log_printf_(log_level, TAG, __LINE__, ESPHOME_LOG_FORMAT("Set Point Status = 0x%X"), packet.control.set_point);
   return haier_protocol::HandlerError::HANDLER_OK;
 }
 
@@ -1540,6 +1528,8 @@ void HonClimate::process_protocol_reset() {
       sub_sensor->publish_state(NAN);
   }
 #endif  // USE_SENSOR
+  this->active_alarm_count_ = NAN;
+  memset(this->active_alarms_, 0, sizeof(this->active_alarms_));
   this->got_valid_outdoor_temp_ = false;
   this->hvac_hardware_info_.reset();
   this->last_status_message_.reset(nullptr);

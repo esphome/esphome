@@ -11,21 +11,15 @@ DEPENDENCIES = ["uart"]
 CONF_ON_STALL = "on_stall"
 
 
-def _validate_stall_needs_diag(config: ConfigType) -> ConfigType:
-    if CONF_ON_STALL in config and tmc22xx.CONF_DIAG_PIN not in config:
-        raise cv.Invalid(
-            f"'{CONF_ON_STALL}' requires '{tmc22xx.CONF_DIAG_PIN}', stalls are only reported on DIAG"
-        )
-    return config
-
-
 CONFIG_SCHEMA = cv.All(
     tmc22xx.tmc22xx_schema(
         TMC2209Stepper,
         max_address=3,
         extra={cv.Optional(CONF_ON_STALL): automation.validate_automation({})},
     ),
-    _validate_stall_needs_diag,
+    cv.key_requires(
+        CONF_ON_STALL, tmc22xx.CONF_DIAG_PIN, hint="Stalls are only reported on DIAG"
+    ),
 )
 FINAL_VALIDATE_SCHEMA = tmc22xx.final_validate
 

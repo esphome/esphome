@@ -1,0 +1,14 @@
+# Two commands of the same frame type, so a replace_latest queue keeps only the last press.
+button:
+  - platform: rs485_frame
+    id: cmd_a
+    rs485_frame_id: hub
+    name: cmd a
+    frame_type: [0x00, 0x83]
+    payload: [0x01, 0x10, 0xA1]
+  - platform: rs485_frame
+    id: cmd_b
+    rs485_frame_id: hub
+    name: cmd b
+    frame_type: [0x00, 0x83]
+    payload: [0x01, 0x10, 0xB2]

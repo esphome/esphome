@@ -46,7 +46,7 @@ uint8_t WeikaiRegisterSPI::read_reg() const {
   uint8_t const val = buf[1];
   char bin_buf[9];
   ESP_LOGVV(TAG, "WeikaiRegisterSPI::read_reg() cmd=%s(%02X) reg=%s ch=%d buf=%02X", format_bin_to(bin_buf, cmd), cmd,
-            reg_to_str(this->register_, this->comp_->page1()), this->channel_, val);
+            LOG_STR_ARG(reg_to_str(this->register_, this->comp_->page1())), this->channel_, val);
   return val;
 }
 
@@ -65,7 +65,7 @@ void WeikaiRegisterSPI::read_fifo(uint8_t *data, size_t length) const {
   char bin_buf[9];
   ESP_LOGVV(TAG, "WeikaiRegisterSPI::read_fifo() cmd=%s(%02X) ch=%d len=%d buffer", format_bin_to(bin_buf, cmd), cmd,
             this->channel_, length);
-  print_buffer(data, length);
+  print_buffer(TAG, data, length);
 #endif
 }
 
@@ -77,7 +77,7 @@ void WeikaiRegisterSPI::write_reg(uint8_t value) {
   spi_comp->disable();
   char bin_buf[9];
   ESP_LOGVV(TAG, "WeikaiRegisterSPI::write_reg() cmd=%s(%02X) reg=%s ch=%d buf=%02X", format_bin_to(bin_buf, buf[0]),
-            buf[0], reg_to_str(this->register_, this->comp_->page1()), this->channel_, buf[1]);
+            buf[0], LOG_STR_ARG(reg_to_str(this->register_, this->comp_->page1())), this->channel_, buf[1]);
 }
 
 void WeikaiRegisterSPI::write_fifo(uint8_t *data, size_t length) {
@@ -95,7 +95,7 @@ void WeikaiRegisterSPI::write_fifo(uint8_t *data, size_t length) {
   char bin_buf[9];
   ESP_LOGVV(TAG, "WeikaiRegisterSPI::write_fifo() cmd=%s(%02X) ch=%d len=%d buffer", format_bin_to(bin_buf, cmd), cmd,
             this->channel_, length);
-  print_buffer(data, length);
+  print_buffer(TAG, data, length);
 #endif
 }
 

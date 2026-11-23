@@ -93,7 +93,7 @@ def _split_command(command: str) -> list[str]:
     CommandLineToArgvW = ctypes.windll.shell32.CommandLineToArgvW
     CommandLineToArgvW.argtypes = [wintypes.LPCWSTR, ctypes.POINTER(ctypes.c_int)]
     CommandLineToArgvW.restype = ctypes.POINTER(wintypes.LPWSTR)
-    argc = ctypes.c_int()
+    argc = ctypes.c_int(0)
     argv = CommandLineToArgvW(command, ctypes.byref(argc))
     if not argv:  # pragma: no cover
         raise ctypes.WinError()
@@ -296,10 +296,10 @@ def load_or_build_idedata(
 ) -> dict | None:
     """Return idedata for a compile_commands.json build, cached on mtime.
 
-    Shared by the native ESP-IDF and ESP8266 Arduino toolchains. Returns None
-    when the compile DB doesn't exist yet (nothing was built). ``launcher``
-    is the compiler-launcher path (ccache) the build was generated with, if
-    any; commands in the compile DB are prefixed with it.
+    Shared by the native toolchains. Returns None when the compile DB
+    doesn't exist yet (nothing was built). ``launcher`` is the
+    compiler-launcher path (ccache) the build was generated with, if any;
+    commands in the compile DB are prefixed with it.
     """
     if not compile_commands.is_file():
         _LOGGER.debug("No %s yet; skipping idedata generation", compile_commands)

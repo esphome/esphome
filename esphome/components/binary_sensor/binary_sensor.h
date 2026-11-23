@@ -56,6 +56,14 @@ class BinarySensor : public StatefulEntityBase<bool> {
   void add_filters(std::initializer_list<Filter *> filters);
 #endif
 
+#ifdef USE_BINARY_SENSOR_RAW_CALLBACK
+  /// Add a callback that is called on every publish_state(), before filters and without
+  /// de-duplication, so it also fires when the same value is published again.
+  template<typename F> void add_on_raw_state_callback(F &&callback) {
+    this->raw_callback_.add(std::forward<F>(callback));
+  }
+#endif
+
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
   void send_state_internal(bool new_state) {
@@ -78,6 +86,9 @@ class BinarySensor : public StatefulEntityBase<bool> {
   bool trigger_on_initial_state_{true};
 #ifdef USE_BINARY_SENSOR_FILTER
   Filter *filter_list_{nullptr};
+#endif
+#ifdef USE_BINARY_SENSOR_RAW_CALLBACK
+  LazyCallbackManager<void(bool)> raw_callback_;
 #endif
 
   bool set_new_state(const optional<bool> &new_state) override;

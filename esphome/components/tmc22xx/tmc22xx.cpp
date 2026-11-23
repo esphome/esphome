@@ -1,6 +1,7 @@
 #include "tmc22xx.h"
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 #include <cmath>
 #include <cstring>
@@ -30,42 +31,12 @@ static constexpr uint8_t UNREACHABLE_POLL_SKIP = 9;
 static constexpr uint32_t GSTAT_FLAGS = 0x07;  // reset, drv_err, uv_cp
 static constexpr uint32_t DRV_STATUS_FLAGS = 0x0FFF;
 
-static const LogString *driver_event_to_string(DriverEvent event) {
-  switch (event) {
-    case DRIVER_EVENT_RESET:
-      return LOG_STR("Driver reset");
-    case DRIVER_EVENT_DRIVER_ERROR:
-      return LOG_STR("Driver error");
-    case DRIVER_EVENT_CHARGE_PUMP_UNDERVOLTAGE:
-      return LOG_STR("Charge pump undervoltage");
-    case DRIVER_EVENT_OVERTEMPERATURE_PREWARNING:
-      return LOG_STR("Overtemperature prewarning");
-    case DRIVER_EVENT_OVERTEMPERATURE:
-      return LOG_STR("Overtemperature shutdown");
-    case DRIVER_EVENT_SHORT_TO_GROUND_A:
-      return LOG_STR("Short to ground on phase A");
-    case DRIVER_EVENT_SHORT_TO_GROUND_B:
-      return LOG_STR("Short to ground on phase B");
-    case DRIVER_EVENT_LOW_SIDE_SHORT_A:
-      return LOG_STR("Low side short on phase A");
-    case DRIVER_EVENT_LOW_SIDE_SHORT_B:
-      return LOG_STR("Low side short on phase B");
-    case DRIVER_EVENT_OPEN_LOAD_A:
-      return LOG_STR("Open load on phase A");
-    case DRIVER_EVENT_OPEN_LOAD_B:
-      return LOG_STR("Open load on phase B");
-    case DRIVER_EVENT_TEMPERATURE_120C:
-      return LOG_STR("Temperature above 120C");
-    case DRIVER_EVENT_TEMPERATURE_143C:
-      return LOG_STR("Temperature above 143C");
-    case DRIVER_EVENT_TEMPERATURE_150C:
-      return LOG_STR("Temperature above 150C");
-    case DRIVER_EVENT_TEMPERATURE_157C:
-      return LOG_STR("Temperature above 157C");
-    default:
-      return LOG_STR("Unknown");
-  }
-}
+// Indexed by DriverEvent
+PROGMEM_STRING_TABLE(DriverEventStrings, "Driver reset", "Driver error", "Charge pump undervoltage",
+                     "Overtemperature prewarning", "Overtemperature shutdown", "Short to ground on phase A",
+                     "Short to ground on phase B", "Low side short on phase A", "Low side short on phase B",
+                     "Open load on phase A", "Open load on phase B", "Temperature above 120C", "Temperature above 143C",
+                     "Temperature above 150C", "Temperature above 157C", "Unknown");
 
 // CRC-8 with polynomial 0x07 over the datagram bits in the order they go out on the wire, LSB first
 static uint8_t datagram_crc(const uint8_t *data, size_t len) {
@@ -91,10 +62,7 @@ void IRAM_ATTR IndexPulseStore::gpio_intr(IndexPulseStore *arg) { arg->pulses = 
 void IRAM_ATTR DiagPinStore::gpio_intr(DiagPinStore *arg) { arg->triggered = true; }
 
 void TMC22XXStepper::setup() {
-  if (this->enn_pin_ != nullptr) {
-    this->enn_pin_->setup();
-    this->enn_pin_->digital_write(true);
-  }
+  setup_output_pin(this->enn_pin_, true);
 
   auto version = this->read_field(VERSION);
   if (!version.has_value()) {
@@ -120,10 +88,8 @@ void TMC22XXStepper::setup() {
     this->index_pin_->setup();
     this->index_pin_->attach_interrupt(IndexPulseStore::gpio_intr, &this->index_store_, gpio::INTERRUPT_ANY_EDGE);
   } else {
-    this->step_pin_->setup();
-    this->step_pin_->digital_write(false);
-    this->dir_pin_->setup();
-    this->dir_pin_->digital_write(false);
+    setup_output_pin(this->step_pin_, false);
+    setup_output_pin(this->dir_pin_, false);
   }
 
   if (this->diag_pin_ != nullptr) {
@@ -216,9 +182,9 @@ bool TMC22XXStepper::update_status_() {
     bool active = (status & (1u << event)) != 0;
     // Open load and temperature levels are informational, the driver keeps running
     if (active && event < DRIVER_EVENT_OPEN_LOAD_A) {
-      ESP_LOGW(TAG, "%s", LOG_STR_ARG(driver_event_to_string(static_cast<DriverEvent>(event))));
+      ESP_LOGW(TAG, "%s", LOG_STR_ARG(DriverEventStrings::get_log_str(event)));
     } else {
-      ESP_LOGD(TAG, "%s: %s", LOG_STR_ARG(driver_event_to_string(static_cast<DriverEvent>(event))),
+      ESP_LOGD(TAG, "%s: %s", LOG_STR_ARG(DriverEventStrings::get_log_str(event)),
                active ? LOG_STR_LITERAL("active") : LOG_STR_LITERAL("cleared"));
     }
     this->status_callback_.call(static_cast<DriverEvent>(event), active);
@@ -256,9 +222,6 @@ void TMC22XXStepper::dump_config() {
   LOG_PIN("  INDEX Pin: ", this->index_pin_);
   LOG_PIN("  DIAG Pin: ", this->diag_pin_);
   LOG_STEPPER(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
 }
 
 void TMC22XXStepper::loop() {
@@ -274,11 +237,11 @@ void TMC22XXStepper::loop() {
     }
   }
 
-  if (this->has_reached_target()) {
-    this->high_freq_.stop();
+  const bool reached = this->has_reached_target();
+  this->high_freq_.set(!reached);
+  if (reached) {
     this->moving_ = false;
   } else {
-    this->high_freq_.start();
     if (!this->enabled_)
       this->set_enabled(true);
     // An unreachable driver is polled only every 10 s. Read it before the first step, so settings lost when the
@@ -449,18 +412,15 @@ bool TMC22XXStepper::write_register(uint8_t reg, uint32_t value) {
                                      0};
   datagram[7] = datagram_crc(datagram, 7);
 
-  while (this->available())
-    this->read();
+  this->discard_available();
   this->write_array(datagram, DATAGRAM_SIZE);
   this->flush();
   // On the single wire bus every byte sent is also received, drop that echo
   uint8_t echo[DATAGRAM_SIZE];
-  if (!this->read_array(echo, DATAGRAM_SIZE) || memcmp(echo, datagram, DATAGRAM_SIZE) != 0) {
+  if (!this->status_comm_result(this->read_array(echo, DATAGRAM_SIZE) && memcmp(echo, datagram, DATAGRAM_SIZE) == 0)) {
     ESP_LOGV(TAG, "No echo writing register 0x%02X", reg);
-    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return false;
   }
-  this->status_clear_warning();
 
   if (uint32_t *shadow = this->shadow_register(reg)) {
     *shadow = value;
@@ -478,8 +438,7 @@ optional<uint32_t> TMC22XXStepper::read_register(uint8_t reg) {
   uint8_t request[READ_REQUEST_SIZE] = {SYNC_BYTE, this->address_, reg, 0};
   request[3] = datagram_crc(request, 3);
 
-  while (this->available())
-    this->read();
+  this->discard_available();
   this->write_array(request, READ_REQUEST_SIZE);
   this->flush();
   uint8_t reply[DATAGRAM_SIZE];
@@ -488,12 +447,11 @@ optional<uint32_t> TMC22XXStepper::read_register(uint8_t reg) {
     this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return {};
   }
-  if (reply[0] != SYNC_BYTE || reply[1] != MASTER_ADDRESS || reply[2] != reg || reply[7] != datagram_crc(reply, 7)) {
+  if (!this->status_comm_result(reply[0] == SYNC_BYTE && reply[1] == MASTER_ADDRESS && reply[2] == reg &&
+                                reply[7] == datagram_crc(reply, 7))) {
     ESP_LOGV(TAG, "Invalid reply reading register 0x%02X", reg);
-    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return {};
   }
-  this->status_clear_warning();
   return encode_uint32(reply[3], reply[4], reply[5], reply[6]);
 }
 

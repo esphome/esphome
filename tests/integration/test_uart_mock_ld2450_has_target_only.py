@@ -8,12 +8,11 @@ Tests:
 from __future__ import annotations
 
 import asyncio
-from pathlib import Path
 
 from aioesphomeapi import BinarySensorInfo, BinarySensorState, ButtonInfo, EntityState
 import pytest
 
-from .state_utils import InitialStateHelper, require_entity
+from .state_utils import require_entity, subscribe_after_initial_states
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 # The fixture sends one frame with a target, then 2 s of frames without one
@@ -27,13 +26,6 @@ async def test_uart_mock_ld2450_has_target_only(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Test has_target with no sensor platform and no presence_timeout number."""
-    external_components_path = str(
-        Path(__file__).parent / "fixtures" / "external_components"
-    )
-    yaml_config = yaml_config.replace(
-        "EXTERNAL_COMPONENT_PATH", external_components_path
-    )
-
     async with (
         run_compiled(yaml_config),
         api_client_connected() as client,
@@ -49,9 +41,7 @@ async def test_uart_mock_ld2450_has_target_only(
                 if state.state and not turned_on.done():
                     turned_on.set_result(None)
 
-        helper = InitialStateHelper(entities)
-        client.subscribe_states(helper.on_state_wrapper(on_state))
-        await helper.wait_for_initial_states()
+        await subscribe_after_initial_states(client, entities, on_state=on_state)
 
         start_btn = require_entity(entities, "start_scenario", ButtonInfo)
         client.button_command(start_btn.key)

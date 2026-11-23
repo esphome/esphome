@@ -7,7 +7,9 @@
 //   https://github.com/sciosense/ENS210_driver
 
 #include "ens210.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 #include "esphome/core/hal.h"
 
 namespace esphome::ens210 {
@@ -18,7 +20,7 @@ static constexpr uint32_t DATA_TIMEOUT_ID = 0;
 
 // ENS210 chip constants
 static const uint8_t ENS210_BOOTING_MS = 2;  // Booting time in ms (also after reset, or going to high power)
-static const uint8_t ENS210_SINGLE_MEASURMENT_CONVERSION_TIME_MS =
+static const uint8_t ENS210_SINGLE_MEASUREMENT_CONVERSION_TIME_MS =
     130;                                        // Conversion time in ms for single shot T/H measurement
 static const uint16_t ENS210_PART_ID = 0x0210;  // The expected part id of the ENS210
 
@@ -44,20 +46,13 @@ static const uint8_t DATA7_WIDTH = 17;
 static const uint32_t DATA7_MASK = ((1UL << DATA7_WIDTH) - 1);  // 0b 0 1111 1111 1111 1111
 static const uint32_t DATA7_MSB = (1UL << (DATA7_WIDTH - 1));   // 0b 1 0000 0000 0000 0000
 
+// Indexed by ENS210Component::ErrorCode
+PROGMEM_STRING_TABLE(StatusStrings, "Status OK", "Invalid data", "CRC error",
+                     "I2C error - communication with ENS210 failed!", "Unknown");
+
 // Converts a status to a human readable string
-static const LogString *ens210_status_to_human(int status) {
-  switch (status) {
-    case ENS210Component::ENS210_STATUS_I2C_ERROR:
-      return LOG_STR("I2C error - communication with ENS210 failed!");
-    case ENS210Component::ENS210_STATUS_CRC_ERROR:
-      return LOG_STR("CRC error");
-    case ENS210Component::ENS210_STATUS_INVALID:
-      return LOG_STR("Invalid data");
-    case ENS210Component::ENS210_STATUS_OK:
-      return LOG_STR("Status OK");
-    default:
-      return LOG_STR("Unknown");
-  }
+static __attribute__((noinline)) const LogString *ens210_status_to_human(int status) {
+  return StatusStrings::get_log_str(status);
 }
 
 // Compute the CRC-7 of 'value' (should only have 17 bits)
@@ -145,7 +140,7 @@ void ENS210Component::update() {
     return;
   }
   // Wait for measurement to complete
-  this->set_timeout(DATA_TIMEOUT_ID, uint32_t(ENS210_SINGLE_MEASURMENT_CONVERSION_TIME_MS), [this]() {
+  this->set_timeout(DATA_TIMEOUT_ID, uint32_t(ENS210_SINGLE_MEASUREMENT_CONVERSION_TIME_MS), [this]() {
     int temperature_data, temperature_status, humidity_data, humidity_status;
     uint8_t data[6];
     uint32_t h_val_data, t_val_data;
@@ -160,31 +155,25 @@ void ENS210Component::update() {
       return;
     }
     // Pack bytes for humidity
-    h_val_data = (uint32_t) ((uint32_t) data[5] << 16 | (uint32_t) data[4] << 8 | (uint32_t) data[3]);
+    h_val_data = encode_uint24(data[5], data[4], data[3]);
     // Extract humidity data and update the status
     extract_measurement_(h_val_data, &humidity_data, &humidity_status);
 
     if (humidity_status == ENS210_STATUS_OK) {
-      if (this->humidity_sensor_ != nullptr) {
-        float humidity = (humidity_data & 0xFFFF) / 512.0;
-        this->humidity_sensor_->publish_state(humidity);
-      }
+      PUBLISH_STATE(this->humidity_sensor_, (humidity_data & 0xFFFF) / 512.0);
     } else {
       ESP_LOGW(TAG, "Humidity status failure: %s", LOG_STR_ARG(ens210_status_to_human(humidity_status)));
       this->status_set_warning();
       return;
     }
     // Pack bytes for temperature
-    t_val_data = (uint32_t) ((uint32_t) data[2] << 16 | (uint32_t) data[1] << 8 | (uint32_t) data[0]);
+    t_val_data = encode_uint24(data[2], data[1], data[0]);
     // Extract temperature data and update the status
     extract_measurement_(t_val_data, &temperature_data, &temperature_status);
 
     if (temperature_status == ENS210_STATUS_OK) {
-      if (this->temperature_sensor_ != nullptr) {
-        // Temperature in Celsius
-        float temperature = (temperature_data & 0xFFFF) / 64.0 - 27315L / 100.0;
-        this->temperature_sensor_->publish_state(temperature);
-      }
+      // Temperature in Celsius
+      PUBLISH_STATE(this->temperature_sensor_, (temperature_data & 0xFFFF) / 64.0 - 27315L / 100.0);
     } else {
       ESP_LOGW(TAG, "Temperature status failure: %s", LOG_STR_ARG(ens210_status_to_human(temperature_status)));
     }

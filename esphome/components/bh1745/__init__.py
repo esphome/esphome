@@ -1,12 +1,9 @@
-from typing import Any
-
 import esphome.codegen as cg
 from esphome.components import i2c
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_GAIN,
     CONF_GLASS_ATTENUATION_FACTOR,
-    CONF_ID,
     CONF_INTEGRATION_TIME,
 )
 from esphome.types import ConfigType
@@ -38,19 +35,14 @@ MEASUREMENT_TIMES = {
 }
 
 
-def validate_measurement_time(value: Any) -> Any:
-    value = cv.positive_time_period_milliseconds(value).total_milliseconds
-    return cv.enum(MEASUREMENT_TIMES, int=True)(value)
-
-
 CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(BH1745Component),
             cv.Optional(CONF_GAIN, default="1X"): cv.enum(ADC_GAINS, upper=True),
-            cv.Optional(
-                CONF_INTEGRATION_TIME, default="160ms"
-            ): validate_measurement_time,
+            cv.Optional(CONF_INTEGRATION_TIME, default="160ms"): cv.time_period_enum(
+                MEASUREMENT_TIMES
+            ),
             cv.Optional(CONF_GLASS_ATTENUATION_FACTOR, default=1.0): cv.float_range(
                 min=1.0
             ),
@@ -62,9 +54,7 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
 
     cg.add(var.set_adc_gain(config[CONF_GAIN]))
     cg.add(var.set_measurement_time(config[CONF_INTEGRATION_TIME]))

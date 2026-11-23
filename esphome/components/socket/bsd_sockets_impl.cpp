@@ -6,11 +6,16 @@
 
 #include <cstring>
 #include "esphome/core/application.h"
+#include "esphome/core/log.h"
 #ifdef USE_HOST
 #include "esphome/core/wake.h"
 #endif
 
 namespace esphome::socket {
+
+#if defined(USE_ZEPHYR) && !defined(CONFIG_NET_TCP)
+ESPHOME_LOG_TAG(TAG, "socket");
+#endif
 
 BSDSocketImpl::BSDSocketImpl(int fd, bool monitor_loop) {
   this->fd_ = fd;
@@ -62,11 +67,7 @@ int BSDSocketImpl::setblocking(bool blocking) {
   if (fl < 0) {
     return fl;
   }
-  if (blocking) {
-    fl &= ~O_NONBLOCK;
-  } else {
-    fl |= O_NONBLOCK;
-  }
+  assign_bits(fl, O_NONBLOCK, !blocking);
   return ::fcntl(this->fd_, F_SETFL, fl);
 }
 
@@ -93,8 +94,16 @@ size_t BSDSocketImpl::getsockname_to(std::span<char, SOCKADDR_STR_LEN> buf) {
 // Helper to create a socket with optional monitoring
 static std::unique_ptr<BSDSocketImpl> create_socket(int domain, int type, int protocol, bool loop_monitored = false) {
   int ret = ::socket(domain, type, protocol);
-  if (ret == -1)
+  if (ret == -1) {
+#if defined(USE_ZEPHYR) && !defined(CONFIG_NET_TCP)
+    static bool logged = false;
+    if (type == SOCK_STREAM && !logged) {
+      logged = true;
+      ESP_LOGE(TAG, "TCP stack not built; the component must register its socket with socket.consume_sockets");
+    }
+#endif
     return nullptr;
+  }
   return make_unique<BSDSocketImpl>(ret, loop_monitored);
 }
 

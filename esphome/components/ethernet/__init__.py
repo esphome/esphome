@@ -1,14 +1,13 @@
 from dataclasses import dataclass
 
 from esphome import automation, pins
-from esphome.automation import Condition
 import esphome.codegen as cg
 from esphome.components import spi
 from esphome.components.network import (
     add_use_address,
     get_network_priority,
     get_priority_interfaces_from_full_config,
-    ip_address_literal,
+    require_ipv4,
 )
 from esphome.config_helpers import (
     filter_source_files_from_defines,
@@ -45,8 +44,7 @@ from esphome.const import (
     CONF_TYPE,
     CONF_USE_ADDRESS,
     CONF_VALUE,
-    KEY_CORE,
-    KEY_FRAMEWORK_VERSION,
+    CONF_WIFI,
     Platform,
     PlatformFramework,
 )
@@ -77,6 +75,17 @@ def request_ethernet_ip_state_listener() -> None:
     CORE.data[ETHERNET_IP_STATE_LISTENERS_KEY] = (
         CORE.data.get(ETHERNET_IP_STATE_LISTENERS_KEY, 0) + 1
     )
+
+
+_register_connect_state_listener = cg.slot_list(
+    "ESPHOME_ETHERNET_CONNECT_STATE_LISTENERS", "add_connect_state_listener", DOMAIN
+)
+
+
+async def register_connect_state_listener(listener: cg.MockObj) -> None:
+    """Register an EthernetConnectStateListener; call from to_code()."""
+    ethernet = await cg.get_variable(CORE.config[DOMAIN][CONF_ID])
+    cg.add(_register_connect_state_listener(ethernet, listener))
 
 
 # RMII pins that are hardcoded on ESP32 classic and cannot be changed
@@ -174,17 +183,17 @@ class IDFRegistryComponent:
 
 # IDF 6.0 moved per-chip PHY/MAC drivers to the Espressif Component Registry.
 _IDF6_ETHERNET_COMPONENTS: dict[str, IDFRegistryComponent] = {
-    "LAN8720": IDFRegistryComponent("espressif/lan87xx", "1.0.0"),
-    "RTL8201": IDFRegistryComponent("espressif/rtl8201", "1.0.1"),
-    "DP83848": IDFRegistryComponent("espressif/dp83848", "1.0.0"),
-    "IP101": IDFRegistryComponent("espressif/ip101", "1.0.0"),
-    "KSZ8081": IDFRegistryComponent("espressif/ksz80xx", "1.0.0"),
-    "KSZ8081RNA": IDFRegistryComponent("espressif/ksz80xx", "1.0.0"),
+    "LAN8720": IDFRegistryComponent("espressif/lan87xx", "1.1.0"),
+    "RTL8201": IDFRegistryComponent("espressif/rtl8201", "1.1.0"),
+    "DP83848": IDFRegistryComponent("espressif/dp83848", "1.1.0"),
+    "IP101": IDFRegistryComponent("espressif/ip101", "1.1.0"),
+    "KSZ8081": IDFRegistryComponent("espressif/ksz80xx", "1.1.0"),
+    "KSZ8081RNA": IDFRegistryComponent("espressif/ksz80xx", "1.1.0"),
     "W5500": IDFRegistryComponent("espressif/w5500", "1.0.1"),
-    "DM9051": IDFRegistryComponent("espressif/dm9051", "1.1.0"),
-    "ENC28J60": IDFRegistryComponent("espressif/enc28j60", "1.0.1"),
-    "LAN8670": IDFRegistryComponent("espressif/lan867x", "2.0.0"),
-    "CH390": IDFRegistryComponent("espressif/ch390", "0.3.0"),
+    "DM9051": IDFRegistryComponent("espressif/dm9051", "1.1.1"),
+    "ENC28J60": IDFRegistryComponent("espressif/enc28j60", "1.1.0"),
+    "LAN8670": IDFRegistryComponent("espressif/lan867x", "2.1.0"),
+    "CH390": IDFRegistryComponent("espressif/ch390", "0.4.1"),
     "KSZ8851SNL": IDFRegistryComponent("espressif/ksz8851snl", "1.2.0"),
 }
 
@@ -237,11 +246,6 @@ MANUAL_IP_SCHEMA = cv.Schema(
 )
 
 EthernetComponent = ethernet_ns.class_("EthernetComponent", cg.Component)
-ManualIP = ethernet_ns.struct("ManualIP")
-EthernetConnectedCondition = ethernet_ns.class_("EthernetConnectedCondition", Condition)
-EthernetEnabledCondition = ethernet_ns.class_("EthernetEnabledCondition", Condition)
-EthernetEnableAction = ethernet_ns.class_("EthernetEnableAction", automation.Action)
-EthernetDisableAction = ethernet_ns.class_("EthernetDisableAction", automation.Action)
 
 
 def _is_framework_spi_polling_mode_supported() -> bool:
@@ -351,20 +355,20 @@ def _validate(config: ConfigType) -> ConfigType:
                 if CONF_POLLING_INTERVAL in config:
                     raise cv.Invalid(
                         "In this version of the framework "
-                        f"({CORE.target_framework} {CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]}), "
+                        f"({CORE.target_framework} {CORE.framework_version}), "
                         f"'{CONF_POLLING_INTERVAL}' is not supported."
                     )
                 if CONF_INTERRUPT_PIN not in config:
                     raise cv.Invalid(
                         "In this version of the framework "
-                        f"({CORE.target_framework} {CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]}), "
+                        f"({CORE.target_framework} {CORE.framework_version}), "
                         f"'{CONF_INTERRUPT_PIN}' is a required option for [ethernet]."
                     )
         elif config[CONF_TYPE] in ("GENERIC", "YT8531"):
             from esphome.components.esp32 import (
                 VARIANT_ESP32S31,
                 get_esp32_variant,
-                idf_version,
+                require_idf_version,
             )
 
             eth_type = config[CONF_TYPE]
@@ -374,10 +378,9 @@ def _validate(config: ConfigType) -> ConfigType:
                     f"The '{eth_type}' (RGMII) PHY is only supported on gigabit-capable "
                     f"variants (ESP32-S31), not {variant}"
                 )
-            if idf_version() < cv.Version(6, 0, 0):
-                raise cv.Invalid(
-                    f"The '{eth_type}' (RGMII) PHY requires ESP-IDF 6.0 or newer."
-                )
+            require_idf_version(cv.Version(6, 0, 0), f"The '{eth_type}' (RGMII) PHY")(
+                config
+            )
         elif config[CONF_TYPE] != "OPENETH":
             from esphome.components.esp32 import (
                 VARIANT_ESP32,
@@ -402,9 +405,9 @@ def _validate(config: ConfigType) -> ConfigType:
 BASE_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(EthernetComponent),
-        cv.Optional(
-            CONF_MANUAL_IP, visibility=cv.Visibility.ADVANCED
-        ): MANUAL_IP_SCHEMA,
+        cv.Optional(CONF_MANUAL_IP, visibility=cv.Visibility.ADVANCED): cv.All(
+            MANUAL_IP_SCHEMA, require_ipv4(DOMAIN, CONF_MANUAL_IP)
+        ),
         cv.Optional(CONF_DOMAIN, default=".local"): cv.domain_name,
         cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
         cv.Optional(CONF_MAC_ADDRESS): cv.mac_address,
@@ -564,6 +567,25 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
+def _final_validate_wifi(config: ConfigType) -> None:
+    """A wifi station competes with ethernet for the primary interface, so both must be in network: priority:."""
+    full_config = fv.full_config.get()
+    if (wifi_config := full_config.get(CONF_WIFI)) is None:
+        return
+
+    from esphome.components.wifi import wifi_stays_ap_only
+
+    if wifi_stays_ap_only(wifi_config, full_config):
+        return  # an access point does not claim the primary interface
+
+    priority_ifaces = get_priority_interfaces_from_full_config(full_config)
+    if missing := [i for i in (DOMAIN, CONF_WIFI) if i not in priority_ifaces]:
+        raise cv.Invalid(
+            "When ethernet and a wifi station are used together, 'network: priority:' "
+            f"must list both interfaces; missing: {', '.join(missing)}"
+        )
+
+
 def _final_validate_spi(config: ConfigType) -> None:
     if not CORE.is_esp32:
         return  # SPI interface validation is ESP32-only
@@ -608,15 +630,10 @@ def _final_validate_spi(config: ConfigType) -> None:
                     )
 
 
-def manual_ip(config: ConfigType) -> cg.StructInitializer:
-    return cg.StructInitializer(
-        ManualIP,
-        ("static_ip", ip_address_literal(config[CONF_STATIC_IP])),
-        ("gateway", ip_address_literal(config[CONF_GATEWAY])),
-        ("subnet", ip_address_literal(config[CONF_SUBNET])),
-        ("dns1", ip_address_literal(config[CONF_DNS1])),
-        ("dns2", ip_address_literal(config[CONF_DNS2])),
-    )
+def _manual_ip_table(config: ConfigType) -> list[int]:
+    """Pack manual_ip in the ETHERNET_MANUAL_IP layout."""
+    keys = (CONF_STATIC_IP, CONF_GATEWAY, CONF_SUBNET, CONF_DNS1, CONF_DNS2)
+    return [octet for key in keys for octet in config[key].packed]
 
 
 def phy_register(address: int, value: int, page: int) -> cg.StructInitializer:
@@ -668,7 +685,11 @@ async def to_code(config: ConfigType) -> None:
 
     if CONF_MANUAL_IP in config:
         cg.add_define("USE_ETHERNET_MANUAL_IP")
-        cg.add(var.set_manual_ip(manual_ip(config[CONF_MANUAL_IP])))
+        cg.extern_progmem_array(
+            "esphome::ethernet::ETHERNET_MANUAL_IP",
+            cg.uint8,
+            _manual_ip_table(config[CONF_MANUAL_IP]),
+        )
 
     # Add compile-time define for PHY types with specific code
     if phy_define := _PHY_TYPE_TO_DEFINE.get(config[CONF_TYPE]):
@@ -715,8 +736,7 @@ async def _to_code_esp32(var: cg.MockObj, config: ConfigType) -> None:
     if config[CONF_TYPE] in SPI_ETHERNET_TYPES:
         if (spi_id := config.get(CONF_SPI_ID)) is not None:
             # Pins and host come from the shared spi bus.
-            spi_parent = await cg.get_variable(spi_id)
-            cg.add(var.set_spi_parent(spi_parent))
+            await cg.add_variable(var.set_spi_parent, spi_id)
         else:
             cg.add(var.set_clk_pin(config[CONF_CLK_PIN]))
             cg.add(var.set_miso_pin(config[CONF_MISO_PIN]))
@@ -730,8 +750,7 @@ async def _to_code_esp32(var: cg.MockObj, config: ConfigType) -> None:
             cg.add(var.set_polling_interval(config[CONF_POLLING_INTERVAL]))
         if _is_framework_spi_polling_mode_supported():
             cg.add_define("USE_ETHERNET_SPI_POLLING_SUPPORT")
-        if CONF_RESET_PIN in config:
-            cg.add(var.set_reset_pin(config[CONF_RESET_PIN]))
+        cg.add_optional(var.set_reset_pin, config.get(CONF_RESET_PIN))
         cg.add(var.set_clock_speed(config[CONF_CLOCK_SPEED]))
 
         cg.add_define("USE_ETHERNET_SPI")
@@ -752,8 +771,7 @@ async def _to_code_esp32(var: cg.MockObj, config: ConfigType) -> None:
     elif config[CONF_TYPE] in ("GENERIC", "YT8531"):
         # RGMII data pins come from the IDF default config; set MDC/MDIO + PHY addr.
         _add_mdio_setters(var, config)
-        if CONF_POWER_PIN in config:
-            cg.add(var.set_power_pin(config[CONF_POWER_PIN]))
+        cg.add_optional(var.set_power_pin, config.get(CONF_POWER_PIN))
         _add_phy_registers(var, config)
     else:
         _add_mdio_setters(var, config)
@@ -761,8 +779,7 @@ async def _to_code_esp32(var: cg.MockObj, config: ConfigType) -> None:
             cg.add(var.set_clk_mode(clk_mode))
         if (clk_pin := config[CONF_CLK][CONF_PIN]) != DEFAULT_CLK_PIN:
             cg.add(var.set_clk_pin(clk_pin))
-        if CONF_POWER_PIN in config:
-            cg.add(var.set_power_pin(config[CONF_POWER_PIN]))
+        cg.add_optional(var.set_power_pin, config.get(CONF_POWER_PIN))
         _add_phy_registers(var, config)
 
     # Register Ethernet with the esp32 sdkconfig reconciler. It disables the
@@ -788,10 +805,8 @@ async def _to_code_rp2040(var: cg.MockObj, config: ConfigType) -> None:
     cg.add(var.set_miso_pin(config[CONF_MISO_PIN]))
     cg.add(var.set_mosi_pin(config[CONF_MOSI_PIN]))
     cg.add(var.set_cs_pin(config[CONF_CS_PIN]))
-    if CONF_INTERRUPT_PIN in config:
-        cg.add(var.set_interrupt_pin(config[CONF_INTERRUPT_PIN]))
-    if CONF_RESET_PIN in config:
-        cg.add(var.set_reset_pin(config[CONF_RESET_PIN]))
+    cg.add_optional(var.set_interrupt_pin, config.get(CONF_INTERRUPT_PIN))
+    cg.add_optional(var.set_reset_pin, config.get(CONF_RESET_PIN))
 
     cg.add_define("USE_ETHERNET_SPI")
     cg.add_library(_RP2_SPI_LIBRARIES[config[CONF_TYPE]], None)
@@ -854,22 +869,7 @@ def _final_validate_rmii_pins(config: ConfigType) -> None:
 
 def _final_validate(config: ConfigType) -> None:
     """Final validation for Ethernet component."""
-    # Allow ethernet + wifi coexistence only when both are declared in network: priority:.
-    if "wifi" in fv.full_config.get():
-        priority_ifaces = get_priority_interfaces_from_full_config(fv.full_config.get())
-        missing = [i for i in ("ethernet", "wifi") if i not in priority_ifaces]
-        if missing and priority_ifaces:
-            # A priority list exists but is incomplete: point at what to add.
-            raise cv.Invalid(
-                "When ethernet and wifi are used together, 'network: priority:' must "
-                f"list both interfaces; missing: {', '.join(missing)}"
-            )
-        if missing:
-            raise cv.Invalid(
-                "Component ethernet cannot be used together with component wifi "
-                "unless both are listed under 'network: priority:'"
-            )
-
+    _final_validate_wifi(config)
     _final_validate_spi(config)
     _final_validate_rmii_pins(config)
 
@@ -933,15 +933,22 @@ def _filter_source_files() -> list[str]:
 FILTER_SOURCE_FILES = _filter_source_files
 
 
-automation.register_bare_condition(
-    "ethernet.connected", EthernetConnectedCondition, cv.Schema({})
+ETHERNET_AUTOMATION_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.use_id(EthernetComponent),
+    }
 )
-automation.register_bare_condition(
-    "ethernet.enabled", EthernetEnabledCondition, cv.Schema({})
-)
-automation.register_bare_action(
-    "ethernet.enable", EthernetEnableAction, cv.Schema({}), synchronous=True
-)
-automation.register_bare_action(
-    "ethernet.disable", EthernetDisableAction, cv.Schema({}), synchronous=True
-)
+
+for _name, _check in (
+    ("ethernet.connected", "is_connected()"),
+    ("ethernet.enabled", "is_enabled()"),
+):
+    automation.register_apply_condition(_name, ETHERNET_AUTOMATION_SCHEMA, _check)
+
+for _name, _call in (
+    ("ethernet.enable", "enable()"),
+    ("ethernet.disable", "disable()"),
+):
+    automation.register_apply_action(
+        _name, ETHERNET_AUTOMATION_SCHEMA, automation.ApplyCall(_call)
+    )

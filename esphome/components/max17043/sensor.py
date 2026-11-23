@@ -7,15 +7,11 @@ from esphome.const import (
     CONF_BATTERY_LEVEL,
     CONF_BATTERY_VOLTAGE,
     CONF_ID,
-    DEVICE_CLASS_BATTERY,
-    DEVICE_CLASS_VOLTAGE,
     ENTITY_CATEGORY_DIAGNOSTIC,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_PERCENT,
-    UNIT_VOLT,
 )
 from esphome.types import ConfigType
 
+AUTO_LOAD = ["max170xx"]
 DEPENDENCIES = ["i2c"]
 
 max17043_ns = cg.esphome_ns.namespace("max17043")
@@ -28,17 +24,13 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(MAX17043Component),
             cv.Optional(CONF_BATTERY_VOLTAGE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_VOLT,
+                kind=sensor.VOLTAGE,
                 accuracy_decimals=3,
-                device_class=DEVICE_CLASS_VOLTAGE,
-                state_class=STATE_CLASS_MEASUREMENT,
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
             cv.Optional(CONF_BATTERY_LEVEL): sensor.sensor_schema(
-                unit_of_measurement=UNIT_PERCENT,
+                kind=sensor.BATTERY,
                 accuracy_decimals=3,
-                device_class=DEVICE_CLASS_BATTERY,
-                state_class=STATE_CLASS_MEASUREMENT,
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
         }
@@ -49,9 +41,7 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
 
     sensors = sensor.sub_sensors(config)
     await sensors(CONF_BATTERY_VOLTAGE, var.set_voltage_sensor)

@@ -7,7 +7,7 @@ from pathlib import Path
 from esphome import external_files, pins
 import esphome.codegen as cg
 from esphome.components import i2c, touchscreen
-from esphome.components.const import CONF_SHA256
+from esphome.components.const import CONF_FIRMWARE, CONF_SHA256
 from esphome.components.touchscreen import (
     CONF_X_MAX,
     CONF_X_MIN,
@@ -45,7 +45,6 @@ GSL3670Touchscreen = gsl3670_ns.class_(
     i2c.I2CDevice,
 )
 
-CONF_FIRMWARE = "firmware"
 
 # Firmware blobs are published as release assets of the companion repository
 # rather than vendored into the ESPHome source tree. The default URL/SHA-256
@@ -226,13 +225,8 @@ async def to_code(config: ConfigType) -> None:
     await touchscreen.register_touchscreen(var, config)
     await i2c.register_i2c_device(var, config)
 
-    if CONF_INTERRUPT_PIN in config:
-        pin = await cg.gpio_pin_expression(config[CONF_INTERRUPT_PIN])
-        cg.add(var.set_interrupt_pin(pin))
-
-    if CONF_RESET_PIN in config:
-        pin = await cg.gpio_pin_expression(config[CONF_RESET_PIN])
-        cg.add(var.set_reset_pin(pin))
+    await cg.add_pin(var.set_interrupt_pin, config.get(CONF_INTERRUPT_PIN))
+    await cg.add_pin(var.set_reset_pin, config.get(CONF_RESET_PIN))
 
     #  Firmware table
     data = _read_firmware(config)

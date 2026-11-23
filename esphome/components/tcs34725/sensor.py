@@ -11,16 +11,12 @@ from esphome.const import (
     CONF_COLOR_TEMPERATURE,
     CONF_GAIN,
     CONF_GLASS_ATTENUATION_FACTOR,
-    CONF_ID,
     CONF_ILLUMINANCE,
     CONF_INTEGRATION_TIME,
-    DEVICE_CLASS_ILLUMINANCE,
     ICON_LIGHTBULB,
     ICON_THERMOMETER,
     STATE_CLASS_MEASUREMENT,
     UNIT_KELVIN,
-    UNIT_LUX,
-    UNIT_PERCENT,
 )
 from esphome.types import ConfigType
 
@@ -59,10 +55,7 @@ TCS34725Gain = tcs34725_ns.enum("TCS34725Gain")
 TCS34725_GAINS = TCS34725Gain.options("1X", "4X", "16X", "60X", prefix="TCS34725_GAIN_")
 
 color_channel_schema = sensor.sensor_schema(
-    unit_of_measurement=UNIT_PERCENT,
-    icon=ICON_LIGHTBULB,
-    accuracy_decimals=1,
-    state_class=STATE_CLASS_MEASUREMENT,
+    kind=sensor.PERCENT, icon=ICON_LIGHTBULB, accuracy_decimals=1
 )
 color_temperature_schema = sensor.sensor_schema(
     unit_of_measurement=UNIT_KELVIN,
@@ -70,12 +63,7 @@ color_temperature_schema = sensor.sensor_schema(
     accuracy_decimals=1,
     state_class=STATE_CLASS_MEASUREMENT,
 )
-illuminance_schema = sensor.sensor_schema(
-    unit_of_measurement=UNIT_LUX,
-    accuracy_decimals=1,
-    device_class=DEVICE_CLASS_ILLUMINANCE,
-    state_class=STATE_CLASS_MEASUREMENT,
-)
+illuminance_schema = sensor.sensor_schema(kind=sensor.ILLUMINANCE, accuracy_decimals=1)
 
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -102,9 +90,7 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
 
     cg.add(var.set_integration_time(config[CONF_INTEGRATION_TIME]))
     cg.add(var.set_gain(config[CONF_GAIN]))

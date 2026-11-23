@@ -42,14 +42,10 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
     await stepper.register_stepper(var, config)
 
-    pin_a = await cg.gpio_pin_expression(config[CONF_PIN_A])
-    cg.add(var.set_pin_a(pin_a))
-    pin_b = await cg.gpio_pin_expression(config[CONF_PIN_B])
-    cg.add(var.set_pin_b(pin_b))
-    pin_c = await cg.gpio_pin_expression(config[CONF_PIN_C])
-    cg.add(var.set_pin_c(pin_c))
-    pin_d = await cg.gpio_pin_expression(config[CONF_PIN_D])
-    cg.add(var.set_pin_d(pin_d))
+    await cg.add_pin(var.set_pin_a, config[CONF_PIN_A])
+    await cg.add_pin(var.set_pin_b, config[CONF_PIN_B])
+    await cg.add_pin(var.set_pin_c, config[CONF_PIN_C])
+    await cg.add_pin(var.set_pin_d, config[CONF_PIN_D])
 
     cg.add(var.set_sleep_when_done(config[CONF_SLEEP_WHEN_DONE]))
     cg.add(var.set_step_mode(config[CONF_STEP_MODE]))

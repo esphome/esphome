@@ -54,25 +54,21 @@ CAN_MODES = {
 # The supported bit rates differ between ESP32 variants.
 # See ESP-IDF Programming Guide --> API Reference --> Two-Wire Automotive Interface (TWAI)
 
-CAN_SPEEDS_ESP32 = {
-    "20KBPS": CanSpeed.CAN_20KBPS,
-    "25KBPS": CanSpeed.CAN_25KBPS,
-    "50KBPS": CanSpeed.CAN_50KBPS,
-    "100KBPS": CanSpeed.CAN_100KBPS,
-    "125KBPS": CanSpeed.CAN_125KBPS,
-    "250KBPS": CanSpeed.CAN_250KBPS,
-    "500KBPS": CanSpeed.CAN_500KBPS,
-    "800KBPS": CanSpeed.CAN_800KBPS,
-    "1000KBPS": CanSpeed.CAN_1000KBPS,
-}
+CAN_SPEEDS_ESP32 = CanSpeed.options(
+    "20KBPS",
+    "25KBPS",
+    "50KBPS",
+    "100KBPS",
+    "125KBPS",
+    "250KBPS",
+    "500KBPS",
+    "800KBPS",
+    "1000KBPS",
+    prefix="CAN_",
+)
 
 CAN_SPEEDS_ESP32_S2 = {
-    "1KBPS": CanSpeed.CAN_1KBPS,
-    "5KBPS": CanSpeed.CAN_5KBPS,
-    "10KBPS": CanSpeed.CAN_10KBPS,
-    "12K5BPS": CanSpeed.CAN_12K5BPS,
-    "16KBPS": CanSpeed.CAN_16KBPS,
-    "20KBPS": CanSpeed.CAN_20KBPS,
+    **CanSpeed.options("1KBPS", "5KBPS", "10KBPS", "12K5BPS", "16KBPS", prefix="CAN_"),
     **CAN_SPEEDS_ESP32,
 }
 
@@ -157,10 +153,8 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_rx(config[CONF_RX_PIN]))
     cg.add(var.set_tx(config[CONF_TX_PIN]))
     cg.add(var.set_mode(config[CONF_MODE]))
-    if (rx_queue_len := config.get(CONF_RX_QUEUE_LEN)) is not None:
-        cg.add(var.set_rx_queue_len(rx_queue_len))
-    if (tx_queue_len := config.get(CONF_TX_QUEUE_LEN)) is not None:
-        cg.add(var.set_tx_queue_len(tx_queue_len))
+    cg.add_optional(var.set_rx_queue_len, config.get(CONF_RX_QUEUE_LEN))
+    cg.add_optional(var.set_tx_queue_len, config.get(CONF_TX_QUEUE_LEN))
 
     if CONF_TX_ENQUEUE_TIMEOUT in config:
         tx_enqueue_timeout_ms = config[CONF_TX_ENQUEUE_TIMEOUT].total_milliseconds

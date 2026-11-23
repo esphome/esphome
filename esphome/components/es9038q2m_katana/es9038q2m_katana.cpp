@@ -2,6 +2,7 @@
 
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 #include <cmath>
 
@@ -34,55 +35,20 @@ constexpr uint8_t KATANA_VOLUME_FULL_ATTENUATION = 255;
 // The control logic ignores writes for this long after a reset.
 constexpr uint32_t RESET_SETTLE_DELAY_MS = 10;
 
-const LogString *filter_shape_to_str(FilterShape shape) {
-  switch (shape) {
-    case FILTER_SHAPE_LINEAR_PHASE_FAST:
-      return LOG_STR("linear_phase_fast");
-    case FILTER_SHAPE_LINEAR_PHASE_SLOW:
-      return LOG_STR("linear_phase_slow");
-    case FILTER_SHAPE_MIN_PHASE_FAST:
-      return LOG_STR("minimum_phase_fast");
-    case FILTER_SHAPE_MIN_PHASE_SLOW:
-      return LOG_STR("minimum_phase_slow");
-    case FILTER_SHAPE_APODIZING:
-      return LOG_STR("apodizing");
-    case FILTER_SHAPE_HYBRID:
-      return LOG_STR("hybrid");
-    default:
-      return LOG_STR("brick_wall");
-  }
-}
+// Indexed by FilterShape
+PROGMEM_STRING_TABLE(FilterShapeStrings, "linear_phase_fast", "linear_phase_slow", "minimum_phase_fast",
+                     "minimum_phase_slow", "apodizing", "brick_wall", "hybrid", "brick_wall");
 
-const LogString *deemphasis_to_str(DeemphasisMode mode) {
-  switch (mode) {
-    case DEEMPHASIS_32KHZ:
-      return LOG_STR("32khz");
-    case DEEMPHASIS_44_1KHZ:
-      return LOG_STR("44_1khz");
-    case DEEMPHASIS_48KHZ:
-      return LOG_STR("48khz");
-    default:
-      return LOG_STR("bypass");
-  }
-}
+// Indexed by DeemphasisMode
+PROGMEM_STRING_TABLE(DeemphasisStrings, "bypass", "32khz", "44_1khz", "48khz");
 
 }  // namespace
 
 void ES9038Q2MKatana::setup() {
-  uint8_t chip_id = 0;
-  if (!this->read_byte(KATANA_REG_CHIP_ID, &chip_id)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->check_chip_id(this, KATANA_REG_CHIP_ID, KATANA_CHIP_ID))
     return;
-  }
-  if (chip_id != KATANA_CHIP_ID) {
-    ESP_LOGE(TAG, "Unexpected chip ID 0x%02X", chip_id);
-    this->mark_failed(LOG_STR("Unexpected chip ID"));
+  if (!this->setup_check(this->write_byte(KATANA_REG_RESET, 0x01)))
     return;
-  }
-  if (!this->write_byte(KATANA_REG_RESET, 0x01)) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
-    return;
-  }
   delay(RESET_SETTLE_DELAY_MS);
 
   // MUTE_STREAM is the gate the Linux driver closes between streams; ESPHome has no such
@@ -103,8 +69,9 @@ void ES9038Q2MKatana::dump_config() {
                 "  De-emphasis: %s\n"
                 "  Format register: 0x%02X\n"
                 "  DoP: %s",
-                LOG_STR_ARG(filter_shape_to_str(this->filter_shape_)),
-                LOG_STR_ARG(deemphasis_to_str(this->deemphasis_mode_)), this->format_, ONOFF(this->dop_enabled_));
+                LOG_STR_ARG(FilterShapeStrings::get_log_str(this->filter_shape_)),
+                LOG_STR_ARG(DeemphasisStrings::get_log_str(this->deemphasis_mode_, DEEMPHASIS_BYPASS)), this->format_,
+                ONOFF(this->dop_enabled_));
   LOG_I2C_DEVICE(this);
   if (this->is_failed())
     return;
@@ -127,14 +94,7 @@ bool ES9038Q2MKatana::write_volume_() {
 }
 
 // Records the outcome of a runtime write; the cached state only changes on success.
-bool ES9038Q2MKatana::check_write_(bool ok) {
-  if (ok) {
-    this->status_clear_warning();
-  } else {
-    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
-  }
-  return ok;
-}
+bool ES9038Q2MKatana::check_write_(bool ok) { return this->status_comm_result(ok); }
 
 bool ES9038Q2MKatana::set_volume(float volume) {
   if (this->is_failed())

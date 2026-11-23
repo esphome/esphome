@@ -30,7 +30,6 @@ from esphome.const import (
     CONF_IGNORE_STRAPPING_WARNING,
     CONF_INIT_SEQUENCE,
     CONF_INVERT_COLORS,
-    CONF_LAMBDA,
     CONF_MIRROR_X,
     CONF_MIRROR_Y,
     CONF_NUMBER,
@@ -210,13 +209,8 @@ async def to_code(config: ConfigType) -> None:
         data_pin = await cg.gpio_pin_expression(pin)
         cg.add(var.add_data_pin(data_pin, index))
 
-    if dc_pin := config.get(CONF_DC_PIN):
-        dc = await cg.gpio_pin_expression(dc_pin)
-        cg.add(var.set_dc_pin(dc))
-
-    if reset_pin := config.get(CONF_RESET_PIN):
-        reset = await cg.gpio_pin_expression(reset_pin)
-        cg.add(var.set_reset_pin(reset))
+    await cg.add_pin(var.set_dc_pin, config.get(CONF_DC_PIN))
+    await cg.add_pin(var.set_reset_pin, config.get(CONF_RESET_PIN))
 
     if transform := config.get(CONF_TRANSFORM):
         cg.add(var.set_mirror_x(transform[CONF_MIRROR_X]))
@@ -235,17 +229,9 @@ async def to_code(config: ConfigType) -> None:
             (width, height) = dimensions
             cg.add(var.set_dimensions(width, height))
 
-    if lamb := config.get(CONF_LAMBDA):
-        lambda_ = await cg.process_lambda(
-            lamb, [(display.DisplayRef, "it")], return_type=cg.void
-        )
-        cg.add(var.set_writer(lambda_))
+    await display.add_writer(var, config)
 
-    pin = await cg.gpio_pin_expression(config[CONF_DE_PIN])
-    cg.add(var.set_de_pin(pin))
-    pin = await cg.gpio_pin_expression(config[CONF_PCLK_PIN])
-    cg.add(var.set_pclk_pin(pin))
-    pin = await cg.gpio_pin_expression(config[CONF_HSYNC_PIN])
-    cg.add(var.set_hsync_pin(pin))
-    pin = await cg.gpio_pin_expression(config[CONF_VSYNC_PIN])
-    cg.add(var.set_vsync_pin(pin))
+    await cg.add_pin(var.set_de_pin, config[CONF_DE_PIN])
+    await cg.add_pin(var.set_pclk_pin, config[CONF_PCLK_PIN])
+    await cg.add_pin(var.set_hsync_pin, config[CONF_HSYNC_PIN])
+    await cg.add_pin(var.set_vsync_pin, config[CONF_VSYNC_PIN])

@@ -234,11 +234,4 @@ void RotaryEncoderSensor::loop() {
   }
 }
 
-void RotaryEncoderSensor::set_restore_mode(RotaryEncoderRestoreMode restore_mode) {
-  this->restore_mode_ = restore_mode;
-}
-void RotaryEncoderSensor::set_resolution(RotaryEncoderResolution mode) { this->store_.resolution = mode; }
-void RotaryEncoderSensor::set_min_value(int32_t min_value) { this->store_.min_value = min_value; }
-void RotaryEncoderSensor::set_max_value(int32_t max_value) { this->store_.max_value = max_value; }
-
 }  // namespace esphome::rotary_encoder

@@ -1,6 +1,8 @@
 from dataclasses import dataclass
+import logging
+from typing import Any, Protocol
 
-from esphome import automation, core
+from esphome import automation, core, pins
 from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
 from esphome.components.const import (
@@ -13,6 +15,7 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_AUTO_CLEAR_ENABLED,
     CONF_DIMENSIONS,
+    CONF_ENABLE_PIN,
     CONF_FROM,
     CONF_HEIGHT,
     CONF_ID,
@@ -26,10 +29,14 @@ from esphome.const import (
     SCHEDULER_DONT_RUN,
 )
 from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
-from esphome.final_validate import full_config
+from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.final_validate import full_config, get_declaring_config
+from esphome.types import ConfigType
 
 DOMAIN = "display"
 IS_PLATFORM_COMPONENT = True
+
+_LOGGER = logging.getLogger(__name__)
 
 display_ns = cg.esphome_ns.namespace("display")
 Display = display_ns.class_("Display", cg.PollingComponent)
@@ -37,7 +44,6 @@ DisplayBuffer = display_ns.class_("DisplayBuffer", Display)
 DisplayPage = display_ns.class_("DisplayPage")
 DisplayPagePtr = DisplayPage.operator("ptr")
 DisplayRef = Display.operator("ref")
-DisplayPageShowAction = display_ns.class_("DisplayPageShowAction", automation.Action)
 
 CONF_ON_PAGE_CHANGE = "on_page_change"
 CONF_SHOW_TEST_CARD = "show_test_card"
@@ -51,6 +57,33 @@ DISPLAY_ROTATIONS = {
     180: display_ns.DISPLAY_ROTATION_180_DEGREES,
     270: display_ns.DISPLAY_ROTATION_270_DEGREES,
 }
+
+
+class DisplayModel(Protocol):
+    """The parts of a display model used by enable_pin_schema()."""
+
+    def get_default(self, key: str, fallback: Any = ...) -> Any: ...
+
+
+def enable_pin_schema(
+    model: DisplayModel, config: ConfigType
+) -> dict[cv.Optional, Any]:
+    """
+    Get the schema entry for a display's enable pins.
+    Pins given in the user config are used as they are. Otherwise the model's default enable
+    pins are used, except any that is also used elsewhere in the config, so a user can take
+    control of that pin, e.g. with a switch.
+    :param config: The display config as given by the user
+    """
+    schema = cv.ensure_list(pins.gpio_output_pin_schema)
+    default = model.get_default(CONF_ENABLE_PIN, None)
+    if default is None or CONF_ENABLE_PIN in config:
+        return {cv.Optional(CONF_ENABLE_PIN): schema}
+    return {
+        cv.Optional(
+            CONF_ENABLE_PIN, default=default
+        ): pins.PIN_SCHEMA_REGISTRY.optional(schema)
+    }
 
 
 def validate_rotation(value):
@@ -72,13 +105,21 @@ BASIC_DISPLAY_SCHEMA = cv.Schema(
 ).extend(cv.polling_component_schema("1s"))
 
 
-def _validate_test_card(config):
+def _validate_test_card(config: ConfigType) -> ConfigType:
     if (
         config.get(CONF_SHOW_TEST_CARD, False)
-        and config.get(CONF_UPDATE_INTERVAL, False) == SCHEDULER_DONT_RUN
+        and (update_interval := config.get(CONF_UPDATE_INTERVAL)) is not None
+        and update_interval.total_milliseconds == SCHEDULER_DONT_RUN
     ):
-        raise cv.Invalid(
-            f"`{CONF_SHOW_TEST_CARD}: True` cannot be used with `{CONF_UPDATE_INTERVAL}: never` because this combination will not show a test_card."
+        # Only a warning: something else can still update the display, for example
+        # component.update, and the test card is drawn then.
+        display_id = config.get(CONF_ID)
+        _LOGGER.warning(
+            "%s`%s: True` is used with `%s: never`, so the test card is only drawn "
+            "when something updates the display (for example component.update)",
+            f"{display_id.id}: " if display_id is not None and display_id.id else "",
+            CONF_SHOW_TEST_CARD,
+            CONF_UPDATE_INTERVAL,
         )
     return config
 
@@ -195,9 +236,7 @@ def get_display_metadata(display_id: ID) -> DisplayMetaData:
             return meta
     # No metadata found, display driver may not yet support it.
     # Read the raw config to populate the returned data
-    global_config = full_config.get()
-    path = global_config.get_path_for_id(display_id)[:-1]
-    disp_config = global_config.get_config_for_path(path)
+    disp_config = get_declaring_config(display_id)
     dimensions = disp_config.get(CONF_DIMENSIONS, (0, 0))
     if isinstance(dimensions, dict):
         dimensions = (dimensions.get(CONF_WIDTH, 0), dimensions.get(CONF_HEIGHT, 0))
@@ -291,9 +330,23 @@ async def register_display(var, config):
     await setup_display_core_(var, config)
 
 
+async def add_writer(
+    var: cg.MockObj, config: ConfigType, ref: cg.MockObj = DisplayRef
+) -> None:
+    """Pass the configured lambda, if any, to var.set_writer.
+
+    ref is the type of `it`; drivers with their own drawing class pass theirs.
+    """
+    if (lambda_config := config.get(CONF_LAMBDA)) is not None:
+        lambda_ = await cg.process_lambda(
+            lambda_config, [(ref, "it")], return_type=cg.void
+        )
+        cg.add(var.set_writer(lambda_))
+
+
 @automation.register_action(
     "display.page.show",
-    DisplayPageShowAction,
+    automation.ApplyAction,
     maybe_simple_id(
         {
             cv.Required(CONF_ID): cv.templatable(cv.use_id(DisplayPage)),
@@ -301,16 +354,25 @@ async def register_display(var, config):
     ),
     synchronous=True,
 )
-async def display_page_show_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    if isinstance(config[CONF_ID], core.Lambda):
-        template_ = await cg.templatable(config[CONF_ID], args, DisplayPagePtr)
-        cg.add(var.set_page(template_))
+async def display_page_show_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
+    page = config[CONF_ID]
+    if isinstance(page, core.Lambda):
+        # Called with the trigger's by-value args, never reduced, so the body may modify them
+        lamb = await cg.process_lambda(page, args, return_type=DisplayPagePtr)
+        statements = [
+            f"{DisplayPagePtr} esphome__page = {automation.immediate_lambda_call(lamb)};",
+            "if (esphome__page != nullptr) {",
+            "  esphome__page->show();",
+            "}",
+        ]
     else:
-        paren = await cg.get_variable(config[CONF_ID])
-        template_ = await cg.templatable(paren, args, DisplayPagePtr)
-        cg.add(var.set_page(template_))
-    return var
+        statements = [f"{automation.parent_ref(await cg.get_variable(page))}->show();"]
+    return automation.apply_statements_action(action_id, template_arg, args, statements)
 
 
 # The id is the display itself, so it cannot be a lambda; a plain use_id rejects one clearly.

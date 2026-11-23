@@ -272,41 +272,10 @@ class ThrottleAverageFilter : public Filter {
   uint32_t have_nan_ : 1 {0};
 };
 
-using lambda_filter_t = std::function<optional<float>(float)>;
-
-/** This class allows for creation of simple template filters.
- *
- * The constructor accepts a lambda of the form float -> optional<float>.
- * It will be called with each new value in the filter chain and returns the modified
- * value that shall be passed down the filter chain. Returning an empty Optional
- * means that the value shall be discarded.
- */
-class LambdaFilter : public Filter {
+/// Codegen use only: the filter's work and constants are one generated function, so the object is only the base.
+template<auto Fn> class ApplyFilter final : public Filter {
  public:
-  explicit LambdaFilter(lambda_filter_t lambda_filter);
-
-  optional<float> new_value(float value) override;
-
-  const lambda_filter_t &get_lambda_filter() const;
-  void set_lambda_filter(const lambda_filter_t &lambda_filter);
-
- protected:
-  lambda_filter_t lambda_filter_;
-};
-
-/** Optimized lambda filter for stateless lambdas (no capture).
- *
- * Uses function pointer instead of std::function to reduce memory overhead.
- * Memory: 4 bytes (function pointer on 32-bit) vs 32 bytes (std::function).
- */
-class StatelessLambdaFilter : public Filter {
- public:
-  explicit StatelessLambdaFilter(optional<float> (*lambda_filter)(float)) : lambda_filter_(lambda_filter) {}
-
-  optional<float> new_value(float value) override { return this->lambda_filter_(value); }
-
- protected:
-  optional<float> (*lambda_filter_)(float);
+  optional<float> new_value(float value) override { return Fn(value); }
 };
 
 /// A simple filter that adds `offset` to each value it receives.
@@ -530,7 +499,8 @@ template<size_t N> class OrFilter : public Filter {
   explicit OrFilter(std::initializer_list<Filter *> filters) { init_array_from(this->filters_, filters); }
   // Codegen passes each filter as its own argument; a list literal would sit in .rodata (RAM on ESP8266).
   template<typename... Fs>
-  requires(sizeof...(Fs) == N) explicit OrFilter(Fs *...filters) : filters_{filters...} {}
+    requires(sizeof...(Fs) == N)
+  explicit OrFilter(Fs *...filters) : filters_{filters...} {}
 
   void initialize(Sensor *parent, Filter *next) override {
     Filter::initialize(parent, next);
@@ -644,6 +614,26 @@ class ToNTCTemperatureFilter : public Filter {
   double a_;
   double b_;
   double c_;
+};
+
+/** RH Temperature correction filter
+ *
+ * Allows for Relative Humidity Correction when a temperature offset is applied to the temperature sensor.
+ * Uses the Magnus formula, rh = rh_nc * exp(b*(t_nc/(c+t_nc) - t/(c+t))) with b = 17.67, c = 243.5 °C;
+ * see https://en.wikipedia.org/wiki/Dew_point
+ */
+class RHCorrectionFilter : public Filter {
+ public:
+  RHCorrectionFilter(TemplatableFn<float> offset, const Sensor *temperature_sensor, bool use_fahrenheit)
+      : temperature_offset_(offset), temperature_sensor_(temperature_sensor), use_fahrenheit_(use_fahrenheit) {}
+
+  optional<float> new_value(float value) override;
+
+ protected:
+  TemplatableFn<float> temperature_offset_;
+  const Sensor *temperature_sensor_;
+  bool use_fahrenheit_;
+  bool warned_{false};
 };
 
 /** Base class for streaming filters (batch windows where window_size == send_every).

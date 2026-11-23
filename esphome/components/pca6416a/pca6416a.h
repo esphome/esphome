@@ -3,33 +3,25 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include "esphome/components/i2c/i2c.h"
-#include "esphome/components/gpio_expander/cached_gpio.h"
+#include "esphome/components/gpio_expander/cached_gpio_component.h"
+#include "esphome/components/gpio_expander/expander_gpio_pin.h"
 
 namespace esphome::pca6416a {
 
-class PCA6416AComponent final : public Component,
-                                public i2c::I2CDevice,
-                                public gpio_expander::CachedGpioExpander<uint8_t, 16> {
+class PCA6416AComponent final : public gpio_expander::CachedGpioExpanderComponent<uint8_t, 16>, public i2c::I2CDevice {
  public:
   PCA6416AComponent() = default;
 
   /// Check i2c availability and setup masks
   void setup() override;
-  void loop() override;
   /// Helper function to set the pin mode of a pin.
   void pin_mode(uint8_t pin, gpio::Flags flags);
 
-  float get_setup_priority() const override;
-
   void dump_config() override;
 
-  void set_interrupt_pin(InternalGPIOPin *pin) { this->interrupt_pin_ = pin; }
-
  protected:
-  static void IRAM_ATTR gpio_intr(PCA6416AComponent *arg);
   // Virtual methods from CachedGpioExpander
   bool digital_read_hw(uint8_t pin) override;
-  bool digital_read_cache(uint8_t pin) override;
   void digital_write_hw(uint8_t pin, bool value) override;
 
   bool read_register_(uint8_t reg, uint8_t *value);
@@ -39,36 +31,14 @@ class PCA6416AComponent final : public Component,
   /// The mask to write as output state - 1 means HIGH, 0 means LOW
   uint8_t output_0_{0x00};
   uint8_t output_1_{0x00};
-  /// Cache for input values (16-bit combined for both banks)
-  uint16_t input_mask_{0x00};
-  /// Storage for last I2C error seen
-  esphome::i2c::ErrorCode last_error_;
   /// Only the PCAL6416A has pull-up resistors
   bool has_pullup_{false};
-  InternalGPIOPin *interrupt_pin_{nullptr};
+  /// Storage for last I2C error seen
+  esphome::i2c::ErrorCode last_error_;
 };
 
-/// Helper class to expose a PCA6416A pin as an internal input GPIO pin.
-class PCA6416AGPIOPin final : public GPIOPin {
- public:
-  void setup() override;
-  void pin_mode(gpio::Flags flags) override;
-  bool digital_read() override;
-  void digital_write(bool value) override;
-  size_t dump_summary(char *buffer, size_t len) const override;
-
-  void set_parent(PCA6416AComponent *parent) { parent_ = parent; }
-  void set_pin(uint8_t pin) { pin_ = pin; }
-  void set_inverted(bool inverted) { inverted_ = inverted; }
-  void set_flags(gpio::Flags flags) { flags_ = flags; }
-
-  gpio::Flags get_flags() const override { return this->flags_; }
-
- protected:
-  PCA6416AComponent *parent_;
-  uint8_t pin_;
-  bool inverted_;
-  gpio::Flags flags_;
-};
+using PCA6416AGPIOPin = gpio_expander::ExpanderGPIOPin<PCA6416AComponent>;
 
 }  // namespace esphome::pca6416a
+
+ESPHOME_EXPANDER_PIN_SUMMARY_DECL(esphome::pca6416a::PCA6416AComponent);

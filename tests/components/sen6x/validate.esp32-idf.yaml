@@ -1,5 +1,5 @@
-# Config-only: partial algorithm_tuning blocks, so the schema defaults fill in the
-# keys that are left out.
+# Config-only: partial algorithm_tuning, temperature_compensation and
+# temperature_acceleration blocks, so the schema defaults fill in the keys that are left out.
 packages:
   i2c: !include ../../test_build_components/common/i2c/esp32-idf.yaml
 
@@ -8,6 +8,10 @@ sensor:
     id: sen6x_partial_tuning
     type: SEN65
     i2c_id: i2c_bus
+    temperature_compensation:
+      offset: 1.5
+    temperature_acceleration:
+      k: 30
     voc_index:
       name: VOC Index
       algorithm_tuning:
