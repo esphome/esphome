@@ -2,7 +2,7 @@
 #include <string>
 #include <vector>
 
-#include "esphome/core/base_automation.h"
+#include "esphome/core/automation.h"
 
 namespace esphome::core::testing {
 

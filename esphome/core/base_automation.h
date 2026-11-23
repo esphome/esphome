@@ -162,27 +162,6 @@ static_assert(bit_cast<uint32_t>(setup_priority::DATA) == SETUP_PRIORITY_DATA_BI
 /// The default priority needs no override.
 template<> class PriorityComponent<SETUP_PRIORITY_DATA_BITS> : public Component {};
 
-/// Component whose own logic decides when to run its automation: it calls fire(), which FireCallback implements.
-/// Ts is the automation's argument list; derive from FiringComponent<Ts...> instead of Component.
-template<typename... Ts> class FiringComponent : public Component {
- public:
-  using Firing = FiringComponent;
-
- protected:
-  virtual void fire(Ts... x) = 0;
-};
-
-/// The generated leaf for a FiringComponent base: fire() calls the automation function Fn, so the base's logic is
-/// compiled once and each automation only adds a vtable.
-template<auto Fn, class Base, class = typename Base::Firing> class FireCallback;
-template<auto Fn, class Base, typename... Ts> class FireCallback<Fn, Base, FiringComponent<Ts...>> final : public Base {
- public:
-  using Base::Base;
-
- protected:
-  void fire(Ts... x) override { Fn(x...); }
-};
-
 /// Calls Fn from setup(), for on_boot.
 template<auto Fn, uint32_t PRIORITY_BITS> class StartupCallback final : public PriorityComponent<PRIORITY_BITS> {
  public:
