@@ -1,5 +1,6 @@
 
 #include "modbus_textsensor.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::modbus_controller {
