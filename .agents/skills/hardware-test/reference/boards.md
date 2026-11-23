@@ -121,6 +121,11 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
   `esp32_hosted`; a test with no network logs over UART0 to the CH343 console.
   Its C6 co-processor logs "major version mismatch" and an SDIO RX overflow under HTTPS on dev too; a boot without
   TLS, the Wi-Fi join and the API work.
+  The C6 reports `coprocessor=0.0.0` (no version TLV, caps 0x0d) in esp_hosted's init event, seen with
+  `esp32: framework: log_level: INFO`. It never answers some RPCs (`esp_hosted_get_coprocessor_fwversion`, enterprise
+  enable): each blocks the loop 5 s and the default 5 s task watchdog resets the P4, so `update: platform:
+  esp32_hosted` boot-loops it on dev; `watchdog_timeout: 60s` survives. Embedding the 1.47 MB C6 image needs
+  `flash_size: 16MB` (#22920).
 - After an OTA, wait at least 80 s before a hard reset (`esptool chip_id` to wake a silent USB console, say): until
   safe mode marks the new image valid, the bootloader rolls back to the previous one. Log the image name from an
   `interval:` to be sure which build runs.
@@ -180,6 +185,9 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
   low.
 - W5100S-EVB-Pico with its USB attached shows a CDC port (`2e8a:1027`) while it runs ESPHome, so `esphome upload
   --device <that port>` (picotool) flashes it with or without `interrupt_pin`.
+- A Pico 2 W whose Wi-Fi scan finds no networks for a whole session, on every build including one that joined
+  before, needs a power cycle; reflashing does not help. Tests that only need the clock can run offline (set the
+  time as in the fake DST note under Harness tricks).
 
 ## BW15 kit (RTL8720CF, LibreTiny rtl87xx)
 
@@ -299,6 +307,9 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
 - LibreTiny's builder adds `-D'delay(ms)=delayMilliseconds(ms)'`, so `esphome::delay` is really
   `esphome::delayMilliseconds` on BK72xx and a YAML lambda calling `delay()` fails to compile on dev. In a header use
   `(esphome::micros)()` to dodge the `main.cpp` function-like macros.
+- BDK 3.0.78 builds BK7231N/T with `CFG_WPA3=1` (3.0.33 had 0), so the two BDKs can join a WPA2/WPA3 transition
+  network with different key management (#22977).
+- A CB3S OTA over Wi-Fi can take 20 minutes; give the upload a 2400 s timeout.
 - UART2 is P0 (TX) and P1 (RX), side by side on one header row of the WB3S module; a jumper between them makes a
   loopback. UART2 TX carries about 40 bytes of boot text before ESPHome starts, which loop back into RX.
 
@@ -419,6 +430,8 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
   `interval:` lambda in an included header; results arrive on the OpenThread thread and log fine.
 - A wrong network key on a real network's channel and PAN ID makes the device form its own partition as leader on
   that PAN within about 30 s; take it off Thread at once. Never try guessed datasets against a network in use.
+- `ports.py` labels any `2fe3:0100` Zephyr CDC device "nRF52840 Dongle"; an ItsyBitsy nRF52840 running Zephyr
+  shows the same. Tell them apart by the USB product and serial or by the UF2 volume.
 
 ## Waveshare ESP32-S3-ETH with the OV5640 camera module
 
@@ -483,6 +496,18 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
 - Two arduino-pico framework versions share the plain `framework-arduinopico` package directory, so an A/B swaps the
   framework on every build; give each side its own `PLATFORMIO_CORE_DIR`.
 - The general rule (a private directory whenever sessions may use different Pythons) is ground rule 8 in `SKILL.md`.
+
+## ESP32-S31 core board
+
+- Two USB ports on the same chip: a CP2102N bridge (`10c4:ea60`) and the native USB Serial/JTAG (`303a:1001`). Flash
+  and log over the bridge; ESPHome's default logger on the S31 is `USB_SERIAL_JTAG`, so set
+  `logger: hardware_uart: UART0` to log there.
+- esptool 5.3.0 reports ESP32-S31 rev v0.0, Wi-Fi 6, BT 5.4 LE, 802.15.4, dual core plus LP core, 300 MHz, 16 MB
+  flash; `chip-id` falls back to the MAC.
+- Wired Ethernet works with the YT8531 driver (RGMII; ESP-IDF CI runs the YT8531 on this target):
+  `ethernet: {type: YT8531, mdc_pin: GPIO5, mdio_pin: GPIO6, power_pin: GPIO7, phy_addr: 0}`. `power_pin` is the PHY
+  reset line; the RGMII data pins are ESP-IDF's per-target defaults. It links at 1000 Mbit about 8 s after boot,
+  `Setup ethernet took ~3.2 s` is normal, and the Ethernet MAC is the base MAC plus 1 (locally administered).
 
 ## LibreTiny crash and abort() facts (esphome#21596, #22288)
 
@@ -629,3 +654,7 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
   Use `App.safe_reboot()` in reset loops, or `safe_mode: disabled: true`.
 - pioarduino 61.x (ESP-IDF 6.1, Arduino 4.0) needs PlatformIO 6.2.0; with an older PlatformIO in the shared venv,
   install 6.2.0 with `pip install --target <dir>` and put that directory on PYTHONPATH for the build.
+- Fake DST switch on any board: subclass `time::RealTimeClock` with `using RealTimeClock::synchronize_epoch_;`, cast
+  `id(t)` to it and set an epoch 30 s before the switch; restore with `clk->update()` (ESP8266, RP2) or
+  `esp_sntp_restart()` (ESP32). On dev before #22982, `localtime_r(INT64_MAX)` with a timezone hangs: soft WDT on the
+  ESP8266, task watchdog abort on the ESP32, watchdog reboot on the Pico 2 W.

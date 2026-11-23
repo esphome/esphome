@@ -69,6 +69,7 @@ nrf54_xiao/*-events.txt
 nrf54_xiao/*.log
 nrf_pwm_probe/*-cap.txt
 nrf_pwm_probe/*-dfu.log
+openthread_race/*.txt
 ota_automations/otaauto*.yaml
 out-*.*
 out-*/
