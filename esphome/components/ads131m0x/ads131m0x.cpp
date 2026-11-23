@@ -377,9 +377,10 @@ void ADS131M0x::task_loop_() {
       restart_window();
       consecutive_timeouts = 0;
       consecutive_crc_errors = 0;
-      // Conversions ran unread during configuration: empty the FIFO, then follow DRDY from the next one
-      this->drain_fifo_();
+      // Conversions ran unread during configuration: empty the FIFO, then follow DRDY from the next one. Clear the
+      // stale notifications first, so a conversion completing during the drain still wakes the task.
       ulTaskNotifyTake(pdTRUE, 0);
+      this->drain_fifo_();
       continue;
     }
 
