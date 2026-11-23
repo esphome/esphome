@@ -99,10 +99,8 @@ static_assert(CMD_AUTO_INTERFERENCE == 1 && CMD_RESET_UNATTENDED == ControlComma
               "ControlCommandNames is indexed by command - 1");
 
 static const LogString *control_command_name(uint32_t command) {
-  // Range checked in 32 bits: get_log_str takes a uint8_t index; command 0 wraps and falls back too
-  const uint32_t idx = command - 1;
-  return ControlCommandNames::get_log_str(idx < ControlCommandNames::COUNT ? idx : ControlCommandNames::LAST_INDEX,
-                                          ControlCommandNames::LAST_INDEX);
+  // Command 0 wraps to a huge index and falls back too
+  return ControlCommandNames::get_log_str(command - 1);
 }
 
 static const LogString *frame_type_name(uint16_t type) {
