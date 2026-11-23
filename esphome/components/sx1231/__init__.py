@@ -20,8 +20,13 @@ from esphome.components.const import (
     CONF_SHAPING,
     CONF_SYNC_VALUE,
 )
+from esphome.components.packet_interface.radio_link import (
+    TRANSMIT_TIMEOUT_MS,
+    packet_airtime_ms,
+)
 import esphome.config_validation as cv
-from esphome.const import CONF_DATA, CONF_FREQUENCY
+from esphome.const import CONF_DATA, CONF_FREQUENCY, CONF_NUMBER
+from esphome.core import CORE
 from esphome.types import ConfigType
 
 DOMAIN = "sx1231"
@@ -136,10 +141,24 @@ def validate_config(config: ConfigType) -> ConfigType:
     if config[CONF_PACKET_MODE]:
         if CONF_DIO0_PIN not in config:
             raise cv.Invalid("Config 'dio0_pin' required in packet mode")
+        # DIO0's interrupt wakes the loop when a packet has arrived
+        if CORE.is_esp8266 and config[CONF_DIO0_PIN][CONF_NUMBER] == 16:
+            raise cv.Invalid(
+                "GPIO16 has no interrupt, which packet mode needs on this pin",
+                path=[CONF_DIO0_PIN],
+            )
         if not config[CONF_BITSYNC]:
             raise cv.Invalid(
                 "Config 'bitsync' cannot be turned off in packet mode",
                 path=[CONF_BITSYNC],
+            )
+        # The driver waits TRANSMIT_TIMEOUT_MS for a packet to be sent
+        size = config[CONF_PAYLOAD_LENGTH] or MAX_PACKET_SIZE
+        if (airtime := packet_airtime_ms(config, size)) > TRANSMIT_TIMEOUT_MS:
+            raise cv.Invalid(
+                f"With this '{CONF_BITRATE}' and '{CONF_PREAMBLE_SIZE}' a packet of {size} bytes takes "
+                f"{airtime:.0f} ms to send, and the radio waits at most {TRANSMIT_TIMEOUT_MS} ms",
+                path=[CONF_PREAMBLE_SIZE],
             )
     if 0x00 in config[CONF_SYNC_VALUE]:
         raise cv.Invalid(

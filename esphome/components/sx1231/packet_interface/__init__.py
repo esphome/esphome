@@ -1,9 +1,7 @@
 from esphome.components import packet_interface
-from esphome.components.packet_interface import CONF_MAX_PACKET_SIZE
 from esphome.components.packet_interface.radio_link import (
     new_radio_link,
     radio_link_final_validate,
-    radio_link_schema,
 )
 import esphome.config_validation as cv
 from esphome.types import ConfigType
@@ -27,7 +25,13 @@ SX1231PacketInterface = sx1231_ns.class_(
     "SX1231PacketInterface", packet_interface.PacketInterface, SX1231Listener
 )
 
-CONFIG_SCHEMA = radio_link_schema(SX1231PacketInterface, CONF_SX1231_ID, SX1231)
+# radio_link_schema() would default to 255 bytes, more than the radio sends
+CONFIG_SCHEMA = packet_interface.packet_interface_schema(
+    SX1231PacketInterface,
+    MAX_PACKET_SIZE,
+    MAX_PACKET_SIZE,
+    chooses_reliability_timeout=True,
+).extend({cv.GenerateID(CONF_SX1231_ID): cv.use_id(SX1231)})
 
 
 def _check(config: ConfigType, radio: ConfigType) -> None:
@@ -45,11 +49,6 @@ def _check(config: ConfigType, radio: ConfigType) -> None:
             f"The radio needs a '{CONF_SYNC_VALUE}', so that the link can tell when a packet is arriving and "
             "not send over it",
             path=[CONF_SX1231_ID],
-        )
-    if config[CONF_MAX_PACKET_SIZE] > MAX_PACKET_SIZE:
-        raise cv.Invalid(
-            f"The radio sends at most {MAX_PACKET_SIZE} bytes",
-            path=[CONF_MAX_PACKET_SIZE],
         )
 
 

@@ -12,7 +12,6 @@ sx1231:
 packet_interface:
   - platform: sx1231
     id: sx1231_packet_interface
-    max_packet_size: 64
     addressing:
       address: 0x0001
       destination: 0x0002

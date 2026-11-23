@@ -373,15 +373,14 @@ bool SX1231::is_receiving() {
   if (this->state_ == RadioState::RADIO_STATE_HOLDING_RX) {
     return true;
   }
-  // A radio that sleeps after sending is not listening
-  if (this->state_ != RadioState::RADIO_STATE_IDLE || !this->applied_.rx_start || this->dio0_pin_ == nullptr) {
+  if (this->state_ != RadioState::RADIO_STATE_IDLE || this->dio0_pin_ == nullptr) {
     return false;
   }
-  // In receive mode DIO0 signals a received packet that loop() has not read yet
+  // In receive mode DIO0 signals a received packet that loop() has not read yet; in other modes it is low
   if (this->dio0_pin_->digital_read()) {
     return true;
   }
-  // Set from the sync word until the packet has been read
+  // Set from the sync word until the packet has been read, and cleared on leaving receive mode
   return (this->read_register_(REG_IRQ_FLAGS1) & SYNC_ADDRESS_MATCH) != 0;
 }
 
