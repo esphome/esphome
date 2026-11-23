@@ -2848,7 +2848,8 @@ TEST_F(CSPlusSettingWriteTest, OptionalClockUsesConfirmedTimeAndSkipsUnchangedSn
 
 TEST_F(CSPlusSettingWriteTest, OptionalClockWritesThroughPreflightAndWaitsForTelemetry) {
   VBusSettingTime clock{&this->controller_, 2};
-  clock.on_setting_snapshot();
+  this->controller_.register_setting_listener(&clock);
+  this->tick_();
   clock.make_call().set_time(1, 3, 0).perform();
   EXPECT_EQ(clock.minute, 2);
   this->group_();
@@ -2860,7 +2861,6 @@ TEST_F(CSPlusSettingWriteTest, OptionalClockWritesThroughPreflightAndWaitsForTel
   payload[32] = 111;
   this->controller_.on_message(0x0100, 0x2211, 0x0010, payload);
   this->tick_();
-  clock.on_setting_snapshot();
   EXPECT_EQ(clock.hour, 1);
   EXPECT_EQ(clock.minute, 3);
   EXPECT_EQ(this->controller_.writes_sent(), 1u);
@@ -2873,6 +2873,7 @@ TEST_F(CSPlusSettingWriteTest, OptionalScheduledClockRejectsOffStepTimesWithoutR
   ASSERT_TRUE(this->controller_.start_scan());
   this->complete_();
   VBusSettingTime clock{&this->controller_, 3587};
+  EXPECT_FALSE(clock.follows_controller_clock());
   clock.on_setting_snapshot();
   ASSERT_TRUE(clock.has_state());
 #ifdef USE_LOGGER

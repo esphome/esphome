@@ -12,6 +12,7 @@ class VBusSettingTime final : public datetime::TimeEntity, public CSPlusSettingL
     this->hour_ = this->minute_ = this->second_ = 0;
   }
   void dump_setting_config() override;
+  bool follows_controller_clock() const override { return this->index_ == 2; }
   void on_setting_snapshot() override;
 
  protected:
