@@ -94,7 +94,7 @@ LINEAR_SOURCE_SCHEMA = cv.All(
 WEIGHTED_MEAN_SOURCE_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_SOURCE): cv.use_id(sensor.Sensor),
-        cv.Required(CONF_WEIGHT): cv.templatable(cv.positive_not_null_float),
+        cv.Required(CONF_WEIGHT): cv.templatable(cv.positive_float),
     }
 )
 
