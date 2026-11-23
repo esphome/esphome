@@ -3,6 +3,7 @@
 #include <vector>
 
 #include "esphome/core/automation.h"
+#include "esphome/core/string_ref.h"
 
 namespace esphome::core::testing {
 
@@ -54,6 +55,9 @@ TEST(FireCallback, PassesSeveralArgumentsConverted) {
   EXPECT_EQ(texts, std::vector<std::string>{"hello"});
   EXPECT_EQ(counts, std::vector<int>{2});
 }
+
+// A buffer passed by reference and small value types are accepted
+static_assert(sizeof(FiringComponent<const std::vector<uint8_t> &, StringRef, float>) > 0);
 
 // The leaf adds no data to its base
 static_assert(sizeof(FireCallback<on_value, ValueBase>) == sizeof(ValueBase));
