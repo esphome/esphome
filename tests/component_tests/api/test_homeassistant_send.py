@@ -92,17 +92,18 @@ def test_action_with_response_is_an_object(main_cpp: str) -> None:
 
 
 def test_action_then_log(main_cpp: str) -> None:
-    """The send is an if-free statement, so the action merged after it still runs."""
-    assert re.findall(r"\bautomation_id->add_action\((\w+)\);", main_cpp) == [
-        "applyaction_id"
-    ]
-    assert "ApplyRunAction<esphome__applyaction_id__fn>();" in main_cpp
+    """The send is an if-free statement, so the action merged after it still runs.
+
+    on_boot calls the merged function directly, with no Automation and nothing that can stop it.
+    """
+    assert "automation_id->add_action" not in main_cpp
+    startup = static_function_body(main_cpp, "esphome__startuptrigger_id__fn")
+    assert startup.strip() == "esphome__applyaction_id__fn();"
     body = static_function_body(main_cpp, "esphome__applyaction_id__fn")
     assert body.index(f"{SEND}false, ::ha_action_fields,") < body.index(
         '"after action"'
     )
-    # The only return is the stop check between the two actions
-    assert body.count("return;") == 1
+    assert "return;" not in body
 
 
 def test_button_on_press(main_cpp: str) -> None:
