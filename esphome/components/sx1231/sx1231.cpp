@@ -70,11 +70,13 @@ void SX1231::read_fifo_(std::vector<uint8_t> &packet) {
   this->disable();
 }
 
-// Burst write: the radio moves to the next register after each byte, except for REG_FIFO
+// Burst write: the radio moves to the next register after each byte, except for REG_FIFO.
+// One SPI transfer per byte: in a multi-byte transfer the FIFO sometimes stores a byte with its last bit cleared.
 void SX1231::write_registers_(uint8_t reg, const uint8_t *data, size_t len) {
   this->enable();
   this->write_byte(reg | 0x80);
-  this->write_array(data, len);
+  for (size_t i = 0; i < len; i++)
+    this->write_byte(data[i]);
   this->disable();
 }
 
