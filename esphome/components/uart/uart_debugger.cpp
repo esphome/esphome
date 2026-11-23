@@ -96,11 +96,12 @@ void UARTDummyReceiver::loop() {
 // missing when UART devices block the main loop for too long.
 
 #ifdef ESPHOME_LOGGER_TX_BUFFER_SIZE
-// The logger's header "\033[0;36m[D][uart_debug:NNNN]: " plus its colour reset and terminator take 34 bytes of
-// tx_buffer_size; a longer message is cut, so a frame continues on the next line instead
-static constexpr size_t LOG_LINE_ROOM = ESPHOME_LOGGER_TX_BUFFER_SIZE - 34;
+// The logger's header "\033[0;36m[D][uart_debug:NNN]: " plus its colour reset and terminator take 33 bytes of
+// tx_buffer_size (3-digit line number, checked in flush_()); a longer message is cut, so a frame continues on the
+// next line instead
+static constexpr size_t LOG_LINE_ROOM = ESPHOME_LOGGER_TX_BUFFER_SIZE - 33;
 #else
-static constexpr size_t LOG_LINE_ROOM = 478;
+static constexpr size_t LOG_LINE_ROOM = 479;
 #endif
 // Capped so a large tx_buffer_size costs no more stack
 static constexpr size_t DEBUG_LINE_SIZE = std::min<size_t>(LOG_LINE_ROOM, 512);
@@ -144,6 +145,7 @@ class DebugLine {
 
  protected:
   void flush_() {
+    static_assert(__LINE__ < 1000, "LOG_LINE_ROOM assumes the ESP_LOGD below has a 3-digit line number");
     ESP_LOGD(TAG, "%s%.*s", this->prefix_.c_str(), static_cast<int>(this->pos_), this->buf_);
     this->pos_ = 0;
   }
