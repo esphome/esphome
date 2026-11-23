@@ -447,7 +447,7 @@ TEST_F(TopTronicTest, WriteOnlySelectPublishesTheChosenOption) {
   this->hub_.setup();
   select.make_call().set_index(1).perform();
   ASSERT_TRUE(select.has_state());
-  EXPECT_EQ(select.state, "On");
+  EXPECT_EQ(select.current_option(), "On");
 }
 
 TEST_F(TopTronicTest, LinkedSelectTakesItsStateFromTheTextSensor) {
@@ -467,7 +467,7 @@ TEST_F(TopTronicTest, LinkedSelectTakesItsStateFromTheTextSensor) {
   this->hub_.setup();
   this->hub_.interpret({0x42, 50, 0, 40651 >> 8, 40651 & 0xFF, 0x01});
   ASSERT_TRUE(select.has_state());
-  EXPECT_EQ(select.state, "On");
+  EXPECT_EQ(select.current_option(), "On");
 }
 #endif
 
