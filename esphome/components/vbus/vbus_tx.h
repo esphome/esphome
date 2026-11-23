@@ -33,12 +33,11 @@ class VBusTransmitter final : public Component, public uart::UARTDevice {
   bool request_bus();
   bool has_bus() const;
   bool waiting_for_grant() const {
-    return this->state_ == State::STATE_WAIT_GRANT || this->state_ == State::STATE_CONTEND;
+    return this->state_ == State::STATE_WAIT_GRANT || this->state_ == State::STATE_CHECK_RELEASE_ECHO ||
+           this->state_ == State::STATE_CONTEND;
   }
   bool owns_bus(uint32_t grant_id) const;
-  bool ready_to_send(uint32_t grant_id) const {
-    return grant_id == this->grant_id_ && this->has_bus() && this->can_send_();
-  }
+  bool ready_to_send(uint32_t grant_id) { return grant_id == this->grant_id_ && this->has_bus() && this->can_send_(); }
   bool send_datagram(uint32_t grant_id, uint16_t command, uint16_t value_id, uint32_t value, bool expect_reply = true);
   void release_bus(uint32_t grant_id);
 
@@ -48,10 +47,10 @@ class VBusTransmitter final : public Component, public uart::UARTDevice {
   void on_datagram(uint16_t command, uint16_t source, uint16_t destination, uint16_t value_id, uint32_t value);
 
  protected:
-  enum class State : uint8_t { STATE_IDLE, STATE_WAIT_GRANT, STATE_CONTEND, STATE_OWNED };
-  bool can_send_() const;
+  enum class State : uint8_t { STATE_IDLE, STATE_WAIT_GRANT, STATE_CONTEND, STATE_OWNED, STATE_CHECK_RELEASE_ECHO };
+  bool can_send_();
   void send_(uint16_t command, uint16_t value_id, uint32_t value, bool expect_reply = false);
-  void stop_();
+  void stop_(bool warn_unsent = true);
 
   VBus *receiver_;
   uint16_t source_{0x0020};
@@ -77,6 +76,7 @@ class VBusTransmitter final : public Component, public uart::UARTDevice {
   bool rx_fresh_{false};
   bool packet_fresh_{false};
   bool packet_pending_{false};
+  bool release_echo_expected_{false};
   bool sent_{false};
   bool release_pending_{false};
   bool awaiting_reply_{false};
