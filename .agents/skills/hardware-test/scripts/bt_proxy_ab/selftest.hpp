@@ -29,6 +29,7 @@ static bool seen[3];
 static uint32_t adv_n;
 // notify soak
 static uint32_t tk_last, tk_rx, tk_gaps, tk_missing, tk_missing_drop, tk_back, tk_dups, tk_short;
+static uint32_t tk_down_since, tk_unheld_ms;  // time without the link, as drive.py's unheld_s
 static bool tk_have, tk_count, tk_resumed;
 
 inline void on_adv(const espbt::ESPBTDevice &d) {
@@ -644,8 +645,8 @@ inline void tick() {
         if (r != 0) {
           ESP_LOGI(TAG, "ST third %s r=%u result=%d t=%u held=%d%d", PNAME[third], rnd, r, (unsigned) (now - t0),
                    up(h1), up(h2));
-          if (r == 1 && !(up(h1) && up(h2)))
-            hd_n++;  // a held link dropped: this was a second-link connect, kept out of ok as report.py does
+          if (!(up(h1) && up(h2)))
+            hd_n++;  // a held link dropped: not a third-link result, kept out of ok and fail as report.py does
           else if (r == 1)
             ok_n++;
           else
@@ -681,6 +682,8 @@ inline void tick() {
         tk_rx = tk_gaps = tk_missing = tk_missing_drop = tk_back = tk_dups = tk_short = 0;
         tk_have = tk_resumed = false;
         tk_count = true;
+        tk_unheld_ms = 0;
+        tk_down_since = now;
         st = 1;
         t_wait = now;
       }
@@ -691,20 +694,24 @@ inline void tick() {
         tk_resumed = true;
         st = 2;
       } else if (st == 2 && up(PL)) {
+        tk_unheld_ms += now - tk_down_since;
         st = 3;
       } else if (st == 2 && idle(PL) && now - t_wait > 1000) {
         st = 1;
       } else if (st == 3 && !up(PL)) {
         fail_n++;
         ESP_LOGW(TAG, "ST notify drop state=%d", (int) s(PL));
+        tk_down_since = now;
         st = 1;
       }
       if (now - t_ph >= 60000u * (rnd + 1)) {
         rnd++;
+        const uint32_t unheld_ms = tk_unheld_ms + (st == 3 ? 0 : now - tk_down_since);
         ESP_LOGI(TAG,
-                 "ST notify min=%u rx=%u gaps=%u missing=%u drops=%u missing_drop=%u backwards=%u dups=%u short=%u",
+                 "ST notify min=%u rx=%u gaps=%u missing=%u drops=%u missing_drop=%u backwards=%u dups=%u short=%u "
+                 "unheld_s=%u",
                  rnd, (unsigned) tk_rx, (unsigned) tk_gaps, (unsigned) tk_missing, fail_n, (unsigned) tk_missing_drop,
-                 (unsigned) tk_back, (unsigned) tk_dups, (unsigned) tk_short);
+                 (unsigned) tk_back, (unsigned) tk_dups, (unsigned) tk_short, (unsigned) (unheld_ms / 1000));
         if (rnd * 60 >= P.n) {
           if (tk_rx == 0) {  // the sensor never subscribed to the tick: the phase measured nothing
             fail_n++;

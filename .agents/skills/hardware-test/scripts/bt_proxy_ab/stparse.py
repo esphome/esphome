@@ -114,7 +114,9 @@ for name, lines in ph.items():
                 m[7] and m[7] != "0"
             ):  # rounds against a wrong ff01 handle, out of ok and fail
                 d["handle_bad"] = int(m[7])
-            if m[8] and m[8] != "0":  # third connects with a held link gone, out of ok
+            if (
+                m[8] and m[8] != "0"
+            ):  # third connects with a held link gone, out of ok and fail
                 d["held_dropped"] = int(m[8])
             if (
                 m[9] and m[9] != "0"
@@ -201,7 +203,7 @@ for name, lines in ph.items():
         )  # h1 or h2 never settled
         nt = re.findall(
             r"ST notify min=(\d+) rx=(\d+) gaps=(\d+) missing=(\d+) drops=(\d+)(?: missing_drop=(\d+))?(?: backwards=(\d+))?"
-            r"(?: dups=(\d+))?(?: short=(\d+))?",
+            r"(?: dups=(\d+))?(?: short=(\d+))?(?: unheld_s=(\d+))?",
             txt,
         )
         if nt:
@@ -218,6 +220,10 @@ for name, lines in ph.items():
             d["notify_backwards"] = int(nt[-1][6] or 0) or None
             d["notify_dups"] = int(nt[-1][7] or 0) or None
             d["notify_short_payload"] = int(nt[-1][8] or 0) or None
+            # ticks sent while the link was down count as missing_drop, so coverage alone passes a soak
+            # mostly without the link; flag it as drive.py's mostly_unheld
+            if int(nt[-1][9] or 0) > 0.1 * int(mins) * 60:
+                d["notify_unheld_s"] = int(nt[-1][9])
         fr = [int(x) for x in re.findall(r"ST churn c=\d+ freed_ms=(\d+)", txt)]
         if fr:
             d["churn freed_ms"] = (med(fr), max(fr))
@@ -242,6 +248,7 @@ for name, lines in ph.items():
         "notify_backwards",
         "notify_dups",
         "notify_short_payload",
+        "notify_unheld_s",
         "no_readable_char",
         "no_peer_label",
     )
