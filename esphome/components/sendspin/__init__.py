@@ -646,12 +646,20 @@ async def to_code(config: ConfigType) -> None:
                 if codec == CODEC_OPUS and fmt[CONF_SAMPLE_RATE] != OPUS_SAMPLE_RATE:
                     continue
                 for channels in (2, 1):
-                    key = (codec, fmt[CONF_SAMPLE_RATE], fmt[CONF_BITS_PER_SAMPLE], channels)
+                    key = (
+                        codec,
+                        fmt[CONF_SAMPLE_RATE],
+                        fmt[CONF_BITS_PER_SAMPLE],
+                        channels,
+                    )
                     if key not in seen:
                         seen.add(key)
                         audio_format_structs.append(
                             _audio_format(
-                                codec, channels, fmt[CONF_SAMPLE_RATE], fmt[CONF_BITS_PER_SAMPLE]
+                                codec,
+                                channels,
+                                fmt[CONF_SAMPLE_RATE],
+                                fmt[CONF_BITS_PER_SAMPLE],
                             )
                         )
 
