@@ -1,8 +1,10 @@
+from typing import Any
+
 import esphome.codegen as cg
 from esphome.components import uart
 from esphome.components.wifi import DOMAIN as WIFI_DOMAIN
 import esphome.config_validation as cv
-from esphome.const import CONF_POWER_SAVE_MODE, CONF_WIFI
+from esphome.const import CONF_ID, CONF_POWER_SAVE_MODE, CONF_UART_ID, CONF_WIFI
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -12,6 +14,8 @@ DOMAIN = "zwave_proxy"
 
 zwave_proxy_ns = cg.esphome_ns.namespace("zwave_proxy")
 ZWaveProxy = zwave_proxy_ns.class_("ZWaveProxy", cg.Component, uart.UARTDevice)
+
+_add_uart = cg.slot_list("ZWAVE_PROXY_UART_COUNT", "add_uart", DOMAIN)
 
 
 def final_validate(config: ConfigType) -> None:
@@ -24,19 +28,32 @@ def final_validate(config: ConfigType) -> None:
         )
 
 
-CONFIG_SCHEMA = (
-    cv.Schema(
-        {
-            cv.GenerateID(): cv.declare_id(ZWaveProxy),
-        }
-    )
-    .extend(cv.COMPONENT_SCHEMA)
-    .extend(uart.UART_DEVICE_SCHEMA)
-)
+def _default_uart(value: Any) -> Any:
+    """Turn an omitted uart_id into one unnamed UART, so the only UART is still picked."""
+    return [None] if value is None else value
+
+
+CONFIG_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.declare_id(ZWaveProxy),
+        cv.GenerateID(CONF_UART_ID): cv.All(
+            _default_uart,
+            cv.ensure_list(cv.use_id(uart.UARTComponent)),
+            cv.Length(min=1),
+        ),
+    }
+).extend(cv.COMPONENT_SCHEMA)
 
 FINAL_VALIDATE_SCHEMA = final_validate
 
 
 async def to_code(config: ConfigType) -> None:
-    await uart.new_uart_component(config)
+    var = cg.new_Pvariable(config[CONF_ID])
+    await cg.register_component(var, config)
+    uarts = [await cg.get_variable(uart_id) for uart_id in config[CONF_UART_ID]]
+    cg.add(var.set_uart_parent(uarts[0]))
+    # A single UART needs no list; the proxy only picks one when there are several
+    if len(uarts) > 1:
+        for uart_var in uarts:
+            cg.add(_add_uart(var, uart_var))
     cg.add_define("USE_ZWAVE_PROXY")
