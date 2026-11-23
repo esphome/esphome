@@ -1,76 +1,86 @@
 #include "anova_base.h"
-#include <cstdio>
 #include <cstring>
 
 #include "esphome/core/alloc_helpers.h"
 
 namespace esphome::anova {
 
+static constexpr char CMD_READ_DEVICE_STATUS[] = "status\r";
+static constexpr char CMD_READ_TARGET_TEMP[] = "read set temp\r";
+static constexpr char CMD_READ_CURRENT_TEMP[] = "read temp\r";
+static constexpr char CMD_READ_UNIT[] = "read unit\r";
+static constexpr char CMD_READ_DATA[] = "read data\r";
+static constexpr char CMD_SET_TARGET_TEMP[] = "set temp ";
+static constexpr char CMD_SET_TEMP_UNIT[] = "set unit ";
+static constexpr char CMD_START[] = "start\r";
+static constexpr char CMD_STOP[] = "stop\r";
+
 float ftoc(float f) { return (f - 32.0f) * (5.0f / 9.0f); }
 
 float ctof(float c) { return (c * 9.0f / 5.0f) + 32.0f; }
 
-AnovaPacket *AnovaCodec::clean_packet_() {
-  this->packet_.length = strlen((char *) this->packet_.data);
-  this->packet_.data[this->packet_.length] = '\0';
+AnovaPacket *AnovaCodec::finish_packet_(size_t length) {
+  this->packet_.length = length;
   ESP_LOGV("anova", "SendPkt: %s\n", this->packet_.data);
   return &this->packet_;
 }
 
+AnovaPacket *AnovaCodec::set_command_with_arg_(const char *prefix, const char *arg) {
+  char *buf = reinterpret_cast<char *>(this->packet_.data);
+  size_t pos = buf_append_str(buf, sizeof(this->packet_.data), 0, prefix);
+  pos = buf_append_str(buf, sizeof(this->packet_.data), pos, arg);
+  pos = buf_append_str(buf, sizeof(this->packet_.data), pos, "\r");
+  return this->finish_packet_(pos);
+}
+
 AnovaPacket *AnovaCodec::get_read_device_status_request() {
   this->current_query_ = READ_DEVICE_STATUS;
-  snprintf((char *) this->packet_.data, sizeof(this->packet_.data), "%s", CMD_READ_DEVICE_STATUS);
-  return this->clean_packet_();
+  return this->set_command_(CMD_READ_DEVICE_STATUS);
 }
 
 AnovaPacket *AnovaCodec::get_read_target_temp_request() {
   this->current_query_ = READ_TARGET_TEMPERATURE;
-  snprintf((char *) this->packet_.data, sizeof(this->packet_.data), "%s", CMD_READ_TARGET_TEMP);
-  return this->clean_packet_();
+  return this->set_command_(CMD_READ_TARGET_TEMP);
 }
 
 AnovaPacket *AnovaCodec::get_read_current_temp_request() {
   this->current_query_ = READ_CURRENT_TEMPERATURE;
-  snprintf((char *) this->packet_.data, sizeof(this->packet_.data), "%s", CMD_READ_CURRENT_TEMP);
-  return this->clean_packet_();
+  return this->set_command_(CMD_READ_CURRENT_TEMP);
 }
 
 AnovaPacket *AnovaCodec::get_read_unit_request() {
   this->current_query_ = READ_UNIT;
-  snprintf((char *) this->packet_.data, sizeof(this->packet_.data), "%s", CMD_READ_UNIT);
-  return this->clean_packet_();
+  return this->set_command_(CMD_READ_UNIT);
 }
 
 AnovaPacket *AnovaCodec::get_read_data_request() {
   this->current_query_ = READ_DATA;
-  snprintf((char *) this->packet_.data, sizeof(this->packet_.data), "%s", CMD_READ_DATA);
-  return this->clean_packet_();
+  return this->set_command_(CMD_READ_DATA);
 }
 
 AnovaPacket *AnovaCodec::get_set_target_temp_request(float temperature) {
   this->current_query_ = SET_TARGET_TEMPERATURE;
   if (this->fahrenheit_)
     temperature = ctof(temperature);
-  snprintf((char *) this->packet_.data, sizeof(this->packet_.data), CMD_SET_TARGET_TEMP, temperature);
-  return this->clean_packet_();
+  char value[VALUE_ACCURACY_MAX_LEN];
+  value_accuracy_to_buf(value, temperature, 1);
+  return this->set_command_with_arg_(CMD_SET_TARGET_TEMP, value);
 }
 
 AnovaPacket *AnovaCodec::get_set_unit_request(char unit) {
   this->current_query_ = SET_UNIT;
-  snprintf((char *) this->packet_.data, sizeof(this->packet_.data), CMD_SET_TEMP_UNIT, unit);
-  return this->clean_packet_();
+  const char arg[] = {unit, '\0'};
+  return this->set_command_with_arg_(CMD_SET_TEMP_UNIT, arg);
 }
 
 AnovaPacket *AnovaCodec::get_start_request() {
   this->current_query_ = START;
-  snprintf((char *) this->packet_.data, sizeof(this->packet_.data), "%s", CMD_START);
-  return this->clean_packet_();
+  return this->set_command_(CMD_START);
 }
 
 AnovaPacket *AnovaCodec::get_stop_request() {
   this->current_query_ = STOP;
-  snprintf((char *) this->packet_.data, sizeof(this->packet_.data), "%s", CMD_STOP);
-  return this->clean_packet_();
+  return this->set_command_(CMD_STOP);
 }
 
 void AnovaCodec::decode(const uint8_t *data, uint16_t length) {

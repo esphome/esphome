@@ -3,6 +3,8 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
+#include <cstring>
+
 namespace esphome::anova {
 
 enum CurrentQuery {
@@ -22,17 +24,6 @@ struct AnovaPacket {
   uint16_t length;
   uint8_t data[24];
 };
-
-#define CMD_READ_DEVICE_STATUS "status\r"
-#define CMD_READ_TARGET_TEMP "read set temp\r"
-#define CMD_READ_CURRENT_TEMP "read temp\r"
-#define CMD_READ_UNIT "read unit\r"
-#define CMD_READ_DATA "read data\r"
-#define CMD_SET_TARGET_TEMP "set temp %.1f\r"
-#define CMD_SET_TEMP_UNIT "set unit %c\r"
-
-#define CMD_START "start\r"
-#define CMD_STOP "stop\r"
 
 class AnovaCodec {
  public:
@@ -62,7 +53,15 @@ class AnovaCodec {
   };
 
  protected:
-  AnovaPacket *clean_packet_();
+  /// Copy a fixed command, terminator included, into the packet.
+  template<size_t N> AnovaPacket *set_command_(const char (&cmd)[N]) {
+    static_assert(N <= sizeof(AnovaPacket::data), "Command does not fit the packet");
+    memcpy(this->packet_.data, cmd, N);
+    return this->finish_packet_(N - 1);
+  }
+  /// Build prefix + arg + "\r", truncated to the packet.
+  AnovaPacket *set_command_with_arg_(const char *prefix, const char *arg);
+  AnovaPacket *finish_packet_(size_t length);
   AnovaPacket packet_;
 
   bool has_target_temp_;
