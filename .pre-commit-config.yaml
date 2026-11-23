@@ -26,7 +26,9 @@ repos:
           - --branch=release
           - --branch=beta
       - id: end-of-file-fixer
+        exclude: ^esphome/components/web_server/server_index_v[23]\.html$
       - id: trailing-whitespace
+        exclude: ^esphome/components/web_server/server_index_v[23]\.html$
   - repo: https://github.com/asottile/pyupgrade
     rev: v3.22.0
     hooks:
