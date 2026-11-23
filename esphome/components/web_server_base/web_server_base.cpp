@@ -3,6 +3,7 @@
 #include <cstring>
 
 #include "esphome/core/helpers.h"
+#include "esphome/core/progmem.h"
 
 #if defined(USE_NETWORK) && !defined(USE_ZEPHYR) && !defined(USE_HOST)
 
@@ -30,10 +31,14 @@ static bool __attribute__((noinline)) is_request_origin_allowed(AsyncWebServerRe
     host_len = 0;
   return is_origin_allowed(origin, origin_len, host, host_len, allowed);
 #else
-  const AsyncWebHeader *origin = request->getHeader("Origin");
+  // Names copied to the stack: the library's flash-string lookup copies them to the heap instead
+  static const char ORIGIN[] PROGMEM = "Origin";
+  static const char HOST[] PROGMEM = "Host";
+  char name[sizeof(ORIGIN)];
+  const AsyncWebHeader *origin = request->getHeader(ESPHOME_strncpy_P(name, ORIGIN, sizeof(name)));
   if (origin == nullptr)
     return true;
-  const AsyncWebHeader *host = request->getHeader("Host");
+  const AsyncWebHeader *host = request->getHeader(ESPHOME_strncpy_P(name, HOST, sizeof(name)));
   return is_origin_allowed(origin->value().c_str(), origin->value().length(),
                            host != nullptr ? host->value().c_str() : nullptr,
                            host != nullptr ? host->value().length() : 0, allowed);
