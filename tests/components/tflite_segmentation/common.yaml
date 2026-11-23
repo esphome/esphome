@@ -3,7 +3,7 @@
 # fixture committed next to this file, so the test needs no network.
 tflite_segmentation:
   - id: test_segmentation
-    model: "model.tflite"
+    model: "../../components/tflite_segmentation/model.tflite"
     input_width: 32
     input_height: 20
     input_channels: 3
