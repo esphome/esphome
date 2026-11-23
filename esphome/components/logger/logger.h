@@ -288,7 +288,9 @@ class Logger final : public Component {
 #endif
   void process_messages_();
   // msg already ends in a newline
-#if defined(USE_ARDUINO) && !defined(USE_ESP32)
+#if defined(USE_ESP8266)
+  void write_msg_(const char *msg, uint16_t len);  // Defined in logger_esp8266.cpp
+#elif defined(USE_ARDUINO) && !defined(USE_ESP32)
   inline void HOT write_msg_(const char *msg, uint16_t len) { this->hw_serial_->write(msg, len); }
 #elif defined(USE_ESP32)
   inline void write_msg_(const char *msg, uint16_t len);  // Defined in logger_esp32.h
