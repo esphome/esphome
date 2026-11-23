@@ -361,11 +361,8 @@ def validate_number_esp32(config: ConfigType) -> ConfigType:
     add_ep(
         ep, config.get(CONF_ENDPOINT), config.get(CONF_USE_DEVICE_TYPE), ep_ref=ep_ref
     )
-    # Keep IDs the user set
-    if CONF_ZIGBEE_NUMBER not in config:
-        config[CONF_ZIGBEE_NUMBER] = cv.declare_id(ZigbeeNumber)(None)
-    if CONF_ZIGBEE_ID not in config:
-        config[CONF_ZIGBEE_ID] = cv.use_id(ZigbeeComponent)(None)
+    config[CONF_ZIGBEE_NUMBER] = cv.declare_id(ZigbeeNumber)(None)
+    config[CONF_ZIGBEE_ID] = cv.use_id(ZigbeeComponent)(None)
     return config
 
 
