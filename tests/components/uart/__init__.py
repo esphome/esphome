@@ -1,26 +1,16 @@
-# This file's presence makes pytest treat this directory as a package named
-# "uart"; required for cpp unit testing.
 import esphome.codegen as cg
-from esphome.components import uart
-import esphome.config_validation as cv
 from esphome.types import ConfigType
 from tests.testing_helpers import ComponentManifestOverride
 
 
 def override_manifest(manifest: ComponentManifestOverride) -> None:
-    # One config entry, so the stub runs once: the gtests link the filtered virtual UART base.
-    manifest.multi_conf = False
-    # Other tests (ufm01) still declare UARTs as a list.
-    manifest.config_schema = cv.ensure_list(manifest.config_schema)
     # benchmark.yaml configures a uart packet_interface, whose to_code waits on the uart bus variable.
     manifest.enable_codegen()
     uart_to_code = manifest.to_code
 
-    async def to_code_testing(config: list[ConfigType]) -> None:
-        uart.require_virtual_uart()
+    async def to_code_testing(config: ConfigType) -> None:
         # The virtual UART reports to a debugger only when one is configured.
         cg.add_define("USE_UART_DEBUGGER")
-        for bus in config:
-            await uart_to_code(bus)
+        await uart_to_code(config)
 
     manifest.to_code = to_code_testing

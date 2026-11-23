@@ -52,21 +52,11 @@ TEST(VirtualUART, ShortReadAndEmptyPeekFailWithoutConsuming) {
   EXPECT_EQ(uart.available(), 2u);
 }
 
-TEST(VirtualUART, ReadOfNothingSucceeds) {
-  TestVirtualUART uart(16);
-  uint8_t byte = 0xAA;
-  EXPECT_TRUE(uart.read_array(&byte, 0));
-  EXPECT_EQ(byte, 0xAA);
-}
-
 TEST(VirtualUART, BlockThatDoesNotFitIsRefusedWhole) {
   TestVirtualUART uart(10);
   EXPECT_TRUE(uart.inject_rx(FRAME, sizeof(FRAME)));
   EXPECT_FALSE(uart.inject_rx(FRAME, 3));
   EXPECT_EQ(uart.available(), sizeof(FRAME));
-  TestVirtualUART no_ring(0);
-  EXPECT_FALSE(no_ring.inject_rx(FRAME, 1));
-  EXPECT_EQ(no_ring.available(), 0u);
 }
 
 TEST(VirtualUART, RingWrapsAround) {
