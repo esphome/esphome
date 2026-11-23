@@ -1168,13 +1168,20 @@ void IppServer::op_get_printer_attributes_(IppWriter &w, const IppRequest &req, 
                      : "Ready");
   if (want("printer-state-reasons")) {
     // The bridge keeps taking jobs while the printer is off: they wait for it to be switched on
-    const char *reason = "none";
+    const char *reasons[2];
+    uint8_t count = 0;
     if (!connected) {
-      reason = "offline-report";
-    } else if (paper_empty) {
-      reason = printing ? "media-empty-error" : "media-empty-report";
+      reasons[count++] = "offline-report";
+    } else {
+      if (paper_empty)
+        reasons[count++] = printing ? "media-empty-error" : "media-empty-report";
+      if (this->port_->is_toner_low())
+        reasons[count++] = "toner-low-report";
     }
-    w.string(VALUE_KEYWORD, "printer-state-reasons", reason);
+    if (count == 0)
+      reasons[count++] = "none";
+    for (uint8_t i = 0; i < count; i++)
+      w.string(VALUE_KEYWORD, i == 0 ? "printer-state-reasons" : nullptr, reasons[i]);
   }
   integer(VALUE_INTEGER, "printer-up-time", uptime_s());
   if (want("printer-uri-supported"))

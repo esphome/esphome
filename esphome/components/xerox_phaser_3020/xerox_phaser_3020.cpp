@@ -58,6 +58,14 @@ static constexpr char PJL_QUERY[] = "\x1b%-12345X@PJL\r\n"
                                     "@PJL INFO SUPPLIES\r\n"
                                     "@PJL INFO PRODINFO\r\n"
                                     "\x1b%-12345X";
+// Status poll: just the status and the page count, each answer ending with a form feed
+static constexpr char PJL_POLL[] = "\x1b%-12345X@PJL\r\n"
+                                   "@PJL INFO STATUS\r\n"
+                                   "@PJL INFO PAGECOUNT\r\n"
+                                   "\x1b%-12345X";
+static constexpr uint8_t POLL_ANSWERS = 2;
+static constexpr uint32_t POLL_TIME_MS = 2000;
+static constexpr uint32_t POLL_DELAY_MS = 3000;  // after a job or a connection
 static constexpr uint32_t QUERY_TIME_MS = 3000;
 static constexpr size_t REPLY_SIZE = 4096;
 static constexpr size_t IN_TRANSFER_SIZE = 512;  // a multiple of the endpoint's packet size
@@ -66,6 +74,40 @@ static constexpr uint8_t QUERY_IDLE = 0;
 static constexpr uint8_t QUERY_RUNNING = 1;
 static constexpr uint8_t QUERY_STOPPING = 2;
 static constexpr uint32_t QUERY_TIMEOUT_ID = 0;
+static constexpr uint32_t POLL_SOON_ID = 1;
+
+struct PjlStatus {
+  uint16_t code;
+  const char *text;
+};
+// PJL status codes (HP's numbering, which this printer uses), most specific first
+static constexpr PjlStatus PJL_STATUSES[] = {
+    {10001, "Ready"},      {10002, "Offline"},    {10003, "Warming up"},    {10004, "Self test"},
+    {10005, "Resetting"},  {10006, "Toner low"},  {10007, "Canceling job"}, {10023, "Printing"},
+    {35078, "Power save"}, {40021, "Cover open"}, {40022, "Paper jam"},     {40038, "Toner low"},
+};
+static constexpr uint16_t TONER_LOW_CODES[] = {10006, 40038};
+
+static const char *pjl_status_text(uint16_t code) {
+  for (const auto &status : PJL_STATUSES) {
+    if (status.code == code)
+      return status.text;
+  }
+  switch (code / 1000) {
+    case 41:
+      return "Load paper";
+    case 42:
+    case 44:
+      return "Paper jam";
+    case 35:
+    case 40:
+      return "Needs attention";
+    case 50:
+      return "Printer error";
+    default:
+      return nullptr;
+  }
+}
 static constexpr uint8_t RESET_NONE = 0;
 static constexpr uint8_t RESET_REQUESTED = 1;
 static constexpr uint8_t RESET_SENT = 2;
@@ -107,7 +149,8 @@ void XeroxPhaser3020::setup() {
     }
     xQueueSend(this->free_transfers_, &transfer, 0);
   }
-  this->reply_ = reinterpret_cast<char *>(RAMAllocator<uint8_t>().allocate(REPLY_SIZE));
+  // One more byte to end the text for parsing
+  this->reply_ = reinterpret_cast<char *>(RAMAllocator<uint8_t>().allocate(REPLY_SIZE + 1));
   if (this->reply_ == nullptr || usb_host_transfer_alloc(IN_TRANSFER_SIZE, 0, &this->in_transfer_) != ESP_OK ||
       usb_host_transfer_alloc(sizeof(usb_setup_packet_t) + DEVICE_ID_SIZE, 0, &this->id_transfer_) != ESP_OK) {
     this->mark_failed(LOG_STR("Not enough memory"));
@@ -140,12 +183,19 @@ void XeroxPhaser3020::setup() {
   }
   this->register_mdns_();
   this->set_interval(UPDATE_INTERVAL_MS, [this]() { this->update_(); });
+  if (this->status_interval_ms_ != 0)
+    this->set_interval(this->status_interval_ms_, [this]() { this->start_query_(false); });
 }
 
 void XeroxPhaser3020::loop() {
   bool work = this->process_usb_events_();
   if (this->reset_state_.load() == RESET_REQUESTED) {
     this->send_reset_();
+    work = true;
+  }
+  if (this->query_done_.exchange(false)) {
+    this->cancel_timeout(QUERY_TIMEOUT_ID);
+    this->finish_query_();
     work = true;
   }
   if (this->id_ready_.exchange(false)) {
@@ -253,6 +303,10 @@ void XeroxPhaser3020::register_mdns_() {
 
 void XeroxPhaser3020::update_() {
   this->server_.check_timeouts();
+  const bool printing = this->server_.is_printing();
+  if (this->was_printing_ && !printing)
+    this->set_timeout(POLL_SOON_ID, POLL_DELAY_MS, [this]() { this->start_query_(false); });
+  this->was_printing_ = printing;
   if (++this->update_count_ >= PORT_STATUS_EVERY && this->is_connected()) {
     this->update_count_ = 0;
     this->control_transfer(
@@ -267,7 +321,7 @@ void XeroxPhaser3020::update_() {
   }
 #ifdef USE_BINARY_SENSOR
   PUBLISH_STATE(this->connected_binary_sensor_, this->is_connected());
-  PUBLISH_STATE(this->printing_binary_sensor_, this->server_.is_printing());
+  PUBLISH_STATE(this->printing_binary_sensor_, printing);
   PUBLISH_STATE(this->paper_empty_binary_sensor_, this->is_paper_empty());
   const uint8_t status = this->port_status_.load(std::memory_order_relaxed);
   PUBLISH_STATE(this->error_binary_sensor_, this->is_connected() && (status & PORT_STATUS_NO_ERROR) == 0);
@@ -333,6 +387,7 @@ void XeroxPhaser3020::on_connected() {
   this->update_count_ = PORT_STATUS_EVERY;  // read the port status on the next update
   ESP_LOGI(TAG, "Printer connected");
   this->read_device_id_();
+  this->set_timeout(POLL_SOON_ID, POLL_DELAY_MS, [this]() { this->start_query_(false); });
 }
 
 void XeroxPhaser3020::on_disconnected() {
@@ -348,7 +403,12 @@ void XeroxPhaser3020::on_disconnected() {
         this->in_endpoint_ = 0;
       }
       this->cancel_timeout(QUERY_TIMEOUT_ID);
+      this->cancel_timeout(POLL_SOON_ID);
       this->query_state_.store(QUERY_IDLE);
+      this->toner_low_.store(false);
+#ifdef USE_TEXT_SENSOR
+      PUBLISH_STATE(this->status_text_sensor_, "Not connected");
+#endif
       usb_host_interface_release(this->handle_, this->device_handle_, this->interface_);
       this->out_endpoint_ = 0;
       this->reset_state_.store(RESET_NONE);
@@ -551,17 +611,26 @@ void XeroxPhaser3020::device_id_callback(usb_transfer_t *transfer) {
   App.wake_loop_threadsafe();
 }
 
-void XeroxPhaser3020::query_status() {
+void XeroxPhaser3020::query_status() { this->start_query_(true); }
+
+void XeroxPhaser3020::start_query_(bool full) {
+  // A poll that cannot run now is simply skipped; the next one comes soon enough
   if (!this->is_connected()) {
-    ESP_LOGW(TAG, "Status query: the printer is not connected");
+    if (full) {
+      ESP_LOGW(TAG, "Status query: the printer is not connected");
+    }
     return;
   }
   if (this->in_endpoint_ == 0) {
-    ESP_LOGW(TAG, "Status query: the printer's USB interface has no IN endpoint, so it cannot answer");
+    if (full) {
+      ESP_LOGW(TAG, "Status query: the printer's USB interface has no IN endpoint, so it cannot answer");
+    }
     return;
   }
   if (this->query_state_.load() != QUERY_IDLE) {
-    ESP_LOGW(TAG, "Status query: one is already running");
+    if (full) {
+      ESP_LOGW(TAG, "Status query: one is already running");
+    }
     return;
   }
   // Marked running before the check, so a job starting now either is seen here or waits in begin_job()
@@ -569,19 +638,27 @@ void XeroxPhaser3020::query_status() {
   usb_transfer_t *transfer;
   if (this->server_.is_printing() || xQueueReceive(this->free_transfers_, &transfer, 0) != pdTRUE) {
     this->query_state_.store(QUERY_IDLE);
-    ESP_LOGW(TAG, "Status query: the printer is busy with a job");
+    if (full) {
+      ESP_LOGW(TAG, "Status query: the printer is busy with a job");
+    }
     return;
   }
+  this->query_full_ = full;
+  this->answers_needed_ = full ? 0 : POLL_ANSWERS;
   this->reply_len_.store(0);
-  memcpy(transfer->data_buffer, PJL_QUERY, sizeof(PJL_QUERY) - 1);
-  transfer->num_bytes = sizeof(PJL_QUERY) - 1;
+  const char *pjl = full ? PJL_QUERY : PJL_POLL;
+  const size_t len = full ? sizeof(PJL_QUERY) - 1 : sizeof(PJL_POLL) - 1;
+  memcpy(transfer->data_buffer, pjl, len);
+  transfer->num_bytes = len;
   if (!this->submit_in_() || !this->submit_(transfer)) {
     ESP_LOGW(TAG, "Status query: USB transfer failed");
     this->finish_query_();
     return;
   }
-  ESP_LOGI(TAG, "Status query sent; collecting the answer for %u s", static_cast<unsigned>(QUERY_TIME_MS / 1000));
-  this->set_timeout(QUERY_TIMEOUT_ID, QUERY_TIME_MS, [this]() { this->finish_query_(); });
+  if (full) {
+    ESP_LOGI(TAG, "Status query sent; collecting the answer for %u s", static_cast<unsigned>(QUERY_TIME_MS / 1000));
+  }
+  this->set_timeout(QUERY_TIMEOUT_ID, full ? QUERY_TIME_MS : POLL_TIME_MS, [this]() { this->finish_query_(); });
 }
 
 bool XeroxPhaser3020::submit_in_() {
@@ -618,7 +695,20 @@ void XeroxPhaser3020::in_callback(usb_transfer_t *transfer) {
     n = REPLY_SIZE - len;
   memcpy(self->reply_ + len, transfer->data_buffer, n);
   self->reply_len_.store(len + n);
-  // Keep reading until the query time is over
+  if (self->answers_needed_ != 0) {
+    uint8_t answers = 0;
+    for (size_t i = 0; i < len + n; i++)
+      answers += self->reply_[i] == '\f';
+    if (answers >= self->answers_needed_) {
+      // A poll has all it asked for: the main loop finishes it
+      self->in_busy_.store(false);
+      self->query_done_.store(true);
+      self->enable_loop_soon_any_context();
+      App.wake_loop_threadsafe();
+      return;
+    }
+  }
+  // Keep reading until the answers are in or the query time is over
   self->submit_in_();
 }
 
@@ -632,13 +722,13 @@ void XeroxPhaser3020::finish_query_() {
       usb_host_endpoint_flush(this->device_handle_, this->in_endpoint_);
     }
   }
-  this->log_reply_(0);
+  this->end_query_(0);
 }
 
-void XeroxPhaser3020::log_reply_(uint8_t tries) {
+void XeroxPhaser3020::end_query_(uint8_t tries) {
   // The flushed transfer comes back through its callback on the USB task
   if (this->in_busy_.load() && tries < 20) {
-    this->set_timeout(QUERY_TIMEOUT_ID, 50, [this, tries]() { this->log_reply_(tries + 1); });
+    this->set_timeout(QUERY_TIMEOUT_ID, 50, [this, tries]() { this->end_query_(tries + 1); });
     return;
   }
   {
@@ -647,6 +737,12 @@ void XeroxPhaser3020::log_reply_(uint8_t tries) {
       usb_host_endpoint_clear(this->device_handle_, this->in_endpoint_);
   }
   const uint16_t len = this->reply_len_.load();
+  this->reply_[len] = '\0';
+  this->parse_status_();
+  if (!this->query_full_) {
+    this->query_state_.store(QUERY_IDLE);
+    return;
+  }
   if (len == 0) {
     ESP_LOGW(TAG, "The printer sent nothing back to the PJL status query");
   } else {
@@ -670,6 +766,37 @@ void XeroxPhaser3020::log_reply_(uint8_t tries) {
     }
   }
   this->query_state_.store(QUERY_IDLE);
+}
+
+void XeroxPhaser3020::parse_status_() {
+  // Answers look like "@PJL INFO STATUS\r\nCODE=10001\r\nDISPLAY=\r\nONLINE=TRUE\r\n\f"
+  const char *code_text = strstr(this->reply_, "CODE=");
+  if (code_text != nullptr) {
+    const uint16_t code = strtoul(code_text + 5, nullptr, 10);
+    bool toner_low = false;
+    for (uint16_t low : TONER_LOW_CODES)
+      toner_low |= code == low;
+    this->toner_low_.store(toner_low);
+#ifdef USE_BINARY_SENSOR
+    PUBLISH_STATE(this->toner_low_binary_sensor_, toner_low);
+#endif
+    const char *known = pjl_status_text(code);
+    ESP_LOGD(TAG, "Printer status %u: %s", code, known != nullptr ? known : LOG_STR_LITERAL("unknown"));
+#ifdef USE_TEXT_SENSOR
+    char text[48];
+    if (known != nullptr) {
+      snprintf(text, sizeof(text), "%s", known);
+    } else {
+      snprintf(text, sizeof(text), "Status code %u", code);
+    }
+    PUBLISH_STATE(this->status_text_sensor_, text);
+#endif
+  }
+#ifdef USE_SENSOR
+  const char *count_text = strstr(this->reply_, "PAGECOUNT=");
+  if (count_text != nullptr)
+    PUBLISH_STATE(this->page_count_sensor_, strtoul(count_text + 10, nullptr, 10));
+#endif
 }
 
 void XeroxPhaser3020::listen_task(void *arg) {

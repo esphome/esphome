@@ -15,6 +15,12 @@
 #ifdef USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #endif
+#ifdef USE_SENSOR
+#include "esphome/components/sensor/sensor.h"
+#endif
+#ifdef USE_TEXT_SENSOR
+#include "esphome/components/text_sensor/text_sensor.h"
+#endif
 
 #include "ipp_server.h"
 
@@ -44,12 +50,21 @@ class XeroxPhaser3020 final : public usb_host::USBClient, public PrinterPort {
   void set_power_save_minutes(uint8_t minutes) { this->settings_.pjl.power_save_minutes = minutes; }
   void set_jam_recovery(bool jam_recovery) { this->settings_.pjl.jam_recovery = jam_recovery; }
   void set_printer_wait(uint16_t seconds) { this->settings_.printer_wait_s = seconds; }
+  /// How often to ask the printer for its status; 0 asks only after jobs and connections
+  void set_status_interval(uint32_t ms) { this->status_interval_ms_ = ms; }
 #ifdef USE_BINARY_SENSOR
   SUB_BINARY_SENSOR(connected)
   SUB_BINARY_SENSOR(printing)
   SUB_BINARY_SENSOR(paper_empty)
   SUB_BINARY_SENSOR(error)
   SUB_BINARY_SENSOR(online)
+  SUB_BINARY_SENSOR(toner_low)
+#endif
+#ifdef USE_SENSOR
+  SUB_SENSOR(page_count)
+#endif
+#ifdef USE_TEXT_SENSOR
+  SUB_TEXT_SENSOR(status)
 #endif
 
   /// Ask the printer for its status with PJL and log the answer. An experiment: what the Phaser 3020
@@ -59,6 +74,7 @@ class XeroxPhaser3020 final : public usb_host::USBClient, public PrinterPort {
   // PrinterPort, called from the connection tasks
   bool is_connected() const override { return this->connected_.load(std::memory_order_relaxed); }
   bool is_paper_empty() const override;
+  bool is_toner_low() const override { return this->toner_low_.load(std::memory_order_relaxed); }
   bool begin_job(const std::atomic<bool> *cancel) override;
   bool write(const uint8_t *data, size_t len) override;
   bool end_job() override;
@@ -75,8 +91,11 @@ class XeroxPhaser3020 final : public usb_host::USBClient, public PrinterPort {
   void log_interfaces_(const usb_config_desc_t *config);
   void read_device_id_();
   bool submit_in_();
+  /// Ask the printer for its status: everything, logged, for the button; status and page count for a poll
+  void start_query_(bool full);
   void finish_query_();
-  void log_reply_(uint8_t tries);
+  void end_query_(uint8_t tries);
+  void parse_status_();
   static void in_callback(usb_transfer_t *transfer);
   static void device_id_callback(usb_transfer_t *transfer);
   bool job_stopped_() const;
@@ -118,8 +137,14 @@ class XeroxPhaser3020 final : public usb_host::USBClient, public PrinterPort {
   std::atomic<uint8_t> port_status_{0};
   std::atomic<uint16_t> reply_len_{0};
   std::atomic<uint8_t> query_state_{0};
-  std::atomic<bool> in_busy_{false};   // the IN transfer is submitted
-  std::atomic<bool> id_ready_{false};  // the device ID has arrived and waits to be logged
+  std::atomic<bool> in_busy_{false};     // the IN transfer is submitted
+  std::atomic<bool> id_ready_{false};    // the device ID has arrived and waits to be logged
+  std::atomic<bool> query_done_{false};  // a poll has all its answers and waits to be finished
+  std::atomic<bool> toner_low_{false};
+  uint32_t status_interval_ms_{0};
+  uint8_t answers_needed_{0};  // a poll ends early once this many answers are in; 0 reads until the time is up
+  bool query_full_{false};
+  bool was_printing_{false};
   uint8_t interface_{0};
   uint8_t out_endpoint_{0};
   uint8_t in_endpoint_{0};  // 0 when the printer cannot send data back

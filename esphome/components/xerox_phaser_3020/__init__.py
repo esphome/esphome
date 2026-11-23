@@ -21,6 +21,7 @@ CONF_LOCATION = "location"
 CONF_PAPER = "paper"
 CONF_POWER_SAVE = "power_save"
 CONF_PRINTER_NAME = "printer_name"
+CONF_STATUS_INTERVAL = "status_interval"
 CONF_TONER_DENSITY = "toner_density"
 CONF_TONER_SAVE = "toner_save"
 CONF_WAIT_FOR_PRINTER = "wait_for_printer"
@@ -111,6 +112,10 @@ CONFIG_SCHEMA = cv.All(
             ): validate_toner_save,
             cv.Optional(CONF_POWER_SAVE, default="5min"): validate_power_save,
             cv.Optional(CONF_JAM_RECOVERY, default=False): cv.boolean,
+            # How often to ask the printer for its status and page count; 0s asks only after jobs
+            cv.Optional(
+                CONF_STATUS_INTERVAL, default="5min"
+            ): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_WAIT_FOR_PRINTER, default="5min"): cv.All(
                 cv.positive_time_period_seconds,
                 cv.Range(max=cv.TimePeriod(hours=1)),
@@ -150,3 +155,4 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_power_save_minutes(config[CONF_POWER_SAVE]))
     cg.add(var.set_jam_recovery(config[CONF_JAM_RECOVERY]))
     cg.add(var.set_printer_wait(config[CONF_WAIT_FOR_PRINTER].total_seconds))
+    cg.add(var.set_status_interval(config[CONF_STATUS_INTERVAL].total_milliseconds))

@@ -15,6 +15,7 @@ xerox_phaser_3020:
   power_save: off
   jam_recovery: true
   wait_for_printer: 10min
+  status_interval: 10min
 
 binary_sensor:
   - platform: xerox_phaser_3020
@@ -29,6 +30,20 @@ binary_sensor:
       name: Printer error
     online:
       name: Printer online
+    toner_low:
+      name: Toner low
+
+sensor:
+  - platform: xerox_phaser_3020
+    xerox_phaser_3020_id: phaser
+    page_count:
+      name: Pages printed
+
+text_sensor:
+  - platform: xerox_phaser_3020
+    xerox_phaser_3020_id: phaser
+    status:
+      name: Printer status
 
 button:
   - platform: xerox_phaser_3020

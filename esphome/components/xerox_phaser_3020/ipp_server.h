@@ -28,6 +28,8 @@ class PrinterPort : public OutputSink {
  public:
   virtual bool is_connected() const = 0;
   virtual bool is_paper_empty() const = 0;
+  /// The printer has reported low toner
+  virtual bool is_toner_low() const { return false; }
   /// Get ready for a job's data. write() and end_job() return false once `cancel` is set.
   virtual bool begin_job(const std::atomic<bool> *cancel) = 0;
   /// Wait until all data has been taken by the printer. Returns false on an error or a cancel.

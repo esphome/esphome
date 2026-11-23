@@ -18,6 +18,7 @@ CONF_ERROR = "error"
 CONF_ONLINE = "online"
 CONF_PAPER_EMPTY = "paper_empty"
 CONF_PRINTING = "printing"
+CONF_TONER_LOW = "toner_low"
 
 CONFIG_SCHEMA = cv.Schema(
     {
@@ -39,6 +40,11 @@ CONFIG_SCHEMA = cv.Schema(
             device_class=DEVICE_CLASS_PROBLEM,
             icon="mdi:printer-alert",
         ),
+        # From the printer's PJL status, read every status_interval
+        cv.Optional(CONF_TONER_LOW): binary_sensor.binary_sensor_schema(
+            device_class=DEVICE_CLASS_PROBLEM,
+            icon="mdi:printer-alert",
+        ),
         # Whether the printer reports itself selected (online) on its USB port
         cv.Optional(CONF_ONLINE): binary_sensor.binary_sensor_schema(
             entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
@@ -56,3 +62,4 @@ async def to_code(config: ConfigType) -> None:
     await sensors(CONF_PAPER_EMPTY, hub.set_paper_empty_binary_sensor)
     await sensors(CONF_ERROR, hub.set_error_binary_sensor)
     await sensors(CONF_ONLINE, hub.set_online_binary_sensor)
+    await sensors(CONF_TONER_LOW, hub.set_toner_low_binary_sensor)
