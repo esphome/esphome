@@ -64,7 +64,10 @@ sensor:
     update_interval: never
     internal: true
     lambda: |-
-      if (x.size() < 4) return NAN;
+      if (x.size() < 4) {
+        selftest::on_short_tick();
+        return NAN;
+      }
       uint32_t v = x[0] | (x[1] << 8) | (x[2] << 16) | ((uint32_t) x[3] << 24);
       selftest::on_tick(v);
       return (float) v;

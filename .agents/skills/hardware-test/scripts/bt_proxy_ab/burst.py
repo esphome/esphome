@@ -76,6 +76,19 @@ async def main() -> None:
     srv_fail: list[int] = []
     short: list[bytes] = []
     done = asyncio.Event()
+    fe02_n = [0]  # every final seen, also the ignored ones, for the quiet wait
+    armed = [False]  # finals before this run's trigger belong to an earlier run
+
+    def on_final(h, x) -> None:
+        fe02_n[0] += 1
+        if not armed[0]:
+            return
+        final.append(time.monotonic())
+        # the failure count is complete only with the late-failure shim in place (byte 3)
+        if len(x) >= 4 and x[3]:
+            srv_fail.append(x[1] | x[2] << 8)
+        done.set()
+
     await cli.bluetooth_gatt_start_notify(
         addr,
         ch[FE01].handle,
@@ -86,26 +99,18 @@ async def main() -> None:
             else short.append(x)
         ),
     )
-    await cli.bluetooth_gatt_start_notify(
-        addr,
-        ch[FE02].handle,
-        lambda h, x: (
-            final.append(time.monotonic()),
-            # the failure count is complete only with the late-failure shim in place (byte 3)
-            srv_fail.append(x[1] | x[2] << 8) if len(x) >= 4 and x[3] else None,
-            done.set(),
-        ),
-    )
+    await cli.bluetooth_gatt_start_notify(addr, ch[FE02].handle, on_final)
     for c, v in ((ch[FE01], b"\x01\x00"), (ch[FE02], b"\x02\x00")):
         await cli.bluetooth_gatt_write_descriptor(addr, cccd(c), v)
     clean = 0
     for r in range(runs):
         # notifications of an earlier run still in flight carry the same numbers: wait for quiet first
+        armed[0] = False
         q_end, quiet = time.monotonic() + 10, False
         while time.monotonic() < q_end:
-            n0 = len(seqs)
+            n0 = (len(seqs), fe02_n[0])
             await asyncio.sleep(1)
-            if len(seqs) == n0:
+            if (len(seqs), fe02_n[0]) == n0:
                 quiet = True
                 break
         if not quiet:  # stale numbers would count as received: skip this run rather than report it clean
@@ -117,6 +122,7 @@ async def main() -> None:
         short.clear()
         ndrop.clear()
         done.clear()
+        armed[0] = True
         t0 = time.monotonic()
         await cli.bluetooth_gatt_write(
             addr,

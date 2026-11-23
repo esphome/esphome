@@ -28,7 +28,7 @@ static esp_ble_addr_type_t atype[3] = {BLE_ADDR_TYPE_PUBLIC, BLE_ADDR_TYPE_PUBLI
 static bool seen[3];
 static uint32_t adv_n;
 // notify soak
-static uint32_t tk_last, tk_rx, tk_gaps, tk_missing, tk_missing_drop, tk_back;
+static uint32_t tk_last, tk_rx, tk_gaps, tk_missing, tk_missing_drop, tk_back, tk_dups, tk_short;
 static bool tk_have, tk_count, tk_resumed;
 
 inline void on_adv(const espbt::ESPBTDevice &d) {
@@ -46,6 +46,8 @@ inline void on_tick(uint32_t v) {
   tk_rx++;
   if (tk_have && v < tk_last)
     tk_back++;  // the server restarted or the order broke
+  if (tk_have && v == tk_last && !tk_resumed)
+    tk_dups++;
   if (tk_have && v > tk_last + 1) {
     if (tk_resumed) {
       tk_missing_drop += v - tk_last - 1;  // sent while the link was down
@@ -57,6 +59,11 @@ inline void on_tick(uint32_t v) {
   tk_last = v;
   tk_have = true;
   tk_resumed = false;
+}
+// a tick payload under 4 bytes: garbled, not a gap
+inline void on_short_tick() {
+  if (tk_count)
+    tk_short++;
 }
 
 // read/write round trips by handle
@@ -113,7 +120,7 @@ static int st;        // step inside the phase
 static uint16_t rnd;  // round or cycle
 static uint8_t att;   // retry attempt
 static uint32_t t_ph, t0, t_wait, t_open, t_round;
-static uint16_t ok_n, first_ok_n, fail_n, stuck_n, adv_mode_n, cc_fail_n, hb_n, hd_n, hf_n, se_n, pt_n;
+static uint16_t ok_n, first_ok_n, fail_n, stuck_n, adv_mode_n, cc_fail_n, hb_n, hd_n, hf_n, se_n, pt_n, nc_n;
 static bool bad_handle[2];  // handle_l/handle_m do not point at this server's ff01: RTTs hit another characteristic
 static uint32_t adv0;
 static uint8_t rtt_i;
@@ -153,13 +160,13 @@ inline void next_phase() {
   const Phase &P = PHASES[ph];
   ESP_LOGI(TAG,
            "ST phase_end %s rounds=%u ok=%u first_ok=%u fail=%u stuck=%u cache_clean_fail=%u handle_bad=%u "
-           "held_dropped=%u hold_failed=%u send_err=%u partial=%u",
-           P.name, rnd, ok_n, first_ok_n, fail_n, stuck_n, cc_fail_n, hb_n, hd_n, hf_n, se_n, pt_n);
+           "held_dropped=%u hold_failed=%u send_err=%u partial=%u no_readable_char=%u",
+           P.name, rnd, ok_n, first_ok_n, fail_n, stuck_n, cc_fail_n, hb_n, hd_n, hf_n, se_n, pt_n, nc_n);
   ph++;
   st = 0;
   rnd = 0;
   att = 0;
-  ok_n = first_ok_n = fail_n = stuck_n = cc_fail_n = hb_n = hd_n = hf_n = se_n = pt_n = 0;
+  ok_n = first_ok_n = fail_n = stuck_n = cc_fail_n = hb_n = hd_n = hf_n = se_n = pt_n = nc_n = 0;
   t_ph = t_wait = t_round = millis();
   ESP_LOGI(TAG, "ST phase_start %s", PHASES[ph].name);
 }
@@ -441,17 +448,21 @@ inline void tick() {
             if (chars[i].properties & ESP_GATT_CHAR_PROP_BIT_READ)
               hnd = chars[i].char_handle;
         }
+        if (hnd == 0) {  // an empty or partial table: a harness fault, as drive.py's no_readable_char
+          nc_n++;
+          ESP_LOGW(TAG, "ST eve r=%u no_readable_char, not counted", rnd);
+          st = 3;
+          break;
+        }
         Rtt *rt = RT[p];
         rt->ok = false;
         rt->t0 = now;
         rt->done_ms = 0;
         rt->pending = 1;
-        esp_err_t err =
-            hnd == 0 ? ESP_FAIL
-                     : esp_ble_gattc_read_char(C[p]->get_gattc_if(), C[p]->get_conn_id(), hnd, ESP_GATT_AUTH_REQ_NONE);
+        esp_err_t err = esp_ble_gattc_read_char(C[p]->get_gattc_if(), C[p]->get_conn_id(), hnd, ESP_GATT_AUTH_REQ_NONE);
         if (err != ESP_OK) {
           rt->pending = 0;
-          ESP_LOGI(TAG, "ST eve read r=%u failed: %s %d", rnd, hnd == 0 ? "no_readable_char" : "read_err", err);
+          ESP_LOGI(TAG, "ST eve read r=%u failed: read_err %d", rnd, err);
         }
         st = 8;
       } else if (st == 8) {
@@ -667,7 +678,7 @@ inline void tick() {
     case K_NOTIFY: {
       // V1 connect so the ble_client sensor finds the tick characteristic and subscribes
       if (st == 0) {
-        tk_rx = tk_gaps = tk_missing = tk_missing_drop = tk_back = 0;
+        tk_rx = tk_gaps = tk_missing = tk_missing_drop = tk_back = tk_dups = tk_short = 0;
         tk_have = tk_resumed = false;
         tk_count = true;
         st = 1;
@@ -690,9 +701,10 @@ inline void tick() {
       }
       if (now - t_ph >= 60000u * (rnd + 1)) {
         rnd++;
-        ESP_LOGI(TAG, "ST notify min=%u rx=%u gaps=%u missing=%u drops=%u missing_drop=%u backwards=%u", rnd,
-                 (unsigned) tk_rx, (unsigned) tk_gaps, (unsigned) tk_missing, fail_n, (unsigned) tk_missing_drop,
-                 (unsigned) tk_back);
+        ESP_LOGI(TAG,
+                 "ST notify min=%u rx=%u gaps=%u missing=%u drops=%u missing_drop=%u backwards=%u dups=%u short=%u",
+                 rnd, (unsigned) tk_rx, (unsigned) tk_gaps, (unsigned) tk_missing, fail_n, (unsigned) tk_missing_drop,
+                 (unsigned) tk_back, (unsigned) tk_dups, (unsigned) tk_short);
         if (rnd * 60 >= P.n) {
           if (tk_rx == 0) {  // the sensor never subscribed to the tick: the phase measured nothing
             fail_n++;

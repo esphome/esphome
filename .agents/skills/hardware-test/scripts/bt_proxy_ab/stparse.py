@@ -103,7 +103,8 @@ for name, lines in ph.items():
         txt = "\n".join(ln for _, ln in lines)
         if m := re.search(
             r"ST phase_end \w+ rounds=(\d+) ok=(\d+) first_ok=(\d+) fail=(\d+) stuck=(\d+)"
-            r"(?: cache_clean_fail=(\d+))?(?: handle_bad=(\d+))?(?: held_dropped=(\d+))?(?: hold_failed=(\d+))?(?: send_err=(\d+))?(?: partial=(\d+))?",
+            r"(?: cache_clean_fail=(\d+))?(?: handle_bad=(\d+))?(?: held_dropped=(\d+))?(?: hold_failed=(\d+))?(?: send_err=(\d+))?(?: partial=(\d+))?"
+            r"(?: no_readable_char=(\d+))?",
             txt,
         ):
             d["rounds,ok,first_ok,fail,stuck"] = m.groups()[:5]
@@ -123,6 +124,10 @@ for name, lines in ph.items():
                 d["send_err"] = int(m[10])
             if m[11] and m[11] != "0":  # rounds whose RTT loop broke off, out of ok
                 d["rtt_partial"] = int(m[11])
+            if (
+                m[12] and m[12] != "0"
+            ):  # Eve rounds without a readable characteristic, out of ok and fail
+                d["no_readable_char"] = int(m[12])
         elif name.split("#")[0] != "done" or "ST DONE" not in txt:
             d["incomplete"] = (
                 True  # a reset or the end of the capture cut the phase short
@@ -191,7 +196,8 @@ for name, lines in ph.items():
             txt.count("ST third hold_failed") or None
         )  # h1 or h2 never settled
         nt = re.findall(
-            r"ST notify min=(\d+) rx=(\d+) gaps=(\d+) missing=(\d+) drops=(\d+)(?: missing_drop=(\d+))?(?: backwards=(\d+))?",
+            r"ST notify min=(\d+) rx=(\d+) gaps=(\d+) missing=(\d+) drops=(\d+)(?: missing_drop=(\d+))?(?: backwards=(\d+))?"
+            r"(?: dups=(\d+))?(?: short=(\d+))?",
             txt,
         )
         if nt:
@@ -201,11 +207,13 @@ for name, lines in ph.items():
         elif nt:
             # 5 ticks a second over the minutes so far; seen plus known missing well under that: the
             # subscription went quiet, as drive.py's notify_short
-            mins, rx, _, missing, _, mdrop, _ = nt[-1]
+            mins, rx, _, missing, _, mdrop, *_ = nt[-1]
             if int(rx) + int(missing) + int(mdrop or 0) < 0.9 * int(mins) * 300:
                 d["notify_short"] = True
             # the server restarted or the order broke: the gap and missing counts mean nothing
             d["notify_backwards"] = int(nt[-1][6] or 0) or None
+            d["notify_dups"] = int(nt[-1][7] or 0) or None
+            d["notify_short_payload"] = int(nt[-1][8] or 0) or None
         fr = [int(x) for x in re.findall(r"ST churn c=\d+ freed_ms=(\d+)", txt)]
         if fr:
             d["churn freed_ms"] = (med(fr), max(fr))
@@ -228,6 +236,9 @@ for name, lines in ph.items():
         "held_dropped",
         "notify_short",
         "notify_backwards",
+        "notify_dups",
+        "notify_short_payload",
+        "no_readable_char",
     )
     # every round failed to hold its links (or ran on a wrong handle): the phase measured nothing
     rounds = d.get("rounds,ok,first_ok,fail,stuck", ("0",))[0]
