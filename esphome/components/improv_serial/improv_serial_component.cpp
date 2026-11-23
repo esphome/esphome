@@ -197,7 +197,12 @@ bool ImprovSerialComponent::parse_improv_serial_byte_(uint8_t byte) {
     // The parser's own first test; a stray byte then costs no heap block
     if (byte != 'I')
       return false;
-    this->rx_buffer_ = std::make_unique<uint8_t[]>(MAX_FRAME_SIZE);
+    // RAMAllocator, so exhaustion drops the frame instead of aborting
+    this->rx_buffer_ = RAMAllocator<uint8_t>().make_unique_array_for_overwrite(MAX_FRAME_SIZE);
+    if (!this->rx_buffer_) {
+      ESP_LOGW(TAG, "No memory for a frame");
+      return false;
+    }
   } else if (at > FRAME_HEADER_SIZE && at > FRAME_HEADER_SIZE + this->rx_buffer_[FRAME_HEADER_SIZE - 1]) {
     // Past the checksum, where the parser rejects the byte without reading it
     return false;
@@ -228,7 +233,13 @@ bool ImprovSerialComponent::parse_improv_payload_(improv::ImprovCommand &command
         this->send_state_byte_(improv::TYPE_ERROR_STATE, improv::ERROR_UNABLE_TO_CONNECT);
         return true;
       }
-      this->connecting_sta_ = std::make_unique<wifi::WiFiAP>();
+      auto sta_ptr = RAMAllocator<wifi::WiFiAP>().make_unique();
+      if (!sta_ptr) {
+        ESP_LOGW(TAG, "No memory for the credentials");
+        this->send_state_byte_(improv::TYPE_ERROR_STATE, improv::ERROR_UNKNOWN);
+        return true;
+      }
+      this->connecting_sta_ = std::move(sta_ptr);
       auto &sta = *this->connecting_sta_;
       sta.set_ssid(command.ssid.c_str());
       sta.set_password(command.password.c_str());

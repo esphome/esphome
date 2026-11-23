@@ -109,11 +109,11 @@ class ImprovSerialComponent final : public Component, public improv_base::Improv
   uart::UARTComponent *uart_{nullptr};
 #endif
 
-  std::unique_ptr<uint8_t[]> rx_buffer_;
+  RAMUniquePtr<uint8_t[]> rx_buffer_;
   uint32_t last_read_byte_{0};
 #ifdef USE_WIFI
   // Only held while provisioning
-  std::unique_ptr<wifi::WiFiAP> connecting_sta_;
+  RAMUniquePtr<wifi::WiFiAP> connecting_sta_;
 #endif
   improv::State state_{improv::STATE_AUTHORIZED};
   uint16_t rx_len_{0};
