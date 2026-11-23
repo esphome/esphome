@@ -39,40 +39,31 @@ namespace esphome::logger {
 ESPHOME_LOG_TAG(TAG, "logger");
 
 #ifdef USE_LOGGER_UART_SELECTION_USB_SERIAL_JTAG
-// The driver's TX ring buffer. It rejects an item larger than itself, so lines are written in chunks of half its
-// size, which fit as soon as the previous chunk has drained.
+// The ring buffer rejects an item larger than itself; half-size chunks fit once the previous one drains.
 static constexpr size_t USB_SERIAL_JTAG_TX_BUFFER_SIZE = 512;
-static constexpr size_t USB_SERIAL_JTAG_TX_CHUNK = USB_SERIAL_JTAG_TX_BUFFER_SIZE / 2;
-// ESP-IDF's VFS policy (usbjtag_tx_char_via_driver), per chunk instead of per character: skip when no host is
-// attached, wait up to 50 ms once when the TX buffer is full, then drop until a write succeeds again.
-static constexpr uint32_t USB_SERIAL_JTAG_TX_TIMEOUT_MS = 50;
 static bool usb_serial_jtag_tx_blocked = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-// The install only fails when memory runs out at boot; lines are then skipped, not sent to an absent driver.
-static bool usb_serial_jtag_driver_installed = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-void usb_serial_jtag_write_line(const char *msg, size_t len) {
-  if (!usb_serial_jtag_driver_installed || !usb_serial_jtag_is_connected())
+// IDF usbjtag_tx_char_via_driver policy, per chunk: skip with no host,
+// wait 50 ms once when full, then drop until a write succeeds.
+void write_usb_serial_jtag_line(const char *msg, size_t len) {
+  if (!usb_serial_jtag_is_connected())
     return;
-  bool sent = false;
-  while (len > 0) {
-    const size_t chunk = std::min(len, USB_SERIAL_JTAG_TX_CHUNK);
-    if (usb_serial_jtag_write_bytes(msg, chunk, 0) != 0) {
-      usb_serial_jtag_tx_blocked = false;
-    } else if (usb_serial_jtag_tx_blocked ||
-               usb_serial_jtag_write_bytes(msg, chunk, pdMS_TO_TICKS(USB_SERIAL_JTAG_TX_TIMEOUT_MS)) == 0) {
-      usb_serial_jtag_tx_blocked = true;
-      // End a partly sent line so the next one does not run on from it.
-      if (sent)
-        usb_serial_jtag_write_bytes("\n", 1, 0);
+  for (const char *p = msg, *end = msg + len; p < end;) {
+    const size_t chunk = std::min<size_t>(end - p, USB_SERIAL_JTAG_TX_BUFFER_SIZE / 2);
+    int written = usb_serial_jtag_write_bytes(p, chunk, 0);
+    if (written == 0 && !usb_serial_jtag_tx_blocked)
+      written = usb_serial_jtag_write_bytes(p, chunk, pdMS_TO_TICKS(50));
+    usb_serial_jtag_tx_blocked = written == 0;
+    if (usb_serial_jtag_tx_blocked) {
+      if (p != msg)
+        usb_serial_jtag_write_bytes("\n", 1, 0);  // end the partly sent line
       return;
     }
-    sent = true;
-    msg += chunk;
-    len -= chunk;
+    p += chunk;
   }
 }
 
-static void init_usb_serial_jtag() {
+static bool init_usb_serial_jtag() {
   setvbuf(stdin, NULL, _IONBF, 0);  // Disable buffering on stdin
 
 #if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 3, 0)
@@ -99,9 +90,8 @@ static void init_usb_serial_jtag() {
   // Install USB-SERIAL-JTAG driver for interrupt-driven reads and writes
   ret = usb_serial_jtag_driver_install(&usb_serial_jtag_config);
   if (ret != ESP_OK) {
-    return;
+    return false;
   }
-  usb_serial_jtag_driver_installed = true;
 
   // Tell vfs to use usb-serial-jtag driver
 #if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 3, 0)
@@ -109,6 +99,7 @@ static void init_usb_serial_jtag() {
 #else
   usb_serial_jtag_vfs_use_driver();
 #endif
+  return true;
 }
 #endif
 
@@ -165,7 +156,9 @@ void Logger::on_powerdown() {
 void Logger::pre_setup() {
   if (this->baud_rate_ > 0) {
 #ifdef USE_LOGGER_UART_SELECTION_USB_SERIAL_JTAG
-    init_usb_serial_jtag();
+    // Install fails only on OOM at boot; without a driver, write_bytes logs an error per call
+    if (!init_usb_serial_jtag())
+      this->baud_rate_ = 0;
 #elif !defined(USE_LOGGER_UART_SELECTION_USB_CDC)
     init_uart(this->get_uart_num(), this->baud_rate_, ESPHOME_LOGGER_TX_BUFFER_SIZE);
 #endif
