@@ -158,6 +158,7 @@ void DFPlayer::loop() {
         break;
       case 9:  // End byte
 #ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
+        this->read_buffer_[this->read_pos_] = byte;  // stored after the switch; the dump needs it now
         char byte_sequence[100];
         format_hex_pretty_to(byte_sequence, reinterpret_cast<const uint8_t *>(this->read_buffer_), this->read_pos_ + 1,
                              ' ');
