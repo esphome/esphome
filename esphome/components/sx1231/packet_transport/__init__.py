@@ -1,0 +1,52 @@
+import esphome.codegen as cg
+from esphome.components.packet_transport import (
+    PacketTransport,
+    new_packet_transport,
+    transport_schema,
+)
+import esphome.config_validation as cv
+from esphome.cpp_types import PollingComponent
+import esphome.final_validate as fv
+from esphome.types import ConfigType
+
+from .. import (
+    CONF_PACKET_MODE,
+    CONF_PAYLOAD_LENGTH,
+    CONF_SX1231_ID,
+    SX1231,
+    SX1231Listener,
+    sx1231_ns,
+)
+
+SX1231Transport = sx1231_ns.class_(
+    "SX1231Transport", PacketTransport, PollingComponent, SX1231Listener
+)
+
+CONFIG_SCHEMA = transport_schema(SX1231Transport).extend(
+    {
+        cv.GenerateID(CONF_SX1231_ID): cv.use_id(SX1231),
+    }
+)
+
+
+def _final_validate(config: ConfigType) -> ConfigType:
+    radio = fv.get_declaring_config(config[CONF_SX1231_ID])
+    if not radio[CONF_PACKET_MODE]:
+        raise cv.Invalid(
+            f"The radio's '{CONF_PACKET_MODE}' must be true, as the transport sends packets",
+            path=[CONF_SX1231_ID],
+        )
+    if radio[CONF_PAYLOAD_LENGTH] != 0:
+        raise cv.Invalid(
+            f"Packets vary in length, so the radio's '{CONF_PAYLOAD_LENGTH}' must be 0",
+            path=[CONF_SX1231_ID],
+        )
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
+
+
+async def to_code(config: ConfigType) -> None:
+    var, _ = await new_packet_transport(config)
+    await cg.register_parented(var, config[CONF_SX1231_ID])

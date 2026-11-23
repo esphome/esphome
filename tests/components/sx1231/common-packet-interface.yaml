@@ -1,0 +1,20 @@
+sx1231:
+  cs_pin: ${cs_pin}
+  dio0_pin: ${dio0_pin}
+  frequency: 917MHz
+  modulation: FSK
+  bitrate: 50000
+  deviation: 25kHz
+  preamble_size: 4
+  sync_value: [0x2D, 0xD4]
+  crc_enable: true
+
+packet_interface:
+  - platform: sx1231
+    id: sx1231_packet_interface
+    max_packet_size: 64
+    addressing:
+      address: 0x0001
+      destination: 0x0002
+    reliability:
+      ack_delay: 100ms

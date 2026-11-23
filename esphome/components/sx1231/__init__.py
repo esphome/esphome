@@ -1,0 +1,260 @@
+from typing import Any
+
+from esphome import automation, pins
+import esphome.codegen as cg
+from esphome.components import spi
+from esphome.components.const import (
+    CONF_BANDWIDTH,
+    CONF_BITRATE,
+    CONF_CRC_ENABLE,
+    CONF_DEVIATION,
+    CONF_MODULATION,
+    CONF_ON_PACKET,
+    CONF_PA_POWER,
+    CONF_PA_RAMP,
+    CONF_PACKET_MODE,
+    CONF_PAYLOAD_LENGTH,
+    CONF_PREAMBLE_SIZE,
+    CONF_RST_PIN,
+    CONF_RX_START,
+    CONF_SHAPING,
+    CONF_SYNC_VALUE,
+)
+import esphome.config_validation as cv
+from esphome.const import CONF_DATA, CONF_FREQUENCY
+from esphome.types import ConfigType
+
+DOMAIN = "sx1231"
+MULTI_CONF = True
+CODEOWNERS = ["@kbx81"]
+DEPENDENCIES = ["spi"]
+
+CONF_SX1231_ID = "sx1231_id"
+
+CONF_BITSYNC = "bitsync"
+CONF_DIO0_PIN = "dio0_pin"
+CONF_PA_PIN = "pa_pin"
+CONF_RX_FLOOR = "rx_floor"
+
+sx1231_ns = cg.esphome_ns.namespace("sx1231")
+SX1231 = sx1231_ns.class_("SX1231", cg.Component, spi.SPIDevice)
+SX1231Listener = sx1231_ns.class_("SX1231Listener")
+SX1231Bw = sx1231_ns.enum("SX1231Bw")
+SX1231DataModul = sx1231_ns.enum("SX1231DataModul")
+SX1231PaLevel = sx1231_ns.enum("SX1231PaLevel")
+SX1231PaRamp = sx1231_ns.enum("SX1231PaRamp")
+
+BW = {
+    "2_6kHz": SX1231Bw.SX1231_BW_2_6,
+    "3_1kHz": SX1231Bw.SX1231_BW_3_1,
+    "3_9kHz": SX1231Bw.SX1231_BW_3_9,
+    "5_2kHz": SX1231Bw.SX1231_BW_5_2,
+    "6_3kHz": SX1231Bw.SX1231_BW_6_3,
+    "7_8kHz": SX1231Bw.SX1231_BW_7_8,
+    "10_4kHz": SX1231Bw.SX1231_BW_10_4,
+    "12_5kHz": SX1231Bw.SX1231_BW_12_5,
+    "15_6kHz": SX1231Bw.SX1231_BW_15_6,
+    "20_8kHz": SX1231Bw.SX1231_BW_20_8,
+    "25_0kHz": SX1231Bw.SX1231_BW_25_0,
+    "31_3kHz": SX1231Bw.SX1231_BW_31_3,
+    "41_7kHz": SX1231Bw.SX1231_BW_41_7,
+    "50_0kHz": SX1231Bw.SX1231_BW_50_0,
+    "62_5kHz": SX1231Bw.SX1231_BW_62_5,
+    "83_3kHz": SX1231Bw.SX1231_BW_83_3,
+    "100_0kHz": SX1231Bw.SX1231_BW_100_0,
+    "125_0kHz": SX1231Bw.SX1231_BW_125_0,
+    "166_7kHz": SX1231Bw.SX1231_BW_166_7,
+    "200_0kHz": SX1231Bw.SX1231_BW_200_0,
+    "250_0kHz": SX1231Bw.SX1231_BW_250_0,
+    "500_0kHz": SX1231Bw.SX1231_BW_500_0,
+}
+
+MOD = SX1231DataModul.options("FSK", "OOK", prefix="MOD_")
+
+# RFO is the output of the RFM69W and RFM69CW, BOOST that of the RFM69HW and RFM69HCW
+PA_PIN = SX1231PaLevel.options("RFO", "BOOST", prefix="PA_PIN_")
+
+RAMP = {
+    "10us": SX1231PaRamp.PA_RAMP_10,
+    "12us": SX1231PaRamp.PA_RAMP_12,
+    "15us": SX1231PaRamp.PA_RAMP_15,
+    "20us": SX1231PaRamp.PA_RAMP_20,
+    "25us": SX1231PaRamp.PA_RAMP_25,
+    "31us": SX1231PaRamp.PA_RAMP_31,
+    "40us": SX1231PaRamp.PA_RAMP_40,
+    "50us": SX1231PaRamp.PA_RAMP_50,
+    "62us": SX1231PaRamp.PA_RAMP_62,
+    "100us": SX1231PaRamp.PA_RAMP_100,
+    "125us": SX1231PaRamp.PA_RAMP_125,
+    "250us": SX1231PaRamp.PA_RAMP_250,
+    "500us": SX1231PaRamp.PA_RAMP_500,
+    "1000us": SX1231PaRamp.PA_RAMP_1000,
+    "2000us": SX1231PaRamp.PA_RAMP_2000,
+    "3400us": SX1231PaRamp.PA_RAMP_3400,
+}
+
+SHAPING = {
+    "CUTOFF_BR_X_2": SX1231DataModul.CUTOFF_BR_X_2,
+    "CUTOFF_BR_X_1": SX1231DataModul.CUTOFF_BR_X_1,
+    "GAUSSIAN_BT_0_3": SX1231DataModul.GAUSSIAN_BT_0_3,
+    "GAUSSIAN_BT_0_5": SX1231DataModul.GAUSSIAN_BT_0_5,
+    "GAUSSIAN_BT_1_0": SX1231DataModul.GAUSSIAN_BT_1_0,
+    "NONE": SX1231DataModul.SHAPING_NONE,
+}
+
+
+def validate_raw_data(value: Any) -> bytes | list[int]:
+    if isinstance(value, str):
+        return value.encode("utf-8")
+    if isinstance(value, list):
+        return cv.Schema([cv.hex_uint8_t])(value)
+    raise cv.Invalid(
+        "data must either be a string wrapped in quotes or a list of bytes"
+    )
+
+
+# The radio's 66 byte FIFO also holds the length byte, and empty packets are rejected.
+MAX_PACKET_SIZE = 64
+validate_packet_data = cv.All(validate_raw_data, cv.Length(min=1, max=MAX_PACKET_SIZE))
+
+
+def validate_config(config: ConfigType) -> ConfigType:
+    if config[CONF_MODULATION] == "OOK":
+        if config[CONF_BANDWIDTH] == "500_0kHz":
+            raise cv.Invalid(
+                "500_0kHz is not available with OOK", path=[CONF_BANDWIDTH]
+            )
+        if config[CONF_SHAPING].startswith("GAUSSIAN"):
+            raise cv.Invalid(
+                f"{config[CONF_SHAPING]} is only available with FSK",
+                path=[CONF_SHAPING],
+            )
+    elif config[CONF_SHAPING].startswith("CUTOFF"):
+        raise cv.Invalid(
+            f"{config[CONF_SHAPING]} is only available with OOK", path=[CONF_SHAPING]
+        )
+    if config[CONF_PACKET_MODE]:
+        if CONF_DIO0_PIN not in config:
+            raise cv.Invalid("Config 'dio0_pin' required in packet mode")
+        if not config[CONF_BITSYNC]:
+            raise cv.Invalid(
+                "Config 'bitsync' cannot be turned off in packet mode",
+                path=[CONF_BITSYNC],
+            )
+    if 0x00 in config[CONF_SYNC_VALUE]:
+        raise cv.Invalid(
+            "The radio does not support a sync value byte of 0x00",
+            path=[CONF_SYNC_VALUE],
+        )
+    if config[CONF_PA_PIN] == "RFO" and config[CONF_PA_POWER] > 13:
+        raise cv.Invalid("PA power must be <= 13 dbm when using the RFO pin")
+    if config[CONF_PA_PIN] == "BOOST" and config[CONF_PA_POWER] < -2:
+        raise cv.Invalid("PA power must be >= -2 dbm when using the BOOST pin")
+    return config
+
+
+CONFIG_SCHEMA = (
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(SX1231),
+            cv.Optional(CONF_BANDWIDTH, default="125_0kHz"): cv.enum(BW),
+            cv.Optional(CONF_BITRATE, default=4800): cv.int_range(min=500, max=300000),
+            cv.Optional(CONF_BITSYNC, default=True): cv.boolean,
+            cv.Optional(CONF_CRC_ENABLE, default=False): cv.boolean,
+            cv.Optional(CONF_DEVIATION, default="5kHz"): cv.All(
+                cv.frequency, cv.int_range(min=0, max=300000)
+            ),
+            cv.Optional(CONF_DIO0_PIN): pins.internal_gpio_input_pin_schema,
+            cv.Required(CONF_FREQUENCY): cv.All(
+                cv.frequency, cv.int_range(min=int(290e6), max=int(1020e6))
+            ),
+            cv.Required(CONF_MODULATION): cv.enum(MOD),
+            cv.Optional(CONF_ON_PACKET): automation.validate_automation(single=True),
+            cv.Optional(CONF_PA_PIN, default="BOOST"): cv.enum(PA_PIN),
+            cv.Optional(CONF_PA_POWER, default=13): cv.int_range(min=-18, max=20),
+            cv.Optional(CONF_PA_RAMP, default="40us"): cv.enum(RAMP),
+            cv.Optional(CONF_PACKET_MODE, default=True): cv.boolean,
+            cv.Optional(CONF_PAYLOAD_LENGTH, default=0): cv.int_range(
+                min=0, max=MAX_PACKET_SIZE
+            ),
+            cv.Optional(CONF_PREAMBLE_SIZE, default=0): cv.uint16_t,
+            cv.Optional(CONF_RST_PIN): pins.internal_gpio_output_pin_schema,
+            cv.Optional(CONF_RX_FLOOR, default=-94): cv.float_range(min=-127, max=-1),
+            cv.Optional(CONF_RX_START, default=True): cv.boolean,
+            cv.Optional(CONF_SHAPING, default="NONE"): cv.enum(SHAPING),
+            cv.Optional(CONF_SYNC_VALUE, default=[]): cv.All(
+                cv.ensure_list(cv.hex_uint8_t), cv.Length(max=8)
+            ),
+        },
+    )
+    .extend(cv.COMPONENT_SCHEMA)
+    .extend(spi.spi_device_schema(True, 8e6, "mode0"))
+    .add_extra(validate_config)
+)
+
+
+async def to_code(config: ConfigType) -> None:
+    var = await spi.new_spi_component(config)
+    if CONF_ON_PACKET in config:
+        await automation.build_automation(
+            var.get_packet_trigger(),
+            [
+                (cg.std_vector.template(cg.uint8), "x"),
+                (cg.float_, "rssi"),
+                (cg.float_, "snr"),
+            ],
+            config[CONF_ON_PACKET],
+        )
+    await cg.add_pin(var.set_dio0_pin, config.get(CONF_DIO0_PIN))
+    await cg.add_pin(var.set_rst_pin, config.get(CONF_RST_PIN))
+    cg.add(var.set_bandwidth(config[CONF_BANDWIDTH]))
+    cg.add(var.set_frequency(config[CONF_FREQUENCY]))
+    cg.add(var.set_deviation(config[CONF_DEVIATION]))
+    cg.add(var.set_modulation(config[CONF_MODULATION]))
+    cg.add(var.set_bitrate(config[CONF_BITRATE]))
+    cg.add(var.set_bitsync(config[CONF_BITSYNC]))
+    cg.add(var.set_packet_mode(config[CONF_PACKET_MODE]))
+    cg.add(var.set_pa_pin(config[CONF_PA_PIN]))
+    cg.add(var.set_pa_ramp(config[CONF_PA_RAMP]))
+    cg.add(var.set_pa_power(config[CONF_PA_POWER]))
+    cg.add(var.set_shaping(config[CONF_SHAPING]))
+    cg.add(var.set_crc_enable(config[CONF_CRC_ENABLE]))
+    cg.add(var.set_payload_length(config[CONF_PAYLOAD_LENGTH]))
+    cg.add(var.set_preamble_size(config[CONF_PREAMBLE_SIZE]))
+    cg.add(var.set_sync_value(config[CONF_SYNC_VALUE]))
+    cg.add(var.set_rx_floor(config[CONF_RX_FLOOR]))
+    cg.add(var.set_rx_start(config[CONF_RX_START]))
+
+
+NO_ARGS_ACTION_SCHEMA = automation.maybe_simple_id(
+    {
+        cv.GenerateID(): cv.use_id(SX1231),
+    }
+)
+
+
+for _name, _call in (
+    ("sx1231.set_mode_tx", "set_mode_tx()"),
+    ("sx1231.set_mode_rx", "set_mode_rx()"),
+    ("sx1231.set_mode_sleep", "set_mode_sleep()"),
+    ("sx1231.set_mode_standby", "set_mode_standby()"),
+):
+    automation.register_apply_action(
+        _name, NO_ARGS_ACTION_SCHEMA, automation.ApplyCall(_call)
+    )
+
+
+SEND_PACKET_ACTION_SCHEMA = cv.maybe_simple_value(
+    {
+        cv.GenerateID(): cv.use_id(SX1231),
+        cv.Required(CONF_DATA): cv.templatable(validate_packet_data),
+    },
+    key=CONF_DATA,
+)
+
+
+automation.register_apply_action(
+    "sx1231.send_packet",
+    SEND_PACKET_ACTION_SCHEMA,
+    automation.ApplyBytes(CONF_DATA, "transmit_packet({})", stack=MAX_PACKET_SIZE),
+)

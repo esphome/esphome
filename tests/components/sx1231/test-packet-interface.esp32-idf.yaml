@@ -1,0 +1,7 @@
+substitutions:
+  cs_pin: GPIO12
+  dio0_pin: GPIO26
+
+packages:
+  spi: !include ../../test_build_components/common/spi/esp32-idf.yaml
+  sx1231: !include common-packet-interface.yaml
