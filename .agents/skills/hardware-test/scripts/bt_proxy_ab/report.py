@@ -117,7 +117,7 @@ def window(s):
 
 
 # harness faults: kept out of the ratios and counted on their own
-HARNESS = ("clear_failed", "no_ff01", "stale_handles")
+HARNESS = ("clear_failed", "no_ff01", "stale_handles", "no_readable_char")
 
 
 def jl(s):

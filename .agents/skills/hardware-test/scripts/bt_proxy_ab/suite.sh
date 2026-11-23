@@ -34,7 +34,7 @@ mark() { echo "$(date +%T) $*" | tee -a "marks-$T.txt"; }
 # rounds that tried the measured link (held_failed rounds and harness faults did not)
 rounds() {
   local n
-  n=$(grep '"round"' "$1" 2> /dev/null | grep -vcE 'held_failed|clear_failed|no_ff01|stale_handles')
+  n=$(grep '"round"' "$1" 2> /dev/null | grep -vcE 'held_failed|clear_failed|no_ff01|stale_handles|no_readable_char')
   echo "${n:-0}"
 }
 incomplete=

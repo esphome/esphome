@@ -566,12 +566,15 @@ async def main() -> None:
                         test="notify", result="stale_handles", hint="run disc L first"
                     )
                     sys.exit(1)
-                stop, _rm = await cli.bluetooth_gatt_start_notify(
+                rm = None
+                stop, rm = await cli.bluetooth_gatt_start_notify(
                     addr, tick.handle, on_n
                 )
                 await cli.bluetooth_gatt_write_descriptor(addr, tick.cccd, b"\x01\x00")
             except Exception as e:  # noqa: BLE001
                 print(f"notify subscribe failed: {e}", flush=True)
+                if rm:  # a handler left behind would count every tick twice after the next hold
+                    rm()
                 if st[
                     "lost"
                 ]:  # the link dropped before the subscription: a drop, then hold again
@@ -604,6 +607,7 @@ async def main() -> None:
             if st["lost"]:
                 stats["drops"].append([st["lost"][0][0], round(time.time(), 1)])
                 stats["reconnects"] += 1
+                rm()  # the next hold registers a fresh handler
                 d.st.pop(addr, None)
                 st["cancel"]()
                 await asyncio.sleep(2)
@@ -693,13 +697,23 @@ async def main() -> None:
                         sum(len(s.characteristics) for s in svcs.services),
                     ]
                     ch = next(
-                        c
-                        for s in svcs.services
-                        for c in s.characteristics
-                        if c.properties & 0x02
+                        (
+                            c
+                            for s in svcs.services
+                            for c in s.characteristics
+                            if c.properties & 0x02
+                        ),
+                        None,
                     )
-                    await asyncio.wait_for(cli.bluetooth_gatt_read(addr, ch.handle), 10)
-                    res["t_cmd"] = round(time.monotonic() - st["t0"], 3)
+                    if (
+                        ch is None
+                    ):  # an empty or partial table: a harness fault, not the build's
+                        res["result"] = "no_readable_char"
+                    else:
+                        await asyncio.wait_for(
+                            cli.bluetooth_gatt_read(addr, ch.handle), 10
+                        )
+                        res["t_cmd"] = round(time.monotonic() - st["t0"], 3)
                 except Exception as e:  # noqa: BLE001
                     res["exc"] = f"{type(e).__name__}: {e}"
                     res["t_fail"] = round(time.monotonic() - st["t0"], 3)

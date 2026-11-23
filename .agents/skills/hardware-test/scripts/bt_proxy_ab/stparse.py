@@ -103,7 +103,7 @@ for name, lines in ph.items():
         txt = "\n".join(ln for _, ln in lines)
         if m := re.search(
             r"ST phase_end \w+ rounds=(\d+) ok=(\d+) first_ok=(\d+) fail=(\d+) stuck=(\d+)"
-            r"(?: cache_clean_fail=(\d+))?(?: handle_bad=(\d+))?(?: held_dropped=(\d+))?(?: hold_failed=(\d+))?(?: send_err=(\d+))?",
+            r"(?: cache_clean_fail=(\d+))?(?: handle_bad=(\d+))?(?: held_dropped=(\d+))?(?: hold_failed=(\d+))?(?: send_err=(\d+))?(?: partial=(\d+))?",
             txt,
         ):
             d["rounds,ok,first_ok,fail,stuck"] = m.groups()[:5]
@@ -121,6 +121,8 @@ for name, lines in ph.items():
                 d["hold_failed_rounds"] = int(m[9])
             if m[10] and m[10] != "0":  # retry writes the stack refused to send
                 d["send_err"] = int(m[10])
+            if m[11] and m[11] != "0":  # rounds whose RTT loop broke off, out of ok
+                d["rtt_partial"] = int(m[11])
         elif name.split("#")[0] != "done" or "ST DONE" not in txt:
             d["incomplete"] = (
                 True  # a reset or the end of the capture cut the phase short
@@ -160,6 +162,12 @@ for name, lines in ph.items():
         rr = re.findall(
             r"ST rtt \S+ r=\d+ read_avg=(\d+) write_avg=(\d+) n=(\d)/(\d)", txt
         )
+        # rounds whose RTT loop hit a send error or timeout (also when no phase_end line came)
+        if cut := sum(
+            e != "0" or to != "0"
+            for e, to in re.findall(r"ST rtt \S+ r=\d+ .* err=(\d+) timeout=(\d+)", txt)
+        ):
+            d["rtt_partial"] = max(d.get("rtt_partial", 0), cut)
         if rr:
             # a round where every read or write failed logs an average of 0: leave it out, count it
             d["rtt read/write ms"] = (
@@ -205,6 +213,7 @@ for name, lines in ph.items():
         "scanner_stuck",
         "cache_clean_fail",
         "no_device_attempts",
+        "rtt_partial",
     )
     # every round failed to hold its links (or ran on a wrong handle): the phase measured nothing
     rounds = d.get("rounds,ok,first_ok,fail,stuck", ("0",))[0]
