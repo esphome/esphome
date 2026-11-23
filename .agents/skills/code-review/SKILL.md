@@ -133,7 +133,7 @@ helper; `AGENTS.md` section 4 and the `component-codegen` skill have the detail.
 | I2C read, mask, write by hand; private 16-bit register byte helpers | `update_register`, `update_register16`, `read_byte_reg16`, `write_byte_reg16` |
 | custom validator that checks which keys are set, or one schema with model checks | `cv.has_exactly_one_key`, `cv.has_at_most_one_key`, `cv.Inclusive`/`cv.Exclusive`, `cv.typed_schema` per model |
 | validator that turns a time period into one of a few allowed values | `cv.time_period_enum({10: Rate.RATE_10MS, ...})` (`unit="us"` for microseconds) |
-| `unit_of_measurement=`, `device_class=` and `state_class=` written out in `sensor_schema` | `sensor.sensor_schema(kind=sensor.TEMPERATURE)` (or another preset), plus only what it leaves unset |
+| `unit_of_measurement=`, `device_class=` and `state_class=` written out in `sensor_schema` | `sensor.sensor_schema(kind=sensor.TEMPERATURE)` (or another preset), plus only what it leaves unset (`state_class=` and `accuracy_decimals=` may override) |
 | `pin->setup(); pin->digital_write(level);`, often inside `if (pin != nullptr)` | `setup_output_pin(pin, level)` (`esphome/core/gpio_pin.h`), null-safe |
 | write level, `delayMicroseconds(n)`, write the opposite level | `pulse_pin(pin, level, n)`; width 0 for back-to-back writes |
 | reset pin setup, then low, `delay`, high, `delay` | `pulse_reset(pin, {.high_before_ms = ..., .low_ms = ..., .high_after_ms = ...})`, null-safe |
@@ -217,6 +217,22 @@ detail.
   group builds. List-style packages or top-level merge keys block grouping.
 - Config-only checks use the `validate.*.yaml` prefix; compiled checks use
   `test.*.yaml`.
+- A change to device behaviour (a driver, a bus, a platform, a fix for a fault
+  seen on a device) needs a hardware test report on a head that includes the
+  last change to device code. Either form is fine:
+  - the `Automated testing results` comment from the `hardware-test` skill, or
+  - a manual report from the author with: the commit tested; the board, chip
+    and framework; the steps taken, including how the changed path was
+    triggered; what happened, with the log lines that show it; and, for a fix,
+    the same steps on a `dev` build showing the fault.
+
+  Without either, ask for one and list those items, since an author without AI
+  tools tests by hand. "Compiles and runs on my board" does not show the
+  changed path ran; for a fix whose trigger is rare, ask how it can be forced
+  (a simulated device, an injected error, an AT command, a pulled wire, or the
+  skill's recipes). If the author has no board, note that the change is
+  untested on hardware instead of blocking. Validation, codegen-only and
+  documentation changes need no board.
 
 ## Naming user-facing functions
 

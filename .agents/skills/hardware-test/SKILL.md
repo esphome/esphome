@@ -1,6 +1,6 @@
 ---
 name: hardware-test
-description: Test an ESPHome change on real boards over USB. Use this whenever a task asks to test, verify, reproduce, bench, A/B or soak a pull request, a branch or a crash on hardware, or mentions flashing, serial logs, esphome upload, a captive portal or fallback AP test, or results to post on a PR. Covers finding the serial ports, building from the right checkout, flashing each chip family (including the LibreTiny kits that stock tools cannot flash), bounded log capture, proven test flows and how to report results.
+description: Test an ESPHome change on real boards over USB. Use this before a pull request that changes what a device does (a driver, a bus, a platform, a fix for a fault seen on a device) is opened or marked ready for review, and whenever a task asks to test, verify, reproduce, bench, A/B or soak a pull request, a branch or a crash on hardware, or mentions flashing, serial logs, esphome upload, a captive portal or fallback AP test, or results to post on a PR. Covers finding the serial ports, building from the right checkout, flashing each chip family (including the LibreTiny kits that stock tools cannot flash), bounded log capture, proven test flows and how to report results.
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep
 ---
 
@@ -85,7 +85,8 @@ driven, what the logs show, and the same flow on a `dev` build when a quirk coul
    automations in the config itself.
 7. **Analyze** with `grep -a -c` counts over the capture and keep an `-events.txt` extract of the lines
    that matter. Decode crashes with the platform's `addr2line` (see `reference/boards.md`).
-8. **Report** on the PR. Every result comment starts with this two-line GitHub alert, then a blank line:
+8. **Report** as a comment on the PR, never in its description; when testing before the PR exists, keep the report and
+   post it right after the PR is opened. Every result comment starts with this two-line GitHub alert, then a blank line:
 
    ```
    > [!NOTE]

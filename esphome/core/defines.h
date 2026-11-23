@@ -392,11 +392,13 @@
 #define USE_UPDATE
 #define USE_UPTIME_TIMESTAMP
 #define USE_VALVE
+#define USE_VBUS_DATAGRAM
 #define USE_WATER_HEATER
 #define USE_WATER_HEATER_VISUAL_OVERRIDES
 #define USE_WHIRLPOOL_HISENSE_ARG
 #define USE_WHIRLPOOL_HITACHI_HCRA31NEWH
 #define USE_ZWAVE_PROXY
+#define ZWAVE_PROXY_UART_COUNT 2
 
 // Feature flags which do not work for zephyr
 #ifndef USE_ZEPHYR
@@ -598,6 +600,7 @@
 #define USE_PSRAM
 #define USE_SENDSPIN
 #define USE_SENDSPIN_ARTWORK
+#define USE_SENDSPIN_COLOR
 #define USE_SENDSPIN_CONTROLLER
 #define USE_SENDSPIN_ENABLED_SWITCH
 #define USE_SENDSPIN_METADATA
@@ -851,7 +854,7 @@
 // rp2/__init__.py codegen also defines USE_RP2040 as a back-compat alias
 // for external custom components that may still test for it.
 #ifdef USE_RP2
-#define USE_ARDUINO_VERSION_CODE VERSION_CODE(6, 3, 2)
+#define USE_ARDUINO_VERSION_CODE VERSION_CODE(6, 4, 0)
 #define USE_RP2_CRASH_HANDLER
 #define USE_HTTP_REQUEST_RESPONSE
 #define USE_I2C
@@ -940,6 +943,7 @@
 #endif
 
 #ifdef USE_NRF52
+#define USE_ADAFRUIT_BLE_TRIGGER
 #define USE_BOOTLOADER_ADAFRUIT
 #define ESPHOME_BLE_NUS_TX_RING_BUFFER_SIZE 512
 #define ESPHOME_BLE_NUS_RX_RING_BUFFER_SIZE 512
@@ -967,7 +971,6 @@
 #define USE_ZIGBEE
 #define USE_ZIGBEE_WIPE_ON_BOOT
 #define USE_ZIGBEE_WIPE_ON_BOOT_MAGIC 1
-#define ZIGBEE_ENDPOINTS_COUNT 8
 #endif
 
 // Disabled feature flags
