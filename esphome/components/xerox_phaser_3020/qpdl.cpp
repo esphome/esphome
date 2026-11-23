@@ -1,3 +1,19 @@
+// SPDX-License-Identifier: GPL-2.0-only
+//
+// Derived from SpliX (https://github.com/OpenPrinting/splix), the CUPS driver for QPDL printers:
+//   Copyright (C) 2006-2008 Aurélien Croc (AP²C)
+//   Copyright (C) 2025-2026 ValdikSS (Samsung M2020 series band widths)
+//   and other SpliX contributors.
+// Modified in 2026 for ESPHome: rewritten as a streaming encoder that takes a page row by row.
+//
+// This file is licensed under the GNU General Public License version 2 only, as SpliX is, and NOT
+// under the GPLv3 that applies to the rest of ESPHome's C++ code. The two licences are incompatible,
+// so firmware built with this file must not be distributed until that is resolved.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without
+// even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+// General Public License version 2 for more details: https://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+
 #include "qpdl.h"
 
 #include <cstdio>

@@ -1,12 +1,29 @@
+// SPDX-License-Identifier: GPL-2.0-only
+//
+// Derived from SpliX (https://github.com/OpenPrinting/splix), the CUPS driver for QPDL printers:
+//   Copyright (C) 2006-2008 Aurélien Croc (AP²C)
+//   Copyright (C) 2025-2026 ValdikSS (Samsung M2020 series band widths)
+//   and other SpliX contributors.
+// Modified in 2026 for ESPHome: rewritten as a streaming encoder that takes a page row by row.
+//
+// This file is licensed under the GNU General Public License version 2 only, as SpliX is, and NOT
+// under the GPLv3 that applies to the rest of ESPHome's C++ code. The two licences are incompatible,
+// so firmware built with this file must not be distributed until that is resolved.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without
+// even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+// General Public License version 2 for more details: https://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+
 #pragma once
 
 // Encoder for QPDL (also called SPL), the page language of the Xerox Phaser 3020 and the Samsung
-// printers it is built on. It is a port of the parts of the SpliX driver (GPL-2.0, OpenPrinting) that
-// the Phaser 3020 uses: QPDL version 3, 128-line bands and compression algorithm 0x11.
+// printers it is built on: the parts of SpliX the Phaser 3020 uses, which are QPDL version 3, 128-line
+// bands and compression algorithm 0x11.
 //
 // Pages are encoded band by band as their rows arrive, so only one band (at most 80 kB) is held in
-// memory. The compressed size of a band is sent before its data, so each band is compressed twice:
-// once to measure it and once while it is written out.
+// memory. The compressed size of a band is sent before its data, so a band is compressed into a
+// buffer and then sent or, without room for that buffer, compressed twice: once to measure it and
+// once while it is written out.
 
 #include <cstddef>
 #include <cstdint>
