@@ -297,8 +297,8 @@ bool TopTronic::send_get_(TopTronicBase *sensor) {
 }
 
 TopTronicBase *TopTronic::get_sensor_(uint32_t sensor_id) const {
-  auto it = std::lower_bound(this->sensors_.begin(), this->sensors_.end(), sensor_id,
-                             [](const TopTronicBase *sensor, uint32_t id) { return sensor->get_id() < id; });
+  const auto *it = std::lower_bound(this->sensors_.begin(), this->sensors_.end(), sensor_id,
+                                    [](const TopTronicBase *sensor, uint32_t id) { return sensor->get_id() < id; });
   return it != this->sensors_.end() && (*it)->get_id() == sensor_id ? *it : nullptr;
 }
 
