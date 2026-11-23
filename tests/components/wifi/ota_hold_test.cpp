@@ -2,12 +2,15 @@
 
 #include "esphome/components/ota/ota_backend.h"
 #include "esphome/components/wifi/wifi_component.h"
+#include "esphome/core/application.h"
+#include "esphome/core/hal.h"
 #include "host_hooks.h"
 
 namespace esphome::wifi::testing {
 namespace {
 
 constexpr bssid_t BSSID_A = {0x02, 0x00, 0x00, 0x00, 0x00, 0x0A};
+constexpr uint32_t HELD_FOR_MS = 120000;
 
 class WiFiOTAHoldTest : public ::testing::Test {
  protected:
@@ -19,6 +22,8 @@ class WiFiOTAHoldTest : public ::testing::Test {
     WiFiAP ap;
     ap.set_ssid("fallback");
     this->wifi_.set_ap(ap);
+    // A clock jump would otherwise reboot, which exits the host binary
+    this->wifi_.set_reboot_timeout(0);
     this->wifi_.start();
     ASSERT_EQ(host_hooks.ap_starts, 1);
   }
@@ -57,6 +62,9 @@ TEST_F(WiFiOTAHoldTest, RetryDuringUploadWaitsInCooldown) {
   ASSERT_TRUE(this->upload_.try_acquire());
 
   this->wifi_.retry_connect();
+  // Well past any cooldown: the held cooldown must not expire into another attempt
+  LoopBlockingGuard clock{nullptr, nullptr, millis() + HELD_FOR_MS};
+  this->wifi_.loop();
 
   EXPECT_EQ(host_hooks.connects, 0);
   EXPECT_EQ(host_hooks.station_offs, 0);

@@ -891,10 +891,14 @@ void WiFiComponent::loop() {
     switch (this->state_) {
       case WIFI_COMPONENT_STATE_COOLDOWN: {
         this->status_set_warning(LOG_STR("waiting to reconnect"));
+        // An upload over the AP is running: let nothing expire, so nothing is retried or logged meanwhile
+        if (this->ota_hold_()) {
+          this->action_started_ = now;
+          break;
+        }
         // Credentials not tried yet: retry whatever the driver reports. The flag outlives an adapter restart,
         // which only lands back here, and start_connecting() clears it once they are tried
-        // During an upload retry_connect() would only restart the cooldown, every loop
-        if (this->skip_cooldown_next_cycle_ && !this->ota_hold_()) {
+        if (this->skip_cooldown_next_cycle_) {
           ESP_LOGD(TAG, "Exiting cooldown early due to new WiFi credentials");
           this->retry_connect();
           break;
