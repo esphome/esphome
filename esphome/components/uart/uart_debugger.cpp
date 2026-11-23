@@ -2,6 +2,7 @@
 #ifdef USE_UART_DEBUGGER
 
 #include <algorithm>
+#include <cstring>
 #include "uart_debugger.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
@@ -102,18 +103,35 @@ static constexpr size_t DEBUG_LINE_SIZE = std::min<size_t>(ESPHOME_LOGGER_TX_BUF
 static constexpr size_t DEBUG_LINE_SIZE = 512;
 #endif
 
+// Escape letters for bytes 7 to 13
+static constexpr uint8_t STRING_ESCAPES[] PROGMEM = {'a', 'b', 't', 'n', 'v', 'f', 'r'};
+
 namespace {
-// Appends into a fixed line, dropping what does not fit.
+// Appends into a fixed line; a line that does not fit ends in "...".
 class DebugLine {
  public:
-  explicit DebugLine(UARTDirection direction) { this->append(direction == UART_DIRECTION_RX ? "<<< " : ">>> "); }
+  // Characters, not string literals: those would sit in RAM on ESP8266
+  explicit DebugLine(UARTDirection direction) {
+    const char arrow = direction == UART_DIRECTION_RX ? '<' : '>';
+    this->append(arrow);
+    this->append(arrow);
+    this->append(arrow);
+    this->append(' ');
+  }
   void append(char c) {
-    if (this->pos_ < sizeof(this->buf_))
+    if (this->pos_ < sizeof(this->buf_)) {
       this->buf_[this->pos_++] = c;
+    } else {
+      this->truncated_ = true;
+    }
   }
   void append(const char *str) {
     while (*str != '\0')
       this->append(*str++);
+  }
+  void append_escape(char c) {
+    this->append('\\');
+    this->append(c);
   }
   void append_hex(uint8_t byte) {
     this->append(format_hex_pretty_char(byte >> 4));
@@ -124,7 +142,9 @@ class DebugLine {
     if (this->items_++ > 0)
       this->append(static_cast<char>(separator));
   }
-  void log(StringRef prefix) const {
+  void log(StringRef prefix) {
+    if (this->truncated_)  // a cut frame must not look like a short one
+      memset(this->buf_ + sizeof(this->buf_) - 3, '.', 3);
     ESP_LOGD(TAG, "%s%.*s", prefix.c_str(), static_cast<int>(this->pos_), this->buf_);
     delay(10);
   }
@@ -133,6 +153,7 @@ class DebugLine {
   char buf_[DEBUG_LINE_SIZE];
   size_t pos_{0};
   size_t items_{0};
+  bool truncated_{false};
 };
 }  // namespace
 
@@ -149,48 +170,17 @@ void UARTDebug::log_string(UARTDirection direction, std::span<const uint8_t> byt
   DebugLine line(direction);
   line.append('"');
   for (uint8_t byte : bytes) {
-    switch (byte) {
-      case 7:
-        line.append("\\a");
-        break;
-      case 8:
-        line.append("\\b");
-        break;
-      case 9:
-        line.append("\\t");
-        break;
-      case 10:
-        line.append("\\n");
-        break;
-      case 11:
-        line.append("\\v");
-        break;
-      case 12:
-        line.append("\\f");
-        break;
-      case 13:
-        line.append("\\r");
-        break;
-      case 27:
-        line.append("\\e");
-        break;
-      case 34:
-        line.append("\\\"");
-        break;
-      case 39:
-        line.append("\\'");
-        break;
-      case 92:
-        line.append("\\\\");
-        break;
-      default:
-        if (byte < 32 || byte > 127) {
-          line.append("\\x");
-          line.append_hex(byte);
-        } else {
-          line.append(static_cast<char>(byte));
-        }
-        break;
+    if (byte >= 7 && byte <= 13) {
+      line.append_escape(static_cast<char>(progmem_read_byte(&STRING_ESCAPES[byte - 7])));
+    } else if (byte == 27) {
+      line.append_escape('e');
+    } else if (byte == '"' || byte == '\'' || byte == '\\') {
+      line.append_escape(static_cast<char>(byte));
+    } else if (byte < 32 || byte > 127) {
+      line.append_escape('x');
+      line.append_hex(byte);
+    } else {
+      line.append(static_cast<char>(byte));
     }
   }
   line.append('"');
@@ -213,10 +203,14 @@ void UARTDebug::log_binary(UARTDirection direction, std::span<const uint8_t> byt
   DebugLine line(direction);
   for (uint8_t byte : bytes) {
     line.next_item(separator);
-    line.append("0b");
+    line.append('0');
+    line.append('b');
     for (int bit = 7; bit >= 0; bit--)
       line.append((byte >> bit) & 1 ? '1' : '0');
-    line.append(" (0x");
+    line.append(' ');
+    line.append('(');
+    line.append('0');
+    line.append('x');
     line.append_hex(byte);
     line.append(')');
   }
