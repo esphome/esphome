@@ -24,6 +24,7 @@ CONF_PRINTER_NAME = "printer_name"
 CONF_TONER_DENSITY = "toner_density"
 CONF_TONER_SAVE = "toner_save"
 CONF_WAIT_FOR_PRINTER = "wait_for_printer"
+CONF_XEROX_PHASER_3020_ID = "xerox_phaser_3020_id"
 
 xerox_phaser_3020_ns = cg.esphome_ns.namespace(DOMAIN)
 XeroxPhaser3020 = xerox_phaser_3020_ns.class_("XeroxPhaser3020", USBClient)

@@ -25,3 +25,13 @@ binary_sensor:
       name: Printing
     paper_empty:
       name: Paper empty
+    error:
+      name: Printer error
+    online:
+      name: Printer online
+
+button:
+  - platform: xerox_phaser_3020
+    xerox_phaser_3020_id: phaser
+    query_status:
+      name: Query printer status

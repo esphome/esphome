@@ -48,7 +48,13 @@ class XeroxPhaser3020 final : public usb_host::USBClient, public PrinterPort {
   SUB_BINARY_SENSOR(connected)
   SUB_BINARY_SENSOR(printing)
   SUB_BINARY_SENSOR(paper_empty)
+  SUB_BINARY_SENSOR(error)
+  SUB_BINARY_SENSOR(online)
 #endif
+
+  /// Ask the printer for its status with PJL and log the answer. An experiment: what the Phaser 3020
+  /// answers is not documented.
+  void query_status();
 
   // PrinterPort, called from the connection tasks
   bool is_connected() const override { return this->connected_.load(std::memory_order_relaxed); }
@@ -66,6 +72,13 @@ class XeroxPhaser3020 final : public usb_host::USBClient, public PrinterPort {
   void update_();
   void register_mdns_();
   void send_reset_();
+  void log_interfaces_(const usb_config_desc_t *config);
+  void read_device_id_();
+  bool submit_in_();
+  void finish_query_();
+  void log_reply_(uint8_t tries);
+  static void in_callback(usb_transfer_t *transfer);
+  static void device_id_callback(usb_transfer_t *transfer);
   bool job_stopped_() const;
   /// Wait for a free transfer. Returns null when the job has to stop.
   usb_transfer_t *take_transfer_();
@@ -83,6 +96,9 @@ class XeroxPhaser3020 final : public usb_host::USBClient, public PrinterPort {
   char uuid_[37];
   usb_transfer_t *transfers_[2]{};
   usb_transfer_t *current_{nullptr};  // being filled by write()
+  usb_transfer_t *in_transfer_{nullptr};
+  usb_transfer_t *id_transfer_{nullptr};
+  char *reply_{nullptr};  // what the printer sent back to a query
   QueueHandle_t free_transfers_{nullptr};
   QueueHandle_t connections_{nullptr};
   const std::atomic<bool> *cancel_{nullptr};
@@ -100,8 +116,13 @@ class XeroxPhaser3020 final : public usb_host::USBClient, public PrinterPort {
   std::atomic<uint8_t> reset_state_{0};
   // Last GET_PORT_STATUS answer (IEEE 1284 bits)
   std::atomic<uint8_t> port_status_{0};
+  std::atomic<uint16_t> reply_len_{0};
+  std::atomic<uint8_t> query_state_{0};
+  std::atomic<bool> in_busy_{false};   // the IN transfer is submitted
+  std::atomic<bool> id_ready_{false};  // the device ID has arrived and waits to be logged
   uint8_t interface_{0};
   uint8_t out_endpoint_{0};
+  uint8_t in_endpoint_{0};  // 0 when the printer cannot send data back
   uint8_t update_count_{0};
 };
 

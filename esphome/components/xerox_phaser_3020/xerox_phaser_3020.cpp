@@ -24,9 +24,12 @@ namespace esphome::xerox_phaser_3020 {
 ESPHOME_LOG_TAG(TAG, "xerox_phaser_3020");
 
 // USB printer class requests (USB Device Class Definition for Printing Devices 1.1)
+static constexpr uint8_t PRINTER_GET_DEVICE_ID = 0;
 static constexpr uint8_t PRINTER_GET_PORT_STATUS = 1;
 static constexpr uint8_t PRINTER_SOFT_RESET = 2;
 static constexpr uint8_t PORT_STATUS_PAPER_EMPTY = 0x20;
+static constexpr uint8_t PORT_STATUS_SELECTED = 0x10;
+static constexpr uint8_t PORT_STATUS_NO_ERROR = 0x08;
 static constexpr uint8_t PORT_STATUS_READY = 0x18;  // selected, no error
 
 static constexpr size_t TRANSFER_SIZE = 4096;
@@ -43,7 +46,26 @@ static constexpr uint32_t WAIT_SLICE_MS = 200;
 static constexpr uint32_t ABORT_WAIT_MS = 2000;
 // Internal RAM the band buffer must leave free for everything else (Wi-Fi, sockets, other components)
 static constexpr size_t INTERNAL_HEADROOM = 96 * 1024;
-static constexpr uint32_t RESET_WAIT_MS = 3000;
+static constexpr uint32_t RESET_WAIT_MS = 5000;
+// Status query: the PJL questions, how long answers are collected, and room for them
+static constexpr char PJL_QUERY[] = "\x1b%-12345X@PJL\r\n"
+                                    "@PJL INFO ID\r\n"
+                                    "@PJL INFO STATUS\r\n"
+                                    "@PJL INFO PAGECOUNT\r\n"
+                                    "@PJL INFO CONFIG\r\n"
+                                    "@PJL INFO VARIABLES\r\n"
+                                    "@PJL INFO USTATUS\r\n"
+                                    "@PJL INFO SUPPLIES\r\n"
+                                    "@PJL INFO PRODINFO\r\n"
+                                    "\x1b%-12345X";
+static constexpr uint32_t QUERY_TIME_MS = 3000;
+static constexpr size_t REPLY_SIZE = 4096;
+static constexpr size_t IN_TRANSFER_SIZE = 512;  // a multiple of the endpoint's packet size
+static constexpr uint16_t DEVICE_ID_SIZE = 512;
+static constexpr uint8_t QUERY_IDLE = 0;
+static constexpr uint8_t QUERY_RUNNING = 1;
+static constexpr uint8_t QUERY_STOPPING = 2;
+static constexpr uint32_t QUERY_TIMEOUT_ID = 0;
 static constexpr uint8_t RESET_NONE = 0;
 static constexpr uint8_t RESET_REQUESTED = 1;
 static constexpr uint8_t RESET_SENT = 2;
@@ -85,6 +107,12 @@ void XeroxPhaser3020::setup() {
     }
     xQueueSend(this->free_transfers_, &transfer, 0);
   }
+  this->reply_ = reinterpret_cast<char *>(RAMAllocator<uint8_t>().allocate(REPLY_SIZE));
+  if (this->reply_ == nullptr || usb_host_transfer_alloc(IN_TRANSFER_SIZE, 0, &this->in_transfer_) != ESP_OK ||
+      usb_host_transfer_alloc(sizeof(usb_setup_packet_t) + DEVICE_ID_SIZE, 0, &this->id_transfer_) != ESP_OK) {
+    this->mark_failed(LOG_STR("Not enough memory"));
+    return;
+  }
 
   uint8_t mac[6];
   get_mac_address_raw(mac);
@@ -118,6 +146,16 @@ void XeroxPhaser3020::loop() {
   bool work = this->process_usb_events_();
   if (this->reset_state_.load() == RESET_REQUESTED) {
     this->send_reset_();
+    work = true;
+  }
+  if (this->id_ready_.exchange(false)) {
+    // Two bytes of length, big endian and counting themselves, then the text
+    const uint8_t *data = this->id_transfer_->data_buffer + sizeof(usb_setup_packet_t);
+    const int received = this->id_transfer_->actual_num_bytes - static_cast<int>(sizeof(usb_setup_packet_t));
+    int len = received >= 2 ? ((data[0] << 8) | data[1]) - 2 : 0;
+    if (len > received - 2)
+      len = received - 2;
+    ESP_LOGI(TAG, "IEEE 1284 device ID: %.*s", len > 0 ? len : 0, reinterpret_cast<const char *>(data + 2));
     work = true;
   }
   if (!work)
@@ -231,6 +269,9 @@ void XeroxPhaser3020::update_() {
   PUBLISH_STATE(this->connected_binary_sensor_, this->is_connected());
   PUBLISH_STATE(this->printing_binary_sensor_, this->server_.is_printing());
   PUBLISH_STATE(this->paper_empty_binary_sensor_, this->is_paper_empty());
+  const uint8_t status = this->port_status_.load(std::memory_order_relaxed);
+  PUBLISH_STATE(this->error_binary_sensor_, this->is_connected() && (status & PORT_STATUS_NO_ERROR) == 0);
+  PUBLISH_STATE(this->online_binary_sensor_, this->is_connected() && (status & PORT_STATUS_SELECTED) != 0);
 #endif
 }
 
@@ -246,8 +287,10 @@ void XeroxPhaser3020::on_connected() {
     return;
   }
   // The printer class interface and its bulk OUT endpoint
+  this->log_interfaces_(config);
   int interface = -1;
   uint8_t endpoint = 0;
+  uint8_t in_endpoint = 0;
   for (uint8_t i = 0; i < config->bNumInterfaces && interface < 0; i++) {
     int offset = 0;
     const usb_intf_desc_t *intf = usb_parse_interface_descriptor(config, i, 0, &offset);
@@ -256,13 +299,17 @@ void XeroxPhaser3020::on_connected() {
     for (uint8_t e = 0; e < intf->bNumEndpoints; e++) {
       int ep_offset = offset;
       const usb_ep_desc_t *ep = usb_parse_endpoint_descriptor_by_index(intf, e, config->wTotalLength, &ep_offset);
-      if (ep != nullptr && (ep->bmAttributes & USB_BM_ATTRIBUTES_XFERTYPE_MASK) == USB_BM_ATTRIBUTES_XFER_BULK &&
-          (ep->bEndpointAddress & USB_B_ENDPOINT_ADDRESS_EP_DIR_MASK) == 0) {
+      if (ep == nullptr || (ep->bmAttributes & USB_BM_ATTRIBUTES_XFERTYPE_MASK) != USB_BM_ATTRIBUTES_XFER_BULK)
+        continue;
+      if (ep->bEndpointAddress & USB_B_ENDPOINT_ADDRESS_EP_DIR_MASK) {
+        in_endpoint = ep->bEndpointAddress;
+      } else {
         interface = intf->bInterfaceNumber;
         endpoint = ep->bEndpointAddress;
-        break;
       }
     }
+    if (interface < 0)
+      in_endpoint = 0;
   }
   if (interface < 0) {
     ESP_LOGW(TAG, "USB device is not a printer");
@@ -279,11 +326,13 @@ void XeroxPhaser3020::on_connected() {
     LockGuard guard(this->usb_lock_);
     this->interface_ = interface;
     this->out_endpoint_ = endpoint;
+    this->in_endpoint_ = in_endpoint;
     this->port_status_.store(PORT_STATUS_READY);
     this->connected_.store(true);
   }
   this->update_count_ = PORT_STATUS_EVERY;  // read the port status on the next update
   ESP_LOGI(TAG, "Printer connected");
+  this->read_device_id_();
 }
 
 void XeroxPhaser3020::on_disconnected() {
@@ -293,6 +342,13 @@ void XeroxPhaser3020::on_disconnected() {
       // Ends the transfers in flight; their callbacks return them to the free queue
       usb_host_endpoint_halt(this->device_handle_, this->out_endpoint_);
       usb_host_endpoint_flush(this->device_handle_, this->out_endpoint_);
+      if (this->in_endpoint_ != 0) {
+        usb_host_endpoint_halt(this->device_handle_, this->in_endpoint_);
+        usb_host_endpoint_flush(this->device_handle_, this->in_endpoint_);
+        this->in_endpoint_ = 0;
+      }
+      this->cancel_timeout(QUERY_TIMEOUT_ID);
+      this->query_state_.store(QUERY_IDLE);
       usb_host_interface_release(this->handle_, this->device_handle_, this->interface_);
       this->out_endpoint_ = 0;
       this->reset_state_.store(RESET_NONE);
@@ -310,9 +366,9 @@ bool XeroxPhaser3020::job_stopped_() const {
 bool XeroxPhaser3020::begin_job(const std::atomic<bool> *cancel) {
   this->cancel_ = cancel;
   // An earlier job's recovery finishes first: its transfers come back and the printer is reset
-  for (uint32_t waited = 0;
-       waited < RESET_WAIT_MS && this->is_connected() &&
-       (uxQueueMessagesWaiting(this->free_transfers_) < NUM_TRANSFERS || this->reset_state_.load() != RESET_NONE);
+  for (uint32_t waited = 0; waited < RESET_WAIT_MS && this->is_connected() &&
+                            (uxQueueMessagesWaiting(this->free_transfers_) < NUM_TRANSFERS ||
+                             this->reset_state_.load() != RESET_NONE || this->query_state_.load() != QUERY_IDLE);
        waited += 20)
     delay(20);  // NOLINT: runs on a connection task, not the main loop
   this->transfer_failed_.store(false);
@@ -437,6 +493,183 @@ void XeroxPhaser3020::abort_job() {
   this->reset_state_.store(RESET_REQUESTED);
   this->enable_loop_soon_any_context();
   App.wake_loop_threadsafe();
+}
+
+void XeroxPhaser3020::log_interfaces_(const usb_config_desc_t *config) {
+  // Printer class protocol 1 only receives, 2 can also answer, 4 is IPP over USB
+  for (uint8_t i = 0; i < config->bNumInterfaces; i++) {
+    for (uint8_t alt = 0;; alt++) {
+      int offset = 0;
+      const usb_intf_desc_t *intf = usb_parse_interface_descriptor(config, i, alt, &offset);
+      if (intf == nullptr)
+        break;
+      char endpoints[64] = "";
+      size_t n = 0;
+      for (uint8_t e = 0; e < intf->bNumEndpoints && n < sizeof(endpoints); e++) {
+        int ep_offset = offset;
+        const usb_ep_desc_t *ep = usb_parse_endpoint_descriptor_by_index(intf, e, config->wTotalLength, &ep_offset);
+        if (ep != nullptr) {
+          n += snprintf(endpoints + n, sizeof(endpoints) - n, " %s 0x%02X/%u",
+                        (ep->bEndpointAddress & USB_B_ENDPOINT_ADDRESS_EP_DIR_MASK) ? LOG_STR_LITERAL("IN")
+                                                                                    : LOG_STR_LITERAL("OUT"),
+                        ep->bEndpointAddress, ep->wMaxPacketSize);
+        }
+      }
+      ESP_LOGI(TAG, "USB interface %u alt %u: class 0x%02X subclass 0x%02X protocol 0x%02X, endpoints:%s",
+               intf->bInterfaceNumber, intf->bAlternateSetting, intf->bInterfaceClass, intf->bInterfaceSubClass,
+               intf->bInterfaceProtocol, endpoints);
+    }
+  }
+}
+
+void XeroxPhaser3020::read_device_id_() {
+  usb_transfer_t *transfer = this->id_transfer_;
+  auto *setup = reinterpret_cast<usb_setup_packet_t *>(transfer->data_buffer);
+  setup->bmRequestType = usb_host::USB_DIR_IN | usb_host::USB_TYPE_CLASS | usb_host::USB_RECIP_INTERFACE;
+  setup->bRequest = PRINTER_GET_DEVICE_ID;
+  setup->wValue = 0;
+  setup->wIndex = this->interface_ << 8;  // interface in the high byte, alternate setting 0 in the low byte
+  setup->wLength = DEVICE_ID_SIZE;
+  transfer->num_bytes = sizeof(usb_setup_packet_t) + DEVICE_ID_SIZE;
+  transfer->device_handle = this->device_handle_;
+  transfer->bEndpointAddress = 0;
+  transfer->callback = device_id_callback;
+  transfer->context = this;
+  const esp_err_t err = usb_host_transfer_submit_control(this->handle_, transfer);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "Could not ask for the device ID: %s", esp_err_to_name(err));
+  }
+}
+
+// CALLBACK CONTEXT: USB task
+void XeroxPhaser3020::device_id_callback(usb_transfer_t *transfer) {
+  auto *self = static_cast<XeroxPhaser3020 *>(transfer->context);
+  if (transfer->status != USB_TRANSFER_STATUS_COMPLETED)
+    return;
+  self->id_ready_.store(true);
+  self->enable_loop_soon_any_context();
+  App.wake_loop_threadsafe();
+}
+
+void XeroxPhaser3020::query_status() {
+  if (!this->is_connected()) {
+    ESP_LOGW(TAG, "Status query: the printer is not connected");
+    return;
+  }
+  if (this->in_endpoint_ == 0) {
+    ESP_LOGW(TAG, "Status query: the printer's USB interface has no IN endpoint, so it cannot answer");
+    return;
+  }
+  if (this->query_state_.load() != QUERY_IDLE) {
+    ESP_LOGW(TAG, "Status query: one is already running");
+    return;
+  }
+  // Marked running before the check, so a job starting now either is seen here or waits in begin_job()
+  this->query_state_.store(QUERY_RUNNING);
+  usb_transfer_t *transfer;
+  if (this->server_.is_printing() || xQueueReceive(this->free_transfers_, &transfer, 0) != pdTRUE) {
+    this->query_state_.store(QUERY_IDLE);
+    ESP_LOGW(TAG, "Status query: the printer is busy with a job");
+    return;
+  }
+  this->reply_len_.store(0);
+  memcpy(transfer->data_buffer, PJL_QUERY, sizeof(PJL_QUERY) - 1);
+  transfer->num_bytes = sizeof(PJL_QUERY) - 1;
+  if (!this->submit_in_() || !this->submit_(transfer)) {
+    ESP_LOGW(TAG, "Status query: USB transfer failed");
+    this->finish_query_();
+    return;
+  }
+  ESP_LOGI(TAG, "Status query sent; collecting the answer for %u s", static_cast<unsigned>(QUERY_TIME_MS / 1000));
+  this->set_timeout(QUERY_TIMEOUT_ID, QUERY_TIME_MS, [this]() { this->finish_query_(); });
+}
+
+bool XeroxPhaser3020::submit_in_() {
+  LockGuard guard(this->usb_lock_);
+  if (!this->is_connected() || this->in_endpoint_ == 0 || this->query_state_.load() != QUERY_RUNNING) {
+    this->in_busy_.store(false);
+    return false;
+  }
+  usb_transfer_t *transfer = this->in_transfer_;
+  transfer->device_handle = this->device_handle_;
+  transfer->bEndpointAddress = this->in_endpoint_;
+  transfer->num_bytes = IN_TRANSFER_SIZE;
+  transfer->callback = in_callback;
+  transfer->context = this;
+  transfer->timeout_ms = 0;
+  this->in_busy_.store(true);
+  if (usb_host_transfer_submit(transfer) != ESP_OK) {
+    this->in_busy_.store(false);
+    return false;
+  }
+  return true;
+}
+
+// CALLBACK CONTEXT: USB task
+void XeroxPhaser3020::in_callback(usb_transfer_t *transfer) {
+  auto *self = static_cast<XeroxPhaser3020 *>(transfer->context);
+  if (transfer->status != USB_TRANSFER_STATUS_COMPLETED) {
+    self->in_busy_.store(false);
+    return;
+  }
+  const uint16_t len = self->reply_len_.load();
+  size_t n = transfer->actual_num_bytes;
+  if (n > REPLY_SIZE - len)
+    n = REPLY_SIZE - len;
+  memcpy(self->reply_ + len, transfer->data_buffer, n);
+  self->reply_len_.store(len + n);
+  // Keep reading until the query time is over
+  self->submit_in_();
+}
+
+void XeroxPhaser3020::finish_query_() {
+  this->query_state_.store(QUERY_STOPPING);
+  {
+    // An IN transfer waits for data until it is flushed
+    LockGuard guard(this->usb_lock_);
+    if (this->is_connected() && this->in_busy_.load()) {
+      usb_host_endpoint_halt(this->device_handle_, this->in_endpoint_);
+      usb_host_endpoint_flush(this->device_handle_, this->in_endpoint_);
+    }
+  }
+  this->log_reply_(0);
+}
+
+void XeroxPhaser3020::log_reply_(uint8_t tries) {
+  // The flushed transfer comes back through its callback on the USB task
+  if (this->in_busy_.load() && tries < 20) {
+    this->set_timeout(QUERY_TIMEOUT_ID, 50, [this, tries]() { this->log_reply_(tries + 1); });
+    return;
+  }
+  {
+    LockGuard guard(this->usb_lock_);
+    if (this->is_connected() && this->in_endpoint_ != 0)
+      usb_host_endpoint_clear(this->device_handle_, this->in_endpoint_);
+  }
+  const uint16_t len = this->reply_len_.load();
+  if (len == 0) {
+    ESP_LOGW(TAG, "The printer sent nothing back to the PJL status query");
+  } else {
+    ESP_LOGI(TAG, "The printer answered the PJL status query with %u bytes:", len);
+    // One log line per answer line; form feeds end PJL answers, other control characters show as '.'
+    char line[128];
+    size_t n = 0;
+    for (uint16_t i = 0; i <= len; i++) {
+      const char c = i < len ? this->reply_[i] : '\n';
+      if (c == '\n' || c == '\f' || n == sizeof(line) - 1) {
+        line[n] = '\0';
+        if (n > 0) {
+          ESP_LOGI(TAG, "  %s", line);
+        }
+        n = 0;
+        if (c == '\n' || c == '\f')
+          continue;
+      }
+      if (c != '\r')
+        line[n++] = (c >= 0x20 && c < 0x7F) ? c : '.';
+    }
+  }
+  this->query_state_.store(QUERY_IDLE);
 }
 
 void XeroxPhaser3020::listen_task(void *arg) {

@@ -10,13 +10,14 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
-from . import XeroxPhaser3020
+from . import CONF_XEROX_PHASER_3020_ID, XeroxPhaser3020
 
 DEPENDENCIES = ["xerox_phaser_3020"]
 
+CONF_ERROR = "error"
+CONF_ONLINE = "online"
 CONF_PAPER_EMPTY = "paper_empty"
 CONF_PRINTING = "printing"
-CONF_XEROX_PHASER_3020_ID = "xerox_phaser_3020_id"
 
 CONFIG_SCHEMA = cv.Schema(
     {
@@ -33,6 +34,16 @@ CONFIG_SCHEMA = cv.Schema(
             device_class=DEVICE_CLASS_PROBLEM,
             icon="mdi:tray-alert",
         ),
+        # The printer's USB port status: an error such as a paper jam, an open cover or no toner
+        cv.Optional(CONF_ERROR): binary_sensor.binary_sensor_schema(
+            device_class=DEVICE_CLASS_PROBLEM,
+            icon="mdi:printer-alert",
+        ),
+        # Whether the printer reports itself selected (online) on its USB port
+        cv.Optional(CONF_ONLINE): binary_sensor.binary_sensor_schema(
+            entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+            icon="mdi:printer-check",
+        ),
     }
 )
 
@@ -43,3 +54,5 @@ async def to_code(config: ConfigType) -> None:
     await sensors(CONF_CONNECTED, hub.set_connected_binary_sensor)
     await sensors(CONF_PRINTING, hub.set_printing_binary_sensor)
     await sensors(CONF_PAPER_EMPTY, hub.set_paper_empty_binary_sensor)
+    await sensors(CONF_ERROR, hub.set_error_binary_sensor)
+    await sensors(CONF_ONLINE, hub.set_online_binary_sensor)
