@@ -7,7 +7,9 @@ from esphome.components.const import CONF_DESTINATION
 from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.const import CONF_COMMAND, CONF_ID, CONF_SOURCE, CONF_UART_ID, CONF_VALUE
-from esphome.core import CORE
+from esphome.core import CORE, ID
+from esphome.core.config import get_loop_interval
+import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@ssieb", "@labodj"]
@@ -32,7 +34,7 @@ CONF_EXPECT_REPLY = "expect_reply"
 class VBusData:
     """Action users recorded for final configuration validation."""
 
-    tx_actions: set[str] = field(default_factory=set)
+    tx_actions: list[ID] = field(default_factory=list)
 
 
 def _get_data() -> VBusData:
@@ -103,8 +105,29 @@ CONFIG_SCHEMA = uart.UART_DEVICE_SCHEMA.extend(
 
 def final_validate(config: ConfigType) -> None:
     transmit = config.get(CONF_TRANSMIT)
-    if transmit is None and str(config[CONF_ID]) in _get_data().tx_actions:
+    if transmit is None and config[CONF_ID] in _get_data().tx_actions:
         raise cv.Invalid("VBus actions require transmit to be configured on this hub")
+    if transmit is not None:
+        rx_id = config[CONF_UART_ID]
+        if uart.is_unclocked(rx_id) or uart.is_unclocked(
+            transmit.get(CONF_UART_ID, rx_id)
+        ):
+            raise cv.Invalid(
+                "VBus transmit requires RX and TX UARTs that preserve serial line timing"
+            )
+        if get_loop_interval().total_milliseconds > 50:
+            raise cv.Invalid(
+                "VBus transmit requires esphome.loop_interval of at most 50ms"
+            )
+        # A busy RX line must become visible on the first byte, even without an idle gap.
+        if (
+            CORE.is_esp32
+            and uart.CONF_RX_TIMEOUT in (rx_config := fv.get_declaring_config(rx_id))
+            and rx_config.setdefault(uart.CONF_RX_FULL_THRESHOLD, 1) != 1
+        ):
+            raise cv.Invalid(
+                "Set rx_full_threshold to 1 on the VBus receive UART when using transmit"
+            )
     same_uart = transmit is not None and (
         CONF_UART_ID not in transmit or transmit[CONF_UART_ID] == config[CONF_UART_ID]
     )
@@ -160,12 +183,12 @@ async def to_code(config: ConfigType) -> None:
         cg.add(tx.set_source(transmit[CONF_SOURCE]))
         cg.add(tx.set_destination(transmit[CONF_DESTINATION]))
         cg.add(tx.set_lease_duration(transmit[CONF_LEASE_DURATION]))
-        if str(config[CONF_ID]) in _get_data().tx_actions:
+        if config[CONF_ID] in _get_data().tx_actions:
             cg.add_define("USE_VBUS_SEND_ACTION")
 
 
 def validate_tx_action(config: ConfigType) -> ConfigType:
-    _get_data().tx_actions.add(str(config[CONF_ID]))
+    _get_data().tx_actions.append(config[CONF_ID])
     return config
 
 

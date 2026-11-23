@@ -39,10 +39,10 @@ class VBusTransmitter final : public Component, public uart::UARTDevice {
   void on_datagram(uint16_t command, uint16_t source, uint16_t destination, uint16_t value_id, uint32_t value);
 
  protected:
-  enum class State : uint8_t { STATE_IDLE, STATE_WAIT_GRANT, STATE_CONTEND, STATE_OWNED };
-  bool can_send_() const;
+  enum class State : uint8_t { STATE_IDLE, STATE_WAIT_GRANT, STATE_CONTEND, STATE_OWNED, STATE_CHECK_RELEASE_ECHO };
+  bool can_send_();
   void send_(uint16_t command, uint16_t value_id, uint32_t value, bool expect_reply = false);
-  void stop_();
+  void stop_(bool warn_unsent = true);
 
   VBus *receiver_;
   uint16_t source_{0x0020};
@@ -68,6 +68,7 @@ class VBusTransmitter final : public Component, public uart::UARTDevice {
   bool rx_fresh_{false};
   bool packet_fresh_{false};
   bool packet_pending_{false};
+  bool release_echo_expected_{false};
   bool sent_{false};
   bool release_pending_{false};
   bool awaiting_reply_{false};
