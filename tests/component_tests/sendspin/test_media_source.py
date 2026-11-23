@@ -135,3 +135,100 @@ def test_advertised_bit_depths(
         ("PCM", 2, bits_per_sample),
         ("PCM", 1, bits_per_sample),
     ]
+
+
+
+def test_multi_format_opus_in_codec_list(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """Opus stays in the codec list when any format is 48 kHz, even if others aren't."""
+    set_core_config(PlatformFramework.ESP32_IDF)
+
+    config = CONFIG_SCHEMA({
+        "sendspin_id": "sendspin_hub",
+        "formats": [
+            {"sample_rate": 96000, "bits_per_sample": 24},
+            {"sample_rate": 48000, "bits_per_sample": 24},
+        ],
+    })
+
+    assert config[CONF_CODECS] == ["flac", "opus", "pcm"]
+
+
+def test_multi_format_no_48k_drops_opus(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """With no 48 kHz format, Opus leaves the default codec list."""
+    set_core_config(PlatformFramework.ESP32_IDF)
+
+    config = CONFIG_SCHEMA({
+        "sendspin_id": "sendspin_hub",
+        "formats": [
+            {"sample_rate": 96000, "bits_per_sample": 24},
+            {"sample_rate": 44100, "bits_per_sample": 24},
+        ],
+    })
+
+    assert config[CONF_CODECS] == ["flac", "pcm"]
+
+
+def test_duplicate_format_rejected(set_core_config: SetCoreConfigCallable) -> None:
+    """Identical rate/bits entries in formats are redundant."""
+    set_core_config(PlatformFramework.ESP32_IDF)
+
+    with pytest.raises(cv.Invalid, match="Duplicate entry"):
+        CONFIG_SCHEMA({
+            "sendspin_id": "sendspin_hub",
+            "formats": [
+                {"sample_rate": 48000, "bits_per_sample": 16},
+                {"sample_rate": 48000, "bits_per_sample": 16},
+            ],
+        })
+
+
+def test_old_keys_migrate_to_formats(set_core_config: SetCoreConfigCallable) -> None:
+    """Deprecated top-level sample_rate/bits_per_sample become a single formats entry."""
+    set_core_config(PlatformFramework.ESP32_IDF)
+
+    config = CONFIG_SCHEMA({
+        "sendspin_id": "sendspin_hub",
+        "sample_rate": 96000,
+        "bits_per_sample": 24,
+    })
+
+    assert config["formats"] == [{"sample_rate": 96000, "bits_per_sample": 24}]
+
+
+def test_both_formats_and_old_keys_rejected(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """Using the new and old keys together is ambiguous."""
+    set_core_config(PlatformFramework.ESP32_IDF)
+
+    with pytest.raises(cv.Invalid, match="Cannot use both"):
+        CONFIG_SCHEMA({
+            "sendspin_id": "sendspin_hub",
+            "sample_rate": 48000,
+            "formats": [{"sample_rate": 48000, "bits_per_sample": 16}],
+        })
+
+
+def test_channels_stereo_only(set_core_config: SetCoreConfigCallable) -> None:
+    """channels: [2] produces no mono entries."""
+    set_core_config(PlatformFramework.ESP32_IDF)
+
+    CONFIG_SCHEMA(_media_source_config(channels=[2]))
+
+    # Verify via generated code in a separate generate_main test,
+    # or assert the player_config carries the value:
+    assert _get_data().player_config["channels"] == [2]
+
+
+def test_channels_mono_only(set_core_config: SetCoreConfigCallable) -> None:
+    """channels: [1] produces no stereo entries."""
+    set_core_config(PlatformFramework.ESP32_IDF)
+
+    CONFIG_SCHEMA(_media_source_config(channels=[1]))
+
+    assert _get_data().player_config["channels"] == [1]   
+
