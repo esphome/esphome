@@ -94,6 +94,8 @@ class ESP8266UartComponent final : public UARTComponent, public Component {
   using UARTComponent::load_settings;  // also bring in the no-arg overload for convenience
 
  protected:
+  // TX only skips the core's RX buffer and RX interrupt on a bus without an RX pin
+  SerialMode serial_mode_() const { return this->rx_pin_ != nullptr ? SERIAL_FULL : SERIAL_TX_ONLY; }
   void check_logger_conflict() override;
 
   HardwareSerial *hw_serial_{nullptr};

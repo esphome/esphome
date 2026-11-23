@@ -178,7 +178,8 @@ def validate_host_config(config):
 
 
 def validate_rx_buffer_size(config):
-    if CORE.is_esp32:
+    # Without an RX pin the buffer is not used
+    if CORE.is_esp32 and CONF_RX_PIN in config:
         # ESP32 UART hardware FIFO is 128 bytes (LP UART is 16 bytes, but we use 128 as safe minimum)
         # rx_buffer_size must be greater than the hardware FIFO length
         min_buffer_size = 128

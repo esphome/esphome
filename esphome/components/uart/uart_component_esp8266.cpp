@@ -96,6 +96,7 @@ void ESP8266UartComponent::setup() {
   // preconfigured by the platform. For example if RX disabled but TX pin
   // is 1 we still want to use Serial.
   SerialConfig config = static_cast<SerialConfig>(get_config());
+  const SerialMode mode = this->serial_mode_();
 
 #ifdef USE_ESP8266_UART_SERIAL
   if (!ESP8266UartComponent::serial0_in_use && (tx_pin_ == nullptr || tx_pin_->get_pin() == 1) &&
@@ -107,7 +108,7 @@ void ESP8266UartComponent::setup() {
 #endif
   ) {
     this->hw_serial_ = &Serial;
-    this->hw_serial_->begin(this->baud_rate_, config);
+    this->hw_serial_->begin(this->baud_rate_, config, mode);
     this->hw_serial_->setRxBufferSize(this->rx_buffer_size_);
     ESP8266UartComponent::serial0_in_use = true;
   } else if (!ESP8266UartComponent::serial0_in_use && (tx_pin_ == nullptr || tx_pin_->get_pin() == 15) &&
@@ -119,7 +120,7 @@ void ESP8266UartComponent::setup() {
 #endif
   ) {
     this->hw_serial_ = &Serial;
-    this->hw_serial_->begin(this->baud_rate_, config);
+    this->hw_serial_->begin(this->baud_rate_, config, mode);
     this->hw_serial_->setRxBufferSize(this->rx_buffer_size_);
     this->hw_serial_->swap();
     ESP8266UartComponent::serial0_in_use = true;
@@ -129,7 +130,7 @@ void ESP8266UartComponent::setup() {
 #ifdef USE_ESP8266_UART_SERIAL1
       if ((tx_pin_ == nullptr || tx_pin_->get_pin() == 2) && (rx_pin_ == nullptr || rx_pin_->get_pin() == 8)) {
     this->hw_serial_ = &Serial1;
-    this->hw_serial_->begin(this->baud_rate_, config);
+    this->hw_serial_->begin(this->baud_rate_, config, mode);
     this->hw_serial_->setRxBufferSize(this->rx_buffer_size_);
   } else
 #endif  // USE_ESP8266_UART_SERIAL1
@@ -144,7 +145,7 @@ void ESP8266UartComponent::load_settings(bool dump_config) {
   ESP_LOGCONFIG(TAG, "Loading UART bus settings");
   if (this->hw_serial_ != nullptr) {
     SerialConfig config = static_cast<SerialConfig>(get_config());
-    this->hw_serial_->begin(this->baud_rate_, config);
+    this->hw_serial_->begin(this->baud_rate_, config, this->serial_mode_());
     this->hw_serial_->setRxBufferSize(this->rx_buffer_size_);
 #ifdef USE_ESP8266_UART_SERIAL
     // begin() puts UART0 back on GPIO1/GPIO3, so swap it again like setup() did for GPIO15/GPIO13
