@@ -848,12 +848,15 @@ ModemState ModemComponent::handle_state_connecting_() {
         break;
       case SimResult::SIM_RESULT_RETRY:
         // A SIM7070 accepts CFUN=4 but leaves the SIM powered down ("+CME ERROR: SIM failure") until CFUN=1; the
-        // radio goes on right after the SIM check anyway, so it only comes a few seconds early
-        if (this->sim_rf_off_ && this->sim_polls_ == SIM_FULL_POWER_AFTER) {
-          this->sim_rf_off_ = false;
+        // radio goes on right after the SIM check anyway, so it only comes a few seconds early. A refused CFUN=1 is
+        // tried again at the next poll, after a resync, since nothing else would bring the SIM up in this attempt.
+        if (this->sim_rf_off_ && this->sim_polls_ >= SIM_FULL_POWER_AFTER) {
           ESP_LOGD(TAG, "SIM still not ready at CFUN=4; powering it up with CFUN=1");
-          if (this->dce_->set_radio_state(RADIO_STATE_FULL) != command_result::OK) {
+          if (this->dce_->set_radio_state(RADIO_STATE_FULL) == command_result::OK) {
+            this->sim_rf_off_ = false;
+          } else {
             ESP_LOGW(TAG, "Failed to turn the radio on");
+            this->request_resync_();
           }
         }
         return this->retry_(ModemState::MODEM_STATE_CONNECTING);
