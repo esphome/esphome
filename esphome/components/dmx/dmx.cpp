@@ -155,8 +155,8 @@ void DMXComponent::setup_rdm_() {
         continue;
 
       const rdm_pid_t pid = static_cast<rdm_pid_t>(RDM_STATIC_PID_BASE + cs.channel);
-      if (!dmx_parameter_add(this->dmx_port_, RDM_SUB_DEVICE_ROOT, pid, DMX_PARAMETER_TYPE_STATIC,
-                             &cs.channel, sizeof(cs.channel))) {
+      if (!dmx_parameter_add(this->dmx_port_, RDM_SUB_DEVICE_ROOT, pid, DMX_PARAMETER_TYPE_STATIC, &cs.channel,
+                             sizeof(cs.channel))) {
         ESP_LOGW(TAG, "RDM: failed to add fixed-channel PID 0x%04X", pid);
         continue;
       }
@@ -164,8 +164,7 @@ void DMXComponent::setup_rdm_() {
         ESP_LOGW(TAG, "RDM: failed to define fixed-channel PID 0x%04X", pid);
         continue;
       }
-      ESP_LOGD(TAG, "RDM: fixed channel %u registered as GET-only PID 0x%04X",
-               static_cast<unsigned>(cs.channel), pid);
+      ESP_LOGD(TAG, "RDM: fixed channel %u registered as GET-only PID 0x%04X", static_cast<unsigned>(cs.channel), pid);
     }
 
     // The first dynamic Number uses the standard RDM DMX_START_ADDRESS PID.
@@ -180,11 +179,10 @@ void DMXComponent::setup_rdm_() {
         auto &binding = this->rdm_bindings_[i];
         uint16_t initial_address = binding.last_address;
 
-        if (!dmx_parameter_add(this->dmx_port_, RDM_SUB_DEVICE_ROOT, binding.custom_pid,
-                               DMX_PARAMETER_TYPE_DYNAMIC, &initial_address,
-                               sizeof(initial_address))) {
-          ESP_LOGW(TAG, "RDM: failed to add dynamic PID 0x%04X for binding %u",
-                   binding.custom_pid, static_cast<unsigned>(i));
+        if (!dmx_parameter_add(this->dmx_port_, RDM_SUB_DEVICE_ROOT, binding.custom_pid, DMX_PARAMETER_TYPE_DYNAMIC,
+                               &initial_address, sizeof(initial_address))) {
+          ESP_LOGW(TAG, "RDM: failed to add dynamic PID 0x%04X for binding %u", binding.custom_pid,
+                   static_cast<unsigned>(i));
           continue;
         }
         if (!rdm_definition_set(this->dmx_port_, RDM_SUB_DEVICE_ROOT, binding.custom_pid,
@@ -193,13 +191,12 @@ void DMXComponent::setup_rdm_() {
           continue;
         }
 
-        ESP_LOGI(TAG, "RDM: dynamic PID 0x%04X registered (channel %u)",
-                 binding.custom_pid, initial_address);
+        ESP_LOGI(TAG, "RDM: dynamic PID 0x%04X registered (channel %u)", binding.custom_pid, initial_address);
       }
 
       const char *first_name = first.channel_number ? first.channel_number->get_name().c_str() : "?";
-      ESP_LOGI(TAG, "RDM: root DMX_START_ADDRESS bound to '%s' (addr %u), %u dynamic binding(s)",
-               first_name, first.last_address, static_cast<unsigned>(this->rdm_bindings_.size()));
+      ESP_LOGI(TAG, "RDM: root DMX_START_ADDRESS bound to '%s' (addr %u), %u dynamic binding(s)", first_name,
+               first.last_address, static_cast<unsigned>(this->rdm_bindings_.size()));
     } else {
       ESP_LOGD(TAG, "RDM enabled; no dynamic Number bindings registered");
     }
