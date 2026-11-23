@@ -1,6 +1,9 @@
 #pragma once
 
 #include <cmath>
+#include <string>
+#include <vector>
+
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
@@ -11,6 +14,10 @@
 #if __has_include(<esp_dmx.h>)
 #include <esp_dmx.h>
 #include "driver/uart.h"  // uart_is_driver_installed
+#if __has_include(<rdm/responder.h>)
+#include <rdm/responder.h>
+#define ESPHOME_DMX_HAS_RDM 1
+#endif
 #else
 using dmx_port_t = int;
 
@@ -45,6 +52,17 @@ inline size_t dmx_send_num(dmx_port_t, size_t) { return 0; }
 inline bool uart_is_driver_installed(dmx_port_t) { return false; }
 #endif
 
+#ifndef ESPHOME_DMX_HAS_RDM
+using rdm_pid_t = uint16_t;
+inline bool rdm_send_response(dmx_port_t) { return false; }
+inline bool rdm_get_dmx_start_address(dmx_port_t, uint16_t *addr) {
+  if (addr)
+    *addr = 1;
+  return false;
+}
+inline bool rdm_set_dmx_start_address(dmx_port_t, uint16_t) { return false; }
+#endif
+
 #ifndef DMX_STATIC_SENSOR_COUNT
 static constexpr size_t DMX_STATIC_SENSOR_COUNT = 0;
 #endif
@@ -52,7 +70,8 @@ static constexpr size_t DMX_STATIC_SENSOR_COUNT = 0;
 static constexpr size_t DMX_DYNAMIC_SENSOR_COUNT = 0;
 #endif
 
-namespace esphome::dmx {
+namespace esphome {
+namespace dmx {
 
 enum class DMXMode : uint8_t {
   RX = 0,
@@ -70,6 +89,13 @@ struct DynamicChannelSensor {
   sensor::Sensor *sensor;
 };
 
+// Binding between an ESPHome Number and an RDM-settable address
+struct RdmChannelBinding {
+  number::Number *channel_number{nullptr};
+  uint16_t last_address{1};
+  rdm_pid_t custom_pid{0};  // 0 = root device standard DMX_START_ADDRESS
+};
+
 class DMXComponent : public Component {
  public:
   void setup() override;
@@ -84,6 +110,7 @@ class DMXComponent : public Component {
   void set_mode(DMXMode mode) { this->mode_ = mode; }
   void set_tx_interval(uint32_t ms) { this->tx_interval_ms_ = ms; }
   void set_rx_guard(uint32_t ms) { this->rx_guard_ms_ = ms; }
+  void set_rdm_enabled(bool enabled) { this->rdm_enabled_ = enabled; }
 
   // Received and transmitted universes are deliberately kept separate.
   uint8_t get_rx_channel(uint16_t channel) const;
@@ -108,11 +135,19 @@ class DMXComponent : public Component {
   SLOT_LIST_REQUIRES(DMX_DYNAMIC_SENSOR_COUNT)
   void register_dynamic_channel_sensor(number::Number *channel_number, sensor::Sensor *sens) {
     this->dynamic_sensors_.push_back({channel_number, sens});
+    // Automatically expose this Number as an RDM-settable address
+    this->register_rdm_channel(channel_number);
   }
+
+  // Explicit RDM binding (also called from register_dynamic_channel_sensor)
+  void register_rdm_channel(number::Number *channel_number);
 
  protected:
   void publish_inputs_();
   void send_universe_();
+  void setup_rdm_();
+  void sync_rdm_to_numbers_();
+  void sync_numbers_to_rdm_();
 
   int tx_pin_{-1};
   int rx_pin_{-1};
@@ -132,6 +167,10 @@ class DMXComponent : public Component {
   DMXMode mode_{DMXMode::RX};
   uint32_t tx_interval_ms_{25};
   uint32_t rx_guard_ms_{5};
+
+  bool rdm_enabled_{true};
+  std::vector<RdmChannelBinding> rdm_bindings_{};
+  uint32_t last_rdm_push_ms_{0};
 
   [[no_unique_address]] SlotList<StaticChannelSensor, DMX_STATIC_SENSOR_COUNT> static_sensors_;
   [[no_unique_address]] SlotList<DynamicChannelSensor, DMX_DYNAMIC_SENSOR_COUNT> dynamic_sensors_;
@@ -172,4 +211,6 @@ class DMXLightOutput : public light::LightOutput {
   uint16_t first_channel_{1};
   DMXLightType light_type_{DMXLightType::DIMMER};
 };
-}  // namespace esphome::dmx
+
+}  // namespace dmx
+}  // namespace esphome

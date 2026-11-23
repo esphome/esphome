@@ -5,9 +5,13 @@
 #include "driver/uart.h"
 #endif
 
-namespace esphome::dmx {
+namespace esphome {
+namespace dmx {
 
-ESPHOME_LOG_TAG(TAG, "dmx");
+static const char *const TAG = "dmx";
+
+// Manufacturer-specific PID base for extra channel bindings (root uses standard PID)
+static constexpr rdm_pid_t RDM_CUSTOM_PID_BASE = 0x8001;
 
 void DMXComponent::setup() {
   this->dmx_port_ = static_cast<dmx_port_t>(this->uart_num_);
@@ -26,6 +30,11 @@ void DMXComponent::setup() {
 #endif
 
   dmx_config_t config = DMX_CONFIG_DEFAULT;
+#ifdef ESPHOME_DMX_HAS_RDM
+  // Enough parameter slots for root + custom bindings
+  config.root_device_parameter_count = 32;
+#endif
+
   dmx_personality_t personalities[] = {{1, "ESPHome DMX"}};
 
   if (!dmx_driver_install(this->dmx_port_, &config, personalities, 1)) {
@@ -41,8 +50,155 @@ void DMXComponent::setup() {
     return;
   }
 
-  ESP_LOGI(TAG, "DMX started on UART%d (TX=%d RX=%d RTS=%d)", this->uart_num_, this->tx_pin_, this->rx_pin_,
-           this->rts_pin_);
+  if (this->rdm_enabled_) {
+    this->setup_rdm_();
+  }
+
+  ESP_LOGI(TAG, "DMX started on UART%d (TX=%d RX=%d RTS=%d) RDM=%s", this->uart_num_, this->tx_pin_, this->rx_pin_,
+           this->rts_pin_, this->rdm_enabled_ ? "on" : "off");
+}
+
+void DMXComponent::register_rdm_channel(number::Number *channel_number) {
+  if (channel_number == nullptr)
+    return;
+
+  // Avoid duplicates
+  for (const auto &b : this->rdm_bindings_) {
+    if (b.channel_number == channel_number)
+      return;
+  }
+
+  RdmChannelBinding binding{};
+  binding.channel_number = channel_number;
+  binding.last_address = 1;
+  if (channel_number->has_state()) {
+    const float state = channel_number->state;
+    if (state >= 1.0f && state <= 512.0f)
+      binding.last_address = static_cast<uint16_t>(state);
+  }
+
+  // First binding uses standard root DMX_START_ADDRESS (custom_pid = 0)
+  // Further bindings get manufacturer PIDs
+  if (this->rdm_bindings_.empty()) {
+    binding.custom_pid = 0;
+  } else {
+    binding.custom_pid = static_cast<rdm_pid_t>(RDM_CUSTOM_PID_BASE + (this->rdm_bindings_.size() - 1));
+  }
+
+  this->rdm_bindings_.push_back(binding);
+}
+
+void DMXComponent::setup_rdm_() {
+#ifdef ESPHOME_DMX_HAS_RDM
+  if (this->rdm_bindings_.empty()) {
+    ESP_LOGD(TAG, "RDM enabled but no channel bindings registered yet");
+    return;
+  }
+
+  // Root device: standard DMX start address ← first binding
+  auto &first = this->rdm_bindings_[0];
+  rdm_set_dmx_start_address(this->dmx_port_, first.last_address);
+
+  // Extra bindings: store as dynamic parameters on root device
+  // Controllers that support manufacturer PIDs can GET/SET these.
+  for (size_t i = 1; i < this->rdm_bindings_.size(); i++) {
+    auto &b = this->rdm_bindings_[i];
+    uint16_t addr = b.last_address;
+
+    // Best-effort: add parameter storage. Definition/callback may need library-specific
+    // rdm_definition_set / rdm_callback_set for full controller visibility.
+    if (!dmx_parameter_add(this->dmx_port_, RDM_SUB_DEVICE_ROOT, b.custom_pid, DMX_PARAMETER_TYPE_DYNAMIC, &addr,
+                           sizeof(addr))) {
+      ESP_LOGW(TAG, "RDM: failed to add custom PID 0x%04X for binding %u", b.custom_pid, static_cast<unsigned>(i));
+    } else {
+      const char *name = b.channel_number ? b.channel_number->get_name().c_str() : "?";
+      ESP_LOGI(TAG, "RDM: custom PID 0x%04X bound to '%s' (addr %u)", b.custom_pid, name, addr);
+    }
+  }
+
+  const char *first_name = first.channel_number ? first.channel_number->get_name().c_str() : "?";
+  ESP_LOGI(TAG, "RDM: root DMX_START_ADDRESS bound to '%s' (addr %u), %u total binding(s)", first_name,
+           first.last_address, static_cast<unsigned>(this->rdm_bindings_.size()));
+#else
+  ESP_LOGW(TAG, "RDM requested but rdm/responder.h not available in esp_dmx build");
+#endif
+}
+
+void DMXComponent::sync_rdm_to_numbers_() {
+#ifdef ESPHOME_DMX_HAS_RDM
+  if (this->rdm_bindings_.empty())
+    return;
+
+  // Root standard start address → first Number
+  {
+    auto &b = this->rdm_bindings_[0];
+    uint16_t addr = 0;
+    if (rdm_get_dmx_start_address(this->dmx_port_, &addr) && addr >= 1 && addr <= 512 && addr != b.last_address) {
+      b.last_address = addr;
+      if (b.channel_number != nullptr) {
+        b.channel_number->publish_state(static_cast<float>(addr));
+        ESP_LOGI(TAG, "RDM → Number '%s' = %u", b.channel_number->get_name().c_str(), addr);
+      }
+    }
+  }
+
+  // Custom PIDs → remaining Numbers
+  for (size_t i = 1; i < this->rdm_bindings_.size(); i++) {
+    auto &b = this->rdm_bindings_[i];
+    const void *data = dmx_parameter_get_data(this->dmx_port_, RDM_SUB_DEVICE_ROOT, b.custom_pid);
+    if (data == nullptr)
+      continue;
+    const uint16_t addr = *static_cast<const uint16_t *>(data);
+    if (addr < 1 || addr > 512 || addr == b.last_address)
+      continue;
+    b.last_address = addr;
+    if (b.channel_number != nullptr) {
+      b.channel_number->publish_state(static_cast<float>(addr));
+      ESP_LOGI(TAG, "RDM PID 0x%04X → Number '%s' = %u", b.custom_pid, b.channel_number->get_name().c_str(), addr);
+    }
+  }
+#endif
+}
+
+void DMXComponent::sync_numbers_to_rdm_() {
+#ifdef ESPHOME_DMX_HAS_RDM
+  if (this->rdm_bindings_.empty())
+    return;
+
+  // First Number → root start address
+  {
+    auto &b = this->rdm_bindings_[0];
+    if (b.channel_number != nullptr && b.channel_number->has_state()) {
+      const float state = b.channel_number->state;
+      if (state >= 1.0f && state <= 512.0f) {
+        const uint16_t addr = static_cast<uint16_t>(state);
+        if (addr != b.last_address) {
+          if (rdm_set_dmx_start_address(this->dmx_port_, addr)) {
+            b.last_address = addr;
+            ESP_LOGD(TAG, "Number '%s' → RDM start address %u", b.channel_number->get_name().c_str(), addr);
+          }
+        }
+      }
+    }
+  }
+
+  // Remaining Numbers → custom parameters
+  for (size_t i = 1; i < this->rdm_bindings_.size(); i++) {
+    auto &b = this->rdm_bindings_[i];
+    if (b.channel_number == nullptr || !b.channel_number->has_state())
+      continue;
+    const float state = b.channel_number->state;
+    if (state < 1.0f || state > 512.0f)
+      continue;
+    const uint16_t addr = static_cast<uint16_t>(state);
+    if (addr == b.last_address)
+      continue;
+    if (dmx_parameter_set(this->dmx_port_, RDM_SUB_DEVICE_ROOT, b.custom_pid, &addr, sizeof(addr))) {
+      b.last_address = addr;
+      ESP_LOGD(TAG, "Number '%s' → RDM PID 0x%04X = %u", b.channel_number->get_name().c_str(), b.custom_pid, addr);
+    }
+  }
+#endif
 }
 
 void DMXComponent::loop() {
@@ -54,19 +210,14 @@ void DMXComponent::loop() {
     dmx_packet_t packet{};
     const size_t received_size = dmx_receive(this->dmx_port_, &packet, 0);
 
-    // // Tijdelijke debuglogging
-    // static uint32_t last_debug_ms = 0;
-
-    // if (received_size > 0) {
-    //   ESP_LOGI(TAG, "DMX packet detected: size=%u, err=%d, is_rdm=%d, start_code=0x%02X",
-    //            static_cast<unsigned>(received_size), packet.err, packet.is_rdm, packet.sc);
-    // } else if (millis() - last_debug_ms >= 2000) {
-    //   ESP_LOGI(TAG, "Waiting for DMX data...");
-    //   last_debug_ms = millis();
-    // }
-
     if (received_size > 0) {
-      if (packet.err == DMX_OK && !packet.is_rdm && packet.sc == 0x00) {
+#ifdef ESPHOME_DMX_HAS_RDM
+      if (this->rdm_enabled_ && packet.is_rdm) {
+        rdm_send_response(this->dmx_port_);
+        this->sync_rdm_to_numbers_();
+      } else
+#endif
+          if (packet.err == DMX_OK && !packet.is_rdm && packet.sc == 0x00) {
         if (received_size > DMX_PACKET_SIZE) {
           ESP_LOGW(TAG, "Ignoring oversized DMX packet (%u bytes)", static_cast<unsigned>(received_size));
         } else {
@@ -85,6 +236,17 @@ void DMXComponent::loop() {
       }
     }
   }
+
+  // Periodically push Number changes (from HA) towards RDM
+#ifdef ESPHOME_DMX_HAS_RDM
+  if (this->rdm_enabled_ && !this->rdm_bindings_.empty()) {
+    const uint32_t now_rdm = millis();
+    if (now_rdm - this->last_rdm_push_ms_ >= 500) {
+      this->last_rdm_push_ms_ = now_rdm;
+      this->sync_numbers_to_rdm_();
+    }
+  }
+#endif
 
   if (!want_tx)
     return;
@@ -180,6 +342,17 @@ void DMXComponent::dump_config() {
   }
   ESP_LOGCONFIG(TAG, "  TX interval: %u ms", static_cast<unsigned>(this->tx_interval_ms_));
   ESP_LOGCONFIG(TAG, "  RX guard: %u ms", static_cast<unsigned>(this->rx_guard_ms_));
+  ESP_LOGCONFIG(TAG, "  RDM: %s", this->rdm_enabled_ ? "enabled" : "disabled");
+  ESP_LOGCONFIG(TAG, "  RDM channel bindings: %u", static_cast<unsigned>(this->rdm_bindings_.size()));
+  for (size_t i = 0; i < this->rdm_bindings_.size(); i++) {
+    const auto &b = this->rdm_bindings_[i];
+    const char *name = b.channel_number ? b.channel_number->get_name().c_str() : "?";
+    if (b.custom_pid == 0) {
+      ESP_LOGCONFIG(TAG, "    [%u] '%s' → root DMX_START_ADDRESS", static_cast<unsigned>(i), name);
+    } else {
+      ESP_LOGCONFIG(TAG, "    [%u] '%s' → custom PID 0x%04X", static_cast<unsigned>(i), name, b.custom_pid);
+    }
+  }
 }
 
 void DMXOutputNumber::control(float value) {
@@ -264,4 +437,5 @@ void DMXLightOutput::write_state(light::LightState *state) {
   this->parent_->set_slots(this->first_channel_, values, count);
 }
 
-}  // namespace esphome::dmx
+}  // namespace dmx
+}  // namespace esphome

@@ -22,6 +22,7 @@ CONF_UART_NUM = "uart_num"
 CONF_DMX_ID = "dmx_id"
 CONF_TX_INTERVAL = "tx_interval"
 CONF_RX_GUARD = "rx_guard"
+CONF_RDM = "rdm"
 DEPENDENCIES = ["esp32"]
 DOMAIN = "dmx"
 _LOGGER = logging.getLogger(__name__)
@@ -71,6 +72,7 @@ CONFIG_SCHEMA = cv.Schema(
             CONF_TX_INTERVAL, default="25ms"
         ): cv.positive_time_period_milliseconds,
         cv.Optional(CONF_RX_GUARD, default="5ms"): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_RDM, default=True): cv.boolean,
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -160,6 +162,7 @@ async def to_code(config):
     cg.add(var.set_mode(MODE_TO_ENUM[config[CONF_MODE]]))
     cg.add(var.set_tx_interval(config[CONF_TX_INTERVAL].total_milliseconds))
     cg.add(var.set_rx_guard(config[CONF_RX_GUARD].total_milliseconds))
+    cg.add(var.set_rdm_enabled(config[CONF_RDM]))
 
     add_idf_component(
         name="esp_dmx",

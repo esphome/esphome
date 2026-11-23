@@ -36,8 +36,42 @@ number:
     # TX output (requires mode tx or bidirectional)
   - platform: dmx
     dmx_id: dmx_bus
-    channel: 10
-    name: "DMX Out 10"
+    channel: 7
+    name: "DMX Out 7"
+
+    #RDM solution
+  - platform: template
+    name: "DMX Channel Front"
+    id: ch_front
+    min_value: 1
+    max_value: 512
+    step: 1
+    mode: box
+    optimistic: true
+    initial_value: 10
+    restore_value: true
+
+  - platform: template
+    name: "DMX Channel Back"
+    id: ch_back
+    min_value: 1
+    max_value: 512
+    step: 1
+    mode: box
+    optimistic: true
+    initial_value: 20
+    restore_value: true
+
+  - platform: template
+    name: "DMX Channel Side"
+    id: ch_side
+    min_value: 1
+    max_value: 512
+    step: 1
+    mode: box
+    optimistic: true
+    initial_value: 30
+    restore_value: true
 
 # Sensors: one dynamic + one fixed channel (requires mode rx or bidirectional)
 sensor:
@@ -53,6 +87,21 @@ sensor:
     name: "DMX Channel 1 (fixed)"
     id: dmx_channel_1
 
+  #RDM solution implementation
+  - platform: dmx
+    dmx_id: dmx_bus
+    channel_id: ch_front
+    name: "Value Front"
+
+  - platform: dmx
+    dmx_id: dmx_bus
+    channel_id: ch_back
+    name: "Value Back"
+
+  - platform: dmx
+    dmx_id: dmx_bus
+    channel_id: ch_side
+    name: "Value Side"
 # Ligths: Dimmers have only 1 channels, RGB lights 3 channels, RGBW 4 channels
 light:
   - platform: dmx
