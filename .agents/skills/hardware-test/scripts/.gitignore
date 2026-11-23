@@ -31,6 +31,9 @@ esp8266_edges/*.log
 espnow_link/*.err
 espnow_link/*.log
 ezo_fake_bus/ezo?*.yaml
+flac_stream_changes/*.err
+flac_stream_changes/*.txt
+flac_stream_changes/media/
 gatt_uuid/*.json
 gatt_uuid/*.txt
 homeassistant_button/habtn*.yaml
