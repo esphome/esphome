@@ -1430,6 +1430,14 @@ def test_datetime_time_handle_matches_time_component() -> None:
     assert str(datetime._RealTimeClock) == str(time.RealTimeClock)
 
 
+def test_zigbee_endpoint_needs_only_zigbee() -> None:
+    """nRF52 builds load zigbee without esp32."""
+    with patch.object(CORE, "loaded_integrations", {"zigbee"}):
+        assert entity_helpers.ZIGBEE_BASE_ENTITY_SCHEMA({"endpoint": 17}) == {
+            "endpoint": 17
+        }
+
+
 def test_zigbee_entity_schema_cluster_options() -> None:
     """The cluster key only exists for esp32 + zigbee and is limited to the
     platform's options, with the first option as its default."""
