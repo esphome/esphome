@@ -26,6 +26,7 @@ esphome/components/ade7953_base/* @angelnu
 esphome/components/ade7953_i2c/* @angelnu
 esphome/components/ade7953_spi/* @angelnu
 esphome/components/ads1118/* @solomondg1
+esphome/components/ads1xxx/* @bdraco
 esphome/components/ags10/* @mak-42
 esphome/components/aic3204/* @kbx81
 esphome/components/airthings_ble/* @jeromelaban
@@ -417,6 +418,7 @@ esphome/components/media_source/* @kahrendt
 esphome/components/micro_wake_word/* @jesserockz @kahrendt
 esphome/components/micronova/* @edenhaus @jorre05
 esphome/components/microphone/* @jesserockz @kahrendt
+esphome/components/microphone_http_stream/* @mbrudka
 esphome/components/mics_4514/* @jesserockz
 esphome/components/mics_5524/* @nliaudat
 esphome/components/midea/* @dudanov
@@ -701,6 +703,7 @@ esphome/components/toshiba/* @kbx81
 esphome/components/touchscreen/* @jesserockz @nielsnl68
 esphome/components/tsl2591/* @wjcarpenter
 esphome/components/tt21100/* @kroimon
+esphome/components/tuya/* @dwmw2 @ssieb
 esphome/components/tuya/binary_sensor/* @jesserockz
 esphome/components/tuya/climate/* @jesserockz
 esphome/components/tuya/number/* @frankiboy1

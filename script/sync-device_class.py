@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 
+import importlib
 from pathlib import Path
 import re
+import sys
 
 # pylint: disable=import-error
 from homeassistant.components.binary_sensor import BinarySensorDeviceClass
@@ -15,6 +17,8 @@ from homeassistant.components.update import UpdateDeviceClass
 from homeassistant.components.valve import ValveDeviceClass
 
 # pylint: enable=import-error
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 BLOCKLIST = (
     # requires special support on HA side
@@ -34,10 +38,14 @@ DOMAINS = {
 }
 
 
-def sub(path, pattern, repl):
+def sub(path, pattern, repl, expected):
     with Path(path).open(encoding="utf-8") as handle:
         content = handle.read()
-    content = re.sub(pattern, repl, content, flags=re.MULTILINE)
+    content, count = re.subn(pattern, repl, content, flags=re.MULTILINE)
+    if count != expected:
+        raise RuntimeError(
+            f"{path}: expected {expected} DEVICE_CLASS_ blocks, found {count}"
+        )
     with Path(path).open("w", encoding="utf-8") as handle:
         handle.write(content)
 
@@ -58,7 +66,7 @@ def main():
     out = ""
     for cls in sorted(classes):
         out += f'DEVICE_CLASS_{cls.upper()} = "{classes[cls]}"\n'
-    sub("esphome/const.py", '(DEVICE_CLASS_\\w+ = "\\w*"\r?\n)+', out)
+    sub("esphome/const.py", '(DEVICE_CLASS_\\w+ = "\\w*"\r?\n)+', out, 1)
 
     for domain in sorted(allowed):
         # replace imports
@@ -66,11 +74,17 @@ def main():
         for item in sorted(allowed[domain]):
             out += f"    DEVICE_CLASS_{item.upper()},\n"
 
+        # The import list and DEVICE_CLASSES; 2+ lines skips the single class in sensor presets
         sub(
             f"esphome/components/{domain}/__init__.py",
-            "(    DEVICE_CLASS_\\w+,\r?\n)+",
+            "(    DEVICE_CLASS_\\w+,\r?\n){2,}",
             out,
+            2,
         )
+
+    # A bad rewrite can still be valid Python that prek accepts; importing the modules catches it
+    for domain in DOMAINS:
+        importlib.import_module(f"esphome.components.{domain}")
 
 
 if __name__ == "__main__":

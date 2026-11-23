@@ -14,10 +14,8 @@ static constexpr uint8_t BP1658CJ_ADDR_START_5CH = 0x30;
 static constexpr uint8_t BP1658CJ_DELAY = 2;
 
 void BP1658CJ::setup() {
-  this->data_pin_->setup();
-  this->data_pin_->digital_write(false);
-  this->clock_pin_->setup();
-  this->clock_pin_->digital_write(false);
+  setup_output_pin(this->data_pin_, false);
+  setup_output_pin(this->clock_pin_, false);
 }
 void BP1658CJ::dump_config() {
   ESP_LOGCONFIG(TAG,
@@ -68,9 +66,7 @@ void BP1658CJ::write_channel(uint8_t channel, float state) {
 void BP1658CJ::write_bit_(bool value) {
   this->data_pin_->digital_write(value);
   delayMicroseconds(BP1658CJ_DELAY);
-  this->clock_pin_->digital_write(true);
-  delayMicroseconds(BP1658CJ_DELAY);
-  this->clock_pin_->digital_write(false);
+  pulse_pin(this->clock_pin_, true, BP1658CJ_DELAY);
   delayMicroseconds(BP1658CJ_DELAY);
 }
 
@@ -81,9 +77,7 @@ void BP1658CJ::write_byte_(uint8_t data) {
 
   // ack bit
   this->data_pin_->pin_mode(gpio::FLAG_INPUT);
-  this->clock_pin_->digital_write(true);
-  delayMicroseconds(BP1658CJ_DELAY);
-  this->clock_pin_->digital_write(false);
+  pulse_pin(this->clock_pin_, true, BP1658CJ_DELAY);
   delayMicroseconds(BP1658CJ_DELAY);
   this->data_pin_->pin_mode(gpio::FLAG_OUTPUT);
 }

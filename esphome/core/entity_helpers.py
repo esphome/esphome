@@ -1122,7 +1122,6 @@ def zigbee_base_entity_schema(cluster_options: list[str] | None = None) -> cv.Sc
             ),
             cv.Optional(CONF_ENDPOINT): cv.All(
                 cv.requires_component("zigbee"),
-                cv.requires_component("esp32"),
                 cv.int_range(1, ZIGBEE_MAX_EP_NUMBER),
             ),
             cv.Optional(CONF_USE_DEVICE_TYPE): cv.All(
@@ -1157,7 +1156,11 @@ _ZIGBEE_ENTITY_CLASSES = {
         "ZigbeeBinarySensor",
         ["generic", "device_class"],
     ),
-    "sensor": (CONF_ZIGBEE_SENSOR, "ZigbeeSensor", ["generic", "device_class"]),
+    "sensor": (
+        CONF_ZIGBEE_SENSOR,
+        "ZigbeeSensor",
+        ["generic", "device_class", "power_config"],
+    ),
     "switch": (CONF_ZIGBEE_SWITCH, "ZigbeeSwitch", ["generic", "on_off"]),
     "number": (CONF_ZIGBEE_NUMBER, "ZigbeeNumber", ["generic"]),
 }

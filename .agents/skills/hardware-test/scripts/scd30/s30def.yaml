@@ -1,0 +1,4 @@
+substitutions:
+  name: s30def
+packages:
+  common: !include s30common.yaml
