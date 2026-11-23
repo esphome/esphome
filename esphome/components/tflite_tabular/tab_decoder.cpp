@@ -2,6 +2,8 @@
 
 #ifdef USE_TFLITE_MICRO_HELPER
 
+#include <cmath>
+
 #include "esphome/core/log.h"
 
 namespace esphome::tflite_tabular {
