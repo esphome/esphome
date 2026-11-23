@@ -114,8 +114,11 @@ namespace {
 // Characters, not string literals: those would sit in RAM on ESP8266.
 class DebugLine {
  public:
+  // A prefix gets at most half the line, so a frame always has room
   DebugLine(UARTDirection direction, StringRef prefix)
-      : prefix_(prefix), limit_(DEBUG_LINE_SIZE - std::min(prefix.size(), DEBUG_LINE_SIZE / 2)) {
+      : prefix_(prefix),
+        prefix_len_(std::min(prefix.size(), DEBUG_LINE_SIZE / 2)),
+        limit_(DEBUG_LINE_SIZE - prefix_len_) {
     const char arrow = direction == UART_DIRECTION_RX ? '<' : '>';
     this->append(arrow, arrow, arrow, ' ');
   }
@@ -146,11 +149,13 @@ class DebugLine {
  protected:
   void flush_() {
     static_assert(__LINE__ < 1000, "LOG_LINE_ROOM assumes the ESP_LOGD below has a 3-digit line number");
-    ESP_LOGD(TAG, "%s%.*s", this->prefix_.c_str(), static_cast<int>(this->pos_), this->buf_);
+    ESP_LOGD(TAG, "%.*s%.*s", static_cast<int>(this->prefix_len_), this->prefix_.c_str(), static_cast<int>(this->pos_),
+             this->buf_);
     this->pos_ = 0;
   }
 
   StringRef prefix_;
+  size_t prefix_len_;
   size_t limit_;
   char buf_[DEBUG_LINE_SIZE];
   size_t pos_{0};
