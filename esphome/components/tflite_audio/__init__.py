@@ -13,6 +13,7 @@ from esphome.components.tflite_micro_runtime import (
     declare_model,
     final_validate,
 )
+from esphome.components.tflite_model_io.model_reader import read_model_io
 from esphome.components.tflite_output_processor import OUTPUT_PROCESSING
 import esphome.config_validation as cv
 from esphome.const import CONF_DEBUG
@@ -57,8 +58,40 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
+def validate_model_io(model_path: Path, config: ConfigType) -> None:
+    """Reject a model whose input the streaming consumer cannot fill."""
+    try:
+        model_io = read_model_io(model_path)
+    except ValueError as err:
+        raise cv.Invalid(str(err)) from err
+    name = Path(str(model_path)).name
+    if len(model_io.inputs) != 1:
+        raise cv.Invalid(
+            f"Model '{name}' declares {len(model_io.inputs)} input tensors; a "
+            f"streaming audio model needs one"
+        )
+    spec = model_io.inputs[0]
+    if (
+        len(spec.shape) not in (3, 4)
+        or spec.shape[-1] <= 0
+        or spec.type not in ("int8", "uint8", "float32")
+    ):
+        raise cv.Invalid(
+            f"Model '{name}' declares the input {spec.type} {list(spec.shape)}; a "
+            f"streaming audio model needs [1, frames, features]"
+        )
+    if (count := config.get(CONF_FEATURE_COUNT)) is not None and count != spec.shape[
+        -1
+    ]:
+        raise cv.Invalid(
+            f"feature_count is {count}, but the model's input has "
+            f"{spec.shape[-1]} features"
+        )
+
+
 async def configure(var, config: ConfigType, model_path: Path) -> None:
     """Pass the tuning values through and leave the load to the consumer."""
+    validate_model_io(model_path, config)
     cg.add(var.set_defer_load(True))
     if (cutoff := config.get(CONF_PROBABILITY_CUTOFF)) is not None:
         cg.add(var.set_probability_cutoff(cutoff))
