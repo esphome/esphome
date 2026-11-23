@@ -844,4 +844,25 @@ static_assert(std::is_trivially_copyable_v<TriggerForwarder<>>);
 static_assert(std::is_trivially_copyable_v<TriggerOnTrueForwarder>);
 static_assert(std::is_trivially_copyable_v<TriggerOnFalseForwarder>);
 
+/// Component whose own logic decides when to run its automation: it calls fire(), which FireCallback implements.
+/// Ts is the automation's argument list; derive from FiringComponent<Ts...> instead of Component.
+template<typename... Ts> class FiringComponent : public Component {
+ public:
+  using Firing = FiringComponent;
+
+ protected:
+  virtual void fire(Ts... x) = 0;
+};
+
+/// The generated leaf for a FiringComponent base: fire() calls the automation function Fn, so the base's logic is
+/// compiled once and each automation only adds a vtable.
+template<auto Fn, class Base, class = typename Base::Firing> class FireCallback;
+template<auto Fn, class Base, typename... Ts> class FireCallback<Fn, Base, FiringComponent<Ts...>> final : public Base {
+ public:
+  using Base::Base;
+
+ protected:
+  void fire(Ts... x) override { Fn(x...); }
+};
+
 }  // namespace esphome
