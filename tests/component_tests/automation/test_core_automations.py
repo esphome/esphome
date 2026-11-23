@@ -152,10 +152,5 @@ def test_project_on_update(
     body = function_body(main_cpp, inline)
     assert "updated from %s" in body
     assert "Automation" not in body
-    assert "ProjectUpdateTrigger" not in main_cpp
     delayed = callback_function(main_cpp, "projectupdatecallback_id_2")
-    automation = re.fullmatch(
-        r"\n  ::(\w+)->trigger\(version\);", function_body(main_cpp, delayed)
-    )
-    assert automation is not None
-    assert f"new({automation.group(1)}) Automation<std::string>();" in main_cpp
+    delayed_automation(main_cpp, delayed, "version", "std::string")

@@ -81,14 +81,17 @@ def callback_function(main_cpp: str, var: str) -> str:
     return match.group(1)
 
 
-def delayed_automation(main_cpp: str, function: str) -> str:
-    """The Automation that ``function`` triggers, checked to hold a delay."""
+def delayed_automation(
+    main_cpp: str, function: str, args: str = "", types: str = ""
+) -> str:
+    """The Automation that ``function`` triggers with ``args``, checked to hold a delay."""
     match = re.fullmatch(
-        r"\n  ::(\w+)->trigger\(\);", function_body(main_cpp, function)
+        rf"\n  ::(\w+)->trigger\({re.escape(args)}\);",
+        function_body(main_cpp, function),
     )
     assert match is not None, function
     automation = match.group(1)
-    assert f"new({automation}) Automation<>();" in main_cpp
+    assert f"new({automation}) Automation<{types}>();" in main_cpp
     assert re.search(rf"{automation}->add_action\(delayaction_id\w*\);", main_cpp)
     return automation
 
