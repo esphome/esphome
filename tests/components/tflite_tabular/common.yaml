@@ -3,4 +3,4 @@
 # fixture committed next to this file, so the test needs no network.
 tflite_tabular:
   - id: test_tabular
-    model: "model.tflite"
+    model: "../../components/tflite_tabular/model.tflite"
