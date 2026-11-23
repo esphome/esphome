@@ -58,6 +58,11 @@ run() {
 }
 once() {
   local s=$1; shift; local out=$T-$s.jsonl
+  # a resumed run keeps a step whose last driver run passed; rerunning it would set its results aside as aborted
+  if [ -n "$RESUME" ] && [ -f "$out" ] &&
+    grep -E "^[0-9:]+ $s chunk [0-9]+ rc=" "marks-$T.txt" 2> /dev/null | tail -1 | grep -q ' rc=0$'; then
+    mark "skip $s (passed in the earlier run)"; return
+  fi
   mark "start $s"; cur=" $s"
   for chunk in 1 2; do
     # an earlier or aborted try is moved aside (a resumed run too), so the medians cover one run only
