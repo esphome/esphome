@@ -601,20 +601,6 @@ def _add_action_strings(index: int, strings: list[str | None]) -> MockObj:
     )
 
 
-# A nested C++ lambda with captures, such as a set_timeout callback, may keep the trigger arguments
-_CAPTURING_LAMBDA = re.compile(r"\[[^\]]+\]\s*(?:\(|\{|mutable)")
-
-
-def _has_capturing_lambda(value: Any) -> bool:
-    if isinstance(value, Lambda):
-        return _CAPTURING_LAMBDA.search(value.value) is not None
-    if isinstance(value, dict):
-        return any(_has_capturing_lambda(v) for v in value.values())
-    if isinstance(value, list):
-        return any(_has_capturing_lambda(v) for v in value)
-    return False
-
-
 @coroutine_with_priority(CoroPriority.WEB)
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
@@ -733,32 +719,21 @@ async def to_code(config: ConfigType) -> None:
     if (wizard_config := config.get(wizard.CONF_WIZARD)) is not None:
         await wizard.to_code(wizard_config)
 
-    for conf_key, define, callback_method in (
-        (
-            CONF_ON_CLIENT_CONNECTED,
-            "USE_API_CLIENT_CONNECTED_TRIGGER",
-            "set_on_client_connected_callback",
-        ),
-        (
-            CONF_ON_CLIENT_DISCONNECTED,
-            "USE_API_CLIENT_DISCONNECTED_TRIGGER",
-            "set_on_client_disconnected_callback",
-        ),
-        (
-            CONF_ON_CLIENT_SYNCED,
-            "USE_API_CLIENT_SYNCED_TRIGGER",
-            "set_on_client_synced_callback",
-        ),
+    for conf_key in (
+        CONF_ON_CLIENT_CONNECTED,
+        CONF_ON_CLIENT_DISCONNECTED,
+        CONF_ON_CLIENT_SYNCED,
     ):
         if (automation_conf := config.get(conf_key)) is not None:
-            cg.add_define(define)
-            args = [(cg.StringRef, "client_info"), (cg.StringRef, "client_address")]
-            if _has_capturing_lambda(automation_conf):
-                args = [(cg.std_string, name) for _, name in args]
+            # on_client_connected -> USE_API_CLIENT_CONNECTED_TRIGGER
+            cg.add_define(f"USE_API_{conf_key.removeprefix('on_').upper()}_TRIGGER")
             await automation.build_callback_automation(
                 var,
-                callback_method,
-                automation.owning_args(args, automation_conf),
+                f"set_{conf_key}_callback",
+                automation.owning_args(
+                    [(cg.StringRef, "client_info"), (cg.StringRef, "client_address")],
+                    automation_conf,
+                ),
                 automation_conf,
             )
 
