@@ -131,6 +131,16 @@ TEST(WeightedMeanCombination, SkipsNonFiniteStatesAndNonPositiveWeights) {
   EXPECT_FLOAT_EQ(f.run(), 20.0f);
 }
 
+TEST(WeightedMeanCombination, SkipsNonFiniteWeights) {
+  WeightedMeanFixture<3> f({10.0f, 20.0f, 30.0f}, {NAN, INFINITY, 1.0f});
+  EXPECT_FLOAT_EQ(f.run(), 30.0f);
+}
+
+TEST(WeightedMeanCombination, AvoidsFloatOverflow) {
+  WeightedMeanFixture<2> f({10.0f, 20.0f}, {1.0e38f, 1.0e38f});
+  EXPECT_FLOAT_EQ(f.run(), 15.0f);
+}
+
 TEST(WeightedMeanCombination, NoPositiveWeightIsNan) {
   WeightedMeanFixture<2> f({10.0f, 20.0f}, {0.0f, 0.0f});
   EXPECT_TRUE(std::isnan(f.run()));
