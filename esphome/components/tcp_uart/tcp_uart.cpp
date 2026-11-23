@@ -19,10 +19,6 @@ void TcpUart::set_max_connections(uint8_t count) {
   for (uint8_t i = 1; i < count; i++) {
     this->extra_.emplace_back();
   }
-  this->seen_ms_.init(count);
-  for (uint8_t i = 0; i < count; i++) {
-    this->seen_ms_.push_back(0);
-  }
   // The first search for a holder starts at slot 0.
   this->last_holder_ = count - 1;
 }
@@ -60,7 +56,7 @@ void TcpUart::dump_config() {
   if (!this->extra_.empty()) {
     ESP_LOGCONFIG(TAG,
                   "  Max Connections: %u\n"
-                  "  Turn Timeout: %" PRIu32 "ms",
+                  "  Turn Timeout: %ums",
                   this->slot_count_(), this->turn_timeout_ms_);
   }
 #endif
@@ -240,7 +236,6 @@ void TcpUart::slot_edge_(uint8_t i) {
   const bool was_up = this->up_mask_ != 0;
   if (this->slot_(i).connected()) {
     this->up_mask_ |= bit;
-    this->seen_ms_[i] = App.get_loop_component_start_time();
   } else {
     this->up_mask_ &= ~bit;
     this->pending_mask_ &= ~bit;
@@ -282,7 +277,7 @@ void TcpUart::accept_slot_(uint32_t now) {
     }
     // A connection with bytes waiting for its turn is not idle.
     const bool waiting = (this->pending_mask_ & (1u << i)) != 0 || link.ready();
-    const uint32_t idle = waiting ? 0 : now - this->seen_ms_[i];
+    const uint32_t idle = waiting ? 0 : now - link.last_io();
     if (quietest == NO_SLOT || idle > quietest_idle) {
       quietest = i;
       quietest_idle = idle;
@@ -337,7 +332,6 @@ void TcpUart::read_holder_(uint32_t now) {
   const size_t count = this->read_socket_(this->slot_(this->holder_), this->release_ ? this->rest_ : RX_BUFFER_SIZE);
   if (count != 0) {
     this->last_traffic_ms_ = now;
-    this->seen_ms_[this->holder_] = now;
     if (this->release_) {
       this->rest_ -= static_cast<uint16_t>(count);
     }
@@ -369,19 +363,12 @@ void TcpUart::write_array(const uint8_t *data, size_t len) {
   if (queued < len) {
     uint32_t now = App.get_loop_component_start_time();
     if (this->last_drop_log_ms_ == 0 || now - this->last_drop_log_ms_ >= DROP_LOG_INTERVAL_MS) {
-#ifdef USE_TCP_UART_MAX_CONNECTIONS
       // With clients open, writes find no connection before the first turn and after the last holder closed.
       ESP_LOGW(TAG, "%s, dropped %u bytes",
                link != nullptr && link->connected() ? LOG_STR_LITERAL("TX buffer full")
                : this->is_connected()               ? LOG_STR_LITERAL("No connection holds the turn")
                                                     : LOG_STR_LITERAL("Not connected"),
                static_cast<unsigned>(len - queued));
-#else
-      ESP_LOGW(
-          TAG, "%s, dropped %u bytes",
-          link != nullptr && link->connected() ? LOG_STR_LITERAL("TX buffer full") : LOG_STR_LITERAL("Not connected"),
-          static_cast<unsigned>(len - queued));
-#endif
       this->last_drop_log_ms_ = now;
     }
   }

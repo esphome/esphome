@@ -1,16 +1,12 @@
 #include <gtest/gtest.h>
 
-#include <arpa/inet.h>
 #include <csignal>
 #include <cstring>
 #include <memory>
-#include <netinet/in.h>
 #include <sys/socket.h>
 #include <unistd.h>
 
-#include "esphome/components/tcp_uart/tcp_uart.h"
-#include "esphome/core/application.h"
-#include "esphome/core/wake.h"
+#include "common.h"
 
 #ifdef USE_HOST
 
@@ -147,15 +143,7 @@ class TcpUartServer : public ::testing::Test {
  protected:
   void SetUp() override {
     signal(SIGPIPE, SIG_IGN);
-    // Find a free port for the listener.
-    int probe = ::socket(AF_INET, SOCK_STREAM, 0);
-    ASSERT_GE(probe, 0);
-    struct sockaddr_in addr = loopback(0);
-    ASSERT_EQ(::bind(probe, reinterpret_cast<struct sockaddr *>(&addr), sizeof(addr)), 0);
-    socklen_t len = sizeof(addr);
-    ASSERT_EQ(::getsockname(probe, reinterpret_cast<struct sockaddr *>(&addr), &len), 0);
-    ::close(probe);
-    this->port_ = ntohs(addr.sin_port);
+    ASSERT_NO_FATAL_FAILURE(find_free_port(&this->port_));
     this->uart_.set_server(true);
     this->uart_.set_port(this->port_);
     this->uart_.set_reconnect_interval(0);
@@ -167,25 +155,14 @@ class TcpUartServer : public ::testing::Test {
     this->close_peer();
     this->uart_.on_shutdown();
   }
-  static struct sockaddr_in loopback(uint16_t port) {
-    struct sockaddr_in addr{};
-    addr.sin_family = AF_INET;
-    addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-    addr.sin_port = htons(port);
-    return addr;
-  }
-  // One main loop pass: select() marks readable sockets, then the component runs.
+  // One main loop pass, 16 ms after the last.
   void pass() {
-    internal::wakeable_delay(5);
     this->now_ += 16;
-    LoopBlockingGuard dispatch{nullptr, nullptr, this->now_};
-    this->uart_.loop();
+    set_loop_clock(this->now_);
+    loop_pass(this->uart_);
   }
   void connect_peer() {
-    this->peer_fd_ = ::socket(AF_INET, SOCK_STREAM, 0);
-    ASSERT_GE(this->peer_fd_, 0);
-    struct sockaddr_in addr = loopback(this->port_);
-    ASSERT_EQ(::connect(this->peer_fd_, reinterpret_cast<struct sockaddr *>(&addr), sizeof(addr)), 0);
+    ASSERT_NO_FATAL_FAILURE(connect_loopback(this->port_, &this->peer_fd_));
     for (int i = 0; i < 50 && !this->uart_.is_connected(); i++)
       this->pass();
     ASSERT_TRUE(this->uart_.is_connected());
@@ -196,10 +173,9 @@ class TcpUartServer : public ::testing::Test {
       this->peer_fd_ = -1;
     }
   }
-  void send(const void *data, size_t len) { ASSERT_EQ(::write(this->peer_fd_, data, len), static_cast<ssize_t>(len)); }
+  void send(const void *data, size_t len) { send_bytes(this->peer_fd_, data, len); }
   void pass_until_available(size_t count) {
-    for (int i = 0; i < 50 && this->uart_.available() < count; i++)
-      this->pass();
+    testing::pass_until_available(this->uart_, count, [this]() { this->pass(); });
   }
 
   TcpUart uart_;
