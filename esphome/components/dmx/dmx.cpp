@@ -115,13 +115,13 @@ void DMXComponent::setup_rdm_() {
       }
     }
 
-  const char *first_name = first.channel_number ? first.channel_number->get_name().c_str() : "?";
-  ESP_LOGI(TAG, "RDM: root DMX_START_ADDRESS bound to '%s' (addr %u), %u total binding(s)", first_name,
-           first.last_address, static_cast<unsigned>(this->rdm_bindings_.size()));
-else{
-  ESP_LOGW(TAG, "RDM requested but rdm/responder.h not available in esp_dmx build");
-}
-}
+    const char *first_name = first.channel_number ? first.channel_number->get_name().c_str() : "?";
+    ESP_LOGI(TAG, "RDM: root DMX_START_ADDRESS bound to '%s' (addr %u), %u total binding(s)", first_name,
+             first.last_address, static_cast<unsigned>(this->rdm_bindings_.size()));
+    else {
+      ESP_LOGW(TAG, "RDM requested but rdm/responder.h not available in esp_dmx build");
+    }
+  }
 }
 
 void DMXComponent::sync_rdm_to_numbers_() {
@@ -462,4 +462,4 @@ void DMXLightOutput::write_state(light::LightState *state) {
   this->parent_->set_slots(this->first_channel_, values, count);
 }
 
-} // namespace esphome::dmx
+}  // namespace esphome::dmx
