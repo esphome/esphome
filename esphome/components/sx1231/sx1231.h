@@ -60,8 +60,6 @@ enum class RadioState : uint8_t {
   RADIO_STATE_IDLE,
   // A send is on air
   RADIO_STATE_TRANSMITTING,
-  // A send found a received packet waiting; loop() delivers it
-  RADIO_STATE_HOLDING_RX,
 };
 
 class SX1231Listener {
@@ -103,7 +101,7 @@ class SX1231 final : public Component,
   void set_rx_start(bool start) { this->rx_start_ = start; }
   void set_shaping(uint8_t shaping) { this->shaping_ = shaping; }
   void set_sync_value(const StaticVector<uint8_t, SX1231_MAX_SYNC_SIZE> &sync_value) { this->sync_value_ = sync_value; }
-  // Ignored while a send is on air; discards a held packet
+  // Ignored while a send is on air
   void configure();
   SX1231Error transmit_packet(const uint8_t *data, size_t len);
   SX1231Error transmit_packet(const std::vector<uint8_t> &packet) {
@@ -146,7 +144,7 @@ class SX1231 final : public Component,
   bool enter_tx_();
   bool can_change_mode_();
   void change_mode_(uint8_t mode);
-  // Puts the radio back in RX or sleep after a send or a held packet
+  // Puts the radio back in RX or sleep after a send
   bool restore_();
   // Retries configure() every second
   void fail_(const LogString *reason);

@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components.packet_transport import (
+    CONF_PING_PONG_ENABLE,
     PacketTransport,
     new_packet_transport,
     transport_schema,
@@ -12,6 +13,7 @@ from esphome.types import ConfigType
 from .. import (
     CONF_PACKET_MODE,
     CONF_PAYLOAD_LENGTH,
+    CONF_RX_START,
     CONF_SX1231_ID,
     SX1231,
     SX1231Listener,
@@ -39,6 +41,12 @@ def _final_validate(config: ConfigType) -> ConfigType:
     if radio[CONF_PAYLOAD_LENGTH] != 0:
         raise cv.Invalid(
             f"Packets vary in length, so the radio's '{CONF_PAYLOAD_LENGTH}' must be 0",
+            path=[CONF_SX1231_ID],
+        )
+    if config[CONF_PING_PONG_ENABLE] and not radio[CONF_RX_START]:
+        raise cv.Invalid(
+            f"'{CONF_PING_PONG_ENABLE}' needs packets from the providers, but the radio sleeps after sending "
+            f"unless its '{CONF_RX_START}' is true",
             path=[CONF_SX1231_ID],
         )
     return config

@@ -149,7 +149,7 @@ void SX1231::fail_(const LogString *reason) {
 }
 
 const LogString *SX1231::configure_radio_() {
-  // Until this succeeds; a held packet is discarded
+  // Until this succeeds
   this->state_ = RadioState::RADIO_STATE_NEEDS_CONFIGURATION;
   if (this->pa_pin_ == PA_PIN_BOOST) {
     this->pa_power_ = clamp(this->pa_power_, (int8_t) -2, (int8_t) 20);
@@ -296,15 +296,13 @@ SX1231Error SX1231::start_transmit_(SX1231TransmitListener *listener, const uint
     return SX1231Error::SX1231_ERROR_INVALID_PARAMS;
   }
 
+  // Checked in receive mode, as the chip clears this flag on leaving it; the packet stays in the FIFO for loop()
+  if (this->packet_waiting_()) {
+    return SX1231Error::SX1231_ERROR_BUSY;
+  }
   if (!this->set_mode_(MODE_STDBY)) {
     this->fail_(set_mode_failure());
     return SX1231Error::SX1231_ERROR_NOT_READY;
-  }
-  // A packet received before standby stays in the FIFO for loop()
-  if (this->packet_waiting_()) {
-    this->state_ = RadioState::RADIO_STATE_HOLDING_RX;
-    this->enable_loop();
-    return SX1231Error::SX1231_ERROR_BUSY;
   }
   // Drop any part of a packet that was still arriving
   this->write_register_(REG_IRQ_FLAGS2, FIFO_OVERRUN);
@@ -370,9 +368,6 @@ bool SX1231::restore_() {
 }
 
 bool SX1231::is_receiving() {
-  if (this->state_ == RadioState::RADIO_STATE_HOLDING_RX) {
-    return true;
-  }
   if (this->state_ != RadioState::RADIO_STATE_IDLE || this->dio0_pin_ == nullptr) {
     return false;
   }
@@ -402,9 +397,6 @@ void SX1231::loop() {
       this->poll_transmit_(App.get_loop_component_start_time(), result);
       return;
     }
-    case RadioState::RADIO_STATE_HOLDING_RX:
-      this->receive_();
-      return;
     case RadioState::RADIO_STATE_IDLE:
       if (this->dio0_pin_ == nullptr) {
         this->disable_loop();
@@ -426,30 +418,18 @@ void SX1231::loop() {
 }
 
 void SX1231::receive_() {
-  const bool holding = this->state_ == RadioState::RADIO_STATE_HOLDING_RX;
-  bool received = false;
-  float rssi = 0.0f;
-  if (this->packet_waiting_()) {
-    // Read first: emptying the FIFO restarts the receiver, which then measures again
-    rssi = this->read_register_(REG_RSSI_VALUE) / -2.0f;
-    uint8_t payload_length = this->applied_.payload_length;
-    if (payload_length == 0) {
-      payload_length = this->read_register_(REG_FIFO);
-    }
-    this->packet_.resize(payload_length);
-    this->read_fifo_(this->packet_);
-    received = true;
+  if (!this->packet_waiting_()) {
+    return;
   }
-  if (holding) {
-    if (this->restore_()) {
-      this->state_ = RadioState::RADIO_STATE_IDLE;
-    } else {
-      this->fail_(set_mode_failure());
-    }
+  // Read first: emptying the FIFO restarts the receiver, which then measures again
+  const float rssi = this->read_register_(REG_RSSI_VALUE) / -2.0f;
+  uint8_t payload_length = this->applied_.payload_length;
+  if (payload_length == 0) {
+    payload_length = this->read_register_(REG_FIFO);
   }
-  if (received) {
-    this->call_listeners_(this->packet_, rssi, NAN);
-  }
+  this->packet_.resize(payload_length);
+  this->read_fifo_(this->packet_);
+  this->call_listeners_(this->packet_, rssi, NAN);
 }
 
 // A signal above the RX floor that no sync word follows leaves the receiver waiting, with its gain set for that
