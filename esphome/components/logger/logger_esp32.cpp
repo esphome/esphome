@@ -107,7 +107,7 @@ static void init_uart(uart_port_t uart_num, uint32_t baud_rate, int tx_buffer_si
 
 #if !defined(CONFIG_PM_ENABLE) || SOC_UART_SUPPORT_XTAL_CLK  // the driver takes a PM lock around its ring push
 // Driver writes in progress from other tasks; one can pause between chunks with the TX interrupt off
-static std::atomic<uint8_t> other_task_uart_writes{0};  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static std::atomic<uint32_t> other_task_uart_writes{0};  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 #endif
 
 void write_uart_line(uart_port_t uart_num, const char *msg, size_t len, bool main_task) {
@@ -122,8 +122,13 @@ void write_uart_line(uart_port_t uart_num, const char *msg, size_t len, bool mai
     other_task_uart_writes.fetch_sub(1);
     return;
   }
-  static portMUX_TYPE lock = portMUX_INITIALIZER_UNLOCKED;
   uart_dev_t *hw = UART_LL_GET_HW(uart_num);
+  // Unlocked first look: a busy driver (bursts) goes straight to it without the critical section
+  if ((uart_ll_get_intr_ena_status(hw) & UART_INTR_TXFIFO_EMPTY) != 0 || uart_ll_get_txfifo_len(hw) < len) {
+    uart_write_bytes(uart_num, msg, len);
+    return;
+  }
+  static portMUX_TYPE lock = portMUX_INITIALIZER_UNLOCKED;
   portENTER_CRITICAL(&lock);
   const bool direct = other_task_uart_writes.load() == 0 &&
                       (uart_ll_get_intr_ena_status(hw) & UART_INTR_TXFIFO_EMPTY) == 0 &&
