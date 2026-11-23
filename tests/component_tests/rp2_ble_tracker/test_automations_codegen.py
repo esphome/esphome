@@ -42,6 +42,11 @@ def test_trigger_codegen(
         main_cpp.count("::rp2_ble_tracker_rp2bletracker_id->configured_continuous());")
         == 1
     )
+    # A continuous lambda naming no trigger argument is reduced to its expression
+    assert (
+        "ble_device_base::start_scan(::rp2_ble_tracker_rp2bletracker_id, "
+        "static_cast<bool>(millis() > 0));"
+    ) in main_cpp
     assert main_cpp.count("->stop_scan();") == 1
     # scan_parameters continuous: false reaches the YAML-mode setter, not the
     # runtime override.

@@ -13,7 +13,11 @@ ESPHOME_LOG_TAG(TAG, "vbus");
 static constexpr size_t VBUS_MAX_LOG_BYTES = 64;
 static constexpr uint32_t VBUS_RX_IDLE_TIMEOUT_MS = 1500;
 
-void VBus::dump_config() { ESP_LOGCONFIG(TAG, "VBus:"); }
+void VBus::dump_config() {
+  ESP_LOGCONFIG(TAG, "VBus:");
+  for (auto *listener : this->listeners_)
+    listener->dump_child_config();
+}
 
 #ifdef USE_VBUS_SEND_ACTION
 bool VBus::request_datagram(uint16_t command, uint16_t value_id, uint32_t value, bool expect_reply) {

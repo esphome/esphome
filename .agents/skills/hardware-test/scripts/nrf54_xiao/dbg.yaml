@@ -1,0 +1,41 @@
+# Every debug entity on the XIAO nRF54LM20A, each value logged from on_value as `test: key=value`.
+substitutions:
+  name: dbgx
+esphome:
+  name: ${name}
+nrf52:
+  board: xiao_nrf54lm20a
+logger:
+  level: VERBOSE
+  hardware_uart: UART0
+debug:
+  update_interval: 10s
+text_sensor:
+  - platform: debug
+    device:
+      name: Device Info
+      on_value:
+        - lambda: 'ESP_LOGI("test", "device_info=%s", x.c_str());'
+    reset_reason:
+      id: rr
+      name: Reset Reason
+      on_value:
+        - lambda: 'ESP_LOGI("test", "reset_reason=%s", x.c_str());'
+sensor:
+  - platform: debug
+    free:
+      name: Heap Free
+      on_value:
+        - lambda: 'ESP_LOGI("test", "free=%.0f", x);'
+    block:
+      name: Heap Block
+      on_value:
+        - lambda: 'ESP_LOGI("test", "block=%.0f", x);'
+    loop_time:
+      name: Loop Time
+      on_value:
+        - lambda: 'ESP_LOGI("test", "loop_time=%.0f", x);'
+    cpu_frequency:
+      name: CPU Frequency
+      on_value:
+        - lambda: 'ESP_LOGI("test", "cpu_frequency=%.0f", x);'

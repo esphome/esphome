@@ -5,6 +5,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/progmem.h"
 
 #ifdef USE_ESP32
 #include "esp_adc/adc_cali.h"
@@ -40,7 +41,8 @@ enum class SamplingMode : uint8_t {
   MAX = 2,
 };
 
-const LogString *sampling_mode_to_str(SamplingMode mode);
+// Indexed by SamplingMode
+PROGMEM_STRING_TABLE(SamplingModeStrings, "average", "minimum", "maximum", "unknown");
 
 template<typename T> class Aggregator {
  public:

@@ -46,3 +46,12 @@ the environment). On the D1 mini the authenticated MD5 read fails
 with `Error reading MD5: -1` on dev too, and stored credentials carry over to the next flash on both builds.
 
 Results: https://github.com/esphome/esphome/pull/21556#issuecomment-6381067561
+
+## LibreTiny http_request, update and OTA (#22875)
+
+On an RTL8720C (BW15): API actions for a GET with a request header and collected headers, a POST, `otaflash`, an
+update check and install, and the heap from `lt_heap_get_free()`; a test server with a header echo, a truncated file
+option and optional TLS. Build the same config twice with `-s fwver 1.0.0` and `1.0.1` (the project version) for the
+update cases; the manifest `chipFamily` is `RTL8720C` and the image is `firmware.uf2`. Plain http passed every case,
+including updates and OTA flashes. https on the RTL8720C failed against every server (ret=-76 after ServerHelloDone,
+the client hangs up); trace the handshake with `openssl s_server -msg -state`.
