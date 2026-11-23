@@ -48,7 +48,7 @@ for i in $(seq 1 "$C"); do
     continue
   fi
   sleep 8
-  ok=0; m=0; a=0; p=0; r=-
+  ok=0; m=0; a=0; p=0; r=-; chk=0
   [ -n "$T6" ] || p=1
   while (( $(date +%s) - t0 < 120 )); do
     # a failed probe looks the name up again, in case the restart got a new address
@@ -81,7 +81,11 @@ for i in $(seq 1 "$C"); do
     if [ $p = 0 ] && [ $m = 1 ]; then
       pout=$("${PING6[@]}" -c 1 -i 1 "$T6" 2>&1) && p=1 || last="ping: ${pout##*$'\n'}"
     fi
-    [ $m$a$p = 111 ] && { ok=1; break; }
+    if [ $m$a$p = 111 ]; then
+      [ $chk = 1 ] && { ok=1; break; }
+      # the ping can go through another border router: probe the API, OMR and reset code again after it
+      chk=1; m=0; a=0
+    fi
     sleep 1
   done
   pv=-; [ -n "$T6" ] && pv=$p  # - when no TARGET6 was given

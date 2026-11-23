@@ -45,6 +45,11 @@ globals:
     type: int
     restore_value: true
     initial_value: '0'
+  # resets during a plain Wi-Fi drop step (auto_armed -2 at boot)
+  - id: drop_reset
+    type: int
+    restore_value: true
+    initial_value: '0'
 logger:
   on_message:
     - level: INFO
@@ -68,7 +73,7 @@ interval:
           if (id(auto_build) != build) {
             id(auto_build) = build;
             id(auto_step) = 0;
-            id(not_fired) = id(auto_armed) = id(crashed) = id(reset_armed) = id(bad_reboot) = 0;
+            id(not_fired) = id(auto_armed) = id(crashed) = id(reset_armed) = id(bad_reboot) = id(drop_reset) = 0;
             ESP_LOGI("hwt", "HWT auto new build, step counter reset");
           }
           // first tick after a boot with a race armed: only a mode 2 race reboots by software (safe_reboot)
@@ -80,6 +85,9 @@ interval:
             if (id(auto_armed) == -1 && why != ESP_RST_SW) {  // a planned reboot step
               ESP_LOGE("hwt", "HWT auto reboot step came back with reset reason %d", (int) why);
               id(bad_reboot)++;
+            } else if (id(auto_armed) == -2) {  // a drop step never reboots
+              ESP_LOGE("hwt", "HWT auto wifi drop step came back with reset reason %d", (int) why);
+              id(drop_reset)++;
             } else if (id(auto_armed) > 0 && !(id(auto_armed) == 2 && why == ESP_RST_SW && mark == RACE_RTC_REBOOT)) {
               if (mark == RACE_RTC_FIRED || mark == RACE_RTC_REBOOT) {
                 ESP_LOGE("hwt", "HWT auto race mode %d fired, then reset reason %d", id(auto_armed), (int) why);
@@ -99,6 +107,7 @@ interval:
             crashed->update();
             reset_armed->update();
             bad_reboot->update();
+            drop_reset->update();
             not_fired->update();
             auto_armed->update();
             global_preferences->sync();
@@ -115,11 +124,10 @@ interval:
           if (st > STEPS)
             return;
           // each Wi-Fi loss needs a fresh "Border routing started", or a failed restart passes on the old one
-          static bool wifi_was_up = false;
+          // it is logged only once Wi-Fi is connected, so clear it on every poll that sees Wi-Fi down
           const bool wifi_up = wifi::global_wifi_component->is_connected();
-          if (wifi_was_up && !wifi_up)
+          if (!wifi_up)
             id(br_up) = false;
-          wifi_was_up = wifi_up;
           if (!(id(br_up) && wifi_up && thread_up && now - thread_up_at > 40000 && now - id(br_up_at) > 40000)) {
             if (now - id(step_at) > 300000 && now - id(br_up_at) > 300000) {
               id(step_at) = now;
@@ -138,8 +146,8 @@ interval:
           if (st == STEPS) {  // the last step has recovered
             ESP_LOGI("hwt",
                      "HWT auto done, races not fired: %d, resets after a race: %d, resets before one: %d, "
-                     "bad reboots: %d",
-                     id(not_fired), id(crashed), id(reset_armed), id(bad_reboot));
+                     "bad reboots: %d, resets during a drop: %d",
+                     id(not_fired), id(crashed), id(reset_armed), id(bad_reboot), id(drop_reset));
             return;
           }
           id(step_at) = now;
@@ -150,6 +158,10 @@ interval:
             App.safe_reboot();
           } else if (st < REBOOTS + DROPS) {
             ESP_LOGI("hwt", "HWT auto step %d wifi drop", st);
+            id(auto_armed) = -2;  // saved now, so a reset during the drop is counted at the next boot
+            auto_step->update();
+            auto_armed->update();
+            global_preferences->sync();
             id(wifi_drop).execute(30);
           } else {
             const RaceStep &r = RACE_STEPS[st - REBOOTS - DROPS];
@@ -173,5 +185,5 @@ button:
     on_press:
       - lambda: |-
           id(auto_step) = 0;
-          id(not_fired) = id(auto_armed) = id(crashed) = id(reset_armed) = id(bad_reboot) = 0;
+          id(not_fired) = id(auto_armed) = id(crashed) = id(reset_armed) = id(bad_reboot) = id(drop_reset) = 0;
           ESP_LOGI("hwt", "HWT auto step counter reset");
