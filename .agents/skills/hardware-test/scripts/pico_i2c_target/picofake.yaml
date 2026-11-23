@@ -1,0 +1,33 @@
+# Pico 2 W playing a BME280 (chip_id 0x60) or BMP280 (0x58) at 0x76 on GP4/GP5; switches its raw ADC values every 15 s.
+substitutions:
+  chip_id: "0x60"
+  name_sfx: e
+
+esphome:
+  name: picofake${name_sfx}
+  includes:
+    - picofake.hpp
+  on_boot:
+    priority: 600
+    then:
+      - lambda: picofake::start(${chip_id});
+
+rp2040:
+  board: rpipico2w
+
+logger:
+
+globals:
+  - id: phase
+    type: int
+    initial_value: "0"
+
+interval:
+  - interval: 5s
+    then:
+      - lambda: picofake::report();
+  - interval: 15s
+    then:
+      - lambda: |-
+          id(phase)++;
+          picofake::set_mode(id(phase) % 2);

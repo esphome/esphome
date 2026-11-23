@@ -228,6 +228,9 @@ void LD2450Component::dump_config() {
   ESP_LOGCONFIG(TAG, "Buttons:");
   LOG_BUTTON("  ", "FactoryReset", this->factory_reset_button_);
   LOG_BUTTON("  ", "Restart", this->restart_button_);
+#ifdef USE_LD2450_XY_UNFILTERED
+  LOG_BUTTON("  ", "XYUnfiltered", this->xy_unfiltered_button_);
+#endif
 #endif
 #ifdef LD2450_POLYGON_ZONE_COUNT
   ESP_LOGCONFIG(TAG, "Polygon Zones:");
@@ -435,7 +438,7 @@ void LD2450Component::send_set_zone_command_() {
   this->set_config_mode_(false);
 }
 
-// Check presense timeout to reset presence status
+// Check presence timeout to reset presence status
 bool LD2450Component::get_timeout_status_(uint32_t check_millis) {
   if (check_millis == 0) {
     return true;
@@ -597,8 +600,7 @@ void LD2450Component::handle_periodic_data_() {
       direction = DIRECTION_STATIONARY;
     }
     if (this->direction_dedup_[index].next(direction)) {
-      PUBLISH_STATE(this->direction_text_sensors_[index],
-                    DirectionStrings::get_progmem_str(direction, DirectionStrings::LAST_INDEX));
+      PUBLISH_STATE(this->direction_text_sensors_[index], DirectionStrings::get_progmem_str(direction));
     }
 #endif
 
@@ -1012,13 +1014,38 @@ void LD2450Component::update_target_xy_(uint8_t target, bool changed) {
     return;
   const Target &pos = this->target_info_[target];
   if (pos.x == 0 && pos.y == 0) {
-    s->publish_state(DirectionStrings::get_progmem_str(DIRECTION_NA, DirectionStrings::LAST_INDEX));
+    s->publish_state(DirectionStrings::get_progmem_str(DIRECTION_NA));
     return;
   }
   // Longest is "-32767,-32767"
   char text[16];
   const size_t len = buf_append_printf(text, sizeof(text), 0, "%d,%d", pos.x, pos.y);
   s->publish_state(text, len);
+}
+#endif
+
+#ifdef USE_LD2450_XY_UNFILTERED
+void LD2450Component::start_xy_unfiltered() {
+  // Deferred: on_raw_value may press this mid-publish, which still uses the filters
+  this->defer([this]() {
+    this->bypass_xy_filters_(true);
+    this->set_timeout(XY_UNFILTERED_TIMEOUT_ID, XY_UNFILTERED_DURATION_MS,
+                      [this]() { this->bypass_xy_filters_(false); });
+  });
+}
+
+void LD2450Component::bypass_xy_filters_(bool bypass) {
+  for (uint8_t i = 0; i < MAX_TARGETS; i++) {
+    text_sensor::TextSensor *s = this->target_xy_text_sensors_[i];
+    if (s == nullptr)
+      continue;
+    if (!bypass) {
+      s->attach_filters(this->xy_filters_[i]);
+      this->xy_filters_[i] = nullptr;
+    } else if (this->xy_filters_[i] == nullptr) {
+      this->xy_filters_[i] = s->detach_filters();
+    }
+  }
 }
 #endif
 

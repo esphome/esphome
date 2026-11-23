@@ -12,7 +12,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from esphome import final_validate as fv
+from esphome import cpp_generator, final_validate as fv
 import esphome.codegen as cg
 from esphome.components import (
     button,
@@ -1430,6 +1430,14 @@ def test_datetime_time_handle_matches_time_component() -> None:
     assert str(datetime._RealTimeClock) == str(time.RealTimeClock)
 
 
+def test_zigbee_endpoint_needs_only_zigbee() -> None:
+    """nRF52 builds load zigbee without esp32."""
+    with patch.object(CORE, "loaded_integrations", {"zigbee"}):
+        assert entity_helpers.ZIGBEE_BASE_ENTITY_SCHEMA({"endpoint": 17}) == {
+            "endpoint": 17
+        }
+
+
 def test_zigbee_entity_schema_cluster_options() -> None:
     """The cluster key only exists for esp32 + zigbee and is limited to the
     platform's options, with the first option as its default."""
@@ -1550,6 +1558,15 @@ def test_convert_visual_temperatures(
     convert_visual_temperatures({"visual": {}}, delta_keys, delta_section)
 
 
+def test_convert_visual_temperatures_without_a_visual_section() -> None:
+    """A platform entry that only holds nested entities has no visual section and is left alone."""
+    nested = {"visual": {"min_temperature": (50.0, "°F")}}
+    config = {"zone_1": nested}
+
+    assert convert_visual_temperatures(config, ("step",)) is config
+    assert nested["visual"]["min_temperature"] == (50.0, "°F")
+
+
 @pytest.mark.asyncio
 async def test_setup_entity_integrations_registers_mqtt_and_web_server(
     monkeypatch: pytest.MonkeyPatch, setup_test_environment: list[str]
@@ -1602,7 +1619,7 @@ def apply_functions(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, str, str
         emitted.append((name, params, "\n".join(body)))
         return RawExpression(name)
 
-    monkeypatch.setattr(entity_helpers.cg, "static_function", fake_static_function)
+    monkeypatch.setattr(cpp_generator, "static_function", fake_static_function)
     CORE.data.pop(entity_helpers._APPLY_DOMAIN, None)
     return emitted
 

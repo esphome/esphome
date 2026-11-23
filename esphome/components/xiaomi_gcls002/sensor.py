@@ -7,13 +7,11 @@ from esphome.const import (
     CONF_MAC_ADDRESS,
     CONF_MOISTURE,
     CONF_TEMPERATURE,
-    DEVICE_CLASS_ILLUMINANCE,
-    DEVICE_CLASS_TEMPERATURE,
+    DEVICE_CLASS_CONDUCTIVITY,
+    DEVICE_CLASS_MOISTURE,
     ICON_FLOWER,
     ICON_WATER_PERCENT,
     STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS,
-    UNIT_LUX,
     UNIT_MICROSIEMENS_PER_CENTIMETER,
     UNIT_PERCENT,
 )
@@ -22,9 +20,7 @@ from esphome.types import ConfigType
 AUTO_LOAD = ["ble_device_base", "xiaomi_ble"]
 
 xiaomi_gcls002_ns = cg.esphome_ns.namespace("xiaomi_gcls002")
-XiaomiGCLS002 = xiaomi_gcls002_ns.class_(
-    "XiaomiGCLS002", xiaomi_ble.XiaomiDevice, cg.Component
-)
+XiaomiGCLS002 = xiaomi_gcls002_ns.class_("XiaomiGCLS002", xiaomi_ble.XiaomiDevice)
 
 CONFIG_SCHEMA = cv.All(
     ble_device_base.rename_legacy_hub_id("xiaomi_gcls002"),
@@ -33,38 +29,32 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): cv.declare_id(XiaomiGCLS002),
             cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_CELSIUS,
-                accuracy_decimals=1,
-                device_class=DEVICE_CLASS_TEMPERATURE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.TEMPERATURE
             ),
             cv.Optional(CONF_MOISTURE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PERCENT,
                 icon=ICON_WATER_PERCENT,
                 accuracy_decimals=0,
+                device_class=DEVICE_CLASS_MOISTURE,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_ILLUMINANCE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_LUX,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_ILLUMINANCE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.ILLUMINANCE
             ),
             cv.Optional(CONF_CONDUCTIVITY): sensor.sensor_schema(
                 unit_of_measurement=UNIT_MICROSIEMENS_PER_CENTIMETER,
                 icon=ICON_FLOWER,
                 accuracy_decimals=0,
+                device_class=DEVICE_CLASS_CONDUCTIVITY,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
         }
-    )
-    .extend(cv.COMPONENT_SCHEMA)
-    .extend(ble_device_base.BLE_DEVICE_SCHEMA),
+    ).extend(ble_device_base.BLE_DEVICE_SCHEMA),
 )
 
 
 async def to_code(config: ConfigType) -> None:
-    var = await ble_device_base.new_ble_device_component(config)
+    var = await ble_device_base.new_ble_device(config)
 
     xiaomi_ble.setup_xiaomi_device(var, config)
 

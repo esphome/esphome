@@ -32,11 +32,7 @@ struct SunGTIL2Message {
   uint8_t end[39];
 } __attribute__((packed));
 
-static const uint16_t MESSAGE_SIZE = sizeof(SunGTIL2Message);
-
-static_assert(MESSAGE_SIZE == 350, "Expected the message size to be 350 bytes");
-
-void SunGTIL2::setup() { this->rx_message_.reserve(MESSAGE_SIZE); }
+static_assert(sizeof(SunGTIL2Message) == SunGTIL2::MESSAGE_SIZE);
 
 void SunGTIL2::loop() {
   this->read_available([this](uint8_t c) { this->handle_char_(c); });
@@ -66,18 +62,12 @@ float SunGTIL2::calculate_temperature_(uint16_t adc_value) {
 }
 
 void SunGTIL2::handle_char_(uint8_t c) {
-  if (this->rx_message_.size() > 1 || c == 0x07) {
-    this->rx_message_.push_back(c);
-  } else if (!this->rx_message_.empty()) {
-    this->rx_message_.clear();
-  }
-  if (this->rx_message_.size() < MESSAGE_SIZE) {
+  const uint8_t *frame = this->reader_.feed(c);
+  if (frame == nullptr)
     return;
-  }
 
   SunGTIL2Message msg;
-  memcpy(&msg, this->rx_message_.data(), MESSAGE_SIZE);
-  this->rx_message_.clear();
+  memcpy(&msg, frame, MESSAGE_SIZE);
 
   if ((msg.end[0] != 0) || (msg.end[38] != 0x08))
     return;

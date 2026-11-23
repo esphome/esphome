@@ -1,16 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_HUMIDITY,
-    CONF_TEMPERATURE,
-    CONF_VARIANT,
-    DEVICE_CLASS_HUMIDITY,
-    DEVICE_CLASS_TEMPERATURE,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS,
-    UNIT_PERCENT,
-)
+from esphome.const import CONF_HUMIDITY, CONF_TEMPERATURE, CONF_VARIANT
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["i2c"]
@@ -26,16 +17,10 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(AHT10Component),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_CELSIUS,
-                accuracy_decimals=2,
-                device_class=DEVICE_CLASS_TEMPERATURE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.TEMPERATURE, accuracy_decimals=2
             ),
             cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(
-                unit_of_measurement=UNIT_PERCENT,
-                accuracy_decimals=2,
-                device_class=DEVICE_CLASS_HUMIDITY,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.HUMIDITY, accuracy_decimals=2
             ),
             cv.Optional(CONF_VARIANT, default="AHT10"): cv.enum(
                 AHT10_VARIANTS, upper=True

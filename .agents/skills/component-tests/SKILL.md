@@ -88,6 +88,9 @@ Components that define buses directly are flagged as "NEEDS MIGRATION" and canno
 CI build time. `!extend` and `!remove` in a `test.*.yaml` also make the component ungroupable; add a
 standalone entity with its own id instead.
 
+In a grouped test, set `i2c_id: i2c_bus`, `one_wire_id` and `motion_id` even with one candidate: a merged
+batch can add a second one ("Too many candidates"). `script/ci-custom.py` checks this.
+
 A test that needs a shared component in a particular state (`esp32_ble` security settings, an option that
 PSRAM rejects) cannot be grouped: the merged block wins and the whole batch fails. Add the component to
 `ISOLATED_COMPONENTS` in `script/analyze_component_buses.py`, or move the option to a `test-<variant>` file.

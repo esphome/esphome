@@ -12,7 +12,12 @@ from esphome.components.const import (
     CONF_DRAW_ROUNDING,
 )
 from esphome.components.display import CONF_SHOW_TEST_CARD
-from esphome.components.esp32 import VARIANT_ESP32P4, only_on_variant
+from esphome.components.esp32 import (
+    CONF_EXECUTE_FROM_PSRAM,
+    VARIANT_ESP32P4,
+    add_idf_sdkconfig_option,
+    only_on_variant,
+)
 from esphome.components.mipi import (
     COLOR_ORDERS,
     CONF_COLOR_DEPTH,
@@ -38,10 +43,12 @@ from esphome.components.mipi import (
 )
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_ADVANCED,
     CONF_AUTO_CLEAR_ENABLED,
     CONF_COLOR_ORDER,
     CONF_DIMENSIONS,
     CONF_ENABLE_PIN,
+    CONF_FRAMEWORK,
     CONF_ID,
     CONF_INIT_SEQUENCE,
     CONF_INVERT_COLORS,
@@ -50,7 +57,9 @@ from esphome.const import (
     CONF_ROTATION,
     CONF_TRANSFORM,
     CONF_WIDTH,
+    KEY_ESP32,
 )
+from esphome.core import CORE
 from esphome.final_validate import full_config
 from esphome.types import ConfigType
 
@@ -187,6 +196,13 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config: ConfigType) -> None:
+    # While flash is written (NVS, OTA) the cache is off; a DSI interrupt that waits for it makes the
+    # panel miss a frame, seen as a white flash. Code run from PSRAM does not wait for the flash.
+    if not CORE.config[KEY_ESP32][CONF_FRAMEWORK][CONF_ADVANCED][
+        CONF_EXECUTE_FROM_PSRAM
+    ]:
+        add_idf_sdkconfig_option("CONFIG_LCD_DSI_ISR_CACHE_SAFE", True)
+
     model = MODELS[config[CONF_MODEL].upper()]
     color_depth = COLOR_DEPTHS[get_color_depth(config)]
     pixel_mode = int(config[CONF_PIXEL_MODE].removesuffix("bit"))
