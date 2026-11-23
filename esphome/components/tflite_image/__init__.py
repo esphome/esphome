@@ -85,6 +85,10 @@ def resolve_image_config(entry: ConfigType, model_path: Path) -> ConfigType:
         model_io = read_model_io(model_path)
     except ValueError as err:
         raise cv.Invalid(str(err)) from err
+    if not model_io.outputs:
+        raise cv.Invalid(
+            f"Model '{Path(str(model_path)).name}' declares no output tensor"
+        )
     if (
         len(model_io.inputs) != 1
         or len(model_io.inputs[0].shape) != 4
