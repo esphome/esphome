@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 #include "esphome/core/automation.h"
@@ -57,7 +58,7 @@ TEST(FireCallback, PassesSeveralArgumentsConverted) {
 }
 
 // A buffer passed by reference and small value types are accepted
-static_assert(sizeof(FiringComponent<const std::vector<uint8_t> &, StringRef, float>) > 0);
+static_assert(std::is_abstract_v<FiringComponent<const std::vector<uint8_t> &, StringRef, float>>);
 
 // The leaf adds no data to its base
 static_assert(sizeof(FireCallback<on_value, ValueBase>) == sizeof(ValueBase));
