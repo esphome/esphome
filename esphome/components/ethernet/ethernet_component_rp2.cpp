@@ -27,6 +27,7 @@ void EthernetComponent::setup() {
   // SPI pin config is skipped; Wiznet6300lwIPFixed (needsSPI()=false)
   // prevents LwipIntfDev::begin() from calling SPI.begin().
 
+#ifdef USE_ETHERNET_SPI
   // Toggle reset pin if configured
   if (this->reset_pin_ >= 0) {
     rp2::RP2GPIOPin reset_pin;
@@ -39,8 +40,9 @@ void EthernetComponent::setup() {
     // W5100S needs 150ms for PLL lock; W5500/ENC28J60 need ~10ms
     delay(RESET_DELAY_MS);  // NOLINT
   }
+#endif
 
-  // Create the SPI Ethernet device instance
+  // Create the Ethernet device instance
 #if defined(USE_ETHERNET_W5500)
   this->eth_ = new Wiznet5500lwIP(this->cs_pin_, SPI, this->interrupt_pin_);  // NOLINT
 #elif defined(USE_ETHERNET_W5100)

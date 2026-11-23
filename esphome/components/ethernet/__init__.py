@@ -204,11 +204,12 @@ _ALWAYS_EXTERNAL_IDF_COMPONENTS = {"LAN8670", "ENC28J60", "CH390"}
 
 # ESP32-only SPI ethernet types (W5100 is RP2040-only, no ESP-IDF driver)
 SPI_ETHERNET_TYPES = {"W5500", "DM9051", "ENC28J60", "CH390", "KSZ8851SNL"}
-# RP2-supported ethernet types (SPI and PIO QSPI). Applies to the whole
-# RP2 family (RP2040 and RP2350); the chip-specific W5100 caveat in the
-# comment above is about ESP-IDF driver coverage, not the RP2 platform.
+# RP2 SPI and PIO QSPI ethernet types. Applies to the whole RP2 family
+# (RP2040 and RP2350); the chip-specific W5100 caveat in the comment above
+# is about ESP-IDF driver coverage, not the RP2 platform.
 RP2_ETHERNET_TYPES = {"W5100", "W5500", "W6100", "W6300", "ENC28J60"}
-RP2_USB_ETHERNET_TYPES = {"USB"}
+# Every type RP2 accepts, including USB NCM
+_RP2_ALL_ETHERNET_TYPES = RP2_ETHERNET_TYPES | {"USB"}
 _RP2_ETHERNET_LIBRARIES = {
     "W5100": "lwIP_w5100",
     "W5500": "lwIP_w5500",
@@ -398,12 +399,9 @@ def _validate(config: ConfigType) -> ConfigType:
                     f"{config[CONF_TYPE]} PHY requires RMII interface and is only supported "
                     f"on ESP32 classic and ESP32-P4, not {variant}"
                 )
-    elif (
-        CORE.is_rp2
-        and config[CONF_TYPE] not in RP2_ETHERNET_TYPES | RP2_USB_ETHERNET_TYPES
-    ):
+    elif CORE.is_rp2 and config[CONF_TYPE] not in _RP2_ALL_ETHERNET_TYPES:
         raise cv.Invalid(
-            f"Only {', '.join(sorted(RP2_ETHERNET_TYPES | RP2_USB_ETHERNET_TYPES))} are supported on the RP2 "
+            f"Only {', '.join(sorted(_RP2_ALL_ETHERNET_TYPES))} are supported on the RP2 "
             f"platform, not {config[CONF_TYPE]}"
         )
     return config
