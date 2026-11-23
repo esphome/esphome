@@ -29,16 +29,16 @@ void SPA06Component::dump_config() {
     ESP_LOGCONFIG(TAG,
                   "  Oversampling: %s\n"
                   "  Rate: %s",
-                  LOG_STR_ARG(oversampling_to_str(this->temperature_oversampling_)),
-                  LOG_STR_ARG(meas_rate_to_str(this->temperature_rate_)));
+                  LOG_STR_ARG(OversamplingStrings::get_log_str(this->temperature_oversampling_)),
+                  LOG_STR_ARG(MeasRateStrings::get_log_str(this->temperature_rate_)));
   }
   if (this->pressure_sensor_) {
     LOG_SENSOR("  ", "Pressure", this->pressure_sensor_);
     ESP_LOGCONFIG(TAG,
                   "  Oversampling: %s\n"
                   "  Rate: %s",
-                  LOG_STR_ARG(oversampling_to_str(this->pressure_oversampling_)),
-                  LOG_STR_ARG(meas_rate_to_str(this->pressure_rate_)));
+                  LOG_STR_ARG(OversamplingStrings::get_log_str(this->pressure_oversampling_)),
+                  LOG_STR_ARG(MeasRateStrings::get_log_str(this->pressure_rate_)));
   }
 }
 

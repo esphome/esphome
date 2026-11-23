@@ -1,0 +1,21 @@
+esphome:
+  name: otbr-ethernet-no-wifi
+
+esp32:
+  board: esp32-c6-devkitc-1
+  framework:
+    type: esp-idf
+
+ethernet:
+  type: W5500
+  clk_pin: 6
+  mosi_pin: 7
+  miso_pin: 2
+  cs_pin: 19
+  interrupt_pin: 20
+  reset_pin: 21
+
+openthread:
+  border_router:
+    backbone: ethernet
+  tlv: 0e080000000000010000000300001435060004001fffe0

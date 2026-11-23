@@ -14,10 +14,7 @@ static const size_t MAX_TOUCHES = 3;
 void GSL3670Touchscreen::setup() {
   ESP_LOGCONFIG(TAG, "Setting up GSL3670 touchscreen...");
 
-  if (this->reset_pin_ != nullptr) {
-    this->reset_pin_->setup();
-    this->reset_pin_->digital_write(true);
-  }
+  setup_output_pin(this->reset_pin_, true);
 
   if (this->interrupt_pin_ != nullptr) {
     this->interrupt_pin_->setup();

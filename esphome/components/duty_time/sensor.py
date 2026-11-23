@@ -8,11 +8,9 @@ from esphome.const import (
     CONF_RESTORE,
     CONF_SENSOR,
     CONF_VALUE,
-    DEVICE_CLASS_DURATION,
     ENTITY_CATEGORY_DIAGNOSTIC,
     STATE_CLASS_TOTAL,
     STATE_CLASS_TOTAL_INCREASING,
-    UNIT_SECOND,
 )
 from esphome.core import TimePeriod
 from esphome.types import ConfigType
@@ -28,11 +26,10 @@ DutyTimeSensor = duty_time_sensor_ns.class_(
 CONFIG_SCHEMA = cv.All(
     sensor.sensor_schema(
         DutyTimeSensor,
-        unit_of_measurement=UNIT_SECOND,
+        kind=sensor.DURATION_S,
         icon="mdi:timer-play-outline",
         accuracy_decimals=3,
         state_class=STATE_CLASS_TOTAL_INCREASING,
-        device_class=DEVICE_CLASS_DURATION,
         entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
     )
     .extend(
@@ -41,11 +38,10 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_LAMBDA): cv.lambda_,
             cv.Optional(CONF_RESTORE, default=False): cv.boolean,
             cv.Optional(CONF_LAST_TIME): sensor.sensor_schema(
-                unit_of_measurement=UNIT_SECOND,
+                kind=sensor.DURATION_S,
                 icon="mdi:timer-marker-outline",
                 accuracy_decimals=3,
                 state_class=STATE_CLASS_TOTAL,
-                device_class=DEVICE_CLASS_DURATION,
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
         }

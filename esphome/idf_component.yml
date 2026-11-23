@@ -10,7 +10,7 @@ dependencies:
   esphome/micro-decoder:
     version: 0.4.0
   esphome/micro-flac:
-    version: 0.3.0
+    version: 0.3.2
   esphome/micro-mp3:
     version: 0.4.0
   esphome/micro-opus:
@@ -119,7 +119,7 @@ dependencies:
     version: 3.4.91
   # sendspin is ESP-IDF only (it needs noise-c as an ESP-IDF component, see below)
   sendspin/sendspin-cpp:
-    version: 0.9.3
+    version: 0.10.0
     rules:
       - if: "$ESPHOME_ARDUINO_COMPONENT == 0"
   lvgl/lvgl:
