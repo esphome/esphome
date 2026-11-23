@@ -125,16 +125,12 @@ class TcpClientLink : public TcpClientLinkBase {
 };
 
 /// A link whose outgoing buffer belongs to its owner, so several links can share one.
-/// Only one of them may hold bytes: the owner queues to another only after flush_tx() emptied the last.
+/// tx holds TX_BUFFER_SIZE bytes. Only one link may hold bytes in it: the owner queues to another only after
+/// flush_tx() emptied the last.
 class TcpClientLinkSharedTx : public TcpClientLinkBase {
  public:
-  /// buf holds TX_BUFFER_SIZE bytes and outlives the link. Call before the link connects.
-  void set_tx_buffer(uint8_t *buf) { this->tx_ = buf; }
-  size_t queue(const uint8_t *data, size_t len) { return this->queue_(this->tx_, data, len); }
-  bool flush_tx() { return this->flush_tx_(this->tx_); }
-
- protected:
-  uint8_t *tx_{nullptr};
+  size_t queue(uint8_t *tx, const uint8_t *data, size_t len) { return this->queue_(tx, data, len); }
+  bool flush_tx(uint8_t *tx) { return this->flush_tx_(tx); }
 };
 
 }  // namespace esphome::socket

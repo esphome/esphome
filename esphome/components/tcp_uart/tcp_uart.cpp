@@ -13,8 +13,7 @@ ESPHOME_LOG_TAG(TAG, "tcp_uart");
 
 static constexpr uint32_t DROP_LOG_INTERVAL_MS = 5000;
 #ifdef USE_TCP_UART_MAX_CONNECTIONS
-// A client whose reply takes no byte this long while another client waits is closed. Longer than a few Wi-Fi
-// retransmissions, which can stall the send for seconds.
+// Longer than a few Wi-Fi retransmissions, which can stall the send for seconds.
 static constexpr uint32_t TX_STALL_TIMEOUT_MS = 5000;
 #endif
 
@@ -22,10 +21,8 @@ static constexpr uint32_t TX_STALL_TIMEOUT_MS = 5000;
 void TcpUart::set_max_connections(uint8_t count) {
   this->extra_.init(count - 1);
   for (uint8_t i = 1; i < count; i++) {
-    this->extra_.emplace_back().set_tx_buffer(this->tx_);
+    this->extra_.emplace_back();
   }
-  // The first search for a holder starts at slot 0.
-  this->last_holder_ = count - 1;
 }
 #endif
 
@@ -160,7 +157,7 @@ size_t TcpUart::read_socket_(Link &link, size_t limit) {
 void TcpUart::loop() {
 #ifdef USE_TCP_UART_MAX_CONNECTIONS
   if (!this->extra_.empty()) {
-    // Inline until a client connects.
+    // Nothing to do with no client and none waiting.
     bool waiting = this->listener_.poll_listen(this->link_, this->slot_count_());
     if (waiting || this->up_mask_ != 0) {
       this->loop_pool_(waiting);
@@ -188,7 +185,7 @@ void TcpUart::loop() {
   if (this->rx_pending_ || this->link_.ready()) {
     this->read_socket_(this->link_);
   }
-  this->link_.flush_tx();
+  this->flush_link_(this->link_);
   if (this->held_) {
     // The peer waits for its reply.
     this->link_.note_io();
@@ -224,7 +221,7 @@ void TcpUart::loop_pool_(bool waiting) {
   }
   for (uint8_t i = 0; i < count; i++) {
     Link &link = this->slot_(i);
-    link.flush_tx();
+    this->flush_link_(link);
     // Bytes still waiting in its socket, for their turn or for room, are not a quiet peer. Nor is a held turn's peer:
     // it waits for its reply.
     const bool busy =
@@ -304,7 +301,6 @@ void TcpUart::accept_slot_(uint32_t now) {
 }
 
 void TcpUart::pick_holder_(uint32_t now) {
-  // The connections share one TX buffer: the turn moves once the last holder's reply has left it.
   if (this->tx_slot_ != NO_SLOT && !this->tx_drained_(now)) {
     return;
   }
@@ -338,7 +334,7 @@ void TcpUart::pick_holder_(uint32_t now) {
 
 bool TcpUart::tx_drained_(uint32_t now) {
   Link &link = this->slot_(this->tx_slot_);
-  if (link.flush_tx()) {
+  if (this->flush_link_(link)) {
     // Bytes that reach the last holder after the buffer emptied get a stall clock of their own.
     this->tx_moved_ms_ = now;
     return true;
@@ -396,7 +392,7 @@ void TcpUart::end_turn_(uint32_t now) {
 
 void TcpUart::write_array(const uint8_t *data, size_t len) {
   Link *link = this->tx_link_();
-  size_t queued = link != nullptr ? link->queue(data, len) : 0;
+  size_t queued = link != nullptr ? this->queue_link_(*link, data, len) : 0;
 #ifdef USE_TCP_UART_MAX_CONNECTIONS
   if (queued != 0 && this->holder_ != NO_SLOT) {
     this->last_traffic_ms_ = App.get_loop_component_start_time();
@@ -438,7 +434,7 @@ uart::UARTFlushResult TcpUart::flush() {
   if (link == nullptr) {
     return uart::UARTFlushResult::UART_FLUSH_RESULT_FAILED;
   }
-  bool emptied = link->flush_tx();
+  bool emptied = this->flush_link_(*link);
   if (!link->connected()) {
     // A down link cannot have delivered anything, whether this flush dropped
     // it or an earlier loop() write did.

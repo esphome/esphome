@@ -31,12 +31,7 @@ class TcpUart : public uart::UARTComponent, public Component {
 #endif
 
  public:
-  TcpUart() {
-    this->rx_buffer_size_ = RX_BUFFER_SIZE;
-#ifdef USE_TCP_UART_MAX_CONNECTIONS
-    this->link_.set_tx_buffer(this->tx_);
-#endif
-  }
+  TcpUart() { this->rx_buffer_size_ = RX_BUFFER_SIZE; }
 
   void set_host(const char *host) { this->link_.set_host(host); }
   void set_port(uint16_t port) { this->link_.set_port(port); }
@@ -112,6 +107,13 @@ class TcpUart : public uart::UARTComponent, public Component {
   size_t read_socket_(Link &link, size_t limit = RX_BUFFER_SIZE);
   void publish_connected_(bool up);
   void count_disconnect_();
+#ifdef USE_TCP_UART_MAX_CONNECTIONS
+  size_t queue_link_(Link &link, const uint8_t *data, size_t len) { return link.queue(this->tx_, data, len); }
+  bool flush_link_(Link &link) { return link.flush_tx(this->tx_); }
+#else
+  size_t queue_link_(Link &link, const uint8_t *data, size_t len) { return link.queue(data, len); }
+  bool flush_link_(Link &link) { return link.flush_tx(); }
+#endif
   /// The connection that writes go to, or nullptr.
   Link *tx_link_() {
 #ifdef USE_TCP_UART_MAX_CONNECTIONS
