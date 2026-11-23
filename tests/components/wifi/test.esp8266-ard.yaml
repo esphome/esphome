@@ -14,9 +14,5 @@ wifi:
   on_ap_stop:
     - logger.log: "WiFi AP stopped!"
 
-# AP plus OTA compiles the listener that holds STA retries during an upload
-ota:
-  - platform: esphome
-
 packages:
   - !include common.yaml
