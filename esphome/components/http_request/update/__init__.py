@@ -16,7 +16,7 @@ HttpRequestUpdate = http_request_ns.class_(
 )
 
 CONF_OTA_ID = "ota_id"
-CONF_ALLOW_FORCED_UPDATE = "allow_forced_update"
+CONF_ALLOW_AUTO_INSTALL = "allow_auto_install"
 
 CONFIG_SCHEMA = (
     update.update_schema(HttpRequestUpdate)
@@ -25,7 +25,7 @@ CONFIG_SCHEMA = (
             cv.GenerateID(CONF_OTA_ID): cv.use_id(OtaHttpRequestComponent),
             cv.GenerateID(CONF_HTTP_REQUEST_ID): cv.use_id(HttpRequestComponent),
             cv.Required(CONF_SOURCE): cv.url,
-            cv.Optional(CONF_ALLOW_FORCED_UPDATE, default=False): cv.boolean,
+            cv.Optional(CONF_ALLOW_AUTO_INSTALL, default=False): cv.boolean,
         }
     )
     .extend(cv.polling_component_schema("6h"))
@@ -37,7 +37,7 @@ async def to_code(config: ConfigType) -> None:
     await cg.add_variable(var.set_ota_parent, config[CONF_OTA_ID])
     await cg.add_variable(var.set_request_parent, config[CONF_HTTP_REQUEST_ID])
 
-    cg.add(var.set_allow_forced_update(config[CONF_ALLOW_FORCED_UPDATE]))
+    cg.add(var.set_allow_auto_install(config[CONF_ALLOW_AUTO_INSTALL]))
     cg.add(var.set_source_url_static(config[CONF_SOURCE]))
 
     ota.request_ota_state_listeners()

@@ -27,7 +27,7 @@ struct TaskResult {
   update::UpdateInfo info;
   const LogString *error_str{nullptr};  // set on failure, nullptr on success
   bool owns_source_url{false};          // the check holds the buffer until it ends, see begin_check_()
-  bool force_update{false};             // the manifest asked for the update to install on its own
+  bool auto_install{false};             // the manifest asked for the update to install on its own
 };
 
 class HttpRequestUpdate final : public update::UpdateEntity, public PollingComponent, public ota::OTAStateListener {
@@ -55,7 +55,7 @@ class HttpRequestUpdate final : public update::UpdateEntity, public PollingCompo
   void set_request_parent(HttpRequestComponent *request_parent) { this->request_parent_ = request_parent; }
   void set_ota_parent(OtaHttpRequestComponent *ota_parent) { this->ota_parent_ = ota_parent; }
   /// Codegen: whether a manifest may request an update without user interaction.
-  void set_allow_forced_update(bool allow) { this->allow_forced_update_ = allow; }
+  void set_allow_auto_install(bool allow) { this->allow_auto_install_ = allow; }
 
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
 
@@ -69,10 +69,10 @@ class HttpRequestUpdate final : public update::UpdateEntity, public PollingCompo
 #ifdef USE_ESP32
   TaskResult *task_result_{nullptr};  // set while a check runs on the update task
 #endif
-  ESPPreferenceObject forced_version_pref_;  // holds the version the last forced install finished
-  uint32_t forced_version_hash_{0};          // version the running forced install started, 0 when none
+  ESPPreferenceObject auto_install_version_pref_;  // holds the version of the last auto install
+  uint32_t auto_install_version_hash_{0};          // version the running auto install started, 0 when none
   uint8_t initial_check_remaining_{0};
-  bool allow_forced_update_{false};  // a manifest may start the update on its own
+  bool allow_auto_install_{false};  // a manifest may start the update on its own
 
  private:
   friend class testing::HttpRequestUpdateTest;

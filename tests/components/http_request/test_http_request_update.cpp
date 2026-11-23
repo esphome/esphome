@@ -54,7 +54,7 @@ class HttpRequestUpdateTest : public ::testing::Test {
 
   // One finished check: what the configuration allows, what the manifest asks, and the versions.
   struct Check {
-    bool allow_force;
+    bool allow_auto_install;
     bool manifest_asks;
     const char *current;
     const char *latest;
@@ -65,11 +65,11 @@ class HttpRequestUpdateTest : public ::testing::Test {
     HttpRequestUpdate update;
     OtaHttpRequestComponent ota;
     update.set_ota_parent(&ota);
-    update.set_allow_forced_update(check.allow_force);
+    update.set_allow_auto_install(check.allow_auto_install);
     auto *result = new TaskResult();  // process_result_() takes ownership and frees it
     result->info.current_version = check.current;
     result->info.latest_version = check.latest;
-    result->force_update = check.manifest_asks;
+    result->auto_install = check.manifest_asks;
     update.process_result_(result);
     // The deferred flash stops on the empty firmware URL, but must not outlive the update object.
     App.scheduler.call(millis());
@@ -170,19 +170,23 @@ TEST_F(HttpRequestUpdateTest, ConfigLiteralDuringACheckIsNeverFreed) {
   EXPECT_STREQ(update.get_source_url(), "http://example.invalid/runtime-manifest.json");
 }
 
-TEST_F(HttpRequestUpdateTest, ForcedInstallFollowsAllowAndVersionChecks) {
-  // Forced installs are opt-in: the default leaves the update for the user.
-  EXPECT_EQ(state_after_check({.allow_force = false, .manifest_asks = true, .current = "1.0.0", .latest = "1.1.0"}),
-            update::UPDATE_STATE_AVAILABLE);
+TEST_F(HttpRequestUpdateTest, AutoInstallFollowsAllowAndVersionChecks) {
+  // Auto installs are opt-in: the default leaves the update for the user.
+  EXPECT_EQ(
+      state_after_check({.allow_auto_install = false, .manifest_asks = true, .current = "1.0.0", .latest = "1.1.0"}),
+      update::UPDATE_STATE_AVAILABLE);
   // A manifest that does not ask is not installed on its own.
-  EXPECT_EQ(state_after_check({.allow_force = true, .manifest_asks = false, .current = "1.0.0", .latest = "1.1.0"}),
-            update::UPDATE_STATE_AVAILABLE);
+  EXPECT_EQ(
+      state_after_check({.allow_auto_install = true, .manifest_asks = false, .current = "1.0.0", .latest = "1.1.0"}),
+      update::UPDATE_STATE_AVAILABLE);
   // Matching versions leave nothing to install.
-  EXPECT_EQ(state_after_check({.allow_force = true, .manifest_asks = true, .current = "1.0.0", .latest = "1.0.0"}),
-            update::UPDATE_STATE_NO_UPDATE);
+  EXPECT_EQ(
+      state_after_check({.allow_auto_install = true, .manifest_asks = true, .current = "1.0.0", .latest = "1.0.0"}),
+      update::UPDATE_STATE_NO_UPDATE);
   // Opted in and asked for: the install starts.
-  EXPECT_EQ(state_after_check({.allow_force = true, .manifest_asks = true, .current = "1.0.0", .latest = "1.1.0"}),
-            update::UPDATE_STATE_INSTALLING);
+  EXPECT_EQ(
+      state_after_check({.allow_auto_install = true, .manifest_asks = true, .current = "1.0.0", .latest = "1.1.0"}),
+      update::UPDATE_STATE_INSTALLING);
 }
 
 }  // namespace esphome::http_request::testing
