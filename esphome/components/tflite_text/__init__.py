@@ -12,6 +12,7 @@ from esphome.components.tflite_micro_runtime import (
     declare_model,
     final_validate,
 )
+from esphome.components.tflite_model_io.model_reader import read_model_io
 import esphome.config_validation as cv
 from esphome.types import ConfigType
 
@@ -46,8 +47,45 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
+def validate_model_io(model_path: Path) -> None:
+    """Reject a model whose tensors the text pipeline cannot fill."""
+    try:
+        model_io = read_model_io(model_path)
+    except ValueError as err:
+        raise cv.Invalid(str(err)) from err
+    name = Path(str(model_path)).name
+    if not 1 <= len(model_io.inputs) <= 3:
+        raise cv.Invalid(
+            f"Model '{name}' declares {len(model_io.inputs)} input tensors; a text "
+            f"model has 1 to 3"
+        )
+    for index, spec in enumerate(model_io.inputs):
+        if (
+            spec.type != "int32"
+            or len(spec.shape) != 2
+            or spec.shape[0] != 1
+            or spec.shape[1] <= 0
+        ):
+            raise cv.Invalid(
+                f"Model '{name}' input {index} is {spec.type} {list(spec.shape)}; "
+                f"a text model needs [1, length] int32 tensors"
+            )
+    if len(model_io.outputs) != 1:
+        raise cv.Invalid(
+            f"Model '{name}' declares {len(model_io.outputs)} output tensors; a "
+            f"text model needs one"
+        )
+    output = model_io.outputs[0]
+    if len(output.shape) != 2 or output.shape[0] != 1 or output.shape[1] <= 0:
+        raise cv.Invalid(
+            f"Model '{name}' declares the output {list(output.shape)}; the "
+            f"decoder needs [1, classes]"
+        )
+
+
 async def configure(var, config: ConfigType, model_path: Path) -> None:
     """Create the token pipeline and the output decoder for one model."""
+    validate_model_io(model_path)
     pipeline = cg.new_Pvariable(config[CONF_PIPELINE_ID])
     cg.add(var.set_input_pipeline(pipeline))
     decoder = cg.new_Pvariable(config[CONF_DECODER_ID])

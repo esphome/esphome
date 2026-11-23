@@ -1,7 +1,7 @@
 # ESPHome build test: the text kind is the configuration entry and
-# tflite_micro_runtime is loaded in the background. The pinned model is a build
-# fixture: this test compiles the component, its token pipeline and its decoder.
+# tflite_micro_runtime is loaded in the background. model.tflite is a tiny
+# fixture committed next to this file, so the test needs no network.
 tflite_text:
   - id: test_text
-    model: https://raw.githubusercontent.com/nliaudat/esphome_ai_component/4ca8470aba1b226071bcc3258f3b95fab08895d6/models/digit_recognizer_v24_quantized_integer_quant_uint8.tflite
+    model: "model.tflite"
     max_sequence_length: 16
