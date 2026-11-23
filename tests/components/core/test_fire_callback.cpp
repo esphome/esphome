@@ -8,10 +8,15 @@ namespace esphome::core::testing {
 
 namespace {
 
-std::vector<std::string> fired;
+std::vector<float> values;
+std::vector<std::string> texts;
+std::vector<int> counts;
 
-void on_value(const float &x) { fired.push_back("value " + std::to_string(static_cast<int>(x))); }
-void on_text(const std::string &text, const int &count) { fired.push_back(text + " " + std::to_string(count)); }
+void on_value(const float &x) { values.push_back(x); }
+void on_text(const std::string &text, const int &count) {
+  texts.push_back(text);
+  counts.push_back(count);
+}
 
 // Bases with their own logic, compiled once; they only know fire()
 class ValueBase : public FiringComponent<float> {
@@ -34,18 +39,20 @@ class TextBase : public FiringComponent<const char *, int> {
 }  // namespace
 
 TEST(FireCallback, FiresOnlyWhenTheBaseDecides) {
-  fired.clear();
+  values.clear();
   FireCallback<on_value, ValueBase> callback(10);
   callback.check(5.0f);
   callback.check(12.0f);
-  EXPECT_EQ(fired, std::vector<std::string>{"value 12"});
+  EXPECT_EQ(values, std::vector<float>{12.0f});
 }
 
 TEST(FireCallback, PassesSeveralArgumentsConverted) {
-  fired.clear();
+  texts.clear();
+  counts.clear();
   FireCallback<on_text, TextBase> callback;
   callback.announce();
-  EXPECT_EQ(fired, std::vector<std::string>{"hello 2"});
+  EXPECT_EQ(texts, std::vector<std::string>{"hello"});
+  EXPECT_EQ(counts, std::vector<int>{2});
 }
 
 // The leaf adds no data to its base
