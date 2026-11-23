@@ -265,6 +265,8 @@ void ZWaveProxy::select_uart_() {
       this->on_connection_changed_(false);
     }
     this->parent_ = candidate;
+    // A modem that was plugged in but not in use may have sent data that nothing read
+    this->discard_available();
     return;
   }
 }
