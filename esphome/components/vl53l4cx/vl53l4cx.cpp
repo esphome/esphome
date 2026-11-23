@@ -18,8 +18,8 @@ static constexpr uint16_t SENSOR_ID = 0xEBAA;
 static constexpr uint8_t MAX_FAILURES = 5;
 
 PROGMEM_STRING_TABLE(TargetStrings, "nearest", "farthest", "strongest");
-// Indexed by ST's VL53L4CX_DISTANCEMODE_* minus one
-PROGMEM_STRING_TABLE(DistanceModeStrings, "short", "medium", "long");
+// Indexed by ST's VL53L4CX_DISTANCEMODE_* from medium; the VL53L4CX has no short mode
+PROGMEM_STRING_TABLE(DistanceModeStrings, "medium", "long");
 
 VL53L4CXSensor *VL53L4CXSensor::first_sensor = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
@@ -138,8 +138,11 @@ bool VL53L4CXSensor::start_measurement_() {
 void VL53L4CXSensor::measurement_failed_(const LogString *message, VL53L4CX_Error error) {
   ESP_LOGV(TAG, "%s: error %d", LOG_STR_ARG(message), error);
   this->status_set_warning(message);
-  if (this->failures_ < MAX_FAILURES && ++this->failures_ == MAX_FAILURES)
-    this->publish_state(NAN);
+  if (this->failures_ < MAX_FAILURES) {
+    this->failures_++;
+    if (this->failures_ == MAX_FAILURES)
+      this->publish_state(NAN);
+  }
 }
 
 void VL53L4CXSensor::update() {
@@ -172,9 +175,12 @@ void VL53L4CXSensor::loop() {
   if (ready) {
     this->measuring_ = false;
     this->publish_result_();
+  } else if (error != VL53L4CX_ERROR_NONE) {
+    this->measuring_ = false;
+    this->measurement_failed_(LOG_STR("Polling data ready failed"), error);
   } else if (elapsed > this->timeout_ms_()) {
     this->measuring_ = false;
-    this->measurement_failed_(LOG_STR("Measurement timed out"), error);
+    this->measurement_failed_(LOG_STR("Measurement timed out"), VL53L4CX_ERROR_TIME_OUT);
   } else {
     return;
   }
@@ -185,13 +191,20 @@ void VL53L4CXSensor::loop() {
   this->start_measurement_();
 }
 
+static bool is_valid_range(uint8_t status) {
+  // ST's valid statuses: plain, clipped to the minimum range, the first reading (no wrap check yet), merged pulses
+  return status == VL53L4CX_RANGESTATUS_RANGE_VALID || status == VL53L4CX_RANGESTATUS_RANGE_VALID_MIN_RANGE_CLIPPED ||
+         status == VL53L4CX_RANGESTATUS_RANGE_VALID_NO_WRAP_CHECK_FAIL ||
+         status == VL53L4CX_RANGESTATUS_RANGE_VALID_MERGED_PULSE;
+}
+
 int32_t select_distance_mm(const VL53L4CX_MultiRangingData_t &data, Target target, uint16_t min_distance_mm,
                            int16_t offset_mm) {
   int32_t best_mm = -1;
   FixPoint1616_t best_signal = 0;
   for (uint8_t i = 0; i < data.NumberOfObjectsFound && i < VL53L4CX_MAX_RANGE_RESULTS; i++) {
     const VL53L4CX_TargetRangeData_t &range = data.RangeData[i];
-    if (range.RangeStatus != VL53L4CX_RANGESTATUS_RANGE_VALID)
+    if (!is_valid_range(range.RangeStatus))
       continue;
     const int32_t mm = range.RangeMilliMeter + offset_mm;
     if (mm < min_distance_mm)
@@ -233,8 +246,9 @@ void VL53L4CXSensor::dump_config() {
                 "  Target: %s\n"
                 "  Minimum Distance: %u mm\n"
                 "  Offset: %d mm",
-                LOG_STR_ARG(DistanceModeStrings::get_log_str(this->distance_mode_ - 1)), this->budget_ms_,
-                LOG_STR_ARG(TargetStrings::get_log_str(this->target_)), this->min_distance_mm_, this->offset_mm_);
+                LOG_STR_ARG(DistanceModeStrings::get_log_str(this->distance_mode_ - VL53L4CX_DISTANCEMODE_MEDIUM)),
+                this->budget_ms_, LOG_STR_ARG(TargetStrings::get_log_str(this->target_)), this->min_distance_mm_,
+                this->offset_mm_);
 }
 
 }  // namespace esphome::vl53l4cx

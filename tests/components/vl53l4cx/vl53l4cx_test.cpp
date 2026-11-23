@@ -54,6 +54,15 @@ TEST(VL53L4CXSelect, InvalidTargetsAreSkipped) {
   EXPECT_EQ(select_distance_mm(frame({}), TARGET_NEAREST, 0, 0), -1);
 }
 
+// ST reports clipped, first (no wrap check yet) and merged-pulse ranges as valid too
+TEST(VL53L4CXSelect, AllValidStatusesCount) {
+  for (uint8_t status :
+       {VL53L4CX_RANGESTATUS_RANGE_VALID_MIN_RANGE_CLIPPED, VL53L4CX_RANGESTATUS_RANGE_VALID_NO_WRAP_CHECK_FAIL,
+        VL53L4CX_RANGESTATUS_RANGE_VALID_MERGED_PULSE}) {
+    EXPECT_EQ(select_distance_mm(frame({{1500, status, 1 << 16}}), TARGET_NEAREST, 0, 0), 1500) << int(status);
+  }
+}
+
 // The offset applies before the minimum distance check
 TEST(VL53L4CXSelect, OffsetAppliesBeforeMinDistance) {
   const auto data = frame({{110, VALID, 1 << 16}});

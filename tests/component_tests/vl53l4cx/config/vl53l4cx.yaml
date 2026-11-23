@@ -28,3 +28,15 @@ sensor:
     i2c_id: i2c_bus_2
     id: defaults
     name: Defaults
+  - platform: vl53l4cx
+    i2c_id: mux_channel
+    id: muxed
+    name: Muxed
+
+tca9548a:
+  - id: mux
+    i2c_id: i2c_bus
+    address: 0x70
+    channels:
+      - bus_id: mux_channel
+        channel: 0

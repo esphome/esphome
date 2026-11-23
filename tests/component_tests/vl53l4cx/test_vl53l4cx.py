@@ -17,6 +17,8 @@ from esphome.components.vl53l4cx.sensor import (
     _unique_address,
     _warn_paced_by_budget,
     validate_address,
+    validate_distance_mode,
+    validate_timing_budget,
 )
 from esphome.const import (
     CONF_ADDRESS,
@@ -54,6 +56,20 @@ def test_readdress_needs_enable_pin() -> None:
         validate_address(_entry(0x2C, enable_pin=False))
     assert validate_address(_entry(0x2C))
     assert validate_address(_entry(0x29, enable_pin=False))
+    with pytest.raises(cv.Invalid, match="7-bit address"):
+        validate_address(_entry(0xA9))
+
+
+def test_option_limits_of_st_driver() -> None:
+    # ST's driver has no short mode on the VL53L4CX and caps the timing budget at 200 ms
+    with pytest.raises(cv.Invalid):
+        validate_distance_mode("short")
+    assert validate_distance_mode("medium") == "medium"
+    assert validate_timing_budget("200ms").total_milliseconds == 200
+    with pytest.raises(cv.Invalid):
+        validate_timing_budget("201ms")
+    with pytest.raises(cv.Invalid):
+        validate_timing_budget("9ms")
 
 
 @pytest.mark.parametrize(
@@ -174,7 +190,8 @@ def test_codegen(
         "set_offset",
     ):
         assert f"defaults->{setter}(" not in main_cpp
-    # garage is on the default 50 kHz bus, defaults on a 400 kHz one
+    # garage and the mux are on the default 50 kHz bus, defaults on a 400 kHz one. muxed sits on a channel
+    # without its own frequency, which is skipped rather than traced back to the 50 kHz bus
     slow_bus = [
         r.getMessage() for r in caplog.records if "frequency: 400kHz" in r.getMessage()
     ]
