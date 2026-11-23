@@ -45,12 +45,12 @@ def _settings(idf_target: str = "esp32", target_framework: str = "espidf") -> _S
 
 
 def test_write_tidy_project_copies_base_sdkconfig(tmp_path: Path) -> None:
-    """The shared sdkconfig.defaults is always copied; no per-target file for esp32."""
-    _write_tidy_project(tmp_path, [], {}, _settings("esp32"))
+    """The shared sdkconfig.defaults is always copied; no per-target file for esp32s2."""
+    _write_tidy_project(tmp_path, [], {}, _settings("esp32s2"))
 
     assert (tmp_path / "sdkconfig.defaults").is_file()
-    # esp32 has no sdkconfig.defaults.esp32, so nothing extra is copied.
-    assert not (tmp_path / "sdkconfig.defaults.esp32").exists()
+    # esp32s2 has no sdkconfig.defaults.esp32s2, so nothing extra is copied.
+    assert not (tmp_path / "sdkconfig.defaults.esp32s2").exists()
 
 
 def test_write_tidy_project_copies_per_target_sdkconfig(tmp_path: Path) -> None:
