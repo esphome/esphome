@@ -470,6 +470,9 @@ void ZigbeeComponent::setup() {
     return;
   }
 
+  if (this->manufacturer_code_ > 0) {
+    ezb_af_node_desc_set_manuf_code(this->manufacturer_code_);
+  }
   uint8_t power_source = static_cast<uint8_t>(this->is_battery_powered() ? EZB_AF_NODE_POWER_SOURCE_RECHARGEABLE_BATTERY
                                                                          : EZB_AF_NODE_POWER_SOURCE_CONSTANT_POWER);
   ezb_af_node_power_desc_t desc = {

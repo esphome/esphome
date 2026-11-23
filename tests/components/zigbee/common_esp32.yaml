@@ -71,6 +71,7 @@ switch:
 zigbee:
   model: zigbee_test
   manufacturer: test
+  manufacturer_code: 0x1234
   version: 1
   sleepy: true
   polling_interval: 2s

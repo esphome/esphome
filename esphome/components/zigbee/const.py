@@ -72,6 +72,7 @@ BinaryAttrs = zigbee_ns.struct("BinaryAttrs")
 AnalogAttrs = zigbee_ns.struct("AnalogAttrs")
 AnalogAttrsOutput = zigbee_ns.struct("AnalogAttrsOutput")
 
+CONF_MANUFACTURER_CODE = "manufacturer_code"
 CONF_ON_JOIN = "on_join"
 CONF_WIPE_ON_BOOT = "wipe_on_boot"
 CONF_ROUTER = "router"

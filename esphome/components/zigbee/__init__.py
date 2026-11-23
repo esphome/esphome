@@ -36,6 +36,7 @@ from esphome.types import ConfigType
 from .const import (  # noqa: F401
     CONF_CLUSTER,
     CONF_ENDPOINT,
+    CONF_MANUFACTURER_CODE,
     CONF_MAX_EP_NUMBER,
     CONF_ON_JOIN,
     CONF_POWER_SOURCE,
@@ -130,6 +131,14 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_VERSION, default=0): cv.uint8_t,
             cv.Optional(CONF_ROUTER, default=False): cv.boolean,
+            cv.Optional(
+                CONF_MANUFACTURER_CODE,
+                default=0x134B,
+                visibility=cv.Visibility.YAML_ONLY,
+            ): cv.All(
+                cv.requires_component(ESP32_DOMAIN),
+                cv.int_range(min=0x0000, max=0xFFF4),
+            ),
             cv.Optional(CONF_ON_JOIN): automation.validate_automation({}),
             cv.Optional(CONF_ON_START): automation.validate_automation({}),
             cv.OnlyWith(CONF_WIPE_ON_BOOT, "nrf52", default=False): cv.All(
