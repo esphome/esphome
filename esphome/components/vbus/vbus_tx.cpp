@@ -78,7 +78,13 @@ bool VBusTransmitter::has_time(uint32_t grant_id, uint32_t duration) const {
          duration < this->lease_duration_ms_ - RELEASE_MARGIN_MS - elapsed;
 }
 
-bool VBusTransmitter::can_send_() const {
+bool VBusTransmitter::can_send_() {
+  if (!this->receiver_->parent_->is_connected()) {
+    // Even a disconnect seen only at send time invalidates this grant.
+    this->observed_ = false;
+    this->stop_();
+    return false;
+  }
   const uint32_t now = App.get_loop_component_start_time();
   return this->observed_ && now - this->observed_at_ <= MAX_RX_AGE_MS && this->rx_fresh_ && !this->packet_pending_ &&
          !this->awaiting_reply_ && this->receiver_->state_ == 0 && !this->receiver_->available() &&
@@ -130,8 +136,10 @@ void VBusTransmitter::send_(uint16_t command, uint16_t value_id, uint32_t value,
 #endif
 }
 
-void VBusTransmitter::stop_() {
+void VBusTransmitter::stop_(bool warn_unsent) {
 #ifdef USE_VBUS_SEND_ACTION
+  if (warn_unsent && this->pending_send_ != PendingSend::NONE)
+    ESP_LOGW(TAG, "Datagram not sent: bus access lost before transmission");
   this->pending_send_ = PendingSend::NONE;
 #endif
   this->state_ = State::STATE_IDLE;
@@ -149,12 +157,13 @@ void VBusTransmitter::release_bus(uint32_t grant_id) {
 
 void VBusTransmitter::on_shutdown() {
   this->stopped_ = true;
-  this->stop_();
+  this->stop_(false);
 }
 
 void VBusTransmitter::observe_rx(size_t available) {
   const uint32_t now = App.get_loop_component_start_time();
-  const bool fresh = this->observed_ && now - this->observed_at_ <= MAX_RX_AGE_MS && available <= 32;
+  const bool connected = this->receiver_->parent_->is_connected();
+  const bool fresh = connected && this->observed_ && now - this->observed_at_ <= MAX_RX_AGE_MS && available <= 32;
   if (!fresh) {
     this->rx_fresh_ = false;
     this->packet_fresh_ = false;
@@ -164,7 +173,7 @@ void VBusTransmitter::observe_rx(size_t available) {
     // A backlog stays untrusted until a subsequent pass sees an empty RX queue.
     this->rx_fresh_ = true;
   }
-  this->observed_ = true;
+  this->observed_ = connected;
   this->observed_at_ = now;
   this->rx_unread_ = available;
 }
@@ -172,7 +181,7 @@ void VBusTransmitter::observe_rx(size_t available) {
 void VBusTransmitter::observe_byte(uint8_t byte) {
   if (this->rx_unread_ != 0)
     --this->rx_unread_;
-  if (this->state_ == State::STATE_CONTEND)
+  if (this->state_ == State::STATE_CONTEND || (this->state_ == State::STATE_CHECK_RELEASE_ECHO && (byte & 0x80)))
     this->stop_();
   if (byte == 0xaa) {
     this->packet_at_ = App.get_loop_component_start_time();
@@ -185,8 +194,15 @@ void VBusTransmitter::observe_byte(uint8_t byte) {
 }
 
 void VBusTransmitter::on_header(uint8_t protocol, uint16_t source, uint16_t destination) {
-  if (this->state_ == State::STATE_WAIT_GRANT && source == this->source_)
-    this->stop_();
+  if (this->state_ == State::STATE_WAIT_GRANT && source == this->source_) {
+    // A new request may precede the echo of the previous release. Verify that whole frame.
+    if (this->release_echo_expected_ && protocol == 0x20 && destination == this->destination_ &&
+        this->receiver_->command_ == 0x0600)
+      this->state_ = State::STATE_CHECK_RELEASE_ECHO;
+    else
+      this->stop_();
+  }
+  this->release_echo_expected_ = false;
   if (this->state_ != State::STATE_OWNED)
     return;
   const bool reply = source == this->destination_ && destination == this->source_;
@@ -199,6 +215,13 @@ void VBusTransmitter::on_datagram(uint16_t command, uint16_t source, uint16_t de
                                   uint32_t value) {
   const uint32_t now = App.get_loop_component_start_time();
   this->packet_pending_ = false;
+  if (this->state_ == State::STATE_CHECK_RELEASE_ECHO) {
+    if (value_id == 0 && value == 0 && now - this->sent_at_ <= FRAME_TIME_MS + MAX_RX_AGE_MS)
+      this->state_ = State::STATE_WAIT_GRANT;
+    else
+      this->stop_();
+    return;
+  }
   if (this->state_ == State::STATE_WAIT_GRANT && command == 0x0500 && source == this->destination_ &&
       (destination == 0 || destination == this->source_) && value_id == 0 && value == 0 && this->packet_fresh_ &&
       now - this->packet_at_ <= MAX_RX_AGE_MS && now - this->requested_at_ < GRANT_WAIT_MS &&
@@ -226,9 +249,10 @@ void VBusTransmitter::loop() {
     if (this->state_ == State::STATE_OWNED || this->state_ == State::STATE_CONTEND)
       this->stop_();
   }
-  if (this->state_ == State::STATE_WAIT_GRANT && now - this->requested_at_ >= GRANT_WAIT_MS) {
+  if ((this->state_ == State::STATE_WAIT_GRANT || this->state_ == State::STATE_CHECK_RELEASE_ECHO) &&
+      now - this->requested_at_ >= GRANT_WAIT_MS) {
     ESP_LOGW(TAG, "Bus grant timed out");
-    this->stop_();
+    this->stop_(false);
   }
   if (this->state_ != State::STATE_CONTEND && this->state_ != State::STATE_OWNED)
     return;
@@ -266,6 +290,7 @@ void VBusTransmitter::loop() {
     this->last_release_duration_ = now - this->granted_at_;
 #endif
     this->stop_();
+    this->release_echo_expected_ = true;
   }
 }
 

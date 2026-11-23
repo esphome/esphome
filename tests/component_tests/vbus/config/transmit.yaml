@@ -17,6 +17,6 @@ button:
     name: Read VBus Value
     on_press:
       - vbus.send_datagram:
-          id: test_bus
+          id: null
           command: 0x0300
           value_id: !lambda return 2;

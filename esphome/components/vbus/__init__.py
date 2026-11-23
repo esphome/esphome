@@ -16,7 +16,9 @@ from esphome.const import (
     CONF_UPDATE_INTERVAL,
     CONF_VALUE,
 )
-from esphome.core import CORE
+from esphome.core import CORE, ID
+from esphome.core.config import get_loop_interval
+import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@ssieb", "@labodj"]
@@ -70,11 +72,11 @@ CS_PLUS_SETTING_COUNT = 84
 class VBusData:
     """Action users recorded for final configuration validation."""
 
-    polling_actions: set[str] = field(default_factory=set)
-    queue_actions: set[str] = field(default_factory=set)
-    setting_actions: set[str] = field(default_factory=set)
-    transaction_actions: set[str] = field(default_factory=set)
-    tx_actions: set[str] = field(default_factory=set)
+    polling_actions: list[ID] = field(default_factory=list)
+    queue_actions: list[ID] = field(default_factory=list)
+    setting_actions: list[ID] = field(default_factory=list)
+    transaction_actions: list[ID] = field(default_factory=list)
+    tx_actions: list[ID] = field(default_factory=list)
 
 
 def _get_data() -> VBusData:
@@ -275,11 +277,11 @@ CONFIG_SCHEMA = cv.All(
 
 def final_validate(config: ConfigType) -> None:
     transmit = config.get(CONF_TRANSMIT)
-    if str(config[CONF_ID]) in _get_data().transaction_actions and (
+    if config[CONF_ID] in _get_data().transaction_actions and (
         transmit is None or CONF_TRANSACTIONS not in transmit
     ):
         raise cv.Invalid("VBus value actions require transmit.transactions on this hub")
-    if transmit is None and str(config[CONF_ID]) in _get_data().tx_actions:
+    if transmit is None and config[CONF_ID] in _get_data().tx_actions:
         raise cv.Invalid("VBus actions require transmit to be configured on this hub")
     polling = transmit is not None and CONF_POLLING in transmit.get(
         CONF_TRANSACTIONS, {}
@@ -290,23 +292,23 @@ def final_validate(config: ConfigType) -> None:
     data = _get_data()
     if controller:
         profile = transmit[CONF_TRANSACTIONS][CONF_CONTROLLER]
-        if str(profile[CONF_ID]) in data.setting_actions and CONF_WRITES not in profile:
+        if profile[CONF_ID] in data.setting_actions and CONF_WRITES not in profile:
             raise cv.Invalid(
                 "Setting actions require controller.writes on this controller"
             )
-    if controller and str(config[CONF_ID]) in data.queue_actions:
+    if controller and config[CONF_ID] in data.queue_actions:
         raise cv.Invalid("Controller owns TX; raw queue actions are not allowed")
-    if str(config[CONF_ID]) in data.queue_actions and not polling:
+    if config[CONF_ID] in data.queue_actions and not polling:
         raise cv.Invalid(
             "VBus queue actions require transmit.transactions.polling on this hub"
         )
-    if str(config[CONF_ID]) in data.polling_actions and not (polling or controller):
+    if config[CONF_ID] in data.polling_actions and not (polling or controller):
         raise cv.Invalid(
             "VBus polling actions require transmit.transactions.polling or controller on this hub"
         )
     if (polling or controller) and (
-        str(config[CONF_ID]) in data.tx_actions
-        or str(config[CONF_ID]) in data.transaction_actions
+        config[CONF_ID] in data.tx_actions
+        or config[CONF_ID] in data.transaction_actions
     ):
         if controller:
             raise cv.Invalid(
@@ -315,6 +317,27 @@ def final_validate(config: ConfigType) -> None:
         raise cv.Invalid(
             "Polling owns TX; use queue_read and queue_write instead of manual bus actions"
         )
+    if transmit is not None:
+        rx_id = config[CONF_UART_ID]
+        if uart.is_unclocked(rx_id) or uart.is_unclocked(
+            transmit.get(CONF_UART_ID, rx_id)
+        ):
+            raise cv.Invalid(
+                "VBus transmit requires RX and TX UARTs that preserve serial line timing"
+            )
+        if get_loop_interval().total_milliseconds > 50:
+            raise cv.Invalid(
+                "VBus transmit requires esphome.loop_interval of at most 50ms"
+            )
+        # A busy RX line must become visible on the first byte, even without an idle gap.
+        if (
+            CORE.is_esp32
+            and uart.CONF_RX_TIMEOUT in (rx_config := fv.get_declaring_config(rx_id))
+            and rx_config.setdefault(uart.CONF_RX_FULL_THRESHOLD, 1) != 1
+        ):
+            raise cv.Invalid(
+                "Set rx_full_threshold to 1 on the VBus receive UART when using transmit"
+            )
     same_uart = transmit is not None and (
         CONF_UART_ID not in transmit or transmit[CONF_UART_ID] == config[CONF_UART_ID]
     )
@@ -376,7 +399,7 @@ async def to_code(config: ConfigType) -> None:
             manager = cg.new_Pvariable(transactions[CONF_ID], var, tx)
             await cg.register_component(manager, transactions)
             cg.add(var.set_transactions(manager))
-            if str(config[CONF_ID]) in _get_data().transaction_actions:
+            if config[CONF_ID] in _get_data().transaction_actions:
                 cg.add_define("USE_VBUS_TRANSACTION_ACTION")
                 cg.add(manager.enable_standalone())
             cg.add(manager.set_response_timeout(transactions[CONF_RESPONSE_TIMEOUT]))
@@ -462,12 +485,12 @@ async def to_code(config: ConfigType) -> None:
                     await automation.build_callback_automation(
                         controller, "add_on_snapshot_callback", [], conf
                     )
-        if str(config[CONF_ID]) in _get_data().tx_actions:
+        if config[CONF_ID] in _get_data().tx_actions:
             cg.add_define("USE_VBUS_SEND_ACTION")
 
 
 def validate_tx_action(config: ConfigType) -> ConfigType:
-    _get_data().tx_actions.add(str(config[CONF_ID]))
+    _get_data().tx_actions.append(config[CONF_ID])
     return config
 
 
@@ -514,7 +537,7 @@ automation.register_apply_action(
 
 
 def validate_transaction_action(config: ConfigType) -> ConfigType:
-    _get_data().transaction_actions.add(str(config[CONF_ID]))
+    _get_data().transaction_actions.append(config[CONF_ID])
     return config
 
 
@@ -557,12 +580,12 @@ automation.register_apply_action(
 
 
 def validate_queue_action(config: ConfigType) -> ConfigType:
-    _get_data().queue_actions.add(str(config[CONF_ID]))
+    _get_data().queue_actions.append(config[CONF_ID])
     return config
 
 
 def validate_polling_action(config: ConfigType) -> ConfigType:
-    _get_data().polling_actions.add(str(config[CONF_ID]))
+    _get_data().polling_actions.append(config[CONF_ID])
     return config
 
 
@@ -621,7 +644,7 @@ automation.register_apply_action(
 
 
 def validate_setting_action(config: ConfigType) -> ConfigType:
-    _get_data().setting_actions.add(str(config[CONF_ID]))
+    _get_data().setting_actions.append(config[CONF_ID])
     return config
 
 
