@@ -286,9 +286,12 @@ eth_speed_t EthernetComponent::get_link_speed() {
 
 bool EthernetComponent::powerdown() {
   ESP_LOGI(TAG, "Powering down ethernet");
+#ifndef USE_ETHERNET_USB
+  // NCM end() disconnects USB; TinyUSB then panics on the next transfer before the reboot
   if (this->eth_ != nullptr) {
     this->eth_->end();
   }
+#endif
   this->connected_ = false;
   this->started_ = false;
   return true;
