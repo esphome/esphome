@@ -29,6 +29,11 @@ sensor:
   - platform: uptime
     name: Uptime
     update_interval: 2s
+  # the raw esp_reset_reason(): the debug text also says "Reboot request" after a watchdog once a source is stored
+  - platform: template
+    name: Reset Code
+    update_interval: 2s
+    lambda: 'return (float) esp_reset_reason();'
 # the reset reason tells a requested reboot ("Reboot request from ...") from a shutdown watchdog or panic
 debug:
   update_interval: never

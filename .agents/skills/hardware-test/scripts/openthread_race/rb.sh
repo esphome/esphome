@@ -66,12 +66,14 @@ for i in $(seq 1 "$C"); do
         # the result line itself, since a library warning on stderr can come after it
         res=$(grep -m1 '^omr=.* uptime=' <<< "$out")
         up=${res##*uptime=}; up=${up%%.*}
-        why=${res#*reset=}; why=${why% uptime=*}
+        why=${res#*reset=}; why=${why% code=*}
+        code=${res##*code=}; code=${code%% *}
         if ! [[ $up =~ ^[0-9]+$ ]]; then r="?"  # unreadable omr_state.py output, not a missed restart
         elif [ "$up" -ge $(( $(date +%s) - t0 )) ]; then r=0
         # a low uptime only proves a reset: a shutdown watchdog or panic is not the requested reboot
-        elif [[ $why != "Reboot request"* && $why != "software via esp_restart" ]]; then
-          r="bad_reset"; last="reset: $why"
+        # only ESP_RST_SW (3): the text also says "Reboot request" after a watchdog once a source was stored
+        elif [ "$code" != 3 ]; then
+          r="bad_reset"; last="reset: $why (code $code)"
         else m=1; r=1; fi
       fi
     fi
