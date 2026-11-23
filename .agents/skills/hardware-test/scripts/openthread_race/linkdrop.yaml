@@ -95,9 +95,13 @@ api:
                   id: link_drop
                   secs: !lambda 'return secs;'
             else:
-              - logger.log:
-                  format: "HWT drop refused: secs not 1-600, a drop still running, or the PHY stuck down"
-                  level: WARN
+              # name the condition that failed, so the log does not point at one that did not apply
+              - lambda: |-
+                  ESP_LOGW("hwt", "HWT drop refused: %s",
+                           hwt_phy_stuck                     ? "the PHY is stuck down"
+                           : id(link_drop).is_running()      ? "a drop is still running"
+                           : id(race_fire).is_running()      ? "a race is powering the PHY down"
+                                                             : "secs must be 1-600");
     - action: race
       variables:
         delay_ms: int
@@ -120,6 +124,10 @@ api:
                   id: race_timeout
                   gen: !lambda 'return id(race_gen);'
             else:
-              - logger.log:
-                  format: "HWT race refused: delay_ms not 0-10000, a drop still running, or the PHY stuck down"
-                  level: WARN
+              - lambda: |-
+                  ESP_LOGW("hwt", "HWT race refused: %s",
+                           hwt_phy_stuck                     ? "the PHY is stuck down"
+                           : id(link_drop).is_running()      ? "a drop is still running"
+                           : id(race_delay) >= 0             ? "an earlier race is still armed"
+                           : id(race_fire).is_running()      ? "an earlier race is still firing"
+                                                             : "delay_ms must be 0-10000");
