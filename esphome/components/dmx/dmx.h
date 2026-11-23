@@ -219,4 +219,4 @@ class DMXLightOutput : public light::LightOutput {
   DMXLightType light_type_{DMXLightType::DMX_LIGHT_TYPE_DIMMER};
 };
 
-} // namespace esphome::dmx
+}  // namespace esphome::dmx

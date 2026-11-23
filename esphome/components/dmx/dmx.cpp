@@ -545,4 +545,4 @@ void DMXLightOutput::write_state(light::LightState *state) {
   this->parent_->set_slots(this->first_channel_, values, count);
 }
 
-} // namespace esphome::dmx
+}  // namespace esphome::dmx
