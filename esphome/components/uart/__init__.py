@@ -85,6 +85,8 @@ LibreTinyUARTComponent = uart_ns.class_(
     "LibreTinyUARTComponent", UARTComponent, cg.Component
 )
 HostUartComponent = uart_ns.class_("HostUartComponent", UARTComponent, cg.Component)
+# Base of UARTs without a wire (uart_virtual.h)
+VirtualUARTComponent = uart_ns.class_("VirtualUARTComponent", UARTComponent)
 
 
 NATIVE_UART_CLASSES = (
