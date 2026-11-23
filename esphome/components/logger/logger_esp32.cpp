@@ -18,7 +18,7 @@
 #endif
 #endif
 // The logger accepts USB_CDC on targets without USB OTG (C3, C6, H2, ...), where IDF has no CDC console
-#if defined(USE_LOGGER_CONSOLE) && defined(USE_LOGGER_UART_SELECTION_USB_CDC) && defined(CONFIG_ESP_CONSOLE_USB_CDC)
+#if defined(USE_LOGGER_UART_SELECTION_USB_CDC) && defined(CONFIG_ESP_CONSOLE_USB_CDC)
 #include <esp_private/usb_console.h>
 #endif
 #if defined(CONFIG_PM_ENABLE) && defined(CONFIG_FREERTOS_USE_TICKLESS_IDLE) && \
@@ -27,6 +27,7 @@
 #endif
 #include "freertos/FreeRTOS.h"
 
+#include <algorithm>
 #include <fcntl.h>
 #include <cstdint>
 #include <cstdio>
@@ -36,6 +37,41 @@
 namespace esphome::logger {
 
 ESPHOME_LOG_TAG(TAG, "logger");
+
+#if defined(USE_LOGGER_UART_SELECTION_USB_SERIAL_JTAG)
+// ESP-IDF's VFS policy (usbjtag_tx_char_via_driver), applied per chunk instead of per character: skip when no host
+// is attached, wait up to 50 ms once when the TX buffer is full, then drop until a write succeeds again.
+static constexpr uint32_t USB_SERIAL_JTAG_TX_TIMEOUT_MS = 50;
+// Half the driver's 512-byte TX ring buffer, so a full-length line still fits.
+static constexpr size_t USB_SERIAL_JTAG_TX_CHUNK = 256;
+static bool usb_serial_jtag_tx_blocked = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+void usb_serial_jtag_write_line(const char *msg, size_t len) {
+  if (!usb_serial_jtag_is_connected())
+    return;
+  while (len > 0) {
+    const size_t chunk = std::min(len, USB_SERIAL_JTAG_TX_CHUNK);
+    if (usb_serial_jtag_write_bytes(msg, chunk, 0) != 0) {
+      usb_serial_jtag_tx_blocked = false;
+    } else if (usb_serial_jtag_tx_blocked ||
+               usb_serial_jtag_write_bytes(msg, chunk, pdMS_TO_TICKS(USB_SERIAL_JTAG_TX_TIMEOUT_MS)) == 0) {
+      usb_serial_jtag_tx_blocked = true;
+      return;
+    }
+    msg += chunk;
+    len -= chunk;
+  }
+}
+#elif defined(USE_LOGGER_UART_SELECTION_USB_CDC)
+void usb_cdc_write_line(const char *msg, size_t len) {
+#ifdef CONFIG_ESP_CONSOLE_USB_CDC
+  esp_usb_console_write_buf(msg, len);
+#else
+  // No USB OTG: IDF has no CDC console, so the line goes to whatever stdout is.
+  fwrite(msg, 1, len, stdout);
+#endif
+}
+#endif
 
 #ifdef USE_LOGGER_UART_SELECTION_USB_SERIAL_JTAG
 static void init_usb_serial_jtag() {
