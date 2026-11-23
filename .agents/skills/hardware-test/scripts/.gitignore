@@ -15,6 +15,12 @@ ble_scan_complete/*.txt
 ble_server_stack/*.log
 bmi270_real/*-cap.txt
 bmi270_real/*.log
+bt_proxy_ab/*.err
+bt_proxy_ab/*.jsonl
+bt_proxy_ab/*.log
+bt_proxy_ab/*.pid
+bt_proxy_ab/*.txt
+bt_proxy_ab/handles.json
 cc1101_long/*.log
 climate_ir_loop/*-*.txt
 climate_ir_loop/*-frames.json

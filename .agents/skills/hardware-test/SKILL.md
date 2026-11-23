@@ -181,6 +181,8 @@ Per-topic scripts, each described in the matching `reference/recipes/<component>
 - `bluetooth_proxy_half_open/` (held GATT link after a half-open API session)
 - `bmi270_real/` (real BMI270 probe header, variants, runner and summaries)
 - `bmp390/` (config generator, probe and fault injection header, runner and stats)
+- `bt_proxy_ab/` (proxy A/B packages with a heap logger, scenario driver, suite, flash chain and crossed runner,
+  on-device self test, burst client and drop counters, reports)
 - `cc1101_long/` (long packet and lambda length driver for two CC1101 radios, begin_tx in packet mode, async serial OOK
   package and driver)
 - `cc1101_sleep/` (register and PATABLE snapshot header, sleep and setter checks)
