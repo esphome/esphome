@@ -1,9 +1,5 @@
 #pragma once
 
-#include <cmath>
-#include <limits>
-#include <type_traits>
-
 #include "esphome/core/defines.h"
 #include "zigbee_attribute_base_esp32.h"
 
@@ -11,8 +7,6 @@
 #ifdef USE_ZIGBEE
 #ifdef USE_NUMBER
 
-#include "esp_zigbee.h"
-#include "zigbee_esp32.h"
 #include "esphome/components/number/number.h"
 
 namespace esphome::zigbee {
@@ -26,12 +20,14 @@ class ZigbeeNumber final : public ZigbeeAttributeBase {
   void setup() override;
   void on_value(ezb_zcl_attribute_t attribute) override;
 
-  // need to run setup before the zigbee component and after number
+  // After number setup (traits), before zigbee (WIFI)
   float get_setup_priority() const override { return setup_priority::AFTER_BLUETOOTH; }
 
  protected:
-  number::Number *number_;
+  // Declared first so it fits in the base class tail padding
   bool synchronizing_from_zigbee_{false};
+  number::Number *number_;
+  float value_{NAN};
 };
 
 }  // namespace esphome::zigbee

@@ -9,13 +9,25 @@ namespace esphome::zigbee {
 
 ESPHOME_LOG_TAG(TAG, "zigbee.number");
 
+namespace {
+
+class FlagGuard {
+ public:
+  explicit FlagGuard(bool &flag) : flag_(flag) { this->flag_ = true; }
+  ~FlagGuard() { this->flag_ = false; }
+  FlagGuard(const FlagGuard &) = delete;
+  FlagGuard &operator=(const FlagGuard &) = delete;
+
+ private:
+  bool &flag_;
+};
+
+}  // namespace
+
 void ZigbeeNumber::setup() {
-  float value = std::numeric_limits<float>::quiet_NaN();
-  if (this->number_->has_state()) {
-    value = this->number_->state;
-  }
-  this->add_attr(0, value);
-  if (this->force_report_ && this->number_->has_state()) {
+  const bool has_state = this->number_->has_state();
+  this->add_attr(0, has_state ? this->number_->state : NAN, &this->value_);
+  if (this->force_report_ && has_state) {
     this->report();
   }
 
@@ -31,7 +43,7 @@ void ZigbeeNumber::setup() {
 
   // connect callbacks
   this->number_->add_on_state_callback([this](float value) {
-    if (this->synchronizing_from_zigbee_ && value == *static_cast<float *>(this->value_p_))
+    if (this->synchronizing_from_zigbee_ && value == this->value_)
       return;
     this->set_attr(value);
   });
@@ -40,13 +52,12 @@ void ZigbeeNumber::setup() {
 void ZigbeeNumber::on_value(ezb_zcl_attribute_t attribute) {
   if (attribute.data.type == this->attr_type() && attribute.data.value) {
     const float incoming_value = *static_cast<float *>(attribute.data.value);
-    *static_cast<float *>(this->value_p_) = incoming_value;
+    this->value_ = incoming_value;
     this->set_attr_requested_ = false;
     auto call = this->number_->make_call();
     call.set_value(incoming_value);
-    this->synchronizing_from_zigbee_ = true;
+    FlagGuard guard(this->synchronizing_from_zigbee_);
     call.perform();
-    this->synchronizing_from_zigbee_ = false;
   }
 }
 

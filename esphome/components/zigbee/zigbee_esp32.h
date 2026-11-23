@@ -43,10 +43,7 @@ class ZigbeeComponent final : public Component {
   void loop() override;
   void dump_config() override;
 
-  // Setup zigbee after sensors and bluetooth and before api. Components that build the
-  // zigbee data model should use setup_priority::AFTER_BLUETOOTH or higher. Components
-  // that depend on initialized zigbee could use anything lower like setup_priority::BEFORE_CONNECTION.
-  // Components requiring a started or joined zigbee stack should guard on is_started or is_joined.
+  // After entities that build the data model (AFTER_BLUETOOTH+); dependents use BEFORE_CONNECTION.
   float get_setup_priority() const override { return setup_priority::WIFI; }
 
   void set_sleepy(bool sleepy) { this->sleepy_ = sleepy; }
