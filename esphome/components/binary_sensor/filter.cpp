@@ -111,10 +111,6 @@ void AutorepeatFilterBase::next_value_(bool val) {
                             [this, val]() { this->next_value_(!val); });
 }
 
-LambdaFilter::LambdaFilter(std::function<optional<bool>(bool)> f) : f_(std::move(f)) {}
-
-optional<bool> LambdaFilter::new_value(bool value) { return this->f_(value); }
-
 void SettleFilter::reset() {
   Filter::reset();
   this->steady_ = true;

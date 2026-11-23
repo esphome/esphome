@@ -1341,8 +1341,12 @@ inline bool str_equals_case_insensitive(const std::string &a, const char *b) { r
 inline bool str_equals_case_insensitive(const char *a, const std::string &b) { return strcasecmp(a, b.c_str()) == 0; }
 
 /// Check whether a string starts with a value.
+// Remove before 2027.6.0
+ESPDEPRECATED("Use std::string::starts_with() instead. Removed in 2027.6.0", "2026.12.0")
 bool str_startswith(const std::string &str, const std::string &start);
 /// Check whether a string ends with a value.
+// Remove before 2027.6.0
+ESPDEPRECATED("Use std::string::ends_with() instead. Removed in 2027.6.0", "2026.12.0")
 bool str_endswith(const std::string &str, const std::string &end);
 
 /// Case-insensitive check if string ends with suffix (no heap allocation).
