@@ -4,7 +4,6 @@
 #include "usb/usb_host.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
-#include "esphome/components/uart/uart_debugger.h"
 
 #include "esphome/components/bytebuffer/bytebuffer.h"
 #include <cinttypes>
@@ -314,13 +313,6 @@ void USBUartTypeFT23XX::start_input(USBUartChannelBase *channel) {
         chunk->length = static_cast<uint16_t>(uart_data_len);
         chunk->channel = channel;
         this->usb_data_queue_.push(chunk);
-#ifdef USE_UART_DEBUGGER
-        if (channel->debug_) {
-          uart::UARTDebug::log_hex(uart::UART_DIRECTION_RX,
-                                   std::vector<uint8_t>(status.data + 2, status.data + 2 + uart_data_len), ',',
-                                   channel->debug_prefix_);
-        }
-#endif
         this->enable_loop_soon_any_context();
         App.wake_loop_threadsafe();
       }
