@@ -5,7 +5,6 @@ from typing import Any
 
 from esphome import automation, preferences
 import esphome.codegen as cg
-from esphome.components import ota
 from esphome.components.const import CONF_ENABLED, CONF_MODEM, CONF_USE_PSRAM
 from esphome.components.esp32 import (
     add_idf_sdkconfig_option,
@@ -908,8 +907,6 @@ async def to_code(config):
                         f"WIFI_AP_WISP_DNS_{i}", int.from_bytes(ip.packed, "little")
                     )
         cg.add_define("USE_WIFI_AP")
-        # Hold STA retries while an OTA runs over the AP
-        ota.request_ota_state_listeners()
         # The LN882H radio cannot run the AP and STA together; the fallback AP
         # takes turns with the networks instead.
         if CORE.is_ln882x:

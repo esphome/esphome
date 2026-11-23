@@ -17,9 +17,8 @@
 #endif
 #include "esphome/core/string_ref.h"
 
-#if defined(USE_WIFI_AP) && defined(USE_OTA_STATE_LISTENER)
+#if defined(USE_WIFI_AP) && defined(USE_OTA)
 #include "esphome/components/ota/ota_backend.h"
-#define USE_WIFI_OTA_LISTENER
 #endif
 
 #include <algorithm>
@@ -492,12 +491,7 @@ static constexpr uint32_t IPV6_RECOUNT_TIMEOUT_ID = 3;
 #endif
 
 /// This component is responsible for managing the ESP WiFi interface.
-class WiFiComponent final : public Component
-#ifdef USE_WIFI_OTA_LISTENER
-    ,
-                            public ota::OTAGlobalStateListener
-#endif
-{
+class WiFiComponent final : public Component {
  public:
   /// Construct a WiFiComponent.
   WiFiComponent();
@@ -597,9 +591,6 @@ class WiFiComponent final : public Component
   float get_setup_priority() const override { return setup_priority::WIFI; }
   /// Reconnect WiFi if required.
   void loop() override;
-#ifdef USE_WIFI_OTA_LISTENER
-  void on_ota_global_state(ota::OTAState state, float progress, uint8_t error, ota::OTAComponent *comp) override;
-#endif
 
   bool has_sta() const { return !this->sta_.empty(); }
   bool has_ap() const { return this->has_ap_; }
@@ -931,10 +922,10 @@ class WiFiComponent final : public Component
   bool is_dpp_active_();
   /// A portal, improv or DPP is waiting for credentials, so the retry machine must not disturb the radio
   bool is_provisioning_active_();
-  /// An OTA upload runs over the AP; retries wait so the channel stays put
+  /// An OTA upload may be running over the AP; retries wait so the channel stays put
   bool ota_hold_() const {
-#ifdef USE_WIFI_OTA_LISTENER
-    return this->ota_active_;
+#if defined(USE_WIFI_AP) && defined(USE_OTA)
+    return this->ap_setup_ && ota::UpdateLock::any_held();
 #else
     return false;
 #endif
@@ -1212,9 +1203,6 @@ class WiFiComponent final : public Component
   bool scan_done_{false};
   bool ap_setup_{false};
   bool ap_started_{false};
-#ifdef USE_WIFI_OTA_LISTENER
-  bool ota_active_{false};
-#endif
 #ifdef USE_WIFI_DPP
   bool dpp_listening_{false};
 #endif

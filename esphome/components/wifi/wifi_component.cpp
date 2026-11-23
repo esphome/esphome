@@ -662,9 +662,6 @@ static const char *eap_phase2_to_str(esp_eap_ttls_phase2_types type) {
 
 void WiFiComponent::setup() {
   this->wifi_pre_setup_();
-#ifdef USE_WIFI_OTA_LISTENER
-  ota::get_global_ota_callback()->add_global_state_listener(this);
-#endif
 
 #if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_POWER_SAVE)
   // Create semaphore for high-performance mode requests
@@ -896,6 +893,7 @@ void WiFiComponent::loop() {
         this->status_set_warning(LOG_STR("waiting to reconnect"));
         // Credentials not tried yet: retry whatever the driver reports. The flag outlives an adapter restart,
         // which only lands back here, and start_connecting() clears it once they are tried
+        // During an upload retry_connect() would only restart the cooldown, every loop
         if (this->skip_cooldown_next_cycle_ && !this->ota_hold_()) {
           ESP_LOGD(TAG, "Exiting cooldown early due to new WiFi credentials");
           this->retry_connect();
@@ -905,10 +903,6 @@ void WiFiComponent::loop() {
         bool portal_active = this->is_provisioning_active_();
         uint32_t cooldown_duration = portal_active ? WIFI_COOLDOWN_WITH_AP_ACTIVE_MS : WIFI_COOLDOWN_DURATION_MS;
         if (now - this->action_started_ > cooldown_duration) {
-#ifdef USE_WIFI_OTA_LISTENER
-          // No OTA report for a whole cooldown: the upload is gone without an error
-          this->ota_active_ = false;
-#endif
           // After cooldown we either restarted the adapter because of
           // a failure, or something tried to connect over and over
           // so we entered cooldown. In both cases we call
@@ -1129,18 +1123,6 @@ network::IPAddress WiFiComponent::get_dns_address(int num) {
 }
 
 #ifdef USE_WIFI_AP
-#ifdef USE_WIFI_OTA_LISTENER
-void WiFiComponent::on_ota_global_state(ota::OTAState state, float progress, uint8_t error, ota::OTAComponent *comp) {
-  // Only a quiet cooldown ends the hold: a rejected second upload reports an error while the first one runs,
-  // and a completed upload reboots
-  if (!this->ap_setup_ || (state != ota::OTA_STARTED && state != ota::OTA_IN_PROGRESS))
-    return;
-  this->ota_active_ = true;
-  if (this->state_ == WIFI_COMPONENT_STATE_COOLDOWN)
-    this->action_started_ = millis();
-}
-#endif
-
 void WiFiComponent::setup_ap_config_() {
 #ifdef USE_WIFI_AP_EXCLUSIVE
   // The radio cannot run both, so STA goes off while the AP is up.
@@ -1735,14 +1717,13 @@ void WiFiComponent::check_scanning_finished() {
     }
     return;
   }
+  // Keep the results until the upload ends; connecting now would move the channel
+  if (this->ota_hold_())
+    return;
   this->scan_done_ = false;
   // A driver filtered scan saw one SSID; a portal that started during it still needs a full scan
   this->has_completed_scan_after_captive_portal_start_ = !this->is_scan_driver_filtered_();
   this->retry_hidden_mode_ = RetryHiddenMode::SCAN_BASED;
-  if (this->ota_hold_()) {
-    this->start_cooldown_();
-    return;
-  }
 
   if (this->scan_result_.empty()) {
     ESP_LOGW(TAG, "No networks found");
@@ -2578,7 +2559,7 @@ bool WiFiComponent::is_improv_ble_active_() {
 }
 
 bool WiFiComponent::is_provisioning_active_() {
-  return this->ota_hold_() || this->is_ap_portal_active_() || this->is_improv_ble_active_() || this->is_dpp_active_();
+  return this->is_ap_portal_active_() || this->is_improv_ble_active_() || this->is_dpp_active_();
 }
 
 bool WiFiComponent::is_provisioning_closed_() {

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstring>
 #include <vector>
 
 #include "esphome/components/wifi/wifi_component.h"
@@ -24,5 +25,16 @@ struct HostHooks {
 };
 
 extern HostHooks host_hooks;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+inline WiFiAP make_ap(const char *ssid) {
+  WiFiAP ap;
+  ap.set_ssid(ssid);
+  ap.set_password("password1");
+  return ap;
+}
+
+inline WiFiScanResult make_result(const char *ssid, const bssid_t &bssid) {
+  return WiFiScanResult(bssid, ssid, strlen(ssid), 6, -50, true, false);
+}
 
 }  // namespace esphome::wifi::testing
