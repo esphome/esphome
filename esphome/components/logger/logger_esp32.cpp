@@ -6,6 +6,7 @@
 #include <esp_idf_version.h>
 
 #include <driver/uart.h>
+#include <hal/uart_ll.h>
 #include <soc/soc_caps.h>
 
 #ifdef USE_LOGGER_UART_SELECTION_USB_SERIAL_JTAG
@@ -101,6 +102,19 @@ static void init_uart(uart_port_t uart_num, uint32_t baud_rate, int tx_buffer_si
   // without TOP_PD or if source_clk = UART_SCLK_RTC
   esp_sleep_set_console_uart_handling_mode(ESP_SLEEP_ALWAYS_FLUSH_UART);
 #endif
+}
+
+void write_uart_line(uart_port_t uart_num, const char *msg, size_t len) {
+#if !defined(CONFIG_PM_ENABLE) || SOC_UART_SUPPORT_XTAL_CLK  // the driver holds an APB lock while it writes
+  // A cache-cold driver write costs ~14k cycles a line. The driver keeps the TX FIFO empty interrupt on until its
+  // ring is drained, so with it off a line that fits goes straight to the FIFO without overtaking queued bytes.
+  uart_dev_t *hw = UART_LL_GET_HW(uart_num);
+  if ((uart_ll_get_intr_ena_status(hw) & UART_INTR_TXFIFO_EMPTY) == 0 && uart_ll_get_txfifo_len(hw) >= len) {
+    uart_ll_write_txfifo(hw, reinterpret_cast<const uint8_t *>(msg), len);
+    return;
+  }
+#endif
+  uart_write_bytes(uart_num, msg, len);
 }
 #endif
 
