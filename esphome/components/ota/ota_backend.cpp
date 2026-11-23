@@ -88,6 +88,14 @@ void UpdateLock::release() {
 
 void UpdateLock::force_release() { update_lock_clear(); }
 
+bool UpdateLock::any_held() {
+#ifdef ESPHOME_THREAD_MULTI_ATOMICS
+  return update_locked.load() != 0;
+#else
+  return update_locked;
+#endif
+}
+
 #ifdef USE_OTA_STATE_LISTENER
 static OTAGlobalCallback global_ota_callback;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 

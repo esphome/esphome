@@ -137,12 +137,19 @@ async def ota_to_code(var: MockObj, config: ConfigType) -> None:
         await automation.build_automation(trigger, [(cg.uint8, "x")], conf)
         use_state_callback = True
     if use_state_callback:
-        # The triggers listen on this component only, so they need no global listener slot
-        CORE.data[OTA_STATE_LISTENER_KEY] = True
+        request_ota_component_state_listeners()
 
 
 GLOBAL_LISTENER_COUNT_DEFINE = "ESPHOME_OTA_GLOBAL_LISTENER_COUNT"
 _request_global_listener_slot = cg.slot_counter(GLOBAL_LISTENER_COUNT_DEFINE)
+
+
+def request_ota_component_state_listeners() -> None:
+    """Compile in OTAComponent::add_state_listener() for a listener on one OTA component.
+
+    Unlike request_ota_state_listeners(), this reserves no global listener slot.
+    """
+    CORE.data[OTA_STATE_LISTENER_KEY] = True
 
 
 def request_ota_state_listeners() -> None:
@@ -163,6 +170,7 @@ async def final_step() -> None:
     """Final code generation step to configure optional OTA features."""
     if CORE.data.get(OTA_STATE_LISTENER_KEY, False):
         cg.add_define("USE_OTA_STATE_LISTENER")
+        # A singleton, not a hub, so cg.slot_list's empty-list emission does not cover it
         if cg.get_slot_count(GLOBAL_LISTENER_COUNT_DEFINE) == 0:
             cg.add_define(GLOBAL_LISTENER_COUNT_DEFINE, 0)
 
