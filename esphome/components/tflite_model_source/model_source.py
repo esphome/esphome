@@ -77,10 +77,6 @@ def _is_model_url(url: str) -> bool:
     return urlparse(url).path.lower().endswith(MODEL_SUFFIX)
 
 
-
-
-
-
 def _git_model_path(config: ConfigType) -> Path:
     """Clone (or update) the repository and return the model file inside it."""
     key = (TYPE_GIT, config[CONF_URL], config.get(CONF_REF, ""), config[CONF_FILE])
