@@ -115,6 +115,8 @@ class QpdlEncoder {
   /// Rows add_row() expects in total: the page height below the hardware margin
   uint16_t rows() const { return this->rows_; }
   uint16_t rows_added() const { return this->row_; }
+  /// Microseconds spent compressing bands since boot; wraps around, so take differences
+  uint32_t compress_us() const { return this->compress_us_; }
   /// Add the next row; nullptr adds a white row. Rows past the end of the page are ignored.
   bool add_row(const uint8_t *row);
   /// Fill the rest of the page with white and send it. Returns false on a write error.
@@ -134,6 +136,7 @@ class QpdlEncoder {
   uint8_t *band_{nullptr};
   int16_t *scratch_{nullptr};
   uint8_t *packed_{nullptr};
+  uint32_t compress_us_{0};
   const Paper *paper_{nullptr};
   uint32_t table_[64];
   uint16_t copies_{1};

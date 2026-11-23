@@ -3,6 +3,8 @@
 #include <cstdio>
 #include <cstring>
 
+#include "esphome/core/hal.h"
+
 namespace esphome::xerox_phaser_3020 {
 
 // Compression 0x11 (SpliX algo0x11): a table of 64 back-reference distances, chosen per band from the
@@ -338,6 +340,7 @@ bool QpdlEncoder::flush_band_() {
   for (uint32_t i = 0; i < size / 4; i++)
     words[i] = ~words[i];
 
+  const uint32_t start = micros();
   this->choose_table_(size);
   uint32_t packed_size;
   uint32_t sum;
@@ -352,6 +355,7 @@ bool QpdlEncoder::flush_band_() {
     packed_size = counter.size;
     sum = counter.sum;
   }
+  this->compress_us_ += micros() - start;
   const uint32_t data_size = packed_size + 8;  // signature and checksum
   const uint32_t checksum = sum + BAND_SIGNATURE_SUM;
   const uint16_t width = this->band_bytes_ * 8;

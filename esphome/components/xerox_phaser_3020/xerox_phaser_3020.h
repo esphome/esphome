@@ -89,6 +89,7 @@ class XeroxPhaser3020 final : public usb_host::USBClient, public PrinterPort {
   // Kept to report in dump_config() where they were placed
   uint8_t *band_{nullptr};
   uint8_t *packed_{nullptr};
+  uint8_t *work_{nullptr};
   uint32_t wait_us_{0};  // this job's time waiting for the printer; only the job's task uses it
   // Held while the endpoint is used from a connection task or torn down by the main loop
   Mutex usb_lock_;

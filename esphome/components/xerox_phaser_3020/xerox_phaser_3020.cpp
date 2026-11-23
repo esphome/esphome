@@ -56,18 +56,17 @@ void XeroxPhaser3020::setup() {
   USBClient::setup();
   if (this->is_failed())
     return;
-  // Kept for the life of the device. The band is written a byte column at a time, which is much faster
-  // in internal RAM than in PSRAM, so it goes there when enough would be left; the rest is read in order
-  // and goes to PSRAM when there is some.
+  // Kept for the life of the device; PSRAM is far slower than internal RAM. The line buffers (25 kB) are
+  // touched for every pixel, so they go to internal RAM whenever it has room. The band (80 kB), written a
+  // byte column at a time, goes there too when enough is left for everything else.
+  this->work_ = RAMAllocator<uint8_t>(RAMAllocator<uint8_t>::PREFER_INTERNAL).allocate(WORK_MEMORY_SIZE);
   const uint32_t internal = MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT;
   if (heap_caps_get_largest_free_block(internal) >= BAND_BUFFER_SIZE &&
       heap_caps_get_free_size(internal) >= BAND_BUFFER_SIZE + INTERNAL_HEADROOM)
     this->band_ = static_cast<uint8_t *>(heap_caps_malloc(BAND_BUFFER_SIZE, internal));
-  RAMAllocator<uint8_t> allocator;
   if (this->band_ == nullptr)
-    this->band_ = allocator.allocate(BAND_BUFFER_SIZE);
-  uint8_t *memory = allocator.allocate(WORK_MEMORY_SIZE);
-  if (this->band_ == nullptr || memory == nullptr) {
+    this->band_ = RAMAllocator<uint8_t>().allocate(BAND_BUFFER_SIZE);
+  if (this->band_ == nullptr || this->work_ == nullptr) {
     this->mark_failed(LOG_STR("Not enough memory"));
     return;
   }
@@ -93,9 +92,9 @@ void XeroxPhaser3020::setup() {
            mac[3], mac[4], mac[5]);
   this->settings_.uuid = this->uuid_;
 
-  uint8_t *line = memory + QPDL_SCRATCH_SIZE;
+  uint8_t *line = this->work_ + QPDL_SCRATCH_SIZE;
   uint8_t *work = line + RASTER_LINE_BUFFER_SIZE;
-  this->server_.setup(this->settings_, this, this->band_, memory, this->packed_, line, work);
+  this->server_.setup(this->settings_, this, this->band_, this->work_, this->packed_, line, work);
   this->listen_fd_ = this->server_.listen_socket();
   if (this->listen_fd_ < 0) {
     this->mark_failed(LOG_STR("Could not open the IPP port"));
@@ -158,9 +157,13 @@ void XeroxPhaser3020::dump_config() {
                 : s.pjl.toner_save == TonerSave::TONER_SAVE_OFF ? LOG_STR_LITERAL("off")
                                                                 : LOG_STR_LITERAL("printer default"),
                 s.pjl.power_save_minutes, s.printer_wait_s);
-  ESP_LOGCONFIG(TAG, "  Band buffer: %s, each band compressed %s",
+  ESP_LOGCONFIG(TAG,
+                "  Band buffer: %s, line buffers: %s, each band compressed %s\n"
+                "  Free internal RAM: %u bytes",
                 esp_ptr_external_ram(this->band_) ? LOG_STR_LITERAL("PSRAM") : LOG_STR_LITERAL("internal RAM"),
-                this->packed_ != nullptr ? LOG_STR_LITERAL("once") : LOG_STR_LITERAL("twice (no PSRAM)"));
+                esp_ptr_external_ram(this->work_) ? LOG_STR_LITERAL("PSRAM") : LOG_STR_LITERAL("internal RAM"),
+                this->packed_ != nullptr ? LOG_STR_LITERAL("once") : LOG_STR_LITERAL("twice (no PSRAM)"),
+                static_cast<unsigned>(heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT)));
   USBClient::dump_config();
 #ifdef USE_BINARY_SENSOR
   LOG_BINARY_SENSOR("  ", "Connected", this->connected_binary_sensor_);

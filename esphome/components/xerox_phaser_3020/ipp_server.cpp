@@ -1325,6 +1325,7 @@ uint16_t IppServer::print_document_(int slot, IppRequest &req, HttpConnection &c
   }
   ESP_LOGI(TAG, "Printing job %u '%s' from %s", static_cast<unsigned>(job_id), name, user);
   const uint32_t started = millis();
+  const uint32_t compress_start = this->encoder_.compress_us();
   conn.wait_us = 0;
 
   PjlSettings pjl = this->settings_.pjl;
@@ -1349,12 +1350,16 @@ uint16_t IppServer::print_document_(int slot, IppRequest &req, HttpConnection &c
   const uint32_t network_ms = conn.wait_us / 1000;
   const uint32_t printer_ms = this->port_->wait_ms();
   const uint32_t busy_ms = total_ms > network_ms + printer_ms ? total_ms - network_ms - printer_ms : 0;
-  ESP_LOGI(TAG, "Job %u: %u page(s) in %u.%u s; waited %u.%u s for data and %u.%u s for the printer, converted %u.%u s",
+  const uint32_t compress_ms = (this->encoder_.compress_us() - compress_start) / 1000;
+  ESP_LOGI(TAG,
+           "Job %u: %u page(s) in %u.%u s; waited %u.%u s for data and %u.%u s for the printer, converted %u.%u s "
+           "(%u.%u s of it compressing)",
            static_cast<unsigned>(job_id), this->pages_.load(), static_cast<unsigned>(total_ms / 1000),
            static_cast<unsigned>(total_ms % 1000 / 100), static_cast<unsigned>(network_ms / 1000),
            static_cast<unsigned>(network_ms % 1000 / 100), static_cast<unsigned>(printer_ms / 1000),
            static_cast<unsigned>(printer_ms % 1000 / 100), static_cast<unsigned>(busy_ms / 1000),
-           static_cast<unsigned>(busy_ms % 1000 / 100));
+           static_cast<unsigned>(busy_ms % 1000 / 100), static_cast<unsigned>(compress_ms / 1000),
+           static_cast<unsigned>(compress_ms % 1000 / 100));
 
   switch (result) {
     case RasterResult::RASTER_OK:
