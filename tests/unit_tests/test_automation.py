@@ -3532,7 +3532,11 @@ async def test_component_automation_args_inline(is_manual: bool) -> None:
 
     A hand-set id only names the component.
     """
-    conf = _component_conf(_action("my.a", "act_a"), is_manual=is_manual)
+    conf = _component_conf(
+        _action("my.a", "act_a"),
+        _lambda_action("act_l", "use(x);"),
+        is_manual=is_manual,
+    )
 
     var = await build_component_automation(
         conf, FLOAT_CALLBACK, args=[(cg.float_, "x")]
@@ -3545,6 +3549,8 @@ async def test_component_automation_args_inline(is_manual: bool) -> None:
     text = CORE.cpp_global_section
     assert "static void esphome__auto__fn(const std::remove_cvref_t<float> & x)" in text
     assert "::comp->do_a();" in text
+    # The lambda gets the trigger argument
+    assert "[](float x) -> void {\n    use(x);\n  }(x);" in text
     assert "esphome__act_a__fn" not in text
 
 
