@@ -557,14 +557,14 @@ async def main() -> None:
             last[0] = v
             resumed[0] = False
 
+        # time without a subscribed link (start, drops, retries, failed holds) shows as missing ticks; count it
+        # so it is not taken for loss, as selftest.hpp's tk_down_since
+        down_since = time.time()
         while time.time() < t_end:
             check_api()
-            t_hold = time.time()
             if not await d.hold(L):
-                # time without a link shows as missing ticks; count it so it is not taken for loss
                 stats["hold_failed"] += 1
                 await asyncio.sleep(5)
-                stats["unheld_s"] = round(stats["unheld_s"] + time.time() - t_hold, 1)
                 continue
             addr = d.peers[L][0]
             st = d.st[addr]
@@ -601,6 +601,8 @@ async def main() -> None:
                     await d.disconnect(L)
                 await asyncio.sleep(2)
                 continue
+            stats["unheld_s"] = round(stats["unheld_s"] + time.time() - down_since, 1)
+            down_since = None
             resumed[0] = True
             t_min = time.time()
             rx_min = stats["rx"]
@@ -617,6 +619,7 @@ async def main() -> None:
                     )
                     t_min, rx_min = time.time(), stats["rx"]
             if st["lost"]:
+                down_since = time.time()
                 stats["drops"].append([st["lost"][0][0], round(time.time(), 1)])
                 stats["reconnects"] += 1
                 rm()  # the next hold registers a fresh handler
@@ -625,6 +628,10 @@ async def main() -> None:
                 await asyncio.sleep(2)
             else:
                 await stop()
+        if down_since is not None:  # the soak ended without the link
+            stats["unheld_s"] = round(
+                stats["unheld_s"] + max(0.0, min(time.time(), t_end) - down_since), 1
+            )
         await d.disconnect(L)
         d.rec(test="notify", secs=secs, expected=round(secs * 5), **stats)
         # ticks seen or known missing should cover the held time; far less means the subscription went quiet

@@ -55,7 +55,9 @@ run() {
     [ "$have" -ge "$want" ] || sleep 10
   done
   # enough rounds is not enough: a driver that then failed (timeout, crash, links left held) fails the step
-  [ "$(rounds "$out")" -ge "$want" ] && [ "$rc" = 0 ] || incomplete="$incomplete $s"
+  # the step's own verdict, so report.py keeps it across a RESUME run that does not rerun the step
+  if [ "$(rounds "$out")" -ge "$want" ] && [ "$rc" = 0 ]; then mark "result $s ok"
+  else incomplete="$incomplete $s"; mark "result $s short"; fi
   mark "end $s"; cur=
 }
 once() {
@@ -73,7 +75,7 @@ once() {
     timeout 3600 $PY drive.py "$H" "$1" "$out" "${@:2}" >> "$T-$s.err" 2>&1; local rc=$?
     mark "$s chunk $chunk rc=$rc"; [ $rc = 0 ] && break; sleep 10
   done
-  [ $rc = 0 ] || incomplete="$incomplete $s"
+  if [ $rc = 0 ]; then mark "result $s ok"; else incomplete="$incomplete $s"; mark "result $s short"; fi
   mark "end $s"; cur=
 }
 for s in $STEPS; do

@@ -103,11 +103,19 @@ open_iv = None
 last_rc: dict[str, int] = {}
 suite_incomplete: str | None = None
 ended: dict[str, bool] = {}  # False: the step's last run has no end mark
+# per step, from its last run: a RESUME run's suite done only covers the steps it ran
+step_result: dict[str, str] = {}
+dead_bg: set[str] = (
+    set()
+)  # a capture or pinger that died in any run left a hole in that run's data
 for t, r in marks:
     if m := re.match(r"(\S+) chunk \d+ rc=(\d+)", r):
         last_rc[m[1]] = int(m[2])
+    elif m := re.match(r"result (\S+) (\S+)$", r):
+        step_result[m[1]] = m[2]
     elif r.startswith("suite incomplete:"):
         suite_incomplete = r.split(":", 1)[1].strip()
+        dead_bg |= {"cap", "ping"} & set(suite_incomplete.split())
     elif r == "suite done":  # a later RESUME run finished the rest
         suite_incomplete = ""
     elif r.startswith("start "):
@@ -420,6 +428,15 @@ if suite_incomplete is None and steps:
 elif suite_incomplete:
     flagged.append(f"suite incomplete: {suite_incomplete}")
 flagged += [f"{s}: cut short, no end mark" for s, e in ended.items() if not e]
+flagged += [
+    f"{s}: short of its rounds or its driver failed in its last run"
+    for s, v in step_result.items()
+    if v != "ok"
+]
+if dead_bg:
+    flagged.append(
+        f"{' and '.join(sorted(dead_bg))} died during a run: its data has a hole"
+    )
 flagged += [f"{s}: last driver run rc={rc}" for s, rc in last_rc.items() if rc]
 # a reset line in a serial capture means the proxy rebooted during the suite; reconnect failures in an API
 # capture mean it was gone for a while, a lost API session that it restarted or dropped the link
