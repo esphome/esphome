@@ -16,6 +16,7 @@ from esphome.const import (
     PlatformFramework,
 )
 from esphome.core import ID
+from esphome.schema_extractors import SCHEMA_EXTRACT
 from esphome.types import ConfigType
 from tests.component_tests.types import SetCoreConfigCallable
 
@@ -118,6 +119,30 @@ def test_config_valid(config: ConfigType) -> None:
 def test_config_invalid(config: ConfigType, message: str) -> None:
     with pytest.raises(cv.Invalid, match=message):
         sx1231.validate_config(config)
+
+
+@pytest.mark.parametrize(
+    ("data", "expected"),
+    [
+        ("hi", b"hi"),
+        ([0x01, 0xFF], [0x01, 0xFF]),
+        ([0] * 64, [0] * 64),
+        ("", None),
+        ([], None),
+        ([0] * 65, None),
+        (5, None),
+    ],
+)
+def test_packet_data(data: Any, expected: bytes | list[int] | None) -> None:
+    if expected is None:
+        with pytest.raises(cv.Invalid):
+            sx1231.validate_packet_data(data)
+    else:
+        assert sx1231.validate_packet_data(data) == expected
+
+
+def test_packet_data_schema_is_extractable() -> None:
+    assert sx1231.validate_raw_data(SCHEMA_EXTRACT)([0x01]) == [0x01]
 
 
 def test_esp8266_gpio16_rejected_as_dio0(

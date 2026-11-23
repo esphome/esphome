@@ -18,7 +18,7 @@ static constexpr uint32_t MODE_TIMEOUT_MS = 50;
 static constexpr uint32_t RECONFIGURE_INTERVAL_ID = 0;
 static constexpr uint32_t RECONFIGURE_INTERVAL_MS = 1000;
 static constexpr uint32_t RX_STALL_CHECK_INTERVAL_MS = 1000;
-// In units of 16 bit times after a signal is detected; longer than any packet
+// In units of 16 bit times from signal detection: 510 byte times, more than a packet with a 435 byte preamble takes
 static constexpr uint8_t RX_STALL_TIMEOUT = 0xFF;
 
 // Indexed by SX1231Error

@@ -28,6 +28,7 @@ from esphome.components.packet_interface.radio_link import (
 import esphome.config_validation as cv
 from esphome.const import CONF_DATA, CONF_FREQUENCY, CONF_NUMBER
 from esphome.core import CORE
+from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
 
 DOMAIN = "sx1231"
@@ -109,7 +110,10 @@ SHAPING = {
 }
 
 
+@schema_extractor("schema")
 def validate_raw_data(value: Any) -> bytes | list[int]:
+    if value is SCHEMA_EXTRACT:
+        return cv.ensure_list(cv.hex_uint8_t)
     if isinstance(value, str):
         return value.encode("utf-8")
     if isinstance(value, list):
@@ -198,7 +202,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_PAYLOAD_LENGTH, default=0): cv.int_range(
                 min=0, max=MAX_PACKET_SIZE
             ),
-            cv.Optional(CONF_PREAMBLE_SIZE, default=0): cv.uint16_t,
+            cv.Optional(CONF_PREAMBLE_SIZE, default=3): cv.uint16_t,
             cv.Optional(CONF_RST_PIN): pins.internal_gpio_output_pin_schema,
             cv.Optional(CONF_RX_FLOOR, default=-94): cv.float_range(min=-127, max=-1),
             cv.Optional(CONF_RX_START, default=True): cv.boolean,
