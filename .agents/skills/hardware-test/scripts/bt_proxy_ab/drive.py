@@ -396,7 +396,15 @@ async def main() -> None:
                 unique=len(d.addrs),
             )
         cli.bluetooth_scanner_set_mode(BluetoothScannerMode.ACTIVE)
-        await asyncio.sleep(2)
+        # the later steps assume an active scan: a proxy left passive would skew them all
+        t = time.monotonic()
+        while time.monotonic() - t < 10 and not (
+            d.scanner is not None and d.scanner[1] == BluetoothScannerMode.ACTIVE
+        ):
+            await asyncio.sleep(0.5)
+        if d.scanner is None or d.scanner[1] != BluetoothScannerMode.ACTIVE:
+            d.rec(test="adv", result="restore_not_applied", scanner=str(d.scanner))
+            sys.exit(1)
         if not_applied:  # the counts are not for the requested modes
             sys.exit(1)
     elif cmd == "disc":

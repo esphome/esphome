@@ -2,7 +2,8 @@
 # suite.sh TAG HOST PORT|api [steps...]: run the drive.py scenarios against the proxy at HOST, with the device log
 # from serial PORT (or over the API) and a pinger for the whole run. Results in TAG-<step>.jsonl, stderr in
 # TAG-<step>.err, log in cap-TAG.txt, pings in ping-TAG.txt, step marks in marks-TAG.txt; run report.py TAG after it.
-# Exits 1 when a step falls short of its rounds or its driver fails, 2 when TAG already has results.
+# Exits 1 when a step falls short of its rounds or its driver fails, 2 when TAG already has results, marks,
+# pings or a capture.
 # env: RESUME=1 (continue an earlier run of TAG), PY, API_KEY (else apikey.txt), PEER_L, PEER_M, HK_NAME,
 #      PEER_ADDRS (peers.py), NSEC (notify seconds, 600), R (disc and retry rounds, 15), TL (thirdL rounds, 8)
 T=$1 H=$2 P=$3; shift 3
@@ -12,9 +13,10 @@ export API_KEY PYTHONUNBUFFERED=1
 PY=${PY:-python3}
 STEPS=${*:-adv discL cacheL discM cacheM retryL retryM thirdeve thirdpd thirdL notify churn eve}
 NSEC=${NSEC:-600}
-# results of an earlier run under this tag would count as rounds of this one
-if [ -z "$RESUME" ] && compgen -G "$T-*.jsonl" > /dev/null; then
-  echo "results for $T exist: use a new tag, or RESUME=1 to continue that run" >&2; exit 2
+# results, marks, pings or log lines of an earlier run under this tag would be mixed into this one
+if [ -z "$RESUME" ] && { compgen -G "$T-*.jsonl" > /dev/null || [ -e "marks-$T.txt" ] || [ -e "ping-$T.txt" ] ||
+  [ -e "cap-$T.txt" ]; }; then
+  echo "files for $T exist: use a new tag, or RESUME=1 to continue that run" >&2; exit 2
 fi
 if [ "$P" = api ]; then
   ($PY ../ble_conn_interval/apilogcap.py "$H" 30000 "cap-$T.txt" > /dev/null 2> "cap-$T.err" & echo $! > "cap-$T.pid")
