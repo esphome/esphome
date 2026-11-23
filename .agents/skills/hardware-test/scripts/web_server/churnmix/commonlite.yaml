@@ -1,0 +1,45 @@
+esphome:
+  name: ${name}
+logger:
+  level: DEBUG
+  logs:
+    sensor: INFO
+    debug: INFO
+    switch: INFO
+api:
+  reboot_timeout: 0s
+ota:
+  - platform: esphome
+web_server:
+  version: 3
+debug:
+  update_interval: 5s
+sensor:
+  - platform: template
+    name: "Counter"
+    accuracy_decimals: 0
+    update_interval: 100ms
+    lambda: |-
+      static uint32_t n = 0;
+      return n++;
+  - platform: uptime
+    name: "Uptime"
+    update_interval: 1s
+  - platform: debug
+    free:
+      name: "Heap Free"
+    block:
+      name: "Heap Block"
+switch:
+  - platform: template
+    name: "Relay"
+    optimistic: true
+text_sensor:
+  - platform: template
+    name: "Label"
+    update_interval: 2s
+    lambda: |-
+      static uint32_t n = 0;
+      char buf[32];
+      snprintf(buf, sizeof(buf), "label-%u", (unsigned) n++);
+      return std::string(buf);

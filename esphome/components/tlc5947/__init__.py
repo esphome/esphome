@@ -35,12 +35,15 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
+    pwm_amounts = cg.static_buffer(
+        config[CONF_ID],
+        cg.uint16,
+        config[CONF_NUM_CHIPS] * TLC5947.static_("N_CHANNELS_PER_CHIP"),
+    )
+    var = cg.new_Pvariable(config[CONF_ID], pwm_amounts)
     await cg.register_component(var, config)
 
     await cg.add_pin(var.set_data_pin, config[CONF_DATA_PIN])
     await cg.add_pin(var.set_clock_pin, config[CONF_CLOCK_PIN])
     await cg.add_pin(var.set_lat_pin, config[CONF_LAT_PIN])
     await cg.add_pin(var.set_outenable_pin, config.get(CONF_OE_PIN))
-
-    cg.add(var.set_num_chips(config[CONF_NUM_CHIPS]))

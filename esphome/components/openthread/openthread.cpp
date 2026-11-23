@@ -2,6 +2,7 @@
 #ifdef USE_OPENTHREAD
 #include "openthread.h"
 
+#include <openthread/child_supervision.h>
 #include <openthread/cli.h>
 #include <openthread/instance.h>
 #include <openthread/ip6.h>
@@ -9,17 +10,13 @@
 #include <openthread/netdata.h>
 #include <openthread/tasklet.h>
 
+#include <algorithm>
 #include <cstring>
 #include <utility>
 
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-
-#ifdef USE_OPENTHREAD_BORDER_ROUTER
-#include "esp_err.h"
-#include "esp_openthread_border_router.h"
-#endif
 
 ESPHOME_LOG_TAG(TAG, "openthread");
 
@@ -70,9 +67,11 @@ void OpenThreadComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "  Radio: Native 802.15.4");
 #endif
 #ifdef USE_OPENTHREAD_BORDER_ROUTER
-  ESP_LOGCONFIG(TAG, "  Border Router: ENABLED\n"
-                     "  Backbone: Wi-Fi STA\n"
-                     "  Experimental: YES");
+  ESP_LOGCONFIG(TAG,
+                "  Border Router: ENABLED\n"
+                "  Backbone: %s\n"
+                "  Experimental: YES",
+                BACKBONE_NAME);
 #endif
 }
 
@@ -297,14 +296,7 @@ bool OpenThreadComponent::teardown() {
         // stack drops from here on would otherwise become an MLD message that is sent, through
         // the event loop, after the clean-up has deleted the glue's packet queue, which aborts.
         otIp6SetAddressCallback(instance, nullptr, nullptr);
-#ifdef USE_OPENTHREAD_BORDER_ROUTER
-        if (this->border_router_started_) {
-          if (const esp_err_t err = esp_openthread_border_router_deinit(); err != ESP_OK) {
-            ESP_LOGW(TAG, "Failed to deinitialize OpenThread Border Router: %s", esp_err_to_name(err));
-          }
-          this->border_router_started_ = false;
-        }
-#endif
+        // The OpenThread task's clean-up deinitializes the border router
 #ifdef USE_OPENTHREAD_SRP
         ESP_LOGV(TAG, "Clear SRP");
         otSrpClientClearHostAndServices(instance);
@@ -316,14 +308,14 @@ bool OpenThreadComponent::teardown() {
         if (otIp6SetEnabled(instance, false) != OT_ERROR_NONE) {
           ESP_LOGW(TAG, "Failed to disable IPv6 during teardown");
         }
-      }
-      // Stop OpenThread
-      global_openthread_component = nullptr;
-      ESP_LOGV(TAG, "Stop OpenThread");
-      if (int error = this->openthread_stop_(); error != 0) {
-        // Nothing will mark the stage complete for us; do not wait out the teardown timeout
-        ESP_LOGW(TAG, "Failed attempt to stop OpenThread %d", error);
-        this->teardown_stage_ = TeardownStage::TEARDOWN_STAGE_COMPLETED;
+        // Under the lock, so the task's clean-up cannot delete the queue before the exit post
+        global_openthread_component = nullptr;
+        ESP_LOGV(TAG, "Stop OpenThread");
+        if (int error = this->openthread_stop_(); error != 0) {
+          // Nothing will mark the stage complete for us; do not wait out the teardown timeout
+          ESP_LOGW(TAG, "Failed attempt to stop OpenThread %d", error);
+          this->teardown_stage_ = TeardownStage::TEARDOWN_STAGE_COMPLETED;
+        }
       }
     } break;
     case TeardownStage::TEARDOWN_STAGE_STOP_IN_PROCESS:
@@ -337,7 +329,7 @@ bool OpenThreadComponent::teardown() {
   return this->teardown_stage_ == TeardownStage::TEARDOWN_STAGE_COMPLETED;
 }
 
-void OpenThreadComponent::on_factory_reset(const std::function<void()> &callback) {
+void OpenThreadComponent::on_factory_reset(void (*callback)()) {
 #ifndef USE_OPENTHREAD_SRP
   // Nothing registered with an SRP server to remove first
   callback();
@@ -364,6 +356,13 @@ void OpenThreadComponent::on_factory_reset(const std::function<void()> &callback
 
 void OpenThreadComponent::apply_poll_period(uint32_t poll_period) {
 #if CONFIG_OPENTHREAD_MTD
+  // MAX_POLL_PERIOD in __init__.py; the schema cannot check lambda values
+  static constexpr uint32_t MAX_POLL_PERIOD_MS = 7200 * 1000;
+  if (poll_period > MAX_POLL_PERIOD_MS) {
+    ESP_LOGW(TAG, "poll_period %" PRIu32 " ms exceeds the maximum, using %" PRIu32 " ms", poll_period,
+             MAX_POLL_PERIOD_MS);
+    poll_period = MAX_POLL_PERIOD_MS;
+  }
   this->set_poll_period(poll_period);
   if (!this->is_lock_initialized()) {
     // The action may run before the stack is up, e.g. from a restore mode; setup() applies the stored value.
@@ -388,13 +387,43 @@ void OpenThreadComponent::apply_linkmode_(otInstance *instance) {
   link_mode_config.mDeviceType = true;
   link_mode_config.mNetworkData = true;
 #elif CONFIG_OPENTHREAD_MTD
-  if (this->poll_period_ > 0) {
-    if (otLinkSetPollPeriod(instance, this->poll_period_) != OT_ERROR_NONE) {
-      ESP_LOGE(TAG, "Failed to set pollperiod");
-    }
-    ESP_LOGD(TAG, "Link Polling Period: %" PRIu32, otLinkGetPollPeriod(instance));
+  // The core_options values, or the OpenThread defaults (src/core/config/mle.h, child_supervision.h)
+  static constexpr uint32_t CHILD_TIMEOUT_MIN_SEC = ESPHOME_OPENTHREAD_CHILD_TIMEOUT_MIN;
+  static constexpr uint32_t CHILD_SUPERVISION_CHECK_TIMEOUT_MIN_SEC =
+      ESPHOME_OPENTHREAD_CHILD_SUPERVISION_CHECK_TIMEOUT_MIN;
+  static constexpr uint32_t CHILD_SUPERVISION_INTERVAL_MIN_SEC = ESPHOME_OPENTHREAD_CHILD_SUPERVISION_INTERVAL_MIN;
+  const bool polling = this->poll_period_ > 0;
+  if (polling && otLinkSetPollPeriod(instance, this->poll_period_) != OT_ERROR_NONE) {
+    ESP_LOGE(TAG, "Failed to set pollperiod");
   }
-  link_mode_config.mRxOnWhenIdle = this->poll_period_ == 0;
+  // When polling stops the minimums are restored exactly: 0 turns a supervision check off
+  if (polling || this->timeouts_derived_) {
+    this->timeouts_derived_ = polling;
+    // Round up so the derived timeouts are never below their multiples of poll_period.
+    const uint32_t poll_period_sec = (this->poll_period_ + 999) / 1000;
+    otThreadSetChildTimeout(
+        instance, polling ? std::max<uint32_t>(poll_period_sec * 4, CHILD_TIMEOUT_MIN_SEC) : CHILD_TIMEOUT_MIN_SEC);
+    // At most 3 * 7200 + 10, so both fit the uint16_t setters; a 0 core_option keeps that setting off
+    otChildSupervisionSetCheckTimeout(
+        instance, static_cast<uint16_t>(
+                      polling && CHILD_SUPERVISION_CHECK_TIMEOUT_MIN_SEC != 0
+                          ? std::max<uint32_t>(poll_period_sec * 3 + 10, CHILD_SUPERVISION_CHECK_TIMEOUT_MIN_SEC)
+                          : CHILD_SUPERVISION_CHECK_TIMEOUT_MIN_SEC));
+    // Ends just before a poll so the parent holds the frame briefly
+    otChildSupervisionSetInterval(
+        instance, static_cast<uint16_t>(
+                      polling && CHILD_SUPERVISION_INTERVAL_MIN_SEC != 0
+                          ? std::max<uint32_t>(poll_period_sec * 2, CHILD_SUPERVISION_INTERVAL_MIN_SEC + 10) - 10
+                          : CHILD_SUPERVISION_INTERVAL_MIN_SEC));
+    // Read after the child timeout is set: OpenThread caps the effective period by one derived from it.
+    ESP_LOGD(TAG,
+             "Child Timeout: %" PRIu32 " sec, Child Supervision Check Timeout: %u sec, "
+             "Child Supervision Interval: %u sec, Link Polling Period: %" PRIu32,
+             otThreadGetChildTimeout(instance), otChildSupervisionGetCheckTimeout(instance),
+             otChildSupervisionGetInterval(instance), otLinkGetPollPeriod(instance));
+  }
+
+  link_mode_config.mRxOnWhenIdle = !polling;
   link_mode_config.mDeviceType = false;
   link_mode_config.mNetworkData = false;
 #endif

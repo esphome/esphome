@@ -36,11 +36,7 @@ void SHTCXComponent::setup() {
   this->sensor_id_ = device_id_register;
 
   if ((device_id_register & 0x3F) == 0x07) {
-    if (device_id_register & 0x800) {
-      this->type_ = SHTCX_TYPE_SHTC3;
-    } else {
-      this->type_ = SHTCX_TYPE_SHTC1;
-    }
+    this->type_ = device_id_register & 0x800 ? SHTCX_TYPE_SHTC3 : SHTCX_TYPE_SHTC1;
   } else {
     this->type_ = SHTCX_TYPE_UNKNOWN;
   }

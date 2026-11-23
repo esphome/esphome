@@ -1,0 +1,191 @@
+// TCA9548A A/B (#22827): a fake TCA9548A at 0x70 in front of fake devices on an upstream bus that records the wire
+// (START, bytes with ACK, STOP) and every frequency switch, plus mallocs per call. One line per call to $MUXAB_OUT.
+#include <gtest/gtest.h>
+
+#include <cstdio>
+#include <cstdlib>
+#include <fstream>
+#include <functional>
+#include <string>
+#include <vector>
+#include "esphome/components/tca9548a/tca9548a.h"
+
+typedef void(malloc_logger_t)(uint32_t type, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uint32_t);
+extern "C" malloc_logger_t *malloc_logger;
+static volatile bool g_window = false;
+static volatile size_t g_allocs = 0;
+static void on_log(uint32_t type, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uint32_t) {
+  if (g_window && (type & 2))
+    g_allocs = g_allocs + 1;
+}
+
+namespace esphome::tca9548a::muxab {
+
+// Upstream bus with a TCA9548A at 0x70 and devices behind channels; implements write_prefixed like the built-in
+// buses (two parts, one transaction, no copy)
+class MuxWire final : public i2c::I2CBus {
+ public:
+  std::string text;
+  uint8_t mask{0};
+  uint32_t freq{400000};
+  int prefixed_calls{0}, readv_calls{0};
+  struct Dev {
+    uint8_t addr, channel;
+  };
+  std::vector<Dev> devs{{0x3C, 2}, {0x48, 5}};
+
+  bool present(uint8_t a) const {
+    if (a == 0x70)
+      return true;
+    for (auto &d : devs)
+      if (d.addr == a && (mask & (1u << d.channel)))
+        return true;
+    return false;
+  }
+  void tok(const char *fmt, unsigned v, char suffix = 0) {
+    char t[16];
+    snprintf(t, sizeof t, fmt, v);
+    text += t;
+    if (suffix)
+      text += suffix;
+    text += ' ';
+  }
+  i2c::ErrorCode xfer(uint8_t a, const uint8_t *p, size_t pl, const uint8_t *w, size_t wc, uint8_t *r, size_t rc) {
+    bool ok = true;
+    if (pl + wc != 0 || rc == 0) {
+      text += "S ";
+      ok = present(a);
+      tok("%02X", a << 1, ok ? '+' : '-');
+      for (size_t i = 0; ok && i < pl + wc; i++) {
+        uint8_t b = i < pl ? p[i] : w[i - pl];
+        tok("%02X", b, '+');
+      }
+      if (ok && a == 0x70 && pl + wc == 1)
+        mask = w[0];
+      if (!ok || rc == 0) {
+        text += "P ";
+        return ok ? i2c::ERROR_OK : i2c::ERROR_NOT_ACKNOWLEDGED;
+      }
+      text += "Sr ";
+    } else {
+      text += "S ";
+    }
+    ok = present(a);
+    tok("%02X", (a << 1) | 1, ok ? '+' : '-');
+    for (size_t i = 0; ok && i < rc; i++) {
+      r[i] = a == 0x70 ? mask : static_cast<uint8_t>(0xA0 + i);
+      tok("r%02X", r[i], i + 1 < rc ? '+' : '-');
+    }
+    text += "P ";
+    return ok ? i2c::ERROR_OK : i2c::ERROR_NOT_ACKNOWLEDGED;
+  }
+  i2c::ErrorCode write_readv(uint8_t a, const uint8_t *w, size_t wc, uint8_t *r, size_t rc) override {
+    readv_calls++;
+    return xfer(a, nullptr, 0, w, wc, r, rc);
+  }
+  i2c::ErrorCode write_prefixed(uint8_t a, const uint8_t *p, size_t pl, const uint8_t *d, size_t len) override {
+    prefixed_calls++;
+    return xfer(a, p, pl, d, len, nullptr, 0);
+  }
+#ifdef I2C_PORT_FREQUENCY_COUNT
+  i2c::ErrorCode switch_frequency(uint32_t f) override {
+    if (f != freq) {
+      tok("F%u", f / 1000);
+      freq = f;
+    }
+    return i2c::ERROR_OK;
+  }
+  uint32_t get_frequency() const override { return freq; }
+#endif
+};
+
+static std::vector<uint8_t> pattern(size_t n, uint8_t seed) {
+  std::vector<uint8_t> v(n);
+  for (size_t i = 0; i < n; i++)
+    v[i] = static_cast<uint8_t>(seed + i * 7);
+  return v;
+}
+
+struct Cfg {
+  const char *name;
+  uint32_t mux_freq, chan_freq;
+};
+
+TEST(MuxAB, Record) {
+  malloc_logger = on_log;
+  const char *out = std::getenv("MUXAB_OUT");
+  ASSERT_NE(out, nullptr);
+  std::ofstream f(out);
+  g_window = true;
+  void *volatile probe = malloc(100);
+  g_window = false;
+  free(probe);
+  ASSERT_GE(g_allocs, 1u);
+  std::vector<Cfg> cfgs = {{"plain", 0, 0}};
+#ifdef I2C_PORT_FREQUENCY_COUNT
+  cfgs.push_back({"chan100k", 0, 100000});
+  cfgs.push_back({"chan1M", 0, 1000000});
+  cfgs.push_back({"mux50k", 50000, 0});
+  cfgs.push_back({"mux50k_chan100k", 50000, 100000});
+#endif
+  for (auto &c : cfgs) {
+    MuxWire wire;
+    wire.text.reserve(65536);
+    TCA9548AComponent mux;
+    mux.set_i2c_bus(&wire);
+    mux.set_i2c_address(0x70);
+    TCA9548AChannel ch2, ch5;
+    ch2.set_parent(&mux);
+    ch2.set_channel(2);
+    ch5.set_parent(&mux);
+    ch5.set_channel(5);
+#ifdef I2C_PORT_FREQUENCY_COUNT
+    mux.set_frequency(c.mux_freq);
+    ch2.set_frequency(c.chan_freq);
+#endif
+    i2c::I2CDevice oled, ads, ghost;
+    oled.set_i2c_bus(&ch2);
+    oled.set_i2c_address(0x3C);
+    ads.set_i2c_bus(&ch5);
+    ads.set_i2c_address(0x48);
+    ghost.set_i2c_bus(&ch2);
+    ghost.set_i2c_address(0x48);  // present only behind channel 5
+    auto run = [&](const std::string &label, const std::function<i2c::ErrorCode()> &fn) {
+      wire.text.clear();
+      g_allocs = 0;
+      g_window = true;
+      auto rc = fn();
+      g_window = false;
+      f << c.name << "|" << label << "|rc=" << rc << "|alloc=" << g_allocs << "|" << wire.text << "\n";
+    };
+    for (size_t len = 0; len <= 300; len++) {
+      auto d = pattern(len, 0x11);
+      run("wreg8 len=" + std::to_string(len), [&] { return oled.write_register(0x40, d.data(), d.size()); });
+      run("wreg16 len=" + std::to_string(len), [&] { return oled.write_register16(0x4041, d.data(), d.size()); });
+    }
+    run("wreg8 null len=0", [&] { return oled.write_register(0x00, nullptr, 0); });
+    for (size_t n : {1, 2, 8}) {
+      std::vector<uint8_t> r(n);
+      run("rreg8 n=" + std::to_string(n), [&] { return ads.read_register(0x01, r.data(), n); });
+      run("rreg16 n=" + std::to_string(n), [&] { return ads.read_register16(0x0100, r.data(), n); });
+      run("read n=" + std::to_string(n), [&] { return ads.read(r.data(), n); });
+      auto w = pattern(3, 0x70);
+      run("wr 3+" + std::to_string(n), [&] { return ads.write_read(w.data(), 3, r.data(), n); });
+    }
+    for (size_t len : {0, 1, 24, 300}) {
+      auto d = pattern(len, 0x22);
+      run("write len=" + std::to_string(len), [&] { return oled.write(d.data(), d.size()); });
+    }
+    auto d24 = pattern(24, 0x33);
+    run("absent behind ch2 wreg8 len=24", [&] { return ghost.write_register(0x40, d24.data(), 24); });
+    run("absent behind ch2 wreg8 len=0", [&] { return ghost.write_register(0x40, nullptr, 0); });
+    for (uint8_t a = 8; a != 120; a++)
+      run("probe ch2 " + std::to_string(a), [&] { return ch2.write_readv(a, nullptr, 0, nullptr, 0); });
+    // direct write_prefixed through the channel with an empty prefix (not used by I2CDevice)
+    run("prefixed empty prefix len=4", [&] { return ch2.write_prefixed(0x3C, nullptr, 0, d24.data(), 4); });
+    f << c.name << "|calls upstream write_prefixed=" << wire.prefixed_calls << " write_readv=" << wire.readv_calls
+      << "\n";
+  }
+}
+
+}  // namespace esphome::tca9548a::muxab

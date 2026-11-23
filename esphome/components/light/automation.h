@@ -8,94 +8,13 @@ namespace esphome::light {
 
 enum class LimitMode { CLAMP, DO_NOTHING };
 
-template<bool HasTransitionLength, typename... Ts> class DimRelativeAction final : public Action<Ts...> {
- public:
-  explicit DimRelativeAction(LightState *parent) : parent_(parent) {}
+/// Set the state and brightness of a light.dim_relative call on `state`. Returns false, and the call must not be
+/// performed, when `limit_mode` is DO_NOTHING and the current brightness is outside the limits.
+bool dim_relative(LightState *state, LightCall &call, float relative_brightness, float min_brightness = 0.0f,
+                  float max_brightness = 1.0f, LimitMode limit_mode = LimitMode::CLAMP);
 
-  TEMPLATABLE_VALUE(float, relative_brightness)
-
-  template<typename V>
-  void set_transition_length(V value)
-    requires(HasTransitionLength)
-  {
-    this->transition_length_ = value;
-  }
-
-  void play(const Ts &...x) override {
-    auto call = this->parent_->make_call();
-    float rel = this->relative_brightness_.value(x...);
-    float cur;
-    this->parent_->remote_values.as_brightness(&cur);
-    if ((limit_mode_ == LimitMode::DO_NOTHING) && ((cur < min_brightness_) || (cur > max_brightness_))) {
-      return;
-    }
-    float new_brightness = clamp(cur + rel, min_brightness_, max_brightness_);
-    call.set_state(new_brightness != 0.0f);
-    call.set_brightness(new_brightness);
-
-    if constexpr (HasTransitionLength) {
-      call.set_transition_length(this->transition_length_.optional_value(x...));
-    }
-    call.perform();
-  }
-
-  void set_min_max_brightness(float min, float max) {
-    this->min_brightness_ = min;
-    this->max_brightness_ = max;
-  }
-
-  void set_limit_mode(LimitMode limit_mode) { this->limit_mode_ = limit_mode; }
-
- protected:
-  LightState *parent_;
-  float min_brightness_{0.0};
-  float max_brightness_{1.0};
-  LimitMode limit_mode_{LimitMode::CLAMP};
-  struct NoTransition {};
-  [[no_unique_address]] std::conditional_t<HasTransitionLength, TemplatableFn<uint32_t, Ts...>, NoTransition>
-      transition_length_{};
-};
-
-// Cycle through the light's configured effects. `Forward` selects direction
-// at compile time so the chosen branch is the only one that gets instantiated
-// per action site. `include_none` is runtime so a single set of templates
-// covers both the "wrap through None" and "skip None" variants.
-template<bool Forward, typename... Ts> class LightEffectCycleAction final : public Action<Ts...> {
- public:
-  explicit LightEffectCycleAction(LightState *parent) : parent_(parent) {}
-
-  void set_include_none(bool include_none) { this->include_none_ = include_none; }
-
-  void play(const Ts &...) override {
-    size_t count = this->parent_->get_effect_count();
-    if (count == 0) {
-      return;
-    }
-    uint32_t current = this->parent_->get_current_effect_index();
-    uint32_t next;
-    if (this->include_none_) {
-      uint32_t total = static_cast<uint32_t>(count) + 1;
-      if constexpr (Forward) {
-        next = (current + 1) % total;
-      } else {
-        next = (current + total - 1) % total;
-      }
-    } else {
-      if constexpr (Forward) {
-        next = (current % static_cast<uint32_t>(count)) + 1;
-      } else {
-        next = (current <= 1) ? static_cast<uint32_t>(count) : current - 1;
-      }
-    }
-    auto call = this->parent_->turn_on();
-    call.set_effect(next);
-    call.perform();
-  }
-
- protected:
-  LightState *parent_;
-  bool include_none_{false};
-};
+/// Turn on the next or previous configured effect; with `include_none`, "None" is part of the cycle.
+void cycle_effect(LightState *state, bool forward, bool include_none);
 
 class LightTurnOnTrigger final : public Trigger<>, public LightRemoteValuesListener {
  public:

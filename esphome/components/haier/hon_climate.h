@@ -119,8 +119,9 @@ class HonClimate final : public HaierClimateBase {
 #endif
 #ifdef USE_SWITCH
  public:
-  void set_beeper_switch(switch_::Switch *sw);
-  void set_quiet_mode_switch(switch_::Switch *sw);
+  // initialization() publishes their state once the saved settings are restored
+  void set_beeper_switch(switch_::Switch *sw) { this->beeper_switch_ = sw; }
+  void set_quiet_mode_switch(switch_::Switch *sw) { this->quiet_mode_switch_ = sw; }
 
  protected:
   switch_::Switch *beeper_switch_{nullptr};

@@ -4,15 +4,18 @@ packages:
 
 xl9535:
   id: expander
+  i2c_id: i2c_bus
 
 touchscreen:
   # Firmware downloaded from the model's default release URL and cached.
   - platform: gsl3670
+    i2c_id: i2c_bus
     model: seeed-reterminal-d1001
     display: test_display_screen
     interrupt_pin: 18
   # Explicit firmware URL + SHA-256 override.
   - platform: gsl3670
+    i2c_id: i2c_bus
     model: seeed-reterminal-d1001
     display: test_display_screen
     reset_pin: 10
