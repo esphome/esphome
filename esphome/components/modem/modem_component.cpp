@@ -73,7 +73,9 @@ static constexpr uint8_t SIM_WARN_AFTER = 10;
 static constexpr uint8_t SIM_WARN_EVERY = 60;
 // A modem whose SIM stays unready this long is restarted (AT+CFUN=1,1): one that failed to read its SIM, as after a
 // reset during its own start-up, reports it missing until it restarts, and an ESP reboot leaves it running. The wait
-// doubles after each restart that did not help, so a SIM that is really missing costs a restart every half hour.
+// doubles after each restart that did not help, up to every 32 min. The schedule lives in RAM: with the default
+// reboot_timeout (10 min) the ESP reboots first, so a SIM that is really missing costs restarts at 1, 3 and 7 min
+// into each boot.
 static constexpr uint32_t SIM_RESTART_AFTER_MS = 60000;
 static constexpr uint8_t SIM_RESTART_MAX_BACKOFF = 5;  // 60 s << 5 = 32 min
 // A restarted modem stays silent for several seconds; ENABLING then syncs with it again
@@ -526,6 +528,15 @@ void ModemComponent::task_entry(void *arg) { static_cast<ModemComponent *>(arg)-
 
 void ModemComponent::run_task_() {
   while (true) {
+    // A modem restarting for its SIM gets nothing, not even a send_at() command, until it can answer again; a wake
+    // from enable(), disable() or send_at() waits out the rest, and the work it asked for is done after
+    if (this->sim_restart_pending_) {
+      const uint32_t since = millis() - this->restarted_ms_;
+      if (since < MODEM_RESTART_WAIT_MS) {
+        ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(MODEM_RESTART_WAIT_MS - since));
+        continue;
+      }
+    }
 #ifdef USE_MODEM_SEND_AT
     // A command from send_at() goes out between state steps, never in the middle of a sequence
     if (this->at_pending_.load(std::memory_order_acquire)) {
@@ -982,14 +993,8 @@ ModemState ModemComponent::handle_state_disconnecting_() {
   if (!this->modem_synced_) {
     return ModemState::MODEM_STATE_DISABLED;
   }
-  // A modem restarted for its SIM ignores the teardown until it is back, then starts with its radio on
-  if (this->sim_restart_pending_) {
-    const uint32_t since = millis() - this->restarted_ms_;
-    if (since < MODEM_RESTART_WAIT_MS) {
-      return this->retry_(ModemState::MODEM_STATE_DISCONNECTING, MODEM_RESTART_WAIT_MS - since);
-    }
-    this->sim_restart_pending_ = false;
-  }
+  // run_task_() let a modem restarted for its SIM finish restarting first
+  this->sim_restart_pending_ = false;
   this->modem_synced_ = false;
   // COMMAND_MODE stops PPP and leaves CMUX; the manual exit only applies to a warm reboot
   if (this->dce_->get_mode() != modem_mode::COMMAND_MODE && !this->dce_->set_mode(modem_mode::COMMAND_MODE)) {
@@ -1170,8 +1175,8 @@ ModemState ModemComponent::restart_for_sim_() {
     return this->retry_(ModemState::MODEM_STATE_CONNECTING);
   }
   ESP_LOGW(TAG, "SIM not ready after %" PRIu32 " s; restarting the modem (AT+CFUN=1,1)", waited_s);
-  this->sim_restart_pending_ = true;
-  return this->retry_(ModemState::MODEM_STATE_ENABLING, MODEM_RESTART_WAIT_MS);
+  this->sim_restart_pending_ = true;  // run_task_() holds everything back until the restart is over
+  return ModemState::MODEM_STATE_ENABLING;
 }
 
 void ModemComponent::sim_not_ready_(const char *reason) {

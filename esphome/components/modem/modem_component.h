@@ -327,7 +327,7 @@ class ModemComponent : public Component {
   bool resync_{false};        // a command timed out, so CONNECTING syncs again first
   bool apn_pending_{false};   // ENABLING could not set the APN at CFUN=0, so CONNECTING sets it after the SIM check
   bool sim_waiting_{false};   // SIM checks have failed since READY; kept through resyncs until READY or disable
-  bool sim_restart_pending_{false};  // restarted for its SIM and not answering again yet, so teardown waits
+  bool sim_restart_pending_{false};  // restarted for its SIM and not synced yet: nothing is sent for 10 s
 #ifdef USE_MODEM_SEND_AT
   char at_command_[AT_COMMAND_SIZE];
 #endif
