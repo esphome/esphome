@@ -134,8 +134,9 @@ void VBusTransmitter::send_(uint16_t command, uint16_t value_id, uint32_t value,
 
 void VBusTransmitter::stop_(bool warn_unsent) {
 #ifdef USE_VBUS_SEND_ACTION
-  if (warn_unsent && this->pending_send_ != PendingSend::NONE)
+  if (warn_unsent && this->pending_send_ != PendingSend::NONE) {
     ESP_LOGW(TAG, "Datagram not sent: bus access lost before transmission");
+  }
   this->pending_send_ = PendingSend::NONE;
 #endif
   this->state_ = State::STATE_IDLE;
