@@ -2221,10 +2221,11 @@ async def build_component_automation(
     id_key: str = CONF_TRIGGER_ID,
     template_args: Sequence[SafeExpType] = (),
 ) -> MockObj:
-    """Create and register ``component_class<function[, priority bits], *template_args>``,
-    whose function runs the actions of a no-argument automation.
+    """Create and register the Component that runs a no-argument automation.
 
-    An id under ``id_key`` set by hand keeps its Trigger, built with ``priority`` if given and
+    That is ``component_class<function[, priority bits], *template_args>``, whose function runs
+    the actions directly when they are all inline, else triggers their Automation. An id under
+    ``id_key`` set by hand keeps its Trigger, built with ``priority`` if given and
     ``template_args`` as constructor arguments.
     """
     trigger_id: ID = config[id_key]
