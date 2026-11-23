@@ -169,7 +169,10 @@ void IDFUARTComponent::setup() {
   this->uart_num_ = static_cast<uart_port_t>(next_uart_num++);
 
   size_t fifo_len = hw_fifo_len(this->uart_num_);
-  if (this->rx_buffer_size_ <= fifo_len) {
+  if (this->rx_pin_ == nullptr) {
+    // Nothing arrives without an RX pin; ESP-IDF still requires more than the hardware FIFO
+    this->rx_buffer_size_ = fifo_len + 1;
+  } else if (this->rx_buffer_size_ <= fifo_len) {
     ESP_LOGW(TAG, "rx_buffer_size is too small, must be greater than %zu", fifo_len);
     this->rx_buffer_size_ = fifo_len * 2;
   }

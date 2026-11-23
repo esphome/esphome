@@ -23,15 +23,12 @@ static const uint8_t READ_COMMAND = 0x0A;
 PROGMEM_STRING_TABLE(OversamplingStrings, "1024x", "2048x", "4096x", "8192x", "256x", "512x", "16384x", "32768x",
                      "UNKNOWN");
 
-[[maybe_unused]] static const LogString *oversampling_to_str(XGZP68XXOversampling value) {
-  return OversamplingStrings::get_log_str(static_cast<uint8_t>(value), OversamplingStrings::LAST_INDEX);
-}
-
 void XGZP68XXComponent::update() {
   // A failed write is retried on the next update
   if (this->last_pressure_oversampling_ != this->pressure_oversampling_ &&
       this->update_register(PCONFIG_ADDRESS, PCONFIG_OVERSAMPLING_MASK, this->pressure_oversampling_)) {
-    ESP_LOGD(TAG, "Oversampling set to %s", LOG_STR_ARG(oversampling_to_str(this->pressure_oversampling_)));
+    ESP_LOGD(TAG, "Oversampling set to %s",
+             LOG_STR_ARG(OversamplingStrings::get_log_str(this->pressure_oversampling_)));
     this->last_pressure_oversampling_ = this->pressure_oversampling_;
   }
 
@@ -85,7 +82,8 @@ void XGZP68XXComponent::dump_config() {
   LOG_SENSOR("  ", "Temperature: ", this->temperature_sensor_);
   LOG_SENSOR("  ", "Pressure: ", this->pressure_sensor_);
   if (this->pressure_sensor_ != nullptr) {
-    ESP_LOGCONFIG(TAG, "    Oversampling: %s", LOG_STR_ARG(oversampling_to_str(this->pressure_oversampling_)));
+    ESP_LOGCONFIG(TAG, "    Oversampling: %s",
+                  LOG_STR_ARG(OversamplingStrings::get_log_str(this->pressure_oversampling_)));
   }
   LOG_I2C_DEVICE(this);
   LOG_UPDATE_INTERVAL(this);

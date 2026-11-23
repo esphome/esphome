@@ -60,6 +60,8 @@ struct EntityMatchResult {
 
 /// Internal helper struct that is used to parse incoming URLs
 struct UrlMatch {
+  // User-provided so GCC stores the defaults instead of copying a constant, which is RAM on ESP8266
+  UrlMatch() {}      // NOLINT(modernize-use-equals-default)
   StringRef domain;  ///< Domain within URL, for example "sensor"
   StringRef id;      ///< Entity name/id within URL, for example "Temperature"
   StringRef method;  ///< Method within URL, for example "turn_on"
@@ -171,9 +173,12 @@ class DeferredUpdateEventSource final : public AsyncEventSource {
 };
 
 class DeferredUpdateEventSourceList final : public std::list<DeferredUpdateEventSource *> {
+  friend class HeadAckedEventSourceResponse;  // ESPAsyncWebServer 3.12.1 workaround, remove with it
+
  protected:
   void on_client_connect_(DeferredUpdateEventSource *source);
   void on_client_disconnect_(DeferredUpdateEventSource *source);
+  void add_client_(WebServer *ws, AsyncClient *client);  // ESPAsyncWebServer 3.12.1 workaround, remove with it
 
  public:
   /// Returns true if there are event sources remaining (including pending cleanup).

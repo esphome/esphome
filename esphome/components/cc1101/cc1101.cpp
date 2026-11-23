@@ -430,6 +430,14 @@ void CC1101Component::loop() {
     this->enter_rx_();
     return;
   }
+  // GDO0 also rises when the FIFO fills, which for a 64 byte packet is before the CRC has arrived
+  if (rx_bytes == RX_FIFO_SIZE) {
+    this->read_(Register::MARCSTATE);
+    if (static_cast<State>(this->state_.MARC_STATE) == State::RX) {
+      this->enable_loop();
+      return;
+    }
+  }
 
   // Read packet
   uint8_t payload_length, expected_rx;
@@ -507,18 +515,12 @@ void CC1101Component::dump_config() {
 }
 
 void CC1101Component::begin_tx() {
-  this->wake_up();
-  // Read the mode before the PKTCTRL0 write below overwrites it in state_
-  const bool packet_mode = this->state_.PKT_FORMAT == static_cast<uint8_t>(PacketFormat::PACKET_FORMAT_FIFO);
-  // Ensure Packet Format is 3 (Async Serial)
-  this->write_(Register::PKTCTRL0, 0x32);
+  if (this->state_.PKT_FORMAT == static_cast<uint8_t>(PacketFormat::PACKET_FORMAT_FIFO)) {
+    ESP_LOGW(TAG, "begin_tx is for async serial mode; use send_packet in packet mode");
+    return;
+  }
   ESP_LOGV(TAG, "Beginning TX sequence");
   if (this->gdo0_pin_ != nullptr) {
-    // setup() only attaches the interrupt in packet mode. In async serial mode the pin may be
-    // shared with remote_receiver, and detaching here would remove the receiver's interrupt.
-    if (packet_mode) {
-      this->gdo0_pin_->detach_interrupt();
-    }
     this->gdo0_pin_->pin_mode(gpio::FLAG_OUTPUT);
   }
   // Transition through IDLE to bypass CCA (Clear Channel Assessment) which can

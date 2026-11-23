@@ -17,6 +17,8 @@ ESPHOME_LOG_TAG(TAG, "esp32_rmt_led_strip");
 static const size_t RMT_SYMBOLS_PER_BYTE = 8;
 // Idle time the line must stay low between frames so the strip latches
 static constexpr uint32_t RESET_GAP_US = 50;
+// Idle time after the last frame before the channel is disabled, so running effects do not toggle it every frame
+static constexpr uint32_t CHANNEL_IDLE_US = 100000;
 
 // Query the RMT default clock source frequency. This varies by variant:
 // APB (80MHz) on ESP32/S2/S3/C3, PLL_F80M (80MHz) on C6/P4, XTAL (32MHz) on H2.
@@ -117,10 +119,21 @@ void ESP32RMTLEDStripLightOutput::setup() {
     return;
 #endif
 
-  if (!this->setup_check(rmt_enable(this->channel_) == ESP_OK, LOG_STR("Enabling channel failed")))
-    return;
-
   this->accessor_ = &this->internal_accessor_;
+}
+
+void ESP32RMTLEDStripLightOutput::loop() {
+  if (this->channel_enabled_) {
+    // Ask only after the frame time: the driver logs an error while a frame is still being sent
+    if (micros() - this->last_refresh_ < std::max(this->frame_time_us_, CHANNEL_IDLE_US) ||
+        rmt_tx_wait_all_done(this->channel_, 0) != ESP_OK)
+      return;
+    // Releases the power management lock so the chip can light sleep; fails briefly right after the done interrupt
+    if (rmt_disable(this->channel_) != ESP_OK)
+      return;
+    this->channel_enabled_ = false;
+  }
+  this->disable_loop();
 }
 
 void ESP32RMTLEDStripLightOutput::set_led_params(uint32_t bit0_high, uint32_t bit0_low, uint32_t bit1_high,
@@ -149,8 +162,16 @@ void ESP32RMTLEDStripLightOutput::write_state(light::LightState *state) {
   if (this->throttle_show_(micros(), this->last_refresh_, std::max(this->frame_time_us_, this->max_refresh_rate_)))
     return;
 
-  // The gate above should always cover the previous frame; never overwrite rmt_buf_ while the RMT still reads it
-  if (rmt_tx_wait_all_done(this->channel_, 0) != ESP_OK) {
+  if (!this->channel_enabled_) {
+    if (rmt_enable(this->channel_) != ESP_OK) {
+      this->status_set_warning(LOG_STR("Enabling channel failed"));
+      this->schedule_show();
+      return;
+    }
+    this->channel_enabled_ = true;
+    this->enable_loop();
+  } else if (rmt_tx_wait_all_done(this->channel_, 0) != ESP_OK) {
+    // The gate above should always cover the previous frame; never overwrite rmt_buf_ while the RMT still reads it
     ESP_LOGE(TAG, "RMT TX still busy");
     this->status_set_warning();
     this->schedule_show();
