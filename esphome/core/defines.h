@@ -979,7 +979,6 @@
 #define USE_ZIGBEE
 #define USE_ZIGBEE_WIPE_ON_BOOT
 #define USE_ZIGBEE_WIPE_ON_BOOT_MAGIC 1
-#define ZIGBEE_ENDPOINTS_COUNT 8
 #endif
 
 // Disabled feature flags
