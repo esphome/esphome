@@ -1,0 +1,5 @@
+esp32_ble:
+
+switch:
+  - platform: ble
+    name: Bluetooth
