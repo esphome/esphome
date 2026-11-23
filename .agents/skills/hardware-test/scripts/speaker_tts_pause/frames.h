@@ -1,5 +1,6 @@
 #pragma once
-// Played-frame counters for tts-common.yaml, written from the resampler speakers' audio output callbacks.
+// Played-frame counters for tts-common.yaml and flac-dut.yaml, written from the resampler speakers' audio output
+// callbacks.
 #include <atomic>
 #include <cstdint>
 

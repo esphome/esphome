@@ -28,8 +28,7 @@ static constexpr uint8_t MADCTL_YFLIP = 0x01;  // Mirror the display vertically
 void MipiRgb::setup_enables_() {
   if (!this->enable_pins_.empty()) {
     for (auto *pin : this->enable_pins_) {
-      pin->setup();
-      pin->digital_write(true);
+      setup_output_pin(pin, true);
     }
     delay(10);
   }

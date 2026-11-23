@@ -69,6 +69,26 @@ TEST_F(TextFilterTest, TimeoutSendsTheConfiguredValue) {
   EXPECT_EQ(this->seen_, (std::vector<std::string>{"a", "Offline"}));
 }
 
+TEST_F(TextFilterTest, EveryFilterRunsInOrderThenTheSensorGetsTheValue) {
+  // Each step only gives this result in this order, and only if none is skipped
+  AppendFilter append_b("b");
+  ToUpperFilter upper;
+  AppendFilter append_c("c");
+  this->sensor_.add_filters({&append_b, &upper, &append_c});
+  this->sensor_.publish_state("a");
+  EXPECT_EQ(this->seen_, (std::vector<std::string>{"ABc"}));
+}
+
+// A timeout that is not the last filter sends its value on through the rest of the chain
+TEST_F(TextFilterTest, TimeoutBeforeTheLastSendsThroughTheChain) {
+  TimeoutFilterConfigured timeout(1000, "offline");
+  ToUpperFilter upper;
+  this->sensor_.add_filters({&timeout, &upper});
+  this->publish_at_(1000, "a");
+  loop_at(timeout, 2000);
+  EXPECT_EQ(this->seen_, (std::vector<std::string>{"A", "OFFLINE"}));
+}
+
 TEST_F(TextFilterTest, ResetChainMakesTheFiltersBehaveAsAtBoot) {
   TimeoutThrottleFilter combined(1000, PRIORITIZED);
   ThrottleFilter throttle(1000);

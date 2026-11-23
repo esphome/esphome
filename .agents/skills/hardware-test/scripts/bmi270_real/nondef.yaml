@@ -1,0 +1,33 @@
+substitutions:
+  name: bmin
+packages:
+  common: !include common.yaml
+motion:
+  - id: !extend imu
+    accelerometer_range: 16G
+    accelerometer_odr: 1600HZ
+    gyroscope_range: 125DPS
+    gyroscope_odr: 25HZ
+    aux_device: BMM150
+    aux_address: 0x10
+sensor:
+  - platform: bmi270
+    bmi270_id: imu
+    type: magnetic_field_x
+    name: "BMI Mag X"
+    id: s_mx
+  - platform: bmi270
+    bmi270_id: imu
+    type: magnetic_field_y
+    name: "BMI Mag Y"
+    id: s_my
+  - platform: bmi270
+    bmi270_id: imu
+    type: magnetic_field_z
+    name: "BMI Mag Z"
+    id: s_mz
+interval:
+  - interval: 2s
+    then:
+      - lambda: |-
+          ESP_LOGI("bmiprobe", "MAG mx=%.3f my=%.3f mz=%.3f", id(s_mx).state, id(s_my).state, id(s_mz).state);

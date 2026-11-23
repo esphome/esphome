@@ -171,6 +171,41 @@ class LoopTrigger : public Trigger<>, public Component {
   float get_setup_priority() const override { return setup_priority::DATA; }
 };
 
+/// Component whose setup priority is the float with bit pattern PRIORITY_BITS, since GCC 10 (ESP8266)
+/// has no float template parameters. Templated on the priority only, so each priority has one copy.
+template<uint32_t PRIORITY_BITS> class PriorityComponent : public Component {
+ public:
+  float get_setup_priority() const override { return bit_cast<float>(PRIORITY_BITS); }
+};
+
+/// Bit pattern of setup_priority::DATA (600.0f), the Component default.
+static constexpr uint32_t SETUP_PRIORITY_DATA_BITS = 0x44160000;
+// bit_cast is constexpr only where std::bit_cast exists, which GCC 10 (ESP8266) lacks
+#if __cpp_lib_bit_cast >= 201806
+static_assert(bit_cast<uint32_t>(setup_priority::DATA) == SETUP_PRIORITY_DATA_BITS);
+#endif
+
+/// The default priority needs no override.
+template<> class PriorityComponent<SETUP_PRIORITY_DATA_BITS> : public Component {};
+
+/// Calls Fn from setup(), for on_boot.
+template<auto Fn, uint32_t PRIORITY_BITS> class StartupCallback final : public PriorityComponent<PRIORITY_BITS> {
+ public:
+  void setup() override { Fn(); }
+};
+
+/// Calls Fn from on_shutdown(), for on_shutdown.
+template<auto Fn, uint32_t PRIORITY_BITS> class ShutdownCallback final : public PriorityComponent<PRIORITY_BITS> {
+ public:
+  void on_shutdown() override { Fn(); }
+};
+
+/// Calls Fn from loop(), for on_loop.
+template<auto Fn> class LoopCallback final : public Component {
+ public:
+  void loop() override { Fn(); }
+};
+
 #ifdef ESPHOME_PROJECT_NAME
 class ProjectUpdateTrigger : public Trigger<std::string>, public Component {
  public:
@@ -593,54 +628,6 @@ template<typename... Ts> class WaitUntilAction : public Action<Ts...>, public Co
   std::list<QueueItem> var_queue_{};
   // Bumped by stop() so process_queue_() can detect a stop from inside play_next_()
   uint8_t stop_generation_{0};
-};
-
-template<typename... Ts> class UpdateComponentAction : public Action<Ts...> {
- public:
-  UpdateComponentAction(PollingComponent *component) : component_(component) {}
-
-  void play(const Ts &...x) override {
-    if (!this->component_->is_ready())
-      return;
-    this->component_->update();
-  }
-
- protected:
-  PollingComponent *component_;
-};
-
-template<typename... Ts> class SuspendComponentAction : public Action<Ts...> {
- public:
-  SuspendComponentAction(PollingComponent *component) : component_(component) {}
-
-  void play(const Ts &...x) override {
-    if (!this->component_->is_ready())
-      return;
-    this->component_->stop_poller();
-  }
-
- protected:
-  PollingComponent *component_;
-};
-
-template<typename... Ts> class ResumeComponentAction : public Action<Ts...> {
- public:
-  ResumeComponentAction(PollingComponent *component) : component_(component) {}
-  TEMPLATABLE_VALUE(uint32_t, update_interval)
-
-  void play(const Ts &...x) override {
-    if (!this->component_->is_ready()) {
-      return;
-    }
-    optional<uint32_t> update_interval = this->update_interval_.optional_value(x...);
-    if (update_interval.has_value()) {
-      this->component_->set_update_interval(update_interval.value());
-    }
-    this->component_->start_poller();
-  }
-
- protected:
-  PollingComponent *component_;
 };
 
 }  // namespace esphome

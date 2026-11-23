@@ -22,10 +22,10 @@ ESPHOME_LOG_TAG(TAG, "sendspin.media_player");
 // since SendspinHub dispatches group updates and controller state from client_->loop().
 void SendspinMediaPlayer::setup() {
   // Register for group updates to sync playback state
-  this->parent_->add_group_update_callback([this](const sendspin::GroupUpdateObject &group_obj) {
-    if (group_obj.playback_state.has_value()) {
+  this->parent_->add_group_state_callback([this](const sendspin::GroupState &changes) {
+    if (changes.playback_state.has_value()) {
       media_player::MediaPlayerState new_state;
-      switch (group_obj.playback_state.value()) {
+      switch (changes.playback_state.value()) {
         case sendspin::SendspinPlaybackState::PLAYING:
           new_state = media_player::MEDIA_PLAYER_STATE_PLAYING;
           break;

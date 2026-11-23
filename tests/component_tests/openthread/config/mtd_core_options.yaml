@@ -1,0 +1,16 @@
+esphome:
+  name: test
+
+esp32:
+  variant: esp32c6
+  framework:
+    type: esp-idf
+
+network:
+  enable_ipv6: true
+
+openthread:
+  device_type: MTD
+  tlv: 0e080000000000010000000300001435060004001fffe0
+  core_options:
+    OPENTHREAD_CONFIG_MLE_CHILD_TIMEOUT_DEFAULT: "960"
