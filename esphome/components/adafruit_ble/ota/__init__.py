@@ -16,7 +16,7 @@ from esphome.components.zephyr import zephyr_data
 from esphome.components.zephyr.const import KEY_BOOTLOADER
 from esphome.components.zephyr_ble_server import DOMAIN as ZEPHYR_BLE_SERVER_DOMAIN
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_ON_ERROR, CONF_OTA, CONF_PLATFORM, Framework
+from esphome.const import CONF_ID, CONF_ON_ERROR, Framework
 from esphome.core import CoroPriority, coroutine_with_priority
 import esphome.final_validate as fv
 from esphome.types import ConfigType
@@ -55,14 +55,6 @@ CONFIG_SCHEMA = cv.All(
 
 
 def _final_validate(config: ConfigType) -> None:
-    if (
-        sum(
-            entry[CONF_PLATFORM] == "adafruit_ble"
-            for entry in fv.full_config.get().get(CONF_OTA, [])
-        )
-        > 1
-    ):
-        raise cv.Invalid("Adafruit BLE OTA does not support multiple instances")
     # Every Adafruit bootloader variant is named adafruit*
     bootloader = zephyr_data().get(KEY_BOOTLOADER, "")
     if not bootloader.startswith(BOOTLOADER_ADAFRUIT):
@@ -70,13 +62,14 @@ def _final_validate(config: ConfigType) -> None:
             f"Adafruit BLE OTA requires an Adafruit bootloader, but '{bootloader}' "
             "is configured. Set 'bootloader:' to an Adafruit one."
         )
-    if not config.get(CONF_BLE_TRIGGER, True):
+    if not config[CONF_BLE_TRIGGER]:
         return
-    if ZEPHYR_BLE_SERVER_DOMAIN not in fv.full_config.get():
+    full_config = fv.full_config.get()
+    if ZEPHYR_BLE_SERVER_DOMAIN not in full_config:
         raise cv.Invalid(
             "Component ota.adafruit_ble requires component zephyr_ble_server"
         )
-    server = fv.full_config.get().get(ZEPHYR_BLE_SERVER_DOMAIN) or {}
+    server = full_config[ZEPHYR_BLE_SERVER_DOMAIN] or {}
     if CONF_ON_NUMERIC_COMPARISON_REQUEST not in server:
         _LOGGER.warning(
             "Adafruit BLE OTA without pairing lets any nearby device restart this "
@@ -97,8 +90,7 @@ automation.register_apply_action(
 
 @coroutine_with_priority(CoroPriority.OTA_UPDATES)
 async def to_code(config: ConfigType) -> None:
-    # The Adafruit bootloader serves the update itself; the component provides
-    # entry action and, optionally, the BLE service that requests the same restart.
+    # The Adafruit bootloader serves the update; this only requests the restart into it.
     if config[CONF_BLE_TRIGGER]:
         cg.add_define("USE_ADAFRUIT_BLE_TRIGGER")
     var = cg.new_Pvariable(config[CONF_ID])
