@@ -58,6 +58,15 @@ def _consume_replacement_socket(config: ConfigType) -> ConfigType:
     return config
 
 
+def _validate_turn_timeout(config: ConfigType) -> ConfigType:
+    if CONF_TURN_TIMEOUT in config and config[CONF_MAX_CONNECTIONS] == 1:
+        raise cv.Invalid(
+            f"{CONF_TURN_TIMEOUT} needs {CONF_MAX_CONNECTIONS} above 1",
+            path=[CONF_TURN_TIMEOUT],
+        )
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     cv.typed_schema(
         {
@@ -87,6 +96,7 @@ CONFIG_SCHEMA = cv.All(
     ),
     socket.consume_role_sockets("tcp_uart", CONF_MAX_CONNECTIONS),
     _consume_replacement_socket,
+    _validate_turn_timeout,
 )
 
 FINAL_VALIDATE_SCHEMA = socket.final_validate_idle_timeout

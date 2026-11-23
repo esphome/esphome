@@ -605,6 +605,20 @@ TEST_F(TcpUartIdleTimeout, RequestWaitingForItsTurnKeepsItsClientOpen) {
   EXPECT_EQ(this->read_all(), "hi");
 }
 
+TEST_F(TcpUartIdleTimeout, UnreadRequestKeepsItsClientOpen) {
+  // A's request takes the turn at 1000, and the consumer leaves it unread. B sends nothing.
+  send(this->a_, "ping");
+  this->wait_for_bytes(4);
+
+  // At 2000 neither client has sent anything for 1000 ms. A's request still waits on the consumer, so only B is
+  // closed and the request stays readable.
+  this->at(2000);
+  this->loops(2);
+  EXPECT_EQ(received(this->b_), "<closed>");
+  EXPECT_EQ(this->uart_.open_connections(), 1);
+  EXPECT_EQ(this->read_all(), "ping");
+}
+
 TEST_F(TcpUartIdleTimeout, FullReceiveBufferKeepsItsOwnClientOpen) {
   // B fills the 1024-byte receive buffer at 1000 and stops; nothing reads the buffer. A sends nothing.
   const std::string block(1024, 'b');

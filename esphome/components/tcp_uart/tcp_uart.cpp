@@ -222,10 +222,10 @@ void TcpUart::loop_pool_(bool waiting) {
   for (uint8_t i = 0; i < count; i++) {
     Link &link = this->slot_(i);
     this->flush_link_(link);
-    // Bytes still waiting in its socket, for their turn or for room, are not a quiet peer. Nor is a held turn's peer:
-    // it waits for its reply.
-    const bool busy =
-        (this->pending_mask_ & (1u << i)) != 0 || (i == this->holder_ && (this->rx_pending_ || this->held_));
+    // Bytes still waiting in its socket, for their turn or for room, are not a quiet peer. Nor is the holder's peer
+    // while its bytes wait on the consumer or a held turn waits for its reply.
+    const bool busy = (this->pending_mask_ & (1u << i)) != 0 ||
+                      (i == this->holder_ && (this->rx_pending_ || this->held_ || this->available() != 0));
     if (busy || link.ready()) {
       link.note_io();
     }

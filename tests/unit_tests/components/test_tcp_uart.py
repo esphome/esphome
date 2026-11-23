@@ -50,8 +50,15 @@ def test_turn_timeout_with_several_connections_is_accepted() -> None:
             "turn_timeout": "65536ms",
         },
         {"role": "client", "host": "10.0.0.1", "port": 502, "turn_timeout": "200ms"},
+        {"role": "server", "port": 502, "turn_timeout": "200ms"},
     ],
-    ids=["too_many_connections", "zero_turn_timeout", "long_turn_timeout", "client"],
+    ids=[
+        "too_many_connections",
+        "zero_turn_timeout",
+        "long_turn_timeout",
+        "client",
+        "single_connection",
+    ],
 )
 def test_invalid_config_is_rejected(config: dict[str, Any]) -> None:
     with pytest.raises(cv.Invalid):
