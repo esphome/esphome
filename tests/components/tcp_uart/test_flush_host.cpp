@@ -18,7 +18,7 @@ class TcpUartUnderTest : public TcpUart {
     this->set_port(1);
     this->link_.begin("flush_test");
   }
-  socket::TcpClientLink &link() { return this->link_; }
+  Link &link() { return this->link_; }
 };
 
 class TcpUartFlush : public ::testing::Test {

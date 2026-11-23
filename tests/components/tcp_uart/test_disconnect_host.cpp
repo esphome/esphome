@@ -20,7 +20,7 @@ class TcpUartDisconnectUnderTest : public TcpUart {
     this->set_port(1);
     this->link_.begin("disconnect_test");
   }
-  socket::TcpClientLink &link() { return this->link_; }
+  Link &link() { return this->link_; }
 };
 
 class TcpUartDisconnect : public ::testing::Test {

@@ -208,6 +208,33 @@ TEST_F(TcpClientLinkClock, BackoffSpansAMillisWrap) {
   EXPECT_FALSE(this->link_.in_backoff());
 }
 
+// vnc and uart_tcp keep their 1024-byte TX buffer inside the link. A link that uses its owner's buffer holds a
+// pointer instead: on this 64-bit host 80 bytes, well under an eighth of the buffer.
+TEST(TcpClientLink, SharedTxLinkCarriesNoBuffer) {
+  EXPECT_GT(sizeof(TcpClientLink), TcpClientLinkBase::TX_BUFFER_SIZE);
+  EXPECT_LT(sizeof(TcpClientLinkSharedTx), TcpClientLinkBase::TX_BUFFER_SIZE / 8);
+}
+
+TEST(TcpClientLink, SharedTxLinkSendsFromItsOwnersBuffer) {
+  signal(SIGPIPE, SIG_IGN);
+  int fds[2];
+  ASSERT_EQ(socketpair(AF_UNIX, SOCK_STREAM, 0, fds), 0);
+  uint8_t owners_buffer[TcpClientLinkBase::TX_BUFFER_SIZE]{};
+  TcpClientLinkSharedTx link;
+  link.set_tx_buffer(owners_buffer);
+  link.begin("link_test");
+  link.adopt(std::make_unique<Socket>(fds[0]));
+
+  EXPECT_EQ(link.queue(reinterpret_cast<const uint8_t *>("ping"), 4), 4u);
+  EXPECT_EQ(std::memcmp(owners_buffer, "ping", 4), 0);
+  EXPECT_TRUE(link.flush_tx());
+  char buf[8];
+  EXPECT_EQ(::read(fds[1], buf, sizeof(buf)), 4);
+  EXPECT_EQ(std::memcmp(buf, "ping", 4), 0);
+  link.close();
+  ::close(fds[1]);
+}
+
 TEST(TcpClientLink, AdoptedSocketFlushesQueuedBytes) {
   LinkPeer p;
   ASSERT_TRUE(p.link_.connected());

@@ -31,7 +31,12 @@ class TcpUart : public uart::UARTComponent, public Component {
 #endif
 
  public:
-  TcpUart() { this->rx_buffer_size_ = RX_BUFFER_SIZE; }
+  TcpUart() {
+    this->rx_buffer_size_ = RX_BUFFER_SIZE;
+#ifdef USE_TCP_UART_MAX_CONNECTIONS
+    this->link_.set_tx_buffer(this->tx_);
+#endif
+  }
 
   void set_host(const char *host) { this->link_.set_host(host); }
   void set_port(uint16_t port) { this->link_.set_port(port); }
@@ -83,7 +88,7 @@ class TcpUart : public uart::UARTComponent, public Component {
   size_t available() override { return static_cast<size_t>(this->rx_end_ - this->rx_start_); }
   // Same room write_array() grants, so consumers can apply backpressure.
   size_t available_for_write() override {
-    socket::TcpClientLink *link = this->tx_link_();
+    Link *link = this->tx_link_();
     return link != nullptr ? link->tx_free() : 0;
   }
   uart::UARTFlushResult flush() override;
@@ -94,14 +99,21 @@ class TcpUart : public uart::UARTComponent, public Component {
 #endif
 
  protected:
+#ifdef USE_TCP_UART_MAX_CONNECTIONS
+  // All connections share tx_; only the one that writes go to holds bytes in it.
+  using Link = socket::TcpClientLinkSharedTx;
+#else
+  using Link = socket::TcpClientLink;
+#endif
+
   void check_logger_conflict() override {}
   void sync_link_();
   /// Reads at most limit bytes and returns how many arrived.
-  size_t read_socket_(socket::TcpClientLink &link, size_t limit = RX_BUFFER_SIZE);
+  size_t read_socket_(Link &link, size_t limit = RX_BUFFER_SIZE);
   void publish_connected_(bool up);
   void count_disconnect_();
   /// The connection that writes go to, or nullptr.
-  socket::TcpClientLink *tx_link_() {
+  Link *tx_link_() {
 #ifdef USE_TCP_UART_MAX_CONNECTIONS
     if (!this->extra_.empty()) {
       return this->tx_slot_ == NO_SLOT ? nullptr : &this->slot_(this->tx_slot_);
@@ -112,19 +124,22 @@ class TcpUart : public uart::UARTComponent, public Component {
 #ifdef USE_TCP_UART_MAX_CONNECTIONS
   static constexpr uint8_t NO_SLOT = 0xFF;
 
-  socket::TcpClientLink &slot_(uint8_t i) { return i == 0 ? this->link_ : this->extra_[i - 1]; }
+  Link &slot_(uint8_t i) { return i == 0 ? this->link_ : this->extra_[i - 1]; }
   uint8_t slot_count_() const { return static_cast<uint8_t>(this->extra_.size() + 1); }
   void loop_pool_(bool waiting);
   void slot_edge_(uint8_t i);
   void accept_slot_(uint32_t now);
   void pick_holder_(uint32_t now);
+  /// True once the last holder's reply has left the shared TX buffer. Closes that connection when it takes no byte
+  /// for TX_STALL_TIMEOUT_MS while another client waits.
+  bool tx_drained_(uint32_t now);
   void read_holder_(uint32_t now);
-  void end_turn_();
+  void end_turn_(uint32_t now);
 #endif
 
   static constexpr size_t RX_BUFFER_SIZE = 1024;
 
-  socket::TcpClientLink link_;
+  Link link_;
 #ifdef USE_SOCKET_TCP_LISTENER
   socket::TcpListener listener_;
 #endif
@@ -134,9 +149,12 @@ class TcpUart : public uart::UARTComponent, public Component {
   uint32_t last_drop_log_ms_{0};
 #ifdef USE_TCP_UART_MAX_CONNECTIONS
   // Slots 1 and up; slot 0 is link_, which also holds the port and the listener's retry clock.
-  FixedVector<socket::TcpClientLink> extra_;
+  FixedVector<Link> extra_;
   // Last byte in either direction on the holder's connection.
   uint32_t last_traffic_ms_{0};
+  // When the last holder's reply last left the TX buffer, and the free room seen then.
+  uint32_t tx_moved_ms_{0};
+  uint16_t tx_free_seen_{0};
   uint8_t holder_{NO_SLOT};
   // Writes go here: the holder, else the last holder until it closes.
   uint8_t tx_slot_{NO_SLOT};
@@ -163,6 +181,9 @@ class TcpUart : public uart::UARTComponent, public Component {
   // A read stopped before EAGAIN. ready() stays false until new data arrives.
   bool rx_pending_{false};
   uint8_t rx_[RX_BUFFER_SIZE]{};
+#ifdef USE_TCP_UART_MAX_CONNECTIONS
+  uint8_t tx_[Link::TX_BUFFER_SIZE]{};
+#endif
 };
 
 }  // namespace esphome::tcp_uart

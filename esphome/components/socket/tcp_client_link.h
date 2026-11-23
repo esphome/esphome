@@ -16,11 +16,14 @@
 namespace esphome::socket {
 
 /// A reconnecting TCP stream driven from loop(). Owns the socket, the DNS
-/// lookup, the retry backoff and the outgoing buffer. A fatal read/write
-/// error closes the link and schedules the next attempt; the caller sees
-/// the edge via connected().
-class TcpClientLink {
+/// lookup, the retry backoff and the fill level of the outgoing buffer;
+/// TcpClientLink and TcpClientLinkSharedTx add where its bytes live. A fatal
+/// read/write error closes the link and schedules the next attempt; the
+/// caller sees the edge via connected().
+class TcpClientLinkBase {
  public:
+  static constexpr size_t TX_BUFFER_SIZE = 1024;
+
   void set_host(const char *host) { this->host_ = StringRef(host); }
   void set_port(uint16_t port) { this->port_ = port; }
   void set_reconnect_interval(uint32_t ms) { this->reconnect_interval_ms_ = ms; }
@@ -46,21 +49,8 @@ class TcpClientLink {
   void adopt(std::unique_ptr<Socket> sock);
   /// Returns bytes moved, 0 when nothing can move now, -1 when the link dropped.
   ssize_t read(uint8_t *buf, size_t len);
-  /// Copy into the outgoing buffer; returns how many bytes fit.
-  size_t queue(const uint8_t *data, size_t len);
-  /// Direct access to the buffer's free tail. Fill at most tx_free() bytes,
-  /// then tx_commit() the count; neither is bounds checked.
-  uint8_t *tx_tail() { return this->tx_ + this->tx_len_; }
   void tx_commit(size_t len) { this->tx_len_ += static_cast<uint16_t>(len); }
   size_t tx_free() const { return this->connected_ ? TX_BUFFER_SIZE - this->tx_len_ : 0; }
-  /// Send the front of the buffer; true once it is empty.
-  /// A partial write keeps the rest; inline no-op while nothing is queued.
-  bool flush_tx() {
-    if (this->tx_len_ != 0) {
-      this->flush_tx_slow_();
-    }
-    return this->tx_len_ == 0;
-  }
   /// Close without scheduling a reconnect (shutdown).
   void close();
   /// Restart the idle clock. A consumer that cannot take more bytes calls this,
@@ -87,11 +77,17 @@ class TcpClientLink {
   }
 
  protected:
-  static constexpr size_t TX_BUFFER_SIZE = 1024;
-
+  /// queue() and flush_tx() of the subclasses, on the buffer they keep.
+  size_t queue_(uint8_t *tx, const uint8_t *data, size_t len);
+  bool flush_tx_(uint8_t *tx) {
+    if (this->tx_len_ != 0) {
+      this->flush_tx_slow_(tx);
+    }
+    return this->tx_len_ == 0;
+  }
   /// The raw stream write behind flush_tx(); drops the link on a fatal error.
   ssize_t write_(const uint8_t *buf, size_t len);
-  void flush_tx_slow_();
+  void flush_tx_slow_(uint8_t *tx);
   void poll_slow_();
   void try_connect_();
   /// Close after a failure, log what and errno, schedule the next attempt.
@@ -110,7 +106,35 @@ class TcpClientLink {
   uint16_t port_{0};
   uint16_t tx_len_{0};
   bool connected_{false};
+};
+
+/// A link with its own outgoing buffer.
+class TcpClientLink : public TcpClientLinkBase {
+ public:
+  /// Copy into the outgoing buffer; returns how many bytes fit.
+  size_t queue(const uint8_t *data, size_t len) { return this->queue_(this->tx_, data, len); }
+  /// Direct access to the buffer's free tail. Fill at most tx_free() bytes,
+  /// then tx_commit() the count; neither is bounds checked.
+  uint8_t *tx_tail() { return this->tx_ + this->tx_len_; }
+  /// Send the front of the buffer; true once it is empty.
+  /// A partial write keeps the rest; inline no-op while nothing is queued.
+  bool flush_tx() { return this->flush_tx_(this->tx_); }
+
+ protected:
   uint8_t tx_[TX_BUFFER_SIZE]{};
+};
+
+/// A link whose outgoing buffer belongs to its owner, so several links can share one.
+/// Only one of them may hold bytes: the owner queues to another only after flush_tx() emptied the last.
+class TcpClientLinkSharedTx : public TcpClientLinkBase {
+ public:
+  /// buf holds TX_BUFFER_SIZE bytes and outlives the link. Call before the link connects.
+  void set_tx_buffer(uint8_t *buf) { this->tx_ = buf; }
+  size_t queue(const uint8_t *data, size_t len) { return this->queue_(this->tx_, data, len); }
+  bool flush_tx() { return this->flush_tx_(this->tx_); }
+
+ protected:
+  uint8_t *tx_{nullptr};
 };
 
 }  // namespace esphome::socket

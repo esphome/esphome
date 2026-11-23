@@ -19,7 +19,7 @@ class TcpUartLoopDriver : public TcpUart {
     this->set_port(1);
     this->link_.begin("buffers_test");
   }
-  socket::TcpClientLink &link() { return this->link_; }
+  Link &link() { return this->link_; }
 };
 
 class TcpUartBuffers : public ::testing::Test {
