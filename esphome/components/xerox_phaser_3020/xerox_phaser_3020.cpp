@@ -87,11 +87,11 @@ struct PjlStatus {
 // PJL status codes (HP's numbering, which this printer uses), most specific first
 static constexpr PjlStatus PJL_STATUSES[] = {
     {10001, "Ready"},      {10002, "Offline"},    {10003, "Warming up"},    {10004, "Self test"},
-    {10005, "Resetting"},  {10006, "Toner low"},  {10007, "Canceling job"}, {10023, "Printing"},
+    {10005, "Resetting"},  {10006, "Toner low"},  {10007, "Canceling job"}, {10023, "Processing job"},
     {35078, "Power save"}, {40021, "Cover open"}, {40022, "Paper jam"},     {40038, "Toner low"},
 };
 static constexpr uint16_t TONER_LOW_CODES[] = {10006, 40038};
-// Warming up, self test, canceling, printing: polled again soon, to see when it is done
+// Warming up, self test, canceling, processing a job: polled again soon, to see when it is done
 static constexpr uint16_t BUSY_CODES[] = {10003, 10004, 10007, 10023};
 
 // Where `needle` last occurs in `text`, or null
