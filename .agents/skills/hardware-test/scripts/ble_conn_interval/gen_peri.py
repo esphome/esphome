@@ -4,7 +4,7 @@
 200 ms, and a fe00 service sends notification bursts: a write [count_hi, count_lo, per_tick] to fe03 starts 2 byte
 sequence notifications on fe01, per_tick every 15 ms, then one notification on fe02 (ble_server sends a subscribed
 indication without the ack) whose bytes 1-2 are the server's own send failures and byte 3 is 1 when srvconf.hpp
-counts late failures too. Logs on UART0.
+counts them (refused at once and reported late). Logs on UART0.
 """
 
 import pathlib
@@ -26,12 +26,13 @@ L = [
     "esphome:",
     f"  name: {name}",
 ]
-if burst:  # srvconf.hpp counts the stack's late send failures (bad ESP_GATTS_CONF_EVT)
+if burst:  # srvconf.hpp counts the server's send failures: refused at once, and late (bad ESP_GATTS_CONF_EVT)
     L += [
         f"  includes: [{pathlib.Path(__file__).resolve().parent / 'srvconf.hpp'}]",
         "  platformio_options:",
         "    build_flags:",
         "      - -Wl,--wrap=esp_ble_gatts_register_callback",
+        "      - -Wl,--wrap=esp_ble_gatts_send_indicate",
     ]
 L += [
     "esp32:",
@@ -48,14 +49,6 @@ L += [
 if burst:
     L += [
         "  hardware_uart: UART0",
-        "  on_message:",
-        "    - level: ERROR",
-        "      then:",
-        "        - lambda: |-",
-        "            // notify() returns nothing: count the stack's send failures while a burst runs",
-        "            if (id(b_sent) < id(b_total) &&",
-        '                strstr(message, "esp_ble_gatts_send_indicate failed") != nullptr)',
-        "              id(b_fail)++;",
     ]
 elif variant != "ESP32":
     L.append("  hardware_uart: USB_SERIAL_JTAG")
@@ -135,14 +128,13 @@ BURST = """\
                 id(b_total) = x.size() >= 2 ? (x[0] << 8 | x[1]) : 1000;
                 id(b_per) = x.size() >= 3 ? x[2] : 3;
                 id(b_sent) = 0;
-                id(b_fail) = 0;
+                srvconf::refused = 0;
                 srvconf::bad = 0;
                 srvconf::active = true;
                 ESP_LOGI("srv", "SRV burst start total=%u per_tick=%u", (unsigned) id(b_total), (unsigned) id(b_per));
 globals:
   - {id: b_total, type: uint32_t, initial_value: "0"}
   - {id: b_sent, type: uint32_t, initial_value: "0"}
-  - {id: b_fail, type: uint32_t, initial_value: "0"}
   - {id: b_per, type: uint32_t, initial_value: "3"}
   - {id: tick_n, type: uint32_t, initial_value: "0"}
 interval:
@@ -162,8 +154,8 @@ interval:
             // the final value carries the server's own send failures (refused at once, or reported late by the
             // stack), so they are not taken for proxy loss; a lower bound, late reports after this one are missed
             srvconf::active = false;
-            const uint32_t fails = id(b_fail) + srvconf::bad;
-            // byte 3: the late-failure shim is in place, so the count is complete
+            const uint32_t fails = srvconf::refused + srvconf::bad;
+            // byte 3: both shims are in place (linked by the same build flags), so the count is complete
             const uint8_t f[4] = {0xF1, (uint8_t) fails, (uint8_t) (fails >> 8), (uint8_t) srvconf::installed};
             id(finalc)->set_value(f, sizeof(f));
             id(finalc)->notify();

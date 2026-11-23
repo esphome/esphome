@@ -139,6 +139,10 @@ for name, lines in ph.items():
         # connects were started but no device Connecting line matched: the log format is not the one read here
         if "ST conn_start" in txt and not att:
             d["no_device_attempts"] = True
+        # the self test only connects its three peers: an address without a label is a wrong or missing
+        # PEER_ADDRS entry, and that peer's stats would be left out
+        if unl := sorted({a["p"] for a in att if a["p"] not in ("L", "M", "eve")}):
+            d["no_peer_label"] = unl
         for pe in ("L", "M", "eve"):
             A = [a for a in att if a["p"] == pe]
             if not A:
@@ -239,6 +243,7 @@ for name, lines in ph.items():
         "notify_dups",
         "notify_short_payload",
         "no_readable_char",
+        "no_peer_label",
     )
     # every round failed to hold its links (or ran on a wrong handle): the phase measured nothing
     rounds = d.get("rounds,ok,first_ok,fail,stuck", ("0",))[0]
