@@ -39,8 +39,9 @@ CONF_FIRMWARE_CONFIG = "firmware_config"
 # A Realtek download fragment is an HCI command of 3 + 1 + 252 bytes, sent as one control
 # transfer behind the 8 byte setup packet: more than the 256 byte transfer buffers hold.
 FIRMWARE_MIN_PACKET_SIZE = 512
-# The event read stays queued all the time, next to the command being sent and a spare one
-MIN_TRANSFER_REQUESTS = 3
+# The event read stays queued all the time, and is queued again from its own callback before
+# that one's slot is free; the next command can be sent before the last one's slot is free.
+MIN_TRANSFER_REQUESTS = 4
 
 usb_bluetooth_ns = cg.esphome_ns.namespace("usb_bluetooth")
 USBBluetooth = usb_bluetooth_ns.class_("USBBluetooth", USBClient)
@@ -52,7 +53,7 @@ def _read_firmware(config: ConfigType) -> tuple[dict[int, bytes], int]:
     cfg = (
         config[CONF_FIRMWARE_CONFIG].read_bytes()
         if CONF_FIRMWARE_CONFIG in config
-        else b""
+        else None
     )
     return realtek.images(fw, cfg)
 

@@ -53,7 +53,7 @@ def make_config(payload: bytes = b"\x01\x02\x03") -> bytes:
 
 
 def test_v1_patch_per_rom_version() -> None:
-    images, lmp = realtek.images(make_v1([(1, b"AAAA0000"), (2, b"BBBB1111")]), b"")
+    images, lmp = realtek.images(make_v1([(1, b"AAAA0000"), (2, b"BBBB1111")]), None)
     assert lmp == 0x8761
     # Chip id N is for ROM version N - 1, and the last four bytes become the firmware version
     assert images == {
@@ -71,20 +71,34 @@ def test_v1_config_is_appended() -> None:
 @pytest.mark.parametrize("chip_id", [0, 257])
 def test_v1_rejects_chip_id_out_of_range(chip_id: int) -> None:
     with pytest.raises(realtek.NotFirmware, match="chip id"):
-        realtek.images(make_v1([(chip_id, b"AAAA0000")]), b"")
+        realtek.images(make_v1([(chip_id, b"AAAA0000")]), None)
 
 
 def test_v1_first_patch_for_a_chip_id_wins() -> None:
-    images, _ = realtek.images(make_v1([(1, b"AAAA0000"), (1, b"BBBB0000")]), b"")
+    images, _ = realtek.images(make_v1([(1, b"AAAA0000"), (1, b"BBBB0000")]), None)
     assert images[0].startswith(b"AAAA")
 
 
-def test_v1_rejects_patch_past_the_end() -> None:
+@pytest.mark.parametrize(
+    ("offset", "length"),
+    [
+        (None, 0x7FFF),  # past the end of the file
+        (None, 12),  # into the extension signature
+        (0, None),  # the header
+        (realtek.EPATCH_HEADER_LEN + 4, None),  # the patch table
+    ],
+)
+def test_v1_rejects_patch_outside_its_area(
+    offset: int | None, length: int | None
+) -> None:
     fw = bytearray(make_v1([(1, b"AAAA0000")]))
-    # Length of the first patch, after the chip id table
-    struct.pack_into("<H", fw, realtek.EPATCH_HEADER_LEN + 2, 0x7FFF)
+    # One patch: chip id, length and offset tables of 2, 2 and 4 bytes after the header
+    if length is not None:
+        struct.pack_into("<H", fw, realtek.EPATCH_HEADER_LEN + 2, length)
+    if offset is not None:
+        struct.pack_into("<I", fw, realtek.EPATCH_HEADER_LEN + 4, offset)
     with pytest.raises(realtek.NotFirmware, match="does not fit"):
-        realtek.images(bytes(fw), b"")
+        realtek.images(bytes(fw), None)
 
 
 # --- epatch v2 ---
@@ -97,7 +111,7 @@ def test_v2_subsections_in_prio_order() -> None:
             (realtek.PATCH_DUMMY_HEADER, [(3, 0, b"other")]),
         ]
     )
-    images, lmp = realtek.images(fw, b"")
+    images, lmp = realtek.images(fw, None)
     assert lmp == 0x8761
     assert images == {1: b"earlylate", 2: b"other"}
 
@@ -107,20 +121,20 @@ def test_v2_rejects_truncated_subsection() -> None:
     # The subsection length field: header (20), section header (8), subsection count (4), eco/prio/cb (4)
     struct.pack_into("<I", fw, 20 + 8 + 4 + 4, 1000)
     with pytest.raises(realtek.NotFirmware, match="subsection"):
-        realtek.images(bytes(fw), b"")
+        realtek.images(bytes(fw), None)
 
 
 def test_v2_rejects_truncated_section() -> None:
     fw = bytearray(make_v2([(realtek.PATCH_SNIPPETS, [(2, 0, b"data")])]))
     struct.pack_into("<I", fw, 20 + 4, 1000)  # the section length
     with pytest.raises(realtek.NotFirmware, match="section runs past"):
-        realtek.images(bytes(fw), b"")
+        realtek.images(bytes(fw), None)
 
 
 def test_v2_rejects_security_headers() -> None:
     fw = make_v2([(realtek.PATCH_SECURITY_HEADER, [(1, 0, b"key")])])
     with pytest.raises(realtek.NotFirmware, match="security"):
-        realtek.images(fw, b"")
+        realtek.images(fw, None)
 
 
 # --- general checks ---
@@ -135,19 +149,24 @@ def test_v2_rejects_security_headers() -> None:
 )
 def test_rejects_non_firmware(data: bytes, match: str) -> None:
     with pytest.raises(realtek.NotFirmware, match=match):
-        realtek.images(data, b"")
+        realtek.images(data, None)
 
 
 def test_rejects_truncated_file() -> None:
     with pytest.raises(realtek.NotFirmware, match="extension signature"):
-        realtek.images(make_v1([(1, b"AAAA0000")])[:-1], b"")
+        realtek.images(make_v1([(1, b"AAAA0000")])[:-1], None)
 
 
 def test_rejects_unknown_project() -> None:
     fw = make_v1([(1, b"AAAA0000")])
     fw = fw[: -len(realtek.EXTENSION_SIG) - 3] + _tail(project=99)
     with pytest.raises(realtek.NotFirmware, match="unknown project id 99"):
-        realtek.images(fw, b"")
+        realtek.images(fw, None)
+
+
+def test_rejects_empty_config() -> None:
+    with pytest.raises(realtek.NotFirmware, match="config file too short"):
+        realtek.images(make_v1([(1, b"AAAA0000")]), b"")
 
 
 def test_rejects_bad_config() -> None:

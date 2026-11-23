@@ -154,12 +154,12 @@ void USBBluetooth::on_disconnected() {
     this->intf_ = 0xFF;
     ESP_LOGI(TAG, "Bluetooth controller removed");
   } else {
-    // Closed without being claimed (not a Bluetooth dongle, or refused by the vid/pid filter). The
-    // host library announces a device once, so one plugged in together with this one (behind a hub)
-    // was not offered to this client while it was busy with this one. Deferred: the device is still
-    // open here.
-    this->defer([this]() { this->try_next_device_(); });
+    // Not a Bluetooth dongle, or refused by the vid/pid filter: not opened again while plugged in
+    this->decline_();
   }
+  // The host library announces a device once, so one plugged in while this client was busy with
+  // another device (claimed or not) was never offered to it. Deferred: the device is still open here.
+  this->defer([this]() { this->try_next_device_(); });
   usb_host::USBClient::on_disconnected();
 }
 
@@ -284,7 +284,12 @@ void USBBluetooth::loop() {
     const size_t len = this->complete_len_ - 6;
     memcpy(ret, this->complete_ + 6, len);
     this->complete_ready_.store(false, std::memory_order_release);
-    if (status != 0) {
+    if (status != 0 && this->step_ == ProbeStep::PROBE_STEP_READ_NAME) {
+      // Read Local Name is a BR/EDR command: an LE-only controller may refuse it and still work
+      ESP_LOGI(TAG, "Controller ready: Bluetooth %s, manufacturer %u, no name", core_version(this->hci_version_),
+               this->manufacturer_);
+      this->finish_probe_(true);
+    } else if (status != 0) {
       ESP_LOGE(TAG, "HCI command 0x%04X failed, status 0x%02X", opcode, status);
       this->finish_probe_(false);
     } else {
@@ -372,8 +377,9 @@ void USBBluetooth::handle_command_complete_(const uint8_t *ret, size_t len) {
     }
 
     case ProbeStep::PROBE_STEP_RTL_DOWNLOAD:
-      // The return parameters carry the index of the fragment taken
-      if (len < 1) {
+      // The return parameters carry the index of the fragment taken. Every fragment has the same opcode,
+      // so a stale answer would otherwise skip a fragment. command_[3] is the index that was sent.
+      if (len < 1 || (ret[0] & 0x7F) != (this->command_[3] & 0x7F)) {
         ESP_LOGE(TAG, "Realtek download fragment %u not acknowledged", static_cast<unsigned>(this->fragment_));
         this->finish_probe_(false);
         return;

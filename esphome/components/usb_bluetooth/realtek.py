@@ -125,8 +125,11 @@ def _images_v2(fw: bytes) -> dict[int, bytes]:
     return out
 
 
-def images(fw: bytes, config: bytes) -> tuple[dict[int, bytes], int]:
-    """{ROM version: bytes to download} and the lmp_subver of the chip the file is for."""
+def images(fw: bytes, config: bytes | None) -> tuple[dict[int, bytes], int]:
+    """{ROM version: bytes to download} and the lmp_subver of the chip the file is for.
+
+    config is None without a config file; an empty file given as one is rejected.
+    """
     if len(fw) <= 8:
         raise NotFirmware("too short")
     if fw[:8] == EPATCH_SIGNATURE:
@@ -144,7 +147,9 @@ def images(fw: bytes, config: bytes) -> tuple[dict[int, bytes], int]:
     if project not in PROJECT_ID_LMP:
         raise NotFirmware(f"unknown project id {project}")
 
-    if config:
+    if config is None:
+        config = b""
+    else:
         if len(config) < 6:
             raise NotFirmware("config file too short")
         magic, total = struct.unpack_from("<IH", config)
@@ -166,6 +171,9 @@ def images(fw: bytes, config: bytes) -> tuple[dict[int, bytes], int]:
     lengths = struct.unpack_from(f"<{count}H", fw, base + 2 * count)
     offsets = struct.unpack_from(f"<{count}I", fw, base + 4 * count)
 
+    # A patch lies between the patch table and the extension signature
+    first = base + 8 * count
+    last = len(fw) - len(EXTENSION_SIG)
     out: dict[int, bytes] = {}
     for chip_id, length, offset in zip(chip_ids, lengths, offsets, strict=True):
         # The controller reports its ROM version in one byte, and takes the patch with chip id ROM + 1
@@ -174,7 +182,7 @@ def images(fw: bytes, config: bytes) -> tuple[dict[int, bytes], int]:
         if chip_id - 1 in out:
             # Like btrtl, the first patch for a chip id is the one used
             continue
-        if length < 4 or offset > len(fw) or length > len(fw) - offset:
+        if length < 4 or offset < first or offset > last or length > last - offset:
             raise NotFirmware(f"patch for chip id {chip_id} does not fit in the file")
         image = bytearray(fw[offset : offset + length])
         # The last four bytes become the header's firmware version.
