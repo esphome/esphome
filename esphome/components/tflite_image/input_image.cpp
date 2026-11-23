@@ -63,7 +63,8 @@ bool ImageInputPipeline::fill(TfLiteTensor *input, const uint8_t *src, size_t si
     for (size_t pixel = 0; pixel < pixels; pixel++) {
       const uint8_t *rgb = src + pixel * 3;
       if (gray) {
-        dst[pixel] = pixel_value(rgb[1], this->normalize_, this->invert_);
+        const float unit = unit_value(rgb[1], this->invert_);
+        dst[pixel] = this->normalize_ ? unit / 255.0f : unit;
       } else {
         for (int channel = 0; channel < 3; channel++) {
           const int source = swap ? 2 - channel : channel;
