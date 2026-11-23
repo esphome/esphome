@@ -3,7 +3,6 @@
 #include <cstring>
 
 #include "esphome/core/helpers.h"
-#include "esphome/core/progmem.h"
 
 #if defined(USE_NETWORK) && !defined(USE_ZEPHYR) && !defined(USE_HOST)
 
