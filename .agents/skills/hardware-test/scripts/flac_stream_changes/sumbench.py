@@ -20,6 +20,9 @@ for path in sys.argv[2:]:
             print(f"  {f}: none")
             continue
         rt = [float(m[5]) for m in ms]
+        if f not in host:
+            print(f"  {f}: no host hash")
+            continue
         ok = all(m[6] == host[f] and m[7] == "0" for m in ms)
         print(
             f"  {f}: n={len(ms)} rtf {min(rt):.2f}-{max(rt):.2f} med {statistics.median(rt):.2f} pcm_match={ok} "
