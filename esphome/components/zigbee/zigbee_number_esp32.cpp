@@ -30,7 +30,15 @@ void ZigbeeNumber::setup() {
                       EZB_ZCL_ATTR_TYPE_SINGLE, 0, this->number_->traits.get_step());
 
   // connect callbacks
-  this->add_on_value_callback([this](ezb_zcl_attribute_t attribute) {
+  this->number_->add_on_state_callback([this](float value) {
+    if (this->synchronizing_from_zigbee_ && value == *static_cast<float *>(this->value_p_))
+      return;
+    this->set_attr(value);
+  });
+}
+
+void ZigbeeNumber::on_value(ezb_zcl_attribute_t attribute) {
+  if (attribute.data.type == this->attr_type() && attribute.data.value) {
     const float incoming_value = *static_cast<float *>(attribute.data.value);
     *static_cast<float *>(this->value_p_) = incoming_value;
     this->set_attr_requested_ = false;
@@ -39,12 +47,7 @@ void ZigbeeNumber::setup() {
     this->synchronizing_from_zigbee_ = true;
     call.perform();
     this->synchronizing_from_zigbee_ = false;
-  });
-  this->number_->add_on_state_callback([this](float value) {
-    if (this->synchronizing_from_zigbee_ && value == *static_cast<float *>(this->value_p_))
-      return;
-    this->set_attr(value);
-  });
+  }
 }
 
 }  // namespace esphome::zigbee

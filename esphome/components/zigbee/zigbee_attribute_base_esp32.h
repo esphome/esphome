@@ -37,12 +37,6 @@ class ZigbeeAttributeBase : public ZigbeeEntityBase {
   template<typename T> void add_attr(uint8_t attr_access, T value);
   template<typename T> void set_attr(const T &value);
   uint8_t attr_type() { return attr_type_; }
-  template<typename F> void add_on_value_callback(F &&callback) { on_value_callback_.add(std::forward<F>(callback)); }
-  void on_value(ezb_zcl_attribute_t attribute) override {
-    if (attribute.data.type == this->attr_type() && attribute.data.value) {
-      this->on_value_callback_.call(attribute);
-    }
-  }
 
  protected:
   void set_attr_internal() override;
@@ -54,7 +48,6 @@ class ZigbeeAttributeBase : public ZigbeeEntityBase {
   uint8_t max_size_{0};
   float scale_{1};
   void *value_p_{nullptr};
-  LazyCallbackManager<void(ezb_zcl_attribute_t attribute)> on_value_callback_{};
   template<typename T> T scale_value_(float value);
   template<typename T> T invalid_value_();
 };

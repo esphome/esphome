@@ -34,6 +34,13 @@ class ZigbeeAttribute final : public ZigbeeAttributeBase {
                   uint8_t attr_type, float scale, uint8_t max_size)
       : ZigbeeAttributeBase(parent, endpoint_id, cluster_id, role, attr_id, attr_type, scale, max_size) {}
 
+  template<typename F> void add_on_value_callback(F &&callback) { on_value_callback_.add(std::forward<F>(callback)); }
+  void on_value(ezb_zcl_attribute_t attribute) override {
+    if (attribute.data.type == this->attr_type() && attribute.data.value) {
+      this->on_value_callback_.call(attribute);
+    }
+  }
+
 #ifdef USE_SENSOR
   template<typename T> void connect(sensor::Sensor *sensor);
   template<typename T, typename F> void connect(sensor::Sensor *sensor, F &&f);
@@ -49,6 +56,8 @@ class ZigbeeAttribute final : public ZigbeeAttributeBase {
   ESPDEPRECATED("Use ZigbeeNumber class instead. Will be removed in ESPHome 2027.6.0", "2026.12.0")
   void connect(number::Number *device);
 #endif
+ protected:
+  LazyCallbackManager<void(ezb_zcl_attribute_t attribute)> on_value_callback_{};
 };
 
 #ifdef USE_SENSOR

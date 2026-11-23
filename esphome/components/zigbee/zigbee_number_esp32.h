@@ -24,6 +24,7 @@ class ZigbeeNumber final : public ZigbeeAttributeBase {
                             EZB_ZCL_ATTR_ANALOG_OUTPUT_PRESENT_VALUE_ID, EZB_ZCL_ATTR_TYPE_SINGLE),
         number_(number) {}
   void setup() override;
+  void on_value(ezb_zcl_attribute_t attribute) override;
 
   // need to run setup before the zigbee component and after number
   float get_setup_priority() const override { return setup_priority::AFTER_BLUETOOTH; }
