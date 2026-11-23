@@ -312,7 +312,7 @@ async def setup_number(
 
         await zephyr_setup_number(entity, config, min_value, max_value, step)
     else:
-        from .zigbee_esp32 import add_component as add_number
+        from .zigbee_esp32 import add_number
 
         CORE.add_job(add_number, entity, config)
 
