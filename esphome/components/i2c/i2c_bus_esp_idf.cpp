@@ -200,8 +200,8 @@ void IDFI2CBus::dump_config() {
   this->dump_scan_results_();
 }
 
-ErrorCode IDFI2CBus::write_readv(uint8_t address, const uint8_t *write_buffer, size_t write_count, uint8_t *read_buffer,
-                                 size_t read_count) {
+ErrorCode IDFI2CBus::transfer_(uint8_t address, const uint8_t *prefix, size_t prefix_len, const uint8_t *write_buffer,
+                               size_t write_count, uint8_t *read_buffer, size_t read_count) {
   // logging is only enabled with v level, if warnings are shown the caller
   // should log them
   if (!this->initialized_) {
@@ -209,50 +209,44 @@ ErrorCode IDFI2CBus::write_readv(uint8_t address, const uint8_t *write_buffer, s
     return ERROR_NOT_INITIALIZED;
   }
 
-  i2c_operation_job_t jobs[8]{};
+  // START, address, prefix, data, START, address, two reads, STOP
+  i2c_operation_job_t jobs[9]{};
   size_t num_jobs = 0;
-  uint8_t write_addr = (address << 1) | I2C_MASTER_WRITE;
-  uint8_t read_addr = (address << 1) | I2C_MASTER_READ;
-  ESP_LOGV(TAG, "Writing %zu bytes, reading %zu bytes", write_count, read_count);
-  if (read_count == 0 && write_count == 0) {
-    // basically just a bus probe. Send a start, address and stop
-    ESP_LOGV(TAG, "0x%02X BUS PROBE", address);
-    jobs[num_jobs++].command = I2C_MASTER_CMD_START;
+  auto add_write = [&jobs, &num_jobs](const uint8_t *data, size_t len) ESPHOME_ALWAYS_INLINE {
     jobs[num_jobs].command = I2C_MASTER_CMD_WRITE;
     jobs[num_jobs].write.ack_check = true;
-    jobs[num_jobs].write.data = &write_addr;
-    jobs[num_jobs++].write.total_bytes = 1;
-  } else {
-    if (write_count != 0) {
-      ESP_LOGV_HEX(TAG, write_buffer, write_count, I2C_MAX_LOG_BYTES, "0x%02X TX %s", address);
-      jobs[num_jobs++].command = I2C_MASTER_CMD_START;
-      jobs[num_jobs].command = I2C_MASTER_CMD_WRITE;
-      jobs[num_jobs].write.ack_check = true;
-      jobs[num_jobs].write.data = &write_addr;
-      jobs[num_jobs++].write.total_bytes = 1;
-      jobs[num_jobs].command = I2C_MASTER_CMD_WRITE;
-      jobs[num_jobs].write.ack_check = true;
-      jobs[num_jobs].write.data = (uint8_t *) write_buffer;
-      jobs[num_jobs++].write.total_bytes = write_count;
-    }
-    if (read_count != 0) {
-      ESP_LOGV(TAG, "0x%02X RX bytes %zu", address, read_count);
-      jobs[num_jobs++].command = I2C_MASTER_CMD_START;
-      jobs[num_jobs].command = I2C_MASTER_CMD_WRITE;
-      jobs[num_jobs].write.ack_check = true;
-      jobs[num_jobs].write.data = &read_addr;
-      jobs[num_jobs++].write.total_bytes = 1;
-      if (read_count > 1) {
-        jobs[num_jobs].command = I2C_MASTER_CMD_READ;
-        jobs[num_jobs].read.ack_value = I2C_ACK_VAL;
-        jobs[num_jobs].read.data = read_buffer;
-        jobs[num_jobs++].read.total_bytes = read_count - 1;
-      }
+    jobs[num_jobs].write.data = const_cast<uint8_t *>(data);
+    jobs[num_jobs++].write.total_bytes = len;
+  };
+  uint8_t write_addr = (address << 1) | I2C_MASTER_WRITE;
+  uint8_t read_addr = (address << 1) | I2C_MASTER_READ;
+  ESP_LOGV(TAG, "Writing %zu bytes, reading %zu bytes", prefix_len + write_count, read_count);
+  // With nothing to write or read this only addresses the device (the bus scan probe)
+  if (prefix_len != 0 || write_count != 0 || read_count == 0) {
+    if (prefix_len != 0)
+      ESP_LOGV_HEX(TAG, prefix, prefix_len, I2C_MAX_LOG_BYTES, "0x%02X TX prefix %s", address);
+    ESP_LOGV_HEX(TAG, write_buffer, write_count, I2C_MAX_LOG_BYTES, "0x%02X TX %s", address);
+    jobs[num_jobs++].command = I2C_MASTER_CMD_START;
+    add_write(&write_addr, 1);
+    if (prefix_len != 0)
+      add_write(prefix, prefix_len);
+    if (write_count != 0)
+      add_write(write_buffer, write_count);
+  }
+  if (read_count != 0) {
+    ESP_LOGV(TAG, "0x%02X RX bytes %zu", address, read_count);
+    jobs[num_jobs++].command = I2C_MASTER_CMD_START;
+    add_write(&read_addr, 1);
+    if (read_count > 1) {
       jobs[num_jobs].command = I2C_MASTER_CMD_READ;
-      jobs[num_jobs].read.ack_value = I2C_NACK_VAL;
-      jobs[num_jobs].read.data = read_buffer + read_count - 1;
-      jobs[num_jobs++].read.total_bytes = 1;
+      jobs[num_jobs].read.ack_value = I2C_ACK_VAL;
+      jobs[num_jobs].read.data = read_buffer;
+      jobs[num_jobs++].read.total_bytes = read_count - 1;
     }
+    jobs[num_jobs].command = I2C_MASTER_CMD_READ;
+    jobs[num_jobs].read.ack_value = I2C_NACK_VAL;
+    jobs[num_jobs].read.data = read_buffer + read_count - 1;
+    jobs[num_jobs++].read.total_bytes = 1;
   }
   jobs[num_jobs++].command = I2C_MASTER_CMD_STOP;
   ESP_LOGV(TAG, "Sending %zu jobs", num_jobs);
@@ -346,14 +340,9 @@ void IDFI2CBus::recover_() {
     return;
   }
 
-  // From the specification:
-  // "If the data line (SDA) is stuck LOW, send nine clock pulses. The
-  //  device that held the bus LOW should release it sometime within
-  //  those nine clocks."
-  // We don't really have to detect if SDA is stuck low. We'll simply send
-  // nine clock pulses here, just in case SDA is stuck. Actual checks on
-  // the SDA line status will be done after the clock pulses.
-  for (auto i = 0; i < 9; i++) {
+  // Spec: "If the data line (SDA) is stuck LOW, send nine clock pulses."
+  // Pulse only while SDA is low: a device receiving a write ACKs every ninth pulse.
+  for (auto i = 0; i < 9 && gpio_get_level(sda_pin) == 0; i++) {
     gpio_set_level(scl_pin, 0);
     delayMicroseconds(half_period_usec);
     gpio_set_level(scl_pin, 1);
@@ -378,9 +367,7 @@ void IDFI2CBus::recover_() {
     }
   }
 
-  // By now, any stuck device ought to have sent all remaining bits of its
-  // transaction, meaning that it should have freed up the SDA line, resulting
-  // in SDA being pulled up.
+  // A device still holding SDA after nine pulses cannot be freed here.
   if (gpio_get_level(sda_pin) == 0) {
     ESP_LOGE(TAG, "Recovery failed: SDA is held LOW after clock pulse cycle");
     this->recovery_result_ = RECOVERY_FAILED_SDA_LOW;
@@ -392,10 +379,7 @@ void IDFI2CBus::recover_() {
   //  a START or repeated START condition such that they all anticipate
   //  the sending of a target address, even if these START conditions are
   //  not positioned according to the proper format."
-  // While the 9 clock pulses from above might have drained all bits of a
-  // single byte within a transaction, a device might have more bytes to
-  // transmit. So here we'll generate a START condition to snap the device
-  // out of this state.
+  // SDA high does not mean the device is idle (it may be mid-byte); the START resets it.
   // SCL and SDA are already high at this point, so we can generate a START
   // condition by making the SDA signal LOW.
   delayMicroseconds(half_period_usec);

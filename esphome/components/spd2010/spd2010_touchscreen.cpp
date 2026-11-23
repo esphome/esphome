@@ -71,8 +71,7 @@ void SPD2010Touchscreen::setup() {
   if (this->y_raw_max_ == this->y_raw_min_)
     this->y_raw_max_ = this->display_->get_native_height() - 1;
   if (this->reset_pin_ != nullptr) {
-    this->reset_pin_->setup();
-    this->reset_pin_->digital_write(false);
+    setup_output_pin(this->reset_pin_, false);
     this->set_timeout(RESET_PULSE_WIDTH, [this] {
       this->reset_pin_->digital_write(true);
       this->set_timeout(RESET_DELAY, [this] { this->initialize_(); });

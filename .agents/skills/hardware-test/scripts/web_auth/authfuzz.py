@@ -30,15 +30,17 @@ USER = ""
 PASSWORD = ""
 HASH = ""
 GOOD = ""
+BAD = ""
 OUT = None
 ROWS: list[dict] = []
 
 
 def configure(host: str, user: str, password: str, out: str | None = None) -> None:
-    global HOST, USER, PASSWORD, HASH, GOOD, OUT  # noqa: PLW0603
+    global HOST, USER, PASSWORD, HASH, GOOD, BAD, OUT  # noqa: PLW0603
     HOST, USER, PASSWORD = host, user, password
     HASH = base64.b64encode(f"{user}:{password}".encode()).decode()
     GOOD = f"Basic {HASH}"
+    BAD = "Basic " + HASH[:-1] + flip(HASH[-1])
     if out:
         OUT = pathlib.Path(out + "-summary.txt").open("w", encoding="utf-8")  # noqa: SIM115
 
@@ -145,16 +147,50 @@ def build(
     return h + b"\r\n" + body
 
 
-def heap() -> object:
-    for _ in range(3):
-        r = raw(build("GET", "/sensor/Heap%20free", GOOD))
+def sensor(name: str, tries: int = 1, pause: float = 1.0) -> object:
+    """Value of a sensor over REST with credentials, None when no try got one."""
+    for i in range(tries):
+        if i:
+            time.sleep(pause)
+        r = raw(build("GET", f"/sensor/{name}", GOOD))
         if r["status"] == 200:
-            try:
+            with contextlib.suppress(ValueError):
                 return json.loads(r["body"]).get("value")
-            except ValueError:
-                pass
-        time.sleep(1)
     return None
+
+
+def heap(tries: int = 3) -> object:
+    return sensor("Heap%20free", tries)
+
+
+def uptime(tries: int = 1) -> object:
+    return sensor("Uptime", tries, 2.0)
+
+
+def bad_once(path: str = "/", drain_s: float = 0.5) -> str:
+    """One wrong-hash GET; returns the status code, "<code>/noclose", "closed" or the error name.
+
+    Drains to EOF for at most drain_s so the device closes first (its TIME_WAIT is what churn tests load) without
+    waiting on boards that never close after a 401 (RP2); those come back as "<code>/noclose".
+    """
+    try:
+        with socket.create_connection((HOST, 80), timeout=5) as s:
+            s.sendall(build("GET", path, BAD))
+            d = b""
+            while b"\r\n" not in d and (r := s.recv(64)):
+                d += r
+            if not d.startswith(b"HTTP"):
+                return "closed"
+            code = d.split(b" ", 2)[1].decode()
+            end = time.monotonic() + drain_s
+            with contextlib.suppress(OSError):
+                while (left := end - time.monotonic()) > 0:
+                    s.settimeout(left)
+                    if not s.recv(512):
+                        return code
+            return f"{code}/noclose"
+    except Exception as e:  # noqa: BLE001
+        return type(e).__name__
 
 
 def heap_ok(h0: object, h1: object) -> bool:
@@ -169,14 +205,6 @@ def heap_ok(h0: object, h1: object) -> bool:
         and isinstance(h1, (int, float))
         and h0 - h1 <= margin
     )
-
-
-def uptime() -> object:
-    r = raw(build("GET", "/sensor/Uptime", GOOD))
-    try:
-        return json.loads(r["body"]).get("value") if r["status"] == 200 else None
-    except ValueError:
-        return None
 
 
 def case(
@@ -528,7 +556,7 @@ def heavy() -> None:
     def hammer() -> None:
         while time.monotonic() < stop:
             r = raw(
-                build("GET", "/", "Basic " + HASH[:-1] + flip(HASH[-1])),
+                build("GET", "/", BAD),
                 timeout=5,
                 read_body=False,
             )

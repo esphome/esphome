@@ -58,8 +58,7 @@ static size_t render_command(EzoCommandId id, float value, char *text) {
   const int length = ESPHOME_snprintf_P(
       text, EZO_MAX_COMMAND_LENGTH + 1,
       id >= EzoCommandId::EZO_COMMAND_ID_CAL_LOW ? ESPHOME_PSTR("%s%.*f") : ESPHOME_PSTR("%s"),
-      LOG_STR_ARG(EzoCommandTextStrings::get_log_str(static_cast<uint8_t>(id), EzoCommandTextStrings::LAST_INDEX)),
-      id == EzoCommandId::EZO_COMMAND_ID_I2C ? 0 : 2, value);
+      LOG_STR_ARG(EzoCommandTextStrings::get_log_str(id)), id == EzoCommandId::EZO_COMMAND_ID_I2C ? 0 : 2, value);
   return length < 0 ? 0 : std::min(static_cast<size_t>(length), EZO_MAX_COMMAND_LENGTH);
 }
 
@@ -152,7 +151,7 @@ void EZOSensor::loop() {
   // Free the slot first so the callbacks below can queue a follow-up
   this->finish_command_();
   ESP_LOGV(TAG, "Received buffer \"%s\" for command type %s", &buf[1],
-           LOG_STR_ARG(EzoCommandTypeStrings::get_log_str(command_type, EzoCommandTypeStrings::LAST_INDEX)));
+           LOG_STR_ARG(EzoCommandTypeStrings::get_log_str(command_type)));
 
   char *payload = reinterpret_cast<char *>(&buf[1]);
   if (buf[0] != 1 || payload[0] == '\0')
@@ -231,9 +230,7 @@ void EZOSensor::send_queued(EZOSensor *self, uint32_t now) {
 
 void EZOSensor::add_command_(EzoCommandId id, float value) {
   if (!this->enqueue_(EzoCommand{id, {value}})) {
-    ESP_LOGW(
-        TAG, "Command queue full, dropped \"%s\"",
-        LOG_STR_ARG(EzoCommandTextStrings::get_log_str(static_cast<uint8_t>(id), EzoCommandTextStrings::LAST_INDEX)));
+    ESP_LOGW(TAG, "Command queue full, dropped \"%s\"", LOG_STR_ARG(EzoCommandTextStrings::get_log_str(id)));
   }
 }
 
