@@ -66,6 +66,7 @@ struct Rtt : public esphome::ble_client::BLEClientNode {
   uint32_t done_ms{0};
   bool ok{false};
   bool len_bad{false};  // a read of ff01 (one byte) returned another length: the handle points elsewhere
+  uint8_t bad{0};       // ops that completed with a GATT error status
   void gattc_event_handler(esp_gattc_cb_event_t e, esp_gatt_if_t, esp_ble_gattc_cb_param_t *p) override {
     // uses fixed handles only, so it must not keep BLEClient from releasing the service table
     if (e == ESP_GATTC_SEARCH_CMPL_EVT)
@@ -73,12 +74,14 @@ struct Rtt : public esphome::ble_client::BLEClientNode {
     if (e == ESP_GATTC_READ_CHAR_EVT && this->pending == 1) {
       this->done_ms = millis() - this->t0;
       this->ok = p->read.status == ESP_GATT_OK;
+      this->bad += !this->ok;
       if (this->ok && p->read.value_len != 1)
         this->len_bad = true;
       this->pending = 0;
     } else if (e == ESP_GATTC_WRITE_CHAR_EVT && this->pending == 2) {
       this->done_ms = millis() - this->t0;
       this->ok = p->write.status == ESP_GATT_OK;
+      this->bad += !this->ok;
       this->pending = 0;
     } else if (e == ESP_GATTC_DISCONNECT_EVT && this->pending) {
       this->pending = 0;
@@ -384,6 +387,7 @@ inline void tick() {
           rtt_i = 0;
           rd_sum = wr_sum = 0;
           rd_n = wr_n = rtt_err = rtt_to = 0;
+          RT[p]->bad = 0;
           st = 2;
         } else if (r < 0) {
           fail_n++;
@@ -400,15 +404,15 @@ inline void tick() {
           }
           if (p <= PM && bad_handle[p])
             hb_n++;
-          else if (up(p) && wr_n && (rtt_err || rtt_to))
+          else if (up(p) && wr_n && (rtt_err || rtt_to || RT[p]->bad))
             pt_n++;                // the RTT loop broke off: ok by t_cmd but partial, like drive.py's rtt_partial
           else if (up(p) && wr_n)  // a write went through, as drive.py's t_cmd
             ok_n++;
           else
             fail_n++;
-          ESP_LOGI(TAG, "ST rtt %s r=%u read_avg=%u write_avg=%u n=%u/%u err=%u timeout=%u", PNAME[p], rnd,
+          ESP_LOGI(TAG, "ST rtt %s r=%u read_avg=%u write_avg=%u n=%u/%u err=%u timeout=%u bad=%u", PNAME[p], rnd,
                    rd_n ? (unsigned) (rd_sum / rd_n) : 0, wr_n ? (unsigned) (wr_sum / wr_n) : 0, rd_n, wr_n, rtt_err,
-                   rtt_to);
+                   rtt_to, RT[p]->bad);
           st = 3;
         }
       } else if (st == 3) {

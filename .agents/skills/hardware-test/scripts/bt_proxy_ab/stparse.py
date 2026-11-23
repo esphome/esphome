@@ -163,9 +163,12 @@ for name, lines in ph.items():
             r"ST rtt \S+ r=\d+ read_avg=(\d+) write_avg=(\d+) n=(\d)/(\d)", txt
         )
         # rounds whose RTT loop hit a send error or timeout (also when no phase_end line came)
+        # also ops that completed with a GATT error status (bad=)
         if cut := sum(
-            e != "0" or to != "0"
-            for e, to in re.findall(r"ST rtt \S+ r=\d+ .* err=(\d+) timeout=(\d+)", txt)
+            e != "0" or to != "0" or (b or "0") != "0"
+            for e, to, b in re.findall(
+                r"ST rtt \S+ r=\d+ .* err=(\d+) timeout=(\d+)(?: bad=(\d+))?", txt
+            )
         ):
             d["rtt_partial"] = max(d.get("rtt_partial", 0), cut)
         if rr:
@@ -195,6 +198,12 @@ for name, lines in ph.items():
             d["notify last"] = nt[-1]
         if "ST notify no_ticks" in txt or (nt and nt[-1][1] == "0"):
             d["notify_no_ticks"] = True  # the phase measured nothing
+        elif nt:
+            # 5 ticks a second over the minutes so far; seen plus known missing well under that: the
+            # subscription went quiet, as drive.py's notify_short
+            mins, rx, _, missing, _, mdrop, _ = nt[-1]
+            if int(rx) + int(missing) + int(mdrop or 0) < 0.9 * int(mins) * 300:
+                d["notify_short"] = True
         fr = [int(x) for x in re.findall(r"ST churn c=\d+ freed_ms=(\d+)", txt)]
         if fr:
             d["churn freed_ms"] = (med(fr), max(fr))
@@ -214,6 +223,8 @@ for name, lines in ph.items():
         "cache_clean_fail",
         "no_device_attempts",
         "rtt_partial",
+        "held_dropped",
+        "notify_short",
     )
     # every round failed to hold its links (or ran on a wrong handle): the phase measured nothing
     rounds = d.get("rounds,ok,first_ok,fail,stuck", ("0",))[0]

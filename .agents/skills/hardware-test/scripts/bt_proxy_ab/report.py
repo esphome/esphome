@@ -307,6 +307,17 @@ for s in steps:
         d["iv"] = dict(Counter(a.get("iv") for a in dev))
         d["upd"] = dict(Counter(str(a.get("upd", [])) for a in dev))
     # driver rounds but no device connect line: the log format is not the one these patterns read
+    # device attempts, but none labelled as this step's peer: PEER_ADDRS is wrong for this setup
+    peer_steps = ("disc", "cache", "third", "eve")
+    if (
+        rounds
+        and A
+        and s.startswith(peer_steps)
+        and not [a for a in A if a["peer"] in ("L", "M", "eve")]
+    ):
+        d.setdefault("warn", []).append(
+            "device attempts but none matched a PEER_ADDRS label"
+        )
     if rounds and not A and s != "adv":
         d.setdefault("warn", []).append(
             "driver rounds but no device Connecting line matched"
