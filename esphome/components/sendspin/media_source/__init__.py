@@ -11,6 +11,10 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
+import logging
+
+_LOGGER = logging.getLogger(__name__)   
+
 from .. import (
     CODEC_FLAC,
     CODEC_OPUS,
@@ -43,6 +47,32 @@ SendspinMediaSource = sendspin_ns.class_(
     media_source.MediaSource,
 )
 
+def _migrate_formats(config: ConfigType) -> ConfigType:
+    """Convert deprecated top-level sample_rate/bits_per_sample to formats list."""
+    has_formats = CONF_FORMATS in config
+    has_old = CONF_SAMPLE_RATE in config or CONF_BITS_PER_SAMPLE in config
+
+    if has_formats and has_old:
+        raise cv.Invalid(
+            "Cannot use both 'formats' and the old 'sample_rate'/'bits_per_sample' keys",
+            path=[CONF_FORMATS],
+        )
+
+    if has_old:
+        _LOGGER.warning(
+            "'sample_rate' and 'bits_per_sample' are deprecated. Use 'formats' instead."
+        )
+        config[CONF_FORMATS] = [{
+            CONF_SAMPLE_RATE: config.get(CONF_SAMPLE_RATE, 48000),
+            CONF_BITS_PER_SAMPLE: config.get(CONF_BITS_PER_SAMPLE, 16),
+        }]
+    elif not has_formats:
+        config[CONF_FORMATS] = [{
+            CONF_SAMPLE_RATE: 48000,
+            CONF_BITS_PER_SAMPLE: 16,
+        }]
+
+    return config   
 
 def _resolve_codecs(config: ConfigType) -> ConfigType:
     """Validate the codec preference list, filling in the default when it is not set."""
@@ -103,9 +133,9 @@ CONFIG_SCHEMA = cv.All(
                 cv.positive_time_period_microseconds,
                 cv.Range(max=cv.TimePeriod(microseconds=10000)),
             ),
-            cv.Optional(
-                CONF_FORMATS, default=[{"sample_rate": 48000, "bits_per_sample": 16}]
-            ): cv.All(
+            cv.Optional(CONF_SAMPLE_RATE): cv.int_range(min=16000, max=192000),
+            cv.Optional(CONF_BITS_PER_SAMPLE): cv.one_of(16, 24, int=True),   
+            cv.Optional(CONF_FORMATS): cv.All(
                 cv.ensure_list(
                     cv.Schema(
                         {
@@ -127,6 +157,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ),
     cv.only_on_esp32,
+    _migrate_formats,
     _resolve_codecs,
     _register,
 )
