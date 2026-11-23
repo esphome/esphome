@@ -133,12 +133,12 @@ void IRAM_ATTR RemoteTransmitterComponent::stop_envelope_timer_() { gtimer_stop(
 
 #else  // !USE_LIBRETINY_VARIANT_RTL8720C -- AmebaZ (RTL8710B): spin-based envelope, per-frame priority boost
 
-void RemoteTransmitterComponent::await_target_time_() {
+void RemoteTransmitterComponent::await_target_time_(int32_t lead_us) {
   const uint32_t current_time = micros();
   if (this->target_time_ == 0) {
     this->target_time_ = current_time;
   } else {
-    while ((int32_t) (this->target_time_ - micros()) > 0) {
+    while ((int32_t) (this->target_time_ - micros()) > lead_us) {
     }
   }
 }

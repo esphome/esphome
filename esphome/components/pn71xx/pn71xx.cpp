@@ -208,12 +208,8 @@ uint8_t PN71xx::reset_core_(const bool reset_config, const bool power) {
   this->prepare_reset();
 
   if (power) {
-    this->ven_pin_->digital_write(true);
-    delay(NFCC_RESET_DELAY);
-    this->ven_pin_->digital_write(false);
-    delay(NFCC_RESET_DELAY);
-    this->ven_pin_->digital_write(true);
-    delay(NFCC_INIT_TIMEOUT);
+    pulse_reset(this->ven_pin_,
+                {.high_before_ms = NFCC_RESET_DELAY, .low_ms = NFCC_RESET_DELAY, .high_after_ms = NFCC_INIT_TIMEOUT});
   }
 
   nfc::NciMessage rx;

@@ -18,6 +18,7 @@ LightStateRTCState = light_ns.struct("LightStateRTCState")
 
 # Addressable strips
 ChannelColors = light_ns.struct("ChannelColors")
+BufferColorAccessor = light_ns.class_("BufferColorAccessor")
 PowerEstimation = light_ns.struct("PowerEstimation")
 
 # Color modes
@@ -39,8 +40,6 @@ LimitMode = light_ns.enum("LimitMode", is_class=True)
 LIMIT_MODES = LimitMode.options("CLAMP", "DO_NOTHING")
 
 # Actions
-LightEffectCycleAction = light_ns.class_("LightEffectCycleAction", automation.Action)
-DimRelativeAction = light_ns.class_("DimRelativeAction", automation.Action)
 AddressableSet = light_ns.class_("AddressableSet", automation.Action)
 
 # Triggers

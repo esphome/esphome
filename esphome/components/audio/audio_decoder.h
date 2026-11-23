@@ -45,10 +45,10 @@ enum class AudioDecoderState : uint8_t {
 
 // Only used within the AudioDecoder class; conveys the state of the particular file type decoder
 enum class FileDecoderState : uint8_t {
-  MORE_TO_PROCESS,     // Successsfully read a file chunk and more data is available to decode
+  MORE_TO_PROCESS,     // Successfully read a file chunk and more data is available to decode
   IDLE,                // Not enough data to decode, waiting for more to be transferred
   POTENTIALLY_FAILED,  // Decoder encountered a potentially recoverable error if more file data is available
-  FAILED,              // Decoder encoutnered an uncrecoverable error
+  FAILED,              // Decoder encountered an uncrecoverable error
   END_OF_FILE,         // The specific file decoder knows its the end of the file
 };
 
@@ -75,13 +75,13 @@ class AudioDecoder {
 
   /// @brief Adds a sink ring buffer for decoded audio. Takes ownership of the ring buffer in a shared_ptr.
   /// @param output_ring_buffer weak_ptr of a shared_ptr of the sink ring buffer to transfer ownership
-  /// @return ESP_OK if successsful, ESP_ERR_NO_MEM if the transfer buffer wasn't allocated
+  /// @return ESP_OK if successful, ESP_ERR_NO_MEM if the transfer buffer wasn't allocated
   esp_err_t add_sink(std::weak_ptr<ring_buffer::RingBuffer> &output_ring_buffer);
 
 #ifdef USE_SPEAKER
   /// @brief Adds a sink speaker for decoded audio.
   /// @param speaker pointer to speaker component
-  /// @return ESP_OK if successsful, ESP_ERR_NO_MEM if the transfer buffer wasn't allocated
+  /// @return ESP_OK if successful, ESP_ERR_NO_MEM if the transfer buffer wasn't allocated
   esp_err_t add_sink(speaker::Speaker *speaker);
 #endif
 
@@ -104,7 +104,7 @@ class AudioDecoder {
 
   /// @brief Decodes audio from the ring buffer source and writes to the sink.
   /// @param stop_gracefully If true, it indicates the file source is finished. The decoder will decode all the
-  /// reamining data and then finish.
+  /// remaining data and then finish.
   /// @return AudioDecoderState
   AudioDecoderState decode(bool stop_gracefully);
 

@@ -2,10 +2,6 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
-#ifdef USE_ESP8266
-#include <Wire.h>
-#endif
-
 namespace esphome::scd30 {
 
 ESPHOME_LOG_TAG(TAG, "scd30");
@@ -27,10 +23,6 @@ static const uint16_t SCD30_CMD_TEMPERATURE_OFFSET = 0x5403;
 static const uint16_t SCD30_CMD_SOFT_RESET = 0xD304;
 
 void SCD30Component::setup() {
-#ifdef USE_ESP8266
-  Wire.setClockStretchLimit(150000);
-#endif
-
   /// Firmware version identification
   uint16_t raw_firmware_version[3];
   if (!this->setup_check(this->get_register(SCD30_CMD_GET_FIRMWARE_VERSION, raw_firmware_version, 3),
@@ -130,10 +122,8 @@ void SCD30Component::update() {
 
   this->set_timeout(50, [this]() {
     uint16_t raw_data[6];
-    if (!this->read_data(raw_data, 6)) {
-      this->status_set_warning();
+    if (!this->status_comm_result(this->read_data(raw_data, 6)))
       return;
-    }
 
     union uint32_float_t {
       uint32_t uint32;
@@ -152,8 +142,6 @@ void SCD30Component::update() {
     PUBLISH_STATE(this->co2_sensor_, co2.value);
     PUBLISH_STATE(this->temperature_sensor_, temperature.value);
     PUBLISH_STATE(this->humidity_sensor_, humidity.value);
-
-    this->status_clear_warning();
   });
 }
 
