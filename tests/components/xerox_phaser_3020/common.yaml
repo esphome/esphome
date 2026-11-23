@@ -1,0 +1,27 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
+usb_host:
+
+xerox_phaser_3020:
+  id: phaser
+  printer_name: Office printer
+  location: Upstairs
+  port: 8631
+  paper: letter
+  toner_density: dark
+  toner_save: "on"
+  power_save: 15min
+  jam_recovery: true
+  wait_for_printer: 10min
+
+binary_sensor:
+  - platform: xerox_phaser_3020
+    xerox_phaser_3020_id: phaser
+    connected:
+      name: Printer connected
+    printing:
+      name: Printing
+    paper_empty:
+      name: Paper empty
