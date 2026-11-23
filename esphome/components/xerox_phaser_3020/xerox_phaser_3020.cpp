@@ -59,13 +59,17 @@ static constexpr char PJL_QUERY[] = "\x1b%-12345X@PJL\r\n"
                                     "@PJL INFO PRODINFO\r\n"
                                     "\x1b%-12345X";
 // Status poll: just the status and the page count, each answer ending with a form feed
-static constexpr char PJL_POLL[] = "\x1b%-12345X@PJL\r\n"
-                                   "@PJL INFO STATUS\r\n"
-                                   "@PJL INFO PAGECOUNT\r\n"
-                                   "\x1b%-12345X";
-static constexpr uint8_t POLL_ANSWERS = 2;
+// Status poll: just the status and the page count. The echo comes back first, so answers still queued
+// in the printer from an earlier query, which came too late, are told apart and skipped.
+static constexpr char PJL_POLL_FORMAT[] = "\x1b%%-12345X@PJL\r\n"
+                                          "@PJL ECHO %s\r\n"
+                                          "@PJL INFO STATUS\r\n"
+                                          "@PJL INFO PAGECOUNT\r\n"
+                                          "\x1b%%-12345X";
+static constexpr uint8_t POLL_ANSWERS = 3;  // the echo and two answers, each ending with a form feed
 static constexpr uint32_t POLL_TIME_MS = 2000;
 static constexpr uint32_t POLL_DELAY_MS = 3000;  // after a job or a connection
+static constexpr uint32_t BUSY_POLL_MS = 15000;  // while the printer is still printing or warming up
 static constexpr uint32_t QUERY_TIME_MS = 3000;
 static constexpr size_t REPLY_SIZE = 4096;
 static constexpr size_t IN_TRANSFER_SIZE = 512;  // a multiple of the endpoint's packet size
@@ -87,6 +91,16 @@ static constexpr PjlStatus PJL_STATUSES[] = {
     {35078, "Power save"}, {40021, "Cover open"}, {40022, "Paper jam"},     {40038, "Toner low"},
 };
 static constexpr uint16_t TONER_LOW_CODES[] = {10006, 40038};
+// Warming up, self test, canceling, printing: polled again soon, to see when it is done
+static constexpr uint16_t BUSY_CODES[] = {10003, 10004, 10007, 10023};
+
+// Where `needle` last occurs in `text`, or null
+static const char *find_last(const char *text, const char *needle) {
+  const char *last = nullptr;
+  for (const char *found = strstr(text, needle); found != nullptr; found = strstr(found + 1, needle))
+    last = found;
+  return last;
+}
 
 static const char *pjl_status_text(uint16_t code) {
   for (const auto &status : PJL_STATUSES) {
@@ -646,10 +660,15 @@ void XeroxPhaser3020::start_query_(bool full) {
   this->query_full_ = full;
   this->answers_needed_ = full ? 0 : POLL_ANSWERS;
   this->reply_len_.store(0);
-  const char *pjl = full ? PJL_QUERY : PJL_POLL;
-  const size_t len = full ? sizeof(PJL_QUERY) - 1 : sizeof(PJL_POLL) - 1;
-  memcpy(transfer->data_buffer, pjl, len);
-  transfer->num_bytes = len;
+  if (full) {
+    this->echo_[0] = '\0';
+    memcpy(transfer->data_buffer, PJL_QUERY, sizeof(PJL_QUERY) - 1);
+    transfer->num_bytes = sizeof(PJL_QUERY) - 1;
+  } else {
+    snprintf(this->echo_, sizeof(this->echo_), "ESPHOME%04X", ++this->poll_number_);
+    transfer->num_bytes =
+        snprintf(reinterpret_cast<char *>(transfer->data_buffer), TRANSFER_SIZE, PJL_POLL_FORMAT, this->echo_);
+  }
   if (!this->submit_in_() || !this->submit_(transfer)) {
     ESP_LOGW(TAG, "Status query: USB transfer failed");
     this->finish_query_();
@@ -696,9 +715,12 @@ void XeroxPhaser3020::in_callback(usb_transfer_t *transfer) {
   memcpy(self->reply_ + len, transfer->data_buffer, n);
   self->reply_len_.store(len + n);
   if (self->answers_needed_ != 0) {
+    // Count the answers from this poll's echo on
+    self->reply_[len + n] = '\0';
+    const char *echo = strstr(self->reply_, self->echo_);
     uint8_t answers = 0;
-    for (size_t i = 0; i < len + n; i++)
-      answers += self->reply_[i] == '\f';
+    for (const char *c = echo; c != nullptr && *c != '\0'; c++)
+      answers += *c == '\f';
     if (answers >= self->answers_needed_) {
       // A poll has all it asked for: the main loop finishes it
       self->in_busy_.store(false);
@@ -769,14 +791,21 @@ void XeroxPhaser3020::end_query_(uint8_t tries) {
 }
 
 void XeroxPhaser3020::parse_status_() {
-  // Answers look like "@PJL INFO STATUS\r\nCODE=10001\r\nDISPLAY=\r\nONLINE=TRUE\r\n\f"
-  const char *code_text = strstr(this->reply_, "CODE=");
+  // Answers look like "@PJL INFO STATUS\r\nCODE=10001\r\nDISPLAY=\r\nONLINE=TRUE\r\n\f". Read from this
+  // poll's echo on; without it (no echo support, or the printer was too slow), the latest answers count.
+  const char *echo = this->echo_[0] != '\0' ? strstr(this->reply_, this->echo_) : nullptr;
+  const char *answers = echo != nullptr ? echo : this->reply_;
+  const char *code_text = find_last(answers, "CODE=");
   if (code_text != nullptr) {
     const uint16_t code = strtoul(code_text + 5, nullptr, 10);
     bool toner_low = false;
     for (uint16_t low : TONER_LOW_CODES)
       toner_low |= code == low;
     this->toner_low_.store(toner_low);
+    for (uint16_t busy : BUSY_CODES) {
+      if (code == busy)
+        this->set_timeout(POLL_SOON_ID, BUSY_POLL_MS, [this]() { this->start_query_(false); });
+    }
 #ifdef USE_BINARY_SENSOR
     PUBLISH_STATE(this->toner_low_binary_sensor_, toner_low);
 #endif
@@ -793,7 +822,7 @@ void XeroxPhaser3020::parse_status_() {
 #endif
   }
 #ifdef USE_SENSOR
-  const char *count_text = strstr(this->reply_, "PAGECOUNT=");
+  const char *count_text = find_last(answers, "PAGECOUNT=");
   if (count_text != nullptr)
     PUBLISH_STATE(this->page_count_sensor_, strtoul(count_text + 10, nullptr, 10));
 #endif

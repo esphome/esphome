@@ -118,6 +118,7 @@ class XeroxPhaser3020 final : public usb_host::USBClient, public PrinterPort {
   usb_transfer_t *in_transfer_{nullptr};
   usb_transfer_t *id_transfer_{nullptr};
   char *reply_{nullptr};  // what the printer sent back to a query
+  char echo_[16];         // the tag a poll asks the printer to echo; empty for the full query
   QueueHandle_t free_transfers_{nullptr};
   QueueHandle_t connections_{nullptr};
   const std::atomic<bool> *cancel_{nullptr};
@@ -142,6 +143,7 @@ class XeroxPhaser3020 final : public usb_host::USBClient, public PrinterPort {
   std::atomic<bool> query_done_{false};  // a poll has all its answers and waits to be finished
   std::atomic<bool> toner_low_{false};
   uint32_t status_interval_ms_{0};
+  uint16_t poll_number_{0};
   uint8_t answers_needed_{0};  // a poll ends early once this many answers are in; 0 reads until the time is up
   bool query_full_{false};
   bool was_printing_{false};
