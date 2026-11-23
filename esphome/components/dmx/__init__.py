@@ -3,7 +3,27 @@ import logging
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components.const import CONF_RTS_PIN
-from esphome.components.esp32 import add_idf_component
+from esphome.components.esp32 import (
+    add_idf_component,
+    get_esp32_variant,
+    variant_filtered_enum,
+)
+from esphome.components.esp32.const import (
+    VARIANT_ESP32,
+    VARIANT_ESP32C2,
+    VARIANT_ESP32C3,
+    VARIANT_ESP32C5,
+    VARIANT_ESP32C6,
+    VARIANT_ESP32C61,
+    VARIANT_ESP32H2,
+    VARIANT_ESP32H4,
+    VARIANT_ESP32H21,
+    VARIANT_ESP32P4,
+    VARIANT_ESP32S2,
+    VARIANT_ESP32S3,
+    VARIANT_ESP32S31,
+    VARIANTS,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BAUD_RATE,
@@ -40,6 +60,38 @@ dmx_ns = cg.esphome_ns.namespace("dmx")
 DMXComponent = dmx_ns.class_("DMXComponent", cg.Component)
 DMXMode = dmx_ns.enum("DMXMode", is_class=True)
 
+UART_CONFIG = {
+    VARIANT_ESP32: (2, (0, 1, 2)),
+    VARIANT_ESP32C2: (1, (0, 1)),
+    VARIANT_ESP32C3: (1, (0, 1)),
+    VARIANT_ESP32C5: (1, (0, 1)),
+    VARIANT_ESP32C6: (1, (0, 1)),
+    VARIANT_ESP32C61: (1, (0, 1)),
+    VARIANT_ESP32H2: (1, (0, 1)),
+    VARIANT_ESP32H4: (1, (0, 1)),
+    VARIANT_ESP32H21: (1, (0, 1)),
+    VARIANT_ESP32P4: (1, (0, 1)),
+    VARIANT_ESP32S2: (1, (0, 1)),
+    VARIANT_ESP32S3: (2, (0, 1, 2)),
+    VARIANT_ESP32S31: (2, (0, 1, 2, 3)),
+}
+
+assert set(VARIANTS) <= set(UART_CONFIG), (
+    "Missing UART configuration for ESP32 variants: "
+    f"{set(VARIANTS) - set(UART_CONFIG)}"
+)
+
+UART_NUMBERS = variant_filtered_enum(
+    {
+        variant: allowed
+        for variant, (_, allowed) in UART_CONFIG.items()
+    }
+)
+
+def default_uart_num():
+    return UART_CONFIG[get_esp32_variant()][0]
+
+
 MODE_TO_ENUM = {
     MODE_RX: DMXMode.DMX_MODE_RX,
     MODE_TX: DMXMode.DMX_MODE_TX,
@@ -63,7 +115,10 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Required(CONF_TX_PIN): pins.internal_gpio_pin_number,
         cv.Required(CONF_RX_PIN): pins.internal_gpio_input_pin_number,
         cv.Optional(CONF_RTS_PIN): pins.internal_gpio_pin_number,
-        cv.Optional(CONF_UART_NUM, default=2): cv.int_range(min=0, max=2),
+        cv.Optional(
+            CONF_UART_NUM,
+            default=default_uart_num,
+        ): UART_NUMBERS,
         cv.Optional(CONF_MODE, default=MODE_RX): cv.one_of(
             MODE_RX, MODE_TX, MODE_BIDI, lower=True
         ),
