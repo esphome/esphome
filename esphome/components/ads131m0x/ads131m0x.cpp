@@ -46,15 +46,14 @@ static constexpr size_t MAX_FRAME_BYTES = (2 + MAX_CHANNELS) * WORD_BYTES;  // r
 // Conversions the chip buffers per channel (datasheet 8.5.1.9.1)
 static constexpr uint32_t FIFO_DEPTH = 2;
 #if defined(SOC_CACHE_INTERNAL_MEM_VIA_L1CACHE) && SOC_CACHE_INTERNAL_MEM_VIA_L1CACHE
-// Internal RAM is cached (ESP32-P4): the SPI DMA needs a cache-line aligned receive address and length, or the
-// driver allocates a bounce buffer for every transfer. The chip accepts frames longer than needed.
+// Internal RAM is cached (ESP32-P4): pad the receive buffer to a full cache line.
 static constexpr size_t DMA_ALIGNMENT = CONFIG_CACHE_L1_CACHE_LINE_SIZE;
-static constexpr bool DMA_PAD_LENGTH = true;
 #else
-// Word-aligned address only; a stack buffer could make the driver allocate a bounce buffer per transfer
+// The SPI DMA writes whole 32-bit words, and older ESP-IDF versions bounce receive buffers whose length is not a
+// multiple of 4 through a temporary allocation for every transfer.
 static constexpr size_t DMA_ALIGNMENT = 4;
-static constexpr bool DMA_PAD_LENGTH = false;
 #endif
+// Buffer address and transfer length are padded to DMA_ALIGNMENT; the chip accepts frames longer than needed.
 static constexpr float CODE_FULL_SCALE = 8388608.0f;  // 2^23
 static constexpr float INTERNAL_REFERENCE_V = 1.2f;
 static constexpr uint16_t CRC_INIT = 0xFFFF;
@@ -75,6 +74,9 @@ static constexpr uint32_t RETRY_DELAY_MS = 1000;
 static constexpr uint32_t MAX_CONSECUTIVE_TIMEOUTS = 50;
 static constexpr uint32_t MAX_CONSECUTIVE_CRC_ERRORS = 50;
 static constexpr uint32_t HEALTH_CHECK_INTERVAL_MS = 1000;
+// When conversions keep arriving faster than they are read, the task never blocks. After this long without waiting
+// for DRDY it blocks for one tick, so lower-priority tasks on its core (e.g. the main loop) are not starved.
+static constexpr uint32_t OVERLOAD_BACKOFF_MS = 50;
 // The sample rate is averaged over this many health checks before it is compared with the nominal rate, so a
 // single blocked loop iteration does not skew it.
 static constexpr uint8_t RATE_AVERAGE_CHECKS = 10;
@@ -86,8 +88,7 @@ PROGMEM_STRING_TABLE(PowerModeStrings, "very low power", "low power", "high reso
 
 void ADS131M0x::setup() {
   const size_t frame_bytes = this->frame_bytes_();
-  this->transfer_bytes_ =
-      DMA_PAD_LENGTH ? (frame_bytes + DMA_ALIGNMENT - 1) / DMA_ALIGNMENT * DMA_ALIGNMENT : frame_bytes;
+  this->transfer_bytes_ = (frame_bytes + DMA_ALIGNMENT - 1) / DMA_ALIGNMENT * DMA_ALIGNMENT;
   this->frame_buf_ = static_cast<uint8_t *>(
       heap_caps_aligned_calloc(DMA_ALIGNMENT, 1, this->transfer_bytes_, MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL));
   if (this->frame_buf_ == nullptr) {
@@ -96,6 +97,10 @@ void ADS131M0x::setup() {
   }
 
   this->spi_setup();
+  if (!this->spi_is_ready()) {
+    this->mark_failed(LOG_STR("SPI bus not ready"));
+    return;
+  }
   this->drdy_pin_->setup();
   if (this->reset_pin_ != nullptr) {
     this->reset_pin_->setup();
@@ -356,6 +361,7 @@ void ADS131M0x::task_loop_() {
   uint32_t consecutive_timeouts = 0;
   uint32_t consecutive_crc_errors = 0;
   uint32_t failed_attempts = 0;
+  uint32_t busy_since = millis();
   bool configured = false;
 
   // A window only holds consecutive conversions; after a gap it starts over.
@@ -396,7 +402,17 @@ void ADS131M0x::task_loop_() {
       continue;
     }
 
-    if (ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(drdy_timeout_ms)) == 0) {
+    uint32_t pending = ulTaskNotifyTake(pdTRUE, 0);
+    if (pending == 0) {
+      // About to block: the task is keeping up
+      busy_since = millis();
+      pending = ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(drdy_timeout_ms));
+    } else if (millis() - busy_since > OVERLOAD_BACKOFF_MS) {
+      // Overloaded: conversions are lost either way, the health check reports the lower rate
+      vTaskDelay(1);
+      busy_since = millis();
+    }
+    if (pending == 0) {
       this->drdy_timeouts_++;
       // A full FIFO holds DRDY low, so no falling edge follows; reading both slots releases it.
       this->drain_fifo_();

@@ -5,6 +5,7 @@ from esphome.components.const import CONF_DRDY_PIN, CONF_WINDOW
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CS_PIN,
+    CONF_DATA_RATE,
     CONF_GAIN,
     CONF_ID,
     CONF_MODEL,
@@ -60,15 +61,12 @@ GAINS = {1: 0, 2: 1, 4: 2, 8: 3, 16: 4, 32: 5, 64: 6, 128: 7}
 OSR_CODES = {0: 128, 1: 256, 2: 512, 3: 1024, 4: 2048, 5: 4096, 6: 8192, 7: 16256}
 # Relative tolerance when matching sample_rate to an achievable data rate
 SAMPLE_RATE_TOLERANCE = 0.01
+# MODE.TIMEOUT resets the SPI interface when a frame takes longer than this many CLKIN periods
+SPI_TIMEOUT_CLKIN_PERIODS = 32768
+# A frame must fit in this fraction of a sample period, leaving time for the task wake-up and other bus users
+MAX_FRAME_TIME_FRACTION = 0.5
 # The task accumulates squared 24-bit codes in uint64: at most 2^46 * 2^17 = 2^63.
 MAX_WINDOW_SAMPLES = 1 << 17
-
-
-def _gain(value: object) -> int:
-    value = cv.int_(value)
-    if value not in GAINS:
-        raise cv.Invalid(f"Gain must be one of {sorted(GAINS)}")
-    return value
 
 
 def _osr_code(clock_hz: float, sample_rate: float) -> int:
@@ -108,6 +106,22 @@ def _validate(config: ConfigType) -> ConfigType:
     window_samples = clock_hz / 2 / osr * config[CONF_WINDOW].total_milliseconds / 1000
     if window_samples < 1:
         raise cv.Invalid("window is shorter than one sample period", [CONF_WINDOW])
+    # Longest frame: response + channels + CRC, padded to whole 32-bit words for the DMA
+    frame_bits = -(-(2 + channels) * 3 // 4) * 4 * 8
+    frame_s = frame_bits / config[CONF_DATA_RATE]
+    if frame_s >= SPI_TIMEOUT_CLKIN_PERIODS / clock_hz:
+        raise cv.Invalid(
+            f"data_rate is too slow: a frame takes {frame_s * 1e3:.1f} ms, longer than the "
+            f"{SPI_TIMEOUT_CLKIN_PERIODS / clock_hz * 1e3:.1f} ms SPI timeout of the device",
+            [CONF_DATA_RATE],
+        )
+    sample_period_s = 2 * osr / clock_hz
+    if frame_s > sample_period_s * MAX_FRAME_TIME_FRACTION:
+        raise cv.Invalid(
+            f"data_rate is too slow for this sample_rate: a frame takes {frame_s * 1e6:.0f} us, "
+            f"the sample period is {sample_period_s * 1e6:.0f} us; raise data_rate or lower sample_rate",
+            [CONF_DATA_RATE],
+        )
     if window_samples > MAX_WINDOW_SAMPLES:
         raise cv.Invalid(
             f"window holds {window_samples:.0f} samples, the maximum is {MAX_WINDOW_SAMPLES}",
@@ -132,7 +146,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(
                 CONF_WINDOW, default="100ms"
             ): cv.positive_time_period_milliseconds,
-            cv.Optional(CONF_GAIN, default=1): cv.Any(_gain, cv.ensure_list(_gain)),
+            cv.Optional(CONF_GAIN, default=1): cv.Any(
+                cv.one_of(*GAINS, int=True), cv.ensure_list(cv.one_of(*GAINS, int=True))
+            ),
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
