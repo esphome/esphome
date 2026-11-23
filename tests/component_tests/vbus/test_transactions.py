@@ -104,7 +104,7 @@ def test_value_actions_require_transactions_on_the_referenced_hub(
         "uart:\n  baud_rate: 9600\n  rx_pin: GPIO13\n  tx_pin: GPIO12\n"
         f"vbus:\n  id: bus\n  {settings}\n"
         "button:\n  - platform: template\n    name: Read\n    on_press:\n"
-        "      - vbus.read_value:\n          id: bus\n          value_id: 2\n",
+        "      - vbus.read_value:\n          id: null\n          value_id: 2\n",
         encoding="utf-8",
     )
     CORE.config_path = path
