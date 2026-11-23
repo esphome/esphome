@@ -7,7 +7,7 @@
 namespace esphome::logger {
 
 #if !defined(USE_LOGGER_UART_SELECTION_USB_CDC) && !defined(USE_LOGGER_UART_SELECTION_USB_SERIAL_JTAG)
-void write_uart_line(uart_port_t uart_num, const char *msg, size_t len);
+void write_uart_line(uart_port_t uart_num, const char *msg, size_t len, bool main_task);
 #endif
 
 inline void HOT Logger::write_msg_(const char *msg, uint16_t len) {
@@ -23,7 +23,7 @@ inline void HOT Logger::write_msg_(const char *msg, uint16_t len) {
   fwrite(msg, 1, len, stdout);
 #else
   // Regular UART - single write including newline (already in buffer)
-  write_uart_line(this->get_uart_num(), msg, len);
+  write_uart_line(this->get_uart_num(), msg, len, this->is_main_task_());
 #endif
 }
 
