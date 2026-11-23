@@ -25,23 +25,24 @@ else
 # stop both on any exit, so a failed start does not leave the capture holding the port
 stop_bg() { kill "$(cat "ping-$T.pid")" "$(cat "cap-$T.pid")" 2> /dev/null; }
 trap stop_bg EXIT
-trap 'exit 130' INT TERM
+mark() { echo "$(date +%T) $*" | tee -a "marks-$T.txt"; }
+cur= incomplete=
+# an interrupted run must not read as finished: record it and the step it cut short
+trap 'mark "suite incomplete: interrupted$cur$incomplete"; exit 130' INT TERM
 sleep 3
 for w in cap ping; do
   kill -0 "$(cat "$w-$T.pid")" 2> /dev/null || { echo "the $w process exited at start, see $w-$T.err" >&2; exit 1; }
 done
-mark() { echo "$(date +%T) $*" | tee -a "marks-$T.txt"; }
 # rounds that tried the measured link (held_failed rounds and harness faults did not)
 rounds() {
   local n
   n=$(grep '"round"' "$1" 2> /dev/null | grep -vcE 'held_failed|clear_failed|no_ff01|stale_handles|no_readable_char')
   echo "${n:-0}"
 }
-incomplete=
 # run STEP ROUNDS CMD ARGS...: an ARG of @N is replaced by the rounds still missing; reruns after an API drop
 run() {
   local s=$1 want=$2; shift 2; local out=$T-$s.jsonl rc=0
-  mark "start $s"
+  mark "start $s"; cur=" $s"
   for chunk in 1 2 3 4; do
     local have; have=$(rounds "$out")
     [ "$have" -ge "$want" ] && break
@@ -53,11 +54,11 @@ run() {
   done
   # enough rounds is not enough: a driver that then failed (timeout, crash, links left held) fails the step
   [ "$(rounds "$out")" -ge "$want" ] && [ "$rc" = 0 ] || incomplete="$incomplete $s"
-  mark "end $s"
+  mark "end $s"; cur=
 }
 once() {
   local s=$1; shift; local out=$T-$s.jsonl
-  mark "start $s"
+  mark "start $s"; cur=" $s"
   for chunk in 1 2; do
     # an earlier or aborted try is moved aside (a resumed run too), so the medians cover one run only
     if [ -f "$out" ]; then local k=1; while [ -e "$T-$s.aborted$k.jsonl" ]; do k=$((k + 1)); done
@@ -66,7 +67,7 @@ once() {
     mark "$s chunk $chunk rc=$rc"; [ $rc = 0 ] && break; sleep 10
   done
   [ $rc = 0 ] || incomplete="$incomplete $s"
-  mark "end $s"
+  mark "end $s"; cur=
 }
 for s in $STEPS; do
   case $s in

@@ -98,9 +98,11 @@ marks = list(
 # every start/end interval of a step (a resumed run adds more); an interrupted one ends at the next start
 steps: dict[str, list[list]] = {}
 open_iv = None
-# suite.sh's own verdict: the last driver rc per step and the incomplete list
+# suite.sh's own verdict: the last driver rc per step and the incomplete list; None: no verdict after the
+# last start, so the run was killed or is still going
 last_rc: dict[str, int] = {}
-suite_incomplete = ""
+suite_incomplete: str | None = None
+ended: dict[str, bool] = {}  # False: the step's last run has no end mark
 for t, r in marks:
     if m := re.match(r"(\S+) chunk \d+ rc=(\d+)", r):
         last_rc[m[1]] = int(m[2])
@@ -108,6 +110,11 @@ for t, r in marks:
         suite_incomplete = r.split(":", 1)[1].strip()
     elif r == "suite done":  # a later RESUME run finished the rest
         suite_incomplete = ""
+    elif r.startswith("start "):
+        suite_incomplete = None
+        ended[r[6:]] = False
+    elif r.startswith("end "):
+        ended[r[4:]] = True
     if r.startswith("start "):
         if open_iv:
             open_iv[1] = t
@@ -393,8 +400,11 @@ except FileNotFoundError:
     print(f"no ping-{T}.txt, ping not measured")
 if not steps:  # no start mark: nothing was run or the marks file is empty
     flagged.append(f"no steps in marks-{T}.txt")
-if suite_incomplete:
+if suite_incomplete is None and steps:
+    flagged.append("suite not finished: no suite done mark after the last step")
+elif suite_incomplete:
     flagged.append(f"suite incomplete: {suite_incomplete}")
+flagged += [f"{s}: cut short, no end mark" for s, e in ended.items() if not e]
 flagged += [f"{s}: last driver run rc={rc}" for s, rc in last_rc.items() if rc]
 # a reset line in a serial capture means the proxy rebooted during the suite; reconnect failures in an API
 # capture mean it was gone for a while
