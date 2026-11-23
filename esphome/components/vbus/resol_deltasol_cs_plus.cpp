@@ -157,8 +157,13 @@ void ResolDeltaSolCSPlus::handle_message(std::vector<uint8_t> &message) {
   if (clock <= 1439 && (!this->clock_valid_ || this->clock_minutes_ != clock)) {
     this->clock_minutes_ = clock;
     this->clock_valid_ = true;
-    if (this->has_fresh_snapshot())
-      this->notify_entities_();
+#ifdef USE_VBUS_CS_PLUS_ENTITIES
+    if (this->has_fresh_snapshot() && this->non_clock_listeners_ < this->setting_listeners_.size()) {
+      // A pending full notification takes precedence over a clock-only update.
+      this->notify_position_ = std::min(this->notify_position_, this->non_clock_listeners_);
+      this->enable_loop();
+    }
+#endif
   }
   ++this->telemetry_count_;
   this->telemetry_at_ = App.get_loop_component_start_time();

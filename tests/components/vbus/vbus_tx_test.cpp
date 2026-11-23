@@ -2763,7 +2763,14 @@ TEST_F(CSPlusNumberTest, ExpiredSnapshotsInvalidateTheValueButRetainTheLastAdver
 }
 
 TEST_F(CSPlusNumberTest, ClockUsesChangedValidBroadcastsWithoutQueriesOrSnapshotCallbacks) {
+  class OtherSetting : public CSPlusSettingListener {
+   public:
+    void dump_setting_config() override {}
+    void on_setting_snapshot() override { ++this->visits; }
+    unsigned visits{0};
+  } other;
   this->controller_.register_setting_listener(&this->clock_);
+  this->controller_.register_setting_listener(&other);
   const size_t frames = this->uart_.writes.size();
   const size_t snapshots = this->snapshots_;
   std::vector<uint8_t> payload(40);
@@ -2773,12 +2780,19 @@ TEST_F(CSPlusNumberTest, ClockUsesChangedValidBroadcastsWithoutQueriesOrSnapshot
   this->tick_();
   this->tick_();
   this->tick_();
+  this->tick_();
   EXPECT_FLOAT_EQ(this->clock_.state, 120);
+  EXPECT_EQ(other.visits, 1u);  // The registration-triggered full refresh still completed.
+  payload[22] = 121;
+  this->controller_.on_message(0x0100, 0x2211, 0x0010, payload);
+  this->tick_();
+  EXPECT_FLOAT_EQ(this->clock_.state, 121);
+  EXPECT_EQ(other.visits, 1u);
   payload[22] = 0xff;
   payload[23] = 0xff;
   this->controller_.on_message(0x0100, 0x2211, 0x0010, payload);
   this->tick_();
-  EXPECT_FLOAT_EQ(this->clock_.state, 120);
+  EXPECT_FLOAT_EQ(this->clock_.state, 121);
   EXPECT_EQ(this->snapshots_, snapshots);
   EXPECT_EQ(this->uart_.writes.size(), frames);
 }
