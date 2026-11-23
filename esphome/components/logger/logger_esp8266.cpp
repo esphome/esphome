@@ -48,7 +48,7 @@ void HOT Logger::write_msg_(const char *msg, uint16_t len) {
   // The core writes one byte per call with a FIFO poll and a yield check, ~100 cycles a byte. A line that fits the
   // free FIFO space goes in directly; otherwise the core's write waits for the wire as before.
   const uint32_t used = (USS(LOGGER_UART) >> USTXC) & 0xff;
-  if (used + len <= UART_TX_FIFO_SIZE) {
+  if (used + len < UART_TX_FIFO_SIZE) {  // the core's writer also stops one short of a full FIFO
     for (uint16_t i = 0; i < len; i++)
       USF(LOGGER_UART) = static_cast<uint8_t>(msg[i]);
     return;
