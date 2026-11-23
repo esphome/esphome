@@ -420,10 +420,8 @@ void APIConnection::process_active_iterator_() {
     }
 #ifdef USE_API_CLIENT_SYNCED_TRIGGER
   } else if (this->active_iterator_ == ActiveIterator::CLIENT_SYNCED_PENDING) {
-    // Fired after the sync, not on SubscribeStates, so the subscriptions sent with it are active.
-    // Waits for the batch to drain so a direct send from the automation cannot overtake queued states.
-    // next_close: a DisconnectRequest this pass already answered; remove is only set next loop.
-    // With deep sleep the sync can still finish during teardown, after our DisconnectRequest.
+    // Fired after the sync and the batch drain, so subscriptions are active and queued states go first.
+    // Skipped once a disconnect or shutdown has started (next_close is set before remove).
     if (this->deferred_batch_.empty() && !this->flags_.remove && !this->flags_.next_close &&
         !this->parent_->is_shutting_down()) {
       this->active_iterator_ = ActiveIterator::NONE;

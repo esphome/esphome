@@ -260,8 +260,7 @@ void APIServer::remove_client_(uint8_t client_index) {
 #ifdef USE_API_CLIENT_DISCONNECTED_TRIGGER
   // Save client info before closing socket and removal for the trigger
   char client_name[CLIENT_INFO_NAME_MAX_LEN];
-  strncpy(client_name, client->get_name(), sizeof(client_name) - 1);
-  client_name[sizeof(client_name) - 1] = '\0';
+  memcpy(client_name, client->get_name(), sizeof(client_name));
   char peername[socket::SOCKADDR_STR_LEN];
   client->get_peername_to(peername);
 #endif
