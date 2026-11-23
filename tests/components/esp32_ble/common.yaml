@@ -12,7 +12,3 @@ button:
             - ble.disable:
           else:
             - ble.enable:
-
-switch:
-  - platform: ble
-    name: Bluetooth
