@@ -7,10 +7,10 @@ Constants already defined in esphome.const are not duplicated here and must be i
 import logging
 from typing import Any
 
-from esphome import codegen as cg, config_validation as cv
+from esphome import automation, codegen as cg, config_validation as cv
 from esphome.const import CONF_ITEMS
 from esphome.core import CORE, ID, Lambda
-from esphome.cpp_generator import MockObj, StaticCastExpression, call_lambda
+from esphome.cpp_generator import MockObj, StaticCastExpression
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import Expression, SafeExpType
 
@@ -244,17 +244,19 @@ class LValidator:
             if args is None:
                 args = get_lambda_context_args()
 
-            lamb = await cg.process_lambda(value, args, return_type=self.rtype)
             if raw_lambda:
-                return lamb
-            return call_lambda(lamb)
+                return await cg.process_lambda(value, args, return_type=self.rtype)
+            return await automation.call_user_lambda(value, args, self.rtype)
         if self.retmapper is not None:
             return self.retmapper(value)
         if isinstance(value, ID):
-            return await cg.get_variable(value)
+            return automation.parent_ref(await cg.get_variable(value))
         if isinstance(value, list):
             value = [
-                await cg.get_variable(x) if isinstance(x, ID) else x for x in value
+                automation.parent_ref(await cg.get_variable(x))
+                if isinstance(x, ID)
+                else x
+                for x in value
             ]
         if self.rtype is cg.int_:
             value = int(value)

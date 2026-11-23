@@ -357,6 +357,21 @@ def test_uart_clock_source_preserves_variant_metadata(
     assert "ESP32C6" not in clock_source["values"]["APB"]["variants"]
 
 
+def test_uart_debug_lists_its_options(language_schema_dir: Path) -> None:
+    """A bare-allowed `debug:` still resolves to the debug schema, not an untyped key."""
+    uart_schema = json.loads((language_schema_dir / "uart.json").read_text())
+    debug = uart_schema["uart"]["schemas"]["CONFIG_SCHEMA"]["schema"]["config_vars"][
+        "debug"
+    ]
+    # The dumper files a shared schema under the first component that uses it
+    (ref,) = debug["schema"]["extends"]
+    component, name = ref.split(".", 1)
+    shared = json.loads((language_schema_dir / f"{component}.json").read_text())
+    config_vars = shared[component]["schemas"][name]["schema"]["config_vars"]
+
+    assert {"direction", "after", "sequence"} <= set(config_vars)
+
+
 def test_automation_with_one_extra_key_keeps_it(language_schema_dir: Path) -> None:
     """A trigger whose only extra key is not trigger_id still lists that key."""
     modbus_schema = json.loads((language_schema_dir / "modbus_client.json").read_text())
