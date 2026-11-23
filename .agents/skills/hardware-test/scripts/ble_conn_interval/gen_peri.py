@@ -155,8 +155,8 @@ interval:
             // stack), so they are not taken for proxy loss; a lower bound, late reports after this one are missed
             srvconf::active = false;
             const uint32_t fails = srvconf::refused + srvconf::bad;
-            // byte 3: both shims are in place (linked by the same build flags), so the count is complete
-            const uint8_t f[4] = {0xF1, (uint8_t) fails, (uint8_t) (fails >> 8), (uint8_t) srvconf::installed};
+            // byte 3: both shims ran (the burst's sends went through the send wrap), so the count is complete
+            const uint8_t f[4] = {0xF1, (uint8_t) fails, (uint8_t) (fails >> 8), (uint8_t) srvconf::complete()};
             id(finalc)->set_value(f, sizeof(f));
             id(finalc)->notify();
             ESP_LOGI("srv", "SRV burst done sent=%u send_failed=%u", (unsigned) id(b_sent), (unsigned) fails);

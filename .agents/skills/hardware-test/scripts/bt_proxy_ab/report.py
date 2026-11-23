@@ -361,6 +361,8 @@ for s in steps:
     # a partial or faulted step must not pass as a clean result
     # rtt_partial: RTT medians from rounds whose RTT loop broke off
     # backwards, dups, short: the tick order broke, so the notify gap and missing counts mean nothing
+    # subscribe_errors: notify passes whose tick read or subscribe failed on a held link (unheld time is
+    # mostly_unheld in no_round)
     # slot_not_seen: churn cycles whose taken slot never showed, so their freed reading is not a measurement
     if bad := [
         k
@@ -375,6 +377,7 @@ for s in steps:
             "dups",
             "short",
             "slot_not_seen",
+            "subscribe_errors",
             *HARNESS,
         )
         if d.get(k)

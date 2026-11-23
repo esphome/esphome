@@ -11,7 +11,9 @@ static esp_gatts_cb_t real_gatts = nullptr;
 static std::atomic<bool> active{false};
 static std::atomic<uint32_t> bad{0};
 static std::atomic<uint32_t> refused{0};
-static bool installed = false;  // the wrap ran: without it late failures are not counted at all
+static bool installed = false;     // the register wrap ran: without it late failures are not counted at all
+static bool send_wrapped = false;  // the send wrap ran: without it refused sends are not counted
+inline bool complete() { return installed && send_wrapped; }
 static void gatts_shim(esp_gatts_cb_event_t e, esp_gatt_if_t i, esp_ble_gatts_cb_param_t *p) {
   if (e == ESP_GATTS_CONF_EVT && active && p->conf.status != ESP_GATT_OK)
     bad++;
@@ -30,6 +32,7 @@ esp_err_t __real_esp_ble_gatts_send_indicate(esp_gatt_if_t gatts_if, uint16_t co
                                              uint16_t value_len, uint8_t *value, bool need_confirm);
 esp_err_t __wrap_esp_ble_gatts_send_indicate(esp_gatt_if_t gatts_if, uint16_t conn_id, uint16_t attr_handle,
                                              uint16_t value_len, uint8_t *value, bool need_confirm) {
+  srvconf::send_wrapped = true;
   esp_err_t err = __real_esp_ble_gatts_send_indicate(gatts_if, conn_id, attr_handle, value_len, value, need_confirm);
   if (err != ESP_OK && srvconf::active)
     srvconf::refused++;

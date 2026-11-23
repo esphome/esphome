@@ -627,6 +627,15 @@ async def main() -> None:
                 test="notify", result="notify_short", covered=covered, want=round(want)
             )
             sys.exit(1)
+        # the expected count leaves out unheld time: a soak mostly without the link measured little
+        if stats["unheld_s"] > 0.1 * secs:
+            d.rec(
+                test="notify",
+                result="mostly_unheld",
+                unheld_s=stats["unheld_s"],
+                secs=secs,
+            )
+            sys.exit(1)
         if (
             stats["rx"] == 0
         ):  # L was never held or sent nothing: the step measured nothing
