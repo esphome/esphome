@@ -153,9 +153,11 @@ RasterResult RasterPrinter::read_page_header_(bool urf, PageFormat &format) {
     default:
       return RasterResult::RASTER_UNSUPPORTED;
   }
-  format.bytes_per_line = (format.width * format.bits + 7) / 8;
-  if (format.bytes_per_line > RASTER_LINE_BUFFER_SIZE)
+  // In 64 bits: a huge width from the client must not wrap around to a small line
+  const uint64_t bytes_per_line = (uint64_t{format.width} * format.bits + 7) / 8;
+  if (bytes_per_line > RASTER_LINE_BUFFER_SIZE)
     return RasterResult::RASTER_UNSUPPORTED;
+  format.bytes_per_line = static_cast<uint32_t>(bytes_per_line);
   return RasterResult::RASTER_OK;
 }
 

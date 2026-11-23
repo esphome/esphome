@@ -1228,6 +1228,18 @@ int IppServer::new_job_(const IppRequest &req, uint8_t state) {
   job.copies = req.copies < 1 ? 1 : req.copies > 99 ? 99 : req.copies;
   copy_string(job.name, sizeof(job.name), req.job_name[0] != '\0' ? req.job_name : "Untitled");
   copy_string(job.user, sizeof(job.user), req.user[0] != '\0' ? req.user : "anonymous");
+  RasterJob &settings = this->job_template_;
+  settings = RasterJob{};
+  settings.cancel = &this->cancel_;
+  settings.pages_done = &this->pages_;
+  settings.copies = job.copies;
+  settings.default_paper = this->settings_.default_paper;
+  settings.num_ranges = req.num_ranges;
+  memcpy(settings.ranges, req.ranges, sizeof(req.ranges));
+  settings.requested_paper = req.media[0] != '\0' ? find_paper_by_name(req.media) : PAPER_NONE;
+  if (settings.requested_paper == PAPER_NONE && req.media_x > 0)
+    settings.requested_paper = find_paper_by_hmm(req.media_x, req.media_y);
+  this->job_draft_ = req.quality == QUALITY_DRAFT;
   this->active_ = slot;
   this->doc_deadline_ = job.created + DOCUMENT_TIMEOUT_S;
   this->cancel_.store(false);
@@ -1239,6 +1251,10 @@ int IppServer::new_job_(const IppRequest &req, uint8_t state) {
 
 void IppServer::finish_job_(int slot, uint8_t state, JobReason reason) {
   LockGuard guard(this->lock_);
+  this->finish_job_locked_(slot, state, reason);
+}
+
+void IppServer::finish_job_locked_(int slot, uint8_t state, JobReason reason) {
   Job &job = this->jobs_[slot];
   job.state = state;
   job.reason = reason;
@@ -1260,25 +1276,18 @@ void IppServer::finish_job_(int slot, uint8_t state, JobReason reason) {
 
 uint16_t IppServer::print_document_(int slot, IppRequest &req, HttpConnection &conn) {
   RasterJob raster_job;
-  raster_job.cancel = &this->cancel_;
-  raster_job.pages_done = &this->pages_;
-  raster_job.default_paper = this->settings_.default_paper;
-  raster_job.num_ranges = req.num_ranges;
-  memcpy(raster_job.ranges, req.ranges, sizeof(req.ranges));
-  raster_job.requested_paper = req.media[0] != '\0' ? find_paper_by_name(req.media) : PAPER_NONE;
-  if (raster_job.requested_paper == PAPER_NONE && req.media_x > 0)
-    raster_job.requested_paper = find_paper_by_hmm(req.media_x, req.media_y);
+  bool draft;
   char user[sizeof(Job::user)];
   char name[sizeof(Job::name)];
   uint32_t job_id;
   {
     LockGuard guard(this->lock_);
+    raster_job = this->job_template_;
+    draft = this->job_draft_;
     Job &job = this->jobs_[slot];
-    job.state = JOB_PROCESSING;
     job.processing = uptime_s();
     job.reason = JobReason::JOB_REASON_PRINTING;
     job.has_document = true;
-    raster_job.copies = job.copies;
     job_id = job.id;
     memcpy(user, job.user, sizeof(user));
     memcpy(name, job.name, sizeof(name));
@@ -1312,18 +1321,19 @@ uint16_t IppServer::print_document_(int slot, IppRequest &req, HttpConnection &c
   ESP_LOGI(TAG, "Printing job %u '%s' from %s", static_cast<unsigned>(job_id), name, user);
 
   PjlSettings pjl = this->settings_.pjl;
-  if (req.quality == QUALITY_DRAFT)
+  if (draft)
     pjl.toner_save = TonerSave::TONER_SAVE_ON;
   JobSink sink(this->port_, pjl, user, name);
   const RasterResult result = this->raster_.print(&conn, &this->encoder_, &sink, raster_job);
   bool delivered = true;
   if (sink.started() && result != RasterResult::RASTER_WRITE_ERROR)
     delivered = write_pjl_footer(&sink);
-  if (result == RasterResult::RASTER_CANCELED || this->cancel_.load()) {
+  // After a cancel or a failed transfer, clear the endpoint and reset the printer before the next job
+  if (result == RasterResult::RASTER_CANCELED || result == RasterResult::RASTER_WRITE_ERROR || this->cancel_.load()) {
     this->port_->abort_job();
   } else {
     delivered = this->port_->end_job() && delivered;
-    if (!delivered && this->cancel_.load())
+    if (!delivered)
       this->port_->abort_job();
   }
 
@@ -1378,7 +1388,8 @@ void IppServer::op_print_job_(IppWriter &w, IppRequest &req, HttpConnection &con
     end_response(w);
     return;
   }
-  const int slot = this->new_job_(req, JOB_PENDING);
+  // Created processing, so a cancel cannot finish it before its document streams
+  const int slot = this->new_job_(req, JOB_PROCESSING);
   if (slot < 0) {
     conn.keep_alive = false;
     begin_response(w, req, STATUS_BUSY, "The printer is busy with another job");
@@ -1419,9 +1430,13 @@ void IppServer::op_send_document_(IppWriter &w, IppRequest &req, HttpConnection 
   const int slot = this->find_job_(req);
   uint16_t status = slot < 0 ? STATUS_NOT_FOUND : this->check_document_(req);
   if (status == STATUS_OK) {
+    // Claim the job, so a second Send-Document or a cancel cannot take it while it prints
     LockGuard guard(this->lock_);
-    if (this->active_ != slot || this->jobs_[slot].state != JOB_PENDING)
+    if (this->active_ != slot || this->jobs_[slot].state != JOB_PENDING) {
       status = STATUS_NOT_POSSIBLE;
+    } else {
+      this->jobs_[slot].state = JOB_PROCESSING;
+    }
   }
   if (status != STATUS_OK) {
     conn.keep_alive = false;
@@ -1443,17 +1458,14 @@ void IppServer::op_send_document_(IppWriter &w, IppRequest &req, HttpConnection 
 void IppServer::op_close_job_(IppWriter &w, IppRequest &req) {
   const int slot = this->find_job_(req);
   uint16_t status = slot < 0 ? STATUS_NOT_FOUND : STATUS_OK;
-  bool close = false;
   if (status == STATUS_OK) {
     LockGuard guard(this->lock_);
     if (this->active_ == slot && this->jobs_[slot].state == JOB_PENDING) {
-      close = true;
+      this->finish_job_locked_(slot, JOB_COMPLETED, JobReason::JOB_REASON_COMPLETED);
     } else if (this->jobs_[slot].state < JOB_CANCELED) {
       status = STATUS_NOT_POSSIBLE;
     }
   }
-  if (close)
-    this->finish_job_(slot, JOB_COMPLETED, JobReason::JOB_REASON_COMPLETED);
   begin_response(w, req, status);
   end_response(w);
 }
@@ -1461,37 +1473,33 @@ void IppServer::op_close_job_(IppWriter &w, IppRequest &req) {
 void IppServer::op_cancel_job_(IppWriter &w, IppRequest &req) {
   const int slot = this->find_job_(req);
   uint16_t status = slot < 0 ? STATUS_NOT_FOUND : STATUS_OK;
-  bool waiting = false;
   if (status == STATUS_OK) {
     LockGuard guard(this->lock_);
     if (this->jobs_[slot].state >= JOB_CANCELED) {
       status = STATUS_NOT_POSSIBLE;
     } else if (this->jobs_[slot].state == JOB_PENDING) {
-      waiting = true;  // no document is being printed, so nothing else will finish the job
+      // No document is printing, so nothing else will finish the job
+      this->finish_job_locked_(slot, JOB_CANCELED, JobReason::JOB_REASON_CANCELED);
     } else {
       this->cancel_.store(true);
     }
   }
-  if (waiting)
-    this->finish_job_(slot, JOB_CANCELED, JobReason::JOB_REASON_CANCELED);
   begin_response(w, req, status, status == STATUS_NOT_POSSIBLE ? "The job has already finished" : nullptr);
   end_response(w);
 }
 
 void IppServer::op_cancel_my_jobs_(IppWriter &w, IppRequest &req) {
-  int waiting = -1;
   {
     LockGuard guard(this->lock_);
-    if (this->active_ >= 0) {
-      if (this->jobs_[this->active_].state == JOB_PENDING) {
-        waiting = this->active_;
+    const int slot = this->active_;
+    if (slot >= 0 && strcmp(this->jobs_[slot].user, req.user[0] != '\0' ? req.user : "anonymous") == 0) {
+      if (this->jobs_[slot].state == JOB_PENDING) {
+        this->finish_job_locked_(slot, JOB_CANCELED, JobReason::JOB_REASON_CANCELED);
       } else {
         this->cancel_.store(true);
       }
     }
   }
-  if (waiting >= 0)
-    this->finish_job_(waiting, JOB_CANCELED, JobReason::JOB_REASON_CANCELED);
   begin_response(w, req, STATUS_OK);
   end_response(w);
 }
@@ -1633,15 +1641,10 @@ void IppServer::write_job_(IppWriter &w, const IppRequest &req, int slot, const 
 }
 
 void IppServer::check_timeouts() {
-  int slot = -1;
-  {
-    LockGuard guard(this->lock_);
-    if (this->active_ >= 0 && this->jobs_[this->active_].state == JOB_PENDING &&
-        static_cast<int32_t>(uptime_s() - this->doc_deadline_) > 0)
-      slot = this->active_;
-  }
-  if (slot >= 0)
-    this->finish_job_(slot, JOB_ABORTED, JobReason::JOB_REASON_TIMED_OUT);
+  LockGuard guard(this->lock_);
+  if (this->active_ >= 0 && this->jobs_[this->active_].state == JOB_PENDING &&
+      static_cast<int32_t>(uptime_s() - this->doc_deadline_) > 0)
+    this->finish_job_locked_(this->active_, JOB_ABORTED, JobReason::JOB_REASON_TIMED_OUT);
 }
 
 }  // namespace esphome::xerox_phaser_3020

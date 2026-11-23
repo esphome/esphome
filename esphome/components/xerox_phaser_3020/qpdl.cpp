@@ -20,6 +20,9 @@ static constexpr uint32_t BAND_SIGNATURE_SUM = 0x09 + 0xAB + 0xCD + 0xEF;
 
 uint8_t find_paper_by_points(uint32_t width_pt, uint32_t height_pt) {
   uint8_t best = PAPER_NONE;
+  // Far larger than any paper; also keeps the error sums below from wrapping
+  if (width_pt > 10000 || height_pt > 10000)
+    return best;
   uint32_t best_error = 40;  // per mille, summed over both sides
   for (uint8_t i = 0; i < NUM_PAPERS; i++) {
     for (uint8_t turn = 0; turn < 2; turn++) {

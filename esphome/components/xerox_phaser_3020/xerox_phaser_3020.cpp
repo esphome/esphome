@@ -39,6 +39,10 @@ static constexpr UBaseType_t WORKER_PRIORITY = tskIDLE_PRIORITY;
 static constexpr UBaseType_t LISTEN_PRIORITY = tskIDLE_PRIORITY + 1;
 static constexpr uint32_t WAIT_SLICE_MS = 200;
 static constexpr uint32_t ABORT_WAIT_MS = 2000;
+static constexpr uint32_t RESET_WAIT_MS = 3000;
+static constexpr uint8_t RESET_NONE = 0;
+static constexpr uint8_t RESET_REQUESTED = 1;
+static constexpr uint8_t RESET_SENT = 2;
 static constexpr uint32_t UPDATE_INTERVAL_MS = 1000;
 static constexpr uint8_t PORT_STATUS_EVERY = 5;  // updates between port status reads
 // wLength of GET_PORT_STATUS; the content is not sent
@@ -96,6 +100,33 @@ void XeroxPhaser3020::setup() {
   }
   this->register_mdns_();
   this->set_interval(UPDATE_INTERVAL_MS, [this]() { this->update_(); });
+}
+
+void XeroxPhaser3020::loop() {
+  bool work = this->process_usb_events_();
+  if (this->reset_state_.load() == RESET_REQUESTED) {
+    this->send_reset_();
+    work = true;
+  }
+  if (!work)
+    this->disable_loop();
+}
+
+void XeroxPhaser3020::send_reset_() {
+  // Control transfers are only started from the main loop, which also handles disconnects
+  if (!this->is_connected()) {
+    this->reset_state_.store(RESET_NONE);
+    return;
+  }
+  this->reset_state_.store(RESET_SENT);
+  const bool sent = this->control_transfer(
+      usb_host::USB_DIR_OUT | usb_host::USB_TYPE_CLASS | usb_host::USB_RECIP_INTERFACE, PRINTER_SOFT_RESET, 0,
+      this->interface_, [this](const usb_host::TransferStatus &) { this->reset_state_.store(RESET_NONE); });
+  if (sent) {
+    ESP_LOGI(TAG, "Printer reset after an interrupted job");
+  } else {
+    this->reset_state_.store(RESET_NONE);
+  }
 }
 
 void XeroxPhaser3020::dump_config() {
@@ -245,6 +276,7 @@ void XeroxPhaser3020::on_disconnected() {
       usb_host_endpoint_flush(this->device_handle_, this->out_endpoint_);
       usb_host_interface_release(this->handle_, this->device_handle_, this->interface_);
       this->out_endpoint_ = 0;
+      this->reset_state_.store(RESET_NONE);
       ESP_LOGI(TAG, "Printer disconnected");
     }
   }
@@ -258,8 +290,12 @@ bool XeroxPhaser3020::job_stopped_() const {
 
 bool XeroxPhaser3020::begin_job(const std::atomic<bool> *cancel) {
   this->cancel_ = cancel;
-  // Transfers ended by an earlier abort may still be on their way back
-  this->wait_idle_(false);
+  // An earlier job's recovery finishes first: its transfers come back and the printer is reset
+  for (uint32_t waited = 0;
+       waited < RESET_WAIT_MS && this->is_connected() &&
+       (uxQueueMessagesWaiting(this->free_transfers_) < NUM_TRANSFERS || this->reset_state_.load() != RESET_NONE);
+       waited += 20)
+    delay(20);  // NOLINT: runs on a connection task, not the main loop
   this->transfer_failed_.store(false);
   this->current_ = nullptr;
   return this->is_connected();
@@ -327,10 +363,9 @@ bool XeroxPhaser3020::write(const uint8_t *data, size_t len) {
   return true;
 }
 
-bool XeroxPhaser3020::wait_idle_(bool stop_on_cancel) {
+bool XeroxPhaser3020::wait_idle_() {
   while (uxQueueMessagesWaiting(this->free_transfers_) < NUM_TRANSFERS) {
-    if (!this->is_connected() || this->transfer_failed_.load() ||
-        (stop_on_cancel && this->cancel_->load(std::memory_order_relaxed)))
+    if (this->job_stopped_())
       return false;
     delay(20);
   }
@@ -347,7 +382,7 @@ bool XeroxPhaser3020::end_job() {
       return false;
     }
   }
-  return this->wait_idle_(true) && !this->transfer_failed_.load();
+  return this->wait_idle_() && !this->transfer_failed_.load();
 }
 
 void XeroxPhaser3020::abort_job() {
@@ -369,10 +404,10 @@ void XeroxPhaser3020::abort_job() {
   if (!this->is_connected())
     return;
   usb_host_endpoint_clear(this->device_handle_, this->out_endpoint_);
-  // Make the printer drop the part of the job it already has
-  this->control_transfer(usb_host::USB_DIR_OUT | usb_host::USB_TYPE_CLASS | usb_host::USB_RECIP_INTERFACE,
-                         PRINTER_SOFT_RESET, 0, this->interface_, [](const usb_host::TransferStatus &) {});
-  ESP_LOGI(TAG, "Printer reset after canceling the job");
+  // Make the printer drop the part of the job it already has; the main loop sends the request
+  this->reset_state_.store(RESET_REQUESTED);
+  this->enable_loop_soon_any_context();
+  App.wake_loop_threadsafe();
 }
 
 void XeroxPhaser3020::listen_task(void *arg) {

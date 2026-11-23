@@ -112,11 +112,15 @@ class IppServer {
 
   /// IPP status for a job request whose document format or compression cannot be printed, or 0
   uint16_t check_document_(const IppRequest &req) const;
-  /// Reserve the printer for a new job. Returns the job's slot, or -1 when another job holds it.
+  /// Reserve the printer for a new job and keep its job template settings for its document.
+  /// Returns the job's slot, or -1 when another job holds the printer.
   int new_job_(const IppRequest &req, uint8_t state);
-  /// Print the document that follows the request. Returns the IPP status of the request.
+  /// Print the document that follows the request, for a job the caller has set to processing.
+  /// Returns the IPP status of the request.
   uint16_t print_document_(int slot, IppRequest &req, HttpConnection &conn);
   void finish_job_(int slot, uint8_t state, JobReason reason);
+  /// finish_job_() for a caller that holds lock_
+  void finish_job_locked_(int slot, uint8_t state, JobReason reason);
   int find_job_(const IppRequest &req) const;
   /// Write the job attributes the request asks for. Takes the lock.
   void write_job_(IppWriter &w, const IppRequest &req, int slot, const char *uri_base);
@@ -135,7 +139,10 @@ class IppServer {
   std::atomic<bool> cancel_{false};
   std::atomic<bool> printing_{false};
   std::atomic<uint16_t> pages_{0};  // pages of the active job printed so far
-  int8_t active_{-1};               // slot of the job holding the printer
+  // Job template settings of the active job, from Print-Job or Create-Job
+  RasterJob job_template_{};
+  int8_t active_{-1};  // slot of the job holding the printer
+  bool job_draft_{false};
 };
 
 }  // namespace esphome::xerox_phaser_3020

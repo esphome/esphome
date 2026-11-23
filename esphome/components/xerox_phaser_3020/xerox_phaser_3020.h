@@ -31,6 +31,7 @@ class XeroxPhaser3020 final : public usb_host::USBClient, public PrinterPort {
   XeroxPhaser3020(uint16_t vid, uint16_t pid) : USBClient(vid, pid) {}
 
   void setup() override;
+  void loop() override;
   void dump_config() override;
   // After usb_host, and after mdns so the printer's Bonjour service can be added
   float get_setup_priority() const override { return setup_priority::LATE; }
@@ -64,12 +65,13 @@ class XeroxPhaser3020 final : public usb_host::USBClient, public PrinterPort {
 
   void update_();
   void register_mdns_();
+  void send_reset_();
   bool job_stopped_() const;
   /// Wait for a free transfer. Returns null when the job has to stop.
   usb_transfer_t *take_transfer_();
   bool submit_(usb_transfer_t *transfer);
-  /// Wait until no transfer is in flight, or until `stop_on_cancel` and the job is canceled
-  bool wait_idle_(bool stop_on_cancel);
+  /// Wait until no transfer is in flight. Returns false when the job has to stop first.
+  bool wait_idle_();
   static void transfer_callback(usb_transfer_t *transfer);
   static void listen_task(void *arg);
   static void worker_task(void *arg);
@@ -87,6 +89,8 @@ class XeroxPhaser3020 final : public usb_host::USBClient, public PrinterPort {
   int listen_fd_{-1};
   std::atomic<bool> connected_{false};
   std::atomic<bool> transfer_failed_{false};
+  // A printer reset after an interrupted job: asked for by a connection task, sent by the main loop
+  std::atomic<uint8_t> reset_state_{0};
   // Last GET_PORT_STATUS answer (IEEE 1284 bits)
   std::atomic<uint8_t> port_status_{0};
   uint8_t interface_{0};

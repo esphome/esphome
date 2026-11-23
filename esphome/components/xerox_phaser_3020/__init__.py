@@ -7,6 +7,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_DISABLED, CONF_ID, CONF_PORT
 from esphome.core import CORE
 import esphome.final_validate as fv
+from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
@@ -51,13 +52,32 @@ TONER_SAVE = {
 # Power save delays the printer offers, in minutes; 0 turns power save off
 POWER_SAVE_MINUTES = (5, 10, 15, 30, 45, 60)
 
+# A DNS-SD instance name is at most 63 bytes
+MAX_NAME_BYTES = 63
+# The location goes into a Bonjour TXT entry, which holds at most 255 bytes
+MAX_LOCATION_BYTES = 127
+
 # A job streams on one connection task while the others answer status requests;
 # as many connections again can wait in the queue
 NUM_WORKERS = 3
 
 
+_toner_save_enum = cv.enum(TONER_SAVE, upper=True, space="_")
+
+
+@schema_extractor("enum")
+def validate_toner_save(value: object) -> object:
+    if value == SCHEMA_EXTRACT:
+        return TONER_SAVE
+    # YAML reads an unquoted on or off as a boolean
+    if isinstance(value, bool):
+        value = "ON" if value else "OFF"
+    return _toner_save_enum(value)
+
+
 def validate_power_save(value: object) -> int:
-    if isinstance(value, str) and value.lower() == "off":
+    # YAML reads an unquoted off as false
+    if value is False or (isinstance(value, str) and value.lower() == "off"):
         return 0
     minutes = cv.positive_time_period_minutes(value).total_minutes
     if minutes not in POWER_SAVE_MINUTES:
@@ -74,16 +94,20 @@ CONFIG_SCHEMA = cv.All(
             # Any USB printer by default; set these to pick one when several are attached
             cv.Optional(CONF_VID, default=0): cv.hex_uint16_t,
             cv.Optional(CONF_PID, default=0): cv.hex_uint16_t,
-            cv.Optional(CONF_PRINTER_NAME): cv.string_strict,
-            cv.Optional(CONF_LOCATION, default=""): cv.string_strict,
+            cv.Optional(CONF_PRINTER_NAME): cv.All(
+                cv.string_strict, cv.ByteLength(max=MAX_NAME_BYTES)
+            ),
+            cv.Optional(CONF_LOCATION, default=""): cv.All(
+                cv.string_strict, cv.ByteLength(max=MAX_LOCATION_BYTES)
+            ),
             cv.Optional(CONF_PORT, default=631): cv.port,
             cv.Optional(CONF_PAPER, default="A4"): cv.enum(PAPERS, upper=True),
             cv.Optional(CONF_TONER_DENSITY, default="MEDIUM"): cv.enum(
                 TONER_DENSITIES, upper=True
             ),
-            cv.Optional(CONF_TONER_SAVE, default="PRINTER_DEFAULT"): cv.enum(
-                TONER_SAVE, upper=True, space="_"
-            ),
+            cv.Optional(
+                CONF_TONER_SAVE, default="PRINTER_DEFAULT"
+            ): validate_toner_save,
             cv.Optional(CONF_POWER_SAVE, default="5min"): validate_power_save,
             cv.Optional(CONF_JAM_RECOVERY, default=False): cv.boolean,
             cv.Optional(CONF_WAIT_FOR_PRINTER, default="5min"): cv.All(
@@ -112,9 +136,10 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID], config[CONF_VID], config[CONF_PID])
     await cg.register_component(var, config)
-    name = config.get(
-        CONF_PRINTER_NAME, f"Phaser 3020 @ {CORE.friendly_name or CORE.name}"
-    )
+    if (name := config.get(CONF_PRINTER_NAME)) is None:
+        # Shortened to the DNS-SD limit without cutting a character in two
+        name = f"Phaser 3020 @ {CORE.friendly_name or CORE.name}"
+        name = name.encode()[:MAX_NAME_BYTES].decode(errors="ignore")
     cg.add(var.set_printer_name(name))
     cg.add(var.set_location(config[CONF_LOCATION]))
     cg.add(var.set_port(config[CONF_PORT]))

@@ -11,8 +11,8 @@ xerox_phaser_3020:
   port: 8631
   paper: letter
   toner_density: dark
-  toner_save: "on"
-  power_save: 15min
+  toner_save: on
+  power_save: off
   jam_recovery: true
   wait_for_printer: 10min
 
