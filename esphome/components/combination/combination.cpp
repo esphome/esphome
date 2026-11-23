@@ -168,8 +168,8 @@ void LinearCombinationComponent::handle_new_value(float value) {
 };
 
 void WeightedMeanCombinationComponent::handle_new_value(float) {
-  float weighted_sum = 0.0f;
-  float weight_sum = 0.0f;
+  double weighted_sum = 0.0;
+  double weight_sum = 0.0;
 
   for (const auto &source : this->sensor_sources_) {
     const float sensor_state = source.sensor->state;
@@ -180,8 +180,8 @@ void WeightedMeanCombinationComponent::handle_new_value(float) {
     if (!std::isfinite(weight) || weight <= 0.0f)
       continue;
 
-    weighted_sum += sensor_state * weight;
-    weight_sum += weight;
+    weighted_sum += static_cast<double>(sensor_state) * static_cast<double>(weight);
+    weight_sum += static_cast<double>(weight);
   }
 
   this->publish_state(weight_sum > 0.0f ? weighted_sum / weight_sum : NAN);
