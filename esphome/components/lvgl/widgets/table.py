@@ -14,7 +14,7 @@ from ..automation import action_to_code
 from ..defines import CONF_COLUMN, CONF_MAIN, LValidator, literal
 from ..lv_validation import lv_int, lv_text, pixels_or_percent, pixels_validator
 from ..lvcode import LocalVariable, lv, lv_add, lv_expr
-from ..types import LvCompound, LvType, ObjUpdateAction, lv_coord_t
+from ..types import LvCompound, LvType, lv_coord_t
 from . import Widget, WidgetType, get_widgets
 from .label import CONF_LABEL
 
@@ -234,7 +234,7 @@ table_spec = TableType()
 
 @automation.register_action(
     "lvgl.table.cell.update",
-    ObjUpdateAction,
+    automation.ApplyAction,
     cv.Schema(
         {
             cv.Required(CONF_ID): cv.use_id(lv_table_t),

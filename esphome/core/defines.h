@@ -392,6 +392,7 @@
 #define USE_UPDATE
 #define USE_UPTIME_TIMESTAMP
 #define USE_VALVE
+#define USE_VBUS_DATAGRAM
 #define USE_WATER_HEATER
 #define USE_WATER_HEATER_VISUAL_OVERRIDES
 #define USE_WHIRLPOOL_HISENSE_ARG
@@ -851,7 +852,7 @@
 // rp2/__init__.py codegen also defines USE_RP2040 as a back-compat alias
 // for external custom components that may still test for it.
 #ifdef USE_RP2
-#define USE_ARDUINO_VERSION_CODE VERSION_CODE(6, 3, 2)
+#define USE_ARDUINO_VERSION_CODE VERSION_CODE(6, 4, 0)
 #define USE_RP2_CRASH_HANDLER
 #define USE_HTTP_REQUEST_RESPONSE
 #define USE_I2C
@@ -967,7 +968,6 @@
 #define USE_ZIGBEE
 #define USE_ZIGBEE_WIPE_ON_BOOT
 #define USE_ZIGBEE_WIPE_ON_BOOT_MAGIC 1
-#define ZIGBEE_ENDPOINTS_COUNT 8
 #endif
 
 // Disabled feature flags
