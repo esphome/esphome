@@ -78,6 +78,16 @@ def _migrate_formats(config: ConfigType) -> ConfigType:
             }
         ]
 
+    seen_rates = set()
+    for fmt in config[CONF_FORMATS]:
+        key = (fmt[CONF_SAMPLE_RATE], fmt[CONF_BITS_PER_SAMPLE])
+        if key in seen_rates:
+            raise cv.Invalid(
+                "Duplicate entry in 'formats'",
+                path=[CONF_FORMATS],
+            )
+        seen_rates.add(key)
+
     return config
 
 
