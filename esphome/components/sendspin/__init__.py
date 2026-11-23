@@ -629,10 +629,9 @@ async def to_code(config: ConfigType) -> None:
     if data.player_support:
         cg.add_define("USE_SENDSPIN_PLAYER", True)
 
-        # Configures the player role. Each configured codec is advertised for mono and stereo at the
-        # configured sample rate and bits per sample, except Opus, which sendspin-cpp only decodes to
-        # 16 bits per sample. The order is a preference order, both for the codecs themselves and for
-        # stereo over mono.
+        # One entry per combination (format, codec, channel), in preference order.
+        # Codecs with rate constraints are only advertised
+        # for formats whose rate they support (see CODEC_RATE_CONSTRAINTS). Duplicates are removed.
         player_cfg = data.player_config
 
         def _audio_format(
