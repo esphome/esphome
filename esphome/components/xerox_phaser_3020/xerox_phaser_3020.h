@@ -74,7 +74,7 @@ class XeroxPhaser3020 final : public usb_host::USBClient, public PrinterPort {
   // PrinterPort, called from the connection tasks
   bool is_connected() const override { return this->connected_.load(std::memory_order_relaxed); }
   bool is_paper_empty() const override;
-  bool is_toner_low() const override { return this->toner_low_.load(std::memory_order_relaxed); }
+  bool is_toner_low() const override;
   bool begin_job(const std::atomic<bool> *cancel) override;
   bool write(const uint8_t *data, size_t len) override;
   bool end_job() override;
@@ -141,12 +141,12 @@ class XeroxPhaser3020 final : public usb_host::USBClient, public PrinterPort {
   std::atomic<bool> in_busy_{false};     // the IN transfer is submitted
   std::atomic<bool> id_ready_{false};    // the device ID has arrived and waits to be logged
   std::atomic<bool> query_done_{false};  // a poll has all its answers and waits to be finished
-  std::atomic<bool> toner_low_{false};
+  std::atomic<uint16_t> pjl_code_{0};    // the printer's last PJL status code, 0 when unknown
   uint32_t status_interval_ms_{0};
   uint16_t poll_number_{0};
   uint8_t answers_needed_{0};  // a poll ends early once this many answers are in; 0 reads until the time is up
   bool query_full_{false};
-  bool was_printing_{false};
+  bool was_sending_{false};
   uint8_t interface_{0};
   uint8_t out_endpoint_{0};
   uint8_t in_endpoint_{0};  // 0 when the printer cannot send data back

@@ -87,11 +87,12 @@ struct PjlStatus {
 // PJL status codes (HP's numbering, which this printer uses), most specific first
 static constexpr PjlStatus PJL_STATUSES[] = {
     {10001, "Ready"},      {10002, "Offline"},    {10003, "Warming up"},    {10004, "Self test"},
-    {10005, "Resetting"},  {10006, "Toner low"},  {10007, "Canceling job"}, {10023, "Processing job"},
+    {10005, "Resetting"},  {10006, "Toner low"},  {10007, "Canceling job"}, {10023, "Printing"},
     {35078, "Power save"}, {40021, "Cover open"}, {40022, "Paper jam"},     {40038, "Toner low"},
 };
 static constexpr uint16_t TONER_LOW_CODES[] = {10006, 40038};
-// Warming up, self test, canceling, processing a job: polled again soon, to see when it is done
+static constexpr uint16_t PJL_PRINTING = 10023;
+// Warming up, self test, canceling, printing: polled again soon, to see when it is done
 static constexpr uint16_t BUSY_CODES[] = {10003, 10004, 10007, 10023};
 
 // Where `needle` last occurs in `text`, or null
@@ -317,10 +318,14 @@ void XeroxPhaser3020::register_mdns_() {
 
 void XeroxPhaser3020::update_() {
   this->server_.check_timeouts();
-  const bool printing = this->server_.is_printing();
-  if (this->was_printing_ && !printing)
+  // A job is sent in seconds and printed from the printer's memory afterwards. Once sent, the printer is
+  // taken to be printing until a poll says otherwise (when it can answer polls at all).
+  const bool sending = this->server_.is_printing();
+  if (sending && !this->was_sending_ && this->in_endpoint_ != 0)
+    this->pjl_code_.store(PJL_PRINTING);
+  if (this->was_sending_ && !sending)
     this->set_timeout(POLL_SOON_ID, POLL_DELAY_MS, [this]() { this->start_query_(false); });
-  this->was_printing_ = printing;
+  this->was_sending_ = sending;
   if (++this->update_count_ >= PORT_STATUS_EVERY && this->is_connected()) {
     this->update_count_ = 0;
     this->control_transfer(
@@ -335,12 +340,22 @@ void XeroxPhaser3020::update_() {
   }
 #ifdef USE_BINARY_SENSOR
   PUBLISH_STATE(this->connected_binary_sensor_, this->is_connected());
-  PUBLISH_STATE(this->printing_binary_sensor_, printing);
+  PUBLISH_STATE(this->printing_binary_sensor_,
+                sending || this->pjl_code_.load(std::memory_order_relaxed) == PJL_PRINTING);
   PUBLISH_STATE(this->paper_empty_binary_sensor_, this->is_paper_empty());
   const uint8_t status = this->port_status_.load(std::memory_order_relaxed);
   PUBLISH_STATE(this->error_binary_sensor_, this->is_connected() && (status & PORT_STATUS_NO_ERROR) == 0);
   PUBLISH_STATE(this->online_binary_sensor_, this->is_connected() && (status & PORT_STATUS_SELECTED) != 0);
 #endif
+}
+
+bool XeroxPhaser3020::is_toner_low() const {
+  const uint16_t code = this->pjl_code_.load(std::memory_order_relaxed);
+  for (uint16_t low : TONER_LOW_CODES) {
+    if (code == low)
+      return true;
+  }
+  return false;
 }
 
 bool XeroxPhaser3020::is_paper_empty() const {
@@ -419,7 +434,7 @@ void XeroxPhaser3020::on_disconnected() {
       this->cancel_timeout(QUERY_TIMEOUT_ID);
       this->cancel_timeout(POLL_SOON_ID);
       this->query_state_.store(QUERY_IDLE);
-      this->toner_low_.store(false);
+      this->pjl_code_.store(0);
 #ifdef USE_TEXT_SENSOR
       PUBLISH_STATE(this->status_text_sensor_, "Not connected");
 #endif
@@ -798,16 +813,13 @@ void XeroxPhaser3020::parse_status_() {
   const char *code_text = find_last(answers, "CODE=");
   if (code_text != nullptr) {
     const uint16_t code = strtoul(code_text + 5, nullptr, 10);
-    bool toner_low = false;
-    for (uint16_t low : TONER_LOW_CODES)
-      toner_low |= code == low;
-    this->toner_low_.store(toner_low);
+    this->pjl_code_.store(code);
     for (uint16_t busy : BUSY_CODES) {
       if (code == busy)
         this->set_timeout(POLL_SOON_ID, BUSY_POLL_MS, [this]() { this->start_query_(false); });
     }
 #ifdef USE_BINARY_SENSOR
-    PUBLISH_STATE(this->toner_low_binary_sensor_, toner_low);
+    PUBLISH_STATE(this->toner_low_binary_sensor_, this->is_toner_low());
 #endif
     const char *known = pjl_status_text(code);
     ESP_LOGD(TAG, "Printer status %u: %s", code, known != nullptr ? known : LOG_STR_LITERAL("unknown"));
