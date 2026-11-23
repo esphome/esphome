@@ -251,7 +251,8 @@ class ModemComponent : public Component {
   uint32_t timeout_{0};
   uint32_t step_delay_ms_{0};
   uint32_t state_started_ms_{0};     // when the IP wait or the PIN unlock wait began
-  uint32_t sim_wait_started_ms_{0};  // when the SIM wait began: CONNECTING, or the last restart for the SIM
+  uint32_t sim_wait_started_ms_{0};  // the first failed SIM check since READY, or the last restart for the SIM
+  uint32_t restarted_ms_{0};         // when the modem was last restarted for its SIM
   std::atomic<uint32_t> pending_{0};
 #ifdef USE_MODEM_PIN_CODE
   const char *pin_code_{nullptr};
@@ -325,6 +326,8 @@ class ModemComponent : public Component {
   bool answered_{false};      // the modem synced since boot, so its wiring and power are fine
   bool resync_{false};        // a command timed out, so CONNECTING syncs again first
   bool apn_pending_{false};   // ENABLING could not set the APN at CFUN=0, so CONNECTING sets it after the SIM check
+  bool sim_waiting_{false};   // SIM checks have failed since READY; kept through resyncs until READY or disable
+  bool sim_restart_pending_{false};  // restarted for its SIM and not answering again yet, so teardown waits
 #ifdef USE_MODEM_SEND_AT
   char at_command_[AT_COMMAND_SIZE];
 #endif

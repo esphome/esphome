@@ -586,7 +586,9 @@ ModemState ModemComponent::compute_next_state_() {
 
   switch (state) {
     case ModemState::MODEM_STATE_DISABLED:
-      this->sim_restarts_ = 0;  // a new attempt starts with the shortest wait
+      // A new attempt starts its SIM wait afresh, with the shortest wait
+      this->sim_waiting_ = false;
+      this->sim_restarts_ = 0;
 #ifdef USE_MODEM_PIN_CODE
       // A new attempt may send the PIN again; a counted send that has not gone out yet still does
       if (this->pin_step_ == PinStep::PIN_STEP_SENT) {
@@ -808,7 +810,7 @@ ModemState ModemComponent::handle_state_synced_() {
   }
   this->connect_step_ = ConnectStep::CONNECT_STEP_START;
   this->sim_polls_ = 0;
-  this->sim_wait_started_ms_ = millis();
+  this->sim_restart_pending_ = false;  // the restarted modem answers again
   return ModemState::MODEM_STATE_CONNECTING;
 }
 
@@ -825,9 +827,16 @@ ModemState ModemComponent::handle_state_connecting_() {
     // ENABLING powered the SIM up (CFUN=4, or CFUN=1 on a modem without it), so the SIM answers
     switch (this->prepare_sim_()) {
       case SimResult::SIM_RESULT_READY:
+        this->sim_waiting_ = false;
         this->sim_restarts_ = 0;
         break;
       case SimResult::SIM_RESULT_RETRY:
+        // The wait counts from the first failed check since the SIM was last READY, and resyncs, including ones that
+        // go back through ENABLING, keep it running: a modem that keeps dropping out of sync must still get the restart
+        if (!this->sim_waiting_) {
+          this->sim_waiting_ = true;
+          this->sim_wait_started_ms_ = millis();
+        }
         if (this->sim_restart_due_()) {
           return this->restart_for_sim_();
         }
@@ -972,6 +981,14 @@ ModemState ModemComponent::handle_state_disconnecting_() {
   // Each teardown command holds the task for up to 20 s, so a modem that never answered is skipped
   if (!this->modem_synced_) {
     return ModemState::MODEM_STATE_DISABLED;
+  }
+  // A modem restarted for its SIM ignores the teardown until it is back, then starts with its radio on
+  if (this->sim_restart_pending_) {
+    const uint32_t since = millis() - this->restarted_ms_;
+    if (since < MODEM_RESTART_WAIT_MS) {
+      return this->retry_(ModemState::MODEM_STATE_DISCONNECTING, MODEM_RESTART_WAIT_MS - since);
+    }
+    this->sim_restart_pending_ = false;
   }
   this->modem_synced_ = false;
   // COMMAND_MODE stops PPP and leaves CMUX; the manual exit only applies to a warm reboot
@@ -1146,12 +1163,14 @@ ModemState ModemComponent::restart_for_sim_() {
     this->sim_restarts_++;
   }
   this->sim_wait_started_ms_ = millis();
+  this->restarted_ms_ = millis();
   // The restart can cut its own OK short, so only an ERROR means it did not happen
   if (this->at_("AT+CFUN=1,1") == command_result::FAIL) {
     ESP_LOGW(TAG, "SIM not ready after %" PRIu32 " s; the modem refused a restart (AT+CFUN=1,1)", waited_s);
     return this->retry_(ModemState::MODEM_STATE_CONNECTING);
   }
   ESP_LOGW(TAG, "SIM not ready after %" PRIu32 " s; restarting the modem (AT+CFUN=1,1)", waited_s);
+  this->sim_restart_pending_ = true;
   return this->retry_(ModemState::MODEM_STATE_ENABLING, MODEM_RESTART_WAIT_MS);
 }
 
