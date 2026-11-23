@@ -170,7 +170,6 @@ CONFIG_SCHEMA = cv.All(
     .extend(cv.polling_component_schema("1s"))
     .extend(i2c.i2c_device_schema(DEFAULT_ADDRESS)),
     validate_address,
-    _warn_paced_by_budget,
 )
 
 _unique_address = fv.unique_platform_key(
@@ -180,7 +179,10 @@ _unique_address = fv.unique_platform_key(
     message="Address 0x{address:02X} is used by more than one VL53L4CX sensor on this bus",
 )
 
-FINAL_VALIDATE_SCHEMA = cv.All(_final_validate, _unique_address, _warn_slow_bus)
+# The warnings run here, where the sensor's generated id is set
+FINAL_VALIDATE_SCHEMA = cv.All(
+    _final_validate, _unique_address, _warn_paced_by_budget, _warn_slow_bus
+)
 
 
 async def to_code(config: ConfigType) -> None:

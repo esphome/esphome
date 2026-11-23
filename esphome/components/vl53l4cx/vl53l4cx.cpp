@@ -6,6 +6,7 @@
 #include "esphome/core/progmem.h"
 
 #include <algorithm>
+#include <new>
 
 namespace esphome::vl53l4cx {
 
@@ -14,8 +15,9 @@ ESPHOME_LOG_TAG(TAG, "vl53l4cx");
 static constexpr uint8_t DEFAULT_ADDRESS = 0x29;
 // Model id 0xEB and module type 0xAA at IDENTIFICATION__MODEL_ID
 static constexpr uint16_t SENSOR_ID = 0xEBAA;
-// Failed measurements in a row after which the state becomes NaN, so a dead sensor does not keep its last value
-static constexpr uint8_t MAX_FAILURES = 5;
+// After MAX_FAILURES the sensor is reset (with an enable pin) and set up again until it answers
+static constexpr uint32_t RESET_INTERVAL_ID = 0;
+static constexpr uint32_t RESET_INTERVAL_MS = 5000;
 
 PROGMEM_STRING_TABLE(TargetStrings, "nearest", "farthest", "strongest");
 // Indexed by ST's VL53L4CX_DISTANCEMODE_* from medium; the VL53L4CX has no short mode
@@ -80,50 +82,67 @@ void VL53L4CXSensor::setup() {
   }
   if (this->interrupt_pin_ != nullptr) {
     this->interrupt_pin_->setup();
+    // A ready measurement wakes the loop at once instead of on its next pass
+    this->interrupt_pin_->attach_interrupt(&VL53L4CXSensor::ready_isr, this, gpio::INTERRUPT_FALLING_EDGE);
   }
 
-  if (!this->init_sensor_())
-    return;
-
-  // ST's driver ranges again only once the interrupt is cleared: by loop() straight after each result when
-  // update_interval is never, else by update().
-  if (!this->setup_check(this->driver_.VL53L4CX_StartMeasurement() == VL53L4CX_ERROR_NONE))
-    return;
-  this->measurement_start_ = esphome::millis();
-  this->measuring_ = true;
+  if (const LogString *error = this->init_and_start_(true)) {
+    if (this->enable_pin_ != nullptr)
+      this->enable_pin_->digital_write(false);  // so it cannot answer at the default address
+    this->mark_failed(error);
+  }
 }
 
-bool VL53L4CXSensor::init_sensor_() {
-  if (this->driver_.VL53L4CX_WaitDeviceBooted() != VL53L4CX_ERROR_NONE) {
-    this->fail_at_default_address_(LOG_STR("Boot timeout"));
-    return false;
-  }
+const LogString *VL53L4CXSensor::init_and_start_(bool at_boot) {
+  if (this->driver_.VL53L4CX_WaitDeviceBooted() != VL53L4CX_ERROR_NONE)
+    return LOG_STR("Boot timeout");
   uint16_t sensor_id;
-  if (this->driver_.VL53L4CX_GetSensorId(&sensor_id) != VL53L4CX_ERROR_NONE) {
-    this->fail_at_default_address_(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
-    return false;
-  }
+  if (this->driver_.VL53L4CX_GetSensorId(&sensor_id) != VL53L4CX_ERROR_NONE)
+    return LOG_STR(ESP_LOG_MSG_COMM_FAIL);
   if (sensor_id != SENSOR_ID) {
-    ESP_LOGE(TAG, "Wrong sensor ID 0x%04X", sensor_id);
-    this->fail_at_default_address_(LOG_STR("Wrong sensor ID"));
-    return false;
+    if (at_boot) {
+      ESP_LOGE(TAG, "Wrong sensor ID 0x%04X", sensor_id);
+    } else {
+      ESP_LOGV(TAG, "Wrong sensor ID 0x%04X", sensor_id);
+    }
+    return LOG_STR("Wrong sensor ID");
   }
   // The driver takes the 8-bit form of the address
   if (this->address_ != DEFAULT_ADDRESS &&
-      this->driver_.VL53L4CX_SetDeviceAddress(this->address_ << 1) != VL53L4CX_ERROR_NONE) {
-    this->fail_at_default_address_(LOG_STR("Setting address failed"));
-    return false;
-  }
-  return this->setup_check(this->driver_.VL53L4CX_DataInit() == VL53L4CX_ERROR_NONE &&
-                           this->driver_.VL53L4CX_SetDistanceMode(this->distance_mode_) == VL53L4CX_ERROR_NONE &&
-                           this->driver_.VL53L4CX_SetMeasurementTimingBudgetMicroSeconds(this->budget_ms_ * 1000UL) ==
-                               VL53L4CX_ERROR_NONE);
+      this->driver_.VL53L4CX_SetDeviceAddress(this->address_ << 1) != VL53L4CX_ERROR_NONE)
+    return LOG_STR("Setting address failed");
+  // ST's driver ranges again only once the interrupt is cleared: by loop() straight after each result when
+  // update_interval is never, else by update().
+  if (this->driver_.VL53L4CX_DataInit() != VL53L4CX_ERROR_NONE ||
+      this->driver_.VL53L4CX_SetDistanceMode(this->distance_mode_) != VL53L4CX_ERROR_NONE ||
+      this->driver_.VL53L4CX_SetMeasurementTimingBudgetMicroSeconds(this->budget_ms_ * 1000UL) != VL53L4CX_ERROR_NONE ||
+      this->driver_.VL53L4CX_StartMeasurement() != VL53L4CX_ERROR_NONE)
+    return LOG_STR(ESP_LOG_MSG_COMM_FAIL);
+  this->measurement_start_ = esphome::millis();
+  this->measuring_ = true;
+  return nullptr;
 }
 
-void VL53L4CXSensor::fail_at_default_address_(const LogString *message) {
-  if (this->enable_pin_ != nullptr)
+void VL53L4CXSensor::reset_sensor_() {
+  // A reset (by XSHUT, or a brown-out without one) leaves the sensor at the default address with nothing set
+  // up, so start over as at boot, with a fresh driver that talks to the default address too
+  if (this->enable_pin_ != nullptr) {
     this->enable_pin_->digital_write(false);
-  this->mark_failed(message);
+    delay(2);
+    this->enable_pin_->digital_write(true);
+  }
+  this->driver_.~VL53L4CX();
+  new (&this->driver_) VL53L4CX(this);
+  if (const LogString *error = this->init_and_start_(false)) {
+    ESP_LOGV(TAG, "Reset failed: %s", LOG_STR_ARG(error));
+    if (this->enable_pin_ != nullptr)
+      this->enable_pin_->digital_write(false);  // so it cannot answer at the default address
+    return;
+  }
+  this->cancel_interval(RESET_INTERVAL_ID);
+  this->failures_ = 0;
+  this->status_clear_warning();
+  this->enable_loop();
 }
 
 bool VL53L4CXSensor::start_measurement_() {
@@ -140,12 +159,16 @@ void VL53L4CXSensor::measurement_failed_(const LogString *message, VL53L4CX_Erro
   this->status_set_warning(message);
   if (this->failures_ < MAX_FAILURES) {
     this->failures_++;
-    if (this->failures_ == MAX_FAILURES)
+    if (this->failures_ == MAX_FAILURES) {
       this->publish_state(NAN);
+      this->set_interval(RESET_INTERVAL_ID, RESET_INTERVAL_MS, [this]() { this->reset_sensor_(); });
+    }
   }
 }
 
 void VL53L4CXSensor::update() {
+  if (this->resetting_())
+    return;
   if (this->measuring_) {
     ESP_LOGV(TAG, "Measurement still running");
     return;
@@ -155,8 +178,13 @@ void VL53L4CXSensor::update() {
 }
 
 void VL53L4CXSensor::loop() {
+  if (this->resetting_()) {
+    this->disable_loop();  // reset_sensor_() turns it back on
+    return;
+  }
   const uint32_t elapsed = App.get_loop_component_start_time() - this->measurement_start_;
-  if (elapsed < this->budget_ms_)
+  // Reading GPIO1 is free; without it, polling waits for the budget
+  if (this->interrupt_pin_ == nullptr && elapsed < this->budget_ms_)
     return;
   if (!this->measuring_) {
     // Only continuous mode keeps the loop running without a measurement: retry the start
@@ -184,7 +212,7 @@ void VL53L4CXSensor::loop() {
   } else {
     return;
   }
-  if (this->get_update_interval() != SCHEDULER_DONT_RUN) {
+  if (this->get_update_interval() != SCHEDULER_DONT_RUN || this->resetting_()) {
     this->disable_loop();
     return;
   }

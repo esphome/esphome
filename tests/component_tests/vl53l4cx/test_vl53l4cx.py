@@ -190,7 +190,7 @@ def test_codegen(
         "set_offset",
     ):
         assert f"defaults->{setter}(" not in main_cpp
-    # garage and the mux are on the default 50 kHz bus, defaults on a 400 kHz one. muxed sits on a channel
+    # garage and the mux are on the default 50 kHz bus, defaults on a 400 kHz one. The muxed sensor sits on a channel
     # without its own frequency, which is skipped rather than traced back to the 50 kHz bus
     slow_bus = [
         r.getMessage() for r in caplog.records if "frequency: 400kHz" in r.getMessage()
@@ -198,3 +198,11 @@ def test_codegen(
     assert len(slow_bus) == 1
     assert "'garage' runs at 50 kHz" in slow_bus[0]
     assert "about 38 ms" in slow_bus[0]
+    # The muxed sensor's 20 ms interval is under the 33 ms budget; the warning names its generated id
+    paced = [
+        r.getMessage()
+        for r in caplog.records
+        if "update_interval: never" in r.getMessage()
+    ]
+    assert len(paced) == 1
+    assert "VL53L4CX 'vl53l4cx_" in paced[0]

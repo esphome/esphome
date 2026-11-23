@@ -30,8 +30,8 @@ sensor:
     name: Defaults
   - platform: vl53l4cx
     i2c_id: mux_channel
-    id: muxed
     name: Muxed
+    update_interval: 20ms
 
 tca9548a:
   - id: mux

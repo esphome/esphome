@@ -46,9 +46,18 @@ class VL53L4CXSensor final : public sensor::Sensor, public PollingComponent, pub
   void delay_us(uint32_t us) override;
 
  protected:
-  bool init_sensor_();
+  // Failed measurements in a row after which the state becomes NaN, so a dead sensor does not keep its last value
+  static constexpr uint8_t MAX_FAILURES = 5;
+
+  // Inline like App.get_loop_component_start_time(): on RP2 both share .time_critical, which GCC rejects
+  // when one is an ordinary function and the other inline
+  static void IRAM_ATTR ready_isr(VL53L4CXSensor *sensor) { sensor->enable_loop_soon_any_context(); }
+
+  /// Boots, addresses and starts the sensor; the failure reason, or nullptr.
+  const LogString *init_and_start_(bool at_boot);
+  void reset_sensor_();
+  bool resetting_() const { return this->failures_ >= MAX_FAILURES; }
   bool start_measurement_();
-  void fail_at_default_address_(const LogString *message);
   void measurement_failed_(const LogString *message, VL53L4CX_Error error);
   // A measurement that has not reported ready by now has failed
   uint32_t timeout_ms_() const { return static_cast<uint32_t>(this->budget_ms_) * 2 + 100; }
