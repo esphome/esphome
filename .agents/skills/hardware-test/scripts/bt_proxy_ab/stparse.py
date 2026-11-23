@@ -263,7 +263,8 @@ for name, lines in ph.items():
         flagged.append(f"{name}: {','.join(bad)}")
 # a run where the servers were never seen, or no phase started, measured nothing
 txt_all = "\n".join(ln for _, ln in L)
-nothing = "ST not_seen" in txt_all or not ph
+# the done phase is only the end mark: a capture with nothing else ran no scenario
+nothing = "ST not_seen" in txt_all or not [p for p in ph if p.split("#")[0] != "done"]
 if not nothing and "ST DONE" not in txt_all:
     flagged.append("no ST DONE: the capture ended before the self test finished")
 if "ST eve_not_seen" in txt_all:  # the Eve phases failed on the missing peer
@@ -284,7 +285,8 @@ if restarts := sum("rst:" in ln for _, ln in L[st0:]):
     flagged.append(
         f"{restarts} reset lines after the self test started: the proxy restarted"
     )
-print_heap(L, None)
+if not print_heap(L, None):
+    flagged.append("no HEAP lines: heap not measured")
 print(
     "resets",
     sum("rst:" in ln for _, ln in L),

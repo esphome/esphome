@@ -180,7 +180,9 @@ for s in steps:
         d["no_round"] = dict(other)
     if s == "adv":
         for r in R:
-            if r.get("test") == "adv":
+            if (
+                r.get("test") == "adv" and "mode" in r
+            ):  # restore_not_applied is in no_round
                 d[r["mode"]] = (
                     f"{r['mean']}/s ({r['min10']}-{r['max10']}), {r['unique']} addr"
                     + (
@@ -342,16 +344,17 @@ for s in steps:
     if s.startswith(("disc", "cache", "retry", "third", "eve")) and not rounds:
         d.setdefault("warn", []).append("no counted rounds")
     # driver rounds but no device connect line: the log format is not the one these patterns read
-    # device attempts, but none labelled as this step's peer: PEER_ADDRS is wrong for this setup
+    # a device attempt without a label: PEER_ADDRS is wrong or misses a peer, whose stats are left out
     peer_steps = ("disc", "cache", "third", "eve")
     if (
         rounds
-        and A
         and s.startswith(peer_steps)
-        and not [a for a in A if a["peer"] in ("L", "M", "eve")]
+        and (
+            unl := sorted({a["peer"] for a in A if a["peer"] not in ("L", "M", "eve")})
+        )
     ):
         d.setdefault("warn", []).append(
-            "device attempts but none matched a PEER_ADDRS label"
+            f"device attempts without a PEER_ADDRS label: {', '.join(unl)}"
         )
     if rounds and not A and s != "adv":
         d.setdefault("warn", []).append(
@@ -394,7 +397,8 @@ for s in steps:
     print(s, json.dumps(d, default=str))
 
 # whole run
-print_heap(lines)
+if not print_heap(lines):
+    flagged.append("no HEAP lines: heap not measured")
 boots = sum(
     ("Reset reason" in ln or "rst:" in ln or "ESP-ROM" in ln) for _, ln in lines
 )

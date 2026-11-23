@@ -36,8 +36,8 @@ def p90(v, nd: int | None = 1):
     return round(v[min(len(v) - 1, int(0.9 * len(v)))], nd) if v else None
 
 
-def print_heap(lines: list[tuple[float, str]], nd: int | None = 1) -> None:
-    """Summary of the heaplog.hpp HEAP lines; min_ever also takes the 100 ms HEAPMIN readings."""
+def print_heap(lines: list[tuple[float, str]], nd: int | None = 1) -> bool:
+    """Summary of the heaplog.hpp HEAP lines; min_ever also takes the 100 ms HEAPMIN readings. False: none."""
     heap = [
         tuple(
             int(x)
@@ -58,6 +58,9 @@ def print_heap(lines: list[tuple[float, str]], nd: int | None = 1) -> None:
             "largest_min",
             min(h[2] for h in heap),
         )
+    else:
+        print("heap: no HEAP lines (heaplog.hpp missing from the build?)")
+    return bool(heap)
 
 
 def print_warnings(lines: list[tuple[float, str]], top: int, mask: str) -> None:
