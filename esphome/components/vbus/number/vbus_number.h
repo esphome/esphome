@@ -10,6 +10,7 @@ class VBusSettingNumber final : public number::Number, public CSPlusSettingListe
  public:
   VBusSettingNumber(ResolDeltaSolCSPlus *controller, uint16_t index) : controller_(controller), index_(index) {}
   void dump_setting_config() override;
+  bool follows_controller_clock() const override { return this->index_ == 2; }
   void on_setting_snapshot() override;
 
  protected:

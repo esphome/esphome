@@ -61,8 +61,8 @@ bool VBusTransactions::write_value(uint32_t grant_id, uint16_t value_id, uint32_
 }
 
 bool VBusTransactions::start_(uint32_t grant_id, uint16_t command, uint16_t value_id, uint32_t value) {
-  if (this->stopped_ || this->is_busy() || !this->transmitter_->ready_to_send(grant_id)) {
-    ESP_LOGW(TAG, "Transaction rejected: pending request or no usable lease");
+  if (this->stopped_ || this->is_busy()) {
+    ESP_LOGW(TAG, "Transaction rejected: pending request or stopped");
     return false;
   }
   if (!this->transmitter_->send_datagram(grant_id, command, value_id, value))
