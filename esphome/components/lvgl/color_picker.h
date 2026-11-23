@@ -2,6 +2,7 @@
 
 #include "lvgl_esphome.h"
 #include "esphome/core/color.h"
+#include "esphome/core/helpers.h"
 
 #include <algorithm>
 #include <array>
