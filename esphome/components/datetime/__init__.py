@@ -47,8 +47,8 @@ TimeEntity = datetime_ns.class_("TimeEntity", DateTimeBase)
 DateTimeEntity = datetime_ns.class_("DateTimeEntity", DateTimeBase)
 
 
-OnTimeCallback = datetime_ns.class_("OnTimeCallback", cg.Component)
-OnDateTimeCallback = datetime_ns.class_("OnDateTimeCallback", cg.Component)
+OnTimeBase = datetime_ns.class_("OnTimeBase", automation.FiringComponent)
+OnDateTimeBase = datetime_ns.class_("OnDateTimeBase", automation.FiringComponent)
 
 
 def _validate_time_present(config: ConfigType) -> ConfigType:
@@ -96,7 +96,7 @@ def time_schema(class_: MockObjClass) -> cv.Schema:
             cv.Optional(CONF_TYPE, default="TIME"): cv.one_of("TIME", upper=True),
             cv.Optional(CONF_ON_TIME): automation.validate_automation(
                 {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(OnTimeCallback),
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(OnTimeBase),
                 }
             ),
         }
@@ -116,7 +116,7 @@ def datetime_schema(class_: MockObjClass) -> cv.Schema:
             ),
             cv.Optional(CONF_ON_TIME): automation.validate_automation(
                 {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(OnDateTimeCallback),
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(OnDateTimeBase),
                 }
             ),
         }
@@ -142,7 +142,10 @@ async def setup_datetime_core_(var: MockObj, config: ConfigType) -> None:
 
     for conf in config.get(CONF_ON_TIME, []):
         await automation.build_component_automation(
-            conf, conf[CONF_TRIGGER_ID].type, ctor_args=[var]
+            conf,
+            automation.FireCallback,
+            template_args=[conf[CONF_TRIGGER_ID].type],
+            ctor_args=[var],
         )
 
 

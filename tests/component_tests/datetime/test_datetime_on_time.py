@@ -18,20 +18,18 @@ def main_cpp(
 
 
 @pytest.mark.parametrize(
-    ("var", "component_class", "parent"),
+    ("var", "base", "parent"),
     [
-        ("datetime_ontimecallback_id", "OnTimeCallback", "test_time"),
-        ("datetime_ondatetimecallback_id", "OnDateTimeCallback", "test_datetime"),
+        ("datetime_ontimebase_id", "OnTimeBase", "test_time"),
+        ("datetime_ondatetimebase_id", "OnDateTimeBase", "test_datetime"),
     ],
 )
-def test_on_time_constructed(
-    main_cpp: str, var: str, component_class: str, parent: str
-) -> None:
+def test_on_time_constructed(main_cpp: str, var: str, base: str, parent: str) -> None:
     """Each on_time block is a callback component built on its function and given its entity."""
     function = callback_function(main_cpp, var)
     assert (
         constructed(main_cpp, var)
-        == f"datetime::{component_class}<{function}>({parent})"
+        == f"FireCallback<{function}, datetime::{base}>({parent})"
     )
     assert re.search(rf"App\.register_component_\({var}, \d+\);", main_cpp)
     assert f"{var}->set_parent(" not in main_cpp

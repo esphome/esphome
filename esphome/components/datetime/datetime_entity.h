@@ -122,29 +122,6 @@ class DateTimeCall {
 
 inline DateTimeCall DateTimeEntity::make_call() { return DateTimeCall(this); }
 
-#ifdef USE_TIME
-/// Runs fire() when the clock reaches the entity's date and time, for on_time.
-class OnDateTimeBase : public Component, public Parented<DateTimeEntity> {
- public:
-  explicit OnDateTimeBase(DateTimeEntity *parent) : Parented(parent) {}
-  void loop() override;
-
- protected:
-  virtual void fire() = 0;
-  bool matches_(const ESPTime &time) const;
-
-  optional<ESPTime> last_check_;
-};
-
-template<auto Fn> class OnDateTimeCallback final : public OnDateTimeBase {
- public:
-  using OnDateTimeBase::OnDateTimeBase;
-
- protected:
-  void fire() override { Fn(); }
-};
-#endif
-
 }  // namespace esphome::datetime
 
 #endif  // USE_DATETIME_DATETIME

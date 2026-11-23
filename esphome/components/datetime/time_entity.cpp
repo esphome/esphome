@@ -1,4 +1,5 @@
 #include "time_entity.h"
+#include "on_time.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/controller_registry.h"
 #ifdef USE_DATETIME_TIME
