@@ -75,6 +75,23 @@ def log_text(msg) -> str:
     return ANSI.sub("", msg.message.decode(errors="replace"))
 
 
+def adv_name(data: bytes) -> str | None:
+    """Complete local name, else the shortened one."""
+    i = 0
+    short = None
+    while i < len(data):
+        ln = data[i]
+        if ln == 0 or i + 1 + ln > len(data):
+            break
+        t = data[i + 1]
+        if t == 0x09:
+            return data[i + 2 : i + 1 + ln].decode(errors="replace")
+        if t == 0x08:
+            short = data[i + 2 : i + 1 + ln].decode(errors="replace")
+        i += 1 + ln
+    return short
+
+
 def stop_event() -> tuple[asyncio.Event, Callable[[bool], Awaitable[None]]]:
     """An Event and an on_stop callback for connect() that sets it when the connection ends."""
     ev = asyncio.Event()
