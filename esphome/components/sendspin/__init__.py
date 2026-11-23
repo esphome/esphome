@@ -651,8 +651,11 @@ async def to_code(config: ConfigType) -> None:
         for fmt in player_cfg[CONF_FORMATS]:
             for codec in player_cfg[CONF_CODECS]:
                 allowed_rates = CODEC_RATE_CONSTRAINTS.get(codec)
-                if allowed_rates is not None and fmt[CONF_SAMPLE_RATE] not in allowed_rates:
-                    continue   
+                if (
+                    allowed_rates is not None
+                    and fmt[CONF_SAMPLE_RATE] not in allowed_rates
+                ):
+                    continue
                 for channels in player_cfg[CONF_CHANNELS]:
                     key = (
                         codec,
