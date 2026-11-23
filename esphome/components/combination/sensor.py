@@ -67,6 +67,12 @@ CONF_PROCESS_STD_DEV = "process_std_dev"
 CONF_STD_DEV = "std_dev"
 CONF_WEIGHTED_MEAN = "weighted_mean"
 
+ONE_PARAMETER_SOURCE_KEYS = {
+    CONF_KALMAN: CONF_ERROR,
+    CONF_LINEAR: CONF_COEFFICIENT,
+    CONF_WEIGHTED_MEAN: CONF_WEIGHT,
+}
+
 
 KALMAN_SOURCE_SCHEMA = cv.Schema(
     {
@@ -180,7 +186,7 @@ async def to_code(config: ConfigType) -> None:
     if process_std_dev := config.get(CONF_PROCESS_STD_DEV):
         cg.add(var.set_process_std_dev(process_std_dev))
 
-    if config[CONF_TYPE] in (CONF_KALMAN, CONF_LINEAR, CONF_WEIGHTED_MEAN):
+    if config[CONF_TYPE] in ONE_PARAMETER_SOURCE_KEYS:
         storage = cg.static_storage(
             config[CONF_ID],
             config[CONF_ID].type.class_("SensorSource"),
@@ -195,27 +201,15 @@ async def to_code(config: ConfigType) -> None:
 
     for source_conf in config[CONF_SOURCES]:
         source = await cg.get_variable(source_conf[CONF_SOURCE])
-        if config[CONF_TYPE] == CONF_KALMAN:
-            error = await cg.templatable(
-                source_conf[CONF_ERROR],
+        if (
+            parameter_key := ONE_PARAMETER_SOURCE_KEYS.get(config[CONF_TYPE])
+        ) is not None:
+            parameter = await cg.templatable(
+                source_conf[parameter_key],
                 [(float, "x")],
                 cg.float_,
             )
-            cg.add(var.add_source(source, error))
-        elif config[CONF_TYPE] == CONF_LINEAR:
-            coefficient = await cg.templatable(
-                source_conf[CONF_COEFFICIENT],
-                [(float, "x")],
-                cg.float_,
-            )
-            cg.add(var.add_source(source, coefficient))
-        elif config[CONF_TYPE] == CONF_WEIGHTED_MEAN:
-            weight = await cg.templatable(
-                source_conf[CONF_WEIGHT],
-                [(float, "x")],
-                cg.float_,
-            )
-            cg.add(var.add_source(source, weight))
+            cg.add(var.add_source(source, parameter))
         else:
             cg.add(var.add_source(source))
 
