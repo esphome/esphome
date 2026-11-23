@@ -121,6 +121,7 @@ void QpdlEncoder::begin_page(OutputSink *sink, const Paper &paper, uint16_t copi
   memset(this->band_, 0, size_t{this->band_bytes_} * BAND_HEIGHT);
 }
 
+__attribute__((optimize("O2")))  // NOLINT(clang-diagnostic-unknown-attributes)
 bool QpdlEncoder::add_row(const uint8_t *row) {
   if (this->row_ >= this->rows_ || !this->ok_)
     return this->ok_;
@@ -153,6 +154,7 @@ bool QpdlEncoder::end_page() {
   return this->ok_;
 }
 
+__attribute__((optimize("O2")))  // NOLINT(clang-diagnostic-unknown-attributes)
 void QpdlEncoder::choose_table_(uint32_t size) {
   const uint8_t *data = this->band_;
   int16_t *counts = this->scratch_;
@@ -182,7 +184,9 @@ void QpdlEncoder::choose_table_(uint32_t size) {
     this->table_[TABLE_SIZE - 1] = 1;
 }
 
-template<typename Out> void QpdlEncoder::compress_(uint32_t size, Out &out) {
+template<typename Out>
+__attribute__((optimize("O2")))  // NOLINT(clang-diagnostic-unknown-attributes)
+void QpdlEncoder::compress_(uint32_t size, Out &out) {
   const uint8_t *data = this->band_;
   uint32_t literal = 0;
   for (uint32_t distance : this->table_) {
@@ -319,6 +323,7 @@ void QpdlEncoder::start_page_() {
   this->write_(header, sizeof(header));
 }
 
+__attribute__((optimize("O2")))  // NOLINT(clang-diagnostic-unknown-attributes)
 bool QpdlEncoder::flush_band_() {
   const uint16_t band_number = this->band_number_++;
   const uint32_t size = uint32_t{this->band_bytes_} * BAND_HEIGHT;

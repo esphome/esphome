@@ -46,12 +46,12 @@ struct RasterJob {
 inline constexpr uint16_t MAX_ROW_PX = MAX_BAND_BYTES * 8;
 /// One decoded client line: room for a 600 dpi Legal-width line in 24-bit colour
 inline constexpr size_t RASTER_LINE_BUFFER_SIZE = size_t{MAX_ROW_PX} * 3;
-/// Grey row, dithering errors and the packed output row
-inline constexpr size_t RASTER_WORK_BUFFER_SIZE = MAX_ROW_PX + (MAX_ROW_PX + 2) * sizeof(int16_t) + MAX_BAND_BYTES;
+/// Grey row and the packed output row
+inline constexpr size_t RASTER_WORK_BUFFER_SIZE = MAX_ROW_PX + MAX_BAND_BYTES;
 
 class RasterPrinter {
  public:
-  /// `line` holds RASTER_LINE_BUFFER_SIZE bytes and `work` RASTER_WORK_BUFFER_SIZE bytes (2-byte aligned)
+  /// `line` holds RASTER_LINE_BUFFER_SIZE bytes and `work` RASTER_WORK_BUFFER_SIZE bytes
   void set_buffers(uint8_t *line, uint8_t *work);
 
   /// Decode a whole document from `in` and print it through `encoder` to `out`. A page cut short by
@@ -76,7 +76,8 @@ class RasterPrinter {
                            const RasterJob &job);
   bool decode_line_(const PageFormat &format);
   void grey_row_(const PageFormat &format);
-  void dither_row_();
+  /// Turn the grey row into black and white for page row `row`
+  void halftone_row_(int32_t row);
   void copy_bits_row_(const PageFormat &format);
   bool emit_white_rows_(QpdlEncoder *encoder, uint32_t count);
 
@@ -92,7 +93,6 @@ class RasterPrinter {
   ByteSource *source_{nullptr};
   uint8_t *line_{nullptr};
   uint8_t *grey_{nullptr};
-  int16_t *errors_{nullptr};
   uint8_t *row_{nullptr};
   // Page placement at 600 dpi
   int32_t x_offset_{0};
@@ -103,7 +103,6 @@ class RasterPrinter {
   uint16_t in_pos_{0};
   uint16_t in_len_{0};
   bool read_error_{false};
-  bool errors_clear_{true};
   bool line_white_{false};
   uint8_t in_[2048];
 };

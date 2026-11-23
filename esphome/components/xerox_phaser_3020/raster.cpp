@@ -19,6 +19,16 @@ static constexpr uint32_t CSPACE_SW = 18;
 static constexpr uint32_t CSPACE_SRGB = 19;
 static constexpr uint32_t CSPACE_ADOBERGB = 20;
 
+// Clustered-dot halftone screen, 8x8 pixels at 45 degrees (75 lines per inch at 600 dpi): the order
+// in which the cells of a screen cell turn black as the grey gets darker. Laser printers render the
+// small clusters this grows more evenly than scattered single dots, and the pattern repeats every 8
+// rows, so grey areas compress well.
+static constexpr uint8_t HALFTONE_ORDER[8][8] = {
+    {24, 10, 12, 26, 35, 47, 49, 37}, {8, 0, 2, 14, 45, 59, 61, 51},    {22, 6, 4, 16, 43, 57, 63, 53},
+    {30, 20, 18, 28, 33, 41, 55, 39}, {34, 46, 48, 36, 25, 11, 13, 27}, {44, 58, 60, 50, 9, 1, 3, 15},
+    {42, 56, 62, 52, 23, 7, 5, 17},   {32, 40, 54, 38, 31, 21, 19, 29},
+};
+
 static uint32_t get_be32(const uint8_t *p) {
   return (uint32_t{p[0]} << 24) | (uint32_t{p[1]} << 16) | (uint32_t{p[2]} << 8) | p[3];
 }
@@ -26,8 +36,7 @@ static uint32_t get_be32(const uint8_t *p) {
 void RasterPrinter::set_buffers(uint8_t *line, uint8_t *work) {
   this->line_ = line;
   this->grey_ = work;
-  this->errors_ = reinterpret_cast<int16_t *>(work + MAX_ROW_PX);
-  this->row_ = work + MAX_ROW_PX + (MAX_ROW_PX + 2) * sizeof(int16_t);
+  this->row_ = work + MAX_ROW_PX;
 }
 
 int RasterPrinter::fill_() {
@@ -182,8 +191,6 @@ RasterResult RasterPrinter::print_page_(const PageFormat &format, bool selected,
   if (selected) {
     encoder->begin_page(out, paper, job.copies, false);
     this->row_px_ = encoder->row_bytes() * 8;
-    memset(this->errors_, 0, (MAX_ROW_PX + 2) * sizeof(int16_t));
-    this->errors_clear_ = true;
   }
 
   RasterResult result = RasterResult::RASTER_OK;
@@ -221,14 +228,10 @@ RasterResult RasterPrinter::print_page_(const PageFormat &format, bool selected,
         }
         for (int32_t row = start; row < end && ok; row++) {
           if (this->line_white_) {
-            if (!this->errors_clear_) {
-              memset(this->errors_, 0, (MAX_ROW_PX + 2) * sizeof(int16_t));
-              this->errors_clear_ = true;
-            }
             ok = encoder->add_row(nullptr);
           } else {
             if (!bit_copy)
-              this->dither_row_();
+              this->halftone_row_(row);
             ok = encoder->add_row(this->row_);
           }
         }
@@ -248,6 +251,7 @@ RasterResult RasterPrinter::print_page_(const PageFormat &format, bool selected,
   return result;
 }
 
+__attribute__((optimize("O2")))  // NOLINT(clang-diagnostic-unknown-attributes)
 bool RasterPrinter::decode_line_(const PageFormat &format) {
   // PackBits-style runs of whole pixels (whole bytes below 8 bits per pixel); 128 fills the rest
   // of the line with white
@@ -282,6 +286,7 @@ bool RasterPrinter::decode_line_(const PageFormat &format) {
   return true;
 }
 
+__attribute__((optimize("O2")))  // NOLINT(clang-diagnostic-unknown-attributes)
 void RasterPrinter::grey_row_(const PageFormat &format) {
   // Column 0 of the row is page pixel HARD_MARGIN_X; client pixels are picked nearest-neighbour
   int32_t doc_x = HARD_MARGIN_X - this->x_offset_;
@@ -326,47 +331,22 @@ void RasterPrinter::grey_row_(const PageFormat &format) {
   this->line_white_ = all == 0xFF;
 }
 
-void RasterPrinter::dither_row_() {
-  // Floyd-Steinberg error diffusion with one error row: errors[x] holds the error carried into pixel x
-  // from the row above and is replaced, once pixel x + 1 is done, by the error for the row below
-  int16_t *errors = this->errors_ + 1;
-  uint8_t *out = this->row_;
-  int below_left = 0;  // next row, column x - 1, still missing pixel x's share
-  int below = 0;       // next row, column x, still missing pixel x's share
-  int right = 0;
-  uint8_t bits = 0;
-  for (uint16_t x = 0; x < this->row_px_; x++) {
-    if (this->grey_[x] == 0xFF && errors[x] == 0 && right == 0) {
-      // White with no error to spread: what the general case below computes, much faster
-      errors[x - 1] = below_left;
-      below_left = below;
-      below = 0;
-      if ((x & 7) == 7) {
-        *out++ = bits;
-        bits = 0;
-      }
-      continue;
-    }
-    const int value = this->grey_[x] + errors[x] + right;
-    int error = value;
-    if (value < 128) {
-      bits |= 0x80 >> (x & 7);
-    } else {
-      error = value - 255;
-    }
-    right = error * 7 / 16;
-    errors[x - 1] = below_left + error * 3 / 16;
-    below_left = below + error * 5 / 16;
-    below = error / 16;
-    if ((x & 7) == 7) {
-      *out++ = bits;
-      bits = 0;
-    }
+__attribute__((optimize("O2")))  // NOLINT(clang-diagnostic-unknown-attributes)
+void RasterPrinter::halftone_row_(int32_t row) {
+  // Column 0 is page pixel HARD_MARGIN_X, a multiple of 8, so the screen lines up with the page
+  uint8_t threshold[8];
+  for (uint8_t k = 0; k < 8; k++)
+    threshold[k] = HALFTONE_ORDER[row & 7][k] * 4 + 2;
+  const uint8_t *grey = this->grey_;
+  for (uint16_t b = 0; b < this->row_px_ / 8; b++, grey += 8) {
+    uint8_t bits = 0;
+    for (uint8_t k = 0; k < 8; k++)
+      bits |= static_cast<uint8_t>(grey[k] < threshold[k]) << (7 - k);
+    this->row_[b] = bits;
   }
-  errors[this->row_px_ - 1] = below_left;
-  this->errors_clear_ = false;
 }
 
+__attribute__((optimize("O2")))  // NOLINT(clang-diagnostic-unknown-attributes)
 void RasterPrinter::copy_bits_row_(const PageFormat &format) {
   // 1-bit lines at 600 dpi: the offset and the margin are whole bytes, so bytes copy across
   const int32_t first = (HARD_MARGIN_X - this->x_offset_) / 8;
