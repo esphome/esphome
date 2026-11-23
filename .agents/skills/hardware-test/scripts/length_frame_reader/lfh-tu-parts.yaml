@@ -1,0 +1,16 @@
+tuya:
+  id: mcu
+  uart_id: bus
+  on_datapoint_update:
+    - sensor_datapoint: 101
+      datapoint_type: int
+      then:
+        - lambda: lfh::record(x);
+
+script:
+  - id: run_cases
+    then:
+      - lambda: lfh::seen.clear(); ESP_LOGI("lfh", "RUN start");
+      - script.execute: {id: play, tuya: true}
+      - script.wait: play
+      - lambda: ESP_LOGI("lfh", "RUN end");

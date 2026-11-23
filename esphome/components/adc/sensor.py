@@ -22,10 +22,7 @@ from esphome.const import (
     CONF_NUMBER,
     CONF_PIN,
     CONF_RAW,
-    DEVICE_CLASS_VOLTAGE,
     PLATFORM_NRF52,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_VOLT,
     PlatformFramework,
 )
 from esphome.core import CORE
@@ -110,13 +107,7 @@ CONF_NRF_SAADC = "nrf_saadc"
 adc_dt_spec = cg.global_ns.class_("adc_dt_spec")
 
 CONFIG_SCHEMA = cv.All(
-    sensor.sensor_schema(
-        ADCSensor,
-        unit_of_measurement=UNIT_VOLT,
-        accuracy_decimals=2,
-        device_class=DEVICE_CLASS_VOLTAGE,
-        state_class=STATE_CLASS_MEASUREMENT,
-    )
+    sensor.sensor_schema(ADCSensor, kind=sensor.VOLTAGE, accuracy_decimals=2)
     .extend(
         {
             cv.Required(CONF_PIN): validate_adc_pin,

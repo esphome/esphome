@@ -6,13 +6,12 @@ import re
 
 import pytest
 
-# A synchronous automation is a direct lambda (reference types are not wrapped in
+# A synchronous automation is a generated function (reference types are not wrapped in
 # remove_cvref_t), a deferring one a TriggerForwarder
 CALLBACK_RE = re.compile(
-    r"ph_ezo->(add_\w+_callback)\("
-    r"(?:TriggerForwarder<([\w:]+)>"
-    r"|\[\]\((?:const std::remove_cvref_t<([\w:]+)> &|const ([\w:]+) &))"
+    r"ph_ezo->(add_\w+_callback)\((?:TriggerForwarder<([\w:]+)>|(\w+)\))"
 )
+PARAM_RE = r"static void {}\((?:const std::remove_cvref_t<([\w:]+)> &|const ([\w:]+) &)"
 
 
 @pytest.fixture
@@ -22,9 +21,13 @@ def callbacks(
 ) -> dict[str, list[tuple[str, str]]]:
     main_cpp = generate_main(component_config_path("ezo_callbacks.yaml"))
     found: dict[str, list[tuple[str, str]]] = {}
-    for method, forwarded, value, reference in CALLBACK_RE.findall(main_cpp):
-        path = "forwarder" if forwarded else "direct"
-        found.setdefault(method, []).append((path, forwarded or value or reference))
+    for method, forwarded, function in CALLBACK_RE.findall(main_cpp):
+        if forwarded:
+            found.setdefault(method, []).append(("forwarder", forwarded))
+            continue
+        param = re.search(PARAM_RE.format(function), main_cpp)
+        assert param is not None, function
+        found.setdefault(method, []).append(("direct", param[1] or param[2]))
     return found
 
 

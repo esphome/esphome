@@ -1,5 +1,4 @@
 #include "shutdown.h"
-#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 
@@ -16,8 +15,6 @@ ESPHOME_LOG_TAG(TAG, "shutdown");
 
 void shutdown_device() {
   ESP_LOGI(TAG, "Shutting down");
-  // Let MQTT settle a bit
-  delay(100);  // NOLINT
   App.safe_shutdown(TEARDOWN_TIMEOUT_REBOOT_MS);
 #ifdef USE_ESP8266
   ESP.deepSleep(0);  // NOLINT(readability-static-accessed-through-instance)

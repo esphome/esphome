@@ -13,7 +13,11 @@ ESPHOME_LOG_TAG(TAG, "vbus");
 static constexpr size_t VBUS_MAX_LOG_BYTES = 64;
 static constexpr uint32_t VBUS_RX_IDLE_TIMEOUT_MS = 1500;
 
-void VBus::dump_config() { ESP_LOGCONFIG(TAG, "VBus:"); }
+void VBus::dump_config() {
+  ESP_LOGCONFIG(TAG, "VBus:");
+  for (auto *listener : this->listeners_)
+    listener->dump_child_config();
+}
 
 static void septet_spread(uint8_t *data, int start, int count, uint8_t septet) {
   for (int i = 0; i < count; i++, septet >>= 1) {

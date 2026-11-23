@@ -48,13 +48,11 @@ PROGMEM_STRING_TABLE(MotionBinarySensorTypeNames, "face_up", "face_down", "free_
 
 void MotionBinarySensor::dump_config() {
   LOG_BINARY_SENSOR("", "Motion Binary Sensor", this);
-  ESP_LOGCONFIG(
-      TAG,
-      "  Type: %s\n"
-      "  Threshold: %.3f\n"
-      "  Duration: %" PRIu32 " ms",
-      LOG_STR_ARG(MotionBinarySensorTypeNames::get_log_str(this->type_, MotionBinarySensorTypeNames::LAST_INDEX)),
-      this->threshold_, this->duration_);
+  ESP_LOGCONFIG(TAG,
+                "  Type: %s\n"
+                "  Threshold: %.3f\n"
+                "  Duration: %" PRIu32 " ms",
+                LOG_STR_ARG(MotionBinarySensorTypeNames::get_log_str(this->type_)), this->threshold_, this->duration_);
 }
 
 void MotionBinarySensor::process_motion_data(const MotionData &data) {
