@@ -213,6 +213,10 @@ for s in steps:
         th = [r for r in th if all(r.get("held_ok", [True]))]
         d["rounds"] = len(rounds)
         d["held_failed"] = sum(r.get("result") == "held_failed" for r in rounds)
+        if rounds and d["held_failed"] >= len(
+            rounds
+        ):  # no round held its links: nothing measured
+            d["all_held_failed"] = True
         # a third link that connected but could not discover is not a third-link success
         d["svc_failed"] = sum(bool(r.get("connected") and r.get("svc_exc")) for r in th)
         d["connected"] = sum(
@@ -320,7 +324,15 @@ for s in steps:
     # rtt_partial: RTT medians from rounds whose RTT loop broke off
     if bad := [
         k
-        for k in ("warn", "no_round", "aborted_runs", "rtt_partial", *HARNESS)
+        for k in (
+            "warn",
+            "no_round",
+            "aborted_runs",
+            "rtt_partial",
+            "held_dropped",
+            "all_held_failed",
+            *HARNESS,
+        )
         if d.get(k)
     ]:
         flagged.append(f"{s}: {','.join(bad)}")

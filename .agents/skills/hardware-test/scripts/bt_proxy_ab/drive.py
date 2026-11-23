@@ -556,6 +556,7 @@ async def main() -> None:
                 continue
             addr = d.peers[L][0]
             st = d.st[addr]
+            rm = None  # only a subscription made in this pass is removed on failure
             try:
                 # the tick holds 4 bytes; anything else is a stored handle from an older server table
                 if (
@@ -566,7 +567,6 @@ async def main() -> None:
                         test="notify", result="stale_handles", hint="run disc L first"
                     )
                     sys.exit(1)
-                rm = None
                 stop, rm = await cli.bluetooth_gatt_start_notify(
                     addr, tick.handle, on_n
                 )
