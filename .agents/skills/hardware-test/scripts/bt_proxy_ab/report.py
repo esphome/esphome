@@ -106,6 +106,8 @@ for t, r in marks:
         last_rc[m[1]] = int(m[2])
     elif r.startswith("suite incomplete:"):
         suite_incomplete = r.split(":", 1)[1].strip()
+    elif r == "suite done":  # a later RESUME run finished the rest
+        suite_incomplete = ""
     if r.startswith("start "):
         if open_iv:
             open_iv[1] = t
@@ -261,6 +263,7 @@ for s in steps:
                             "missing_drop",
                             "backwards",
                             "dups",
+                            "short",
                             "reconnects",
                             "subscribe_errors",
                             "hold_failed",
@@ -343,6 +346,7 @@ for s in steps:
     out[s] = d
     # a partial or faulted step must not pass as a clean result
     # rtt_partial: RTT medians from rounds whose RTT loop broke off
+    # backwards, dups, short: the tick order broke, so the notify gap and missing counts mean nothing
     if bad := [
         k
         for k in (
@@ -352,6 +356,9 @@ for s in steps:
             "rtt_partial",
             "held_dropped",
             "all_held_failed",
+            "backwards",
+            "dups",
+            "short",
             *HARNESS,
         )
         if d.get(k)

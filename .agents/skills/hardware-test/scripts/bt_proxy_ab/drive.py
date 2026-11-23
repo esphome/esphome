@@ -518,6 +518,7 @@ async def main() -> None:
             "hold_failed": 0,
             "unheld_s": 0.0,
             "backwards": 0,
+            "short": 0,
         }
         tick = find_chr(None, FF03, L)
         if tick is None or tick.cccd is None:
@@ -527,6 +528,9 @@ async def main() -> None:
         resumed = [False]
 
         def on_n(h, data) -> None:
+            if len(data) < 4:  # not a tick; decoding it would read as a restart
+                stats["short"] += 1
+                return
             v = int.from_bytes(bytes(data[:4]), "little")
             stats["rx"] += 1
             if last[0] is not None and resumed[0]:

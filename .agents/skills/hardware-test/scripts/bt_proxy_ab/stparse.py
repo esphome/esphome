@@ -204,6 +204,8 @@ for name, lines in ph.items():
             mins, rx, _, missing, _, mdrop, _ = nt[-1]
             if int(rx) + int(missing) + int(mdrop or 0) < 0.9 * int(mins) * 300:
                 d["notify_short"] = True
+            # the server restarted or the order broke: the gap and missing counts mean nothing
+            d["notify_backwards"] = int(nt[-1][6] or 0) or None
         fr = [int(x) for x in re.findall(r"ST churn c=\d+ freed_ms=(\d+)", txt)]
         if fr:
             d["churn freed_ms"] = (med(fr), max(fr))
@@ -225,6 +227,7 @@ for name, lines in ph.items():
         "rtt_partial",
         "held_dropped",
         "notify_short",
+        "notify_backwards",
     )
     # every round failed to hold its links (or ran on a wrong handle): the phase measured nothing
     rounds = d.get("rounds,ok,first_ok,fail,stuck", ("0",))[0]
