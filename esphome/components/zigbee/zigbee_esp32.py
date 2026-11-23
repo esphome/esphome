@@ -26,12 +26,15 @@ from esphome.const import (
     CONF_MAX_LENGTH,
     CONF_MODEL,
     CONF_NAME,
+    CONF_NUMBER,
     CONF_POLLING_INTERVAL,
     CONF_TYPE,
     CONF_UNIT_OF_MEASUREMENT,
     CONF_VALUE,
     CONF_VERSION,
     CONF_WIFI,
+    CONF_ZIGBEE_ID,
+    CONF_ZIGBEE_NUMBER,
     DEVICE_CLASS_BATTERY,
     DEVICE_CLASS_OUTLET,
     DEVICE_CLASS_VOLTAGE,
@@ -59,6 +62,7 @@ from .const import (
     POWER_SOURCE,
     ZigbeeAttribute,
     ZigbeeComponent,
+    ZigbeeNumber,
 )
 from .const_esp32 import (
     ACCESS,
@@ -351,8 +355,14 @@ def validate_number_esp32(config: ConfigType) -> ConfigType:
             CONF_TYPE: "ENUM16",
         },
     )
+    ep_ref: dict[str, Any] = {}
+    config[KEY_ZIGBEE_EP] = ep_ref
     setup_attributes(config, ep[CONF_CLUSTERS])
-    add_ep(ep, config.get(CONF_ENDPOINT), config.get(CONF_USE_DEVICE_TYPE))
+    add_ep(
+        ep, config.get(CONF_ENDPOINT), config.get(CONF_USE_DEVICE_TYPE), ep_ref=ep_ref
+    )
+    config[CONF_ZIGBEE_NUMBER] = cv.declare_id(ZigbeeNumber)(None)
+    config[CONF_ZIGBEE_ID] = cv.use_id(ZigbeeComponent)(None)
     return config
 
 
@@ -526,6 +536,22 @@ async def add_component(entity: cg.MockObj, config: ConfigType) -> None:
             cg.add(zb_attr.connect(template_arg, entity, lambda_))
         else:
             cg.add(zb_attr.connect(template_arg, entity))
+
+
+async def add_number(entity: cg.MockObj, config: ConfigType) -> None:
+    zb = await cg.get_variable(config[CONF_ZIGBEE_ID])
+    var = cg.new_Pvariable(
+        config[CONF_ZIGBEE_NUMBER],
+        zb,
+        config[KEY_ZIGBEE_EP][CONF_NUMBER],
+        entity,
+    )
+    await cg.register_component(var, {})
+    if (report := config.get(CONF_REPORT, "default")) not in (
+        "default",
+        "coordinator",
+    ):
+        cg.add(var.set_report(report))
 
 
 async def add_light(entity: cg.MockObj, config: ConfigType) -> None:
