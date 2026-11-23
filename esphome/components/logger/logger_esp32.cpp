@@ -91,7 +91,7 @@ static void init_uart(uart_port_t uart_num, uint32_t baud_rate, int tx_buffer_si
   uart_config.source_clk = UART_SCLK_DEFAULT;
 #endif
   uart_param_config(uart_num, &uart_config);
-  // The logger only writes to UART, never reads, so use the minimum RX buffer.
+  // Only console users (improv_serial) read this port, through console_read(); the RX buffer stays at the minimum.
   // ESP-IDF requires rx_buffer_size > UART_HW_FIFO_LEN (128 bytes).
   const int min_rx_buffer_size = UART_HW_FIFO_LEN(uart_num) + 1;
   uart_driver_install(uart_num, min_rx_buffer_size, tx_buffer_size, 0, nullptr, 0);
