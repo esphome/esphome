@@ -20,11 +20,11 @@ from .. import (
     CODEC_OPUS,
     CODEC_PCM,
     CODECS,
+    CONF_CHANNELS,
     CONF_CODECS,
     CONF_DECODE_MEMORY,
     CONF_FIXED_DELAY,
     CONF_FORMATS,
-    CONF_CHANNELS,
     CONF_INITIAL_STATIC_DELAY,
     CONF_SENDSPIN_ID,
     DEFAULT_CODECS,
@@ -165,7 +165,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_CHANNELS, default=[2, 1]): cv.All(
                 cv.ensure_list(cv.one_of(1, 2, int=True)),
                 cv.Length(min=1),
-            ),   
+            ),
         }
     ),
     cv.only_on_esp32,
