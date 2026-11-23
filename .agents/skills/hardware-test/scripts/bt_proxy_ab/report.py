@@ -392,9 +392,12 @@ boots = sum(
 )
 # a capture over the API (apilogcap.py) never sees ROM or early boot lines: 0 there does not mean no reboot
 gaps = sum("APILOGCAP CONNECT FAILED" in ln for _, ln in lines)
+# a reboot that reconnects at once leaves no failed connect, only the lost session
+lost_sessions = sum("APILOGCAP SESSION LOST" in ln for _, ln in lines)
 print(
     "boots/reset lines",
-    boots or f"0 (not visible in an API capture; {gaps} API reconnect failures)",
+    boots
+    or f"0 (not visible in an API capture; {lost_sessions} lost API sessions, {gaps} reconnect failures)",
     "idf",
     sorted({re.search(r"idf=(\S+)", ln)[1] for _, ln in lines if "idf=" in ln}),
 )
@@ -419,10 +422,11 @@ elif suite_incomplete:
 flagged += [f"{s}: cut short, no end mark" for s, e in ended.items() if not e]
 flagged += [f"{s}: last driver run rc={rc}" for s, rc in last_rc.items() if rc]
 # a reset line in a serial capture means the proxy rebooted during the suite; reconnect failures in an API
-# capture mean it was gone for a while
-if boots or gaps:
+# capture mean it was gone for a while, a lost API session that it restarted or dropped the link
+if boots or gaps or lost_sessions:
     flagged.append(
-        f"{boots} reset lines, {gaps} API reconnect failures: the proxy restarted or went away"
+        f"{boots} reset lines, {lost_sessions} lost API sessions, {gaps} API reconnect failures: the proxy "
+        "restarted or went away"
     )
 if flagged:
     print("FLAGGED:", "; ".join(flagged))
