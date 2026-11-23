@@ -2,7 +2,6 @@
 
 #include "esphome/components/number/number.h"
 #include "esphome/core/automation.h"
-#include "esphome/core/base_automation.h"
 #include "esphome/core/component.h"
 
 namespace esphome::number {

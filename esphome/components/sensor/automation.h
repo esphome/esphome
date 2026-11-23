@@ -2,7 +2,6 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/automation.h"
-#include "esphome/core/base_automation.h"
 #include "esphome/components/sensor/sensor.h"
 
 namespace esphome::sensor {
