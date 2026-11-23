@@ -200,18 +200,22 @@ void VL53L4CXSensor::loop() {
   } else {
     error = this->driver_.VL53L4CX_GetMeasurementDataReady(&ready);
   }
-  if (ready) {
-    this->measuring_ = false;
-    this->publish_result_();
-  } else if (error != VL53L4CX_ERROR_NONE) {
+  // The driver can report ready from an unread status byte when the poll fails, so the error comes first
+  if (error != VL53L4CX_ERROR_NONE) {
     this->measuring_ = false;
     this->measurement_failed_(LOG_STR("Polling data ready failed"), error);
+  } else if (ready) {
+    this->measuring_ = false;
+    this->publish_result_();
   } else if (elapsed > this->timeout_ms_()) {
     this->measuring_ = false;
     this->measurement_failed_(LOG_STR("Measurement timed out"), VL53L4CX_ERROR_TIME_OUT);
   } else {
     return;
   }
+  // An on_value automation calling component.update may already have started the next measurement
+  if (this->measuring_)
+    return;
   if (this->get_update_interval() != SCHEDULER_DONT_RUN || this->resetting_()) {
     this->disable_loop();
     return;
