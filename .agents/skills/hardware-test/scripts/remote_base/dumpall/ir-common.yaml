@@ -1,0 +1,99 @@
+esphome:
+  name: ${name}
+  on_boot:
+    priority: -100
+    then:
+      - logger.set_level: DEBUG
+logger:
+  level: VERBOSE
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  power_save_mode: none
+api:
+  reboot_timeout: 0s
+  encryption:
+    key: !secret api_key
+ota:
+  - platform: esphome
+remote_transmitter:
+  id: irtx
+  pin:
+    number: ${pin}
+    allow_other_uses: true
+  carrier_duty_percent: 100%
+remote_receiver:
+  pin:
+    number: ${pin}
+    allow_other_uses: true
+  dump: all
+  idle: 25ms
+button:
+  - platform: template
+    name: TX all
+    on_press:
+      - script.execute: tx_all
+  - platform: template
+    name: Verbose
+    on_press:
+      - logger.set_level: VERBOSE
+  - platform: template
+    name: Debug
+    on_press:
+      - logger.set_level: DEBUG
+script:
+  - id: tx_all
+    mode: single
+    then:
+      - logger.log: "TXMARK aok 1"
+      - lambda: ${prep}
+      - remote_transmitter.transmit_aok:
+          remote_id: 0x123456
+          channels: 0x00A1
+          command: 0x0B
+      - delay: 500ms
+      - logger.log: "TXMARK aok 2"
+      - lambda: ${prep}
+      - remote_transmitter.transmit_aok:
+          remote_id: 0xA5C381
+          channels: 0x1000
+          command: 0x43
+      - delay: 500ms
+      - logger.log: "TXMARK cardin 1"
+      - lambda: ${prep}
+      - remote_transmitter.transmit_cardin_s438:
+          code: "01001001110100"
+          channel: B
+      - delay: 700ms
+      - logger.log: "TXMARK cardin 2"
+      - lambda: ${prep}
+      - remote_transmitter.transmit_cardin_s438:
+          code: "11100011000101"
+          channel: A
+      - delay: 700ms
+      - logger.log: "TXMARK drayton 1"
+      - lambda: ${prep}
+      - remote_transmitter.transmit_drayton:
+          address: 0x1230
+          data: 0x8
+      - delay: 500ms
+      - logger.log: "TXMARK drayton 2"
+      - lambda: ${prep}
+      - remote_transmitter.transmit_drayton:
+          address: 0x1234
+          channel: 0x01
+          command: 0x05
+      - delay: 500ms
+      - logger.log: "TXMARK beo4 1"
+      - lambda: ${prep}
+      - remote_transmitter.transmit_beo4:
+          source: 0x01
+          command: 0x0C
+      - delay: 500ms
+      - logger.log: "TXMARK beo4 2"
+      - lambda: ${prep}
+      - remote_transmitter.transmit_beo4:
+          source: 0x00
+          command: 0x60
+      - delay: 500ms
+      - logger.log: "TXMARK end"

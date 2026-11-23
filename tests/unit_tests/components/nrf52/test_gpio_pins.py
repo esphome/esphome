@@ -6,6 +6,7 @@ from esphome.components.nrf52.const import (
     VARIANT_NRF54L15,
     VARIANT_NRF54LM20,
     VARIANT_NRF51822,
+    VARIANT_NRF52832,
     VARIANT_NRF52840,
 )
 from esphome.components.nrf52.framework import set_nrf52_variant
@@ -17,6 +18,7 @@ import esphome.config_validation as cv
     ("variant", "pin", "number"),
     [
         (VARIANT_NRF51822, "P0.31", 31),
+        (VARIANT_NRF52832, "P0.31", 31),
         (VARIANT_NRF52840, "P0.31", 31),
         (VARIANT_NRF52840, "P1.15", 47),
         (VARIANT_NRF54L15, "P0.06", 6),
@@ -38,6 +40,7 @@ def test_valid_pins(variant: str, pin: str, number: int) -> None:
     ("variant", "pin"),
     [
         (VARIANT_NRF51822, "P1.00"),
+        (VARIANT_NRF52832, "P1.00"),
         (VARIANT_NRF52840, "P1.16"),
         (VARIANT_NRF52840, "P2.00"),
         (VARIANT_NRF54L15, "P0.07"),

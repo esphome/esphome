@@ -1,0 +1,86 @@
+packages:
+  base: !include ld6-base.yaml
+
+ld6004:
+  id: radar4
+  uart_id: uart_radar
+
+binary_sensor:
+  - platform: ld6004
+    ld6004_id: radar4
+    target:
+      name: Presence
+    target_1:
+      name: Target 1
+    target_2:
+      name: Target 2
+    target_3:
+      name: Target 3
+    detection_area_0:
+      name: Area 0
+    detection_area_1:
+      name: Area 1
+    detection_area_2:
+      name: Area 2
+    detection_area_3:
+      name: Area 3
+
+script:
+  - id: cases
+    then:
+      - lambda: |-
+          ESP_LOGI("ld6sim", "CASE one_target");
+          ld6sim::mod.send("1 target", ld6sim::targets_n(1, 1));
+      - delay: 400ms
+      - lambda: |-
+          ESP_LOGI("ld6sim", "CASE three_targets");
+          ld6sim::mod.send("3 targets", ld6sim::targets_n(3, 10));
+      - delay: 400ms
+      - lambda: |-
+          ESP_LOGI("ld6sim", "CASE no_targets");
+          ld6sim::mod.send("0 targets", ld6sim::targets_n(0, 0));
+      - delay: 400ms
+      - lambda: |-
+          ESP_LOGI("ld6sim", "CASE areas_0_3");
+          ld6sim::mod.send("areas 1 0 0 1", ld6sim::areas4(1, 0, 0, 1));
+      - delay: 400ms
+      - lambda: |-
+          ESP_LOGI("ld6sim", "CASE areas_none");
+          ld6sim::mod.send("areas 0 0 0 0", ld6sim::areas4(0, 0, 0, 0));
+      - delay: 400ms
+      - lambda: |-
+          ESP_LOGI("ld6sim", "CASE work_status_clears_areas");
+          ld6sim::mod.send("areas 0 1 0 0", ld6sim::areas4(0, 1, 0, 0));
+      - delay: 300ms
+      - lambda: ld6sim::mod.out(0x0A14, {0});
+      - delay: 400ms
+      - lambda: |-
+          ESP_LOGI("ld6sim", "CASE radar_off");
+          ld6sim::mod.send("1 target", ld6sim::targets_n(1, 20));
+          ld6sim::mod.send("areas 1 0 0 0", ld6sim::areas4(1, 0, 0, 0));
+      - delay: 300ms
+      - lambda: ld6sim::mod.out(0x0A12, {2});
+      - delay: 300ms
+      - lambda: |-
+          ESP_LOGI("ld6sim", "CASE reports_while_off");
+          ld6sim::mod.send("1 target while off", ld6sim::targets_n(1, 30));
+          ld6sim::mod.send("areas while off", ld6sim::areas4(1, 1, 1, 1));
+      - delay: 400ms
+      - lambda: |-
+          ESP_LOGI("ld6sim", "CASE radar_on");
+          ld6sim::mod.out(0x0A12, ld6sim::u32(0));
+      - delay: 300ms
+      - lambda: ld6sim::mod.send("1 target after on", ld6sim::targets_n(1, 40));
+      - delay: 400ms
+      - lambda: |-
+          ESP_LOGI("ld6sim", "CASE bad_reports");
+          ld6sim::mod.out(0x0A12, ld6sim::u32(9));
+          ld6sim::mod.out(0x0A12, {1, 2});
+          ld6sim::mod.out(0x0A0A, {1, 0});
+          ld6sim::mod.send("count 5, 1 entry", ld6sim::targets_n(1, 50, 5));
+      - delay: 400ms
+      - lambda: |-
+          ESP_LOGI("ld6sim", "CASE radar_off_u32");
+          ld6sim::mod.out(0x0A12, ld6sim::u32(3));
+      - delay: 400ms
+      - lambda: ESP_LOGI("ld6sim", "CASE done acks=%u", (unsigned) ld6sim::mod.acks);

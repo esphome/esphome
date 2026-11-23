@@ -3,6 +3,7 @@
 // this one, which logs every write and read with timestamps and answers like an EZO pH circuit.
 #include <cstdio>
 #include <cstring>
+#include <cstdlib>
 #include "esphome/components/i2c/i2c_bus.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
@@ -19,7 +20,7 @@ class FakeEzoBus : public esphome::i2c::I2CBus {
   uint32_t writes_{0};
 
   esphome::i2c::ErrorCode write_readv(uint8_t address, const uint8_t *wb, size_t wn, uint8_t *rb, size_t rn) override {
-    uint32_t now = esphome::millis();
+    uint32_t now = millis();
     if (wn > 0) {
       size_t n = wn < sizeof(this->last_) - 1 ? wn : sizeof(this->last_) - 1;
       memcpy(this->last_, wb, n);
@@ -71,6 +72,13 @@ class FakeEzoBus : public esphome::i2c::I2CBus {
       rb[0] = 2;
     } else if (strcmp(c, "nodata") == 0) {
       rb[0] = 255;
+    } else if (c[0] == 's' && c[1] >= '0' && c[1] <= '9') {
+      // sNN: an NN character reply ('a'..'z' repeating), terminated if the read has room
+      size_t want = (size_t) atoi(c + 1);
+      for (size_t i = 0; i < want && i < cap; i++)
+        p[i] = 'a' + (i % 26);
+      if (want < cap)
+        p[want] = 0;
     } else if (strcmp(c, "full31") == 0) {
       // 31 payload bytes with no terminator anywhere in the 32 byte reply
       for (size_t i = 0; i < cap; i++)

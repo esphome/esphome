@@ -16,7 +16,6 @@ namespace esphome::usb_audio {
 ESPHOME_LOG_TAG(TAG, "usb_audio.mic");
 
 void USBAudioMicrophone::setup() {
-  this->frame_.reserve(this->audio_stream_info_.ms_to_bytes(2 * READ_TIMEOUT_MS));
   if (!this->mic_task_.create(&USBAudioMicrophone::mic_task, "usb_mic", MIC_TASK_STACK_SIZE, this, MIC_TASK_PRIORITY,
                               false)) {
     this->mark_failed(LOG_STR("Failed to create microphone task"));
@@ -152,7 +151,6 @@ void USBAudioMicrophone::mic_task_loop_() {
 
     while (this->running_) {
       size_t bytes_read = 0;
-      this->frame_.resize(this->frame_.capacity());
       esp_err_t err =
           this->parent_->read_microphone(this->frame_.data(), this->frame_.size(), &bytes_read, READ_TIMEOUT_MS);
       if (!this->running_) {
@@ -160,8 +158,7 @@ void USBAudioMicrophone::mic_task_loop_() {
       }
 
       if (err == ESP_OK && bytes_read > 0) {
-        this->frame_.resize(bytes_read);
-        this->publish_audio_(this->frame_, this->audio_stream_info_);
+        this->publish_audio_(this->frame_.first(bytes_read), this->audio_stream_info_);
       } else if (err == ESP_ERR_TIMEOUT) {
         // The driver already waited READ_TIMEOUT_MS for data; read again.
       } else if (err == ESP_ERR_INVALID_STATE) {
