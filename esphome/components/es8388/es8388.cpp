@@ -54,7 +54,7 @@ static constexpr i2c::I2CRegValue ES8388_INIT[] PROGMEM = {
     {ES8388_ADCCONTROL3, 0x02},
     // I2S 16 Bits length and I2S serial audio data format
     {ES8388_ADCCONTROL4, 0x0d},
-    // ADCFsMode,singel SPEED,RATIO=256
+    // ADCFsMode,single SPEED,RATIO=256
     {ES8388_ADCCONTROL5, 0x02},
     // ADC Volume
     {ES8388_ADCCONTROL8, 0x00},

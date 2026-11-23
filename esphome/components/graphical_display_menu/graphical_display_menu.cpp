@@ -155,7 +155,7 @@ void GraphicalDisplayMenu::draw_menu_internal_(display::Display *display, const 
         }
       }
       const int items_to_draw = last_item_index - first_item_index;
-      // Dont't draw last item partially if it is the selected item
+      // Don't draw last item partially if it is the selected item
       if ((this->cursor_index_ == last_item_index) && (number_items_fit_to_screen <= items_to_draw) &&
           (first_item_index < max_item_index)) {
         first_item_index++;

@@ -105,10 +105,8 @@ void EPaperT133A01::setup() {
   // Both chip-selects are driven directly by this driver (the dual-CS
   // protocol needs CS held HIGH while CS1 receives data, which the SPI
   // bus cannot do). Start both deselected (HIGH).
-  this->cs_pin_->setup();
-  this->cs_pin_->digital_write(true);
-  this->cs1_pin_->setup();
-  this->cs1_pin_->digital_write(true);
+  setup_output_pin(this->cs_pin_, true);
+  setup_output_pin(this->cs1_pin_, true);
 }
 
 bool EPaperT133A01::reset() {
@@ -232,7 +230,7 @@ void EPaperT133A01::fill(Color color) {
   }
   auto pixel_color = color_to_index(color);
   this->buffer_.fill(pixel_color + (pixel_color << 4));
-  this->drawn_since_hash_ = true;
+  this->mark_all_drawn_();
 }
 
 void EPaperT133A01::draw_pixel_at(int x, int y, Color color) {

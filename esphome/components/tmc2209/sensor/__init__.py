@@ -2,14 +2,7 @@ import esphome.codegen as cg
 from esphome.components import sensor
 from esphome.components.tmc22xx import CONF_ANALOG_CURRENT_SCALE
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_ID,
-    DEVICE_CLASS_CURRENT,
-    ENTITY_CATEGORY_DIAGNOSTIC,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_AMPERE,
-    UNIT_PERCENT,
-)
+from esphome.const import CONF_ID, ENTITY_CATEGORY_DIAGNOSTIC, STATE_CLASS_MEASUREMENT
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -37,16 +30,9 @@ CONFIG_SCHEMA = cv.Schema(
         cv.GenerateID(): cv.declare_id(TMC2209Sensor),
         cv.GenerateID(CONF_TMC2209_ID): cv.use_id(TMC2209Stepper),
         cv.Optional(CONF_ACTUAL_CURRENT): sensor.sensor_schema(
-            unit_of_measurement=UNIT_AMPERE,
-            accuracy_decimals=2,
-            device_class=DEVICE_CLASS_CURRENT,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.CURRENT, accuracy_decimals=2
         ),
-        cv.Optional(CONF_MOTOR_LOAD): sensor.sensor_schema(
-            unit_of_measurement=UNIT_PERCENT,
-            accuracy_decimals=0,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
+        cv.Optional(CONF_MOTOR_LOAD): sensor.sensor_schema(kind=sensor.PERCENT),
         cv.Optional(CONF_STALLGUARD_RESULT): _diagnostic_schema,
         cv.Optional(CONF_PWM_SCALE_SUM): _diagnostic_schema,
         cv.Optional(CONF_PWM_SCALE_AUTO): _diagnostic_schema,

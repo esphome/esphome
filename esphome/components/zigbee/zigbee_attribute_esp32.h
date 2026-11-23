@@ -4,9 +4,8 @@
 #include <limits>
 #include <type_traits>
 
-#include "esphome/core/automation.h"
-#include "esphome/core/component.h"
 #include "esphome/core/defines.h"
+#include "zigbee_entity_base_esp32.h"
 
 #ifdef USE_ESP32
 #ifdef USE_ZIGBEE
@@ -29,34 +28,22 @@
 
 namespace esphome::zigbee {
 
-enum ZigbeeReportT {
-  ZIGBEE_REPORT_DEFAULT,
-  ZIGBEE_REPORT_COORDINATOR,
-  ZIGBEE_REPORT_ENABLE,
-  ZIGBEE_REPORT_FORCE,
-};
-
-class ZigbeeAttribute final : public Component {
+class ZigbeeAttribute final : public ZigbeeEntityBase {
  public:
   ZigbeeAttribute(ZigbeeComponent *parent, uint8_t endpoint_id, uint16_t cluster_id, uint8_t role, uint16_t attr_id,
                   uint8_t attr_type, float scale, uint8_t max_size)
-      : zb_(parent),
-        endpoint_id_(endpoint_id),
+      : ZigbeeEntityBase(parent, endpoint_id),
         cluster_id_(cluster_id),
         role_(role),
         attr_id_(attr_id),
         attr_type_(attr_type),
         max_size_(max_size),
         scale_(scale) {}
-  void loop() override;
-  template<typename T> void add_attr(T value);
+  template<typename T> void add_attr(uint8_t attr_access, T value);
   template<typename T> void set_attr(const T &value);
   uint8_t attr_type() { return attr_type_; }
-  void set_report(ZigbeeReportT report);
-  void report();
-
   template<typename F> void add_on_value_callback(F &&callback) { on_value_callback_.add(std::forward<F>(callback)); }
-  void on_value(ezb_zcl_attribute_t attribute) {
+  void on_value(ezb_zcl_attribute_t attribute) override {
     if (attribute.data.type == this->attr_type() && attribute.data.value) {
       this->on_value_callback_.call(attribute);
     }
@@ -75,13 +62,10 @@ class ZigbeeAttribute final : public Component {
 #ifdef USE_NUMBER
   template<typename T> void connect(number::Number *device);
 #endif
-  bool report_enabled = false;
 
  protected:
-  void set_attr_();
-  void report_(bool has_lock);
-  ZigbeeComponent *zb_;
-  uint8_t endpoint_id_;
+  void set_attr_internal() override;
+  void report_internal(bool has_lock) override;
   uint16_t cluster_id_;
   uint8_t role_;
   uint16_t attr_id_;
@@ -89,21 +73,18 @@ class ZigbeeAttribute final : public Component {
   uint8_t max_size_;
   float scale_;
   void *value_p_{nullptr};
-  bool set_attr_requested_{false};
-  bool report_requested_{false};
-  bool force_report_{false};
   LazyCallbackManager<void(ezb_zcl_attribute_t attribute)> on_value_callback_{};
   template<typename T> T scale_value_(float value);
   template<typename T> T invalid_value_();
 };
 
-template<typename T> void ZigbeeAttribute::add_attr(T value) {
+template<typename T> void ZigbeeAttribute::add_attr(uint8_t attr_access, T value) {
   // Attribute type does never change and add_attr is only called once during startup, so this is safe.
   // For now we need to support only simple numeric/bool types for (binary) sensors.
   // For strings and arrays we would need to allocate a buffer of the maximum size.
   this->value_p_ = (void *) (new T);
   this->zb_->add_attr(this, this->endpoint_id_, this->cluster_id_, this->role_, this->attr_id_, this->max_size_,
-                      std::move(value));
+                      this->attr_type_, attr_access, std::move(value));
 }
 
 template<typename T> void ZigbeeAttribute::set_attr(const T &value) {
@@ -169,11 +150,11 @@ template<typename T> void ZigbeeAttribute::connect(number::Number *device) {
   // Add min, max and step attributes to the analog output cluster
   if (this->cluster_id_ == EZB_ZCL_CLUSTER_ID_ANALOG_OUTPUT) {
     this->zb_->add_attr(this->endpoint_id_, this->cluster_id_, this->role_, 0x0045, this->max_size_,
-                        device->traits.get_min_value());
+                        EZB_ZCL_ATTR_TYPE_SINGLE, 0, device->traits.get_min_value());
     this->zb_->add_attr(this->endpoint_id_, this->cluster_id_, this->role_, 0x0041, this->max_size_,
-                        device->traits.get_max_value());
+                        EZB_ZCL_ATTR_TYPE_SINGLE, 0, device->traits.get_max_value());
     this->zb_->add_attr(this->endpoint_id_, this->cluster_id_, this->role_, 0x006A, this->max_size_,
-                        device->traits.get_step());
+                        EZB_ZCL_ATTR_TYPE_SINGLE, 0, device->traits.get_step());
   }
   this->add_on_value_callback([this, device](ezb_zcl_attribute_t attribute) {
     auto call = device->make_call();

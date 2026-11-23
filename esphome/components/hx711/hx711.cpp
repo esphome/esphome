@@ -7,9 +7,8 @@ namespace esphome::hx711 {
 ESPHOME_LOG_TAG(TAG, "hx711");
 
 void HX711Sensor::setup() {
-  this->sck_pin_->setup();
+  setup_output_pin(this->sck_pin_, false);
   this->dout_pin_->setup();
-  this->sck_pin_->digital_write(false);
 
   // Read sensor once without publishing to set the gain
   this->read_sensor_(nullptr);
@@ -51,9 +50,7 @@ bool HX711Sensor::read_sensor_(uint32_t *result) {
 
     // Cycle clock pin for gain setting
     for (uint8_t i = 0; i < static_cast<uint8_t>(this->gain_); i++) {
-      this->sck_pin_->digital_write(true);
-      delayMicroseconds(1);
-      this->sck_pin_->digital_write(false);
+      pulse_pin(this->sck_pin_, true, 1);
       delayMicroseconds(1);
     }
     final_dout = this->dout_pin_->digital_read();

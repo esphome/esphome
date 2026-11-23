@@ -101,3 +101,27 @@ once on a build without TCP, or `tcp ok udp ok` twice and no error with it. Add 
 come back, and connect with `apicheck.py ADDR` over Thread. Measured on the ItsyBitsy: 12.9 KB less flash and 17.1 KB
 less RAM without TCP (Zephyr's default pools, 16/16 instead of 24/48), and SMP over UDP OTA still works with them.
 Results: https://github.com/esphome/esphome/pull/21910#issuecomment-6518287139
+
+## sdk-nrf 3.4.1 on the ItsyBitsy (#22233, #22558)
+
+- Set `framework: version: 3.4.1` and `board: adafruit_itsybitsy`.
+- Trees before #22233 include `<nrf.h>` in `logger_zephyr.cpp`, which 3.4.1 no longer has on the include path, so
+  Adafruit bootloader boards fail to build (`nrf.h: No such file or directory`). To test such a tree on 3.4.1, change
+  that include to `<nrfx.h>` locally.
+- On the new USB stack, `usb_cdc_acm` bulk echo ran at about half the legacy rate (67 against 121 KiB/s for 64 KiB),
+  and `flush()` returned `3`. The logger, DTR, line coding and the 1200 baud touch worked.
+- The zephyr_ble_server flow above, on 3.4.1: before #22558 advertising failed to restart after the first disconnect
+  (`Advertising failed to start (rc -12)`); with it the server took 39 connections in 120 s.
+
+## ItsyBitsy as a Thread MTD child (#16387)
+
+- Flash by serial DFU (the terminal cannot write to `ITSY840BOOT` on macOS, see SKILL.md). `esphome upload` fails
+  about half the time ("Target is not in DFU mode") and can leave the bootloader wedged. Press RESET once, then run
+  this on the bootloader port, which worked every time (`scripts/nrf_pwm_probe/i52run.sh` does the same):
+
+  ```sh
+  <sdk-nrf python> -m nordicsemi.__main__ dfu serial -pkg <build>/.pioenvs/<name>/firmware.zip \
+    -p <bootloader port> -b 115200 --singlebank
+  ```
+- A 1200 baud touch on the app port takes the child off the air (bootloader); the parent's child table entry goes
+  when its age reaches the child's timeout (`recipes/openthread.md`, child checks).

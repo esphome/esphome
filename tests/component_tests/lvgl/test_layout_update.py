@@ -183,25 +183,25 @@ def test_top_level_layout_targets_active_screen(main_cpp: str) -> None:
     """A top-level ``lvgl.update: { layout: ... }`` applies to the active
     screen, not to the LVGL component object."""
     assert (
-        "lv_obj_set_flex_flow(lvgl_id->get_screen_active(), LV_FLEX_FLOW_COLUMN)"
+        "lv_obj_set_flex_flow(::lvgl_id->get_screen_active(), LV_FLEX_FLOW_COLUMN)"
         in main_cpp
     )
     assert (
-        "lv_obj_set_style_pad_column(lvgl_id->get_screen_active(), 5, LV_STATE_DEFAULT)"
+        "lv_obj_set_style_pad_column(::lvgl_id->get_screen_active(), 5, LV_STATE_DEFAULT)"
         in main_cpp
     )
 
 
 def test_top_layer_layout_applied(main_cpp: str) -> None:
     """A layout under ``top_layer`` is applied to the display's top layer."""
-    assert "lv_display_get_layer_top(lvgl_id->get_disp())" in main_cpp
+    assert "lv_display_get_layer_top(::lvgl_id->get_disp())" in main_cpp
     assert "lv_obj_set_flex_flow(top_layer_VAR_, LV_FLEX_FLOW_ROW)" in main_cpp
 
 
 def test_bottom_layer_styling_applied(main_cpp: str) -> None:
     """A ``bottom_layer`` style update generates code (previously the layer
     keys of ``lvgl.update`` were silently ignored)."""
-    assert "lv_display_get_layer_bottom(lvgl_id->get_disp())" in main_cpp
+    assert "lv_display_get_layer_bottom(::lvgl_id->get_disp())" in main_cpp
     assert (
         "lv_obj_set_style_bg_color(bottom_layer_VAR_, lv_color_make(18, 52, 86), "
         "LV_PART_MAIN)" in main_cpp

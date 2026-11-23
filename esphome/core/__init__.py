@@ -20,6 +20,7 @@ from esphome.const import (
     CONF_WEB_SERVER,
     CONF_WIFI,
     KEY_CORE,
+    KEY_FRAMEWORK_VERSION,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
     NATIVE_TOOLCHAINS,
@@ -31,6 +32,7 @@ from esphome.const import (
     PLATFORM_NRF52,
     PLATFORM_RP2,
     PLATFORM_RTL87XX,
+    PLATFORM_STM32,
     ErrorFormat,
     Toolchain,
 )
@@ -43,7 +45,7 @@ from esphome.coroutine import (  # noqa: F401
     coroutine,
     coroutine_with_priority,
 )
-from esphome.helpers import get_str_env, is_ha_addon
+from esphome.helpers import get_str_env, is_ha_addon, unique_name
 from esphome.util import OrderedDict
 
 if TYPE_CHECKING:
@@ -425,19 +427,11 @@ class ID:
             if base == self.type:
                 base = base + "_id"
             name = "".join(c for c in base if c.isalnum() or c == "_")
-            # Same naming as ensure_unique_string(), without copying every
-            # registered ID into a new set for each ID resolved.
             loaded = CORE.loaded_integrations
-            candidate = name
-            tries = 1
-            while (
-                candidate in registered_ids
-                or candidate in RESERVED_IDS_SET
-                or candidate in loaded
-            ):
-                tries += 1
-                candidate = f"{name}_{tries}"
-            self.id = candidate
+            self.id = unique_name(
+                name,
+                lambda c: c in registered_ids or c in RESERVED_IDS_SET or c in loaded,
+            )
         return self.id
 
     def __str__(self):
@@ -1031,12 +1025,21 @@ class EsphomeCore:
         return self.target_platform == PLATFORM_NRF52
 
     @property
+    def is_stm32(self) -> bool:
+        return self.target_platform == PLATFORM_STM32
+
+    @property
     def is_host(self):
         return self.target_platform == PLATFORM_HOST
 
     @property
     def target_framework(self):
         return self.data[KEY_CORE][KEY_TARGET_FRAMEWORK]
+
+    @property
+    def framework_version(self) -> Version:
+        """The version of the target platform's framework, set by the platform component."""
+        return self.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
 
     @property
     def using_arduino(self):

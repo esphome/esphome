@@ -36,7 +36,7 @@ def _is_name_deprecated(value):
     return value[0] in "DA" and value[1:].isnumeric()
 
 
-def _lookup_board_pins(board):
+def lookup_board_pins(board: str) -> dict[str, int]:
     component: LibreTinyComponent = CORE.data[KEY_LIBRETINY][KEY_COMPONENT_DATA]
     board_pins = component.board_pins.get(board, {})
     # Resolve aliased board pins (shorthand when two boards have the same pin configuration)
@@ -47,7 +47,7 @@ def _lookup_board_pins(board):
 
 def _lookup_pin(value):
     board: str = CORE.data[KEY_LIBRETINY][KEY_BOARD]
-    board_pins = _lookup_board_pins(board)
+    board_pins = lookup_board_pins(board)
 
     # check numeric pin values
     if isinstance(value, int):
@@ -153,7 +153,7 @@ def validate_gpio_usage(value):
         # expect analog pin numbers to be available as either ADC# or A#
         number = value[CONF_NUMBER]
         board: str = CORE.data[KEY_LIBRETINY][KEY_BOARD]
-        board_pins = _lookup_board_pins(board)
+        board_pins = lookup_board_pins(board)
         analog_pins = [
             v
             for k, v in board_pins.items()

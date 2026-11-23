@@ -1,4 +1,5 @@
 from esphome import automation
+from esphome.automation import ApplyAction
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_DEFAULT, CONF_ID
@@ -19,7 +20,7 @@ from .defines import (
     get_widget_theme_style_data,
     literal,
 )
-from .lvcode import LambdaContext, lv
+from .lvcode import LambdaContext, context_action, lv, lv_global
 from .schemas import (
     ALL_STYLES,
     FULL_STYLE_SCHEMA,
@@ -27,7 +28,7 @@ from .schemas import (
     remap_property,
     theme_update_schema,
 )
-from .types import ObjUpdateAction, lv_style_t
+from .types import lv_style_t
 from .widgets import collect_parts, misplaced_obj_properties
 
 
@@ -96,7 +97,7 @@ async def styles_to_code(config):
 
 @automation.register_action(
     "lvgl.style.update",
-    ObjUpdateAction,
+    ApplyAction,
     FULL_STYLE_SCHEMA.extend(
         {
             cv.Required(CONF_ID): cv.use_id(lv_style_t),
@@ -105,7 +106,7 @@ async def styles_to_code(config):
     synchronous=True,
 )
 async def style_update_to_code(config, action_id, template_arg, args):
-    style = await cg.get_variable(config[CONF_ID])
+    style = await lv_global(config[CONF_ID])
     async with LambdaContext(parameters=args, where=action_id) as context:
         await style_set(style, config)
         # Refresh and redraw every widget using this style -- otherwise the
@@ -113,7 +114,7 @@ async def style_update_to_code(config, action_id, template_arg, args):
         # invalidate the affected widgets.
         lv.obj_report_style_change(style)
 
-    return cg.new_Pvariable(action_id, template_arg, await context.get_lambda())
+    return await context_action(context, action_id, template_arg, args)
 
 
 def _get_theme_style_name(w_name: str, part: str, state: str) -> str:
@@ -179,7 +180,7 @@ async def theme_to_code(config):
 
 @automation.register_action(
     "lvgl.theme.update",
-    ObjUpdateAction,
+    ApplyAction,
     theme_update_schema,
     synchronous=True,
 )
@@ -194,7 +195,7 @@ async def theme_update_to_code(config, action_id, template_arg, args) -> MockObj
                 # Skip states with no properties to set.
                 if not props:
                     continue
-                style_var = await cg.get_variable(
+                style_var = await lv_global(
                     ID(_get_theme_style_name(w_name, part, state))
                 )
                 to_update.append((style_var, props))
@@ -204,4 +205,4 @@ async def theme_update_to_code(config, action_id, template_arg, args) -> MockObj
             # Trigger a redraw for affected widgets.
             lv.obj_report_style_change(style_var)
 
-    return cg.new_Pvariable(action_id, template_arg, await context.get_lambda())
+    return await context_action(context, action_id, template_arg, args)

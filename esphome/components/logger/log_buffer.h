@@ -7,9 +7,11 @@
 
 namespace esphome::logger {
 
-// Maximum header size: 35 bytes fixed + 32 bytes tag + 16 bytes thread name = 83 bytes (45 byte safety margin)
+// Space write_header() needs free. Without the tag the header takes at most 68 bytes (20 fixed, 48 for a thread name
+// of up to MAX_TAG_LENGTH); the tag gets the rest of the line's room minus that budget, so at least MAX_TAG_LENGTH
+// (on ESP8266 exactly MAX_TAG_LENGTH)
 static constexpr uint16_t MAX_HEADER_SIZE = 128;
-// Longest tag the header budget allows
+// Longest thread name in the header, and the shortest tag it always keeps
 static constexpr size_t MAX_TAG_LENGTH = 32;
 
 // ANSI color code last digit (30-38 range, store only last digit to save RAM on ESP8266)
@@ -42,15 +44,8 @@ struct LogBuffer {
   // Replaces the null terminator with a newline for console output.
   // Must be called after notify_listeners_() since listeners need null-terminated strings.
   // Console output uses length-based writes (buf.pos), so null terminator is not needed.
-  void terminate_with_newline() {
-    if (this->pos < this->size) {
-      this->data[this->pos++] = '\n';
-    } else if (this->size > 0) {
-      // Buffer was full - replace last char with newline to ensure it's visible
-      this->data[this->size - 1] = '\n';
-      this->pos = this->size;
-    }
-  }
+  // The body writers keep the terminator's byte inside the buffer, so the newline always fits
+  void terminate_with_newline() { this->data[this->pos++] = '\n'; }
   void HOT write_header(uint8_t level, const char *tag, int line, const char *thread_name) {
     // Early return if insufficient space - intentionally don't update pos to prevent partial writes
     if (this->pos + MAX_HEADER_SIZE > this->size)
@@ -59,7 +54,7 @@ struct LogBuffer {
     char *p = this->current_();
 
     // Write ANSI color
-    this->write_ansi_color_(p, level);
+    p = write_ansi_color(p, level);
 
     // Construct: [LEVEL][tag:line]
     *p++ = '[';
@@ -75,27 +70,33 @@ struct LogBuffer {
     *p++ = '[';
 
     // Copy tag
-    this->copy_string_(p, tag);
+#ifdef USE_ESP8266
+    // ESP8266 has always cut tags at MAX_TAG_LENGTH, which leaves the message more of a short buffer
+    p = copy_string(p, tag, MAX_TAG_LENGTH);
+#else
+    // The early return above leaves at least MAX_HEADER_SIZE, so the tag keeps MAX_TAG_LENGTH or more
+    p = copy_string(p, tag, this->remaining_() - (MAX_HEADER_SIZE - MAX_TAG_LENGTH));
+#endif
 
     *p++ = ':';
 
     // Format line number using subtraction loops (no division - important for ESP8266 which lacks hardware divider)
     if (line > 999) [[unlikely]] {
-      write_digit(p, line, 1000);
+      p = write_digit(p, line, 1000);
     }
-    write_digit(p, line, 100);
-    write_digit(p, line, 10);
+    p = write_digit(p, line, 100);
+    p = write_digit(p, line, 10);
     *p++ = '0' + line;
     *p++ = ']';
 
 #if defined(USE_ESP32) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR) || defined(USE_HOST)
     // Write thread name with bold red color
     if (thread_name != nullptr) {
-      this->write_ansi_color_(p, 1);  // Bold red for thread name
+      p = write_ansi_color(p, 1);  // Bold red for thread name
       *p++ = '[';
-      this->copy_string_(p, thread_name);
+      p = copy_string(p, thread_name, MAX_TAG_LENGTH);
       *p++ = ']';
-      this->write_ansi_color_(p, level);  // Restore original color
+      p = write_ansi_color(p, level);  // Restore original color
     }
 #endif
 
@@ -114,6 +115,31 @@ struct LogBuffer {
     this->finalize_();
   }
 #endif
+  // Writes a message that needs no formatting, truncated and stripped of trailing newlines as format_body() does
+  // Forced inline: as on dev, the per-line path keeps it in its caller instead of calling out on every line
+  inline void HOT ESPHOME_ALWAYS_INLINE write_unformatted_body(const char *text, size_t len) {
+    const int room = this->body_room_();
+    if (room > 0) {
+      const uint16_t limit = room - 1;  // vsnprintf() keeps the last byte for the null terminator
+      const uint16_t copy_len = (len < limit) ? static_cast<uint16_t>(len) : limit;
+      memcpy(this->current_(), text, copy_len);
+      this->pos += copy_len;
+      this->strip_trailing_newlines_();
+      this->write_ansi_reset_();
+    }
+    this->finalize_();
+  }
+  // write_unformatted_body() for a message in flash
+  inline void HOT ESPHOME_ALWAYS_INLINE write_unformatted_body_p(ESPHOME_PGM_P text) {
+    const int room = this->body_room_();
+    if (room > 0) {
+      char *const start = this->current_();
+      this->pos = static_cast<uint16_t>(progmem_copy_str(start, start + room - 1, text) - this->data);
+      this->strip_trailing_newlines_();
+      this->write_ansi_reset_();
+    }
+    this->finalize_();
+  }
   static constexpr uint16_t ANSI_COLOR_LEN = 7;  // "\033[{bold};3{color}m" written by write_header for level != 0
   static constexpr uint16_t ANSI_RESET_LEN = 4;  // "\033[0m"
   // Largest replay header: color plus "@4294967295ms "
@@ -123,7 +149,7 @@ struct LogBuffer {
     if (this->pos + REPLAY_HEADER_MAX_SIZE > this->size)
       return;
     char *p = this->current_();
-    this->write_ansi_color_(p, level);
+    p = write_ansi_color(p, level);
     *p++ = '@';
     p = uint32_to_str_unchecked(p, ms);
     *p++ = 'm';
@@ -131,73 +157,75 @@ struct LogBuffer {
     *p++ = ' ';
     this->pos = static_cast<uint16_t>(p - this->data);
   }
-  void write_body(const char *text, uint16_t text_length) {
-    const uint16_t available = this->remaining_();
-    const uint16_t copy_len = (text_length < available) ? text_length : available;
-    if (copy_len > 0) {
-      memcpy(this->current_(), text, copy_len);
-      this->pos += copy_len;
-    }
-    this->finalize_();
+  // Same as write_unformatted_body(), for the boot replay and the task log buffer
+#ifdef USE_ESP8266
+  // No task log buffer here, so the boot replay is the only caller and takes it inline
+  void write_body(const char *text, uint16_t text_length) { this->write_unformatted_body(text, text_length); }
+#else
+  // One out-of-line copy shared by both callers
+  void __attribute__((noinline)) write_body(const char *text, uint16_t text_length) {
+    this->write_unformatted_body(text, text_length);
   }
+#endif
 
  private:
-  bool full_() const { return this->pos >= this->size; }
   uint16_t remaining_() const { return this->size - this->pos; }
+  // Room for the body and its null terminator with the color reset behind it; 0 or less when there is none
+  int body_room_() const { return this->remaining_() - ANSI_RESET_LEN; }
   char *current_() { return this->data + this->pos; }
-  void finalize_() {
-    this->write_ansi_reset_();
-    // Null terminate
-    this->data[this->full_() ? this->size - 1 : this->pos] = '\0';
+  // The body starts inside the buffer (write_header() needs MAX_HEADER_SIZE free) and the body writers keep a byte
+  // for the terminator, so pos is inside the buffer here
+  inline void ESPHOME_ALWAYS_INLINE finalize_() { this->data[this->pos] = '\0'; }
+  // Write ANSI reset sequence inline ("\033[0m"); forced inline, since it runs on every log line
+  // Callers have checked body_room_(), which keeps space for the reset and the terminator after it
+  inline void ESPHOME_ALWAYS_INLINE write_ansi_reset_() {
+    char *p = this->current_();
+    *p++ = '\033';
+    *p++ = '[';
+    *p++ = '0';
+    *p++ = 'm';
+    this->pos += ANSI_RESET_LEN;
   }
-  // Write ANSI reset sequence inline ("\033[0m") - avoids write_() call overhead
-  void write_ansi_reset_() {
-    if (this->remaining_() >= ANSI_RESET_LEN) {
-      char *p = this->current_();
-      *p++ = '\033';
-      *p++ = '[';
-      *p++ = '0';
-      *p++ = 'm';
-      this->pos += ANSI_RESET_LEN;
-    }
-  }
-  void strip_trailing_newlines_() {
+  // Forced inline: an outlined copy slows every formatted line
+  inline void ESPHOME_ALWAYS_INLINE strip_trailing_newlines_() {
     while (this->pos > 0 && this->data[this->pos - 1] == '\n')
       this->pos--;
   }
-  void process_vsnprintf_result_(int ret) {
-    if (ret < 0)
-      return;
-    const uint16_t rem = this->remaining_();
-    this->pos += (ret >= rem) ? (rem - 1) : static_cast<uint16_t>(ret);
-    this->strip_trailing_newlines_();
+  void process_vsnprintf_result_(int ret, int room) {
+    if (ret >= 0) {
+      this->pos += (ret >= room) ? (room - 1) : ret;
+      this->strip_trailing_newlines_();
+    }
+    this->write_ansi_reset_();
   }
   void format_vsnprintf_(const char *format, va_list args) {
-    if (this->full_())
+    const int room = this->body_room_();
+    if (room <= 0)
       return;
-    this->process_vsnprintf_result_(vsnprintf(this->current_(), this->remaining_(), format, args));
+    this->process_vsnprintf_result_(vsnprintf(this->current_(), room, format, args), room);
   }
 #ifdef USE_ESP8266
   void format_vsnprintf_p_(PGM_P format, va_list args) {
-    if (this->full_())
+    const int room = this->body_room_();
+    if (room <= 0)
       return;
-    this->process_vsnprintf_result_(vsnprintf_P(this->current_(), this->remaining_(), format, args));
+    this->process_vsnprintf_result_(vsnprintf_P(this->current_(), room, format, args), room);
   }
 #endif
   // Extract one decimal digit via subtraction (no division - important for ESP8266)
-  static inline void ESPHOME_ALWAYS_INLINE write_digit(char *&p, int &value, int divisor) {
+  static inline char *ESPHOME_ALWAYS_INLINE write_digit(char *p, int &value, int divisor) {
     char d = '0';
     while (value >= divisor) {
       d++;
       value -= divisor;
     }
     *p++ = d;
+    return p;
   }
-  // Write ANSI color escape sequence to buffer, updates pointer in place
-  // Caller is responsible for ensuring buffer has sufficient space
-  void write_ansi_color_(char *&p, uint8_t level) {
+  // Writes up to 7 bytes unchecked, so the caller reserves space; returns the new end, keeping p in a register
+  static char *write_ansi_color(char *p, uint8_t level) {
     if (level == 0)
-      return;
+      return p;
     // Direct buffer fill: "\033[{bold};3{color}m" (7 bytes)
     *p++ = '\033';
     *p++ = '[';
@@ -206,25 +234,20 @@ struct LogBuffer {
     *p++ = '3';
     *p++ = static_cast<char>(progmem_read_byte(reinterpret_cast<const uint8_t *>(&LOG_LEVEL_COLOR_DIGIT[level])));
     *p++ = 'm';
+    return p;
   }
-  // Copy string without null terminator, updates pointer in place
-  // Caller is responsible for ensuring buffer has sufficient space. Tags may be in PROGMEM on ESP8266.
-  void copy_string_(char *&p, const char *str) {
+  // Copies str unchecked and without its null terminator, so the caller reserves space; returns the new end
+  // Copies at most max_len bytes, so the header stays within MAX_HEADER_SIZE and the body starts inside the buffer
+  static inline char *ESPHOME_ALWAYS_INLINE copy_string(char *p, const char *str, size_t max_len) {
 #ifdef USE_ESP8266
-    // Only ESP8266 caps the length; tags may be in PROGMEM, so read each byte once
-    for (size_t i = 0; i < MAX_TAG_LENGTH; i++) {
-      const char c = static_cast<char>(progmem_read_byte(reinterpret_cast<const uint8_t *>(str + i)));
-      if (c == '\0')
-        break;
-      *p++ = c;
-    }
+    // Tags may be in PROGMEM
+    p = progmem_copy_str(p, p + max_len, str);
 #else
-    const size_t len = strlen(str);
-    // NOLINTNEXTLINE(bugprone-not-null-terminated-result) - intentionally no null terminator, building string piece by
-    // piece
-    memcpy(p, str, len);
+    const size_t len = strnlen(str, max_len);
+    memcpy(p, str, len);  // NOLINT(bugprone-not-null-terminated-result) - the header is built piece by piece
     p += len;
 #endif
+    return p;
   }
 };
 

@@ -37,6 +37,12 @@ def test_finds_a_nested_uart_id() -> None:
     assert subtree_references_uart(config, "bus")
 
 
+def test_finds_a_uart_id_in_a_list() -> None:
+    config = {"proxy": {"uart_id": [ID("other"), ID("bus")]}}
+    assert subtree_references_uart(config, "bus")
+    assert not subtree_references_uart(config, "missing")
+
+
 def test_ignores_other_uarts_and_other_keys() -> None:
     config = {"modbus": [{"uart_id": ID("other")}], "sensor": [{"id": ID("bus")}]}
     assert not subtree_references_uart(config, "bus")

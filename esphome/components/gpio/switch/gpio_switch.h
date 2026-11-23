@@ -12,10 +12,8 @@ class GPIOSwitch final : public switch_::Switch, public Component {
   // User provided, not "= default": `new(p) GPIOSwitch()` would zero-fill .bss that is already zero.
   GPIOSwitch() {}
 
-  void set_pin(GPIOPin *pin) { pin_ = pin; }
+  void set_pin(GPIOPin *pin) { this->pin_ = pin; }
 
-  // ========== INTERNAL METHODS ==========
-  // (In most use cases you won't need these)
   float get_setup_priority() const override;
 
   void setup() override;
@@ -25,7 +23,7 @@ class GPIOSwitch final : public switch_::Switch, public Component {
   void set_interlock(Switch *const *interlock, size_t count) {
     this->interlock_ = ConstVector<Switch *>(interlock, count);
   }
-  void set_interlock_wait_time(uint32_t interlock_wait_time) { interlock_wait_time_ = interlock_wait_time; }
+  void set_interlock_wait_time(uint32_t interlock_wait_time) { this->interlock_wait_time_ = interlock_wait_time; }
 #endif
 
  protected:
