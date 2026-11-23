@@ -106,7 +106,7 @@ def test_queue_actions_require_polling_on_the_referenced_hub(
         "uart:\n  baud_rate: 9600\n  rx_pin: GPIO13\n  tx_pin: GPIO12\n"
         "vbus:\n  id: bus\n  transmit:\n    destination: 0x2211\n    transactions: {}\n"
         "button:\n  - platform: template\n    name: Queued\n    on_press:\n"
-        f"      - vbus.{action}:\n          id: bus{value_id}{value}\n",
+        f"      - vbus.{action}:\n          id: null{value_id}{value}\n",
         encoding="utf-8",
     )
     CORE.config_path = path
