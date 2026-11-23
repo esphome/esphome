@@ -24,7 +24,7 @@ def test_value_range_runs_a_generated_function(
     main_cpp = generate_main(component_config_path("value_range.yaml"))
 
     assert (
-        "new(level_range) number::ValueRangeCallback<esphome__automation_id__fn>("
+        "new(level_range) FireCallback<esphome__automation_id__fn, number::ValueRangeBase>("
         "level, esphome__level_range__fn);" in main_cpp
     )
     assert "return ValueRange{10.0f, 90.0f};" in main_cpp

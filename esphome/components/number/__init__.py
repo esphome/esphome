@@ -165,7 +165,7 @@ NumberPtr = Number.operator("ptr")
 ApplyNumber = number_ns.class_("ApplyNumber", Number)
 
 # Automations
-ValueRangeCallback = number_ns.class_("ValueRangeCallback", cg.Component)
+ValueRangeBase = number_ns.class_("ValueRangeBase", automation.FiringComponent)
 
 NumberMode = number_ns.enum("NumberMode")
 
@@ -200,7 +200,7 @@ _NUMBER_SCHEMA = (
             cv.Optional(CONF_ON_VALUE): automation.validate_automation({}),
             cv.Optional(CONF_ON_VALUE_RANGE): automation.validate_automation(
                 {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ValueRangeCallback),
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ValueRangeBase),
                     cv.Optional(CONF_ABOVE): cv.templatable(cv.float_),
                     cv.Optional(CONF_BELOW): cv.templatable(cv.float_),
                 },
@@ -257,7 +257,7 @@ _CALLBACK_AUTOMATIONS = (
 async def _build_number_automations(var, config):
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
     for conf in config.get(CONF_ON_VALUE_RANGE, []):
-        await automation.build_value_range_automation(conf, ValueRangeCallback, var)
+        await automation.build_value_range_automation(conf, ValueRangeBase, var)
 
 
 @setup_entity("number")

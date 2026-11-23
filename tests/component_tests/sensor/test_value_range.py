@@ -12,7 +12,7 @@ def test_bound_can_use_its_own_trigger(
     main_cpp = generate_main(component_config_path("value_range_self_reference.yaml"))
 
     assert (
-        "new(range_trigger) sensor::ValueRangeCallback<esphome__automation_id__fn>("
+        "new(range_trigger) FireCallback<esphome__automation_id__fn, sensor::ValueRangeBase>("
         "source, esphome__range_trigger__fn);" in main_cpp
     )
     assert "range_trigger->is_ready()" in main_cpp

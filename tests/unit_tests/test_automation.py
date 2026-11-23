@@ -3600,7 +3600,7 @@ async def test_component_automation_args_delay_triggers_automation() -> None:
     ],
 )
 async def test_build_value_range_automation(bounds: ConfigType, expected: str) -> None:
-    """The component takes the parent and the bounds function, named after the trigger id.
+    """FireCallback over the base takes the parent and the bounds function, named after the trigger id.
 
     Unset bounds are NaN and a lambda bound naming x gets its own copy; the actions run from a
     function named after the automation id, so the two names do not clash.
@@ -3608,12 +3608,12 @@ async def test_build_value_range_automation(bounds: ConfigType, expected: str) -
     conf = {**_component_conf(_action("my.a", "act_a")), **bounds}
 
     var = await build_value_range_automation(
-        conf, FLOAT_CALLBACK, cg.RawExpression("parent")
+        conf, cg.esphome_ns.class_("RangeBase"), cg.RawExpression("parent")
     )
 
     assert str(var) == "trig"
     assert (
-        "new(trig) FloatCallback<esphome__auto__fn>(parent, esphome__trig__fn);"
+        "new(trig) FireCallback<esphome__auto__fn, RangeBase>(parent, esphome__trig__fn);"
         in CORE.cpp_main_section
     )
     text = CORE.cpp_global_section

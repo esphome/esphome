@@ -974,9 +974,9 @@ def _apply_call_active(members: list[tuple[Any, Any, Any]], values: list[Any]) -
 
 
 async def build_value_range_automation(
-    config: ConfigType, component_class: MockObjClass, parent: MockObj
+    config: ConfigType, base: MockObjClass, parent: MockObj
 ) -> MockObj:
-    """Build ``component_class`` for ``parent`` with a generated ``ValueRange (*)(float x)``: the bounds at ``x``.
+    """Build ``FireCallback<fn, base>`` for ``parent`` with a generated ``ValueRange (*)(float x)``: the bounds at ``x``.
 
     The component exists before its bounds are rendered, so a bound may use the component's own id.
     A bound that names ``x`` gets its own copy, so it cannot change the value the other bound sees;
@@ -985,7 +985,8 @@ async def build_value_range_automation(
     bounds_name = _apply_function_name(config[CONF_TRIGGER_ID])
     var = await build_component_automation(
         config,
-        component_class,
+        FireCallback,
+        template_args=[base],
         args=[(cg.float_, "x")],
         ctor_args=[parent, cg.RawExpression(bounds_name)],
     )

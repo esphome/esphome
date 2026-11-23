@@ -10,6 +10,7 @@
 #include "esphome/components/number/automation.h"
 #include "esphome/components/number/number.h"
 #include "esphome/core/application.h"
+#include "esphome/core/base_automation.h"
 
 namespace esphome::number::testing {
 namespace fs = std::filesystem;
@@ -27,7 +28,7 @@ static void record(float x) { fired_values.push_back(x); }
 /// A number and its on_value_range callback
 struct RangeFixture {
   TestNumber number;
-  ValueRangeCallback<record> trigger;
+  FireCallback<record, ValueRangeBase> trigger;
   std::vector<float> &fired{fired_values};
 
   explicit RangeFixture(ValueRange (*range)(float x)) : trigger(&this->number, range) {

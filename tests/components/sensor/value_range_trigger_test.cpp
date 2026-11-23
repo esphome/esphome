@@ -10,6 +10,7 @@
 #include "esphome/components/sensor/automation.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/core/application.h"
+#include "esphome/core/base_automation.h"
 
 namespace esphome::sensor::testing {
 namespace fs = std::filesystem;
@@ -26,7 +27,7 @@ static void record(float x) { fired_values.push_back(x); }
 /// A sensor and its on_value_range callback
 struct RangeFixture {
   TestSensor sensor;
-  ValueRangeCallback<record> trigger;
+  FireCallback<record, ValueRangeBase> trigger;
   std::vector<float> &fired{fired_values};
 
   explicit RangeFixture(ValueRange (*range)(float x)) : trigger(&this->sensor, range) {
