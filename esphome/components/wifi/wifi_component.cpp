@@ -662,6 +662,9 @@ static const char *eap_phase2_to_str(esp_eap_ttls_phase2_types type) {
 
 void WiFiComponent::setup() {
   this->wifi_pre_setup_();
+#ifdef USE_WIFI_OTA_LISTENER
+  ota::get_global_ota_callback()->add_global_state_listener(this);
+#endif
 
 #if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_POWER_SAVE)
   // Create semaphore for high-performance mode requests
@@ -902,6 +905,10 @@ void WiFiComponent::loop() {
         bool portal_active = this->is_provisioning_active_();
         uint32_t cooldown_duration = portal_active ? WIFI_COOLDOWN_WITH_AP_ACTIVE_MS : WIFI_COOLDOWN_DURATION_MS;
         if (now - this->action_started_ > cooldown_duration) {
+#ifdef USE_WIFI_OTA_LISTENER
+          // No OTA report for a whole cooldown: the upload is gone without an error
+          this->ota_active_ = false;
+#endif
           // After cooldown we either restarted the adapter because of
           // a failure, or something tried to connect over and over
           // so we entered cooldown. In both cases we call
@@ -1122,6 +1129,15 @@ network::IPAddress WiFiComponent::get_dns_address(int num) {
 }
 
 #ifdef USE_WIFI_AP
+#ifdef USE_WIFI_OTA_LISTENER
+void WiFiComponent::on_ota_global_state(ota::OTAState state, float progress, uint8_t error, ota::OTAComponent *comp) {
+  // Each start or progress report restarts the cooldown that retry_connect() holds the retries in
+  this->ota_active_ = state == ota::OTA_STARTED || state == ota::OTA_IN_PROGRESS;
+  if (this->ota_active_ && this->state_ == WIFI_COMPONENT_STATE_COOLDOWN)
+    this->action_started_ = millis();
+}
+#endif
+
 void WiFiComponent::setup_ap_config_() {
 #ifdef USE_WIFI_AP_EXCLUSIVE
   // The radio cannot run both, so STA goes off while the AP is up.
@@ -2397,6 +2413,13 @@ void WiFiComponent::advance_to_next_target_or_increment_retry_() {
 }
 
 void WiFiComponent::retry_connect() {
+#ifdef USE_WIFI_OTA_LISTENER
+  // A scan or connect moves the channel and drops an OTA client on the AP; wait until the upload ends
+  if (this->ota_active_) {
+    this->start_cooldown_();
+    return;
+  }
+#endif
   // Handle roaming state transitions - preserve attempts counter to prevent ping-pong
   // to unreachable APs after ROAMING_MAX_ATTEMPTS failures
   if (this->roaming_state_ == RoamingState::CONNECTING) {
@@ -2550,6 +2573,10 @@ bool WiFiComponent::is_improv_ble_active_() {
 }
 
 bool WiFiComponent::is_provisioning_active_() {
+#ifdef USE_WIFI_OTA_LISTENER
+  if (this->ota_active_)
+    return true;
+#endif
   return this->is_ap_portal_active_() || this->is_improv_ble_active_() || this->is_dpp_active_();
 }
 

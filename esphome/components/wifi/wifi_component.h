@@ -17,6 +17,11 @@
 #endif
 #include "esphome/core/string_ref.h"
 
+#if defined(USE_WIFI_AP) && defined(USE_OTA_STATE_LISTENER)
+#include "esphome/components/ota/ota_backend.h"
+#define USE_WIFI_OTA_LISTENER
+#endif
+
 #include <algorithm>
 #include <atomic>
 #include <limits>
@@ -487,7 +492,12 @@ static constexpr uint32_t IPV6_RECOUNT_TIMEOUT_ID = 3;
 #endif
 
 /// This component is responsible for managing the ESP WiFi interface.
-class WiFiComponent final : public Component {
+class WiFiComponent final : public Component
+#ifdef USE_WIFI_OTA_LISTENER
+    ,
+                            public ota::OTAGlobalStateListener
+#endif
+{
  public:
   /// Construct a WiFiComponent.
   WiFiComponent();
@@ -587,6 +597,9 @@ class WiFiComponent final : public Component {
   float get_setup_priority() const override { return setup_priority::WIFI; }
   /// Reconnect WiFi if required.
   void loop() override;
+#ifdef USE_WIFI_OTA_LISTENER
+  void on_ota_global_state(ota::OTAState state, float progress, uint8_t error, ota::OTAComponent *comp) override;
+#endif
 
   bool has_sta() const { return !this->sta_.empty(); }
   bool has_ap() const { return this->has_ap_; }
@@ -1191,6 +1204,9 @@ class WiFiComponent final : public Component {
   bool scan_done_{false};
   bool ap_setup_{false};
   bool ap_started_{false};
+#ifdef USE_WIFI_OTA_LISTENER
+  bool ota_active_{false};
+#endif
 #ifdef USE_WIFI_DPP
   bool dpp_listening_{false};
 #endif
