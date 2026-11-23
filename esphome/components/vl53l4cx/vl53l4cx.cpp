@@ -5,6 +5,8 @@
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
 
+#include <algorithm>
+
 namespace esphome::vl53l4cx {
 
 ESPHOME_LOG_TAG(TAG, "vl53l4cx");
@@ -26,16 +28,40 @@ VL53L4CXSensor::VL53L4CXSensor() {
   VL53L4CXSensor::first_sensor = this;
 }
 
+static constexpr size_t REGISTER_ADDRESS_SIZE = 2;
+// ESP8266's Arduino Wire buffers 128 bytes per transaction and ST's driver writes up to 135 at once. The
+// register address auto-increments, so longer transfers are split, each part at its own address.
+#ifdef USE_ESP8266
+// A write sends the register address from the same buffer; reads use the write limit too
+static constexpr uint16_t MAX_TRANSFER = 128 - REGISTER_ADDRESS_SIZE;
+#else
+static constexpr uint16_t MAX_TRANSFER = UINT16_MAX;
+#endif
+
+/// Calls transfer(prefix, offset, part) for each part of a `len` byte transfer starting at register `reg`.
+template<typename F> static bool transfer_in_parts(uint16_t reg, uint16_t len, F &&transfer) {
+  uint16_t done = 0;
+  do {
+    const uint16_t part = std::min<uint16_t>(len - done, MAX_TRANSFER);
+    uint8_t prefix[REGISTER_ADDRESS_SIZE];
+    put_be16(prefix, reg + done);
+    if (!transfer(prefix, done, part))
+      return false;
+    done += part;
+  } while (done < len);
+  return true;
+}
+
 bool VL53L4CXSensor::write_registers(uint8_t address, uint16_t reg, const uint8_t *data, uint16_t len) {
-  uint8_t prefix[2];
-  put_be16(prefix, reg);
-  return this->bus_->write_prefixed(address, prefix, sizeof(prefix), data, len) == i2c::ERROR_OK;
+  return transfer_in_parts(reg, len, [&](const uint8_t *prefix, uint16_t offset, uint16_t part) {
+    return this->bus_->write_prefixed(address, prefix, REGISTER_ADDRESS_SIZE, data + offset, part) == i2c::ERROR_OK;
+  });
 }
 
 bool VL53L4CXSensor::read_registers(uint8_t address, uint16_t reg, uint8_t *data, uint16_t len) {
-  uint8_t prefix[2];
-  put_be16(prefix, reg);
-  return this->bus_->write_readv(address, prefix, sizeof(prefix), data, len) == i2c::ERROR_OK;
+  return transfer_in_parts(reg, len, [&](const uint8_t *prefix, uint16_t offset, uint16_t part) {
+    return this->bus_->write_readv(address, prefix, REGISTER_ADDRESS_SIZE, data + offset, part) == i2c::ERROR_OK;
+  });
 }
 
 uint32_t VL53L4CXSensor::millis() { return esphome::millis(); }
