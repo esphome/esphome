@@ -96,7 +96,6 @@ void ESP8266UartComponent::setup() {
   // preconfigured by the platform. For example if RX disabled but TX pin
   // is 1 we still want to use Serial.
   SerialConfig config = static_cast<SerialConfig>(get_config());
-  const SerialMode mode = this->serial_mode_();
 
 #ifdef USE_ESP8266_UART_SERIAL
   if (!ESP8266UartComponent::serial0_in_use && (tx_pin_ == nullptr || tx_pin_->get_pin() == 1) &&
@@ -108,7 +107,7 @@ void ESP8266UartComponent::setup() {
 #endif
   ) {
     this->hw_serial_ = &Serial;
-    this->hw_serial_->begin(this->baud_rate_, config, mode);
+    this->hw_serial_->begin(this->baud_rate_, config, this->serial_mode_());
     this->hw_serial_->setRxBufferSize(this->rx_buffer_size_);
     ESP8266UartComponent::serial0_in_use = true;
   } else if (!ESP8266UartComponent::serial0_in_use && (tx_pin_ == nullptr || tx_pin_->get_pin() == 15) &&
@@ -120,7 +119,7 @@ void ESP8266UartComponent::setup() {
 #endif
   ) {
     this->hw_serial_ = &Serial;
-    this->hw_serial_->begin(this->baud_rate_, config, mode);
+    this->hw_serial_->begin(this->baud_rate_, config, this->serial_mode_());
     this->hw_serial_->setRxBufferSize(this->rx_buffer_size_);
     this->hw_serial_->swap();
     ESP8266UartComponent::serial0_in_use = true;
@@ -130,7 +129,7 @@ void ESP8266UartComponent::setup() {
 #ifdef USE_ESP8266_UART_SERIAL1
       if ((tx_pin_ == nullptr || tx_pin_->get_pin() == 2) && (rx_pin_ == nullptr || rx_pin_->get_pin() == 8)) {
     this->hw_serial_ = &Serial1;
-    this->hw_serial_->begin(this->baud_rate_, config, mode);
+    this->hw_serial_->begin(this->baud_rate_, config, this->serial_mode_());
     this->hw_serial_->setRxBufferSize(this->rx_buffer_size_);
   } else
 #endif  // USE_ESP8266_UART_SERIAL1
@@ -139,6 +138,17 @@ void ESP8266UartComponent::setup() {
     this->sw_serial_->setup(tx_pin_, rx_pin_, this->baud_rate_, this->stop_bits_, this->data_bits_, this->parity_,
                             this->rx_buffer_size_);
   }
+}
+
+SerialMode ESP8266UartComponent::serial_mode_() const {
+  if (this->rx_pin_ != nullptr)
+    return SERIAL_FULL;
+#ifdef USE_LOGGER
+  // Shared with the logger, whose console reader (improv_serial) still needs RX
+  if (this->hw_serial_ == logger::global_logger->get_hw_serial())
+    return SERIAL_FULL;
+#endif
+  return SERIAL_TX_ONLY;
 }
 
 void ESP8266UartComponent::load_settings(bool dump_config) {
