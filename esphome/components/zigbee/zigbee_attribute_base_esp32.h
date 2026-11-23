@@ -18,14 +18,13 @@ namespace esphome::zigbee {
 class ZigbeeAttributeBase : public ZigbeeEntityBase {
  public:
   ZigbeeAttributeBase(ZigbeeComponent *parent, uint8_t endpoint_id, uint16_t cluster_id, uint8_t role, uint16_t attr_id,
-                      uint8_t attr_type, float scale, uint8_t max_size)
+                      uint8_t attr_type, uint8_t max_size)
       : ZigbeeEntityBase(parent, endpoint_id),
         cluster_id_(cluster_id),
         role_(role),
         attr_id_(attr_id),
         attr_type_(attr_type),
-        max_size_(max_size),
-        scale_(scale) {}
+        max_size_(max_size) {}
   ZigbeeAttributeBase(ZigbeeComponent *parent, uint8_t endpoint_id, uint16_t cluster_id, uint8_t role, uint16_t attr_id,
                       uint8_t attr_type)
       : ZigbeeEntityBase(parent, endpoint_id),
@@ -46,9 +45,8 @@ class ZigbeeAttributeBase : public ZigbeeEntityBase {
   uint16_t attr_id_;
   uint8_t attr_type_;
   uint8_t max_size_{0};
-  float scale_{1};
   void *value_p_{nullptr};
-  template<typename T> T scale_value_(float value);
+  template<typename T> T scale_value_(float value, float scale);
   template<typename T> T invalid_value_();
 };
 
@@ -67,17 +65,17 @@ template<typename T> void ZigbeeAttributeBase::set_attr(const T &value) {
   this->enable_loop();
 }
 
-template<typename T> T ZigbeeAttributeBase::scale_value_(float value) {
+template<typename T> T ZigbeeAttributeBase::scale_value_(float value, float scale) {
   static_assert(sizeof(T) <= 2 || std::is_floating_point_v<T>);
   if constexpr (std::is_integral<T>::value) {
-    const float scaled = this->scale_ * value;
+    const float scaled = scale * value;
     if (std::isnan(value) || scaled < static_cast<float>(std::numeric_limits<T>::lowest()) ||
         scaled > static_cast<float>(std::numeric_limits<T>::max())) {
       return this->invalid_value_<T>();  // 0x8000 / 0xFFFF / 0 for bitmaps
     }
     return static_cast<T>(lroundf(scaled));
   }
-  return static_cast<T>(this->scale_ * value);
+  return static_cast<T>(scale * value);
 }
 
 template<typename T> T ZigbeeAttributeBase::invalid_value_() {

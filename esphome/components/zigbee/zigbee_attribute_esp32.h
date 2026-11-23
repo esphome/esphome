@@ -32,7 +32,7 @@ class ZigbeeAttribute final : public ZigbeeAttributeBase {
  public:
   ZigbeeAttribute(ZigbeeComponent *parent, uint8_t endpoint_id, uint16_t cluster_id, uint8_t role, uint16_t attr_id,
                   uint8_t attr_type, float scale, uint8_t max_size)
-      : ZigbeeAttributeBase(parent, endpoint_id, cluster_id, role, attr_id, attr_type, scale, max_size) {}
+      : ZigbeeAttributeBase(parent, endpoint_id, cluster_id, role, attr_id, attr_type, max_size), scale_(scale) {}
 
   template<typename F> void add_on_value_callback(F &&callback) { on_value_callback_.add(std::forward<F>(callback)); }
   void on_value(ezb_zcl_attribute_t attribute) override {
@@ -57,12 +57,13 @@ class ZigbeeAttribute final : public ZigbeeAttributeBase {
   void connect(number::Number *device);
 #endif
  protected:
+  float scale_;
   LazyCallbackManager<void(ezb_zcl_attribute_t attribute)> on_value_callback_{};
 };
 
 #ifdef USE_SENSOR
 template<typename T> void ZigbeeAttribute::connect(sensor::Sensor *sensor) {
-  sensor->add_on_state_callback([this](float value) { this->set_attr(this->scale_value_<T>(value)); });
+  sensor->add_on_state_callback([this](float value) { this->set_attr(this->scale_value_<T>(value, this->scale_)); });
 }
 template<typename T, typename F> void ZigbeeAttribute::connect(sensor::Sensor *sensor, F &&f) {
   sensor->add_on_state_callback([f = std::forward<F>(f), this](float value) { this->set_attr((T) f(value)); });
@@ -96,7 +97,7 @@ template<typename T> void ZigbeeAttribute::connect(number::Number *device) {
     call.set_value(static_cast<float>(*(T *) attribute.data.value) / this->scale_);
     call.perform();
   });
-  device->add_on_state_callback([this](float value) { this->set_attr(this->scale_value_<T>(value)); });
+  device->add_on_state_callback([this](float value) { this->set_attr(this->scale_value_<T>(value, this->scale_)); });
 }
 #endif
 
