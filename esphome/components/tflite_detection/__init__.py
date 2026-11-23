@@ -14,6 +14,7 @@ from esphome.components.tflite_micro_runtime import (
     declare_model,
     final_validate,
 )
+from esphome.components.tflite_model_io.model_reader import read_model_io
 import esphome.config_validation as cv
 from esphome.types import ConfigType
 
@@ -48,8 +49,26 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
+def validate_model_io(model_path: Path) -> None:
+    """Reject a model whose outputs the detection decoder cannot read."""
+    model_io = read_model_io(model_path)
+    name = Path(str(model_path)).name
+    if len(model_io.outputs) != 4:
+        raise cv.Invalid(
+            f"Model '{name}' declares {len(model_io.outputs)} output tensors; a "
+            f"detection model needs boxes, classes, scores and the detection count"
+        )
+    boxes = model_io.outputs[0].shape
+    if len(boxes) != 3 or boxes[2] != 4:
+        raise cv.Invalid(
+            f"Model '{name}' declares the boxes tensor {list(boxes)}; the decoder "
+            f"needs [1, N, 4]"
+        )
+
+
 async def configure(var, config: ConfigType, model_path: Path) -> None:
     """Create the frame pipeline and the detection decoder for one model."""
+    validate_model_io(model_path)
     cg.add(var.set_input_pipeline(build_pipeline(config, model_path)))
     decoder = cg.new_Pvariable(
         config[CONF_DECODER_ID],
