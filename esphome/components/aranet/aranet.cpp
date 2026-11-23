@@ -24,7 +24,7 @@ enum class AranetDeviceType : uint8_t {
 // https://github.com/Anrijs/Aranet4-Python/blob/master/aranet4/client.py
 // https://github.com/Anrijs/Aranet4-ESP32/blob/main/src/Aranet4.h
 
-void Aranet::dump_config() {
+void Aranet::dump_child_config() {
   ESP_LOGCONFIG(TAG, "Aranet");
   LOG_SENSOR("  ", "Carbon Dioxide", this->co2_sensor_);
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);

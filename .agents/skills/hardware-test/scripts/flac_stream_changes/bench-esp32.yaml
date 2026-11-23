@@ -1,0 +1,25 @@
+# FLAC decode benchmark on an ESP32 with no network: five rounds over the four clips, 3 s after boot, on the serial
+# log. -s media /absolute/path/to/media (s16, m16, s24 and m24.flac); -s name for a second build.
+substitutions:
+  name: flac-bench-esp32
+  media: /path/to/media
+packages:
+  bench: !include bench-button.yaml
+esphome:
+  name: ${name}
+  on_boot:
+    - priority: -100
+      then:
+        - delay: 3s
+        - lambda: flacbench::start(5);
+esp32:
+  board: pico32
+  flash_size: 4MB
+  framework:
+    type: esp-idf
+logger:
+  level: DEBUG
+  baud_rate: 115200
+audio:
+  codecs:
+    flac:

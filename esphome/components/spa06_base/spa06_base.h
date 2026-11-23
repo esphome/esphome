@@ -87,12 +87,6 @@ PROGMEM_STRING_TABLE(MeasRateStrings, "1Hz", "2Hz", "4Hz", "8Hz", "16Hz", "32Hz"
                      "3.125Hz", "6.25Hz", "12.5Hz", "25Hz", "50Hz", "100Hz", "200Hz");
 PROGMEM_STRING_TABLE(OversamplingStrings, "X1", "X2", "X4", "X8", "X16", "X32", "X64", "X128");
 
-inline static const LogString *oversampling_to_str(const Oversampling oversampling) {
-  return OversamplingStrings::get_log_str(static_cast<uint8_t>(oversampling), OversamplingStrings::LAST_INDEX);
-}
-inline static const LogString *meas_rate_to_str(SampleRate rate) {
-  return MeasRateStrings::get_log_str(static_cast<uint8_t>(rate), MeasRateStrings::LAST_INDEX);
-}
 inline uint32_t oversampling_to_scale_factor(const Oversampling oversampling) {
   return OVERSAMPLING_K_LUT[static_cast<uint8_t>(oversampling)];
 };

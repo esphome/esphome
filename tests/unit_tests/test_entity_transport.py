@@ -116,6 +116,45 @@ def test_timeout_not_with_session_on_peer(setup_core) -> None:
         fv.full_config.reset(token)
 
 
+def test_timeout_not_with_link_session(setup_core) -> None:
+    """A link such as TCP does the session's job itself, so it has no session key but the same rule applies."""
+    from esphome.components.tcp.packet_interface import TcpPacketInterface
+
+    token = fv.full_config.set(
+        {
+            "packet_interface": [
+                {CONF_ID: ID("tcp_link", is_manual=True, type=TcpPacketInterface)}
+            ]
+        }
+    )
+    try:
+        with pytest.raises(cv.Invalid, match="session") as error:
+            FINAL_VALIDATE_SCHEMA(
+                CONFIG_SCHEMA({"packet_interface": "tcp_link", CONF_TIMEOUT: "1min"})
+            )
+        assert error.value.path == [CONF_TIMEOUT]
+    finally:
+        fv.full_config.reset(token)
+
+
+def test_timeout_not_with_link_session_on_peer(setup_core) -> None:
+    """An addressing peer has what its link provides, as well as its own layers."""
+    from esphome.components.tcp.packet_interface import TcpPacketInterface
+
+    link = {
+        CONF_ID: ID("session_link", is_manual=True, type=TcpPacketInterface),
+        "addressing": {"peers": [{CONF_ID: ID("link_peer", is_manual=True)}]},
+    }
+    token = fv.full_config.set({"packet_interface": [link]})
+    try:
+        with pytest.raises(cv.Invalid, match="session"):
+            FINAL_VALIDATE_SCHEMA(
+                CONFIG_SCHEMA({"packet_interface": "link_peer", CONF_TIMEOUT: "1min"})
+            )
+    finally:
+        fv.full_config.reset(token)
+
+
 @pytest.mark.parametrize(
     ("layers", "allowed"),
     [

@@ -1,0 +1,10 @@
+# BW15 kit (RTL8720CF) harness: jumper UART1 TX PA03 to RX PA02, so the bus reads back what it sends.
+substitutions:
+  tx: PA03
+  rx: PA02
+
+packages:
+  base: !include lfh-base.yaml
+
+rtl87xx:
+  board: bw15
