@@ -1,0 +1,11 @@
+esphome:
+  name: isr-guard-esp32c3
+
+esp32:
+  board: esp32-c3-devkitm-1
+  framework:
+    type: esp-idf
+
+i2c:
+  sda: GPIO5
+  scl: GPIO6

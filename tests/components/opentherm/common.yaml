@@ -106,13 +106,13 @@ sensor:
     dhw_burner_operation_hours:
       name: "Boiler Number of hours that burner is in operation during DHW mode"
     t_dhw_set_ub:
-      name: "Boiler Upper bound for adjustement of DHW setpoint"
+      name: "Boiler Upper bound for adjustment of DHW setpoint"
     t_dhw_set_lb:
-      name: "Boiler Lower bound for adjustement of DHW setpoint"
+      name: "Boiler Lower bound for adjustment of DHW setpoint"
     max_t_set_ub:
-      name: "Boiler Upper bound for adjustement of max CH setpoint"
+      name: "Boiler Upper bound for adjustment of max CH setpoint"
     max_t_set_lb:
-      name: "Boiler Lower bound for adjustement of max CH setpoint"
+      name: "Boiler Lower bound for adjustment of max CH setpoint"
     t_dhw_set:
       name: "Boiler Domestic hot water temperature setpoint"
     max_t_set:

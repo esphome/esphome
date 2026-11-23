@@ -50,12 +50,6 @@ void log_mqtt_component(const char *tag, MQTTComponent *obj, bool state_topic, b
   }
 }
 
-void MQTTComponent::set_qos(uint8_t qos) { this->qos_ = qos; }
-
-void MQTTComponent::set_subscribe_qos(uint8_t qos) { this->subscribe_qos_ = qos; }
-
-void MQTTComponent::set_retain(bool retain) { this->retain_ = retain; }
-
 StringRef MQTTComponent::get_discovery_topic_to_(std::span<char, MQTT_DISCOVERY_TOPIC_MAX_LEN> buf,
                                                  const MQTTDiscoveryInfo &discovery_info) const {
   char sanitized_name[ESPHOME_DEVICE_NAME_MAX_LEN + 1];
@@ -174,9 +168,8 @@ bool MQTTComponent::publish(const char *topic, ProgmemStr payload) {
     return false;
   // On ESP8266, ProgmemStr is __FlashStringHelper* - need to copy from flash
   char buf[64];
-  strncpy_P(buf, reinterpret_cast<const char *>(payload), sizeof(buf) - 1);
-  buf[sizeof(buf) - 1] = '\0';
-  return global_mqtt_client->publish(topic, buf, strlen(buf), this->qos_, this->retain_);
+  const size_t len = buf_append_str_p(buf, sizeof(buf), 0, reinterpret_cast<const char *>(payload));
+  return global_mqtt_client->publish(topic, buf, len, this->qos_, this->retain_);
 }
 #endif
 
@@ -245,8 +238,8 @@ bool MQTTComponent::send_discovery_() {
 
         const auto entity_category = this->get_entity()->get_entity_category();
         if (entity_category != ENTITY_CATEGORY_NONE) {
-          root[MQTT_ENTITY_CATEGORY] = EntityCategoryMqttStrings::get_progmem_str(
-              static_cast<uint8_t>(entity_category), static_cast<uint8_t>(ENTITY_CATEGORY_CONFIG));
+          root[MQTT_ENTITY_CATEGORY] =
+              EntityCategoryMqttStrings::get_progmem_str(entity_category, ENTITY_CATEGORY_CONFIG);
         }
 
         if (config.state_topic) {
@@ -368,7 +361,6 @@ MQTTComponent::MQTTComponent() = default;
 
 float MQTTComponent::get_setup_priority() const { return setup_priority::AFTER_CONNECTION; }
 void MQTTComponent::disable_discovery() { this->discovery_enabled_ = false; }
-void MQTTComponent::set_command_retain(bool command_retain) { this->command_retain_ = command_retain; }
 
 void MQTTComponent::set_availability(std::string topic, std::string payload_available,
                                      std::string payload_not_available) {

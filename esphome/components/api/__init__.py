@@ -52,7 +52,14 @@ from esphome.const import (
     CONF_TYPE,
     CONF_VARIABLES,
 )
-from esphome.core import CORE, ID, CoroPriority, EsphomeError, coroutine_with_priority
+from esphome.core import (
+    CORE,
+    ID,
+    CoroPriority,
+    EsphomeError,
+    Lambda,
+    coroutine_with_priority,
+)
 from esphome.cpp_generator import Expression, MockObj, TemplateArgsType
 from esphome.helpers import fnv1_hash
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
@@ -99,12 +106,7 @@ ActionResponse = api_ns.class_("ActionResponse")
 HomeAssistantActionResponseTrigger = api_ns.class_(
     "HomeAssistantActionResponseTrigger", automation.Trigger
 )
-APIRespondAction = api_ns.class_("APIRespondAction", automation.Action)
-APIUnregisterServiceCallAction = api_ns.class_(
-    "APIUnregisterServiceCallAction", automation.Action
-)
-
-UserServiceTrigger = api_ns.class_("UserServiceTrigger", automation.Trigger)
+UserServiceCallback = api_ns.class_("UserServiceCallback")
 ListEntitiesServicesArgument = api_ns.class_("ListEntitiesServicesArgument")
 # Owning element type for each YAML service variable type.  Used to derive both
 # the zero-copy native types and the owning fallback types below.
@@ -313,9 +315,23 @@ VARIABLE_SCHEMA = cv.All(
 validate_variable = cv.maybe_simple_value(VARIABLE_SCHEMA, key=CONF_TYPE)
 
 
+def _validate_reserved_variables(config: ConfigType) -> ConfigType:
+    """Reject variables named like the arguments a response service passes first."""
+    mode = config[CONF_SUPPORTS_RESPONSE]
+    reserved = {"none": (), "optional": ("call_id", "return_response")}
+    for name in reserved.get(mode, ("call_id",)):
+        if name in config[CONF_VARIABLES]:
+            raise cv.Invalid(
+                f"'{name}' is reserved with supports_response: {mode}, "
+                "give the variable another name",
+                path=[CONF_VARIABLES, name],
+            )
+    return config
+
+
 ACTIONS_SCHEMA = automation.validate_automation(
     {
-        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(UserServiceTrigger),
+        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(UserServiceCallback),
         cv.Exclusive(CONF_SERVICE, group_of_exclusion=CONF_ACTION): cv.valid_name,
         cv.Exclusive(CONF_ACTION, group_of_exclusion=CONF_ACTION): cv.valid_name,
         cv.Optional(CONF_DESCRIPTION): cv.string_strict,
@@ -338,6 +354,7 @@ ACTIONS_SCHEMA = automation.validate_automation(
             {cv.Required(CONF_SUPPORTS_RESPONSE): _validate_supports_response},
             extra=cv.ALLOW_EXTRA,
         ),
+        _validate_reserved_variables,
     ),
 )
 
@@ -631,8 +648,8 @@ async def to_code(config: ConfigType) -> None:
         has_optional = _has_optional_args(actions)
         if has_optional:
             cg.add_define("USE_API_USER_DEFINED_ACTION_OPTIONAL_ARGS")
-        # Collect all triggers first, then register all at once with initializer_list
-        triggers: list[cg.MockObj] = []
+        # Collect all services first, then register all at once with initializer_list
+        services: list[cg.MockObj] = []
         for index, conf in enumerate(actions):
             func_args: list[tuple[MockObj, str]] = []
             service_template_args: list[MockObj] = []  # User service argument types
@@ -645,7 +662,7 @@ async def to_code(config: ConfigType) -> None:
             is_optional = supports_response_key == "optional"
 
             # Add call_id and return_response based on supports_response mode
-            # These must match the C++ Trigger template arguments
+            # These must match the arguments UserServiceCallback passes
             # - none: no extra args
             # - status: call_id only (for reporting success/error without data)
             # - only: call_id only (response always expected with data)
@@ -676,32 +693,24 @@ async def to_code(config: ConfigType) -> None:
                 func_args.append((native, name))
             strings = _action_strings(conf, has_metadata, has_optional)
             table = _add_action_strings(index, strings)
-            # Template args: supports_response mode, then user service arg types
-            templ = cg.TemplateArguments(supports_response, *service_template_args)
-            # Key is hashed here because the name is not readable at runtime on ESP8266
-            trigger = cg.new_Pvariable(
-                conf[CONF_TRIGGER_ID], templ, table, fnv1_hash(conf[CONF_ACTION])
-            )
-            triggers.append(trigger)
-            auto = await automation.build_automation(trigger, func_args, conf)
-
-            # For non-none response modes, automatically append unregister action
-            # This ensures the call is unregistered after all actions complete (including async ones)
+            # A call that can respond is unregistered once every action has finished
+            after = None
             if not is_none:
-                arg_types = [arg[0] for arg in func_args]
-                action_templ = cg.TemplateArguments(*arg_types)
-                unregister_id = ID(
-                    f"{conf[CONF_TRIGGER_ID]}__unregister",
-                    is_declaration=True,
-                    type=APIUnregisterServiceCallAction.template(action_templ),
+                server = automation.parent_ref(var)
+                after = [
+                    f"if (call_id != 0)\n  {server}->unregister_active_action_call(call_id);"
+                ]
+            fn, build = automation.declare_automation_function(func_args, conf, after)
+            templ = cg.TemplateArguments(fn, supports_response, *service_template_args)
+            # Key is hashed here because the name is not readable at runtime on ESP8266
+            services.append(
+                cg.new_Pvariable(
+                    conf[CONF_TRIGGER_ID], templ, table, fnv1_hash(conf[CONF_ACTION])
                 )
-                unregister_action = cg.new_Pvariable(
-                    unregister_id,
-                    var,
-                )
-                cg.add(auto.add_action(unregister_action))
+            )
+            await build()
         # Register all services at once - single allocation, no reallocations
-        cg.add(var.initialize_user_services(triggers))
+        cg.add(var.initialize_user_services(services))
 
     if (wizard_config := config.get(wizard.CONF_WIZARD)) is not None:
         await wizard.to_code(wizard_config)
@@ -834,22 +843,16 @@ HOMEASSISTANT_ACTION_ACTION_SCHEMA = cv.All(
 )
 
 
-async def _new_service_call_action(
-    server_id: ID,
-    action_id: ID,
+async def _service_call_table(
     template_arg: cg.TemplateArguments,
     args: TemplateArgsType,
-    is_event: bool,
     service: Any,
-    data: dict[str, Any],
-    data_template: dict[str, Any],
-    variables: dict[str, Any],
-) -> MockObj:
-    """Create the action with its name and fields in one shared flash table."""
+    groups: tuple[dict[str, Any], ...],
+) -> list[Expression | int]:
+    """Return the name and the data, data_template and variables ``groups`` in one shared
+    flash table, then the size of each map."""
     cg.add_define("USE_API_HOMEASSISTANT_SERVICES")
-    serv = await cg.get_variable(server_id)
     field_type = HomeAssistantField.template(template_arg)
-    groups = [data, data_template, variables]
     # A lambda may keep static state, so a table with lambdas is never shared
     has_lambda = cg.is_template(service) or any(
         cg.is_template(value) for group in groups for value in group.values()
@@ -873,8 +876,30 @@ async def _new_service_call_action(
         cg.ArrayInitializer(*entries, multiline=True),
         share=not has_lambda,
     )
-    return cg.new_Pvariable(
-        action_id, template_arg, serv, is_event, table, *(len(g) for g in groups)
+    return [table, *(len(g) for g in groups)]
+
+
+async def _send_service_call(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+    is_event: bool,
+    service: Any,
+    groups: tuple[dict[str, Any], ...],
+) -> MockObj:
+    """Send the action or event from a generated function, without waiting for a response."""
+    server = MockObj(await automation.apply_parent(config))
+    table, *counts = await _service_call_table(template_arg, args, service, groups)
+    call = api_ns.send_homeassistant_fields(
+        server,
+        is_event,
+        automation.parent_ref(table),
+        *counts,
+        *(MockObj(name) for _, name in args),
+    )
+    return automation.apply_statements_action(
+        action_id, template_arg, args, [f"{call};"]
     )
 
 
@@ -887,13 +912,13 @@ def _service_call_fields(config: ConfigType) -> tuple[dict[str, Any], ...]:
 # (StringRef into the API receive buffer) must not be used.
 @automation.register_action(
     "homeassistant.action",
-    HomeAssistantServiceCallAction,
+    automation.ApplyAction,
     HOMEASSISTANT_ACTION_ACTION_SCHEMA,
     synchronous=False,
 )
 @automation.register_action(
     "homeassistant.service",
-    HomeAssistantServiceCallAction,
+    automation.ApplyAction,
     HOMEASSISTANT_ACTION_ACTION_SCHEMA,
     synchronous=False,
 )
@@ -903,29 +928,40 @@ async def homeassistant_service_to_code(
     template_arg: cg.TemplateArguments,
     args: TemplateArgsType,
 ) -> MockObj:
-    var = await _new_service_call_action(
-        config[CONF_ID],
+    on_error = config.get(CONF_ON_ERROR)
+    on_success = config.get(CONF_ON_SUCCESS)
+    if not on_error and not on_success:
+        return await _send_service_call(
+            config,
+            action_id,
+            template_arg,
+            args,
+            False,
+            config[CONF_ACTION],
+            _service_call_fields(config),
+        )
+
+    # Waiting for the response needs an object that holds the triggers
+    cg.add_define("USE_API_HOMEASSISTANT_ACTION_RESPONSES")
+    action_id.type = HomeAssistantServiceCallAction
+    var = cg.new_Pvariable(
         action_id,
         template_arg,
-        args,
-        False,
-        config[CONF_ACTION],
-        *_service_call_fields(config),
+        await cg.get_variable(config[CONF_ID]),
+        *await _service_call_table(
+            template_arg, args, config[CONF_ACTION], _service_call_fields(config)
+        ),
     )
 
-    if on_error := config.get(CONF_ON_ERROR):
-        cg.add_define("USE_API_HOMEASSISTANT_ACTION_RESPONSES")
+    if on_error:
         cg.add_define("USE_API_HOMEASSISTANT_ACTION_RESPONSES_ERRORS")
-        cg.add(var.set_wants_status())
         await automation.build_automation(
             var.get_error_trigger(),
             [(cg.std_string, "error"), *args],
             on_error,
         )
 
-    if on_success := config.get(CONF_ON_SUCCESS):
-        cg.add_define("USE_API_HOMEASSISTANT_ACTION_RESPONSES")
-        cg.add(var.set_wants_status())
+    if on_success:
         if config[CONF_CAPTURE_RESPONSE]:
             cg.add(var.set_wants_response())
             cg.add_define("USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON")
@@ -974,7 +1010,7 @@ HOMEASSISTANT_EVENT_ACTION_SCHEMA = cv.Schema(
 # so play() never stores the trigger args.
 @automation.register_action(
     "homeassistant.event",
-    HomeAssistantServiceCallAction,
+    automation.ApplyAction,
     HOMEASSISTANT_EVENT_ACTION_SCHEMA,
     synchronous=True,
 )
@@ -984,14 +1020,14 @@ async def homeassistant_event_to_code(
     template_arg: cg.TemplateArguments,
     args: TemplateArgsType,
 ) -> MockObj:
-    return await _new_service_call_action(
-        config[CONF_ID],
+    return await _send_service_call(
+        config,
         action_id,
         template_arg,
         args,
         True,
         config[CONF_EVENT],
-        *_service_call_fields(config),
+        _service_call_fields(config),
     )
 
 
@@ -1006,7 +1042,7 @@ HOMEASSISTANT_TAG_SCANNED_ACTION_SCHEMA = cv.maybe_simple_value(
 
 @automation.register_action(
     "homeassistant.tag_scanned",
-    HomeAssistantServiceCallAction,
+    automation.ApplyAction,
     HOMEASSISTANT_TAG_SCANNED_ACTION_SCHEMA,
     synchronous=True,
 )
@@ -1016,16 +1052,14 @@ async def homeassistant_tag_scanned_to_code(
     template_arg: cg.TemplateArguments,
     args: TemplateArgsType,
 ) -> MockObj:
-    return await _new_service_call_action(
-        config[CONF_ID],
+    return await _send_service_call(
+        config,
         action_id,
         template_arg,
         args,
         True,
         "esphome.tag_scanned",
-        {"tag_id": config[CONF_TAG]},
-        {},
-        {},
+        ({"tag_id": config[CONF_TAG]}, {}, {}),
     )
 
 
@@ -1055,7 +1089,7 @@ API_RESPOND_ACTION_SCHEMA = cv.All(
 
 @automation.register_action(
     "api.respond",
-    APIRespondAction,
+    automation.ApplyAction,
     API_RESPOND_ACTION_SCHEMA,
     synchronous=True,
 )
@@ -1069,39 +1103,52 @@ async def api_respond_to_code(
     # We can't easily validate this at config time since the schema validation
     # doesn't have access to the parent action context. Validating here in to_code
     # is still much better than a cryptic C++ compile error.
-    has_call_id = any(name == "call_id" for _, name in args)
-    if not has_call_id:
+    if not any(name == "call_id" for _, name in args):
         raise EsphomeError(
             "api.respond can only be used inside an API action's 'then:' block. "
             "The 'call_id' variable is required to send a response."
         )
 
     cg.add_define("USE_API_USER_DEFINED_ACTION_RESPONSES")
-    serv = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, serv)
-
-    # Check if we're in optional mode (has return_response arg)
-    is_optional = any(name == "return_response" for _, name in args)
-    if is_optional:
-        cg.add(var.set_is_optional_mode(True))
-
-    templ = await cg.templatable(config[CONF_SUCCESS], args, cg.bool_)
-    cg.add(var.set_success(templ))
-
-    templ = await cg.templatable(config[CONF_ERROR_MESSAGE], args, cg.std_string)
-    cg.add(var.set_error_message(templ))
-
-    if CONF_DATA in config:
-        cg.add_define("USE_API_USER_DEFINED_ACTION_RESPONSES_JSON")
-        # Lambda populates the JsonObject root - no return value needed
-        lambda_ = await cg.process_lambda(
-            config[CONF_DATA],
-            args + [(cg.JsonObject, "root")],
-            return_type=cg.void,
+    parent = await automation.apply_parent(config)
+    # Lambdas are bound in order before the response is sent
+    statements: list[str] = []
+    if isinstance(success := config[CONF_SUCCESS], Lambda):
+        statements.append(
+            await automation.bind_lambda(success, args, cg.bool_, "esphome__success")
         )
-        cg.add(var.set_data(lambda_))
-
-    return var
+        success = "esphome__success"
+    else:
+        success = cg.safe_exp(success)
+    if isinstance(error := config[CONF_ERROR_MESSAGE], Lambda):
+        statements.append(
+            await automation.bind_lambda(
+                error, args, cg.std_string, "esphome__error_message"
+            )
+        )
+        error = "::esphome::StringRef(esphome__error_message)"
+    else:
+        error = f"::esphome::StringRef::from_lit({cg.safe_exp(error)})"
+    if CONF_DATA not in config:
+        call = f"send_action_response(call_id, {success}, {error})"
+    else:
+        cg.add_define("USE_API_USER_DEFINED_ACTION_RESPONSES_JSON")
+        # Fills root; only args the lambda names are copied, so it may modify them
+        data = await automation.call_user_lambda(
+            config[CONF_DATA], [*args, (cg.JsonObject, "root")], cg.void
+        )
+        build = f"[&]({cg.JsonObject} root) {{ {data}; }}"
+        # Optional mode passes bool return_response right after call_id (repeat: may put iteration first)
+        after = [name for _, name in args].index("call_id") + 1
+        optional = [(str(t), n) for t, n in args[after : after + 1]] == [
+            ("bool", "return_response")
+        ]
+        data_arg = ", return_response" if optional else ""
+        call = (
+            f"send_action_response_json(call_id, {success}, {error}, {build}{data_arg})"
+        )
+    statements.append(f"{parent}->{call};")
+    return automation.apply_statements_action(action_id, template_arg, args, statements)
 
 
 API_CONNECTED_CONDITION_SCHEMA = cv.Schema(

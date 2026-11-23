@@ -159,13 +159,8 @@ void IT8951Display::set_phase_(Phase next) {
   // and restore phases (register polls, 1bpp enable/restore, DPY) would dominate
   // a partial update's latency. The LUT-idle polls are DELAY_MS-paced, so this
   // doesn't hammer SPI — it only spends a little extra CPU during the (short,
-  // infrequent) update instead of sleeping between ops. start()/stop() are
-  // idempotent, so driving them off the transition is safe.
-  if (next == Phase::IDLE) {
-    this->high_freq_.stop();
-  } else {
-    this->high_freq_.start();
-  }
+  // infrequent) update instead of sleeping between ops.
+  this->high_freq_.set(next != Phase::IDLE);
   this->phase_ = next;
   this->phase_started_at_ = millis();
 }
@@ -306,14 +301,10 @@ void IT8951Display::setup() {
 
   // Power on the panel before reset and the init handshake.
   for (auto *pin : this->enable_pins_) {
-    pin->setup();
-    pin->digital_write(true);
+    setup_output_pin(pin, true);
   }
 
-  if (this->reset_pin_ != nullptr) {
-    this->reset_pin_->setup();
-    this->reset_pin_->digital_write(true);
-  }
+  setup_output_pin(this->reset_pin_, true);
   if (this->busy_pin_ != nullptr) {
     this->busy_pin_->setup();
   }
@@ -1043,11 +1034,7 @@ void IT8951Display::set_mono_pixel_(uint16_t x, uint16_t y, bool value) const {
 void IT8951Display::set_gray_pixel_(uint16_t x, uint16_t y, uint8_t nibble) const {
   const uint32_t index = static_cast<uint32_t>(y) * this->row_width_ + (static_cast<uint32_t>(x) >> 1);
   uint8_t buf = this->buffer_[index];
-  if (x & 0x1) {
-    buf = (buf & 0xF0) | nibble;
-  } else {
-    buf = (buf & 0x0F) | static_cast<uint8_t>(nibble << 4);
-  }
+  buf = x & 0x1 ? (buf & 0xF0) | nibble : (buf & 0x0F) | static_cast<uint8_t>(nibble << 4);
   this->buffer_[index] = buf;
 }
 

@@ -22,7 +22,6 @@ from esphome.const import (
     CONF_DNS2,
     CONF_DOMAIN,
     CONF_ENABLE_ON_BOOT,
-    CONF_ETHERNET,
     CONF_GATEWAY,
     CONF_ID,
     CONF_INTERRUPT_PIN,
@@ -46,8 +45,6 @@ from esphome.const import (
     CONF_USE_ADDRESS,
     CONF_VALUE,
     CONF_WIFI,
-    KEY_CORE,
-    KEY_FRAMEWORK_VERSION,
     Platform,
     PlatformFramework,
 )
@@ -78,6 +75,17 @@ def request_ethernet_ip_state_listener() -> None:
     CORE.data[ETHERNET_IP_STATE_LISTENERS_KEY] = (
         CORE.data.get(ETHERNET_IP_STATE_LISTENERS_KEY, 0) + 1
     )
+
+
+_register_connect_state_listener = cg.slot_list(
+    "ESPHOME_ETHERNET_CONNECT_STATE_LISTENERS", "add_connect_state_listener", DOMAIN
+)
+
+
+async def register_connect_state_listener(listener: cg.MockObj) -> None:
+    """Register an EthernetConnectStateListener; call from to_code()."""
+    ethernet = await cg.get_variable(CORE.config[DOMAIN][CONF_ID])
+    cg.add(_register_connect_state_listener(ethernet, listener))
 
 
 # RMII pins that are hardcoded on ESP32 classic and cannot be changed
@@ -181,7 +189,7 @@ _IDF6_ETHERNET_COMPONENTS: dict[str, IDFRegistryComponent] = {
     "IP101": IDFRegistryComponent("espressif/ip101", "1.1.0"),
     "KSZ8081": IDFRegistryComponent("espressif/ksz80xx", "1.1.0"),
     "KSZ8081RNA": IDFRegistryComponent("espressif/ksz80xx", "1.1.0"),
-    "W5500": IDFRegistryComponent("espressif/w5500", "2.0.1"),
+    "W5500": IDFRegistryComponent("espressif/w5500", "1.0.1"),
     "DM9051": IDFRegistryComponent("espressif/dm9051", "1.1.1"),
     "ENC28J60": IDFRegistryComponent("espressif/enc28j60", "1.1.0"),
     "LAN8670": IDFRegistryComponent("espressif/lan867x", "2.1.0"),
@@ -347,13 +355,13 @@ def _validate(config: ConfigType) -> ConfigType:
                 if CONF_POLLING_INTERVAL in config:
                     raise cv.Invalid(
                         "In this version of the framework "
-                        f"({CORE.target_framework} {CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]}), "
+                        f"({CORE.target_framework} {CORE.framework_version}), "
                         f"'{CONF_POLLING_INTERVAL}' is not supported."
                     )
                 if CONF_INTERRUPT_PIN not in config:
                     raise cv.Invalid(
                         "In this version of the framework "
-                        f"({CORE.target_framework} {CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]}), "
+                        f"({CORE.target_framework} {CORE.framework_version}), "
                         f"'{CONF_INTERRUPT_PIN}' is a required option for [ethernet]."
                     )
         elif config[CONF_TYPE] in ("GENERIC", "YT8531"):
@@ -397,9 +405,9 @@ def _validate(config: ConfigType) -> ConfigType:
 BASE_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(EthernetComponent),
-        cv.Optional(
-            CONF_MANUAL_IP, visibility=cv.Visibility.ADVANCED
-        ): MANUAL_IP_SCHEMA,
+        cv.Optional(CONF_MANUAL_IP, visibility=cv.Visibility.ADVANCED): cv.All(
+            MANUAL_IP_SCHEMA, require_ipv4(DOMAIN, CONF_MANUAL_IP)
+        ),
         cv.Optional(CONF_DOMAIN, default=".local"): cv.domain_name,
         cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
         cv.Optional(CONF_MAC_ADDRESS): cv.mac_address,
@@ -556,7 +564,6 @@ CONFIG_SCHEMA = cv.All(
         upper=True,
     ),
     _validate,
-    require_ipv4(CONF_ETHERNET),
 )
 
 

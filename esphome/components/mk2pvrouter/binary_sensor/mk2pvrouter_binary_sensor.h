@@ -5,11 +5,11 @@
 
 namespace esphome::mk2pvrouter {
 
-class Mk2PVRouterBinarySensor final : public Mk2PVRouterListener, public binary_sensor::BinarySensor, public Component {
+class Mk2PVRouterBinarySensor final : public Mk2PVRouterListener, public binary_sensor::BinarySensor {
  public:
   explicit Mk2PVRouterBinarySensor(const char *tag);
   void publish_val(const char *val) override;
-  void dump_config() override;
+  void dump_child_config() override;
 };
 
 }  // namespace esphome::mk2pvrouter

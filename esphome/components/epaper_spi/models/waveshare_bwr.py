@@ -23,12 +23,13 @@ MAX_GATES = 600
 class WaveshareBWR(EpaperModel):
     """EpaperModel class for Waveshare Black/White/Red displays using UC8179 controller."""
 
+    class_name = "EPaperWaveshareBWR"
     source_files = ("epaper_spi_bwr.cpp", "epaper_waveshare_bwr.cpp")
 
-    def __init__(self, name, **defaults):
+    def __init__(self, name, class_name=None, **defaults):
         defaults.setdefault("minimum_update_interval", "30s")
         defaults.setdefault("width_multiple", 8)
-        super().__init__(name, "EPaperWaveshareBWR", **defaults)
+        super().__init__(name, class_name=class_name, **defaults)
 
     def validate_config(self, config: ConfigType) -> ConfigType:
         width, height = self.get_dimensions(config)

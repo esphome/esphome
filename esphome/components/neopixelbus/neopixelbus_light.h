@@ -66,10 +66,11 @@ class NeoPixelBusLightOutputBase : public light::AddressableLight {
     // controller gets initialised in setup() - avoid calling twice (crashes with RMT)
     // this->controller_->Begin();
   }
+  /// `effect_data` holds one byte per LED, a static array from code generation
+  void set_effect_data(uint8_t *effect_data) { this->internal_accessor_.effect_data = effect_data; }
 
   // ========== INTERNAL METHODS ==========
   void setup() override {
-    this->internal_accessor_.effect_data = new uint8_t[this->size()];  // NOLINT
     this->controller_->Begin();
     this->internal_accessor_.color_data = this->controller_->Pixels();
     this->accessor_ = &this->internal_accessor_;

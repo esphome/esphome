@@ -5,7 +5,7 @@ namespace esphome::xiaomi_lywsdcgq {
 
 ESPHOME_LOG_TAG(TAG, "xiaomi_lywsdcgq");
 
-void XiaomiLYWSDCGQ::dump_config() {
+void XiaomiLYWSDCGQ::dump_child_config() {
   ESP_LOGCONFIG(TAG, "Xiaomi LYWSDCGQ");
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);

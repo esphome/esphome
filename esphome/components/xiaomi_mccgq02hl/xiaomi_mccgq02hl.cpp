@@ -32,7 +32,7 @@ static constexpr uint16_t OBJ_DOOR_ALT = 0x1019;
 static constexpr uint16_t OBJ_BATTERY = 0x100A;
 static constexpr uint16_t OBJ_BATTERY_ALT = 0x4803;
 
-void XiaomiMCCGQ02HL::dump_config() {
+void XiaomiMCCGQ02HL::dump_child_config() {
   uint8_t mac[MAC_ADDRESS_SIZE];
   ble_device_base::uint64_to_mac_msb_first(this->address_, mac);
   char mac_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];

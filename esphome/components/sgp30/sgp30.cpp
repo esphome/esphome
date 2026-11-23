@@ -107,10 +107,8 @@ void SGP30Component::read_iaq_baseline_() {
     }
     this->set_timeout(50, [this]() {
       uint16_t raw_data[2];
-      if (!this->read_data(raw_data, 2)) {
-        this->status_set_warning();
+      if (!this->status_comm_result(this->read_data(raw_data, 2)))
         return;
-      }
 
       uint16_t eco2baseline = (raw_data[0]);
       uint16_t tvocbaseline = (raw_data[1]);
@@ -139,7 +137,6 @@ void SGP30Component::read_iaq_baseline_() {
           }
         }
       }
-      this->status_clear_warning();
     });
   } else {
     ESP_LOGD(TAG, "Baseline reading not available for: %.0fs",
@@ -237,17 +234,13 @@ void SGP30Component::dump_config() {
 }
 
 void SGP30Component::update() {
-  if (!this->write_command(SGP30_CMD_MEASURE_IAQ)) {
-    this->status_set_warning();
+  if (!this->status_comm_check(this->write_command(SGP30_CMD_MEASURE_IAQ)))
     return;
-  }
   this->seconds_since_last_store_ += this->update_interval_ / 1000;
   this->set_timeout(50, [this]() {
     uint16_t raw_data[2];
-    if (!this->read_data(raw_data, 2)) {
-      this->status_set_warning();
+    if (!this->status_comm_result(this->read_data(raw_data, 2)))
       return;
-    }
 
     float eco2 = (raw_data[0]);
     float tvoc = (raw_data[1]);
@@ -256,7 +249,6 @@ void SGP30Component::update() {
     PUBLISH_STATE(this->eco2_sensor_, eco2);
     PUBLISH_STATE(this->tvoc_sensor_, tvoc);
 
-    this->status_clear_warning();
     this->send_env_data_();
     this->read_iaq_baseline_();
   });

@@ -20,7 +20,6 @@ static constexpr uint8_t CMD_LIGHT = 0x01;
 static constexpr uint8_t CMD_UNUSED = 0x21;
 static constexpr uint8_t CMD_SET_RGB_IOUT = 0x22;
 static constexpr size_t PACKET_HEADER_LEN = 4;  // head + len(2) + cmd
-static constexpr size_t PACKET_STATIC_LEN = 5;  // header + tail
 static constexpr uint8_t DEFAULT_IOUT = 75;     // per-channel LED current / white balance default
 
 // Pack a `0xAA len cmd data 0xBB` packet into buf; returns the packet length.
@@ -45,30 +44,16 @@ static inline void pad_unused(uint8_t *buf, size_t total) {
 float Pixoo::get_setup_priority() const { return setup_priority::PROCESSOR; }
 
 void Pixoo::setup() {
-  const uint32_t num_pixels = static_cast<uint32_t>(this->model_) * this->model_;
-  this->data_size_ = num_pixels * 3;
-  // The frame is a DATA packet (header + RGB888 + tail) followed by a DMA-chunk-sized UNUSED
-  // packet, so the LED board completes its final DMA block.
-  this->frame_size_ = this->data_size_ + PACKET_STATIC_LEN + DMA_CHUNK;
-
-  if (!this->setup_check(this->buffer_.init(this->data_size_), LOG_STR("Failed to allocate draw buffer")))
+  const size_t image_bytes = data_size(this->model_);
+  if (!this->setup_check(this->buffer_.init(image_bytes), LOG_STR(ESP_LOG_MSG_ALLOC_FAIL)))
     return;
 
-  // The frame is shipped in one SPI transfer, so keep it in DMA-capable internal RAM.
-  RAMAllocator<uint8_t> allocator(RAMAllocator<uint8_t>::ALLOC_INTERNAL);
-  this->frame_buffer_ = allocator.allocate(this->frame_size_);
-  if (this->frame_buffer_ == nullptr) {
-    this->buffer_.free();
-    this->mark_failed(LOG_STR("Failed to allocate frame buffer"));
-    return;
-  }
-  std::memset(this->frame_buffer_, 0, this->frame_size_);
   // Pre-build the constant DATA-packet framing; only the RGB888 payload changes per frame.
   this->frame_buffer_[0] = PACKET_HEAD;
-  put_le16(this->frame_buffer_ + 1, this->data_size_);
+  put_le16(this->frame_buffer_ + 1, image_bytes);
   this->frame_buffer_[3] = CMD_DATA;
-  this->frame_buffer_[PACKET_HEADER_LEN + this->data_size_] = PACKET_TAIL;
-  pad_unused(this->frame_buffer_ + this->data_size_ + PACKET_STATIC_LEN, DMA_CHUNK);
+  this->frame_buffer_[PACKET_HEADER_LEN + image_bytes] = PACKET_TAIL;
+  pad_unused(this->frame_buffer_ + image_bytes + PACKET_STATIC_LEN, DMA_CHUNK);
 
   this->spi_setup();
 
@@ -101,10 +86,11 @@ void Pixoo::set_panel_brightness(float brightness) {
 
 void Pixoo::update() {
   this->do_update_();
-  for (size_t i = 0; i < this->data_size_; i++)
+  const size_t image_bytes = data_size(this->model_);
+  for (size_t i = 0; i < image_bytes; i++)
     this->frame_buffer_[PACKET_HEADER_LEN + i] = this->buffer_[i];
   this->enable();
-  this->write_array(this->frame_buffer_, this->frame_size_);
+  this->write_array(this->frame_buffer_, frame_size(this->model_));
   this->disable();
 }
 
@@ -176,7 +162,8 @@ void Pixoo::fill(Color color) {
     display::Display::fill(color);
     return;
   }
-  for (size_t i = 0; i < this->data_size_; i += 3) {
+  const size_t image_bytes = data_size(this->model_);
+  for (size_t i = 0; i < image_bytes; i += 3) {
     this->buffer_[i] = color.r;
     this->buffer_[i + 1] = color.g;
     this->buffer_[i + 2] = color.b;

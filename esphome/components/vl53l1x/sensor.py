@@ -8,8 +8,6 @@ from esphome.const import (
     CONF_ENABLE_PIN,
     CONF_OFFSET,
     ICON_ARROW_EXPAND_VERTICAL,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_METER,
 )
 import esphome.final_validate as fv
 from esphome.types import ConfigType
@@ -115,9 +113,8 @@ def _final_validate(config: ConfigType) -> ConfigType:
 CONFIG_SCHEMA = cv.All(
     sensor.sensor_schema(
         VL53L1XSensor,
-        unit_of_measurement=UNIT_METER,
+        kind=sensor.LENGTH_M,
         accuracy_decimals=3,
-        state_class=STATE_CLASS_MEASUREMENT,
         icon=ICON_ARROW_EXPAND_VERTICAL,
     )
     .extend(
