@@ -47,6 +47,7 @@ class VL53L4CXSensor final : public sensor::Sensor, public PollingComponent, pub
 
  protected:
   bool init_sensor_();
+  bool start_measurement_();
   void fail_at_default_address_(const LogString *message);
   bool measurement_ready_();
   void publish_result_();

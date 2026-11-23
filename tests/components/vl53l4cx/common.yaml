@@ -7,7 +7,7 @@ sensor:
     interrupt_pin: ${interrupt_pin}
     target: farthest
     min_distance: 100mm
-    update_interval: 33ms
+    update_interval: never
   - platform: vl53l4cx
     i2c_id: i2c_bus
     name: VL53L4CX Nearest

@@ -1,6 +1,7 @@
 #include "vl53l4cx.h"
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
 
@@ -13,7 +14,8 @@ static constexpr uint8_t DEFAULT_ADDRESS = 0x29;
 static constexpr uint16_t SENSOR_ID = 0xEBAA;
 
 PROGMEM_STRING_TABLE(TargetStrings, "nearest", "farthest", "strongest");
-PROGMEM_STRING_TABLE(DistanceModeStrings, "unknown", "short", "medium", "long");
+// Indexed by ST's VL53L4CX_DISTANCEMODE_* minus one
+PROGMEM_STRING_TABLE(DistanceModeStrings, "short", "medium", "long");
 
 VL53L4CXSensor *VL53L4CXSensor::first_sensor = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
@@ -23,12 +25,14 @@ VL53L4CXSensor::VL53L4CXSensor() {
 }
 
 bool VL53L4CXSensor::write_registers(uint8_t address, uint16_t reg, const uint8_t *data, uint16_t len) {
-  const uint8_t prefix[2] = {static_cast<uint8_t>(reg >> 8), static_cast<uint8_t>(reg)};
+  uint8_t prefix[2];
+  put_be16(prefix, reg);
   return this->bus_->write_prefixed(address, prefix, sizeof(prefix), data, len) == i2c::ERROR_OK;
 }
 
 bool VL53L4CXSensor::read_registers(uint8_t address, uint16_t reg, uint8_t *data, uint16_t len) {
-  const uint8_t prefix[2] = {static_cast<uint8_t>(reg >> 8), static_cast<uint8_t>(reg)};
+  uint8_t prefix[2];
+  put_be16(prefix, reg);
   return this->bus_->write_readv(address, prefix, sizeof(prefix), data, len) == i2c::ERROR_OK;
 }
 
@@ -39,12 +43,10 @@ void VL53L4CXSensor::delay_us(uint32_t us) { delayMicroseconds(us); }
 void VL53L4CXSensor::setup() {
   // The first sensor to set up holds every sensor with an enable pin in reset, so each one
   // comes back at the default address only when its own setup() releases it.
-  if (VL53L4CXSensor::first_sensor != nullptr) {
-    for (auto *other = VL53L4CXSensor::first_sensor; other != nullptr; other = other->next_) {
-      setup_output_pin(other->enable_pin_, false);
-    }
-    VL53L4CXSensor::first_sensor = nullptr;
+  for (auto *other = VL53L4CXSensor::first_sensor; other != nullptr; other = other->next_) {
+    setup_output_pin(other->enable_pin_, false);
   }
+  VL53L4CXSensor::first_sensor = nullptr;
   if (this->enable_pin_ != nullptr) {
     this->enable_pin_->digital_write(true);
   }
@@ -55,7 +57,8 @@ void VL53L4CXSensor::setup() {
   if (!this->init_sensor_())
     return;
 
-  // ST's driver ranges again only once the interrupt is cleared, so update() paces the measurements.
+  // ST's driver ranges again only once the interrupt is cleared: by loop() straight after each result when
+  // update_interval is never, else by update().
   if (!this->setup_check(this->driver_.VL53L4CX_StartMeasurement() == VL53L4CX_ERROR_NONE))
     return;
   this->measurement_start_ = esphome::millis();
@@ -94,23 +97,22 @@ void VL53L4CXSensor::fail_at_default_address_(const LogString *message) {
   this->mark_failed(message);
 }
 
+bool VL53L4CXSensor::start_measurement_() {
+  this->measurement_start_ = App.get_loop_component_start_time();
+  return this->status_comm_check(this->driver_.VL53L4CX_ClearInterruptAndStartMeasurement() == VL53L4CX_ERROR_NONE);
+}
+
 void VL53L4CXSensor::update() {
   if (this->is_in_loop_state()) {
-    ESP_LOGD(TAG, "Measurement still running");
+    ESP_LOGV(TAG, "Measurement still running");
     return;
   }
-  if (this->driver_.VL53L4CX_ClearInterruptAndStartMeasurement() != VL53L4CX_ERROR_NONE) {
-    ESP_LOGW(TAG, "Starting measurement failed");
-    this->status_set_warning();
-    this->publish_state(NAN);
-    return;
-  }
-  this->measurement_start_ = App.get_loop_component_start_time();
-  this->enable_loop();
+  if (this->start_measurement_())
+    this->enable_loop();
 }
 
 bool VL53L4CXSensor::measurement_ready_() {
-  // GPIO1 stays low from the end of a measurement until update() clears it
+  // GPIO1 stays low from the end of a measurement until the next start clears it
   if (this->interrupt_pin_ != nullptr)
     return !this->interrupt_pin_->digital_read();
   uint8_t ready = 0;
@@ -121,17 +123,19 @@ void VL53L4CXSensor::loop() {
   const uint32_t elapsed = App.get_loop_component_start_time() - this->measurement_start_;
   if (elapsed < this->budget_ms_)
     return;
-  if (!this->measurement_ready_()) {
-    if (elapsed > static_cast<uint32_t>(this->budget_ms_) * 2 + 100) {
-      ESP_LOGW(TAG, "Measurement timed out");
-      this->status_set_warning();
-      this->publish_state(NAN);
-      this->disable_loop();
-    }
+  if (this->measurement_ready_()) {
+    this->publish_result_();
+  } else if (elapsed > static_cast<uint32_t>(this->budget_ms_) * 2 + 100) {
+    this->status_set_warning(LOG_STR("Measurement timed out"));
+  } else {
     return;
   }
-  this->disable_loop();
-  this->publish_result_();
+  if (this->get_update_interval() != SCHEDULER_DONT_RUN) {
+    this->disable_loop();
+    return;
+  }
+  // Continuous: start the next measurement now; a failed start times out above and is retried
+  this->start_measurement_();
 }
 
 int32_t select_distance_mm(const VL53L4CX_MultiRangingData_t &data, Target target, uint16_t min_distance_mm,
@@ -158,10 +162,13 @@ int32_t select_distance_mm(const VL53L4CX_MultiRangingData_t &data, Target targe
 
 void VL53L4CXSensor::publish_result_() {
   VL53L4CX_MultiRangingData_t data;
-  if (!this->status_comm_result(this->driver_.VL53L4CX_GetMultiRangingData(&data) == VL53L4CX_ERROR_NONE)) {
-    this->publish_state(NAN);
-    return;
+  const VL53L4CX_Error error = this->driver_.VL53L4CX_GetMultiRangingData(&data);
+  if (error != VL53L4CX_ERROR_NONE && !this->status_has_warning()) {
+    ESP_LOGW(TAG, "Reading the measurement failed: error %d", error);
   }
+  // NaN is kept for "no valid target"; a failed read only sets the warning
+  if (!this->status_comm_result(error == VL53L4CX_ERROR_NONE))
+    return;
   const int32_t best_mm = select_distance_mm(data, this->target_, this->min_distance_mm_, this->offset_mm_);
   ESP_LOGV(TAG, "%u targets, reporting %" PRId32 " mm", data.NumberOfObjectsFound, best_mm);
   this->publish_state(best_mm < 0 ? NAN : best_mm / 1000.0f);
@@ -179,7 +186,7 @@ void VL53L4CXSensor::dump_config() {
                 "  Target: %s\n"
                 "  Minimum Distance: %u mm\n"
                 "  Offset: %d mm",
-                LOG_STR_ARG(DistanceModeStrings::get_log_str(this->distance_mode_)), this->budget_ms_,
+                LOG_STR_ARG(DistanceModeStrings::get_log_str(this->distance_mode_ - 1)), this->budget_ms_,
                 LOG_STR_ARG(TargetStrings::get_log_str(this->target_)), this->min_distance_mm_, this->offset_mm_);
 }
 
