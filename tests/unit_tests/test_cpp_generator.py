@@ -319,6 +319,16 @@ class TestCallLambda:
         assert isinstance(result, cg.CallExpression)
         assert "static_cast" not in str(result)
 
+    @pytest.mark.parametrize("body", ["return;", "return ;"])
+    def test_call_lambda__bare_return_is_called(self, body: str) -> None:
+        """A bare return has no expression to reduce to, so the lambda is called."""
+        lamb = cg.LambdaExpression((body,), (), "", ct.void)
+
+        result = cg.call_lambda(lamb)
+
+        assert isinstance(result, cg.CallExpression)
+        assert "static_cast" not in str(result)
+
     def test_call_lambda__return_expression_with_class_return_type_no_cast(self):
         """A class return type is not cast, since static_cast doesn't apply
         to arbitrary class types."""

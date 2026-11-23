@@ -114,16 +114,6 @@ template<size_t N> class AutorepeatFilter : public AutorepeatFilterBase {
   std::array<AutorepeatFilterTiming, N> timings_storage_{};
 };
 
-class LambdaFilter : public Filter {
- public:
-  explicit LambdaFilter(std::function<optional<bool>(bool)> f);
-
-  optional<bool> new_value(bool value) override;
-
- protected:
-  std::function<optional<bool>(bool)> f_;
-};
-
 /// Codegen use only: output `value` from `filter` after `delay` ms, replacing its pending output, and return empty
 /// to stop the chain for now.
 optional<bool> delay_output(Filter *filter, uint32_t delay, bool value);
