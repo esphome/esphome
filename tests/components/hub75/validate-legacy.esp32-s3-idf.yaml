@@ -1,0 +1,8 @@
+# The old scan_wiring names (removal 2027.6.0) still validate.
+display:
+  - platform: hub75
+    id: my_hub75
+    board: adafruit-matrix-portal-s3
+    panel_width: 64
+    panel_height: 32
+    scan_wiring: SCAN_1_8_32PX_HIGH
