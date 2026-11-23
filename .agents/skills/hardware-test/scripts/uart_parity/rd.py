@@ -101,7 +101,8 @@ try:
                     f"{time.time() - t0:.4f} TX 79*{n}{'' if n else ' SHORT 0/1'}\n"
                 )
             tail = (tail + b)[-200:]
-            if feed and b"RPT" in tail and tail.endswith(b"\r\n"):
+            # LF, not CRLF: a logger-only report (sdd.yaml) ends in \r ESC[0m \n
+            if feed and b"RPT" in tail and tail.endswith(b"\n"):
                 tail = b""
                 n = write_all(fd, b"\x55" * 400, f, t0)
                 f.write(

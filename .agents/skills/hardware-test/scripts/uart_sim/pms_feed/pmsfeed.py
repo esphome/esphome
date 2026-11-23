@@ -205,7 +205,7 @@ def main() -> None:
     if a.expect_pm and not pm_ok:
         sys.exit("--expect-pm: no proof in the capture that power management was on")
     # the device cannot parse more frames than were fed: more means a garbled cnt line that read too high
-    if dev is not None and dev > win + 1:
+    if dev is not None and dev > win:
         sys.exit(f"{dev} parses counted for {win} frames fed: a cnt line is garbled")
     if a.expect_all is not None and dev is not None and win - dev > a.expect_all:
         sys.exit(f"--expect-all: {win - dev} of {win} frames not parsed")
