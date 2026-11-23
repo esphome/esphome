@@ -3,7 +3,7 @@
 #ifdef USE_UART_DEBUGGER
 
 #include <vector>
-#include "esphome/core/base_automation.h"
+#include "esphome/core/automation.h"
 #include "esphome/core/string_ref.h"
 #include "uart.h"
 #include "uart_component.h"
