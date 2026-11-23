@@ -1,8 +1,7 @@
 from esphome import automation, pins
 import esphome.codegen as cg
-from esphome.components.const import CONF_DESTINATION
-from esphome.components.esp32 import include_builtin_idf_component
 from esphome.components import uart
+from esphome.components.const import CONF_DESTINATION
 from esphome.components.esp32 import include_builtin_idf_component
 from esphome.components.logger import UART1
 import esphome.config_validation as cv
@@ -182,8 +181,9 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config: ConfigType) -> None:
-   if CORE.is_esp8266:
+    if CORE.is_esp8266:
         from esphome.components.esp8266.const import use_timer1
+
         # The acknowledge bit is released from hardware timer 1
         use_timer1(DOMAIN)
     if CORE.is_esp32:
@@ -205,32 +205,6 @@ async def to_code(config: ConfigType) -> None:
         cg.add_define("USE_HDMI_CEC_UART")
         cg.add(var.set_uart(await cg.get_variable(uart_id)))
 
-    for conf in config.get(CONF_ON_MESSAGE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-
-        source = conf.get(CONF_SOURCE)
-        if source is not None:
-            cg.add(trigger.set_source(source))
-
-        destination = conf.get(CONF_DESTINATION)
-        if destination is not None:
-            cg.add(trigger.set_destination(destination))
-
-        opcode = conf.get(CONF_OPCODE)
-        if opcode is not None:
-            cg.add(trigger.set_opcode(opcode))
-
-        data = conf.get(CONF_DATA)
-        if data is not None:
-            cg.add(trigger.set_data(data))
-
-        await automation.build_automation(
-            trigger,
-            [
-                (cg.uint8, "source"),
-                (cg.uint8, "destination"),
-                (cg.std_vector.template(cg.uint8), "data"),
-            ],
     on_message = config.get(CONF_ON_MESSAGE, [])
     # An automation for frames addressed to us with a data prefix claims its opcode from every
     # initiator, whatever its source filter or the rest of its prefix, so the built-in replies never

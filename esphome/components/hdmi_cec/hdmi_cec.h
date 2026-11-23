@@ -18,6 +18,14 @@
 #include <hardware/timer.h>
 #endif
 
+#ifdef USE_HDMI_CEC_UART
+namespace esphome::uart {
+class UARTComponent;
+}
+#endif
+
+namespace esphome::hdmi_cec {
+
 // Generated from the configuration, in flash
 #ifdef HDMI_CEC_OSD_NAME_LENGTH
 extern const char OSD_NAME[] PROGMEM;
@@ -35,14 +43,7 @@ template<typename T> inline ESPHOME_ALWAYS_INLINE void atomic_set(std::atomic<T>
 }
 template<typename T> inline ESPHOME_ALWAYS_INLINE T atomic_get(const std::atomic<T> &atom) {
   return atom.load(std::memory_order_acquire);
-
-#ifdef USE_HDMI_CEC_UART
-namespace esphome::uart {
-class UARTComponent;
 }
-#endif
-
-namespace esphome::hdmi_cec {
 
 /// One CEC bus message: a header byte with the initiator and destination addresses, then up to
 /// 15 payload bytes of which the first is the opcode. Fixed storage, so the receive interrupt
@@ -57,10 +58,10 @@ class Frame {
   /// The payload is at most MAX_PAYLOAD_LENGTH bytes, protected in this constructor
   Frame(uint8_t initiator_addr, uint8_t target_addr, const uint8_t *payload, unsigned int payload_size);
   Frame(uint8_t initiator_addr, uint8_t target_addr, const std::initializer_list<uint8_t> &payload)
-    : Frame(initiator_addr, target_addr, payload.begin(), payload.size()) {}
-  Frame(uint8_t initiator_addr, uint8_t destination_addr, std::span<const uint8_t> payload)
-    : Frame(initiator_addr, target_addr, payload.data(), payload.size()) {}
-  
+      : Frame(initiator_addr, target_addr, payload.begin(), payload.size()) {}
+  Frame(uint8_t initiator_addr, uint8_t target_addr, std::span<const uint8_t> payload)
+      : Frame(initiator_addr, target_addr, payload.data(), payload.size()) {}
+
   void set_header(uint8_t initiator_addr, uint8_t target_addr);
   ESPHOME_ALWAYS_INLINE uint8_t initiator_addr() const { return this->data_[0] >> 4; }
   ESPHOME_ALWAYS_INLINE uint8_t destination_addr() const { return this->data_[0] & 0xf; }
@@ -105,7 +106,7 @@ template<size_t SIZE> class FrameRingBuffer {
   ESPHOME_ALWAYS_INLINE uint8_t count_() const {
     return static_cast<uint8_t>(atomic_get(this->back_inx_) - atomic_get(this->front_inx_));
   }
-  ESPHOME_ALWAYS_INLINE Frame *slot_(const std::atomic<uint8_t> &inx) { return &this->stortransmit_my_address_e_[atomic_get(inx) % SIZE]; }
+  ESPHOME_ALWAYS_INLINE Frame *slot_(const std::atomic<uint8_t> &inx) { return &this->store_[atomic_get(inx) % SIZE]; }
   ESPHOME_ALWAYS_INLINE void advance_(std::atomic<uint8_t> &inx) {
     atomic_set<uint8_t>(inx, static_cast<uint8_t>(atomic_get(inx) + 1));
   }
@@ -113,8 +114,7 @@ template<size_t SIZE> class FrameRingBuffer {
   std::array<Frame, SIZE> store_{};
   std::atomic<uint8_t> front_inx_{0};
   std::atomic<uint8_t> back_inx_{0};
-}
-
+};
 
 /// The HDMI-CEC bus on one GPIO pin. The receive interrupt decodes the edges of every frame,
 /// including those this device sends, and queues complete frames for loop(); loop() runs the
@@ -207,6 +207,7 @@ class HDMICEC : public Component {
     this->isr_pin_.pin_mode(gpio::FLAG_OUTPUT | gpio::FLAG_OPEN_DRAIN);
     this->isr_pin_.digital_write(false);
   }
+  void handle_received_message_(const Frame *frame);
 
   static constexpr size_t QUEUE_SIZE = 4;
   // Each queue is 70 bytes, so two single-byte fields follow each to fill the alignment gap
@@ -225,7 +226,7 @@ class HDMICEC : public Component {
 #ifdef USE_HDMI_CEC_UART
   uart::UARTComponent *uart_{nullptr};
 #endif
-#ifdef USE_ESP32transmit_my_address_
+#ifdef USE_ESP32
   gptimer_handle_t ack_timer_{nullptr};
 #endif
 #ifdef USE_RP2040

@@ -54,10 +54,10 @@ static uint8_t device_type_of(uint8_t logical_address) {
   return (device_types >> (4 * logical_address)) & 0xF;
 }
 
-Frame::Frame(uint8_t initiator_addr, uint8_t destination_addr, std::span<const uint8_t> payload) {
+Frame::Frame(uint8_t initiator_addr, uint8_t destination_addr, const uint8_t *payload, unsigned int payload_size) {
   this->data_[0] = ((initiator_addr & 0xf) << 4) | (destination_addr & 0xf);
-  this->size_ = 1 + payload.size();
-  std::copy(payload.begin(), payload.end(), this->data_.begin() + 1);
+  this->size_ = 1 + payload_size;
+  std::memcpy(this->data_.begin() + 1, payload, payload_size);
 }
 
 void HDMICEC::setup() {
@@ -109,10 +109,10 @@ void HDMICEC::loop() {
     this->reported_dropped_frames_ = dropped;
   }
 
-  if (const Frame *frame = recv_.frames_queue_.front()) {
+  if (const Frame *frame = frames_queue_.front()) {
     // One inbound frame per pass keeps the time spent in the automations bounded
     handle_received_message_(frame);
-    recv_.frames_queue_.pop_front();
+    frames_queue_.pop_front();
   }
 
   // A frame being sent stays at the front of the queue until its attempts are over
@@ -122,15 +122,7 @@ void HDMICEC::loop() {
   // if (this->frames_queue_.is_empty() && this->send_queue_.is_empty()) {
   //   this->disable_loop();
   // }
-
-  // Need more frequent service to handle pending workload?
-  if (!recv_.frames_queue_.is_empty() || !this->send_queue_.is_empty()) {
-    fast_loop_.start();
-  } else {
-    fast_loop_.stop();
-  }
 }
-
 
 void HDMICEC::handle_received_message_(const Frame *frame) {
   const uint8_t src_addr = frame->initiator_addr();
@@ -147,28 +139,9 @@ void HDMICEC::handle_received_message_(const Frame *frame) {
   this->message_callbacks_.call(src_addr, dest_addr, frame->payload());
 #endif
 
-  std::vector<uint8_t> data(frame->size() - 1);
-  for (int i = 1; i < frame->size(); i++)
-    data[i - 1] = frame->at(i);
-
-  // Process on_message triggers
-  bool handled_by_trigger = false;
-  for (auto *trigger : message_triggers_) {
-    bool can_trigger =
-        ((!trigger->source_.has_value() || (trigger->source_ == src_addr)) &&
-         (!trigger->destination_.has_value() || (trigger->destination_ == dest_addr)) &&
-         (!trigger->opcode_.has_value() || (trigger->opcode_ == opcode)) &&
-         (!trigger->data_.has_value() || (data.size() >= trigger->data_->size() &&
-                                          std::equal(trigger->data_->begin(), trigger->data_->end(), data.begin()))));
-    if (can_trigger) {
-      trigger->trigger(src_addr, dest_addr, data);
-      handled_by_trigger = true;
-    }
-  }
-// TODO(jos) callbacks_.call vs claimed vs triggered???
+  // TODO(jos) callbacks_.call vs claimed vs triggered???
   bool is_directly_addressed = (dest_addr == address_) && !frame->is_broadcast();
-  if (!this->monitor_mode_ && is_directly_addressed &&
-      !this->is_claimed_(frame->opcode()) && !handled_by_trigger) {
+  if (!this->monitor_mode_ && is_directly_addressed && !this->is_claimed(frame->opcode())) {
     this->reply_builtin_(frame);
   }
 }
