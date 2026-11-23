@@ -12,10 +12,12 @@ H=${HOST:?set HOST}; PY=${PY:-python3}
 export API_KEY
 [ -n "$NOFLASH" ] || { TREE=$T ../pio_build.sh upload "$N" "$Y" "$H" && sleep 15; } || exit 1
 [ -n "$KEEP" ] || rm -f "cap-$N.txt"
+# with KEEP=1 only lines after this offset come from this capture
+O=$(($(wc -c 2>/dev/null < "cap-$N.txt" || echo 0) + 1))
 $PY ../ble_conn_interval/apilogcap.py "$H" 900 "cap-$N.txt" > "apilog-$N.err" 2>&1 &
 CP=$!
-for _ in $(seq 1 30); do grep -q "\[" "cap-$N.txt" 2>/dev/null && break; sleep 2; done
-grep -a -m1 "ESPHome version\|Project" "cap-$N.txt"
+for _ in $(seq 1 30); do tail -c +"$O" "cap-$N.txt" 2>/dev/null | grep -q "\[" && break; sleep 2; done
+tail -c +"$O" "cap-$N.txt" | grep -a -m1 "ESPHome version\|Project"
 if [ "$FLOW" = yes ]; then
   $PY run.py "$H" "$BASEURL" "$N" > "drive-$N.txt" 2>&1 || { kill $CP; echo "FAIL $N run.py"; exit 1; }
   sleep 3

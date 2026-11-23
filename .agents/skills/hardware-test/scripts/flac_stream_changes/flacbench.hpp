@@ -61,9 +61,6 @@ static void run_one(const File &f, int round) {
     alloc.deallocate(out, out_cap);
     return;
   }
-  size_t dram0 = heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
-  size_t iram0 = FB_IRAM_FREE();
-  size_t ps0 = heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
   auto dec = std::make_unique<micro_flac::FLACDecoder>();
   const uint8_t *src = f.begin;
   size_t in_len = 0, in_off = 0;
@@ -136,10 +133,14 @@ static void run_one(const File &f, int round) {
              (unsigned long long) total);
   }
   int64_t wall = esp_timer_get_time() - wall0;
-  const int d_dram = (int) dram0 - (int) heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
-  const int d_iram = (int) iram0 - (int) FB_IRAM_FREE();
-  const int d_ps = (int) ps0 - (int) heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
+  // what freeing the decoder gives back, with both buffers still held: the out buffer growth stays out of it
+  const size_t dram1 = heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+  const size_t iram1 = FB_IRAM_FREE();
+  const size_t ps1 = heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
   dec.reset();
+  const int d_dram = (int) heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT) - (int) dram1;
+  const int d_iram = (int) FB_IRAM_FREE() - (int) iram1;
+  const int d_ps = (int) heap_caps_get_free_size(MALLOC_CAP_SPIRAM) - (int) ps1;
   alloc.deallocate(out, out_cap);
   alloc.deallocate(in, IN_CAP);
   double audio_s = ch ? (double) samples / ch / rate : 0;
