@@ -32,7 +32,7 @@ If the fault being fixed cannot be made to happen on demand, simulate the device
 `reference/recipes/` show how for UART devices, I2C buses, modems and more) so the changed path runs. If no board is
 available, say so in the PR description. Validation, codegen-only and documentation changes need no board.
 
-## 4. Create the PR
+## 4. Fill in the PR Template
 
 Use `gh pr create` with the **full template** filled in. Never skip or abbreviate sections.
 
