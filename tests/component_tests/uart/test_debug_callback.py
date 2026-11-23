@@ -6,7 +6,11 @@ import re
 
 import pytest
 
+from esphome import config_validation as cv
+from esphome.components.uart import DEBUG_SCHEMA
+from esphome.const import PlatformFramework
 from tests.component_tests.helpers import callback_function, constructed, function_body
+from tests.component_tests.types import SetCoreConfigCallable
 
 
 @pytest.fixture
@@ -67,3 +71,14 @@ def test_delayed_sequence_triggers_automation(main_cpp: str) -> None:
     assert re.fullmatch(
         r"\n  ::automation_id\w*->trigger\(direction, bytes, debug_prefix\);", body
     )
+
+
+def test_sequence_rejects_several_automations(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    """One debugger runs one generated function, so sequence: takes a single automation."""
+    set_core_config(PlatformFramework.ESP32_IDF)
+    block = {"then": [{"delay": "10ms"}]}
+    DEBUG_SCHEMA({"sequence": [block]})
+    with pytest.raises(cv.Invalid, match="only a single automation"):
+        DEBUG_SCHEMA({"sequence": [block, block]})
