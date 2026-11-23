@@ -17,6 +17,8 @@ dependencies:
     version: 0.4.1
   esphome/micro-wav:
     version: 0.2.0
+  esphome/vl53l4cx:
+    version: 2.0.0
   espressif/esp-dsp:
     version: "1.8.2"
   espressif/esp-tflite-micro:

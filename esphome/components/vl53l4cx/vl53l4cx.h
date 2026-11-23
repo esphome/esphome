@@ -49,7 +49,9 @@ class VL53L4CXSensor final : public sensor::Sensor, public PollingComponent, pub
   bool init_sensor_();
   bool start_measurement_();
   void fail_at_default_address_(const LogString *message);
-  bool measurement_ready_();
+  void measurement_failed_(const LogString *message, VL53L4CX_Error error);
+  // A measurement that has not reported ready by now has failed
+  uint32_t timeout_ms_() const { return static_cast<uint32_t>(this->budget_ms_) * 2 + 100; }
   void publish_result_();
 
   // Every instance, so the first setup() can hold all sensors with an enable pin in reset.
@@ -65,6 +67,8 @@ class VL53L4CXSensor final : public sensor::Sensor, public PollingComponent, pub
   int16_t offset_mm_{0};
   uint8_t distance_mode_{VL53L4CX_DISTANCEMODE_LONG};
   Target target_{TARGET_NEAREST};
+  uint8_t failures_{0};    // failed measurements in a row
+  bool measuring_{false};  // a measurement was started and its result not yet read
 };
 
 }  // namespace esphome::vl53l4cx

@@ -12,6 +12,8 @@ ESPHOME_LOG_TAG(TAG, "vl53l4cx");
 static constexpr uint8_t DEFAULT_ADDRESS = 0x29;
 // Model id 0xEB and module type 0xAA at IDENTIFICATION__MODEL_ID
 static constexpr uint16_t SENSOR_ID = 0xEBAA;
+// Failed measurements in a row after which the state becomes NaN, so a dead sensor does not keep its last value
+static constexpr uint8_t MAX_FAILURES = 5;
 
 PROGMEM_STRING_TABLE(TargetStrings, "nearest", "farthest", "strongest");
 // Indexed by ST's VL53L4CX_DISTANCEMODE_* minus one
@@ -62,6 +64,7 @@ void VL53L4CXSensor::setup() {
   if (!this->setup_check(this->driver_.VL53L4CX_StartMeasurement() == VL53L4CX_ERROR_NONE))
     return;
   this->measurement_start_ = esphome::millis();
+  this->measuring_ = true;
 }
 
 bool VL53L4CXSensor::init_sensor_() {
@@ -99,11 +102,22 @@ void VL53L4CXSensor::fail_at_default_address_(const LogString *message) {
 
 bool VL53L4CXSensor::start_measurement_() {
   this->measurement_start_ = App.get_loop_component_start_time();
-  return this->status_comm_check(this->driver_.VL53L4CX_ClearInterruptAndStartMeasurement() == VL53L4CX_ERROR_NONE);
+  const VL53L4CX_Error error = this->driver_.VL53L4CX_ClearInterruptAndStartMeasurement();
+  this->measuring_ = error == VL53L4CX_ERROR_NONE;
+  if (!this->measuring_)
+    this->measurement_failed_(LOG_STR("Starting a measurement failed"), error);
+  return this->measuring_;
+}
+
+void VL53L4CXSensor::measurement_failed_(const LogString *message, VL53L4CX_Error error) {
+  ESP_LOGV(TAG, "%s: error %d", LOG_STR_ARG(message), error);
+  this->status_set_warning(message);
+  if (this->failures_ < MAX_FAILURES && ++this->failures_ == MAX_FAILURES)
+    this->publish_state(NAN);
 }
 
 void VL53L4CXSensor::update() {
-  if (this->is_in_loop_state()) {
+  if (this->measuring_) {
     ESP_LOGV(TAG, "Measurement still running");
     return;
   }
@@ -111,22 +125,30 @@ void VL53L4CXSensor::update() {
     this->enable_loop();
 }
 
-bool VL53L4CXSensor::measurement_ready_() {
-  // GPIO1 stays low from the end of a measurement until the next start clears it
-  if (this->interrupt_pin_ != nullptr)
-    return !this->interrupt_pin_->digital_read();
-  uint8_t ready = 0;
-  return this->driver_.VL53L4CX_GetMeasurementDataReady(&ready) == VL53L4CX_ERROR_NONE && ready;
-}
-
 void VL53L4CXSensor::loop() {
   const uint32_t elapsed = App.get_loop_component_start_time() - this->measurement_start_;
   if (elapsed < this->budget_ms_)
     return;
-  if (this->measurement_ready_()) {
+  if (!this->measuring_) {
+    // Only continuous mode keeps the loop running without a measurement: retry the start
+    if (elapsed > this->timeout_ms_())
+      this->start_measurement_();
+    return;
+  }
+  // GPIO1 stays low from the end of a measurement until the next start clears it
+  uint8_t ready = 0;
+  VL53L4CX_Error error = VL53L4CX_ERROR_NONE;
+  if (this->interrupt_pin_ != nullptr) {
+    ready = !this->interrupt_pin_->digital_read();
+  } else {
+    error = this->driver_.VL53L4CX_GetMeasurementDataReady(&ready);
+  }
+  if (ready) {
+    this->measuring_ = false;
     this->publish_result_();
-  } else if (elapsed > static_cast<uint32_t>(this->budget_ms_) * 2 + 100) {
-    this->status_set_warning(LOG_STR("Measurement timed out"));
+  } else if (elapsed > this->timeout_ms_()) {
+    this->measuring_ = false;
+    this->measurement_failed_(LOG_STR("Measurement timed out"), error);
   } else {
     return;
   }
@@ -134,7 +156,6 @@ void VL53L4CXSensor::loop() {
     this->disable_loop();
     return;
   }
-  // Continuous: start the next measurement now; a failed start times out above and is retried
   this->start_measurement_();
 }
 
@@ -163,12 +184,12 @@ int32_t select_distance_mm(const VL53L4CX_MultiRangingData_t &data, Target targe
 void VL53L4CXSensor::publish_result_() {
   VL53L4CX_MultiRangingData_t data;
   const VL53L4CX_Error error = this->driver_.VL53L4CX_GetMultiRangingData(&data);
-  if (error != VL53L4CX_ERROR_NONE && !this->status_has_warning()) {
-    ESP_LOGW(TAG, "Reading the measurement failed: error %d", error);
-  }
-  // NaN is kept for "no valid target"; a failed read only sets the warning
-  if (!this->status_comm_result(error == VL53L4CX_ERROR_NONE))
+  if (error != VL53L4CX_ERROR_NONE) {
+    this->measurement_failed_(LOG_STR("Reading the measurement failed"), error);
     return;
+  }
+  this->failures_ = 0;
+  this->status_clear_warning();
   const int32_t best_mm = select_distance_mm(data, this->target_, this->min_distance_mm_, this->offset_mm_);
   ESP_LOGV(TAG, "%u targets, reporting %" PRId32 " mm", data.NumberOfObjectsFound, best_mm);
   this->publish_state(best_mm < 0 ? NAN : best_mm / 1000.0f);

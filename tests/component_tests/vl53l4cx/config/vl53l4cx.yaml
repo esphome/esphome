@@ -11,6 +11,7 @@ i2c:
   - id: i2c_bus_2
     sda: GPIO18
     scl: GPIO19
+    frequency: 400kHz
 
 sensor:
   - platform: vl53l4cx
