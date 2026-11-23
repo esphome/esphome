@@ -423,7 +423,9 @@ void APIConnection::process_active_iterator_() {
     // Fired after the sync, not on SubscribeStates, so the subscriptions sent with it are active.
     // Waits for the batch to drain so a direct send from the automation cannot overtake queued states.
     // next_close: a DisconnectRequest this pass already answered; remove is only set next loop.
-    if (this->deferred_batch_.empty() && !this->flags_.remove && !this->flags_.next_close) {
+    // With deep sleep the sync can still finish during teardown, after our DisconnectRequest.
+    if (this->deferred_batch_.empty() && !this->flags_.remove && !this->flags_.next_close &&
+        !this->parent_->is_shutting_down()) {
       this->active_iterator_ = ActiveIterator::NONE;
       char peername[socket::SOCKADDR_STR_LEN];
       this->parent_->get_client_synced_callback().call(StringRef(this->helper_->get_client_name()),

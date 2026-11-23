@@ -346,6 +346,7 @@ class APIServer final : public Component
     this->client_synced_callback_ = ClientCallback::create(std::forward<F>(callback));
   }
   const ClientCallback &get_client_synced_callback() const { return this->client_synced_callback_; }
+  bool is_shutting_down() const { return this->shutting_down_; }
 #endif
 
  protected:

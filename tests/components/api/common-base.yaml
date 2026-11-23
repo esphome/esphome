@@ -110,6 +110,13 @@ api:
     - logger.log:
         format: "Client %s synced from %s"
         args: [client_info.c_str(), client_address.c_str()]
+  on_client_disconnected:
+    # A nested lambda that keeps an argument gets owned copies too
+    - lambda: |-
+        static const char key = 0;
+        App.scheduler.set_timeout(&key, 1000, [client_address]() {
+          ESP_LOGD("api", "Client at %s left a second ago", client_address.c_str());
+        });
   actions:
     - action: hello_world
       description: Log a greeting
