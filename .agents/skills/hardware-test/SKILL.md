@@ -181,12 +181,10 @@ Per-topic scripts, each described in the matching `reference/recipes/<component>
 - `bluetooth_proxy_half_open/` (held GATT link after a half-open API session)
 - `bmi270_real/` (real BMI270 probe header, variants, runner and summaries)
 - `bmp390/` (config generator, probe and fault injection header, runner and stats)
-- `cc1101_long/` (long packet and lambda length driver for two CC1101 radios), `espnow_link/` and `tcp_link/`
-  (packet_interface links over ESP-NOW, UDP and TCP with checked streams)
+- `cc1101_long/` (long packet and lambda length driver for two CC1101 radios, begin_tx in packet mode, async serial OOK
+  package and driver)
 - `cc1101_sleep/` (register and PATABLE snapshot header, sleep and setter checks)
-- `climate_ir_fuzz/` (climate IR decoder fuzz for the C++ unit tests), `remote_base/pronto/`, `remote_base/hostharness/`
-  and `remote_base/dumpall/` with `remote_base/ext/` and `remote_base/press.py` (Pronto dump A/B, host decode harness,
-  every dumper over a saved corpus)
+- `climate_ir_fuzz/` (climate IR decoder fuzz for the C++ unit tests)
 - `climate_ir_loop/` (climate IR loopback over the API: step driver, frame splitter and comparer, one-pin loopback board
   packages for the ESP32 and the D1 mini, whirlpool per-model runner)
 - `crash_report/` (crash buttons, report fetch over the API)
@@ -201,6 +199,7 @@ Per-topic scripts, each described in the matching `reference/recipes/<component>
 - `esp8266_edges/` (GPIO edge logger and 8N1 decoder, `jsn_sr04t` probe and counters, I2C bus sniffer and decoder, SDA
   unstick, VL53L1X register logger)
 - `esp8266_lock_load/` (DS18B20 search and one-pin IR DUTs with a busy-wait control, UDP and HTTP load, runner)
+- `espnow_link/` and `tcp_link/` (packet_interface links over ESP-NOW, UDP and TCP with checked streams)
 - `ezo_fake_bus/` (fake EZO I2C bus and step config, runner)
 - `flac_stream_changes/` (speaker media player with no DAC, stream change driver, error and heap summary, frame deltas)
 - `gatt_uuid/` (GATT UUID form server, lister and comparer through a proxy)
@@ -277,6 +276,8 @@ Per-topic scripts, each described in the matching `reference/recipes/<component>
 - `pwm_capture/` (RMT and PCNT period capture header, C6 config, API client with light transitions, runner and window
   totals)
 - `remote_base/` (loopback runner and API log decoder per sent frame)
+- `remote_base/pronto/`, `remote_base/hostharness/` and `remote_base/dumpall/` with `remote_base/ext/` and
+  `remote_base/press.py` (Pronto dump A/B, host decode harness, every dumper over a saved corpus)
 - `rmt_budget/` (RMT channel and memory budget case generator, runner, verdict)
 - `rp2_sched_lock/` (IRQ context scheduler stress component, removed item race package, REST churn, loop timing and flow
   runner)
