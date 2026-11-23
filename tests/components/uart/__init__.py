@@ -4,7 +4,11 @@ from tests.testing_helpers import ComponentManifestOverride, add_defines_to_code
 
 def override_manifest(manifest: ComponentManifestOverride) -> None:
     # benchmark.yaml configures a uart packet_interface, whose to_code waits on the uart bus variable.
-    # The decoder's auto baud path only compiles with the defines auto_baud_sync_byte emits.
+    # USE_UART_DEBUGGER compiles the virtual UART's debugger path for its tests; the decoder's auto baud
+    # path only compiles with the defines auto_baud_sync_byte emits.
     add_defines_to_code(
-        manifest, "USE_UART_AUTO_BAUD", UART_AUTO_BAUD_SYNC_BYTE=HexInt(0x55)
+        manifest,
+        "USE_UART_DEBUGGER",
+        "USE_UART_AUTO_BAUD",
+        UART_AUTO_BAUD_SYNC_BYTE=HexInt(0x55),
     )

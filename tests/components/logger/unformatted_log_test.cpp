@@ -26,7 +26,8 @@ TEST(UnformattedLogTest, BodyMatchesFormattedBodyAtEverySize) {
   const char *texts[] = {"", "short", "ends with newlines\n\n", "\n", "a\nb", long_text.c_str()};
   constexpr uint16_t max_size = 48;
   for (uint16_t size = 1; size <= max_size; size++) {
-    for (uint16_t start = 0; start <= size; start++) {
+    // The header always leaves room for the terminator, so the body starts inside the buffer
+    for (uint16_t start = 0; start < size; start++) {
       for (const char *text : texts) {
         SCOPED_TRACE(::testing::Message() << "size " << size << " start " << start << " text '" << text << "'");
         char formatted[max_size], unformatted[max_size], flash[max_size];
@@ -46,7 +47,7 @@ TEST(UnformattedLogTest, BodyMatchesFormattedBodyAtEverySize) {
         ASSERT_EQ(a.pos, b.pos);
         ASSERT_EQ(a.pos, c.pos);
         // Up to and including the null terminator; vsnprintf() may leave bytes after it that nothing reads
-        const size_t used = (a.pos < size) ? a.pos + 1 : size;
+        const size_t used = a.pos + 1;
         ASSERT_EQ(memcmp(formatted, unformatted, used), 0);
         ASSERT_EQ(memcmp(formatted, flash, used), 0);
       }

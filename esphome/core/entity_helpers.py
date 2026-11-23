@@ -1122,7 +1122,6 @@ def zigbee_base_entity_schema(cluster_options: list[str] | None = None) -> cv.Sc
             ),
             cv.Optional(CONF_ENDPOINT): cv.All(
                 cv.requires_component("zigbee"),
-                cv.requires_component("esp32"),
                 cv.int_range(1, ZIGBEE_MAX_EP_NUMBER),
             ),
             cv.Optional(CONF_USE_DEVICE_TYPE): cv.All(

@@ -47,8 +47,6 @@ std::optional<ImageFormat> get_format_for_mime_type(const char *mime_type) {
   return std::nullopt;
 }
 
-const LogString *get_format_name(ImageFormat format) {
-  return ImageFormatStrings::get_log_str(static_cast<uint8_t>(format), ImageFormatStrings::LAST_INDEX);
-}
+const LogString *get_format_name(ImageFormat format) { return ImageFormatStrings::get_log_str(format); }
 
 }  // namespace esphome::runtime_image
