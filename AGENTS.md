@@ -405,8 +405,10 @@ file does, and it is the authority when they disagree. The most useful starting 
         a device) is tested with the `hardware-test` skill on a board it targets, and the skill's result comment is
         posted on the PR. "It compiles and runs on my board" does not show that the changed path ran. When the fault
         cannot be made to happen on demand, simulate the device or inject the fault as the skill's recipes do (a fake
-        device on a UART loopback, an I2C fault bus, AT commands through a modem passthrough). Validation,
-        codegen-only and documentation changes need no board.
+        device on a UART loopback, an I2C fault bus, AT commands through a modem passthrough). A contributor who
+        tests by hand posts the same facts: the commit, the board and framework, the steps including how the changed
+        path was triggered, the log lines that show the result, and for a fix the same steps on a `dev` build.
+        Validation, codegen-only and documentation changes need no board.
 
 *   **Debugging and Troubleshooting:**
     *   **Debug Tools:**

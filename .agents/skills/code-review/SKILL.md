@@ -218,14 +218,21 @@ detail.
 - Config-only checks use the `validate.*.yaml` prefix; compiled checks use
   `test.*.yaml`.
 - A change to device behaviour (a driver, a bus, a platform, a fix for a fault
-  seen on a device) needs a hardware test: look for an `Automated testing
-  results` comment from the `hardware-test` skill on a head that includes the
-  last change to device code. Without one, ask the author to run that skill on a
-  board and post its comment; if the description says no board was available,
-  note that the change is untested on hardware instead of blocking. "Compiles
-  and runs on my board" does not show the changed path ran; for a fix whose
-  trigger is rare, ask for a simulated device or injected fault as the skill's
-  recipes do. Validation, codegen-only and documentation changes need no board.
+  seen on a device) needs a hardware test report on a head that includes the
+  last change to device code. Either form is fine:
+  - the `Automated testing results` comment from the `hardware-test` skill, or
+  - a manual report from the author with: the commit tested; the board, chip
+    and framework; the steps taken, including how the changed path was
+    triggered; what happened, with the log lines that show it; and, for a fix,
+    the same steps on a `dev` build showing the fault.
+
+  Without either, ask for one and list those items, since an author without AI
+  tools tests by hand. "Compiles and runs on my board" does not show the
+  changed path ran; for a fix whose trigger is rare, ask how it can be forced
+  (a simulated device, an injected error, an AT command, a pulled wire, or the
+  skill's recipes). If the author has no board, note that the change is
+  untested on hardware instead of blocking. Validation, codegen-only and
+  documentation changes need no board.
 
 ## Naming user-facing functions
 
