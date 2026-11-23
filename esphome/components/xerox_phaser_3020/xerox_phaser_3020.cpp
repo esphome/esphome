@@ -56,10 +56,10 @@ void XeroxPhaser3020::setup() {
   USBClient::setup();
   if (this->is_failed())
     return;
-  // Kept for the life of the device; PSRAM is far slower than internal RAM. The line buffers (25 kB) are
-  // touched for every pixel, so they go to internal RAM whenever it has room. The band (80 kB), written a
-  // byte column at a time, goes there too when enough is left for everything else.
-  this->work_ = RAMAllocator<uint8_t>(RAMAllocator<uint8_t>::PREFER_INTERNAL).allocate(WORK_MEMORY_SIZE);
+  // Kept for the life of the device. The band is written a byte column at a time, which is much faster
+  // in internal RAM than in PSRAM, so it goes there when enough would be left; the line buffers, read in
+  // order, go to PSRAM when there is some (keeping them in internal RAM made no measurable difference).
+  this->work_ = RAMAllocator<uint8_t>().allocate(WORK_MEMORY_SIZE);
   const uint32_t internal = MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT;
   if (heap_caps_get_largest_free_block(internal) >= BAND_BUFFER_SIZE &&
       heap_caps_get_free_size(internal) >= BAND_BUFFER_SIZE + INTERNAL_HEADROOM)
