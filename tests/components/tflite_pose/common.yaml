@@ -3,7 +3,7 @@
 # fixture committed next to this file, so the test needs no network.
 tflite_pose:
   - id: test_pose
-    model: "model.tflite"
+    model: "../../components/tflite_pose/model.tflite"
     input_width: 32
     input_height: 20
     input_channels: 3
