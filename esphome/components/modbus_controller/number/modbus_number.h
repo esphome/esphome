@@ -3,11 +3,7 @@
 #include "esphome/components/number/number.h"
 #include "esphome/components/modbus_controller/modbus_controller.h"
 
-#include <vector>
-
 namespace esphome::modbus_controller {
-
-using value_to_data_t = std::function<float>(float);
 
 class ModbusNumber final : public number::Number, public SensorItem, public WriterEntity {
  public:

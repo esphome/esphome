@@ -14,6 +14,9 @@
 #include "api_outgoing_connection.h"
 #include "esphome/components/socket/socket.h"
 #include "esphome/core/automation.h"
+#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
+#include "esphome/components/json/json_util.h"
+#endif
 #include "esphome/core/component.h"
 #include "esphome/core/entity_includes.h"
 #include "esphome/core/log.h"
@@ -32,6 +35,7 @@
 #include <cstring>
 #include <memory>
 #include <span>
+#include <type_traits>
 #include <vector>
 
 namespace esphome::api {
@@ -186,6 +190,17 @@ class APIServer final : public Component
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
   void send_action_response(uint32_t action_call_id, bool success, StringRef error_message,
                             const uint8_t *response_data, size_t response_data_len);
+  /// Send a response whose data `build` writes into a JSON root; with `with_data` false (an optional response the
+  /// client did not ask for), only the status. api.respond passes its data: lambda; the template only forwards it
+  /// to one shared out-of-line body.
+  template<typename F>
+  void send_action_response_json(uint32_t action_call_id, bool success, StringRef error_message, F &&build,
+                                 bool with_data = true) {
+    this->send_action_response_json_(
+        action_call_id, success, error_message,
+        [](void *ctx, JsonObject root) { (*static_cast<std::remove_reference_t<F> *>(ctx))(root); },
+        const_cast<void *>(static_cast<const void *>(std::addressof(build))), with_data);
+  }
 #endif  // USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
 #endif  // USE_API_USER_DEFINED_ACTION_RESPONSES
 #endif
@@ -318,6 +333,10 @@ class APIServer final : public Component
 #endif
 
  protected:
+#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
+  void send_action_response_json_(uint32_t action_call_id, bool success, StringRef error_message,
+                                  void (*build)(void *ctx, JsonObject root), void *ctx, bool with_data);
+#endif
   // Accept incoming socket connections. Only called when socket has pending connections.
   void __attribute__((noinline)) accept_new_connections_();
   /// Takes the socket into a new connection and starts it; callers must have

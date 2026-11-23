@@ -10,12 +10,9 @@ from esphome.const import (
     CONF_TEMPERATURE,
     CONF_TVOC,
     DEVICE_CLASS_AQI,
-    DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS,
     ICON_CHEMICAL_WEAPON,
     ICON_MOLECULE_CO2,
-    ICON_RADIATOR,
     STATE_CLASS_MEASUREMENT,
-    UNIT_PARTS_PER_BILLION,
 )
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
@@ -31,13 +28,7 @@ CONFIG_SCHEMA_BASE = cv.Schema(
         cv.Optional(CONF_ECO2): sensor.sensor_schema(
             kind=sensor.CARBON_DIOXIDE, icon=ICON_MOLECULE_CO2
         ),
-        cv.Optional(CONF_TVOC): sensor.sensor_schema(
-            unit_of_measurement=UNIT_PARTS_PER_BILLION,
-            icon=ICON_RADIATOR,
-            accuracy_decimals=0,
-            device_class=DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
+        cv.Optional(CONF_TVOC): sensor.sensor_schema(kind=sensor.VOC_PPB),
         cv.Optional(CONF_AQI): sensor.sensor_schema(
             icon=ICON_CHEMICAL_WEAPON,
             accuracy_decimals=0,
