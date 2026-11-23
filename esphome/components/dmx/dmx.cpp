@@ -202,8 +202,8 @@ void DMXComponent::sync_numbers_to_rdm_() {
 }
 
 void DMXComponent::loop() {
-  const bool want_rx = (this->mode_ != DMXMode::TX);
-  const bool want_tx = (this->mode_ != DMXMode::RX) && this->tx_enabled_;
+  const bool want_rx = (this->mode_ != DMXMode::DMX_MODE_TX);
+  const bool want_tx = (this->mode_ != DMXMode::DMX_MODE_RX) && this->tx_enabled_;
 
   bool got_rx = false;
   if (want_rx) {
@@ -215,6 +215,8 @@ void DMXComponent::loop() {
       if (this->rdm_enabled_ && packet.is_rdm) {
         rdm_send_response(this->dmx_port_);
         this->sync_rdm_to_numbers_();
+        this->last_rx_ms_ = millis();  // RDM telt ook als bus-activiteit
+        got_rx = true;
       } else
 #endif
           if (packet.err == DMX_OK && !packet.is_rdm && packet.sc == 0x00) {
@@ -251,19 +253,22 @@ void DMXComponent::loop() {
   if (!want_tx)
     return;
 
-  // Half-duplex: do not TX in the same loop as RX, and wait after last RX.
-  if (this->mode_ == DMXMode::BIDIRECTIONAL) {
+  const uint32_t now = millis();
+
+  // Half-duplex: na RX én na TX een ontvangst-window vrijhouden
+  if (this->mode_ == DMXMode::DMX_MODE_BIDIRECTIONAL) {
     if (got_rx)
       return;
-    if ((millis() - this->last_rx_ms_) < this->rx_guard_ms_)
+    // Nog in post-RX guard?
+    if ((now - this->last_rx_ms_) < this->rx_guard_ms_)
+      return;
+    // Nog in post-TX receive window? (voorkomt meteen weer TX’en)
+    if ((now - this->last_tx_ms_) < this->rx_guard_ms_)
       return;
   }
 
-  const uint32_t now = millis();
   if (this->tx_dirty_ || (now - this->last_tx_ms_ >= this->tx_interval_ms_)) {
     this->send_universe_();
-    this->tx_dirty_ = false;
-    this->last_tx_ms_ = now;
   }
 }
 
@@ -272,7 +277,7 @@ void DMXComponent::publish_inputs_() {
     if (cs.channel < 1 || cs.channel > 512)
       continue;
     const float value = static_cast<float>(this->rx_data_[cs.channel]);
-    if (!cs.sensor->has_state() || cs.sensor->state != value)
+    if (!cs.sensor->has_state() || cs.sensor->get_raw_state() != value)
       cs.sensor->publish_state(value);
   }
 
@@ -280,20 +285,39 @@ void DMXComponent::publish_inputs_() {
     if (ds.channel_number == nullptr || !ds.channel_number->has_state())
       continue;
     const float channel_value = ds.channel_number->state;
-    if (channel_value < 1.0f || channel_value > 512.0f)
+    if (!std::isfinite(channel_value) || channel_value < 1.0f || channel_value > 512.0f)
       continue;
     const uint16_t channel = static_cast<uint16_t>(channel_value);
     if (static_cast<float>(channel) != channel_value)
       continue;
     const float value = static_cast<float>(this->rx_data_[channel]);
-    if (!ds.sensor->has_state() || ds.sensor->state != value)
+    if (!ds.sensor->has_state() || ds.sensor->get_raw_state() != value)
       ds.sensor->publish_state(value);
   }
 }
 
 void DMXComponent::send_universe_() {
-  dmx_write(this->dmx_port_, this->tx_data_, DMX_PACKET_SIZE);
-  dmx_send_num(this->dmx_port_, DMX_PACKET_SIZE);
+  // Don't overwrite the driver buffer while a frame is still going out
+  if (!dmx_wait_sent(this->dmx_port_, 0)) {
+    // Still busy — keep tx_dirty_ so we retry next loop
+    return;
+  }
+
+  const size_t written = dmx_write(this->dmx_port_, this->tx_data_, DMX_PACKET_SIZE);
+  if (written != DMX_PACKET_SIZE) {
+    ESP_LOGW(TAG, "DMX write incomplete: %u / %u", static_cast<unsigned>(written),
+             static_cast<unsigned>(DMX_PACKET_SIZE));
+    return;
+  }
+
+  const size_t sent = dmx_send_num(this->dmx_port_, DMX_PACKET_SIZE);
+  if (sent != DMX_PACKET_SIZE) {
+    ESP_LOGW(TAG, "DMX send incomplete: %u / %u", static_cast<unsigned>(sent), static_cast<unsigned>(DMX_PACKET_SIZE));
+    return;
+  }
+
+  this->tx_dirty_ = false;
+  this->last_tx_ms_ = millis();
 }
 
 uint8_t DMXComponent::get_rx_channel(uint16_t channel) const {
@@ -376,15 +400,15 @@ light::LightTraits DMXLightOutput::get_traits() {
   auto traits = light::LightTraits();
 
   switch (this->light_type_) {
-    case DMXLightType::DIMMER:
+    case DMXLightType::DMX_LIGHT_TYPE_DIMMER:
       traits.set_supported_color_modes({light::ColorMode::BRIGHTNESS});
       break;
 
-    case DMXLightType::RGB:
+    case DMXLightType::DMX_LIGHT_TYPE_RGB:
       traits.set_supported_color_modes({light::ColorMode::RGB});
       break;
 
-    case DMXLightType::RGBW:
+    case DMXLightType::DMX_LIGHT_TYPE_RGBW:
       traits.set_supported_color_modes({light::ColorMode::RGB_WHITE});
       break;
   }
@@ -400,7 +424,7 @@ void DMXLightOutput::write_state(light::LightState *state) {
   size_t count = 0;
 
   switch (this->light_type_) {
-    case DMXLightType::DIMMER: {
+    case DMXLightType::DMX_LIGHT_TYPE_DIMMER: {
       float brightness;
       state->current_values_as_brightness(&brightness);
 
@@ -409,7 +433,7 @@ void DMXLightOutput::write_state(light::LightState *state) {
       break;
     }
 
-    case DMXLightType::RGB: {
+    case DMXLightType::DMX_LIGHT_TYPE_RGB: {
       float red, green, blue;
       state->current_values_as_rgb(&red, &green, &blue);
 
@@ -420,7 +444,7 @@ void DMXLightOutput::write_state(light::LightState *state) {
       break;
     }
 
-    case DMXLightType::RGBW: {
+    case DMXLightType::DMX_LIGHT_TYPE_RGBW: {
       float red, green, blue, white;
       state->current_values_as_rgbw(&red, &green, &blue, &white);
 

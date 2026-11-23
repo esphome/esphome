@@ -42,9 +42,9 @@ DMXComponent = dmx_ns.class_("DMXComponent", cg.Component)
 DMXMode = dmx_ns.enum("DMXMode", is_class=True)
 
 MODE_TO_ENUM = {
-    MODE_RX: DMXMode.RX,
-    MODE_TX: DMXMode.TX,
-    MODE_BIDI: DMXMode.BIDIRECTIONAL,
+    MODE_RX: DMXMode.DMX_MODE_RX,
+    MODE_TX: DMXMode.DMX_MODE_TX,
+    MODE_BIDI: DMXMode.DMX_MODE_BIDIRECTIONAL,
 }
 
 register_channel_sensor = cg.slot_list(
@@ -62,7 +62,7 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(DMXComponent),
         cv.Required(CONF_TX_PIN): pins.internal_gpio_pin_number,
-        cv.Required(CONF_RX_PIN): pins.internal_gpio_pin_number,
+        cv.Required(CONF_RX_PIN): pins.internal_gpio_input_pin_number,
         cv.Optional(CONF_RTS_PIN): pins.internal_gpio_pin_number,
         cv.Optional(CONF_UART_NUM, default=2): cv.int_range(min=0, max=2),
         cv.Optional(CONF_MODE, default=MODE_RX): cv.one_of(

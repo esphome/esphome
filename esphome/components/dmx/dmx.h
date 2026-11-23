@@ -49,6 +49,7 @@ inline size_t dmx_receive(dmx_port_t, dmx_packet_t *, int) { return 0; }
 inline size_t dmx_read(dmx_port_t, void *, size_t) { return 0; }
 inline size_t dmx_write(dmx_port_t, const void *, size_t) { return 0; }
 inline size_t dmx_send_num(dmx_port_t, size_t) { return 0; }
+inline bool dmx_wait_sent(dmx_port_t, int) { return true; }
 inline bool uart_is_driver_installed(dmx_port_t) { return false; }
 #endif
 
@@ -74,9 +75,9 @@ namespace esphome {
 namespace dmx {
 
 enum class DMXMode : uint8_t {
-  RX = 0,
-  TX = 1,
-  BIDIRECTIONAL = 2,
+  DMX_MODE_RX = 0,
+  DMX_MODE_TX = 1,
+  DMX_MODE_BIDIRECTIONAL = 2,
 };
 
 struct StaticChannelSensor {
@@ -164,7 +165,7 @@ class DMXComponent : public Component {
   bool tx_dirty_{false};
   uint32_t last_tx_ms_{0};
   uint32_t last_rx_ms_{0};
-  DMXMode mode_{DMXMode::RX};
+  DMXMode mode_{DMXMode::DMX_MODE_RX};
   uint32_t tx_interval_ms_{25};
   uint32_t rx_guard_ms_{5};
 
@@ -192,9 +193,9 @@ class DMXOutputNumber : public number::Number, public Component {
 };
 
 enum class DMXLightType : uint8_t {
-  DIMMER,
-  RGB,
-  RGBW,
+  DMX_LIGHT_TYPE_DIMMER,
+  DMX_LIGHT_TYPE_RGB,
+  DMX_LIGHT_TYPE_RGBW,
 };
 
 class DMXLightOutput : public light::LightOutput {
@@ -209,7 +210,7 @@ class DMXLightOutput : public light::LightOutput {
  protected:
   DMXComponent *parent_{nullptr};
   uint16_t first_channel_{1};
-  DMXLightType light_type_{DMXLightType::DIMMER};
+  DMXLightType light_type_{DMXLightType::DMX_LIGHT_TYPE_DIMMER};
 };
 
 }  // namespace dmx
