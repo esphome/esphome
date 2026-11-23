@@ -109,8 +109,8 @@ ErrorCode ArduinoI2CBus::transfer_(uint8_t address, const uint8_t *prefix, size_
   // open when a write overflows it, and every later beginTransmission() is then ignored; ESP8266 sends a
   // truncated write and clamps a read, which looks like a generic or timeout failure. Refuse both up front.
   if (prefix_len + write_count > WIRE_TRANSFER_MAX || read_count > WIRE_TRANSFER_MAX) {
-    ESP_LOGVV(TAG, "Transfer of %zu bytes out, %zu in exceeds the %u byte Wire buffer", prefix_len + write_count,
-              read_count, static_cast<unsigned>(WIRE_TRANSFER_MAX));
+    ESP_LOGV(TAG, "Transfer of %zu bytes out, %zu in exceeds the %zu byte Wire buffer", prefix_len + write_count,
+             read_count, WIRE_TRANSFER_MAX);
     return ERROR_TOO_LARGE;
   }
 
