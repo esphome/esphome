@@ -41,10 +41,13 @@ from esphome.automation import (
     WaitUntilAction,
     WhileAction,
     XorCondition,
+    _float_bits,
     _shadow_iteration,
     apply_action_builder,
+    apply_parent,
     apply_statements_action,
     apply_static_function,
+    bind_lambda,
     build_action,
     build_action_list,
     build_automation_lists,
@@ -3823,6 +3826,25 @@ def test_apply_static_function_share() -> None:
 
 
 @pytest.mark.asyncio
+async def test_bind_lambda_keeps_args_by_value() -> None:
+    """A lambda that names a trigger arg gets it by value and is called in place."""
+    statement = await bind_lambda(
+        Lambda("return x *= 2;"), [(cg.int_, "x")], cg.uint8, "esphome__v"
+    )
+
+    assert statement == (
+        "const uint8_t esphome__v = [](int x) -> uint8_t {\n  return x *= 2;\n}(x);"
+    )
+
+
+@pytest.mark.asyncio
+async def test_apply_parent_names_the_id_from_global_scope() -> None:
+    cg.new_Pvariable(ID("comp", is_declaration=True, type=cg.Component))
+
+    assert await apply_parent({"out": ID("comp", type=cg.Component)}, "out") == "::comp"
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("config", "expected"),
     [
@@ -3907,3 +3929,18 @@ async def test_new_automation(mock_cg: MockCodegen) -> None:
     assert str(obj) == "a1"
     ((id_, templ), _) = mock_cg.new_pvariable.call_args
     assert (str(id_), str(templ)) == ("a1", "<float>")
+
+
+@pytest.mark.parametrize(
+    ("value", "bits"),
+    [
+        (800.0, 0x44480000),
+        (-600.0, 0xC4160000),
+        (3.4028235e38, 0x7F7FFFFF),
+        (1e40, 0x7F800000),
+        (-1e40, 0xFF800000),
+    ],
+)
+def test_float_bits(value: float, bits: int) -> None:
+    """A priority is a float's bit pattern; out of range is signed infinity."""
+    assert _float_bits(value) == bits
