@@ -205,16 +205,6 @@ void ThrottleAverageFilter::initialize(Sensor *parent, Filter *next) {
   });
 }
 
-// LambdaFilter
-LambdaFilter::LambdaFilter(lambda_filter_t lambda_filter) : lambda_filter_(std::move(lambda_filter)) {}
-const lambda_filter_t &LambdaFilter::get_lambda_filter() const { return this->lambda_filter_; }
-
-optional<float> LambdaFilter::new_value(float value) {
-  auto it = this->lambda_filter_(value);
-  ESP_LOGVV(TAG, "LambdaFilter(%p)::new_value(%f) -> %f", this, value, it.value_or(INFINITY));
-  return it;
-}
-
 // OffsetFilter
 OffsetFilter::OffsetFilter(TemplatableFn<float> offset) : offset_(offset) {}
 

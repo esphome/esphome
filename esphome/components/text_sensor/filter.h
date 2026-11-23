@@ -47,27 +47,6 @@ class Filter {
   TextSensor *parent_{nullptr};
 };
 
-using lambda_filter_t = std::function<optional<std::string>(std::string)>;
-
-/** This class allows for creation of simple template filters.
- *
- * The constructor accepts a lambda of the form std::string -> optional<std::string>.
- * Return a modified string to continue the chain, or return {} to stop
- * (value will not be published).
- */
-class LambdaFilter : public Filter {
- public:
-  explicit LambdaFilter(lambda_filter_t lambda_filter);
-
-  bool new_value(std::string &value) override;
-
-  const lambda_filter_t &get_lambda_filter() const;
-  void set_lambda_filter(const lambda_filter_t &lambda_filter) { this->lambda_filter_ = lambda_filter; }
-
- protected:
-  lambda_filter_t lambda_filter_;
-};
-
 /// Codegen use only: the filter's work and constants are one generated function, so the object is only the base.
 template<auto Fn> class ApplyFilter final : public Filter {
  public:

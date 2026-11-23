@@ -38,7 +38,14 @@ async def test_theme_update_before_theme_to_code_still_applies(setup_core) -> No
     CORE.add_job(theme_to_code, {})
     CORE.flush_tasks()
 
-    statements = [str(s) for s in CORE.main_statements]
+    statements = [
+        str(s)
+        for s in [
+            *CORE.global_statements,
+            *CORE.global_statements_after_includes,
+            *CORE.main_statements,
+        ]
+    ]
     assert any("style_set_border_width" in s for s in statements), (
         "theme.update's border_width change was never applied"
     )
