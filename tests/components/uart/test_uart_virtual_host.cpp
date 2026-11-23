@@ -12,10 +12,8 @@
 namespace esphome::uart::testing {
 
 // The base leaves writing to the class that derives from it; this one records each write.
-class TestVirtualUART : public VirtualUARTComponent {
+template<size_t N> class TestVirtualUART : public VirtualUARTComponent<N> {
  public:
-  using VirtualUARTComponent::VirtualUARTComponent;
-
   void write_array(const uint8_t *data, size_t len) override {
     this->writes.emplace_back(data, data + len);
     this->debug_tx_(data, len);
@@ -28,7 +26,7 @@ class TestVirtualUART : public VirtualUARTComponent {
 static constexpr uint8_t FRAME[] = {0x01, 0x03, 0x00, 0x00, 0x00, 0x0A, 0xC5, 0xCD};
 
 TEST(VirtualUART, InjectedBytesAreReadInOrder) {
-  TestVirtualUART uart(16);
+  TestVirtualUART<16> uart;
   EXPECT_EQ(uart.get_rx_buffer_size(), 16u);
   EXPECT_TRUE(uart.inject_rx(FRAME, sizeof(FRAME)));
   EXPECT_EQ(uart.available(), sizeof(FRAME));
@@ -43,7 +41,7 @@ TEST(VirtualUART, InjectedBytesAreReadInOrder) {
 }
 
 TEST(VirtualUART, ShortReadAndEmptyPeekFailWithoutConsuming) {
-  TestVirtualUART uart(16);
+  TestVirtualUART<16> uart;
   uint8_t byte = 0;
   EXPECT_FALSE(uart.peek_byte(&byte));
   uart.inject_rx(FRAME, 2);
@@ -53,14 +51,14 @@ TEST(VirtualUART, ShortReadAndEmptyPeekFailWithoutConsuming) {
 }
 
 TEST(VirtualUART, BlockThatDoesNotFitIsRefusedWhole) {
-  TestVirtualUART uart(10);
+  TestVirtualUART<10> uart;
   EXPECT_TRUE(uart.inject_rx(FRAME, sizeof(FRAME)));
   EXPECT_FALSE(uart.inject_rx(FRAME, 3));
   EXPECT_EQ(uart.available(), sizeof(FRAME));
 }
 
 TEST(VirtualUART, RingWrapsAround) {
-  TestVirtualUART uart(10);
+  TestVirtualUART<10> uart;
   uint8_t out[sizeof(FRAME)]{};
   for (int round = 0; round < 5; round++) {
     ASSERT_TRUE(uart.inject_rx(FRAME, sizeof(FRAME)));
@@ -70,7 +68,7 @@ TEST(VirtualUART, RingWrapsAround) {
 }
 
 TEST(VirtualUART, DebuggerSeesReadAndWrittenBytes) {
-  TestVirtualUART uart(16);
+  TestVirtualUART<16> uart;
   std::vector<std::pair<UARTDirection, uint8_t>> seen;
   uart.add_debug_callback([&seen](UARTDirection dir, uint8_t b) { seen.emplace_back(dir, b); });
   ASSERT_TRUE(uart.inject_rx(FRAME, 2));
