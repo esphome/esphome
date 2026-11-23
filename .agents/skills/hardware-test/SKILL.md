@@ -1,6 +1,6 @@
 ---
 name: hardware-test
-description: Test an ESPHome change on real boards over USB. Use this whenever a task asks to test, verify, reproduce, bench, A/B or soak a pull request, a branch or a crash on hardware, or mentions flashing, serial logs, esphome upload, a captive portal or fallback AP test, or results to post on a PR. Covers finding the serial ports, building from the right checkout, flashing each chip family (including the LibreTiny kits that stock tools cannot flash), bounded log capture, proven test flows and how to report results.
+description: Test an ESPHome change on real boards over USB. Use this before a pull request that changes what a device does (a driver, a bus, a platform, a fix for a fault seen on a device) is opened or marked ready for review, and whenever a task asks to test, verify, reproduce, bench, A/B or soak a pull request, a branch or a crash on hardware, or mentions flashing, serial logs, esphome upload, a captive portal or fallback AP test, or results to post on a PR. Covers finding the serial ports, building from the right checkout, flashing each chip family (including the LibreTiny kits that stock tools cannot flash), bounded log capture, proven test flows and how to report results.
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep
 ---
 
