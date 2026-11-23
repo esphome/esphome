@@ -21,8 +21,7 @@ namespace esphome::xerox_phaser_3020 {
 
 ESPHOME_LOG_TAG(TAG, "xerox_phaser_3020");
 
-// USB printer class (USB Device Class Definition for Printing Devices 1.1)
-static constexpr uint8_t USB_CLASS_PRINTER = 0x07;
+// USB printer class requests (USB Device Class Definition for Printing Devices 1.1)
 static constexpr uint8_t PRINTER_GET_PORT_STATUS = 1;
 static constexpr uint8_t PRINTER_SOFT_RESET = 2;
 static constexpr uint8_t PORT_STATUS_PAPER_EMPTY = 0x20;

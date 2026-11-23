@@ -766,8 +766,10 @@ void IppServer::setup(const ServerSettings &settings, PrinterPort *port, uint8_t
 }
 
 int IppServer::listen_socket() {
-  // Dual-stack IPv6 where the network has it, IPv4 otherwise
-  int fd = socket(AF_INET6, SOCK_STREAM, 0);
+  int fd;
+#ifdef IPV6_V6ONLY
+  // Dual-stack IPv6 where the network stack has it, IPv4 otherwise
+  fd = socket(AF_INET6, SOCK_STREAM, 0);
   if (fd >= 0) {
     int off = 0;
     setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &off, sizeof(off));
@@ -781,6 +783,7 @@ int IppServer::listen_socket() {
       return fd;
     close(fd);
   }
+#endif
   fd = socket(AF_INET, SOCK_STREAM, 0);
   if (fd < 0)
     return -1;
