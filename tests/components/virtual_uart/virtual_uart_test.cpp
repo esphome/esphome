@@ -12,7 +12,7 @@ namespace esphome::virtual_uart::testing {
 static constexpr uint8_t FRAME[] = {0x01, 0x03, 0x00, 0x00, 0x00, 0x01, 0x84, 0x0A};
 
 TEST(VirtualUART, WrittenBytesGoToOnTx) {
-  VirtualUART uart(16);
+  VirtualUART<16> uart;
   std::vector<std::vector<uint8_t>> sent;
   uart.add_on_tx_callback([&sent](std::span<const uint8_t> data) { sent.emplace_back(data.begin(), data.end()); });
   uart.write_array(FRAME, sizeof(FRAME));
@@ -23,7 +23,7 @@ TEST(VirtualUART, WrittenBytesGoToOnTx) {
 }
 
 TEST(VirtualUART, OnTxThatWritesToItsOwnUartIsDropped) {
-  VirtualUART uart(16);
+  VirtualUART<16> uart;
   int calls = 0;
   // An echo to the same UART would call on_tx again without end
   uart.add_on_tx_callback([&uart, &calls](std::span<const uint8_t> data) {
@@ -38,7 +38,7 @@ TEST(VirtualUART, OnTxThatWritesToItsOwnUartIsDropped) {
 }
 
 TEST(VirtualUART, InjectedBytesAreRead) {
-  VirtualUART uart(16);
+  VirtualUART<16> uart;
   uart.inject(FRAME, sizeof(FRAME));
   ASSERT_EQ(uart.available(), sizeof(FRAME));
   uint8_t out[sizeof(FRAME)];
@@ -47,7 +47,7 @@ TEST(VirtualUART, InjectedBytesAreRead) {
 }
 
 TEST(VirtualUART, BlockThatDoesNotFitIsDropped) {
-  VirtualUART uart(4);
+  VirtualUART<4> uart;
   uart.inject(FRAME, sizeof(FRAME));
   EXPECT_EQ(uart.available(), 0u);
 }

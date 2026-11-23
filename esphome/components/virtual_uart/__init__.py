@@ -57,8 +57,9 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 async def to_code(config: ConfigType) -> None:
-    uart.require_virtual_uart()
-    var = cg.new_Pvariable(config[CONF_ID], config[CONF_RX_BUFFER_SIZE])
+    var = cg.new_Pvariable(
+        config[CONF_ID], cg.TemplateArguments(config[CONF_RX_BUFFER_SIZE])
+    )
     await cg.register_component(var, config)
     cg.add(var.set_baud_rate(config[CONF_BAUD_RATE]))
     cg.add(var.set_data_bits(config[CONF_DATA_BITS]))
