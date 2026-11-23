@@ -8,6 +8,7 @@ from esphome.const import (
     CONF_PERMITTIVITY,
     CONF_TEMPERATURE,
     CONF_VOLTAGE,
+    DEVICE_CLASS_MOISTURE,
     ICON_WATER_PERCENT,
     STATE_CLASS_MEASUREMENT,
     UNIT_EMPTY,
@@ -45,6 +46,7 @@ CONFIG_SCHEMA = (
                 unit_of_measurement=UNIT_PERCENT,
                 icon=ICON_WATER_PERCENT,
                 accuracy_decimals=2,
+                device_class=DEVICE_CLASS_MOISTURE,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(

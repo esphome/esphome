@@ -26,9 +26,12 @@ from esphome.const import (
     DEVICE_CLASS_REACTIVE_POWER,
     DEVICE_CLASS_SIGNAL_STRENGTH,
     DEVICE_CLASS_TEMPERATURE,
+    DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS,
     DEVICE_CLASS_VOLTAGE,
     ENTITY_CATEGORY_DIAGNOSTIC,
     ICON_CHEMICAL_WEAPON,
+    ICON_MAGNET,
+    ICON_RADIATOR,
     ICON_TIMER,
     STATE_CLASS_MEASUREMENT,
     STATE_CLASS_TOTAL_INCREASING,
@@ -47,9 +50,11 @@ from esphome.const import (
     UNIT_LUX,
     UNIT_METER,
     UNIT_MICROGRAMS_PER_CUBIC_METER,
+    UNIT_MICROTESLA,
     UNIT_MILLIMETER,
     UNIT_MINUTE,
     UNIT_OHM,
+    UNIT_PARTS_PER_BILLION,
     UNIT_PARTS_PER_MILLION,
     UNIT_PERCENT,
     UNIT_SECOND,
@@ -132,6 +137,14 @@ EXPECTED = {
     "LENGTH_M": (UNIT_METER, _UNSET, _M, _UNSET, 2),
     "DISTANCE_MM": (UNIT_MILLIMETER, DEVICE_CLASS_DISTANCE, _M, _UNSET, 0),
     "RESISTANCE": (UNIT_OHM, _UNSET, _M, _UNSET, 0),
+    "MAGNETIC_FIELD": (UNIT_MICROTESLA, _UNSET, _M, ICON_MAGNET, _UNSET),
+    "VOC_PPB": (
+        UNIT_PARTS_PER_BILLION,
+        DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS,
+        _M,
+        ICON_RADIATOR,
+        0,
+    ),
     "DURATION_H": (UNIT_HOUR, DEVICE_CLASS_DURATION, _M, ICON_TIMER, 0),
     "DURATION_MIN": (UNIT_MINUTE, DEVICE_CLASS_DURATION, _M, _UNSET, 0),
     "DURATION_S": (UNIT_SECOND, DEVICE_CLASS_DURATION, _M, _UNSET, 0),
@@ -194,6 +207,19 @@ def test_accuracy_decimals_can_be_overridden(kind: sensor.SensorKind) -> None:
     assert _defaults(schema)["accuracy_decimals"] == 3
 
 
+def test_state_class_can_be_overridden() -> None:
+    by_kind = sensor.sensor_schema(
+        kind=sensor.DURATION_S, state_class=STATE_CLASS_TOTAL_INCREASING
+    )
+    by_hand = sensor.sensor_schema(
+        unit_of_measurement=UNIT_SECOND,
+        accuracy_decimals=0,
+        device_class=DEVICE_CLASS_DURATION,
+        state_class=STATE_CLASS_TOTAL_INCREASING,
+    )
+    assert _defaults(by_kind) == _defaults(by_hand)
+
+
 def test_extra_arguments_pass_through() -> None:
     extra = {
         "accuracy_decimals": 2,
@@ -217,7 +243,6 @@ def test_extra_arguments_pass_through() -> None:
     [
         (sensor.TEMPERATURE, "unit_of_measurement"),
         (sensor.TEMPERATURE, "device_class"),
-        (sensor.TEMPERATURE, "state_class"),
         (sensor.PM10, "icon"),
     ],
 )

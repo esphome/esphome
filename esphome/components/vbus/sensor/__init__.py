@@ -60,350 +60,153 @@ CONF_TEMPERATURE_3 = "temperature_3"
 CONF_TEMPERATURE_4 = "temperature_4"
 CONF_TEMPERATURE_5 = "temperature_5"
 
+_TEMPERATURE_SCHEMA = sensor.sensor_schema(
+    kind=sensor.TEMPERATURE, icon=ICON_THERMOMETER
+)
+_PUMP_SPEED_SCHEMA = sensor.sensor_schema(
+    unit_of_measurement=UNIT_PERCENT,
+    icon=ICON_PERCENT,
+    accuracy_decimals=0,
+    device_class=DEVICE_CLASS_EMPTY,
+    state_class=STATE_CLASS_MEASUREMENT,
+)
+_OPERATING_HOURS_SCHEMA = sensor.sensor_schema(kind=sensor.DURATION_H)
+
+# Each sensor key a model can have: (C++ setter name, schema).
+SENSORS = {
+    CONF_TEMPERATURE_1: ("temperature1", _TEMPERATURE_SCHEMA),
+    CONF_TEMPERATURE_2: ("temperature2", _TEMPERATURE_SCHEMA),
+    CONF_TEMPERATURE_3: ("temperature3", _TEMPERATURE_SCHEMA),
+    CONF_TEMPERATURE_4: ("temperature4", _TEMPERATURE_SCHEMA),
+    CONF_TEMPERATURE_5: ("temperature5", _TEMPERATURE_SCHEMA),
+    CONF_PUMP_SPEED: ("pump_speed", _PUMP_SPEED_SCHEMA),
+    CONF_PUMP_SPEED_1: ("pump_speed1", _PUMP_SPEED_SCHEMA),
+    CONF_PUMP_SPEED_2: ("pump_speed2", _PUMP_SPEED_SCHEMA),
+    CONF_OPERATING_HOURS: ("operating_hours", _OPERATING_HOURS_SCHEMA),
+    CONF_OPERATING_HOURS_1: ("operating_hours1", _OPERATING_HOURS_SCHEMA),
+    CONF_OPERATING_HOURS_2: ("operating_hours2", _OPERATING_HOURS_SCHEMA),
+    CONF_HEAT_QUANTITY: (
+        "heat_quantity",
+        sensor.sensor_schema(
+            kind=sensor.ENERGY_WH, icon=ICON_RADIATOR, accuracy_decimals=0
+        ),
+    ),
+    CONF_TIME: (
+        "time",
+        sensor.sensor_schema(
+            kind=sensor.DURATION_MIN,
+            icon=ICON_TIMER,
+            entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+        ),
+    ),
+    CONF_VERSION: (
+        "version",
+        sensor.sensor_schema(
+            accuracy_decimals=2,
+            entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+        ),
+    ),
+    CONF_FLOW_RATE: (
+        "flow_rate",
+        sensor.sensor_schema(
+            accuracy_decimals=0,
+            device_class=DEVICE_CLASS_EMPTY,
+            state_class=STATE_CLASS_MEASUREMENT,
+        ),
+    ),
+}
+
+_DUAL_PUMP = (
+    CONF_PUMP_SPEED_1,
+    CONF_PUMP_SPEED_2,
+    CONF_OPERATING_HOURS_1,
+    CONF_OPERATING_HOURS_2,
+)
+_T1_T4 = (
+    CONF_TEMPERATURE_1,
+    CONF_TEMPERATURE_2,
+    CONF_TEMPERATURE_3,
+    CONF_TEMPERATURE_4,
+)
+
+# Model: (class, VBus source address, sensors in registration order).
+MODELS = {
+    CONF_DELTASOL_BS_PLUS: (
+        DeltaSol_BS_Plus,
+        0x4221,
+        (*_T1_T4, *_DUAL_PUMP, CONF_HEAT_QUANTITY, CONF_TIME, CONF_VERSION),
+    ),
+    CONF_DELTASOL_BS_2009: (
+        DeltaSol_BS_2009,
+        0x427B,
+        (*_T1_T4, *_DUAL_PUMP, CONF_HEAT_QUANTITY, CONF_TIME, CONF_VERSION),
+    ),
+    CONF_DELTASOL_BS2: (
+        DeltaSol_BS2,
+        0x4278,
+        (*_T1_T4, *_DUAL_PUMP, CONF_HEAT_QUANTITY, CONF_VERSION),
+    ),
+    CONF_DELTASOL_C: (
+        DeltaSol_C,
+        0x4212,
+        (*_T1_T4, *_DUAL_PUMP, CONF_HEAT_QUANTITY, CONF_TIME),
+    ),
+    CONF_DELTASOL_CS2: (
+        DeltaSol_CS2,
+        0x1121,
+        (
+            *_T1_T4,
+            CONF_PUMP_SPEED,
+            CONF_OPERATING_HOURS,
+            CONF_HEAT_QUANTITY,
+            CONF_VERSION,
+        ),
+    ),
+    CONF_DELTASOL_CS4: (
+        DeltaSol_CS4,
+        0x1122,
+        (
+            *_T1_T4,
+            CONF_TEMPERATURE_5,
+            *_DUAL_PUMP,
+            CONF_HEAT_QUANTITY,
+            CONF_TIME,
+            CONF_VERSION,
+            CONF_FLOW_RATE,
+        ),
+    ),
+    CONF_DELTASOL_CS_PLUS: (
+        DeltaSol_CS_Plus,
+        0x2211,
+        (
+            *_T1_T4,
+            CONF_TEMPERATURE_5,
+            *_DUAL_PUMP,
+            CONF_HEAT_QUANTITY,
+            CONF_TIME,
+            CONF_VERSION,
+            CONF_FLOW_RATE,
+        ),
+    ),
+}
+
+
+def _model_schema(class_: cg.MockObjClass, keys: tuple[str, ...]) -> cv.Schema:
+    return cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(class_),
+            cv.GenerateID(CONF_VBUS_ID): cv.use_id(VBus),
+            **{cv.Optional(key): SENSORS[key][1] for key in keys},
+        }
+    )
+
+
 CONFIG_SCHEMA = cv.typed_schema(
     {
-        CONF_DELTASOL_BS_PLUS: cv.Schema(
-            {
-                cv.GenerateID(): cv.declare_id(DeltaSol_BS_Plus),
-                cv.GenerateID(CONF_VBUS_ID): cv.use_id(VBus),
-                cv.Optional(CONF_TEMPERATURE_1): sensor.sensor_schema(
-                    kind=sensor.TEMPERATURE, icon=ICON_THERMOMETER
-                ),
-                cv.Optional(CONF_TEMPERATURE_2): sensor.sensor_schema(
-                    kind=sensor.TEMPERATURE, icon=ICON_THERMOMETER
-                ),
-                cv.Optional(CONF_TEMPERATURE_3): sensor.sensor_schema(
-                    kind=sensor.TEMPERATURE, icon=ICON_THERMOMETER
-                ),
-                cv.Optional(CONF_TEMPERATURE_4): sensor.sensor_schema(
-                    kind=sensor.TEMPERATURE, icon=ICON_THERMOMETER
-                ),
-                cv.Optional(CONF_PUMP_SPEED_1): sensor.sensor_schema(
-                    unit_of_measurement=UNIT_PERCENT,
-                    icon=ICON_PERCENT,
-                    accuracy_decimals=0,
-                    device_class=DEVICE_CLASS_EMPTY,
-                    state_class=STATE_CLASS_MEASUREMENT,
-                ),
-                cv.Optional(CONF_PUMP_SPEED_2): sensor.sensor_schema(
-                    unit_of_measurement=UNIT_PERCENT,
-                    icon=ICON_PERCENT,
-                    accuracy_decimals=0,
-                    device_class=DEVICE_CLASS_EMPTY,
-                    state_class=STATE_CLASS_MEASUREMENT,
-                ),
-                cv.Optional(CONF_OPERATING_HOURS_1): sensor.sensor_schema(
-                    kind=sensor.DURATION_H
-                ),
-                cv.Optional(CONF_OPERATING_HOURS_2): sensor.sensor_schema(
-                    kind=sensor.DURATION_H
-                ),
-                cv.Optional(CONF_HEAT_QUANTITY): sensor.sensor_schema(
-                    kind=sensor.ENERGY_WH, icon=ICON_RADIATOR, accuracy_decimals=0
-                ),
-                cv.Optional(CONF_TIME): sensor.sensor_schema(
-                    kind=sensor.DURATION_MIN,
-                    icon=ICON_TIMER,
-                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-                ),
-                cv.Optional(CONF_VERSION): sensor.sensor_schema(
-                    accuracy_decimals=2,
-                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-                ),
-            }
-        ),
-        CONF_DELTASOL_BS_2009: cv.Schema(
-            {
-                cv.GenerateID(): cv.declare_id(DeltaSol_BS_2009),
-                cv.GenerateID(CONF_VBUS_ID): cv.use_id(VBus),
-                cv.Optional(CONF_TEMPERATURE_1): sensor.sensor_schema(
-                    kind=sensor.TEMPERATURE, icon=ICON_THERMOMETER
-                ),
-                cv.Optional(CONF_TEMPERATURE_2): sensor.sensor_schema(
-                    kind=sensor.TEMPERATURE, icon=ICON_THERMOMETER
-                ),
-                cv.Optional(CONF_TEMPERATURE_3): sensor.sensor_schema(
-                    kind=sensor.TEMPERATURE, icon=ICON_THERMOMETER
-                ),
-                cv.Optional(CONF_TEMPERATURE_4): sensor.sensor_schema(
-                    kind=sensor.TEMPERATURE, icon=ICON_THERMOMETER
-                ),
-                cv.Optional(CONF_PUMP_SPEED_1): sensor.sensor_schema(
-                    unit_of_measurement=UNIT_PERCENT,
-                    icon=ICON_PERCENT,
-                    accuracy_decimals=0,
-                    device_class=DEVICE_CLASS_EMPTY,
-                    state_class=STATE_CLASS_MEASUREMENT,
-                ),
-                cv.Optional(CONF_PUMP_SPEED_2): sensor.sensor_schema(
-                    unit_of_measurement=UNIT_PERCENT,
-                    icon=ICON_PERCENT,
-                    accuracy_decimals=0,
-                    device_class=DEVICE_CLASS_EMPTY,
-                    state_class=STATE_CLASS_MEASUREMENT,
-                ),
-                cv.Optional(CONF_OPERATING_HOURS_1): sensor.sensor_schema(
-                    kind=sensor.DURATION_H
-                ),
-                cv.Optional(CONF_OPERATING_HOURS_2): sensor.sensor_schema(
-                    kind=sensor.DURATION_H
-                ),
-                cv.Optional(CONF_HEAT_QUANTITY): sensor.sensor_schema(
-                    kind=sensor.ENERGY_WH, icon=ICON_RADIATOR, accuracy_decimals=0
-                ),
-                cv.Optional(CONF_TIME): sensor.sensor_schema(
-                    kind=sensor.DURATION_MIN,
-                    icon=ICON_TIMER,
-                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-                ),
-                cv.Optional(CONF_VERSION): sensor.sensor_schema(
-                    accuracy_decimals=2,
-                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-                ),
-            }
-        ),
-        CONF_DELTASOL_BS2: cv.Schema(
-            {
-                cv.GenerateID(): cv.declare_id(DeltaSol_BS2),
-                cv.GenerateID(CONF_VBUS_ID): cv.use_id(VBus),
-                cv.Optional(CONF_TEMPERATURE_1): sensor.sensor_schema(
-                    kind=sensor.TEMPERATURE, icon=ICON_THERMOMETER
-                ),
-                cv.Optional(CONF_TEMPERATURE_2): sensor.sensor_schema(
-                    kind=sensor.TEMPERATURE, icon=ICON_THERMOMETER
-                ),
-                cv.Optional(CONF_TEMPERATURE_3): sensor.sensor_schema(
-                    kind=sensor.TEMPERATURE, icon=ICON_THERMOMETER
-                ),
-                cv.Optional(CONF_TEMPERATURE_4): sensor.sensor_schema(
-                    kind=sensor.TEMPERATURE, icon=ICON_THERMOMETER
-                ),
-                cv.Optional(CONF_PUMP_SPEED_1): sensor.sensor_schema(
-                    unit_of_measurement=UNIT_PERCENT,
-                    icon=ICON_PERCENT,
-                    accuracy_decimals=0,
-                    device_class=DEVICE_CLASS_EMPTY,
-                    state_class=STATE_CLASS_MEASUREMENT,
-                ),
-                cv.Optional(CONF_PUMP_SPEED_2): sensor.sensor_schema(
-                    unit_of_measurement=UNIT_PERCENT,
-                    icon=ICON_PERCENT,
-                    accuracy_decimals=0,
-                    device_class=DEVICE_CLASS_EMPTY,
-                    state_class=STATE_CLASS_MEASUREMENT,
-                ),
-                cv.Optional(CONF_OPERATING_HOURS_1): sensor.sensor_schema(
-                    kind=sensor.DURATION_H
-                ),
-                cv.Optional(CONF_OPERATING_HOURS_2): sensor.sensor_schema(
-                    kind=sensor.DURATION_H
-                ),
-                cv.Optional(CONF_HEAT_QUANTITY): sensor.sensor_schema(
-                    kind=sensor.ENERGY_WH, icon=ICON_RADIATOR, accuracy_decimals=0
-                ),
-                cv.Optional(CONF_VERSION): sensor.sensor_schema(
-                    accuracy_decimals=2,
-                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-                ),
-            }
-        ),
-        CONF_DELTASOL_C: cv.Schema(
-            {
-                cv.GenerateID(): cv.declare_id(DeltaSol_C),
-                cv.GenerateID(CONF_VBUS_ID): cv.use_id(VBus),
-                cv.Optional(CONF_TEMPERATURE_1): sensor.sensor_schema(
-                    kind=sensor.TEMPERATURE, icon=ICON_THERMOMETER
-                ),
-                cv.Optional(CONF_TEMPERATURE_2): sensor.sensor_schema(
-                    kind=sensor.TEMPERATURE, icon=ICON_THERMOMETER
-                ),
-                cv.Optional(CONF_TEMPERATURE_3): sensor.sensor_schema(
-                    kind=sensor.TEMPERATURE, icon=ICON_THERMOMETER
-                ),
-                cv.Optional(CONF_TEMPERATURE_4): sensor.sensor_schema(
-                    kind=sensor.TEMPERATURE, icon=ICON_THERMOMETER
-                ),
-                cv.Optional(CONF_PUMP_SPEED_1): sensor.sensor_schema(
-                    unit_of_measurement=UNIT_PERCENT,
-                    icon=ICON_PERCENT,
-                    accuracy_decimals=0,
-                    device_class=DEVICE_CLASS_EMPTY,
-                    state_class=STATE_CLASS_MEASUREMENT,
-                ),
-                cv.Optional(CONF_PUMP_SPEED_2): sensor.sensor_schema(
-                    unit_of_measurement=UNIT_PERCENT,
-                    icon=ICON_PERCENT,
-                    accuracy_decimals=0,
-                    device_class=DEVICE_CLASS_EMPTY,
-                    state_class=STATE_CLASS_MEASUREMENT,
-                ),
-                cv.Optional(CONF_OPERATING_HOURS_1): sensor.sensor_schema(
-                    kind=sensor.DURATION_H
-                ),
-                cv.Optional(CONF_OPERATING_HOURS_2): sensor.sensor_schema(
-                    kind=sensor.DURATION_H
-                ),
-                cv.Optional(CONF_HEAT_QUANTITY): sensor.sensor_schema(
-                    kind=sensor.ENERGY_WH, icon=ICON_RADIATOR, accuracy_decimals=0
-                ),
-                cv.Optional(CONF_TIME): sensor.sensor_schema(
-                    kind=sensor.DURATION_MIN,
-                    icon=ICON_TIMER,
-                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-                ),
-            }
-        ),
-        CONF_DELTASOL_CS2: cv.Schema(
-            {
-                cv.GenerateID(): cv.declare_id(DeltaSol_CS2),
-                cv.GenerateID(CONF_VBUS_ID): cv.use_id(VBus),
-                cv.Optional(CONF_TEMPERATURE_1): sensor.sensor_schema(
-                    kind=sensor.TEMPERATURE, icon=ICON_THERMOMETER
-                ),
-                cv.Optional(CONF_TEMPERATURE_2): sensor.sensor_schema(
-                    kind=sensor.TEMPERATURE, icon=ICON_THERMOMETER
-                ),
-                cv.Optional(CONF_TEMPERATURE_3): sensor.sensor_schema(
-                    kind=sensor.TEMPERATURE, icon=ICON_THERMOMETER
-                ),
-                cv.Optional(CONF_TEMPERATURE_4): sensor.sensor_schema(
-                    kind=sensor.TEMPERATURE, icon=ICON_THERMOMETER
-                ),
-                cv.Optional(CONF_PUMP_SPEED): sensor.sensor_schema(
-                    unit_of_measurement=UNIT_PERCENT,
-                    icon=ICON_PERCENT,
-                    accuracy_decimals=0,
-                    device_class=DEVICE_CLASS_EMPTY,
-                    state_class=STATE_CLASS_MEASUREMENT,
-                ),
-                cv.Optional(CONF_OPERATING_HOURS): sensor.sensor_schema(
-                    kind=sensor.DURATION_H
-                ),
-                cv.Optional(CONF_HEAT_QUANTITY): sensor.sensor_schema(
-                    kind=sensor.ENERGY_WH, icon=ICON_RADIATOR, accuracy_decimals=0
-                ),
-                cv.Optional(CONF_VERSION): sensor.sensor_schema(
-                    accuracy_decimals=2,
-                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-                ),
-            }
-        ),
-        CONF_DELTASOL_CS4: cv.Schema(
-            {
-                cv.GenerateID(): cv.declare_id(DeltaSol_CS4),
-                cv.GenerateID(CONF_VBUS_ID): cv.use_id(VBus),
-                cv.Optional(CONF_TEMPERATURE_1): sensor.sensor_schema(
-                    kind=sensor.TEMPERATURE, icon=ICON_THERMOMETER
-                ),
-                cv.Optional(CONF_TEMPERATURE_2): sensor.sensor_schema(
-                    kind=sensor.TEMPERATURE, icon=ICON_THERMOMETER
-                ),
-                cv.Optional(CONF_TEMPERATURE_3): sensor.sensor_schema(
-                    kind=sensor.TEMPERATURE, icon=ICON_THERMOMETER
-                ),
-                cv.Optional(CONF_TEMPERATURE_4): sensor.sensor_schema(
-                    kind=sensor.TEMPERATURE, icon=ICON_THERMOMETER
-                ),
-                cv.Optional(CONF_TEMPERATURE_5): sensor.sensor_schema(
-                    kind=sensor.TEMPERATURE, icon=ICON_THERMOMETER
-                ),
-                cv.Optional(CONF_PUMP_SPEED_1): sensor.sensor_schema(
-                    unit_of_measurement=UNIT_PERCENT,
-                    icon=ICON_PERCENT,
-                    accuracy_decimals=0,
-                    device_class=DEVICE_CLASS_EMPTY,
-                    state_class=STATE_CLASS_MEASUREMENT,
-                ),
-                cv.Optional(CONF_PUMP_SPEED_2): sensor.sensor_schema(
-                    unit_of_measurement=UNIT_PERCENT,
-                    icon=ICON_PERCENT,
-                    accuracy_decimals=0,
-                    device_class=DEVICE_CLASS_EMPTY,
-                    state_class=STATE_CLASS_MEASUREMENT,
-                ),
-                cv.Optional(CONF_OPERATING_HOURS_1): sensor.sensor_schema(
-                    kind=sensor.DURATION_H
-                ),
-                cv.Optional(CONF_OPERATING_HOURS_2): sensor.sensor_schema(
-                    kind=sensor.DURATION_H
-                ),
-                cv.Optional(CONF_HEAT_QUANTITY): sensor.sensor_schema(
-                    kind=sensor.ENERGY_WH, icon=ICON_RADIATOR, accuracy_decimals=0
-                ),
-                cv.Optional(CONF_TIME): sensor.sensor_schema(
-                    kind=sensor.DURATION_MIN,
-                    icon=ICON_TIMER,
-                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-                ),
-                cv.Optional(CONF_VERSION): sensor.sensor_schema(
-                    accuracy_decimals=2,
-                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-                ),
-                cv.Optional(CONF_FLOW_RATE): sensor.sensor_schema(
-                    accuracy_decimals=0,
-                    device_class=DEVICE_CLASS_EMPTY,
-                    state_class=STATE_CLASS_MEASUREMENT,
-                ),
-            }
-        ),
-        CONF_DELTASOL_CS_PLUS: cv.Schema(
-            {
-                cv.GenerateID(): cv.declare_id(DeltaSol_CS_Plus),
-                cv.GenerateID(CONF_VBUS_ID): cv.use_id(VBus),
-                cv.Optional(CONF_TEMPERATURE_1): sensor.sensor_schema(
-                    kind=sensor.TEMPERATURE, icon=ICON_THERMOMETER
-                ),
-                cv.Optional(CONF_TEMPERATURE_2): sensor.sensor_schema(
-                    kind=sensor.TEMPERATURE, icon=ICON_THERMOMETER
-                ),
-                cv.Optional(CONF_TEMPERATURE_3): sensor.sensor_schema(
-                    kind=sensor.TEMPERATURE, icon=ICON_THERMOMETER
-                ),
-                cv.Optional(CONF_TEMPERATURE_4): sensor.sensor_schema(
-                    kind=sensor.TEMPERATURE, icon=ICON_THERMOMETER
-                ),
-                cv.Optional(CONF_TEMPERATURE_5): sensor.sensor_schema(
-                    kind=sensor.TEMPERATURE, icon=ICON_THERMOMETER
-                ),
-                cv.Optional(CONF_PUMP_SPEED_1): sensor.sensor_schema(
-                    unit_of_measurement=UNIT_PERCENT,
-                    icon=ICON_PERCENT,
-                    accuracy_decimals=0,
-                    device_class=DEVICE_CLASS_EMPTY,
-                    state_class=STATE_CLASS_MEASUREMENT,
-                ),
-                cv.Optional(CONF_PUMP_SPEED_2): sensor.sensor_schema(
-                    unit_of_measurement=UNIT_PERCENT,
-                    icon=ICON_PERCENT,
-                    accuracy_decimals=0,
-                    device_class=DEVICE_CLASS_EMPTY,
-                    state_class=STATE_CLASS_MEASUREMENT,
-                ),
-                cv.Optional(CONF_OPERATING_HOURS_1): sensor.sensor_schema(
-                    kind=sensor.DURATION_H
-                ),
-                cv.Optional(CONF_OPERATING_HOURS_2): sensor.sensor_schema(
-                    kind=sensor.DURATION_H
-                ),
-                cv.Optional(CONF_HEAT_QUANTITY): sensor.sensor_schema(
-                    kind=sensor.ENERGY_WH, icon=ICON_RADIATOR, accuracy_decimals=0
-                ),
-                cv.Optional(CONF_TIME): sensor.sensor_schema(
-                    kind=sensor.DURATION_MIN,
-                    icon=ICON_TIMER,
-                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-                ),
-                cv.Optional(CONF_VERSION): sensor.sensor_schema(
-                    accuracy_decimals=2,
-                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-                ),
-                cv.Optional(CONF_FLOW_RATE): sensor.sensor_schema(
-                    accuracy_decimals=0,
-                    device_class=DEVICE_CLASS_EMPTY,
-                    state_class=STATE_CLASS_MEASUREMENT,
-                ),
-            }
-        ),
+        **{
+            model: _model_schema(class_, keys)
+            for model, (class_, _, keys) in MODELS.items()
+        },
         CONF_CUSTOM: cv.Schema(
             {
                 cv.GenerateID(): cv.declare_id(VBusCustom),
@@ -411,7 +214,7 @@ CONFIG_SCHEMA = cv.typed_schema(
                 cv.Optional(CONF_COMMAND): cv.uint16_t,
                 cv.Optional(CONF_SOURCE): cv.uint16_t,
                 cv.Optional(CONF_DEST): cv.uint16_t,
-                cv.Optional(CONF_SENSORS): cv.ensure_list(
+                cv.Required(CONF_SENSORS): cv.ensure_list(
                     sensor.sensor_schema().extend(
                         {
                             cv.GenerateID(): cv.declare_id(VBusCustomSub),
@@ -432,118 +235,15 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     sensors = sensor.sub_sensors(config)
 
-    if config[CONF_MODEL] == CONF_DELTASOL_BS_PLUS:
+    if (model := MODELS.get(config[CONF_MODEL])) is not None:
+        _, source, keys = model
         cg.add(var.set_command(0x0100))
-        cg.add(var.set_source(0x4221))
+        cg.add(var.set_source(source))
         cg.add(var.set_dest(0x0010))
-        await sensors(CONF_TEMPERATURE_1, var.set_temperature1_sensor)
-        await sensors(CONF_TEMPERATURE_2, var.set_temperature2_sensor)
-        await sensors(CONF_TEMPERATURE_3, var.set_temperature3_sensor)
-        await sensors(CONF_TEMPERATURE_4, var.set_temperature4_sensor)
-        await sensors(CONF_PUMP_SPEED_1, var.set_pump_speed1_sensor)
-        await sensors(CONF_PUMP_SPEED_2, var.set_pump_speed2_sensor)
-        await sensors(CONF_OPERATING_HOURS_1, var.set_operating_hours1_sensor)
-        await sensors(CONF_OPERATING_HOURS_2, var.set_operating_hours2_sensor)
-        await sensors(CONF_HEAT_QUANTITY, var.set_heat_quantity_sensor)
-        await sensors(CONF_TIME, var.set_time_sensor)
-        await sensors(CONF_VERSION, var.set_version_sensor)
+        for key in keys:
+            await sensors(key, getattr(var, f"set_{SENSORS[key][0]}_sensor"))
 
-    elif config[CONF_MODEL] == CONF_DELTASOL_BS_2009:
-        cg.add(var.set_command(0x0100))
-        cg.add(var.set_source(0x427B))
-        cg.add(var.set_dest(0x0010))
-        await sensors(CONF_TEMPERATURE_1, var.set_temperature1_sensor)
-        await sensors(CONF_TEMPERATURE_2, var.set_temperature2_sensor)
-        await sensors(CONF_TEMPERATURE_3, var.set_temperature3_sensor)
-        await sensors(CONF_TEMPERATURE_4, var.set_temperature4_sensor)
-        await sensors(CONF_PUMP_SPEED_1, var.set_pump_speed1_sensor)
-        await sensors(CONF_PUMP_SPEED_2, var.set_pump_speed2_sensor)
-        await sensors(CONF_OPERATING_HOURS_1, var.set_operating_hours1_sensor)
-        await sensors(CONF_OPERATING_HOURS_2, var.set_operating_hours2_sensor)
-        await sensors(CONF_HEAT_QUANTITY, var.set_heat_quantity_sensor)
-        await sensors(CONF_TIME, var.set_time_sensor)
-        await sensors(CONF_VERSION, var.set_version_sensor)
-
-    elif config[CONF_MODEL] == CONF_DELTASOL_BS2:
-        cg.add(var.set_command(0x0100))
-        cg.add(var.set_source(0x4278))
-        cg.add(var.set_dest(0x0010))
-        await sensors(CONF_TEMPERATURE_1, var.set_temperature1_sensor)
-        await sensors(CONF_TEMPERATURE_2, var.set_temperature2_sensor)
-        await sensors(CONF_TEMPERATURE_3, var.set_temperature3_sensor)
-        await sensors(CONF_TEMPERATURE_4, var.set_temperature4_sensor)
-        await sensors(CONF_PUMP_SPEED_1, var.set_pump_speed1_sensor)
-        await sensors(CONF_PUMP_SPEED_2, var.set_pump_speed2_sensor)
-        await sensors(CONF_OPERATING_HOURS_1, var.set_operating_hours1_sensor)
-        await sensors(CONF_OPERATING_HOURS_2, var.set_operating_hours2_sensor)
-        await sensors(CONF_HEAT_QUANTITY, var.set_heat_quantity_sensor)
-        await sensors(CONF_VERSION, var.set_version_sensor)
-
-    elif config[CONF_MODEL] == CONF_DELTASOL_C:
-        cg.add(var.set_command(0x0100))
-        cg.add(var.set_source(0x4212))
-        cg.add(var.set_dest(0x0010))
-        await sensors(CONF_TEMPERATURE_1, var.set_temperature1_sensor)
-        await sensors(CONF_TEMPERATURE_2, var.set_temperature2_sensor)
-        await sensors(CONF_TEMPERATURE_3, var.set_temperature3_sensor)
-        await sensors(CONF_TEMPERATURE_4, var.set_temperature4_sensor)
-        await sensors(CONF_PUMP_SPEED_1, var.set_pump_speed1_sensor)
-        await sensors(CONF_PUMP_SPEED_2, var.set_pump_speed2_sensor)
-        await sensors(CONF_OPERATING_HOURS_1, var.set_operating_hours1_sensor)
-        await sensors(CONF_OPERATING_HOURS_2, var.set_operating_hours2_sensor)
-        await sensors(CONF_HEAT_QUANTITY, var.set_heat_quantity_sensor)
-        await sensors(CONF_TIME, var.set_time_sensor)
-
-    elif config[CONF_MODEL] == CONF_DELTASOL_CS2:
-        cg.add(var.set_command(0x0100))
-        cg.add(var.set_source(0x1121))
-        cg.add(var.set_dest(0x0010))
-        await sensors(CONF_TEMPERATURE_1, var.set_temperature1_sensor)
-        await sensors(CONF_TEMPERATURE_2, var.set_temperature2_sensor)
-        await sensors(CONF_TEMPERATURE_3, var.set_temperature3_sensor)
-        await sensors(CONF_TEMPERATURE_4, var.set_temperature4_sensor)
-        await sensors(CONF_PUMP_SPEED, var.set_pump_speed_sensor)
-        await sensors(CONF_OPERATING_HOURS, var.set_operating_hours_sensor)
-        await sensors(CONF_HEAT_QUANTITY, var.set_heat_quantity_sensor)
-        await sensors(CONF_VERSION, var.set_version_sensor)
-
-    elif config[CONF_MODEL] == CONF_DELTASOL_CS4:
-        cg.add(var.set_command(0x0100))
-        cg.add(var.set_source(0x1122))
-        cg.add(var.set_dest(0x0010))
-        await sensors(CONF_TEMPERATURE_1, var.set_temperature1_sensor)
-        await sensors(CONF_TEMPERATURE_2, var.set_temperature2_sensor)
-        await sensors(CONF_TEMPERATURE_3, var.set_temperature3_sensor)
-        await sensors(CONF_TEMPERATURE_4, var.set_temperature4_sensor)
-        await sensors(CONF_TEMPERATURE_5, var.set_temperature5_sensor)
-        await sensors(CONF_PUMP_SPEED_1, var.set_pump_speed1_sensor)
-        await sensors(CONF_PUMP_SPEED_2, var.set_pump_speed2_sensor)
-        await sensors(CONF_OPERATING_HOURS_1, var.set_operating_hours1_sensor)
-        await sensors(CONF_OPERATING_HOURS_2, var.set_operating_hours2_sensor)
-        await sensors(CONF_HEAT_QUANTITY, var.set_heat_quantity_sensor)
-        await sensors(CONF_TIME, var.set_time_sensor)
-        await sensors(CONF_VERSION, var.set_version_sensor)
-        await sensors(CONF_FLOW_RATE, var.set_flow_rate_sensor)
-
-    elif config[CONF_MODEL] == CONF_DELTASOL_CS_PLUS:
-        cg.add(var.set_command(0x0100))
-        cg.add(var.set_source(0x2211))
-        cg.add(var.set_dest(0x0010))
-        await sensors(CONF_TEMPERATURE_1, var.set_temperature1_sensor)
-        await sensors(CONF_TEMPERATURE_2, var.set_temperature2_sensor)
-        await sensors(CONF_TEMPERATURE_3, var.set_temperature3_sensor)
-        await sensors(CONF_TEMPERATURE_4, var.set_temperature4_sensor)
-        await sensors(CONF_TEMPERATURE_5, var.set_temperature5_sensor)
-        await sensors(CONF_PUMP_SPEED_1, var.set_pump_speed1_sensor)
-        await sensors(CONF_PUMP_SPEED_2, var.set_pump_speed2_sensor)
-        await sensors(CONF_OPERATING_HOURS_1, var.set_operating_hours1_sensor)
-        await sensors(CONF_OPERATING_HOURS_2, var.set_operating_hours2_sensor)
-        await sensors(CONF_HEAT_QUANTITY, var.set_heat_quantity_sensor)
-        await sensors(CONF_TIME, var.set_time_sensor)
-        await sensors(CONF_VERSION, var.set_version_sensor)
-        await sensors(CONF_FLOW_RATE, var.set_flow_rate_sensor)
-
-    elif config[CONF_MODEL] == CONF_CUSTOM:
+    else:
         cg.add_optional(var.set_command, config.get(CONF_COMMAND))
         cg.add_optional(var.set_source, config.get(CONF_SOURCE))
         cg.add_optional(var.set_dest, config.get(CONF_DEST))
