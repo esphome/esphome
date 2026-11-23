@@ -59,10 +59,7 @@ template<size_t N> struct WeightedMeanFixture {
     }
   }
 
-  float run() {
-    this->combination.handle_new_value(0.0f);
-    return this->combination.get_state();
-  }
+  float run() { return this->run_with_trigger(0.0f); }
 
   float run_with_trigger(float trigger) {
     this->combination.handle_new_value(trigger);
