@@ -195,14 +195,17 @@ TEST_F(TopTronicTest, OldestSlotIsEvictedWhenAllAreBusy) {
 
 TEST_F(TopTronicTest, FramesBeyondTheBufferAreDropped) {
   this->set_now_(1000);
-  // 31 frames announced, but oversized frames overflow the buffer before the count runs out
-  EXPECT_TRUE(this->hub_.feed(START_ID, {31 << 3, TAG, 0x42}).empty());
-  std::vector<uint8_t> big(100, 0x55);
+  // A frame count the hub accepts, so the oversized continuation reaches the buffer guard
+  EXPECT_TRUE(this->hub_.feed(START_ID, {3 << 3, TAG, 0x42}).empty());
+  // Larger than the largest possible slot buffer (31 frames of 7 bytes), so the guard is what drops it
+  std::vector<uint8_t> big(256, 0x55);
   big[0] = TAG;
   EXPECT_TRUE(this->hub_.feed(CONT_ID, big).empty());
-  EXPECT_TRUE(this->hub_.feed(CONT_ID, big).empty());
-  EXPECT_TRUE(this->hub_.feed(CONT_ID, big).empty());
   EXPECT_EQ(this->hub_.live_slots(1000), 0u);
+  // The overflow freed the slot, so a fresh message still completes
+  auto frames = split(MESSAGE);
+  EXPECT_TRUE(this->hub_.feed(START_ID, frames[0]).empty());
+  EXPECT_EQ(this->hub_.feed(CONT_ID, frames[1]), MESSAGE);
 }
 
 TEST_F(TopTronicTest, FrameCountAboveTheLimitIsRejected) {
