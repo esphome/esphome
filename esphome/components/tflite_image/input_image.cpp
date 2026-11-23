@@ -42,11 +42,24 @@ bool ImageInputPipeline::fill(TfLiteTensor *input, const uint8_t *src, size_t si
              this->height_, this->channels_, needed);
     return false;
   }
-  if (size < pixels * 3) {
-    ESP_LOGE(TAG, "Frame is %zu bytes, shorter than the %zu an %dx%d RGB888 frame needs", size, pixels * 3,
-             this->width_, this->height_);
+  const int frame_width = this->frame_width_ > 0 ? this->frame_width_ : this->width_;
+  const int frame_height = this->frame_height_ > 0 ? this->frame_height_ : this->height_;
+  const size_t frame_pixels = static_cast<size_t>(frame_width) * frame_height;
+  if (size < frame_pixels * 3) {
+    ESP_LOGE(TAG, "Frame is %zu bytes, shorter than the %zu an %dx%d RGB888 frame needs", size, frame_pixels * 3,
+             frame_width, frame_height);
     return false;
   }
+  const bool scaled = frame_width != this->width_ || frame_height != this->height_;
+  // Nearest-neighbour sampling of the source frame into the model's input size.
+  auto source_pixel = [&](size_t pixel) -> size_t {
+    if (!scaled)
+      return pixel;
+    const int x = pixel % this->width_;
+    const int y = pixel / this->width_;
+    return static_cast<size_t>(y * frame_height / this->height_) * frame_width +
+           static_cast<size_t>(x * frame_width / this->width_);
+  };
   if (this->channel_order_ == ChannelOrder::CHANNEL_ORDER_GRAY && this->channels_ != 1) {
     ESP_LOGE(TAG, "A GRAY model needs a single-channel tensor");
     return false;
@@ -61,7 +74,7 @@ bool ImageInputPipeline::fill(TfLiteTensor *input, const uint8_t *src, size_t si
       return false;
     }
     for (size_t pixel = 0; pixel < pixels; pixel++) {
-      const uint8_t *rgb = src + pixel * 3;
+      const uint8_t *rgb = src + source_pixel(pixel) * 3;
       if (gray) {
         const float unit = unit_value(rgb[1], this->invert_);
         dst[pixel] = this->normalize_ ? unit / 255.0f : unit;
@@ -83,7 +96,7 @@ bool ImageInputPipeline::fill(TfLiteTensor *input, const uint8_t *src, size_t si
       return false;
     }
     for (size_t pixel = 0; pixel < pixels; pixel++) {
-      const uint8_t *rgb = src + pixel * 3;
+      const uint8_t *rgb = src + source_pixel(pixel) * 3;
       if (gray) {
         dst[pixel] = quantized_value(input, unit_value(rgb[1], this->invert_), this->normalize_);
       } else {

@@ -36,6 +36,8 @@ CONF_INPUT_HEIGHT = "input_height"
 CONF_INPUT_ORDER = "input_order"
 CONF_NORMALIZE = "normalize"
 CONF_INVERT = "invert"
+CONF_FRAME_WIDTH = "frame_width"
+CONF_FRAME_HEIGHT = "frame_height"
 CONF_OUTPUT_PROCESSING = "output_processing"
 CONF_SCALE_FACTOR = "scale_factor"
 CONF_PIPELINE_ID = "pipeline_id"
@@ -62,6 +64,8 @@ IMAGE_SCHEMA = cv.Schema(
         cv.Optional(CONF_INPUT_WIDTH): cv.int_range(min=8, max=512),
         cv.Optional(CONF_INPUT_HEIGHT): cv.int_range(min=8, max=512),
         cv.Optional(CONF_INPUT_ORDER): cv.enum(CHANNEL_ORDERS, upper=True),
+        cv.Optional(CONF_FRAME_WIDTH): cv.int_range(min=8, max=4096),
+        cv.Optional(CONF_FRAME_HEIGHT): cv.int_range(min=8, max=4096),
         cv.Optional(CONF_NORMALIZE): cv.boolean,
         cv.Optional(CONF_INVERT): cv.boolean,
         cv.Optional(CONF_OUTPUT_PROCESSING, default="argmax"): cv.enum(
@@ -111,12 +115,19 @@ def resolve_image_config(entry: ConfigType, model_path: Path) -> ConfigType:
         CONF_INPUT_WIDTH: shape[2],
         CONF_INPUT_HEIGHT: shape[1],
         CONF_INPUT_ORDER: "GRAY" if shape[3] == 1 else "RGB",
+        CONF_FRAME_WIDTH: 0,
+        CONF_FRAME_HEIGHT: 0,
         CONF_NORMALIZE: False,
         CONF_INVERT: False,
     }
     for key in values:
         if (value := entry.get(key)) is not None:
             values[key] = value
+    if bool(values[CONF_FRAME_WIDTH]) != bool(values[CONF_FRAME_HEIGHT]):
+        raise cv.Invalid(
+            "frame_width and frame_height must be set together; the pipeline scales "
+            "the whole frame"
+        )
     if values[CONF_INPUT_ORDER] == "GRAY" and values[CONF_INPUT_CHANNELS] != 1:
         raise cv.Invalid(
             "input_order: GRAY needs input_channels: 1; a three-channel model has a "
@@ -137,6 +148,12 @@ def build_pipeline(config: ConfigType, model_path: Path):
         )
     )
     cg.add(pipeline.set_channel_order(CHANNEL_ORDERS[values[CONF_INPUT_ORDER]]))
+    if values[CONF_FRAME_WIDTH]:
+        cg.add(
+            pipeline.set_frame_geometry(
+                values[CONF_FRAME_WIDTH], values[CONF_FRAME_HEIGHT]
+            )
+        )
     cg.add(pipeline.set_normalize(values[CONF_NORMALIZE]))
     cg.add(pipeline.set_invert(values[CONF_INVERT]))
     return pipeline
