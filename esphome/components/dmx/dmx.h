@@ -73,6 +73,11 @@ static constexpr size_t DMX_STATIC_SENSOR_COUNT = 0;
 static constexpr size_t DMX_DYNAMIC_SENSOR_COUNT = 0;
 #endif
 
+struct RdmChannelBinding {
+  number::Number *channel_number{nullptr};
+  uint16_t last_address{1};
+};
+
 namespace esphome::dmx {
 
 enum class DMXMode : uint8_t {
@@ -95,7 +100,7 @@ struct DynamicChannelSensor {
 struct RdmChannelBinding {
   number::Number *channel_number{nullptr};
   uint16_t last_address{1};
-  rdm_pid_t custom_pid{0};  // 0 = root device standard DMX_START_ADDRESS
+  uint16_t custom_pid{0};  // 0 = root device standard DMX_START_ADDRESS
 };
 
 class DMXComponent : public Component {

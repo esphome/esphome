@@ -1,6 +1,11 @@
 #include "dmx.h"
 #include "esphome/core/log.h"
 
+#if ESPHOME_DMX_HAS_RDM
+#include "dmx/include/service.h"
+#include "rdm/responder/include/utils.h"
+#endif
+
 #ifdef USE_ESP32
 #include "driver/uart.h"
 #endif
@@ -11,6 +16,59 @@ ESPHOME_LOG_TAG(TAG, "dmx");
 
 // Manufacturer-specific PID base for extra channel bindings (root uses standard PID)
 static constexpr rdm_pid_t RDM_CUSTOM_PID_BASE = 0x8001;
+// Fixed channel sensors use a separate manufacturer-PID range.
+static constexpr rdm_pid_t RDM_STATIC_PID_BASE = 0x8800;
+
+#if ESPHOME_DMX_HAS_RDM
+// The definition objects must outlive the DMX driver; the driver stores pointers.
+static const rdm_parameter_definition_t RDM_FIXED_CHANNEL_DEFINITION = {
+    .pid_cc = RDM_CC_GET,
+    .ds = RDM_DS_UNSIGNED_WORD,
+    .get = {.request = {.format = nullptr}, .response = {.format = "w"}, .handler = rdm_simple_response_handler},
+    .set = {.request = {.format = nullptr}, .response = {.format = nullptr}, .handler = nullptr},
+    .pdl_size = sizeof(uint16_t),
+    .max_value = 512,
+    .min_value = 1,
+    .default_value = 1,
+    .units = RDM_UNITS_NONE,
+    .prefix = RDM_PREFIX_NONE,
+    .description = "Fixed ESPHome DMX channel",
+};
+
+// This handler is called only for SET_COMMAND. GET uses the library's simple
+// response handler, which reads the parameter value registered below.
+static size_t dmx_dynamic_channel_set_handler(dmx_port_t dmx_num, const rdm_parameter_definition_t *,
+                                              const rdm_header_t *header) {
+  if (header->pdl != sizeof(uint16_t))
+    return rdm_write_nack_reason(dmx_num, header, RDM_NR_FORMAT_ERROR);
+
+  uint16_t address = 0;
+  const size_t read_size = rdm_read_pd(dmx_num, "w", &address, header->pdl);
+  if (read_size != sizeof(address))
+    return rdm_write_nack_reason(dmx_num, header, RDM_NR_FORMAT_ERROR);
+  if (address < 1 || address > 512)
+    return rdm_write_nack_reason(dmx_num, header, RDM_NR_DATA_OUT_OF_RANGE);
+
+  if (dmx_parameter_set(dmx_num, header->sub_device, header->pid, &address, sizeof(address)) != sizeof(address))
+    return rdm_write_nack_reason(dmx_num, header, RDM_NR_HARDWARE_FAULT);
+
+  return rdm_write_ack(dmx_num, header, nullptr, nullptr, 0);
+}
+
+static const rdm_parameter_definition_t RDM_DYNAMIC_CHANNEL_DEFINITION = {
+    .pid_cc = RDM_CC_GET_SET,
+    .ds = RDM_DS_UNSIGNED_WORD,
+    .get = {.request = {.format = nullptr}, .response = {.format = "w"}, .handler = rdm_simple_response_handler},
+    .set = {.request = {.format = "w"}, .response = {.format = nullptr}, .handler = dmx_dynamic_channel_set_handler},
+    .pdl_size = sizeof(uint16_t),
+    .max_value = 512,
+    .min_value = 1,
+    .default_value = 1,
+    .units = RDM_UNITS_NONE,
+    .prefix = RDM_PREFIX_NONE,
+    .description = "Dynamic ESPHome DMX channel",
+};
+#endif
 
 void DMXComponent::setup() {
   this->dmx_port_ = static_cast<dmx_port_t>(this->uart_num_);
@@ -30,8 +88,9 @@ void DMXComponent::setup() {
 
   dmx_config_t config = DMX_CONFIG_DEFAULT;
   if constexpr (ESPHOME_DMX_HAS_RDM) {
-    // Enough parameter slots for root + custom bindings
-    config.root_device_parameter_count = 32;
+    // Built-in RDM PIDs plus one entry for each fixed and dynamic channel.
+    config.root_device_parameter_count =
+        static_cast<uint32_t>(32 + this->static_sensors_.size() + this->rdm_bindings_.size());
   }
 
   dmx_personality_t personalities[] = {{1, "ESPHome DMX"}};
@@ -89,39 +148,64 @@ void DMXComponent::register_rdm_channel(number::Number *channel_number) {
 
 void DMXComponent::setup_rdm_() {
   if constexpr (ESPHOME_DMX_HAS_RDM) {
-    if (this->rdm_bindings_.empty()) {
-      ESP_LOGD(TAG, "RDM enabled but no channel bindings registered yet");
-      return;
-    }
+    // Fixed channel sensors: expose their configured channel number as GET-only PIDs.
+    // The parameter points directly at the stable channel field in static_sensors_.
+    for (auto &cs : this->static_sensors_) {
+      if (cs.channel < 1 || cs.channel > 512)
+        continue;
 
-    // Root device: standard DMX start address ← first binding
-    auto &first = this->rdm_bindings_[0];
-    rdm_set_dmx_start_address(this->dmx_port_, first.last_address);
-
-    // Extra bindings: store as dynamic parameters on root device
-    // Controllers that support manufacturer PIDs can GET/SET these.
-    for (size_t i = 1; i < this->rdm_bindings_.size(); i++) {
-      auto &b = this->rdm_bindings_[i];
-      uint16_t addr = b.last_address;
-
-      // Best-effort: add parameter storage. Definition/callback may need library-specific
-      // rdm_definition_set / rdm_callback_set for full controller visibility.
-      if (!dmx_parameter_add(this->dmx_port_, RDM_SUB_DEVICE_ROOT, b.custom_pid, DMX_PARAMETER_TYPE_DYNAMIC, &addr,
-                             sizeof(addr))) {
-        ESP_LOGW(TAG, "RDM: failed to add custom PID 0x%04X for binding %u", b.custom_pid, static_cast<unsigned>(i));
-      } else {
-        const char *name = b.channel_number ? b.channel_number->get_name().c_str() : "?";
-        ESP_LOGI(TAG, "RDM: custom PID 0x%04X bound to '%s' (addr %u)", b.custom_pid, name, addr);
+      const rdm_pid_t pid = static_cast<rdm_pid_t>(RDM_STATIC_PID_BASE + cs.channel);
+      if (!dmx_parameter_add(this->dmx_port_, RDM_SUB_DEVICE_ROOT, pid, DMX_PARAMETER_TYPE_STATIC,
+                             &cs.channel, sizeof(cs.channel))) {
+        ESP_LOGW(TAG, "RDM: failed to add fixed-channel PID 0x%04X", pid);
+        continue;
       }
+      if (!rdm_definition_set(this->dmx_port_, RDM_SUB_DEVICE_ROOT, pid, &RDM_FIXED_CHANNEL_DEFINITION)) {
+        ESP_LOGW(TAG, "RDM: failed to define fixed-channel PID 0x%04X", pid);
+        continue;
+      }
+      ESP_LOGD(TAG, "RDM: fixed channel %u registered as GET-only PID 0x%04X",
+               static_cast<unsigned>(cs.channel), pid);
     }
 
-  const char *first_name = first.channel_number ? first.channel_number->get_name().c_str() : "?";
-  ESP_LOGI(TAG, "RDM: root DMX_START_ADDRESS bound to '%s' (addr %u), %u total binding(s)", first_name,
-           first.last_address, static_cast<unsigned>(this->rdm_bindings_.size()));
-else{
-  ESP_LOGW(TAG, "RDM requested but rdm/responder.h not available in esp_dmx build");
-}
-}
+    // The first dynamic Number uses the standard RDM DMX_START_ADDRESS PID.
+    if (!this->rdm_bindings_.empty()) {
+      auto &first = this->rdm_bindings_[0];
+      if (!rdm_set_dmx_start_address(this->dmx_port_, first.last_address)) {
+        ESP_LOGW(TAG, "RDM: failed to initialize DMX_START_ADDRESS to %u", first.last_address);
+      }
+
+      // Additional dynamic Numbers get unique manufacturer-specific GET/SET PIDs.
+      for (size_t i = 1; i < this->rdm_bindings_.size(); i++) {
+        auto &binding = this->rdm_bindings_[i];
+        uint16_t initial_address = binding.last_address;
+
+        if (!dmx_parameter_add(this->dmx_port_, RDM_SUB_DEVICE_ROOT, binding.custom_pid,
+                               DMX_PARAMETER_TYPE_DYNAMIC, &initial_address,
+                               sizeof(initial_address))) {
+          ESP_LOGW(TAG, "RDM: failed to add dynamic PID 0x%04X for binding %u",
+                   binding.custom_pid, static_cast<unsigned>(i));
+          continue;
+        }
+        if (!rdm_definition_set(this->dmx_port_, RDM_SUB_DEVICE_ROOT, binding.custom_pid,
+                                &RDM_DYNAMIC_CHANNEL_DEFINITION)) {
+          ESP_LOGW(TAG, "RDM: failed to define dynamic PID 0x%04X", binding.custom_pid);
+          continue;
+        }
+
+        ESP_LOGI(TAG, "RDM: dynamic PID 0x%04X registered (channel %u)",
+                 binding.custom_pid, initial_address);
+      }
+
+      const char *first_name = first.channel_number ? first.channel_number->get_name().c_str() : "?";
+      ESP_LOGI(TAG, "RDM: root DMX_START_ADDRESS bound to '%s' (addr %u), %u dynamic binding(s)",
+               first_name, first.last_address, static_cast<unsigned>(this->rdm_bindings_.size()));
+    } else {
+      ESP_LOGD(TAG, "RDM enabled; no dynamic Number bindings registered");
+    }
+  } else {
+    ESP_LOGW(TAG, "RDM requested but rdm/responder.h not available in esp_dmx build");
+  }
 }
 
 void DMXComponent::sync_rdm_to_numbers_() {
@@ -145,10 +229,9 @@ void DMXComponent::sync_rdm_to_numbers_() {
     // Custom PIDs → remaining Numbers
     for (size_t i = 1; i < this->rdm_bindings_.size(); i++) {
       auto &b = this->rdm_bindings_[i];
-      const void *data = dmx_parameter_get_data(this->dmx_port_, RDM_SUB_DEVICE_ROOT, b.custom_pid);
-      if (data == nullptr)
+      uint16_t addr = 0;
+      if (dmx_parameter_copy(this->dmx_port_, RDM_SUB_DEVICE_ROOT, b.custom_pid, &addr, sizeof(addr)) != sizeof(addr))
         continue;
-      const uint16_t addr = *static_cast<const uint16_t *>(data);
       if (addr < 1 || addr > 512 || addr == b.last_address)
         continue;
       b.last_address = addr;
@@ -212,13 +295,13 @@ void DMXComponent::loop() {
 
     if (received_size > 0) {
       if constexpr (ESPHOME_DMX_HAS_RDM) {
-        M if (this->rdm_enabled_ && packet.is_rdm) {
+        if (this->rdm_enabled_ && packet.is_rdm) {
+          // Respond immediately; do not put logging or other slow work before this call.
           rdm_send_response(this->dmx_port_);
           this->sync_rdm_to_numbers_();
-          this->last_rx_ms_ = millis();  // RDM telt ook als bus-activiteit
+          this->last_rx_ms_ = millis();
           got_rx = true;
         }
-        else
       }
       if (packet.err == DMX_OK && !packet.is_rdm && packet.sc == 0x00) {
         if (received_size > DMX_PACKET_SIZE) {
