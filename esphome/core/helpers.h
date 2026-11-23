@@ -515,10 +515,40 @@ template<typename T, size_t N> class StaticRingBuffer {
     }
   }
 
+  /// Push up to `len` values without overwriting. Returns how many fit.
+  size_t push(const T *data, size_t len) {
+    static_assert(std::is_trivially_copyable<T>::value, "bulk push copies with memcpy");
+    len = std::min<size_t>(len, this->free_space());
+    const size_t first = std::min<size_t>(len, N - this->tail_);
+    std::memcpy(this->data_ + this->tail_, data, first * sizeof(T));
+    if (len > first)
+      std::memcpy(this->data_, data + first, (len - first) * sizeof(T));
+    // Below 2 * N, so one subtraction wraps it; % N is a library call without a hardware divider
+    const size_t tail = this->tail_ + len;
+    this->tail_ = tail >= N ? tail - N : tail;
+    this->count_ += len;
+    return len;
+  }
+
+  /// Move up to `len` of the oldest values into `out`. Returns how many were copied.
+  size_t pop(T *out, size_t len) {
+    static_assert(std::is_trivially_copyable<T>::value, "bulk pop copies with memcpy");
+    len = std::min<size_t>(len, this->count_);
+    const size_t first = std::min<size_t>(len, N - this->head_);
+    std::memcpy(out, this->data_ + this->head_, first * sizeof(T));
+    if (len > first)
+      std::memcpy(out + first, this->data_, (len - first) * sizeof(T));
+    const size_t head = this->head_ + len;
+    this->head_ = head >= N ? head - N : head;
+    this->count_ -= len;
+    return len;
+  }
+
   T &front() { return this->data_[this->head_]; }
   const T &front() const { return this->data_[this->head_]; }
   index_type size() const { return this->count_; }
   bool empty() const { return this->count_ == 0; }
+  index_type free_space() const { return N - this->count_; }
 
   /// Clear all elements (reset to empty)
   void clear() {

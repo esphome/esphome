@@ -85,6 +85,8 @@ LibreTinyUARTComponent = uart_ns.class_(
     "LibreTinyUARTComponent", UARTComponent, cg.Component
 )
 HostUartComponent = uart_ns.class_("HostUartComponent", UARTComponent, cg.Component)
+# Base of UARTs without a wire (uart_virtual.h)
+VirtualUARTComponent = uart_ns.class_("VirtualUARTComponent", UARTComponent)
 
 
 NATIVE_UART_CLASSES = (
@@ -178,7 +180,8 @@ def validate_host_config(config):
 
 
 def validate_rx_buffer_size(config):
-    if CORE.is_esp32:
+    # Without an RX pin the buffer is not used
+    if CORE.is_esp32 and CONF_RX_PIN in config:
         # ESP32 UART hardware FIFO is 128 bytes (LP UART is 16 bytes, but we use 128 as safe minimum)
         # rx_buffer_size must be greater than the hardware FIFO length
         min_buffer_size = 128
