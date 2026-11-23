@@ -1,3 +1,5 @@
+import logging
+
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import media_source, psram
@@ -11,9 +13,7 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
-import logging
-
-_LOGGER = logging.getLogger(__name__)   
+_LOGGER = logging.getLogger(__name__)
 
 from .. import (
     CODEC_FLAC,
@@ -47,6 +47,7 @@ SendspinMediaSource = sendspin_ns.class_(
     media_source.MediaSource,
 )
 
+
 def _migrate_formats(config: ConfigType) -> ConfigType:
     """Convert deprecated top-level sample_rate/bits_per_sample to formats list."""
     has_formats = CONF_FORMATS in config
@@ -62,17 +63,22 @@ def _migrate_formats(config: ConfigType) -> ConfigType:
         _LOGGER.warning(
             "'sample_rate' and 'bits_per_sample' are deprecated. Use 'formats' instead."
         )
-        config[CONF_FORMATS] = [{
-            CONF_SAMPLE_RATE: config.get(CONF_SAMPLE_RATE, 48000),
-            CONF_BITS_PER_SAMPLE: config.get(CONF_BITS_PER_SAMPLE, 16),
-        }]
+        config[CONF_FORMATS] = [
+            {
+                CONF_SAMPLE_RATE: config.get(CONF_SAMPLE_RATE, 48000),
+                CONF_BITS_PER_SAMPLE: config.get(CONF_BITS_PER_SAMPLE, 16),
+            }
+        ]
     elif not has_formats:
-        config[CONF_FORMATS] = [{
-            CONF_SAMPLE_RATE: 48000,
-            CONF_BITS_PER_SAMPLE: 16,
-        }]
+        config[CONF_FORMATS] = [
+            {
+                CONF_SAMPLE_RATE: 48000,
+                CONF_BITS_PER_SAMPLE: 16,
+            }
+        ]
 
-    return config   
+    return config
+
 
 def _resolve_codecs(config: ConfigType) -> ConfigType:
     """Validate the codec preference list, filling in the default when it is not set."""
@@ -134,7 +140,7 @@ CONFIG_SCHEMA = cv.All(
                 cv.Range(max=cv.TimePeriod(microseconds=10000)),
             ),
             cv.Optional(CONF_SAMPLE_RATE): cv.int_range(min=16000, max=192000),
-            cv.Optional(CONF_BITS_PER_SAMPLE): cv.one_of(16, 24, int=True),   
+            cv.Optional(CONF_BITS_PER_SAMPLE): cv.one_of(16, 24, int=True),
             cv.Optional(CONF_FORMATS): cv.All(
                 cv.ensure_list(
                     cv.Schema(
