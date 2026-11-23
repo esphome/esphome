@@ -41,6 +41,7 @@ from esphome.automation import (
     WaitUntilAction,
     WhileAction,
     XorCondition,
+    _float_bits,
     _shadow_iteration,
     apply_action_builder,
     apply_parent,
@@ -3928,3 +3929,18 @@ async def test_new_automation(mock_cg: MockCodegen) -> None:
     assert str(obj) == "a1"
     ((id_, templ), _) = mock_cg.new_pvariable.call_args
     assert (str(id_), str(templ)) == ("a1", "<float>")
+
+
+@pytest.mark.parametrize(
+    ("value", "bits"),
+    [
+        (800.0, 0x44480000),
+        (-600.0, 0xC4160000),
+        (3.4028235e38, 0x7F7FFFFF),
+        (1e40, 0x7F800000),
+        (-1e40, 0xFF800000),
+    ],
+)
+def test_float_bits(value: float, bits: int) -> None:
+    """A priority is a float's bit pattern; out of range is signed infinity."""
+    assert _float_bits(value) == bits
