@@ -130,7 +130,7 @@ class DMXComponent : public Component {
   bool tx_dirty_{false};
   uint32_t last_tx_ms_{0};
   uint32_t last_rx_ms_{0};
- DMXMode mode_{DMXMode::DMX_MODE_RX};
+  DMXMode mode_{DMXMode::DMX_MODE_RX};
   uint32_t tx_interval_ms_{25};
   uint32_t rx_guard_ms_{5};
 
