@@ -4,7 +4,7 @@ from esphome import automation, pins
 from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
 from esphome.components import spi
-from esphome.components.const import CONF_CRC_ENABLE, CONF_ON_PACKET
+from esphome.components.const import CONF_CRC_ENABLE, CONF_ON_PACKET, CONF_PACKET_MODE
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CHANNEL,
@@ -65,7 +65,6 @@ CONF_BS_POST_KI = "bs_post_ki"
 CONF_BS_POST_KP = "bs_post_kp"
 
 # Packet mode config keys
-CONF_PACKET_MODE = "packet_mode"
 CONF_PACKET_LENGTH = "packet_length"
 CONF_WHITENING = "whitening"
 CONF_GDO0_PIN = "gdo0_pin"

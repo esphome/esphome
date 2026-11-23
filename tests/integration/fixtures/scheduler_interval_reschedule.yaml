@@ -81,7 +81,7 @@ interval:
           if (!id(callback_timeout_fired)) {
             // Schedule a one-shot timeout from within an interval callback
             // This goes through to_add_ (not the direct push_heap path)
-            id(timeout_creator)->set_timeout("test_timeout", 10, []() {
+            App.scheduler.set_timeout(id(timeout_creator), "test_timeout", 10, []() {
               id(callback_timeout_fired) = true;
               ESP_LOGI("test", "CALLBACK_TIMEOUT_FIRED");
             });
@@ -100,11 +100,11 @@ interval:
           if (id(replace_count) == 1) {
             ESP_LOGI("test", "REPLACE_ORIGINAL_FIRE");
             // Replace the polling interval with a named interval on the same component
-            id(replace_test)->set_interval("replaced_interval", 80, []() {
+            App.scheduler.set_interval(id(replace_test), "replaced_interval", 80, []() {
               id(replaced_count) += 1;
               ESP_LOGI("test", "REPLACED_FIRE count=%d", id(replaced_count));
               if (id(replaced_count) >= 3) {
-                id(replace_test)->cancel_interval("replaced_interval");
+                App.scheduler.cancel_interval(id(replace_test), "replaced_interval");
                 ESP_LOGI("test", "REPLACED_STOPPED");
               }
             });
