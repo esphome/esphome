@@ -1131,8 +1131,9 @@ network::IPAddress WiFiComponent::get_dns_address(int num) {
 #ifdef USE_WIFI_AP
 #ifdef USE_WIFI_OTA_LISTENER
 void WiFiComponent::on_ota_global_state(ota::OTAState state, float progress, uint8_t error, ota::OTAComponent *comp) {
-  // Each start or progress report restarts the cooldown that retry_connect() holds the retries in
-  this->ota_active_ = state == ota::OTA_STARTED || state == ota::OTA_IN_PROGRESS;
+  // Only an upload over the AP needs the hold. Each start or progress report restarts the cooldown that
+  // retry_connect() holds the retries in
+  this->ota_active_ = this->ap_setup_ && (state == ota::OTA_STARTED || state == ota::OTA_IN_PROGRESS);
   if (this->ota_active_ && this->state_ == WIFI_COMPONENT_STATE_COOLDOWN)
     this->action_started_ = millis();
 }
