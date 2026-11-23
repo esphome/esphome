@@ -641,12 +641,20 @@ async def main() -> None:
             d.rec(test="churn", result="no_free_state")
             sys.exit(1)
         limit = d.free[1]
-        stuck = errs = 0
+        stuck = errs = not_seen = 0
         for c in range(cycles):
             check_api()
             name = (L, M)[c % 2]
             st = await d.connect(name, True, timeout=20)
             ok = st["connected"]
+            # the slot must show as taken first, or the old free count reads as freed at once
+            taken = False
+            t = time.monotonic()
+            while ok and time.monotonic() - t < 5:
+                if taken := bool(d.free and d.free[0] < d.free[1]):
+                    break
+                await asyncio.sleep(0.1)
+            not_seen += ok and not taken
             await asyncio.sleep(0.3)
             await d.disconnect(name)
             t = time.monotonic()
@@ -663,6 +671,7 @@ async def main() -> None:
                 t_conn=st.get("t_conn"),
                 err=st.get("err"),
                 exc=st.get("exc"),
+                slot_seen=taken,
                 freed=freed,
                 t_free=round(time.monotonic() - t, 3),
                 free=d.free,
@@ -674,6 +683,7 @@ async def main() -> None:
             cycles=cycles,
             failed=errs,
             stuck=stuck,
+            slot_not_seen=not_seen,
             limit=limit,
             free_end=d.free,
         )

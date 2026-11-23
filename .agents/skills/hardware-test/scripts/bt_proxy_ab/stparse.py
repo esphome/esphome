@@ -268,6 +268,13 @@ if nothing:
         if "ST not_seen" in txt_all
         else "no phase started",
     )
+# the boot that started the self test comes before its first ST line; a reset after that is a proxy restart,
+# also one outside any phase (the wait before the first phase, or after ST DONE)
+st0 = next((i for i, (_, ln) in enumerate(L) if "]: ST " in ln), len(L))
+if restarts := sum("rst:" in ln for _, ln in L[st0:]):
+    flagged.append(
+        f"{restarts} reset lines after the self test started: the proxy restarted"
+    )
 print_heap(L, None)
 print(
     "resets",

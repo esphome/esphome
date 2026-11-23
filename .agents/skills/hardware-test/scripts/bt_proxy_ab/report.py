@@ -288,8 +288,15 @@ for s in steps:
             ):  # no_free_state is in no_round
                 d.update(
                     {
-                        k: r[k]
-                        for k in ("cycles", "failed", "stuck", "limit", "free_end")
+                        k: r.get(k)
+                        for k in (
+                            "cycles",
+                            "failed",
+                            "stuck",
+                            "limit",
+                            "free_end",
+                            "slot_not_seen",
+                        )
                     }
                 )
         if "cycles" not in d:
@@ -354,6 +361,7 @@ for s in steps:
     # a partial or faulted step must not pass as a clean result
     # rtt_partial: RTT medians from rounds whose RTT loop broke off
     # backwards, dups, short: the tick order broke, so the notify gap and missing counts mean nothing
+    # slot_not_seen: churn cycles whose taken slot never showed, so their freed reading is not a measurement
     if bad := [
         k
         for k in (
@@ -366,6 +374,7 @@ for s in steps:
             "backwards",
             "dups",
             "short",
+            "slot_not_seen",
             *HARNESS,
         )
         if d.get(k)
