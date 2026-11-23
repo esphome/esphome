@@ -24,11 +24,6 @@ CONFIG_PM_ENABLE=y
 # esp32_ble
 CONFIG_BT_ENABLED=y
 
-# bt_spp (Bluetooth Classic needs the dual-mode controller to coexist with BLE here)
-CONFIG_BTDM_CTRL_MODE_BTDM=y
-CONFIG_BT_CLASSIC_ENABLED=y
-CONFIG_BT_SPP_ENABLED=y
-
 # esp32_camera
 CONFIG_SPIRAM=y
 

@@ -122,7 +122,8 @@ void BtSppComponent::dump_config() {
 }
 
 void BtSppComponent::on_shutdown() {
-  // Tell the remote device the link is gone, so it does not wait for its own timeout after a reboot.
+  // Best effort: the disconnect is queued to Bluedroid and may not go out before the reboot. When it does, the
+  // remote device does not wait for its own link timeout.
   if (this->handle_ != 0)
     esp_spp_disconnect(this->handle_);
 }
@@ -374,10 +375,11 @@ void BtSppComponent::handle_event_(const Event &event) {
       this->write_pending_ = false;
       this->congested_ = event.value != 0;
       if (event.status != ESP_SPP_SUCCESS) {
-        // The block is lost; continuing would send a stream with a gap, so start a new connection.
+        // The block is lost; sending the bytes queued behind it would leave a gap in the stream, so drop the
+        // link at once and start a new connection.
         ESP_LOGW(TAG, "Write failed, status %u; reconnecting", event.status);
         this->status_set_warning(LOG_STR("Write failed"));
-        esp_spp_disconnect(this->handle_);
+        this->reset_link_();
       } else {
         this->status_clear_warning();
       }
