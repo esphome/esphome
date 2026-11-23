@@ -79,7 +79,7 @@ CONF_PRESENT = "present"
 STATIC_PAIRING_CODE_DIGITS = 8
 
 CONF_FORMATS = "formats"
-
+CONF_CHANNELS = "channels"
 
 def _validate_static_pairing_code(value: Any) -> str:
     # string_strict so leading zeros survive and `!secret` works.
@@ -645,7 +645,7 @@ async def to_code(config: ConfigType) -> None:
             for codec in player_cfg[CONF_CODECS]:
                 if codec == CODEC_OPUS and fmt[CONF_SAMPLE_RATE] != OPUS_SAMPLE_RATE:
                     continue
-                for channels in (2, 1):
+                for channels in player_cfg[CONF_CHANNELS]:
                     key = (
                         codec,
                         fmt[CONF_SAMPLE_RATE],

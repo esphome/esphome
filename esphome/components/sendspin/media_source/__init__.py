@@ -24,6 +24,7 @@ from .. import (
     CONF_DECODE_MEMORY,
     CONF_FIXED_DELAY,
     CONF_FORMATS,
+    CONF_CHANNELS,
     CONF_INITIAL_STATIC_DELAY,
     CONF_SENDSPIN_ID,
     DEFAULT_CODECS,
@@ -112,6 +113,7 @@ def _register(config: ConfigType) -> ConfigType:
         {
             CONF_CODECS: config[CONF_CODECS],
             CONF_FORMATS: config[CONF_FORMATS],
+            CONF_CHANNELS: config.get(CONF_CHANNELS, [2, 1]),
             CONF_BUFFER_SIZE: config[CONF_BUFFER_SIZE],
             CONF_INITIAL_STATIC_DELAY: config[CONF_INITIAL_STATIC_DELAY],
             CONF_FIXED_DELAY: config[CONF_FIXED_DELAY],
@@ -160,6 +162,10 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_CODECS): cv.All(
                 cv.ensure_list(cv.enum(CODECS, lower=True)), cv.Length(min=1)
             ),
+            cv.Optional(CONF_CHANNELS, default=[2, 1]): cv.All(
+                cv.ensure_list(cv.one_of(1, 2, int=True)),
+                cv.Length(min=1),
+            ),   
         }
     ),
     cv.only_on_esp32,
