@@ -847,6 +847,10 @@ static_assert(std::is_trivially_copyable_v<TriggerOnFalseForwarder>);
 /// Component whose own logic decides when to run its automation: it calls fire(), which FireCallback implements.
 /// Ts is the automation's argument list; derive from FiringComponent<Ts...> instead of Component.
 template<typename... Ts> class FiringComponent : public Component {
+  // fire() takes Ts by value, so a buffer type (vector, string) must be a reference or it is copied on every fire
+  static_assert(((std::is_reference_v<Ts> || std::is_trivially_copyable_v<Ts>) && ...),
+                "FiringComponent arguments must be references or trivially copyable");
+
  public:
   using Firing = FiringComponent;
 
