@@ -6,6 +6,7 @@
 #include "esphome/components/socket/socket.h"
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 #include <cinttypes>
 #include <cstdio>
@@ -19,6 +20,10 @@ static constexpr uint32_t PLAYBACK_TIMEOUT_ID = 1;
 static constexpr uint32_t SPEAKER_IDLE_TIMEOUT_ID = 2;
 static constexpr uint32_t TIMER_TICK_INTERVAL_ID = 3;
 static constexpr uint32_t WAKE_WORD_VERDICT_TIMEOUT_ID = 4;
+static constexpr uint32_t RUN_END_TIMEOUT_ID = 5;
+
+// Fallback for a run whose RUN_END never arrives
+static constexpr uint32_t RUN_END_TIMEOUT_MS = 2000;
 
 #ifdef SAMPLE_RATE_HZ
 #undef SAMPLE_RATE_HZ
@@ -481,6 +486,9 @@ void VoiceAssistant::loop() {
       }
 #endif
 
+      // No client: on_client_connected re-arms instead. A start during the RUN_END wait shares one on_end.
+      this->end_pending_ = this->api_client_ != nullptr;
+      this->end_run_();
       if (this->api_client_ == nullptr || !this->api_client_->send_message(msg)) {
         ESP_LOGW(TAG, "Could not request start");
         this->error_trigger_.trigger("not-connected", "Could not request start");
@@ -715,6 +723,9 @@ void VoiceAssistant::client_subscription(api::APIConnection *client, bool subscr
       return;
     }
     this->api_client_ = nullptr;
+    // on_client_connected re-arms the wake word, so a pipeline cut off by the disconnect fires no on_end
+    this->end_pending_ = false;
+    this->end_run_();
 #ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
     this->wake_word_audio_requested_ = false;
 #endif
@@ -745,38 +756,10 @@ void VoiceAssistant::client_subscription(api::APIConnection *client, bool subscr
   this->client_connected_trigger_.trigger();
 }
 
-static const LogString *voice_assistant_state_to_string(State state) {
-  switch (state) {
-    case State::IDLE:
-      return LOG_STR("IDLE");
-    case State::START_MICROPHONE:
-      return LOG_STR("START_MICROPHONE");
-    case State::STARTING_MICROPHONE:
-      return LOG_STR("STARTING_MICROPHONE");
-    case State::WAIT_FOR_VAD:
-      return LOG_STR("WAIT_FOR_VAD");
-    case State::WAITING_FOR_VAD:
-      return LOG_STR("WAITING_FOR_VAD");
-    case State::START_PIPELINE:
-      return LOG_STR("START_PIPELINE");
-    case State::STARTING_PIPELINE:
-      return LOG_STR("STARTING_PIPELINE");
-    case State::STREAMING_MICROPHONE:
-      return LOG_STR("STREAMING_MICROPHONE");
-    case State::STOP_MICROPHONE:
-      return LOG_STR("STOP_MICROPHONE");
-    case State::STOPPING_MICROPHONE:
-      return LOG_STR("STOPPING_MICROPHONE");
-    case State::AWAITING_RESPONSE:
-      return LOG_STR("AWAITING_RESPONSE");
-    case State::STREAMING_RESPONSE:
-      return LOG_STR("STREAMING_RESPONSE");
-    case State::RESPONSE_FINISHED:
-      return LOG_STR("RESPONSE_FINISHED");
-    default:
-      return LOG_STR("UNKNOWN");
-  }
-};
+// Indexed by State
+PROGMEM_STRING_TABLE(StateStrings, "IDLE", "START_MICROPHONE", "STARTING_MICROPHONE", "WAIT_FOR_VAD", "WAITING_FOR_VAD",
+                     "START_PIPELINE", "STARTING_PIPELINE", "STREAMING_MICROPHONE", "STOP_MICROPHONE",
+                     "STOPPING_MICROPHONE", "AWAITING_RESPONSE", "STREAMING_RESPONSE", "RESPONSE_FINISHED", "UNKNOWN");
 
 #ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
 static bool is_microphone_streaming_state(State state) {
@@ -788,27 +771,51 @@ static bool is_microphone_streaming_state(State state) {
 void VoiceAssistant::set_state_(State state) {
   State old_state = this->state_;
   this->state_ = state;
-  ESP_LOGD(TAG, "State changed from %s to %s", LOG_STR_ARG(voice_assistant_state_to_string(old_state)),
-           LOG_STR_ARG(voice_assistant_state_to_string(state)));
+  ESP_LOGD(TAG, "State changed from %s to %s", LOG_STR_ARG(StateStrings::get_log_str(old_state)),
+           LOG_STR_ARG(StateStrings::get_log_str(state)));
 #ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
   if (this->wake_word_audio_buffering_ && is_microphone_streaming_state(old_state) &&
       !is_microphone_streaming_state(state)) {
     this->end_wake_word_audio_stream_();
   }
 #endif
+  // Fire on_end now, or once RUN_END or its timeout arrives if Home Assistant's run is still open
+  if (state == State::IDLE && this->end_pending_) {
+    if (this->run_active_) {
+      this->set_timeout(RUN_END_TIMEOUT_ID, RUN_END_TIMEOUT_MS, [this]() { this->end_session_(); });
+    } else {
+      this->end_session_();
+    }
+  }
+}
+
+void VoiceAssistant::end_run_() {
+  this->run_active_ = false;
+  this->cancel_timeout(RUN_END_TIMEOUT_ID);
+}
+
+void VoiceAssistant::end_session_() {
+  if (!this->end_pending_)
+    return;
+  this->end_pending_ = false;
+  // The client can unsubscribe before the deferred trigger runs
+  this->defer([this]() {
+    if (this->api_client_ != nullptr)
+      this->end_trigger_.trigger();
+  });
 }
 
 void VoiceAssistant::set_state_(State state, State desired_state) {
   this->set_state_(state);
   this->desired_state_ = desired_state;
-  ESP_LOGD(TAG, "Desired state set to %s", LOG_STR_ARG(voice_assistant_state_to_string(desired_state)));
+  ESP_LOGD(TAG, "Desired state set to %s", LOG_STR_ARG(StateStrings::get_log_str(desired_state)));
 }
 
 void VoiceAssistant::set_state_after_mic_stop_(State state) {
   if (this->state_ == State::STOP_MICROPHONE || this->state_ == State::STOPPING_MICROPHONE) {
     // loop() moves to the desired state once the microphone has stopped
     this->desired_state_ = state;
-    ESP_LOGD(TAG, "Desired state set to %s", LOG_STR_ARG(voice_assistant_state_to_string(state)));
+    ESP_LOGD(TAG, "Desired state set to %s", LOG_STR_ARG(StateStrings::get_log_str(state)));
   } else if (state != this->state_) {
     this->set_state_(state, state);
   }
@@ -1006,6 +1013,9 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
   switch (msg.event_type) {
     case api::enums::VOICE_ASSISTANT_RUN_START:
       ESP_LOGD(TAG, "Assist Pipeline running");
+      // Home Assistant sends RUN_END only for a run it sent RUN_START for. A local abort before RUN_START
+      // fires on_end at once, so a late RUN_START/RUN_END can still end a pipeline that on_end starts.
+      this->run_active_ = true;
 #ifdef USE_MEDIA_PLAYER
       this->started_streaming_tts_ = false;
       for (const auto &arg : msg.data) {
@@ -1160,6 +1170,7 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
     }
     case api::enums::VOICE_ASSISTANT_RUN_END: {
       ESP_LOGD(TAG, "Assist Pipeline ended");
+      this->end_run_();
 #ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
       this->clear_wake_word_verdict_();
 #endif
@@ -1174,7 +1185,7 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
         // No TTS start event while the microphone is still stopping
         this->set_state_after_mic_stop_(State::IDLE);
       }
-      this->defer([this]() { this->end_trigger_.trigger(); });
+      this->end_session_();
       break;
     }
     case api::enums::VOICE_ASSISTANT_ERROR: {

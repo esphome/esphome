@@ -14,7 +14,7 @@ from ..automation import action_to_code
 from ..defines import CONF_COLUMN, CONF_MAIN, LValidator, literal
 from ..lv_validation import lv_int, lv_text, pixels_or_percent, pixels_validator
 from ..lvcode import LocalVariable, lv, lv_add, lv_expr
-from ..types import LvCompound, LvType, ObjUpdateAction, lv_coord_t
+from ..types import LvCompound, LvType, lv_coord_t
 from . import Widget, WidgetType, get_widgets
 from .label import CONF_LABEL
 
@@ -201,7 +201,10 @@ class TableType(WidgetType):
             1 for column in columns if isinstance(column.get(CONF_WIDTH), float)
         )
         if pct_column_count:
-            lv_add(w.var.init_column_pct(pct_column_count))
+            storage = cg.static_storage(
+                config[CONF_ID], lv_table_t.class_("ColumnPct"), pct_column_count
+            )
+            lv_add(w.var.set_column_pct_storage(storage))
         for index, column in enumerate(columns):
             if (width := column.get(CONF_WIDTH)) is None:
                 continue
@@ -231,7 +234,7 @@ table_spec = TableType()
 
 @automation.register_action(
     "lvgl.table.cell.update",
-    ObjUpdateAction,
+    automation.ApplyAction,
     cv.Schema(
         {
             cv.Required(CONF_ID): cv.use_id(lv_table_t),
