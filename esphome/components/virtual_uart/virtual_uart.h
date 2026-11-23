@@ -23,10 +23,7 @@ class VirtualUART final : public uart::VirtualUARTComponent<RX_BUFFER_SIZE>, pub
   void write_array(const uint8_t *data, size_t len) override {
     // An on_tx that writes to this UART again would recurse until the stack runs out
     if (this->in_tx_) {
-      if (!this->loop_logged_) {
-        this->loop_logged_ = true;
-        log_own_write_dropped();
-      }
+      log_own_write_dropped();
       return;
     }
     this->debug_tx_(data, len);
@@ -45,10 +42,8 @@ class VirtualUART final : public uart::VirtualUARTComponent<RX_BUFFER_SIZE>, pub
   }
 
  protected:
-  LazyCallbackManager<void(std::span<const uint8_t>)> tx_callback_;
-  // write_array() is running the on_tx callbacks.
+  CallbackManager<void(std::span<const uint8_t>)> tx_callback_;
   bool in_tx_{false};
-  bool loop_logged_{false};
 };
 
 }  // namespace esphome::virtual_uart

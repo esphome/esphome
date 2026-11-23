@@ -27,18 +27,9 @@ VirtualUART = virtual_uart_ns.class_(
 _DATA_SPAN = cg.std_span.template(cg.uint8.operator("const"))
 
 
-def _synchronous(value: ConfigType) -> ConfigType:
-    if automation.has_non_synchronous_actions(value):
-        raise cv.Invalid(
-            "Deferring actions (delay, wait_until, script.wait, ...) are not allowed in on_tx: "
-            "data is only valid while the automation runs. Copy what you need into globals first."
-        )
-    return value
-
-
 CONFIG_SCHEMA = cv.Schema(
     {
-        cv.GenerateID(): cv.declare_id(VirtualUART),
+        cv.GenerateID(): cv.All(cv.declare_id(VirtualUART), uart.mark_unclocked),
         cv.Required(CONF_BAUD_RATE): cv.int_range(min=1),
         cv.Optional(CONF_DATA_BITS, default=8): cv.int_range(min=5, max=8),
         cv.Optional(CONF_PARITY, default="NONE"): cv.enum(
@@ -48,8 +39,8 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_RX_BUFFER_SIZE, default=256): cv.All(
             cv.validate_bytes, cv.int_range(min=1, max=65535)
         ),
-        cv.Optional(CONF_ON_TX): cv.All(
-            automation.validate_automation(single=True), _synchronous
+        cv.Optional(CONF_ON_TX): automation.validate_synchronous_automation(
+            "on_tx", "data", single=True
         ),
         cv.Optional(CONF_DEBUG): uart.maybe_empty_debug,
     }
