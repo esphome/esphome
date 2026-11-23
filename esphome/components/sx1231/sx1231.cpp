@@ -66,9 +66,7 @@ void SX1231::write_register_(uint8_t reg, uint8_t value) {
 void SX1231::read_fifo_(std::vector<uint8_t> &packet) {
   this->enable();
   this->write_byte(REG_FIFO & 0x7F);
-  for (auto &byte : packet) {
-    byte = this->transfer_byte(0x00);
-  }
+  this->read_array(packet.data(), packet.size());
   this->disable();
 }
 
