@@ -19,7 +19,7 @@ void ModbusTextSensor::parse_and_publish(std::span<const uint8_t> data) {
       case RawEncoding::HEXBYTES: {
         // max 3: 2 hex digits + null
         char hex_buf[3];
-        snprintf(hex_buf, sizeof(hex_buf), "%02x", b);
+        format_hex_to(hex_buf, b);
         output_str += hex_buf;
         break;
       }
