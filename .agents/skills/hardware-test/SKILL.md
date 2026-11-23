@@ -267,6 +267,8 @@ Per-topic scripts, each described in the matching `reference/recipes/<component>
   runner)
 - `online_image/` (server with prefixed misbehaviour cases, PNG, JPEG, BMP and QOI generators, API drivers, first pass
   timer)
+- `openthread_race/` (border router restart race and Wi-Fi drop packages, ESP32-S31 Ethernet border router, PHY power
+  link drop, restart loop with an OMR prefix sensor read over the API, meshcop check)
 - `ota_automations/` (OTA automation package for both OTA platforms, four case runner, repeated web upload runner and
   per case summary)
 - `ota_timing/` (OTA upload timer with deflate, raw and TCP modes, API build check, A/B runner and median summary,
