@@ -34,7 +34,7 @@ class TestablePacketTransport : public PacketTransport {
   using PacketTransport::ping_key_;
   using PacketTransport::ping_keys_;
   using PacketTransport::ping_pong_enable_;
-  using PacketTransport::ping_pong_recyle_time_;
+  using PacketTransport::ping_pong_recycle_time_;
   using PacketTransport::process_;
   using PacketTransport::providers_;
   using PacketTransport::rolling_code_;

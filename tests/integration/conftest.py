@@ -4,7 +4,12 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncGenerator, Callable, Generator
-from contextlib import AbstractAsyncContextManager, asynccontextmanager, suppress
+from contextlib import (
+    AbstractAsyncContextManager,
+    asynccontextmanager,
+    contextmanager,
+    suppress,
+)
 import fcntl
 from functools import cache
 import hashlib
@@ -179,17 +184,34 @@ def integration_test_dir() -> Generator[Path]:
         yield Path(tmpdir)
 
 
-@pytest.fixture
-def reserved_tcp_port() -> Generator[tuple[int, socket.socket]]:
-    """Reserve an unused TCP port by holding the socket open."""
+@contextmanager
+def _reserve_port() -> Generator[tuple[int, socket.socket]]:
+    """Hold an unused TCP port open until the caller is done with it."""
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     s.bind(("", 0))
-    port = s.getsockname()[1]
     try:
-        yield port, s
+        yield s.getsockname()[1], s
     finally:
         s.close()
+
+
+@pytest.fixture
+def reserved_tcp_port() -> Generator[tuple[int, socket.socket]]:
+    """Reserve an unused TCP port by holding the socket open."""
+    with _reserve_port() as reserved:
+        yield reserved
+
+
+@pytest.fixture
+def reserved_ota_port() -> Generator[tuple[int, socket.socket]]:
+    """Reserve a second port, for fixtures that name their OTA port __OTA_PORT__.
+
+    Only the api socket is closed by run_compiled, so a test using this one closes its
+    socket itself before starting the binary, or the device cannot bind the port.
+    """
+    with _reserve_port() as reserved:
+        yield reserved
 
 
 @pytest.fixture
@@ -226,6 +248,11 @@ async def yaml_config(request: pytest.FixtureRequest, unused_tcp_port: int) -> s
     if "api:" in content:
         # Add port configuration after api:
         content = content.replace("api:", f"api:\n  port: {unused_tcp_port}")
+
+    # Filled here rather than by the test, so tests sharing an OTA fixture can share its build
+    if "__OTA_PORT__" in content:
+        ota_port, _ = request.getfixturevalue("reserved_ota_port")
+        content = content.replace("__OTA_PORT__", str(ota_port))
 
     # Add debug build flags for integration tests to enable assertions
     if "esphome:" in content and "build_flags:" not in content:

@@ -15,7 +15,6 @@ from esphome.const import (
     CONF_ID,
     CONF_INTERVAL,
 )
-from esphome.core import ID
 from esphome.types import ConfigType
 
 CONF_LN882H_BLE_ID = "ln882h_ble_id"
@@ -31,9 +30,6 @@ ln882h_ble_tracker_ns = cg.esphome_ns.namespace("ln882h_ble_tracker")
 LN882HBLETracker = ln882h_ble_tracker_ns.class_(
     "LN882HBLETracker", ble_device_base.BLEHub, cg.Component
 )
-
-StartScanAction = ln882h_ble_tracker_ns.class_("StartScanAction", automation.Action)
-
 BLEEndOfScanTrigger = ble_automation.BLEEndOfScanTrigger
 
 
@@ -56,29 +52,9 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-@automation.register_action(
-    "ln882h_ble_tracker.start_scan",
-    StartScanAction,
-    cv.Schema(
-        {
-            cv.GenerateID(): cv.use_id(LN882HBLETracker),
-            cv.Optional(CONF_CONTINUOUS): cv.templatable(cv.boolean),
-        }
-    ),
-    synchronous=True,
+ble_automation.register_start_scan_action(
+    "ln882h_ble_tracker.start_scan", LN882HBLETracker
 )
-async def start_scan_action_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: list,
-) -> cg.MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    if (continuous := config.get(CONF_CONTINUOUS)) is not None:
-        template_ = await cg.templatable(continuous, args, cg.bool_)
-        cg.add(var.set_continuous(template_))
-    return var
 
 
 automation.register_apply_action(

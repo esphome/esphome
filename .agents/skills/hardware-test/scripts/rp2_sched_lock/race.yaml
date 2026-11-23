@@ -1,0 +1,40 @@
+# The removed item race from tests/integration/fixtures/scheduler_removed_item_race.yaml, run on the board through
+# the run_test action: cancelled timeouts behind a live one at the front of the heap must never run.
+globals:
+  - id: removed_item_executed
+    type: int
+    initial_value: '0'
+  - id: normal_item_executed
+    type: int
+    initial_value: '0'
+sensor:
+  - platform: template
+    id: race_sensor
+    update_interval: never
+    lambda: return 0.0;
+script:
+  - id: run_test_script
+    then:
+      - lambda: |-
+          id(removed_item_executed) = 0;
+          id(normal_item_executed) = 0;
+          auto *c = id(race_sensor);
+          auto normal = []() { id(normal_item_executed)++; };
+          auto removed = []() { id(removed_item_executed)++; };
+          App.scheduler.set_timeout(c, "blocker", 1, normal);
+          App.scheduler.set_timeout(c, "cancel_1", 1, removed);
+          App.scheduler.set_timeout(c, "cancel_2", 1, removed);
+          App.scheduler.set_timeout(c, "cancel_3", 1, removed);
+          App.scheduler.set_timeout(c, "normal_1", 1, normal);
+          App.scheduler.set_timeout(c, "normal_2", 1, normal);
+          App.scheduler.set_timeout(c, "normal_3", 1, normal);
+          App.scheduler.process_to_add();
+          App.scheduler.cancel_timeout(c, "cancel_1");
+          App.scheduler.cancel_timeout(c, "cancel_2");
+          App.scheduler.cancel_timeout(c, "cancel_3");
+      - delay: 20ms
+      - lambda: |-
+          bool ok = id(removed_item_executed) == 0 && id(normal_item_executed) == 4;
+          ESP_LOGI("test", "%s: normal %d (expect 4), removed %d (expect 0)", ok ? "TEST PASSED" : "TEST FAILED",
+                   id(normal_item_executed), id(removed_item_executed));
+          ESP_LOGI("test", "=== Test Complete ===");

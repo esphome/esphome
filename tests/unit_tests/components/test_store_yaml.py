@@ -398,6 +398,15 @@ def test_redacted_inline_value_becomes_secret_ref(
         ),
         pytest.param(
             {
+                "base.yaml": 'keeloq:\n  - manufacturer_key: "0x0011223344556677"\n',
+                "entry.yaml": "<<: !include base.yaml\nkeeloq:\n  - serial: 0x1234500\n",
+            },
+            API_KEY,
+            "keeloq.manufacturer_key in base.yaml",
+            id="manufacturer_key_shadowed_by_a_merge",
+        ),
+        pytest.param(
+            {
                 "pkg.yaml": "packet_transport:\n  encryption: old_key_123\n",
                 "entry.yaml": "packages:\n  p: !include pkg.yaml\n"
                 "packet_transport:\n  encryption: !secret new_key\n",

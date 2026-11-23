@@ -110,7 +110,6 @@ def _reply_timeout_ms(full: ConfigType) -> int:
 
 
 async def to_code(config: ConfigType) -> None:
-    uart.require_virtual_uart()
     parent = await cg.get_variable(config[CONF_TCP_UART_ID])
     var = cg.new_Pvariable(config[CONF_ID], parent)
     await cg.register_component(var, config)

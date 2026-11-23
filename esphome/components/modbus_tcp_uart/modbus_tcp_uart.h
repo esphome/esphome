@@ -12,12 +12,15 @@ class TcpUart;
 
 namespace esphome::modbus_tcp_uart {
 
+// One RTU frame.
+static constexpr uint16_t RTU_FRAME_SIZE = 256;
+
 /// RTU toward the reader, Modbus TCP on a tcp_uart. Client: a response must match the request's transaction id.
 /// Server: one request at a time, from any of the tcp_uart's connections; the reply gets its transaction id and goes
 /// to the connection that asked.
-class ModbusTcpUart : public uart::VirtualUARTComponent, public Component {
+class ModbusTcpUart : public uart::VirtualUARTComponent<RTU_FRAME_SIZE>, public Component {
  public:
-  explicit ModbusTcpUart(tcp_uart::TcpUart *parent) : VirtualUARTComponent(RTU_FRAME_SIZE), parent_(parent) {}
+  explicit ModbusTcpUart(tcp_uart::TcpUart *parent) : parent_(parent) {}
 
   void set_server(bool server) { this->server_ = server; }
   void set_reply_timeout(uint32_t ms) { this->reply_timeout_ms_ = ms; }
@@ -53,8 +56,6 @@ class ModbusTcpUart : public uart::VirtualUARTComponent, public Component {
   void note_drop_(const LogString *message);
 
   static constexpr size_t TCP_FRAME_SIZE = 260;
-  // One RTU frame.
-  static constexpr uint16_t RTU_FRAME_SIZE = 256;
 
   tcp_uart::TcpUart *parent_;
   const uint8_t *units_{nullptr};

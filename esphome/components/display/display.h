@@ -784,7 +784,7 @@ class Display : public PollingComponent {
     this->extend_clipping(Rect(left, top, right - left, bottom - top));
   };
 
-  /** substract a rectangular region to the invalidation region
+  /** subtract a rectangular region to the invalidation region
    *  - This is usually called when an element has been modified
    *
    * @param[in]  rect: Rectangle to add to the invalidation region
@@ -894,18 +894,6 @@ class DisplayPage final {
 
 inline void Display::show_next_page() { this->page_->show_next(); }
 inline void Display::show_prev_page() { this->page_->show_prev(); }
-
-template<typename... Ts> class DisplayPageShowAction final : public Action<Ts...> {
- public:
-  TEMPLATABLE_VALUE(DisplayPage *, page)
-
-  void play(const Ts &...x) override {
-    auto *page = this->page_.value(x...);
-    if (page != nullptr) {
-      page->show();
-    }
-  }
-};
 
 const LogString *text_align_to_string(TextAlign textalign);
 

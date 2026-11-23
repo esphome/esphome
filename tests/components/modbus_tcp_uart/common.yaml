@@ -17,7 +17,6 @@ modbus_tcp_uart:
   - id: answer
     tcp_uart_id: inbound
     role: server
-    debug:
 
 modbus:
   - id: modbus_bus

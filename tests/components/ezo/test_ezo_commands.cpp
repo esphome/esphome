@@ -103,7 +103,7 @@ TEST_F(EzoCommandTest, RepliesReachTheirCallbacks) {
     EXPECT_EQ(std::strlen(x.c_str()), x.size());
     got.push_back(std::string(prefix) + x.c_str());
   };
-  this->ezo_.add_device_infomation_callback([&record](StringRef x) { record("info ", x); });
+  this->ezo_.add_device_information_callback([&record](StringRef x) { record("info ", x); });
   this->ezo_.add_slope_callback([&record](StringRef x) { record("slope ", x); });
   this->ezo_.add_calibration_callback([&record](StringRef x) { record("cal ", x); });
   this->ezo_.add_t_callback([&record](StringRef x) { record("t ", x); });

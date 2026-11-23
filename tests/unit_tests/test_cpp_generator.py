@@ -2,10 +2,16 @@ from collections.abc import Iterator
 import io
 import math
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
-from esphome import config_validation as cv, cpp_generator as cg, cpp_types as ct
+from esphome import (
+    config as esphome_config,
+    config_validation as cv,
+    cpp_generator as cg,
+    cpp_types as ct,
+)
 from esphome.const import (
     KEY_CORE,
     KEY_TARGET_PLATFORM,
@@ -162,6 +168,23 @@ class TestParameterListExpression:
 
 
 class TestLambdaExpression:
+    def test_body_lines(self) -> None:
+        """The body as function statements: the #line mark before it and the reset after."""
+        plain = cg.LambdaExpression(("return x;",), ((float, "x"),), "")
+        assert plain.body_lines == ["return x;"]
+
+        source = DocumentLocation("cfg.yaml", 4, 0)
+        marked = cg.LambdaExpression(("return x;",), ((float, "x"),), "", source=source)
+        assert marked.body_lines == [
+            source.as_line_directive,
+            "return x;",
+            LINE_DIRECTIVE_RESET,
+        ]
+        assert str(marked) == (
+            f"[](float x) {{\n  {source.as_line_directive}\n  return x;\n"
+            f"  {LINE_DIRECTIVE_RESET}\n}}"
+        )
+
     def test_str__no_return(self):
         target = cg.LambdaExpression(
             (
@@ -290,6 +313,16 @@ class TestCallLambda:
     def test_call_lambda__braced_return_is_called(self) -> None:
         """A braced return needs the lambda's return type, so it is not reduced."""
         lamb = cg.LambdaExpression(("return {};",), (), "", ct.int_)
+
+        result = cg.call_lambda(lamb)
+
+        assert isinstance(result, cg.CallExpression)
+        assert "static_cast" not in str(result)
+
+    @pytest.mark.parametrize("body", ["return;", "return ;"])
+    def test_call_lambda__bare_return_is_called(self, body: str) -> None:
+        """A bare return has no expression to reduce to, so the lambda is called."""
+        lamb = cg.LambdaExpression((body,), (), "", ct.void)
 
         result = cg.call_lambda(lamb)
 
@@ -460,12 +493,45 @@ class TestStatements:
                 cg.ProgmemAssignmentExpression(ct.uint16, "foo", "bar"),
                 'static constexpr uint16_t foo[] PROGMEM = "bar"',
             ),
+            (
+                cg.ProgmemAssignmentExpression(ct.uint16, "foo", "bar", align=16),
+                'alignas(16) static constexpr uint16_t foo[] PROGMEM = "bar"',
+            ),
+            (
+                cg.ProgmemAssignmentExpression(
+                    ct.uint16, "foo", "bar", constexpr=False, align=4
+                ),
+                'alignas(4) ESPHOME_FLASH_CONSTINIT static uint16_t const foo[] PROGMEM = "bar"',
+            ),
         ),
     )
     def test_str__simple(self, target: cg.Statement, expected: str):
         actual = str(target)
 
         assert actual == expected
+
+
+class TestProgmemArray:
+    def test_align_is_emitted(self) -> None:
+        """``align`` prefixes the declaration with ``alignas``."""
+        CORE.main_statements = []
+        cg.progmem_array(
+            ID("model_data", is_declaration=True, type=ct.uint8), [1, 2], align=16
+        )
+
+        assert (
+            str(CORE.main_statements[-1])
+            == "alignas(16) static constexpr uint8_t model_data[] PROGMEM = {1, 2};"
+        )
+
+    def test_no_align_by_default(self) -> None:
+        CORE.main_statements = []
+        cg.progmem_array(ID("table", is_declaration=True, type=ct.uint8), [1, 2])
+
+        assert (
+            str(CORE.main_statements[-1])
+            == "static constexpr uint8_t table[] PROGMEM = {1, 2};"
+        )
 
 
 # TODO: This method has side effects in CORE
@@ -932,14 +998,32 @@ class TestSharedProgmemArray:
 
     def test_name_avoids_config_ids(self) -> None:
         CORE.config = {"sensor": [{"id": ID("table", is_declaration=True)}]}
-        array = cg.shared_progmem_array("table", ct.uint8, [1])
-        assert str(array) == "table_2"
+        with patch.object(
+            esphome_config, "iter_ids", wraps=esphome_config.iter_ids
+        ) as walk:
+            first = cg.shared_progmem_array("table", ct.uint8, [1])
+            second = cg.shared_progmem_array("table", ct.uint8, [2])
+        assert [str(first), str(second)] == ["table_2", "table_3"]
+        assert walk.call_count == 1
 
     def test_name_avoids_registered_variables(self) -> None:
         CORE.config = {}
         CORE.register_variable(ID("table", is_declaration=True), cg.MockObj("table"))
         array = cg.shared_progmem_array("table", ct.uint8, [1])
         assert str(array) == "table_2"
+
+    def test_name_avoids_reserved_ids(self) -> None:
+        CORE.config = {}
+        array = cg.shared_progmem_array("alarm", ct.uint8, [1])
+        assert str(array) == "alarm_2"
+
+    def test_name_avoids_integrations_loaded_after_the_first_name(self) -> None:
+        # Only the config ids are collected once; integrations are checked on every call
+        CORE.config = {}
+        cg.shared_progmem_array("table", ct.uint8, [1])
+        CORE.loaded_integrations.add("late_hub")
+        array = cg.shared_progmem_array("late_hub", ct.uint8, [2])
+        assert str(array) == "late_hub_2"
 
 
 class TestStaticBuffer:
@@ -1096,6 +1180,21 @@ def test_static_function_declares_early_and_defines_after_includes() -> None:
     ]
     assert [str(st) for st in CORE.global_statements_after_includes] == [
         "static void esphome__act__fn(int32_t x) {\n  return;\n}"
+    ]
+
+
+def test_declare_static_function_defines_the_body_later() -> None:
+    """The declaration is emitted at once; the body only when define() is called."""
+    define = cg.declare_static_function("esphome__act__fn", ct.void, [])
+    assert [str(st) for st in CORE.global_statements] == [
+        "static void esphome__act__fn();"
+    ]
+    assert CORE.global_statements_after_includes == []
+
+    fn = define(["first();", "second();"])
+    assert str(fn) == "esphome__act__fn"
+    assert [str(st) for st in CORE.global_statements_after_includes] == [
+        "static void esphome__act__fn() {\n  first();\n  second();\n}"
     ]
 
 

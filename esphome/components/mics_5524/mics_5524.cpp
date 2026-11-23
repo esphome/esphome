@@ -46,11 +46,8 @@ void MiCS5524Component::setup() {
         this->preference_key_ ^ (REFERENCE_PREFERENCE_VERSION + this->conversion_), true);
   }
 
-  if (this->enable_pin_ != nullptr) {
-    // EN of the breakout is active low; `inverted: true` makes this write switch the module on.
-    this->enable_pin_->setup();
-    this->enable_pin_->digital_write(true);
-  }
+  // EN of the breakout is active low; `inverted: true` makes this write switch the module on.
+  setup_output_pin(this->enable_pin_, true);
 
   if (this->has_reference_()) {
     ESP_LOGI(TAG, "using the %s from the configuration (%.4f) - the sensor is not calibrated at boot",
