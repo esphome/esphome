@@ -3,5 +3,5 @@
 # fixture committed next to this file, so the test needs no network.
 tflite_text:
   - id: test_text
-    model: "model.tflite"
+    model: "../../components/tflite_text/model.tflite"
     max_sequence_length: 16
