@@ -8,9 +8,9 @@ D=$(cd "$(dirname "$0")" && pwd); cd "$D" || exit 1
 [ -z "${API_KEY+x}" ] && [ -f apikey.txt ] && API_KEY=$(cat apikey.txt)
 export API_KEY PYTHONUNBUFFERED=1
 PY=${PY:-python3}
-# drive.py appends, so results of an earlier crossed run here would mix into this one
-if compgen -G "x*-adv.jsonl" > /dev/null; then
-  echo "x*-adv.jsonl from an earlier run exist here; move them away" >&2; exit 2
+# drive.py and pinger.py append, so results of an earlier crossed run here would mix into this one
+if compgen -G "x*-adv.jsonl" > /dev/null || compgen -G "ping-x[0-9]*-*.txt" > /dev/null; then
+  echo "x*-adv.jsonl or ping-x*.txt files from an earlier run exist here; move them away" >&2; exit 2
 fi
 i=0 fail=0 CP= PP=
 # stop the capture and pinger on any exit, so the port is free for the next flash

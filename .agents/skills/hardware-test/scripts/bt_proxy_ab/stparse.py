@@ -264,6 +264,8 @@ for name, lines in ph.items():
 # a run where the servers were never seen, or no phase started, measured nothing
 txt_all = "\n".join(ln for _, ln in L)
 nothing = "ST not_seen" in txt_all or not ph
+if not nothing and "ST DONE" not in txt_all:
+    flagged.append("no ST DONE: the capture ended before the self test finished")
 if "ST eve_not_seen" in txt_all:  # the Eve phases failed on the missing peer
     flagged.append(
         "eve not seen: thirdeve, thirdpd, thirdL and eve results are not about the proxy"

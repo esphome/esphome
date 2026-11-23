@@ -37,7 +37,7 @@ def p90(v, nd: int | None = 1):
 
 
 def print_heap(lines: list[tuple[float, str]], nd: int | None = 1) -> None:
-    """Summary of the heaplog.hpp HEAP lines."""
+    """Summary of the heaplog.hpp HEAP lines; min_ever also takes the 100 ms HEAPMIN readings."""
     heap = [
         tuple(
             int(x)
@@ -46,6 +46,7 @@ def print_heap(lines: list[tuple[float, str]], nd: int | None = 1) -> None:
         for _, ln in lines
         if "HEAP free=" in ln
     ]
+    lows = [int(m[1]) for _, ln in lines if (m := re.search(r"HEAPMIN min=(\d+)", ln))]
     if heap:
         print(
             "heap free min/med/last",
@@ -53,7 +54,7 @@ def print_heap(lines: list[tuple[float, str]], nd: int | None = 1) -> None:
             med([h[0] for h in heap], nd),
             heap[-1][0],
             "min_ever",
-            min(h[1] for h in heap),
+            min([h[1] for h in heap] + lows),
             "largest_min",
             min(h[2] for h in heap),
         )

@@ -465,6 +465,10 @@ async def main() -> None:
                 if d.held(EVE):
                     await d.disconnect(EVE)
                     await asyncio.sleep(1)
+                elif (old := d.st.pop(d.peers[EVE][0], None)) and old.get("cancel"):
+                    # the dropped link's handler must not see the next connect, as in hold()
+                    with contextlib.suppress(Exception):
+                        old["cancel"]()
                 st = await d.connect(EVE, True)
                 ok = ok and st["connected"]
                 t_eve = st.get("t_conn")
@@ -636,7 +640,8 @@ async def main() -> None:
         d.rec(test="notify", secs=secs, expected=round(secs * 5), **stats)
         # ticks seen or known missing should cover the held time; far less means the subscription went quiet
         want = secs * 5 - stats["unheld_s"] * 5
-        covered = stats["rx"] + stats["missing"] + stats["missing_drop"]
+        # missing_drop is ticks sent while unheld, already left out of want
+        covered = stats["rx"] + stats["missing"]
         if stats["rx"] and covered < 0.9 * want:
             d.rec(
                 test="notify", result="notify_short", covered=covered, want=round(want)
