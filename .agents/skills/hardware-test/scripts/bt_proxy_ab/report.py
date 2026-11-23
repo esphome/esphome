@@ -98,7 +98,14 @@ marks = list(
 # every start/end interval of a step (a resumed run adds more); an interrupted one ends at the next start
 steps: dict[str, list[list]] = {}
 open_iv = None
+# suite.sh's own verdict: the last driver rc per step and the incomplete list
+last_rc: dict[str, int] = {}
+suite_incomplete = ""
 for t, r in marks:
+    if m := re.match(r"(\S+) chunk \d+ rc=(\d+)", r):
+        last_rc[m[1]] = int(m[2])
+    elif r.startswith("suite incomplete:"):
+        suite_incomplete = r.split(":", 1)[1].strip()
     if r.startswith("start "):
         if open_iv:
             open_iv[1] = t
@@ -306,6 +313,9 @@ for s in steps:
         )
         d["iv"] = dict(Counter(a.get("iv") for a in dev))
         d["upd"] = dict(Counter(str(a.get("upd", [])) for a in dev))
+    # a round step whose driver counted no rounds (a crash in every chunk) measured nothing
+    if s.startswith(("disc", "cache", "retry", "third", "eve")) and not rounds:
+        d.setdefault("warn", []).append("no counted rounds")
     # driver rounds but no device connect line: the log format is not the one these patterns read
     # device attempts, but none labelled as this step's peer: PEER_ADDRS is wrong for this setup
     peer_steps = ("disc", "cache", "third", "eve")
@@ -376,6 +386,15 @@ except FileNotFoundError:
     print(f"no ping-{T}.txt, ping not measured")
 if not steps:  # no start mark: nothing was run or the marks file is empty
     flagged.append(f"no steps in marks-{T}.txt")
+if suite_incomplete:
+    flagged.append(f"suite incomplete: {suite_incomplete}")
+flagged += [f"{s}: last driver run rc={rc}" for s, rc in last_rc.items() if rc]
+# a reset line in a serial capture means the proxy rebooted during the suite; reconnect failures in an API
+# capture mean it was gone for a while
+if boots or gaps:
+    flagged.append(
+        f"{boots} reset lines, {gaps} API reconnect failures: the proxy restarted or went away"
+    )
 if flagged:
     print("FLAGGED:", "; ".join(flagged))
     sys.exit(1)
