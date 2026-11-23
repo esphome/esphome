@@ -15,6 +15,7 @@ class VBus;
 class VBusTransmitter final : public Component, public uart::UARTDevice {
  public:
   explicit VBusTransmitter(VBus *receiver) : receiver_(receiver) {}
+  void setup() override;
   void loop() override;
   void dump_config() override;
   void on_shutdown() override;
