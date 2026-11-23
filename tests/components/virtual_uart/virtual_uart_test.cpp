@@ -37,19 +37,25 @@ TEST(VirtualUART, OnTxThatWritesToItsOwnUartIsDropped) {
   EXPECT_EQ(calls, 2);
 }
 
+// inject_progmem() is the ESP8266 path for constant payloads; on host it reads plain memory
 TEST(VirtualUART, InjectedBytesAreRead) {
-  VirtualUART<16> uart;
-  uart.inject(FRAME, sizeof(FRAME));
-  ASSERT_EQ(uart.available(), sizeof(FRAME));
-  uint8_t out[sizeof(FRAME)];
-  ASSERT_TRUE(uart.read_array(out, sizeof(out)));
-  EXPECT_EQ(out[7], 0x0A);
+  for (bool progmem : {false, true}) {
+    VirtualUART<16> uart;
+    progmem ? uart.inject_progmem(FRAME, sizeof(FRAME)) : uart.inject(FRAME, sizeof(FRAME));
+    ASSERT_EQ(uart.available(), sizeof(FRAME));
+    uint8_t out[sizeof(FRAME)];
+    ASSERT_TRUE(uart.read_array(out, sizeof(out)));
+    EXPECT_EQ(out[0], 0x01);
+    EXPECT_EQ(out[7], 0x0A);
+  }
 }
 
 TEST(VirtualUART, BlockThatDoesNotFitIsDropped) {
-  VirtualUART<4> uart;
-  uart.inject(FRAME, sizeof(FRAME));
-  EXPECT_EQ(uart.available(), 0u);
+  for (bool progmem : {false, true}) {
+    VirtualUART<4> uart;
+    progmem ? uart.inject_progmem(FRAME, sizeof(FRAME)) : uart.inject(FRAME, sizeof(FRAME));
+    EXPECT_EQ(uart.available(), 0u);
+  }
 }
 
 }  // namespace esphome::virtual_uart::testing
