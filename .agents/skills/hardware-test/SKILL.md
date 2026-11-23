@@ -85,7 +85,8 @@ driven, what the logs show, and the same flow on a `dev` build when a quirk coul
    automations in the config itself.
 7. **Analyze** with `grep -a -c` counts over the capture and keep an `-events.txt` extract of the lines
    that matter. Decode crashes with the platform's `addr2line` (see `reference/boards.md`).
-8. **Report** on the PR. Every result comment starts with this two-line GitHub alert, then a blank line:
+8. **Report** as a comment on the PR, never in its description; when testing before the PR exists, keep the report and
+   post it right after the PR is opened. Every result comment starts with this two-line GitHub alert, then a blank line:
 
    ```
    > [!NOTE]

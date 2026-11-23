@@ -25,8 +25,8 @@ Before creating a PR, read `.github/PULL_REQUEST_TEMPLATE.md` to understand requ
 
 When the change alters what a device does (a driver, a bus, a platform, a fix for a fault seen on a device), load the
 `hardware-test` skill and run it on the PR's branch on a board the change targets, with a `dev` build as the control.
-After opening the PR (step 6), post the result comment the skill describes on it, and tick only the Test Environment
-boxes for boards that ran the test.
+Keep the report for step 6, which posts it once the PR is open, and tick only the Test Environment boxes for boards
+that ran the test.
 
 If the fault being fixed cannot be made to happen on demand, simulate the device or inject the fault (the skill's
 `reference/recipes/` show how for UART devices, I2C buses, modems and more) so the changed path runs. If no board is
@@ -105,6 +105,9 @@ gh pr create --repo esphome/esphome --base dev --title "[component] Brief descri
 ```
 
 Title should be prefixed with the component name in brackets, e.g. `[safe_mode] Add feature`.
+
+Once the PR is open, post the hardware test results from step 3 as a comment on it (`gh pr comment <number> --body-file
+<report>`), not in the description. After a later push that changes device code, test again and post a new comment.
 
 ## 7. Fixes for a Release Branch
 
