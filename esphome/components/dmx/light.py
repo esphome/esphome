@@ -19,9 +19,9 @@ DMXLightOutput = dmx_ns.class_("DMXLightOutput", light.LightOutput)
 DMXLightType = dmx_ns.enum("DMXLightType", is_class=True)
 
 TYPE_TO_ENUM = {
-    TYPE_DIMMER: DMXLightType.DIMMER,
-    TYPE_RGB: DMXLightType.RGB,
-    TYPE_RGBW: DMXLightType.RGBW,
+    TYPE_DIMMER: DMXLightType.DMX_LIGHT_TYPE_DIMMER,
+    TYPE_RGB: DMXLightType.DMX_LIGHT_TYPE_RGB,
+    TYPE_RGBW: DMXLightType.DMX_LIGHT_TYPE_RGBW,
 }
 
 DMX_OUTPUT_SCHEMA = cv.Schema(
