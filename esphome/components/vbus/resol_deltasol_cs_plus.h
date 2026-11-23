@@ -13,6 +13,7 @@ namespace esphome::vbus {
 #ifdef USE_VBUS_CS_PLUS_ENTITIES
 class CSPlusSettingListener {
  public:
+  virtual bool follows_controller_clock() const { return false; }
   virtual void on_setting_snapshot() = 0;
   virtual void dump_setting_config() = 0;
 };
@@ -95,6 +96,7 @@ class ResolDeltaSolCSPlus final : public PollingComponent, public VBusListener {
 #ifdef USE_VBUS_CS_PLUS_ENTITIES
   StaticVector<CSPlusSettingListener *, VBUS_SETTING_ENTITY_COUNT> setting_listeners_;
   size_t notify_position_{0};
+  size_t non_clock_listeners_{0};
   uint32_t metadata_revision_{0};
   bool metadata_dirty_{false};
 #endif

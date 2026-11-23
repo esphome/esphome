@@ -1,12 +1,21 @@
 #include "resol_deltasol_cs_plus.h"
 
 #ifdef USE_VBUS_CS_PLUS_ENTITIES
+#include <algorithm>
 #include <cmath>
 
 namespace esphome::vbus {
 
 void ResolDeltaSolCSPlus::register_setting_listener(CSPlusSettingListener *listener) {
+  if (this->setting_listeners_.size() == VBUS_SETTING_ENTITY_COUNT)
+    return;
   this->setting_listeners_.push_back(listener);
+  // Keep clock controls at the end so a minute tick can use the normal deferred dispatch.
+  if (!listener->follows_controller_clock()) {
+    std::rotate(this->setting_listeners_.begin() + this->non_clock_listeners_, this->setting_listeners_.end() - 1,
+                this->setting_listeners_.end());
+    ++this->non_clock_listeners_;
+  }
   if (this->has_fresh_snapshot())
     this->notify_entities_();
 }
