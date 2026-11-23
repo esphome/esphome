@@ -65,8 +65,7 @@ void DMXComponent::loop() {
 #endif
           if (packet.err == DMX_OK && !packet.is_rdm && packet.sc == 0x00) {
         if (received_size > DMX_PACKET_SIZE) {
-          ESP_LOGW(TAG, "Ignoring oversized DMX packet (%u bytes)",
-                   static_cast<unsigned>(received_size));
+          ESP_LOGW(TAG, "Ignoring oversized DMX packet (%u bytes)", static_cast<unsigned>(received_size));
         } else {
           const size_t bytes_read = dmx_read(this->dmx_port_, this->rx_data_, received_size);
           if (bytes_read == received_size) {
@@ -74,8 +73,7 @@ void DMXComponent::loop() {
             this->last_rx_ms_ = millis();
             got_rx = true;
           } else {
-            ESP_LOGW(TAG, "Incomplete DMX read: expected %u bytes, received %u",
-                     static_cast<unsigned>(received_size),
+            ESP_LOGW(TAG, "Incomplete DMX read: expected %u bytes, received %u", static_cast<unsigned>(received_size),
                      static_cast<unsigned>(bytes_read));
           }
         }
@@ -114,7 +112,6 @@ void DMXComponent::loop() {
 
   if (this->tx_dirty_ || (now - this->last_tx_ms_ >= this->tx_interval_ms_)) {
     this->send_universe_();
-
   }
 }
 
@@ -158,8 +155,7 @@ void DMXComponent::send_universe_() {
 
   const size_t sent = dmx_send_num(this->dmx_port_, DMX_PACKET_SIZE);
   if (sent != DMX_PACKET_SIZE) {
-    ESP_LOGW(TAG, "DMX send incomplete: %u / %u", static_cast<unsigned>(sent),
-             static_cast<unsigned>(DMX_PACKET_SIZE));
+    ESP_LOGW(TAG, "DMX send incomplete: %u / %u", static_cast<unsigned>(sent), static_cast<unsigned>(DMX_PACKET_SIZE));
     return;
   }
 
