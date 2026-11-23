@@ -12,6 +12,7 @@ from esphome.components.tflite_micro_runtime import (
     declare_model,
     final_validate,
 )
+from esphome.components.tflite_model_io.model_reader import read_model_io
 import esphome.config_validation as cv
 from esphome.types import ConfigType
 
@@ -43,8 +44,46 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
+def validate_model_io(model_path: Path) -> None:
+    """Reject a model whose tensors the tabular pipeline cannot fill."""
+    try:
+        model_io = read_model_io(model_path)
+    except ValueError as err:
+        raise cv.Invalid(str(err)) from err
+    name = Path(str(model_path)).name
+    if len(model_io.inputs) != 1:
+        raise cv.Invalid(
+            f"Model '{name}' declares {len(model_io.inputs)} input tensors; the "
+            f"tabular pipeline fills one feature vector"
+        )
+    feature = model_io.inputs[0]
+    if (
+        feature.type != "float32"
+        or len(feature.shape) != 2
+        or feature.shape[0] != 1
+        or feature.shape[1] <= 0
+    ):
+        raise cv.Invalid(
+            f"Model '{name}' declares the input {feature.type} "
+            f"{list(feature.shape)}; the tabular pipeline needs a "
+            f"[1, features] float32 tensor"
+        )
+    if len(model_io.outputs) != 1:
+        raise cv.Invalid(
+            f"Model '{name}' declares {len(model_io.outputs)} output tensors; a "
+            f"tabular model needs one"
+        )
+    output = model_io.outputs[0]
+    if len(output.shape) != 2 or output.shape[0] != 1 or output.shape[1] <= 0:
+        raise cv.Invalid(
+            f"Model '{name}' declares the output {list(output.shape)}; the "
+            f"decoder needs [1, classes]"
+        )
+
+
 async def configure(var, config: ConfigType, model_path: Path) -> None:
     """Create the feature pipeline and the output decoder for one model."""
+    validate_model_io(model_path)
     pipeline = cg.new_Pvariable(config[CONF_PIPELINE_ID])
     cg.add(var.set_input_pipeline(pipeline))
     decoder = cg.new_Pvariable(config[CONF_DECODER_ID])
