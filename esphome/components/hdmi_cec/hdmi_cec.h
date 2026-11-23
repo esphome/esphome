@@ -132,6 +132,7 @@ class HDMICEC : public Component {
   /// A lambda may change it at run time, for instance after reading it from the HDMI sink's EDID
   void set_physical_address(uint16_t physical_address) { this->physical_address_ = physical_address; }
   uint16_t get_physical_address() const { return this->physical_address_; }
+  uint8_t get_address() const { return this->address_; }
 #ifdef USE_HDMI_CEC_UART
   /// Send the frame body from this UART (its TX pin on the line through a diode) instead of bit-banging it
   void set_uart(uart::UARTComponent *uart) { this->uart_ = uart; }

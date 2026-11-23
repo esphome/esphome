@@ -119,9 +119,9 @@ void HDMICEC::loop() {
   if (!this->send_queue_.is_empty()) {
     this->transmit_message_();
   }
-  // if (this->frames_queue_.is_empty() && this->send_queue_.is_empty()) {
-  //   this->disable_loop();
-  // }
+  if (this->frames_queue_.is_empty() && this->send_queue_.is_empty()) {
+    this->disable_loop();
+  }
 }
 
 void HDMICEC::handle_received_message_(const Frame *frame) {
@@ -139,7 +139,6 @@ void HDMICEC::handle_received_message_(const Frame *frame) {
   this->message_callbacks_.call(src_addr, dest_addr, frame->payload());
 #endif
 
-  // TODO(jos) callbacks_.call vs claimed vs triggered???
   bool is_directly_addressed = (dest_addr == address_) && !frame->is_broadcast();
   if (!this->monitor_mode_ && is_directly_addressed && !this->is_claimed(frame->opcode())) {
     this->reply_builtin_(frame);
@@ -159,7 +158,7 @@ bool HDMICEC::is_claimed(uint8_t opcode) {
 
 void HDMICEC::reply_builtin_(const Frame *frame) {
   const uint8_t source = frame->initiator_addr();
-  const uint8_t opcode = frame->payload()[0];
+  const uint8_t opcode = frame->opcode();
   switch (opcode) {
     case OPCODE_FEATURE_ABORT:
       return;  // never answered
@@ -211,7 +210,7 @@ bool HDMICEC::send(uint8_t source, uint8_t destination, std::span<const uint8_t>
   }
   *frame = Frame(source, destination, payload);
   this->send_queue_.push_back();
-  this->enable_loop();
+  this->enable_loop_soon_any_context();
   return true;
 }
 
