@@ -71,7 +71,7 @@ automation.register_apply_action(
     cv.maybe_simple_value(
         {
             cv.GenerateID(): cv.use_id(VirtualUART),
-            cv.Required(CONF_DATA): cv.templatable(uart.validate_raw_data),
+            cv.Required(CONF_DATA): cv.templatable(uart.validate_raw_payload),
         },
         key=CONF_DATA,
     ),
