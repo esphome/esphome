@@ -26,8 +26,9 @@ void VersionTextSensor::setup() {
   } else {
     ESPHOME_strncpy_P(version_str, HASH_PREFIX, sizeof(version_str));
 
-    char hash[format_hex_size(sizeof(uint32_t))];
-    strncat(version_str, format_hex_to(hash, App.get_config_hash()), sizeof(version_str) - strlen(version_str) - 1);
+    const uint32_t hash = convert_big_endian(App.get_config_hash());
+    format_hex_to(version_str + sizeof(HASH_PREFIX) - 1, sizeof(version_str) - sizeof(HASH_PREFIX) + 1,
+                  reinterpret_cast<const uint8_t *>(&hash), sizeof(hash));
   }
 
   // Keep hide_timestamp behavior independent from hide_hash so all
