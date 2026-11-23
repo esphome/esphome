@@ -73,8 +73,7 @@ static constexpr size_t DMX_STATIC_SENSOR_COUNT = 0;
 static constexpr size_t DMX_DYNAMIC_SENSOR_COUNT = 0;
 #endif
 
-namespace esphome {
-namespace dmx {
+namespace esphome::dmx {
 
 enum class DMXMode : uint8_t {
   DMX_MODE_RX = 0,
@@ -215,5 +214,4 @@ class DMXLightOutput : public light::LightOutput {
   DMXLightType light_type_{DMXLightType::DMX_LIGHT_TYPE_DIMMER};
 };
 
-}  // namespace dmx
-}  // namespace esphome
+} // namespace esphome::dmx
