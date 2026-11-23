@@ -165,10 +165,9 @@ async def to_code(config: ConfigType) -> None:
 
     cg.add(var.set_update_interval(config[CONF_UPDATE_INTERVAL]))
     cg.add(var.set_infer_endstop(config[CONF_INFER_ENDSTOP_FROM_MOVEMENT]))
-    if CONF_DIRECTION_CHANGE_WAIT_TIME in config:
-        cg.add(
-            var.set_direction_change_waittime(config[CONF_DIRECTION_CHANGE_WAIT_TIME])
-        )
+    cg.add_optional(
+        var.set_direction_change_waittime, config.get(CONF_DIRECTION_CHANGE_WAIT_TIME)
+    )
     cg.add(var.set_acceleration_wait_time(config[CONF_ACCELERATION_WAIT_TIME]))
     if (overshoot := config[CONF_OVERSHOOT_DURATION]).total_milliseconds:
         cg.add_define("USE_FEEDBACK_COVER_OVERSHOOT")

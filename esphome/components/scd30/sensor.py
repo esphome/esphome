@@ -62,15 +62,15 @@ async def to_code(config: ConfigType) -> None:
     var = await i2c.new_i2c_component(config)
 
     cg.add(var.set_automatic_self_calibration(config[CONF_AUTOMATIC_SELF_CALIBRATION]))
-    if CONF_ALTITUDE_COMPENSATION in config:
-        cg.add(var.set_altitude_compensation(config[CONF_ALTITUDE_COMPENSATION]))
+    cg.add_optional(
+        var.set_altitude_compensation, config.get(CONF_ALTITUDE_COMPENSATION)
+    )
 
-    if CONF_AMBIENT_PRESSURE_COMPENSATION in config:
-        cg.add(
-            var.set_ambient_pressure_compensation(
-                config[CONF_AMBIENT_PRESSURE_COMPENSATION]
-            )
+    cg.add(
+        var.set_ambient_pressure_compensation(
+            config[CONF_AMBIENT_PRESSURE_COMPENSATION]
         )
+    )
 
     cg.add_optional(var.set_temperature_offset, config.get(CONF_TEMPERATURE_OFFSET))
 
