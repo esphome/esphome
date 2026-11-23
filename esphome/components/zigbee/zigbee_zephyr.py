@@ -55,7 +55,6 @@ from .const_zephyr import (
 )
 from .endpoints_zephyr import endpoint_ids
 
-
 # Switches, numbers and time each handle the ZCL writes to their endpoint; true when one matched
 ZCL_DEVICE_PUBLISHER = cg.HubFunction(
     "zcl_device",
