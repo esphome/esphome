@@ -698,7 +698,11 @@ def subtree_references_uart(node: object, uart_id: str, *conf_keys: str) -> bool
     conf_keys = conf_keys or (CONF_UART_ID,)
     if isinstance(node, dict):
         return any(
-            (key in conf_keys and str(value) == uart_id)
+            # the value is one id, or a list of ids
+            (
+                key in conf_keys
+                and uart_id in map(str, value if isinstance(value, list) else [value])
+            )
             or subtree_references_uart(value, uart_id, *conf_keys)
             for key, value in node.items()
         )

@@ -39,11 +39,8 @@ void VL53L0XSensor::dump_config() {
 void VL53L0XSensor::setup() {
   if (!esphome::vl53l0x::VL53L0XSensor::enable_pin_setup_complete) {
     for (auto &vl53_sensor : vl53_sensors) {
-      if (vl53_sensor->enable_pin_ != nullptr) {
-        // Set enable pin as OUTPUT and disable the enable pin to force vl53 to HW Standby mode
-        vl53_sensor->enable_pin_->setup();
-        vl53_sensor->enable_pin_->digital_write(false);
-      }
+      // Hold every sensor in HW Standby until its own setup
+      setup_output_pin(vl53_sensor->enable_pin_, false);
     }
     esphome::vl53l0x::VL53L0XSensor::enable_pin_setup_complete = true;
   }

@@ -60,7 +60,11 @@ function makeGithub(opts = {}) {
         issues: { listEventsForTimeline },
         pulls: {
           requestReviewers: async (args) => {
-            if (opts.fail) throw new Error('Reviews may only be requested from collaborators');
+            if (opts.fail) {
+              throw Object.assign(new Error(opts.fail.message ?? 'Reviews may only be requested from collaborators'), {
+                status: opts.fail.status ?? 422,
+              });
+            }
             calls.push(args);
           },
         },
@@ -108,6 +112,22 @@ test('bot PRs are skipped', async () => {
 test('a failed request warns instead of failing', async () => {
   const { warnings, failures } = await run({ fail: true });
   assert.match(warnings[0], /Could not request a Copilot review on #9/);
+  assert.deepEqual(failures, []);
+});
+
+test('a token without write access fails the run so it gets fixed', async () => {
+  const { warnings, failures } = await run({
+    fail: { status: 403, message: 'Resource not accessible by personal access token' },
+  });
+  assert.deepEqual(warnings, []);
+  assert.match(failures[0], /COPILOT_REVIEW_TOKEN cannot request reviewers on esphome\/esphome/);
+});
+
+test('a rate limited request warns instead of failing', async () => {
+  const { warnings, failures } = await run({
+    fail: { status: 403, message: 'You have exceeded a secondary rate limit' },
+  });
+  assert.match(warnings[0], /secondary rate limit/);
   assert.deepEqual(failures, []);
 });
 

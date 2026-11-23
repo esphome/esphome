@@ -107,8 +107,7 @@ void VL6180XComponent::setup() {
 #ifdef VL6180X_ENABLE_PIN_COUNT
   // Every sensor boots at 0x29, so all are held in reset and then released one at a time
   for (auto *pin : enable_pins) {
-    pin->setup();
-    pin->digital_write(false);
+    setup_output_pin(pin, false);
   }
   enable_pins.clear();
   if (this->enable_pin_ != nullptr) {

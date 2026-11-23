@@ -104,6 +104,8 @@ class UponorSmatrixDevice : public Parented<UponorSmatrixComponent> {
   void set_address(uint32_t address) { this->address_ = address; }
 
   virtual void on_device_data(const UponorSmatrixData *data, size_t data_len) = 0;
+  // Called from the hub's dump_config(); not dump_config() so Component devices don't print twice
+  virtual void dump_child_config() {}
   bool send(const UponorSmatrixData *data, size_t data_len) {
     return this->parent_->send(this->address_, data, data_len);
   }
