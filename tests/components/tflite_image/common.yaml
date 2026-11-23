@@ -7,3 +7,6 @@ tflite_image:
     input_width: 32
     input_height: 20
     input_channels: 3
+    on_result:
+      - lambda: |-
+          ESP_LOGI("tflite_image", "inference finished");
