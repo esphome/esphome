@@ -38,20 +38,6 @@ void Filter::initialize(TextSensor *parent, Filter *next) {
   this->next_ = next;
 }
 
-// LambdaFilter
-LambdaFilter::LambdaFilter(lambda_filter_t lambda_filter) : lambda_filter_(std::move(lambda_filter)) {}
-const lambda_filter_t &LambdaFilter::get_lambda_filter() const { return this->lambda_filter_; }
-
-bool LambdaFilter::new_value(std::string &value) {
-  auto result = this->lambda_filter_(value);
-  if (result.has_value()) {
-    ESP_LOGVV(TAG, "LambdaFilter(%p)::new_value(%s) -> %s (continue)", this, value.c_str(), result->c_str());
-  } else {
-    ESP_LOGVV(TAG, "LambdaFilter(%p)::new_value(%s) -> (stop)", this, value.c_str());
-  }
-  return apply_lambda_filter_result(value, std::move(result));
-}
-
 bool apply_lambda_filter_result(std::string &value, optional<std::string> &&result) {
   if (!result.has_value())
     return false;
