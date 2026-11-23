@@ -2,6 +2,8 @@ from esphome.components import button
 from esphome.const import ENTITY_CATEGORY_CONFIG, ICON_POWER
 from esphome.types import ConfigType
 
+from . import request_power_off
+
 AUTO_LOAD = ["shutdown"]
 
 CONFIG_SCHEMA = button.button_schema(
@@ -10,6 +12,7 @@ CONFIG_SCHEMA = button.button_schema(
 
 
 async def to_code(config: ConfigType) -> None:
+    request_power_off()
     await button.sub_buttons(config).create(
         config, None, apply="shutdown::shutdown_device()"
     )
