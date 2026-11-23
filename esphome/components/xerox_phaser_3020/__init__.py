@@ -110,17 +110,7 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config: ConfigType) -> None:
-    # Band, line and dithering buffers for the encoder: in PSRAM when there is some
-    work_memory = cg.static_buffer(
-        config[CONF_ID],
-        cg.uint8,
-        xerox_phaser_3020_ns.WORK_MEMORY_SIZE,
-        psram=True,
-        align=4,
-    )
-    var = cg.new_Pvariable(
-        config[CONF_ID], config[CONF_VID], config[CONF_PID], work_memory
-    )
+    var = cg.new_Pvariable(config[CONF_ID], config[CONF_VID], config[CONF_PID])
     await cg.register_component(var, config)
     name = config.get(
         CONF_PRINTER_NAME, f"Phaser 3020 @ {CORE.friendly_name or CORE.name}"

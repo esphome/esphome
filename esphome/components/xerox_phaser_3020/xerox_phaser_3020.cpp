@@ -48,7 +48,10 @@ void XeroxPhaser3020::setup() {
   USBClient::setup();
   if (this->is_failed())
     return;
-  if (this->work_memory_ == nullptr) {
+  // About 115 kB, in PSRAM when there is some; kept for the life of the device
+  RAMAllocator<uint8_t> allocator;
+  uint8_t *memory = allocator.allocate(WORK_MEMORY_SIZE);
+  if (memory == nullptr) {
     this->mark_failed(LOG_STR("Not enough memory"));
     return;
   }
@@ -72,7 +75,6 @@ void XeroxPhaser3020::setup() {
            mac[3], mac[4], mac[5]);
   this->settings_.uuid = this->uuid_;
 
-  uint8_t *memory = this->work_memory_;
   uint8_t *scratch = memory + BAND_BUFFER_SIZE;
   uint8_t *line = scratch + QPDL_SCRATCH_SIZE;
   uint8_t *work = line + RASTER_LINE_BUFFER_SIZE;

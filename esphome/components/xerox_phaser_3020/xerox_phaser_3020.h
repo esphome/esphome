@@ -20,7 +20,7 @@
 
 namespace esphome::xerox_phaser_3020 {
 
-/// Memory for the encoder and the raster decoder, given to the component as one buffer
+/// Memory for the encoder and the raster decoder, allocated as one buffer
 inline constexpr size_t WORK_MEMORY_SIZE =
     BAND_BUFFER_SIZE + QPDL_SCRATCH_SIZE + RASTER_LINE_BUFFER_SIZE + RASTER_WORK_BUFFER_SIZE;
 
@@ -28,7 +28,7 @@ inline constexpr size_t WORK_MEMORY_SIZE =
 /// AirPrint). Jobs arrive as PWG or Apple raster and go to the printer as QPDL while they are received.
 class XeroxPhaser3020 final : public usb_host::USBClient, public PrinterPort {
  public:
-  XeroxPhaser3020(uint16_t vid, uint16_t pid, uint8_t *work_memory) : USBClient(vid, pid), work_memory_(work_memory) {}
+  XeroxPhaser3020(uint16_t vid, uint16_t pid) : USBClient(vid, pid) {}
 
   void setup() override;
   void dump_config() override;
@@ -77,7 +77,6 @@ class XeroxPhaser3020 final : public usb_host::USBClient, public PrinterPort {
   IppServer server_;
   ServerSettings settings_{};
   char uuid_[37];
-  uint8_t *work_memory_;
   usb_transfer_t *transfers_[2]{};
   usb_transfer_t *current_{nullptr};  // being filled by write()
   QueueHandle_t free_transfers_{nullptr};
