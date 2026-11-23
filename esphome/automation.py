@@ -265,6 +265,9 @@ validate_condition_list = cv.validate_registry("condition", CONDITION_REGISTRY)
 ApplyAction = cg.esphome_ns.class_("ApplyAction", Action)
 ApplyRunAction = cg.esphome_ns.class_("ApplyRunAction", Action)
 ApplyCondition = cg.esphome_ns.class_("ApplyCondition", Condition)
+# A component whose logic calls fire(); FireCallback<fn, Base> implements it, so pass the base in template_args
+FiringComponent = cg.esphome_ns.class_("FiringComponent", cg.Component)
+FireCallback = cg.esphome_ns.class_("FireCallback", FiringComponent)
 
 
 @dataclass(frozen=True)

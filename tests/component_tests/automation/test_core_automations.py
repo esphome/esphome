@@ -59,7 +59,6 @@ def test_on_boot_inline_priorities(main_cpp: str) -> None:
     body = function_body(main_cpp, high)
     assert "boot high" in body
     assert "boot high lambda" in body
-    assert "esphome__running" not in body
     assert "esphome__" not in body
     assert "Automation" not in body
     assert "boot default" in function_body(main_cpp, default)
@@ -130,5 +129,7 @@ def test_on_boot_function_name_skips_config_ids(
     """A config id that matches the generated name pushes the function to another name."""
     main_cpp = generate_main(component_config_path("on_boot_name_collision.yaml"))
     function = callback_function(main_cpp, "startupcallback_id")
+    # Built from the colliding name, so the fixture does collide
+    assert function.startswith("esphome__automation_id__fn")
     assert function != "esphome__automation_id__fn"
     assert f"static void {function}()" in main_cpp
