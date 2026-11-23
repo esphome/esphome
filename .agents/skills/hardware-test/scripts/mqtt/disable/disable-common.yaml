@@ -1,0 +1,77 @@
+# mqtt.disable cycles (a package): disabled for 30 s every 60 s, every third cycle starts with fast toggles; a tick
+# publish every 2 s and EV CONNECT/DISCONNECT/MSG log lines. Substitutions: name, broker, port, async.
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  power_save_mode: none
+
+logger:
+  level: DEBUG
+
+api:
+  reboot_timeout: 0s
+
+ota:
+  - platform: esphome
+
+globals:
+  - id: cyc
+    type: int
+    initial_value: "0"
+  - id: tick
+    type: int
+    initial_value: "0"
+
+mqtt:
+  id: mq
+  broker: ${broker}
+  port: ${port}
+  discovery: false
+  reboot_timeout: 0s
+  log_topic: null
+  idf_send_async: ${async}
+  birth_message: {topic: "${name}/status", payload: online}
+  will_message: {topic: "${name}/status", payload: offline}
+  on_connect:
+    - logger.log: "EV CONNECT"
+  on_disconnect:
+    - logger.log: "EV DISCONNECT"
+  on_message:
+    - topic: ${name}/in
+      then:
+        - logger.log: {format: "EV MSG %s", args: [x.c_str()]}
+
+interval:
+  # publish all the time, also while disabled
+  - interval: 2s
+    then:
+      - lambda: id(tick)++;
+      - mqtt.publish:
+          topic: ${name}/tick
+          payload: !lambda return to_string(id(tick));
+  # one cycle per minute: disabled for 30 s, enabled for 30 s
+  # every third cycle starts with fast toggles (disable while connecting)
+  - interval: 60s
+    startup_delay: 30s
+    then:
+      - lambda: |-
+          id(cyc)++;
+          ESP_LOGI("cyc", "CYCLE %d heap %u", id(cyc), (unsigned) esp_get_free_heap_size());
+      - if:
+          condition:
+            lambda: return id(cyc) % 3 == 0;
+          then:
+            - logger.log: "EV FAST"
+            - mqtt.disable:
+            - delay: 300ms
+            - mqtt.enable:
+            - delay: 300ms
+            - mqtt.disable:
+            - delay: 50ms
+            - mqtt.enable:
+            - delay: 1500ms
+      - logger.log: "EV DISABLE"
+      - mqtt.disable:
+      - delay: 30s
+      - logger.log: "EV ENABLE"
+      - mqtt.enable:

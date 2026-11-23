@@ -229,9 +229,7 @@ WaterHeaterTraits WaterHeater::get_traits() {
 PROGMEM_STRING_TABLE(WaterHeaterModeStrings, "OFF", "ECO", "ELECTRIC", "PERFORMANCE", "HIGH_DEMAND", "HEAT_PUMP", "GAS",
                      "UNKNOWN");
 
-const LogString *water_heater_mode_to_string(WaterHeaterMode mode) {
-  return WaterHeaterModeStrings::get_log_str(static_cast<uint8_t>(mode), WaterHeaterModeStrings::LAST_INDEX);
-}
+const LogString *water_heater_mode_to_string(WaterHeaterMode mode) { return WaterHeaterModeStrings::get_log_str(mode); }
 
 void WaterHeater::dump_traits_(const char *tag) {
   auto traits = this->get_traits();

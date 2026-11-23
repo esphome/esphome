@@ -259,10 +259,14 @@ void RX8111Component::boot_config_result_(BootFeature feature, bool success) {
     this->clear_warning_(config.warning);
     return;
   }
-  this->set_warning_(config.warning, BootFailureNames::get_log_str(feature, BootFailureNames::LAST_INDEX));
+  this->set_warning_(config.warning, BootFailureNames::get_log_str(feature));
   if (attempts < RX8111_BOOT_MAX_ATTEMPTS) {
-    this->set_timeout(config.retry_id, this->boot_retry_delay_ms_,
-                      [this, configure = config.configure]() { (this->*configure)(); });
+    // Capture the feature, not the 8-byte member pointer, so the callback fits std::function's inline buffer
+    this->set_timeout(config.retry_id, this->boot_retry_delay_ms_, [this, feature]() {
+      BootConfig retry;
+      progmem_memcpy(&retry, &CONFIGS[feature], sizeof(retry));
+      (this->*retry.configure)();
+    });
   }
 }
 
@@ -402,8 +406,7 @@ void RX8111Component::dump_config() {
 #ifdef USE_BINARY_SENSOR
   for (uint8_t i = 0; i < STATUS_SENSOR_COUNT; i++) {
     if (this->status_sensors_[i] != nullptr) {
-      log_binary_sensor(TAG, "  ", LOG_STR_ARG(StatusSensorNames::get_log_str(i, StatusSensorNames::LAST_INDEX)),
-                        this->status_sensors_[i]);
+      log_binary_sensor(TAG, "  ", LOG_STR_ARG(StatusSensorNames::get_log_str(i)), this->status_sensors_[i]);
     }
   }
 #endif
@@ -411,7 +414,7 @@ void RX8111Component::dump_config() {
   LOG_TEXT_SENSOR("  ", "Event timestamp", this->timestamp_sensor_);
   if (this->timestamp_sensor_ != nullptr) {
     ESP_LOGCONFIG(TAG, "  Timestamp record mode: %s",
-                  LOG_STR_ARG(TimestampModeNames::get_log_str(this->timestamp_mode_, TimestampModeNames::LAST_INDEX)));
+                  LOG_STR_ARG(TimestampModeNames::get_log_str(this->timestamp_mode_)));
   }
 #endif
   if (this->battery_configured_) {
@@ -419,7 +422,7 @@ void RX8111Component::dump_config() {
                   ONOFF(this->battery_charging_));
   }
   if (this->fout_configured_) {
-    ESP_LOGCONFIG(TAG, "  FOUT: %s", LOG_STR_ARG(FoutNames::get_log_str(this->fout_frequency_, FoutNames::LAST_INDEX)));
+    ESP_LOGCONFIG(TAG, "  FOUT: %s", LOG_STR_ARG(FoutNames::get_log_str(this->fout_frequency_)));
   }
   if (this->event_configured_) {
     ESP_LOGCONFIG(TAG, "  EVIN interrupt: %s", ONOFF(this->event_enabled_));
@@ -428,11 +431,10 @@ void RX8111Component::dump_config() {
     evin_used = evin_used || this->timestamp_sensor_ != nullptr;
 #endif
     if (evin_used) {
-      ESP_LOGCONFIG(
-          TAG, "    EVIN: %s, filter: %u, pull: %s",
-          (this->evin_settings_ & 0x80) ? LOG_STR_LITERAL("high") : LOG_STR_LITERAL("low"),
-          (this->evin_settings_ >> 5) & 3,
-          LOG_STR_ARG(EvinPullNames::get_log_str((this->evin_settings_ >> 2) & 7, EvinPullNames::LAST_INDEX)));
+      ESP_LOGCONFIG(TAG, "    EVIN: %s, filter: %u, pull: %s",
+                    (this->evin_settings_ & 0x80) ? LOG_STR_LITERAL("high") : LOG_STR_LITERAL("low"),
+                    (this->evin_settings_ >> 5) & 3,
+                    LOG_STR_ARG(EvinPullNames::get_log_str((this->evin_settings_ >> 2) & 7)));
     }
   }
   ESP_LOGCONFIG(TAG,
@@ -441,7 +443,7 @@ void RX8111Component::dump_config() {
                 ONOFF(this->alarm_enabled_), ONOFF(this->timer_enabled_));
   if (this->timer_enabled_) {
     ESP_LOGCONFIG(TAG, "    Count: %" PRIu32 ", clock: %s", this->timer_count_,
-                  LOG_STR_ARG(TimerClockNames::get_log_str(this->timer_clock_, TimerClockNames::LAST_INDEX)));
+                  LOG_STR_ARG(TimerClockNames::get_log_str(this->timer_clock_)));
   }
   RealTimeClock::dump_config();
 }

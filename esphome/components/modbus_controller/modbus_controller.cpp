@@ -1,5 +1,6 @@
 #include "modbus_controller.h"
 #include "esphome/core/application.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 #include <cstring>
@@ -537,6 +538,8 @@ void ModbusController::dump_config() {
                 "  Max Command Retries: %d\n"
                 "  Offline Skip Updates: %d\n",
                 this->address_, this->max_cmd_retries_, this->offline_skip_updates_);
+  for (auto *item : this->sensorset_)
+    item->dump_child_config();
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   ESP_LOGCONFIG(TAG, "sensormap");
@@ -586,9 +589,7 @@ ModbusCommandItem ModbusCommandItem::create_write_multiple_command(ModbusControl
   };
   uint8_t *p = cmd.payload.init(values.size() * 2);
   for (auto v : values) {
-    auto decoded_value = decode_value(v);
-    *p++ = decoded_value[0];
-    *p++ = decoded_value[1];
+    p = put_be16(p, v);
   }
   return cmd;
 }
@@ -635,10 +636,7 @@ ModbusCommandItem ModbusCommandItem::create_write_single_command(ModbusControlle
     modbusdevice->on_write_register_response(register_type, start_address, data);
   };
 
-  auto decoded_value = decode_value(value);
-  uint8_t *p = cmd.payload.init(2);
-  p[0] = decoded_value[0];
-  p[1] = decoded_value[1];
+  put_be16(cmd.payload.init(2), value);
   return cmd;
 }
 
@@ -673,8 +671,7 @@ ModbusCommandItem ModbusCommandItem::create_custom_command(
   }
   uint8_t *p = cmd.payload.init(values.size() * 2);
   for (auto v : values) {
-    *p++ = (v >> 8) & 0xFF;
-    *p++ = v & 0xFF;
+    p = put_be16(p, v);
   }
 
   return cmd;

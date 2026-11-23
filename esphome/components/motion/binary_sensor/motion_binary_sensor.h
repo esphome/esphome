@@ -15,23 +15,21 @@ enum MotionBinarySensorType : uint8_t {
 
 class MotionBinarySensor : public Component, public binary_sensor::BinarySensor {
  public:
-  explicit MotionBinarySensor(MotionComponent *parent, MotionBinarySensorType type);
+  explicit MotionBinarySensor(MotionBinarySensorType type) : type_(type) {}
 
   void setup() override;
   void dump_config() override;
 
   void set_threshold(float threshold) { this->threshold_ = threshold; }
   void set_duration(uint32_t duration) { this->duration_ = duration; }
+  void process_motion_data(const MotionData &data);
 
  protected:
-  void process_motion_data_(const MotionData &data);
-
   /// True when the device is at rest: total acceleration is close to 1g and (if a
   /// gyroscope is present) the angular rate is low. While not stationary the
   /// face_up / face_down orientation is unreliable, so their updates are suspended.
   static bool is_stationary(const MotionData &data);
 
-  MotionComponent *parent_;
   float threshold_{0.0f};
   uint32_t duration_{0};
 

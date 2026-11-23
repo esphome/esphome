@@ -33,8 +33,9 @@ def test_bare_receiver_emits_no_counts(
     component_config_path: Callable[[str], Path],
 ) -> None:
     main_cpp = generate_main(component_config_path("receiver_bare.yaml"))
-    # the RMT ring is sized in setup() unless buffer_size is set
-    assert "set_buffer_size" not in main_cpp
+    assert (
+        "rcvr_buffer__pstorage[remote_receiver::rmt_buffer_words(192, 0)];" in main_cpp
+    )
     assert get_define_value("REMOTE_BASE_DUMPER_COUNT") is None
     assert get_define_value("REMOTE_BASE_LISTENER_COUNT") is None
 

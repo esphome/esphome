@@ -1,6 +1,7 @@
 #include "pmsx003.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::pmsx003 {
 
@@ -206,9 +207,7 @@ void PMSX003Component::send_command_(Command cmd, uint16_t data) {
   };
 
   // Calculate checksum
-  const uint16_t checksum = sum16_bytes(send_data, 5);
-  send_data[5] = (checksum >> 8) & 0xFF;  // Verify Byte 1
-  send_data[6] = (checksum >> 0) & 0xFF;  // Verify Byte 2
+  put_be16(send_data + 5, sum16_bytes(send_data, 5));
 
   for (auto send_byte : send_data) {
     this->write_byte(send_byte);

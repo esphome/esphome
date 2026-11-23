@@ -1,5 +1,8 @@
 #include "mhz19.h"
+#include "esphome/core/application.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
+#include "esphome/core/helpers.h"
 
 #include <cinttypes>
 
@@ -17,17 +20,11 @@ static const uint8_t MHZ19_COMMAND_DETECTION_RANGE_0_5000PPM[] = {0xFF, 0x01, 0x
 static const uint8_t MHZ19_COMMAND_DETECTION_RANGE_0_10000PPM[] = {0xFF, 0x01, 0x99, 0x00, 0x00, 0x00, 0x27, 0x10};
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
+// Indexed by MHZ19DetectionRange
+PROGMEM_STRING_TABLE(DetectionRangeStrings, "default", "0-2000 ppm", "0-5000 ppm", "0-10000 ppm");
+
 static const LogString *detection_range_to_log_string(MHZ19DetectionRange range) {
-  switch (range) {
-    case MHZ19_DETECTION_RANGE_0_2000PPM:
-      return LOG_STR("0-2000 ppm");
-    case MHZ19_DETECTION_RANGE_0_5000PPM:
-      return LOG_STR("0-5000 ppm");
-    case MHZ19_DETECTION_RANGE_0_10000PPM:
-      return LOG_STR("0-10000 ppm");
-    default:
-      return LOG_STR("default");
-  }
+  return DetectionRangeStrings::get_log_str(range, MHZ19_DETECTION_RANGE_DEFAULT);
 }
 #endif
 
@@ -44,12 +41,15 @@ void MHZ19Component::setup() {
 }
 
 void MHZ19Component::update() {
-  uint32_t now_ms = millis();
-  uint32_t warmup_ms = this->warmup_seconds_ * 1000;
-  if (now_ms < warmup_ms) {
-    ESP_LOGW(TAG, "MHZ19 warming up, %" PRIu32 " s left", (warmup_ms - now_ms) / 1000);
-    this->status_set_warning();
-    return;
+  if (!this->warmup_complete_) {
+    uint32_t now_ms = App.get_loop_component_start_time();
+    uint32_t warmup_ms = this->warmup_seconds_ * 1000;
+    if (now_ms < warmup_ms) {
+      ESP_LOGW(TAG, "MHZ19 warming up, %" PRIu32 " s left", (warmup_ms - now_ms) / 1000);
+      this->status_set_warning();
+      return;
+    }
+    this->warmup_complete_ = true;
   }
 
   uint8_t response[MHZ19_RESPONSE_LENGTH];
@@ -71,7 +71,7 @@ void MHZ19Component::update() {
     return;
   }
 
-  const uint16_t ppm = (uint16_t(response[2]) << 8) | response[3];
+  const uint16_t ppm = encode_uint16(response[2], response[3]);
   const int temp = int(response[4]) - 40;
   const uint8_t status = response[5];
 

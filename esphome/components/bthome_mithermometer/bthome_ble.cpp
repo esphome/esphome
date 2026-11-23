@@ -1,28 +1,16 @@
 #include "bthome_ble.h"
 
+#include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 #include <algorithm>
 #include <array>
+#include <cinttypes>
 #include <cstring>
 #include <span>
 
-// AES-CCM backend for encrypted-advertisement (bindkey) decryption:
-//   - ESP32 + ESP-IDF >= 6.0 -> PSA crypto (psa_aead_decrypt), hardware-backed.
-//   - every other platform   -> the portable software AES-CCM in ble_device_base, so
-//     decryption never depends on the SDK exposing mbedtls/PSA to application code
-//     (e.g. LibreTiny beken-72xx keeps its mbedtls internal). Works on any BLE platform.
-#ifdef USE_ESP32
-#include <esp_idf_version.h>
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
-#include <psa/crypto.h>
-#define BTHOME_CRYPTO_PSA
-#endif
-#endif
-#ifndef BTHOME_CRYPTO_PSA
 #include "esphome/components/ble_device_base/ble_aes_ccm.h"
-#endif
 
 namespace esphome::bthome_mithermometer {
 
@@ -31,6 +19,9 @@ static constexpr size_t BTHOME_BINDKEY_SIZE = 16;
 static constexpr size_t BTHOME_NONCE_SIZE = 13;
 static constexpr size_t BTHOME_MIC_SIZE = 4;
 static constexpr size_t BTHOME_COUNTER_SIZE = 4;
+// If no frame with a higher counter has been accepted for this long, a lower
+// counter is accepted again (the sensor rebooted, e.g. after a battery swap).
+static constexpr uint32_t BTHOME_REPLAY_RESYNC_MS = 10 * 60 * 1000;
 
 // Both callers are log macros (LOGCONFIG / LOGVV); below CONFIG level they
 // compile away and an ungated helper trips -Wunused-function.
@@ -149,13 +140,16 @@ static bool get_bthome_value_length(uint8_t obj_type, size_t &value_length) {
   }
 }
 
-void BTHomeMiThermometer::dump_config() {
+void BTHomeMiThermometer::dump_child_config() {
   char addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
   ESP_LOGCONFIG(TAG, "BTHome MiThermometer");
   ESP_LOGCONFIG(TAG, "  MAC Address: %s", format_mac_address(addr_buf, this->address_));
   if (this->has_bindkey_) {
     char bindkey_hex[format_hex_pretty_size(BTHOME_BINDKEY_SIZE)];
     ESP_LOGCONFIG(TAG, "  Bindkey: %s", format_hex_pretty_to(bindkey_hex, this->bindkey_, BTHOME_BINDKEY_SIZE, '.'));
+#ifdef USE_BTHOME_MITHERMOMETER_REPLAY_PROTECTION
+    ESP_LOGCONFIG(TAG, "  Replay Protection: %s", YESNO(this->replay_protection_));
+#endif
   }
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
@@ -211,47 +205,47 @@ bool BTHomeMiThermometer::decrypt_bthome_payload_(const std::vector<uint8_t> &da
   const uint8_t *ciphertext = data.data() + 1;
   const uint8_t *mic = data.data() + data.size() - BTHOME_MIC_SIZE;
 
-#if defined(BTHOME_CRYPTO_PSA)
-  // PSA AEAD expects ciphertext + tag concatenated
-  // BLE advertisement max payload is 31 bytes, so this is always sufficient
-  static constexpr size_t MAX_CT_WITH_TAG = 32;
-  uint8_t ct_with_tag[MAX_CT_WITH_TAG];
-  size_t ct_with_tag_size = ciphertext_size + BTHOME_MIC_SIZE;
-  memcpy(ct_with_tag, ciphertext, ciphertext_size);
-  memcpy(ct_with_tag + ciphertext_size, mic, BTHOME_MIC_SIZE);
-
-  psa_key_attributes_t attributes = PSA_KEY_ATTRIBUTES_INIT;
-  psa_set_key_type(&attributes, PSA_KEY_TYPE_AES);
-  psa_set_key_bits(&attributes, BTHOME_BINDKEY_SIZE * 8);
-  psa_set_key_usage_flags(&attributes, PSA_KEY_USAGE_DECRYPT);
-  psa_set_key_algorithm(&attributes, PSA_ALG_AEAD_WITH_SHORTENED_TAG(PSA_ALG_CCM, BTHOME_MIC_SIZE));
-
-  mbedtls_svc_key_id_t key_id;
-  if (psa_import_key(&attributes, this->bindkey_, BTHOME_BINDKEY_SIZE, &key_id) != PSA_SUCCESS) {
-    ESP_LOGVV(TAG, "psa_import_key() failed.");
-    return false;
-  }
-
-  size_t plaintext_length;
-  // NOLINTNEXTLINE(readability-suspicious-call-argument) - similarly named size args are not swapped
-  psa_status_t status = psa_aead_decrypt(key_id, PSA_ALG_AEAD_WITH_SHORTENED_TAG(PSA_ALG_CCM, BTHOME_MIC_SIZE),
-                                         nonce.data(), nonce.size(), nullptr, 0, ct_with_tag, ct_with_tag_size,
-                                         payload.data(), ciphertext_size, &plaintext_length);
-  psa_destroy_key(key_id);
-  if (status != PSA_SUCCESS || plaintext_length != ciphertext_size) {
-    ESP_LOGVV(TAG, "BTHome decryption failed.");
-    return false;
-  }
-#else
-  // Portable software AES-CCM (ble_device_base) — no SDK mbedtls/PSA dependency.
   if (!ble_device_base::aes_ccm_auth_decrypt(this->bindkey_, nonce.data(), nonce.size(), nullptr, 0, ciphertext,
                                              ciphertext_size, payload.data(), mic, BTHOME_MIC_SIZE)) {
     ESP_LOGVV(TAG, "BTHome decryption failed.");
     return false;
   }
-#endif
   return true;
 }
+
+#ifdef USE_BTHOME_MITHERMOMETER_REPLAY_PROTECTION
+// PVVX sends new data under an unchanged counter, so only an exact repeat (counter and MIC) is a duplicate and
+// earlier frames under the current counter can be replayed; the lower-counter rule is the defence. It holds only
+// while the sensor keeps being heard: after the resync window one old frame becomes the baseline and recorded
+// frames above it can follow in order, the price of recovering from a counter restart. RAM only.
+bool BTHomeMiThermometer::check_replay_counter_(uint32_t counter, uint32_t mic) {
+  const uint32_t now = App.get_loop_component_start_time();
+  if (counter == this->last_counter_ && mic == this->last_mic_) {
+    ESP_LOGVV(TAG, "Duplicate BTHome frame (counter %" PRIu32 ")", counter);
+    return false;
+  }
+  if (counter < this->last_counter_) {
+    if (now - this->last_accepted_ms_ < BTHOME_REPLAY_RESYNC_MS) {
+      // One warning per run of rejections
+      if (this->replay_rejected_) {
+        ESP_LOGVV(TAG, "BTHome frame rejected: counter %" PRIu32 " lower than last %" PRIu32, counter,
+                  this->last_counter_);
+      } else {
+        ESP_LOGW(TAG, "BTHome frame rejected: counter %" PRIu32 " lower than last %" PRIu32 " (replay?)", counter,
+                 this->last_counter_);
+        this->replay_rejected_ = true;
+      }
+      return false;
+    }
+    ESP_LOGW(TAG, "BTHome counter restarted (%" PRIu32 " -> %" PRIu32 "), resync", this->last_counter_, counter);
+  }
+  this->last_counter_ = counter;
+  this->last_mic_ = mic;
+  this->last_accepted_ms_ = now;
+  this->replay_rejected_ = false;
+  return true;
+}
+#endif
 
 bool BTHomeMiThermometer::handle_service_data_(const ble_device_base::ServiceData &service_data,
                                                const ble_device_base::ESPBTDevice &device) {
@@ -338,6 +332,17 @@ bool BTHomeMiThermometer::handle_service_data_(const ble_device_base::ServiceDat
     ESP_LOGVV(TAG, "BTHome frame from unexpected device %s", format_mac_address(addr_buf, source_address));
     return false;
   }
+
+#ifdef USE_BTHOME_MITHERMOMETER_REPLAY_PROTECTION
+  // After the MIC and address checks, so other devices never touch the state
+  if (is_encrypted && this->replay_protection_) {
+    const uint8_t *tail = data.data() + data.size() - BTHOME_COUNTER_SIZE - BTHOME_MIC_SIZE;
+    if (!this->check_replay_counter_(encode_value_le<uint32_t>(tail),
+                                     encode_value_le<uint32_t>(tail + BTHOME_COUNTER_SIZE))) {
+      return false;
+    }
+  }
+#endif
 
   if (payload_size == 0) {
     ESP_LOGVV(TAG, "BTHome payload empty after header");

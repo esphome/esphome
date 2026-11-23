@@ -30,8 +30,8 @@ namespace esphome::speaker {
 //    - The pipelines internal state needs to be processed by regularly calling ``process_state``.
 //  - Generic media player commands are received by the ``control`` function. The commands are added to the
 //    ``media_control_command_queue_`` to be processed in the component's loop
-//    - Local file play back is initiatied with ``play_file`` and adds it to the ``media_control_command_queue_``
-//    - Starting a stream intializes the appropriate pipeline or stops it if it is already running
+//    - Local file play back is initiated with ``play_file`` and adds it to the ``media_control_command_queue_``
+//    - Starting a stream initializes the appropriate pipeline or stops it if it is already running
 //    - Volume and mute commands are achieved by the ``mute``, ``unmute``, ``set_volume`` functions.
 //      - Volume commands are ignored if the media control queue is full to avoid crashing with rapid volume
 //        increases/decreases.
@@ -167,9 +167,9 @@ void SpeakerMediaPlayer::watch_media_commands_() {
           this->announcement_playlist_.clear();
           this->announcement_item_failed_ = false;
           if (media_command.file.has_value()) {
-            this->announcement_pipeline_->start_file(playlist_item.file.value());
+            this->announcement_pipeline_->start_file(playlist_item.file.value(), playlist_item.is_announcement);
           } else if (media_command.url.has_value()) {
-            this->announcement_pipeline_->start_url(playlist_item.url.value());
+            this->announcement_pipeline_->start_url(playlist_item.url.value(), playlist_item.is_announcement);
           }
           this->announcement_pipeline_->set_pause_state(false);
         }
@@ -412,9 +412,9 @@ void SpeakerMediaPlayer::loop() {
                                                 this->media_pipeline_state_ == AudioPipelineState::PLAYING,
                                                 this->volume, this->speaker_volume_applier_());
         if (playlist_item.url.has_value()) {
-          this->announcement_pipeline_->start_url(playlist_item.url.value());
+          this->announcement_pipeline_->start_url(playlist_item.url.value(), playlist_item.is_announcement);
         } else if (playlist_item.file.has_value()) {
-          this->announcement_pipeline_->start_file(playlist_item.file.value());
+          this->announcement_pipeline_->start_file(playlist_item.file.value(), playlist_item.is_announcement);
         }
 
         if (timeout_ms > 0) {
@@ -524,11 +524,7 @@ void SpeakerMediaPlayer::play_file(const audio::AudioFile *media_file, bool anno
 
   media_command.file = media_file;
   media_command.is_announcement = announcement;
-  if (this->single_pipeline_() || announcement) {
-    media_command.announce = true;
-  } else {
-    media_command.announce = false;
-  }
+  media_command.announce = this->single_pipeline_() || announcement;
   media_command.enqueue = enqueue;
   xQueueSend(this->media_control_command_queue_, &media_command, portMAX_DELAY);
 }
@@ -543,11 +539,7 @@ void SpeakerMediaPlayer::control(const media_player::MediaPlayerCall &call) {
 
   auto ann = call.get_announcement();
   media_command.is_announcement = ann.has_value() && *ann;
-  if (this->single_pipeline_() || media_command.is_announcement) {
-    media_command.announce = true;
-  } else {
-    media_command.announce = false;
-  }
+  media_command.announce = this->single_pipeline_() || media_command.is_announcement;
 
   const auto &media_url = call.get_media_url();
   if (media_url.has_value()) {

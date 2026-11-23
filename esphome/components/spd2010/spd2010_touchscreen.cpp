@@ -71,8 +71,7 @@ void SPD2010Touchscreen::setup() {
   if (this->y_raw_max_ == this->y_raw_min_)
     this->y_raw_max_ = this->display_->get_native_height() - 1;
   if (this->reset_pin_ != nullptr) {
-    this->reset_pin_->setup();
-    this->reset_pin_->digital_write(false);
+    setup_output_pin(this->reset_pin_, false);
     this->set_timeout(RESET_PULSE_WIDTH, [this] {
       this->reset_pin_->digital_write(true);
       this->set_timeout(RESET_DELAY, [this] { this->initialize_(); });
@@ -84,10 +83,9 @@ void SPD2010Touchscreen::setup() {
 
 void SPD2010Touchscreen::initialize_() {
   uint8_t version[18];
-  if (!this->read_register_(REG_VERSION, version, sizeof(version))) {
-    this->mark_failed(LOG_STR("Failed to read firmware version"));
+  if (!this->setup_check(this->read_register_(REG_VERSION, version, sizeof(version)),
+                         LOG_STR("Failed to read firmware version")))
     return;
-  }
   ESP_LOGD(TAG, "Firmware version: 0x%04X", encode_value_le<uint16_t>(&version[4]));
   if (this->interrupt_pin_ != nullptr) {
     this->interrupt_pin_->setup();
@@ -177,8 +175,8 @@ bool SPD2010Touchscreen::read_data_() {
     // Zero strength marks a released contact.
     if (contact[4] == 0)
       continue;
-    const uint16_t x = ((contact[3] & 0xF0u) << 4u) | contact[1];
-    const uint16_t y = ((contact[3] & 0x0Fu) << 8u) | contact[2];
+    const uint16_t x = encode_uint16(high_nibble(contact[3]), contact[1]);
+    const uint16_t y = encode_uint16(low_nibble(contact[3]), contact[2]);
     this->add_raw_touch_position_(contact[0], x, y, contact[4]);
   }
   this->status_clear_warning();

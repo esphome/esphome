@@ -275,6 +275,17 @@ template<auto Fn, typename... Ts> class ApplyAction final : public Action<Ts...>
   void play(const Ts &...x) override { Fn(x...); }
 };
 
+/// Runs several adjacent actions merged by codegen into one generated function. The function
+/// reads num_running_ between actions: a stop during one action zeroes it, and the rest must not run.
+template<auto Fn, typename... Ts> class ApplyRunAction final : public Action<Ts...> {
+ public:
+  void play(const Ts &...x) override {
+    // Any other type would bind the function's const int & to a temporary that never sees a stop
+    static_assert(std::is_same_v<decltype(this->num_running_), int>);
+    Fn(this->num_running_, x...);
+  }
+};
+
 /// Condition counterpart of ApplyAction: one codegen-generated predicate with the parent baked in.
 template<auto Fn, typename... Ts> class ApplyCondition final : public Condition<Ts...> {
  public:
@@ -582,54 +593,6 @@ template<typename... Ts> class WaitUntilAction : public Action<Ts...>, public Co
   std::list<QueueItem> var_queue_{};
   // Bumped by stop() so process_queue_() can detect a stop from inside play_next_()
   uint8_t stop_generation_{0};
-};
-
-template<typename... Ts> class UpdateComponentAction : public Action<Ts...> {
- public:
-  UpdateComponentAction(PollingComponent *component) : component_(component) {}
-
-  void play(const Ts &...x) override {
-    if (!this->component_->is_ready())
-      return;
-    this->component_->update();
-  }
-
- protected:
-  PollingComponent *component_;
-};
-
-template<typename... Ts> class SuspendComponentAction : public Action<Ts...> {
- public:
-  SuspendComponentAction(PollingComponent *component) : component_(component) {}
-
-  void play(const Ts &...x) override {
-    if (!this->component_->is_ready())
-      return;
-    this->component_->stop_poller();
-  }
-
- protected:
-  PollingComponent *component_;
-};
-
-template<typename... Ts> class ResumeComponentAction : public Action<Ts...> {
- public:
-  ResumeComponentAction(PollingComponent *component) : component_(component) {}
-  TEMPLATABLE_VALUE(uint32_t, update_interval)
-
-  void play(const Ts &...x) override {
-    if (!this->component_->is_ready()) {
-      return;
-    }
-    optional<uint32_t> update_interval = this->update_interval_.optional_value(x...);
-    if (update_interval.has_value()) {
-      this->component_->set_update_interval(update_interval.value());
-    }
-    this->component_->start_poller();
-  }
-
- protected:
-  PollingComponent *component_;
 };
 
 }  // namespace esphome

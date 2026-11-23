@@ -22,7 +22,7 @@ class TestableSSD1677Gray4 : public EPaperSSD1677Gray4 {
   void install_with_partials(spi::SPIDelegate *delegate) {
     this->install(delegate);
     this->set_full_update_every(5);
-    this->init_comparison_frame_();
+    this->init_previous_frame_();
     ASSERT_TRUE(this->sent_.is_valid());
   }
 
@@ -45,7 +45,10 @@ class TestableSSD1677Gray4 : public EPaperSSD1677Gray4 {
     return calls;
   }
 
+  bool has_comparison_frame() const { return this->sent_.is_valid(); }
+
   using EPaperSSD1677Gray4::refresh_screen;
+  using EPaperSSD1677Gray4::reset;
   using EPaperSSD1677Gray4::transfer_data;
 
   RecordingPin dc;
@@ -170,6 +173,29 @@ TEST(EPaperSSD1677Gray4, FullPushRecordsTheHighBitsForTheNextPartial) {
   display.set_update_count(1);
   display.run_push();
   EXPECT_EQ(bus.data[0x26], (Bytes{0x33})) << "comparison frame is not the high bits";
+  EXPECT_EQ(bus.data[0x24], (Bytes{0x33}));
+}
+
+/// Partial updates turned on after setup, as a switch calling set_full_update_every() does, get a
+/// comparison frame at the next reset, so the partial updates after the next full one are
+/// black-and-white partials rather than four-level refreshes.
+TEST(EPaperSSD1677Gray4, PartialUpdatesTurnedOnAfterSetupGetAComparisonFrame) {
+  TestableSSD1677Gray4 display(8, 1);
+  RecordingDelegate bus(&display.dc);
+  display.install(&bus);
+  ASSERT_FALSE(display.has_comparison_frame());
+
+  display.set_full_update_every(5);
+  display.set_update_count(0);
+  EXPECT_TRUE(display.reset());
+  EXPECT_TRUE(display.has_comparison_frame());
+
+  draw_row(display, 0, {0, 1, 2, 3, 0, 1, 2, 3});
+  display.run_push();
+  bus.clear();
+  display.set_update_count(1);
+  display.run_push();
+  EXPECT_EQ(bus.data[0x26], (Bytes{0x33})) << "partial update is not black-and-white";
   EXPECT_EQ(bus.data[0x24], (Bytes{0x33}));
 }
 

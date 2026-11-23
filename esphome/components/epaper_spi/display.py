@@ -42,11 +42,7 @@ from esphome.const import (
 )
 from esphome.cpp_generator import RawExpression
 
-from . import (  # pylint: disable=unused-import
-    FILTER_SOURCE_FILES,  # noqa: F401
-    models,
-    register_sources,
-)
+from . import models, register_sources
 
 AUTO_LOAD = ["split_buffer"]
 DEPENDENCIES = ["spi"]

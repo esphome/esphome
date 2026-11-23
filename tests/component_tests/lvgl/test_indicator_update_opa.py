@@ -21,7 +21,7 @@ def main_cpp(request: pytest.FixtureRequest) -> str:
         CORE.config_path = config_path
         CORE.config = read_config({})
         generate_cpp_contents(CORE.config)
-        return CORE.cpp_main_section
+        return CORE.cpp_global_section + CORE.cpp_main_section
     finally:
         CORE.config_path = original_path
         CORE.reset()
@@ -29,7 +29,7 @@ def main_cpp(request: pytest.FixtureRequest) -> str:
 
 def test_arc_section_opa_is_applied(main_cpp: str) -> None:
     assert (
-        "lv_style_set_arc_opa(meter_arc_test_arc_style, static_cast<uint8_t>(127.5f));"
+        "lv_style_set_arc_opa(::meter_arc_test_arc_style, static_cast<uint8_t>(127.5f));"
         in main_cpp
     )
     assert "lv_obj_invalidate(test_scale);" in main_cpp

@@ -80,17 +80,9 @@ static const LogString *mixer_mode_name(MixerMode mixer_mode) {
 }
 
 void TAS58xx::setup() {
-  if (this->enable_pin_ != nullptr) {
-    this->enable_pin_->setup();
-    this->enable_pin_->digital_write(false);
-    delay(PDN_LOW_MS);
-    this->enable_pin_->digital_write(true);
-    delay(PDN_TO_I2C_MS);
-  }
-  if (!this->init_()) {
-    this->mark_failed();
+  pulse_reset(this->enable_pin_, {.low_ms = PDN_LOW_MS, .high_after_ms = PDN_TO_I2C_MS});
+  if (!this->setup_check(this->init_()))
     return;
-  }
   this->publish_active_(true);  // init_() leaves the device in play
 #ifdef USE_SELECT
   // After init, so an on_value handler acts on a ready amplifier and init does not undo it

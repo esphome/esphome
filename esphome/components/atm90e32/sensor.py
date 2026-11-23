@@ -1,3 +1,6 @@
+import logging
+import math
+
 import esphome.codegen as cg
 from esphome.components import sensor, spi
 import esphome.config_validation as cv
@@ -17,33 +20,14 @@ from esphome.const import (
     CONF_REACTIVE_POWER,
     CONF_REVERSE_ACTIVE_ENERGY,
     CONF_VOLTAGE,
-    DEVICE_CLASS_APPARENT_POWER,
-    DEVICE_CLASS_CURRENT,
-    DEVICE_CLASS_ENERGY,
-    DEVICE_CLASS_FREQUENCY,
-    DEVICE_CLASS_POWER,
-    DEVICE_CLASS_POWER_FACTOR,
-    DEVICE_CLASS_REACTIVE_POWER,
-    DEVICE_CLASS_TEMPERATURE,
-    DEVICE_CLASS_VOLTAGE,
     ENTITY_CATEGORY_DIAGNOSTIC,
     ICON_CURRENT_AC,
-    ICON_LIGHTBULB,
-    STATE_CLASS_MEASUREMENT,
-    STATE_CLASS_TOTAL_INCREASING,
-    UNIT_AMPERE,
-    UNIT_CELSIUS,
-    UNIT_DEGREES,
-    UNIT_HERTZ,
-    UNIT_VOLT,
-    UNIT_VOLT_AMPS,
-    UNIT_VOLT_AMPS_REACTIVE,
-    UNIT_WATT,
-    UNIT_WATT_HOURS,
 )
 from esphome.types import ConfigType
 
 from . import atm90e32_ns
+
+_LOGGER = logging.getLogger(__name__)
 
 CONF_CHIP_TEMPERATURE = "chip_temperature"
 CONF_GAIN_PGA = "gain_pga"
@@ -61,6 +45,16 @@ CONF_ENABLE_OFFSET_CALIBRATION = "enable_offset_calibration"
 CONF_ENABLE_GAIN_CALIBRATION = "enable_gain_calibration"
 CONF_PHASE_STATUS = "phase_status"
 CONF_FREQUENCY_STATUS = "frequency_status"
+CONF_THRESHOLDS = "thresholds"
+CONF_ALLOW_UNSAFE_THRESHOLDS = "allow_unsafe_thresholds"
+CONF_VOLTAGE_NOMINAL = "voltage_nominal"
+CONF_VOLTAGE_SAG_PCT = "voltage_sag_pct"
+CONF_VOLTAGE_PEAK_PCT = "voltage_peak_pct"
+CONF_VOLTAGE_SAG_V = "voltage_sag_v"
+CONF_VOLTAGE_PEAK_V = "voltage_peak_v"
+CONF_CURRENT_PEAK = "current_peak"
+CONF_FREQUENCY_LOW_HZ = "frequency_low_hz"
+CONF_FREQUENCY_HIGH_HZ = "frequency_high_hz"
 UNIT_DEG = "degrees"
 LINE_FREQS = {
     "50HZ": 50,
@@ -76,6 +70,13 @@ PGA_GAINS = {
     "4X": 0x2A,
 }
 
+DEFAULT_VOLTAGE_SAG_PCT = 0.78
+DEFAULT_VOLTAGE_PEAK_PCT = 1.22
+# IRMS saturates at 65.535 A, so a higher limit could never be exceeded.
+MAX_CURRENT_PEAK_A = 65.53
+MAX_FREQUENCY_HZ = 655.35
+DEFAULT_FREQUENCY_THRESHOLD_BAND_HZ = 3.0
+
 ATM90E32Component = atm90e32_ns.class_(
     "ATM90E32Component", cg.PollingComponent, spi.SPIDevice
 )
@@ -83,69 +84,37 @@ ATM90E32Component = atm90e32_ns.class_(
 ATM90E32_PHASE_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(
-            unit_of_measurement=UNIT_VOLT,
-            accuracy_decimals=2,
-            device_class=DEVICE_CLASS_VOLTAGE,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.VOLTAGE, accuracy_decimals=2
         ),
         cv.Optional(CONF_CURRENT): sensor.sensor_schema(
-            unit_of_measurement=UNIT_AMPERE,
-            accuracy_decimals=2,
-            device_class=DEVICE_CLASS_CURRENT,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.CURRENT, accuracy_decimals=2
         ),
         cv.Optional(CONF_POWER): sensor.sensor_schema(
-            unit_of_measurement=UNIT_WATT,
-            accuracy_decimals=2,
-            device_class=DEVICE_CLASS_POWER,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.POWER, accuracy_decimals=2
         ),
         cv.Optional(CONF_REACTIVE_POWER): sensor.sensor_schema(
-            unit_of_measurement=UNIT_VOLT_AMPS_REACTIVE,
-            icon=ICON_LIGHTBULB,
-            accuracy_decimals=2,
-            device_class=DEVICE_CLASS_REACTIVE_POWER,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.REACTIVE_POWER, accuracy_decimals=2
         ),
         cv.Optional(CONF_APPARENT_POWER): sensor.sensor_schema(
-            unit_of_measurement=UNIT_VOLT_AMPS,
-            accuracy_decimals=2,
-            device_class=DEVICE_CLASS_APPARENT_POWER,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.APPARENT_POWER, accuracy_decimals=2
         ),
         cv.Optional(CONF_POWER_FACTOR): sensor.sensor_schema(
-            accuracy_decimals=2,
-            device_class=DEVICE_CLASS_POWER_FACTOR,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.POWER_FACTOR, accuracy_decimals=2
         ),
         cv.Optional(CONF_FORWARD_ACTIVE_ENERGY): sensor.sensor_schema(
-            unit_of_measurement=UNIT_WATT_HOURS,
-            accuracy_decimals=2,
-            device_class=DEVICE_CLASS_ENERGY,
-            state_class=STATE_CLASS_TOTAL_INCREASING,
+            kind=sensor.ENERGY_WH, accuracy_decimals=2
         ),
         cv.Optional(CONF_REVERSE_ACTIVE_ENERGY): sensor.sensor_schema(
-            unit_of_measurement=UNIT_WATT_HOURS,
-            accuracy_decimals=2,
-            device_class=DEVICE_CLASS_ENERGY,
-            state_class=STATE_CLASS_TOTAL_INCREASING,
+            kind=sensor.ENERGY_WH, accuracy_decimals=2
         ),
         cv.Optional(CONF_PHASE_ANGLE): sensor.sensor_schema(
-            unit_of_measurement=UNIT_DEGREES,
-            accuracy_decimals=2,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.ANGLE, accuracy_decimals=2
         ),
         cv.Optional(CONF_HARMONIC_POWER): sensor.sensor_schema(
-            unit_of_measurement=UNIT_WATT,
-            accuracy_decimals=2,
-            device_class=DEVICE_CLASS_POWER,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.POWER, accuracy_decimals=2
         ),
         cv.Optional(CONF_PEAK_CURRENT): sensor.sensor_schema(
-            unit_of_measurement=UNIT_AMPERE,
-            accuracy_decimals=2,
-            device_class=DEVICE_CLASS_CURRENT,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.CURRENT, accuracy_decimals=2
         ),
         cv.Optional(CONF_GAIN_VOLTAGE, default=7305): cv.uint16_t,
         cv.Optional(CONF_GAIN_CT, default=27961): cv.uint16_t,
@@ -156,7 +125,158 @@ ATM90E32_PHASE_SCHEMA = cv.Schema(
     }
 )
 
-CONFIG_SCHEMA = (
+
+POSITIVE_VOLTAGE = cv.All(cv.voltage, cv.positive_not_null_float)
+THRESHOLD_PERCENT = cv.All(
+    cv.unbounded_percentage, cv.float_range(min=0, min_included=False, max=2.0)
+)
+REGISTER_FREQUENCY = cv.All(
+    cv.frequency, cv.float_range(min=0, min_included=False, max=MAX_FREQUENCY_HZ)
+)
+
+THRESHOLDS_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_ALLOW_UNSAFE_THRESHOLDS, default=False): cv.boolean,
+        cv.Optional(CONF_VOLTAGE_NOMINAL): POSITIVE_VOLTAGE,
+        cv.Exclusive(CONF_VOLTAGE_SAG_PCT, "voltage_sag_threshold"): THRESHOLD_PERCENT,
+        cv.Exclusive(CONF_VOLTAGE_SAG_V, "voltage_sag_threshold"): POSITIVE_VOLTAGE,
+        cv.Exclusive(
+            CONF_VOLTAGE_PEAK_PCT, "voltage_peak_threshold"
+        ): THRESHOLD_PERCENT,
+        cv.Exclusive(CONF_VOLTAGE_PEAK_V, "voltage_peak_threshold"): POSITIVE_VOLTAGE,
+        cv.Optional(CONF_CURRENT_PEAK): cv.All(
+            cv.current,
+            cv.float_range(min=0, min_included=False, max=MAX_CURRENT_PEAK_A),
+        ),
+        cv.Optional(CONF_FREQUENCY_LOW_HZ): REGISTER_FREQUENCY,
+        cv.Optional(CONF_FREQUENCY_HIGH_HZ): REGISTER_FREQUENCY,
+    }
+)
+
+
+def _default_voltage_nominal(line_frequency: int) -> float:
+    return 120.0 if line_frequency == 60 else 220.0
+
+
+def _resolve_thresholds(config: ConfigType) -> ConfigType:
+    line_frequency = config[CONF_LINE_FREQUENCY].enum_value
+    resolved = dict(config[CONF_THRESHOLDS])
+    nominal_voltage = resolved.setdefault(
+        CONF_VOLTAGE_NOMINAL, _default_voltage_nominal(line_frequency)
+    )
+    for volts_key, pct_key, default_pct in (
+        (CONF_VOLTAGE_SAG_V, CONF_VOLTAGE_SAG_PCT, DEFAULT_VOLTAGE_SAG_PCT),
+        (CONF_VOLTAGE_PEAK_V, CONF_VOLTAGE_PEAK_PCT, DEFAULT_VOLTAGE_PEAK_PCT),
+    ):
+        resolved.setdefault(
+            volts_key, nominal_voltage * resolved.get(pct_key, default_pct)
+        )
+    resolved.setdefault(
+        CONF_FREQUENCY_LOW_HZ, line_frequency - DEFAULT_FREQUENCY_THRESHOLD_BAND_HZ
+    )
+    resolved.setdefault(
+        CONF_FREQUENCY_HIGH_HZ, line_frequency + DEFAULT_FREQUENCY_THRESHOLD_BAND_HZ
+    )
+    return resolved
+
+
+def _validate_thresholds(config: ConfigType) -> ConfigType:
+    configured = config[CONF_THRESHOLDS]
+    thresholds = _resolve_thresholds(config)
+    nominal_voltage = thresholds[CONF_VOLTAGE_NOMINAL]
+    sag_voltage = thresholds[CONF_VOLTAGE_SAG_V]
+    peak_voltage = thresholds[CONF_VOLTAGE_PEAK_V]
+
+    if not thresholds[CONF_ALLOW_UNSAFE_THRESHOLDS]:
+        for key, ratio, low, high in (
+            (CONF_VOLTAGE_SAG_V, sag_voltage / nominal_voltage, 0.50, 0.99),
+            (CONF_VOLTAGE_PEAK_V, peak_voltage / nominal_voltage, 1.01, 1.50),
+        ):
+            if not low <= ratio <= high:
+                raise cv.Invalid(
+                    f"thresholds.{key} must be between {low:.0%} and {high:.0%} of voltage_nominal; "
+                    "set thresholds.allow_unsafe_thresholds: true to override."
+                )
+
+    if not sag_voltage < nominal_voltage < peak_voltage:
+        raise cv.Invalid(
+            "Invalid voltage thresholds: expected sag < nominal < peak "
+            f"(got {sag_voltage:.3f}V < {nominal_voltage:.3f}V < {peak_voltage:.3f}V)."
+        )
+
+    frequency_low = thresholds[CONF_FREQUENCY_LOW_HZ]
+    frequency_high = thresholds[CONF_FREQUENCY_HIGH_HZ]
+
+    if round(frequency_low * 100) >= round(frequency_high * 100):
+        raise cv.Invalid(
+            "thresholds.frequency_low_hz must be lower than thresholds.frequency_high_hz "
+            "at the register resolution of 0.01Hz."
+        )
+
+    # Each limit counts as set by the user when any key it is derived from was given.
+    for gain_key, scale, registers in (
+        (
+            CONF_GAIN_VOLTAGE,
+            100,
+            (
+                (
+                    CONF_VOLTAGE_SAG_V,
+                    min,
+                    (CONF_VOLTAGE_NOMINAL, CONF_VOLTAGE_SAG_PCT, CONF_VOLTAGE_SAG_V),
+                ),
+                (
+                    CONF_VOLTAGE_PEAK_V,
+                    max,
+                    (CONF_VOLTAGE_NOMINAL, CONF_VOLTAGE_PEAK_PCT, CONF_VOLTAGE_PEAK_V),
+                ),
+            ),
+        ),
+        (CONF_GAIN_CT, 1000, ((CONF_CURRENT_PEAK, max, (CONF_CURRENT_PEAK,)),)),
+    ):
+        explicit = {
+            key: any(source in configured for source in sources)
+            for key, _, sources in registers
+        }
+        # A legacy config without current_peak keeps the fixed OITH register value.
+        if gain_key == CONF_GAIN_CT and not explicit[CONF_CURRENT_PEAK]:
+            continue
+        gains = {
+            config[phase][gain_key]
+            for phase in (CONF_PHASE_A, CONF_PHASE_B, CONF_PHASE_C)
+            if phase in config
+        }
+        if not gains or 0 in gains:
+            if not any(explicit.values()):
+                continue
+            raise cv.Invalid(
+                f"Thresholds require at least one phase and a nonzero {gain_key} on every configured phase."
+            )
+        for key, select_gain, _ in registers:
+            gain = select_gain(gains)
+            limit = 65535 * gain / (scale * math.sqrt(2) * 16384)
+            if thresholds[key] <= limit:
+                continue
+            message = (
+                f"thresholds.{key} ({thresholds[key]:.1f}) cannot fit the 16-bit threshold register with "
+                f"{gain_key}: {gain}; the highest value that fits is {limit:.1f}"
+            )
+            if explicit[key]:
+                raise cv.Invalid(
+                    f"{message}. Increase {gain_key} or lower the threshold."
+                )
+            # Defaults are only warned about so existing configs keep building; the register is clamped.
+            _LOGGER.warning(
+                "%s. The default is clamped to the register maximum, so this alarm cannot trigger; "
+                "set thresholds.%s to at most %.1f to use it.",
+                message,
+                key,
+                limit,
+            )
+
+    return config
+
+
+CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(ATM90E32Component),
@@ -164,18 +284,10 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_PHASE_B): ATM90E32_PHASE_SCHEMA,
             cv.Optional(CONF_PHASE_C): ATM90E32_PHASE_SCHEMA,
             cv.Optional(CONF_FREQUENCY): sensor.sensor_schema(
-                unit_of_measurement=UNIT_HERTZ,
-                icon=ICON_CURRENT_AC,
-                accuracy_decimals=1,
-                device_class=DEVICE_CLASS_FREQUENCY,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.FREQUENCY, icon=ICON_CURRENT_AC, accuracy_decimals=1
             ),
             cv.Optional(CONF_CHIP_TEMPERATURE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_CELSIUS,
-                accuracy_decimals=1,
-                device_class=DEVICE_CLASS_TEMPERATURE,
-                state_class=STATE_CLASS_MEASUREMENT,
-                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+                kind=sensor.TEMPERATURE, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
             ),
             cv.Required(CONF_LINE_FREQUENCY): cv.enum(LINE_FREQS, upper=True),
             cv.Optional(CONF_CURRENT_PHASES, default="3"): cv.enum(
@@ -185,10 +297,12 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_PEAK_CURRENT_SIGNED, default=False): cv.boolean,
             cv.Optional(CONF_ENABLE_OFFSET_CALIBRATION, default=False): cv.boolean,
             cv.Optional(CONF_ENABLE_GAIN_CALIBRATION, default=False): cv.boolean,
+            cv.Optional(CONF_THRESHOLDS, default={}): THRESHOLDS_SCHEMA,
         }
     )
     .extend(cv.polling_component_schema("60s"))
-    .extend(spi.spi_device_schema())
+    .extend(spi.spi_device_schema()),
+    _validate_thresholds,
 )
 
 
@@ -250,3 +364,15 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_peak_current_signed(config[CONF_PEAK_CURRENT_SIGNED]))
     cg.add(var.set_enable_offset_calibration(config[CONF_ENABLE_OFFSET_CALIBRATION]))
     cg.add(var.set_enable_gain_calibration(config[CONF_ENABLE_GAIN_CALIBRATION]))
+
+    # The user's keys stay as written so `esphome config` output can be loaded again.
+    thresholds = _resolve_thresholds(config)
+    cg.add(var.set_threshold_voltage_sag_v(thresholds[CONF_VOLTAGE_SAG_V]))
+    cg.add(var.set_threshold_voltage_peak_v(thresholds[CONF_VOLTAGE_PEAK_V]))
+    cg.add_optional(var.set_threshold_current_peak_a, thresholds.get(CONF_CURRENT_PEAK))
+    cg.add(
+        var.set_frequency_thresholds(
+            round(thresholds[CONF_FREQUENCY_LOW_HZ] * 100),
+            round(thresholds[CONF_FREQUENCY_HIGH_HZ] * 100),
+        )
+    )

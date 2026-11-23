@@ -1582,6 +1582,65 @@ _UPLOAD_TAIL = [
 ]
 
 
+def _uf2_image(family: int, flags: int = 0x2000) -> bytes:
+    header = struct.pack("<8I", 0x0A324655, 0x9E5D5157, flags, 0, 256, 0, 1, family)
+    return header + b"firmware" * 100
+
+
+@pytest.mark.parametrize(
+    ("image", "expected"),
+    [
+        (_uf2_image(0x22E0D6FC), True),
+        (_uf2_image(0xE08F7564), False),
+        (_uf2_image(0x22E0D6FC, flags=0), False),
+        (b"\xe9" + bytes(31), False),
+    ],
+    ids=["rtl8710b", "rtl8720c", "no-family", "esp"],
+)
+def test_is_rtl8710b_image(image: bytes, expected: bool) -> None:
+    assert espota2._is_rtl8710b_image(image) is expected
+
+
+@pytest.mark.usefixtures("mock_time")
+def test_perform_ota_rtl8710b_deflate_with_fixed_firmware(
+    mock_socket: Mock, caplog: pytest.LogCaptureFixture
+) -> None:
+    """An RTL8710B image asks for deflate with the bit only fixed firmware knows."""
+    original_content = _uf2_image(0x22E0D6FC)
+    mock_socket.recv.side_effect = (
+        _no_auth_handshake(
+            espota2.OTA_VERSION_2_0, espota2.SERVER_FEATURE_SUPPORTS_DEFLATE
+        )
+        + _UPLOAD_TAIL
+    )
+
+    espota2.perform_ota(mock_socket, None, io.BytesIO(original_content), "test.uf2")
+
+    sent = [c[0][0] for c in mock_socket.sendall.call_args_list]
+    assert sent[1][0] & espota2.CLIENT_FEATURE_SUPPORTS_DEFLATE_RTL8710B
+    assert not sent[1][0] & espota2.CLIENT_FEATURE_SUPPORTS_DEFLATE
+    assert zlib.decompress(sent[6], -espota2.DEFLATE_WINDOW_BITS) == original_content
+    assert espota2.RTL8710B_DEFLATE_NOTICE not in caplog.text
+
+
+@pytest.mark.usefixtures("mock_time")
+def test_perform_ota_rtl8710b_uncompressed_with_old_firmware(
+    mock_socket: Mock, caplog: pytest.LogCaptureFixture
+) -> None:
+    """2026.10 firmware does not know the RTL8710B bit, so the image goes as it is."""
+    original_content = _uf2_image(0x22E0D6FC)
+    mock_socket.recv.side_effect = (
+        _no_auth_handshake(espota2.OTA_VERSION_2_0, 0) + _UPLOAD_TAIL
+    )
+
+    espota2.perform_ota(mock_socket, None, io.BytesIO(original_content), "test.uf2")
+
+    sent = [c[0][0] for c in mock_socket.sendall.call_args_list]
+    assert not sent[1][0] & espota2.CLIENT_FEATURE_SUPPORTS_DEFLATE
+    assert original_content in sent
+    assert espota2.RTL8710B_DEFLATE_NOTICE in caplog.text
+
+
 @pytest.mark.usefixtures("mock_time")
 @pytest.mark.parametrize(
     "server_features",
@@ -1787,19 +1846,25 @@ def test_tcp_retransmits(platform: str, info: bytes, expected: int | None) -> No
 
 def test_udp_channel_reports_socket_errors() -> None:
     """A closed device port fails fast instead of waiting out the timeout."""
-    gone = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    gone.bind(("127.0.0.1", 0))
-    addr = gone.getsockname()
-    gone.close()
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.connect(addr)
-    channel = espota2.UdpChannel(sock, b"\x01\x01\x01\x01")
-    channel.settimeout(10.0)
-    with pytest.raises(espota2.OTANetworkError, match="closed its UDP port"):
-        channel.sendall(bytes(espota2.UDP_MAX_PAYLOAD * 5))
-    # A probe that is refused falls back instead
-    assert not espota2.UdpChannel(sock, b"\x01\x01\x01\x01").probe()
-    channel.close()
+    sock = Mock()
+    # The ICMP port unreachable for each datagram, as recv reports it
+    sock.recv.side_effect = ConnectionRefusedError(61, "Connection refused")
+    # A clock that ticks 1 ms per read, so only a missed refusal reaches the timeout
+    clock = itertools.count(100.0, 0.001)
+    with (
+        patch.object(espota2, "time", Mock(monotonic=lambda: next(clock))),
+        # One refusal per wait, then nothing more to read
+        patch(
+            "select.select",
+            side_effect=itertools.cycle([([sock], [], []), ([], [], [])]),
+        ),
+    ):
+        channel = espota2.UdpChannel(sock, b"\x01\x01\x01\x01")
+        channel.settimeout(10.0)
+        with pytest.raises(espota2.OTANetworkError, match="closed its UDP port"):
+            channel.sendall(bytes(espota2.UDP_MAX_PAYLOAD * 5))
+        # A probe that is refused falls back instead
+        assert not espota2.UdpChannel(sock, b"\x01\x01\x01\x01").probe()
 
 
 def test_udp_channel_no_progress_names_last_error() -> None:
