@@ -124,8 +124,9 @@ async def to_code(config):
             "alarm_codes", cg.const_char_ptr, [*codes, cg.nullptr]
         )
         cg.add(var.set_codes(table))
-        if CONF_REQUIRES_CODE_TO_ARM in config:
-            cg.add(var.set_requires_code_to_arm(config[CONF_REQUIRES_CODE_TO_ARM]))
+        cg.add_optional(
+            var.set_requires_code_to_arm, config.get(CONF_REQUIRES_CODE_TO_ARM)
+        )
 
     cg.add(var.set_arming_away_time(config[CONF_ARMING_AWAY_TIME]))
     cg.add(var.set_pending_time(config[CONF_PENDING_TIME]))
