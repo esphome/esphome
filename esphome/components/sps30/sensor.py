@@ -114,8 +114,9 @@ async def to_code(config: ConfigType) -> None:
     await sensors(CONF_PMC_10_0, var.set_pmc_10_0_sensor)
     await sensors(CONF_PM_SIZE, var.set_pm_size_sensor)
 
-    if CONF_AUTO_CLEANING_INTERVAL in config:
-        cg.add(var.set_auto_cleaning_interval(config[CONF_AUTO_CLEANING_INTERVAL]))
+    cg.add_optional(
+        var.set_auto_cleaning_interval, config.get(CONF_AUTO_CLEANING_INTERVAL)
+    )
 
     cg.add_optional(var.set_idle_interval, config.get(CONF_IDLE_INTERVAL))
 

@@ -4,6 +4,9 @@
 /// @details The classes declared in this file can be used by the Weikai family
 
 #include "weikai.h"
+
+#include <algorithm>
+
 #include "esphome/core/helpers.h"
 #include "esphome/core/progmem.h"
 
@@ -39,17 +42,9 @@ const char *p2s(uart::UARTParityOptions parity) {
 
 /// @brief Display a buffer in hexadecimal format (32 hex values / line) for debug
 void print_buffer(const char *tag, const uint8_t *data, size_t length, int level) {
-  char hex_buffer[100];
-  hex_buffer[(3 * 32) + 1] = 0;
-  for (size_t i = 0; i < length; i++) {
-    snprintf(&hex_buffer[3 * (i % 32)], sizeof(hex_buffer), "%02X ", data[i]);
-    if (i % 32 == 31) {
-      esp_log_printf_(level, tag, __LINE__, ESPHOME_LOG_FORMAT("   %s"), hex_buffer);
-    }
-  }
-  if (length % 32) {
-    // null terminate if incomplete line
-    hex_buffer[3 * (length % 32) + 2] = 0;
+  char hex_buffer[format_hex_pretty_size(32)];
+  for (size_t i = 0; i < length; i += 32) {
+    format_hex_pretty_to(hex_buffer, data + i, std::min<size_t>(32, length - i), ' ');
     esp_log_printf_(level, tag, __LINE__, ESPHOME_LOG_FORMAT("   %s"), hex_buffer);
   }
 }

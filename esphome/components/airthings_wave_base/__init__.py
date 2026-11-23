@@ -7,10 +7,7 @@ from esphome.const import (
     CONF_PRESSURE,
     CONF_TEMPERATURE,
     CONF_TVOC,
-    DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS,
     ENTITY_CATEGORY_DIAGNOSTIC,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_PARTS_PER_BILLION,
 )
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
@@ -38,12 +35,7 @@ BASE_SCHEMA = (
                 kind=sensor.TEMPERATURE, accuracy_decimals=2
             ),
             cv.Optional(CONF_PRESSURE): sensor.sensor_schema(kind=sensor.PRESSURE),
-            cv.Optional(CONF_TVOC): sensor.sensor_schema(
-                unit_of_measurement=UNIT_PARTS_PER_BILLION,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
+            cv.Optional(CONF_TVOC): sensor.sensor_schema(kind=sensor.VOC_PPB),
             cv.Optional(CONF_BATTERY_VOLTAGE): sensor.sensor_schema(
                 kind=sensor.VOLTAGE,
                 accuracy_decimals=3,
