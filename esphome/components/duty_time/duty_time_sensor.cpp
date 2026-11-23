@@ -49,10 +49,10 @@ void DutyTimeSensor::setup() {
     this->pref_.load(&seconds);
   }
 
-  this->set_value_(seconds);
+  this->set_value(seconds);
 }
 
-void DutyTimeSensor::set_value_(const uint32_t sec) {
+void DutyTimeSensor::set_value(const uint32_t sec) {
   this->last_time_ = 0;
   if (this->last_state_)
     this->last_time_ = millis();  // last time with 0 ms correction
