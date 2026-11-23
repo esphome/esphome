@@ -1,9 +1,7 @@
 #include "zigbee_number_esp32.h"
 #include "esphome/core/log.h"
 #include "esphome/core/defines.h"
-#ifdef USE_ESP32
-#ifdef USE_ZIGBEE
-#ifdef USE_NUMBER
+#if defined(USE_ESP32) && defined(USE_ZIGBEE) && defined(USE_NUMBER)
 
 namespace esphome::zigbee {
 
@@ -63,6 +61,4 @@ void ZigbeeNumber::on_value(ezb_zcl_attribute_t attribute) {
 
 }  // namespace esphome::zigbee
 
-#endif
-#endif
 #endif

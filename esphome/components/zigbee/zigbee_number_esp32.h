@@ -3,9 +3,7 @@
 #include "esphome/core/defines.h"
 #include "zigbee_attribute_base_esp32.h"
 
-#ifdef USE_ESP32
-#ifdef USE_ZIGBEE
-#ifdef USE_NUMBER
+#if defined(USE_ESP32) && defined(USE_ZIGBEE) && defined(USE_NUMBER)
 
 #include "esphome/components/number/number.h"
 
@@ -32,6 +30,4 @@ class ZigbeeNumber final : public ZigbeeAttributeBase {
 
 }  // namespace esphome::zigbee
 
-#endif
-#endif
 #endif
