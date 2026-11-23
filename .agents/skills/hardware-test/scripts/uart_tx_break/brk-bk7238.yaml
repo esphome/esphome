@@ -1,0 +1,24 @@
+# BK7238 module with a jumper from P0 (UART2 TX) to P1 (RX), logger on UART1. -s baud 115200 for the second speed.
+substitutions:
+  baud: "9600"
+esphome:
+  name: brk-bk7238
+bk72xx:
+  board: xh-wb3s
+logger:
+  level: DEBUG
+  hardware_uart: UART1
+external_components:
+  - source: {type: local, path: ext}
+    components: [brkbench]
+uart:
+  - id: u2
+    tx_pin: {number: P0, allow_other_uses: true}
+    rx_pin: {number: P1, allow_other_uses: true}
+    baud_rate: ${baud}
+brkbench:
+  uart_id: u2
+  tx_gpio: {number: P0, allow_other_uses: true}
+  probe_gpio: {number: P1, allow_other_uses: true}
+  probe_is_rx: true
+  rx_num: 1

@@ -343,6 +343,12 @@ def zephyr_require_cdc_acm() -> None:
         zephyr_data()["cdc_acm_required"] = True
 
 
+def zephyr_enable_poweroff() -> None:
+    """Enable sys_poweroff(); Zigbee builds leave it out and stay awake instead."""
+    if "zigbee" not in CORE.loaded_integrations:
+        zephyr_add_prj_conf("POWEROFF", True)
+
+
 def _cdc_acm_add_ports() -> None:
     """Set up every CDC ACM port claimed with zephyr_claim_cdc_acm()."""
     data = zephyr_data()
