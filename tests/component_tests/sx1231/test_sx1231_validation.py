@@ -1,11 +1,11 @@
-"""Tests for the sx1231 config validation and its packet_transport platform's final validation."""
+"""Tests for the sx1231 config validation and its platforms' final validation."""
 
 from typing import Any
 
 import pytest
 
 from esphome.components import sx1231
-from esphome.components.sx1231 import packet_transport
+from esphome.components.sx1231 import packet_interface, packet_transport
 from esphome.config import Config
 import esphome.config_validation as cv
 from esphome.const import (
@@ -182,3 +182,31 @@ def test_packet_transport_final_validate(
         return
     with pytest.raises(cv.Invalid, match=message):
         packet_transport.FINAL_VALIDATE_SCHEMA(config)
+
+
+@pytest.mark.parametrize(
+    ("radio", "message"),
+    [
+        (_radio(), None),
+        # No layer on the link needs packets back, so the radio may sleep between packets
+        (_radio(rx_start=False), None),
+        (_radio(packet_mode=False), "'packet_mode' must be true"),
+        (_radio(sync_value=[]), "The radio needs a 'sync_value'"),
+        (_radio(payload_length=16), "'payload_length' must be 0"),
+    ],
+)
+def test_packet_interface_final_validate(
+    set_core_config: SetCoreConfigCallable,
+    radio: ConfigType,
+    message: str | None,
+) -> None:
+    set_core_config(PlatformFramework.ESP32_IDF, full_config=_full_config(radio))
+    config: ConfigType = {
+        "sx1231_id": ID(RADIO_ID, is_declaration=False, type="sx1231"),
+        "max_packet_size": 64,
+    }
+    if message is None:
+        assert packet_interface.FINAL_VALIDATE_SCHEMA(config) is config
+        return
+    with pytest.raises(cv.Invalid, match=message):
+        packet_interface.FINAL_VALIDATE_SCHEMA(config)
