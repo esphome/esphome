@@ -55,7 +55,7 @@ async def test_build_info(
             )
         }
 
-        # Wait for all three text sensors to have valid states
+        # Wait for all text sensors to have valid states
         loop = asyncio.get_running_loop()
         states: dict[int, TextSensorState] = {}
         all_received = loop.create_future()
