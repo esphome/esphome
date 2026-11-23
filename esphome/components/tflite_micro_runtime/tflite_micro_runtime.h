@@ -15,6 +15,7 @@
 
 #include <atomic>
 #include <string>
+#include <utility>
 #include <vector>
 #include "tensorflow/lite/c/common.h"
 #include "tensorflow/lite/micro/micro_interpreter.h"
@@ -143,6 +144,13 @@ class TFLiteMicroHelper final : public Component {
   /// Fill through the pipeline when one is set, invoke, then decode every output.
   bool run(const uint8_t *src_data, size_t src_size);
 
+  /// Called after run() decoded a result, or run_inference() produced one. The
+  /// callbacks run after the inference lock is released, so one may start another
+  /// run; the decoded values are read from the kind's decoder object.
+  template<typename F> void add_on_result_callback(F &&callback) {
+    this->result_callback_.add(std::forward<F>(callback));
+  }
+
   void set_input_pipeline(InputPipeline *pipeline) { this->input_pipeline_ = pipeline; }
   /// Leave the load to a streaming consumer; setup() only checks the checksum.
   void set_defer_load(bool defer) { this->defer_load_ = defer; }
@@ -211,6 +219,8 @@ class TFLiteMicroHelper final : public Component {
   /// return stay valid only for the caller of run()/invoke(); do not keep them across
   /// an unload. The mutex is not recursive, so the locked helpers are used internally.
   esphome::Mutex mutex_;
+  /// Null unless a run is configured with `on_result`, so an idle instance pays 4 bytes.
+  LazyCallbackManager<void()> result_callback_;
   TfLiteStatus invoke_locked_();
   bool run_inference_on_buffer_locked_(const uint8_t *src_data, size_t src_size);
 

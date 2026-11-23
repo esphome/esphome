@@ -175,66 +175,81 @@ TfLiteStatus TFLiteMicroHelper::invoke_locked_() {
 }
 
 bool TFLiteMicroHelper::run(const uint8_t *src_data, size_t src_size) {
-  LockGuard guard(this->mutex_);
-  if (!this->is_model_loaded()) {
-    ESP_LOGE(TAG, "Cannot run inference -- model not loaded");
-    return false;
-  }
-  if (this->input_pipeline_ != nullptr) {
-    static constexpr size_t MAX_INPUTS = 8;
-    const size_t input_count = this->model_handler_.input_count();
-    if (input_count > MAX_INPUTS) {
-      ESP_LOGE(TAG, "Model has %zu inputs, more than the %zu a pipeline can take", input_count, MAX_INPUTS);
+  bool succeeded = false;
+  {
+    LockGuard guard(this->mutex_);
+    if (!this->is_model_loaded()) {
+      ESP_LOGE(TAG, "Cannot run inference -- model not loaded");
       return false;
     }
-    TfLiteTensor *inputs[MAX_INPUTS];
-    for (size_t i = 0; i < input_count; i++)
-      inputs[i] = this->model_handler_.input(i);
-    if (!this->input_pipeline_->fill_all(inputs, input_count, src_data, src_size))
-      return false;
-  } else {
-    if (this->model_handler_.input_count() != 1) {
-      ESP_LOGE(TAG, "A raw inference needs one input, this model has %zu", this->model_handler_.input_count());
+    if (this->input_pipeline_ != nullptr) {
+      static constexpr size_t MAX_INPUTS = 8;
+      const size_t input_count = this->model_handler_.input_count();
+      if (input_count > MAX_INPUTS) {
+        ESP_LOGE(TAG, "Model has %zu inputs, more than the %zu a pipeline can take", input_count, MAX_INPUTS);
+        return false;
+      }
+      TfLiteTensor *inputs[MAX_INPUTS];
+      for (size_t i = 0; i < input_count; i++)
+        inputs[i] = this->model_handler_.input(i);
+      if (!this->input_pipeline_->fill_all(inputs, input_count, src_data, src_size))
+        return false;
+    } else {
+      if (this->model_handler_.input_count() != 1) {
+        ESP_LOGE(TAG, "A raw inference needs one input, this model has %zu", this->model_handler_.input_count());
+        return false;
+      }
+      if (!this->validate_input_tensor_(src_data, src_size))
+        return false;
+      memcpy(this->model_handler_.input_tensor()->data.raw, src_data, src_size);
+    }
+    if (this->invoke_locked_() != kTfLiteOk) {
+      ESP_LOGE(TAG, "Model invocation failed");
       return false;
     }
-    if (!this->validate_input_tensor_(src_data, src_size))
-      return false;
-    memcpy(this->model_handler_.input_tensor()->data.raw, src_data, src_size);
+    if (this->output_decoder_ == nullptr) {
+      succeeded = true;
+    } else {
+      static constexpr size_t MAX_OUTPUTS = 8;
+      const size_t count = this->model_handler_.output_count();
+      if (count > MAX_OUTPUTS) {
+        ESP_LOGE(TAG, "Model has %zu outputs, more than the %zu a decoder can take", count, MAX_OUTPUTS);
+        return false;
+      }
+      TfLiteTensor *outputs[MAX_OUTPUTS];
+      for (size_t i = 0; i < count; i++)
+        outputs[i] = this->model_handler_.output(i);
+      succeeded = this->output_decoder_->decode(outputs, count);
+    }
   }
-  if (this->invoke_locked_() != kTfLiteOk) {
-    ESP_LOGE(TAG, "Model invocation failed");
-    return false;
-  }
-  if (this->output_decoder_ == nullptr)
-    return true;
-  static constexpr size_t MAX_OUTPUTS = 8;
-  const size_t count = this->model_handler_.output_count();
-  if (count > MAX_OUTPUTS) {
-    ESP_LOGE(TAG, "Model has %zu outputs, more than the %zu a decoder can take", count, MAX_OUTPUTS);
-    return false;
-  }
-  TfLiteTensor *outputs[MAX_OUTPUTS];
-  for (size_t i = 0; i < count; i++)
-    outputs[i] = this->model_handler_.output(i);
-  return this->output_decoder_->decode(outputs, count);
+  // Out of the lock, so an `on_result` lambda may start another run.
+  if (succeeded)
+    this->result_callback_.call();
+  return succeeded;
 }
 
 optional<ProcessedOutput> TFLiteMicroHelper::run_inference(const uint8_t *src_data, size_t src_size) {
-  LockGuard guard(this->mutex_);
-  if (!this->run_inference_on_buffer_locked_(src_data, src_size)) {
-    return nullopt;  // the reason is already logged
+  optional<ProcessedOutput> processed;
+  {
+    LockGuard guard(this->mutex_);
+    if (!this->run_inference_on_buffer_locked_(src_data, src_size)) {
+      return nullopt;  // the reason is already logged
+    }
+    TfLiteTensor *output = this->model_handler_.output_tensor();
+    if (output == nullptr) {
+      ESP_LOGE(TAG, "Model has no output tensor after a successful invocation");
+      return nullopt;
+    }
+    const ProcessedOutput result = this->model_handler_.process_output(output);
+    if (!result.valid) {
+      // The reason is already logged by the output processor.
+      return nullopt;
+    }
+    processed = result;
   }
-  TfLiteTensor *output = this->model_handler_.output_tensor();
-  if (output == nullptr) {
-    ESP_LOGE(TAG, "Model has no output tensor after a successful invocation");
-    return nullopt;
-  }
-  const ProcessedOutput result = this->model_handler_.process_output(output);
-  if (!result.valid) {
-    // The reason is already logged by the output processor.
-    return nullopt;
-  }
-  return result;
+  // Out of the lock, so an `on_result` lambda may start another run.
+  this->result_callback_.call();
+  return processed;
 }
 
 // Audio model setters: configuration-only, the streaming runtime belongs to the consumer.

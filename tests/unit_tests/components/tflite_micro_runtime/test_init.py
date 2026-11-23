@@ -276,6 +276,19 @@ def test_final_validate_reports_an_unreadable_model(setup_core: Path) -> None:
         tflm.FINAL_VALIDATE_SCHEMA({})
 
 
+def test_to_code_builds_the_result_callback(setup_core: Path) -> None:
+    """`on_result` registers a callback on the helper, out of the inference lock."""
+    on_result = [{"then": []}]
+    with patch.object(
+        tflm.automation, "build_callback_automation", new_callable=AsyncMock
+    ) as build:
+        _, var, _ = _run_to_code(
+            {tflm.CONF_ID: _model_id(), tflm.CONF_ON_RESULT: on_result}
+        )
+
+    build.assert_awaited_once_with(var, "add_on_result_callback", [], on_result[0])
+
+
 def test_to_code_gives_each_model_its_own_checksum(setup_core: Path) -> None:
     """MULTI_CONF: the checksum is per instance, not build-wide."""
     _, first, _ = _run_to_code({tflm.CONF_ID: _model_id()}, model_bytes=b"\x01")
