@@ -41,7 +41,8 @@ def write_all(fd: int, data: bytes, f, t0: float, limit: float = 2) -> int:
 
 fd = os.open(port, os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
 a = termios.tcgetattr(fd)
-a[0] = (termios.INPCK | termios.PARMRK) if mode == "e" else termios.PARMRK
+# INPCK at 8N1 too: Linux marks framing errors only with it on
+a[0] = termios.INPCK | termios.PARMRK
 a[1] = 0
 a[2] = (
     termios.CS8
@@ -66,11 +67,13 @@ if (
 ):
     os.close(fd)
     sys.exit("the port did not take 115200 8 data bits with the requested parity")
-# without PARMRK (and INPCK at 8E1) errors never become FF 00 X marks, and a zero mark count means nothing
-want_i = termios.PARMRK | (termios.INPCK if mode == "e" else 0)
+# without PARMRK and INPCK errors never become FF 00 X marks, and a zero mark count means nothing
+want_i = termios.PARMRK | termios.INPCK
 if b[0] & want_i != want_i:
     os.close(fd)
-    sys.exit("the port did not take PARMRK/INPCK, so parity errors would not be marked")
+    sys.exit(
+        "the port did not take PARMRK/INPCK, so parity and framing errors would not be marked"
+    )
 termios.tcflush(fd, termios.TCIOFLUSH)
 t0 = time.time()
 end = t0 + secs
