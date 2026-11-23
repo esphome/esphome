@@ -398,6 +398,7 @@
 #define USE_WHIRLPOOL_HISENSE_ARG
 #define USE_WHIRLPOOL_HITACHI_HCRA31NEWH
 #define USE_ZWAVE_PROXY
+#define USE_ZWAVE_PROXY_TAP
 
 // Feature flags which do not work for zephyr
 #ifndef USE_ZEPHYR
