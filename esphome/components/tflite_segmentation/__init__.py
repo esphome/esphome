@@ -14,6 +14,7 @@ from esphome.components.tflite_micro_runtime import (
     declare_model,
     final_validate,
 )
+from esphome.components.tflite_model_io.model_reader import read_model_io
 import esphome.config_validation as cv
 from esphome.types import ConfigType
 
@@ -40,8 +41,35 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
+def validate_model_io(model_path: Path) -> None:
+    """Reject a model whose mask the decoder cannot read."""
+    try:
+        model_io = read_model_io(model_path)
+    except ValueError as err:
+        raise cv.Invalid(str(err)) from err
+    name = Path(str(model_path)).name
+    if len(model_io.outputs) != 1:
+        raise cv.Invalid(
+            f"Model '{name}' declares {len(model_io.outputs)} output tensors; a "
+            f"segmentation model needs one mask"
+        )
+    shape = model_io.outputs[0].shape
+    if (
+        len(shape) != 4
+        or shape[0] != 1
+        or shape[1] <= 0
+        or shape[2] <= 0
+        or not 1 <= shape[3] <= 256
+    ):
+        raise cv.Invalid(
+            f"Model '{name}' declares the mask tensor {list(shape)}; the decoder "
+            f"needs [1, height, width, classes] with up to 256 classes"
+        )
+
+
 async def configure(var, config: ConfigType, model_path: Path) -> None:
     """Create the frame pipeline and the mask decoder for one model."""
+    validate_model_io(model_path)
     cg.add(var.set_input_pipeline(build_pipeline(config, model_path)))
     decoder = cg.new_Pvariable(config[CONF_DECODER_ID])
     cg.add(var.set_output_decoder(decoder))
