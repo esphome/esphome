@@ -216,6 +216,8 @@ class ModemComponent : public Component {
   esp_err_t set_uart_baud_(int baud);
   void not_responding_(int baud);
   void sim_not_ready_(const char *reason);
+  bool sim_restart_due_() const;
+  ModemState restart_for_sim_();
   void dump_connect_params_();
   SimResult prepare_sim_();
 #ifdef USE_MODEM_PIN_CODE
@@ -248,7 +250,8 @@ class ModemComponent : public Component {
   StaticTask task_;
   uint32_t timeout_{0};
   uint32_t step_delay_ms_{0};
-  uint32_t state_started_ms_{0};  // when the IP wait or the PIN unlock wait began
+  uint32_t state_started_ms_{0};     // when the IP wait or the PIN unlock wait began
+  uint32_t sim_wait_started_ms_{0};  // when the SIM wait began: CONNECTING, or the last restart for the SIM
   std::atomic<uint32_t> pending_{0};
 #ifdef USE_MODEM_PIN_CODE
   const char *pin_code_{nullptr};
@@ -311,6 +314,7 @@ class ModemComponent : public Component {
   uint8_t idle_polls_{0};     // polls in a row that reported "not searching"
   uint8_t unknown_polls_{0};  // polls in a row with no usable registration state
   uint8_t sim_polls_{0};      // failed SIM status reads in this attempt
+  uint8_t sim_restarts_{0};   // restarts for a SIM that stayed unready, since it was last READY; each doubles the wait
 #ifdef USE_MODEM_POLL
   uint8_t poll_rssi_{CSQ_UNKNOWN};  // raw AT+CSQ answers
   uint8_t poll_ber_{CSQ_UNKNOWN};

@@ -71,6 +71,13 @@ static constexpr uint32_t ATTACH_TIMEOUT_MS = 150000;
 // SIM status polls that fail before a warning, and between repeats of it
 static constexpr uint8_t SIM_WARN_AFTER = 10;
 static constexpr uint8_t SIM_WARN_EVERY = 60;
+// A modem whose SIM stays unready this long is restarted (AT+CFUN=1,1): one that failed to read its SIM, as after a
+// reset during its own start-up, reports it missing until it restarts, and an ESP reboot leaves it running. The wait
+// doubles after each restart that did not help, so a SIM that is really missing costs a restart every half hour.
+static constexpr uint32_t SIM_RESTART_AFTER_MS = 60000;
+static constexpr uint8_t SIM_RESTART_MAX_BACKOFF = 5;  // 60 s << 5 = 32 min
+// A restarted modem stays silent for several seconds; ENABLING then syncs with it again
+static constexpr uint32_t MODEM_RESTART_WAIT_MS = 10000;
 static constexpr int RADIO_STATE_MINIMUM = 0;  // CFUN=0: radio off and the SIM powered down
 static constexpr int RADIO_STATE_RF_OFF = 4;   // CFUN=4: transmit and receive off, SIM still powered
 static constexpr uint8_t UART_EVENT_QUEUE_SIZE = 10;
@@ -579,6 +586,7 @@ ModemState ModemComponent::compute_next_state_() {
 
   switch (state) {
     case ModemState::MODEM_STATE_DISABLED:
+      this->sim_restarts_ = 0;  // a new attempt starts with the shortest wait
 #ifdef USE_MODEM_PIN_CODE
       // A new attempt may send the PIN again; a counted send that has not gone out yet still does
       if (this->pin_step_ == PinStep::PIN_STEP_SENT) {
@@ -800,6 +808,7 @@ ModemState ModemComponent::handle_state_synced_() {
   }
   this->connect_step_ = ConnectStep::CONNECT_STEP_START;
   this->sim_polls_ = 0;
+  this->sim_wait_started_ms_ = millis();
   return ModemState::MODEM_STATE_CONNECTING;
 }
 
@@ -816,8 +825,12 @@ ModemState ModemComponent::handle_state_connecting_() {
     // ENABLING powered the SIM up (CFUN=4, or CFUN=1 on a modem without it), so the SIM answers
     switch (this->prepare_sim_()) {
       case SimResult::SIM_RESULT_READY:
+        this->sim_restarts_ = 0;
         break;
       case SimResult::SIM_RESULT_RETRY:
+        if (this->sim_restart_due_()) {
+          return this->restart_for_sim_();
+        }
         return this->retry_(ModemState::MODEM_STATE_CONNECTING);
       case SimResult::SIM_RESULT_LOCKED:
         // A reboot would send nothing more, so the reboot timer is cancelled
@@ -1115,6 +1128,31 @@ void ModemComponent::not_responding_(int baud) {
     ESP_LOGW(TAG, "Modem not responding at %d baud. Check power, PWRKEY and TX/RX wiring.", baud);
   }
   this->set_fault_(ModemFault::MODEM_FAULT_NO_RESPONSE);
+}
+
+bool ModemComponent::sim_restart_due_() const {
+#ifdef USE_MODEM_PIN_CODE
+  // A restart locks the SIM again, and each PIN sent without READY uses up one of the SIM's attempts
+  if (this->pin_step_ != PinStep::PIN_STEP_IDLE) {
+    return false;
+  }
+#endif
+  return millis() - this->sim_wait_started_ms_ >= SIM_RESTART_AFTER_MS << this->sim_restarts_;
+}
+
+ModemState ModemComponent::restart_for_sim_() {
+  const uint32_t waited_s = (millis() - this->sim_wait_started_ms_) / 1000;
+  if (this->sim_restarts_ < SIM_RESTART_MAX_BACKOFF) {
+    this->sim_restarts_++;
+  }
+  this->sim_wait_started_ms_ = millis();
+  // The restart can cut its own OK short, so only an ERROR means it did not happen
+  if (this->at_("AT+CFUN=1,1") == command_result::FAIL) {
+    ESP_LOGW(TAG, "SIM not ready after %" PRIu32 " s; the modem refused a restart (AT+CFUN=1,1)", waited_s);
+    return this->retry_(ModemState::MODEM_STATE_CONNECTING);
+  }
+  ESP_LOGW(TAG, "SIM not ready after %" PRIu32 " s; restarting the modem (AT+CFUN=1,1)", waited_s);
+  return this->retry_(ModemState::MODEM_STATE_ENABLING, MODEM_RESTART_WAIT_MS);
 }
 
 void ModemComponent::sim_not_ready_(const char *reason) {
