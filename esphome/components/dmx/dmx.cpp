@@ -123,7 +123,7 @@ void DMXComponent::publish_inputs_() {
     if (cs.channel < 1 || cs.channel > 512)
       continue;
     const float value = static_cast<float>(this->rx_data_[cs.channel]);
-    if (!ds.sensor->has_state() || ds.sensor->get_raw_state() != value)
+    if (!cs.sensor->has_state() || cs.sensor->get_raw_state() != value)
       cs.sensor->publish_state(value);
   }
 
