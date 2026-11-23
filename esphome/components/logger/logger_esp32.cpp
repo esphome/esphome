@@ -18,7 +18,7 @@
 #endif
 #endif
 // The logger accepts USB_CDC on targets without USB OTG (C3, C6, H2, ...), where IDF has no CDC console
-#if defined(USE_LOGGER_UART_SELECTION_USB_CDC) && defined(CONFIG_ESP_CONSOLE_USB_CDC)
+#if defined(USE_LOGGER_CONSOLE) && defined(USE_LOGGER_UART_SELECTION_USB_CDC) && defined(CONFIG_ESP_CONSOLE_USB_CDC)
 #include <esp_private/usb_console.h>
 #endif
 #if defined(CONFIG_PM_ENABLE) && defined(CONFIG_FREERTOS_USE_TICKLESS_IDLE) && \
@@ -38,12 +38,17 @@ namespace esphome::logger {
 
 ESPHOME_LOG_TAG(TAG, "logger");
 
-#if defined(USE_LOGGER_UART_SELECTION_USB_SERIAL_JTAG)
-// ESP-IDF's VFS policy (usbjtag_tx_char_via_driver), applied per chunk instead of per character: skip when no host
-// is attached, wait up to 50 ms once when the TX buffer is full, then drop until a write succeeds again.
+}
+#endif
+
+#ifdef USE_LOGGER_UART_SELECTION_USB_SERIAL_JTAG
+// The driver's TX ring buffer. It rejects an item larger than itself, so lines are written in chunks of half its
+// size, which fit as soon as the previous chunk has drained.
+static constexpr size_t USB_SERIAL_JTAG_TX_BUFFER_SIZE = 512;
+static constexpr size_t USB_SERIAL_JTAG_TX_CHUNK = USB_SERIAL_JTAG_TX_BUFFER_SIZE / 2;
+// ESP-IDF's VFS policy (usbjtag_tx_char_via_driver), per chunk instead of per character: skip when no host is
+// attached, wait up to 50 ms once when the TX buffer is full, then drop until a write succeeds again.
 static constexpr uint32_t USB_SERIAL_JTAG_TX_TIMEOUT_MS = 50;
-// Half the driver's 512-byte TX ring buffer, so a full-length line still fits.
-static constexpr size_t USB_SERIAL_JTAG_TX_CHUNK = 256;
 static bool usb_serial_jtag_tx_blocked = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 void usb_serial_jtag_write_line(const char *msg, size_t len) {
@@ -62,18 +67,7 @@ void usb_serial_jtag_write_line(const char *msg, size_t len) {
     len -= chunk;
   }
 }
-#elif defined(USE_LOGGER_UART_SELECTION_USB_CDC)
-void usb_cdc_write_line(const char *msg, size_t len) {
-#ifdef CONFIG_ESP_CONSOLE_USB_CDC
-  esp_usb_console_write_buf(msg, len);
-#else
-  // No USB OTG: IDF has no CDC console, so the line goes to whatever stdout is.
-  fwrite(msg, 1, len, stdout);
-#endif
-}
-#endif
 
-#ifdef USE_LOGGER_UART_SELECTION_USB_SERIAL_JTAG
 static void init_usb_serial_jtag() {
   setvbuf(stdin, NULL, _IONBF, 0);  // Disable buffering on stdin
 
@@ -95,7 +89,7 @@ static void init_usb_serial_jtag() {
 
   usb_serial_jtag_driver_config_t usb_serial_jtag_config{};
   usb_serial_jtag_config.rx_buffer_size = 512;
-  usb_serial_jtag_config.tx_buffer_size = 512;
+  usb_serial_jtag_config.tx_buffer_size = USB_SERIAL_JTAG_TX_BUFFER_SIZE;
 
   esp_err_t ret = ESP_OK;
   // Install USB-SERIAL-JTAG driver for interrupt-driven reads and writes
