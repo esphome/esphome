@@ -34,6 +34,7 @@ from esphome.const import (
     CONF_VERSION,
     CONF_WIFI,
     CONF_ZIGBEE_ID,
+    CONF_ZIGBEE_NUMBER,
     DEVICE_CLASS_BATTERY,
     DEVICE_CLASS_OUTLET,
     DEVICE_CLASS_VOLTAGE,
@@ -73,7 +74,6 @@ from .const_esp32 import (
     CONF_ATTRIBUTE_ID,
     CONF_ATTRIBUTES,
     CONF_CLUSTERS,
-    CONF_ZIGBEE_CLASS,
     CONNECT,
     DEVICE_ID,
     DEVICE_TYPE,
@@ -361,7 +361,7 @@ def validate_number_esp32(config: ConfigType) -> ConfigType:
     add_ep(
         ep, config.get(CONF_ENDPOINT), config.get(CONF_USE_DEVICE_TYPE), ep_ref=ep_ref
     )
-    config[CONF_ZIGBEE_CLASS] = cv.declare_id(ZigbeeNumber)(None)
+    config[CONF_ZIGBEE_NUMBER] = cv.declare_id(ZigbeeNumber)(None)
     config[CONF_ZIGBEE_ID] = cv.use_id(ZigbeeComponent)(None)
     return config
 
@@ -538,15 +538,12 @@ async def add_component(entity: cg.MockObj, config: ConfigType) -> None:
             cg.add(zb_attr.connect(template_arg, entity))
 
 
-async def add_class_component(entity: cg.MockObj, config: ConfigType) -> None:
-    ep_num = config.get(CONF_ENDPOINT)
-    if ep_num is None:
-        ep_num = config[KEY_ZIGBEE_EP][CONF_NUMBER]
+async def add_number(entity: cg.MockObj, config: ConfigType) -> None:
     zb = await cg.get_variable(config[CONF_ZIGBEE_ID])
     var = cg.new_Pvariable(
-        config[CONF_ZIGBEE_CLASS],
+        config[CONF_ZIGBEE_NUMBER],
         zb,
-        ep_num,
+        config[KEY_ZIGBEE_EP][CONF_NUMBER],
         entity,
     )
     await cg.register_component(var, {})

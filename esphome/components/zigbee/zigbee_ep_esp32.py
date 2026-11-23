@@ -541,11 +541,8 @@ def create_ep(router: bool) -> None:
         eps = list(ep_dict.keys())
         for ep in ep_list_new:
             ep_num = _get_next_ep_num(eps)
-            ep[CONF_NUMBER] = ep_num
-            if _KEY_EP_REFS in ep:
-                for ep_ref in ep[_KEY_EP_REFS]:
-                    ep_ref[CONF_NUMBER] = ep_num
-                del ep[_KEY_EP_REFS]
+            for ep_ref in ep.pop(_KEY_EP_REFS, ()):
+                ep_ref[CONF_NUMBER] = ep_num
             ep_dict[ep_num] = ep
 
         # clear list so that it is not processed again
