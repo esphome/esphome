@@ -198,10 +198,11 @@ void VBusTransmitter::on_header(uint8_t protocol, uint16_t source, uint16_t dest
   if (this->state_ == State::STATE_WAIT_GRANT && source == this->source_) {
     // A new request may precede the echo of the previous release. Verify that whole frame.
     if (this->release_echo_expected_ && protocol == 0x20 && destination == this->destination_ &&
-        this->receiver_->command_ == 0x0600)
+        this->receiver_->command_ == 0x0600) {
       this->state_ = State::STATE_CHECK_RELEASE_ECHO;
-    else
+    } else {
       this->stop_();
+    }
   }
   this->release_echo_expected_ = false;
   if (this->state_ != State::STATE_OWNED)
@@ -217,10 +218,11 @@ void VBusTransmitter::on_datagram(uint16_t command, uint16_t source, uint16_t de
   const uint32_t now = App.get_loop_component_start_time();
   this->packet_pending_ = false;
   if (this->state_ == State::STATE_CHECK_RELEASE_ECHO) {
-    if (value_id == 0 && value == 0 && now - this->sent_at_ <= FRAME_TIME_MS + MAX_RX_AGE_MS)
+    if (value_id == 0 && value == 0 && now - this->sent_at_ <= FRAME_TIME_MS + MAX_RX_AGE_MS) {
       this->state_ = State::STATE_WAIT_GRANT;
-    else
+    } else {
       this->stop_();
+    }
     return;
   }
   if (this->state_ == State::STATE_WAIT_GRANT && command == 0x0500 && source == this->destination_ &&
