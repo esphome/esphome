@@ -4,9 +4,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
 
-#include <cinttypes>
 #include <cmath>
-#include <cstdio>
 
 namespace esphome::selec_meter {
 
@@ -188,7 +186,7 @@ void SelecMeter::decode_serial_number_(std::span<const uint16_t> registers) {
     return;
   }
   char buf[9];
-  snprintf(buf, sizeof(buf), "%08" PRIX32, *serial);
+  format_hex_pretty_to(buf, *serial);
   this->serial_number_text_sensor_->publish_state(buf);
   // The serial number never changes, so stop reading it
   this->serial_number_failures_ = MAX_OPTIONAL_READ_FAILURES;
