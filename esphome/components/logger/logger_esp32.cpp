@@ -38,9 +38,6 @@ namespace esphome::logger {
 
 ESPHOME_LOG_TAG(TAG, "logger");
 
-}
-#endif
-
 #ifdef USE_LOGGER_UART_SELECTION_USB_SERIAL_JTAG
 // The driver's TX ring buffer. It rejects an item larger than itself, so lines are written in chunks of half its
 // size, which fit as soon as the previous chunk has drained.
