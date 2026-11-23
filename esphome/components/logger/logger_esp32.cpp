@@ -47,10 +47,13 @@ static constexpr size_t USB_SERIAL_JTAG_TX_CHUNK = USB_SERIAL_JTAG_TX_BUFFER_SIZ
 // attached, wait up to 50 ms once when the TX buffer is full, then drop until a write succeeds again.
 static constexpr uint32_t USB_SERIAL_JTAG_TX_TIMEOUT_MS = 50;
 static bool usb_serial_jtag_tx_blocked = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+// The install only fails when memory runs out at boot; lines are then skipped, not sent to an absent driver.
+static bool usb_serial_jtag_driver_installed = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 void usb_serial_jtag_write_line(const char *msg, size_t len) {
-  if (!usb_serial_jtag_is_connected())
+  if (!usb_serial_jtag_driver_installed || !usb_serial_jtag_is_connected())
     return;
+  bool sent = false;
   while (len > 0) {
     const size_t chunk = std::min(len, USB_SERIAL_JTAG_TX_CHUNK);
     if (usb_serial_jtag_write_bytes(msg, chunk, 0) != 0) {
@@ -58,8 +61,12 @@ void usb_serial_jtag_write_line(const char *msg, size_t len) {
     } else if (usb_serial_jtag_tx_blocked ||
                usb_serial_jtag_write_bytes(msg, chunk, pdMS_TO_TICKS(USB_SERIAL_JTAG_TX_TIMEOUT_MS)) == 0) {
       usb_serial_jtag_tx_blocked = true;
+      // End a partly sent line so the next one does not run on from it.
+      if (sent)
+        usb_serial_jtag_write_bytes("\n", 1, 0);
       return;
     }
+    sent = true;
     msg += chunk;
     len -= chunk;
   }
@@ -94,6 +101,7 @@ static void init_usb_serial_jtag() {
   if (ret != ESP_OK) {
     return;
   }
+  usb_serial_jtag_driver_installed = true;
 
   // Tell vfs to use usb-serial-jtag driver
 #if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 3, 0)
