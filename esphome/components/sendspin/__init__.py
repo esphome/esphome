@@ -156,6 +156,12 @@ MEMORY_LOCATION_ENUM = {
     MEMORY_INTERNAL: SendspinMemoryLocation.PREFER_INTERNAL,
 }
 
+CODEC_RATE_CONSTRAINTS: dict[str, set[int] | None] = {
+    CODEC_FLAC: None,
+    CODEC_PCM: None,
+    CODEC_OPUS: {OPUS_SAMPLE_RATE},
+}
+
 # Trailing underscore avoids clashing with sendspin-cpp's global `sendspin` namespace.
 # Analysis tools strip the trailing underscore (same pattern as `template_`).
 sendspin_ns = cg.esphome_ns.namespace("sendspin_")
@@ -644,8 +650,9 @@ async def to_code(config: ConfigType) -> None:
         audio_format_structs = []
         for fmt in player_cfg[CONF_FORMATS]:
             for codec in player_cfg[CONF_CODECS]:
-                if codec == CODEC_OPUS and fmt[CONF_SAMPLE_RATE] != OPUS_SAMPLE_RATE:
-                    continue
+                allowed_rates = CODEC_RATE_CONSTRAINTS.get(codec)
+                if allowed_rates is not None and fmt[CONF_SAMPLE_RATE] not in allowed_rates:
+                    continue   
                 for channels in player_cfg[CONF_CHANNELS]:
                     key = (
                         codec,
