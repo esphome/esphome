@@ -117,7 +117,9 @@ def make_app_name_cpp(
 StartupCallback = cg.esphome_ns.class_("StartupCallback", cg.Component)
 ShutdownCallback = cg.esphome_ns.class_("ShutdownCallback", cg.Component)
 LoopCallback = cg.esphome_ns.class_("LoopCallback", cg.Component)
-ProjectUpdateCallback = cg.esphome_ns.class_("ProjectUpdateCallback", cg.Component)
+ProjectUpdateComponent = cg.esphome_ns.class_(
+    "ProjectUpdateComponent", automation.FiringComponent
+)
 Device = cg.esphome_ns.class_("Device")
 DeviceRelation = cg.esphome_ns.enum("DeviceRelation", is_class=True)
 DEVICE_RELATIONS: dict[str, cg.MockObj] = DeviceRelation.options(
@@ -490,7 +492,7 @@ CONFIG_SCHEMA = cv.All(
                     cv.Optional(CONF_ON_UPDATE): automation.validate_automation(
                         {
                             cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                                ProjectUpdateCallback
+                                ProjectUpdateComponent
                             ),
                         }
                     ),
@@ -995,7 +997,10 @@ async def to_code(config: ConfigType) -> None:
         cg.add_define("ESPHOME_PROJECT_VERSION_30", project_conf[CONF_VERSION][:29])
         for conf in project_conf.get(CONF_ON_UPDATE, []):
             await automation.build_component_automation(
-                conf, ProjectUpdateCallback, args=[(cg.std_string, "version")]
+                conf,
+                automation.FireCallback,
+                template_args=[ProjectUpdateComponent],
+                args=[(cg.std_string, "version")],
             )
 
     if config[CONF_PLATFORMIO_OPTIONS]:
