@@ -56,7 +56,8 @@ static const char *get_core_version_str(std::span<char, CORE_VERSION_BUFFER_SIZE
   if (core_release != nullptr) {
     return core_release;
   }
-  snprintf_P(buffer.data(), CORE_VERSION_BUFFER_SIZE, PSTR("%08x"), core_version);
+  const uint32_t version = convert_big_endian(core_version);
+  format_hex_to(buffer.data(), buffer.size(), reinterpret_cast<const uint8_t *>(&version), sizeof(version));
   return buffer.data();
 }
 
