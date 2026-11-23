@@ -356,6 +356,17 @@ TEST_F(VBusTransmitTest, DuplicateLocalAddressCannotClaimBus) {
   EXPECT_EQ(this->grants_, 0u);
 }
 
+TEST_F(VBusTransmitTest, AForeignReleaseWithOurAddressCancelsTheNextRequest) {
+  this->acquire_();
+  this->tx_.release_bus(this->grant_id_);
+  this->cycle_();
+  ASSERT_TRUE(this->bus_.request_datagram(0x0300, 2, 0));
+  this->feed_(wire_datagram(0x0600, 0x0020, 0x2211, 1, 0));
+  this->feed_(wire_datagram());
+  this->advance_(100);
+  EXPECT_EQ(this->uart_.writes.size(), 1u);  // Only the original release.
+}
+
 TEST_F(VBusTransmitTest, DelayedCallbackAndShutdownCannotTransmit) {
   this->acquire_();
   this->now_ += 1000;
@@ -374,7 +385,7 @@ TEST_F(VBusTransmitTest, DelayedCallbackAndShutdownCannotTransmit) {
   EXPECT_TRUE(this->uart_.writes.empty());
 }
 
-TEST_F(VBusTransmitTest, ReleaseWaitsForWireTime) {
+TEST_F(VBusTransmitTest, ReleaseWaitsForWireTimeAndItsEchoPreservesTheNextRequest) {
   this->acquire_();
   ASSERT_TRUE(this->tx_.send_datagram(this->grant_id_, 0x0100, 2, 0, false));
   this->tx_.release_bus(this->grant_id_);
@@ -382,6 +393,15 @@ TEST_F(VBusTransmitTest, ReleaseWaitsForWireTime) {
   ASSERT_EQ(this->uart_.writes.size(), 1u);
   this->advance_(1);
   ASSERT_EQ(this->uart_.writes.size(), 2u);
+  const auto release = this->uart_.writes.back();
+  ASSERT_TRUE(this->bus_.request_datagram(0x0300, 3, 0));
+  this->feed_({release.begin(), release.begin() + 9});
+  this->advance_(10);
+  this->feed_({release.begin() + 9, release.end()});
+  this->feed_(wire_datagram());
+  this->advance_(100);
+  ASSERT_EQ(this->uart_.writes.size(), 3u);
+  EXPECT_EQ(this->uart_.writes.back(), wire_datagram(0x0300, 0x0020, 0x2211, 3, 0));
 }
 
 TEST_F(VBusTransmitTest, CanUseSeparateTransmitUartAndLeavesOtherHubRxOnly) {
@@ -396,6 +416,26 @@ TEST_F(VBusTransmitTest, CanUseSeparateTransmitUartAndLeavesOtherHubRxOnly) {
   EXPECT_TRUE(this->uart_.writes.empty());
   EXPECT_TRUE(other_uart.writes.empty());
   ASSERT_EQ(tx_uart.writes.size(), 1u);
+}
+
+TEST_F(VBusTransmitTest, LosingTheReceiveUartInvalidatesTheGrant) {
+  TransmitTestUART tx_uart;
+  this->tx_.set_uart_parent(&tx_uart);
+  ASSERT_TRUE(this->bus_.request_datagram(0x0300, 2, 0));
+  this->feed_(wire_datagram());
+  this->uart_.connected = false;
+  this->advance_(100);
+  this->uart_.connected = true;
+  this->advance_(100);
+  ASSERT_TRUE(tx_uart.writes.empty());
+
+  this->acquire_();
+  this->uart_.connected = false;  // Between the last RX observation and the send.
+  EXPECT_FALSE(this->tx_.send_datagram(this->grant_id_, 0x0300, 2, 0));
+  this->uart_.connected = true;  // Reconnected before the next RX poll.
+  EXPECT_FALSE(this->tx_.has_bus());
+  EXPECT_FALSE(this->tx_.send_datagram(this->grant_id_, 0x0300, 2, 0));
+  EXPECT_TRUE(tx_uart.writes.empty());
 }
 
 TEST_F(VBusTransmitTest, AGrantAlreadyStartedBeforeRequestCannotBeClaimed) {
