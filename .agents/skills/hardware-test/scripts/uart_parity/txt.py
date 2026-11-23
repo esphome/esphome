@@ -32,7 +32,7 @@ if hdr is None:  # without the rd.py header the ack and feed check cannot run
     sys.exit("no framing= header: not an rd.py capture")
 syncs = sum(p[1] == "RX" and p[2].strip() == "7f" for p in lines)
 if missing := missing_stimulus(
-    hdr, [p[2] for p in lines if p[1] == "TX"], syncs, data.count(b"\r\nRPT")
+    hdr, [p[2] for p in lines if p[1] == "TX"], syncs, data.count(b"RPT n=")
 ):
     sys.exit(f"requested but never written: {','.join(missing)}")
 if marks or hups or short:
