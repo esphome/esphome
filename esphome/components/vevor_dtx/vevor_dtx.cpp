@@ -140,8 +140,9 @@ bool VevorDtxComponent::publish_(const Payload &payload) {
 #endif
 #ifdef USE_TEXT_SENSOR
   if (this->sensor_id_text_sensor_ != nullptr) {
-    char text[7];
-    snprintf(text, sizeof(text), "0x%04X", sensor_id);
+    char text[7] = "0x";
+    const uint16_t id = convert_big_endian(sensor_id);
+    format_hex_pretty_to(text + 2, sizeof(text) - 2, reinterpret_cast<const uint8_t *>(&id), sizeof(id), 0);
     this->sensor_id_text_sensor_->publish_state(text);
   }
 #endif
