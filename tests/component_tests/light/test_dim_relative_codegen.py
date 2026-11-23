@@ -2,12 +2,12 @@
 
 from collections.abc import Callable
 from pathlib import Path
-import re
 
 import pytest
 
 from esphome.config import read_config
 from esphome.core import CORE
+from tests.component_tests.helpers import static_function_body
 
 
 @pytest.fixture
@@ -21,27 +21,23 @@ def main_cpp(
 def test_dim_relative_without_transition_or_limits(main_cpp: str) -> None:
     """No transition length and no limits: the helper's default limits apply."""
     assert (
-        "static void esphome__applyaction_id__fn() {\n"
         "  auto esphome__call = ::dim_light->make_call();\n"
         "  if (light::dim_relative(::dim_light, esphome__call, 0.1f)) {\n"
         "    esphome__call.perform();\n"
         "  }\n"
-        "}\n"
-    ) in main_cpp
+    ) in static_function_body(main_cpp, "esphome__dim_plain__fn")
 
 
 def test_dim_relative_with_transition_and_limits(main_cpp: str) -> None:
     """The transition length is only set once the limits allow the call."""
     assert (
-        "static void esphome__applyaction_id_2__fn() {\n"
         "  auto esphome__call = ::dim_light->make_call();\n"
         "  if (light::dim_relative(::dim_light, esphome__call, -0.05f, 0.2f, 0.9f, "
         "light::LimitMode::DO_NOTHING)) {\n"
         "    esphome__call.set_transition_length(250);\n"
         "    esphome__call.perform();\n"
         "  }\n"
-        "}\n"
-    ) in main_cpp
+    ) in static_function_body(main_cpp, "esphome__dim_limits__fn")
 
 
 @pytest.mark.parametrize(
@@ -55,13 +51,9 @@ def test_dim_relative_lambdas_take_args_by_value(
 
     They are called rather than reduced, so even a single return modifies only its own copy.
     """
-    assert (
-        "static void esphome__applyaction_id_3__fn(const std::remove_cvref_t<float> & step) {"
-        in main_cpp
-    )
-    head = f"[](float step) -> {return_type} {{\n"
-    start = main_cpp.index(head)
-    assert f"      {body}\n" in main_cpp[start : main_cpp.index("}(step)", start)]
+    fn = static_function_body(main_cpp, "esphome__dim_lambdas__fn")
+    start = fn.index(f"[](float step) -> {return_type} {{\n")
+    assert f"      {body}\n" in fn[start : fn.index("}(step)", start)]
 
 
 def test_effect_cycle(main_cpp: str) -> None:
@@ -80,15 +72,7 @@ def test_effect_cycle(main_cpp: str) -> None:
 
 def test_dim_relative_limit_does_not_skip_merged_actions(main_cpp: str) -> None:
     """The limit check is an if block, so an action merged after it still runs."""
-    fn = re.search(
-        r"Automation<>\(dim_skip_then_dim\);\nnew\(\w+\) ApplyRunAction<(\w+)>",
-        main_cpp,
-    )
-    assert fn is not None
-    start = main_cpp.index(
-        f"static void {fn.group(1)}(const int & esphome__running) {{"
-    )
-    body = main_cpp[start : main_cpp.index("\n}\n", start)]
+    body = static_function_body(main_cpp, "esphome__dim_skip_then_dim__fn")
     assert body.count("light::dim_relative(") == 2
     # The only return is the stop check between the two actions
     assert body.count("return;") == 1
