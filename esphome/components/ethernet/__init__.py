@@ -207,8 +207,8 @@ SPI_ETHERNET_TYPES = {"W5500", "DM9051", "ENC28J60", "CH390", "KSZ8851SNL"}
 # RP2-supported ethernet types (SPI and PIO QSPI). Applies to the whole
 # RP2 family (RP2040 and RP2350); the chip-specific W5100 caveat in the
 # comment above is about ESP-IDF driver coverage, not the RP2 platform.
-RP2_SPI_ETHERNET_TYPES = {"W5100", "W5500", "W6100", "W6300", "ENC28J60"}
-RP2_NONSPI_ETHERNET_TYPES = {"USB"}
+RP2_ETHERNET_TYPES = {"W5100", "W5500", "W6100", "W6300", "ENC28J60"}
+RP2_USB_ETHERNET_TYPES = {"USB"}
 _RP2_ETHERNET_LIBRARIES = {
     "W5100": "lwIP_w5100",
     "W5500": "lwIP_w5500",
@@ -400,10 +400,10 @@ def _validate(config: ConfigType) -> ConfigType:
                 )
     elif (
         CORE.is_rp2
-        and config[CONF_TYPE] not in RP2_SPI_ETHERNET_TYPES | RP2_NONSPI_ETHERNET_TYPES
+        and config[CONF_TYPE] not in RP2_ETHERNET_TYPES | RP2_USB_ETHERNET_TYPES
     ):
         raise cv.Invalid(
-            f"Only {', '.join(sorted(RP2_SPI_ETHERNET_TYPES | RP2_NONSPI_ETHERNET_TYPES))} are supported on the RP2 "
+            f"Only {', '.join(sorted(RP2_ETHERNET_TYPES | RP2_USB_ETHERNET_TYPES))} are supported on the RP2 "
             f"platform, not {config[CONF_TYPE]}"
         )
     return config
@@ -809,7 +809,7 @@ async def _to_code_esp32(var: cg.MockObj, config: ConfigType) -> None:
 
 
 async def _to_code_rp2040(var: cg.MockObj, config: ConfigType) -> None:
-    if config[CONF_TYPE] in RP2_SPI_ETHERNET_TYPES:
+    if config[CONF_TYPE] in RP2_ETHERNET_TYPES:
         cg.add(var.set_clk_pin(config[CONF_CLK_PIN]))
         cg.add(var.set_miso_pin(config[CONF_MISO_PIN]))
         cg.add(var.set_mosi_pin(config[CONF_MOSI_PIN]))
