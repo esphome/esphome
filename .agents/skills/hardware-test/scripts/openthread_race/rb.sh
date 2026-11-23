@@ -42,7 +42,7 @@ for i in $(seq 1 "$C"); do
   t0=$(date +%s)
   last=
   if ! api press Restart; then
-    echo "$(date +%T) cycle $i press failed: $last" >> "$O"
+    echo "$(date +%T) cycle $i ok=0 restarted=- press_failed=1 last: $last" >> "$O"
     IP=$("$D/../resolve.sh" "$N" 20) ||
       { echo "$(date +%T) $N did not resolve, aborted at cycle $i/$C" >> "$O"; exit 1; }
     continue

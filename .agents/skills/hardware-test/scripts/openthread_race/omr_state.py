@@ -58,9 +58,9 @@ async def main() -> int:
             if s.key == key and s.state.startswith("error:"):
                 err[0], val[0] = s.state, ""
             elif s.key == key and s.state in ("", "none"):
-                val[0] = ""
+                err[0], val[0] = "", ""
             elif s.key == key:
-                val[0] = s.state
+                err[0], val[0] = "", s.state
             elif s.key == ukey:
                 up[0] = s.state
             if val[0] and up[0] is not None and why[0]:
