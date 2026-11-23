@@ -141,7 +141,7 @@ void Rfc2217Client::on_command(uint8_t code, const uint8_t *value, size_t len) {
 }
 
 size_t Rfc2217Client::payload_room() {
-  const size_t room = RX_SIZE - this->available();
+  const size_t room = this->rx_.free_space();
   // While the server has suspended, its RESUME may sit behind bytes nobody reads: like a UART overrun, the oldest go.
   if (room == 0 && this->peer_suspended_) {
     return READ_CHUNK;
@@ -150,7 +150,7 @@ size_t Rfc2217Client::payload_room() {
 }
 
 void Rfc2217Client::deliver(const uint8_t *data, size_t len) {
-  const size_t room = RX_SIZE - this->available();
+  const size_t room = this->rx_.free_space();
   if (len > room) {
     this->note_drop_(LOG_STR("RX buffer full, dropped the oldest bytes"));
     for (size_t i = len - room; i != 0; i--) {

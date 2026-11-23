@@ -196,15 +196,13 @@ def test_client_sends_its_line_settings(generate_main) -> None:
     assert "remote_port->set_data_bits(7);" in main_cpp
     assert "remote_port->set_stop_bits(2);" in main_cpp
     assert "remote_port->set_parity(uart::UART_CONFIG_PARITY_EVEN);" in main_cpp
-    assert {"USE_RFC2217_UART_CLIENT", "USE_UART_VIRTUAL"} <= {
-        define.name for define in CORE.defines
-    }
+    assert "USE_RFC2217_UART_CLIENT" in {define.name for define in CORE.defines}
 
 
 def test_server_alone_needs_no_client(generate_main) -> None:
     generate_main(f"{DIR}/test_rfc2217_uart.yaml")
     defines = {define.name for define in CORE.defines}
-    assert not {"USE_RFC2217_UART_CLIENT", "USE_UART_VIRTUAL"} & defines
+    assert "USE_RFC2217_UART_CLIENT" not in defines
 
 
 def test_esp32_hardware_uart_changes_its_line_in_place(generate_main) -> None:

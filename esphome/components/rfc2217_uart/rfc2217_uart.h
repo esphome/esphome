@@ -194,10 +194,12 @@ class Rfc2217Server : public Rfc2217Base, public uart::UARTDevice {
 };
 
 #ifdef USE_RFC2217_UART_CLIENT
+static constexpr size_t CLIENT_RX_SIZE = 256;
+
 /// RFC 2217 client: a UART whose line settings go to the access server.
-class Rfc2217Client : public uart::VirtualUARTComponent, public Rfc2217Base {
+class Rfc2217Client : public uart::VirtualUARTComponent<CLIENT_RX_SIZE>, public Rfc2217Base {
  public:
-  explicit Rfc2217Client(tcp_uart::TcpUart *tcp) : VirtualUARTComponent(RX_SIZE), Rfc2217Base(tcp) {}
+  explicit Rfc2217Client(tcp_uart::TcpUart *tcp) : Rfc2217Base(tcp) {}
 
   void loop() override {
     if (this->tcp_->is_connected() != this->link_was_up_) {
@@ -247,7 +249,6 @@ class Rfc2217Client : public uart::VirtualUARTComponent, public Rfc2217Base {
   void on_command(uint8_t code, const uint8_t *value, size_t len) override;
   void on_link(bool up) override;
 
-  static constexpr uint16_t RX_SIZE = 256;
   static constexpr size_t TX_SIZE = 256;
   // Four commands: the baud rate with every byte doubled, three single bytes.
   static constexpr size_t SETTINGS_SIZE = COM_PORT_COMMAND_MAX + 3 * 7;

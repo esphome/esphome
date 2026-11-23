@@ -32,7 +32,9 @@ CONFIG_SCHEMA = cv.typed_schema(
         # The line settings go to the access server.
         "client": cv.Schema(
             {
-                cv.GenerateID(): cv.declare_id(Rfc2217Client),
+                cv.GenerateID(): cv.All(
+                    cv.declare_id(Rfc2217Client), uart.mark_unclocked
+                ),
                 cv.Required(CONF_TCP_UART_ID): cv.use_id(tcp_uart.TcpUart),
                 cv.Required(CONF_BAUD_RATE): cv.int_range(min=1, max=0xFFFFFFFF),
                 cv.Optional(CONF_DATA_BITS, default=8): cv.int_range(min=5, max=8),
@@ -92,7 +94,6 @@ async def to_code(config: ConfigType) -> None:
     tcp = await cg.get_variable(config[CONF_TCP_UART_ID])
     if config[CONF_ROLE] == "client":
         cg.add_define("USE_RFC2217_UART_CLIENT")
-        uart.require_virtual_uart()
         var = cg.new_Pvariable(config[CONF_ID], tcp)
         await cg.register_component(var, config)
         cg.add(var.set_baud_rate(config[CONF_BAUD_RATE]))
@@ -113,7 +114,7 @@ async def to_code(config: ConfigType) -> None:
         cg.add(var.set_idf_uart(True))
 
 
-# The client needs the virtual UART base, which only a client compiles in.
+# Only a client compiles rfc2217_client.cpp.
 FILTER_SOURCE_FILES = filter_source_files_from_defines(
     {"rfc2217_client.cpp": "USE_RFC2217_UART_CLIENT"}
 )
