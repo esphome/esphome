@@ -19,7 +19,6 @@ namespace esphome::datetime {
 
 class TimeCall;
 class TimeEntity;
-class OnTimeBase;
 
 struct TimeEntityRestoreState {
   uint8_t hour;
@@ -98,6 +97,20 @@ class TimeCall {
 };
 
 inline TimeCall TimeEntity::make_call() { return TimeCall(this); }
+
+#ifdef USE_TIME
+/// Runs fire() when the clock reaches the entity's time, for on_time.
+class OnTimeBase : public FiringComponent<>, public Parented<TimeEntity> {
+ public:
+  explicit OnTimeBase(TimeEntity *parent) : Parented(parent) {}
+  void loop() override;
+
+ protected:
+  bool matches_(const ESPTime &time) const;
+
+  optional<ESPTime> last_check_;
+};
+#endif
 
 }  // namespace esphome::datetime
 
