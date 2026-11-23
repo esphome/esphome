@@ -1,4 +1,6 @@
 #include "esphome/core/base_automation.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/preferences.h"
 
 #include <cstring>
 
