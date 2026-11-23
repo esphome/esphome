@@ -16,7 +16,9 @@
 #include "driver/uart.h"  // uart_is_driver_installed
 #if __has_include(<rdm/responder.h>)
 #include <rdm/responder.h>
-#define ESPHOME_DMX_HAS_RDM 1
+static constexpr bool ESPHOME_DMX_HAS_RDM = true;
+#else
+static constexpr bool ESPHOME_DMX_HAS_RDM = false;
 #endif
 #else
 using dmx_port_t = int;
@@ -53,7 +55,7 @@ inline bool dmx_wait_sent(dmx_port_t, int) { return true; }
 inline bool uart_is_driver_installed(dmx_port_t) { return false; }
 #endif
 
-#ifndef ESPHOME_DMX_HAS_RDM
+#if __has_include(<rdm/responder.h>)
 using rdm_pid_t = uint16_t;
 inline bool rdm_send_response(dmx_port_t) { return false; }
 inline bool rdm_get_dmx_start_address(dmx_port_t, uint16_t *addr) {

@@ -8,7 +8,7 @@
 namespace esphome {
 namespace dmx {
 
-static const char *const TAG = "dmx";
+ESPHOME_LOG_TAG(TAG, "dmx");
 
 // Manufacturer-specific PID base for extra channel bindings (root uses standard PID)
 static constexpr rdm_pid_t RDM_CUSTOM_PID_BASE = 0x8001;
@@ -30,10 +30,10 @@ void DMXComponent::setup() {
 #endif
 
   dmx_config_t config = DMX_CONFIG_DEFAULT;
-#ifdef ESPHOME_DMX_HAS_RDM
+if constexpr (ESPHOME_DMX_HAS_RDM) {
   // Enough parameter slots for root + custom bindings
   config.root_device_parameter_count = 32;
-#endif
+}
 
   dmx_personality_t personalities[] = {{1, "ESPHome DMX"}};
 
@@ -54,8 +54,9 @@ void DMXComponent::setup() {
     this->setup_rdm_();
   }
 
-  ESP_LOGI(TAG, "DMX started on UART%d (TX=%d RX=%d RTS=%d) RDM=%s", this->uart_num_, this->tx_pin_, this->rx_pin_,
-           this->rts_pin_, this->rdm_enabled_ ? "on" : "off");
+ ESP_LOGI(TAG, "DMX started on UART%d (TX=%d RX=%d RTS=%d) RDM=%s",
+         this->uart_num_, this->tx_pin_, this->rx_pin_, this->rts_pin_,
+         this->rdm_enabled_ ? LOG_STR_LITERAL("on") : LOG_STR_LITERAL("off"));
 }
 
 void DMXComponent::register_rdm_channel(number::Number *channel_number) {
@@ -89,7 +90,7 @@ void DMXComponent::register_rdm_channel(number::Number *channel_number) {
 }
 
 void DMXComponent::setup_rdm_() {
-#ifdef ESPHOME_DMX_HAS_RDM
+if constexpr (ESPHOME_DMX_HAS_RDM) {
   if (this->rdm_bindings_.empty()) {
     ESP_LOGD(TAG, "RDM enabled but no channel bindings registered yet");
     return;
@@ -119,13 +120,13 @@ void DMXComponent::setup_rdm_() {
   const char *first_name = first.channel_number ? first.channel_number->get_name().c_str() : "?";
   ESP_LOGI(TAG, "RDM: root DMX_START_ADDRESS bound to '%s' (addr %u), %u total binding(s)", first_name,
            first.last_address, static_cast<unsigned>(this->rdm_bindings_.size()));
-#else
+else
   ESP_LOGW(TAG, "RDM requested but rdm/responder.h not available in esp_dmx build");
-#endif
+}
 }
 
 void DMXComponent::sync_rdm_to_numbers_() {
-#ifdef ESPHOME_DMX_HAS_RDM
+if constexpr (ESPHOME_DMX_HAS_RDM) {
   if (this->rdm_bindings_.empty())
     return;
 
@@ -157,11 +158,11 @@ void DMXComponent::sync_rdm_to_numbers_() {
       ESP_LOGI(TAG, "RDM PID 0x%04X → Number '%s' = %u", b.custom_pid, b.channel_number->get_name().c_str(), addr);
     }
   }
-#endif
+}
 }
 
 void DMXComponent::sync_numbers_to_rdm_() {
-#ifdef ESPHOME_DMX_HAS_RDM
+if constexpr (ESPHOME_DMX_HAS_RDM) {
   if (this->rdm_bindings_.empty())
     return;
 
@@ -198,7 +199,7 @@ void DMXComponent::sync_numbers_to_rdm_() {
       ESP_LOGD(TAG, "Number '%s' → RDM PID 0x%04X = %u", b.channel_number->get_name().c_str(), b.custom_pid, addr);
     }
   }
-#endif
+}
 }
 
 void DMXComponent::loop() {
@@ -211,14 +212,14 @@ void DMXComponent::loop() {
     const size_t received_size = dmx_receive(this->dmx_port_, &packet, 0);
 
     if (received_size > 0) {
-#ifdef ESPHOME_DMX_HAS_RDM
+if constexpr (ESPHOME_DMX_HAS_RDM) {M
       if (this->rdm_enabled_ && packet.is_rdm) {
         rdm_send_response(this->dmx_port_);
         this->sync_rdm_to_numbers_();
         this->last_rx_ms_ = millis();  // RDM telt ook als bus-activiteit
         got_rx = true;
       } else
-#endif
+}
           if (packet.err == DMX_OK && !packet.is_rdm && packet.sc == 0x00) {
         if (received_size > DMX_PACKET_SIZE) {
           ESP_LOGW(TAG, "Ignoring oversized DMX packet (%u bytes)", static_cast<unsigned>(received_size));
@@ -240,7 +241,7 @@ void DMXComponent::loop() {
   }
 
   // Periodically push Number changes (from HA) towards RDM
-#ifdef ESPHOME_DMX_HAS_RDM
+if constexpr (ESPHOME_DMX_HAS_RDM) {
   if (this->rdm_enabled_ && !this->rdm_bindings_.empty()) {
     const uint32_t now_rdm = millis();
     if (now_rdm - this->last_rdm_push_ms_ >= 500) {
@@ -248,7 +249,7 @@ void DMXComponent::loop() {
       this->sync_numbers_to_rdm_();
     }
   }
-#endif
+}
 
   if (!want_tx)
     return;
@@ -366,7 +367,7 @@ void DMXComponent::dump_config() {
   }
   ESP_LOGCONFIG(TAG, "  TX interval: %u ms", static_cast<unsigned>(this->tx_interval_ms_));
   ESP_LOGCONFIG(TAG, "  RX guard: %u ms", static_cast<unsigned>(this->rx_guard_ms_));
-  ESP_LOGCONFIG(TAG, "  RDM: %s", this->rdm_enabled_ ? "enabled" : "disabled");
+  ESP_LOGCONFIG(TAG, "  RDM: %s", this->rdm_enabled_ ? LOG_STR_LITERAL("enabled") : LOG_STR_LITERAL("disabled"));
   ESP_LOGCONFIG(TAG, "  RDM channel bindings: %u", static_cast<unsigned>(this->rdm_bindings_.size()));
   for (size_t i = 0; i < this->rdm_bindings_.size(); i++) {
     const auto &b = this->rdm_bindings_[i];
