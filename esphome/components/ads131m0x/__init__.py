@@ -2,6 +2,7 @@ from esphome import pins
 import esphome.codegen as cg
 from esphome.components import spi
 from esphome.components.const import CONF_DRDY_PIN, CONF_WINDOW
+from esphome.components.esp32 import VARIANT_ESP32P4, get_esp32_variant
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CS_PIN,
@@ -61,6 +62,16 @@ GAINS = {1: 0, 2: 1, 4: 2, 8: 3, 16: 4, 32: 5, 64: 6, 128: 7}
 OSR_CODES = {0: 128, 1: 256, 2: 512, 3: 1024, 4: 2048, 5: 4096, 6: 8192, 7: 16256}
 # Relative tolerance when matching sample_rate to an achievable data rate
 SAMPLE_RATE_TOLERANCE = 0.01
+# Datasheet SBAS950B, Timing Requirements: t_c(SC) of at least 40 ns with DVDD 2.7 V to 3.6 V (3.3 V logic)
+MAX_SCLK_HZ = 25e6
+# The transfer length is padded like DMA_ALIGNMENT in ads131m0x.cpp: to the 64-byte L1 cache line where internal
+# RAM is cached (ESP32-P4), elsewhere to whole 32-bit words.
+DMA_ALIGNMENT_BYTES = {VARIANT_ESP32P4: 64}
+DEFAULT_DMA_ALIGNMENT_BYTES = 4
+# Only mode 1 (CPOL = 0, CPHA = 1): the chip latches DIN on the falling edge of SCLK
+SPI_MODES = {
+    key: value for key, value in spi.SPI_MODE_OPTIONS.items() if key in ("MODE1", "1")
+}
 # MODE.TIMEOUT resets the SPI interface when a frame takes longer than this many CLKIN periods
 SPI_TIMEOUT_CLKIN_PERIODS = 32768
 # A frame must fit in this fraction of a sample period, leaving time for the task wake-up and other bus users
@@ -106,9 +117,18 @@ def _validate(config: ConfigType) -> ConfigType:
     window_samples = clock_hz / 2 / osr * config[CONF_WINDOW].total_milliseconds / 1000
     if window_samples < 1:
         raise cv.Invalid("window is shorter than one sample period", [CONF_WINDOW])
-    # Longest frame: response + channels + CRC, padded to whole 32-bit words for the DMA
-    frame_bits = -(-(2 + channels) * 3 // 4) * 4 * 8
-    frame_s = frame_bits / config[CONF_DATA_RATE]
+    data_rate = config[CONF_DATA_RATE]
+    if data_rate > MAX_SCLK_HZ:
+        raise cv.Invalid(
+            f"data_rate must be at most {MAX_SCLK_HZ / 1e6:g} MHz (minimum SCLK period of the device)",
+            [CONF_DATA_RATE],
+        )
+    # Longest frame: response + channels + CRC, padded for the DMA as in setup()
+    alignment = DMA_ALIGNMENT_BYTES.get(
+        get_esp32_variant(), DEFAULT_DMA_ALIGNMENT_BYTES
+    )
+    frame_bits = -(-(2 + channels) * 3 // alignment) * alignment * 8
+    frame_s = frame_bits / data_rate
     if frame_s >= SPI_TIMEOUT_CLKIN_PERIODS / clock_hz:
         raise cv.Invalid(
             f"data_rate is too slow: a frame takes {frame_s * 1e3:.1f} ms, longer than the "
@@ -161,6 +181,9 @@ CONFIG_SCHEMA = cv.All(
         {
             # Toggled from the sampling task for every frame, like the reset pin
             cv.Required(CONF_CS_PIN): pins.internal_gpio_output_pin_schema,
+            cv.Optional(spi.CONF_SPI_MODE, default="MODE1"): cv.enum(
+                SPI_MODES, upper=True
+            ),
             # Would add and remove the SPI device for every conversion
             cv.Optional(spi.CONF_RELEASE_DEVICE): cv.invalid(
                 "release_device is not supported: the device is read continuously"

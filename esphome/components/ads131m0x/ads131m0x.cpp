@@ -54,6 +54,7 @@ static constexpr size_t DMA_ALIGNMENT = CONFIG_CACHE_L1_CACHE_LINE_SIZE;
 static constexpr size_t DMA_ALIGNMENT = 4;
 #endif
 // Buffer address and transfer length are padded to DMA_ALIGNMENT; the chip accepts frames longer than needed.
+// The frame time check in __init__.py (DMA_ALIGNMENT_BYTES) uses the same padding.
 static constexpr float CODE_FULL_SCALE = 8388608.0f;  // 2^23
 static constexpr float INTERNAL_REFERENCE_V = 1.2f;
 static constexpr uint16_t CRC_INIT = 0xFFFF;
