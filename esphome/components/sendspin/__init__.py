@@ -639,14 +639,21 @@ async def to_code(config: ConfigType) -> None:
                 ("bit_depth", 16 if codec == CODEC_OPUS else bits_per_sample),
             )
 
-        audio_format_structs = [
-            _audio_format(
-                codec, channels, fmt[CONF_SAMPLE_RATE], fmt[CONF_BITS_PER_SAMPLE]
-            )
-            for fmt in player_cfg[CONF_FORMATS]
-            for codec in player_cfg[CONF_CODECS]
-            for channels in (2, 1)
-        ]
+        seen = set()
+        audio_format_structs = []
+        for fmt in player_cfg[CONF_FORMATS]:
+            for codec in player_cfg[CONF_CODECS]:
+                if codec == CODEC_OPUS and fmt[CONF_SAMPLE_RATE] != OPUS_SAMPLE_RATE:
+                    continue
+                for channels in (2, 1):
+                    key = (codec, fmt[CONF_SAMPLE_RATE], fmt[CONF_BITS_PER_SAMPLE], channels)
+                    if key not in seen:
+                        seen.add(key)
+                        audio_format_structs.append(
+                            _audio_format(
+                                codec, channels, fmt[CONF_SAMPLE_RATE], fmt[CONF_BITS_PER_SAMPLE]
+                            )
+                        )
 
         psram_stack = player_cfg.get(CONF_TASK_STACK_IN_PSRAM, False)
         if psram_stack:
