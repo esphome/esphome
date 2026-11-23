@@ -931,6 +931,14 @@ class WiFiComponent final : public Component
   bool is_dpp_active_();
   /// A portal, improv or DPP is waiting for credentials, so the retry machine must not disturb the radio
   bool is_provisioning_active_();
+  /// An OTA upload runs over the AP; retries wait so the channel stays put
+  bool ota_hold_() const {
+#ifdef USE_WIFI_OTA_LISTENER
+    return this->ota_active_;
+#else
+    return false;
+#endif
+  }
   /// The provisioning window has closed, so no new provisioning surface may start
   bool is_provisioning_closed_();
   bool is_captive_portal_active_();

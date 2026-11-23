@@ -896,7 +896,7 @@ void WiFiComponent::loop() {
         this->status_set_warning(LOG_STR("waiting to reconnect"));
         // Credentials not tried yet: retry whatever the driver reports. The flag outlives an adapter restart,
         // which only lands back here, and start_connecting() clears it once they are tried
-        if (this->skip_cooldown_next_cycle_) {
+        if (this->skip_cooldown_next_cycle_ && !this->ota_hold_()) {
           ESP_LOGD(TAG, "Exiting cooldown early due to new WiFi credentials");
           this->retry_connect();
           break;
@@ -1131,10 +1131,12 @@ network::IPAddress WiFiComponent::get_dns_address(int num) {
 #ifdef USE_WIFI_AP
 #ifdef USE_WIFI_OTA_LISTENER
 void WiFiComponent::on_ota_global_state(ota::OTAState state, float progress, uint8_t error, ota::OTAComponent *comp) {
-  // Only an upload over the AP needs the hold. Each start or progress report restarts the cooldown that
-  // retry_connect() holds the retries in
-  this->ota_active_ = this->ap_setup_ && (state == ota::OTA_STARTED || state == ota::OTA_IN_PROGRESS);
-  if (this->ota_active_ && this->state_ == WIFI_COMPONENT_STATE_COOLDOWN)
+  // Only a quiet cooldown ends the hold: a rejected second upload reports an error while the first one runs,
+  // and a completed upload reboots
+  if (!this->ap_setup_ || (state != ota::OTA_STARTED && state != ota::OTA_IN_PROGRESS))
+    return;
+  this->ota_active_ = true;
+  if (this->state_ == WIFI_COMPONENT_STATE_COOLDOWN)
     this->action_started_ = millis();
 }
 #endif
@@ -1737,6 +1739,10 @@ void WiFiComponent::check_scanning_finished() {
   // A driver filtered scan saw one SSID; a portal that started during it still needs a full scan
   this->has_completed_scan_after_captive_portal_start_ = !this->is_scan_driver_filtered_();
   this->retry_hidden_mode_ = RetryHiddenMode::SCAN_BASED;
+  if (this->ota_hold_()) {
+    this->start_cooldown_();
+    return;
+  }
 
   if (this->scan_result_.empty()) {
     ESP_LOGW(TAG, "No networks found");
@@ -2414,13 +2420,11 @@ void WiFiComponent::advance_to_next_target_or_increment_retry_() {
 }
 
 void WiFiComponent::retry_connect() {
-#ifdef USE_WIFI_OTA_LISTENER
   // A scan or connect moves the channel and drops an OTA client on the AP; wait until the upload ends
-  if (this->ota_active_) {
+  if (this->ota_hold_()) {
     this->start_cooldown_();
     return;
   }
-#endif
   // Handle roaming state transitions - preserve attempts counter to prevent ping-pong
   // to unreachable APs after ROAMING_MAX_ATTEMPTS failures
   if (this->roaming_state_ == RoamingState::CONNECTING) {
@@ -2574,11 +2578,7 @@ bool WiFiComponent::is_improv_ble_active_() {
 }
 
 bool WiFiComponent::is_provisioning_active_() {
-#ifdef USE_WIFI_OTA_LISTENER
-  if (this->ota_active_)
-    return true;
-#endif
-  return this->is_ap_portal_active_() || this->is_improv_ble_active_() || this->is_dpp_active_();
+  return this->ota_hold_() || this->is_ap_portal_active_() || this->is_improv_ble_active_() || this->is_dpp_active_();
 }
 
 bool WiFiComponent::is_provisioning_closed_() {
