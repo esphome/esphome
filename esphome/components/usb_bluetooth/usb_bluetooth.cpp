@@ -442,11 +442,11 @@ void USBBluetooth::finish_probe_(bool ok) {
   this->step_ = ok ? ProbeStep::PROBE_STEP_READY : ProbeStep::PROBE_STEP_FAILED;
   if (ok) {
     this->status_clear_warning();
-    this->report_connected_();
   } else {
-    // Not reported as connected: is_ready() stays false until the dongle is plugged in again
     this->status_set_warning(LOG_STR("Bluetooth controller did not start"));
   }
+  // Presence and controller readiness are reported separately.
+  this->report_connected_();
 }
 
 void USBBluetooth::dump_config() {
