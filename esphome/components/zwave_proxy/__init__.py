@@ -2,6 +2,7 @@ from typing import Any
 
 import esphome.codegen as cg
 from esphome.components import uart
+from esphome.components.usb_uart import is_usb_uart_channel
 from esphome.components.wifi import DOMAIN as WIFI_DOMAIN
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_POWER_SAVE_MODE, CONF_UART_ID, CONF_WIFI
@@ -25,6 +26,15 @@ def final_validate(config: ConfigType) -> None:
     ):
         raise cv.Invalid(
             f"{CONF_WIFI} {CONF_POWER_SAVE_MODE} must be set to 'none' when using Z-Wave proxy"
+        )
+    # A UART that cannot be unplugged always reports connected, so the proxy would never leave it
+    uart_ids = config[CONF_UART_ID]
+    if len(uart_ids) > 1 and not all(
+        is_usb_uart_channel(uart_id, full_config) for uart_id in uart_ids
+    ):
+        raise cv.Invalid(
+            f"When {CONF_UART_ID} lists several UARTs, each one must be a usb_uart channel",
+            path=[CONF_UART_ID],
         )
 
 
