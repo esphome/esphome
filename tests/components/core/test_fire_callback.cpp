@@ -1,16 +1,18 @@
 #include <gtest/gtest.h>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 #include "esphome/core/automation.h"
+#include "esphome/core/string_ref.h"
 
 namespace esphome::core::testing {
 
 namespace {
 
-std::vector<float> values;
-std::vector<std::string> texts;
-std::vector<int> counts;
+std::vector<float> values;       // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+std::vector<std::string> texts;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+std::vector<int> counts;         // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 void on_value(const float &x) { values.push_back(x); }
 void on_text(const std::string &text, const int &count) {
@@ -54,6 +56,9 @@ TEST(FireCallback, PassesSeveralArgumentsConverted) {
   EXPECT_EQ(texts, std::vector<std::string>{"hello"});
   EXPECT_EQ(counts, std::vector<int>{2});
 }
+
+// A buffer passed by reference and small value types are accepted
+static_assert(std::is_abstract_v<FiringComponent<const std::vector<uint8_t> &, StringRef, float>>);
 
 // The leaf adds no data to its base
 static_assert(sizeof(FireCallback<on_value, ValueBase>) == sizeof(ValueBase));
