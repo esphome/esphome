@@ -141,9 +141,9 @@ def test_project_on_update(
 ) -> None:
     """on_update calls its function with the previous version; a delay keeps the Automation."""
     main_cpp = generate_main(component_config_path("project_on_update.yaml"))
-    inline = callback_function(main_cpp, "projectupdatecomponent_id")
-    assert constructed(main_cpp, "projectupdatecomponent_id") == (
-        f"FireCallback<{inline}, ProjectUpdateComponent>()"
+    inline = callback_function(main_cpp, "projectupdatecallback_id")
+    assert constructed(main_cpp, "projectupdatecallback_id") == (
+        f"ProjectUpdateCallback<{inline}>()"
     )
     assert (
         f"static void {inline}(const std::remove_cvref_t<std::string> & version)"
@@ -153,7 +153,7 @@ def test_project_on_update(
     assert "updated from %s" in body
     assert "Automation" not in body
     assert "ProjectUpdateTrigger" not in main_cpp
-    delayed = callback_function(main_cpp, "projectupdatecomponent_id_2")
+    delayed = callback_function(main_cpp, "projectupdatecallback_id_2")
     automation = re.fullmatch(
         r"\n  ::(\w+)->trigger\(version\);", function_body(main_cpp, delayed)
     )
