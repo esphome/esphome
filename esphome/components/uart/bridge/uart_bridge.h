@@ -20,7 +20,7 @@ class UARTBridgePipe final : public UARTSink {
 
   UARTBridgePipe(UARTComponent *from, UARTComponent *to) : from_(from), to_(to) {}
 
-  void set_from_virtual(VirtualUARTComponent *from) {
+  template<size_t N> void set_from_virtual(VirtualUARTComponent<N> *from) {
     from->set_rx_sink(this);
     this->from_pushes_ = true;
   }
@@ -105,11 +105,11 @@ class UARTBridge final : public Component {
  public:
   UARTBridge(UARTComponent *a, UARTComponent *b) : a_to_b_(a, b), b_to_a_(b, a) {}
 
-  void set_virtual_a(VirtualUARTComponent *a) {
+  template<size_t N> void set_virtual_a(VirtualUARTComponent<N> *a) {
     this->a_to_b_.set_from_virtual(a);
     this->b_to_a_.set_to_virtual();
   }
-  void set_virtual_b(VirtualUARTComponent *b) {
+  template<size_t N> void set_virtual_b(VirtualUARTComponent<N> *b) {
     this->b_to_a_.set_from_virtual(b);
     this->a_to_b_.set_to_virtual();
   }

@@ -67,10 +67,8 @@ class WireUart : public UARTComponent {
 };
 
 // A virtual end that records each write as one block.
-class VirtualEnd : public VirtualUARTComponent {
+class VirtualEnd : public VirtualUARTComponent<1> {
  public:
-  VirtualEnd() : VirtualUARTComponent(0) {}
-
   void write_array(const uint8_t *data, size_t len) override { this->writes.emplace_back(data, data + len); }
   UARTFlushResult flush() override { return UARTFlushResult::UART_FLUSH_RESULT_SUCCESS; }
 

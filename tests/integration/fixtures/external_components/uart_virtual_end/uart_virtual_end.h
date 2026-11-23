@@ -7,10 +7,8 @@
 
 namespace esphome::uart_virtual_end {
 
-class UartVirtualEnd : public uart::VirtualUARTComponent, public Component {
+class UartVirtualEnd : public uart::VirtualUARTComponent<256>, public Component {
  public:
-  UartVirtualEnd() : VirtualUARTComponent(256) {}
-
   void set_label(const char *label) { this->label_ = label; }
   void set_peer(UartVirtualEnd *peer) { this->peer_ = peer; }
 

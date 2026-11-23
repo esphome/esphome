@@ -36,6 +36,7 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 async def to_code(config: ConfigType) -> None:
     a_id, a = await cg.get_variable_with_full_id(config[CONF_UART_ID])
     b_id, b = await cg.get_variable_with_full_id(config[CONF_PEER_ID])
+    cg.add_define("USE_UART_RX_SINK")
     var = cg.new_Pvariable(config[CONF_ID], a, b)
     await cg.register_component(var, config)
     # A virtual end is not polled, except one passing on another UART's bytes as they
