@@ -88,7 +88,7 @@ class OpenThreadComponent final : public Component {
 #endif
   network::IPAddresses get_ip_addresses();
   std::optional<otIp6Address> get_omr_address();
-  void on_factory_reset(const std::function<void()> &callback);
+  void on_factory_reset(void (*callback)());
 #ifdef USE_OPENTHREAD_SRP
   void defer_factory_reset_external_callback();
 #endif
@@ -140,7 +140,7 @@ class OpenThreadComponent final : public Component {
   otInstance *get_openthread_instance_();
   int openthread_stop_();
 #ifdef USE_OPENTHREAD_SRP
-  std::function<void()> factory_reset_external_callback_;
+  void (*factory_reset_external_callback_)(){nullptr};
 #endif
 #if CONFIG_OPENTHREAD_MTD
   uint32_t poll_period_{0};
