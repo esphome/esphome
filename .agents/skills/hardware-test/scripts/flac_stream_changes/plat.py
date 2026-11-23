@@ -23,9 +23,9 @@ if "--exact" in sys.argv[2:]:
     if not ann:
         sys.exit("no announcement in the capture")
     i = ann[-1]
-    while i + 2 < len(ma) and not (ma[i] == ma[i + 1] == ma[i + 2]):
+    while i + 1 < len(ma) and ma[i] != ma[i + 1]:
         i += 1
-    if i + 2 >= len(ma):
+    if i + 1 >= len(ma):
         sys.exit("the counters never hold still after the last announcement")
     print(
         sys.argv[1],
