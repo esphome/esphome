@@ -189,7 +189,8 @@ TEST_F(TopTronicTest, FramesBeyondTheBufferAreDropped) {
   this->set_now_(1000);
   // A frame count the hub accepts, so the oversized continuation reaches the buffer guard
   EXPECT_TRUE(this->hub_.feed(START_ID, {3 << 3, TAG, 0x42}).empty());
-  std::vector<uint8_t> big(60, 0x55);
+  // Larger than the largest possible slot buffer (31 frames of 7 bytes), so the guard is what drops it
+  std::vector<uint8_t> big(256, 0x55);
   big[0] = TAG;
   EXPECT_TRUE(this->hub_.feed(CONT_ID, big).empty());
   EXPECT_EQ(this->hub_.live_slots(1000), 0u);

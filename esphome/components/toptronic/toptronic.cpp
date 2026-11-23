@@ -377,8 +377,10 @@ bool TopTronic::parse_frame_(const uint8_t *data, size_t size, uint32_t can_id, 
       *len = size - 1;
       return true;
     }
-    if (total_frames == 1) {
-      ESP_LOGV(TAG, "Dropping start frame with frame count 1");
+    // A message needs at least two frames; U32/S32 values use 2 and S64 uses 3, so a count above the
+    // configured limit is a corrupted header
+    if (total_frames == 1 || total_frames > this->max_frames_per_message_) {
+      ESP_LOGD(TAG, "Dropping start frame with implausible frame count %u (header 0x%02X)", total_frames, data[0]);
       return false;
     }
     if (slot == nullptr) {
@@ -391,6 +393,10 @@ bool TopTronic::parse_frame_(const uint8_t *data, size_t size, uint32_t can_id, 
         }
         if (now - s.last_update_ms > now - slot->last_update_ms)
           slot = &s;
+      }
+      if (slot->remaining != 0) {
+        ESP_LOGD(TAG, "Expiring pending message 0x%02X (%u bytes, %u frames remaining)", slot->tag, slot->len,
+                 slot->remaining);
       }
     }
     slot->tag = tag;
