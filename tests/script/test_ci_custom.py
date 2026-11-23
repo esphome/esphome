@@ -7,7 +7,8 @@ empty statement -- and a -Wempty-body warning -- once the log level compiles the
 tests pin the comment/string/raw-string masker, the accepted control-statement shapes, and the
 NOLINT escape hatch at both placements a contributor would try.
 
-Also covers the ESP_LOG call scanner (_iter_log_calls) and the bare-literal-ternary lint.
+Also covers the log call scanner (_iter_log_calls), the bare-literal-ternary lint and the
+direct esp_log_printf_ format lint.
 """
 
 import importlib.util
@@ -378,6 +379,98 @@ def test_ternary_literal_detection(
     content: str, expected: list[tuple[int, int]]
 ) -> None:
     assert _ternary_errors(content) == expected
+
+
+def test_iter_log_calls_includes_direct_calls() -> None:
+    content = 'esp_log_printf_(level, TAG, __LINE__, ESPHOME_LOG_FORMAT("%s"), x)'
+    assert _calls(content + ";\nint other = (1);") == [content]
+    # Only the call is scanned, never a name that merely ends in esp_log_printf_
+    assert _calls('my_esp_log_printf_(level, "x");') == []
+    # Nor a call that is commented out or inside a string
+    assert _calls('// ESP_LOGD(TAG, "x");\nconst char *s = "ESP_LOGD(TAG, x)";') == []
+
+
+def test_ternary_literal_in_direct_call() -> None:
+    content = (
+        'esp_log_printf_(level, TAG, __LINE__, ESPHOME_LOG_FORMAT("%s"), '
+        'x ? "on" : "off");'
+    )
+    assert _ternary_errors(content) == [(1, 69), (1, 76)]
+
+
+def _format_errors(content: str) -> list[tuple[int, int]]:
+    errs = ci_custom.lint_log_direct_call_format_in_flash(Path("x.cpp"), content)
+    return [(line, col) for line, col, _ in errs]
+
+
+@pytest.mark.parametrize(
+    ("content", "expected"),
+    [
+        ('esp_log_printf_(level, TAG, __LINE__, "a %d", x);', [(1, 39)]),
+        (
+            'esp_log_printf_(level, TAG, __LINE__,\n                "a %d", x);',
+            [(2, 17)],
+        ),
+        # Commas and literals inside earlier arguments do not shift the format
+        ('esp_log_printf_(pick(a, b), "tag", f(1, 2), "a %d", x);', [(1, 45)]),
+        ('esp_log_printf_(level, TAG, __LINE__, ESPHOME_LOG_FORMAT("a %d"), x);', []),
+        ("esp_log_printf_(level, TAG, line, format, param);", []),
+        (
+            "void esp_log_printf_(int level, const char *tag, int line, const char *format, ...);",
+            [],
+        ),
+        ('esp_log_printf_(level, TAG, __LINE__, "a %d", x);  // NOLINT', []),
+        ('ESP_LOGD(TAG, "a %d", x);', []),
+        # The form the log macros expand to
+        ('::esphome::esp_log_printf_(l, TAG, 1, "x");', [(1, 39)]),
+        ("esp_log_printf_(level, TAG, __LINE__);", []),
+        # Lambda captures and braced initializers in earlier arguments do not shift the format
+        (
+            'esp_log_printf_(level, [a, b]() { return TAG; }(), Pos{1, 2}.line, "x");',
+            [(1, 68)],
+        ),
+        # Template argument lists in earlier arguments; a spaced `<` is a comparison
+        (
+            'esp_log_printf_(level, TAG, std::integral_constant<int, 42>::value, "x");',
+            [(1, 69)],
+        ),
+        ('esp_log_printf_(a < b ? 1 : 2, TAG, n > 0, "x");', [(1, 44)]),
+        ('esp_log_printf_(p->level, TAG, x >= 2, "x");', [(1, 40)]),
+        # A `>` inside parentheses does not close a template opened outside them
+        ('esp_log_printf_(level, TAG, pick<(N > 0), 42>(), "x");', [(1, 50)]),
+        # A templated lambda's parameter list holds commas too
+        (
+            'esp_log_printf_([]<typename A, typename B>(A a) { return a; }(1), TAG, __LINE__, "x");',
+            [(1, 82)],
+        ),
+        # An unspaced comparison never closes, so the split falls back to plain commas
+        ('esp_log_printf_(level, TAG, i<n ? 1 : 2, "x");', [(1, 42)]),
+        # A line continuation inside a multi-line macro before the format
+        (
+            '#define LOG_X(l) esp_log_printf_(l, TAG, __LINE__, \\\n    "x")',
+            [(2, 5)],
+        ),
+        # A comment before the format, raw and prefixed literals
+        ('esp_log_printf_(level, TAG, __LINE__, /* fmt */ "x");', [(1, 49)]),
+        ('esp_log_printf_(level, TAG, __LINE__, R"(x)");', [(1, 39)]),
+        # Commented-out calls and calls inside strings are not code
+        ('// esp_log_printf_(level, TAG, __LINE__, "x");', []),
+        ('/* esp_log_printf_(level, TAG, __LINE__, "x"); */', []),
+        ('const char *doc = "esp_log_printf_(level, TAG, __LINE__, \\"x\\");";', []),
+    ],
+)
+def test_direct_call_format_detection(
+    content: str, expected: list[tuple[int, int]]
+) -> None:
+    assert _format_errors(content) == expected
+
+
+def test_direct_call_format_error_message() -> None:
+    errs = ci_custom.lint_log_direct_call_format_in_flash(
+        Path("x.cpp"), 'esp_log_printf_(level, TAG, __LINE__, "a %d", x);'
+    )
+    assert len(errs) == 1
+    assert 'ESPHOME_LOG_FORMAT("a %d")' in errs[0][2]
 
 
 def test_ternary_error_message_names_the_literal() -> None:

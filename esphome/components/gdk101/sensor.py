@@ -5,7 +5,6 @@ from esphome.const import (
     CONF_MEASUREMENT_DURATION,
     CONF_STATUS,
     CONF_VERSION,
-    DEVICE_CLASS_DURATION,
     DEVICE_CLASS_EMPTY,
     ENTITY_CATEGORY_DIAGNOSTIC,
     ICON_RADIOACTIVE,
@@ -13,7 +12,6 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     STATE_CLASS_TOTAL_INCREASING,
     UNIT_MICROSILVERTS_PER_HOUR,
-    UNIT_SECOND,
 )
 from esphome.types import ConfigType
 
@@ -49,11 +47,9 @@ CONFIG_SCHEMA = cv.Schema(
             accuracy_decimals=0,
         ),
         cv.Optional(CONF_MEASUREMENT_DURATION): sensor.sensor_schema(
-            unit_of_measurement=UNIT_SECOND,
+            kind=sensor.DURATION_S,
             icon=ICON_TIMER,
-            accuracy_decimals=0,
             state_class=STATE_CLASS_TOTAL_INCREASING,
-            device_class=DEVICE_CLASS_DURATION,
             entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
         ),
     }

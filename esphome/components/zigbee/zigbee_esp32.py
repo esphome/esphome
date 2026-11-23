@@ -400,6 +400,16 @@ def validate_switch_esp32(config: ConfigType) -> ConfigType:
     return config
 
 
+def validate_light_esp32(config: ConfigType) -> ConfigType:
+    # Implemented in #22283
+    for key in (CONF_USE_DEVICE_TYPE, CONF_REPORT, CONF_ENDPOINT):
+        if key in config:
+            raise cv.Invalid(
+                f"Zigbee option '{key}' is not supported on lights yet", path=[key]
+            )
+    return config
+
+
 def zigbee_require_vfs_select(config: ConfigType) -> ConfigType:
     """Register VFS select requirement during config validation."""
     # Zigbee uses esp_vfs_eventfd which requires VFS select support
@@ -545,6 +555,10 @@ async def add_class_component(entity: cg.MockObj, config: ConfigType) -> None:
         "coordinator",
     ):
         cg.add(var.set_report(report))
+
+
+async def add_light(entity: cg.MockObj, config: ConfigType) -> None:
+    """Placeholder: lights are not exposed over Zigbee yet."""
 
 
 ZIGBEE_ACTION_SCHEMA_ESP32 = automation.maybe_simple_id(

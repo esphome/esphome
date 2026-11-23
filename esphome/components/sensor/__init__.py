@@ -112,6 +112,40 @@ from esphome.const import (
     DEVICE_CLASS_WIND_DIRECTION,
     DEVICE_CLASS_WIND_SPEED,
     ENTITY_CATEGORY_CONFIG,
+    ICON_CHEMICAL_WEAPON,
+    ICON_MAGNET,
+    ICON_RADIATOR,
+    ICON_TIMER,
+    STATE_CLASS_MEASUREMENT,
+    STATE_CLASS_TOTAL_INCREASING,
+    UNIT_AMPERE,
+    UNIT_CELSIUS,
+    UNIT_DECIBEL_MILLIWATT,
+    UNIT_DEGREES,
+    UNIT_HECTOPASCAL,
+    UNIT_HERTZ,
+    UNIT_HOUR,
+    UNIT_KILOVOLT_AMPS,
+    UNIT_KILOVOLT_AMPS_REACTIVE,
+    UNIT_KILOVOLT_AMPS_REACTIVE_HOURS,
+    UNIT_KILOWATT,
+    UNIT_KILOWATT_HOURS,
+    UNIT_LUX,
+    UNIT_METER,
+    UNIT_MICROGRAMS_PER_CUBIC_METER,
+    UNIT_MICROTESLA,
+    UNIT_MILLIMETER,
+    UNIT_MINUTE,
+    UNIT_OHM,
+    UNIT_PARTS_PER_BILLION,
+    UNIT_PARTS_PER_MILLION,
+    UNIT_PERCENT,
+    UNIT_SECOND,
+    UNIT_VOLT,
+    UNIT_VOLT_AMPS,
+    UNIT_VOLT_AMPS_REACTIVE,
+    UNIT_WATT,
+    UNIT_WATT_HOURS,
 )
 from esphome.core import (
     CORE,
@@ -392,9 +426,126 @@ _SENSOR_SCHEMA.add_extra(entity_duplicate_validator("sensor"))
 _SENSOR_SCHEMA.add_extra(lazy_load_validator("zigbee", "validate_sensor"))
 
 
+class SensorKind:
+    """Values `sensor_schema(kind=...)` sets; unset fields are left to the caller.
+
+    `state_class` (measurement unless the kind says otherwise) and `accuracy_decimals` are
+    defaults, as sensors differ; the caller's value wins. Passing any other field the kind
+    sets is an error. A plain class, not a NamedTuple, which costs more to import.
+    """
+
+    __slots__ = (
+        "unit_of_measurement",
+        "device_class",
+        "state_class",
+        "icon",
+        "accuracy_decimals",
+    )
+
+    def __init__(
+        self,
+        unit_of_measurement: str = cv.UNDEFINED,
+        device_class: str = cv.UNDEFINED,
+        state_class: str = STATE_CLASS_MEASUREMENT,
+        icon: str = cv.UNDEFINED,
+        accuracy_decimals: int = cv.UNDEFINED,
+    ) -> None:
+        self.unit_of_measurement = unit_of_measurement
+        self.device_class = device_class
+        self.state_class = state_class
+        self.icon = icon
+        self.accuracy_decimals = accuracy_decimals
+
+
+TEMPERATURE = SensorKind(UNIT_CELSIUS, DEVICE_CLASS_TEMPERATURE, accuracy_decimals=1)
+HUMIDITY = SensorKind(UNIT_PERCENT, DEVICE_CLASS_HUMIDITY, accuracy_decimals=1)
+BATTERY = SensorKind(UNIT_PERCENT, DEVICE_CLASS_BATTERY, accuracy_decimals=0)
+PRESSURE = SensorKind(UNIT_HECTOPASCAL, DEVICE_CLASS_PRESSURE, accuracy_decimals=1)
+ILLUMINANCE = SensorKind(UNIT_LUX, DEVICE_CLASS_ILLUMINANCE, accuracy_decimals=0)
+CARBON_DIOXIDE = SensorKind(
+    UNIT_PARTS_PER_MILLION, DEVICE_CLASS_CARBON_DIOXIDE, accuracy_decimals=0
+)
+MASS_CONCENTRATION = SensorKind(UNIT_MICROGRAMS_PER_CUBIC_METER, accuracy_decimals=0)
+VOC_PPB = SensorKind(
+    UNIT_PARTS_PER_BILLION,
+    DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS,
+    icon=ICON_RADIATOR,
+    accuracy_decimals=0,
+)
+
+
+def _particulate(device_class: str) -> SensorKind:
+    return SensorKind(
+        UNIT_MICROGRAMS_PER_CUBIC_METER,
+        device_class,
+        icon=ICON_CHEMICAL_WEAPON,
+        accuracy_decimals=0,
+    )
+
+
+PM1 = _particulate(DEVICE_CLASS_PM1)
+PM25 = _particulate(DEVICE_CLASS_PM25)
+PM10 = _particulate(DEVICE_CLASS_PM10)
+SIGNAL_STRENGTH = SensorKind(
+    UNIT_DECIBEL_MILLIWATT, DEVICE_CLASS_SIGNAL_STRENGTH, accuracy_decimals=0
+)
+VOLTAGE = SensorKind(UNIT_VOLT, DEVICE_CLASS_VOLTAGE)
+CURRENT = SensorKind(UNIT_AMPERE, DEVICE_CLASS_CURRENT)
+FREQUENCY = SensorKind(UNIT_HERTZ, DEVICE_CLASS_FREQUENCY)
+POWER = SensorKind(UNIT_WATT, DEVICE_CLASS_POWER)
+POWER_KW = SensorKind(UNIT_KILOWATT, DEVICE_CLASS_POWER, accuracy_decimals=3)
+APPARENT_POWER = SensorKind(UNIT_VOLT_AMPS, DEVICE_CLASS_APPARENT_POWER)
+APPARENT_POWER_KVA = SensorKind(
+    UNIT_KILOVOLT_AMPS, DEVICE_CLASS_APPARENT_POWER, accuracy_decimals=3
+)
+REACTIVE_POWER = SensorKind(UNIT_VOLT_AMPS_REACTIVE, DEVICE_CLASS_REACTIVE_POWER)
+REACTIVE_POWER_KVAR = SensorKind(
+    UNIT_KILOVOLT_AMPS_REACTIVE, DEVICE_CLASS_REACTIVE_POWER, accuracy_decimals=3
+)
+POWER_FACTOR = SensorKind(device_class=DEVICE_CLASS_POWER_FACTOR)
+ENERGY_WH = SensorKind(
+    UNIT_WATT_HOURS, DEVICE_CLASS_ENERGY, STATE_CLASS_TOTAL_INCREASING
+)
+ENERGY_KWH = SensorKind(
+    UNIT_KILOWATT_HOURS,
+    DEVICE_CLASS_ENERGY,
+    STATE_CLASS_TOTAL_INCREASING,
+    accuracy_decimals=3,
+)
+# No device class, matching the meters that report it today.
+REACTIVE_ENERGY_KVARH = SensorKind(
+    UNIT_KILOVOLT_AMPS_REACTIVE_HOURS,
+    state_class=STATE_CLASS_TOTAL_INCREASING,
+    accuracy_decimals=3,
+)
+DISTANCE_MM = SensorKind(UNIT_MILLIMETER, DEVICE_CLASS_DISTANCE, accuracy_decimals=0)
+DURATION_H = SensorKind(
+    UNIT_HOUR, DEVICE_CLASS_DURATION, icon=ICON_TIMER, accuracy_decimals=0
+)
+DURATION_MIN = SensorKind(UNIT_MINUTE, DEVICE_CLASS_DURATION, accuracy_decimals=0)
+DURATION_S = SensorKind(UNIT_SECOND, DEVICE_CLASS_DURATION, accuracy_decimals=0)
+# Generic quantities with no device class.
+PERCENT = SensorKind(UNIT_PERCENT, accuracy_decimals=0)
+ANGLE = SensorKind(UNIT_DEGREES)
+LENGTH_M = SensorKind(UNIT_METER, accuracy_decimals=2)
+RESISTANCE = SensorKind(UNIT_OHM, accuracy_decimals=0)
+MAGNETIC_FIELD = SensorKind(UNIT_MICROTESLA, icon=ICON_MAGNET)
+
+
+def _kind_value(kind: SensorKind, name: str, value: Any) -> Any:
+    """The kind's value for `name`, or the caller's if the kind leaves it unset."""
+    preset = getattr(kind, name)
+    if preset is cv.UNDEFINED:
+        return value
+    if value is not cv.UNDEFINED:
+        raise ValueError(f"kind already sets {name}")
+    return preset
+
+
 def sensor_schema(
     class_: MockObjClass = cv.UNDEFINED,
     *,
+    kind: SensorKind = cv.UNDEFINED,
     unit_of_measurement: str = cv.UNDEFINED,
     icon: str = cv.UNDEFINED,
     accuracy_decimals: int = cv.UNDEFINED,
@@ -403,6 +554,18 @@ def sensor_schema(
     entity_category: str = cv.UNDEFINED,
     filters: list = cv.UNDEFINED,
 ) -> cv.Schema:
+    """Sensor schema; `kind` presets the unit, device class, state class, icon and decimals."""
+    if kind is not cv.UNDEFINED:
+        unit_of_measurement = _kind_value(
+            kind, "unit_of_measurement", unit_of_measurement
+        )
+        device_class = _kind_value(kind, "device_class", device_class)
+        icon = _kind_value(kind, "icon", icon)
+        if state_class is cv.UNDEFINED:
+            state_class = kind.state_class
+        if accuracy_decimals is cv.UNDEFINED:
+            accuracy_decimals = kind.accuracy_decimals
+
     schema = {}
 
     if class_ is not cv.UNDEFINED:

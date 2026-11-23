@@ -1,0 +1,39 @@
+esphome:
+  name: hub-dump-children
+
+host:
+api:
+logger:
+  level: DEBUG
+
+uart:
+  - id: emontx_uart
+    baud_rate: 115200
+    port: /dev/null
+    rx_buffer_size: 2048
+  - id: modbus_uart
+    baud_rate: 9600
+    port: /dev/null
+
+emontx:
+  uart_id: emontx_uart
+
+modbus:
+  uart_id: modbus_uart
+
+modbus_controller:
+  - id: controller
+    address: 0x2
+    update_interval: 1h
+
+sensor:
+  - platform: emontx
+    name: Grid Power
+    tag_name: P1
+
+number:
+  - platform: modbus_controller
+    modbus_controller_id: controller
+    name: Setpoint
+    address: 0x9001
+    value_type: U_WORD
