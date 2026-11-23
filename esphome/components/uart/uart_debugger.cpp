@@ -2,7 +2,6 @@
 #ifdef USE_UART_DEBUGGER
 
 #include <algorithm>
-#include <cstring>
 #include "uart_debugger.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
@@ -96,7 +95,7 @@ void UARTDummyReceiver::loop() {
 // TCP connection(s). Without these delays, debug log lines could go
 // missing when UART devices block the main loop for too long.
 
-// The logger cuts a longer line anyway; capped to keep this off a large tx_buffer_size's stack cost
+// The logger cuts a longer line anyway; capped so a large tx_buffer_size costs no more stack
 #ifdef ESPHOME_LOGGER_TX_BUFFER_SIZE
 static constexpr size_t DEBUG_LINE_SIZE = std::min<size_t>(ESPHOME_LOGGER_TX_BUFFER_SIZE, 512);
 #else
@@ -107,53 +106,37 @@ static constexpr size_t DEBUG_LINE_SIZE = 512;
 static constexpr uint8_t STRING_ESCAPES[] PROGMEM = {'a', 'b', 't', 'n', 'v', 'f', 'r'};
 
 namespace {
-// Appends into a fixed line; a line that does not fit ends in "...".
+// Appends into a fixed line, dropping what does not fit.
+// Characters, not string literals: those would sit in RAM on ESP8266.
 class DebugLine {
  public:
-  // Characters, not string literals: those would sit in RAM on ESP8266
   explicit DebugLine(UARTDirection direction) {
     const char arrow = direction == UART_DIRECTION_RX ? '<' : '>';
-    this->append(arrow);
-    this->append(arrow);
-    this->append(arrow);
-    this->append(' ');
+    this->append(arrow, arrow, arrow, ' ');
   }
-  void append(char c) {
-    if (this->pos_ < sizeof(this->buf_)) {
+  template<typename... Rest> void append(char c, Rest... rest) {
+    if (this->pos_ < sizeof(this->buf_))
       this->buf_[this->pos_++] = c;
-    } else {
-      this->truncated_ = true;
-    }
-  }
-  void append(const char *str) {
-    while (*str != '\0')
-      this->append(*str++);
-  }
-  void append_escape(char c) {
-    this->append('\\');
-    this->append(c);
+    if constexpr (sizeof...(rest) > 0)
+      this->append(rest...);
   }
   void append_hex(uint8_t byte) {
-    this->append(format_hex_pretty_char(byte >> 4));
-    this->append(format_hex_pretty_char(byte & 0x0F));
+    this->append(format_hex_pretty_char(byte >> 4), format_hex_pretty_char(byte & 0x0F));
   }
   /// Separator before every item but the first.
   void next_item(uint8_t separator) {
-    if (this->items_++ > 0)
+    if (this->pos_ > HEADER_LEN)
       this->append(static_cast<char>(separator));
   }
-  void log(StringRef prefix) {
-    if (this->truncated_)  // a cut frame must not look like a short one
-      memset(this->buf_ + sizeof(this->buf_) - 3, '.', 3);
+  void log(StringRef prefix) const {
     ESP_LOGD(TAG, "%s%.*s", prefix.c_str(), static_cast<int>(this->pos_), this->buf_);
     delay(10);
   }
 
  protected:
+  static constexpr size_t HEADER_LEN = 4;  // "<<< " or ">>> "
   char buf_[DEBUG_LINE_SIZE];
   size_t pos_{0};
-  size_t items_{0};
-  bool truncated_{false};
 };
 }  // namespace
 
@@ -171,13 +154,13 @@ void UARTDebug::log_string(UARTDirection direction, std::span<const uint8_t> byt
   line.append('"');
   for (uint8_t byte : bytes) {
     if (byte >= 7 && byte <= 13) {
-      line.append_escape(static_cast<char>(progmem_read_byte(&STRING_ESCAPES[byte - 7])));
+      line.append('\\', static_cast<char>(progmem_read_byte(&STRING_ESCAPES[byte - 7])));
     } else if (byte == 27) {
-      line.append_escape('e');
+      line.append('\\', 'e');
     } else if (byte == '"' || byte == '\'' || byte == '\\') {
-      line.append_escape(static_cast<char>(byte));
+      line.append('\\', static_cast<char>(byte));
     } else if (byte < 32 || byte > 127) {
-      line.append_escape('x');
+      line.append('\\', 'x');
       line.append_hex(byte);
     } else {
       line.append(static_cast<char>(byte));
@@ -192,8 +175,9 @@ void UARTDebug::log_int(UARTDirection direction, std::span<const uint8_t> bytes,
   char num[UINT32_MAX_STR_SIZE];
   for (uint8_t byte : bytes) {
     line.next_item(separator);
-    uint32_to_str(num, byte);
-    line.append(num);
+    const size_t len = uint32_to_str(num, byte);
+    for (size_t i = 0; i < len; i++)
+      line.append(num[i]);
   }
   line.log(prefix);
 }
@@ -203,14 +187,10 @@ void UARTDebug::log_binary(UARTDirection direction, std::span<const uint8_t> byt
   DebugLine line(direction);
   for (uint8_t byte : bytes) {
     line.next_item(separator);
-    line.append('0');
-    line.append('b');
+    line.append('0', 'b');
     for (int bit = 7; bit >= 0; bit--)
       line.append((byte >> bit) & 1 ? '1' : '0');
-    line.append(' ');
-    line.append('(');
-    line.append('0');
-    line.append('x');
+    line.append(' ', '(', '0', 'x');
     line.append_hex(byte);
     line.append(')');
   }
