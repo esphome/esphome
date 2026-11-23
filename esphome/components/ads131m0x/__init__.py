@@ -72,8 +72,6 @@ DEFAULT_DMA_ALIGNMENT_BYTES = 4
 SPI_MODES = {
     key: value for key, value in spi.SPI_MODE_OPTIONS.items() if key in ("MODE1", "1")
 }
-# MODE.TIMEOUT resets the SPI interface when a frame takes longer than this many CLKIN periods
-SPI_TIMEOUT_CLKIN_PERIODS = 32768
 # A frame must fit in this fraction of a sample period, leaving time for the task wake-up and other bus users
 MAX_FRAME_TIME_FRACTION = 0.5
 # The task accumulates squared 24-bit codes in uint64: at most 2^46 * 2^17 = 2^63.
@@ -96,7 +94,9 @@ def _osr_code(clock_hz: float, sample_rate: float) -> int:
 def _validate(config: ConfigType) -> ConfigType:
     channels = MODELS[config[CONF_MODEL]]
     gain = config[CONF_GAIN]
-    if isinstance(gain, list) and len(gain) != channels:
+    if not isinstance(gain, list):
+        config[CONF_GAIN] = gain = [gain] * channels
+    elif len(gain) != channels:
         raise cv.Invalid(
             f"{config[CONF_MODEL]} has {channels} channels, so gain needs {channels} values",
             [CONF_GAIN],
@@ -104,8 +104,7 @@ def _validate(config: ConfigType) -> ConfigType:
     clock_hz = config[CONF_CLOCK_FREQUENCY]
     power_mode = config[CONF_POWER_MODE]
     max_clock_hz = MAX_CLOCK_HZ[power_mode]
-    gains = gain if isinstance(gain, list) else [gain]
-    if power_mode == "HIGH_RESOLUTION" and max(gains) > 2:
+    if power_mode == "HIGH_RESOLUTION" and max(gain) > 2:
         max_clock_hz = MAX_CLOCK_HZ_HIGH_GAIN
     if not MIN_CLOCK_HZ <= clock_hz <= max_clock_hz:
         raise cv.Invalid(
@@ -115,8 +114,6 @@ def _validate(config: ConfigType) -> ConfigType:
         )
     osr = OSR_CODES[_osr_code(clock_hz, config[CONF_SAMPLE_RATE])]
     window_samples = clock_hz / 2 / osr * config[CONF_WINDOW].total_milliseconds / 1000
-    if window_samples < 1:
-        raise cv.Invalid("window is shorter than one sample period", [CONF_WINDOW])
     data_rate = config[CONF_DATA_RATE]
     if data_rate > MAX_SCLK_HZ:
         raise cv.Invalid(
@@ -129,12 +126,6 @@ def _validate(config: ConfigType) -> ConfigType:
     )
     frame_bits = -(-(2 + channels) * 3 // alignment) * alignment * 8
     frame_s = frame_bits / data_rate
-    if frame_s >= SPI_TIMEOUT_CLKIN_PERIODS / clock_hz:
-        raise cv.Invalid(
-            f"data_rate is too slow: a frame takes {frame_s * 1e3:.1f} ms, longer than the "
-            f"{SPI_TIMEOUT_CLKIN_PERIODS / clock_hz * 1e3:.1f} ms SPI timeout of the device",
-            [CONF_DATA_RATE],
-        )
     sample_period_s = 2 * osr / clock_hz
     if frame_s > sample_period_s * MAX_FRAME_TIME_FRACTION:
         raise cv.Invalid(
@@ -221,13 +212,12 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
     await spi.register_spi_device(var, config)
 
-    channels = MODELS[config[CONF_MODEL]]
-    cg.add(var.set_num_channels(channels))
+    cg.add(var.set_num_channels(MODELS[config[CONF_MODEL]]))
 
     drdy = await cg.gpio_pin_expression(config[CONF_DRDY_PIN])
     cg.add(var.set_drdy_pin(drdy))
-    if CONF_RESET_PIN in config:
-        reset = await cg.gpio_pin_expression(config[CONF_RESET_PIN])
+    if (reset_pin := config.get(CONF_RESET_PIN)) is not None:
+        reset = await cg.gpio_pin_expression(reset_pin)
         cg.add(var.set_reset_pin(reset))
 
     clock_hz = config[CONF_CLOCK_FREQUENCY]
@@ -237,8 +227,5 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_sample_rate(clock_hz / 2 / OSR_CODES[osr_code]))
     cg.add(var.set_window_ms(config[CONF_WINDOW].total_milliseconds))
 
-    gains = config[CONF_GAIN]
-    if not isinstance(gains, list):
-        gains = [gains] * channels
-    for channel, gain in enumerate(gains):
+    for channel, gain in enumerate(config[CONF_GAIN]):
         cg.add(var.set_gain(channel, GAINS[gain]))

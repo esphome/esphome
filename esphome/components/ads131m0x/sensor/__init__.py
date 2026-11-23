@@ -1,14 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import sensor
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_CHANNEL,
-    CONF_MODEL,
-    CONF_TYPE,
-    DEVICE_CLASS_VOLTAGE,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_VOLT,
-)
+from esphome.const import CONF_CHANNEL, CONF_MODEL, CONF_TYPE
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -32,10 +25,8 @@ SENSOR_TYPES = {
 CONFIG_SCHEMA = (
     sensor.sensor_schema(
         ADS131M0xSensor,
-        unit_of_measurement=UNIT_VOLT,
+        kind=sensor.VOLTAGE,
         accuracy_decimals=4,
-        device_class=DEVICE_CLASS_VOLTAGE,
-        state_class=STATE_CLASS_MEASUREMENT,
     )
     .extend(
         {

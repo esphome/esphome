@@ -32,23 +32,12 @@ struct Snapshot {
   uint32_t timestamp_ms{0};                ///< millis() at the end of the window
 };
 
-/**
- * TI ADS131M02/03/04/06/08 simultaneous-sampling 24-bit delta-sigma ADC.
- * Datasheet: https://www.ti.com/lit/ds/symlink/ads131m08.pdf
- *
- * The chip buffers only two conversions per channel, so every conversion must be read within about two DRDY
- * periods (1 ms at 2 kSPS). Sampling therefore runs in a dedicated FreeRTOS task woken by the DRDY interrupt,
- * so the main loop never waits for SPI. The task accumulates every sample and publishes mean and AC RMS per
- * window as a Snapshot. The hardware SPI driver locks the bus for each transaction, so other devices on the
- * same bus stay usable from the main loop.
- *
- * Every frame is checked with the output CRC and the STATUS word. After an unexpected device reset (STATUS
- * RESET flag, e.g. a supply dip) the registers are back at their defaults, so the task reconfigures the
- * device instead of silently reporting values with the wrong gain and data rate.
- */
-class ADS131M0x : public Component,
-                  public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_TRAILING,
-                                        spi::DATA_RATE_8MHZ> {
+/// TI ADS131M02/04/08 simultaneous-sampling 24-bit delta-sigma ADC (https://www.ti.com/lit/ds/symlink/ads131m08.pdf).
+/// A FreeRTOS task woken by DRDY reads every conversion, checks CRC and STATUS, reconfigures after a device reset,
+/// and publishes mean and AC RMS per window as a Snapshot.
+class ADS131M0x final : public Component,
+                        public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
+                                              spi::CLOCK_PHASE_TRAILING, spi::DATA_RATE_8MHZ> {
  public:
   void setup() override;
   void dump_config() override;
@@ -66,9 +55,7 @@ class ADS131M0x : public Component,
   /// Safe to call from any task.
   Snapshot get_snapshot();
   /// True while the device is configured and delivers samples at the expected rate.
-  bool is_healthy() const { return this->healthy_.load(); }
-  uint8_t get_num_channels() const { return this->num_channels_; }
-  float get_sample_rate() const { return this->sample_rate_; }
+  bool is_healthy() const { return this->healthy_.load() != 0; }
   uint32_t get_window_ms() const { return this->window_ms_; }
   /// Input full scale of a channel in volts (the input range is +/- this value).
   float get_full_scale(uint8_t channel) const;
@@ -103,7 +90,6 @@ class ADS131M0x : public Component,
   std::array<uint8_t, MAX_CHANNELS> gain_codes_{};
 
   StaticTask task_;
-  TaskHandle_t task_handle_{nullptr};
   portMUX_TYPE lock_ = portMUX_INITIALIZER_UNLOCKED;
   Snapshot snapshot_{};
   uint8_t *frame_buf_{nullptr};  ///< DMA-capable, allocated once in setup()
@@ -113,13 +99,11 @@ class ADS131M0x : public Component,
   uint32_t window_sequence_{0};
 
   // Written by the sampling task, read by the main loop
-  std::atomic<bool> healthy_{false};
-  std::atomic<bool> configured_{false};
-  std::atomic<uint16_t> chip_id_{0};
+  std::atomic<uint8_t> healthy_{0};
+  std::atomic<uint8_t> configured_{0};
   std::atomic<uint32_t> frames_{0};
   std::atomic<uint32_t> crc_errors_{0};
   std::atomic<uint32_t> device_resets_{0};
-  std::atomic<uint32_t> drdy_timeouts_{0};
 
   // Main loop only
   uint32_t last_health_check_{0};
