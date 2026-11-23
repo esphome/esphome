@@ -144,6 +144,7 @@ class HttpConnection : public ByteSource {
   char path[64];
   char host[96];
   uint32_t remaining{0};  // body bytes left, or bytes left in the current chunk
+  uint32_t wait_us{0};    // time spent waiting for data from the client
   bool chunked{false};
   bool expect_continue{false};
   bool keep_alive{false};
@@ -161,7 +162,9 @@ class HttpConnection : public ByteSource {
 };
 
 int HttpConnection::fill_() {
+  const uint32_t start = micros();
   const ssize_t n = recv(this->fd, this->buf_, sizeof(this->buf_), 0);
+  this->wait_us += micros() - start;
   if (n <= 0) {
     this->broken = true;
     return -1;
@@ -175,7 +178,9 @@ int HttpConnection::read_raw_(uint8_t *dst, size_t len) {
   if (this->pos_ == this->len_) {
     // Large reads go straight into the caller's buffer
     if (len >= sizeof(this->buf_) / 2) {
+      const uint32_t start = micros();
       const ssize_t n = recv(this->fd, dst, len, 0);
+      this->wait_us += micros() - start;
       if (n <= 0) {
         this->broken = true;
         return -1;
@@ -757,11 +762,11 @@ class JobSink : public OutputSink {
 // ---------------------------------------------------------------------------------------------------
 // Server
 
-void IppServer::setup(const ServerSettings &settings, PrinterPort *port, uint8_t *band, uint8_t *scratch, uint8_t *line,
-                      uint8_t *work) {
+void IppServer::setup(const ServerSettings &settings, PrinterPort *port, uint8_t *band, uint8_t *scratch,
+                      uint8_t *packed, uint8_t *line, uint8_t *work) {
   this->settings_ = settings;
   this->port_ = port;
-  this->encoder_.set_buffers(band, scratch);
+  this->encoder_.set_buffers(band, scratch, packed);
   this->raster_.set_buffers(line, work);
 }
 
@@ -1319,6 +1324,8 @@ uint16_t IppServer::print_document_(int slot, IppRequest &req, HttpConnection &c
     return STATUS_DEVICE_ERROR;
   }
   ESP_LOGI(TAG, "Printing job %u '%s' from %s", static_cast<unsigned>(job_id), name, user);
+  const uint32_t started = millis();
+  conn.wait_us = 0;
 
   PjlSettings pjl = this->settings_.pjl;
   if (draft)
@@ -1336,6 +1343,18 @@ uint16_t IppServer::print_document_(int slot, IppRequest &req, HttpConnection &c
     if (!delivered)
       this->port_->abort_job();
   }
+
+  // Where the time went, to tell a slow network or printer from a busy CPU
+  const uint32_t total_ms = millis() - started;
+  const uint32_t network_ms = conn.wait_us / 1000;
+  const uint32_t printer_ms = this->port_->wait_ms();
+  const uint32_t busy_ms = total_ms > network_ms + printer_ms ? total_ms - network_ms - printer_ms : 0;
+  ESP_LOGI(TAG, "Job %u: %u page(s) in %u.%u s; waited %u.%u s for data and %u.%u s for the printer, converted %u.%u s",
+           static_cast<unsigned>(job_id), this->pages_.load(), static_cast<unsigned>(total_ms / 1000),
+           static_cast<unsigned>(total_ms % 1000 / 100), static_cast<unsigned>(network_ms / 1000),
+           static_cast<unsigned>(network_ms % 1000 / 100), static_cast<unsigned>(printer_ms / 1000),
+           static_cast<unsigned>(printer_ms % 1000 / 100), static_cast<unsigned>(busy_ms / 1000),
+           static_cast<unsigned>(busy_ms % 1000 / 100));
 
   switch (result) {
     case RasterResult::RASTER_OK:

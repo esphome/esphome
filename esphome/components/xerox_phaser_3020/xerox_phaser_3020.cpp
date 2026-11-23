@@ -8,6 +8,8 @@
 #include <cstdio>
 #include <cstring>
 
+#include <esp_heap_caps.h>
+#include <esp_memory_utils.h>
 #include <freertos/task.h>
 
 #include "esphome/core/application.h"
@@ -39,6 +41,8 @@ static constexpr UBaseType_t WORKER_PRIORITY = tskIDLE_PRIORITY;
 static constexpr UBaseType_t LISTEN_PRIORITY = tskIDLE_PRIORITY + 1;
 static constexpr uint32_t WAIT_SLICE_MS = 200;
 static constexpr uint32_t ABORT_WAIT_MS = 2000;
+// Internal RAM the band buffer must leave free for everything else (Wi-Fi, sockets, other components)
+static constexpr size_t INTERNAL_HEADROOM = 96 * 1024;
 static constexpr uint32_t RESET_WAIT_MS = 3000;
 static constexpr uint8_t RESET_NONE = 0;
 static constexpr uint8_t RESET_REQUESTED = 1;
@@ -52,13 +56,23 @@ void XeroxPhaser3020::setup() {
   USBClient::setup();
   if (this->is_failed())
     return;
-  // About 115 kB, in PSRAM when there is some; kept for the life of the device
+  // Kept for the life of the device. The band is written a byte column at a time, which is much faster
+  // in internal RAM than in PSRAM, so it goes there when enough would be left; the rest is read in order
+  // and goes to PSRAM when there is some.
+  const uint32_t internal = MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT;
+  if (heap_caps_get_largest_free_block(internal) >= BAND_BUFFER_SIZE &&
+      heap_caps_get_free_size(internal) >= BAND_BUFFER_SIZE + INTERNAL_HEADROOM)
+    this->band_ = static_cast<uint8_t *>(heap_caps_malloc(BAND_BUFFER_SIZE, internal));
   RAMAllocator<uint8_t> allocator;
+  if (this->band_ == nullptr)
+    this->band_ = allocator.allocate(BAND_BUFFER_SIZE);
   uint8_t *memory = allocator.allocate(WORK_MEMORY_SIZE);
-  if (memory == nullptr) {
+  if (this->band_ == nullptr || memory == nullptr) {
     this->mark_failed(LOG_STR("Not enough memory"));
     return;
   }
+  // With PSRAM, each band is compressed once and kept until it is sent; without, it is compressed twice
+  this->packed_ = RAMAllocator<uint8_t>(RAMAllocator<uint8_t>::ALLOC_EXTERNAL).allocate(QPDL_PACKED_BUFFER_SIZE);
   this->free_transfers_ = xQueueCreate(NUM_TRANSFERS, sizeof(usb_transfer_t *));
   this->connections_ = xQueueCreate(NUM_WORKERS, sizeof(int));
   if (this->free_transfers_ == nullptr || this->connections_ == nullptr) {
@@ -79,10 +93,9 @@ void XeroxPhaser3020::setup() {
            mac[3], mac[4], mac[5]);
   this->settings_.uuid = this->uuid_;
 
-  uint8_t *scratch = memory + BAND_BUFFER_SIZE;
-  uint8_t *line = scratch + QPDL_SCRATCH_SIZE;
+  uint8_t *line = memory + QPDL_SCRATCH_SIZE;
   uint8_t *work = line + RASTER_LINE_BUFFER_SIZE;
-  this->server_.setup(this->settings_, this, memory, scratch, line, work);
+  this->server_.setup(this->settings_, this, this->band_, memory, this->packed_, line, work);
   this->listen_fd_ = this->server_.listen_socket();
   if (this->listen_fd_ < 0) {
     this->mark_failed(LOG_STR("Could not open the IPP port"));
@@ -145,6 +158,9 @@ void XeroxPhaser3020::dump_config() {
                 : s.pjl.toner_save == TonerSave::TONER_SAVE_OFF ? LOG_STR_LITERAL("off")
                                                                 : LOG_STR_LITERAL("printer default"),
                 s.pjl.power_save_minutes, s.printer_wait_s);
+  ESP_LOGCONFIG(TAG, "  Band buffer: %s, each band compressed %s",
+                esp_ptr_external_ram(this->band_) ? LOG_STR_LITERAL("PSRAM") : LOG_STR_LITERAL("internal RAM"),
+                this->packed_ != nullptr ? LOG_STR_LITERAL("once") : LOG_STR_LITERAL("twice (no PSRAM)"));
   USBClient::dump_config();
 #ifdef USE_BINARY_SENSOR
   LOG_BINARY_SENSOR("  ", "Connected", this->connected_binary_sensor_);
@@ -298,13 +314,14 @@ bool XeroxPhaser3020::begin_job(const std::atomic<bool> *cancel) {
     delay(20);  // NOLINT: runs on a connection task, not the main loop
   this->transfer_failed_.store(false);
   this->current_ = nullptr;
+  this->wait_us_ = 0;
   return this->is_connected();
 }
 
 usb_transfer_t *XeroxPhaser3020::take_transfer_() {
   usb_transfer_t *transfer = nullptr;
   // The printer holds transfers back while it is busy or out of paper; keep checking for a cancel
-  while (xQueueReceive(this->free_transfers_, &transfer, pdMS_TO_TICKS(WAIT_SLICE_MS)) != pdTRUE) {
+  while (!this->receive_transfer_(&transfer, pdMS_TO_TICKS(WAIT_SLICE_MS))) {
     if (this->job_stopped_())
       return nullptr;
   }
@@ -363,12 +380,21 @@ bool XeroxPhaser3020::write(const uint8_t *data, size_t len) {
   return true;
 }
 
+bool XeroxPhaser3020::receive_transfer_(usb_transfer_t **transfer, TickType_t timeout) {
+  const uint32_t start = micros();
+  const bool received = xQueueReceive(this->free_transfers_, transfer, timeout) == pdTRUE;
+  this->wait_us_ += micros() - start;
+  return received;
+}
+
 bool XeroxPhaser3020::wait_idle_() {
+  const uint32_t start = micros();
   while (uxQueueMessagesWaiting(this->free_transfers_) < NUM_TRANSFERS) {
     if (this->job_stopped_())
       return false;
     delay(20);
   }
+  this->wait_us_ += micros() - start;
   return true;
 }
 

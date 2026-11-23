@@ -34,6 +34,8 @@ class PrinterPort : public OutputSink {
   virtual bool end_job() = 0;
   /// Throw away data the printer has not taken yet and reset the printer's port
   virtual void abort_job() = 0;
+  /// Time this job has spent waiting for the printer to take data, in milliseconds
+  virtual uint32_t wait_ms() const = 0;
 };
 
 struct ServerSettings {
@@ -83,9 +85,9 @@ class IppServer {
  public:
   static constexpr uint8_t MAX_JOBS = 8;
 
-  /// Buffers: band and scratch for QpdlEncoder, line and work for RasterPrinter
-  void setup(const ServerSettings &settings, PrinterPort *port, uint8_t *band, uint8_t *scratch, uint8_t *line,
-             uint8_t *work);
+  /// Buffers: band, scratch and packed (may be null) for QpdlEncoder, line and work for RasterPrinter
+  void setup(const ServerSettings &settings, PrinterPort *port, uint8_t *band, uint8_t *scratch, uint8_t *packed,
+             uint8_t *line, uint8_t *work);
   /// Open the listening socket. Returns the socket, or -1 on failure.
   int listen_socket();
   /// Handle one client connection until it ends, then close it. May run in several tasks at once.

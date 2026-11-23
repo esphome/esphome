@@ -105,7 +105,7 @@ class RasterPrinter {
   bool read_error_{false};
   bool errors_clear_{true};
   bool line_white_{false};
-  uint8_t in_[512];
+  uint8_t in_[2048];
 };
 
 }  // namespace esphome::xerox_phaser_3020

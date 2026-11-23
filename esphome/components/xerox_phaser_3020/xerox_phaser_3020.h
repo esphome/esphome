@@ -20,9 +20,8 @@
 
 namespace esphome::xerox_phaser_3020 {
 
-/// Memory for the encoder and the raster decoder, allocated as one buffer
-inline constexpr size_t WORK_MEMORY_SIZE =
-    BAND_BUFFER_SIZE + QPDL_SCRATCH_SIZE + RASTER_LINE_BUFFER_SIZE + RASTER_WORK_BUFFER_SIZE;
+/// Memory for the encoder and the raster decoder other than the band and the compressed band
+inline constexpr size_t WORK_MEMORY_SIZE = QPDL_SCRATCH_SIZE + RASTER_LINE_BUFFER_SIZE + RASTER_WORK_BUFFER_SIZE;
 
 /// Makes a Xerox Phaser 3020 on the USB host port a driverless network printer (IPP Everywhere and
 /// AirPrint). Jobs arrive as PWG or Apple raster and go to the printer as QPDL while they are received.
@@ -58,6 +57,7 @@ class XeroxPhaser3020 final : public usb_host::USBClient, public PrinterPort {
   bool write(const uint8_t *data, size_t len) override;
   bool end_job() override;
   void abort_job() override;
+  uint32_t wait_ms() const override { return this->wait_us_ / 1000; }
 
  protected:
   void on_connected() override;
@@ -70,6 +70,8 @@ class XeroxPhaser3020 final : public usb_host::USBClient, public PrinterPort {
   /// Wait for a free transfer. Returns null when the job has to stop.
   usb_transfer_t *take_transfer_();
   bool submit_(usb_transfer_t *transfer);
+  /// Wait for a transfer to come back, counting the time as time the printer kept the job waiting
+  bool receive_transfer_(usb_transfer_t **transfer, TickType_t timeout);
   /// Wait until no transfer is in flight. Returns false when the job has to stop first.
   bool wait_idle_();
   static void transfer_callback(usb_transfer_t *transfer);
@@ -84,6 +86,10 @@ class XeroxPhaser3020 final : public usb_host::USBClient, public PrinterPort {
   QueueHandle_t free_transfers_{nullptr};
   QueueHandle_t connections_{nullptr};
   const std::atomic<bool> *cancel_{nullptr};
+  // Kept to report in dump_config() where they were placed
+  uint8_t *band_{nullptr};
+  uint8_t *packed_{nullptr};
+  uint32_t wait_us_{0};  // this job's time waiting for the printer; only the job's task uses it
   // Held while the endpoint is used from a connection task or torn down by the main loop
   Mutex usb_lock_;
   int listen_fd_{-1};

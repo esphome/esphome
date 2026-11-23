@@ -220,6 +220,9 @@ template<typename Out> void QpdlEncoder::compress_(uint32_t size, Out &out) {
         if (n > best) {
           best = n;
           best_index = i;
+          // A later distance can only tie, and ties go to the first one
+          if (best == max_copy)
+            break;
         }
       }
       if (best >= MIN_COPY) {
@@ -251,6 +254,22 @@ template<typename Out> void QpdlEncoder::compress_(uint32_t size, Out &out) {
 }
 
 namespace {
+struct PackedOut {
+  uint8_t *buffer;
+  uint32_t size{0};
+  uint32_t sum{0};
+  void byte(uint8_t b) {
+    this->buffer[this->size++] = b;
+    this->sum += b;
+  }
+  void bytes(const uint8_t *data, uint32_t len) {
+    memcpy(this->buffer + this->size, data, len);
+    this->size += len;
+    for (uint32_t i = 0; i < len; i++)
+      this->sum += data[i];
+  }
+};
+
 struct CountingOut {
   uint32_t size{0};
   uint32_t sum{0};
@@ -315,10 +334,21 @@ bool QpdlEncoder::flush_band_() {
     words[i] = ~words[i];
 
   this->choose_table_(size);
-  CountingOut counter;
-  this->compress_(size, counter);
-  const uint32_t data_size = counter.size + 8;  // signature and checksum
-  const uint32_t checksum = counter.sum + BAND_SIGNATURE_SUM;
+  uint32_t packed_size;
+  uint32_t sum;
+  if (this->packed_ != nullptr) {
+    PackedOut packed{this->packed_};
+    this->compress_(size, packed);
+    packed_size = packed.size;
+    sum = packed.sum;
+  } else {
+    CountingOut counter;
+    this->compress_(size, counter);
+    packed_size = counter.size;
+    sum = counter.sum;
+  }
+  const uint32_t data_size = packed_size + 8;  // signature and checksum
+  const uint32_t checksum = sum + BAND_SIGNATURE_SUM;
   const uint16_t width = this->band_bytes_ * 8;
   const uint8_t header[11] = {
       0x0C,
@@ -335,8 +365,14 @@ bool QpdlEncoder::flush_band_() {
   };
   this->write_(header, sizeof(header));
   this->write_(BAND_SIGNATURE, sizeof(BAND_SIGNATURE));
-  QpdlWriterOut writer{this};
-  this->compress_(size, writer);
+  if (this->packed_ != nullptr) {
+    this->flush_out_();
+    if (this->ok_)
+      this->ok_ = this->sink_->write(this->packed_, packed_size);
+  } else {
+    QpdlWriterOut writer{this};
+    this->compress_(size, writer);
+  }
   const uint8_t trailer[4] = {static_cast<uint8_t>(checksum >> 24), static_cast<uint8_t>(checksum >> 16),
                               static_cast<uint8_t>(checksum >> 8), static_cast<uint8_t>(checksum)};
   this->write_(trailer, sizeof(trailer));

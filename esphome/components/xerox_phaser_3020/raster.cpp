@@ -336,6 +336,17 @@ void RasterPrinter::dither_row_() {
   int right = 0;
   uint8_t bits = 0;
   for (uint16_t x = 0; x < this->row_px_; x++) {
+    if (this->grey_[x] == 0xFF && errors[x] == 0 && right == 0) {
+      // White with no error to spread: what the general case below computes, much faster
+      errors[x - 1] = below_left;
+      below_left = below;
+      below = 0;
+      if ((x & 7) == 7) {
+        *out++ = bits;
+        bits = 0;
+      }
+      continue;
+    }
     const int value = this->grey_[x] + errors[x] + right;
     int error = value;
     if (value < 128) {

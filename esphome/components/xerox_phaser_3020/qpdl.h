@@ -61,6 +61,8 @@ inline constexpr uint16_t HARD_MARGIN_Y = 105;
 inline constexpr uint16_t HARD_MARGIN_HMM = 441;
 // Scratch space the encoder needs for choosing its compression table
 inline constexpr size_t QPDL_SCRATCH_SIZE = 0x800 * sizeof(int16_t);
+// Holds any compressed band: literal runs add one byte in 128, plus the 132-byte table header
+inline constexpr size_t QPDL_PACKED_BUFFER_SIZE = BAND_BUFFER_SIZE + BAND_BUFFER_SIZE / 64 + 512;
 
 /// Page width in pixels at 600 dpi, rounded up to whole bytes, as SpliX computes it
 inline constexpr uint16_t page_width_px(const Paper &paper) { return ((paper.width_pt * QPDL_DPI + 71) / 72 + 7) & ~7; }
@@ -96,10 +98,13 @@ bool write_pjl_footer(OutputSink *sink);
 
 class QpdlEncoder {
  public:
-  /// `band` holds BAND_BUFFER_SIZE bytes and `scratch` QPDL_SCRATCH_SIZE bytes
-  void set_buffers(uint8_t *band, uint8_t *scratch) {
+  /// `band` holds BAND_BUFFER_SIZE bytes and `scratch` QPDL_SCRATCH_SIZE bytes. `packed`, which may be
+  /// null, holds QPDL_PACKED_BUFFER_SIZE bytes: with it each band is compressed once and kept until it
+  /// is sent, without it each band is compressed twice, once to measure it and once to send it.
+  void set_buffers(uint8_t *band, uint8_t *scratch, uint8_t *packed) {
     this->band_ = band;
     this->scratch_ = reinterpret_cast<int16_t *>(scratch);
+    this->packed_ = packed;
   }
 
   /// Start a page. The page header is sent with the first band, or by end_page() for a blank page.
@@ -128,6 +133,7 @@ class QpdlEncoder {
   OutputSink *sink_{nullptr};
   uint8_t *band_{nullptr};
   int16_t *scratch_{nullptr};
+  uint8_t *packed_{nullptr};
   const Paper *paper_{nullptr};
   uint32_t table_[64];
   uint16_t copies_{1};
