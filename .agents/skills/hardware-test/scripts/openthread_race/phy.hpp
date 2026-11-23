@@ -20,6 +20,10 @@ inline bool hwt_phy_power(bool on) {
     return false;
   }
   uint32_t before = v;
+  if (!on && (v & (1u << 11))) {  // someone else's power-down: this one would not change the link
+    ESP_LOGW("hwt", "HWT phy failed: already powered down");
+    return false;
+  }
   if (on)
     v = (v & ~(1u << 11)) | (1u << 12) | (1u << 9);
   else

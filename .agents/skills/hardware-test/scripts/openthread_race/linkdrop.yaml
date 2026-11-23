@@ -86,7 +86,10 @@ api:
         - if:
             condition:
               # a link_drop still running would skip this one without a marker
-              lambda: 'return !hwt_phy_stuck && !id(link_drop).is_running() && secs >= 1 && secs <= 600;'
+              # nor during a race's power-down: the two would power the PHY up under each other
+              lambda: |-
+                return !hwt_phy_stuck && !id(link_drop).is_running() && !id(race_fire).is_running() && secs >= 1 &&
+                       secs <= 600;
             then:
               - script.execute:
                   id: link_drop
