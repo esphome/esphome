@@ -440,7 +440,10 @@ async def debug_to_code(config: ConfigType, parent: cg.MockObj) -> None:
         template_args=[UARTDebugger],
         args=[
             (UARTDirection, "direction"),
-            (cg.std_vector.template(cg.uint8), "bytes"),
+            (
+                cg.std_vector.template(cg.uint8).operator("ref").operator("const"),
+                "bytes",
+            ),
             (cg.StringRef, "debug_prefix"),
         ],
         ctor_args=[parent],
