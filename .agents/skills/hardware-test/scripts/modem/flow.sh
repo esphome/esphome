@@ -9,10 +9,10 @@
 # env: PY, YAML, PIO_CORE
 D=$(cd "$(dirname "$0")" && pwd); S=$(dirname "$D")
 N=${1:?name}; T=${2:?tree}; PORT=${3:?port}; MODE=${4:-full}
-PY=${PY:-$T/venv/bin/python}
+PY=${PY:-$T/venv/bin/python}; Y=${YAML:-$D/sim7670-s3.yaml}
 pkill -f "[s]erial_capture.py $PORT "; sleep 1
-TREE=$T PY=$PY "$S/pio_build.sh" compile "$N" "${YAML:-$D/sim7670-s3.yaml}" || exit 1
-TREE=$T PY=$PY "$S/pio_build.sh" upload "$N" "${YAML:-$D/sim7670-s3.yaml}" "$PORT" || exit 1
+TREE=$T PY=$PY "$S/pio_build.sh" compile "$N" "$Y" || exit 1
+TREE=$T PY=$PY "$S/pio_build.sh" upload "$N" "$Y" "$PORT" || exit 1
 CAP=$D/$N.txt
 $PY "$S/serial_capture.py" "$PORT" 1800 "$CAP" &
 CP=$!
@@ -29,13 +29,11 @@ drive() { timeout "$1" $PY "$D/mdrive.py" "$H" "$D/$N-$2.txt" "${@:3}" > /dev/nu
 waitc 1 300 || { kill $CP; exit 2; }
 sleep 8
 H=$("$S/resolve.sh" "$N") || { kill $CP; exit 1; }
-RC=0
+RC=0; REBOOTS=1
 if [ "$MODE" = full ]; then
+  REBOOTS=2
   drive 60 traffic press:"Traffic Test" wait:20 || { echo "traffic driver failed"; RC=1; }
   grep -a "traffic" "$CAP" | tail -3
-  REBOOTS=2
-else
-  REBOOTS=1
 fi
 for i in $(seq 1 $REBOOTS); do
   c=$(cnt); echo "$(date +%T) reboot $i"; drive 30 "drv$i" press:Restart

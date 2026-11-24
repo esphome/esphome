@@ -10,9 +10,6 @@ esphome:
 
 esp32:
   board: m5stack-atom
-  framework:
-    type: esp-idf
-    log_level: DEBUG
 
 packages:
   common: !include fallback-common.yaml

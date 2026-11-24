@@ -1,6 +1,12 @@
 # Shared package for the SIM restart and CFUN fallback flows (#23163, #23166, #23238): Wi-Fi plus the plaintext API
 # for the drivers, the modem with an empty APN (the network picks one), state buttons and AT query buttons.
-# The board files set the rx, tx and model substitutions.
+# The board files set the rx, tx and model substitutions and the board. log_level DEBUG makes esp_modem print each AT
+# command and its reply.
+esp32:
+  framework:
+    type: esp-idf
+    log_level: DEBUG
+
 logger:
   level: DEBUG
 

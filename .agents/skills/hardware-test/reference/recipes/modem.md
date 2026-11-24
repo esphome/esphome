@@ -115,13 +115,13 @@ and the API for a board whose serial port is not usable.
   then DISABLED; enabling again connects in 7 to 8 s.
 - PPP traffic check (`traffic.yaml`): set the PPP netif (`PPP_DEF`) as the default from a lambda, send one
   `http_request.get` (an address literal in `traffic_url` skips DNS), and restore `WIFI_STA_DEF` in `on_response` and
-  `on_error`, because the action is asynchronous. Compare with the same GET over Wi-Fi. A SIM can attach and get an address while no traffic
-  comes back (see above); that is the carrier side.
+  `on_error`, because the action is asynchronous. Compare with the same GET over Wi-Fi. A SIM can attach and get an
+  address while no traffic comes back (see the no-traffic note above); that is the carrier side.
 - The two PRs conflicted on neighbouring lines; merged locally they worked together. Test such pairs merged too.
 
 ## APN refused at CFUN=0, CFUN=1 fallback (#23238)
 
-- Seeing the AT exchange: `esp32: framework: log_level: DEBUG` (set in both board files) makes esp_modem log
+- Seeing the AT exchange: `esp32: framework: log_level: DEBUG` (set in `fallback-common.yaml`) makes esp_modem log
   `generic_command command <cmd>` and `Response:` with the reply on the following serial lines, raw, without the
   `[..]` prefix. `atlines.sh CAPTURE` keeps those and drops the Wi-Fi driver noise. The API log stream drops some reply
   lines, so read them from serial. On a disable/enable the logger can print the esp_modem line for the next command a

@@ -6,7 +6,7 @@ substitutions:
 
 esphome:
   includes:
-    - ppp_netif.h
+    - "<esp_netif.h>"
 
 http_request:
   verify_ssl: false

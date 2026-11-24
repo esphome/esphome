@@ -1,5 +1,4 @@
 # Waveshare ESP32-S3-SIM7670G-4G: console on the CH343 (UART0), modem on GPIO17/GPIO18.
-# log_level DEBUG makes esp_modem print each AT command and its reply.
 substitutions:
   name: sim7670-s3
   rx: GPIO17
@@ -11,9 +10,6 @@ esphome:
 
 esp32:
   board: esp32-s3-devkitc-1
-  framework:
-    type: esp-idf
-    log_level: DEBUG
 
 logger:
   hardware_uart: UART0
