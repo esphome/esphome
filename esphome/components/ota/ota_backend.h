@@ -111,8 +111,8 @@ class UpdateLock {
   bool is_held() const { return this->held_; }
   /// Keep the lock set until reboot; is_held() becomes false.
   void hold_until_reboot() { this->held_ = false; }
-  /// True while any holder has the lock, so an update is being written; stays true after a
-  /// committed update until the reboot.
+  /// True while any holder has the lock: an OTA backend is writing, or a committed update awaits the
+  /// reboot. Uploads that bypass the backends (Zephyr MCUmgr) never take it.
   static bool any_held();
 
  protected:

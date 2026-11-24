@@ -92,6 +92,9 @@ bool UpdateLock::any_held() {
 #ifdef ESPHOME_THREAD_MULTI_ATOMICS
   return update_locked.load() != 0;
 #else
+#ifdef ESPHOME_THREAD_MULTI_NO_ATOMICS
+  LockGuard guard(update_lock_mutex());
+#endif
   return update_locked;
 #endif
 }
