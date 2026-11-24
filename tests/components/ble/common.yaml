@@ -2,4 +2,5 @@ esp32_ble:
 
 switch:
   - platform: ble
+    type: enabled
     name: Bluetooth

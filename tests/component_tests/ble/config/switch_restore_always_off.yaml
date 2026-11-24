@@ -10,6 +10,7 @@ esp32_ble:
 
 switch:
   - platform: ble
+    type: enabled
     id: ble_switch
     name: Bluetooth
     restore_mode: ALWAYS_OFF

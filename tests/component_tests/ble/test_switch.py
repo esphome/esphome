@@ -51,24 +51,44 @@ def test_restore_mode_override(
 def test_inverted_rejected() -> None:
     """The hub publishes the real state, so an inverted switch makes no sense."""
     with pytest.raises(cv.Invalid, match="inverted"):
-        CONFIG_SCHEMA({"id": "ble_switch", "name": "Bluetooth", "inverted": True})
+        CONFIG_SCHEMA(
+            {
+                "type": "enabled",
+                "id": "ble_switch",
+                "name": "Bluetooth",
+                "inverted": True,
+            }
+        )
+
+
+@pytest.mark.parametrize(
+    ("config", "message"),
+    [
+        ({"name": "Bluetooth"}, "type not specified"),
+        ({"type": "bogus", "name": "Bluetooth"}, "Unknown value 'bogus'"),
+    ],
+)
+def test_type_validation(config: dict[str, str], message: str) -> None:
+    """The type key is required and must name a known switch type."""
+    with pytest.raises(cv.Invalid, match=message):
+        CONFIG_SCHEMA(config)
 
 
 def test_duplicate_switch_rejected(set_core_config: SetCoreConfigCallable) -> None:
     """The hub keeps one switch pointer, so a second switch is an error."""
-    entry = {"platform": DOMAIN, "name": "Bluetooth"}
+    entry = {"platform": DOMAIN, "type": "enabled", "name": "Bluetooth"}
     set_core_config(
         PlatformFramework.ESP32_IDF,
         full_config={"esp32_ble": {}, "switch": [entry, dict(entry)]},
     )
 
-    with pytest.raises(cv.Invalid, match="Only one ble switch is allowed"):
+    with pytest.raises(cv.Invalid, match="Only one ble 'enabled' switch is allowed"):
         FINAL_VALIDATE_SCHEMA(entry)
 
 
 def test_single_switch_accepted(set_core_config: SetCoreConfigCallable) -> None:
     """A lone switch passes final validation."""
-    entry = {"platform": DOMAIN, "name": "Bluetooth"}
+    entry = {"platform": DOMAIN, "type": "enabled", "name": "Bluetooth"}
     set_core_config(
         PlatformFramework.ESP32_IDF, full_config={"esp32_ble": {}, "switch": [entry]}
     )
