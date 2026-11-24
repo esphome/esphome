@@ -306,11 +306,7 @@ def test_legacy_low_suggests_preset(
 
 def _assert_thermo_calls(main_cpp: str, expected: list[str]) -> None:
     """The thermostat's calls are exactly *expected*, in order, with nothing extra."""
-    calls = [
-        line.strip()
-        for line in main_cpp.splitlines()
-        if "thermo->" in line and "configure_entity_" not in line
-    ]
+    calls = [line.strip() for line in main_cpp.splitlines() if "thermo->" in line]
     assert len(calls) == len(expected), calls
     for call, line in zip(calls, expected, strict=True):
         assert call.endswith(line), f"{call!r} is not {line!r}"

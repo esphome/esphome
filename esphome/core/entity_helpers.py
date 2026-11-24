@@ -400,8 +400,8 @@ def finalize_entity_strings(var: MockObj, config: ConfigType) -> None:
     Call this at the end of each component's setup function, after
     setup_entity() and any register_device_class/register_unit_of_measurement calls.
 
-    Emits ``var->configure_entity_(name, hash, packed)``, and adds the entity to its
-    ``App`` list if queue_entity_register() was called for it.
+    Emits ``Application::configure_<entity>(var, ...)`` and adds the entity to its ``App`` list
+    when queue_entity_register() was called for it, otherwise ``var->configure_entity_(...)``.
     """
     entity_name = RawExpression(
         f"ESPHOME_PSTR({cpp_string_escape(config[_KEY_ENTITY_NAME])})"
