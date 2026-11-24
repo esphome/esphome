@@ -4,6 +4,7 @@ from collections.abc import Callable, Sequence
 from functools import partial
 from pathlib import Path
 import struct
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -24,7 +25,7 @@ from esphome.components.tflite_op_processor.op_manifest import (
     parse_op_table,
 )
 import esphome.config_validation as cv
-from esphome.core import CORE, EsphomeError
+from esphome.core import CORE, Define, EsphomeError
 
 
 class _FlatBufferWriter:
@@ -892,3 +893,135 @@ def test_every_table_operator_has_a_builtin_code() -> None:
 )
 def test_builtin_operator_codes_match_the_schema(code: int, name: str) -> None:
     assert BUILTIN_OPERATOR_NAMES[code] == name
+
+
+def test_a_larger_operator_count_widens_an_existing_define(
+    setup_core: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Another component may have sized the resolver already; the larger value wins."""
+    monkeypatch.setattr(
+        CORE, "defines", {Define(tflite_op_processor.MAX_OPERATORS_DEFINE, 12)}
+    )
+
+    tflite_op_processor._emit_max_operators(47)
+
+    values = [
+        int(str(define.value))
+        for define in CORE.defines
+        if define.name == tflite_op_processor.MAX_OPERATORS_DEFINE
+    ]
+    assert values == [47]
+
+
+def test_a_smaller_operator_count_keeps_an_existing_define(
+    setup_core: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        CORE, "defines", {Define(tflite_op_processor.MAX_OPERATORS_DEFINE, 60)}
+    )
+
+    with patch("esphome.codegen.add_define") as add_define:
+        tflite_op_processor._emit_max_operators(47)
+
+    add_define.assert_not_called()
+
+
+def test_a_non_numeric_operator_define_is_an_error(
+    setup_core: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Silently keeping a value that cannot be compared would hide the problem."""
+    monkeypatch.setattr(
+        CORE, "defines", {Define(tflite_op_processor.MAX_OPERATORS_DEFINE, "lots")}
+    )
+
+    with pytest.raises(EsphomeError, match="lots"):
+        tflite_op_processor._emit_max_operators(47)
+
+
+def test_the_resolver_is_sized_by_the_widest_model(setup_core: Path) -> None:
+    """One resolver slot per distinct operator code, with no margin to spare."""
+    with (
+        patch.object(
+            tflite_op_processor,
+            "extract_model_ops",
+            side_effect=[{"ADD", "SOFTMAX"}, {"ADD"}],
+        ),
+        patch.object(tflite_op_processor, "emit_selective_op_defines"),
+        patch("esphome.codegen.add_define") as add_define,
+    ):
+        tflite_op_processor.add_model_operator_defines(
+            [Path("a.tflite"), Path("b.tflite")]
+        )
+
+    add_define.assert_called_once_with(tflite_op_processor.MAX_OPERATORS_DEFINE, 2)
+
+
+def test_no_models_keep_the_full_operator_table(setup_core: Path) -> None:
+    with (
+        patch.object(tflite_op_processor, "emit_all_ops") as emit_all,
+        patch.object(
+            tflite_op_processor, "emit_selective_op_defines"
+        ) as emit_selective,
+    ):
+        tflite_op_processor.add_model_operator_defines([])
+
+    emit_all.assert_called_once_with()
+    emit_selective.assert_not_called()
+
+
+def test_operator_defines_are_emitted_once(setup_core: Path) -> None:
+    with (
+        patch.object(tflite_op_processor, "extract_model_ops", return_value={"ADD"}),
+        patch.object(tflite_op_processor, "emit_selective_op_defines"),
+        patch("esphome.codegen.add_define") as add_define,
+    ):
+        tflite_op_processor.add_model_operator_defines([Path("a.tflite")])
+        tflite_op_processor.add_model_operator_defines([Path("a.tflite")])
+
+    assert [call.args[0] for call in add_define.call_args_list] == [
+        tflite_op_processor.MAX_OPERATORS_DEFINE
+    ]
+
+
+def test_validate_model_operators_accepts_a_supported_model(
+    setup_core: Path,
+) -> None:
+    with (
+        patch.object(tflite_op_processor, "extract_model_ops", return_value={"ADD"}),
+        patch.object(
+            tflite_op_processor,
+            "parse_op_table",
+            return_value=MagicMock(supported={"ADD"}),
+        ),
+    ):
+        tflite_op_processor.validate_model_operators(Path("digit.tflite"))
+
+
+def test_validate_model_operators_rejects_an_unsupported_operator(
+    setup_core: Path,
+) -> None:
+    with (
+        patch.object(tflite_op_processor, "extract_model_ops", return_value={"WHERE"}),
+        patch.object(
+            tflite_op_processor,
+            "parse_op_table",
+            return_value=MagicMock(supported={"ADD"}),
+        ),
+        pytest.raises(cv.Invalid, match="WHERE"),
+    ):
+        tflite_op_processor.validate_model_operators(Path("digit.tflite"))
+
+
+def test_validate_model_operators_reports_an_unreadable_model(
+    setup_core: Path,
+) -> None:
+    """A model whose operators cannot be read is a config error, not a load failure."""
+    with (
+        patch.object(
+            tflite_op_processor,
+            "extract_model_ops",
+            side_effect=ValueError("not a model"),
+        ),
+        pytest.raises(cv.Invalid, match="not a model"),
+    ):
+        tflite_op_processor.validate_model_operators(Path("digit.tflite"))
