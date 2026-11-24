@@ -137,6 +137,8 @@ TEST_F(SdoTest, InvalidRequestsAreRejected) {
        [](TestHub &hub, void *ctx) { return hub.write_sdo(0x21, 0x6040, 0, 0x10000u, 2, on_reply, ctx); }},
       {"write without data",
        [](TestHub &hub, void *ctx) { return hub.write_sdo_data(0x21, 0x1000, 0, nullptr, 0, on_reply, ctx); }},
+      {"write over 64 KiB",
+       [](TestHub &hub, void *ctx) { return hub.write_sdo_data(0x21, 0x1000, 0, buffer, 65536, on_reply, ctx); }},
       {"read without a buffer",
        [](TestHub &hub, void *ctx) { return hub.read_sdo_data(0x21, 0x1008, 0, nullptr, 4, on_reply, ctx); }},
       {"read with capacity 0",

@@ -84,7 +84,8 @@ bool CANopenComponent::read_sdo_data(uint8_t node_id, uint16_t index, uint8_t su
     reject(node_id, index, sub, callback, context);
     return false;
   }
-  const auto cap = static_cast<uint16_t>(capacity);
+  // a longer reply aborts anyway, so the buffer's first 64 KiB are enough
+  const auto cap = static_cast<uint16_t>(std::min<size_t>(capacity, UINT16_MAX));
   SDORequest request{node_id, sub, SDOKind::SDO_KIND_READ_DATA, 0, index, cap, {}, callback, context};
   request.data = data;
   return this->queue_sdo_(request);
@@ -92,7 +93,7 @@ bool CANopenComponent::read_sdo_data(uint8_t node_id, uint16_t index, uint8_t su
 
 bool CANopenComponent::write_sdo_data(uint8_t node_id, uint16_t index, uint8_t sub, const uint8_t *data, size_t len,
                                       SDOCallback callback, void *context) {
-  if (data == nullptr || len == 0) {
+  if (data == nullptr || len == 0 || len > UINT16_MAX) {
     reject(node_id, index, sub, callback, context);
     return false;
   }
