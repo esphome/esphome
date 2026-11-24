@@ -390,7 +390,7 @@ class LightState : public EntityBase, public Component {
   ConstVector<LightEffect *> effects_;
 #else
   // No light has effects; the effect paths fold away
-  static constexpr ConstVector<LightEffect *> effects_{};
+  static constexpr ConstVector<LightEffect *> effects_ PROGMEM{};
 #endif
   /// Object used to store the persisted values of the light.
   ESPPreferenceObject rtc_;
