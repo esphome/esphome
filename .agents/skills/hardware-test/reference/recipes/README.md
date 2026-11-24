@@ -102,7 +102,10 @@ One file per component, named after it:
 - [`tuya.md`](tuya.md): Tuya MCU simulator on a cross-wired second UART (handshake, every datapoint type, command frames logged), hub vs entity order, dump A/B
 - [`log_str_tables.md`](log_str_tables.md): name tables in PROGMEM checked byte for byte against the merge base with fake I2C and UART devices and a fake voice pipeline
 - [`jsn_sr04t.md`](jsn_sr04t.md): SR04M-2 / AJ-SR04M modes by R19 value on an ESP8266, edge capture and 8N1 decode, frame counters
-- [`vl53l1x.md`](vl53l1x.md): modules whose own microcontroller masters the I2C bus, bus sniffer, SDA unstick, register readback
+- [`vl53l1x.md`](vl53l1x.md): modules whose own microcontroller masters the I2C bus, bus sniffer, SDA unstick, register readback, speed sensor timeline with a range-to-speed checker
+- [`vl53l4cx.md`](vl53l4cx.md): ESP8266 bring-up, XSHUT without a pull-up, start-up frames, I2C transfer size limits, holding XSHUT low
+- [`display.md`](display.md): recording fake display that checks image, alpha, fill and text drawing pixel by pixel against a host model
+- [`lvgl.md`](lvgl.md): LVGL screen snapshot over the serial log turned back into PNGs, chart series readback
 - [`i2c_bus_recovery.md`](i2c_bus_recovery.md): bus recovery against a VL53L1X or Qwiic PIR wedged on purpose at every bit of a write and a read, RP2040 recovery probe
 - [`scd30.md`](scd30.md): SCD30 clock stretch timing, bus timeouts and a stuck SDA freed at boot
 - [`vl6180x.md`](vl6180x.md): VL6180X probe, config variants, XSHUT reset and injected range, overflow and read failures
