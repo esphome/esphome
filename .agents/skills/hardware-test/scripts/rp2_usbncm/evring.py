@@ -3,7 +3,8 @@
 alt0: per recorded boot, every alt 1 to alt 0 switch with the next netd_reset, next alt 1 and first IN transfer.
 notif: per recorded boot, times after alt 1 of the speed and connection notifications (IN 0x84 completes of 16 and 8
 bytes), the first alt 0 and the first NCM IN transfer start.
-count: the number of alt 0 requests in the first ring of the capture (cycle.sh prints it per boot).
+count: the number of alt 0 requests in the first ring of the capture (cycle.sh prints it per boot); prints NA and
+exits 1 when the capture has no ring.
 """
 
 import pathlib
@@ -93,7 +94,10 @@ def notif(b: dict) -> None:
 def main(path: str, mode: str) -> None:
     rings = blocks(path)
     if mode == "count":
-        print(sum(is_alt(e, 0) for e in rings[0]["ev"]) if rings else 0)
+        if not rings:
+            print("NA")
+            sys.exit(1)
+        print(sum(is_alt(e, 0) for e in rings[0]["ev"]))
         return
     seen: set = set()
     for b in rings:

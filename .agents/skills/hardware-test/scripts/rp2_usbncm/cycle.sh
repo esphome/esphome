@@ -39,7 +39,7 @@ for i in $(seq 1 "$C"); do
   L=$(sed 's/\x1b\[[0-9;]*m//g' "$D/$G-$i-logs.txt")
   pv=$(echo "$L" | grep -a -m1 -o "previous boot[: ].*")
   usb=$(echo "$L" | grep -a -m1 -o "alt1 at.*")
-  a0=$($PY "$D/evring.py" "$D/$G-$i-logs.txt" count)
+  a0=$($PY "$D/evring.py" "$D/$G-$i-logs.txt" count) || a0=unavailable
   echo "$(date +%H:%M:%S) $M $i: ok=$r back=${back}s ota_port_open_while_api_closed=$ota_only ping=${p:-0}/10 :: $pv :: $usb :: prev_alt0_lines=$a0"
   if [ "$P" = spaced ]; then w=$((tup + 65 - $(date +%s))); [ $w -gt 0 ] && sleep $w; fi
 done

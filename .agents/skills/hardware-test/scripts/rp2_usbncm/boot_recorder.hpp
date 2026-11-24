@@ -8,7 +8,8 @@
 //  - USB: mounted/suspended/CDC flags, SIE status, event/task counters, NCM data IN starts/completes,
 //         time of SET_INTERFACE alt 1 on the NCM data interface
 // plus a ring of USB events (EV lines: code 10 netd_reset, 11 netd_open, 12 class request, 13 transfer done,
-// 20 transfer start, 30 can_xmit change, 31 xmit, 40+n DCD event n, 48 interface SETUP request, a=bRequest b=wValue)
+// 20 accepted transfer start, 30 can_xmit change, 31 xmit, 40+n DCD event n,
+// 48 interface SETUP request, a=bRequest b=wValue)
 // and a stack copy if the loop timestamp stops for 3 s. The stack copy stops at 0x20042000 (RP2040 RAM end).
 #include <Arduino.h>
 #include <cstdarg>
@@ -259,8 +260,8 @@ bool __wrap_usbd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uin
   bool r = __real_usbd_edpt_xfer(rhport, ep_addr, buffer, total_bytes);
   if (ep_addr == BR_NCM_IN && r && br_in_start++ == 0)
     br_first_in_start_ms = millis();
-  if (ep_addr == BR_NCM_IN || ep_addr == BR_NCM_OUT || ep_addr == 0x84)
-    br_mark(0x20, ep_addr, total_bytes, r);
+  if (r && (ep_addr == BR_NCM_IN || ep_addr == BR_NCM_OUT || ep_addr == 0x84))
+    br_mark(0x20, ep_addr, total_bytes);
   return r;
 }
 bool __real_tud_network_can_xmit(uint16_t size);

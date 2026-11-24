@@ -3,6 +3,7 @@
 Prints the time from "disable LowDataMode" to setupDataTransfers (the host selecting alt 1), ABORT when the NCM IN
 pipe (endpoint 0x83) was aborted while the device stayed attached (the host went back to alt 0), and LINK1 or NO-LINK
 for the connection notification (updateLinkStatus: linkStatus 1). MATCH (default W5100S) is in the USB product string.
+Assumes one NCM adapter on the host: other adapters' transfer and link messages are not told apart from the target's.
 """
 
 import pathlib
