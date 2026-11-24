@@ -161,7 +161,11 @@ Per-topic scripts, each described in the matching `reference/recipes/<component>
 
 - `api/` (raw plaintext native API client for user defined actions, store_yaml recovery client over Noise or plaintext,
   `overflow/` API overflow buffer counters with a sensor config generator)
+- `api_client_synced/` (on_client_synced config generator, API client and reboot timing drivers, late fire, shutdown and
+  argument summaries, Home Assistant token renewal)
 - `api_outgoing/` (wake cycle and Wi-Fi drop timing readers)
+- `app_lists/` (17 type entity package with sub-devices and areas, API listing and command driver, `/events` and
+  dump_config normalisers)
 - `att_reorder/` (Read By Type reorder wrapper for the proxy, GATT servers, service reader, table, read and notify
   check, runner)
 - `automation_trace/` (automation marker trace driver and runner)

@@ -2,7 +2,13 @@
 .esphome/
 __pycache__/
 api/overflow/putbe-sensors.yaml
+api_client_synced/*.txt
+api_client_synced/client-synced-*.yaml
 apikey.txt
+app_lists/*-dump.txt
+app_lists/*-events.txt
+app_lists/*-list.json
+app_lists/*-root.html
 ble_adv_triggers/rxbk72xx*.yaml
 ble_adv_triggers/rxesp32*.yaml
 ble_conn_interval/*.err

@@ -1,0 +1,20 @@
+"""First listing event of each entity in a web_server /events capture, values masked, in arrival order.
+Usage: evnorm.py EVENTS_TXT   (diff the output of two builds)"""
+
+import json
+import pathlib
+import sys
+
+seen, out = set(), []
+with pathlib.Path(sys.argv[1]).open(encoding="utf-8", errors="replace") as f:
+    for line in f:
+        if not line.startswith("data: {"):
+            continue
+        d = json.loads(line[6:])
+        if "domain" not in d or d["id"] in seen:
+            continue
+        seen.add(d["id"])
+        for k in ("value", "state", "uptime", "brightness", "speed_level"):
+            d.pop(k, None)
+        out.append(json.dumps(d, sort_keys=True))
+print("\n".join(out))

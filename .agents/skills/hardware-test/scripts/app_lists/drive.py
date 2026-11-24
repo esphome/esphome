@@ -1,0 +1,191 @@
+"""List and drive every entity of entities.yaml over the API, for A/B checks of entity registration changes.
+Usage: drive.py HOST OUTPREFIX [drive]   env: API_KEY (see apiconn.py), NOLOGS=1 skips the dump_config log
+Writes OUT-list.json (device_info with devices and areas, every entity sorted by type, device and object_id) and
+OUT-dump.txt (the dump_config log), waits up to 20 s for a state of every stateful entity, and with `drive` sends
+15 commands (switch on/off, button, light on/off, number, select, fan, cover, text, lock, valve, date, time,
+datetime), each waiting for its state. Diff OUT-list.json between builds with the device name masked."""
+
+import asyncio
+import json
+import os
+from pathlib import Path
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import contextlib
+
+from aioesphomeapi import (  # noqa: E402
+    ButtonInfo,
+    LightInfo,
+    LightState,
+    LockCommand,
+    LogLevel,
+    SwitchInfo,
+    SwitchState,
+)
+from apiconn import connect, log_text  # noqa: E402
+
+NO_STATE = ("ButtonInfo", "EventInfo")
+
+
+async def main() -> None:
+    host, out = sys.argv[1], sys.argv[2]
+    drive = "drive" in sys.argv[3:]
+    cli = await connect(host)
+    di = await cli.device_info()
+    ents, _ = await cli.list_entities_services()
+    rows = []
+    for e in ents:
+        d = e.to_dict()
+        d["_type"] = type(e).__name__
+        rows.append(d)
+    rows.sort(key=lambda d: (d["_type"], d.get("device_id", 0), d["object_id"]))
+    info = {
+        "name": di.name,
+        "friendly_name": di.friendly_name,
+        "suggested_area": di.suggested_area,
+        "area": di.area.to_dict() if di.area else None,
+        "devices": [d.to_dict() for d in di.devices],
+        "areas": [a.to_dict() for a in di.areas],
+    }
+    Path(f"{out}-list.json").write_text(
+        json.dumps({"device_info": info, "entities": rows}, indent=1, sort_keys=True),
+        encoding="utf-8",
+    )
+    print(
+        f"entities={len(rows)} devices={len(di.devices)} areas={len(di.areas)} area={info['area']}"
+    )
+    for d in rows:
+        print(
+            f"  {d['_type']:<22} dev={d.get('device_id', 0):<10} key={d['key']:<10} "
+            f"oid={d['object_id']!r} name={d['name']!r}"
+        )
+
+    logs: list[str] = []
+    if not os.environ.get("NOLOGS"):
+        cli.subscribe_logs(
+            lambda m: logs.append(log_text(m)),
+            log_level=LogLevel.LOG_LEVEL_CONFIG,
+            dump_config=True,
+        )
+    states: dict[tuple[int, int], object] = {}
+    changed = asyncio.Event()
+    loop = asyncio.get_running_loop()
+
+    def on_state(s) -> None:
+        states[(s.key, getattr(s, "device_id", 0))] = s
+        changed.set()
+
+    cli.subscribe_states(on_state)
+    await asyncio.sleep(8)
+    for _ in range(20):
+        if all(
+            (d["key"], d.get("device_id", 0)) in states
+            for d in rows
+            if d["_type"] not in NO_STATE
+        ):
+            break
+        await asyncio.sleep(1)
+
+    async def wait_for(pred, t: float = 15.0) -> bool:
+        end = loop.time() + t
+        while True:
+            if any(pred(s) for s in states.values()):
+                return True
+            if (rem := end - loop.time()) <= 0:
+                return False
+            changed.clear()
+            with contextlib.suppress(TimeoutError):
+                await asyncio.wait_for(changed.wait(), rem)
+
+    def ent(cls_name: str, name: str):
+        return next(e for e in ents if type(e).__name__ == cls_name and e.name == name)
+
+    def st_ok(e, check):
+        return lambda s: s.key == e.key and s.device_id == e.device_id and check(s)
+
+    if drive:
+        relay = next(
+            e
+            for e in ents
+            if isinstance(e, SwitchInfo) and e.name == "Relay" and e.device_id == 0
+        )
+        relay2 = next(
+            e
+            for e in ents
+            if isinstance(e, SwitchInfo) and e.name == "Relay" and e.device_id != 0
+        )
+        lamp = next(e for e in ents if isinstance(e, LightInfo))
+        btn = next(
+            e for e in ents if isinstance(e, ButtonInfo) and e.name == "Press Me"
+        )
+        r2_before = states[(relay2.key, relay2.device_id)].state
+        for want in (True, False):
+            cli.switch_command(relay.key, want)
+            ok = await wait_for(
+                st_ok(
+                    relay, lambda s, w=want: isinstance(s, SwitchState) and s.state == w
+                )
+            )
+            print(f"DRIVE switch Relay(main) -> {want}: {'OK' if ok else 'NO STATE'}")
+        cli.button_command(btn.key)
+        ok = await wait_for(st_ok(relay2, lambda s: s.state != r2_before))
+        print(
+            f"DRIVE button Press Me -> sub device Relay toggled from {r2_before}: {'OK' if ok else 'NO STATE'}"
+        )
+        for want in (True, False):
+            cli.light_command(lamp.key, state=want, brightness=0.5 if want else None)
+            ok = await wait_for(
+                st_ok(
+                    lamp, lambda s, w=want: isinstance(s, LightState) and s.state == w
+                )
+            )
+            print(f"DRIVE light Lamp -> {want}: {'OK' if ok else 'NO STATE'}")
+        # (entity type, name, command method, args, expected state fields)
+        cases = [
+            ("NumberInfo", "Level", "number_command", (42.0,), {"state": 42.0}),
+            ("SelectInfo", "Mode", "select_command", ("b",), {"state": "b"}),
+            ("CoverInfo", "Shade", "cover_command", (), {"position": 1.0}),
+            ("TextInfo", "Note", "text_command", ("hello",), {"state": "hello"}),
+            ("LockInfo", "Latch", "lock_command", (LockCommand.LOCK,), {"state": 1}),
+            ("ValveInfo", "Tap", "valve_command", (), {"position": 1.0}),
+            ("DateInfo", "Day", "date_command", (2026, 11, 24), {"day": 24}),
+            ("TimeInfo", "Clock", "time_command", (12, 34, 56), {"second": 56}),
+            ("DateTimeInfo", "Stamp", "datetime_command", (1764000000,), {"epoch_seconds": 1764000000}),
+        ]  # fmt: skip
+        kw = {"cover_command": {"position": 1.0}, "valve_command": {"position": 1.0}}
+        fan = ent("FanInfo", "Fan")
+        cli.fan_command(fan.key, state=True, speed_level=2, device_id=fan.device_id)
+        ok = await wait_for(st_ok(fan, lambda s: s.state and s.speed_level == 2))
+        print(f"DRIVE fan Fan on speed 2: {'OK' if ok else 'NO STATE'}")
+        for cls_name, name, method, args, want in cases:
+            e = ent(cls_name, name)
+            getattr(cli, method)(
+                e.key, *args, device_id=e.device_id, **kw.get(method, {})
+            )
+            ok = await wait_for(
+                st_ok(
+                    e, lambda s, w=want: all(getattr(s, k) == v for k, v in w.items())
+                )
+            )
+            print(f"DRIVE {method} {name} {args or ''}: {'OK' if ok else 'NO STATE'}")
+        await asyncio.sleep(2)
+
+    missing = [
+        f"{d['_type']}:{d['name']}@{d.get('device_id', 0)}"
+        for d in rows
+        if (d["key"], d.get("device_id", 0)) not in states
+        and d["_type"] not in NO_STATE
+    ]
+    print(f"states for {len(states)} keys; entities without a state: {missing}")
+    for k, s in sorted(states.items()):
+        if "Sensor" in type(s).__name__:
+            print(
+                f"  STATE {type(s).__name__} key={k[0]} dev={k[1]} {getattr(s, 'state', None)!r}"
+            )
+    Path(f"{out}-dump.txt").write_text("\n".join(logs) + "\n", encoding="utf-8")
+    print(f"dump_config lines: {len(logs)}")
+    await cli.disconnect()
+
+
+asyncio.run(main())
