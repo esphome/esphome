@@ -15,6 +15,8 @@ ESPHOME_LOG_TAG(TAG, "vl53l4cx");
 static constexpr uint8_t DEFAULT_ADDRESS = 0x29;
 // Model id 0xEB and module type 0xAA at IDENTIFICATION__MODEL_ID
 static constexpr uint16_t SENSOR_ID = 0xEBAA;
+// ST's first frames after a start are unreliable: none has targets, and some report a near object under farthest
+static constexpr uint8_t SETTLE_FRAMES = 3;
 // After MAX_FAILURES the sensor is reset (with an enable pin) and set up again until it answers
 static constexpr uint32_t RESET_INTERVAL_ID = 0;
 static constexpr uint32_t RESET_INTERVAL_MS = 5000;
@@ -120,6 +122,7 @@ const LogString *VL53L4CXSensor::init_and_start_(bool at_boot) {
     return LOG_STR(ESP_LOG_MSG_COMM_FAIL);
   this->measurement_start_ = esphome::millis();
   this->measuring_ = true;
+  this->settle_frames_ = SETTLE_FRAMES;
   return nullptr;
 }
 
@@ -216,7 +219,8 @@ void VL53L4CXSensor::loop() {
   // An on_value automation calling component.update may already have started the next measurement
   if (this->measuring_)
     return;
-  if (this->get_update_interval() != SCHEDULER_DONT_RUN || this->resetting_()) {
+  // Frames being dropped after a start are measured back to back in every mode
+  if ((this->get_update_interval() != SCHEDULER_DONT_RUN && this->settle_frames_ == 0) || this->resetting_()) {
     this->disable_loop();
     return;
   }
@@ -261,6 +265,10 @@ void VL53L4CXSensor::publish_result_() {
   }
   this->failures_ = 0;
   this->status_clear_warning();
+  if (this->settle_frames_ > 0) {
+    this->settle_frames_--;
+    return;
+  }
   const int32_t best_mm = select_distance_mm(data, this->target_, this->min_distance_mm_, this->offset_mm_);
   ESP_LOGV(TAG, "%u targets, reporting %" PRId32 " mm", data.NumberOfObjectsFound, best_mm);
   this->publish_state(best_mm < 0 ? NAN : best_mm / 1000.0f);

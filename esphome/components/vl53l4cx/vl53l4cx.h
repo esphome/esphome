@@ -76,8 +76,9 @@ class VL53L4CXSensor final : public sensor::Sensor, public PollingComponent, pub
   int16_t offset_mm_{0};
   uint8_t distance_mode_{VL53L4CX_DISTANCEMODE_LONG};
   Target target_{TARGET_NEAREST};
-  uint8_t failures_{0};    // failed measurements in a row
-  bool measuring_{false};  // a measurement was started and its result not yet read
+  uint8_t failures_{0};       // failed measurements in a row
+  uint8_t settle_frames_{0};  // frames left to drop after a start
+  bool measuring_{false};     // a measurement was started and its result not yet read
 };
 
 }  // namespace esphome::vl53l4cx
