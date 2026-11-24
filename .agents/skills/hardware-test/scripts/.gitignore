@@ -31,6 +31,9 @@ esp8266_edges/*.log
 espnow_link/*.err
 espnow_link/*.log
 ezo_fake_bus/ezo?*.yaml
+flac_stream_changes/*.err
+flac_stream_changes/*.txt
+flac_stream_changes/media/
 gatt_uuid/*.json
 gatt_uuid/*.txt
 homeassistant_button/habtn*.yaml
@@ -103,6 +106,9 @@ tuya_sim/*.json
 tuya_sim/*.txt
 twai_self/can?*.yaml
 uart_button/uartbtn*.yaml
+uart_parity/*.txt
+uart_sim/pms_feed/*.log
+uart_sim/pms_feed/*.txt
 value_range/rng*.yaml
 vl6180x/*.log
 vl6180x/ext/

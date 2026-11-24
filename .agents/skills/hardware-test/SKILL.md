@@ -18,6 +18,8 @@ driven, what the logs show, and the same flow on a `dev` build when a quirk coul
    the shell that runs it. When more than one agent session shares the bench, run a copy of the script
    under a session-specific name (`cap<topic>.py`) so another session's `pkill` cannot take your capture
    down. Never run `esphome logs` in a `while true` loop: the loop respawns it and holds the port.
+   A capture started with `&` inside a compound command can outlive its deadline and hold the port; check
+   `pgrep -fl "[c]ap<topic>"` before flashing.
 2. **Credentials stay local.** Put a `secrets.yaml` next to the scratch configs and reference it with
    `!secret`. A copy of a device's own config keeps using the secrets file next to that config: two
    checkouts can hold different networks, and the wrong one leaves the device unreachable after the OTA.
@@ -203,7 +205,8 @@ Per-topic scripts, each described in the matching `reference/recipes/<component>
 - `esp8266_lock_load/` (DS18B20 search and one-pin IR DUTs with a busy-wait control, UDP and HTTP load, runner)
 - `espnow_link/` and `tcp_link/` (packet_interface links over ESP-NOW, UDP and TCP with checked streams)
 - `ezo_fake_bus/` (fake EZO I2C bus and step config, runner)
-- `flac_stream_changes/` (speaker media player with no DAC, stream change driver, error and heap summary, frame deltas)
+- `flac_stream_changes/` (speaker media player with no DAC, stream change driver, error and heap summary, frame deltas,
+  on-device FLAC decode benchmark with ESP32 and S3 configs, flow runner, hash check and PR against base comparer)
 - `gatt_uuid/` (GATT UUID form server, lister and comparer through a proxy)
 - `gpio_hold/` (ISR pin hold self test with ESP32 and S3 configs)
 - `heap_alloc/` (operator new caller recorder, dump saver and decoder, cover cycle driver)
@@ -311,8 +314,10 @@ Per-topic scripts, each described in the matching `reference/recipes/<component>
 - `tuya_sim/` (Tuya MCU simulator on a cross-wired UART, driver, runner and comparer)
 - `twai_self/` (TWAI self-reception header, on_frame config and counter runner)
 - `uart_button/` (UART0 loopback package, API driver with TX and RX counts, runner)
+- `uart_parity/` (raw 8N1/8E1 termios reader, 8E1 receiver model, frame classifier, shelly_dimmer packages)
 - `uart_sim/` (API driver and flash, capture and drive runner for the simulated UART sensors)
 - `uart_sim/duco/` (Duco box model, config generator, runner)
+- `uart_sim/pms_feed/` (PMS5003T feeder and capture on the logger port, power management variants)
 - `uart_tx_break/` (TX break cycle components for ESP32, ESP8266 and LibreTiny with their configs)
 - `udp/` (datagram recorder, `udp.write` payload checker and case driver)
 - `usb_audio/` (URL player)
