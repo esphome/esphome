@@ -3,6 +3,7 @@ from typing import Any
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
+from esphome.components.const import CONF_TIMING_BUDGET
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADDRESS,
@@ -22,7 +23,6 @@ VL53L0XSensor = vl53l0x_ns.class_(
 
 CONF_SIGNAL_RATE_LIMIT = "signal_rate_limit"
 CONF_LONG_RANGE = "long_range"
-CONF_TIMING_BUDGET = "timing_budget"
 
 
 def check_keys(obj: ConfigType) -> ConfigType:

@@ -462,8 +462,8 @@ void DeltaWallbox::handle_frame_(const uint8_t *frame, size_t len) {
         } else if (byte_count == REGISTER_BYTE_COUNT) {
           // Error status register (0x01B5)
           uint16_t reg_val = encode_uint16(frame[3], frame[4]);
-          char hex_str[16];
-          snprintf(hex_str, sizeof(hex_str), "%04X", reg_val);
+          char hex_str[5];
+          format_hex_pretty_to(hex_str, reg_val);
           PUBLISH_STATE(this->error_code_text_sensor_, hex_str);
         }
       } else if (frame[1] == FC_WRITE_SINGLE_REGISTER) {

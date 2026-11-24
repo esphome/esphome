@@ -37,7 +37,7 @@ void MQTTEventComponent::dump_config() {
 
 bool MQTTEventComponent::publish_event_(const std::string &event_type) {
   char topic_buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
-  return this->publish_json(this->get_state_topic_to_(topic_buf), [event_type](JsonObject root) {
+  return this->publish_json(this->get_state_topic_to_(topic_buf), [&event_type](JsonObject root) {
     // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
     root[MQTT_EVENT_TYPE] = event_type;
   });

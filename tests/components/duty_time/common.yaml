@@ -12,3 +12,7 @@ sensor:
     id: pump_duty_time
     name: Duty Time
     sensor: duty_time_bin1
+  - platform: duty_time
+    id: lambda_duty_time
+    name: Lambda Duty Time
+    lambda: "return id(duty_time_bin1).state;"
