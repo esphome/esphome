@@ -14,6 +14,7 @@ from esphome.components.i2c import CONF_I2C_ID
 from esphome.components.vl53l4cx.sensor import (
     VL53L4CX_VERSION,
     _final_validate,
+    _interrupt_capable,
     _unique_address,
     _warn_paced_by_budget,
     validate_address,
@@ -28,8 +29,10 @@ from esphome.const import (
     CONF_UPDATE_INTERVAL,
     KEY_ESP32,
     SCHEDULER_DONT_RUN,
+    PlatformFramework,
 )
 from esphome.core import CORE, ID
+from tests.component_tests.types import SetCoreConfigCallable
 
 BUS = ID("i2c_bus", is_declaration=False)
 
@@ -74,6 +77,36 @@ def test_option_limits_of_st_driver(
 ) -> None:
     with pytest.raises(cv.Invalid):
         validator(value)
+
+
+@pytest.mark.parametrize(
+    ("platform", "pin", "message"),
+    [
+        pytest.param(
+            PlatformFramework.ESP32_IDF,
+            {"number": 14, "allow_other_uses": True},
+            "cannot be shared",
+            id="shared",
+        ),
+        pytest.param(
+            PlatformFramework.ESP8266_ARDUINO, {"number": 16}, "GPIO16", id="ESP8266 GPIO16"
+        ),
+    ],
+)
+def test_interrupt_pin_must_raise_interrupts(
+    set_core_config: SetCoreConfigCallable,
+    platform: PlatformFramework,
+    pin: dict[str, Any],
+    message: str,
+) -> None:
+    set_core_config(platform)
+    with pytest.raises(cv.Invalid, match=message):
+        _interrupt_capable(pin)
+
+
+def test_interrupt_pin_accepts_own_pin(set_core_config: SetCoreConfigCallable) -> None:
+    set_core_config(PlatformFramework.ESP8266_ARDUINO)
+    assert _interrupt_capable({"number": 14}) == {"number": 14}
 
 
 def test_option_limits_accept_valid_values() -> None:

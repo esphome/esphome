@@ -8,10 +8,12 @@ from esphome.components.i2c import CONF_I2C_ID
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADDRESS,
+    CONF_ALLOW_OTHER_USES,
     CONF_ENABLE_PIN,
     CONF_FREQUENCY,
     CONF_ID,
     CONF_INTERRUPT_PIN,
+    CONF_NUMBER,
     CONF_OFFSET,
     CONF_TARGET,
     CONF_UPDATE_INTERVAL,
@@ -63,6 +65,21 @@ DEFAULT_TIMING_BUDGET = cv.TimePeriod(milliseconds=33)
 RECOMMENDED_FREQUENCY = 400_000
 # Bus bit times one measurement takes (about 150 bytes); 4.3 ms at 400 kHz and 19 ms at 100 kHz on the bench
 BITS_PER_MEASUREMENT = 1_900
+
+
+def _interrupt_capable(pin: ConfigType) -> ConfigType:
+    if pin.get(CONF_ALLOW_OTHER_USES):
+        raise cv.Invalid(
+            "The interrupt pin cannot be shared; give each sensor its own, or leave it out to poll over I2C"
+        )
+    if CORE.is_esp8266 and pin[CONF_NUMBER] == 16:
+        raise cv.Invalid(
+            "GPIO16 on ESP8266 cannot raise interrupts; use another pin, or leave it out to poll over I2C"
+        )
+    return pin
+
+
+validate_interrupt_pin = cv.All(pins.internal_gpio_input_pin_schema, _interrupt_capable)
 
 
 def validate_address(config: ConfigType) -> ConfigType:
@@ -163,7 +180,7 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_ENABLE_PIN): pins.gpio_output_pin_schema,
             # The sensor's GPIO1, low while a measurement is ready; saves an I2C poll per loop
-            cv.Optional(CONF_INTERRUPT_PIN): pins.internal_gpio_input_pin_schema,
+            cv.Optional(CONF_INTERRUPT_PIN): validate_interrupt_pin,
             cv.Optional(CONF_OFFSET): cv.int_range(min=-1000, max=1000),
         }
     )

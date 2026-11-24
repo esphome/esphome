@@ -135,11 +135,11 @@ const LogString *VL53L4CXSensor::init_and_start_(bool at_boot) {
   if (this->driver_.VL53L4CX_SetDistanceMode(this->distance_mode_) != VL53L4CX_ERROR_NONE ||
       this->driver_.VL53L4CX_SetMeasurementTimingBudgetMicroSeconds(this->budget_ms_ * 1000UL) != VL53L4CX_ERROR_NONE)
     return LOG_STR("Configuration failed");
-#ifdef USE_VL53L4CX_INTERRUPT_PIN
-  this->ready_edge_ = false;
-#endif
   if (this->driver_.VL53L4CX_StartMeasurement() != VL53L4CX_ERROR_NONE)
     return LOG_STR("Starting measurements failed");
+#ifdef USE_VL53L4CX_INTERRUPT_PIN
+  this->ready_edge_ = false;  // after the start, so an earlier edge cannot count; this one needs a whole budget
+#endif
   this->measurement_start_ = esphome::millis();
   this->measuring_ = true;
   this->settle_frames_ = SETTLE_FRAMES;
@@ -171,19 +171,18 @@ void VL53L4CXSensor::reset_sensor_() {
     return;
   }
   this->cancel_interval(RESET_INTERVAL_ID);
-  this->failures_ = 0;
-  this->status_clear_warning();
+  this->failures_ = 0;  // the warning stays until the first good reading clears it
   this->enable_loop();
 }
 
 bool VL53L4CXSensor::start_measurement_() {
   this->measurement_start_ = App.get_loop_component_start_time();
-#ifdef USE_VL53L4CX_INTERRUPT_PIN
-  this->ready_edge_ = false;
-#endif
   // ST's driver ranges again only once the interrupt is cleared: by loop() straight after each result when
   // update_interval is never, else by update()
   const VL53L4CX_Error error = this->driver_.VL53L4CX_ClearInterruptAndStartMeasurement();
+#ifdef USE_VL53L4CX_INTERRUPT_PIN
+  this->ready_edge_ = false;  // after the start, so a late edge of an earlier measurement cannot count
+#endif
   this->measuring_ = error == VL53L4CX_ERROR_NONE;
   if (!this->measuring_)
     this->measurement_failed_(LOG_STR("Starting a measurement failed"), error);
