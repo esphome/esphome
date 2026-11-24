@@ -703,15 +703,18 @@ def test_series_action_codegen(generate_main, component_config_path) -> None:
     assert "lv_chart_hide_series(line_chart, line_series_2, true);" in main_cpp
 
 
-@pytest.mark.parametrize("chart_type", ["line", "curve", "bar", "stacked", "scatter"])
+@pytest.mark.parametrize("chart_type", ["line", "bar", "stacked", "scatter"])
 def test_chart_types(chart_type: str) -> None:
     config = CHART_SCHEMA({"type": chart_type})
     assert config["type"] == f"LV_CHART_TYPE_{chart_type.upper()}"
 
 
-def test_none_is_not_a_chart_type() -> None:
+@pytest.mark.parametrize("chart_type", ["none", "curve"])
+def test_unsupported_chart_types(chart_type: str) -> None:
+    """None draws nothing, and curve needs LVGL vector graphics, which ESPHome
+    builds without, so it would draw straight lines."""
     with pytest.raises(Invalid):
-        CHART_SCHEMA({"type": "none"})
+        CHART_SCHEMA({"type": chart_type})
 
 
 def test_stacked_chart_rejects_negative_values() -> None:
@@ -730,7 +733,7 @@ def test_stacked_series_actions_reject_negative_values(payload: dict) -> None:
 
 
 def test_chart_enums_list_their_choices_for_the_schema() -> None:
-    assert CHART_TYPE(SCHEMA_EXTRACT) == ("LINE", "CURVE", "BAR", "STACKED", "SCATTER")
+    assert CHART_TYPE(SCHEMA_EXTRACT) == ("LINE", "BAR", "STACKED", "SCATTER")
     assert CHART_UPDATE_MODE(SCHEMA_EXTRACT) == ("SHIFT", "CIRCULAR")
 
 

@@ -1798,12 +1798,6 @@ lvgl:
                             - {x: 30, y: 60}
                             - {x: 50, y: 40}
                   - chart:
-                      id: lv_curve_chart_id
-                      type: curve
-                      point_count: 3
-                      series:
-                        - values: [10, 50, 20]
-                  - chart:
                       id: lv_stacked_chart_id
                       type: stacked
                       point_count: 3
