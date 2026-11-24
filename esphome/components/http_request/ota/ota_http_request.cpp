@@ -59,7 +59,6 @@ void OtaHttpRequestComponent::flash() {
 #ifdef USE_OTA_STATE_LISTENER
       this->notify_state_(ota::OTA_COMPLETED, 100.0f, ota_status);
 #endif
-      delay(10);
       App.safe_reboot();
       break;
 

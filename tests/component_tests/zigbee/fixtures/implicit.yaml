@@ -1,0 +1,35 @@
+esphome:
+  name: endpoint-test
+nrf52:
+  board: xiao_ble
+zigbee:
+  id: radio
+  model: endpoint-test
+sensor:
+  - platform: template
+    id: sample
+    name: Sample
+  - platform: template
+    id: hidden
+    name: Hidden
+    internal: true
+binary_sensor:
+  - platform: template
+    id: contact
+    name: Contact
+number:
+  - platform: template
+    id: level
+    name: Level
+    min_value: 0
+    max_value: 100
+    step: 1
+    optimistic: true
+switch:
+  - platform: template
+    id: toggle
+    name: Toggle
+    optimistic: true
+time:
+  - platform: zigbee
+    id: test_time
