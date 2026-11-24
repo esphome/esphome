@@ -2,13 +2,14 @@
 
 #include "esphome/core/defines.h"
 
-#ifdef USE_TFLITE_MICRO_HELPER
-
 #include <cstddef>
 #include <cstdint>
+
+#ifdef USE_TFLITE_MICRO_HELPER
 #include <memory>
 
 #include "esphome/components/tflite_output_processor/output_processor.h"
+#endif
 
 namespace esphome::tflite_detection {
 
@@ -22,6 +23,19 @@ struct Detection {
   float score{0.0f};
 };
 
+/// @brief Insert one candidate into a greedy non-maximum suppression result.
+///
+/// `detections` holds at most `max_detections` boxes in descending score order.
+/// A candidate that overlaps a higher-scored box of the same class is dropped;
+/// one that overlaps a lower-scored box replaces it. The cap therefore applies
+/// to the boxes that survive suppression, so overlapping candidates cannot
+/// crowd out a distinct detection.
+///
+/// @return the number of boxes left in `detections`.
+size_t insert_detection(Detection *detections, size_t count, size_t max_detections, float iou_threshold,
+                        const Detection &candidate);
+
+#ifdef USE_TFLITE_MICRO_HELPER
 /// @brief Decodes a detection model's four outputs: boxes, classes, scores and count.
 class DetectionDecoder final : public tflite_output_processor::OutputDecoder {
  public:
@@ -37,10 +51,8 @@ class DetectionDecoder final : public tflite_output_processor::OutputDecoder {
   size_t detection_count() const { return this->detection_count_; }
 
  protected:
-  /// Insert in score order.
+  /// Add one candidate, suppressing overlaps and keeping the result capped.
   void insert_(const Detection &detection);
-  /// Drop a box that overlaps a higher-scored one of the same class.
-  void suppress_();
 
   float score_threshold_;
   size_t max_detections_;
@@ -48,7 +60,6 @@ class DetectionDecoder final : public tflite_output_processor::OutputDecoder {
   std::unique_ptr<Detection[]> detections_;
   size_t detection_count_{0};
 };
+#endif
 
 }  // namespace esphome::tflite_detection
-
-#endif  // USE_TFLITE_MICRO_HELPER

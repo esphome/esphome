@@ -1,17 +1,62 @@
 #include "input_detection.h"
 
-#ifdef USE_TFLITE_MICRO_HELPER
-
 #include <algorithm>
-#include <cmath>
 
+#ifdef USE_TFLITE_MICRO_HELPER
 #include "esphome/core/log.h"
+#endif
 
 namespace esphome::tflite_detection {
 
-static const char *const TAG = "tflite_detection";
+namespace {
+float intersection_over_union(const Detection &a, const Detection &b) {
+  const float y_min = std::max(a.y_min, b.y_min);
+  const float x_min = std::max(a.x_min, b.x_min);
+  const float y_max = std::min(a.y_max, b.y_max);
+  const float x_max = std::min(a.x_max, b.x_max);
+  const float intersection = std::max(0.0f, y_max - y_min) * std::max(0.0f, x_max - x_min);
+  const float area_a = std::max(0.0f, a.y_max - a.y_min) * std::max(0.0f, a.x_max - a.x_min);
+  const float area_b = std::max(0.0f, b.y_max - b.y_min) * std::max(0.0f, b.x_max - b.x_min);
+  const float union_area = area_a + area_b - intersection;
+  return union_area > 0.0f ? intersection / union_area : 0.0f;
+}
+}  // namespace
+
+size_t insert_detection(Detection *detections, size_t count, size_t max_detections, float iou_threshold,
+                        const Detection &candidate) {
+  if (max_detections == 0)
+    return 0;
+  // A higher-scored box of the same class already covers this candidate.
+  for (size_t i = 0; i < count; i++) {
+    if (detections[i].class_id == candidate.class_id && detections[i].score >= candidate.score &&
+        intersection_over_union(detections[i], candidate) > iou_threshold)
+      return count;
+  }
+  // This candidate suppresses the lower-scored overlapping boxes instead.
+  size_t kept = 0;
+  for (size_t i = 0; i < count; i++) {
+    if (detections[i].class_id == candidate.class_id && detections[i].score < candidate.score &&
+        intersection_over_union(detections[i], candidate) > iou_threshold)
+      continue;
+    detections[kept++] = detections[i];
+  }
+  size_t position = kept;
+  while (position > 0 && detections[position - 1].score < candidate.score)
+    position--;
+  if (position >= max_detections)
+    return kept;
+  const size_t last = std::min(kept, max_detections - 1);
+  for (size_t i = last; i > position; i--)
+    detections[i] = detections[i - 1];
+  detections[position] = candidate;
+  return std::min(kept + 1, max_detections);
+}
+
+#ifdef USE_TFLITE_MICRO_HELPER
 
 namespace {
+static const char *const TAG = "tflite_detection";
+
 /// Number of entries a tensor can hold; 0 for a tensor without usable dimensions.
 size_t tensor_elements(const TfLiteTensor *tensor) {
   if (tensor == nullptr || tensor->dims == nullptr)
@@ -46,49 +91,11 @@ bool tensor_value(const TfLiteTensor *tensor, size_t index, float *out) {
       return false;
   }
 }
-
-float intersection_over_union(const Detection &a, const Detection &b) {
-  const float y_min = std::max(a.y_min, b.y_min);
-  const float x_min = std::max(a.x_min, b.x_min);
-  const float y_max = std::min(a.y_max, b.y_max);
-  const float x_max = std::min(a.x_max, b.x_max);
-  const float intersection = std::max(0.0f, y_max - y_min) * std::max(0.0f, x_max - x_min);
-  const float area_a = std::max(0.0f, a.y_max - a.y_min) * std::max(0.0f, a.x_max - a.x_min);
-  const float area_b = std::max(0.0f, b.y_max - b.y_min) * std::max(0.0f, b.x_max - b.x_min);
-  const float union_area = area_a + area_b - intersection;
-  return union_area > 0.0f ? intersection / union_area : 0.0f;
-}
 }  // namespace
 
 void DetectionDecoder::insert_(const Detection &detection) {
-  size_t position = this->detection_count_;
-  while (position > 0 && this->detections_[position - 1].score < detection.score)
-    position--;
-  if (position >= this->max_detections_)
-    return;
-  const size_t last = std::min(this->detection_count_, this->max_detections_ - 1);
-  for (size_t i = last; i > position; i--)
-    this->detections_[i] = this->detections_[i - 1];
-  this->detections_[position] = detection;
-  if (this->detection_count_ < this->max_detections_)
-    this->detection_count_++;
-}
-
-void DetectionDecoder::suppress_() {
-  size_t kept = 0;
-  for (size_t i = 0; i < this->detection_count_; i++) {
-    bool overlap = false;
-    for (size_t j = 0; j < kept; j++) {
-      if (this->detections_[j].class_id == this->detections_[i].class_id &&
-          intersection_over_union(this->detections_[j], this->detections_[i]) > this->iou_threshold_) {
-        overlap = true;
-        break;
-      }
-    }
-    if (!overlap)
-      this->detections_[kept++] = this->detections_[i];
-  }
-  this->detection_count_ = kept;
+  this->detection_count_ = insert_detection(this->detections_.get(), this->detection_count_, this->max_detections_,
+                                            this->iou_threshold_, detection);
 }
 
 bool DetectionDecoder::decode(TfLiteTensor *const *outputs, size_t count) {
@@ -129,10 +136,9 @@ bool DetectionDecoder::decode(TfLiteTensor *const *outputs, size_t count) {
     detection.score = score;
     this->insert_(detection);
   }
-  this->suppress_();
   return true;
 }
 
-}  // namespace esphome::tflite_detection
-
 #endif  // USE_TFLITE_MICRO_HELPER
+
+}  // namespace esphome::tflite_detection
