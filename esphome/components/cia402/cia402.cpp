@@ -6,6 +6,9 @@ namespace esphome::cia402 {
 
 ESPHOME_LOG_TAG(TAG, "cia402");
 
+static constexpr uint16_t START_PROFILE_POSITION = 0x3F;
+static constexpr int32_t STANDSTILL_VELOCITY_TOLERANCE = 1;  // Allow one reported unit of velocity jitter.
+
 DriveState CiA402Drive::state_from_statusword(uint16_t value) {
   switch (value & 0x4F) {
     case 0:
@@ -144,7 +147,7 @@ void CiA402Drive::append_move_(int32_t position, bool relative) {
   if (relative)
     this->append_({static_cast<uint32_t>(position), 0, 0x6064, 0, 4, StepKind::STEP_KIND_RELATIVE});
   this->write_(0x607A, static_cast<uint32_t>(position), 4);
-  this->write_(0x6040, 0x3F, 2);
+  this->write_(0x6040, START_PROFILE_POSITION, 2);
   this->read_(0x6041, 2, 0x1000, 0x1000, true);
   this->write_(0x6040, 15, 2);
   this->read_(0x6041, 2, 0x1400, 0x400, true);
@@ -187,6 +190,7 @@ bool CiA402Drive::request_stop_(uint16_t controlword) {
 
 void CiA402Drive::finish_(DriveResult result) {
   this->running_ = false;
+  this->motion_requested_ = false;
   this->step_count_ = 0;
   this->step_index_ = 0;
   this->resetting_ = false;
@@ -196,9 +200,11 @@ void CiA402Drive::finish_(DriveResult result) {
 void CiA402Drive::fail_(DriveResult result) {
   this->status_set_warning();
   ESP_LOGW(TAG, "Node %u sequence failed: %u", this->node_, static_cast<unsigned>(result));
-  this->stopping_ = true;
-  this->notify_stop_ = false;
-  this->stop_controlword_ = 2;
+  if (this->motion_requested_) {
+    this->stopping_ = true;
+    this->notify_stop_ = false;
+    this->stop_controlword_ = 2;
+  }
   this->finish_(result);
 }
 
@@ -259,6 +265,9 @@ void CiA402Drive::send_step_(const Step &step) {
   this->pending_ = true;
   this->last_request_ms_ = App.get_loop_component_start_time();
   if (step.kind == StepKind::STEP_KIND_WRITE) {
+    // The drive may start moving even if the acknowledgement never arrives.
+    if (step.index == 0x6040 && step.value == START_PROFILE_POSITION)
+      this->motion_requested_ = true;
     this->write_sdo(step.index, step.subindex, step.value, step.size, on_result, this);
   } else {
     this->read_sdo(step.index, step.subindex, on_result, this);
@@ -313,8 +322,12 @@ void CiA402Drive::process_result_(canopen::SDOResult result, uint32_t value, uin
   const auto &step = this->pending_step_;
   if (!success || (step.kind != StepKind::STEP_KIND_WRITE && size != step.size)) {
     this->status_set_warning();
-    if (sequence)
+    if (sequence) {
+      if (step.index == 0x6040 && step.value == START_PROFILE_POSITION &&
+          (result == canopen::SDOResult::SDO_RESULT_ABORT || result == canopen::SDOResult::SDO_RESULT_REJECTED))
+        this->motion_requested_ = false;
       this->fail_(success ? DriveResult::DRIVE_RESULT_INVALID_RESPONSE : DriveResult::DRIVE_RESULT_COMMUNICATION_ERROR);
+    }
     return;
   }
   if (step.kind != StepKind::STEP_KIND_WRITE)
@@ -325,8 +338,10 @@ void CiA402Drive::process_result_(canopen::SDOResult result, uint32_t value, uin
     this->fail_(DriveResult::DRIVE_RESULT_FAULT);
     return;
   }
-  if ((step.kind == StepKind::STEP_KIND_CHECK || step.kind == StepKind::STEP_KIND_WAIT) &&
-      (value & step.mask) != step.value) {
+  const bool matches = step.index == 0x606C ? this->velocity_ >= -STANDSTILL_VELOCITY_TOLERANCE &&
+                                                  this->velocity_ <= STANDSTILL_VELOCITY_TOLERANCE
+                                            : (value & step.mask) == step.value;
+  if ((step.kind == StepKind::STEP_KIND_CHECK || step.kind == StepKind::STEP_KIND_WAIT) && !matches) {
     if (step.kind == StepKind::STEP_KIND_CHECK)
       this->fail_(DriveResult::DRIVE_RESULT_REJECTED);
     return;

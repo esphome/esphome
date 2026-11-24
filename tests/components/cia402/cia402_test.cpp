@@ -97,18 +97,21 @@ TEST_F(DriveTest, WrongWidthStopsSequence) {
   reply(0x40, 1);
   ASSERT_EQ(results.size(), 1);
   EXPECT_EQ(results[0], DriveResult::DRIVE_RESULT_INVALID_RESPONSE);
-  EXPECT_EQ(next().data[4], 2);
-  reply();
-  EXPECT_EQ(results.size(), 1);  // Automatic recovery is not command success.
+  drive.tick();
+  client.loop();
+  EXPECT_EQ(bus.sent.size(), 1);
+  EXPECT_FALSE(drive.busy());
 }
 
-TEST_F(DriveTest, TimeoutDoesNotRetryMotion) {
+TEST_F(DriveTest, PreflightTimeoutDoesNotStopDrive) {
   ASSERT_TRUE(drive.move_to(100));
   next();
   reply(0x27);
   drive.expire();
-  EXPECT_EQ(next().data[4], 2);
-  reply();
+  drive.tick();
+  client.loop();
+  EXPECT_EQ(bus.sent.size(), 1);
+  EXPECT_FALSE(drive.busy());
   ASSERT_EQ(results.size(), 1);
   EXPECT_EQ(results[0], DriveResult::DRIVE_RESULT_TIMEOUT);
 }
@@ -119,7 +122,10 @@ TEST_F(DriveTest, FaultNeverAutomaticallyResets) {
   reply(8);
   ASSERT_EQ(results.size(), 1);
   EXPECT_EQ(results[0], DriveResult::DRIVE_RESULT_FAULT);
-  EXPECT_EQ(next().data[4], 2);
+  drive.tick();
+  client.loop();
+  EXPECT_EQ(bus.sent.size(), 1);
+  EXPECT_FALSE(drive.busy());
 }
 
 TEST_F(DriveTest, FaultResetLeavesDriveDisabled) {
@@ -156,7 +162,10 @@ TEST_F(DriveTest, SdoAbortCancelsSequence) {
   client.on_frame_(0x5A0, false, false, {0x80, frame.data[1], frame.data[2], 0, 0, 0, 2, 6});
   ASSERT_EQ(results.size(), 1);
   EXPECT_EQ(results[0], DriveResult::DRIVE_RESULT_COMMUNICATION_ERROR);
-  EXPECT_EQ(next().data[4], 2);
+  drive.tick();
+  client.loop();
+  EXPECT_EQ(bus.sent.size(), 1);
+  EXPECT_FALSE(drive.busy());
 }
 
 TEST_F(DriveTest, NewDisableIsNotLostWhileQuickStopAcknowledgementIsPending) {
@@ -195,6 +204,11 @@ TEST_F(DriveTest, RelativeOverflowNeverWritesTarget) {
   }
   ASSERT_EQ(results.size(), 1);
   EXPECT_EQ(results[0], DriveResult::DRIVE_RESULT_REJECTED);
+  const auto sent = bus.sent.size();
+  drive.tick();
+  client.loop();
+  EXPECT_EQ(bus.sent.size(), sent);
+  EXPECT_FALSE(drive.busy());
 }
 
 TEST_F(DriveTest, ProfilePositionCompletesAcknowledgementHandshake) {
@@ -225,6 +239,8 @@ TEST_F(DriveTest, ProfilePositionCompletesAcknowledgementHandshake) {
       reply(1, 1);
     } else if (object == 0x6064) {
       reply(static_cast<uint32_t>(-100), 4);
+    } else if (object == 0x606C) {
+      reply(started ? 1 : UINT32_MAX, 4);
     } else {
       reply(0, 4);
     }
@@ -233,6 +249,38 @@ TEST_F(DriveTest, ProfilePositionCompletesAcknowledgementHandshake) {
   EXPECT_TRUE(started);
   ASSERT_EQ(results.size(), 1);
   EXPECT_EQ(results[0], DriveResult::DRIVE_RESULT_SUCCESS);
+}
+
+TEST_F(DriveTest, TimeoutAfterSubmittingMoveSendsQuickStop) {
+  ASSERT_TRUE(drive.move_to(100));
+  bool submitted = false;
+  for (unsigned i = 0; i < 20 && !submitted; i++) {
+    const auto frame = next();
+    const auto object = index(frame);
+    if (frame.data[0] != 0x40) {
+      submitted = object == 0x6040 && frame.data[4] == 0x3F;
+      if (!submitted) {
+        reply();
+      }
+    } else if (object == 0x6041) {
+      reply(0x27);
+    } else if (object == 0x6061) {
+      reply(1, 1);
+    } else {
+      reply(0, 4);
+    }
+  }
+  ASSERT_TRUE(submitted);
+  drive.expire();
+  drive.tick();
+  ASSERT_EQ(results.size(), 1);
+  EXPECT_EQ(results[0], DriveResult::DRIVE_RESULT_TIMEOUT);
+  reply();
+  const auto stop = next();
+  EXPECT_EQ(index(stop), 0x6040);
+  EXPECT_EQ(stop.data[4], 2);
+  reply();
+  EXPECT_FALSE(drive.busy());
 }
 
 TEST_F(DriveTest, AbsoluteLimitRejectionSendsNoTraffic) {
@@ -265,6 +313,11 @@ TEST_F(DriveTest, RelativeLimitRejectionNeverWritesTarget) {
   }
   ASSERT_EQ(results.size(), 1);
   EXPECT_EQ(results[0], DriveResult::DRIVE_RESULT_REJECTED);
+  const auto sent = bus.sent.size();
+  drive.tick();
+  client.loop();
+  EXPECT_EQ(bus.sent.size(), sent);
+  EXPECT_FALSE(drive.busy());
 }
 
 TEST_F(DriveTest, ConfigurationUsesIndependentQuickStopAndSignedLimits) {
@@ -300,7 +353,10 @@ TEST_F(DriveTest, ConfigurationIsRejectedWhileMoving) {
   reply(10, 4);
   ASSERT_EQ(results.size(), 1);
   EXPECT_EQ(results[0], DriveResult::DRIVE_RESULT_REJECTED);
-  EXPECT_EQ(index(next()), 0x6040);  // Quick stop, never write profile settings.
+  drive.tick();
+  client.loop();
+  EXPECT_EQ(bus.sent.size(), 2);
+  EXPECT_FALSE(drive.busy());
 }
 
 TEST(DriveStateTest, IgnoresUnrelatedStatuswordBits) {

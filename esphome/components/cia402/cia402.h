@@ -131,6 +131,7 @@ class CiA402Drive : public PollingComponent, public canopen::CANopenNode {
   bool pending_stop_{false};
   bool notify_stop_{false};
   bool running_{false};
+  bool motion_requested_{false};
   bool stopping_{false};
   bool poll_due_{false};
   bool resetting_{false};
