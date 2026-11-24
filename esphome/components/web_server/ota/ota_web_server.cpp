@@ -163,8 +163,7 @@ void WebServerOTAComponent::handleUpload(AsyncWebServerRequest *request, const P
     ESP_LOGD(TAG, "OTA final chunk: index=%zu, len=%zu, total_read=%" PRIu32 ", contentLength=%zu", index, len,
              this->ota_read_length_, request->contentLength());
 
-    // A stream that lost bytes still ends on the closing boundary, so end() must check the image:
-    // ESP-IDF verifies it, ESP8266 checks its segment tables against the size received
+    // The closing boundary arrives even after lost bytes; end() verifies the image
     error_code = this->ota_backend_->end();
     if (error_code == ota::OTA_RESPONSE_OK) {
       this->ota_success_ = true;

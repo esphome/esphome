@@ -343,10 +343,10 @@ bool ESP8266OTABackend::verify_end_() {
     return false;
   }
 
-  // Without an MD5 the segment tables must end exactly at the size received; a lost chunk shows here
+  // No MD5: the segment tables must end exactly at the bytes received
   if (!this->md5_set_) {
     size_t end = this->image_end_(0);
-    // Arduino images: eboot padded to 4 KB, then the app
+    // eboot padded to 4 KB, then the app
     if (end <= APP_START_OFFSET && this->image_size_ > APP_START_OFFSET)
       end = this->image_end_(APP_START_OFFSET);
     if (end != this->image_size_) {
@@ -371,7 +371,7 @@ bool ESP8266OTABackend::verify_end_() {
   return true;
 }
 
-// Same walk as EspClass::getSketchSize(), over the staged image instead of the running one
+// EspClass::getSketchSize()'s walk, over the staged image
 size_t ESP8266OTABackend::image_end_(size_t offset) {
   image_header_t header;
   if (offset + sizeof(header) > this->image_size_ ||
