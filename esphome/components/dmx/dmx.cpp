@@ -282,8 +282,6 @@ void DMXComponent::sync_numbers_to_rdm_() {
   }
 }
 
-
-
 void DMXComponent::loop() {
   const uint32_t now = App.get_loop_component_start_time();
 
@@ -295,29 +293,26 @@ void DMXComponent::loop() {
     if (received_size > 0) {
       // Handle valid RDM packets immediately.
       if (packet.err == DMX_OK && packet.is_rdm) {
-        #if ESPHOME_DMX_HAS_RDM
+#if ESPHOME_DMX_HAS_RDM
         if (this->rdm_enabled_) {
           rdm_send_response(this->dmx_port_);
           this->sync_rdm_to_numbers_();
         }
-        #endif
+#endif
         return;
       }
 
       // Handle normal DMX packets.
       if (packet.err == DMX_OK && !packet.is_rdm && packet.sc == 0x00) {
         if (received_size > DMX_PACKET_SIZE) {
-          ESP_LOGW(TAG, "Ignoring oversized DMX packet (%u bytes)",
-                   static_cast<unsigned>(received_size));
+          ESP_LOGW(TAG, "Ignoring oversized DMX packet (%u bytes)", static_cast<unsigned>(received_size));
         } else {
-          const size_t bytes_read =
-              dmx_read(this->dmx_port_, this->rx_data_, received_size);
+          const size_t bytes_read = dmx_read(this->dmx_port_, this->rx_data_, received_size);
 
           if (bytes_read == received_size) {
             this->publish_inputs_();
           } else {
-            ESP_LOGW(TAG, "Incomplete DMX read: expected %u bytes, received %u",
-                     static_cast<unsigned>(received_size),
+            ESP_LOGW(TAG, "Incomplete DMX read: expected %u bytes, received %u", static_cast<unsigned>(received_size),
                      static_cast<unsigned>(bytes_read));
           }
         }
@@ -326,26 +321,23 @@ void DMXComponent::loop() {
       }
     }
 
-    #if ESPHOME_DMX_HAS_RDM
+#if ESPHOME_DMX_HAS_RDM
     // Synchronize Home Assistant Number changes to RDM parameters.
     if (this->rdm_enabled_) {
       this->sync_numbers_to_rdm_();
     }
-    #endif
+#endif
 
     return;
   }
 
   // TX mode: ESPHome is the DMX controller.
   if (this->mode_ == DMXMode::DMX_MODE_TX && this->tx_enabled_) {
-    if (this->tx_dirty_ ||
-        (now - this->last_tx_ms_ >= this->tx_interval_ms_)) {
+    if (this->tx_dirty_ || (now - this->last_tx_ms_ >= this->tx_interval_ms_)) {
       this->send_universe_();
     }
   }
 }
-
-
 
 void DMXComponent::publish_inputs_() {
   for (auto &cs : this->static_sensors_) {

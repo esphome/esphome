@@ -76,16 +76,13 @@ UART_CONFIG = {
 }
 
 assert set(VARIANTS) <= set(UART_CONFIG), (
-    "Missing UART configuration for ESP32 variants: "
-    f"{set(VARIANTS) - set(UART_CONFIG)}"
+    f"Missing UART configuration for ESP32 variants: {set(VARIANTS) - set(UART_CONFIG)}"
 )
 
 UART_NUMBERS = variant_filtered_enum(
-    {
-        variant: allowed
-        for variant, (_, allowed) in UART_CONFIG.items()
-    }
+    {variant: allowed for variant, (_, allowed) in UART_CONFIG.items()}
 )
+
 
 def default_uart_num():
     return UART_CONFIG[get_esp32_variant()][0]
