@@ -83,21 +83,74 @@ extern Area *const APP_AREA_LIST[];
 // NOLINTEND(bugprone-macro-parentheses)
 }  // namespace app_lists
 
-/// Read-only view of one of the Application's lists: the `N` pointers codegen placed in a constant array.
+/// Read-only view of one of the Application's lists: the `N` pointers codegen placed in a constant
+/// array, then the slots reserved for objects registered at run time (`Runtime`, a `SlotList`).
 /// The arrays hold aligned pointers, which ESP8266 reads from flash like RAM.
-template<typename T, size_t N> class AppList {
+template<typename T, size_t N, typename Runtime = EmptyList<T *>> class AppList {
+  static constexpr bool HAS_RUNTIME = !std::is_same_v<Runtime, EmptyList<T *>>;
+
  public:
   using value_type = T *;
+  class Iterator;
   explicit AppList(T *const *list) : list_(list) {}
-  static constexpr size_t size() { return N; }
-  static constexpr bool empty() { return N == 0; }
-  T *operator[](size_t i) const { return this->list_[i]; }
-  T *const *begin() const { return this->list_; }
-  T *const *end() const { return this->list_ + N; }
+  AppList(T *const *list, const Runtime &runtime) : list_(list) {
+    if constexpr (HAS_RUNTIME)
+      this->runtime_ = &runtime;
+  }
+  size_t size() const {
+    if constexpr (HAS_RUNTIME) {
+      return N + this->runtime_->size();
+    } else {
+      return N;
+    }
+  }
+  bool empty() const { return this->size() == 0; }
+  T *operator[](size_t i) const {
+    if constexpr (HAS_RUNTIME) {
+      if (i >= N)
+        return (*this->runtime_)[i - N];
+    }
+    return this->list_[i];
+  }
+  // Without runtime slots the iterator is the array pointer itself
+  auto begin() const {
+    if constexpr (HAS_RUNTIME) {
+      return Iterator(*this, 0);
+    } else {
+      return this->list_;
+    }
+  }
+  auto end() const {
+    if constexpr (HAS_RUNTIME) {
+      return Iterator(*this, this->size());
+    } else {
+      return this->list_ + N;
+    }
+  }
 
  private:
   T *const *list_;
+  // Only a view with runtime slots holds more than the array pointer
+  [[no_unique_address]] std::conditional_t<HAS_RUNTIME, const Runtime *, EmptyList<T *>> runtime_{};
 };
+
+/// Holds a copy of the view, so it stays valid after the view itself is gone.
+template<typename T, size_t N, typename Runtime> class AppList<T, N, Runtime>::Iterator {
+ public:
+  Iterator(const AppList &view, size_t index) : view_(view), index_(index) {}
+  T *operator*() const { return this->view_[this->index_]; }
+  Iterator &operator++() {
+    ++this->index_;
+    return *this;
+  }
+  bool operator!=(const Iterator &other) const { return this->index_ != other.index_; }
+
+ private:
+  AppList view_;
+  size_t index_;
+};
+
+static_assert(sizeof(AppList<int, 1>) == sizeof(void *), "a view without runtime slots is only the array pointer");
 
 class Application {
  public:
@@ -151,19 +204,46 @@ class Application {
   void set_current_source(const LogString *source) { this->current_source_ = source; }
   const LogString *get_current_source() { return this->current_source_; }
 
-// Codegen entities are in the constant APP_<UPPER>_LIST arrays; an old runtime register call is a clear error.
+// Codegen entities are in the constant APP_<UPPER>_LIST arrays. Entities created at run time go into
+// slots reserved with cg.reserve_runtime_entities(): register_<entity>(obj, name) names the entity,
+// computes its object_id hash from the name and fills a slot; it returns false and leaves the entity
+// unnamed when every reserved slot is taken. `name` must stay valid as long as the entity, and ESP8266
+// reads it like a flash string. Without a reservation the call fails to compile with a message saying so.
 // NOLINTBEGIN(bugprone-macro-parentheses)
+#define APP_RESERVE_HINT_(singular) \
+  "Call cg.reserve_runtime_entities(\"" #singular "\", n) in to_code to register entities at run time"
 #define ENTITY_TYPE_(type, singular, plural, count, upper) \
-  template<typename U = type, typename... A> void register_##singular(U * /*obj*/, A... /*args*/) { \
-    static_assert(sizeof(U) == 0, \
-                  "Entities are created by code generation; creating them at run time is not supported"); \
+\
+ protected: \
+  [[no_unique_address]] SlotList<type *, ESPHOME_RUNTIME_##upper##_COUNT> runtime_##plural##_; \
+\
+ public: \
+  SLOT_LIST_REQUIRES(ESPHOME_RUNTIME_##upper##_COUNT) \
+  bool register_##singular(type *obj, const char *name) { \
+    if (this->runtime_##plural##_.size() == SLOT_LIST_COUNT) { \
+      this->log_runtime_slots_full_(name); \
+      return false; \
+    } \
+    obj->configure_name_(name); \
+    this->runtime_##plural##_.push_back(obj); \
+    return true; \
+  } \
+  template<size_t RESERVED = ESPHOME_RUNTIME_##upper##_COUNT, typename... A> \
+    requires(RESERVED == 0) \
+  void register_##singular(type * /*obj*/, A... /*args*/) { \
+    static_assert(RESERVED != 0, APP_RESERVE_HINT_(singular)); \
   }
 #define ENTITY_CONTROLLER_TYPE_(type, singular, plural, count, upper, callback) \
   ENTITY_TYPE_(type, singular, plural, count, upper)
 #include "esphome/core/entity_types.h"
 #undef ENTITY_TYPE_
 #undef ENTITY_CONTROLLER_TYPE_
+#undef APP_RESERVE_HINT_
   // NOLINTEND(bugprone-macro-parentheses)
+
+ protected:
+  // Defined only with USE_RUNTIME_ENTITIES; only a reserved register_<entity>() calls it
+  void log_runtime_slots_full_(const char *name);
 
  public:
 #ifdef USE_SERIAL_PROXY
@@ -410,7 +490,10 @@ class Application {
 // Entity getter methods (generated from entity_types.h)
 // NOLINTBEGIN(bugprone-macro-parentheses)
 #define ENTITY_TYPE_(type, singular, plural, count, upper) \
-  auto get_##plural() const { return AppList<type, count>(app_lists::APP_##upper##_LIST); } \
+  auto get_##plural() const { \
+    return AppList<type, count, decltype(this->runtime_##plural##_)>(app_lists::APP_##upper##_LIST, \
+                                                                     this->runtime_##plural##_); \
+  } \
   GET_ENTITY_METHOD(type, singular, plural)
 #define ENTITY_CONTROLLER_TYPE_(type, singular, plural, count, upper, callback) \
   ENTITY_TYPE_(type, singular, plural, count, upper)

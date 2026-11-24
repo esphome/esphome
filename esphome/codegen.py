@@ -8,6 +8,7 @@
 # want to break suddenly due to a rename (this file will get backports for features).
 
 # pylint: disable=unused-import
+from esphome.core.app_lists import reserve_runtime_entities  # noqa: F401
 from esphome.cpp_generator import (  # noqa: F401
     ArrayInitializer,
     Expression,

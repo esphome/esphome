@@ -1,4 +1,4 @@
-"""Constant App lists (esphome/core/app_lists.py)."""
+"""Constant App lists and runtime entity reservations (esphome/core/app_lists.py)."""
 
 from pathlib import Path
 import re
@@ -47,6 +47,37 @@ def test_entities_are_emitted_in_order() -> None:
         )
     ]
     assert get_define_value("ESPHOME_ENTITY_SENSOR_COUNT") == "2"
+    # No reservation: the runtime part is an EmptyList and register_sensor() does not exist
+    assert get_define_value("ESPHOME_RUNTIME_SENSOR_COUNT") == "0"
+    assert get_define_value("USE_RUNTIME_ENTITIES") is None
+
+
+def test_reservation_sizes_the_runtime_slots() -> None:
+    CORE.loaded_integrations.add("sensor")
+    cg.reserve_runtime_entities("sensor", 3)
+    app_lists.schedule_emit()
+    CORE.flush_tasks()
+    assert get_define_value("ESPHOME_RUNTIME_SENSOR_COUNT") == "3"
+    assert get_define_value("USE_RUNTIME_ENTITIES") is not None
+    assert get_define_value("ESPHOME_ENTITY_SENSOR_COUNT") == "0"
+    assert get_define_value("USE_SENSOR") is not None
+    assert _global_lines() == [
+        "decltype(esphome::app_lists::APP_SENSOR_LIST) esphome::app_lists::APP_SENSOR_LIST PROGMEM = {nullptr};"
+    ]
+
+
+def test_datetime_reservation_uses_its_own_defines() -> None:
+    CORE.loaded_integrations.add("datetime")
+    cg.reserve_runtime_entities("date", 1)
+    app_lists.schedule_emit()
+    CORE.flush_tasks()
+    assert get_define_value("ESPHOME_RUNTIME_DATETIME_DATE_COUNT") == "1"
+    assert get_define_value("USE_DATETIME_DATE") is not None
+
+
+def test_unknown_platform_is_rejected() -> None:
+    with pytest.raises(EsphomeError, match="Unknown entity platform"):
+        cg.reserve_runtime_entities("not_a_platform", 1)
 
 
 def test_alias_resolves_to_its_static_object() -> None:
@@ -71,7 +102,7 @@ def test_runtime_pointer_is_rejected() -> None:
     )
     with pytest.raises(
         EsphomeError,
-        match=r"cg\.new_Pvariable.*entities cannot be added at run time",
+        match=r"cg\.new_Pvariable.*App\.register_<platform>\(obj, name\)",
     ):
         app_lists.add_entity("sensor", runtime)
 
@@ -89,17 +120,40 @@ def test_use_define_adds_the_datetime_prefix() -> None:
     assert app_lists.use_define("media_source") == "USE_MEDIA_SOURCE"
 
 
+def test_reservation_needs_the_integration() -> None:
+    with pytest.raises(EsphomeError, match=r'AUTO_LOAD = \["datetime"\]'):
+        cg.reserve_runtime_entities("time", 1)
+
+
+def test_reservation_after_emit_is_rejected() -> None:
+    CORE.loaded_integrations.add("sensor")
+    app_lists.schedule_emit()
+    CORE.flush_tasks()
+    with pytest.raises(EsphomeError, match="after the lists were emitted"):
+        cg.reserve_runtime_entities("sensor", 1)
+
+
 def test_directly_defined_use_gets_its_list() -> None:
-    """A test or benchmark that defines USE_<X> itself still gets the list and its count."""
+    """A test or benchmark that defines USE_<X> itself still gets the list and both counts."""
     cg.add_define("USE_INFRARED")
     app_lists.schedule_emit()
     CORE.flush_tasks()
     assert get_define_value("ESPHOME_ENTITY_INFRARED_COUNT") == "0"
+    assert get_define_value("ESPHOME_RUNTIME_INFRARED_COUNT") == "0"
     assert get_define_value("USE_IR_RF") is not None
     assert (
         "esphome::app_lists::APP_INFRARED_LIST PROGMEM = {nullptr};"
         in CORE.cpp_global_section
     )
+
+
+def test_runtime_only_radio_frequency_enables_ir_rf() -> None:
+    CORE.loaded_integrations.add("radio_frequency")
+    cg.reserve_runtime_entities("radio_frequency", 1)
+    app_lists.schedule_emit()
+    CORE.flush_tasks()
+    assert get_define_value("USE_RADIO_FREQUENCY") is not None
+    assert get_define_value("USE_IR_RF") is not None
 
 
 @pytest.mark.parametrize("via_build_flag", [False, True])
@@ -112,7 +166,24 @@ def test_count_override_is_rejected(via_build_flag: bool) -> None:
     else:
         cg.add_define("ESPHOME_ENTITY_SENSOR_COUNT", 32)
     app_lists.schedule_emit()
-    with pytest.raises(EsphomeError, match="entities cannot be added at run time"):
+    with pytest.raises(EsphomeError, match=r'reserve_runtime_entities\("sensor", n\)'):
+        CORE.flush_tasks()
+
+
+@pytest.mark.parametrize("via_build_flag", [False, True])
+def test_runtime_count_override_is_rejected_with_a_reservation(
+    via_build_flag: bool,
+) -> None:
+    CORE.loaded_integrations.add("sensor")
+    cg.reserve_runtime_entities("sensor", 12)
+    if via_build_flag:
+        CORE.build_flags.add("-DESPHOME_RUNTIME_SENSOR_COUNT=2")
+    else:
+        cg.add_define("ESPHOME_RUNTIME_SENSOR_COUNT", 2)
+    app_lists.schedule_emit()
+    with pytest.raises(
+        EsphomeError, match="ESPHOME_RUNTIME_SENSOR_COUNT is defined as 2"
+    ):
         CORE.flush_tasks()
 
 

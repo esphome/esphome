@@ -9,7 +9,8 @@
 //   ENTITY_CONTROLLER_TYPE_(type, singular, plural, count, upper, callback)
 //     — entities with controller callbacks
 //
-// `count` (ESPHOME_ENTITY_<X>_COUNT) is the number of codegen entities; none are added at run time.
+// `count` (ESPHOME_ENTITY_<X>_COUNT) is the codegen entities only; the slots reserved for entities
+// registered at run time are ESPHOME_RUNTIME_<upper>_COUNT.
 //
 // Excluded from this list (handled manually):
 //   - devices/areas: not entities
