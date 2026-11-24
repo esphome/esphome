@@ -60,13 +60,14 @@ inline bool uart_is_driver_installed(dmx_port_t) { return false; }
 static constexpr bool ESPHOME_DMX_HAS_RDM = false;
 #endif
 
-#if !ESPHOME_DMX_HAS_RDM
+// Preprocessor only — do not use ESPHOME_DMX_HAS_RDM here (constexpr is invisible to #if)
+#if !__has_include(<rdm/responder.h>)
 using rdm_pid_t = uint16_t;
 inline bool rdm_send_response(dmx_port_t) { return false; }
-inline bool rdm_get_dmx_start_address(dmx_port_t, uint16_t *addr) {
+inline size_t rdm_get_dmx_start_address(dmx_port_t, uint16_t *addr) {
   if (addr)
     *addr = 1;
-  return false;
+  return 0;
 }
 inline bool rdm_set_dmx_start_address(dmx_port_t, uint16_t) { return false; }
 #endif
