@@ -17,13 +17,10 @@
 
 #if __has_include(<rdm/responder.h>)
 #include <rdm/responder.h>
-#define ESPHOME_DMX_HAS_RDM 1
-#else
-#define ESPHOME_DMX_HAS_RDM 0
-#endif
-
-#if ESPHOME_DMX_HAS_RDM
 #include "rdm/responder/include/utils.h"
+static constexpr bool ESPHOME_DMX_HAS_RDM = true;
+#else
+static constexpr bool ESPHOME_DMX_HAS_RDM = false;
 #endif
 
 #else
@@ -59,14 +56,27 @@ inline size_t dmx_write(dmx_port_t, const void *, size_t) { return 0; }
 inline size_t dmx_send_num(dmx_port_t, size_t) { return 0; }
 inline bool dmx_wait_sent(dmx_port_t, int) { return true; }
 inline bool uart_is_driver_installed(dmx_port_t) { return false; }
+
+static constexpr bool ESPHOME_DMX_HAS_RDM = false;
 #endif
 
-// #ifndef DMX_STATIC_SENSOR_COUNT
-// static constexpr size_t DMX_STATIC_SENSOR_COUNT = 0;
-// #endif
-// #ifndef DMX_DYNAMIC_SENSOR_COUNT
-// static constexpr size_t DMX_DYNAMIC_SENSOR_COUNT = 0;
-// #endif
+#if !ESPHOME_DMX_HAS_RDM
+using rdm_pid_t = uint16_t;
+inline bool rdm_send_response(dmx_port_t) { return false; }
+inline bool rdm_get_dmx_start_address(dmx_port_t, uint16_t *addr) {
+  if (addr)
+    *addr = 1;
+  return false;
+}
+inline bool rdm_set_dmx_start_address(dmx_port_t, uint16_t) { return false; }
+#endif
+
+#ifndef DMX_STATIC_SENSOR_COUNT
+static constexpr size_t DMX_STATIC_SENSOR_COUNT = 0;
+#endif
+#ifndef DMX_DYNAMIC_SENSOR_COUNT
+static constexpr size_t DMX_DYNAMIC_SENSOR_COUNT = 0;
+#endif
 
 namespace esphome::dmx {
 
@@ -87,7 +97,7 @@ struct DynamicChannelSensor {
 
 // Binding between an ESPHome Number and an RDM-settable address
 struct RdmChannelBinding {
-  esphome::number::Number *channel_number{nullptr};
+  number::Number *channel_number{nullptr};
   uint16_t last_address{1};
   uint16_t custom_pid{0};  // 0 = root device standard DMX_START_ADDRESS
 };

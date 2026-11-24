@@ -1,13 +1,11 @@
 import esphome.codegen as cg
 from esphome.components import number
 import esphome.config_validation as cv
-from esphome.const import CONF_CHANNEL, ICON_BRIGHTNESS_5, UNIT_EMPTY
+from esphome.const import CONF_CHANNEL, CONF_CHANNELS, ICON_BRIGHTNESS_5, UNIT_EMPTY
 
 from . import CONF_DMX_ID, DMXComponent
 
 DEPENDENCIES = ["dmx"]
-
-CONF_CHANNELS = "channels"
 
 CHANNEL_SCHEMA = number.number_schema(
     number.ApplyNumber,

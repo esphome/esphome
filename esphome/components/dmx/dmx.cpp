@@ -2,7 +2,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 
-#if ESPHOME_DMX_HAS_RDM
+#if __has_include(<rdm/responder.h>)
 #include "dmx/include/service.h"
 #include "rdm/responder/include/utils.h"
 #endif
@@ -20,7 +20,7 @@ static constexpr rdm_pid_t RDM_CUSTOM_PID_BASE = 0x8001;
 // Fixed channel sensors use a separate manufacturer-PID range.
 static constexpr rdm_pid_t RDM_STATIC_PID_BASE = 0x8800;
 
-#if ESPHOME_DMX_HAS_RDM
+#if __has_include(<rdm/responder.h>)
 // The definition objects must outlive the DMX driver; the driver stores pointers.
 static const rdm_parameter_definition_t RDM_FIXED_CHANNEL_DEFINITION = {
     .pid_cc = RDM_CC_GET,
@@ -132,7 +132,7 @@ void DMXComponent::register_rdm_channel(number::Number *channel_number) {
   binding.last_address = 1;
   if (channel_number->has_state()) {
     const float state = channel_number->state;
-    if (state >= 1.0f && state <= 512.0f)
+    if (std::isfinite(state) && state >= 1.0f && state <= 512.0f)
       binding.last_address = static_cast<uint16_t>(state);
   }
 
@@ -141,7 +141,7 @@ void DMXComponent::register_rdm_channel(number::Number *channel_number) {
   if (this->rdm_bindings_.empty()) {
     binding.custom_pid = 0;
   } else {
-    binding.custom_pid = static_cast<rdm_pid_t>(RDM_CUSTOM_PID_BASE + (this->rdm_bindings_.size() - 1));
+    binding.custom_pid = static_cast<uint16_t>(RDM_CUSTOM_PID_BASE + (this->rdm_bindings_.size() - 1));
   }
 
   this->rdm_bindings_.push_back(binding);
@@ -149,8 +149,8 @@ void DMXComponent::register_rdm_channel(number::Number *channel_number) {
 
 void DMXComponent::setup_rdm_() {
   if constexpr (ESPHOME_DMX_HAS_RDM) {
+#if __has_include(<rdm/responder.h>)
     // Fixed channel sensors: expose their configured channel number as GET-only PIDs.
-    // The parameter points directly at the stable channel field in static_sensors_.
     for (auto &cs : this->static_sensors_) {
       if (cs.channel < 1 || cs.channel > 512)
         continue;
@@ -201,6 +201,7 @@ void DMXComponent::setup_rdm_() {
     } else {
       ESP_LOGD(TAG, "RDM enabled; no dynamic Number bindings registered");
     }
+#endif
   } else {
     ESP_LOGW(TAG, "RDM requested but rdm/responder.h not available in esp_dmx build");
   }
@@ -208,6 +209,7 @@ void DMXComponent::setup_rdm_() {
 
 void DMXComponent::sync_rdm_to_numbers_() {
   if constexpr (ESPHOME_DMX_HAS_RDM) {
+#if __has_include(<rdm/responder.h>)
     if (this->rdm_bindings_.empty())
       return;
 
@@ -238,11 +240,13 @@ void DMXComponent::sync_rdm_to_numbers_() {
         ESP_LOGI(TAG, "RDM PID 0x%04X → Number '%s' = %u", b.custom_pid, b.channel_number->get_name().c_str(), addr);
       }
     }
+#endif
   }
 }
 
 void DMXComponent::sync_numbers_to_rdm_() {
   if constexpr (ESPHOME_DMX_HAS_RDM) {
+#if __has_include(<rdm/responder.h>)
     if (this->rdm_bindings_.empty())
       return;
 
@@ -251,7 +255,7 @@ void DMXComponent::sync_numbers_to_rdm_() {
       auto &b = this->rdm_bindings_[0];
       if (b.channel_number != nullptr && b.channel_number->has_state()) {
         const float state = b.channel_number->state;
-        if (state >= 1.0f && state <= 512.0f) {
+        if (std::isfinite(state) && state >= 1.0f && state <= 512.0f) {
           const uint16_t addr = static_cast<uint16_t>(state);
           if (addr != b.last_address) {
             if (rdm_set_dmx_start_address(this->dmx_port_, addr)) {
@@ -269,7 +273,7 @@ void DMXComponent::sync_numbers_to_rdm_() {
       if (b.channel_number == nullptr || !b.channel_number->has_state())
         continue;
       const float state = b.channel_number->state;
-      if (state < 1.0f || state > 512.0f)
+      if (!std::isfinite(state) || state < 1.0f || state > 512.0f)
         continue;
       const uint16_t addr = static_cast<uint16_t>(state);
       if (addr == b.last_address)
@@ -279,6 +283,7 @@ void DMXComponent::sync_numbers_to_rdm_() {
         ESP_LOGD(TAG, "Number '%s' → RDM PID 0x%04X = %u", b.channel_number->get_name().c_str(), b.custom_pid, addr);
       }
     }
+#endif
   }
 }
 
@@ -293,12 +298,12 @@ void DMXComponent::loop() {
     if (received_size > 0) {
       // Handle valid RDM packets immediately.
       if (packet.err == DMX_OK && packet.is_rdm) {
-#if ESPHOME_DMX_HAS_RDM
-        if (this->rdm_enabled_) {
-          rdm_send_response(this->dmx_port_);
-          this->sync_rdm_to_numbers_();
+        if constexpr (ESPHOME_DMX_HAS_RDM) {
+          if (this->rdm_enabled_) {
+            rdm_send_response(this->dmx_port_);
+            this->sync_rdm_to_numbers_();
+          }
         }
-#endif
         return;
       }
 
@@ -321,12 +326,12 @@ void DMXComponent::loop() {
       }
     }
 
-#if ESPHOME_DMX_HAS_RDM
     // Synchronize Home Assistant Number changes to RDM parameters.
-    if (this->rdm_enabled_) {
-      this->sync_numbers_to_rdm_();
+    if constexpr (ESPHOME_DMX_HAS_RDM) {
+      if (this->rdm_enabled_) {
+        this->sync_numbers_to_rdm_();
+      }
     }
-#endif
 
     return;
   }
