@@ -10,6 +10,7 @@
 #include "sdkconfig.h"
 #include "lwip/sockets.h"
 
+// NOLINTBEGIN: bench-only socket tasks
 namespace esphome::tcpbench {
 static constexpr const char *const TAG = "tcpbench";
 static std::atomic<uint32_t> g_rx_bytes{0}, g_tx_bytes{0}, g_udp_pkts{0};
@@ -159,3 +160,4 @@ void TcpBench::loop() {
   }
 }
 }  // namespace esphome::tcpbench
+// NOLINTEND
