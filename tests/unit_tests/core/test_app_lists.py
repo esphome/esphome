@@ -46,9 +46,11 @@ def test_entities_are_emitted_in_order() -> None:
     app_lists.schedule_emit()
     CORE.flush_tasks()
     assert _global_lines() == [
-        "decltype(esphome::APP_SENSOR_LIST) esphome::APP_SENSOR_LIST PROGMEM = {"
-        "reinterpret_cast<Sensor *>(esphome__s_b__pstorage), "
-        "reinterpret_cast<Sensor *>(esphome__s_a__pstorage)};"
+        (
+            "decltype(esphome::APP_SENSOR_LIST) esphome::APP_SENSOR_LIST PROGMEM = {"
+            "reinterpret_cast<Sensor *>(esphome__s_b__pstorage), "
+            "reinterpret_cast<Sensor *>(esphome__s_a__pstorage)};"
+        )
     ]
     assert _define_value("ESPHOME_ENTITY_SENSOR_COUNT") == "2"
     # No reservation: the runtime part is an EmptyList and register_sensor() does not exist
