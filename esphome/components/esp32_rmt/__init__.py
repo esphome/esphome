@@ -351,8 +351,16 @@ def _reorder(
     smallest_first = sorted(
         components, key=lambda own: sum(c.blocks(size) for c in own)
     )
+    # Orders that only swap components with the same channels fit the same way
+    seen: set[tuple[tuple[tuple[str, int, bool], ...], ...]] = set()
     # The first order is smallest_first itself
     for i, order in enumerate(permutations(smallest_first)):
+        shape = tuple(
+            tuple((c.direction, c.blocks(size), c.dma) for c in own) for own in order
+        )
+        if shape in seen:
+            continue
+        seen.add(shape)
         if _allocate(memory, [channel for own in order for channel in own]):
             continue
         if i == 0 and not named:
