@@ -390,7 +390,8 @@ size_t ESP8266OTABackend::image_end_(size_t offset) {
       return 0;
     end += section.size;
   }
-  // Checksum byte, then padding to 16 bytes
+  // Checksum byte, then padding to 16 bytes. The checksum is not verified: the exact length already
+  // rejected every simulated loss, and reading the image back costs about 230 B of flash
   return (end + 1 + 15) & ~size_t{15};
 }
 
