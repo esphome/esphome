@@ -110,8 +110,10 @@ static uint8_t get_frame_crc_sum(const uint8_t *data, size_t len) { return sum_b
 
 // Footer and sum
 static bool frame_valid(const uint8_t *data, size_t len) {
-  if (data[len - 2] != FRAME_TAIL1_VALUE || data[len - 1] != FRAME_TAIL2_VALUE)
+  if (data[len - 2] != FRAME_TAIL1_VALUE || data[len - 1] != FRAME_TAIL2_VALUE) {
+    ESP_LOGD(TAG, "frame tail error: %02x %02x", data[len - 2], data[len - 1]);
     return false;
+  }
   if (data[len - 3] != get_frame_crc_sum(data, len)) {
     ESP_LOGD(TAG, "frame check failure!");
     return false;
