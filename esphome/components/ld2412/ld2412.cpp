@@ -112,14 +112,13 @@ static constexpr uint8_t MOVE_BITMASK = 0x01;
 static constexpr uint8_t STILL_BITMASK = 0x02;
 using ld24xx::CMD_FRAME_FOOTER;
 using ld24xx::CMD_FRAME_HEADER;
+using ld24xx::DATA_FRAME_FOOTER;
+using ld24xx::DATA_FRAME_HEADER;
 using ld24xx::HEADER_FOOTER_SIZE;
 using ld24xx::validate_header_footer;
 // Smallest frames whose values can all be read: the last value, data footer and check, then the frame footer
 static constexpr uint8_t PERIODIC_FRAME_MIN = STILL_ENERGY + 3 + HEADER_FOOTER_SIZE;
 static constexpr uint8_t ENGINEERING_FRAME_MIN = LIGHT_SENSOR + 3 + HEADER_FOOTER_SIZE;
-// Data Header & Footer
-static constexpr uint8_t DATA_FRAME_HEADER[HEADER_FOOTER_SIZE] = {0xF4, 0xF3, 0xF2, 0xF1};
-static constexpr uint8_t DATA_FRAME_FOOTER[HEADER_FOOTER_SIZE] = {0xF8, 0xF7, 0xF6, 0xF5};
 static constexpr uint8_t GATE_SENS_ACK_SIZE = ACK_PAYLOAD + TOTAL_GATES + HEADER_FOOTER_SIZE;
 
 void LD2412Component::dump_config() {

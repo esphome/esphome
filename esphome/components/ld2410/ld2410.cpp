@@ -118,14 +118,13 @@ static constexpr auto UNKNOWN_RESULT_FALLBACK = BgCorrectionResult::BG_CORRECTIO
 #endif
 using ld24xx::CMD_FRAME_FOOTER;
 using ld24xx::CMD_FRAME_HEADER;
+using ld24xx::DATA_FRAME_FOOTER;
+using ld24xx::DATA_FRAME_HEADER;
 using ld24xx::HEADER_FOOTER_SIZE;
 using ld24xx::validate_header_footer;
 // Smallest frames whose values can all be read: the last value, data footer and check, then the frame footer
 static constexpr uint8_t PERIODIC_FRAME_MIN = DETECT_DISTANCE_HIGH + 3 + HEADER_FOOTER_SIZE;
 static constexpr uint8_t ENGINEERING_FRAME_MIN = OUT_PIN_SENSOR + 3 + HEADER_FOOTER_SIZE;
-// Data Header & Footer
-static constexpr uint8_t DATA_FRAME_HEADER[HEADER_FOOTER_SIZE] = {0xF4, 0xF3, 0xF2, 0xF1};
-static constexpr uint8_t DATA_FRAME_FOOTER[HEADER_FOOTER_SIZE] = {0xF8, 0xF7, 0xF6, 0xF5};
 
 void LD2410Component::dump_config() {
   char mac_s[MAC_ADDRESS_PRETTY_BUFFER_SIZE];

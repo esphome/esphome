@@ -7,8 +7,6 @@
 namespace esphome::ld24xx::testing {
 
 namespace {
-constexpr uint8_t DATA_FRAME_HEADER[HEADER_FOOTER_SIZE] = {0xF4, 0xF3, 0xF2, 0xF1};
-constexpr uint8_t DATA_FRAME_FOOTER[HEADER_FOOTER_SIZE] = {0xF8, 0xF7, 0xF6, 0xF5};
 constexpr uint8_t DATA_FRAME_SIZE = 12;  // header, four payload bytes, footer
 constexpr size_t BUFFER_SIZE = 40;
 
