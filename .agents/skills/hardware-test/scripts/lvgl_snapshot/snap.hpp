@@ -32,16 +32,14 @@ inline void start(uint32_t tag) {
   if (st.buf != nullptr)
     return;
   uint32_t t0 = millis();
-  st.buf = lv_snapshot_take(lv_screen_active(), LV_COLOR_FORMAT_RGB565);
-  if (st.buf == nullptr) {
+  lv_draw_buf_t *buf = lv_snapshot_take(lv_screen_active(), LV_COLOR_FORMAT_RGB565);
+  if (buf == nullptr) {
     ESP_LOGE(TAG, "SNAPFAIL tag=%" PRIu32, tag);
     return;
   }
-  st.pos = 0;
-  st.total = st.buf->header.w * st.buf->header.h;
-  st.runs = 0;
-  st.sum = 0;
-  st.line = 0;
+  st = State{};
+  st.buf = buf;
+  st.total = buf->header.w * buf->header.h;
   st.tag = tag;
   ESP_LOGI(TAG, "SNAPBEGIN tag=%" PRIu32 " w=%u h=%u stride=%u cf=%u took=%" PRIu32 "ms", tag,
            (unsigned) st.buf->header.w, (unsigned) st.buf->header.h, (unsigned) st.buf->header.stride,
@@ -53,6 +51,7 @@ inline void step() {
   if (st.buf == nullptr)
     return;
   for (int l = 0; l < 4 && st.pos < st.total; l++) {
+    uint32_t first = st.pos;
     char out[32 * 8 + 1];
     int n = 0;
     for (int r = 0; r < 32 && st.pos < st.total; r++) {
@@ -65,7 +64,7 @@ inline void step() {
       st.pos += cnt;
       st.runs++;
     }
-    ESP_LOGI(TAG, "SNAP %" PRIu32 " %" PRIu32 " %s", st.tag, st.line++, out);
+    ESP_LOGI(TAG, "SNAP %" PRIu32 " %" PRIu32 " %" PRIu32 " %s", st.tag, st.line++, first, out);
   }
   if (st.pos >= st.total) {
     ESP_LOGI(TAG, "SNAPEND tag=%" PRIu32 " lines=%" PRIu32 " runs=%" PRIu32 " sum=%" PRIu32, st.tag, st.line, st.runs,

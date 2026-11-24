@@ -11,43 +11,38 @@ import re
 import statistics
 import sys
 
-R = re.compile(r"\[T(?::\d+)?\]: R (\d+) (\S+)")
-S = re.compile(r"\[T(?::\d+)?\]: S (\d+) (\S+)")
-P = re.compile(r"\[T(?::\d+)?\]: P (\d+) (.*)")
-events = []
-other = {
-    "status": 0,
-    "timeout": 0,
-    "startfail": 0,
-    "readfail": 0,
-    "still": 0,
-    "crash": 0,
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+from lognorm import normalize  # noqa: E402
+
+EV = re.compile(r"\[T\]: ([RSP]) (\d+) (.*)")
+OTHER = {
+    "status": "Range status",
+    "timeout": "timed out",
+    "startfail": "Starting measurement failed",
+    "readfail": "Reading result failed",
+    "still": "still running",
+    "crash": r"Exception|wdt reset|rst cause|Soft WDT|ets Jan",
 }
+events = []
+other = dict.fromkeys(OTHER, 0)
+nr = nvalid = ns = 0
 for line in (
     pathlib.Path(sys.argv[1]).read_text(encoding="utf-8", errors="replace").splitlines()
 ):
-    if m := R.search(line):
-        events.append(("R", int(m[1]), float(m[2])))
-    elif m := S.search(line):
-        events.append(("S", int(m[1]), float(m[2])))
-    elif m := P.search(line):
-        events.append(("P", int(m[1]), m[2]))
-    if "Range status" in line:
-        other["status"] += 1
-    if "timed out" in line:
-        other["timeout"] += 1
-    if "Starting measurement failed" in line:
-        other["startfail"] += 1
-    if "Reading result failed" in line:
-        other["readfail"] += 1
-    if "still running" in line:
-        other["still"] += 1
-    if re.search(r"Exception|wdt reset|rst cause|Soft WDT|ets Jan", line):
-        other["crash"] += 1
+    line = normalize(line)
+    if m := EV.search(line):
+        k, ms, v = m[1], int(m[2]), m[3]
+        if k == "P":
+            events.append((k, ms, v))
+        else:
+            v = float(v.split()[0])
+            events.append((k, ms, v))
+            nr += k == "R"
+            nvalid += k == "R" and not math.isnan(v)
+            ns += k == "S"
+    for k, pat in OTHER.items():
+        other[k] += bool(re.search(pat, line))
 
-nr = sum(1 for e in events if e[0] == "R")
-nvalid = sum(1 for e in events if e[0] == "R" and not math.isnan(e[2]))
-ns = sum(1 for e in events if e[0] == "S")
 print(f"ranges {nr} valid {nvalid} nan {nr - nvalid} speeds {ns} other {other}")
 
 prev = None  # last R event
@@ -58,7 +53,7 @@ first_after_invalid = 0
 first_after_invalid_ok = 0
 second_after_invalid_ok = 0
 speeds_by_phase = {}
-dts = []
+dts = {}
 phase = "start"
 max_err = 0.0
 after_invalid = False
@@ -97,7 +92,7 @@ for i, e in enumerate(events):
                 if err > 1e-4:
                     bad.append(("wrong speed", base, e, got, exp))
                 speeds_by_phase.setdefault(phase, []).append(got[2])
-                dts.append((phase, e[1] - base[1]))
+                dts.setdefault(phase, []).append(e[1] - base[1])
                 if last_was_first:
                     second_after_invalid_ok += 1
             last_was_first = False
@@ -117,7 +112,7 @@ print(f"max |speed - dRange/dt| = {max_err:.2e} m/s; problems {len(bad)}")
 for b in bad[:20]:
     print("  ", b)
 for ph, v in speeds_by_phase.items():
-    d = [x for p, x in dts if p == ph]
+    d = dts[ph]
     print(
         f"phase {ph!r}: n={len(v)} mean={statistics.mean(v):+.4f} sd={statistics.pstdev(v):.4f} "
         f"min={min(v):+.4f} max={max(v):+.4f} dt ms min={min(d)} max={max(d)} mean={statistics.mean(d):.1f}"

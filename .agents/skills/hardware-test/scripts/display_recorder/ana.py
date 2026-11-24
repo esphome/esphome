@@ -1,9 +1,9 @@
 """ana.py CAPTURE VARIANT PLATFORM: check a recdisp capture against host expectations (esphome#23229, #23226).
 
 Run it in the directory holding the mkimg.py images. VARIANT is base, pr29 (#23229 alone), pr26 (#23226 alone) or
-combo (both); PLATFORM e8 is the ESP8266 (per-pixel path), anything else the bulk path. The expect() rules encode
-what those two PRs changed; adapt them for another image or display change. Prints ALL_OK=True when every scene
-matches.
+combo (both); PLATFORM e8 is the ESP8266 (per-pixel path), anything else the bulk path; on `host` the RGB565
+scene may be one count off per channel. The expect() rules encode what those two PRs changed; adapt them for another
+image or display change. Prints ALL_OK=True when every scene matches.
 """
 
 from collections import Counter, defaultdict
@@ -13,10 +13,14 @@ import sys
 
 from PIL import Image
 
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+from lognorm import normalize  # noqa: E402
+
 cap, variant, plat = sys.argv[1:4]
 PR29 = variant in ("pr29", "combo")
 PR26 = variant in ("pr26", "combo")
 E8 = plat == "e8"
+HOST = plat == "host"
 G = defaultdict(dict)
 R = defaultdict(dict)
 S = {}
@@ -24,8 +28,9 @@ HG = {}
 L = {}
 T = {}
 for line in pathlib.Path(cap).read_text(encoding="latin-1").splitlines():
-    line = re.sub(r"\x1b\[[0-9;]*m", "", line)
-    m = re.search(r"\[rec[^\]]*\]: (\w+) (\S+) (.*)$", line.strip())
+    if "[rec" not in line:
+        continue
+    m = re.search(r"\[rec\]: (\w+) (\S+) (.*)$", normalize(line).strip())
     if not m:
         continue
     try:  # a line cut short by a lossy capture is skipped; the completeness checks catch the gap
@@ -81,6 +86,9 @@ KIND = {
     "rgb": "rgb",
     "bin": "bin",
     "rgb111_a": "rgbx",
+}
+# scenes that draw another scene's image with explicit on and off colors: (source scene, on, off)
+EXPLICIT = {
     "agrad_wonly": ("agrad", (0, 0, 0, 255), OFF),
     "agrad_rgbw": ("agrad", (200, 30, 90, 170), (10, 250, 60, 5)),
     "gray_a_wonly": ("gray_a", (0, 0, 0, 255), OFF),
@@ -95,15 +103,10 @@ def expect(kind, P, on=ON, off=OFF):
     if kind == "gck":
         return None if w == 0 else ((r, g, b, 0) if PR29 else P)
     if kind == "ga":
-        return (
-            grad(off, on, w)
-            if PR29
-            else (bc(off[0], on[0], w), bc(off[1], on[1], w), bc(off[2], on[2], w), 255)
-        )
-    if kind in ("565", "rgb"):
-        if not E8:
-            return (r, g, b, 0)  # bulk path
-        return (r, g, b, 0) if PR29 else P
+        g = grad(off, on, w)
+        return g if PR29 else g[:3] + (255,)
+    if kind in ("565", "rgb"):  # the bulk path always clears white
+        return (r, g, b, 0) if PR29 or not E8 else P
     if kind == "rgbx":
         return None if w < 0x80 else ((r, g, b, 0) if PR29 else P)
     if kind == "bin":
@@ -121,18 +124,18 @@ try:  # a lost or cut G row fails the check instead of raising
     gp_ok = (
         all(
             G["gray"][y][x][:3] == (ring.getpixel((x, y)),) * 3
-            for y in range(48)
-            for x in range(48)
+            for y in range(ring.height)
+            for x in range(ring.width)
         )
         and all(
             G["agrad"][y][x] == (0, 0, 0, agr.getpixel((x, y))[3])
-            for y in range(16)
-            for x in range(16)
+            for y in range(agr.height)
+            for x in range(agr.width)
         )
         and all(
             G["gray_a"][y][x] == (0, 0, 0, ra.getpixel((x, y))[3])
-            for y in range(48)
-            for x in range(48)
+            for y in range(ra.height)
+            for x in range(ra.width)
         )
     )
 except (KeyError, IndexError, TypeError):
@@ -141,8 +144,8 @@ out.append(f"get_pixel matches PNG: {gp_ok}")
 allok &= gp_ok
 # a lost log line must fail the run, not drop a scene or row from the comparison
 incomplete = set()
-for n, k in KIND.items():
-    gp = G[k[0] if isinstance(k, tuple) else n]
+for n in [*KIND, *EXPLICIT]:
+    gp = G[EXPLICIT.get(n, (n,))[0]]
     rows = R.get(n, {})
     if (
         not gp
@@ -158,11 +161,11 @@ if len(L) != 6:
     allok = False
     out.append(f"fill levels: {len(L)} of 6 logged")
 for n, rows in R.items():
-    k = KIND.get(n)
-    if k is None or n in incomplete:
+    if n in incomplete or (n not in KIND and n not in EXPLICIT):
         continue
-    src, on, off = (k[0], k[1], k[2]) if isinstance(k, tuple) else (n, ON, OFF)
+    src, on, off = EXPLICIT.get(n, (n, ON, OFF))
     kind = KIND[src]
+    near = HOST and kind == "565"
     gp = G[src]
     bad = 0
     wnz = 0
@@ -170,20 +173,26 @@ for n, rows in R.items():
     black_on = 0
     drawn = 0
     first = None
+    hist = Counter()
     for y, row in rows.items():
         for x, c in enumerate(row):
             e = expect(kind, gp[y][x], on, off)
-            if c != e:
+            if c != e and not (
+                near
+                and c
+                and e
+                and all(abs(a - b) <= 1 for a, b in zip(c, e, strict=True))
+            ):
                 bad += 1
                 first = first or (x, y, c, e)
             if c is None:
                 continue
+            hist[g4(c)] += 1
             drawn += 1
             wnz += c[3] != 0
             on_n += any(c)
             if gp[y][x][:3] == (0, 0, 0) and any(c):
                 black_on += 1
-    hist = Counter(g4(c) for row in rows.values() for c in row if c is not None)
     hok = HG[n] == [hist.get(i, 0) for i in range(16)]
     sok = (
         int(S[n]["drawn"]) == drawn

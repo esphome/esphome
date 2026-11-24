@@ -5,8 +5,6 @@
 # "R <ms> <m>", each speed "S <ms> <m/s>", each phase "P <ms> <text>"; check with timeline_ana.py.
 # For the base build drop the `speed:` block. A VL53L4CX ranges with this component once its model ID check
 # (0xEACC, the L4CX reads 0xEBAA) is relaxed in an external_components copy.
-# A/B size builds: give both the same name length and last character; ESP8266 RAM and flash move by a few bytes
-# with the name (a name ending in "0" shares a "0" literal).
 esphome:
   name: vl53timeline
 esp8266:
@@ -31,8 +29,8 @@ interval:
       - lambda: |-
           uint32_t s = ++id(sec);
           if (s == 270) {
-            const uint8_t b[4] = {0x01, 0x68, 0x00, 0x20};
-            id(tof)->write_register16(0x0064, b, 4);
+            static constexpr uint8_t VALID[4] = {0x01, 0x68, 0x00, 0x20};
+            id(tof)->write_register16(0x0064, VALID, 4);
             id(rl_low) = true;
             ESP_LOGI("T", "P %u RL restore 0.25", App.get_loop_component_start_time());
           } else if (s == 280) {
@@ -60,9 +58,8 @@ interval:
           if (s < 150 || s >= 270)
             return;
           id(rl_low) = !id(rl_low);
-          const uint8_t b[4] = {static_cast<uint8_t>(id(rl_low) ? 0x01 : 0x00), static_cast<uint8_t>(id(rl_low) ? 0x68 : 0x01),
-                                static_cast<uint8_t>(id(rl_low) ? 0x00 : 0xFF), static_cast<uint8_t>(id(rl_low) ? 0x20 : 0xFF)};
-          id(tof)->write_register16(0x0064, b, 4);
+          static constexpr uint8_t VALID[4] = {0x01, 0x68, 0x00, 0x20}, STRICT[4] = {0x00, 0x01, 0xFF, 0xFF};
+          id(tof)->write_register16(0x0064, id(rl_low) ? VALID : STRICT, 4);
           uint8_t rb[4] = {0};
           id(tof)->read_register16(0x0064, rb, 4);
           ESP_LOGI("T", "P %u TH %s rb %02X%02X %02X%02X", App.get_loop_component_start_time(), id(rl_low) ? "valid" : "strict", rb[0], rb[1], rb[2], rb[3]);

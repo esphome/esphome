@@ -29,7 +29,7 @@ class RecDisplay : public display::Display {
   static void hex(char *p, Color c) { snprintf(p, 9, "%02x%02x%02x%02x", c.r, c.g, c.b, c.w); }
   // Summary over the whole buffer, then the region rows.
   void report(const char *name, int x0, int y0, int w, int h) {
-    uint32_t drawn = 0, wnz = 0, on = 0, hash = 2166136261u, hist[16] = {0};
+    uint32_t drawn = 0, wnz = 0, on = 0, hist[16] = {0};
     for (int i = 0; i < W * H; i++) {
       uint32_t v = this->buf_[i];
       if (v == UNTOUCHED)
@@ -42,13 +42,8 @@ class RecDisplay : public display::Display {
       if (c.is_on())  // SSD1306 rule
         on++;
       hist[display::ColorUtil::color_to_grayscale4(c) & 15]++;
-      for (int b = 0; b < 4; b++) {
-        hash ^= (v >> (8 * b)) & 0xFF;
-        hash *= 16777619u;
-      }
     }
-    ESP_LOGI("rec", "S %s drawn=%u w=%u on=%u hash=%08x", name, (unsigned) drawn, (unsigned) wnz, (unsigned) on,
-             (unsigned) hash);
+    ESP_LOGI("rec", "S %s drawn=%u w=%u on=%u", name, (unsigned) drawn, (unsigned) wnz, (unsigned) on);
     char line[16 * 4 + 8];
     int n = 0;
     for (int k = 0; k < 16; k++)
