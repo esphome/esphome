@@ -1,7 +1,8 @@
 import esphome.codegen as cg
 from esphome.components import ota, update
 import esphome.config_validation as cv
-from esphome.const import CONF_SOURCE
+from esphome.const import CONF_ESPHOME, CONF_PROJECT, CONF_SOURCE, CONF_VERSION
+import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 from .. import CONF_HTTP_REQUEST_ID, HttpRequestComponent, http_request_ns
@@ -30,6 +31,23 @@ CONFIG_SCHEMA = (
     )
     .extend(cv.polling_component_schema("6h"))
 )
+
+
+def _final_validate(config: ConfigType) -> None:
+    if not config[CONF_ALLOW_AUTO_INSTALL]:
+        return
+    # The check compares the manifest version with the project version, so the
+    # fallback to the ESPHome version would make every manifest look different.
+    if CONF_PROJECT not in fv.full_config.get()[CONF_ESPHOME]:
+        raise cv.Invalid(
+            f"'{CONF_ALLOW_AUTO_INSTALL}' requires a '{CONF_PROJECT}' with a "
+            f"'{CONF_VERSION}' in the '{CONF_ESPHOME}' section, because the "
+            "manifest version is compared with it.",
+            path=[CONF_ALLOW_AUTO_INSTALL],
+        )
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config: ConfigType) -> None:

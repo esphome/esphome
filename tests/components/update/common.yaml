@@ -2,6 +2,9 @@ substitutions:
   verify_ssl: "true"
 
 esphome:
+  project:
+    name: esphome.test
+    version: "1.1"
   on_boot:
     then:
       - if:
