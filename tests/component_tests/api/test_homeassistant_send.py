@@ -6,7 +6,7 @@ import re
 
 import pytest
 
-from tests.component_tests.helpers import static_function_body
+from tests.component_tests.helpers import callback_function, static_function_body
 
 CONFIG = "tests/component_tests/api/test_homeassistant_send.yaml"
 
@@ -94,12 +94,12 @@ def test_action_with_response_is_an_object(main_cpp: str) -> None:
 def test_action_then_log(main_cpp: str) -> None:
     """The send is an if-free statement, so the action merged after it still runs.
 
-    on_boot calls the merged function directly, with no Automation and nothing that can stop it.
+    on_boot is built on the merged function, with no Automation and nothing that can stop it.
     """
     assert "automation_id->add_action" not in main_cpp
-    startup = static_function_body(main_cpp, "esphome__startuptrigger_id__fn")
-    assert startup.strip() == "esphome__applyaction_id__fn();"
-    body = static_function_body(main_cpp, "esphome__applyaction_id__fn")
+    body = static_function_body(
+        main_cpp, callback_function(main_cpp, "startupcallback_id")
+    )
     assert body.index(f"{SEND}false, ::ha_action_fields,") < body.index(
         '"after action"'
     )
