@@ -1753,10 +1753,12 @@ lvgl:
                       point_count: 5
                       type: line
                       update_mode: shift
-                      div_line_count: [4, 4]
+                      x_axis:
+                        grid_lines: 4
                       y_axis:
                         min_value: 0
                         max_value: !lambda return 100;
+                        grid_lines: 4
                       secondary_y_axis:
                         min_value: 0
                         max_value: 1.0
@@ -1821,6 +1823,8 @@ lvgl:
                             id: lv_chart_id
                             update_mode: circular
                             point_count: 5
+                            y_axis:
+                              grid_lines: 2
                       widgets:
                         - label:
                             text: "Update chart"

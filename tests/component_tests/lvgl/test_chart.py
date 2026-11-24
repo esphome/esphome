@@ -104,12 +104,33 @@ def test_series_update_accepts_one_payload(key: str, payload: object) -> None:
     assert SERIES_MODIFY_SCHEMA({"id": "series", key: payload})[key] == payload
 
 
-@pytest.mark.parametrize("div_line_count", [[1], [1, 2, 3]])
-def test_div_line_count_needs_two_values(div_line_count: list[int]) -> None:
+@pytest.mark.parametrize("axis", ["x_axis", "y_axis"])
+def test_grid_lines_are_set_on_the_primary_axes(axis: str) -> None:
+    assert CHART_SCHEMA({axis: {"grid_lines": 0}})[axis]["grid_lines"] == 0
+    update = CHART_MODIFY_SCHEMA({axis: {"grid_lines": 4}})
+    assert update[axis] == {"grid_lines": 4}
+
+
+@pytest.mark.parametrize("axis", ["secondary_x_axis", "secondary_y_axis"])
+def test_secondary_axes_have_no_grid_lines(axis: str) -> None:
     with pytest.raises(Invalid):
-        CHART_SCHEMA({"div_line_count": div_line_count})
+        CHART_SCHEMA({axis: {"grid_lines": 4}})
     with pytest.raises(Invalid):
-        CHART_MODIFY_SCHEMA({"div_line_count": div_line_count})
+        CHART_MODIFY_SCHEMA({axis: {"min_value": 0, "max_value": 1, "grid_lines": 4}})
+
+
+@pytest.mark.parametrize(
+    "axis",
+    [{}, {"grid_lines": 256}, {"min_value": 0}, {"max_value": 1, "grid_lines": 2}],
+)
+def test_invalid_axis_updates(axis: dict) -> None:
+    with pytest.raises(Invalid):
+        CHART_MODIFY_SCHEMA({"y_axis": axis})
+
+
+def test_div_line_count_is_gone() -> None:
+    with pytest.raises(Invalid):
+        CHART_SCHEMA({"div_line_count": [1, 2]})
 
 
 def test_chart_update_rejects_type_change() -> None:
@@ -519,3 +540,18 @@ def test_updated_range_is_checked_with_the_chart_multiplier(tmp_path: Path) -> N
     )
     assert [str(err.path[-1]) for err in errors] == ["y_axis"]
     assert "must not be equal after scaling by multiplier (1)" in str(errors[0])
+
+
+def test_grid_lines_codegen(generate_main, component_config_path) -> None:
+    main_cpp = generate_main(component_config_path("chart_test.yaml"))
+
+    # Created with no vertical and 4 horizontal lines; the update sets 2 vertical
+    # lines without touching the X range
+    assert "lv_chart_set_ver_div_line_count(scaled_chart, 0);" in main_cpp
+    assert "lv_chart_set_hor_div_line_count(scaled_chart, 4);" in main_cpp
+    assert "lv_chart_set_ver_div_line_count(scaled_chart, 2);" in main_cpp
+    # Only creation sets the X range
+    assert (
+        main_cpp.count("lv_chart_set_axis_range(scaled_chart, LV_CHART_AXIS_PRIMARY_X")
+        == 1
+    )

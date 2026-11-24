@@ -50,10 +50,13 @@ lvgl:
               - {x: 30, y: 40}
     - chart:
         id: scaled_chart
+        x_axis:
+          grid_lines: 0
         y_axis:
           min_value: -0.5
           max_value: 1.5
           multiplier: 10
+          grid_lines: 4
         series:
           - id: scaled_series
             values: [1.25, nan, -2.5]
@@ -73,6 +76,10 @@ lvgl:
           - lvgl.chart.series.update:
               id: scaled_series
               value: !lambda return 0.5f;
+          - lvgl.chart.update:
+              id: scaled_chart
+              x_axis:
+                grid_lines: 2
           - lvgl.chart.update:
               id: bar_chart
               update_mode: circular

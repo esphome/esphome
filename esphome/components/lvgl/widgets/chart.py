@@ -39,7 +39,7 @@ from ..types import LvType, lvgl_ns
 from . import Widget, WidgetType
 
 CONF_CHART = "chart"
-CONF_DIV_LINE_COUNT = "div_line_count"
+CONF_GRID_LINES = "grid_lines"
 CONF_MULTIPLIER = "multiplier"
 CONF_POINT_COUNT = "point_count"
 CONF_POINT = "point"
@@ -57,9 +57,7 @@ CHART_TYPES = LvConstant("LV_CHART_TYPE_", *LV_CHART_TYPES)
 CHART_UPDATE_MODES = LvConstant("LV_CHART_UPDATE_MODE_", "SHIFT", "CIRCULAR")
 # Colours given in turn to series that do not set one
 SERIES_PALETTE = ("BLUE", "RED", "GREEN", "ORANGE", "PURPLE", "TEAL")
-DIV_LINE_COUNT_SCHEMA = cv.All(
-    cv.ensure_list(cv.int_range(min=0, max=255)), cv.Length(min=2, max=2)
-)
+GRID_LINES = cv.int_range(min=0, max=255)
 
 
 def _fixed(constant: LvConstant):
@@ -127,32 +125,50 @@ def _validate_created_range(config: ConfigType) -> ConfigType:
 def _validate_updated_range(config: ConfigType) -> ConfigType:
     # The multiplier is set when the chart is created; ChartType.final_validate()
     # checks the range scaled by it. Equal values are wrong whatever it is.
-    _validate_range(config, 1.0)
+    if CONF_MIN_VALUE in config:
+        _validate_range(config, 1.0)
     return config
 
 
-RANGE_SCHEMA = cv.All(
-    cv.Schema(
-        {
-            cv.Optional(CONF_MIN_VALUE, default=0): lv_finite_float,
-            cv.Optional(CONF_MAX_VALUE, default=100): lv_finite_float,
-            cv.Optional(CONF_MULTIPLIER, default=1.0): cv.All(
-                cv.positive_not_null_float, _finite
-            ),
-        }
-    ),
-    _validate_created_range,
-)
+def _axis_schema(grid_lines: bool) -> cv.All:
+    """An axis of a new chart. Only the primary axes have grid lines, since the
+    secondary axes share the same grid."""
+    schema = {
+        cv.Optional(CONF_MIN_VALUE, default=0): lv_finite_float,
+        cv.Optional(CONF_MAX_VALUE, default=100): lv_finite_float,
+        cv.Optional(CONF_MULTIPLIER, default=1.0): cv.All(
+            cv.positive_not_null_float, _finite
+        ),
+    }
+    if grid_lines:
+        schema[cv.Optional(CONF_GRID_LINES)] = GRID_LINES
+    return cv.All(cv.Schema(schema), _validate_created_range)
 
-RANGE_MODIFY_SCHEMA = cv.All(
-    cv.Schema(
-        {
-            cv.Required(CONF_MIN_VALUE): lv_finite_float,
-            cv.Required(CONF_MAX_VALUE): lv_finite_float,
-        }
-    ),
-    _validate_updated_range,
-)
+
+def _axis_modify_schema(grid_lines: bool) -> cv.All:
+    """An axis in lvgl.chart.update: a new range, new grid lines, or both."""
+    if not grid_lines:
+        return cv.All(
+            cv.Schema(
+                {
+                    cv.Required(CONF_MIN_VALUE): lv_finite_float,
+                    cv.Required(CONF_MAX_VALUE): lv_finite_float,
+                }
+            ),
+            _validate_updated_range,
+        )
+    return cv.All(
+        cv.Schema(
+            {
+                cv.Inclusive(CONF_MIN_VALUE, "range"): lv_finite_float,
+                cv.Inclusive(CONF_MAX_VALUE, "range"): lv_finite_float,
+                cv.Optional(CONF_GRID_LINES): GRID_LINES,
+            }
+        ),
+        cv.has_at_least_one_key(CONF_MIN_VALUE, CONF_GRID_LINES),
+        _validate_updated_range,
+    )
+
 
 POINT_SCHEMA = cv.Schema(
     {
@@ -198,11 +214,10 @@ CHART_SCHEMA = cv.Schema(
         cv.Optional(CONF_TYPE, default="LINE"): CHART_TYPE,
         cv.Optional(CONF_UPDATE_MODE, default="SHIFT"): CHART_UPDATE_MODE,
         cv.Optional(CONF_POINT_COUNT, default=10): cv.int_range(min=1, max=4096),
-        cv.Optional(CONF_DIV_LINE_COUNT): DIV_LINE_COUNT_SCHEMA,
-        cv.Optional(CONF_X_AXIS): RANGE_SCHEMA,
-        cv.Optional(CONF_Y_AXIS): RANGE_SCHEMA,
-        cv.Optional(CONF_SECONDARY_X_AXIS): RANGE_SCHEMA,
-        cv.Optional(CONF_SECONDARY_Y_AXIS): RANGE_SCHEMA,
+        cv.Optional(CONF_X_AXIS): _axis_schema(grid_lines=True),
+        cv.Optional(CONF_Y_AXIS): _axis_schema(grid_lines=True),
+        cv.Optional(CONF_SECONDARY_X_AXIS): _axis_schema(grid_lines=False),
+        cv.Optional(CONF_SECONDARY_Y_AXIS): _axis_schema(grid_lines=False),
         cv.Optional(CONF_SERIES): cv.ensure_list(SERIES_SCHEMA),
     }
 )
@@ -211,11 +226,10 @@ CHART_MODIFY_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_UPDATE_MODE): CHART_UPDATE_MODE,
         cv.Optional(CONF_POINT_COUNT): cv.int_range(min=1, max=4096),
-        cv.Optional(CONF_DIV_LINE_COUNT): DIV_LINE_COUNT_SCHEMA,
-        cv.Optional(CONF_X_AXIS): RANGE_MODIFY_SCHEMA,
-        cv.Optional(CONF_Y_AXIS): RANGE_MODIFY_SCHEMA,
-        cv.Optional(CONF_SECONDARY_X_AXIS): RANGE_MODIFY_SCHEMA,
-        cv.Optional(CONF_SECONDARY_Y_AXIS): RANGE_MODIFY_SCHEMA,
+        cv.Optional(CONF_X_AXIS): _axis_modify_schema(grid_lines=True),
+        cv.Optional(CONF_Y_AXIS): _axis_modify_schema(grid_lines=True),
+        cv.Optional(CONF_SECONDARY_X_AXIS): _axis_modify_schema(grid_lines=False),
+        cv.Optional(CONF_SECONDARY_Y_AXIS): _axis_modify_schema(grid_lines=False),
     }
 )
 
@@ -342,7 +356,9 @@ class ChartType(WidgetType):
         path: list,
     ) -> None:
         for axis_name, _ in AXES:
-            if (axis := update_config.get(axis_name)) is None:
+            if (axis := update_config.get(axis_name)) is None or (
+                CONF_MIN_VALUE not in axis
+            ):
                 continue
             try:
                 _validate_range(axis, axis_multiplier(widget_config, axis_name))
@@ -450,8 +466,11 @@ async def set_chart_options(
         lv.chart_set_update_mode(chart, literal(mode))
     if point_count := config.get(CONF_POINT_COUNT):
         lv.chart_set_point_count(chart, point_count)
-    if div_count := config.get(CONF_DIV_LINE_COUNT):
-        lv.chart_set_div_line_count(chart, div_count[0], div_count[1])
+    # Vertical grid lines are spaced along the X axis, horizontal ones along the Y axis
+    if (lines := config.get(CONF_X_AXIS, {}).get(CONF_GRID_LINES)) is not None:
+        lv.chart_set_ver_div_line_count(chart, lines)
+    if (lines := config.get(CONF_Y_AXIS, {}).get(CONF_GRID_LINES)) is not None:
+        lv.chart_set_hor_div_line_count(chart, lines)
     await set_axis_ranges(chart, config, chart_config, templated)
 
 
@@ -462,9 +481,11 @@ async def set_axis_ranges(
     templated: bool | None = None,
 ) -> None:
     for axis_name, axis_key in AXES:
-        if (axis := config.get(axis_name)) is not None and templated in (
-            None,
-            _is_templated(axis),
+        axis = config.get(axis_name)
+        if (
+            axis is not None
+            and CONF_MIN_VALUE in axis
+            and templated in (None, _is_templated(axis))
         ):
             await set_axis_range(
                 chart, axis_key, axis, axis_multiplier(chart_config, axis_name)
