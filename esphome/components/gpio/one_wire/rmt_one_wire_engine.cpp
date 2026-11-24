@@ -127,9 +127,15 @@ void Engine::set_failed() {
 }
 
 void Engine::end_failed_work_() {
-  // Inside an engine call, the end of its BusyScope comes back here
+  // Inside an engine call, the end of its BusyScope comes back here. Inside an on_done of this loop, a submit() or
+  // a blocking method comes back here too. The loop below then ends the work that on_done added, so the callbacks
+  // run one after the other and never inside each other.
+  if (this->draining_)
+    return;
+  this->draining_ = true;
   while (this->failed_ && !this->busy_ && !this->queue_.empty())
     this->finish_(TransactionStatus::TRANSACTION_STATUS_HARDWARE_ERROR);
+  this->draining_ = false;
 }
 
 bool IRAM_ATTR Engine::on_tx_done() { return this->pending_.fetch_and(~PENDING_TX) == PENDING_TX; }

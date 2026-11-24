@@ -42,7 +42,8 @@ class Engine {
   Engine(Port *port, size_t mem_words, const Timing &timing = {});
 
   // Main loop only
-  /// On a failed engine, on_done runs before this returns, or when the engine call that runs now returns.
+  /// On a failed engine, on_done runs before this returns, or when the engine call or the on_done that runs now
+  /// returns.
   bool submit(one_wire::Transaction *transaction);
   /// Does nothing while is_busy(): a log handler inside the engine may call back into the bus.
   /// When the transaction on the bus ends, the same call starts the next one.
@@ -120,6 +121,8 @@ class Engine {
   bool failed_{false};
   /// Set by poll() and the blocking methods, cleared around on_done. Guards against calls from log handlers.
   bool busy_{false};
+  /// Set while end_failed_work_() ends the queue, so an on_done there does not start a second, nested loop
+  bool draining_{false};
 
   one_wire::TransactionQueue queue_;
 

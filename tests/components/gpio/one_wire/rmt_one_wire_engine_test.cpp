@@ -1513,6 +1513,38 @@ TEST(RmtOneWireEngine, SubmitInsideTheFailingPollEndsWhenPollReturns) {
   EXPECT_TRUE(rig.engine.is_idle());
 }
 
+TEST(RmtOneWireEngine, OnDoneThatSubmitsAgainOnAFailedBusDoesNotNest) {
+  // The guard is lifted around on_done. A submit() or a blocking method there must not end the next transaction
+  // inside this on_done, or each resubmit would go one level deeper.
+  Rig rig;
+  rig.engine.set_failed();
+  DoneLog log;
+  Job job(&log, 1, ROM_A, {READ_SCRATCHPAD}, 9);
+  int depth = 0;
+  int max_depth = 0;
+  int resubmits = 0;
+  job.then = [&](TransactionStatus) {
+    depth++;
+    max_depth = std::max(max_depth, depth);
+    // Blocking methods still fail at once, and their end does not run the next on_done either
+    EXPECT_EQ(rig.engine.reset_blocking(), 0);
+    uint8_t data = 0;
+    EXPECT_FALSE(rig.engine.read_blocking(&data, 8));
+    if (resubmits < 4) {
+      resubmits++;
+      EXPECT_TRUE(rig.engine.submit(&job.t));
+    }
+    depth--;
+  };
+  ASSERT_TRUE(rig.engine.submit(&job.t));
+  EXPECT_EQ(log, DoneLog(5, DoneEntry{1, TransactionStatus::TRANSACTION_STATUS_HARDWARE_ERROR}));
+  EXPECT_EQ(max_depth, 1) << "on_done ran inside another on_done";
+  EXPECT_TRUE(rig.engine.is_idle());
+  EXPECT_FALSE(rig.engine.is_busy());
+  EXPECT_EQ(rig.port.arm_count, 0);
+  EXPECT_EQ(rig.port.tx_count, 0);
+}
+
 // ---- On engine level: OK only with a complete decode --------------------------------------
 
 namespace {
