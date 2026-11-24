@@ -5,7 +5,6 @@
 #include "esphome/core/log.h"
 #include <algorithm>
 #include <cinttypes>
-#include <cmath>
 #include <cstdlib>
 #include <cstring>
 #include <esp_heap_caps.h>
@@ -415,22 +414,6 @@ optional<ProcessedOutput> TFLiteMicroHelper::run_inference(const uint8_t *src_da
   return processed;
 }
 
-#ifdef USE_TFLITE_AUDIO
-void TFLiteMicroHelper::set_probability_cutoff(float f) {
-  if (std::isnan(f)) {
-    ESP_LOGW(TAG, "probability_cutoff is NaN -- using 0.5");
-    f = 0.5f;
-  } else if (f < 0.0f || f > 1.0f) {
-    ESP_LOGW(TAG, "probability_cutoff is outside 0-100%% -- clamping");
-    f = std::clamp(f, 0.0f, 1.0f);
-  }
-  this->audio_config_.probability_cutoff = static_cast<uint8_t>(f * 255.0f);
-}
-void TFLiteMicroHelper::set_sliding_window_size(size_t n) { this->audio_config_.sliding_window_size = n; }
-void TFLiteMicroHelper::set_features_step_size(uint8_t ms) { this->audio_config_.features_step_size = ms; }
-void TFLiteMicroHelper::set_feature_count(size_t n) { this->audio_config_.feature_count = n; }
-#endif
-
 const LogString *TFLiteMicroHelper::check_model_integrity_() {
   if (this->model_data_ == nullptr || this->model_length_ == 0)
     return LOG_STR("Model data is NULL or empty");
@@ -558,9 +541,6 @@ void TFLiteMicroHelper::reset_config() {
   this->expected_crc32_ = 0;
   this->output_processing_ = StringRef("argmax");
   this->scale_factor_ = 1.0f;
-#ifdef USE_TFLITE_AUDIO
-  this->audio_config_ = AudioModelConfig{};
-#endif
 }
 
 int TFLiteMicroHelper::get_input_width_locked_() const {

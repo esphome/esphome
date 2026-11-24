@@ -28,16 +28,6 @@ using tflite_model_loader::ImageModelConfig;
 using tflite_model_loader::ModelConfig;
 using tflite_output_processor::ProcessedOutput;
 
-#ifdef USE_TFLITE_AUDIO
-/// Audio (streaming) parameters, read by the consumer that owns the interpreter.
-struct AudioModelConfig {
-  uint8_t probability_cutoff{128};  // quantized 0-255 (from 0.0-1.0)
-  size_t sliding_window_size{10};
-  uint8_t features_step_size{20};  // ms between feature slices
-  size_t feature_count{40};        // Mel filterbank bins
-};
-#endif
-
 /// Tensor arena utilization.
 struct ArenaStats {
   size_t total_size{0};
@@ -106,7 +96,7 @@ class InferenceSession;
 
 /// Model loading, tensor arena and inference. A Component on its own, so setup()
 /// loads the configured model; an audio model is left to its streaming consumer.
-class TFLiteMicroHelper final : public Component {
+class TFLiteMicroHelper : public Component {
  public:
   TFLiteMicroHelper() = default;
   // The interpreter reads the arena in its destructor, so unload it first.
@@ -127,14 +117,6 @@ class TFLiteMicroHelper final : public Component {
     this->debug_ = d;
     this->model_handler_.set_debug(d);
   }
-
-#ifdef USE_TFLITE_AUDIO
-  void set_probability_cutoff(float f);  // 0.0-1.0, quantized internally
-  void set_sliding_window_size(size_t n);
-  void set_features_step_size(uint8_t ms);
-  void set_feature_count(size_t n);
-  const AudioModelConfig &get_audio_config() const { return this->audio_config_; }
-#endif
 
   /// Load the model and allocate the arena; false when one is already loaded.
   bool load_model();
@@ -246,9 +228,6 @@ class TFLiteMicroHelper final : public Component {
   size_t model_length_{0};
   size_t tensor_arena_size_requested_{tflite_model_loader::ModelLoader::DEFAULT_TENSOR_ARENA_SIZE};
   size_t tensor_arena_size_effective_{0};  // after probing; 0 before the first load
-#ifdef USE_TFLITE_AUDIO
-  AudioModelConfig audio_config_;
-#endif
 
   tflite_model_loader::ModelHandler model_handler_;
   InputPipeline *input_pipeline_{nullptr};

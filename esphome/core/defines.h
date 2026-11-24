@@ -1021,7 +1021,3 @@
 #ifndef LV_GRADIENT_MAX_STOPS
 #define LV_GRADIENT_MAX_STOPS 7
 #endif
-
-// The audio kind enables this through code generation; defining it here lets
-// static analysis see the runtime's audio-only fields.
-#define USE_TFLITE_AUDIO
