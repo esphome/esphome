@@ -15,7 +15,7 @@ void CANopenComponent::setup() {
   }
   this->add_sdo_client_od_();
   this->config_.CNT_SDO_CLI = 1;
-  this->config_.ENTRY_H1280 = &this->od_entries_[0];
+  this->config_.ENTRY_H1280 = &this->sdo_cli_entry_;
   uint32_t heap = 0;
   this->co_ = CO_new(&this->config_, &heap);
   if (this->co_ == nullptr) {

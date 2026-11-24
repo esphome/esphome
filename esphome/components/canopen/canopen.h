@@ -96,10 +96,9 @@ class CANopenComponent : public Component {
   bool drain_upload_(uint32_t dt_us, CO_SDO_return_t &ret, CO_SDO_abortCode_t &abort);
   bool start_sdo_();
   void finish_sdo_(SDOResult result, uint32_t abort_code);
-  // OD for CO_SDOclient_init(): 0x1280 and a blank end entry; not const, CANopenNode writes it
+  // the 0x1280 entry for CO_SDOclient_init(); not const, CANopenNode writes it
   std::array<OD_obj_record_t, 4> sdo_cli_record_{};
-  std::array<OD_entry_t, 2> od_entries_{};
-  OD_t od_{};
+  OD_entry_t sdo_cli_entry_{};
   StaticRingBuffer<SDORequest, SDO_QUEUE_SIZE> sdo_queue_;
   SDORequest sdo_active_{};
   // bytes handed to the fifo (writes) or received, including those past the buffer (reads)

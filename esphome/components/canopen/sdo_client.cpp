@@ -24,17 +24,15 @@ void CANopenComponent::add_sdo_client_od_() {
       {&this->sdo_cli_cob_rx_, 2, ODA_SDO_RW | ODA_MB, 4},
       {&this->sdo_cli_node_, 3, ODA_SDO_RW, 1},
   }};
-  this->od_entries_[0] = OD_entry_t{0x1280, static_cast<uint8_t>(this->sdo_cli_record_.size()), ODT_REC,
+  this->sdo_cli_entry_ = OD_entry_t{0x1280, static_cast<uint8_t>(this->sdo_cli_record_.size()), ODT_REC,
                                     this->sdo_cli_record_.data(), nullptr};
-  this->od_.size = 1;
-  this->od_.list = this->od_entries_.data();
 }
 
 bool CANopenComponent::init_sdo_client_() {
   uint32_t err_info = 0;
-  CO_ReturnError_t err = CO_SDOclient_init(this->co_->SDOclient, &this->od_, &this->od_entries_[0], 0 /* no own node */,
-                                           this->co_->CANmodule, this->co_->RX_IDX_SDO_CLI, this->co_->CANmodule,
-                                           this->co_->TX_IDX_SDO_CLI, &err_info);
+  CO_ReturnError_t err =
+      CO_SDOclient_init(this->co_->SDOclient, nullptr, &this->sdo_cli_entry_, 0 /* no own node */, this->co_->CANmodule,
+                        this->co_->RX_IDX_SDO_CLI, this->co_->CANmodule, this->co_->TX_IDX_SDO_CLI, &err_info);
   if (err != CO_ERROR_NO) {
     ESP_LOGE(TAG, "CO_SDOclient_init failed: %d (OD 0x%04" PRIx32 ")", err, err_info);
     return false;
