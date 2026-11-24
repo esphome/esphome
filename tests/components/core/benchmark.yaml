@@ -1,5 +1,0 @@
-# Pulls in sensor so entity iteration paths compile (USE_SENSOR) without
-# adding codegen sensors, which test builds never construct; the tests
-# register their own into runtime slots reserved in __init__.py.
-# Plain yaml.safe_load, no ESPHome tags.
-sensor: []

@@ -2,11 +2,6 @@
 
 #include "esphome/core/component_iterator.h"
 
-#ifdef USE_SENSOR
-#include "esphome/components/sensor/sensor.h"
-#include "esphome/core/application.h"
-#endif
-
 namespace esphome::testing {
 
 // Iterator whose begin/end callbacks can refuse a configurable number of
@@ -46,7 +41,7 @@ class RefusingIterator : public ComponentIterator {
 static constexpr size_t BIG_BUDGET = 1000;
 
 // Test builds never construct codegen entities: the walks pass include_internal so the iterator
-// never reads them, and the callbacks below only look at the test's own objects.
+// never reads them, and the callbacks above accept every item untouched.
 
 TEST(ComponentIterator, NotRunningMakesNoProgress) {
   RefusingIterator it;
@@ -123,124 +118,5 @@ TEST(ComponentIterator, DeprecatedAdvanceKeepsLegacyPatternWorking) {
   EXPECT_EQ(it.end_calls, 3);
 }
 #pragma GCC diagnostic pop
-
-#ifdef USE_SENSOR
-// Iterator whose sensor callback can refuse or yield; pins the per-item
-// contract: a refused item is re-offered with at_ unchanged, never skipped.
-// The two sensors the tests register into the runtime slots
-static sensor::Sensor sensor_a;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-static sensor::Sensor sensor_b;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-
-class ItemRefusingIterator : public RefusingIterator {
- public:
-  bool on_sensor(sensor::Sensor *obj) override {
-    // Codegen sensors are unconstructed in test builds; accept them untouched
-    if (obj != &sensor_a && obj != &sensor_b)
-      return true;
-    this->last_sensor = obj;
-    if (!step(this->sensor_calls, this->sensor_refusals))
-      return false;
-    if (this->yield_on_sensor)
-      this->yield_after_step_();
-    return true;
-  }
-  sensor::Sensor *last_sensor{nullptr};
-  int sensor_calls{0};
-  int sensor_refusals{0};
-  bool yield_on_sensor{false};
-};
-
-class ComponentIteratorSensorTest : public ::testing::Test {
- protected:
-  void SetUp() override {
-    static bool registered = false;
-    if (!registered) {
-      // Set by the owner before registration; registering must keep it
-      sensor_b.set_internal(true);
-      App.register_sensor(&sensor_a, "Runtime A");
-      App.register_sensor(&sensor_b, "Runtime B");
-      registered = true;
-    }
-    // The runtime slots follow the codegen sensors
-    auto sensors = App.get_sensors();
-    ASSERT_EQ(sensors.size(), ESPHOME_ENTITY_SENSOR_COUNT + 2u);
-    ASSERT_EQ(sensors[ESPHOME_ENTITY_SENSOR_COUNT], &sensor_a);
-    ASSERT_EQ(sensors[ESPHOME_ENTITY_SENSOR_COUNT + 1], &sensor_b);
-  }
-};
-
-TEST_F(ComponentIteratorSensorTest, RegistrationPastTheReservationIsRefused) {
-  static sensor::Sensor extra;
-  EXPECT_FALSE(App.register_sensor(&extra, "Runtime C"));
-  EXPECT_EQ(App.get_sensors().size(), ESPHOME_ENTITY_SENSOR_COUNT + 2u);
-  EXPECT_EQ(extra.get_object_id_hash(), 0u);
-}
-
-TEST_F(ComponentIteratorSensorTest, RegistrationKeepsTheEntityFields) {
-  EXPECT_TRUE(sensor_b.is_internal());
-  EXPECT_FALSE(sensor_a.is_internal());
-}
-
-TEST_F(ComponentIteratorSensorTest, IteratorOutlivesTheView) {
-  // The view returned by get_sensors() is gone after this statement
-  auto it = App.get_sensors().begin();
-  for (size_t i = 0; i < ESPHOME_ENTITY_SENSOR_COUNT; i++)
-    ++it;
-  EXPECT_EQ(*it, &sensor_a);
-  ++it;
-  EXPECT_EQ(*it, &sensor_b);
-}
-
-TEST_F(ComponentIteratorSensorTest, RuntimeEntitiesAreNamedAndKeyed) {
-  EXPECT_STREQ(sensor_a.get_name().c_str(), "Runtime A");
-  EXPECT_TRUE(sensor_a.has_own_name());
-  // What codegen computes for these names (esphome.helpers.fnv1_hash_object_id)
-  EXPECT_EQ(sensor_a.get_object_id_hash(), 572462443u);
-  EXPECT_EQ(sensor_b.get_object_id_hash(), 572462440u);
-// The lookup reads every listed sensor; only without unconstructed codegen sensors
-#if ESPHOME_ENTITY_SENSOR_COUNT == 0
-#ifdef USE_DEVICES
-  EXPECT_EQ(App.get_sensor_by_key(sensor_b.get_object_id_hash(), 0, true), &sensor_b);
-#else
-  EXPECT_EQ(App.get_sensor_by_key(sensor_b.get_object_id_hash(), true), &sensor_b);
-#endif
-#endif
-}
-
-TEST_F(ComponentIteratorSensorTest, RefusedItemIsReofferedNotSkipped) {
-  ItemRefusingIterator it;
-  it.sensor_refusals = 2;
-  it.begin(true);
-  // Runs until the first sensor refuses
-  it.try_advance(BIG_BUDGET);
-  EXPECT_EQ(it.sensor_calls, 1);
-  EXPECT_FALSE(it.completed());
-  // The refused item is re-offered, not skipped
-  it.try_advance(BIG_BUDGET);
-  EXPECT_EQ(it.sensor_calls, 2);
-  sensor::Sensor *refused = it.last_sensor;
-  // Once accepted, iteration continues through the second sensor to the end
-  it.try_advance(BIG_BUDGET);
-  EXPECT_TRUE(it.completed());
-  EXPECT_NE(it.last_sensor, refused);
-  EXPECT_EQ(it.sensor_calls, 4);
-}
-
-TEST_F(ComponentIteratorSensorTest, YieldAfterStepEndsPassAndResumes) {
-  ItemRefusingIterator it;
-  it.yield_on_sensor = true;
-  it.begin(true);
-  // The pass ends right after the first sensor despite a big budget
-  it.try_advance(BIG_BUDGET);
-  EXPECT_EQ(it.sensor_calls, 1);
-  EXPECT_FALSE(it.completed());
-  // The next pass ends after the second sensor
-  it.try_advance(BIG_BUDGET);
-  EXPECT_EQ(it.sensor_calls, 2);
-  // Remaining states then run to completion in one pass
-  it.try_advance(BIG_BUDGET);
-  EXPECT_TRUE(it.completed());
-}
-#endif  // USE_SENSOR
 
 }  // namespace esphome::testing

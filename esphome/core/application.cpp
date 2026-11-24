@@ -41,13 +41,6 @@ namespace esphome {
 
 ESPHOME_LOG_TAG(TAG, "app");
 
-#ifdef USE_RUNTIME_ENTITIES
-// Only built with a reservation: an unused function goes, but its string would stay in flash
-void Application::log_runtime_slots_full_(const char *name) {
-  ESP_LOGW(TAG, "No reserved slot left for '%s'; raise cg.reserve_runtime_entities()", name);
-}
-#endif
-
 // Delay after setup() finishes before trimming the scheduler freelist of its post-boot peak.
 // 10 s is well past the bulk of post-setup async work (Wi-Fi/MQTT connects, first-read latency).
 static constexpr uint32_t SCHEDULER_FREELIST_TRIM_DELAY_MS = 10000;
