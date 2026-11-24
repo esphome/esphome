@@ -1,0 +1,14 @@
+packages:
+  tx_break: !include tx_break.yaml
+
+uart:
+  - id: uart_id
+    tx_pin: TX1
+    rx_pin: RX1
+    baud_rate: 9600
+
+switch:
+  - platform: uart
+    name: "UART Switch"
+    uart_id: uart_id
+    data: [0x01, 0x02, 0x03]

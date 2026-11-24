@@ -500,8 +500,7 @@ void MQTTClientComponent::loop() {
   mqtt_backend_.loop();
 
   if (this->disconnect_reason_.has_value()) {
-    const LogString *reason_s = MQTTDisconnectReasonStrings::get_log_str(
-        static_cast<uint8_t>(*this->disconnect_reason_), MQTTDisconnectReasonStrings::LAST_INDEX);
+    const LogString *reason_s = MQTTDisconnectReasonStrings::get_log_str(*this->disconnect_reason_);
     if (!network::is_connected()) {
       reason_s = LOG_STR("WiFi disconnected");
     }
@@ -783,11 +782,6 @@ bool MQTTClientComponent::publish(const MQTTMessage &message) {
   return this->publish(message.topic.c_str(), message.payload.c_str(), message.payload.length(), message.qos,
                        message.retain);
 }
-bool MQTTClientComponent::publish_json(const std::string &topic, const json::json_build_t &f, uint8_t qos,
-                                       bool retain) {
-  return this->publish_json(topic.c_str(), f, qos, retain);
-}
-
 bool MQTTClientComponent::publish(const char *topic, const char *payload, size_t payload_length, uint8_t qos,
                                   bool retain) {
   if (!this->is_connected()) {
@@ -816,7 +810,7 @@ bool MQTTClientComponent::publish(const char *topic, const char *payload, size_t
   return ret != 0;
 }
 
-bool MQTTClientComponent::publish_json(const char *topic, const json::json_build_t &f, uint8_t qos, bool retain) {
+bool MQTTClientComponent::publish_json(const char *topic, json::JsonBuildRef f, uint8_t qos, bool retain) {
   auto message = json::build_json(f);
   return this->publish(topic, message.c_str(), message.size(), qos, retain);
 }
@@ -845,7 +839,9 @@ __attribute__((noinline)) static bool topic_matches(const char *message, const M
 }
 
 void MQTTClientComponent::on_message(const std::string &topic, const std::string &payload) {
-#ifdef USE_ESP8266
+#if defined(USE_ESP8266) || defined(USE_LIBRETINY)
+  // LibreTiny: this runs in the async_tcp task, and a command such as restart would block that task while its
+  // teardown waits for the MQTT and API traffic only that task can send, so commands run on the main loop.
   // IMPORTANT: This defer is REQUIRED to prevent stack overflow crashes on ESP8266.
   //
   // On ESP8266, this callback is invoked directly from the lwIP/AsyncTCP network stack
@@ -886,7 +882,7 @@ void MQTTClientComponent::on_message(const std::string &topic, const std::string
       this->removed_while_dispatching_ = false;
       this->erase_removed_subscriptions_();
     }
-#ifdef USE_ESP8266
+#if defined(USE_ESP8266) || defined(USE_LIBRETINY)
   });
 #endif
 }
