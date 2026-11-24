@@ -240,7 +240,7 @@ class Canbus : public Component {
 #endif
   }
   virtual CanStatus get_status() { return {}; }
-  /// Whether the last receive pass stopped at max_frames_per_loop, so frames may still wait in the controller
+  /// The last receive pass stopped at max_frames_per_loop; more frames may be waiting.
   bool rx_capped() const { return this->rx_capped_; }
 
   /// The frame is only valid during the call.
