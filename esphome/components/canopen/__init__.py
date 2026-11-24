@@ -112,37 +112,17 @@ _ADDRESS = (
     (CONF_INDEX, cg.uint16),
     (CONF_SUBINDEX, cg.uint8),
 )
-_REPLY = MockObj("esphome__reply", ".")
-_REPLY_PARAMS = [
-    (cg.void.operator("ptr"), "esphome__context"),
-    (SDOReply.operator("const").operator("ref"), str(_REPLY)),
-]
 
 
-async def _reply_call(
-    config: ConfigType,
-    key: str,
-    fn_args: TemplateArgsType,
-    fn_call: tuple[MockObj, ...],
-) -> cg.Statement | None:
-    """The call of the automation under ``key`` with ``fn_call``, if it is set."""
+async def _automation_fn(
+    config: ConfigType, key: str, fn_args: TemplateArgsType
+) -> MockObj:
+    """The static function running the automation under ``key``, or nullptr."""
     if (conf := config.get(key)) is None:
-        return None
+        return cg.nullptr
     fn, build = automation.declare_automation_function(fn_args, conf)
     await build()
-    return cg.statement(MockObj(fn)(*fn_call))
-
-
-def _reply_body(
-    ok_call: cg.Statement | None, error_call: cg.Statement | None
-) -> list[str]:
-    """Run ``ok_call`` if the request succeeded, else ``error_call``."""
-    ok = _REPLY.ok()
-    if ok_call is None:
-        return [f"if (!{ok}) {{", f"  {error_call}", "}"]
-    if error_call is None:
-        return [f"if ({ok}) {{", f"  {ok_call}", "}"]
-    return [f"if ({ok}) {{", f"  {ok_call}", "} else {", f"  {error_call}", "}"]
+    return fn
 
 
 async def _sdo_action_to_code(
@@ -152,31 +132,23 @@ async def _sdo_action_to_code(
     args: TemplateArgsType,
     request: Callable[[MockObj], MockObj],
     keys: tuple[tuple[str, MockObj], ...],
-    on_ok: tuple[str, TemplateArgsType, tuple[MockObj, ...]],
+    reply: MockObj,
+    on_ok: tuple[str, TemplateArgsType],
 ) -> MockObj:
-    """``request(parent)(<keys>, size, reply, nullptr)``; ``reply`` runs ``on_ok`` or on_error."""
+    """``request(parent)(<keys>, size, reply<on_ok, on_error>, nullptr)``."""
     values = [
         await automation.call_user_lambda(value, args, type_)
         if cg.is_template(value := config[key])
         else cg.safe_exp(value)
         for key, type_ in keys
     ]
-    ok_call = await _reply_call(config, *on_ok)
-    error_call = await _reply_call(
-        config,
-        CONF_ON_ERROR,
-        [(SDOResult, "result"), (cg.uint32, "abort_code")],
-        (_REPLY.result, _REPLY.abort_code),
+    ok_fn = await _automation_fn(config, *on_ok)
+    error_fn = await _automation_fn(
+        config, CONF_ON_ERROR, [(SDOResult, "result"), (cg.uint32, "abort_code")]
     )
     callback = cg.nullptr
-    if ok_call is not None or error_call is not None:
-        callback = automation.apply_static_function(
-            action_id,
-            cg.void,
-            _REPLY_PARAMS,
-            _reply_body(ok_call, error_call),
-            suffix="reply",
-        )
+    if ok_fn is not cg.nullptr or error_fn is not cg.nullptr:
+        callback = reply.template(ok_fn, error_fn)
     hub = automation.parent_ref(await cg.get_variable(config[CONF_ID]))
     statement = cg.statement(
         request(hub)(*values, config[CONF_SIZE], callback, cg.nullptr)
@@ -216,7 +188,8 @@ async def sdo_write_to_code(
         args,
         lambda hub: hub.write_sdo,
         (*_ADDRESS, (CONF_VALUE, cg.uint32)),
-        (CONF_ON_SUCCESS, [], ()),
+        ns.sdo_write_reply,
+        (CONF_ON_SUCCESS, []),
     )
 
 
@@ -245,5 +218,6 @@ async def sdo_read_to_code(
         args,
         lambda hub: hub.read_sdo,
         _ADDRESS,
-        (CONF_ON_VALUE, [(cg.uint32, "x")], (_REPLY.value,)),
+        ns.sdo_read_reply,
+        (CONF_ON_VALUE, [(cg.uint32, "x")]),
     )

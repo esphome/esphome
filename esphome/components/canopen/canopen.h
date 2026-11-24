@@ -55,6 +55,7 @@ class CANopenComponent : public Component {
     return this->write_sdo(node_id, index, sub, raw, sizeof(T), callback, context);
   }
   // Buffers must stay valid until the callback; a read_sdo_data() object longer than capacity is aborted.
+  // Transfers are limited to 64 KiB: a longer write is rejected, a larger capacity is clamped.
   bool read_sdo_data(uint8_t node_id, uint16_t index, uint8_t sub, uint8_t *data, size_t capacity, SDOCallback callback,
                      void *context);
   bool write_sdo_data(uint8_t node_id, uint16_t index, uint8_t sub, const uint8_t *data, size_t len,
