@@ -140,36 +140,36 @@ bool CANopenComponent::sdo_reply_is_stale_(const uint8_t *data, uint8_t len) con
   return encode_uint16(data[2], data[1]) != this->sdo_active_.index || data[3] != this->sdo_active_.sub;
 }
 
-bool CANopenComponent::start_sdo_() {
+CO_SDO_return_t CANopenComponent::start_sdo_() {
   CO_SDOclient_t *cli = this->co_->SDOclient;
   SDORequest &r = this->sdo_active_;
   uint8_t node = r.node_id;
-  if (CO_SDOclient_setup(cli, 0x600 + node, 0x580 + node, node) != CO_SDO_RT_ok_communicationEnd)
-    return false;
+  CO_SDO_return_t ret = CO_SDOclient_setup(cli, 0x600 + node, 0x580 + node, node);
+  if (ret != CO_SDO_RT_ok_communicationEnd)
+    return ret;
   this->sdo_len_ = 0;
   this->sdo_rx_value_.fill(0);  // finish_sdo_() decodes all 4 bytes
   switch (r.kind) {
     case SDOKind::SDO_KIND_READ:
     case SDOKind::SDO_KIND_READ_DATA:
-      return CO_SDOclientUploadInitiate(cli, r.index, r.sub, this->response_timeout_ms_, false) ==
-             CO_SDO_RT_ok_communicationEnd;
+      return CO_SDOclientUploadInitiate(cli, r.index, r.sub, this->response_timeout_ms_, false);
     case SDOKind::SDO_KIND_WRITE: {
       uint8_t buf[4];
       put_le32(buf, r.value);
-      if (CO_SDOclientDownloadInitiate(cli, r.index, r.sub, r.size, this->response_timeout_ms_, false) !=
-          CO_SDO_RT_ok_communicationEnd)
-        return false;
+      ret = CO_SDOclientDownloadInitiate(cli, r.index, r.sub, r.size, this->response_timeout_ms_, false);
+      if (ret != CO_SDO_RT_ok_communicationEnd)
+        return ret;
       this->sdo_len_ = CO_SDOclientDownloadBufWrite(cli, buf, r.size);
-      return this->sdo_len_ == r.size;
+      return this->sdo_len_ == r.size ? CO_SDO_RT_ok_communicationEnd : CO_SDO_RT_wrongArguments;
     }
     case SDOKind::SDO_KIND_WRITE_DATA:
-      if (CO_SDOclientDownloadInitiate(cli, r.index, r.sub, r.len, this->response_timeout_ms_, false) !=
-          CO_SDO_RT_ok_communicationEnd)
-        return false;
+      ret = CO_SDOclientDownloadInitiate(cli, r.index, r.sub, r.len, this->response_timeout_ms_, false);
+      if (ret != CO_SDO_RT_ok_communicationEnd)
+        return ret;
       this->sdo_len_ = CO_SDOclientDownloadBufWrite(cli, r.data, r.len);
-      return true;
+      return ret;
   }
-  return false;
+  return CO_SDO_RT_wrongArguments;
 }
 
 void CANopenComponent::process_sdo_(uint32_t dt_us) {
@@ -179,7 +179,10 @@ void CANopenComponent::process_sdo_(uint32_t dt_us) {
     this->sdo_active_ = this->sdo_queue_.front();
     this->sdo_queue_.pop();
     this->sdo_busy_ = true;
-    if (!this->start_sdo_()) {
+    CO_SDO_return_t started = this->start_sdo_();
+    if (started != CO_SDO_RT_ok_communicationEnd) {
+      ESP_LOGD(TAG, "node 0x%02x, 0x%04x:%u: not started (CANopenNode %d)", this->sdo_active_.node_id,
+               this->sdo_active_.index, this->sdo_active_.sub, static_cast<int>(started));
       this->finish_sdo_(SDOResult::SDO_RESULT_TRANSPORT_ERROR, 0);
       return;
     }

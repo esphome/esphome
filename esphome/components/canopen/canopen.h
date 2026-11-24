@@ -94,7 +94,7 @@ class CANopenComponent : public Component {
   void process_sdo_(uint32_t dt_us);
   // true when an overlong read ended the request
   bool drain_upload_(uint32_t dt_us, CO_SDO_return_t &ret, CO_SDO_abortCode_t &abort);
-  bool start_sdo_();
+  CO_SDO_return_t start_sdo_();
   void finish_sdo_(SDOResult result, uint32_t abort_code);
   // the 0x1280 entry for CO_SDOclient_init(); not const, CANopenNode writes it
   std::array<OD_obj_record_t, 4> sdo_cli_record_{};

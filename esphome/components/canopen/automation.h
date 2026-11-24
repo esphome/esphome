@@ -1,26 +1,26 @@
 #pragma once
 
+#include <type_traits>
+
 #include "types.h"
 
 namespace esphome::canopen {
 
 // SDO reply callbacks for the generated actions; an automation that isn't configured is nullptr
-template<void (*ON_SUCCESS)(), void (*ON_ERROR)(const SDOResult &, const uint32_t &)>
-void sdo_write_reply(void * /*context*/, const SDOReply &reply) {
+template<auto ON_SUCCESS, auto ON_ERROR> void sdo_write_reply(void * /*context*/, const SDOReply &reply) {
   if (reply.ok()) {
-    if constexpr (ON_SUCCESS != nullptr)
+    if constexpr (!std::is_null_pointer_v<decltype(ON_SUCCESS)>)
       ON_SUCCESS();
-  } else if constexpr (ON_ERROR != nullptr) {
+  } else if constexpr (!std::is_null_pointer_v<decltype(ON_ERROR)>) {
     ON_ERROR(reply.result, reply.abort_code);
   }
 }
 
-template<void (*ON_VALUE)(const uint32_t &), void (*ON_ERROR)(const SDOResult &, const uint32_t &)>
-void sdo_read_reply(void * /*context*/, const SDOReply &reply) {
+template<auto ON_VALUE, auto ON_ERROR> void sdo_read_reply(void * /*context*/, const SDOReply &reply) {
   if (reply.ok()) {
-    if constexpr (ON_VALUE != nullptr)
+    if constexpr (!std::is_null_pointer_v<decltype(ON_VALUE)>)
       ON_VALUE(reply.value);
-  } else if constexpr (ON_ERROR != nullptr) {
+  } else if constexpr (!std::is_null_pointer_v<decltype(ON_ERROR)>) {
     ON_ERROR(reply.result, reply.abort_code);
   }
 }
