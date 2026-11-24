@@ -16,9 +16,10 @@ counter every 500 ms and logs TEC/REC every 5 s; expect 0 errors both ways.
 - `nodea.yaml`: the full suite, including NMT stop and start with a raw `0x000` frame and an offline window.
   `nodea-late.yaml`: the action paths in `actions2.yaml` (`on_success`, `on_error`, `on_value`, lambda node ids, an
   absent node) and five rounds of late responses. `pico.yaml`: a Pico 2 W with an MCP2515/TJA1050 module (8 MHz
-  crystal, 3V3, SPI0 18/19/16, CS GP17, 2 MHz) as a third node running the same phases.
-- `drive.py PORT_A PORT_B OUT SECONDS` captures both boards, resets them, and holds B in reset (RTS on, DTR off) 8 s
-  into A's offline phase for 15 s.
+  crystal, 3V3, SPI0 18/19/16, CS GP17, 2 MHz) as a third node running the same phases. The TJA1050 is rated for
+  4.75 to 5.25 V: on 3V3 it is out of spec (it worked on the short bench bus); an SN65HVD230 is a 3.3 V part.
+- `drive.py PORT_A PORT_B OUT SECONDS` (150 or more for `nodea.yaml`) captures both boards, resets them, and holds B
+  in reset (RTS on, DTR off) 8 s into A's offline phase for 15 s.
 
 Findings:
 

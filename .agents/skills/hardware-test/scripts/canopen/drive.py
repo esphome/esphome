@@ -1,6 +1,6 @@
 """Capture node A and node B, reset both, and hold B in reset during A's offline phase.
 
-Usage: python drive.py PORT_A PORT_B OUTPREFIX SECONDS
+Usage: python drive.py PORT_A PORT_B OUTPREFIX SECONDS (at least 150 for nodea.yaml)
 Writes OUTPREFIX-a.txt, OUTPREFIX-b.txt and OUTPREFIX-events.txt. On a USB-UART devkit RTS drives EN, so RTS on
 with DTR off holds the board in reset.
 """
@@ -79,7 +79,13 @@ def main() -> None:
         time.sleep(1.5)
         event("reset A")
         reset(sa)
-        if offline.wait(timeout=secs):
+        held = False
+        if not offline.wait(timeout=secs):
+            event("offline phase never seen, B NOT held")
+        elif end - time.time() < HOLD_AFTER + HOLD_FOR + 10:
+            event("offline phase too close to the end of the capture, B NOT held")
+        else:
+            held = True
             time.sleep(HOLD_AFTER)
             event("hold B in reset (EN low)")
             sb.rts = True
@@ -89,6 +95,7 @@ def main() -> None:
         for t in threads:
             t.join()
         event("done")
+    sys.exit(0 if held else 1)
 
 
 if __name__ == "__main__":

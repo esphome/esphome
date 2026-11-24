@@ -31,7 +31,7 @@ struct Req {
 };
 static Req pool[64];
 static uint8_t pool_i;
-static uint32_t n_pass, n_fail, n_done, n_rejected_sync, next_seq, last_seq;
+static uint32_t n_pass, n_fail, n_done, n_rejected_sync, next_seq, last_seq, n_soak_sent;
 static uint32_t last_done_us;
 static bool order_ok = true;
 // per-kind service time stats (time from max(queued, previous completion) to callback)
@@ -122,11 +122,11 @@ inline void cb(void *ctx, const SDOReply &rep) {
 
 inline void summary(const char *when) {
   ESP_LOGI(TAG,
-           "SUMMARY %s done=%u pass=%u fail=%u rejected=%u order_ok=%d | ok %u abort %u timeout %u size %u transport "
-           "%u rej %u",
-           when, (unsigned) n_done, (unsigned) n_pass, (unsigned) n_fail, (unsigned) n_rejected_sync, order_ok,
-           (unsigned) res_count[0], (unsigned) res_count[1], (unsigned) res_count[2], (unsigned) res_count[3],
-           (unsigned) res_count[4], (unsigned) res_count[5]);
+           "SUMMARY %s done=%u outstanding=%d pass=%u fail=%u rejected=%u order_ok=%d | ok %u abort %u timeout %u size "
+           "%u transport %u rej %u",
+           when, (unsigned) n_done, (int) (next_seq + n_soak_sent - n_done), (unsigned) n_pass, (unsigned) n_fail,
+           (unsigned) n_rejected_sync, order_ok, (unsigned) res_count[0], (unsigned) res_count[1],
+           (unsigned) res_count[2], (unsigned) res_count[3], (unsigned) res_count[4], (unsigned) res_count[5]);
 }
 
 // ---- phases ----
@@ -263,13 +263,16 @@ inline void soak_cb(void *ctx, const SDOReply &rep) {
              (unsigned) rep.abort_code, (unsigned) rep.value);
   (k == 0 ? st_read : k == 1 ? st_write : st_str).add(dt);
   soak_k++;
-  if ((int32_t) (millis() - soak_until) < 0)
+  if (rep.result == SDOResult::SDO_RESULT_REJECTED)  // synchronous: chaining again would recurse
+    ESP_LOGE(TAG, "FAIL soak stopped, request %u rejected", (unsigned) soak_k);
+  else if ((int32_t) (millis() - soak_until) < 0)
     soak_next(h);
   else
     ESP_LOGI(TAG, "SOAK done, %u requests", (unsigned) soak_k);
 }
 inline void soak_next(CANopenComponent *h) {
   soak_req.t0 = micros();
+  n_soak_sent++;
   uint32_t k = soak_k % 3;
   if (k == 1) {  // write the next value
     h->write_sdo<uint32_t>(NODE, 0x2002, 0, 0xC0DE0000 + ((soak_k / 3 + 1) & 0xFFFF), soak_cb, h);
@@ -310,7 +313,7 @@ inline void off_cb(void *ctx, const SDOReply &rep) {
 inline void off_tick(CANopenComponent *h) {
   static uint32_t i;
   i++;
-  Req *r = mk("off read u32", R::SDO_RESULT_SUCCESS);
+  Req *r = mk((i % 2) ? "off read u32" : "off write u16", R::SDO_RESULT_SUCCESS);
   bool ok = (i % 2) ? h->read_sdo<uint32_t>(NODE, 0x2002, 0, off_cb, r)
                     : h->write_sdo<uint16_t>(NODE, 0x2001, 0, i & 0xFFFF, off_cb, r);
   if (!ok)
