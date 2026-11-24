@@ -100,7 +100,10 @@ def test_runtime_pointer_is_rejected() -> None:
         ID("runtime_sensor", is_declaration=True, type=cg.esphome_ns.class_("Sensor")),
         cg.RawExpression("make_sensor()"),
     )
-    with pytest.raises(EsphomeError, match="cg.new_Pvariable"):
+    with pytest.raises(
+        EsphomeError,
+        match=r"cg\.new_Pvariable.*App\.register_<platform>\(obj, name\)",
+    ):
         app_lists.add_entity("sensor", runtime)
 
 
@@ -164,12 +167,18 @@ def test_count_override_is_rejected(via_build_flag: bool) -> None:
         CORE.flush_tasks()
 
 
-def test_runtime_only_pointer_is_rejected_with_the_register_hint() -> None:
-    runtime = cg.Pvariable(
-        ID(
-            "made_at_run_time", is_declaration=True, type=cg.esphome_ns.class_("Sensor")
-        ),
-        cg.RawExpression("make_sensor()"),
-    )
-    with pytest.raises(EsphomeError, match=r"App\.register_<platform>\(obj, name\)"):
-        app_lists.add_entity("sensor", runtime)
+@pytest.mark.parametrize("via_build_flag", [False, True])
+def test_runtime_count_override_is_rejected_with_a_reservation(
+    via_build_flag: bool,
+) -> None:
+    CORE.loaded_integrations.add("sensor")
+    cg.reserve_runtime_entities("sensor", 12)
+    if via_build_flag:
+        CORE.build_flags.add("-DESPHOME_RUNTIME_SENSOR_COUNT=2")
+    else:
+        cg.add_define("ESPHOME_RUNTIME_SENSOR_COUNT", 2)
+    app_lists.schedule_emit()
+    with pytest.raises(
+        EsphomeError, match="ESPHOME_RUNTIME_SENSOR_COUNT is defined as 2"
+    ):
+        CORE.flush_tasks()

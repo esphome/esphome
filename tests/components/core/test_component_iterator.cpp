@@ -197,10 +197,13 @@ TEST_F(ComponentIteratorSensorTest, RuntimeEntitiesAreNamedAndKeyed) {
   // What codegen computes for these names (esphome.helpers.fnv1_hash_object_id)
   EXPECT_EQ(sensor_a.get_object_id_hash(), 572462443u);
   EXPECT_EQ(sensor_b.get_object_id_hash(), 572462440u);
+// The lookup reads every listed sensor; only without unconstructed codegen sensors
+#if ESPHOME_ENTITY_SENSOR_COUNT == 0
 #ifdef USE_DEVICES
   EXPECT_EQ(App.get_sensor_by_key(sensor_b.get_object_id_hash(), 0, true), &sensor_b);
 #else
   EXPECT_EQ(App.get_sensor_by_key(sensor_b.get_object_id_hash(), true), &sensor_b);
+#endif
 #endif
 }
 

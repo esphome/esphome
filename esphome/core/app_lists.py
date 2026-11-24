@@ -138,25 +138,29 @@ def reserve_runtime_entities(platform: str, count: int) -> None:
         request_slot()
 
 
-def _defined_value(name: str) -> str | None:
-    """Value `name` is already defined with, through cg.add_define or a -D build flag."""
-    for define in CORE.defines:
-        if define.name == name:
-            return str(define.value)
-    for flag in CORE.build_flags:
-        if flag == f"-D{name}" or flag.startswith(f"-D{name}="):
-            return flag.partition("=")[2]
-    return None
+def _defined_values(name: str) -> set[str]:
+    """Values `name` is already defined with, through cg.add_define or a -D build flag."""
+    values = {str(define.value) for define in CORE.defines if define.name == name}
+    values.update(
+        flag.partition("=")[2]
+        for flag in CORE.build_flags
+        if flag == f"-D{name}" or flag.startswith(f"-D{name}=")
+    )
+    return values
+
+
+def _check_count_define(name: str, value: int, platform: str) -> None:
+    """Refuse a list size defined elsewhere with a different value: it would size the walk wrong."""
+    if others := sorted(_defined_values(name) - {str(value)}):
+        raise EsphomeError(
+            f"{name} is defined as {', '.join(others)} elsewhere, but codegen sizes it as "
+            f"{value}. Remove that define; to register {platform} entities at run time, call "
+            f'cg.reserve_runtime_entities("{platform}", n) in to_code'
+        )
 
 
 def _add_count_define(name: str, value: int, platform: str) -> None:
-    """Emit a list size, refusing a different value defined elsewhere: it would size the walk wrong."""
-    if (other := _defined_value(name)) is not None and other != str(value):
-        raise EsphomeError(
-            f"{name} is defined as {other} elsewhere, but codegen sizes it as {value}. "
-            f"Remove that define; to register {platform} entities at run time, call "
-            f'cg.reserve_runtime_entities("{platform}", n) in to_code'
-        )
+    _check_count_define(name, value, platform)
     add_define(name, value)
 
 
@@ -180,7 +184,7 @@ async def _emit_entity_lists() -> None:
         if (
             not reserved
             and not CORE.platform_counts.get(platform)
-            and _defined_value(use_define(platform)) is None
+            and not _defined_values(use_define(platform))
         ):
             continue
         add_define(use_define(platform))
@@ -189,7 +193,10 @@ async def _emit_entity_lists() -> None:
         _add_count_define(
             f"ESPHOME_ENTITY_{platform.upper()}_COUNT", len(objs), platform
         )
-        if not reserved:
+        if reserved:
+            # slot_counter emits this one; only check that nothing else defines it differently
+            _check_count_define(runtime_count_define(platform), reserved, platform)
+        else:
             _add_count_define(runtime_count_define(platform), 0, platform)
         _emit_list(upper, objs)
     for upper in ("DEVICE", "AREA"):
