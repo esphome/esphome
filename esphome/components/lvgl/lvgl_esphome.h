@@ -145,6 +145,24 @@ inline uint32_t chart_point_slot(lv_obj_t *chart, lv_chart_series_t *series, uin
     return index;
   return (lv_chart_get_x_start_point(chart, series) + index) % count;
 }
+
+/// The Y value LVGL stores for a scatter point. LVGL only checks Y for a gap, so a NaN in X stores a gap in Y too.
+inline int32_t chart_point_y_value(float x, float y, float y_multiplier) {
+  return std::isnan(x) ? LV_CHART_POINT_NONE : chart_point_value(y, y_multiplier);
+}
+
+/// Append a scatter point, scaled as chart_point_value(); NaN in either coordinate leaves a gap.
+inline void chart_set_next_point(lv_obj_t *chart, lv_chart_series_t *series, float x, float y, float x_multiplier,
+                                 float y_multiplier) {
+  lv_chart_set_next_value2(chart, series, chart_point_value(x, x_multiplier), chart_point_y_value(x, y, y_multiplier));
+}
+
+/// Set the scatter point `index` places from the left of the chart, as chart_set_next_point() does.
+inline void chart_set_point(lv_obj_t *chart, lv_chart_series_t *series, uint32_t index, float x, float y,
+                            float x_multiplier, float y_multiplier) {
+  lv_chart_set_series_value_by_id2(chart, series, chart_point_slot(chart, series, index),
+                                   chart_point_value(x, x_multiplier), chart_point_y_value(x, y, y_multiplier));
+}
 #endif
 
 #ifdef USE_LVGL_LIST

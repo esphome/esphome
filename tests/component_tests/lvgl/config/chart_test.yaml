@@ -62,6 +62,16 @@ lvgl:
           - id: scaled_series
             values: [1.25, nan, -2.5]
     - chart:
+        id: gap_chart
+        type: scatter
+        point_count: 3
+        series:
+          - id: gap_series
+            points:
+              - {x: 10, y: 20}
+              - {x: nan, y: 30}
+              - {x: 30, y: 40}
+    - chart:
         id: bar_chart
         type: bar
         indicator:
@@ -74,6 +84,17 @@ lvgl:
     - button:
         on_click:
           - lvgl.widget.refresh: bar_chart
+          - lvgl.chart.series.append:
+              id: gap_series
+              point:
+                x: nan
+                y: !lambda return 5;
+          - lvgl.chart.series.set:
+              id: gap_series
+              index: 1
+              point:
+                x: !lambda return NAN;
+                y: 3
           - lvgl.chart.series.append:
               id: scaled_series
               value: !lambda return 0.5f;

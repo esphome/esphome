@@ -18,6 +18,7 @@ from esphome.components.lvgl.widgets.chart import (
     SERIES_CLEAR_SCHEMA,
     SERIES_SET_SCHEMA,
     SERIES_UPDATE_SCHEMA,
+    _fixed_point,
     chart_spec,
     scale_value,
     series_axes,
@@ -254,9 +255,8 @@ def test_scatter_codegen_uses_paired_lvgl_apis(
         "scatter_series_chart_x_values, scatter_series_chart_y_values, 2);" in main_cpp
     )
     assert (
-        "lv_chart_set_next_value2(::scatter_chart, ::scatter_series, "
-        "lvgl::chart_point_value(static_cast<float>(50), 1.0f), "
-        "lvgl::chart_point_value(static_cast<float>(60), 1.0f));" in main_cpp
+        "lvgl::chart_set_next_point(::scatter_chart, ::scatter_series, "
+        "static_cast<float>(50), static_cast<float>(60), 1.0f, 1.0f);" in main_cpp
     )
     assert "static const int32_t line_series_chart_values[] = {10, 20};" in main_cpp
     assert (
@@ -781,3 +781,38 @@ def test_series_actions_do_not_redraw_the_whole_chart(
     main_cpp = generate_main(component_config_path("chart_test.yaml"))
 
     assert "lv_chart_refresh(::" not in main_cpp
+
+
+@pytest.mark.parametrize(
+    "point,expected",
+    [
+        ({"x": 1.5, "y": 2}, (2, 2)),
+        ({"x": 1, "y": float("nan")}, (1, "LV_CHART_POINT_NONE")),
+        # LVGL only checks Y for a gap
+        ({"x": float("nan"), "y": 2}, ("LV_CHART_POINT_NONE", "LV_CHART_POINT_NONE")),
+    ],
+)
+def test_fixed_scatter_point_gaps(point: dict, expected: tuple) -> None:
+    assert tuple(str(v) for v in _fixed_point(point, 1, 1)) == tuple(
+        str(v) for v in expected
+    )
+
+
+def test_scatter_points_with_nan_x_leave_a_gap(
+    generate_main, component_config_path
+) -> None:
+    main_cpp = generate_main(component_config_path("chart_test.yaml"))
+
+    # A fixed point, a point with a lambda, and one set by index with a lambda
+    assert (
+        "static const int32_t gap_series_chart_y_values[] = "
+        "{20, LV_CHART_POINT_NONE, 40};" in main_cpp
+    )
+    assert (
+        "lvgl::chart_set_next_point(::gap_chart, ::gap_series, NAN, "
+        "static_cast<float>(5), 1.0f, 1.0f);" in main_cpp
+    )
+    assert (
+        "lvgl::chart_set_point(::gap_chart, ::gap_series, 1, "
+        "static_cast<float>(NAN), 3.0f, 1.0f, 1.0f);" in main_cpp
+    )

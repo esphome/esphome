@@ -38,7 +38,7 @@ from ..defines import (
     literal,
 )
 from ..lv_validation import lv_bool, lv_color, lv_float, lv_positive_int
-from ..lvcode import LocalVariable, lv, lv_assign, lv_expr, lv_global
+from ..lvcode import LocalVariable, lv, lv_add, lv_assign, lv_expr, lv_global
 from ..types import LvType, lvgl_ns
 from . import Widget, WidgetType
 
@@ -90,6 +90,8 @@ lv_chart_t = LvType("lv_chart_t")
 lv_chart_series_t = cg.global_ns.struct("lv_chart_series_t")
 chart_point_value = lvgl_ns.chart_point_value
 chart_point_slot = lvgl_ns.chart_point_slot
+chart_set_next_point = lvgl_ns.chart_set_next_point
+chart_set_point = lvgl_ns.chart_set_point
 
 # The largest float below 2**31; matches the limit in chart_point_value(). INT32_MAX
 # itself is LV_CHART_POINT_NONE, which marks a gap.
@@ -714,6 +716,30 @@ async def set_series_values(
         lv.chart_set_next_value(chart, series, await chart_value(value, y_scale))
 
 
+def _fixed_point(point: ConfigType, x_scale: float, y_scale: float) -> tuple[Any, Any]:
+    """A fixed scatter point as LVGL stores it. LVGL only checks Y for a gap, so a NaN
+    in X stores a gap in Y as well."""
+    none = literal("LV_CHART_POINT_NONE")
+    x = scale_value(point[CONF_X], x_scale)
+    y = scale_value(point[CONF_Y], y_scale)
+    if x is None:
+        return none, none
+    return x, none if y is None else y
+
+
+def _is_fixed(point: ConfigType) -> bool:
+    return not isinstance(point[CONF_X], Lambda) and not isinstance(
+        point[CONF_Y], Lambda
+    )
+
+
+async def _float_argument(value: Any) -> Any:
+    """A coordinate as the float a chart helper takes."""
+    if isinstance(value, Lambda):
+        return await lv_float.process(value)
+    return literal("NAN") if math.isnan(value) else value
+
+
 async def set_series_points(
     chart: MockObj,
     series: MockObj,
@@ -723,23 +749,29 @@ async def set_series_points(
     name: str,
 ) -> None:
     """As set_series_values(), for scatter points."""
-    xs = [point[CONF_X] for point in points]
-    ys = [point[CONF_Y] for point in points]
-    if _all_fixed(xs + ys):
-        x_array = _value_array(
-            f"{name}_chart_x_values", [await chart_value(x, x_scale) for x in xs]
-        )
-        y_array = _value_array(
-            f"{name}_chart_y_values", [await chart_value(y, y_scale) for y in ys]
-        )
+    if len(points) > 1 and all(_is_fixed(point) for point in points):
+        fixed = [_fixed_point(point, x_scale, y_scale) for point in points]
+        x_array = _value_array(f"{name}_chart_x_values", [x for x, _ in fixed])
+        y_array = _value_array(f"{name}_chart_y_values", [y for _, y in fixed])
         lv.chart_set_series_values2(chart, series, x_array, y_array, len(points))
         return
-    for x, y in zip(xs, ys, strict=True):
-        lv.chart_set_next_value2(
-            chart,
-            series,
-            await chart_value(x, x_scale),
-            await chart_value(y, y_scale),
+    for point in points:
+        if _is_fixed(point):
+            lv.chart_set_next_value2(
+                chart, series, *_fixed_point(point, x_scale, y_scale)
+            )
+            continue
+        # The helper takes each coordinate once, so that a NaN X can also store a
+        # gap in Y without calling the X lambda twice.
+        lv_add(
+            chart_set_next_point(
+                chart,
+                series,
+                await _float_argument(point[CONF_X]),
+                await _float_argument(point[CONF_Y]),
+                x_scale,
+                y_scale,
+            )
         )
 
 
@@ -806,16 +838,25 @@ async def series_set_to_code(
                     chart, series, config[CONF_VALUES], y_scale, name
                 )
             return
-        slot = chart_point_slot(
-            chart, series, await lv_positive_int.process(config[CONF_INDEX])
-        )
-        if (point := config.get(CONF_POINT)) is not None:
+        index = await lv_positive_int.process(config[CONF_INDEX])
+        point = config.get(CONF_POINT)
+        if point is not None and not _is_fixed(point):
+            lv_add(
+                chart_set_point(
+                    chart,
+                    series,
+                    index,
+                    await _float_argument(point[CONF_X]),
+                    await _float_argument(point[CONF_Y]),
+                    x_scale,
+                    y_scale,
+                )
+            )
+            return
+        slot = chart_point_slot(chart, series, index)
+        if point is not None:
             lv.chart_set_series_value_by_id2(
-                chart,
-                series,
-                slot,
-                await chart_value(point[CONF_X], x_scale),
-                await chart_value(point[CONF_Y], y_scale),
+                chart, series, slot, *_fixed_point(point, x_scale, y_scale)
             )
         else:
             lv.chart_set_series_value_by_id(

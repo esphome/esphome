@@ -54,6 +54,12 @@ class ChartPointSlotTest : public ::testing::Test {
       lv_chart_set_next_value(this->chart_, this->series_, value);
   }
 
+  // Appends the points (0, 0), (1, 1), ... (count - 1, count - 1)
+  void append_points_(int32_t count) {
+    for (int32_t value = 0; value < count; value++)
+      lv_chart_set_next_value2(this->chart_, this->series_, value, value);
+  }
+
   // The value drawn at `index` from the left
   int32_t value_at_(uint32_t index) {
     return lv_chart_get_series_y_array(this->chart_,
@@ -83,6 +89,45 @@ TEST_F(ChartPointSlotTest, OutOfRangeIndexIsReturnedUnchanged) {
   this->append_(3);
   EXPECT_EQ(chart_point_slot(this->chart_, this->series_, POINT_COUNT), POINT_COUNT);
   EXPECT_EQ(chart_point_slot(this->chart_, this->series_, UINT32_MAX), UINT32_MAX);
+}
+
+class ChartScatterPointTest : public ChartPointSlotTest {
+ protected:
+  void SetUp() override {
+    this->chart_ = lv_chart_create(lv_screen_active());
+    // X values are only kept for a series added to a scatter chart
+    lv_chart_set_type(this->chart_, LV_CHART_TYPE_SCATTER);
+    lv_chart_set_point_count(this->chart_, POINT_COUNT);
+    lv_chart_set_update_mode(this->chart_, LV_CHART_UPDATE_MODE_CIRCULAR);
+    this->series_ = lv_chart_add_series(this->chart_, lv_color_black(), LV_CHART_AXIS_PRIMARY_Y);
+  }
+
+  int32_t x_at_(uint32_t slot) { return lv_chart_get_series_x_array(this->chart_, this->series_)[slot]; }
+  int32_t y_at_(uint32_t slot) { return lv_chart_get_series_y_array(this->chart_, this->series_)[slot]; }
+};
+
+TEST_F(ChartScatterPointTest, AppendsScaledPoints) {
+  chart_set_next_point(this->chart_, this->series_, 1.5f, 2.25f, 10.0f, 100.0f);
+  EXPECT_EQ(this->x_at_(0), 15);
+  EXPECT_EQ(this->y_at_(0), 225);
+}
+
+TEST_F(ChartScatterPointTest, NanInEitherCoordinateLeavesAGap) {
+  chart_set_next_point(this->chart_, this->series_, NAN, 2.0f, 1.0f, 1.0f);
+  chart_set_next_point(this->chart_, this->series_, 1.0f, NAN, 1.0f, 1.0f);
+  // LVGL only checks Y for a gap
+  EXPECT_EQ(this->y_at_(0), LV_CHART_POINT_NONE);
+  EXPECT_EQ(this->y_at_(1), LV_CHART_POINT_NONE);
+  EXPECT_EQ(this->x_at_(1), 1);
+}
+
+TEST_F(ChartScatterPointTest, SetsAPointByIndex) {
+  this->append_points_(3);
+  chart_set_point(this->chart_, this->series_, 1, NAN, 7.0f, 1.0f, 1.0f);
+  chart_set_point(this->chart_, this->series_, 2, 8.0f, 9.0f, 1.0f, 1.0f);
+  EXPECT_EQ(this->y_at_(1), LV_CHART_POINT_NONE);
+  EXPECT_EQ(this->x_at_(2), 8);
+  EXPECT_EQ(this->y_at_(2), 9);
 }
 
 }  // namespace esphome::lvgl::testing
