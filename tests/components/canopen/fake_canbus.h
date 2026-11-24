@@ -12,6 +12,14 @@
 
 namespace esphome::canopen::testing {
 
+inline canbus::CanFrame make_frame(uint32_t can_id, const std::vector<uint8_t> &data) {
+  canbus::CanFrame f{};
+  f.can_id = can_id;
+  f.can_data_length_code = data.size();
+  std::copy(data.begin(), data.end(), f.data);
+  return f;
+}
+
 // records the frames the hub sends
 class FakeCanbus : public canbus::Canbus {
  public:
@@ -25,13 +33,7 @@ class FakeCanbus : public canbus::Canbus {
   // frames waiting in the controller, handed out by loop()
   std::deque<canbus::CanFrame> rx;
 
-  void queue(uint32_t can_id, const std::vector<uint8_t> &data) {
-    canbus::CanFrame f{};
-    f.can_id = can_id;
-    f.can_data_length_code = data.size();
-    std::copy(data.begin(), data.end(), f.data);
-    this->rx.push_back(f);
-  }
+  void queue(uint32_t can_id, const std::vector<uint8_t> &data) { this->rx.push_back(make_frame(can_id, data)); }
 
   size_t count(uint32_t can_id) const {
     size_t n = 0;
@@ -61,13 +63,7 @@ class TestHub : public CANopenComponent {
  public:
   using CANopenComponent::CANopenComponent;
   // a received frame, as the canbus callback delivers it (processed right away)
-  void frame(uint32_t can_id, const std::vector<uint8_t> &data) {
-    canbus::CanFrame f{};
-    f.can_id = can_id;
-    f.can_data_length_code = data.size();
-    std::copy(data.begin(), data.end(), f.data);
-    this->on_frame_(f);
-  }
+  void frame(uint32_t can_id, const std::vector<uint8_t> &data) { this->on_frame_(make_frame(can_id, data)); }
   void frame(const canbus::CanFrame &f) { this->on_frame_(f); }
 };
 

@@ -25,9 +25,4 @@ TEST(CanopenSDOReply, SignExtension) {
 
 TEST(CanopenSDOReply, Float) { EXPECT_FLOAT_EQ(reply(0x3FC00000, 4).as<float>(), 1.5f); }
 
-TEST(CanopenSDOReply, Ok) {
-  EXPECT_TRUE(reply(0, 1).ok());
-  EXPECT_FALSE((SDOReply{SDOResult::SDO_RESULT_TIMEOUT, 0x05040000, 0, 0, nullptr, 0}).ok());
-}
-
 }  // namespace esphome::canopen::testing

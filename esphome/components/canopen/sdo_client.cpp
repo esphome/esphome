@@ -65,7 +65,7 @@ bool CANopenComponent::read_sdo(uint8_t node_id, uint16_t index, uint8_t sub, ui
     return false;
   }
   return this->queue_sdo_(
-      SDORequest{node_id, sub, SDOKind::SDO_KIND_READ, expected_size, index, {}, 0, callback, context});
+      SDORequest{node_id, sub, SDOKind::SDO_KIND_READ, expected_size, index, 0, {}, callback, context});
 }
 
 bool CANopenComponent::write_sdo(uint8_t node_id, uint16_t index, uint8_t sub, uint32_t value, uint8_t size,
@@ -77,7 +77,7 @@ bool CANopenComponent::write_sdo(uint8_t node_id, uint16_t index, uint8_t sub, u
   if (size < 4)
     value &= (1u << (8 * size)) - 1;  // sign-extended: the reply's value is zero-extended
   return this->queue_sdo_(
-      SDORequest{node_id, sub, SDOKind::SDO_KIND_WRITE, size, index, {value}, 0, callback, context});
+      SDORequest{node_id, sub, SDOKind::SDO_KIND_WRITE, size, index, 0, {value}, callback, context});
 }
 
 bool CANopenComponent::read_sdo_data(uint8_t node_id, uint16_t index, uint8_t sub, uint8_t *data, size_t capacity,
@@ -86,7 +86,8 @@ bool CANopenComponent::read_sdo_data(uint8_t node_id, uint16_t index, uint8_t su
     reject(node_id, index, sub, callback, context);
     return false;
   }
-  SDORequest request{node_id, sub, SDOKind::SDO_KIND_READ_DATA, 0, index, {}, capacity, callback, context};
+  SDORequest request{node_id,  sub,    SDOKind::SDO_KIND_READ_DATA, 0, index, static_cast<uint16_t>(capacity), {},
+                     callback, context};
   request.data = data;
   return this->queue_sdo_(request);
 }
@@ -97,7 +98,8 @@ bool CANopenComponent::write_sdo_data(uint8_t node_id, uint16_t index, uint8_t s
     reject(node_id, index, sub, callback, context);
     return false;
   }
-  SDORequest request{node_id, sub, SDOKind::SDO_KIND_WRITE_DATA, 0, index, {}, len, callback, context};
+  SDORequest request{node_id,  sub,    SDOKind::SDO_KIND_WRITE_DATA, 0, index, static_cast<uint16_t>(len), {},
+                     callback, context};
   request.data = const_cast<uint8_t *>(data);  // a WRITE_DATA request only reads it
   return this->queue_sdo_(request);
 }

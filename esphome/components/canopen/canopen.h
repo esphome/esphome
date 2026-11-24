@@ -86,11 +86,11 @@ class CANopenComponent : public Component {
     SDOKind kind;
     uint8_t size;  // read: expected size (0 = any); write: value size
     uint16_t index;
+    uint16_t len;  // READ_DATA: capacity of data
     union {
       uint32_t value;  // WRITE
       uint8_t *data;   // READ_DATA, WRITE_DATA (only read): owned by the caller
     };
-    size_t len;  // READ_DATA: capacity of data
     SDOCallback callback;
     void *context;
   };

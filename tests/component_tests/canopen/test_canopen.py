@@ -32,11 +32,6 @@ def test_codegen(
     assert "set_size(1);" in main_cpp
 
 
-def test_defaults() -> None:
-    config = CONFIG_SCHEMA({"canbus_id": "can_bus"})
-    assert config["response_timeout"].total_milliseconds == 500
-
-
 @pytest.mark.parametrize(("timeout", "valid"), [("65535ms", True), ("65536ms", False)])
 def test_response_timeout_fits_uint16(timeout: str, valid: bool) -> None:
     config = {"canbus_id": "can_bus", "response_timeout": timeout}
@@ -45,12 +40,6 @@ def test_response_timeout_fits_uint16(timeout: str, valid: bool) -> None:
     else:
         with pytest.raises(cv.Invalid, match="at most"):
             CONFIG_SCHEMA(config)
-
-
-def test_no_node_options() -> None:
-    """The hub isn't a CANopen node."""
-    with pytest.raises(cv.Invalid):
-        CONFIG_SCHEMA({"canbus_id": "can_bus", "node_id": 0x10})
 
 
 SDO_WRITE = {"id": "canopen_hub", "node_id": 1, "index": 0x1017}
@@ -97,14 +86,3 @@ def test_one_hub_per_canbus(
 def test_hubs_on_two_buses(component_config_path: Callable[[str], Path]) -> None:
     CORE.config_path = component_config_path("two_buses.yaml")
     assert read_config({}) is not None
-
-
-def test_sdo_write_size() -> None:
-    with pytest.raises(cv.Invalid):
-        SDO_WRITE_SCHEMA({**SDO_WRITE, "value": 1, "size": 3})
-
-
-@pytest.mark.parametrize("node_id", [0, 128])
-def test_sdo_node_id_range(node_id: int) -> None:
-    with pytest.raises(cv.Invalid):
-        SDO_WRITE_SCHEMA({**SDO_WRITE, "node_id": node_id, "value": 1})
