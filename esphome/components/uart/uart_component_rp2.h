@@ -32,6 +32,10 @@ class RP2UartComponent final : public UARTComponent, public Component {
   bool is_hw_serial() { return this->hw_serial_; }
   HardwareSerial *get_hw_serial() { return this->serial_; }
 
+#ifdef USE_UART_TX_BREAK
+  bool set_tx_break(bool enable) override;
+#endif
+
  protected:
   void check_logger_conflict() override {}
   bool hw_serial_{false};
