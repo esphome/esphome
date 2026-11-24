@@ -828,10 +828,10 @@ async def _add_platform_defines() -> None:
         if count <= 0:
             continue
 
-        # Entity list counts come from the lists themselves (esphome/core/app_lists.py)
-        if platform_name not in app_lists.ENTITY_LISTS:
-            cg.add_define(f"ESPHOME_ENTITY_{platform_name.upper()}_COUNT", count)
-
+        # Entity list types get their defines with the lists (esphome/core/app_lists.py)
+        if platform_name in app_lists.ENTITY_LISTS:
+            continue
+        cg.add_define(f"ESPHOME_ENTITY_{platform_name.upper()}_COUNT", count)
         cg.add_define(app_lists.use_define(platform_name))
 
 

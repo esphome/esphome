@@ -8,6 +8,7 @@ from esphome.config import Config
 from esphome.const import CONF_ID
 from esphome.core import ID
 from esphome.types import ConfigType
+from tests.testing_helpers import get_define_value  # noqa: F401  # re-exported for the component tests
 
 INTERNAL_BIT = 1 << 24
 
@@ -40,22 +41,6 @@ def static_function_body(main_cpp: str, name: str) -> str:
     )
     assert match is not None, f"{name} not defined"
     return match.group(1)
-
-
-def get_define_value(name: str) -> str | None:
-    """Rendered value of a CORE define, or None when absent.
-
-    Values are codegen expressions (IntLiteral); they are compared rendered.
-    A value-less define (e.g. USE_BK72XX_BLE) is present but renders as the
-    string "None", while an absent define returns the None object — easy to
-    conflate in assertions, so use this helper for valued defines only.
-    """
-    from esphome.core import CORE
-
-    for define in CORE.defines:
-        if define.name == name:
-            return str(define.value)
-    return None
 
 
 # ESPBTUUID constant for ABCDABCD-ABCD-ABCD-ABCD-ABCDABCDABCD (bytes in BLE wire order).

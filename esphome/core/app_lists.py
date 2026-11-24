@@ -113,7 +113,6 @@ def reserve_runtime_entities(platform: str, count: int) -> None:
     request_slot = slot_counter(runtime_count_define(platform))
     for _ in range(count):
         request_slot()
-    add_define(use_define(platform))
 
 
 def _emit_list(upper: str, objs: list[str]) -> None:
@@ -130,8 +129,10 @@ async def _emit_entity_lists() -> None:
     for platform, upper in ENTITY_LISTS.items():
         objs = state.lists.get(upper, [])
         reserved = get_slot_count(runtime_count_define(platform))
-        if not objs and not reserved and not CORE.platform_counts.get(platform):
+        # The one place that decides whether the type is compiled in, so USE_* and the list agree
+        if not reserved and not CORE.platform_counts.get(platform):
             continue
+        add_define(use_define(platform))
         add_define(f"ESPHOME_ENTITY_{platform.upper()}_COUNT", len(objs))
         if not reserved:
             add_define(runtime_count_define(platform), 0)

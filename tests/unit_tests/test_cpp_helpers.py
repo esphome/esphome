@@ -14,6 +14,7 @@ from esphome import codegen as cg, const, cpp_helpers as ch, cpp_types as ct
 from esphome.core import CoroPriority, coroutine_with_priority
 from esphome.cpp_generator import MockObj
 from esphome.cpp_helpers import ComponentSourcePool, register_component_source
+from tests.testing_helpers import get_define_value
 
 
 @pytest.mark.asyncio
@@ -178,21 +179,13 @@ def test_register_component_source_overflow_suppressed_in_testing_mode(
     assert "Too many unique component source names" not in caplog.text
 
 
-def _define_value(name: str) -> str | None:
-    for define in ch.CORE.defines:
-        if define.name == name:
-            # Values are codegen expressions (IntLiteral); compare rendered.
-            return str(define.value)
-    return None
-
-
 def test_slot_counter_emits_requested_count() -> None:
     """Each request bumps the count; the self-scheduled FINAL job emits it."""
     request = ch.slot_counter("TEST_SLOT_COUNT")
     request()
     request()
     ch.CORE.flush_tasks()
-    assert _define_value("TEST_SLOT_COUNT") == "2"
+    assert get_define_value("TEST_SLOT_COUNT") == "2"
 
 
 def test_slot_counter_keyed_emits_largest_count() -> None:
@@ -205,7 +198,7 @@ def test_slot_counter_keyed_emits_largest_count() -> None:
     request("rx_b")
     assert ch.get_slot_count("TEST_SLOT_COUNT_KEYED") == 3
     ch.CORE.flush_tasks()
-    assert _define_value("TEST_SLOT_COUNT_KEYED") == "3"
+    assert get_define_value("TEST_SLOT_COUNT_KEYED") == "3"
 
 
 def test_slot_counter_rejects_mixed_keyed_and_unkeyed_requests() -> None:
@@ -224,7 +217,7 @@ def test_slot_counter_without_requests_emits_nothing() -> None:
     """No requests, no job, no define — the guarded storage compiles out."""
     ch.slot_counter("TEST_SLOT_COUNT_UNUSED")
     ch.CORE.flush_tasks()
-    assert _define_value("TEST_SLOT_COUNT_UNUSED") is None
+    assert get_define_value("TEST_SLOT_COUNT_UNUSED") is None
 
 
 def test_slot_counter_request_from_final_job_still_emits() -> None:
@@ -239,7 +232,7 @@ def test_slot_counter_request_from_final_job_still_emits() -> None:
 
     ch.CORE.add_job(late_requester)
     ch.CORE.flush_tasks()
-    assert _define_value("TEST_SLOT_COUNT_LATE") == "1"
+    assert get_define_value("TEST_SLOT_COUNT_LATE") == "1"
 
 
 def test_slot_counter_request_after_emit_raises() -> None:
@@ -248,7 +241,7 @@ def test_slot_counter_request_after_emit_raises() -> None:
     request = ch.slot_counter("TEST_SLOT_COUNT_TOO_LATE")
     request()
     ch.CORE.flush_tasks()
-    assert _define_value("TEST_SLOT_COUNT_TOO_LATE") == "1"
+    assert get_define_value("TEST_SLOT_COUNT_TOO_LATE") == "1"
     with pytest.raises(ValueError, match="TEST_SLOT_COUNT_TOO_LATE"):
         request()
 
@@ -437,27 +430,27 @@ def test_slot_list_sizes_for_the_busiest_hub() -> None:
     ]
     assert ch.get_slot_count("TEST_SLOT_LIST_COUNT") == 3
     _emit_slot_lists({"wiegand": []})
-    assert _define_value("TEST_SLOT_LIST_COUNT") == "3"
+    assert get_define_value("TEST_SLOT_LIST_COUNT") == "3"
 
 
 def test_slot_list_without_registrations_emits_zero() -> None:
     """A hub in the build that nothing registered into still gets its define, as 0."""
     ch.slot_list("TEST_SLOT_LIST_EMPTY", "register_listener", "wiegand")
     _emit_slot_lists({"wiegand": []})
-    assert _define_value("TEST_SLOT_LIST_EMPTY") == "0"
+    assert get_define_value("TEST_SLOT_LIST_EMPTY") == "0"
 
 
 def test_slot_list_of_a_domain_not_in_the_build_emits_nothing() -> None:
     ch.slot_list("TEST_SLOT_LIST_UNUSED", "register_listener", "rc522")
     _emit_slot_lists({"wiegand": []})
-    assert _define_value("TEST_SLOT_LIST_UNUSED") is None
+    assert get_define_value("TEST_SLOT_LIST_UNUSED") is None
 
 
 def test_slot_list_of_a_platform_domain_follows_the_platform() -> None:
     """A hub that is a platform (display: - platform: nextion) is built with it."""
     ch.slot_list("TEST_SLOT_LIST_PLATFORM", "register_listener", "uart")
     _emit_slot_lists({"binary_sensor": [{"platform": "uart"}]})
-    assert _define_value("TEST_SLOT_LIST_PLATFORM") == "0"
+    assert get_define_value("TEST_SLOT_LIST_PLATFORM") == "0"
 
 
 def test_slot_list_keeps_a_define_set_by_hand() -> None:
@@ -526,7 +519,7 @@ def test_hub_function_without_items_emits_nothing() -> None:
     ch.CORE.flush_tasks()
     assert _after_includes() == []
     assert _main() == []
-    assert _define_value("USE_HUB_STATUS") is None
+    assert get_define_value("USE_HUB_STATUS") is None
 
 
 def test_hub_functions_on_one_hub_stay_apart() -> None:

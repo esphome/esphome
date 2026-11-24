@@ -7,17 +7,11 @@ import pytest
 
 from esphome import codegen as cg
 from esphome.core import CORE, ID, EsphomeError, app_lists
+from tests.testing_helpers import get_define_value
 
 ENTITY_TYPES_H = (
     Path(__file__).parents[3] / "esphome" / "core" / "entity_types.h"
 ).read_text(encoding="utf-8")
-
-
-def _define_value(name: str) -> str | None:
-    for define in CORE.defines:
-        if define.name == name:
-            return str(define.value)
-    return None
 
 
 def _global_lines() -> list[str]:
@@ -52,18 +46,18 @@ def test_entities_are_emitted_in_order() -> None:
             "reinterpret_cast<Sensor *>(esphome__s_a__pstorage)};"
         )
     ]
-    assert _define_value("ESPHOME_ENTITY_SENSOR_COUNT") == "2"
+    assert get_define_value("ESPHOME_ENTITY_SENSOR_COUNT") == "2"
     # No reservation: the runtime part is an EmptyList and register_sensor() does not exist
-    assert _define_value("ESPHOME_RUNTIME_SENSOR_COUNT") == "0"
+    assert get_define_value("ESPHOME_RUNTIME_SENSOR_COUNT") == "0"
 
 
 def test_reservation_sizes_the_runtime_slots() -> None:
     cg.reserve_runtime_entities("sensor", 3)
     app_lists.schedule_emit()
     CORE.flush_tasks()
-    assert _define_value("ESPHOME_RUNTIME_SENSOR_COUNT") == "3"
-    assert _define_value("ESPHOME_ENTITY_SENSOR_COUNT") == "0"
-    assert _define_value("USE_SENSOR") is not None
+    assert get_define_value("ESPHOME_RUNTIME_SENSOR_COUNT") == "3"
+    assert get_define_value("ESPHOME_ENTITY_SENSOR_COUNT") == "0"
+    assert get_define_value("USE_SENSOR") is not None
     assert _global_lines() == [
         "decltype(esphome::APP_SENSOR_LIST) esphome::APP_SENSOR_LIST PROGMEM = {nullptr};"
     ]
@@ -73,8 +67,8 @@ def test_datetime_reservation_uses_its_own_defines() -> None:
     cg.reserve_runtime_entities("date", 1)
     app_lists.schedule_emit()
     CORE.flush_tasks()
-    assert _define_value("ESPHOME_RUNTIME_DATETIME_DATE_COUNT") == "1"
-    assert _define_value("USE_DATETIME_DATE") is not None
+    assert get_define_value("ESPHOME_RUNTIME_DATETIME_DATE_COUNT") == "1"
+    assert get_define_value("USE_DATETIME_DATE") is not None
 
 
 def test_unknown_platform_is_rejected() -> None:

@@ -45,22 +45,8 @@ class RefusingIterator : public ComponentIterator {
 // Far above the fixed number of iterator states
 static constexpr size_t BIG_BUDGET = 1000;
 
-// Codegen entities of every type in this build. Test builds never run the generated setup(), so a
-// full walk would visit unconstructed objects; combined builds with other components' entities skip it.
-static constexpr size_t CODEGEN_ENTITIES = 0
-// NOLINTBEGIN(bugprone-macro-parentheses)
-#define ENTITY_TYPE_(type, singular, plural, count, upper) +(count)
-#define ENTITY_CONTROLLER_TYPE_(type, singular, plural, count, upper, callback) \
-  ENTITY_TYPE_(type, singular, plural, count, upper)
-#include "esphome/core/entity_types.h"
-#undef ENTITY_TYPE_
-#undef ENTITY_CONTROLLER_TYPE_
-    // NOLINTEND(bugprone-macro-parentheses)
-    ;
-
-#define SKIP_IF_CODEGEN_ENTITIES() \
-  if (CODEGEN_ENTITIES != 0) \
-  GTEST_SKIP() << "walks every entity list, and this build has unconstructed codegen entities"
+// Test builds never construct codegen entities: the walks pass include_internal so the iterator
+// never reads them, and the callbacks below only look at the test's own objects.
 
 TEST(ComponentIterator, NotRunningMakesNoProgress) {
   RefusingIterator it;
@@ -71,9 +57,8 @@ TEST(ComponentIterator, NotRunningMakesNoProgress) {
 }
 
 TEST(ComponentIterator, CompletesInOneCallWithoutRefusals) {
-  SKIP_IF_CODEGEN_ENTITIES();
   RefusingIterator it;
-  it.begin();
+  it.begin(true);
   it.try_advance(BIG_BUDGET);
   EXPECT_TRUE(it.completed());
   EXPECT_EQ(it.begin_calls, 1);
@@ -82,7 +67,7 @@ TEST(ComponentIterator, CompletesInOneCallWithoutRefusals) {
 
 TEST(ComponentIterator, StepBudgetIsHonored) {
   RefusingIterator it;
-  it.begin();
+  it.begin(true);
   it.try_advance(1);
   EXPECT_EQ(it.begin_calls, 1);
   EXPECT_EQ(it.end_calls, 0);
@@ -90,10 +75,9 @@ TEST(ComponentIterator, StepBudgetIsHonored) {
 }
 
 TEST(ComponentIterator, RefusedStepStopsBatchAndRetriesSameStep) {
-  SKIP_IF_CODEGEN_ENTITIES();
   RefusingIterator it;
   it.end_refusals = 3;
-  it.begin();
+  it.begin(true);
   // First call runs until the refused end step, which stops the pass
   it.try_advance(BIG_BUDGET);
   EXPECT_EQ(it.end_calls, 1);
@@ -110,10 +94,9 @@ TEST(ComponentIterator, RefusedStepStopsBatchAndRetriesSameStep) {
 }
 
 TEST(ComponentIterator, RefusedBeginStopsBatchAndRetries) {
-  SKIP_IF_CODEGEN_ENTITIES();
   RefusingIterator it;
   it.begin_refusals = 2;
-  it.begin();
+  it.begin(true);
   it.try_advance(BIG_BUDGET);
   it.try_advance(BIG_BUDGET);
   EXPECT_EQ(it.begin_calls, 2);
@@ -128,10 +111,9 @@ TEST(ComponentIterator, RefusedBeginStopsBatchAndRetries) {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 TEST(ComponentIterator, DeprecatedAdvanceKeepsLegacyPatternWorking) {
-  SKIP_IF_CODEGEN_ENTITIES();
   RefusingIterator it;
   it.end_refusals = 2;
-  it.begin();
+  it.begin(true);
   size_t guard = 0;
   while (!it.completed() && guard++ < BIG_BUDGET) {
     it.advance();
@@ -145,9 +127,16 @@ TEST(ComponentIterator, DeprecatedAdvanceKeepsLegacyPatternWorking) {
 #ifdef USE_SENSOR
 // Iterator whose sensor callback can refuse or yield; pins the per-item
 // contract: a refused item is re-offered with at_ unchanged, never skipped.
+// The two sensors the tests register into the runtime slots
+static sensor::Sensor sensor_a;
+static sensor::Sensor sensor_b;
+
 class ItemRefusingIterator : public RefusingIterator {
  public:
   bool on_sensor(sensor::Sensor *obj) override {
+    // Codegen sensors are unconstructed in test builds; accept them untouched
+    if (obj != &sensor_a && obj != &sensor_b)
+      return true;
     this->last_sensor = obj;
     if (!step(this->sensor_calls, this->sensor_refusals))
       return false;
@@ -164,8 +153,6 @@ class ItemRefusingIterator : public RefusingIterator {
 class ComponentIteratorSensorTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    static sensor::Sensor sensor_a;
-    static sensor::Sensor sensor_b;
     static bool registered = false;
     if (!registered) {
       App.register_sensor(&sensor_a);
@@ -181,10 +168,9 @@ class ComponentIteratorSensorTest : public ::testing::Test {
 };
 
 TEST_F(ComponentIteratorSensorTest, RefusedItemIsReofferedNotSkipped) {
-  SKIP_IF_CODEGEN_ENTITIES();
   ItemRefusingIterator it;
   it.sensor_refusals = 2;
-  it.begin();
+  it.begin(true);
   // Runs until the first sensor refuses
   it.try_advance(BIG_BUDGET);
   EXPECT_EQ(it.sensor_calls, 1);
@@ -201,10 +187,9 @@ TEST_F(ComponentIteratorSensorTest, RefusedItemIsReofferedNotSkipped) {
 }
 
 TEST_F(ComponentIteratorSensorTest, YieldAfterStepEndsPassAndResumes) {
-  SKIP_IF_CODEGEN_ENTITIES();
   ItemRefusingIterator it;
   it.yield_on_sensor = true;
-  it.begin();
+  it.begin(true);
   // The pass ends right after the first sensor despite a big budget
   it.try_advance(BIG_BUDGET);
   EXPECT_EQ(it.sensor_calls, 1);

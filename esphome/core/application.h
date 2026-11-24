@@ -173,17 +173,14 @@ class Application {
   }
 #endif
 
+// Devices and areas come from the YAML lists; these turn an old runtime call into a clear error
 #ifdef USE_DEVICES
-  template<typename D = Device>
-  ESPDEPRECATED("Devices come from the devices: list in YAML. Removed in 2027.6.0", "2026.12.0")
-  void register_device(D * /*device*/) {
+  template<typename D = Device> void register_device(D * /*device*/) {
     static_assert(sizeof(D) == 0, "Devices come from the devices: list in YAML and cannot be added at run time");
   }
 #endif
 #ifdef USE_AREAS
-  template<typename A = Area>
-  ESPDEPRECATED("Areas come from the areas: list in YAML. Removed in 2027.6.0", "2026.12.0")
-  void register_area(A * /*area*/) {
+  template<typename A = Area> void register_area(A * /*area*/) {
     static_assert(sizeof(A) == 0, "Areas come from the areas: list in YAML and cannot be added at run time");
   }
 #endif
@@ -203,16 +200,9 @@ class Application {
   "Call cg.reserve_runtime_entities(\"" #singular "\", n) in to_code to register entities at run time"
 #define ENTITY_TYPE_(type, singular, plural, count, upper) \
   SLOT_LIST(type, runtime_##plural##_, register_##singular, ESPHOME_RUNTIME_##upper##_COUNT) \
-  template<size_t RESERVED = ESPHOME_RUNTIME_##upper##_COUNT> \
+  template<size_t RESERVED = ESPHOME_RUNTIME_##upper##_COUNT, typename... A> \
     requires(RESERVED == 0) \
-  ESPDEPRECATED(APP_RESERVE_HINT_(singular) ". Removed in 2027.6.0", "2026.12.0") \
-  void register_##singular(type * /*obj*/) { \
-    static_assert(RESERVED != 0, APP_RESERVE_HINT_(singular)); \
-  } \
-  template<size_t RESERVED = ESPHOME_RUNTIME_##upper##_COUNT> \
-    requires(RESERVED == 0) \
-  ESPDEPRECATED(APP_RESERVE_HINT_(singular) ". Removed in 2027.6.0", "2026.12.0") \
-  void register_##singular(type * /*obj*/, const char * /*name*/, uint32_t /*hash*/, uint32_t /*fields*/) { \
+  void register_##singular(type * /*obj*/, A... /*args*/) { \
     static_assert(RESERVED != 0, APP_RESERVE_HINT_(singular)); \
   }
 #define ENTITY_CONTROLLER_TYPE_(type, singular, plural, count, upper, callback) \
