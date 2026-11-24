@@ -73,6 +73,7 @@ static constexpr uint8_t SIM_WARN_AFTER = 10;
 static constexpr uint8_t SIM_WARN_EVERY = 60;
 static constexpr int RADIO_STATE_MINIMUM = 0;  // CFUN=0: radio off and the SIM powered down
 static constexpr int RADIO_STATE_RF_OFF = 4;   // CFUN=4: transmit and receive off, SIM still powered
+static constexpr int RADIO_STATE_FULL = 1;     // CFUN=1: radio on
 // After CFUN=0 a SIM7600 refuses CFUN=1 for about 0.5 s
 static constexpr uint8_t SIM_POWER_UP_ATTEMPTS = 8;
 static constexpr uint32_t SIM_POWER_UP_RETRY_MS = 250;
@@ -568,7 +569,7 @@ bool ModemComponent::sim_power_up_cfun1_() {
   for (uint8_t attempt = 0; attempt < SIM_POWER_UP_ATTEMPTS; attempt++) {
     if (attempt != 0)
       delay(SIM_POWER_UP_RETRY_MS);  // NOLINT
-    if (this->dce_->set_radio_state(1) == command_result::OK)
+    if (this->dce_->set_radio_state(RADIO_STATE_FULL) == command_result::OK)
       return true;
   }
   return false;
@@ -757,7 +758,7 @@ ModemState ModemComponent::handle_state_enabling_() {
     sim_up = this->sim_power_up_cfun1_();
   } else {
     sim_up = this->dce_->set_radio_state(RADIO_STATE_RF_OFF) == command_result::OK ||
-             this->dce_->set_radio_state(1) == command_result::OK;
+             this->dce_->set_radio_state(RADIO_STATE_FULL) == command_result::OK;
   }
   if (!sim_up) {
     ESP_LOGW(TAG, "Failed to power the SIM up");
@@ -834,7 +835,8 @@ ModemState ModemComponent::handle_state_connecting_() {
         return ModemState::MODEM_STATE_ENABLING;
       }
     }
-    // ENABLING powered the SIM up (CFUN=4, or CFUN=1 on a modem without it), so the SIM answers
+    // ENABLING powered the SIM up, so the SIM answers: CFUN=4, or CFUN=1 on a modem without it or after the APN was
+    // refused at CFUN=0, which leaves the radio on here
     switch (this->prepare_sim_()) {
       case SimResult::SIM_RESULT_READY:
         break;
@@ -860,7 +862,7 @@ ModemState ModemComponent::handle_state_connecting_() {
       }
       this->apn_pending_ = false;
     }
-    if (this->dce_->set_radio_state(1) != command_result::OK) {
+    if (this->dce_->set_radio_state(RADIO_STATE_FULL) != command_result::OK) {
       ESP_LOGW(TAG, "Failed to turn the radio on");
       this->set_fault_(ModemFault::MODEM_FAULT_SETUP);
       return this->retry_(ModemState::MODEM_STATE_CONNECTING);
