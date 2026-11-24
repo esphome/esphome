@@ -7,4 +7,3 @@ tflite_audio:
     probability_cutoff: 0.5
     sliding_window_size: 10
     features_step_size: 20
-    feature_count: 40
