@@ -22,7 +22,6 @@ from esphome.const import (
     STATE_CLASS_TOTAL_INCREASING,
     UNIT_MILLIVOLT,
 )
-from esphome.core import EnumValue
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
@@ -89,11 +88,6 @@ def validate_model_config(config: ConfigType) -> ConfigType:
     return config
 
 
-def validate_adc_time(value: Any) -> EnumValue:
-    value = cv.positive_time_period_microseconds(value).total_microseconds
-    return cv.enum(ADC_TIMES, int=True)(value)
-
-
 def _per_channel(validator: Callable[[Any], Any]) -> Callable[[Any], ConfigType]:
     """One value for every channel, or one each; always returns the per-channel dict."""
     return cv.Any(
@@ -107,9 +101,9 @@ def _per_channel(validator: Callable[[Any], Any]) -> Callable[[Any], ConfigType]
         ),
         cv.Schema(
             {
-                cv.Optional(CONF_BUS_VOLTAGE, default="4120 us"): validator,
-                cv.Optional(CONF_SHUNT_VOLTAGE, default="4120 us"): validator,
-                cv.Optional(CONF_TEMPERATURE, default="4120 us"): validator,
+                cv.Optional(CONF_BUS_VOLTAGE, default="4120us"): validator,
+                cv.Optional(CONF_SHUNT_VOLTAGE, default="4120us"): validator,
+                cv.Optional(CONF_TEMPERATURE, default="4120us"): validator,
             }
         ),
     )
@@ -120,7 +114,9 @@ INA2XX_SCHEMA = cv.Schema(
         cv.Required(CONF_SHUNT_RESISTANCE): cv.All(cv.resistance, cv.Range(min=0.0)),
         cv.Required(CONF_MAX_CURRENT): cv.All(cv.current, cv.Range(min=0.0)),
         cv.Optional(CONF_ADC_RANGE, default=0): cv.int_range(min=0, max=1),
-        cv.Optional(CONF_ADC_TIME, default="4120 us"): _per_channel(validate_adc_time),
+        cv.Optional(CONF_ADC_TIME, default="4120us"): _per_channel(
+            cv.time_period_enum(ADC_TIMES, unit="us")
+        ),
         cv.Optional(CONF_ADC_AVERAGING, default=128): cv.enum(ADC_SAMPLES, int=True),
         cv.Optional(CONF_TEMPERATURE_COEFFICIENT, default=0): cv.int_range(
             min=0, max=16383

@@ -57,12 +57,6 @@ OnDateTimeTrigger = datetime_ns.class_(
     cg.Parented.template(DateTimeEntity),
 )
 
-DATETIME_MODES = [
-    "DATE",
-    "TIME",
-    "DATETIME",
-]
-
 
 def _validate_time_present(config: ConfigType) -> ConfigType:
     config = config.copy()

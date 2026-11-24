@@ -114,15 +114,9 @@ def make_app_name_cpp(
     return cpp_string_escape(value), None, len(value.encode("utf-8"))
 
 
-StartupTrigger = cg.esphome_ns.class_(
-    "StartupTrigger", cg.Component, automation.Trigger.template()
-)
-ShutdownTrigger = cg.esphome_ns.class_(
-    "ShutdownTrigger", cg.Component, automation.Trigger.template()
-)
-LoopTrigger = cg.esphome_ns.class_(
-    "LoopTrigger", cg.Component, automation.Trigger.template()
-)
+StartupCallback = cg.esphome_ns.class_("StartupCallback", cg.Component)
+ShutdownCallback = cg.esphome_ns.class_("ShutdownCallback", cg.Component)
+LoopCallback = cg.esphome_ns.class_("LoopCallback", cg.Component)
 ProjectUpdateTrigger = cg.esphome_ns.class_(
     "ProjectUpdateTrigger", cg.Component, automation.Trigger.template(cg.std_string)
 )
@@ -439,19 +433,19 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_ON_BOOT): automation.validate_automation(
                 {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(StartupTrigger),
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(StartupCallback),
                     cv.Optional(CONF_PRIORITY, default=600.0): cv.float_,
                 }
             ),
             cv.Optional(CONF_ON_SHUTDOWN): automation.validate_automation(
                 {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ShutdownTrigger),
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ShutdownCallback),
                     cv.Optional(CONF_PRIORITY, default=600.0): cv.float_,
                 }
             ),
             cv.Optional(CONF_ON_LOOP): automation.validate_automation(
                 {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LoopTrigger),
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LoopCallback),
                 }
             ),
             cv.Optional(
@@ -805,20 +799,15 @@ async def _add_environment_variables(env_vars: dict[str, str]) -> None:
 
 @coroutine_with_priority(CoroPriority.AUTOMATION)
 async def _add_automations(config):
-    for conf in config.get(CONF_ON_BOOT, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], conf.get(CONF_PRIORITY))
-        await cg.register_component(trigger, conf)
-        await automation.build_automation(trigger, [], conf)
-
-    for conf in config.get(CONF_ON_SHUTDOWN, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], conf.get(CONF_PRIORITY))
-        await cg.register_component(trigger, conf)
-        await automation.build_automation(trigger, [], conf)
-
-    for conf in config.get(CONF_ON_LOOP, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
-        await cg.register_component(trigger, conf)
-        await automation.build_automation(trigger, [], conf)
+    for key, component_class in (
+        (CONF_ON_BOOT, StartupCallback),
+        (CONF_ON_SHUTDOWN, ShutdownCallback),
+        (CONF_ON_LOOP, LoopCallback),
+    ):
+        for conf in config.get(key, []):
+            await automation.build_component_automation(
+                conf, component_class, conf.get(CONF_PRIORITY)
+            )
 
 
 # Datetime component has special subtypes that need additional defines
@@ -976,8 +965,7 @@ async def to_code(config: ConfigType) -> None:
         cg.add_define("ESPHOME_DEBUG_SCHEDULER")
     if config[CONF_SUSPEND_LOOP]:
         cg.add_define("ESPHOME_SUSPEND_LOOP")
-    if CONF_LOOP_INTERVAL in config:
-        cg.add(cg.App.set_loop_interval(config[CONF_LOOP_INTERVAL]))
+    cg.add_optional(cg.App.set_loop_interval, config.get(CONF_LOOP_INTERVAL))
 
     if CORE.using_arduino:
         CORE.add_job(add_arduino_global_workaround)
