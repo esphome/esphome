@@ -1,0 +1,27 @@
+# Layout B: BS on PA19; F0/I0 moved to PA12/PA00
+substitutions:
+  name: bw12-edges-b
+  bs_pin: PA19
+
+packages:
+  base: !include bw12-base.yaml
+
+sensor:
+  - platform: pulse_counter
+    name: F0
+    pin:
+      number: PA12
+      inverted: false
+    internal_filter: 0us
+    update_interval: 10s
+    on_raw_value:
+      - lambda: 'static uint32_t l = 0; uint32_t g = bwdbg::gen_rise; ESP_LOGI("meas", "F0 raw %.0f gen_rise %u", x, g - l); l = g;'
+  - platform: pulse_counter
+    name: I0
+    pin:
+      number: PA00
+      inverted: true
+    internal_filter: 0us
+    update_interval: 10s
+    on_raw_value:
+      - lambda: 'static uint32_t l = 0; uint32_t g = bwdbg::gen_rise; ESP_LOGI("meas", "I0 raw %.0f gen_rise %u", x, g - l); l = g;'

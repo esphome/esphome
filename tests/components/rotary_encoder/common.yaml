@@ -18,7 +18,7 @@ sensor:
           value: 10
       - sensor.rotary_encoder.set_value:
           id: rotary_encoder1
-          value: !lambda "return -1;"
+          value: !lambda "return -static_cast<int>(x);"
     on_clockwise:
       - logger.log: Clockwise
     on_anticlockwise:

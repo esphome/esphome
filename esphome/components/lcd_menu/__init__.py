@@ -11,6 +11,7 @@ from esphome.core.entity_helpers import inherit_property_from
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@numo68"]
+DOMAIN = "lcd_menu"
 
 AUTO_LOAD = ["display_menu_base"]
 
@@ -60,8 +61,7 @@ FINAL_VALIDATE_SCHEMA = cv.All(
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
-    disp = await cg.get_variable(config[CONF_DISPLAY_ID])
-    cg.add(var.set_display(disp))
+    await cg.add_variable(var.set_display, config[CONF_DISPLAY_ID])
     cg.add(var.set_dimensions(config[CONF_DIMENSIONS][0], config[CONF_DIMENSIONS][1]))
     await display_menu_to_code(var, config)
     cg.add(var.set_mark_selected(config[CONF_MARK_SELECTED]))

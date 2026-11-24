@@ -1,4 +1,5 @@
 #include "d01.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 // uart specification for d01 sensor from https://manuals.plus/ae/1005006417362019:
@@ -17,7 +18,7 @@
 
 namespace esphome::d01 {
 
-static const char *const TAG = "d01";
+ESPHOME_LOG_TAG(TAG, "d01");
 
 static const uint8_t D01_FRAME_HEADER = 0xA5;
 
@@ -31,7 +32,7 @@ void D01SensorComponent::loop() {
       continue;
     }
     this->read_array(buf, 4);
-    uint8_t sum = (buf[0] + buf[1] + buf[2]) & 0x7F;
+    uint8_t sum = sum_bytes(buf, 3) & 0x7F;
     if (sum != buf[3]) {
       ESP_LOGW(TAG, "checksum mismatch");
       continue;

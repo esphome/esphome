@@ -17,7 +17,7 @@
 
 namespace esphome::adc {
 
-static const char *const TAG = "adc";
+ESPHOME_LOG_TAG(TAG, "adc");
 
 // The on-die temperature sensor sits on the last ADC channel: input 4 on RP2040
 // and RP2350A, but input 8 on RP2350B, which has eight external channels rather
@@ -60,7 +60,7 @@ void ADCSensor::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "  Samples: %i\n"
                 "  Sampling mode: %s",
-                this->sample_count_, LOG_STR_ARG(sampling_mode_to_str(this->sampling_mode_)));
+                this->sample_count_, LOG_STR_ARG(SamplingModeStrings::get_log_str(this->sampling_mode_)));
   LOG_UPDATE_INTERVAL(this);
 }
 

@@ -7,26 +7,15 @@ from esphome.const import (
     CONF_IRQ_PIN,
     CONF_VOLTAGE,
     CONF_VOLTAGE_GAIN,
-    DEVICE_CLASS_APPARENT_POWER,
-    DEVICE_CLASS_CURRENT,
-    DEVICE_CLASS_FREQUENCY,
-    DEVICE_CLASS_POWER,
     DEVICE_CLASS_POWER_FACTOR,
-    DEVICE_CLASS_REACTIVE_POWER,
-    DEVICE_CLASS_VOLTAGE,
     STATE_CLASS_MEASUREMENT,
-    UNIT_AMPERE,
-    UNIT_HERTZ,
     UNIT_PERCENT,
-    UNIT_VOLT,
-    UNIT_VOLT_AMPS,
-    UNIT_VOLT_AMPS_REACTIVE,
-    UNIT_WATT,
 )
 from esphome.cpp_generator import MockObj
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@angelnu"]
+DOMAIN = "ade7953_base"
 
 CONF_CURRENT_A = "current_a"
 CONF_CURRENT_B = "current_b"
@@ -62,64 +51,34 @@ ADE7953_CONFIG_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_IRQ_PIN): pins.internal_gpio_input_pin_schema,
         cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(
-            unit_of_measurement=UNIT_VOLT,
-            accuracy_decimals=1,
-            device_class=DEVICE_CLASS_VOLTAGE,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.VOLTAGE, accuracy_decimals=1
         ),
         cv.Optional(CONF_FREQUENCY): sensor.sensor_schema(
-            unit_of_measurement=UNIT_HERTZ,
-            accuracy_decimals=2,
-            device_class=DEVICE_CLASS_FREQUENCY,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.FREQUENCY, accuracy_decimals=2
         ),
         cv.Optional(CONF_CURRENT_A): sensor.sensor_schema(
-            unit_of_measurement=UNIT_AMPERE,
-            accuracy_decimals=2,
-            device_class=DEVICE_CLASS_CURRENT,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.CURRENT, accuracy_decimals=2
         ),
         cv.Optional(CONF_CURRENT_B): sensor.sensor_schema(
-            unit_of_measurement=UNIT_AMPERE,
-            accuracy_decimals=2,
-            device_class=DEVICE_CLASS_CURRENT,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.CURRENT, accuracy_decimals=2
         ),
         cv.Optional(CONF_ACTIVE_POWER_A): sensor.sensor_schema(
-            unit_of_measurement=UNIT_WATT,
-            accuracy_decimals=1,
-            device_class=DEVICE_CLASS_POWER,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.POWER, accuracy_decimals=1
         ),
         cv.Optional(CONF_ACTIVE_POWER_B): sensor.sensor_schema(
-            unit_of_measurement=UNIT_WATT,
-            accuracy_decimals=1,
-            device_class=DEVICE_CLASS_POWER,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.POWER, accuracy_decimals=1
         ),
         cv.Optional(CONF_APPARENT_POWER_A): sensor.sensor_schema(
-            unit_of_measurement=UNIT_VOLT_AMPS,
-            accuracy_decimals=1,
-            device_class=DEVICE_CLASS_APPARENT_POWER,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.APPARENT_POWER, accuracy_decimals=1
         ),
         cv.Optional(CONF_APPARENT_POWER_B): sensor.sensor_schema(
-            unit_of_measurement=UNIT_VOLT_AMPS,
-            accuracy_decimals=1,
-            device_class=DEVICE_CLASS_APPARENT_POWER,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.APPARENT_POWER, accuracy_decimals=1
         ),
         cv.Optional(CONF_REACTIVE_POWER_A): sensor.sensor_schema(
-            unit_of_measurement=UNIT_VOLT_AMPS_REACTIVE,
-            accuracy_decimals=1,
-            device_class=DEVICE_CLASS_REACTIVE_POWER,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.REACTIVE_POWER, accuracy_decimals=1
         ),
         cv.Optional(CONF_REACTIVE_POWER_B): sensor.sensor_schema(
-            unit_of_measurement=UNIT_VOLT_AMPS_REACTIVE,
-            accuracy_decimals=1,
-            device_class=DEVICE_CLASS_REACTIVE_POWER,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.REACTIVE_POWER, accuracy_decimals=1
         ),
         cv.Optional(CONF_POWER_FACTOR_A): sensor.sensor_schema(
             unit_of_measurement=UNIT_PERCENT,
@@ -168,9 +127,7 @@ ADE7953_CONFIG_SCHEMA = cv.Schema(
 async def register_ade7953(var: MockObj, config: ConfigType) -> None:
     await cg.register_component(var, config)
 
-    if irq_pin_config := config.get(CONF_IRQ_PIN):
-        irq_pin = await cg.gpio_pin_expression(irq_pin_config)
-        cg.add(var.set_irq_pin(irq_pin))
+    await cg.add_pin(var.set_irq_pin, config.get(CONF_IRQ_PIN))
 
     cg.add(var.set_pga_v(PGA_GAINS[config.get(CONF_VOLTAGE_PGA_GAIN)]))
     cg.add(var.set_pga_ia(PGA_GAINS[config.get(CONF_CURRENT_PGA_GAIN_A)]))

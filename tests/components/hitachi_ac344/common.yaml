@@ -1,4 +1,11 @@
 climate:
   - platform: hitachi_ac344
+    id: hitachi_climate
     name: Hitachi Climate
     transmitter_id: xmitr
+
+switch:
+  - platform: hitachi_ac344
+    hitachi_ac344_id: hitachi_climate
+    mildew_proof:
+      name: Hitachi Mildew Proof

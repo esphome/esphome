@@ -13,7 +13,7 @@
 
 namespace esphome::cdc_acm_uart {
 
-static const char *const TAG = "cdc_acm_uart";
+ESPHOME_LOG_TAG(TAG, "cdc_acm_uart");
 
 static constexpr size_t UART_TASK_STACK_SIZE = 4096;
 static constexpr size_t RINGBUF_RETRY_CHUNK_SIZE = 64;
@@ -57,15 +57,9 @@ static bool ringbuf_send_with_retry(RingbufHandle_t ringbuf, const uint8_t *data
 void CDCACMUARTBridge::setup() {
   // Line state starts deasserted (no host yet); active-low DTR#/RTS# wiring is
   // handled by configuring the pins inverted, so deasserted idles HIGH.
-  if (this->dtr_pin_ != nullptr) {
-    this->dtr_pin_->setup();
-    this->dtr_pin_->digital_write(false);
-  }
+  setup_output_pin(this->dtr_pin_, false);
 
-  if (this->rts_pin_ != nullptr) {
-    this->rts_pin_->setup();
-    this->rts_pin_->digital_write(false);
-  }
+  setup_output_pin(this->rts_pin_, false);
 
   // A failed UART never assigned its port number, so the worker tasks would run
   // against an indeterminate port.

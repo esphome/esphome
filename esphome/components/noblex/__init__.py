@@ -1,1 +1,2 @@
 CODEOWNERS = ["@AGalfra"]
+DOMAIN = "noblex"

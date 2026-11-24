@@ -7,6 +7,8 @@ esphome:
       - uart.write:
           id: uart_id
           data: [0x00, 0x20, 0x42]
+      - lambda: |-
+          id(uart_swapped).load_settings(false);
 
 uart:
   - id: uart_id
@@ -23,6 +25,10 @@ uart:
     baud_rate: 115200
     debug:
       debug_prefix: "[UART1] "
+  - id: uart_swapped
+    tx_pin: 15
+    rx_pin: 13
+    baud_rate: 9600
 
 switch:
   - platform: uart
@@ -49,3 +55,13 @@ event:
     event_types:
       - "string_event_A": "*A#"
       - "bytes_event_B": [0x2A, 0x42, 0x23]
+
+binary_sensor:
+  - platform: uart
+    id: up
+    uart_id: uart_id
+    data: [0x1B, 0x5B, 0x41]
+  - platform: uart
+    id: down
+    uart_id: uart_id
+    data: [0x1B, 0x5B, 0x42]

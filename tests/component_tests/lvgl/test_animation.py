@@ -191,6 +191,24 @@ class TestTimingSchema:
         result = TIMING_SCHEMA({"type": "ease_in_out", "weight": 0.5})
         assert result["weight"] == pytest.approx(0.5)
 
+    def test_ease_in_default_weight(self) -> None:
+        result = TIMING_SCHEMA("ease_in")
+        assert result["type"] == "ease_in"
+        assert result["weight"] == pytest.approx(1.0)
+
+    def test_ease_in_custom_weight(self) -> None:
+        result = TIMING_SCHEMA({"type": "ease_in", "weight": 0.5})
+        assert result["weight"] == pytest.approx(0.5)
+
+    def test_ease_out_default_weight(self) -> None:
+        result = TIMING_SCHEMA("ease_out")
+        assert result["type"] == "ease_out"
+        assert result["weight"] == pytest.approx(1.0)
+
+    def test_ease_out_custom_weight(self) -> None:
+        result = TIMING_SCHEMA({"type": "ease_out", "weight": 0.5})
+        assert result["weight"] == pytest.approx(0.5)
+
     def test_gravity_defaults(self) -> None:
         result = TIMING_SCHEMA("gravity")
         assert result["type"] == "gravity"

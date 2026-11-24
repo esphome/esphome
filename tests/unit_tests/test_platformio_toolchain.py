@@ -13,6 +13,7 @@ import subprocess
 import sys
 import threading
 from types import SimpleNamespace
+from typing import Any
 from unittest.mock import MagicMock, Mock, call, patch
 
 import pytest
@@ -110,6 +111,22 @@ def test_idedata_cc_path(setup_core: Path) -> None:
         idedata.cc_path
         == "/Users/test/.platformio/packages/toolchain-xtensa32/bin/xtensa-esp32-elf-gcc"
     )
+
+
+@pytest.mark.parametrize(
+    ("raw_data", "expected"),
+    [
+        pytest.param(
+            {"defines": ["USE_ESP32", "FOO=1"]}, ["USE_ESP32", "FOO=1"], id="set"
+        ),
+        pytest.param({}, [], id="missing"),
+    ],
+)
+def test_idedata_defines(raw_data: dict[str, list[str]], expected: list[str]) -> None:
+    """IDEData.defines returns the defines, or an empty list when absent."""
+    idedata = toolchain.IDEData({"prog_path": "/path/to/firmware.elf", **raw_data})
+
+    assert idedata.defines == expected
 
 
 def test_flash_image_dataclass() -> None:
@@ -331,6 +348,55 @@ def test_idedata_null_section_raises_esphome_error(setup_core: Path) -> None:
 
 
 @pytest.mark.parametrize(
+    ("platform", "expected"), [("esp8266", "true"), ("nrf52", None)]
+)
+def test_run_platformio_cli_exports_the_pch_ccache_settings(
+    setup_core: Path,
+    mock_run_external_process: Mock,
+    platform: str,
+    expected: str | None,
+) -> None:
+    """Only for a platform that takes the pch script."""
+    CORE.build_path = str(setup_core / "build" / "test")
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: platform,
+        KEY_TARGET_FRAMEWORK: "arduino",
+    }
+
+    with patch.dict(os.environ, {}, clear=True):
+        mock_run_external_process.return_value = 0
+        toolchain.run_platformio_cli("test", "arg")
+
+    env = mock_run_external_process.call_args[1]["env"]
+    assert env.get("CCACHE_PCH_EXTSUM") == expected
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"), [("yes", "1"), ("0", "0"), (None, None)]
+)
+def test_run_platformio_cli_normalizes_a_forced_pch_for_the_script(
+    setup_core: Path,
+    mock_run_external_process: Mock,
+    value: str | None,
+    expected: str | None,
+) -> None:
+    """The script cannot import the knob parser, so it only reads a ``1``."""
+    CORE.build_path = str(setup_core / "build" / "test")
+    CORE.data[KEY_CORE] = {
+        KEY_TARGET_PLATFORM: "esp32",
+        KEY_TARGET_FRAMEWORK: "esp-idf",
+    }
+
+    env_vars = {} if value is None else {"ESPHOME_PCH_ENABLE": value}
+    with patch.dict(os.environ, env_vars, clear=True):
+        mock_run_external_process.return_value = 0
+        toolchain.run_platformio_cli("test", "arg")
+
+    env = mock_run_external_process.call_args[1]["env"]
+    assert env.get("ESPHOME_PCH_ENABLE") == expected
+
+
+@pytest.mark.parametrize(
     ("platform", "framework", "expected"),
     [
         ("esp32", "arduino", "1"),
@@ -445,6 +511,47 @@ def test_ccache_env_enabled_by_default(setup_core: Path) -> None:
     # process would otherwise skip its own ccache defaults.
     assert "CCACHE_BASEDIR" not in os.environ
     assert "ESPHOME_CCACHE_ENABLE" not in os.environ
+
+
+def test_ccache_env_uses_cache_dir_override(setup_core: Path, tmp_path: Path) -> None:
+    """The containers point ccache at their writable cache mount."""
+    CORE.build_path = setup_core / "build" / "test"
+    ccache_dir = tmp_path / "cache" / "platformio-ccache"
+
+    with (
+        patch.dict(
+            os.environ,
+            {"HOME": "/", "ESPHOME_PLATFORMIO_CCACHE_DIR": str(ccache_dir)},
+            clear=True,
+        ),
+        patch("shutil.which", return_value="/usr/bin/ccache"),
+        patch("esphome.framework_helpers.subprocess.run"),
+    ):
+        env = toolchain._ccache_env()
+
+    assert env["CCACHE_DIR"] == str(ccache_dir.resolve())
+
+
+def test_ccache_env_ignores_platformio_cache_dir(
+    setup_core: Path, tmp_path: Path
+) -> None:
+    """PLATFORMIO_CACHE_DIR does not move ccache; only the override does."""
+    CORE.build_path = setup_core / "build" / "test"
+    cache_root = tmp_path / "user-cache"
+
+    with (
+        patch.dict(
+            os.environ,
+            {"PLATFORMIO_CACHE_DIR": str(tmp_path / "platformio" / "cache")},
+            clear=True,
+        ),
+        patch("platformdirs.user_cache_dir", return_value=str(cache_root)),
+        patch("shutil.which", return_value="/usr/bin/ccache"),
+        patch("esphome.framework_helpers.subprocess.run"),
+    ):
+        env = toolchain._ccache_env()
+
+    assert env["CCACHE_DIR"] == str((cache_root / "platformio-ccache").resolve())
 
 
 @pytest.mark.parametrize(
@@ -582,6 +689,7 @@ def test_ccache_env_respects_user_values_and_refreshes_basedir(
     user_env = {
         "CCACHE_DIR": "/custom/cache",
         "CCACHE_BASEDIR": "/stale/other-device",
+        "ESPHOME_PLATFORMIO_CCACHE_DIR": "/mounted/platformio-ccache",
     }
     CORE.build_path = setup_core / "build" / "test"
 
@@ -667,6 +775,17 @@ def test_copy_ccache_script(setup_core: Path) -> None:
     assert dest.read_text() == source.read_text()
 
 
+def test_copy_pch_script(setup_core: Path) -> None:
+    """The shared PCH pre-script is copied into the build dir."""
+    CORE.build_path = setup_core / "build" / "test"
+
+    toolchain.copy_pch_script()
+
+    dest = setup_core / "build" / "test" / "pch.py"
+    source = Path(toolchain.__file__).parent / "pch.py.script"
+    assert dest.read_text() == source.read_text()
+
+
 class _FakeSConsEnv(dict):
     """Just enough of a SCons construction environment for ccache.py."""
 
@@ -725,6 +844,66 @@ def test_ccache_script_wraps_compiles_with_exported_path() -> None:
     original_spawn.assert_called_once_with(
         "cmd.exe", _scons_win32_escape, "xtensa-lx106-elf-g++", link_args, {}
     )
+
+
+def test_ccache_script_wraps_compiles_moved_to_a_response_file(
+    tmp_path: Path,
+) -> None:
+    """PlatformIO moves a command line over the Windows length limit into
+    an @file; the -c that marks a compile is then inside that file."""
+    ccache_path = "C:\\ccache\\ccache.exe"
+    scons_env, original_spawn = _load_ccache_script(
+        {"ESPHOME_CCACHE_ENABLE": "1", "ESPHOME_CCACHE_PATH": ccache_path}
+    )
+    spawn = scons_env["SPAWN"]
+
+    compile_rsp = tmp_path / "tmp1.tmp"
+    compile_rsp.write_text('-o main.o -c -I"C:/sdk/include" main.cpp')
+    compile_args = ["arm-none-eabi-g++", f"@{compile_rsp}"]
+    spawn("cmd.exe", _scons_win32_escape, "arm-none-eabi-g++", compile_args, {})
+    original_spawn.assert_called_once_with(
+        "cmd.exe",
+        _scons_win32_escape,
+        ccache_path,
+        [_scons_win32_escape(ccache_path), *compile_args],
+        {},
+    )
+
+    # SCons quotes the whole argument when the file's path has a space
+    original_spawn.reset_mock()
+    spaced_rsp = tmp_path / "Jane Doe" / "tmp3.tmp"
+    spaced_rsp.parent.mkdir()
+    spaced_rsp.write_text("-o main.o -c main.cpp")
+    spaced_args = ["arm-none-eabi-g++", f'"@{spaced_rsp}"']
+    spawn("cmd.exe", _scons_win32_escape, "arm-none-eabi-g++", spaced_args, {})
+    original_spawn.assert_called_once_with(
+        "cmd.exe",
+        _scons_win32_escape,
+        ccache_path,
+        [_scons_win32_escape(ccache_path), *spaced_args],
+        {},
+    )
+
+    # A link moved to a response file still passes through untouched
+    original_spawn.reset_mock()
+    link_rsp = tmp_path / "tmp2.tmp"
+    link_rsp.write_text("-o firmware.elf main.o -lc")
+    link_args = ["arm-none-eabi-g++", f"@{link_rsp}"]
+    spawn("cmd.exe", _scons_win32_escape, "arm-none-eabi-g++", link_args, {})
+    original_spawn.assert_called_once_with(
+        "cmd.exe", _scons_win32_escape, "arm-none-eabi-g++", link_args, {}
+    )
+
+    # An unreadable or undecodable response file is not a compile
+    for bad in (tmp_path / "absent.tmp", tmp_path / "binary.tmp"):
+        original_spawn.reset_mock()
+        if bad.name == "binary.tmp":
+            bad.write_bytes(b"-c \xff\xfe")
+        bad_args = ["arm-none-eabi-g++", f"@{bad}"]
+        spawn("cmd.exe", _scons_win32_escape, "arm-none-eabi-g++", bad_args, {})
+        original_spawn.assert_called_once_with(
+            "cmd.exe", _scons_win32_escape, "arm-none-eabi-g++", bad_args, {}
+        )
 
 
 @pytest.mark.parametrize(
@@ -921,6 +1100,20 @@ def test_run_platformio_cli_run_builds_command(
 
     mock_run_platformio_cli.assert_called_once_with(
         "run", "-d", CORE.build_path, "-v", "extra", "args"
+    )
+
+
+def test_run_platformio_cli_run_without_verbose(
+    setup_core: Path, mock_run_platformio_cli: Mock
+) -> None:
+    """Without verbose, no -v flag is passed to PlatformIO."""
+    CORE.build_path = str(setup_core / "build" / "test")
+    mock_run_platformio_cli.return_value = 0
+
+    toolchain.run_platformio_cli_run({"name": "test"}, False, "extra")
+
+    mock_run_platformio_cli.assert_called_once_with(
+        "run", "-d", CORE.build_path, "extra"
     )
 
 
@@ -1384,6 +1577,49 @@ def test_patch_file_downloader_closes_session_and_response_between_retries() -> 
         # Both response and session should have been closed between retries
         mock_response.close.assert_called_once()
         mock_session.close.assert_called_once()
+
+
+def test_patch_file_downloader_ignores_cleanup_errors_between_retries() -> None:
+    """Test a failing close() does not stop the retry."""
+    mock_exception_cls = type("PackageException", (Exception,), {})
+    mock_response = MagicMock()
+    mock_response.close.side_effect = RuntimeError("close failed")
+    call_count = 0
+
+    def failing_init(self: Any, *args: Any, **kwargs: Any) -> None:
+        nonlocal call_count
+        call_count += 1
+        self._http_response = mock_response
+        if call_count < 2:
+            raise mock_exception_cls("502 error")
+
+    with (
+        patch.dict(
+            "sys.modules",
+            {
+                "platformio": MagicMock(),
+                "platformio.package": MagicMock(),
+                "platformio.package.download": SimpleNamespace(
+                    FileDownloader=type(
+                        "FileDownloader", (), {"__init__": failing_init}
+                    )
+                ),
+                "platformio.package.exception": SimpleNamespace(
+                    PackageException=mock_exception_cls
+                ),
+            },
+        ),
+        patch("time.sleep"),
+    ):
+        runner.patch_file_downloader()
+
+        from platformio.package.download import FileDownloader
+
+        instance = object.__new__(FileDownloader)
+        FileDownloader.__init__(instance, "http://example.com/file.zip")
+
+    assert call_count == 2
+    mock_response.close.assert_called_once()
 
 
 def test_patch_file_downloader_retries_on_connection_error() -> None:

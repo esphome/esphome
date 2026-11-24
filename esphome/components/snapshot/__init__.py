@@ -12,43 +12,52 @@ from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
-from esphome.core import CORE, ID
+from esphome.core import CORE
 from esphome.cpp_generator import MockObj
-from esphome.types import ConfigType, TemplateArgsType
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@clydebarrow"]
 
 DOMAIN = "snapshot"
 
 CONF_FILENAME = "filename"
+CONF_FRAMES = "frames"
+CONF_FRAME_RATE = "frame_rate"
 
 snapshot_ns = cg.esphome_ns.namespace("snapshot")
 Snapshot = snapshot_ns.class_("Snapshot")
-SnapshotAction = snapshot_ns.class_("SnapshotAction", automation.Action)
 
 
-@automation.register_action(
+def _default_animation(config: ConfigType) -> ConfigType:
+    """Without frames the action takes a single picture, which the C++ side reads as zero frames."""
+    return {CONF_FRAMES: 0, CONF_FRAME_RATE: 0.0, **config}
+
+
+automation.register_apply_action(
     "snapshot.take",
-    SnapshotAction,
-    automation.maybe_simple_id(
-        {
-            cv.GenerateID(): cv.use_id(Snapshot),
-            cv.Optional(CONF_FILENAME): cv.templatable(cv.string),
-        }
+    cv.All(
+        automation.maybe_simple_id(
+            {
+                cv.GenerateID(): cv.use_id(Snapshot),
+                cv.Optional(CONF_FILENAME, default=""): cv.templatable(cv.string),
+                # Asking for frames makes a GIF instead of a single BMP picture.
+                cv.Inclusive(CONF_FRAMES, "animation"): cv.positive_not_null_int,
+                cv.Inclusive(CONF_FRAME_RATE, "animation"): cv.All(
+                    cv.framerate, cv.Range(min=0.1, max=50)
+                ),
+            }
+        ),
+        _default_animation,
     ),
-    synchronous=True,
+    automation.ApplyCall(
+        "take_snapshot_or_log({}, {}, {})",
+        (
+            (CONF_FILENAME, cg.std_string),
+            (CONF_FRAMES, cg.uint32),
+            (CONF_FRAME_RATE, cg.float_),
+        ),
+    ),
 )
-async def snapshot_take_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    if (filename := config.get(CONF_FILENAME)) is not None:
-        cg.add(var.set_filename(await cg.templatable(filename, args, cg.std_string)))
-    return var
 
 
 @dataclass

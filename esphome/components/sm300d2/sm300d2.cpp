@@ -1,33 +1,27 @@
 #include "sm300d2.h"
+#include "esphome/core/frame_reader.h"
 #include "esphome/core/log.h"
 
 namespace esphome::sm300d2 {
 
-static const char *const TAG = "sm300d2";
-static const uint8_t SM300D2_RESPONSE_LENGTH = 17;
+ESPHOME_LOG_TAG(TAG, "sm300d2");
+static constexpr uint8_t SM300D2_RESPONSE_LENGTH = 17;
 
 void SM300D2Sensor::update() {
-  uint8_t response[SM300D2_RESPONSE_LENGTH];
-  uint8_t peeked;
+  // Takes the first frame already received; only one cut off at the end of the buffer is waited for
+  FrameReader<SM300D2_RESPONSE_LENGTH, 0x3C, 0x02> reader;
+  const uint8_t *response = nullptr;
+  this->read_available<1>([&](uint8_t c) { return (response = reader.feed(c)) == nullptr; });
+  for (uint8_t c; response == nullptr && reader.length() > 0 && this->read_byte(&c);)
+    response = reader.feed(c);
 
-  while (this->available() > 0 && this->peek_byte(&peeked) && peeked != 0x3C)
-    this->read();
-
-  bool read_success = read_array(response, SM300D2_RESPONSE_LENGTH);
-
-  if (!read_success) {
+  if (response == nullptr) {
     ESP_LOGW(TAG, "Reading data from SM300D2 failed!");
-    status_set_warning();
-    return;
-  }
-
-  if (response[0] != 0x3C || response[1] != 0x02) {
-    ESP_LOGW(TAG, "Invalid preamble for SM300D2 response!");
     this->status_set_warning();
     return;
   }
 
-  uint16_t calculated_checksum = this->sm300d2_checksum_(response);
+  uint16_t calculated_checksum = sum_bytes(response, SM300D2_RESPONSE_LENGTH - 1);
   // Occasionally the checksum has a +/- 0x80 offset. Negative temperatures are
   // responsible for some of these. The rest are unknown/undocumented.
   if ((calculated_checksum != response[SM300D2_RESPONSE_LENGTH - 1]) &&
@@ -55,40 +49,25 @@ void SM300D2Sensor::update() {
   const float humidity = response[14] + (response[15] * 0.1f);
 
   ESP_LOGD(TAG, "Received CO₂: %u ppm", co2);
-  if (this->co2_sensor_ != nullptr)
-    this->co2_sensor_->publish_state(co2);
+  PUBLISH_STATE(this->co2_sensor_, co2);
 
   ESP_LOGD(TAG, "Received Formaldehyde: %u µg/m³", formaldehyde);
-  if (this->formaldehyde_sensor_ != nullptr)
-    this->formaldehyde_sensor_->publish_state(formaldehyde);
+  PUBLISH_STATE(this->formaldehyde_sensor_, formaldehyde);
 
   ESP_LOGD(TAG, "Received TVOC: %u µg/m³", tvoc);
-  if (this->tvoc_sensor_ != nullptr)
-    this->tvoc_sensor_->publish_state(tvoc);
+  PUBLISH_STATE(this->tvoc_sensor_, tvoc);
 
   ESP_LOGD(TAG, "Received PM2.5: %u µg/m³", pm_2_5);
-  if (this->pm_2_5_sensor_ != nullptr)
-    this->pm_2_5_sensor_->publish_state(pm_2_5);
+  PUBLISH_STATE(this->pm_2_5_sensor_, pm_2_5);
 
   ESP_LOGD(TAG, "Received PM10: %u µg/m³", pm_10_0);
-  if (this->pm_10_0_sensor_ != nullptr)
-    this->pm_10_0_sensor_->publish_state(pm_10_0);
+  PUBLISH_STATE(this->pm_10_0_sensor_, pm_10_0);
 
   ESP_LOGD(TAG, "Received Temperature: %.2f °C", temperature);
-  if (this->temperature_sensor_ != nullptr)
-    this->temperature_sensor_->publish_state(temperature);
+  PUBLISH_STATE(this->temperature_sensor_, temperature);
 
   ESP_LOGD(TAG, "Received Humidity: %.2f percent", humidity);
-  if (this->humidity_sensor_ != nullptr)
-    this->humidity_sensor_->publish_state(humidity);
-}
-
-uint16_t SM300D2Sensor::sm300d2_checksum_(uint8_t *ptr) {
-  uint8_t sum = 0;
-  for (int i = 0; i < (SM300D2_RESPONSE_LENGTH - 1); i++) {
-    sum += *ptr++;
-  }
-  return sum;
+  PUBLISH_STATE(this->humidity_sensor_, humidity);
 }
 
 void SM300D2Sensor::dump_config() {

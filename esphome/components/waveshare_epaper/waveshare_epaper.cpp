@@ -7,7 +7,7 @@
 
 namespace esphome::waveshare_epaper {
 
-static const char *const TAG = "waveshare_epaper";
+ESPHOME_LOG_TAG(TAG, "waveshare_epaper");
 
 static const uint8_t LUT_SIZE_WAVESHARE = 30;
 
@@ -403,7 +403,7 @@ void WaveshareEPaperBase::on_safe_shutdown() { this->deep_sleep(); }
 // ========================================================
 
 void WaveshareEPaperTypeA::initialize() {
-  // Achieve display intialization
+  // Achieve display initialization
   this->init_display_();
   // If a reset pin is configured, eligible displays can be set to deep sleep
   // between updates, as recommended by the hardware provider
@@ -1424,7 +1424,7 @@ void WaveshareEPaper2P9InD::initialize() {
 
   // VCOM_DC settings
   this->command(0x82);  // Command: VDCS
-  this->data(0x12);     // Dafault VCOM_DC
+  this->data(0x12);     // Default VCOM_DC
 }
 
 void WaveshareEPaper2P9InD::display() {
@@ -2183,8 +2183,6 @@ void GDEW029T5::write_lut_(const uint8_t *lut, const uint8_t size) {
   this->end_data_();
 }
 
-void GDEW029T5::set_full_update_every(uint32_t full_update_every) { this->full_update_every_ = full_update_every; }
-
 int GDEW029T5::get_width_internal() { return 128; }
 int GDEW029T5::get_height_internal() { return 296; }
 void GDEW029T5::dump_config() {
@@ -2523,7 +2521,6 @@ void HOT GDEY042T81::display() {
   ESP_LOGD(TAG, "Set the display back to deep sleep");
   this->deep_sleep();
 }
-void GDEY042T81::set_full_update_every(uint32_t full_update_every) { this->full_update_every_ = full_update_every; }
 int GDEY042T81::get_width_internal() { return 400; }
 int GDEY042T81::get_height_internal() { return 300; }
 uint32_t GDEY042T81::idle_timeout_() { return 5000; }
@@ -2891,7 +2888,7 @@ void WaveshareEPaper5P8InV2::initialize() {
   delay(10);
   this->wait_until_idle_();
 
-  // PANNEL SETTING
+  // PANEL SETTING
   this->command(0x00);
   this->data(0x1F);
 
@@ -3156,7 +3153,6 @@ void HOT GDEY0583T81::display() {
   this->deep_sleep();
 }
 
-void GDEY0583T81::set_full_update_every(uint32_t full_update_every) { this->full_update_every_ = full_update_every; }
 int GDEY0583T81::get_width_internal() { return 648; }
 int GDEY0583T81::get_height_internal() { return 480; }
 uint32_t GDEY0583T81::idle_timeout_() { return 5000; }

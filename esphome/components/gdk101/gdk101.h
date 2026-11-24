@@ -18,7 +18,7 @@ namespace esphome::gdk101 {
 static const uint8_t GDK101_REG_READ_FIRMWARE = 0xB4;        // Firmware version
 static const uint8_t GDK101_REG_RESET = 0xA0;                // Reset register - reading its value triggers reset
 static const uint8_t GDK101_REG_READ_STATUS = 0xB0;          // Status register
-static const uint8_t GDK101_REG_READ_MEASURING_TIME = 0xB1;  // Mesuring time
+static const uint8_t GDK101_REG_READ_MEASURING_TIME = 0xB1;  // Measuring time
 static const uint8_t GDK101_REG_READ_10MIN_AVG = 0xB2;       // Average radiation dose per 10 min
 static const uint8_t GDK101_REG_READ_1MIN_AVG = 0xB3;        // Average radiation dose per 1 min
 

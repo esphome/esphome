@@ -1,21 +1,23 @@
 #include "zigbee_time_zephyr.h"
 #if defined(USE_ZIGBEE) && defined(USE_NRF52) && defined(USE_TIME)
 #include "esphome/core/log.h"
-#include "esphome/core/application.h"
+#include <limits>
 
 namespace esphome::zigbee {
 
-static const char *const TAG = "zigbee.time";
+ESPHOME_LOG_TAG(TAG, "zigbee.time");
 
 // This time standard is the number of
 // seconds since 0 hrs 0 mins 0 sec on 1st January 2000 UTC (Universal Coordinated Time).
 constexpr time_t EPOCH_2000 = 946684800;
+// Largest ZCL time that still fits the 32-bit epoch. Also rejects ZB_ZCL_TIME_TIME_INVALID_VALUE.
+constexpr uint32_t MAX_ZCL_TIME = std::numeric_limits<uint32_t>::max() - EPOCH_2000;
 
 ZigbeeTime *global_time = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 void ZigbeeTime::sync_time(zb_ret_t status, zb_uint32_t auth_level, zb_uint16_t short_addr, zb_uint8_t endpoint,
                            zb_uint32_t nw_time) {
-  if (status == RET_OK && auth_level >= ZB_ZCL_TIME_HAS_SYNCHRONIZED_BIT) {
+  if (status == RET_OK && auth_level >= ZB_ZCL_TIME_HAS_SYNCHRONIZED_BIT && nw_time <= MAX_ZCL_TIME) {
     global_time->set_epoch_time(nw_time + EPOCH_2000);
   } else if (status != RET_TIMEOUT || !global_time->has_time_) {
     ESP_LOGE(TAG, "Status: %d, auth_level: %u, short_addr: %d, endpoint: %d, nw_time: %u", status, auth_level,
@@ -25,8 +27,6 @@ void ZigbeeTime::sync_time(zb_ret_t status, zb_uint32_t auth_level, zb_uint16_t 
 
 void ZigbeeTime::setup() {
   global_time = this;
-  this->parent_->add_callback(this->endpoint_, [this](zb_bufid_t bufid) { this->zcl_device_cb_(bufid); });
-  synchronize_epoch_(EPOCH_2000);
   this->parent_->add_on_join_callback([this](bool x) { zb_zcl_time_server_synchronize(this->endpoint_, sync_time); });
 }
 
@@ -39,8 +39,12 @@ void ZigbeeTime::dump_config() {
 }
 
 void ZigbeeTime::update() {
-  time_t time = timestamp_now();
-  this->cluster_attributes_->time = time - EPOCH_2000;
+  const time_t now = this->timestamp_now();
+  if (now < EPOCH_2000) {
+    this->cluster_attributes_->time = ZB_ZCL_TIME_TIME_INVALID_VALUE;
+  } else {
+    this->cluster_attributes_->time = static_cast<uint32_t>(now - EPOCH_2000);
+  }
 }
 
 void ZigbeeTime::set_epoch_time(uint32_t epoch) {
@@ -48,10 +52,9 @@ void ZigbeeTime::set_epoch_time(uint32_t epoch) {
     this->synchronize_epoch_(epoch);
     this->has_time_ = true;
   });
-  App.wake_loop_threadsafe();
 }
 
-void ZigbeeTime::zcl_device_cb_(zb_bufid_t bufid) {
+void ZigbeeTime::on_zcl_device_event(zb_bufid_t bufid) {
   zb_zcl_device_callback_param_t *p_device_cb_param = ZB_BUF_GET_PARAM(bufid, zb_zcl_device_callback_param_t);
   zb_zcl_device_callback_id_t device_cb_id = p_device_cb_param->device_cb_id;
   zb_uint16_t cluster_id = p_device_cb_param->cb_param.set_attr_value_param.cluster_id;
@@ -63,8 +66,12 @@ void ZigbeeTime::zcl_device_cb_(zb_bufid_t bufid) {
       if (cluster_id == ZB_ZCL_CLUSTER_ID_TIME) {
         if (attr_id == ZB_ZCL_ATTR_TIME_TIME_ID) {
           zb_uint32_t value = p_device_cb_param->cb_param.set_attr_value_param.values.data32;
-          ESP_LOGI(TAG, "Synchronize time to %u", value);
-          this->defer([this, value]() { synchronize_epoch_(value + EPOCH_2000); });
+          if (value <= MAX_ZCL_TIME) {
+            ESP_LOGI(TAG, "Synchronize time to %u", value);
+            this->defer([this, value]() { this->synchronize_epoch_(value + EPOCH_2000); });
+          } else {
+            ESP_LOGW(TAG, "Ignoring invalid time %u", value);
+          }
         } else if (attr_id == ZB_ZCL_ATTR_TIME_TIME_STATUS_ID) {
           zb_uint8_t value = p_device_cb_param->cb_param.set_attr_value_param.values.data8;
           ESP_LOGI(TAG, "Time status %hd", value);

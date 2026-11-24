@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include "esphome/core/finite_set_mask.h"
+#include "esphome/core/hal.h"
 
 namespace esphome::light {
 
@@ -108,8 +109,9 @@ constexpr ColorModeHelper operator|(ColorModeHelper lhs, ColorMode rhs) {
 using color_mode_bitmask_t = uint16_t;
 
 // Lookup table for ColorMode bit mapping
-// This array defines the canonical order of color modes (bit 0-9)
-constexpr ColorMode COLOR_MODE_LOOKUP[] = {
+// This array defines the canonical order of color modes (bit 0-9). One shared copy in flash; read it at run time
+// through color_mode_at().
+inline constexpr ColorMode COLOR_MODE_LOOKUP[] PROGMEM = {
     ColorMode::UNKNOWN,                // bit 0
     ColorMode::ON_OFF,                 // bit 1
     ColorMode::BRIGHTNESS,             // bit 2
@@ -122,26 +124,49 @@ constexpr ColorMode COLOR_MODE_LOOKUP[] = {
     ColorMode::RGB_COLD_WARM_WHITE,    // bit 9
 };
 
+constexpr ColorMode color_mode_at(unsigned bit) {
+  if (__builtin_is_constant_evaluated())
+    return COLOR_MODE_LOOKUP[bit];
+  return static_cast<ColorMode>(progmem_read_byte(reinterpret_cast<const uint8_t *>(&COLOR_MODE_LOOKUP[bit])));
+}
+
 /// Bit mapping policy for ColorMode
 /// Uses lookup table for non-contiguous enum values
 struct ColorModeBitPolicy {
   using mask_t = uint16_t;  // 10 bits requires uint16_t
   static constexpr int MAX_BITS = sizeof(COLOR_MODE_LOOKUP) / sizeof(COLOR_MODE_LOOKUP[0]);
 
+  /// The position follows from the capability bits: UNKNOWN and ON_OFF are bits 0 and 1, every other mode is
+  /// 2, plus 4 with RGB, plus 1 for WHITE, 2 for COLOR_TEMPERATURE or 3 for COLD_WARM_WHITE.
+  /// One table read confirms the result, so a value that is not a mode still gives bit 0.
   static constexpr unsigned to_bit(ColorMode mode) {
-    // Linear search through lookup table
-    // Compiler optimizes this to efficient code since array is constexpr
-    for (int i = 0; i < MAX_BITS; ++i) {
-      if (COLOR_MODE_LOOKUP[i] == mode)
-        return i;
+    const auto value = static_cast<uint8_t>(mode);
+    unsigned bit = value;
+    if (value > 1) {
+      // COLOR_TEMPERATURE is checked before WHITE because RGB_COLOR_TEMPERATURE has both
+      const unsigned white = (mode & ColorCapability::COLD_WARM_WHITE)     ? 3
+                             : (mode & ColorCapability::COLOR_TEMPERATURE) ? 2
+                             : (mode & ColorCapability::WHITE)             ? 1
+                                                                           : 0;
+      bit = ((mode & ColorCapability::RGB) ? 6 : 2) + white;
     }
-    return 0;
+    return (bit < MAX_BITS && color_mode_at(bit) == mode) ? bit : 0;
   }
 
   static constexpr ColorMode from_bit(unsigned bit) {
-    return (bit < MAX_BITS) ? COLOR_MODE_LOOKUP[bit] : ColorMode::UNKNOWN;
+    return (bit < MAX_BITS) ? color_mode_at(bit) : ColorMode::UNKNOWN;
   }
 };
+
+// to_bit() computes the position instead of searching COLOR_MODE_LOOKUP, so check it against the table
+constexpr bool to_bit_matches_lookup() {
+  for (int bit = 0; bit < ColorModeBitPolicy::MAX_BITS; bit++) {
+    if (ColorModeBitPolicy::to_bit(color_mode_at(bit)) != static_cast<unsigned>(bit))
+      return false;
+  }
+  return true;
+}
+static_assert(to_bit_matches_lookup(), "ColorModeBitPolicy::to_bit() does not match COLOR_MODE_LOOKUP");
 
 // Type alias for ColorMode bitmask using policy-based design
 using ColorModeMask = FiniteSetMask<ColorMode, ColorModeBitPolicy>;
@@ -157,7 +182,7 @@ constexpr uint16_t compute_capability_bitmask(ColorCapability capability) {
   // Check each ColorMode to see if it has this capability
   constexpr int color_mode_count = sizeof(COLOR_MODE_LOOKUP) / sizeof(COLOR_MODE_LOOKUP[0]);
   for (int bit = 0; bit < color_mode_count; ++bit) {
-    uint8_t mode_val = static_cast<uint8_t>(COLOR_MODE_LOOKUP[bit]);
+    uint8_t mode_val = static_cast<uint8_t>(color_mode_at(bit));
     if ((mode_val & cap_bit) != 0) {
       mask |= (1 << bit);
     }

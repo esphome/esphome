@@ -1,9 +1,9 @@
-from esphome import automation
-from esphome.automation import register_action, register_condition
+from esphome import automation, core
 import esphome.codegen as cg
 from esphome.components import media_player, micro_wake_word, microphone, speaker
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_BUFFER_DURATION,
     CONF_ID,
     CONF_MEDIA_PLAYER,
     CONF_MICROPHONE,
@@ -13,15 +13,15 @@ from esphome.const import (
     CONF_ON_IDLE,
     CONF_ON_START,
     CONF_SPEAKER,
+    CONF_TIMEOUT,
 )
-from esphome.core import ID
-from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
 
 AUTO_LOAD = ["audio", "ring_buffer", "socket"]
 DEPENDENCIES = ["api", "microphone"]
 
 CODEOWNERS = ["@jesserockz", "@kahrendt"]
+DOMAIN = "voice_assistant"
 
 CONF_ON_END = "on_end"
 CONF_ON_INTENT_END = "on_intent_end"
@@ -36,6 +36,7 @@ CONF_ON_TTS_START = "on_tts_start"
 CONF_ON_TTS_STREAM_START = "on_tts_stream_start"
 CONF_ON_TTS_STREAM_END = "on_tts_stream_end"
 CONF_ON_WAKE_WORD_DETECTED = "on_wake_word_detected"
+CONF_ON_WAKE_WORD_REJECTED = "on_wake_word_rejected"
 
 CONF_SILENCE_DETECTION = "silence_detection"
 CONF_USE_WAKE_WORD = "use_wake_word"
@@ -47,8 +48,12 @@ CONF_VOLUME_MULTIPLIER = "volume_multiplier"
 
 CONF_MICRO_WAKE_WORD = "micro_wake_word"
 CONF_WAKE_WORD = "wake_word"
+CONF_WAKE_WORD_AUDIO = "wake_word_audio"
 
 CONF_CONVERSATION_TIMEOUT = "conversation_timeout"
+CONF_TTS_PLAYBACK_START_TIMEOUT = "tts_playback_start_timeout"
+# Keep in sync with VoiceAssistant::tts_playback_start_timeout_ in voice_assistant.h.
+TTS_PLAYBACK_START_TIMEOUT_DEFAULT = core.TimePeriod(milliseconds=15000)
 
 CONF_ON_TIMER_STARTED = "on_timer_started"
 CONF_ON_TIMER_UPDATED = "on_timer_updated"
@@ -62,33 +67,8 @@ MAX_MICROPHONE_SOURCES = 2
 voice_assistant_ns = cg.esphome_ns.namespace("voice_assistant")
 VoiceAssistant = voice_assistant_ns.class_("VoiceAssistant", cg.Component)
 
-StartAction = voice_assistant_ns.class_(
-    "StartAction", automation.Action, cg.Parented.template(VoiceAssistant)
-)
-StartContinuousAction = voice_assistant_ns.class_(
-    "StartContinuousAction", automation.Action, cg.Parented.template(VoiceAssistant)
-)
-StopAction = voice_assistant_ns.class_(
-    "StopAction", automation.Action, cg.Parented.template(VoiceAssistant)
-)
-IsRunningCondition = voice_assistant_ns.class_(
-    "IsRunningCondition", automation.Condition, cg.Parented.template(VoiceAssistant)
-)
-ConnectedCondition = voice_assistant_ns.class_(
-    "ConnectedCondition", automation.Condition, cg.Parented.template(VoiceAssistant)
-)
 
 Timer = voice_assistant_ns.struct("Timer")
-
-
-def tts_stream_validate(config: ConfigType) -> ConfigType:
-    if CONF_SPEAKER not in config and (
-        CONF_ON_TTS_STREAM_START in config or CONF_ON_TTS_STREAM_END in config
-    ):
-        raise cv.Invalid(
-            f"{CONF_SPEAKER} is required when using {CONF_ON_TTS_STREAM_START} and/or {CONF_ON_TTS_STREAM_END}"
-        )
-    return config
 
 
 CONFIG_SCHEMA = cv.All(
@@ -116,6 +96,21 @@ CONFIG_SCHEMA = cv.All(
             cv.Exclusive(CONF_SPEAKER, "output"): cv.use_id(speaker.Speaker),
             cv.Optional(CONF_USE_WAKE_WORD, default=False): cv.boolean,
             cv.Optional(CONF_MICRO_WAKE_WORD): cv.use_id(micro_wake_word.MicroWakeWord),
+            cv.Optional(CONF_WAKE_WORD_AUDIO): cv.Schema(
+                {
+                    cv.Optional(CONF_BUFFER_DURATION, default="1500ms"): cv.All(
+                        cv.positive_time_period_milliseconds,
+                        cv.Range(
+                            min=core.TimePeriod(milliseconds=100),
+                            max=core.TimePeriod(seconds=5),
+                        ),
+                    ),
+                    cv.Optional(CONF_TIMEOUT, default="2s"): cv.All(
+                        cv.positive_time_period_milliseconds,
+                        cv.Range(min=core.TimePeriod(milliseconds=1)),
+                    ),
+                }
+            ),
             cv.Optional(CONF_VAD_THRESHOLD): cv.invalid(
                 "VAD threshold is no longer supported, as it requires the deprecated esp_adf external component. Use an i2s_audio microphone/speaker instead. Additionally, you may need to configure the audio_adc and audio_dac components depending on your hardware."
             ),
@@ -127,12 +122,22 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(
                 CONF_CONVERSATION_TIMEOUT, default="300s"
             ): cv.positive_time_period_milliseconds,
+            cv.Optional(
+                CONF_TTS_PLAYBACK_START_TIMEOUT,
+                default=TTS_PLAYBACK_START_TIMEOUT_DEFAULT,
+            ): cv.All(
+                cv.positive_time_period_milliseconds,
+                cv.Range(min=core.TimePeriod(milliseconds=1)),
+            ),
             cv.Optional(CONF_VOLUME_MULTIPLIER, default=1.0): cv.float_range(
                 min=0.0, min_included=False
             ),
             cv.Optional(CONF_ON_LISTENING): automation.validate_automation(single=True),
             cv.Optional(CONF_ON_START): automation.validate_automation(single=True),
             cv.Optional(CONF_ON_WAKE_WORD_DETECTED): automation.validate_automation(
+                single=True
+            ),
+            cv.Optional(CONF_ON_WAKE_WORD_REJECTED): automation.validate_automation(
                 single=True
             ),
             cv.Optional(CONF_ON_STT_END): automation.validate_automation(single=True),
@@ -185,7 +190,9 @@ CONFIG_SCHEMA = cv.All(
             ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
-    tts_stream_validate,
+    cv.key_requires((CONF_ON_TTS_STREAM_START, CONF_ON_TTS_STREAM_END), CONF_SPEAKER),
+    cv.key_requires(CONF_WAKE_WORD_AUDIO, CONF_MICRO_WAKE_WORD),
+    cv.key_requires(CONF_ON_WAKE_WORD_REJECTED, CONF_WAKE_WORD_AUDIO),
 )
 
 FINAL_VALIDATE_SCHEMA = cv.All(
@@ -214,27 +221,30 @@ async def to_code(config: ConfigType) -> None:
         mic_source2 = await microphone.microphone_source_to_code(mic_sources[1])
         cg.add(var.set_microphone_source2(mic_source2))
 
-    if CONF_MICRO_WAKE_WORD in config:
-        mww = await cg.get_variable(config[CONF_MICRO_WAKE_WORD])
-        cg.add(var.set_micro_wake_word(mww))
-
-    if CONF_MEDIA_PLAYER in config:
-        mp = await cg.get_variable(config[CONF_MEDIA_PLAYER])
-        cg.add(var.set_media_player(mp))
-
-    if CONF_SPEAKER in config:
-        spkr = await cg.get_variable(config[CONF_SPEAKER])
-        cg.add(var.set_speaker(spkr))
+    await cg.add_variable(var.set_micro_wake_word, config.get(CONF_MICRO_WAKE_WORD))
+    await cg.add_variable(var.set_media_player, config.get(CONF_MEDIA_PLAYER))
+    await cg.add_variable(var.set_speaker, config.get(CONF_SPEAKER))
 
     cg.add(var.set_use_wake_word(config[CONF_USE_WAKE_WORD]))
 
-    if (vad_threshold := config.get(CONF_VAD_THRESHOLD)) is not None:
-        cg.add(var.set_vad_threshold(vad_threshold))
+    if wake_word_audio := config.get(CONF_WAKE_WORD_AUDIO):
+        cg.add_define("USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO")
+        cg.add(
+            var.set_wake_word_audio(
+                wake_word_audio[CONF_BUFFER_DURATION], wake_word_audio[CONF_TIMEOUT]
+            )
+        )
+
+    cg.add_optional(var.set_vad_threshold, config.get(CONF_VAD_THRESHOLD))
 
     cg.add(var.set_noise_suppression_level(config[CONF_NOISE_SUPPRESSION_LEVEL]))
     cg.add(var.set_auto_gain(config[CONF_AUTO_GAIN]))
     cg.add(var.set_volume_multiplier(config[CONF_VOLUME_MULTIPLIER]))
     cg.add(var.set_conversation_timeout(config[CONF_CONVERSATION_TIMEOUT]))
+    if (
+        timeout := config[CONF_TTS_PLAYBACK_START_TIMEOUT]
+    ) != TTS_PLAYBACK_START_TIMEOUT_DEFAULT:
+        cg.add(var.set_tts_playback_start_timeout(timeout))
 
     if CONF_ON_LISTENING in config:
         await automation.build_automation(
@@ -251,6 +261,13 @@ async def to_code(config: ConfigType) -> None:
             var.get_wake_word_detected_trigger(),
             [],
             config[CONF_ON_WAKE_WORD_DETECTED],
+        )
+
+    if CONF_ON_WAKE_WORD_REJECTED in config:
+        await automation.build_automation(
+            var.get_wake_word_rejected_trigger(),
+            [],
+            config[CONF_ON_WAKE_WORD_REJECTED],
         )
 
     if CONF_ON_STT_END in config:
@@ -406,76 +423,41 @@ async def to_code(config: ConfigType) -> None:
 VOICE_ASSISTANT_ACTION_SCHEMA = cv.Schema({cv.GenerateID(): cv.use_id(VoiceAssistant)})
 
 
-@register_action(
+automation.register_apply_action(
     "voice_assistant.start_continuous",
-    StartContinuousAction,
     VOICE_ASSISTANT_ACTION_SCHEMA,
-    synchronous=True,
+    automation.ApplyCall("request_start(true, true)"),
 )
-@register_action(
+# wake_word defaults to "" so a start without one clears the previous wake word,
+# as the old action did.
+automation.register_apply_action(
     "voice_assistant.start",
-    StartAction,
     VOICE_ASSISTANT_ACTION_SCHEMA.extend(
         {
             cv.Optional(CONF_SILENCE_DETECTION, default=True): cv.boolean,
-            cv.Optional(CONF_WAKE_WORD): cv.templatable(cv.string),
+            cv.Optional(CONF_WAKE_WORD, default=""): cv.templatable(cv.string),
         }
     ),
-    synchronous=True,
+    automation.ApplyField(CONF_WAKE_WORD, "set_wake_word", cg.std_string),
+    automation.ApplyCall(
+        "request_start(false, {})", ((CONF_SILENCE_DETECTION, cg.bool_),)
+    ),
 )
-async def voice_assistant_listen_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    if CONF_SILENCE_DETECTION in config:
-        cg.add(var.set_silence_detection(config[CONF_SILENCE_DETECTION]))
-    if wake_word := config.get(CONF_WAKE_WORD):
-        templ = await cg.templatable(wake_word, args, cg.std_string)
-        cg.add(var.set_wake_word(templ))
-    return var
-
-
-@register_action(
-    "voice_assistant.stop", StopAction, VOICE_ASSISTANT_ACTION_SCHEMA, synchronous=True
+automation.register_apply_action(
+    "voice_assistant.stop",
+    VOICE_ASSISTANT_ACTION_SCHEMA,
+    automation.ApplyCall("request_stop()"),
 )
-async def voice_assistant_stop_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
 
 
-@register_condition(
-    "voice_assistant.is_running", IsRunningCondition, VOICE_ASSISTANT_ACTION_SCHEMA
+automation.register_apply_condition(
+    "voice_assistant.is_running",
+    VOICE_ASSISTANT_ACTION_SCHEMA,
+    "is_running_or_continuous()",
 )
-async def voice_assistant_is_running_to_code(
-    config: ConfigType,
-    condition_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(condition_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
 
-
-@register_condition(
-    "voice_assistant.connected", ConnectedCondition, VOICE_ASSISTANT_ACTION_SCHEMA
+automation.register_apply_condition(
+    "voice_assistant.connected",
+    VOICE_ASSISTANT_ACTION_SCHEMA,
+    "get_api_connection() != nullptr",
 )
-async def voice_assistant_connected_to_code(
-    config: ConfigType,
-    condition_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    var = cg.new_Pvariable(condition_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var

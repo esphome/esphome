@@ -6,37 +6,10 @@
 
 namespace esphome::sensor {
 
-class SensorStateTrigger final : public Trigger<float> {
- public:
-  explicit SensorStateTrigger(Sensor *parent) {
-    parent->add_on_state_callback([this](float value) { this->trigger(value); });
-  }
-};
-
-class SensorRawStateTrigger final : public Trigger<float> {
- public:
-  explicit SensorRawStateTrigger(Sensor *parent) {
-    parent->add_on_raw_state_callback([this](float value) { this->trigger(value); });
-  }
-};
-
-template<typename... Ts> class SensorPublishAction final : public Action<Ts...> {
- public:
-  SensorPublishAction(Sensor *sensor) : sensor_(sensor) {}
-  TEMPLATABLE_VALUE(float, state)
-
-  void play(const Ts &...x) override { this->sensor_->publish_state(this->state_.value(x...)); }
-
- protected:
-  Sensor *sensor_;
-};
-
 class ValueRangeTrigger final : public Trigger<float>, public Component {
  public:
-  explicit ValueRangeTrigger(Sensor *parent) : parent_(parent) {}
-
-  template<typename V> void set_min(V min) { this->min_ = min; }
-  template<typename V> void set_max(V max) { this->max_ = max; }
+  /// range is generated: it returns the bounds for the state x.
+  ValueRangeTrigger(Sensor *parent, ValueRange (*range)(float x)) : parent_(parent), range_(range) {}
 
   void setup() override {
     this->rtc_ = this->parent_->make_entity_preference<bool>();
@@ -54,20 +27,7 @@ class ValueRangeTrigger final : public Trigger<float>, public Component {
     if (std::isnan(state))
       return;
 
-    float local_min = this->min_.value(state);
-    float local_max = this->max_.value(state);
-
-    bool in_range;
-    if (std::isnan(local_min) && std::isnan(local_max)) {
-      in_range = this->previous_in_range_;
-    } else if (std::isnan(local_min)) {
-      in_range = state <= local_max;
-    } else if (std::isnan(local_max)) {
-      in_range = state >= local_min;
-    } else {
-      in_range = local_min <= state && state <= local_max;
-    }
-
+    bool in_range = this->range_(state).contains(state, this->previous_in_range_);
     if (in_range != this->previous_in_range_ && in_range) {
       this->trigger(state);
     }
@@ -78,32 +38,8 @@ class ValueRangeTrigger final : public Trigger<float>, public Component {
 
   Sensor *parent_;
   ESPPreferenceObject rtc_;
+  ValueRange (*range_)(float x);
   bool previous_in_range_{false};
-  TemplatableFn<float, float> min_{[](float) -> float { return NAN; }};
-  TemplatableFn<float, float> max_{[](float) -> float { return NAN; }};
-};
-
-template<typename... Ts> class SensorInRangeCondition final : public Condition<Ts...> {
- public:
-  SensorInRangeCondition(Sensor *parent) : parent_(parent) {}
-
-  void set_min(float min) { this->min_ = min; }
-  void set_max(float max) { this->max_ = max; }
-  bool check(const Ts &...x) override {
-    const float state = this->parent_->state;
-    if (std::isnan(this->min_)) {
-      return state <= this->max_;
-    } else if (std::isnan(this->max_)) {
-      return state >= this->min_;
-    } else {
-      return this->min_ <= state && state <= this->max_;
-    }
-  }
-
- protected:
-  Sensor *parent_;
-  float min_{NAN};
-  float max_{NAN};
 };
 
 }  // namespace esphome::sensor

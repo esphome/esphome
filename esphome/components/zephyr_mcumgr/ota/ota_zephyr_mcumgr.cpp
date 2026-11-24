@@ -3,7 +3,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 #include <zephyr/sys/math_extras.h>
-#include <zephyr/usb/usb_device.h>
+#include "esphome/components/zephyr/usb_device.h"
 #include <zephyr/dfu/mcuboot.h>
 
 // It should be from below header but there is problem with internal includes.
@@ -27,7 +27,7 @@ static_assert(sizeof(struct img_mgmt_upload_req) == 8, "ABI mismatch");
 static_assert(offsetof(struct img_mgmt_upload_req, image) == 0, "ABI mismatch");
 static_assert(offsetof(struct img_mgmt_upload_req, off) == 4, "ABI mismatch");
 
-static const char *const TAG = "zephyr_mcumgr";
+ESPHOME_LOG_TAG(TAG, "zephyr_mcumgr");
 static OTAComponent *global_ota_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 static enum mgmt_cb_return mcumgr_img_mgmt_cb(uint32_t event, enum mgmt_cb_return prev_status, int32_t *rc,
@@ -55,8 +55,9 @@ void OTAComponent::setup() {
   this->img_mgmt_callback_.callback = mcumgr_img_mgmt_cb;
   this->img_mgmt_callback_.event_id = MGMT_EVT_OP_IMG_MGMT_ALL;
   mgmt_callback_register(&this->img_mgmt_callback_);
-#ifdef CONFIG_USB_DEVICE_STACK
-  usb_enable(nullptr);
+#if defined(CONFIG_USB_DEVICE_STACK) || defined(CONFIG_USB_DEVICE_STACK_NEXT)
+  if (int err = zephyr::usb_device_enable(); err != 0)
+    ESP_LOGE(TAG, "USB device setup failed: %d", err);
 #endif
 // Handle OTA rollback: mark partition valid immediately unless USE_OTA_ROLLBACK is enabled,
 // in which case safe_mode will mark it valid after confirming successful boot.
@@ -80,6 +81,8 @@ static const char *swap_type_str(uint8_t type) {
       return "revert";
     case BOOT_SWAP_TYPE_FAIL:
       return "fail";
+    default:
+      break;
   }
 
   return "unknown";

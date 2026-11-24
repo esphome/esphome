@@ -50,6 +50,9 @@ INTEGRATION_TESTS_PATH = "tests/integration/"
 # reader (determine-jobs) and writer (update_integration_test_durations)
 INTEGRATION_TEST_DURATIONS_FILE = "tests/integration/integration_test_durations.json"
 
+# Per-component YAML file that the C++ unit test and benchmark builds load
+BENCHMARK_YAML_FILENAME = "benchmark.yaml"
+
 
 def all_integration_test_files() -> list[str]:
     """Return all integration test file paths, sorted, relative to repo root."""
@@ -429,11 +432,9 @@ def build_all_include(header_files: list[str] | None = None) -> None:
             if line
         ]
 
-    from esphome.writer import ENTITY_TYPES_H_TARGET
+    from esphome.writer import ESPHOME_H_EXCLUDE
 
-    # X-macro files are included multiple times with different macro definitions
-    # and must not be included bare in the all-include header
-    exclude = {ENTITY_TYPES_H_TARGET}
+    exclude = {path.as_posix() for path in ESPHOME_H_EXCLUDE}
     headers = [f'#include "{h}"' for h in header_files if h not in exclude]
     headers.sort()
     headers.append("")
@@ -1618,7 +1619,7 @@ def lpt_partition(
 
     Heaviest item first into the lightest group. Ties keep input order, so
     pass pre-sorted items for deterministic output. script/clang-tidy's
-    split_list is the unweighted contiguous sibling.
+    split_list is the unweighted sibling that deals files out in turn.
     """
     groups: list[list[str]] = [[] for _ in range(count)]
     group_weights = [0.0] * count

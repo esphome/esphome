@@ -4,7 +4,7 @@
 
 namespace esphome::hoermann_hcp {
 
-static const char *const TAG = "hoermann_hcp.cover";
+ESPHOME_LOG_TAG(TAG, "hoermann_hcp.cover");
 
 cover::CoverTraits HoermannHcpCover::get_traits() {
   cover::CoverTraits traits;
@@ -39,8 +39,7 @@ void HoermannHcpCover::control(const cover::CoverCall &call) {
 }
 
 void HoermannHcpCover::update_from_state_() {
-  if (!this->parent_->is_valid()) {
-    this->status_set_warning();
+  if (!this->status_comm_result(this->parent_->is_valid(), LOG_STR("bus controller not responding"))) {
     // The door can now move unheard, so drop the baseline a direction would be inferred from and stop
     // reporting motion instead of leaving the cover travelling until the controller returns.
     this->previous_position_ = NAN;
@@ -50,7 +49,6 @@ void HoermannHcpCover::update_from_state_() {
     }
     return;
   }
-  this->status_clear_warning();
 
   const auto previous_operation = this->current_operation;
   const float current_position = this->parent_->get_current_position();

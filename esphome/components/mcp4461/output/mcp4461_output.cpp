@@ -6,7 +6,7 @@
 
 namespace esphome::mcp4461 {
 
-static const char *const TAG = "mcp4461.output";
+ESPHOME_LOG_TAG(TAG, "mcp4461.output");
 
 // public set_level function
 void Mcp4461Wiper::set_level(float state) {
@@ -36,14 +36,6 @@ float Mcp4461Wiper::read_state() {
 float Mcp4461Wiper::update_state() {
   this->state_ = this->read_state();
   return this->state_;
-}
-
-void Mcp4461Wiper::set_state(bool state) {
-  if (state) {
-    this->turn_on();
-  } else {
-    this->turn_off();
-  }
 }
 
 void Mcp4461Wiper::turn_on() { this->parent_->enable_wiper_(this->wiper_); }

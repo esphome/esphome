@@ -16,7 +16,7 @@
 
 namespace esphome::bk72xx_ble_tracker {
 
-static const char *const TAG = "bk72xx_ble_tracker";
+ESPHOME_LOG_TAG(TAG, "bk72xx_ble_tracker");
 
 // Minimum interval between scan (re)start attempts, so a failing controller start
 // cannot be retried every main-loop iteration (single-core CPU starvation). The
@@ -41,9 +41,6 @@ constexpr uint32_t ble_units_to_ms(uint32_t units) { return units * 5 / 8; }
 // ---------------------------------------------------------------------------
 
 void BK72xxBLETracker::setup() {
-  // Receive the controller's scan reports; the controller queues them from the
-  // BLE task and delivers here on the main task.
-  this->parent_->register_scan_listener(this);
   // Merged (and unmerged) frames go to the shared dispatcher; unclaimed
   // devices are logged only on one-shot scans (continuous would spam).
   this->merger_.bind(&this->dispatcher_, &this->scan_continuous_, TAG);
@@ -209,6 +206,7 @@ void BK72xxBLETracker::dump_config() {
                 this->scan_duration_ / 1000, ble_units_to_ms(this->scan_interval_), this->scan_interval_,
                 ble_units_to_ms(this->scan_window_), this->scan_window_, this->scan_active_ ? "ACTIVE" : "PASSIVE",
                 this->scan_active_configured_ ? "ACTIVE" : "PASSIVE", YESNO(this->scan_continuous_));
+  this->dispatcher_.dump_child_configs();
 }
 
 // ---------------------------------------------------------------------------

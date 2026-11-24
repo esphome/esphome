@@ -1,0 +1,73 @@
+sensor:
+  - platform: icm20689
+    type: temperature
+    name: "ICM20689 Temperature"
+
+  - platform: motion
+    motion_id: icm20689_motion
+    type: acceleration_x
+    name: "ICM20689 Accel X"
+    accuracy_decimals: 4
+    filters:
+      - sliding_window_moving_average:
+          window_size: 4
+          send_every: 1
+  - platform: motion
+    motion_id: icm20689_motion
+    type: acceleration_y
+    name: "ICM20689 Accel Y"
+    accuracy_decimals: 4
+  - platform: motion
+    motion_id: icm20689_motion
+    type: acceleration_z
+    name: "ICM20689 Accel Z"
+    accuracy_decimals: 4
+
+    # Gyroscope axes (unit: °/s)
+  - platform: motion
+    motion_id: icm20689_motion
+    type: gyroscope_x
+    name: "ICM20689 Gyro X"
+  - platform: motion
+    motion_id: icm20689_motion
+    type: gyroscope_y
+    name: "ICM20689 Gyro Y"
+  - platform: motion
+    motion_id: icm20689_motion
+    type: gyroscope_z
+    name: "ICM20689 Gyro Z"
+
+  - platform: motion
+    motion_id: icm20689_motion
+    type: angular_rate_x
+    name: "ICM20689 Angular Rate X"
+  - platform: motion
+    motion_id: icm20689_motion
+    type: angular_rate_y
+    name: "ICM20689 Angular Rate Y"
+  - platform: motion
+    motion_id: icm20689_motion
+    type: angular_rate_z
+    name: "ICM20689 Angular Rate Z"
+
+  - platform: motion
+    motion_id: icm20689_motion
+    type: pitch
+    name: "ICM20689 Pitch"
+  - platform: motion
+    motion_id: icm20689_motion
+    type: roll
+    name: "ICM20689 Roll"
+
+motion:
+  - platform: icm20689
+    id: icm20689_motion
+    cs_pin: GPIO5
+    # Accelerometer full-scale range: 2G | 4G | 8G | 16G
+    accelerometer_range: 4G
+    # Gyroscope full-scale range: 250DPS | 500DPS | 1000DPS | 2000DPS
+    gyroscope_range: 500DPS
+    axis_map:
+      x: y
+      y: x
+      z: -z

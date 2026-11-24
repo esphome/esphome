@@ -6,7 +6,7 @@
 
 namespace esphome::mitsubishi_cn105 {
 
-static const char *const TAG = "mitsubishi_cn105";
+ESPHOME_LOG_TAG(TAG, "mitsubishi_cn105");
 
 void MitsubishiCN105Component::dump_config() {
   ESP_LOGCONFIG(TAG, "Mitsubishi CN105:");
@@ -41,6 +41,9 @@ void MitsubishiCN105Component::loop() {
 void VaneCall::perform() {
   if (const auto &direction = this->vertical.get_direction(); direction.has_value()) {
     this->parent_->set_vane_mode(static_cast<MitsubishiCN105::VaneMode>(*direction));
+  }
+  if (const auto &direction = this->horizontal.get_direction(); direction.has_value()) {
+    this->parent_->set_wide_vane_mode(static_cast<MitsubishiCN105::WideVaneMode>(*direction));
   }
   this->parent_->publish_status();
 }

@@ -3,6 +3,7 @@
 
 #ifdef USE_OTA_SIGNED_VERIFICATION_MULTI_KEY
 #include "esphome/components/watchdog/watchdog.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 #include <algorithm>
@@ -11,7 +12,6 @@
 #include <memory>
 #include <esp_image_format.h>
 #include <esp_partition.h>
-#include <esp_rom_crc.h>
 
 #include <esp_idf_version.h>
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
@@ -30,7 +30,7 @@
 
 namespace esphome::ota {
 
-static const char *const TAG = "ota";
+ESPHOME_LOG_TAG(TAG, "ota");
 
 // Route the "Signature check: " prefix (and its per-block form) through one
 // shared format string each, so the prefix is pooled once by the linker instead
@@ -76,7 +76,7 @@ bool block_is_valid(const uint8_t *block) {
   }
   uint32_t stored_crc;
   memcpy(&stored_crc, block + OFFSET_CRC, sizeof(stored_crc));
-  return esp_rom_crc32_le(0, block, OFFSET_CRC) == stored_crc;
+  return crc32(0, block, OFFSET_CRC) == stored_crc;
 }
 
 bool key_digest_of(const uint8_t *block, KeyDigest &out) {

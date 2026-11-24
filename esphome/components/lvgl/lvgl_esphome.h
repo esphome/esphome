@@ -82,7 +82,10 @@ inline void lv_style_set_text_font(lv_style_t *style, const font::Font *font) {
 #ifdef USE_IMAGE
 #ifdef USE_LVGL_IMAGE
 // Shortcut / overload, so that the source of an image widget can easily be updated from within a lambda.
-inline void lv_image_set_src(lv_obj_t *obj, image::Image *image) { ::lv_image_set_src(obj, image->get_lv_image_dsc()); }
+inline void lv_image_set_src(lv_obj_t *obj, image::Image *image) {
+  ::lv_image_set_src(obj, image->get_lv_image_dsc());
+  image->add_lvgl_widget(obj);
+}
 
 inline void lv_obj_set_style_bitmap_mask_src(lv_obj_t *obj, image::Image *image, lv_style_selector_t selector) {
   ::lv_obj_set_style_bitmap_mask_src(obj, image->get_lv_image_dsc(), selector);
@@ -143,6 +146,12 @@ lv_obj_t *lv_list_get_row_for_remove(lv_obj_t *list, int index);
 lv_color_t lv_grad_calculate_color(const lv_grad_dsc_t *dsc, int32_t pos);
 #endif  // USE_LVGL_GRADIENT
 
+#ifdef USE_LVGL_MENU
+// True if `e` is a click on `menu`'s back button while already at the root page -- the one
+// case LVGL's own docs say the app must handle itself (there is no default behavior).
+bool lv_menu_back_button_is_root_click(lv_obj_t *menu, lv_event_t *e);
+#endif  // USE_LVGL_MENU
+
 // Parent class for things that wrap an LVGL object
 class LvCompound {
  public:
@@ -189,15 +198,6 @@ class LvLambdaComponent final : public Component {
   void (*callback_)();
 };
 
-template<typename... Ts> class ObjUpdateAction final : public Action<Ts...> {
- public:
-  explicit ObjUpdateAction(std::function<void(Ts...)> &&lamb) : lamb_(std::move(lamb)) {}
-
- protected:
-  void play(const Ts &...x) override { this->lamb_(x...); }
-
-  std::function<void(Ts...)> lamb_;
-};
 #ifdef USE_LVGL_ANIMIMG
 void lv_animimg_stop(lv_obj_t *obj);
 #endif  // USE_LVGL_ANIMIMG
@@ -214,7 +214,7 @@ enum class Orientation : uint8_t {
 };
 
 class LvglComponent final : public PollingComponent {
-  constexpr static const char *const TAG = "lvgl";
+  constexpr static const char *const TAG = "lvgl";  // NOLINT: lvgl does not build for ESP8266
 
  public:
   LvglComponent(std::vector<display::Display *> displays, float buffer_frac, bool full_refresh, int draw_rounding,
@@ -250,6 +250,8 @@ class LvglComponent final : public PollingComponent {
 
   // Returns true if the display has been explicitly paused via set_paused().
   bool is_paused() const { return this->paused_; }
+  // True when there has been no input for longer than timeout ms.
+  bool is_idle(uint32_t timeout) const { return lv_display_get_inactive_time(this->disp_) > timeout; }
   // If the display is paused and we have resume_on_input_ set to true, resume the display.
   void maybe_wakeup() {
     if (this->paused_ && this->resume_on_input_) {
@@ -268,6 +270,9 @@ class LvglComponent final : public PollingComponent {
                            void *user_data = nullptr);
   static void add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event1, lv_event_code_t event2,
                            lv_event_code_t event3, void *user_data = nullptr);
+
+  // Set or clear LV_OBJ_FLAG_LAYOUT_2, LV_OBJ_FLAG_WIDGET_1 or LV_OBJ_FLAG_WIDGET_2, which have no setter in LVGL 9.6
+  static void lv_obj_set_custom_flag(lv_obj_t *obj, lv_obj_flag_t flag, bool value);
 
   // change the state of a widget and fire an event if changed (only needed for CHECKED)
 
@@ -403,24 +408,6 @@ class IdleTrigger final : public Trigger<> {
   bool is_idle_{};
 };
 
-template<typename... Ts> class LvglAction final : public Action<Ts...>, public Parented<LvglComponent> {
- public:
-  explicit LvglAction(std::function<void(LvglComponent *)> &&lamb) : action_(std::move(lamb)) {}
-
- protected:
-  void play(const Ts &...x) override { this->action_(this->parent_); }
-  std::function<void(LvglComponent *)> action_{};
-};
-
-template<typename Tc, typename... Ts> class LvglCondition final : public Condition<Ts...>, public Parented<Tc> {
- public:
-  LvglCondition(std::function<bool(Tc *)> &&condition_lambda) : condition_lambda_(std::move(condition_lambda)) {}
-  bool check(const Ts &...x) override { return this->condition_lambda_(this->parent_); }
-
- protected:
-  std::function<bool(Tc *)> condition_lambda_{};
-};
-
 #ifdef USE_LVGL_TOUCHSCREEN
 class LVTouchListener final : public touchscreen::TouchListener, public Parented<LvglComponent> {
  public:
@@ -521,19 +508,19 @@ class LvLineType : public LvCompound {
 // content width changes.
 class LvTableType : public LvCompound {
  public:
+  struct ColumnPct {
+    uint32_t col;
+    uint8_t pct;
+  };
+
   void set_obj(lv_obj_t *lv_obj) override;
-  // count is the number of percentage-width columns, known at code-generation time.
-  void init_column_pct(size_t count) { this->column_pct_.init(count); }
+  void set_column_pct_storage(std::span<ColumnPct> storage) { this->column_pct_.init(storage); }
   void add_column_width_pct(uint32_t col, uint8_t pct);
 
  protected:
   void update_column_widths_();
 
-  struct ColumnPct {
-    uint32_t col;
-    uint8_t pct;
-  };
-  FixedVector<ColumnPct> column_pct_{};
+  StaticFixedVector<ColumnPct> column_pct_;
 };
 #endif  // USE_LVGL_TABLE
 #if defined(USE_LVGL_DROPDOWN) || defined(LV_USE_ROLLER)

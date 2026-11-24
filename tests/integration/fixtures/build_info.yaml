@@ -29,3 +29,15 @@ text_sensor:
       char buf[Application::BUILD_TIME_STR_SIZE];
       App.get_build_time_string(buf);
       return std::string(buf);
+  - platform: version
+    name: "Version Full"
+  - platform: version
+    name: "Version No Hash"
+    hide_hash: true
+  - platform: version
+    name: "Version No Time"
+    hide_timestamp: true
+  - platform: version
+    name: "Version Bare"
+    hide_hash: true
+    hide_timestamp: true

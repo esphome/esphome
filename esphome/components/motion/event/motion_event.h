@@ -1,0 +1,26 @@
+#pragma once
+
+#include "esphome/core/component.h"
+#include "esphome/components/event/event.h"
+#include "../motion_component.h"
+
+namespace esphome::motion {
+
+class MotionEvent : public Component, public event::Event {
+ public:
+  void dump_config() override;
+
+  void set_threshold(float threshold) { this->threshold_ = threshold; }
+  void set_cooldown(uint32_t cooldown) { this->cooldown_ = cooldown; }
+  void process_motion_data(const MotionData &data);
+
+ protected:
+  float threshold_{0.5f};
+  uint32_t cooldown_{500};
+
+  // State tracking for shake detection
+  uint32_t last_trigger_time_{0};
+  float last_accel_[3]{NAN, NAN, NAN};
+};
+
+}  // namespace esphome::motion

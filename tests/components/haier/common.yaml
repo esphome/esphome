@@ -43,6 +43,12 @@ climate:
             level: DEBUG
             format: "Alarm deactivated. Code: %d. Message: \"%s\""
             args: [code, message]
+    on_status_message:
+      then:
+        - logger.log:
+            level: DEBUG
+            format: "Status message: %u bytes"
+            args: [(unsigned) data_size]
 
 sensor:
   - platform: haier
@@ -115,3 +121,11 @@ switch:
       name: Haier health mode
     quiet_mode:
       name: Haier quiet mode
+
+select:
+  - platform: haier
+    haier_id: haier_ac
+    horizontal_airflow:
+      name: Haier airflow horizontal
+    vertical_airflow:
+      name: Haier airflow vertical

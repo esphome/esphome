@@ -9,7 +9,7 @@
 
 namespace esphome::inkplate {
 
-static const char *const TAG = "inkplate";
+ESPHOME_LOG_TAG(TAG, "inkplate");
 
 void Inkplate::setup() {
   for (uint32_t i = 0; i < 256; i++) {
@@ -22,8 +22,7 @@ void Inkplate::setup() {
   this->vcom_pin_->setup();
   this->powerup_pin_->setup();
   this->wakeup_pin_->setup();
-  this->gpio0_enable_pin_->setup();
-  this->gpio0_enable_pin_->digital_write(true);
+  setup_output_pin(this->gpio0_enable_pin_, true);
 
   this->cl_pin_->setup();
   this->le_pin_->setup();

@@ -15,7 +15,7 @@
 
 namespace esphome::ade7880 {
 
-static const char *const TAG = "ade7880";
+ESPHOME_LOG_TAG(TAG, "ade7880");
 
 void IRAM_ATTR ADE7880Store::gpio_intr(ADE7880Store *arg) { arg->reset_done = true; }
 
@@ -297,9 +297,7 @@ void ADE7880::init_device_() {
 void ADE7880::reset_device_() {
   if (this->reset_pin_ != nullptr) {
     ESP_LOGD(TAG, "Reset device using RESET pin");
-    this->reset_pin_->digital_write(false);
-    delay(1);
-    this->reset_pin_->digital_write(true);
+    pulse_reset(this->reset_pin_, {.low_ms = 1});
   } else {
     ESP_LOGD(TAG, "Reset device using SWRST command");
     this->write_u16_register16_(CONFIG, CONFIG_SWRST);

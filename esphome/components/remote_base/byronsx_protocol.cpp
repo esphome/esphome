@@ -5,7 +5,7 @@
 
 namespace esphome::remote_base {
 
-static const char *const TAG = "remote.byronsx";
+ESPHOME_LOG_TAG(TAG, "remote.byronsx");
 
 static constexpr uint32_t BIT_TIME_US = 333;
 static constexpr uint8_t NBITS_ADDRESS = 8;
@@ -16,7 +16,7 @@ static constexpr uint8_t NBITS_DATA = NBITS_ADDRESS + NBITS_COMMAND /*+ NBITS_CO
 /*
 ByronSX Protocol
 Each transmitted packet appears to consist of thirteen bits of PWM encoded
-data. Each bit period of aprox 1ms consists of a transmitter OFF period
+data. Each bit period of approx 1ms consists of a transmitter OFF period
 followed by a transmitter ON period. The 'on' and 'off' periods are either
 short (approx 332us) or long (664us).
 

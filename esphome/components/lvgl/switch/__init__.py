@@ -15,7 +15,7 @@ from ..lvcode import (
     lvgl_static,
 )
 from ..types import LV_EVENT, LV_STATE, lv_pseudo_button_t, lvgl_ns
-from ..widgets import get_widgets, wait_for_widgets
+from ..widgets import get_widgets
 
 LVGLSwitch = lvgl_ns.class_("LVGLSwitch", Switch, Component)
 CONFIG_SCHEMA = switch_schema(LVGLSwitch).extend(
@@ -28,7 +28,6 @@ CONFIG_SCHEMA = switch_schema(LVGLSwitch).extend(
 async def to_code(config):
     widget = await get_widgets(config, CONF_WIDGET)
     widget = widget[0]
-    await wait_for_widgets()
     switch_id = MockObj(config[CONF_ID], "->")
     v = literal("v")
     async with LambdaContext([(cg.bool_, "v")]) as control:

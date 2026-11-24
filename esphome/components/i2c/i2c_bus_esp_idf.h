@@ -19,7 +19,13 @@ class IDFI2CBus final : public InternalI2CBus, public Component {
   void setup() override;
   void dump_config() override;
   ErrorCode write_readv(uint8_t address, const uint8_t *write_buffer, size_t write_count, uint8_t *read_buffer,
-                        size_t read_count) override;
+                        size_t read_count) override {
+    return this->transfer_(address, nullptr, 0, write_buffer, write_count, read_buffer, read_count);
+  }
+  ErrorCode write_prefixed(uint8_t address, const uint8_t *prefix, size_t prefix_len, const uint8_t *data,
+                           size_t len) override {
+    return this->transfer_(address, prefix, prefix_len, data, len, nullptr, 0);
+  }
   float get_setup_priority() const override { return setup_priority::BUS; }
 
   void set_scan(bool scan) { this->scan_ = scan; }
@@ -34,13 +40,31 @@ class IDFI2CBus final : public InternalI2CBus, public Component {
 #endif
 
   int get_port() const override { return this->port_; }
+#ifdef I2C_PORT_FREQUENCY_COUNT
+  /// Register a frequency used on the bus so setup() creates its device handle
+  void add_frequency(uint32_t frequency);
+  ErrorCode switch_frequency(uint32_t frequency) override;
+  uint32_t get_frequency() const override { return this->frequency_; }
+#endif
 
  private:
+  /// Writes `prefix` then `write_buffer` in one transaction, then reads
+  ErrorCode transfer_(uint8_t address, const uint8_t *prefix, size_t prefix_len, const uint8_t *write_buffer,
+                      size_t write_count, uint8_t *read_buffer, size_t read_count);
   void recover_();
+  i2c_master_dev_handle_t add_device_(uint32_t frequency);
   RecoveryCode recovery_result_{};
 
  protected:
   i2c_master_dev_handle_t dev_{};
+#ifdef I2C_PORT_FREQUENCY_COUNT
+  // One handle per frequency used on the bus, registered at code generation
+  struct FrequencyDevice {
+    uint32_t frequency;
+    i2c_master_dev_handle_t dev;
+  };
+  StaticVector<FrequencyDevice, I2C_PORT_FREQUENCY_COUNT + 1> devices_;
+#endif
   i2c_master_bus_handle_t bus_{};
   i2c_port_t port_{};
   uint8_t sda_pin_{};

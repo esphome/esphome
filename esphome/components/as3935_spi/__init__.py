@@ -6,6 +6,7 @@ from esphome.types import ConfigType
 
 AUTO_LOAD = ["as3935"]
 DEPENDENCIES = ["spi"]
+DOMAIN = "as3935_spi"
 
 as3935_spi_ns = cg.esphome_ns.namespace("as3935_spi")
 SPIAS3935 = as3935_spi_ns.class_("SPIAS3935Component", as3935.AS3935, spi.SPIDevice)

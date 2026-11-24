@@ -7,6 +7,8 @@ namespace esphome::status {
 
 class StatusBinarySensor final : public binary_sensor::BinarySensor, public PollingComponent {
  public:
+  // User provided, not "= default": `new(p) StatusBinarySensor()` would zero-fill .bss that is already zero.
+  StatusBinarySensor() {}
   void update() override;
 
   void setup() override;

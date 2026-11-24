@@ -50,7 +50,7 @@ static constexpr size_t PACKET_MAX_LOG_BYTES = 168;
  * Ping key (4 bytes)
  *
  */
-static const char *const TAG = "packet_transport";
+ESPHOME_LOG_TAG(TAG, "packet_transport");
 
 static size_t round4(size_t value) { return (value + 3) & ~3; }
 
@@ -337,14 +337,14 @@ void PacketTransport::update() {
   }
   uint32_t now = millis();
   uint32_t ping_request_age = now - this->last_key_time_;
-  if (ping_request_age > this->ping_pong_recyle_time_ * 1000u) {
+  if (ping_request_age > this->ping_pong_recycle_time_ * 1000u) {
     this->resend_ping_key_ = this->ping_pong_enable_;
     ESP_LOGV(TAG, "Ping request, age %" PRIu32, ping_request_age);
     this->last_key_time_ = now;
   }
   for (const auto &provider : this->providers_) {
     uint32_t key_response_age = now - provider.second.last_key_response_time;
-    if (key_response_age > (this->ping_pong_recyle_time_ * 2000u)) {
+    if (key_response_age > (this->ping_pong_recycle_time_ * 2000u)) {
 #ifdef USE_STATUS_SENSOR
       if (provider.second.status_sensor != nullptr && provider.second.status_sensor->state) {
         ESP_LOGI(TAG, "Ping status for %s timeout at %" PRIu32 " with age %" PRIu32, provider.first.c_str(), now,
@@ -547,9 +547,11 @@ void PacketTransport::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "Packet Transport:\n"
                 "  Platform: %s\n"
+                "  Max Packet Size: %zu\n"
                 "  Encrypted: %s\n"
                 "  Ping-pong: %s",
-                this->platform_name_, YESNO(this->is_encrypted_()), YESNO(this->ping_pong_enable_));
+                this->platform_name_, this->get_max_packet_size(), YESNO(this->is_encrypted_()),
+                YESNO(this->ping_pong_enable_));
 #ifdef USE_SENSOR
   for (const auto &sensor : this->sensors_) {
     ESP_LOGCONFIG(TAG, "  Sensor: %s", sensor.id);

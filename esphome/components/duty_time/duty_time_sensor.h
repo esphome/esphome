@@ -1,8 +1,8 @@
 #pragma once
 
 #include <cinttypes>
+#include <utility>
 
-#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/preferences.h"
 #include "esphome/components/sensor/sensor.h"
@@ -13,6 +13,8 @@
 namespace esphome::duty_time_sensor {
 
 class DutyTimeSensor final : public sensor::Sensor, public PollingComponent {
+  SUB_SENSOR(last_duty_time)
+
  public:
   void setup() override;
   void update() override;
@@ -22,22 +24,20 @@ class DutyTimeSensor final : public sensor::Sensor, public PollingComponent {
   void start();
   void stop();
   bool is_running() const { return this->last_state_; }
-  void reset() { this->set_value_(0); }
+  void reset() { this->set_value(0); }
+  void set_value(uint32_t sec);
 
 #ifdef USE_BINARY_SENSOR
   void set_sensor(binary_sensor::BinarySensor *sensor);
 #endif
-  void set_lambda(std::function<bool()> &&func) { this->func_ = func; }
-  void set_last_duty_time_sensor(sensor::Sensor *sensor) { this->last_duty_time_sensor_ = sensor; }
+  void set_lambda(std::function<bool()> &&func) { this->func_ = std::move(func); }
   void set_restore(bool restore) { this->restore_ = restore; }
 
  protected:
-  void set_value_(uint32_t sec);
   void process_state_(bool state);
   void publish_and_save_(uint32_t sec, uint32_t ms);
 
   std::function<bool()> func_{nullptr};
-  sensor::Sensor *last_duty_time_sensor_{nullptr};
   ESPPreferenceObject pref_;
 
   uint32_t total_sec_{0};
@@ -45,29 +45,6 @@ class DutyTimeSensor final : public sensor::Sensor, public PollingComponent {
   uint32_t edge_time_{0};
   bool last_state_{false};
   bool restore_;
-};
-
-template<typename... Ts> class BaseAction : public Action<Ts...>, public Parented<DutyTimeSensor> {};
-
-template<typename... Ts> class StartAction : public BaseAction<Ts...> {
-  void play(const Ts &...x) override { this->parent_->start(); }
-};
-
-template<typename... Ts> class StopAction : public BaseAction<Ts...> {
-  void play(const Ts &...x) override { this->parent_->stop(); }
-};
-
-template<typename... Ts> class ResetAction : public BaseAction<Ts...> {
-  void play(const Ts &...x) override { this->parent_->reset(); }
-};
-
-template<typename... Ts> class RunningCondition final : public Condition<Ts...>, public Parented<DutyTimeSensor> {
- public:
-  explicit RunningCondition(DutyTimeSensor *parent, bool state) : Parented(parent), state_(state) {}
-
- protected:
-  bool check(const Ts &...x) override { return this->parent_->is_running() == this->state_; }
-  bool state_;
 };
 
 }  // namespace esphome::duty_time_sensor

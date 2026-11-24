@@ -7,7 +7,7 @@
 
 namespace esphome::uponor_smatrix {
 
-static const char *const TAG = "uponor_smatrix";
+ESPHOME_LOG_TAG(TAG, "uponor_smatrix");
 
 // Maximum bytes to log in verbose hex output
 static constexpr size_t UPONOR_MAX_LOG_BYTES = 36;
@@ -29,6 +29,9 @@ void UponorSmatrixComponent::dump_config() {
   }
 #endif
 
+  for (auto *device : this->devices_)
+    device->dump_child_config();
+
   if (!this->unknown_devices_.empty()) {
     ESP_LOGCONFIG(TAG, "  Detected unknown device addresses:");
     for (auto device_address : this->unknown_devices_) {
@@ -47,17 +50,15 @@ void UponorSmatrixComponent::loop() {
   }
 
   // Read incoming data
-  while (this->available()) {
+  this->read_available([this, now](uint8_t byte) {
     // The controller polls devices every 10 seconds in some units or continuously in others with around 200 ms between
     // devices. Remember timestamps so we can send our own packets when the bus is expected to be silent.
     this->last_rx_ = now;
 
-    uint8_t byte;
-    this->read_byte(&byte);
     if (this->parse_byte_(byte)) {
       this->rx_buffer_.clear();
     }
-  }
+  });
 
   // Send packets during bus silence
   if (this->rx_buffer_.empty() && (now - this->last_rx_ > 50) && (now - this->last_rx_ < 100) &&
@@ -122,7 +123,7 @@ bool UponorSmatrixComponent::parse_byte_(uint8_t byte) {
   }
 
 #ifdef USE_TIME
-  // Detect device that acts as time master if not set explicitely
+  // Detect device that acts as time master if not set explicitly
   if (this->time_device_address_ == 0 && data_len >= 2) {
     // The first thermostat paired to the controller will act as the time master. Time can only be manually adjusted at
     // this first thermostat. To synchronize time, we need to know its address, so we search for packets coming from a

@@ -1,11 +1,12 @@
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "hdc2010.h"
 // https://github.com/vigsterkr/homebridge-hdc2010/blob/main/src/hdc2010.js
 // https://github.com/lime-labs/HDC2080-Arduino/blob/master/src/HDC2080.cpp
 
 namespace esphome::hdc2010 {
 
-static const char *const TAG = "hdc2010";
+ESPHOME_LOG_TAG(TAG, "hdc2010");
 
 // Register addresses
 static constexpr uint8_t REG_TEMPERATURE_LOW = 0x00;
@@ -42,9 +43,6 @@ void HDC2010Component::setup() {
 void HDC2010Component::dump_config() {
   ESP_LOGCONFIG(TAG, "HDC2010:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
@@ -79,7 +77,7 @@ float HDC2010Component::read_temp() {
   this->read_register(REG_TEMPERATURE_LOW, &byte[0], 1);
   this->read_register(REG_TEMPERATURE_HIGH, &byte[1], 1);
 
-  uint16_t temp = encode_uint16(byte[1], byte[0]);
+  uint16_t temp = encode_value_le<uint16_t>(byte);
   return (float) temp * 0.0025177f - 40.0f;
 }
 
@@ -89,7 +87,7 @@ float HDC2010Component::read_humidity() {
   this->read_register(REG_HUMIDITY_LOW, &byte[0], 1);
   this->read_register(REG_HUMIDITY_HIGH, &byte[1], 1);
 
-  uint16_t humidity = encode_uint16(byte[1], byte[0]);
+  uint16_t humidity = encode_value_le<uint16_t>(byte);
   return (float) humidity * 0.001525879f;
 }
 

@@ -1,4 +1,5 @@
 #include "audio_pipeline.h"
+#include "playback_start.h"
 
 #ifdef USE_ESP32
 
@@ -21,7 +22,7 @@ static const uint32_t DECODE_TASK_STACK_SIZE = 3 * 1024;
 
 static const uint32_t INFO_ERROR_QUEUE_COUNT = 5;
 
-static const char *const TAG = "speaker_media_player.pipeline";
+ESPHOME_LOG_TAG(TAG, "speaker_media_player.pipeline");
 
 enum EventGroupBits : uint32_t {
   // MESSAGE_* bits are only set by their respective tasks
@@ -48,8 +49,8 @@ enum EventGroupBits : uint32_t {
 };
 
 AudioPipeline::AudioPipeline(speaker::Speaker *speaker, size_t buffer_size, bool task_stack_in_psram,
-                             std::string base_name, UBaseType_t priority)
-    : base_name_(std::move(base_name)),
+                             const char *base_name, UBaseType_t priority)
+    : base_name_(base_name),
       priority_(priority),
       task_stack_in_psram_(task_stack_in_psram),
       speaker_(speaker),
@@ -58,19 +59,21 @@ AudioPipeline::AudioPipeline(speaker::Speaker *speaker, size_t buffer_size, bool
   this->transfer_buffer_size_ = std::min(buffer_size_ / 4, DEFAULT_TRANSFER_BUFFER_SIZE);
 }
 
-void AudioPipeline::start_url(const std::string &uri) {
+void AudioPipeline::start_url(const std::string &uri, bool is_announcement) {
   if (this->is_playing_) {
     xEventGroupSetBits(this->event_group_, PIPELINE_COMMAND_STOP);
   }
   this->current_uri_ = uri;
+  this->pending_is_announcement_ = is_announcement;
   this->pending_url_ = true;
 }
 
-void AudioPipeline::start_file(audio::AudioFile *audio_file) {
+void AudioPipeline::start_file(const audio::AudioFile *audio_file, bool is_announcement) {
   if (this->is_playing_) {
     xEventGroupSetBits(this->event_group_, PIPELINE_COMMAND_STOP);
   }
   this->current_audio_file_ = audio_file;
+  this->pending_is_announcement_ = is_announcement;
   this->pending_file_ = true;
 }
 
@@ -163,6 +166,7 @@ AudioPipelineState AudioPipeline::process_state() {
         this->start_tasks_();
       }
 
+      this->current_is_announcement_ = this->pending_is_announcement_;
       if (this->pending_url_) {
         xEventGroupSetBits(this->event_group_, EventGroupBits::READER_COMMAND_INIT_HTTP);
         this->playback_ms_ = 0;
@@ -269,18 +273,20 @@ esp_err_t AudioPipeline::allocate_communications_() {
 }
 
 esp_err_t AudioPipeline::start_tasks_() {
+  char task_name[configMAX_TASK_NAME_LEN];
   if (!this->read_task_.is_created()) {
     // Reader task uses the AudioReader class which uses esp_http_client. This crashes on IDF 5.4 if the task stack is
     // in PSRAM. As a workaround, always allocate the read task in internal memory.
-    if (!this->read_task_.create(read_task, (this->base_name_ + "_read").c_str(), READ_TASK_STACK_SIZE, (void *) this,
-                                 this->priority_, false)) {
+    snprintf(task_name, sizeof(task_name), "%s_read", this->base_name_);
+    if (!this->read_task_.create(read_task, task_name, READ_TASK_STACK_SIZE, (void *) this, this->priority_, false)) {
       return ESP_ERR_NO_MEM;
     }
   }
 
   if (!this->decode_task_.is_created()) {
-    if (!this->decode_task_.create(decode_task, (this->base_name_ + "_decode").c_str(), DECODE_TASK_STACK_SIZE,
-                                   (void *) this, this->priority_, this->task_stack_in_psram_)) {
+    snprintf(task_name, sizeof(task_name), "%s_decode", this->base_name_);
+    if (!this->decode_task_.create(decode_task, task_name, DECODE_TASK_STACK_SIZE, (void *) this, this->priority_,
+                                   this->task_stack_in_psram_)) {
       return ESP_ERR_NO_MEM;
     }
   }
@@ -329,11 +335,7 @@ void AudioPipeline::read_task(void *params) {
           this_pipeline->raw_file_ring_buffer_ = temp_ring_buffer;
         }
 
-        if (temp_ring_buffer == nullptr) {
-          err = ESP_ERR_NO_MEM;
-        } else {
-          err = reader->add_sink(temp_ring_buffer);
-        }
+        err = temp_ring_buffer == nullptr ? ESP_ERR_NO_MEM : reader->add_sink(temp_ring_buffer);
       }
 
       if (err != ESP_OK) {
@@ -396,6 +398,7 @@ void AudioPipeline::decode_task(void *params) {
                          EventGroupBits::DECODER_MESSAGE_FINISHED | EventGroupBits::READER_MESSAGE_LOADED_MEDIA_TYPE);
 
     if (!(event_bits & EventGroupBits::PIPELINE_COMMAND_STOP)) {
+      const bool is_announcement = this_pipeline->current_is_announcement_;
       InfoErrorEvent event;
       event.source = InfoErrorSource::DECODER;
 
@@ -419,6 +422,7 @@ void AudioPipeline::decode_task(void *params) {
 
       bool has_stream_info = false;
       bool started_playback = false;
+      PlaybackStartGate start_gate;
 
       size_t initial_bytes_to_buffer = 0;
 
@@ -512,7 +516,8 @@ void AudioPipeline::decode_task(void *params) {
         if (!started_playback && has_stream_info) {
           // Verify enough data is available before starting playback
           std::shared_ptr<ring_buffer::RingBuffer> temp_ring_buffer = this_pipeline->raw_file_ring_buffer_.lock();
-          if (temp_ring_buffer != nullptr && temp_ring_buffer->available() >= initial_bytes_to_buffer) {
+          if (temp_ring_buffer != nullptr &&
+              start_gate.ready(is_announcement, temp_ring_buffer->available(), initial_bytes_to_buffer, millis())) {
             started_playback = true;
           }
         }

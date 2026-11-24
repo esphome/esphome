@@ -8,7 +8,7 @@
 
 namespace esphome::ble_client {
 
-static const char *const TAG = "ble_rssi_sensor";
+ESPHOME_LOG_TAG(TAG, "ble_rssi_sensor");
 
 void BLEClientRSSISensor::loop() {
   // Parent BLEClientNode has a loop() method, but this component uses
@@ -63,7 +63,7 @@ void BLEClientRSSISensor::gap_event_handler(esp_gap_ble_cb_event_t event, esp_bl
 
 void BLEClientRSSISensor::update() {
   if (this->node_state != espbt::ClientState::ESTABLISHED) {
-    ESP_LOGW(TAG, "[%s] Cannot poll, not connected", this->get_name().c_str());
+    ESP_LOGW(TAG, "[%s] Cannot poll, not connected", LOG_STR_ARG(this->get_log_name()));
     this->should_update_ = true;
     return;
   }

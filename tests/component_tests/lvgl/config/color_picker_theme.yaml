@@ -1,0 +1,48 @@
+esphome:
+  name: test-color-picker
+
+esp32:
+  board: lolin_c3_mini
+
+logger:
+
+spi:
+  mosi_pin:
+    number: GPIO2
+    ignore_strapping_warning: true
+  clk_pin: GPIO1
+
+display:
+  - platform: mipi_spi
+    data_rate: 20MHz
+    model: st7735
+    cs_pin:
+      number: GPIO8
+      ignore_strapping_warning: true
+    dc_pin:
+      number: GPIO3
+
+lvgl:
+  style_definitions:
+    # A widget property in a style is dropped, so it is reported
+    - id: clickable_style
+      ext_click_area: 10
+
+  theme:
+    # A themed knob colour must not be covered by the knob tinting
+    color_picker:
+      knob:
+        bg_color: 0x112233
+    # Widget properties in a theme are dropped too, at any level
+    button:
+      scrollbar_mode: "OFF"
+      pressed:
+        ext_click_area: 4
+
+  widgets:
+    - color_picker:
+        id: themed_picker
+        width: 100
+    - button:
+        id: themed_button
+        styles: clickable_style

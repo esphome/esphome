@@ -28,17 +28,4 @@ class ByronSXProtocol : public RemoteProtocol<ByronSXData> {
 
 DECLARE_REMOTE_PROTOCOL(ByronSX)
 
-template<typename... Ts> class ByronSXAction : public RemoteTransmitterActionBase<Ts...> {
- public:
-  TEMPLATABLE_VALUE(uint8_t, address)
-  TEMPLATABLE_VALUE(uint8_t, command)
-
-  void encode(RemoteTransmitData *dst, Ts... x) override {
-    ByronSXData data{};
-    data.address = this->address_.value(x...);
-    data.command = this->command_.value(x...);
-    ByronSXProtocol().encode(dst, data);
-  }
-};
-
 }  // namespace esphome::remote_base

@@ -6,6 +6,9 @@
 #include <cstdint>
 #include "esphome/core/log.h"
 
+// Forward decl from <noise/protocol.h>
+using NoiseHandshakeState = struct NoiseHandshakeState_s;
+
 namespace esphome::noise {
 
 using psk_t = std::array<uint8_t, 32>;
@@ -37,6 +40,21 @@ class NoiseContext {
 
 /// Convert a noise error code to a readable error
 const LogString *noise_err_to_logstr(int err);
+
+#ifdef USE_NOISE_SPARE_EPHEMERAL
+// One responder ephemeral key pair made ahead of time (about 60 ms on ESP8266), refilled by the api server
+// while idle and consumed by the next noise handshake of any transport; empty means the handshake generates
+// its own. Private key then public key; the private key stays in RAM until consumed.
+static constexpr size_t SPARE_EPHEMERAL_KEY_SIZE = 32;
+static constexpr size_t SPARE_EPHEMERAL_SIZE = 2 * SPARE_EPHEMERAL_KEY_SIZE;
+extern uint8_t spare_ephemeral[SPARE_EPHEMERAL_SIZE];  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+// The clamp always sets bit 254, so it doubles as the ready flag
+inline bool has_spare_ephemeral() { return (spare_ephemeral[SPARE_EPHEMERAL_KEY_SIZE - 1] & 0x40) != 0; }
+/// Fill the slot; blocks for the base point multiply
+void prepare_spare_ephemeral();
+/// Move the key pair into a handshake that has not started and wipe the slot; 0 unless noise-c rejects it
+int consume_spare_ephemeral(NoiseHandshakeState *state);
+#endif
 
 // Shared wire format for the noise transports (api and ota): every frame is
 // FRAME_INDICATOR, a 16-bit big-endian payload length, then the payload.

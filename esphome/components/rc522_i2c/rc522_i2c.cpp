@@ -3,7 +3,7 @@
 
 namespace esphome::rc522_i2c {
 
-static const char *const TAG = "rc522_i2c";
+ESPHOME_LOG_TAG(TAG, "rc522_i2c");
 
 void RC522I2C::dump_config() {
   RC522::dump_config();

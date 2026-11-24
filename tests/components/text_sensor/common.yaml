@@ -2,6 +2,10 @@ text_sensor:
   - platform: template
     name: "Test Substitute Single"
     id: test_substitute_single
+    on_raw_value:
+      - logger.log:
+          format: "Raw text %s"
+          args: [x.c_str()]
     filters:
       - substitute:
           - ERROR -> Error
@@ -27,11 +31,51 @@ text_sensor:
           - BAR -> baz
 
   - platform: template
+    name: "Test Throttle"
+    id: test_throttle
+    filters:
+      - throttle: 1s
+
+  - platform: template
+    name: "Test Throttle With Priority"
+    id: test_throttle_with_priority
+    filters:
+      - timeout: 1s
+      - throttle_with_priority:
+          timeout: 1s
+          value: NA
+
+  - platform: template
+    name: "Test Timeout Value"
+    id: test_timeout_value
+    filters:
+      - timeout:
+          timeout: 30s
+          value: Offline
+
+  - platform: template
     name: "Test Map Single"
     id: test_map_single
     filters:
       - map:
           - ON -> Active
+    # text_sensor.state with a constant and with a lambda, inside a trigger
+    # whose argument is a std::string.
+    on_value:
+      - if:
+          condition:
+            text_sensor.state:
+              id: test_substitute_single
+              state: Error
+          then:
+            - logger.log: substitute reports an error
+      - if:
+          condition:
+            text_sensor.state:
+              id: test_substitute_single
+              state: !lambda return x;
+          then:
+            - logger.log: substitute matches the mapped value
 
   - platform: template
     name: "Test Map Multiple"
@@ -77,3 +121,14 @@ text_sensor:
             return {x.substr(0, 10) + "..."};
           }
           return {x};
+
+  - platform: template
+    name: "Test Publish Action"
+    id: test_publish_action
+    on_value:
+      - text_sensor.template.publish:
+          id: test_map_single
+          state: "ON"
+      - text_sensor.template.publish:
+          id: test_map_single
+          state: !lambda 'return x + " again";'

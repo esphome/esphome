@@ -9,7 +9,7 @@
 #include "esp_clk_tree.h"
 #include "soc/clk_tree_defs.h"
 
-static const char *const TAG = "hw_timer_esp_idf";
+ESPHOME_LOG_TAG(TAG, "hw_timer_esp_idf");
 
 namespace esphome::ac_dimmer {
 

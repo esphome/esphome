@@ -5,7 +5,7 @@
 
 namespace esphome::esp_ldo {
 
-static const char *const TAG = "esp_ldo";
+ESPHOME_LOG_TAG(TAG, "esp_ldo");
 void EspLdo::setup() {
   esp_ldo_channel_config_t config{};
   config.chan_id = this->channel_;

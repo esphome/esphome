@@ -1,9 +1,8 @@
 esphome:
   name: api-action-timeout-test
   # Use a short timeout for testing (500ms instead of 30s)
-  platformio_options:
-    build_flags:
-      - "-DUSE_API_ACTION_CALL_TIMEOUT_MS=500"
+  build_flags:
+    - "-DUSE_API_ACTION_CALL_TIMEOUT_MS=500"
 
 host:
 
@@ -11,6 +10,7 @@ logger:
   level: DEBUG
 
 api:
+  id: api_server
   actions:
     # Action that responds immediately - should work fine
     - action: action_immediate
@@ -43,3 +43,14 @@ api:
         - api.respond:
             data: !lambda |-
               root["status"] = "long_delay";
+
+    # Only inline actions; the lambda sends the status itself. The call must be
+    # unregistered after it, so it never times out.
+    - action: action_inline_status
+      supports_response: status
+      then:
+        - logger.log:
+            format: "ACTION_INLINE_STATUS call_id=%u"
+            args: [(unsigned) call_id]
+        - lambda: |-
+            id(api_server)->send_action_response(call_id, true, StringRef());

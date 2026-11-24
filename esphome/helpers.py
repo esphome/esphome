@@ -2,14 +2,15 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterable, MutableMapping
 from contextlib import suppress
+import importlib
 import ipaddress
 import logging
 import os
 from pathlib import Path
-import platform
 import re
 import stat
 import sys
+from types import ModuleType
 from typing import TYPE_CHECKING, TextIO
 
 from esphome.const import __version__ as ESPHOME_VERSION
@@ -39,26 +40,26 @@ FALSY_BOOL_STRINGS = frozenset({"false", "no", "off", "disable"})
 TRUTHY_ENV_STRINGS = TRUTHY_BOOL_STRINGS | {"1"}
 FALSY_ENV_STRINGS = FALSY_BOOL_STRINGS | {"0"}
 
-IS_MACOS = platform.system() == "Darwin"
-IS_WINDOWS = platform.system() == "Windows"
-IS_LINUX = platform.system() == "Linux"
+IS_MACOS = sys.platform == "darwin"
+IS_WINDOWS = sys.platform == "win32"
+IS_LINUX = sys.platform.startswith("linux")
 
 # FNV-1 hash constants (must match C++ in esphome/core/helpers.h)
 FNV1_OFFSET_BASIS = 2166136261
 FNV1_PRIME = 16777619
 
 
-def ensure_unique_string(preferred_string, current_strings):
-    test_string = preferred_string
-    current_strings_set = set(current_strings)
-
-    tries = 1
-
-    while test_string in current_strings_set:
+def unique_name(name: str, taken: Callable[[str], bool]) -> str:
+    """``name``, or ``name_2``, ``name_3``, ... for the first that is not ``taken``."""
+    candidate, tries = name, 1
+    while taken(candidate):
         tries += 1
-        test_string = f"{preferred_string}_{tries}"
+        candidate = f"{name}_{tries}"
+    return candidate
 
-    return test_string
+
+def ensure_unique_string(preferred_string, current_strings):
+    return unique_name(preferred_string, set(current_strings).__contains__)
 
 
 def _fnv1_hash(values: Iterable[int]) -> int:
@@ -199,6 +200,21 @@ def cpp_string_escape(string, encoding="utf-8"):
         else:
             result += chr(character)
     return f'"{result}"'
+
+
+def cpp_u16string_escape(string: str) -> str:
+    """Escape a string as a C++ u"..." literal, which the compiler encodes as UTF-16."""
+    result = ""
+    for character in string:
+        code = ord(character)
+        if code >= 127:
+            # Surrogate escapes are ill-formed in C++; the compiler splits astral code points
+            result += f"\\U{code:08X}"
+        elif code < 32 or character in ("\\", '"'):
+            result += f"\\{code:03o}"
+        else:
+            result += character
+    return f'u"{result}"'
 
 
 def run_system_command(*args):
@@ -596,6 +612,16 @@ def write_file(path: Path, text: str | bytes, private: bool = False) -> None:
         raise EsphomeError(f"Could not write file at {path}") from err
 
 
+def path_define_flag(name: str, path: Path) -> str:
+    """A ``-D<name>="<path>"`` build flag that every build's shell lexer decodes
+    to the same single argument (ESP-IDF and Zephyr then quote each token for
+    CMake), even when the path holds spaces or shell characters."""
+    # forward slashes for Windows, then escape what shlex would not pass
+    # through literally
+    escaped = re.sub(r"[^\w/.:+=,-]", r"\\\g<0>", Path(path).as_posix())
+    return f'-D{name}=\\"{escaped}\\"'
+
+
 def write_file_if_changed(path: Path, text: str) -> bool:
     """Write text to the given path, but not if the contents match already.
 
@@ -712,23 +738,20 @@ def add_class_to_obj(value, cls):
         # If already is instance, do not add
         return value
 
-    try:
-        orig_cls = value.__class__
-        key = (orig_cls, cls)
-        new_cls = _CLASS_LOOKUP.get(key)
-        if new_cls is None:
-            new_cls = orig_cls.__class__(orig_cls.__name__, (orig_cls, cls), {})
-            _CLASS_LOOKUP[key] = new_cls
-        value.__class__ = new_cls
-        return value
-    except TypeError:
-        # Non heap type, look in overloads dict
-        for type_, func in _TYPE_OVERLOADS.items():
-            # Use type() here, we only need to trigger if it's the exact type,
-            # as otherwise we don't need to overload the class
-            if type(value) is type_:  # pylint: disable=unidiomatic-typecheck
-                return add_class_to_obj(func(value), cls)
-        raise
+    # The built-in types refuse a __class__ change, so copy them into a heap
+    # subtype first. Matching the exact type, as a subclass is already a heap type.
+    if (overload := _TYPE_OVERLOADS.get(type(value))) is not None:
+        value = overload(value)
+
+    # Any other non heap type raises TypeError here
+    orig_cls = value.__class__
+    key = (orig_cls, cls)
+    new_cls = _CLASS_LOOKUP.get(key)
+    if new_cls is None:
+        new_cls = orig_cls.__class__(orig_cls.__name__, (orig_cls, cls), {})
+        _CLASS_LOOKUP[key] = new_cls
+    value.__class__ = new_cls
+    return value
 
 
 def snake_case(value: str) -> str:
@@ -812,3 +835,11 @@ def docs_url(path: str) -> str:
 
     path = path.removeprefix("/")
     return docs_format.format(path=path)
+
+
+def zstd_module() -> ModuleType:
+    """The zstd module: the standard library one from Python 3.14, otherwise the backport."""
+    try:
+        return importlib.import_module("compression.zstd")
+    except ImportError:
+        return importlib.import_module("backports.zstd")

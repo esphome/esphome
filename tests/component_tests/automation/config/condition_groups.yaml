@@ -1,0 +1,49 @@
+---
+esphome:
+  name: test
+
+esp32:
+  board: nodemcu-32s
+
+logger:
+
+# The delays keep these actions and their conditions as objects
+binary_sensor:
+  - platform: template
+    id: single_and
+    on_press:
+      - if:
+          condition:
+            - lambda: return true;
+          then:
+            - logger.log: single and
+            - delay: 1ms
+  - platform: template
+    id: single_or
+    on_press:
+      - if:
+          any:
+            - lambda: return true;
+          then:
+            - logger.log: single or
+            - delay: 1ms
+  - platform: template
+    id: double_and
+    on_press:
+      - if:
+          condition:
+            - lambda: return true;
+            - lambda: return false;
+          then:
+            - logger.log: double and
+            - delay: 1ms
+  - platform: template
+    id: single_xor
+    on_press:
+      - if:
+          condition:
+            xor:
+              - lambda: return true;
+          then:
+            - logger.log: single xor
+            - delay: 1ms

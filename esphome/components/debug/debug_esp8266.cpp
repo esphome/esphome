@@ -17,7 +17,7 @@ extern const char *core_release;
 
 namespace esphome::debug {
 
-static const char *const TAG = "debug";
+ESPHOME_LOG_TAG(TAG, "debug");
 
 // PROGMEM string table for reset reasons, indexed by reason code (0-6), with "Unknown" as fallback
 // clang-format off
@@ -47,12 +47,6 @@ static_assert(FM_QOUT == 1, "Flash mode enum values must match table indices");
 static_assert(FM_DIO == 2, "Flash mode enum values must match table indices");
 static_assert(FM_DOUT == 3, "Flash mode enum values must match table indices");
 
-// Get reset reason string from reason code (no heap allocation)
-// Returns LogString* pointing to flash (PROGMEM) on ESP8266
-static const LogString *get_reset_reason_str(uint32_t reason) {
-  return ResetReasonStrings::get_log_str(static_cast<uint8_t>(reason), ResetReasonStrings::LAST_INDEX);
-}
-
 // Size for core version hex buffer
 static constexpr size_t CORE_VERSION_BUFFER_SIZE = 12;
 
@@ -62,7 +56,8 @@ static const char *get_core_version_str(std::span<char, CORE_VERSION_BUFFER_SIZE
   if (core_release != nullptr) {
     return core_release;
   }
-  snprintf_P(buffer.data(), CORE_VERSION_BUFFER_SIZE, PSTR("%08x"), core_version);
+  const uint32_t version = convert_big_endian(core_version);
+  format_hex_to(buffer.data(), buffer.size(), reinterpret_cast<const uint8_t *>(&version), sizeof(version));
   return buffer.data();
 }
 
@@ -76,16 +71,16 @@ static const char *get_reset_info_str(std::span<char, RESET_INFO_BUFFER_SIZE> bu
     snprintf_P(buffer.data(), RESET_INFO_BUFFER_SIZE,
                PSTR("Fatal exception:%d flag:%d (%s) epc1:0x%08x epc2:0x%08x epc3:0x%08x excvaddr:0x%08x depc:0x%08x"),
                static_cast<int>(resetInfo.exccause), static_cast<int>(reason),
-               LOG_STR_ARG(get_reset_reason_str(reason)), resetInfo.epc1, resetInfo.epc2, resetInfo.epc3,
+               LOG_STR_ARG(ResetReasonStrings::get_log_str(reason)), resetInfo.epc1, resetInfo.epc2, resetInfo.epc3,
                resetInfo.excvaddr, resetInfo.depc);
     return buffer.data();
   }
-  return LOG_STR_ARG(get_reset_reason_str(reason));
+  return LOG_STR_ARG(ResetReasonStrings::get_log_str(reason));
 }
 
 const char *DebugComponent::get_reset_reason_(std::span<char, RESET_REASON_BUFFER_SIZE> buffer) {
   // Copy from flash to provided buffer
-  strncpy_P(buffer.data(), (PGM_P) get_reset_reason_str(resetInfo.reason), RESET_REASON_BUFFER_SIZE - 1);
+  strncpy_P(buffer.data(), (PGM_P) ResetReasonStrings::get_log_str(resetInfo.reason), RESET_REASON_BUFFER_SIZE - 1);
   buffer[RESET_REASON_BUFFER_SIZE - 1] = '\0';
   return buffer.data();
 }
@@ -103,9 +98,8 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
   constexpr size_t size = DEVICE_INFO_BUFFER_SIZE;
   char *buf = buffer.data();
 
-  const LogString *flash_mode = FlashModeStrings::get_log_str(
-      static_cast<uint8_t>(ESP.getFlashChipMode()),  // NOLINT(readability-static-accessed-through-instance)
-      FlashModeStrings::LAST_INDEX);
+  // NOLINTNEXTLINE(readability-static-accessed-through-instance)
+  const LogString *flash_mode = FlashModeStrings::get_log_str(ESP.getFlashChipMode());
   uint32_t flash_size = ESP.getFlashChipSize() / 1024;       // NOLINT(readability-static-accessed-through-instance)
   uint32_t flash_speed = ESP.getFlashChipSpeed() / 1000000;  // NOLINT(readability-static-accessed-through-instance)
   ESP_LOGD(TAG, "Flash Chip: Size=%" PRIu32 "kB Speed=%" PRIu32 "MHz Mode=%s", flash_size, flash_speed,
@@ -155,14 +149,10 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
 
 void DebugComponent::update_platform_() {
 #ifdef USE_SENSOR
-  if (this->block_sensor_ != nullptr) {
-    // NOLINTNEXTLINE(readability-static-accessed-through-instance)
-    this->block_sensor_->publish_state(ESP.getMaxFreeBlockSize());
-  }
-  if (this->fragmentation_sensor_ != nullptr) {
-    // NOLINTNEXTLINE(readability-static-accessed-through-instance)
-    this->fragmentation_sensor_->publish_state(ESP.getHeapFragmentation());
-  }
+  // NOLINTNEXTLINE(readability-static-accessed-through-instance)
+  PUBLISH_STATE(this->block_sensor_, ESP.getMaxFreeBlockSize());
+  // NOLINTNEXTLINE(readability-static-accessed-through-instance)
+  PUBLISH_STATE(this->fragmentation_sensor_, ESP.getHeapFragmentation());
 
 #endif
 }

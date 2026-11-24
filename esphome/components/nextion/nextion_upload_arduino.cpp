@@ -13,7 +13,7 @@
 
 namespace esphome::nextion {
 
-static const char *const TAG = "nextion.upload";
+ESPHOME_LOG_TAG(TAG, "nextion.upload");
 static constexpr size_t NEXTION_MAX_RESPONSE_LOG_BYTES = 16;
 
 // Timeout for display acknowledgment during TFT upload (ms).

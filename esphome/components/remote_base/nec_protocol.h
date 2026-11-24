@@ -14,26 +14,19 @@ struct NECData {
 
 class NECProtocol : public RemoteProtocol<NECData> {
  public:
+  // Signed, so they also serve as the durations of a raw frame (beken_irda)
+  static constexpr int32_t HEADER_HIGH_US = 9000;
+  static constexpr int32_t HEADER_LOW_US = 4500;
+  static constexpr int32_t BIT_HIGH_US = 560;
+  static constexpr int32_t BIT_ONE_LOW_US = 1690;
+  static constexpr int32_t BIT_ZERO_LOW_US = 560;
+  static constexpr int32_t REPEAT_HEADER_LOW_US = HEADER_LOW_US / 2;
+
   void encode(RemoteTransmitData *dst, const NECData &data);
   optional<NECData> decode(RemoteReceiveData src);
   void dump(const NECData &data);
 };
 
 DECLARE_REMOTE_PROTOCOL(NEC)
-
-template<typename... Ts> class NECAction : public RemoteTransmitterActionBase<Ts...> {
- public:
-  TEMPLATABLE_VALUE(uint16_t, address)
-  TEMPLATABLE_VALUE(uint16_t, command)
-  TEMPLATABLE_VALUE(uint16_t, command_repeats)
-
-  void encode(RemoteTransmitData *dst, Ts... x) override {
-    NECData data{};
-    data.address = this->address_.value(x...);
-    data.command = this->command_.value(x...);
-    data.command_repeats = this->command_repeats_.value(x...);
-    NECProtocol().encode(dst, data);
-  }
-};
 
 }  // namespace esphome::remote_base

@@ -1,0 +1,11 @@
+motion:
+  - platform: bmi270
+    id: plain_imu
+    i2c_id: i2c_bus
+    address: 0x69
+
+sensor:
+  - platform: bmi270
+    bmi270_id: plain_imu
+    type: temperature
+    name: Plain IMU Temperature

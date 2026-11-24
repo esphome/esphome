@@ -3,25 +3,23 @@
 
 namespace esphome::remote_base {
 
-static const char *const TAG = "remote.roomba";
+ESPHOME_LOG_TAG(TAG, "remote.roomba");
 
 static constexpr uint8_t NBITS = 8;
 static constexpr uint32_t BIT_ONE_HIGH_US = 3000;
 static constexpr uint32_t BIT_ONE_LOW_US = 1000;
 static constexpr uint32_t BIT_ZERO_HIGH_US = BIT_ONE_LOW_US;
 static constexpr uint32_t BIT_ZERO_LOW_US = BIT_ONE_HIGH_US;
+static constexpr BitTimings BIT_TIMINGS{.one_space = BIT_ONE_LOW_US,
+                                        .zero_space = BIT_ZERO_LOW_US,
+                                        .bit_order = BitOrder::BIT_ORDER_MSB_FIRST,
+                                        .one_mark = BIT_ONE_HIGH_US,
+                                        .zero_mark = BIT_ZERO_HIGH_US};
 
 void RoombaProtocol::encode(RemoteTransmitData *dst, const RoombaData &data) {
   dst->set_carrier_frequency(38000);
   dst->reserve(NBITS * 2u);
-
-  for (uint32_t mask = 1UL << (NBITS - 1); mask != 0; mask >>= 1) {
-    if (data.data & mask) {
-      dst->item(BIT_ONE_HIGH_US, BIT_ONE_LOW_US);
-    } else {
-      dst->item(BIT_ZERO_HIGH_US, BIT_ZERO_LOW_US);
-    }
-  }
+  dst->item_bytes<BIT_TIMINGS>(&data.data, 1);
 }
 optional<RoombaData> RoombaProtocol::decode(RemoteReceiveData src) {
   RoombaData out{.data = 0};

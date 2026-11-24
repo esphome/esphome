@@ -7,14 +7,11 @@
 
 namespace esphome::pcm5122 {
 
-static const char *const TAG = "pcm5122";
+ESPHOME_LOG_TAG(TAG, "pcm5122");
 
 void PCM5122::setup() {
   // Hold XSMT low (soft mute asserted) until init completes
-  if (this->enable_pin_ != nullptr) {
-    this->enable_pin_->setup();
-    this->enable_pin_->digital_write(false);
-  }
+  setup_output_pin(this->enable_pin_, false);
 
   // Select page 0 and verify chip presence via I2C ACK
   if (!this->select_page_(0)) {
@@ -31,9 +28,9 @@ void PCM5122::setup() {
 
   // Ignore clock halt detection; enable clock divider autoset
   optional<uint8_t> err_detect = this->read_byte(PCM5122_REG_ERROR_DETECT);
+  // Hand-written so clang-tidy sees the has_value() check before value()
   if (!err_detect.has_value()) {
-    ESP_LOGE(TAG, "Failed to read ERROR_DETECT");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Failed to read ERROR_DETECT"));
     return;
   }
   uint8_t err_detect_val = err_detect.value();
@@ -57,26 +54,19 @@ void PCM5122::setup() {
   }
   this->reg(PCM5122_REG_AUDIO_FORMAT) = PCM5122_AUDIO_FORMAT_I2S | alen;
 
-  if (!this->write_channel_mix_()) {
-    this->mark_failed();
+  if (!this->setup_check(this->write_channel_mix_()))
     return;
-  }
 
-  if (!this->write_analog_gain_()) {
-    this->mark_failed();
+  if (!this->setup_check(this->write_analog_gain_()))
     return;
-  }
 
   // PLL reference clock: BCK
-  if (!this->select_page_(0)) {
-    ESP_LOGE(TAG, "Write failed");
-    this->mark_failed();
+  if (!this->setup_check(this->select_page_(0), LOG_STR("Write failed")))
     return;
-  }
   optional<uint8_t> pll_ref = this->read_byte(PCM5122_REG_PLL_REF);
+  // Hand-written so clang-tidy sees the has_value() check before value()
   if (!pll_ref.has_value()) {
-    ESP_LOGE(TAG, "Failed to read PLL_REF");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Failed to read PLL_REF"));
     return;
   }
   uint8_t pll_ref_val = pll_ref.value();

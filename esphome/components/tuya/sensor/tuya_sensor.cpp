@@ -4,9 +4,9 @@
 
 namespace esphome::tuya {
 
-static const char *const TAG = "tuya.sensor";
+ESPHOME_LOG_TAG(TAG, "tuya.sensor");
 
-void TuyaSensor::setup() {
+void TuyaSensor::register_listeners() {
   this->parent_->register_listener(this->sensor_id_, [this](const TuyaDatapoint &datapoint) {
     if (datapoint.type == TuyaDatapointType::BOOLEAN) {
       ESP_LOGV(TAG, "MCU reported sensor %u is: %s", datapoint.id, ONOFF(datapoint.value_bool));
@@ -24,7 +24,7 @@ void TuyaSensor::setup() {
   });
 }
 
-void TuyaSensor::dump_config() {
+void TuyaSensor::dump_child_config() {
   LOG_SENSOR("", "Tuya Sensor", this);
   ESP_LOGCONFIG(TAG, "  Sensor has datapoint ID %u", this->sensor_id_);
 }

@@ -29,7 +29,7 @@ button:
           id: test_light
           brightness: 50%
 
-  # Test 1: dim_relative without transition_length (HasTransitionLength=false)
+  # Test 1: dim_relative without transition_length
   - platform: template
     id: btn_dim_up
     name: "Dim Up"
@@ -38,7 +38,7 @@ button:
           id: test_light
           relative_brightness: 25%
 
-  # Test 2: dim_relative with transition_length (HasTransitionLength=true)
+  # Test 2: dim_relative with transition_length
   - platform: template
     id: btn_dim_down
     name: "Dim Down"
@@ -58,3 +58,27 @@ button:
           relative_brightness: 50%
           brightness_limits:
             max_brightness: 80%
+
+  # Test 4: DO_NOTHING outside the limits skips only this action, not the one after it
+  - platform: template
+    id: btn_dim_skip
+    name: "Dim Skip"
+    on_press:
+      - light.dim_relative:
+          id: test_light
+          relative_brightness: 10%
+          brightness_limits:
+            min_brightness: 90%
+            limit_mode: DO_NOTHING
+      - light.dim_relative:
+          id: test_light
+          relative_brightness: -5%
+
+  # Test 5: a relative dim that clamps to 0 turns the light off
+  - platform: template
+    id: btn_dim_off
+    name: "Dim Off"
+    on_press:
+      - light.dim_relative:
+          id: test_light
+          relative_brightness: -100%

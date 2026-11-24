@@ -5,13 +5,14 @@
 namespace esphome::remote_base {
 
 struct TotoData {
+  uint16_t code;
+  // The fields of the old most-significant-bit-first reading of code, filled on receive so that older
+  // on_toto lambdas keep working
   uint8_t rc_code_1 : 4;
   uint8_t rc_code_2 : 4;
   uint8_t command;
 
-  bool operator==(const TotoData &rhs) const {
-    return (rc_code_1 == rhs.rc_code_1) && (rc_code_2 == rhs.rc_code_2) && (command == rhs.command);
-  }
+  bool operator==(const TotoData &rhs) const { return this->code == rhs.code; }
 };
 
 class TotoProtocol : public RemoteProtocol<TotoData> {
@@ -22,20 +23,5 @@ class TotoProtocol : public RemoteProtocol<TotoData> {
 };
 
 DECLARE_REMOTE_PROTOCOL(Toto)
-
-template<typename... Ts> class TotoAction : public RemoteTransmitterActionBase<Ts...> {
- public:
-  TEMPLATABLE_VALUE(uint8_t, rc_code_1)
-  TEMPLATABLE_VALUE(uint8_t, rc_code_2)
-  TEMPLATABLE_VALUE(uint8_t, command)
-
-  void encode(RemoteTransmitData *dst, Ts... x) override {
-    TotoData data{};
-    data.rc_code_1 = this->rc_code_1_.value(x...);
-    data.rc_code_2 = this->rc_code_2_.value(x...);
-    data.command = this->command_.value(x...);
-    TotoProtocol().encode(dst, data);
-  }
-};
 
 }  // namespace esphome::remote_base

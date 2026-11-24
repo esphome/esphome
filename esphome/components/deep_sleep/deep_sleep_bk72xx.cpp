@@ -5,9 +5,8 @@
 
 namespace esphome::deep_sleep {
 
-static const char *const TAG = "deep_sleep";
+ESPHOME_LOG_TAG(TAG, "deep_sleep");
 
-#ifdef USE_DEEP_SLEEP_ON_WAKE
 WakeupCause get_wakeup_cause() {
   switch (lt_get_reboot_reason()) {
     case REBOOT_REASON_SLEEP_GPIO:
@@ -20,7 +19,6 @@ WakeupCause get_wakeup_cause() {
       return WAKEUP_CAUSE_NONE;
   }
 }
-#endif  // USE_DEEP_SLEEP_ON_WAKE
 
 optional<uint32_t> DeepSleepComponent::get_run_duration_() const { return this->run_duration_; }
 
@@ -30,12 +28,26 @@ void DeepSleepComponent::dump_config_platform_() {
   }
 }
 
+void DeepSleepComponent::setup_wakeup_pins_() {
+  // Apply a configured pull. Without it the pins float and the wake-up level is chosen
+  // from a bogus reading. A plain input is left alone (reading the pin already makes it
+  // one), so a pull set by another component sharing the pin is not undone.
+  for (WakeUpPinItem &item : this->wakeup_pins_) {
+    if (item.wakeup_pin->get_flags() & (gpio::FLAG_PULLUP | gpio::FLAG_PULLDOWN))
+      item.wakeup_pin->setup();
+  }
+}
+
 bool DeepSleepComponent::pin_prevents_sleep_(WakeUpPinItem &pin_item) const {
   return (pin_item.wakeup_pin_mode == WAKEUP_PIN_MODE_KEEP_AWAKE && pin_item.wakeup_pin != nullptr &&
           !this->sleep_duration_.has_value() && (pin_item.wakeup_level == get_real_pin_state_(*pin_item.wakeup_pin)));
 }
 
 bool DeepSleepComponent::prepare_to_sleep_() {
+  // deep_sleep.enter can run before setup(), e.g. from on_boot at its default priority
+  if (!this->is_ready())
+    this->setup_wakeup_pins_();
+
   if (!this->wakeup_pins_.empty()) {
     for (WakeUpPinItem &item : this->wakeup_pins_) {
       if (this->pin_prevents_sleep_(item)) {

@@ -1,0 +1,2 @@
+packages:
+  shutdown: !include common.yaml

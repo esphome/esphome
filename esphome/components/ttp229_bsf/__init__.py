@@ -5,6 +5,7 @@ from esphome.const import CONF_ID, CONF_SCL_PIN, CONF_SDO_PIN
 from esphome.types import ConfigType
 
 AUTO_LOAD = ["binary_sensor"]
+DOMAIN = "ttp229_bsf"
 
 CONF_TTP229_ID = "ttp229_id"
 ttp229_bsf_ns = cg.esphome_ns.namespace("ttp229_bsf")
@@ -25,7 +26,5 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
-    sdo = await cg.gpio_pin_expression(config[CONF_SDO_PIN])
-    cg.add(var.set_sdo_pin(sdo))
-    scl = await cg.gpio_pin_expression(config[CONF_SCL_PIN])
-    cg.add(var.set_scl_pin(scl))
+    await cg.add_pin(var.set_sdo_pin, config[CONF_SDO_PIN])
+    await cg.add_pin(var.set_scl_pin, config[CONF_SCL_PIN])

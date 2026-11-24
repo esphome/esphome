@@ -1,13 +1,15 @@
 #include "espnow_transport.h"
 
-#ifdef USE_ESP32
+#if defined(USE_ESP32) || defined(USE_ESP8266)
 
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
+#include <span>
+
 namespace esphome::espnow {
 
-static const char *const TAG = "espnow.transport";
+ESPHOME_LOG_TAG(TAG, "espnow.transport");
 
 bool ESPNowTransport::should_send() { return this->parent_ != nullptr && !this->parent_->is_failed(); }
 
@@ -64,9 +66,7 @@ bool ESPNowTransport::on_receive(const ESPNowRecvInfo &info, const uint8_t *data
     return false;
   }
 
-  this->packet_buffer_.resize(size);
-  memcpy(this->packet_buffer_.data(), data, size);
-  this->process_(this->packet_buffer_);
+  this->process_(std::span<const uint8_t>(data, size));
   return false;  // Allow other handlers to run
 }
 
@@ -79,12 +79,10 @@ bool ESPNowTransport::on_broadcast(const ESPNowRecvInfo &info, const uint8_t *da
     return false;
   }
 
-  this->packet_buffer_.resize(size);
-  memcpy(this->packet_buffer_.data(), data, size);
-  this->process_(this->packet_buffer_);
+  this->process_(std::span<const uint8_t>(data, size));
   return false;  // Allow other handlers to run
 }
 
 }  // namespace esphome::espnow
 
-#endif  // USE_ESP32
+#endif  // USE_ESP32 || USE_ESP8266

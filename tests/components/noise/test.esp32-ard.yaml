@@ -1,0 +1,2 @@
+packages:
+  noise: !include common.yaml

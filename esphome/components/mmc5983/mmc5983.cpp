@@ -6,7 +6,7 @@
 
 namespace esphome::mmc5983 {
 
-static const char *const TAG = "mmc5983";
+ESPHOME_LOG_TAG(TAG, "mmc5983");
 
 namespace {
 constexpr uint8_t IC0_ADDR = 0x09;
@@ -14,6 +14,7 @@ constexpr uint8_t IC1_ADDR = 0x0a;
 constexpr uint8_t IC2_ADDR = 0x0b;
 constexpr uint8_t IC3_ADDR = 0x0c;
 constexpr uint8_t PRODUCT_ID_ADDR = 0x2f;
+constexpr uint8_t MMC5983_PRODUCT_ID = 0x30;
 
 float convert_data_to_millitesla(uint8_t data_17_10, uint8_t data_9_2, uint8_t data_1_0) {
   int32_t counts = (data_17_10 << 10) | (data_9_2 << 2) | data_1_0;
@@ -54,37 +55,19 @@ void MMC5983Component::update() {
   //   data[4]: Zout[17:10]
   //   data[5]: Zout[9:2]
   //   data[6]: { Xout[1], Xout[0], Yout[1], Yout[0], Zout[1], Zout[0], 0, 0 }
-  if (this->x_sensor_) {
-    this->x_sensor_->publish_state(convert_data_to_millitesla(data[0], data[1], (data[6] & 0b11000000) >> 6));
-  }
-  if (this->y_sensor_) {
-    this->y_sensor_->publish_state(convert_data_to_millitesla(data[2], data[3], (data[6] & 0b00110000) >> 4));
-  }
-  if (this->z_sensor_) {
-    this->z_sensor_->publish_state(convert_data_to_millitesla(data[4], data[5], (data[6] & 0b00001100) >> 2));
-  }
+  PUBLISH_STATE(this->x_sensor_, convert_data_to_millitesla(data[0], data[1], (data[6] & 0b11000000) >> 6));
+  PUBLISH_STATE(this->y_sensor_, convert_data_to_millitesla(data[2], data[3], (data[6] & 0b00110000) >> 4));
+  PUBLISH_STATE(this->z_sensor_, convert_data_to_millitesla(data[4], data[5], (data[6] & 0b00001100) >> 2));
 }
 
 void MMC5983Component::setup() {
-  // Verify product id.
-  const uint8_t mmc5983_product_id = 0x30;
-  uint8_t id;
-  i2c::ErrorCode err = this->read_register(PRODUCT_ID_ADDR, &id, 1);
-  if (err != i2c::ErrorCode::ERROR_OK) {
-    ESP_LOGE(TAG, "Reading product id failed with i2c error %d", err);
-    this->mark_failed();
+  if (!this->check_chip_id(this, PRODUCT_ID_ADDR, MMC5983_PRODUCT_ID))
     return;
-  }
-  if (id != mmc5983_product_id) {
-    ESP_LOGE(TAG, "Product id 0x%02x does not match expected value 0x%02x", id, mmc5983_product_id);
-    this->mark_failed();
-    return;
-  }
 
   // Initialize Internal Control registers to 0.
   // Internal Control 0.
   const uint8_t zero = 0;
-  err = this->write_register(IC0_ADDR, &zero, 1);
+  i2c::ErrorCode err = this->write_register(IC0_ADDR, &zero, 1);
   if (err != i2c::ErrorCode::ERROR_OK) {
     ESP_LOGE(TAG, "Initializing Internal Control 0 failed with i2c error %d", err);
     this->mark_failed();

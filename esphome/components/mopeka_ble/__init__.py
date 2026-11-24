@@ -6,6 +6,7 @@ from esphome.types import ConfigType
 
 CODEOWNERS = ["@spbrogan", "@Fabian-Schmidt"]
 AUTO_LOAD = ["ble_device_base"]
+DOMAIN = "mopeka_ble"
 
 CONF_SHOW_SENSORS_WITHOUT_SYNC = "show_sensors_without_sync"
 
@@ -27,8 +28,5 @@ CONFIG_SCHEMA = cv.All(
 
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
-    if CONF_SHOW_SENSORS_WITHOUT_SYNC in config:
-        cg.add(
-            var.set_show_sensors_without_sync(config[CONF_SHOW_SENSORS_WITHOUT_SYNC])
-        )
+    cg.add(var.set_show_sensors_without_sync(config[CONF_SHOW_SENSORS_WITHOUT_SYNC]))
     await ble_device_base.register_ble_device(var, config)

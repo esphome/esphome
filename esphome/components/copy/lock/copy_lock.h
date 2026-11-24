@@ -13,6 +13,7 @@ class CopyLock final : public lock::Lock, public Component {
 
  protected:
   void control(const lock::LockCall &call) override;
+  void open_latch() override;
 
   lock::Lock *source_;
 };

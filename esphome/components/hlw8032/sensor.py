@@ -5,21 +5,10 @@ from esphome.const import (
     CONF_APPARENT_POWER,
     CONF_CURRENT,
     CONF_CURRENT_RESISTOR,
-    CONF_ID,
     CONF_POWER,
     CONF_POWER_FACTOR,
     CONF_VOLTAGE,
     CONF_VOLTAGE_DIVIDER,
-    DEVICE_CLASS_APPARENT_POWER,
-    DEVICE_CLASS_CURRENT,
-    DEVICE_CLASS_POWER,
-    DEVICE_CLASS_POWER_FACTOR,
-    DEVICE_CLASS_VOLTAGE,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_AMPERE,
-    UNIT_VOLT,
-    UNIT_VOLT_AMPS,
-    UNIT_WATT,
 )
 from esphome.types import ConfigType
 
@@ -33,33 +22,19 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(HLW8032Component),
             cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_VOLT,
-                accuracy_decimals=1,
-                device_class=DEVICE_CLASS_VOLTAGE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.VOLTAGE, accuracy_decimals=1
             ),
             cv.Optional(CONF_CURRENT): sensor.sensor_schema(
-                unit_of_measurement=UNIT_AMPERE,
-                accuracy_decimals=2,
-                device_class=DEVICE_CLASS_CURRENT,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.CURRENT, accuracy_decimals=2
             ),
             cv.Optional(CONF_POWER): sensor.sensor_schema(
-                unit_of_measurement=UNIT_WATT,
-                accuracy_decimals=1,
-                device_class=DEVICE_CLASS_POWER,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.POWER, accuracy_decimals=1
             ),
             cv.Optional(CONF_APPARENT_POWER): sensor.sensor_schema(
-                unit_of_measurement=UNIT_VOLT_AMPS,
-                accuracy_decimals=1,
-                device_class=DEVICE_CLASS_APPARENT_POWER,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.APPARENT_POWER, accuracy_decimals=1
             ),
             cv.Optional(CONF_POWER_FACTOR): sensor.sensor_schema(
-                accuracy_decimals=2,
-                device_class=DEVICE_CLASS_POWER_FACTOR,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.POWER_FACTOR, accuracy_decimals=2
             ),
             cv.Optional(CONF_CURRENT_RESISTOR, default=0.001): cv.resistance,
             cv.Optional(CONF_VOLTAGE_DIVIDER, default=1.720): cv.positive_float,
@@ -75,24 +50,13 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await uart.register_uart_device(var, config)
+    var = await uart.new_uart_component(config)
 
-    if voltage_config := config.get(CONF_VOLTAGE):
-        sens = await sensor.new_sensor(voltage_config)
-        cg.add(var.set_voltage_sensor(sens))
-    if current_config := config.get(CONF_CURRENT):
-        sens = await sensor.new_sensor(current_config)
-        cg.add(var.set_current_sensor(sens))
-    if power_config := config.get(CONF_POWER):
-        sens = await sensor.new_sensor(power_config)
-        cg.add(var.set_power_sensor(sens))
-    if apparent_power_config := config.get(CONF_APPARENT_POWER):
-        sens = await sensor.new_sensor(apparent_power_config)
-        cg.add(var.set_apparent_power_sensor(sens))
-    if power_factor_config := config.get(CONF_POWER_FACTOR):
-        sens = await sensor.new_sensor(power_factor_config)
-        cg.add(var.set_power_factor_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_VOLTAGE, var.set_voltage_sensor)
+    await sensors(CONF_CURRENT, var.set_current_sensor)
+    await sensors(CONF_POWER, var.set_power_sensor)
+    await sensors(CONF_APPARENT_POWER, var.set_apparent_power_sensor)
+    await sensors(CONF_POWER_FACTOR, var.set_power_factor_sensor)
     cg.add(var.set_current_resistor(config[CONF_CURRENT_RESISTOR]))
     cg.add(var.set_voltage_divider(config[CONF_VOLTAGE_DIVIDER]))

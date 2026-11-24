@@ -1,0 +1,6 @@
+# A bare dpp: takes every default
+wifi:
+  dpp:
+
+packages:
+  wifi: !include common.yaml

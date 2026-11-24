@@ -36,7 +36,7 @@ void HOT esp_log_printf_(int level, const char *tag, int line, const char *forma
 #endif
 }
 
-#ifdef USE_STORE_LOG_STR_IN_FLASH
+#ifdef USE_ESP8266
 void HOT esp_log_printf_(int level, const char *tag, int line, const __FlashStringHelper *format, ...) {
 #ifdef USE_LOGGER
   ESPHOME_DEBUG_ASSERT(logger::global_logger != nullptr);
@@ -44,6 +44,34 @@ void HOT esp_log_printf_(int level, const char *tag, int line, const __FlashStri
   va_start(arg, format);
   logger::global_logger->log_vprintf_(static_cast<uint8_t>(level), tag, line, format, arg);
   va_end(arg);
+#endif
+}
+#endif
+
+void HOT esp_log_str_(int level, const char *tag, int line, const char *format) {  // NOLINT
+#ifdef USE_LOGGER
+#ifdef ESPHOME_DEBUG
+  // Before Logger::pre_setup(), the formatting path below reports the early call
+  if (logger::global_logger != nullptr)
+#endif
+  {
+    if (logger::global_logger->log_str_(static_cast<uint8_t>(level), tag, line, format))
+      return;
+  }
+  // Formats the line log_str_() could not copy; it has no '%', so it is its own format
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat-security"
+#pragma GCC diagnostic ignored "-Wformat-nonliteral"
+  esp_log_printf_(level, tag, line, format);
+#pragma GCC diagnostic pop
+#endif
+}
+
+#ifdef USE_ESP8266
+void HOT esp_log_str_(int level, const char *tag, int line, const __FlashStringHelper *format) {
+#ifdef USE_LOGGER
+  ESPHOME_DEBUG_ASSERT(logger::global_logger != nullptr);
+  logger::global_logger->log_str_(static_cast<uint8_t>(level), tag, line, format);
 #endif
 }
 #endif

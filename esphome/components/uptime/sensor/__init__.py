@@ -1,15 +1,14 @@
 import esphome.codegen as cg
 from esphome.components import sensor, time
+from esphome.components.time import DOMAIN as TIME_DOMAIN
 from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_TIME_ID,
-    DEVICE_CLASS_DURATION,
     DEVICE_CLASS_TIMESTAMP,
     ENTITY_CATEGORY_DIAGNOSTIC,
     ICON_TIMER,
     STATE_CLASS_TOTAL_INCREASING,
-    UNIT_SECOND,
 )
 from esphome.types import ConfigType
 
@@ -26,11 +25,9 @@ CONFIG_SCHEMA = cv.typed_schema(
     {
         "seconds": sensor.sensor_schema(
             UptimeSecondsSensor,
-            unit_of_measurement=UNIT_SECOND,
+            kind=sensor.DURATION_S,
             icon=ICON_TIMER,
-            accuracy_decimals=0,
             state_class=STATE_CLASS_TOTAL_INCREASING,
-            device_class=DEVICE_CLASS_DURATION,
             entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
         ).extend(cv.polling_component_schema("60s")),
         "timestamp": sensor.sensor_schema(
@@ -44,7 +41,8 @@ CONFIG_SCHEMA = cv.typed_schema(
             cv.Schema(
                 {
                     cv.GenerateID(CONF_TIME_ID): cv.All(
-                        cv.requires_component("time"), cv.use_id(time.RealTimeClock)
+                        cv.requires_component(TIME_DOMAIN),
+                        cv.use_id(time.RealTimeClock),
                     ),
                 }
             )
@@ -59,8 +57,7 @@ async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
     if time_id_config := config.get(CONF_TIME_ID):
-        time_id = await cg.get_variable(time_id_config)
-        cg.add(var.set_time(time_id))
+        await cg.add_variable(var.set_time, time_id_config)
         cg.add_define("USE_UPTIME_TIMESTAMP")
 
 

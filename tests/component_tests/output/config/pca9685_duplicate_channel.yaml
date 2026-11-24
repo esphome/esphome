@@ -1,0 +1,31 @@
+---
+esphome:
+  name: output-test
+
+esp32:
+  board: esp32dev
+
+i2c:
+  sda: GPIO21
+  scl: GPIO22
+
+pca9685:
+  - id: pwm_a
+    frequency: 500
+  - id: pwm_b
+    address: 0x41
+    frequency: 500
+
+output:
+  - platform: pca9685
+    id: out_1
+    pca9685_id: pwm_a
+    channel: 0
+  - platform: pca9685
+    id: out_2
+    pca9685_id: pwm_b
+    channel: 0
+  - platform: pca9685
+    id: out_3
+    pca9685_id: pwm_a
+    channel: 0

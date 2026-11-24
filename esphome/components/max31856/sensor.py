@@ -1,13 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import sensor, spi
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_MAINS_FILTER,
-    CONF_THERMOCOUPLE_TYPE,
-    DEVICE_CLASS_TEMPERATURE,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS,
-)
+from esphome.const import CONF_MAINS_FILTER, CONF_THERMOCOUPLE_TYPE
 from esphome.types import ConfigType
 
 max31856_ns = cg.esphome_ns.namespace("max31856")
@@ -21,25 +15,12 @@ FILTER = {
     60: MAX31865ConfigFilter.FILTER_60HZ,
 }
 MAX31856ThermocoupleType = max31856_ns.enum("MAX31856ThermocoupleType")
-THERMOCOUPLE_TYPE = {
-    "B": MAX31856ThermocoupleType.MAX31856_TCTYPE_B,
-    "E": MAX31856ThermocoupleType.MAX31856_TCTYPE_E,
-    "J": MAX31856ThermocoupleType.MAX31856_TCTYPE_J,
-    "K": MAX31856ThermocoupleType.MAX31856_TCTYPE_K,
-    "N": MAX31856ThermocoupleType.MAX31856_TCTYPE_N,
-    "R": MAX31856ThermocoupleType.MAX31856_TCTYPE_R,
-    "S": MAX31856ThermocoupleType.MAX31856_TCTYPE_S,
-    "T": MAX31856ThermocoupleType.MAX31856_TCTYPE_T,
-}
+THERMOCOUPLE_TYPE = MAX31856ThermocoupleType.options(
+    "B", "E", "J", "K", "N", "R", "S", "T", prefix="MAX31856_TCTYPE_"
+)
 
 CONFIG_SCHEMA = (
-    sensor.sensor_schema(
-        MAX31856Sensor,
-        unit_of_measurement=UNIT_CELSIUS,
-        accuracy_decimals=1,
-        device_class=DEVICE_CLASS_TEMPERATURE,
-        state_class=STATE_CLASS_MEASUREMENT,
-    )
+    sensor.sensor_schema(MAX31856Sensor, kind=sensor.TEMPERATURE)
     .extend(
         {
             cv.Optional(CONF_MAINS_FILTER, default="60Hz"): cv.All(

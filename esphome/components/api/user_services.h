@@ -1,16 +1,12 @@
 #pragma once
 
 #include <span>
-#include <tuple>
 #include <utility>
 #include <vector>
 
 #include "api_pb2.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
-#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
-#include "esphome/components/json/json_util.h"
-#endif
 
 #ifdef USE_API_USER_DEFINED_ACTIONS
 namespace esphome::api {
@@ -20,9 +16,8 @@ class APIServer;
 
 class UserServiceDescriptor {
  public:
-  /// Build the list-entities message. On ESP8266 the strings live in PROGMEM and are copied into
-  /// `scratch`, so the returned message is only valid while `scratch` is; other platforms ignore it.
-  virtual ListEntitiesServicesResponse encode_list_service_response(std::span<char> scratch) = 0;
+  /// Build the list-entities message; its strings may point into flash (PROGMEM).
+  virtual ListEntitiesServicesResponse encode_list_service_response() = 0;
 
   virtual bool execute_service(const ExecuteServiceRequest &req) = 0;
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
@@ -37,24 +32,24 @@ template<typename T> T get_execute_arg_value(const ExecuteServiceArgument &arg);
 
 template<typename T> enums::ServiceArgType to_service_arg_type();
 
-// Scratch buffer list-entities hands to encode_list_service_response(); only ESP8266 copies into it
-#ifdef USE_ESP8266
-using UserActionScratch = std::array<char, API_USER_ACTION_STRINGS_SCRATCH_SIZE>;
-#else
-using UserActionScratch = std::array<char, 0>;
-#endif
-
 // Non-template base for YAML-defined services so the list-entities encoder is compiled once.
 // All strings live in one PROGMEM pointer table emitted by codegen (see _action_strings in
 // __init__.py), so each service costs a single pointer of RAM. Layout: the action name, then
 // each argument name; with USE_API_USER_DEFINED_ACTION_METADATA the action description follows
-// the name and every argument is (name, description, example). Unset metadata is nullptr.
+// the name and every argument is (name, description, example); with
+// USE_API_USER_DEFINED_ACTION_OPTIONAL_ARGS every argument ends with its default: nullptr for a
+// required argument, "" for an optional one without a default. Unset is nullptr.
 #ifdef USE_API_USER_DEFINED_ACTION_METADATA
 static constexpr size_t USER_ACTION_HEADER_STRINGS = 2;
-static constexpr size_t USER_ACTION_ARG_STRINGS = 3;
+static constexpr size_t USER_ACTION_ARG_BASE_STRINGS = 3;
 #else
 static constexpr size_t USER_ACTION_HEADER_STRINGS = 1;
-static constexpr size_t USER_ACTION_ARG_STRINGS = 1;
+static constexpr size_t USER_ACTION_ARG_BASE_STRINGS = 1;
+#endif
+#ifdef USE_API_USER_DEFINED_ACTION_OPTIONAL_ARGS
+static constexpr size_t USER_ACTION_ARG_STRINGS = USER_ACTION_ARG_BASE_STRINGS + 1;
+#else
+static constexpr size_t USER_ACTION_ARG_STRINGS = USER_ACTION_ARG_BASE_STRINGS;
 #endif
 class UserServiceStatic : public UserServiceDescriptor {
  public:
@@ -63,12 +58,9 @@ class UserServiceStatic : public UserServiceDescriptor {
       : strings_(strings), key_(key), supports_response_(supports_response) {}
 
  protected:
-  ListEntitiesServicesResponse encode_list_service_response_(std::span<const enums::ServiceArgType> arg_types,
-                                                             std::span<char> scratch) const;
-  /// Reference table entry `idx`; nullptr gives an empty StringRef.
-  /// On ESP8266 the bytes are copied out of PROGMEM into `scratch` with a terminator, and the span
-  /// is advanced past the copy.
-  StringRef str_(size_t idx, std::span<char> &scratch) const;
+  ListEntitiesServicesResponse encode_list_service_response_(std::span<const enums::ServiceArgType> arg_types) const;
+  /// Table entry `idx` as it sits in flash; nullptr gives an empty string.
+  ProgmemStringRef str_(size_t idx) const;
 
   const char *const *strings_;  // PROGMEM pointer table, read with progmem_read_ptr()
   uint32_t key_;
@@ -79,9 +71,9 @@ template<typename... Ts> class UserServiceBase : public UserServiceStatic {
  public:
   using UserServiceStatic::UserServiceStatic;
 
-  ListEntitiesServicesResponse encode_list_service_response(std::span<char> scratch) override {
+  ListEntitiesServicesResponse encode_list_service_response() override {
     std::array<enums::ServiceArgType, sizeof...(Ts)> arg_types = {to_service_arg_type<Ts>()...};
-    return this->encode_list_service_response_(arg_types, scratch);
+    return this->encode_list_service_response_(arg_types);
   }
 
   bool execute_service(const ExecuteServiceRequest &req) override {
@@ -125,9 +117,9 @@ template<typename... Ts> class UserServiceDynamic : public UserServiceDescriptor
     this->key_ = fnv1_hash(this->name_.c_str());
   }
 
-  ListEntitiesServicesResponse encode_list_service_response(std::span<char> /*scratch*/) override {
+  ListEntitiesServicesResponse encode_list_service_response() override {
     ListEntitiesServicesResponse msg;
-    msg.name = StringRef(this->name_);
+    msg.name = ProgmemStringRef(StringRef(this->name_));
     msg.key = this->key_;
     msg.supports_response = enums::SUPPORTS_RESPONSE_NONE;  // Dynamic services don't support responses yet
     std::array<enums::ServiceArgType, sizeof...(Ts)> arg_types = {to_service_arg_type<Ts>()...};
@@ -135,7 +127,7 @@ template<typename... Ts> class UserServiceDynamic : public UserServiceDescriptor
     for (size_t i = 0; i < sizeof...(Ts); i++) {
       auto &arg = msg.args.emplace_back();
       arg.type = arg_types[i];
-      arg.name = StringRef(this->arg_names_[i]);
+      arg.name = ProgmemStringRef(StringRef(this->arg_names_[i]));
     }
     return msg;
   }
@@ -178,150 +170,24 @@ template<typename... Ts> class UserServiceDynamic : public UserServiceDescriptor
   uint32_t key_{0};
 };
 
-// Primary template declaration
-template<enums::SupportsResponseType Mode, typename... Ts> class UserServiceTrigger;
-
-// Specialization for NONE - no extra trigger arguments
-template<typename... Ts>
-class UserServiceTrigger<enums::SUPPORTS_RESPONSE_NONE, Ts...> final : public UserServiceBase<Ts...>,
-                                                                       public Trigger<Ts...> {
+/// A YAML-defined action that calls the generated function Fn. Fn takes the call id first unless
+/// Mode is SUPPORTS_RESPONSE_NONE, then return_response for SUPPORTS_RESPONSE_OPTIONAL.
+template<auto Fn, enums::SupportsResponseType Mode, typename... Ts>
+class UserServiceCallback final : public UserServiceBase<Ts...> {
  public:
-  UserServiceTrigger(const char *const *strings, uint32_t key)
-      : UserServiceBase<Ts...>(strings, key, enums::SUPPORTS_RESPONSE_NONE) {}
+  UserServiceCallback(const char *const *strings, uint32_t key) : UserServiceBase<Ts...>(strings, key, Mode) {}
 
  protected:
-  void execute(uint32_t /*call_id*/, bool /*return_response*/, Ts... x) override { this->trigger(x...); }
-};
-
-// Specialization for OPTIONAL - call_id and return_response trigger arguments
-template<typename... Ts>
-class UserServiceTrigger<enums::SUPPORTS_RESPONSE_OPTIONAL, Ts...> final : public UserServiceBase<Ts...>,
-                                                                           public Trigger<uint32_t, bool, Ts...> {
- public:
-  UserServiceTrigger(const char *const *strings, uint32_t key)
-      : UserServiceBase<Ts...>(strings, key, enums::SUPPORTS_RESPONSE_OPTIONAL) {}
-
- protected:
-  void execute(uint32_t call_id, bool return_response, Ts... x) override {
-    this->trigger(call_id, return_response, x...);
+  void execute([[maybe_unused]] uint32_t call_id, [[maybe_unused]] bool return_response, Ts... x) override {
+    if constexpr (Mode == enums::SUPPORTS_RESPONSE_NONE) {
+      Fn(x...);
+    } else if constexpr (Mode == enums::SUPPORTS_RESPONSE_OPTIONAL) {
+      Fn(call_id, return_response, x...);
+    } else {
+      Fn(call_id, x...);
+    }
   }
-};
-
-// Specialization for ONLY - just call_id trigger argument
-template<typename... Ts>
-class UserServiceTrigger<enums::SUPPORTS_RESPONSE_ONLY, Ts...> final : public UserServiceBase<Ts...>,
-                                                                       public Trigger<uint32_t, Ts...> {
- public:
-  UserServiceTrigger(const char *const *strings, uint32_t key)
-      : UserServiceBase<Ts...>(strings, key, enums::SUPPORTS_RESPONSE_ONLY) {}
-
- protected:
-  void execute(uint32_t call_id, bool /*return_response*/, Ts... x) override { this->trigger(call_id, x...); }
-};
-
-// Specialization for STATUS - just call_id trigger argument (reports success/error without data)
-template<typename... Ts>
-class UserServiceTrigger<enums::SUPPORTS_RESPONSE_STATUS, Ts...> final : public UserServiceBase<Ts...>,
-                                                                         public Trigger<uint32_t, Ts...> {
- public:
-  UserServiceTrigger(const char *const *strings, uint32_t key)
-      : UserServiceBase<Ts...>(strings, key, enums::SUPPORTS_RESPONSE_STATUS) {}
-
- protected:
-  void execute(uint32_t call_id, bool /*return_response*/, Ts... x) override { this->trigger(call_id, x...); }
 };
 
 }  // namespace esphome::api
 #endif  // USE_API_USER_DEFINED_ACTIONS
-
-#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
-// Include full definition of APIServer for template implementation
-// Must be outside namespace to avoid including STL headers inside namespace
-#include "api_server.h"
-
-namespace esphome::api {
-
-template<typename... Ts> class APIRespondAction final : public Action<Ts...> {
- public:
-  explicit APIRespondAction(APIServer *parent) : parent_(parent) {}
-
-  template<typename V> void set_success(V success) { this->success_ = success; }
-  template<typename V> void set_error_message(V error) { this->error_message_ = error; }
-  void set_is_optional_mode(bool is_optional) { this->is_optional_mode_ = is_optional; }
-
-#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
-  void set_data(std::function<void(Ts..., JsonObject)> &&func) {
-    this->json_builder_ = std::move(func);
-    this->has_data_ = true;
-  }
-#endif
-
-  void play(const Ts &...x) override {
-    // Extract call_id from first argument - it's always first for optional/only/status modes
-    auto args = std::make_tuple(x...);
-    uint32_t call_id = std::get<0>(args);
-
-    bool success = this->success_.value(x...);
-    std::string error_message = this->error_message_.value(x...);
-
-#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
-    if (this->has_data_) {
-      // For optional mode, check return_response (second arg) to decide if client wants data
-      // Use nested if constexpr to avoid compile error when tuple doesn't have enough elements
-      // (std::tuple_element_t is evaluated before the && short-circuit, so we must nest)
-      if constexpr (sizeof...(Ts) >= 2) {
-        if constexpr (std::is_same_v<std::tuple_element_t<1, std::tuple<Ts...>>, bool>) {
-          if (this->is_optional_mode_) {
-            bool return_response = std::get<1>(args);
-            if (!return_response) {
-              // Client doesn't want response data, just send success/error
-              this->parent_->send_action_response(call_id, success, StringRef(error_message));
-              return;
-            }
-          }
-        }
-      }
-      // Build and send JSON response
-      json::JsonBuilder builder;
-      this->json_builder_(x..., builder.root());
-      auto json_buf = builder.serialize();
-      this->parent_->send_action_response(call_id, success, StringRef(error_message),
-                                          reinterpret_cast<const uint8_t *>(json_buf.data()), json_buf.size());
-      return;
-    }
-#endif
-    this->parent_->send_action_response(call_id, success, StringRef(error_message));
-  }
-
- protected:
-  APIServer *parent_;
-  TemplatableFn<bool, Ts...> success_{[](Ts...) -> bool { return true; }};
-  TemplatableValue<std::string, Ts...> error_message_{""};
-#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
-  std::function<void(Ts..., JsonObject)> json_builder_;
-  bool has_data_{false};
-#endif
-  bool is_optional_mode_{false};
-};
-
-// Action to unregister a service call after execution completes
-// Automatically appended to the end of action lists for non-none response modes
-template<typename... Ts> class APIUnregisterServiceCallAction final : public Action<Ts...> {
- public:
-  explicit APIUnregisterServiceCallAction(APIServer *parent) : parent_(parent) {}
-
-  void play(const Ts &...x) override {
-    // Extract call_id from first argument - same convention as APIRespondAction
-    auto args = std::make_tuple(x...);
-    uint32_t call_id = std::get<0>(args);
-    if (call_id != 0) {
-      this->parent_->unregister_active_action_call(call_id);
-    }
-  }
-
- protected:
-  APIServer *parent_;
-};
-
-}  // namespace esphome::api
-#endif  // USE_API_USER_DEFINED_ACTION_RESPONSES

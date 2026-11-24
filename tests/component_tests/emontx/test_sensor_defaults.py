@@ -18,6 +18,7 @@ from esphome.const import (
     DEVICE_CLASS_TEMPERATURE,
     DEVICE_CLASS_VOLTAGE,
     STATE_CLASS_MEASUREMENT,
+    STATE_CLASS_TOTAL,
     STATE_CLASS_TOTAL_INCREASING,
     UNIT_AMPERE,
     UNIT_CELSIUS,
@@ -42,14 +43,12 @@ def _resolve_via_config_schema(tag: str) -> dict:
 def test_config_schema_applies_tag_default_state_class():
     """If sensor_schema(state_class=...) is reintroduced, the schema-level
     default wins over apply_tag_defaults' per-prefix value, and E1 would
-    resolve to measurement instead of total_increasing. Driving the real
+    resolve to measurement instead of total. Driving the real
     CONFIG_SCHEMA (not just apply_tag_defaults) catches that, since
     sensor_schema() runs before apply_tag_defaults in the cv.All() chain.
     """
     result = _resolve_via_config_schema("E1")
-    assert result[CONF_STATE_CLASS] == sensor.validate_state_class(
-        STATE_CLASS_TOTAL_INCREASING
-    )
+    assert result[CONF_STATE_CLASS] == sensor.validate_state_class(STATE_CLASS_TOTAL)
 
 
 def test_config_schema_applies_tag_default_accuracy_decimals():
@@ -70,8 +69,8 @@ def _make_config(tag: str) -> dict:
     ("tag", "expected_state_class", "expected_decimals"),
     [
         # Known numeric-index prefixes
-        ("E1", STATE_CLASS_TOTAL_INCREASING, 0),
-        ("E12", STATE_CLASS_TOTAL_INCREASING, 0),
+        ("E1", STATE_CLASS_TOTAL, 0),
+        ("E12", STATE_CLASS_TOTAL, 0),
         ("P1", STATE_CLASS_MEASUREMENT, 0),
         ("V1", STATE_CLASS_MEASUREMENT, 2),
         ("I1", STATE_CLASS_MEASUREMENT, 2),

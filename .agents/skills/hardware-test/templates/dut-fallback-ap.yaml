@@ -1,0 +1,31 @@
+# Package for a device under test that never finds its network, falls back to its AP and serves the
+# captive portal. Include it from a per-run yaml that holds the platform block and the substitutions
+# (see example-dut.yaml). Bump `name` on every run: saved credentials are keyed by it, and a reused
+# name boots straight onto the real network and never raises the AP.
+substitutions:
+  ap_password: hwtestpass
+  ap_timeout: 15s
+  bogus_ssid: hwtest-no-such-network
+  bogus_psk: nosuchpassword
+
+esphome:
+  name: ${name}
+
+logger:
+  level: DEBUG
+
+wifi:
+  networks:
+    - ssid: ${bogus_ssid}
+      password: ${bogus_psk}
+  ap:
+    ssid: ${ap_ssid}
+    password: ${ap_password}
+    ap_timeout: ${ap_timeout}
+
+captive_portal:
+
+interval:
+  - interval: 5s
+    then:
+      - lambda: ESP_LOGI("test", "alive %u s", (unsigned) (millis() / 1000));

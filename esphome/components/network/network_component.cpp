@@ -12,7 +12,9 @@
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esp_netif_net_stack.h"
+#include "lwip/dns.h"
 #include "lwip/netif.h"
+#include "ip_address.h"
 #ifdef USE_ETHERNET
 #include "esphome/components/ethernet/ethernet_component.h"
 #endif
@@ -23,7 +25,7 @@
 
 namespace esphome::network {
 
-static const char *const TAG = "network";
+ESPHOME_LOG_TAG(TAG, "network");
 
 void NetworkComponent::setup() {
   // Initialize ESP-IDF network interfaces and ensure the default event loop exists
@@ -72,28 +74,50 @@ static esp_netif_t *connected_ethernet_netif() {
   return nullptr;
 }
 
+// True when lwIP's global DNS table holds the netif's own servers. Call with the lwIP core lock held.
+static bool dns_is_netifs(esp_netif_t *netif) {
+  for (auto type : {ESP_NETIF_DNS_MAIN, ESP_NETIF_DNS_BACKUP}) {
+    esp_netif_dns_info_t own{};
+    if (esp_netif_get_dns_info(netif, type, &own) != ESP_OK)
+      return true;
+    if (IPAddress(&own.ip) != IPAddress(dns_getserver(type)))
+      return false;
+  }
+  return true;
+}
+
 void NetworkComponent::loop() {
   // Pin the default route to the first connected interface in the user's priority
   // order; ESP-IDF's own route_prio selection would always favor WiFi.
   // USE_NETWORK_PRIMARY_INTERFACE_WIFI is emitted for a wifi-first priority list;
   // it selects the reported address in util.cpp and doubles as the route-order
   // pivot here — the two uses must stay in sync.
-  esp_netif_t *best;
+  esp_netif_t *wifi = connected_wifi_netif();
+  esp_netif_t *ethernet = connected_ethernet_netif();
 #ifdef USE_NETWORK_PRIMARY_INTERFACE_WIFI
-  best = connected_wifi_netif();
-  if (best == nullptr)
-    best = connected_ethernet_netif();
+  esp_netif_t *best = wifi != nullptr ? wifi : ethernet;
 #else
-  best = connected_ethernet_netif();
-  if (best == nullptr)
-    best = connected_wifi_netif();
+  esp_netif_t *best = ethernet != nullptr ? ethernet : wifi;
 #endif
+  NetworkInterface active = NetworkInterface::NETWORK_INTERFACE_NONE;
+  if (best != nullptr) {
+    active = best == ethernet ? NetworkInterface::NETWORK_INTERFACE_ETHERNET : NetworkInterface::NETWORK_INTERFACE_WIFI;
+  }
+  if (active != this->active_interface_) {
+    this->active_interface_ = active;
+#ifdef NETWORK_ACTIVE_INTERFACE_LISTENER_COUNT
+    for (auto *listener : this->active_interface_listeners_)
+      listener->on_active_interface(active);
+#endif
+  }
   if (best == nullptr) {
     // Forget the last winner: stopping its netif cleared lwIP's default route and
     // IDF's manual override suppresses re-election, so reconnect must re-assert it.
     this->default_netif_ = nullptr;
     return;
   }
+  // Set when only lwIP's DNS table needs repairing; logged at debug, not as an interface change.
+  bool dns_only = false;
   if (best == this->default_netif_) {
     // Same winner as the last assert. Still re-assert if lwIP's default route is
     // not the winner's netif: a winner whose netif bounced down and up between two
@@ -107,12 +131,17 @@ void NetworkComponent::loop() {
       return;
     this->last_route_check_ = now;
     bool route_is_ours;
+    bool dns_is_ours;
     {
       LwIPLock lock;
       route_is_ours = static_cast<void *>(netif_default) == esp_netif_get_netif_impl(best);
+      // DHCP starting on another netif empties lwIP's DNS table, and the manual default
+      // stops ESP-IDF from refilling it (espressif/esp-idf#19082); re-asserting copies it back.
+      dns_is_ours = route_is_ours && dns_is_netifs(best);
     }
-    if (route_is_ours)
+    if (dns_is_ours)
       return;
+    dns_only = route_is_ours;
   }
   esp_err_t err = esp_netif_set_default_netif(best);
   if (err != ESP_OK) {
@@ -125,7 +154,11 @@ void NetworkComponent::loop() {
     return;
   }
   this->default_netif_ = best;
-  ESP_LOGI(TAG, "Default interface: %s", esp_netif_get_desc(best));
+  if (dns_only) {
+    ESP_LOGD(TAG, "DNS servers restored from %s", esp_netif_get_desc(best));
+  } else {
+    ESP_LOGI(TAG, "Default interface: %s", esp_netif_get_desc(best));
+  }
 }
 #endif  // USE_NETWORK_DEFAULT_ROUTE
 

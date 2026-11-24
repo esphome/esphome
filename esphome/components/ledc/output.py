@@ -2,7 +2,7 @@ from typing import Any
 
 from esphome import automation, pins
 import esphome.codegen as cg
-from esphome.components import output
+from esphome.components import esp32, output
 from esphome.components.esp32 import include_builtin_idf_component
 import esphome.config_validation as cv
 from esphome.const import (
@@ -12,11 +12,11 @@ from esphome.const import (
     CONF_PHASE_ANGLE,
     CONF_PIN,
 )
-from esphome.core import ID
-from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["esp32"]
+
+CONF_DITHERING = "dithering"
 
 
 def calc_max_frequency(bit_depth: int) -> float:
@@ -43,9 +43,31 @@ def validate_frequency(value: Any) -> float:
     return value
 
 
+def validate_dithering(value: Any) -> bool:
+    enabled = cv.boolean(value)
+    if not enabled:
+        return False
+
+    return esp32.only_on_variant(
+        supported=[
+            esp32.VARIANT_ESP32,
+            esp32.VARIANT_ESP32C2,
+            esp32.VARIANT_ESP32C3,  # confirmed on hardware
+            esp32.VARIANT_ESP32C5,
+            esp32.VARIANT_ESP32C6,
+            esp32.VARIANT_ESP32C61,
+            esp32.VARIANT_ESP32H2,
+            esp32.VARIANT_ESP32P4,
+            esp32.VARIANT_ESP32S2,
+            esp32.VARIANT_ESP32S3,
+            esp32.VARIANT_ESP32S31,
+        ],
+        msg_prefix="LEDC hardware dithering",
+    )(enabled)
+
+
 ledc_ns = cg.esphome_ns.namespace("ledc")
 LEDCOutput = ledc_ns.class_("LEDCOutput", output.FloatOutput, cg.Component)
-SetFrequencyAction = ledc_ns.class_("SetFrequencyAction", automation.Action)
 
 CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
     {
@@ -55,6 +77,7 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
             cv.frequency, cv.float_range(min=0, min_included=False)
         ),
         cv.Optional(CONF_CHANNEL): cv.int_range(min=0, max=15),
+        cv.Optional(CONF_DITHERING): validate_dithering,
         cv.Optional(CONF_PHASE_ANGLE): cv.All(
             cv.angle, cv.float_range(min=0.0, max=360.0)
         ),
@@ -70,32 +93,21 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID], gpio)
     await cg.register_component(var, config)
     await output.register_output(var, config)
-    if CONF_CHANNEL in config:
-        cg.add(var.set_channel(config[CONF_CHANNEL]))
+    cg.add_optional(var.set_channel, config.get(CONF_CHANNEL))
     cg.add(var.set_frequency(config[CONF_FREQUENCY]))
-    if CONF_PHASE_ANGLE in config:
-        cg.add(var.set_phase_angle(config[CONF_PHASE_ANGLE]))
+    cg.add_optional(var.set_phase_angle, config.get(CONF_PHASE_ANGLE))
+    if config.get(CONF_DITHERING):
+        cg.add_define("USE_LEDC_DITHERING")
+        cg.add(var.set_dithering(True))
 
 
-@automation.register_action(
+automation.register_apply_action(
     "output.ledc.set_frequency",
-    SetFrequencyAction,
     cv.Schema(
         {
             cv.Required(CONF_ID): cv.use_id(LEDCOutput),
             cv.Required(CONF_FREQUENCY): cv.templatable(validate_frequency),
         }
     ),
-    synchronous=True,
+    automation.ApplyField(CONF_FREQUENCY, "update_frequency", cg.float_),
 )
-async def ledc_set_frequency_to_code(
-    config: ConfigType,
-    action_id: ID,
-    template_arg: cg.TemplateArguments,
-    args: TemplateArgsType,
-) -> MockObj:
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_FREQUENCY], args, cg.float_)
-    cg.add(var.set_frequency(template_))
-    return var

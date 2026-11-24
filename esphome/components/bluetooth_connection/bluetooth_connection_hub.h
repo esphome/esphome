@@ -22,8 +22,8 @@ class BluetoothProxy;
 
 namespace esphome::bluetooth_connection {
 
-using ClientState = ble_device_base::ClientState;
-using ConnectionType = ble_device_base::ConnectionType;
+using ble_device_base::ClientState;
+using ble_device_base::ConnectionType;
 
 /// A refused GATT reply owed to the current subscriber. Payload-free only:
 /// these rebuild from address + handle + error, so a retry costs no buffered
@@ -37,6 +37,9 @@ enum class PendingAck : uint8_t {
 
 class BluetoothConnection final : public ble_device_base::GattClientListener {
  public:
+  // User provided, not "= default": `new(p) BluetoothConnection()` would zero-fill .bss that is already zero.
+  BluetoothConnection() {}
+
   /// Wire the platform backend. Called from codegen before setup.
   void set_backend(ble_device_base::BLEGattConnection *backend) {
     this->backend_ = backend;

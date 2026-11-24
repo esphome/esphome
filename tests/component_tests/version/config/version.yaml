@@ -1,0 +1,16 @@
+---
+esphome:
+  name: test
+
+esp8266:
+  board: d1_mini
+
+text_sensor:
+  - platform: version
+    id: default_version
+    name: Default Version
+  - platform: version
+    id: hidden_version
+    name: Hidden Version
+    hide_hash: true
+    hide_timestamp: true

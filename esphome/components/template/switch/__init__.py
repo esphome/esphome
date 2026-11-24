@@ -72,24 +72,20 @@ async def to_code(config):
         await automation.build_automation(
             var.get_turn_on_trigger(), [], config[CONF_TURN_ON_ACTION]
         )
-    cg.add(var.set_optimistic(config[CONF_OPTIMISTIC]))
-    cg.add(var.set_assumed_state(config[CONF_ASSUMED_STATE]))
+    # optimistic_ and assumed_state_ are false in C++; only emit setters to turn them on.
+    if config[CONF_OPTIMISTIC]:
+        cg.add(var.set_optimistic(True))
+    if config[CONF_ASSUMED_STATE]:
+        cg.add(var.set_assumed_state(True))
 
 
-@automation.register_action(
+automation.register_apply_action(
     "switch.template.publish",
-    switch.SwitchPublishAction,
     cv.Schema(
         {
             cv.Required(CONF_ID): cv.use_id(switch.Switch),
             cv.Required(CONF_STATE): cv.templatable(cv.boolean),
         }
     ),
-    synchronous=True,
+    automation.ApplyField(CONF_STATE, "publish_state", cg.bool_),
 )
-async def switch_template_publish_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_STATE], args, cg.bool_)
-    cg.add(var.set_state(template_))
-    return var

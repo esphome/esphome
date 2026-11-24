@@ -1,9 +1,10 @@
 #include "delonghi.h"
 #include "esphome/components/remote_base/remote_base.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::delonghi {
 
-static const char *const TAG = "delonghi.climate";
+ESPHOME_LOG_TAG(TAG, "delonghi.climate");
 
 void DelonghiClimate::transmit_state() {
   uint8_t remote_state[DELONGHI_STATE_FRAME_SIZE] = {0};
@@ -22,13 +23,7 @@ void DelonghiClimate::transmit_state() {
 
   data->mark(DELONGHI_HEADER_MARK);
   data->space(DELONGHI_HEADER_SPACE);
-  for (unsigned char b : remote_state) {
-    for (uint8_t mask = 1; mask > 0; mask <<= 1) {  // iterate through bit mask
-      data->mark(DELONGHI_BIT_MARK);
-      bool bit = b & mask;
-      data->space(bit ? DELONGHI_ONE_SPACE : DELONGHI_ZERO_SPACE);
-    }
-  }
+  data->item_bytes<DELONGHI_BIT_TIMINGS>(remote_state, DELONGHI_STATE_FRAME_SIZE);
   data->mark(DELONGHI_BIT_MARK);
   data->space(0);
 
@@ -102,10 +97,7 @@ uint8_t DelonghiClimate::temperature_() {
 }
 
 bool DelonghiClimate::parse_state_frame_(const uint8_t frame[]) {
-  uint8_t checksum = 0;
-  for (int i = 0; i < (DELONGHI_STATE_FRAME_SIZE - 1); i++) {
-    checksum += frame[i];
-  }
+  const uint8_t checksum = sum_bytes(frame, DELONGHI_STATE_FRAME_SIZE - 1);
   if (frame[DELONGHI_STATE_FRAME_SIZE - 1] != checksum) {
     return false;
   }
@@ -151,33 +143,21 @@ bool DelonghiClimate::parse_state_frame_(const uint8_t frame[]) {
     case DELONGHI_FAN_AUTO:
       this->fan_mode = climate::CLIMATE_FAN_AUTO;
       break;
+    default:
+      break;
   }
   this->publish_state();
   return true;
 }
 
 bool DelonghiClimate::on_receive(remote_base::RemoteReceiveData data) {
-  uint8_t state_frame[DELONGHI_STATE_FRAME_SIZE] = {};
+  uint8_t state_frame[DELONGHI_STATE_FRAME_SIZE];
   if (!data.expect_item(DELONGHI_HEADER_MARK, DELONGHI_HEADER_SPACE)) {
     return false;
   }
-  for (uint8_t pos = 0; pos < DELONGHI_STATE_FRAME_SIZE; pos++) {
-    uint8_t byte = 0;
-    for (int8_t bit = 0; bit < 8; bit++) {
-      if (data.expect_item(DELONGHI_BIT_MARK, DELONGHI_ONE_SPACE)) {
-        byte |= 1 << bit;
-      } else if (!data.expect_item(DELONGHI_BIT_MARK, DELONGHI_ZERO_SPACE)) {
-        return false;
-      }
-    }
-    state_frame[pos] = byte;
-    if (pos == 0) {
-      // frame header
-      if (byte != DELONGHI_ADDRESS) {
-        return false;
-      }
-    }
-  }
+  if (!data.expect_bytes<DELONGHI_BIT_TIMINGS>(state_frame, DELONGHI_STATE_FRAME_SIZE) ||
+      state_frame[0] != DELONGHI_ADDRESS)
+    return false;
   return this->parse_state_frame_(state_frame);
 }
 

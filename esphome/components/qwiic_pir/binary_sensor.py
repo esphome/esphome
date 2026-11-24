@@ -10,24 +10,16 @@ CODEOWNERS = ["@kahrendt"]
 
 qwiic_pir_ns = cg.esphome_ns.namespace("qwiic_pir")
 
-DebounceMode = qwiic_pir_ns.enum("DebounceMode")
-DEBOUNCE_MODE_OPTIONS = {
-    "RAW": DebounceMode.RAW_DEBOUNCE_MODE,
-    "NATIVE": DebounceMode.NATIVE_DEBOUNCE_MODE,
-    "HYBRID": DebounceMode.HYBRID_DEBOUNCE_MODE,
-}
+DebounceMode = qwiic_pir_ns.enum("DebounceMode", is_class=True)
+DEBOUNCE_MODE_OPTIONS = DebounceMode.options(
+    "RAW", "NATIVE", "HYBRID", prefix="DEBOUNCE_MODE_"
+)
 
 CONF_DEBOUNCE_MODE = "debounce_mode"
 
 QwiicPIRComponent = qwiic_pir_ns.class_(
     "QwiicPIRComponent", cg.Component, i2c.I2CDevice, binary_sensor.BinarySensor
 )
-
-
-def validate_no_debounce_unless_native(config: ConfigType) -> ConfigType:
-    if CONF_DEBOUNCE in config and config[CONF_DEBOUNCE_MODE] != "NATIVE":
-        raise cv.Invalid("debounce can only be set if debounce_mode is NATIVE")
-    return config
 
 
 CONFIG_SCHEMA = cv.All(
@@ -48,17 +40,17 @@ CONFIG_SCHEMA = cv.All(
     )
     .extend(cv.COMPONENT_SCHEMA)
     .extend(i2c.i2c_device_schema(0x12)),
-    validate_no_debounce_unless_native,
+    cv.only_when(CONF_DEBOUNCE, CONF_DEBOUNCE_MODE, "NATIVE"),
 )
 
 
 async def to_code(config: ConfigType) -> None:
-    var = await binary_sensor.new_binary_sensor(config)
+    # Without a debounce time the device is set to 1 ms; NATIVE is the only mode that takes one
+    debounce = config.get(CONF_DEBOUNCE)
+    var = await binary_sensor.new_binary_sensor(
+        config,
+        config[CONF_DEBOUNCE_MODE],
+        1 if debounce is None else debounce.total_milliseconds,
+    )
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
-
-    if debounce_time_setting := config.get(CONF_DEBOUNCE):
-        cg.add(var.set_debounce_time(debounce_time_setting.total_milliseconds))
-    else:
-        cg.add(var.set_debounce_time(1))  # default to 1 ms if not configured
-    cg.add(var.set_debounce_mode(config[CONF_DEBOUNCE_MODE]))

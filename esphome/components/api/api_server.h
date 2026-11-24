@@ -5,16 +5,20 @@
 #include "api_buffer.h"
 // Must precede clients_ so APIConnection is complete for default_delete (libc++).
 #include "api_connection.h"
-#ifdef USE_API_NOISE
+#if defined(USE_API_NOISE) || defined(USE_NOISE_SPARE_EPHEMERAL)
 // Only present in the build when the noise component is loaded
 #include "esphome/components/noise/noise.h"
 #endif
 #include "api_pb2.h"
 #include "api_pb2_service.h"
+#include "api_outgoing_connection.h"
 #include "esphome/components/socket/socket.h"
 #include "esphome/core/automation.h"
+#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
+#include "esphome/components/json/json_util.h"
+#endif
 #include "esphome/core/component.h"
-#include "esphome/core/controller.h"
+#include "esphome/core/entity_includes.h"
 #include "esphome/core/log.h"
 #include "esphome/core/string_ref.h"
 #ifdef USE_PROVISIONING
@@ -28,7 +32,10 @@
 #endif
 
 #include <array>
+#include <cstring>
 #include <memory>
+#include <span>
+#include <type_traits>
 #include <vector>
 
 namespace esphome::api {
@@ -43,9 +50,13 @@ struct SavedNoisePsk {
   noise::psk_t psk;
 } PACKED;  // NOLINT
 #endif
+#if defined(USE_API_NOISE) && defined(USE_OTA_ENCRYPTION_PROVISIONED)
+/// One-shot read of the provisioned key for a boot without an api server (safe mode); false when
+/// there is no key
+bool load_saved_noise_psk(noise::psk_t &out);
+#endif
 
-class APIServer final : public Component,
-                        public Controller
+class APIServer final : public Component
 #ifdef USE_CAMERA
     ,
                         public camera::CameraListener
@@ -86,61 +97,65 @@ class APIServer final : public Component,
   void set_noise_psk(const uint8_t *psk) { this->noise_ctx_.set_psk(psk); }
   noise::NoiseContext &get_noise_ctx() { return this->noise_ctx_; }
 #endif  // USE_API_NOISE
+#ifdef USE_API_OUTGOING_CONNECTION
+  // Called by APIConnection when a client declares itself a dial-back target in its hello
+  void on_outgoing_target_client(APIConnection *conn);
+#endif
 
   void handle_disconnect(APIConnection *conn);
 #ifdef USE_BINARY_SENSOR
-  void on_binary_sensor_update(binary_sensor::BinarySensor *obj) override;
+  void on_binary_sensor_update(binary_sensor::BinarySensor *obj);
 #endif
 #ifdef USE_COVER
-  void on_cover_update(cover::Cover *obj) override;
+  void on_cover_update(cover::Cover *obj);
 #endif
 #ifdef USE_FAN
-  void on_fan_update(fan::Fan *obj) override;
+  void on_fan_update(fan::Fan *obj);
 #endif
 #ifdef USE_LIGHT
-  void on_light_update(light::LightState *obj) override;
+  void on_light_update(light::LightState *obj);
 #endif
 #ifdef USE_SENSOR
-  void on_sensor_update(sensor::Sensor *obj) override;
+  void on_sensor_update(sensor::Sensor *obj);
 #endif
 #ifdef USE_SWITCH
-  void on_switch_update(switch_::Switch *obj) override;
+  void on_switch_update(switch_::Switch *obj);
 #endif
 #ifdef USE_TEXT_SENSOR
-  void on_text_sensor_update(text_sensor::TextSensor *obj) override;
+  void on_text_sensor_update(text_sensor::TextSensor *obj);
 #endif
 #ifdef USE_CLIMATE
-  void on_climate_update(climate::Climate *obj) override;
+  void on_climate_update(climate::Climate *obj);
 #endif
 #ifdef USE_NUMBER
-  void on_number_update(number::Number *obj) override;
+  void on_number_update(number::Number *obj);
 #endif
 #ifdef USE_DATETIME_DATE
-  void on_date_update(datetime::DateEntity *obj) override;
+  void on_date_update(datetime::DateEntity *obj);
 #endif
 #ifdef USE_DATETIME_TIME
-  void on_time_update(datetime::TimeEntity *obj) override;
+  void on_time_update(datetime::TimeEntity *obj);
 #endif
 #ifdef USE_DATETIME_DATETIME
-  void on_datetime_update(datetime::DateTimeEntity *obj) override;
+  void on_datetime_update(datetime::DateTimeEntity *obj);
 #endif
 #ifdef USE_TEXT
-  void on_text_update(text::Text *obj) override;
+  void on_text_update(text::Text *obj);
 #endif
 #ifdef USE_SELECT
-  void on_select_update(select::Select *obj) override;
+  void on_select_update(select::Select *obj);
 #endif
 #ifdef USE_LOCK
-  void on_lock_update(lock::Lock *obj) override;
+  void on_lock_update(lock::Lock *obj);
 #endif
 #ifdef USE_VALVE
-  void on_valve_update(valve::Valve *obj) override;
+  void on_valve_update(valve::Valve *obj);
 #endif
 #ifdef USE_MEDIA_PLAYER
-  void on_media_player_update(media_player::MediaPlayer *obj) override;
+  void on_media_player_update(media_player::MediaPlayer *obj);
 #endif
 #ifdef USE_WATER_HEATER
-  void on_water_heater_update(water_heater::WaterHeater *obj) override;
+  void on_water_heater_update(water_heater::WaterHeater *obj);
 #endif
 #ifdef USE_API_HOMEASSISTANT_SERVICES
   void send_homeassistant_action(const HomeassistantActionRequest &call);
@@ -175,6 +190,17 @@ class APIServer final : public Component,
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
   void send_action_response(uint32_t action_call_id, bool success, StringRef error_message,
                             const uint8_t *response_data, size_t response_data_len);
+  /// Send a response whose data `build` writes into a JSON root; with `with_data` false (an optional response the
+  /// client did not ask for), only the status. api.respond passes its data: lambda; the template only forwards it
+  /// to one shared out-of-line body.
+  template<typename F>
+  void send_action_response_json(uint32_t action_call_id, bool success, StringRef error_message, F &&build,
+                                 bool with_data = true) {
+    this->send_action_response_json_(
+        action_call_id, success, error_message,
+        [](void *ctx, JsonObject root) { (*static_cast<std::remove_reference_t<F> *>(ctx))(root); },
+        const_cast<void *>(static_cast<const void *>(std::addressof(build))), with_data);
+  }
 #endif  // USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
 #endif  // USE_API_USER_DEFINED_ACTION_RESPONSES
 #endif
@@ -183,23 +209,30 @@ class APIServer final : public Component,
 #endif
 
 #ifdef USE_ALARM_CONTROL_PANEL
-  void on_alarm_control_panel_update(alarm_control_panel::AlarmControlPanel *obj) override;
+  void on_alarm_control_panel_update(alarm_control_panel::AlarmControlPanel *obj);
 #endif
 #ifdef USE_EVENT
-  void on_event(event::Event *obj) override;
+  void on_event(event::Event *obj);
 #endif
 #ifdef USE_UPDATE
-  void on_update(update::UpdateEntity *obj) override;
+  void on_update(update::UpdateEntity *obj);
 #endif
 #ifdef USE_ZWAVE_PROXY
   void on_zwave_proxy_request(const ZWaveProxyRequest &msg);
 #endif
-#if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
-  void send_infrared_rf_receive_event(uint32_t device_id, uint32_t key, const std::vector<int32_t> *timings);
+#ifdef USE_SERIAL_PROXY_USB_IDENTITY
+  /// Tell every subscribed client that a serial proxy port's identity changed
+  void send_serial_proxy_identity(const SerialProxyIdentity &msg);
+#endif
+#ifdef USE_IR_RF
+  void send_infrared_rf_receive_event(uint32_t device_id, uint32_t key, std::span<const int32_t> timings);
 #endif
 
   bool is_connected() const { return this->api_connection_count_ != 0; }
   bool is_connected_with_state_subscription() const;
+  bool is_connected(bool state_subscription_only) const {
+    return state_subscription_only ? this->is_connected_with_state_subscription() : this->is_connected();
+  }
 
   // Range-for view over the populated slice [0, api_connection_count_). Read-only with respect
   // to ownership; callers get `const unique_ptr&` so they can invoke non-const methods on the
@@ -220,22 +253,26 @@ class APIServer final : public Component,
 
 #ifdef USE_API_HOMEASSISTANT_STATES
   struct HomeAssistantStateSubscription {
-    const char *entity_id;  // Pointer to flash (internal) or heap (external)
-    const char *attribute;  // Pointer to flash or nullptr (nullptr means no attribute)
-    std::function<void(StringRef)> callback;
+    const char *entity_id;  // Flash, a wizard input buffer, or the strings of an owned subscription
+    const char *attribute;  // nullptr means no attribute
+    Callback<void(StringRef)> callback;
     bool once;
-
-    // Dynamic storage for external components using std::string API (custom_api_device.h)
-    // These are only allocated when using the std::string overload (nullptr for const char* overload)
-    std::unique_ptr<std::string> entity_id_dynamic_storage;
-    std::unique_ptr<std::string> attribute_dynamic_storage;
+    // strlen(entity_id), so a state is matched without measuring every entry; Home Assistant ids are at most 255 bytes
+    uint16_t entity_id_len;
   };
+  // The extra list is grown with a byte copy
+  static_assert(std::is_trivially_copyable_v<HomeAssistantStateSubscription>);
 
-  // New const char* overload (for internal components - zero allocation)
-  void subscribe_home_assistant_state(const char *entity_id, const char *attribute, std::function<void(StringRef)> &&f);
-  void get_home_assistant_state(const char *entity_id, const char *attribute, std::function<void(StringRef)> &&f);
+  /// For internal components: entity_id and attribute must live as long as the server.
+  /// A [this] lambda is stored inline, without std::function or heap.
+  template<typename F> void subscribe_home_assistant_state(const char *entity_id, const char *attribute, F &&f) {
+    this->add_state_subscription_(entity_id, attribute, Callback<void(StringRef)>::create(std::forward<F>(f)), false);
+  }
+  template<typename F> void get_home_assistant_state(const char *entity_id, const char *attribute, F &&f) {
+    this->add_state_subscription_(entity_id, attribute, Callback<void(StringRef)>::create(std::forward<F>(f)), true);
+  }
 
-  // std::string overload with StringRef callback (for custom_api_device.h with zero-allocation callback)
+  // std::string overloads (for custom_api_device.h); the strings and callback are copied to the heap
   void subscribe_home_assistant_state(std::string entity_id, optional<std::string> attribute,
                                       std::function<void(StringRef)> &&f);
   void get_home_assistant_state(std::string entity_id, optional<std::string> attribute,
@@ -247,7 +284,42 @@ class APIServer final : public Component,
   void get_home_assistant_state(std::string entity_id, optional<std::string> attribute,
                                 std::function<void(const std::string &)> &&f);
 
-  const std::vector<HomeAssistantStateSubscription> &get_state_subs() const;
+  /// Call every subscription that matches a state from Home Assistant; state must be null-terminated
+  ESPHOME_ALWAYS_INLINE void dispatch_home_assistant_state(const HomeAssistantStateResponse &msg) {
+    // Counted subscriptions first, then the extra ones
+    bool extra = this->state_sub_list_(false).empty();
+    for (;; extra = true) {
+      std::span<const HomeAssistantStateSubscription> subs = this->state_sub_list_(extra);
+      for (const auto *it = subs.data(), *end = it + subs.size(); it != end; ++it) {
+        // A subscription without an attribute only takes states without one
+        // The stored length rejects most entries without reading the entity id
+        if (msg.entity_id.size() != it->entity_id_len ||
+            memcmp(msg.entity_id.c_str(), it->entity_id, it->entity_id_len) != 0 ||
+            (it->attribute != nullptr ? msg.attribute != it->attribute : !msg.attribute.empty()))
+          continue;
+        const size_t pos = it - subs.data();
+        it->callback.call(msg.state);
+        // A callback may subscribe, which can move or grow the list
+        subs = this->state_sub_list_(extra);
+        it = subs.data() + pos;
+        end = subs.data() + subs.size();
+      }
+      if (extra)
+        return;
+    }
+  }
+  /// The subscription at index in the order they are sent, or nullptr past the last one.
+  /// Adding a subscription can move the list, so do not keep the pointer across one.
+  const HomeAssistantStateSubscription *get_state_sub(size_t index) const;
+#ifdef USE_API_WIZARD_LINKED_INPUTS
+  /// Measure again the subscriptions whose entity id is this buffer, after the wizard wrote a new id into it.
+  void update_state_subscription_entity_id(const char *entity_id);
+#endif
+#ifdef USE_API_HOMEASSISTANT_IMPORTS
+  // Generated: subscribes the imported Home Assistant entities, and prints their dumps
+  HUB_PUBLISHER(homeassistant_subscribe)
+  HUB_PUBLISHER(homeassistant_dump)
+#endif
 #endif
 #ifdef USE_API_USER_DEFINED_ACTIONS
   const std::vector<UserServiceDescriptor *> &get_user_services() const { return this->user_services_; }
@@ -261,8 +333,22 @@ class APIServer final : public Component,
 #endif
 
  protected:
+#ifdef USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
+  void send_action_response_json_(uint32_t action_call_id, bool success, StringRef error_message,
+                                  void (*build)(void *ctx, JsonObject root), void *ctx, bool with_data);
+#endif
   // Accept incoming socket connections. Only called when socket has pending connections.
   void __attribute__((noinline)) accept_new_connections_();
+  /// Takes the socket into a new connection and starts it; callers must have
+  /// checked at_client_limit_() first
+  APIConnection *add_client_(std::unique_ptr<socket::Socket> sock);
+  bool at_client_limit_() const { return this->api_connection_count_ >= MAX_API_CONNECTIONS; }
+#ifdef USE_API_OUTGOING_CONNECTION
+  // Returns the new connection, or nullptr (socket dropped) when at the limit
+  APIConnection *add_outgoing_client_(std::unique_ptr<socket::Socket> sock);
+  bool has_outgoing_target_client_() const { return this->outgoing_target_count_ != 0; }
+  friend class OutgoingConnectionManager;
+#endif
   // Remove a disconnected client by index. Swaps with the last populated slot and resets it.
   void __attribute__((noinline)) remove_client_(uint8_t client_index);
 
@@ -288,14 +374,19 @@ class APIServer final : public Component,
 #endif  // USE_API_NOISE_PSK_FROM_YAML
 #endif  // USE_API_NOISE
 #ifdef USE_API_HOMEASSISTANT_STATES
-  // Helper methods to reduce code duplication
-  void add_state_subscription_(const char *entity_id, const char *attribute, std::function<void(StringRef)> &&f,
+  void add_state_subscription_(const char *entity_id, const char *attribute, Callback<void(StringRef)> callback,
                                bool once);
-  void add_state_subscription_(std::string entity_id, optional<std::string> attribute,
-                               std::function<void(StringRef)> &&f, bool once);
-  // Legacy helper: wraps std::string callback and delegates to StringRef version
-  void add_state_subscription_(std::string entity_id, optional<std::string> attribute,
-                               std::function<void(const std::string &)> &&f, bool once);
+  void add_extra_state_subscription_(const HomeAssistantStateSubscription &sub);
+  // The counted subscriptions (none without a count), or the extra ones
+  ESPHOME_ALWAYS_INLINE std::span<const HomeAssistantStateSubscription> state_sub_list_(bool extra) const {
+    if (extra)
+      return {this->extra_state_subs_, this->extra_state_sub_count_};
+#ifdef HOMEASSISTANT_STATE_SUBSCRIPTION_COUNT
+    return this->state_subs_;
+#else
+    return {};
+#endif
+  }
 #endif  // USE_API_HOMEASSISTANT_STATES
   // No explicit close() needed — listen sockets have no active connections on
   // failure/shutdown. Destructor handles fd cleanup (close or abort per platform).
@@ -303,6 +394,8 @@ class APIServer final : public Component,
     delete this->socket_;
     this->socket_ = nullptr;
   }
+  /// Log the failure, drop the listen socket, and mark the component failed
+  /// unless this build can still dial out
   void socket_failed_(const LogString *msg);
   // Pointers and pointer-like types first (4 bytes each)
   socket::ListenSocket *socket_{nullptr};
@@ -314,7 +407,7 @@ class APIServer final : public Component,
 #endif
 
   // 4-byte aligned types
-  uint32_t reboot_timeout_{300000};
+  uint32_t reboot_timeout_{900000};  // Keep in sync with DEFAULT_REBOOT_TIMEOUT in __init__.py
   uint32_t last_connected_{0};
 
   // Slots [0, api_connection_count_) are populated; trailing slots are always nullptr.
@@ -326,7 +419,14 @@ class APIServer final : public Component,
   // since the buffer would almost always reallocate on first use.
   APIBuffer shared_write_buffer_;
 #ifdef USE_API_HOMEASSISTANT_STATES
-  std::vector<HomeAssistantStateSubscription> state_subs_;
+#ifdef HOMEASSISTANT_STATE_SUBSCRIPTION_COUNT
+  // The homeassistant entities' subscriptions, counted at build time
+  StaticVector<HomeAssistantStateSubscription, HOMEASSISTANT_STATE_SUBSCRIPTION_COUNT> state_subs_;
+#endif
+  // Every other subscription (CustomAPIDevice, or beyond the count), sent after state_subs_. Grown to fit
+  // during setup, never freed.
+  HomeAssistantStateSubscription *extra_state_subs_{nullptr};
+  uint16_t extra_state_sub_count_{0};
 #endif
 #ifdef USE_API_USER_DEFINED_ACTIONS
   std::vector<UserServiceDescriptor *> user_services_;
@@ -351,18 +451,23 @@ class APIServer final : public Component,
 #endif
 
   // Group smaller types together
-  uint16_t port_{6053};
-  uint16_t batch_delay_{100};
-  // Connection limits - these defaults will be overridden by config values
-  // from cv.SplitDefault in __init__.py which sets platform-specific defaults.
-  uint8_t listen_backlog_{4};
+  uint16_t port_{6053};        // Keep in sync with DEFAULT_PORT in __init__.py
+  uint16_t batch_delay_{100};  // Keep in sync with DEFAULT_BATCH_DELAY in __init__.py
+  uint8_t listen_backlog_{4};  // Keep in sync with DEFAULT_LISTEN_BACKLOG in __init__.py
   bool shutting_down_ = false;
   uint8_t api_connection_count_{0};
+#ifdef USE_API_OUTGOING_CONNECTION
+  // Connected clients whose hello declared them a dial-back target
+  uint8_t outgoing_target_count_{0};
+#endif
 #if defined(USE_PROVISIONING) && defined(USE_API_NOISE)
   // Index assigned by the provisioning manager for reporting this transport's state.
   uint8_t provisioning_source_{0};
 #endif
 
+#ifdef USE_NOISE_SPARE_EPHEMERAL
+  void refill_spare_ephemeral_();
+#endif
 #ifdef USE_API_NOISE
   noise::NoiseContext noise_ctx_;
 #ifndef USE_API_NOISE_PSK_FROM_YAML
@@ -370,20 +475,12 @@ class APIServer final : public Component,
 #endif
   ESPPreferenceObject noise_pref_;
 #endif  // USE_API_NOISE
+#ifdef USE_API_OUTGOING_CONNECTION
+  OutgoingConnectionManager outgoing_conn_;
+#endif
 };
 
 extern APIServer *global_api_server;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-
-template<typename... Ts> class APIConnectedCondition final : public Condition<Ts...> {
-  TEMPLATABLE_VALUE(bool, state_subscription_only)
- public:
-  bool check(const Ts &...x) override {
-    if (this->state_subscription_only_.value(x...)) {
-      return global_api_server->is_connected_with_state_subscription();
-    }
-    return global_api_server->is_connected();
-  }
-};
 
 }  // namespace esphome::api
 #endif

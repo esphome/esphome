@@ -6,14 +6,11 @@
 #include "esphome/core/string_ref.h"
 #include "esphome/components/wifi/scan_list.h"
 #include "esphome/components/wifi/wifi_component.h"
-#ifdef USE_PROVISIONING
-#include "esphome/components/provisioning/provisioning.h"
-#endif
 #include "captive_index.h"
 
 namespace esphome::captive_portal {
 
-static const char *const TAG = "captive_portal";
+ESPHOME_LOG_TAG(TAG, "captive_portal");
 
 void CaptivePortal::handle_config(AsyncWebServerRequest *request) {
   AsyncResponseStream *stream = request->beginResponseStream(ESPHOME_F("application/json"));
@@ -61,8 +58,8 @@ void CaptivePortal::handle_config(AsyncWebServerRequest *request) {
   request->send(stream);
 }
 void CaptivePortal::handle_wifisave(AsyncWebServerRequest *request) {
-  const auto &ssid = request->arg("ssid");
-  const auto &psk = request->arg("psk");
+  const auto &ssid = request->arg(ESPHOME_F("ssid"));
+  const auto &psk = request->arg(ESPHOME_F("psk"));
   ESP_LOGI(TAG,
            "Requested WiFi Settings Change:\n"
            "  SSID='%s'\n"
@@ -81,38 +78,17 @@ void CaptivePortal::handle_wifisave(AsyncWebServerRequest *request) {
 void CaptivePortal::setup() {
   // Disable loop by default - will be enabled when captive portal starts
   this->disable_loop();
-#ifdef USE_PROVISIONING
-  // The captive portal is a provisioning surface: once the provisioning window
-  // has closed, stop serving it. WiFi's own closed-callback shuts down the
-  // access point the portal runs on, and the gated fallback in WiFiComponent's
-  // loop() ensures neither is started again afterwards.
-  if (provisioning::global_provisioning_manager != nullptr) {
-    provisioning::global_provisioning_manager->add_on_closed_callback([this]() {
-      if (this->active_) {
-        ESP_LOGD(TAG, "Provisioning window closed; stopping captive portal");
-        this->end();
-      }
-    });
-  }
-#endif
 }
 void CaptivePortal::start() {
+  // Each start takes a web server reference that end() returns once
+  if (this->active_)
+    return;
   this->base_->init();
   if (!this->initialized_) {
     this->base_->add_handler_without_auth(this);
   }
 
-  network::IPAddress ip = wifi::global_wifi_component->wifi_soft_ap_ip();
-
-#if defined(USE_ESP32)
-  // Create DNS server instance for ESP-IDF
-  this->dns_server_ = make_unique<DNSServer>();
-  this->dns_server_->start(ip);
-#elif defined(USE_ARDUINO)
-  this->dns_server_ = make_unique<DNSServer>();
-  this->dns_server_->setErrorReplyCode(DNSReplyCode::NoError);
-  this->dns_server_->start(53, ESPHOME_F("*"), ip);
-#endif
+  this->dns_.start(wifi::global_wifi_component->wifi_soft_ap_ip());
 
   this->initialized_ = true;
   this->active_ = true;
@@ -141,11 +117,7 @@ void CaptivePortal::handleRequest(AsyncWebServerRequest *req) {
   // All other requests get the captive portal page
   // This includes OS captive portal detection endpoints which will trigger
   // the captive portal when they don't receive their expected responses
-#ifndef USE_ESP8266
   auto *response = req->beginResponse(200, ESPHOME_F("text/html"), INDEX_GZ, sizeof(INDEX_GZ));
-#else
-  auto *response = req->beginResponse_P(200, ESPHOME_F("text/html"), INDEX_GZ, sizeof(INDEX_GZ));
-#endif
 #ifdef USE_CAPTIVE_PORTAL_GZIP
   response->addHeader(ESPHOME_F("Content-Encoding"), ESPHOME_F("gzip"));
 #else

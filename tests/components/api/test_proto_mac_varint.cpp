@@ -59,7 +59,7 @@ static void verify_mac(uint64_t mac, size_t expected_bytes) {
 #ifdef ESPHOME_DEBUG_API
   uint8_t *proto_debug_end_ = api_buf.data() + api_buf.size();
 #endif
-  ProtoEncode::encode_varint_raw_48bit(pos PROTO_ENCODE_DEBUG_ARG, mac);
+  pos = ProtoEncode::encode_varint_raw_48bit(pos PROTO_ENCODE_DEBUG_ARG, mac);
   size_t new_len = pos - api_buf.data();
 
   EXPECT_EQ(new_len, expected_bytes) << "mac=0x" << std::hex << mac << std::dec;

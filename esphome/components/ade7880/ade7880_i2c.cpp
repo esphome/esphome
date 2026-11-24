@@ -11,12 +11,6 @@
 
 namespace esphome::ade7880 {
 
-// adapted from https://stackoverflow.com/a/55912127/1886371
-template<size_t Bits, typename T> inline T sign_extend(const T &v) noexcept {
-  using S = struct { signed Val : Bits; };
-  return reinterpret_cast<const S *>(&v)->Val;
-}
-
 // Register types
 // unsigned 8-bit (uint8_t)
 // signed 10-bit - 16-bit ZP on wire (int16_t, needs sign extension)
@@ -30,8 +24,8 @@ template<size_t Bits, typename T> inline T sign_extend(const T &v) noexcept {
 // signed 32-bit (int32_t)
 
 uint8_t ADE7880::read_u8_register16_(uint16_t a_register) {
-  uint8_t in;
-  this->read_register16(a_register, &in, sizeof(in));
+  uint8_t in{0};
+  this->read_byte_reg16(a_register, &in);
   return in;
 }
 
@@ -49,7 +43,7 @@ uint16_t ADE7880::read_u16_register16_(uint16_t a_register) {
 
 int32_t ADE7880::read_s24zp_register16_(uint16_t a_register) {
   // s24zp means 24 bit signed value in the lower 24 bits of a 32-bit register
-  int32_t in;
+  uint32_t in;
   this->read_register16(a_register, reinterpret_cast<uint8_t *>(&in), sizeof(in));
   return sign_extend<24>(convert_big_endian(in));
 }
@@ -66,9 +60,7 @@ uint32_t ADE7880::read_u32_register16_(uint16_t a_register) {
   return convert_big_endian(in);
 }
 
-void ADE7880::write_u8_register16_(uint16_t a_register, uint8_t value) {
-  this->write_register16(a_register, &value, sizeof(value));
-}
+void ADE7880::write_u8_register16_(uint16_t a_register, uint8_t value) { this->write_byte_reg16(a_register, value); }
 
 void ADE7880::write_s10zp_register16_(uint16_t a_register, int16_t value) {
   int16_t out = convert_big_endian(value & 0x03FF);

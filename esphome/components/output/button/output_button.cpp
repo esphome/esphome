@@ -1,19 +1,12 @@
 #include "output_button.h"
-#include "esphome/core/log.h"
+#include "esphome/core/application.h"
 
 namespace esphome::output {
 
-static const char *const TAG = "output.button";
-
-void OutputButton::dump_config() {
-  LOG_BUTTON("", "Output Button", this);
-  ESP_LOGCONFIG(TAG, "  Duration: %.1fs", this->duration_ / 1e3f);
-}
-void OutputButton::press_action() {
-  this->output_->turn_on();
-
-  // Use a named timeout so that it's automatically cancelled if button is pressed again before it's reset
-  this->set_timeout("reset", this->duration_, [this]() { this->output_->turn_off(); });
+void press_output_button(button::Button *button, BinaryOutput *output, uint32_t duration) {
+  output->turn_on();
+  // Keyed on the button, so a second press replaces the pending reset instead of stacking another
+  App.scheduler.set_timeout(button, duration, [output]() { output->turn_off(); });
 }
 
 }  // namespace esphome::output

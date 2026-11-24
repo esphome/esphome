@@ -23,17 +23,4 @@ class LGProtocol : public RemoteProtocol<LGData> {
 
 DECLARE_REMOTE_PROTOCOL(LG)
 
-template<typename... Ts> class LGAction : public RemoteTransmitterActionBase<Ts...> {
- public:
-  TEMPLATABLE_VALUE(uint32_t, data)
-  TEMPLATABLE_VALUE(uint8_t, nbits)
-
-  void encode(RemoteTransmitData *dst, Ts... x) override {
-    LGData data{};
-    data.data = this->data_.value(x...);
-    data.nbits = this->nbits_.value(x...);
-    LGProtocol().encode(dst, data);
-  }
-};
-
 }  // namespace esphome::remote_base

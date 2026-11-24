@@ -1,0 +1,5 @@
+esphome:
+  name: test
+
+bk72xx:
+  board: generic-bk7231n-qfn32-tuya

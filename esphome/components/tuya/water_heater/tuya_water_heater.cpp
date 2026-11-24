@@ -3,9 +3,9 @@
 
 namespace esphome::tuya {
 
-static const char *const TAG = "tuya.water_heater";
+ESPHOME_LOG_TAG(TAG, "tuya.water_heater");
 
-void TuyaWaterHeater::setup() {
+void TuyaWaterHeater::register_listeners() {
   if (this->switch_id_.has_value()) {
     this->parent_->register_listener(*this->switch_id_, [this](const TuyaDatapoint &datapoint) {
       ESP_LOGV(TAG, "MCU reported switch is: %s", ONOFF(datapoint.value_bool));
@@ -175,7 +175,7 @@ water_heater::WaterHeaterMode TuyaWaterHeater::default_on_mode_() const {
   return water_heater::WATER_HEATER_MODE_ELECTRIC;
 }
 
-void TuyaWaterHeater::dump_config() {
+void TuyaWaterHeater::dump_child_config() {
   LOG_WATER_HEATER("", "Tuya Water Heater", this);
   if (this->switch_id_.has_value()) {
     ESP_LOGCONFIG(TAG, "  Switch has datapoint ID %u", *this->switch_id_);

@@ -4,7 +4,7 @@
 
 namespace esphome::ssd1327_spi {
 
-static const char *const TAG = "ssd1327_spi";
+ESPHOME_LOG_TAG(TAG, "ssd1327_spi");
 
 void SPISSD1327::setup() {
   this->spi_setup();

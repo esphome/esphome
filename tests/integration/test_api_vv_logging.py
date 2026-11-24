@@ -8,6 +8,7 @@ from typing import Any
 from aioesphomeapi import LogLevel, SensorInfo
 import pytest
 
+from .state_utils import assert_device_name
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -45,9 +46,7 @@ async def test_api_vv_logging(
         client.subscribe_logs(on_log, log_level=LogLevel.LOG_LEVEL_VERY_VERBOSE)
 
         # Wait for device to be ready
-        device_info = await client.device_info()
-        assert device_info is not None
-        assert device_info.name == "vv-logging-test"
+        await assert_device_name(client, "vv-logging-test")
 
         # Subscribe to sensor states
         states = {}

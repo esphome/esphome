@@ -25,7 +25,7 @@ from ..defines import (
 )
 from ..lv_validation import lv_color, lv_int
 from ..lvcode import lv, lv_assign, lv_expr
-from ..types import LvType, ObjUpdateAction
+from ..types import LvType
 from . import Widget, WidgetType, get_widgets
 from .obj import obj_spec
 
@@ -238,7 +238,7 @@ chart_spec = ChartType()
 
 @automation.register_action(
     "lvgl.chart.series.update",
-    ObjUpdateAction,
+    automation.ApplyAction,
     cv.maybe_simple_value(SERIES_MODIFY_SCHEMA, key=CONF_ID),
     synchronous=True,
 )
@@ -265,6 +265,4 @@ async def chart_series_update_to_code(config, action_id, template_arg, args):
                 lv.chart_set_next_value(w.var, w.obj, value)
         lv.chart_refresh(w.var)
 
-    return await action_to_code(
-        widgets, do_update, action_id, template_arg, args, config
-    )
+    return await action_to_code(widgets, do_update, action_id, template_arg, args)

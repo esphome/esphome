@@ -1,0 +1,22 @@
+esphome:
+  name: udp-multicast-test
+
+host:
+
+api:
+
+logger:
+  level: DEBUG
+
+udp:
+  - id: test_udp
+    listen_address: 239.1.2.3
+    addresses:
+      - "239.1.2.3"
+    port:
+      listen_port: UDP_LISTEN_PORT_PLACEHOLDER
+      broadcast_port: UDP_LISTEN_PORT_PLACEHOLDER
+    on_receive:
+      - logger.log:
+          format: "Received UDP: %d bytes"
+          args: [data.size()]

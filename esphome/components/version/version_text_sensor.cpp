@@ -7,7 +7,7 @@
 
 namespace esphome::version {
 
-static const char *const TAG = "version.text_sensor";
+ESPHOME_LOG_TAG(TAG, "version.text_sensor");
 
 void VersionTextSensor::setup() {
   static const char HASH_PREFIX[] PROGMEM = ESPHOME_VERSION " (config hash 0x";
@@ -26,8 +26,10 @@ void VersionTextSensor::setup() {
   } else {
     ESPHOME_strncpy_P(version_str, HASH_PREFIX, sizeof(version_str));
 
-    size_t len = strlen(version_str);
-    snprintf(version_str + len, sizeof(version_str) - len, "%08" PRIx32, App.get_config_hash());
+    constexpr size_t hash_pos = sizeof(HASH_PREFIX) - 1;
+    const uint32_t hash = convert_big_endian(App.get_config_hash());
+    format_hex_to(version_str + hash_pos, sizeof(version_str) - hash_pos, reinterpret_cast<const uint8_t *>(&hash),
+                  sizeof(hash));
   }
 
   // Keep hide_timestamp behavior independent from hide_hash so all
@@ -41,9 +43,11 @@ void VersionTextSensor::setup() {
   }
 
   // The closing parenthesis is part of the config-hash suffix and must
-  // only be appended when that suffix is present.
+  // only be appended when that suffix is present; buf_size leaves room for it.
   if (!this->hide_hash_) {
-    strncat(version_str, ")", sizeof(version_str) - strlen(version_str) - 1);
+    const size_t len = strlen(version_str);
+    version_str[len] = ')';
+    version_str[len + 1] = '\0';
   }
   version_str[sizeof(version_str) - 1] = '\0';
   this->publish_state(version_str);

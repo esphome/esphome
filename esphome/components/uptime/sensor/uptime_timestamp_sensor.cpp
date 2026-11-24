@@ -8,7 +8,7 @@
 
 namespace esphome::uptime {
 
-static const char *const TAG = "uptime.sensor";
+ESPHOME_LOG_TAG(TAG, "uptime.sensor");
 
 void UptimeTimestampSensor::setup() {
   this->time_->add_on_time_sync_callback([this]() {

@@ -2,28 +2,17 @@
 
 #include "adc_sensor.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 #include <cinttypes>
 
 namespace esphome::adc {
 
-static const char *const TAG = "adc";
+ESPHOME_LOG_TAG(TAG, "adc");
 
 adc_oneshot_unit_handle_t ADCSensor::shared_adc_handles[2] = {nullptr, nullptr};
 
-const LogString *attenuation_to_str(adc_atten_t attenuation) {
-  switch (attenuation) {
-    case ADC_ATTEN_DB_0:
-      return LOG_STR("0 dB");
-    case ADC_ATTEN_DB_2_5:
-      return LOG_STR("2.5 dB");
-    case ADC_ATTEN_DB_6:
-      return LOG_STR("6 dB");
-    case ADC_ATTEN_DB_12_COMPAT:
-      return LOG_STR("12 dB");
-    default:
-      return LOG_STR("Unknown Attenuation");
-  }
-}
+// Indexed by adc_atten_t
+PROGMEM_STRING_TABLE(AttenuationStrings, "0 dB", "2.5 dB", "6 dB", "12 dB", "Unknown Attenuation");
 
 const LogString *adc_unit_to_str(adc_unit_t unit) {
   switch (unit) {
@@ -94,11 +83,11 @@ void ADCSensor::setup() {
     }
 #elif defined(ADC_CALI_SCHEME_LINE_FITTING_SUPPORTED)
     adc_cali_line_fitting_config_t cali_config = {
-      .unit_id = this->adc_unit_,
-      .atten = this->attenuation_,
-      .bitwidth = ADC_BITWIDTH_DEFAULT,
+        .unit_id = this->adc_unit_,
+        .atten = this->attenuation_,
+        .bitwidth = ADC_BITWIDTH_DEFAULT,
 #if !defined(USE_ESP32_VARIANT_ESP32S2) && !defined(USE_ESP32_VARIANT_ESP32C2)
-      .default_vref = 1100,  // Default reference voltage in mV
+        .default_vref = 1100,  // Default reference voltage in mV
 #endif  // !defined(USE_ESP32_VARIANT_ESP32S2) && !defined(USE_ESP32_VARIANT_ESP32C2)
     };
     err = adc_cali_create_scheme_line_fitting(&cali_config, &handle);
@@ -140,8 +129,8 @@ void ADCSensor::dump_config() {
                 "    Calibration:  %s\n"
                 "    Overall Init: %s",
                 this->channel_, LOG_STR_ARG(adc_unit_to_str(this->adc_unit_)),
-                this->autorange_ ? "Auto" : LOG_STR_ARG(attenuation_to_str(this->attenuation_)), this->sample_count_,
-                LOG_STR_ARG(sampling_mode_to_str(this->sampling_mode_)),
+                this->autorange_ ? "Auto" : LOG_STR_ARG(AttenuationStrings::get_log_str(this->attenuation_)),
+                this->sample_count_, LOG_STR_ARG(SamplingModeStrings::get_log_str(this->sampling_mode_)),
                 this->setup_flags_.handle_init_complete ? "OK" : "FAILED",
                 this->setup_flags_.config_complete ? "OK" : "FAILED", calibration_status,
                 this->setup_flags_.init_complete ? "OK" : "FAILED");
@@ -248,11 +237,11 @@ float ADCSensor::sample_autorange_() {
               (err == ESP_OK) ? "SUCCESS" : "FAILED", err);
 #elif defined(ADC_CALI_SCHEME_LINE_FITTING_SUPPORTED)
     adc_cali_line_fitting_config_t cali_config = {
-      .unit_id = this->adc_unit_,
-      .atten = atten,
-      .bitwidth = ADC_BITWIDTH_DEFAULT,
+        .unit_id = this->adc_unit_,
+        .atten = atten,
+        .bitwidth = ADC_BITWIDTH_DEFAULT,
 #if !defined(USE_ESP32_VARIANT_ESP32S2) && !defined(USE_ESP32_VARIANT_ESP32C2)
-      .default_vref = 1100,
+        .default_vref = 1100,
 #endif
     };
     err = adc_cali_create_scheme_line_fitting(&cali_config, &handle);

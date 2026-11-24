@@ -1,0 +1,33 @@
+esphome:
+  name: test
+
+esp8266:
+  board: esp01_1m
+
+sensor:
+  - platform: template
+    id: room_temp
+    lambda: return 21.0;
+
+climate:
+  - platform: template
+    id: climate_a
+    name: Climate A
+    optimistic: true
+    sensor: room_temp
+    supported_modes: ["OFF", HEAT]
+    custom_fan_modes: [turbo, silent]
+    custom_presets: [eco]
+  - platform: template
+    id: climate_b
+    name: Climate B
+    optimistic: true
+    sensor: room_temp
+    supported_modes: ["OFF", HEAT]
+    custom_fan_modes: [turbo, silent]
+  - platform: template
+    id: climate_c
+    name: Climate C
+    optimistic: true
+    sensor: room_temp
+    supported_modes: ["OFF", HEAT]

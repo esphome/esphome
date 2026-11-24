@@ -41,3 +41,4 @@ syslog:
   level: DEBUG
   strip: true
   facility: 16
+  format: SYSLOG_FORMAT_PLACEHOLDER

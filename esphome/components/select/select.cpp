@@ -6,26 +6,26 @@
 
 namespace esphome::select {
 
-static const char *const TAG = "select";
+ESPHOME_LOG_TAG(TAG, "select");
 
 void Select::publish_state(const char *state) {
   auto index = this->index_of(state);
   if (index.has_value()) {
     this->publish_state(index.value());
   } else {
-    ESP_LOGE(TAG, "'%s': Invalid option %s", this->get_name().c_str(), state);
+    ESP_LOGE(TAG, "'%s': Invalid option %s", LOG_STR_ARG(this->get_log_name()), state);
   }
 }
 
 void Select::publish_state(size_t index) {
   if (!this->has_index(index)) {
-    ESP_LOGE(TAG, "'%s': Invalid index %zu", this->get_name().c_str(), index);
+    ESP_LOGE(TAG, "'%s': Invalid index %zu", LOG_STR_ARG(this->get_log_name()), index);
     return;
   }
   const char *option = this->option_at(index);
   this->set_has_state(true);
   this->active_index_ = index;
-  ESP_LOGV(TAG, "'%s' >> %s (%zu)", this->get_name().c_str(), option, index);
+  ESP_LOGV(TAG, "'%s' >> %s (%zu)", LOG_STR_ARG(this->get_log_name()), option, index);
   this->state_callback_.call(index);
 #if defined(USE_SELECT) && defined(USE_CONTROLLER_REGISTRY)
   ControllerRegistry::notify_select_update(this);
@@ -35,6 +35,9 @@ void Select::publish_state(size_t index) {
 optional<size_t> Select::index_of(const char *option, size_t len) const {
   const auto &options = traits.get_options();
   for (size_t i = 0; i < options.size(); i++) {
+    // Skip most other options on their first byte; `option` need not be terminated, so only read it when len > 0
+    if (len != 0 && options[i][0] != option[0])
+      continue;
     if (strncmp(options[i], option, len) == 0 && options[i][len] == '\0') {
       return i;
     }

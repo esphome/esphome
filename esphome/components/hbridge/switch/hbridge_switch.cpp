@@ -5,23 +5,18 @@
 
 namespace esphome::hbridge {
 
-static const char *const TAG = "switch.hbridge";
+ESPHOME_LOG_TAG(TAG, "switch.hbridge");
 
 float HBridgeSwitch::get_setup_priority() const { return setup_priority::HARDWARE; }
 void HBridgeSwitch::setup() {
-  optional<bool> initial_state = this->get_initial_state_with_restore_mode();
-
   // Like GPIOSwitch does, set the pin state both before and after pin setup()
   this->on_pin_->digital_write(false);
-  this->on_pin_->setup();
-  this->on_pin_->digital_write(false);
+  setup_output_pin(this->on_pin_, false);
 
   this->off_pin_->digital_write(false);
-  this->off_pin_->setup();
-  this->off_pin_->digital_write(false);
+  setup_output_pin(this->off_pin_, false);
 
-  if (initial_state.has_value())
-    this->write_state(initial_state.value());
+  this->restore();
 }
 
 void HBridgeSwitch::dump_config() {

@@ -1,0 +1,21 @@
+---
+esphome:
+  name: test
+  on_boot:
+    then:
+      - canbus.send: [0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08]
+      - canbus.send:
+          can_id: 0x100
+          data: [0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08]
+      - canbus.send: !lambda return {0x09};
+
+esp32:
+  board: esp32dev
+
+canbus:
+  - platform: esp32_can
+    id: can_bus
+    rx_pin: 4
+    tx_pin: 5
+    can_id: 4
+    bit_rate: 50kbps

@@ -16,6 +16,7 @@ from esphome.const import (
     DEVICE_CLASS_TEMPERATURE,
     DEVICE_CLASS_VOLTAGE,
     STATE_CLASS_MEASUREMENT,
+    STATE_CLASS_TOTAL,
     STATE_CLASS_TOTAL_INCREASING,
     UNIT_AMPERE,
     UNIT_CELSIUS,
@@ -31,7 +32,7 @@ from esphome.types import ConfigType
 
 from .. import CONF_EMONTX_ID, CONF_TAG_NAME, EmonTx, emontx_ns
 
-EmonTxSensor = emontx_ns.class_("EmonTxSensor", sensor.Sensor, cg.Component)
+EmonTxSensor = emontx_ns.class_("EmonTxSensor", sensor.Sensor)
 
 # Known emonTx/avrdb JSON tag conventions, gathered from real firmware
 # (see https://github.com/openenergymonitor/avrdb_firmware), used to decide
@@ -70,7 +71,7 @@ SENSOR_CONFIGS = {
     "E": {
         CONF_UNIT_OF_MEASUREMENT: UNIT_WATT_HOURS,
         CONF_DEVICE_CLASS: DEVICE_CLASS_ENERGY,
-        CONF_STATE_CLASS: STATE_CLASS_TOTAL_INCREASING,
+        CONF_STATE_CLASS: STATE_CLASS_TOTAL,
         CONF_ACCURACY_DECIMALS: 0,
     },
     "V": {
@@ -206,7 +207,6 @@ CONFIG_SCHEMA = cv.All(BASE_SCHEMA, apply_tag_defaults)
 
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
     await sensor.register_sensor(var, config)
     hub = await cg.get_variable(config[CONF_EMONTX_ID])
     cg.add(hub.register_sensor(config[CONF_TAG_NAME], var))

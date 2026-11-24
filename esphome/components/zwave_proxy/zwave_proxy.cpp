@@ -12,7 +12,7 @@
 
 namespace esphome::zwave_proxy {
 
-static const char *const TAG = "zwave_proxy";
+ESPHOME_LOG_TAG(TAG, "zwave_proxy");
 
 // Maximum bytes to log in very verbose hex output (168 * 3 = 504, under TX buffer size of 512)
 static constexpr size_t ZWAVE_MAX_LOG_BYTES = 168;
@@ -34,21 +34,18 @@ static constexpr bool is_bootloader_menu_byte(uint8_t byte) {
   return byte == 0 || byte == '\r' || byte == '\n' || (byte >= 0x20 && byte <= 0x7E);
 }
 
-static uint8_t calculate_frame_checksum(const uint8_t *data, uint8_t length) {
-  // Calculate Z-Wave frame checksum
-  // XOR all bytes between SOF and checksum position (exclusive)
+static uint8_t calculate_frame_checksum(const uint8_t *data, size_t length) {
   // Initial value is 0xFF per Z-Wave protocol specification
-  uint8_t checksum = 0xFF;
-  for (uint8_t i = 1; i < length - 1; i++) {
-    checksum ^= data[i];
-  }
-  return checksum;
+  return xor_bytes(data + 1, length - 2, 0xFF);
 }
 
 ZWaveProxy::ZWaveProxy() { global_zwave_proxy = this; }
 
 void ZWaveProxy::setup() {
   this->setup_time_ = App.get_loop_component_start_time();
+#if ZWAVE_PROXY_UART_COUNT > 0
+  this->select_uart_();
+#endif
   this->was_connected_ = this->parent_->is_connected();
   if (this->was_connected_) {
     this->send_simple_command_(ZWAVE_COMMAND_GET_NETWORK_IDS);
@@ -103,6 +100,9 @@ void ZWaveProxy::loop() {
     this->api_connection_ = nullptr;  // Unsubscribe if disconnected
   }
 
+#if ZWAVE_PROXY_UART_COUNT > 0
+  this->select_uart_();
+#endif
   const bool connected = this->parent_->is_connected();
   if (this->was_connected_ != connected) {
     this->on_connection_changed_(connected);
@@ -185,6 +185,9 @@ void ZWaveProxy::dump_config() {
                 "  Home ID: %s",
                 this->home_id_ready_ ? format_hex_pretty_to(hex_buf, this->home_id_.data(), this->home_id_.size())
                                      : LOG_STR_LITERAL("unknown"));
+#if ZWAVE_PROXY_UART_COUNT > 0
+  ESP_LOGCONFIG(TAG, "  UARTs: %u", static_cast<unsigned>(this->uarts_.size()));
+#endif
 }
 
 void ZWaveProxy::api_connection_authenticated(api::APIConnection *conn) {
@@ -247,6 +250,27 @@ void ZWaveProxy::on_connection_changed_(bool connected) {
     this->clear_home_id_();
   }
 }
+
+#if ZWAVE_PROXY_UART_COUNT > 0
+void ZWaveProxy::select_uart_() {
+  if (this->parent_->is_connected()) {
+    return;
+  }
+  for (auto *candidate : this->uarts_) {
+    if (!candidate->is_connected()) {
+      continue;
+    }
+    // loop() never saw the old modem go away, so report it before the new one is reported
+    if (this->was_connected_) {
+      this->on_connection_changed_(false);
+    }
+    this->parent_ = candidate;
+    // A modem that was plugged in but not in use may have sent data that nothing read
+    this->discard_available();
+    return;
+  }
+}
+#endif
 
 void ZWaveProxy::retry_home_id_query_() {
   if (this->home_id_ready_) {
@@ -317,10 +341,7 @@ void ZWaveProxy::send_frame_(const uint8_t *data, size_t length) {
     return;
   }
 
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
-  char hex_buf[format_hex_pretty_size(ZWAVE_MAX_LOG_BYTES)];
-#endif
-  ESP_LOGVV(TAG, "Sending: %s", format_hex_pretty_to(hex_buf, data, length));
+  ESP_LOGVV_HEX(TAG, data, length, ZWAVE_MAX_LOG_BYTES, "Sending: %s");
 
   this->write_array(data, length);
 }
@@ -401,10 +422,7 @@ bool ZWaveProxy::parse_byte_(uint8_t byte) {
         this->parsing_state_ = ZWAVE_PARSING_STATE_SEND_NAK;
       } else {
         this->parsing_state_ = ZWAVE_PARSING_STATE_SEND_ACK;
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
-        char hex_buf[format_hex_pretty_size(ZWAVE_MAX_LOG_BYTES)];
-#endif
-        ESP_LOGVV(TAG, "Received frame: %s", format_hex_pretty_to(hex_buf, this->buffer_.data(), this->buffer_index_));
+        ESP_LOGVV_HEX(TAG, this->buffer_.data(), this->buffer_index_, ZWAVE_MAX_LOG_BYTES, "Received frame: %s");
         frame_completed = true;
       }
       this->response_handler_();

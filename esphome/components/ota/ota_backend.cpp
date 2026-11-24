@@ -1,5 +1,9 @@
 #include "ota_backend.h"
 
+#ifdef ESPHOME_THREAD_MULTI_ATOMICS
+#include <atomic>
+#endif
+
 namespace esphome::ota {
 
 bool version_is_older(const char *candidate, const char *reference) {
@@ -29,6 +33,60 @@ bool version_is_older(const char *candidate, const char *reference) {
       return false;  // Both strings exhausted with all components equal.
   }
 }
+
+// Non-blocking; may be released by another task than the one that took it.
+#ifdef ESPHOME_THREAD_MULTI_ATOMICS
+// uint32_t: narrower atomics compile to a masked CAS on Xtensa.
+static std::atomic<uint32_t> update_locked{0};  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+static bool update_lock_test_and_set() { return update_locked.exchange(1) == 0; }
+static void update_lock_clear() { update_locked.store(0); }
+#else
+static bool update_locked = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+#ifdef ESPHOME_THREAD_MULTI_NO_ATOMICS
+// BK72xx has no atomic exchange.
+static Mutex &update_lock_mutex() {
+  static Mutex mutex;
+  return mutex;
+}
+#endif
+
+static bool update_lock_test_and_set() {
+#ifdef ESPHOME_THREAD_MULTI_NO_ATOMICS
+  LockGuard guard(update_lock_mutex());
+#else
+  // lwIP callbacks may run from an interrupt (RP2040).
+  InterruptLock guard;
+#endif
+  if (update_locked)
+    return false;
+  update_locked = true;
+  return true;
+}
+
+static void update_lock_clear() {
+#ifdef ESPHOME_THREAD_MULTI_NO_ATOMICS
+  LockGuard guard(update_lock_mutex());
+#endif
+  update_locked = false;
+}
+#endif
+
+bool UpdateLock::try_acquire() {
+  if (!this->held_)
+    this->held_ = update_lock_test_and_set();
+  return this->held_;
+}
+
+void UpdateLock::release() {
+  if (!this->held_)
+    return;
+  update_lock_clear();
+  this->held_ = false;
+}
+
+void UpdateLock::force_release() { update_lock_clear(); }
 
 #ifdef USE_OTA_STATE_LISTENER
 OTAGlobalCallback *global_ota_callback{nullptr};  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

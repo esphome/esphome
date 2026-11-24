@@ -1,0 +1,62 @@
+esphome:
+  name: ha-entities
+
+host:
+
+api:
+  actions:
+    - action: dump_select
+      variables:
+        tag: string
+      then:
+        - logger.log:
+            format: "dump %s: has_state=%d index=%d option='%s'"
+            args:
+              - tag.c_str()
+              - id(ha_select).has_state()
+              - (int) id(ha_select).active_index().value_or(-1)
+              - id(ha_select).current_option().c_str()
+
+logger:
+  level: DEBUG
+
+select:
+  - platform: homeassistant
+    name: HA Select
+    id: ha_select
+    entity_id: select.mode
+    internal: false
+    max_options: 4
+    options_buffer_size: 40
+    on_value:
+      - logger.log:
+          format: "select value '%s' at %u"
+          args: [x.c_str(), (unsigned) i]
+  - platform: homeassistant
+    name: HA Input Select
+    entity_id: input_select.colour
+    internal: false
+
+text:
+  - platform: homeassistant
+    name: HA Text
+    entity_id: text.note
+    internal: false
+    on_value:
+      - logger.log:
+          format: "text value '%s'"
+          args: [x.c_str()]
+  - platform: homeassistant
+    name: HA Input Text
+    entity_id: input_text.name
+    internal: false
+
+button:
+  - platform: homeassistant
+    name: HA Button
+    entity_id: button.doorbell
+    internal: false
+  - platform: homeassistant
+    name: HA Input Button
+    entity_id: input_button.reset
+    internal: false

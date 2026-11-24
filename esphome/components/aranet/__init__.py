@@ -1,0 +1,2 @@
+CODEOWNERS = ["@patrickod"]
+DOMAIN = "aranet"

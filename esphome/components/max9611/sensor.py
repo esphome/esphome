@@ -4,20 +4,10 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_CURRENT,
     CONF_GAIN,
-    CONF_ID,
     CONF_POWER,
     CONF_SHUNT_RESISTANCE,
     CONF_TEMPERATURE,
     CONF_VOLTAGE,
-    DEVICE_CLASS_CURRENT,
-    DEVICE_CLASS_POWER,
-    DEVICE_CLASS_TEMPERATURE,
-    DEVICE_CLASS_VOLTAGE,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_AMPERE,
-    UNIT_CELSIUS,
-    UNIT_VOLT,
-    UNIT_WATT,
 )
 from esphome.types import ConfigType
 
@@ -41,28 +31,16 @@ CONFIG_SCHEMA = (
             ),
             cv.Required(CONF_GAIN): cv.enum(MAX9611_GAIN, upper=True),
             cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_VOLT,
-                accuracy_decimals=2,
-                device_class=DEVICE_CLASS_VOLTAGE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.VOLTAGE, accuracy_decimals=2
             ),
             cv.Optional(CONF_CURRENT): sensor.sensor_schema(
-                unit_of_measurement=UNIT_AMPERE,
-                accuracy_decimals=2,
-                device_class=DEVICE_CLASS_CURRENT,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.CURRENT, accuracy_decimals=2
             ),
             cv.Optional(CONF_POWER): sensor.sensor_schema(
-                unit_of_measurement=UNIT_WATT,
-                accuracy_decimals=2,
-                device_class=DEVICE_CLASS_POWER,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.POWER, accuracy_decimals=2
             ),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_CELSIUS,
-                accuracy_decimals=2,
-                device_class=DEVICE_CLASS_TEMPERATURE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.TEMPERATURE, accuracy_decimals=2
             ),
         }
     )
@@ -72,24 +50,11 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    var = await i2c.new_i2c_component(config)
     cg.add(var.set_current_resistor(config[CONF_SHUNT_RESISTANCE]))
     cg.add(var.set_gain(config[CONF_GAIN]))
-    if CONF_VOLTAGE in config:
-        conf = config[CONF_VOLTAGE]
-        sens = await sensor.new_sensor(conf)
-        cg.add(var.set_voltage_sensor(sens))
-    if CONF_CURRENT in config:
-        conf = config[CONF_CURRENT]
-        sens = await sensor.new_sensor(conf)
-        cg.add(var.set_current_sensor(sens))
-    if CONF_POWER in config:
-        conf = config[CONF_POWER]
-        sens = await sensor.new_sensor(conf)
-        cg.add(var.set_watt_sensor(sens))
-    if CONF_TEMPERATURE in config:
-        conf = config[CONF_TEMPERATURE]
-        sens = await sensor.new_sensor(conf)
-        cg.add(var.set_temp_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_VOLTAGE, var.set_voltage_sensor)
+    await sensors(CONF_CURRENT, var.set_current_sensor)
+    await sensors(CONF_POWER, var.set_watt_sensor)
+    await sensors(CONF_TEMPERATURE, var.set_temp_sensor)

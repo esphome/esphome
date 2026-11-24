@@ -2,7 +2,6 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
-#include "esphome/core/automation.h"
 #include "esphome/components/output/float_output.h"
 
 #ifdef USE_LIBRETINY
@@ -32,20 +31,6 @@ class LibreTinyPWM final : public output::FloatOutput, public Component {
   float frequency_{};
   float duty_{0.0f};
   bool initialized_ = false;
-};
-
-template<typename... Ts> class SetFrequencyAction final : public Action<Ts...> {
- public:
-  SetFrequencyAction(LibreTinyPWM *parent) : parent_(parent) {}
-  TEMPLATABLE_VALUE(float, frequency);
-
-  void play(const Ts &...x) {
-    float freq = this->frequency_.value(x...);
-    this->parent_->update_frequency(freq);
-  }
-
- protected:
-  LibreTinyPWM *parent_;
 };
 
 }  // namespace esphome::libretiny_pwm

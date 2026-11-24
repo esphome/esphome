@@ -19,7 +19,8 @@ class InfraredCall {
     return *this;
   }
   InfraredCall &set_repeat_count(uint32_t /*count*/) { return *this; }
-  void perform() {}
+  template<typename T> InfraredCall &set_api_connection(T * /*conn*/) { return *this; }
+  bool perform() { return false; }
 
  protected:
   Infrared *parent_;
@@ -37,6 +38,7 @@ class Infrared : public Component, public EntityBase {
   const InfraredTraits &get_traits() const { return this->traits_; }
   InfraredCall make_call() { return InfraredCall(this); }
   uint32_t get_capability_flags() const { return 0; }
+  template<typename T> void on_api_connection_closed(T * /*conn*/) {}
 
  protected:
   InfraredTraits traits_;

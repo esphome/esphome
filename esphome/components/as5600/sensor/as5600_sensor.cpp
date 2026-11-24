@@ -3,7 +3,7 @@
 
 namespace esphome::as5600 {
 
-static const char *const TAG = "as5600.sensor";
+ESPHOME_LOG_TAG(TAG, "as5600.sensor");
 
 // Configuration registers
 static const uint8_t REGISTER_ZMCO = 0x00;  // 8 bytes  / R
@@ -32,9 +32,7 @@ void AS5600Sensor::dump_config() {
 }
 
 void AS5600Sensor::update() {
-  if (this->gain_sensor_ != nullptr) {
-    this->gain_sensor_->publish_state(this->parent_->reg(REGISTER_AGC).get());
-  }
+  PUBLISH_STATE(this->gain_sensor_, this->parent_->reg(REGISTER_AGC).get());
 
   if (this->magnitude_sensor_ != nullptr) {
     uint16_t value = 0;
@@ -46,9 +44,7 @@ void AS5600Sensor::update() {
   // 4 = magnet just right
   // 5 = magnet too strong
   // 6 = magnet too weak
-  if (this->status_sensor_ != nullptr) {
-    this->status_sensor_->publish_state(this->parent_->read_magnet_status());
-  }
+  PUBLISH_STATE(this->status_sensor_, this->parent_->read_magnet_status());
 
   auto pos = this->parent_->read_position();
   if (!pos.has_value()) {
@@ -68,9 +64,7 @@ void AS5600Sensor::update() {
     this->publish_state(pos.value());
   }
 
-  if (this->raw_position_sensor_ != nullptr) {
-    this->raw_position_sensor_->publish_state(raw.value());
-  }
+  PUBLISH_STATE(this->raw_position_sensor_, raw.value());
   this->status_clear_warning();
 }
 

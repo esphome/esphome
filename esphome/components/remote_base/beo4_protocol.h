@@ -8,7 +8,7 @@ namespace esphome::remote_base {
 
 struct Beo4Data {
   uint8_t source;   // beoSource, e.g. video, audio, light...
-  uint8_t command;  // beoCommend, e.g. volume+, mute,...
+  uint8_t command;  // beoCommand, e.g. volume+, mute,...
   uint8_t repeats;  // beoRepeat for repeat commands, e.g. up, down...
 
   bool operator==(const Beo4Data &rhs) const { return source == rhs.source && command == rhs.command; }
@@ -22,20 +22,5 @@ class Beo4Protocol : public RemoteProtocol<Beo4Data> {
 };
 
 DECLARE_REMOTE_PROTOCOL(Beo4)
-
-template<typename... Ts> class Beo4Action : public RemoteTransmitterActionBase<Ts...> {
- public:
-  TEMPLATABLE_VALUE(uint8_t, source)
-  TEMPLATABLE_VALUE(uint8_t, command)
-  TEMPLATABLE_VALUE(uint8_t, repeats)
-
-  void encode(RemoteTransmitData *dst, Ts... x) override {
-    Beo4Data data{};
-    data.source = this->source_.value(x...);
-    data.command = this->command_.value(x...);
-    data.repeats = this->repeats_.value(x...);
-    Beo4Protocol().encode(dst, data);
-  }
-};
 
 }  // namespace esphome::remote_base

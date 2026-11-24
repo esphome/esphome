@@ -5,11 +5,14 @@
 
 namespace esphome::mk2pvrouter {
 
-class Mk2PVRouterSensor final : public Mk2PVRouterListener, public sensor::Sensor, public Component {
+class Mk2PVRouterSensor final : public Mk2PVRouterListener, public sensor::Sensor {
  public:
-  explicit Mk2PVRouterSensor(const char *tag);
+  Mk2PVRouterSensor(const char *tag, bool scale_centi);
   void publish_val(const char *val) override;
-  void dump_config() override;
+  void dump_child_config() override;
+
+ protected:
+  bool scale_centi_;
 };
 
 }  // namespace esphome::mk2pvrouter

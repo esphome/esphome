@@ -7,6 +7,7 @@ from esphome.types import ConfigType
 CODEOWNERS = ["@DrCoolZic"]
 DEPENDENCIES = ["spi"]
 AUTO_LOAD = ["weikai", "weikai_spi"]
+DOMAIN = "wk2204_spi"
 MULTI_CONF = True
 
 weikai_spi_ns = cg.esphome_ns.namespace("weikai_spi")

@@ -3,7 +3,7 @@
 
 namespace esphome::sun_gtil2 {
 
-static const char *const TAG = "sun_gtil2";
+ESPHOME_LOG_TAG(TAG, "sun_gtil2");
 
 static const double NTC_A = 0.0011591051055979914;
 static const double NTC_B = 0.00022878183547845582;
@@ -32,18 +32,10 @@ struct SunGTIL2Message {
   uint8_t end[39];
 } __attribute__((packed));
 
-static const uint16_t MESSAGE_SIZE = sizeof(SunGTIL2Message);
-
-static_assert(MESSAGE_SIZE == 350, "Expected the message size to be 350 bytes");
-
-void SunGTIL2::setup() { this->rx_message_.reserve(MESSAGE_SIZE); }
+static_assert(sizeof(SunGTIL2Message) == SunGTIL2::MESSAGE_SIZE);
 
 void SunGTIL2::loop() {
-  while (this->available()) {
-    uint8_t c;
-    this->read_byte(&c);
-    this->handle_char_(c);
-  }
+  this->read_available([this](uint8_t c) { this->handle_char_(c); });
 }
 
 const char *SunGTIL2::state_to_string_(uint8_t state, std::span<char, STATE_BUFFER_SIZE> buffer) {
@@ -70,18 +62,12 @@ float SunGTIL2::calculate_temperature_(uint16_t adc_value) {
 }
 
 void SunGTIL2::handle_char_(uint8_t c) {
-  if (this->rx_message_.size() > 1 || c == 0x07) {
-    this->rx_message_.push_back(c);
-  } else if (!this->rx_message_.empty()) {
-    this->rx_message_.clear();
-  }
-  if (this->rx_message_.size() < MESSAGE_SIZE) {
+  const uint8_t *frame = this->reader_.feed(c);
+  if (frame == nullptr)
     return;
-  }
 
   SunGTIL2Message msg;
-  memcpy(&msg, this->rx_message_.data(), MESSAGE_SIZE);
-  this->rx_message_.clear();
+  memcpy(&msg, frame, MESSAGE_SIZE);
 
   if ((msg.end[0] != 0) || (msg.end[38] != 0x08))
     return;
@@ -91,42 +77,34 @@ void SunGTIL2::handle_char_(uint8_t c) {
             msg.unknown5);
 
 #ifdef USE_SENSOR
-  if (this->ac_voltage_ != nullptr)
-    this->ac_voltage_->publish_state(__builtin_bswap16(msg.ac_voltage) / 10.0f);
-  if (this->dc_voltage_ != nullptr)
-    this->dc_voltage_->publish_state(__builtin_bswap16(msg.dc_voltage) / 8.0f);
-  if (this->ac_power_ != nullptr)
-    this->ac_power_->publish_state(__builtin_bswap16(msg.ac_power) / 10.0f);
-  if (this->dc_power_ != nullptr)
-    this->dc_power_->publish_state(__builtin_bswap16(msg.dc_power) / 10.0f);
-  if (this->limiter_power_ != nullptr)
-    this->limiter_power_->publish_state(static_cast<int32_t>(__builtin_bswap32(msg.limiter_power)) / 10.0f);
-  if (this->temperature_ != nullptr)
-    this->temperature_->publish_state(calculate_temperature_(__builtin_bswap16(msg.temperature)));
+  PUBLISH_STATE(this->ac_voltage_sensor_, __builtin_bswap16(msg.ac_voltage) / 10.0f);
+  PUBLISH_STATE(this->dc_voltage_sensor_, __builtin_bswap16(msg.dc_voltage) / 8.0f);
+  PUBLISH_STATE(this->ac_power_sensor_, __builtin_bswap16(msg.ac_power) / 10.0f);
+  PUBLISH_STATE(this->dc_power_sensor_, __builtin_bswap16(msg.dc_power) / 10.0f);
+  PUBLISH_STATE(this->limiter_power_sensor_, static_cast<int32_t>(__builtin_bswap32(msg.limiter_power)) / 10.0f);
+  PUBLISH_STATE(this->temperature_sensor_, calculate_temperature_(__builtin_bswap16(msg.temperature)));
 #endif
 #ifdef USE_TEXT_SENSOR
-  if (this->state_ != nullptr) {
+  if (this->state_text_sensor_ != nullptr) {
     char state_buffer[STATE_BUFFER_SIZE];
-    this->state_->publish_state(this->state_to_string_(msg.state, state_buffer));
+    this->state_text_sensor_->publish_state(this->state_to_string_(msg.state, state_buffer));
   }
-  if (this->serial_number_ != nullptr) {
-    this->serial_number_->publish_state(msg.serial_number, 10);
-  }
+  PUBLISH_STATE(this->serial_number_text_sensor_, msg.serial_number, 10);
 #endif
 }
 
 void SunGTIL2::dump_config() {
 #ifdef USE_SENSOR
-  LOG_SENSOR("", "AC Voltage", this->ac_voltage_);
-  LOG_SENSOR("", "DC Voltage", this->dc_voltage_);
-  LOG_SENSOR("", "AC Power", this->ac_power_);
-  LOG_SENSOR("", "DC Power", this->dc_power_);
-  LOG_SENSOR("", "Limiter Power", this->limiter_power_);
-  LOG_SENSOR("", "Temperature", this->temperature_);
+  LOG_SENSOR("", "AC Voltage", this->ac_voltage_sensor_);
+  LOG_SENSOR("", "DC Voltage", this->dc_voltage_sensor_);
+  LOG_SENSOR("", "AC Power", this->ac_power_sensor_);
+  LOG_SENSOR("", "DC Power", this->dc_power_sensor_);
+  LOG_SENSOR("", "Limiter Power", this->limiter_power_sensor_);
+  LOG_SENSOR("", "Temperature", this->temperature_sensor_);
 #endif
 #ifdef USE_TEXT_SENSOR
-  LOG_TEXT_SENSOR("", "State", this->state_);
-  LOG_TEXT_SENSOR("", "Serial Number", this->serial_number_);
+  LOG_TEXT_SENSOR("", "State", this->state_text_sensor_);
+  LOG_TEXT_SENSOR("", "Serial Number", this->serial_number_text_sensor_);
 #endif
 }
 

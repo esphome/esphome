@@ -5,7 +5,7 @@
 
 namespace esphome::lilygo_t5_47 {
 
-static const char *const TAG = "lilygo_t5_47.touchscreen";
+ESPHOME_LOG_TAG(TAG, "lilygo_t5_47.touchscreen");
 
 static const uint8_t POWER_REGISTER = 0xD6;
 static const uint8_t TOUCH_REGISTER = 0xD0;
@@ -62,7 +62,7 @@ void LilygoT547Touchscreen::update_touches() {
     return;
   }
 
-  point = buffer[5] & 0xF;
+  point = low_nibble(buffer[5]);
   if (point > 2) {
     ESP_LOGW(TAG, "Invalid touch point count: %d", point);
     point = 2;
@@ -88,9 +88,11 @@ void LilygoT547Touchscreen::update_touches() {
 
   uint16_t id, x_raw, y_raw;
   for (uint8_t i = 0; i < point; i++) {
-    id = (buffer[i * 5] >> 4) & 0x0F;
-    y_raw = (uint16_t) ((buffer[i * 5 + 1] << 4) | ((buffer[i * 5 + 3] >> 4) & 0x0F));
-    x_raw = (uint16_t) ((buffer[i * 5 + 2] << 4) | (buffer[i * 5 + 3] & 0x0F));
+    const uint8_t *record = buffer + i * 5;
+    id = high_nibble(record[0]);
+    // The low 4 bits of Y and X share byte 3
+    y_raw = encode_uint12(record[1], high_nibble(record[3]));
+    x_raw = encode_uint12(record[2], low_nibble(record[3]));
     this->add_raw_touch_position_(id, x_raw, y_raw);
   }
 

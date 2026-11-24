@@ -1,6 +1,6 @@
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components.const import CONF_ROWS
+from esphome.components.const import CONF_BUTTONS, CONF_ROWS
 from esphome.components.key_provider import KeyProvider
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_ITEMS, CONF_TEXT, CONF_WIDTH
@@ -10,7 +10,6 @@ from esphome.types import Expression
 from ..automation import action_to_code
 from ..defines import (
     BUTTONMATRIX_CTRLS,
-    CONF_BUTTONS,
     CONF_CONTROL,
     CONF_KEY_CODE,
     CONF_MAIN,
@@ -29,7 +28,6 @@ from ..types import (
     LvBoolean,
     LvCompound,
     LvType,
-    ObjUpdateAction,
     char_ptr,
     lv_pseudo_button_t,
 )
@@ -188,7 +186,6 @@ class ButtonMatrixType(WidgetType):
             (CONF_MAIN, CONF_ITEMS),
             BUTTONMATRIX_SCHEMA,
             {},
-            lv_name="buttonmatrix",
         )
 
     async def to_code(self, w: Widget, config):
@@ -222,7 +219,7 @@ buttonmatrix_spec = ButtonMatrixType()
 
 @automation.register_action(
     "lvgl.matrix.button.update",
-    ObjUpdateAction,
+    automation.ApplyAction,
     cv.Schema(
         {
             cv.Optional(CONF_WIDTH): cv.positive_int,
@@ -272,5 +269,5 @@ async def button_update_to_code(config, action_id, template_arg, args):
                 )
 
     return await action_to_code(
-        widgets, do_button_update, action_id, template_arg, args, config
+        widgets, do_button_update, action_id, template_arg, args
     )

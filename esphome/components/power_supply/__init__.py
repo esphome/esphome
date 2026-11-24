@@ -11,6 +11,7 @@ from esphome.const import (
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "power_supply"
 power_supply_ns = cg.esphome_ns.namespace("power_supply")
 PowerSupply = power_supply_ns.class_("PowerSupply", cg.Component)
 MULTI_CONF = True
@@ -34,8 +35,7 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
-    pin = await cg.gpio_pin_expression(config[CONF_PIN])
-    cg.add(var.set_pin(pin))
+    await cg.add_pin(var.set_pin, config[CONF_PIN])
     cg.add(var.set_enable_time(config[CONF_ENABLE_TIME]))
     cg.add(var.set_keep_on_time(config[CONF_KEEP_ON_TIME]))
     cg.add(var.set_enable_on_boot(config[CONF_ENABLE_ON_BOOT]))

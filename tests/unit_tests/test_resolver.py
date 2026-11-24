@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import importlib
+import logging
 import re
 import socket
 from unittest.mock import ANY, patch
@@ -10,6 +12,7 @@ from aioesphomeapi.core import ResolveAPIError, ResolveTimeoutAPIError
 from aioesphomeapi.host_resolver import AddrInfo, IPv4Sockaddr, IPv6Sockaddr
 import pytest
 
+from esphome import resolver
 from esphome.async_thread import AsyncDispatchTimeout
 from esphome.core import EsphomeError
 from esphome.resolver import RESOLVE_TIMEOUT, AsyncResolver
@@ -162,3 +165,18 @@ def test_async_resolver_mixed_addresses(
         mock_resolve.assert_called_once_with(
             ["test.local", "192.168.1.100", "::1"], 6053, timeout=RESOLVE_TIMEOUT
         )
+
+
+def test_invalid_resolve_timeout_env_falls_back_to_default(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A non-numeric ESPHOME_RESOLVE_TIMEOUT warns and uses the default."""
+    monkeypatch.setenv("ESPHOME_RESOLVE_TIMEOUT", "soon")
+    try:
+        with caplog.at_level(logging.WARNING, logger="esphome.resolver"):
+            importlib.reload(resolver)
+        assert resolver.RESOLVE_TIMEOUT == 20.0
+        assert "ESPHOME_RESOLVE_TIMEOUT='soon' is not a valid number" in caplog.text
+    finally:
+        monkeypatch.delenv("ESPHOME_RESOLVE_TIMEOUT")
+        importlib.reload(resolver)

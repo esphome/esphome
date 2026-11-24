@@ -25,6 +25,9 @@ esphome:
       - speaker.volume_set:
           id: speaker_id
           volume: 0.9
+      - speaker.volume_set:
+          id: speaker_id
+          volume: !lambda return id(speaker_my_number).state / 100.0f;
       - if:
           condition:
             speaker.is_playing:

@@ -11,10 +11,10 @@ struct DraytonData {
   uint16_t address;
   uint8_t channel;
   uint8_t command;
+  uint8_t data;  // last, so positional initializers written for the legacy layout keep their meaning
 
-  bool operator==(const DraytonData &rhs) const {
-    return address == rhs.address && channel == rhs.channel && command == rhs.command;
-  }
+  // channel/command: legacy split of the same bits, filled on decode, ignored by operator==
+  bool operator==(const DraytonData &rhs) const { return address == rhs.address && data == rhs.data; }
 };
 
 class DraytonProtocol : public RemoteProtocol<DraytonData> {
@@ -25,20 +25,5 @@ class DraytonProtocol : public RemoteProtocol<DraytonData> {
 };
 
 DECLARE_REMOTE_PROTOCOL(Drayton)
-
-template<typename... Ts> class DraytonAction : public RemoteTransmitterActionBase<Ts...> {
- public:
-  TEMPLATABLE_VALUE(uint16_t, address)
-  TEMPLATABLE_VALUE(uint8_t, channel)
-  TEMPLATABLE_VALUE(uint8_t, command)
-
-  void encode(RemoteTransmitData *dst, Ts... x) override {
-    DraytonData data{};
-    data.address = this->address_.value(x...);
-    data.channel = this->channel_.value(x...);
-    data.command = this->command_.value(x...);
-    DraytonProtocol().encode(dst, data);
-  }
-};
 
 }  // namespace esphome::remote_base

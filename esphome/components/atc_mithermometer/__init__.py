@@ -1,0 +1,1 @@
+DOMAIN = "atc_mithermometer"

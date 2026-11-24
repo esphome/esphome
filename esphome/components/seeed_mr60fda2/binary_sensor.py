@@ -23,12 +23,8 @@ CONFIG_SCHEMA = {
 
 
 async def to_code(config: ConfigType) -> None:
-    mr60fda2_component = await cg.get_variable(config[CONF_MR60FDA2_ID])
+    hub = await cg.get_variable(config[CONF_MR60FDA2_ID])
 
-    if people_exist_config := config.get(CONF_PEOPLE_EXIST):
-        sens = await binary_sensor.new_binary_sensor(people_exist_config)
-        cg.add(mr60fda2_component.set_people_exist_binary_sensor(sens))
-
-    if is_fall_config := config.get(CONF_FALL_DETECTED):
-        sens = await binary_sensor.new_binary_sensor(is_fall_config)
-        cg.add(mr60fda2_component.set_fall_detected_binary_sensor(sens))
+    binary_sensors = binary_sensor.sub_binary_sensors(config)
+    await binary_sensors(CONF_PEOPLE_EXIST, hub.set_people_exist_binary_sensor)
+    await binary_sensors(CONF_FALL_DETECTED, hub.set_fall_detected_binary_sensor)

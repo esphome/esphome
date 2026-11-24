@@ -6,7 +6,7 @@
 
 namespace esphome::epaper_spi {
 
-static constexpr const char *const TAG = "epaper_spi.t133a01";
+ESPHOME_LOG_TAG(TAG, "epaper_spi.t133a01");
 
 // Color indices used in the 4bpp buffer (sprite-side)
 // These MUST match the Arduino GFX TFT_eSPI.h color definitions and
@@ -105,10 +105,8 @@ void EPaperT133A01::setup() {
   // Both chip-selects are driven directly by this driver (the dual-CS
   // protocol needs CS held HIGH while CS1 receives data, which the SPI
   // bus cannot do). Start both deselected (HIGH).
-  this->cs_pin_->setup();
-  this->cs_pin_->digital_write(true);
-  this->cs1_pin_->setup();
-  this->cs1_pin_->digital_write(true);
+  setup_output_pin(this->cs_pin_, true);
+  setup_output_pin(this->cs1_pin_, true);
 }
 
 bool EPaperT133A01::reset() {
@@ -232,6 +230,7 @@ void EPaperT133A01::fill(Color color) {
   }
   auto pixel_color = color_to_index(color);
   this->buffer_.fill(pixel_color + (pixel_color << 4));
+  this->mark_all_drawn_();
 }
 
 void EPaperT133A01::draw_pixel_at(int x, int y, Color color) {
@@ -362,6 +361,15 @@ bool HOT EPaperT133A01::transfer_data() {
 
   this->current_data_index_ = 0;
   return true;
+}
+
+void EPaperT133A01::abort_transfer() {
+  // A data stream is open, with one of the chip selects held low, whenever transfer_data() has started sending rows
+  if (this->current_data_index_ == 0)
+    return;
+  this->disable();
+  this->cs_pin_->digital_write(true);
+  this->cs1_pin_->digital_write(true);
 }
 
 void EPaperT133A01::dump_config() {
