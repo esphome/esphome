@@ -129,6 +129,16 @@ TEST(FormatHexPrettyTo, CustomSeparator) {
   EXPECT_STREQ(buffer, "AA-BB-CC");
 }
 
+TEST(FormatHexPrettyTo, UnsignedIntegerUppercaseNoSeparator) {
+  char buf8[3];
+  EXPECT_STREQ(format_hex_pretty_to(buf8, static_cast<uint8_t>(0x0A)), "0A");
+  char buf16[5];
+  EXPECT_STREQ(format_hex_pretty_to(buf16, static_cast<uint16_t>(0x01B5)), "01B5");
+  char buf32[9];
+  EXPECT_STREQ(format_hex_pretty_to(buf32, static_cast<uint32_t>(0xDEADBEEF)), "DEADBEEF");
+  EXPECT_STREQ(format_hex_pretty_to(buf32, static_cast<uint32_t>(0x1F)), "0000001F");
+}
+
 // --- format_mac_addr_upper() ---
 
 TEST(FormatMacAddrUpper, Basic) {

@@ -2,18 +2,7 @@ from esphome import pins
 import esphome.codegen as cg
 from esphome.components import sensor
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_HUMIDITY,
-    CONF_ID,
-    CONF_MODEL,
-    CONF_PIN,
-    CONF_TEMPERATURE,
-    DEVICE_CLASS_HUMIDITY,
-    DEVICE_CLASS_TEMPERATURE,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS,
-    UNIT_PERCENT,
-)
+from esphome.const import CONF_HUMIDITY, CONF_ID, CONF_MODEL, CONF_PIN, CONF_TEMPERATURE
 from esphome.types import ConfigType
 
 dht_ns = cg.esphome_ns.namespace("dht")
@@ -35,17 +24,9 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(DHT),
         cv.Required(CONF_PIN): pins.internal_gpio_input_pullup_pin_schema,
-        cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-            unit_of_measurement=UNIT_CELSIUS,
-            accuracy_decimals=1,
-            device_class=DEVICE_CLASS_TEMPERATURE,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
+        cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(kind=sensor.TEMPERATURE),
         cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(
-            unit_of_measurement=UNIT_PERCENT,
-            accuracy_decimals=0,
-            device_class=DEVICE_CLASS_HUMIDITY,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.HUMIDITY, accuracy_decimals=0
         ),
         cv.Optional(CONF_MODEL, default="auto detect"): cv.enum(
             DHT_MODELS, upper=True, space="_"

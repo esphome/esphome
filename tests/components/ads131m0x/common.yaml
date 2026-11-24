@@ -1,0 +1,27 @@
+ads131m0x:
+  - id: ads131m0x_hub
+    model: ADS131M08
+    cs_pin: ${cs_pin}
+    drdy_pin: ${drdy_pin}
+    reset_pin: ${reset_pin}
+    sample_rate: 2000Hz
+    window: 100ms
+    gain: [1, 2, 4, 8, 16, 32, 64, 128]
+
+sensor:
+  - platform: ads131m0x
+    ads131m0x_id: ads131m0x_hub
+    id: ads131m0x_rms
+    channel: 0
+    type: rms
+    update_interval: 5s
+    filters:
+      - multiply: 230.0
+  - platform: ads131m0x
+    ads131m0x_id: ads131m0x_hub
+    id: ads131m0x_mean
+    channel: 1
+    type: mean
+    update_interval: 5s
+    filters:
+      - multiply: 2.5

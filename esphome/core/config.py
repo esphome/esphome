@@ -123,6 +123,9 @@ ShutdownTrigger = cg.esphome_ns.class_(
 LoopTrigger = cg.esphome_ns.class_(
     "LoopTrigger", cg.Component, automation.Trigger.template()
 )
+StartupCallback = cg.esphome_ns.class_("StartupCallback", cg.Component)
+ShutdownCallback = cg.esphome_ns.class_("ShutdownCallback", cg.Component)
+LoopCallback = cg.esphome_ns.class_("LoopCallback", cg.Component)
 ProjectUpdateTrigger = cg.esphome_ns.class_(
     "ProjectUpdateTrigger", cg.Component, automation.Trigger.template(cg.std_string)
 )
@@ -805,20 +808,15 @@ async def _add_environment_variables(env_vars: dict[str, str]) -> None:
 
 @coroutine_with_priority(CoroPriority.AUTOMATION)
 async def _add_automations(config):
-    for conf in config.get(CONF_ON_BOOT, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], conf.get(CONF_PRIORITY))
-        await cg.register_component(trigger, conf)
-        await automation.build_automation(trigger, [], conf)
-
-    for conf in config.get(CONF_ON_SHUTDOWN, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], conf.get(CONF_PRIORITY))
-        await cg.register_component(trigger, conf)
-        await automation.build_automation(trigger, [], conf)
-
-    for conf in config.get(CONF_ON_LOOP, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
-        await cg.register_component(trigger, conf)
-        await automation.build_automation(trigger, [], conf)
+    for key, component_class in (
+        (CONF_ON_BOOT, StartupCallback),
+        (CONF_ON_SHUTDOWN, ShutdownCallback),
+        (CONF_ON_LOOP, LoopCallback),
+    ):
+        for conf in config.get(key, []):
+            await automation.build_component_automation(
+                conf, component_class, conf.get(CONF_PRIORITY)
+            )
 
 
 # Datetime component has special subtypes that need additional defines
@@ -976,8 +974,7 @@ async def to_code(config: ConfigType) -> None:
         cg.add_define("ESPHOME_DEBUG_SCHEDULER")
     if config[CONF_SUSPEND_LOOP]:
         cg.add_define("ESPHOME_SUSPEND_LOOP")
-    if CONF_LOOP_INTERVAL in config:
-        cg.add(cg.App.set_loop_interval(config[CONF_LOOP_INTERVAL]))
+    cg.add_optional(cg.App.set_loop_interval, config.get(CONF_LOOP_INTERVAL))
 
     if CORE.using_arduino:
         CORE.add_job(add_arduino_global_workaround)

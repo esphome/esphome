@@ -1,0 +1,26 @@
+substitutions:
+  name: bmix
+packages:
+  common: !include common.yaml
+esphome:
+  on_boot:
+    - priority: -200
+      then:
+        - delay: 16s
+        - lambda: ESP_LOGI("bmiprobe", "STEP calibrate_level");
+        - motion.calibrate_level:
+            id: imu
+            on_success:
+              - lambda: ESP_LOGI("bmiprobe", "STEP calibrate_level success");
+            on_error:
+              - lambda: ESP_LOGI("bmiprobe", "STEP calibrate_level error");
+        - delay: 16s
+        - lambda: ESP_LOGI("bmiprobe", "STEP clear_calibration");
+        - motion.clear_calibration:
+            id: imu
+motion:
+  - id: !extend imu
+    axis_map:
+      x: y
+      y: x
+      z: -z

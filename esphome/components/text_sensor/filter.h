@@ -3,6 +3,7 @@
 #include "esphome/core/defines.h"
 #ifdef USE_TEXT_SENSOR_FILTER
 
+#include "esphome/core/chain.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 
@@ -15,7 +16,7 @@ class TextSensor;
  * This class is purposefully kept quite simple, since more complicated
  * filters should really be done with the filter sensor in Home Assistant.
  */
-class Filter {
+class Filter : public ChainNode<Filter, TextSensor> {
  public:
   /** This will be called every time the filter receives a new value.
    *
@@ -42,30 +43,6 @@ class Filter {
 
  protected:
   friend TextSensor;
-
-  Filter *next_{nullptr};
-  TextSensor *parent_{nullptr};
-};
-
-using lambda_filter_t = std::function<optional<std::string>(std::string)>;
-
-/** This class allows for creation of simple template filters.
- *
- * The constructor accepts a lambda of the form std::string -> optional<std::string>.
- * Return a modified string to continue the chain, or return {} to stop
- * (value will not be published).
- */
-class LambdaFilter : public Filter {
- public:
-  explicit LambdaFilter(lambda_filter_t lambda_filter);
-
-  bool new_value(std::string &value) override;
-
-  const lambda_filter_t &get_lambda_filter() const;
-  void set_lambda_filter(const lambda_filter_t &lambda_filter) { this->lambda_filter_ = lambda_filter; }
-
- protected:
-  lambda_filter_t lambda_filter_;
 };
 
 /// Codegen use only: the filter's work and constants are one generated function, so the object is only the base.
