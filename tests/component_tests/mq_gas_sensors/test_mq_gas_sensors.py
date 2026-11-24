@@ -62,6 +62,13 @@ def test_mq3_has_no_ch4_curve() -> None:
         resolve_sensor("MQ3", "CH4")
 
 
+def test_mq2_has_no_duplicate_ch4_curve() -> None:
+    """The MQ-2 CH4 row repeated the CO coefficients, so the combination fails the build."""
+    assert "CH4" not in SENSOR_TYPES["MQ2"]["gases"]
+    with pytest.raises(ValueError, match="MQ-2 has no curve for gas 'CH4'"):
+        resolve_sensor("MQ2", "CH4")
+
+
 def test_mq8_h2_matches_the_reference_curve() -> None:
     """The MQ-8 H2 curve is the anchor of the component tests below."""
     resolved = resolve_sensor("MQ8", "H2")
