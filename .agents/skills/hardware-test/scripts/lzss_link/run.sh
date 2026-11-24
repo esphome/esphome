@@ -8,6 +8,11 @@ T=${TREE:?set TREE}; PY=${PY:-$T/venv/bin/python}
 HZ=${PORT_HZ:?set PORT_HZ}; S3=${PORT_S3:?set PORT_S3}
 TREE=$T PY=$PY "$S/pio_build.sh" upload "lzhz$V" "$D/lzhz$V.yaml" "$HZ" || exit 1
 TREE=$T PY=$PY "$S/pio_build.sh" upload "lzs3$V" "$D/lzs3$V.yaml" "$S3" || exit 1
-$PY "$S/serial_capture.py" "$HZ" "$SECS" "$D/run$V-hz.log" --reset > /dev/null 2>&1 &
-$PY "$S/serial_capture.py" "$S3" "$SECS" "$D/run$V-s3.log" --reset > /dev/null 2>&1 &
-wait
+$PY "$S/serial_capture.py" "$HZ" "$SECS" "$D/run$V-hz.log" --reset > /dev/null &
+P1=$!
+$PY "$S/serial_capture.py" "$S3" "$SECS" "$D/run$V-s3.log" --reset > /dev/null &
+P2=$!
+RC=0
+wait $P1 || RC=1
+wait $P2 || RC=1
+exit $RC

@@ -47,10 +47,20 @@ static const char *dict_ptr(int sel) { return sel == 1 ? DICT_TYPICAL : sel == 2
 static size_t dict_len(int sel) { return strlen(dict_ptr(sel)); }
 
 #ifdef LZ
-struct Lower : LzssCompression {
-  static PacketInterface *of(LzssCompression *c) { return static_cast<Lower *>(c)->lower_; }
-  static uint8_t check(LzssCompression *c) { return static_cast<Lower *>(c)->check_; }
+// LzssCompression is final; an explicit instantiation may name its protected members.
+template<typename Tag, typename Tag::type M> struct Rob {
+  friend typename Tag::type get(Tag) { return M; }
 };
+struct LowerTag {
+  using type = PacketInterface *LzssCompression::*;
+  friend type get(LowerTag);
+};
+struct CheckTag {
+  using type = const uint8_t LzssCompression::*;
+  friend type get(CheckTag);
+};
+template struct Rob<LowerTag, &LzssCompression::lower_>;
+template struct Rob<CheckTag, &LzssCompression::check_>;
 #endif
 
 static uint32_t crc32(const uint8_t *d, size_t n) {
@@ -205,8 +215,8 @@ static void on_top(const PacketBuffer &d) {
   d.copy_to(buf, n);
   int type;
   uint32_t seq;
-  bool good = parse(buf, n, type, seq);
-  if (type < 0 || n < 12) {
+  bool good = n >= 12 && parse(buf, n, type, seq);
+  if (n < 12 || type < 0) {
     g_foreign++;
     ESP_LOGW(TAG, "RXBAD foreign delivery of %u bytes", (unsigned) n);
     return;
@@ -304,8 +314,8 @@ inline void begin(PacketInterface *link, LzssCompression *cmp, int node, int dic
   g_oversize = oversize;
   rng_state = 0x9E3779B9u * (node + 1) + micros();
   g_top = link->top();
-  g_low = Lower::of(cmp);
-  g_check = Lower::check(cmp);
+  g_low = cmp->*get(LowerTag{});
+  g_check = cmp->*get(CheckTag{});
   g_maxin = cmp->get_max_packet_size();
   g_top->add_packet_interface_listener([](const PacketBuffer &d, const PacketMetaData &) { on_top(d); });
   g_low->add_packet_interface_listener([](const PacketBuffer &d, const PacketMetaData &) { on_wire(d); });
