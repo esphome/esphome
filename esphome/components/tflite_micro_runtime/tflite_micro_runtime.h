@@ -260,8 +260,9 @@ class TFLiteMicroHelper : public Component {
   std::atomic<uint32_t> dispatched_epoch_{0};
   /// Task holding mutex_, so a log emitted under the lock cannot deadlock the device.
   std::atomic<TaskHandle_t> lock_owner_{nullptr};
-  /// The result run_inference() produced, kept until its callback runs.
-  ProcessedOutput last_result_{};
+  /// The result run_inference() produced, kept until its callback runs. Invalid
+  /// until an inference fills it.
+  ProcessedOutput last_result_{0.0f, 0.0f, false};
   /// Null unless a run is configured with `on_result`, so an idle instance pays 4 bytes.
   LazyCallbackManager<void()> result_callback_;
 

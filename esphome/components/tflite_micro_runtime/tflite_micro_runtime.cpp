@@ -351,8 +351,7 @@ bool TFLiteMicroHelper::run_locked_(const uint8_t *src_data, size_t src_size) {
     TfLiteTensor *output = this->model_handler_.output_tensor();
     if (output == nullptr) {
       ESP_LOGW(TAG, "No output tensor; get_last_result() is invalid for this run");
-      this->last_result_ = ProcessedOutput{};
-      this->last_result_.valid = false;
+      this->last_result_ = ProcessedOutput{0.0f, 0.0f, false};
     } else {
       this->last_result_ = this->model_handler_.process_output(output);
       if (!this->last_result_.valid)
@@ -638,7 +637,7 @@ LoadStats TFLiteMicroHelper::get_last_load_stats() {
 
 ProcessedOutput TFLiteMicroHelper::get_last_result() {
   LockGuard guard(this);
-  return guard.locked() ? this->last_result_ : ProcessedOutput{};
+  return guard.locked() ? this->last_result_ : ProcessedOutput{0.0f, 0.0f, false};
 }
 
 ModelSpec TFLiteMicroHelper::get_model_spec() {
