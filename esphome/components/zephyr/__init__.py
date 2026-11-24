@@ -123,7 +123,7 @@ def zephyr_data() -> ZephyrData:
     return CORE.data[KEY_ZEPHYR]
 
 
-def _variant_data() -> ZephyrData | dict[str, object]:
+def _get_data() -> ZephyrData | dict[str, object]:
     """Raise if the platform schema, which sets the target framework, has not run yet."""
     if (data := CORE.data.get(KEY_ZEPHYR)) is not None:
         return data
@@ -136,17 +136,17 @@ def _variant_data() -> ZephyrData | dict[str, object]:
 
 def zephyr_variant() -> str | None:
     """The active chip from a platform's zephyr_variants; None for nrf52 and others."""
-    return _variant_data().get(KEY_VARIANT)
+    return _get_data().get(KEY_VARIANT)
 
 
 def zephyr_variant_family() -> str | None:
     """The active variant's family name, e.g. "stm32"; None without one."""
-    return _variant_data().get(KEY_FAMILY)
+    return _get_data().get(KEY_FAMILY)
 
 
 def zephyr_framework_type() -> str | None:
     """The active `framework: type:`, e.g. "zephyr"; None as for zephyr_variant()."""
-    return _variant_data().get(KEY_FRAMEWORK_TYPE)
+    return _get_data().get(KEY_FRAMEWORK_TYPE)
 
 
 def zephyr_add_prj_conf(
