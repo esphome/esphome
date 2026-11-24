@@ -80,7 +80,6 @@ def test_without_use_rmt_stays_bit_bang(
     assert "rmt_one_wire::Timing" not in main_cpp
     defines = {define.name for define in CORE.defines}
     assert "USE_ONE_WIRE_RMT" not in defines
-    assert "USE_ONE_WIRE_TRANSACTION" not in defines
 
 
 @pytest.mark.parametrize("platform", [ESP32_S3_IDF, ESP32_S3_ARDUINO])
@@ -94,7 +93,6 @@ def test_use_rmt_selects_the_rmt_bus(
     assert "gpio::GPIORMTOneWireBus" in main_cpp
     defines = {define.name for define in CORE.defines}
     assert "USE_ONE_WIRE_RMT" in defines
-    assert "USE_ONE_WIRE_TRANSACTION" in defines
     assert "esp_driver_rmt" not in get_excluded_builtin_components()
 
 

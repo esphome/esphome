@@ -7,7 +7,6 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
     # Test builds generate esphome/core/defines.h from cg.add_define(). The tests build the
     # engine directly, so nothing of the platform's own to_code is needed.
     async def to_code_testing(config: ConfigType) -> None:
-        cg.add_define("USE_ONE_WIRE_TRANSACTION")
         cg.add_define("USE_ONE_WIRE_RMT")
 
     manifest.to_code = to_code_testing
