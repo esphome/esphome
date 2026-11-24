@@ -183,7 +183,7 @@ class ChartType(WidgetType):
             (CONF_SECONDARY_X_AXIS, "SECONDARY_X"),
         ):
             if axis := config.get(axis_name):
-                lv.chart_set_range(
+                lv.chart_set_axis_range(
                     w.obj,
                     literal(f"LV_CHART_AXIS_{axis_key}"),
                     await lv_int.process(axis[CONF_MIN_VALUE]),
@@ -219,7 +219,9 @@ class ChartType(WidgetType):
 
 async def set_series_values(chart, series, values):
     for index, value in enumerate(values):
-        lv.chart_set_value_by_id(chart, series, index, await lv_int.process(value))
+        lv.chart_set_series_value_by_id(
+            chart, series, index, await lv_int.process(value)
+        )
 
 
 async def set_series_points(chart, series, points):

@@ -114,7 +114,9 @@ def test_scatter_codegen_uses_paired_lvgl_apis(
         "lv_chart_set_next_value2(scatter_chart, scatter_series, "
         "static_cast<int>(50), static_cast<int>(60));" in main_cpp
     )
-    assert "lv_chart_set_value_by_id(line_chart, line_series, 0, 10);" in main_cpp
+    assert (
+        "lv_chart_set_series_value_by_id(line_chart, line_series, 0, 10);" in main_cpp
+    )
     assert (
         "lv_chart_set_next_value(line_chart, line_series, static_cast<int>(30));"
         in main_cpp
