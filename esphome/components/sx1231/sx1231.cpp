@@ -5,7 +5,6 @@
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
 #include <cmath>
-#include <utility>
 
 namespace esphome::sx1231 {
 
@@ -13,7 +12,6 @@ ESPHOME_LOG_TAG(TAG, "sx1231");
 static constexpr uint32_t FXOSC = 32000000u;
 static constexpr uint8_t CHIP_VERSION = 0x24;
 static constexpr uint32_t TRANSMIT_TIMEOUT_MS = 4000;
-static constexpr uint32_t MAX_TRANSMIT_TIMEOUT_MS = 262143;  // the same range as SX126x
 static constexpr uint32_t MODE_TIMEOUT_MS = 50;
 static constexpr uint32_t RECONFIGURE_INTERVAL_ID = 0;
 static constexpr uint32_t RECONFIGURE_INTERVAL_MS = 1000;
@@ -22,8 +20,7 @@ static constexpr uint32_t RX_STALL_CHECK_INTERVAL_MS = 1000;
 static constexpr uint8_t RX_STALL_TIMEOUT = 0xFF;
 
 // Indexed by SX1231Error
-PROGMEM_STRING_TABLE(SX1231ErrorStrings, "none", "timeout", "invalid parameters", "radio not ready", "radio busy",
-                     "cancelled");
+PROGMEM_STRING_TABLE(SX1231ErrorStrings, "none", "timeout", "invalid parameters", "radio not ready", "radio busy");
 
 static const LogString *set_mode_failure() { return LOG_STR("Set mode failure"); }
 static constexpr uint16_t RAMP[16] PROGMEM = {3400, 2000, 1000, 500, 250, 125, 100, 62, 50, 40, 31, 25, 20, 15, 12, 10};
@@ -105,10 +102,6 @@ void SX1231::setup() {
 void SX1231::configure() {
   // Nothing to configure before setup() or after a failed setup
   if (!this->is_ready()) {
-    return;
-  }
-  if (this->is_transmitting()) {
-    ESP_LOGW(TAG, "Radio operation in progress, configuration ignored");
     return;
   }
   const LogString *reason = this->configure_radio_();
@@ -240,12 +233,19 @@ size_t SX1231::get_max_packet_size() {
 }
 
 SX1231Error SX1231::transmit_packet(const uint8_t *data, size_t len) {
-  SX1231Error result = this->start_transmit_(nullptr, data, len, TRANSMIT_TIMEOUT_MS);
+  SX1231Error result = this->start_transmit_(data, len);
   if (result == SX1231Error::SX1231_ERROR_NONE) {
-    // Without a listener this send cannot be cancelled or replaced
-    result = SX1231Error::SX1231_ERROR_NOT_READY;
-    while (this->is_transmitting() && !this->poll_transmit_(millis(), result)) {
+    const uint32_t start = millis();
+    // DIO0 is PacketSent while transmitting
+    while (!this->dio0_pin_->digital_read()) {
+      if (millis() - start >= TRANSMIT_TIMEOUT_MS) {
+        result = SX1231Error::SX1231_ERROR_TIMEOUT;
+        break;
+      }
       App.feed_wdt();
+    }
+    if (!this->restore_()) {
+      this->fail_(set_mode_failure());
     }
   }
   if (result != SX1231Error::SX1231_ERROR_NONE) {
@@ -254,22 +254,10 @@ SX1231Error SX1231::transmit_packet(const uint8_t *data, size_t len) {
   return result;
 }
 
-SX1231Error SX1231::start_transmit_async(SX1231TransmitListener *listener, const uint8_t *data, size_t len,
-                                         uint32_t timeout_ms) {
-  if (listener == nullptr || timeout_ms == 0 || timeout_ms > MAX_TRANSMIT_TIMEOUT_MS) {
-    return SX1231Error::SX1231_ERROR_INVALID_PARAMS;
-  }
-  return this->start_transmit_(listener, data, len, timeout_ms);
-}
-
-SX1231Error SX1231::start_transmit_(SX1231TransmitListener *listener, const uint8_t *data, size_t len,
-                                    uint32_t timeout_ms) {
+SX1231Error SX1231::start_transmit_(const uint8_t *data, size_t len) {
   // Callers such as a template number's on_value can run before setup() or after a failed setup
   if (!this->is_ready() || this->state_ == RadioState::RADIO_STATE_NEEDS_CONFIGURATION) {
     return SX1231Error::SX1231_ERROR_NOT_READY;
-  }
-  if (this->state_ != RadioState::RADIO_STATE_IDLE) {
-    return SX1231Error::SX1231_ERROR_BUSY;
   }
   if (!this->applied_.packet_mode || data == nullptr || len == 0 || len > this->get_max_packet_size() ||
       (this->applied_.payload_length > 0 && this->applied_.payload_length != len)) {
@@ -298,45 +286,7 @@ SX1231Error SX1231::start_transmit_(SX1231TransmitListener *listener, const uint
     this->fail_(set_mode_failure());
     return SX1231Error::SX1231_ERROR_NOT_READY;
   }
-  this->tx_ = {listener, millis(), timeout_ms};
-  this->state_ = RadioState::RADIO_STATE_TRANSMITTING;
-  this->enable_loop();
   return SX1231Error::SX1231_ERROR_NONE;
-}
-
-bool SX1231::poll_transmit_(uint32_t now, SX1231Error &result) {
-  // DIO0 is PacketSent while transmitting
-  if (this->dio0_pin_->digital_read()) {
-    result = SX1231Error::SX1231_ERROR_NONE;
-  } else if (static_cast<int32_t>(now - this->tx_.started_ms) >= static_cast<int32_t>(this->tx_.timeout_ms)) {
-    // Signed, as the cached loop time can precede the start
-    result = SX1231Error::SX1231_ERROR_TIMEOUT;
-  } else {
-    return false;
-  }
-  this->finish_transmit_(result);
-  return true;
-}
-
-bool SX1231::cancel_transmit_async(SX1231TransmitListener *listener) {
-  if (!this->is_transmitting() || listener == nullptr || listener != this->tx_.listener) {
-    return false;
-  }
-  this->finish_transmit_(SX1231Error::SX1231_ERROR_CANCELLED);
-  return true;
-}
-
-// The only place a send ends; state is committed before the listener runs
-void SX1231::finish_transmit_(SX1231Error result) {
-  SX1231TransmitListener *listener = std::exchange(this->tx_.listener, nullptr);
-  if (this->restore_()) {
-    this->state_ = RadioState::RADIO_STATE_IDLE;
-  } else {
-    this->fail_(set_mode_failure());
-  }
-  if (listener != nullptr) {
-    listener->on_transmit_complete(result);
-  }
 }
 
 bool SX1231::restore_() {
@@ -371,23 +321,10 @@ void SX1231::call_listeners_(const std::vector<uint8_t> &packet, float rssi, flo
 }
 
 void SX1231::loop() {
-  switch (this->state_) {
-    case RadioState::RADIO_STATE_TRANSMITTING: {
-      SX1231Error result;
-      this->poll_transmit_(App.get_loop_component_start_time(), result);
-      return;
-    }
-    case RadioState::RADIO_STATE_IDLE:
-      // DIO0's interrupt wakes the loop
-      this->disable_loop();
-      if (this->dio0_pin_ != nullptr && this->dio0_pin_->digital_read()) {
-        this->receive_();
-      }
-      return;
-    default:
-      // configure() wakes the loop
-      this->disable_loop();
-      return;
+  // DIO0's interrupt and configure() wake the loop
+  this->disable_loop();
+  if (this->state_ == RadioState::RADIO_STATE_IDLE && this->dio0_pin_ != nullptr && this->dio0_pin_->digital_read()) {
+    this->receive_();
   }
 }
 

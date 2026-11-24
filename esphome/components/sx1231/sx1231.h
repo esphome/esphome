@@ -19,12 +19,6 @@ enum class SX1231Error {
   SX1231_ERROR_INVALID_PARAMS,
   SX1231_ERROR_NOT_READY,
   SX1231_ERROR_BUSY,
-  SX1231_ERROR_CANCELLED,
-};
-
-class SX1231TransmitListener {
- public:
-  virtual void on_transmit_complete(SX1231Error result) = 0;
 };
 
 // Driver state, not the chip's mode
@@ -33,8 +27,6 @@ enum class RadioState : uint8_t {
   RADIO_STATE_NEEDS_CONFIGURATION,
   // Receiving or sleeping as configured, or sending after the TX mode action (untracked)
   RADIO_STATE_IDLE,
-  // A send is on air
-  RADIO_STATE_TRANSMITTING,
 };
 
 class SX1231Listener {
@@ -78,22 +70,11 @@ class SX1231 final : public Component,
   void set_rx_start(bool start) { this->rx_start_ = start; }
   void set_shaping(uint8_t shaping) { this->shaping_ = shaping; }
   void set_sync_value(const StaticVector<uint8_t, SX1231_MAX_SYNC_SIZE> &sync_value) { this->sync_value_ = sync_value; }
-  // Ignored while a send is on air
   void configure();
   SX1231Error transmit_packet(const uint8_t *data, size_t len);
   SX1231Error transmit_packet(const std::vector<uint8_t> &packet) {
     return this->transmit_packet(packet.data(), packet.size());
   }
-  // On SX1231_ERROR_NONE, the listener is called once from loop()
-  [[nodiscard]] SX1231Error start_transmit_async(SX1231TransmitListener *listener, const uint8_t *data, size_t len,
-                                                 uint32_t timeout_ms = 4000);
-  [[nodiscard]] SX1231Error start_transmit_async(SX1231TransmitListener *listener, const std::vector<uint8_t> &packet,
-                                                 uint32_t timeout_ms = 4000) {
-    return this->start_transmit_async(listener, packet.data(), packet.size(), timeout_ms);
-  }
-  // Completes the send with SX1231_ERROR_CANCELLED; false if the listener has none
-  bool cancel_transmit_async(SX1231TransmitListener *listener);
-  bool is_transmitting() const { return this->state_ == RadioState::RADIO_STATE_TRANSMITTING; }
   void register_listener(SX1231Listener *listener) { this->listeners_.push_back(listener); }
   // True while a packet is being received, or has been received and not yet read; sending would lose it.
   bool is_receiving();
@@ -106,11 +87,6 @@ class SX1231 final : public Component,
     bool packet_mode{false};
     bool rx_start{false};
     bool high_power{false};
-  };
-  struct TxOperation {
-    SX1231TransmitListener *listener{nullptr};
-    uint32_t started_ms{0};
-    uint32_t timeout_ms{0};
   };
   static void IRAM_ATTR gpio_intr(SX1231 *arg) { arg->enable_loop_soon_any_context(); }
   // Returns the failure reason, or nullptr
@@ -125,10 +101,7 @@ class SX1231 final : public Component,
   bool packet_waiting_();
   void receive_();
   void restart_stalled_rx_();
-  SX1231Error start_transmit_(SX1231TransmitListener *listener, const uint8_t *data, size_t len, uint32_t timeout_ms);
-  // True once the send has ended, with its outcome in result
-  bool poll_transmit_(uint32_t now, SX1231Error &result);
-  void finish_transmit_(SX1231Error result);
+  SX1231Error start_transmit_(const uint8_t *data, size_t len);
   void write_registers_(uint8_t reg, const uint8_t *data, size_t len);
   void write_register16_(uint8_t msb_reg, uint16_t value);
   void read_fifo_(std::vector<uint8_t> &packet);
@@ -138,7 +111,6 @@ class SX1231 final : public Component,
   Trigger<std::vector<uint8_t>, float, float> packet_trigger_;
   std::vector<SX1231Listener *> listeners_;
   std::vector<uint8_t> packet_;
-  TxOperation tx_;
   InternalGPIOPin *dio0_pin_{nullptr};
   GPIOPin *rst_pin_{nullptr};
   uint32_t bitrate_;
