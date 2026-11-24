@@ -779,13 +779,20 @@ def test_channels_of_one_component_keep_their_order(
 def test_setup_priority_moves_a_whole_component(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """A small strip set up before the bus fits, so setup_priority is suggested."""
+    """A small strip set up before the bus fits, so only setup_priority is suggested.
+
+    The bus leaves no TX block for the strip, but the strip can take one when it comes
+    first, so the warning does not tell to remove components.
+    """
     messages = _check_fixed(
         caplog, VARIANT_ESP32C3, [(_bus("bus"), (("TX", 2),))], _strips(48)
     )
     assert len(messages) == 1
-    assert "'strip0' will not fit" in messages[0]
-    assert "set 'setup_priority' so the smaller ones are set up first" in messages[0]
+    assert (
+        "'strip0' will not fit: 'bus' (96), 'strip0' (48). Set 'setup_priority' so "
+        "the smaller ones are set up first. Otherwise" in messages[0]
+    )
+    assert "Remove" not in messages[0]
 
 
 def test_components_with_the_same_label_are_counted_apart(

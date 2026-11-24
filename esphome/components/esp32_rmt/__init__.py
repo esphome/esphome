@@ -330,12 +330,15 @@ def _pools(
     ]
 
 
-def _advice(memory: RMTMemory, pools: list[tuple[str, list[_Channel], int]]) -> str:
+def _advice(
+    memory: RMTMemory, pools: list[tuple[str, list[_Channel], int]], reorder: bool
+) -> str:
     """Suggest an rmt_symbols value for the components of each overrun pool.
 
     A DMA channel and a channel of a fixed size keep their blocks, whatever rmt_symbols
     is. When they leave too little for the other channels, or there are no others,
-    suggest to remove components instead.
+    suggest to remove components instead. When reorder is set, the channels fit with
+    the smaller components set up first, so suggest setup_priority instead.
     """
     size = memory.symbols_per_block
     suggestions = []
@@ -354,11 +357,15 @@ def _advice(memory: RMTMemory, pools: list[tuple[str, list[_Channel], int]]) -> 
         shrink = [channel for channel in others if channel.symbols > fair]
         suggestions.append(f"'{CONF_RMT_SYMBOLS}: {fair}' on {_labels(shrink)}")
     advice = [f"Set {' and '.join(suggestions)}"] if suggestions else []
-    if stuck or not suggestions:
+    if reorder:
+        advice.append(
+            f"set '{CONF_SETUP_PRIORITY}' so the smaller ones are set up first"
+        )
+    elif stuck or not suggestions:
         advice.append(
             "remove some of these components or use a chip with more RMT memory"
         )
-    text = " and ".join(advice)
+    text = (", or " if reorder else " and ").join(advice)
     return text[0].upper() + text[1:]
 
 
@@ -417,15 +424,13 @@ async def _check_memory() -> None:
     channels.sort(key=lambda channel: -channel.setup_priority)
     if not (failed := _allocate(memory, channels)):
         return
-    fix = ""
     size = memory.symbols_per_block
     components = _by_component(channels)
     # setup_priority moves a whole component: its setup() creates its channels in order
     smallest_first = sorted(
         components.values(), key=lambda own: sum(c.blocks(size) for c in own)
     )
-    if not _allocate(memory, [channel for own in smallest_first for channel in own]):
-        fix = f", or set '{CONF_SETUP_PRIORITY}' so the smaller ones are set up first"
+    reorder = not _allocate(memory, [c for own in smallest_first for c in own])
     # A component with several channels gets the direction of each
     usage = ", ".join(
         f"'{channel.label}' ("
@@ -435,7 +440,7 @@ async def _check_memory() -> None:
     )
     _LOGGER.warning(
         "RMT memory on %s holds %d blocks of %d symbols, but in the order ESPHome sets "
-        "up these components, %s will not fit: %s. %s%s. Otherwise ESP-IDF logs %s "
+        "up these components, %s will not fit: %s. %s. Otherwise ESP-IDF logs %s "
         "at boot, and ESPHome logs 'Channel creation failed' or 'out of RMT symbol "
         "memory'.",
         esp32.get_esp32_variant(),
@@ -443,8 +448,7 @@ async def _check_memory() -> None:
         size,
         _labels(failed),
         usage,
-        _advice(memory, _pools(memory, channels)),
-        fix,
+        _advice(memory, _pools(memory, channels), reorder),
         " or ".join(sorted({_IDF_ERRORS[channel.direction] for channel in failed})),
     )
 
