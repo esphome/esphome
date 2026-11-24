@@ -39,7 +39,6 @@ void DallasTemperatureSensor::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
-#ifdef USE_ONE_WIRE_TRANSACTION
 void DallasTemperatureSensor::update() {
   if (this->address_ == 0)
     return;
@@ -49,8 +48,8 @@ void DallasTemperatureSensor::update() {
   this->convert_.address = this->read_.address = this->address_;
   this->convert_.write_data = &DALLAS_COMMAND_START_CONVERSION;
   this->read_.write_data = &DALLAS_COMMAND_READ_SCRATCH_PAD;
-  // A new conversion replaces the wait of the one before, as on the blocking path. If that wait stayed armed,
-  // it could read right behind the new Convert T, or after a failed one.
+  // A new conversion replaces the wait of the one before. If that wait stayed armed, it could read right behind
+  // the new Convert T, or after a failed one.
   this->cancel_timeout(CONVERSION_TIMEOUT_ID);
   if (!this->bus_->submit(&this->convert_)) {
     ESP_LOGD(TAG, "'%s': skipping a cycle, still converting", LOG_STR_ARG(this->get_log_name()));
@@ -115,27 +114,6 @@ void DallasTemperatureSensor::on_read_done(void *context, one_wire::TransactionS
   }
   self->publish_state(tempc);
 }
-#else
-void DallasTemperatureSensor::update() {
-  if (this->address_ == 0)
-    return;
-
-  this->status_clear_warning();
-
-  this->send_command_(DALLAS_COMMAND_START_CONVERSION);
-
-  this->set_timeout(CONVERSION_TIMEOUT_ID, this->millis_to_wait_for_conversion_(), [this] {
-    if (!this->read_scratch_pad_() || !this->check_scratch_pad_()) {
-      this->publish_state(NAN);
-      return;
-    }
-
-    float tempc = this->get_temp_c_();
-    ESP_LOGD(TAG, "'%s': Got Temperature=%f°C", LOG_STR_ARG(this->get_log_name()), tempc);
-    this->publish_state(tempc);
-  });
-}
-#endif  // USE_ONE_WIRE_TRANSACTION
 
 bool DallasTemperatureSensor::read_scratch_pad_() {
   bool success = this->send_command_(DALLAS_COMMAND_READ_SCRATCH_PAD);

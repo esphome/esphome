@@ -24,7 +24,6 @@ class DallasTemperatureSensor final : public PollingComponent, public sensor::Se
   bool read_scratch_pad_();
   bool check_scratch_pad_();
   float get_temp_c_();
-#ifdef USE_ONE_WIRE_TRANSACTION
   /// Log a warning naming this sensor, the step and the reason, set the status warning and return false
   /// unless the transaction ended with TRANSACTION_STATUS_OK.
   bool check_transaction_status_(one_wire::TransactionStatus status, const LogString *step);
@@ -38,7 +37,6 @@ class DallasTemperatureSensor final : public PollingComponent, public sensor::Se
                               .context = this,
                               .write_len = 1,
                               .read_len = sizeof(this->scratch_pad_)};
-#endif
 };
 
 }  // namespace esphome::dallas_temp
