@@ -875,3 +875,23 @@ def test_setup_order_other_than_smallest_first(
     assert len(messages) == 1
     assert text in messages[0]
     assert "Remove" not in messages[0]
+
+
+def test_channels_after_a_failed_channel_are_not_created(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """setup() of the bus stops when its RX channel fails, so its TX block stays free."""
+    rx = _entry("rx", 96, **{CONF_SETUP_PRIORITY: 900.0})
+    messages = _check_fixed(
+        caplog,
+        VARIANT_ESP32C3,
+        [(_bus("bus"), RX_AND_TX)],
+        {"RX": [rx], **_strips(96)},
+    )
+    assert len(messages) == 1
+    assert (
+        "in the order ESPHome sets up these components, 'bus' will not fit: 'rx' (96), "
+        "'bus' (RX 48), 'bus' (TX 48), 'strip0' (96). Set 'rmt_symbols: 48' on "
+        "'strip0' and 'rmt_symbols: 48' on 'rx'. Otherwise ESP-IDF logs 'no free rx "
+        "channels' at boot," in messages[0]
+    )

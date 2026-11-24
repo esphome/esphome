@@ -200,7 +200,8 @@ def request_rmt_channels(
 
     Like request_rmt_channel(), but for a component that has no rmt_symbols option.
     channels lists the direction and the memory blocks of each channel, in the order
-    setup() creates them. All of them are recorded under the id of the entry. Use
+    setup() creates them. All of them are recorded under the id of the entry. The check
+    expects setup() to stop at the first channel it cannot create. Use
     final_validate_rmt_channels() and register_rmt_channel() as with
     request_rmt_channel().
     """
@@ -295,6 +296,8 @@ def _allocate(memory: RMTMemory, channels: list[_Channel]) -> list[_Channel]:
 
     The driver gives a channel the first free run of blocks that starts at one of the
     channels of its direction, and a DMA channel the last channel of its direction.
+    The setup() of a component stops at its first channel that fails, so its later
+    channels are not created and not returned.
     """
     size = memory.symbols_per_block
     total = memory.total_blocks
@@ -306,7 +309,10 @@ def _allocate(memory: RMTMemory, channels: list[_Channel]) -> list[_Channel]:
     # Blocks past the end of the RMT memory count as taken, like in ESP-IDF
     occupied = ~((1 << total) - 1)
     failed = []
+    stopped: set[ID] = set()
     for channel in channels:
+        if channel.id in stopped:
+            continue
         mask = (1 << channel.blocks(size)) - 1
         candidates = starts[channel.direction]
         if channel.dma:
@@ -314,6 +320,7 @@ def _allocate(memory: RMTMemory, channels: list[_Channel]) -> list[_Channel]:
         start = next((j for j in candidates if not occupied & mask << j), None)
         if start is None:
             failed.append(channel)
+            stopped.add(channel.id)
         else:
             occupied |= mask << start
     return failed
