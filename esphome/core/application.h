@@ -193,13 +193,24 @@ class Application {
   const LogString *get_current_source() { return this->current_source_; }
 
 // Codegen entities are in the constant APP_<UPPER>_LIST arrays. Entities created at run time go into
-// slots reserved with cg.reserve_runtime_entities(); register_<entity>() works only then, and
-// otherwise fails to compile with a message saying so.
+// slots reserved with cg.reserve_runtime_entities(): register_<entity>(obj, name) names the entity,
+// computes its object_id hash from the name and fills a slot. `name` must stay valid as long as the
+// entity, and ESP8266 reads it like a flash string. Without a reservation the call fails to compile
+// with a message saying so.
 // NOLINTBEGIN(bugprone-macro-parentheses)
 #define APP_RESERVE_HINT_(singular) \
   "Call cg.reserve_runtime_entities(\"" #singular "\", n) in to_code to register entities at run time"
 #define ENTITY_TYPE_(type, singular, plural, count, upper) \
-  SLOT_LIST(type, runtime_##plural##_, register_##singular, ESPHOME_RUNTIME_##upper##_COUNT) \
+\
+ protected: \
+  [[no_unique_address]] SlotList<type *, ESPHOME_RUNTIME_##upper##_COUNT> runtime_##plural##_; \
+\
+ public: \
+  SLOT_LIST_REQUIRES(ESPHOME_RUNTIME_##upper##_COUNT) \
+  void register_##singular(type *obj, const char *name) { \
+    obj->configure_entity_(name, 0, 0); \
+    this->runtime_##plural##_.push_back(obj); \
+  } \
   template<size_t RESERVED = ESPHOME_RUNTIME_##upper##_COUNT, typename... A> \
     requires(RESERVED == 0) \
   void register_##singular(type * /*obj*/, A... /*args*/) { \

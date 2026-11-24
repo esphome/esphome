@@ -155,8 +155,8 @@ class ComponentIteratorSensorTest : public ::testing::Test {
   void SetUp() override {
     static bool registered = false;
     if (!registered) {
-      App.register_sensor(&sensor_a);
-      App.register_sensor(&sensor_b);
+      App.register_sensor(&sensor_a, "Runtime A");
+      App.register_sensor(&sensor_b, "Runtime B");
       registered = true;
     }
     // The runtime slots follow the codegen sensors
@@ -166,6 +166,19 @@ class ComponentIteratorSensorTest : public ::testing::Test {
     ASSERT_EQ(sensors[ESPHOME_ENTITY_SENSOR_COUNT + 1], &sensor_b);
   }
 };
+
+TEST_F(ComponentIteratorSensorTest, RuntimeEntitiesAreNamedAndKeyed) {
+  EXPECT_STREQ(sensor_a.get_name().c_str(), "Runtime A");
+  EXPECT_TRUE(sensor_a.has_own_name());
+  // What codegen computes for these names (esphome.helpers.fnv1_hash_object_id)
+  EXPECT_EQ(sensor_a.get_object_id_hash(), 572462443u);
+  EXPECT_EQ(sensor_b.get_object_id_hash(), 572462440u);
+#ifdef USE_DEVICES
+  EXPECT_EQ(App.get_sensor_by_key(sensor_b.get_object_id_hash(), 0, true), &sensor_b);
+#else
+  EXPECT_EQ(App.get_sensor_by_key(sensor_b.get_object_id_hash(), true), &sensor_b);
+#endif
+}
 
 TEST_F(ComponentIteratorSensorTest, RefusedItemIsReofferedNotSkipped) {
   ItemRefusingIterator it;
