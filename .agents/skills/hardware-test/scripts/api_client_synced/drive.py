@@ -14,7 +14,14 @@ import contextlib
 import sys
 import time
 
-from aioesphomeapi import APIClient, EntityInfo, HomeassistantServiceCall, LogLevel
+from aioesphomeapi import (
+    APIClient,
+    ButtonInfo,
+    EntityInfo,
+    EventInfo,
+    HomeassistantServiceCall,
+    LogLevel,
+)
 
 HOST = sys.argv[1]
 MODE = sys.argv[2]
@@ -42,7 +49,11 @@ async def logs_client() -> None:
 async def states_client(name: str, hold: float = 4) -> dict:
     c = await mk(name)
     entities, _ = await c.list_entities_services()
-    stateful = {e.key for e in entities if isinstance(e, EntityInfo)}
+    stateful = {
+        e.key
+        for e in entities
+        if isinstance(e, EntityInfo) and not isinstance(e, (ButtonInfo, EventInfo))
+    }
     received: list = []
     t0 = time.monotonic()
     got = asyncio.Event()

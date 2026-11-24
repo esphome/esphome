@@ -87,10 +87,12 @@ async def main() -> None:
             break
         await asyncio.sleep(1)
 
-    async def wait_for(pred, t: float = 15.0) -> bool:
+    async def wait_for(e, check, t: float = 15.0) -> bool:
+        # drop the cached state so only an update sent after the command counts
+        states.pop((e.key, e.device_id), None)
         end = loop.time() + t
         while True:
-            if any(pred(s) for s in states.values()):
+            if (s := states.get((e.key, e.device_id))) is not None and check(s):
                 return True
             if (rem := end - loop.time()) <= 0:
                 return False
@@ -100,9 +102,6 @@ async def main() -> None:
 
     def ent(cls_name: str, name: str):
         return next(e for e in ents if type(e).__name__ == cls_name and e.name == name)
-
-    def st_ok(e, check):
-        return lambda s: s.key == e.key and s.device_id == e.device_id and check(s)
 
     if drive:
         relay = next(
@@ -123,22 +122,18 @@ async def main() -> None:
         for want in (True, False):
             cli.switch_command(relay.key, want)
             ok = await wait_for(
-                st_ok(
-                    relay, lambda s, w=want: isinstance(s, SwitchState) and s.state == w
-                )
+                relay, lambda s, w=want: isinstance(s, SwitchState) and s.state == w
             )
             print(f"DRIVE switch Relay(main) -> {want}: {'OK' if ok else 'NO STATE'}")
         cli.button_command(btn.key)
-        ok = await wait_for(st_ok(relay2, lambda s: s.state != r2_before))
+        ok = await wait_for(relay2, lambda s: s.state != r2_before)
         print(
             f"DRIVE button Press Me -> sub device Relay toggled from {r2_before}: {'OK' if ok else 'NO STATE'}"
         )
         for want in (True, False):
             cli.light_command(lamp.key, state=want, brightness=0.5 if want else None)
             ok = await wait_for(
-                st_ok(
-                    lamp, lambda s, w=want: isinstance(s, LightState) and s.state == w
-                )
+                lamp, lambda s, w=want: isinstance(s, LightState) and s.state == w
             )
             print(f"DRIVE light Lamp -> {want}: {'OK' if ok else 'NO STATE'}")
         # (entity type, name, command method, args, expected state fields)
@@ -147,6 +142,7 @@ async def main() -> None:
             ("SelectInfo", "Mode", "select_command", ("b",), {"state": "b"}),
             ("CoverInfo", "Shade", "cover_command", (), {"position": 1.0}),
             ("TextInfo", "Note", "text_command", ("hello",), {"state": "hello"}),
+            ("LockInfo", "Latch", "lock_command", (LockCommand.UNLOCK,), {"state": 2}),  # lock dedups, so toggle
             ("LockInfo", "Latch", "lock_command", (LockCommand.LOCK,), {"state": 1}),
             ("ValveInfo", "Tap", "valve_command", (), {"position": 1.0}),
             ("DateInfo", "Day", "date_command", (2026, 11, 24), {"day": 24}),
@@ -156,7 +152,7 @@ async def main() -> None:
         kw = {"cover_command": {"position": 1.0}, "valve_command": {"position": 1.0}}
         fan = ent("FanInfo", "Fan")
         cli.fan_command(fan.key, state=True, speed_level=2, device_id=fan.device_id)
-        ok = await wait_for(st_ok(fan, lambda s: s.state and s.speed_level == 2))
+        ok = await wait_for(fan, lambda s: s.state and s.speed_level == 2)
         print(f"DRIVE fan Fan on speed 2: {'OK' if ok else 'NO STATE'}")
         for cls_name, name, method, args, want in cases:
             e = ent(cls_name, name)
@@ -164,9 +160,7 @@ async def main() -> None:
                 e.key, *args, device_id=e.device_id, **kw.get(method, {})
             )
             ok = await wait_for(
-                st_ok(
-                    e, lambda s, w=want: all(getattr(s, k) == v for k, v in w.items())
-                )
+                e, lambda s, w=want: all(getattr(s, k) == v for k, v in w.items())
             )
             print(f"DRIVE {method} {name} {args or ''}: {'OK' if ok else 'NO STATE'}")
         await asyncio.sleep(2)
