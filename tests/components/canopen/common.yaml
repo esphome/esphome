@@ -29,6 +29,7 @@ script:
           index: 0x6040
           value: !lambda "return 0x0F;"
       - canopen.sdo_write:
+          id: canopen_hub
           node_id: 0x02
           index: 0x607A
           value: -1000
