@@ -1,26 +1,15 @@
-# Shared dmx configuration for component compile tests.
-# Pins / uart_num can be overridden per platform via substitutions.
 
-substitutions:
-  dmx_uart_num: "1"
-  dmx_tx_pin: GPIO17
-  dmx_rx_pin: GPIO16
-  dmx_mode: bidirectional
-  dmx_tx_interval: "25ms"
-  dmx_rx_guard: "5ms"
-  # Leave unset / empty to omit RTS (no driver enable pin)
+# Shared DMX RX configuration
 
 dmx:
   id: dmx_bus
-  mode: ${dmx_mode}
+  mode: rx
   uart_num: ${dmx_uart_num}
   tx_pin: ${dmx_tx_pin}
   rx_pin: ${dmx_rx_pin}
   tx_interval: ${dmx_tx_interval}
-  rx_guard: ${dmx_rx_guard}
-  # rts_pin omitted on purpose — optional DE/RE pin
 
-# Runtime channel selection (Home Assistant number input)
+# Home Assistant Numbers voor kanaalselectie
 number:
   - platform: template
     name: "DMX Channel"
@@ -33,13 +22,6 @@ number:
     initial_value: 1
     restore_value: true
 
-    # TX output (requires mode tx or bidirectional)
-  - platform: dmx
-    dmx_id: dmx_bus
-    channel: 7
-    name: "DMX Out 7"
-
-    #RDM solution
   - platform: template
     name: "DMX Channel Front"
     id: ch_front
@@ -73,7 +55,7 @@ number:
     initial_value: 30
     restore_value: true
 
-# Sensors: one dynamic + one fixed channel (requires mode rx or bidirectional)
+# DMX ontvangst-sensors
 sensor:
   - platform: dmx
     dmx_id: dmx_bus
@@ -87,7 +69,6 @@ sensor:
     name: "DMX Channel 1 (fixed)"
     id: dmx_channel_1
 
-  #RDM solution implementation
   - platform: dmx
     dmx_id: dmx_bus
     channel_id: ch_front
@@ -102,22 +83,3 @@ sensor:
     dmx_id: dmx_bus
     channel_id: ch_side
     name: "Value Side"
-# Ligths: Dimmers have only 1 channels, RGB lights 3 channels, RGBW 4 channels
-light:
-  - platform: dmx
-    name: "DMX Dimmer"
-    dmx_id: dmx_bus
-    first_channel: 30
-    type: dimmer
-
-  - platform: dmx
-    name: "DMX RGB"
-    dmx_id: dmx_bus
-    first_channel: 50
-    type: rgb
-
-  - platform: dmx
-    name: "DMX RGBW"
-    dmx_id: dmx_bus
-    first_channel: 60
-    type: rgbw

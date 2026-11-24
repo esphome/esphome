@@ -61,19 +61,18 @@ inline bool dmx_wait_sent(dmx_port_t, int) { return true; }
 inline bool uart_is_driver_installed(dmx_port_t) { return false; }
 #endif
 
-#ifndef DMX_STATIC_SENSOR_COUNT
-static constexpr size_t DMX_STATIC_SENSOR_COUNT = 0;
-#endif
-#ifndef DMX_DYNAMIC_SENSOR_COUNT
-static constexpr size_t DMX_DYNAMIC_SENSOR_COUNT = 0;
-#endif
+// #ifndef DMX_STATIC_SENSOR_COUNT
+// static constexpr size_t DMX_STATIC_SENSOR_COUNT = 0;
+// #endif
+// #ifndef DMX_DYNAMIC_SENSOR_COUNT
+// static constexpr size_t DMX_DYNAMIC_SENSOR_COUNT = 0;
+// #endif
 
 namespace esphome::dmx {
 
 enum class DMXMode : uint8_t {
   DMX_MODE_RX = 0,
   DMX_MODE_TX = 1,
-  DMX_MODE_BIDIRECTIONAL = 2,
 };
 
 struct StaticChannelSensor {
@@ -98,7 +97,6 @@ class DMXComponent : public Component {
   void setup() override;
   void loop() override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
 
   void set_tx_pin(int pin) { this->tx_pin_ = pin; }
   void set_rx_pin(int pin) { this->rx_pin_ = pin; }
@@ -106,7 +104,6 @@ class DMXComponent : public Component {
   void set_uart_num(int num) { this->uart_num_ = num; }
   void set_mode(DMXMode mode) { this->mode_ = mode; }
   void set_tx_interval(uint32_t ms) { this->tx_interval_ms_ = ms; }
-  void set_rx_guard(uint32_t ms) { this->rx_guard_ms_ = ms; }
   void set_rdm_enabled(bool enabled) { this->rdm_enabled_ = enabled; }
 
   // Received and transmitted universes are deliberately kept separate.
@@ -160,10 +157,8 @@ class DMXComponent : public Component {
   bool tx_enabled_{false};
   bool tx_dirty_{false};
   uint32_t last_tx_ms_{0};
-  uint32_t last_rx_ms_{0};
   DMXMode mode_{DMXMode::DMX_MODE_RX};
   uint32_t tx_interval_ms_{25};
-  uint32_t rx_guard_ms_{5};
 
   bool rdm_enabled_{true};
   std::vector<RdmChannelBinding> rdm_bindings_{};
@@ -171,21 +166,6 @@ class DMXComponent : public Component {
 
   [[no_unique_address]] SlotList<StaticChannelSensor, DMX_STATIC_SENSOR_COUNT> static_sensors_;
   [[no_unique_address]] SlotList<DynamicChannelSensor, DMX_DYNAMIC_SENSOR_COUNT> dynamic_sensors_;
-};
-
-class DMXOutputNumber : public number::Number, public Component {
- public:
-  void setup() override {}
-  void dump_config() override;
-  void set_parent(DMXComponent *parent) { this->parent_ = parent; }
-  void set_channel(uint16_t channel) { this->channel_ = channel; }
-  float get_setup_priority() const override { return setup_priority::DATA; }
-
- protected:
-  void control(float value) override;
-
-  DMXComponent *parent_{nullptr};
-  uint16_t channel_{1};
 };
 
 enum class DMXLightType : uint8_t {

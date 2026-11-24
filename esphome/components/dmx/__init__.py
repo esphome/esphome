@@ -41,7 +41,6 @@ CODEOWNERS = ["@KoenBreeman"]
 CONF_UART_NUM = "uart_num"
 CONF_DMX_ID = "dmx_id"
 CONF_TX_INTERVAL = "tx_interval"
-CONF_RX_GUARD = "rx_guard"
 CONF_RDM = "rdm"
 DEPENDENCIES = ["esp32"]
 DOMAIN = "dmx"
@@ -49,7 +48,6 @@ _LOGGER = logging.getLogger(__name__)
 
 MODE_RX = "rx"
 MODE_TX = "tx"
-MODE_BIDI = "bidirectional"
 
 _LOGGER_HW_UART_TO_NUM = {
     "UART0": 0,
@@ -96,7 +94,6 @@ def default_uart_num():
 MODE_TO_ENUM = {
     MODE_RX: DMXMode.DMX_MODE_RX,
     MODE_TX: DMXMode.DMX_MODE_TX,
-    MODE_BIDI: DMXMode.DMX_MODE_BIDIRECTIONAL,
 }
 
 register_channel_sensor = cg.slot_list(
@@ -121,12 +118,11 @@ CONFIG_SCHEMA = cv.Schema(
             default=default_uart_num,
         ): UART_NUMBERS,
         cv.Optional(CONF_MODE, default=MODE_RX): cv.one_of(
-            MODE_RX, MODE_TX, MODE_BIDI, lower=True
+            MODE_RX, MODE_TX, lower=True
         ),
         cv.Optional(
             CONF_TX_INTERVAL, default="25ms"
         ): cv.positive_time_period_milliseconds,
-        cv.Optional(CONF_RX_GUARD, default="5ms"): cv.positive_time_period_milliseconds,
         cv.Optional(CONF_RDM, default=True): cv.boolean,
     }
 ).extend(cv.COMPONENT_SCHEMA)
@@ -166,11 +162,10 @@ def _final_validate(config) -> None:
     uart_num = config[CONF_UART_NUM]
 
     mode = config[CONF_MODE]
-    if mode in (MODE_TX, MODE_BIDI) and CONF_RTS_PIN not in config:
+    if mode == MODE_TX and CONF_RTS_PIN not in config:
         _LOGGER.warning(
-            "dmx: mode '%s' without rts_pin — direction is controlled by the "
-            "transceiver (OK for M5 Unit DMX; boards with DE/RE should set rts_pin)",
-            mode,
+            "dmx: transmitter mode without rts_pin — direction is controlled by "
+            "the transceiver (OK for M5 Unit DMX; boards with DE/RE should set rts_pin)"
         )
 
     logger_uart = _logger_hardware_uart_num(full_config)
@@ -216,7 +211,6 @@ async def to_code(config):
     cg.add(var.set_uart_num(config[CONF_UART_NUM]))
     cg.add(var.set_mode(MODE_TO_ENUM[config[CONF_MODE]]))
     cg.add(var.set_tx_interval(config[CONF_TX_INTERVAL].total_milliseconds))
-    cg.add(var.set_rx_guard(config[CONF_RX_GUARD].total_milliseconds))
     cg.add(var.set_rdm_enabled(config[CONF_RDM]))
 
     add_idf_component(

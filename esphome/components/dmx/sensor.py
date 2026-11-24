@@ -3,7 +3,6 @@ from esphome.components import number, sensor
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CHANNEL,
-    CONF_ID,
     ICON_BRIGHTNESS_5,
     STATE_CLASS_MEASUREMENT,
     UNIT_EMPTY,
@@ -13,7 +12,7 @@ import esphome.final_validate as fv
 from . import (
     CONF_DMX_ID,
     CONF_MODE,
-    MODE_TX,
+    MODE_RX,
     DMXComponent,
     register_channel_sensor,
     register_dynamic_channel_sensor,
@@ -40,18 +39,11 @@ CONFIG_SCHEMA = cv.All(
 
 
 def _final_validate(config):
-    full = fv.full_config.get()
-    hubs = full.get("dmx", [])
-    if not isinstance(hubs, list):
-        hubs = [hubs] if hubs else []
-    target = config[CONF_DMX_ID].id
-    for hub in hubs:
-        if hub[CONF_ID].id == target:
-            if hub.get(CONF_MODE, "rx") == MODE_TX:
-                raise cv.Invalid(
-                    "dmx sensor requires hub mode 'rx' or 'bidirectional', not 'tx'"
-                )
-            break
+    hub_config = fv.get_declaring_config(config[CONF_DMX_ID])
+
+    if hub_config.get(CONF_MODE, MODE_RX) != MODE_RX:
+        raise cv.Invalid("dmx sensor requires hub mode 'rx', not 'tx'")
+
     return config
 
 

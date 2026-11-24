@@ -1,5 +1,6 @@
 #include "dmx.h"
 #include "esphome/core/log.h"
+#include "esphome/core/application.h"
 
 #if ESPHOME_DMX_HAS_RDM
 #include "dmx/include/service.h"
@@ -281,36 +282,42 @@ void DMXComponent::sync_numbers_to_rdm_() {
   }
 }
 
-void DMXComponent::loop() {
-  const bool want_rx = (this->mode_ != DMXMode::DMX_MODE_TX);
-  const bool want_tx = (this->mode_ != DMXMode::DMX_MODE_RX) && this->tx_enabled_;
 
-  bool got_rx = false;
-  if (want_rx) {
+
+void DMXComponent::loop() {
+  const uint32_t now = App.get_loop_component_start_time();
+
+  // RX mode: receive DMX and handle RDM.
+  if (this->mode_ == DMXMode::DMX_MODE_RX) {
     dmx_packet_t packet{};
-    const size_t received_size = dmx_receive(this->dmx_port_, &packet, 0);
+    const size_t received_size = dmx_receive(this->dmx_port_, &packet, 1);
 
     if (received_size > 0) {
-      if constexpr (ESPHOME_DMX_HAS_RDM) {
-        if (this->rdm_enabled_ && packet.is_rdm) {
-          // Respond immediately; do not put logging or other slow work before this call.
+      // Handle valid RDM packets immediately.
+      if (packet.err == DMX_OK && packet.is_rdm) {
+        #if ESPHOME_DMX_HAS_RDM
+        if (this->rdm_enabled_) {
           rdm_send_response(this->dmx_port_);
           this->sync_rdm_to_numbers_();
-          this->last_rx_ms_ = millis();
-          got_rx = true;
         }
+        #endif
+        return;
       }
+
+      // Handle normal DMX packets.
       if (packet.err == DMX_OK && !packet.is_rdm && packet.sc == 0x00) {
         if (received_size > DMX_PACKET_SIZE) {
-          ESP_LOGW(TAG, "Ignoring oversized DMX packet (%u bytes)", static_cast<unsigned>(received_size));
+          ESP_LOGW(TAG, "Ignoring oversized DMX packet (%u bytes)",
+                   static_cast<unsigned>(received_size));
         } else {
-          const size_t bytes_read = dmx_read(this->dmx_port_, this->rx_data_, received_size);
+          const size_t bytes_read =
+              dmx_read(this->dmx_port_, this->rx_data_, received_size);
+
           if (bytes_read == received_size) {
             this->publish_inputs_();
-            this->last_rx_ms_ = millis();
-            got_rx = true;
           } else {
-            ESP_LOGW(TAG, "Incomplete DMX read: expected %u bytes, received %u", static_cast<unsigned>(received_size),
+            ESP_LOGW(TAG, "Incomplete DMX read: expected %u bytes, received %u",
+                     static_cast<unsigned>(received_size),
                      static_cast<unsigned>(bytes_read));
           }
         }
@@ -318,40 +325,27 @@ void DMXComponent::loop() {
         ESP_LOGW(TAG, "DMX error: %d", packet.err);
       }
     }
+
+    #if ESPHOME_DMX_HAS_RDM
+    // Synchronize Home Assistant Number changes to RDM parameters.
+    if (this->rdm_enabled_) {
+      this->sync_numbers_to_rdm_();
+    }
+    #endif
+
+    return;
   }
 
-  // Periodically push Number changes (from HA) towards RDM
-  if constexpr (ESPHOME_DMX_HAS_RDM) {
-    if (this->rdm_enabled_ && !this->rdm_bindings_.empty()) {
-      const uint32_t now_rdm = millis();
-      if (now_rdm - this->last_rdm_push_ms_ >= 500) {
-        this->last_rdm_push_ms_ = now_rdm;
-        this->sync_numbers_to_rdm_();
-      }
+  // TX mode: ESPHome is the DMX controller.
+  if (this->mode_ == DMXMode::DMX_MODE_TX && this->tx_enabled_) {
+    if (this->tx_dirty_ ||
+        (now - this->last_tx_ms_ >= this->tx_interval_ms_)) {
+      this->send_universe_();
     }
   }
-
-  if (!want_tx)
-    return;
-
-  const uint32_t now = millis();
-
-  // Half-duplex: na RX én na TX een ontvangst-window vrijhouden
-  if (this->mode_ == DMXMode::DMX_MODE_BIDIRECTIONAL) {
-    if (got_rx)
-      return;
-    // Nog in post-RX guard?
-    if ((now - this->last_rx_ms_) < this->rx_guard_ms_)
-      return;
-    // Nog in post-TX receive window? (voorkomt meteen weer TX’en)
-    if ((now - this->last_tx_ms_) < this->rx_guard_ms_)
-      return;
-  }
-
-  if (this->tx_dirty_ || (now - this->last_tx_ms_ >= this->tx_interval_ms_)) {
-    this->send_universe_();
-  }
 }
+
+
 
 void DMXComponent::publish_inputs_() {
   for (auto &cs : this->static_sensors_) {
@@ -379,7 +373,7 @@ void DMXComponent::publish_inputs_() {
 
 void DMXComponent::send_universe_() {
   // Don't overwrite the driver buffer while a frame is still going out
-  if (!dmx_wait_sent(this->dmx_port_, 0)) {
+  if (!dmx_wait_sent(this->dmx_port_, 1)) {
     // Still busy — keep tx_dirty_ so we retry next loop
     return;
   }
@@ -398,7 +392,7 @@ void DMXComponent::send_universe_() {
   }
 
   this->tx_dirty_ = false;
-  this->last_tx_ms_ = millis();
+  this->last_tx_ms_ = App.get_loop_component_start_time();
 }
 
 uint8_t DMXComponent::get_rx_channel(uint16_t channel) const {
@@ -446,7 +440,6 @@ void DMXComponent::dump_config() {
     ESP_LOGCONFIG(TAG, "  RTS Pin: GPIO%d", this->rts_pin_);
   }
   ESP_LOGCONFIG(TAG, "  TX interval: %u ms", static_cast<unsigned>(this->tx_interval_ms_));
-  ESP_LOGCONFIG(TAG, "  RX guard: %u ms", static_cast<unsigned>(this->rx_guard_ms_));
   ESP_LOGCONFIG(TAG, "  RDM: %s", this->rdm_enabled_ ? LOG_STR_LITERAL("enabled") : LOG_STR_LITERAL("disabled"));
   ESP_LOGCONFIG(TAG, "  RDM channel bindings: %u", static_cast<unsigned>(this->rdm_bindings_.size()));
   for (size_t i = 0; i < this->rdm_bindings_.size(); i++) {
@@ -458,23 +451,6 @@ void DMXComponent::dump_config() {
       ESP_LOGCONFIG(TAG, "    [%u] '%s' → custom PID 0x%04X", static_cast<unsigned>(i), name, b.custom_pid);
     }
   }
-}
-
-void DMXOutputNumber::control(float value) {
-  if (this->parent_ == nullptr)
-    return;
-  if (value < 0.0f)
-    value = 0.0f;
-  if (value > 255.0f)
-    value = 255.0f;
-  const uint8_t slot = static_cast<uint8_t>(value);
-  this->parent_->set_slot(this->channel_, slot);
-  this->publish_state(slot);
-}
-
-void DMXOutputNumber::dump_config() {
-  ESP_LOGCONFIG(TAG, "DMX Output:");
-  ESP_LOGCONFIG(TAG, "  Channel: %u", this->channel_);
 }
 
 light::LightTraits DMXLightOutput::get_traits() {

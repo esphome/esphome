@@ -1,11 +1,19 @@
+
 import esphome.codegen as cg
 from esphome.components import light
 from esphome.components.light import LightType
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_TYPE
+from esphome.const import CONF_TYPE
 import esphome.final_validate as fv
 
-from . import CONF_DMX_ID, DMXComponent, dmx_ns
+from . import (
+    CONF_DMX_ID,
+    CONF_MODE,
+    MODE_RX,
+    MODE_TX,
+    DMXComponent,
+    dmx_ns,
+)
 
 DEPENDENCIES = ["dmx"]
 
@@ -64,23 +72,17 @@ def _validate_channel_range(config):
         )
 
 
-def _final_validate(config) -> None:
+def _final_validate(config):
     _validate_channel_range(config)
 
-    full = fv.full_config.get()
-    hubs = full.get("dmx", [])
-    if not isinstance(hubs, list):
-        hubs = [hubs] if hubs else []
+    hub_config = fv.get_declaring_config(config[CONF_DMX_ID])
 
-    target = config[CONF_DMX_ID].id
+    if hub_config.get(CONF_MODE, MODE_RX) != MODE_TX:
+        raise cv.Invalid(
+            "dmx light requires hub mode 'tx', not 'rx'"
+        )
 
-    for hub in hubs:
-        if hub[CONF_ID].id == target:
-            if hub.get("mode", "rx") == "rx":
-                raise cv.Invalid(
-                    "dmx light requires hub mode 'tx' or 'bidirectional', not 'rx'"
-                )
-            break
+    return config
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate

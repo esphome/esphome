@@ -1,10 +1,9 @@
 substitutions:
   dmx_uart_num: "1"
-  dmx_tx_pin: GPIO17
-  dmx_rx_pin: GPIO18
+  dmx_tx_pin: GPIO16
+  dmx_rx_pin: GPIO17
   dmx_mode: bidirectional
   dmx_tx_interval: "25ms"
-  dmx_rx_guard: "5ms"
 
 packages:
-  common: !include common.yaml
+  common: !include common_rx.yaml
