@@ -61,6 +61,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
 import esphome.final_validate as fv
+from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
 from esphome.yaml_util import make_data_base
 
@@ -85,6 +86,8 @@ LibreTinyUARTComponent = uart_ns.class_(
     "LibreTinyUARTComponent", UARTComponent, cg.Component
 )
 HostUartComponent = uart_ns.class_("HostUartComponent", UARTComponent, cg.Component)
+# Base of UARTs without a wire (uart_virtual.h)
+VirtualUARTComponent = uart_ns.class_("VirtualUARTComponent", UARTComponent)
 
 
 NATIVE_UART_CLASSES = (
@@ -178,7 +181,8 @@ def validate_host_config(config):
 
 
 def validate_rx_buffer_size(config):
-    if CORE.is_esp32:
+    # Without an RX pin the buffer is not used
+    if CORE.is_esp32 and CONF_RX_PIN in config:
         # ESP32 UART hardware FIFO is 128 bytes (LP UART is 16 bytes, but we use 128 as safe minimum)
         # rx_buffer_size must be greater than the hardware FIFO length
         min_buffer_size = 128
@@ -258,7 +262,11 @@ DEFAULT_DEBUG_OUTPUT = "UARTDebug::log_hex(direction, bytes, ':', debug_prefix);
 DEFAULT_SEQUENCE = [{CONF_LAMBDA: make_data_base(DEFAULT_DEBUG_OUTPUT)}]
 
 
-def maybe_empty_debug(value):
+@schema_extractor("schema")
+def maybe_empty_debug(value: ConfigType | None) -> ConfigType:
+    # A bare `debug:` is valid; the schema dumper still walks DEBUG_SCHEMA
+    if value is SCHEMA_EXTRACT:
+        return DEBUG_SCHEMA
     if value is None:
         value = {}
     return DEBUG_SCHEMA(value)
@@ -455,6 +463,8 @@ async def debug_to_code(config, parent):
 
 async def to_code(config):
     cg.add_global(uart_ns.using)
+    # A hardware UART is configured; uart can also be loaded only for virtual UARTs
+    cg.add_define("USE_UART_HARDWARE")
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
@@ -818,9 +828,13 @@ _platform_filter = filter_source_files_from_platform(
 )
 
 # uart_debugger.cpp is fully #ifdef'd on USE_UART_DEBUGGER, set only when a
-# debug block is configured.
+# debug block is configured. uart_component_rp2.cpp names Serial1 and Serial2,
+# which links arduino-pico's SerialUART objects even when nothing uses them.
 _define_filter = filter_source_files_from_defines(
-    {"uart_debugger.cpp": "USE_UART_DEBUGGER"}
+    {
+        "uart_debugger.cpp": "USE_UART_DEBUGGER",
+        "uart_component_rp2.cpp": "USE_UART_HARDWARE",
+    }
 )
 
 

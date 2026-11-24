@@ -1,7 +1,6 @@
 #pragma once
 
 #include <cinttypes>
-#include <utility>
 
 #include "esphome/core/component.h"
 #include "esphome/core/preferences.h"
@@ -24,20 +23,21 @@ class DutyTimeSensor final : public sensor::Sensor, public PollingComponent {
   void start();
   void stop();
   bool is_running() const { return this->last_state_; }
-  void reset() { this->set_value_(0); }
+  void reset() { this->set_value(0); }
+  void set_value(uint32_t sec);
 
 #ifdef USE_BINARY_SENSOR
   void set_sensor(binary_sensor::BinarySensor *sensor);
 #endif
-  void set_lambda(std::function<bool()> &&func) { this->func_ = std::move(func); }
+  // process_lambda emits lambdas without captures, so they convert to a function pointer
+  void set_lambda(bool (*func)()) { this->func_ = func; }
   void set_restore(bool restore) { this->restore_ = restore; }
 
  protected:
-  void set_value_(uint32_t sec);
   void process_state_(bool state);
   void publish_and_save_(uint32_t sec, uint32_t ms);
 
-  std::function<bool()> func_{nullptr};
+  bool (*func_)(){nullptr};
   ESPPreferenceObject pref_;
 
   uint32_t total_sec_{0};
