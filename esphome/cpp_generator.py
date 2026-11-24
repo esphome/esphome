@@ -849,7 +849,6 @@ def Pvariable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj":
         decl = VariableDeclarationExpression(id_.type, "*", id_, static=True)
         CORE.add_global(decl)
         CORE.add(AssignmentExpression(None, None, id_, rhs))
-        # An alias of a static object: its address is still a compile-time constant
         if (address := static_pointer_address(rhs)) is not None:
             CORE.data[_STATIC_POINTER_ADDRESSES][id_.id] = address
 
@@ -858,7 +857,6 @@ def Pvariable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj":
 
 
 _STATIC_POINTER_IDS = "static_pointer_ids"
-# Pvariable id -> constant expression for its object's address, aliases included
 _STATIC_POINTER_ADDRESSES = "static_pointer_addresses"
 
 

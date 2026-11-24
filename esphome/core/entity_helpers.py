@@ -88,9 +88,7 @@ _KEY_INTERNAL = "_entity_internal"
 _KEY_DISABLED_BY_DEFAULT = "_entity_disabled_by_default"
 _KEY_ENTITY_CATEGORY = "_entity_category"
 
-# Application's static configure_<entity>() helpers, which setup() calls
 _APPLICATION = MockObj("esphome::Application", "::")
-# Private config key naming the App list the entity goes into (esphome/core/app_lists.py).
 _KEY_APP_LIST = "_entity_app_list"
 
 # Maximum unique strings per category (8-bit index, 0 = not set)

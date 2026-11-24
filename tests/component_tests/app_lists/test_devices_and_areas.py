@@ -1,5 +1,3 @@
-"""Core codegen puts the YAML devices and areas into their constant App lists."""
-
 from collections.abc import Callable
 import re
 
@@ -26,6 +24,5 @@ def test_devices_and_areas_are_listed_in_order(
     ]
     assert get_define_value("ESPHOME_AREA_COUNT") == "2"
     assert get_define_value("ESPHOME_DEVICE_COUNT") == "2"
-    # A count defined after the codegen check still fails to compile
     assert 'static_assert(ESPHOME_DEVICE_COUNT == 2, "' in main_cpp
     assert 'static_assert(ESPHOME_AREA_COUNT == 2, "' in main_cpp

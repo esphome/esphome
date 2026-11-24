@@ -20,21 +20,17 @@ def _upper(platform: str) -> str:
     return f"DATETIME_{upper}" if platform in DATETIME_SUBTYPES else upper
 
 
-# Entity platform -> its entity_types.h `upper` token
 ENTITY_LISTS: dict[str, str] = {
     platform: _upper(platform) for platform in ENTITY_PLATFORMS
 }
 
 
 def use_define(platform: str) -> str:
-    """The USE_* define that compiles in `platform`'s entity code."""
     return f"USE_{_upper(platform)}"
 
 
 @dataclass
 class AppListsState:
-    """Constant object addresses per list, keyed by `upper` token."""
-
     lists: dict[str, list[str]] = field(default_factory=dict)
     emitted: bool = False
 
@@ -54,7 +50,6 @@ def _check_not_emitted(what: str) -> AppListsState:
 
 
 def add_to_list(upper: str, var: MockObj) -> None:
-    """Add `var` to the constant list `APP_<upper>_LIST`."""
     state = _check_not_emitted(f"{var} was added to the {upper} list")
     if (address := static_pointer_address(var)) is None:
         raise EsphomeError(
@@ -65,12 +60,10 @@ def add_to_list(upper: str, var: MockObj) -> None:
 
 
 def add_entity(platform: str, var: MockObj) -> None:
-    """Add the entity `var` to the list of `platform` (for example `sensor`)."""
     add_to_list(ENTITY_LISTS[platform], var)
 
 
 def _defined_values() -> dict[str, set[str]]:
-    """Every define set through cg.add_define or a -D build flag, name -> values."""
     # Lazy: esphome.platformio imports codegen
     from esphome.platformio.library import lex_build_flags
 
@@ -90,7 +83,6 @@ def _add_count_define(
     value: int,
     reason: str = "entities cannot be added at run time",
 ) -> None:
-    """Emit a list size, refusing a different value defined elsewhere."""
     if others := sorted(defined.get(name, set()) - {str(value)}):
         raise EsphomeError(
             f"{name} is defined as {', '.join(others)} elsewhere, but codegen sizes it as "
@@ -144,5 +136,4 @@ async def _emit_entity_lists() -> None:
 
 
 def schedule_emit() -> None:
-    """Schedule the FINAL job that emits the lists; core's to_code calls it once per run."""
     CORE.add_job(_emit_entity_lists)
