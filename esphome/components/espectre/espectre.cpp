@@ -55,10 +55,7 @@ static bool parse_target_mac(const std::string &value, TargetMac &mac) {
 }
 
 static const char *format_target_mac(const TargetMac &mac, char (&buffer)[MAC_ADDRESS_PRETTY_BUFFER_SIZE]) {
-  if (mac == TargetMac{})
-    return "auto";
-  snprintf(buffer, sizeof(buffer), "%02x:%02x:%02x:%02x:%02x:%02x", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-  return buffer;
+  return mac == TargetMac{} ? "auto" : format_hex_pretty_to(buffer, mac);
 }
 
 void ESPectreComponent::request_traffic_generator_target_mac(const std::string &target) {
@@ -327,7 +324,11 @@ void ESPectreComponent::publish_controls_() {
 #endif
 #ifdef USE_ESPECTRE_TARGET_MAC_TEXT
   // The text shows the effective config until a command stages the next target.
-  PUBLISH_STATE(this->target_mac_text_, this->runtime_.config().traffic_generator_target_mac);
+  const auto &value = this->runtime_.config().traffic_generator_target_mac;
+  TargetMac target;
+  char buffer[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+  PUBLISH_STATE(this->target_mac_text_,
+                parse_target_mac(value, target) ? format_target_mac(target, buffer) : value.c_str());
 #endif
 #ifdef USE_SWITCH
   PUBLISH_STATE(this->sensing_switch_, this->runtime_.services_armed());

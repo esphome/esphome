@@ -30,13 +30,12 @@ class ESPectreTargetMacTest : public ::testing::Test {
 TEST_F(ESPectreTargetMacTest, RequestAppliesInLoop) {
   component_.setup();
   EXPECT_EQ(text_.state, "auto");
-  text_.make_call().set_value("AA:BB:CC:DD:EE:02").perform();
+  text_.make_call().set_value("aA:Bb:cC:Dd:eE:02").perform();
   EXPECT_EQ(target_(), "auto");
   EXPECT_EQ(text_.state, "auto");
   component_.loop();
-  // The runtime stores lower-case hex digits, and the text shows what the runtime stored.
   EXPECT_EQ(target_(), "aa:bb:cc:dd:ee:02");
-  EXPECT_EQ(text_.state, "aa:bb:cc:dd:ee:02");
+  EXPECT_EQ(text_.state, "AA:BB:CC:DD:EE:02");
 
   component_.request_traffic_generator_target_mac("auto");
   component_.loop();
@@ -59,7 +58,7 @@ TEST_F(ESPectreTargetMacTest, RejectedRequestKeepsTheTarget) {
     component_.loop();
     EXPECT_TRUE(sdk_->last_target_mac.empty()) << target;
     EXPECT_EQ(target_(), "aa:bb:cc:dd:ee:02") << target;
-    EXPECT_EQ(text_.state, "aa:bb:cc:dd:ee:02") << target;
+    EXPECT_EQ(text_.state, "AA:BB:CC:DD:EE:02") << target;
   }
   // Each rejection republishes the active target, so the entity drops the value it was asked for.
   EXPECT_EQ(publishes, invalid_targets.size());
@@ -76,7 +75,7 @@ TEST_F(ESPectreTargetMacTest, RequestDuringApplyWaitsForNextLoop) {
   text_.make_call().set_value(first).perform();
   component_.loop();
   EXPECT_EQ(sdk_->active_target_mac_, first);
-  EXPECT_EQ(text_.state, first);
+  EXPECT_EQ(text_.state, "AA:BB:CC:DD:EE:02");
   TargetMac saved{};
   ASSERT_TRUE(text_.make_entity_preference<TargetMac>(fnv1a_hash("auto")).load(&saved));
   EXPECT_EQ(saved, (TargetMac{0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0x02}));
@@ -94,12 +93,12 @@ TEST_F(ESPectreTargetMacTest, PublishesActiveTargetWhenAnotherTargetIsStaged) {
   component_.loop();
   EXPECT_EQ(sdk_->active_target_mac_, "aa:bb:cc:dd:ee:02");
   EXPECT_EQ(target_(), "aa:bb:cc:dd:ee:04");
-  EXPECT_EQ(text_.state, sdk_->active_target_mac_);
+  EXPECT_EQ(text_.state, "AA:BB:CC:DD:EE:02");
 
   sdk_->rejected_target_mac = "02:00:00:00:00:01";
   text_.make_call().set_value(sdk_->rejected_target_mac).perform();
   component_.loop();
-  EXPECT_EQ(text_.state, "aa:bb:cc:dd:ee:02");
+  EXPECT_EQ(text_.state, "AA:BB:CC:DD:EE:02");
 }
 
 TEST_F(ESPectreTargetMacTest, SavedTargetIsKeyedByYamlTarget) {
@@ -112,7 +111,7 @@ TEST_F(ESPectreTargetMacTest, SavedTargetIsKeyedByYamlTarget) {
   same_yaml.setup();
   EXPECT_EQ(::espectre::RuntimeFrontendController::instance->config_at_setup_.traffic_generator_target_mac,
             "aa:bb:cc:dd:ee:02");
-  EXPECT_EQ(text_.state, "aa:bb:cc:dd:ee:02");
+  EXPECT_EQ(text_.state, "AA:BB:CC:DD:EE:02");
 
   // A rejected request does not replace the saved target.
   auto *same_sdk = ::espectre::RuntimeFrontendController::instance;
@@ -131,13 +130,13 @@ TEST_F(ESPectreTargetMacTest, SavedTargetIsKeyedByYamlTarget) {
   changed_yaml.setup();
   EXPECT_EQ(::espectre::RuntimeFrontendController::instance->config_at_setup_.traffic_generator_target_mac,
             "aa:bb:cc:dd:ee:04");
-  EXPECT_EQ(text_.state, "aa:bb:cc:dd:ee:04");
+  EXPECT_EQ(text_.state, "AA:BB:CC:DD:EE:04");
 
   // Like the other controls, returning to the original YAML brings back what was saved for it.
   ESPectreComponent original_yaml;
   add_text_(original_yaml, text_);
   original_yaml.setup();
-  EXPECT_EQ(text_.state, "aa:bb:cc:dd:ee:02");
+  EXPECT_EQ(text_.state, "AA:BB:CC:DD:EE:02");
 }
 
 TEST_F(ESPectreTargetMacTest, RejectedSavedTargetUsesYaml) {
@@ -147,7 +146,7 @@ TEST_F(ESPectreTargetMacTest, RejectedSavedTargetUsesYaml) {
   ASSERT_TRUE(text_.make_entity_preference<TargetMac>(fnv1a_hash(yaml_target)).save(&invalid));
   component_.set_traffic_generator_target_mac(yaml_target);
   component_.setup();
-  EXPECT_EQ(text_.state, yaml_target);
+  EXPECT_EQ(text_.state, "AA:BB:CC:DD:EE:04");
 }
 
 }  // namespace esphome::espectre::testing

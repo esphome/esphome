@@ -165,11 +165,11 @@ class RuntimeFrontendController {
   }
   bool set_traffic_generator_target_mac(const std::string &target) {
     this->last_target_mac = target;
-    if (target.empty() || target == this->rejected_target_mac)
-      return false;
     std::string canonical = target;
     for (char &c : canonical)
       c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    if (canonical.empty() || canonical == this->rejected_target_mac)
+      return false;
     if (this->listener == nullptr || this->config_.traffic_generator_target_mac == this->active_target_mac_)
       this->config_.traffic_generator_target_mac = canonical;
     this->active_target_mac_ = canonical;
