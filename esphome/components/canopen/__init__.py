@@ -1,5 +1,6 @@
 from esphome import automation
 import esphome.codegen as cg
+from esphome.components import esp32
 from esphome.components.canbus import CONF_CANBUS_ID, CanbusComponent
 import esphome.config_validation as cv
 from esphome.const import (
@@ -11,7 +12,7 @@ from esphome.const import (
     CONF_SIZE,
     CONF_VALUE,
 )
-from esphome.core import ID
+from esphome.core import CORE, ID
 from esphome.cpp_generator import MockObj, TemplateArgsType
 import esphome.final_validate as fv
 from esphome.types import ConfigType
@@ -25,9 +26,8 @@ CONF_NODE_ID = "node_id"
 CONF_RESPONSE_TIMEOUT = "response_timeout"
 CONF_SUBINDEX = "subindex"
 
-# CANopenNode upstream + library.json + SDO server block size option + the ESPHome target header CO_driver_target.h
-# (branch esphome), pinned to a commit
-CANOPENNODE_SOURCE = "https://github.com/esphome-libs/CANopenNode.git#eef8ab960b854c06f30d2f72df2288a2f2bb0d97"
+# https://github.com/esphome-libs/CANopenNode: upstream plus the ESPHome target header (CO_driver_target.h)
+CANOPENNODE_VERSION = "4.1.0-esphome.2"
 
 ns = cg.esphome_ns.namespace("canopen")
 CANopenComponent = ns.class_("CANopenComponent", cg.Component)
@@ -70,7 +70,10 @@ def add_canopennode_library() -> None:
     segmented, with the fifo. No block transfer: it's optional in CiA 301, a server without it aborts the request, and
     the client doesn't fall back to segmented.
     """
-    cg.add_library("CANopenNode", None, CANOPENNODE_SOURCE)
+    if CORE.is_esp32:
+        esp32.add_idf_component(name="esphome/canopennode", ref=CANOPENNODE_VERSION)
+    else:
+        cg.add_library("esphome/CANopenNode", CANOPENNODE_VERSION)
     cg.add_build_flag("-DCO_CONFIG_SDO_CLI=0x03")
     cg.add_build_flag("-DCO_CONFIG_FIFO=0x01")
     # one segment: drained before the next one is requested (sdo_client.cpp)
