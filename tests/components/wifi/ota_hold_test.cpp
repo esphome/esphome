@@ -17,8 +17,9 @@ class WiFiOTAHoldTest : public ::testing::Test {
   void SetUp() override { host_hooks = HostHooks{}; }
   void TearDown() override { global_wifi_component = this->previous_global_; }
 
-  /// Brings the AP up the way an AP-only config does.
-  void start_ap_() {
+  /// Brings the AP up the way an AP-only config does, with the uploading client on it.
+  void start_ap_(uint8_t clients = 1) {
+    host_hooks.ap_clients = clients;
     WiFiAP ap;
     ap.set_ssid("fallback");
     this->wifi_.set_ap(ap);
@@ -88,6 +89,16 @@ TEST_F(WiFiOTAHoldTest, EndedUploadResumesTheRetries) {
   }
 
   EXPECT_EQ(host_hooks.scans, 1);
+  EXPECT_EQ(host_hooks.connects, 1);
+}
+
+TEST_F(WiFiOTAHoldTest, UploadWithNobodyOnTheAPDoesNotHold) {
+  this->start_ap_(0);
+  this->wifi_.add_sta(make_ap("home"));
+  ASSERT_TRUE(this->upload_.try_acquire());
+
+  this->scan_finding_network_();
+
   EXPECT_EQ(host_hooks.connects, 1);
 }
 
