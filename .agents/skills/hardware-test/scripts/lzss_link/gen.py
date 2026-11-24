@@ -8,7 +8,7 @@ usage: gen.py BOARD VARIANT PEER_IP PEER_MAC
            e  ESP-NOW, oversize messages
            n  control build without compression, for the base tree
   PEER_IP  the other board's address (UDP variants), PEER_MAC its MAC (ESP-NOW), as AA:BB:CC:DD:EE:FF
-The dictionaries come from DICT_*.txt and must match lztest.hpp byte for byte (the trailing newline is dropped).
+The dictionaries come from DICT_*.txt (the trailing newline is dropped).
 """
 
 import json
@@ -29,7 +29,7 @@ name = f"lz{B}{V}"
 begin = (
     f"lztest::begin_plain(id(lnk), {node});"
     if V == "n"
-    else f"lztest::begin(id(lnk), id(cmp), {node}, {dsel}, {'true' if oversize else 'false'});"
+    else f"lztest::begin(id(lnk), id(cmp), {node}, {'true' if oversize else 'false'});"
 )
 header = (
     f"esphome:\n  name: {name}\n  includes: [lztest.hpp]\n  on_boot:\n    - priority: -100\n"

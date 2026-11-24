@@ -15,54 +15,55 @@ R = sys.argv[1]
 HERE = Path(__file__).parent
 
 
-def lines(f: Path):
-    with f.open(encoding="utf-8", errors="replace") as fh:
-        yield from fh
+STAT_RE = re.compile(r"STAT (\w) (.*)")
+KV_RE = re.compile(r"(\w+)=(-?\d+)")
+RX_RE = re.compile(r"RX (\w) seq=\d+ in=(\d+) wire=(\d+) (\w+)")
+GAP_RE = re.compile(r"GAP (\w) (-?\d+) -> (\d+)")
+COUNTS = {
+    "resets": re.compile(r"resetting link"),
+    "sess down": re.compile("SESSION down"),
+    "crash": re.compile(
+        r"Guru|panic|Exception|rst cause:[2-4]|wdt reset|abort\(\)|Soft WDT|Backtrace"
+    ),
+    "boot": re.compile("BEGIN"),
+    "W lines": re.compile(r"\[W\]\[packet_interface"),
+    "refused-warn": re.compile(r"does not compress|is larger than"),
+}
 
 
-def last_stats(f: Path) -> tuple[dict, dict | None]:
+def parse(f: Path) -> dict:
+    """One pass over a log: last STAT per type, last STATG, RX sizes, GAP misses and the COUNTS matches."""
     st, g = {}, None
-    for ln in lines(f):
-        if m := re.search(r"STAT (\w) (.*)", ln):
-            d = {}
-            for pre, part in zip(
-                ("", "w_", "e_", "d_"), m.group(2).split("|"), strict=False
-            ):
-                d.update(
-                    (pre + k, int(v)) for k, v in re.findall(r"(\w+)=(-?\d+)", part)
-                )
-            st[m.group(1)] = d
-        if "STATG" in ln:
-            g = {k: int(v) for k, v in re.findall(r"(\w+)=(-?\d+)", ln)}
-    return st, g
-
-
-def rx_lines(f: Path) -> dict:
-    d = collections.defaultdict(list)
-    for ln in lines(f):
-        if m := re.search(r"RX (\w) seq=\d+ in=(\d+) wire=(\d+) (\w+)", ln):
-            d[m.group(1)].append((int(m.group(2)), int(m.group(3)), m.group(4)))
-    return d
-
-
-def missing(f: Path) -> collections.Counter:
-    d = collections.Counter()
-    for ln in lines(f):
-        if m := re.search(r"GAP (\w) (-?\d+) -> (\d+)", ln):
-            d[m.group(1)] += (int(m.group(3)) - int(m.group(2)) - 1) % 65536
-    return d
-
-
-def count(f: Path, pat: str) -> int:
-    return sum(1 for ln in lines(f) if re.search(pat, ln))
+    rx, miss, cnt = (
+        collections.defaultdict(list),
+        collections.Counter(),
+        collections.Counter(),
+    )
+    with f.open(encoding="utf-8", errors="replace") as fh:
+        for ln in fh:
+            if m := STAT_RE.search(ln):
+                d = {}
+                for pre, part in zip(
+                    ("", "w_", "e_", "d_"), m.group(2).split("|"), strict=False
+                ):
+                    d.update((pre + k, int(v)) for k, v in KV_RE.findall(part))
+                st[m.group(1)] = d
+            if "STATG" in ln:
+                g = {k: int(v) for k, v in KV_RE.findall(ln)}
+            if m := RX_RE.search(ln):
+                rx[m.group(1)].append((int(m.group(2)), int(m.group(3)), m.group(4)))
+            if m := GAP_RE.search(ln):
+                miss[m.group(1)] += (int(m.group(3)) - int(m.group(2)) - 1) % 65536
+            cnt.update(k for k, r in COUNTS.items() if r.search(ln))
+    return {"st": st, "g": g, "rx": rx, "miss": miss, "cnt": cnt}
 
 
 L = {b: HERE / f"run{R}-{b}.log" for b in ("s3", "hz")}
-S = {b: last_stats(L[b]) for b in L}
+P = {b: parse(L[b]) for b in L}
 for snd, rcv in (("s3", "hz"), ("hz", "s3")):
     print(f"--- {snd} -> {rcv}")
-    tx, rx = S[snd][0], S[rcv][0]
-    rxl, miss = rx_lines(L[rcv]), missing(L[rcv])
+    tx, rx = P[snd]["st"], P[rcv]["st"]
+    rxl, miss = P[rcv]["rx"], P[rcv]["miss"]
     for t in "SWDHBX":
         a, b = tx.get(t, {}), rx.get(t, {})
         if not a and not b:
@@ -79,23 +80,6 @@ for snd, rcv in (("s3", "hz"), ("hz", "s3")):
             f" comp={comp}/{len(rl)} ratio={ratio:.2f} rawbad={b.get('w_rawbad')}"
             f" | enc avg={a.get('e_avg')} max={a.get('e_max')} us | dec avg={b.get('d_avg')} max={b.get('d_max')}"
         )
-    print("G", S[rcv][1])
-for b, f in L.items():
-    print(
-        b,
-        "resets:",
-        count(f, r"resetting link"),
-        "sess down:",
-        count(f, "SESSION down"),
-        "crash:",
-        count(
-            f,
-            r"Guru|panic|Exception|rst cause:[2-4]|wdt reset|abort\(\)|Soft WDT|Backtrace",
-        ),
-        "boot:",
-        count(f, "BEGIN"),
-        "W lines:",
-        count(f, r"\[W\]\[packet_interface"),
-        "refused-warn:",
-        count(f, r"does not compress|is larger than"),
-    )
+    print("G", P[rcv]["g"])
+for b in L:
+    print(b, *(f"{k}: {P[b]['cnt'][k]}" for k in COUNTS))

@@ -18,11 +18,10 @@
 #ifdef USE_PACKET_INTERFACE_LZSS
 #include "esphome/components/packet_interface/lzss_compression.h"
 #include "esphome/components/lzss/lzss.h"
-#define LZ 1
 #endif
 
 namespace lztest {
-#ifdef LZ
+#ifdef USE_PACKET_INTERFACE_LZSS
 using esphome::packet_interface::LzssCompression;
 #endif
 using esphome::packet_interface::PacketBuffer;
@@ -31,22 +30,7 @@ using esphome::packet_interface::PacketMetaData;
 
 static const char *const TAG = "lztest";
 
-// Must match the yaml dictionaries byte for byte.
-static const char DICT_DEFAULT[] =
-    R"({"name":"","value":,"state":"ON","OFF","unit":"","id":"","type":"temperature","humidity",)"
-    R"("time":"","status":"ok","error":null,"enabled":true,"false},{"":[{""}]})";
-static const char DICT_TYPICAL[] =
-    R"({"t":"S","seq":100,"node":"garden","temperature":21.4,"humidity":48.2,"battery":87,"state":"ON",)"
-    R"("crc":"0BADF00D"}{"t":"W","seq":101,"station":"backyard","temperature":21.43,"feels_like":20.91,)"
-    R"("humidity":48.2,"pressure":1013.25,"wind_speed":3.4,"wind_gust":6.1,"wind_direction":"NNE",)"
-    R"("rain_rate":0.0,"rain_today":2.4,"uv_index":5,"solar_radiation":512.3,"battery":87,"rssi":-67,)"
-    R"("crc":"0BADF00D"}{"devices":[{"id":"sensor_01","name":"Kitchen","state":"ON","value":21.4},)";
-static const char DICT_OTHER[] = R"(some other dictionary that the peer does not have {"x":1,"y":2})";
-
-static const char *dict_ptr(int sel) { return sel == 1 ? DICT_TYPICAL : sel == 2 ? DICT_OTHER : DICT_DEFAULT; }
-static size_t dict_len(int sel) { return strlen(dict_ptr(sel)); }
-
-#ifdef LZ
+#ifdef USE_PACKET_INTERFACE_LZSS
 // LzssCompression is final; an explicit instantiation may name its protected members.
 template<typename Tag, typename Tag::type M> struct Rob {
   friend typename Tag::type get(Tag) { return M; }
@@ -59,19 +43,14 @@ struct CheckTag {
   using type = const uint8_t LzssCompression::*;
   friend type get(CheckTag);
 };
+struct CodecTag {
+  using type = const esphome::lzss::Lzss LzssCompression::*;
+  friend type get(CodecTag);
+};
 template struct Rob<LowerTag, &LzssCompression::lower_>;
 template struct Rob<CheckTag, &LzssCompression::check_>;
+template struct Rob<CodecTag, &LzssCompression::codec_>;
 #endif
-
-static uint32_t crc32(const uint8_t *d, size_t n) {
-  uint32_t c = 0xFFFFFFFF;
-  for (size_t i = 0; i < n; i++) {
-    c ^= d[i];
-    for (int k = 0; k < 8; k++)
-      c = (c >> 1) ^ (0xEDB88320 & -(c & 1));
-  }
-  return ~c;
-}
 
 static uint32_t rng_state = 1;
 static uint32_t rnd() {
@@ -90,32 +69,34 @@ static int type_index(char t) {
 struct TypeStats {
   // sender
   uint32_t tx{0}, ref{0};
-  uint32_t enc_n{0}, enc_sum{0}, enc_max{0}, enc_len_sum{0}, in_sum{0};
+  uint32_t enc_n{0}, enc_sum{0}, enc_max{0};
   // receiver, top
   uint32_t rx{0}, ok{0}, bad{0}, gap{0}, dup{0};
   int32_t last{-1};
   // receiver, wire (below compression)
-  uint32_t w_n{0}, w_comp{0}, w_raw{0}, w_in{0}, w_out{0}, w_min_out{0xFFFF}, w_max_out{0}, w_raw_bad{0};
+  uint32_t w_raw_bad{0};
   uint32_t dec_n{0}, dec_sum{0}, dec_max{0};
   uint16_t seq{0};
 };
 
 static TypeStats st[6];
 static PacketInterface *g_top = nullptr, *g_low = nullptr;
-static int g_dict = 0, g_node = 0;
+static int g_node = 0;
 static bool g_oversize = false;
 static uint8_t g_check = 0;
 static uint32_t g_foreign = 0, g_other_wire = 0, g_wrong_check = 0, g_sess_up = 0, g_sess_down = 0;
-static uint32_t g_maxin = 0;
 // pairing between the top listener and the wire listener (same dispatch, top runs first)
 static bool g_fresh = false;
 static int g_fresh_type = -1;
 static uint32_t g_fresh_len = 0;
 
-#ifdef LZ
+#ifdef USE_PACKET_INTERFACE_LZSS
+static const esphome::lzss::Lzss *g_codec = nullptr;
 static uint16_t chains[esphome::lzss::Lzss::CHAIN_WORDS];
 #endif
 static uint8_t scratch[1200];
+// on_top and on_wire run one after the other in a dispatch, so they share one receive buffer
+static uint8_t rx_buf[1200];
 
 static uint32_t free_heap() {
 #ifdef USE_ESP8266
@@ -176,7 +157,7 @@ static size_t build(char t, uint16_t seq, uint8_t *buf) {
   }
   if (t == 'S' || t == 'W' || t == 'D')
     n += sprintf(b + n, R"("crc":")");
-  uint32_t c = crc32(buf, n);
+  uint32_t c = esphome::crc32(0, buf, n);
   hex8(b + n, c);
   n += 8;
   b[n++] = '"';
@@ -184,9 +165,8 @@ static size_t build(char t, uint16_t seq, uint8_t *buf) {
   return n;
 }
 
+// Needs n >= 12; sets type (-1 when unknown) and seq, returns whether the CRC and the tail match.
 static bool parse(const uint8_t *buf, size_t n, int &type, uint32_t &seq) {
-  if (n < 12)
-    return false;
   const char *b = (const char *) buf;
   const char *p;
   if (b[0] == '{') {
@@ -200,23 +180,26 @@ static bool parse(const uint8_t *buf, size_t n, int &type, uint32_t &seq) {
     return false;
   seq = strtoul(p, nullptr, 10);
   char want[9];
-  hex8(want, crc32(buf, n - 10));
+  hex8(want, esphome::crc32(0, buf, n - 10));
   return memcmp(want, b + n - 10, 8) == 0 && buf[n - 2] == '"' && buf[n - 1] == '}';
 }
 
 static void on_top(const PacketBuffer &d) {
-  static uint8_t buf[1200];
+  uint8_t *buf = rx_buf;
   size_t n = d.size();
-  if (n > sizeof(buf)) {
+  if (n > sizeof(rx_buf)) {
     g_foreign++;
     ESP_LOGW(TAG, "RXBAD oversize delivery %u", (unsigned) n);
     return;
   }
-  d.copy_to(buf, n);
-  int type;
-  uint32_t seq;
-  bool good = n >= 12 && parse(buf, n, type, seq);
-  if (n < 12 || type < 0) {
+  int type = -1;
+  uint32_t seq = 0;
+  bool good = false;
+  if (n >= 12) {
+    d.copy_to(buf, n);
+    good = parse(buf, n, type, seq);
+  }
+  if (type < 0) {
     g_foreign++;
     ESP_LOGW(TAG, "RXBAD foreign delivery of %u bytes", (unsigned) n);
     return;
@@ -245,11 +228,11 @@ static void on_top(const PacketBuffer &d) {
   g_fresh_len = n;
 }
 
-#ifdef LZ
+#ifdef USE_PACKET_INTERFACE_LZSS
 static void on_wire(const PacketBuffer &d) {
-  static uint8_t buf[1200];
+  uint8_t *buf = rx_buf;
   size_t n = d.size();
-  if (n > sizeof(buf) || n == 0)
+  if (n > sizeof(rx_buf) || n == 0)
     return;
   d.copy_to(buf, n);
   if ((buf[0] & 0x7F) != g_check)
@@ -262,18 +245,9 @@ static void on_wire(const PacketBuffer &d) {
   auto &s = st[g_fresh_type];
   bool comp = buf[0] & 0x80;
   uint32_t in = g_fresh_len + 1;  // + session header
-  s.w_n++;
-  s.w_in += in;
-  s.w_out += n;
-  if (n < s.w_min_out)
-    s.w_min_out = n;
-  if (n > s.w_max_out)
-    s.w_max_out = n;
   if (comp) {
-    s.w_comp++;
-    esphome::lzss::Lzss codec((const uint8_t *) dict_ptr(g_dict), dict_len(g_dict));
     uint32_t t0 = micros();
-    size_t len = codec.expand(buf + 1, n - 1, scratch, sizeof(scratch));
+    size_t len = g_codec->expand(buf + 1, n - 1, scratch, sizeof(scratch));
     uint32_t dt = micros() - t0;
     s.dec_n++;
     s.dec_sum += dt;
@@ -281,19 +255,17 @@ static void on_wire(const PacketBuffer &d) {
       s.dec_max = dt;
     if (len != in)
       ESP_LOGW(TAG, "WIRE %c expand gave %d, expected %u", TYPES[g_fresh_type], (int) len, (unsigned) in);
-  } else {
-    s.w_raw++;
-    if (n != in + 1) {
-      s.w_raw_bad++;
-      ESP_LOGW(TAG, "WIRE %c raw packet %u bytes for %u input", TYPES[g_fresh_type], (unsigned) n, (unsigned) in);
-    }
+  } else if (n != in + 1) {
+    s.w_raw_bad++;
+    ESP_LOGW(TAG, "WIRE %c raw packet %u bytes for %u input", TYPES[g_fresh_type], (unsigned) n, (unsigned) in);
   }
   ESP_LOGD(TAG, "RX %c seq=%d in=%u wire=%u %s", TYPES[g_fresh_type], (int) st[g_fresh_type].last, (unsigned) in,
            (unsigned) n, comp ? "comp" : "raw");
 }
 
 #endif
-inline void begin_plain(PacketInterface *link, int node) {
+
+static void attach_top(PacketInterface *link, int node) {
   g_node = node;
   rng_state = 0x9E3779B9u * (node + 1) + micros();
   g_top = link->top();
@@ -305,32 +277,25 @@ inline void begin_plain(PacketInterface *link, int node) {
       g_sess_down++;
     ESP_LOGI(TAG, "SESSION %s", up ? "up" : "down");
   });
-  ESP_LOGI(TAG, "BEGIN plain node=%d top max=%u", node, (unsigned) g_top->get_max_packet_size());
-}
-#ifdef LZ
-inline void begin(PacketInterface *link, LzssCompression *cmp, int node, int dict, bool oversize) {
-  g_node = node;
-  g_dict = dict;
-  g_oversize = oversize;
-  rng_state = 0x9E3779B9u * (node + 1) + micros();
-  g_top = link->top();
-  g_low = cmp->*get(LowerTag{});
-  g_check = cmp->*get(CheckTag{});
-  g_maxin = cmp->get_max_packet_size();
-  g_top->add_packet_interface_listener([](const PacketBuffer &d, const PacketMetaData &) { on_top(d); });
-  g_low->add_packet_interface_listener([](const PacketBuffer &d, const PacketMetaData &) { on_wire(d); });
-  g_top->add_on_session_state_callback([](bool up) {
-    if (up)
-      g_sess_up++;
-    else
-      g_sess_down++;
-    ESP_LOGI(TAG, "SESSION %s", up ? "up" : "down");
-  });
-  ESP_LOGI(TAG, "BEGIN node=%d dict=%d (%u bytes) check=0x%02X top max=%u low max=%u cmp max=%u", node, dict,
-           (unsigned) dict_len(dict), g_check, (unsigned) g_top->get_max_packet_size(),
-           (unsigned) g_low->get_max_packet_size(), (unsigned) g_maxin);
 }
 
+inline void begin_plain(PacketInterface *link, int node) {
+  attach_top(link, node);
+  ESP_LOGI(TAG, "BEGIN plain node=%d top max=%u", node, (unsigned) g_top->get_max_packet_size());
+}
+
+#ifdef USE_PACKET_INTERFACE_LZSS
+inline void begin(PacketInterface *link, LzssCompression *cmp, int node, bool oversize) {
+  attach_top(link, node);
+  g_oversize = oversize;
+  g_low = cmp->*get(LowerTag{});
+  g_check = cmp->*get(CheckTag{});
+  g_codec = &(cmp->*get(CodecTag{}));
+  g_low->add_packet_interface_listener([](const PacketBuffer &d, const PacketMetaData &) { on_wire(d); });
+  ESP_LOGI(TAG, "BEGIN node=%d dict=%u bytes check=0x%02X top max=%u low max=%u cmp max=%u", node,
+           (unsigned) g_codec->dictionary_size(), g_check, (unsigned) g_top->get_max_packet_size(),
+           (unsigned) g_low->get_max_packet_size(), (unsigned) cmp->get_max_packet_size());
+}
 #endif
 
 // Called every second; sends one message every 1-4 s.
@@ -350,19 +315,16 @@ inline void tick() {
   auto &s = st[ti];
   static uint8_t buf[1200];
   size_t n = build(t, s.seq, buf);
-  // Encode timing with the same codec and dictionary, outside the stack
-#ifdef LZ
-  {
-    esphome::lzss::Lzss codec((const uint8_t *) dict_ptr(g_dict), dict_len(g_dict));
+  // Encode timing with the layer's own codec, outside the stack
+#ifdef USE_PACKET_INTERFACE_LZSS
+  if (g_codec != nullptr) {
     uint32_t t0 = micros();
-    size_t len = codec.compress(buf, n, scratch, n - 1, chains);
+    g_codec->compress(buf, n, scratch, n - 1, chains);
     uint32_t dt = micros() - t0;
     s.enc_n++;
     s.enc_sum += dt;
     if (dt > s.enc_max)
       s.enc_max = dt;
-    s.enc_len_sum += len ? len : n;
-    s.in_sum += n;
   }
 #endif
   bool ok = g_top->send_to_interface(PacketBuffer(buf, n), {});
@@ -381,11 +343,10 @@ inline void stat() {
     if (s.tx + s.ref + s.rx == 0)
       continue;
     ESP_LOGI(TAG,
-             "STAT %c tx=%u ref=%u rx=%u ok=%u bad=%u gap=%u dup=%u | wire n=%u comp=%u raw=%u in=%u out=%u "
-             "min=%u max=%u rawbad=%u | enc n=%u avg=%u max=%u us ratio=%u/%u | dec avg=%u max=%u us",
-             TYPES[i], s.tx, s.ref, s.rx, s.ok, s.bad, s.gap, s.dup, s.w_n, s.w_comp, s.w_raw, s.w_in, s.w_out,
-             s.w_n ? s.w_min_out : 0, s.w_max_out, s.w_raw_bad, s.enc_n, s.enc_n ? s.enc_sum / s.enc_n : 0, s.enc_max,
-             s.enc_len_sum, s.in_sum, s.dec_n ? s.dec_sum / s.dec_n : 0, s.dec_max);
+             "STAT %c tx=%u ref=%u rx=%u ok=%u bad=%u gap=%u dup=%u | wire rawbad=%u | enc avg=%u max=%u us | "
+             "dec avg=%u max=%u us",
+             TYPES[i], s.tx, s.ref, s.rx, s.ok, s.bad, s.gap, s.dup, s.w_raw_bad, s.enc_n ? s.enc_sum / s.enc_n : 0,
+             s.enc_max, s.dec_n ? s.dec_sum / s.dec_n : 0, s.dec_max);
   }
   ESP_LOGI(TAG, "STATG foreign=%u other_wire=%u wrong_check=%u sess_up=%u sess_down=%u heap=%u", g_foreign,
            g_other_wire, g_wrong_check, g_sess_up, g_sess_down, (unsigned) free_heap());

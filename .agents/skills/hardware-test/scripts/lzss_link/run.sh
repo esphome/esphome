@@ -6,15 +6,17 @@ D=$(cd "$(dirname "$0")" && pwd); S=$(dirname "$D")
 V=${1:?variant}; SECS=${2:-330}
 T=${TREE:?set TREE}; PY=${PY:-$T/venv/bin/python}
 HZ=${PORT_HZ:?set PORT_HZ}; S3=${PORT_S3:?set PORT_S3}
-TREE=$T PY=$PY "$S/pio_build.sh" compile "lzhz$V" "$D/lzhz$V.yaml" || exit 1
-TREE=$T PY=$PY "$S/pio_build.sh" compile "lzs3$V" "$D/lzs3$V.yaml" || exit 1
-TREE=$T PY=$PY "$S/pio_build.sh" upload "lzhz$V" "$D/lzhz$V.yaml" "$HZ" || exit 1
-TREE=$T PY=$PY "$S/pio_build.sh" upload "lzs3$V" "$D/lzs3$V.yaml" "$S3" || exit 1
-$PY "$S/serial_capture.py" "$HZ" "$SECS" "$D/run$V-hz.log" --reset > /dev/null &
-P1=$!
-$PY "$S/serial_capture.py" "$S3" "$SECS" "$D/run$V-s3.log" --reset > /dev/null &
-P2=$!
-RC=0
-wait $P1 || RC=1
-wait $P2 || RC=1
+port() { if [ "$1" = hz ]; then echo "$HZ"; else echo "$S3"; fi; }
+# Both builds finish before either board is flashed; builds stay serial, they share the PlatformIO caches
+for b in hz s3; do TREE=$T PY=$PY "$S/pio_build.sh" compile "lz$b$V" "$D/lz$b$V.yaml" || exit 1; done
+for b in hz s3; do TREE=$T PY=$PY "$S/pio_build.sh" upload "lz$b$V" "$D/lz$b$V.yaml" "$(port $b)" || exit 1; done
+PIDS=()
+for b in hz s3; do
+  $PY "$S/serial_capture.py" "$(port $b)" "$SECS" "$D/run$V-$b.log" --reset > "$D/run$V-$b.err" 2>&1 &
+  PIDS+=($!)
+done
+RC=0; I=0
+for b in hz s3; do
+  wait "${PIDS[I++]}" || { echo "capture failed on $b:"; cat "$D/run$V-$b.err"; RC=1; }
+done
 exit $RC

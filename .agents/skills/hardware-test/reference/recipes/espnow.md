@@ -61,8 +61,8 @@ https://github.com/esphome/esphome/pull/22471#issuecomment-7119878173):
   VERBOSE, `e` ESP-NOW, `n` control without compression for the base tree). Pass each board the other board's address
   and MAC.
 - `lztest.hpp` sends sensor, weather and device list JSON, hex and binary messages with a sequence number and a CRC32,
-  listens on top and on the layer below compression (the protected `lower_` through a derived accessor) to check the
-  header flag, the raw size plus one and the dictionary bits, and times `lzss::Lzss` encode and decode. The
-  dictionaries in `DICT_*.txt` must match the ones in the header byte for byte.
+  listens on top and on the layer below compression to check the header flag, the raw size plus one and the
+  dictionary bits, and times encode and decode with the layer's own codec (`LzssCompression` is final, so its
+  protected `lower_`, `check_` and `codec_` are read through an explicit template instantiation).
 - `run.sh V SECS` (env `TREE`, `PORT_HZ`, `PORT_S3`) flashes both and captures both from a reset; `ana.py V` prints per
   type counts, messages missing from GAP lines, wire sizes and ratios, encode and decode times, resets and crashes.
