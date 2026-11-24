@@ -161,6 +161,11 @@ async def main() -> None:
             print(
                 f"  STATE {type(s).__name__} key={k[0]} dev={k[1]} {getattr(s, 'state', None)!r}"
             )
+    # dump_config logs one component per loop pass: save after 3 s without a new line, 30 s at most
+    end, n = loop.time() + 30, -1
+    while not os.environ.get("NOLOGS") and n != len(logs) and loop.time() < end:
+        n = len(logs)
+        await asyncio.sleep(3)
     Path(f"{out}-dump.txt").write_text("\n".join(logs) + "\n", encoding="utf-8")
     print(f"dump_config lines: {len(logs)}")
     await cli.disconnect()
