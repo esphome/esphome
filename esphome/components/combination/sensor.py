@@ -107,6 +107,11 @@ SENSOR_ONLY_SOURCE_SCHEMA = cv.Schema(
     }
 )
 
+
+def _sources_schema(source_schema: cv.Schema) -> cv.All:
+    return cv.All(cv.ensure_list(source_schema), cv.Length(min=1))
+
+
 CONFIG_SCHEMA = cv.typed_schema(
     {
         CONF_KALMAN: sensor.sensor_schema(KalmanCombinationComponent)
@@ -114,38 +119,52 @@ CONFIG_SCHEMA = cv.typed_schema(
         .extend(
             {
                 cv.Required(CONF_PROCESS_STD_DEV): cv.positive_float,
-                cv.Required(CONF_SOURCES): cv.ensure_list(KALMAN_SOURCE_SCHEMA),
+                cv.Required(CONF_SOURCES): _sources_schema(KALMAN_SOURCE_SCHEMA),
                 cv.Optional(CONF_STD_DEV): sensor.sensor_schema(),
             }
         ),
         CONF_LINEAR: sensor.sensor_schema(LinearCombinationComponent)
         .extend(cv.COMPONENT_SCHEMA)
-        .extend({cv.Required(CONF_SOURCES): cv.ensure_list(LINEAR_SOURCE_SCHEMA)}),
+        .extend({cv.Required(CONF_SOURCES): _sources_schema(LINEAR_SOURCE_SCHEMA)}),
         CONF_MAX: sensor.sensor_schema(MaximumCombinationComponent)
         .extend(cv.COMPONENT_SCHEMA)
-        .extend({cv.Required(CONF_SOURCES): cv.ensure_list(SENSOR_ONLY_SOURCE_SCHEMA)}),
+        .extend(
+            {cv.Required(CONF_SOURCES): _sources_schema(SENSOR_ONLY_SOURCE_SCHEMA)}
+        ),
         CONF_MEAN: sensor.sensor_schema(MeanCombinationComponent)
         .extend(cv.COMPONENT_SCHEMA)
-        .extend({cv.Required(CONF_SOURCES): cv.ensure_list(SENSOR_ONLY_SOURCE_SCHEMA)}),
+        .extend(
+            {cv.Required(CONF_SOURCES): _sources_schema(SENSOR_ONLY_SOURCE_SCHEMA)}
+        ),
         CONF_MEDIAN: sensor.sensor_schema(MedianCombinationComponent)
         .extend(cv.COMPONENT_SCHEMA)
-        .extend({cv.Required(CONF_SOURCES): cv.ensure_list(SENSOR_ONLY_SOURCE_SCHEMA)}),
+        .extend(
+            {cv.Required(CONF_SOURCES): _sources_schema(SENSOR_ONLY_SOURCE_SCHEMA)}
+        ),
         CONF_MIN: sensor.sensor_schema(MinimumCombinationComponent)
         .extend(cv.COMPONENT_SCHEMA)
-        .extend({cv.Required(CONF_SOURCES): cv.ensure_list(SENSOR_ONLY_SOURCE_SCHEMA)}),
+        .extend(
+            {cv.Required(CONF_SOURCES): _sources_schema(SENSOR_ONLY_SOURCE_SCHEMA)}
+        ),
         CONF_MOST_RECENTLY_UPDATED: sensor.sensor_schema(MostRecentCombinationComponent)
         .extend(cv.COMPONENT_SCHEMA)
-        .extend({cv.Required(CONF_SOURCES): cv.ensure_list(SENSOR_ONLY_SOURCE_SCHEMA)}),
+        .extend(
+            {cv.Required(CONF_SOURCES): _sources_schema(SENSOR_ONLY_SOURCE_SCHEMA)}
+        ),
         CONF_RANGE: sensor.sensor_schema(RangeCombinationComponent)
         .extend(cv.COMPONENT_SCHEMA)
-        .extend({cv.Required(CONF_SOURCES): cv.ensure_list(SENSOR_ONLY_SOURCE_SCHEMA)}),
+        .extend(
+            {cv.Required(CONF_SOURCES): _sources_schema(SENSOR_ONLY_SOURCE_SCHEMA)}
+        ),
         CONF_SUM: sensor.sensor_schema(SumCombinationComponent)
         .extend(cv.COMPONENT_SCHEMA)
-        .extend({cv.Required(CONF_SOURCES): cv.ensure_list(SENSOR_ONLY_SOURCE_SCHEMA)}),
+        .extend(
+            {cv.Required(CONF_SOURCES): _sources_schema(SENSOR_ONLY_SOURCE_SCHEMA)}
+        ),
         CONF_WEIGHTED_MEAN: sensor.sensor_schema(WeightedMeanCombinationComponent)
         .extend(cv.COMPONENT_SCHEMA)
         .extend(
-            {cv.Required(CONF_SOURCES): cv.ensure_list(WEIGHTED_MEAN_SOURCE_SCHEMA)}
+            {cv.Required(CONF_SOURCES): _sources_schema(WEIGHTED_MEAN_SOURCE_SCHEMA)}
         ),
     }
 )
