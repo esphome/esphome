@@ -891,7 +891,7 @@ void WiFiComponent::loop() {
     switch (this->state_) {
       case WIFI_COMPONENT_STATE_COOLDOWN: {
         this->status_set_warning(LOG_STR("waiting to reconnect"));
-        // An upload over the AP is running: let nothing expire, so nothing is retried or logged meanwhile
+        // Freeze the cooldown while an upload runs over the AP
         if (this->ota_hold_()) {
           this->action_started_ = now;
           break;
@@ -1721,7 +1721,7 @@ void WiFiComponent::check_scanning_finished() {
     }
     return;
   }
-  // Keep the results until the upload ends; connecting now would move the channel
+  // Keep the results until the upload ends
   if (this->ota_hold_())
     return;
   this->scan_done_ = false;
@@ -2405,8 +2405,7 @@ void WiFiComponent::advance_to_next_target_or_increment_retry_() {
 }
 
 void WiFiComponent::retry_connect() {
-  // A scan or connect moves the channel and drops an OTA client on the AP; wait until the upload ends.
-  // Not start_cooldown_(): its DPP listen would hop channels too
+  // Retrying moves the channel and drops an OTA client on the AP. Not start_cooldown_(): DPP hops too
   if (this->ota_hold_()) {
     this->state_ = WIFI_COMPONENT_STATE_COOLDOWN;
     this->action_started_ = millis();

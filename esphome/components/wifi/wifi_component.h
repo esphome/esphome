@@ -922,7 +922,7 @@ class WiFiComponent final : public Component {
   bool is_dpp_active_();
   /// A portal, improv or DPP is waiting for credentials, so the retry machine must not disturb the radio
   bool is_provisioning_active_();
-  /// An OTA upload may be running over the AP; retries wait so the channel stays put
+  /// An OTA upload may be running over the AP
   bool ota_hold_() const {
 #if defined(USE_WIFI_AP) && defined(USE_OTA)
     return this->ap_setup_ && ota::UpdateLock::any_held();

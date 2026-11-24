@@ -48,7 +48,6 @@ TEST_F(WiFiOTAHoldTest, ScanDuringUploadConnectsOnceItEnds) {
   this->scan_finding_network_();
   EXPECT_EQ(host_hooks.connects, 0);
 
-  // The held results are used as they are, with their BSSID
   this->upload_.release();
   this->wifi_.check_scanning_finished();
   ASSERT_EQ(host_hooks.connects, 1);
@@ -62,10 +61,10 @@ TEST_F(WiFiOTAHoldTest, RetryDuringUploadWaitsInCooldown) {
   ASSERT_TRUE(this->upload_.try_acquire());
 
   this->wifi_.retry_connect();
-  // Well past any cooldown: the held cooldown must not expire into another attempt
+  // Well past any cooldown
   LoopBlockingGuard clock{nullptr, nullptr, millis() + HELD_FOR_MS};
   this->wifi_.loop();
-  // The held tick restarted the cooldown, so ending the upload now leaves a full cooldown to wait
+  // The held tick restarted the cooldown
   this->upload_.release();
   this->wifi_.loop();
 
@@ -82,7 +81,6 @@ TEST_F(WiFiOTAHoldTest, EndedUploadResumesTheRetries) {
   this->wifi_.retry_connect();
   ASSERT_EQ(host_hooks.scans, 0);
 
-  // The cooldown runs out after the upload, and the retry it starts finds and joins the network
   this->upload_.release();
   for (uint32_t ms = HELD_FOR_MS; ms <= 2 * HELD_FOR_MS && host_hooks.connects == 0; ms += HELD_FOR_MS / 4) {
     LoopBlockingGuard clock{nullptr, nullptr, millis() + ms};
