@@ -12,12 +12,12 @@
 #include <esp8266_peri.h>
 
 #include <cinttypes>
-#include <cstring>
 
 extern "C" {
 #include <c_types.h>
 #include <eboot_command.h>
 #include <flash_hal.h>
+#include <flash_utils.h>
 #include <spi_flash.h>
 #include <user_interface.h>
 }
@@ -32,10 +32,6 @@ static constexpr uint8_t FIRMWARE_MAGIC = 0xE9;
 static constexpr uint8_t GZIP_MAGIC_1 = 0x1F;
 static constexpr uint8_t GZIP_MAGIC_2 = 0x8B;
 
-// elf2bin pads eboot to 4 KB; the app image header follows
-static constexpr uint32_t APP_IMAGE_OFFSET = 0x1000;
-static constexpr uint32_t IMAGE_HEADER_SIZE = 8;
-static constexpr uint32_t SEGMENT_HEADER_SIZE = 8;
 static constexpr uint8_t MAX_IMAGE_SEGMENTS = 16;
 
 // ESP8266 flash memory base address (memory-mapped flash starts here)
@@ -350,8 +346,9 @@ bool ESP8266OTABackend::verify_end_() {
   // Without an MD5 the segment tables must end exactly at the size received; a lost chunk shows here
   if (!this->md5_set_) {
     size_t end = this->image_end_(0);
-    if (end <= APP_IMAGE_OFFSET && this->image_size_ > APP_IMAGE_OFFSET)
-      end = this->image_end_(APP_IMAGE_OFFSET);
+    // Arduino images: eboot padded to 4 KB, then the app
+    if (end <= APP_START_OFFSET && this->image_size_ > APP_START_OFFSET)
+      end = this->image_end_(APP_START_OFFSET);
     if (end != this->image_size_) {
       ESP_LOGE(TAG, "Image incomplete: %zu bytes received", this->image_size_);
       return false;
@@ -374,31 +371,25 @@ bool ESP8266OTABackend::verify_end_() {
   return true;
 }
 
-// spi_flash_read() needs a 4-byte aligned address; segment headers are not aligned
-static bool read_unaligned(uint32_t address, uint8_t (&out)[8]) {
-  uint32_t words[3];
-  uint32_t base = address & ~3U;
-  if (spi_flash_read(base, words, sizeof(words)) != SPI_FLASH_RESULT_OK)
-    return false;
-  memcpy(out, reinterpret_cast<uint8_t *>(words) + (address - base), sizeof(out));
-  return true;
-}
-
+// Same walk as EspClass::getSketchSize(), over the staged image instead of the running one
 size_t ESP8266OTABackend::image_end_(size_t offset) {
-  uint8_t header[IMAGE_HEADER_SIZE];
-  if (offset + IMAGE_HEADER_SIZE > this->image_size_ || !read_unaligned(this->start_address_ + offset, header) ||
-      header[0] != FIRMWARE_MAGIC || header[1] > MAX_IMAGE_SEGMENTS)
+  image_header_t header;
+  if (offset + sizeof(header) > this->image_size_ ||
+      spi_flash_read(this->start_address_ + offset, reinterpret_cast<uint32_t *>(&header), sizeof(header)) !=
+          SPI_FLASH_RESULT_OK ||
+      header.magic != FIRMWARE_MAGIC || header.num_segments > MAX_IMAGE_SEGMENTS)
     return 0;
-  size_t end = offset + IMAGE_HEADER_SIZE;
-  for (uint8_t i = 0; i < header[1]; i++) {
-    uint8_t segment[SEGMENT_HEADER_SIZE];
-    if (end + SEGMENT_HEADER_SIZE > this->image_size_ || !read_unaligned(this->start_address_ + end, segment))
+  size_t end = offset + sizeof(header);
+  for (uint8_t i = 0; i < header.num_segments; i++) {
+    section_header_t section;
+    if (end + sizeof(section) > this->image_size_ ||
+        spi_flash_read(this->start_address_ + end, reinterpret_cast<uint32_t *>(&section), sizeof(section)) !=
+            SPI_FLASH_RESULT_OK)
       return 0;
-    end += SEGMENT_HEADER_SIZE;
-    uint32_t len = encode_uint32(segment[7], segment[6], segment[5], segment[4]);
-    if (len > this->image_size_ - end)
+    end += sizeof(section);
+    if (section.size > this->image_size_ - end)
       return 0;
-    end += len;
+    end += section.size;
   }
   // Checksum byte, then padding to 16 bytes
   return (end + 1 + 15) & ~size_t{15};
