@@ -515,13 +515,11 @@ void MipiCsiCamera::loop() {
         // are served by the next frame instead of waiting forever. Streams ask again on their own.
         this->single_requesters_ |= static_cast<uint8_t>(this->pending_requesters_ & ~this->stream_requesters_.load());
         this->pending_requesters_ = 0;
-        this->last_update_ = now;
         return;
       }
       this->current_image_ =
           std::make_shared<MipiCsiImage>(this->encoder_.get_output_buffer(), length, this->pending_requesters_);
       this->pending_requesters_ = 0;
-      this->last_update_ = now;
       this->published_frames_++;
       this->published_bytes_ += length;
       for (auto *listener : this->listeners_) {
@@ -545,10 +543,11 @@ void MipiCsiCamera::loop() {
   if (this->current_image_ || this->frame_wanted_.load() || uxQueueMessagesWaiting(this->result_queue_) != 0 ||
       !this->has_requested_image_())
     return;
-  if (now - this->last_update_ < this->update_interval_)
+  if (now - this->last_request_ < this->update_interval_)
     return;
 
   this->pending_requesters_ = this->single_requesters_.exchange(0) | this->stream_requesters_.load();
+  this->last_request_ = now;
   this->frame_wanted_.store(true);
 }
 

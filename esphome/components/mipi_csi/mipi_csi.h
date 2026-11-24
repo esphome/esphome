@@ -186,7 +186,7 @@ class MipiCsiCamera final : public camera::Camera {
   /// Requesters recorded when the frame currently being captured was asked for.
   uint8_t pending_requesters_{0};
   uint32_t update_interval_{100};
-  uint32_t last_update_{0};
+  uint32_t last_request_{0};
   uint32_t last_idle_request_{0};
 };
 
