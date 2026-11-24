@@ -35,6 +35,32 @@ static bool in_debounce(uint32_t set_time, uint32_t now) {
 }
 
 ESPHOME_LOG_TAG(TAG, "haier.climate");
+
+struct PresetFlags {
+  uint8_t fast_mode;
+  uint8_t sleep_mode;
+  uint8_t ten_degree;
+};
+
+static PresetFlags preset_flags(climate::ClimatePreset preset, climate::ClimateMode mode) {
+  switch (preset) {
+    case climate::CLIMATE_PRESET_NONE:
+    case climate::CLIMATE_PRESET_ECO:  // ECO is quiet mode, see update_quiet_mode_from_preset_()
+      return {0, 0, 0};
+    case climate::CLIMATE_PRESET_BOOST:
+      // Boost is not supported in Fan only mode
+      return {(uint8_t) (mode != climate::CLIMATE_MODE_FAN_ONLY ? 1 : 0), 0, 0};
+    case climate::CLIMATE_PRESET_AWAY:
+      // 10 degrees allowed only in heat mode
+      return {0, 0, (uint8_t) (mode == climate::CLIMATE_MODE_HEAT ? 1 : 0)};
+    case climate::CLIMATE_PRESET_SLEEP:
+      return {0, 1, 0};
+    default:
+      ESP_LOGE("Control", "Unsupported preset");
+      return {0, 0, 0};
+  }
+}
+
 constexpr size_t SIGNAL_LEVEL_UPDATE_INTERVAL_MS = 10000;
 constexpr int PROTOCOL_OUTDOOR_TEMPERATURE_OFFSET = -64;
 constexpr uint8_t CONTROL_MESSAGE_RETRIES = 5;
@@ -106,7 +132,10 @@ bool HonClimate::get_quiet_mode_state() const {
   return (this->quiet_mode_state_ == SwitchState::SWITCH_ON) || (this->quiet_mode_state_ == SwitchState::PENDING_ON);
 }
 
-void HonClimate::set_quiet_mode_state_from_preset_(bool state) {
+bool HonClimate::update_quiet_mode_from_preset_(const optional<ClimatePreset> &preset, bool quiet_mode) {
+  if (!preset.has_value() || this->traits_.get_supported_presets().count(CLIMATE_PRESET_ECO) == 0)
+    return quiet_mode;
+  const bool state = preset.value() == CLIMATE_PRESET_ECO;
   // Pending until the control sequence ends, so replies to its earlier commands don't overwrite it
   this->quiet_mode_state_ = state ? SwitchState::PENDING_ON : SwitchState::PENDING_OFF;
   if (state != this->settings_.quiet_mode_state) {
@@ -116,6 +145,7 @@ void HonClimate::set_quiet_mode_state_from_preset_(bool state) {
 #endif
     this->hon_rtc_.save(&this->settings_);
   }
+  return state;
 }
 
 esphome::optional<hon_protocol::VerticalSwingMode> HonClimate::get_vertical_airflow() const {
@@ -628,7 +658,6 @@ haier_protocol::HaierMessage HonClimate::get_control_message() {
   control_out_buffer[4] = 0;  // This byte should be cleared before setting values
   bool has_hvac_settings = false;
   bool quiet_mode = this->get_quiet_mode_state();
-  const bool eco_supported = this->traits_.get_supported_presets().count(CLIMATE_PRESET_ECO) != 0;
   if (this->current_hvac_settings_.valid) {
     has_hvac_settings = true;
     HvacSettings &climate_control = this->current_hvac_settings_;
@@ -721,46 +750,12 @@ haier_protocol::HaierMessage HonClimate::get_control_message() {
       out_data->fast_mode = 0;
       out_data->sleep_mode = 0;
     } else if (climate_control.preset.has_value()) {
-      switch (climate_control.preset.value()) {
-        case CLIMATE_PRESET_NONE:
-          out_data->fast_mode = 0;
-          out_data->sleep_mode = 0;
-          out_data->ten_degree = 0;
-          break;
-        case CLIMATE_PRESET_BOOST:
-          // Boost is not supported in Fan only mode
-          out_data->fast_mode = (this->mode != CLIMATE_MODE_FAN_ONLY) ? 1 : 0;
-          out_data->sleep_mode = 0;
-          out_data->ten_degree = 0;
-          break;
-        case CLIMATE_PRESET_AWAY:
-          out_data->fast_mode = 0;
-          out_data->sleep_mode = 0;
-          // 10 degrees allowed only in heat mode
-          out_data->ten_degree = (this->mode == CLIMATE_MODE_HEAT) ? 1 : 0;
-          break;
-        case CLIMATE_PRESET_ECO:
-          out_data->fast_mode = 0;
-          out_data->sleep_mode = 0;
-          out_data->ten_degree = 0;
-          break;
-        case CLIMATE_PRESET_SLEEP:
-          out_data->fast_mode = 0;
-          out_data->sleep_mode = 1;
-          out_data->ten_degree = 0;
-          break;
-        default:
-          ESP_LOGE("Control", "Unsupported preset");
-          out_data->fast_mode = 0;
-          out_data->sleep_mode = 0;
-          out_data->ten_degree = 0;
-          break;
-      }
+      const PresetFlags flags = preset_flags(climate_control.preset.value(), this->mode);
+      out_data->fast_mode = flags.fast_mode;
+      out_data->sleep_mode = flags.sleep_mode;
+      out_data->ten_degree = flags.ten_degree;
     }
-    if (climate_control.preset.has_value() && eco_supported) {
-      quiet_mode = climate_control.preset.value() == CLIMATE_PRESET_ECO;
-      this->set_quiet_mode_state_from_preset_(quiet_mode);
-    }
+    quiet_mode = this->update_quiet_mode_from_preset_(climate_control.preset, quiet_mode);
   }
   const ClimateSwingMode target_swing_mode = this->current_hvac_settings_.swing_mode.value_or(this->swing_mode);
   if (this->pending_vertical_direction_.has_value()) {
@@ -1344,7 +1339,6 @@ void HonClimate::fill_control_messages_queue_() {
     uint8_t away_mode_buf[] = {0x00, 0xFF};
     uint8_t sleep_mode_buf[] = {0x00, 0xFF};
     bool quiet_mode = this->get_quiet_mode_state();
-    const bool eco_supported = this->traits_.get_supported_presets().count(CLIMATE_PRESET_ECO) != 0;
     if (!new_power) {
       // If AC is off - no presets allowed
       fast_mode_buf[1] = 0x00;
@@ -1352,42 +1346,12 @@ void HonClimate::fill_control_messages_queue_() {
       sleep_mode_buf[1] = 0x00;
       quiet_mode = false;
     } else if (climate_control.preset.has_value()) {
-      switch (climate_control.preset.value()) {
-        case CLIMATE_PRESET_NONE:
-          fast_mode_buf[1] = 0x00;
-          away_mode_buf[1] = 0x00;
-          sleep_mode_buf[1] = 0x00;
-          break;
-        case CLIMATE_PRESET_BOOST:
-          // Boost is not supported in Fan only mode
-          fast_mode_buf[1] = (this->mode != CLIMATE_MODE_FAN_ONLY) ? 0x01 : 0x00;
-          away_mode_buf[1] = 0x00;
-          sleep_mode_buf[1] = 0x00;
-          break;
-        case CLIMATE_PRESET_AWAY:
-          fast_mode_buf[1] = 0x00;
-          away_mode_buf[1] = (this->mode == CLIMATE_MODE_HEAT) ? 0x01 : 0x00;
-          sleep_mode_buf[1] = 0x00;
-          break;
-        case CLIMATE_PRESET_ECO:
-          fast_mode_buf[1] = 0x00;
-          away_mode_buf[1] = 0x00;
-          sleep_mode_buf[1] = 0x00;
-          break;
-        case CLIMATE_PRESET_SLEEP:
-          fast_mode_buf[1] = 0x00;
-          away_mode_buf[1] = 0x00;
-          sleep_mode_buf[1] = 0x01;
-          break;
-        default:
-          ESP_LOGE("Control", "Unsupported preset");
-          break;
-      }
+      const PresetFlags flags = preset_flags(climate_control.preset.value(), this->mode);
+      fast_mode_buf[1] = flags.fast_mode;
+      away_mode_buf[1] = flags.ten_degree;
+      sleep_mode_buf[1] = flags.sleep_mode;
     }
-    if (climate_control.preset.has_value() && eco_supported) {
-      quiet_mode = climate_control.preset.value() == CLIMATE_PRESET_ECO;
-      this->set_quiet_mode_state_from_preset_(quiet_mode);
-    }
+    quiet_mode = this->update_quiet_mode_from_preset_(climate_control.preset, quiet_mode);
     {
       // Quiet mode
       if (new_power && (climate_mode != CLIMATE_MODE_FAN_ONLY) && quiet_mode) {
