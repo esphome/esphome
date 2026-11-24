@@ -13,10 +13,11 @@ namespace esphome::tflite_audio {
 
 /// Audio (streaming) parameters, read by the consumer that owns the interpreter.
 struct AudioModelConfig {
-  uint8_t probability_cutoff{128};  // quantized 0-255 (from 0.0-1.0)
+  // Word-sized members first, so the two bytes below do not split them.
   size_t sliding_window_size{10};
-  uint8_t features_step_size{20};  // ms between feature slices
-  size_t feature_count{40};        // Mel filterbank bins
+  size_t feature_count{40};         // Mel filterbank bins
+  uint8_t probability_cutoff{128};  // quantized 0-255 (from 0.0-1.0)
+  uint8_t features_step_size{20};   // ms between feature slices
 };
 
 /// @brief The runtime helper for a streaming audio model.
