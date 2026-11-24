@@ -131,6 +131,19 @@ TEST_F(CurrentBasedCoverTest, KeepsDurationWhenChangeIsSmall) {
   EXPECT_EQ(cover.get_open_duration(), learned);
 }
 
+TEST_F(CurrentBasedCoverTest, KeepsDurationWhenChangeIsUnderOneSecond) {
+  CurrentBasedCover cover;
+  this->setup_cover_(cover, true);
+  this->close_(cover, 1000);
+  this->open_(cover, 4000);
+  const uint32_t learned = cover.get_open_duration();
+  this->close_(cover, 3000);
+
+  this->open_(cover, 4600);
+
+  EXPECT_EQ(cover.get_open_duration(), learned);
+}
+
 TEST_F(CurrentBasedCoverTest, DoesNotLearnTravelThatWasReversed) {
   CurrentBasedCover cover;
   this->setup_cover_(cover, true, 1000);

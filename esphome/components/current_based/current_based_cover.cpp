@@ -2,6 +2,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
+#include <algorithm>
 #include <cfloat>
 #include <cmath>
 
@@ -13,6 +14,8 @@ static constexpr uint32_t ROLLBACK_TIMEOUT_ID = 0;
 #ifdef USE_CURRENT_BASED_COVER_LEARN_DURATIONS
 static constexpr uint32_t LEARNED_DURATIONS_PREF_VERSION = 0x6C64E5A1;
 static constexpr float MIN_CHANGE_TO_LEARN = 0.05f;
+// The end is seen only when the current sensor publishes, so smaller changes are sensor timing
+static constexpr float MIN_CHANGE_TO_LEARN_MS = 1000.0f;
 #endif
 
 using namespace esphome::cover;
@@ -172,7 +175,8 @@ void CurrentBasedCover::end_reached_(float position, uint32_t measured) {
   const bool end_confirmed = this->motor_current_seen_ && std::isfinite(current_sensor->get_state());
   uint32_t &duration = opened ? this->open_duration_ : this->close_duration_;
   const float change = std::fabs(static_cast<float>(measured) - static_cast<float>(duration));
-  if (this->moving_from_end_ && end_confirmed && measured > 0 && change > duration * MIN_CHANGE_TO_LEARN) {
+  if (this->moving_from_end_ && end_confirmed && measured > 0 &&
+      change > std::max(duration * MIN_CHANGE_TO_LEARN, MIN_CHANGE_TO_LEARN_MS)) {
     duration = measured;
     ESP_LOGD(TAG, "'%s' - Learned %s duration: %.1fs", LOG_STR_ARG(this->get_log_name()),
              opened ? LOG_STR_LITERAL("open") : LOG_STR_LITERAL("close"), measured / 1e3f);
