@@ -17,4 +17,6 @@ with pathlib.Path(sys.argv[1]).open(encoding="utf-8", errors="replace") as f:
         for k in ("value", "state", "uptime", "brightness", "speed_level"):
             d.pop(k, None)
         out.append(json.dumps(d, sort_keys=True))
+if not out:
+    sys.exit(f"no listing events in {sys.argv[1]}")
 print("\n".join(out))

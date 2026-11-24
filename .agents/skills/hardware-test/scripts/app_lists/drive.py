@@ -118,7 +118,7 @@ async def main() -> None:
         btn = next(
             e for e in ents if isinstance(e, ButtonInfo) and e.name == "Press Me"
         )
-        r2_before = states[(relay2.key, relay2.device_id)].state
+        r2_before = getattr(states.get((relay2.key, relay2.device_id)), "state", None)
         for want in (True, False):
             cli.switch_command(relay.key, want)
             ok = await wait_for(

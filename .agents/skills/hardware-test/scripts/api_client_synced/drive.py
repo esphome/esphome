@@ -101,9 +101,8 @@ async def disc_client(i: int, delay_ms: float = 0) -> None:
     c.subscribe_states(lambda s: None)
     if delay_ms:
         await asyncio.sleep(delay_ms / 1000)
-    await (
-        c.disconnect()
-    )  # DisconnectRequest goes out in the same loop pass as SubscribeStates
+    # with no delay, DisconnectRequest goes out in the same loop pass as SubscribeStates
+    await c.disconnect()
 
 
 async def main() -> None:
