@@ -201,7 +201,7 @@ SERIES_SCHEMA = cv.Schema(
 )
 
 
-def _record(action: str):
+def _record(action: str) -> Callable[[ConfigType], ConfigType]:
     """Remember the action so validate_chart_series_actions() can check it against
     its chart once the whole config is known."""
 
@@ -212,7 +212,9 @@ def _record(action: str):
     return validator
 
 
-def _series_schema(action: str, schema: dict, *validators) -> cv.All:
+def _series_schema(
+    action: str, schema: dict, *validators: Callable[[ConfigType], ConfigType]
+) -> cv.All:
     return cv.All(
         cv.Schema({cv.Required(CONF_ID): cv.use_id(lv_chart_series_t), **schema}),
         *validators,
