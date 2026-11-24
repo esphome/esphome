@@ -84,6 +84,45 @@ def test_directly_defined_use_gets_its_list() -> None:
 
 
 @pytest.mark.parametrize(
+    ("platform", "count_define", "list_name", "use_defines"),
+    [
+        ("sensor", "ESPHOME_ENTITY_SENSOR_COUNT", "APP_SENSOR_LIST", ["USE_SENSOR"]),
+        (
+            "date",
+            "ESPHOME_ENTITY_DATE_COUNT",
+            "APP_DATETIME_DATE_LIST",
+            ["USE_DATETIME_DATE"],
+        ),
+        (
+            "infrared",
+            "ESPHOME_ENTITY_INFRARED_COUNT",
+            "APP_INFRARED_LIST",
+            ["USE_INFRARED", "USE_IR_RF"],
+        ),
+        (
+            "radio_frequency",
+            "ESPHOME_ENTITY_RADIO_FREQUENCY_COUNT",
+            "APP_RADIO_FREQUENCY_LIST",
+            ["USE_RADIO_FREQUENCY", "USE_IR_RF"],
+        ),
+    ],
+)
+def test_platform_list_emission(
+    platform: str, count_define: str, list_name: str, use_defines: list[str]
+) -> None:
+    CORE.platform_counts[platform] = 1
+    app_lists.add_entity(platform, _new_sensor("one"))
+    app_lists.schedule_emit()
+    CORE.flush_tasks()
+    assert get_define_value(count_define) == "1"
+    for define in use_defines:
+        assert get_define_value(define) is not None
+    assert any(
+        f"app_lists::{list_name} PROGMEM = {{" in line for line in _global_lines()
+    )
+
+
+@pytest.mark.parametrize(
     "override",
     [
         "add_define",
@@ -102,14 +141,6 @@ def test_count_override_is_rejected(override: str) -> None:
     with pytest.raises(
         EsphomeError, match="ESPHOME_ENTITY_SENSOR_COUNT is defined as 32"
     ):
-        CORE.flush_tasks()
-
-
-def test_device_count_override_names_the_yaml_lists() -> None:
-    app_lists.add_to_list("DEVICE", _new_sensor("dev_one"))
-    cg.add_define("ESPHOME_DEVICE_COUNT", 4)
-    app_lists.schedule_emit()
-    with pytest.raises(EsphomeError, match="devices and areas come from the YAML"):
         CORE.flush_tasks()
 
 
@@ -138,6 +169,7 @@ def test_device_and_area_count_override_is_rejected(upper: str) -> None:
     cg.add_define(f"ESPHOME_{upper}_COUNT", 4)
     app_lists.schedule_emit()
     with pytest.raises(
-        EsphomeError, match=f"ESPHOME_{upper}_COUNT is defined as 4 elsewhere"
+        EsphomeError,
+        match=f"ESPHOME_{upper}_COUNT is defined as 4 elsewhere.*devices and areas come from the YAML",
     ):
         CORE.flush_tasks()
