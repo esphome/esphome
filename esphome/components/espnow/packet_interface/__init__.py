@@ -67,7 +67,9 @@ CONFIG_SCHEMA = cv.All(
     packet_interface_schema(ESPNowPacketInterface, MAX_PACKET_SIZE, 1470).extend(
         {
             cv.GenerateID(CONF_ESPNOW_ID): cv.use_id(ESPNowComponent),
-            cv.Optional(CONF_PEER_ADDRESS, default=BROADCAST_MAC): _peer_mac,
+            cv.Optional(CONF_PEER_ADDRESS, default=BROADCAST_MAC): cv.All(
+                cv.string_strict, _peer_mac
+            ),
         }
     ),
     _validate_addressing,
