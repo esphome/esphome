@@ -86,8 +86,8 @@ bool CANopenComponent::read_sdo_data(uint8_t node_id, uint16_t index, uint8_t su
     reject(node_id, index, sub, callback, context);
     return false;
   }
-  SDORequest request{node_id,  sub,    SDOKind::SDO_KIND_READ_DATA, 0, index, static_cast<uint16_t>(capacity), {},
-                     callback, context};
+  const auto cap = static_cast<uint16_t>(capacity);
+  SDORequest request{node_id, sub, SDOKind::SDO_KIND_READ_DATA, 0, index, cap, {}, callback, context};
   request.data = data;
   return this->queue_sdo_(request);
 }
@@ -98,8 +98,8 @@ bool CANopenComponent::write_sdo_data(uint8_t node_id, uint16_t index, uint8_t s
     reject(node_id, index, sub, callback, context);
     return false;
   }
-  SDORequest request{node_id,  sub,    SDOKind::SDO_KIND_WRITE_DATA, 0, index, static_cast<uint16_t>(len), {},
-                     callback, context};
+  const auto size = static_cast<uint16_t>(len);
+  SDORequest request{node_id, sub, SDOKind::SDO_KIND_WRITE_DATA, 0, index, size, {}, callback, context};
   request.data = const_cast<uint8_t *>(data);  // a WRITE_DATA request only reads it
   return this->queue_sdo_(request);
 }
