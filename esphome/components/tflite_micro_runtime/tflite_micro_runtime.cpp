@@ -69,8 +69,6 @@ TFLiteMicroHelper::LockGuard::~LockGuard() {
   this->helper_->mutex_.unlock();
 }
 
-bool TFLiteMicroHelper::is_main_task_() { return xTaskGetCurrentTaskHandle() == esphome_main_task_handle; }
-
 void TFLiteMicroHelper::setup() {
   if (this->defer_load_) {
     // A streaming consumer owns the model and its resource variables.
@@ -124,9 +122,9 @@ bool TFLiteMicroHelper::set_model(const uint8_t *model_data, size_t model_size, 
   LockGuard guard(this);
   if (!guard.locked())
     return false;
-  if (this->state_.load(std::memory_order_relaxed) != LoadState::LOAD_STATE_UNLOADED) {
-    // READY: the interpreter still uses the old buffer. LOADING: it is being read now.
-    ESP_LOGE(TAG, "set_model() while a model is loaded or loading -- call unload_model() first");
+  if (this->state_.load(std::memory_order_relaxed) == LoadState::LOAD_STATE_READY) {
+    // The interpreter still uses the old buffer until unload_model() frees it.
+    ESP_LOGE(TAG, "set_model() while a model is loaded -- call unload_model() first");
     return false;
   }
   this->model_data_ = model_data;
@@ -179,21 +177,34 @@ bool TFLiteMicroHelper::validate_input_tensor_(const uint8_t *src_data, size_t s
   return true;
 }
 
-bool TFLiteMicroHelper::prepare_run_() {
-  if (this->pending_epoch_.load(std::memory_order_acquire) == this->dispatched_epoch_.load(std::memory_order_acquire))
-    return true;
-  if (is_main_task_()) {
-    // A nested run from an on_result callback is allowed: that callback is already
-    // consuming the pending result.
-    if (!this->dispatching_.load(std::memory_order_relaxed))
-      this->dispatch_result_();
-    return true;
+bool TFLiteMicroHelper::reserve_result_locked_() {
+  if (this->result_callback_.empty())
+    return true;  // no subscriber, so there is no notification to protect
+  if (this->dispatching_.load(std::memory_order_acquire)) {
+    ESP_LOGW(TAG, "A result callback is running; start the next inference after it returns");
+    return false;
   }
-  ESP_LOGW(TAG, "The previous result has not been delivered yet; skipping this inference");
-  return false;
+  if (this->result_reserved_) {
+    ESP_LOGW(TAG, "The previous result has not been delivered yet; skipping this inference");
+    return false;
+  }
+  this->result_reserved_ = true;
+  return true;
 }
 
 void TFLiteMicroHelper::dispatch_result_() {
+  // A run started from a callback would overwrite the result the remaining
+  // callbacks are reading, and would recurse here until the stack overflows.
+  if (this->dispatching_.load(std::memory_order_acquire))
+    return;
+  if (this->result_callback_.empty()) {
+    LockGuard guard(this);
+    if (guard.locked()) {
+      this->dispatched_epoch_.store(this->pending_epoch_.load(std::memory_order_acquire));
+      this->result_reserved_ = false;
+    }
+    return;
+  }
   uint32_t epoch = 0;
   {
     LockGuard guard(this);
@@ -206,15 +217,25 @@ void TFLiteMicroHelper::dispatch_result_() {
   this->dispatching_.store(true, std::memory_order_release);
   this->result_callback_.call();
   this->dispatching_.store(false, std::memory_order_release);
-  // A nested run may have queued a newer result: mark only this epoch delivered.
+  LockGuard guard(this);
+  if (!guard.locked())
+    return;
   uint32_t seen = this->dispatched_epoch_.load(std::memory_order_acquire);
   while (epoch > seen && !this->dispatched_epoch_.compare_exchange_weak(seen, epoch, std::memory_order_release)) {
   }
+  if (this->pending_epoch_.load(std::memory_order_acquire) == epoch)
+    this->result_reserved_ = false;
 }
 
 void TFLiteMicroHelper::finish_run_(bool succeeded) {
-  if (succeeded && is_main_task_())
+  if (!succeeded || this->result_callback_.empty())
+    return;
+  if (is_main_loop_thread()) {
     this->dispatch_result_();
+  } else {
+    // The result waits for the main loop, which may be on a long interval.
+    this->enable_loop_soon_any_context();
+  }
 }
 
 bool TFLiteMicroHelper::run_inference_on_buffer(const uint8_t *src_data, size_t src_size) {
@@ -224,20 +245,25 @@ bool TFLiteMicroHelper::run_inference_on_buffer(const uint8_t *src_data, size_t 
   return this->run_inference_on_buffer_locked_(src_data, src_size);
 }
 
+bool TFLiteMicroHelper::fill_raw_input_locked_(const uint8_t *src_data, size_t src_size) {
+  if (this->model_handler_.input_count() != 1) {
+    ESP_LOGE(TAG, "A raw inference needs one input, this model has %zu", this->model_handler_.input_count());
+    return false;
+  }
+  if (!this->validate_input_tensor_(src_data, src_size))
+    return false;
+  // validate_input_tensor_() checked type and size, so one raw copy serves every type.
+  memcpy(this->model_handler_.input_tensor()->data.raw, src_data, src_size);
+  return true;
+}
+
 bool TFLiteMicroHelper::run_inference_on_buffer_locked_(const uint8_t *src_data, size_t src_size) {
   if (!this->is_model_loaded()) {
     ESP_LOGE(TAG, "Cannot run inference -- model not loaded");
     return false;
   }
-  if (this->model_handler_.input_count() != 1) {
-    ESP_LOGE(TAG, "A raw inference needs one input, this model has %zu", this->model_handler_.input_count());
+  if (!this->fill_raw_input_locked_(src_data, src_size))
     return false;
-  }
-  if (!this->validate_input_tensor_(src_data, src_size)) {
-    return false;
-  }
-  // validate_input_tensor_() checked type and size, so one raw copy serves every type.
-  memcpy(this->model_handler_.input_tensor()->data.raw, src_data, src_size);
   if (this->model_handler_.invoke() != kTfLiteOk) {
     ESP_LOGE(TAG, "Model invocation failed");
     return false;
@@ -293,34 +319,50 @@ bool TFLiteMicroHelper::run_locked_(const uint8_t *src_data, size_t src_size) {
     if (!this->input_pipeline_->fill_all(inputs, input_count, src_data, src_size))
       return false;
   } else {
-    if (this->model_handler_.input_count() != 1) {
-      ESP_LOGE(TAG, "A raw inference needs one input, this model has %zu", this->model_handler_.input_count());
+    if (!this->fill_raw_input_locked_(src_data, src_size))
       return false;
-    }
-    if (!this->validate_input_tensor_(src_data, src_size))
-      return false;
-    memcpy(this->model_handler_.input_tensor()->data.raw, src_data, src_size);
   }
   if (this->invoke_locked_() != kTfLiteOk) {
     ESP_LOGE(TAG, "Model invocation failed");
     return false;
   }
-  return this->decode_outputs_locked_();
+  if (this->output_decoder_ != nullptr)
+    return this->decode_outputs_locked_();
+  // A raw model has no decoder, so store the processed result for get_last_result().
+  if (!this->result_callback_.empty()) {
+    TfLiteTensor *output = this->model_handler_.output_tensor();
+    if (output == nullptr) {
+      ESP_LOGE(TAG, "Model has no output tensor after a successful invocation");
+      return false;
+    }
+    const ProcessedOutput result = this->model_handler_.process_output(output);
+    if (!result.valid) {
+      ESP_LOGE(TAG, "The output tensor could not be processed");
+      return false;
+    }
+    this->last_result_ = result;
+  }
+  return true;
 }
 
 bool TFLiteMicroHelper::run_(const uint8_t *src_data, size_t src_size, int frame_width, int frame_height) {
-  if (!this->prepare_run_())
-    return false;
+  // Deliver a pending result first, so its callbacks read it before this run decodes.
+  if (is_main_loop_thread())
+    this->dispatch_result_();
   bool succeeded = false;
   {
     LockGuard guard(this);
     if (!guard.locked())
+      return false;
+    if (!this->reserve_result_locked_())
       return false;
     if (frame_width > 0 && frame_height > 0 && this->input_pipeline_ != nullptr)
       this->input_pipeline_->set_frame_geometry(frame_width, frame_height);
     succeeded = this->run_locked_(src_data, src_size);
     if (succeeded)
       this->pending_epoch_.fetch_add(1, std::memory_order_release);
+    else
+      this->result_reserved_ = false;
   }
   this->finish_run_(succeeded);
   return succeeded;
@@ -333,29 +375,39 @@ bool TFLiteMicroHelper::run(const uint8_t *src_data, size_t src_size, int frame_
 }
 
 optional<ProcessedOutput> TFLiteMicroHelper::run_inference(const uint8_t *src_data, size_t src_size) {
-  if (!this->prepare_run_())
-    return nullopt;
+  // Deliver a pending result first, so its callbacks read it before this run decodes.
+  if (is_main_loop_thread())
+    this->dispatch_result_();
   optional<ProcessedOutput> processed;
   {
     LockGuard guard(this);
     if (!guard.locked())
       return nullopt;
+    if (!this->reserve_result_locked_())
+      return nullopt;
     if (!this->run_inference_on_buffer_locked_(src_data, src_size)) {
+      this->result_reserved_ = false;
       return nullopt;  // the reason is already logged
     }
     TfLiteTensor *output = this->model_handler_.output_tensor();
     if (output == nullptr) {
       ESP_LOGE(TAG, "Model has no output tensor after a successful invocation");
+      this->result_reserved_ = false;
       return nullopt;
     }
     const ProcessedOutput result = this->model_handler_.process_output(output);
     if (!result.valid) {
       // The reason is already logged by the output processor.
+      this->result_reserved_ = false;
+      return nullopt;
+    }
+    // Keep the kind's decoder in step with the result its callback reads; a
+    // decoder failure is this inference's failure, not a stale notification.
+    if (!this->decode_outputs_locked_()) {
+      this->result_reserved_ = false;
       return nullopt;
     }
     this->last_result_ = result;
-    // Keep the kind's decoder in step with the result its callback reads.
-    this->decode_outputs_locked_();
     processed = result;
     this->pending_epoch_.fetch_add(1, std::memory_order_release);
   }
@@ -396,19 +448,10 @@ bool TFLiteMicroHelper::load_model() {
   if (!guard.locked())
     return false;
   const LoadState state = this->state_.load(std::memory_order_relaxed);
-  if (state == LoadState::LOAD_STATE_LOADING) {
-    ESP_LOGE(TAG, "load_model called while another load is in progress");
-    return false;
-  }
-  if (state == LoadState::LOAD_STATE_UNLOADING) {
-    ESP_LOGE(TAG, "load_model called while the model is being unloaded");
-    return false;
-  }
   if (state == LoadState::LOAD_STATE_READY) {
     ESP_LOGE(TAG, "load_model called while a model is loaded -- call unload_model() first");
     return false;
   }
-  this->state_.store(LoadState::LOAD_STATE_LOADING, std::memory_order_relaxed);
   ESP_LOGD(TAG, "Loading TFLite model");
   LoadStats stats;
   stats.load_start_ms = millis();
@@ -416,18 +459,17 @@ bool TFLiteMicroHelper::load_model() {
     ESP_LOGE(TAG, "%s", LOG_STR_ARG(reason));
     stats.total_load_time_ms = millis() - stats.load_start_ms;
     this->last_load_stats_ = stats;
-    this->state_.store(LoadState::LOAD_STATE_UNLOADED, std::memory_order_relaxed);
     return false;
   }
   // Probe the arena size; the result is kept apart from the configured value so a
   // reload asks for the same size and the report does not call it requested.
   this->tensor_arena_size_effective_ = this->tensor_arena_size_requested_;
-  size_t probe_size =
-      this->model_handler_.probe_arena_size(this->model_data_, this->model_length_, this->tensor_arena_size_requested_);
+  size_t probe_size = this->model_handler_.probe_arena_size(
+      this->model_data_, this->model_length_, this->tensor_arena_size_requested_, this->resource_variables_);
   if (probe_size == 0 && this->tensor_arena_size_requested_ > 1024) {
     // An overestimate can exceed the heap's largest block; retry smaller before giving up.
-    probe_size = this->model_handler_.probe_arena_size(this->model_data_, this->model_length_,
-                                                       this->tensor_arena_size_requested_ / 2);
+    probe_size = this->model_handler_.probe_arena_size(
+        this->model_data_, this->model_length_, this->tensor_arena_size_requested_ / 2, this->resource_variables_);
   }
   if (probe_size == 0) {
     ESP_LOGW(TAG, "Arena probe failed, using configured size: %zu bytes", this->tensor_arena_size_requested_);
@@ -449,23 +491,21 @@ bool TFLiteMicroHelper::load_model() {
     stats.arena_alloc_time_ms = millis() - arena_alloc_start;
     stats.total_load_time_ms = millis() - stats.load_start_ms;
     this->last_load_stats_ = stats;
-    this->state_.store(LoadState::LOAD_STATE_UNLOADED, std::memory_order_relaxed);
     return false;
   }
   stats.arena_alloc_time_ms = millis() - arena_alloc_start;
-  // The arena exists from here on, so every failure releases it and leaves UNLOADED.
+  // The arena exists from here on, so every failure releases it.
   auto fail_load = [&]() {
     this->model_handler_.unload();
     this->tensor_arena_allocation_.reset();
     stats.total_load_time_ms = millis() - stats.load_start_ms;
     this->last_load_stats_ = stats;
-    this->state_.store(LoadState::LOAD_STATE_UNLOADED, std::memory_order_relaxed);
     return false;
   };
   ModelConfig config = this->build_config_();
-  if (!this->model_handler_.load_model_with_arena(this->model_data_, this->model_length_,
-                                                  this->tensor_arena_allocation_.data.get(),
-                                                  this->tensor_arena_allocation_.actual_size, config)) {
+  if (!this->model_handler_.load_model_with_arena(
+          this->model_data_, this->model_length_, this->tensor_arena_allocation_.data.get(),
+          this->tensor_arena_allocation_.actual_size, config, this->resource_variables_)) {
     ESP_LOGE(TAG, "Failed to load model into interpreter");
     return fail_load();
   }
@@ -486,19 +526,17 @@ bool TFLiteMicroHelper::unload_model(bool reset_config) {
   LockGuard guard(this);
   if (!guard.locked())
     return false;
-  // A load in progress owns the buffers, so only a completed load may unload.
-  const LoadState state = this->state_.load(std::memory_order_relaxed);
-  if (state == LoadState::LOAD_STATE_LOADING || state == LoadState::LOAD_STATE_UNLOADING) {
-    ESP_LOGE(TAG, "unload_model() while a model is loading -- not unloading");
-    return false;
-  }
-  if (state == LoadState::LOAD_STATE_UNLOADED) {
+  // The lifecycle mutex excludes a load or unload running at the same time, so
+  // the state is either READY or UNLOADED here.
+  if (this->state_.load(std::memory_order_relaxed) == LoadState::LOAD_STATE_UNLOADED) {
     ESP_LOGD(TAG, "unload_model() while no model is loaded");
     if (reset_config)
       this->reset_config();
     return true;
   }
-  this->state_.store(LoadState::LOAD_STATE_UNLOADING, std::memory_order_relaxed);
+  // Clear READY first, so a lock-free is_model_loaded() stops reporting the model
+  // before its interpreter and arena are released.
+  this->state_.store(LoadState::LOAD_STATE_UNLOADED, std::memory_order_relaxed);
   ESP_LOGD(TAG, "Unloading model and freeing arena");
   this->model_handler_.unload();
   // The arena is owned here; load_model() hands it to the loader, which never frees it.
@@ -507,7 +545,6 @@ bool TFLiteMicroHelper::unload_model(bool reset_config) {
   if (reset_config) {
     this->reset_config();
   }
-  this->state_.store(LoadState::LOAD_STATE_UNLOADED, std::memory_order_relaxed);
   return true;
 }
 

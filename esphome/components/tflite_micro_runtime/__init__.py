@@ -46,15 +46,6 @@ DOMAIN = "tflite_micro_runtime"
 # The build-wide resolver size, in operator slots.
 _MAX_OPERATORS_DEFINE = "TFLITE_MICRO_MAX_OPERATORS"
 
-# The audio kind owns these keys, so they are not part of this component's schema.
-# Their presence in a kind's entry selects the audio-only runtime fields.
-_AUDIO_KEYS = (
-    "probability_cutoff",
-    "sliding_window_size",
-    "features_step_size",
-    "feature_count",
-)
-
 
 @dataclass
 class _RuntimeData:
@@ -126,10 +117,6 @@ async def declare_model(config: ConfigType) -> tuple[cg.MockObj, Path]:
             [],
             conf,
         )
-    if any(key in config for key in _AUDIO_KEYS):
-        # The audio kind calls the setters; without this define non-audio builds do
-        # not carry the audio-only fields.
-        cg.add_define("USE_TFLITE_AUDIO")
     cg.add_build_flag("-DTF_LITE_STATIC_MEMORY")
     cg.add_build_flag("-DTF_LITE_DISABLE_X86_NEON")
     cg.add_build_flag("-DESP_NN")

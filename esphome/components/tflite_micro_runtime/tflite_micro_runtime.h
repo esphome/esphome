@@ -172,6 +172,8 @@ class TFLiteMicroHelper final : public Component {
   /// Leave the load to a streaming consumer; setup() only checks the checksum.
   void set_defer_load(bool defer) { this->defer_load_ = defer; }
   void set_output_decoder(tflite_output_processor::OutputDecoder *decoder) { this->output_decoder_ = decoder; }
+  /// Resource variables for a stateful (streaming) model; nullptr for a stateless one.
+  void set_resource_variables(tflite::MicroResourceVariables *variables) { this->resource_variables_ = variables; }
 
   /// Model spec of the loaded model; all defaults when none is loaded.
   ModelSpec get_model_spec();
@@ -197,7 +199,9 @@ class TFLiteMicroHelper final : public Component {
 
 #ifdef USE_TFLITE_MODEL_DEBUG
   void debug_test_parameters(const std::vector<std::vector<uint8_t>> &zone_data) {
-    this->model_handler_.debug_test_parameters(zone_data);
+    LockGuard guard(this);
+    if (guard.locked())
+      this->model_handler_.debug_test_parameters(zone_data);
   }
 #endif
 
@@ -218,9 +222,8 @@ class TFLiteMicroHelper final : public Component {
     bool locked_{false};
   };
 
-  static bool is_main_task_();
-  /// Dispatch a pending result if this is the main task; false on a worker task.
-  bool prepare_run_();
+  /// Reserve the notification slot under the mutex, or refuse this run.
+  bool reserve_result_locked_();
   /// Run on the main loop: deliver the pending result, then clear the slot.
   void dispatch_result_();
   bool run_(const uint8_t *src_data, size_t src_size, int frame_width, int frame_height);
@@ -230,6 +233,8 @@ class TFLiteMicroHelper final : public Component {
   int get_input_width_locked_() const;
   int get_input_height_locked_() const;
   int get_input_channels_locked_() const;
+  /// Copy raw source bytes into the model's single input tensor.
+  bool fill_raw_input_locked_(const uint8_t *src_data, size_t src_size);
 
   /// Clear the model configuration after the arena and interpreter are gone.
   void reset_config();
@@ -249,6 +254,7 @@ class TFLiteMicroHelper final : public Component {
   InputPipeline *input_pipeline_{nullptr};
   bool defer_load_{false};
   tflite_output_processor::OutputDecoder *output_decoder_{nullptr};
+  tflite::MicroResourceVariables *resource_variables_{nullptr};
   MemoryManager::AllocationResult tensor_arena_allocation_;  // owned here, freed in unload_model()
   ArenaHeap arena_heap_{ArenaHeap::ARENA_HEAP_UNKNOWN};      // cached for reports after an unload
   LoadStats last_load_stats_{};
@@ -256,9 +262,7 @@ class TFLiteMicroHelper final : public Component {
   // One atomic value, so there is no check-then-act across flags.
   enum class LoadState : uint8_t {
     LOAD_STATE_UNLOADED,
-    LOAD_STATE_LOADING,
     LOAD_STATE_READY,
-    LOAD_STATE_UNLOADING,
   };
   std::atomic<LoadState> state_{LoadState::LOAD_STATE_UNLOADED};
   uint32_t expected_crc32_{0};  // 0 = skip verification, set from __init__.py
@@ -275,11 +279,15 @@ class TFLiteMicroHelper final : public Component {
   /// The result run_inference() produced, kept until its callback runs.
   ProcessedOutput last_result_{};
   /// Each successful run advances pending_epoch_; dispatch_result_() marks the
-  /// epoch it delivered, so a nested run keeps its own result pending.
+  /// epoch it delivered.
   std::atomic<uint32_t> pending_epoch_{0};
   std::atomic<uint32_t> dispatched_epoch_{0};
-  /// True while the main loop is inside the callback, so a nested run is allowed.
+  /// True while the main loop is inside the callback. A run started there is
+  /// refused, so the callbacks for the current result all read that result.
   std::atomic<bool> dispatching_{false};
+  /// True from the start of a run until its callback is delivered, so another
+  /// task cannot overwrite the decoder before the callbacks read it.
+  bool result_reserved_{false};
 
   /// Null unless a run is configured with `on_result`, so an idle instance pays 4 bytes.
   LazyCallbackManager<void()> result_callback_;

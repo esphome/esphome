@@ -148,18 +148,40 @@ def test_a_kind_entry_contributes_its_operators(setup_core: Path) -> None:
     emit.assert_called_once_with(["ADD"])
 
 
-def test_entries_without_a_model_are_not_models(setup_core: Path) -> None:
+@pytest.mark.parametrize(
+    "full_config",
+    [
+        None,
+        {"esphome": {"name": "test"}, tflm.DOMAIN: [{"debug": True}]},
+        {
+            "ili9xxx": [
+                {
+                    tflm.CONF_ID: ID("display", is_declaration=True, type=ct.uint8),
+                    "model": "ILI9341",
+                    tflm.CONF_RAW_DATA_ID: ID(
+                        "display_data", is_declaration=True, type=ct.uint8
+                    ),
+                }
+            ]
+        },
+    ],
+    ids=["no-config", "no-model-entry", "other-component"],
+)
+def test_entries_without_a_model_keep_the_full_operator_table(
+    setup_core: Path, full_config: ConfigType | None
+) -> None:
     """A component entry that does not describe a model must not narrow the kernels."""
-    CORE.config = {"esphome": {"name": "test"}, tflm.DOMAIN: [{"debug": True}]}
+    CORE.config = full_config
     with (
         patch.object(tflm, "emit_all_ops") as emit_all,
         patch.object(tflm, "emit_selective_op_defines") as emit_selective,
-        patch("esphome.codegen.add_define"),
+        patch("esphome.codegen.add_define") as add_define,
     ):
         tflm._add_operator_defines()
 
     emit_all.assert_called_once_with()
     emit_selective.assert_not_called()
+    add_define.assert_not_called()
 
 
 def test_the_resolver_is_sized_by_the_widest_model(setup_core: Path) -> None:
@@ -294,30 +316,6 @@ def test_to_code_queues_the_result_callback(setup_core: Path) -> None:
     )
 
 
-def test_a_non_runtime_entry_is_not_a_model(setup_core: Path) -> None:
-    """A display or gas sensor also has a `model` key, but is not one of ours."""
-    CORE.config = {
-        "ili9xxx": [
-            {
-                tflm.CONF_ID: ID("display", is_declaration=True, type=ct.uint8),
-                "model": "ILI9341",
-                tflm.CONF_RAW_DATA_ID: ID(
-                    "display_data", is_declaration=True, type=ct.uint8
-                ),
-            }
-        ]
-    }
-    with (
-        patch.object(tflm, "emit_all_ops") as emit_all,
-        patch.object(tflm, "emit_selective_op_defines") as emit_selective,
-        patch("esphome.codegen.add_define"),
-    ):
-        tflm._add_operator_defines()
-
-    emit_all.assert_called_once_with()
-    emit_selective.assert_not_called()
-
-
 def test_to_code_gives_each_model_its_own_checksum(setup_core: Path) -> None:
     """MULTI_CONF: the checksum is per instance, not build-wide."""
     _, first, _ = _run_to_code({tflm.CONF_ID: _model_id()}, model_bytes=b"\x01")
@@ -330,12 +328,9 @@ def test_to_code_gives_each_model_its_own_checksum(setup_core: Path) -> None:
     )
 
 
-def test_an_audio_entry_enables_the_audio_only_fields(setup_core: Path) -> None:
-    """An image or raw entry must not pay for the audio configuration."""
+def test_an_audio_entry_is_not_special_in_the_runtime(setup_core: Path) -> None:
+    """The audio kind enables its own feature; the runtime does not infer it."""
     codegen, _, _ = _run_to_code({tflm.CONF_ID: _model_id(), "probability_cutoff": 0.5})
-    codegen.add_define.assert_any_call("USE_TFLITE_AUDIO")
-
-    codegen, _, _ = _run_to_code({tflm.CONF_ID: _model_id()})
     assert not any(
         call.args and call.args[0] == "USE_TFLITE_AUDIO"
         for call in codegen.add_define.call_args_list
