@@ -677,13 +677,11 @@ void ESPHomeOTAComponent::handle_data_() {
     }
 
   this->cleanup_connection_();
-  delay(10);
   ESP_LOGI(TAG, "Update complete");
   this->status_clear_warning();
 #ifdef USE_OTA_STATE_LISTENER
   this->notify_state_(ota::OTA_COMPLETED, 100.0f, 0);
 #endif
-  delay(100);  // NOLINT
 #ifdef USE_OTA_PARTITIONS
   if (ota_type == ota::OTA_TYPE_UPDATE_PARTITION_TABLE) {
     // Skip on_safe_shutdown: nvs_flash_deinit() has already invalidated open NVS handles, so
