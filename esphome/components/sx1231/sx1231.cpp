@@ -143,7 +143,8 @@ const LogString *SX1231::configure_radio_() {
     this->pa_power_ = pa_power;
   }
   const bool high_power = this->pa_power_ > 17;
-  this->applied_ = {this->payload_length_, this->packet_mode_, this->rx_start_, high_power};
+  const uint8_t mode = this->rx_start_ ? MODE_RX : MODE_SLEEP;
+  this->applied_ = {this->payload_length_, mode, this->packet_mode_, high_power};
 
   // Reset is active high
   if (this->rst_pin_ != nullptr) {
@@ -168,7 +169,8 @@ const LogString *SX1231::configure_radio_() {
   this->write_register_(REG_DATA_MODUL, data_modul);
   uint16_t bitrate = (FXOSC + this->bitrate_ / 2) / this->bitrate_;  // rounded to nearest
   this->write_register16_(REG_BITRATE_MSB, bitrate);
-  uint16_t fdev = clamp_at_most((this->deviation_ * 4096) / 250000, uint32_t{0x3FFF});
+  // Rounded to nearest, so that the lowest deviation allowed is not programmed as less
+  uint16_t fdev = clamp_at_most((this->deviation_ * 4096 + 125000) / 250000, uint32_t{0x3FFF});
   this->write_register16_(REG_FDEV_MSB, fdev);
 
   uint64_t frf = ((uint64_t) this->frequency_ << 19) / FXOSC;
@@ -294,7 +296,7 @@ bool SX1231::restore_() {
   if (!this->set_mode_(MODE_STDBY)) {
     return false;
   }
-  return this->set_mode_(this->applied_.rx_start ? MODE_RX : MODE_SLEEP);
+  return this->set_mode_(this->applied_.mode);
 }
 
 bool SX1231::is_receiving() {
@@ -388,6 +390,8 @@ void SX1231::change_mode_(uint8_t mode) {
     ESP_LOGW(TAG, "Radio unavailable, mode change ignored");
     return;
   }
+  // A send returns the radio to this mode
+  this->applied_.mode = mode;
   if (!this->set_mode_(mode)) {
     this->fail_(set_mode_failure());
   }

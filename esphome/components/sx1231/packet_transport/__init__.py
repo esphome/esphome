@@ -1,11 +1,13 @@
 import esphome.codegen as cg
 from esphome.components.packet_transport import (
-    CONF_PING_PONG_ENABLE,
+    CONF_PROVIDERS,
     PacketTransport,
+    get_sensors,
     new_packet_transport,
     transport_schema,
 )
 import esphome.config_validation as cv
+from esphome.const import CONF_ID
 from esphome.cpp_types import PollingComponent
 import esphome.final_validate as fv
 from esphome.types import ConfigType
@@ -49,10 +51,12 @@ def _final_validate(config: ConfigType) -> ConfigType:
             f"The radio needs a '{CONF_SYNC_VALUE}', so that it does not take noise for packets",
             path=[CONF_SX1231_ID],
         )
-    if config[CONF_PING_PONG_ENABLE] and not radio[CONF_RX_START]:
+    # Providers are listed, or only named by the sensors that take their values
+    receives = config[CONF_PROVIDERS] or any(get_sensors(config[CONF_ID]))
+    if receives and not radio[CONF_RX_START]:
         raise cv.Invalid(
-            f"'{CONF_PING_PONG_ENABLE}' needs packets from the providers, but the radio sleeps after sending "
-            f"unless its '{CONF_RX_START}' is true",
+            f"The transport needs packets from its providers, but the radio sleeps unless its '{CONF_RX_START}' "
+            "is true",
             path=[CONF_SX1231_ID],
         )
     return config

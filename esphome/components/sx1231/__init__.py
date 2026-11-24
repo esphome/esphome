@@ -78,6 +78,7 @@ BW = {
 
 MOD = SX1231DataModul.options("FSK", "OOK", prefix="MOD_")
 
+FXOSC = 32_000_000
 # The synthesizer does not cover the gaps between these bands
 FREQUENCY_BANDS = ((290, 340), (424, 510), (862, 1020))
 MIN_FSK_DEVIATION = 600
@@ -135,7 +136,7 @@ validate_packet_data = cv.All(validate_raw_data, cv.Length(min=1, max=MAX_PACKET
 
 def _bandwidth_hz(name: str) -> float:
     code = BW[name]
-    return 32e6 / ((16 + 4 * (code >> 3)) << ((code & 0x07) + 2))
+    return FXOSC / ((16 + 4 * (code >> 3)) << ((code & 0x07) + 2))
 
 
 def validate_config(config: ConfigType) -> ConfigType:
@@ -171,10 +172,13 @@ def validate_config(config: ConfigType) -> ConfigType:
                 f"The deviation must be at least {MIN_FSK_DEVIATION} Hz with FSK",
                 path=[CONF_DEVIATION],
             )
-    # The receiver cannot sample a bitrate of twice its bandwidth or more
-    if config[CONF_BITRATE] >= 2 * (width := _bandwidth_hz(config[CONF_BANDWIDTH])):
+    # The receiver cannot sample a bitrate of twice its bandwidth or more. The radio divides its clock by a whole
+    # number, so its bitrate can be above the configured one.
+    bitrate = FXOSC / ((FXOSC + config[CONF_BITRATE] // 2) // config[CONF_BITRATE])
+    if bitrate >= 2 * (width := _bandwidth_hz(config[CONF_BANDWIDTH])):
         raise cv.Invalid(
-            f"The bitrate must be below {2 * width:.0f}, twice the '{CONF_BANDWIDTH}'",
+            f"The radio's nearest bitrate is {bitrate:.0f}, which must be below {2 * width:.0f}, twice the "
+            f"'{CONF_BANDWIDTH}'",
             path=[CONF_BITRATE],
         )
     if config[CONF_PACKET_MODE]:

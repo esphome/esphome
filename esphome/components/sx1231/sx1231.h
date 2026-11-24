@@ -25,7 +25,7 @@ enum class SX1231Error {
 enum class RadioState : uint8_t {
   // Before setup or after a failed mode change; configure() is retried every second
   RADIO_STATE_NEEDS_CONFIGURATION,
-  // Receiving or sleeping as configured, or sending after the TX mode action (untracked)
+  // In the mode set by configure() or by the last mode action
   RADIO_STATE_IDLE,
 };
 
@@ -61,7 +61,8 @@ class SX1231 final : public Component,
   void set_modulation(uint8_t modulation) { this->modulation_ = modulation; }
   void set_pa_pin(uint8_t pin) { this->pa_pin_ = pin; }
   void set_pa_power(int8_t power) { this->pa_power_ = power; }
-  void set_pa_ramp(uint8_t ramp) { this->pa_ramp_ = ramp; }
+  // Masked to the four bits of the register, as it is also an index into a table
+  void set_pa_ramp(uint8_t ramp) { this->pa_ramp_ = ramp & 0x0F; }
   void set_packet_mode(bool packet_mode) { this->packet_mode_ = packet_mode; }
   void set_payload_length(uint8_t payload_length) { this->payload_length_ = payload_length; }
   void set_preamble_size(uint16_t preamble_size) { this->preamble_size_ = preamble_size; }
@@ -84,8 +85,9 @@ class SX1231 final : public Component,
   // Settings as last applied by configure(), used by sends and reception
   struct AppliedSettings {
     uint8_t payload_length{0};
+    // What a send returns to: receive or sleep as configured, until a mode action changes it
+    uint8_t mode{MODE_SLEEP};
     bool packet_mode{false};
-    bool rx_start{false};
     bool high_power{false};
   };
   static void IRAM_ATTR gpio_intr(SX1231 *arg) { arg->enable_loop_soon_any_context(); }
@@ -94,7 +96,7 @@ class SX1231 final : public Component,
   // False if the chip did not enter the mode
   bool set_mode_(uint8_t mode);
   void change_mode_(uint8_t mode);
-  // Puts the radio back in RX or sleep after a send
+  // Puts the radio back in its mode after a send
   bool restore_();
   // Retries configure() every second
   void fail_(const LogString *reason);

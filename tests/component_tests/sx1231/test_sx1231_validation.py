@@ -5,6 +5,7 @@ from typing import Any
 import pytest
 
 from esphome.components import sx1231
+from esphome.components.packet_transport import validate_packet_transport_sensor
 from esphome.components.sx1231 import packet_interface, packet_transport
 from esphome.config import Config
 import esphome.config_validation as cv
@@ -22,6 +23,8 @@ from tests.component_tests.types import SetCoreConfigCallable
 
 RADIO_ID = "radio"
 BUS_ID = "spi_bus"
+TRANSPORT_ID = "transport"
+PROVIDERS = [{"name": "other-device"}]
 
 
 def _radio(**options: Any) -> ConfigType:
@@ -92,8 +95,8 @@ def esp32(set_core_config: SetCoreConfigCallable) -> None:
         _radio(deviation=600),
         # OOK has no deviation
         _radio(modulation="OOK", deviation=0, bitrate=32768),
-        # Just under twice the 125 kHz bandwidth
-        _radio(bitrate=249999, deviation=50000),
+        # The radio's divider of 129 gives 248062 bps, under twice the 125 kHz bandwidth
+        _radio(bitrate=249027, deviation=50000),
     ],
 )
 def test_config_valid(config: ConfigType) -> None:
@@ -129,6 +132,8 @@ def test_config_valid(config: ConfigType) -> None:
         (_radio(deviation=599), "at least 600 Hz with FSK"),
         (_radio(modulation="OOK", bitrate=32769), "above 32768 with OOK"),
         (_radio(bitrate=250000), "below 250000, twice the 'bandwidth'"),
+        # The radio's divider of 128 gives 250000 bps
+        (_radio(bitrate=249028), "nearest bitrate is 250000, which must be below"),
         (
             _radio(modulation="OOK", bitrate=5300, bandwidth="2_6kHz"),
             "below 5208, twice the 'bandwidth'",
@@ -198,30 +203,65 @@ def test_spi_bus_pins(
         sx1231.FINAL_VALIDATE_SCHEMA(radio)
 
 
+def _transport(providers: list[ConfigType]) -> ConfigType:
+    return {
+        CONF_ID: ID(TRANSPORT_ID, is_declaration=True, type="transport"),
+        "sx1231_id": ID(RADIO_ID, is_declaration=False, type="sx1231"),
+        "providers": providers,
+    }
+
+
 @pytest.mark.parametrize(
-    ("radio", "ping_pong", "message"),
+    ("radio", "providers", "message"),
     [
-        (_radio(), False, None),
-        (_radio(), True, None),
-        # Without ping-pong the transport only sends, so the radio may sleep between packets
-        (_radio(rx_start=False), False, None),
-        (_radio(packet_mode=False), False, "'packet_mode' must be true"),
-        (_radio(payload_length=16), False, "'payload_length' must be 0"),
-        (_radio(rx_start=False), True, "unless its 'rx_start' is true"),
-        (_radio(sync_value=[]), False, "The radio needs a 'sync_value'"),
+        (_radio(), [], None),
+        (_radio(), PROVIDERS, None),
+        # A transport with no providers only sends, so the radio may sleep between packets
+        (_radio(rx_start=False), [], None),
+        (_radio(packet_mode=False), [], "'packet_mode' must be true"),
+        (_radio(payload_length=16), [], "'payload_length' must be 0"),
+        (_radio(rx_start=False), PROVIDERS, "unless its 'rx_start' is true"),
+        (_radio(sync_value=[]), [], "The radio needs a 'sync_value'"),
     ],
 )
 def test_packet_transport_final_validate(
     set_core_config: SetCoreConfigCallable,
     radio: ConfigType,
-    ping_pong: bool,
+    providers: list[ConfigType],
     message: str | None,
 ) -> None:
     set_core_config(PlatformFramework.ESP32_IDF, full_config=_full_config(radio))
-    config: ConfigType = {
-        "sx1231_id": ID(RADIO_ID, is_declaration=False, type="sx1231"),
-        "ping_pong_enable": ping_pong,
-    }
+    config = _transport(providers)
+    if message is None:
+        assert packet_transport.FINAL_VALIDATE_SCHEMA(config) is config
+        return
+    with pytest.raises(cv.Invalid, match=message):
+        packet_transport.FINAL_VALIDATE_SCHEMA(config)
+
+
+@pytest.mark.parametrize(
+    ("sensor_transport", "message"),
+    [
+        (TRANSPORT_ID, "unless its 'rx_start' is true"),
+        ("other_transport", None),
+    ],
+)
+def test_packet_transport_provider_named_by_sensor(
+    set_core_config: SetCoreConfigCallable,
+    sensor_transport: str,
+    message: str | None,
+) -> None:
+    """A provider that only a remote sensor names needs the receiver too."""
+    radio = _radio(rx_start=False)
+    set_core_config(PlatformFramework.ESP32_IDF, full_config=_full_config(radio))
+    validate_packet_transport_sensor(
+        {
+            "transport_id": ID(sensor_transport, is_declaration=False),
+            "provider": "other-device",
+            "remote_id": "temperature",
+        }
+    )
+    config = _transport([])
     if message is None:
         assert packet_transport.FINAL_VALIDATE_SCHEMA(config) is config
         return
