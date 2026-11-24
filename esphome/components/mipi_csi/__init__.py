@@ -4,6 +4,7 @@ import re
 from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import esp32, i2c
+from esphome.components.const import CONF_PIXEL_FORMAT
 from esphome.components.esp32 import add_idf_component, add_idf_sdkconfig_option
 from esphome.components.esp32.const import VARIANT_ESP32P4
 import esphome.config_validation as cv
@@ -32,7 +33,6 @@ from .const import (
     CONF_ON_IMAGE,
     CONF_ON_STREAM_START,
     CONF_ON_STREAM_STOP,
-    CONF_PIXEL_FORMAT,
     CONF_POWER_PIN,
     CONF_SCCB_FREQUENCY,
     CONF_VERTICAL_FLIP,
