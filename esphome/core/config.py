@@ -59,6 +59,7 @@ from esphome.core import (
     app_lists,
     coroutine_with_priority,
 )
+from esphome.core.entity_types import ENTITY_PLATFORMS
 import esphome.final_validate as fv
 from esphome.helpers import (
     copy_file_if_changed,
@@ -829,7 +830,7 @@ async def _add_platform_defines() -> None:
             continue
 
         # Entity list types get their defines with the lists (esphome/core/app_lists.py)
-        if platform_name in app_lists.ENTITY_LISTS:
+        if platform_name in ENTITY_PLATFORMS:
             continue
         cg.add_define(f"ESPHOME_ENTITY_{platform_name.upper()}_COUNT", count)
         cg.add_define(app_lists.use_define(platform_name))
