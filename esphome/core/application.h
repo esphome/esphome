@@ -194,9 +194,9 @@ class Application {
 
 // Codegen entities are in the constant APP_<UPPER>_LIST arrays. Entities created at run time go into
 // slots reserved with cg.reserve_runtime_entities(): register_<entity>(obj, name) names the entity,
-// computes its object_id hash from the name and fills a slot. `name` must stay valid as long as the
-// entity, and ESP8266 reads it like a flash string. Without a reservation the call fails to compile
-// with a message saying so.
+// computes its object_id hash from the name and fills a slot; it returns false and leaves the entity
+// unnamed when every reserved slot is taken. `name` must stay valid as long as the entity, and ESP8266
+// reads it like a flash string. Without a reservation the call fails to compile with a message saying so.
 // NOLINTBEGIN(bugprone-macro-parentheses)
 #define APP_RESERVE_HINT_(singular) \
   "Call cg.reserve_runtime_entities(\"" #singular "\", n) in to_code to register entities at run time"
@@ -207,9 +207,14 @@ class Application {
 \
  public: \
   SLOT_LIST_REQUIRES(ESPHOME_RUNTIME_##upper##_COUNT) \
-  void register_##singular(type *obj, const char *name) { \
+  bool register_##singular(type *obj, const char *name) { \
+    if (this->runtime_##plural##_.size() == SLOT_LIST_COUNT) { \
+      this->log_runtime_slots_full_(name); \
+      return false; \
+    } \
     obj->configure_entity_(name, 0, 0); \
     this->runtime_##plural##_.push_back(obj); \
+    return true; \
   } \
   template<size_t RESERVED = ESPHOME_RUNTIME_##upper##_COUNT, typename... A> \
     requires(RESERVED == 0) \
@@ -224,6 +229,10 @@ class Application {
 #undef APP_RESERVE_HINT_
   // NOLINTEND(bugprone-macro-parentheses)
 
+ protected:
+  void log_runtime_slots_full_(const char *name);
+
+ public:
 #ifdef USE_SERIAL_PROXY
   void register_serial_proxy(serial_proxy::SerialProxy *proxy) {
     proxy->set_instance_index(this->serial_proxies_.size());

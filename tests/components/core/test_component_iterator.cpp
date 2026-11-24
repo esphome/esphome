@@ -167,6 +167,13 @@ class ComponentIteratorSensorTest : public ::testing::Test {
   }
 };
 
+TEST_F(ComponentIteratorSensorTest, RegistrationPastTheReservationIsRefused) {
+  static sensor::Sensor extra;
+  EXPECT_FALSE(App.register_sensor(&extra, "Runtime C"));
+  EXPECT_EQ(App.get_sensors().size(), ESPHOME_ENTITY_SENSOR_COUNT + 2u);
+  EXPECT_EQ(extra.get_object_id_hash(), 0u);
+}
+
 TEST_F(ComponentIteratorSensorTest, RuntimeEntitiesAreNamedAndKeyed) {
   EXPECT_STREQ(sensor_a.get_name().c_str(), "Runtime A");
   EXPECT_TRUE(sensor_a.has_own_name());
