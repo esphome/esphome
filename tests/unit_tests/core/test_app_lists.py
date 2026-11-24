@@ -197,3 +197,12 @@ def test_spaced_build_flag_override_is_rejected() -> None:
         EsphomeError, match="ESPHOME_ENTITY_SENSOR_COUNT is defined as 32"
     ):
         CORE.flush_tasks()
+
+
+def test_device_count_override_names_the_yaml_lists() -> None:
+    """A device or area count conflict points at the YAML lists, not at entities."""
+    app_lists.add_to_list("DEVICE", _new_sensor("dev_one"))
+    cg.add_define("ESPHOME_DEVICE_COUNT", 4)
+    app_lists.schedule_emit()
+    with pytest.raises(EsphomeError, match="devices and areas come from the YAML"):
+        CORE.flush_tasks()
