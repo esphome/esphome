@@ -60,13 +60,16 @@ TFLiteMicroHelper::LockGuard::LockGuard(TFLiteMicroHelper *helper) : helper_(hel
   this->locked_ = true;
 }
 
-TFLiteMicroHelper::LockGuard::~LockGuard() {
+void TFLiteMicroHelper::LockGuard::unlock() {
   if (!this->locked_)
     return;
   this->helper_->reentry_reported_.store(false, std::memory_order_relaxed);
   this->helper_->lock_owner_.store(nullptr, std::memory_order_relaxed);
   this->helper_->mutex_.unlock();
+  this->locked_ = false;
 }
+
+TFLiteMicroHelper::LockGuard::~LockGuard() { this->unlock(); }
 
 void TFLiteMicroHelper::setup() {
   if (this->defer_load_) {
@@ -200,19 +203,16 @@ bool TFLiteMicroHelper::reserve_result_locked_() {
   return true;
 }
 
+bool TFLiteMicroHelper::result_blocks_inference_locked_() const {
+  return !this->result_callback_.empty() &&
+         (this->result_reserved_ || this->dispatching_.load(std::memory_order_acquire));
+}
+
 void TFLiteMicroHelper::dispatch_result_() {
   // A run started from a callback would overwrite the result the remaining
   // callbacks are reading, and would recurse here until the stack overflows.
   if (this->dispatching_.load(std::memory_order_acquire))
     return;
-  if (this->result_callback_.empty()) {
-    LockGuard guard(this);
-    if (guard.locked()) {
-      this->dispatched_epoch_.store(this->pending_epoch_.load(std::memory_order_acquire));
-      this->result_reserved_ = false;
-    }
-    return;
-  }
   uint32_t epoch = 0;
   {
     LockGuard guard(this);
@@ -228,9 +228,9 @@ void TFLiteMicroHelper::dispatch_result_() {
   LockGuard guard(this);
   if (!guard.locked())
     return;
-  uint32_t seen = this->dispatched_epoch_.load(std::memory_order_acquire);
-  while (epoch > seen && !this->dispatched_epoch_.compare_exchange_weak(seen, epoch, std::memory_order_release)) {
-  }
+  // Only the main task dispatches, so this is the last delivered epoch even when
+  // the counter wraps; no ordering comparison is needed.
+  this->dispatched_epoch_.store(epoch, std::memory_order_release);
   if (this->pending_epoch_.load(std::memory_order_acquire) == epoch)
     this->result_reserved_ = false;
 }
@@ -250,6 +250,10 @@ bool TFLiteMicroHelper::run_inference_on_buffer(const uint8_t *src_data, size_t 
   LockGuard guard(this);
   if (!guard.locked())
     return false;
+  if (this->result_blocks_inference_locked_()) {
+    ESP_LOGW(TAG, "A result is waiting for its callback; start the next inference after it returns");
+    return false;
+  }
   return this->run_inference_on_buffer_locked_(src_data, src_size);
 }
 
@@ -283,6 +287,10 @@ TfLiteStatus TFLiteMicroHelper::invoke() {
   LockGuard guard(this);
   if (!guard.locked())
     return kTfLiteError;
+  if (this->result_blocks_inference_locked_()) {
+    ESP_LOGW(TAG, "A result is waiting for its callback; start the next inference after it returns");
+    return kTfLiteError;
+  }
   return this->invoke_locked_();
 }
 
@@ -337,18 +345,19 @@ bool TFLiteMicroHelper::run_locked_(const uint8_t *src_data, size_t src_size) {
   if (this->output_decoder_ != nullptr)
     return this->decode_outputs_locked_();
   // A raw model has no decoder, so store the processed result for get_last_result().
+  // A successful invocation is still notified when its output has no
+  // classification mapping; the stored result is then marked invalid.
   if (!this->result_callback_.empty()) {
     TfLiteTensor *output = this->model_handler_.output_tensor();
     if (output == nullptr) {
-      ESP_LOGE(TAG, "Model has no output tensor after a successful invocation");
-      return false;
+      ESP_LOGW(TAG, "No output tensor; get_last_result() is invalid for this run");
+      this->last_result_ = ProcessedOutput{};
+      this->last_result_.valid = false;
+    } else {
+      this->last_result_ = this->model_handler_.process_output(output);
+      if (!this->last_result_.valid)
+        ESP_LOGD(TAG, "The output type has no classification mapping; get_last_result() is invalid");
     }
-    const ProcessedOutput result = this->model_handler_.process_output(output);
-    if (!result.valid) {
-      ESP_LOGE(TAG, "The output tensor could not be processed");
-      return false;
-    }
-    this->last_result_ = result;
   }
   return true;
 }
@@ -367,9 +376,9 @@ bool TFLiteMicroHelper::run_(const uint8_t *src_data, size_t src_size, int frame
     if (frame_width > 0 && frame_height > 0 && this->input_pipeline_ != nullptr)
       this->input_pipeline_->set_frame_geometry(frame_width, frame_height);
     succeeded = this->run_locked_(src_data, src_size);
-    if (succeeded)
+    if (succeeded && !this->result_callback_.empty())
       this->pending_epoch_.fetch_add(1, std::memory_order_release);
-    else
+    else if (!succeeded)
       this->result_reserved_ = false;
   }
   this->finish_run_(succeeded);
@@ -417,7 +426,8 @@ optional<ProcessedOutput> TFLiteMicroHelper::run_inference(const uint8_t *src_da
     }
     this->last_result_ = result;
     processed = result;
-    this->pending_epoch_.fetch_add(1, std::memory_order_release);
+    if (!this->result_callback_.empty())
+      this->pending_epoch_.fetch_add(1, std::memory_order_release);
   }
   this->finish_run_(true);
   return processed;

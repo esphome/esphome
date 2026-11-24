@@ -145,8 +145,9 @@ class TFLiteMicroHelper : public Component {
 
   /// Called after run() decoded a result, or run_inference() produced one. The
   /// callbacks are dispatched from the main loop after the inference lock is
-  /// released, so one may start another run; read the kind's decoder, or
-  /// get_last_result() for a raw model without one.
+  /// released. A callback must return before the next run: run() and
+  /// run_inference() are refused while callbacks run. Read the kind's decoder,
+  /// or get_last_result() for a raw model without one.
   template<typename F> void add_on_result_callback(F &&callback) {
     this->result_callback_.add(std::forward<F>(callback));
   }
@@ -199,6 +200,8 @@ class TFLiteMicroHelper : public Component {
     LockGuard(const LockGuard &) = delete;
     LockGuard &operator=(const LockGuard &) = delete;
     bool locked() const { return this->locked_; }
+    /// Release the lock early, for a session that turns out to be blocked.
+    void unlock();
 
    private:
     TFLiteMicroHelper *helper_;
@@ -207,6 +210,8 @@ class TFLiteMicroHelper : public Component {
 
   /// Reserve the notification slot under the mutex, or refuse this run.
   bool reserve_result_locked_();
+  /// Whether a delivered result is still waiting, so the tensors must not change.
+  bool result_blocks_inference_locked_() const;
   /// Run on the main loop: deliver the pending result, then clear the slot.
   void dispatch_result_();
   bool run_(const uint8_t *src_data, size_t src_size, int frame_width, int frame_height);
@@ -249,30 +254,29 @@ class TFLiteMicroHelper : public Component {
   };
   std::atomic<LoadState> state_{LoadState::LOAD_STATE_UNLOADED};
 
+  /// Each successful run advances pending_epoch_; dispatch_result_() stores the
+  /// epoch it delivered.
+  std::atomic<uint32_t> pending_epoch_{0};
+  std::atomic<uint32_t> dispatched_epoch_{0};
+  /// Task holding mutex_, so a log emitted under the lock cannot deadlock the device.
+  std::atomic<TaskHandle_t> lock_owner_{nullptr};
+  /// The result run_inference() produced, kept until its callback runs.
+  ProcessedOutput last_result_{};
+  /// Null unless a run is configured with `on_result`, so an idle instance pays 4 bytes.
+  LazyCallbackManager<void()> result_callback_;
+
   /// Serializes load, unload, inference and set_model(), so an unload from another
   /// task cannot free the arena while it is in use. The mutex is not recursive, so
   /// a same-task re-entry is rejected by LockGuard instead of deadlocking.
   esphome::Mutex mutex_;
-  /// Task holding mutex_, so a log emitted under the lock cannot deadlock the device.
-  std::atomic<TaskHandle_t> lock_owner_{nullptr};
-  /// Set once per re-entry so the nested error log cannot recurse forever.
-  std::atomic<bool> reentry_reported_{false};
-
-  /// The result run_inference() produced, kept until its callback runs.
-  ProcessedOutput last_result_{};
-  /// Each successful run advances pending_epoch_; dispatch_result_() marks the
-  /// epoch it delivered.
-  std::atomic<uint32_t> pending_epoch_{0};
-  std::atomic<uint32_t> dispatched_epoch_{0};
   /// True while the main loop is inside the callback. A run started there is
   /// refused, so the callbacks for the current result all read that result.
   std::atomic<bool> dispatching_{false};
+  /// Set once per re-entry so the nested error log cannot recurse forever.
+  std::atomic<bool> reentry_reported_{false};
   /// True from the start of a run until its callback is delivered, so another
   /// task cannot overwrite the decoder before the callbacks read it.
   bool result_reserved_{false};
-
-  /// Null unless a run is configured with `on_result`, so an idle instance pays 4 bytes.
-  LazyCallbackManager<void()> result_callback_;
   TfLiteStatus invoke_locked_();
   bool run_inference_on_buffer_locked_(const uint8_t *src_data, size_t src_size);
   bool run_locked_(const uint8_t *src_data, size_t src_size);
@@ -301,6 +305,11 @@ class InferenceSession {
  public:
   explicit InferenceSession(TFLiteMicroHelper *helper) : helper_(helper), guard_(helper) {
     this->locked_ = helper != nullptr && this->guard_.locked();
+    // A result waiting for its callback must keep the tensors it describes.
+    if (this->locked_ && helper->result_blocks_inference_locked_()) {
+      this->guard_.unlock();
+      this->locked_ = false;
+    }
   }
   ~InferenceSession() = default;
   InferenceSession(const InferenceSession &) = delete;
