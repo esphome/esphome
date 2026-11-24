@@ -100,7 +100,7 @@ void Image::draw_(int x, int y, display::Display *display, Color color_on, Color
                                  [&](int img_x, int img_y, int pos) ESPHOME_ALWAYS_INLINE {
                                    auto color = this->get_rgb111_pixel_(img_x, img_y);
                                    if (color.w >= 0x80) {
-                                     display->draw_pixel_at(x + img_x, y + img_y, color);
+                                     display->draw_pixel_at(x + img_x, y + img_y, Color(color.r, color.g, color.b));
                                    }
                                  });
       break;
@@ -109,7 +109,7 @@ void Image::draw_(int x, int y, display::Display *display, Color color_on, Color
       for_each_pixel<ROWS_OUTER>(x_start, x_end, y_start, y_end, width,
                                  [&](int img_x, int img_y, int pos) ESPHOME_ALWAYS_INLINE {
                                    const uint8_t gray = progmem_read_byte(data + pos);
-                                   Color color = Color(gray, gray, gray, 0xFF);
+                                   Color color = Color(gray, gray, gray);
                                    if (transparency == TRANSPARENCY_CHROMA_KEY) {
                                      if (gray == 1) {
                                        return;  // transparent pixel, skip drawing
@@ -118,7 +118,8 @@ void Image::draw_(int x, int y, display::Display *display, Color color_on, Color
                                      // gray is the alpha: blend from color_off to color_on, drawn opaque
                                      color = Color(Color::blend_channel(color_off.r, color_on.r, gray),
                                                    Color::blend_channel(color_off.g, color_on.g, gray),
-                                                   Color::blend_channel(color_off.b, color_on.b, gray), 0xFF);
+                                                   Color::blend_channel(color_off.b, color_on.b, gray),
+                                                   Color::blend_channel(color_off.w, color_on.w, gray));
                                    }
                                    display->draw_pixel_at(x + img_x, y + img_y, color);
                                  });
@@ -129,7 +130,7 @@ void Image::draw_(int x, int y, display::Display *display, Color color_on, Color
                                  [&](int img_x, int img_y, int pos) ESPHOME_ALWAYS_INLINE {
                                    auto color = this->get_rgb565_pixel_(img_x, img_y);
                                    if (color.w >= 0x80) {
-                                     display->draw_pixel_at(x + img_x, y + img_y, color);
+                                     display->draw_pixel_at(x + img_x, y + img_y, Color(color.r, color.g, color.b));
                                    }
                                  });
       break;
@@ -138,7 +139,7 @@ void Image::draw_(int x, int y, display::Display *display, Color color_on, Color
                                  [&](int img_x, int img_y, int pos) ESPHOME_ALWAYS_INLINE {
                                    auto color = this->get_rgb_pixel_(img_x, img_y);
                                    if (color.w >= 0x80) {
-                                     display->draw_pixel_at(x + img_x, y + img_y, color);
+                                     display->draw_pixel_at(x + img_x, y + img_y, Color(color.r, color.g, color.b));
                                    }
                                  });
       break;

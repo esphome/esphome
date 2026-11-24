@@ -181,7 +181,7 @@ static void expect_reader_decodes(bool big_endian) {
 TEST(ImageDraw, ReaderDecodesLittleEndian) { expect_reader_decodes(false); }
 TEST(ImageDraw, ReaderDecodesBigEndian) { expect_reader_decodes(true); }
 
-// A chroma keyed RGB565 draw stays per pixel and must match get_pixel().
+// A chroma keyed RGB565 draw stays per pixel and must match the color of get_pixel(), as the bulk path does.
 static void expect_keyed_draw_matches_reader(bool big_endian) {
   const auto data = make_data(2);
   Image image(data.data(), W, H, IMAGE_TYPE_RGB565, TRANSPARENCY_CHROMA_KEY, big_endian);
@@ -189,7 +189,8 @@ static void expect_keyed_draw_matches_reader(bool big_endian) {
   image.draw(0, 0, &display, Color::WHITE, Color::BLACK);
   ASSERT_GT(display.pixels.size(), 0u);
   for (const auto &pixel : display.pixels) {
-    EXPECT_EQ(pixel.raw, image.get_pixel(pixel.x, pixel.y).raw_32) << "at " << pixel.x << "," << pixel.y;
+    const Color expected = image.get_pixel(pixel.x, pixel.y);
+    EXPECT_EQ(pixel.raw, Color(expected.r, expected.g, expected.b).raw_32) << "at " << pixel.x << "," << pixel.y;
   }
 }
 
@@ -208,6 +209,28 @@ TEST(ImageDraw, FallbackKeepsRgbChannelOrder) {
     const Color expected = image.get_pixel(pixel.x, pixel.y);
     EXPECT_EQ(pixel.raw, Color(expected.r, expected.g, expected.b).raw_32) << "at " << pixel.x << "," << pixel.y;
   }
+}
+
+// Opaque black must reach the display as black, not as a white-only color.
+TEST(ImageDraw, GrayscalePixelsAreDrawnWithoutWhite) {
+  const std::vector<uint8_t> data = {0, 128, 255};
+  Image image(data.data(), 3, 1, IMAGE_TYPE_GRAYSCALE, TRANSPARENCY_OPAQUE);
+  FallbackDisplay display;
+  image.draw(0, 0, &display, display::COLOR_ON, display::COLOR_OFF);
+  ASSERT_EQ(display.pixels.size(), 3u);
+  EXPECT_EQ(display.pixels[0].raw, Color(0, 0, 0).raw_32);
+  EXPECT_EQ(display.pixels[1].raw, Color(128, 128, 128).raw_32);
+  EXPECT_EQ(display.pixels[2].raw, Color(255, 255, 255).raw_32);
+}
+
+TEST(ImageDraw, GrayscaleAlphaBlendsAllChannels) {
+  const std::vector<uint8_t> data = {0, 255};
+  Image image(data.data(), 2, 1, IMAGE_TYPE_GRAYSCALE, TRANSPARENCY_ALPHA_CHANNEL);
+  FallbackDisplay display;
+  image.draw(0, 0, &display, Color(0, 0, 0, 200), display::COLOR_OFF);
+  ASSERT_EQ(display.pixels.size(), 2u);
+  EXPECT_EQ(display.pixels[0].raw, display::COLOR_OFF.raw_32);
+  EXPECT_EQ(display.pixels[1].raw, Color(0, 0, 0, 200).raw_32);
 }
 
 }  // namespace esphome::image::testing
