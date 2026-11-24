@@ -47,22 +47,18 @@ void CombinationOneParameterComponent::log_source_sensors() {
 }
 
 void CombinationNoParameterComponent::setup() {
-  bool has_source_state = false;
   for (const auto &sensor : this->sensors_) {
     // All sensor updates are deferred until the next loop. This avoids publishing the combined sensor's result
     // repeatedly in the same loop if multiple source senors update.
     sensor->add_on_state_callback([this](float value) -> void {
       this->defer(NEW_VALUE_DEFER_ID, [this, value]() { this->handle_new_value(value); });
     });
-    has_source_state |= sensor->has_state();
-  }
-  if (has_source_state) {
-    this->defer(NEW_VALUE_DEFER_ID, [this]() { this->handle_new_value(0.0f); });
   }
 }
 
 void CombinationOneParameterComponent::setup() {
   bool has_source_state = false;
+  float initial_trigger = NAN;
   for (const auto &source : this->sensor_sources_) {
     // All sensor updates are deferred until the next loop. This avoids publishing the combined sensor's result
     // repeatedly in the same loop if multiple source senors update.
@@ -70,9 +66,12 @@ void CombinationOneParameterComponent::setup() {
       this->defer(NEW_VALUE_DEFER_ID, [this, value]() { this->handle_new_value(value); });
     });
     has_source_state |= source.sensor->has_state();
+    if (!std::isfinite(initial_trigger) && std::isfinite(source.sensor->state)) {
+      initial_trigger = source.sensor->state;
+    }
   }
   if (has_source_state) {
-    this->defer(NEW_VALUE_DEFER_ID, [this]() { this->handle_new_value(0.0f); });
+    this->defer(NEW_VALUE_DEFER_ID, [this, initial_trigger]() { this->handle_new_value(initial_trigger); });
   }
 }
 
