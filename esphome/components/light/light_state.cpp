@@ -83,7 +83,7 @@ void LightState::setup() {
   call.set_color_temperature_if_supported(recovered.color_temp);
   call.set_cold_white_if_supported(recovered.cold_white);
   call.set_warm_white_if_supported(recovered.warm_white);
-  if (recovered.state && recovered.effect != 0) {
+  if (recovered.state && recovered.effect != 0 && this->supports_effects()) {
     call.set_effect(recovered.effect);
   } else {
 #ifdef USE_LIGHT_RESUME_EFFECT

@@ -389,7 +389,7 @@ class LightState : public EntityBase, public Component {
   /// List of effects for this light.
   ConstVector<LightEffect *> effects_;
 #else
-  // No light in the config has effects: a shared empty list, so every effect path folds away
+  // No light has effects; the effect paths fold away
   static constexpr ConstVector<LightEffect *> effects_{};
 #endif
   /// Object used to store the persisted values of the light.
