@@ -202,6 +202,8 @@ Per-topic scripts, each described in the matching `reference/recipes/<component>
 - `entity_transport/trcheck.py` (remote entity values against the sender's)
 - `esp8266_edges/` (GPIO edge logger and 8N1 decoder, `jsn_sr04t` probe and counters, I2C bus sniffer and decoder, SDA
   unstick, VL53L1X register logger)
+- `esp8266_flash_prefs/` (Wi-Fi scan versus flash erase repro, interrupt load during the flash sync, reset and
+  restore driver, API hold, crash, heap and pulse rate summaries)
 - `esp8266_lock_load/` (DS18B20 search and one-pin IR DUTs with a busy-wait control, UDP and HTTP load, runner)
 - `espnow_link/` and `tcp_link/` (packet_interface links over ESP-NOW, UDP and TCP with checked streams)
 - `ezo_fake_bus/` (fake EZO I2C bus and step config, runner)

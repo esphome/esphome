@@ -37,7 +37,7 @@ One file per component, named after it:
 - [`zwave_proxy.md`](zwave_proxy.md): frame checksums on a live proxy
 - [`one_wire.md`](one_wire.md): ESP8266 interrupt locks under Wi-Fi load with a DS18B20 search and a busy-wait control
 - [`cc1101.md`](cc1101.md): sleep and wake checks read directly from the chip (CHIP_RDYn, PATABLE loss, registers per setter), begin_tx in packet mode, async serial OOK with remote_transmitter and remote_receiver on GDO0
-- [`globals.md`](globals.md): restoring globals with storage rtc and flash across every reset kind
+- [`globals.md`](globals.md): restoring globals with storage rtc and flash across every reset kind, ESP8266 flash preferences under Wi-Fi scan and interrupt load with a reset and restore driver
 - [`homeassistant.md`](homeassistant.md): light platform mirrored from a local Home Assistant, held reports versus later calls, wizard-linked entities on every platform, homeassistant switch on a script with a host build
 - [`usb_audio.md`](usb_audio.md): USB audio speaker and microphone, the usb_host FIFO split, and Music Assistant playback through sendspin
 - [`dfrobot_sen0395.md`](dfrobot_sen0395.md): SEN0395 mmWave command flow, module quirks and overlong lines through its error reply
