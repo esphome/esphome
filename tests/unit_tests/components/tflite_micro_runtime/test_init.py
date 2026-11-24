@@ -11,6 +11,7 @@ import pytest
 from esphome import cpp_types as ct
 from esphome.components import tflite_micro_runtime as tflm
 from esphome.components.tflite_model_io.model_reader import ModelReadError
+import esphome.config_validation as cv
 from esphome.const import CONF_RAW_DATA_ID
 from esphome.core import CORE, ID, EsphomeError
 from esphome.types import ConfigType
@@ -104,13 +105,27 @@ def test_only_entries_with_a_runtime_id_are_models(setup_core: Path) -> None:
 
 
 def test_final_validate_checks_the_model_operators(setup_core: Path) -> None:
+    model_io = MagicMock(inputs=[object()], outputs=[object()])
     with (
         patch.object(tflm, "resolve_model_source", return_value=(MODEL_PATH, b"")),
         patch.object(tflm, "validate_model_operators") as check,
+        patch.object(tflm, "read_model_io", return_value=model_io),
     ):
         tflm.FINAL_VALIDATE_SCHEMA({})
 
     check.assert_called_once_with(MODEL_PATH)
+
+
+def test_a_model_with_too_many_tensors_is_rejected(setup_core: Path) -> None:
+    """A pipeline or decoder holds the tensors in fixed arrays."""
+    model_io = MagicMock(inputs=[object()] * 9, outputs=[object()])
+    with (
+        patch.object(tflm, "resolve_model_source", return_value=(MODEL_PATH, b"")),
+        patch.object(tflm, "validate_model_operators"),
+        patch.object(tflm, "read_model_io", return_value=model_io),
+        pytest.raises(cv.Invalid, match="at most 8"),
+    ):
+        tflm.FINAL_VALIDATE_SCHEMA({})
 
 
 def test_to_code_gives_each_model_its_own_checksum(setup_core: Path) -> None:
