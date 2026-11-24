@@ -199,8 +199,9 @@ async def to_code(config):
     cg.add(var.set_autoconf(config[CONF_AUTOCONF]))
     cg.add(var.set_display_control(config[CONF_DISPLAY_CONTROL]))
     cg.add_optional(var.set_supported_modes, config.get(CONF_SUPPORTED_MODES))
-    if CONF_SUPPORTED_SWING_MODES in config:
-        cg.add(var.set_supported_swing_modes(config[CONF_SUPPORTED_SWING_MODES]))
+    cg.add_optional(
+        var.set_supported_swing_modes, config.get(CONF_SUPPORTED_SWING_MODES)
+    )
     cg.add_optional(var.set_supported_presets, config.get(CONF_SUPPORTED_PRESETS))
     climate.set_custom_presets(var, config.get(CONF_CUSTOM_PRESETS, []))
     climate.set_custom_fan_modes(var, config.get(CONF_CUSTOM_FAN_MODES, []))

@@ -1,0 +1,34 @@
+esphome:
+  name: i2csniff
+  on_boot:
+    priority: 800
+    then:
+      - lambda: |-
+          pinMode(4, INPUT_PULLUP);
+          pinMode(5, INPUT_PULLUP);
+esp8266:
+  board: huzzah
+logger:
+  level: DEBUG
+  tx_buffer_size: 1024
+interval:
+  - interval: 3s
+    then:
+      - lambda: |-
+          static uint8_t v[1500];
+          int n = 0;
+          uint32_t start = micros();
+          // wait up to 100 ms for 300 us of idle bus (both lines high), then record
+          uint32_t idle = start;
+          while (micros() - start < 100000) { uint8_t c = (GPI >> 4) & 3; if (c != 3) idle = micros(); else if (micros() - idle > 300) break; }
+          uint8_t last = 3; start = micros();
+          while (n < 1500 && micros() - start < 100000) {
+            uint8_t cur = (GPI >> 4) & 3;
+            if (cur != last) { v[n++] = cur; last = cur; }
+          }
+          for (int i = 0; i < n; i += 300) {
+            char buf[320]; int p = 0;
+            for (int j = i; j < n && j < i + 300; j++) buf[p++] = '0' + v[j];
+            buf[p] = 0;
+            ESP_LOGI("seq", "%d %s", i, buf);
+          }

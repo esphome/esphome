@@ -1,0 +1,68 @@
+# Real TCA9548A/PCA9548A at 0x70 on an ESP8266 (Feather HUZZAH, SDA GPIO4, SCL GPIO5) with a BMI270 on channel 0.
+# twitrace.hpp records every transaction the Wire core sends during setup; -s freq sets the root bus speed.
+substitutions:
+  freq: 400kHz
+esphome:
+  name: ${name}
+  includes:
+    - ../bmi270_real/probe.hpp
+    - twitrace.hpp
+  platformio_options:
+    build_flags:
+      - -Wl,--wrap=malloc
+      - -Wl,--wrap=twi_writeTo
+      - -Wl,--wrap=twi_readFrom
+  on_boot:
+    - priority: 1100
+      then:
+        - lambda: |-
+            // Pull-up check before the i2c setup: release both lines, then time the rise after a 20 us low
+            pinMode(4, INPUT); pinMode(5, INPUT); delayMicroseconds(100);
+            int sda = digitalRead(4), scl = digitalRead(5);
+            uint32_t rise[2];
+            const int pins[2] = {5, 4};
+            for (int k = 0; k < 2; k++) {
+              int p = pins[k];
+              pinMode(p, OUTPUT); digitalWrite(p, LOW); delayMicroseconds(20);
+              uint32_t c0 = ESP.getCycleCount(); pinMode(p, INPUT);
+              while (!digitalRead(p) && ESP.getCycleCount() - c0 < 80000) {}
+              rise[k] = ESP.getCycleCount() - c0;
+            }
+            ESP_LOGI("pullup", "PULLUP released SDA=%d SCL=%d rise_cycles SCL=%u SDA=%u (80 MHz)", sda, scl, rise[0], rise[1]);
+    - priority: 600.5
+      then:
+        - lambda: bmiprobe::start(); twitrace::start();
+    - priority: 599.5
+      then:
+        - lambda: bmiprobe::stop(); twitrace::stop();
+    - priority: -100
+      then:
+        - lambda: |-
+            ESP_LOGI("bmiprobe", "BUILD ${name} imu_failed=%d mux_failed=%d", id(imu)->is_failed(), id(mux)->is_failed());
+            bmiprobe::report("${name}");
+            twitrace::report("${name}");
+            bmiprobe::regs(id(bus), 0x68, "after_setup");
+            uint8_t ctl = 0xAA;
+            bool cok = id(rootbus)->write_readv(0x70, nullptr, 0, &ctl, 1) == i2c::ERROR_OK;
+            bool root68 = id(rootbus)->write_readv(0x68, nullptr, 0, nullptr, 0) == i2c::ERROR_OK;
+            bool ch68 = id(bus)->write_readv(0x68, nullptr, 0, nullptr, 0) == i2c::ERROR_OK;
+            ESP_LOGI("bmiprobe", "MUXSTATE control ok=%d value=0x%02X root_0x68_acks=%d ch0_0x68_acks=%d", cok, ctl, root68, ch68);
+esp8266:
+  board: huzzah
+logger:
+  level: DEBUG
+i2c:
+  id: rootbus
+  sda: GPIO4
+  scl: GPIO5
+  scan: false
+  frequency: ${freq}
+tca9548a:
+  - id: mux
+    i2c_id: rootbus
+    address: 0x70
+    channels:
+      - bus_id: bus
+        channel: 0
+packages:
+  imu: !include {file: ../bmi270_real/imu.yaml, vars: {values_every: 1s}}
