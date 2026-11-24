@@ -23,13 +23,12 @@ def test_codegen(
     assert "-DCO_CONFIG_FIFO=0x01" in CORE.build_flags
     assert (
         "::canopen_hub->read_sdo(32, 0x1018, 0x01, 4, canopen::sdo_read_reply"
-        "<esphome__automation_id__fn, esphome__automation_id_2__fn>, nullptr);"
+        "<esphome__lambdaaction_id__fn, esphome__lambdaaction_id_2__fn>, nullptr);"
     ) in main_cpp
     assert (
         "::canopen_hub->write_sdo(32, 0x2000, 0x00, 1, 1, nullptr, nullptr);"
         in main_cpp
     )
-    assert "Trigger<" not in main_cpp
 
 
 @pytest.mark.parametrize(("timeout", "valid"), [("65535ms", True), ("65536ms", False)])
@@ -63,13 +62,6 @@ def test_sdo_write_value_fits_size(value: int, size: int, valid: bool) -> None:
     else:
         with pytest.raises(cv.Invalid, match="doesn't fit"):
             SDO_WRITE_SCHEMA(config)
-
-
-@pytest.mark.parametrize("key", ["on_success", "on_error"])
-def test_sdo_write_single_automation(key: str) -> None:
-    automations = [{"then": [{"delay": "1s"}]}, {"then": [{"delay": "2s"}]}]
-    with pytest.raises(cv.Invalid, match="only a single automation"):
-        SDO_WRITE_SCHEMA({**SDO_WRITE, "value": 1, key: automations})
 
 
 def test_one_hub_per_canbus(

@@ -34,7 +34,6 @@ CANOPENNODE_VERSION = "4.1.0-esphome.2"
 ns = cg.esphome_ns.namespace("canopen")
 CANopenComponent = ns.class_("CANopenComponent", cg.Component)
 SDOResult = ns.enum("SDOResult", is_class=True)
-SDOReply = ns.struct("SDOReply")
 
 
 # response_timeout holds uint16 ms
@@ -120,9 +119,7 @@ async def _automation_fn(
     """The static function running the automation under ``key``, or nullptr."""
     if (conf := config.get(key)) is None:
         return cg.nullptr
-    fn, build = automation.declare_automation_function(fn_args, conf)
-    await build()
-    return fn
+    return await automation.build_trigger_callback(fn_args, conf, params=fn_args)
 
 
 async def _sdo_action_to_code(
@@ -130,10 +127,12 @@ async def _sdo_action_to_code(
     action_id: ID,
     template_arg: cg.TemplateArguments,
     args: TemplateArgsType,
+    *,
     request: Callable[[MockObj], MockObj],
     keys: tuple[tuple[str, MockObj], ...],
     reply: MockObj,
-    on_ok: tuple[str, TemplateArgsType],
+    on_ok: str,
+    on_ok_args: TemplateArgsType,
 ) -> MockObj:
     """``request(parent)(<keys>, size, reply<on_ok, on_error>, nullptr)``."""
     values = [
@@ -142,7 +141,7 @@ async def _sdo_action_to_code(
         else cg.safe_exp(value)
         for key, type_ in keys
     ]
-    ok_fn = await _automation_fn(config, *on_ok)
+    ok_fn = await _automation_fn(config, on_ok, on_ok_args)
     error_fn = await _automation_fn(
         config, CONF_ON_ERROR, [(SDOResult, "result"), (cg.uint32, "abort_code")]
     )
@@ -186,10 +185,11 @@ async def sdo_write_to_code(
         action_id,
         template_arg,
         args,
-        lambda hub: hub.write_sdo,
-        (*_ADDRESS, (CONF_VALUE, cg.uint32)),
-        ns.sdo_write_reply,
-        (CONF_ON_SUCCESS, []),
+        request=lambda hub: hub.write_sdo,
+        keys=(*_ADDRESS, (CONF_VALUE, cg.uint32)),
+        reply=ns.sdo_write_reply,
+        on_ok=CONF_ON_SUCCESS,
+        on_ok_args=[],
     )
 
 
@@ -216,8 +216,9 @@ async def sdo_read_to_code(
         action_id,
         template_arg,
         args,
-        lambda hub: hub.read_sdo,
-        _ADDRESS,
-        ns.sdo_read_reply,
-        (CONF_ON_VALUE, [(cg.uint32, "x")]),
+        request=lambda hub: hub.read_sdo,
+        keys=_ADDRESS,
+        reply=ns.sdo_read_reply,
+        on_ok=CONF_ON_VALUE,
+        on_ok_args=[(cg.uint32, "x")],
     )
