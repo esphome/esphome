@@ -54,7 +54,6 @@ from esphome.cpp_generator import (
     MockObjClass,
     RawExpression,
     RawStatement,
-    Statement,
     add,
     get_variable,
 )
@@ -98,38 +97,6 @@ _KEY_ENTITY_CATEGORY = "_entity_category"
 
 # Application's static configure_<entity>() helpers, which setup() calls
 _APPLICATION = MockObj("esphome::Application", "::")
-# On ESP32, from this many entities of one type, calling its out-of-line configure_<entity>() takes less
-# flash than configuring each entity in place: about 3 bytes saved per call against one 20 byte helper.
-# On ESP8266 the call saves nothing, so the helper would only add flash; other targets are unmeasured.
-_CONFIGURE_HELPER_MIN_ENTITIES = 10
-
-
-class _ConfigureEntityStatement(Statement):
-    """configure_entity_() call that picks its form when main.cpp is written, once the type's entity count
-    is known."""
-
-    __slots__ = ("app_list", "comment", "direct", "helper")
-
-    def __init__(
-        self, app_list: str, direct: Expression, helper: Expression, comment: str
-    ) -> None:
-        self.app_list = app_list
-        self.direct = direct
-        self.helper = helper
-        self.comment = comment
-
-    def __str__(self) -> str:
-        if (
-            CORE.is_esp32
-            and CORE.platform_counts.get(self.app_list, 0)
-            >= _CONFIGURE_HELPER_MIN_ENTITIES
-        ):
-            call = self.helper
-        else:
-            call = self.direct
-        return f"{call};  // {self.comment}" if self.comment else f"{call};"
-
-
 # Private config key naming the App list the entity goes into (esphome/core/app_lists.py).
 _KEY_APP_LIST = "_entity_app_list"
 
@@ -454,18 +421,13 @@ def finalize_entity_strings(var: MockObj, config: ConfigType) -> None:
     comment = _describe_packed_flags(config, entity_category)
     if (app_list := config.get(_KEY_APP_LIST)) is not None:
         app_lists.add_entity(app_list, var)
-        add(
-            _ConfigureEntityStatement(
-                app_list,
-                var.configure_entity_(entity_name, object_id_hash, packed),
-                getattr(_APPLICATION, f"configure_{app_list}")(
-                    var, entity_name, object_id_hash, packed
-                ),
-                comment,
-            )
+        # Application::configure_<entity>() takes the pointer setup() holds and applies the EntityBase
+        # offset once, instead of a new address literal at every call
+        expr = getattr(_APPLICATION, f"configure_{app_list}")(
+            var, entity_name, object_id_hash, packed
         )
-        return
-    expr = var.configure_entity_(entity_name, object_id_hash, packed)
+    else:
+        expr = var.configure_entity_(entity_name, object_id_hash, packed)
     if comment:
         add(RawStatement(f"{expr};  // {comment}"))
     else:

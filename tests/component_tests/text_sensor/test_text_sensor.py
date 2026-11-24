@@ -33,7 +33,9 @@ def test_text_sensor_sets_mandatory_fields(generate_main):
     # Then
     for i in (1, 2, 3):
         name = f'ESPHOME_PSTR("Template Text Sensor {i}")'
-        assert f"ts_{i}->configure_entity_({name}," in main_cpp
+        assert (
+            f"esphome::Application::configure_text_sensor(ts_{i}, {name}," in main_cpp
+        )
 
 
 def test_text_sensor_config_value_internal_set(generate_main):
