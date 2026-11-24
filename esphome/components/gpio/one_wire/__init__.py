@@ -23,7 +23,8 @@ CODEOWNERS = ["@ssieb"]
 CONF_USE_RMT = "use_rmt"
 CONF_RMT_TIMING = "rmt_timing"
 
-# Option, with _us also its field in rmt_one_wire::Timing: (default, minimum, maximum) in us
+# Option, with _us also its field in rmt_one_wire::Timing: (default, minimum, maximum) in us.
+# The only defaults a firmware uses: to_code() always passes the Timing to the constructor.
 RMT_TIMING: dict[str, tuple[int, int, int]] = {
     "write0_low": (90, 60, 105),
     "slot": (110, 71, 120),
@@ -138,11 +139,19 @@ CONFIG_SCHEMA = cv.All(
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
+def _timing_initializer(timing: ConfigType | None) -> cg.StructInitializer:
+    """The Timing for the constructor, with the defaults of RMT_TIMING when rmt_timing is not set."""
+    fields = (
+        (f"{key}_us", default if timing is None else timing[key].total_microseconds)
+        for key, (default, _, _) in RMT_TIMING.items()
+    )
+    return cg.StructInitializer(Timing, *fields)
+
+
 async def to_code(config: ConfigType) -> None:
     args = []
-    if timing := config.get(CONF_RMT_TIMING):
-        fields = ((f"{key}_us", timing[key].total_microseconds) for key in RMT_TIMING)
-        args.append(cg.StructInitializer(Timing, *fields))
+    if config[CONF_USE_RMT]:
+        args.append(_timing_initializer(config.get(CONF_RMT_TIMING)))
     var = cg.new_Pvariable(config[CONF_ID], *args)
     await cg.register_component(var, config)
     if config[CONF_USE_RMT]:

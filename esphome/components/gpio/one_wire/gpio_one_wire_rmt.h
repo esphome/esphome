@@ -20,7 +20,8 @@ namespace esphome::gpio {
 /// to EEPROM, which this bus does not drive.
 class GPIORMTOneWireBus final : public one_wire::OneWireBus, public Component, public rmt_one_wire::Port {
  public:
-  explicit GPIORMTOneWireBus(const rmt_one_wire::Timing &timing = {});
+  /// Codegen always passes the timing, with the defaults of the Python schema when rmt_timing is not set.
+  explicit GPIORMTOneWireBus(const rmt_one_wire::Timing &timing);
 
   void setup() override;
   void loop() override;

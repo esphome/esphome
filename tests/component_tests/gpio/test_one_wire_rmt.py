@@ -3,13 +3,11 @@
 from collections.abc import Callable
 import logging
 from pathlib import Path
-import re
 
 import pytest
 
 from esphome import yaml_util
 from esphome.components.esp32 import get_excluded_builtin_components
-from esphome.components.gpio import one_wire as gpio_one_wire
 from esphome.components.gpio.one_wire import (
     RMT_TIMING,
     GPIOOneWireBus,
@@ -79,6 +77,7 @@ def test_without_use_rmt_stays_bit_bang(
 
     assert "gpio::GPIOOneWireBus" in main_cpp
     assert "GPIORMTOneWireBus" not in main_cpp
+    assert "rmt_one_wire::Timing" not in main_cpp
     defines = {define.name for define in CORE.defines}
     assert "USE_ONE_WIRE_RMT" not in defines
     assert "USE_ONE_WIRE_TRANSACTION" not in defines
@@ -231,16 +230,6 @@ def test_rmt_timing_error_names_the_effective_values(
     assert result.errors[0].path[-1] == "slot"
 
 
-def test_rmt_timing_defaults_match_the_codec() -> None:
-    """Otherwise rmt_timing: {} and no rmt_timing at all would drive the bus differently."""
-    codec = Path(gpio_one_wire.__file__).with_name("rmt_one_wire_codec.h").read_text()
-
-    for option, (default, _, _) in RMT_TIMING.items():
-        match = re.search(rf"uint8_t {option}_us\{{(\d+)\}};", codec)
-        assert match, f"{option}_us is not a field of Timing"
-        assert int(match.group(1)) == default, option
-
-
 @pytest.mark.parametrize("bus", ["", "    use_rmt: false\n"])
 def test_rmt_timing_needs_use_rmt(validate: Callable[[str], Config], bus: str) -> None:
     result = validate(_yaml(ESP32_S3_IDF, bus + _timing(slot="110us")))
@@ -284,11 +273,20 @@ def test_rmt_timing_fields_keep_the_declaration_order(
     )
 
 
-def test_without_rmt_timing_the_constructor_keeps_its_default(
-    generate_main: Callable[[str | Path], str], write_yaml: Callable[[str], Path]
+@pytest.mark.parametrize(
+    "timing", ["", _timing()], ids=["without_rmt_timing", "empty_rmt_timing"]
+)
+def test_codegen_always_passes_the_schema_defaults(
+    generate_main: Callable[[str | Path], str],
+    write_yaml: Callable[[str], Path],
+    timing: str,
 ) -> None:
-    main_cpp = generate_main(write_yaml(_yaml(ESP32_S3_IDF, USE_RMT)))
-    assert "rmt_one_wire::Timing" not in main_cpp
+    """So RMT_TIMING holds the only defaults a firmware uses, with or without rmt_timing."""
+    main_cpp = generate_main(write_yaml(_yaml(ESP32_S3_IDF, USE_RMT + timing)))
+
+    assert "rmt_one_wire::Timing" in main_cpp
+    for option, (default, _, _) in RMT_TIMING.items():
+        assert f".{option}_us = {default}" in main_cpp, option
 
 
 def test_rmt_timing_default_read_threshold(

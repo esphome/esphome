@@ -22,8 +22,9 @@ struct alignas(uint32_t) Symbol {
 constexpr size_t max_tx_slots(size_t mem_words) { return mem_words - 1; }
 constexpr size_t max_rx_slots(size_t mem_words) { return mem_words - 2; }
 
-/// Values that a bus may override. Ranges are checked in the Python schema, and the defaults there must match.
-/// Write 1 Low, Read Low and the reset stay fixed. High times: slot minus Low time.
+/// Values that a bus may override. Write 1 Low, Read Low and the reset stay fixed. High times: slot minus Low time.
+/// A firmware always gets all three from codegen. RMT_TIMING in the Python schema holds their ranges and the
+/// defaults a firmware uses. The initializers here are the values of the 1-Wire spec, which the host tests use.
 struct Timing {
   uint8_t write0_low_us{90};
   uint8_t slot_us{110};
