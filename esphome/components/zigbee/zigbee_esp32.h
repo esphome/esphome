@@ -43,6 +43,9 @@ class ZigbeeComponent final : public Component {
   void loop() override;
   void dump_config() override;
 
+  // After entities that build the data model (AFTER_BLUETOOTH+); dependents use BEFORE_CONNECTION.
+  float get_setup_priority() const override { return setup_priority::WIFI; }
+
   void set_sleepy(bool sleepy) { this->sleepy_ = sleepy; }
   void set_keep_alive(uint32_t keep_alive) { this->keep_alive_ = keep_alive; }
   void set_basic_cluster(const char *model, const char *manufacturer, const char *location, const char *sw_build_id,

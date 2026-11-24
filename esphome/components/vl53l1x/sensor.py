@@ -1,6 +1,7 @@
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
+from esphome.components.const import CONF_TIMING_BUDGET
 from esphome.components.i2c import CONF_I2C_ID
 import esphome.config_validation as cv
 from esphome.const import (
@@ -8,8 +9,6 @@ from esphome.const import (
     CONF_ENABLE_PIN,
     CONF_OFFSET,
     ICON_ARROW_EXPAND_VERTICAL,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_METER,
 )
 import esphome.final_validate as fv
 from esphome.types import ConfigType
@@ -30,7 +29,6 @@ DISTANCE_MODE_OPTIONS = DistanceMode.options(
 )
 
 CONF_DISTANCE_MODE = "distance_mode"
-CONF_TIMING_BUDGET = "timing_budget"
 CONF_SIGNAL_RATE_LIMIT = "signal_rate_limit"
 CONF_ROI_WIDTH = "roi_width"
 CONF_ROI_HEIGHT = "roi_height"
@@ -115,9 +113,8 @@ def _final_validate(config: ConfigType) -> ConfigType:
 CONFIG_SCHEMA = cv.All(
     sensor.sensor_schema(
         VL53L1XSensor,
-        unit_of_measurement=UNIT_METER,
+        kind=sensor.LENGTH_M,
         accuracy_decimals=3,
-        state_class=STATE_CLASS_MEASUREMENT,
         icon=ICON_ARROW_EXPAND_VERTICAL,
     )
     .extend(

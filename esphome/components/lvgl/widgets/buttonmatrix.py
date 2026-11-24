@@ -28,7 +28,6 @@ from ..types import (
     LvBoolean,
     LvCompound,
     LvType,
-    ObjUpdateAction,
     char_ptr,
     lv_pseudo_button_t,
 )
@@ -220,7 +219,7 @@ buttonmatrix_spec = ButtonMatrixType()
 
 @automation.register_action(
     "lvgl.matrix.button.update",
-    ObjUpdateAction,
+    automation.ApplyAction,
     cv.Schema(
         {
             cv.Optional(CONF_WIDTH): cv.positive_int,

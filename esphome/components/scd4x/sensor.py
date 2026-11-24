@@ -15,16 +15,8 @@ from esphome.const import (
     CONF_TEMPERATURE,
     CONF_TEMPERATURE_OFFSET,
     CONF_VALUE,
-    DEVICE_CLASS_CARBON_DIOXIDE,
-    DEVICE_CLASS_HUMIDITY,
-    DEVICE_CLASS_TEMPERATURE,
     ICON_MOLECULE_CO2,
     ICON_THERMOMETER,
-    ICON_WATER_PERCENT,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS,
-    UNIT_PARTS_PER_MILLION,
-    UNIT_PERCENT,
 )
 from esphome.types import ConfigType
 
@@ -72,25 +64,13 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(SCD4XComponent),
             cv.Optional(CONF_CO2): sensor.sensor_schema(
-                unit_of_measurement=UNIT_PARTS_PER_MILLION,
-                icon=ICON_MOLECULE_CO2,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_CARBON_DIOXIDE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.CARBON_DIOXIDE, icon=ICON_MOLECULE_CO2
             ),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_CELSIUS,
-                icon=ICON_THERMOMETER,
-                accuracy_decimals=2,
-                device_class=DEVICE_CLASS_TEMPERATURE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.TEMPERATURE, icon=ICON_THERMOMETER, accuracy_decimals=2
             ),
             cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(
-                unit_of_measurement=UNIT_PERCENT,
-                icon=ICON_WATER_PERCENT,
-                accuracy_decimals=2,
-                device_class=DEVICE_CLASS_HUMIDITY,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.HUMIDITY, accuracy_decimals=2
             ),
             cv.Optional(CONF_AUTOMATIC_SELF_CALIBRATION, default=True): cv.boolean,
             cv.Optional(CONF_AUTOMATIC_SELF_CALIBRATION_TARGET): cv.int_range(
@@ -136,8 +116,7 @@ async def to_code(config: ConfigType) -> None:
     var = await i2c.new_i2c_component(config)
 
     for key, funcName in SETTING_MAP.items():
-        if key in config:
-            cg.add(getattr(var, funcName)(config[key]))
+        cg.add_optional(getattr(var, funcName), config.get(key))
 
     for key, funcName in SENSOR_MAP.items():
         if key in config:
