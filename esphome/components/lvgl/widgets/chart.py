@@ -18,7 +18,7 @@ from esphome.const import (
     CONF_Y,
 )
 from esphome.core import ID, Lambda
-from esphome.cpp_generator import MockObj
+from esphome.cpp_generator import MockObj, StaticConstAssignmentExpression
 from esphome.final_validate import FinalValidateConfig, full_config
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
@@ -521,11 +521,20 @@ class ChartType(WidgetType):
             x_scale, y_scale = series_multipliers(config, series)
             if config[CONF_TYPE] == "LV_CHART_TYPE_SCATTER":
                 await set_series_points(
-                    w.obj, series_var, series.get(CONF_POINTS, ()), x_scale, y_scale
+                    w.obj,
+                    series_var,
+                    series.get(CONF_POINTS, []),
+                    x_scale,
+                    y_scale,
+                    str(series[CONF_ID]),
                 )
             else:
                 await set_series_values(
-                    w.obj, series_var, series.get(CONF_VALUES, ()), y_scale
+                    w.obj,
+                    series_var,
+                    series.get(CONF_VALUES, []),
+                    y_scale,
+                    str(series[CONF_ID]),
                 )
 
         lv.chart_refresh(w.obj)
@@ -658,24 +667,65 @@ def series_axes(series: ConfigType) -> MockObj:
     return literal("LV_CHART_AXIS_SECONDARY_Y" if y_axis else "LV_CHART_AXIS_PRIMARY_Y")
 
 
+def _value_array(name: str, values: list) -> MockObj:
+    """A file-scope constant array of chart values, so that actions can use it too."""
+    array_id = ID(name, is_declaration=True, type=cg.int32)
+    cg.add_global(
+        StaticConstAssignmentExpression(
+            cg.int32, array_id, cg.ArrayInitializer(*values)
+        )
+    )
+    return MockObj(array_id)
+
+
+def _all_fixed(values: list) -> bool:
+    """True when there are several values and none is a lambda, so they can be
+    added from one constant array rather than one call each."""
+    return len(values) > 1 and not any(isinstance(v, Lambda) for v in values)
+
+
 async def set_series_values(
-    chart: MockObj, series: MockObj, values: list, y_scale: float
+    chart: MockObj, series: MockObj, values: list, y_scale: float, name: str
 ) -> None:
-    # Append in order so the series start point follows the data; writing slots by
-    # index would leave the next appended value overwriting the first one.
+    """Append `values` in order, so the series start point follows the data; writing
+    slots by index would leave the next appended value overwriting the first one.
+    `name` names the constant array used when all the values are fixed."""
+    if _all_fixed(values):
+        array = _value_array(
+            f"{name}_chart_values", [await chart_value(v, y_scale) for v in values]
+        )
+        lv.chart_set_series_values(chart, series, array, len(values))
+        return
     for value in values:
         lv.chart_set_next_value(chart, series, await chart_value(value, y_scale))
 
 
 async def set_series_points(
-    chart: MockObj, series: MockObj, points: list, x_scale: float, y_scale: float
+    chart: MockObj,
+    series: MockObj,
+    points: list,
+    x_scale: float,
+    y_scale: float,
+    name: str,
 ) -> None:
-    for point in points:
+    """As set_series_values(), for scatter points."""
+    xs = [point[CONF_X] for point in points]
+    ys = [point[CONF_Y] for point in points]
+    if _all_fixed(xs + ys):
+        x_array = _value_array(
+            f"{name}_chart_x_values", [await chart_value(x, x_scale) for x in xs]
+        )
+        y_array = _value_array(
+            f"{name}_chart_y_values", [await chart_value(y, y_scale) for y in ys]
+        )
+        lv.chart_set_series_values2(chart, series, x_array, y_array, len(points))
+        return
+    for x, y in zip(xs, ys, strict=True):
         lv.chart_set_next_value2(
             chart,
             series,
-            await chart_value(point[CONF_X], x_scale),
-            await chart_value(point[CONF_Y], y_scale),
+            await chart_value(x, x_scale),
+            await chart_value(y, y_scale),
         )
 
 
@@ -713,10 +763,11 @@ async def series_append_to_code(
     async def append(
         chart: MockObj, series: MockObj, x_scale: float, y_scale: float
     ) -> None:
+        name = str(action_id)
         if (point := config.get(CONF_POINT)) is not None:
-            await set_series_points(chart, series, [point], x_scale, y_scale)
+            await set_series_points(chart, series, [point], x_scale, y_scale, name)
         else:
-            await set_series_values(chart, series, [config[CONF_VALUE]], y_scale)
+            await set_series_values(chart, series, [config[CONF_VALUE]], y_scale, name)
 
     return await series_action_to_code(config, action_id, template_arg, args, append)
 
@@ -733,10 +784,13 @@ async def series_set_to_code(
         if CONF_INDEX not in config:
             # Clearing also moves the start point back to the first slot.
             lv.chart_set_all_values(chart, series, literal("LV_CHART_POINT_NONE"))
+            name = str(action_id)
             if (points := config.get(CONF_POINTS)) is not None:
-                await set_series_points(chart, series, points, x_scale, y_scale)
+                await set_series_points(chart, series, points, x_scale, y_scale, name)
             else:
-                await set_series_values(chart, series, config[CONF_VALUES], y_scale)
+                await set_series_values(
+                    chart, series, config[CONF_VALUES], y_scale, name
+                )
             return
         slot = chart_point_slot(
             chart, series, await lv_positive_int.process(config[CONF_INDEX])

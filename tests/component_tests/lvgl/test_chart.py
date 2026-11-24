@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from pathlib import Path
+import re
 
 import pytest
 
@@ -243,17 +244,25 @@ def test_scatter_codegen_uses_paired_lvgl_apis(
     main_cpp = generate_main(component_config_path("chart_test.yaml"))
 
     assert (
-        "lv_chart_set_next_value2(scatter_chart, scatter_series, 10, 20);" in main_cpp
+        "static const int32_t scatter_series_chart_x_values[] = {10, 30};" in main_cpp
     )
     assert (
-        "lv_chart_set_next_value2(scatter_chart, scatter_series, 30, 40);" in main_cpp
+        "static const int32_t scatter_series_chart_y_values[] = {20, 40};" in main_cpp
+    )
+    assert (
+        "lv_chart_set_series_values2(scatter_chart, scatter_series, "
+        "scatter_series_chart_x_values, scatter_series_chart_y_values, 2);" in main_cpp
     )
     assert (
         "lv_chart_set_next_value2(::scatter_chart, ::scatter_series, "
         "lvgl::chart_point_value(static_cast<float>(50), 1.0f), "
         "lvgl::chart_point_value(static_cast<float>(60), 1.0f));" in main_cpp
     )
-    assert "lv_chart_set_next_value(line_chart, line_series, 10);" in main_cpp
+    assert "static const int32_t line_series_chart_values[] = {10, 20};" in main_cpp
+    assert (
+        "lv_chart_set_series_values(line_chart, line_series, "
+        "line_series_chart_values, 2);" in main_cpp
+    )
     assert (
         "lv_chart_set_next_value(::line_chart, ::line_series, "
         "lvgl::chart_point_value(static_cast<float>(30), 1.0f));" in main_cpp
@@ -266,13 +275,28 @@ def test_series_values_update_clears_then_appends(
     main_cpp = generate_main(component_config_path("chart_test.yaml"))
 
     clear = "lv_chart_set_all_values(::line_chart, ::line_series, LV_CHART_POINT_NONE);"
-    assert clear in main_cpp
+    after_clear = main_cpp[main_cpp.index(clear) :]
+    assert re.search(
+        r"lv_chart_set_series_values\(::line_chart, ::line_series, \w+_chart_values, 2\);",
+        after_clear,
+    )
+
+
+def test_values_with_a_lambda_are_appended_one_by_one(
+    generate_main, component_config_path
+) -> None:
+    main_cpp = generate_main(component_config_path("chart_test.yaml"))
+
+    clear = (
+        "lv_chart_set_all_values(::scaled_chart, ::scaled_series, LV_CHART_POINT_NONE);"
+    )
     after_clear = main_cpp[main_cpp.index(clear) :]
     first = after_clear.index(
-        "lv_chart_set_next_value(::line_chart, ::line_series, 1);"
+        "lv_chart_set_next_value(::scaled_chart, ::scaled_series, "
+        "lvgl::chart_point_value("
     )
     second = after_clear.index(
-        "lv_chart_set_next_value(::line_chart, ::line_series, 2);"
+        "lv_chart_set_next_value(::scaled_chart, ::scaled_series, 20);"
     )
     assert first < second
 
@@ -522,11 +546,10 @@ def test_scaled_values_and_gaps(generate_main, component_config_path) -> None:
         "lv_chart_set_axis_range(scaled_chart, LV_CHART_AXIS_PRIMARY_Y, -5, 15);"
         in main_cpp
     )
-    for value in ("13", "LV_CHART_POINT_NONE", "-25"):
-        assert (
-            f"lv_chart_set_next_value(scaled_chart, scaled_series, {value});"
-            in main_cpp
-        )
+    assert (
+        "static const int32_t scaled_series_chart_values[] = "
+        "{13, LV_CHART_POINT_NONE, -25};" in main_cpp
+    )
     assert (
         "lv_chart_set_next_value(::scaled_chart, ::scaled_series, "
         "lvgl::chart_point_value(static_cast<float>(0.5f), 10.0f));" in main_cpp

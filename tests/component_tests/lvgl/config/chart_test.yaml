@@ -77,6 +77,11 @@ lvgl:
           - lvgl.chart.series.append:
               id: scaled_series
               value: !lambda return 0.5f;
+          - lvgl.chart.series.set:
+              id: scaled_series
+              values:
+                - !lambda return 1.0f;
+                - 2
           - lvgl.chart.update:
               id: scaled_chart
               x_axis:
