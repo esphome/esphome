@@ -199,6 +199,9 @@ class HonClimate final : public HaierClimateBase {
   // Applies an ECO preset request to quiet mode when ECO is supported; returns the quiet mode to send
   bool update_quiet_mode_from_preset_(const optional<climate::ClimatePreset> &preset, bool quiet_mode);
   void clear_control_messages_queue_();
+  void clear_quiet_mode_pending_() {
+    this->quiet_mode_state_ = (SwitchState) ((uint8_t) this->quiet_mode_state_ & 0b01);
+  }
 
   static constexpr size_t HARDWARE_INFO_STR_SIZE = 9;
   struct HardwareInfo {

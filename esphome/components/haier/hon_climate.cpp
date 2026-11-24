@@ -306,6 +306,7 @@ haier_protocol::HandlerError HonClimate::status_handler_(haier_protocol::FrameTy
       this->reset_phase_();
       this->action_request_.reset();
       this->force_send_control_ = false;
+      this->clear_quiet_mode_pending_();
     } else {
       if (!this->last_status_message_) {
         this->real_control_packet_size_ = sizeof(hon_protocol::HaierPacketControl) + this->extra_control_packet_bytes_;
@@ -337,8 +338,7 @@ haier_protocol::HandlerError HonClimate::status_handler_(haier_protocol::FrameTy
           if (this->control_messages_queue_.empty()) {
             this->set_phase(ProtocolPhases::IDLE);
             this->force_send_control_ = false;
-            // Clean quiet mode state pending flag
-            this->quiet_mode_state_ = (SwitchState) ((uint8_t) this->quiet_mode_state_ & 0b01);
+            this->clear_quiet_mode_pending_();
             if (this->current_hvac_settings_.valid)
               this->current_hvac_settings_.reset();
           } else {
@@ -782,8 +782,7 @@ haier_protocol::HaierMessage HonClimate::get_control_message() {
     } else {
       out_data->quiet_mode = quiet_mode ? 1 : 0;
     }
-    // Clean quiet mode state pending flag
-    this->quiet_mode_state_ = (SwitchState) ((uint8_t) this->quiet_mode_state_ & 0b01);
+    this->clear_quiet_mode_pending_();
   }
   out_data->beeper_status = ((!this->get_beeper_state()) || (!has_hvac_settings)) ? 1 : 0;
   out_data->display_status = this->get_display_state() ? 1 : 0;
@@ -1547,6 +1546,7 @@ bool HonClimate::prepare_pending_action() {
 
 void HonClimate::process_protocol_reset() {
   HaierClimateBase::process_protocol_reset();
+  this->clear_quiet_mode_pending_();
 #ifdef USE_SENSOR
   for (auto &sub_sensor : this->sub_sensors_) {
     if ((sub_sensor != nullptr) && sub_sensor->has_state())
