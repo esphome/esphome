@@ -45,10 +45,11 @@ class DoubleClickDetector {
   uint32_t end_time_{0};    ///< The millis() time of the last edge.
 };
 
-class MultiClickTrigger final : public Trigger<>, public Component {
+/// The on_multi_click state machine; FireCallback supplies the call to the automation.
+class MultiClickBase : public FiringComponent<> {
  public:
-  /// `timing` is a codegen PROGMEM table shared by triggers with the same timing.
-  MultiClickTrigger(BinarySensor *parent, const MultiClickTriggerEvent *timing, uint8_t timing_count)
+  /// `timing` is a codegen PROGMEM table shared by automations with the same timing.
+  MultiClickBase(BinarySensor *parent, const MultiClickTriggerEvent *timing, uint8_t timing_count)
       : parent_(parent), timing_(timing), timing_count_(timing_count) {}
 
   void setup() override {
@@ -61,8 +62,8 @@ class MultiClickTrigger final : public Trigger<>, public Component {
   void set_invalid_cooldown(uint32_t invalid_cooldown) { this->invalid_cooldown_ = invalid_cooldown; }
 
   void cancel();
-  MultiClickTrigger(const MultiClickTrigger &) = delete;
-  MultiClickTrigger &operator=(const MultiClickTrigger &) = delete;
+  MultiClickBase(const MultiClickBase &) = delete;
+  MultiClickBase &operator=(const MultiClickBase &) = delete;
 
  protected:
   void on_state_(bool state);

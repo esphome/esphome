@@ -1,0 +1,171 @@
+esphome:
+  name: ${name}
+  on_boot:
+    - priority: -100
+      then:
+        - wait_until:
+            condition: wifi.connected
+            timeout: 60s
+        - delay: 3s
+        - logger.log: "MARK climate"
+        - climate.control: {id: clim, mode: COOL, fan_mode: HIGH, swing_mode: VERTICAL, preset: ECO, target_temperature: 23}
+        - delay: 500ms
+        - climate.control: {id: clim, mode: HEAT_COOL, fan_mode: AUTO, swing_mode: BOTH, preset: AWAY}
+        - delay: 500ms
+        - climate.control: {id: clim, mode: DRY, fan_mode: MIDDLE, swing_mode: HORIZONTAL, preset: BOOST}
+        - delay: 500ms
+        - climate.control: {id: clim, mode: FAN_ONLY, fan_mode: FOCUS, preset: COMFORT}
+        - delay: 500ms
+        - climate.control: {id: clim, mode: AUTO, fan_mode: DIFFUSE, preset: HOME}
+        - delay: 500ms
+        - climate.control: {id: clim, mode: "OFF", fan_mode: QUIET, preset: SLEEP}
+        - delay: 500ms
+        - climate.control: {id: clim, mode: HEAT, fan_mode: "ON", swing_mode: "OFF", preset: ACTIVITY}
+        - delay: 500ms
+        - climate.control: {id: clim, fan_mode: "OFF", preset: NONE}
+        - delay: 500ms
+        - climate.control: {id: clim, custom_fan_mode: turbo, custom_preset: max}
+        - delay: 500ms
+        - logger.log: "MARK fan"
+        - fan.turn_on: {id: fan1, speed: 2, oscillating: true, direction: REVERSE}
+        - delay: 500ms
+        - fan.turn_on: {id: fan1, speed: 3, oscillating: false, direction: FORWARD}
+        - delay: 500ms
+        - lambda: 'id(fan1).make_call().set_preset_mode("breeze").perform();'
+        - delay: 500ms
+        - fan.turn_off: fan1
+        - delay: 500ms
+        - logger.log: "MARK light"
+        - light.turn_on: {id: lamp, brightness: 60%, red: 100%, green: 20%, blue: 0%}
+        - delay: 500ms
+        - light.turn_on: {id: lamp, color_temperature: 3000K, brightness: 40%}
+        - delay: 500ms
+        - light.turn_on: {id: lamp, cold_white: 50%, warm_white: 30%}
+        - delay: 500ms
+        - light.turn_on: {id: lamp, effect: Pulse}
+        - delay: 2s
+        - light.turn_off: lamp
+        - delay: 500ms
+        - light.turn_on: {id: mono, brightness: 30%}
+        - delay: 500ms
+        - light.toggle: mono
+        - delay: 500ms
+        - logger.log: "MARK cover"
+        - cover.open: cov
+        - delay: 500ms
+        - cover.control: {id: cov, position: 40%, tilt: 20%}
+        - delay: 500ms
+        - cover.stop: cov
+        - delay: 500ms
+        - cover.close: cov
+        - delay: 500ms
+        - lambda: |-
+            id(cov).current_operation = COVER_OPERATION_OPENING; id(cov).publish_state();
+            id(cov).current_operation = COVER_OPERATION_CLOSING; id(cov).publish_state();
+            id(cov).current_operation = COVER_OPERATION_IDLE; id(cov).publish_state();
+        - delay: 500ms
+        - logger.log: "MARK dump"
+        - lambda: |-
+            id(clim).dump_config(); id(fan1).dump_config(); id(cov).dump_config();
+        - delay: 3s
+        - logger.log: "MARK ALLDONE"
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+api:
+  reboot_timeout: 0s
+
+logger:
+  baud_rate: 460800
+  level: VERBOSE
+  logs:
+    scheduler: DEBUG
+    api.service: DEBUG
+    api.connection: DEBUG
+    api.frame_helper: DEBUG
+    sensor: DEBUG
+
+debug:
+  update_interval: 600s
+
+text_sensor:
+  - platform: debug
+    device: {name: Device Info}
+    reset_reason: {name: Reset Reason}
+
+output:
+  - {platform: template, id: o1, type: float, write_action: [lambda: ""]}
+  - {platform: template, id: o2, type: float, write_action: [lambda: ""]}
+  - {platform: template, id: o3, type: float, write_action: [lambda: ""]}
+  - {platform: template, id: o4, type: float, write_action: [lambda: ""]}
+  - {platform: template, id: o5, type: float, write_action: [lambda: ""]}
+  - {platform: template, id: o6, type: float, write_action: [lambda: ""]}
+
+light:
+  - platform: rgbww
+    id: lamp
+    name: RGBWW
+    red: o1
+    green: o2
+    blue: o3
+    cold_white: o4
+    warm_white: o5
+    cold_white_color_temperature: 6500 K
+    warm_white_color_temperature: 2700 K
+    restore_mode: ALWAYS_OFF
+    effects:
+      - pulse:
+          name: Pulse
+  - platform: monochromatic
+    id: mono
+    name: Mono
+    output: o6
+    restore_mode: ALWAYS_OFF
+
+fan:
+  - platform: template
+    id: fan1
+    name: Fan
+    speed_count: 3
+    has_oscillating: true
+    has_direction: true
+    preset_modes: [breeze, sleep]
+    restore_mode: ALWAYS_OFF
+
+cover:
+  - platform: template
+    id: cov
+    name: Cover
+    optimistic: true
+    has_position: true
+    tilt_action: [lambda: ""]
+    tilt_lambda: 'return 0.5f;'
+    open_action: [logger.log: open_action]
+    close_action: [logger.log: close_action]
+    stop_action: [logger.log: stop_action]
+    position_action: [logger.log: position_action]
+    device_class: shutter
+
+climate:
+  - platform: template
+    id: clim
+    name: Climate
+    optimistic: true
+    restore_mode: NO_RESTORE
+    supports_action: true
+    initial_state:
+      mode: HEAT
+      target_temperature: 21.0
+      fan_mode: LOW
+    supported_modes: ["OFF", HEAT, COOL, HEAT_COOL, AUTO, DRY, FAN_ONLY]
+    supported_fan_modes: ["ON", "OFF", AUTO, LOW, MEDIUM, HIGH, MIDDLE, FOCUS, DIFFUSE, QUIET]
+    supported_swing_modes: ["OFF", BOTH, VERTICAL, HORIZONTAL]
+    supported_presets: [NONE, HOME, AWAY, BOOST, COMFORT, ECO, SLEEP, ACTIVITY]
+    custom_fan_modes: [turbo]
+    custom_presets: [max]
+    visual:
+      min_temperature: 16.0
+      max_temperature: 30.0
+      temperature_step: 0.5

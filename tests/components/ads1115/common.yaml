@@ -1,10 +1,23 @@
 ads1115:
-  i2c_id: i2c_bus
-  address: 0x48
+  - id: ads1115_hub
+    i2c_id: i2c_bus
+    address: 0x48
+  - id: ads1015_hub
+    i2c_id: i2c_bus
+    address: 0x49
+    continuous_mode: true
 
 sensor:
   - platform: ads1115
+    ads1115_id: ads1115_hub
     multiplexer: A0_A1
     gain: 1.024
     sample_rate: 128
     id: ads1115_sensor
+  - platform: ads1115
+    ads1115_id: ads1015_hub
+    multiplexer: A3_GND
+    gain: 6.144
+    resolution: 12_BITS
+    sample_rate: 8
+    id: ads1015_sensor

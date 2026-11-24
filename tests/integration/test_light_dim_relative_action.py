@@ -1,8 +1,4 @@
-"""Integration test for light::DimRelativeAction.
-
-Tests both DimRelativeAction<HasTransitionLength=false> and
-DimRelativeAction<HasTransitionLength=true> instantiations.
-"""
+"""Integration test for light.dim_relative, with and without a transition length and limits."""
 
 from __future__ import annotations
 

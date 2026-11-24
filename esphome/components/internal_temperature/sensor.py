@@ -6,15 +6,12 @@ from esphome.components.zephyr import zephyr_add_prj_conf
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
-    DEVICE_CLASS_TEMPERATURE,
     ENTITY_CATEGORY_DIAGNOSTIC,
     PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_LN882X,
     PLATFORM_NRF52,
     PLATFORM_RP2,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS,
     PlatformFramework,
 )
 from esphome.core import CORE
@@ -28,10 +25,7 @@ InternalTemperatureSensor = internal_temperature_ns.class_(
 CONFIG_SCHEMA = cv.All(
     sensor.sensor_schema(
         InternalTemperatureSensor,
-        unit_of_measurement=UNIT_CELSIUS,
-        accuracy_decimals=1,
-        device_class=DEVICE_CLASS_TEMPERATURE,
-        state_class=STATE_CLASS_MEASUREMENT,
+        kind=sensor.TEMPERATURE,
         entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
     ).extend(cv.polling_component_schema("60s")),
     cv.only_on(
