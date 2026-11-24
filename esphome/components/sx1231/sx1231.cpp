@@ -143,8 +143,7 @@ const LogString *SX1231::configure_radio_() {
     this->pa_power_ = pa_power;
   }
   const bool high_power = this->pa_power_ > 17;
-  const uint8_t mode = this->rx_start_ ? MODE_RX : MODE_SLEEP;
-  this->applied_ = {this->payload_length_, mode, this->packet_mode_, high_power};
+  this->applied_ = {this->payload_length_, this->packet_mode_, high_power};
 
   // Reset is active high
   if (this->rst_pin_ != nullptr) {
@@ -296,7 +295,7 @@ bool SX1231::restore_() {
   if (!this->set_mode_(MODE_STDBY)) {
     return false;
   }
-  return this->set_mode_(this->applied_.mode);
+  return this->set_mode_(this->mode_);
 }
 
 bool SX1231::is_receiving() {
@@ -390,8 +389,7 @@ void SX1231::change_mode_(uint8_t mode) {
     ESP_LOGW(TAG, "Radio unavailable, mode change ignored");
     return;
   }
-  // A send returns the radio to this mode
-  this->applied_.mode = mode;
+  this->mode_ = mode;
   if (!this->set_mode_(mode)) {
     this->fail_(set_mode_failure());
   }

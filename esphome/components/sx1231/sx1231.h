@@ -68,7 +68,10 @@ class SX1231 final : public Component,
   void set_preamble_size(uint16_t preamble_size) { this->preamble_size_ = preamble_size; }
   void set_rst_pin(GPIOPin *rst_pin) { this->rst_pin_ = rst_pin; }
   void set_rx_floor(float floor) { this->rx_floor_ = floor; }
-  void set_rx_start(bool start) { this->rx_start_ = start; }
+  void set_rx_start(bool start) {
+    this->rx_start_ = start;
+    this->mode_ = start ? MODE_RX : MODE_SLEEP;
+  }
   void set_shaping(uint8_t shaping) { this->shaping_ = shaping; }
   void set_sync_value(const StaticVector<uint8_t, SX1231_MAX_SYNC_SIZE> &sync_value) { this->sync_value_ = sync_value; }
   void configure();
@@ -85,8 +88,6 @@ class SX1231 final : public Component,
   // Settings as last applied by configure(), used by sends and reception
   struct AppliedSettings {
     uint8_t payload_length{0};
-    // What a send returns to: receive or sleep as configured, until a mode action changes it
-    uint8_t mode{MODE_SLEEP};
     bool packet_mode{false};
     bool high_power{false};
   };
@@ -123,6 +124,8 @@ class SX1231 final : public Component,
   uint16_t preamble_size_;
   AppliedSettings applied_;
   uint8_t bandwidth_;
+  // Set by set_rx_start() or the last mode action; configure() and sends return the radio to it
+  uint8_t mode_{MODE_SLEEP};
   uint8_t modulation_;
   uint8_t pa_pin_;
   int8_t pa_power_;
