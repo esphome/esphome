@@ -237,7 +237,8 @@ void DMXComponent::sync_rdm_to_numbers_() {
       b.last_address = addr;
       if (b.channel_number != nullptr) {
         b.channel_number->publish_state(static_cast<float>(addr));
-        ESP_LOGI(TAG, "RDM PID 0x%04X → Number '%s' = %u", b.custom_pid, b.channel_number->get_log_name().c_str(), addr);
+        ESP_LOGI(TAG, "RDM PID 0x%04X → Number '%s' = %u", b.custom_pid, b.channel_number->get_log_name().c_str(),
+                 addr);
       }
     }
 #endif
@@ -280,7 +281,8 @@ void DMXComponent::sync_numbers_to_rdm_() {
         continue;
       if (dmx_parameter_set(this->dmx_port_, RDM_SUB_DEVICE_ROOT, b.custom_pid, &addr, sizeof(addr))) {
         b.last_address = addr;
-        ESP_LOGD(TAG, "Number '%s' → RDM PID 0x%04X = %u", b.channel_number->get_log_name().c_str(), b.custom_pid, addr);
+        ESP_LOGD(TAG, "Number '%s' → RDM PID 0x%04X = %u", b.channel_number->get_log_name().c_str(), b.custom_pid,
+                 addr);
       }
     }
 #endif
