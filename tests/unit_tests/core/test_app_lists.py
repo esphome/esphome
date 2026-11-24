@@ -1,7 +1,7 @@
 import pytest
 
 from esphome import codegen as cg
-from esphome.core import CORE, ID, EsphomeError, app_lists
+from esphome.core import CORE, ID, EsphomeError, app_lists, entity_helpers
 from tests.testing_helpers import get_define_value
 
 
@@ -235,3 +235,11 @@ def test_entity_fields_validates_the_entity_category() -> None:
     )
     with pytest.raises(EsphomeError, match="entity_category"):
         cg.entity_fields(entity_category="not_a_category")
+
+
+def test_entity_fields_after_the_string_tables_is_rejected() -> None:
+    entity_helpers.register_icon("mdi:early")
+    CORE.flush_tasks()
+    assert cg.entity_fields(icon="mdi:early") != 0
+    with pytest.raises(EsphomeError, match="after the string tables were emitted"):
+        cg.entity_fields(icon="mdi:late")

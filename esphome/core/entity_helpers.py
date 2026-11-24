@@ -117,6 +117,7 @@ class EntityStringPool:
     units: dict[str, int] = field(default_factory=dict)
     icons: dict[str, int] = field(default_factory=dict)
     tables_registered: bool = False
+    tables_emitted: bool = False
 
 
 def _get_pool() -> EntityStringPool:
@@ -214,6 +215,7 @@ async def _generate_tables_job() -> None:
             parts.append(code)
     parts.append("}  // namespace esphome")
     cg.add_global(RawStatement("\n".join(parts)))
+    pool.tables_emitted = True
 
 
 def _register_string(
@@ -227,6 +229,12 @@ def _register_string(
         return 0
     if value in category:
         return category[value]
+    if _get_pool().tables_emitted:
+        # Its index would point past the emitted table
+        raise EsphomeError(
+            f"{category_name} '{value}' was registered after the string tables were emitted; "
+            "call cg.entity_fields() from to_code"
+        )
     idx = len(category) + 1
     if idx > max_count:
         raise ValueError(
@@ -303,7 +311,6 @@ def _pack_entity_fields(
     disabled_by_default: int,
     entity_category: int,
 ) -> int:
-    """The entity_fields value of configure_entity_() (ENTITY_FIELD_*_SHIFT in entity_base.h)."""
     return (
         (dc_idx << _DC_SHIFT)
         | (uom_idx << _UOM_SHIFT)
@@ -323,13 +330,8 @@ def entity_fields(
     internal: bool = False,
     disabled_by_default: bool = False,
 ) -> int:
-    """Packed entity fields for App.register_<platform>(obj, name, object_id_hash, entity_fields).
-
-    Registers the strings like a YAML entity's options and returns the same value codegen
-    passes to configure_entity_() for them.
-    """
+    """Packed entity fields for App.register_<platform>(obj, name, object_id_hash, entity_fields)."""
     if entity_category:
-        # Same validation and case folding as the YAML option
         try:
             entity_category = str(cv.entity_category(entity_category))
         except cv.Invalid as err:

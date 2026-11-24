@@ -49,7 +49,6 @@ def test_entity_fields_matches_codegen(
     generate_main: Callable[[str], str],
     component_config_path: Callable[[str], str],
 ) -> None:
-    """cg.entity_fields packs the same value codegen emits for a YAML entity with those options."""
     main_cpp = generate_main(component_config_path("entity_fields.yaml"))
     assert cg.entity_fields(
         device_class="temperature",

@@ -109,7 +109,7 @@ template<typename T, size_t N, typename Runtime = EmptyList<T *>> class AppList 
     }
     return this->list_[i];
   }
-  // Without runtime slots the iterator is the array pointer itself
+  // A raw pointer without runtime slots keeps that build identical to a plain array walk
   auto begin() const {
     if constexpr (HAS_RUNTIME) {
       return Iterator(*this, 0);
@@ -127,7 +127,6 @@ template<typename T, size_t N, typename Runtime = EmptyList<T *>> class AppList 
 
  private:
   T *const *list_;
-  // Only a view with runtime slots holds more than the array pointer
   [[no_unique_address]] std::conditional_t<HAS_RUNTIME, const Runtime *, EmptyList<T *>> runtime_{};
 };
 
@@ -140,6 +139,7 @@ template<typename T, size_t N, typename Runtime> class AppList<T, N, Runtime>::I
   using pointer = T *const *;
   using reference = T *;
 
+  Iterator() : view_(nullptr), index_(0) {}
   Iterator(const AppList &view, size_t index) : view_(view), index_(index) {}
   T *operator*() const { return this->view_[this->index_]; }
   Iterator &operator++() {
@@ -223,7 +223,8 @@ class Application {
 \
  public: \
   SLOT_LIST_REQUIRES(ESPHOME_RUNTIME_##upper##_COUNT) \
-  bool register_##singular(type *obj, const char *name, uint32_t object_id_hash, uint32_t entity_fields) { \
+  [[nodiscard]] bool register_##singular(type *obj, const char *name, uint32_t object_id_hash, \
+                                         uint32_t entity_fields) { \
     /* Typed through SLOT_LIST_COUNT so the body is only checked for a reserved (StaticVector) list */ \
     auto &slots = static_cast<SlotList<type *, SLOT_LIST_COUNT> &>(this->runtime_##plural##_); \
     if (slots.size() == SLOT_LIST_COUNT) { \
@@ -235,7 +236,7 @@ class Application {
     return true; \
   } \
   SLOT_LIST_REQUIRES(ESPHOME_RUNTIME_##upper##_COUNT) \
-  bool register_##singular(type *obj, const char *name) { \
+  [[nodiscard]] bool register_##singular(type *obj, const char *name) { \
     return this->template register_##singular<SLOT_LIST_COUNT>(obj, name, 0, obj->entity_fields_()); \
   } \
   template<size_t RESERVED = ESPHOME_RUNTIME_##upper##_COUNT, typename... A> \

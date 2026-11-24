@@ -237,7 +237,6 @@ class EntityBase {
   /// Combined entity setup from codegen: set name, object_id hash, entity string indices, and flags.
   /// Bit layout of entity_fields is defined by the ENTITY_FIELD_*_SHIFT constants above.
   void configure_entity_(const char *name, uint32_t object_id_hash, uint32_t entity_fields);
-  /// The entity_fields value configure_entity_() would need to keep the current fields.
   uint32_t entity_fields_() const {
     uint32_t fields = (uint32_t{this->flags_.internal} << ENTITY_FIELD_INTERNAL_SHIFT) |
                       (uint32_t{this->flags_.disabled_by_default} << ENTITY_FIELD_DISABLED_BY_DEFAULT_SHIFT) |

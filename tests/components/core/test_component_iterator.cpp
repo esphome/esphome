@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <ranges>
 #include <vector>
 
 #include "esphome/core/component_iterator.h"
@@ -129,7 +130,6 @@ TEST(ComponentIterator, DeprecatedAdvanceKeepsLegacyPatternWorking) {
 #ifdef USE_SENSOR
 static sensor::Sensor sensor_a;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static sensor::Sensor sensor_b;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-// Registered with an explicit object_id hash and entity fields
 static sensor::Sensor sensor_c;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static sensor::Sensor sensor_d;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static constexpr uint32_t SENSOR_C_HASH = 0x12345678;
@@ -164,15 +164,14 @@ class ComponentIteratorSensorTest : public ::testing::Test {
     if (!registered) {
       // Set by the owner before registration; registering must keep it
       sensor_b.set_internal(true);
-      App.register_sensor(&sensor_a, "Runtime A");
-      App.register_sensor(&sensor_b, "Runtime B");
-      App.register_sensor(&sensor_c, "Runtime C", SENSOR_C_HASH, SENSOR_C_FIELDS);
+      ASSERT_TRUE(App.register_sensor(&sensor_a, "Runtime A"));
+      ASSERT_TRUE(App.register_sensor(&sensor_b, "Runtime B"));
+      ASSERT_TRUE(App.register_sensor(&sensor_c, "Runtime C", SENSOR_C_HASH, SENSOR_C_FIELDS));
       // Hash 0: computed from the name; fields 0 replace what the owner set
       sensor_d.set_internal(true);
-      App.register_sensor(&sensor_d, "Runtime D", 0, 0);
+      ASSERT_TRUE(App.register_sensor(&sensor_d, "Runtime D", 0, 0));
       registered = true;
     }
-    // The runtime slots follow the codegen sensors
     auto sensors = App.get_sensors();
     ASSERT_EQ(sensors.size(), ESPHOME_ENTITY_SENSOR_COUNT + 4u);
     ASSERT_EQ(sensors[ESPHOME_ENTITY_SENSOR_COUNT], &sensor_a);
@@ -188,7 +187,6 @@ TEST_F(ComponentIteratorSensorTest, RegistrationPastTheReservationIsRefused) {
   EXPECT_FALSE(App.register_sensor(&extra, "Runtime E"));
   EXPECT_FALSE(App.register_sensor(&extra, "Runtime E", SENSOR_C_HASH, 0));
   EXPECT_EQ(App.get_sensors().size(), ESPHOME_ENTITY_SENSOR_COUNT + 4u);
-  // Left untouched
   EXPECT_EQ(extra.get_object_id_hash(), 0u);
   EXPECT_TRUE(extra.get_name().empty());
   EXPECT_TRUE(extra.is_internal());
@@ -229,6 +227,14 @@ TEST_F(ComponentIteratorSensorTest, IteratorWorksWithStandardAlgorithms) {
   EXPECT_EQ(*found, &sensor_c);
   EXPECT_TRUE(std::any_of(sensors.begin(), sensors.end(), [](sensor::Sensor *obj) { return obj == &sensor_d; }));
   EXPECT_FALSE(std::any_of(sensors.begin(), sensors.end(), [](sensor::Sensor *obj) { return obj == nullptr; }));
+}
+
+TEST_F(ComponentIteratorSensorTest, ViewIsAnInputRange) {
+  static_assert(std::ranges::input_range<decltype(App.get_sensors())>);
+  auto sensors = App.get_sensors();
+  auto found = std::ranges::find_if(sensors, [](sensor::Sensor *obj) { return obj == &sensor_d; });
+  ASSERT_NE(found, sensors.end());
+  EXPECT_EQ(*found, &sensor_d);
 }
 
 TEST_F(ComponentIteratorSensorTest, RuntimeEntitiesAreNamedAndKeyed) {
@@ -282,13 +288,11 @@ TEST_F(ComponentIteratorSensorTest, YieldAfterStepEndsPassAndResumes) {
   EXPECT_TRUE(it.completed());
 }
 
-// Constructed sensors in a local constant list
 static sensor::Sensor list_sensor_a;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static sensor::Sensor list_sensor_b;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static sensor::Sensor *const LIST_SENSORS[] = {&list_sensor_a, &list_sensor_b};
 static const AppList<sensor::Sensor, 2> LOCAL_LIST(LIST_SENSORS);
 
-// ItemRefusingIterator's contract, one process_platform_item_() step at a time
 class ListIterator : public RefusingIterator {
  public:
   bool on_sensor(sensor::Sensor *obj) override {

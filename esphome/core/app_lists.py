@@ -1,4 +1,4 @@
-"""Constant App lists of entities, devices and areas, emitted by codegen, plus reserved runtime slots."""
+"""Constant App lists of entities, devices and areas, emitted by codegen."""
 
 from dataclasses import dataclass, field
 
@@ -32,7 +32,6 @@ def use_define(platform: str) -> str:
 @dataclass
 class AppListsState:
     lists: dict[str, list[str]] = field(default_factory=dict)
-    # Runtime slots reserved per platform
     reserved: dict[str, int] = field(default_factory=dict)
     emitted: bool = False
 
@@ -67,7 +66,6 @@ def add_entity(platform: str, var: MockObj) -> None:
 
 
 def entity_fields(**kwargs: str | bool) -> int:
-    """See esphome.core.entity_helpers.entity_fields; exported as cg.entity_fields."""
     # Imported here: entity_helpers imports codegen, which imports this module
     from esphome.core import entity_helpers
 
@@ -75,11 +73,7 @@ def entity_fields(**kwargs: str | bool) -> int:
 
 
 def reserve_runtime_entities(platform: str, count: int) -> None:
-    """Reserve `count` slots for `platform` entities created at run time.
-
-    Each reservation adds one pointer of RAM. Without one, `App.register_<platform>()`
-    does not exist, so a runtime registration fails to compile.
-    """
+    """Reserve `count` slots for `platform` entities registered at run time."""
     if platform not in ENTITY_LISTS:
         raise EsphomeError(f"Unknown entity platform '{platform}'")
     if isinstance(count, bool) or not isinstance(count, int) or count < 0:
