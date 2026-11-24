@@ -2077,6 +2077,39 @@ def test_domain_apply_entities(
 
 
 @pytest.mark.asyncio
+async def test_sub_texts_apply_through_new_text(
+    monkeypatch: pytest.MonkeyPatch,
+    setup_test_environment: list[str],
+    apply_functions: list[tuple[str, str, str]],
+) -> None:
+    """sub_texts forwards the generated function through new_text to ApplyText."""
+    registered: list[tuple[str, dict[str, Any]]] = []
+
+    async def fake_register_text(
+        var: MockObj, config: ConfigType, **kwargs: Any
+    ) -> None:
+        registered.append((str(var), kwargs))
+
+    monkeypatch.setattr(text, "register_text", fake_register_text)
+    conf = {CONF_ID: ID("pin_txt", is_declaration=True, type=text.ApplyText)}
+    var = await text.sub_texts({"pin": conf}, parent=_HUB)(
+        "pin", None, apply="set_pin(value)", publish="after", max_length=8
+    )
+
+    assert str(var.base.type) == "text::ApplyText<esphome__pin_txt__fn>"
+    assert registered == [
+        (str(var), {"min_length": 0, "max_length": 8, "pattern": None})
+    ]
+    assert apply_functions == [
+        (
+            "esphome__pin_txt__fn",
+            "text::Text * entity, const std::string & value",
+            "::hub->set_pin(value);\nentity->publish_state(value);",
+        )
+    ]
+
+
+@pytest.mark.asyncio
 async def test_sub_entities_without_setter(
     setup_test_environment: list[str], apply_functions: list[tuple[str, str, str]]
 ) -> None:
