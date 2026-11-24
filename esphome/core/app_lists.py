@@ -8,6 +8,7 @@ Entities created at run time need slots reserved with `reserve_runtime_entities(
 from dataclasses import dataclass, field
 
 from esphome.core import CORE, CoroPriority, EsphomeError, coroutine_with_priority
+from esphome.core.entity_types import DATETIME_SUBTYPES, ENTITY_PLATFORMS
 from esphome.cpp_generator import (
     MockObj,
     RawStatement,
@@ -17,37 +18,6 @@ from esphome.cpp_generator import (
 )
 
 DOMAIN = "app_lists"
-
-# Every entity platform with an App list, in entity_types.h order (a test keeps the two in sync).
-ENTITY_PLATFORMS: tuple[str, ...] = (
-    "binary_sensor",
-    "cover",
-    "fan",
-    "light",
-    "sensor",
-    "switch",
-    "button",
-    "text_sensor",
-    "climate",
-    "number",
-    "date",
-    "time",
-    "datetime",
-    "text",
-    "select",
-    "lock",
-    "valve",
-    "media_player",
-    "alarm_control_panel",
-    "water_heater",
-    "infrared",
-    "radio_frequency",
-    "event",
-    "update",
-)
-
-# Platforms whose entity_types.h `upper` token and USE_* define carry a DATETIME_ prefix.
-DATETIME_SUBTYPES = {"date", "time", "datetime"}
 
 
 def _upper(platform: str) -> str:

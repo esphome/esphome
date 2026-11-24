@@ -1,17 +1,10 @@
 """Constant App lists and runtime entity reservations (esphome/core/app_lists.py)."""
 
-from pathlib import Path
-import re
-
 import pytest
 
 from esphome import codegen as cg
 from esphome.core import CORE, ID, EsphomeError, app_lists
 from tests.testing_helpers import get_define_value
-
-ENTITY_TYPES_H = (
-    Path(__file__).parents[3] / "esphome" / "core" / "entity_types.h"
-).read_text(encoding="utf-8")
 
 
 def _global_lines() -> list[str]:
@@ -22,15 +15,6 @@ def _new_sensor(name: str) -> cg.MockObj:
     return cg.new_Pvariable(
         ID(name, is_declaration=True, type=cg.esphome_ns.class_("Sensor"))
     )
-
-
-def test_entity_lists_match_entity_types_h() -> None:
-    """Every entity_types.h entry has the same `singular` and `upper` here."""
-    entries = re.findall(
-        r"ENTITY_(?:CONTROLLER_)?TYPE_\(\s*\w+::\w+,\s*(\w+),\s*\w+,\s*\w+,\s*(\w+)",
-        ENTITY_TYPES_H,
-    )
-    assert dict(entries) == app_lists.ENTITY_LISTS
 
 
 def test_entities_are_emitted_in_order() -> None:
