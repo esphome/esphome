@@ -42,7 +42,7 @@ DISTANCE_MODES = {"medium": 2, "long": 3}
 
 # ST's driver, forked by esphome-libs to run on any framework: an ESP-IDF component on ESP32,
 # a PlatformIO library elsewhere
-VL53L4CX_VERSION = "2.0.1"
+VL53L4CX_VERSION = "2.0.2"
 # ST time-of-flight sensor platforms that also boot at 0x29; each family re-addresses its own sensors only
 OTHER_BOOT_AT_0X29 = ("vl53l0x", "vl53l1x")
 # ...and the VL6180X, a top-level component
