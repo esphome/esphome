@@ -1,5 +1,8 @@
+import logging
+
 import esphome.codegen as cg
 from esphome.components import ota, update
+from esphome.components.const import CONF_VERIFY_SSL
 import esphome.config_validation as cv
 from esphome.const import CONF_ESPHOME, CONF_PROJECT, CONF_SOURCE, CONF_VERSION
 import esphome.final_validate as fv
@@ -11,6 +14,8 @@ from ..ota import OtaHttpRequestComponent
 AUTO_LOAD = ["json"]
 CODEOWNERS = ["@jesserockz"]
 DEPENDENCIES = ["ota.http_request"]
+
+_LOGGER = logging.getLogger(__name__)
 
 HttpRequestUpdate = http_request_ns.class_(
     "HttpRequestUpdate", update.UpdateEntity, cg.PollingComponent
@@ -36,14 +41,36 @@ CONFIG_SCHEMA = (
 def _final_validate(config: ConfigType) -> None:
     if not config[CONF_ALLOW_AUTO_INSTALL]:
         return
+    full_config = fv.full_config.get()
     # The check compares the manifest version with the project version, so the
     # fallback to the ESPHome version would make every manifest look different.
-    if CONF_PROJECT not in fv.full_config.get()[CONF_ESPHOME]:
+    if CONF_PROJECT not in full_config[CONF_ESPHOME]:
         raise cv.Invalid(
             f"'{CONF_ALLOW_AUTO_INSTALL}' requires a '{CONF_PROJECT}' with a "
             f"'{CONF_VERSION}' in the '{CONF_ESPHOME}' section, because the "
             "manifest version is compared with it.",
             path=[CONF_ALLOW_AUTO_INSTALL],
+        )
+    # An automatic install trusts the manifest's firmware URL and MD5, so the
+    # manifest has to come over a connection an attacker on the path cannot fake.
+    if not config[CONF_SOURCE].startswith("https://"):
+        _LOGGER.warning(
+            "'%s' installs the firmware the manifest points to, but '%s' is not "
+            "fetched over HTTPS: anyone on the network path can replace the "
+            "manifest and have the device install their firmware.",
+            CONF_ALLOW_AUTO_INSTALL,
+            CONF_SOURCE,
+        )
+    elif not fv.get_declaring_config(config[CONF_HTTP_REQUEST_ID], full_config).get(
+        CONF_VERIFY_SSL, True
+    ):
+        _LOGGER.warning(
+            "'%s' installs the firmware the manifest points to, but the "
+            "http_request component does not verify TLS certificates ('%s: "
+            "false'): anyone on the network path can replace the manifest and "
+            "have the device install their firmware.",
+            CONF_ALLOW_AUTO_INSTALL,
+            CONF_VERIFY_SSL,
         )
 
 
