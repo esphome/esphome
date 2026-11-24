@@ -21,22 +21,25 @@ constexpr uint8_t CONVERT = 0x44;
 constexpr uint8_t READ_SCRATCH_PAD = 0xBE;
 constexpr uint32_t WAIT_10_BIT_MS = 188;
 
-/// Runs what was submitted when the test says so, like the FIFO of the real bus. Blocking access is an error.
+/// Runs what was submitted when the test says so, like the FIFO of the real bus. Blocking access is an error,
+/// except in setup(), which reads the scratch pad with the blocking calls.
 class FakeBus final : public one_wire::OneWireBus {
  public:
   std::deque<Transaction *> queue;  ///< Mirror of pending_ that the tests can inspect
   uint8_t scratch_pad[9]{};
   unsigned submits{0};
-  bool reject{false};
   bool run_at_once{false};
+  TransactionStatus run_at_once_status{TransactionStatus::TRANSACTION_STATUS_OK};
+  bool blocking{false};
+  int presence{1};  ///< What a blocking reset returns
 
   bool submit(Transaction *transaction) override {
     ++this->submits;
-    if (this->reject || !this->pending_.push(transaction))
+    if (!this->pending_.push(transaction))
       return false;
     this->queue.push_back(transaction);
     if (this->run_at_once)
-      this->finish(TransactionStatus::TRANSACTION_STATUS_OK);
+      this->finish(this->run_at_once_status);
     return true;
   }
 
@@ -50,11 +53,11 @@ class FakeBus final : public one_wire::OneWireBus {
     transaction->on_done(transaction->context, status);
   }
 
-  void write8(uint8_t val) override { ADD_FAILURE() << "blocking write8"; }
-  void write64(uint64_t val) override { ADD_FAILURE() << "blocking write64"; }
+  void write8(uint8_t val) override { EXPECT_TRUE(this->blocking) << "blocking write8"; }
+  void write64(uint64_t val) override { EXPECT_TRUE(this->blocking) << "blocking write64"; }
   uint8_t read8() override {
-    ADD_FAILURE() << "blocking read8";
-    return 0;
+    EXPECT_TRUE(this->blocking) << "blocking read8";
+    return this->scratch_pad[this->blocking_read_++ % sizeof(this->scratch_pad)];
   }
   uint64_t read64() override {
     ADD_FAILURE() << "blocking read64";
@@ -63,13 +66,15 @@ class FakeBus final : public one_wire::OneWireBus {
 
  protected:
   int reset_int() override {
-    ADD_FAILURE() << "blocking reset";
-    return 0;
+    EXPECT_TRUE(this->blocking) << "blocking reset";
+    this->blocking_read_ = 0;
+    return this->presence;
   }
   void reset_search() override {}
   uint64_t search_int() override { return 0; }
 
   one_wire::TransactionQueue pending_;
+  size_t blocking_read_{0};
 };
 
 class DallasAsync : public ::testing::Test {
@@ -84,6 +89,12 @@ class DallasAsync : public ::testing::Test {
     this->sensor_.set_resolution(10);
     this->sensor_.add_on_state_callback([this](float) { ++this->publications_; });
     this->set_scratch_pad_(0x0190, 0x10);  // 25 degrees
+    // setup() reads the scratch pad with the blocking calls and sets the address of the transaction.
+    // The resolution in the scratch pad already matches, so it writes nothing.
+    this->bus_.blocking = true;
+    this->sensor_.setup();
+    this->bus_.blocking = false;
+    ASSERT_FALSE(this->sensor_.status_has_warning());
   }
 
   // Drop a pending wait so it does not outlive the sensor into a later test
@@ -226,18 +237,6 @@ TEST_F(DallasAsync, EveryFailedReadPublishesNanWithAWarning) {
   EXPECT_EQ(this->publications_, 10u);
 }
 
-TEST_F(DallasAsync, ARejectedReadSkipsTheCycleWithoutPublishing) {
-  this->sensor_.update();
-  this->bus_.finish(TransactionStatus::TRANSACTION_STATUS_OK);
-  this->bus_.reject = true;
-  run_timers(WAIT_10_BIT_MS + 30);
-
-  EXPECT_EQ(this->bus_.submits, 2u);
-  EXPECT_TRUE(this->bus_.queue.empty());
-  EXPECT_EQ(this->publications_, 0u);
-  EXPECT_FALSE(this->sensor_.status_has_warning());
-}
-
 TEST_F(DallasAsync, UpdateDuringTheConversionSkipsTheCycle) {
   this->sensor_.update();
   const Transaction *convert = this->bus_.queue.front();
@@ -291,16 +290,17 @@ TEST_F(DallasAsync, AFailedConversionDuringTheWaitEndsTheCycle) {
   EXPECT_TRUE(this->sensor_.status_has_warning());
 }
 
-TEST_F(DallasAsync, UpdateDuringTheReadLeavesTheReadAlone) {
+TEST_F(DallasAsync, UpdateDuringTheReadSkipsTheCycleAndLeavesTheReadAlone) {
   this->run_until_reading_();
   const Transaction *read = this->bus_.queue.front();
   const Transaction before = *read;
+  const unsigned submits = this->bus_.submits;
 
   this->sensor_.update();
 
-  ASSERT_EQ(this->bus_.queue.size(), 2u);
-  EXPECT_EQ(this->bus_.queue.front(), read) << "the conversion queues up behind the read";
-  EXPECT_EQ(*this->bus_.queue.back()->write_data, CONVERT);
+  EXPECT_EQ(this->bus_.submits, submits);
+  ASSERT_EQ(this->bus_.queue.size(), 1u);
+  EXPECT_EQ(this->bus_.queue.front(), read);
   EXPECT_TRUE(read->is_pending());
   EXPECT_EQ(read->address, before.address);
   EXPECT_EQ(read->write_data, before.write_data);
@@ -313,24 +313,26 @@ TEST_F(DallasAsync, UpdateDuringTheReadLeavesTheReadAlone) {
   this->bus_.finish(TransactionStatus::TRANSACTION_STATUS_OK);
   EXPECT_EQ(this->publications_, 1u);
   EXPECT_FLOAT_EQ(this->sensor_.state, 25.0f);
-  this->bus_.finish(TransactionStatus::TRANSACTION_STATUS_OK);  // The conversion from the update in between
   run_timers(WAIT_10_BIT_MS + 30);
-  ASSERT_EQ(this->bus_.queue.size(), 1u);
-  EXPECT_EQ(*this->bus_.queue.front()->write_data, READ_SCRATCH_PAD);
+  EXPECT_TRUE(this->bus_.queue.empty());
 }
 
-TEST_F(DallasAsync, AGoodReadClearsTheWarningOfAFailedReadAfterTheNextUpdate) {
-  this->run_until_reading_();
-  this->sensor_.update();  // Clears the warning, the conversion queues up behind the read
-  ASSERT_EQ(this->bus_.queue.size(), 2u);
+TEST_F(DallasAsync, ASkippedCycleKeepsTheWarning) {
+  this->sensor_.update();
+  this->sensor_.status_set_warning();
+  this->sensor_.update();  // The conversion is still pending
 
-  this->bus_.finish(TransactionStatus::TRANSACTION_STATUS_TIMEOUT);  // The read from the cycle before
+  EXPECT_TRUE(this->sensor_.status_has_warning());
+  EXPECT_EQ(this->bus_.queue.size(), 1u);
+}
+
+TEST_F(DallasAsync, AGoodCycleClearsTheWarningOfTheCycleBefore) {
+  this->run_until_reading_();
+  this->bus_.finish(TransactionStatus::TRANSACTION_STATUS_TIMEOUT);
   EXPECT_TRUE(std::isnan(this->sensor_.state));
   EXPECT_TRUE(this->sensor_.status_has_warning());
 
-  this->bus_.finish(TransactionStatus::TRANSACTION_STATUS_OK);  // The conversion from the update in between
-  run_timers(WAIT_10_BIT_MS + 30);
-  ASSERT_EQ(this->bus_.queue.size(), 1u);
+  this->run_until_reading_();
   this->bus_.finish(TransactionStatus::TRANSACTION_STATUS_OK);
 
   EXPECT_EQ(this->publications_, 2u);
@@ -347,6 +349,29 @@ TEST_F(DallasAsync, ABusThatFinishesInsideSubmitWorksToo) {
   EXPECT_TRUE(this->bus_.queue.empty());
   EXPECT_EQ(this->publications_, 1u);
   EXPECT_FLOAT_EQ(this->sensor_.state, 25.0f);
+}
+
+TEST_F(DallasAsync, AFailureInsideSubmitKeepsItsWarning) {
+  this->bus_.run_at_once = true;
+  this->bus_.run_at_once_status = TransactionStatus::TRANSACTION_STATUS_NO_PRESENCE;
+  this->sensor_.update();
+
+  EXPECT_EQ(this->publications_, 1u);
+  EXPECT_TRUE(std::isnan(this->sensor_.state));
+  EXPECT_TRUE(this->sensor_.status_has_warning());
+}
+
+TEST_F(DallasAsync, AFailedReadInSetupSetsTheWarning) {
+  DallasTemperatureSensor sensor;
+  sensor.set_one_wire_bus(&this->bus_);
+  sensor.set_address(ROM);
+  sensor.set_resolution(10);
+  this->bus_.blocking = true;
+  this->bus_.presence = 0;
+  sensor.setup();
+  this->bus_.blocking = false;
+
+  EXPECT_TRUE(sensor.status_has_warning());
 }
 
 }  // namespace esphome::dallas_temp::testing

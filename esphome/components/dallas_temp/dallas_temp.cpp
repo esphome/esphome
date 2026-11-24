@@ -43,17 +43,23 @@ void DallasTemperatureSensor::update() {
   if (this->address_ == 0)
     return;
 
-  this->status_clear_warning();
-
-  this->convert_.address = this->read_.address = this->address_;
-  this->convert_.write_data = &DALLAS_COMMAND_START_CONVERSION;
-  this->read_.write_data = &DALLAS_COMMAND_READ_SCRATCH_PAD;
+  if (this->transaction_.is_pending()) {
+    ESP_LOGD(TAG, "'%s': skipping a cycle, bus busy", LOG_STR_ARG(this->get_log_name()));
+    return;
+  }
   // A new conversion replaces the wait of the one before. If that wait stayed armed, it could read right behind
   // the new Convert T, or after a failed one.
   this->cancel_timeout(CONVERSION_TIMEOUT_ID);
-  if (!this->bus_->submit(&this->convert_)) {
-    ESP_LOGD(TAG, "'%s': skipping a cycle, still converting", LOG_STR_ARG(this->get_log_name()));
-  }
+  // Clear before submit(): a bus that finishes inside submit() may set a new warning there.
+  this->status_clear_warning();
+  this->submit_(&DALLAS_COMMAND_START_CONVERSION, 0);
+}
+
+void DallasTemperatureSensor::submit_(const uint8_t *command, uint8_t read_len) {
+  this->transaction_.write_data = command;
+  this->transaction_.read_len = read_len;
+  // Cannot fail: submit() only refuses a pending transaction, and both callers run when it is not pending
+  this->bus_->submit(&this->transaction_);
 }
 
 static const LogString *transaction_status_to_str(one_wire::TransactionStatus status) {
@@ -87,32 +93,28 @@ bool DallasTemperatureSensor::check_transaction_status_(one_wire::TransactionSta
   return false;
 }
 
-// Without a confirmed Convert T the scratch pad can still hold the previous reading with a valid checksum.
-// A failed conversion therefore ends the cycle here instead of reading.
-void DallasTemperatureSensor::on_convert_done(void *context, one_wire::TransactionStatus status) {
-  auto *self = static_cast<DallasTemperatureSensor *>(context);
-  if (!self->check_transaction_status_(status, LOG_STR("starting the conversion"))) {
-    self->publish_state(NAN);
-    return;
-  }
-  self->set_timeout(CONVERSION_TIMEOUT_ID, self->millis_to_wait_for_conversion_(), [self] {
-    if (!self->bus_->submit(&self->read_)) {
-      ESP_LOGD(TAG, "'%s': skipping a cycle, still reading", LOG_STR_ARG(self->get_log_name()));
-    }
-  });
+void DallasTemperatureSensor::on_transaction_done(void *context, one_wire::TransactionStatus status) {
+  static_cast<DallasTemperatureSensor *>(context)->handle_transaction_done_(status);
 }
 
-void DallasTemperatureSensor::on_read_done(void *context, one_wire::TransactionStatus status) {
-  auto *self = static_cast<DallasTemperatureSensor *>(context);
+void DallasTemperatureSensor::handle_transaction_done_(one_wire::TransactionStatus status) {
+  const bool conversion_step = this->transaction_.read_len == 0;
   float tempc = NAN;
-  if (self->check_transaction_status_(status, LOG_STR("reading scratch pad")) && self->check_scratch_pad_()) {
-    // A new update() can clear the warning while an older read is still queued. If that older read then
-    // fails, the warning comes back, so a good reading has to clear it again here.
-    self->status_clear_warning();
-    tempc = self->get_temp_c_();
-    ESP_LOGD(TAG, "'%s': Got Temperature=%f°C", LOG_STR_ARG(self->get_log_name()), tempc);
+  if (this->check_transaction_status_(
+          status, conversion_step ? LOG_STR("starting the conversion") : LOG_STR("reading scratch pad"))) {
+    if (conversion_step) {
+      this->set_timeout(CONVERSION_TIMEOUT_ID, this->millis_to_wait_for_conversion_(),
+                        [this] { this->submit_(&DALLAS_COMMAND_READ_SCRATCH_PAD, sizeof(this->scratch_pad_)); });
+      return;
+    }
+    if (this->check_scratch_pad_()) {
+      tempc = this->get_temp_c_();
+      ESP_LOGD(TAG, "'%s': Got Temperature=%f°C", LOG_STR_ARG(this->get_log_name()), tempc);
+    }
   }
-  self->publish_state(tempc);
+  // The cycle ends here. A failed conversion ends it too, without a read. Without a confirmed Convert T the
+  // scratch pad can still hold the previous reading with a valid checksum.
+  this->publish_state(tempc);
 }
 
 bool DallasTemperatureSensor::read_scratch_pad_() {
@@ -131,6 +133,7 @@ bool DallasTemperatureSensor::read_scratch_pad_() {
 void DallasTemperatureSensor::setup() {
   if (!this->check_address_or_index_())
     return;
+  this->transaction_.address = this->address_;
   if (!this->read_scratch_pad_())
     return;
   if (!this->check_scratch_pad_())
