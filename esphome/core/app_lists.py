@@ -66,10 +66,6 @@ def use_define(platform: str) -> str:
     return f"USE_{_upper(platform)}"
 
 
-def _integration(platform: str) -> str:
-    return "datetime" if platform in DATETIME_SUBTYPES else platform
-
-
 @dataclass
 class AppListsState:
     """Constant addresses of the objects added to each list, in emission order, keyed by `upper` token."""
@@ -84,10 +80,6 @@ def _get_state() -> AppListsState:
     if DOMAIN not in CORE.data:
         CORE.data[DOMAIN] = AppListsState()
     return CORE.data[DOMAIN]
-
-
-def runtime_count_define(platform: str) -> str:
-    return f"ESPHOME_RUNTIME_{ENTITY_LISTS[platform]}_COUNT"
 
 
 def _check_not_emitted(what: str) -> AppListsState:
@@ -115,27 +107,12 @@ def add_entity(platform: str, var: MockObj) -> None:
     add_to_list(ENTITY_LISTS[platform], var)
 
 
-def entity_fields(
-    *,
-    device_class: str = "",
-    unit_of_measurement: str = "",
-    icon: str = "",
-    entity_category: str = "",
-    internal: bool = False,
-    disabled_by_default: bool = False,
-) -> int:
+def entity_fields(**kwargs: str | bool) -> int:
     """See esphome.core.entity_helpers.entity_fields; exported as cg.entity_fields."""
     # Imported here: entity_helpers imports codegen, which imports this module
     from esphome.core import entity_helpers
 
-    return entity_helpers.entity_fields(
-        device_class=device_class,
-        unit_of_measurement=unit_of_measurement,
-        icon=icon,
-        entity_category=entity_category,
-        internal=internal,
-        disabled_by_default=disabled_by_default,
-    )
+    return entity_helpers.entity_fields(**kwargs)
 
 
 def reserve_runtime_entities(platform: str, count: int) -> None:
@@ -147,7 +124,8 @@ def reserve_runtime_entities(platform: str, count: int) -> None:
     if platform not in ENTITY_LISTS:
         raise EsphomeError(f"Unknown entity platform '{platform}'")
     state = _check_not_emitted(f"Runtime {platform} slots were reserved")
-    if (integration := _integration(platform)) not in CORE.loaded_integrations:
+    integration = "datetime" if platform in DATETIME_SUBTYPES else platform
+    if integration not in CORE.loaded_integrations:
         raise EsphomeError(
             f"cg.reserve_runtime_entities('{platform}', ...) needs the {integration} "
             f'integration; add AUTO_LOAD = ["{integration}"] to the component'
@@ -220,7 +198,7 @@ async def _emit_entity_lists() -> None:
         _add_count_define(
             defined, f"ESPHOME_ENTITY_{platform.upper()}_COUNT", len(objs), hint
         )
-        _add_count_define(defined, runtime_count_define(platform), reserved, hint)
+        _add_count_define(defined, f"ESPHOME_RUNTIME_{upper}_COUNT", reserved, hint)
         _emit_list(upper, objs)
     for upper in ("DEVICE", "AREA"):
         if (objs := state.lists.get(upper)) is not None:

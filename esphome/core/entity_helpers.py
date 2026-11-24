@@ -276,6 +276,8 @@ def _unit_of_measurement_index(value: str) -> int:
 
 
 def _icon_index(value: str) -> int:
+    if not value:
+        return 0
     cg.add_define("USE_ENTITY_ICON")
     return register_icon(value)
 
@@ -322,7 +324,7 @@ def entity_fields(
     return _pack_entity_fields(
         _device_class_index(device_class),
         _unit_of_measurement_index(unit_of_measurement),
-        _icon_index(icon) if icon else 0,
+        _icon_index(icon),
         int(internal),
         int(disabled_by_default),
         _entity_category_index(entity_category),
@@ -523,9 +525,7 @@ async def _setup_entity_impl(var: MockObj, config: ConfigType, platform: str) ->
     config[_KEY_DISABLED_BY_DEFAULT] = int(config[CONF_DISABLED_BY_DEFAULT])
     if CONF_INTERNAL in config:
         config[_KEY_INTERNAL] = int(config[CONF_INTERNAL])
-    icon_idx = 0
-    if CONF_ICON in config:
-        icon_idx = _icon_index(config[CONF_ICON])
+    icon_idx = _icon_index(config.get(CONF_ICON, ""))
     if CONF_ENTITY_CATEGORY in config:
         config[_KEY_ENTITY_CATEGORY] = _entity_category_index(
             str(config[CONF_ENTITY_CATEGORY])
