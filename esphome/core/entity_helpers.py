@@ -291,8 +291,6 @@ def _unit_of_measurement_index(value: str) -> int:
 
 
 def _icon_index(value: str) -> int:
-    if not value:
-        return 0
     cg.add_define("USE_ENTITY_ICON")
     return register_icon(value)
 
@@ -321,6 +319,13 @@ def _pack_entity_fields(
     )
 
 
+def _validated(validator: Callable[[str], str], option: str, value: str) -> str:
+    try:
+        return str(validator(value))
+    except cv.Invalid as err:
+        raise EsphomeError(f"cg.entity_fields({option}=...): {err}") from err
+
+
 def entity_fields(
     *,
     device_class: str = "",
@@ -332,14 +337,13 @@ def entity_fields(
 ) -> int:
     """Packed entity fields for App.register_<platform>(obj, name, object_id_hash, entity_fields)."""
     if entity_category:
-        try:
-            entity_category = str(cv.entity_category(entity_category))
-        except cv.Invalid as err:
-            raise EsphomeError(f"cg.entity_fields(entity_category=...): {err}") from err
+        entity_category = _validated(
+            cv.entity_category, "entity_category", entity_category
+        )
     return _pack_entity_fields(
         _device_class_index(device_class),
         _unit_of_measurement_index(unit_of_measurement),
-        _icon_index(icon),
+        _icon_index(_validated(cv.icon, "icon", icon)) if icon else 0,
         int(internal),
         int(disabled_by_default),
         _entity_category_index(entity_category),
@@ -543,7 +547,9 @@ async def _setup_entity_impl(var: MockObj, config: ConfigType, platform: str) ->
     config[_KEY_DISABLED_BY_DEFAULT] = int(config[CONF_DISABLED_BY_DEFAULT])
     if CONF_INTERNAL in config:
         config[_KEY_INTERNAL] = int(config[CONF_INTERNAL])
-    icon_idx = _icon_index(config.get(CONF_ICON, ""))
+    icon_idx = 0
+    if CONF_ICON in config:
+        icon_idx = _icon_index(config[CONF_ICON])
     if CONF_ENTITY_CATEGORY in config:
         config[_KEY_ENTITY_CATEGORY] = _entity_category_index(
             str(config[CONF_ENTITY_CATEGORY])

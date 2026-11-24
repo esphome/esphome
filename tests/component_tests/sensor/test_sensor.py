@@ -4,7 +4,7 @@ from collections.abc import Callable
 import re
 
 import esphome.codegen as cg
-from tests.component_tests.helpers import extract_packed_value
+from tests.component_tests.helpers import extract_packed_value, get_define_value
 
 
 def test_sensor_device_class_set(generate_main):
@@ -59,3 +59,11 @@ def test_entity_fields_matches_codegen(
         disabled_by_default=True,
     ) == extract_packed_value(main_cpp, "all_options")
     assert cg.entity_fields() == 0
+
+
+def test_empty_icon_still_enables_entity_icons(
+    generate_main: Callable[[str], str],
+    component_config_path: Callable[[str], str],
+) -> None:
+    generate_main(component_config_path("empty_icon.yaml"))
+    assert get_define_value("USE_ENTITY_ICON") is not None

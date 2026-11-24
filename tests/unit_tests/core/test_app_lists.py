@@ -275,3 +275,9 @@ def test_entity_fields_after_the_string_tables_is_rejected() -> None:
     assert cg.entity_fields(icon="mdi:early") != 0
     with pytest.raises(EsphomeError, match="after the string tables were emitted"):
         cg.entity_fields(icon="mdi:late")
+
+
+def test_entity_fields_validates_the_icon() -> None:
+    assert cg.entity_fields(icon="mdi:home") != 0
+    with pytest.raises(EsphomeError, match=r"cg\.entity_fields\(icon=\.\.\.\)"):
+        cg.entity_fields(icon="not an icon")

@@ -160,11 +160,12 @@ static constexpr uint32_t SENSOR_C_FIELDS =
 
 // Iterator whose sensor callback can refuse or yield; pins the per-item
 // contract: a refused item is re-offered with at_ unchanged, never skipped.
-class ItemRefusingIterator : public RefusingIterator {
+class SensorStepIterator : public RefusingIterator {
  public:
+  SensorStepIterator(sensor::Sensor *first, sensor::Sensor *second) : first_(first), second_(second) {}
   bool on_sensor(sensor::Sensor *obj) override {
     // Unconstructed codegen sensors: accept untouched
-    if (obj != &sensor_a && obj != &sensor_b)
+    if (obj != this->first_ && obj != this->second_)
       return true;
     this->last_sensor = obj;
     if (!step(this->sensor_calls, this->sensor_refusals))
@@ -177,6 +178,15 @@ class ItemRefusingIterator : public RefusingIterator {
   int sensor_calls{0};
   int sensor_refusals{0};
   bool yield_on_sensor{false};
+
+ protected:
+  sensor::Sensor *first_;
+  sensor::Sensor *second_;
+};
+
+class ItemRefusingIterator : public SensorStepIterator {
+ public:
+  ItemRefusingIterator() : SensorStepIterator(&sensor_a, &sensor_b) {}
 };
 
 class ComponentIteratorSensorTest : public ::testing::Test {
@@ -315,24 +325,12 @@ static sensor::Sensor list_sensor_b;  // NOLINT(cppcoreguidelines-avoid-non-cons
 static sensor::Sensor *const LIST_SENSORS[] = {&list_sensor_a, &list_sensor_b};
 static const AppList<sensor::Sensor, 2> LOCAL_LIST(LIST_SENSORS);
 
-class ListIterator : public RefusingIterator {
+class ListIterator : public SensorStepIterator {
  public:
-  bool on_sensor(sensor::Sensor *obj) override {
-    this->last_sensor = obj;
-    if (!step(this->sensor_calls, this->sensor_refusals))
-      return false;
-    if (this->yield_on_sensor)
-      this->yield_after_step_();
-    return true;
-  }
+  ListIterator() : SensorStepIterator(&list_sensor_a, &list_sensor_b) {}
   bool step_list() { return this->process_platform_item_(LOCAL_LIST, &ComponentIterator::on_sensor); }
   uint16_t at() const { return this->at_; }
   bool yield_requested() const { return this->yield_requested_; }
-
-  sensor::Sensor *last_sensor{nullptr};
-  int sensor_calls{0};
-  int sensor_refusals{0};
-  bool yield_on_sensor{false};
 };
 
 TEST(ComponentIteratorList, RefusedItemIsReofferedNotSkipped) {
