@@ -107,7 +107,8 @@ bool HonClimate::get_quiet_mode_state() const {
 }
 
 void HonClimate::set_quiet_mode_state_from_preset_(bool state) {
-  this->quiet_mode_state_ = state ? SwitchState::SWITCH_ON : SwitchState::SWITCH_OFF;
+  // Pending until the control sequence ends, so replies to its earlier commands don't overwrite it
+  this->quiet_mode_state_ = state ? SwitchState::PENDING_ON : SwitchState::PENDING_OFF;
   if (state != this->settings_.quiet_mode_state) {
     this->settings_.quiet_mode_state = state;
 #ifdef USE_SWITCH
@@ -306,6 +307,8 @@ haier_protocol::HandlerError HonClimate::status_handler_(haier_protocol::FrameTy
           if (this->control_messages_queue_.empty()) {
             this->set_phase(ProtocolPhases::IDLE);
             this->force_send_control_ = false;
+            // Clean quiet mode state pending flag
+            this->quiet_mode_state_ = (SwitchState) ((uint8_t) this->quiet_mode_state_ & 0b01);
             if (this->current_hvac_settings_.valid)
               this->current_hvac_settings_.reset();
           } else {
@@ -1392,8 +1395,6 @@ void HonClimate::fill_control_messages_queue_() {
       } else {
         quiet_mode_buf[1] = 0x00;
       }
-      // Clean quiet mode state pending flag
-      this->quiet_mode_state_ = (SwitchState) ((uint8_t) this->quiet_mode_state_ & 0b01);
     }
     auto presets = this->traits_.get_supported_presets();
     if (quiet_mode_buf[1] != 0xFF) {
