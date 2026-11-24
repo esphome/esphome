@@ -89,7 +89,10 @@ def test_option_limits_of_st_driver(
             id="shared",
         ),
         pytest.param(
-            PlatformFramework.ESP8266_ARDUINO, {"number": 16}, "GPIO16", id="ESP8266 GPIO16"
+            PlatformFramework.ESP8266_ARDUINO,
+            {"number": 16},
+            "GPIO16",
+            id="ESP8266 GPIO16",
         ),
     ],
 )
