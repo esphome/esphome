@@ -45,7 +45,7 @@ One file per component, named after it:
 - [`web_server.md`](web_server.md): state SSE stress and the HTTPD task stack on web_server_idf, entity icon and device class readback, per-session `/events` listing, `/events` head, stall, Wi-Fi drop and churn checks, byte-level JSON output A/B, `/events` close pattern churn with observers, REST and the HTTPS 501 check
 - [`speaker.md`](speaker.md): media player pipeline tasks on the Connect AUX-2 with the `speaker` platform player, FLAC stream changes and announcements without a DAC, FLAC decode benchmark on the device with embedded clips
 - [`web_server.md`](web_server.md): state SSE stress and the HTTPD task stack on web_server_idf, entity icon and device class readback, per-session `/events` listing, `/events` head, stall, Wi-Fi drop and churn checks
-- [`uart_sim.md`](uart_sim.md): UART sensors simulated on a classic ESP32 with loopback and cross-wired UARTs, a Duco ventilation box model on a second UART, RP2 UART pin choice with an in-chip loopback, LengthFrameReader injection for ld2410 and tuya, a PMS5003T fed from the host over the logger port and UART RX under power management
+- [`uart_sim.md`](uart_sim.md): UART sensors simulated on a classic ESP32 with loopback and cross-wired UARTs, a Duco ventilation box model on a second UART, RP2 UART pin choice with an in-chip loopback, LengthFrameReader injection for ld2410 and tuya, a PMS5003T fed from the host over the logger port and UART RX under power management, sds011 and mhz19 on virtual_uart buses with no UART at all
 - [`uart_parity.md`](uart_parity.md): 8N1 against 8E1 on the wire with a raw termios reader and an 8E1 receiver model, shelly_dimmer frames
 - [`uart_tx_break.md`](uart_tx_break.md): TX break levels on ESP32-S3 and ESP8266 pads, LibreTiny break bench with a loopback wire, RTL8720C pin mux ownership
 - [`gpio_expander.md`](gpio_expander.md): interrupt driven expander inputs, loop idle checks, testing a device out of reach
@@ -93,7 +93,7 @@ One file per component, named after it:
 - [`heap_alloc.md`](heap_alloc.md): operator new counting, and a ring of allocation callers decoded with addr2line to tell the first run after boot from repeats
 - [`wled.md`](wled.md): WLED realtime sender on a board's own access point
 - [`combination.md`](combination.md): combination sensor NaN behaviour from the last source
-- [`improv.md`](improv.md): Improv serial with stray bytes, scan, bad and good passwords from a client that reads frames out of the log stream, Improv over BLE, per board notes, logger console echo per transport
+- [`improv.md`](improv.md): Improv serial with stray bytes, scan, bad and good passwords from a client that reads frames out of the log stream, Improv over BLE, per board notes, logger console echo per transport, USB Serial/JTAG RX ring heap check with a console write stress
 - [`arduino_pico.md`](arduino_pico.md): arduino-pico framework bump A/B: W5100S Ethernet soak, Pico W fallback AP client count, Pico W bluetooth_proxy GATT hold, web_server SSE stalls, `/events` churn crashes and never completed connects, W5100S OTA without `interrupt_pin`
 - [`bluedroid_gattc_queue.md`](bluedroid_gattc_queue.md): queued MTU request and execute write recursion that overflows BTU_TASK, ble_client central against an ESP32-S3 peer
 - [`tcp_link.md`](tcp_link.md): tcp packet_interface link, host to host pair on one computer, raw framing peer, entity_transport both ways

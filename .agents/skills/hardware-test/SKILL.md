@@ -228,7 +228,8 @@ Per-topic scripts, each described in the matching `reference/recipes/<component>
 - `i2c_wire_ab/` (I2C wire token streams from host stubs, GPIO sniffers and an in-firmware target, `mux/` simulated
   TCA9548A host harness, device sweep, target and comparers)
 - `i2s_loopback/` (I2S microphone loopback with a DC generator)
-- `improv/` (Improv serial and BLE clients, serial scan reply dump, open AP config, package and runner)
+- `improv/` (Improv serial and BLE clients, serial scan reply dump, open AP config, package and runner, USB Serial/JTAG
+  heap and log burst configs, console write stress, log burst checker)
 - `interval/` (plain and delayed interval package, timing summary and runner)
 - `ipv6_boot/` (milestone probe header with a netif fault injection wrap, base config with busy loop and injection
   add-ons, runner and analyzer)
@@ -241,7 +242,7 @@ Per-topic scripts, each described in the matching `reference/recipes/<component>
   sensor soak)
 - `libretiny_crash/` (BK72xx crash probe header, capture decoder, RTL8720C ROM dump versus report matcher)
 - `libretiny_edges/` (pulse generator for BK72xx and BW15, RTL8710B pull-toggle edge and ISR read probe with two pin
-  layouts, timing bench config, summary)
+  layouts, timing bench config, summary, AmebaZ OTA image RAM section check)
 - `libretiny_prefs/` (rtc preference harness header)
 - `light_sleep_wake/` (LEDC wave and edge timer for light sleep wakeup on a C3, external wave generator and per-call
   edge detail probe for peripheral power-down on the P4)
@@ -318,6 +319,8 @@ Per-topic scripts, each described in the matching `reference/recipes/<component>
 - `uart_sim/` (API driver and flash, capture and drive runner for the simulated UART sensors)
 - `uart_sim/duco/` (Duco box model, config generator, runner)
 - `uart_sim/pms_feed/` (PMS5003T feeder and capture on the logger port, power management variants)
+- `uart_sim/virtual_uart/` (sds011 and mhz19 models on virtual_uart buses with overflow and ring checks, per platform
+  configs, API capture)
 - `uart_tx_break/` (TX break cycle components for ESP32, ESP8266 and LibreTiny with their configs)
 - `udp/` (datagram recorder, `udp.write` payload checker and case driver)
 - `usb_audio/` (URL player)

@@ -45,6 +45,8 @@ i2c_wire_ab/*/*-ser*.txt
 i2c_wire_ab/*/*-upload.log
 i2c_wire_ab/mux/*-ser*.txt*
 i2c_wire_ab/mux/*.log
+improv/*-boot*.log
+improv/*-stress.bin
 improv/*.log
 interval/ivl*.yaml
 ld2420_sim/ldenergy*.yaml
@@ -109,6 +111,8 @@ uart_button/uartbtn*.yaml
 uart_parity/*.txt
 uart_sim/pms_feed/*.log
 uart_sim/pms_feed/*.txt
+uart_sim/virtual_uart/*.log
+uart_sim/virtual_uart/*.states
 value_range/rng*.yaml
 vl6180x/*.log
 vl6180x/ext/
