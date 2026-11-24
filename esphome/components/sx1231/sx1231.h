@@ -39,7 +39,8 @@ enum class RadioState : uint8_t {
 
 class SX1231Listener {
  public:
-  // Called from loop(); the packet is only valid until this returns. snr is always NAN.
+  // Called from loop() with 1 to SX1231_MAX_PACKET_SIZE bytes, which are only valid until this returns.
+  // snr is always NAN.
   virtual void on_packet(const std::vector<uint8_t> &packet, float rssi, float snr) = 0;
 };
 
@@ -96,7 +97,7 @@ class SX1231 final : public Component,
   void register_listener(SX1231Listener *listener) { this->listeners_.push_back(listener); }
   // True while a packet is being received, or has been received and not yet read; sending would lose it.
   bool is_receiving();
-  Trigger<const std::vector<uint8_t> &, float, float> *get_packet_trigger() { return &this->packet_trigger_; }
+  Trigger<std::vector<uint8_t>, float, float> *get_packet_trigger() { return &this->packet_trigger_; }
 
  protected:
   // Settings as last applied by configure(), used by sends and reception
@@ -134,7 +135,7 @@ class SX1231 final : public Component,
   void write_register_(uint8_t reg, uint8_t value);
   void call_listeners_(const std::vector<uint8_t> &packet, float rssi, float snr);
   uint8_t read_register_(uint8_t reg);
-  Trigger<const std::vector<uint8_t> &, float, float> packet_trigger_;
+  Trigger<std::vector<uint8_t>, float, float> packet_trigger_;
   std::vector<SX1231Listener *> listeners_;
   std::vector<uint8_t> packet_;
   TxOperation tx_;

@@ -32,7 +32,9 @@ def _radio(**options: Any) -> ConfigType:
         "bandwidth": "125_0kHz",
         "bitrate": 4800,
         "bitsync": True,
+        "deviation": 5000,
         "dio0_pin": {"number": 10},
+        "frequency": 915000000,
         "modulation": "FSK",
         "pa_pin": "BOOST",
         "pa_power": 13,
@@ -84,6 +86,14 @@ def esp32(set_core_config: SetCoreConfigCallable) -> None:
         _radio(preamble_size=1851),
         # A fixed length is timed instead of the largest packet
         _radio(preamble_size=1905, payload_length=10),
+        _radio(frequency=290000000),
+        _radio(frequency=424000000),
+        _radio(frequency=1020000000),
+        _radio(deviation=600),
+        # OOK has no deviation
+        _radio(modulation="OOK", deviation=0, bitrate=32768),
+        # Just under twice the 125 kHz bandwidth
+        _radio(bitrate=249999, deviation=50000),
     ],
 )
 def test_config_valid(config: ConfigType) -> None:
@@ -114,6 +124,15 @@ def test_config_valid(config: ConfigType) -> None:
         ),
         # 4000 ms at the requested bitrate, more at the one the radio's divider gives
         (_radio(bitrate=68000, preamble_size=33931), "takes 4000 ms to send"),
+        (_radio(frequency=340000001), "only covers 290 to 340 MHz, 424 to 510 MHz"),
+        (_radio(frequency=600000000), "only covers 290 to 340 MHz"),
+        (_radio(deviation=599), "at least 600 Hz with FSK"),
+        (_radio(modulation="OOK", bitrate=32769), "above 32768 with OOK"),
+        (_radio(bitrate=250000), "below 250000, twice the 'bandwidth'"),
+        (
+            _radio(modulation="OOK", bitrate=5300, bandwidth="2_6kHz"),
+            "below 5208, twice the 'bandwidth'",
+        ),
     ],
 )
 def test_config_invalid(config: ConfigType, message: str) -> None:
@@ -189,6 +208,7 @@ def test_spi_bus_pins(
         (_radio(packet_mode=False), False, "'packet_mode' must be true"),
         (_radio(payload_length=16), False, "'payload_length' must be 0"),
         (_radio(rx_start=False), True, "unless its 'rx_start' is true"),
+        (_radio(sync_value=[]), False, "The radio needs a 'sync_value'"),
     ],
 )
 def test_packet_transport_final_validate(

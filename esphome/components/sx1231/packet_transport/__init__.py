@@ -15,6 +15,7 @@ from .. import (
     CONF_PAYLOAD_LENGTH,
     CONF_RX_START,
     CONF_SX1231_ID,
+    CONF_SYNC_VALUE,
     SX1231,
     SX1231Listener,
     sx1231_ns,
@@ -41,6 +42,11 @@ def _final_validate(config: ConfigType) -> ConfigType:
     if radio[CONF_PAYLOAD_LENGTH] != 0:
         raise cv.Invalid(
             f"Packets vary in length, so the radio's '{CONF_PAYLOAD_LENGTH}' must be 0",
+            path=[CONF_SX1231_ID],
+        )
+    if not radio[CONF_SYNC_VALUE]:
+        raise cv.Invalid(
+            f"The radio needs a '{CONF_SYNC_VALUE}', so that it does not take noise for packets",
             path=[CONF_SX1231_ID],
         )
     if config[CONF_PING_PONG_ENABLE] and not radio[CONF_RX_START]:

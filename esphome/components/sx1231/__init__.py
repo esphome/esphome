@@ -78,6 +78,11 @@ BW = {
 
 MOD = SX1231DataModul.options("FSK", "OOK", prefix="MOD_")
 
+# The synthesizer does not cover the gaps between these bands
+FREQUENCY_BANDS = ((290, 340), (424, 510), (862, 1020))
+MIN_FSK_DEVIATION = 600
+MAX_OOK_BITRATE = 32768
+
 # RFO is the output of the RFM69W and RFM69CW, BOOST that of the RFM69HW and RFM69HCW
 PA_PIN = SX1231PaLevel.options("RFO", "BOOST", prefix="PA_PIN_")
 
@@ -128,7 +133,18 @@ MAX_PACKET_SIZE = 64
 validate_packet_data = cv.All(validate_raw_data, cv.Length(min=1, max=MAX_PACKET_SIZE))
 
 
+def _bandwidth_hz(name: str) -> float:
+    code = BW[name]
+    return 32e6 / ((16 + 4 * (code >> 3)) << ((code & 0x07) + 2))
+
+
 def validate_config(config: ConfigType) -> ConfigType:
+    if not any(
+        low * 1e6 <= config[CONF_FREQUENCY] <= high * 1e6
+        for low, high in FREQUENCY_BANDS
+    ):
+        bands = ", ".join(f"{low} to {high} MHz" for low, high in FREQUENCY_BANDS)
+        raise cv.Invalid(f"The radio only covers {bands}", path=[CONF_FREQUENCY])
     if config[CONF_MODULATION] == "OOK":
         if config[CONF_BANDWIDTH] == "500_0kHz":
             raise cv.Invalid(
@@ -139,9 +155,27 @@ def validate_config(config: ConfigType) -> ConfigType:
                 f"{config[CONF_SHAPING]} is only available with FSK",
                 path=[CONF_SHAPING],
             )
-    elif config[CONF_SHAPING].startswith("CUTOFF"):
+        if config[CONF_BITRATE] > MAX_OOK_BITRATE:
+            raise cv.Invalid(
+                f"The bitrate cannot be above {MAX_OOK_BITRATE} with OOK",
+                path=[CONF_BITRATE],
+            )
+    else:
+        if config[CONF_SHAPING].startswith("CUTOFF"):
+            raise cv.Invalid(
+                f"{config[CONF_SHAPING]} is only available with OOK",
+                path=[CONF_SHAPING],
+            )
+        if config[CONF_DEVIATION] < MIN_FSK_DEVIATION:
+            raise cv.Invalid(
+                f"The deviation must be at least {MIN_FSK_DEVIATION} Hz with FSK",
+                path=[CONF_DEVIATION],
+            )
+    # The receiver cannot sample a bitrate of twice its bandwidth or more
+    if config[CONF_BITRATE] >= 2 * (width := _bandwidth_hz(config[CONF_BANDWIDTH])):
         raise cv.Invalid(
-            f"{config[CONF_SHAPING]} is only available with OOK", path=[CONF_SHAPING]
+            f"The bitrate must be below {2 * width:.0f}, twice the '{CONF_BANDWIDTH}'",
+            path=[CONF_BITRATE],
         )
     if config[CONF_PACKET_MODE]:
         if CONF_DIO0_PIN not in config:
@@ -228,10 +262,7 @@ async def to_code(config: ConfigType) -> None:
         await automation.build_automation(
             var.get_packet_trigger(),
             [
-                (
-                    cg.std_vector.template(cg.uint8).operator("const").operator("ref"),
-                    "x",
-                ),
+                (cg.std_vector.template(cg.uint8), "x"),
                 (cg.float_, "rssi"),
                 (cg.float_, "snr"),
             ],

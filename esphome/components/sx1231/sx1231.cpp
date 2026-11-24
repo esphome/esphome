@@ -84,18 +84,17 @@ void SX1231::write_register16_(uint8_t msb_reg, uint16_t value) {
 
 void SX1231::setup() {
   setup_output_pin(this->rst_pin_, false);
-
-  if (this->dio0_pin_ != nullptr) {
-    this->dio0_pin_->setup();
-    this->dio0_pin_->attach_interrupt(&SX1231::gpio_intr, this, gpio::INTERRUPT_RISING_EDGE);
-  }
-
   this->spi_setup();
 
   const LogString *reason = this->configure_radio_();
   if (reason != nullptr) {
     this->mark_failed(reason);
     return;
+  }
+  // After the radio is known to work: core keeps a loop request from a failed component pending for good
+  if (this->dio0_pin_ != nullptr) {
+    this->dio0_pin_->setup();
+    this->dio0_pin_->attach_interrupt(&SX1231::gpio_intr, this, gpio::INTERRUPT_RISING_EDGE);
   }
   this->state_ = RadioState::RADIO_STATE_IDLE;
   // Sized once so later packet reads do not reallocate
@@ -140,10 +139,15 @@ void SX1231::fail_(const LogString *reason) {
 const LogString *SX1231::configure_radio_() {
   // Until this succeeds
   this->state_ = RadioState::RADIO_STATE_NEEDS_CONFIGURATION;
-  if (this->pa_pin_ == PA_PIN_BOOST) {
-    this->pa_power_ = clamp(this->pa_power_, (int8_t) -2, (int8_t) 20);
-  } else {
-    this->pa_power_ = clamp(this->pa_power_, (int8_t) -18, (int8_t) 13);
+  // Codes from 0x18 are reserved, and OOK uses the next exponent down, which a code with exponent 0 does not have
+  if (this->bandwidth_ >= 0x18 || (this->modulation_ == MOD_OOK && (this->bandwidth_ & 0x07) == 0)) {
+    return LOG_STR("Invalid bandwidth");
+  }
+  const bool boost = this->pa_pin_ == PA_PIN_BOOST;
+  const int8_t pa_power = clamp<int8_t>(this->pa_power_, boost ? -2 : -18, boost ? 20 : 13);
+  if (pa_power != this->pa_power_) {
+    ESP_LOGW(TAG, "PA power %d dBm is out of range for the PA pin, using %d dBm", this->pa_power_, pa_power);
+    this->pa_power_ = pa_power;
   }
   const bool high_power = this->pa_power_ > 17;
   this->applied_ = {this->payload_length_, this->packet_mode_, this->rx_start_, high_power};
@@ -344,15 +348,15 @@ bool SX1231::restore_() {
 }
 
 bool SX1231::is_receiving() {
-  if (this->state_ != RadioState::RADIO_STATE_IDLE || this->dio0_pin_ == nullptr) {
+  if (this->state_ != RadioState::RADIO_STATE_IDLE) {
     return false;
   }
-  // In receive mode DIO0 signals a received packet that loop() has not read yet; in other modes it is low
-  if (this->dio0_pin_->digital_read()) {
+  // Set from the sync word until the packet has been read, and cleared on leaving receive mode
+  if ((this->read_register_(REG_IRQ_FLAGS1) & SYNC_ADDRESS_MATCH) != 0) {
     return true;
   }
-  // Set from the sync word until the packet has been read, and cleared on leaving receive mode
-  return (this->read_register_(REG_IRQ_FLAGS1) & SYNC_ADDRESS_MATCH) != 0;
+  // Without a sync word, only a received packet that loop() has not read yet shows
+  return this->packet_waiting_();
 }
 
 bool SX1231::packet_waiting_() {
@@ -396,6 +400,12 @@ void SX1231::receive_() {
   uint8_t payload_length = this->applied_.payload_length;
   if (payload_length == 0) {
     payload_length = this->read_register_(REG_FIFO);
+  }
+  if (payload_length == 0 || payload_length > SX1231_MAX_PACKET_SIZE) {
+    ESP_LOGW(TAG, "Dropping packet with invalid length %u", payload_length);
+    // Empties the FIFO, which restarts the receiver
+    this->write_register_(REG_IRQ_FLAGS2, FIFO_OVERRUN);
+    return;
   }
   this->packet_.resize(payload_length);
   this->read_fifo_(this->packet_);
