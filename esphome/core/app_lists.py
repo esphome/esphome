@@ -117,12 +117,17 @@ def _defined_values() -> dict[str, set[str]]:
     return values
 
 
-def _add_count_define(defined: dict[str, set[str]], name: str, value: int) -> None:
+def _add_count_define(
+    defined: dict[str, set[str]],
+    name: str,
+    value: int,
+    reason: str = "entities cannot be added at run time",
+) -> None:
     """Emit a list size, refusing a different value defined elsewhere: it would size the walk wrong."""
     if others := sorted(defined.get(name, set()) - {str(value)}):
         raise EsphomeError(
             f"{name} is defined as {', '.join(others)} elsewhere, but codegen sizes it as "
-            f"{value}. Remove that define; entities cannot be added at run time."
+            f"{value}. Remove that define; {reason}."
         )
     add_define(name, value)
 
@@ -157,7 +162,12 @@ async def _emit_entity_lists() -> None:
         _emit_list(upper, objs)
     for upper in ("DEVICE", "AREA"):
         if (objs := state.lists.get(upper)) is not None:
-            _add_count_define(defined, f"ESPHOME_{upper}_COUNT", len(objs))
+            _add_count_define(
+                defined,
+                f"ESPHOME_{upper}_COUNT",
+                len(objs),
+                "devices and areas come from the YAML devices: and areas: lists",
+            )
             _emit_list(upper, objs)
 
 
