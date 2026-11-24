@@ -133,6 +133,22 @@ gp_ok = (
 )
 out.append(f"get_pixel matches PNG: {gp_ok}")
 allok &= gp_ok
+# a lost log line must fail the run, not drop a scene or row from the comparison
+for n, k in KIND.items():
+    gp = G[k[0] if isinstance(k, tuple) else n]
+    rows = R.get(n, {})
+    if (
+        not gp
+        or n not in S
+        or n not in HG
+        or rows.keys() != gp.keys()
+        or any(len(rows[y]) != len(gp[y]) for y in gp)
+    ):
+        allok = False
+        out.append(f"{n:13s} INCOMPLETE capture")
+if len(L) != 6:
+    allok = False
+    out.append(f"fill levels: {len(L)} of 6 logged")
 for n, rows in R.items():
     k = KIND.get(n)
     if k is None:
