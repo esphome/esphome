@@ -1,0 +1,36 @@
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  power_save_mode: none
+api:
+  reboot_timeout: 0s
+i2s_audio:
+  - id: i2s_in
+    i2s_lrclk_pin: GPIO23
+    i2s_bclk_pin: GPIO5
+  - id: i2s_out
+    i2s_lrclk_pin: GPIO25
+    i2s_bclk_pin: GPIO26
+microphone:
+  - platform: i2s_audio
+    id: mic
+    i2s_audio_id: i2s_in
+    i2s_din_pin: GPIO39
+    adc_type: external
+    pdm: false
+speaker:
+  - platform: i2s_audio
+    id: spk
+    i2s_audio_id: i2s_out
+    dac_type: external
+    i2s_dout_pin: GPIO32
+voice_assistant:
+  id: va
+  microphone: mic
+  speaker: spk
+button:
+  - platform: template
+    name: VA Start
+    id: va_start
+    on_press:
+      - voice_assistant.start:

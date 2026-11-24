@@ -1,0 +1,118 @@
+# Async serial ASK/OOK on the single GDO0 pin, shared open drain by remote_receiver and remote_transmitter (the cc1101
+# docs example). Each board also decodes its own sends, so count codes by command range per direction.
+esphome:
+  name: ${name}
+  includes: [cclong.hpp]
+logger:
+  hardware_uart: USB_SERIAL_JTAG
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  power_save_mode: none
+spi:
+  clk_pin: ${clk}
+  mosi_pin: ${mosi}
+  miso_pin: ${miso}
+globals:
+  - {id: txn, type: uint32_t, initial_value: "0"}
+  - {id: rawtx, type: bool, initial_value: "false"}
+api:
+  reboot_timeout: 0s
+  encryption:
+    key: !secret api_key
+  actions:
+    - action: send
+      variables: {count: int, base: int, gap_ms: int}
+      then:
+        - repeat:
+            count: !lambda return count;
+            then:
+              - remote_transmitter.transmit_nec:
+                  address: 0x1234
+                  command: !lambda 'return base + iteration;'
+              - delay: !lambda return gap_ms;
+        - lambda: 'ESP_LOGI("cct", "SENT count=%d base=%d txn=%u MARC=0x%02X", count, base, (unsigned) id(txn), ccl::rdst(id(radio), 0x35) & 0x1F);'
+    - action: pdsend
+      variables: {cmd: int}
+      then:
+        - lambda: 'id(rawtx) = true; id(radio).power_down();'
+        - remote_transmitter.transmit_nec:
+            address: 0x1234
+            command: !lambda 'return cmd;'
+        - lambda: 'id(rawtx) = false; ESP_LOGI("cct", "PDSENT cmd=%d MARC=0x%02X", cmd, ccl::rdst(id(radio), 0x35) & 0x1F);'
+    - action: pdtx
+      then:
+        - lambda: |-
+            auto *c = id(radio);
+            c->power_down();
+            c->begin_tx();
+            const uint8_t m = ccl::rdst(c, 0x35) & 0x1F;
+            c->begin_rx();
+            ESP_LOGI("cct", "PDTX MARC after begin_tx=0x%02X after begin_rx=0x%02X", m, ccl::rdst(c, 0x35) & 0x1F);
+    - action: pdown
+      then:
+        - lambda: 'id(radio).power_down(); ESP_LOGI("cct", "POWER_DOWN");'
+    - action: regchk
+      then:
+        - lambda: |-
+            auto *c = id(radio);
+            const uint8_t p0 = ccl::rd(c, 0x08);
+            c->begin_tx();
+            delay(5);
+            const uint8_t p1 = ccl::rd(c, 0x08), m1 = ccl::rdst(c, 0x35) & 0x1F;
+            c->begin_rx();
+            const uint8_t m2 = ccl::rdst(c, 0x35) & 0x1F;
+            c->set_crc_enable(true);
+            const uint8_t p2 = ccl::rd(c, 0x08);
+            c->begin_tx();
+            delay(5);
+            const uint8_t p3 = ccl::rd(c, 0x08), m3 = ccl::rdst(c, 0x35) & 0x1F;
+            c->begin_rx();
+            c->set_crc_enable(false);
+            ESP_LOGI("cct", "REGCHK pktctrl0 %02X->begin_tx->%02X marc=%02X rx marc=%02X | crc on %02X->begin_tx->%02X marc=%02X | now %02X marc=%02X",
+                     p0, p1, m1, m2, p2, p3, m3, ccl::rd(c, 0x08), ccl::rdst(c, 0x35) & 0x1F);
+    - action: state
+      then:
+        - lambda: 'ESP_LOGI("cct", "STATE PKTCTRL0=0x%02X IOCFG0=0x%02X MARC=0x%02X", ccl::rd(id(radio), 0x08), ccl::rd(id(radio), 0x02), ccl::rdst(id(radio), 0x35) & 0x1F);'
+cc1101:
+  id: radio
+  cs_pin: ${cs}
+  frequency: 433.92MHz
+  modulation_type: ASK/OOK
+  output_power: 10
+remote_receiver:
+  pin: &gdo0pin
+    number: ${gdo0}
+    mode:
+      input: true
+      output: true
+      pullup: true
+      open_drain: true
+    allow_other_uses: true
+  dump: raw
+  rmt_symbols: ${rxsym}
+  filter: 250us
+  idle: 12ms
+  tolerance: 35%
+  on_nec:
+    then:
+      - lambda: 'ESP_LOGI("cct", "NEC addr=0x%04X cmd=0x%04X", x.address, x.command);'
+remote_transmitter:
+  pin: *gdo0pin
+  eot_level: false
+  carrier_duty_percent: 100%
+  on_transmit:
+    then:
+      - lambda: 'id(txn)++;'
+      - if:
+          condition:
+            lambda: 'return !id(rawtx);'
+          then:
+            - cc1101.set_idle
+      - remote_transmitter.digital_write: false
+      - cc1101.begin_tx
+  on_complete:
+    then:
+      - cc1101.set_idle
+      - remote_transmitter.digital_write: true
+      - cc1101.begin_rx

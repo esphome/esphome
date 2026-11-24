@@ -6,6 +6,7 @@ import logging
 import math
 import re
 import string
+import struct
 from typing import Any
 
 import voluptuous as vol
@@ -264,6 +265,9 @@ validate_condition_list = cv.validate_registry("condition", CONDITION_REGISTRY)
 ApplyAction = cg.esphome_ns.class_("ApplyAction", Action)
 ApplyRunAction = cg.esphome_ns.class_("ApplyRunAction", Action)
 ApplyCondition = cg.esphome_ns.class_("ApplyCondition", Condition)
+# A component whose logic calls fire(); FireCallback<fn, Base> implements it, so pass the base in template_args
+FiringComponent = cg.esphome_ns.class_("FiringComponent", cg.Component)
+FireCallback = cg.esphome_ns.class_("FireCallback", FiringComponent)
 
 
 @dataclass(frozen=True)
@@ -784,6 +788,15 @@ async def call_user_lambda(
     return expr
 
 
+async def bind_lambda(
+    value: Lambda, args: TemplateArgsType, return_type: SafeExpType, name: str
+) -> str:
+    """``const <return_type> <name> = <value>(args...);``, a statement of its own so the
+    order of evaluation is fixed; args are passed as ``call_user_lambda`` does."""
+    call = await call_user_lambda(value, args, return_type)
+    return f"const {return_type} {name} = {call};"
+
+
 async def _render_call(
     name: str,
     target: str,
@@ -925,10 +938,10 @@ async def _render_bytes(
         return f"{receiver}{target.format(data, parent=parent)};"
 
     if isinstance(value, Lambda):
-        call = await call_user_lambda(value, args, _BYTE_VECTOR)
+        bind = await bind_lambda(value, args, _BYTE_VECTOR, "esphome__bytes")
         return [
             "{",
-            f"  const std::vector<uint8_t> esphome__bytes = {call};",
+            f"  {bind}",
             f"  {send(spec.target, 'esphome__bytes.data(), esphome__bytes.size()')}",
             "}",
         ]
@@ -2137,8 +2150,8 @@ def _automation_from_plan(
 def _is_direct(plan: list[MockObj | list[_InlineAction]], config: ConfigType) -> bool:
     """Whether a callback automation is all inline actions, so it needs no objects.
 
-    Without a Trigger or a manual id nothing can reach such an automation to stop it, so
-    no stop checks are needed either. Only for callers that create no Trigger.
+    Without a Trigger or an automation id set by hand nothing can reach such an automation
+    to stop it, so no stop checks are needed either. Only for callers that create no Trigger.
     """
     return (
         not config[CONF_AUTOMATION_ID].is_manual
@@ -2167,6 +2180,17 @@ def _direct_function(
     )
 
 
+def _call_target(
+    plan: list[MockObj | list[_InlineAction]],
+    args: TemplateArgsType,
+    config: ConfigType,
+) -> MockObj:
+    """What a generated callback calls: the direct function, else ``<automation>->trigger``."""
+    if (target := _direct_function(plan, args, config)) is None:
+        target = parent_ref(_automation_from_plan(plan, args, config)).trigger
+    return target
+
+
 def _args_templ(args: TemplateArgsType) -> cg.TemplateArguments:
     return cg.TemplateArguments(*(arg[0] for arg in args))
 
@@ -2192,6 +2216,45 @@ async def build_automation(
     return await new_automation(args, config, trigger)
 
 
+async def build_component_automation(
+    config: ConfigType,
+    component_class: MockObjClass,
+    priority: float | None = None,
+    *,
+    id_key: str = CONF_TRIGGER_ID,
+    template_args: Sequence[SafeExpType] = (),
+    args: Sequence[tuple[SafeExpType, str]] = (),
+    ctor_args: Sequence[SafeExpType] = (),
+) -> MockObj:
+    """Create and register ``component_class<function[, priority bits], *template_args>(*ctor_args)``,
+    whose function takes ``args`` and runs the automation's actions; ``config[id_key]`` names it.
+    """
+    name, build = declare_automation_function(list(args), config)
+    id_ = config[id_key].copy()
+    id_.type = component_class
+    bits = [] if priority is None else [_float_bits(priority)]
+    var = cg.new_Pvariable(
+        id_, cg.TemplateArguments(name, *bits, *template_args), *ctor_args
+    )
+    # Registered before the actions are built, which can wait for other ids
+    await cg.register_component(var, config)
+    await build()
+    return var
+
+
+def _float_bits(value: float) -> HexInt:
+    """``value`` as a C++ float's bit pattern, for a template argument.
+
+    Out of float range becomes signed infinity, as the C++ conversion does.
+    """
+    try:
+        packed = struct.pack("<f", value)
+    except OverflowError:
+        packed = struct.pack("<f", math.copysign(math.inf, value))
+    (bits,) = struct.unpack("<I", packed)
+    return HexInt(bits)
+
+
 def declare_automation_function(
     args: TemplateArgsType, config: ConfigType, after: list[str] | None = None
 ) -> tuple[MockObj, Callable[[], Awaitable[None]]]:
@@ -2200,8 +2263,10 @@ def declare_automation_function(
     Await it once the object naming the function exists; ``after`` runs after the last action unless stopped.
     """
     automation_id = config[CONF_AUTOMATION_ID]
-    name = _apply_function_name(automation_id)
+    fn_id = cg.unique_global_id(_apply_function_name(automation_id), None)
+    name = fn_id.id
     define = cg.declare_static_function(name, cg.void, _apply_params(args))
+    CORE.register_variable(fn_id, cg.RawExpression(name))
 
     async def build() -> None:
         plan = await _build_automation_plan(args, config)
@@ -2254,10 +2319,7 @@ async def _trigger_callback(
     call: ApplyCall | None,
     parent: MockObj | None,
 ) -> MockObj:
-    if (direct := _direct_function(plan, args, config)) is None:
-        target = f"{parent_ref(_automation_from_plan(plan, args, config))}->trigger"
-    else:
-        target = direct
+    target = _call_target(plan, args, config)
     statements: list[str] = []
     if call is not None:
         members = call.members
@@ -2275,8 +2337,8 @@ async def _trigger_callback(
             )
             statements.append(f"if (!({check}))\n  return;")
     if forward is None:
-        if direct is not None and not statements and _same_types(params, args):
-            return direct
+        if _is_direct(plan, config) and not statements and _same_types(params, args):
+            return target
         forward = [name for _, name in params]
     statements.append(f"{target}({', '.join(map(str, forward))});")
     return apply_static_function(

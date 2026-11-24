@@ -1,0 +1,8 @@
+# swapped UART0 (GPIO15/13); the report goes out on the unswapped pins
+substitutions:
+  name: sdb
+  tx: GPIO15
+  rx: GPIO13
+  report: 'if (sw0) Serial.swap(); Serial.write((const uint8_t *) buf, l); Serial.flush(); if (sw0) Serial.swap();'
+packages:
+  c: !include common.yaml

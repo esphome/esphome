@@ -1,0 +1,10 @@
+# Frequency scaling (min_frequency below max_frequency); set enable_light_sleep: true for the light sleep case
+substitutions:
+  name: pms-dfs
+packages:
+  common: !include pms-common.yaml
+power_management:
+  - platform: esp32_power_management
+    enable_light_sleep: false
+    min_frequency: 10MHz
+    max_frequency: 80MHz
