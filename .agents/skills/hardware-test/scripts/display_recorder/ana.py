@@ -28,24 +28,27 @@ for line in pathlib.Path(cap).read_text(encoding="latin-1").splitlines():
     m = re.search(r"\[rec[^\]]*\]: (\w+) (\S+) (.*)$", line.strip())
     if not m:
         continue
-    k, n, rest = m.groups()
-    if k in ("G", "R"):
-        y, hx = rest.split(" ", 1)
-        px = [
-            None
-            if hx[i : i + 8] == "--------"
-            else tuple(int(hx[i + j : i + j + 2], 16) for j in (0, 2, 4, 6))
-            for i in range(0, len(hx), 8)
-        ]
-        (G if k == "G" else R)[n][int(y)] = px
-    elif k == "S":
-        S[n] = dict(kv.split("=") for kv in rest.split())
-    elif k == "Hg":
-        HG[n] = [int(v) for v in rest.strip(",").split(",")]
-    elif k == "L":
-        L[n] = rest
-    elif k == "T":
-        T[n] = dict(kv.split("=") for kv in rest.split())
+    try:  # a line cut short by a lossy capture is skipped; the completeness checks catch the gap
+        k, n, rest = m.groups()
+        if k in ("G", "R"):
+            y, hx = rest.split(" ", 1)
+            px = [
+                None
+                if hx[i : i + 8] == "--------"
+                else tuple(int(hx[i + j : i + j + 2], 16) for j in (0, 2, 4, 6))
+                for i in range(0, len(hx) // 8 * 8, 8)
+            ]
+            (G if k == "G" else R)[n][int(y)] = px
+        elif k == "S":
+            S[n] = dict(kv.split("=") for kv in rest.split())
+        elif k == "Hg":
+            HG[n] = [int(v) for v in rest.strip(",").split(",")]
+        elif k == "L" and "gray4=" in rest:
+            L[n] = rest
+        elif k == "T":
+            T[n] = dict(kv.split("=") for kv in rest.split())
+    except ValueError:
+        continue
 
 
 def bc(f, t, a):
@@ -114,44 +117,49 @@ allok = True
 ring = Image.open("ring_L.png")
 agr = Image.open("agrad.png")
 ra = Image.open("ring_alpha.png")
-gp_ok = (
-    all(
-        G["gray"][y][x][:3] == (ring.getpixel((x, y)),) * 3
-        for y in range(48)
-        for x in range(48)
+try:  # a lost or cut G row fails the check instead of raising
+    gp_ok = (
+        all(
+            G["gray"][y][x][:3] == (ring.getpixel((x, y)),) * 3
+            for y in range(48)
+            for x in range(48)
+        )
+        and all(
+            G["agrad"][y][x] == (0, 0, 0, agr.getpixel((x, y))[3])
+            for y in range(16)
+            for x in range(16)
+        )
+        and all(
+            G["gray_a"][y][x] == (0, 0, 0, ra.getpixel((x, y))[3])
+            for y in range(48)
+            for x in range(48)
+        )
     )
-    and all(
-        G["agrad"][y][x] == (0, 0, 0, agr.getpixel((x, y))[3])
-        for y in range(16)
-        for x in range(16)
-    )
-    and all(
-        G["gray_a"][y][x] == (0, 0, 0, ra.getpixel((x, y))[3])
-        for y in range(48)
-        for x in range(48)
-    )
-)
+except (KeyError, IndexError, TypeError):
+    gp_ok = False
 out.append(f"get_pixel matches PNG: {gp_ok}")
 allok &= gp_ok
 # a lost log line must fail the run, not drop a scene or row from the comparison
+incomplete = set()
 for n, k in KIND.items():
     gp = G[k[0] if isinstance(k, tuple) else n]
     rows = R.get(n, {})
     if (
         not gp
-        or n not in S
+        or not {"drawn", "w", "on"} <= S.get(n, {}).keys()
         or n not in HG
         or rows.keys() != gp.keys()
         or any(len(rows[y]) != len(gp[y]) for y in gp)
     ):
         allok = False
+        incomplete.add(n)
         out.append(f"{n:13s} INCOMPLETE capture")
 if len(L) != 6:
     allok = False
     out.append(f"fill levels: {len(L)} of 6 logged")
 for n, rows in R.items():
     k = KIND.get(n)
-    if k is None or n not in S or n not in HG:
+    if k is None or n in incomplete:
         continue
     src, on, off = (k[0], k[1], k[2]) if isinstance(k, tuple) else (n, ON, OFF)
     kind = KIND[src]
@@ -188,7 +196,7 @@ for n, rows in R.items():
     )
 # ring gray4 levels: background, ring, center, for the opaque grayscale and 565 scenes
 for n in ("gray", "565", "gray_a", "gray_a_wonly"):
-    if n in R:
+    if n in R and n not in incomplete:
         rr = R[n]
 
         def lv(x, y, rr=rr):
@@ -204,9 +212,9 @@ for n, s in L.items():
     allok &= ok
     out.append(f"fill {n:10s} {s}  host={g4(c)} {'ok' if ok else 'MISMATCH'}")
 out.extend(
-    f"{n} hist={HG[n]} on={S[n]['on']} w={S[n]['w']} drawn={S[n]['drawn']}"
+    f"{n} hist={HG[n]} on={S[n].get('on')} w={S[n].get('w')} drawn={S[n].get('drawn')}"
     for n in ("text_wonly", "text_rgb")
-    if n in HG
+    if n in HG and n in S
 )
 for n, t in T.items():
     out.append(f"time {n:11s} min={t['min']} med={t['med']}")
