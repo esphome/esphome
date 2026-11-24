@@ -3,7 +3,7 @@
 from esphome.components.zephyr import zephyr_add_prj_conf
 from esphome.types import ConfigType
 
-FAMILY: str = "stm32"
+FAMILY = "stm32"
 
 
 def to_code(config: ConfigType) -> None:

@@ -15,7 +15,7 @@ from ..const import VARIANT_STM32C5
 from . import stm32_family
 
 # The largest C5 Nucleo (1M flash, 256K RAM)
-_DEFAULT_BOARD: str = "nucleo_c5a3zg"
+_DEFAULT_BOARD = "nucleo_c5a3zg"
 
 VARIANT: ZephyrVariant = ZephyrVariant(
     name=VARIANT_STM32C5, family_module=stm32_family, manifest=ZEPHYR_MAINLINE
