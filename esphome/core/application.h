@@ -151,7 +151,7 @@ class Application {
   void set_current_source(const LogString *source) { this->current_source_ = source; }
   const LogString *get_current_source() { return this->current_source_; }
 
-// Codegen entities are in the constant APP_<UPPER>_LIST arrays; an old runtime register call is a clear error.
+// Codegen entities are in the constant app_lists::APP_<UPPER>_LIST arrays; a runtime register call is a clear error.
 // NOLINTBEGIN(bugprone-macro-parentheses)
 #define ENTITY_TYPE_(type, singular, plural, count, upper) \
   template<typename U = type, typename... A> void register_##singular(U * /*obj*/, A... /*args*/) { \
@@ -165,7 +165,6 @@ class Application {
 #undef ENTITY_CONTROLLER_TYPE_
   // NOLINTEND(bugprone-macro-parentheses)
 
- public:
 #ifdef USE_SERIAL_PROXY
   void register_serial_proxy(serial_proxy::SerialProxy *proxy) {
     proxy->set_instance_index(this->serial_proxies_.size());
@@ -191,9 +190,8 @@ class Application {
   const char *get_area() const {
 #ifdef USE_AREAS
     // If we have areas registered, return the name of the first one (which is the top-level area)
-    auto areas = this->get_areas();
-    if (!areas.empty())
-      return areas[0]->get_name();
+    if constexpr (ESPHOME_AREA_COUNT > 0)
+      return this->get_areas()[0]->get_name();
 #endif
     return "";
   }
