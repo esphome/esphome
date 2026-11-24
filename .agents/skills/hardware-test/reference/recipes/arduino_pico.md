@@ -79,7 +79,7 @@ Scripts: `scripts/rp2_usbncm/`. Results: https://github.com/esphome/esphome/pull
   interface alt setting through a wrapper around `netd_control_xfer_cb` in `libraries/tusb-ncm`, and the device
   re-enumerates after 3 s at alt 0 with the wait doubling up to 60 s (a 3 try cap was not enough: the hammer hit 4 alt 0
   enumerations in a row). Test it as patched copies of lwIP_USB_NCM and tusb-ncm under `esphome: platformio_options:
-  lib_extra_dirs:` (`usbncm-patched.yaml -s ncm_libs DIR`, steps at the top of the patch, logs NCMLINK on each alt
+  lib_extra_dirs:` (`usbncm-patched.yaml -s ncm_libs DIR/libraries`, steps at the top of the patch, logs NCMLINK on each alt
   change); check with `nm` that
   `__sdk_netd_control_xfer_cb` and `tud_network_ncm_data_alt_cb` are in the image.
 - `usbncm-hammer.yaml` (`tud_disconnect`, 500 ms, `tud_connect` every 12 s) collects alt 0 events fast; the host needs

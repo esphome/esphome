@@ -9,7 +9,7 @@ import pathlib
 import re
 import sys
 
-EV = re.compile(r"EV \d+ t=([\d.]+) ms code=(\w\w) a=(\w\w) b=(\w{4})")
+EV = re.compile(r"\bEV \d+ t=([\d.]+) ms code=(\w\w) a=(\w\w) b=(\w{4})")
 
 
 def blocks(path: str) -> list[dict]:
@@ -85,7 +85,11 @@ def notif(b: dict, seen: set) -> None:
 
 def main(path: str, mode: str) -> None:
     seen: set = set()
+    prev = None
     for b in blocks(path):
+        if b["ev"] == prev:  # the same boot's ring, printed again by the next report
+            continue
+        prev = b["ev"]
         if mode == "alt0":
             alt0(b)
         else:

@@ -336,14 +336,13 @@ inline void pd5_report() {
            (unsigned) pd5_prev.stall_ms);
   ESP_LOGI("pdiag", "previous boot USB: alt1 at %u ms, first NCM IN start %u ms, first NCM IN complete %u ms",
            (unsigned) pd5_prev.alt1_ms, (unsigned) pd5_prev.first_in_start_ms, (unsigned) pd5_prev.first_in_cmpl_ms);
-  if (reports == 1) {
-    uint32_t n6 = pd6_prev_evpos < PD6_EVR ? pd6_prev_evpos : PD6_EVR;
-    ESP_LOGI("pdiag", "EVENTS %u recorded (first %u kept)", (unsigned) pd6_prev_evpos, (unsigned) n6);
-    for (uint32_t k = 0; k < n6; k++) {
-      const Pd6Evt &e = pd6_prev_ev[k];
-      ESP_LOGI("pdiag", "EV %03u t=%u.%03u ms code=%02X a=%02X b=%04X c=%08X", (unsigned) k, (unsigned) (e.us / 1000),
-               (unsigned) (e.us % 1000), (unsigned) e.code, (unsigned) e.a, (unsigned) e.b, (unsigned) e.c);
-    }
+  // on every report, so an API log subscription that starts late still sees one complete block
+  uint32_t n6 = pd6_prev_evpos < PD6_EVR ? pd6_prev_evpos : PD6_EVR;
+  ESP_LOGI("pdiag", "EVENTS %u recorded (first %u kept)", (unsigned) pd6_prev_evpos, (unsigned) n6);
+  for (uint32_t k = 0; k < n6; k++) {
+    const Pd6Evt &e = pd6_prev_ev[k];
+    ESP_LOGI("pdiag", "EV %03u t=%u.%03u ms code=%02X a=%02X b=%04X c=%08X", (unsigned) k, (unsigned) (e.us / 1000),
+             (unsigned) (e.us % 1000), (unsigned) e.code, (unsigned) e.a, (unsigned) e.b, (unsigned) e.c);
   }
   if (reports > 2 || (pd5_prev.safe_shutdown && pd5_prev.stall_ms == 0))
     return;
