@@ -11,6 +11,7 @@ namespace esphome::wifi::testing {
 struct HostHooks {
   /// What the next scan finds.
   std::vector<WiFiScanResult> scan_results;
+  int scans{0};
   int connects{0};
   WiFiAP last_connect{};
   /// Times the station was switched off, as restart_adapter() does.
