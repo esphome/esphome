@@ -39,7 +39,7 @@ class ESP8266OTABackend final {
   /// Verify the firmware header is valid
   bool verify_end_();
 
-  /// End of the image at offset per its segment table, or 0 if it does not fit or fails its checksum
+  /// End of the image at offset per its segment table, or 0 if it does not fit
   size_t image_end_(size_t offset);
 
   /// Get current flash chip mode from flash header
