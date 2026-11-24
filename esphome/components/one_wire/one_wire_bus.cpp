@@ -18,12 +18,18 @@ const uint8_t ONE_WIRE_ROM_SEARCH = 0xF0;
 
 const std::vector<uint64_t> &OneWireBus::get_devices() { return this->devices_; }
 
-bool OneWireBus::reset_() {
-  int res = this->reset_int();
-  if (res == -1) {
-    ESP_LOGE(TAG, "1-wire bus is held low");
+bool OneWireBus::reset_() { return this->reset_status_() == TransactionStatus::TRANSACTION_STATUS_OK; }
+
+TransactionStatus OneWireBus::reset_status_() {
+  switch (this->reset_int()) {
+    case 1:
+      return TransactionStatus::TRANSACTION_STATUS_OK;
+    case -1:
+      ESP_LOGE(TAG, "1-wire bus is held low");
+      return TransactionStatus::TRANSACTION_STATUS_BUS_LOW;
+    default:
+      return TransactionStatus::TRANSACTION_STATUS_NO_PRESENCE;
   }
-  return res == 1;
 }
 
 bool IRAM_ATTR OneWireBus::select(uint64_t address) {
@@ -70,20 +76,8 @@ bool OneWireBus::submit(Transaction *transaction) {
   if (transaction->is_pending())
     return false;
   transaction->link.next_ = transaction;  // Pending while it runs, as in a queue of one
-  // reset_int() directly, not skip()/select(): those fold a held-low bus into "no presence"
-  TransactionStatus status;
-  switch (this->reset_int()) {
-    case 1:
-      status = TransactionStatus::TRANSACTION_STATUS_OK;
-      break;
-    case -1:
-      ESP_LOGE(TAG, "1-wire bus is held low");
-      status = TransactionStatus::TRANSACTION_STATUS_BUS_LOW;
-      break;
-    default:
-      status = TransactionStatus::TRANSACTION_STATUS_NO_PRESENCE;
-      break;
-  }
+  // reset_status_(), not skip()/select(): those fold a held-low bus into "no presence"
+  const TransactionStatus status = this->reset_status_();
   // write8() and read8() cannot report an error, so after a good reset the status stays TRANSACTION_STATUS_OK
   if (status == TransactionStatus::TRANSACTION_STATUS_OK) {
     if (transaction->address == 0) {

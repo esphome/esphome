@@ -147,6 +147,9 @@ class OneWireBus {
    */
   bool reset_();
 
+  /// Reset the bus like reset_(), but tell a bus held low apart from a bus where no device answered.
+  TransactionStatus reset_status_();
+
   /**
    * Bus Reset
    * @return -1: signal fail, 0: no device detected, 1: device detected
