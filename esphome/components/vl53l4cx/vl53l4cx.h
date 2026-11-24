@@ -56,7 +56,7 @@ class VL53L4CXSensor final : public sensor::Sensor, public PollingComponent, pub
   /// Boots, addresses and starts the sensor; the failure reason, or nullptr.
   const LogString *init_and_start_(bool at_boot);
   void reset_sensor_();
-  bool resetting_() const { return this->enable_pin_ != nullptr && this->failures_ >= MAX_FAILURES; }
+  bool resetting_() const { return this->failures_ >= MAX_FAILURES; }
   bool start_measurement_();
   void measurement_failed_(const LogString *message, VL53L4CX_Error error);
   // A measurement that has not reported ready by now has failed

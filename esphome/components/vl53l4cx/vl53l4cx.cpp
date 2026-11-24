@@ -17,9 +17,12 @@ static constexpr uint8_t DEFAULT_ADDRESS = 0x29;
 static constexpr uint16_t SENSOR_ID = 0xEBAA;
 // ST's first frames after a start are unreliable: none has targets, and some report a near object under farthest
 static constexpr uint8_t SETTLE_FRAMES = 3;
-// After MAX_FAILURES a sensor with an enable pin is reset and set up again until it answers
+// After MAX_FAILURES the sensor is reset and set up again until it answers
 static constexpr uint32_t RESET_INTERVAL_ID = 0;
 static constexpr uint32_t RESET_INTERVAL_MS = 5000;
+// ST's software reset: write 0, wait, write 1; the sensor then boots as after a power-up
+static constexpr uint16_t SOFT_RESET_REGISTER = 0x0000;
+static constexpr uint32_t SOFT_RESET_US = 100;
 
 PROGMEM_STRING_TABLE(TargetStrings, "nearest", "farthest", "strongest");
 // Indexed by ST's VL53L4CX_DISTANCEMODE_* from medium; the VL53L4CX has no short mode
@@ -129,14 +132,22 @@ const LogString *VL53L4CXSensor::init_and_start_(bool at_boot) {
 }
 
 void VL53L4CXSensor::reset_sensor_() {
-  // XSHUT leaves the sensor at the default address with nothing set up, so start over as at boot, with a
-  // fresh driver that talks to the default address too
-  pulse_reset(this->enable_pin_, {.low_ms = 2});
+  // Either reset leaves the sensor at the default address (the only one allowed without an enable pin) with
+  // nothing set up, so start over as at boot, with a fresh driver that talks to the default address too
+  if (this->enable_pin_ != nullptr) {
+    pulse_reset(this->enable_pin_, {.low_ms = 2});
+  } else {
+    // A sensor that does not answer is caught by the boot wait below
+    this->write_byte_reg16(SOFT_RESET_REGISTER, 0);
+    delayMicroseconds(SOFT_RESET_US);
+    this->write_byte_reg16(SOFT_RESET_REGISTER, 1);
+  }
   this->driver_.~VL53L4CX();
   new (&this->driver_) VL53L4CX(this);
   if (const LogString *error = this->init_and_start_(false)) {
     ESP_LOGV(TAG, "Reset failed: %s", LOG_STR_ARG(error));
-    this->enable_pin_->digital_write(false);  // so it cannot answer at the default address
+    if (this->enable_pin_ != nullptr)
+      this->enable_pin_->digital_write(false);  // so it cannot answer at the default address
     return;
   }
   this->cancel_interval(RESET_INTERVAL_ID);
@@ -161,9 +172,7 @@ void VL53L4CXSensor::measurement_failed_(const LogString *message, VL53L4CX_Erro
     this->failures_++;
     if (this->failures_ == MAX_FAILURES) {
       this->publish_state(NAN);
-      // Without one, setting a powered sensor up again would repeat DataInit, which ST expects once per power-up
-      if (this->enable_pin_ != nullptr)
-        this->set_interval(RESET_INTERVAL_ID, RESET_INTERVAL_MS, [this]() { this->reset_sensor_(); });
+      this->set_interval(RESET_INTERVAL_ID, RESET_INTERVAL_MS, [this]() { this->reset_sensor_(); });
     }
   }
 }
