@@ -10,6 +10,7 @@ from pathlib import Path
 import esphome.codegen as cg
 from esphome.components.tflite_micro_runtime import (
     PER_MODEL_SCHEMA,
+    TFLiteMicroHelper,
     declare_model,
     final_validate,
 )
@@ -38,6 +39,11 @@ CONF_DECODER_ID = "decoder_id"
 output_ns = cg.esphome_ns.namespace("tflite_output_processor")
 ClassificationDecoder = output_ns.class_("ClassificationDecoder")
 
+tflite_audio_ns = cg.esphome_ns.namespace("tflite_audio")
+# The audio kind extends the helper, so the entry's id is a TFLiteAudio and the
+# streaming consumer can read the tuning values from it.
+TFLiteAudio = tflite_audio_ns.class_("TFLiteAudio", TFLiteMicroHelper)
+
 AUDIO_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_PROBABILITY_CUTOFF): cv.percentage,
@@ -53,7 +59,9 @@ AUDIO_SCHEMA = cv.Schema(
 )
 
 CONFIG_SCHEMA = cv.All(
-    PER_MODEL_SCHEMA.extend(AUDIO_SCHEMA).extend(cv.COMPONENT_SCHEMA),
+    PER_MODEL_SCHEMA.extend({cv.GenerateID(): cv.declare_id(TFLiteAudio)})
+    .extend(AUDIO_SCHEMA)
+    .extend(cv.COMPONENT_SCHEMA),
     cv.only_on_esp32,
 )
 
@@ -92,8 +100,6 @@ def validate_model_io(model_path: Path, config: ConfigType) -> None:
 async def configure(var, config: ConfigType, model_path: Path) -> None:
     """Pass the tuning values through and leave the load to the consumer."""
     validate_model_io(model_path, config)
-    # The runtime compiles its audio-only configuration only when this is set.
-    cg.add_define("USE_TFLITE_AUDIO")
     cg.add(var.set_defer_load(True))
     if (cutoff := config.get(CONF_PROBABILITY_CUTOFF)) is not None:
         cg.add(var.set_probability_cutoff(cutoff))
