@@ -39,15 +39,12 @@ VL53L4CXSensor = vl53l4cx_ns.class_(
 Target = vl53l4cx_ns.enum("Target")
 TARGET_OPTIONS = Target.options("nearest", "farthest", "strongest", prefix="TARGET_")
 
-# Values of ST's VL53L4CX_DISTANCEMODE_*; its driver rejects short mode on the VL53L4CX
+# ST's VL53L4CX_DISTANCEMODE_*; no short mode on the VL53L4CX
 DISTANCE_MODES = {"medium": 2, "long": 3}
 
-# ST's driver, forked by esphome-libs to run on any framework: an ESP-IDF component on ESP32,
-# a PlatformIO library elsewhere
 VL53L4CX_VERSION = "2.0.2"
-# ST time-of-flight sensor platforms that also boot at 0x29; each family re-addresses its own sensors only
+# Other sensors that boot at 0x29; each family re-addresses only its own
 OTHER_BOOT_AT_0X29 = ("vl53l0x", "vl53l1x")
-# ...and the VL6180X, a top-level component
 VL6180X = "vl6180x"
 
 CONF_DISTANCE_MODE = "distance_mode"
@@ -63,7 +60,7 @@ validate_timing_budget = cv.All(
 )
 DEFAULT_TIMING_BUDGET = cv.TimePeriod(milliseconds=33)
 RECOMMENDED_FREQUENCY = 400_000
-# Bus bit times one measurement takes (about 150 bytes); 4.3 ms at 400 kHz and 19 ms at 100 kHz on the bench
+# Bus bits per measurement (about 150 bytes); 4.3 ms at 400 kHz on the bench
 BITS_PER_MEASUREMENT = 1_900
 
 
@@ -111,9 +108,6 @@ def _warn_paced_by_budget(config: ConfigType) -> ConfigType:
 
 
 def _final_validate(config: ConfigType) -> ConfigType:
-    # Every sensor boots at 0x29, so sensors sharing a bus are held in reset by their enable
-    # pins and given their own addresses one at a time. validate_address already requires an
-    # enable_pin for any other address.
     match = {CONF_I2C_ID: config[CONF_I2C_ID]}
     others = [
         other
@@ -145,8 +139,6 @@ def _final_validate(config: ConfigType) -> ConfigType:
 
 
 def _warn_slow_bus(config: ConfigType) -> ConfigType:
-    # The bus defaults to 50 kHz on most platforms, where reading a measurement blocks the loop for ~38 ms
-    # A multiplexer channel without its own frequency runs at its parent's; that one is not checked here
     frequency = fv.get_declaring_config(config[CONF_I2C_ID]).get(CONF_FREQUENCY)
     if frequency is not None and frequency < RECOMMENDED_FREQUENCY:
         _LOGGER.warning(
@@ -168,18 +160,13 @@ CONFIG_SCHEMA = cv.All(
     )
     .extend(
         {
-            # No schema defaults: unset options keep the C++ defaults (long, 33ms, nearest, 0mm, 0)
-            # and emit no setter
             cv.Optional(CONF_DISTANCE_MODE): validate_distance_mode,
             cv.Optional(CONF_TIMING_BUDGET): validate_timing_budget,
-            # Which of the up to four targets in a measurement the sensor reports
             cv.Optional(CONF_TARGET): cv.enum(TARGET_OPTIONS, lower=True),
-            # Targets closer than this are ignored, e.g. dust or insects on the cover glass
             cv.Optional(CONF_MIN_DISTANCE): cv.All(
                 cv.distance, cv.Range(min=0.0, max=6.0)
             ),
             cv.Optional(CONF_ENABLE_PIN): pins.gpio_output_pin_schema,
-            # The sensor's GPIO1, low while a measurement is ready; saves an I2C poll per loop
             cv.Optional(CONF_INTERRUPT_PIN): validate_interrupt_pin,
             cv.Optional(CONF_OFFSET): cv.int_range(min=-1000, max=1000),
         }
@@ -196,7 +183,6 @@ _unique_address = fv.unique_platform_key(
     message="Address 0x{address:02X} is used by more than one VL53L4CX sensor on this bus",
 )
 
-# The warnings run here, where the sensor's generated id is set
 FINAL_VALIDATE_SCHEMA = cv.All(
     _final_validate, _unique_address, _warn_paced_by_budget, _warn_slow_bus
 )

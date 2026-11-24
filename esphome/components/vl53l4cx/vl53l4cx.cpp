@@ -13,19 +13,16 @@ namespace esphome::vl53l4cx {
 ESPHOME_LOG_TAG(TAG, "vl53l4cx");
 
 static constexpr uint8_t DEFAULT_ADDRESS = 0x29;
-// Model id 0xEB and module type 0xAA at IDENTIFICATION__MODEL_ID
 static constexpr uint16_t SENSOR_ID = 0xEBAA;
-// ST's first frames after a start are unreliable: none has targets, and some report a near object under farthest
+// ST's first frames after a start are unreliable
 static constexpr uint8_t SETTLE_FRAMES = 5;
-// After MAX_FAILURES the sensor is reset and set up again until it answers
 static constexpr uint32_t RESET_INTERVAL_ID = 0;
 static constexpr uint32_t RESET_INTERVAL_MS = 5000;
-// ST's software reset: write 0, wait, write 1; the sensor then boots as after a power-up
+// Write 0, wait, write 1: reboots the sensor like a power-up
 static constexpr uint16_t SOFT_RESET_REGISTER = 0x0000;
 static constexpr uint32_t SOFT_RESET_US = 100;
 
 PROGMEM_STRING_TABLE(TargetStrings, "nearest", "farthest", "strongest");
-// Indexed by ST's VL53L4CX_DISTANCEMODE_* from medium; the VL53L4CX has no short mode
 PROGMEM_STRING_TABLE(DistanceModeStrings, "medium", "long");
 
 #ifdef USE_VL53L4CX_ENABLE_PIN
@@ -38,9 +35,8 @@ VL53L4CXSensor::VL53L4CXSensor() {
 #endif
 
 static constexpr size_t REGISTER_ADDRESS_SIZE = 2;
-// Arduino Wire buffers 128 bytes per transaction on ESP8266 and 64 on LibreTiny, and ST's driver writes up to
-// 135 at once. The register address auto-increments, so longer transfers are split, each part at its own
-// address. A write sends the register address from the same buffer; reads use the write limit too.
+// Arduino Wire buffers 128 bytes on ESP8266 and 64 on LibreTiny, including the register address; the driver
+// writes up to 135, so longer transfers are split (the register address auto-increments)
 #if defined(USE_ESP8266)
 static constexpr uint16_t MAX_TRANSFER = 128 - REGISTER_ADDRESS_SIZE;
 #elif defined(USE_LIBRETINY)
@@ -88,7 +84,6 @@ void VL53L4CXSensor::hold_in_reset_() {
 
 void VL53L4CXSensor::reset_failed_(const LogString *reason) {
   ESP_LOGV(TAG, "Reset failed: %s", LOG_STR_ARG(reason));
-  // The first failed reset of a run sets the warning again, so the log names why recovery fails once
   if (this->failures_ == MAX_FAILURES) {
     this->failures_++;
     this->status_clear_warning();
@@ -99,8 +94,7 @@ void VL53L4CXSensor::reset_failed_(const LogString *reason) {
 
 void VL53L4CXSensor::setup() {
 #ifdef USE_VL53L4CX_ENABLE_PIN
-  // The first sensor to set up holds every sensor with an enable pin in reset, so each one
-  // comes back at the default address only when its own setup() releases it.
+  // Hold every sensor in reset so each comes up at 0x29 only in its own setup()
   for (auto *other = VL53L4CXSensor::first_sensor; other != nullptr; other = other->next_) {
     setup_output_pin(other->enable_pin_, false);
   }
@@ -112,7 +106,6 @@ void VL53L4CXSensor::setup() {
 #ifdef USE_VL53L4CX_INTERRUPT_PIN
   if (this->interrupt_pin_ != nullptr) {
     this->interrupt_pin_->setup();
-    // A ready measurement wakes the loop at once instead of on its next pass
     this->interrupt_pin_->attach_interrupt(&VL53L4CXSensor::ready_isr, this, gpio::INTERRUPT_FALLING_EDGE);
   }
 #endif
@@ -158,15 +151,14 @@ const LogString *VL53L4CXSensor::init_and_start_(bool at_boot) {
 }
 
 void VL53L4CXSensor::reset_sensor_() {
-  // Either reset leaves the sensor at the default address (the only one allowed without an enable pin) with
-  // nothing set up, so start over as at boot, with a fresh driver that talks to the default address too
+  // Both resets leave the sensor unconfigured at 0x29, so start over with a fresh driver
 #ifdef USE_VL53L4CX_ENABLE_PIN
   if (this->enable_pin_ != nullptr) {
     pulse_reset(this->enable_pin_, {.low_ms = 2});
   } else
 #endif
   {
-    // Release the reset even when holding it failed, but a sensor that was not reset must not see DataInit again
+    // Always release; a sensor that was not reset must not run DataInit again
     const bool held = this->write_byte_reg16(SOFT_RESET_REGISTER, 0);
     delayMicroseconds(SOFT_RESET_US);
     if (!this->write_byte_reg16(SOFT_RESET_REGISTER, 1) || !held) {
@@ -181,14 +173,13 @@ void VL53L4CXSensor::reset_sensor_() {
     return;
   }
   this->cancel_interval(RESET_INTERVAL_ID);
-  this->failures_ = 0;  // the warning stays until the first good reading clears it
+  this->failures_ = 0;
   this->enable_loop();
 }
 
 bool VL53L4CXSensor::start_measurement_() {
   this->measurement_start_ = App.get_loop_component_start_time();
-  // ST's driver ranges again only once the interrupt is cleared: by loop() straight after each result when
-  // update_interval is never, else by update()
+  // The driver ranges again only once the interrupt is cleared
 #ifdef USE_VL53L4CX_INTERRUPT_PIN
   this->ready_edge_ = false;
 #endif
@@ -202,7 +193,6 @@ bool VL53L4CXSensor::start_measurement_() {
 void VL53L4CXSensor::measurement_failed_(const LogString *message, VL53L4CX_Error error) {
   ESP_LOGV(TAG, "%s: error %d", LOG_STR_ARG(message), error);
   this->status_set_warning(message);
-  // Never called while resetting: update() and loop() stay idle until reset_sensor_() clears the count
   if (++this->failures_ == MAX_FAILURES) {
     this->publish_state(NAN);
     this->set_interval(RESET_INTERVAL_ID, RESET_INTERVAL_MS, [this]() { this->reset_sensor_(); });
@@ -223,7 +213,6 @@ void VL53L4CXSensor::update() {
 void VL53L4CXSensor::loop() {
   const uint32_t elapsed = App.get_loop_component_start_time() - this->measurement_start_;
   if (!this->measuring_) {
-    // Continuous mode retries a failed start here; otherwise a late interrupt or a reset left the loop on
     if (this->get_update_interval() != SCHEDULER_DONT_RUN || this->resetting_()) {
       this->disable_loop();
     } else if (elapsed > this->timeout_ms_()) {
@@ -235,8 +224,7 @@ void VL53L4CXSensor::loop() {
   uint8_t ready = 0;
   VL53L4CX_Error error = VL53L4CX_ERROR_NONE;
 #ifdef USE_VL53L4CX_INTERRUPT_PIN
-  // A falling edge since the start, with GPIO1 still low: a pin stuck low makes no edge, and an earlier
-  // measurement's edge that landed before the start cleared the interrupt leaves the pin high
+  // Edge and low level: a stuck-low pin makes no edge, and a stale edge leaves the pin high after the start
   if (this->interrupt_pin_ != nullptr) {
     ready = this->ready_edge_ && !this->interrupt_pin_->digital_read();
   } else
@@ -246,7 +234,7 @@ void VL53L4CXSensor::loop() {
       return;
     error = this->driver_.VL53L4CX_GetMeasurementDataReady(&ready);
   }
-  // The driver can report ready from an unread status byte when the poll fails, so the error comes first
+  // On a failed poll the driver can report ready from an unread byte
   if (error == VL53L4CX_ERROR_NONE && !ready && elapsed <= this->timeout_ms_())
     return;
   this->measuring_ = false;
@@ -257,10 +245,9 @@ void VL53L4CXSensor::loop() {
   } else {
     this->measurement_failed_(LOG_STR("Measurement timed out"), VL53L4CX_ERROR_TIME_OUT);
   }
-  // An on_value automation calling component.update may already have started the next measurement
+  // An on_value automation may have called update() already
   if (this->measuring_)
     return;
-  // Settling frames, and the first frame after them, are measured back to back in every mode
   if ((this->get_update_interval() != SCHEDULER_DONT_RUN && !settling) || this->resetting_()) {
     this->disable_loop();
     return;
@@ -269,7 +256,6 @@ void VL53L4CXSensor::loop() {
 }
 
 static bool is_valid_range(uint8_t status) {
-  // ST's valid statuses: plain, clipped to the minimum range, the first reading (no wrap check yet), merged pulses
   return status == VL53L4CX_RANGESTATUS_RANGE_VALID || status == VL53L4CX_RANGESTATUS_RANGE_VALID_MIN_RANGE_CLIPPED ||
          status == VL53L4CX_RANGESTATUS_RANGE_VALID_NO_WRAP_CHECK_FAIL ||
          status == VL53L4CX_RANGESTATUS_RANGE_VALID_MERGED_PULSE;

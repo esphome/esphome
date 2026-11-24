@@ -16,12 +16,11 @@ enum Target : uint8_t {
   TARGET_STRONGEST,
 };
 
-/// The distance in mm of the valid target `target` picks, after `offset_mm`, ignoring targets closer than
-/// `min_distance_mm`; -1 when there is none.
+/// Distance in mm of the chosen valid target at or beyond `min_distance_mm`, or -1.
 int32_t select_distance_mm(const VL53L4CX_MultiRangingData_t &data, Target target, uint16_t min_distance_mm,
                            int16_t offset_mm);
 
-/// VL53L4CX multi-target time-of-flight sensor, ranged by ST's driver (esphome-libs/VL53L4CX) over this I2C device.
+/// VL53L4CX multi-target time-of-flight sensor, driven by ST's driver (esphome-libs/VL53L4CX).
 class VL53L4CXSensor final : public sensor::Sensor, public PollingComponent, public i2c::I2CDevice, public VL53L4CXHal {
  public:
 #ifdef USE_VL53L4CX_ENABLE_PIN
@@ -45,7 +44,6 @@ class VL53L4CXSensor final : public sensor::Sensor, public PollingComponent, pub
   void set_min_distance(uint16_t min_distance_mm) { this->min_distance_mm_ = min_distance_mm; }
   void set_offset(int16_t offset_mm) { this->offset_mm_ = offset_mm; }
 
-  // VL53L4CXHal: the driver passes the address on every call, since it changes when the sensor is re-addressed
   bool write_registers(uint8_t address, uint16_t reg, const uint8_t *data, uint16_t len) override;
   bool read_registers(uint8_t address, uint16_t reg, uint8_t *data, uint16_t len) override;
   uint32_t millis() override;
@@ -53,34 +51,29 @@ class VL53L4CXSensor final : public sensor::Sensor, public PollingComponent, pub
   void delay_us(uint32_t us) override;
 
  protected:
-  // Failed measurements in a row after which the state becomes NaN, so a dead sensor does not keep its last value
   static constexpr uint8_t MAX_FAILURES = 5;
 
 #ifdef USE_VL53L4CX_INTERRUPT_PIN
-  // Inline like App.get_loop_component_start_time(): on RP2 both share .time_critical, which GCC rejects
-  // when one is an ordinary function and the other inline
+  // Inline: on RP2 a non-inline .time_critical function conflicts with inline ones in that section
   static void IRAM_ATTR ready_isr(VL53L4CXSensor *sensor) {
     sensor->ready_edge_ = true;
     sensor->enable_loop_soon_any_context();
   }
 #endif
 
-  /// Boots, addresses and starts the sensor; the failure reason, or nullptr.
+  /// Boots, addresses and starts the sensor; returns the failure reason or nullptr.
   const LogString *init_and_start_(bool at_boot);
   void reset_sensor_();
-  /// Holds a sensor with an enable pin in reset, so it cannot answer at the default address.
+  /// Holds the sensor in reset when it has an enable pin.
   void hold_in_reset_();
-  /// Logs a failed reset and holds the sensor in reset until the next attempt.
   void reset_failed_(const LogString *reason);
   bool resetting_() const { return this->failures_ >= MAX_FAILURES; }
   bool start_measurement_();
   void measurement_failed_(const LogString *message, VL53L4CX_Error error);
-  // A measurement that has not reported ready by now has failed
   uint32_t timeout_ms_() const { return static_cast<uint32_t>(this->budget_ms_) * 2 + 100; }
   void publish_result_();
 
 #ifdef USE_VL53L4CX_ENABLE_PIN
-  // Every instance, so the first setup() can hold all sensors with an enable pin in reset.
   static VL53L4CXSensor *first_sensor;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 #endif
 
@@ -98,11 +91,11 @@ class VL53L4CXSensor final : public sensor::Sensor, public PollingComponent, pub
   int16_t offset_mm_{0};
   uint8_t distance_mode_{VL53L4CX_DISTANCEMODE_LONG};
   Target target_{TARGET_NEAREST};
-  uint8_t failures_{0};       // failed measurements in a row; one more once a failed reset was logged
-  uint8_t settle_frames_{0};  // frames left to drop after a start
-  bool measuring_{false};     // a measurement was started and its result not yet read
+  uint8_t failures_{0};  // in a row; MAX_FAILURES + 1 once a failed reset was logged
+  uint8_t settle_frames_{0};
+  bool measuring_{false};
 #ifdef USE_VL53L4CX_INTERRUPT_PIN
-  volatile bool ready_edge_{false};  // GPIO1 fell since the last start
+  volatile bool ready_edge_{false};
 #endif
 };
 
