@@ -7,6 +7,7 @@
 #include <utility>
 #include <vector>
 #include "esphome/core/automation.h"
+#include "esphome/core/chain.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 
@@ -19,7 +20,7 @@ class Sensor;
  * This class is purposefully kept quite simple, since more complicated
  * filters should really be done with the filter sensor in Home Assistant.
  */
-class Filter {
+class Filter : public ChainNode<Filter, Sensor> {
  public:
   /** This will be called every time the filter receives a new value.
    *
@@ -41,9 +42,6 @@ class Filter {
 
  protected:
   friend Sensor;
-
-  Filter *next_{nullptr};
-  Sensor *parent_{nullptr};
 };
 
 /** Base class for filters that use a sliding window of values.

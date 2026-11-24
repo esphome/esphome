@@ -12,6 +12,7 @@ import pytest
 from esphome.components.api import ACTIONS_SCHEMA
 from esphome.config_validation import Invalid
 from esphome.helpers import fnv1_hash
+from tests.component_tests.helpers import constructed, function_body
 
 CONFIG = "tests/component_tests/api/test_user_services.yaml"
 LEGACY_CONFIG = "tests/component_tests/api/test_user_services_legacy.yaml"
@@ -30,22 +31,8 @@ class Service(NamedTuple):
     type: str
 
 
-def _constructed(main_cpp: str, id_: str) -> str:
-    match = re.search(rf"\bnew\({id_}\) (.*?);\n", main_cpp, re.DOTALL)
-    assert match is not None, id_
-    return match.group(1)
-
-
 def _actions_of(main_cpp: str, automation: str) -> list[str]:
     return re.findall(rf"\b{automation}->add_action\((\w+)\);", main_cpp)
-
-
-def _function_body(main_cpp: str, name: str) -> str:
-    match = re.search(
-        rf"static void {name}\([^;{{]*\) \{{(.*?)\n\}}\n", main_cpp, re.DOTALL
-    )
-    assert match is not None, name
-    return match.group(1)
 
 
 def _strings(main_cpp: str, name: str) -> tuple[str, str]:
@@ -84,7 +71,7 @@ def _triggered_automation(main_cpp: str, function: str, args: str) -> str:
     """Check ``function`` only triggers an Automation with ``args``; return its id."""
     match = re.fullmatch(
         rf"\n  ::(\w+)->trigger\({re.escape(args)}\);",
-        _function_body(main_cpp, function),
+        function_body(main_cpp, function),
     )
     assert match is not None, function
     return match.group(1)
@@ -92,21 +79,21 @@ def _triggered_automation(main_cpp: str, function: str, args: str) -> str:
 
 def _action_code(main_cpp: str, action: str) -> str:
     """Return the code an action runs: its generated function, or its constructor."""
-    constructed = _constructed(main_cpp, action)
-    if match := re.match(r"Apply(?:Run)?Action<(\w+)[,>]", constructed):
-        return _function_body(main_cpp, match.group(1))
-    return constructed
+    code = constructed(main_cpp, action)
+    if match := re.match(r"Apply(?:Run)?Action<(\w+)[,>]", code):
+        return function_body(main_cpp, match.group(1))
+    return code
 
 
 def _action_class(main_cpp: str, action: str) -> str:
-    return re.match(r"[\w:]+", _constructed(main_cpp, action)).group(0)
+    return re.match(r"[\w:]+", constructed(main_cpp, action)).group(0)
 
 
 def test_no_args_service(generate_main) -> None:
     """Inline actions run in one function the service calls, with no Automation."""
     main_cpp = generate_main(CONFIG)
     function = _service_function(main_cpp, "no_args", NONE)
-    body = _function_body(main_cpp, function)
+    body = function_body(main_cpp, function)
     assert "NO_ARGS called" in body
     assert "::doubled->value() = 1;" in body
     assert "esphome__running" not in body
@@ -133,7 +120,7 @@ def test_mixed_args_types(generate_main) -> None:
         r"const FixedVector<std::string> & string_arr\) \{",
         main_cpp,
     )
-    body = _function_body(main_cpp, function)
+    body = function_body(main_cpp, function)
     assert "string_.c_str(), int_arr.size(), string_arr.size()" in body
 
 
@@ -141,7 +128,7 @@ def test_lambda_action_gets_args_by_value(generate_main) -> None:
     """A lambda action takes the arguments by value, so ``x *= 2`` compiles in both forms."""
     main_cpp = generate_main(CONFIG)
     function = _service_function(main_cpp, "by_value", NONE, "int32_t")
-    body = _function_body(main_cpp, function)
+    body = function_body(main_cpp, function)
     assert body.count("[](int32_t x) -> void {") == 2
     assert "x *= 2;" in body
     assert '"BY_VALUE again %d", x *= 2' in body
@@ -153,7 +140,7 @@ def test_delay_uses_owning_args(generate_main) -> None:
     types = "std::string, std::vector<int32_t>"
     function = _service_function(main_cpp, "with_delay", NONE, types)
     automation = _triggered_automation(main_cpp, function, "name, int_arr")
-    assert _constructed(main_cpp, automation) == f"Automation<{types}>()"
+    assert constructed(main_cpp, automation) == f"Automation<{types}>()"
     before, delay, after = _actions_of(main_cpp, automation)
     assert _action_class(main_cpp, delay) == "DelayAction"
     assert "WITH_DELAY before" in _action_code(main_cpp, before)
@@ -172,7 +159,7 @@ def test_respond_optional(generate_main) -> None:
     """An optional response passes return_response, so the data goes only to a client that asked."""
     main_cpp = generate_main(CONFIG)
     function = _service_function(main_cpp, "respond_optional", OPTIONAL, "int32_t")
-    body = _function_body(main_cpp, function)
+    body = function_body(main_cpp, function)
     assert "->trigger(" not in body
     assert body.index(SEND_JSON) < body.index('root["value"] = value;')
     assert "}(call_id, return_response, value, root); }, return_response);" in body
@@ -183,7 +170,7 @@ def test_respond_only(generate_main) -> None:
     """A response-only service always sends its data, after the actions before it, then unregisters."""
     main_cpp = generate_main(CONFIG)
     function = _service_function(main_cpp, "respond_only", ONLY, "StringRef")
-    body = _function_body(main_cpp, function)
+    body = function_body(main_cpp, function)
     assert "->trigger(" not in body
     assert body.index("RESPOND_ONLY %s") < body.index(SEND_JSON)
     assert "}(call_id, name, root); });" in body
@@ -210,7 +197,7 @@ def test_respond_only_variable_named_return_response(
 ) -> None:
     """A response-only variable named return_response does not make the data optional."""
     main_cpp = generate_main(CONFIG)
-    body = _function_body(main_cpp, _service_function(main_cpp, name, ONLY, types))
+    body = function_body(main_cpp, _service_function(main_cpp, name, ONLY, types))
     assert call in body
 
 
@@ -228,7 +215,7 @@ def test_respond_data_copies_named_args(generate_main) -> None:
     function = _service_function(
         main_cpp, "respond_data_copies_named_args", ONLY, "StringRef, int32_t"
     )
-    body = _function_body(main_cpp, function)
+    body = function_body(main_cpp, function)
     assert "const std::remove_cvref_t<StringRef> & big, int32_t count, " in body
     assert "int32_t & count" not in body
 
@@ -236,7 +223,7 @@ def test_respond_data_copies_named_args(generate_main) -> None:
 def test_respond_data_bare_return(generate_main) -> None:
     """A data lambda whose only statement is `return;` is called, not reduced to a cast."""
     main_cpp = generate_main(CONFIG)
-    body = _function_body(
+    body = function_body(
         main_cpp, _service_function(main_cpp, "respond_data_bare_return", ONLY)
     )
     assert "send_action_response_json(" in body
@@ -247,7 +234,7 @@ def test_respond_status_lambdas(generate_main) -> None:
     """Lambdas for the status and the error text are bound before the response is sent."""
     main_cpp = generate_main(CONFIG)
     function = _service_function(main_cpp, "respond_error_lambda", STATUS)
-    body = _function_body(main_cpp, function)
+    body = function_body(main_cpp, function)
     send = (
         "::api_apiserver_id->send_action_response(call_id, esphome__success, "
         "::esphome::StringRef(esphome__error_message));"
@@ -260,7 +247,7 @@ def test_respond_constant_error(generate_main) -> None:
     """A constant error text is a literal, with no string copy."""
     main_cpp = generate_main(CONFIG)
     function = _service_function(main_cpp, "respond_error_constant", STATUS)
-    body = _function_body(main_cpp, function)
+    body = function_body(main_cpp, function)
     assert (
         '::api_apiserver_id->send_action_response(call_id, false, ::esphome::StringRef::from_lit("not ready"));'
         in body
@@ -287,7 +274,7 @@ def test_unregister_in_fully_inline_response_service(generate_main) -> None:
     """With only inline actions, the unregister ends the function the service calls."""
     main_cpp = generate_main(CONFIG)
     function = _service_function(main_cpp, "status_inline", STATUS)
-    body = _function_body(main_cpp, function)
+    body = function_body(main_cpp, function)
     assert "->trigger(" not in body
     assert "esphome__running" not in body
     assert f"Action<{function}" not in main_cpp
@@ -301,7 +288,7 @@ def test_manual_trigger_id(generate_main) -> None:
     service = _service(main_cpp, "manual_trigger_id")
     assert service.id == "manual_service_trigger"
     function = _service_function(main_cpp, "manual_trigger_id", NONE)
-    assert "MANUAL called" in _function_body(main_cpp, function)
+    assert "MANUAL called" in function_body(main_cpp, function)
 
 
 def test_lambda_uses_own_service_id(generate_main) -> None:
@@ -310,7 +297,7 @@ def test_lambda_uses_own_service_id(generate_main) -> None:
     service = _service(main_cpp, "self_reference")
     assert service.id == "self_reference_service"
     function = _service_function(main_cpp, "self_reference", NONE)
-    body = _function_body(main_cpp, function)
+    body = function_body(main_cpp, function)
     assert "(const void *) self_reference_service" in body
 
 
@@ -375,7 +362,7 @@ def test_legacy_services_key(generate_main) -> None:
     assert _strings(main_cpp, "legacy_service")[1] == '"legacy_service", "devices"'
     function = _service_function(main_cpp, "legacy_service", NONE, "StringRef")
     assert "Automation<StringRef>" not in main_cpp
-    assert '"LEGACY %s", devices.c_str()' in _function_body(main_cpp, function)
+    assert '"LEGACY %s", devices.c_str()' in function_body(main_cpp, function)
 
 
 def test_cleanup_action_id_avoids_config_ids(generate_main) -> None:
