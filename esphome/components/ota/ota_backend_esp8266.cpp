@@ -33,10 +33,13 @@ static constexpr uint8_t FIRMWARE_MAGIC = 0xE9;
 static constexpr uint8_t GZIP_MAGIC_1 = 0x1F;
 static constexpr uint8_t GZIP_MAGIC_2 = 0x8B;
 
+#ifdef USE_WEBSERVER_OTA
+// Only the web server uploads without an MD5
 static constexpr uint8_t MAX_IMAGE_SEGMENTS = 16;
 static constexpr uint8_t IMAGE_CHECKSUM_SEED = 0xEF;
 // elf2bin's add_crc() writes the image length and CRC here
 static constexpr uint32_t CRC_WORDS_OFFSET = APP_START_OFFSET + 16;
+#endif
 
 // ESP8266 flash memory base address (memory-mapped flash starts here)
 static constexpr uint32_t FLASH_BASE_ADDRESS = 0x40200000;
@@ -347,6 +350,7 @@ bool ESP8266OTABackend::verify_end_() {
     return false;
   }
 
+#ifdef USE_WEBSERVER_OTA
   // No MD5: the segment tables must end exactly at the bytes received
   if (!this->md5_set_) {
     // eboot padded to 4 KB, then the app
@@ -357,6 +361,7 @@ bool ESP8266OTABackend::verify_end_() {
       return false;
     }
   }
+#endif
 
 #if !FLASH_MAP_SUPPORT
   // Check if new firmware's flash size fits (only when auto-detection is disabled)
@@ -374,6 +379,7 @@ bool ESP8266OTABackend::verify_end_() {
   return true;
 }
 
+#ifdef USE_WEBSERVER_OTA
 // EspClass::getSketchSize()'s walk over the staged image, plus the image checksum
 size_t ESP8266OTABackend::image_end_(size_t offset) {
   image_header_t header;
@@ -419,6 +425,7 @@ size_t ESP8266OTABackend::image_end_(size_t offset) {
     expected = xor_bytes(reinterpret_cast<uint8_t *>(crc_words), sizeof(crc_words), checksum);
   return static_cast<uint8_t>(tail >> 24) == expected ? end : 0;
 }
+#endif
 
 uint8_t ESP8266OTABackend::get_flash_chip_mode_() {
   uint32_t data;
