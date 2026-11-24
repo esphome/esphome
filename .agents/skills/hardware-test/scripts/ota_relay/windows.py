@@ -12,11 +12,21 @@ retry = re.compile(
     r"|Connecting to network failed"
 )
 cur = None
+
+
+def incomplete(c: dict) -> None:
+    print(
+        f"{c['t0']}..? INCOMPLETE (no end line) retry_lines={c['retry']} W_lines={c['warn']}"
+    )
+
+
 with pathlib.Path(sys.argv[1]).open("rb") as f:
     for raw in f:
         line = raw.decode("utf-8", "replace").rstrip()
         ts = line[1:9]
-        if start.search(line) and cur is None:
+        if start.search(line):
+            if cur is not None:
+                incomplete(cur)
             cur = {"t0": ts, "retry": 0, "warn": 0, "first": None, "last_prog": None}
             continue
         if cur is None:
@@ -34,3 +44,5 @@ with pathlib.Path(sys.argv[1]).open("rb") as f:
                 f"last_progress={cur['last_prog']} {cur['first'] or ''}"
             )
             cur = None
+if cur is not None:
+    incomplete(cur)

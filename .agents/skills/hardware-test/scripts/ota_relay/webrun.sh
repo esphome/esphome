@@ -7,10 +7,12 @@ L=$1 IMG=$2 N=$3 P=$4 CAP=$5 MODE=${6:-full}
 SYNC=${SYNC:-RETRY_HIDDEN → RESTARTING}
 for i in $(seq 1 "$N"); do
   B=$(LC_ALL=C grep -a -c "$SYNC" "$CAP")
+  ok=
   for _ in $(seq 1 120); do
-    [ "$(LC_ALL=C grep -a -c "$SYNC" "$CAP")" -gt "$B" ] && break
+    [ "$(LC_ALL=C grep -a -c "$SYNC" "$CAP")" -gt "$B" ] && ok=1 && break
     sleep 1
   done
+  [ -n "$ok" ] || { echo "$(date +%T) $L no new SYNC line in $CAP within 120 s, stopping"; exit 1; }
   sleep "${SYNC_DELAY:-3}"
   echo "$(date +%T) $L $MODE upload $i start"
   if [ "$MODE" = abort ]; then

@@ -6,6 +6,7 @@
 # where relay_host.py runs (the drop-ms flag file). PYTHON overrides the interpreter.
 L=$1 IMG=$2 N=$3 M=$4 TREE=${5:-}
 D=$(cd "$(dirname "$0")" && pwd)
+IMG=$(cd "$(dirname "$IMG")" && pwd)/$(basename "$IMG")
 PY=${PYTHON:-python3}
 for i in $(seq 1 "$N"); do
   echo "$(date +%T) $L $M upload $i start"
@@ -14,7 +15,7 @@ for i in $(seq 1 "$N"); do
       "http://127.0.0.1:${WEB_PORT:-18081}/update" >"curl-$L-$i.out" 2>&1 &
   else
     (cd "$TREE" && PYTHONPATH=$TREE PYTHONUNBUFFERED=1 timeout 300 "$PY" -m esphome upload "$D/dut-sta.yaml" \
-      --device 127.0.0.1) >"nat-$L-$i.log" 2>&1 &
+      --device 127.0.0.1 --file "$IMG") >"nat-$L-$i.log" 2>&1 &
   fi
   CP=$!
   sleep "${DROP_AT:-20}"
