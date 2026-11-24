@@ -1,0 +1,3 @@
+packages:
+  base: !include nrfbase.yaml
+  ents: !include ents.yaml

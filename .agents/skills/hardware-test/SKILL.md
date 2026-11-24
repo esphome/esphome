@@ -346,6 +346,9 @@ Per-topic scripts, each described in the matching `reference/recipes/<component>
   counter and runner)
 - `zephyr_ble_server/` (nRF52 server, looping ESP32 client and UF2 flash and count runner)
 - `zephyr_coredump/` (reader flow, decode with the Zephyr tools)
+- `zigbee_coord/` (ESP32-H2 Zigbee console coordinator: build, console bridge, driver and parser, network setup, device
+  flash and capture, entity, number, copy and light flows with configs, per-build summary, endpoint dump and write
+  injection header, leave debug wraps, S3 hold config for the Thread BR board)
 - `zwave_proxy/` (checksum verifier, device info)
 
 ## Templates in `$SKILL/templates`

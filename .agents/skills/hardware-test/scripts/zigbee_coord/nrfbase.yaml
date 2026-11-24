@@ -1,0 +1,13 @@
+# nRF52840 dongle (PCA10059) Zigbee end device base (substitution name); wipe_on_boot makes every boot a fresh join.
+esphome:
+  name: ${name}
+nrf52:
+  board: nrf52840dongle
+  dfu: true
+logger:
+zigbee:
+  id: radio
+  manufacturer: bench
+  wipe_on_boot: true
+  on_join:
+    - logger.log: "HWT zigbee joined"

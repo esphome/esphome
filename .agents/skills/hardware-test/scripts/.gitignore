@@ -130,3 +130,6 @@ xiaomi_ble/expected_all.json
 xiaomi_ble/frames_all.hpp
 xiaomi_ble/run_*.yaml
 xiaomi_ble/xball_entities.yaml
+zigbee_coord/*.log
+zigbee_coord/*.txt
+zigbee_coord/coord.fifo
