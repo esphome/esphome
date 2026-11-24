@@ -45,7 +45,10 @@ void TFLiteCamera::on_camera_image(const std::shared_ptr<camera::CameraImage> &i
   }
   this->last_run_ms_ = now;
   this->has_run_ = true;
-  if (!this->runtime_->run(buffer->get_data_buffer(), buffer->get_data_length()))
+  // The decoded spec is the frame size after rotation, which is what the
+  // pipeline must sample; a camera frame size configured at build time would
+  // not match it.
+  if (!this->runtime_->run(buffer->get_data_buffer(), buffer->get_data_length(), spec.width, spec.height))
     ESP_LOGW(TAG, "Inference failed");
 }
 

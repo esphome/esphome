@@ -1,6 +1,6 @@
 # The camera comes from the shared i2c_camera package included by
 # test.esp32-idf.yaml. model.tflite is a tiny fixture committed next to this
-# file; frame_width/frame_height scale the 640x480 camera frame to the model.
+# file; the pipeline takes the decoded frame size from the decoder at run time.
 tflite_camera:
   - id: test_camera_model
     camera_id: test_camera
@@ -8,8 +8,6 @@ tflite_camera:
     input_width: 32
     input_height: 20
     input_channels: 3
-    frame_width: 640
-    frame_height: 480
     rotation: 0
     min_interval: 1s
     on_result:

@@ -12,7 +12,12 @@ from esphome.components.camera_decoder import (
     OUTPUT_TYPES as OUTPUT_TYPES,
     ESP32CameraJPEGDecoder,
 )
-from esphome.components.tflite_image import IMAGE_SCHEMA, configure as configure_image
+from esphome.components.tflite_image import (
+    CONF_FRAME_HEIGHT,
+    CONF_FRAME_WIDTH,
+    IMAGE_SCHEMA,
+    configure as configure_image,
+)
 from esphome.components.tflite_micro_runtime import (
     PER_MODEL_SCHEMA,
     declare_model,
@@ -20,6 +25,7 @@ from esphome.components.tflite_micro_runtime import (
 )
 import esphome.config_validation as cv
 from esphome.const import CONF_ROTATION
+import esphome.final_validate as fv
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@nliaudat"]
@@ -34,7 +40,6 @@ AUTO_LOAD = [
 ]
 DEPENDENCIES = ["esp32"]
 MULTI_CONF = True
-FINAL_VALIDATE_SCHEMA = final_validate
 
 CONF_CAMERA_ID = "camera_id"
 CONF_MIN_INTERVAL = "min_interval"
@@ -51,8 +56,19 @@ PIXEL_FORMAT_RGB888 = cv.enum({"RGB888": PixelFormat.PIXEL_FORMAT_RGB888})("RGB8
 tflite_camera_ns = cg.esphome_ns.namespace("tflite_camera")
 TFLiteCamera = tflite_camera_ns.class_("TFLiteCamera", cg.Component, CameraListener)
 
+# The decoded frame carries its own size, so the pipeline takes the frame
+# geometry from the decoded spec at run time. A configured frame size would be
+# a second, possibly wrong, source of truth for the same value.
+CAMERA_IMAGE_SCHEMA = cv.Schema(
+    {
+        key: value
+        for key, value in IMAGE_SCHEMA.schema.items()
+        if key not in (CONF_FRAME_WIDTH, CONF_FRAME_HEIGHT)
+    }
+)
+
 CONFIG_SCHEMA = cv.All(
-    PER_MODEL_SCHEMA.extend(IMAGE_SCHEMA)
+    PER_MODEL_SCHEMA.extend(CAMERA_IMAGE_SCHEMA)
     .extend(cv.COMPONENT_SCHEMA)
     .extend(
         {
@@ -67,6 +83,23 @@ CONFIG_SCHEMA = cv.All(
     ),
     cv.only_on_esp32,
 )
+
+
+def _final_validate(config: ConfigType) -> None:
+    """Validate the model and that the selected camera delivers JPEG frames."""
+    final_validate(config)
+    camera_config = fv.get_declaring_config(config[CONF_CAMERA_ID])
+    if (
+        camera_config[esp32_camera.CONF_PIXEL_FORMAT] != "JPEG"
+        and camera_config.get(esp32_camera.CONF_JPEG_QUALITY, 0) == 0
+    ):
+        raise cv.Invalid(
+            "tflite_camera requires JPEG frames; set pixel_format: JPEG or enable "
+            "JPEG conversion with a nonzero jpeg_quality on the selected esp32_camera"
+        )
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config: ConfigType) -> None:
