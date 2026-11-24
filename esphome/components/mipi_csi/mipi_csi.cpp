@@ -74,9 +74,21 @@ static void format_fourcc(uint32_t fourcc, FourccName out) {
 /* ---------------- MipiCsiCamera: setup ---------------- */
 
 void MipiCsiCamera::setup() {
-  if (!this->start_external_clock_() || !this->init_video_() || !this->configure_device_()) {
+  if (!this->start_external_clock_()) {
     this->teardown_();
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Failed to start external clock"));
+    return;
+  }
+
+  if (!this->init_video_()) {
+    this->teardown_();
+    this->mark_failed(LOG_STR("Failed to initialize video pipeline"));
+    return;
+  }
+
+  if (!this->configure_device_()) {
+    this->teardown_();
+    this->mark_failed(LOG_STR("Failed to configure video device"));
     return;
   }
 
@@ -87,13 +99,13 @@ void MipiCsiCamera::setup() {
   if (this->result_queue_ == nullptr) {
     ESP_LOGE(TAG, "Not enough memory for the frame queue");
     this->teardown_();
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Failed to create frame queue"));
     return;
   }
 
   if (!this->start_streaming_()) {
     this->teardown_();
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Failed to start video stream"));
     return;
   }
 
@@ -102,7 +114,7 @@ void MipiCsiCamera::setup() {
     ESP_LOGE(TAG, "Not enough memory to start the capture task");
     this->capture_task_handle_ = nullptr;
     this->teardown_();
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Failed to start capture task"));
     return;
   }
 }
@@ -453,9 +465,6 @@ void MipiCsiCamera::dump_config() {
                 LOG_STR_ARG(this->get_log_name()), this->sensor_name_, this->width_, this->height_,
                 get_format_mapping(this->pixel_format_).name, this->jpeg_quality_, this->framerate_,
                 this->frame_buffer_count_, flip_state(this->horizontal_flip_), flip_state(this->vertical_flip_));
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, "Setup failed");
-  }
 }
 
 /* ---------------- MipiCsiCamera: capture ---------------- */
