@@ -548,8 +548,7 @@ void MipiCsiCamera::loop() {
   if (now - this->last_update_ < this->update_interval_)
     return;
 
-  this->pending_requesters_ = this->single_requesters_ | this->stream_requesters_;
-  this->single_requesters_ = 0;
+  this->pending_requesters_ = this->single_requesters_.exchange(0) | this->stream_requesters_.load();
   this->frame_wanted_.store(true);
 }
 
