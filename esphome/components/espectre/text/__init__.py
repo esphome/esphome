@@ -8,7 +8,7 @@ from esphome.types import ConfigType
 from .. import (
     CONF_ESPECTRE_ID,
     CONF_TRAFFIC_GENERATOR_TARGET_MAC,
-    DOMAIN,
+    WIFI_RAW_UNSUPPORTED,
     ESPectreComponent,
     espectre_ns,
     supported_traffic_generator_modes,
@@ -40,19 +40,11 @@ def _final_validate(config: ConfigType) -> None:
     if "wifi_raw" not in supported_traffic_generator_modes(hub_config):
         raise cv.Invalid(
             f"The {CONF_TRAFFIC_GENERATOR_TARGET_MAC} text requires wifi_raw traffic, "
-            "which is not supported on ESP32-C6 or with the ht_vht CSI capture profile"
+            f"which is {WIFI_RAW_UNSUPPORTED}"
         )
 
 
-FINAL_VALIDATE_SCHEMA = cv.All(
-    fv.unique_platform_key(
-        domain="text",
-        platform=DOMAIN,
-        keys=(CONF_ESPECTRE_ID,),
-        message="Only one traffic_generator_target_mac text is allowed for ESPectre hub '{}'",
-    ),
-    _final_validate,
-)
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config: ConfigType) -> None:
@@ -67,3 +59,4 @@ async def to_code(config: ConfigType) -> None:
         pattern=TARGET_MAC_PATTERN,
     )
     cg.add(hub.set_target_mac_text(var))
+    cg.add_define("USE_ESPECTRE_TARGET_MAC_TEXT")

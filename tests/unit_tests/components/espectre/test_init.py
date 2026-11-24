@@ -119,29 +119,6 @@ def test_traffic_target_mac_is_lowercase() -> None:
     assert config["traffic_generator_target_mac"] == "aa:bb:cc:dd:ee:02"
 
 
-def test_duplicate_target_mac_text(tmp_path: Path) -> None:
-    CORE.reset()
-    CORE.config_path = tmp_path / "test.yaml"
-    result = validate_config(
-        {
-            "esphome": {"name": "target-mac-test"},
-            "esp32": {"board": "esp32dev", "framework": {"type": "esp-idf"}},
-            "wifi": {"ssid": "test", "password": "password1"},
-            "espectre": {"id": "hub"},
-            "text": [
-                {
-                    "platform": "espectre",
-                    "espectre_id": "hub",
-                    "traffic_generator_target_mac": {"name": name},
-                }
-                for name in ("First target", "Second target")
-            ],
-        },
-        {},
-    )
-    assert any("Only one traffic_generator_target_mac" in str(e) for e in result.errors)
-
-
 @pytest.mark.parametrize(
     ("board", "profile"), [("esp32-c6-devkitc-1", "auto"), ("esp32dev", "ht_vht")]
 )

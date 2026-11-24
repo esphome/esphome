@@ -97,20 +97,22 @@ def supported_traffic_generator_modes(config: ConfigType) -> list[str]:
     return [mode for mode in TRAFFIC_GENERATOR_MODES if wifi_raw or mode != "wifi_raw"]
 
 
+WIFI_RAW_UNSUPPORTED = (
+    "not supported on ESP32-C6 or with the ht_vht CSI capture profile"
+)
+
+
 def validate_config(config: ConfigType) -> ConfigType:
     mode = config[CONF_TRAFFIC_GENERATOR_MODE]
     if mode not in supported_traffic_generator_modes(config):
-        raise cv.Invalid(
-            "wifi_raw traffic is not supported on ESP32-C6 "
-            "or with the ht_vht CSI capture profile"
-        )
+        raise cv.Invalid(f"wifi_raw traffic is {WIFI_RAW_UNSUPPORTED}")
     if (
         CONF_TRAFFIC_GENERATOR_TARGET_MAC in config
         and "wifi_raw" not in supported_traffic_generator_modes(config)
     ):
         raise cv.Invalid(
             f"{CONF_TRAFFIC_GENERATOR_TARGET_MAC} requires wifi_raw traffic, "
-            "which is not supported on ESP32-C6 or with the ht_vht CSI capture profile"
+            f"which is {WIFI_RAW_UNSUPPORTED}"
         )
     if mode in ("wifi_raw", "external") and CONF_TRAFFIC_GENERATOR_TARGET_IP in config:
         raise cv.Invalid(f"{mode} traffic does not use a target IP address")

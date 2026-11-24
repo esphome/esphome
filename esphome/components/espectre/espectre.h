@@ -27,17 +27,14 @@
 #ifdef USE_SWITCH
 #include "esphome/components/switch/switch.h"
 #endif
-#ifdef USE_TEXT
+#ifdef USE_ESPECTRE_TARGET_MAC_TEXT
 #include "esphome/components/text/text.h"
 #endif
 
 namespace esphome::espectre {
 
-#ifdef USE_TEXT
-struct TargetMacPreference {
-  uint32_t yaml_hash;
-  std::array<char, 18> target;  // "auto" or a MAC with its terminator
-};
+#ifdef USE_ESPECTRE_TARGET_MAC_TEXT
+using TargetMac = std::array<char, 18>;  // "auto" or a MAC with its terminator
 #endif
 
 class ESPectreComponent final : public Component, public ::espectre::IRuntimeListener {
@@ -116,7 +113,7 @@ class ESPectreComponent final : public Component, public ::espectre::IRuntimeLis
 #ifdef USE_SWITCH
   void request_sensing(bool enabled) { this->pending_sensing_ = enabled; }
 #endif
-#ifdef USE_TEXT
+#ifdef USE_ESPECTRE_TARGET_MAC_TEXT
   void set_target_mac_text(text::Text *text) { this->target_mac_text_ = text; }
   /// Request a wifi_raw destination: auto or a unicast MAC address.
   void request_traffic_generator_target_mac(const std::string &target);
@@ -173,11 +170,11 @@ class ESPectreComponent final : public Component, public ::espectre::IRuntimeLis
 #ifdef USE_SWITCH
   optional<bool> pending_sensing_;
 #endif
-#ifdef USE_TEXT
+#ifdef USE_ESPECTRE_TARGET_MAC_TEXT
   void restore_target_mac_();
   text::Text *target_mac_text_{nullptr};
   ESPPreferenceObject target_mac_pref_;
-  TargetMacPreference pending_target_mac_{};
+  TargetMac pending_target_mac_{};
   bool target_mac_pending_{false};
 #endif
   bool recalibrate_pending_{false};

@@ -23,6 +23,7 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
         # Resolve <espectre_sdk.h> to the test double copied next to the tests.
         cg.add_build_flag(f"-I{CORE.relative_src_path('espectre')}")
         cg.add_define("USE_ESPECTRE")
+        cg.add_define("USE_ESPECTRE_TARGET_MAC_TEXT")
         # No entity platforms are configured, so count them to emit USE_BINARY_SENSOR,
         # USE_SENSOR, USE_SELECT, USE_NUMBER, USE_SWITCH and USE_TEXT for the entity code under test.
         CORE.platform_counts["binary_sensor"] += 2
