@@ -45,8 +45,7 @@ class RefusingIterator : public ComponentIterator {
 // Far above the fixed number of iterator states
 static constexpr size_t BIG_BUDGET = 1000;
 
-// Test builds never construct codegen entities: the walks pass include_internal so the iterator
-// never reads them, and the callbacks above accept every item untouched.
+// The walks pass include_internal, so test builds' unconstructed entities are never read
 
 TEST(ComponentIterator, NotRunningMakesNoProgress) {
   RefusingIterator it;
@@ -125,7 +124,7 @@ TEST(ComponentIterator, DeprecatedAdvanceKeepsLegacyPatternWorking) {
 #pragma GCC diagnostic pop
 
 #ifdef USE_SENSOR
-// Constructed sensors in a local constant list, walked the way the iterator walks App's lists
+// Constructed sensors in a local constant list
 static sensor::Sensor sensor_a;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static sensor::Sensor sensor_b;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static sensor::Sensor *const TEST_SENSORS[] = {&sensor_a, &sensor_b};
@@ -143,7 +142,6 @@ class ItemRefusingIterator : public RefusingIterator {
       this->yield_after_step_();
     return true;
   }
-  /// One iteration step over the local list
   bool step_list() { return this->process_platform_item_(TEST_LIST, &ComponentIterator::on_sensor); }
   uint16_t at() const { return this->at_; }
   bool yield_requested() const { return this->yield_requested_; }
@@ -157,18 +155,17 @@ class ItemRefusingIterator : public RefusingIterator {
 TEST(ComponentIteratorList, RefusedItemIsReofferedNotSkipped) {
   ItemRefusingIterator it;
   it.sensor_refusals = 2;
-  // The first sensor refuses twice; at_ stays on it
+  // Refused twice; at_ stays put
   EXPECT_FALSE(it.step_list());
   EXPECT_FALSE(it.step_list());
   EXPECT_EQ(it.at(), 0);
   EXPECT_EQ(it.last_sensor, &sensor_a);
-  // Then it is accepted, and the second sensor follows
   EXPECT_TRUE(it.step_list());
   EXPECT_EQ(it.at(), 1);
   EXPECT_TRUE(it.step_list());
   EXPECT_EQ(it.last_sensor, &sensor_b);
   EXPECT_EQ(it.sensor_calls, 4);
-  // Past the end the iterator moves on to the next platform without another callback
+  // Past the end: next platform, no callback
   EXPECT_TRUE(it.step_list());
   EXPECT_EQ(it.at(), 0);
   EXPECT_EQ(it.sensor_calls, 4);
@@ -178,7 +175,6 @@ TEST(ComponentIteratorList, YieldAfterStepIsRequestedPerItem) {
   ItemRefusingIterator it;
   it.yield_on_sensor = true;
   EXPECT_TRUE(it.step_list());
-  // try_advance() ends its pass when the callback asked to yield
   EXPECT_TRUE(it.yield_requested());
   EXPECT_EQ(it.at(), 1);
   EXPECT_EQ(it.last_sensor, &sensor_a);

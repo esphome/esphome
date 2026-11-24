@@ -74,7 +74,7 @@ def test_use_define_adds_the_datetime_prefix() -> None:
 
 
 def test_directly_defined_use_gets_its_list() -> None:
-    """A test or benchmark that defines USE_<X> itself still gets the list and its count."""
+    """A directly defined USE_<X> still gets the list and its count."""
     cg.add_define("USE_INFRARED")
     app_lists.schedule_emit()
     CORE.flush_tasks()
@@ -95,8 +95,7 @@ def test_directly_defined_use_gets_its_list() -> None:
     ],
 )
 def test_count_override_is_rejected(override: str) -> None:
-    """The esphome-ramses style override would size the walk past the constant list;
-    `-D NAME=value` with a space is the same define PlatformIO passes to the compiler."""
+    """A count override would size the walk past the constant list."""
     CORE.platform_counts["sensor"] = 1
     app_lists.add_entity("sensor", _new_sensor("only_one"))
     if override == "add_define":
@@ -111,7 +110,7 @@ def test_count_override_is_rejected(override: str) -> None:
 
 
 def test_device_count_override_names_the_yaml_lists() -> None:
-    """A device or area count conflict points at the YAML lists, not at entities."""
+    """Device and area conflicts point at the YAML lists."""
     app_lists.add_to_list("DEVICE", _new_sensor("dev_one"))
     cg.add_define("ESPHOME_DEVICE_COUNT", 4)
     app_lists.schedule_emit()

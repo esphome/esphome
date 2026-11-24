@@ -1,9 +1,4 @@
-"""Constant lists of the entities, devices and areas the Application holds.
-
-Codegen records every object it adds to one of `App`'s lists, and a FINAL job emits each list as a
-constant array of pointers (`esphome::app_lists::APP_<UPPER>_LIST`, declared in application.h), so the lists take no RAM.
-Entities cannot be added at run time.
-"""
+"""Constant App lists of entities, devices and areas, emitted by codegen."""
 
 from dataclasses import dataclass, field
 
@@ -25,7 +20,7 @@ def _upper(platform: str) -> str:
     return f"DATETIME_{upper}" if platform in DATETIME_SUBTYPES else upper
 
 
-# Entity list name (the `singular` of entity_types.h) -> its `upper` token.
+# Entity platform -> its entity_types.h `upper` token
 ENTITY_LISTS: dict[str, str] = {
     platform: _upper(platform) for platform in ENTITY_PLATFORMS
 }
@@ -38,7 +33,7 @@ def use_define(platform: str) -> str:
 
 @dataclass
 class AppListsState:
-    """Constant addresses of the objects added to each list, in emission order, keyed by `upper` token."""
+    """Constant object addresses per list, keyed by `upper` token."""
 
     lists: dict[str, list[str]] = field(default_factory=dict)
     emitted: bool = False
@@ -76,7 +71,7 @@ def add_entity(platform: str, var: MockObj) -> None:
 
 def _defined_values() -> dict[str, set[str]]:
     """Every define set through cg.add_define or a -D build flag, name -> values."""
-    # Imported here: esphome.platformio pulls in config validation, which imports codegen
+    # Lazy: esphome.platformio imports codegen
     from esphome.platformio.library import lex_build_flags
 
     values: dict[str, set[str]] = {}
@@ -95,7 +90,7 @@ def _add_count_define(
     value: int,
     reason: str = "entities cannot be added at run time",
 ) -> None:
-    """Emit a list size, refusing a different value defined elsewhere: it would size the walk wrong."""
+    """Emit a list size, refusing a different value defined elsewhere."""
     if others := sorted(defined.get(name, set()) - {str(value)}):
         raise EsphomeError(
             f"{name} is defined as {', '.join(others)} elsewhere, but codegen sizes it as "
@@ -106,10 +101,10 @@ def _add_count_define(
 
 def _emit_list(upper: str, objs: list[str], count_define: str) -> None:
     name = f"esphome::app_lists::APP_{upper}_LIST"
-    # A list without codegen objects still needs a definition; its count is 0, so it is never read
+    # An empty list still needs a definition; it is never read
     items = ", ".join(objs) or "nullptr"
     add_global(RawStatement(f"decltype({name}) {name} PROGMEM = {{{items}}};"))
-    # Catches a count defined later than the check above (a later FINAL job); costs no flash
+    # Also catches a count defined after the check above
     add_global(
         RawStatement(
             f'static_assert({count_define} == {len(objs)}, "{count_define} must match the {upper} list");'
@@ -124,8 +119,7 @@ async def _emit_entity_lists() -> None:
     defined = _defined_values()
     for platform, upper in ENTITY_LISTS.items():
         objs = state.lists.get(upper, [])
-        # The one place that decides whether the type is compiled in, so USE_* and the list agree;
-        # a USE_* defined directly (tests, benchmarks) counts as enabled
+        # Decides USE_* and the list together; a USE_* defined directly counts as enabled
         if (
             not CORE.platform_counts.get(platform)
             and use_define(platform) not in defined

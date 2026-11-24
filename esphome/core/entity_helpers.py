@@ -313,8 +313,7 @@ def _describe_packed_flags(config: ConfigType, entity_category: int) -> str:
 
 
 def queue_entity_register(method_name: str, config: ConfigType) -> None:
-    """Add the entity to the constant ``App`` list of ``method_name`` (for example ``sensor``)
-    when ``finalize_entity_strings`` runs."""
+    """Add the entity to the ``App`` list of ``method_name`` in ``finalize_entity_strings``."""
     config[_KEY_APP_LIST] = method_name
 
 
@@ -349,8 +348,6 @@ def finalize_entity_strings(var: MockObj, config: ConfigType) -> None:
     comment = _describe_packed_flags(config, entity_category)
     if (app_list := config.get(_KEY_APP_LIST)) is not None:
         app_lists.add_entity(app_list, var)
-        # Application::configure_<entity>() takes the pointer setup() holds and applies the EntityBase
-        # offset once, instead of a new address literal at every call
         expr = getattr(_APPLICATION, f"configure_{app_list}")(
             var, entity_name, object_id_hash, packed
         )
