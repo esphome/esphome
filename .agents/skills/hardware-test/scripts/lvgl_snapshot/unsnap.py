@@ -1,6 +1,6 @@
 """unsnap.py LOG OUTPREFIX: rebuild one PNG per SNAPBEGIN..SNAPEND block of a serial log (2x scale).
 
-Checks the pixel count and the checksum; pixels of missing lines stay magenta in place.
+Checks that runs cover every pixel once and the checksum; pixels of missing lines stay magenta in place.
 """
 
 import pathlib
@@ -27,17 +27,21 @@ for line in (
         w, hh = cur["w"], cur["h"]
         missing = [i for i in range(int(m[2])) if i not in cur["lines"]]
         data = [(255, 0, 255)] * (w * hh)
-        s = got = 0
+        s = over = 0
+        covered: set[int] = set()
         for pos, h in cur["lines"].values():
             for k in range(0, len(h) // 8 * 8, 8):
                 cnt, c = int(h[k : k + 4], 16), int(h[k + 4 : k + 8], 16)
                 s += cnt * 31 + c
                 rgb = ((c >> 11) << 3, ((c >> 5) & 63) << 2, (c & 31) << 3)
                 data[pos : pos + cnt] = [rgb] * cnt
+                n = len(covered)
+                covered.update(range(pos, min(pos + cnt, w * hh)))
+                over += cnt - (len(covered) - n)  # overlapping or out of range
                 pos += cnt
-                got += cnt
         del data[w * hh :]
-        ok = got == w * hh and (s & 0xFFFFFFFF) == int(m[4])
+        got = len(covered)
+        ok = got == w * hh and over == 0 and (s & 0xFFFFFFFF) == int(m[4])
         img = Image.new("RGB", (w, hh))
         img.putdata(data)
         img = img.resize((w * 2, hh * 2), Image.NEAREST)
@@ -49,7 +53,9 @@ for line in (
             got,
             "of",
             w * hh,
-            "checksum ok" if ok else "CHECKSUM BAD",
+            "overlap",
+            over,
+            "ok" if ok else "BAD",
             "missing lines",
             missing[:10],
         )
