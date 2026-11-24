@@ -48,22 +48,24 @@ TEST_F(ESPectreTargetMacTest, RejectedRequestKeepsTheTarget) {
   component_.setup();
   component_.request_traffic_generator_target_mac("aa:bb:cc:dd:ee:02");
   component_.loop();
-  int publishes = 0;
+  size_t publishes = 0;
   text_.add_on_state_callback([&publishes](const std::string &) { publishes++; });
-  // Multicast, all zero, not a MAC address, and too long to be one.
-  for (const char *target :
-       {"01:00:5e:00:00:01", "00:00:00:00:00:00", "automatic", "aa:bb:cc:dd:ee:02:03", "aa:bb:cc:dd:ee:0203"}) {
-    sdk_->rejected_target_mac = target;
+  sdk_->last_target_mac.clear();
+  const std::array<std::string, 8> invalid_targets = {
+      "01:00:5e:00:00:01",   "00:00:00:00:00:00", "automatic",         "aa:bb:cc:dd:ee:02:03",
+      "aa:bb:cc:dd:ee:0203", "aa-bb-cc-dd-ee-02", "aa:bb:cc:dd:ee:0g", std::string("auto\0", 5)};
+  for (const auto &target : invalid_targets) {
     component_.request_traffic_generator_target_mac(target);
     component_.loop();
+    EXPECT_TRUE(sdk_->last_target_mac.empty()) << target;
     EXPECT_EQ(target_(), "aa:bb:cc:dd:ee:02") << target;
     EXPECT_EQ(text_.state, "aa:bb:cc:dd:ee:02") << target;
   }
   // Each rejection republishes the active target, so the entity drops the value it was asked for.
-  EXPECT_EQ(publishes, 5);
+  EXPECT_EQ(publishes, invalid_targets.size());
 
   component_.loop();
-  EXPECT_EQ(publishes, 5);
+  EXPECT_EQ(publishes, invalid_targets.size());
 }
 
 TEST_F(ESPectreTargetMacTest, RequestDuringApplyWaitsForNextLoop) {
@@ -77,7 +79,7 @@ TEST_F(ESPectreTargetMacTest, RequestDuringApplyWaitsForNextLoop) {
   EXPECT_EQ(text_.state, first);
   TargetMac saved{};
   ASSERT_TRUE(text_.make_entity_preference<TargetMac>(fnv1a_hash("auto")).load(&saved));
-  EXPECT_STREQ(saved.data(), first);
+  EXPECT_EQ(saved, (TargetMac{0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0x02}));
 
   sdk_->target_mac_hook = nullptr;
   component_.loop();
@@ -94,7 +96,7 @@ TEST_F(ESPectreTargetMacTest, PublishesActiveTargetWhenAnotherTargetIsStaged) {
   EXPECT_EQ(target_(), "aa:bb:cc:dd:ee:04");
   EXPECT_EQ(text_.state, sdk_->active_target_mac_);
 
-  sdk_->rejected_target_mac = "01:00:5e:00:00:01";
+  sdk_->rejected_target_mac = "02:00:00:00:00:01";
   text_.make_call().set_value(sdk_->rejected_target_mac).perform();
   component_.loop();
   EXPECT_EQ(text_.state, "aa:bb:cc:dd:ee:02");
@@ -114,7 +116,7 @@ TEST_F(ESPectreTargetMacTest, SavedTargetIsKeyedByYamlTarget) {
 
   // A rejected request does not replace the saved target.
   auto *same_sdk = ::espectre::RuntimeFrontendController::instance;
-  same_sdk->rejected_target_mac = "01:00:5e:00:00:01";
+  same_sdk->rejected_target_mac = "02:00:00:00:00:01";
   same_yaml.request_traffic_generator_target_mac(same_sdk->rejected_target_mac);
   same_yaml.loop();
   ESPectreComponent after_rejection;
@@ -140,8 +142,8 @@ TEST_F(ESPectreTargetMacTest, SavedTargetIsKeyedByYamlTarget) {
 
 TEST_F(ESPectreTargetMacTest, RejectedSavedTargetUsesYaml) {
   constexpr char yaml_target[] = "aa:bb:cc:dd:ee:04";
-  const TargetMac invalid{"01:00:5e:00:00:01"};
-  sdk_->rejected_target_mac = invalid.data();
+  const TargetMac invalid{0x01, 0x00, 0x5e, 0x00, 0x00, 0x01};
+  sdk_->rejected_target_mac = "01:00:5e:00:00:01";
   ASSERT_TRUE(text_.make_entity_preference<TargetMac>(fnv1a_hash(yaml_target)).save(&invalid));
   component_.set_traffic_generator_target_mac(yaml_target);
   component_.setup();

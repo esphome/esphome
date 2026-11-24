@@ -34,7 +34,7 @@
 namespace esphome::espectre {
 
 #ifdef USE_ESPECTRE_TARGET_MAC_TEXT
-using TargetMac = std::array<char, 18>;  // "auto" or a MAC with its terminator
+using TargetMac = std::array<uint8_t, 6>;  // All zero represents "auto".
 #endif
 
 class ESPectreComponent final : public Component, public ::espectre::IRuntimeListener {

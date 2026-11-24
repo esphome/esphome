@@ -40,11 +40,33 @@ void ESPectreComponent::request_csi_sample_spacing(const char *name) {
 #endif
 
 #ifdef USE_ESPECTRE_TARGET_MAC_TEXT
+static bool parse_target_mac(const std::string &value, TargetMac &mac) {
+  if (value == "auto") {
+    mac = {};
+    return true;
+  }
+  if (value.size() != MAC_ADDRESS_PRETTY_BUFFER_SIZE - 1)
+    return false;
+  for (size_t i = 0; i < mac.size(); i++) {
+    if ((i != 0 && value[i * 3 - 1] != ':') || parse_hex(value.data() + i * 3, 2, &mac[i], 1) != 2)
+      return false;
+  }
+  return mac != TargetMac{} && (mac[0] & 1) == 0;
+}
+
+static const char *format_target_mac(const TargetMac &mac, char (&buffer)[MAC_ADDRESS_PRETTY_BUFFER_SIZE]) {
+  if (mac == TargetMac{})
+    return "auto";
+  snprintf(buffer, sizeof(buffer), "%02x:%02x:%02x:%02x:%02x:%02x", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+  return buffer;
+}
+
 void ESPectreComponent::request_traffic_generator_target_mac(const std::string &target) {
-  // A value too long to be a MAC stays empty, which the SDK rejects.
-  this->pending_target_mac_.fill('\0');
-  if (target.size() < this->pending_target_mac_.size())
-    target.copy(this->pending_target_mac_.data(), target.size());
+  if (!parse_target_mac(target, this->pending_target_mac_)) {
+    // A group address marks a rejected request until loop() republishes the active state.
+    this->pending_target_mac_[0] = 0xff;
+    ESP_LOGW(TAG, "Invalid target MAC");
+  }
   this->target_mac_pending_ = true;
 }
 
@@ -54,8 +76,9 @@ void ESPectreComponent::restore_target_mac_() {
   this->target_mac_pref_ = this->target_mac_text_->make_entity_preference<TargetMac>(
       fnv1a_hash(this->runtime_.config().traffic_generator_target_mac));
   TargetMac saved;
-  if (this->target_mac_pref_.load(&saved) && saved.back() == '\0')
-    this->runtime_.set_traffic_generator_target_mac(saved.data());
+  char buffer[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+  if (this->target_mac_pref_.load(&saved))
+    this->runtime_.set_traffic_generator_target_mac(format_target_mac(saved, buffer));
 }
 #endif
 
@@ -267,17 +290,16 @@ void ESPectreComponent::apply_pending_controls_() {
   if (this->target_mac_pending_) {
     this->target_mac_pending_ = false;
     // An SDK log callback can queue the next request while this one is being applied.
-    TargetMac target = this->pending_target_mac_;
-    if (this->runtime_.set_traffic_generator_target_mac(target.data())) {
-      // The SDK accepts hex digits in either case and applies them in lower case.
-      for (char &digit : target) {
-        if (digit >= 'A' && digit <= 'F')
-          digit += 'a' - 'A';
-      }
+    const TargetMac target = this->pending_target_mac_;
+    char buffer[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+    const char *value = (target[0] & 1) == 0 ? format_target_mac(target, buffer) : nullptr;
+    if (value != nullptr && this->runtime_.set_traffic_generator_target_mac(value)) {
       this->target_mac_pref_.save(&target);
-      this->target_mac_text_->publish_state(target.data());
+      this->target_mac_text_->publish_state(value);
     } else {
-      ESP_LOGW(TAG, "Target MAC '%s' was rejected", target.data());
+      if (value != nullptr) {
+        ESP_LOGW(TAG, "Target MAC '%s' was rejected", value);
+      }
       this->target_mac_text_->publish_state(this->target_mac_text_->state);
     }
   }
