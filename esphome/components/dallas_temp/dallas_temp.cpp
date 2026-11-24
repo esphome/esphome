@@ -79,17 +79,14 @@ static const LogString *transaction_status_to_str(one_wire::TransactionStatus st
   }
 }
 
-bool DallasTemperatureSensor::check_transaction_status_(one_wire::TransactionStatus status, const LogString *step) {
+bool DallasTemperatureSensor::check_transaction_status_(one_wire::TransactionStatus status, bool conversion_step) {
   if (status == one_wire::TransactionStatus::TRANSACTION_STATUS_OK)
     return true;
-  ESP_LOGW(TAG, "'%s' - %s failed: %s", LOG_STR_ARG(this->get_log_name()), LOG_STR_ARG(step),
-           LOG_STR_ARG(transaction_status_to_str(status)));
-  if (status == one_wire::TransactionStatus::TRANSACTION_STATUS_NO_PRESENCE ||
-      status == one_wire::TransactionStatus::TRANSACTION_STATUS_BUS_LOW) {
-    this->status_set_warning(LOG_STR("bus reset failed"));
-  } else {
-    this->status_set_warning(LOG_STR("bus transaction failed"));
-  }
+  const LogString *reason = transaction_status_to_str(status);
+  ESP_LOGW(TAG, "'%s' - %s failed: %s", LOG_STR_ARG(this->get_log_name()),
+           conversion_step ? LOG_STR_LITERAL("starting the conversion") : LOG_STR_LITERAL("reading scratch pad"),
+           LOG_STR_ARG(reason));
+  this->status_set_warning(reason);
   return false;
 }
 
@@ -100,8 +97,7 @@ void DallasTemperatureSensor::on_transaction_done(void *context, one_wire::Trans
 void DallasTemperatureSensor::handle_transaction_done_(one_wire::TransactionStatus status) {
   const bool conversion_step = this->transaction_.read_len == 0;
   float tempc = NAN;
-  if (this->check_transaction_status_(
-          status, conversion_step ? LOG_STR("starting the conversion") : LOG_STR("reading scratch pad"))) {
+  if (this->check_transaction_status_(status, conversion_step)) {
     if (conversion_step) {
       this->set_timeout(CONVERSION_TIMEOUT_ID, this->millis_to_wait_for_conversion_(),
                         [this] { this->submit_(&DALLAS_COMMAND_READ_SCRATCH_PAD, sizeof(this->scratch_pad_)); });
@@ -117,17 +113,16 @@ void DallasTemperatureSensor::handle_transaction_done_(one_wire::TransactionStat
   this->publish_state(tempc);
 }
 
+// Blocking, setup() only
 bool DallasTemperatureSensor::read_scratch_pad_() {
-  bool success = this->send_command_(DALLAS_COMMAND_READ_SCRATCH_PAD);
-  if (success) {
-    for (uint8_t &i : this->scratch_pad_) {
-      i = this->bus_->read8();
-    }
-  } else {
-    ESP_LOGW(TAG, "'%s' - reading scratch pad failed bus reset", LOG_STR_ARG(this->get_log_name()));
-    this->status_set_warning(LOG_STR("bus reset failed"));
+  if (!this->send_command_(DALLAS_COMMAND_READ_SCRATCH_PAD)) {
+    // select() has already logged a bus held low
+    return this->check_transaction_status_(one_wire::TransactionStatus::TRANSACTION_STATUS_NO_PRESENCE, false);
   }
-  return success;
+  for (uint8_t &i : this->scratch_pad_) {
+    i = this->bus_->read8();
+  }
+  return true;
 }
 
 void DallasTemperatureSensor::setup() {

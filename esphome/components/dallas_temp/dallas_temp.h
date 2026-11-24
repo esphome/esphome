@@ -26,7 +26,7 @@ class DallasTemperatureSensor final : public PollingComponent, public sensor::Se
   float get_temp_c_();
   /// Log a warning naming this sensor, the step and the reason, set the status warning and return false
   /// unless the transaction ended with TRANSACTION_STATUS_OK.
-  bool check_transaction_status_(one_wire::TransactionStatus status, const LogString *step);
+  bool check_transaction_status_(one_wire::TransactionStatus status, bool conversion_step);
   /// Set the command and the read length of the next step and submit it. The transaction must not be pending.
   void submit_(const uint8_t *command, uint8_t read_len);
   void handle_transaction_done_(one_wire::TransactionStatus status);
