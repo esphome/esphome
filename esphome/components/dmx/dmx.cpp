@@ -243,8 +243,8 @@ void DMXComponent::sync_rdm_to_numbers_() {
       b.last_address = addr;
       if (b.channel_number != nullptr) {
         b.channel_number->publish_state(static_cast<float>(addr));
-        ESP_LOGI(TAG, "RDM PID 0x%04X → Number '%s' = %u", b.custom_pid,
-                 LOG_STR_ARG(b.channel_number->get_log_name()), addr);
+        ESP_LOGI(TAG, "RDM PID 0x%04X → Number '%s' = %u", b.custom_pid, LOG_STR_ARG(b.channel_number->get_log_name()),
+                 addr);
       }
     }
 #endif
@@ -267,8 +267,7 @@ void DMXComponent::sync_numbers_to_rdm_() {
           if (addr != b.last_address) {
             if (rdm_set_dmx_start_address(this->dmx_port_, addr)) {
               b.last_address = addr;
-              ESP_LOGD(TAG, "Number '%s' → RDM start address %u", LOG_STR_ARG(b.channel_number->get_log_name()),
-                       addr);
+              ESP_LOGD(TAG, "Number '%s' → RDM start address %u", LOG_STR_ARG(b.channel_number->get_log_name()), addr);
             }
           }
         }
@@ -288,8 +287,8 @@ void DMXComponent::sync_numbers_to_rdm_() {
         continue;
       if (dmx_parameter_set(this->dmx_port_, RDM_SUB_DEVICE_ROOT, b.custom_pid, &addr, sizeof(addr))) {
         b.last_address = addr;
-        ESP_LOGD(TAG, "Number '%s' → RDM PID 0x%04X = %u", LOG_STR_ARG(b.channel_number->get_log_name()),
-                 b.custom_pid, addr);
+        ESP_LOGD(TAG, "Number '%s' → RDM PID 0x%04X = %u", LOG_STR_ARG(b.channel_number->get_log_name()), b.custom_pid,
+                 addr);
       }
     }
 #endif
