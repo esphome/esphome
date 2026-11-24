@@ -27,7 +27,11 @@ ESPHOME_LOG_TAG(TAG, "mipi_csi");
 
 static constexpr uint32_t CAPTURE_TASK_STACK_SIZE = 4096;
 static constexpr UBaseType_t CAPTURE_TASK_PRIORITY = 1;
+#if CONFIG_FREERTOS_UNICORE
+static constexpr BaseType_t CAPTURE_TASK_CORE = tskNO_AFFINITY;
+#else
 static constexpr BaseType_t CAPTURE_TASK_CORE = 1;
+#endif
 /// How often the delivered frame rate is summarised at debug level.
 static constexpr uint32_t THROUGHPUT_REPORT_INTERVAL_MS = 5000;
 /// How long the capture task waits before retrying after a dequeue error.
