@@ -1,0 +1,19 @@
+# Wi-Fi drop of SECS seconds as a script, and a 30 s drop as an API button
+script:
+  - id: wifi_drop
+    mode: single
+    parameters:
+      secs: int
+    then:
+      - logger.log: "HWT wifi drop start"
+      - wifi.disable:
+      - delay: !lambda 'return secs * 1000;'
+      - wifi.enable:
+      - logger.log: "HWT wifi drop end"
+button:
+  - platform: template
+    name: Wifi Drop
+    on_press:
+      - script.execute:
+          id: wifi_drop
+          secs: 30

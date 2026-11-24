@@ -767,3 +767,29 @@ def test_shrink_enum_collapse_reports_dropped_siblings(
     assert "dropped ['base.B'] beside sibling extends at mod.schemas.CONFIG_SCHEMA" in (
         capsys.readouterr().out
     )
+
+
+@pytest.mark.parametrize(
+    "name,expected",
+    [
+        ("lvgl.update", ("lvgl", "update")),
+        ("unknown.do", ("unknown", "do")),
+        ("sensor.template.publish", ("template.sensor", "publish")),
+        ("lvgl.table.update", ("lvgl", "table.update")),
+        ("lvgl.table.cell.update", ("lvgl", "table.cell.update")),
+        ("lvgl.chart.series.append", ("lvgl", "chart.series.append")),
+        ("unknown.thing.do", None),
+    ],
+)
+def test_split_registry_name(name: str, expected: tuple[str, str] | None) -> None:
+    assert _bls.split_registry_name(name, {"sensor"}, {"lvgl", "sensor"}) == expected
+
+
+def test_lvgl_actions_with_long_names_keep_their_own_schemas(
+    lvgl_schema: dict,
+) -> None:
+    """A four-part action name used to overwrite the schema of the action before it."""
+    actions = lvgl_schema["lvgl"]["action"]
+    table_cell = actions["table.cell.update"]["schema"]["config_vars"]
+    assert {"row", "column", "text"} <= set(table_cell)
+    assert "row" not in actions["table.update"]["schema"]["config_vars"]

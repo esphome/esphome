@@ -463,6 +463,8 @@ async def debug_to_code(config, parent):
 
 async def to_code(config):
     cg.add_global(uart_ns.using)
+    # A hardware UART is configured; uart can also be loaded only for virtual UARTs
+    cg.add_define("USE_UART_HARDWARE")
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
@@ -797,6 +799,11 @@ automation.register_apply_action(
 )
 
 
+def request_tx_break() -> None:
+    """Compile in UARTComponent::set_tx_break() for a component that holds the TX line low."""
+    cg.add_define("USE_UART_TX_BREAK")
+
+
 @coroutine_with_priority(CoroPriority.FINAL)
 async def final_step():
     """Final code generation step to configure optional UART features."""
@@ -826,9 +833,13 @@ _platform_filter = filter_source_files_from_platform(
 )
 
 # uart_debugger.cpp is fully #ifdef'd on USE_UART_DEBUGGER, set only when a
-# debug block is configured.
+# debug block is configured. uart_component_rp2.cpp names Serial1 and Serial2,
+# which links arduino-pico's SerialUART objects even when nothing uses them.
 _define_filter = filter_source_files_from_defines(
-    {"uart_debugger.cpp": "USE_UART_DEBUGGER"}
+    {
+        "uart_debugger.cpp": "USE_UART_DEBUGGER",
+        "uart_component_rp2.cpp": "USE_UART_HARDWARE",
+    }
 )
 
 
