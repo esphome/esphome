@@ -18,9 +18,9 @@ enum OperationMode {
   WRITE = 4,  // writing data to output
   SENT = 5,   // all data written to output
 
-  ERROR_PROTOCOL = 8,  // protocol error, can happed only during READ
+  ERROR_PROTOCOL = 8,  // protocol error, can happen only during READ
   ERROR_TIMEOUT = 9,   // timeout while waiting for response from device, only during LISTEN
-  ERROR_TIMER = 10     // error operating the ESP32 timer
+  ERROR_TIMER = 10     // error operating the transport: the ESP32 timer, or the RMT driver on a failed transmit
 };
 
 enum ProtocolErrorType {
@@ -33,10 +33,10 @@ enum ProtocolErrorType {
 
 enum TimerErrorType {
   NO_TIMER_ERROR = 0,           // No error
-  SET_ALARM_VALUE_ERROR = 1,    // No transition in the middle of the bit
-  TIMER_START_ERROR = 2,        // Stop bit wasn't present when expected
-  TIMER_PAUSE_ERROR = 3,        // Parity check didn't pass
-  SET_COUNTER_VALUE_ERROR = 4,  // No level change for too much timer ticks
+  SET_ALARM_VALUE_ERROR = 1,    // gptimer_set_alarm_action failed
+  TIMER_START_ERROR = 2,        // gptimer_start failed
+  TIMER_PAUSE_ERROR = 3,        // gptimer_stop failed
+  SET_COUNTER_VALUE_ERROR = 4,  // gptimer_set_raw_count failed
 };
 
 enum MessageType {

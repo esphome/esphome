@@ -3,6 +3,7 @@
 #if defined(USE_ESP32) && SOC_RMT_SUPPORTED
 
 #include <cstring>
+#include <driver/gpio.h>
 #include <esp_clk_tree.h>
 #include "esphome/core/wake.h"
 
@@ -14,9 +15,8 @@ bool IRAM_ATTR HOT OpenThermRMT::rx_done_isr(rmt_channel_handle_t channel, const
                                              void *user_ctx) {
   auto *arg = static_cast<OpenThermRMT *>(user_ctx);
   arg->symbol_count_ = edata->num_symbols;
+  arg->rx_armed_ = false;
   arg->rx_done_ = true;
-  // This is the only moment the channel is free, so the next capture starts here and the receiver never stops.
-  arg->rx_armed_ = rmt_receive(channel, arg->buffer_.data(), arg->buffer_.size_bytes(), &arg->rx_config_) == ESP_OK;
   BaseType_t task_woken = pdFALSE;
   wake_loop_isrsafe(&task_woken);
   return task_woken != pdFALSE;
@@ -50,6 +50,12 @@ bool OpenThermRMT::init_rx_() {
     ESP_LOGE(TAG, "RMT driver failed: %s", esp_err_to_name(error));
     return false;
   }
+  // The driver forces a pullup on the input pin; restore what the configuration asked for.
+  if (this->in_pin_->get_flags() & gpio::FLAG_PULLUP) {
+    gpio_pullup_en(gpio_num_t(this->in_pin_->get_pin()));
+  } else {
+    gpio_pullup_dis(gpio_num_t(this->in_pin_->get_pin()));
+  }
 
   rmt_rx_event_callbacks_t callbacks;
   memset(&callbacks, 0, sizeof(callbacks));
@@ -74,6 +80,9 @@ bool OpenThermRMT::init_tx_() {
   channel.gpio_num = gpio_num_t(this->out_pin_->get_pin());
   channel.trans_queue_depth = 1;
   channel.intr_priority = 0;
+  // The peripheral bypasses the pin's software inversion, so apply it in the GPIO matrix instead.
+  // This inverts the whole output, the end-of-transmission idle level included.
+  channel.flags.invert_out = this->out_pin_->is_inverted() ? 1 : 0;
 
   esp_err_t error = rmt_new_tx_channel(&channel, &this->tx_);
   if (error != ESP_OK) {
@@ -106,24 +115,15 @@ bool OpenThermRMT::init_tx_() {
 
 void OpenThermRMT::listen_impl_() {
   this->listen_start_ = millis();
-  // The channel arms itself again after every capture, so it is normally already listening by the time we get here.
-  if (!this->rx_armed_) {
-    this->arm_rx_();
-  }
+  this->arm_rx_();
 }
 
 void OpenThermRMT::send_impl_() {
   this->build_frame_();
 
-  // The receiver is armed permanently, so it would record this transmission as if it were the answer. Drop the
-  // capture and leave the channel idle until listen() arms it again.
-  if (this->rx_armed_) {
-    rmt_disable(this->rx_);
-    rmt_enable(this->rx_);
-    this->rx_armed_ = false;
-  }
-  this->rx_done_ = false;
-  this->symbol_count_ = 0;
+  // Nothing is waiting for an answer while we talk, so the receiver is released. It would otherwise record this
+  // transmission as if it were the answer.
+  this->disarm_rx_();
 
   rmt_transmit_config_t config;
   memset(&config, 0, sizeof(config));
@@ -139,8 +139,8 @@ void OpenThermRMT::send_impl_() {
 }
 
 void OpenThermRMT::stop_impl_() {
-  // The capture is left alone: it either closed itself after the stop bit or is still waiting for an answer, and
-  // either way the next listen() replaces it.
+  // The conversation is over, so nothing has to be listening until the next request.
+  this->disarm_rx_();
 }
 
 void OpenThermRMT::loop_impl_() {
@@ -148,9 +148,11 @@ void OpenThermRMT::loop_impl_() {
     this->rx_done_ = false;
     this->decode_rx_();
   }
-  // A capture that found nothing is armed again, so the timeout is what ends an unanswered request.
+  // A capture that found nothing is armed again, so the timeout is what ends an unanswered request. The response
+  // time covers the start of the reply alone, so a frame that begins at the limit still has to fit and be closed.
+  constexpr uint32_t REPLY_US = FRAME_BITS * 2 * HALF_BIT_US + RMT_IDLE_US;
   if (this->mode_ == OperationMode::LISTEN &&
-      millis() - this->listen_start_ >= static_cast<uint32_t>(this->device_timeout_)) {
+      millis() - this->listen_start_ >= static_cast<uint32_t>(this->device_timeout_) + REPLY_US / 1000) {
     this->mode_ = OperationMode::ERROR_TIMEOUT;
   }
 }
@@ -171,6 +173,18 @@ void OpenThermRMT::build_frame_() {
     add_bit(read_bit(this->data_, bit));
   }
   add_bit(1);  // stop bit
+}
+
+void OpenThermRMT::disarm_rx_() {
+  if (!this->rx_armed_) {
+    return;
+  }
+  // The driver has no way to cancel a pending capture, so the channel is disabled and enabled again to abandon it.
+  rmt_disable(this->rx_);
+  rmt_enable(this->rx_);
+  this->rx_armed_ = false;
+  this->rx_done_ = false;
+  this->symbol_count_ = 0;
 }
 
 void OpenThermRMT::arm_rx_() {
@@ -207,10 +221,15 @@ void OpenThermRMT::decode_rx_() {
       const uint8_t level = half == 0 ? symbol.level0 : symbol.level1;
       if (previous < 0) {
         previous = level;  // The level the capture opened on is not a transition.
-      } else if (level != previous && count < RMT_MAX_EDGES) {
-        this->edge_us_[count] = this->to_microseconds_(ticks);
-        this->edge_level_[count] = level ^ invert;
-        count++;
+      } else if (level != previous) {
+        const uint32_t edge_us = this->to_microseconds_(ticks);
+        if (count > 0 && edge_us - this->edge_us_[count - 1] < GLITCH_MAX_US) {
+          count--;  // The pulse is noise, so both of its edges go.
+        } else if (count < RMT_MAX_EDGES) {
+          this->edge_us_[count] = edge_us;
+          this->edge_level_[count] = level ^ invert;
+          count++;
+        }
         previous = level;
       }
       if (duration == 0) {
@@ -221,7 +240,9 @@ void OpenThermRMT::decode_rx_() {
   }
 
   if (count < 2) {
-    return;  // Nothing usable, and the channel has already armed itself again.
+    // Nothing usable was captured, so the answer may still be on its way.
+    this->arm_rx_();
+    return;
   }
 
   uint32_t data = 0;

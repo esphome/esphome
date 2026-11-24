@@ -234,7 +234,6 @@ void OpenTherm::loop() {
     default:
       break;
   }
-  this->last_mode_ = cur_mode;
 }
 
 bool OpenTherm::handle_error_(OperationMode mode) {

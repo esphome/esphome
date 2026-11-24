@@ -256,7 +256,7 @@ void OpenThermBase::debug_data(OpenthermData &data) {
            data.get_f88());
 }
 void OpenThermBase::debug_error(OpenThermError &error) const {
-  ESP_LOGD(TAG, "data: 0x%08" PRIx32 "; clock: %u; capture: 0x%08" PRIx32 "; bit_pos: %u", error.data, this->clock_,
+  ESP_LOGD(TAG, "data: 0x%08" PRIx32 "; clock: %u; capture: 0x%08" PRIx32 "; bit_pos: %u", error.data, error.clock,
            error.capture, error.bit_pos);
 }
 

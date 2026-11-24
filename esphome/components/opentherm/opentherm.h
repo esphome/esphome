@@ -41,7 +41,6 @@
 #include <functional>
 #include <memory>
 #include <unordered_map>
-#include <unordered_set>
 
 #include "opentherm_macros.h"
 
@@ -89,8 +88,6 @@ class OpenTherm final : public Component {
 
   uint32_t last_conversation_start_ = 0;
   uint32_t last_conversation_end_ = 0;
-  OperationMode last_mode_ = IDLE;
-  OpenthermData last_request_;
 
 #if !(defined(USE_ESP32) && SOC_RMT_SUPPORTED)
   // Synchronous communication mode prevents other components from disabling interrupts while we are talking to the

@@ -88,9 +88,11 @@ CONFIG_SCHEMA = cv.All(
         )
     )
     .extend(cv.COMPONENT_SCHEMA)
-    # setup_priority::DATA, the default of Component::get_setup_priority()
     .add_extra(_set_rmt_symbols)
-    .add_extra(esp32_rmt.request_rmt_channel("RX", 600.0)),
+    # setup_priority::HARDWARE (800), which OpenTherm::get_setup_priority() returns. The transport
+    # creates one RX and one TX channel, so both are registered for the shared memory accounting.
+    .add_extra(esp32_rmt.request_rmt_channel("RX", 800.0))
+    .add_extra(esp32_rmt.request_rmt_channel("TX", 800.0)),
     cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266]),
 )
 

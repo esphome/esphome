@@ -46,6 +46,7 @@ class OpenThermRMT : public OpenThermBase, public remote_base::RemoteRMTChannel 
   bool init_rx_();
   bool init_tx_();
   void arm_rx_();
+  void disarm_rx_();
   void decode_rx_();
   void build_frame_();
 
@@ -61,10 +62,13 @@ class OpenThermRMT : public OpenThermBase, public remote_base::RemoteRMTChannel 
   // one bit and a frame is exactly 34 symbols.
   static constexpr uint32_t HALF_BIT_US = 500;
   static constexpr size_t FRAME_BITS = 34;
-  // The line is idle while the slave prepares its answer, so this has to outlast that wait.
+  // A capture closes after this much idle time on the line. It is the tolerance for a pause inside a frame, not
+  // the wait for the answer: the response delay (20-800 ms) is covered by re-arming after each empty capture.
   static constexpr uint32_t RMT_IDLE_US = 10000;
   // A 34-bit frame has one mid-bit transition per bit, so at most 68 edges plus the leading idle.
   static constexpr size_t RMT_MAX_EDGES = 80;
+  // Both edges of a pulse shorter than this are noise; the shortest real half bit is 500 us.
+  static constexpr uint32_t GLITCH_MAX_US = 50;
 
   rmt_symbol_word_t tx_symbols_[FRAME_BITS]{};
   uint32_t edge_us_[RMT_MAX_EDGES]{};
