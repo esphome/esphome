@@ -21,8 +21,8 @@ from esphome.const import (
 from esphome.core import CORE
 from esphome.types import ConfigType
 
-from .. import zephyr_data, zephyr_set_core_data
-from ..const import (
+from . import zephyr_data, zephyr_set_core_data
+from .const import (
     KEY_BOOTLOADER,
     KEY_FAMILY,
     KEY_FRAMEWORK_TYPE,
