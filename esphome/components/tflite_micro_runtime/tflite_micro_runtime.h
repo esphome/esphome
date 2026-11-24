@@ -101,7 +101,8 @@ class TFLiteMicroHelper : public Component {
 
   void set_tensor_arena_size(size_t size);
   /// Point the helper at the model data in flash and its checksum, in one step.
-  /// False while a model is loaded or loading.
+  /// False while a model is loaded or loading. The build-wide resolver capacity is
+  /// fixed from the configured models, so a replacement must not need more slots.
   bool set_model(const uint8_t *model_data, size_t model_size, uint32_t expected_crc32);
   /// The name must outlive the component; code generation passes a string literal.
   void set_output_processing(const char *p) { this->output_processing_ = StringRef(p); }
@@ -185,23 +186,26 @@ class TFLiteMicroHelper : public Component {
 
   /// Clear the model configuration after the arena and interpreter are gone.
   void reset_config();
-  StringRef output_processing_{"argmax"};  // passed by name; ModelConfig parses it
-  float scale_factor_{1.0f};
-  bool debug_{false};
-
-  const uint8_t *model_data_{nullptr};
+  // Word-sized members first; the one-byte fields are grouped so pointers do not
+  // each pay for their padding.
   size_t model_length_{0};
   size_t tensor_arena_size_requested_{tflite_model_loader::ModelLoader::DEFAULT_TENSOR_ARENA_SIZE};
   size_t tensor_arena_size_effective_{0};  // after probing; 0 before the first load
+  size_t arena_size_probed_{0};            // last proven probe; 0 = probe again
+  uint32_t expected_crc32_{0};             // 0 = skip verification, set from __init__.py
+  StringRef output_processing_{"argmax"};  // passed by name; ModelConfig parses it
+  float scale_factor_{1.0f};
+  LoadStats last_load_stats_{};
+  ArenaHeap arena_heap_{ArenaHeap::ARENA_HEAP_UNKNOWN};  // cached for reports after an unload
+  bool debug_{false};
+  bool defer_load_{false};
 
+  const uint8_t *model_data_{nullptr};
   tflite_model_loader::ModelHandler model_handler_;
   InputPipeline *input_pipeline_{nullptr};
-  bool defer_load_{false};
   tflite_output_processor::OutputDecoder *output_decoder_{nullptr};
   tflite::MicroResourceVariables *resource_variables_{nullptr};
   MemoryManager::AllocationResult tensor_arena_allocation_;  // owned here, freed in unload_model()
-  ArenaHeap arena_heap_{ArenaHeap::ARENA_HEAP_UNKNOWN};      // cached for reports after an unload
-  LoadStats last_load_stats_{};
 
   // One atomic value, so there is no check-then-act across flags.
   enum class LoadState : uint8_t {
@@ -209,7 +213,6 @@ class TFLiteMicroHelper : public Component {
     LOAD_STATE_READY,
   };
   std::atomic<LoadState> state_{LoadState::LOAD_STATE_UNLOADED};
-  uint32_t expected_crc32_{0};  // 0 = skip verification, set from __init__.py
 
   /// Serializes load, unload, inference and set_model(), so an unload from another
   /// task cannot free the arena while it is in use.
