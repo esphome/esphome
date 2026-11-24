@@ -165,6 +165,12 @@ TEST(WeightedMeanCombination, AvoidsFloatOverflow) {
   EXPECT_FLOAT_EQ(f.run(), 15.0f);
 }
 
+TEST(WeightedMeanCombination, AvoidsFloatOverflowWithLargerWeights) {
+  WeightedMeanFixture<2> f({10.0f, 20.0f},
+                           {[](float) -> float { return 2.0e38f; }, [](float) -> float { return 2.0e38f; }});
+  EXPECT_FLOAT_EQ(f.run(), 15.0f);
+}
+
 TEST(WeightedMeanCombination, NoPositiveWeightIsNan) {
   WeightedMeanFixture<2> f({10.0f, 20.0f}, {[](float) -> float { return 0.0f; }, [](float) -> float { return 0.0f; }});
   EXPECT_TRUE(std::isnan(f.run()));
