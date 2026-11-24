@@ -21,6 +21,7 @@ from esphome.components import (
     select,
     sensor,
     switch,
+    text,
     text_sensor,
 )
 from esphome.config import Config
@@ -2041,6 +2042,12 @@ async def test_sub_entities_apply_without_parent_shares_equal_functions(
             select.ApplySelect,
             "select::Select * entity, size_t index",
             "entity->publish_state(index);",
+        ),
+        (
+            text.sub_texts,
+            text.ApplyText,
+            "text::Text * entity, const std::string & value",
+            "entity->publish_state(value);",
         ),
         (
             output.sub_binary_outputs,
