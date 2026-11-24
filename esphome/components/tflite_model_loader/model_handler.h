@@ -139,8 +139,10 @@ class ModelHandler final {
   /// @param model_start Start of the model buffer.
   /// @param model_size Length of the model buffer in bytes.
   /// @param initial_size Configured tensor arena size to start from.
-  [[nodiscard]] static size_t probe_arena_size(const uint8_t *model_start, size_t model_size, size_t initial_size) {
-    return tflite_memory_handler::probe_arena_size(model_start, model_size, initial_size);
+  /// @param mrv Resource variables for a stateful model, or nullptr.
+  [[nodiscard]] static size_t probe_arena_size(const uint8_t *model_start, size_t model_size, size_t initial_size,
+                                               tflite::MicroResourceVariables *mrv = nullptr) {
+    return tflite_memory_handler::probe_arena_size(model_start, model_size, initial_size, mrv);
   }
 
 #ifdef USE_TFLITE_MODEL_DEBUG
