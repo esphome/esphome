@@ -1,6 +1,6 @@
 #pragma once
 
-// Public CANopen types for lambdas and other components. No CANopenNode headers here.
+// Public types; no CANopenNode headers here.
 
 #include <cstddef>
 #include <cstdint>
@@ -15,21 +15,19 @@ namespace esphome::canopen {
 
 enum class SDOResult : uint8_t {
   SDO_RESULT_SUCCESS,
-  SDO_RESULT_ABORT,            // the server aborted the transfer, see abort_code
+  SDO_RESULT_ABORT,            // see abort_code
   SDO_RESULT_TIMEOUT,          // no response within response_timeout
-  SDO_RESULT_SIZE_MISMATCH,    // a value read returned another width than expected (or more than 4 bytes)
-  SDO_RESULT_TRANSPORT_ERROR,  // the transfer couldn't be started or failed locally
-  SDO_RESULT_REJECTED,         // not queued (queue full, invalid arguments, failed hub)
+  SDO_RESULT_SIZE_MISMATCH,    // value of another width than expected, or over 4 bytes
+  SDO_RESULT_TRANSPORT_ERROR,  // couldn't be started or failed locally
+  SDO_RESULT_REJECTED,         // not queued: queue full, invalid arguments or failed hub
 };
-// A write that ended with TIMEOUT or TRANSPORT_ERROR may still have been carried out: the server's response may be
-// lost, and a frame the CAN controller has already taken can't be recalled. SDO has no transaction id, so a late
-// response to a request that timed out can be taken as the response to the next request for the same object of that
-// node (e.g. a retry), which then gets the earlier request's result.
+// A write that ended with TIMEOUT or TRANSPORT_ERROR may still have been done. SDO has no transaction id, so a late
+// reply to a timed-out request can be taken as the reply to the next request for the same object of that node.
 
 const LogString *sdo_result_to_string(SDOResult result);
 
-// Result of an SDO request. Value reads/writes use value/size (little endian, zero-extended); buffer reads use
-// data/len, valid only during the callback. abort_code is set for ABORT and TIMEOUT.
+// Values use value/size (zero-extended), buffer reads data/len (valid only during the callback). abort_code is set
+// for ABORT and TIMEOUT.
 struct SDOReply {
   SDOResult result;
   uint32_t abort_code;
@@ -39,7 +37,7 @@ struct SDOReply {
   size_t len;
 
   bool ok() const { return this->result == SDOResult::SDO_RESULT_SUCCESS; }
-  // value as T: sign-extended from size bytes for signed T, bit cast for float
+  // sign-extended from size bytes for signed T, bit cast for float
   template<typename T> T as() const {
     static_assert(sizeof(T) <= 4, "SDO values are at most 4 bytes");
     if constexpr (std::is_same_v<T, float>) {
@@ -57,8 +55,7 @@ struct SDOReply {
   }
 };
 
-// Called exactly once per request: from CANopenComponent::loop() / frame processing, or with REJECTED, synchronously
-// before read_sdo() / write_sdo() return false (from setup() for requests made before a failed setup).
+// Called exactly once per request; with REJECTED before the request call returns false, or from a failed setup().
 using SDOCallback = void (*)(void *context, const SDOReply &reply);
 
 }  // namespace esphome::canopen

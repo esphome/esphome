@@ -26,7 +26,7 @@ CONF_NODE_ID = "node_id"
 CONF_RESPONSE_TIMEOUT = "response_timeout"
 CONF_SUBINDEX = "subindex"
 
-# https://github.com/esphome-libs/CANopenNode: upstream plus the ESPHome target header (CO_driver_target.h)
+# https://github.com/esphome-libs/CANopenNode: upstream plus ESPHome's CO_driver_target.h
 CANOPENNODE_VERSION = "4.1.0-esphome.2"
 
 ns = cg.esphome_ns.namespace("canopen")
@@ -64,19 +64,15 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 def add_canopennode_library() -> None:
-    """Add the CANopenNode library and its configuration (also used by the C++ unit tests).
-
-    Its target header (CO_driver_target.h) is in the library itself, so no include path is needed. SDO client: enable |
-    segmented, with the fifo. No block transfer: it's optional in CiA 301, a server without it aborts the request, and
-    the client doesn't fall back to segmented.
-    """
+    """Add CANopenNode and its configuration; also used by the C++ unit tests."""
     if CORE.is_esp32:
         esp32.add_idf_component(name="esphome/canopennode", ref=CANOPENNODE_VERSION)
     else:
         cg.add_library("esphome/CANopenNode", CANOPENNODE_VERSION)
+    # segmented, no block transfer: optional in CiA 301 and the client does not fall back
     cg.add_build_flag("-DCO_CONFIG_SDO_CLI=0x03")
     cg.add_build_flag("-DCO_CONFIG_FIFO=0x01")
-    # one segment: drained before the next one is requested (sdo_client.cpp)
+    # one segment, drained before the next is requested
     cg.add_build_flag("-DCO_CONFIG_SDO_CLI_BUFFER_SIZE=7")
 
 
@@ -106,7 +102,6 @@ SDO_ACTION_SCHEMA = cv.Schema(
         cv.Required(CONF_NODE_ID): cv.templatable(cv.int_range(min=1, max=127)),
         cv.Required(CONF_INDEX): cv.templatable(cv.hex_uint16_t),
         cv.Optional(CONF_SUBINDEX, default=0): cv.templatable(cv.hex_uint8_t),
-        # single: an action's trigger runs one automation
         cv.Optional(CONF_ON_ERROR): automation.validate_automation(single=True),
     }
 )
@@ -118,7 +113,7 @@ async def _sdo_action_to_code(
     template_arg: cg.TemplateArguments,
     args: TemplateArgsType,
 ) -> MockObj:
-    """What canopen.sdo_read and canopen.sdo_write share: the hub, the object address and on_error."""
+    """Code shared by canopen.sdo_read and canopen.sdo_write."""
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     for key, setter, type_ in (
@@ -169,7 +164,7 @@ async def sdo_write_to_code(
 
 SDO_READ_SCHEMA = SDO_ACTION_SCHEMA.extend(
     {
-        # 1/2/4: the value must have this width; 0: any width up to 4 bytes
+        # 0 accepts any width up to 4 bytes
         cv.Optional(CONF_SIZE, default=0): cv.one_of(0, 1, 2, 4, int=True),
         cv.Optional(CONF_ON_VALUE): automation.validate_automation(single=True),
     }

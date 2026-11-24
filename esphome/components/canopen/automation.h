@@ -7,13 +7,12 @@
 
 namespace esphome::canopen {
 
-// What canopen.sdo_write and canopen.sdo_read share: the object address, the size and on_error
 template<typename... Ts> class SDOActionBase : public Action<Ts...>, public Parented<CANopenComponent> {
  public:
   TEMPLATABLE_VALUE(uint8_t, node_id)
   TEMPLATABLE_VALUE(uint16_t, index)
   TEMPLATABLE_VALUE(uint8_t, subindex)
-  // write: the value size; read: 1/2/4 checks the width (SIZE_MISMATCH), 0 accepts any width up to 4
+  // write: value size; read: expected size, 0 = any
   void set_size(uint8_t size) { this->size_ = size; }
   Trigger<SDOResult, uint32_t> *get_error_trigger() { return &this->error_trigger_; }
 
@@ -22,7 +21,7 @@ template<typename... Ts> class SDOActionBase : public Action<Ts...>, public Pare
   Trigger<SDOResult, uint32_t> error_trigger_;
 };
 
-// canopen.sdo_write: fires the request and continues; on_success / on_error run when it ends
+// Does not wait: on_success / on_error run when the request ends
 template<typename... Ts> class SDOWriteAction final : public SDOActionBase<Ts...> {
  public:
   TEMPLATABLE_VALUE(uint32_t, value)
@@ -46,7 +45,7 @@ template<typename... Ts> class SDOWriteAction final : public SDOActionBase<Ts...
   Trigger<> success_trigger_;
 };
 
-// canopen.sdo_read: fires the request and continues; on_value / on_error run when it ends
+// Does not wait: on_value / on_error run when the request ends
 template<typename... Ts> class SDOReadAction final : public SDOActionBase<Ts...> {
  public:
   Trigger<uint32_t> *get_value_trigger() { return &this->value_trigger_; }

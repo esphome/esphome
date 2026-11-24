@@ -28,9 +28,9 @@ class FakeCanbus : public canbus::Canbus {
     std::vector<uint8_t> data;
   };
   std::vector<Frame> sent;
-  // the platform refuses frames (TX buffers full)
+  // refuse frames, as with full TX buffers
   bool busy{false};
-  // frames waiting in the controller, handed out by loop()
+  // received frames, handed out by loop()
   std::deque<canbus::CanFrame> rx;
 
   void queue(uint32_t can_id, const std::vector<uint8_t> &data) { this->rx.push_back(make_frame(can_id, data)); }
@@ -62,19 +62,18 @@ class FakeCanbus : public canbus::Canbus {
 class TestHub : public CANopenComponent {
  public:
   using CANopenComponent::CANopenComponent;
-  // a received frame, as the canbus callback delivers it (processed right away)
+  // delivers a frame as the canbus callback does
   void frame(uint32_t can_id, const std::vector<uint8_t> &data) { this->on_frame_(make_frame(can_id, data)); }
   void frame(const canbus::CanFrame &f) { this->on_frame_(f); }
 };
 
-// A hub on a FakeCanbus, recording the replies of its SDO requests.
 // Requests to node 0x21 go out on 0x621, its replies come on 0x5A1.
 class SdoTest : public ::testing::Test {
  protected:
   FakeCanbus bus_;
   TestHub hub_{&this->bus_};
   std::vector<SDOReply> replies_;
-  std::string data_;  // READ_DATA: the buffer, copied during the callback
+  std::string data_;  // reply.data, copied during the callback
 
   void SetUp() override {
     this->hub_.set_response_timeout(20);
@@ -89,7 +88,6 @@ class SdoTest : public ::testing::Test {
       self->data_.assign(reinterpret_cast<const char *>(reply.data), reply.len);
   }
 
-  // the frames sent on can_id, in order
   std::vector<std::vector<uint8_t>> requests_(uint32_t can_id = 0x621) const {
     std::vector<std::vector<uint8_t>> out;
     for (const auto &f : this->bus_.sent) {
@@ -99,7 +97,7 @@ class SdoTest : public ::testing::Test {
     return out;
   }
 
-  // moves the loop clock the hub reads forward
+  // advances the loop clock
   static void advance_(uint32_t ms) {
     LoopBlockingGuard clock{nullptr, nullptr, App.get_loop_component_start_time() + ms};
   }

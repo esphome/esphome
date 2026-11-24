@@ -3,7 +3,6 @@
 
 #include "fake_canbus.h"
 
-// The SDO client against canned replies of a server (node 0x21: requests on 0x621, replies on 0x5A1).
 namespace esphome::canopen::testing {
 
 using Bytes = std::vector<uint8_t>;
@@ -109,7 +108,6 @@ TEST_F(SdoTest, QueueRunsInOrder) {
   ASSERT_TRUE(this->hub_.read_sdo<uint8_t>(0x21, 0x1001, 0, on_reply, this));
   ASSERT_TRUE(this->hub_.write_sdo<uint8_t>(0x22, 0x6060, 0, 1, on_reply, this));
   this->hub_.loop();
-  // one transfer at a time: the second waits for the first
   EXPECT_EQ(this->requests_(0x622).size(), 0u);
   this->hub_.frame(0x5A1, {0x4F, 0x01, 0x10, 0, 0, 0, 0, 0});
   this->hub_.loop();
@@ -120,7 +118,6 @@ TEST_F(SdoTest, QueueRunsInOrder) {
   EXPECT_TRUE(this->replies_[1].ok());
 }
 
-// Invalid arguments: the callback runs before the call returns false, and nothing goes out.
 TEST_F(SdoTest, InvalidRequestsAreRejected) {
   static uint8_t buffer[4];
   static constexpr struct {
@@ -175,7 +172,6 @@ TEST_F(SdoTest, SignedRawWriteRepliesZeroExtended) {
   EXPECT_EQ(this->replies_[0].as<int32_t>(), -1);
 }
 
-// A value is at most 4 bytes: the upload stops at the first segment that exceeds it.
 TEST_F(SdoTest, LongObjectIsASizeMismatchForAValueRead) {
   ASSERT_TRUE(this->hub_.read_sdo(0x21, 0x1008, 0, 0, on_reply, this));
   this->hub_.loop();
@@ -186,7 +182,7 @@ TEST_F(SdoTest, LongObjectIsASizeMismatchForAValueRead) {
   this->hub_.loop();
   ASSERT_EQ(this->replies_.size(), 1u);
   EXPECT_EQ(this->replies_[0].result, SDOResult::SDO_RESULT_SIZE_MISMATCH);
-  // no request for the next segment before the abort, whose response could reach the next request
+  // aborted without requesting the next segment
   EXPECT_EQ(this->requests_(), (std::vector<Bytes>{
                                    {0x40, 0x08, 0x10, 0, 0, 0, 0, 0},
                                    {0x60, 0, 0, 0, 0, 0, 0, 0},
@@ -194,7 +190,6 @@ TEST_F(SdoTest, LongObjectIsASizeMismatchForAValueRead) {
                                }));
 }
 
-// More than the 7-byte fifo: refilled for every segment.
 TEST_F(SdoTest, SegmentedWriteLargerThanTheFifo) {
   static const uint8_t DATA[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20};
   ASSERT_TRUE(this->hub_.write_sdo_data(0x21, 0x2000, 1, DATA, sizeof(DATA), on_reply, this));
@@ -214,7 +209,6 @@ TEST_F(SdoTest, SegmentedWriteLargerThanTheFifo) {
                                }));
 }
 
-// A server may abort with the timeout code: still an abort, not a local timeout.
 TEST_F(SdoTest, ServerAbortWithTheTimeoutCode) {
   ASSERT_TRUE(this->hub_.read_sdo<uint32_t>(0x21, 0x1000, 0, on_reply, this));
   this->hub_.loop();
@@ -224,7 +218,7 @@ TEST_F(SdoTest, ServerAbortWithTheTimeoutCode) {
   EXPECT_EQ(this->replies_[0].abort_code, 0x05040000u);
 }
 
-// After a long loop, a frame received before the reply still queued behind it must not time the request out.
+// A frame handled after the deadline, before the queued reply, must not time the request out.
 TEST_F(SdoTest, OtherFrameAfterTheTimeoutBeforeTheReply) {
   ASSERT_TRUE(this->hub_.read_sdo<uint16_t>(0x21, 0x1017, 0, on_reply, this));
   this->hub_.loop();
@@ -237,7 +231,6 @@ TEST_F(SdoTest, OtherFrameAfterTheTimeoutBeforeTheReply) {
   EXPECT_EQ(this->replies_[0].value, 1000u);
 }
 
-// A reply starts the next exchange: the time spent waiting for it isn't charged to the next segment.
 TEST_F(SdoTest, DelayedSegmentDoesNotShortenTheNextOne) {
   std::array<uint8_t, 16> buffer{};
   ASSERT_TRUE(this->hub_.read_sdo_data(0x21, 0x1008, 0, buffer.data(), buffer.size(), on_reply, this));
@@ -258,7 +251,6 @@ TEST_F(SdoTest, DelayedSegmentDoesNotShortenTheNextOne) {
   EXPECT_EQ(this->data_, "canopen io");
 }
 
-// After a timeout, the server's late replies about the old object must not end the next request.
 TEST_F(SdoTest, LateRepliesForAnotherObjectAreIgnored) {
   ASSERT_TRUE(this->hub_.read_sdo<uint32_t>(0x21, 0x1000, 0, on_reply, this));
   ASSERT_TRUE(this->hub_.write_sdo<uint8_t>(0x21, 0x6060, 0, 1, on_reply, this));
@@ -298,7 +290,7 @@ TEST(CanopenSdoClient, RequestBeforeSetupWaitsForIt) {
   EXPECT_TRUE(replies[0].ok());
 }
 
-// e.g. a CAN controller that didn't initialize: its loop never runs, so requests would only time out
+// its loop never runs, so requests would only time out
 TEST(CanopenSdoClient, FailedBusFailsTheHub) {
   FakeCanbus bus;
   TestHub hub(&bus);

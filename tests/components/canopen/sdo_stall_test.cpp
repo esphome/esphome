@@ -4,7 +4,6 @@
 
 #include "fake_canbus.h"
 
-// The SDO client when the bus refuses frames, and requests it must not send as they are.
 namespace esphome::canopen::testing {
 
 TEST_F(SdoTest, UnsentWriteEndsAndIsNeverSent) {
@@ -20,8 +19,7 @@ TEST_F(SdoTest, UnsentWriteEndsAndIsNeverSent) {
   EXPECT_EQ(this->replies_.size(), 1u);
 }
 
-// The bus takes frames again right at the deadline: the request ends unsent instead of reaching the server just
-// before the caller is told it failed.
+// Ends unsent instead of reaching the server just as the caller is told it failed.
 TEST_F(SdoTest, FrameUnsentAtTheDeadlineIsNotSentLate) {
   this->bus_.busy = true;
   ASSERT_TRUE(this->hub_.write_sdo<uint16_t>(0x21, 0x6040, 0, 0x1234, on_reply, this));
@@ -34,7 +32,6 @@ TEST_F(SdoTest, FrameUnsentAtTheDeadlineIsNotSentLate) {
   EXPECT_EQ(this->bus_.count(0x621), 0u);
 }
 
-// No reply can wait behind a capped receive pass for a frame that never went out: its deadline still applies.
 TEST_F(SdoTest, UnsentFrameEndsAtTheDeadlineDuringACappedPass) {
   this->bus_.set_max_frames_per_loop(1);
   this->bus_.busy = true;
@@ -52,7 +49,6 @@ TEST_F(SdoTest, UnsentFrameEndsAtTheDeadlineDuringACappedPass) {
   EXPECT_EQ(this->bus_.count(0x621), 0u);
 }
 
-// The bus takes the frame before the deadline: sent, and the response timeout starts again from there.
 TEST_F(SdoTest, RetryBeforeTheDeadlineRestartsTheTimeout) {
   this->bus_.busy = true;
   ASSERT_TRUE(this->hub_.read_sdo<uint16_t>(0x21, 0x6041, 0, on_reply, this));
@@ -71,7 +67,7 @@ TEST_F(SdoTest, RetryBeforeTheDeadlineRestartsTheTimeout) {
   EXPECT_EQ(this->replies_[0].value, 0x0237u);
 }
 
-// Queued frames go out from loop(), not for every received frame: on ESP32 each refused send can block.
+// On ESP32 each refused send can block.
 TEST_F(SdoTest, ReceivedFrameDoesNotSendQueuedFrames) {
   this->bus_.busy = true;
   ASSERT_TRUE(this->hub_.write_sdo<uint8_t>(0x21, 0x6060, 0, 1, on_reply, this));
@@ -83,7 +79,7 @@ TEST_F(SdoTest, ReceivedFrameDoesNotSendQueuedFrames) {
   EXPECT_EQ(this->bus_.count(0x621), 1u);
 }
 
-// A reply can't be for a request that hasn't gone out: e.g. a late one to an earlier write of the same object.
+// e.g. a late reply to an earlier write of the same object
 TEST_F(SdoTest, ReplyWhileTheRequestIsUnsentIsIgnored) {
   this->bus_.busy = true;
   ASSERT_TRUE(this->hub_.write_sdo<uint8_t>(0x21, 0x6060, 0, 1, on_reply, this));
@@ -98,7 +94,7 @@ TEST_F(SdoTest, ReplyWhileTheRequestIsUnsentIsIgnored) {
   EXPECT_TRUE(this->replies_[0].ok());
 }
 
-// A late segment response of a timed-out transfer would make CANopenNode abort the next request to that node.
+// CANopenNode would abort on a late segment response of a timed-out transfer.
 TEST_F(SdoTest, SegmentResponseWhileWaitingForTheInitiateOneIsIgnored) {
   ASSERT_TRUE(this->hub_.write_sdo<uint8_t>(0x21, 0x6060, 0, 1, on_reply, this));
   this->hub_.loop();
@@ -130,7 +126,6 @@ TEST_F(SdoTest, QueueBehindAStalledRequestMovesOn) {
   EXPECT_EQ(this->replies_[1].result, SDOResult::SDO_RESULT_TRANSPORT_ERROR);
 }
 
-// The request went out, then the bus stalled: the abort after the timeout can't be sent.
 TEST_F(SdoTest, UnsentAbortIsDroppedAndNextFrameGoesOutDirectly) {
   ASSERT_TRUE(this->hub_.read_sdo<uint16_t>(0x21, 0x6041, 0, on_reply, this));
   this->hub_.loop();
@@ -159,7 +154,6 @@ TEST_F(SdoTest, ValueAtTheLimitsIsSent) {
 }
 
 #ifdef USE_CANBUS_FD
-// CANopen is classic CAN: an FD frame on the reply id isn't a reply, even with 8 bytes
 TEST_F(SdoTest, FdFrameOnTheReplyIdIsIgnored) {
   ASSERT_TRUE(this->hub_.read_sdo<uint32_t>(0x21, 0x1000, 0, on_reply, this));
   this->hub_.loop();
@@ -187,7 +181,7 @@ TEST_F(SdoTest, ReadFillsTheCallersBuffer) {
 }
 
 TEST_F(SdoTest, ReadOverTheCapacityIsAbortedAndStaysInTheBuffer) {
-  // the guard bytes must survive: the object doesn't fit in the first 8
+  // bytes past the capacity of 8 must stay untouched
   std::array<uint8_t, 12> buffer{};
   buffer.fill(0xEE);
   ASSERT_TRUE(this->hub_.read_sdo_data(0x21, 0x1008, 0, buffer.data(), 8, on_reply, this));
@@ -204,7 +198,7 @@ TEST_F(SdoTest, ReadOverTheCapacityIsAbortedAndStaysInTheBuffer) {
     EXPECT_EQ(buffer[i], 0xEE);
 }
 
-// The whole object arrives at once: the transfer is over, so no abort frame goes out, but the caller gets the reason.
+// The last segment ended the transfer: no abort frame, but the caller still gets ABORT.
 TEST_F(SdoTest, ReadOverTheCapacityInTheLastSegment) {
   std::array<uint8_t, 4> buffer{};
   ASSERT_TRUE(this->hub_.read_sdo_data(0x21, 0x1008, 0, buffer.data(), buffer.size(), on_reply, this));
@@ -231,7 +225,6 @@ TEST_F(SdoTest, ExpeditedReadOverTheCapacity) {
   EXPECT_EQ(this->replies_[0].abort_code, static_cast<uint32_t>(CO_SDO_AB_OUT_OF_MEM));
 }
 
-// A reply still queued behind a burst the canbus loop stopped at its cap must not time the request out.
 TEST_F(SdoTest, ReplyBehindACappedBurstDoesNotTimeOut) {
   this->bus_.set_max_frames_per_loop(4);
   ASSERT_TRUE(this->hub_.read_sdo<uint16_t>(0x21, 0x1017, 0, on_reply, this));
@@ -251,7 +244,7 @@ TEST_F(SdoTest, ReplyBehindACappedBurstDoesNotTimeOut) {
   EXPECT_EQ(this->replies_[0].value, 1000u);
 }
 
-// On a bus that never drains, the time is held at most one response timeout past the deadline.
+// Time is held at most one response timeout past the deadline.
 TEST_F(SdoTest, SaturatedBusStillTimesOut) {
   this->bus_.set_max_frames_per_loop(1);
   ASSERT_TRUE(this->hub_.read_sdo<uint16_t>(0x21, 0x1017, 0, on_reply, this));

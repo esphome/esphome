@@ -1,4 +1,4 @@
-"""Tests for the canopen component (CANopenNode based)."""
+"""Tests for the canopen component."""
 
 from collections.abc import Callable
 from pathlib import Path
@@ -15,19 +15,16 @@ def test_codegen(
     generate_main: Callable[[str | Path], str],
     component_config_path: Callable[[str], Path],
 ) -> None:
-    """The hub configures CANopenNode's SDO client; the actions become SDO action objects with their triggers."""
     main_cpp = generate_main(component_config_path("canopen.yaml"))
     assert "canopen::CANopenComponent(can_bus)" in main_cpp
     assert "canopen_hub->set_response_timeout(200);" in main_cpp
     assert "-DCO_CONFIG_SDO_CLI=0x03" in CORE.build_flags
     assert "-DCO_CONFIG_SDO_CLI_BUFFER_SIZE=7" in CORE.build_flags
     assert "-DCO_CONFIG_FIFO=0x01" in CORE.build_flags
-    # canopen.sdo_read
     assert "canopen::SDOReadAction<>" in main_cpp
     assert "set_size(4);" in main_cpp
     assert "get_value_trigger()" in main_cpp
     assert "get_error_trigger()" in main_cpp
-    # canopen.sdo_write
     assert "canopen::SDOWriteAction<>" in main_cpp
     assert "set_size(1);" in main_cpp
 
@@ -67,7 +64,6 @@ def test_sdo_write_value_fits_size(value: int, size: int, valid: bool) -> None:
 
 @pytest.mark.parametrize("key", ["on_success", "on_error"])
 def test_sdo_write_single_automation(key: str) -> None:
-    """An action's trigger runs one automation: a list of automations is rejected."""
     automations = [{"then": [{"delay": "1s"}]}, {"then": [{"delay": "2s"}]}]
     with pytest.raises(cv.Invalid, match="only a single automation"):
         SDO_WRITE_SCHEMA({**SDO_WRITE, "value": 1, key: automations})
@@ -77,7 +73,6 @@ def test_one_hub_per_canbus(
     component_config_path: Callable[[str], Path],
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """Two hubs on one canbus: their SDO clients would use the same COB-IDs."""
     CORE.config_path = component_config_path("same_bus.yaml")
     assert read_config({}) is None
     assert "one canopen hub per canbus" in capsys.readouterr().out

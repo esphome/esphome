@@ -1,5 +1,4 @@
-// CANopenNode driver functions (301/CO_driver.h) on ESPHome canbus; CANptr is the CANopenComponent. All on the main
-// loop: frames come in by on_frame_() (the canbus callback) and go out by transmit().
+// CANopenNode's CAN driver (301/CO_driver.h) on canbus, all on the main loop; CANptr is the CANopenComponent.
 #include "canopen.h"
 
 #include <cstring>
@@ -20,7 +19,7 @@ static bool send_frame(CO_CANmodule_t *mod, CO_CANtx_t *buf) {
 }
 
 void CANopenComponent::on_frame_(const canbus::CanFrame &frame) {
-  // CANopen (CiA 301) uses classic CAN frames with 11-bit ids
+  // CANopen uses classic CAN with 11-bit ids
 #ifdef USE_CANBUS_FD
   if (frame.fd)
     return;
@@ -41,8 +40,7 @@ void CANopenComponent::on_frame_(const canbus::CanFrame &frame) {
       continue;
     rx->CANrx_callback(rx->object, &msg);
   }
-  // A reply for the running request is handled right away; CANopenNode restarts its response timer for it (and may
-  // send the next segment), so the time loop() charges starts again here.
+  // CANopenNode restarts its response timer on a reply, so loop() charges time from here.
   if (CO_FLAG_READ(this->co_->SDOclient->CANrxNew)) {
     this->process_sdo_(0);
     this->last_ms_ = App.get_loop_component_start_time();
@@ -60,7 +58,7 @@ using esphome::canopen::send_frame;
 
 extern "C" {
 
-// CANopenNode's C driver API (301/CO_driver.h) fixes these names and signatures
+// names and signatures fixed by CO_driver.h
 // NOLINTBEGIN(readability-identifier-naming,readability-non-const-parameter)
 
 void CO_CANsetConfigurationMode(void *CANptr) {}
@@ -118,7 +116,6 @@ CO_CANtx_t *CO_CANtxBufferInit(CO_CANmodule_t *CANmodule, uint16_t index, uint16
 
 CO_ReturnError_t CO_CANsend(CO_CANmodule_t *CANmodule, CO_CANtx_t *buffer) {
   if (buffer->bufferFull) {
-    // previous frame of this buffer is still waiting
     if (!CANmodule->firstCANtxMessage)
       CANmodule->CANerrorStatus |= CO_CAN_ERRTX_OVERFLOW;
     return CO_ERROR_TX_OVERFLOW;
@@ -127,7 +124,7 @@ CO_ReturnError_t CO_CANsend(CO_CANmodule_t *CANmodule, CO_CANtx_t *buffer) {
     CANmodule->firstCANtxMessage = false;
     return CO_ERROR_NO;
   }
-  // keep it queued (in order behind the others), CO_CANmodule_process() resends it from loop()
+  // queued behind the others; CO_CANmodule_process() resends it from loop()
   buffer->bufferFull = true;
   CANmodule->CANtxCount++;
   static_cast<esphome::canopen::CANopenComponent *>(CANmodule->CANptr)->enable_loop();
