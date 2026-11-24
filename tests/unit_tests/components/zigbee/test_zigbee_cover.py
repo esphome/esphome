@@ -29,7 +29,6 @@ from esphome.components.zigbee.zigbee_ep_esp32 import (
 )
 import esphome.config_validation as cv
 from esphome.const import (
-    CONF_DEVICE_CLASS,
     CONF_ENDPOINT,
     CONF_ID,
     CONF_NAME,
@@ -75,29 +74,8 @@ def test_cover_with_endpoint_gets_window_covering_cluster() -> None:
     values = {a[CONF_ATTRIBUTE_ID]: a[CONF_VALUE] for a in cluster[CONF_ATTRIBUTES]}
     # mode 0, not the maintenance default
     assert values[MODE_ATTRIBUTE] == 0x00
-
-
-@pytest.mark.parametrize(
-    ("device_class", "covering_type"),
-    [
-        pytest.param(None, 0x00, id="none-rollershade"),
-        pytest.param("awning", 0x05, id="awning"),
-        pytest.param("shutter", 0x00, id="shutter-lift-not-tilt-only"),
-    ],
-)
-def test_cover_window_covering_type_from_device_class(
-    device_class: str | None, covering_type: int
-) -> None:
-    _configure()
-    extra = {CONF_ENDPOINT: 3}
-    if device_class is not None:
-        extra[CONF_DEVICE_CLASS] = device_class
-
-    zigbee.validate_cover(_cover(**extra))
-
-    (cluster,) = CORE.data[KEY_ZIGBEE][KEY_ZIGBEE_EP][3][CONF_CLUSTERS]
-    values = {a[CONF_ATTRIBUTE_ID]: a[CONF_VALUE] for a in cluster[CONF_ATTRIBUTES]}
-    assert values[WINDOW_COVERING_TYPE_ATTRIBUTE] == covering_type
+    # ZigbeeCover sets the type at setup, after a copy inherited its device class
+    assert WINDOW_COVERING_TYPE_ATTRIBUTE not in values
 
 
 def test_covers_do_not_share_an_endpoint() -> None:

@@ -407,12 +407,13 @@ def validate_light_esp32(config: ConfigType) -> ConfigType:
 
 
 def validate_cover_esp32(config: ConfigType) -> ConfigType:
-    ep = copy.deepcopy(WINDOW_COVERING_EP)
-    covering_type = WINDOW_COVERING_TYPES.get(config.get(CONF_DEVICE_CLASS), 0x00)
-    ep[CONF_CLUSTERS][0][CONF_ATTRIBUTES][0][CONF_VALUE] = covering_type
     # The window covering device type would mislabel any entity sharing the endpoint
     return _register_attribute_ep(
-        config, ep, CONF_ZIGBEE_COVER, ZigbeeCover, own_endpoint=True
+        config,
+        copy.deepcopy(WINDOW_COVERING_EP),
+        CONF_ZIGBEE_COVER,
+        ZigbeeCover,
+        own_endpoint=True,
     )
 
 
@@ -567,7 +568,7 @@ def _register_attribute_ep(
 
 
 async def _add_attribute_entity(
-    entity: cg.MockObj, config: ConfigType, id_key: str
+    entity: cg.MockObj, config: ConfigType, id_key: str, *args: Any
 ) -> None:
     zb = await cg.get_variable(config[CONF_ZIGBEE_ID])
     var = cg.new_Pvariable(
@@ -575,6 +576,7 @@ async def _add_attribute_entity(
         zb,
         config[KEY_ZIGBEE_EP][CONF_NUMBER],
         entity,
+        *args,
     )
     await cg.register_component(var, {})
     if (report := config.get(CONF_REPORT, "default")) not in (
@@ -590,7 +592,9 @@ async def add_number(entity: cg.MockObj, config: ConfigType) -> None:
 
 async def add_cover(entity: cg.MockObj, config: ConfigType) -> None:
     cg.add_define("USE_ZIGBEE_COVER")
-    await _add_attribute_entity(entity, config, CONF_ZIGBEE_COVER)
+    # Read here: a copy cover inherits device_class only in final validation
+    covering_type = WINDOW_COVERING_TYPES.get(config.get(CONF_DEVICE_CLASS), 0x00)
+    await _add_attribute_entity(entity, config, CONF_ZIGBEE_COVER, covering_type)
 
 
 async def add_light(entity: cg.MockObj, config: ConfigType) -> None:

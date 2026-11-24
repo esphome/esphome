@@ -70,8 +70,13 @@ switch:
 
 cover:
   - platform: template
+    id: template_cover_endpoint
     name: "Template Cover Endpoint"
     endpoint: 7
+    device_class: curtain
+  - platform: copy
+    name: "Copy Cover"
+    source_id: template_cover_endpoint
   - platform: template
     name: "Template Cover Reported"
     report: force

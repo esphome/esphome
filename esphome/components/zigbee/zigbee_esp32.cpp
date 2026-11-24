@@ -308,7 +308,13 @@ static void zb_window_covering_handler(ezb_zcl_window_covering_movement_message_
   switch (cmd_id) {
     case EZB_ZCL_CMD_WINDOW_COVERING_UP_OPEN_ID:
     case EZB_ZCL_CMD_WINDOW_COVERING_DOWN_CLOSE_ID:
+      break;
     case EZB_ZCL_CMD_WINDOW_COVERING_STOP_ID:
+      // A stop the cover cannot perform would still cancel its open or close action
+      if (!cover->supports_stop()) {
+        message->out.result = EZB_ZCL_STATUS_UNSUP_CMD;
+        return;
+      }
       break;
     case EZB_ZCL_CMD_WINDOW_COVERING_GO_TO_LIFT_PERCENTAGE_ID:
       percentage = message->in.payload.lift_percentage;

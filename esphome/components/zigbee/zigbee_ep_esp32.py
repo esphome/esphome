@@ -373,12 +373,8 @@ WINDOW_COVERING_EP = {
         {
             CONF_ID: "WINDOW_COVERING",
             ROLE: "SERVER",
+            # ZigbeeCover adds WindowCoveringType (0x0) at setup
             CONF_ATTRIBUTES: [
-                {
-                    CONF_ATTRIBUTE_ID: 0x0,
-                    CONF_TYPE: "ENUM8",
-                    CONF_VALUE: 0x00,
-                },
                 {
                     CONF_ATTRIBUTE_ID: 0x17,
                     CONF_TYPE: "MAP8",
