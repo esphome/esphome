@@ -13,8 +13,6 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
-_LOGGER = logging.getLogger(__name__)
-
 from .. import (
     CODEC_FLAC,
     CODEC_OPUS,
@@ -36,6 +34,7 @@ from .. import (
     sendspin_ns,
 )
 
+_LOGGER = logging.getLogger(__name__)
 AUTO_LOAD = ["audio"]
 CODEOWNERS = ["@kahrendt"]
 

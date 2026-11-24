@@ -79,7 +79,6 @@ CONF_PRESENT = "present"
 STATIC_PAIRING_CODE_DIGITS = 8
 
 CONF_FORMATS = "formats"
-CONF_CHANNELS = "channels"
 
 
 def _validate_static_pairing_code(value: Any) -> str:
