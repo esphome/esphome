@@ -460,6 +460,10 @@ char *format_hex_to(char *buffer, size_t buffer_size, const uint8_t *data, size_
   return format_hex_internal(buffer, buffer_size, data, length, 0, 'a');
 }
 
+char *format_mac_addr_lower(const uint8_t *mac, char *output) {
+  return format_hex_internal(output, MAC_ADDRESS_PRETTY_BUFFER_SIZE, mac, MAC_ADDRESS_SIZE, ':', 'a');
+}
+
 const char *json_escape_into_buffer(std::span<char> buf, StringRef value, bool short_control_escapes) {
   if (buf.empty())
     return "";

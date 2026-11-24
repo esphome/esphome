@@ -155,6 +155,15 @@ TEST(FormatMacAddrUpper, AllZeros) {
   EXPECT_STREQ(buffer, "00:00:00:00:00:00");
 }
 
+// --- format_mac_addr_lower() ---
+
+TEST(FormatMacAddrLower, Basic) {
+  const uint8_t mac[] = {0xAA, 0xBB, 0xCC, 0x0D, 0xEE, 0xFF};
+  char buffer[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+  EXPECT_EQ(format_mac_addr_lower(mac, buffer), buffer);
+  EXPECT_STREQ(buffer, "aa:bb:cc:0d:ee:ff");
+}
+
 // --- format_hex_char() ---
 
 TEST(FormatHexChar, LowercaseDigits) {

@@ -1953,6 +1953,9 @@ inline char *format_mac_addr_upper(const uint8_t *mac, char *output) {
   return format_hex_pretty_to(output, MAC_ADDRESS_PRETTY_BUFFER_SIZE, mac, MAC_ADDRESS_SIZE, ':');
 }
 
+/// Format MAC address as xx:xx:xx:xx:xx:xx (lowercase, colon separators)
+char *format_mac_addr_lower(const uint8_t *mac, char *output);
+
 /// Format MAC address as xxxxxxxxxxxxxx (lowercase, no separators)
 inline void format_mac_addr_lower_no_sep(const uint8_t *mac, char *output) {
   format_hex_to(output, MAC_ADDRESS_BUFFER_SIZE, mac, MAC_ADDRESS_SIZE);
