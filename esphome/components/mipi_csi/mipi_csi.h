@@ -17,6 +17,7 @@
 #include "esphome/components/camera/camera.h"
 #include "esphome/components/i2c/i2c_bus.h"
 #include "esphome/core/automation.h"
+#include "esphome/core/gpio.h"
 #include "esphome/core/helpers.h"
 
 #include "jpeg_encoder.h"
@@ -93,16 +94,16 @@ class MipiCsiCamera final : public camera::Camera {
   }
   void set_pixel_format(PixelFormat format) { this->pixel_format_ = format; }
   void set_jpeg_quality(uint8_t quality) { this->jpeg_quality_ = quality; }
-  void set_horizontal_flip(bool flip) { this->horizontal_flip_ = flip; }
-  void set_vertical_flip(bool flip) { this->vertical_flip_ = flip; }
+  void set_horizontal_flip(bool flip) { this->set_flip_(HORIZONTAL_FLIP_SET, HORIZONTAL_FLIP_VALUE, flip); }
+  void set_vertical_flip(bool flip) { this->set_flip_(VERTICAL_FLIP_SET, VERTICAL_FLIP_VALUE, flip); }
   void set_framerate(uint8_t framerate) { this->framerate_ = framerate; }
   void set_idle_update_interval(uint32_t interval) { this->idle_update_interval_ = interval; }
   void set_frame_buffer_count(uint8_t count) { this->frame_buffer_count_ = count; }
   void set_i2c_bus(i2c::InternalI2CBus *bus) { this->i2c_bus_ = bus; }
   void set_sccb_frequency(uint32_t frequency) { this->sccb_frequency_ = frequency; }
   void set_init_ldo(bool init_ldo) { this->init_ldo_ = init_ldo; }
-  void set_reset_pin(int8_t pin) { this->reset_pin_ = pin; }
-  void set_power_pin(int8_t pin) { this->power_pin_ = pin; }
+  void set_reset_pin(GPIOPin *pin) { this->reset_pin_ = pin; }
+  void set_power_pin(GPIOPin *pin) { this->power_pin_ = pin; }
   void set_external_clock(int8_t pin, uint32_t frequency) {
     this->xclk_pin_ = pin;
     this->xclk_frequency_ = frequency;
@@ -147,25 +148,40 @@ class MipiCsiCamera final : public camera::Camera {
 
   static void capture_task(void *param);
 
+  static constexpr uint8_t HORIZONTAL_FLIP_SET = 1 << 0;
+  static constexpr uint8_t HORIZONTAL_FLIP_VALUE = 1 << 1;
+  static constexpr uint8_t VERTICAL_FLIP_SET = 1 << 2;
+  static constexpr uint8_t VERTICAL_FLIP_VALUE = 1 << 3;
+
+  void set_flip_(uint8_t set_bit, uint8_t value_bit, bool value) {
+    this->flip_flags_ |= set_bit;
+    if (value) {
+      this->flip_flags_ |= value_bit;
+    } else {
+      this->flip_flags_ &= ~value_bit;
+    }
+  }
+
+  bool flip_is_set_(uint8_t set_bit) const { return (this->flip_flags_ & set_bit) != 0; }
+  bool flip_value_(uint8_t value_bit) const { return (this->flip_flags_ & value_bit) != 0; }
+
   const char *sensor_name_{""};
   /// Configured capture size, or zero to keep whatever resolution the sensor driver starts with.
+  uint32_t sccb_frequency_{100000};
+  uint32_t idle_update_interval_{15000};
+  uint32_t xclk_frequency_{0};
   uint16_t width_{0};
   uint16_t height_{0};
   PixelFormat pixel_format_{PixelFormat::PIXEL_FORMAT_RGB565};
   uint8_t jpeg_quality_{40};
-  optional<bool> horizontal_flip_;
-  optional<bool> vertical_flip_;
   uint8_t framerate_{10};
-  uint32_t idle_update_interval_{15000};
   uint8_t frame_buffer_count_{2};
-  i2c::InternalI2CBus *i2c_bus_{nullptr};
-  uint32_t sccb_frequency_{100000};
+  uint8_t flip_flags_{0};
   bool init_ldo_{true};
-  int8_t reset_pin_{-1};
-  int8_t power_pin_{-1};
+  i2c::InternalI2CBus *i2c_bus_{nullptr};
+  GPIOPin *reset_pin_{nullptr};
+  GPIOPin *power_pin_{nullptr};
   int8_t xclk_pin_{-1};
-  uint32_t xclk_frequency_{0};
-
   int fd_{-1};
   /// Frame size the driver reports and the encoder is set up for. A frame that arrives at a
   /// different size did not come out of the pipeline we configured.

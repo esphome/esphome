@@ -3,6 +3,7 @@
 #ifdef USE_ESP32_VARIANT_ESP32P4
 
 #include <cstdlib>
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::mipi_csi {
@@ -24,14 +25,12 @@ bool JpegEncoder::init(uint16_t width, uint16_t height, jpeg_enc_input_format_t 
     return false;
   }
 
-  if (frame_size < MIN_OUTPUT_SIZE) {
-    frame_size = MIN_OUTPUT_SIZE;
-  }
+  const size_t requested = clamp_at_least(frame_size, MIN_OUTPUT_SIZE);
   jpeg_encode_memory_alloc_cfg_t memory_config{};
   memory_config.buffer_direction = JPEG_ENC_ALLOC_OUTPUT_BUFFER;
-  this->output_ = static_cast<uint8_t *>(jpeg_alloc_encoder_mem(frame_size, &memory_config, &this->output_size_));
+  this->output_ = static_cast<uint8_t *>(jpeg_alloc_encoder_mem(requested, &memory_config, &this->output_size_));
   if (this->output_ == nullptr) {
-    ESP_LOGE(TAG, "Failed to allocate %zu byte JPEG output buffer", frame_size);
+    ESP_LOGE(TAG, "Failed to allocate %zu byte JPEG output buffer", requested);
     return false;
   }
 

@@ -125,8 +125,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_SCCB_FREQUENCY): cv.All(
                 cv.frequency, cv.Range(min=10000, max=1000000)
             ),
-            cv.Optional(CONF_RESET_PIN): pins.internal_gpio_output_pin_number,
-            cv.Optional(CONF_POWER_PIN): pins.internal_gpio_output_pin_number,
+            cv.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,
+            cv.Optional(CONF_POWER_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_EXTERNAL_CLOCK): cv.Schema(
                 {
                     cv.Required(CONF_PIN): pins.internal_gpio_output_pin_number,
@@ -164,8 +164,6 @@ SETTERS = {
     CONF_HORIZONTAL_FLIP: "set_horizontal_flip",
     CONF_VERTICAL_FLIP: "set_vertical_flip",
     CONF_FRAME_BUFFER_COUNT: "set_frame_buffer_count",
-    CONF_RESET_PIN: "set_reset_pin",
-    CONF_POWER_PIN: "set_power_pin",
 }
 
 
@@ -177,7 +175,7 @@ async def to_code(config: ConfigType) -> None:
 
     for key, setter in SETTERS.items():
         if key in config:
-            cg.add(getattr(var, setter)(config[key]))
+            cg.add_optional(getattr(var, setter), config.get(key))
 
     if (resolution := config.get(CONF_RESOLUTION)) is not None:
         cg.add(var.set_resolution(*resolution))
@@ -193,6 +191,11 @@ async def to_code(config: ConfigType) -> None:
     )
 
     await cg.add_variable(var.set_i2c_bus, config[CONF_I2C_ID])
+
+    if (reset_pin := config.get(CONF_RESET_PIN)) is not None:
+        cg.add(var.set_reset_pin(await cg.gpio_pin_expression(reset_pin)))
+    if (power_pin := config.get(CONF_POWER_PIN)) is not None:
+        cg.add(var.set_power_pin(await cg.gpio_pin_expression(power_pin)))
 
     if (external_clock := config.get(CONF_EXTERNAL_CLOCK)) is not None:
         cg.add(

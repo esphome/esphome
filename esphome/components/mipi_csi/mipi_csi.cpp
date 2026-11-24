@@ -3,6 +3,7 @@
 #ifdef USE_ESP32_VARIANT_ESP32P4
 
 #include <algorithm>
+#include <array>
 #include <cerrno>
 #include <cinttypes>
 #include <cstring>
@@ -46,18 +47,15 @@ struct FormatMapping {
   const char *name;
 };
 
-static FormatMapping get_format_mapping(PixelFormat format) {
-  switch (format) {
-    case PixelFormat::PIXEL_FORMAT_RGB888:
-      return {V4L2_PIX_FMT_RGB24, JPEG_ENCODE_IN_FORMAT_RGB888, JPEG_DOWN_SAMPLING_YUV444, 3, "RGB888"};
-    case PixelFormat::PIXEL_FORMAT_YUV422:
-      return {V4L2_PIX_FMT_UYVY, JPEG_ENCODE_IN_FORMAT_YUV422, JPEG_DOWN_SAMPLING_YUV422, 2, "YUV422"};
-    case PixelFormat::PIXEL_FORMAT_GRAYSCALE:
-      return {V4L2_PIX_FMT_GREY, JPEG_ENCODE_IN_FORMAT_GRAY, JPEG_DOWN_SAMPLING_GRAY, 1, "GRAYSCALE"};
-    case PixelFormat::PIXEL_FORMAT_RGB565:
-    default:
-      return {V4L2_PIX_FMT_RGB565, JPEG_ENCODE_IN_FORMAT_RGB565, JPEG_DOWN_SAMPLING_YUV422, 2, "RGB565"};
-  }
+static constexpr std::array<FormatMapping, 4> FORMAT_MAPPINGS{{
+    {V4L2_PIX_FMT_RGB565, JPEG_ENCODE_IN_FORMAT_RGB565, JPEG_DOWN_SAMPLING_YUV422, 2, "RGB565"},
+    {V4L2_PIX_FMT_RGB24, JPEG_ENCODE_IN_FORMAT_RGB888, JPEG_DOWN_SAMPLING_YUV444, 3, "RGB888"},
+    {V4L2_PIX_FMT_UYVY, JPEG_ENCODE_IN_FORMAT_YUV422, JPEG_DOWN_SAMPLING_YUV422, 2, "YUV422"},
+    {V4L2_PIX_FMT_GREY, JPEG_ENCODE_IN_FORMAT_GRAY, JPEG_DOWN_SAMPLING_GRAY, 1, "GRAYSCALE"},
+}};
+
+static constexpr const FormatMapping &get_format_mapping(PixelFormat format) {
+  return FORMAT_MAPPINGS[static_cast<uint8_t>(format)];
 }
 
 /// Holds the four characters of a fourcc code plus a terminator, for logging.
@@ -74,6 +72,15 @@ static void format_fourcc(uint32_t fourcc, FourccName out) {
 /* ---------------- MipiCsiCamera: setup ---------------- */
 
 void MipiCsiCamera::setup() {
+  if (this->reset_pin_ != nullptr) {
+    this->reset_pin_->setup();
+    this->reset_pin_->digital_write(true);
+  }
+  if (this->power_pin_ != nullptr) {
+    this->power_pin_->setup();
+    this->power_pin_->digital_write(true);
+  }
+
   if (!this->start_external_clock_()) {
     this->teardown_();
     this->mark_failed(LOG_STR("Failed to start external clock"));
@@ -158,8 +165,8 @@ bool MipiCsiCamera::init_video_() {
   csi_config.sccb_config.init_sccb = false;
   csi_config.sccb_config.i2c_handle = i2c_handle;
   csi_config.sccb_config.freq = this->sccb_frequency_;
-  csi_config.reset_pin = static_cast<gpio_num_t>(this->reset_pin_);
-  csi_config.pwdn_pin = static_cast<gpio_num_t>(this->power_pin_);
+  csi_config.reset_pin = GPIO_NUM_NC;
+  csi_config.pwdn_pin = GPIO_NUM_NC;
   // When another peripheral already powers the D-PHY rail, claiming it a second time fails and
   // takes the whole camera down with it, so in that case it is left alone.
   csi_config.dont_init_ldo = !this->init_ldo_;
@@ -307,10 +314,10 @@ bool MipiCsiCamera::configure_device_() {
     ESP_LOGW(TAG, "The sensor kept its own frame rate: %s", strerror(errno));
   }
 
-  if (this->horizontal_flip_.has_value())
-    this->apply_control_(V4L2_CID_HFLIP, *this->horizontal_flip_, "horizontal flip");
-  if (this->vertical_flip_.has_value())
-    this->apply_control_(V4L2_CID_VFLIP, *this->vertical_flip_, "vertical flip");
+  if (this->flip_is_set_(HORIZONTAL_FLIP_SET))
+    this->apply_control_(V4L2_CID_HFLIP, this->flip_value_(HORIZONTAL_FLIP_VALUE), "horizontal flip");
+  if (this->flip_is_set_(VERTICAL_FLIP_SET))
+    this->apply_control_(V4L2_CID_VFLIP, this->flip_value_(VERTICAL_FLIP_VALUE), "vertical flip");
 
   if (!this->read_back_format_(mapping.fourcc, mapping.bytes_per_pixel, mapping.name))
     return false;
@@ -446,10 +453,10 @@ void MipiCsiCamera::teardown_() {
   this->fd_ = -1;
 }
 
-static const char *flip_state(const optional<bool> &flip) {
-  if (!flip.has_value())
+static const char *flip_state(bool is_set, bool value) {
+  if (!is_set)
     return LOG_STR_LITERAL("default");
-  return *flip ? LOG_STR_LITERAL("on") : LOG_STR_LITERAL("off");
+  return value ? LOG_STR_LITERAL("on") : LOG_STR_LITERAL("off");
 }
 
 void MipiCsiCamera::dump_config() {
@@ -464,7 +471,9 @@ void MipiCsiCamera::dump_config() {
                 "  Flip: horizontal %s, vertical %s",
                 LOG_STR_ARG(this->get_log_name()), this->sensor_name_, this->width_, this->height_,
                 get_format_mapping(this->pixel_format_).name, this->jpeg_quality_, this->framerate_,
-                this->frame_buffer_count_, flip_state(this->horizontal_flip_), flip_state(this->vertical_flip_));
+                this->frame_buffer_count_,
+                flip_state(this->flip_is_set_(HORIZONTAL_FLIP_SET), this->flip_value_(HORIZONTAL_FLIP_VALUE)),
+                flip_state(this->flip_is_set_(VERTICAL_FLIP_SET), this->flip_value_(VERTICAL_FLIP_VALUE)));
 }
 
 /* ---------------- MipiCsiCamera: capture ---------------- */
