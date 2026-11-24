@@ -34,8 +34,7 @@ uint8_t SPIAS3935Component::read_register(uint8_t reg) {
   value = this->read_byte();
   // According to datsheet, the chip select must be written HIGH, LOW, HIGH
   // to correctly end the READ command.
-  this->cs_->digital_write(true);
-  this->cs_->digital_write(false);
+  pulse_pin(this->cs_, true);
   this->disable();
   ESP_LOGV(TAG, "read_register_: %d", value);
   return value;

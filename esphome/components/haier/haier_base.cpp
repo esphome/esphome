@@ -28,8 +28,8 @@ PROGMEM_STRING_TABLE(ProtocolPhaseStrings, "SENDING_INIT_1", "SENDING_INIT_2", "
 const LogString *HaierClimateBase::phase_to_string_(ProtocolPhases phase) {
   static_assert(ProtocolPhaseStrings::COUNT == ((int) ProtocolPhases::NUM_PROTOCOL_PHASES) + 1,
                 "ProtocolPhaseStrings must match the enum ProtocolPhases, with UNKNOWN last");
-  // UNKNOWN (-1) wraps past the table and reads as the last entry, "UNKNOWN"
-  return ProtocolPhaseStrings::get_log_str(static_cast<uint8_t>(phase), ProtocolPhaseStrings::LAST_INDEX);
+  // UNKNOWN (-1) is out of range and falls back to the last entry, "UNKNOWN"
+  return ProtocolPhaseStrings::get_log_str(phase);
 }
 
 bool check_timeout(std::chrono::steady_clock::time_point now, std::chrono::steady_clock::time_point tpoint,
