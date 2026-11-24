@@ -205,10 +205,13 @@ def validate_series_update_for_type(
     if is_scatter and CONF_POINT not in config:
         raise cv.Invalid("A scatter chart series update requires point")
     if not is_scatter and CONF_POINT in config:
-        raise cv.Invalid("point can only update a scatter chart series")
+        raise cv.Invalid(
+            "point can only update a scatter chart series", path=[CONF_POINT]
+        )
     if (values := config.get(CONF_VALUES)) is not None and len(values) > point_count:
         raise cv.Invalid(
-            f"A chart series update can't have more than point_count ({point_count}) values"
+            f"A chart series update can't have more than point_count ({point_count}) values",
+            path=[CONF_VALUES],
         )
     return config
 
@@ -225,9 +228,26 @@ def _smallest_point_counts(global_config: FinalValidateConfig) -> dict[tuple, in
     return smallest
 
 
+def _find_path(node: Any, target: ConfigType, path: list) -> list | None:
+    """The path to the object `target` (compared by identity) within `node`."""
+    if node is target:
+        return path
+    if isinstance(node, dict):
+        children = node.items()
+    elif isinstance(node, list):
+        children = enumerate(node)
+    else:
+        return None
+    for key, child in children:
+        if (found := _find_path(child, target, [*path, key])) is not None:
+            return found
+    return None
+
+
 def validate_chart_series_updates(global_config: FinalValidateConfig) -> None:
     """Check each lvgl.chart.series.update action against the chart its series belongs to."""
     smallest_point_counts = _smallest_point_counts(global_config)
+    errors = []
     for config in get_chart_series_updates():
         series_id = config[CONF_ID]
         # A series ID is declared at <chart>/series/<index>/id
@@ -242,9 +262,22 @@ def validate_chart_series_updates(global_config: FinalValidateConfig) -> None:
                 config, chart_config[CONF_TYPE], point_count
             )
         except cv.Invalid as err:
-            raise cv.Invalid(
-                f"'lvgl.chart.series.update' for series '{series_id}': {err.msg}"
-            ) from err
+            # The action may sit outside the lvgl block, so give its full path; the
+            # root marker stops the lvgl block's path being put in front of it.
+            action_path = _find_path(global_config, config, [])
+            path = (
+                []
+                if action_path is None
+                else [cv.ROOT_CONFIG_PATH, *action_path, *err.path]
+            )
+            errors.append(
+                cv.Invalid(
+                    f"'lvgl.chart.series.update' for series '{series_id}': {err.msg}",
+                    path=path,
+                )
+            )
+    if errors:
+        raise cv.MultipleInvalid(errors)
 
 
 class ChartType(WidgetType):

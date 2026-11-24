@@ -62,17 +62,22 @@ lvgl:
 """
 
 
-def _config_errors(tmp_path: Path, update: str, extra: str = "") -> list[str]:
-    """Validate a config with the given series update action and return the errors as text."""
+def _validation_errors(tmp_path: Path, update: str, extra: str = "") -> list[Invalid]:
+    """Validate a config with the given series update action and return the errors."""
     config_path = tmp_path / "chart.yaml"
     config_path.write_text(CHART_CONFIG_TEMPLATE.format(update=update, extra=extra))
     original_path = CORE.config_path
     try:
         CORE.config_path = config_path
-        return [str(err) for err in load_config({}).errors]
+        return list(load_config({}).errors)
     finally:
         CORE.config_path = original_path
         CORE.reset()
+
+
+def _config_errors(tmp_path: Path, update: str, extra: str = "") -> list[str]:
+    """As _validation_errors(), with the errors as text."""
+    return [str(err) for err in _validation_errors(tmp_path, update, extra)]
 
 
 @pytest.mark.parametrize(
@@ -400,3 +405,18 @@ def test_chart_parts() -> None:
     assert "ticks" not in chart_spec.parts
     with pytest.raises(Invalid):
         CHART_SCHEMA({"ticks": {"line_width": 2}})
+
+
+def test_series_update_errors_point_at_each_action(tmp_path: Path) -> None:
+    errors = _validation_errors(
+        tmp_path,
+        "              id: line_series\n              point: {x: 1, y: 2}",
+        "          - lvgl.chart.series.update:\n"
+        "              id: line_series\n"
+        "              values: [1, 2, 3]",
+    )
+    action = ["lvgl", 0, "widgets", 2, "button", "on_click", 0, "then"]
+    assert sorted((err.path for err in errors), key=str) == [
+        [*action, 0, "lvgl.chart.series.update", "point"],
+        [*action, 1, "lvgl.chart.series.update", "values"],
+    ]
