@@ -15,7 +15,7 @@ def test_text_is_setup(generate_main):
     # Then
     assert "static template_::TemplateText *const" in main_cpp
     assert ") template_::TemplateText();" in main_cpp
-    assert "esphome::APP_TEXT_LIST PROGMEM = {" in main_cpp
+    assert "esphome::app_lists::APP_TEXT_LIST PROGMEM = {" in main_cpp
 
 
 def test_text_sets_mandatory_fields(generate_main):

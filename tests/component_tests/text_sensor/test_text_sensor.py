@@ -18,7 +18,7 @@ def test_text_sensor_is_setup(generate_main):
     # Then
     assert "static template_::TemplateTextSensor *const" in main_cpp
     assert ") template_::TemplateTextSensor();" in main_cpp
-    assert "esphome::APP_TEXT_SENSOR_LIST PROGMEM = {" in main_cpp
+    assert "esphome::app_lists::APP_TEXT_SENSOR_LIST PROGMEM = {" in main_cpp
 
 
 def test_text_sensor_sets_mandatory_fields(generate_main):

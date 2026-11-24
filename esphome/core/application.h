@@ -64,7 +64,9 @@ struct HasLoopOverride<T, std::void_t<decltype(&T::loop)>>
 // cleanly is a warning in the log.
 static constexpr uint32_t TEARDOWN_TIMEOUT_REBOOT_MS = 1000;  // 1 second for quick reboot
 
-// Constant lists of codegen objects, defined in the generated main.cpp (PROGMEM on ESP8266).
+// Constant lists of codegen objects, defined in the generated main.cpp (PROGMEM on ESP8266). Their own
+// namespace keeps them clear of YAML ids, which main.cpp declares after `using namespace esphome`.
+namespace app_lists {
 #ifdef USE_DEVICES
 extern Device *const APP_DEVICE_LIST[];
 #endif
@@ -79,6 +81,7 @@ extern Area *const APP_AREA_LIST[];
 #undef ENTITY_TYPE_
 #undef ENTITY_CONTROLLER_TYPE_
 // NOLINTEND(bugprone-macro-parentheses)
+}  // namespace app_lists
 
 /// Read-only view of one of the Application's lists: the `N` pointers codegen placed in a constant
 /// array, then the slots reserved for objects registered at run time (`Runtime`, a `SlotList`).
@@ -88,24 +91,12 @@ template<typename T, size_t N, typename Runtime = EmptyList<T *>> class AppList 
 
  public:
   using value_type = T *;
-  // Holds copies of the view's pointers, so it stays valid after the view itself is gone
-  class Iterator {
-   public:
-    Iterator(T *const *list, const Runtime *runtime, size_t index) : list_(list), runtime_(runtime), index_(index) {}
-    T *operator*() const { return this->index_ < N ? this->list_[this->index_] : (*this->runtime_)[this->index_ - N]; }
-    Iterator &operator++() {
-      ++this->index_;
-      return *this;
-    }
-    bool operator!=(const Iterator &other) const { return this->index_ != other.index_; }
-
-   private:
-    T *const *list_;
-    const Runtime *runtime_;
-    size_t index_;
-  };
+  class Iterator;
   explicit AppList(T *const *list) : list_(list) {}
-  AppList(T *const *list, const Runtime &runtime) : list_(list), runtime_(&runtime) {}
+  AppList(T *const *list, const Runtime &runtime) : list_(list) {
+    if constexpr (HAS_RUNTIME)
+      this->runtime_ = &runtime;
+  }
   size_t size() const {
     if constexpr (HAS_RUNTIME) {
       return N + this->runtime_->size();
@@ -124,14 +115,14 @@ template<typename T, size_t N, typename Runtime = EmptyList<T *>> class AppList 
   // Without runtime slots the iterator is the array pointer itself
   auto begin() const {
     if constexpr (HAS_RUNTIME) {
-      return Iterator(this->list_, this->runtime_, 0);
+      return Iterator(*this, 0);
     } else {
       return this->list_;
     }
   }
   auto end() const {
     if constexpr (HAS_RUNTIME) {
-      return Iterator(this->list_, this->runtime_, this->size());
+      return Iterator(*this, this->size());
     } else {
       return this->list_ + N;
     }
@@ -139,8 +130,27 @@ template<typename T, size_t N, typename Runtime = EmptyList<T *>> class AppList 
 
  private:
   T *const *list_;
-  const Runtime *runtime_{nullptr};
+  // Only a view with runtime slots holds more than the array pointer
+  [[no_unique_address]] std::conditional_t<HAS_RUNTIME, const Runtime *, EmptyList<T *>> runtime_{};
 };
+
+/// Holds a copy of the view, so it stays valid after the view itself is gone.
+template<typename T, size_t N, typename Runtime> class AppList<T, N, Runtime>::Iterator {
+ public:
+  Iterator(const AppList &view, size_t index) : view_(view), index_(index) {}
+  T *operator*() const { return this->view_[this->index_]; }
+  Iterator &operator++() {
+    ++this->index_;
+    return *this;
+  }
+  bool operator!=(const Iterator &other) const { return this->index_ != other.index_; }
+
+ private:
+  AppList view_;
+  size_t index_;
+};
+
+static_assert(sizeof(AppList<int, 1>) == sizeof(void *), "a view without runtime slots is only the array pointer");
 
 class Application {
  public:
@@ -460,7 +470,7 @@ class Application {
     return nullptr; \
   }
   AppList<Device, ESPHOME_DEVICE_COUNT> get_devices() const {
-    return AppList<Device, ESPHOME_DEVICE_COUNT>(APP_DEVICE_LIST);
+    return AppList<Device, ESPHOME_DEVICE_COUNT>(app_lists::APP_DEVICE_LIST);
   }
 #else
 #define GET_ENTITY_METHOD(entity_type, entity_name, entities_member) \
@@ -473,13 +483,16 @@ class Application {
   }
 #endif  // USE_DEVICES
 #ifdef USE_AREAS
-  AppList<Area, ESPHOME_AREA_COUNT> get_areas() const { return AppList<Area, ESPHOME_AREA_COUNT>(APP_AREA_LIST); }
+  AppList<Area, ESPHOME_AREA_COUNT> get_areas() const {
+    return AppList<Area, ESPHOME_AREA_COUNT>(app_lists::APP_AREA_LIST);
+  }
 #endif
 // Entity getter methods (generated from entity_types.h)
 // NOLINTBEGIN(bugprone-macro-parentheses)
 #define ENTITY_TYPE_(type, singular, plural, count, upper) \
   auto get_##plural() const { \
-    return AppList<type, count, decltype(this->runtime_##plural##_)>(APP_##upper##_LIST, this->runtime_##plural##_); \
+    return AppList<type, count, decltype(this->runtime_##plural##_)>(app_lists::APP_##upper##_LIST, \
+                                                                     this->runtime_##plural##_); \
   } \
   GET_ENTITY_METHOD(type, singular, plural)
 #define ENTITY_CONTROLLER_TYPE_(type, singular, plural, count, upper, callback) \

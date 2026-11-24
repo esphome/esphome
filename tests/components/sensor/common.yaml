@@ -29,6 +29,11 @@ sensor:
     name: "Publish Target"
     id: sensor_publish_target
 
+  # Same name the constant sensor list once had in esphome::, where `using namespace esphome` met it
+  - platform: template
+    name: "List Name Clash"
+    id: APP_SENSOR_LIST
+
   # Streaming filters (window_size == send_every) - uses StreamingFilter base class
   - platform: copy
     source_id: source_sensor

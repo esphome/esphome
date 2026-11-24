@@ -41,7 +41,7 @@ def test_entities_are_emitted_in_order() -> None:
     CORE.flush_tasks()
     assert _global_lines() == [
         (
-            "decltype(esphome::APP_SENSOR_LIST) esphome::APP_SENSOR_LIST PROGMEM = {"
+            "decltype(esphome::app_lists::APP_SENSOR_LIST) esphome::app_lists::APP_SENSOR_LIST PROGMEM = {"
             "reinterpret_cast<Sensor *>(esphome__s_b__pstorage), "
             "reinterpret_cast<Sensor *>(esphome__s_a__pstorage)};"
         )
@@ -62,7 +62,7 @@ def test_reservation_sizes_the_runtime_slots() -> None:
     assert get_define_value("ESPHOME_ENTITY_SENSOR_COUNT") == "0"
     assert get_define_value("USE_SENSOR") is not None
     assert _global_lines() == [
-        "decltype(esphome::APP_SENSOR_LIST) esphome::APP_SENSOR_LIST PROGMEM = {nullptr};"
+        "decltype(esphome::app_lists::APP_SENSOR_LIST) esphome::app_lists::APP_SENSOR_LIST PROGMEM = {nullptr};"
     ]
 
 
@@ -141,7 +141,10 @@ def test_directly_defined_use_gets_its_list() -> None:
     assert get_define_value("ESPHOME_ENTITY_INFRARED_COUNT") == "0"
     assert get_define_value("ESPHOME_RUNTIME_INFRARED_COUNT") == "0"
     assert get_define_value("USE_IR_RF") is not None
-    assert "esphome::APP_INFRARED_LIST PROGMEM = {nullptr};" in CORE.cpp_global_section
+    assert (
+        "esphome::app_lists::APP_INFRARED_LIST PROGMEM = {nullptr};"
+        in CORE.cpp_global_section
+    )
 
 
 def test_runtime_only_radio_frequency_enables_ir_rf() -> None:
@@ -180,5 +183,17 @@ def test_runtime_count_override_is_rejected_with_a_reservation(
     app_lists.schedule_emit()
     with pytest.raises(
         EsphomeError, match="ESPHOME_RUNTIME_SENSOR_COUNT is defined as 2"
+    ):
+        CORE.flush_tasks()
+
+
+def test_spaced_build_flag_override_is_rejected() -> None:
+    """`-D NAME=value` with a space is the same define PlatformIO passes to the compiler."""
+    CORE.platform_counts["sensor"] = 1
+    app_lists.add_entity("sensor", _new_sensor("only_one"))
+    CORE.build_flags.add("-D ESPHOME_ENTITY_SENSOR_COUNT=32")
+    app_lists.schedule_emit()
+    with pytest.raises(
+        EsphomeError, match="ESPHOME_ENTITY_SENSOR_COUNT is defined as 32"
     ):
         CORE.flush_tasks()
