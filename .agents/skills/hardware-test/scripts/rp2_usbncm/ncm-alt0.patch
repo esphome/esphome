@@ -14,7 +14,7 @@ in DIR, and build usbncm-patched.yaml with `-s ncm_libs DIR/libraries`.
 +#endif
 +
 +// Re-enumerate when the host leaves the data interface disabled for this long; the wait doubles up to the maximum
-+// while the host keeps disabling it
++// until the host sends a frame again
 +#ifndef NCMETHERNET_REENUMERATE_MS
 +#define NCMETHERNET_REENUMERATE_MS 3000
 +#endif
@@ -78,7 +78,7 @@ in DIR, and build usbncm-patched.yaml with `-s ncm_libs DIR/libraries`.
          }
          tud_task();
      }
-@@ -247,9 +279,52 @@
+@@ -247,10 +279,52 @@
  #endif
  }
 
@@ -112,12 +112,11 @@ in DIR, and build usbncm-patched.yaml with `-s ncm_libs DIR/libraries`.
  extern "C" {
      // data transfer between tinyUSB callbacks and NCMEthernet class
      NCMEthernet *_ncm_ethernet_instance = nullptr;
-+
+
 +#ifndef __FREERTOS
 +    void tud_network_ncm_data_alt_cb(uint8_t alt) {
 +        // called from tud_task() with the USB mutex held
 +        if (alt == 1) {
-+            _reenumerate_wait_ms = NCMETHERNET_REENUMERATE_MS;
 +            if (_reenumerate_alarm > 0 && !_reenumerate_detached) {
 +                cancel_alarm(_reenumerate_alarm);
 +                _reenumerate_alarm = 0;
@@ -128,9 +127,21 @@ in DIR, and build usbncm-patched.yaml with `-s ncm_libs DIR/libraries`.
 +        }
 +    }
 +#endif
-
++
      /*
          Interface to tinyUSB.
+     */
+@@ -291,6 +365,10 @@
+
+         // tell NCMEthernetlwIP::_call_irq that we did receive a packet, so there may be even more packets.
+         _ncm_ethernet_instance->_tud_recv_cb_called = true;
++#ifndef __FREERTOS
++        // the host uses the data interface, so a later alt 0 starts the re-enumeration backoff from the beginning
++        _reenumerate_wait_ms = NCMETHERNET_REENUMERATE_MS;
++#endif
+
+         if (_ncm_ethernet_instance->_recv_pkg != nullptr) {
+             panic("_recv_pkg should be null");
 --- a/libraries/tusb-ncm/src/ncm_device.c
 +++ b/libraries/tusb-ncm/src/ncm_device.c
 @@ -1 +1,25 @@
