@@ -8,11 +8,9 @@ from esphome.const import (
     CONF_TEMPERATURE,
     DEVICE_CLASS_PRECIPITATION,
     DEVICE_CLASS_PRECIPITATION_INTENSITY,
-    DEVICE_CLASS_TEMPERATURE,
     ICON_THERMOMETER,
     STATE_CLASS_MEASUREMENT,
     STATE_CLASS_TOTAL_INCREASING,
-    UNIT_CELSIUS,
     UNIT_MILLIMETER,
 )
 from esphome.types import ConfigType
@@ -112,11 +110,7 @@ CONFIG_SCHEMA = cv.All(
                 icon="mdi:weather-rainy",
             ),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_CELSIUS,
-                accuracy_decimals=0,
-                icon=ICON_THERMOMETER,
-                device_class=DEVICE_CLASS_TEMPERATURE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.TEMPERATURE, accuracy_decimals=0, icon=ICON_THERMOMETER
             ),
             cv.Optional(CONF_DISABLE_LED): cv.boolean,
         }

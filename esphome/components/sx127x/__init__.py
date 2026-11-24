@@ -4,11 +4,21 @@ from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import spi
 from esphome.components.const import (
+    CONF_BANDWIDTH,
     CONF_BITRATE,
     CONF_CRC_ENABLE,
+    CONF_DEVIATION,
     CONF_MODULATION,
     CONF_ON_PACKET,
+    CONF_PA_POWER,
+    CONF_PA_RAMP,
+    CONF_PACKET_MODE,
+    CONF_PAYLOAD_LENGTH,
+    CONF_PREAMBLE_SIZE,
     CONF_RST_PIN,
+    CONF_RX_START,
+    CONF_SHAPING,
+    CONF_SYNC_VALUE,
 )
 import esphome.config_validation as cv
 from esphome.const import CONF_DATA, CONF_FREQUENCY
@@ -23,25 +33,15 @@ CONF_SX127X_ID = "sx127x_id"
 
 CONF_AFC_BANDWIDTH = "afc_bandwidth"
 CONF_AUTO_CAL = "auto_cal"
-CONF_BANDWIDTH = "bandwidth"
 CONF_BITSYNC = "bitsync"
 CONF_CODING_RATE = "coding_rate"
-CONF_DEVIATION = "deviation"
 CONF_DIO0_PIN = "dio0_pin"
 CONF_PA_PIN = "pa_pin"
-CONF_PA_POWER = "pa_power"
-CONF_PA_RAMP = "pa_ramp"
-CONF_PACKET_MODE = "packet_mode"
-CONF_PAYLOAD_LENGTH = "payload_length"
 CONF_PREAMBLE_DETECT = "preamble_detect"
 CONF_PREAMBLE_ERRORS = "preamble_errors"
 CONF_PREAMBLE_POLARITY = "preamble_polarity"
-CONF_PREAMBLE_SIZE = "preamble_size"
 CONF_RX_FLOOR = "rx_floor"
-CONF_RX_START = "rx_start"
-CONF_SHAPING = "shaping"
 CONF_SPREADING_FACTOR = "spreading_factor"
-CONF_SYNC_VALUE = "sync_value"
 
 sx127x_ns = cg.esphome_ns.namespace("sx127x")
 SX127x = sx127x_ns.class_("SX127x", cg.Component, spi.SPIDevice)

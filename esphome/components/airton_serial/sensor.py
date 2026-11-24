@@ -1,12 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import sensor
 import esphome.config_validation as cv
-from esphome.const import (
-    DEVICE_CLASS_DURATION,
-    ENTITY_CATEGORY_DIAGNOSTIC,
-    STATE_CLASS_TOTAL_INCREASING,
-    UNIT_HOUR,
-)
+from esphome.const import ENTITY_CATEGORY_DIAGNOSTIC, STATE_CLASS_TOTAL_INCREASING
 from esphome.types import ConfigType
 
 from . import CONF_AIRTON_SERIAL_ID, AirtonSerialClimate
@@ -18,9 +13,7 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_AIRTON_SERIAL_ID): cv.use_id(AirtonSerialClimate),
         cv.Optional(CONF_TOTAL_USAGE_TIME): sensor.sensor_schema(
-            unit_of_measurement=UNIT_HOUR,
-            accuracy_decimals=0,
-            device_class=DEVICE_CLASS_DURATION,
+            kind=sensor.DURATION_H,
             state_class=STATE_CLASS_TOTAL_INCREASING,
             entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
         ),

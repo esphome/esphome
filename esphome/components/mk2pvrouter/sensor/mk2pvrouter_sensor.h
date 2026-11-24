@@ -5,12 +5,11 @@
 
 namespace esphome::mk2pvrouter {
 
-// Component before Sensor so the flag lands in Sensor's tail padding
-class Mk2PVRouterSensor final : public Mk2PVRouterListener, public Component, public sensor::Sensor {
+class Mk2PVRouterSensor final : public Mk2PVRouterListener, public sensor::Sensor {
  public:
   Mk2PVRouterSensor(const char *tag, bool scale_centi);
   void publish_val(const char *val) override;
-  void dump_config() override;
+  void dump_child_config() override;
 
  protected:
   bool scale_centi_;

@@ -39,6 +39,11 @@
 struct device;
 #endif
 
+// ESP32 UART or USB Serial/JTAG console
+#if defined(USE_ESP32) && !defined(USE_LOGGER_UART_SELECTION_USB_CDC)
+#define USE_LOGGER_WAIT_TX_DONE
+#endif
+
 namespace esphome::logger {
 
 /** Lightweight callback for receiving log messages without virtual dispatch overhead.
@@ -154,6 +159,9 @@ class Logger final : public Component {
 #endif
 #if defined(USE_RP2_CRASH_HANDLER) && defined(USE_LOGGER_UART_SELECTION_USB_CDC)
   void setup() override;
+#endif
+#if defined(USE_ESPHOME_TASK_LOG_BUFFER) || defined(USE_LOGGER_WAIT_TX_DONE)
+  void on_powerdown() override;
 #endif
   /// Manually set the baud rate for serial, set to 0 to disable.
   void set_baud_rate(uint32_t baud_rate) { this->baud_rate_ = baud_rate; }
@@ -284,8 +292,13 @@ class Logger final : public Component {
   void cdc_loop_();
 #endif
   void process_messages_();
+#ifdef USE_LOGGER_WAIT_TX_DONE
+  void wait_tx_done_();
+#endif
   // msg already ends in a newline
-#if defined(USE_ARDUINO) && !defined(USE_ESP32)
+#if defined(USE_ESP8266)
+  void write_msg_(const char *msg, uint16_t len);  // Defined in logger_esp8266.cpp
+#elif defined(USE_ARDUINO) && !defined(USE_ESP32)
   inline void HOT write_msg_(const char *msg, uint16_t len) { this->hw_serial_->write(msg, len); }
 #elif defined(USE_ESP32)
   inline void write_msg_(const char *msg, uint16_t len);  // Defined in logger_esp32.h
