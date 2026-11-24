@@ -174,9 +174,15 @@ void CurrentBasedCover::end_reached_(float position, uint32_t measured) {
   const sensor::Sensor *current_sensor = opened ? this->open_sensor_ : this->close_sensor_;
   const bool end_confirmed = this->motor_current_seen_ && std::isfinite(current_sensor->get_state());
   uint32_t &duration = opened ? this->open_duration_ : this->close_duration_;
+  const uint32_t configured = opened ? this->configured_open_duration_ : this->configured_close_duration_;
+  // A thermal cut-out, a wall switch or an obstacle also ends a travel with a current drop
+  const bool plausible = measured >= configured / 2 && measured <= configured * 2;
   const float change = std::fabs(static_cast<float>(measured) - static_cast<float>(duration));
-  if (this->moving_from_end_ && end_confirmed && measured > 0 &&
-      change > std::max(duration * MIN_CHANGE_TO_LEARN, MIN_CHANGE_TO_LEARN_MS)) {
+  if (this->moving_from_end_ && end_confirmed && !plausible) {
+    ESP_LOGD(TAG, "'%s' - Not learning %.1fs, outside half to twice the configured duration",
+             LOG_STR_ARG(this->get_log_name()), measured / 1e3f);
+  } else if (this->moving_from_end_ && end_confirmed &&
+             change > std::max(duration * MIN_CHANGE_TO_LEARN, MIN_CHANGE_TO_LEARN_MS)) {
     duration = measured;
     ESP_LOGD(TAG, "'%s' - Learned %s duration: %.1fs", LOG_STR_ARG(this->get_log_name()),
              opened ? LOG_STR_LITERAL("open") : LOG_STR_LITERAL("close"), measured / 1e3f);
