@@ -817,3 +817,20 @@ def test_advice_for_each_pool(caplog: pytest.LogCaptureFixture) -> None:
         "Set 'rmt_symbols: 96' on 'strip0', 'strip1' and remove some of these "
         "components or use a chip with more RMT memory." in messages[0]
     )
+
+
+def test_reduce_a_receiver_next_to_a_tx_channel_that_takes_an_rx_block(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """On C3 a TX channel of three blocks takes one RX block and leaves one for the receiver."""
+    messages = _check_fixed(
+        caplog,
+        VARIANT_ESP32C3,
+        [(_bus("bus"), (("TX", 3),))],
+        {"RX": [_entry("rx", 96)]},
+    )
+    assert len(messages) == 1
+    assert (
+        "'rx' will not fit: 'bus' (144), 'rx' (96). Set 'rmt_symbols: 48' on 'rx'. "
+        "Otherwise" in messages[0]
+    )

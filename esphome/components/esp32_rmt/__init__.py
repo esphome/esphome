@@ -1,5 +1,5 @@
 from collections.abc import Callable, Iterable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 import logging
 from typing import Any, Literal
 
@@ -330,32 +330,55 @@ def _pools(
     ]
 
 
-def _advice(
-    memory: RMTMemory, pools: list[tuple[str, list[_Channel], int]], reorder: bool
-) -> str:
+def _advice(memory: RMTMemory, channels: list[_Channel], reorder: bool) -> str:
     """Suggest an rmt_symbols value for the components of each overrun pool.
 
     A DMA channel and a channel of a fixed size keep their blocks, whatever rmt_symbols
-    is. When they leave too little for the other channels, or there are no others,
-    suggest to remove components instead. When reorder is set, the channels fit with
-    the smaller components set up first, so suggest setup_priority instead.
+    is. When the TX channels need more than the TX blocks even with one block each, the
+    rest can come from the RX blocks, because a TX channel can extend into them. The
+    values are only suggested when the channels then fit in this order. When a pool has
+    too little memory, or there is nothing to reduce, suggest to remove components
+    instead. When reorder is set, the channels fit with the smaller components set up
+    first, so suggest setup_priority instead.
     """
     size = memory.symbols_per_block
     suggestions = []
-    stuck = False
-    for _, channels, blocks in pools:
-        if sum(channel.blocks(size) for channel in channels) <= blocks:
+    reduced: dict[_Channel, int] = {}
+    # The channels of the pools that reducing rmt_symbols cannot fix
+    stuck: set[_Channel] = set()
+    # RX blocks that TX channels need
+    spill = 0
+    for direction, own, blocks in _pools(memory, channels):
+        blocks -= spill
+        if sum(channel.blocks(size) for channel in own) <= blocks:
             continue
-        others = [c for c in channels if c.adjustable and not c.dma]
-        free = blocks - sum(
-            c.blocks(size) for c in channels if c.dma or not c.adjustable
-        )
-        fair = free // len(others) * size if others else 0
+        others = [c for c in own if c.adjustable and not c.dma]
+        fixed = sum(c.blocks(size) for c in own if c.dma or not c.adjustable)
+        fair = (blocks - fixed) // len(others) * size if others else 0
+        # Give each TX channel that can be reduced one block, and take what is
+        # missing from the RX blocks
+        if (
+            fair < size
+            and direction == "TX"
+            and memory.rx_blocks is not None
+            and (need := fixed + len(others) - blocks) <= memory.rx_blocks
+        ):
+            spill, fair = need, size
         if fair < size:
-            stuck = True
+            stuck.update(own)
             continue
-        shrink = [channel for channel in others if channel.symbols > fair]
-        suggestions.append(f"'{CONF_RMT_SYMBOLS}: {fair}' on {_labels(shrink)}")
+        if shrink := [channel for channel in others if channel.symbols > fair]:
+            suggestions.append(f"'{CONF_RMT_SYMBOLS}: {fair}' on {_labels(shrink)}")
+            reduced.update((channel, fair) for channel in shrink)
+    if suggestions:
+        # Check the suggestion on the pools it can fix
+        trial = [
+            replace(channel, symbols=reduced.get(channel, channel.symbols))
+            for channel in channels
+            if channel not in stuck
+        ]
+        if _allocate(memory, trial):
+            suggestions = []
     advice = [f"Set {' and '.join(suggestions)}"] if suggestions else []
     if reorder:
         advice.append(
@@ -450,7 +473,7 @@ async def _check_memory() -> None:
         size,
         _labels(failed),
         usage,
-        _advice(memory, _pools(memory, channels), reorder),
+        _advice(memory, channels, reorder),
         " or ".join(sorted({_IDF_ERRORS[channel.direction] for channel in failed})),
     )
 
