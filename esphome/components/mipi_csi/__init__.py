@@ -46,7 +46,6 @@ CODEOWNERS = ["@Horstexplorer"]
 
 DEPENDENCIES = ["esp32", "i2c", "psram"]
 AUTO_LOAD = ["camera"]
-MULTI_CONF = False
 
 mipi_csi_ns = cg.esphome_ns.namespace("mipi_csi")
 MipiCsiCamera = mipi_csi_ns.class_("MipiCsiCamera", cg.Component, cg.EntityBase)
@@ -183,7 +182,7 @@ async def to_code(config: ConfigType) -> None:
     if (resolution := config.get(CONF_RESOLUTION)) is not None:
         cg.add(var.set_resolution(*resolution))
     cg.add(var.set_sensor_name(config[CONF_SENSOR]))
-    cg.add(var.set_init_ldo(config.get(CONF_INIT_LDO)))
+    cg.add(var.set_init_ldo(config[CONF_INIT_LDO]))
     cg.add(var.set_framerate(int(config[CONF_FRAMERATE])))
     cg.add(var.set_sccb_frequency(int(config[CONF_SCCB_FREQUENCY])))
     idle_framerate = config[CONF_IDLE_FRAMERATE]
@@ -216,9 +215,9 @@ async def to_code(config: ConfigType) -> None:
 
 
 def _add_idf_config(config: ConfigType) -> None:
-    add_idf_component(name="espressif/esp_video", ref="2.5.0")
-    add_idf_component(name="espressif/esp_cam_sensor", ref="2.6.0")
-    add_idf_component(name="espressif/esp_ipa", ref="2.4.0")
+    add_idf_component(name="espressif/esp_video", ref="2.6.0")
+    add_idf_component(name="espressif/esp_cam_sensor", ref="2.7.0")
+    add_idf_component(name="espressif/esp_ipa", ref="2.5.0")
 
     sensor = config[CONF_SENSOR]
     if (formats := SENSOR_FORMATS.get(sensor)) is not None:
@@ -244,5 +243,10 @@ def _add_idf_config(config: ConfigType) -> None:
         # VIDIOC_DQBUF and esp_video registers no select handlers, so ESPHome is free to leave
         # CONFIG_VFS_SUPPORT_SELECT off and save the code it would otherwise pull in.
         "CONFIG_VFS_SUPPORT_IO": True,
+        # With a mipi_dsi display in the same config, VIDIOC_STREAMON fails.
+        # mipi_dsi sets CONFIG_LCD_DSI_ISR_CACHE_SAFE, which selects DW_GDMA_ISR_IRAM_SAFE.
+        # The DW-GDMA driver then requires its callback context in internal RAM, but the CSI driver allocates
+        # its controller with MALLOC_CAP_DEFAULT unless CONFIG_CAM_CTLR_MIPI_CSI_ISR_CACHE_SAFE is set
+        "CONFIG_CAM_CTLR_MIPI_CSI_ISR_CACHE_SAFE": True,
     }.items():
         add_idf_sdkconfig_option(option, value)
