@@ -6,7 +6,13 @@ import re
 import pytest
 
 from esphome import codegen as cg
-from esphome.core import CORE, ID, EsphomeError, app_lists
+from esphome.const import (
+    KEY_CORE,
+    KEY_TARGET_PLATFORM,
+    PLATFORM_ESP32,
+    PLATFORM_ESP8266,
+)
+from esphome.core import CORE, ID, EsphomeError, app_lists, entity_helpers
 from tests.testing_helpers import get_define_value
 
 ENTITY_TYPES_H = (
@@ -102,25 +108,23 @@ def test_directly_defined_use_gets_its_list() -> None:
     )
 
 
-@pytest.mark.parametrize("via_build_flag", [False, True])
-def test_count_override_is_rejected(via_build_flag: bool) -> None:
-    """The esphome-ramses style override would size the walk past the constant list."""
+@pytest.mark.parametrize(
+    "override",
+    [
+        "add_define",
+        "-DESPHOME_ENTITY_SENSOR_COUNT=32",
+        "-D ESPHOME_ENTITY_SENSOR_COUNT=32",
+    ],
+)
+def test_count_override_is_rejected(override: str) -> None:
+    """The esphome-ramses style override would size the walk past the constant list;
+    `-D NAME=value` with a space is the same define PlatformIO passes to the compiler."""
     CORE.platform_counts["sensor"] = 1
     app_lists.add_entity("sensor", _new_sensor("only_one"))
-    if via_build_flag:
-        CORE.build_flags.add("-DESPHOME_ENTITY_SENSOR_COUNT=32")
-    else:
+    if override == "add_define":
         cg.add_define("ESPHOME_ENTITY_SENSOR_COUNT", 32)
-    app_lists.schedule_emit()
-    with pytest.raises(EsphomeError, match="entities cannot be added at run time"):
-        CORE.flush_tasks()
-
-
-def test_spaced_build_flag_override_is_rejected() -> None:
-    """`-D NAME=value` with a space is the same define PlatformIO passes to the compiler."""
-    CORE.platform_counts["sensor"] = 1
-    app_lists.add_entity("sensor", _new_sensor("only_one"))
-    CORE.build_flags.add("-D ESPHOME_ENTITY_SENSOR_COUNT=32")
+    else:
+        CORE.build_flags.add(override)
     app_lists.schedule_emit()
     with pytest.raises(
         EsphomeError, match="ESPHOME_ENTITY_SENSOR_COUNT is defined as 32"
@@ -135,3 +139,61 @@ def test_device_count_override_names_the_yaml_lists() -> None:
     app_lists.schedule_emit()
     with pytest.raises(EsphomeError, match="devices and areas come from the YAML"):
         CORE.flush_tasks()
+
+
+@pytest.mark.parametrize("upper", ["DEVICE", "AREA"])
+def test_device_and_area_lists_keep_their_order(upper: str) -> None:
+    app_lists.add_to_list(upper, _new_sensor("first"))
+    app_lists.add_to_list(upper, _new_sensor("second"))
+    app_lists.schedule_emit()
+    CORE.flush_tasks()
+    assert get_define_value(f"ESPHOME_{upper}_COUNT") == "2"
+    line = next(line for line in _global_lines() if f"APP_{upper}_LIST PROGMEM" in line)
+    assert line.index("__first__") < line.index("__second__")
+
+
+@pytest.mark.parametrize("upper", ["DEVICE", "AREA"])
+def test_device_and_area_lists_are_absent_without_yaml(upper: str) -> None:
+    app_lists.schedule_emit()
+    CORE.flush_tasks()
+    assert get_define_value(f"ESPHOME_{upper}_COUNT") is None
+    assert f"APP_{upper}_LIST" not in CORE.cpp_global_section
+
+
+@pytest.mark.parametrize("upper", ["DEVICE", "AREA"])
+def test_device_and_area_count_override_is_rejected(upper: str) -> None:
+    app_lists.add_to_list(upper, _new_sensor("only_one"))
+    cg.add_define(f"ESPHOME_{upper}_COUNT", 4)
+    app_lists.schedule_emit()
+    with pytest.raises(
+        EsphomeError, match=f"ESPHOME_{upper}_COUNT is defined as 4 elsewhere"
+    ):
+        CORE.flush_tasks()
+
+
+@pytest.mark.parametrize(
+    ("platform", "count", "helper"),
+    [
+        (PLATFORM_ESP32, 10, True),
+        (PLATFORM_ESP32, 9, False),
+        (PLATFORM_ESP8266, 40, False),
+    ],
+)
+def test_configure_helper_only_where_it_saves_flash(
+    platform: str, count: int, helper: bool
+) -> None:
+    """setup() calls Application::configure_<entity>() only for many ESP32 entities of one type."""
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: platform}
+    CORE.platform_counts["sensor"] = count
+    statement = entity_helpers._ConfigureEntityStatement(
+        "sensor",
+        cg.MockObj("s", "->").configure_entity_("n", 1, 2),
+        cg.MockObj("esphome::Application", "::").configure_sensor(
+            cg.MockObj("s"), "n", 1, 2
+        ),
+        "",
+    )
+    expected = (
+        "esphome::Application::configure_sensor(" if helper else "s->configure_entity_("
+    )
+    assert str(statement).startswith(expected)

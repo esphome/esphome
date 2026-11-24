@@ -1,0 +1,3 @@
+# Pulls in sensor (USE_SENSOR) without codegen sensors, so the iterator tests have an entity type to walk
+# over their own constructed sensors. Plain yaml.safe_load, no ESPHome tags.
+sensor: []

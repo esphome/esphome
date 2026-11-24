@@ -189,11 +189,11 @@ class Application {
   /// Get the area of this Application set by pre_setup().
   const char *get_area() const {
 #ifdef USE_AREAS
-    // If we have areas registered, return the name of the first one (which is the top-level area)
-    if constexpr (ESPHOME_AREA_COUNT > 0)
-      return this->get_areas()[0]->get_name();
-#endif
+    // Codegen defines USE_AREAS only with at least one area; the first is the top-level area
+    return this->get_areas()[0]->get_name();
+#else
     return "";
+#endif
   }
 
   /// Maximum size of the comment buffer (including null terminator)
