@@ -274,6 +274,26 @@ TEST_F(SdoTest, LateRepliesForAnotherObjectAreIgnored) {
   EXPECT_TRUE(this->replies_[1].ok());
 }
 
+TEST_F(SdoTest, LateWriteAckForTheSameObjectIsIgnoredByARead) {
+  ASSERT_TRUE(this->hub_.write_sdo<uint8_t>(0x21, 0x6060, 0, 1, on_reply, this));
+  ASSERT_TRUE(this->hub_.read_sdo<uint8_t>(0x21, 0x6060, 0, on_reply, this));
+  this->hub_.loop();
+  advance_(40);
+  this->hub_.loop();
+  ASSERT_EQ(this->replies_.size(), 1u);
+  EXPECT_EQ(this->replies_[0].result, SDOResult::SDO_RESULT_TIMEOUT);
+  this->hub_.loop();
+  ASSERT_EQ(this->requests_().back(), (Bytes{0x40, 0x60, 0x60, 0, 0, 0, 0, 0}));
+
+  this->hub_.frame(0x5A1, {0x60, 0x60, 0x60, 0, 0, 0, 0, 0});  // the write's late download response
+  this->hub_.loop();
+  EXPECT_EQ(this->replies_.size(), 1u);
+  this->hub_.frame(0x5A1, {0x4F, 0x60, 0x60, 0, 0x07, 0, 0, 0});
+  ASSERT_EQ(this->replies_.size(), 2u);
+  EXPECT_TRUE(this->replies_[1].ok());
+  EXPECT_EQ(this->replies_[1].value, 7u);
+}
+
 // e.g. from on_boot, which runs before the hub's setup()
 TEST(CanopenSdoClient, RequestBeforeSetupWaitsForIt) {
   FakeCanbus bus;

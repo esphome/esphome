@@ -135,6 +135,10 @@ bool CANopenComponent::sdo_reply_is_stale_(const uint8_t *data, uint8_t len) con
     return cli->state == CO_SDO_ST_UPLOAD_INITIATE_RSP || cli->state == CO_SDO_ST_DOWNLOAD_INITIATE_RSP;
   if (scs > 4)
     return false;
+  // an initiate response for the other direction, e.g. a late write ack while a read of the object waits
+  if ((scs == 2 && cli->state == CO_SDO_ST_DOWNLOAD_INITIATE_RSP) ||
+      (scs == 3 && cli->state == CO_SDO_ST_UPLOAD_INITIATE_RSP))
+    return true;
   return encode_uint16(data[2], data[1]) != this->sdo_active_.index || data[3] != this->sdo_active_.sub;
 }
 
