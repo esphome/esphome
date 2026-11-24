@@ -27,13 +27,8 @@ PROGMEM_STRING_TABLE(SX1231ErrorStrings, "none", "timeout", "invalid parameters"
 
 static const LogString *set_mode_failure() { return LOG_STR("Set mode failure"); }
 static constexpr uint16_t RAMP[16] PROGMEM = {3400, 2000, 1000, 500, 250, 125, 100, 62, 50, 40, 31, 25, 20, 15, 12, 10};
-// Aligned 32 bit loads from flash are safe on ESP8266, so this table is read directly
-static constexpr uint32_t BW_HZ[22] PROGMEM = {2604,   3125,   3906,   5208,   6250,   7812,  10416, 12500,
-                                               15625,  20833,  25000,  31250,  41666,  50000, 62500, 83333,
-                                               100000, 125000, 166666, 200000, 250000, 500000};
-// RxBwMant in bits 4:3 and RxBwExp in bits 2:0, for FSK
-static constexpr uint8_t BW_FSK[22] PROGMEM = {0x17, 0x0F, 0x07, 0x16, 0x0E, 0x06, 0x15, 0x0D, 0x05, 0x14, 0x0C,
-                                               0x04, 0x13, 0x0B, 0x03, 0x12, 0x0A, 0x02, 0x11, 0x09, 0x01, 0x00};
+// FSK width of a RegRxBw code: RxBwMant (16, 20 or 24) in bits 4:3 and RxBwExp in bits 2:0
+static uint32_t bandwidth_hz(uint8_t rx_bw) { return FXOSC / ((16 + 4 * (rx_bw >> 3)) << ((rx_bw & 0x07) + 2)); }
 
 static const LogString *shaping_name(uint8_t modulation, uint8_t shaping) {
   if (shaping == SHAPING_NONE) {
@@ -70,13 +65,14 @@ void SX1231::read_fifo_(std::vector<uint8_t> &packet) {
   this->disable();
 }
 
-// Burst write: the radio moves to the next register after each byte, except for REG_FIFO.
-// One SPI transfer per byte: in a multi-byte transfer the FIFO sometimes stores a byte with its last bit cleared.
+// Burst write: the radio moves to the next register after each byte, except for REG_FIFO
 void SX1231::write_registers_(uint8_t reg, const uint8_t *data, size_t len) {
   this->enable();
   this->write_byte(reg | 0x80);
-  for (size_t i = 0; i < len; i++)
+  // Not write_array(): in a multi-byte write the FIFO sometimes stores a byte with its last bit cleared
+  for (size_t i = 0; i < len; i++) {
     this->write_byte(data[i]);
+  }
   this->disable();
 }
 
@@ -87,22 +83,15 @@ void SX1231::write_register16_(uint8_t msb_reg, uint16_t value) {
 }
 
 void SX1231::setup() {
-  // setup reset
   setup_output_pin(this->rst_pin_, false);
 
-  // setup dio0
   if (this->dio0_pin_ != nullptr) {
     this->dio0_pin_->setup();
-    if (this->dio0_pin_->is_internal()) {
-      static_cast<InternalGPIOPin *>(this->dio0_pin_)
-          ->attach_interrupt(&SX1231::gpio_intr, this, gpio::INTERRUPT_RISING_EDGE);
-    }
+    this->dio0_pin_->attach_interrupt(&SX1231::gpio_intr, this, gpio::INTERRUPT_RISING_EDGE);
   }
 
-  // start spi
   this->spi_setup();
 
-  // configure rf
   const LogString *reason = this->configure_radio_();
   if (reason != nullptr) {
     this->mark_failed(reason);
@@ -159,42 +148,37 @@ const LogString *SX1231::configure_radio_() {
   const bool high_power = this->pa_power_ > 17;
   this->applied_ = {this->payload_length_, this->packet_mode_, this->rx_start_, high_power};
 
-  // toggle chip reset, which is active high
+  // Reset is active high
   if (this->rst_pin_ != nullptr) {
     pulse_pin(this->rst_pin_, true, 1000);
     delayMicroseconds(10000);
   }
 
-  // check silicon version to make sure hw is ok
   const uint8_t version = this->read_register_(REG_VERSION);
   if (version != CHIP_VERSION) {
     ESP_LOGE(TAG, "Chip version 0x%02X, expected 0x%02X", version, CHIP_VERSION);
     return LOG_STR("Unsupported chip version");
   }
 
-  // enter standby mode
   if (!this->set_mode_(MODE_STDBY)) {
     return set_mode_failure();
   }
 
-  // config modem
   uint8_t data_modul = this->modulation_ | this->shaping_;
   if (!this->packet_mode_) {
     data_modul |= this->bitsync_ ? CONTINUOUS_BIT_SYNC_ON : CONTINUOUS_BIT_SYNC_OFF;
   }
   this->write_register_(REG_DATA_MODUL, data_modul);
-  uint16_t bitrate = (FXOSC + this->bitrate_ / 2) / this->bitrate_;  // round up
+  uint16_t bitrate = (FXOSC + this->bitrate_ / 2) / this->bitrate_;  // rounded to nearest
   this->write_register16_(REG_BITRATE_MSB, bitrate);
   uint16_t fdev = clamp_at_most((this->deviation_ * 4096) / 250000, uint32_t{0x3FFF});
   this->write_register16_(REG_FDEV_MSB, fdev);
 
-  // set freq
   uint64_t frf = ((uint64_t) this->frequency_ << 19) / FXOSC;
   uint8_t frf_bytes[3];
   put_be24(frf_bytes, static_cast<uint32_t>(frf));
   this->write_registers_(REG_FRF_MSB, frf_bytes, sizeof(frf_bytes));
 
-  // config pa
   uint8_t pa_level = this->pa_pin_ | (this->pa_power_ + 18);
   if (this->pa_power_ > 13) {
     // Both BOOST amplifiers; the +20 dBm settings add another 3 dB
@@ -204,8 +188,7 @@ const LogString *SX1231::configure_radio_() {
   this->write_register_(REG_PA_RAMP, this->pa_ramp_);
   this->write_register_(REG_OCP, high_power ? OCP_OFF : OCP_ON_95MA);
 
-  // config receiver
-  uint8_t rx_bw = progmem_read_byte(&BW_FSK[this->bandwidth_]);
+  uint8_t rx_bw = this->bandwidth_;
   if (this->modulation_ == MOD_OOK) {
     // Each code is half as wide in OOK, so use the next exponent down
     rx_bw--;
@@ -217,7 +200,6 @@ const LogString *SX1231::configure_radio_() {
   this->write_register_(REG_TEST_DAGC, DAGC_IMPROVED_MARGIN);
   this->write_register_(REG_DIO_MAPPING2, CLK_OUT_OFF);
 
-  // config sync word
   this->write_register16_(REG_PREAMBLE_SIZE_MSB, this->preamble_size_);
   if (!this->sync_value_.empty()) {
     uint8_t size = (this->sync_value_.size() - 1) << SYNC_SIZE_SHIFT;
@@ -227,7 +209,6 @@ const LogString *SX1231::configure_radio_() {
     this->write_register_(REG_SYNC_CONFIG, 0x00);
   }
 
-  // config packet mode
   uint8_t crc_mode = this->crc_enable_ ? CRC_ON : CRC_OFF;
   if (this->payload_length_ > 0) {
     this->write_register_(REG_PAYLOAD_LENGTH, this->payload_length_);
@@ -241,7 +222,6 @@ const LogString *SX1231::configure_radio_() {
   // Writing this flag empties the FIFO
   this->write_register_(REG_IRQ_FLAGS2, FIFO_OVERRUN);
 
-  // switch to rx or sleep
   if (!this->restore_()) {
     return set_mode_failure();
   }
@@ -310,7 +290,7 @@ SX1231Error SX1231::start_transmit_(SX1231TransmitListener *listener, const uint
     this->write_register_(REG_FIFO, len);
   }
   this->write_registers_(REG_FIFO, data, len);
-  if (!this->enter_tx_()) {
+  if (!this->set_mode_(MODE_TX)) {
     this->fail_(set_mode_failure());
     return SX1231Error::SX1231_ERROR_NOT_READY;
   }
@@ -321,9 +301,6 @@ SX1231Error SX1231::start_transmit_(SX1231TransmitListener *listener, const uint
 }
 
 bool SX1231::poll_transmit_(uint32_t now, SX1231Error &result) {
-  if (!this->is_transmitting()) {
-    return false;
-  }
   // DIO0 is PacketSent while transmitting
   if (this->dio0_pin_->digital_read()) {
     result = SX1231Error::SX1231_ERROR_NONE;
@@ -333,7 +310,7 @@ bool SX1231::poll_transmit_(uint32_t now, SX1231Error &result) {
   } else {
     return false;
   }
-  result = this->finish_transmit_(result);
+  this->finish_transmit_(result);
   return true;
 }
 
@@ -346,7 +323,7 @@ bool SX1231::cancel_transmit_async(SX1231TransmitListener *listener) {
 }
 
 // The only place a send ends; state is committed before the listener runs
-SX1231Error SX1231::finish_transmit_(SX1231Error result) {
+void SX1231::finish_transmit_(SX1231Error result) {
   SX1231TransmitListener *listener = std::exchange(this->tx_.listener, nullptr);
   if (this->restore_()) {
     this->state_ = RadioState::RADIO_STATE_IDLE;
@@ -356,7 +333,6 @@ SX1231Error SX1231::finish_transmit_(SX1231Error result) {
   if (listener != nullptr) {
     listener->on_transmit_complete(result);
   }
-  return result;
 }
 
 bool SX1231::restore_() {
@@ -364,7 +340,7 @@ bool SX1231::restore_() {
   if (!this->set_mode_(MODE_STDBY)) {
     return false;
   }
-  return this->applied_.rx_start ? this->enter_rx_() : this->set_mode_(MODE_SLEEP);
+  return this->set_mode_(this->applied_.rx_start ? MODE_RX : MODE_SLEEP);
 }
 
 bool SX1231::is_receiving() {
@@ -398,15 +374,9 @@ void SX1231::loop() {
       return;
     }
     case RadioState::RADIO_STATE_IDLE:
-      if (this->dio0_pin_ == nullptr) {
-        this->disable_loop();
-        return;
-      }
       // DIO0's interrupt wakes the loop
-      if (this->dio0_pin_->is_internal()) {
-        this->disable_loop();
-      }
-      if (this->dio0_pin_->digital_read()) {
+      this->disable_loop();
+      if (this->dio0_pin_ != nullptr && this->dio0_pin_->digital_read()) {
         this->receive_();
       }
       return;
@@ -446,6 +416,12 @@ void SX1231::restart_stalled_rx_() {
 }
 
 bool SX1231::set_mode_(uint8_t mode) {
+  // DIO0 is PayloadReady while receiving and PacketSent while transmitting
+  if (mode == MODE_RX) {
+    this->write_register_(REG_DIO_MAPPING1, DIO0_MAPPING_01);
+  } else if (mode == MODE_TX) {
+    this->write_register_(REG_DIO_MAPPING1, DIO0_MAPPING_00);
+  }
   // The +20 dBm settings must be off except while sending
   const bool high_power = mode == MODE_TX && this->applied_.high_power;
   this->write_register_(REG_TEST_PA1, high_power ? TEST_PA1_HIGH_POWER : TEST_PA1_NORMAL);
@@ -460,37 +436,12 @@ bool SX1231::set_mode_(uint8_t mode) {
   return true;
 }
 
-bool SX1231::enter_rx_() {
-  this->write_register_(REG_DIO_MAPPING1, DIO0_MAPPING_01);
-  return this->set_mode_(MODE_RX);
-}
-
-bool SX1231::enter_tx_() {
-  this->write_register_(REG_DIO_MAPPING1, DIO0_MAPPING_00);
-  return this->set_mode_(MODE_TX);
-}
-
-bool SX1231::can_change_mode_() {
-  if (this->state_ == RadioState::RADIO_STATE_IDLE) {
-    return true;
-  }
-  ESP_LOGW(TAG, "Radio unavailable, mode change ignored");
-  return false;
-}
-
 void SX1231::change_mode_(uint8_t mode) {
-  if (!this->can_change_mode_()) {
+  if (this->state_ != RadioState::RADIO_STATE_IDLE) {
+    ESP_LOGW(TAG, "Radio unavailable, mode change ignored");
     return;
   }
-  bool ok;
-  if (mode == MODE_RX) {
-    ok = this->enter_rx_();
-  } else if (mode == MODE_TX) {
-    ok = this->enter_tx_();
-  } else {
-    ok = this->set_mode_(mode);
-  }
-  if (!ok) {
+  if (!this->set_mode_(mode)) {
     this->fail_(set_mode_failure());
   }
 }
@@ -515,7 +466,7 @@ void SX1231::dump_config() {
                 "  PA Power: %" PRId8 " dBm\n"
                 "  PA Ramp: %" PRIu16 " us\n"
                 "  Shaping: %s",
-                this->frequency_, BW_HZ[this->bandwidth_],
+                this->frequency_, bandwidth_hz(this->bandwidth_),
                 this->pa_pin_ == PA_PIN_BOOST ? LOG_STR_LITERAL("BOOST") : LOG_STR_LITERAL("RFO"), this->pa_power_,
                 progmem_read_uint16(&RAMP[this->pa_ramp_]),
                 LOG_STR_ARG(shaping_name(this->modulation_, this->shaping_)));

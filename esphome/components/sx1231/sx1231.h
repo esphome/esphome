@@ -13,31 +13,6 @@ namespace esphome::sx1231 {
 static constexpr size_t SX1231_MAX_PACKET_SIZE = 64;  // the 66 byte FIFO also holds the length byte
 static constexpr size_t SX1231_MAX_SYNC_SIZE = 8;
 
-enum SX1231Bw : uint8_t {
-  SX1231_BW_2_6,
-  SX1231_BW_3_1,
-  SX1231_BW_3_9,
-  SX1231_BW_5_2,
-  SX1231_BW_6_3,
-  SX1231_BW_7_8,
-  SX1231_BW_10_4,
-  SX1231_BW_12_5,
-  SX1231_BW_15_6,
-  SX1231_BW_20_8,
-  SX1231_BW_25_0,
-  SX1231_BW_31_3,
-  SX1231_BW_41_7,
-  SX1231_BW_50_0,
-  SX1231_BW_62_5,
-  SX1231_BW_83_3,
-  SX1231_BW_100_0,
-  SX1231_BW_125_0,
-  SX1231_BW_166_7,
-  SX1231_BW_200_0,
-  SX1231_BW_250_0,
-  SX1231_BW_500_0,
-};
-
 enum class SX1231Error {
   SX1231_ERROR_NONE = 0,
   SX1231_ERROR_TIMEOUT,
@@ -77,12 +52,13 @@ class SX1231 final : public Component,
   void setup() override;
   void loop() override;
   void dump_config() override;
-  void set_bandwidth(SX1231Bw bandwidth) { this->bandwidth_ = bandwidth; }
+  // The RegRxBw code for FSK; the OOK code is worked out from it
+  void set_bandwidth(uint8_t bandwidth) { this->bandwidth_ = bandwidth; }
   void set_bitrate(uint32_t bitrate) { this->bitrate_ = bitrate; }
   void set_bitsync(bool bitsync) { this->bitsync_ = bitsync; }
   void set_crc_enable(bool crc_enable) { this->crc_enable_ = crc_enable; }
   void set_deviation(uint32_t deviation) { this->deviation_ = deviation; }
-  void set_dio0_pin(GPIOPin *dio0_pin) { this->dio0_pin_ = dio0_pin; }
+  void set_dio0_pin(InternalGPIOPin *dio0_pin) { this->dio0_pin_ = dio0_pin; }
   void set_frequency(uint32_t frequency) { this->frequency_ = frequency; }
   // Ignored unless the radio is idle
   void set_mode_rx();
@@ -120,7 +96,7 @@ class SX1231 final : public Component,
   void register_listener(SX1231Listener *listener) { this->listeners_.push_back(listener); }
   // True while a packet is being received, or has been received and not yet read; sending would lose it.
   bool is_receiving();
-  Trigger<std::vector<uint8_t>, float, float> *get_packet_trigger() { return &this->packet_trigger_; }
+  Trigger<const std::vector<uint8_t> &, float, float> *get_packet_trigger() { return &this->packet_trigger_; }
 
  protected:
   // Settings as last applied by configure(), used by sends and reception
@@ -140,9 +116,6 @@ class SX1231 final : public Component,
   const LogString *configure_radio_();
   // False if the chip did not enter the mode
   bool set_mode_(uint8_t mode);
-  bool enter_rx_();
-  bool enter_tx_();
-  bool can_change_mode_();
   void change_mode_(uint8_t mode);
   // Puts the radio back in RX or sleep after a send
   bool restore_();
@@ -154,27 +127,27 @@ class SX1231 final : public Component,
   SX1231Error start_transmit_(SX1231TransmitListener *listener, const uint8_t *data, size_t len, uint32_t timeout_ms);
   // True once the send has ended, with its outcome in result
   bool poll_transmit_(uint32_t now, SX1231Error &result);
-  SX1231Error finish_transmit_(SX1231Error result);
+  void finish_transmit_(SX1231Error result);
   void write_registers_(uint8_t reg, const uint8_t *data, size_t len);
   void write_register16_(uint8_t msb_reg, uint16_t value);
   void read_fifo_(std::vector<uint8_t> &packet);
   void write_register_(uint8_t reg, uint8_t value);
   void call_listeners_(const std::vector<uint8_t> &packet, float rssi, float snr);
   uint8_t read_register_(uint8_t reg);
-  Trigger<std::vector<uint8_t>, float, float> packet_trigger_;
+  Trigger<const std::vector<uint8_t> &, float, float> packet_trigger_;
   std::vector<SX1231Listener *> listeners_;
   std::vector<uint8_t> packet_;
   TxOperation tx_;
-  GPIOPin *dio0_pin_{nullptr};
+  InternalGPIOPin *dio0_pin_{nullptr};
   GPIOPin *rst_pin_{nullptr};
   uint32_t bitrate_;
   uint32_t deviation_;
   uint32_t frequency_;
   float rx_floor_;
-  uint16_t preamble_size_;
   StaticVector<uint8_t, SX1231_MAX_SYNC_SIZE> sync_value_;
+  uint16_t preamble_size_;
   AppliedSettings applied_;
-  SX1231Bw bandwidth_;
+  uint8_t bandwidth_;
   uint8_t modulation_;
   uint8_t pa_pin_;
   int8_t pa_power_;

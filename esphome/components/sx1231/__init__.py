@@ -46,34 +46,34 @@ CONF_RX_FLOOR = "rx_floor"
 sx1231_ns = cg.esphome_ns.namespace("sx1231")
 SX1231 = sx1231_ns.class_("SX1231", cg.Component, spi.SPIDevice)
 SX1231Listener = sx1231_ns.class_("SX1231Listener")
-SX1231Bw = sx1231_ns.enum("SX1231Bw")
 SX1231DataModul = sx1231_ns.enum("SX1231DataModul")
 SX1231PaLevel = sx1231_ns.enum("SX1231PaLevel")
 SX1231PaRamp = sx1231_ns.enum("SX1231PaRamp")
 
+# RegRxBw codes for FSK: RxBwMant in bits 4:3 and RxBwExp in bits 2:0
 BW = {
-    "2_6kHz": SX1231Bw.SX1231_BW_2_6,
-    "3_1kHz": SX1231Bw.SX1231_BW_3_1,
-    "3_9kHz": SX1231Bw.SX1231_BW_3_9,
-    "5_2kHz": SX1231Bw.SX1231_BW_5_2,
-    "6_3kHz": SX1231Bw.SX1231_BW_6_3,
-    "7_8kHz": SX1231Bw.SX1231_BW_7_8,
-    "10_4kHz": SX1231Bw.SX1231_BW_10_4,
-    "12_5kHz": SX1231Bw.SX1231_BW_12_5,
-    "15_6kHz": SX1231Bw.SX1231_BW_15_6,
-    "20_8kHz": SX1231Bw.SX1231_BW_20_8,
-    "25_0kHz": SX1231Bw.SX1231_BW_25_0,
-    "31_3kHz": SX1231Bw.SX1231_BW_31_3,
-    "41_7kHz": SX1231Bw.SX1231_BW_41_7,
-    "50_0kHz": SX1231Bw.SX1231_BW_50_0,
-    "62_5kHz": SX1231Bw.SX1231_BW_62_5,
-    "83_3kHz": SX1231Bw.SX1231_BW_83_3,
-    "100_0kHz": SX1231Bw.SX1231_BW_100_0,
-    "125_0kHz": SX1231Bw.SX1231_BW_125_0,
-    "166_7kHz": SX1231Bw.SX1231_BW_166_7,
-    "200_0kHz": SX1231Bw.SX1231_BW_200_0,
-    "250_0kHz": SX1231Bw.SX1231_BW_250_0,
-    "500_0kHz": SX1231Bw.SX1231_BW_500_0,
+    "2_6kHz": 0x17,
+    "3_1kHz": 0x0F,
+    "3_9kHz": 0x07,
+    "5_2kHz": 0x16,
+    "6_3kHz": 0x0E,
+    "7_8kHz": 0x06,
+    "10_4kHz": 0x15,
+    "12_5kHz": 0x0D,
+    "15_6kHz": 0x05,
+    "20_8kHz": 0x14,
+    "25_0kHz": 0x0C,
+    "31_3kHz": 0x04,
+    "41_7kHz": 0x13,
+    "50_0kHz": 0x0B,
+    "62_5kHz": 0x03,
+    "83_3kHz": 0x12,
+    "100_0kHz": 0x0A,
+    "125_0kHz": 0x02,
+    "166_7kHz": 0x11,
+    "200_0kHz": 0x09,
+    "250_0kHz": 0x01,
+    "500_0kHz": 0x00,
 }
 
 MOD = SX1231DataModul.options("FSK", "OOK", prefix="MOD_")
@@ -228,7 +228,10 @@ async def to_code(config: ConfigType) -> None:
         await automation.build_automation(
             var.get_packet_trigger(),
             [
-                (cg.std_vector.template(cg.uint8), "x"),
+                (
+                    cg.std_vector.template(cg.uint8).operator("const").operator("ref"),
+                    "x",
+                ),
                 (cg.float_, "rssi"),
                 (cg.float_, "snr"),
             ],

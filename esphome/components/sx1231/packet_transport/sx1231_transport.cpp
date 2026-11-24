@@ -1,12 +1,8 @@
-#include "esphome/core/log.h"
-#include "esphome/core/application.h"
 #include "sx1231_transport.h"
 #include <algorithm>
 #include <cstring>
 
 namespace esphome::sx1231 {
-
-ESPHOME_LOG_TAG(TAG, "sx1231_transport");
 
 void SX1231Transport::setup() {
   PacketTransport::setup();

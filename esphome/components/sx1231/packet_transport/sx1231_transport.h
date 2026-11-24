@@ -15,7 +15,6 @@ class SX1231Transport final : public packet_transport::PacketTransport, public P
 
  protected:
   void send_packet(const std::vector<uint8_t> &buf) const override;
-  bool should_send() override { return true; }
   size_t get_max_packet_size() override { return this->parent_->get_max_packet_size(); }
 };
 
