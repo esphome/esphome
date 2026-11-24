@@ -218,19 +218,10 @@ void TFLiteMicroHelper::finish_run_(bool succeeded) {
 }
 
 bool TFLiteMicroHelper::run_inference_on_buffer(const uint8_t *src_data, size_t src_size) {
-  if (!this->prepare_run_())
+  LockGuard guard(this);
+  if (!guard.locked())
     return false;
-  bool succeeded = false;
-  {
-    LockGuard guard(this);
-    if (!guard.locked())
-      return false;
-    succeeded = this->run_inference_on_buffer_locked_(src_data, src_size);
-    if (succeeded)
-      this->pending_epoch_.fetch_add(1, std::memory_order_release);
-  }
-  this->finish_run_(succeeded);
-  return succeeded;
+  return this->run_inference_on_buffer_locked_(src_data, src_size);
 }
 
 bool TFLiteMicroHelper::run_inference_on_buffer_locked_(const uint8_t *src_data, size_t src_size) {
