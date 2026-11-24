@@ -751,38 +751,6 @@ def test_suggestion_leaves_out_fixed_channels(
     assert "on 'bus'" not in messages[0]
 
 
-def test_channels_of_one_component_keep_their_order(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """setup_priority cannot change the order of the channels inside one component."""
-    messages = _check_fixed(
-        caplog, VARIANT_ESP32C3, [(_bus("bus"), (("TX", 2), ("TX", 1)))], {}
-    )
-    assert len(messages) == 1
-    assert "'bus' will not fit" in messages[0]
-    assert "setup_priority" not in messages[0]
-    assert "Remove some of these components" in messages[0]
-
-
-def test_setup_priority_moves_a_whole_component(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """A small strip set up before the bus fits, so only setup_priority is suggested.
-
-    The bus leaves no TX block for the strip, but the strip can take one when it comes
-    first, so the warning does not tell to remove components.
-    """
-    messages = _check_fixed(
-        caplog, VARIANT_ESP32C3, [(_bus("bus"), (("TX", 2),))], _strips(48)
-    )
-    assert len(messages) == 1
-    assert (
-        "'strip0' will not fit: 'bus' (96), 'strip0' (48). Set 'setup_priority' so "
-        "the smaller ones are set up first. Otherwise" in messages[0]
-    )
-    assert "Remove" not in messages[0]
-
-
 def test_components_with_the_same_label_are_counted_apart(
     run_check: CheckRunner,
 ) -> None:
@@ -804,41 +772,61 @@ def test_warning_counts_components_with_the_same_label_apart(
     assert "will not fit: 'ir' (192), 'ir' (192)." in messages[0]
 
 
-def test_advice_for_each_pool(caplog: pytest.LogCaptureFixture) -> None:
-    """On S3 the strips can share the TX blocks, but the bus leaves no RX block free."""
-    messages = _check_fixed(
-        caplog,
-        VARIANT_ESP32S3,
-        [(_bus("bus"), (("RX", 4),))],
-        {**_strips(192, 192), "RX": [_entry("rx", 96)]},
-    )
-    assert len(messages) == 1
-    assert (
-        "Set 'rmt_symbols: 96' on 'strip0', 'strip1' and remove some of these "
-        "components or use a chip with more RMT memory." in messages[0]
-    )
-
-
-def test_reduce_a_receiver_next_to_a_tx_channel_that_takes_an_rx_block(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """On C3 a TX channel of three blocks takes one RX block and leaves one for the receiver."""
-    messages = _check_fixed(
-        caplog,
-        VARIANT_ESP32C3,
-        [(_bus("bus"), (("TX", 3),))],
-        {"RX": [_entry("rx", 96)]},
-    )
-    assert len(messages) == 1
-    assert (
-        "'rx' will not fit: 'bus' (144), 'rx' (96). Set 'rmt_symbols: 48' on 'rx'. "
-        "Otherwise" in messages[0]
-    )
-
-
 @pytest.mark.parametrize(
     ("variant", "bus", "config", "text"),
     [
+        # setup_priority cannot change the order of the channels inside one component
+        (
+            VARIANT_ESP32C3,
+            (("TX", 2), ("TX", 1)),
+            {},
+            (
+                "'bus' will not fit: 'bus' (TX 96), 'bus' (TX 48). Remove some of "
+                "these components or use a chip with more RMT memory. Otherwise"
+            ),
+        ),
+        # The bus leaves no TX block for the strip, but the strip can take one when it
+        # comes first, so only setup_priority is suggested
+        (
+            VARIANT_ESP32C3,
+            (("TX", 2),),
+            _strips(48),
+            (
+                "'strip0' will not fit: 'bus' (96), 'strip0' (48). Set 'setup_priority' "
+                "so the smaller ones are set up first. Otherwise"
+            ),
+        ),
+        # The strip must be reduced and set up first, so both are suggested together
+        (
+            VARIANT_ESP32C3,
+            (("TX", 2),),
+            _strips(96),
+            (
+                "'strip0' will not fit: 'bus' (96), 'strip0' (96). Set 'rmt_symbols: "
+                "48' on 'strip0' and set 'setup_priority' so 'strip0' is set up first, "
+                "then 'bus'. Otherwise"
+            ),
+        ),
+        # On S3 the strips can share the TX blocks, but the bus leaves no RX block free
+        (
+            VARIANT_ESP32S3,
+            (("RX", 4),),
+            {**_strips(192, 192), "RX": [_entry("rx", 96)]},
+            (
+                "Set 'rmt_symbols: 96' on 'strip0', 'strip1' and remove some of these "
+                "components or use a chip with more RMT memory."
+            ),
+        ),
+        # A TX channel of three blocks takes one RX block and leaves one for the receiver
+        (
+            VARIANT_ESP32C3,
+            (("TX", 3),),
+            {"RX": [_entry("rx", 96)]},
+            (
+                "'rx' will not fit: 'bus' (144), 'rx' (96). Set 'rmt_symbols: 48' on "
+                "'rx'. Otherwise"
+            ),
+        ),
         # Only with the TX channel of three blocks first is an RX block left
         (
             VARIANT_ESP32C3,
@@ -860,53 +848,41 @@ def test_reduce_a_receiver_next_to_a_tx_channel_that_takes_an_rx_block(
                 "'rx'. Otherwise"
             ),
         ),
+        # setup() of the bus stops when its RX channel fails, so its TX block stays free
+        (
+            VARIANT_ESP32C3,
+            RX_AND_TX,
+            {"RX": [_entry("rx", 96, **{CONF_SETUP_PRIORITY: 900.0})], **_strips(96)},
+            (
+                "in the order ESPHome sets up these components, 'bus' will not fit: "
+                "'rx' (96), 'bus' (RX 48), 'bus' (TX 48), 'strip0' (96). Set "
+                "'rmt_symbols: 48' on 'strip0' and 'rmt_symbols: 48' on 'rx'. "
+                "Otherwise ESP-IDF logs 'no free rx channels' at boot,"
+            ),
+        ),
     ],
-    ids=["two_components", "three_components"],
+    ids=[
+        "channels_of_one_component_keep_their_order",
+        "setup_priority_moves_a_whole_component",
+        "reduce_and_reorder_together",
+        "advice_for_each_pool",
+        "reduce_a_receiver_next_to_a_tx_channel_that_takes_an_rx_block",
+        "setup_order_other_than_smallest_first_two_components",
+        "setup_order_other_than_smallest_first_three_components",
+        "channels_after_a_failed_channel_are_not_created",
+    ],
 )
-def test_setup_order_other_than_smallest_first(
+def test_warning_with_fixed_channels(
     caplog: pytest.LogCaptureFixture,
     variant: str,
     bus: tuple[tuple[str, int], ...],
     config: Config,
     text: str,
 ) -> None:
-    """When smaller components first does not fit but another order does, name it."""
+    """The warning for a component without rmt_symbols and the RMT components next to it.
+
+    Each text runs to the end of the advice, so it also shows what is not suggested.
+    """
     messages = _check_fixed(caplog, variant, [(_bus("bus"), bus)], config)
     assert len(messages) == 1
     assert text in messages[0]
-    assert "Remove" not in messages[0]
-
-
-def test_channels_after_a_failed_channel_are_not_created(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """setup() of the bus stops when its RX channel fails, so its TX block stays free."""
-    rx = _entry("rx", 96, **{CONF_SETUP_PRIORITY: 900.0})
-    messages = _check_fixed(
-        caplog,
-        VARIANT_ESP32C3,
-        [(_bus("bus"), RX_AND_TX)],
-        {"RX": [rx], **_strips(96)},
-    )
-    assert len(messages) == 1
-    assert (
-        "in the order ESPHome sets up these components, 'bus' will not fit: 'rx' (96), "
-        "'bus' (RX 48), 'bus' (TX 48), 'strip0' (96). Set 'rmt_symbols: 48' on "
-        "'strip0' and 'rmt_symbols: 48' on 'rx'. Otherwise ESP-IDF logs 'no free rx "
-        "channels' at boot," in messages[0]
-    )
-
-
-def test_reduce_and_reorder_together(caplog: pytest.LogCaptureFixture) -> None:
-    """On C3 the strip fits next to a TX channel of two blocks only when it is reduced
-    and set up first, so both are suggested together.
-    """
-    messages = _check_fixed(
-        caplog, VARIANT_ESP32C3, [(_bus("bus"), (("TX", 2),))], _strips(96)
-    )
-    assert len(messages) == 1
-    assert (
-        "'strip0' will not fit: 'bus' (96), 'strip0' (96). Set 'rmt_symbols: 48' on "
-        "'strip0' and set 'setup_priority' so 'strip0' is set up first, then 'bus'. "
-        "Otherwise" in messages[0]
-    )
