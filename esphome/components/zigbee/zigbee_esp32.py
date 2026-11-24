@@ -410,7 +410,10 @@ def validate_cover_esp32(config: ConfigType) -> ConfigType:
     ep = copy.deepcopy(WINDOW_COVERING_EP)
     covering_type = WINDOW_COVERING_TYPES.get(config.get(CONF_DEVICE_CLASS), 0x00)
     ep[CONF_CLUSTERS][0][CONF_ATTRIBUTES][0][CONF_VALUE] = covering_type
-    return _register_attribute_ep(config, ep, CONF_ZIGBEE_COVER, ZigbeeCover)
+    # The window covering device type would mislabel any entity sharing the endpoint
+    return _register_attribute_ep(
+        config, ep, CONF_ZIGBEE_COVER, ZigbeeCover, own_endpoint=True
+    )
 
 
 def zigbee_require_vfs_select(config: ConfigType) -> ConfigType:
@@ -542,13 +545,21 @@ async def add_component(entity: cg.MockObj, config: ConfigType) -> None:
 
 
 def _register_attribute_ep(
-    config: ConfigType, ep: dict[str, Any], id_key: str, cls: cg.MockObjClass
+    config: ConfigType,
+    ep: dict[str, Any],
+    id_key: str,
+    cls: cg.MockObjClass,
+    own_endpoint: bool = False,
 ) -> ConfigType:
     ep_ref: dict[str, Any] = {}
     config[KEY_ZIGBEE_EP] = ep_ref
     setup_attributes(config, ep[CONF_CLUSTERS])
     add_ep(
-        ep, config.get(CONF_ENDPOINT), config.get(CONF_USE_DEVICE_TYPE), ep_ref=ep_ref
+        ep,
+        config.get(CONF_ENDPOINT),
+        config.get(CONF_USE_DEVICE_TYPE),
+        ep_ref=ep_ref,
+        own_endpoint=own_endpoint,
     )
     config[id_key] = cv.declare_id(cls)(None)
     config[CONF_ZIGBEE_ID] = cv.use_id(ZigbeeComponent)(None)
@@ -578,6 +589,7 @@ async def add_number(entity: cg.MockObj, config: ConfigType) -> None:
 
 
 async def add_cover(entity: cg.MockObj, config: ConfigType) -> None:
+    cg.add_define("USE_ZIGBEE_COVER")
     await _add_attribute_entity(entity, config, CONF_ZIGBEE_COVER)
 
 

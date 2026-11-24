@@ -47,6 +47,7 @@ from .const_esp32 import (
 
 _KEY_EP_REFS = "ep_refs"
 _MERGE_ATTRIBUTES = "_merge_attributes"
+_OWN_ENDPOINT = "_own_endpoint"
 
 # endpoint configs:
 ANALOG_INPUT_EP = {
@@ -555,8 +556,11 @@ def create_ep(router: bool) -> None:
         for ep in ep_list:
             added = False
             merge_attributes = ep.pop(_MERGE_ATTRIBUTES, False)
+            if ep.get(_OWN_ENDPOINT):
+                ep_list_new.append(ep)
+                continue
             for existing_ep in ep_list_new:
-                if _merge_endpoints(
+                if not existing_ep.get(_OWN_ENDPOINT) and _merge_endpoints(
                     existing_ep,
                     ep,
                     ep.get(CONF_USE_DEVICE_TYPE),
@@ -570,6 +574,7 @@ def create_ep(router: bool) -> None:
         # Add endpoints with no number to the endpoint dict with a new number
         eps = list(ep_dict.keys())
         for ep in ep_list_new:
+            ep.pop(_OWN_ENDPOINT, None)
             ep_num = _get_next_ep_num(eps)
             for ep_ref in ep.pop(_KEY_EP_REFS, ()):
                 ep_ref[CONF_NUMBER] = ep_num
@@ -637,6 +642,7 @@ def add_ep(
     use_type: bool | None,
     merge_attributes: bool = False,
     ep_ref: dict[str, Any] | None = None,
+    own_endpoint: bool = False,
 ) -> None:
     """Add a Zigbee endpoint configuration to CORE.data.
 
@@ -646,6 +652,7 @@ def add_ep(
         use_type: Optional boolean indicating whether this component's device type should be
         used for the endpoint (True claims it, False drops it, None leaves it as a candidate).
         merge_attributes: Merge attributes in a cluster that is already in the list
+        own_endpoint: Without ep_num, never share the numbered endpoint with others
     """
     zb_data = CORE.data.setdefault(KEY_ZIGBEE, {})
     if ep_ref is not None:
@@ -660,6 +667,8 @@ def add_ep(
             ep[CONF_USE_DEVICE_TYPE] = use_type
         if merge_attributes:
             ep[_MERGE_ATTRIBUTES] = True
+        if own_endpoint:
+            ep[_OWN_ENDPOINT] = True
         ep_list: list[dict] = zb_data.setdefault(KEY_ZIGBEE_EP_NO_NUM, [])
         ep_list.append(ep)
     else:

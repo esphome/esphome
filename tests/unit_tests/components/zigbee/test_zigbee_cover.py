@@ -1,5 +1,7 @@
 """Tests for the zigbee cover validators."""
 
+import copy
+
 import pytest
 
 from esphome.components import zigbee
@@ -19,7 +21,12 @@ from esphome.components.zigbee.const_esp32 import (
     KEY_ZIGBEE_ATTRIBUTES,
     KEY_ZIGBEE_EP,
 )
-from esphome.components.zigbee.zigbee_ep_esp32 import create_ep
+from esphome.components.zigbee.zigbee_ep_esp32 import (
+    ANALOG_OUTPUT_EP,
+    BINARY_OUTPUT_EP,
+    add_ep,
+    create_ep,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DEVICE_CLASS,
@@ -104,6 +111,42 @@ def test_covers_do_not_share_an_endpoint() -> None:
     endpoints = CORE.data[KEY_ZIGBEE][KEY_ZIGBEE_EP]
     assert sorted(endpoints) == [1, 2]
     assert {ep[DEVICE_TYPE] for ep in endpoints.values()} == {"WINDOW_COVERING"}
+
+
+def test_auto_numbered_cover_gets_an_endpoint_of_its_own() -> None:
+    """Entities added before or after the cover must not join its endpoint."""
+    _configure()
+
+    add_ep(copy.deepcopy(BINARY_OUTPUT_EP), None, None)
+    config = zigbee.validate_cover(_cover())
+    add_ep(copy.deepcopy(ANALOG_OUTPUT_EP), None, None)
+    create_ep(False)
+
+    endpoints = CORE.data[KEY_ZIGBEE][KEY_ZIGBEE_EP]
+    assert sorted(endpoints) == [1, 2]
+    cover_ep = endpoints[config[KEY_ZIGBEE_EP][CONF_NUMBER]]
+    assert cover_ep[DEVICE_TYPE] == "WINDOW_COVERING"
+    assert [cl[CONF_ID] for cl in cover_ep[CONF_CLUSTERS]] == ["WINDOW_COVERING"]
+    (other_ep,) = (ep for ep in endpoints.values() if ep is not cover_ep)
+    assert [cl[CONF_ID] for cl in other_ep[CONF_CLUSTERS]] == [
+        "BINARY_OUTPUT",
+        "ANALOG_OUTPUT",
+    ]
+
+
+def test_cover_with_explicit_endpoint_still_shares_it() -> None:
+    _configure()
+
+    add_ep(copy.deepcopy(BINARY_OUTPUT_EP), 3, None)
+    zigbee.validate_cover(_cover(**{CONF_ENDPOINT: 3}))
+    create_ep(False)
+
+    endpoints = CORE.data[KEY_ZIGBEE][KEY_ZIGBEE_EP]
+    assert sorted(endpoints) == [3]
+    assert [cl[CONF_ID] for cl in endpoints[3][CONF_CLUSTERS]] == [
+        "BINARY_OUTPUT",
+        "WINDOW_COVERING",
+    ]
 
 
 def test_nrf52_cover_rejects_endpoint() -> None:
