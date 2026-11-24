@@ -65,6 +65,17 @@ def use_define(platform: str) -> str:
     return f"USE_{_upper(platform)}"
 
 
+# Defines an entity type needs besides its own USE_*, emitted with its list.
+_SHARED_DEFINES: dict[str, str] = {
+    "infrared": "USE_IR_RF",
+    "radio_frequency": "USE_IR_RF",
+}
+
+
+def _integration(platform: str) -> str:
+    return "datetime" if platform in DATETIME_SUBTYPES else platform
+
+
 @dataclass
 class AppListsState:
     """Constant addresses of the objects added to each list, in emission order, keyed by `upper` token."""
@@ -92,7 +103,9 @@ def add_to_list(upper: str, var: MockObj) -> None:
         )
     if (address := static_pointer_address(var)) is None:
         raise EsphomeError(
-            f"{var} must be created with cg.new_Pvariable to be added to the {upper} list"
+            f"{var} must be created with cg.new_Pvariable to be added to the {upper} list; "
+            "an entity created at run time is registered with App.register_<platform>(obj, name) "
+            "into slots reserved with cg.reserve_runtime_entities()"
         )
     state.lists.setdefault(upper, []).append(address)
 
@@ -110,9 +123,41 @@ def reserve_runtime_entities(platform: str, count: int) -> None:
     """
     if platform not in ENTITY_LISTS:
         raise EsphomeError(f"Unknown entity platform '{platform}'")
+    if _get_state().emitted:
+        raise EsphomeError(
+            f"Runtime {platform} slots were reserved after the lists were emitted; "
+            "call cg.reserve_runtime_entities() from to_code"
+        )
+    if (integration := _integration(platform)) not in CORE.loaded_integrations:
+        raise EsphomeError(
+            f"cg.reserve_runtime_entities('{platform}', ...) needs the {integration} "
+            f'integration; add AUTO_LOAD = ["{integration}"] to the component'
+        )
     request_slot = slot_counter(runtime_count_define(platform))
     for _ in range(count):
         request_slot()
+
+
+def _defined_value(name: str) -> str | None:
+    """Value `name` is already defined with, through cg.add_define or a -D build flag."""
+    for define in CORE.defines:
+        if define.name == name:
+            return str(define.value)
+    for flag in CORE.build_flags:
+        if flag == f"-D{name}" or flag.startswith(f"-D{name}="):
+            return flag.partition("=")[2]
+    return None
+
+
+def _add_count_define(name: str, value: int, platform: str) -> None:
+    """Emit a list size, refusing a different value defined elsewhere: it would size the walk wrong."""
+    if (other := _defined_value(name)) is not None and other != str(value):
+        raise EsphomeError(
+            f"{name} is defined as {other} elsewhere, but codegen sizes it as {value}. "
+            f"Remove that define; to register {platform} entities at run time, call "
+            f'cg.reserve_runtime_entities("{platform}", n) in to_code'
+        )
+    add_define(name, value)
 
 
 def _emit_list(upper: str, objs: list[str]) -> None:
@@ -128,18 +173,28 @@ async def _emit_entity_lists() -> None:
     state.emitted = True
     for platform, upper in ENTITY_LISTS.items():
         objs = state.lists.get(upper, [])
-        reserved = get_slot_count(runtime_count_define(platform))
-        # The one place that decides whether the type is compiled in, so USE_* and the list agree
-        if not reserved and not CORE.platform_counts.get(platform):
+        if reserved := get_slot_count(runtime_count_define(platform)):
+            add_define("USE_RUNTIME_ENTITIES")
+        # The one place that decides whether the type is compiled in, so USE_* and the list agree;
+        # a USE_* defined directly (tests, benchmarks) counts as enabled
+        if (
+            not reserved
+            and not CORE.platform_counts.get(platform)
+            and _defined_value(use_define(platform)) is None
+        ):
             continue
         add_define(use_define(platform))
-        add_define(f"ESPHOME_ENTITY_{platform.upper()}_COUNT", len(objs))
+        if (shared := _SHARED_DEFINES.get(platform)) is not None:
+            add_define(shared)
+        _add_count_define(
+            f"ESPHOME_ENTITY_{platform.upper()}_COUNT", len(objs), platform
+        )
         if not reserved:
-            add_define(runtime_count_define(platform), 0)
+            _add_count_define(runtime_count_define(platform), 0, platform)
         _emit_list(upper, objs)
     for upper in ("DEVICE", "AREA"):
         if (objs := state.lists.get(upper)) is not None:
-            add_define(f"ESPHOME_{upper}_COUNT", len(objs))
+            _add_count_define(f"ESPHOME_{upper}_COUNT", len(objs), upper.lower())
             _emit_list(upper, objs)
 
 
