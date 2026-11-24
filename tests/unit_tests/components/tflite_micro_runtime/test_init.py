@@ -11,8 +11,8 @@ import pytest
 from esphome import cpp_types as ct
 from esphome.components import tflite_micro_runtime as tflm
 from esphome.components.tflite_model_io.model_reader import ModelReadError
-import esphome.config_validation as cv
-from esphome.core import CORE, ID, Define, EsphomeError
+from esphome.const import CONF_RAW_DATA_ID
+from esphome.core import CORE, ID, EsphomeError
 from esphome.types import ConfigType
 
 MODEL_PATH = Path("/models/digit.tflite")
@@ -28,7 +28,7 @@ def _model_entry() -> ConfigType:
     return {
         tflm.CONF_ID: _model_id(),
         "model": "model.tflite",
-        tflm.CONF_RAW_DATA_ID: ID("model_data", is_declaration=True, type=ct.uint8),
+        CONF_RAW_DATA_ID: ID("model_data", is_declaration=True, type=ct.uint8),
     }
 
 
@@ -51,10 +51,10 @@ def _run_to_code(
             )
         )
         stack.enter_context(
-            patch.object(tflm, "_emit_model_buffer", return_value=MagicMock())
+            patch.object(tflm, "emit_model_buffer", return_value=MagicMock())
         )
         stack.enter_context(patch.object(tflm, "_add_build_defines"))
-        stack.enter_context(patch.object(tflm, "_add_operator_defines"))
+        stack.enter_context(patch.object(tflm, "add_model_operator_defines"))
         stack.enter_context(patch.object(tflm, "esp32"))
         codegen = stack.enter_context(patch.object(tflm, "cg"))
         if estimate_error is not None:
@@ -85,235 +85,32 @@ def test_build_defines_emit_the_helper_flag() -> None:
     ]
 
 
-def test_the_model_buffer_is_aligned_for_the_flatbuffer_cast(setup_core: Path) -> None:
-    """TFLM casts the buffer, so its address must be aligned like one."""
-    CORE.main_statements = []
+def test_only_entries_with_a_runtime_id_are_models(setup_core: Path) -> None:
+    """A display or gas sensor also has a `model` key, but is not one of ours."""
+    CORE.config = {
+        "tflite_image": [_model_entry()],
+        "ili9xxx": [
+            {
+                tflm.CONF_ID: ID("display", is_declaration=True, type=ct.uint8),
+                "model": "ILI9341",
+            }
+        ],
+        "esphome": {"name": "test"},
+    }
+    with patch.object(tflm, "resolve_model_source", return_value=(MODEL_PATH, b"")):
+        paths = tflm._configured_model_paths()
 
-    tflm._emit_model_buffer(
-        {tflm.CONF_RAW_DATA_ID: ID("model_data", is_declaration=True, type=ct.uint8)},
-        b"\x01\x02",
-    )
-
-    assert (
-        str(CORE.main_statements[-1])
-        == "alignas(16) static constexpr uint8_t model_data[] PROGMEM = {0x01, 0x02};"
-    )
-
-
-def test_the_model_buffer_falls_back_to_an_explicit_declaration(
-    setup_core: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """ESPHome 2026.11 has no align argument; the fallback keeps the buffer aligned."""
-    monkeypatch.setattr(tflm, "_PROGMEM_ARRAY_SUPPORTS_ALIGN", False)
-    CORE.global_statements = []
-
-    tflm._emit_model_buffer(
-        {tflm.CONF_RAW_DATA_ID: ID("model_data", is_declaration=True, type=ct.uint8)},
-        b"\x01\x02",
-    )
-
-    assert (
-        str(CORE.global_statements[-1])
-        == "alignas(16) static constexpr uint8_t model_data[] PROGMEM = {0x01, 0x02};"
-    )
+    assert paths == [MODEL_PATH]
 
 
-def test_every_configured_model_contributes_its_operators(setup_core: Path) -> None:
-    """A selective build must contain a kernel whichever model needs it."""
-    CORE.config = {tflm.DOMAIN: [_model_entry(), _model_entry()]}
+def test_final_validate_checks_the_model_operators(setup_core: Path) -> None:
     with (
         patch.object(tflm, "resolve_model_source", return_value=(MODEL_PATH, b"")),
-        patch.object(
-            tflm, "extract_model_ops", side_effect=[{"ADD"}, {"SOFTMAX", "ADD"}]
-        ),
-        patch.object(tflm, "emit_selective_op_defines") as emit,
-        patch("esphome.codegen.add_define"),
-    ):
-        tflm._add_operator_defines()
-
-    emit.assert_called_once_with(["ADD", "SOFTMAX"])
-
-
-def test_a_kind_entry_contributes_its_operators(setup_core: Path) -> None:
-    """The kind is the YAML entry, so its model is not under this component's key."""
-    CORE.config = {"tflite_image": [_model_entry()]}
-    with (
-        patch.object(tflm, "resolve_model_source", return_value=(MODEL_PATH, b"")),
-        patch.object(tflm, "extract_model_ops", return_value={"ADD"}),
-        patch.object(tflm, "emit_selective_op_defines") as emit,
-        patch("esphome.codegen.add_define"),
-    ):
-        tflm._add_operator_defines()
-
-    emit.assert_called_once_with(["ADD"])
-
-
-@pytest.mark.parametrize(
-    "full_config",
-    [
-        None,
-        {"esphome": {"name": "test"}, tflm.DOMAIN: [{"debug": True}]},
-        {
-            "ili9xxx": [
-                {
-                    tflm.CONF_ID: ID("display", is_declaration=True, type=ct.uint8),
-                    "model": "ILI9341",
-                    tflm.CONF_RAW_DATA_ID: ID(
-                        "display_data", is_declaration=True, type=ct.uint8
-                    ),
-                }
-            ]
-        },
-    ],
-    ids=["no-config", "no-model-entry", "other-component"],
-)
-def test_entries_without_a_model_keep_the_full_operator_table(
-    setup_core: Path, full_config: ConfigType | None
-) -> None:
-    """A component entry that does not describe a model must not narrow the kernels."""
-    CORE.config = full_config
-    with (
-        patch.object(tflm, "emit_all_ops") as emit_all,
-        patch.object(tflm, "emit_selective_op_defines") as emit_selective,
-        patch("esphome.codegen.add_define") as add_define,
-    ):
-        tflm._add_operator_defines()
-
-    emit_all.assert_called_once_with()
-    emit_selective.assert_not_called()
-    add_define.assert_not_called()
-
-
-def test_the_resolver_is_sized_by_the_widest_model(setup_core: Path) -> None:
-    """One resolver slot per distinct operator code, with no margin to spare."""
-    CORE.config = {tflm.DOMAIN: [_model_entry(), _model_entry()]}
-    with (
-        patch.object(tflm, "resolve_model_source", return_value=(MODEL_PATH, b"")),
-        patch.object(
-            tflm, "extract_model_ops", side_effect=[{"ADD", "SOFTMAX"}, {"ADD"}]
-        ),
-        patch.object(tflm, "emit_selective_op_defines"),
-        patch("esphome.codegen.add_define") as add_define,
-    ):
-        tflm._add_operator_defines()
-
-    add_define.assert_called_once_with("TFLITE_MICRO_MAX_OPERATORS", 2)
-
-
-def test_no_configured_models_keep_the_full_operator_table(setup_core: Path) -> None:
-    """Outside a config run there is no model to narrow the kernels to."""
-    CORE.config = None
-    with (
-        patch.object(tflm, "emit_all_ops") as emit_all,
-        patch.object(tflm, "emit_selective_op_defines") as emit_selective,
-        patch("esphome.codegen.add_define") as add_define,
-    ):
-        tflm._add_operator_defines()
-
-    emit_all.assert_called_once_with()
-    emit_selective.assert_not_called()
-    add_define.assert_not_called()
-
-
-def test_operator_defines_are_emitted_once(setup_core: Path) -> None:
-    """MULTI_CONF calls to_code() per model, but the defines are build-wide."""
-    CORE.config = {tflm.DOMAIN: [_model_entry(), _model_entry()]}
-    with (
-        patch.object(tflm, "resolve_model_source", return_value=(MODEL_PATH, b"")),
-        patch.object(tflm, "extract_model_ops", return_value={"ADD"}),
-        patch.object(tflm, "emit_selective_op_defines"),
-        patch("esphome.codegen.add_define") as add_define,
-    ):
-        tflm._add_operator_defines()
-        tflm._add_operator_defines()
-
-    assert [call.args[0] for call in add_define.call_args_list] == [
-        "TFLITE_MICRO_MAX_OPERATORS"
-    ]
-
-
-def test_a_larger_operator_count_widens_an_existing_define(
-    setup_core: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Another component may have sized the resolver already; the larger value wins."""
-    monkeypatch.setattr(CORE, "defines", {Define("TFLITE_MICRO_MAX_OPERATORS", 12)})
-
-    tflm._emit_max_operators(47)
-
-    values = [
-        int(str(define.value))
-        for define in CORE.defines
-        if define.name == "TFLITE_MICRO_MAX_OPERATORS"
-    ]
-    assert values == [47]
-
-
-def test_a_smaller_operator_count_keeps_an_existing_define(
-    setup_core: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(CORE, "defines", {Define("TFLITE_MICRO_MAX_OPERATORS", 60)})
-
-    with patch("esphome.codegen.add_define") as add_define:
-        tflm._emit_max_operators(47)
-
-    add_define.assert_not_called()
-    assert [str(define.value) for define in CORE.defines] == ["60"]
-
-
-def test_a_non_numeric_operator_define_is_an_error(
-    setup_core: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Silently keeping a value that cannot be compared would hide the problem."""
-    monkeypatch.setattr(CORE, "defines", {Define("TFLITE_MICRO_MAX_OPERATORS", "lots")})
-
-    with pytest.raises(EsphomeError, match="lots"):
-        tflm._emit_max_operators(47)
-
-
-def test_final_validate_accepts_a_supported_model(setup_core: Path) -> None:
-    with (
-        patch.object(tflm, "resolve_model_source", return_value=(MODEL_PATH, b"")),
-        patch.object(tflm, "extract_model_ops", return_value={"ADD"}),
-        patch.object(tflm, "parse_op_table", return_value=MagicMock(supported={"ADD"})),
+        patch.object(tflm, "validate_model_operators") as check,
     ):
         tflm.FINAL_VALIDATE_SCHEMA({})
 
-
-def test_final_validate_rejects_an_unsupported_operator(setup_core: Path) -> None:
-    with (
-        patch.object(tflm, "resolve_model_source", return_value=(MODEL_PATH, b"")),
-        patch.object(tflm, "extract_model_ops", return_value={"WHERE"}),
-        patch.object(tflm, "parse_op_table", return_value=MagicMock(supported={"ADD"})),
-        pytest.raises(cv.Invalid, match="WHERE"),
-    ):
-        tflm.FINAL_VALIDATE_SCHEMA({})
-
-
-def test_final_validate_reports_an_unreadable_model(setup_core: Path) -> None:
-    """A model whose operators cannot be read is a config error, not a load failure."""
-    with (
-        patch.object(tflm, "resolve_model_source", return_value=(MODEL_PATH, b"")),
-        patch.object(tflm, "extract_model_ops", side_effect=ValueError("not a model")),
-        pytest.raises(cv.Invalid, match="not a model"),
-    ):
-        tflm.FINAL_VALIDATE_SCHEMA({})
-
-
-def test_to_code_queues_the_result_callback(setup_core: Path) -> None:
-    """A lambda may reference the kind's decoder, which is declared after this call."""
-    on_result = [{"then": []}]
-    with patch.object(tflm.CORE, "add_job") as add_job:
-        _, var, _ = _run_to_code(
-            {tflm.CONF_ID: _model_id(), tflm.CONF_ON_RESULT: on_result}
-        )
-
-    add_job.assert_called_once_with(
-        tflm.automation.build_callback_automation,
-        var,
-        "add_on_result_callback",
-        [],
-        on_result[0],
-    )
+    check.assert_called_once_with(MODEL_PATH)
 
 
 def test_to_code_gives_each_model_its_own_checksum(setup_core: Path) -> None:
@@ -325,15 +122,6 @@ def test_to_code_gives_each_model_its_own_checksum(setup_core: Path) -> None:
     assert second.set_model.call_args.args[1:] == (
         2,
         zlib.crc32(b"\x02\x03") & 0xFFFFFFFF,
-    )
-
-
-def test_an_audio_entry_is_not_special_in_the_runtime(setup_core: Path) -> None:
-    """The audio kind enables its own feature; the runtime does not infer it."""
-    codegen, _, _ = _run_to_code({tflm.CONF_ID: _model_id(), "probability_cutoff": 0.5})
-    assert not any(
-        call.args and call.args[0] == "USE_TFLITE_AUDIO"
-        for call in codegen.add_define.call_args_list
     )
 
 
