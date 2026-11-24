@@ -127,7 +127,6 @@ TEST(ComponentIterator, DeprecatedAdvanceKeepsLegacyPatternWorking) {
 #pragma GCC diagnostic pop
 
 #ifdef USE_SENSOR
-// The two sensors the tests register into the runtime slots
 static sensor::Sensor sensor_a;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static sensor::Sensor sensor_b;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 // Registered with an explicit object_id hash and entity fields
@@ -313,7 +312,6 @@ class ListIterator : public RefusingIterator {
 TEST(ComponentIteratorList, RefusedItemIsReofferedNotSkipped) {
   ListIterator it;
   it.sensor_refusals = 2;
-  // Refused twice; at_ stays put
   EXPECT_FALSE(it.step_list());
   EXPECT_FALSE(it.step_list());
   EXPECT_EQ(it.at(), 0);
@@ -323,7 +321,6 @@ TEST(ComponentIteratorList, RefusedItemIsReofferedNotSkipped) {
   EXPECT_TRUE(it.step_list());
   EXPECT_EQ(it.last_sensor, &list_sensor_b);
   EXPECT_EQ(it.sensor_calls, 4);
-  // Past the end: next platform, no callback
   EXPECT_TRUE(it.step_list());
   EXPECT_EQ(it.at(), 0);
   EXPECT_EQ(it.sensor_calls, 4);

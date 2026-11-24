@@ -298,7 +298,6 @@ RESERVED_IDS = [
     "xor",
     "xor_eq",
     "App",
-    # esphome::app_lists and esphome::AppList, which main.cpp sees through `using namespace esphome`
     "app_lists",
     "AppList",
     "pinMode",

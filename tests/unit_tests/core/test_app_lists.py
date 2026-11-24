@@ -1,5 +1,3 @@
-"""Constant App lists and runtime entity reservations (esphome/core/app_lists.py)."""
-
 import pytest
 
 from esphome import codegen as cg
@@ -118,7 +116,6 @@ def test_reservation_after_emit_is_rejected() -> None:
 
 
 def test_directly_defined_use_gets_its_list() -> None:
-    """A directly defined USE_<X> still gets the list and both counts."""
     cg.add_define("USE_INFRARED")
     app_lists.schedule_emit()
     CORE.flush_tasks()
@@ -149,7 +146,6 @@ def test_runtime_only_radio_frequency_enables_ir_rf() -> None:
     ],
 )
 def test_count_override_is_rejected(override: str) -> None:
-    """A count override would size the walk past the constant list."""
     CORE.platform_counts["sensor"] = 1
     app_lists.add_entity("sensor", _new_sensor("only_one"))
     if override == "add_define":
@@ -164,7 +160,6 @@ def test_count_override_is_rejected(override: str) -> None:
 
 
 def test_device_count_override_names_the_yaml_lists() -> None:
-    """Device and area conflicts point at the YAML lists."""
     app_lists.add_to_list("DEVICE", _new_sensor("dev_one"))
     cg.add_define("ESPHOME_DEVICE_COUNT", 4)
     app_lists.schedule_emit()

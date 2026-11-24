@@ -232,7 +232,6 @@ class EntityBase {
  protected:
   friend void ::setup();
   friend void ::original_setup();
-  // Application::configure_<entity>() (setup()) and register_<entity>() (run time) call configure_entity_()
   friend class Application;
 
   /// Combined entity setup from codegen: set name, object_id hash, entity string indices, and flags.

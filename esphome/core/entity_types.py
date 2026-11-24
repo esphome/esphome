@@ -1,6 +1,6 @@
 """The entity platforms of esphome/core/entity_types.h, for code generation."""
 
-# Every entity platform with an App list, in entity_types.h order (a test keeps the two in sync).
+# test_entity_types.py keeps this in entity_types.h order
 ENTITY_PLATFORMS: tuple[str, ...] = (
     "binary_sensor",
     "cover",
@@ -28,5 +28,4 @@ ENTITY_PLATFORMS: tuple[str, ...] = (
     "update",
 )
 
-# Platforms whose entity_types.h `upper` token and USE_* define carry a DATETIME_ prefix.
 DATETIME_SUBTYPES = {"date", "time", "datetime"}

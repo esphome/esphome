@@ -65,7 +65,6 @@ struct HasLoopOverride<T, std::void_t<decltype(&T::loop)>>
 // cleanly is a warning in the log.
 static constexpr uint32_t TEARDOWN_TIMEOUT_REBOOT_MS = 1000;  // 1 second for quick reboot
 
-// Defined in main.cpp; their own namespace keeps them clear of YAML ids
 namespace app_lists {
 #ifdef USE_DEVICES
 extern Device *const APP_DEVICE_LIST[];
@@ -83,7 +82,7 @@ extern Area *const APP_AREA_LIST[];
 // NOLINTEND(bugprone-macro-parentheses)
 }  // namespace app_lists
 
-/// View of a constant list then its runtime slots; ESP8266 reads the aligned pointers from flash like RAM.
+/// ESP8266 reads these aligned pointers from flash like RAM.
 template<typename T, size_t N, typename Runtime = EmptyList<T *>> class AppList {
   static constexpr bool HAS_RUNTIME = !std::is_same_v<Runtime, EmptyList<T *>>;
 
@@ -195,7 +194,6 @@ class Application {
   }
 #endif
 
-// Removed runtime registration fails with a clear message
 #ifdef USE_DEVICES
   template<typename D = Device> void register_device(D * /*device*/) {
     static_assert(sizeof(D) == 0, "Devices come from the devices: list in YAML and cannot be added at run time");
