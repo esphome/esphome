@@ -726,6 +726,10 @@ void VoiceAssistant::client_subscription(api::APIConnection *client, bool subscr
     // on_client_connected re-arms the wake word, so a pipeline cut off by the disconnect fires no on_end
     this->end_pending_ = false;
     this->end_run_();
+    if (this->idle_pending_) {
+      this->idle_pending_ = false;
+      this->defer_idle_trigger_();
+    }
 #ifdef USE_VOICE_ASSISTANT_WAKE_WORD_AUDIO
     this->wake_word_audio_requested_ = false;
 #endif
@@ -787,8 +791,22 @@ void VoiceAssistant::set_state_(State state) {
       this->end_session_();
     }
   }
-  if (old_state != State::IDLE && state == State::IDLE && !this->continuous_)
-    this->idle_trigger_.trigger();
+  if (old_state != State::IDLE && state == State::IDLE && !this->continuous_) {
+    // A start before Home Assistant's run ends would be stopped by its late RUN_END, so wait for it
+    if (this->end_pending_ && this->run_active_) {
+      this->idle_pending_ = true;
+    } else {
+      this->defer_idle_trigger_();
+    }
+  }
+}
+
+void VoiceAssistant::defer_idle_trigger_() {
+  // Deferred after on_end, so a stop in on_end cannot cancel a start from on_idle
+  this->defer([this]() {
+    if (this->state_ == State::IDLE)
+      this->idle_trigger_.trigger();
+  });
 }
 
 void VoiceAssistant::end_run_() {
@@ -805,13 +823,16 @@ void VoiceAssistant::end_session_() {
     if (this->api_client_ != nullptr)
       this->end_trigger_.trigger();
   });
+  if (this->idle_pending_) {
+    this->idle_pending_ = false;
+    this->defer_idle_trigger_();
+  }
 }
 
 void VoiceAssistant::set_state_(State state, State desired_state) {
-  // An idle callback may synchronously start another run. Do not overwrite its desired state afterward.
+  this->set_state_(state);
   this->desired_state_ = desired_state;
   ESP_LOGD(TAG, "Desired state set to %s", LOG_STR_ARG(StateStrings::get_log_str(desired_state)));
-  this->set_state_(state);
 }
 
 void VoiceAssistant::set_state_after_mic_stop_(State state) {

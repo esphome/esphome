@@ -280,6 +280,7 @@ class VoiceAssistant final : public Component {
   void set_state_after_mic_stop_(State state);
   /// Fire on_end once for the requested pipeline
   void end_session_();
+  void defer_idle_trigger_();
   /// Mark Home Assistant's run as over and drop the RUN_END fallback timer
   void end_run_();
   /// Stop a playing or queued response and tell Home Assistant when the TTS stream is still open
@@ -406,6 +407,8 @@ class VoiceAssistant final : public Component {
   bool end_pending_{false};
   // Set on RUN_START; cleared by RUN_END, the next start or an unsubscribe
   bool run_active_{false};
+  // on_idle waits for Home Assistant's run to end
+  bool idle_pending_{false};
   bool silence_detection_;
   bool continue_conversation_{false};
   bool udp_socket_running_{false};
