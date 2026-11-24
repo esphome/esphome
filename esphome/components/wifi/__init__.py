@@ -66,7 +66,6 @@ from esphome.const import (
     CONF_TTLS_PHASE_2,
     CONF_USE_ADDRESS,
     CONF_USERNAME,
-    CONF_VARIANT,
     PLACEHOLDER_WIFI_SSID,
     Platform,
     PlatformFramework,
@@ -838,6 +837,27 @@ def wifi_network(config, ap, manual_ip_index: int | None):
     return ap
 
 
+def _coprocessor_high_performance_wifi(psram_guaranteed: bool) -> None:
+    """Espressif's ESP32-C6 values (esp-idf wifi/iperf sdkconfig.defaults.esp32p4) for esp_wifi_remote."""
+    if "esp32_hosted" not in CORE.loaded_integrations:
+        return
+    from esphome.components.esp32_hosted import get_coprocessor_variant
+
+    if get_coprocessor_variant() != const.VARIANT_ESP32C6:
+        _LOGGER.info("Keeping the co-processor's default WiFi settings")
+        return
+    _LOGGER.info("Applying high-performance WiFi settings to the ESP32-C6 co-processor")
+    add_idf_sdkconfig_option("CONFIG_WIFI_RMT_STATIC_RX_BUFFER_NUM", 16)
+    add_idf_sdkconfig_option("CONFIG_WIFI_RMT_DYNAMIC_RX_BUFFER_NUM", 64)
+    # With guaranteed PSRAM, esp_wifi_remote only offers static TX buffers
+    if not psram_guaranteed:
+        add_idf_sdkconfig_option("CONFIG_WIFI_RMT_DYNAMIC_TX_BUFFER_NUM", 64)
+    add_idf_sdkconfig_option("CONFIG_WIFI_RMT_AMPDU_TX_ENABLED", True)
+    add_idf_sdkconfig_option("CONFIG_WIFI_RMT_TX_BA_WIN", 32)
+    add_idf_sdkconfig_option("CONFIG_WIFI_RMT_AMPDU_RX_ENABLED", True)
+    add_idf_sdkconfig_option("CONFIG_WIFI_RMT_RX_BA_WIN", 32)
+
+
 @coroutine_with_priority(CoroPriority.COMMUNICATION)
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
@@ -1050,7 +1070,10 @@ async def to_code(config):
         # Always allocate WiFi buffers in PSRAM if available
         add_idf_sdkconfig_option("CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP", True)
 
-        if psram_guaranteed:
+        if get_esp32_variant() in NO_WIFI_VARIANTS:
+            # Without a radio the CONFIG_ESP_WIFI_* options are ignored; the co-processor uses its own
+            _coprocessor_high_performance_wifi(psram_guaranteed)
+        elif psram_guaranteed:
             _LOGGER.info(
                 "Applying high-performance WiFi settings (PSRAM guaranteed): 512 RX buffers, 32 TX buffers"
             )
@@ -1090,26 +1113,6 @@ async def to_code(config):
             add_idf_sdkconfig_option("CONFIG_ESP_WIFI_TX_BA_WIN", 32)
             add_idf_sdkconfig_option("CONFIG_ESP_WIFI_AMPDU_RX_ENABLED", True)
             add_idf_sdkconfig_option("CONFIG_ESP_WIFI_RX_BA_WIN", 32)
-
-        # Without a radio, the options above are ignored; the co-processor uses these.
-        # Espressif's ESP32-C6 values (esp-idf wifi/iperf sdkconfig.defaults.esp32p4)
-        if (
-            get_esp32_variant() in NO_WIFI_VARIANTS
-            and (hosted := CORE.config.get("esp32_hosted")) is not None
-            and hosted[CONF_VARIANT] == const.VARIANT_ESP32C6
-        ):
-            _LOGGER.info(
-                "Applying high-performance WiFi settings to the ESP32-C6 co-processor"
-            )
-            add_idf_sdkconfig_option("CONFIG_WIFI_RMT_STATIC_RX_BUFFER_NUM", 16)
-            add_idf_sdkconfig_option("CONFIG_WIFI_RMT_DYNAMIC_RX_BUFFER_NUM", 64)
-            # With guaranteed PSRAM, esp_wifi_remote only offers static TX buffers
-            if not psram_guaranteed:
-                add_idf_sdkconfig_option("CONFIG_WIFI_RMT_DYNAMIC_TX_BUFFER_NUM", 64)
-            add_idf_sdkconfig_option("CONFIG_WIFI_RMT_AMPDU_TX_ENABLED", True)
-            add_idf_sdkconfig_option("CONFIG_WIFI_RMT_TX_BA_WIN", 32)
-            add_idf_sdkconfig_option("CONFIG_WIFI_RMT_AMPDU_RX_ENABLED", True)
-            add_idf_sdkconfig_option("CONFIG_WIFI_RMT_RX_BA_WIN", 32)
 
     cg.add_define("USE_WIFI")
 

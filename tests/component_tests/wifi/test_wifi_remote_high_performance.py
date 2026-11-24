@@ -64,6 +64,8 @@ def test_c6_coprocessor_gets_the_settings(
     generate_main(_write(tmp_path, "esp32p4", "ESP32C6", psram))
     for name, value in (_C6_VALUES | {_DYNAMIC_TX: dynamic_tx}).items():
         assert sdkconfig_option(name) == value, name
+    # the native options would be ignored without a radio, so they are not written
+    assert sdkconfig_option("CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM") is None
 
 
 @pytest.mark.parametrize(
