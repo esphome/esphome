@@ -773,6 +773,7 @@ def test_shrink_enum_collapse_reports_dropped_siblings(
     "name,expected",
     [
         ("lvgl.update", ("lvgl", "update")),
+        ("unknown.do", ("unknown", "do")),
         ("sensor.template.publish", ("template.sensor", "publish")),
         ("lvgl.table.update", ("lvgl", "table.update")),
         ("lvgl.table.cell.update", ("lvgl", "table.cell.update")),

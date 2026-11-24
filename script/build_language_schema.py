@@ -267,10 +267,12 @@ def split_registry_name(
     name: str, platforms: Container[str], components: Container[str]
 ) -> tuple[str, str] | None:
     """Split a dotted registry name into the domain it is filed under and its name
-    there, or None if the first part is not a known platform or component.
+    there.
 
-    `sensor.template.publish` belongs to the `template.sensor` platform, and
-    `lvgl.chart.series.append` to the `lvgl` component as `chart.series.append`.
+    A two-part name is always split at the dot. `sensor.template.publish` belongs to
+    the `template.sensor` platform, and `lvgl.chart.series.append` to the `lvgl`
+    component as `chart.series.append`. A longer name whose first part is not a known
+    platform or component gives None.
     """
     parts = name.split(".")
     if len(parts) == 2:
