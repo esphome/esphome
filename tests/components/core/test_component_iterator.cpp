@@ -1,5 +1,8 @@
 #include <gtest/gtest.h>
 
+#include <algorithm>
+#include <vector>
+
 #include "esphome/core/component_iterator.h"
 
 #ifdef USE_SENSOR
@@ -219,6 +222,15 @@ TEST_F(ComponentIteratorSensorTest, IteratorOutlivesTheView) {
   EXPECT_EQ(*it, &sensor_a);
   ++it;
   EXPECT_EQ(*it, &sensor_b);
+}
+
+TEST_F(ComponentIteratorSensorTest, IteratorWorksWithStandardAlgorithms) {
+  auto sensors = App.get_sensors();
+  auto found = std::find_if(sensors.begin(), sensors.end(), [](sensor::Sensor *obj) { return obj == &sensor_c; });
+  ASSERT_NE(found, sensors.end());
+  EXPECT_EQ(*found, &sensor_c);
+  EXPECT_TRUE(std::any_of(sensors.begin(), sensors.end(), [](sensor::Sensor *obj) { return obj == &sensor_d; }));
+  EXPECT_FALSE(std::any_of(sensors.begin(), sensors.end(), [](sensor::Sensor *obj) { return obj == nullptr; }));
 }
 
 TEST_F(ComponentIteratorSensorTest, RuntimeEntitiesAreNamedAndKeyed) {

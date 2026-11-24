@@ -123,6 +123,10 @@ def reserve_runtime_entities(platform: str, count: int) -> None:
     """
     if platform not in ENTITY_LISTS:
         raise EsphomeError(f"Unknown entity platform '{platform}'")
+    if isinstance(count, bool) or not isinstance(count, int) or count < 0:
+        raise EsphomeError(
+            f"cg.reserve_runtime_entities('{platform}', ...) needs a non-negative int, got {count!r}"
+        )
     state = _check_not_emitted(f"Runtime {platform} slots were reserved")
     integration = "datetime" if platform in DATETIME_SUBTYPES else platform
     if integration not in CORE.loaded_integrations:

@@ -35,7 +35,14 @@ from esphome.const import (
     CONF_WEB_SERVER_ID,
     UNIT_CELSIUS,
 )
-from esphome.core import CORE, ID, CoroPriority, app_lists, coroutine_with_priority
+from esphome.core import (
+    CORE,
+    ID,
+    CoroPriority,
+    EsphomeError,
+    app_lists,
+    coroutine_with_priority,
+)
 from esphome.core.config import (
     DEVICE_CLASS_MAX_LENGTH,
     ICON_MAX_LENGTH,
@@ -356,6 +363,12 @@ def entity_fields(
     Registers the strings like a YAML entity's options and returns the same value codegen
     passes to configure_entity_() for them.
     """
+    if entity_category:
+        # Same validation and case folding as the YAML option
+        try:
+            entity_category = str(cv.entity_category(entity_category))
+        except cv.Invalid as err:
+            raise EsphomeError(f"cg.entity_fields(entity_category=...): {err}") from err
     return _pack_entity_fields(
         _device_class_index(device_class),
         _unit_of_measurement_index(unit_of_measurement),

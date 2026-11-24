@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <ctime>
+#include <iterator>
 #include <limits>
 #include <span>
 #include <string>
@@ -137,12 +138,24 @@ template<typename T, size_t N, typename Runtime = EmptyList<T *>> class AppList 
 /// Holds a copy of the view, so it stays valid after the view itself is gone.
 template<typename T, size_t N, typename Runtime> class AppList<T, N, Runtime>::Iterator {
  public:
+  using iterator_category = std::input_iterator_tag;
+  using value_type = T *;
+  using difference_type = std::ptrdiff_t;
+  using pointer = T *const *;
+  using reference = T *;
+
   Iterator(const AppList &view, size_t index) : view_(view), index_(index) {}
   T *operator*() const { return this->view_[this->index_]; }
   Iterator &operator++() {
     ++this->index_;
     return *this;
   }
+  Iterator operator++(int) {
+    Iterator previous = *this;
+    ++this->index_;
+    return previous;
+  }
+  bool operator==(const Iterator &other) const { return this->index_ == other.index_; }
   bool operator!=(const Iterator &other) const { return this->index_ != other.index_; }
 
  private:
@@ -204,14 +217,8 @@ class Application {
   void set_current_source(const LogString *source) { this->current_source_ = source; }
   const LogString *get_current_source() { return this->current_source_; }
 
-// Codegen entities are in the constant app_lists::APP_<UPPER>_LIST arrays. Entities created at run time go into
-// slots reserved with cg.reserve_runtime_entities(): register_<entity>(obj, name) names the entity,
-// computes its object_id hash from the name and fills a slot, keeping the fields the owner set;
-// register_<entity>(obj, name, object_id_hash, entity_fields) also takes the hash (0 computes it from
-// the name) and the packed fields that cg.entity_fields() builds. Both return false and leave the
-// entity untouched when every reserved slot is taken. `name` must stay valid as long as the entity, and
-// ESP8266 reads it like a flash string. Without a reservation the call fails to compile with a message
-// saying so.
+// Runtime entities fill slots reserved with cg.reserve_runtime_entities(); register_<entity>() returns false
+// when they are full, and without a reservation it fails to compile. `name` must outlive the entity.
 // NOLINTBEGIN(bugprone-macro-parentheses)
 #define APP_RESERVE_HINT_(singular) \
   "Call cg.reserve_runtime_entities(\"" #singular "\", n) in to_code to register entities at run time"

@@ -268,3 +268,26 @@ def test_runtime_count_override_is_rejected_with_a_reservation(
         EsphomeError, match="ESPHOME_RUNTIME_SENSOR_COUNT is defined as 2"
     ):
         CORE.flush_tasks()
+
+
+@pytest.mark.parametrize("count", [-1, 1.5, "2", True])
+def test_reservation_needs_a_non_negative_int(count: object) -> None:
+    CORE.loaded_integrations.add("sensor")
+    with pytest.raises(EsphomeError, match="needs a non-negative int"):
+        cg.reserve_runtime_entities("sensor", count)
+
+
+def test_reserving_zero_is_a_no_op() -> None:
+    CORE.loaded_integrations.add("sensor")
+    cg.reserve_runtime_entities("sensor", 0)
+    app_lists.schedule_emit()
+    CORE.flush_tasks()
+    assert get_define_value("ESPHOME_RUNTIME_SENSOR_COUNT") is None
+
+
+def test_entity_fields_validates_the_entity_category() -> None:
+    assert cg.entity_fields(entity_category="DIAGNOSTIC") == cg.entity_fields(
+        entity_category="diagnostic"
+    )
+    with pytest.raises(EsphomeError, match="entity_category"):
+        cg.entity_fields(entity_category="not_a_category")
