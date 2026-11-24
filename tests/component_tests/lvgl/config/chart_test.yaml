@@ -49,6 +49,15 @@ lvgl:
               - {x: 10, y: 20}
               - {x: 30, y: 40}
     - chart:
+        id: scaled_chart
+        y_axis:
+          min_value: -0.5
+          max_value: 1.5
+          multiplier: 10
+        series:
+          - id: scaled_series
+            values: [1.25, nan, -2.5]
+    - chart:
         id: bar_chart
         type: bar
         indicator:
@@ -61,6 +70,9 @@ lvgl:
     - button:
         on_click:
           - lvgl.widget.refresh: bar_chart
+          - lvgl.chart.series.update:
+              id: scaled_series
+              value: !lambda return 0.5f;
           - lvgl.chart.update:
               id: bar_chart
               update_mode: circular

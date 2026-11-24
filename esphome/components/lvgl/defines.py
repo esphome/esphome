@@ -179,8 +179,8 @@ def get_menu_set_page_actions() -> list:
     return _get_data(KEY_MENU_SET_PAGE_ACTIONS, [])
 
 
-def get_chart_series() -> dict[str, Any]:
-    """Map each chart series ID to the chart widget that owns it."""
+def get_chart_series() -> dict[str, tuple[Any, dict]]:
+    """Map each chart series ID to the chart widget that owns it and the series config."""
     return _get_data(KEY_CHART_SERIES, {})
 
 

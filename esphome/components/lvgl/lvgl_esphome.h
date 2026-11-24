@@ -20,6 +20,8 @@
 #include "esphome/components/display/display_color_utils.h"
 #include "esphome/core/component.h"
 
+#include <algorithm>
+#include <cmath>
 #include <list>
 #include <lvgl.h>
 #include <map>
@@ -121,6 +123,18 @@ inline void lv_animimg_set_src(lv_obj_t *img, std::vector<image::Image *> images
 
 #ifdef USE_LVGL_METER
 int16_t lv_get_needle_angle_for_value(lv_obj_t *obj, int32_t value);
+#endif
+
+#ifdef USE_LVGL_CHART
+/// Scale a chart value to LVGL's integer points, rounded and limited to the int32 range.
+/// NaN gives LV_CHART_POINT_NONE, which leaves a gap.
+inline int32_t chart_point_value(float value, float multiplier) {
+  if (std::isnan(value))
+    return LV_CHART_POINT_NONE;
+  // The largest float below 2^31, so the cast cannot overflow or give LV_CHART_POINT_NONE (INT32_MAX)
+  static constexpr float POINT_LIMIT = 2147483520.0f;
+  return static_cast<int32_t>(std::clamp(std::round(value * multiplier), -POINT_LIMIT, POINT_LIMIT));
+}
 #endif
 
 #ifdef USE_LVGL_LIST

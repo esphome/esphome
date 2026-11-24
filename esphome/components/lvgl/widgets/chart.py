@@ -1,3 +1,4 @@
+import math
 from typing import Any
 
 from esphome import automation, codegen as cg
@@ -15,7 +16,7 @@ from esphome.const import (
 )
 from esphome.core import ID, Lambda
 from esphome.cpp_generator import MockObj
-from esphome.final_validate import FinalValidateConfig
+from esphome.final_validate import FinalValidateConfig, full_config
 from esphome.types import ConfigType
 
 from ..automation import action_to_code
@@ -25,19 +26,21 @@ from ..defines import (
     CONF_MAIN,
     CONF_POINTS,
     LV_CHART_TYPES,
+    LValidator,
     LvConstant,
     get_chart_series,
     get_chart_series_updates,
     get_updated_widgets,
     literal,
 )
-from ..lv_validation import lv_color, lv_int
+from ..lv_validation import lv_color, lv_float
 from ..lvcode import LocalVariable, lv, lv_assign, lv_expr, lv_global
-from ..types import LvType
+from ..types import LvType, lvgl_ns
 from . import Widget, WidgetType
 
 CONF_CHART = "chart"
 CONF_DIV_LINE_COUNT = "div_line_count"
+CONF_MULTIPLIER = "multiplier"
 CONF_POINT_COUNT = "point_count"
 CONF_POINT = "point"
 CONF_SECONDARY_X_AXIS = "secondary_x_axis"
@@ -75,45 +78,86 @@ CHART_UPDATE_MODE = _fixed(CHART_UPDATE_MODES)
 
 lv_chart_t = LvType("lv_chart_t")
 lv_chart_series_t = cg.global_ns.struct("lv_chart_series_t")
+chart_point_value = lvgl_ns.chart_point_value
+
+# The largest float below 2**31; matches the limit in chart_point_value(). INT32_MAX
+# itself is LV_CHART_POINT_NONE, which marks a gap.
+POINT_LIMIT = 2147483520
 
 
-def _validate_range(config: ConfigType) -> ConfigType:
+def _finite(value: float) -> float:
+    if not math.isfinite(value):
+        raise cv.Invalid("Must be a finite number")
+    return value
+
+
+lv_finite_float = LValidator(cv.All(cv.float_, _finite), cg.float_)
+
+
+def scale_value(value: float, multiplier: float) -> int | None:
+    """A fixed chart value as LVGL stores it, as chart_point_value() does at run
+    time: scaled, rounded half away from zero and limited to the int32 range.
+    None for NaN, which leaves a gap."""
+    if math.isnan(value):
+        return None
+    scaled = max(-POINT_LIMIT, min(POINT_LIMIT, value * multiplier))
+    return int(math.copysign(math.floor(abs(scaled) + 0.5), scaled))
+
+
+def _validate_range(config: ConfigType, multiplier: float | None = None) -> None:
     """LVGL divides by the width of the range when it draws a bar chart."""
     min_value = config[CONF_MIN_VALUE]
     max_value = config[CONF_MAX_VALUE]
-    if (
-        not isinstance(min_value, Lambda)
-        and not isinstance(max_value, Lambda)
-        and min_value == max_value
-    ):
-        raise cv.Invalid(f"{CONF_MIN_VALUE} and {CONF_MAX_VALUE} must not be equal")
+    if isinstance(min_value, Lambda) or isinstance(max_value, Lambda):
+        return
+    if multiplier is None:
+        multiplier = config[CONF_MULTIPLIER]
+    if scale_value(min_value, multiplier) == scale_value(max_value, multiplier):
+        raise cv.Invalid(
+            f"{CONF_MIN_VALUE} and {CONF_MAX_VALUE} must not be equal "
+            f"after scaling by {CONF_MULTIPLIER} ({multiplier:g})"
+        )
+
+
+def _validate_created_range(config: ConfigType) -> ConfigType:
+    _validate_range(config)
+    return config
+
+
+def _validate_updated_range(config: ConfigType) -> ConfigType:
+    # The multiplier is set when the chart is created; ChartType.final_validate()
+    # checks the range scaled by it. Equal values are wrong whatever it is.
+    _validate_range(config, 1.0)
     return config
 
 
 RANGE_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.Optional(CONF_MIN_VALUE, default=0): lv_int,
-            cv.Optional(CONF_MAX_VALUE, default=100): lv_int,
+            cv.Optional(CONF_MIN_VALUE, default=0): lv_finite_float,
+            cv.Optional(CONF_MAX_VALUE, default=100): lv_finite_float,
+            cv.Optional(CONF_MULTIPLIER, default=1.0): cv.All(
+                cv.positive_not_null_float, _finite
+            ),
         }
     ),
-    _validate_range,
+    _validate_created_range,
 )
 
 RANGE_MODIFY_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.Required(CONF_MIN_VALUE): lv_int,
-            cv.Required(CONF_MAX_VALUE): lv_int,
+            cv.Required(CONF_MIN_VALUE): lv_finite_float,
+            cv.Required(CONF_MAX_VALUE): lv_finite_float,
         }
     ),
-    _validate_range,
+    _validate_updated_range,
 )
 
 POINT_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_X): lv_int,
-        cv.Required(CONF_Y): lv_int,
+        cv.Required(CONF_X): lv_float,
+        cv.Required(CONF_Y): lv_float,
     }
 )
 
@@ -123,7 +167,7 @@ SERIES_SCHEMA = cv.Schema(
         cv.Optional(CONF_COLOR): lv_color,
         cv.Optional(CONF_USE_SECONDARY_Y_AXIS, default=False): cv.boolean,
         cv.Optional(CONF_USE_SECONDARY_X_AXIS, default=False): cv.boolean,
-        cv.Optional(CONF_VALUES): cv.ensure_list(lv_int),
+        cv.Optional(CONF_VALUES): cv.ensure_list(lv_float),
         cv.Optional(CONF_POINTS): cv.ensure_list(POINT_SCHEMA),
     }
 )
@@ -140,8 +184,8 @@ SERIES_MODIFY_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.Required(CONF_ID): cv.use_id(lv_chart_series_t),
-            cv.Optional(CONF_VALUE): lv_int,
-            cv.Optional(CONF_VALUES): cv.ensure_list(lv_int),
+            cv.Optional(CONF_VALUE): lv_float,
+            cv.Optional(CONF_VALUES): cv.ensure_list(lv_float),
             cv.Optional(CONF_POINT): POINT_SCHEMA,
         }
     ),
@@ -290,16 +334,37 @@ class ChartType(WidgetType):
             CHART_MODIFY_SCHEMA,
         )
 
+    def final_validate(
+        self,
+        widget: Any,
+        update_config: ConfigType,
+        widget_config: ConfigType,
+        path: list,
+    ) -> None:
+        for axis_name, _ in AXES:
+            if (axis := update_config.get(axis_name)) is None:
+                continue
+            try:
+                _validate_range(axis, axis_multiplier(widget_config, axis_name))
+            except cv.Invalid as err:
+                action_path = _find_path(full_config.get(), update_config, [])
+                raise cv.Invalid(
+                    f"'lvgl.chart.update' for '{widget}': {err.msg}",
+                    path=[]
+                    if action_path is None
+                    else [cv.ROOT_CONFIG_PATH, *action_path, axis_name],
+                ) from err
+
     async def create_to_code(self, config: ConfigType, parent: MockObj) -> Widget:
         # Options and series are set here rather than in to_code(), which
         # lvgl.widget.refresh runs again: it must not declare the series a second time
         # or undo what lvgl.chart.update changed. super() runs to_code(), which sets
         # the templated axis ranges.
         w = await super().create_to_code(config, parent)
-        await set_chart_options(w.obj, config, templated=False)
+        await set_chart_options(w.obj, config, config, templated=False)
         for index, series in enumerate(config.get(CONF_SERIES, ())):
             # Recorded before the variable exists, so an action waiting on it can find the chart.
-            get_chart_series()[str(series[CONF_ID])] = w
+            get_chart_series()[str(series[CONF_ID])] = (w, series)
             series_var = cg.Pvariable(
                 series[CONF_ID], cg.nullptr, type_=lv_chart_series_t
             )
@@ -311,20 +376,25 @@ class ChartType(WidgetType):
                     series_axes(series),
                 ),
             )
+            x_scale, y_scale = series_multipliers(config, series)
             if config[CONF_TYPE] == "LV_CHART_TYPE_SCATTER":
-                await set_series_points(w.obj, series_var, series.get(CONF_POINTS, ()))
+                await set_series_points(
+                    w.obj, series_var, series.get(CONF_POINTS, ()), x_scale, y_scale
+                )
             else:
-                await set_series_values(w.obj, series_var, series.get(CONF_VALUES, ()))
+                await set_series_values(
+                    w.obj, series_var, series.get(CONF_VALUES, ()), y_scale
+                )
 
         lv.chart_refresh(w.obj)
         return w
 
     async def update_to_code(self, w: Widget, config: ConfigType) -> None:
-        await set_chart_options(w.obj, config)
+        await set_chart_options(w.obj, config, w.config)
         lv.chart_refresh(w.obj)
 
     async def to_code(self, w: Widget, config: ConfigType) -> None:
-        await set_axis_ranges(w.obj, config, templated=True)
+        await set_axis_ranges(w.obj, config, w.config, templated=True)
         lv.chart_refresh(w.obj)
 
 
@@ -342,11 +412,38 @@ def _is_templated(axis: ConfigType) -> bool:
     )
 
 
+def axis_multiplier(chart_config: ConfigType, axis_name: str) -> float:
+    """The multiplier the chart was created with for an axis."""
+    return chart_config.get(axis_name, {}).get(CONF_MULTIPLIER, 1.0)
+
+
+def series_multipliers(
+    chart_config: ConfigType, series: ConfigType
+) -> tuple[float, float]:
+    """The X and Y multipliers of the axes a series is drawn against."""
+    x_axis = CONF_SECONDARY_X_AXIS if series[CONF_USE_SECONDARY_X_AXIS] else CONF_X_AXIS
+    y_axis = CONF_SECONDARY_Y_AXIS if series[CONF_USE_SECONDARY_Y_AXIS] else CONF_Y_AXIS
+    return axis_multiplier(chart_config, x_axis), axis_multiplier(chart_config, y_axis)
+
+
+async def chart_value(value: Any, multiplier: float) -> Any:
+    """A chart value scaled to LVGL's integer points; NaN leaves a gap."""
+    if isinstance(value, Lambda):
+        return chart_point_value(await lv_float.process(value), multiplier)
+    if (scaled := scale_value(value, multiplier)) is None:
+        return literal("LV_CHART_POINT_NONE")
+    return scaled
+
+
 async def set_chart_options(
-    chart: MockObj, config: ConfigType, templated: bool | None = None
+    chart: MockObj,
+    config: ConfigType,
+    chart_config: ConfigType,
+    templated: bool | None = None,
 ) -> None:
     """Set the chart options in `config`, and the axis ranges that `templated` selects
-    (all of them when it is None)."""
+    (all of them when it is None). `chart_config` is the chart's own configuration,
+    which holds the axis multipliers."""
     if chart_type := config.get(CONF_TYPE):
         lv.chart_set_type(chart, literal(chart_type))
     if mode := config.get(CONF_UPDATE_MODE):
@@ -355,24 +452,31 @@ async def set_chart_options(
         lv.chart_set_point_count(chart, point_count)
     if div_count := config.get(CONF_DIV_LINE_COUNT):
         lv.chart_set_div_line_count(chart, div_count[0], div_count[1])
-    await set_axis_ranges(chart, config, templated)
+    await set_axis_ranges(chart, config, chart_config, templated)
 
 
 async def set_axis_ranges(
-    chart: MockObj, config: ConfigType, templated: bool | None = None
+    chart: MockObj,
+    config: ConfigType,
+    chart_config: ConfigType,
+    templated: bool | None = None,
 ) -> None:
     for axis_name, axis_key in AXES:
         if (axis := config.get(axis_name)) is not None and templated in (
             None,
             _is_templated(axis),
         ):
-            await set_axis_range(chart, axis_key, axis)
+            await set_axis_range(
+                chart, axis_key, axis, axis_multiplier(chart_config, axis_name)
+            )
 
 
-async def set_axis_range(chart: MockObj, axis_key: str, axis: ConfigType) -> None:
+async def set_axis_range(
+    chart: MockObj, axis_key: str, axis: ConfigType, multiplier: float
+) -> None:
     axis_id = literal(f"LV_CHART_AXIS_{axis_key}")
-    min_value = await lv_int.process(axis[CONF_MIN_VALUE])
-    max_value = await lv_int.process(axis[CONF_MAX_VALUE])
+    min_value = await chart_value(axis[CONF_MIN_VALUE], multiplier)
+    max_value = await chart_value(axis[CONF_MAX_VALUE], multiplier)
     if not _is_templated(axis):
         lv.chart_set_axis_range(chart, axis_id, min_value, max_value)
         return
@@ -407,20 +511,24 @@ def series_axes(series: ConfigType) -> MockObj:
     return literal("LV_CHART_AXIS_SECONDARY_Y" if y_axis else "LV_CHART_AXIS_PRIMARY_Y")
 
 
-async def set_series_values(chart: MockObj, series: MockObj, values: list) -> None:
+async def set_series_values(
+    chart: MockObj, series: MockObj, values: list, y_scale: float
+) -> None:
     # Append in order so the series start point follows the data; writing slots by
     # index would leave the next appended value overwriting the first one.
     for value in values:
-        lv.chart_set_next_value(chart, series, await lv_int.process(value))
+        lv.chart_set_next_value(chart, series, await chart_value(value, y_scale))
 
 
-async def set_series_points(chart: MockObj, series: MockObj, points: list) -> None:
+async def set_series_points(
+    chart: MockObj, series: MockObj, points: list, x_scale: float, y_scale: float
+) -> None:
     for point in points:
         lv.chart_set_next_value2(
             chart,
             series,
-            await lv_int.process(point[CONF_X]),
-            await lv_int.process(point[CONF_Y]),
+            await chart_value(point[CONF_X], x_scale),
+            await chart_value(point[CONF_Y], y_scale),
         )
 
 
@@ -441,24 +549,19 @@ async def chart_series_update_to_code(
 ) -> MockObj:
     # Named from global scope, so a trigger argument such as `x` cannot shadow them
     series = await lv_global(config[CONF_ID])
-    chart = get_chart_series()[str(config[CONF_ID])]
+    chart, series_config = get_chart_series()[str(config[CONF_ID])]
+    x_scale, y_scale = series_multipliers(chart.config, series_config)
 
     async def do_update(w: Widget) -> None:
         obj = automation.parent_ref(w.obj)
         if (point := config.get(CONF_POINT)) is not None:
-            lv.chart_set_next_value2(
-                obj,
-                series,
-                await lv_int.process(point[CONF_X]),
-                await lv_int.process(point[CONF_Y]),
-            )
+            await set_series_points(obj, series, [point], x_scale, y_scale)
         elif (values := config.get(CONF_VALUES)) is not None:
             # Clearing also moves the start point back to the first slot.
             lv.chart_set_all_values(obj, series, literal("LV_CHART_POINT_NONE"))
-            await set_series_values(obj, series, values)
+            await set_series_values(obj, series, values, y_scale)
         else:
-            value = await lv_int.process(config[CONF_VALUE])
-            lv.chart_set_next_value(obj, series, value)
+            await set_series_values(obj, series, [config[CONF_VALUE]], y_scale)
         lv.chart_refresh(obj)
 
     return await action_to_code([chart], do_update, action_id, template_arg, args)

@@ -1759,15 +1759,16 @@ lvgl:
                         max_value: !lambda return 100;
                       secondary_y_axis:
                         min_value: 0
-                        max_value: 100
+                        max_value: 1.0
+                        multiplier: 100
                       series:
                         - id: lv_chart_primary
                           color: 0xFF0000
-                          values: [10, 30, 20, 50, 40]
+                          values: [10, 30, nan, 50, 40]
                         - id: lv_chart_secondary
                           color: 0x00FF00
                           use_secondary_y_axis: true
-                          values: [50, 20, 80, 10, 60]
+                          values: [0.5, 0.2, 0.8, 0.1, 0.6]
                   - chart:
                       id: lv_scatter_chart_id
                       indicator:
@@ -1801,13 +1802,16 @@ lvgl:
                             id: lv_chart_primary
                             value: !lambda return random_uint32() % 100;
                         - lvgl.chart.series.update:
+                            id: lv_chart_primary
+                            value: !lambda return NAN;
+                        - lvgl.chart.series.update:
                             id: lv_chart_secondary
                             values:
-                              - !lambda return random_uint32() % 100;
-                              - !lambda return random_uint32() % 100;
-                              - !lambda return random_uint32() % 100;
-                              - !lambda return random_uint32() % 100;
-                              - !lambda return random_uint32() % 100;
+                              - !lambda return (random_uint32() % 100) / 100.0f;
+                              - !lambda return (random_uint32() % 100) / 100.0f;
+                              - !lambda return (random_uint32() % 100) / 100.0f;
+                              - !lambda return (random_uint32() % 100) / 100.0f;
+                              - !lambda return (random_uint32() % 100) / 100.0f;
                         - lvgl.chart.series.update:
                             id: lv_scatter_series
                             point:

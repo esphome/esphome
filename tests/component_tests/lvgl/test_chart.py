@@ -10,9 +10,12 @@ import pytest
 from esphome.components.lvgl.widgets.chart import (
     CHART_MODIFY_SCHEMA,
     CHART_SCHEMA,
+    POINT_LIMIT,
     SERIES_MODIFY_SCHEMA,
     chart_spec,
+    scale_value,
     series_axes,
+    series_multipliers,
     validate_series_update_for_type,
 )
 from esphome.config import load_config
@@ -179,12 +182,13 @@ def test_scatter_codegen_uses_paired_lvgl_apis(
     )
     assert (
         "lv_chart_set_next_value2(::scatter_chart, ::scatter_series, "
-        "static_cast<int>(50), static_cast<int>(60));" in main_cpp
+        "lvgl::chart_point_value(static_cast<float>(50), 1.0f), "
+        "lvgl::chart_point_value(static_cast<float>(60), 1.0f));" in main_cpp
     )
     assert "lv_chart_set_next_value(line_chart, line_series, 10);" in main_cpp
     assert (
-        "lv_chart_set_next_value(::line_chart, ::line_series, static_cast<int>(30));"
-        in main_cpp
+        "lv_chart_set_next_value(::line_chart, ::line_series, "
+        "lvgl::chart_point_value(static_cast<float>(30), 1.0f));" in main_cpp
     )
 
 
@@ -420,3 +424,98 @@ def test_series_update_errors_point_at_each_action(tmp_path: Path) -> None:
         [*action, 0, "lvgl.chart.series.update", "point"],
         [*action, 1, "lvgl.chart.series.update", "values"],
     ]
+
+
+@pytest.mark.parametrize(
+    "value,multiplier,expected",
+    [
+        (1.25, 10, 13),
+        (-2.5, 1, -3),
+        (2.4, 1, 2),
+        (0.5, 100, 50),
+        (1e12, 1, POINT_LIMIT),
+        (-1e12, 1, -POINT_LIMIT),
+        (float("nan"), 10, None),
+    ],
+)
+def test_scale_value(value: float, multiplier: float, expected: int | None) -> None:
+    """Fixed values are scaled as chart_point_value() does at run time."""
+    assert scale_value(value, multiplier) == expected
+
+
+def test_scaled_values_and_gaps(generate_main, component_config_path) -> None:
+    main_cpp = generate_main(component_config_path("chart_test.yaml"))
+
+    assert (
+        "lv_chart_set_axis_range(scaled_chart, LV_CHART_AXIS_PRIMARY_Y, -5, 15);"
+        in main_cpp
+    )
+    for value in ("13", "LV_CHART_POINT_NONE", "-25"):
+        assert (
+            f"lv_chart_set_next_value(scaled_chart, scaled_series, {value});"
+            in main_cpp
+        )
+    assert (
+        "lv_chart_set_next_value(::scaled_chart, ::scaled_series, "
+        "lvgl::chart_point_value(static_cast<float>(0.5f), 10.0f));" in main_cpp
+    )
+
+
+def test_series_multipliers_follow_the_series_axes() -> None:
+    config = CHART_SCHEMA(
+        {
+            "type": "scatter",
+            "x_axis": {"multiplier": 2},
+            "secondary_x_axis": {"multiplier": 3},
+            "secondary_y_axis": {"multiplier": 5},
+            "series": [
+                {"id": "a"},
+                {"id": "b", "use_secondary_x_axis": True, "use_secondary_y_axis": True},
+            ],
+        }
+    )
+    assert series_multipliers(config, config["series"][0]) == (2, 1)
+    assert series_multipliers(config, config["series"][1]) == (3, 5)
+
+
+@pytest.mark.parametrize(
+    "axis",
+    [
+        {"min_value": 0.1, "max_value": 0.2},
+        {"min_value": 1, "max_value": 1.4, "multiplier": 1},
+        {"min_value": float("nan"), "max_value": 1},
+        {"min_value": 0, "max_value": 1, "multiplier": 0},
+        {"min_value": 0, "max_value": 1, "multiplier": -1},
+    ],
+)
+def test_invalid_axis_ranges(axis: dict) -> None:
+    with pytest.raises(Invalid):
+        CHART_SCHEMA({"y_axis": axis})
+
+
+def test_multiplier_makes_a_narrow_range_valid() -> None:
+    config = CHART_SCHEMA(
+        {"y_axis": {"min_value": 0.1, "max_value": 0.2, "multiplier": 100}}
+    )
+    assert config["y_axis"]["multiplier"] == 100
+
+
+def test_multiplier_cannot_be_changed_by_an_update() -> None:
+    with pytest.raises(Invalid):
+        CHART_MODIFY_SCHEMA(
+            {"y_axis": {"min_value": 0, "max_value": 1, "multiplier": 10}}
+        )
+
+
+def test_updated_range_is_checked_with_the_chart_multiplier(tmp_path: Path) -> None:
+    errors = _validation_errors(
+        tmp_path,
+        "              id: line_series\n              value: 1",
+        "          - lvgl.chart.update:\n"
+        "              id: line_chart\n"
+        "              y_axis:\n"
+        "                min_value: 0.1\n"
+        "                max_value: 0.2",
+    )
+    assert [str(err.path[-1]) for err in errors] == ["y_axis"]
+    assert "must not be equal after scaling by multiplier (1)" in str(errors[0])
