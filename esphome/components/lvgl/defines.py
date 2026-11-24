@@ -25,6 +25,7 @@ KEY_LV_DEFINES = "lv_defines"
 KEY_LV_FONTS_USED = "lv_fonts_used"
 KEY_LV_IMAGES_USED = "lv_images_used"
 KEY_LV_USES = "lv_uses"
+KEY_CHART_SERIES = "chart_series"
 KEY_MENU_SET_PAGE_ACTIONS = "menu_set_page_actions"
 KEY_NAMED_STYLES = "named_styles"
 KEY_OPTIONS = "options"
@@ -175,6 +176,11 @@ def get_refreshed_widgets() -> set:
 
 def get_menu_set_page_actions() -> list:
     return _get_data(KEY_MENU_SET_PAGE_ACTIONS, [])
+
+
+def get_chart_series() -> dict[str, Any]:
+    """Map each chart series ID to the chart widget that owns it."""
+    return _get_data(KEY_CHART_SERIES, {})
 
 
 def get_list_triggers() -> dict:

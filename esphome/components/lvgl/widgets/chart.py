@@ -21,13 +21,13 @@ from ..defines import (
     LV_CHART_AXES,
     LV_CHART_TYPES,
     LvConstant,
+    get_chart_series,
     literal,
 )
 from ..lv_validation import lv_color, lv_int
 from ..lvcode import lv, lv_assign, lv_expr
 from ..types import LvType
-from . import Widget, WidgetType, get_widgets
-from .obj import obj_spec
+from . import Widget, WidgetType
 
 CONF_CHART = "chart"
 CONF_DIV_LINE_COUNT = "div_line_count"
@@ -191,6 +191,8 @@ class ChartType(WidgetType):
                 )
 
         for series in config.get(CONF_SERIES, ()):
+            # Recorded before the variable exists, so an action waiting on it can find the chart.
+            get_chart_series()[str(series[CONF_ID])] = w
             series_var = cg.Pvariable(
                 series[CONF_ID], cg.nullptr, type_=lv_chart_series_t
             )
@@ -202,13 +204,6 @@ class ChartType(WidgetType):
                     literal(series[CONF_Y_AXIS]),
                 ),
             )
-            series_config = dict(series)
-            series_config[CONF_TYPE] = config[CONF_TYPE]
-            series_config[CONF_POINT_COUNT] = config[CONF_POINT_COUNT]
-            series_widget = Widget.create(
-                series[CONF_ID], w.obj, obj_spec, series_config
-            )
-            series_widget.obj = series_var
             if config[CONF_TYPE] == "LV_CHART_TYPE_SCATTER":
                 await set_series_points(w.obj, series_var, series.get(CONF_POINTS, ()))
             else:
@@ -244,28 +239,27 @@ chart_spec = ChartType()
     synchronous=True,
 )
 async def chart_series_update_to_code(config, action_id, template_arg, args):
-    widgets = await get_widgets(config)
+    series = await cg.get_variable(config[CONF_ID])
+    chart = get_chart_series()[str(config[CONF_ID])]
 
     async def do_update(w: Widget):
-        is_scatter = w.config[CONF_TYPE] == "LV_CHART_TYPE_SCATTER"
         validate_series_update_for_type(
             config, w.config[CONF_TYPE], w.config[CONF_POINT_COUNT]
         )
-        if is_scatter:
-            point = config[CONF_POINT]
+        if (point := config.get(CONF_POINT)) is not None:
             lv.chart_set_next_value2(
-                w.var,
                 w.obj,
+                series,
                 await lv_int.process(point[CONF_X]),
                 await lv_int.process(point[CONF_Y]),
             )
         else:
             if values := config.get(CONF_VALUES):
                 # Clearing also moves the start point back to the first slot.
-                lv.chart_set_all_values(w.var, w.obj, literal("LV_CHART_POINT_NONE"))
-                await set_series_values(w.var, w.obj, values)
+                lv.chart_set_all_values(w.obj, series, literal("LV_CHART_POINT_NONE"))
+                await set_series_values(w.obj, series, values)
             if (value := await lv_int.process(config.get(CONF_VALUE))) is not None:
-                lv.chart_set_next_value(w.var, w.obj, value)
-        lv.chart_refresh(w.var)
+                lv.chart_set_next_value(w.obj, series, value)
+        lv.chart_refresh(w.obj)
 
-    return await action_to_code(widgets, do_update, action_id, template_arg, args)
+    return await action_to_code([chart], do_update, action_id, template_arg, args)
