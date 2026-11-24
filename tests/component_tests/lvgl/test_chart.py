@@ -10,6 +10,7 @@ from esphome.components.lvgl.widgets.chart import (
     CHART_MODIFY_SCHEMA,
     CHART_SCHEMA,
     SERIES_MODIFY_SCHEMA,
+    series_axes,
     validate_series_update_for_type,
 )
 from esphome.config import load_config
@@ -272,3 +273,30 @@ def test_larger_runtime_point_count_keeps_the_configured_limit(
         "              point_count: 5",
     )
     assert any("can't have more than point_count (2) values" in e for e in errors)
+
+
+BOTH_SECONDARY_AXES = "static_cast<lv_chart_axis_t>(LV_CHART_AXIS_SECONDARY_Y | LV_CHART_AXIS_SECONDARY_X)"
+
+
+@pytest.mark.parametrize(
+    "series,axes",
+    [
+        ({}, "LV_CHART_AXIS_PRIMARY_Y"),
+        ({"use_secondary_y_axis": True}, "LV_CHART_AXIS_SECONDARY_Y"),
+        ({"use_secondary_x_axis": True}, "LV_CHART_AXIS_SECONDARY_X"),
+        (
+            {"use_secondary_y_axis": True, "use_secondary_x_axis": True},
+            BOTH_SECONDARY_AXES,
+        ),
+    ],
+)
+def test_series_axes(series: dict, axes: str) -> None:
+    config = CHART_SCHEMA({"type": "scatter", "series": [{"id": "s", **series}]})
+    assert str(series_axes(config["series"][0])) == axes
+
+
+def test_secondary_x_axis_needs_a_scatter_chart() -> None:
+    with pytest.raises(Invalid, match="use_secondary_x_axis"):
+        CHART_SCHEMA(
+            {"type": "line", "series": [{"id": "s", "use_secondary_x_axis": True}]}
+        )

@@ -18,7 +18,6 @@ from ..defines import (
     CONF_MAIN,
     CONF_POINTS,
     CONF_TICKS,
-    LV_CHART_AXES,
     LV_CHART_TYPES,
     LvConstant,
     get_chart_series,
@@ -39,13 +38,14 @@ CONF_SECONDARY_X_AXIS = "secondary_x_axis"
 CONF_SECONDARY_Y_AXIS = "secondary_y_axis"
 CONF_SERIES = "series"
 CONF_UPDATE_MODE = "update_mode"
+CONF_USE_SECONDARY_X_AXIS = "use_secondary_x_axis"
+CONF_USE_SECONDARY_Y_AXIS = "use_secondary_y_axis"
 CONF_VALUES = "values"
 CONF_X_AXIS = "x_axis"
 CONF_Y_AXIS = "y_axis"
 
 CHART_TYPES = LvConstant("LV_CHART_TYPE_", *LV_CHART_TYPES)
 CHART_UPDATE_MODES = LvConstant("LV_CHART_UPDATE_MODE_", "SHIFT", "CIRCULAR")
-CHART_AXES = LvConstant("LV_CHART_AXIS_", *LV_CHART_AXES)
 
 lv_chart_t = LvType("lv_chart_t")
 lv_chart_series_t = cg.global_ns.struct("lv_chart_series_t")
@@ -75,7 +75,8 @@ SERIES_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(lv_chart_series_t),
         cv.Optional(CONF_COLOR, default=0): lv_color,
-        cv.Optional(CONF_Y_AXIS, default="PRIMARY_Y"): CHART_AXES.one_of,
+        cv.Optional(CONF_USE_SECONDARY_Y_AXIS, default=False): cv.boolean,
+        cv.Optional(CONF_USE_SECONDARY_X_AXIS, default=False): cv.boolean,
         cv.Optional(CONF_VALUES): cv.ensure_list(lv_int),
         cv.Optional(CONF_POINTS): cv.ensure_list(POINT_SCHEMA),
     }
@@ -146,6 +147,10 @@ def validate_chart(config):
             raise cv.Invalid("A scatter chart series must use points instead of values")
         if not is_scatter and points is not None:
             raise cv.Invalid("points can only be used with a scatter chart")
+        if not is_scatter and series[CONF_USE_SECONDARY_X_AXIS]:
+            raise cv.Invalid(
+                f"{CONF_USE_SECONDARY_X_AXIS} can only be used with a scatter chart"
+            )
         data = points if is_scatter else values
         if data is not None and len(data) > point_count:
             raise cv.Invalid(
@@ -246,7 +251,7 @@ class ChartType(WidgetType):
                 lv_expr.chart_add_series(
                     w.obj,
                     await lv_color.process(series[CONF_COLOR]),
-                    literal(series[CONF_Y_AXIS]),
+                    series_axes(series),
                 ),
             )
             if config[CONF_TYPE] == "LV_CHART_TYPE_SCATTER":
@@ -255,6 +260,19 @@ class ChartType(WidgetType):
                 await set_series_values(w.obj, series_var, series.get(CONF_VALUES, ()))
 
         lv.chart_refresh(w.obj)
+
+
+def series_axes(series):
+    """The lv_chart_axis_t flags for the axes a series is drawn against."""
+    y_axis = series[CONF_USE_SECONDARY_Y_AXIS]
+    x_axis = series[CONF_USE_SECONDARY_X_AXIS]
+    if y_axis and x_axis:
+        return literal(
+            "static_cast<lv_chart_axis_t>(LV_CHART_AXIS_SECONDARY_Y | LV_CHART_AXIS_SECONDARY_X)"
+        )
+    if x_axis:
+        return literal("LV_CHART_AXIS_SECONDARY_X")
+    return literal("LV_CHART_AXIS_SECONDARY_Y" if y_axis else "LV_CHART_AXIS_PRIMARY_Y")
 
 
 async def set_series_values(chart, series, values):
