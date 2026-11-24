@@ -1,10 +1,9 @@
 #pragma once
 
+#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/components/sensor/sensor.h"
-
-#include <functional>
 
 namespace esphome::combination {
 
@@ -47,7 +46,7 @@ class CombinationOneParameterComponent : public CombinationComponent {
  public:
   struct SensorSource {
     sensor::Sensor *sensor;
-    std::function<float(float)> compute;
+    TemplatableFn<float, float> compute;
     CombinationOneParameterComponent *parent;
   };
 
@@ -55,8 +54,9 @@ class CombinationOneParameterComponent : public CombinationComponent {
   void setup() override;
 
   void set_source_storage(std::span<SensorSource> storage) { this->sensor_sources_.init(storage); }
-  void add_source(Sensor *sensor, std::function<float(float)> const &compute);
-  void add_source(Sensor *sensor, float value);
+  void add_source(Sensor *sensor, TemplatableFn<float, float> compute) {
+    this->sensor_sources_.push_back({sensor, compute, this});
+  }
 
   /// @brief Computes the combination
   /// @param value Newest sensor measurement
