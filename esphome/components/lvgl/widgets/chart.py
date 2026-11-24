@@ -307,6 +307,16 @@ def x_axis_error(chart_type: str, config: ConfigType) -> cv.Invalid | None:
     return None
 
 
+def _negative_stacked_value(chart_type: str, values: list | None) -> bool:
+    """LVGL stacks bars only for values of 0 or more."""
+    return chart_type == "LV_CHART_TYPE_STACKED" and any(
+        isinstance(value, (int, float)) and value < 0 for value in values or ()
+    )
+
+
+STACKED_NEGATIVE = "A stacked chart can't show negative values"
+
+
 def validate_chart(config: ConfigType) -> ConfigType:
     point_count = config[CONF_POINT_COUNT]
     is_scatter = config[CONF_TYPE] == "LV_CHART_TYPE_SCATTER"
@@ -324,6 +334,8 @@ def validate_chart(config: ConfigType) -> ConfigType:
                 "Only a scatter chart series can use the secondary X axis",
                 path=[CONF_SERIES, index, CONF_X_AXIS],
             )
+        if _negative_stacked_value(config[CONF_TYPE], values):
+            raise cv.Invalid(STACKED_NEGATIVE, path=[CONF_SERIES, index, CONF_VALUES])
         data = points if is_scatter else values
         if data is not None and len(data) > point_count:
             raise cv.Invalid(
@@ -356,6 +368,12 @@ def validate_series_action(
                 f"{key} can't have more than point_count ({point_count}) entries",
                 path=[key],
             )
+    for key in (CONF_VALUE, CONF_VALUES):
+        values = config.get(key)
+        if _negative_stacked_value(
+            chart_type, values if isinstance(values, list) else [values]
+        ):
+            raise cv.Invalid(STACKED_NEGATIVE, path=[key])
     index = config.get(CONF_INDEX)
     if isinstance(index, int) and index >= point_count:
         raise cv.Invalid(

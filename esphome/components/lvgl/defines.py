@@ -708,9 +708,10 @@ LV_MENU_ROOT_BACK_BUTTON_MODES = LvConstant(
 )
 
 LV_CHART_TYPES = (
-    "NONE",
     "LINE",
+    "CURVE",
     "BAR",
+    "STACKED",
     "SCATTER",
 )
 LV_CHART_AXES = (

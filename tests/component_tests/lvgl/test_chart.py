@@ -675,3 +675,29 @@ def test_series_action_codegen(generate_main, component_config_path) -> None:
     assert "lv_chart_hide_series(::line_chart, ::line_series_2, " in main_cpp
     # hidden when created
     assert "lv_chart_hide_series(line_chart, line_series_2, true);" in main_cpp
+
+
+@pytest.mark.parametrize("chart_type", ["line", "curve", "bar", "stacked", "scatter"])
+def test_chart_types(chart_type: str) -> None:
+    config = CHART_SCHEMA({"type": chart_type})
+    assert config["type"] == f"LV_CHART_TYPE_{chart_type.upper()}"
+
+
+def test_none_is_not_a_chart_type() -> None:
+    with pytest.raises(Invalid):
+        CHART_SCHEMA({"type": "none"})
+
+
+def test_stacked_chart_rejects_negative_values() -> None:
+    with pytest.raises(Invalid, match="negative"):
+        CHART_SCHEMA({"type": "stacked", "series": [{"id": "s", "values": [1, -1]}]})
+    assert CHART_SCHEMA({"type": "bar", "series": [{"id": "s", "values": [-1]}]})
+
+
+@pytest.mark.parametrize(
+    "payload", [{"value": -0.5}, {"values": [1, -2]}, {"index": 0, "value": -1}]
+)
+def test_stacked_series_actions_reject_negative_values(payload: dict) -> None:
+    with pytest.raises(Invalid, match="negative"):
+        validate_series_action(SET, payload, "LV_CHART_TYPE_STACKED", 10)
+    validate_series_action(SET, payload, "LV_CHART_TYPE_BAR", 10)
