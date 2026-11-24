@@ -113,6 +113,29 @@ def add_entity(platform: str, var: MockObj) -> None:
     add_to_list(ENTITY_LISTS[platform], var)
 
 
+def entity_fields(
+    *,
+    device_class: str = "",
+    unit_of_measurement: str = "",
+    icon: str = "",
+    entity_category: str = "",
+    internal: bool = False,
+    disabled_by_default: bool = False,
+) -> int:
+    """See esphome.core.entity_helpers.entity_fields; exported as cg.entity_fields."""
+    # Imported here: entity_helpers imports codegen, which imports this module
+    from esphome.core import entity_helpers
+
+    return entity_helpers.entity_fields(
+        device_class=device_class,
+        unit_of_measurement=unit_of_measurement,
+        icon=icon,
+        entity_category=entity_category,
+        internal=internal,
+        disabled_by_default=disabled_by_default,
+    )
+
+
 def reserve_runtime_entities(platform: str, count: int) -> None:
     """Reserve `count` slots for `platform` entities created at run time.
 

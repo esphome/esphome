@@ -1,0 +1,16 @@
+esphome:
+  name: test
+
+esp8266:
+  board: d1_mini_lite
+
+sensor:
+  - platform: template
+    id: all_options
+    name: All Options
+    device_class: temperature
+    unit_of_measurement: "°C"
+    icon: "mdi:thermometer"
+    entity_category: diagnostic
+    internal: true
+    disabled_by_default: true

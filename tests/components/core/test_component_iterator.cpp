@@ -130,6 +130,12 @@ TEST(ComponentIterator, DeprecatedAdvanceKeepsLegacyPatternWorking) {
 // The two sensors the tests register into the runtime slots
 static sensor::Sensor sensor_a;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static sensor::Sensor sensor_b;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+// Registered with an explicit object_id hash and entity fields
+static sensor::Sensor sensor_c;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static sensor::Sensor sensor_d;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static constexpr uint32_t SENSOR_C_HASH = 0x12345678;
+static constexpr uint32_t SENSOR_C_FIELDS =
+    (1u << ENTITY_FIELD_INTERNAL_SHIFT) | (uint32_t{ENTITY_CATEGORY_CONFIG} << ENTITY_FIELD_ENTITY_CATEGORY_SHIFT);
 
 class ItemRefusingIterator : public RefusingIterator {
  public:
@@ -159,21 +165,45 @@ class ComponentIteratorSensorTest : public ::testing::Test {
       sensor_b.set_internal(true);
       App.register_sensor(&sensor_a, "Runtime A");
       App.register_sensor(&sensor_b, "Runtime B");
+      App.register_sensor(&sensor_c, "Runtime C", SENSOR_C_HASH, SENSOR_C_FIELDS);
+      // Hash 0: computed from the name; fields 0 replace what the owner set
+      sensor_d.set_internal(true);
+      App.register_sensor(&sensor_d, "Runtime D", 0, 0);
       registered = true;
     }
     // The runtime slots follow the codegen sensors
     auto sensors = App.get_sensors();
-    ASSERT_EQ(sensors.size(), ESPHOME_ENTITY_SENSOR_COUNT + 2u);
+    ASSERT_EQ(sensors.size(), ESPHOME_ENTITY_SENSOR_COUNT + 4u);
     ASSERT_EQ(sensors[ESPHOME_ENTITY_SENSOR_COUNT], &sensor_a);
     ASSERT_EQ(sensors[ESPHOME_ENTITY_SENSOR_COUNT + 1], &sensor_b);
+    ASSERT_EQ(sensors[ESPHOME_ENTITY_SENSOR_COUNT + 2], &sensor_c);
+    ASSERT_EQ(sensors[ESPHOME_ENTITY_SENSOR_COUNT + 3], &sensor_d);
   }
 };
 
 TEST_F(ComponentIteratorSensorTest, RegistrationPastTheReservationIsRefused) {
   static sensor::Sensor extra;
-  EXPECT_FALSE(App.register_sensor(&extra, "Runtime C"));
-  EXPECT_EQ(App.get_sensors().size(), ESPHOME_ENTITY_SENSOR_COUNT + 2u);
+  extra.set_internal(true);
+  EXPECT_FALSE(App.register_sensor(&extra, "Runtime E"));
+  EXPECT_FALSE(App.register_sensor(&extra, "Runtime E", SENSOR_C_HASH, 0));
+  EXPECT_EQ(App.get_sensors().size(), ESPHOME_ENTITY_SENSOR_COUNT + 4u);
+  // Left untouched
   EXPECT_EQ(extra.get_object_id_hash(), 0u);
+  EXPECT_TRUE(extra.get_name().empty());
+  EXPECT_TRUE(extra.is_internal());
+}
+
+TEST_F(ComponentIteratorSensorTest, ExplicitHashAndFieldsAreApplied) {
+  EXPECT_STREQ(sensor_c.get_name().c_str(), "Runtime C");
+  EXPECT_EQ(sensor_c.get_object_id_hash(), SENSOR_C_HASH);
+  EXPECT_TRUE(sensor_c.is_internal());
+  EXPECT_EQ(sensor_c.get_entity_category(), ENTITY_CATEGORY_CONFIG);
+}
+
+TEST_F(ComponentIteratorSensorTest, ZeroHashComesFromTheNameAndFieldsReplaceTheOwners) {
+  // esphome.helpers.fnv1_hash_object_id("Runtime D")
+  EXPECT_EQ(sensor_d.get_object_id_hash(), 572462446u);
+  EXPECT_FALSE(sensor_d.is_internal());
 }
 
 TEST_F(ComponentIteratorSensorTest, RegistrationKeepsTheEntityFields) {

@@ -206,9 +206,12 @@ class Application {
 
 // Codegen entities are in the constant APP_<UPPER>_LIST arrays. Entities created at run time go into
 // slots reserved with cg.reserve_runtime_entities(): register_<entity>(obj, name) names the entity,
-// computes its object_id hash from the name and fills a slot; it returns false and leaves the entity
-// unnamed when every reserved slot is taken. `name` must stay valid as long as the entity, and ESP8266
-// reads it like a flash string. Without a reservation the call fails to compile with a message saying so.
+// computes its object_id hash from the name and fills a slot, keeping the fields the owner set;
+// register_<entity>(obj, name, object_id_hash, entity_fields) also takes the hash (0 computes it from
+// the name) and the packed fields that cg.entity_fields() builds. Both return false and leave the
+// entity untouched when every reserved slot is taken. `name` must stay valid as long as the entity, and
+// ESP8266 reads it like a flash string. Without a reservation the call fails to compile with a message
+// saying so.
 // NOLINTBEGIN(bugprone-macro-parentheses)
 #define APP_RESERVE_HINT_(singular) \
   "Call cg.reserve_runtime_entities(\"" #singular "\", n) in to_code to register entities at run time"
@@ -219,14 +222,18 @@ class Application {
 \
  public: \
   SLOT_LIST_REQUIRES(ESPHOME_RUNTIME_##upper##_COUNT) \
-  bool register_##singular(type *obj, const char *name) { \
+  bool register_##singular(type *obj, const char *name, uint32_t object_id_hash, uint32_t entity_fields) { \
     if (this->runtime_##plural##_.size() == SLOT_LIST_COUNT) { \
       this->log_runtime_slots_full_(name); \
       return false; \
     } \
-    obj->configure_name_(name); \
+    obj->configure_entity_(name, object_id_hash, entity_fields); \
     this->runtime_##plural##_.push_back(obj); \
     return true; \
+  } \
+  SLOT_LIST_REQUIRES(ESPHOME_RUNTIME_##upper##_COUNT) \
+  bool register_##singular(type *obj, const char *name) { \
+    return this->template register_##singular<SLOT_LIST_COUNT>(obj, name, 0, obj->entity_fields_()); \
   } \
   template<size_t RESERVED = ESPHOME_RUNTIME_##upper##_COUNT, typename... A> \
     requires(RESERVED == 0) \

@@ -4,8 +4,8 @@ from tests.testing_helpers import ComponentManifestOverride, add_defines_to_code
 
 
 def _reserve_test_sensors(config: ConfigType) -> None:
-    # test_component_iterator.cpp registers two sensors at run time
-    cg.reserve_runtime_entities("sensor", 2)
+    # test_component_iterator.cpp registers four sensors at run time
+    cg.reserve_runtime_entities("sensor", 4)
 
 
 def override_manifest(manifest: ComponentManifestOverride) -> None:

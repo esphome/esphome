@@ -263,20 +263,82 @@ def register_icon(value: str) -> int:
     return _register_string(value, _get_pool().icons, _MAX_ICONS, "icon")
 
 
+def _device_class_index(value: str) -> int:
+    if idx := register_device_class(value):
+        cg.add_define("USE_ENTITY_DEVICE_CLASS")
+    return idx
+
+
+def _unit_of_measurement_index(value: str) -> int:
+    if idx := register_unit_of_measurement(value):
+        cg.add_define("USE_ENTITY_UNIT_OF_MEASUREMENT")
+    return idx
+
+
+def _icon_index(value: str) -> int:
+    cg.add_define("USE_ENTITY_ICON")
+    return register_icon(value)
+
+
+def _entity_category_index(value: str) -> int:
+    # Position in cv.ENTITY_CATEGORIES, which matches the C++ EntityCategory enum in entity_base.h
+    entity_cat_keys = list(cv.ENTITY_CATEGORIES)
+    return entity_cat_keys.index(value) if value in entity_cat_keys else 0
+
+
+def _pack_entity_fields(
+    dc_idx: int,
+    uom_idx: int,
+    icon_idx: int,
+    internal: int,
+    disabled_by_default: int,
+    entity_category: int,
+) -> int:
+    """The entity_fields value of configure_entity_() (ENTITY_FIELD_*_SHIFT in entity_base.h)."""
+    return (
+        (dc_idx << _DC_SHIFT)
+        | (uom_idx << _UOM_SHIFT)
+        | (icon_idx << _ICON_SHIFT)
+        | (internal << _INTERNAL_SHIFT)
+        | (disabled_by_default << _DISABLED_BY_DEFAULT_SHIFT)
+        | (entity_category << _ENTITY_CATEGORY_SHIFT)
+    )
+
+
+def entity_fields(
+    *,
+    device_class: str = "",
+    unit_of_measurement: str = "",
+    icon: str = "",
+    entity_category: str = "",
+    internal: bool = False,
+    disabled_by_default: bool = False,
+) -> int:
+    """Packed entity fields for App.register_<platform>(obj, name, object_id_hash, entity_fields).
+
+    Registers the strings like a YAML entity's options and returns the same value codegen
+    passes to configure_entity_() for them.
+    """
+    return _pack_entity_fields(
+        _device_class_index(device_class),
+        _unit_of_measurement_index(unit_of_measurement),
+        _icon_index(icon) if icon else 0,
+        int(internal),
+        int(disabled_by_default),
+        _entity_category_index(entity_category),
+    )
+
+
 def setup_device_class(config: ConfigType) -> None:
     """Register config's device_class and store its index for finalize_entity_strings."""
-    idx = register_device_class(config.get(CONF_DEVICE_CLASS, ""))
-    if idx:
-        cg.add_define("USE_ENTITY_DEVICE_CLASS")
-    config[_KEY_DC_IDX] = idx
+    config[_KEY_DC_IDX] = _device_class_index(config.get(CONF_DEVICE_CLASS, ""))
 
 
 def setup_unit_of_measurement(config: ConfigType) -> None:
     """Register config's unit_of_measurement and store its index for finalize_entity_strings."""
-    idx = register_unit_of_measurement(config.get(CONF_UNIT_OF_MEASUREMENT, ""))
-    if idx:
-        cg.add_define("USE_ENTITY_UNIT_OF_MEASUREMENT")
-    config[_KEY_UOM_IDX] = idx
+    config[_KEY_UOM_IDX] = _unit_of_measurement_index(
+        config.get(CONF_UNIT_OF_MEASUREMENT, "")
+    )
 
 
 def _sanitize_comment(text: str) -> str:
@@ -335,13 +397,8 @@ def finalize_entity_strings(var: MockObj, config: ConfigType) -> None:
     internal = config.get(_KEY_INTERNAL, 0)
     disabled_by_default = config.get(_KEY_DISABLED_BY_DEFAULT, 0)
     entity_category = config.get(_KEY_ENTITY_CATEGORY, 0)
-    packed = (
-        (dc_idx << _DC_SHIFT)
-        | (uom_idx << _UOM_SHIFT)
-        | (icon_idx << _ICON_SHIFT)
-        | (internal << _INTERNAL_SHIFT)
-        | (disabled_by_default << _DISABLED_BY_DEFAULT_SHIFT)
-        | (entity_category << _ENTITY_CATEGORY_SHIFT)
+    packed = _pack_entity_fields(
+        dc_idx, uom_idx, icon_idx, internal, disabled_by_default, entity_category
     )
     # Build inline comment describing the packed flags for readability
     comment = _describe_packed_flags(config, entity_category)
@@ -468,18 +525,10 @@ async def _setup_entity_impl(var: MockObj, config: ConfigType, platform: str) ->
         config[_KEY_INTERNAL] = int(config[CONF_INTERNAL])
     icon_idx = 0
     if CONF_ICON in config:
-        # Add USE_ENTITY_ICON define when icons are used
-        cg.add_define("USE_ENTITY_ICON")
-        icon_idx = register_icon(config[CONF_ICON])
+        icon_idx = _icon_index(config[CONF_ICON])
     if CONF_ENTITY_CATEGORY in config:
-        # Derive integer value from key position in cv.ENTITY_CATEGORIES
-        # (must match C++ EntityCategory enum in entity_base.h)
-        entity_cat_str = str(config[CONF_ENTITY_CATEGORY])
-        entity_cat_keys = list(cv.ENTITY_CATEGORIES)
-        config[_KEY_ENTITY_CATEGORY] = (
-            entity_cat_keys.index(entity_cat_str)
-            if entity_cat_str in entity_cat_keys
-            else 0
+        config[_KEY_ENTITY_CATEGORY] = _entity_category_index(
+            str(config[CONF_ENTITY_CATEGORY])
         )
     # Store icon index for finalize_entity_strings
     config[_KEY_ICON_IDX] = icon_idx

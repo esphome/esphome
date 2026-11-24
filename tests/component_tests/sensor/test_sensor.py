@@ -3,6 +3,7 @@
 from collections.abc import Callable
 import re
 
+import esphome.codegen as cg
 from tests.component_tests.helpers import extract_packed_value
 
 
@@ -42,3 +43,20 @@ def test_calibration_tables_are_shared_progmem(
     # Table names never reuse a user id.
     assert exact != "sensor_calibrate_linear"
     assert "sensor_calibratelinearfilter_id_data" not in (exact, least_squares)
+
+
+def test_entity_fields_matches_codegen(
+    generate_main: Callable[[str], str],
+    component_config_path: Callable[[str], str],
+) -> None:
+    """cg.entity_fields packs the same value codegen emits for a YAML entity with those options."""
+    main_cpp = generate_main(component_config_path("entity_fields.yaml"))
+    assert cg.entity_fields(
+        device_class="temperature",
+        unit_of_measurement="°C",
+        icon="mdi:thermometer",
+        entity_category="diagnostic",
+        internal=True,
+        disabled_by_default=True,
+    ) == extract_packed_value(main_cpp, "all_options")
+    assert cg.entity_fields() == 0
