@@ -1,4 +1,5 @@
 from collections.abc import Callable
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -10,7 +11,9 @@ from esphome.components.esp32 import (
     VARIANT_ESP32C6,
     VARIANT_ESP32H2,
     VARIANT_ESP32H4,
+    VARIANT_ESP32P4,
     VARIANT_ESP32S3,
+    VARIANT_ESP32S31,
 )
 from esphome.components.esp32.const import (
     KEY_BOARD,
@@ -22,18 +25,28 @@ from esphome.components.esp32.const import (
 from esphome.components.openthread import (
     _RCP_SCHEMA,
     BORDER_ROUTER_SDKCONFIG_OPTIONS,
+    CONFIG_SCHEMA,
+    MTD_POLL_PERIOD_OPTIONS,
+    POLL_PERIOD_ACTION_SCHEMA,
     RCP_BORDER_ROUTER_VARIANTS,
     _final_validate,
     _validate,
+    _validate_border_router,
     _validate_platform,
 )
-from esphome.components.openthread.const import CONF_RCP
+from esphome.components.openthread.const import (
+    CONF_BACKBONE,
+    CONF_CORE_OPTIONS,
+    CONF_POLL_PERIOD,
+    CONF_RCP,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_AP,
     CONF_BAUD_RATE,
     CONF_ENABLE_IPV6,
     CONF_ENABLE_ON_BOOT,
+    CONF_ETHERNET,
     CONF_ID,
     CONF_INVERTED,
     CONF_LOGGER,
@@ -50,6 +63,7 @@ from esphome.const import (
 from esphome.core import CORE
 import esphome.final_validate as fv
 from esphome.types import ConfigType
+from tests.component_tests.helpers import get_define_value
 from tests.component_tests.types import SetCoreConfigCallable
 
 CONFIG_DIR = Path(__file__).parent / "config"
@@ -147,6 +161,8 @@ def test_border_router_codegen(
     defines = {define.name for define in CORE.defines}
     assert "USE_OPENTHREAD_BORDER_ROUTER" in defines
     assert "USE_OPENTHREAD_SRP" not in defines
+    assert "USE_OPENTHREAD_BACKBONE_ETHERNET" not in defines
+    assert "USE_WIFI_CONNECT_STATE_LISTENERS" in defines
 
 
 def test_border_router_rcp_codegen(
@@ -244,14 +260,33 @@ def test_border_router_rcp_accepts_wifi_variants(
     assert _validate_platform(otbr_config) is otbr_config
 
 
-@pytest.mark.parametrize("variant", [VARIANT_ESP32H2, VARIANT_ESP32H4])
+def test_border_router_rcp_accepts_esp32p4_with_ethernet_backbone(
+    set_core_config: SetCoreConfigCallable,
+    otbr_config: ConfigType,
+) -> None:
+    _set_esp32_idf_core(set_core_config, VARIANT_ESP32P4)
+    otbr_config[CONF_BORDER_ROUTER] = {CONF_RCP: RCP_PINS, CONF_BACKBONE: CONF_ETHERNET}
+
+    assert _validate_platform(otbr_config) is otbr_config
+
+
+@pytest.mark.parametrize(
+    ("variant", "backbone"),
+    [
+        (VARIANT_ESP32H2, CONF_WIFI),
+        (VARIANT_ESP32H2, CONF_ETHERNET),
+        (VARIANT_ESP32H4, CONF_WIFI),
+        (VARIANT_ESP32P4, CONF_WIFI),
+    ],
+)
 def test_border_router_rcp_rejects_variants_without_wifi(
     set_core_config: SetCoreConfigCallable,
     otbr_config: ConfigType,
     variant: str,
+    backbone: str,
 ) -> None:
     _set_esp32_idf_core(set_core_config, variant)
-    otbr_config[CONF_BORDER_ROUTER][CONF_RCP] = RCP_PINS
+    otbr_config[CONF_BORDER_ROUTER] = {CONF_RCP: RCP_PINS, CONF_BACKBONE: backbone}
 
     with pytest.raises(cv.Invalid, match="requires a Wi-Fi-capable ESP32 variant"):
         _validate_platform(otbr_config)
@@ -299,7 +334,9 @@ def test_rcp_schema_rejects_bad_options(
         _RCP_SCHEMA(rcp_config)
 
 
-@pytest.mark.parametrize("variant", [VARIANT_ESP32C5, VARIANT_ESP32C6])
+@pytest.mark.parametrize(
+    "variant", [VARIANT_ESP32C5, VARIANT_ESP32C6, VARIANT_ESP32S31]
+)
 def test_native_border_router_accepts_wifi_ieee802154_variants(
     set_core_config: SetCoreConfigCallable,
     otbr_config: ConfigType,
@@ -318,3 +355,190 @@ def test_border_router_accepts_supported_config(
     _set_esp32_idf_core(set_core_config)
 
     _run_final_validation(otbr_config, full_config)
+
+
+def test_border_router_backbone_defaults_to_wifi() -> None:
+    assert _validate_border_router({})[CONF_BACKBONE] == "wifi"
+
+
+def test_border_router_backbone_rejects_unknown() -> None:
+    with pytest.raises(cv.Invalid):
+        _validate_border_router({CONF_BACKBONE: "modem"})
+
+
+@pytest.fixture
+def ethernet_backbone(otbr_config: ConfigType, full_config: ConfigType) -> None:
+    otbr_config[CONF_BORDER_ROUTER] = {CONF_BACKBONE: "ethernet"}
+    full_config[CONF_ETHERNET] = {CONF_ENABLE_ON_BOOT: True}
+
+
+@pytest.mark.usefixtures("ethernet_backbone")
+@pytest.mark.parametrize(
+    "mutate",
+    [
+        lambda config: config.pop(CONF_WIFI),
+        lambda config: config[CONF_WIFI].update(
+            {CONF_NETWORKS: [], CONF_ENABLE_ON_BOOT: False}
+        ),
+    ],
+    ids=["without_wifi", "ignores_wifi_sta_rules"],
+)
+def test_ethernet_backbone_accepts_config(
+    set_core_config: SetCoreConfigCallable,
+    otbr_config: ConfigType,
+    full_config: ConfigType,
+    mutate: Any,
+) -> None:
+    _set_esp32_idf_core(set_core_config, VARIANT_ESP32S31)
+    mutate(full_config)
+
+    _run_final_validation(otbr_config, full_config)
+
+
+@pytest.mark.usefixtures("ethernet_backbone")
+@pytest.mark.parametrize(
+    ("mutate", "message"),
+    [
+        (lambda config: config.pop(CONF_ETHERNET), "requires the 'ethernet' component"),
+        (
+            lambda config: config[CONF_WIFI].update({CONF_AP: {}}),
+            "does not support Wi-Fi AP",
+        ),
+        (
+            lambda config: config[CONF_ETHERNET].update({CONF_ENABLE_ON_BOOT: False}),
+            "Ethernet 'enable_on_boot: true'",
+        ),
+    ],
+)
+def test_ethernet_backbone_rejects_incompatible_config(
+    set_core_config: SetCoreConfigCallable,
+    otbr_config: ConfigType,
+    full_config: ConfigType,
+    mutate: Any,
+    message: str,
+) -> None:
+    _set_esp32_idf_core(set_core_config, VARIANT_ESP32S31)
+    mutate(full_config)
+
+    with pytest.raises(cv.Invalid, match=message):
+        _run_final_validation(otbr_config, full_config)
+
+
+@pytest.mark.parametrize(
+    ("config_file", "ethernet_backbone", "rcp", "coexistence"),
+    [
+        ("border_router_ethernet.yaml", True, False, True),
+        ("border_router_ethernet_no_wifi.yaml", True, False, False),
+        ("border_router_wifi_with_ethernet.yaml", False, False, True),
+        ("border_router_rcp_ethernet.yaml", True, True, False),
+    ],
+    ids=["ethernet", "ethernet_no_wifi", "wifi_with_ethernet", "rcp_ethernet"],
+)
+def test_border_router_backbone_codegen(
+    generate_main: Callable[[str | Path], str],
+    config_file: str,
+    ethernet_backbone: bool,
+    rcp: bool,
+    coexistence: bool,
+) -> None:
+    generate_main(CONFIG_DIR / config_file)
+
+    defines = {define.name for define in CORE.defines}
+    sdkconfig = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    radio = (
+        "CONFIG_OPENTHREAD_RADIO_SPINEL_UART"
+        if rcp
+        else "CONFIG_OPENTHREAD_RADIO_NATIVE"
+    )
+    assert "USE_OPENTHREAD_BORDER_ROUTER" in defines
+    assert sdkconfig["CONFIG_OPENTHREAD_BORDER_ROUTER"] is True
+    assert ("USE_OPENTHREAD_RCP_UART" in defines) is rcp
+    assert sdkconfig[radio] is True
+    assert ("USE_OPENTHREAD_BACKBONE_ETHERNET" in defines) is ethernet_backbone
+    assert get_define_value("ESPHOME_ETHERNET_CONNECT_STATE_LISTENERS") == (
+        "1" if ethernet_backbone else "0"
+    )
+    assert ("USE_WIFI_CONNECT_STATE_LISTENERS" in defines) is not ethernet_backbone
+    assert (sdkconfig.get("CONFIG_ESP_COEX_SW_COEXIST_ENABLE") is True) is coexistence
+
+
+SHORT_TLV = "0e080000000000010000000300001435060004001fffe0"
+OTHER_CORE_OPTION = {"OPENTHREAD_CONFIG_MLE_MAX_CHILDREN": "5"}
+
+
+def _poll_config(
+    poll_period: str | None, device_type: str = DEVICE_TYPE_MTD, **extra: Any
+) -> ConfigType:
+    config = {CONF_DEVICE_TYPE: device_type, "tlv": SHORT_TLV, **extra}
+    if poll_period is not None:
+        config[CONF_POLL_PERIOD] = poll_period
+    return config
+
+
+@pytest.mark.parametrize(
+    "validate",
+    [
+        lambda period: CONFIG_SCHEMA(_poll_config(period)),
+        lambda period: POLL_PERIOD_ACTION_SCHEMA(
+            {CONF_POLL_PERIOD: period, CONF_ID: "ot"}
+        ),
+    ],
+    ids=["config", "action"],
+)
+@pytest.mark.parametrize(
+    ("poll_period", "deprecated"), [("7200s", False), ("7201s", True)]
+)
+def test_poll_period_limit(
+    set_core_config: SetCoreConfigCallable,
+    caplog: pytest.LogCaptureFixture,
+    validate: Callable[[str], ConfigType],
+    poll_period: str,
+    deprecated: bool,
+) -> None:
+    _set_esp32_idf_core(set_core_config)
+    with caplog.at_level(logging.WARNING):
+        result = validate(poll_period)
+    assert result[CONF_POLL_PERIOD].total_milliseconds == 7200 * 1000
+    assert ("poll_period above 7200s is deprecated" in caplog.text) is deprecated
+
+
+@pytest.mark.parametrize(
+    ("device_type", "poll_period"),
+    [
+        (DEVICE_TYPE_MTD, None),
+        (DEVICE_TYPE_MTD, "0s"),
+        (DEVICE_TYPE_MTD, "5s"),
+        (DEVICE_TYPE_FTD, None),
+    ],
+)
+def test_derived_core_options_are_kept(
+    set_core_config: SetCoreConfigCallable,
+    device_type: str,
+    poll_period: str | None,
+) -> None:
+    _set_esp32_idf_core(set_core_config)
+    options = {**dict.fromkeys(MTD_POLL_PERIOD_OPTIONS, "960"), **OTHER_CORE_OPTION}
+    config = _poll_config(poll_period, device_type, **{CONF_CORE_OPTIONS: options})
+    assert CONFIG_SCHEMA(config)[CONF_CORE_OPTIONS] == options
+
+
+@pytest.mark.parametrize("name", sorted(MTD_POLL_PERIOD_OPTIONS))
+def test_mtd_rejects_derived_core_option_expressions(
+    set_core_config: SetCoreConfigCallable, name: str
+) -> None:
+    _set_esp32_idf_core(set_core_config)
+    config = _poll_config(None, **{CONF_CORE_OPTIONS: {name: "(240 + 10)"}})
+    with pytest.raises(cv.Invalid, match="must be a whole number of seconds"):
+        CONFIG_SCHEMA(config)
+
+
+def test_mtd_timeout_minimums_follow_core_options(
+    generate_main: Callable[[str | Path], str],
+) -> None:
+    generate_main(CONFIG_DIR / "mtd_core_options.yaml")
+
+    # The configured value, else the OpenThread default; polling never goes below it
+    assert get_define_value("ESPHOME_OPENTHREAD_CHILD_TIMEOUT_MIN") == "960"
+    assert (
+        get_define_value("ESPHOME_OPENTHREAD_CHILD_SUPERVISION_INTERVAL_MIN") == "129"
+    )

@@ -43,6 +43,9 @@ ZWaveProxy::ZWaveProxy() { global_zwave_proxy = this; }
 
 void ZWaveProxy::setup() {
   this->setup_time_ = App.get_loop_component_start_time();
+#if ZWAVE_PROXY_UART_COUNT > 0
+  this->select_uart_();
+#endif
   this->was_connected_ = this->parent_->is_connected();
   if (this->was_connected_) {
     this->send_simple_command_(ZWAVE_COMMAND_GET_NETWORK_IDS);
@@ -97,6 +100,9 @@ void ZWaveProxy::loop() {
     this->api_connection_ = nullptr;  // Unsubscribe if disconnected
   }
 
+#if ZWAVE_PROXY_UART_COUNT > 0
+  this->select_uart_();
+#endif
   const bool connected = this->parent_->is_connected();
   if (this->was_connected_ != connected) {
     this->on_connection_changed_(connected);
@@ -179,6 +185,9 @@ void ZWaveProxy::dump_config() {
                 "  Home ID: %s",
                 this->home_id_ready_ ? format_hex_pretty_to(hex_buf, this->home_id_.data(), this->home_id_.size())
                                      : LOG_STR_LITERAL("unknown"));
+#if ZWAVE_PROXY_UART_COUNT > 0
+  ESP_LOGCONFIG(TAG, "  UARTs: %u", static_cast<unsigned>(this->uarts_.size()));
+#endif
 }
 
 void ZWaveProxy::api_connection_authenticated(api::APIConnection *conn) {
@@ -241,6 +250,27 @@ void ZWaveProxy::on_connection_changed_(bool connected) {
     this->clear_home_id_();
   }
 }
+
+#if ZWAVE_PROXY_UART_COUNT > 0
+void ZWaveProxy::select_uart_() {
+  if (this->parent_->is_connected()) {
+    return;
+  }
+  for (auto *candidate : this->uarts_) {
+    if (!candidate->is_connected()) {
+      continue;
+    }
+    // loop() never saw the old modem go away, so report it before the new one is reported
+    if (this->was_connected_) {
+      this->on_connection_changed_(false);
+    }
+    this->parent_ = candidate;
+    // A modem that was plugged in but not in use may have sent data that nothing read
+    this->discard_available();
+    return;
+  }
+}
+#endif
 
 void ZWaveProxy::retry_home_id_query_() {
   if (this->home_id_ready_) {

@@ -34,16 +34,8 @@ constexpr float BME680_GAS_LOOKUP_TABLE_2[16] PROGMEM = {0.0,  0.0, 0.0, 0.0, 0.
 // Indexed by BME680Oversampling
 PROGMEM_STRING_TABLE(OversamplingStrings, "None", "1x", "2x", "4x", "8x", "16x", "UNKNOWN");
 
-[[maybe_unused]] static const LogString *oversampling_to_str(BME680Oversampling value) {
-  return OversamplingStrings::get_log_str(static_cast<uint8_t>(value), OversamplingStrings::LAST_INDEX);
-}
-
 // Indexed by BME680IIRFilter
 PROGMEM_STRING_TABLE(IIRFilterStrings, "OFF", "1x", "3x", "7x", "15x", "31x", "63x", "127x", "UNKNOWN");
-
-[[maybe_unused]] static const LogString *iir_filter_to_str(BME680IIRFilter value) {
-  return IIRFilterStrings::get_log_str(static_cast<uint8_t>(value), IIRFilterStrings::LAST_INDEX);
-}
 
 void BME680Component::setup() {
   if (!this->setup_registers_())
@@ -70,8 +62,9 @@ bool BME680Component::setup_registers_() {
   this->calibration_.t2 = encode_value_le<int16_t>(&coeff1[1]);
   this->calibration_.t3 = coeff1[3];
 
-  this->calibration_.h1 = coeff2[2] << 4 | (coeff2[1] & 0x0F);
-  this->calibration_.h2 = encode_uint16(coeff2[0], coeff2[1]) >> 4;
+  // H1 and H2 are 12-bit values sharing byte 1: its low nibble ends H1, its high nibble ends H2
+  this->calibration_.h1 = encode_uint12(coeff2[2], low_nibble(coeff2[1]));
+  this->calibration_.h2 = encode_uint12(coeff2[0], high_nibble(coeff2[1]));
   this->calibration_.h3 = coeff2[3];
   this->calibration_.h4 = coeff2[4];
   this->calibration_.h5 = coeff2[5];
@@ -153,15 +146,18 @@ bool BME680Component::setup_registers_() {
 void BME680Component::dump_config() {
   ESP_LOGCONFIG(TAG, "BME680:");
   LOG_I2C_DEVICE(this);
-  ESP_LOGCONFIG(TAG, "  IIR Filter: %s", LOG_STR_ARG(iir_filter_to_str(this->iir_filter_)));
+  ESP_LOGCONFIG(TAG, "  IIR Filter: %s", LOG_STR_ARG(IIRFilterStrings::get_log_str(this->iir_filter_)));
   LOG_UPDATE_INTERVAL(this);
 
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
-  ESP_LOGCONFIG(TAG, "    Oversampling: %s", LOG_STR_ARG(oversampling_to_str(this->temperature_oversampling_)));
+  ESP_LOGCONFIG(TAG, "    Oversampling: %s",
+                LOG_STR_ARG(OversamplingStrings::get_log_str(this->temperature_oversampling_)));
   LOG_SENSOR("  ", "Pressure", this->pressure_sensor_);
-  ESP_LOGCONFIG(TAG, "    Oversampling: %s", LOG_STR_ARG(oversampling_to_str(this->pressure_oversampling_)));
+  ESP_LOGCONFIG(TAG, "    Oversampling: %s",
+                LOG_STR_ARG(OversamplingStrings::get_log_str(this->pressure_oversampling_)));
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
-  ESP_LOGCONFIG(TAG, "    Oversampling: %s", LOG_STR_ARG(oversampling_to_str(this->humidity_oversampling_)));
+  ESP_LOGCONFIG(TAG, "    Oversampling: %s",
+                LOG_STR_ARG(OversamplingStrings::get_log_str(this->humidity_oversampling_)));
   LOG_SENSOR("  ", "Gas Resistance", this->gas_resistance_sensor_);
   if (this->heater_duration_ == 0 || this->heater_temperature_ == 0) {
     ESP_LOGCONFIG(TAG, "  Heater OFF");
@@ -243,7 +239,7 @@ void BME680Component::read_data_() {
   uint32_t raw_pressure = encode_uint24(data[2], data[3], data[4]) >> 4;
   uint32_t raw_humidity = encode_uint16(data[8], data[9]);
   uint16_t raw_gas = encode_uint16(data[13], data[14]) >> 6;
-  uint8_t gas_range = data[14] & 0x0F;
+  uint8_t gas_range = low_nibble(data[14]);
 
   float temperature = this->calc_temperature_(raw_temperature);
   float pressure = this->calc_pressure_(raw_pressure);

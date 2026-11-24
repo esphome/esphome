@@ -53,6 +53,17 @@ def test_adafruit_ble_config_builds_ota_component(
 ) -> None:
     main_cpp = generate_main(component_config_path("adafruit_ble.yaml"))
     assert "adafruit_ble::OTAComponent" in main_cpp
+    assert "USE_ADAFRUIT_BLE_TRIGGER" in {d.name for d in CORE.defines}
+
+
+def test_manual_entry_without_ble_server(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    main_cpp = generate_main(component_config_path("adafruit_ble_manual.yaml"))
+    assert "firmware_update->request_dfu_mode();" in main_cpp
+    assert "zephyr_ble_server" not in CORE.loaded_integrations
+    assert "USE_ADAFRUIT_BLE_TRIGGER" not in {d.name for d in CORE.defines}
 
 
 def test_requires_zephyr_ble_server(
@@ -66,27 +77,30 @@ def test_requires_zephyr_ble_server(
 def test_requires_adafruit_bootloader() -> None:
     CORE.data[KEY_ZEPHYR] = {KEY_BOOTLOADER: BOOTLOADER_MCUBOOT}
     with pytest.raises(cv.Invalid, match="requires an Adafruit bootloader"):
-        _final_validate({})
+        _final_validate({"ble_trigger": True})
 
 
 @pytest.mark.parametrize(
-    ("server", "warned"),
+    ("server", "trigger", "warned"),
     [
-        ({}, True),
-        ({"on_numeric_comparison_request": [{"then": []}]}, False),
+        ({}, True, True),
+        ({"on_numeric_comparison_request": [{"then": []}]}, True, False),
+        (None, False, False),
     ],
-    ids=["no_pairing", "pairing"],
+    ids=["no_pairing", "pairing", "manual"],
 )
 def test_warns_about_open_trigger_without_pairing(
     adafruit_ble_ota_full_config: None,
     caplog: pytest.LogCaptureFixture,
-    server: dict,
+    server: dict | None,
+    trigger: bool,
     warned: bool,
 ) -> None:
     CORE.data[KEY_ZEPHYR] = {KEY_BOOTLOADER: BOOTLOADER_ADAFRUIT_NRF52_SD140_V6}
-    fv.full_config.get()["zephyr_ble_server"] = server
+    if server is not None:
+        fv.full_config.get()["zephyr_ble_server"] = server
     with caplog.at_level(logging.WARNING):
-        _final_validate({})
+        _final_validate({"ble_trigger": trigger})
     assert ("without pairing" in caplog.text) is warned
 
 
