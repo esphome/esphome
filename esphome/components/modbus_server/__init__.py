@@ -170,16 +170,17 @@ async def to_code(config: ConfigType) -> None:
         )
     if CONF_REGISTERS in config:
         for server_register in config[CONF_REGISTERS]:
+            value_type = server_register[CONF_VALUE_TYPE]
             server_register_var = cg.new_Pvariable(
                 server_register[CONF_ID],
                 server_register[CONF_ADDRESS],
-                server_register[CONF_VALUE_TYPE],
-                TYPE_REGISTER_MAP[server_register[CONF_VALUE_TYPE]],
+                value_type,
+                TYPE_REGISTER_MAP[value_type],
             )
-            cpp_type = CPP_TYPE_REGISTER_MAP[server_register[CONF_VALUE_TYPE]]
+            cpp_type = CPP_TYPE_REGISTER_MAP[value_type]
             cg.add(
                 server_register_var.set_read_lambda(
-                    cg.TemplateArguments(cpp_type),
+                    cg.TemplateArguments(value_type),
                     await cg.process_lambda(
                         server_register[CONF_READ_LAMBDA],
                         [(cg.uint16, "address")],
@@ -190,7 +191,7 @@ async def to_code(config: ConfigType) -> None:
             if CONF_WRITE_LAMBDA in server_register:
                 cg.add(
                     server_register_var.set_write_lambda(
-                        cg.TemplateArguments(cpp_type),
+                        cg.TemplateArguments(value_type),
                         await cg.process_lambda(
                             server_register[CONF_WRITE_LAMBDA],
                             parameters=[(cg.uint16, "address"), (cpp_type, "x")],
