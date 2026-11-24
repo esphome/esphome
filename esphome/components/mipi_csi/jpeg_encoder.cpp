@@ -24,17 +24,14 @@ bool JpegEncoder::init(uint16_t width, uint16_t height, jpeg_enc_input_format_t 
     return false;
   }
 
-  // A JPEG is expected to be well under the raw frame size, and three quarters of it is the
-  // headroom Espressif's own examples use. Encoding fails outright if a frame ever exceeds it.
-  size_t requested = frame_size * 3 / 4;
-  if (requested < MIN_OUTPUT_SIZE) {
-    requested = MIN_OUTPUT_SIZE;
+  if (frame_size < MIN_OUTPUT_SIZE) {
+    frame_size = MIN_OUTPUT_SIZE;
   }
   jpeg_encode_memory_alloc_cfg_t memory_config{};
   memory_config.buffer_direction = JPEG_ENC_ALLOC_OUTPUT_BUFFER;
-  this->output_ = static_cast<uint8_t *>(jpeg_alloc_encoder_mem(requested, &memory_config, &this->output_size_));
+  this->output_ = static_cast<uint8_t *>(jpeg_alloc_encoder_mem(frame_size, &memory_config, &this->output_size_));
   if (this->output_ == nullptr) {
-    ESP_LOGE(TAG, "Failed to allocate %zu byte JPEG output buffer", requested);
+    ESP_LOGE(TAG, "Failed to allocate %zu byte JPEG output buffer", frame_size);
     return false;
   }
 
@@ -43,7 +40,6 @@ bool JpegEncoder::init(uint16_t width, uint16_t height, jpeg_enc_input_format_t 
   this->config_.src_type = input_format;
   this->config_.sub_sample = sub_sample;
   this->config_.image_quality = quality;
-  ESP_LOGD(TAG, "Encoder ready: %ux%u, quality %u, %zu byte output buffer", width, height, quality, this->output_size_);
   return true;
 }
 
