@@ -1,0 +1,28 @@
+esphome:
+  name: rmt-test
+
+esp32:
+  variant: esp32c6
+  framework:
+    type: esp-idf
+
+light:
+  - platform: esp32_rmt_led_strip
+    name: Status LEDs
+    internal: true
+    chipset: WS2812
+    channel_colors: GRB
+    pin: GPIO3
+    num_leds: 5
+    rmt_symbols: 48
+  - platform: esp32_rmt_led_strip
+    name: NeoPixel Port
+    chipset: WS2812
+    channel_colors: GRB
+    pin: GPIO2
+    num_leds: 32
+    rmt_symbols: 48
+
+# Receivers use the RX blocks, so this one does not take TX memory
+remote_receiver:
+  - pin: GPIO4

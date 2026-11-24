@@ -18,9 +18,9 @@ enum SenseAirStatus : uint8_t {
 };
 
 class SenseAirComponent final : public PollingComponent, public uart::UARTDevice {
- public:
-  void set_co2_sensor(sensor::Sensor *co2_sensor) { co2_sensor_ = co2_sensor; }
+  SUB_SENSOR(co2)
 
+ public:
   void update() override;
   void dump_config() override;
 
@@ -32,8 +32,6 @@ class SenseAirComponent final : public PollingComponent, public uart::UARTDevice
 
  protected:
   bool senseair_write_command_(const uint8_t *command, uint8_t *response, uint8_t response_length);
-
-  sensor::Sensor *co2_sensor_{nullptr};
 };
 
 }  // namespace esphome::senseair

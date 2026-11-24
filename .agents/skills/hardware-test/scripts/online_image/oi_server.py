@@ -5,7 +5,16 @@ from pathlib import Path
 import sys
 import time
 
-WWW = Path(sys.argv[1])
+WWW = Path(sys.argv[1]).resolve()
+NOT_FOUND = b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+
+
+def www_file(rel: str) -> Path | None:
+    """The file under WWW named by a request path, or None if missing or outside WWW."""
+    file = (WWW / rel).resolve()
+    return file if file.is_relative_to(WWW) and file.is_file() else None
+
+
 PORT = int(sys.argv[2])
 LOG = Path(sys.argv[3]).open("a", encoding="utf-8", buffering=1)  # noqa: SIM115
 
@@ -108,8 +117,34 @@ async def respond(path: str, req: bytes, w: asyncio.StreamWriter) -> str:
     if name == "huge":  # claims 20 MB so the JPEG buffer resize fails
         w.write(headers(ctype, [b"Content-Length: 20000000"]) + body)
         return f"claims 20000000, sent {len(body)} bytes"
-    w.write(b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
-    return "404"
+    prefix, _, rest = name.partition("_")
+    if prefix in ("half", "noclen", "chunked", "stall") and rest:
+        # 404 when the base file is missing, so a typo never passes as the misbehaviour under test
+        file = www_file(rest + "." + ext)
+    else:
+        prefix, file = "", www_file(path.lstrip("/"))
+    if file is None:
+        w.write(NOT_FOUND)
+        return "404"
+    data = file.read_bytes()
+    if prefix == "half":  # the first half of a file, Content-Length matching
+        cut = data[: len(data) // 2]
+        w.write(headers(ctype, [b"Content-Length: %d" % len(cut)]) + cut)
+        return f"half {len(cut)} of {len(data)} bytes"
+    if prefix == "noclen":  # a file without Content-Length, delimited by close
+        w.write(headers(ctype, []) + data)
+        return f"no content-length, full {len(data)} bytes"
+    if prefix == "chunked":  # a file in 1 KB chunks
+        w.write(headers(ctype, [b"Transfer-Encoding: chunked"]) + chunked(data, 1024))
+        return f"chunked full {len(data)} bytes"
+    if prefix == "stall":  # claims the full length, sends a third, holds the socket
+        part = data[: len(data) // 3]
+        w.write(headers(ctype, [b"Content-Length: %d" % len(data)]) + part)
+        await w.drain()
+        await asyncio.sleep(40)
+        return f"stalled after {len(part)} of {len(data)} bytes"
+    w.write(headers(ctype, [b"Content-Length: %d" % len(data), *tag]) + data)
+    return f"file {file.name} {len(data)} bytes"
 
 
 async def handle(r: asyncio.StreamReader, w: asyncio.StreamWriter) -> None:

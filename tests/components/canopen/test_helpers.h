@@ -1,6 +1,6 @@
 #pragma once
 
-#include "esphome/components/canopen/canopen.h"
+#include "fake_canbus.h"
 
 namespace esphome::canopen::testing {
 
@@ -20,9 +20,14 @@ class MockCANbus : public canbus::Canbus {
 
 class ProbeClient : public CANopenComponent {
  public:
-  using CANopenComponent::CANopenComponent;
-  using CANopenComponent::on_frame_;
-  void expire() { this->sent_at_ms_ -= this->response_timeout_ms_; }
+  explicit ProbeClient(canbus::Canbus *bus) : CANopenComponent(bus) { this->setup(); }
+  void on_frame_(uint32_t id, bool extended, bool rtr, const std::vector<uint8_t> &data) {
+    auto frame = make_frame(id, data);
+    frame.use_extended_id = extended;
+    frame.remote_transmission_request = rtr;
+    CANopenComponent::on_frame_(frame);
+  }
+  void expire() { this->last_ms_ -= this->response_timeout_ms_ + 1; }
 };
 
 }  // namespace esphome::canopen::testing

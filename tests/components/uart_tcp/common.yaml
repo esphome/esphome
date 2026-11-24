@@ -7,6 +7,7 @@ uart_tcp:
     uart_id: uart_bus
     role: server
     port: 502
+    timeout: 30s
     allowed_ips:
       - 192.168.1.10
       - 192.168.1.0/24

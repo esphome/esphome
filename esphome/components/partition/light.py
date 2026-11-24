@@ -35,11 +35,8 @@ def validate_from_to(value: ConfigType) -> ConfigType:
 
 
 def validate_segment(config: ConfigType) -> None:
-    fconf = fv.full_config.get()
-
     if CONF_ID in config:  # only validate addressable segments
-        path = fconf.get_path_for_id(config[CONF_ID])[:-1]
-        segment_light_config = fconf.get_config_for_path(path)
+        segment_light_config = fv.get_declaring_config(config[CONF_ID])
 
         if CONF_NUM_LEDS in segment_light_config:
             segment_len = segment_light_config[CONF_NUM_LEDS]
@@ -100,6 +97,8 @@ FINAL_VALIDATE_SCHEMA = cv.Schema(
 
 
 async def to_code(config: ConfigType) -> None:
+    cg.add_define("USE_LIGHT_PARTITION")
+
     segments = []
     for conf in config[CONF_SEGMENTS]:
         if CONF_SINGLE_LIGHT_ID in conf:

@@ -56,15 +56,12 @@ void EthernetComponent::setup() {
   // Set hostname before begin() so the LWIP netif gets it
   this->eth_->hostname(App.get_name().c_str());
 
-  // Configure static IP if set (must be done before begin())
+  // Configure static IP (must be done before begin())
 #ifdef USE_ETHERNET_MANUAL_IP
-  if (this->manual_ip_.has_value()) {
-    IPAddress ip(this->manual_ip_->static_ip);
-    IPAddress gateway(this->manual_ip_->gateway);
-    IPAddress subnet(this->manual_ip_->subnet);
-    IPAddress dns1(this->manual_ip_->dns1);
-    IPAddress dns2(this->manual_ip_->dns2);
-    this->eth_->config(ip, gateway, subnet, dns1, dns2);
+  {
+    const ManualIP manual_ip = load_manual_ip();
+    this->eth_->config(IPAddress(manual_ip.static_ip), IPAddress(manual_ip.gateway), IPAddress(manual_ip.subnet),
+                       IPAddress(manual_ip.dns1), IPAddress(manual_ip.dns2));
   }
 #endif
 
@@ -160,6 +157,7 @@ void EthernetComponent::loop() {
 #ifdef USE_ETHERNET_CONNECT_TRIGGER
         this->connect_trigger_.trigger();
 #endif
+        this->notify_connect_state_listeners_(true);
       } else if (now - this->connect_begin_ > 15000) {
         ESP_LOGW(TAG, "Connecting failed; reconnecting");
         this->start_connect_();
@@ -172,6 +170,7 @@ void EthernetComponent::loop() {
 #ifdef USE_ETHERNET_DISCONNECT_TRIGGER
         this->disconnect_trigger_.trigger();
 #endif
+        this->notify_connect_state_listeners_(false);
       } else if (!this->connected_) {
         ESP_LOGW(TAG, "Connection lost; reconnecting");
         this->state_ = EthernetComponentState::CONNECTING;
@@ -179,6 +178,7 @@ void EthernetComponent::loop() {
 #ifdef USE_ETHERNET_DISCONNECT_TRIGGER
         this->disconnect_trigger_.trigger();
 #endif
+        this->notify_connect_state_listeners_(false);
       } else {
         this->finish_connect_();
       }
@@ -290,20 +290,17 @@ void EthernetComponent::start_connect_() {
   // Hostname is already set in setup() via LwipIntf::setHostname()
 
 #ifdef USE_ETHERNET_MANUAL_IP
-  if (this->manual_ip_.has_value()) {
-    // Static IP was already configured before begin() in setup()
-    // Set DNS servers
-    LwIPLock lock;
-    if (this->manual_ip_->dns1.is_set()) {
-      ip_addr_t d;
-      d = this->manual_ip_->dns1;
-      dns_setserver(0, &d);
-    }
-    if (this->manual_ip_->dns2.is_set()) {
-      ip_addr_t d;
-      d = this->manual_ip_->dns2;
-      dns_setserver(1, &d);
-    }
+  // Static IP was already configured before begin() in setup()
+  // Set DNS servers
+  const ManualIP manual_ip = load_manual_ip();
+  LwIPLock lock;
+  if (manual_ip.dns1.is_set()) {
+    ip_addr_t d = manual_ip.dns1;
+    dns_setserver(0, &d);
+  }
+  if (manual_ip.dns2.is_set()) {
+    ip_addr_t d = manual_ip.dns2;
+    dns_setserver(1, &d);
   }
 #endif
 }

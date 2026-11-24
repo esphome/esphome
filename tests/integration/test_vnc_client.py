@@ -1,7 +1,7 @@
 """Integration test for the vnc component against a fake RFB server.
 
 One compiled device runs every step in order against one server: the first frame, request
-pacing, a reconnect after the server closes the link, a stream cut into tiny pieces, an
+pacing, input, a reconnect after the server closes the link, a stream cut into tiny pieces, an
 unknown message type that makes the client drop the link, and tiles that are skipped when sent
 again unchanged.
 
@@ -209,6 +209,20 @@ def full_request(incremental: bool) -> Message:
     }
 
 
+def tap_events(x: int, y: int) -> list[Message]:
+    return [
+        {"type": "pointer", "mask": 1, "x": x, "y": y},
+        {"type": "pointer", "mask": 0, "x": x, "y": y},
+    ]
+
+
+def key_press(keysym: int) -> list[Message]:
+    return [
+        {"type": "key", "down": True, "keysym": keysym},
+        {"type": "key", "down": False, "keysym": keysym},
+    ]
+
+
 def combine_updates(*updates: bytes) -> bytes:
     """Merge FramebufferUpdates into one, so rects built with different options share it."""
     count = sum(struct.unpack_from(">H", update, 2)[0] for update in updates)
@@ -291,6 +305,10 @@ def fill_noise(
             server.set_pixel(col, row, (rng.randrange(256), rng.randrange(256), 0))
 
 
+def inputs_since(server: FakeRfbServer, mark: int) -> list[Message]:
+    return [m for m in server.messages[mark:] if m["type"] in ("pointer", "key")]
+
+
 @pytest.mark.asyncio
 async def test_vnc_client(
     yaml_config: str,
@@ -299,7 +317,7 @@ async def test_vnc_client(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The client renders, paces and recovers from drops and bad streams."""
+    """The client renders, paces, sends input and recovers from drops and bad streams."""
     snapshot_dir = tmp_path / "snapshots"
     monkeypatch.setenv("ESPHOME_SNAPSHOT_DIR", str(snapshot_dir))
     loop = asyncio.get_running_loop()
@@ -422,6 +440,53 @@ async def test_vnc_client(
             assert request == full_request(incremental=False)
             await exchange(server, whole, log=log)
             assert_shows(await device.snapshot("refresh"), server)
+
+            # Input: the API actions send exact pointer and key events, with no scaling even
+            # though the server screen is larger than the display.
+            mark = len(server.messages)
+            for x, y in (
+                (10, 20),
+                (0, 0),
+                (DISPLAY_WIDTH - 1, DISPLAY_HEIGHT - 1),
+                (70, 55),
+                (500, 500),
+            ):
+                await device.run("tap", x=x, y=y)
+            await device.run("key", keysym=0xFF0D)
+            await device.run("type", chars="aB\n\t\b\x01 é€")
+            expected_input = [
+                *tap_events(10, 20),
+                *tap_events(0, 0),
+                *tap_events(DISPLAY_WIDTH - 1, DISPLAY_HEIGHT - 1),
+                *tap_events(70, 55),
+                *tap_events(SERVER_WIDTH - 1, SERVER_HEIGHT - 1),
+                *key_press(0xFF0D),
+                *key_press(ord("a")),
+                *key_press(ord("B")),
+                *key_press(0xFF0D),
+                *key_press(0xFF09),
+                *key_press(0xFF08),
+                *key_press(ord(" ")),
+                *key_press(0xE9),
+                *key_press(0x010020AC),
+            ]
+            await server.wait_until(
+                lambda: len(inputs_since(server, mark)) >= len(expected_input),
+                what="input events",
+            )
+            await asyncio.sleep(0.2)
+            assert inputs_since(server, mark) == expected_input
+
+            # Text longer than the send buffer is flushed on the way, not cut.
+            mark = len(server.messages)
+            long_text = "".join(chr(ord("a") + i % 26) for i in range(300))
+            await device.run("type", chars=long_text)
+            expected_input = [m for c in long_text for m in key_press(ord(c))]
+            await server.wait_until(
+                lambda: len(inputs_since(server, mark)) >= len(expected_input),
+                what="long text",
+            )
+            assert inputs_since(server, mark) == expected_input
 
             # Reconnect: the server closes the link; the client comes back after the backoff
             # and sets the session up again.

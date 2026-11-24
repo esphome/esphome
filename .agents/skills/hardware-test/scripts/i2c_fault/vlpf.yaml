@@ -1,0 +1,63 @@
+# VL53L0X behind FaultBus (faultbus.h): an interval arms one NACK every 3 s in the faultA and faultB phases.
+# Each PHASE line clears any unfired arm and logs the fired totals so far, so an.py counts fires per phase.
+esphome:
+  name: vlpf
+  build_path: build-vlpf
+  includes:
+    - faultbus.h
+  on_boot:
+    priority: 800
+    then:
+      - lambda: |-
+          static FaultBus fb(id(bus));
+          id(d)->set_i2c_bus(&fb);
+          g_fb = &fb;
+esp32:
+  board: esp32-s3-devkitc-1
+  framework:
+    type: esp-idf
+logger:
+  level: DEBUG
+  hardware_uart: USB_SERIAL_JTAG
+i2c:
+  id: bus
+  sda: GPIO8
+  scl: GPIO9
+sensor:
+  - platform: vl53l0x
+    id: d
+    name: distance
+    update_interval: 500ms
+    on_value:
+      - lambda: 'ESP_LOGI("vlt", "READ %.3f", x);'
+interval:
+  - interval: 1s
+    then:
+      - lambda: |-
+          // 20 s quiet, 40 s fault A every 3 s, 20 s quiet, 40 s fault B every 3 s, then quiet
+          uint32_t s = millis() / 1000;
+          const char *ph = s < 20 ? "quiet" : s < 60 ? "faultA" : s < 80 ? "quiet" : s < 120 ? "faultB" : "quiet";
+          static const char *last = "";
+          if (strcmp(ph, last) != 0) {
+            if (g_fb != nullptr) {
+              g_fb->arm_a = false;
+              g_fb->arm_b = false;
+              ESP_LOGI("vlt", "PHASE %s fired a=%u b=%u", ph, (unsigned) g_fb->fired_a, (unsigned) g_fb->fired_b);
+            } else {
+              ESP_LOGI("vlt", "PHASE %s", ph);
+            }
+            last = ph;
+          }
+          if (g_fb == nullptr || s % 3 != 0)
+            return;
+          if (strcmp(ph, "faultA") == 0)
+            g_fb->arm_a = true;
+          if (strcmp(ph, "faultB") == 0)
+            g_fb->arm_b = true;
+  - interval: 10s
+    then:
+      - lambda: |-
+          uint8_t v = 0;
+          bool ok = id(d)->read_byte(0xC0, &v);
+          ESP_LOGI("vlt", "PROBE %s 0x%02X fired a=%u b=%u", ok ? "ok" : "err", v,
+                   (unsigned) (g_fb != nullptr ? g_fb->fired_a : 0), (unsigned) (g_fb != nullptr ? g_fb->fired_b : 0));

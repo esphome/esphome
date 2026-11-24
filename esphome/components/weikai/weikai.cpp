@@ -4,6 +4,9 @@
 /// @details The classes declared in this file can be used by the Weikai family
 
 #include "weikai.h"
+
+#include <algorithm>
+
 #include "esphome/core/helpers.h"
 #include "esphome/core/progmem.h"
 
@@ -39,17 +42,9 @@ const char *p2s(uart::UARTParityOptions parity) {
 
 /// @brief Display a buffer in hexadecimal format (32 hex values / line) for debug
 void print_buffer(const char *tag, const uint8_t *data, size_t length, int level) {
-  char hex_buffer[100];
-  hex_buffer[(3 * 32) + 1] = 0;
-  for (size_t i = 0; i < length; i++) {
-    snprintf(&hex_buffer[3 * (i % 32)], sizeof(hex_buffer), "%02X ", data[i]);
-    if (i % 32 == 31) {
-      esp_log_printf_(level, tag, __LINE__, ESPHOME_LOG_FORMAT("   %s"), hex_buffer);
-    }
-  }
-  if (length % 32) {
-    // null terminate if incomplete line
-    hex_buffer[3 * (length % 32) + 2] = 0;
+  char hex_buffer[format_hex_pretty_size(32)];
+  for (size_t i = 0; i < length; i += 32) {
+    format_hex_pretty_to(hex_buffer, data + i, std::min<size_t>(32, length - i), ' ');
     esp_log_printf_(level, tag, __LINE__, ESPHOME_LOG_FORMAT("   %s"), hex_buffer);
   }
 }
@@ -277,7 +272,7 @@ void WeikaiChannel::reset_fifo_() {
 }
 
 void WeikaiChannel::set_line_param_() {
-  this->data_bits_ = 8;  // always equal to 8 for WeiKai (cant be changed)
+  this->data_bits_ = 8;  // always equal to 8 for WeiKai (can't be changed)
   uint8_t lcr = 0;
   if (this->stop_bits_ == 2)
     lcr |= LCR_STPL;
@@ -394,14 +389,14 @@ bool WeikaiChannel::check_channel_down_() {
 }
 
 bool WeikaiChannel::peek_byte(uint8_t *buffer) {
-  auto available = this->receive_buffer_.count();
-  if (!available)
-    xfer_fifo_to_buffer_();
-  return this->receive_buffer_.peek(*buffer);
+  if (this->receive_buffer_.empty() && this->xfer_fifo_to_buffer_() == 0)
+    return false;
+  *buffer = this->receive_buffer_.front();
+  return true;
 }
 
 size_t WeikaiChannel::available() {
-  size_t available = this->receive_buffer_.count();
+  size_t available = this->receive_buffer_.size();
   if (!available)
     available = xfer_fifo_to_buffer_();
   return available;
@@ -409,7 +404,7 @@ size_t WeikaiChannel::available() {
 
 bool WeikaiChannel::read_array(uint8_t *buffer, size_t length) {
   bool status = true;
-  auto available = this->receive_buffer_.count();
+  size_t available = this->receive_buffer_.size();
   if (length > available) {
     ESP_LOGW(TAG, "read_array: buffer underflow requested %d bytes only %d bytes available", length, available);
     length = available;
@@ -417,7 +412,8 @@ bool WeikaiChannel::read_array(uint8_t *buffer, size_t length) {
   }
   // retrieve the bytes from ring buffer
   for (size_t i = 0; i < length; i++) {
-    this->receive_buffer_.pop(buffer[i]);
+    buffer[i] = this->receive_buffer_.front();
+    this->receive_buffer_.pop();
   }
   ESP_LOGVV(TAG, "read_array(ch=%d buffer[0]=%02X, length=%d): status %s", this->channel_, *buffer, length,
             status ? LOG_STR_LITERAL("OK") : LOG_STR_LITERAL("ERROR"));
@@ -448,7 +444,7 @@ size_t WeikaiChannel::xfer_fifo_to_buffer_() {
   size_t total = 0;
   while (true) {
     size_t to_transfer = this->rx_in_fifo_();
-    size_t free = this->receive_buffer_.free();
+    size_t free = RING_BUFFER_SIZE - this->receive_buffer_.size();
     if (to_transfer == 0 || free == 0) {
       break;
     }

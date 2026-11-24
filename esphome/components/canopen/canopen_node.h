@@ -27,7 +27,7 @@ class CANopenNode {
   }
 
   bool read_sdo(uint16_t index, uint8_t subindex, SDOCallback callback, void *context) {
-    return this->parent_->read_sdo(this->node_, index, subindex, callback, context);
+    return this->parent_->read_sdo(this->node_, index, subindex, 0, callback, context);
   }
   bool write_sdo(uint16_t index, uint8_t subindex, uint32_t value, uint8_t size, SDOCallback callback = nullptr,
                  void *context = nullptr) {

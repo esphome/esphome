@@ -27,7 +27,6 @@ class FT63X6Touchscreen final : public Touchscreen, public i2c::I2CDevice {
   void set_threshold(uint8_t threshold) { this->threshold_ = threshold; }
 
  protected:
-  void hard_reset_();
   void update_touches() override;
 
   InternalGPIOPin *interrupt_pin_{nullptr};

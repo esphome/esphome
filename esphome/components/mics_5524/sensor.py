@@ -6,6 +6,7 @@ from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import sensor, voltage_sampler
 from esphome.components.adc import ATTENUATION_MODES
+from esphome.components.const import CONF_SAMPLE_INTERVAL
 from esphome.components.esp32 import get_esp32_variant
 import esphome.config_validation as cv
 from esphome.const import (
@@ -23,11 +24,9 @@ from esphome.const import (
     CONF_VOLTAGE,
     CONF_VOLTAGE_DIVIDER,
     CONF_WARMUP_TIME,
-    DEVICE_CLASS_VOLTAGE,
     ENTITY_CATEGORY_DIAGNOSTIC,
     STATE_CLASS_MEASUREMENT,
     UNIT_PARTS_PER_MILLION,
-    UNIT_VOLT,
 )
 from esphome.core import CORE
 from esphome.helpers import fnv1_hash
@@ -53,7 +52,6 @@ from . import (
     CONF_RL,
     CONF_RS_SENSOR,
     CONF_SAMPLE_COUNT,
-    CONF_SAMPLE_INTERVAL,
     CONF_VCC,
     CONF_VOLTAGE_MULTIPLIER,
     CONF_VOLTAGE_SENSOR,
@@ -365,9 +363,8 @@ CONFIG_SCHEMA = cv.All(
             ): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_CALIBRATION): CALIBRATION_SCHEMA,
             cv.Optional(CONF_VOLTAGE_SENSOR): sensor.sensor_schema(
-                unit_of_measurement=UNIT_VOLT,
+                kind=sensor.VOLTAGE,
                 accuracy_decimals=3,
-                device_class=DEVICE_CLASS_VOLTAGE,
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
             cv.Optional(CONF_RATIO_SENSOR): sensor.sensor_schema(

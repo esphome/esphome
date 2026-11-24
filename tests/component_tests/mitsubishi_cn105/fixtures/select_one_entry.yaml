@@ -1,0 +1,23 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+uart:
+  tx_pin: 17
+  rx_pin: 16
+  baud_rate: 2400
+  parity: EVEN
+
+mitsubishi_cn105:
+  id: ac
+
+select:
+  - platform: mitsubishi_cn105
+    vertical_vane_direction:
+      name: Vertical Vane
+    horizontal_vane_direction:
+      name: Horizontal Vane

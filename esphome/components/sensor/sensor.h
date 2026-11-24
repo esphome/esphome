@@ -8,6 +8,7 @@
 #include "esphome/components/sensor/filter.h"
 #endif
 
+#include <cmath>
 #include <initializer_list>
 #include <memory>
 
@@ -80,9 +81,8 @@ class Sensor : public EntityBase {
    * This may look like:
    *
    * sensor->add_filters({
-   *   LambdaFilter([&](float value) -> optional<float> { return 42/value; }),
-   *   OffsetFilter(1),
-   *   SlidingWindowMovingAverageFilter(15, 15), // average over last 15 values
+   *   new OffsetFilter([]() -> float { return 1.0f; }),
+   *   new SlidingWindowMovingAverageFilter(15, 15, 1), // average over last 15 values
    * });
    */
   void add_filters(std::initializer_list<Filter *> filters);
@@ -164,5 +164,21 @@ class Sensor : public EntityBase {
     uint8_t reserved : 5;  // Reserved for future use
   } sensor_flags_{};
 };
+
+/** Read another sensor as an input, such as the temperature a gas sensor compensates for.
+ *
+ * @return The state of `sensor` when it lies in [min, max] (both included); NAN when `sensor` is null, its
+ *         state is NAN (as it is before the first publish) or its state is out of range.
+ *         The caller decides whether to skip or fall back, and what to log.
+ */
+inline float source_value(const Sensor *sensor, float min, float max) {
+  if (sensor == nullptr)
+    return NAN;
+  const float value = sensor->state;
+  // isnan first: callers test the result with isnan, and the compiler can reuse this check
+  if (std::isnan(value) || value < min || value > max)
+    return NAN;
+  return value;
+}
 
 }  // namespace esphome::sensor

@@ -1,101 +1,85 @@
 #include "qwiic_pir.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome::qwiic_pir {
 
 ESPHOME_LOG_TAG(TAG, "qwiic_pir");
 
+static constexpr uint8_t REG_CHIP_ID = 0x00;
+static constexpr uint8_t REG_EVENT_STATUS = 0x03;
+static constexpr uint8_t REG_DEBOUNCE_TIME = 0x05;  // milliseconds, 16 bits little endian
+
+static constexpr uint8_t DEVICE_ID = 0x72;
+
+// REG_EVENT_STATUS bits
+static constexpr uint8_t EVENT_RAW_READING = 0x01;      // raw state of the PIR sensor
+static constexpr uint8_t EVENT_AVAILABLE = 0x02;        // a debounced object was detected or removed
+static constexpr uint8_t EVENT_OBJECT_REMOVED = 0x04;   // a debounced object is no longer detected
+static constexpr uint8_t EVENT_OBJECT_DETECTED = 0x08;  // a debounced object has been detected
+
+// Indexed by DebounceMode
+PROGMEM_STRING_TABLE(DebounceModeStrings, "RAW", "NATIVE", "HYBRID");
+
 void QwiicPIRComponent::setup() {
-  if (!this->check_chip_id(this, QWIIC_PIR_CHIP_ID, QWIIC_PIR_DEVICE_ID))
+  if (!this->check_chip_id(this, REG_CHIP_ID, DEVICE_ID))
     return;
 
-  if (!this->write_byte_16(QWIIC_PIR_DEBOUNCE_TIME, this->debounce_time_)) {
-    this->mark_failed(LOG_STR("Failed to configure debounce time"));
+  if (!this->setup_check(this->write_byte_16_le(REG_DEBOUNCE_TIME, this->debounce_time_),
+                         LOG_STR("Failed to configure debounce time")))
     return;
-  }
 
-  if (this->debounce_mode_ == NATIVE_DEBOUNCE_MODE) {
-    // Publish the starting raw state of the PIR sensor
-    // If NATIVE mode, the binary_sensor state would be unknown until a motion event
-    if (!this->read_byte(QWIIC_PIR_EVENT_STATUS, &this->event_register_.reg)) {
-      this->mark_failed(LOG_STR("Failed to read initial state"));
+  if (this->debounce_mode_ == DebounceMode::DEBOUNCE_MODE_NATIVE) {
+    // NATIVE only publishes on motion events, so start from the raw state
+    uint8_t event;
+    if (!this->setup_check(this->read_byte(REG_EVENT_STATUS, &event), LOG_STR("Failed to read initial state")))
       return;
-    }
-
-    this->publish_state(this->event_register_.raw_reading);
+    this->publish_state((event & EVENT_RAW_READING) != 0);
   }
 }
 
 void QwiicPIRComponent::loop() {
-  // Read Event Register
-  if (!this->read_byte(QWIIC_PIR_EVENT_STATUS, &this->event_register_.reg)) {
-    ESP_LOGW(TAG, ESP_LOG_MSG_COMM_FAIL);
+  uint8_t event;
+  if (!this->status_comm_check(this->read_byte(REG_EVENT_STATUS, &event)))
     return;
+
+  switch (this->debounce_mode_) {
+    case DebounceMode::DEBOUNCE_MODE_HYBRID:
+      // The device debounces for 1 ms and ESPHome filters do the rest; any event means motion since the last loop
+      this->publish_state((event & (EVENT_RAW_READING | EVENT_AVAILABLE)) != 0);
+      break;
+    case DebounceMode::DEBOUNCE_MODE_NATIVE:
+      // The device's own debounce, as in SparkFun's Example2_PrintPIRStatus; it often misses objects being removed
+      if (event & EVENT_AVAILABLE) {
+        if (event & EVENT_OBJECT_DETECTED)
+          this->publish_state(true);
+        if (event & EVENT_OBJECT_REMOVED)
+          this->publish_state(false);
+      }
+      break;
+    case DebounceMode::DEBOUNCE_MODE_RAW:
+      // Can miss a very short detection when the loop is slow
+      this->publish_state((event & EVENT_RAW_READING) != 0);
+      break;
   }
 
-  if (this->debounce_mode_ == HYBRID_DEBOUNCE_MODE) {
-    // Use a combination of the raw sensor reading and the device's event detection to determine state
-    //  - The device is hardcoded to use a debounce time of 1 ms in this mode
-    //  - Any event, even if it is object_removed, implies motion was active since the last loop, so publish true
-    //  - Use ESPHome's built-in filters for debouncing
-    this->publish_state(this->event_register_.raw_reading || this->event_register_.event_available);
-
-    if (this->event_register_.event_available) {
-      this->clear_events_();
-    }
-  } else if (this->debounce_mode_ == NATIVE_DEBOUNCE_MODE) {
-    // Uses the device's firmware to debounce the signal
-    //  - Follows the logic of SparkFun's example implementation:
-    //    https://github.com/sparkfun/SparkFun_Qwiic_PIR_Arduino_Library/blob/master/examples/Example2_PrintPIRStatus/Example2_PrintPIRStatus.ino
-    //    (accessed July 2023)
-    //  - Is unreliable at detecting an object being removed, especially at debounce rates even slightly large
-    if (this->event_register_.event_available) {
-      // If an object is detected, publish true
-      if (this->event_register_.object_detected)
-        this->publish_state(true);
-
-      // If an object has been removed, publish false
-      if (this->event_register_.object_removed)
-        this->publish_state(false);
-
-      this->clear_events_();
-    }
-  } else if (this->debounce_mode_ == RAW_DEBOUNCE_MODE) {
-    // Publishes the raw PIR sensor reading with no further logic
-    //  - May miss a very short motion detection if the ESP's loop time is slow
-    this->publish_state(this->event_register_.raw_reading);
-  }
+  // HYBRID and NATIVE clear a handled event; the last bus step of the poll decides the warning
+  bool ok = true;
+  if (this->debounce_mode_ != DebounceMode::DEBOUNCE_MODE_RAW && (event & EVENT_AVAILABLE))
+    ok = this->write_byte(REG_EVENT_STATUS, 0x00);
+  this->status_comm_result(ok);
 }
 
 void QwiicPIRComponent::dump_config() {
-  static const char *const RAW = "RAW";
-  static const char *const NATIVE = "NATIVE";
-  static const char *const HYBRID = "HYBRID";
-
-  const char *debounce_mode_str = RAW;
-  if (this->debounce_mode_ == NATIVE_DEBOUNCE_MODE) {
-    debounce_mode_str = NATIVE;
-  } else if (this->debounce_mode_ == HYBRID_DEBOUNCE_MODE) {
-    debounce_mode_str = HYBRID;
-  }
-
   ESP_LOGCONFIG(TAG,
                 "Qwiic PIR:\n"
                 "  Debounce Mode: %s",
-                debounce_mode_str);
-  if (this->debounce_mode_ == NATIVE_DEBOUNCE_MODE) {
+                LOG_STR_ARG(DebounceModeStrings::get_log_str(this->debounce_mode_, 0)));
+  if (this->debounce_mode_ == DebounceMode::DEBOUNCE_MODE_NATIVE) {
     ESP_LOGCONFIG(TAG, "  Debounce Time: %ums", this->debounce_time_);
   }
-
   LOG_I2C_DEVICE(this);
   LOG_BINARY_SENSOR("  ", "Binary Sensor", this);
-}
-
-void QwiicPIRComponent::clear_events_() {
-  // Clear event status register
-  if (!this->write_byte(QWIIC_PIR_EVENT_STATUS, 0x00)) {
-    ESP_LOGW(TAG, "Failed to clear events");
-  }
 }
 
 }  // namespace esphome::qwiic_pir

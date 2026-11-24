@@ -37,7 +37,7 @@ static_assert(StateClassStrings::COUNT == STATE_CLASS_LAST + 1, "StateClassStrin
 
 const LogString *state_class_to_string(StateClass state_class) {
   // Fallback to index 0 (empty string for STATE_CLASS_NONE) if out of range
-  return StateClassStrings::get_log_str(static_cast<uint8_t>(state_class), 0);
+  return StateClassStrings::get_log_str(state_class, 0);
 }
 
 Sensor::Sensor() : state(NAN) {}
@@ -83,18 +83,14 @@ void Sensor::publish_state(float state) {
 
 #ifdef USE_SENSOR_FILTER
 void Sensor::add_filter(Filter *filter) {
-  // inefficient, but only happens once on every sensor setup and nobody's going to have massive amounts of
-  // filters
   ESP_LOGVV(TAG, "Sensor(%p)::add_filter(%p)", this, filter);
+  // Link the new filter before the chain can reach it
+  filter->initialize(this, nullptr);
   if (this->filter_list_ == nullptr) {
     this->filter_list_ = filter;
   } else {
-    Filter *last_filter = this->filter_list_;
-    while (last_filter->next_ != nullptr)
-      last_filter = last_filter->next_;
-    last_filter->initialize(this, filter);
+    this->filter_list_->chain_last_()->initialize(this, filter);
   }
-  filter->initialize(this, nullptr);
 }
 void Sensor::add_filters(std::initializer_list<Filter *> filters) {
   for (Filter *filter : filters) {

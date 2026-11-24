@@ -258,15 +258,15 @@ void CiA402Drive::send_step_(const Step &step) {
   this->pending_step_ = step;
   this->pending_ = true;
   this->last_request_ms_ = App.get_loop_component_start_time();
-  const bool accepted = step.kind == StepKind::STEP_KIND_WRITE
-                            ? this->write_sdo(step.index, step.subindex, step.value, step.size, on_result, this)
-                            : this->read_sdo(step.index, step.subindex, on_result, this);
-  if (!accepted)
-    this->process_result_(canopen::SDOResult::SDO_RESULT_REJECTED, 0, 0);
+  if (step.kind == StepKind::STEP_KIND_WRITE) {
+    this->write_sdo(step.index, step.subindex, step.value, step.size, on_result, this);
+  } else {
+    this->read_sdo(step.index, step.subindex, on_result, this);
+  }
 }
 
-void CiA402Drive::on_result(void *context, canopen::SDOResult result, uint32_t value, uint8_t size) {
-  static_cast<CiA402Drive *>(context)->process_result_(result, value, size);
+void CiA402Drive::on_result(void *context, const canopen::SDOReply &reply) {
+  static_cast<CiA402Drive *>(context)->process_result_(reply.result, reply.value, reply.size);
 }
 
 void CiA402Drive::received_value(uint16_t index, uint32_t value) {

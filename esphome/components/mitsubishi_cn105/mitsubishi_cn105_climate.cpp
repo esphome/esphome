@@ -50,6 +50,31 @@ static constexpr std::optional<Left> reverse_map_lookup(const std::array<std::pa
   return key.has_value() ? reverse_map_lookup(map, *key) : std::nullopt;
 }
 
+static constexpr climate::ClimateAction resolve_climate_action(climate::ClimateMode mode,
+                                                               const MitsubishiCN105::Status &status,
+                                                               MitsubishiCN105::RunDirection direction) {
+  if (!status.power_on) {
+    return climate::CLIMATE_ACTION_OFF;
+  }
+  if (mode == climate::CLIMATE_MODE_FAN_ONLY) {
+    return climate::CLIMATE_ACTION_FAN;
+  }
+  if (!status.operating) {
+    return climate::CLIMATE_ACTION_IDLE;
+  }
+  if (mode == climate::CLIMATE_MODE_DRY) {
+    return climate::CLIMATE_ACTION_DRYING;
+  }
+  switch (direction) {
+    case MitsubishiCN105::RunDirection::RUN_DIRECTION_HEATING:
+      return climate::CLIMATE_ACTION_HEATING;
+    case MitsubishiCN105::RunDirection::RUN_DIRECTION_COOLING:
+      return climate::CLIMATE_ACTION_COOLING;
+    default:
+      return climate::CLIMATE_ACTION_IDLE;
+  }
+}
+
 void MitsubishiCN105Climate::dump_config() {
   LOG_CLIMATE("", "Mitsubishi CN105 Climate", this);
   ESP_LOGCONFIG(TAG, "  Temperature unit: °%c",
@@ -83,7 +108,7 @@ climate::ClimateTraits MitsubishiCN105Climate::traits() {
   traits.set_visual_temperature_step(1.0f);
 
   if (this->parent_->is_telemetry_polling_enabled()) {
-    traits.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE);
+    traits.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE | climate::CLIMATE_SUPPORTS_ACTION);
     traits.set_visual_current_temperature_step(use_fahrenheit ? 1.0f : 0.5f);
   }
 
@@ -125,16 +150,17 @@ void MitsubishiCN105Climate::apply_values_() {
 
   this->target_temperature = this->parent_->get_temperature_mapping().from_mitsubishi(status.target_temperature);
 
-  if (this->parent_->is_telemetry_polling_enabled()) {
-    this->current_temperature = this->parent_->get_temperature_mapping().from_mitsubishi(status.room_temperature);
-  }
-
   if (status.power_on) {
     if (!map_lookup(MODE_MAP, status.mode, this->mode)) {
       ESP_LOGD(TAG, "Unable to map mode");
     }
   } else {
     this->mode = climate::CLIMATE_MODE_OFF;
+  }
+
+  if (this->parent_->is_telemetry_polling_enabled()) {
+    this->current_temperature = this->parent_->get_temperature_mapping().from_mitsubishi(status.room_temperature);
+    this->action = resolve_climate_action(this->mode, status, this->parent_->run_direction());
   }
 
   climate::ClimateFanMode fan_mode;

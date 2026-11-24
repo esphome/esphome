@@ -11,13 +11,13 @@ from .. import (
     CONF_SUBINDEX,
     SDO_SCHEMA,
     CANopenComponent,
-    canopen_ns,
+    ns,
 )
 
 DEPENDENCIES = ["canopen"]
 
-CANopenSensor = canopen_ns.class_("CANopenSensor", sensor.Sensor, cg.PollingComponent)
-ValueType = canopen_ns.enum("ValueType", is_class=True)
+CANopenSensor = ns.class_("CANopenSensor", sensor.Sensor, cg.PollingComponent)
+ValueType = ns.enum("ValueType", is_class=True)
 VALUE_TYPES = ValueType.options(
     "UINT8",
     "INT8",

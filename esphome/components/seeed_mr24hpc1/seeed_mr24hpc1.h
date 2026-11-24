@@ -79,18 +79,8 @@ enum PollingState {
 enum OutputSwitch {
   OUTPUT_SWITCH_INIT,
   OUTPUT_SWITCH_ON,
-  OUTPUT_SWTICH_OFF,
+  OUTPUT_SWITCH_OFF,
 };
-
-static const char *const S_SCENE_STR[5] = {"None", "Living Room", "Bedroom", "Washroom", "Area Detection"};
-static const bool S_SOMEONE_EXISTS_STR[2] = {false, true};
-static const char *const S_MOTION_STATUS_STR[3] = {"None", "Motionless", "Active"};
-static const char *const S_KEEP_AWAY_STR[3] = {"None", "Close", "Away"};
-static const char *const S_UNMANNED_TIME_STR[9] = {"None", "10s",   "30s",   "1min", "2min",
-                                                   "5min", "10min", "30min", "60min"};
-static const char *const S_BOUNDARY_STR[10] = {"0.5m", "1.0m", "1.5m", "2.0m", "2.5m",
-                                               "3.0m", "3.5m", "4.0m", "4.5m", "5.0m"};                // uint: m
-static const float S_PRESENCE_OF_DETECTION_RANGE_STR[7] = {0.0f, 0.5f, 1.0f, 1.5f, 2.0f, 2.5f, 3.0f};  // uint: m
 
 class MR24HPC1Component final : public Component,
                                 public uart::UARTDevice {  // The class name must be the name defined by text_sensor.py
@@ -99,7 +89,7 @@ class MR24HPC1Component final : public Component,
   SUB_TEXT_SENSOR(product_model)
   SUB_TEXT_SENSOR(product_id)
   SUB_TEXT_SENSOR(hardware_model)
-  SUB_TEXT_SENSOR(firware_version)
+  SUB_TEXT_SENSOR(firmware_version)
   SUB_TEXT_SENSOR(keep_away)
   SUB_TEXT_SENSOR(motion_status)
   SUB_TEXT_SENSOR(custom_mode_end)

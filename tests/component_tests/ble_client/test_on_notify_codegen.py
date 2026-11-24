@@ -1,0 +1,33 @@
+"""Codegen tests for the ble_client sensor and text sensor on_notify wiring."""
+
+from collections.abc import Callable
+from pathlib import Path
+import re
+
+from tests.component_tests.helpers import get_define_value
+
+
+def test_on_notify_wiring(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """on_notify turns notifications on and feeds each sensor's own automation (float / std::string)."""
+    main_cpp = generate_main(component_config_path("on_notify.yaml"))
+
+    assert "notify_sensor->set_enable_notify(true);" in main_cpp
+    assert "notify_text->set_enable_notify(true);" in main_cpp
+    # Synchronous automations are generated functions registered directly
+    for sensor, value_type in (
+        ("notify_sensor", "float"),
+        ("notify_text", "std::string"),
+    ):
+        match = re.search(rf"{sensor}->add_on_notify_callback\((\w+)\);", main_cpp)
+        assert match is not None, sensor
+        assert (
+            f"static void {match[1]}(const std::remove_cvref_t<{value_type}> & x)"
+            in main_cpp
+        )
+    # No trigger node is registered on the client for on_notify any more.
+    assert main_cpp.count("test_blec->register_ble_node(") == 2
+    assert get_define_value("USE_BLE_SENSOR_ON_NOTIFY") is not None
+    assert get_define_value("USE_BLE_TEXT_SENSOR_ON_NOTIFY") is not None

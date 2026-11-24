@@ -1,0 +1,79 @@
+# pylint: disable=E0602
+Import("env")  # noqa
+
+import os
+import re
+import subprocess
+
+# Adds a .noinit section for the crash record (crash_handler.cpp) to the
+# BK7238 / BK7231N linker script, in ITCM after .itcm.code: ITCM survives
+# the watchdog reset and the SDK startup only copies .itcm.code there, while
+# the bootloader clears at least 128 KB of SRAM and the SDK's saved registers
+# on every boot (measured on a BK7238). The LMA stays in ITCM. BK7231T/Q/7251
+# have no ITCM region, so libretiny/__init__.py loads this for two families.
+
+_MARKER = "/* esphome .noinit */"
+_ITCM_CODE_END = re.compile(r"(\}\s*>\s*itcm\s+AT\s*>\s*flash[^\n]*\n)")
+_NOINIT_BLOCK = (
+    "\t.noinit (NOLOAD) : " + _MARKER + "\n"
+    "\t{\n"
+    "\t\t. = ALIGN(8);\n"
+    "\t\tKEEP(*(.noinit .noinit.*))\n"
+    "\t} > itcm AT> itcm\n"
+)
+
+
+def _pre_link(target, source, env):
+    build_dir = env.subst("$BUILD_DIR")
+    found = False
+    for name in os.listdir(build_dir):
+        if not name.endswith(".ld"):
+            continue
+        path = os.path.join(build_dir, name)
+        with open(path, "r", encoding="utf-8") as fh:
+            content = fh.read()
+        if _MARKER in content:
+            found = True
+            continue
+        new_content = _ITCM_CODE_END.sub(
+            lambda m: m.group(1) + _NOINIT_BLOCK, content, count=1
+        )
+        if new_content == content:
+            continue
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(new_content)
+        print("ESPHome: patched {} (.noinit section)".format(name))
+        found = True
+    if not found:
+        raise RuntimeError(
+            "ESPHome: no .ld in {} got the .noinit section; the crash record "
+            "would not survive a reboot. Update the regex in "
+            "patch_noinit.py.script for this LibreTiny version.".format(build_dir)
+        )
+
+
+ITCM_START = 0x003F0000
+ITCM_END = 0x00400000
+
+
+def _post_link(target, source, env):
+    """Fail unless the linked ELF keeps .noinit in ITCM (stale marker, renamed script)."""
+    elf = env.subst("$BUILD_DIR/${PROGNAME}.elf")
+    objdump = re.sub(r"(gcc-)?nm$", "objdump", env.subst("$NM"))  # same toolchain prefix
+    headers = subprocess.check_output([objdump, "-h", elf], text=True)
+    for line in headers.splitlines():
+        fields = line.split()
+        if len(fields) > 3 and fields[1] == ".noinit":
+            vma = int(fields[3], 16)
+            if ITCM_START <= vma < ITCM_END:
+                return
+            raise RuntimeError(
+                "ESPHome: .noinit landed at 0x{:08x}, outside ITCM; the crash "
+                "record would not survive a reboot.".format(vma)
+            )
+    raise RuntimeError("ESPHome: the linked ELF has no .noinit section.")
+
+
+# LibreTiny renders the .ld into $BUILD_DIR after this script loads; patch at link time.
+env.AddPreAction("$BUILD_DIR/${PROGNAME}.elf", _pre_link)
+env.AddPostAction("$BUILD_DIR/${PROGNAME}.elf", _post_link)

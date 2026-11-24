@@ -20,6 +20,9 @@ enum HDC302XPowerMode : uint8_t {
  https://www.ti.com/lit/ds/symlink/hdc3020.pdf
  */
 class HDC302XComponent final : public PollingComponent, public i2c::I2CDevice {
+  SUB_SENSOR(temperature)
+  SUB_SENSOR(humidity)
+
  public:
   void setup() override;
   void dump_config() override;
@@ -28,15 +31,9 @@ class HDC302XComponent final : public PollingComponent, public i2c::I2CDevice {
   void start_heater(uint16_t power, uint32_t duration_ms);
   void stop_heater();
 
-  void set_temp_sensor(sensor::Sensor *temp_sensor) { this->temp_sensor_ = temp_sensor; }
-  void set_humidity_sensor(sensor::Sensor *humidity_sensor) { this->humidity_sensor_ = humidity_sensor; }
-
   void set_power_mode(HDC302XPowerMode power_mode) { this->power_mode_ = power_mode; }
 
  protected:
-  sensor::Sensor *temp_sensor_{nullptr};
-  sensor::Sensor *humidity_sensor_{nullptr};
-
   HDC302XPowerMode power_mode_{HDC302XPowerMode::HIGH_ACCURACY};
   bool heater_active_{false};
 

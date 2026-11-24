@@ -224,8 +224,7 @@ void EmonTx::parse_version_line_(const char *line, size_t len) {
   ESP_LOGI(TAG, "emonTx firmware version: %.*s", static_cast<int>(end - version), version);
   this->version_frames_left_ = 0;
 #ifdef USE_EMONTX_VERSION_TEXT_SENSOR
-  if (this->version_text_sensor_ != nullptr)
-    this->version_text_sensor_->publish_state(version, end - version);
+  PUBLISH_STATE(this->version_text_sensor_, version, end - version);
 #endif
 
   bool supported = supports_lock(version, end);
@@ -259,6 +258,7 @@ void EmonTx::dump_config() {
   ESP_LOGCONFIG(TAG, "  Registered sensors: %zu", this->sensors_.size());
   for (const auto &sensor_pair : this->sensors_) {
     ESP_LOGCONFIG(TAG, "    Sensor: %s", sensor_pair.first);
+    LOG_SENSOR("  ", "EmonTx Sensor", sensor_pair.second);
   }
 #else
   ESP_LOGCONFIG(TAG, "  Sensor support: DISABLED");

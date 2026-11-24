@@ -1,6 +1,8 @@
 #pragma once
 
+#include <algorithm>
 #include <concepts>
+#include <span>
 #include <utility>
 #include <vector>
 
@@ -12,24 +14,49 @@
 
 namespace esphome::remote_base {
 
+/// Received bytes of a protocol with a fixed maximum length, stored without the heap.
+/// Converts to std::vector, so lambdas that pass x.data to a function taking a std::vector keep working.
+template<size_t N> class RemoteBytes : public StaticVector<uint8_t, N> {
+ public:
+  using StaticVector<uint8_t, N>::StaticVector;
+  RemoteBytes(const std::vector<uint8_t> &data)  // NOLINT(google-explicit-constructor)
+      : StaticVector<uint8_t, N>(data.begin(), data.end()) {}
+  operator std::vector<uint8_t>() const { return {this->begin(), this->end()}; }  // NOLINT(google-explicit-constructor)
+  uint8_t front() const { return (*this)[0]; }
+  uint8_t back() const { return (*this)[this->size() - 1]; }
+  bool operator==(const RemoteBytes &rhs) const {
+    return std::equal(this->begin(), this->end(), rhs.begin(), rhs.end());
+  }
+  // Without this a longer vector would be cut to N bytes by the conversion above and could compare equal
+  bool operator==(const std::vector<uint8_t> &rhs) const {
+    return std::equal(this->begin(), this->end(), rhs.begin(), rhs.end());
+  }
+};
+
 enum ToleranceMode : uint8_t {
   TOLERANCE_MODE_PERCENTAGE = 0,
   TOLERANCE_MODE_TIME = 1,
 };
 
 using RawTimings = std::vector<int32_t>;
+/// A received frame's timings, viewed in whatever buffer the receiver keeps them.
+using RawTimingsView = std::span<const int32_t>;
 
 enum class BitOrder : uint8_t {
   BIT_ORDER_LSB_FIRST,
   BIT_ORDER_MSB_FIRST,
 };
 
-/// A bit is bit_mark followed by one_space or zero_space.
+/// A bit is a mark (one_mark or zero_mark, both bit_mark unless set) and a space (one_space or zero_space),
+/// mark first unless space_first.
 struct BitTimings {
-  uint32_t bit_mark;
+  uint32_t bit_mark{0};
   uint32_t one_space;
   uint32_t zero_space;
   BitOrder bit_order{BitOrder::BIT_ORDER_LSB_FIRST};
+  uint32_t one_mark{bit_mark};
+  uint32_t zero_mark{bit_mark};
+  bool space_first{false};
 };
 
 class RemoteTransmitData {
@@ -43,10 +70,17 @@ class RemoteTransmitData {
   void reserve(uint32_t len) { this->data_.reserve(len); }
   /// One item per bit of each byte.
   template<BitTimings T> void item_bytes(const uint8_t *bytes, size_t len) {
+    static_assert(T.one_mark != 0 && T.zero_mark != 0, "set bit_mark, or one_mark and zero_mark");
     for (size_t i = 0; i < len; i++) {
       for (uint8_t bit = 0; bit < 8; bit++) {
         const uint8_t mask = T.bit_order == BitOrder::BIT_ORDER_MSB_FIRST ? (0x80 >> bit) : (1 << bit);
-        this->item(T.bit_mark, (bytes[i] & mask) ? T.one_space : T.zero_space);
+        const bool one = (bytes[i] & mask) != 0;
+        if constexpr (T.space_first) {
+          this->space(one ? T.one_space : T.zero_space);
+          this->mark(one ? T.one_mark : T.zero_mark);
+        } else {
+          this->item(one ? T.one_mark : T.zero_mark, one ? T.one_space : T.zero_space);
+        }
       }
     }
   }
@@ -74,12 +108,25 @@ class RemoteTransmitData {
   uint32_t carrier_frequency_{0};
 };
 
+/// The lengths that match one timing within the tolerance. A hot loop computes it once instead of at every
+/// timing; matches_mark() accepts exactly what peek_mark() does.
+struct TimingRange {
+  int32_t min;
+  int32_t max;
+  bool matches_mark(int32_t value) const { return this->min <= value && value <= this->max; }
+};
+
 class RemoteReceiveData {
  public:
-  explicit RemoteReceiveData(const RawTimings &data, uint32_t tolerance, ToleranceMode tolerance_mode)
+  /// The timings are not copied: they must outlive this object.
+  explicit RemoteReceiveData(RawTimingsView data, uint32_t tolerance, ToleranceMode tolerance_mode)
       : data_(data), index_(0), tolerance_(tolerance), tolerance_mode_(tolerance_mode) {}
+  explicit RemoteReceiveData(const RawTimings &data, uint32_t tolerance, ToleranceMode tolerance_mode)
+      : data_(data), vector_(&data), index_(0), tolerance_(tolerance), tolerance_mode_(tolerance_mode) {}
 
-  const RawTimings &get_raw_data() const { return this->data_; }
+  RawTimingsView get_raw_data() const { return this->data_; }
+  /// The timings as a vector when they were given as one, else nullptr.
+  const RawTimings *get_raw_vector() const { return this->vector_; }
   uint32_t get_index() const { return index_; }
   int32_t operator[](uint32_t index) const { return this->data_[index]; }
   int32_t size() const { return this->data_.size(); }
@@ -91,6 +138,7 @@ class RemoteReceiveData {
   bool peek_space(uint32_t length, uint32_t offset = 0) const;
   bool peek_space_at_least(uint32_t length, uint32_t offset = 0) const;
   bool peek_space_at_most(uint32_t length, uint32_t offset = 0) const;
+  TimingRange timing_range(uint32_t length) const;
   bool peek_item(uint32_t mark, uint32_t space, uint32_t offset = 0) const {
     return this->peek_space(space, offset + 1) && this->peek_mark(mark, offset);
   }
@@ -99,21 +147,12 @@ class RemoteReceiveData {
   bool expect_space(uint32_t length);
   bool expect_item(uint32_t mark, uint32_t space);
   bool expect_pulse_with_gap(uint32_t mark, uint32_t space);
-  /// False at the first item matching neither space, leaving it unread.
-  template<BitTimings T> bool expect_bytes(uint8_t *out, size_t len) {
-    for (size_t i = 0; i < len; i++) {
-      uint8_t byte = 0;
-      for (uint8_t bit = 0; bit < 8; bit++) {
-        const uint8_t mask = T.bit_order == BitOrder::BIT_ORDER_MSB_FIRST ? (0x80 >> bit) : (1 << bit);
-        if (this->expect_item(T.bit_mark, T.one_space)) {
-          byte |= mask;
-        } else if (!this->expect_item(T.bit_mark, T.zero_space)) {
-          return false;
-        }
-      }
-      out[i] = byte;
-    }
-    return true;
+  /// False at the first bit matching neither the one nor the zero timings, leaving it unread.
+  template<BitTimings T> bool expect_bytes(uint8_t *out, size_t len) { return this->expect_bytes_<T, false>(out, len); }
+  /// As expect_bytes, but the last bit is only its mark: its space runs into the gap after the frame.
+  template<BitTimings T> bool expect_bytes_last_mark(uint8_t *out, size_t len) {
+    static_assert(!T.space_first && T.one_mark != T.zero_mark, "the last bit must be told apart by its mark");
+    return this->expect_bytes_<T, true>(out, len);
   }
   void advance(uint32_t amount = 1) { this->index_ += amount; }
   void reset() { this->index_ = 0; }
@@ -126,6 +165,39 @@ class RemoteReceiveData {
   ToleranceMode get_tolerance_mode() { return this->tolerance_mode_; }
 
  protected:
+  template<BitTimings T, bool LAST_MARK> bool expect_bytes_(uint8_t *out, size_t len) {
+    static_assert(T.one_mark != 0 && T.zero_mark != 0, "set bit_mark, or one_mark and zero_mark");
+    for (size_t i = 0; i < len; i++) {
+      uint8_t byte = 0;
+      for (uint8_t bit = 0; bit < 8; bit++) {
+        const uint8_t mask = T.bit_order == BitOrder::BIT_ORDER_MSB_FIRST ? (0x80 >> bit) : (1 << bit);
+        if (LAST_MARK && i + 1 == len && bit == 7) {
+          if (this->expect_mark(T.one_mark)) {
+            byte |= mask;
+          } else if (!this->expect_mark(T.zero_mark)) {
+            return false;
+          }
+        } else if (this->expect_bit_<T>(T.one_mark, T.one_space)) {
+          byte |= mask;
+        } else if (!this->expect_bit_<T>(T.zero_mark, T.zero_space)) {
+          return false;
+        }
+      }
+      out[i] = byte;
+    }
+    return true;
+  }
+  /// One bit in T's order, consumed only when both its parts match.
+  template<BitTimings T> bool expect_bit_(uint32_t mark, uint32_t space) {
+    if constexpr (T.space_first) {
+      if (!this->peek_space(space) || !this->peek_mark(mark, 1))
+        return false;
+      this->advance(2);
+      return true;
+    } else {
+      return this->expect_item(mark, space);
+    }
+  }
   int32_t lower_bound_(uint32_t length) const {
     if (this->tolerance_mode_ == TOLERANCE_MODE_TIME) {
       return int32_t(length - this->tolerance_);
@@ -143,7 +215,8 @@ class RemoteReceiveData {
     return 0;
   }
 
-  const RawTimings &data_;
+  RawTimingsView data_;
+  const RawTimings *vector_{nullptr};
   uint32_t index_;
   uint32_t tolerance_;
   ToleranceMode tolerance_mode_;
@@ -302,8 +375,7 @@ class RemoteReceiverDumperBase {
 class RemoteReceiverBase : public RemoteComponentBase {
  public:
   RemoteReceiverBase(InternalGPIOPin *pin) : RemoteComponentBase(pin) {}
-  // Slots are counted at code generation; without one the call fails at compile time with the same message
-  // the runtime check logs
+  // Listener slots are counted at code generation; without one the call fails at compile time
 #ifdef REMOTE_BASE_LISTENER_COUNT
   void register_listener(RemoteReceiverListener *listener);
 #else
@@ -312,6 +384,9 @@ class RemoteReceiverBase : public RemoteComponentBase {
   }
 #endif
 #ifdef REMOTE_BASE_DUMPER_COUNT
+  /// Codegen only (remote_base.add_dumper): the table must outlive this receiver.
+  void set_dumpers(RemoteReceiverDumperBase *const *dumpers, size_t count);
+  /// For C++ registration, also from setup(); each call copies the list to the heap.
   void register_dumper(RemoteReceiverDumperBase *dumper);
 #else
   template<typename T> void register_dumper(T *) {
@@ -324,14 +399,27 @@ class RemoteReceiverBase : public RemoteComponentBase {
   }
 
  protected:
-  void call_listeners_dumpers_();
+#ifdef REMOTE_BASE_DUMPER_COUNT
+  void warn_extra_secondaries_();
+#endif
+  void call_listeners_dumpers_() {
+    this->dispatch_(RemoteReceiveData(this->temp_, this->tolerance_, this->tolerance_mode_));
+  }
+  /// Dispatch a frame held in the receiver's own buffer, without copying it into temp_.
+  void call_listeners_dumpers_(RawTimingsView data) {
+    this->dispatch_(RemoteReceiveData(data, this->tolerance_, this->tolerance_mode_));
+  }
+  /// A vector goes through call_listeners_dumpers_() (temp_), which on_raw passes on without a copy.
+  void call_listeners_dumpers_(const RawTimings &data) = delete;
+  /// Each listener and dumper gets its own copy of src, starting at index 0.
+  void dispatch_(const RemoteReceiveData &src);
 
 #ifdef REMOTE_BASE_LISTENER_COUNT
   StaticVector<RemoteReceiverListener *, REMOTE_BASE_LISTENER_COUNT> listeners_;
 #endif
 #ifdef REMOTE_BASE_DUMPER_COUNT
-  StaticVector<RemoteReceiverDumperBase *, REMOTE_BASE_DUMPER_COUNT> dumpers_;
-  RemoteReceiverDumperBase *secondary_dumper_{nullptr};  // runs only when no primary dumper matched
+  // The first secondary dumper runs only when no primary dumper matched
+  ConstVector<RemoteReceiverDumperBase *, true> dumpers_;
 #endif
   RawTimings temp_;
   uint32_t tolerance_{25};

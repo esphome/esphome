@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import binary_sensor
+from esphome.components.const import CONF_CONNECTED
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_FILTERS,
@@ -7,25 +8,21 @@ from esphome.const import (
     CONF_HAS_STILL_TARGET,
     CONF_HAS_TARGET,
     CONF_ID,
+    DEVICE_CLASS_CONNECTIVITY,
     DEVICE_CLASS_MOTION,
     DEVICE_CLASS_OCCUPANCY,
+    ENTITY_CATEGORY_DIAGNOSTIC,
+    ICON_MOTION_SENSOR,
 )
 from esphome.types import ConfigType
 
-from . import (  # noqa: F401  pylint: disable=unused-import
-    CONF_LD2450_ID,
-    CONF_POLYGON_ZONE_ID,
-    CONF_POLYGON_ZONES,
-    FILTER_SOURCE_FILES,
-    LD2450Component,
-)
+from . import CONF_LD2450_ID, CONF_POLYGON_ZONE_ID, CONF_POLYGON_ZONES, LD2450Component
 from .text import PolygonZone
 
 DEPENDENCIES = ["ld2450"]
 
 ICON_MEDITATION = "mdi:meditation"
 ICON_SHIELD_ACCOUNT = "mdi:shield-account"
-ICON_TARGET_ACCOUNT = "mdi:target-account"
 
 
 def _reject_filters(config: ConfigType) -> ConfigType:
@@ -50,12 +47,16 @@ CONFIG_SCHEMA = {
     cv.Optional(CONF_HAS_MOVING_TARGET): binary_sensor.binary_sensor_schema(
         device_class=DEVICE_CLASS_MOTION,
         filters=[{"settle": cv.TimePeriod(milliseconds=1000)}],
-        icon=ICON_TARGET_ACCOUNT,
+        icon=ICON_MOTION_SENSOR,
     ),
     cv.Optional(CONF_HAS_STILL_TARGET): binary_sensor.binary_sensor_schema(
         device_class=DEVICE_CLASS_OCCUPANCY,
         filters=[{"settle": cv.TimePeriod(milliseconds=1000)}],
         icon=ICON_MEDITATION,
+    ),
+    cv.Optional(CONF_CONNECTED): binary_sensor.binary_sensor_schema(
+        device_class=DEVICE_CLASS_CONNECTIVITY,
+        entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
     ),
     cv.Optional(CONF_POLYGON_ZONES): cv.ensure_list(
         binary_sensor.binary_sensor_schema(
@@ -73,6 +74,7 @@ CONFIG_SCHEMA = {
 async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_LD2450_ID])
     binary_sensors = binary_sensor.sub_binary_sensors(config)
+    await binary_sensors(CONF_CONNECTED, hub.set_connected_binary_sensor)
     await binary_sensors(CONF_HAS_TARGET, hub.set_target_binary_sensor)
     await binary_sensors(CONF_HAS_MOVING_TARGET, hub.set_moving_target_binary_sensor)
     await binary_sensors(CONF_HAS_STILL_TARGET, hub.set_still_target_binary_sensor)

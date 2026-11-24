@@ -19,10 +19,8 @@ static const size_t MAX_TOUCHES = 5;  // max number of possible touches reported
 static const size_t MAX_BUTTONS = 4;  // max number of buttons scanned
 
 #define ERROR_CHECK(err) \
-  if ((err) != i2c::ERROR_OK) { \
-    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL)); \
-    return; \
-  }
+  if (!this->status_comm_check((err) == i2c::ERROR_OK)) \
+    return;
 
 // Reset sequence (Goodix GT911 datasheet): INT held low while RST is released selects address 0x5D, then
 // T3 + T4 pass before INT is handed back to the chip as its interrupt output
@@ -31,8 +29,7 @@ static constexpr uint32_t RESET_SETTLE_MS = 5 + 50 + 1;
 
 void GT911Touchscreen::setup() {
   if (this->reset_pin_ != nullptr) {
-    this->reset_pin_->setup();
-    this->reset_pin_->digital_write(false);
+    setup_output_pin(this->reset_pin_, false);
     if (this->interrupt_pin_ != nullptr) {
       this->interrupt_pin_->setup();
       this->interrupt_pin_->pin_mode(gpio::FLAG_OUTPUT);
@@ -97,16 +94,12 @@ void GT911Touchscreen::setup_internal_() {
         }
       }
     }
-    if (err != i2c::ERROR_OK) {
-      this->mark_failed(LOG_STR("Calibration error"));
+    if (!this->setup_check(err == i2c::ERROR_OK, LOG_STR("Calibration error")))
       return;
-    }
   }
 
-  if (err != i2c::ERROR_OK) {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+  if (!this->setup_check(err == i2c::ERROR_OK))
     return;
-  }
   this->setup_done_ = true;
 }
 

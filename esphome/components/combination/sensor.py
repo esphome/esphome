@@ -50,7 +50,7 @@ SumCombinationComponent = combination_ns.class_(
 )
 
 CONF_COEFFICIENT = "coefficient"
-CONF_COEFFECIENT = "coeffecient"  # Deprecated, remove before 2026.12.0
+CONF_COEFFECIENT = "coeffecient"  # Removed in 2026.12.0
 CONF_ERROR = "error"
 CONF_KALMAN = "kalman"
 CONF_LINEAR = "linear"
@@ -71,19 +71,16 @@ KALMAN_SOURCE_SCHEMA = cv.Schema(
 )
 
 
-LINEAR_SOURCE_SCHEMA = cv.All(
-    cv.rename_key(
-        CONF_COEFFECIENT,
-        CONF_COEFFICIENT,
-        removed_in="2026.12.0",
-        component="combination",
-    ),
-    cv.Schema(
-        {
-            cv.Required(CONF_SOURCE): cv.use_id(sensor.Sensor),
-            cv.Required(CONF_COEFFICIENT): cv.templatable(cv.float_),
-        }
-    ),
+LINEAR_SOURCE_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_SOURCE): cv.use_id(sensor.Sensor),
+        cv.Required(CONF_COEFFICIENT): cv.templatable(cv.float_),
+        # Removed in 2026.12.0 - kept to provide helpful error message
+        cv.Optional(CONF_COEFFECIENT): cv.invalid(
+            "The misspelled 'coeffecient' option was removed in ESPHome 2026.12.0, "
+            "use 'coefficient' instead."
+        ),
+    }
 )
 
 SENSOR_ONLY_SOURCE_SCHEMA = cv.Schema(
@@ -160,11 +157,21 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
     await sensor.register_sensor(var, config)
 
-    if proces_std_dev := config.get(CONF_PROCESS_STD_DEV):
-        cg.add(var.set_process_std_dev(proces_std_dev))
+    if process_std_dev := config.get(CONF_PROCESS_STD_DEV):
+        cg.add(var.set_process_std_dev(process_std_dev))
 
     if config[CONF_TYPE] in (CONF_KALMAN, CONF_LINEAR):
-        cg.add(var.set_source_count(len(config[CONF_SOURCES])))
+        storage = cg.static_storage(
+            config[CONF_ID],
+            config[CONF_ID].type.class_("SensorSource"),
+            len(config[CONF_SOURCES]),
+        )
+        cg.add(var.set_source_storage(storage))
+    else:
+        storage = cg.static_storage(
+            config[CONF_ID], sensor.Sensor.operator("ptr"), len(config[CONF_SOURCES])
+        )
+        cg.add(var.set_sensor_storage(storage))
 
     for source_conf in config[CONF_SOURCES]:
         source = await cg.get_variable(source_conf[CONF_SOURCE])

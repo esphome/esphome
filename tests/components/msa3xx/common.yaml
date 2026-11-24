@@ -25,6 +25,9 @@ msa3xx:
   on_orientation:
     - then:
         - logger.log: "Orientation changed"
+  on_freefall:
+    - then:
+        - logger.log: "Freefall detected"
 
 sensor:
   - platform: msa3xx

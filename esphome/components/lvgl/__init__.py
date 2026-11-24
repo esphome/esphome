@@ -30,6 +30,7 @@ from esphome.components.image import (
     get_image_metadata,
 )
 from esphome.components.psram import DOMAIN as PSRAM_DOMAIN
+from esphome.components.zephyr import zephyr_add_prj_conf_min
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BUFFER_SIZE,
@@ -49,7 +50,7 @@ from esphome.const import (
 from esphome.core import CORE, ID, Lambda
 from esphome.cpp_generator import MockObj
 from esphome.final_validate import full_config
-from esphome.helpers import write_file_if_changed
+from esphome.helpers import path_define_flag, write_file_if_changed
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
 from esphome.writer import clean_build
@@ -337,16 +338,6 @@ def final_validation(config_list):
     validate_menu_pages(global_config)
 
 
-def lv_conf_path_flag(lv_conf_h_file: Path) -> str:
-    """The ``-DLV_CONF_PATH`` build flag, decoded identically by the shell
-    lexers (PlatformIO, host, ESP8266) and the quoted CMake arguments
-    (ESP-IDF, Zephyr) the build flags pass through."""
-    # forward slashes for Windows, then escape what shlex or a quoted CMake
-    # argument would not pass through literally
-    path = re.sub(r"[^\w/.:+=,-]", r"\\\g<0>", Path(lv_conf_h_file).as_posix())
-    return f'-DLV_CONF_PATH=\\"{path}\\"'
-
-
 async def to_code(configs):
     config_0 = configs[0]
     # Global configuration
@@ -371,6 +362,10 @@ async def to_code(configs):
     else:
         df.add_define("LV_DRAW_BUF_ALIGN", "1")
         cg.add_library("lvgl/lvgl", LVGL_VERSION)
+        if CORE.using_zephyr:
+            # LVGL draws from the main thread, and its 2 KB default overflows while
+            # rendering
+            zephyr_add_prj_conf_min("MAIN_STACK_SIZE", 4096)
     df.add_define("LV_DRAW_BUF_STRIDE_ALIGN", "1")
     df.add_define("LV_USE_DRAW_SW", "1")
     # LVGL 9.6 rejects 0 here unless tiled rendering is disabled
@@ -414,7 +409,8 @@ async def to_code(configs):
         "LV_COLOR_CHROMA_KEY",
         await lvalid.lv_color.process(config_0[df.CONF_TRANSPARENCY_KEY]),
     )
-    cg.add_build_flag("-Isrc")
+    if not (CORE.using_toolchain_esp_idf or CORE.using_toolchain_sdk_nrf):
+        cg.add_build_flag("-Isrc")
 
     cg.add_global(lvgl_ns.using)
     for font in df.get_esphome_fonts_used():
@@ -576,7 +572,7 @@ async def to_code(configs):
     if write_file_if_changed(lv_conf_h_file, generate_lv_conf_h()):
         clean_build(clear_pio_cache=False)
     cg.add_build_flag("-DLV_CONF_H=1")
-    cg.add_build_flag(lv_conf_path_flag(lv_conf_h_file))
+    cg.add_build_flag(path_define_flag("LV_CONF_PATH", lv_conf_h_file))
     cg.add_build_flag("-DLV_KCONFIG_IGNORE")
 
     for prop in df.get_remapped_uses():

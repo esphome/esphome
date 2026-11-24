@@ -15,20 +15,14 @@ static constexpr uint8_t CONFIG_REG_COUNT = sizeof(CONFIG_REGS);
 
 void MT6701I2CComponent::setup() {
   uint16_t count;
-  if (!this->read_count(count)) {
-    this->mark_failed(LOG_STR("not responding on I2C"));
+  if (!this->setup_check(this->read_count(count), LOG_STR("not responding on I2C")))
     return;
-  }
   this->apply_config_();
 }
 
 void MT6701I2CComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "MT6701 (I2C):");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-    return;
-  }
   if (this->direction_ != UNSET_U8) {
     ESP_LOGCONFIG(TAG, "  Direction bit: %u", this->direction_);
   }

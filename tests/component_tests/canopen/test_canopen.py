@@ -1,107 +1,78 @@
-"""Validate CANopen addressing and numeric type configuration."""
+"""Tests for the canopen component."""
+
+from collections.abc import Callable
+from pathlib import Path
 
 import pytest
 
-from esphome import config_validation as cv, final_validate as fv
-from esphome.components.canopen import (
-    CONFIG_SCHEMA as HUB_SCHEMA,
-    NMT_SCHEMA,
-    SDO_SCHEMA,
-    SDO_WRITE_SCHEMA,
-    validate_single_hub_per_bus,
-)
-from esphome.components.canopen.sensor import CONFIG_SCHEMA
-from esphome.core import Lambda
+from esphome.components.canopen import CONFIG_SCHEMA, SDO_WRITE_SCHEMA
+from esphome.config import read_config
+import esphome.config_validation as cv
+from esphome.core import CORE
 
 
-@pytest.mark.parametrize("node", [0, 128, -1])
-def test_invalid_node(node: int) -> None:
-    with pytest.raises(cv.Invalid):
-        SDO_SCHEMA({"node_id": node, "index": 0x6041})
-
-
-@pytest.mark.parametrize("index,subindex", [(65536, 0), (-1, 0), (0x6041, 256)])
-def test_invalid_object(index: int, subindex: int) -> None:
-    with pytest.raises(cv.Invalid):
-        SDO_SCHEMA({"node_id": 32, "index": index, "subindex": subindex})
-
-
-@pytest.mark.parametrize("node", [1, 32, 127])
-def test_valid_node(node: int) -> None:
-    config = SDO_SCHEMA({"node_id": node, "index": 0x6041})
-    assert config["subindex"] == 0
-
-
-def test_requires_numeric_type() -> None:
-    with pytest.raises(cv.Invalid):
-        CONFIG_SCHEMA({"name": "Position", "node_id": 32, "index": 0x6064})
-
-
-def test_duplicate_hubs_on_one_bus_rejected() -> None:
-    config = {"canbus_id": "bus_a"}
-    token = fv.full_config.set({"canopen": [config, config]})
-    try:
-        with pytest.raises(cv.Invalid, match="Only one"):
-            validate_single_hub_per_bus(config)
-    finally:
-        fv.full_config.reset(token)
-
-
-def test_hubs_on_different_buses_allowed() -> None:
-    config = {"canbus_id": "bus_a"}
-    token = fv.full_config.set({"canopen": [config, {"canbus_id": "bus_b"}]})
-    try:
-        assert validate_single_hub_per_bus(config) == config
-    finally:
-        fv.full_config.reset(token)
-
-
-@pytest.mark.parametrize("timeout", ["0ms", "-1ms", "60001ms"])
-def test_invalid_response_timeout(timeout: str) -> None:
-    with pytest.raises(cv.Invalid):
-        HUB_SCHEMA({"response_timeout": timeout})
-
-
-@pytest.mark.parametrize("timeout", ["1ms", "500ms", "60s"])
-def test_valid_response_timeout(timeout: str) -> None:
+def test_codegen(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    main_cpp = generate_main(component_config_path("canopen.yaml"))
+    assert "canopen::CANopenComponent(can_bus)" in main_cpp
+    assert "canopen_hub->set_response_timeout(200);" in main_cpp
+    assert "-DCO_CONFIG_SDO_CLI=0x03" in CORE.build_flags
+    assert "-DCO_CONFIG_SDO_CLI_BUFFER_SIZE=7" in CORE.build_flags
+    assert "-DCO_CONFIG_FIFO=0x01" in CORE.build_flags
     assert (
-        HUB_SCHEMA({"response_timeout": timeout})["response_timeout"].total_milliseconds
-        > 0
+        "::canopen_hub->read_sdo(32, 0x1018, 0x01, 4, canopen::sdo_read_reply"
+        "<esphome__lambdaaction_id__fn, esphome__lambdaaction_id_2__fn>, nullptr);"
+    ) in main_cpp
+    assert (
+        "::canopen_hub->write_sdo(32, 0x2000, 0x00, 1, 1, nullptr, nullptr);"
+        in main_cpp
     )
 
 
-@pytest.mark.parametrize("size", [1, 2, 4])
-def test_write_value_width(size: int) -> None:
-    config = {
-        "node_id": 32,
-        "index": 0x2000,
-        "size": size,
-        "value": (1 << (8 * size)) - 1,
-    }
-    assert SDO_WRITE_SCHEMA(config)["value"] == config["value"]
-    config["value"] += 1
-    with pytest.raises(cv.Invalid):
+@pytest.mark.parametrize(("timeout", "valid"), [("65535ms", True), ("65536ms", False)])
+def test_response_timeout_fits_uint16(timeout: str, valid: bool) -> None:
+    config = {"canbus_id": "can_bus", "response_timeout": timeout}
+    if valid:
+        CONFIG_SCHEMA(config)
+    else:
+        with pytest.raises(cv.Invalid, match="at most"):
+            CONFIG_SCHEMA(config)
+
+
+SDO_WRITE = {"id": "canopen_hub", "node_id": 1, "index": 0x1017}
+
+
+@pytest.mark.parametrize(
+    ("value", "size", "valid"),
+    [
+        (255, 1, True),
+        (256, 1, False),
+        (-128, 1, True),
+        (-129, 1, False),
+        (65535, 2, True),
+        (0xFFFFFFFF, 4, True),
+    ],
+)
+def test_sdo_write_value_fits_size(value: int, size: int, valid: bool) -> None:
+    config = {**SDO_WRITE, "value": value, "size": size}
+    if valid:
         SDO_WRITE_SCHEMA(config)
+    else:
+        with pytest.raises(cv.Invalid, match="doesn't fit"):
+            SDO_WRITE_SCHEMA(config)
 
 
-def test_write_lambda_is_validated_at_runtime() -> None:
-    config = SDO_WRITE_SCHEMA(
-        {"node_id": 32, "index": 0x2000, "size": 1, "value": Lambda("return 300;")}
-    )
-    assert isinstance(config["value"], Lambda)
+def test_one_hub_per_canbus(
+    component_config_path: Callable[[str], Path],
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    CORE.config_path = component_config_path("same_bus.yaml")
+    assert read_config({}) is None
+    assert "one canopen hub per canbus" in capsys.readouterr().out
 
 
-@pytest.mark.parametrize("node", [0, 1, 127])
-@pytest.mark.parametrize(
-    "command", ["START", "STOP", "PRE_OPERATIONAL", "RESET_NODE", "RESET_COMMUNICATION"]
-)
-def test_nmt_commands(node: int, command: str) -> None:
-    assert NMT_SCHEMA({"node_id": node, "command": command})["node_id"] == node
-
-
-@pytest.mark.parametrize(
-    "node,command", [(-1, "START"), (128, "START"), (32, "INVALID")]
-)
-def test_invalid_nmt(node: int, command: str) -> None:
-    with pytest.raises(cv.Invalid):
-        NMT_SCHEMA({"node_id": node, "command": command})
+def test_hubs_on_two_buses(component_config_path: Callable[[str], Path]) -> None:
+    CORE.config_path = component_config_path("two_buses.yaml")
+    assert read_config({}) is not None

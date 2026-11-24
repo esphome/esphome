@@ -32,7 +32,11 @@ FINAL_VALIDATE_SCHEMA = spi.final_validate_device_schema(
 
 
 async def to_code(config: ConfigType) -> None:
-    var = cg.new_Pvariable(config[CONF_ID], config[CONF_MODEL])
+    model = MODELS[config[CONF_MODEL]]
+    frame_buffer = cg.static_buffer(
+        config[CONF_ID], cg.uint8, Pixoo.static_("frame_size")(model), align=4
+    )
+    var = cg.new_Pvariable(config[CONF_ID], model, frame_buffer)
     await display.register_display(var, config)
     await spi.register_spi_device(var, config, write_only=True)
 
