@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cstring>
 
+#include "esphome/core/application.h"
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
 
@@ -10,7 +11,7 @@ namespace esphome::canopen {
 
 ESPHOME_LOG_TAG(TAG, "canopen.sdo");
 
-// after an abort, the next request to the same node waits this long, so the server has processed the abort
+// after an abort, the next request (to any node) waits this long, so the server has processed the abort
 static constexpr uint32_t ABORT_GUARD_US = 50000;
 
 PROGMEM_STRING_TABLE(SDOResultStrings, "success", "abort", "timeout", "size mismatch", "transport error", "rejected",
@@ -193,7 +194,8 @@ void CANopenComponent::process_sdo_abort_(uint32_t dt_us) {
   if (this->sdo_abort_pending_) {
     CO_SDOclient_t *cli = this->co_->SDOclient;
     if (!cli->CANtxBuff->bufferFull) {
-      // it left in the flush after the last call (loop()), so dt_us ago
+      // It left in the flush after the last call (loop()), so dt_us ago. Left means the CAN driver took it: canbus
+      // doesn't tell when a frame is on the bus, so the guard may start before the abort is sent.
       this->sdo_abort_pending_ = false;
       this->sdo_abort_guard_us_ = ABORT_GUARD_US;
     } else if (this->sdo_abort_guard_us_ <= dt_us) {
@@ -210,14 +212,10 @@ void CANopenComponent::process_sdo_abort_(uint32_t dt_us) {
 void CANopenComponent::process_sdo_(uint32_t dt_us) {
   this->process_sdo_abort_(dt_us);
   if (!this->sdo_busy_) {
-    // a pending abort holds the client's TX buffer
-    if (this->sdo_queue_.empty() || this->sdo_abort_pending_)
+    // A pending abort holds the client's TX buffer. The guard after it holds requests to every node: one guard covers
+    // any number of cancelled transfers.
+    if (this->sdo_queue_.empty() || this->sdo_abort_pending_ || this->sdo_abort_guard_us_ > 0)
       return;
-    if (this->sdo_queue_.front().node_id == this->sdo_abort_node_) {
-      if (this->sdo_abort_guard_us_ > 0)
-        return;
-      this->sdo_abort_node_ = 0;
-    }
     this->sdo_active_ = this->sdo_queue_.front();
     this->sdo_queue_.pop();
     this->sdo_busy_ = true;
@@ -335,7 +333,14 @@ void CANopenComponent::finish_sdo_(SDOResult result, uint32_t abort_code) {
 
 void CANopenComponent::abort_sdo_() {
   CO_SDOclient_t *cli = this->co_->SDOclient;
-  SDORequest &r = this->sdo_active_;
+  // The request ends before anything that may log (the abort's transmission too): a log handler may queue or cancel
+  // requests.
+  const SDORequest r = this->sdo_active_;
+  this->sdo_active_ = SDORequest{};
+  this->sdo_busy_ = false;
+  this->sdo_abort_node_ = r.node_id;
+  // the abort's time runs from now, not from the SDO client's last pass
+  this->last_ms_ = App.get_loop_component_start_time();
   // Discard only this client's unsent frame before replacing it with an abort.
   // The driver and the SDO client run on the same main-loop context.
   discard_pending_tx(cli->CANdevTx, cli->CANtxBuff);
@@ -345,13 +350,10 @@ void CANopenComponent::abort_sdo_() {
   } else {
     CO_SDOclientDownload(cli, 0, true, false, &abort, nullptr, nullptr);
   }
-  ESP_LOGD(TAG, "node 0x%02x, 0x%04x:%u: cancelled", r.node_id, r.index, r.sub);
   CO_SDOclientClose(cli);
-  this->sdo_abort_node_ = r.node_id;
   this->sdo_abort_pending_ = cli->CANtxBuff->bufferFull;
   this->sdo_abort_guard_us_ = this->sdo_abort_pending_ ? this->response_timeout_ms_ * 1000u : ABORT_GUARD_US;
-  this->sdo_active_ = SDORequest{};
-  this->sdo_busy_ = false;
+  ESP_LOGD(TAG, "node 0x%02x, 0x%04x:%u: cancelled", r.node_id, r.index, r.sub);
 }
 
 }  // namespace esphome::canopen

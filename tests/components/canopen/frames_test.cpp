@@ -77,6 +77,14 @@ class FramesTest : public ::testing::Test {
   static void on_frame(void *context, uint32_t can_id, const uint8_t *data, uint8_t len) {
     static_cast<FramesTest *>(context)->received_.push_back({can_id, {data, data + len}});
   }
+
+  // enough listeners added during dispatch to move the vector
+  static constexpr int ADDED_LISTENERS = 32;
+  static void add_listeners(void *context, uint32_t can_id, const uint8_t *data, uint8_t len) {
+    auto *test = static_cast<FramesTest *>(context);
+    for (int i = 0; i < ADDED_LISTENERS; i++)
+      test->hub_.add_frame_listener(0x180, 0x780, on_frame, test);
+  }
 };
 
 TEST_F(FramesTest, ListenerGetsMatchingFrames) {
@@ -148,11 +156,35 @@ TEST_F(FramesTest, SendFrame) {
   ASSERT_EQ(this->bus_.sent.size(), 1u);
   EXPECT_EQ(this->bus_.sent[0].can_id, 0x210u);
   EXPECT_EQ(this->bus_.sent[0].data, (std::vector<uint8_t>{1, 2}));
+  EXPECT_FALSE(this->hub_.send_frame(0xA10, data, sizeof(data)));  // not cut to 0x210
   const uint8_t long_data[9] = {};
   EXPECT_FALSE(this->hub_.send_frame(0x210, long_data, sizeof(long_data)));
   this->bus_.busy = true;
   EXPECT_FALSE(this->hub_.send_frame(0x210, data, sizeof(data)));
   EXPECT_EQ(this->bus_.sent.size(), 1u);
+}
+
+TEST_F(FramesTest, ListenerAddedFromACallback) {
+  this->hub_.add_frame_listener(0x180, 0x780, add_listeners, this);
+  this->hub_.setup();
+  ASSERT_FALSE(this->hub_.is_failed());
+  this->hub_.frame(0x18A, {1});
+  EXPECT_TRUE(this->received_.empty());  // added during this frame: called from the next one
+  this->received_.clear();
+  this->hub_.frame(0x18A, {2});
+  EXPECT_EQ(this->received_.size(), static_cast<size_t>(ADDED_LISTENERS));
+}
+
+TEST_F(FramesTest, ListenerMatchingNoStandardIdIsNotAdded) {
+  this->hub_.setup();
+  this->hub_.add_frame_listener(0x1000, 0x1000, on_frame, this);
+  this->hub_.frame(0x000, {1});
+  this->hub_.frame(0x18A, {1});
+  EXPECT_TRUE(this->received_.empty());
+  // high mask bits with can_id 0 there match every standard ID
+  this->hub_.add_frame_listener(0x0, 0x1000, on_frame, this);
+  this->hub_.frame(0x18A, {1});
+  EXPECT_EQ(this->received_.size(), 1u);
 }
 
 }  // namespace esphome::canopen::testing

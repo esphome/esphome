@@ -70,6 +70,9 @@ TEST_P(SdoCancellation, PendingAbortHoldsTheNextRequest) {
   this->bus_.busy = false;
   this->hub_.loop();
   this->hub_.loop();
+  EXPECT_EQ(this->bus_.count(0x622), 0u);  // the guard after the abort holds every node
+  advance_clock(60);
+  this->hub_.loop();
 
   ASSERT_EQ(this->bus_.count(0x621), 1u);
   EXPECT_EQ(this->last_(0x621)->data[0], 0x80);
@@ -172,6 +175,49 @@ TEST_P(SdoCancellation, DroppedAbortDoesNotHoldTheSameNode) {
   // no guard after an abort that was never sent: the request to the same node goes out right away
   ASSERT_EQ(this->bus_.count(0x621), 1u);
   EXPECT_EQ(this->last_(0x621)->data[0], 0x40);
+}
+
+TEST_P(SdoCancellation, AbortGuardHoldsEveryNode) {
+  this->queue_request_();
+  this->hub_.loop();
+  this->hub_.cancel_sdo(&this->callbacks_);  // the abort goes out at once
+  ASSERT_EQ(this->bus_.count(0x621), 2u);
+  int other_callbacks = 0;
+  ASSERT_TRUE(this->hub_.read_sdo<uint16_t>(0x22, 0x6041, 0, on_result, &other_callbacks));
+  this->hub_.loop();
+  EXPECT_EQ(this->bus_.count(0x622), 0u);
+  advance_clock(60);
+  this->hub_.loop();
+  EXPECT_EQ(this->bus_.count(0x622), 1u);
+}
+
+TEST_P(SdoCancellation, AbortGuardCountsFromTheCancel) {
+  this->queue_request_();
+  this->hub_.loop();
+  advance_clock(80);  // waiting for the answer, no loop in between
+  this->hub_.cancel_sdo(&this->callbacks_);
+  ASSERT_EQ(this->bus_.count(0x621), 2u);
+  int other_callbacks = 0;
+  ASSERT_TRUE(this->hub_.read_sdo<uint16_t>(0x21, 0x6041, 0, on_result, &other_callbacks));
+  this->hub_.loop();
+  EXPECT_EQ(this->bus_.count(0x621), 2u);  // the 80 ms before the cancel don't count
+  advance_clock(60);
+  this->hub_.loop();
+  EXPECT_EQ(this->bus_.count(0x621), 3u);
+}
+
+TEST_P(SdoCancellation, BlockedAbortTimeoutCountsFromTheCancel) {
+  this->bus_.busy = true;
+  this->queue_request_();
+  this->hub_.loop();
+  advance_clock(150);
+  this->hub_.cancel_sdo(&this->callbacks_);
+  advance_clock(60);  // past the response timeout from the request, not from the cancel
+  this->hub_.loop();
+  this->bus_.busy = false;
+  this->hub_.loop();
+  ASSERT_EQ(this->bus_.count(0x621), 1u);
+  EXPECT_EQ(this->bus_.sent.back().data[0], 0x80);
 }
 
 INSTANTIATE_TEST_SUITE_P(ReadAndWrite, SdoCancellation, ::testing::Bool());

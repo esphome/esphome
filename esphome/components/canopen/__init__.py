@@ -51,7 +51,8 @@ CALLBACK_AUTOMATIONS = (
         "add_on_emcy_callback",
         [
             (cg.uint8, "node_id"),
-            (Emergency.operator("const").operator("ref"), "emergency"),
+            # by value: actions that store their arguments (std::tuple) can't hold a reference
+            (Emergency, "emergency"),
         ],
     ),
 )

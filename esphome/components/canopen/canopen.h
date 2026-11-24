@@ -128,7 +128,7 @@ class CANopenComponent : public Component {
   size_t sdo_len_{0};
   uint32_t last_ms_{0};  // when time was last charged to the SDO client
   // after a cancel: while the abort waits to be sent, the time left to send it; once sent, the time left before a
-  // request to sdo_abort_node_ may start
+  // request may start
   uint32_t sdo_abort_guard_us_{0};
   // OD 0x1280 fields, set per request
   uint32_t sdo_cli_cob_tx_{0x80000000};
@@ -137,7 +137,7 @@ class CANopenComponent : public Component {
   uint16_t response_timeout_ms_{500};
   uint8_t sdo_cli_highest_sub_{3};
   uint8_t sdo_cli_node_{0};
-  uint8_t sdo_abort_node_{0};  // node of the last cancelled transfer
+  uint8_t sdo_abort_node_{0};  // node of the last cancelled transfer, for its log
   bool sdo_busy_{false};
   bool sdo_abort_pending_{false};  // the abort of a cancelled transfer waits to be sent
 
