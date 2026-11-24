@@ -1,0 +1,38 @@
+# Template time, date and datetime entities over MQTT discovery (a package). Substitutions: broker (this host's
+# address as the board sees it). The per-run file supplies the name.
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+logger:
+  level: DEBUG
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  power_save_mode: none
+
+mqtt:
+  broker: ${broker}
+  reboot_timeout: 0s
+
+datetime:
+  - platform: template
+    name: DT Time
+    type: time
+    optimistic: true
+    initial_value: "06:00:00"
+    restore_value: false
+  - platform: template
+    name: DT Date
+    type: date
+    optimistic: true
+    initial_value: "2026-03-05"
+    restore_value: false
+  - platform: template
+    name: DT DateTime
+    type: datetime
+    optimistic: true
+    initial_value: "2026-07-05 18:30:00"
+    restore_value: false

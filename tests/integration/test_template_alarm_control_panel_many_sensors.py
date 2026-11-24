@@ -6,7 +6,7 @@ import aioesphomeapi
 from aioesphomeapi.model import APIIntEnum
 import pytest
 
-from .state_utils import InitialStateHelper, require_only_entity
+from .state_utils import require_only_entity, subscribe_after_initial_states
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -66,20 +66,11 @@ async def test_template_alarm_control_panel_many_sensors(
             f"Got: {actual_sensor_names}"
         )
 
-        # Use InitialStateHelper to wait for all initial states
-        state_helper = InitialStateHelper(entities)
-
-        def on_state(state: aioesphomeapi.EntityState) -> None:
-            # We'll receive subsequent states here after initial states
-            pass
-
-        client.subscribe_states(state_helper.on_state_wrapper(on_state))
-
         # Wait for all initial states
-        await state_helper.wait_for_initial_states(timeout=5.0)
+        sub = await subscribe_after_initial_states(client, entities)
 
         # Verify the alarm state is disarmed initially
-        alarm_state = state_helper.initial_states.get(alarm_info.key)
+        alarm_state = sub.initial_states.get(alarm_info.key)
         assert alarm_state is not None, "Alarm control panel initial state not received"
         assert isinstance(alarm_state, aioesphomeapi.AlarmControlPanelEntityState)
         assert alarm_state.state == aioesphomeapi.AlarmControlPanelState.DISARMED, (
@@ -88,7 +79,7 @@ async def test_template_alarm_control_panel_many_sensors(
 
         # Verify all 10 binary sensors have initial states
         binary_sensor_states = [
-            state_helper.initial_states.get(sensor.key) for sensor in binary_sensors
+            sub.initial_states.get(sensor.key) for sensor in binary_sensors
         ]
         assert all(state is not None for state in binary_sensor_states), (
             "Not all binary sensors have initial states"

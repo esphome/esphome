@@ -23,11 +23,7 @@ void ZHLT01Climate::transmit_state() {
 
   // Byte 7 : Power | Swing | Fan
   // -- Power
-  if (this->mode == climate::CLIMATE_MODE_OFF) {
-    ir_message[7] = AC1_POWER_OFF;
-  } else {
-    ir_message[7] = AC1_POWER_ON;
-  }
+  ir_message[7] = this->mode == climate::CLIMATE_MODE_OFF ? AC1_POWER_OFF : AC1_POWER_ON;
 
   // -- Swing
   switch (this->swing_mode) {
@@ -212,7 +208,7 @@ bool ZHLT01Climate::on_receive(remote_base::RemoteReceiveData data) {
       this->mode = climate::CLIMATE_MODE_AUTO;
     }
 
-    // Taregt Temperature
+    // Target Temperature
     this->target_temperature = (ir_message[9] & 0x1F) + 16.0f;
   }
 

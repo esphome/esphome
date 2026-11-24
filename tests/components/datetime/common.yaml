@@ -34,10 +34,20 @@ datetime:
     id: datetime_test_time
     type: time
     optimistic: true
+    on_time:
+      - logger.log: Time reached
   - platform: template
     name: Datetime Test DateTime
     id: datetime_test_datetime
     type: datetime
     optimistic: true
+    on_time:
+      - logger.log: Datetime reached
+
+wifi:
+  ssid: MySSID
+  password: password1
 
 time:
+  - platform: sntp
+    id: sntp_time

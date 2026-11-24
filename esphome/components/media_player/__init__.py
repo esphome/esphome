@@ -2,7 +2,6 @@ from collections.abc import Callable
 
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components import audio
 from esphome.components.const import CONF_BITRATE
 import esphome.config_validation as cv
 from esphome.const import (
@@ -116,6 +115,8 @@ def validate_preferred_format(
     """
 
     def validator(config: ConfigType) -> ConfigType:
+        from esphome.components import audio
+
         # Inherit settings from audio device if not manually set
         inherit_property_from(CONF_NUM_CHANNELS, audio_device_key)(config)
         inherit_property_from(CONF_SAMPLE_RATE, audio_device_key)(config)
@@ -155,6 +156,8 @@ def request_codecs_for_format_configs(
 
     Public API for external components. Do not remove.
     """
+    from esphome.components import audio
+
     needed_formats: set[str] = set()
     need_all = False
 
@@ -240,48 +243,33 @@ _STATE_CONDITIONS = (
 MediaPlayerCommand = media_player_ns.enum("MediaPlayerCommand", is_class=True)
 
 
+def _on_state_enter(conf_key: str, state: cg.MockObj) -> automation.CallbackAutomation:
+    return automation.CallbackAutomation(
+        conf_key,
+        "add_on_state_callback",
+        forwarder=StateEnterForwarder.template(state),
+        params=[(MediaPlayerState, "state")],
+        forward=[],
+        when=f"state == {state}",
+    )
+
+
 _CALLBACK_AUTOMATIONS = (
     automation.CallbackAutomation(
-        CONF_ON_STATE, "add_on_state_callback", forwarder=StateAnyForwarder
-    ),
-    automation.CallbackAutomation(
-        CONF_ON_IDLE,
+        CONF_ON_STATE,
         "add_on_state_callback",
-        forwarder=StateEnterForwarder.template(
-            MediaPlayerState.MEDIA_PLAYER_STATE_IDLE
-        ),
+        forwarder=StateAnyForwarder,
+        params=[(MediaPlayerState, "state")],
+        forward=[],
     ),
-    automation.CallbackAutomation(
-        CONF_ON_PLAY,
-        "add_on_state_callback",
-        forwarder=StateEnterForwarder.template(
-            MediaPlayerState.MEDIA_PLAYER_STATE_PLAYING
-        ),
+    _on_state_enter(CONF_ON_IDLE, MediaPlayerState.MEDIA_PLAYER_STATE_IDLE),
+    _on_state_enter(CONF_ON_PLAY, MediaPlayerState.MEDIA_PLAYER_STATE_PLAYING),
+    _on_state_enter(CONF_ON_PAUSE, MediaPlayerState.MEDIA_PLAYER_STATE_PAUSED),
+    _on_state_enter(
+        CONF_ON_ANNOUNCEMENT, MediaPlayerState.MEDIA_PLAYER_STATE_ANNOUNCING
     ),
-    automation.CallbackAutomation(
-        CONF_ON_PAUSE,
-        "add_on_state_callback",
-        forwarder=StateEnterForwarder.template(
-            MediaPlayerState.MEDIA_PLAYER_STATE_PAUSED
-        ),
-    ),
-    automation.CallbackAutomation(
-        CONF_ON_ANNOUNCEMENT,
-        "add_on_state_callback",
-        forwarder=StateEnterForwarder.template(
-            MediaPlayerState.MEDIA_PLAYER_STATE_ANNOUNCING
-        ),
-    ),
-    automation.CallbackAutomation(
-        CONF_ON_TURN_ON,
-        "add_on_state_callback",
-        forwarder=StateEnterForwarder.template(MediaPlayerState.MEDIA_PLAYER_STATE_ON),
-    ),
-    automation.CallbackAutomation(
-        CONF_ON_TURN_OFF,
-        "add_on_state_callback",
-        forwarder=StateEnterForwarder.template(MediaPlayerState.MEDIA_PLAYER_STATE_OFF),
-    ),
+    _on_state_enter(CONF_ON_TURN_ON, MediaPlayerState.MEDIA_PLAYER_STATE_ON),
+    _on_state_enter(CONF_ON_TURN_OFF, MediaPlayerState.MEDIA_PLAYER_STATE_OFF),
 )
 
 

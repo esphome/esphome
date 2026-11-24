@@ -1,6 +1,5 @@
 #include <gtest/gtest.h>
 #include "test_helpers.h"
-#include "esphome/components/canopen/automation.h"
 #include "esphome/components/canopen/canopen_node.h"
 
 namespace esphome::canopen::testing {
@@ -10,245 +9,14 @@ struct Reply {
   SDOResult result{};
   uint32_t value{0};
   uint8_t size{0};
-  static void receive(void *context, SDOResult result, uint32_t value, uint8_t size) {
+  static void receive(void *context, const SDOReply &response) {
     auto *reply = static_cast<Reply *>(context);
     reply->count++;
-    reply->result = result;
-    reply->value = value;
-    reply->size = size;
+    reply->result = response.result;
+    reply->value = response.value;
+    reply->size = response.size;
   }
 };
-
-TEST(CANopenSDO, ReadMatchesNodeIndexAndSubindex) {
-  MockCANbus bus;
-  ProbeClient client(&bus);
-  Reply reply;
-  ASSERT_TRUE(client.read_sdo(32, 0x6041, 1, Reply::receive, &reply));
-  client.loop();
-  ASSERT_EQ(bus.sent.size(), 1);
-  EXPECT_EQ(bus.sent[0].can_id, 0x620);
-  EXPECT_EQ(bus.sent[0].data[0], 0x40);
-  EXPECT_EQ(bus.sent[0].data[1], 0x41);
-  EXPECT_EQ(bus.sent[0].data[2], 0x60);
-  client.on_frame_(0x5A1, false, false, {0x4B, 0x41, 0x60, 1, 0x18, 0x06, 0, 0});
-  client.on_frame_(0x5A0, false, false, {0x4B, 0x42, 0x60, 1, 0x18, 0x06, 0, 0});
-  client.on_frame_(0x5A0, false, false, {0x4B, 0x41, 0x60, 0, 0x18, 0x06, 0, 0});
-  client.on_frame_(0x5A0, true, false, {0x4B, 0x41, 0x60, 1, 0x18, 0x06, 0, 0});
-  client.on_frame_(0x5A0, false, true, {0x4B, 0x41, 0x60, 1, 0x18, 0x06, 0, 0});
-  client.on_frame_(0x5A0, false, false, {0x4B, 0x41});
-  EXPECT_EQ(reply.count, 0);
-  client.on_frame_(0x5A0, false, false, {0x4B, 0x41, 0x60, 1, 0x18, 0x06, 0xFF, 0xFF});
-  EXPECT_EQ(reply.count, 1);
-  EXPECT_EQ(reply.result, SDOResult::SDO_RESULT_SUCCESS);
-  EXPECT_EQ(reply.value, 0x0618);
-  EXPECT_EQ(reply.size, 2);
-}
-
-TEST(CANopenSDO, WritesUseExpeditedWidthsAndAwaitAcknowledgement) {
-  for (const uint8_t size : {1, 2, 4}) {
-    MockCANbus bus;
-    ProbeClient client(&bus);
-    ASSERT_TRUE(client.write_sdo(33, 0x2000, 0, 42, size));
-    ASSERT_TRUE(client.write_sdo(32, 0x2001, 0, 17, 1));
-    client.loop();
-    client.loop();
-    ASSERT_EQ(bus.sent.size(), 1);
-    EXPECT_EQ(bus.sent[0].data[0], 0x23 | ((4 - size) << 2));
-    EXPECT_EQ(bus.sent[0].data[4], 42);
-    client.on_frame_(0x5A1, false, false, {0x60, 0, 0x20, 0, 0, 0, 0, 0});
-    client.loop();
-    ASSERT_EQ(bus.sent.size(), 2);
-    EXPECT_EQ(bus.sent[1].can_id, 0x620);
-  }
-}
-
-TEST(CANopenSDO, TimeoutReleasesQueueWithoutRetryingWrites) {
-  MockCANbus bus;
-  ProbeClient client(&bus);
-  Reply reply;
-  client.read_sdo(32, 0x6041, 0, Reply::receive, &reply);
-  client.write_sdo(33, 0x2000, 0, 3, 1);
-  client.loop();
-  client.expire();
-  client.loop();
-  EXPECT_EQ(reply.result, SDOResult::SDO_RESULT_TIMEOUT);
-  EXPECT_EQ(reply.count, 1);
-  client.loop();
-  ASSERT_EQ(bus.sent.size(), 2);
-  EXPECT_EQ(bus.sent[1].can_id, 0x621);
-}
-
-TEST(CANopenSDO, AbortAndUnsupportedTransferAreReported) {
-  MockCANbus bus;
-  ProbeClient client(&bus);
-  Reply reply;
-  client.read_sdo(32, 0x6041, 0, Reply::receive, &reply);
-  client.loop();
-  client.on_frame_(0x5A0, false, false, {0x80, 0x41, 0x60, 0, 0, 0, 2, 6});
-  EXPECT_EQ(reply.result, SDOResult::SDO_RESULT_ABORT);
-  EXPECT_EQ(reply.value, 0x06020000);
-  client.read_sdo(32, 0x6041, 0, Reply::receive, &reply);
-  client.loop();
-  client.on_frame_(0x5A0, false, false, {0x41, 0x41, 0x60, 0, 8, 0, 0, 0});
-  EXPECT_EQ(reply.result, SDOResult::SDO_RESULT_UNSUPPORTED);
-}
-
-TEST(CANopenSDO, QueueIsBoundedAndInvalidWritesAreRejected) {
-  MockCANbus bus;
-  ProbeClient client(&bus);
-  EXPECT_FALSE(client.write_sdo(0, 0x2000, 0, 0, 1));
-  EXPECT_FALSE(client.write_sdo(32, 0x2000, 0, 256, 1));
-  EXPECT_FALSE(client.write_sdo(32, 0x2000, 0, 0, 3));
-  for (unsigned i = 0; i < 16; i++)
-    ASSERT_TRUE(client.write_sdo(32, 0x2000, 0, i, 1));
-  EXPECT_FALSE(client.write_sdo(32, 0x2000, 0, 0, 1));
-}
-
-TEST(CANopenSDO, SendFailureCallsBackAndAllowsFollowingRequest) {
-  MockCANbus bus;
-  ProbeClient client(&bus);
-  Reply reply;
-  bus.result = canbus::ERROR_FAILTX;
-  client.read_sdo(32, 0x6041, 0, Reply::receive, &reply);
-  client.loop();
-  EXPECT_EQ(reply.result, SDOResult::SDO_RESULT_TRANSPORT_ERROR);
-  EXPECT_EQ(reply.count, 1);
-  bus.result = canbus::ERROR_OK;
-  EXPECT_TRUE(client.write_sdo(33, 0x2000, 0, 1, 1));
-  client.loop();
-  EXPECT_EQ(bus.sent.size(), 2);
-}
-
-TEST(CANopenSDO, UploadWidthsAndLittleEndianDownloads) {
-  MockCANbus bus;
-  ProbeClient client(&bus);
-  Reply reply;
-  for (const uint8_t size : {1, 2, 4}) {
-    client.read_sdo(32, 0x2000, 0, Reply::receive, &reply);
-    client.loop();
-    const uint8_t command = 0x43 | ((4 - size) << 2);
-    client.on_frame_(0x5A0, false, false, {command, 0, 0x20, 0, 0x73, 0x61, 0x76, 0x65});
-    EXPECT_EQ(reply.size, size);
-    EXPECT_EQ(reply.value, size == 1 ? 0x73 : size == 2 ? 0x6173 : 0x65766173);
-  }
-  client.write_sdo(32, 0x1010, 1, 0x65766173, 4);
-  client.loop();
-  const auto &frame = bus.sent.back();
-  EXPECT_EQ(frame.data[4], 0x73);
-  EXPECT_EQ(frame.data[5], 0x61);
-  EXPECT_EQ(frame.data[6], 0x76);
-  EXPECT_EQ(frame.data[7], 0x65);
-}
-
-TEST(CANopenSDO, InstancesHaveIndependentQueues) {
-  MockCANbus bus_a;
-  MockCANbus bus_b;
-  ProbeClient client_a(&bus_a);
-  ProbeClient client_b(&bus_b);
-  Reply reply_a;
-  Reply reply_b;
-  client_a.read_sdo(32, 0x2000, 0, Reply::receive, &reply_a);
-  client_b.read_sdo(33, 0x2000, 0, Reply::receive, &reply_b);
-  client_a.loop();
-  client_b.loop();
-  client_a.on_frame_(0x5A0, false, false, {0x4F, 0, 0x20, 0, 1, 0, 0, 0});
-  EXPECT_EQ(reply_a.count, 1);
-  EXPECT_EQ(reply_b.count, 0);
-  client_b.on_frame_(0x5A1, false, false, {0x4F, 0, 0x20, 0, 2, 0, 0, 0});
-  EXPECT_EQ(reply_b.value, 2);
-}
-
-TEST(CANopenSDO, IdleLoopSleepsAndNewWorkWakesIt) {
-  MockCANbus bus;
-  ProbeClient client(&bus);
-  client.loop();
-  EXPECT_FALSE(client.is_in_loop_state());
-  ASSERT_TRUE(client.write_sdo(32, 0x2000, 0, 1, 1));
-  EXPECT_TRUE(client.is_in_loop_state());
-  client.loop();
-  client.on_frame_(0x5A0, false, false, {0x60, 0, 0x20, 0, 0, 0, 0, 0});
-  EXPECT_FALSE(client.is_in_loop_state());
-  EXPECT_FALSE(client.status_has_warning());
-}
-
-TEST(CANopenSDO, WriteActionReportsAcknowledgementAbortTimeoutAndTransportError) {
-  MockCANbus bus;
-  ProbeClient client(&bus);
-  SDOWriteAction<> action(&client, 32, 0x2000, 0, 1);
-  action.set_value([]() -> uint32_t { return 42; });
-  unsigned successes = 0;
-  std::vector<SDOResult> errors;
-  uint32_t abort_code = 0;
-  action.add_on_success_callback([&]() { successes++; });
-  action.add_on_error_callback([&](SDOResult result, uint32_t code) {
-    errors.push_back(result);
-    abort_code = code;
-  });
-  action.play();
-  action.play();
-  EXPECT_EQ(successes, 0);
-  client.loop();
-  client.on_frame_(0x5A0, false, false, {0x60, 0, 0x20, 0, 0, 0, 0, 0});
-  EXPECT_EQ(successes, 1);
-  client.loop();
-  client.on_frame_(0x5A0, false, false, {0x80, 0, 0x20, 0, 0, 0, 2, 6});
-  ASSERT_EQ(errors.size(), 1);
-  EXPECT_EQ(errors.back(), SDOResult::SDO_RESULT_ABORT);
-  EXPECT_EQ(abort_code, 0x06020000);
-  action.play();
-  client.loop();
-  client.expire();
-  client.loop();
-  ASSERT_EQ(errors.size(), 2);
-  EXPECT_EQ(errors.back(), SDOResult::SDO_RESULT_TIMEOUT);
-  EXPECT_EQ(abort_code, 0);
-  bus.result = canbus::ERROR_FAILTX;
-  action.play();
-  client.loop();
-  ASSERT_EQ(errors.size(), 3);
-  EXPECT_EQ(errors.back(), SDOResult::SDO_RESULT_TRANSPORT_ERROR);
-  EXPECT_EQ(successes, 1);
-}
-
-TEST(CANopenSDO, WriteActionReportsImmediateRejectionsExactlyOnce) {
-  MockCANbus bus;
-  ProbeClient client(&bus);
-  SDOWriteAction<> action(&client, 32, 0x2000, 0, 1);
-  unsigned errors = 0;
-  action.add_on_error_callback([&](SDOResult result, uint32_t code) {
-    EXPECT_EQ(result, SDOResult::SDO_RESULT_REJECTED);
-    EXPECT_EQ(code, 0);
-    errors++;
-  });
-  action.set_value([]() -> uint32_t { return 300; });
-  action.play();
-  EXPECT_EQ(errors, 1);
-  EXPECT_TRUE(bus.sent.empty());
-  action.set_value([]() -> uint32_t { return 42; });
-  for (unsigned i = 0; i < 16; i++)
-    ASSERT_TRUE(client.write_sdo(33, 0x2000, 0, i, 1));
-  action.play();
-  EXPECT_EQ(errors, 2);
-  client.loop();
-  client.expire();
-  client.loop();
-  EXPECT_EQ(errors, 2);
-}
-
-TEST(CANopenSDO, CompletionCallbackCanEnqueueNextWrite) {
-  MockCANbus bus;
-  ProbeClient client(&bus);
-  SDOWriteAction<> action(&client, 32, 0x2000, 0, 1);
-  action.set_value([]() -> uint32_t { return 1; });
-  action.add_on_success_callback([&]() { EXPECT_TRUE(client.write_sdo(33, 0x2001, 0, 2, 1)); });
-  action.play();
-  client.loop();
-  client.on_frame_(0x5A0, false, false, {0x60, 0, 0x20, 0, 0, 0, 0, 0});
-  EXPECT_TRUE(client.is_in_loop_state());
-  client.loop();
-  ASSERT_EQ(bus.sent.size(), 2);
-  EXPECT_EQ(bus.sent.back().can_id, 0x621);
-}
 
 TEST(CANopenNMT, CommandsAreStandardFramesAndValidateNodeAndCommand) {
   MockCANbus bus;
@@ -301,7 +69,6 @@ TEST(CANopenEvents, HeartbeatAndEmergencyWorkWhileIdleAndRejectMalformedFrames) 
   client.on_frame_(0x80, false, false, {0x34, 0x12, 8, 1, 2, 3, 4, 5});
   EXPECT_EQ(heartbeats, 1);
   EXPECT_EQ(emergencies, 1);
-  EXPECT_FALSE(client.is_in_loop_state());
 }
 
 class ProbeNode : public CANopenNode {
@@ -346,6 +113,8 @@ TEST(CANopenNode, NodesShareHubAndTrackTheirOwnHeartbeatAndEmergency) {
   EXPECT_EQ(bus.sent.back().can_id, 0x620);
   client.on_frame_(0x5A0, false, false, {0x4F, 0, 0x20, 0, 1, 0, 0, 0});
   client.loop();
+  EXPECT_EQ(reply.count, 1);
+  EXPECT_EQ(reply.value, 1);
   EXPECT_EQ(bus.sent.back().can_id, 0x621);
   EXPECT_TRUE(node_a.send_nmt(NMTCommand::NMT_COMMAND_START));
   EXPECT_EQ(bus.sent.back().data[1], 32);

@@ -11,7 +11,7 @@ class TMCM1240Sensor : public sensor::Sensor, public PollingComponent {
   void update() override;
 
  protected:
-  static void on_result(void *context, canopen::SDOResult result, uint32_t value, uint8_t size);
+  static void on_result(void *context, const canopen::SDOReply &reply);
   TMCM1240 *parent_;
   uint16_t index_;
   uint8_t size_;

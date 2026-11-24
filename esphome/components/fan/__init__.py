@@ -1,7 +1,6 @@
 from esphome import automation
 from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
-from esphome.components import mqtt, web_server
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DIRECTION,
@@ -29,11 +28,11 @@ from esphome.const import (
     CONF_SPEED_LEVEL_STATE_TOPIC,
     CONF_SPEED_STATE_TOPIC,
     CONF_TRIGGER_ID,
-    CONF_WEB_SERVER,
 )
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority, entity_helpers
 from esphome.core.entity_helpers import (
     entity_duplicate_validator,
+    mqtt_component_class,
     queue_entity_register,
     setup_entity,
 )
@@ -60,8 +59,6 @@ RESTORE_MODES = FanRestoreMode.options(
 )
 
 # Actions
-CycleSpeedAction = fan_ns.class_("CycleSpeedAction", automation.Action)
-
 FanTurnOnTrigger = fan_ns.class_("FanTurnOnTrigger", automation.Trigger.template())
 FanTurnOffTrigger = fan_ns.class_("FanTurnOffTrigger", automation.Trigger.template())
 FanDirectionSetTrigger = fan_ns.class_(
@@ -78,14 +75,16 @@ FanPresetSetTrigger = fan_ns.class_(
 )
 
 _FAN_SCHEMA = (
-    cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
+    cv.ENTITY_BASE_SCHEMA.extend(entity_helpers.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
     .extend(
         {
             cv.Optional(CONF_RESTORE_MODE, default="ALWAYS_OFF"): cv.enum(
                 RESTORE_MODES, upper=True, space="_"
             ),
-            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTFanComponent),
+            cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(
+                mqtt_component_class("MQTTFanComponent")
+            ),
             cv.Optional(CONF_DIRECTION_STATE_TOPIC): cv.All(
                 cv.requires_component("mqtt"), cv.publish_topic
             ),
@@ -185,6 +184,10 @@ _PRESET_MODES_SCHEMA = cv.All(
 )
 
 
+# speed_count_ is a uint16_t in FanTraits
+validate_speed_count = cv.int_range(min=1, max=65535)
+
+
 def validate_preset_modes(value):
     # Check against defined schema
     value = _PRESET_MODES_SCHEMA(value)
@@ -236,10 +239,8 @@ _TRIGGER_AUTOMATIONS = (
 async def setup_fan_core_(var, config):
     cg.add(var.set_restore_mode(config[CONF_RESTORE_MODE]))
 
-    if (mqtt_id := config.get(CONF_MQTT_ID)) is not None:
-        mqtt_ = cg.new_Pvariable(mqtt_id, var)
-        await mqtt.register_mqtt_component(mqtt_, config)
-
+    mqtt_ = await entity_helpers.setup_entity_integrations(var, config)
+    if mqtt_ is not None:
         if (
             direction_state_topic := config.get(CONF_DIRECTION_STATE_TOPIC)
         ) is not None:
@@ -272,9 +273,6 @@ async def setup_fan_core_(var, config):
             cg.add(mqtt_.set_custom_speed_state_topic(speed_state_topic))
         if (speed_command_topic := config.get(CONF_SPEED_COMMAND_TOPIC)) is not None:
             cg.add(mqtt_.set_custom_speed_command_topic(speed_command_topic))
-
-    if web_server_config := config.get(CONF_WEB_SERVER):
-        await web_server.add_entity_config(var, web_server_config)
 
     for conf in config.get(CONF_ON_STATE, []):
         await automation.build_parent_callback_automation(
@@ -328,7 +326,7 @@ automation.register_apply_action(
 
 @automation.register_action(
     "fan.cycle_speed",
-    CycleSpeedAction,
+    automation.ApplyAction,
     maybe_simple_id(
         {
             cv.Required(CONF_ID): cv.use_id(Fan),
@@ -338,11 +336,9 @@ automation.register_apply_action(
     synchronous=True,
 )
 async def fan_cycle_speed_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_OFF_SPEED_CYCLE], args, cg.bool_)
-    cg.add(var.set_no_off_cycle(template_))
-    return var
+    paren = automation.parent_ref(await cg.get_variable(config[CONF_ID]))
+    text = str(cg.statement(fan_ns.cycle_speed(paren, config[CONF_OFF_SPEED_CYCLE])))
+    return automation.apply_statements_action(action_id, template_arg, args, [text])
 
 
 FAN_CONDITION_SCHEMA = automation.maybe_simple_id(

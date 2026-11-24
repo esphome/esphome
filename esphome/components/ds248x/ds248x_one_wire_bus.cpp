@@ -1,5 +1,6 @@
 #include "ds248x_one_wire_bus.h"
 #include "ds248x.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::ds248x {
@@ -11,9 +12,12 @@ void DS248xOneWireBus::setup() {
 
   // Parent setup happens in DS248xComponent::setup()
   // We just need to scan for devices on this channel
+  if (this->hub_failed_()) {
+    this->mark_failed(LOG_STR("DS248x hub failed"));
+    return;
+  }
   if (!this->ensure_channel_()) {
-    ESP_LOGE(TAG, "Failed to select channel %d during setup", this->channel_);
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Channel select failed"));
     return;
   }
 
@@ -28,23 +32,33 @@ void DS248xOneWireBus::dump_config() {
   this->dump_devices_(TAG);
 }
 
+bool DS248xOneWireBus::hub_failed_() const { return this->parent_ != nullptr && this->parent_->is_failed(); }
+
 bool DS248xOneWireBus::ensure_channel_() {
   if (this->parent_ == nullptr) {
     ESP_LOGE(TAG, "Parent not set!");
     return false;
   }
+  // Skip I2C traffic to a hub that never came up
+  if (this->hub_failed_())
+    return false;
   return this->parent_->select_channel(this->channel_);
 }
 
-int DS248xOneWireBus::reset_int() {
-  if (!this->ensure_channel_()) {
+// Report no presence while the hub is down, so the base class does not log "bus is held low"
+int DS248xOneWireBus::reset_error_() const {
+  if (this->parent_ == nullptr)
     return -1;
-  }
+  return this->parent_->is_failed() || this->parent_->is_recovery_pending() ? 0 : -1;
+}
+
+int DS248xOneWireBus::reset_int() {
+  if (!this->ensure_channel_())
+    return this->reset_error_();
 
   bool presence = false;
-  if (!this->parent_->ow_reset(presence)) {
-    return -1;
-  }
+  if (!this->parent_->ow_reset(presence))
+    return this->reset_error_();
   return presence ? 1 : 0;
 }
 
@@ -70,27 +84,31 @@ void DS248xOneWireBus::write64(uint64_t val) {
   }
 }
 
+// Failed reads return the idle bus level 0xFF. All-zero bytes would pass the Dallas CRC check (crc8 of zeros is 0).
+static constexpr uint8_t IDLE_BYTE = 0xFF;
+
 uint8_t DS248xOneWireBus::read8() {
   if (!this->ensure_channel_()) {
-    return 0;
+    return IDLE_BYTE;
   }
   uint8_t value = 0;
   if (!this->parent_->ow_read_byte(value)) {
     ESP_LOGE(TAG, "Failed to read byte on channel %d", this->channel_);
+    return IDLE_BYTE;
   }
   return value;
 }
 
 uint64_t DS248xOneWireBus::read64() {
   if (!this->ensure_channel_()) {
-    return 0;
+    return UINT64_MAX;
   }
   uint64_t value = 0;
   for (uint8_t i = 0; i < 8; i++) {
     uint8_t byte = 0;
     if (!this->parent_->ow_read_byte(byte)) {
-      ESP_LOGE(TAG, "Failed to read byte %d/8 on channel %d - returning partial data", i + 1, this->channel_);
-      return value;  // Return partial data to avoid blocking, caller should validate
+      ESP_LOGE(TAG, "Failed to read byte %d/8 on channel %d", i + 1, this->channel_);
+      return UINT64_MAX;
     }
     value |= (static_cast<uint64_t>(byte) << (i * 8));
   }
@@ -151,11 +169,7 @@ uint64_t DS248xOneWireBus::search_int() {
     }
 
     // Update address based on direction taken
-    if (dir_taken) {
-      address |= bit_mask;
-    } else {
-      address &= ~bit_mask;
-    }
+    assign_bits(address, bit_mask, dir_taken);
   }
 
   // Search successful

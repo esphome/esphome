@@ -4,17 +4,33 @@ wifi:
 
 time:
   - platform: sntp
-    id: duco_sntp_time
+    id: sntp_time
 
 duco:
   id: duco_box
   discovery: {}
   time:
-    time_id: duco_sntp_time
+    time_id: sntp_time
 
 text_sensor:
   - platform: duco
     name: Serial Number
+  - platform: duco
+    serial_number:
+      - name: Serial Number Node 2
+        address: 2
+    version:
+      - name: Version Node 2
+        address: 2
+    error:
+      - name: Error Node 2
+        address: 2
+    uptime:
+      - name: Uptime Node 2
+        address: 2
+    node_type:
+      - name: Node 2 Type
+        address: 2
 
 select:
   - platform: duco

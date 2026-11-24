@@ -11,12 +11,10 @@ from esphome.const import (
     CONF_GLASS_ATTENUATION_FACTOR,
     CONF_ILLUMINANCE,
     CONF_INTEGRATION_TIME,
-    DEVICE_CLASS_ILLUMINANCE,
     ICON_LIGHTBULB,
     ICON_THERMOMETER,
     STATE_CLASS_MEASUREMENT,
     UNIT_KELVIN,
-    UNIT_LUX,
 )
 from esphome.types import ConfigType
 
@@ -32,14 +30,15 @@ VEML6040Component = veml6040_ns.class_(
 )
 
 VEML6040IntegrationTime = veml6040_ns.enum("VEML6040IntegrationTime")
-VEML6040_INTEGRATION_TIMES = {
-    "40ms": VEML6040IntegrationTime.VEML6040_INTEGRATION_TIME_40MS,
-    "80ms": VEML6040IntegrationTime.VEML6040_INTEGRATION_TIME_80MS,
-    "160ms": VEML6040IntegrationTime.VEML6040_INTEGRATION_TIME_160MS,
-    "320ms": VEML6040IntegrationTime.VEML6040_INTEGRATION_TIME_320MS,
-    "640ms": VEML6040IntegrationTime.VEML6040_INTEGRATION_TIME_640MS,
-    "1280ms": VEML6040IntegrationTime.VEML6040_INTEGRATION_TIME_1280MS,
-}
+VEML6040_INTEGRATION_TIMES = VEML6040IntegrationTime.options(
+    "40ms",
+    "80ms",
+    "160ms",
+    "320ms",
+    "640ms",
+    "1280ms",
+    prefix="VEML6040_INTEGRATION_TIME_",
+)
 
 color_channel_schema = sensor.sensor_schema(
     icon=ICON_LIGHTBULB,
@@ -56,10 +55,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_BLUE_CHANNEL): color_channel_schema,
             cv.Optional(CONF_WHITE_CHANNEL): color_channel_schema,
             cv.Optional(CONF_ILLUMINANCE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_LUX,
-                accuracy_decimals=1,
-                device_class=DEVICE_CLASS_ILLUMINANCE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.ILLUMINANCE, accuracy_decimals=1
             ),
             cv.Optional(CONF_COLOR_TEMPERATURE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_KELVIN,

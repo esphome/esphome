@@ -1,0 +1,13 @@
+esphome:
+  name: bk-bdk-newer
+  platformio_options:
+    custom_versions.beken-bdk: "3.0.80"
+
+bk72xx:
+  board: generic-bk7231n-qfn32-tuya
+
+wifi:
+  ssid: test
+  password: testtest
+
+bk72xx_ble:

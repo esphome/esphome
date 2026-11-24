@@ -2,6 +2,7 @@ wifi:
   dpp:
     channels: [1, 6, 11]
     device_info: ESPHome
+    private_key: 00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff
     timeout: 30s
   on_dpp_uri:
     - logger.log:

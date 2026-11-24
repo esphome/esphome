@@ -1,0 +1,7 @@
+uart:
+  - id: dlms_meter_uart_bus
+    port: /dev/null
+    baud_rate: 9600
+
+packages:
+  dlms_meter: !include common.yaml

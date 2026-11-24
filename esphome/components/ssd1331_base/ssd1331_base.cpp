@@ -123,8 +123,7 @@ void HOT SSD1331::draw_absolute_pixel_internal(int x, int y, Color color) {
   const uint32_t color565 = display::ColorUtil::color_to_565(color);
   // where should the bits go in the big buffer array? math...
   uint16_t pos = (x + y * this->get_width_internal()) * SSD1331_BYTESPERPIXEL;
-  this->buffer_[pos++] = (color565 >> 8) & 0xff;
-  this->buffer_[pos] = color565 & 0xff;
+  put_be16(this->buffer_ + pos, color565);
 }
 void SSD1331::fill(Color color) {
   // If clipping is active, fall back to base implementation
@@ -135,24 +134,9 @@ void SSD1331::fill(Color color) {
 
   const uint32_t color565 = display::ColorUtil::color_to_565(color);
   for (uint32_t i = 0; i < this->get_buffer_length_(); i++) {
-    if (i & 1) {
-      this->buffer_[i] = color565 & 0xff;
-    } else {
-      this->buffer_[i] = (color565 >> 8) & 0xff;
-    }
+    this->buffer_[i] = i & 1 ? color565 & 0xff : (color565 >> 8) & 0xff;
   }
 }
-void SSD1331::init_reset_() {
-  if (this->reset_pin_ != nullptr) {
-    this->reset_pin_->setup();
-    this->reset_pin_->digital_write(true);
-    delay(1);
-    // Trigger Reset
-    this->reset_pin_->digital_write(false);
-    delay(10);
-    // Wake up
-    this->reset_pin_->digital_write(true);
-  }
-}
+void SSD1331::init_reset_() { pulse_reset(this->reset_pin_, {.high_before_ms = 1, .low_ms = 10}); }
 
 }  // namespace esphome::ssd1331_base

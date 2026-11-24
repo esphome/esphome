@@ -1,0 +1,21 @@
+wait:3
+press:A01 Good
+press:A01 Bad Checksum
+press:A01 Garbage Then Frame
+press:A01 Repeated Header
+press:A01 Cut Then Frame
+press:A01 Too Close
+press:A01 Split
+press:A01 Two Frames
+press:A01 Bad Then Good
+press:A01 Good After
+press:A02 Good
+press:A02 Bad Checksum
+press:A02 Garbage Then Frame
+press:A02 Repeated Header
+press:A02 Cut Then Frame
+press:A02 Too Close
+press:A02 Split
+press:A02 Two Frames
+press:A02 Bad Then Good
+press:A02 Good After

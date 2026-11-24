@@ -1,0 +1,13 @@
+---
+esphome:
+  name: test-device
+
+esp8266:
+  board: d1_mini_lite
+
+wifi:
+  ssid: MySSID
+  password: password1
+
+mqtt:
+  broker: 192.168.1.2

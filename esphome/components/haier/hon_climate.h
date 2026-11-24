@@ -119,8 +119,9 @@ class HonClimate final : public HaierClimateBase {
 #endif
 #ifdef USE_SWITCH
  public:
-  void set_beeper_switch(switch_::Switch *sw);
-  void set_quiet_mode_switch(switch_::Switch *sw);
+  // initialization() publishes their state once the saved settings are restored
+  void set_beeper_switch(switch_::Switch *sw) { this->beeper_switch_ = sw; }
+  void set_quiet_mode_switch(switch_::Switch *sw) { this->quiet_mode_switch_ = sw; }
 
  protected:
   switch_::Switch *beeper_switch_{nullptr};
@@ -128,13 +129,11 @@ class HonClimate final : public HaierClimateBase {
 #endif
 #ifdef USE_SELECT
  public:
-  void set_vertical_airflow_select(select::Select *sel) { this->vertical_airflow_select_ = sel; }
-  void set_horizontal_airflow_select(select::Select *sel) { this->horizontal_airflow_select_ = sel; }
+  SUB_SELECT(vertical_airflow)
+  SUB_SELECT(horizontal_airflow)
 
  protected:
   void publish_airflow_selects_();
-  select::Select *vertical_airflow_select_{nullptr};
-  select::Select *horizontal_airflow_select_{nullptr};
 #endif
  public:
   HonClimate();

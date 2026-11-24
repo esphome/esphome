@@ -29,6 +29,7 @@ class TemplateWaterHeater final : public Component, public water_heater::WaterHe
 
   void set_optimistic(bool optimistic) { this->optimistic_ = optimistic; }
   void set_restore_mode(TemplateWaterHeaterRestoreMode restore_mode) { this->restore_mode_ = restore_mode; }
+  void set_temperature_unit(TemperatureUnit unit) { this->temperature_unit_ = unit; }
   void set_supported_modes(const std::initializer_list<water_heater::WaterHeaterMode> &modes) {
     this->supported_modes_ = modes;
   }
@@ -54,6 +55,7 @@ class TemplateWaterHeater final : public Component, public water_heater::WaterHe
   TemplateLambda<bool> away_f_;
   TemplateLambda<bool> is_on_f_;
   TemplateWaterHeaterRestoreMode restore_mode_{WATER_HEATER_NO_RESTORE};
+  TemperatureUnit temperature_unit_{TemperatureUnit::CELSIUS};
   water_heater::WaterHeaterModeMask supported_modes_;
   bool optimistic_{true};
 };

@@ -8,7 +8,6 @@ from esphome.const import (
     CONF_BUFFER_SIZE,
     CONF_ID,
     CONF_NUM_CHANNELS,
-    CONF_PLATFORM,
     CONF_SAMPLE_RATE,
 )
 from esphome.cpp_generator import MockObj
@@ -95,23 +94,12 @@ def apply_buffer_size(config: ConfigType, min_size: int, minimum: str) -> Config
 
 def final_validate_one_per_hub(domain: str) -> Callable[[ConfigType], ConfigType]:
     """The hub streams one speaker and one microphone, so reject a second platform of the same kind on a hub."""
-
-    def validator(config: ConfigType) -> ConfigType:
-        hub_id = str(config[CONF_USB_AUDIO_ID])
-        count = sum(
-            1
-            for platform_config in fv.full_config.get().get(domain, [])
-            if platform_config.get(CONF_PLATFORM) == DOMAIN
-            and str(platform_config.get(CONF_USB_AUDIO_ID)) == hub_id
-        )
-        if count > 1:
-            raise cv.Invalid(
-                f"Only one usb_audio {domain} per usb_audio component is supported",
-                path=[CONF_USB_AUDIO_ID],
-            )
-        return config
-
-    return validator
+    return fv.unique_platform_key(
+        domain=domain,
+        platform=DOMAIN,
+        keys=(CONF_USB_AUDIO_ID,),
+        message=f"Only one usb_audio {domain} per usb_audio component is supported",
+    )
 
 
 def max_packet_bytes(config: ConfigType) -> int:

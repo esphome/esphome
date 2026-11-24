@@ -14,6 +14,7 @@ MONOCHROME = "monochrome"
 
 
 class SSD1677(EpaperModel):
+    class_name = "EPaperSSD1677"
     source_files = (
         "epaper_spi_mono.cpp",
         "epaper_spi_ssd1677.cpp",
@@ -22,7 +23,7 @@ class SSD1677(EpaperModel):
     def __init__(
         self,
         name: str,
-        class_name: str = "EPaperSSD1677",
+        class_name: str | None = None,
         data_rate: str = "20MHz",
         border_waveform: int = 0x01,
         **defaults: Any,

@@ -15,16 +15,13 @@ void CANopenSensor::dump_config() {
 void CANopenSensor::update() {
   if (this->pending_)
     return;
-  this->pending_ = this->parent_->read_sdo(
-      this->node_, this->index_, this->subindex_,
-      [](void *context, SDOResult result, uint32_t value, uint8_t size) {
-        static_cast<CANopenSensor *>(context)->on_result_(result, value, size);
+  this->pending_ = true;
+  this->parent_->read_sdo(
+      this->node_, this->index_, this->subindex_, 0,
+      [](void *context, const SDOReply &reply) {
+        static_cast<CANopenSensor *>(context)->on_result_(reply.result, reply.value, reply.size);
       },
       this);
-  if (!this->pending_) {
-    this->status_set_warning();
-    this->publish_state(NAN);
-  }
 }
 
 void CANopenSensor::on_result_(SDOResult result, uint32_t value, uint8_t size) {

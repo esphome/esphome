@@ -1,0 +1,128 @@
+# Border router restart race package (esphome#22929), with wifi-drop.yaml. A logger on_message lambda that matches
+# "border routing restarts" fires the armed race: after race_delay ms a 20 s Wi-Fi drop (mode 1) or a safe reboot
+# (mode 2), or Wi-Fi disabled inside the log callback itself (mode 3). The API action race(mode, delay_ms) arms it
+# and starts a 15 s Wi-Fi drop. race-auto.yaml runs the steps on the device instead.
+esphome:
+  includes:
+    - race_rtc.hpp
+globals:
+  - id: race_mode
+    type: int
+    initial_value: '0'
+  - id: race_delay
+    type: int
+    initial_value: '0'
+  - id: race_gen  # bumped by every race action, so a late timeout cannot disarm a newer arm
+    type: int
+    initial_value: '0'
+logger:
+  on_message:
+    - level: INFO
+      then:
+        - lambda: |-
+            if (id(race_mode) != 0 && strstr(message, "border routing restarts") != nullptr) {
+              if (id(race_mode) == 3) {
+                // inside loop(), before the start request is set: Wi-Fi goes down as the task starts
+                id(race_mode) = 0;
+                race_rtc_fired = RACE_RTC_FIRED;  // before the disable: a reset inside it is a fired race
+                wifi::global_wifi_component->disable();
+                id(race_reenable).execute();
+              } else {
+                id(race_fire).execute(id(race_mode));
+              }
+            }
+script:
+  # the 15 s drop plus time for the restart: an arm of this generation still set by then never fired
+  - id: race_timeout
+    mode: parallel
+    parameters:
+      gen: int
+    then:
+      - delay: 75s
+      - lambda: |-
+          if (id(race_gen) == gen && id(race_mode) != 0) {
+            ESP_LOGW("hwt", "HWT race not fired");
+            id(race_mode) = 0;
+          }
+  - id: race_fire
+    mode: single
+    parameters:
+      mode: int  # the armed mode when the restart was logged; the arm can be cleared during the delay
+    then:
+      - delay: !lambda 'return id(race_delay);'
+      - if:
+          condition:
+            lambda: 'return id(race_mode) == 0;'
+          then:
+            - logger.log:
+                format: "HWT race disarmed during its delay, nothing done"
+                level: WARN
+      - if:
+          condition:
+            lambda: 'return id(race_mode) != 0 && mode == 2;'
+          then:
+            - lambda: |-
+                id(race_mode) = 0;
+                race_rtc_fired = RACE_RTC_REBOOT;  // this reboot is the race, not a crash after it
+                ESP_LOGI("hwt", "HWT race reboot after %d ms", id(race_delay));
+                App.safe_reboot();
+      - if:
+          condition:
+            lambda: 'return id(race_mode) != 0 && mode != 2;'
+          then:
+            - lambda: |-
+                // wifi_drop is mode single: a drop still running would swallow this one, so the arm stays
+                // set and the race counts as not fired
+                if (id(wifi_drop).is_running()) {
+                  ESP_LOGW("hwt", "HWT race drop skipped, a Wi-Fi drop is still running");
+                } else {
+                  id(race_mode) = 0;
+                  race_rtc_fired = RACE_RTC_FIRED;
+                  ESP_LOGI("hwt", "HWT race disable after %d ms", id(race_delay));
+                }
+            - script.execute:
+                id: wifi_drop
+                secs: 20
+  - id: race_reenable
+    then:
+      - delay: 0s  # leave the log callback first; the logger drops log calls made inside it
+      - logger.log: "HWT race sync disable done"
+      - delay: 20s
+      - logger.log: "HWT race enable"
+      - wifi.enable:
+  - id: race_drop
+    then:
+      - script.execute:
+          id: wifi_drop
+          secs: 15
+api:
+  actions:
+    - action: race
+      variables:
+        mode: int
+        delay_ms: int
+      then:
+        - if:
+            condition:
+              # a wifi_drop still running would swallow this race's 15 s drop and leave it armed with no stimulus
+              lambda: |-
+                // nor while an earlier race is armed or firing: its callback would run into this one
+                return !id(wifi_drop).is_running() && id(race_mode) == 0 && !id(race_fire).is_running() &&
+                       mode >= 1 && mode <= 3 && delay_ms >= 0 && delay_ms <= 10000;
+            then:
+              - lambda: |-
+                  id(race_mode) = mode;
+                  id(race_delay) = delay_ms;
+                  id(race_gen)++;
+              - script.execute: race_drop
+              - script.execute:
+                  id: race_timeout
+                  gen: !lambda 'return id(race_gen);'
+            else:
+              # name the condition that failed, so the log does not point at one that did not apply
+              - lambda: |-
+                  ESP_LOGW("hwt", "HWT race refused: %s",
+                           id(wifi_drop).is_running()      ? "a Wi-Fi drop is still running"
+                           : id(race_mode) != 0            ? "an earlier race is still armed"
+                           : id(race_fire).is_running()    ? "an earlier race is still firing"
+                                                           : "mode must be 1-3 and delay_ms 0-10000");

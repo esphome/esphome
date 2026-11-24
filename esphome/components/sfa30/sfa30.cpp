@@ -12,10 +12,9 @@ static const uint16_t SFA30_CMD_READ_MEASUREMENT = 0x0327;
 void SFA30Component::setup() {
   // Serial Number identification
   uint16_t raw_device_marking[16];
-  if (!this->get_register(SFA30_CMD_GET_DEVICE_MARKING, raw_device_marking, 16, 5)) {
-    this->mark_failed(LOG_STR("Unable to read device marking"));
+  if (!this->setup_check(this->get_register(SFA30_CMD_GET_DEVICE_MARKING, raw_device_marking, 16, 5),
+                         LOG_STR("Unable to read device marking")))
     return;
-  }
 
   for (size_t i = 0; i < 16; i++) {
     this->device_marking_[i * 2] = static_cast<char>(raw_device_marking[i] >> 8);
@@ -23,10 +22,9 @@ void SFA30Component::setup() {
   }
   ESP_LOGD(TAG, "Device Marking: '%s'", this->device_marking_);
 
-  if (!this->write_command(SFA30_CMD_START_CONTINUOUS_MEASUREMENTS)) {
-    this->mark_failed(LOG_STR("Error starting measurements"));
+  if (!this->setup_check(this->write_command(SFA30_CMD_START_CONTINUOUS_MEASUREMENTS),
+                         LOG_STR("Error starting measurements")))
     return;
-  }
 }
 
 void SFA30Component::dump_config() {
@@ -54,20 +52,9 @@ void SFA30Component::update() {
       return;
     }
 
-    if (this->formaldehyde_sensor_ != nullptr) {
-      const float formaldehyde = static_cast<int16_t>(raw_data[0]) / 5.0f;
-      this->formaldehyde_sensor_->publish_state(formaldehyde);
-    }
-
-    if (this->humidity_sensor_ != nullptr) {
-      const float humidity = static_cast<int16_t>(raw_data[1]) / 100.0f;
-      this->humidity_sensor_->publish_state(humidity);
-    }
-
-    if (this->temperature_sensor_ != nullptr) {
-      const float temperature = static_cast<int16_t>(raw_data[2]) / 200.0f;
-      this->temperature_sensor_->publish_state(temperature);
-    }
+    PUBLISH_STATE(this->formaldehyde_sensor_, static_cast<int16_t>(raw_data[0]) / 5.0f);
+    PUBLISH_STATE(this->humidity_sensor_, static_cast<int16_t>(raw_data[1]) / 100.0f);
+    PUBLISH_STATE(this->temperature_sensor_, static_cast<int16_t>(raw_data[2]) / 200.0f);
 
     this->status_clear_warning();
   });

@@ -46,11 +46,8 @@ void MiCS5524Component::setup() {
         this->preference_key_ ^ (REFERENCE_PREFERENCE_VERSION + this->conversion_), true);
   }
 
-  if (this->enable_pin_ != nullptr) {
-    // EN of the breakout is active low; `inverted: true` makes this write switch the module on.
-    this->enable_pin_->setup();
-    this->enable_pin_->digital_write(true);
-  }
+  // EN of the breakout is active low; `inverted: true` makes this write switch the module on.
+  setup_output_pin(this->enable_pin_, true);
 
   if (this->has_reference_()) {
     ESP_LOGI(TAG, "using the %s from the configuration (%.4f) - the sensor is not calibrated at boot",
@@ -167,13 +164,10 @@ void MiCS5524Component::publish_ratio_(float ratio) {
 }
 
 void MiCS5524Component::publish_diagnostics_(float voltage, float ratio, float rs) {
-  if (this->voltage_sensor_ != nullptr)
-    this->voltage_sensor_->publish_state(voltage);
-  if (this->ratio_sensor_ != nullptr)
-    this->ratio_sensor_->publish_state(ratio);
+  PUBLISH_STATE(this->voltage_sensor_, voltage);
+  PUBLISH_STATE(this->ratio_sensor_, ratio);
   // Validation rejects `rs_sensor:` under the vendor model.
-  if (this->rs_sensor_ != nullptr)
-    this->rs_sensor_->publish_state(rs);
+  PUBLISH_STATE(this->rs_sensor_, rs);
 }
 
 void MiCS5524Component::update() {

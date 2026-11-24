@@ -4,6 +4,11 @@ from __future__ import annotations
 
 import re
 
+from esphome.config import Config
+from esphome.const import CONF_ID
+from esphome.core import ID
+from esphome.types import ConfigType
+
 INTERNAL_BIT = 1 << 24
 
 
@@ -26,6 +31,17 @@ def extract_packed_value(main_cpp: str, var_name: str) -> int:
     return int(match.group(1))
 
 
+def static_function_body(main_cpp: str, name: str) -> str:
+    """Body of the generated ``static void name(...)`` function, without its braces."""
+    match = re.search(
+        rf"static void {re.escape(name)}\([^;{{]*\) \{{\n(.*?)\n\}}",
+        main_cpp,
+        re.DOTALL,
+    )
+    assert match is not None, f"{name} not defined"
+    return match.group(1)
+
+
 def get_define_value(name: str) -> str | None:
     """Rendered value of a CORE define, or None when absent.
 
@@ -40,3 +56,85 @@ def get_define_value(name: str) -> str | None:
         if define.name == name:
             return str(define.value)
     return None
+
+
+def constructed(main_cpp: str, var: str) -> str:
+    """The expression placement-new builds ``var`` with, e.g. ``Foo<bar>()``."""
+    match = re.search(rf"\bnew\({var}\) (.*?);\n", main_cpp, re.DOTALL)
+    assert match is not None, var
+    return match.group(1)
+
+
+def function_body(main_cpp: str, name: str) -> str:
+    """The body of the generated ``static void name(...)``."""
+    match = re.search(
+        rf"static void {name}\([^;{{]*\) \{{(.*?)\n\}}\n", main_cpp, re.DOTALL
+    )
+    assert match is not None, name
+    return match.group(1)
+
+
+def callback_function(main_cpp: str, var: str) -> str:
+    """The function a callback component ``var`` is built on, its first template argument."""
+    match = re.match(r"[\w:]+<(\w+)[,>]", constructed(main_cpp, var))
+    assert match is not None, var
+    return match.group(1)
+
+
+def delayed_automation(main_cpp: str, function: str) -> str:
+    """The Automation that ``function`` triggers, checked to hold a delay."""
+    match = re.fullmatch(
+        r"\n  ::(\w+)->trigger\(\);", function_body(main_cpp, function)
+    )
+    assert match is not None, function
+    automation = match.group(1)
+    assert f"new({automation}) Automation<>();" in main_cpp
+    assert re.search(rf"{automation}->add_action\(delayaction_id\w*\);", main_cpp)
+    return automation
+
+
+# ESPBTUUID constant for ABCDABCD-ABCD-ABCD-ABCD-ABCDABCDABCD (bytes in BLE wire order).
+BLE_UUID128_FACTORY = (
+    "from_raw(std::array<uint8_t, 16>{" + ", ".join(["0xCD", "0xAB"] * 8) + "}.data())"
+)
+
+
+def ble_adv_matches(main_cpp: str) -> list[str]:
+    """AdvDataMatch initializer of each generated BLEAdvertiseDataTrigger, in config order."""
+    constants = dict(
+        re.findall(
+            r"static constexpr ble_device_base::AdvDataMatch (\w+)\[\] PROGMEM = "
+            r"\{ble_device_base::AdvDataMatch\{\n(.*?)\n\}\};",
+            main_cpp,
+            re.DOTALL,
+        )
+    )
+    return [
+        " ".join(line.strip() for line in constants[name].splitlines())
+        for name in re.findall(r"BLEAdvertiseDataTrigger\(\w+, (\w+)\);", main_cpp)
+    ]
+
+
+def ble_adv_match(
+    factory: str, *, manufacturer: bool = False, mac: str | None = None
+) -> str:
+    """Expected ble_adv_matches() entry."""
+    return (
+        f".address = {mac or 0}, "
+        f".uuid = ble_device_base::ESPBTUUID::{factory}, "
+        f".manufacturer = {'true' if manufacturer else 'false'}, "
+        f".has_address = {'false' if mac is None else 'true'},"
+    )
+
+
+def uart_full_config(
+    uarts: list[ConfigType] | None = None, **domains: list[ConfigType]
+) -> Config:
+    """A full config declaring uart_0 and uart_1 (or uarts), as the ID pass leaves it."""
+    uarts = uarts or [{CONF_ID: ID("uart_0")}, {CONF_ID: ID("uart_1")}]
+    full = Config()
+    full["uart"] = uarts
+    for index, uart_conf in enumerate(uarts):
+        full.declare_ids.append((uart_conf[CONF_ID], ["uart", index, CONF_ID]))
+    full.update(domains)
+    return full

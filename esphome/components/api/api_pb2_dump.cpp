@@ -675,6 +675,8 @@ const char *proto_enum_to_string<enums::VoiceAssistantSubscribeFlag>(enums::Voic
       return ESPHOME_PSTR("VOICE_ASSISTANT_SUBSCRIBE_NONE");
     case enums::VOICE_ASSISTANT_SUBSCRIBE_API_AUDIO:
       return ESPHOME_PSTR("VOICE_ASSISTANT_SUBSCRIBE_API_AUDIO");
+    case enums::VOICE_ASSISTANT_SUBSCRIBE_WAKE_WORD_AUDIO:
+      return ESPHOME_PSTR("VOICE_ASSISTANT_SUBSCRIBE_WAKE_WORD_AUDIO");
     default:
       return ESPHOME_PSTR("UNKNOWN");
   }
@@ -720,6 +722,8 @@ template<> const char *proto_enum_to_string<enums::VoiceAssistantEvent>(enums::V
       return ESPHOME_PSTR("VOICE_ASSISTANT_STT_VAD_START");
     case enums::VOICE_ASSISTANT_STT_VAD_END:
       return ESPHOME_PSTR("VOICE_ASSISTANT_STT_VAD_END");
+    case enums::VOICE_ASSISTANT_WAKE_WORD_REJECTED:
+      return ESPHOME_PSTR("VOICE_ASSISTANT_WAKE_WORD_REJECTED");
     case enums::VOICE_ASSISTANT_TTS_STREAM_START:
       return ESPHOME_PSTR("VOICE_ASSISTANT_TTS_STREAM_START");
     case enums::VOICE_ASSISTANT_TTS_STREAM_END:
@@ -1127,6 +1131,13 @@ const char *ZWaveProxyCapabilities::dump_to(DumpBuffer &out) const {
   return out.c_str();
 }
 #endif
+#ifdef USE_STORE_YAML
+const char *StoreYamlCapabilities::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("StoreYamlCapabilities"));
+  dump_field(out, ESPHOME_PSTR("supported"), this->supported);
+  return out.c_str();
+}
+#endif
 #ifdef USE_API_WIZARD
 const char *WizardCapabilities::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("WizardCapabilities"));
@@ -1139,6 +1150,13 @@ const char *SendspinCapabilities::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("SendspinCapabilities"));
   dump_field(out, ESPHOME_PSTR("feature_flags"), this->feature_flags);
   dump_field(out, ESPHOME_PSTR("client_id"), this->client_id);
+  return out.c_str();
+}
+#endif
+#ifdef USE_CRASH_REPORT
+const char *CrashReportCapabilities::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("CrashReportCapabilities"));
+  dump_field(out, ESPHOME_PSTR("flags"), this->flags);
   return out.c_str();
 }
 #endif
@@ -1176,6 +1194,16 @@ const char *DeviceCapabilitiesResponse::dump_to(DumpBuffer &out) const {
   this->sendspin.dump_to(out);
   out.append("\n");
 #endif
+#ifdef USE_STORE_YAML
+  out.append(2, ' ').append_p(ESPHOME_PSTR("store_yaml")).append(": ");
+  this->store_yaml.dump_to(out);
+  out.append("\n");
+#endif
+#ifdef USE_CRASH_REPORT
+  out.append(2, ' ').append_p(ESPHOME_PSTR("crash_report")).append(": ");
+  this->crash_report.dump_to(out);
+  out.append("\n");
+#endif
   return out.c_str();
 }
 #ifdef USE_API_WIZARD
@@ -1197,6 +1225,32 @@ const char *ListEntitiesDoneResponse::dump_to(DumpBuffer &out) const {
   out.append_p(ESPHOME_PSTR("ListEntitiesDoneResponse {}"));
   return out.c_str();
 }
+#ifdef USE_CRASH_REPORT
+const char *CrashReportCore::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("CrashReportCore"));
+  dump_field(out, ESPHOME_PSTR("core"), this->core);
+  for (uint16_t i = 0; i < this->backtrace_len; i++) {
+    dump_field(out, ESPHOME_PSTR("backtrace"), this->backtrace[i], 4);
+  }
+  return out.c_str();
+}
+const char *CrashReportResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("CrashReportResponse"));
+  dump_field(out, ESPHOME_PSTR("flags"), this->flags);
+  dump_field(out, ESPHOME_PSTR("reason"), this->reason);
+  dump_field(out, ESPHOME_PSTR("pc"), this->pc);
+  dump_field(out, ESPHOME_PSTR("cause"), this->cause);
+  dump_field(out, ESPHOME_PSTR("fault_address"), this->fault_address);
+  dump_field(out, ESPHOME_PSTR("build_time"), this->build_time);
+  dump_field(out, ESPHOME_PSTR("crashed_core"), this->crashed_core);
+  for (uint16_t i = 0; i < this->cores_len; i++) {
+    out.append(4, ' ').append_p(ESPHOME_PSTR("cores")).append(": ");
+    this->cores[i].dump_to(out);
+    out.append("\n");
+  }
+  return out.c_str();
+}
+#endif
 #ifdef USE_BINARY_SENSOR
 const char *ListEntitiesBinarySensorResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("ListEntitiesBinarySensorResponse"));
@@ -2391,6 +2445,11 @@ const char *VoiceAssistantRequest::dump_to(DumpBuffer &out) const {
   this->audio_settings.dump_to(out);
   out.append("\n");
   dump_field(out, ESPHOME_PSTR("wake_word_phrase"), this->wake_word_phrase);
+  dump_field(out, ESPHOME_PSTR("wake_word_id"), this->wake_word_id);
+  dump_field(out, ESPHOME_PSTR("wake_word_audio_bytes"), this->wake_word_audio_bytes);
+  dump_field(out, ESPHOME_PSTR("wake_word_probability"), this->wake_word_probability);
+  dump_field(out, ESPHOME_PSTR("wake_word_probability_cutoff"), this->wake_word_probability_cutoff);
+  dump_field(out, ESPHOME_PSTR("wake_word_audio_bytes2"), this->wake_word_audio_bytes2);
   return out.c_str();
 }
 const char *VoiceAssistantResponse::dump_to(DumpBuffer &out) const {
@@ -2975,6 +3034,7 @@ const char *UsbDeviceDescriptor::dump_to(DumpBuffer &out) const {
   dump_field(out, ESPHOME_PSTR("interface_number"), this->interface_number);
   dump_field(out, ESPHOME_PSTR("interface_class"), this->interface_class);
   dump_field(out, ESPHOME_PSTR("port_number"), this->port_number);
+  dump_field(out, ESPHOME_PSTR("interface_description"), this->interface_description);
   return out.c_str();
 }
 const char *SerialProxyIdentity::dump_to(DumpBuffer &out) const {
@@ -3013,6 +3073,15 @@ const char *SendspinPairingTokenResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("SendspinPairingTokenResponse"));
   dump_field(out, ESPHOME_PSTR("status"), static_cast<enums::SendspinPairingTokenStatus>(this->status));
   dump_field(out, ESPHOME_PSTR("token"), this->token);
+  return out.c_str();
+}
+#endif
+#ifdef USE_STORE_YAML
+const char *GetYamlResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, ESPHOME_PSTR("GetYamlResponse"));
+  dump_progmem_bytes_field(out, ESPHOME_PSTR("data"), this->data, this->data_len);
+  dump_field(out, ESPHOME_PSTR("done"), this->done);
+  dump_field(out, ESPHOME_PSTR("total_size"), this->total_size);
   return out.c_str();
 }
 #endif

@@ -98,7 +98,7 @@ class CiA402Drive : public PollingComponent, public canopen::CANopenNode {
   bool request_stop_(uint16_t controlword);
   void finish_(DriveResult result);
   void fail_(DriveResult result);
-  static void on_result(void *context, canopen::SDOResult result, uint32_t value, uint8_t size);
+  static void on_result(void *context, const canopen::SDOReply &reply);
   void process_result_(canopen::SDOResult result, uint32_t value, uint8_t size);
   void send_step_(const Step &step);
   bool operational_(uint32_t now) const;

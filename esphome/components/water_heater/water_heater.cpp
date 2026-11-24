@@ -5,6 +5,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/controller_registry.h"
 #include "esphome/core/progmem.h"
+#include "esphome/core/helpers.h"
 
 #include <cmath>
 #include <cstring>
@@ -59,21 +60,13 @@ WaterHeaterCall &WaterHeaterCall::set_target_temperature_high(float temperature)
 }
 
 WaterHeaterCall &WaterHeaterCall::set_away(bool away) {
-  if (away) {
-    this->state_ |= WATER_HEATER_STATE_AWAY;
-  } else {
-    this->state_ &= ~WATER_HEATER_STATE_AWAY;
-  }
+  assign_bits(this->state_, WATER_HEATER_STATE_AWAY, away);
   this->state_mask_ |= WATER_HEATER_STATE_AWAY;
   return *this;
 }
 
 WaterHeaterCall &WaterHeaterCall::set_on(bool on) {
-  if (on) {
-    this->state_ |= WATER_HEATER_STATE_ON;
-  } else {
-    this->state_ &= ~WATER_HEATER_STATE_ON;
-  }
+  assign_bits(this->state_, WATER_HEATER_STATE_ON, on);
   this->state_mask_ |= WATER_HEATER_STATE_ON;
   return *this;
 }
@@ -236,9 +229,7 @@ WaterHeaterTraits WaterHeater::get_traits() {
 PROGMEM_STRING_TABLE(WaterHeaterModeStrings, "OFF", "ECO", "ELECTRIC", "PERFORMANCE", "HIGH_DEMAND", "HEAT_PUMP", "GAS",
                      "UNKNOWN");
 
-const LogString *water_heater_mode_to_string(WaterHeaterMode mode) {
-  return WaterHeaterModeStrings::get_log_str(static_cast<uint8_t>(mode), WaterHeaterModeStrings::LAST_INDEX);
-}
+const LogString *water_heater_mode_to_string(WaterHeaterMode mode) { return WaterHeaterModeStrings::get_log_str(mode); }
 
 void WaterHeater::dump_traits_(const char *tag) {
   auto traits = this->get_traits();

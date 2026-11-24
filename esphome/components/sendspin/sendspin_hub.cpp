@@ -17,8 +17,8 @@
 
 #include <esp_log.h>
 
-#include <cstring>
 #include <memory>
+#include <string>
 
 namespace esphome::sendspin_ {
 
@@ -59,41 +59,43 @@ ESPPreferenceObject make_blob_pref(const std::string &name, size_t size) {
   return global_preferences->make_preference(size, fnv1a_hash("sendspin_" + name));
 }
 
-// Loads straight into the returned buffer, which the library wipes after use. A failed load can
-// leave part of a stored private key or PSK behind, so that path wipes it here. This only covers
-// this buffer: the preference backend keeps its own copy of a pending write until it syncs.
-std::optional<std::vector<uint8_t>> read_blob(ESPPreferenceObject &pref, size_t size) {
-  std::vector<uint8_t> out(size);
-  if (!pref.load(out.data(), out.size())) {
-    secure_wipe(out.data(), out.size());
+// Loads straight into the library's buffer, which it wipes after use. A failed load can leave part
+// of a stored private key or PSK behind, so that path wipes it here. This only covers this buffer:
+// the preference backend keeps its own copy of a pending write until it syncs.
+std::optional<size_t> load_pref(ESPPreferenceObject &pref, size_t size, std::span<uint8_t> out) {
+  if (out.size() < size) {
     return std::nullopt;
   }
-  return out;
+  if (!pref.load(out.data(), size)) {
+    secure_wipe(out.data(), size);
+    return std::nullopt;
+  }
+  return size;
 }
 
 // The library always writes a key's fixed size; any other length is misuse and is not stored.
-bool write_blob(ESPPreferenceObject &pref, const char *key, size_t size, const uint8_t *data, size_t len) {
-  if (len != size) {
-    ESP_LOGW(TAG, "\"%s\" blob of %zu bytes does not match its size of %zu; rejecting write", key, len, size);
+bool save_pref(ESPPreferenceObject &pref, StringRef key, size_t size, std::span<const uint8_t> data) {
+  if (data.size() != size) {
+    ESP_LOGW(TAG, "\"%.*s\" blob of %zu bytes does not match its size of %zu; rejecting write",
+             static_cast<int>(key.size()), key.c_str(), data.size(), size);
     return false;
   }
-  if (!pref.save(data, len)) {
-    ESP_LOGW(TAG, "Failed to persist \"%s\" blob (%zu bytes)", key, len);
+  if (!pref.save(data.data(), data.size())) {
+    ESP_LOGW(TAG, "Failed to persist \"%.*s\" blob (%zu bytes)", static_cast<int>(key.size()), key.c_str(),
+             data.size());
     return false;
   }
   return true;
 }
 
 // "rec_<n>" to n; nullopt for any other key or a slot with no storage here.
-std::optional<size_t> parse_record_slot(const std::string &key) {
-  const char *const prefix = sendspin::persistence_keys::RECORD_SLOT_PREFIX;
-  const size_t prefix_len = std::strlen(prefix);
-  if (key.size() <= prefix_len || key.compare(0, prefix_len, prefix) != 0) {
+std::optional<size_t> parse_record_slot(StringRef key) {
+  const StringRef prefix(sendspin::persistence_keys::RECORD_SLOT_PREFIX);
+  if (key.size() <= prefix.size() || !key.starts_with(prefix)) {
     return std::nullopt;
   }
   size_t slot = 0;
-  for (size_t i = prefix_len; i < key.size(); i++) {
-    const char c = key[i];
+  for (const char c : StringRef(key.begin() + prefix.size(), key.end())) {
     if (c < '0' || c > '9') {
       return std::nullopt;
     }
@@ -130,7 +132,8 @@ void SendspinHub::setup() {
   // Released firmware's name, so a calibrated delay survives.
   this->output_delay_pref_ = make_blob_pref("static_delay", keys::OUTPUT_DELAY_SIZE);
   for (size_t slot = 0; slot < SENDSPIN_RECORD_SLOTS; slot++) {
-    this->record_slot_prefs_[slot] = make_blob_pref(keys::record_slot_key(slot), keys::RECORD_SLOT_SIZE);
+    this->record_slot_prefs_[slot] =
+        make_blob_pref(std::string(keys::RecordSlotKey(slot).view()), keys::RECORD_SLOT_SIZE);
   }
   this->record_order_pref_ = make_blob_pref(keys::RECORD_ORDER, SENDSPIN_RECORD_SLOTS);
 
@@ -144,13 +147,17 @@ void SendspinHub::setup() {
   this->artwork_role_->set_listener(this);
 #endif
 
+#ifdef USE_SENDSPIN_COLOR
+  this->client_->add_color().set_listener(this);
+#endif
+
 #ifdef USE_SENDSPIN_CONTROLLER
   this->controller_role_ = &this->client_->add_controller();
   this->controller_role_->set_listener(this);
 #endif
 
 #ifdef USE_SENDSPIN_METADATA
-  this->metadata_role_ = &this->client_->add_metadata();
+  this->metadata_role_ = &this->client_->add_metadata(this->metadata_config_);
   this->metadata_role_->set_listener(this);
 #endif
 
@@ -158,10 +165,39 @@ void SendspinHub::setup() {
   this->client_->add_player(this->player_config_).set_listener(this->player_listener_);
 #endif
 
+#ifdef USE_SENDSPIN_SOURCE
+  // Every source reports its signal (Sendspin/spec#335); sendspin-cpp (as of 0.10.0) does so only with line sense,
+  // so the signal is always applied below. Remove both once sendspin-cpp follows the spec change.
+  this->source_config_.line_sense = true;
+  this->source_role_ = &this->client_->add_source(this->source_config_);
+  this->source_role_->set_listener(this);
+  // THREAD CONTEXT: Microphone task, the role's single producer. A capture time of 0 (unknown) makes the library
+  // stamp the buffer as ending now.
+  this->microphone_source_->add_data_callback([this](const microphone::AudioCapture &capture) {
+    // A failed microphone read can publish an empty buffer, which the library rejects with a warning
+    if (!capture.data.empty()) {
+      this->source_role_->write_audio(capture.data.data(), capture.data.size(), capture.capture_time_us);
+    }
+  });
+  // A sensor that reports its state at boot can run the set_signal action before this setup()
+  this->set_source_signal(this->source_signal_);
+#endif
+
+#ifdef USE_SENDSPIN_VISUALIZER
+  if (this->visualizer_config_ != nullptr) {
+    this->client_->add_visualizer(*this->visualizer_config_).set_listener(this->visualizer_listener_);
+  }
+#endif
+
   // Set before setup() by codegen; an unpaired access switch sets it later, from its own setup().
   if (this->unpaired_access_.has_value()) {
     this->client_->set_unpaired_access_enabled(*this->unpaired_access_);
   }
+
+#ifdef USE_SENDSPIN_ENABLED_SWITCH
+  // loop() waits for this, so a restore mode without a state still has to answer.
+  this->enabled_switch_->restore(true);
+#endif
 }
 
 void SendspinHub::loop() {
@@ -211,6 +247,9 @@ void SendspinHub::dump_config() {
                 this->firmware_version_, YESNO(this->task_stack_in_psram_),
                 YESNO(this->client_ != nullptr && this->client_->is_unpaired_access_enabled()),
                 this->pairing_code_method_());
+#ifdef USE_SENDSPIN_ENABLED_SWITCH
+  LOG_SWITCH("  ", "Enabled switch", this->enabled_switch_);
+#endif
 
 #ifdef USE_SENDSPIN_ARTWORK
   // Slot indices come from the order the image platform entries were declared, so the log is the
@@ -222,6 +261,17 @@ void SendspinHub::dump_config() {
                   IMAGE_FORMAT_NAMES[static_cast<uint8_t>(preference.format)], preference.width, preference.height,
                   preference.display_offset_ms);
   }
+#endif
+
+#ifdef USE_SENDSPIN_SOURCE
+  ESP_LOGCONFIG(TAG,
+                "  Source:\n"
+                "    Sample rate: %" PRIu32 " Hz\n"
+                "    Channels: %u\n"
+                "    Bits per sample: %u\n"
+                "    Task stack in PSRAM: %s",
+                this->source_config_.sample_rate, this->source_config_.channels, this->source_config_.bit_depth,
+                YESNO(this->source_config_.psram_stack));
 #endif
 }
 
@@ -236,11 +286,11 @@ void SendspinHub::set_enabled(bool enabled) {
 }
 
 // THREAD CONTEXT: Main loop
-std::optional<std::string> SendspinHub::get_pairing_token() const {
+std::optional<SendspinHub::PairingToken> SendspinHub::get_pairing_token() const {
   if (this->client_ == nullptr) {
     return std::nullopt;
   }
-  return this->client_->pairing_token();
+  return this->client_->client_pairing_token();
 }
 
 // THREAD CONTEXT: Main loop
@@ -298,7 +348,7 @@ void SendspinHub::disconnect_from_server(sendspin::SendspinGoodbyeReason reason)
 // THREAD CONTEXT: Main loop (invoked from Sendspin components)
 void SendspinHub::leave_group() {
   if (this->is_client_running() &&
-      this->client_->get_group_state().playback_state == sendspin::SendspinPlaybackState::PLAYING) {
+      this->client_->group_state().playback_state == sendspin::SendspinPlaybackState::PLAYING) {
     this->client_->leave();
   }
 }
@@ -385,9 +435,7 @@ sendspin::SendspinClientConfig SendspinHub::build_client_config_() {
 // --- SendspinClientListener overrides ---
 // THREAD CONTEXT: Main loop (fired from client_->loop())
 
-void SendspinHub::on_group_update(const sendspin::GroupUpdateObject &group) {
-  this->group_update_callbacks_.call(group);
-}
+void SendspinHub::on_group_state(const sendspin::GroupState &changes) { this->group_state_callbacks_.call(changes); }
 
 void SendspinHub::on_request_high_performance() {
 #ifdef USE_WIFI
@@ -411,19 +459,22 @@ void SendspinHub::on_open_pairing_window() { this->open_pairing_window_callbacks
 
 void SendspinHub::on_close_pairing_window() { this->close_pairing_window_callbacks_.call(); }
 
-// Only digits are offered, and the library refuses an activation in any other format.
-void SendspinHub::on_display_pairing_code(const std::string &code, sendspin::SendspinPairingCodeFormat /*format*/) {
-  this->display_pairing_code_callbacks_.call(code);
+// Only digits are offered, and the library refuses an activation in any other format. The automations get copies,
+// since a delayed action outlives the library's view.
+void SendspinHub::on_pairing_code(std::string_view code,  // NOLINT
+                                  sendspin::SendspinPairingCodeFormat /*format*/) {
+  this->display_pairing_code_callbacks_.call(std::string(code));
 }
 
 void SendspinHub::on_clear_pairing_code() { this->clear_pairing_code_callbacks_.call(); }
 
-void SendspinHub::on_pairing_succeeded(const std::string &server_id) {
-  this->pairing_succeeded_callbacks_.call(server_id);
+void SendspinHub::on_paired(std::string_view server_id) {  // NOLINT
+  this->pairing_succeeded_callbacks_.call(std::string(server_id));
 }
 
-void SendspinHub::on_pairing_failed(const std::string &server_id, sendspin::SendspinPairAbortReason reason) {
-  this->pairing_failed_callbacks_.call(server_id, pair_abort_reason_to_string(reason));
+void SendspinHub::on_pairing_aborted(std::string_view server_id,  // NOLINT
+                                     sendspin::SendspinPairAbortReason reason) {
+  this->pairing_failed_callbacks_.call(std::string(server_id), pair_abort_reason_to_string(reason));
 }
 
 // --- SendspinNetworkProvider override ---
@@ -434,7 +485,7 @@ bool SendspinHub::is_network_ready() { return network::is_connected(); }
 // --- SendspinPersistenceProvider overrides ---
 // THREAD CONTEXT: Main loop (the library makes every provider call there, including from start() and stop())
 
-std::pair<ESPPreferenceObject *, size_t> SendspinHub::pref_for_key_(const std::string &key) {
+std::pair<ESPPreferenceObject *, size_t> SendspinHub::pref_for_key_(StringRef key) {
   namespace keys = sendspin::persistence_keys;
   if (auto slot = parse_record_slot(key); slot.has_value()) {
     return {&this->record_slot_prefs_[*slot], keys::RECORD_SLOT_SIZE};
@@ -457,22 +508,24 @@ std::pair<ESPPreferenceObject *, size_t> SendspinHub::pref_for_key_(const std::s
   return {nullptr, 0};
 }
 
-std::optional<std::vector<uint8_t>> SendspinHub::load_blob(const std::string &key) {
+std::optional<size_t> SendspinHub::read_blob(std::string_view key_view, std::span<uint8_t> out) {  // NOLINT
+  const StringRef key(key_view.data(), key_view.size());
   auto [pref, size] = this->pref_for_key_(key);
   if (pref == nullptr) {
-    ESP_LOGW(TAG, "load_blob: unknown key \"%s\"", key.c_str());
+    ESP_LOGW(TAG, "read_blob: unknown key \"%.*s\"", static_cast<int>(key.size()), key.c_str());
     return std::nullopt;
   }
-  return read_blob(*pref, size);
+  return load_pref(*pref, size, out);
 }
 
-bool SendspinHub::save_blob(const std::string &key, const uint8_t *data, size_t len) {
+bool SendspinHub::write_blob(std::string_view key_view, std::span<const uint8_t> data) {  // NOLINT
+  const StringRef key(key_view.data(), key_view.size());
   auto [pref, size] = this->pref_for_key_(key);
   if (pref == nullptr) {
-    ESP_LOGW(TAG, "save_blob: unknown key \"%s\"", key.c_str());
+    ESP_LOGW(TAG, "write_blob: unknown key \"%.*s\"", static_cast<int>(key.size()), key.c_str());
     return false;
   }
-  return write_blob(*pref, key.c_str(), size, data, len);
+  return save_pref(*pref, key, size, data);
 }
 
 // Writes every component's queued preferences, so a failure may belong to another component.
@@ -502,6 +555,15 @@ void SendspinHub::artwork_frame_done(uint8_t slot) {
     this->artwork_role_->frame_done(slot);
   }
 }
+#endif
+
+#ifdef USE_SENDSPIN_COLOR
+// THREAD CONTEXT: Main loop (ColorRoleListener override, fired from client_->loop())
+void SendspinHub::on_color(const sendspin::ServerColorStateObject &color) { this->color_callbacks_.call(color); }
+
+// THREAD CONTEXT: Main loop (ColorRoleListener override, fired from client_->loop())
+// Palette dropped (disconnect or role deactivated): fan out an all-nullopt state, as on_metadata_clear() does.
+void SendspinHub::on_color_clear() { this->color_callbacks_.call(sendspin::ServerColorStateObject{}); }
 #endif
 
 #ifdef USE_SENDSPIN_CONTROLLER
@@ -535,7 +597,7 @@ void SendspinHub::on_controller_state_clear() { this->controller_state_clear_cal
 
 #ifdef USE_SENDSPIN_METADATA
 // THREAD CONTEXT: Main loop (MetadataRoleListener override, fired from client_->loop())
-void SendspinHub::on_metadata(const sendspin::ServerMetadataStateObject &metadata) {
+void SendspinHub::on_track_metadata(const sendspin::TrackMetadata &metadata) {
   this->metadata_update_callbacks_.call(metadata);
 }
 
@@ -543,7 +605,7 @@ void SendspinHub::on_metadata(const sendspin::ServerMetadataStateObject &metadat
 // The cached metadata was dropped because the connection to the server was lost, so what the children now mirror is
 // the empty state. Fanning that out as a default-constructed state object rather than through a separate callback
 // keeps one code path in the children: every field is nullopt, which they already publish as empty/unknown.
-void SendspinHub::on_metadata_clear() { this->metadata_update_callbacks_.call(sendspin::ServerMetadataStateObject{}); }
+void SendspinHub::on_metadata_clear() { this->metadata_update_callbacks_.call(sendspin::TrackMetadata{}); }
 
 // THREAD CONTEXT: Main loop (invoked from Sendspin components)
 uint32_t SendspinHub::get_track_progress_ms() const {
@@ -561,6 +623,29 @@ sendspin::PlayerRole *SendspinHub::get_player_role() {
     return this->client_->player();
   }
   return nullptr;
+}
+#endif
+
+#ifdef USE_SENDSPIN_SOURCE
+// THREAD CONTEXT: Main loop (invoked from the sendspin.source.set_signal action)
+void SendspinHub::set_source_signal(bool present) {
+  if (this->source_role_ == nullptr) {
+    this->source_signal_ = present;  // Applied in setup()
+    return;
+  }
+  this->source_role_->set_signal(present ? sendspin::SourceSignal::PRESENT : sendspin::SourceSignal::ABSENT);
+}
+
+// THREAD CONTEXT: Main loop (SourceRoleListener override, fired from client_->loop())
+void SendspinHub::on_streaming_started() {
+  this->microphone_source_->start();
+  this->source_streaming_started_callbacks_.call();
+}
+
+// THREAD CONTEXT: Main loop (SourceRoleListener override, fired from client_->loop())
+void SendspinHub::on_streaming_stopped() {
+  this->microphone_source_->stop();
+  this->source_streaming_stopped_callbacks_.call();
 }
 #endif
 

@@ -13,3 +13,12 @@ button:
           then:
             - sensor.duty_time.start: pump_duty_time
       - sensor.duty_time.reset: pump_duty_time
+      - sensor.duty_time.set_value:
+          id: pump_duty_time
+          value: 1h
+      - sensor.duty_time.set_value:
+          id: pump_duty_time
+          value: 450000
+      - sensor.duty_time.set_value:
+          id: pump_duty_time
+          value: !lambda "return 7200U;"

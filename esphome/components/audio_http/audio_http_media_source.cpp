@@ -20,7 +20,12 @@ static constexpr uint32_t AUDIO_WRITE_TIMEOUT_MS = 50;            // Max blockin
 static constexpr uint32_t READER_WRITE_TIMEOUT_MS = 50;           // Max blocking time when writing into the ring buffer
 static constexpr uint8_t READER_TASK_PRIORITY = 2;
 static constexpr uint8_t DECODER_TASK_PRIORITY = 2;
+#ifdef CONFIG_MBEDTLS_SSL_PROTO_TLS1_3
+// A TLS 1.3 handshake peaks at about 4.3 KB of reader stack
+static constexpr size_t READER_TASK_STACK_SIZE = 6144;
+#else
 static constexpr size_t READER_TASK_STACK_SIZE = 4096;
+#endif
 static constexpr size_t DECODER_TASK_STACK_SIZE = 5120;
 static constexpr uint32_t PAUSE_POLL_DELAY_MS = 20;
 static constexpr const char *const HTTP_URI_PREFIX = "http://";
@@ -155,8 +160,10 @@ void AudioHTTPMediaSource::on_stream_info(const micro_decoder::AudioStreamInfo &
 void AudioHTTPMediaSource::on_state_change(micro_decoder::DecoderState state) {
   switch (state) {
     case micro_decoder::DecoderState::IDLE:
-      this->set_state_(media_source::MediaSourceState::IDLE);
+      // Retire completed workers before an IDLE listener can start another playback.
+      this->decoder_->stop();
       this->disable_loop();
+      this->set_state_(media_source::MediaSourceState::IDLE);
       break;
     case micro_decoder::DecoderState::PLAYING:
       this->set_state_(media_source::MediaSourceState::PLAYING);

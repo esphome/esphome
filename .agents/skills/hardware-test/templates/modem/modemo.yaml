@@ -1,0 +1,26 @@
+substitutions:
+  modem_reboot_timeout: 2min
+
+esphome:
+  name: modemo
+  on_boot:
+    priority: -100
+    then:
+      - modem.disable
+      - modem.enable
+      - if:
+          condition:
+            modem.enabled:
+          then:
+            modem.send_at: "AT+CGSN"
+          else:
+            modem.enable:
+      - if:
+          condition:
+            not:
+              modem.connected:
+          then:
+            logger.log: modem not connected at boot
+
+packages:
+  common: !include modem-common.yaml

@@ -4,7 +4,6 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_BATTERY_LEVEL,
     CONF_ILLUMINANCE,
-    DEVICE_CLASS_BATTERY,
     ENTITY_CATEGORY_DIAGNOSTIC,
     ICON_BRIGHTNESS_5,
     STATE_CLASS_MEASUREMENT,
@@ -23,11 +22,7 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(Am43),
             cv.Optional(CONF_BATTERY_LEVEL): sensor.sensor_schema(
-                unit_of_measurement=UNIT_PERCENT,
-                device_class=DEVICE_CLASS_BATTERY,
-                accuracy_decimals=0,
-                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.BATTERY, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
             ),
             cv.Optional(CONF_ILLUMINANCE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PERCENT,
@@ -46,5 +41,5 @@ async def to_code(config: ConfigType) -> None:
     var = await ble_client.new_ble_node_component(config)
 
     sensors = sensor.sub_sensors(config)
-    await sensors(CONF_BATTERY_LEVEL, var.set_battery)
-    await sensors(CONF_ILLUMINANCE, var.set_illuminance)
+    await sensors(CONF_BATTERY_LEVEL, var.set_battery_sensor)
+    await sensors(CONF_ILLUMINANCE, var.set_illuminance_sensor)

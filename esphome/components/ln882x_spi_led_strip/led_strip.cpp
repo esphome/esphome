@@ -30,8 +30,6 @@ ESPHOME_LOG_TAG(TAG, "ln882x_spi_led_strip");
 
 // light.py derives the SPI encoding from this APB0 clock, which the SDK's SystemInit() sets.
 static constexpr uint32_t APB0_HZ = 40000000;
-// Each LED data bit is sent as one SPI byte, MSB first: the leading 1-bits are the high time.
-static constexpr uint8_t SPI_BITS_PER_LED_BIT = 8;
 // SPI0 TX is hard-wired to DMA channel 4 (see hal_dma.h).
 static constexpr uint32_t LED_STRIP_DMA_CH = DMA_CH_4;
 
@@ -86,19 +84,21 @@ static void spi_dma_transmit(const uint8_t *data, uint16_t len) {
 // transfer is the reset gap, so starting the next one while that byte shifts out is harmless.
 static bool spi_dma_busy() { return hal_dma_get_data_num(LED_STRIP_DMA_CH) != 0; }
 
-LN882xSPILEDStripLightOutput::LN882xSPILEDStripLightOutput(uint8_t pin, uint16_t num_leds,
+LN882xSPILEDStripLightOutput::LN882xSPILEDStripLightOutput(uint8_t *buffer, uint8_t pin, uint16_t num_leds,
                                                            light::ChannelColors channel_colors, uint8_t prescaler,
                                                            uint8_t bit0_high_bits, uint8_t bit1_high_bits,
                                                            uint16_t reset_bytes)
-    : color_data_bytes_(num_leds * channel_colors.bytes_per_led()),
+    : internal_accessor_(nullptr, nullptr, channel_colors, &this->correction_),
+      color_data_bytes_(num_leds * channel_colors.bytes_per_led()),
       // The tail of the DMA buffer stays zero: it is the reset gap.
-      dma_data_bytes_(color_data_bytes_ * SPI_BITS_PER_LED_BIT + reset_bytes),
-      channel_colors_(channel_colors),
+      dma_data_bytes_(dma_data_bytes(color_data_bytes_, reset_bytes)),
       num_leds_(num_leds),
       pin_(pin),
       prescaler_(prescaler),
       bit0_high_bits_(bit0_high_bits),
-      bit1_high_bits_(bit1_high_bits) {}
+      bit1_high_bits_(bit1_high_bits) {
+  this->dma_data_ = this->internal_accessor_.set_buffer(buffer, num_leds);
+}
 
 void LN882xSPILEDStripLightOutput::setup() {
   const uint32_t apb0_hz = hal_clock_get_apb0_clk();
@@ -108,19 +108,9 @@ void LN882xSPILEDStripLightOutput::setup() {
     return;
   }
 
-  // One block for the color, effect and DMA data.
-  RAMAllocator<uint8_t> allocator;
-  uint8_t *buffer = allocator.allocate(this->color_data_bytes_ + this->num_leds_ + this->dma_data_bytes_);
-  if (buffer == nullptr) {
-    this->mark_failed(LOG_STR("Allocation error"));
-    return;
-  }
-  memset(buffer, 0, this->color_data_bytes_ + this->num_leds_ + this->dma_data_bytes_);
-  this->color_data_ = buffer;
-  this->effect_data_ = buffer + this->color_data_bytes_;
-  this->dma_data_ = this->effect_data_ + this->num_leds_;
-
   spi_dma_init(this->pin_, this->prescaler_);
+
+  this->accessor_ = &this->internal_accessor_;
 }
 
 void LN882xSPILEDStripLightOutput::dump_config() {
@@ -134,39 +124,20 @@ void LN882xSPILEDStripLightOutput::dump_config() {
                 "  Max refresh rate: %" PRIu32 " us\n"
                 "  SPI frequency: %" PRIu32 " Hz\n"
                 "  Bit 0 / bit 1 high: %" PRIu32 " / %" PRIu32 " ns of %" PRIu32 " ns",
-                this->pin_, this->channel_colors_.to_string(channel_colors), this->num_leds_, this->max_refresh_rate_,
-                APB0_HZ >> this->prescaler_, this->bit0_high_bits_ * spi_bit_ns, this->bit1_high_bits_ * spi_bit_ns,
-                SPI_BITS_PER_LED_BIT * spi_bit_ns);
+                this->pin_, this->internal_accessor_.channel_colors.to_string(channel_colors), this->num_leds_,
+                this->max_refresh_rate_, APB0_HZ >> this->prescaler_, this->bit0_high_bits_ * spi_bit_ns,
+                this->bit1_high_bits_ * spi_bit_ns, SPI_BITS_PER_LED_BIT * spi_bit_ns);
 }
 
 float LN882xSPILEDStripLightOutput::get_setup_priority() const { return setup_priority::HARDWARE; }
-
-light::LightTraits LN882xSPILEDStripLightOutput::get_traits() {
-  auto traits = light::LightTraits();
-  if (this->channel_colors_.has_white()) {
-    traits.set_supported_color_modes({light::ColorMode::RGB_WHITE, light::ColorMode::WHITE});
-  } else {
-    traits.set_supported_color_modes({light::ColorMode::RGB});
-  }
-  return traits;
-}
-
-void LN882xSPILEDStripLightOutput::clear_effect_data() {
-  if (this->effect_data_ != nullptr)
-    memset(this->effect_data_, 0, this->num_leds_);
-}
 
 void LN882xSPILEDStripLightOutput::write_state(light::LightState *state) {
   if (this->is_failed())
     return;
 
-  // protect from refreshing too often
   const uint32_t now = micros();
-  if (this->max_refresh_rate_ != 0 && (now - this->last_refresh_) < this->max_refresh_rate_) {
-    // try again next loop iteration, so that this change won't get lost
-    this->schedule_show();
+  if (this->throttle_show_(now, this->last_refresh_, this->max_refresh_rate_))
     return;
-  }
 
   if (spi_dma_busy()) {
     // Busy sending the last frame, try again later.
@@ -179,7 +150,7 @@ void LN882xSPILEDStripLightOutput::write_state(light::LightState *state) {
 
   const uint8_t bit0 = spi_pattern(this->bit0_high_bits_);
   const uint8_t bit1 = spi_pattern(this->bit1_high_bits_);
-  const uint8_t *color_data = this->color_data_;
+  const uint8_t *color_data = this->internal_accessor_.color_data;
   uint8_t *dma_data = this->dma_data_;
   for (size_t i = 0; i < this->color_data_bytes_; i++) {
     const uint8_t color_byte = *(color_data++);
@@ -189,20 +160,6 @@ void LN882xSPILEDStripLightOutput::write_state(light::LightState *state) {
   }
 
   spi_dma_transmit(this->dma_data_, this->dma_data_bytes_);
-}
-
-light::ESPColorView LN882xSPILEDStripLightOutput::get_view_internal(int32_t index) const {
-  const light::ChannelColors &colors = this->channel_colors_;
-  // After a failed setup() effects and partitions still write pixels, so they get a scratch pixel.
-  static uint8_t scratch[5];
-  const bool ready = this->color_data_ != nullptr;
-  uint8_t *led = ready ? this->color_data_ + (index * colors.bytes_per_led()) : scratch;
-  return {led + colors.r,
-          led + colors.g,
-          led + colors.b,
-          colors.has_white() ? led + colors.w : nullptr,
-          ready ? &this->effect_data_[index] : scratch + 4,
-          &this->correction_};
 }
 
 }  // namespace esphome::ln882x_spi_led_strip

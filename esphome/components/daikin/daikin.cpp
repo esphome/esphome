@@ -1,6 +1,7 @@
 #include "daikin.h"
 #include "esphome/components/remote_base/remote_base.h"
 #include "esphome/core/application.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 
 namespace esphome::daikin {
@@ -30,16 +31,17 @@ void DaikinClimate::control(const climate::ClimateCall &call) {
 }
 
 void DaikinClimate::transmit_state() {
-  uint8_t remote_state[35] = {0x11, 0xDA, 0x27, 0x00, 0xC5, 0x00, 0x00, 0x00, 0x11, 0xDA, 0x27, 0x00,
-                              0x42, 0x49, 0x05, 0xA2, 0x11, 0xDA, 0x27, 0x00, 0x00, 0x00, 0x00, 0x00,
-                              0x00, 0x00, 0x00, 0x06, 0x60, 0x00, 0x00, 0xC0, 0x00, 0x00, 0x00};
+  // In flash: an initialized local array is copied from a RAM constant on ESP8266
+  static constexpr uint8_t REMOTE_STATE_TEMPLATE[35] PROGMEM = {
+      0x11, 0xDA, 0x27, 0x00, 0xC5, 0x00, 0x00, 0x00, 0x11, 0xDA, 0x27, 0x00, 0x42, 0x49, 0x05, 0xA2, 0x11, 0xDA,
+      0x27, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x06, 0x60, 0x00, 0x00, 0xC0, 0x00, 0x00, 0x00};
+  uint8_t remote_state[sizeof(REMOTE_STATE_TEMPLATE)];
+  progmem_memcpy(remote_state, REMOTE_STATE_TEMPLATE, sizeof(remote_state));
 
   this->set_presets_(remote_state);
   remote_state[21] = this->operation_mode_();
   remote_state[22] = this->temperature_();
-  uint16_t fan_speed = this->fan_speed_();
-  remote_state[24] = fan_speed >> 8;
-  remote_state[25] = fan_speed & 0xff;
+  put_be16(remote_state + 24, this->fan_speed_());
 
   remote_state[7] = sum_bytes(remote_state, 7);
   remote_state[34] = sum_bytes(remote_state + 16, 18);
@@ -188,7 +190,7 @@ void DaikinClimate::cancel_boost_mode_() {
 bool DaikinClimate::parse_state_frame_(const uint8_t frame[]) {
   const bool was_boost = this->preset == climate::CLIMATE_PRESET_BOOST;
   uint8_t mode = frame[5];
-  // Temperature is given in degrees celcius * 2
+  // Temperature is given in degrees celsius * 2
   // only update for states that use the temperature
   uint8_t temperature = frame[6];
   if (mode & DAIKIN_MODE_ON) {

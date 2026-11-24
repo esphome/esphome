@@ -11,7 +11,6 @@ from esphome.const import (
     CONF_NUM_LEDS,
     CONF_OUTPUT_ID,
     CONF_PIN,
-    CONF_PLATFORM,
 )
 import esphome.final_validate as fv
 from esphome.types import ConfigType
@@ -128,23 +127,29 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def _final_validate(config: ConfigType) -> None:
-    # The strip owns SPI0 and its DMA channel, so only one can exist.
-    lights = fv.full_config.get().get(light.DOMAIN, [])
-    if sum(entry.get(CONF_PLATFORM) == DOMAIN for entry in lights) > 1:
-        raise cv.Invalid(f"Only one {DOMAIN} is supported (it uses SPI0)")
-
-
-FINAL_VALIDATE_SCHEMA = _final_validate
+# The strip owns SPI0 and its DMA channel, so only one can exist.
+FINAL_VALIDATE_SCHEMA = fv.unique_platform_key(
+    domain=light.DOMAIN,
+    platform=DOMAIN,
+    message=f"Only one {DOMAIN} is supported (it uses SPI0)",
+)
 
 
 async def to_code(config: ConfigType) -> None:
     encoding = spi_encoding(CHIPSETS[config[CONF_CHIPSET]])
+    num_leds = config[CONF_NUM_LEDS]
+    channel_colors = config[CONF_CHANNEL_COLORS]
+    dma_data_bytes = ln882x_spi_led_strip_ns.dma_data_bytes(
+        num_leds * len(channel_colors), encoding.reset_bytes
+    )
     var = cg.new_Pvariable(
         config[CONF_OUTPUT_ID],
+        light.static_led_buffer(
+            config[CONF_OUTPUT_ID], num_leds, len(channel_colors), dma_data_bytes
+        ),
         config[CONF_PIN],
-        config[CONF_NUM_LEDS],
-        light.channel_colors_struct(config[CONF_CHANNEL_COLORS]),
+        num_leds,
+        light.channel_colors_struct(channel_colors),
         encoding.prescaler,
         encoding.bit0_high_bits,
         encoding.bit1_high_bits,

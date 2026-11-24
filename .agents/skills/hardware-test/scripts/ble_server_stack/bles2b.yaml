@@ -1,0 +1,19 @@
+# bles2.yaml plus a caller-owned Battery service (needs BLEServer::add_service(), PR builds only). -s name NAME
+packages:
+  base: !include bles2.yaml
+esphome:
+  on_boot:
+    - lambda: |-
+        static esp32_ble_server::BLEService battery(esp32_ble::ESPBTUUID::from_uint16(0x180F), 6, false);
+        static esp32_ble_server::BLECharacteristic level(
+            esp32_ble::ESPBTUUID::from_uint16(0x2A19),
+            esp32_ble_server::BLECharacteristic::PROPERTY_READ | esp32_ble_server::BLECharacteristic::PROPERTY_NOTIFY,
+            ESP_GATT_PERM_READ);
+        static esp32_ble_server::BLE2902 level_cccd;
+        level.add_descriptor(level_cccd);
+        level.set_value({87});
+        battery.add_characteristic(level);
+        if (id(ble_server).add_service(battery))
+          id(ble_server).enqueue_start_service(&battery);
+        else
+          ESP_LOGW("T", "Battery add_service returned false");

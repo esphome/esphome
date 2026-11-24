@@ -111,6 +111,8 @@ class UpdateLock {
   bool is_held() const { return this->held_; }
   /// Keep the lock set until reboot; is_held() becomes false.
   void hold_until_reboot() { this->held_ = false; }
+  /// True while an update is being written or a committed one awaits reboot.
+  static bool any_held();
 
  protected:
   /// Tests only.
@@ -126,7 +128,9 @@ class UpdateLock {
 //   (web_server upload) and the backend allows the largest image it can take.
 //   ota_type defaults to an app update, so both call forms must be accepted.
 // - set_update_md5: expected digest of the incoming image, hex string.
-// - write: consume the next chunk; end: finalize and mark bootable.
+// - write: consume the next chunk without modifying it; the caller may reuse it
+//   (the deflate OTA window is also back reference history). end: finalize and
+//   mark bootable.
 // - abort: safe to call in any state, including after end().
 // - supports_compression: constexpr, whether a gzip image is stored as is and
 //   inflated at reboot.
@@ -150,8 +154,10 @@ concept OTABackendContract = requires(T backend, size_t image_size, uint8_t *dat
  */
 class OTAStateListener {
  public:
-  virtual ~OTAStateListener() = default;
   virtual void on_ota_state(OTAState state, float progress, uint8_t error) = 0;
+
+ protected:
+  ~OTAStateListener() = default;
 };
 
 class OTAComponent : public Component {
@@ -181,8 +187,10 @@ class OTAComponent : public Component {
  */
 class OTAGlobalStateListener {
  public:
-  virtual ~OTAGlobalStateListener() = default;
   virtual void on_ota_global_state(OTAState state, float progress, uint8_t error, OTAComponent *component) = 0;
+
+ protected:
+  ~OTAGlobalStateListener() = default;
 };
 
 /** Global callback that aggregates OTA state from all OTA components.
@@ -192,16 +200,14 @@ class OTAGlobalStateListener {
  */
 class OTAGlobalCallback {
  public:
-  void add_global_state_listener(OTAGlobalStateListener *listener) { this->global_listeners_.push_back(listener); }
+  // One slot per ota.request_ota_state_listeners() call
+  SLOT_LIST(OTAGlobalStateListener, global_listeners_, add_global_state_listener, ESPHOME_OTA_GLOBAL_LISTENER_COUNT)
 
   void notify_ota_state(OTAState state, float progress, uint8_t error, OTAComponent *component) {
     for (auto *listener : this->global_listeners_) {
       listener->on_ota_global_state(state, progress, error, component);
     }
   }
-
- protected:
-  std::vector<OTAGlobalStateListener *> global_listeners_;
 };
 
 OTAGlobalCallback *get_global_ota_callback();

@@ -17,7 +17,8 @@ void TMCM1240::dump_config() {
 uint8_t TMCM1240::current_register(float amps) {
   if (!std::isfinite(amps) || amps < 0.072f || amps > 2.0f)
     return 0;
-  const int32_t level = std::clamp<int32_t>(static_cast<int32_t>(std::lround(amps * 32.0f * std::numbers::sqrt2_v<float> / 3.250f)), 1, 32);
+  const int32_t level = std::clamp<int32_t>(
+      static_cast<int32_t>(std::lround(amps * 32.0f * std::numbers::sqrt2_v<float> / 3.250f)), 1, 32);
   return static_cast<uint8_t>((level - 1) * 8);
 }
 

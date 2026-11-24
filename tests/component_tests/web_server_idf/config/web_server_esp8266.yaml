@@ -1,0 +1,11 @@
+esphome:
+  name: test
+
+esp8266:
+  board: esp01_1m
+
+wifi:
+  ssid: MySSID
+  password: password1
+
+web_server:

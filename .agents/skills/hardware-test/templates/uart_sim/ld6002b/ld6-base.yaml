@@ -1,0 +1,53 @@
+# Shared by the ld6002b and ld6004 runs: the component's UART cross-wired to the fake module's UART (UART1 tx 25
+# rx 26, UART2 tx 26 rx 25). Each run adds the component, its entities and a `cases` script that runs 15 s after boot.
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+
+esphome:
+  includes: [ld6sim.hpp]
+  on_boot:
+    - priority: -100
+      then:
+        - lambda: ld6sim::mod.u = id(uart_mod);
+        - delay: 15s
+        - script.execute: cases
+
+logger:
+  level: VERBOSE
+  logs:
+    component: DEBUG
+    api.service: DEBUG
+    api.connection: DEBUG
+    scheduler: DEBUG
+    wifi: DEBUG
+    uart.idf: DEBUG
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  power_save_mode: none
+
+api:
+  reboot_timeout: 0s
+
+ota:
+  - platform: esphome
+
+uart:
+  - id: uart_radar
+    tx_pin: {number: GPIO25, allow_other_uses: true}
+    rx_pin: {number: GPIO26, allow_other_uses: true}
+    baud_rate: 115200
+    rx_buffer_size: 2048
+  - id: uart_mod
+    tx_pin: {number: GPIO26, allow_other_uses: true}
+    rx_pin: {number: GPIO25, allow_other_uses: true}
+    baud_rate: 115200
+    rx_buffer_size: 512
+
+interval:
+  - interval: 10ms
+    then:
+      - lambda: ld6sim::mod.poll();

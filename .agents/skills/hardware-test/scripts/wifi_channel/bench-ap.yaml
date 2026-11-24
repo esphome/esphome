@@ -1,0 +1,22 @@
+# ESP32-S3 as an AP-only bench network on a fixed channel (pick one your normal network does not use).
+# secrets.yaml: bench_ssid, bench_password.
+substitutions:
+  channel: "11"
+
+esphome:
+  name: benchap
+
+esp32:
+  variant: esp32s3
+  board: esp32-s3-devkitc-1
+  framework:
+    type: esp-idf
+
+logger:
+  hardware_uart: USB_SERIAL_JTAG
+
+wifi:
+  ap:
+    ssid: !secret bench_ssid
+    password: !secret bench_password
+    channel: ${channel}

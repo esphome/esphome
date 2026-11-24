@@ -1,0 +1,12 @@
+substitutions:
+  request_pin: GPIO15
+
+uart:
+  - id: dsmr_uart_bus
+    port: /dev/null
+    baud_rate: 115200
+    # dsmr warns below 1500 bytes
+    rx_buffer_size: 1500
+
+packages:
+  dsmr: !include common.yaml

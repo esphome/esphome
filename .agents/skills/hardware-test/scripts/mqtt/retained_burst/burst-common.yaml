@@ -1,0 +1,13 @@
+# Retained burst at connect (a package): the burst topics, so all 40 retained messages arrive at once on connect, and
+# a RESULT line 15 s after it. The per-run file supplies the board, name and logger.
+packages:
+  topics: !include burst-topics.yaml
+
+mqtt:
+  on_connect:
+    - logger.log: "EV CONNECTED"
+    - delay: 15s
+    - lambda: |-
+        ESP_LOGI("hwt", "RESULT got=%u/25 mask=%08X switches_on=%u/15 mask=%08X",
+                 (unsigned) __builtin_popcount(id(got)), (unsigned) id(got),
+                 (unsigned) __builtin_popcount(id(sw_on)), (unsigned) id(sw_on));

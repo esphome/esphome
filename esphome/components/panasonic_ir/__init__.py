@@ -1,0 +1,1 @@
+DOMAIN = "panasonic_ir"

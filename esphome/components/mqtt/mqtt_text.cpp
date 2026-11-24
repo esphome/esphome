@@ -19,7 +19,7 @@ PROGMEM_STRING_TABLE(TextMqttModeStrings, "text", "password");
 MQTTTextComponent::MQTTTextComponent(Text *text) : text_(text) {}
 
 void MQTTTextComponent::setup() {
-  this->subscribe(this->get_command_topic_(), [this](const std::string &topic, const std::string &state) {
+  this->subscribe(this->command_topic_source_(), [this](const std::string &topic, const std::string &state) {
     auto call = this->text_->make_call();
     call.set_value(state);
     call.perform();
@@ -35,8 +35,7 @@ const EntityBase *MQTTTextComponent::get_entity() const { return this->text_; }
 
 void MQTTTextComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
   // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
-  root[MQTT_MODE] = TextMqttModeStrings::get_progmem_str(static_cast<uint8_t>(this->text_->traits.get_mode()),
-                                                         static_cast<uint8_t>(TEXT_MODE_TEXT));
+  root[MQTT_MODE] = TextMqttModeStrings::get_progmem_str(this->text_->traits.get_mode(), TEXT_MODE_TEXT);
 
   config.command_topic = true;
 }

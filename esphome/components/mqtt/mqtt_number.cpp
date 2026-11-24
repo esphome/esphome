@@ -19,7 +19,7 @@ PROGMEM_STRING_TABLE(NumberMqttModeStrings, "", "box", "slider");
 MQTTNumberComponent::MQTTNumberComponent(Number *number) : number_(number) {}
 
 void MQTTNumberComponent::setup() {
-  this->subscribe(this->get_command_topic_(), [this](const std::string &topic, const std::string &state) {
+  this->subscribe(this->command_topic_source_(), [this](const std::string &topic, const std::string &state) {
     auto val = parse_number<float>(state);
     if (!val.has_value()) {
       ESP_LOGW(TAG, "Can't convert '%s' to number!", state.c_str());
@@ -51,8 +51,7 @@ void MQTTNumberComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryCon
   }
   const auto mode = this->number_->traits.get_mode();
   if (mode != NUMBER_MODE_AUTO) {
-    root[MQTT_MODE] =
-        NumberMqttModeStrings::get_progmem_str(static_cast<uint8_t>(mode), static_cast<uint8_t>(NUMBER_MODE_BOX));
+    root[MQTT_MODE] = NumberMqttModeStrings::get_progmem_str(mode, NUMBER_MODE_BOX);
   }
   // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
 

@@ -9,6 +9,7 @@ import sys
 from unittest.mock import Mock, patch
 
 import pytest
+import yaml
 
 # Add the script directory to Python path so we can import the module
 script_dir = str((Path(__file__).parent / ".." / ".." / "script").resolve())
@@ -91,6 +92,13 @@ def mock_esp8266_native_components_to_test() -> Generator[Mock, None, None]:
 
 
 @pytest.fixture
+def mock_windows_build_matrix() -> Generator[Mock, None, None]:
+    """Mock windows_build_matrix from determine_jobs (the ``windows_build_matrix`` output)."""
+    with patch.object(determine_jobs, "windows_build_matrix") as mock:
+        yield mock
+
+
+@pytest.fixture
 def mock_determine_cpp_unit_tests() -> Generator[Mock, None, None]:
     """Mock determine_cpp_unit_tests from helpers."""
     with patch.object(determine_jobs, "determine_cpp_unit_tests") as mock:
@@ -130,6 +138,7 @@ def test_main_all_tests_should_run(
     mock_should_run_device_builder: Mock,
     mock_esp32_platformio_components_to_test: Mock,
     mock_esp8266_native_components_to_test: Mock,
+    mock_windows_build_matrix: Mock,
     mock_changed_files: Mock,
     mock_determine_cpp_unit_tests: Mock,
     capsys: pytest.CaptureFixture[str],
@@ -147,6 +156,7 @@ def test_main_all_tests_should_run(
     mock_should_run_device_builder.return_value = True
     mock_esp32_platformio_components_to_test.return_value = ["api", "esp32"]
     mock_esp8266_native_components_to_test.return_value = ["api", "logger"]
+    mock_windows_build_matrix.return_value = [{"target": "esp8266-ard"}]
     mock_determine_cpp_unit_tests.return_value = (False, ["wifi", "api", "sensor"])
 
     # Mock changed_files to return non-component files (to avoid memory impact)
@@ -225,6 +235,7 @@ def test_main_all_tests_should_run(
     assert output["esp32_platformio_components"] == "api,esp32"
     assert output["esp8266_native"] is True
     assert output["esp8266_native_components"] == "api,logger"
+    assert output["windows_build_matrix"] == [{"target": "esp8266-ard"}]
     assert output["changed_components"] == ["wifi", "api", "sensor"]
     # changed_components_with_tests will only include components that actually have test files
     assert "changed_components_with_tests" in output
@@ -385,6 +396,7 @@ def test_main_no_tests_should_run(
     mock_should_run_device_builder: Mock,
     mock_esp32_platformio_components_to_test: Mock,
     mock_esp8266_native_components_to_test: Mock,
+    mock_windows_build_matrix: Mock,
     mock_changed_files: Mock,
     mock_determine_cpp_unit_tests: Mock,
     capsys: pytest.CaptureFixture[str],
@@ -402,6 +414,7 @@ def test_main_no_tests_should_run(
     mock_should_run_device_builder.return_value = False
     mock_esp32_platformio_components_to_test.return_value = []
     mock_esp8266_native_components_to_test.return_value = []
+    mock_windows_build_matrix.return_value = []
     mock_determine_cpp_unit_tests.return_value = (False, [])
 
     # Mock changed_files to return no component files
@@ -446,6 +459,7 @@ def test_main_no_tests_should_run(
     assert output["esp32_platformio_components"] == ""
     assert output["esp8266_native"] is False
     assert output["esp8266_native_components"] == ""
+    assert output["windows_build_matrix"] == []
     assert output["changed_components"] == []
     assert output["changed_components_with_tests"] == []
     assert output["component_test_count"] == 0
@@ -815,6 +829,29 @@ def test_determine_integration_tests_changed_test_file() -> None:
             determine_jobs,
             "changed_files",
             return_value=["tests/integration/test_syslog.py"],
+        ),
+        patch.object(determine_jobs, "get_fixture_to_test_files", return_value={}),
+        patch.object(
+            determine_jobs,
+            "get_integration_test_files_for_components",
+            return_value=[],
+        ),
+    ):
+        run_all, test_files = determine_jobs.determine_integration_tests()
+        assert run_all is False
+        assert test_files == ["tests/integration/test_syslog.py"]
+
+
+def test_determine_integration_tests_deleted_test_file_skipped() -> None:
+    """A test file the PR deletes is in the diff but must not be handed to pytest."""
+    with (
+        patch.object(
+            determine_jobs,
+            "changed_files",
+            return_value=[
+                "tests/integration/test_syslog.py",
+                "tests/integration/test_removed_by_this_pr.py",
+            ],
         ),
         patch.object(determine_jobs, "get_fixture_to_test_files", return_value={}),
         patch.object(
@@ -1306,6 +1343,20 @@ def test_should_run_esp32_platformio_with_branch() -> None:
 def test_esp_idf_infra_changed(changed_files: list[str], expected: bool) -> None:
     """ESP-IDF build infra paths are detected; other paths are not."""
     assert determine_jobs._esp_idf_infra_changed(changed_files) is expected
+
+
+def test_integration_ccache_restores_every_bucket_slice() -> None:
+    """ci.yml restores one ccache slice per full-run bucket; a bucket count
+    change without a matching restore step would leave a slice unread."""
+    repo_root = Path(__file__).resolve().parents[2]
+    workflow = yaml.safe_load((repo_root / ".github/workflows/ci.yml").read_text())
+    keys = [
+        step["with"]["restore-keys"]
+        for step in workflow["jobs"]["integration-tests"]["steps"]
+        if step.get("name", "").startswith("Restore integration ccache (slice")
+    ]
+    buckets = determine_jobs.INTEGRATION_TESTS_SPLIT_BUCKETS
+    assert keys == [f"integration-ccache-v1-{i}-" for i in range(buckets)]
 
 
 def test_esp_idf_infra_trigger_paths_exist() -> None:
@@ -2752,6 +2803,16 @@ def test_should_run_benchmarks_host_platform_change() -> None:
             )
 
 
+def test_should_run_benchmarks_logger_change() -> None:
+    """Test benchmarks trigger on logger changes, which the core logger benchmarks run through."""
+    with patch.object(
+        determine_jobs,
+        "changed_files",
+        return_value=["esphome/components/logger/log_buffer.h"],
+    ):
+        assert determine_jobs.should_run_benchmarks() is True
+
+
 def test_should_run_benchmarks_benchmark_infra_change() -> None:
     """Test benchmarks trigger on benchmark infrastructure changes."""
     for infra_file in [
@@ -2788,22 +2849,22 @@ def test_should_run_benchmarks_core_benchmark_file_change() -> None:
 def test_python_import_benchmarked_components_imports_real_components() -> None:
     """The set is what importing the real benchmark's components loads."""
     loaded = determine_jobs.python_import_benchmarked_components()
-    # mqtt is not listed in COMPONENTS; sensor imports it at module scope
-    assert {"binary_sensor", "sensor", "logger", "mqtt"} <= loaded
+    # What else they pull in changes as imports are deferred, so only the listed ones are pinned
+    assert {"binary_sensor", "sensor", "logger"} <= loaded
 
 
 def test_should_run_benchmarks_python_import_benchmarked_component() -> None:
     """A Python change in a component the import benchmark loads runs benchmarks.
 
-    logger has no C++ benchmark, so before this a change to its __init__.py
-    skipped the Python import benchmark that times it.
+    ota has no C++ benchmark, so without this a change to its __init__.py
+    would skip the Python import benchmark that times it.
     """
     for changed, expected in [
-        ("esphome/components/logger/__init__.py", True),
-        ("esphome/components/logger/select/__init__.py", True),
+        ("esphome/components/ota/__init__.py", True),
+        ("esphome/components/ota/sub/__init__.py", True),
         ("esphome/components/mqtt/__init__.py", True),
-        ("esphome/components/logger/logger.cpp", False),
-        ("tests/components/logger/common.yaml", False),
+        ("esphome/components/ota/ota_backend.cpp", False),
+        ("tests/components/ota/common.yaml", False),
         ("esphome/components/wifi/__init__.py", False),
     ]:
         with (
@@ -2811,7 +2872,7 @@ def test_should_run_benchmarks_python_import_benchmarked_component() -> None:
             patch.object(
                 determine_jobs,
                 "python_import_benchmarked_components",
-                return_value=frozenset({"logger", "mqtt"}),
+                return_value=frozenset({"ota", "mqtt"}),
             ),
         ):
             assert determine_jobs.should_run_benchmarks() is expected, changed
@@ -3460,6 +3521,113 @@ def test_esp8266_native_components_to_test_narrowing(
     ):
         result = determine_jobs.esp8266_native_components_to_test()
         assert result == expected
+
+
+def _windows_targets(entries: list[dict[str, str]]) -> list[tuple[str, str]]:
+    return [(e["target"], e["ccache"]) for e in entries]
+
+
+def test_windows_build_matrix_force_all_lists_every_leg() -> None:
+    """--force-all schedules every leg; ccache legs appear with and without ccache."""
+    with patch.object(determine_jobs, "changed_files", return_value=[]):
+        entries = determine_jobs.windows_build_matrix(force_all=True)
+    assert _windows_targets(entries) == [
+        ("esp8266-ard", "1"),
+        ("esp8266-ard", "0"),
+        ("esp32-idf", "1"),
+        ("esp32-idf", "0"),
+        ("esp32-c3-idf", "1"),
+        ("rp2040-ard", "1"),
+        ("bk72xx-ard", "1"),
+        ("nrf52-xiao-ble", "1"),
+    ]
+    # ci.yml reads these fields on every entry; the selection fields stay internal
+    for entry in entries:
+        assert {"target", "toolchain", "component", "ccache"} <= entry.keys()
+        assert "trigger" not in entry
+        assert "also_without_ccache" not in entry
+    assert [e["idf_target"] for e in entries if e["toolchain"] == "esp-idf"] == [
+        "esp32",
+        "esp32",
+        "esp32c3",
+    ]
+
+
+def test_windows_build_matrix_core_change_lists_every_leg() -> None:
+    """A core change schedules every leg, like the other smoke tests."""
+    with patch.object(
+        determine_jobs, "changed_files", return_value=["esphome/core/scheduler.cpp"]
+    ):
+        all_legs = determine_jobs.windows_build_matrix(force_all=True)
+        assert determine_jobs.windows_build_matrix() == all_legs
+
+
+@pytest.mark.parametrize(
+    ("changed", "expected_targets"),
+    [
+        # Native ESP8266 build infrastructure and platform: only the esp8266 leg
+        (["esphome/build_gen/arduino8266.py"], ["esp8266-ard"]),
+        (["esphome/components/esp8266/__init__.py"], ["esp8266-ard"]),
+        # Native ESP-IDF infrastructure: the Xtensa and RISC-V legs
+        (["esphome/espidf/toolchain.py"], ["esp32-idf", "esp32-c3-idf"]),
+        (["esphome/components/esp32/__init__.py"], ["esp32-idf", "esp32-c3-idf"]),
+        # The PlatformIO runner and the platforms built through it; the esp8266
+        # platform imports the ccache helper from the runner's toolchain module
+        (
+            ["esphome/platformio/toolchain.py"],
+            ["esp8266-ard", "rp2040-ard", "bk72xx-ard"],
+        ),
+        (["esphome/build_gen/platformio.py"], ["rp2040-ard", "bk72xx-ard"]),
+        (["esphome/components/rp2/__init__.py"], ["rp2040-ard", "bk72xx-ard"]),
+        (["esphome/components/libretiny/__init__.py"], ["rp2040-ard", "bk72xx-ard"]),
+        # The native sdk-nrf build
+        (["esphome/components/nrf52/framework.py"], ["nrf52-xiao-ble"]),
+        (["esphome/components/zephyr/__init__.py"], ["nrf52-xiao-ble"]),
+        # Shared by the ninja backends: esp8266, esp32 and nrf52
+        (
+            ["esphome/build_helpers/ninja.py"],
+            ["esp8266-ard", "esp32-idf", "esp32-c3-idf", "nrf52-xiao-ble"],
+        ),
+        # The tools cache places every backend's install or ccache store
+        (
+            ["esphome/build_helpers/tools_cache.py"],
+            [
+                "esp8266-ard",
+                "esp32-idf",
+                "esp32-c3-idf",
+                "rp2040-ard",
+                "bk72xx-ard",
+                "nrf52-xiao-ble",
+            ],
+        ),
+        # A top-level module outside the shared set runs no Windows leg (the
+        # Linux native esp8266 job still runs on it)
+        (["esphome/config.py"], []),
+        # A component change is covered by the Linux component matrix
+        (["esphome/components/mqtt/mqtt_client.cpp"], []),
+        (["README.md"], []),
+    ],
+)
+def test_windows_build_matrix_narrowing(
+    changed: list[str], expected_targets: list[str]
+) -> None:
+    """Each leg runs only when the build path it covers changed."""
+    with patch.object(determine_jobs, "changed_files", return_value=changed):
+        entries = determine_jobs.windows_build_matrix()
+    assert sorted({e["target"] for e in entries}) == sorted(expected_targets)
+
+
+@pytest.mark.parametrize(
+    "changed",
+    sorted(determine_jobs._SMOKE_HARNESS_TRIGGER_FILES)
+    + sorted(determine_jobs.WINDOWS_ALL_LEGS_TRIGGER_FILES)
+    + ["tests/test_build_components/build_components_base.esp32-idf.yaml"],
+)
+def test_windows_build_matrix_harness_change_lists_every_leg(changed: str) -> None:
+    """The harness, the workflow and the shared build modules schedule every leg."""
+    with patch.object(determine_jobs, "changed_files", return_value=[changed]):
+        entries = determine_jobs.windows_build_matrix()
+    assert len(entries) == len(determine_jobs.windows_build_matrix(force_all=True))
 
 
 def test_compute_integration_test_buckets_no_durations_full_fanout() -> None:

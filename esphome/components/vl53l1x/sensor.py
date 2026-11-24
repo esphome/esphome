@@ -1,16 +1,14 @@
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
+from esphome.components.const import CONF_TIMING_BUDGET
 from esphome.components.i2c import CONF_I2C_ID
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADDRESS,
     CONF_ENABLE_PIN,
     CONF_OFFSET,
-    CONF_PLATFORM,
     ICON_ARROW_EXPAND_VERTICAL,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_METER,
 )
 import esphome.final_validate as fv
 from esphome.types import ConfigType
@@ -31,7 +29,6 @@ DISTANCE_MODE_OPTIONS = DistanceMode.options(
 )
 
 CONF_DISTANCE_MODE = "distance_mode"
-CONF_TIMING_BUDGET = "timing_budget"
 CONF_SIGNAL_RATE_LIMIT = "signal_rate_limit"
 CONF_ROI_WIDTH = "roi_width"
 CONF_ROI_HEIGHT = "roi_height"
@@ -88,13 +85,9 @@ def _final_validate(config: ConfigType) -> ConfigType:
     # Every sensor boots at 0x29. With several on one bus each needs its own enable_pin so it
     # can be held in reset while the others are re-addressed, and none may stay at 0x29, or a
     # later sibling boots at the same address and the re-address write reaches both chips.
-    full_config = fv.full_config.get()
-    siblings = [
-        conf
-        for conf in full_config.get(sensor.DOMAIN, [])
-        if conf.get(CONF_PLATFORM) == DOMAIN
-        and conf[CONF_I2C_ID] == config[CONF_I2C_ID]
-    ]
+    siblings = fv.platform_entries(
+        domain=sensor.DOMAIN, platform=DOMAIN, match={CONF_I2C_ID: config[CONF_I2C_ID]}
+    )
     if len(siblings) < 2:
         return config
     if CONF_ENABLE_PIN not in config:
@@ -120,9 +113,8 @@ def _final_validate(config: ConfigType) -> ConfigType:
 CONFIG_SCHEMA = cv.All(
     sensor.sensor_schema(
         VL53L1XSensor,
-        unit_of_measurement=UNIT_METER,
+        kind=sensor.LENGTH_M,
         accuracy_decimals=3,
-        state_class=STATE_CLASS_MEASUREMENT,
         icon=ICON_ARROW_EXPAND_VERTICAL,
     )
     .extend(

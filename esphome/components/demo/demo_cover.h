@@ -57,6 +57,7 @@ class DemoCover final : public cover::Cover, public Component {
     }
     if (call.get_stop()) {
       this->cancel_timeout(MOVE_TIMEOUT_ID);
+      this->current_operation = cover::COVER_OPERATION_IDLE;
     }
 
     this->publish_state();

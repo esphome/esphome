@@ -1,4 +1,5 @@
 #include "fan.h"
+#include "automation.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/controller_registry.h"
 #include "esphome/core/log.h"
@@ -17,9 +18,7 @@ const FanPresetModes &FanTraits::supported_preset_modes() const {
 // Fan direction strings indexed by FanDirection enum (0-1): FORWARD, REVERSE, plus UNKNOWN
 PROGMEM_STRING_TABLE(FanDirectionStrings, "FORWARD", "REVERSE", "UNKNOWN");
 
-const LogString *fan_direction_to_string(FanDirection direction) {
-  return FanDirectionStrings::get_log_str(static_cast<uint8_t>(direction), FanDirectionStrings::LAST_INDEX);
-}
+const LogString *fan_direction_to_string(FanDirection direction) { return FanDirectionStrings::get_log_str(direction); }
 
 FanCall &FanCall::set_preset_mode(const std::string &preset_mode) {
   return this->set_preset_mode(preset_mode.data(), preset_mode.size());
@@ -309,6 +308,21 @@ void Fan::dump_traits_(const char *tag, const char *prefix) {
     for (const char *s : traits.supported_preset_modes()) {
       ESP_LOGCONFIG(tag, "%s    - %s", prefix, s);
     }
+  }
+}
+
+void cycle_speed(Fan *fan, bool off_speed_cycle) {
+  const int supported_speed_count = fan->get_traits().supported_speed_count();
+  if (supported_speed_count == 0) {
+    fan->toggle().perform();
+    return;
+  }
+  const int speed = fan->state ? fan->speed + 1 : 1;
+  if (speed > supported_speed_count && off_speed_cycle) {
+    // Past the top speed: turn off, and resume at speed 1 when turned on
+    fan->turn_off().set_speed(1).perform();
+  } else {
+    fan->turn_on().set_speed(speed > supported_speed_count ? 1 : speed).perform();
   }
 }
 

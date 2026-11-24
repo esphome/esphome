@@ -349,21 +349,35 @@ def test_wisp_requires_esp32(wisp_core: None) -> None:
 
 
 @pytest.mark.usefixtures("wisp_core")
-def test_wisp_requires_sta_network_or_ethernet() -> None:
-    """WISP has nothing to share without an upstream network; ethernet is one too."""
+def test_wisp_requires_sta_network_or_upstream() -> None:
+    """WISP has nothing to share without an upstream network; ethernet and modem are one too."""
     ap_only = {CONF_NETWORKS: [], CONF_AP: _wisp_ap()}
-    with pytest.raises(cv.Invalid, match="ethernet as the upstream"):
+    with pytest.raises(cv.Invalid, match="ethernet or modem as the upstream"):
         _final_validate(ap_only)
     _final_validate(ap_only, {"ethernet": {}})
+    _final_validate(ap_only, {"modem": {}})
     with pytest.raises(cv.Invalid, match="ethernet manual_ip needs dns1"):
         _final_validate(ap_only, {"ethernet": {CONF_MANUAL_IP: _manual_ip("0.0.0.0")}})
 
 
 @pytest.mark.usefixtures("wisp_core")
-def test_wisp_rejects_captive_portal() -> None:
-    with pytest.raises(cv.Invalid, match="captive_portal"):
+def test_wisp_accepts_captive_portal() -> None:
+    """The portal is served on the bridge while the upstream is down."""
+    _final_validate({CONF_NETWORKS: [{}], CONF_AP: _wisp_ap()}, {"captive_portal": {}})
+
+
+@pytest.mark.usefixtures("wisp_core")
+def test_wisp_portal_rejects_dns_servers() -> None:
+    """Clients only find the portal while DHCP offers the AP's own address as resolver."""
+    with pytest.raises(
+        cv.Invalid, match="dns_servers cannot be combined with captive_portal"
+    ):
         _final_validate(
-            {CONF_NETWORKS: [{}], CONF_AP: _wisp_ap()}, {"captive_portal": {}}
+            {
+                CONF_NETWORKS: [{}],
+                CONF_AP: _wisp_ap(**{CONF_DNS_SERVERS: [IPv4Address("1.1.1.1")]}),
+            },
+            {"captive_portal": {}},
         )
 
 

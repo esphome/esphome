@@ -1,0 +1,65 @@
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+  watchdog_timeout: 30s
+
+logger:
+  level: DEBUG
+
+api:
+  reboot_timeout: 0s
+
+modem:
+  id: atmodem
+  rx_pin: GPIO26
+  tx_pin: GPIO27
+  baud_rate: 115200
+  model: SIM7600
+  apn: internet
+  pin_code: "0000"
+  init_at:
+    - ATI
+  urc:
+    name: Modem URC
+  reboot_timeout: ${modem_reboot_timeout}
+  on_connect:
+    logger.log: "modem connected"
+  on_disconnect:
+    logger.log: "modem disconnected"
+  on_sync:
+    logger.log: "modem synced"
+
+sensor:
+  - platform: uptime
+    name: Uptime
+    update_interval: 30s
+  - platform: debug
+    free:
+      name: Heap Free
+    loop_time:
+      name: Loop Time
+
+debug:
+  update_interval: 30s
+
+button:
+  - platform: template
+    name: Modem Enable
+    on_press:
+      - modem.enable
+  - platform: template
+    name: Modem Disable
+    on_press:
+      - modem.disable
+  - platform: template
+    name: Modem Send AT
+    on_press:
+      - modem.send_at: "AT+CGSN"
+
+interval:
+  - interval: 20s
+    then:
+      - lambda: |-
+          ESP_LOGI("alive", "uptime %u s enabled=%d connected=%d", (unsigned) (millis() / 1000),
+                   id(atmodem).is_enabled(), id(atmodem).is_connected());
