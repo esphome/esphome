@@ -31,7 +31,7 @@ for i, ln in enumerate(lines):
     if "repro:" in ln:
         last = ln
     m = re.search(r"Exception \((\d+)\)", ln)
-    if not m and "rst cause:4" not in ln:
+    if not m and "rst cause:4" not in ln and "Reason: Hardware WDT" not in ln:
         continue
     if (
         m
@@ -42,11 +42,7 @@ for i, ln in enumerate(lines):
         pc, ev = ep.group(1), ep.group(2)
         print(f"{ln[:10]} exc {m.group(1)} pc {pc} {sym(pc)} excvaddr {ev} {ctx[10:]}")
     else:
-        print(
-            f"{ln[:10]} hardware WDT (rst cause 4)"
-            if not m
-            else f"{ln[:10]} exc {m.group(1)}"
-        )
+        print(f"{ln[:10]} hardware WDT" if not m else f"{ln[:10]} exc {m.group(1)}")
     if last and (h := HEAP_RE.search(last)):
         print(
             f"    last repro {last[:10]} heap {h.group(1)} maxblock {h.group(3)} up {h.group(5)}"

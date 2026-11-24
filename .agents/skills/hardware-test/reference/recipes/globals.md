@@ -41,5 +41,6 @@ Files in `scripts/esp8266_flash_prefs/`, a NodeMCU (ESP8266, Arduino).
 - Each restoring global polls at 1 s and the sync runs at 1 s, so the restored counter is 0 to 2 behind the last value
   printed, and two globals written together may come back 1 to 2 apart. A reset inside the erase to write window loses
   the whole preference sector, on dev too (about 3 of 45 random pin resets).
-- A background `ping` ignores the SIGINT from `timeout` and loses its summary; give it `-t SECONDS` instead.
+- A background `ping` ignores the SIGINT from `timeout` and loses its summary; give it a deadline instead (`-t SECONDS`
+  on macOS, `-w SECONDS` on Linux).
 - Results: https://github.com/esphome/esphome/pull/23221#issuecomment-7119953311

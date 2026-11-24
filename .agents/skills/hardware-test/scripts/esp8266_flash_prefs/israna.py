@@ -14,7 +14,9 @@ with pathlib.Path(sys.argv[1]).open(encoding="utf-8", errors="replace") as fh:
 rates, ds, dts, edges, syncs = [], [], [], [], []
 boots = sum("Log initialized" in ln for ln in L)
 exc = [
-    ln for ln in L if re.search(r"Exception \(|rst cause:[234]|Soft WDT|wdt reset", ln)
+    ln
+    for ln in L
+    if re.search(r"Exception \(|rst cause:[234]|Soft WDT|wdt reset|CRASH DETECTED", ln)
 ]
 saves = sum("preferences:" in ln and "Saving" in ln for ln in L)
 errs = sum(("Erasing failed" in ln or "Writing failed" in ln) for ln in L)

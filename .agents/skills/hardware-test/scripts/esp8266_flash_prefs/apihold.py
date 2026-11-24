@@ -23,7 +23,13 @@ async def main() -> None:
 
     while time.monotonic() < end:
         ev, on_stop = stop_event()
-        c = await connect(host, tries=120, on_stop=on_stop)
+        try:
+            c = await asyncio.wait_for(
+                connect(host, tries=120, on_stop=on_stop),
+                max(1, end - time.monotonic()),
+            )
+        except TimeoutError:
+            break
         n["conns"] += 1
         c.subscribe_logs(lambda _m: bump("logs"))
         c.subscribe_states(lambda _s: bump("states"))

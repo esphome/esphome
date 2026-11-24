@@ -46,7 +46,7 @@ BOOT_RE = re.compile(
 def reader() -> None:
     buf = b""
     while True:
-        d = ser.read(512)
+        d = ser.read(ser.in_waiting or 1)
         if not d:
             continue
         buf += d
