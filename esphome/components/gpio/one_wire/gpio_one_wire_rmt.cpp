@@ -87,14 +87,17 @@ void GPIORMTOneWireBus::setup() {
       this->check_(rmt_tx_wait_all_done(this->tx_channel_, LINE_RELEASE_TIMEOUT_MS),
                    LOG_STR("in rmt_tx_wait_all_done"))) {
     this->search();
-    return;
+    if (!this->is_failed())
+      return;
   }
-  // check_() marked the bus failed. Free what was created, so other RMT components can still get it.
+  // check_() marked the bus failed, in the list above or in an abort() during the search. Free what was created, so
+  // other RMT components can still get it. A failed engine makes no further port calls.
   this->release_(rx_enabled, tx_enabled);
 }
 
 void GPIORMTOneWireBus::release_(bool rx_enabled, bool tx_enabled) {
-  // A channel must be disabled before it can be deleted. Errors are ignored, the bus has failed already.
+  // A channel must be disabled before it can be deleted. This also stops RX if it is still armed. Errors are
+  // ignored, the bus has failed already. After a failed abort(), a channel may be disabled already.
   if (tx_enabled)
     rmt_disable(this->tx_channel_);
   if (rx_enabled)
