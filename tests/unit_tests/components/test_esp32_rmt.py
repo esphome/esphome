@@ -834,3 +834,44 @@ def test_reduce_a_receiver_next_to_a_tx_channel_that_takes_an_rx_block(
         "'rx' will not fit: 'bus' (144), 'rx' (96). Set 'rmt_symbols: 48' on 'rx'. "
         "Otherwise" in messages[0]
     )
+
+
+@pytest.mark.parametrize(
+    ("variant", "bus", "config", "text"),
+    [
+        # Only with the TX channel of three blocks first is an RX block left
+        (
+            VARIANT_ESP32C3,
+            (("TX", 3),),
+            {"RX": [_entry("rx", 48, **{CONF_SETUP_PRIORITY: 900.0})]},
+            (
+                "'bus' will not fit: 'rx' (48), 'bus' (144). Set 'setup_priority' so "
+                "'bus' is set up first, then 'rx'. Otherwise"
+            ),
+        ),
+        # On S3 the bus must start at the second TX block, after the strip
+        (
+            VARIANT_ESP32S3,
+            (("TX", 6),),
+            {**_strips(48), "RX": [_entry("rx", 48)]},
+            (
+                "'strip0' will not fit: 'bus' (288), 'strip0' (48), 'rx' (48). Set "
+                "'setup_priority' so 'strip0' is set up first, then 'bus', then "
+                "'rx'. Otherwise"
+            ),
+        ),
+    ],
+    ids=["two_components", "three_components"],
+)
+def test_setup_order_other_than_smallest_first(
+    caplog: pytest.LogCaptureFixture,
+    variant: str,
+    bus: tuple[tuple[str, int], ...],
+    config: Config,
+    text: str,
+) -> None:
+    """When smaller components first does not fit but another order does, name it."""
+    messages = _check_fixed(caplog, variant, [(_bus("bus"), bus)], config)
+    assert len(messages) == 1
+    assert text in messages[0]
+    assert "Remove" not in messages[0]

@@ -1,5 +1,6 @@
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field, replace
+from itertools import permutations
 import logging
 from typing import Any, Literal
 
@@ -330,7 +331,29 @@ def _pools(
     ]
 
 
-def _advice(memory: RMTMemory, channels: list[_Channel], reorder: bool) -> str:
+def _reorder(memory: RMTMemory, components: list[list[_Channel]]) -> str | None:
+    """Suggest setup_priority when the components fit in another setup order.
+
+    setup_priority moves a whole component: its setup() creates its channels in order.
+    The order with the smaller components first is tried first, then every other one.
+    """
+    size = memory.symbols_per_block
+    smallest_first = sorted(
+        components, key=lambda own: sum(c.blocks(size) for c in own)
+    )
+    # The first order is smallest_first itself
+    for i, order in enumerate(permutations(smallest_first)):
+        if _allocate(memory, [channel for own in order for channel in own]):
+            continue
+        if i == 0:
+            return f"set '{CONF_SETUP_PRIORITY}' so the smaller ones are set up first"
+        first, *rest = (f"'{own[0].label}'" for own in order)
+        then = "".join(f", then {label}" for label in rest)
+        return f"set '{CONF_SETUP_PRIORITY}' so {first} is set up first{then}"
+    return None
+
+
+def _advice(memory: RMTMemory, channels: list[_Channel], reorder: str | None) -> str:
     """Suggest an rmt_symbols value for the components of each overrun pool.
 
     A DMA channel and a channel of a fixed size keep their blocks, whatever rmt_symbols
@@ -338,8 +361,7 @@ def _advice(memory: RMTMemory, channels: list[_Channel], reorder: bool) -> str:
     rest can come from the RX blocks, because a TX channel can extend into them. The
     values are only suggested when the channels then fit in this order. When a pool has
     too little memory, or there is nothing to reduce, suggest to remove components
-    instead. When reorder is set, the channels fit with the smaller components set up
-    first, so suggest setup_priority instead.
+    instead. reorder is the advice from _reorder(), suggested instead when it is set.
     """
     size = memory.symbols_per_block
     suggestions = []
@@ -381,9 +403,7 @@ def _advice(memory: RMTMemory, channels: list[_Channel], reorder: bool) -> str:
             suggestions = []
     advice = [f"Set {' and '.join(suggestions)}"] if suggestions else []
     if reorder:
-        advice.append(
-            f"set '{CONF_SETUP_PRIORITY}' so the smaller ones are set up first"
-        )
+        advice.append(reorder)
     elif stuck or not suggestions:
         advice.append(
             "remove some of these components or use a chip with more RMT memory"
@@ -451,11 +471,6 @@ async def _check_memory() -> None:
         return
     size = memory.symbols_per_block
     components = _by_component(channels)
-    # setup_priority moves a whole component: its setup() creates its channels in order
-    smallest_first = sorted(
-        components.values(), key=lambda own: sum(c.blocks(size) for c in own)
-    )
-    reorder = not _allocate(memory, [c for own in smallest_first for c in own])
     # A component with several channels gets the direction of each
     usage = ", ".join(
         f"'{channel.label}' ("
@@ -473,7 +488,7 @@ async def _check_memory() -> None:
         size,
         _labels(failed),
         usage,
-        _advice(memory, channels, reorder),
+        _advice(memory, channels, _reorder(memory, list(components.values()))),
         " or ".join(sorted({_IDF_ERRORS[channel.direction] for channel in failed})),
     )
 
