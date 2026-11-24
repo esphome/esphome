@@ -126,7 +126,6 @@ async def to_code(config: ConfigType) -> None:
         )
 
 
-
 def validate_sdo_value(config: ConfigType) -> ConfigType:
     value = config[CONF_VALUE]
     if isinstance(value, int):
