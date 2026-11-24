@@ -92,6 +92,8 @@ def validate_model_io(model_path: Path, config: ConfigType) -> None:
 async def configure(var, config: ConfigType, model_path: Path) -> None:
     """Pass the tuning values through and leave the load to the consumer."""
     validate_model_io(model_path, config)
+    # The runtime compiles its audio-only configuration only when this is set.
+    cg.add_define("USE_TFLITE_AUDIO")
     cg.add(var.set_defer_load(True))
     if (cutoff := config.get(CONF_PROBABILITY_CUTOFF)) is not None:
         cg.add(var.set_probability_cutoff(cutoff))
