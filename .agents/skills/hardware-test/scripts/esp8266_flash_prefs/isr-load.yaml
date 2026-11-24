@@ -19,29 +19,13 @@ esphome:
 
 substitutions:
   name: isr-load
+  restore_from_flash: "true"
 
-esp8266:
-  board: nodemcuv2
-  restore_from_flash: true
-
-logger:
-  level: DEBUG
-
-api:
-  reboot_timeout: 0s
+packages:
+  base: !include flash-prefs-common.yaml
 
 safe_mode:
   disabled: true
-
-ota:
-  - platform: esphome
-
-wifi:
-  ssid: !secret wifi_ssid
-  password: !secret wifi_password
-
-preferences:
-  flash_write_interval: 1s
 
 globals:
   - id: counter
@@ -61,12 +45,6 @@ globals:
     restore_value: true
     initial_value: "0"
   - id: edges
-    type: uint32_t
-    initial_value: "0"
-  - id: last_total
-    type: uint32_t
-    initial_value: "0"
-  - id: last_ms
     type: uint32_t
     initial_value: "0"
 
@@ -93,12 +71,13 @@ sensor:
       name: pc total
       on_raw_value:
         - lambda: |-
+            static uint32_t last_total = 0, last_ms = 0;
             uint32_t t = (uint32_t) x;
             uint32_t now = millis();
-            if (id(last_ms) != 0)
-              ESP_LOGI("pc", "d=%u dt=%u", t - id(last_total), now - id(last_ms));
-            id(last_total) = t;
-            id(last_ms) = now;
+            if (last_ms != 0)
+              ESP_LOGI("pc", "d=%u dt=%u", t - last_total, now - last_ms);
+            last_total = t;
+            last_ms = now;
 
 binary_sensor:
   - platform: gpio

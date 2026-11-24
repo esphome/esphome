@@ -9,41 +9,41 @@ import re
 import statistics
 import sys
 
-with pathlib.Path(sys.argv[1]).open(encoding="utf-8", errors="replace") as fh:
-    L = fh.read().splitlines()
-rates, ds, dts, edges, syncs = [], [], [], [], []
-boots = sum("Log initialized" in ln for ln in L)
-exc = [
-    ln
-    for ln in L
-    if re.search(r"Exception \(|rst cause:[234]|Soft WDT|wdt reset|CRASH DETECTED", ln)
-]
-saves = sum("preferences:" in ln and "Saving" in ln for ln in L)
-errs = sum(("Erasing failed" in ln or "Writing failed" in ln) for ln in L)
+CRASH_RE = re.compile(r"Exception \(|rst cause:[234]|Soft WDT|wdt reset|CRASH DETECTED")
+PC_RE = re.compile(r"\]\[pc:\d+\]: d=(\d+) dt=(\d+)")
+STAT_RE = re.compile(r"stat:\d+\]: edges=(\d+) heap=(\d+) maxblock=(\d+) up=(\d+)")
+SYNC_RE = re.compile(r"sync us=(\d+)")
+
+rates, edges, syncs, heaps, exc = [], [], [], [], []
+lines = boots = saves = errs = pulses = span = 0
 prev = None
-heaps = []
-for ln in L:
-    if m := re.search(r"\]\[pc:\d+\]: d=(\d+) dt=(\d+)", ln):
-        d, dt = int(m.group(1)), int(m.group(2))
-        ds.append(d)
-        dts.append(dt)
-        rates.append(d * 1000 / dt)
-    if m := re.search(
-        r"stat:\d+\]: edges=(\d+) heap=(\d+) maxblock=(\d+) up=(\d+)", ln
-    ):
-        e, up = int(m.group(1)), int(m.group(4))
-        heaps.append(int(m.group(2)))
-        if prev and up > prev[1]:
-            edges.append((e - prev[0]) / (up - prev[1]))
-        prev = (e, up)
-    if m := re.search(r"sync us=(\d+)", ln):
-        syncs.append(int(m.group(1)))
+with pathlib.Path(sys.argv[1]).open(encoding="utf-8", errors="replace") as fh:
+    for ln in fh:
+        lines += 1
+        boots += "Log initialized" in ln
+        saves += "preferences:" in ln and "Saving" in ln
+        errs += "Erasing failed" in ln or "Writing failed" in ln
+        if CRASH_RE.search(ln):
+            exc.append(ln.rstrip())
+        if m := PC_RE.search(ln):
+            d, dt = int(m.group(1)), int(m.group(2))
+            pulses += d
+            span += dt
+            rates.append(d * 1000 / dt)
+        if m := STAT_RE.search(ln):
+            e, up = int(m.group(1)), int(m.group(4))
+            heaps.append(int(m.group(2)))
+            if prev and up > prev[1]:
+                edges.append((e - prev[0]) / (up - prev[1]))
+            prev = (e, up)
+        if m := SYNC_RE.search(ln):
+            syncs.append(int(m.group(1)))
 print(
-    f"lines={len(L)} boots={boots} crash_lines={len(exc)} saves={saves} flash_errs={errs}"
+    f"lines={lines} boots={boots} crash_lines={len(exc)} saves={saves} flash_errs={errs}"
 )
 if rates:
     print(
-        f"pc samples={len(rates)} total_pulses={sum(ds)} overall_hz={sum(ds) * 1000 / sum(dts):.2f}"
+        f"pc samples={len(rates)} total_pulses={pulses} overall_hz={pulses * 1000 / span:.2f}"
     )
     print(
         f"rate min={min(rates):.1f} max={max(rates):.1f} median={statistics.median(rates):.1f}"

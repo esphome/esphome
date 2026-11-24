@@ -1,50 +1,92 @@
-"""List the exceptions and hardware watchdog resets in a scan-repro capture, with the last heap line before each.
+"""List the exceptions and hardware watchdog resets in a scan-repro capture, with the last heap line before each, or
+with --trend the heap per boot: lowest heap and largest block, and the heap about once a minute.
 
 usage: crashes.py CAPTURE FIRMWARE_ELF
-Decodes each exception PC with xtensa-lx106-elf-addr2line (on PATH, or set ADDR2LINE to the toolchain's binary).
+       crashes.py --trend CAPTURE
+Exception PCs are decoded with the xtensa-lx106-elf-addr2line found in ~/.platformio, or the one ADDR2LINE names.
 """
 
 import os
 import pathlib
 import re
-import subprocess
 import sys
 
-log, elf = sys.argv[1], sys.argv[2]
-A = os.environ.get("ADDR2LINE", "xtensa-lx106-elf-addr2line")
-HEAP_RE = re.compile(
-    r"free heap (\d+), min (\d+), max block (\d+), done (\d+), up (\d+)"
-)
-with pathlib.Path(log).open(encoding="utf-8", errors="replace") as fh:
-    lines = fh.read().splitlines()
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+from heap_alloc.decode import decode, find_addr2line  # noqa: E402
+from lognorm import STAMP  # noqa: E402
+
+HEAP_RE = re.compile(r"free heap (\d+), max block (\d+), done (\d+), up (\d+)")
+EXC_RE = re.compile(r"Exception \((\d+)\)")
+EPC_RE = re.compile(r"epc1=(0x\w+).*excvaddr=(0x\w+)")
 
 
-def sym(a: str) -> str:
-    out = subprocess.run(
-        [A, "-fiaC", "-e", elf, a], capture_output=True, text=True, check=False
-    ).stdout.split("\n")
-    return out[1] if len(out) > 1 else "?"
+def stamp(ln: str) -> str:
+    return m.group(0) if (m := STAMP.match(ln)) else ""
 
 
-last = None
-for i, ln in enumerate(lines):
-    if "repro:" in ln:
-        last = ln
-    m = re.search(r"Exception \((\d+)\)", ln)
-    if not m and "rst cause:4" not in ln and "Reason: Hardware WDT" not in ln:
-        continue
-    if (
-        m
-        and i + 1 < len(lines)
-        and (ep := re.search(r"epc1=(0x\w+).*excvaddr=(0x\w+)", lines[i + 1]))
-    ):
-        ctx = next((x for x in lines[i : i + 8] if "ctx:" in x), "")
-        pc, ev = ep.group(1), ep.group(2)
-        print(f"{ln[:10]} exc {m.group(1)} pc {pc} {sym(pc)} excvaddr {ev} {ctx[10:]}")
-    else:
-        print(f"{ln[:10]} hardware WDT" if not m else f"{ln[:10]} exc {m.group(1)}")
-    if last and (h := HEAP_RE.search(last)):
+def trend(lines: list[str]) -> None:
+    boots = []
+    cur = None
+    for ln in lines:
+        if not (m := HEAP_RE.search(ln)):
+            continue
+        h, mb, up = int(m.group(1)), int(m.group(2)), int(m.group(4))
+        if cur is None or up < cur[-1][2]:
+            cur = []
+            boots.append((stamp(ln), cur))
+        cur.append((h, mb, up))
+    for t, s in boots:
+        pts = [f"{p[2]}s:{p[0] // 1024}k" for p in s if p[2] % 60 < 3 or p == s[-1]]
         print(
-            f"    last repro {last[:10]} heap {h.group(1)} maxblock {h.group(3)} up {h.group(5)}"
+            t,
+            f"min {min(p[0] for p in s)} minblock {min(p[1] for p in s)} last up {s[-1][2]}",
+            " ".join(pts),
         )
+
+
+def crashes(lines: list[str], elf: str) -> None:
+    found = []
     last = None
+    for i, ln in enumerate(lines):
+        if "repro:" in ln:
+            last = ln
+        m = EXC_RE.search(ln)
+        if not m and "rst cause:4" not in ln and "Reason: Hardware WDT" not in ln:
+            continue
+        ep = EPC_RE.search(lines[i + 1]) if m and i + 1 < len(lines) else None
+        ctx = next((x for x in lines[i : i + 8] if "ctx:" in x), "") if ep else ""
+        found.append((ln, m, ep, STAMP.sub("", ctx), last))
+        last = None
+    pcs = sorted({f"{int(ep.group(1), 16):08x}" for _, _, ep, _, _ in found if ep})
+    names = {}
+    if pcs:
+        a2l = os.environ.get("ADDR2LINE") or find_addr2line(
+            "xtensa-lx106-elf-addr2line"
+        )
+        names = decode(a2l, elf, pcs)
+    for ln, m, ep, ctx, last in found:
+        t = stamp(ln)
+        if ep:
+            frames = names.get(f"{int(ep.group(1), 16):08x}") or [("?", "")]
+            print(
+                f"{t} exc {m.group(1)} pc {ep.group(1)} {frames[0][0]} excvaddr {ep.group(2)} {ctx}"
+            )
+        else:
+            print(f"{t} exc {m.group(1)}" if m else f"{t} hardware WDT")
+        if last and (h := HEAP_RE.search(last)):
+            print(
+                f"    last repro {stamp(last)} heap {h.group(1)} maxblock {h.group(2)} up {h.group(4)}"
+            )
+
+
+if __name__ == "__main__":
+    args = sys.argv[1:]
+    mode_trend = args[0] == "--trend"
+    with pathlib.Path(args[1] if mode_trend else args[0]).open(
+        encoding="utf-8", errors="replace"
+    ) as fh:
+        text = fh.read().splitlines()
+    if mode_trend:
+        trend(text)
+    else:
+        crashes(text, args[1])

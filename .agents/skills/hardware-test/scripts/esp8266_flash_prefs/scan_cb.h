@@ -3,5 +3,4 @@ extern "C" {
 #include <user_interface.h>
 }
 static uint32_t repro_scan_done_count = 0;
-static uint32_t repro_min_heap = 0xFFFFFFFF;
 static void repro_scan_done(void *arg, STATUS status) { repro_scan_done_count++; }

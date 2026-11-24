@@ -22,6 +22,8 @@ import serial
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 from apiconn import connect  # noqa: E402
+from lognorm import ANSI  # noqa: E402
+from serial_capture import reset_pulse, write_line  # noqa: E402
 
 port, host, out, kinds, n = (
     sys.argv[1],
@@ -35,15 +37,18 @@ ser.port, ser.baudrate, ser.timeout = port, 115200, 0.2
 ser.dtr = False
 ser.rts = False
 ser.open()
-log = pathlib.Path(out + "-cap.log").open("a", encoding="utf-8", errors="replace")  # noqa: SIM115
-st = {"tick": None, "boot": None, "boot_seq": 0, "save_seq": 0}
-ANSI = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
+log = pathlib.Path(out + "-cap.log").open("ab")  # noqa: SIM115
+st = {"tick": None, "tick_before": None, "boot": None, "keys": None}
+boot_ev = asyncio.Event()
+# Set by a pinsave trial: the reader resets the board 0 to 30 ms after the next "Saving" line
+arm_save = threading.Event()
+TICK_RE = re.compile(r"pers:\d+\]: tick (\d+)")
 BOOT_RE = re.compile(
     r"BOOT boots=(\d+) counter=(\d+) shadow=(\d+) magic=(\w+) reason=(.*)$"
 )
 
 
-def reader() -> None:
+def reader(loop: asyncio.AbstractEventLoop) -> None:
     buf = b""
     while True:
         d = ser.read(ser.in_waiting or 1)
@@ -52,59 +57,47 @@ def reader() -> None:
         buf += d
         while b"\n" in buf:
             line, buf = buf.split(b"\n", 1)
-            s = ANSI.sub("", line.decode(errors="replace")).rstrip("\r")
-            log.write(time.strftime("[%T]") + s + "\n")
-            log.flush()
-            if "preferences:" in s and "Saving" in s:
-                st["save_seq"] += 1
-            if m := re.search(r"pers:\d+\]: tick (\d+)", s):
+            line = line.rstrip(b"\r")
+            write_line(log, b"", line)
+            s = ANSI.sub("", line.decode(errors="replace"))
+            if arm_save.is_set() and "preferences:" in s and "Saving" in s:
+                arm_save.clear()
+                time.sleep(random.uniform(0, 0.03))
+                reset_pulse(ser)
+            if m := TICK_RE.search(s):
                 st["tick"] = int(m.group(1))
             if m := BOOT_RE.search(s):
+                # after a hang no more ticks arrive; keep the last one seen before the boot line
                 st["tick_before"] = st["tick"]
                 st["boot"] = m.groups()
-                st["boot_seq"] += 1
-
-
-def pulse_reset() -> None:
-    ser.dtr = False
-    ser.rts = True
-    time.sleep(0.15)
-    ser.rts = False
-
-
-async def wait_boot(seq: int, t: float = 40) -> bool:
-    end = time.monotonic() + t
-    while st["boot_seq"] == seq and time.monotonic() < end:
-        await asyncio.sleep(0.1)
-    return st["boot_seq"] != seq
+                loop.call_soon_threadsafe(boot_ev.set)
 
 
 async def trial(kind: str, i: int, res, prev_boots: int | None) -> int | None:
     c = None
-    seq = st["boot_seq"]
+    boot_ev.clear()
     if kind == "pinrand":
         await asyncio.sleep(random.uniform(3, 8))
-        pulse_reset()
+        reset_pulse(ser)
     elif kind == "pinsave":
         await asyncio.sleep(random.uniform(4, 8))
-        sv = st["save_seq"]
-        while st["save_seq"] == sv:
-            await asyncio.sleep(0.001)
-        time.sleep(random.uniform(0, 0.03))
-        pulse_reset()
+        arm_save.set()
     else:
         c = await connect(host, tries=90)
-        ents, _ = await c.list_entities_services()
-        keys = {e.object_id: e.key for e in ents}
+        if st["keys"] is None:
+            ents, _ = await c.list_entities_services()
+            st["keys"] = {e.object_id: e.key for e in ents}
         await asyncio.sleep(random.uniform(5, 12))
-        seq = st["boot_seq"]
-        if kind in ("api", "hwdt", "swdt"):
-            c.button_command(keys["restart" if kind == "api" else kind])
-        await asyncio.sleep(0 if kind == "pin" else 0.3)
+        boot_ev.clear()
         if kind == "pin":
-            pulse_reset()
-    last = st["tick"]
-    ok = await wait_boot(seq)
+            reset_pulse(ser)
+        else:
+            c.button_command(st["keys"]["restart" if kind == "api" else kind])
+    try:
+        await asyncio.wait_for(boot_ev.wait(), 40)
+        ok = True
+    except TimeoutError:
+        ok = False
     if c:
         with contextlib.suppress(Exception):
             await c.disconnect(force=True)
@@ -112,8 +105,7 @@ async def trial(kind: str, i: int, res, prev_boots: int | None) -> int | None:
         print(f"{kind} {i}: no boot line", file=res, flush=True)
         return prev_boots
     boots, cnt, sh, magic, reason = st["boot"]
-    # after a hang no more ticks arrive; take the last one seen before the boot line
-    last = st.get("tick_before", last)
+    last = st["tick_before"]
     step = "-" if prev_boots is None else int(boots) - prev_boots
     line = (
         f"{kind} {i}: last_tick={last} restored={cnt} diff={int(last) - int(cnt)} boots={boots}"
@@ -125,7 +117,9 @@ async def trial(kind: str, i: int, res, prev_boots: int | None) -> int | None:
 
 
 async def main() -> None:
-    threading.Thread(target=reader, daemon=True).start()
+    threading.Thread(
+        target=reader, args=(asyncio.get_running_loop(),), daemon=True
+    ).start()
     prev_boots = None
     with pathlib.Path(out + "-results.txt").open("a", encoding="utf-8") as res:
         await asyncio.sleep(8)

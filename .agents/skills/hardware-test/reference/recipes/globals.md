@@ -26,8 +26,8 @@ Files in `scripts/esp8266_flash_prefs/`, a NodeMCU (ESP8266, Arduino).
   46 KB, then collapses to under 5 KB within 60 to 90 s before a StoreProhibit in `ieee80211_add_xrates`, a
   `memset(NULL)` from `esf_buf_alloc` or a fault in `ieee80211_deliver_data`. A control build with
   `-s restore_from_flash false` (or a build without the `InterruptLock` in `sync()`) shows 0 resets and a flat heap.
-  `trend.py` prints the heap per boot, `crashes.py CAPTURE ELF` decodes each exception PC (set `ADDR2LINE` to the
-  toolchain's `xtensa-lx106-elf-addr2line`) with the last heap line before it.
+  `crashes.py --trend CAPTURE` prints the heap per boot, `crashes.py CAPTURE ELF` decodes each exception PC with the
+  last heap line before it (it finds `xtensa-lx106-elf-addr2line` under `~/.platformio`, or set `ADDR2LINE`).
 - `isr-load.yaml` checks interrupts during the flash sync for [#23221](https://github.com/esphome/esphome/pull/23221):
   jumpers GPIO12 to GPIO14 (2 kHz `esp8266_pwm` into `pulse_counter`, which counts exactly 2000/s when nothing masks
   interrupts) and GPIO13 to GPIO4 (5 Hz into an interrupt driven binary sensor), a 5 s interval that times one
