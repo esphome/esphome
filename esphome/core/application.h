@@ -452,6 +452,21 @@ class Application {
   friend void ::setup();
   friend void ::original_setup();
 
+  // setup() configures each listed entity through these instead of obj->configure_entity_(): the call
+  // passes the pointer it already holds and the offset to EntityBase is applied once, here
+  // NOLINTBEGIN(bugprone-macro-parentheses)
+#define ENTITY_TYPE_(type, singular, plural, count, upper) \
+  static void __attribute__((noinline)) configure_##singular(type *obj, const char *name, uint32_t object_id_hash, \
+                                                             uint32_t entity_fields) { \
+    obj->configure_entity_(name, object_id_hash, entity_fields); \
+  }
+#define ENTITY_CONTROLLER_TYPE_(type, singular, plural, count, upper, callback) \
+  ENTITY_TYPE_(type, singular, plural, count, upper)
+#include "esphome/core/entity_types.h"
+#undef ENTITY_TYPE_
+#undef ENTITY_CONTROLLER_TYPE_
+  // NOLINTEND(bugprone-macro-parentheses)
+
   /// Freshen the cached loop component start time. Called by Scheduler before each dispatch.
   void set_loop_component_start_time_(uint32_t now) { this->loop_component_start_time_ = now; }
 

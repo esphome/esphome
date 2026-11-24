@@ -232,6 +232,8 @@ class EntityBase {
  protected:
   friend void ::setup();
   friend void ::original_setup();
+  // Application::configure_<entity>() calls configure_entity_() for setup()
+  friend class Application;
 
   /// Combined entity setup from codegen: set name, object_id hash, entity string indices, and flags.
   /// Bit layout of entity_fields is defined by the ENTITY_FIELD_*_SHIFT constants above.
