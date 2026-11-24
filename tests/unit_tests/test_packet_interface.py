@@ -557,3 +557,18 @@ def test_session_packet_size(setup_core) -> None:
     session_type.check_lower(session, 5, None)
     with pytest.raises(cv.Invalid, match="keep-alive"):
         session_type.check_lower(session, 4, None)
+
+
+def test_shared_chains_avoid_config_ids(setup_core) -> None:
+    """The shared chains are named apart from an id the config already uses."""
+    from esphome.components import lzss
+
+    CORE.config = {
+        "packet_interface": [
+            {"id": ID("lzss_chains", is_declaration=True)},
+            {"id": ID("lzss_chains_ptr", is_declaration=True)},
+        ]
+    }
+    chains = lzss.shared_chains()
+    assert str(chains) not in ("lzss_chains", "lzss_chains_ptr")
+    assert lzss.shared_chains() is chains

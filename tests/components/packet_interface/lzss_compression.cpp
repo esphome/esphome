@@ -32,11 +32,13 @@ class MockLink : public PacketInterface {
     this->sent.push_back(to_vector(data));
     return true;
   }
+  size_t get_send_capacity() const override { return this->capacity; }
   void inject(const Packet &packet) { this->on_receive_from_interface_(PacketBuffer(packet), {}); }
   void inject(const PacketBuffer &packet) { this->on_receive_from_interface_(packet, {}); }
 
   std::vector<Packet> sent;
   std::function<void()> on_send;
+  size_t capacity{SIZE_MAX};
 };
 
 static const std::string JSON_DICTIONARY =
@@ -90,6 +92,12 @@ class LzssCompressionTest : public ::testing::Test {
     new (&App) Application();
   }
 };
+
+TEST_F(LzssCompressionTest, ReportsTheLinksSendCapacity) {
+  Peer peer("");
+  peer.link.capacity = 3;
+  EXPECT_EQ(peer.compression->get_send_capacity(), 3u);
+}
 
 TEST_F(LzssCompressionTest, MaxPacketSizeAllowsForHeader) {
   Peer a(JSON_DICTIONARY, 64);

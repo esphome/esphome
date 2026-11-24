@@ -45,6 +45,8 @@ class LzssCompression : public PacketInterface {
   void setup() override;
   void dump_config() override;
   bool send_to_interface(const PacketBuffer &data, const PacketMetaData &meta_data) override;
+  // One compressed packet per packet, so a fragmentation layer above sees the room below
+  size_t get_send_capacity() const override { return this->lower_->get_send_capacity(); }
 
  protected:
   void receive_(const PacketBuffer &data, const PacketMetaData &meta_data);

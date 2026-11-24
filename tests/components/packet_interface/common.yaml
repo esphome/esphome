@@ -57,12 +57,6 @@ packet_interface:
     udp_id: packet_interface_udp_peer
     reliability:
     session:
-  # Sends to one unicast address, so the link provides addressing
-  - platform: udp
-    id: packet_interface_udp_peer_link
-    udp_id: packet_interface_udp_peer
-    reliability:
-    session:
 
 sensor:
   - platform: template

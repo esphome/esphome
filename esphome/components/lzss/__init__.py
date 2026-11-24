@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 
 import esphome.codegen as cg
-from esphome.core import CORE, ID
+from esphome.core import CORE
 from esphome.cpp_generator import MockObj
 
 CODEOWNERS = ["@clydebarrow"]
@@ -32,14 +32,14 @@ def shared_chains() -> MockObj:
     data = _get_data()
     if data.chains is None:
         buffer = cg.static_buffer(
-            ID("lzss_chains", is_declaration=True, type=cg.uint16),
+            cg.unique_global_id("lzss_chains", cg.uint16),
             cg.uint16,
             Lzss.static_("CHAIN_WORDS"),
             psram=True,
         )
         # With PSRAM the buffer is an allocation, so it is made once and kept
         data.chains = cg.variable(
-            ID("lzss_chains_ptr", is_declaration=True, type=cg.uint16.operator("ptr")),
+            cg.unique_global_id("lzss_chains_ptr", cg.uint16.operator("ptr")),
             buffer,
         )
     return data.chains

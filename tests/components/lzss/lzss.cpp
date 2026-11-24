@@ -89,6 +89,7 @@ TEST(Lzss, LongestMatchIsCapped) {
   Bytes run(Lzss::MAX_MATCH * 2 + 10, 'x');
   Bytes compressed = codec.compress(run, run.size());
   ASSERT_FALSE(compressed.empty());
+  EXPECT_LE(compressed.size(), 16u);
   bool ok;
   EXPECT_EQ(codec.expand(compressed, run.size(), ok), run);
   EXPECT_TRUE(ok);

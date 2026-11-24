@@ -124,24 +124,29 @@ size_t Lzss::compress(const uint8_t *in, size_t size, uint8_t *out, size_t capac
     size_t best_length = 0;
     size_t best_offset = 0;
     if (longest >= 2) {
-      // The chain runs from the nearest, so of two matches of the same length the nearer is kept
+      // The chain runs from the nearest, so of two matches of the same length the nearer is kept. Positions are
+      // kept modulo 65536, so each entry gives only a distance, and a stale one still names bytes that are compared
+      const size_t reach = clamp_at_most(pos, WINDOW);
+      size_t last = 0;
       size_t tries = MAX_CHAIN;
-      for (uint16_t ref = head[hash(pos)]; ref != NO_POSITION && pos - ref <= WINDOW && tries-- != 0;) {
+      for (uint16_t entry = head[hash(pos)]; tries-- != 0;) {
+        const size_t distance = static_cast<uint16_t>(pos - entry);
+        // A chain only reaches further back, so a nearer entry is a slot reused by a later position
+        if (distance <= last || distance > reach)
+          break;
+        last = distance;
+        const size_t ref = pos - distance;
         size_t length = 0;
         // A match may run on past pos, copying bytes the expander has just written
         while (length < longest && this->byte_at_(in, ref + length) == in[i + length])
           length++;
         if (length > best_length) {
           best_length = length;
-          best_offset = pos - ref;
+          best_offset = distance;
           if (length == longest)
             break;
         }
-        // A slot reused by a later position ends the chain
-        uint16_t next = previous[ref & (WINDOW - 1)];
-        if (next >= ref)
-          break;
-        ref = next;
+        entry = previous[ref & (WINDOW - 1)];
       }
     }
     size_t step = 1;
