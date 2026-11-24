@@ -86,6 +86,17 @@ void VL53L4CXSensor::hold_in_reset_() {
 #endif
 }
 
+void VL53L4CXSensor::reset_failed_(const LogString *reason) {
+  ESP_LOGV(TAG, "Reset failed: %s", LOG_STR_ARG(reason));
+  // The first failed reset of a run sets the warning again, so the log names why recovery fails once
+  if (this->failures_ == MAX_FAILURES) {
+    this->failures_++;
+    this->status_clear_warning();
+    this->status_set_warning(reason);
+  }
+  this->hold_in_reset_();
+}
+
 void VL53L4CXSensor::setup() {
 #ifdef USE_VL53L4CX_ENABLE_PIN
   // The first sensor to set up holds every sensor with an enable pin in reset, so each one
@@ -159,15 +170,14 @@ void VL53L4CXSensor::reset_sensor_() {
     const bool held = this->write_byte_reg16(SOFT_RESET_REGISTER, 0);
     delayMicroseconds(SOFT_RESET_US);
     if (!this->write_byte_reg16(SOFT_RESET_REGISTER, 1) || !held) {
-      ESP_LOGV(TAG, "Reset failed: software reset not written");
+      this->reset_failed_(LOG_STR("Software reset not written"));
       return;
     }
   }
   this->driver_.~VL53L4CX();
   new (&this->driver_) VL53L4CX(this);
   if (const LogString *error = this->init_and_start_(false)) {
-    ESP_LOGV(TAG, "Reset failed: %s", LOG_STR_ARG(error));
-    this->hold_in_reset_();
+    this->reset_failed_(error);
     return;
   }
   this->cancel_interval(RESET_INTERVAL_ID);

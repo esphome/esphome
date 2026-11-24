@@ -70,6 +70,8 @@ class VL53L4CXSensor final : public sensor::Sensor, public PollingComponent, pub
   void reset_sensor_();
   /// Holds a sensor with an enable pin in reset, so it cannot answer at the default address.
   void hold_in_reset_();
+  /// Logs a failed reset and holds the sensor in reset until the next attempt.
+  void reset_failed_(const LogString *reason);
   bool resetting_() const { return this->failures_ >= MAX_FAILURES; }
   bool start_measurement_();
   void measurement_failed_(const LogString *message, VL53L4CX_Error error);
@@ -96,7 +98,7 @@ class VL53L4CXSensor final : public sensor::Sensor, public PollingComponent, pub
   int16_t offset_mm_{0};
   uint8_t distance_mode_{VL53L4CX_DISTANCEMODE_LONG};
   Target target_{TARGET_NEAREST};
-  uint8_t failures_{0};       // failed measurements in a row
+  uint8_t failures_{0};       // failed measurements in a row; one more once a failed reset was logged
   uint8_t settle_frames_{0};  // frames left to drop after a start
   bool measuring_{false};     // a measurement was started and its result not yet read
 #ifdef USE_VL53L4CX_INTERRUPT_PIN
