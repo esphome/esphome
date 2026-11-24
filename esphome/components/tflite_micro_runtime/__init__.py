@@ -9,6 +9,7 @@ import logging
 from pathlib import Path
 import zlib
 
+from esphome import automation
 import esphome.codegen as cg
 from esphome.components import esp32
 from esphome.components.tflite_model_io.model_reader import estimate_tensor_arena
@@ -23,7 +24,12 @@ from esphome.core import CORE, EsphomeError
 from esphome.types import ConfigType
 
 from . import schema as _schema
-from .schema import CONF_TENSOR_ARENA_SIZE, PER_MODEL_SCHEMA, TFLiteMicroHelper
+from .schema import (
+    CONF_ON_RESULT,
+    CONF_TENSOR_ARENA_SIZE,
+    PER_MODEL_SCHEMA,
+    TFLiteMicroHelper,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -78,6 +84,16 @@ async def declare_model(config: ConfigType) -> tuple[cg.MockObj, Path]:
     cg.add(
         var.set_model(prog_arr, len(model_data), zlib.crc32(model_data) & 0xFFFFFFFF)
     )
+    for conf in config.get(CONF_ON_RESULT, []):
+        # Queued, not awaited: a lambda may reference the kind's decoder, which the
+        # kind declares after this function returns.
+        CORE.add_job(
+            automation.build_callback_automation,
+            var,
+            "add_on_result_callback",
+            [],
+            conf,
+        )
     cg.add_build_flag("-DTF_LITE_STATIC_MEMORY")
     cg.add_build_flag("-DTF_LITE_DISABLE_X86_NEON")
     cg.add_build_flag("-DESP_NN")

@@ -159,3 +159,20 @@ def test_to_code_only_enables_debug_when_asked(setup_core: Path) -> None:
 
     _, plain, _ = _run_to_code({tflm.CONF_ID: _model_id()})
     plain.set_debug.assert_not_called()
+
+
+def test_to_code_queues_the_result_callback(setup_core: Path) -> None:
+    """A lambda may reference the kind's decoder, which is declared after this call."""
+    on_result = [{"then": []}]
+    with patch.object(tflm.CORE, "add_job") as add_job:
+        _, var, _ = _run_to_code(
+            {tflm.CONF_ID: _model_id(), tflm.CONF_ON_RESULT: on_result}
+        )
+
+    add_job.assert_called_once_with(
+        tflm.automation.build_callback_automation,
+        var,
+        "add_on_result_callback",
+        [],
+        on_result[0],
+    )
