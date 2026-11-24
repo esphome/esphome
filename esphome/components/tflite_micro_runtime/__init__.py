@@ -12,13 +12,17 @@ import zlib
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import esp32
-from esphome.components.tflite_model_io.model_reader import estimate_tensor_arena
+from esphome.components.tflite_model_io.model_reader import (
+    estimate_tensor_arena,
+    read_model_io,
+)
 from esphome.components.tflite_model_loader import emit_model_buffer
 from esphome.components.tflite_model_source import resolve_model_source
 from esphome.components.tflite_op_processor import (
     add_model_operator_defines,
     validate_model_operators,
 )
+import esphome.config_validation as cv
 from esphome.const import CONF_DEBUG, CONF_ID
 from esphome.core import CORE, EsphomeError
 from esphome.types import ConfigType
@@ -36,6 +40,10 @@ _LOGGER = logging.getLogger(__name__)
 CODEOWNERS = ["@nliaudat"]
 
 DOMAIN = "tflite_micro_runtime"
+
+# The pipeline and decoder paths hold the tensors in fixed arrays; keep this in
+# sync with MAX_INPUTS/MAX_OUTPUTS in tflite_micro_runtime.cpp.
+MAX_MODEL_TENSORS = 8
 
 # Library-only sub-components, auto-loaded so users only configure this component.
 AUTO_LOAD = [
@@ -136,6 +144,23 @@ def _model_filename(model_path: Path) -> str:
     return Path(str(model_path).replace("\\", "/")).name
 
 
+def _validate_model_tensor_counts(model_path: Path) -> None:
+    """Reject a model with more tensors than the pipelines can hold."""
+    try:
+        model_io = read_model_io(model_path)
+    except ValueError as err:
+        raise cv.Invalid(str(err)) from err
+    if (
+        len(model_io.inputs) > MAX_MODEL_TENSORS
+        or len(model_io.outputs) > MAX_MODEL_TENSORS
+    ):
+        raise cv.Invalid(
+            f"Model '{_model_filename(model_path)}' declares {len(model_io.inputs)} "
+            f"inputs and {len(model_io.outputs)} outputs; the runtime supports at "
+            f"most {MAX_MODEL_TENSORS} of each"
+        )
+
+
 def final_validate(config: ConfigType) -> None:
     """Check the model itself once every component has validated.
 
@@ -144,6 +169,7 @@ def final_validate(config: ConfigType) -> None:
     """
     model_path, _ = resolve_model_source(config)
     validate_model_operators(model_path)
+    _validate_model_tensor_counts(model_path)
 
 
 FINAL_VALIDATE_SCHEMA = final_validate

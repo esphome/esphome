@@ -1021,3 +1021,7 @@
 #ifndef LV_GRADIENT_MAX_STOPS
 #define LV_GRADIENT_MAX_STOPS 7
 #endif
+
+// The TFLite Micro components compile under this guard; code generation emits
+// it too, but static analysis and IDE builds read this file.
+#define USE_TFLITE_MICRO_HELPER
