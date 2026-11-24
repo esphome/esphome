@@ -35,7 +35,7 @@ static constexpr uint8_t GZIP_MAGIC_2 = 0x8B;
 
 static constexpr uint8_t MAX_IMAGE_SEGMENTS = 16;
 static constexpr uint8_t IMAGE_CHECKSUM_SEED = 0xEF;
-// elf2bin's add_crc() writes the image length and CRC here after the app checksum was taken
+// elf2bin's add_crc() writes the image length and CRC here
 static constexpr uint32_t CRC_WORDS_OFFSET = APP_START_OFFSET + 16;
 
 // ESP8266 flash memory base address (memory-mapped flash starts here)
@@ -380,7 +380,7 @@ size_t ESP8266OTABackend::image_end_(size_t offset) {
   if (offset + sizeof(header) > this->image_size_ ||
       spi_flash_read(this->start_address_ + offset, reinterpret_cast<uint32_t *>(&header), sizeof(header)) !=
           SPI_FLASH_RESULT_OK ||
-      header.magic != FIRMWARE_MAGIC || header.num_segments > MAX_IMAGE_SEGMENTS)
+      header.magic != FIRMWARE_MAGIC || header.num_segments == 0 || header.num_segments > MAX_IMAGE_SEGMENTS)
     return 0;
   auto *buf = reinterpret_cast<uint32_t *>(this->buffer_.get());
   size_t chunk_max = this->buffer_size_ & ~size_t{3};
@@ -413,9 +413,11 @@ size_t ESP8266OTABackend::image_end_(size_t offset) {
   uint8_t stored = tail >> 24;
   if (stored == checksum)
     return end;
+  // The CRC words were written after the checksum; then the length they record must match too
   uint32_t crc_words[2];
   if (offset != APP_START_OFFSET ||
       spi_flash_read(this->start_address_ + CRC_WORDS_OFFSET, crc_words, sizeof(crc_words)) != SPI_FLASH_RESULT_OK ||
+      crc_words[0] != this->image_size_ ||
       stored != xor_bytes(reinterpret_cast<uint8_t *>(crc_words), sizeof(crc_words), checksum))
     return 0;
   return end;
