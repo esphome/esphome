@@ -11,6 +11,7 @@ D=$(cd "$(dirname "$0")" && pwd); S=$(dirname "$D")
 N=${1:?name}; T=${2:?tree}; PORT=${3:?port}; MODE=${4:-full}
 PY=${PY:-$T/venv/bin/python}
 pkill -f "[s]erial_capture.py $PORT "; sleep 1
+TREE=$T PY=$PY "$S/pio_build.sh" compile "$N" "${YAML:-$D/sim7670-s3.yaml}" || exit 1
 TREE=$T PY=$PY "$S/pio_build.sh" upload "$N" "${YAML:-$D/sim7670-s3.yaml}" "$PORT" || exit 1
 CAP=$D/$N.txt
 $PY "$S/serial_capture.py" "$PORT" 1800 "$CAP" &

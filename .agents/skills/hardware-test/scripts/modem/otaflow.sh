@@ -6,6 +6,7 @@
 D=$(cd "$(dirname "$0")" && pwd); S=$(dirname "$D")
 N=${1:?name}; T=${2:?tree}; FROM=${3:?device}
 PY=${PY:-$T/venv/bin/python}
+TREE=$T PY=$PY "$S/pio_build.sh" compile "$N" "${YAML:-$D/sim7080-atom.yaml}" || exit 1
 TREE=$T PY=$PY "$S/pio_build.sh" upload "$N" "${YAML:-$D/sim7080-atom.yaml}" "$FROM" || exit 1
 sleep 10
 H=$("$S/resolve.sh" "$N") || exit 1
