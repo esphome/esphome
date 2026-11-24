@@ -1,4 +1,4 @@
-// The blocking default of OneWireBus::submit(), which a bit-bang bus uses in a build that also has a background bus,
+// The blocking default of OneWireBus::submit(), which every bus without its own submit() uses,
 // and the TransactionQueue that a background bus keeps its pending transactions in.
 
 #include <gtest/gtest.h>

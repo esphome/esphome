@@ -6,7 +6,6 @@
 
 namespace esphome::one_wire {
 
-#ifdef USE_ONE_WIRE_TRANSACTION
 enum class TransactionStatus : uint8_t {
   TRANSACTION_STATUS_OK,
   TRANSACTION_STATUS_NO_PRESENCE,
@@ -93,7 +92,6 @@ class TransactionQueue {
   Transaction *head_{nullptr};
   Transaction *tail_{nullptr};
 };
-#endif  // USE_ONE_WIRE_TRANSACTION
 
 class OneWireBus {
  public:
@@ -125,12 +123,10 @@ class OneWireBus {
   /// Get the description string for this model.
   const LogString *get_model_str(uint8_t model);
 
-#ifdef USE_ONE_WIRE_TRANSACTION
   /// Main loop only. on_done runs in the main loop, possibly before submit() returns.
   /// Returns false only if this transaction is still pending; nothing changes in that case.
   /// Default: runs the transaction at once through the blocking primitives.
   virtual bool submit(Transaction *transaction);
-#endif  // USE_ONE_WIRE_TRANSACTION
 
  protected:
   std::vector<uint64_t> devices_;

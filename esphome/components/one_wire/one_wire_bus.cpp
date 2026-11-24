@@ -66,7 +66,6 @@ bool OneWireBus::skip() {
   return true;
 }
 
-#ifdef USE_ONE_WIRE_TRANSACTION
 bool OneWireBus::submit(Transaction *transaction) {
   if (transaction->is_pending())
     return false;
@@ -102,7 +101,6 @@ bool OneWireBus::submit(Transaction *transaction) {
     transaction->on_done(transaction->context, status);
   return true;
 }
-#endif  // USE_ONE_WIRE_TRANSACTION
 
 const LogString *OneWireBus::get_model_str(uint8_t model) {
   switch (model) {
