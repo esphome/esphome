@@ -90,9 +90,17 @@ void LightState::setup() {
     // An off light cannot start its effect now; keep it for the first turn-on instead
     this->previous_effect_index_ = recovered.effect;
 #endif  // USE_LIGHT_RESUME_EFFECT
-    call.set_transition_length_if_supported(0);
+    // Not set_transition_length_if_supported(): without a known color mode it would leave the default transition,
+    // a fade that only runs from loop(). perform() drops a 0 transition, also for lights without transitions.
+    call.set_transition_length(0);
   }
   call.perform();
+#ifdef USE_LIGHT_WRITE_ON_SETUP
+  // Otherwise the output is first written from loop(), which only runs once every component is set up. A restored
+  // effect is first applied there, once whatever it uses is set up.
+  if (this->write_on_setup_)
+    this->write_start_up_state();
+#endif  // USE_LIGHT_WRITE_ON_SETUP
 }
 void LightState::dump_config() {
   ESP_LOGCONFIG(TAG, "Light '%s'", LOG_STR_ARG(this->get_log_name()));

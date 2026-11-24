@@ -26,6 +26,7 @@ esphome/components/ade7953_base/* @angelnu
 esphome/components/ade7953_i2c/* @angelnu
 esphome/components/ade7953_spi/* @angelnu
 esphome/components/ads1118/* @solomondg1
+esphome/components/ads131m0x/* @Nawo
 esphome/components/ads1xxx/* @bdraco
 esphome/components/ags10/* @mak-42
 esphome/components/aic3204/* @kbx81
@@ -228,6 +229,7 @@ esphome/components/esp_ldo/* @clydebarrow
 esphome/components/espectre/* @francescopace
 esphome/components/esphome/ota/* @esphome/core
 esphome/components/espnow/* @jesserockz
+esphome/components/espnow/packet_interface/* @clydebarrow
 esphome/components/espnow/packet_transport/* @EasilyBoredEngineer
 esphome/components/ethernet_info/* @gtjadsonsantos
 esphome/components/event/* @nohat
@@ -382,6 +384,7 @@ esphome/components/ltr390/* @latonita @sjtrny
 esphome/components/ltr501/* @latonita
 esphome/components/ltr_als_ps/* @latonita
 esphome/components/lvgl/* @clydebarrow
+esphome/components/lzss/* @clydebarrow
 esphome/components/m5stack_4relay/* @KoenBreeman
 esphome/components/m5stack_8angle/* @rnauber
 esphome/components/m5stack_unit_bldc/* @lboue
@@ -739,6 +742,7 @@ esphome/components/veml6040/* @aalaei
 esphome/components/veml7700/* @latonita
 esphome/components/version/* @esphome/core
 esphome/components/vevor_dtx/* @Bofr5555
+esphome/components/virtual_uart/* @Bascht74
 esphome/components/vl53l1x/* @will-tm
 esphome/components/vl6180x/* @NonaSuomy
 esphome/components/vnc/* @MindFreeze
