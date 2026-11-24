@@ -30,6 +30,7 @@ lvgl:
         series:
           - id: line_series
             values: [10, 20]
+          - id: line_series_2
     - chart:
         id: scatter_chart
         type: scatter

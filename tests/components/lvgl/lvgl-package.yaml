@@ -1785,7 +1785,6 @@ lvgl:
                         max_value: 100
                       series:
                         - id: lv_scatter_series
-                          color: 0x0000FF
                           use_secondary_x_axis: true
                           use_secondary_y_axis: true
                           points:

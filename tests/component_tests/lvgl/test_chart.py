@@ -78,6 +78,7 @@ def _config_errors(tmp_path: Path, update: str, extra: str = "") -> list[str]:
     [
         {"id": "series"},
         {"id": "series", "value": 1, "values": [2]},
+        {"id": "series", "value": 1, "point": {"x": 10, "y": 20}},
     ],
 )
 def test_series_update_requires_exactly_one_payload(config: dict) -> None:
@@ -85,19 +86,20 @@ def test_series_update_requires_exactly_one_payload(config: dict) -> None:
         SERIES_MODIFY_SCHEMA(config)
 
 
-def test_series_update_accepts_one_value() -> None:
-    assert SERIES_MODIFY_SCHEMA({"id": "series", "value": 1})["value"] == 1
+@pytest.mark.parametrize(
+    "key,payload",
+    [("value", 1), ("values", [1, 2]), ("point", {"x": 10, "y": 20})],
+)
+def test_series_update_accepts_one_payload(key: str, payload: object) -> None:
+    assert SERIES_MODIFY_SCHEMA({"id": "series", key: payload})[key] == payload
 
 
-def test_series_update_accepts_one_point() -> None:
-    config = SERIES_MODIFY_SCHEMA({"id": "series", "point": {"x": 10, "y": 20}})
-
-    assert config["point"] == {"x": 10, "y": 20}
-
-
-def test_series_update_rejects_point_with_value() -> None:
+@pytest.mark.parametrize("div_line_count", [[1], [1, 2, 3]])
+def test_div_line_count_needs_two_values(div_line_count: list[int]) -> None:
     with pytest.raises(Invalid):
-        SERIES_MODIFY_SCHEMA({"id": "series", "value": 1, "point": {"x": 10, "y": 20}})
+        CHART_SCHEMA({"div_line_count": div_line_count})
+    with pytest.raises(Invalid):
+        CHART_MODIFY_SCHEMA({"div_line_count": div_line_count})
 
 
 def test_chart_update_rejects_type_change() -> None:
@@ -300,3 +302,18 @@ def test_secondary_x_axis_needs_a_scatter_chart() -> None:
         CHART_SCHEMA(
             {"type": "line", "series": [{"id": "s", "use_secondary_x_axis": True}]}
         )
+
+
+def test_series_without_a_color_gets_one_from_the_palette(
+    generate_main, component_config_path
+) -> None:
+    main_cpp = generate_main(component_config_path("chart_test.yaml"))
+
+    assert (
+        "lv_chart_add_series(line_chart, lv_palette_main(LV_PALETTE_BLUE), "
+        "LV_CHART_AXIS_PRIMARY_Y)" in main_cpp
+    )
+    assert (
+        "lv_chart_add_series(line_chart, lv_palette_main(LV_PALETTE_RED), "
+        "LV_CHART_AXIS_PRIMARY_Y)" in main_cpp
+    )

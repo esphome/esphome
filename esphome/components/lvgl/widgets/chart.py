@@ -1,3 +1,5 @@
+from typing import Any
+
 from esphome import automation, codegen as cg
 import esphome.config_validation as cv
 from esphome.const import (
@@ -11,6 +13,10 @@ from esphome.const import (
     CONF_X,
     CONF_Y,
 )
+from esphome.core import ID
+from esphome.cpp_generator import MockObj
+from esphome.final_validate import FinalValidateConfig
+from esphome.types import ConfigType
 
 from ..automation import action_to_code
 from ..defines import (
@@ -46,6 +52,11 @@ CONF_Y_AXIS = "y_axis"
 
 CHART_TYPES = LvConstant("LV_CHART_TYPE_", *LV_CHART_TYPES)
 CHART_UPDATE_MODES = LvConstant("LV_CHART_UPDATE_MODE_", "SHIFT", "CIRCULAR")
+# Colours given in turn to series that do not set one
+SERIES_PALETTE = ("BLUE", "RED", "GREEN", "ORANGE", "PURPLE", "TEAL")
+DIV_LINE_COUNT_SCHEMA = cv.All(
+    cv.ensure_list(cv.int_range(min=0, max=255)), cv.Length(min=2, max=2)
+)
 
 lv_chart_t = LvType("lv_chart_t")
 lv_chart_series_t = cg.global_ns.struct("lv_chart_series_t")
@@ -74,7 +85,7 @@ POINT_SCHEMA = cv.Schema(
 SERIES_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(lv_chart_series_t),
-        cv.Optional(CONF_COLOR, default=0): lv_color,
+        cv.Optional(CONF_COLOR): lv_color,
         cv.Optional(CONF_USE_SECONDARY_Y_AXIS, default=False): cv.boolean,
         cv.Optional(CONF_USE_SECONDARY_X_AXIS, default=False): cv.boolean,
         cv.Optional(CONF_VALUES): cv.ensure_list(lv_int),
@@ -83,7 +94,7 @@ SERIES_SCHEMA = cv.Schema(
 )
 
 
-def _record_series_update(config):
+def _record_series_update(config: ConfigType) -> ConfigType:
     """Remember the action so validate_chart_series_updates() can check it against
     its chart once the whole config is known."""
     get_chart_series_updates().append(config)
@@ -108,7 +119,7 @@ CHART_SCHEMA = cv.Schema(
         cv.Optional(CONF_TYPE, default="LINE"): CHART_TYPES.one_of,
         cv.Optional(CONF_UPDATE_MODE, default="SHIFT"): CHART_UPDATE_MODES.one_of,
         cv.Optional(CONF_POINT_COUNT, default=10): cv.int_range(min=1, max=4096),
-        cv.Optional(CONF_DIV_LINE_COUNT): cv.ensure_list(cv.int_range(min=0, max=255)),
+        cv.Optional(CONF_DIV_LINE_COUNT): DIV_LINE_COUNT_SCHEMA,
         cv.Optional(CONF_X_AXIS): RANGE_SCHEMA,
         cv.Optional(CONF_Y_AXIS): RANGE_SCHEMA,
         cv.Optional(CONF_SECONDARY_X_AXIS): RANGE_SCHEMA,
@@ -121,7 +132,7 @@ CHART_MODIFY_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_UPDATE_MODE): CHART_UPDATE_MODES.one_of,
         cv.Optional(CONF_POINT_COUNT): cv.int_range(min=1, max=4096),
-        cv.Optional(CONF_DIV_LINE_COUNT): cv.ensure_list(cv.int_range(min=0, max=255)),
+        cv.Optional(CONF_DIV_LINE_COUNT): DIV_LINE_COUNT_SCHEMA,
         cv.Optional(CONF_X_AXIS): RANGE_MODIFY_SCHEMA,
         cv.Optional(CONF_Y_AXIS): RANGE_MODIFY_SCHEMA,
         cv.Optional(CONF_SECONDARY_X_AXIS): RANGE_MODIFY_SCHEMA,
@@ -130,14 +141,7 @@ CHART_MODIFY_SCHEMA = cv.Schema(
 )
 
 
-def validate_div_line_count(config):
-    if (div_count := config.get(CONF_DIV_LINE_COUNT)) and len(div_count) != 2:
-        raise cv.Invalid(f"{CONF_DIV_LINE_COUNT} must contain exactly 2 values")
-    return config
-
-
-def validate_chart(config):
-    validate_div_line_count(config)
+def validate_chart(config: ConfigType) -> ConfigType:
     point_count = config[CONF_POINT_COUNT]
     is_scatter = config[CONF_TYPE] == "LV_CHART_TYPE_SCATTER"
     for series in config.get(CONF_SERIES, ()):
@@ -159,7 +163,9 @@ def validate_chart(config):
     return config
 
 
-def validate_series_update_for_type(config, chart_type, point_count):
+def validate_series_update_for_type(
+    config: ConfigType, chart_type: str, point_count: int
+) -> ConfigType:
     is_scatter = chart_type == "LV_CHART_TYPE_SCATTER"
     if is_scatter and CONF_POINT not in config:
         raise cv.Invalid("A scatter chart series update requires point")
@@ -172,7 +178,7 @@ def validate_series_update_for_type(config, chart_type, point_count):
     return config
 
 
-def _smallest_point_counts(global_config) -> dict[tuple, int]:
+def _smallest_point_counts(global_config: FinalValidateConfig) -> dict[tuple, int]:
     """Map each chart path to the smallest point_count that lvgl.chart.update can give it."""
     smallest: dict[tuple, int] = {}
     for update in get_updated_widgets().get(chart_spec, ()):
@@ -184,7 +190,7 @@ def _smallest_point_counts(global_config) -> dict[tuple, int]:
     return smallest
 
 
-def validate_chart_series_updates(global_config):
+def validate_chart_series_updates(global_config: FinalValidateConfig) -> None:
     """Check each lvgl.chart.series.update action against the chart its series belongs to."""
     smallest_point_counts = _smallest_point_counts(global_config)
     for config in get_chart_series_updates():
@@ -207,16 +213,16 @@ def validate_chart_series_updates(global_config):
 
 
 class ChartType(WidgetType):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__(
             CONF_CHART,
             lv_chart_t,
             (CONF_MAIN, CONF_ITEMS, CONF_TICKS, CONF_CURSOR),
             CHART_SCHEMA.add_extra(validate_chart),
-            CHART_MODIFY_SCHEMA.add_extra(validate_div_line_count),
+            CHART_MODIFY_SCHEMA,
         )
 
-    async def to_code(self, w: Widget, config):
+    async def to_code(self, w: Widget, config: ConfigType) -> None:
         if chart_type := config.get(CONF_TYPE):
             lv.chart_set_type(w.obj, literal(chart_type))
         if mode := config.get(CONF_UPDATE_MODE):
@@ -240,7 +246,7 @@ class ChartType(WidgetType):
                     await lv_int.process(axis[CONF_MAX_VALUE]),
                 )
 
-        for series in config.get(CONF_SERIES, ()):
+        for index, series in enumerate(config.get(CONF_SERIES, ())):
             # Recorded before the variable exists, so an action waiting on it can find the chart.
             get_chart_series()[str(series[CONF_ID])] = w
             series_var = cg.Pvariable(
@@ -250,7 +256,7 @@ class ChartType(WidgetType):
                 series_var,
                 lv_expr.chart_add_series(
                     w.obj,
-                    await lv_color.process(series[CONF_COLOR]),
+                    await series_color(series, index),
                     series_axes(series),
                 ),
             )
@@ -262,7 +268,14 @@ class ChartType(WidgetType):
         lv.chart_refresh(w.obj)
 
 
-def series_axes(series):
+async def series_color(series: ConfigType, index: int) -> Any:
+    if (color := series.get(CONF_COLOR)) is not None:
+        return await lv_color.process(color)
+    palette = SERIES_PALETTE[index % len(SERIES_PALETTE)]
+    return lv_expr.palette_main(literal(f"LV_PALETTE_{palette}"))
+
+
+def series_axes(series: ConfigType) -> MockObj:
     """The lv_chart_axis_t flags for the axes a series is drawn against."""
     y_axis = series[CONF_USE_SECONDARY_Y_AXIS]
     x_axis = series[CONF_USE_SECONDARY_X_AXIS]
@@ -275,14 +288,14 @@ def series_axes(series):
     return literal("LV_CHART_AXIS_SECONDARY_Y" if y_axis else "LV_CHART_AXIS_PRIMARY_Y")
 
 
-async def set_series_values(chart, series, values):
+async def set_series_values(chart: MockObj, series: MockObj, values: list) -> None:
     # Append in order so the series start point follows the data; writing slots by
     # index would leave the next appended value overwriting the first one.
     for value in values:
         lv.chart_set_next_value(chart, series, await lv_int.process(value))
 
 
-async def set_series_points(chart, series, points):
+async def set_series_points(chart: MockObj, series: MockObj, points: list) -> None:
     for point in points:
         lv.chart_set_next_value2(
             chart,
@@ -301,11 +314,16 @@ chart_spec = ChartType()
     cv.maybe_simple_value(SERIES_MODIFY_SCHEMA, key=CONF_ID),
     synchronous=True,
 )
-async def chart_series_update_to_code(config, action_id, template_arg, args):
+async def chart_series_update_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: list,
+) -> MockObj:
     series = await cg.get_variable(config[CONF_ID])
     chart = get_chart_series()[str(config[CONF_ID])]
 
-    async def do_update(w: Widget):
+    async def do_update(w: Widget) -> None:
         if (point := config.get(CONF_POINT)) is not None:
             lv.chart_set_next_value2(
                 w.obj,
@@ -313,13 +331,13 @@ async def chart_series_update_to_code(config, action_id, template_arg, args):
                 await lv_int.process(point[CONF_X]),
                 await lv_int.process(point[CONF_Y]),
             )
+        elif (values := config.get(CONF_VALUES)) is not None:
+            # Clearing also moves the start point back to the first slot.
+            lv.chart_set_all_values(w.obj, series, literal("LV_CHART_POINT_NONE"))
+            await set_series_values(w.obj, series, values)
         else:
-            if values := config.get(CONF_VALUES):
-                # Clearing also moves the start point back to the first slot.
-                lv.chart_set_all_values(w.obj, series, literal("LV_CHART_POINT_NONE"))
-                await set_series_values(w.obj, series, values)
-            if (value := await lv_int.process(config.get(CONF_VALUE))) is not None:
-                lv.chart_set_next_value(w.obj, series, value)
+            value = await lv_int.process(config[CONF_VALUE])
+            lv.chart_set_next_value(w.obj, series, value)
         lv.chart_refresh(w.obj)
 
     return await action_to_code([chart], do_update, action_id, template_arg, args)
