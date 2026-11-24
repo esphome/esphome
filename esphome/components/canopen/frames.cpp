@@ -59,7 +59,12 @@ void CANopenComponent::dispatch_frame_(const CO_CANrxMsg_t &msg) {
   if (decode_heartbeat(msg.ident, msg.data, msg.DLC, node, state)) {
     this->heartbeat_callback_.call(node, state);
   } else if (decode_emcy(msg.ident, msg.data, msg.DLC, node, emcy)) {
-    ESP_LOGW(TAG, "node 0x%02x EMCY: error code 0x%04x, register 0x%02x", node, emcy.error_code, emcy.error_register);
+    // code 0x0000: an error cleared; the register shows the errors still active
+    if (emcy.error_code == 0) {
+      ESP_LOGI(TAG, "node 0x%02x EMCY: error reset, register 0x%02x", node, emcy.error_register);
+    } else {
+      ESP_LOGW(TAG, "node 0x%02x EMCY: error code 0x%04x, register 0x%02x", node, emcy.error_code, emcy.error_register);
+    }
     this->emcy_callback_.call(node, emcy);
   }
 }

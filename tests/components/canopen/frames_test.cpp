@@ -125,13 +125,15 @@ TEST_F(FramesTest, HeartbeatAndEmcyCallbacks) {
   this->hub_.frame(0x70A, {0x05});
   this->hub_.frame(0x70B, {0x00});
   this->hub_.frame(0x8A, {0x10, 0x81, 0x11, 0, 0, 0, 0, 0});
-  this->hub_.frame(0x80, {});  // SYNC
+  this->hub_.frame(0x8A, {0, 0, 0, 0, 0, 0, 0, 0});  // error reset: logged at INFO, the callback still runs
+  this->hub_.frame(0x80, {});                        // SYNC
   this->hub_.frame(0x58A, {0x60, 0, 0, 0, 0, 0, 0, 0});
   ASSERT_EQ(heartbeats.size(), 2u);
   EXPECT_EQ(heartbeats[0], std::make_pair(uint8_t{0x0A}, NMTState::NMT_STATE_OPERATIONAL));
   EXPECT_EQ(heartbeats[1], std::make_pair(uint8_t{0x0B}, NMTState::NMT_STATE_BOOTUP));
-  ASSERT_EQ(emcys.size(), 1u);
+  ASSERT_EQ(emcys.size(), 2u);
   EXPECT_EQ(emcys[0], std::make_pair(uint8_t{0x0A}, uint16_t{0x8110}));
+  EXPECT_EQ(emcys[1], std::make_pair(uint8_t{0x0A}, uint16_t{0}));
 }
 
 TEST_F(FramesTest, ListenerSeesSdoRepliesToo) {
