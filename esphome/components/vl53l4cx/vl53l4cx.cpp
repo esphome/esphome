@@ -135,11 +135,11 @@ const LogString *VL53L4CXSensor::init_and_start_(bool at_boot) {
   if (this->driver_.VL53L4CX_SetDistanceMode(this->distance_mode_) != VL53L4CX_ERROR_NONE ||
       this->driver_.VL53L4CX_SetMeasurementTimingBudgetMicroSeconds(this->budget_ms_ * 1000UL) != VL53L4CX_ERROR_NONE)
     return LOG_STR("Configuration failed");
+#ifdef USE_VL53L4CX_INTERRUPT_PIN
+  this->ready_edge_ = false;
+#endif
   if (this->driver_.VL53L4CX_StartMeasurement() != VL53L4CX_ERROR_NONE)
     return LOG_STR("Starting measurements failed");
-#ifdef USE_VL53L4CX_INTERRUPT_PIN
-  this->ready_edge_ = false;  // after the start, so an earlier edge cannot count; this one needs a whole budget
-#endif
   this->measurement_start_ = esphome::millis();
   this->measuring_ = true;
   this->settle_frames_ = SETTLE_FRAMES;
@@ -179,10 +179,10 @@ bool VL53L4CXSensor::start_measurement_() {
   this->measurement_start_ = App.get_loop_component_start_time();
   // ST's driver ranges again only once the interrupt is cleared: by loop() straight after each result when
   // update_interval is never, else by update()
-  const VL53L4CX_Error error = this->driver_.VL53L4CX_ClearInterruptAndStartMeasurement();
 #ifdef USE_VL53L4CX_INTERRUPT_PIN
-  this->ready_edge_ = false;  // after the start, so a late edge of an earlier measurement cannot count
+  this->ready_edge_ = false;
 #endif
+  const VL53L4CX_Error error = this->driver_.VL53L4CX_ClearInterruptAndStartMeasurement();
   this->measuring_ = error == VL53L4CX_ERROR_NONE;
   if (!this->measuring_)
     this->measurement_failed_(LOG_STR("Starting a measurement failed"), error);
@@ -225,9 +225,10 @@ void VL53L4CXSensor::loop() {
   uint8_t ready = 0;
   VL53L4CX_Error error = VL53L4CX_ERROR_NONE;
 #ifdef USE_VL53L4CX_INTERRUPT_PIN
-  // Only a falling edge since the start counts as ready, so a GPIO1 stuck low never does
+  // A falling edge since the start, with GPIO1 still low: a pin stuck low makes no edge, and an earlier
+  // measurement's edge that landed before the start cleared the interrupt leaves the pin high
   if (this->interrupt_pin_ != nullptr) {
-    ready = this->ready_edge_;
+    ready = this->ready_edge_ && !this->interrupt_pin_->digital_read();
   } else
 #endif
   {
