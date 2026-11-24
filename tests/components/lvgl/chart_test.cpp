@@ -49,13 +49,13 @@ class ChartPointSlotTest : public ::testing::Test {
   void TearDown() override { lv_obj_delete(this->chart_); }
 
   // Appends 0, 1, ... count - 1
-  void append(int32_t count) {
+  void append_(int32_t count) {
     for (int32_t value = 0; value < count; value++)
       lv_chart_set_next_value(this->chart_, this->series_, value);
   }
 
   // The value drawn at `index` from the left
-  int32_t value_at(uint32_t index) {
+  int32_t value_at_(uint32_t index) {
     return lv_chart_get_series_y_array(this->chart_,
                                        this->series_)[chart_point_slot(this->chart_, this->series_, index)];
   }
@@ -66,21 +66,21 @@ class ChartPointSlotTest : public ::testing::Test {
 
 TEST_F(ChartPointSlotTest, ShiftCountsFromTheOldestValue) {
   lv_chart_set_update_mode(this->chart_, LV_CHART_UPDATE_MODE_SHIFT);
-  this->append(7);  // 0 and 1 have been shifted out
-  EXPECT_EQ(this->value_at(0), 2);
-  EXPECT_EQ(this->value_at(4), 6);
+  this->append_(7);  // 0 and 1 have been shifted out
+  EXPECT_EQ(this->value_at_(0), 2);
+  EXPECT_EQ(this->value_at_(4), 6);
 }
 
 TEST_F(ChartPointSlotTest, CircularCountsFromTheFirstSlot) {
   lv_chart_set_update_mode(this->chart_, LV_CHART_UPDATE_MODE_CIRCULAR);
-  this->append(7);  // 5 and 6 have replaced 0 and 1
-  EXPECT_EQ(this->value_at(0), 5);
-  EXPECT_EQ(this->value_at(2), 2);
+  this->append_(7);  // 5 and 6 have replaced 0 and 1
+  EXPECT_EQ(this->value_at_(0), 5);
+  EXPECT_EQ(this->value_at_(2), 2);
 }
 
 TEST_F(ChartPointSlotTest, OutOfRangeIndexIsReturnedUnchanged) {
   lv_chart_set_update_mode(this->chart_, LV_CHART_UPDATE_MODE_SHIFT);
-  this->append(3);
+  this->append_(3);
   EXPECT_EQ(chart_point_slot(this->chart_, this->series_, POINT_COUNT), POINT_COUNT);
   EXPECT_EQ(chart_point_slot(this->chart_, this->series_, UINT32_MAX), UINT32_MAX);
 }
