@@ -92,7 +92,10 @@ TEST(CANopenSensor, TimeoutAllowsPollingAgainAndOtherNodeCannotClearWarning) {
   EXPECT_FALSE(client.status_has_warning());
   offline.update();
   client.loop();
-  ASSERT_EQ(bus.sent.size(), 3);
+  ASSERT_EQ(bus.sent.size(), 4);
+  EXPECT_EQ(bus.sent[1].data[0], 0x80);  // CANopenNode aborts the timed-out transfer.
+  EXPECT_EQ(bus.sent.back().can_id, 0x621);
+  EXPECT_EQ(bus.sent.back().data[0], 0x40);
   client.on_frame_(0x5A1, false, false, {0x4F, 0, 0x20, 0, 7, 0, 0, 0});
   EXPECT_FLOAT_EQ(offline.state, 7);
   EXPECT_FALSE(offline.status_has_warning());
