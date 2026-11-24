@@ -195,7 +195,7 @@ void DMXComponent::setup_rdm_() {
         ESP_LOGI(TAG, "RDM: dynamic PID 0x%04X registered (channel %u)", binding.custom_pid, initial_address);
       }
 
-      const char *first_name = first.channel_number ? first.channel_number->get_name().c_str() : "?";
+      const char *first_name = first.channel_number ? first.channel_number->get_log_name().c_str() : "?";
       ESP_LOGI(TAG, "RDM: root DMX_START_ADDRESS bound to '%s' (addr %u), %u dynamic binding(s)", first_name,
                first.last_address, static_cast<unsigned>(this->rdm_bindings_.size()));
     } else {
@@ -221,7 +221,7 @@ void DMXComponent::sync_rdm_to_numbers_() {
         b.last_address = addr;
         if (b.channel_number != nullptr) {
           b.channel_number->publish_state(static_cast<float>(addr));
-          ESP_LOGI(TAG, "RDM → Number '%s' = %u", b.channel_number->get_name().c_str(), addr);
+          ESP_LOGI(TAG, "RDM → Number '%s' = %u", b.channel_number->get_log_name().c_str(), addr);
         }
       }
     }
@@ -237,7 +237,7 @@ void DMXComponent::sync_rdm_to_numbers_() {
       b.last_address = addr;
       if (b.channel_number != nullptr) {
         b.channel_number->publish_state(static_cast<float>(addr));
-        ESP_LOGI(TAG, "RDM PID 0x%04X → Number '%s' = %u", b.custom_pid, b.channel_number->get_name().c_str(), addr);
+        ESP_LOGI(TAG, "RDM PID 0x%04X → Number '%s' = %u", b.custom_pid, b.channel_number->get_log_name().c_str(), addr);
       }
     }
 #endif
@@ -260,7 +260,7 @@ void DMXComponent::sync_numbers_to_rdm_() {
           if (addr != b.last_address) {
             if (rdm_set_dmx_start_address(this->dmx_port_, addr)) {
               b.last_address = addr;
-              ESP_LOGD(TAG, "Number '%s' → RDM start address %u", b.channel_number->get_name().c_str(), addr);
+              ESP_LOGD(TAG, "Number '%s' → RDM start address %u", b.channel_number->get_log_name().c_str(), addr);
             }
           }
         }
@@ -280,7 +280,7 @@ void DMXComponent::sync_numbers_to_rdm_() {
         continue;
       if (dmx_parameter_set(this->dmx_port_, RDM_SUB_DEVICE_ROOT, b.custom_pid, &addr, sizeof(addr))) {
         b.last_address = addr;
-        ESP_LOGD(TAG, "Number '%s' → RDM PID 0x%04X = %u", b.channel_number->get_name().c_str(), b.custom_pid, addr);
+        ESP_LOGD(TAG, "Number '%s' → RDM PID 0x%04X = %u", b.channel_number->get_log_name().c_str(), b.custom_pid, addr);
       }
     }
 #endif
@@ -441,7 +441,7 @@ void DMXComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "  RDM channel bindings: %u", static_cast<unsigned>(this->rdm_bindings_.size()));
   for (size_t i = 0; i < this->rdm_bindings_.size(); i++) {
     const auto &b = this->rdm_bindings_[i];
-    const char *name = b.channel_number ? b.channel_number->get_name().c_str() : "?";
+    const char *name = b.channel_number ? b.channel_number->get_log_name().c_str() : "?";
     if (b.custom_pid == 0) {
       ESP_LOGCONFIG(TAG, "    [%u] '%s' → root DMX_START_ADDRESS", static_cast<unsigned>(i), name);
     } else {
