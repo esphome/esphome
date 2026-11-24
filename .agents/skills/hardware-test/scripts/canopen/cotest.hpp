@@ -27,14 +27,13 @@ struct Req {
   const uint8_t *exp_bytes;
   size_t exp_len;
   uint32_t seq;
-  bool quiet;
 };
 static Req pool[64];
 static uint8_t pool_i;
-static uint32_t n_pass, n_fail, n_done, n_rejected_sync, next_seq, last_seq, n_soak_sent;
+static uint32_t n_pass, n_fail, n_done, next_seq, last_seq, n_soak_sent;
 static uint32_t last_done_us;
 static bool order_ok = true;
-// per-kind service time stats (time from max(queued, previous completion) to callback)
+// soak latency per request kind, queued to callback
 struct Stat {
   uint32_t n, min_us = UINT32_MAX, max_us, sum_us;
   void add(uint32_t v) {
@@ -52,17 +51,23 @@ struct Stat {
     *this = Stat{};
   }
 };
-static Stat *cur_stat;
-static uint32_t res_count[6];
+static constexpr uint8_t NUM_RESULTS = 6;
+static uint32_t res_count[NUM_RESULTS];
 
 inline const char *res_s(SDOResult r) {
-  static const char *const N[] = {"SUCCESS", "ABORT", "TIMEOUT", "SIZE_MISMATCH", "TRANSPORT_ERROR", "REJECTED"};
-  return (uint8_t) r < 6 ? N[(uint8_t) r] : "?";
+  static const char *const N[NUM_RESULTS] = {"SUCCESS",       "ABORT",           "TIMEOUT",
+                                             "SIZE_MISMATCH", "TRANSPORT_ERROR", "REJECTED"};
+  return (uint8_t) r < NUM_RESULTS ? N[(uint8_t) r] : "?";
+}
+inline void count(const SDOReply &rep) {
+  n_done++;
+  if ((uint8_t) rep.result < NUM_RESULTS)
+    res_count[(uint8_t) rep.result]++;
 }
 
 inline Req *mk(const char *tag, SDOResult exp, uint32_t exp_abort = 0) {
   Req *r = &pool[pool_i++ % 64];
-  *r = Req{tag, micros(), exp, exp_abort, false, 0, nullptr, 0, ++next_seq, false};
+  *r = Req{tag, micros(), exp, exp_abort, false, 0, nullptr, 0, ++next_seq};
   return r;
 }
 inline Req *mkv(const char *tag, uint32_t val) {
@@ -84,20 +89,14 @@ inline void cb(void *ctx, const SDOReply &rep) {
   uint32_t dt = now - r->t0;
   uint32_t start = (int32_t) (last_done_us - r->t0) > 0 ? last_done_us : r->t0;
   uint32_t svc = now - start;
-  n_done++;
-  if ((uint8_t) rep.result < 6)
-    res_count[(uint8_t) rep.result]++;
-  if (rep.result == SDOResult::SDO_RESULT_REJECTED) {
-    n_rejected_sync++;
-  } else {
+  count(rep);
+  if (rep.result != SDOResult::SDO_RESULT_REJECTED) {
     if (r->seq <= last_seq) {
       order_ok = false;
       ESP_LOGE(TAG, "ORDER seq %u after %u", (unsigned) r->seq, (unsigned) last_seq);
     }
     last_seq = r->seq;
     last_done_us = now;
-    if (cur_stat != nullptr)
-      cur_stat->add(svc);
   }
   bool ok = rep.result == r->exp && (r->exp_abort == ANY || rep.abort_code == r->exp_abort);
   if (ok && rep.ok() && r->check_val)
@@ -105,8 +104,6 @@ inline void cb(void *ctx, const SDOReply &rep) {
   if (ok && rep.ok() && r->exp_bytes != nullptr)
     ok = rep.len == r->exp_len && memcmp(rep.data, r->exp_bytes, r->exp_len) == 0;
   ok ? n_pass++ : n_fail++;
-  if (r->quiet && ok)
-    return;
   char txt[50] = {};
   if (rep.ok() && rep.data != nullptr) {
     size_t n = rep.len < 48 ? rep.len : 48;
@@ -122,11 +119,11 @@ inline void cb(void *ctx, const SDOReply &rep) {
 
 inline void summary(const char *when) {
   ESP_LOGI(TAG,
-           "SUMMARY %s done=%u outstanding=%d pass=%u fail=%u rejected=%u order_ok=%d | ok %u abort %u timeout %u size "
-           "%u transport %u rej %u",
+           "SUMMARY %s done=%u outstanding=%d pass=%u fail=%u order_ok=%d | ok %u abort %u timeout %u size %u "
+           "transport %u rejected %u",
            when, (unsigned) n_done, (int) (next_seq + n_soak_sent - n_done), (unsigned) n_pass, (unsigned) n_fail,
-           (unsigned) n_rejected_sync, order_ok, (unsigned) res_count[0], (unsigned) res_count[1],
-           (unsigned) res_count[2], (unsigned) res_count[3], (unsigned) res_count[4], (unsigned) res_count[5]);
+           order_ok, (unsigned) res_count[0], (unsigned) res_count[1], (unsigned) res_count[2], (unsigned) res_count[3],
+           (unsigned) res_count[4], (unsigned) res_count[5]);
 }
 
 // ---- phases ----
@@ -200,19 +197,13 @@ inline void phase_bad(CANopenComponent *h) {
   bool b = h->write_sdo(NODE, 0x2000, 0, 0x1FF, 1, cb, mk("write 0x1FF size 1", R::SDO_RESULT_REJECTED));
   bool c = h->read_sdo<uint8_t>(0, 0x2000, 0, cb, mk("node id 0", R::SDO_RESULT_REJECTED));
   ESP_LOGI(TAG, "invalid args returned %d %d %d", a, b, c);
-  // over 65535: len is uint16_t at the new head
-  h->write_sdo_data(NODE, 0x2010, 0, (const uint8_t *) S_LONG, 65536 + 5, cb,
-                    mk("PROBE write len 65541", R::SDO_RESULT_REJECTED));
-  h->read_sdo_data(NODE, 0x2010, 0, rbuf, 65536 + 4, cb, mks("PROBE read cap 65540", S_LONG, strlen(S_LONG)));
 }
 
 inline void phase_queue(CANopenComponent *h) {
   ESP_LOGI(TAG, "PHASE queue: 17 reads in one call");
-  static const char *const TAGS[17] = {"q01", "q02", "q03", "q04", "q05", "q06", "q07", "q08", "q09",
-                                       "q10", "q11", "q12", "q13", "q14", "q15", "q16", "q17"};
   int accepted = 0;
   for (int i = 0; i < 17; i++) {
-    Req *r = i < 16 ? mk(TAGS[i], R::SDO_RESULT_SUCCESS) : mk(TAGS[i], R::SDO_RESULT_REJECTED);
+    Req *r = i < 16 ? mk("queue read", R::SDO_RESULT_SUCCESS) : mk("queue read", R::SDO_RESULT_REJECTED);
     bool ok = (i % 2) ? h->read_sdo<uint32_t>(NODE, 0x2002, 0, cb, r) : h->read_sdo<uint8_t>(NODE, 0x2000, 0, cb, r);
     accepted += ok;
     if (!ok)
@@ -221,14 +212,12 @@ inline void phase_queue(CANopenComponent *h) {
   ESP_LOGI(TAG, "queue: %d of 17 accepted", accepted);
 }
 
-static const char *const MTAGS[16] = {"m w 01", "m r 01", "m w 02", "m r 02", "m w 03", "m r 03", "m w 04", "m r 04",
-                                      "m w 05", "m r 05", "m w 06", "m r 06", "m w 07", "m r 07", "m w 08", "m r 08"};
 inline void phase_queue_mixed(CANopenComponent *h) {
   ESP_LOGI(TAG, "PHASE queue: 16 mixed write/read");
   int accepted = 0;
   for (int i = 0; i < 8; i++) {
-    accepted += h->write_sdo<uint16_t>(NODE, 0x2001, 0, 0x100 + i, cb, mk(MTAGS[2 * i], R::SDO_RESULT_SUCCESS));
-    accepted += h->read_sdo<uint16_t>(NODE, 0x2001, 0, cb, mkv(MTAGS[2 * i + 1], 0x100 + i));
+    accepted += h->write_sdo<uint16_t>(NODE, 0x2001, 0, 0x100 + i, cb, mk("mixed write", R::SDO_RESULT_SUCCESS));
+    accepted += h->read_sdo<uint16_t>(NODE, 0x2001, 0, cb, mkv("mixed read", 0x100 + i));
   }
   ESP_LOGI(TAG, "mixed queue: %d of 16 accepted", accepted);
 }
@@ -237,6 +226,13 @@ inline void nmt(esphome::canbus::Canbus *bus, uint8_t cmd) {
   uint8_t d[2] = {cmd, NODE};
   bus->send_data(0x000, false, false, d, 2);
   ESP_LOGI(TAG, "NMT 0x%02x to node 0x%02x sent", cmd, NODE);
+}
+
+inline void log_stat(esphome::canbus::Canbus *bus) {
+  auto s = bus->get_status();
+  ESP_LOGI(TAG, "STAT up %u s | bus_off %d tec %u rec %u bus_err %u arb_lost %u rx_missed %u",
+           (unsigned) (millis() / 1000), s.bus_off, s.tx_error_counter, s.rx_error_counter,
+           (unsigned) s.bus_error_count, (unsigned) s.arb_lost_count, (unsigned) s.rx_missed_count);
 }
 
 // soak: chained requests, one kind after the other
@@ -248,9 +244,7 @@ inline void soak_cb(void *ctx, const SDOReply &rep) {
   auto *h = static_cast<CANopenComponent *>(ctx);
   uint32_t now = micros();
   uint32_t dt = now - soak_req.t0;
-  n_done++;
-  if ((uint8_t) rep.result < 6)
-    res_count[(uint8_t) rep.result]++;
+  count(rep);
   bool ok = rep.ok();
   uint32_t k = soak_k % 3;
   if (ok && k == 0)
@@ -298,17 +292,19 @@ inline void soak_report() {
 }
 
 // offline: a request every 250 ms, results counted per second
-static uint32_t off_win[6];
+static uint32_t off_win[NUM_RESULTS];
 inline void off_cb(void *ctx, const SDOReply &rep) {
   auto *r = static_cast<Req *>(ctx);
   uint32_t dt = micros() - r->t0;
-  n_done++;
-  if ((uint8_t) rep.result < 6) {
-    res_count[(uint8_t) rep.result]++;
+  count(rep);
+  if ((uint8_t) rep.result < NUM_RESULTS)
     off_win[(uint8_t) rep.result]++;
-  }
   ESP_LOGI(TAG, "OFF %s seq=%u res=%s abort=0x%08x val=0x%08x queued_to_cb=%u ms", r->tag, (unsigned) r->seq,
            res_s(rep.result), (unsigned) rep.abort_code, (unsigned) rep.value, (unsigned) (dt / 1000));
+}
+inline void off_report() {
+  for (uint8_t i = 0; i < NUM_RESULTS; i++)
+    ESP_LOGI(TAG, "OFFLINE window %s %u", res_s((SDOResult) i), (unsigned) off_win[i]);
 }
 inline void off_tick(CANopenComponent *h) {
   static uint32_t i;

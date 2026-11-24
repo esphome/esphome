@@ -1,8 +1,9 @@
 # CANopen SDO client on two ESP32-C3 nodes (#22410)
 
 Two ESP32-C3 devkits with SN65HVD230 transceivers on one bus (wiring in `reference/boards.md`), files in
-`scripts/canopen/`. Check the bus first with `buscheck.yaml` on both boards (`me: "1"` and `"2"`): each sends a
-counter every 500 ms and logs TEC/REC every 5 s; expect 0 errors both ways.
+`scripts/canopen/`; `c3-can.yaml` holds the shared C3 board, logger and bus setup. Check the bus first with
+`buscheck.yaml` on both boards (`me: "1"` and `"2"`): each sends a counter every 500 ms and logs TEC/REC every 5 s;
+expect 0 errors both ways.
 
 - Server (node B, `nodeb.yaml`): the author's branch https://github.com/mrk-its/esphome/tree/canopen-full,
   `node_id: 0x20`, objects added in an `on_boot` lambda at priority 900 with
@@ -10,9 +11,9 @@ counter every 500 ms and logs TEC/REC every 5 s; expect 0 errors both ways.
   object dictionary). A writable string needs `ODA_STR`; `read_od()` from a lambda shows what the client wrote.
   `slow_object.hpp` makes 0x2003 writes and 0x2004 reads answer after 450 ms, past the client's 300 ms timeout.
 - Client harness (`cotest.hpp`): a pool of requests and one callback that checks result, abort code, value or bytes
-  and the completion order, plus per kind latency. Phases are inline functions called from a `script:` of delays;
-  every line starts with `PASS`, `FAIL`, `PHASE`, `SUMMARY` or `LAT`. The queue phase makes 17 calls in one lambda
-  (16 accepted, the 17th rejected).
+  and the completion order; the soak logs latency per request kind. Phases are inline functions called from the
+  shared `phases` script in `actions2.yaml`, then each suite's own tail; every line starts with `PASS`, `FAIL`,
+  `PHASE`, `SUMMARY` or `LAT`. The queue phase makes 17 calls in one lambda (16 accepted, the 17th rejected).
 - `nodea.yaml`: the full suite, including NMT stop and start with a raw `0x000` frame and an offline window.
   `nodea-late.yaml`: the action paths in `actions2.yaml` (`on_success`, `on_error`, `on_value`, lambda node ids, an
   absent node) and five rounds of late responses. `pico.yaml`: a Pico 2 W with an MCP2515/TJA1050 module (8 MHz

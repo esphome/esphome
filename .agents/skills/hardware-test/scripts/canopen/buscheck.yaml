@@ -1,16 +1,10 @@
 substitutions:
   me: "1"
   name: canbus-check  # give the second board me: "2" and its own name
+packages:
+  c3: !include c3-can.yaml
 esphome:
   name: ${name}
-esp32:
-  variant: esp32c3
-  board: esp32-c3-devkitc-02
-  framework:
-    type: esp-idf
-logger:
-  hardware_uart: UART0
-  level: DEBUG
 globals:
   - id: tx_n
     type: uint32_t
@@ -22,12 +16,7 @@ globals:
     type: uint32_t
     initial_value: "0"
 canbus:
-  - platform: esp32_can
-    id: can_bus
-    can_id: 0
-    bit_rate: 250kbps
-    tx_pin: GPIO5
-    rx_pin: GPIO6
+  - id: !extend can_bus
     on_frame:
       - can_id: 0x100
         can_id_mask: 0x700

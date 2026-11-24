@@ -1,5 +1,7 @@
 substitutions:
   name: canopen-b
+packages:
+  c3: !include c3-can.yaml
 esphome:
   name: ${name}
   includes:
@@ -28,14 +30,7 @@ esphome:
           od.set_object(0x2003, &sw);
           od.set_object(0x2004, &sr);
           ESP_LOGI("nodeb", "OD objects added");
-esp32:
-  variant: esp32c3
-  board: esp32-c3-devkitc-02
-  framework:
-    type: esp-idf
 logger:
-  hardware_uart: UART0
-  level: DEBUG
   logs:
     canbus: INFO
 globals:
@@ -48,13 +43,6 @@ globals:
   - id: v_u32
     type: uint32_t
     initial_value: "0x33333333"
-canbus:
-  - platform: esp32_can
-    id: can_bus
-    can_id: 0
-    bit_rate: 250kbps
-    tx_pin: GPIO5
-    rx_pin: GPIO6
 canopen:
   - id: node_b
     canbus_id: can_bus

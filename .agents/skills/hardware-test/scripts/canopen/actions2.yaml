@@ -1,4 +1,23 @@
 script:
+  # the phases every client suite runs first; the suite waits for it, then runs its own tail
+  - id: phases
+    then:
+      - lambda: cot::phase_values(id(hub));
+      - delay: 3s
+      - script.execute: actions2
+      - delay: 4s
+      - lambda: cot::phase_strings(id(hub));
+      - delay: 3s
+      - lambda: cot::phase_wrap(id(hub));
+      - delay: 3s
+      - lambda: cot::phase_limits(id(hub));
+      - delay: 3s
+      - lambda: cot::phase_bad(id(hub));
+      - delay: 3s
+      - lambda: cot::phase_queue(id(hub));
+      - delay: 3s
+      - lambda: cot::phase_queue_mixed(id(hub));
+      - delay: 3s
   - id: actions2
     then:
       - logger.log: "PHASE actions2"

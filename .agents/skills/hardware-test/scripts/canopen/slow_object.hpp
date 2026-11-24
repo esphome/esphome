@@ -3,15 +3,13 @@
 #include "esphome/core/log.h"
 #include "esphome/components/canopen/od.h"
 
-// OD handlers that answer late: the busy wait holds the SDO server (and its loop) past the client's response timeout
+// OD handlers that answer late: the delay holds the SDO server (and its loop) past the client's response timeout
 struct SlowObject : esphome::canopen::OdObject {
   bool slow_write{false};
   bool slow_read{false};
   uint32_t delay_ms{450};
   void wait_(const char *what) {
-    uint32_t t = esphome::millis();
-    while (esphome::millis() - t < this->delay_ms) {
-    }
+    esphome::delay(this->delay_ms);
     ESP_LOGI("nodeb", "slow %s handled after %u ms", what, (unsigned) this->delay_ms);
   }
   esphome::canopen::OdResult od_read(esphome::canopen::OdStream s, void *buf, size_t count, size_t *done) {

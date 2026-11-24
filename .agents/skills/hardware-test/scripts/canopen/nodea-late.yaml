@@ -5,30 +5,12 @@ packages:
   common: !include client-common.yaml
 esphome:
   name: ${name}
-  on_boot:
-    priority: -100
-    then:
-      - script.execute: suite
 script:
   - id: suite
     then:
       - delay: 4s
-      - lambda: cot::phase_values(id(hub));
-      - delay: 3s
-      - script.execute: actions2
-      - delay: 4s
-      - lambda: cot::phase_strings(id(hub));
-      - delay: 3s
-      - lambda: cot::phase_wrap(id(hub));
-      - delay: 3s
-      - lambda: cot::phase_limits(id(hub));
-      - delay: 3s
-      - lambda: cot::phase_bad(id(hub));
-      - delay: 3s
-      - lambda: cot::phase_queue(id(hub));
-      - delay: 3s
-      - lambda: cot::phase_queue_mixed(id(hub));
-      - delay: 3s
+      - script.execute: phases
+      - script.wait: phases
       - repeat:
           count: 5
           then:

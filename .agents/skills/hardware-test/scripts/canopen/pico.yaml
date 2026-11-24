@@ -34,30 +34,13 @@ canopen:
 interval:
   - interval: 10s
     then:
-      - lambda: |-
-          auto s = id(can_bus).get_status();
-          ESP_LOGI("cot", "STAT up %u s | bus_off %d tec %u rec %u", (unsigned) (millis() / 1000), s.bus_off,
-                   s.tx_error_counter, s.rx_error_counter);
+      - lambda: cot::log_stat(id(can_bus));
 script:
   - id: suite
     then:
       - delay: 8s
-      - lambda: cot::phase_values(id(hub));
-      - delay: 3s
-      - script.execute: actions2
-      - delay: 4s
-      - lambda: cot::phase_strings(id(hub));
-      - delay: 3s
-      - lambda: cot::phase_wrap(id(hub));
-      - delay: 3s
-      - lambda: cot::phase_limits(id(hub));
-      - delay: 3s
-      - lambda: cot::phase_bad(id(hub));
-      - delay: 3s
-      - lambda: cot::phase_queue(id(hub));
-      - delay: 3s
-      - lambda: cot::phase_queue_mixed(id(hub));
-      - delay: 3s
+      - script.execute: phases
+      - script.wait: phases
       - repeat:
           count: 3
           then:
