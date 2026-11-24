@@ -28,7 +28,10 @@ def test_text_sets_mandatory_fields(generate_main):
     main_cpp = generate_main("tests/component_tests/text/test_text.yaml")
 
     # Then
-    assert 'it_1->configure_entity_(ESPHOME_PSTR("test 1 text"),' in main_cpp
+    assert (
+        'esphome::Application::configure_text(it_1, ESPHOME_PSTR("test 1 text"),'
+        in main_cpp
+    )
 
 
 def test_text_config_value_internal_set(generate_main):

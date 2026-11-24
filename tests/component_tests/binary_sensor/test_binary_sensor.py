@@ -33,7 +33,10 @@ def test_binary_sensor_sets_mandatory_fields(generate_main):
     )
 
     # Then
-    assert 'bs_1->configure_entity_(ESPHOME_PSTR("test bs1"),' in main_cpp
+    assert (
+        'esphome::Application::configure_binary_sensor(bs_1, ESPHOME_PSTR("test bs1"),'
+        in main_cpp
+    )
     assert "bs_1->set_pin(" in main_cpp
 
 

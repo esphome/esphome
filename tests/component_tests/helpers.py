@@ -16,8 +16,8 @@ INTERNAL_BIT = 1 << 24
 def extract_packed_value(main_cpp: str, var_name: str) -> int:
     """Extract the packed-fields argument from the entity's configure call.
 
-    Matches both legacy form ``var->configure_entity_(name, hash, packed)`` and the
-    combined form ``App.register_<entity>(var, name, hash, packed)``.
+    Matches ``var->configure_entity_(name, hash, packed)`` and the listed entities'
+    ``esphome::Application::configure_<entity>(var, name, hash, packed)``.
     """
     escaped_var = re.escape(var_name)
     name_re = r'ESPHOME_PSTR\("(?:\\.|[^"\\])*"\)'
@@ -25,7 +25,9 @@ def extract_packed_value(main_cpp: str, var_name: str) -> int:
         rf"{escaped_var}->configure_entity_\(" + name_re + r",\s*\w+,\s*(\d+)\)"
     )
     combined_pattern = (
-        rf"App\.register_\w+\(\s*{escaped_var}\s*,\s*" + name_re + r",\s*\w+,\s*(\d+)\)"
+        rf"esphome::Application::configure_\w+\(\s*{escaped_var}\s*,\s*"
+        + name_re
+        + r",\s*\w+,\s*(\d+)\)"
     )
     match = re.search(combined_pattern, main_cpp) or re.search(legacy_pattern, main_cpp)
     assert match, f"configure call not found for {var_name}"

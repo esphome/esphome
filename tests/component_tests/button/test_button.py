@@ -29,7 +29,10 @@ def test_button_sets_mandatory_fields(generate_main):
     main_cpp = generate_main("tests/component_tests/button/test_button.yaml")
 
     # Then
-    assert 'wol_1->configure_entity_(ESPHOME_PSTR("wol_test_1"),' in main_cpp
+    assert (
+        'esphome::Application::configure_button(wol_1, ESPHOME_PSTR("wol_test_1"),'
+        in main_cpp
+    )
     assert "wol_2->set_macaddr(18, 52, 86, 120, 144, 171);" in main_cpp
 
 

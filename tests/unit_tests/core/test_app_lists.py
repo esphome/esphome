@@ -6,13 +6,7 @@ import re
 import pytest
 
 from esphome import codegen as cg
-from esphome.const import (
-    KEY_CORE,
-    KEY_TARGET_PLATFORM,
-    PLATFORM_ESP32,
-    PLATFORM_ESP8266,
-)
-from esphome.core import CORE, ID, EsphomeError, app_lists, entity_helpers
+from esphome.core import CORE, ID, EsphomeError, app_lists
 from tests.testing_helpers import get_define_value
 
 ENTITY_TYPES_H = (
@@ -169,31 +163,3 @@ def test_device_and_area_count_override_is_rejected(upper: str) -> None:
         EsphomeError, match=f"ESPHOME_{upper}_COUNT is defined as 4 elsewhere"
     ):
         CORE.flush_tasks()
-
-
-@pytest.mark.parametrize(
-    ("platform", "count", "helper"),
-    [
-        (PLATFORM_ESP32, 10, True),
-        (PLATFORM_ESP32, 9, False),
-        (PLATFORM_ESP8266, 40, False),
-    ],
-)
-def test_configure_helper_only_where_it_saves_flash(
-    platform: str, count: int, helper: bool
-) -> None:
-    """setup() calls Application::configure_<entity>() only for many ESP32 entities of one type."""
-    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: platform}
-    CORE.platform_counts["sensor"] = count
-    statement = entity_helpers._ConfigureEntityStatement(
-        "sensor",
-        cg.MockObj("s", "->").configure_entity_("n", 1, 2),
-        cg.MockObj("esphome::Application", "::").configure_sensor(
-            cg.MockObj("s"), "n", 1, 2
-        ),
-        "",
-    )
-    expected = (
-        "esphome::Application::configure_sensor(" if helper else "s->configure_entity_("
-    )
-    assert str(statement).startswith(expected)
