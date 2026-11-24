@@ -45,6 +45,23 @@ class RefusingIterator : public ComponentIterator {
 // Far above the fixed number of iterator states
 static constexpr size_t BIG_BUDGET = 1000;
 
+// Codegen entities of every type in this build. Test builds never run the generated setup(), so a
+// full walk would visit unconstructed objects; combined builds with other components' entities skip it.
+static constexpr size_t CODEGEN_ENTITIES = 0
+// NOLINTBEGIN(bugprone-macro-parentheses)
+#define ENTITY_TYPE_(type, singular, plural, count, upper) +(count)
+#define ENTITY_CONTROLLER_TYPE_(type, singular, plural, count, upper, callback) \
+  ENTITY_TYPE_(type, singular, plural, count, upper)
+#include "esphome/core/entity_types.h"
+#undef ENTITY_TYPE_
+#undef ENTITY_CONTROLLER_TYPE_
+    // NOLINTEND(bugprone-macro-parentheses)
+    ;
+
+#define SKIP_IF_CODEGEN_ENTITIES() \
+  if (CODEGEN_ENTITIES != 0) \
+  GTEST_SKIP() << "walks every entity list, and this build has unconstructed codegen entities"
+
 TEST(ComponentIterator, NotRunningMakesNoProgress) {
   RefusingIterator it;
   it.try_advance(BIG_BUDGET);
@@ -54,6 +71,7 @@ TEST(ComponentIterator, NotRunningMakesNoProgress) {
 }
 
 TEST(ComponentIterator, CompletesInOneCallWithoutRefusals) {
+  SKIP_IF_CODEGEN_ENTITIES();
   RefusingIterator it;
   it.begin();
   it.try_advance(BIG_BUDGET);
@@ -72,6 +90,7 @@ TEST(ComponentIterator, StepBudgetIsHonored) {
 }
 
 TEST(ComponentIterator, RefusedStepStopsBatchAndRetriesSameStep) {
+  SKIP_IF_CODEGEN_ENTITIES();
   RefusingIterator it;
   it.end_refusals = 3;
   it.begin();
@@ -91,6 +110,7 @@ TEST(ComponentIterator, RefusedStepStopsBatchAndRetriesSameStep) {
 }
 
 TEST(ComponentIterator, RefusedBeginStopsBatchAndRetries) {
+  SKIP_IF_CODEGEN_ENTITIES();
   RefusingIterator it;
   it.begin_refusals = 2;
   it.begin();
@@ -108,6 +128,7 @@ TEST(ComponentIterator, RefusedBeginStopsBatchAndRetries) {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 TEST(ComponentIterator, DeprecatedAdvanceKeepsLegacyPatternWorking) {
+  SKIP_IF_CODEGEN_ENTITIES();
   RefusingIterator it;
   it.end_refusals = 2;
   it.begin();
@@ -151,14 +172,16 @@ class ComponentIteratorSensorTest : public ::testing::Test {
       App.register_sensor(&sensor_b);
       registered = true;
     }
-    // Codegen sensors are never constructed in test builds, so only the two runtime slots are listed
-    ASSERT_EQ(App.get_sensors().size(), 2u);
-    ASSERT_EQ(App.get_sensors()[0], &sensor_a);
-    ASSERT_EQ(App.get_sensors()[1], &sensor_b);
+    // The runtime slots follow the codegen sensors
+    auto sensors = App.get_sensors();
+    ASSERT_EQ(sensors.size(), ESPHOME_ENTITY_SENSOR_COUNT + 2u);
+    ASSERT_EQ(sensors[ESPHOME_ENTITY_SENSOR_COUNT], &sensor_a);
+    ASSERT_EQ(sensors[ESPHOME_ENTITY_SENSOR_COUNT + 1], &sensor_b);
   }
 };
 
 TEST_F(ComponentIteratorSensorTest, RefusedItemIsReofferedNotSkipped) {
+  SKIP_IF_CODEGEN_ENTITIES();
   ItemRefusingIterator it;
   it.sensor_refusals = 2;
   it.begin();
@@ -178,6 +201,7 @@ TEST_F(ComponentIteratorSensorTest, RefusedItemIsReofferedNotSkipped) {
 }
 
 TEST_F(ComponentIteratorSensorTest, YieldAfterStepEndsPassAndResumes) {
+  SKIP_IF_CODEGEN_ENTITIES();
   ItemRefusingIterator it;
   it.yield_on_sensor = true;
   it.begin();

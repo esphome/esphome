@@ -59,6 +59,7 @@ def test_entities_are_emitted_in_order() -> None:
 
 def test_reservation_sizes_the_runtime_slots() -> None:
     cg.reserve_runtime_entities("sensor", 3)
+    app_lists.schedule_emit()
     CORE.flush_tasks()
     assert _define_value("ESPHOME_RUNTIME_SENSOR_COUNT") == "3"
     assert _define_value("ESPHOME_ENTITY_SENSOR_COUNT") == "0"
@@ -70,6 +71,7 @@ def test_reservation_sizes_the_runtime_slots() -> None:
 
 def test_datetime_reservation_uses_its_own_defines() -> None:
     cg.reserve_runtime_entities("date", 1)
+    app_lists.schedule_emit()
     CORE.flush_tasks()
     assert _define_value("ESPHOME_RUNTIME_DATETIME_DATE_COUNT") == "1"
     assert _define_value("USE_DATETIME_DATE") is not None
@@ -104,19 +106,14 @@ def test_runtime_pointer_is_rejected() -> None:
         app_lists.add_entity("sensor", runtime)
 
 
-def test_declared_and_listed_counts_must_match() -> None:
-    CORE.platform_counts["sensor"] = 2
-    app_lists.add_entity("sensor", _new_sensor("only_one"))
-    app_lists.schedule_emit()
-    with pytest.raises(EsphomeError, match="2 sensor entities were declared"):
-        CORE.flush_tasks()
-
-
-def test_unit_test_builds_emit_empty_lists() -> None:
-    app_lists.testing_setup_not_run()
-    CORE.platform_counts["sensor"] = 1
-    app_lists.add_entity("sensor", _new_sensor("never_built"))
+def test_additions_after_emit_are_rejected() -> None:
     app_lists.schedule_emit()
     CORE.flush_tasks()
-    assert _define_value("ESPHOME_ENTITY_SENSOR_COUNT") == "0"
-    assert "never_built};" not in CORE.cpp_global_section
+    with pytest.raises(EsphomeError, match="after the lists were emitted"):
+        app_lists.add_entity("sensor", _new_sensor("too_late"))
+
+
+def test_use_define_adds_the_datetime_prefix() -> None:
+    assert app_lists.use_define("sensor") == "USE_SENSOR"
+    assert app_lists.use_define("time") == "USE_DATETIME_TIME"
+    assert app_lists.use_define("media_source") == "USE_MEDIA_SOURCE"

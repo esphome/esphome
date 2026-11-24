@@ -820,10 +820,6 @@ async def _add_automations(config):
             )
 
 
-# Datetime component has special subtypes that need additional defines
-DATETIME_SUBTYPES = {"date", "time", "datetime"}
-
-
 @coroutine_with_priority(CoroPriority.FINAL)
 async def _add_platform_defines() -> None:
     # Generate compile-time defines for platforms that have actual entities
@@ -836,12 +832,7 @@ async def _add_platform_defines() -> None:
         if platform_name not in app_lists.ENTITY_LISTS:
             cg.add_define(f"ESPHOME_ENTITY_{platform_name.upper()}_COUNT", count)
 
-        # Datetime subtypes only use USE_DATETIME_* defines
-        if platform_name in DATETIME_SUBTYPES:
-            cg.add_define(f"USE_DATETIME_{platform_name.upper()}")
-        else:
-            # Regular platforms use USE_* defines
-            cg.add_define(f"USE_{platform_name.upper()}")
+        cg.add_define(app_lists.use_define(platform_name))
 
 
 @coroutine_with_priority(CoroPriority.FINAL)

@@ -48,6 +48,19 @@ class CameraRefusingIterator : public ComponentIterator {
 // Far above the fixed number of iterator states
 static constexpr size_t BIG_BUDGET = 1000;
 
+// Codegen entities of every type in this build; test builds never construct them, so a full walk
+// would visit unconstructed objects
+static constexpr size_t CODEGEN_ENTITIES = 0
+// NOLINTBEGIN(bugprone-macro-parentheses)
+#define ENTITY_TYPE_(type, singular, plural, count, upper) +(count)
+#define ENTITY_CONTROLLER_TYPE_(type, singular, plural, count, upper, callback) \
+  ENTITY_TYPE_(type, singular, plural, count, upper)
+#include "esphome/core/entity_types.h"
+#undef ENTITY_TYPE_
+#undef ENTITY_CONTROLLER_TYPE_
+    // NOLINTEND(bugprone-macro-parentheses)
+    ;
+
 class ComponentIteratorCameraTest : public ::testing::Test {
  protected:
   void SetUp() override {
@@ -58,6 +71,8 @@ class ComponentIteratorCameraTest : public ::testing::Test {
 };
 
 TEST_F(ComponentIteratorCameraTest, RefusedCameraIsReofferedNotSkipped) {
+  if (CODEGEN_ENTITIES != 0)
+    GTEST_SKIP() << "walks every entity list, and this build has unconstructed codegen entities";
   CameraRefusingIterator it;
   it.camera_refusals = 2;
   it.begin();

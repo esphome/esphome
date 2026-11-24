@@ -80,21 +80,18 @@ extern Area *const APP_AREA_LIST[];
 #undef ENTITY_CONTROLLER_TYPE_
 // NOLINTEND(bugprone-macro-parentheses)
 
-template<typename T> inline T *app_list_read(T *const *pos) {
-  return reinterpret_cast<T *>(const_cast<char *>(progmem_read_ptr(reinterpret_cast<const char *const *>(pos))));
-}
-
 /// Read-only view of one of the Application's lists: the `N` pointers codegen placed in a constant
 /// array, then the slots reserved for objects registered at run time (`Runtime`, a `SlotList`).
-template<typename T, size_t N, typename Runtime> class AppList {
+/// The arrays hold aligned pointers, which ESP8266 reads from flash like RAM.
+template<typename T, size_t N, typename Runtime = EmptyList<T *>> class AppList {
+  static constexpr bool HAS_RUNTIME = !std::is_same_v<Runtime, EmptyList<T *>>;
+
  public:
   using value_type = T *;
   class Iterator {
    public:
-    Iterator(T *const *list, const Runtime *runtime, size_t index) : list_(list), runtime_(runtime), index_(index) {}
-    T *operator*() const {
-      return this->index_ < N ? app_list_read(this->list_ + this->index_) : (*this->runtime_)[this->index_ - N];
-    }
+    Iterator(const AppList *list, size_t index) : list_(list), index_(index) {}
+    T *operator*() const { return (*this->list_)[this->index_]; }
     Iterator &operator++() {
       ++this->index_;
       return *this;
@@ -102,48 +99,45 @@ template<typename T, size_t N, typename Runtime> class AppList {
     bool operator!=(const Iterator &other) const { return this->index_ != other.index_; }
 
    private:
-    T *const *list_;
-    const Runtime *runtime_;
+    const AppList *list_;
     size_t index_;
   };
+  explicit AppList(T *const *list) : list_(list) {}
   AppList(T *const *list, const Runtime &runtime) : list_(list), runtime_(&runtime) {}
-  size_t size() const { return N + this->runtime_->size(); }
-  bool empty() const { return this->size() == 0; }
-  T *operator[](size_t i) const { return *Iterator(this->list_, this->runtime_, i); }
-  Iterator begin() const { return Iterator(this->list_, this->runtime_, 0); }
-  Iterator end() const { return Iterator(this->list_, this->runtime_, this->size()); }
-
- private:
-  T *const *list_;
-  const Runtime *runtime_;
-};
-
-/// No runtime slots reserved: a plain walk of the constant array.
-template<typename T, size_t N> class AppList<T, N, EmptyList<T *>> {
- public:
-  using value_type = T *;
-  class Iterator {
-   public:
-    explicit Iterator(T *const *pos) : pos_(pos) {}
-    T *operator*() const { return app_list_read(this->pos_); }
-    Iterator &operator++() {
-      ++this->pos_;
-      return *this;
+  size_t size() const {
+    if constexpr (HAS_RUNTIME) {
+      return N + this->runtime_->size();
+    } else {
+      return N;
     }
-    bool operator!=(const Iterator &other) const { return this->pos_ != other.pos_; }
-
-   private:
-    T *const *pos_;
-  };
-  AppList(T *const *list, const EmptyList<T *> & /*runtime*/) : list_(list) {}
-  static constexpr size_t size() { return N; }
-  static constexpr bool empty() { return N == 0; }
-  T *operator[](size_t i) const { return app_list_read(this->list_ + i); }
-  Iterator begin() const { return Iterator(this->list_); }
-  Iterator end() const { return Iterator(this->list_ + N); }
+  }
+  bool empty() const { return this->size() == 0; }
+  T *operator[](size_t i) const {
+    if constexpr (HAS_RUNTIME) {
+      if (i >= N)
+        return (*this->runtime_)[i - N];
+    }
+    return this->list_[i];
+  }
+  // Without runtime slots the iterator is the array pointer itself
+  auto begin() const {
+    if constexpr (HAS_RUNTIME) {
+      return Iterator(this, 0);
+    } else {
+      return this->list_;
+    }
+  }
+  auto end() const {
+    if constexpr (HAS_RUNTIME) {
+      return Iterator(this, this->size());
+    } else {
+      return this->list_ + N;
+    }
+  }
 
  private:
   T *const *list_;
+  const Runtime *runtime_{nullptr};
 };
 
 class Application {
@@ -179,6 +173,21 @@ class Application {
   }
 #endif
 
+#ifdef USE_DEVICES
+  template<typename D = Device>
+  ESPDEPRECATED("Devices come from the devices: list in YAML. Removed in 2027.6.0", "2026.12.0")
+  void register_device(D * /*device*/) {
+    static_assert(sizeof(D) == 0, "Devices come from the devices: list in YAML and cannot be added at run time");
+  }
+#endif
+#ifdef USE_AREAS
+  template<typename A = Area>
+  ESPDEPRECATED("Areas come from the areas: list in YAML. Removed in 2027.6.0", "2026.12.0")
+  void register_area(A * /*area*/) {
+    static_assert(sizeof(A) == 0, "Areas come from the areas: list in YAML and cannot be added at run time");
+  }
+#endif
+
   Component *get_current_component() { return this->current_component_; }
 
   // Owning script of the action chain currently executing (nullptr when none); used to attribute
@@ -187,15 +196,31 @@ class Application {
   const LogString *get_current_source() { return this->current_source_; }
 
 // Codegen entities are in the constant APP_<UPPER>_LIST arrays. Entities created at run time go into
-// slots reserved with cg.reserve_runtime_entities(); register_<entity>() exists only then.
+// slots reserved with cg.reserve_runtime_entities(); register_<entity>() works only then, and
+// otherwise fails to compile with a message saying so.
 // NOLINTBEGIN(bugprone-macro-parentheses)
+#define APP_RESERVE_HINT_(singular) \
+  "Call cg.reserve_runtime_entities(\"" #singular "\", n) in to_code to register entities at run time"
 #define ENTITY_TYPE_(type, singular, plural, count, upper) \
-  SLOT_LIST(type, runtime_##plural##_, register_##singular, ESPHOME_RUNTIME_##upper##_COUNT)
+  SLOT_LIST(type, runtime_##plural##_, register_##singular, ESPHOME_RUNTIME_##upper##_COUNT) \
+  template<size_t RESERVED = ESPHOME_RUNTIME_##upper##_COUNT> \
+    requires(RESERVED == 0) \
+  ESPDEPRECATED(APP_RESERVE_HINT_(singular) ". Removed in 2027.6.0", "2026.12.0") \
+  void register_##singular(type * /*obj*/) { \
+    static_assert(RESERVED != 0, APP_RESERVE_HINT_(singular)); \
+  } \
+  template<size_t RESERVED = ESPHOME_RUNTIME_##upper##_COUNT> \
+    requires(RESERVED == 0) \
+  ESPDEPRECATED(APP_RESERVE_HINT_(singular) ". Removed in 2027.6.0", "2026.12.0") \
+  void register_##singular(type * /*obj*/, const char * /*name*/, uint32_t /*hash*/, uint32_t /*fields*/) { \
+    static_assert(RESERVED != 0, APP_RESERVE_HINT_(singular)); \
+  }
 #define ENTITY_CONTROLLER_TYPE_(type, singular, plural, count, upper, callback) \
   ENTITY_TYPE_(type, singular, plural, count, upper)
 #include "esphome/core/entity_types.h"
 #undef ENTITY_TYPE_
 #undef ENTITY_CONTROLLER_TYPE_
+#undef APP_RESERVE_HINT_
   // NOLINTEND(bugprone-macro-parentheses)
 
 #ifdef USE_SERIAL_PROXY
@@ -421,8 +446,8 @@ class Application {
     } \
     return nullptr; \
   }
-  AppList<Device, ESPHOME_DEVICE_COUNT, EmptyList<Device *>> get_devices() const {
-    return {APP_DEVICE_LIST, EmptyList<Device *>()};
+  AppList<Device, ESPHOME_DEVICE_COUNT> get_devices() const {
+    return AppList<Device, ESPHOME_DEVICE_COUNT>(APP_DEVICE_LIST);
   }
 #else
 #define GET_ENTITY_METHOD(entity_type, entity_name, entities_member) \
@@ -435,9 +460,7 @@ class Application {
   }
 #endif  // USE_DEVICES
 #ifdef USE_AREAS
-  AppList<Area, ESPHOME_AREA_COUNT, EmptyList<Area *>> get_areas() const {
-    return {APP_AREA_LIST, EmptyList<Area *>()};
-  }
+  AppList<Area, ESPHOME_AREA_COUNT> get_areas() const { return AppList<Area, ESPHOME_AREA_COUNT>(APP_AREA_LIST); }
 #endif
 // Entity getter methods (generated from entity_types.h)
 // NOLINTBEGIN(bugprone-macro-parentheses)

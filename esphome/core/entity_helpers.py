@@ -89,7 +89,7 @@ _KEY_DISABLED_BY_DEFAULT = "_entity_disabled_by_default"
 _KEY_ENTITY_CATEGORY = "_entity_category"
 
 # Private config key naming the App list the entity goes into (esphome/core/app_lists.py).
-_KEY_REGISTER_METHOD = "_entity_register_method"
+_KEY_APP_LIST = "_entity_app_list"
 
 # Maximum unique strings per category (8-bit index, 0 = not set)
 _MAX_DEVICE_CLASSES = 0xFF  # 255
@@ -313,7 +313,7 @@ def _describe_packed_flags(config: ConfigType, entity_category: int) -> str:
 def queue_entity_register(method_name: str, config: ConfigType) -> None:
     """Add the entity to the constant ``App`` list of ``method_name`` (for example ``sensor``)
     when ``finalize_entity_strings`` runs."""
-    config[_KEY_REGISTER_METHOD] = method_name
+    config[_KEY_APP_LIST] = method_name
 
 
 def finalize_entity_strings(var: MockObj, config: ConfigType) -> None:
@@ -345,8 +345,8 @@ def finalize_entity_strings(var: MockObj, config: ConfigType) -> None:
     )
     # Build inline comment describing the packed flags for readability
     comment = _describe_packed_flags(config, entity_category)
-    if (register_method := config.get(_KEY_REGISTER_METHOD)) is not None:
-        app_lists.add_entity(register_method, var)
+    if (app_list := config.get(_KEY_APP_LIST)) is not None:
+        app_lists.add_entity(app_list, var)
     expr = var.configure_entity_(entity_name, object_id_hash, packed)
     if comment:
         add(RawStatement(f"{expr};  // {comment}"))

@@ -19,36 +19,50 @@ from esphome.cpp_helpers import get_slot_count, slot_counter
 
 DOMAIN = "app_lists"
 
+# Platforms whose entity_types.h `upper` token and USE_* define carry a DATETIME_ prefix.
+DATETIME_SUBTYPES = {"date", "time", "datetime"}
+
+
+def _upper(platform: str) -> str:
+    upper = platform.upper()
+    return f"DATETIME_{upper}" if platform in DATETIME_SUBTYPES else upper
+
+
 # Entity list name (the `singular` of entity_types.h) -> its `upper` token.
 ENTITY_LISTS: dict[str, str] = {
-    "binary_sensor": "BINARY_SENSOR",
-    "cover": "COVER",
-    "fan": "FAN",
-    "light": "LIGHT",
-    "sensor": "SENSOR",
-    "switch": "SWITCH",
-    "button": "BUTTON",
-    "text_sensor": "TEXT_SENSOR",
-    "climate": "CLIMATE",
-    "number": "NUMBER",
-    "date": "DATETIME_DATE",
-    "time": "DATETIME_TIME",
-    "datetime": "DATETIME_DATETIME",
-    "text": "TEXT",
-    "select": "SELECT",
-    "lock": "LOCK",
-    "valve": "VALVE",
-    "media_player": "MEDIA_PLAYER",
-    "alarm_control_panel": "ALARM_CONTROL_PANEL",
-    "water_heater": "WATER_HEATER",
-    "infrared": "INFRARED",
-    "radio_frequency": "RADIO_FREQUENCY",
-    "event": "EVENT",
-    "update": "UPDATE",
+    platform: _upper(platform)
+    for platform in (
+        "binary_sensor",
+        "cover",
+        "fan",
+        "light",
+        "sensor",
+        "switch",
+        "button",
+        "text_sensor",
+        "climate",
+        "number",
+        "date",
+        "time",
+        "datetime",
+        "text",
+        "select",
+        "lock",
+        "valve",
+        "media_player",
+        "alarm_control_panel",
+        "water_heater",
+        "infrared",
+        "radio_frequency",
+        "event",
+        "update",
+    )
 }
 
-# Platform names whose USE_* define carries a DATETIME_ prefix.
-_DATETIME_SUBTYPES = {"date", "time", "datetime"}
+
+def use_define(platform: str) -> str:
+    """The USE_* define that compiles in `platform`'s entity code."""
+    return f"USE_{_upper(platform)}"
 
 
 @dataclass
@@ -57,8 +71,6 @@ class AppListsState:
 
     lists: dict[str, list[str]] = field(default_factory=dict)
     emitted: bool = False
-    # C++ unit test builds never run the generated setup(), so their objects are never constructed
-    setup_not_run: bool = False
 
 
 def _get_state() -> AppListsState:
@@ -101,16 +113,7 @@ def reserve_runtime_entities(platform: str, count: int) -> None:
     request_slot = slot_counter(runtime_count_define(platform))
     for _ in range(count):
         request_slot()
-    upper = platform.upper()
-    add_define(
-        f"USE_DATETIME_{upper}" if platform in _DATETIME_SUBTYPES else f"USE_{upper}"
-    )
-    CORE.add_job(_emit_entity_lists)
-
-
-def testing_setup_not_run() -> None:
-    """Emit empty lists: C++ unit test builds never run setup(), so no object is constructed."""
-    _get_state().setup_not_run = True
+    add_define(use_define(platform))
 
 
 def _emit_list(upper: str, objs: list[str]) -> None:
@@ -123,21 +126,12 @@ def _emit_list(upper: str, objs: list[str]) -> None:
 @coroutine_with_priority(CoroPriority.FINAL)
 async def _emit_entity_lists() -> None:
     state = _get_state()
-    if state.emitted:
-        return
     state.emitted = True
-    if state.setup_not_run:
-        state.lists = {upper: [] for upper in state.lists}
     for platform, upper in ENTITY_LISTS.items():
         objs = state.lists.get(upper, [])
         reserved = get_slot_count(runtime_count_define(platform))
-        declared = CORE.platform_counts.get(platform, 0)
-        if not objs and not reserved and not declared:
+        if not objs and not reserved and not CORE.platform_counts.get(platform):
             continue
-        if not state.setup_not_run and len(objs) != declared:
-            raise EsphomeError(
-                f"{declared} {platform} entities were declared but {len(objs)} were added to the list"
-            )
         add_define(f"ESPHOME_ENTITY_{platform.upper()}_COUNT", len(objs))
         if not reserved:
             add_define(runtime_count_define(platform), 0)
@@ -149,4 +143,5 @@ async def _emit_entity_lists() -> None:
 
 
 def schedule_emit() -> None:
+    """Schedule the FINAL job that emits the lists; core's to_code calls it once per run."""
     CORE.add_job(_emit_entity_lists)

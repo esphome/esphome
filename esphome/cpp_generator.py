@@ -843,20 +843,23 @@ def Pvariable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj":
         )
         placement_new = CallExpression(f"new({id_.id}) {actual_type}", *call_expr.args)
         CORE.add(ExpressionStatement(placement_new))
-        CORE.data.setdefault(_STATIC_POINTER_IDS, {})[id_.id] = address
+        CORE.data.setdefault(_STATIC_POINTER_IDS, set()).add(id_.id)
+        CORE.data.setdefault(_STATIC_POINTER_ADDRESSES, {})[id_.id] = address
     else:
         decl = VariableDeclarationExpression(id_.type, "*", id_, static=True)
         CORE.add_global(decl)
         CORE.add(AssignmentExpression(None, None, id_, rhs))
-        if (target := static_pointer_target(rhs)) is not None:
-            CORE.data.setdefault(_STATIC_POINTER_ALIASES, {})[id_.id] = target
+        # An alias of a static object: its address is still a compile-time constant
+        if (address := static_pointer_address(rhs)) is not None:
+            CORE.data[_STATIC_POINTER_ADDRESSES][id_.id] = address
 
     CORE.register_variable(id_, obj)
     return obj
 
 
 _STATIC_POINTER_IDS = "static_pointer_ids"
-_STATIC_POINTER_ALIASES = "static_pointer_aliases"
+# Pvariable id -> constant expression for its object's address, aliases included
+_STATIC_POINTER_ADDRESSES = "static_pointer_addresses"
 
 
 def is_static_pointer(obj: SafeExpType) -> bool:
@@ -870,25 +873,16 @@ def is_static_pointer(obj: SafeExpType) -> bool:
     )
 
 
-def static_pointer_target(obj: SafeExpType) -> "MockObj | None":
-    """The static Pvariable ``obj`` points to: ``obj`` itself, or for a ``cg.Pvariable(id, other)``
-    alias, the static Pvariable it was assigned. None if the address is only known at run time."""
-    if is_static_pointer(obj):
-        return obj
-    if isinstance(obj, MockObj):
-        return CORE.data.get(_STATIC_POINTER_ALIASES, {}).get(str(obj.base))
-    return None
-
-
 def static_pointer_address(obj: SafeExpType) -> str | None:
-    """A constant expression for the address ``obj`` points to (see ``static_pointer_target``).
+    """A constant expression for the address ``obj`` points to, for a static Pvariable or an
+    alias of one; None if the address is only known at run time.
 
     Use it in a constant table instead of the pointer variable: GCC reads that variable as a
     run-time value, so converting it to a base class at a non-zero offset moves the table to RAM.
     """
-    if (target := static_pointer_target(obj)) is None:
+    if not isinstance(obj, MockObj):
         return None
-    return CORE.data[_STATIC_POINTER_IDS][str(target.base)]
+    return CORE.data.get(_STATIC_POINTER_ADDRESSES, {}).get(str(obj.base))
 
 
 def new_Pvariable(id_: ID, *args: SafeExpType) -> "MockObj":
