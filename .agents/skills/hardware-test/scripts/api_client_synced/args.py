@@ -16,46 +16,41 @@ good_info = re.compile(
 )
 ok = collections.Counter()
 bad = collections.Counter()
-shown = 0
-with pathlib.Path(sys.argv[1]).open(encoding="utf-8", errors="replace") as f:
-    lines = [line.rstrip("\n") for line in f]
-line_re = re.compile(
-    r"\]: (CONNECTED|DISCONNECTED|SYNCED) (direct|delayed1?|cap-now|cap-later|cap-copied)"
-    r"(?: g=(\S*))?(?: local=\d+)? info=(.*) addr=(.*)$"
-)
-for line in lines:
-    if not (m := line_re.search(line)):
-        continue
-    k = f"{m[1]} {m[2]}"
-    if m[3] in (None, "G") and good_info.match(m[4]) and m[5] == addr:
-        ok[k] += 1
-    else:
-        bad[k] += 1
-        if shown < 15:
-            print("BAD", line[:200])
-            shown += 1
-for k in sorted(set(ok) | set(bad)):
-    print(f"{k:28s} ok={ok[k]} bad={bad[k]}")
-now = {}
 pair_ok = collections.Counter()
 pair_bad = collections.Counter()
-unpaired = 0
-cap_re = re.compile(
-    r"\]: (\w+) cap-(now|later|copied)(?: g=\S*)? local=(\d+) info=(.*) addr=(.*)$"
+shown = unpaired = 0
+now = {}
+line_re = re.compile(
+    r"\]: (CONNECTED|DISCONNECTED|SYNCED) (direct|delayed1?|cap-now|cap-later|cap-copied)"
+    r"(?: g=(\S*))?(?: local=(\d+))? info=(.*) addr=(.*)$"
 )
-for line in lines:
-    if "ESP-ROM" in line:
-        now = {}
-        continue
-    if not (m := cap_re.search(line)):
-        continue
-    key = (m[1], m[3])
-    if m[2] == "now":
-        now[key] = (m[4], m[5])
-    elif key in now:
-        (pair_ok if now[key] == (m[4], m[5]) else pair_bad)[f"{m[1]} {m[2]}"] += 1
-    else:
-        unpaired += 1
+with pathlib.Path(sys.argv[1]).open(encoding="utf-8", errors="replace") as f:
+    for line in f:
+        if "ESP-ROM" in line:
+            now = {}
+            continue
+        if not (m := line_re.search(line.rstrip("\n"))):
+            continue
+        k = f"{m[1]} {m[2]}"
+        if m[3] in (None, "G") and good_info.match(m[5]) and m[6] == addr:
+            ok[k] += 1
+        else:
+            bad[k] += 1
+            if shown < 15:
+                print("BAD", line[:200].rstrip("\n"))
+                shown += 1
+        if m[4] is None:
+            continue
+        # pair each deferred read with the cap-now line of the same trigger run
+        key = (m[1], m[4])
+        if m[2] == "cap-now":
+            now[key] = (m[5], m[6])
+        elif key in now:
+            (pair_ok if now[key] == (m[5], m[6]) else pair_bad)[k] += 1
+        else:
+            unpaired += 1
+for k in sorted(set(ok) | set(bad)):
+    print(f"{k:28s} ok={ok[k]} bad={bad[k]}")
 print(
     "deferred value equal to the value in the trigger:",
     dict(pair_ok),

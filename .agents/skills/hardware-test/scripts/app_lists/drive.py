@@ -6,23 +6,14 @@ OUT-dump.txt (the dump_config log), waits up to 20 s for a state of every statef
 datetime), each waiting for its state. Diff OUT-list.json between builds with the device name masked."""
 
 import asyncio
+import contextlib
 import json
 import os
 from pathlib import Path
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-import contextlib
-
-from aioesphomeapi import (  # noqa: E402
-    ButtonInfo,
-    LightInfo,
-    LightState,
-    LockCommand,
-    LogLevel,
-    SwitchInfo,
-    SwitchState,
-)
+from aioesphomeapi import LightState, LockCommand, LogLevel, SwitchState  # noqa: E402
 from apiconn import connect, log_text  # noqa: E402
 
 NO_STATE = ("ButtonInfo", "EventInfo")
@@ -76,16 +67,15 @@ async def main() -> None:
         states[(s.key, getattr(s, "device_id", 0))] = s
         changed.set()
 
+    want_keys = {
+        (d["key"], d.get("device_id", 0)) for d in rows if d["_type"] not in NO_STATE
+    }
     cli.subscribe_states(on_state)
-    await asyncio.sleep(8)
-    for _ in range(20):
-        if all(
-            (d["key"], d.get("device_id", 0)) in states
-            for d in rows
-            if d["_type"] not in NO_STATE
-        ):
-            break
-        await asyncio.sleep(1)
+    end = loop.time() + 20
+    while not want_keys <= states.keys() and (rem := end - loop.time()) > 0:
+        changed.clear()
+        with contextlib.suppress(TimeoutError):
+            await asyncio.wait_for(changed.wait(), rem)
 
     async def wait_for(e, check, t: float = 15.0) -> bool:
         # drop the cached state so only an update sent after the command counts
@@ -100,24 +90,20 @@ async def main() -> None:
             with contextlib.suppress(TimeoutError):
                 await asyncio.wait_for(changed.wait(), rem)
 
-    def ent(cls_name: str, name: str):
-        return next(e for e in ents if type(e).__name__ == cls_name and e.name == name)
+    def ent(cls_name: str, name: str, sub: bool | None = None):
+        return next(
+            e
+            for e in ents
+            if type(e).__name__ == cls_name
+            and e.name == name
+            and (sub is None or bool(e.device_id) == sub)
+        )
 
     if drive:
-        relay = next(
-            e
-            for e in ents
-            if isinstance(e, SwitchInfo) and e.name == "Relay" and e.device_id == 0
-        )
-        relay2 = next(
-            e
-            for e in ents
-            if isinstance(e, SwitchInfo) and e.name == "Relay" and e.device_id != 0
-        )
-        lamp = next(e for e in ents if isinstance(e, LightInfo))
-        btn = next(
-            e for e in ents if isinstance(e, ButtonInfo) and e.name == "Press Me"
-        )
+        relay = ent("SwitchInfo", "Relay", sub=False)
+        relay2 = ent("SwitchInfo", "Relay", sub=True)
+        lamp = ent("LightInfo", "Lamp")
+        btn = ent("ButtonInfo", "Press Me")
         r2_before = getattr(states.get((relay2.key, relay2.device_id)), "state", None)
         for want in (True, False):
             cli.switch_command(relay.key, want)
@@ -136,29 +122,27 @@ async def main() -> None:
                 lamp, lambda s, w=want: isinstance(s, LightState) and s.state == w
             )
             print(f"DRIVE light Lamp -> {want}: {'OK' if ok else 'NO STATE'}")
-        # (entity type, name, command method, args, expected state fields)
+        # (entity type, name, command method, args, keyword args, expected state fields)
+        pos = {"position": 1.0}
         cases = [
-            ("NumberInfo", "Level", "number_command", (42.0,), {"state": 42.0}),
-            ("SelectInfo", "Mode", "select_command", ("b",), {"state": "b"}),
-            ("CoverInfo", "Shade", "cover_command", (), {"position": 1.0}),
-            ("TextInfo", "Note", "text_command", ("hello",), {"state": "hello"}),
-            ("LockInfo", "Latch", "lock_command", (LockCommand.UNLOCK,), {"state": 2}),  # lock dedups, so toggle
-            ("LockInfo", "Latch", "lock_command", (LockCommand.LOCK,), {"state": 1}),
-            ("ValveInfo", "Tap", "valve_command", (), {"position": 1.0}),
-            ("DateInfo", "Day", "date_command", (2026, 11, 24), {"day": 24}),
-            ("TimeInfo", "Clock", "time_command", (12, 34, 56), {"second": 56}),
-            ("DateTimeInfo", "Stamp", "datetime_command", (1764000000,), {"epoch_seconds": 1764000000}),
+            ("NumberInfo", "Level", "number_command", (42.0,), {}, {"state": 42.0}),
+            ("SelectInfo", "Mode", "select_command", ("b",), {}, {"state": "b"}),
+            ("CoverInfo", "Shade", "cover_command", (), pos, pos),
+            ("TextInfo", "Note", "text_command", ("hello",), {}, {"state": "hello"}),
+            ("LockInfo", "Latch", "lock_command", (LockCommand.UNLOCK,), {}, {"state": 2}),  # lock dedups, so toggle
+            ("LockInfo", "Latch", "lock_command", (LockCommand.LOCK,), {}, {"state": 1}),
+            ("ValveInfo", "Tap", "valve_command", (), pos, pos),
+            ("DateInfo", "Day", "date_command", (2026, 11, 24), {}, {"day": 24}),
+            ("TimeInfo", "Clock", "time_command", (12, 34, 56), {}, {"second": 56}),
+            ("DateTimeInfo", "Stamp", "datetime_command", (1764000000,), {}, {"epoch_seconds": 1764000000}),
         ]  # fmt: skip
-        kw = {"cover_command": {"position": 1.0}, "valve_command": {"position": 1.0}}
         fan = ent("FanInfo", "Fan")
         cli.fan_command(fan.key, state=True, speed_level=2, device_id=fan.device_id)
         ok = await wait_for(fan, lambda s: s.state and s.speed_level == 2)
         print(f"DRIVE fan Fan on speed 2: {'OK' if ok else 'NO STATE'}")
-        for cls_name, name, method, args, want in cases:
+        for cls_name, name, method, args, kw, want in cases:
             e = ent(cls_name, name)
-            getattr(cli, method)(
-                e.key, *args, device_id=e.device_id, **kw.get(method, {})
-            )
+            getattr(cli, method)(e.key, *args, device_id=e.device_id, **kw)
             ok = await wait_for(
                 e, lambda s, w=want: all(getattr(s, k) == v for k, v in w.items())
             )

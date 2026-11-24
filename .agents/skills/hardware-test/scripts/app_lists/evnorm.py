@@ -1,5 +1,6 @@
 """First listing event of each entity in a web_server /events capture, values masked, in arrival order.
-Usage: evnorm.py EVENTS_TXT   (diff the output of two builds)"""
+Usage: evnorm.py EVENTS_TXT   (diff the output of two builds)
+Reads web.sh's curl capture (curl removes the chunk framing); entity_icons/web_dump.py keeps only state events."""
 
 import json
 import pathlib

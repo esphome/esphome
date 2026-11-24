@@ -102,7 +102,7 @@ Notes:
 ## on_client_synced with a throwaway Home Assistant on a real board (#21892)
 
 `scripts/api_client_synced/`: `gen_configs.py VARIANT...` writes the test configs (p, n, s with `on_client_synced`;
-d, q, ds without it for the dev baseline; s and ds add `deep_sleep:`). Every trigger logs a direct line, a `[=]`
+d, ds without it for the dev baseline; s and ds add `deep_sleep:`). Every trigger logs a direct line, a `[=]`
 capturing lambda line and the same capture again from a 1 s `set_timeout`; there is a restart button and an
 `on_shutdown` log. All variants share one `name:` with separate `build_path:`, so one Home Assistant entry follows
 every build.
@@ -114,7 +114,7 @@ every build.
   finished first.
 - Add the board to Home Assistant with `homeassistant_script_switch/haflow.py TOKENFILE HOST`, and reload the entry
   (`POST /api/config/config_entries/entry/<id>/reload`) to force a reconnect.
-- Shutdowns: `drive2.py HOST selfreboot D,...` (subscribe, then press Restart D ms later) and `drive2.py HOST hareboot
+- Shutdowns: `drive.py HOST selfreboot D,...` (subscribe, then press Restart D ms later) and `drive.py HOST hareboot
   TOKENFILE ENTRY D,...` (reload the entry, press D ms later). `shut.py CAPTURE` lists the trigger lines per reboot,
   `args.py CAPTURE ADDR` checks every info and address line and pairs each deferred read with its trigger run.
 - Findings: the shutdown sync only reached the trigger with `deep_sleep:` in the config (send_shutdown_disconnect_

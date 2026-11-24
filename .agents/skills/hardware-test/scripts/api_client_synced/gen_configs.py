@@ -1,8 +1,8 @@
 """Write the on_client_synced test configs, one per VARIANT, into the current directory.
-Usage: gen_configs.py VARIANT...   (p n s d q ds; the board is an ESP32-S3 on USB Serial/JTAG, Wi-Fi from secrets)
+Usage: gen_configs.py VARIANT...   (p n s d ds; the board is an ESP32-S3 on USB Serial/JTAG, Wi-Fi from secrets)
 
 p   on_client_synced with delayed log lines        n   on_client_synced, no delays
-s   p plus deep_sleep: (shutdown sync path)       d, q   no on_client_synced (dev baseline), delays
+s   p plus deep_sleep: (shutdown sync path)       d   no on_client_synced (dev baseline), delays
 ds  d plus deep_sleep:
 Every variant has the same `name:` and its own `build_path`, so one Home Assistant entry follows every build. Each
 trigger logs `<TRIGGER> direct`, a `cap-now` line from a `[=]` capturing lambda and a `cap-later` line from a 1 s
@@ -139,7 +139,7 @@ SCRIPT = """    - script.execute:
         info: !lambda 'return std::string(client_info.c_str());'
         addr: !lambda 'return std::string(client_address.c_str());'
 """
-VARIANTS = ("p", "n", "s", "d", "q", "ds")
+VARIANTS = ("p", "n", "s", "d", "ds")
 
 
 def build(variant: str) -> str:
