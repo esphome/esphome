@@ -105,6 +105,28 @@ TEST(ComponentIterator, RefusedBeginStopsBatchAndRetries) {
   EXPECT_EQ(it.begin_calls, 3);
 }
 
+class YieldingBeginIterator : public RefusingIterator {
+ public:
+  bool on_begin() override {
+    this->begin_calls++;
+    this->yield_after_step_();
+    return true;
+  }
+};
+
+TEST(ComponentIterator, YieldEndsThePassAndTheNextResumes) {
+  YieldingBeginIterator it;
+  it.begin(true);
+  it.try_advance(BIG_BUDGET);
+  EXPECT_EQ(it.begin_calls, 1);
+  EXPECT_EQ(it.end_calls, 0);
+  EXPECT_FALSE(it.completed());
+  it.try_advance(BIG_BUDGET);
+  EXPECT_TRUE(it.completed());
+  EXPECT_EQ(it.begin_calls, 1);
+  EXPECT_EQ(it.end_calls, 1);
+}
+
 // The deprecated advance() wrapper must keep the legacy once-per-loop
 // pattern working during the deprecation window.
 #pragma GCC diagnostic push
