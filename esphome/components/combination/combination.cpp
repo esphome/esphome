@@ -63,7 +63,18 @@ void CombinationOneParameterComponent::setup() {
     // All sensor updates are deferred until the next loop. This avoids publishing the combined sensor's result
     // repeatedly in the same loop if multiple source senors update.
     source.sensor->add_on_state_callback([this](float value) -> void {
-      this->defer(NEW_VALUE_DEFER_ID, [this, value]() { this->handle_new_value(value); });
+      this->defer(NEW_VALUE_DEFER_ID, [this, value]() {
+        float trigger = value;
+        if (!std::isfinite(trigger)) {
+          for (const auto &current_source : this->sensor_sources_) {
+            if (std::isfinite(current_source.sensor->state)) {
+              trigger = current_source.sensor->state;
+              break;
+            }
+          }
+        }
+        this->handle_new_value(trigger);
+      });
     });
     has_source_state |= source.sensor->has_state();
     if (!std::isfinite(initial_trigger) && std::isfinite(source.sensor->state)) {

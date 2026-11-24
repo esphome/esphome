@@ -156,6 +156,23 @@ TEST(CombinationSetup, IgnoresExistingNonFiniteStateForLinearCombination) {
   EXPECT_TRUE(std::isnan(combination.get_state()));
 }
 
+TEST(CombinationSetup, PreservesFiniteLinearInitializationWhenAnotherSourcePublishesNan) {
+  LinearCombinationComponent combination;
+  std::array<sensor::Sensor, 2> sources;
+  std::array<LinearCombinationComponent::SensorSource, 2> storage{};
+  combination.set_source_storage(storage);
+  sources[0].publish_state(4.0f);
+  sources[1].publish_state(5.0f);
+  combination.add_source(&sources[0], [](float) -> float { return 2.0f; });
+  combination.add_source(&sources[1], [](float) -> float { return 3.0f; });
+
+  combination.setup();
+  sources[1].publish_state(NAN);
+  App.scheduler.call(millis());
+
+  EXPECT_FLOAT_EQ(combination.get_state(), 8.0f);
+}
+
 TEST(CombinationSetup, DoesNotPublishSyntheticStateForExistingNoParameterSources) {
   MostRecentCombinationComponent combination;
   sensor::Sensor source;
