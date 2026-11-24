@@ -18,10 +18,11 @@ for path in sys.argv[1:]:
         for ln in lines:
             if b"[burst" not in ln and b"SEQ" not in ln and b"plain line" not in ln:
                 continue
-            m = re.search(rb"\[burst[^\]]*\]: SEQ (\d+)(\x1b\[0m)?\r?$", ln)
+            one = ln.count(b"[burst") == 1  # two records run together are a broken line
+            m = one and re.search(rb"\[burst[^\]]*\]: SEQ (\d+)(\x1b\[0m)?\r?$", ln)
             if m:
                 seqs.append(int(m.group(1)))
-            elif re.search(
+            elif one and re.search(
                 rb"\[burst[^\]]*\]: plain line without arguments(\x1b\[0m)?\r?$", ln
             ):
                 plain += 1

@@ -11,12 +11,13 @@ import time
 from aioesphomeapi import LogLevel
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2]))
-from apiconn import connect, log_text  # noqa: E402
+from apiconn import connect, log_text, stop_event  # noqa: E402
 
 
 async def main() -> None:
     host, secs, out = sys.argv[1], float(sys.argv[2]), sys.argv[3]
-    c = await connect(host)
+    stopped, on_stop = stop_event()
+    c = await connect(host, on_stop=on_stop)
     ents, _ = await c.list_entities_services()
     names = {e.key: e.name for e in ents}
     t0 = time.monotonic()
@@ -39,10 +40,16 @@ async def main() -> None:
 
         c.subscribe_logs(on_log, log_level=LogLevel.LOG_LEVEL_DEBUG)
         c.subscribe_states(on_state)
-        await asyncio.sleep(secs)
-        await c.disconnect()
+        try:
+            await asyncio.wait_for(stopped.wait(), secs)
+            lost = f"connection lost after {time.monotonic() - t0:.1f} s, capture incomplete"
+        except TimeoutError:
+            lost = ""
+            await c.disconnect()
     for n in sorted(counts):
         print(f"{n}: {counts[n]} updates, last {last[n]}")
+    if lost:
+        sys.exit(lost)
 
 
 asyncio.run(main())
