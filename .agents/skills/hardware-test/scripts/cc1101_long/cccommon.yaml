@@ -118,6 +118,28 @@ api:
             delay(5);
             id(radio).begin_rx();
             ESP_LOGI("cct", "TX_RX MARC=0x%02X", ccl::rdst(id(radio), 0x35) & 0x1F);
+    - action: btx
+      then:
+        - lambda: |-
+            auto *c = id(radio);
+            const uint8_t before = ccl::rd(c, 0x08);
+            c->begin_tx();
+            delay(5);
+            ESP_LOGI("cct", "BTX PKTCTRL0 before=0x%02X after=0x%02X MARC=0x%02X", before, ccl::rd(c, 0x08), ccl::rdst(c, 0x35) & 0x1F);
+    - action: swasync
+      then:
+        - lambda: |-
+            auto *c = id(radio);
+            c->set_packet_mode(false);
+            c->begin_tx();
+            delay(5);
+            ESP_LOGI("cct", "SWASYNC begin_tx PKTCTRL0=0x%02X IOCFG0=0x%02X MARC=0x%02X", ccl::rd(c, 0x08), ccl::rd(c, 0x02), ccl::rdst(c, 0x35) & 0x1F);
+            c->begin_rx();
+            ESP_LOGI("cct", "SWASYNC begin_rx MARC=0x%02X", ccl::rdst(c, 0x35) & 0x1F);
+            c->set_idle();
+            c->set_packet_mode(true);
+            c->begin_rx();
+            ESP_LOGI("cct", "SWPACKET PKTCTRL0=0x%02X IOCFG0=0x%02X MARC=0x%02X", ccl::rd(c, 0x08), ccl::rd(c, 0x02), ccl::rdst(c, 0x35) & 0x1F);
 cc1101:
   id: radio
   cs_pin: ${cs}

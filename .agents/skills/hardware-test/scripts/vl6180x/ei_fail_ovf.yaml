@@ -1,0 +1,8 @@
+interval:
+  - interval: 1s
+    then:
+      - lambda: |-
+          const uint32_t s = millis() / 1000;
+          const bool fl = s >= 20 && s < 45, ov = s >= 60 && s < 75;
+          if (fl != vl_inject_als_fail) { vl_inject_als_fail = fl; ESP_LOGW("inject", "ALS read failure injection %s at %u s", fl ? "ON" : "OFF", (unsigned) s); }
+          if (ov != vl_inject_als_overflow) { vl_inject_als_overflow = ov; ESP_LOGW("inject", "ALS overflow injection %s at %u s", ov ? "ON" : "OFF", (unsigned) s); }

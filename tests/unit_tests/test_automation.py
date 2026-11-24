@@ -41,15 +41,19 @@ from esphome.automation import (
     WaitUntilAction,
     WhileAction,
     XorCondition,
+    _float_bits,
     _shadow_iteration,
     apply_action_builder,
+    apply_parent,
     apply_statements_action,
     apply_static_function,
+    bind_lambda,
     build_action,
     build_action_list,
     build_automation_lists,
     build_callback_automation,
     build_callback_automations,
+    build_component_automation,
     build_condition,
     build_parent_callback_automation,
     build_trigger_automations,
@@ -97,6 +101,7 @@ from esphome.const import (
     CONF_THEN,
     CONF_TIME,
     CONF_TIMEOUT,
+    CONF_TRIGGER_ID,
     CONF_TYPE_ID,
     CONF_UPDATE_INTERVAL,
 )
@@ -2470,16 +2475,25 @@ def polling_component() -> None:
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("polling_component")
 @pytest.mark.parametrize(
-    "name",
-    ["component.update", "component.suspend", "component.resume"],
+    ("name", "call"),
+    [
+        ("component.update", "update()"),
+        ("component.suspend", "stop_poller()"),
+        ("component.resume", "start_poller()"),
+    ],
 )
-async def test_component_action_codegen(name: str) -> None:
-    """Each action is an object constructed with the component, with no interval set."""
+async def test_component_action_codegen(name: str, call: str) -> None:
+    """The call goes through ``PollingComponent`` and only once the component is ready."""
     await build_action(_component_action(name), TEMPLATE_ARG, [])
 
-    class_name = str(ACTION_REGISTRY[name].type_id)
-    assert f"new(act) {class_name}<>(comp);" in CORE.cpp_main_section
-    assert "set_update_interval" not in CORE.cpp_main_section
+    assert "new(act) ApplyAction<esphome__act__fn>();" in CORE.cpp_main_section
+    assert (
+        "  PollingComponent &esphome__component = *::comp;\n"
+        "  if (esphome__component.is_ready()) {\n"
+        f"    esphome__component.{call};\n"
+        "  }\n"
+    ) in CORE.cpp_global_section
+    assert "set_update_interval" not in CORE.cpp_global_section
 
 
 @pytest.mark.asyncio
@@ -2495,14 +2509,17 @@ async def test_component_resume_constant_interval_codegen() -> None:
     )
 
     assert (
-        "act->set_update_interval([]() -> uint32_t {\n    return 250;\n});"
-    ) in CORE.cpp_main_section
+        "  if (esphome__component.is_ready()) {\n"
+        "    esphome__component.set_update_interval(250);\n"
+        "    esphome__component.start_poller();\n"
+        "  }\n"
+    ) in CORE.cpp_global_section
 
 
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("polling_component")
 async def test_component_resume_interval_lambda_codegen() -> None:
-    """A templated interval is a lambda over the trigger args."""
+    """A templated interval is computed from the trigger args, only once ready."""
     await build_action(
         _component_action(
             "component.resume", {CONF_UPDATE_INTERVAL: Lambda("return x * 1000;")}
@@ -2511,27 +2528,91 @@ async def test_component_resume_interval_lambda_codegen() -> None:
         [(cg.uint32, "x")],
     )
 
-    main = CORE.cpp_main_section
-    assert "new(act) ResumeComponentAction<uint32_t>(comp);" in main
     assert (
-        "act->set_update_interval([](uint32_t x) -> uint32_t {\n"
+        "static void esphome__act__fn(const std::remove_cvref_t<uint32_t> & x) {\n"
+        "  PollingComponent &esphome__component = *::comp;\n"
+        "  if (esphome__component.is_ready()) {\n"
+        "    esphome__component.set_update_interval([](uint32_t x) -> uint32_t {\n"
         "    return x * 1000;\n"
-        "});"
-    ) in main
+        "  }(x));\n"
+        "    esphome__component.start_poller();\n"
+        "  }\n"
+    ) in CORE.cpp_global_section
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
+async def test_component_update_not_ready_still_runs_merged_actions() -> None:
+    """The ready check skips only the update, never the actions merged after it."""
+    cg.new_Pvariable(ID("pcomp", is_declaration=True, type=cg.PollingComponent))
+    update = _component_action("component.update")
+    update["component.update"][CONF_ID] = ID("pcomp", type=cg.PollingComponent)
+
+    result = await build_action_list(
+        [update, _action("my.a", "act_a")], TEMPLATE_ARG, []
+    )
+
+    assert [str(action) for action in result] == ["act"]
+    text = CORE.cpp_global_section
+    assert text.index("esphome__component.update();") < text.index("::comp->do_a();")
+    # The only return is the stop check between the two actions
+    assert text.count("return;") == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
+async def test_callback_automation_if_with_component_update_is_direct() -> None:
+    """An ``if`` whose branches update components becomes plain C++ in the callback."""
+    cg.new_Pvariable(ID("pcomp", is_declaration=True, type=cg.PollingComponent))
+
+    def update(id_: str) -> ConfigType:
+        return {
+            "component.update": {CONF_ID: ID("pcomp", type=cg.PollingComponent)},
+            CONF_TYPE_ID: ID(
+                id_, is_declaration=True, type=ApplyAction, is_manual=False
+            ),
+        }
+
+    conf = _automation_conf(
+        {
+            "if": {
+                CONF_CONDITION: _inline_condition(),
+                CONF_THEN: [update("upd_then")],
+                CONF_ELSE: [update("upd_else")],
+            },
+            CONF_TYPE_ID: ID(
+                "act_if", is_declaration=True, type=IfAction, is_manual=False
+            ),
+        }
+    )
+
+    await build_callback_automation(CALLBACK_PARENT, "add_cb", [], conf)
+
+    assert "Action" not in CORE.cpp_main_section
+    assert "Condition" not in CORE.cpp_main_section
+    text = CORE.cpp_global_section
+    assert "if (esphome__condition) {" in text
+    assert text.count("esphome__component.update();") == 2
 
 
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("polling_component")
 @pytest.mark.parametrize("body", ["x *= 1000; return x;", "return x *= 1000;"])
 async def test_component_resume_interval_lambda_takes_args_by_value(body: str) -> None:
-    """The user's interval lambda gets the trigger args by value, so it may modify them."""
+    """The user's interval lambda gets the trigger args by value, so it may modify them.
+
+    It is called rather than reduced, so even a single return modifies only its own copy.
+    """
     await build_action(
         _component_action("component.resume", {CONF_UPDATE_INTERVAL: Lambda(body)}),
         cg.TemplateArguments(cg.uint32),
         [(cg.uint32, "x")],
     )
 
-    assert f"[](uint32_t x) -> uint32_t {{\n    {body}\n}}" in CORE.cpp_main_section
+    assert (
+        f"set_update_interval([](uint32_t x) -> uint32_t {{\n    {body}\n  }}(x));"
+        in CORE.cpp_global_section
+    )
 
 
 COMPONENT_ID = ID("comp", type=cg.Component)
@@ -3430,6 +3511,80 @@ async def test_trigger_callback_all_inline_is_direct() -> None:
     assert "Automation" not in CORE.cpp_main_section
 
 
+FLOAT_CALLBACK = cg.esphome_ns.class_("FloatCallback", cg.Component)
+
+
+def _component_conf(*then: ConfigType, is_manual: bool = False) -> ConfigType:
+    CORE.component_ids.add("trig")
+    return {
+        **_automation_conf(*then),
+        CONF_TRIGGER_ID: ID(
+            "trig", is_declaration=True, type=FLOAT_CALLBACK, is_manual=is_manual
+        ),
+    }
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
+@pytest.mark.parametrize("is_manual", [False, True])
+async def test_component_automation_args_inline(is_manual: bool) -> None:
+    """The component's function takes the arguments and passes them to the actions.
+
+    A hand-set id only names the component.
+    """
+    conf = _component_conf(
+        _action("my.a", "act_a"),
+        _lambda_action("act_l", "use(x);"),
+        is_manual=is_manual,
+    )
+
+    var = await build_component_automation(
+        conf, FLOAT_CALLBACK, args=[(cg.float_, "x")]
+    )
+
+    assert str(var) == "trig"
+    main = CORE.cpp_main_section
+    assert "new(trig) FloatCallback<esphome__auto__fn>();" in main
+    assert "Automation" not in main
+    text = CORE.cpp_global_section
+    assert "static void esphome__auto__fn(const std::remove_cvref_t<float> & x)" in text
+    assert "::comp->do_a();" in text
+    # The lambda gets the trigger argument
+    assert "[](float x) -> void {\n    use(x);\n  }(x);" in text
+    assert "esphome__act_a__fn" not in text
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
+async def test_component_automation_ctor_args() -> None:
+    """Constructor arguments follow the template arguments."""
+    conf = _component_conf(_action("my.a", "act_a"))
+
+    await build_component_automation(
+        conf,
+        FLOAT_CALLBACK,
+        template_args=[7],
+        ctor_args=[cg.RawExpression("parent"), 3],
+    )
+
+    assert (
+        "new(trig) FloatCallback<esphome__auto__fn, 7>(parent, 3);"
+        in CORE.cpp_main_section
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("apply_actions")
+async def test_component_automation_args_delay_triggers_automation() -> None:
+    """With a delay the function passes its arguments to the Automation."""
+    conf = _component_conf(_action("my.a", "act_a"), _delay("act_d"))
+
+    await build_component_automation(conf, FLOAT_CALLBACK, args=[(cg.float_, "x")])
+
+    assert "new(auto) Automation<float>();" in CORE.cpp_main_section
+    assert "::auto->trigger(x);" in CORE.cpp_global_section
+
+
 @pytest.mark.asyncio
 @pytest.mark.usefixtures("apply_actions")
 async def test_trigger_callback_unchanged_params_returns_action_function() -> None:
@@ -3747,6 +3902,25 @@ def test_apply_static_function_share() -> None:
 
 
 @pytest.mark.asyncio
+async def test_bind_lambda_keeps_args_by_value() -> None:
+    """A lambda that names a trigger arg gets it by value and is called in place."""
+    statement = await bind_lambda(
+        Lambda("return x *= 2;"), [(cg.int_, "x")], cg.uint8, "esphome__v"
+    )
+
+    assert statement == (
+        "const uint8_t esphome__v = [](int x) -> uint8_t {\n  return x *= 2;\n}(x);"
+    )
+
+
+@pytest.mark.asyncio
+async def test_apply_parent_names_the_id_from_global_scope() -> None:
+    cg.new_Pvariable(ID("comp", is_declaration=True, type=cg.Component))
+
+    assert await apply_parent({"out": ID("comp", type=cg.Component)}, "out") == "::comp"
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("config", "expected"),
     [
@@ -3831,3 +4005,18 @@ async def test_new_automation(mock_cg: MockCodegen) -> None:
     assert str(obj) == "a1"
     ((id_, templ), _) = mock_cg.new_pvariable.call_args
     assert (str(id_), str(templ)) == ("a1", "<float>")
+
+
+@pytest.mark.parametrize(
+    ("value", "bits"),
+    [
+        (800.0, 0x44480000),
+        (-600.0, 0xC4160000),
+        (3.4028235e38, 0x7F7FFFFF),
+        (1e40, 0x7F800000),
+        (-1e40, 0xFF800000),
+    ],
+)
+def test_float_bits(value: float, bits: int) -> None:
+    """A priority is a float's bit pattern; out of range is signed infinity."""
+    assert _float_bits(value) == bits

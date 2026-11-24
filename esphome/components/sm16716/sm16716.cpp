@@ -6,10 +6,8 @@ namespace esphome::sm16716 {
 ESPHOME_LOG_TAG(TAG, "sm16716");
 
 void SM16716::setup() {
-  this->data_pin_->setup();
-  this->data_pin_->digital_write(false);
-  this->clock_pin_->setup();
-  this->clock_pin_->digital_write(false);
+  setup_output_pin(this->data_pin_, false);
+  setup_output_pin(this->clock_pin_, false);
 }
 void SM16716::dump_config() {
   ESP_LOGCONFIG(TAG,

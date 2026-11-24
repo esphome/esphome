@@ -1,5 +1,6 @@
 """Tests for the parallel PlatformIO package prefetch."""
 
+from collections.abc import Callable
 import errno
 import inspect
 import json
@@ -12,7 +13,7 @@ import threading
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-from filelock import Timeout
+from filelock import FileLock, Timeout
 from platformio.dependencies import get_core_dependencies
 from platformio.package.manager._install import PackageManagerInstallMixin
 from platformio.package.manager.base import BasePackageManager
@@ -269,6 +270,16 @@ def test_registry_fetch_job_downloads_under_lock(tmp_path: Path) -> None:
     the URL path uses; interleaved writers would corrupt the archive."""
     dl_path = tmp_path / "archive"
     order: list[str] = []
+
+    def record(event: str) -> Callable[..., None]:
+        # Only this test's lock: a FileLock left by another test can be garbage
+        # collected here, and its __del__ calls release() too
+        def side_effect(lock: FileLock, *args: object, **kwargs: object) -> None:
+            if Path(lock.lock_file).is_relative_to(tmp_path):
+                order.append(event)
+
+        return side_effect
+
     with (
         patch(
             "esphome.framework_helpers.download_with_resume",
@@ -277,15 +288,13 @@ def test_registry_fetch_job_downloads_under_lock(tmp_path: Path) -> None:
                 Path(dest).write_bytes(b"data"),  # registration needs a real file
             ),
         ),
-        patch(
-            "filelock.FileLock.acquire",
-            side_effect=lambda *a, **k: order.append("lock"),
-        ),
-        patch(
-            "filelock.FileLock.release",
-            side_effect=lambda *a, **k: order.append("unlock"),
-        ),
+        patch.object(FileLock, "acquire", autospec=True, side_effect=record("lock")),
+        patch.object(FileLock, "release", autospec=True, side_effect=record("unlock")),
     ):
+        # A lock outside this test, in a sibling whose name starts with ours, is ignored
+        unrelated = FileLock(str(tmp_path.parent / f"{tmp_path.name}_other.lock"))
+        unrelated.acquire()
+        unrelated.release()
         manager = MagicMock()
         pf._registry_fetch_job(manager, "https://x/a.tar.gz", dl_path, "ab" * 32, 4)(
             lambda done: None
