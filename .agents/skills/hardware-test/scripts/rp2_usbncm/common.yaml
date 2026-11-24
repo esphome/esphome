@@ -3,16 +3,10 @@
 rp2:
   board: wiznet_5100s_evb_pico
 packages:
-  diagnostics: !include ../../templates/diagnostics.yaml
+  common: !include ../rp2_web_ble/rp-common.yaml
+web_server: !remove
 logger:
   baud_rate: 115200
-api:
-  reboot_timeout: 0s
-  encryption:
-    key: !secret api_key
-button:
-  - platform: restart
-    name: Restart
 ethernet:
   type: USB
   manual_ip:

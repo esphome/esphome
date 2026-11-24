@@ -85,8 +85,8 @@ Scripts: `scripts/rp2_usbncm/`. Results: https://github.com/esphome/esphome/pull
 - `usbncm-hammer.yaml` (`tud_disconnect`, 500 ms, `tud_connect` every 12 s) collects alt 0 events fast; the host needs
   about 17 s per enumeration to self-assign link-local, so ping only works with a slower hammer.
 - OTA interrupt rounds (#23156): build each variant twice with `-s tag A|B` (`esphome: comment: "img ${tag}"`), OTA
-  with `upload --file`, check the running image by `device_info().compilation_time`, and kill the client with SIGKILL
-  once the device log shows `Progress: N%` past a target. The device logs "Timeout reading 1040 bytes" and keeps the
+  with `upload --file`, check the running image with `scripts/ota_timing/apiinfo.py HOST[=build_info.json]`, and kill
+  the client with SIGKILL once the device log shows `Progress: N%` past a target. The device logs "Timeout reading 1040 bytes" and keeps the
   old image. Never run two USB uploads at once: picotool refuses with "requires a single RP2040 device" and leaves both
   boards in BOOTSEL (copy firmware.uf2 to the UF2 drive to recover).
 - BLE GATT connect from the rp2 proxy to an ESP32-C6 `esp32_ble_server` fails on 6.3.2 and 6.4.0 (status 0x02 or no
