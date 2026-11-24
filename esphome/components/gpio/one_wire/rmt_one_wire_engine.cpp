@@ -106,6 +106,7 @@ void Engine::poll_() {
       if (this->pending_ == 0) {
         this->section_done_();
       } else if (this->port_->now_ms() - this->since_ms_ >= SECTION_TIMEOUT_MS) {
+        ESP_LOGW(TAG, "RMT section did not finish, aborting it");
         this->finish_(this->abort_section_() ? TransactionStatus::TRANSACTION_STATUS_TIMEOUT
                                              : TransactionStatus::TRANSACTION_STATUS_HARDWARE_ERROR);
       }
@@ -238,7 +239,6 @@ bool Engine::start_section_(size_t count, uint32_t idle_us) {
 }
 
 bool Engine::abort_section_() {
-  ESP_LOGW(TAG, "RMT section did not finish, aborting it");
   this->pending_ = 0;  // Discards whatever the aborted section still reports
   if (!this->port_->abort())
     this->failed_ = true;
@@ -260,6 +260,7 @@ bool Engine::run_section_(size_t count, uint32_t idle_us) {
     return false;
   while (this->pending_ != 0) {
     if (this->port_->now_ms() - this->since_ms_ >= SECTION_TIMEOUT_MS) {
+      ESP_LOGW(TAG, "RMT section did not finish, aborting it");
       this->abort_section_();
       return false;
     }

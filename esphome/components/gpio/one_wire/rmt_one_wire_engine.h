@@ -94,7 +94,7 @@ class Engine {
   void end_failed_work_();
   /// Sends tx_[0, count), with RX unless idle_us is NO_RX. False: hardware error, nothing is running.
   bool start_section_(size_t count, uint32_t idle_us);
-  /// False: permanent hardware error, the engine is failed from now on.
+  /// Logs nothing, the caller names the cause. False: permanent hardware error, the engine is failed from now on.
   bool abort_section_();
 
   /// Finishes the transaction on the bus, if any, but starts no other.

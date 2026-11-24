@@ -947,6 +947,33 @@ TEST(RmtOneWireEngine, LateCompletionInsideAbortAfterFailedStartIsDiscarded) {
   expect_next_is_not_advanced_and_completes(rig, log, next, 0, TransactionStatus::TRANSACTION_STATUS_HARDWARE_ERROR);
 }
 
+TEST(RmtOneWireEngine, FailedStartIsNotLoggedAsASectionThatDidNotFinish) {
+  Rig rig;
+  add_scratchpad_device(rig);
+  rig.port.fail_tx_at = 0;
+  DoneLog log;
+  Job job(&log, 1, ROM_A, {READ_SCRATCHPAD}, 9);
+  ASSERT_TRUE(rig.engine.submit(&job.t));
+  const std::string text = capture_log([&] { rig.engine.poll(); });
+  EXPECT_EQ(rig.port.abort_count, 1) << "RX was armed";
+  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_HARDWARE_ERROR}}));
+  EXPECT_EQ(count_in_log(text, "did not finish"), 0u) << text;
+}
+
+TEST(RmtOneWireEngine, SectionThatDidNotFinishIsLoggedOnce) {
+  Rig rig;
+  add_scratchpad_device(rig);
+  rig.port.manual = true;
+  DoneLog log;
+  Job job(&log, 1, ROM_A, {READ_SCRATCHPAD}, 9);
+  ASSERT_TRUE(rig.engine.submit(&job.t));
+  rig.engine.poll();
+  rig.port.advance_us(60 * MS);
+  const std::string text = capture_log([&] { rig.engine.poll(); });
+  EXPECT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_TIMEOUT}}));
+  EXPECT_EQ(count_in_log(text, "RMT section did not finish, aborting it"), 1u) << text;
+}
+
 TEST(RmtOneWireEngine, LateCompletionInsideAbortIsDiscarded) {
   Rig rig;
   add_scratchpad_device(rig);

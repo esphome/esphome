@@ -197,7 +197,7 @@ bool GPIORMTOneWireBus::arm_rx(Symbol *buffer, size_t capacity, uint32_t idle_us
   config.signal_range_max_ns = idle_us * 1000;
   const esp_err_t error = rmt_receive(this->rx_channel_, buffer, capacity * sizeof(Symbol), &config);
   if (error != ESP_OK) {
-    ESP_LOGW(TAG, "rmt_receive failed: %s", esp_err_to_name(error));
+    ESP_LOGW(TAG, "RMT section did not start, rmt_receive failed: %s", esp_err_to_name(error));
   }
   return error == ESP_OK;
 }
@@ -206,7 +206,7 @@ bool GPIORMTOneWireBus::start_tx(const Symbol *symbols, size_t count) {
   const esp_err_t error =
       rmt_transmit(this->tx_channel_, this->encoder_, symbols, count * sizeof(Symbol), &TRANSMIT_CONFIG);
   if (error != ESP_OK) {
-    ESP_LOGW(TAG, "rmt_transmit failed: %s", esp_err_to_name(error));
+    ESP_LOGW(TAG, "RMT section did not start, rmt_transmit failed: %s", esp_err_to_name(error));
   }
   return error == ESP_OK;
 }

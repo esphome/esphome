@@ -23,6 +23,7 @@
 
 #include "esphome/components/gpio/one_wire/rmt_one_wire_codec.h"
 #include "esphome/components/gpio/one_wire/rmt_one_wire_engine.h"
+#include "esphome/components/logger/logger.h"
 #include "esphome/components/one_wire/one_wire_bus.h"
 
 namespace esphome::gpio::rmt_one_wire::testing {
@@ -703,6 +704,25 @@ class SimPort : public Port {
   uint32_t spin_{0};
   uint32_t waits_since_start_{0};
 };
+
+/// Returns what body logs. The test logger only prints while it has a baud rate.
+template<typename F> std::string capture_log(F &&body) {
+  const uint32_t baud_rate = logger::global_logger->get_baud_rate();
+  logger::global_logger->set_baud_rate(115200);
+  ::testing::internal::CaptureStdout();
+  body();
+  std::string log = ::testing::internal::GetCapturedStdout();
+  logger::global_logger->set_baud_rate(baud_rate);
+  return log;
+}
+
+/// How often text occurs in log.
+inline size_t count_in_log(const std::string &log, const std::string &text) {
+  size_t count = 0;
+  for (size_t pos = log.find(text); pos != std::string::npos; pos = log.find(text, pos + text.size()))
+    count++;
+  return count;
+}
 
 // ---------------------------------------------------------------------------------------------
 // Transactions and the simulated main loop

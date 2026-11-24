@@ -299,6 +299,25 @@ TEST(RmtOneWireFacade, ResetPortFailureIsFailure) {
   }
 }
 
+TEST(RmtOneWireFacade, FailedStartIsNotLoggedAsASectionThatDidNotFinish) {
+  // The port logs the failed start. Stopping RX again after it is no section that ran out of time.
+  Rig rig;
+  rig.port.bus.devices.emplace_back(ROM_A);
+  rig.port.fail_tx_at = 0;
+  const std::string log = capture_log([&] { EXPECT_EQ(rig.engine.reset_blocking(), 0); });
+  EXPECT_EQ(rig.port.abort_count, 1) << "RX was armed";
+  EXPECT_EQ(count_in_log(log, "did not finish"), 0u) << log;
+}
+
+TEST(RmtOneWireFacade, SectionThatDidNotFinishIsLoggedOnce) {
+  Rig rig;
+  const auto data = pattern_bytes(4);
+  rig.port.drop_tx_at = 0;
+  const std::string log = capture_log([&] { EXPECT_FALSE(rig.engine.write_blocking(data.data(), 32)); });
+  EXPECT_EQ(rig.port.abort_count, 1);
+  EXPECT_EQ(count_in_log(log, "RMT section did not finish, aborting it"), 1u) << log;
+}
+
 TEST(RmtOneWireFacade, ResetFailedStartWhoseAbortFailsIsPermanent) {
   Rig rig;
   rig.port.bus.devices.emplace_back(ROM_A);
