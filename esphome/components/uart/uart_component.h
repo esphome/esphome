@@ -121,6 +121,14 @@ class UARTComponent {
   // @param flush_timeout_ms Timeout in milliseconds; 0 means wait indefinitely.
   virtual void set_flush_timeout(uint32_t flush_timeout_ms) {}
 
+#ifdef USE_UART_TX_BREAK
+  // Holds the TX line at the level opposite to idle (low for a pin that is not inverted) until released.
+  // flush() before it; no read or write on the bus meanwhile: a LibreTiny hardware port is closed for it and
+  // loses its RX buffer. load_settings() applies a held break again. Needs uart.request_tx_break() in codegen.
+  // @return false when the bus cannot do it, e.g. no TX pin of the microcontroller (see the platform files).
+  virtual bool set_tx_break(bool enable) { return false; }
+#endif
+
   // Sets the TX (transmit) pin for the UART bus.
   // @param tx_pin Pointer to the internal GPIO pin used for transmission.
   void set_tx_pin(InternalGPIOPin *tx_pin) { this->tx_pin_ = tx_pin; }
