@@ -385,6 +385,7 @@ float LightState::gamma_uncorrect_lut(float value) const {
 
 void LightState::start_effect_(uint32_t effect_index) {
   this->stop_effect_();
+#ifdef USE_LIGHT_EFFECTS
   if (effect_index == 0)
     return;
 
@@ -393,6 +394,7 @@ void LightState::start_effect_(uint32_t effect_index) {
   effect->start_internal();
   // Enable loop while effect is active
   this->enable_loop();
+#endif
 }
 LightEffect *LightState::get_active_effect_() {
   if (this->active_effect_index_ == 0) {
@@ -406,7 +408,9 @@ void LightState::stop_effect_() {
   if (effect != nullptr) {
     effect->stop();
   }
+#ifdef USE_LIGHT_EFFECTS
   this->active_effect_index_ = 0;
+#endif
   // Disable loop if idle (no effect and no transformer)
   this->disable_loop_if_idle_();
 }
