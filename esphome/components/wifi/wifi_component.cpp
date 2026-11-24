@@ -2875,8 +2875,9 @@ void WiFiComponent::process_roaming_scan_() {
 
   // Get current connection info
   int8_t current_rssi = this->wifi_rssi();
-  // Guard: must still be connected (RSSI may have become invalid during scan)
-  if (current_rssi == WIFI_RSSI_DISCONNECTED) {
+  // Guard: must still be connected (RSSI may have become invalid during scan), and a scan that ends during an
+  // upload over the AP must not move the channel
+  if (current_rssi == WIFI_RSSI_DISCONNECTED || this->ota_hold_()) {
     this->release_scan_results_();
     return;
   }
