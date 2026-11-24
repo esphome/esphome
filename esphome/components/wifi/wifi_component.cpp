@@ -2405,9 +2405,11 @@ void WiFiComponent::advance_to_next_target_or_increment_retry_() {
 }
 
 void WiFiComponent::retry_connect() {
-  // A scan or connect moves the channel and drops an OTA client on the AP; wait until the upload ends
+  // A scan or connect moves the channel and drops an OTA client on the AP; wait until the upload ends.
+  // Not start_cooldown_(): its DPP listen would hop channels too
   if (this->ota_hold_()) {
-    this->start_cooldown_();
+    this->state_ = WIFI_COMPONENT_STATE_COOLDOWN;
+    this->action_started_ = millis();
     return;
   }
   // Handle roaming state transitions - preserve attempts counter to prevent ping-pong

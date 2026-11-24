@@ -65,6 +65,9 @@ TEST_F(WiFiOTAHoldTest, RetryDuringUploadWaitsInCooldown) {
   // Well past any cooldown: the held cooldown must not expire into another attempt
   LoopBlockingGuard clock{nullptr, nullptr, millis() + HELD_FOR_MS};
   this->wifi_.loop();
+  // The held tick restarted the cooldown, so ending the upload now leaves a full cooldown to wait
+  this->upload_.release();
+  this->wifi_.loop();
 
   EXPECT_EQ(host_hooks.scans, 0);
   EXPECT_EQ(host_hooks.connects, 0);
