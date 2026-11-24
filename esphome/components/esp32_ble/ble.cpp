@@ -371,15 +371,20 @@ bool ESP32BLE::ble_setup_() {
   }
 #endif
 
-  err = esp_bluedroid_init();
-  if (err != ESP_OK) {
-    ESP_LOGE(TAG, "esp_bluedroid_init failed: %d", err);
-    return false;
+  // The Classic profile may have already brought up the shared host.
+  if (esp_bluedroid_get_status() == ESP_BLUEDROID_STATUS_UNINITIALIZED) {
+    err = esp_bluedroid_init();
+    if (err != ESP_OK) {
+      ESP_LOGE(TAG, "esp_bluedroid_init failed: %d", err);
+      return false;
+    }
   }
-  err = esp_bluedroid_enable();
-  if (err != ESP_OK) {
-    ESP_LOGE(TAG, "esp_bluedroid_enable failed: %d", err);
-    return false;
+  if (esp_bluedroid_get_status() != ESP_BLUEDROID_STATUS_ENABLED) {
+    err = esp_bluedroid_enable();
+    if (err != ESP_OK) {
+      ESP_LOGE(TAG, "esp_bluedroid_enable failed: %d", err);
+      return false;
+    }
   }
 
 #ifdef ESPHOME_ESP32_BLE_GAP_EVENT_HANDLER_COUNT

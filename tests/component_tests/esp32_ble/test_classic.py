@@ -1,5 +1,6 @@
 """Validate the Classic controller gate and its codegen request."""
 
+from contextvars import Context
 from unittest.mock import patch
 
 import pytest
@@ -43,17 +44,27 @@ def test_classic_rejects_ble_only_variants(
     _stage(set_core_config, PlatformFramework.ESP32_IDF, variant)
     config = esp32_ble.CONFIG_SCHEMA({"classic_bt": True})
 
-    with pytest.raises(cv.Invalid, match="original ESP32 with ESP-IDF") as error:
+    with pytest.raises(cv.Invalid, match="original ESP32") as error:
         esp32_ble.final_validation(config)
     assert error.value.path == [esp32_ble.CONF_CLASSIC_BT]
 
 
-def test_classic_rejects_arduino(set_core_config: SetCoreConfigCallable) -> None:
-    _stage(set_core_config, PlatformFramework.ESP32_ARDUINO, VARIANT_ESP32)
+def test_classic_rejects_hosted_controller(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    set_core_config(
+        PlatformFramework.ESP32_ARDUINO,
+        platform_data={KEY_VARIANT: VARIANT_ESP32, KEY_SDKCONFIG_OPTIONS: {}},
+        full_config={esp32_ble.ESP32_HOSTED_DOMAIN: {}},
+    )
     config = esp32_ble.CONFIG_SCHEMA({"classic_bt": True})
-
-    with pytest.raises(cv.Invalid, match="original ESP32 with ESP-IDF"):
+    with pytest.raises(cv.Invalid, match="local ESP32 controller"):
         esp32_ble.final_validation(config)
+
+    CORE.config = {esp32_ble.DOMAIN: config, esp32_ble.ESP32_HOSTED_DOMAIN: {}}
+    # Code generation runs outside the final-validation context.
+    with pytest.raises(cv.Invalid, match="local ESP32 controller"):
+        Context().run(esp32_ble.request_classic_bt)
 
 
 def test_acl_limit_requires_classic(set_core_config: SetCoreConfigCallable) -> None:
@@ -76,10 +87,14 @@ def test_acl_limit_rejects_out_of_range(
         )
 
 
-def test_classic_accepts_original_esp32_idf(
+@pytest.mark.parametrize(
+    "framework", [PlatformFramework.ESP32_IDF, PlatformFramework.ESP32_ARDUINO]
+)
+def test_classic_accepts_original_esp32(
     set_core_config: SetCoreConfigCallable,
+    framework: PlatformFramework,
 ) -> None:
-    _stage(set_core_config, PlatformFramework.ESP32_IDF, VARIANT_ESP32)
+    _stage(set_core_config, framework, VARIANT_ESP32)
     config = esp32_ble.CONFIG_SCHEMA(
         {"classic_bt": True, "classic_max_acl_connections": 2}
     )
@@ -119,7 +134,7 @@ def test_classic_request_works_without_manual_switch(
     ("framework", "variant"),
     [
         (PlatformFramework.ESP32_IDF, VARIANT_ESP32S3),
-        (PlatformFramework.ESP32_ARDUINO, VARIANT_ESP32),
+        (PlatformFramework.ESP32_ARDUINO, VARIANT_ESP32C3),
     ],
 )
 def test_classic_request_rejects_unsupported_targets(
@@ -130,9 +145,9 @@ def test_classic_request_rejects_unsupported_targets(
     _stage(set_core_config, framework, variant)
     CORE.config = {esp32_ble.DOMAIN: esp32_ble.CONFIG_SCHEMA({})}
 
-    with pytest.raises(cv.Invalid, match="original ESP32 with ESP-IDF") as error:
+    with pytest.raises(cv.Invalid, match="original ESP32") as error:
         esp32_ble.validate_classic_bt_target(path=[esp32_ble.CONF_CLASSIC_BT])
     assert error.value.path == [esp32_ble.CONF_CLASSIC_BT]
 
-    with pytest.raises(cv.Invalid, match="original ESP32 with ESP-IDF"):
+    with pytest.raises(cv.Invalid, match="original ESP32"):
         esp32_ble.request_classic_bt()

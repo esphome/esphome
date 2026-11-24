@@ -479,10 +479,14 @@ def validate_connection_slots(max_connections: int) -> None:
 
 def validate_classic_bt_target(path: list[str] | None = None) -> None:
     """Validate the controller target for Classic users during final validation."""
-    if get_esp32_variant() != const.VARIANT_ESP32 or CORE.using_arduino:
+    if get_esp32_variant() != const.VARIANT_ESP32:
         raise cv.Invalid(
-            "Bluetooth Classic requires the original ESP32 with ESP-IDF",
+            "Bluetooth Classic requires the original ESP32",
             path=path,
+        )
+    if ESP32_HOSTED_DOMAIN in fv.full_config.get(CORE.config):
+        raise cv.Invalid(
+            "Bluetooth Classic requires the local ESP32 controller", path=path
         )
 
 
