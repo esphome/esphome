@@ -7,6 +7,7 @@ from unittest.mock import patch
 import pytest
 
 from esphome.components import zigbee
+from esphome.components.zigbee import const as zigbee_const
 from esphome.components.zigbee.const import CONF_ZIGBEE_ID, ZigbeeComponent
 from esphome.const import CONF_INTERNAL, CONF_MODEL, KEY_CORE, KEY_TARGET_PLATFORM
 from esphome.core import CORE, ID
@@ -27,6 +28,7 @@ def test_model_default_uses_current_node_name() -> None:
         ("validate_sensor", "zigbee_sensor", "ZigbeeSensor"),
         ("validate_switch", "zigbee_switch", "ZigbeeSwitch"),
         ("validate_number", "zigbee_number", "ZigbeeNumber"),
+        ("validate_cover", "zigbee_cover", "ZigbeeCover"),
     ],
 )
 @pytest.mark.parametrize(
@@ -41,9 +43,13 @@ def test_zigbee_entity_validators_inject_ids(
     internal: bool,
     inject_ids: bool,
 ) -> None:
-    """Zigbee entity validators add IDs for public nrf52 entities and esp32 numbers."""
-    # ESP32 numbers are ZigbeeNumber components too
-    inject_ids |= platform == "esp32" and entity_key == "zigbee_number"
+    """Zigbee entity validators add IDs for public nrf52 entities and esp32 numbers and covers."""
+    if entity_key == "zigbee_cover":
+        # nRF52 has no Zigbee cover
+        inject_ids = platform == "esp32" and not internal
+    elif entity_key == "zigbee_number":
+        # ESP32 numbers are ZigbeeNumber components too
+        inject_ids |= platform == "esp32"
     config = {"cluster": "generic"}
     if internal:
         config[CONF_INTERNAL] = True
@@ -61,7 +67,7 @@ def test_zigbee_entity_validators_inject_ids(
 
         entity_id = config[entity_key]
         assert isinstance(entity_id, ID)
-        assert entity_id.type is getattr(zigbee, entity_type)
+        assert entity_id.type is getattr(zigbee_const, entity_type)
     else:
         assert CONF_ZIGBEE_ID not in config
         assert entity_key not in config

@@ -20,7 +20,7 @@ class ZigbeeCover final : public ZigbeeAttributeBase {
   void on_value(ezb_zcl_attribute_t attribute) override {}
   /// Runs on the Zigbee task. Without position support only 0 (open) and 100 (closed) can be reached.
   bool accepts_lift_percentage(uint8_t percentage) const {
-    return this->supports_position_ || percentage == 0 || percentage == 100;
+    return percentage <= 100 && (this->supports_position_ || percentage % 100 == 0);
   }
   void on_command(uint8_t cmd_id, uint8_t percentage);
 

@@ -21,12 +21,8 @@ void ZigbeeCover::setup() {
 }
 
 uint8_t ZigbeeCover::lift_percentage_() const {
-  const float position = this->cover_->position;
-  if (std::isnan(position)) {
-    return 0xFF;  // ZCL invalid value
-  }
   // ZCL lift percentage: 0 is open, 100 is closed
-  return static_cast<uint8_t>(lroundf((1.0f - position) * 100.0f));
+  return static_cast<uint8_t>(lroundf((1.0f - this->cover_->position) * 100.0f));
 }
 
 void ZigbeeCover::on_command(uint8_t cmd_id, uint8_t percentage) {

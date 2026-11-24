@@ -257,8 +257,8 @@ void load_zb_event(ZBEvent *event, ezb_zcl_message_info_t info, ezb_zcl_attribut
 }
 
 #ifdef USE_COVER
-void load_zb_event(ZBEvent *event, ezb_zcl_message_info_t info, uint8_t cmd_id, uint8_t percentage) {
-  event->load_window_covering_event(info, cmd_id, percentage);
+void load_zb_event(ZBEvent *event, ZigbeeCover *cover, uint8_t cmd_id, uint8_t percentage) {
+  event->load_window_covering_event(cover, cmd_id, percentage);
 }
 #endif
 
@@ -297,6 +297,12 @@ static void zb_attribute_handler(ezb_zcl_set_attr_value_message_t *message) {
 #ifdef USE_COVER
 static void zb_window_covering_handler(ezb_zcl_window_covering_movement_message_t *message) {
   ESP_RETURN_ON_FALSE(message && message->in.header, , TAG, "Empty message");
+  // Only cover endpoints have the window covering cluster
+  ZigbeeCover *cover = global_zigbee->find_cover(message->info.dst_ep);
+  if (cover == nullptr) {
+    message->out.result = EZB_ZCL_STATUS_SUCCESS;
+    return;
+  }
   const uint8_t cmd_id = message->in.header->cmd_id;
   uint8_t percentage = 0;
   switch (cmd_id) {
@@ -304,22 +310,19 @@ static void zb_window_covering_handler(ezb_zcl_window_covering_movement_message_
     case EZB_ZCL_CMD_WINDOW_COVERING_DOWN_CLOSE_ID:
     case EZB_ZCL_CMD_WINDOW_COVERING_STOP_ID:
       break;
-    case EZB_ZCL_CMD_WINDOW_COVERING_GO_TO_LIFT_PERCENTAGE_ID: {
+    case EZB_ZCL_CMD_WINDOW_COVERING_GO_TO_LIFT_PERCENTAGE_ID:
       percentage = message->in.payload.lift_percentage;
-      const ZigbeeCover *cover = global_zigbee->find_cover(message->info.dst_ep);
-      if (percentage > 100 || (cover != nullptr && !cover->accepts_lift_percentage(percentage))) {
+      if (!cover->accepts_lift_percentage(percentage)) {
         message->out.result = EZB_ZCL_STATUS_INVALID_VALUE;
         return;
       }
       break;
-    }
     default:
       message->out.result = EZB_ZCL_STATUS_UNSUP_CMD;
       return;
   }
   // A dropped command must not be acknowledged: a lost stop would leave the motor running
-  message->out.result =
-      enqueue_zb_event(message->info, cmd_id, percentage) ? EZB_ZCL_STATUS_SUCCESS : EZB_ZCL_STATUS_FAIL;
+  message->out.result = enqueue_zb_event(cover, cmd_id, percentage) ? EZB_ZCL_STATUS_SUCCESS : EZB_ZCL_STATUS_FAIL;
 }
 #endif
 
@@ -547,9 +550,8 @@ void ZigbeeComponent::loop() {
         break;
 #ifdef USE_COVER
       case EZB_ZCL_CORE_WINDOW_COVERING_MOVEMENT_CB_ID:
-        if (ZigbeeCover *cover = this->find_cover(event->event_.window_covering.info.dst_ep)) {
-          cover->on_command(event->event_.window_covering.cmd_id, event->event_.window_covering.percentage);
-        }
+        event->event_.window_covering.cover->on_command(event->event_.window_covering.cmd_id,
+                                                        event->event_.window_covering.percentage);
         break;
 #endif
       default:

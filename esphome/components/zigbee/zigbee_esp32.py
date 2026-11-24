@@ -359,15 +359,7 @@ def validate_number_esp32(config: ConfigType) -> ConfigType:
             CONF_TYPE: "ENUM16",
         },
     )
-    ep_ref: dict[str, Any] = {}
-    config[KEY_ZIGBEE_EP] = ep_ref
-    setup_attributes(config, ep[CONF_CLUSTERS])
-    add_ep(
-        ep, config.get(CONF_ENDPOINT), config.get(CONF_USE_DEVICE_TYPE), ep_ref=ep_ref
-    )
-    config[CONF_ZIGBEE_NUMBER] = cv.declare_id(ZigbeeNumber)(None)
-    config[CONF_ZIGBEE_ID] = cv.use_id(ZigbeeComponent)(None)
-    return config
+    return _register_attribute_ep(config, ep, CONF_ZIGBEE_NUMBER, ZigbeeNumber)
 
 
 def validate_binary_sensor_esp32(config: ConfigType) -> ConfigType:
@@ -418,15 +410,7 @@ def validate_cover_esp32(config: ConfigType) -> ConfigType:
     ep = copy.deepcopy(WINDOW_COVERING_EP)
     covering_type = WINDOW_COVERING_TYPES.get(config.get(CONF_DEVICE_CLASS), 0x00)
     ep[CONF_CLUSTERS][0][CONF_ATTRIBUTES][0][CONF_VALUE] = covering_type
-    ep_ref: dict[str, Any] = {}
-    config[KEY_ZIGBEE_EP] = ep_ref
-    setup_attributes(config, ep[CONF_CLUSTERS])
-    add_ep(
-        ep, config.get(CONF_ENDPOINT), config.get(CONF_USE_DEVICE_TYPE), ep_ref=ep_ref
-    )
-    config[CONF_ZIGBEE_COVER] = cv.declare_id(ZigbeeCover)(None)
-    config[CONF_ZIGBEE_ID] = cv.use_id(ZigbeeComponent)(None)
-    return config
+    return _register_attribute_ep(config, ep, CONF_ZIGBEE_COVER, ZigbeeCover)
 
 
 def zigbee_require_vfs_select(config: ConfigType) -> ConfigType:
@@ -555,6 +539,20 @@ async def add_component(entity: cg.MockObj, config: ConfigType) -> None:
             cg.add(zb_attr.connect(template_arg, entity, lambda_))
         else:
             cg.add(zb_attr.connect(template_arg, entity))
+
+
+def _register_attribute_ep(
+    config: ConfigType, ep: dict[str, Any], id_key: str, cls: cg.MockObjClass
+) -> ConfigType:
+    ep_ref: dict[str, Any] = {}
+    config[KEY_ZIGBEE_EP] = ep_ref
+    setup_attributes(config, ep[CONF_CLUSTERS])
+    add_ep(
+        ep, config.get(CONF_ENDPOINT), config.get(CONF_USE_DEVICE_TYPE), ep_ref=ep_ref
+    )
+    config[id_key] = cv.declare_id(cls)(None)
+    config[CONF_ZIGBEE_ID] = cv.use_id(ZigbeeComponent)(None)
+    return config
 
 
 async def _add_attribute_entity(

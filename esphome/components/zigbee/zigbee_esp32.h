@@ -66,7 +66,7 @@ class ZigbeeComponent final : public Component {
   void add_attr(uint8_t endpoint_id, uint16_t cluster_id, uint8_t role, uint16_t attr_id, uint8_t max_size,
                 uint8_t attr_type, uint8_t attr_access, T value);
 #ifdef USE_COVER
-  /// Also called from the Zigbee task; attributes_ is not modified after setup.
+  /// Called from the Zigbee task; attributes_ is not modified after setup.
   ZigbeeCover *find_cover(uint8_t endpoint_id);
 #endif
 
