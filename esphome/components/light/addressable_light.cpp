@@ -15,6 +15,10 @@ float AddressableLightState::get_estimated_current_ma() const {
 
 void AddressableLightState::loop() {
   this->apply_effect_and_transformer_();
+  this->limit_and_write_();
+}
+
+void AddressableLightState::limit_and_write_() {
   if (this->next_write_)
     static_cast<AddressableLight *>(this->output_)->limit_power_();
   this->write_if_pending_();

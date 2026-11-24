@@ -300,10 +300,24 @@ class MQTTClientComponent final : public Component {
    * @param f The Json Message builder.
    * @param retain Whether to retain the message.
    */
-  bool publish_json(const std::string &topic, const json::json_build_t &f, uint8_t qos = 0, bool retain = false);
+  bool publish_json(const std::string &topic, const json::json_build_t &f, uint8_t qos = 0, bool retain = false) {
+    return this->publish_json(topic.c_str(), json::json_build_ref(f), qos, retain);
+  }
+  template<json::JsonBuildCallable F>
+  bool publish_json(const std::string &topic, F &&f, uint8_t qos = 0, bool retain = false) {
+    return this->publish_json(topic.c_str(), json::json_build_ref(f), qos, retain);
+  }
 
   /// Publish JSON directly without heap allocation for topic
-  bool publish_json(const char *topic, const json::json_build_t &f, uint8_t qos = 0, bool retain = false);
+  bool publish_json(const char *topic, const json::json_build_t &f, uint8_t qos = 0, bool retain = false) {
+    return this->publish_json(topic, json::json_build_ref(f), qos, retain);
+  }
+  /// A JsonBuildCallable; it is not copied, so its captures never allocate
+  template<json::JsonBuildCallable F>
+  bool publish_json(const char *topic, F &&f, uint8_t qos = 0, bool retain = false) {
+    return this->publish_json(topic, json::json_build_ref(f), qos, retain);
+  }
+  bool publish_json(const char *topic, json::JsonBuildRef f, uint8_t qos = 0, bool retain = false);
 
   /// Setup the MQTT client, registering a bunch of callbacks and attempting to connect.
   void setup() override;
@@ -468,27 +482,6 @@ class MQTTClientComponent final : public Component {
 };
 
 extern MQTTClientComponent *global_mqtt_client;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-
-template<typename... Ts> class MQTTPublishJsonAction final : public Action<Ts...> {
- public:
-  MQTTPublishJsonAction(MQTTClientComponent *parent) : parent_(parent) {}
-  TEMPLATABLE_VALUE(std::string, topic)
-  TEMPLATABLE_VALUE(uint8_t, qos)
-  TEMPLATABLE_VALUE(bool, retain)
-
-  void set_payload(std::function<void(Ts..., JsonObject)> payload) { this->payload_ = payload; }
-
-  void play(const Ts &...x) override {
-    auto topic = this->topic_.value(x...);
-    auto qos = this->qos_.value(x...);
-    auto retain = this->retain_.value(x...);
-    this->parent_->publish_json(topic, [this, x...](JsonObject root) { this->payload_(x..., root); }, qos, retain);
-  }
-
- protected:
-  std::function<void(Ts..., JsonObject)> payload_;
-  MQTTClientComponent *parent_;
-};
 
 }  // namespace esphome::mqtt
 

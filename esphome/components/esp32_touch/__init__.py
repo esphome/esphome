@@ -338,12 +338,11 @@ async def to_code(config: ConfigType) -> None:
 
     # Voltage references (not applicable to P4)
     if variant != VARIANT_ESP32P4:
-        if CONF_LOW_VOLTAGE_REFERENCE in config:
-            cg.add(
-                touch.set_low_voltage_reference(
-                    LOW_VOLTAGE_REFERENCE[config[CONF_LOW_VOLTAGE_REFERENCE]]
-                )
+        cg.add(
+            touch.set_low_voltage_reference(
+                LOW_VOLTAGE_REFERENCE[config[CONF_LOW_VOLTAGE_REFERENCE]]
             )
+        )
         if CONF_HIGH_VOLTAGE_REFERENCE in config:
             if variant == VARIANT_ESP32:
                 # V1: combine high_voltage_reference with voltage_attenuation
@@ -373,13 +372,10 @@ async def to_code(config: ConfigType) -> None:
         cg.add_optional(touch.set_smooth_level, config.get(CONF_SMOOTH_MODE))
         cg.add_optional(touch.set_denoise_grade, config.get(CONF_DENOISE_GRADE))
         cg.add_optional(touch.set_denoise_cap, config.get(CONF_DENOISE_CAP_LEVEL))
-        if CONF_WATERPROOF_GUARD_RING in config:
-            cg.add(
-                touch.set_waterproof_guard_ring_pad(config[CONF_WATERPROOF_GUARD_RING])
-            )
-        if CONF_WATERPROOF_SHIELD_DRIVER in config:
-            cg.add(
-                touch.set_waterproof_shield_driver(
-                    config[CONF_WATERPROOF_SHIELD_DRIVER]
-                )
-            )
+        cg.add_optional(
+            touch.set_waterproof_guard_ring_pad, config.get(CONF_WATERPROOF_GUARD_RING)
+        )
+        cg.add_optional(
+            touch.set_waterproof_shield_driver,
+            config.get(CONF_WATERPROOF_SHIELD_DRIVER),
+        )
