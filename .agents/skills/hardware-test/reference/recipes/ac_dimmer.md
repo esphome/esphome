@@ -14,8 +14,8 @@ No mains needed: a NodeMCU drives its own zero cross and measures its own gate. 
   a real crossing, rotating.
 - Sequence (`acd.yaml`): 15 s boot, a clean sweep of 10/25/50/75/100 % (22 s per level, first 2 s not counted), the same
   sweep with noise, then a 50 % hold with a report every 20 s. `run.sh NAME TREE leading_pulse|leading|trailing SECS
-  [1]` builds one image per method, captures from a reset, and with `1` sends back to back web_server requests during
-  the hold. `ana.py` prints every window, `agg.py` sums them per phase.
+  [1]` builds one image per method, captures from a reset, and with `1` sends back to back web_server requests from
+  the `HOLD start` log line. `ana.py` prints every window, `ana.py --sum` sums them per phase.
 - Arduino's ESP8266 GPIO interrupt dispatch serves lower pin numbers first, so a gate edge on GPIO4 that is pending
   together with a crossing on GPIO12 is counted first. A gate that starts a few µs before the crossing edge it belongs
   to is counted against the previous half cycle; check the gate width before calling it a fault.

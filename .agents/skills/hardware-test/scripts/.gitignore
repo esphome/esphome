@@ -1,10 +1,7 @@
 # Run artifacts the runners write next to their scripts; none of these patterns match a tracked file.
 .esphome/
 __pycache__/
-ac_dimmer/*-cap.txt
-ac_dimmer/*-hammer.txt
-ac_dimmer/*-ping.txt
-ac_dimmer/*.log
+ac_dimmer/*.txt
 api/overflow/putbe-sensors.yaml
 apikey.txt
 ble_adv_triggers/rxbk72xx*.yaml

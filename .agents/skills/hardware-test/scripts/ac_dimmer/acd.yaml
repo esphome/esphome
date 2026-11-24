@@ -1,10 +1,9 @@
 # ac_dimmer loop harness on an ESP8266 NodeMCU (#22912). Jumpers: GPIO12 (D6) to GPIO14 (D5), GPIO13 (D7) to GPIO4 (D2).
 # esp8266_pwm on GPIO12 at 100 Hz 5 % is the zero cross (falling edge); acdm.hpp timestamps crossings and gate edges.
-# One build per method: run.sh passes -s method, method_name and method_idx (0 leading pulse, 1 leading, 2 trailing).
+# One build per method: run.sh passes -s method and method_idx (0 leading pulse, 1 leading, 2 trailing).
 substitutions:
   name: acd
   method: trailing
-  method_name: tr
   method_idx: "2"
 
 esphome:
@@ -15,7 +14,7 @@ esphome:
     priority: -100
     then:
       - lambda: |-
-          ESP_LOGI("acdm", "BOOT reset=%s method=${method_name}", ESP.getResetReason().c_str());
+          ESP_LOGI("acdm", "BOOT reset=%s method=${method}", ESP.getResetReason().c_str());
           acdm::start();
       - output.set_level:
           id: zc_gen
@@ -58,6 +57,7 @@ interval:
     then:
       - lambda: if (acdm::noise) acdm::inject();
 
+# An entity for the web_server page that run.sh requests during the hold.
 switch:
   - platform: template
     name: dummy

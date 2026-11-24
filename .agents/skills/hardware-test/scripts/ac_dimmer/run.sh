@@ -1,16 +1,16 @@
 #!/bin/bash
 # run.sh NAME TREE METHOD SECS [HAMMER]: build and flash acd.yaml as NAME from TREE with METHOD (leading_pulse, leading
 # or trailing), capture SECS of serial log from a reset into NAME-cap.txt. HAMMER=1 also sends back to back HTTP
-# requests (two at a time) to the web server from 250 s to 430 s after boot and pings it; results in NAME-hammer.txt.
-# The sweep needs about 250 s; summarise with `ana.py NAME-cap.txt` and `agg.py *-cap.txt`.
+# requests (two at a time) to the web server for 180 s from the HOLD start line and pings it; results in NAME-hammer.txt.
+# The sweep needs about 250 s; summarise with `ana.py NAME-cap.txt` and `ana.py --sum *-cap.txt`.
 # env: PORT, PY, PIO_CORE
 D=$(cd "$(dirname "$0")" && pwd); S=$(dirname "$D")
 N=${1:?name}; T=${2:?tree}; M=${3:?method}; SECS=${4:?seconds}; H=${5:-0}
 P=${PORT:?set PORT}; PY=${PY:-$T/venv/bin/python}
 case $M in
-  leading_pulse) MO=(-s method "leading pulse" -s method_name lp -s method_idx 0) ;;
-  leading) MO=(-s method leading -s method_name ld -s method_idx 1) ;;
-  trailing) MO=(-s method trailing -s method_name tr -s method_idx 2) ;;
+  leading_pulse) MO=(-s method "leading pulse" -s method_idx 0) ;;
+  leading) MO=(-s method leading -s method_idx 1) ;;
+  trailing) MO=(-s method trailing -s method_idx 2) ;;
   *) echo "unknown method $M"; exit 2 ;;
 esac
 pkill -f "[s]erial_capture.py $P "
@@ -19,8 +19,10 @@ TREE=$T PY=$PY "$S/pio_build.sh" upload "$N" "$D/acd.yaml" "$P" "${MO[@]}" || ex
 $PY "$S/serial_capture.py" "$P" "$SECS" "$D/$N-cap.txt" --reset &
 CP=$!
 if [ "$H" = 1 ]; then
-  sleep 250
-  if IP=$("$S/resolve.sh" "$N" 10); then
+  until grep -q 'HOLD start' "$D/$N-cap.txt" 2>/dev/null || ! kill -0 $CP 2>/dev/null; do sleep 2; done
+  if ! grep -q 'HOLD start' "$D/$N-cap.txt"; then
+    echo "capture ended before the hold, hammer skipped"
+  elif IP=$("$S/resolve.sh" "$N" 10); then
     end=$((SECONDS + 180))
     while [ $SECONDS -lt $end ]; do
       pids=""

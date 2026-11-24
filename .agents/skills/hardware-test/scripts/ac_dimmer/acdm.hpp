@@ -12,16 +12,41 @@ static constexpr uint8_t ZC_PIN = 12;
 static constexpr uint8_t GATE_IN = 4;
 static constexpr uint32_t CYCLE = 10000;
 
+// Error of one gate edge against its expected time; off counts edges more than 100 us off.
+struct ErrStat {
+  uint32_t n, off;
+  int32_t min, max;
+  int64_t sum;
+  uint64_t sq;
+  void clear() {
+    *this = {};
+    this->min = INT32_MAX;
+    this->max = INT32_MIN;
+  }
+  void IRAM_ATTR add(int32_t err) {
+    this->n++;
+    this->sum += err;
+    this->sq += (int64_t) err * err;
+    if (err < this->min)
+      this->min = err;
+    if (err > this->max)
+      this->max = err;
+    if (err > 100 || err < -100)
+      this->off++;
+  }
+  float mean() const { return this->n ? (double) this->sum / this->n : 0; }
+  float sd() const {
+    if (this->n == 0)
+      return 0;
+    double m = (double) this->sum / this->n;
+    double v = (double) this->sq / this->n - m * m;
+    return v > 0 ? sqrt(v) : 0;
+  }
+};
+
 struct Stats {
   uint32_t zc, glitch, rises, falls, missed, dbl, high_at_zc;
-  uint32_t rise_n, rise_off;  // rises compared with the expected delay, and those more than 100 us off
-  int32_t rise_min, rise_max;
-  int64_t rise_sum;
-  uint64_t rise_sq;
-  uint32_t fall_n, fall_off;
-  int32_t fall_min, fall_max;
-  int64_t fall_sum;
-  uint64_t fall_sq;
+  ErrStat rise, fall;
   uint32_t w_min, w_max;
 };
 
@@ -33,9 +58,9 @@ static Stats st;
 
 static void reset_stats() {
   noInterrupts();
-  memset(&st, 0, sizeof(st));
-  st.rise_min = st.fall_min = INT32_MAX;
-  st.rise_max = st.fall_max = INT32_MIN;
+  st = {};
+  st.rise.clear();
+  st.fall.clear();
   st.w_min = UINT32_MAX;
   interrupts();
 }
@@ -67,18 +92,8 @@ static void IRAM_ATTR gate_isr() {
     rises_this_half++;
     last_rise = now;
     rise_zc = last_zc;
-    if (exp_rise >= 0) {
-      int32_t err = (int32_t) (now - last_zc) - exp_rise;
-      st.rise_n++;
-      st.rise_sum += err;
-      st.rise_sq += (int64_t) err * err;
-      if (err < st.rise_min)
-        st.rise_min = err;
-      if (err > st.rise_max)
-        st.rise_max = err;
-      if (err > 100 || err < -100)
-        st.rise_off++;
-    }
+    if (exp_rise >= 0)
+      st.rise.add((int32_t) (now - last_zc) - exp_rise);
   } else {
     st.falls++;
     uint32_t w = now - last_rise;
@@ -86,18 +101,8 @@ static void IRAM_ATTR gate_isr() {
       st.w_min = w;
     if (w > st.w_max)
       st.w_max = w;
-    if (exp_fall >= 0) {
-      int32_t err = (int32_t) (now - rise_zc) - exp_fall;
-      st.fall_n++;
-      st.fall_sum += err;
-      st.fall_sq += (int64_t) err * err;
-      if (err < st.fall_min)
-        st.fall_min = err;
-      if (err > st.fall_max)
-        st.fall_max = err;
-      if (err > 100 || err < -100)
-        st.fall_off++;
-    }
+    if (exp_fall >= 0)
+      st.fall.add((int32_t) (now - rise_zc) - exp_fall);
   }
 }
 
@@ -130,35 +135,31 @@ static void start() {
 static const char *phase_name = "boot";
 static float cur_level = 0;
 
+static void format_err(char *buf, size_t len, char p, const ErrStat &e) {
+  snprintf(buf, len, "%cn=%u %coff=%u %cmin=%d %cmax=%d %cmean=%.1f %csd=%.1f", p, e.n, p, e.off, p, e.n ? e.min : 0, p,
+           e.n ? e.max : 0, p, e.mean(), p, e.sd());
+}
+
 static void report(const char *tag) {
   noInterrupts();
   Stats s = st;
   reset_stats();  // turns interrupts back on after the reset
-  auto sd = [](int64_t sum, uint64_t sq, uint32_t n) -> float {
-    if (n == 0)
-      return 0;
-    double m = (double) sum / n;
-    double v = (double) sq / n - m * m;
-    return v > 0 ? sqrt(v) : 0;
-  };
   ESP_LOGI("acdm",
            "WIN %s phase=%s level=%.0f zc=%u glitch=%u rises=%u falls=%u missed=%u dbl=%u hi_at_zc=%u exp_rise=%d "
            "exp_fall=%d",
            tag, phase_name, cur_level * 100, s.zc, s.glitch, s.rises, s.falls, s.missed, s.dbl, s.high_at_zc,
            (int) exp_rise, (int) exp_fall);
-  ESP_LOGI("acdm",
-           "ERR %s phase=%s level=%.0f rise n=%u off=%u min=%d max=%d mean=%.1f sd=%.1f | fall n=%u off=%u min=%d "
-           "max=%d mean=%.1f sd=%.1f | width min=%u max=%u heap=%u",
-           tag, phase_name, cur_level * 100, s.rise_n, s.rise_off, s.rise_n ? s.rise_min : 0, s.rise_n ? s.rise_max : 0,
-           s.rise_n ? (double) s.rise_sum / s.rise_n : 0.0, sd(s.rise_sum, s.rise_sq, s.rise_n), s.fall_n, s.fall_off,
-           s.fall_n ? s.fall_min : 0, s.fall_n ? s.fall_max : 0, s.fall_n ? (double) s.fall_sum / s.fall_n : 0.0,
-           sd(s.fall_sum, s.fall_sq, s.fall_n), s.falls ? s.w_min : 0, s.falls ? s.w_max : 0,
-           (unsigned) ESP.getFreeHeap());
+  // Every key is unique so the parsers read the line as one key=value dict (r = rise, f = fall, w = gate width).
+  char rise[96], fall[96];
+  format_err(rise, sizeof(rise), 'r', s.rise);
+  format_err(fall, sizeof(fall), 'f', s.fall);
+  ESP_LOGI("acdm", "ERR %s phase=%s level=%.0f %s %s wmin=%u wmax=%u heap=%u", tag, phase_name, cur_level * 100, rise,
+           fall, s.falls ? s.w_min : 0, s.falls ? s.w_max : 0, (unsigned) ESP.getFreeHeap());
 }
 
 // Noise: one pulse on the ZC line per call, at a rotating offset and width after the last real crossing.
-static const uint16_t OFFSETS[] = {2000, 4000, 6500, 8000};
-static const uint16_t WIDTHS[] = {5, 50, 300, 1000};
+static constexpr uint16_t OFFSETS[] = {2000, 4000, 6500, 8000};
+static constexpr uint16_t WIDTHS[] = {5, 50, 300, 1000};
 static uint32_t glitch_idx = 0;
 static void inject() {
   uint16_t off = OFFSETS[glitch_idx % 4];
@@ -187,45 +188,47 @@ static void inject() {
   injecting = false;
 }
 
-static const float LEVELS[] = {0.10f, 0.25f, 0.50f, 0.75f, 1.0f};
+static constexpr float LEVELS[] = {0.10f, 0.25f, 0.50f, 0.75f, 1.0f};
 static uint32_t secs = 0;
 static bool noise = false;
-static const char *PHASES[] = {"clean", "noise"};
-// Called every second. 15 s boot, then a clean and a noisy sweep (22 s per level, first 2 s not counted),
-// then hold 50 % clean with a report every 20 s.
+static constexpr const char *PHASES[] = {"clean", "noise"};
+static constexpr uint32_t BOOT_S = 15, STEP_S = 22, STEPS = 10, HOLD_T = STEPS * STEP_S, HOLD_REPORT_S = 20;
+
+static void enter(esphome::output::FloatOutput *out, const char *ph, float lvl, int method) {
+  noise = false;
+  phase_name = ph;
+  cur_level = lvl;
+  out->set_level(lvl);
+  set_expected(lvl, method);
+}
+
+// Called every second. BOOT_S boot, then a clean and a noisy sweep (STEP_S per level, first 2 s not counted),
+// then hold 50 % clean with a report every HOLD_REPORT_S. run.sh starts its hammer on the HOLD start line.
 static void tick(esphome::output::FloatOutput *out, int method) {
   secs++;
-  if (secs < 15)
+  if (secs < BOOT_S)
     return;
-  uint32_t t = secs - 15;
-  uint32_t step = t / 22, in = t % 22;
-  if (step < 10) {
+  uint32_t t = secs - BOOT_S;
+  uint32_t step = t / STEP_S, in = t % STEP_S;
+  if (step < STEPS) {
     int ph = step / 5;
-    float lvl = LEVELS[step % 5];
     if (in == 0) {
-      noise = false;
-      phase_name = PHASES[ph];
-      cur_level = lvl;
-      out->set_level(lvl);
-      set_expected(lvl, method);
+      enter(out, PHASES[ph], LEVELS[step % 5], method);
     } else if (in == 2) {
       reset_stats();
       noise = ph == 1;
-    } else if (in == 21) {
+    } else if (in == STEP_S - 1) {
       report("sweep");
     }
     return;
   }
-  if (step == 10 && in == 0) {
-    noise = false;
-    phase_name = "hold";
-    cur_level = 0.5f;
-    out->set_level(0.5f);
-    set_expected(0.5f, method);
+  if (t == HOLD_T) {
+    enter(out, "hold", 0.5f, method);
     reset_stats();
+    ESP_LOGI("acdm", "HOLD start");
     return;
   }
-  if ((t - 220) % 20 == 0)
+  if ((t - HOLD_T) % HOLD_REPORT_S == 0)
     report("hold");
 }
 }  // namespace acdm
