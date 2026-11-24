@@ -151,7 +151,7 @@ if len(L) != 6:
     out.append(f"fill levels: {len(L)} of 6 logged")
 for n, rows in R.items():
     k = KIND.get(n)
-    if k is None:
+    if k is None or n not in S or n not in HG:
         continue
     src, on, off = (k[0], k[1], k[2]) if isinstance(k, tuple) else (n, ON, OFF)
     kind = KIND[src]

@@ -30,7 +30,7 @@ for line in (
         s = 0
         for i in range(n):
             h = cur["lines"].get(i, "")
-            for k in range(0, len(h), 8):
+            for k in range(0, len(h) // 8 * 8, 8):
                 cnt, col = int(h[k : k + 4], 16), int(h[k + 4 : k + 8], 16)
                 s += cnt * 31 + col
                 px += [col] * cnt

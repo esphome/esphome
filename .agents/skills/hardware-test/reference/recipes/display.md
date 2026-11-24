@@ -14,7 +14,7 @@ logs min, median and max in microseconds.
   the per-pixel path and the bulk path.
 - `ana.py CAPTURE VARIANT PLATFORM` recomputes each scene on the host from the logged `get_pixel()` rows and the
   PNGs and prints `ALL_OK=True` when every pixel, histogram and summary matches. Its `expect()` rules encode what
-  #23229 and #23226 changed; rewrite them for another change.
+  #23229 and #23226 changed; rewrite them for another change. Fills are checked by gray4 level only, text is printed.
 - An `L` mode PNG with `type: GRAYSCALE` is read as alpha only; save test PNGs as RGB (mkimg.py does).
 - The ESP8266 logger at 460800 with `tx_buffer_size: 1024` keeps up with the row dumps; at 115200 lines are lost.
 - On a `host:` build the RGB565 scene shows channel values one count off the `get_pixel()` rows in about a quarter
