@@ -503,7 +503,7 @@ TEST(GreeClimateCodec, OtherModelsTransmitStateRegression) {
   EXPECT_EQ(GreeClimateCodec::encode(GREE_YAA, source), (GreeState{0x69, 0x06, 0xA0, 0x50, 0x00, 0x20, 0x20, 0xD0}));
   EXPECT_EQ(GreeClimateCodec::encode(GREE_YAC, source), (GreeState{0x69, 0x06, 0xA0, 0x50, 0x01, 0x20, 0x20, 0xD0}));
   EXPECT_EQ(GreeClimateCodec::encode(GREE_YAC1FB9, source),
-            (GreeState{0x69, 0x06, 0xA0, 0x50, 0x00, 0x20, 0x20, 0xD0}));
+            (GreeState{0x69, 0x06, 0xA0, 0x50, 0x01, 0x20, 0x20, 0xD0}));
   source.feature_bits = 0;
   EXPECT_EQ(GreeClimateCodec::encode(GREE_YAG, source), (GreeState{0x69, 0x06, 0x60, 0x50, 0x01, 0x40, 0x00, 0xD0}));
 }
@@ -626,6 +626,97 @@ TEST(GreeYAC1FB9, ReceivedSleepPresetUpdatesClimate) {
   data.preset = climate::CLIMATE_PRESET_NONE;
   EXPECT_TRUE(receive(device, GREE_YAC1FB9, GreeClimateCodec::encode(GREE_YAC1FB9, data)));
   EXPECT_EQ(device.preset, climate::CLIMATE_PRESET_NONE);
+}
+
+TEST(GreeYAC1FB9, VerticalSwingPositionsMatchRemoteVaneNibble) {
+  // Values captured from a YAW1F9 remote, in the order the remote cycles through them.
+  constexpr uint8_t POSITIONS[] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x09, 0x0B};
+  for (const uint8_t position : POSITIONS) {
+    SCOPED_TRACE(static_cast<int>(position));
+    GreeClimateData data{climate::CLIMATE_MODE_COOL,   26,
+                         climate::CLIMATE_FAN_AUTO,    climate::CLIMATE_SWING_OFF,
+                         climate::CLIMATE_PRESET_NONE, GREE_MODE_BIT_LIGHT};
+    data.vertical_swing_position = position;
+    data.has_vertical_swing_position = true;
+
+    const GreeState state = GreeClimateCodec::encode(GREE_YAC1FB9, data);
+    EXPECT_EQ(state[4], position);
+    EXPECT_EQ((state[0] & 0x40) != 0, gree_is_vertical_swing_position(position));
+    EXPECT_TRUE(GreeProtocol::valid_checksum(state));
+  }
+}
+
+TEST(GreeClimate, SetVerticalSwingPositionTransmitsVaneAndUpdatesSwingMode) {
+  CapturingTransmitter transmitter;
+  GreeClimate device;
+  device.set_model(GREE_YAC1FB9);
+  device.set_transmitter(&transmitter);
+  device.mode = climate::CLIMATE_MODE_COOL;
+  device.target_temperature = 26;
+  device.fan_mode = climate::CLIMATE_FAN_AUTO;
+
+  device.set_vertical_swing_position(GREE_VDIR_MDOWN);
+  GreeState frame = transmitter.frame(GREE_YAC1FB9);
+  EXPECT_EQ(frame[4], GREE_VDIR_MDOWN);
+  EXPECT_EQ(frame[0] & 0x40, 0);
+  EXPECT_EQ(device.swing_mode, climate::CLIMATE_SWING_OFF);
+
+  device.set_vertical_swing_position(GREE_VDIR_SWING_UP);
+  frame = transmitter.frame(GREE_YAC1FB9);
+  EXPECT_EQ(frame[4], GREE_VDIR_SWING_UP);
+  EXPECT_NE(frame[0] & 0x40, 0);
+  EXPECT_EQ(device.swing_mode, climate::CLIMATE_SWING_VERTICAL);
+}
+
+TEST(GreeClimate, ReceivedVerticalSwingPositionIsStored) {
+  GreeClimateData data{climate::CLIMATE_MODE_COOL,   26,
+                       climate::CLIMATE_FAN_AUTO,    climate::CLIMATE_SWING_OFF,
+                       climate::CLIMATE_PRESET_NONE, GREE_MODE_BIT_LIGHT};
+  data.vertical_swing_position = GREE_VDIR_SWING_MIDDLE;
+  data.has_vertical_swing_position = true;
+
+  GreeClimate device;
+  device.set_model(GREE_YAC1FB9);
+  EXPECT_TRUE(receive(device, GREE_YAC1FB9, GreeClimateCodec::encode(GREE_YAC1FB9, data)));
+  EXPECT_EQ(device.get_vertical_swing_position(), GREE_VDIR_SWING_MIDDLE);
+  EXPECT_EQ(device.swing_mode, climate::CLIMATE_SWING_VERTICAL);
+}
+
+static RawTimings append_gree_message(RawTimings raw, Model model, const GreeState &state, uint32_t gap) {
+  while (!raw.empty() && raw.back() == 0)
+    raw.pop_back();
+  raw.push_back(-static_cast<int32_t>(gap));
+  RawTimings message = encode_signal(model, state);
+  while (!message.empty() && message.back() == 0)
+    message.pop_back();
+  raw.insert(raw.end(), message.begin(), message.end());
+  return raw;
+}
+
+TEST(GreeYAC1FB9, AcceptsYaw1f9RepeatAndFollowupMessages) {
+  GreeClimateData data{climate::CLIMATE_MODE_COOL,   26,
+                       climate::CLIMATE_FAN_AUTO,    climate::CLIMATE_SWING_OFF,
+                       climate::CLIMATE_PRESET_NONE, GREE_MODE_BIT_LIGHT};
+  data.vertical_swing_position = GREE_VDIR_SWING_DOWN;
+  data.has_vertical_swing_position = true;
+  const GreeState primary = GreeClimateCodec::encode(GREE_YAC1FB9, data);
+
+  // The YAW1F9 repeats the command once and then sends its fixed follow-up message.
+  GreeState repeat = primary;
+  repeat[3] = 0x60;
+  repeat[7] = GreeProtocol::calculate_checksum(repeat);
+  GreeState followup{};
+  followup[3] = followup[7] = 0xA0;
+
+  RawTimings raw = encode_signal(GREE_YAC1FB9, primary);
+  raw = append_gree_message(raw, GREE_YAC1FB9, repeat, 40000);
+  raw = append_gree_message(raw, GREE_YAC1FB9, followup, 40000);
+
+  GreeClimate device;
+  device.set_model(GREE_YAC1FB9);
+  EXPECT_TRUE(receive_raw(device, raw));
+  EXPECT_EQ(device.get_vertical_swing_position(), GREE_VDIR_SWING_DOWN);
+  EXPECT_EQ(device.swing_mode, climate::CLIMATE_SWING_VERTICAL);
 }
 
 TEST(GreeYX1FF, ClimateStateRoundTrip) {

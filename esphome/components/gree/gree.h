@@ -69,6 +69,13 @@ static constexpr uint8_t GREE_VDIR_SWING_DOWN = 0x07;
 static constexpr uint8_t GREE_VDIR_SWING_MIDDLE = 0x09;
 static constexpr uint8_t GREE_VDIR_SWING_UP = 0x0B;
 
+// The remote marks byte 0 bit 6 for every position that keeps the vane moving, including the
+// partial-swing positions used by the YAW1F remote (0x07, 0x09 and 0x0B).
+static constexpr bool gree_is_vertical_swing_position(uint8_t position) {
+  return position == GREE_VDIR_SWING || position == GREE_VDIR_SWING_DOWN || position == GREE_VDIR_SWING_MIDDLE ||
+         position == GREE_VDIR_SWING_UP;
+}
+
 // Only available on YAC/YAG
 // Horizontal air directions. Note that these cannot be set on all heat pumps
 static constexpr uint8_t GREE_HDIR_AUTO = 0x00;
@@ -140,7 +147,22 @@ struct GreeClimateData {
   // The unit's panel shows Fahrenheit; half_degree adds half a degree Celsius to target_temperature
   bool fahrenheit{false};
   bool half_degree{false};
+#ifdef USE_GREE_VERTICAL_SWING_SELECT
+  // Raw low nibble of byte 4 (or the automatic-swing value from byte 0 on some models).
+  uint8_t vertical_swing_position{GREE_VDIR_AUTO};
+  // When false, encode() derives the vane position from swing_mode for backwards compatibility.
+  bool has_vertical_swing_position{false};
+#endif
 };
+
+#ifdef USE_GREE_VERTICAL_SWING_SELECT
+/// Receives vane-position changes so a select entity can mirror the climate component.
+class GreeVerticalSwingListener {
+ public:
+  virtual ~GreeVerticalSwingListener() = default;
+  virtual void on_vertical_swing_position(uint8_t position) = 0;
+};
+#endif
 
 class GreeProtocol {
  public:
@@ -188,7 +210,7 @@ class GreeClimate final : public climate_ir::ClimateIR {
                               {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_VERTICAL,
                                climate::CLIMATE_SWING_HORIZONTAL, climate::CLIMATE_SWING_BOTH}) {}
 
-#ifdef USE_GREE_FEATURE_SWITCH
+#if defined(USE_GREE_FEATURE_SWITCH) || defined(USE_GREE_VERTICAL_SWING_SELECT)
   void setup() override;
 #endif
   void set_model(Model model);
@@ -201,12 +223,25 @@ class GreeClimate final : public climate_ir::ClimateIR {
   void register_feature_switch(GreeFeature feature, switch_::Switch *feature_switch);
 #endif
 
+#ifdef USE_GREE_VERTICAL_SWING_SELECT
+  /// Set and transmit a raw vertical vane position (0x00..0x06, 0x07, 0x09, 0x0B).
+  void set_vertical_swing_position(uint8_t position);
+  uint8_t get_vertical_swing_position() const { return this->vertical_swing_position_; }
+  void register_vertical_swing_listener(GreeVerticalSwingListener *listener) {
+    this->vertical_swing_listener_ = listener;
+  }
+#endif
+
  protected:
   void control(const climate::ClimateCall &call) override;
   // Transmit via IR the state of this climate controller.
   void transmit_state() override;
 #ifdef USE_GREE_RECEIVER
   bool on_receive(remote_base::RemoteReceiveData data) override;
+#endif
+
+#ifdef USE_GREE_VERTICAL_SWING_SELECT
+  void notify_vertical_swing_listener_();
 #endif
 
 #ifdef USE_GREE_FEATURE_SWITCH
@@ -220,6 +255,10 @@ class GreeClimate final : public climate_ir::ClimateIR {
 
   Model model_{};
   uint8_t feature_bits_{0};
+#ifdef USE_GREE_VERTICAL_SWING_SELECT
+  uint8_t vertical_swing_position_{GREE_VDIR_AUTO};
+  GreeVerticalSwingListener *vertical_swing_listener_{nullptr};
+#endif
 #ifdef USE_GREE_FAHRENHEIT
   bool use_fahrenheit_{false};
 #endif

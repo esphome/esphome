@@ -45,3 +45,8 @@ switch:
     gree_id: my_gree_ac_fahrenheit
     light:
       name: "YX1FF AC Lights"
+
+select:
+  - platform: gree
+    gree_id: my_gree_ac
+    name: "GREE Vertical Swing"

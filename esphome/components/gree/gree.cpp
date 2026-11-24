@@ -118,10 +118,8 @@ static bool is_valid_timer(const GreeState &state) {
 }
 
 static bool is_valid_vertical_swing(bool automatic, uint8_t position) {
-  if (automatic) {
-    return position == GREE_VDIR_SWING || position == GREE_VDIR_SWING_DOWN || position == GREE_VDIR_SWING_MIDDLE ||
-           position == GREE_VDIR_SWING_UP;
-  }
+  if (automatic)
+    return gree_is_vertical_swing_position(position);
   return position == GREE_VDIR_MANUAL || (position >= GREE_VDIR_UP && position <= GREE_VDIR_DOWN);
 }
 
@@ -206,6 +204,19 @@ optional<GreeState> GreeProtocol::decode(remote_base::RemoteReceiveData data) co
   }
 #endif
 
+  // The YAW1F9 remote used with YAC1FB9-compatible units repeats the command and appends a fixed
+  // 00 00 00 A0 message. Consume those trailing messages so the first state frame is accepted.
+  if (this->model_ == GREE_YAC1FB9 && data.is_valid(1)) {
+    for (uint8_t tail = 0; tail < 2 && data.is_valid(1); tail++) {
+      GreeState ignored{};
+      if (!data.expect_space(GREE_YAW1F_FOLLOWUP_SPACE) || !read_frame(data, ignored, spaces) ||
+          !GreeProtocol::valid_checksum(ignored)) {
+        ESP_LOGV(TAG, "YAC1FB9 frame dropped: trailing message invalid");
+        return {};
+      }
+    }
+  }
+
   // A receiver normally appends one final idle space. Reject any extra pulses.
   if (data.is_valid(1) || (data.is_valid() && data.peek() > 0)) {
     ESP_LOGV(TAG, "Frame dropped: extra pulses follow it (receiver idle may be too long)");
@@ -233,7 +244,16 @@ bool GreeProtocol::valid_checksum(const GreeState &state) {
 
 GreeState GreeClimateCodec::encode(Model model, const GreeClimateData &data) {
   GreeState state{0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 0x00, 0x00};
+  // The raw vane position is the source of truth so it survives temperature, mode and fan changes.
+  // Callers that do not provide one keep the previous swing_mode-derived behaviour.
+#ifdef USE_GREE_VERTICAL_SWING_SELECT
+  const uint8_t vertical_swing = data.has_vertical_swing_position
+                                     ? (data.vertical_swing_position & 0x0F)
+                                     : GreeClimateCodec::encode_vertical_swing(data.swing_mode);
+#else
   const uint8_t vertical_swing = GreeClimateCodec::encode_vertical_swing(data.swing_mode);
+#endif
+  const bool vertical_swinging = gree_is_vertical_swing_position(vertical_swing);
   const uint8_t horizontal_swing = GreeClimateCodec::encode_horizontal_swing(data.swing_mode);
 
   state[0] =
@@ -252,17 +272,17 @@ GreeState GreeClimateCodec::encode(Model model, const GreeClimateData &data) {
       state[2] |= GREE_MODEL_A_BIT;
     if (model == GREE_YX1FF && data.fan_mode == climate::CLIMATE_FAN_HIGH)
       state[2] |= GREE_FAN_TURBO_BIT;
-    if (vertical_swing == GREE_VDIR_SWING) {
+    if (vertical_swinging) {
       state[0] |= GREE_SWING_AUTO_MASK;
       // YX1FF repeats the automatic swing value in both nibbles, while YB1FA only uses the vertical field.
-      state[4] = model == GREE_YX1FF ? GREE_YX1FF_VANE_SWING : GREE_VDIR_SWING;
+      state[4] = model == GREE_YX1FF ? GREE_YX1FF_VANE_SWING : vertical_swing;
     }
   }
 
   if (model == GREE_YAG || model == GREE_YAW1F) {
     state[2] |= 0x60;
     state[5] = model == GREE_YAW1F ? 0x80 : 0x40;
-    if (vertical_swing == GREE_VDIR_SWING || horizontal_swing == GREE_HDIR_SWING)
+    if (vertical_swinging || horizontal_swing == GREE_HDIR_SWING)
       state[0] |= GREE_SWING_AUTO_MASK;
   }
 
@@ -270,9 +290,16 @@ GreeState GreeClimateCodec::encode(Model model, const GreeClimateData &data) {
   if (model == GREE_YAC || model == GREE_YAG || model == GREE_YAW1F)
     state[4] = vertical_swing | (horizontal_swing << 4);
 
+#ifdef USE_GREE_VERTICAL_SWING_SELECT
+  // YAC1FB9 uses the same vane/horizontal nibbles. For the usual vertical-only operation the high
+  // nibble stays zero, preserving the established light, turbo and xfan bits.
+  if (model == GREE_YAC1FB9)
+    state[4] = vertical_swing | (horizontal_swing << 4);
+#endif
+
   if (model == GREE_YAA || model == GREE_YAC || model == GREE_YAC1FB9) {
     state[6] = 0x20;
-    if (vertical_swing == GREE_VDIR_SWING)
+    if (vertical_swinging)
       state[0] |= GREE_SWING_AUTO_MASK;
   }
 
@@ -401,6 +428,11 @@ optional<GreeClimateData> GreeClimateCodec::decode_legacy(Model model, const Gre
       .feature_bits = static_cast<uint8_t>(state[2] & supported_feature_mask(model)),
       .fahrenheit = static_cast<bool>(state[3] & GREE_FAHRENHEIT_BIT),
       .half_degree = static_cast<bool>(state[3] & GREE_TEMP_HALF_DEGREE_BIT),
+#ifdef USE_GREE_VERTICAL_SWING_SELECT
+      .vertical_swing_position =
+          swing_vertical ? (is_valid_vertical_swing(true, vertical) ? vertical : GREE_VDIR_SWING) : vertical,
+      .has_vertical_swing_position = true,
+#endif
   };
 
   if (swing_vertical && swing_horizontal) {
@@ -447,6 +479,10 @@ optional<GreeClimateData> GreeClimateCodec::decode_model_a(Model model, const Gr
       .feature_bits = static_cast<uint8_t>(state[2] & supported_feature_mask(model)),
       .fahrenheit = static_cast<bool>(state[3] & GREE_FAHRENHEIT_BIT),
       .half_degree = static_cast<bool>(state[3] & GREE_TEMP_HALF_DEGREE_BIT),
+#ifdef USE_GREE_VERTICAL_SWING_SELECT
+      .vertical_swing_position = swing ? GREE_VDIR_SWING : static_cast<uint8_t>(state[4] & 0x0F),
+      .has_vertical_swing_position = true,
+#endif
   };
 
   if (power)
@@ -505,9 +541,16 @@ bool GreeClimate::get_feature_state(GreeFeature feature) const {
   return this->feature_bits_ & gree_feature_bit(feature);
 }
 
-#ifdef USE_GREE_FEATURE_SWITCH
+#if defined(USE_GREE_FEATURE_SWITCH) || defined(USE_GREE_VERTICAL_SWING_SELECT)
 void GreeClimate::setup() {
   climate_ir::ClimateIR::setup();
+#ifdef USE_GREE_VERTICAL_SWING_SELECT
+  // ClimateIR restores swing_mode, but the raw vane position is what actually gets transmitted.
+  if (this->vertical_swing_position_ == GREE_VDIR_AUTO &&
+      (this->swing_mode == climate::CLIMATE_SWING_VERTICAL || this->swing_mode == climate::CLIMATE_SWING_BOTH))
+    this->vertical_swing_position_ = GREE_VDIR_SWING;
+#endif
+#ifdef USE_GREE_FEATURE_SWITCH
   // Apply every restored switch, then send one frame. Models that receive feature state have restoring disabled,
   // so their switches show the current feature bits instead.
   bool restored = false;
@@ -525,8 +568,14 @@ void GreeClimate::setup() {
   }
   if (restored)
     this->transmit_state();
+#endif
+#ifdef USE_GREE_VERTICAL_SWING_SELECT
+  this->notify_vertical_swing_listener_();
+#endif
 }
+#endif
 
+#ifdef USE_GREE_FEATURE_SWITCH
 void GreeClimate::register_feature_switch(GreeFeature feature, switch_::Switch *feature_switch) {
   this->feature_switches_[static_cast<uint8_t>(feature)] = feature_switch;
 }
@@ -553,10 +602,63 @@ void GreeClimate::control(const climate::ClimateCall &call) {
     this->publish_feature_state_(GREE_FEATURE_TURBO);
 #endif
   }
+
+  // The select entity owns the raw vane position, so mirror climate swing changes into it before transmitting.
+#ifdef USE_GREE_VERTICAL_SWING_SELECT
+  bool swing_changed = false;
+  if (auto swing_mode = call.get_swing_mode(); swing_mode.has_value()) {
+    swing_changed = true;
+    if (*swing_mode == climate::CLIMATE_SWING_VERTICAL || *swing_mode == climate::CLIMATE_SWING_BOTH) {
+      this->vertical_swing_position_ = GREE_VDIR_SWING;
+    } else if (gree_is_vertical_swing_position(this->vertical_swing_position_)) {
+      this->vertical_swing_position_ = GREE_VDIR_AUTO;
+    }
+  }
+#endif
+
   climate_ir::ClimateIR::control(call);
+#ifdef USE_GREE_VERTICAL_SWING_SELECT
+  if (swing_changed)
+    this->notify_vertical_swing_listener_();
+#endif
 }
 
+#ifdef USE_GREE_VERTICAL_SWING_SELECT
+void GreeClimate::set_vertical_swing_position(uint8_t position) {
+  this->vertical_swing_position_ = position & 0x0F;
+
+  // Keep the climate swing mode consistent while preserving an independently selected horizontal swing.
+  if (gree_is_vertical_swing_position(this->vertical_swing_position_)) {
+    this->swing_mode =
+        (this->swing_mode == climate::CLIMATE_SWING_HORIZONTAL || this->swing_mode == climate::CLIMATE_SWING_BOTH)
+            ? climate::CLIMATE_SWING_BOTH
+            : climate::CLIMATE_SWING_VERTICAL;
+  } else if (this->swing_mode == climate::CLIMATE_SWING_BOTH) {
+    this->swing_mode = climate::CLIMATE_SWING_HORIZONTAL;
+  } else if (this->swing_mode == climate::CLIMATE_SWING_VERTICAL) {
+    this->swing_mode = climate::CLIMATE_SWING_OFF;
+  }
+
+  this->transmit_state();
+  this->publish_state();
+  this->notify_vertical_swing_listener_();
+}
+
+void GreeClimate::notify_vertical_swing_listener_() {
+  if (this->vertical_swing_listener_ != nullptr)
+    this->vertical_swing_listener_->on_vertical_swing_position(this->vertical_swing_position_);
+}
+#endif
+
 void GreeClimate::transmit_state() {
+#ifdef USE_GREE_VERTICAL_SWING_SELECT
+  uint8_t vertical_swing = this->vertical_swing_position_;
+  // A restored climate swing selection has no raw position yet; use full swing instead of "Default".
+  if (vertical_swing == GREE_VDIR_AUTO &&
+      (this->swing_mode == climate::CLIMATE_SWING_VERTICAL || this->swing_mode == climate::CLIMATE_SWING_BOTH))
+    vertical_swing = GREE_VDIR_SWING;
+#endif
+
   GreeClimateData climate_data{
       .mode = this->mode,
       .target_temperature =
@@ -565,6 +667,10 @@ void GreeClimate::transmit_state() {
       .swing_mode = this->swing_mode,
       .preset = this->preset.value_or(climate::CLIMATE_PRESET_NONE),
       .feature_bits = this->feature_bits_,
+#ifdef USE_GREE_VERTICAL_SWING_SELECT
+      .vertical_swing_position = vertical_swing,
+      .has_vertical_swing_position = true,
+#endif
   };
 #ifdef USE_GREE_FAHRENHEIT
   if (this->use_fahrenheit_) {
@@ -609,8 +715,14 @@ bool GreeClimate::on_receive(remote_base::RemoteReceiveData data) {
   this->swing_mode = decoded->swing_mode;
   this->preset = decoded->preset;
   this->feature_bits_ = decoded->feature_bits;
+#ifdef USE_GREE_VERTICAL_SWING_SELECT
+  this->vertical_swing_position_ = decoded->vertical_swing_position;
+#endif
 #ifdef USE_GREE_FEATURE_SWITCH
   this->publish_feature_states_();
+#endif
+#ifdef USE_GREE_VERTICAL_SWING_SELECT
+  this->notify_vertical_swing_listener_();
 #endif
   this->publish_state();
   return true;
