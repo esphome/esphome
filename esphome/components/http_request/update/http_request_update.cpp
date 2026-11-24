@@ -28,14 +28,9 @@ static const size_t MAX_READ_SIZE = 256;
 static constexpr uint32_t INITIAL_CHECK_INTERVAL_ID = 0;
 static constexpr uint32_t INITIAL_CHECK_INTERVAL_MS = 10000;
 static constexpr uint8_t INITIAL_CHECK_MAX_ATTEMPTS = 6;
-// Entity preference slot for the auto-install guard.
-static constexpr uint32_t AUTO_INSTALL_PREF_VERSION = 1;
 
 void HttpRequestUpdate::setup() {
   this->ota_parent_->add_state_listener(this);
-
-  if (this->allow_auto_install_)
-    this->auto_install_version_pref_ = this->make_entity_preference<uint32_t>(AUTO_INSTALL_PREF_VERSION, true);
 
   // Check periodically until network is ready
   // Only if update interval is > total retry window to avoid redundant checks
@@ -61,15 +56,9 @@ void HttpRequestUpdate::on_ota_state(ota::OTAState state, float progress, uint8_
     this->update_info_.progress = progress;
     this->publish_state();
   } else if (state == ota::OTAState::OTA_ABORT || state == ota::OTAState::OTA_ERROR) {
-    this->auto_install_version_hash_ = 0;
     this->state_ = update::UPDATE_STATE_AVAILABLE;
     this->status_set_error(LOG_STR("Failed to install firmware"));
     this->publish_state();
-  } else if (state == ota::OTAState::OTA_COMPLETED) {
-    if (this->auto_install_version_hash_ != 0 &&
-        this->auto_install_version_pref_.save(&this->auto_install_version_hash_))
-      global_preferences->sync();
-    this->auto_install_version_hash_ = 0;
   }
 }
 
@@ -306,22 +295,9 @@ void HttpRequestUpdate::process_result_(TaskResult *result) {
     this->get_update_available_trigger()->trigger(this->update_info_);
   }
 
-  // An auto-installed version is remembered across the reboot that ends the install, so firmware
-  // that still reports an older version is not flashed again on every boot.
   if (this->allow_auto_install_ && auto_install && new_state == update::UPDATE_STATE_AVAILABLE) {
-    const std::string &latest = this->update_info_.latest_version;
-    const uint32_t raw_hash = fnv1a_hash(latest);
-    const uint32_t latest_hash = raw_hash != 0 ? raw_hash : 1;
-    uint32_t installed_hash = 0;
-    if (this->auto_install_version_pref_.load(&installed_hash) && installed_hash == latest_hash) {
-      ESP_LOGW(TAG, "Manifest asks for an auto install of %s, which was already installed; not installing again",
-               latest.c_str());
-    } else {
-      // Kept in RAM until the install succeeds, see on_ota_state().
-      this->auto_install_version_hash_ = latest_hash;
-      ESP_LOGI(TAG, "Manifest asks for an auto install of %s, installing", latest.c_str());
-      this->perform(false);
-    }
+    ESP_LOGI(TAG, "Manifest asks for an auto install of %s, installing", this->update_info_.latest_version.c_str());
+    this->perform(false);
   }
 }
 

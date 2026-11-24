@@ -2,7 +2,6 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
-#include "esphome/core/preferences.h"
 
 #include "esphome/components/http_request/http_request.h"
 #include "esphome/components/http_request/ota/ota_http_request.h"
@@ -69,8 +68,6 @@ class HttpRequestUpdate final : public update::UpdateEntity, public PollingCompo
 #ifdef USE_ESP32
   TaskResult *task_result_{nullptr};  // set while a check runs on the update task
 #endif
-  ESPPreferenceObject auto_install_version_pref_;  // holds the version of the last auto install
-  uint32_t auto_install_version_hash_{0};          // version the running auto install started, 0 when none
   uint8_t initial_check_remaining_{0};
   bool allow_auto_install_{false};  // a manifest may start the update on its own
 
