@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from esphome.components.lvgl.widgets.chart import (
@@ -10,7 +12,63 @@ from esphome.components.lvgl.widgets.chart import (
     SERIES_MODIFY_SCHEMA,
     validate_series_update_for_type,
 )
+from esphome.config import load_config
 from esphome.config_validation import Invalid
+from esphome.core import CORE
+
+CHART_CONFIG_TEMPLATE = """
+esphome:
+  name: test-chart
+
+esp32:
+  board: lolin_c3_mini
+
+spi:
+  mosi_pin:
+    number: GPIO2
+    ignore_strapping_warning: true
+  clk_pin: GPIO1
+
+display:
+  - platform: mipi_spi
+    data_rate: 20MHz
+    model: st7735
+    cs_pin:
+      number: GPIO8
+      ignore_strapping_warning: true
+    dc_pin: GPIO3
+
+lvgl:
+  widgets:
+    - chart:
+        id: line_chart
+        point_count: 2
+        series:
+          - id: line_series
+    - chart:
+        id: scatter_chart
+        type: scatter
+        point_count: 2
+        series:
+          - id: scatter_series
+    - button:
+        on_click:
+          - lvgl.chart.series.update:
+{update}
+"""
+
+
+def _config_errors(tmp_path: Path, update: str) -> list[str]:
+    """Validate a config with the given series update action and return the errors as text."""
+    config_path = tmp_path / "chart.yaml"
+    config_path.write_text(CHART_CONFIG_TEMPLATE.format(update=update))
+    original_path = CORE.config_path
+    try:
+        CORE.config_path = config_path
+        return [str(err) for err in load_config({}).errors]
+    finally:
+        CORE.config_path = original_path
+        CORE.reset()
 
 
 @pytest.mark.parametrize(
@@ -152,3 +210,38 @@ def test_series_update_values_cannot_exceed_point_count() -> None:
 def test_series_update_values_can_match_point_count() -> None:
     config = {"values": [1, 2]}
     assert validate_series_update_for_type(config, "LV_CHART_TYPE_LINE", 2) == config
+
+
+@pytest.mark.parametrize(
+    "update,message",
+    [
+        (
+            "id: scatter_series\n              value: 1",
+            "'scatter_series': A scatter chart series update requires point",
+        ),
+        (
+            "id: line_series\n              point: {x: 1, y: 2}",
+            "'line_series': point can only update a scatter chart series",
+        ),
+        (
+            "id: line_series\n              values: [1, 2, 3]",
+            "can't have more than point_count (2) values",
+        ),
+    ],
+)
+def test_series_update_is_checked_against_its_chart(
+    tmp_path: Path, update: str, message: str
+) -> None:
+    errors = _config_errors(tmp_path, f"              {update}")
+    assert any(message in err for err in errors), errors
+
+
+@pytest.mark.parametrize(
+    "update",
+    [
+        "id: line_series\n              values: [1, 2]",
+        "id: scatter_series\n              point: {x: 1, y: 2}",
+    ],
+)
+def test_matching_series_update_is_accepted(tmp_path: Path, update: str) -> None:
+    assert _config_errors(tmp_path, f"              {update}") == []

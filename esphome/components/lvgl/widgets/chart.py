@@ -22,6 +22,7 @@ from ..defines import (
     LV_CHART_TYPES,
     LvConstant,
     get_chart_series,
+    get_chart_series_updates,
     literal,
 )
 from ..lv_validation import lv_color, lv_int
@@ -79,6 +80,14 @@ SERIES_SCHEMA = cv.Schema(
     }
 )
 
+
+def _record_series_update(config):
+    """Remember the action so validate_chart_series_updates() can check it against
+    its chart once the whole config is known."""
+    get_chart_series_updates().append(config)
+    return config
+
+
 SERIES_MODIFY_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -89,6 +98,7 @@ SERIES_MODIFY_SCHEMA = cv.All(
         }
     ),
     cv.has_exactly_one_key(CONF_VALUE, CONF_VALUES, CONF_POINT),
+    _record_series_update,
 )
 
 CHART_SCHEMA = cv.Schema(
@@ -154,6 +164,24 @@ def validate_series_update_for_type(config, chart_type, point_count):
             f"A chart series update can't have more than point_count ({point_count}) values"
         )
     return config
+
+
+def validate_chart_series_updates(global_config):
+    """Check each lvgl.chart.series.update action against the chart its series belongs to."""
+    for config in get_chart_series_updates():
+        series_id = config[CONF_ID]
+        # A series ID is declared at <chart>/series/<index>/id
+        chart_config = global_config.get_config_for_path(
+            global_config.get_path_for_id(series_id)[:-3]
+        )
+        try:
+            validate_series_update_for_type(
+                config, chart_config[CONF_TYPE], chart_config[CONF_POINT_COUNT]
+            )
+        except cv.Invalid as err:
+            raise cv.Invalid(
+                f"'lvgl.chart.series.update' for series '{series_id}': {err.msg}"
+            ) from err
 
 
 class ChartType(WidgetType):
@@ -243,9 +271,6 @@ async def chart_series_update_to_code(config, action_id, template_arg, args):
     chart = get_chart_series()[str(config[CONF_ID])]
 
     async def do_update(w: Widget):
-        validate_series_update_for_type(
-            config, w.config[CONF_TYPE], w.config[CONF_POINT_COUNT]
-        )
         if (point := config.get(CONF_POINT)) is not None:
             lv.chart_set_next_value2(
                 w.obj,
