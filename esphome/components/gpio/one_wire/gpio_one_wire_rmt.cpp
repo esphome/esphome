@@ -78,9 +78,13 @@ void GPIORMTOneWireBus::setup() {
       this->check_(gpio_od_enable(gpio), LOG_STR("in gpio_od_enable")) &&
 #endif
       this->check_(gpio_input_enable(gpio), LOG_STR("in gpio_input_enable"));
-  const bool rx_enabled = created && this->check_(rmt_enable(this->rx_channel_), LOG_STR("in rmt_enable"));
-  const bool tx_enabled = rx_enabled && this->check_(rmt_enable(this->tx_channel_), LOG_STR("in rmt_enable"));
-  if (tx_enabled &&
+#ifdef CONFIG_FREERTOS_USE_TICKLESS_IDLE
+  // ESP-IDF gives every pad a sleep setup that turns off its output, its input and its pullup. Like
+  // ESP32InternalGPIOPin::setup(), keep this setup in light sleep instead: the open-drain output stays released by
+  // the idle level of TX, and a pullup of the pad stays on.
+  gpio_sleep_sel_dis(gpio);
+#endif
+  if (created && this->enable_channels_() &&
       this->check_(
           rmt_transmit(this->tx_channel_, this->encoder_, &release_line, sizeof(release_line), &TRANSMIT_CONFIG),
           LOG_STR("in rmt_transmit")) &&
@@ -92,16 +96,35 @@ void GPIORMTOneWireBus::setup() {
   }
   // check_() marked the bus failed, in the list above or in an abort() during the search. Free what was created, so
   // other RMT components can still get it. A failed engine makes no further port calls.
-  this->release_(rx_enabled, tx_enabled);
+  this->release_();
 }
 
-void GPIORMTOneWireBus::release_(bool rx_enabled, bool tx_enabled) {
+bool GPIORMTOneWireBus::enable_channels_() {
+  // RX first: TX may start right after, and its section needs RX
+  if (!this->rx_enabled_) {
+    if (!this->check_(rmt_enable(this->rx_channel_), LOG_STR("in rmt_enable")))
+      return false;
+    this->rx_enabled_ = true;
+  }
+  if (!this->tx_enabled_) {
+    if (!this->check_(rmt_enable(this->tx_channel_), LOG_STR("in rmt_enable")))
+      return false;
+    this->tx_enabled_ = true;
+  }
+  return true;
+}
+
+void GPIORMTOneWireBus::release_() {
   // A channel must be disabled before it can be deleted. This also stops RX if it is still armed. Errors are
-  // ignored, the bus has failed already. After a failed abort(), a channel may be disabled already.
-  if (tx_enabled)
+  // ignored, the bus has failed already.
+  if (this->tx_enabled_) {
     rmt_disable(this->tx_channel_);
-  if (rx_enabled)
+    this->tx_enabled_ = false;
+  }
+  if (this->rx_enabled_) {
     rmt_disable(this->rx_channel_);
+    this->rx_enabled_ = false;
+  }
   if (this->tx_channel_ != nullptr) {
     rmt_del_channel(this->tx_channel_);
     this->tx_channel_ = nullptr;
@@ -131,6 +154,9 @@ void GPIORMTOneWireBus::dump_config() {
 }
 
 void GPIORMTOneWireBus::loop() {
+  // A submit() leaves the channels to this loop pass, which enables them before the engine starts the transaction
+  if (!this->engine_.is_idle())
+    this->wake_channels_();
   this->engine_.poll();
   this->log_dropped_calls_();
   // mark_failed() took the bus out of the loop, and disable_loop() would undo the failed state. A failed engine
@@ -157,6 +183,12 @@ void GPIORMTOneWireBus::loop() {
     this->poll_timeout_set_ = false;
     this->cancel_timeout(POLL_TIMEOUT_ID);
   }
+#ifdef CONFIG_PM_ENABLE
+  // Not after each blocking call: the calls of one client follow each other in the same loop pass, so they share
+  // one enable and one disable
+  if (!this->sleep_channels_())
+    return;
+#endif
   this->disable_loop();
   // disable_loop() logs before it takes the bus out of the loop. A log handler that submits there calls
   // enable_loop() while the loop is still enabled, which does nothing. So enable it again here.
@@ -228,11 +260,52 @@ bool GPIORMTOneWireBus::start_tx(const Symbol *symbols, size_t count) {
 }
 
 bool GPIORMTOneWireBus::abort() {
-  return this->check_(rmt_disable(this->rx_channel_), LOG_STR("in rmt_disable")) &&
-         this->check_(rmt_disable(this->tx_channel_), LOG_STR("in rmt_disable")) &&
-         this->check_(rmt_enable(this->rx_channel_), LOG_STR("in rmt_enable")) &&
-         this->check_(rmt_enable(this->tx_channel_), LOG_STR("in rmt_enable"));
+  // Disabling a channel stops it, and enabling it again makes it ready for the next section
+  if (this->rx_enabled_) {
+    if (!this->check_(rmt_disable(this->rx_channel_), LOG_STR("in rmt_disable")))
+      return false;
+    this->rx_enabled_ = false;
+  }
+  if (this->tx_enabled_) {
+    if (!this->check_(rmt_disable(this->tx_channel_), LOG_STR("in rmt_disable")))
+      return false;
+    this->tx_enabled_ = false;
+  }
+  return this->enable_channels_();
 }
+
+#ifdef CONFIG_PM_ENABLE
+void GPIORMTOneWireBus::wake_channels_() {
+  if (this->is_failed() || (this->rx_enabled_ && this->tx_enabled_))
+    return;
+  if (this->enable_channels_())
+    this->enable_loop();
+}
+
+bool GPIORMTOneWireBus::sleep_channels_() {
+  // The line stays released: rmt_disable() of an idle channel only gives back its lock. It does not change the
+  // pin, and TX keeps sending its idle level, which is High from the last section.
+  if (this->tx_enabled_) {
+    const esp_err_t error = rmt_disable(this->tx_channel_);
+    // The driver is still in the done interrupt of the last section. This can only happen when that interrupt runs
+    // on the other core.
+    if (error == ESP_ERR_INVALID_STATE)
+      return false;
+    if (!this->check_(error, LOG_STR("in rmt_disable")))
+      return false;
+    this->tx_enabled_ = false;
+  }
+  if (this->rx_enabled_) {
+    const esp_err_t error = rmt_disable(this->rx_channel_);
+    if (error == ESP_ERR_INVALID_STATE)
+      return false;
+    if (!this->check_(error, LOG_STR("in rmt_disable")))
+      return false;
+    this->rx_enabled_ = false;
+  }
+  return true;
+}
+#endif
 
 void GPIORMTOneWireBus::wait_for_event(uint32_t max_ms) {
   delay(max_ms);
@@ -247,6 +320,7 @@ int GPIORMTOneWireBus::reset_int() {
   // Not -1, which reads as "bus held low": mark_failed() already named the cause
   if (this->is_failed() || !this->may_call_engine_())
     return 0;
+  this->wake_channels_();
   const int result = this->engine_.reset_blocking();
   this->log_dropped_calls_();
   return result;
@@ -255,6 +329,7 @@ int GPIORMTOneWireBus::reset_int() {
 void GPIORMTOneWireBus::write_(const uint8_t *data, uint8_t num_bits) {
   if (!this->may_call_engine_())
     return;
+  this->wake_channels_();
   // On a failed bus, mark_failed() already named the cause
   if (!this->engine_.write_blocking(data, num_bits) && !this->is_failed()) {
     ESP_LOGW(TAG, "Writing %u bits to the bus failed", num_bits);
@@ -277,6 +352,7 @@ uint64_t GPIORMTOneWireBus::read64() {
 void GPIORMTOneWireBus::read_(uint8_t *data, uint8_t num_bits) {
   if (!this->may_call_engine_())
     return;
+  this->wake_channels_();
   if (!this->engine_.read_blocking(data, num_bits) && !this->is_failed()) {
     ESP_LOGW(TAG, "Reading %u bits from the bus failed, they read as 1", num_bits);
   }
@@ -286,6 +362,7 @@ void GPIORMTOneWireBus::read_(uint8_t *data, uint8_t num_bits) {
 uint64_t GPIORMTOneWireBus::search_int() {
   if (!this->may_call_engine_())
     return 0;
+  this->wake_channels_();
   const uint64_t address = this->engine_.search_next();
   // OneWireBus::search() takes the 0 as the end of the search
   if (this->engine_.get_search_missed_devices()) {

@@ -6,6 +6,7 @@
 
 #include <driver/rmt_rx.h>
 #include <driver/rmt_tx.h>
+#include <sdkconfig.h>
 
 #include "esphome/components/one_wire/one_wire.h"
 #include "esphome/core/component.h"
@@ -61,8 +62,20 @@ class GPIORMTOneWireBus final : public one_wire::OneWireBus, public Component, p
 
   /// True if the call succeeded. Otherwise logs, and the bus is failed from now on.
   bool check_(esp_err_t error, const LogString *step);
+  /// Enables the channels that are disabled. False if that failed, check_() has failed the bus then.
+  bool enable_channels_();
   /// Disables the enabled channels and deletes the channels and the encoder, after a failed setup().
-  void release_(bool rx_enabled, bool tx_enabled);
+  void release_();
+#ifdef CONFIG_PM_ENABLE
+  /// Each enabled channel holds a power management lock, which keeps the CPU at full speed and stops light sleep.
+  /// So the channels are only enabled while the bus has work. This enables them before a blocking call or a queued
+  /// transaction, and makes loop() run, which disables them again once the bus is idle.
+  void wake_channels_();
+  /// Disables the enabled channels. False if one could not be disabled yet: loop() tries again on its next pass.
+  bool sleep_channels_();
+#else
+  void wake_channels_() {}
+#endif
 
   static bool tx_done_isr(rmt_channel_handle_t channel, const rmt_tx_done_event_data_t *data, void *context);
   static bool rx_done_isr(rmt_channel_handle_t channel, const rmt_rx_done_event_data_t *data, void *context);
@@ -71,6 +84,10 @@ class GPIORMTOneWireBus final : public one_wire::OneWireBus, public Component, p
   rmt_channel_handle_t tx_channel_{nullptr};
   rmt_channel_handle_t rx_channel_{nullptr};
   rmt_encoder_handle_t encoder_{nullptr};
+  /// Set by every successful rmt_enable() and cleared by every successful rmt_disable(), so no code path disables
+  /// a channel twice.
+  bool rx_enabled_{false};
+  bool tx_enabled_{false};
   rmt_one_wire::Engine engine_;
   /// The deadline of the poll timeout that loop() set, in millis(). Only valid while poll_timeout_set_.
   uint32_t poll_timeout_at_ms_{0};
