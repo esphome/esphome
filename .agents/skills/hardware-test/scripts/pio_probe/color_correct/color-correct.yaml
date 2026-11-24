@@ -1,0 +1,158 @@
+# Pico 2 W: six rp2040_pio_led_strip strips (gamma 2.8, default gamma, gamma 1.0, color_correct set per case) and two
+# partition lights over an RGB and an RGBW strip in both orders, stepped through cccases.hpp twice; no LEDs needed.
+substitutions:
+  name: colorcorrect
+  # name, light, probe pin, RGBW, color_correct set per case
+  strips: >-
+    {{"rgb28", id(rgb28), 2, false, false}, {"rgbw28", id(rgbw28), 3, true, false},
+    {"rgbdef", id(rgbdef), 6, false, false}, {"rgbwdef", id(rgbwdef), 7, true, false},
+    {"rgb10", id(rgb10), 8, false, false}, {"rgbwmb", id(rgbwmb), 11, true, true}}
+  segs: '{{"seg_rgb", id(seg_rgb), 9, false, false}, {"seg_rgbw", id(seg_rgbw), 10, true, false}}'
+
+esphome:
+  name: ${name}
+  includes:
+    - ../pioscope.hpp
+    - cccases.hpp
+  on_boot:
+    # PIO instruction memory survives a reflash; clear PIO1 so a program left by the previous firmware cannot hide a
+    # missing pio_add_program
+    - priority: 1000
+      then:
+        - lambda: |-
+            for (int i = 0; i < 32; i++) pio1->instr_mem[i] = 0;
+    - priority: -100
+      then:
+        - delay: 8s
+        - lambda: 'pioscope::init(); id(round_n) = 1;'
+        - repeat:
+            count: 2
+            then:
+              - globals.set: {id: case_i, value: '0'}
+              - while:
+                  condition:
+                    lambda: 'return id(case_i) < (int) cccases::NUM_CASES;'
+                  then:
+                    - lambda: 'const cccases::Strip S[] = ${strips}; cccases::apply(id(case_i), S, std::size(S));'
+                    - delay: 400ms
+                    - lambda: |-
+                        const cccases::Strip S[] = ${strips};
+                        cccases::probe(id(case_i), S, std::size(S), id(round_n));
+                        id(case_i) += 1;
+              - globals.set: {id: case_i, value: '0'}
+              - while:
+                  condition:
+                    lambda: 'return id(case_i) < (int) cccases::NUM_PCASES;'
+                  then:
+                    - lambda: 'cccases::papply(id(case_i), id(part_rgb), false);'
+                    - delay: 400ms
+                    - lambda: |-
+                        const cccases::Strip G[] = ${segs};
+                        cccases::pprobe(id(case_i), id(part_rgb), "partRGB", G, std::size(G), id(round_n));
+                    - lambda: 'cccases::papply(id(case_i), id(part_rgbw), true);'
+                    - delay: 400ms
+                    - lambda: |-
+                        const cccases::Strip G[] = ${segs};
+                        cccases::pprobe(id(case_i), id(part_rgbw), "partRGBW", G, std::size(G), id(round_n));
+                        id(case_i) += 1;
+              - lambda: 'id(round_n) += 1;'
+        - lambda: 'ESP_LOGI("hwt", "DONE");'
+
+rp2040:
+  board: rpipico2w
+
+logger:
+  level: DEBUG
+  logs:
+    light: INFO
+
+globals:
+  - id: case_i
+    type: int
+    initial_value: '0'
+  - id: round_n
+    type: int
+    initial_value: '1'
+
+light:
+  - platform: rp2040_pio_led_strip
+    id: rgb28
+    pin: 2
+    num_leds: 2
+    pio: 0
+    channel_colors: GRB
+    gamma_correct: 2.8
+    default_transition_length: 0s
+    chipset: WS2812
+  - platform: rp2040_pio_led_strip
+    id: rgbw28
+    pin: 3
+    num_leds: 2
+    pio: 0
+    channel_colors: GRBW
+    gamma_correct: 2.8
+    default_transition_length: 0s
+    chipset: SK6812
+  - platform: rp2040_pio_led_strip
+    id: rgbdef
+    pin: 6
+    num_leds: 2
+    pio: 1
+    channel_colors: GRB
+    default_transition_length: 0s
+    chipset: WS2812
+  - platform: rp2040_pio_led_strip
+    id: rgbwdef
+    pin: 7
+    num_leds: 2
+    pio: 1
+    channel_colors: GRBW
+    default_transition_length: 0s
+    chipset: SK6812
+  - platform: rp2040_pio_led_strip
+    id: rgb10
+    pin: 8
+    num_leds: 2
+    pio: 0
+    channel_colors: GRB
+    gamma_correct: 1.0
+    default_transition_length: 0s
+    chipset: WS2812
+  - platform: rp2040_pio_led_strip
+    id: rgbwmb
+    pin: 11
+    num_leds: 2
+    pio: 0
+    channel_colors: GRBW
+    gamma_correct: 2.8
+    color_correct: [100%, 50%, 100%, 100%]
+    default_transition_length: 0s
+    chipset: SK6812
+  - platform: rp2040_pio_led_strip
+    id: seg_rgb
+    pin: 9
+    num_leds: 2
+    pio: 1
+    channel_colors: GRB
+    default_transition_length: 0s
+    chipset: WS2812
+  - platform: rp2040_pio_led_strip
+    id: seg_rgbw
+    pin: 10
+    num_leds: 2
+    pio: 1
+    channel_colors: GRBW
+    default_transition_length: 0s
+    chipset: SK6812
+  - platform: partition
+    id: part_rgb
+    default_transition_length: 0s
+    segments:
+      - {id: seg_rgb, from: 0, to: 1}
+      - {id: seg_rgbw, from: 0, to: 1}
+  - platform: partition
+    id: part_rgbw
+    default_transition_length: 0s
+    segments:
+      - {id: seg_rgbw, from: 0, to: 1}
+      - {id: seg_rgb, from: 0, to: 1}

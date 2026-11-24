@@ -73,12 +73,17 @@ class ZWaveProxy final : public uart::UARTDevice, public Component {
   // than the currently subscribed one are ignored.
   void send_frame(api::APIConnection *api_connection, const uint8_t *data, size_t length);
 
+  SLOT_LIST(uart::UARTComponent, uarts_, add_uart, ZWAVE_PROXY_UART_COUNT)
+
  protected:
   void send_frame_(const uint8_t *data, size_t length);  // Write a frame to the Z-Wave module
   bool set_home_id_(const uint8_t *new_home_id);         // Store a new home ID. Returns true if it changed.
   void clear_home_id_();                                 // Clear home ID and notify API clients
   void on_connection_changed_(bool connected);           // Handle modem connect/disconnect transitions
   void retry_home_id_query_();                           // Retry home ID query after reconnect
+#if ZWAVE_PROXY_UART_COUNT > 0
+  void select_uart_();  // Switch to the first connected UART when the current one is not connected
+#endif
   void send_homeid_changed_msg_(api::APIConnection *conn = nullptr);
   void send_simple_command_(uint8_t command_id);
   bool parse_byte_(uint8_t byte);  // Returns true if frame parsing was completed (a frame is ready in the buffer)

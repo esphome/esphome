@@ -1,0 +1,24 @@
+# D1 mini: MuxShim answers the mux at 0x70 and forwards the rest to the real Wire bus (no target needed).
+substitutions:
+  name: mxd1
+  xflags: -DMX_NONE
+  sda: GPIO4
+  scl: GPIO5
+  hook: |-
+    mx::shim.real = id(bus_hw);
+    id(mux)->set_i2c_bus(&mx::shim);
+    mx::root = id(bus_hw);
+    mx::ch2 = id(mux_ch2);
+esp8266:
+  board: d1_mini
+packages:
+  c: !include common.yaml
+tca9548a:
+  - id: mux
+    i2c_id: bus_hw
+    address: 0x70
+    channels:
+      - bus_id: mux_ch2
+        channel: 2
+      - bus_id: mux_ch5
+        channel: 5

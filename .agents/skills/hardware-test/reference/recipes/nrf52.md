@@ -112,3 +112,16 @@ Results: https://github.com/esphome/esphome/pull/21910#issuecomment-6518287139
   and `flush()` returned `3`. The logger, DTR, line coding and the 1200 baud touch worked.
 - The zephyr_ble_server flow above, on 3.4.1: before #22558 advertising failed to restart after the first disconnect
   (`Advertising failed to start (rc -12)`); with it the server took 39 connections in 120 s.
+
+## ItsyBitsy as a Thread MTD child (#16387)
+
+- Flash by serial DFU (the terminal cannot write to `ITSY840BOOT` on macOS, see SKILL.md). `esphome upload` fails
+  about half the time ("Target is not in DFU mode") and can leave the bootloader wedged. Press RESET once, then run
+  this on the bootloader port, which worked every time (`scripts/nrf_pwm_probe/i52run.sh` does the same):
+
+  ```sh
+  <sdk-nrf python> -m nordicsemi.__main__ dfu serial -pkg <build>/.pioenvs/<name>/firmware.zip \
+    -p <bootloader port> -b 115200 --singlebank
+  ```
+- A 1200 baud touch on the app port takes the child off the air (bootloader); the parent's child table entry goes
+  when its age reaches the child's timeout (`recipes/openthread.md`, child checks).

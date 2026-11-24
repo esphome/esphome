@@ -1,0 +1,29 @@
+esphome:
+  name: ${name}
+  on_boot:
+    priority: -100
+    then:
+      - lambda: 'Serial.begin(115200, SERIAL_8N1);'
+esp8266:
+  board: d1_mini
+logger:
+  baud_rate: 0
+interval:
+  - interval: 2s
+    then:
+      - lambda: |-
+          static const uint8_t P[] = {0x01,0x00,0x11,0x00,0x00,0x11,0x04, 0x00,0x00,0x55,0xAA,0xFF,'H','E','L','L','O'};
+          static const uint8_t S = 0x7F;
+          Serial.flush();
+          Serial.begin(115200, SERIAL_8N1);
+          Serial.write(P, sizeof(P)); Serial.flush(); delay(30);
+          Serial.write(&S, 1); Serial.flush();
+          delay(300);
+          Serial.begin(115200, SERIAL_8E1);
+          Serial.write(P, sizeof(P)); Serial.flush(); delay(30);
+          Serial.write(&S, 1); Serial.flush();
+uart:
+  id: uart_bus
+  tx_pin: GPIO1
+  rx_pin: GPIO3
+  baud_rate: 115200

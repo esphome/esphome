@@ -1,0 +1,22 @@
+packages:
+  openthread: !include common.yaml
+  dataset: !include border_router_network.yaml
+
+ethernet:
+  type: YT8531
+  mdc_pin: GPIO5
+  mdio_pin: GPIO6
+  power_pin: GPIO7
+
+wifi:
+  ssid: "OTBR Test"
+  password: "test-password"
+
+network:
+  priority:
+    - ethernet
+    - wifi
+
+openthread:
+  border_router:
+    backbone: ethernet
