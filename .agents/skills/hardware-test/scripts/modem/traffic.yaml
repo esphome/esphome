@@ -1,0 +1,51 @@
+# PPP traffic check: "Traffic Test" makes the PPP interface the default netif, sends one GET and puts Wi-Fi back as
+# the default when the (asynchronous) request ends; "Traffic WiFi" sends the same GET over Wi-Fi for comparison.
+# An address literal in traffic_url keeps DNS out of the test.
+substitutions:
+  traffic_url: http://example.com/
+
+esphome:
+  includes:
+    - ppp_netif.h
+
+http_request:
+  verify_ssl: false
+  timeout: 15s
+
+script:
+  - id: restore_wifi
+    then:
+      - lambda: |-
+          esp_netif_set_default_netif(esp_netif_get_handle_from_ifkey("WIFI_STA_DEF"));
+
+button:
+  - platform: template
+    name: Traffic Test
+    on_press:
+      - lambda: |-
+          esp_netif_t *ppp = esp_netif_get_handle_from_ifkey("PPP_DEF");
+          ESP_LOGI("traffic", "ppp netif %p up=%d", ppp, ppp ? esp_netif_is_netif_up(ppp) : 0);
+          if (ppp) esp_netif_set_default_netif(ppp);
+      - http_request.get:
+          url: ${traffic_url}
+          capture_response: false
+          on_response:
+            then:
+              - lambda: ESP_LOGI("traffic", "traffic status %d over PPP", response->status_code);
+              - script.execute: restore_wifi
+          on_error:
+            then:
+              - logger.log: "traffic error over PPP"
+              - script.execute: restore_wifi
+  - platform: template
+    name: Traffic WiFi
+    on_press:
+      - http_request.get:
+          url: ${traffic_url}
+          capture_response: false
+          on_response:
+            then:
+              - lambda: ESP_LOGI("traffic", "traffic status %d over Wi-Fi", response->status_code);
+          on_error:
+            then:
+              - logger.log: "traffic error over Wi-Fi"

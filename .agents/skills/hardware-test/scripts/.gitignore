@@ -57,6 +57,8 @@ log_str_tables/*-cap.txt
 log_str_tables/*.log
 log_str_tables/*.norm
 log_str_tables/l[0-9][pbq]*.yaml
+modem/*.log
+modem/*.txt
 mqtt/dns_boot/*.err
 mqtt/dns_boot/*.log
 mqtt/dns_boot/*.txt
