@@ -103,24 +103,33 @@ def test_scatter_codegen_uses_paired_lvgl_apis(
     main_cpp = generate_main(component_config_path("chart_test.yaml"))
 
     assert (
-        "lv_chart_set_series_value_by_id2(scatter_chart, scatter_series, 0, 10, 20);"
-        in main_cpp
+        "lv_chart_set_next_value2(scatter_chart, scatter_series, 10, 20);" in main_cpp
     )
     assert (
-        "lv_chart_set_series_value_by_id2(scatter_chart, scatter_series, 1, 30, 40);"
-        in main_cpp
+        "lv_chart_set_next_value2(scatter_chart, scatter_series, 30, 40);" in main_cpp
     )
     assert (
         "lv_chart_set_next_value2(scatter_chart, scatter_series, "
         "static_cast<int>(50), static_cast<int>(60));" in main_cpp
     )
-    assert (
-        "lv_chart_set_series_value_by_id(line_chart, line_series, 0, 10);" in main_cpp
-    )
+    assert "lv_chart_set_next_value(line_chart, line_series, 10);" in main_cpp
     assert (
         "lv_chart_set_next_value(line_chart, line_series, static_cast<int>(30));"
         in main_cpp
     )
+
+
+def test_series_values_update_clears_then_appends(
+    generate_main, component_config_path
+) -> None:
+    main_cpp = generate_main(component_config_path("chart_test.yaml"))
+
+    clear = "lv_chart_set_all_values(line_chart, line_series, LV_CHART_POINT_NONE);"
+    assert clear in main_cpp
+    after_clear = main_cpp[main_cpp.index(clear) :]
+    first = after_clear.index("lv_chart_set_next_value(line_chart, line_series, 1);")
+    second = after_clear.index("lv_chart_set_next_value(line_chart, line_series, 2);")
+    assert first < second
 
 
 @pytest.mark.parametrize(

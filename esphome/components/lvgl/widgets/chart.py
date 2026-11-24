@@ -218,18 +218,17 @@ class ChartType(WidgetType):
 
 
 async def set_series_values(chart, series, values):
-    for index, value in enumerate(values):
-        lv.chart_set_series_value_by_id(
-            chart, series, index, await lv_int.process(value)
-        )
+    # Append in order so the series start point follows the data; writing slots by
+    # index would leave the next appended value overwriting the first one.
+    for value in values:
+        lv.chart_set_next_value(chart, series, await lv_int.process(value))
 
 
 async def set_series_points(chart, series, points):
-    for index, point in enumerate(points):
-        lv.chart_set_series_value_by_id2(
+    for point in points:
+        lv.chart_set_next_value2(
             chart,
             series,
-            index,
             await lv_int.process(point[CONF_X]),
             await lv_int.process(point[CONF_Y]),
         )
@@ -262,6 +261,8 @@ async def chart_series_update_to_code(config, action_id, template_arg, args):
             )
         else:
             if values := config.get(CONF_VALUES):
+                # Clearing also moves the start point back to the first slot.
+                lv.chart_set_all_values(w.var, w.obj, literal("LV_CHART_POINT_NONE"))
                 await set_series_values(w.var, w.obj, values)
             if (value := await lv_int.process(config.get(CONF_VALUE))) is not None:
                 lv.chart_set_next_value(w.var, w.obj, value)

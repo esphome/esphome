@@ -45,6 +45,9 @@ lvgl:
               id: line_series
               value: !lambda return 30;
           - lvgl.chart.series.update:
+              id: line_series
+              values: [1, 2]
+          - lvgl.chart.series.update:
               id: scatter_series
               point:
                 x: !lambda return 50;
