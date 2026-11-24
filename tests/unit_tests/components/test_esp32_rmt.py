@@ -650,6 +650,65 @@ def test_fixed_channels_not_recorded_without_rmt_caps(variant: str) -> None:
     assert not esp32_rmt._get_data().channels
 
 
+@pytest.mark.parametrize(
+    ("variant", "channels", "match"),
+    [
+        # C3 has two RX blocks, and an RX channel cannot use the TX blocks
+        (
+            VARIANT_ESP32C3,
+            (("TX", 1), ("RX", 3)),
+            (
+                r"'bus' requests an RMT RX channel of 3 blocks, but on ESP32C3 one "
+                r"RX channel must have 1 to 2 blocks"
+            ),
+        ),
+        (
+            VARIANT_ESP32S3,
+            (("TX", 0),),
+            (
+                r"'bus' requests an RMT TX channel of 0 blocks, but on ESP32S3 one "
+                r"TX channel must have 1 to 8 blocks"
+            ),
+        ),
+        (
+            VARIANT_ESP32S3,
+            (("RX", 1), ("tx", 1)),
+            (
+                r"'bus' requests an RMT channel in the direction 'tx', but it must "
+                r"be 'TX' or 'RX'"
+            ),
+        ),
+    ],
+)
+def test_invalid_fixed_channels_fail(
+    variant: str, channels: tuple[tuple[str, int], ...], match: str
+) -> None:
+    """A wrong channel is a bug in the component, and none of its channels is recorded."""
+    _set_variant(variant)
+    with pytest.raises(cv.Invalid, match=match):
+        esp32_rmt.request_rmt_channels(channels, PRIORITY)(_bus("bus"))
+    assert not esp32_rmt._get_data().channels
+
+
+@pytest.mark.parametrize(
+    ("variant", "channels"),
+    [
+        (VARIANT_ESP32C3, (("RX", 2), ("TX", 4))),
+        (VARIANT_ESP32S3, (("RX", 4), ("TX", 8))),
+        # On the ESP32 TX and RX share the 8 blocks
+        (VARIANT_ESP32, (("RX", 8), ("TX", 8))),
+    ],
+)
+def test_largest_fixed_channels_pass(
+    variant: str, channels: tuple[tuple[str, int], ...]
+) -> None:
+    """One channel can have as many blocks as request_rmt_channel() allows."""
+    _set_variant(variant)
+    bus = _bus("bus")
+    assert esp32_rmt.request_rmt_channels(channels, PRIORITY)(bus) is bus
+    assert len(esp32_rmt._get_data().channels) == 2
+
+
 def _check_fixed(
     caplog: pytest.LogCaptureFixture,
     variant: str,

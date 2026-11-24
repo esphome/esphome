@@ -208,6 +208,21 @@ def request_rmt_channels(
     def _validator(config: ConfigType) -> ConfigType:
         if (memory := _get_memory()) is None:
             return config
+        # Wrong values here are a bug in the component, so all of them are checked
+        # before any channel is recorded
+        for direction, blocks in channels:
+            if direction not in _IDF_ERRORS:
+                raise cv.Invalid(
+                    f"'{config[CONF_ID]}' requests an RMT channel in the direction "
+                    f"'{direction}', but it must be 'TX' or 'RX'"
+                )
+            limit = _max_blocks(direction, memory)
+            if not 1 <= blocks <= limit:
+                raise cv.Invalid(
+                    f"'{config[CONF_ID]}' requests an RMT {direction} channel of "
+                    f"{blocks} blocks, but on {esp32.get_esp32_variant()} one "
+                    f"{direction} channel must have 1 to {limit} blocks"
+                )
         _get_data().channels.extend(
             _Channel(
                 config[CONF_ID],
