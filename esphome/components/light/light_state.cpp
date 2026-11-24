@@ -88,7 +88,7 @@ void LightState::setup() {
   } else {
 #ifdef USE_LIGHT_RESUME_EFFECT
     // An off light cannot start its effect now; keep it for the first turn-on instead
-    this->previous_effect_index_ = recovered.effect;
+    this->previous_effect_index_ = this->supports_effects() ? recovered.effect : 0;
 #endif  // USE_LIGHT_RESUME_EFFECT
     // Not set_transition_length_if_supported(): without a known color mode it would leave the default transition,
     // a fade that only runs from loop(). perform() drops a 0 transition, also for lights without transitions.
