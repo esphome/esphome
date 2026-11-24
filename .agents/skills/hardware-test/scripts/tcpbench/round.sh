@@ -8,6 +8,7 @@ H=$(cd "$(dirname "$0")" && pwd)
 : "${TREE:?set TREE}" "${PORT:?set PORT}" "${SKILL:?set SKILL}"; PY=${PY:-python3}
 c=${1:?cfg}; t=${2:?tag}; r=${3:?round}; N=$c$t
 pkill -f "[s]erial_capture.py $PORT"; sleep 1
+TREE=$TREE PY=$PY bash "$SKILL/pio_build.sh" compile "$N" "$H/$c.yaml" || exit 1
 TREE=$TREE PY=$PY bash "$SKILL/pio_build.sh" upload "$N" "$H/$c.yaml" "$PORT" || exit 1
 CAP=$H/cap-$N-r$r.txt
 $PY "$SKILL/serial_capture.py" "$PORT" 420 "$CAP" > /dev/null 2>&1 &

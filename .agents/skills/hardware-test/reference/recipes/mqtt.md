@@ -168,4 +168,5 @@ per connection.
 callback that stores `micros()`, so `on_disconnect` can log how long it waited for the main loop (`lat_us`), and
 `ctx.hpp` names the task each automation runs in. Drive disconnects from the broker side (TCP reset, close and
 refuse, close soon after CONNACK) and read the ONDISCONNECT lines; host serial timestamps are too coarse for this
-(pyserial reads with a 0.2 s timeout).
+(pyserial reads with a 0.2 s timeout). On dev the automation runs inside the callback, before the hook, so its
+`lat_us` is stale; only `ctx` means anything there.

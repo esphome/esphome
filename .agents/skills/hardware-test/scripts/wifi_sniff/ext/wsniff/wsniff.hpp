@@ -84,8 +84,7 @@ class WSniff : public Component {
     portENTER_CRITICAL(&mux_);
     n = this->n_;
     memcpy(snap, this->dests_, sizeof(snap));
-    for (size_t i = 0; i < n; i++)
-      this->dests_[i].count = 0;
+    this->n_ = 0;  // free the slots so new destinations get one
     all = this->seen_;
     this->seen_ = 0;
     portEXIT_CRITICAL(&mux_);

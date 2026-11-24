@@ -10,10 +10,10 @@ H = Path(sys.argv[1] if len(sys.argv) > 1 else ".")
 KEYS = {"rx": "KBps", "tx": "KBps", "tcpburst": "median", "udpburst": "median"}
 rows: dict[str, dict[str, list[float]]] = {}
 for line in (H / "results.txt").read_text(encoding="utf-8").splitlines():
-    m = re.match(r"(\w+) r(\d+) \S+ (\w+) .*RESULT (.*)", line)
+    m = re.match(r"(\S+) r(\d+) \S+ (\w+) .*RESULT (.*)", line)
     if not m or m[3] not in KEYS:
         continue
-    v = re.search(KEYS[m[3]] + r"=([\d.]+)", m[4])
+    v = re.search(KEYS[m[3]] + r"=(-?[\d.]+)", m[4])
     rows.setdefault(m[1], {k: [] for k in KEYS})[m[3]].append(float(v[1]))
 
 

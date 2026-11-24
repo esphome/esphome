@@ -15,6 +15,7 @@ external_components:
 logger:
   hardware_uart: UART0
   level: INFO
+  tx_buffer_size: 1024
 wsniff:
   channel: 6
   target: ${target}
