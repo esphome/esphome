@@ -747,9 +747,9 @@ async def series_action_to_code(
     x_scale, y_scale = series_multipliers(chart.config, series_config)
 
     async def do_action(w: Widget) -> None:
-        obj = automation.parent_ref(w.obj)
-        await action(obj, series, x_scale, y_scale)
-        lv.chart_refresh(obj)
+        # The LVGL calls redraw what they change, so no lv_chart_refresh(): in
+        # CIRCULAR mode that would redraw the whole chart for every new value.
+        await action(automation.parent_ref(w.obj), series, x_scale, y_scale)
 
     return await action_to_code([chart], do_action, action_id, template_arg, args)
 

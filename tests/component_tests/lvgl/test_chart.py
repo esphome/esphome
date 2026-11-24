@@ -766,3 +766,13 @@ def test_series_errors_point_at_the_series(config: dict, path: list) -> None:
     with pytest.raises(Invalid) as err:
         CHART_SCHEMA(config)
     assert err.value.path == path
+
+
+def test_series_actions_do_not_redraw_the_whole_chart(
+    generate_main, component_config_path
+) -> None:
+    """LVGL redraws only the changed point in CIRCULAR mode; a refresh would redraw
+    the whole chart every time."""
+    main_cpp = generate_main(component_config_path("chart_test.yaml"))
+
+    assert "lv_chart_refresh(::" not in main_cpp
