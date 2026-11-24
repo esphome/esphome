@@ -33,11 +33,6 @@ from esphome.const import (
     CONF_VISUAL,
     CONF_WEB_SERVER,
     CONF_WEB_SERVER_ID,
-    CONF_ZIGBEE_BINARY_SENSOR,
-    CONF_ZIGBEE_ID,
-    CONF_ZIGBEE_NUMBER,
-    CONF_ZIGBEE_SENSOR,
-    CONF_ZIGBEE_SWITCH,
     UNIT_CELSIUS,
 )
 from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
@@ -1096,7 +1091,6 @@ def mqtt_component_class(name: str) -> MockObjClass:
 ZIGBEE_MAX_EP_NUMBER = 239
 
 _zigbee_ns = cg.esphome_ns.namespace("zigbee")
-_ZigbeeComponent = _zigbee_ns.class_("ZigbeeComponent", cg.Component)
 ZIGBEE_REPORT = _zigbee_ns.enum("ZigbeeReportT").options(
     "coordinator", "enable", "force", "default", prefix="ZIGBEE_REPORT_"
 )
@@ -1122,7 +1116,6 @@ def zigbee_base_entity_schema(cluster_options: list[str] | None = None) -> cv.Sc
             ),
             cv.Optional(CONF_ENDPOINT): cv.All(
                 cv.requires_component("zigbee"),
-                cv.requires_component("esp32"),
                 cv.int_range(1, ZIGBEE_MAX_EP_NUMBER),
             ),
             cv.Optional(CONF_USE_DEVICE_TYPE): cv.All(
@@ -1148,43 +1141,13 @@ def zigbee_base_entity_schema(cluster_options: list[str] | None = None) -> cv.Sc
 
 
 ZIGBEE_BASE_ENTITY_SCHEMA = zigbee_base_entity_schema()
-
-# Entity platform -> (config key, zigbee C++ class, esp32 cluster options). A
-# unit test checks each class against the owning declaration in zigbee_zephyr.
-_ZIGBEE_ENTITY_CLASSES = {
-    "binary_sensor": (
-        CONF_ZIGBEE_BINARY_SENSOR,
-        "ZigbeeBinarySensor",
-        ["generic", "device_class"],
-    ),
-    "sensor": (
-        CONF_ZIGBEE_SENSOR,
-        "ZigbeeSensor",
-        ["generic", "device_class", "power_config"],
-    ),
-    "switch": (CONF_ZIGBEE_SWITCH, "ZigbeeSwitch", ["generic", "on_off"]),
-    "number": (CONF_ZIGBEE_NUMBER, "ZigbeeNumber", ["generic"]),
-}
-
-
-def _zigbee_entity_schema(platform: str) -> cv.Schema:
-    conf_key, class_name, cluster_options = _ZIGBEE_ENTITY_CLASSES[platform]
-    return zigbee_base_entity_schema(cluster_options).extend(
-        {
-            cv.OnlyWith(CONF_ZIGBEE_ID, ["nrf52", "zigbee"]): cv.use_id(
-                _ZigbeeComponent
-            ),
-            cv.OnlyWith(conf_key, ["nrf52", "zigbee"]): cv.declare_id(
-                _zigbee_ns.class_(class_name, cg.Component)
-            ),
-        }
-    )
-
-
-ZIGBEE_BINARY_SENSOR_SCHEMA = _zigbee_entity_schema("binary_sensor")
-ZIGBEE_SENSOR_SCHEMA = _zigbee_entity_schema("sensor")
-ZIGBEE_SWITCH_SCHEMA = _zigbee_entity_schema("switch")
-ZIGBEE_NUMBER_SCHEMA = _zigbee_entity_schema("number")
+ZIGBEE_BINARY_SENSOR_SCHEMA = zigbee_base_entity_schema(["generic", "device_class"])
+ZIGBEE_SENSOR_SCHEMA = zigbee_base_entity_schema(
+    ["generic", "device_class", "power_config"]
+)
+ZIGBEE_SWITCH_SCHEMA = zigbee_base_entity_schema(["generic", "on_off"])
+ZIGBEE_NUMBER_SCHEMA = zigbee_base_entity_schema(["generic"])
+ZIGBEE_LIGHT_SCHEMA = ZIGBEE_BASE_ENTITY_SCHEMA
 
 
 def lazy_load_validator(

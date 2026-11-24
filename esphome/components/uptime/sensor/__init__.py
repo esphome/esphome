@@ -5,12 +5,10 @@ from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_TIME_ID,
-    DEVICE_CLASS_DURATION,
     DEVICE_CLASS_TIMESTAMP,
     ENTITY_CATEGORY_DIAGNOSTIC,
     ICON_TIMER,
     STATE_CLASS_TOTAL_INCREASING,
-    UNIT_SECOND,
 )
 from esphome.types import ConfigType
 
@@ -27,11 +25,9 @@ CONFIG_SCHEMA = cv.typed_schema(
     {
         "seconds": sensor.sensor_schema(
             UptimeSecondsSensor,
-            unit_of_measurement=UNIT_SECOND,
+            kind=sensor.DURATION_S,
             icon=ICON_TIMER,
-            accuracy_decimals=0,
             state_class=STATE_CLASS_TOTAL_INCREASING,
-            device_class=DEVICE_CLASS_DURATION,
             entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
         ).extend(cv.polling_component_schema("60s")),
         "timestamp": sensor.sensor_schema(

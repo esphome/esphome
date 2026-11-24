@@ -8,7 +8,7 @@ from esphome.const import (
     CONF_MAC_ADDRESS,
     CONF_MOISTURE,
     CONF_TEMPERATURE,
-    DEVICE_CLASS_HUMIDITY,
+    DEVICE_CLASS_MOISTURE,
     ENTITY_CATEGORY_DIAGNOSTIC,
     STATE_CLASS_MEASUREMENT,
     UNIT_PERCENT,
@@ -40,7 +40,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_MOISTURE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PERCENT,
                 accuracy_decimals=1,
-                device_class=DEVICE_CLASS_HUMIDITY,
+                device_class=DEVICE_CLASS_MOISTURE,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_ILLUMINANCE): sensor.sensor_schema(

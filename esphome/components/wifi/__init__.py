@@ -825,14 +825,14 @@ def wifi_network(config, ap, manual_ip_index: int | None):
     if CONF_EAP in config:
         cg.add(ap.set_eap(eap_auth(config[CONF_EAP])))
         cg.add_define("USE_WIFI_WPA2_EAP")
-    if CONF_BSSID in config:
-        cg.add(ap.set_bssid([HexInt(i) for i in config[CONF_BSSID].parts]))
+    if (bssid := config.get(CONF_BSSID)) is not None:
+        cg.add(ap.set_bssid([HexInt(i) for i in bssid.parts]))
     cg.add_optional(ap.set_hidden, config.get(CONF_HIDDEN))
     cg.add_optional(ap.set_channel, config.get(CONF_CHANNEL))
     cg.add_optional(ap.set_manual_ip, manual_ip_index)
     # priority_ is 0 in C++; skip the setter when the config matches it.
-    if config.get(CONF_PRIORITY, 0) != 0:
-        cg.add(ap.set_priority(config[CONF_PRIORITY]))
+    if (priority := config.get(CONF_PRIORITY, 0)) != 0:
+        cg.add(ap.set_priority(priority))
 
     return ap
 
@@ -991,14 +991,14 @@ async def to_code(config):
     # passive_scan defaults to false in C++ - only set if true
     if config[CONF_PASSIVE_SCAN]:
         cg.add(var.set_passive_scan(True))
-    if CONF_OUTPUT_POWER in config:
-        cg.add(var.set_output_power(config[CONF_OUTPUT_POWER]))
+    if (output_power := config.get(CONF_OUTPUT_POWER)) is not None:
+        cg.add(var.set_output_power(output_power))
         if CORE.is_esp32:
             # Set PHY max TX power to match output_power so calibration also uses
             # reduced power. This prevents brownout during PHY init on marginal
             # power supplies, which is critical for OTA updates with rollback enabled.
             # Kconfig range is 10-20, ESPHome allows 8.5-20.5
-            phy_tx_power = max(10, min(20, math.ceil(config[CONF_OUTPUT_POWER])))
+            phy_tx_power = max(10, min(20, math.ceil(output_power)))
             add_idf_sdkconfig_option("CONFIG_ESP_PHY_MAX_WIFI_TX_POWER", phy_tx_power)
     # enable_on_boot defaults to true in C++ - only set if false
     if not config[CONF_ENABLE_ON_BOOT]:
@@ -1019,9 +1019,9 @@ async def to_code(config):
 
     if CORE.is_esp8266:
         cg.add_library("ESP8266WiFi", None)
-        if CONF_PHY_MODE in config:
+        if (phy_mode := config.get(CONF_PHY_MODE)) is not None:
             cg.add_define("USE_WIFI_PHY_MODE")
-            cg.add(var.set_phy_mode(config[CONF_PHY_MODE]))
+            cg.add(var.set_phy_mode(phy_mode))
     elif CORE.is_rp2:
         cg.add_library("WiFi", None)
 
