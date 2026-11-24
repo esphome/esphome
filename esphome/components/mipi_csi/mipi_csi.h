@@ -46,8 +46,11 @@ struct CameraImageData {
 /// the encoder's output buffer. The camera waits for every shared_ptr to be released before it does.
 class MipiCsiImage : public camera::CameraImage {
  public:
-  MipiCsiImage(uint8_t *data, size_t length, uint8_t requesters)
-      : data_(data), length_(length), requesters_(requesters) {}
+  void set_frame(uint8_t *data, size_t length, uint8_t requesters) {
+    this->data_ = data;
+    this->length_ = length;
+    this->requesters_ = requesters;
+  }
 
   uint8_t *get_data_buffer() override { return this->data_; }
   size_t get_data_length() override { return this->length_; }
@@ -56,9 +59,9 @@ class MipiCsiImage : public camera::CameraImage {
   }
 
  protected:
-  uint8_t *data_;
-  size_t length_;
-  uint8_t requesters_;
+  uint8_t *data_{nullptr};
+  size_t length_{0};
+  uint8_t requesters_{0};
 };
 
 /// Tracks how far a consumer has read into an image.
@@ -179,6 +182,7 @@ class MipiCsiCamera final : public camera::Camera {
   /// Set by the main loop to ask the capture task for one frame, cleared by the task when done.
   std::atomic<bool> frame_wanted_{false};
 
+  std::shared_ptr<MipiCsiImage> reusable_image_;
   std::shared_ptr<MipiCsiImage> current_image_;
   std::vector<camera::CameraListener *> listeners_;
   std::atomic<uint8_t> single_requesters_{0};

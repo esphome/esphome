@@ -80,6 +80,8 @@ void MipiCsiCamera::setup() {
     return;
   }
 
+  this->reusable_image_ = std::make_shared<MipiCsiImage>();
+
   this->update_interval_ = 1000 / this->framerate_;
   this->result_queue_ = xQueueCreate(1, sizeof(size_t));
   if (this->result_queue_ == nullptr) {
@@ -502,7 +504,7 @@ void MipiCsiCamera::loop() {
 
   // Release the previous image once every consumer has finished reading it, which frees the
   // encoder's output buffer for the next frame.
-  if (this->current_image_ && this->current_image_.use_count() == 1) {
+  if (this->current_image_ && this->current_image_.use_count() == 2) {
     this->current_image_.reset();
   }
 
@@ -517,8 +519,8 @@ void MipiCsiCamera::loop() {
         this->pending_requesters_ = 0;
         return;
       }
-      this->current_image_ =
-          std::make_shared<MipiCsiImage>(this->encoder_.get_output_buffer(), length, this->pending_requesters_);
+      this->reusable_image_->set_frame(this->encoder_.get_output_buffer(), length, this->pending_requesters_);
+      this->current_image_ = this->reusable_image_;
       this->pending_requesters_ = 0;
       this->published_frames_++;
       this->published_bytes_ += length;
