@@ -7,6 +7,21 @@ namespace esphome::canopen {
 
 ESPHOME_LOG_TAG(TAG, "canopen");
 
+const LogString *nmt_state_to_string(NMTState state) {
+  switch (state) {
+    case NMTState::NMT_STATE_BOOTUP:
+      return LOG_STR("bootup");
+    case NMTState::NMT_STATE_STOPPED:
+      return LOG_STR("stopped");
+    case NMTState::NMT_STATE_OPERATIONAL:
+      return LOG_STR("operational");
+    case NMTState::NMT_STATE_PRE_OPERATIONAL:
+      return LOG_STR("pre-operational");
+    default:
+      return LOG_STR("unknown");
+  }
+}
+
 // No CO_CANopenInit(): it needs a node id and starts NMT, heartbeat, EMCY and the SDO server.
 void CANopenComponent::setup() {
   if (this->canbus_->is_failed()) {
@@ -32,6 +47,7 @@ void CANopenComponent::setup() {
     this->fail_setup_(LOG_STR("SDO client init failed"));
     return;
   }
+  this->init_frame_listeners_();
   CO_CANsetNormalMode(this->co_->CANmodule);
   this->canbus_->add_frame_callback([this](const canbus::CanFrame &frame) { this->on_frame_(frame); });
   ESP_LOGV(TAG, "CANopenNode initialized, SDO client, heap %" PRIu32 " B", heap);
@@ -47,10 +63,11 @@ void CANopenComponent::dump_config() {
 }
 
 bool CANopenComponent::idle_() const {
-  return this->co_->CANmodule->CANtxCount == 0 && !this->sdo_busy_ && this->sdo_queue_.empty();
+  return this->co_->CANmodule->CANtxCount == 0 && !this->sdo_busy_ && this->sdo_queue_.empty() &&
+         this->sdo_abort_guard_us_ == 0;
 }
 
-// queue_sdo_() and CO_CANsend() enable the loop again.
+// queue_sdo_(), cancel_sdo() and CO_CANsend() enable the loop again.
 void CANopenComponent::loop() {
   if (this->idle_()) {
     this->disable_loop();

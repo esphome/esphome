@@ -40,6 +40,7 @@ void CANopenComponent::on_frame_(const canbus::CanFrame &frame) {
       continue;
     rx->CANrx_callback(rx->object, &msg);
   }
+  this->dispatch_frame_(msg);
   // CANopenNode restarts its response timer on a reply, so loop() charges time from here.
   if (CO_FLAG_READ(this->co_->SDOclient->CANrxNew)) {
     this->process_sdo_(0);

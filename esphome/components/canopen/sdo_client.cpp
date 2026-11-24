@@ -10,6 +10,9 @@ namespace esphome::canopen {
 
 ESPHOME_LOG_TAG(TAG, "canopen.sdo");
 
+// after an abort, the next request to the same node waits this long, so the server has processed the abort
+static constexpr uint32_t ABORT_GUARD_US = 50000;
+
 PROGMEM_STRING_TABLE(SDOResultStrings, "success", "abort", "timeout", "size mismatch", "transport error", "rejected",
                      "unknown");
 
@@ -140,6 +143,20 @@ bool CANopenComponent::sdo_reply_is_stale_(const uint8_t *data, uint8_t len) con
   return encode_uint16(data[2], data[1]) != this->sdo_active_.index || data[3] != this->sdo_active_.sub;
 }
 
+void CANopenComponent::cancel_sdo(void *context) {
+  // one turn of the ring keeps the other requests in order
+  for (size_t n = this->sdo_queue_.size(); n > 0; n--) {
+    SDORequest r = this->sdo_queue_.front();
+    this->sdo_queue_.pop();
+    if (r.context != context)
+      this->sdo_queue_.push(r);
+  }
+  if (this->sdo_busy_ && this->sdo_active_.context == context) {
+    this->abort_sdo_();
+    this->enable_loop();  // the abort guard runs down in loop()
+  }
+}
+
 CO_SDO_return_t CANopenComponent::start_sdo_() {
   CO_SDOclient_t *cli = this->co_->SDOclient;
   SDORequest &r = this->sdo_active_;
@@ -172,10 +189,35 @@ CO_SDO_return_t CANopenComponent::start_sdo_() {
   return CO_SDO_RT_wrongArguments;
 }
 
+void CANopenComponent::process_sdo_abort_(uint32_t dt_us) {
+  if (this->sdo_abort_pending_) {
+    CO_SDOclient_t *cli = this->co_->SDOclient;
+    if (!cli->CANtxBuff->bufferFull) {
+      // it left in the flush after the last call (loop()), so dt_us ago
+      this->sdo_abort_pending_ = false;
+      this->sdo_abort_guard_us_ = ABORT_GUARD_US;
+    } else if (this->sdo_abort_guard_us_ <= dt_us) {
+      // The bus refused it for a whole response timeout: drop it, so it doesn't hold up the queue. The server ends
+      // the transfer at its own timeout.
+      discard_pending_tx(cli->CANdevTx, cli->CANtxBuff);
+      this->sdo_abort_pending_ = false;
+      ESP_LOGW(TAG, "node 0x%02x: abort of a cancelled transfer not sent", this->sdo_abort_node_);
+    }
+  }
+  this->sdo_abort_guard_us_ = this->sdo_abort_guard_us_ > dt_us ? this->sdo_abort_guard_us_ - dt_us : 0;
+}
+
 void CANopenComponent::process_sdo_(uint32_t dt_us) {
+  this->process_sdo_abort_(dt_us);
   if (!this->sdo_busy_) {
-    if (this->sdo_queue_.empty())
+    // a pending abort holds the client's TX buffer
+    if (this->sdo_queue_.empty() || this->sdo_abort_pending_)
       return;
+    if (this->sdo_queue_.front().node_id == this->sdo_abort_node_) {
+      if (this->sdo_abort_guard_us_ > 0)
+        return;
+      this->sdo_abort_node_ = 0;
+    }
     this->sdo_active_ = this->sdo_queue_.front();
     this->sdo_queue_.pop();
     this->sdo_busy_ = true;
@@ -289,6 +331,27 @@ void CANopenComponent::finish_sdo_(SDOResult result, uint32_t abort_code) {
   // the slot is free now, so the callback may queue the next request
   if (r.callback != nullptr)
     r.callback(r.context, reply);
+}
+
+void CANopenComponent::abort_sdo_() {
+  CO_SDOclient_t *cli = this->co_->SDOclient;
+  SDORequest &r = this->sdo_active_;
+  // Discard only this client's unsent frame before replacing it with an abort.
+  // The driver and the SDO client run on the same main-loop context.
+  discard_pending_tx(cli->CANdevTx, cli->CANtxBuff);
+  CO_SDO_abortCode_t abort = CO_SDO_AB_GENERAL;
+  if (r.kind == SDOKind::SDO_KIND_READ || r.kind == SDOKind::SDO_KIND_READ_DATA) {
+    CO_SDOclientUpload(cli, 0, true, &abort, nullptr, nullptr, nullptr);
+  } else {
+    CO_SDOclientDownload(cli, 0, true, false, &abort, nullptr, nullptr);
+  }
+  ESP_LOGD(TAG, "node 0x%02x, 0x%04x:%u: cancelled", r.node_id, r.index, r.sub);
+  CO_SDOclientClose(cli);
+  this->sdo_abort_node_ = r.node_id;
+  this->sdo_abort_pending_ = cli->CANtxBuff->bufferFull;
+  this->sdo_abort_guard_us_ = this->sdo_abort_pending_ ? this->response_timeout_ms_ * 1000u : ABORT_GUARD_US;
+  this->sdo_active_ = SDORequest{};
+  this->sdo_busy_ = false;
 }
 
 }  // namespace esphome::canopen
