@@ -114,7 +114,8 @@ void Image::draw_(int x, int y, display::Display *display, Color color_on, Color
                                  [&](int img_x, int img_y, int pos) ESPHOME_ALWAYS_INLINE {
                                    auto color = this->get_rgb111_pixel_(img_x, img_y);
                                    if (color.w >= 0x80) {
-                                     display->draw_pixel_at(x + img_x, y + img_y, Color(color.r, color.g, color.b));
+                                     color.w = 0;
+                                     display->draw_pixel_at(x + img_x, y + img_y, color);
                                    }
                                  });
       break;
@@ -141,7 +142,8 @@ void Image::draw_(int x, int y, display::Display *display, Color color_on, Color
                                  [&](int img_x, int img_y, int pos) ESPHOME_ALWAYS_INLINE {
                                    auto color = this->get_rgb565_pixel_(img_x, img_y);
                                    if (color.w >= 0x80) {
-                                     display->draw_pixel_at(x + img_x, y + img_y, Color(color.r, color.g, color.b));
+                                     color.w = 0;
+                                     display->draw_pixel_at(x + img_x, y + img_y, color);
                                    }
                                  });
       break;
@@ -150,7 +152,8 @@ void Image::draw_(int x, int y, display::Display *display, Color color_on, Color
                                  [&](int img_x, int img_y, int pos) ESPHOME_ALWAYS_INLINE {
                                    auto color = this->get_rgb_pixel_(img_x, img_y);
                                    if (color.w >= 0x80) {
-                                     display->draw_pixel_at(x + img_x, y + img_y, Color(color.r, color.g, color.b));
+                                     color.w = 0;
+                                     display->draw_pixel_at(x + img_x, y + img_y, color);
                                    }
                                  });
       break;
