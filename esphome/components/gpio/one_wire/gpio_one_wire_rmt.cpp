@@ -32,7 +32,8 @@ void GPIORMTOneWireBus::setup() {
   const auto gpio = static_cast<gpio_num_t>(this->pin_->get_pin());
   // pin_->setup() is left out, as it could drive the line Low before RMT takes over. So release a hold here
   // that an earlier boot left on the pin, or the pad keeps its old state. Not only with USE_GPIO_HOLD: the
-  // firmware before an OTA update may have held this pin. The pin can output, so its pad supports a hold.
+  // firmware before an OTA update may have held this pin. Some output pads have no hold, such as GPIO20 of the
+  // ESP32. On those, gpio_hold_dis() returns an error. It is ignored, because there is no hold to release.
   gpio_hold_dis(gpio);
 
   rmt_copy_encoder_config_t encoder_config{};
