@@ -1,5 +1,6 @@
 """Tests for the tflite_op_processor operator manifest helpers."""
 
+import asyncio
 from collections.abc import Callable, Sequence
 from functools import partial
 from pathlib import Path
@@ -1025,3 +1026,17 @@ def test_validate_model_operators_reports_an_unreadable_model(
         pytest.raises(cv.Invalid, match="not a model"),
     ):
         tflite_op_processor.validate_model_operators(Path("digit.tflite"))
+
+
+def test_a_pinned_operator_list_sizes_the_resolver(setup_core: Path) -> None:
+    """A replacement model loads against the same resolver, so the list widens it."""
+    with (
+        patch.object(tflite_op_processor, "esp32"),
+        patch.object(tflite_op_processor, "emit_selective_op_defines"),
+        patch.object(tflite_op_processor, "_emit_max_operators") as emit_max,
+    ):
+        asyncio.run(
+            tflite_op_processor.to_code({CONF_OPERATORS: ["ADD", "MUL", "ADD"]})
+        )
+
+    emit_max.assert_called_once_with(2)

@@ -68,6 +68,9 @@ async def to_code(config: ConfigType) -> None:
     esp32.add_idf_component(name="espressif/esp-tflite-micro", ref="1.4.1")
     esp32.add_idf_component(name="espressif/esp-nn", ref="1.5.0")
     if (operators := config.get(CONF_OPERATORS)) is not None:
+        # A pinned list can exceed what the YAML models need, and a replacement
+        # model loads against this same resolver, so size it for the list too.
+        _emit_max_operators(len(set(operators)))
         emit_selective_op_defines(operators)
 
 
