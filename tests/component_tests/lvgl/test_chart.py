@@ -548,10 +548,9 @@ def test_grid_lines_codegen(generate_main, component_config_path) -> None:
     assert "lv_chart_set_ver_div_line_count(scaled_chart, 0);" in main_cpp
     assert "lv_chart_set_hor_div_line_count(scaled_chart, 4);" in main_cpp
     assert "lv_chart_set_ver_div_line_count(scaled_chart, 2);" in main_cpp
-    # Only creation sets the X range
+    # A line chart has no X range
     assert (
-        main_cpp.count("lv_chart_set_axis_range(scaled_chart, LV_CHART_AXIS_PRIMARY_X")
-        == 1
+        "lv_chart_set_axis_range(scaled_chart, LV_CHART_AXIS_PRIMARY_X" not in main_cpp
     )
 
 
@@ -560,3 +559,43 @@ def test_series_axis_must_be_primary_or_secondary() -> None:
     assert config["series"][0]["y_axis"] == "secondary"
     with pytest.raises(Invalid):
         CHART_SCHEMA({"series": [{"id": "s", "y_axis": "tertiary"}]})
+
+
+@pytest.mark.parametrize(
+    "config",
+    [
+        {"x_axis": {"min_value": 0, "max_value": 10}},
+        {"x_axis": {"multiplier": 2}},
+        {"secondary_x_axis": {}},
+    ],
+)
+@pytest.mark.parametrize("chart_type", ["line", "bar"])
+def test_x_range_needs_a_scatter_chart(chart_type: str, config: dict) -> None:
+    with pytest.raises(Invalid, match="Only a scatter chart"):
+        CHART_SCHEMA({"type": chart_type, **config})
+    assert CHART_SCHEMA({"type": "scatter", **config})
+
+
+def test_x_grid_lines_on_any_chart() -> None:
+    assert CHART_SCHEMA({"type": "line", "x_axis": {"grid_lines": 3}})
+
+
+def test_range_values_go_together() -> None:
+    with pytest.raises(Invalid):
+        CHART_SCHEMA({"y_axis": {"min_value": 0}})
+    assert "min_value" not in CHART_SCHEMA({"y_axis": {"grid_lines": 2}})["y_axis"]
+
+
+def test_x_range_update_needs_a_scatter_chart(tmp_path: Path) -> None:
+    errors = _validation_errors(
+        tmp_path,
+        "              id: line_series\n              value: 1",
+        "          - lvgl.chart.update:\n"
+        "              id: line_chart\n"
+        "              x_axis:\n"
+        "                min_value: 0\n"
+        "                max_value: 5",
+    )
+    assert len(errors) == 1
+    assert "Only a scatter chart has an X range" in str(errors[0])
+    assert errors[0].path[-2:] == ["x_axis", "min_value"]

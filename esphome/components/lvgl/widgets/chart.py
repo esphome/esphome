@@ -105,12 +105,14 @@ def scale_value(value: float, multiplier: float) -> int | None:
 
 def _validate_range(config: ConfigType, multiplier: float | None = None) -> None:
     """LVGL divides by the width of the range when it draws a bar chart."""
+    if CONF_MIN_VALUE not in config:
+        return
     min_value = config[CONF_MIN_VALUE]
     max_value = config[CONF_MAX_VALUE]
     if isinstance(min_value, Lambda) or isinstance(max_value, Lambda):
         return
     if multiplier is None:
-        multiplier = config[CONF_MULTIPLIER]
+        multiplier = config.get(CONF_MULTIPLIER, 1.0)
     if scale_value(min_value, multiplier) == scale_value(max_value, multiplier):
         raise cv.Invalid(
             f"{CONF_MIN_VALUE} and {CONF_MAX_VALUE} must not be equal "
@@ -126,20 +128,17 @@ def _validate_created_range(config: ConfigType) -> ConfigType:
 def _validate_updated_range(config: ConfigType) -> ConfigType:
     # The multiplier is set when the chart is created; ChartType.final_validate()
     # checks the range scaled by it. Equal values are wrong whatever it is.
-    if CONF_MIN_VALUE in config:
-        _validate_range(config, 1.0)
+    _validate_range(config, 1.0)
     return config
 
 
 def _axis_schema(grid_lines: bool) -> cv.All:
     """An axis of a new chart. Only the primary axes have grid lines, since the
-    secondary axes share the same grid."""
+    secondary axes share the same grid. Without a range, LVGL uses 0 to 100."""
     schema = {
-        cv.Optional(CONF_MIN_VALUE, default=0): lv_finite_float,
-        cv.Optional(CONF_MAX_VALUE, default=100): lv_finite_float,
-        cv.Optional(CONF_MULTIPLIER, default=1.0): cv.All(
-            cv.positive_not_null_float, _finite
-        ),
+        cv.Inclusive(CONF_MIN_VALUE, "range"): lv_finite_float,
+        cv.Inclusive(CONF_MAX_VALUE, "range"): lv_finite_float,
+        cv.Optional(CONF_MULTIPLIER): cv.All(cv.positive_not_null_float, _finite),
     }
     if grid_lines:
         schema[cv.Optional(CONF_GRID_LINES)] = GRID_LINES
@@ -235,9 +234,31 @@ CHART_MODIFY_SCHEMA = cv.Schema(
 )
 
 
+def x_axis_error(chart_type: str, config: ConfigType) -> cv.Invalid | None:
+    """Only a scatter chart places points by their X values, so only it has an X range
+    or a secondary X axis; other charts space their values evenly."""
+    if chart_type == "LV_CHART_TYPE_SCATTER":
+        return None
+    if CONF_SECONDARY_X_AXIS in config:
+        return cv.Invalid(
+            "Only a scatter chart has a secondary X axis", path=[CONF_SECONDARY_X_AXIS]
+        )
+    x_axis = config.get(CONF_X_AXIS, {})
+    for key in (CONF_MIN_VALUE, CONF_MULTIPLIER):
+        if key in x_axis:
+            return cv.Invalid(
+                "Only a scatter chart has an X range; other charts space their values "
+                f"evenly, and {CONF_X_AXIS} can only set {CONF_GRID_LINES}",
+                path=[CONF_X_AXIS, key],
+            )
+    return None
+
+
 def validate_chart(config: ConfigType) -> ConfigType:
     point_count = config[CONF_POINT_COUNT]
     is_scatter = config[CONF_TYPE] == "LV_CHART_TYPE_SCATTER"
+    if (error := x_axis_error(config[CONF_TYPE], config)) is not None:
+        raise error
     for index, series in enumerate(config.get(CONF_SERIES, ())):
         values = series.get(CONF_VALUES)
         points = series.get(CONF_POINTS)
@@ -357,6 +378,14 @@ class ChartType(WidgetType):
         widget_config: ConfigType,
         path: list,
     ) -> None:
+        if (error := x_axis_error(widget_config[CONF_TYPE], update_config)) is not None:
+            action_path = _find_path(full_config.get(), update_config, [])
+            raise cv.Invalid(
+                f"'lvgl.chart.update' for '{widget}': {error.msg}",
+                path=[]
+                if action_path is None
+                else [cv.ROOT_CONFIG_PATH, *action_path, *error.path],
+            )
         for axis_name, _ in AXES:
             if (axis := update_config.get(axis_name)) is None or (
                 CONF_MIN_VALUE not in axis
