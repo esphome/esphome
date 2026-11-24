@@ -47,10 +47,11 @@ class MotorTest : public ::testing::Test {
     const uint16_t index = frame.data[1] | (frame.data[2] << 8);
     uint32_t value = encode_uint32(frame.data[7], frame.data[6], frame.data[5], frame.data[4]);
     const bool read = frame.data[0] == 0x40;
-    if (!read)
+    if (!read) {
       objects[index] = value;
-    else
+    } else {
       value = objects[index];
+    }
     const uint8_t size =
         index == 0x6041 ? 2 : (index == 0x6061 || index == 0x2102 || index == 0x209E || index == 0x20A7 ? 1 : 4);
     const uint8_t command = read ? 0x43 | ((4 - size) << 2) : 0x60;
