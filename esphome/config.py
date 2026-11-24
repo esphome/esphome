@@ -5,13 +5,13 @@ from collections.abc import Iterator
 from contextlib import contextmanager, suppress
 import contextvars
 import copy
-import functools
 import heapq
 import logging
 import re
 from typing import TYPE_CHECKING, Any
 
 import voluptuous as vol
+import yaml
 
 from esphome import core, loader, pins, yaml_util
 from esphome.components.substitutions import do_substitution_pass
@@ -26,8 +26,9 @@ from esphome.const import (
     CONF_PACKAGES,
     CONF_PLATFORM,
     CONF_SUBSTITUTIONS,
+    ErrorFormat,
 )
-from esphome.core import CORE, DocumentRange, EsphomeError
+from esphome.core import CORE, DocumentLocation, DocumentRange, EsphomeError
 
 # `esphome.core.config` is imported lazily at its two use sites below.
 # It pulls in `esphome.automation` and `esphome.config_validation`, which
@@ -38,7 +39,7 @@ from esphome.loader import ComponentManifest, get_component, get_platform
 from esphome.log import AnsiFore, color
 from esphome.types import ConfigFragmentType, ConfigType
 from esphome.util import OrderedDict, safe_print
-from esphome.voluptuous_schema import ExtraKeysInvalid
+from esphome.voluptuous_schema import ExtraKeysInvalid, KeyInvalid
 from esphome.yaml_util import ESPHomeDataBase, ESPLiteralValue, is_secret
 
 if TYPE_CHECKING:
@@ -232,27 +233,6 @@ def _resolve_component_aliases(config: dict[str, Any]) -> None:
     config.update(rewritten)
 
 
-@functools.total_ordering
-class _ValidationStepTask:
-    def __init__(self, priority: float, id_number: int, step: ConfigValidationStep):
-        self.priority = priority
-        self.id_number = id_number
-        self.step = step
-
-    @property
-    def _cmp_tuple(self) -> tuple[float, int]:
-        return (-self.priority, self.id_number)
-
-    def __eq__(self, other):
-        return self._cmp_tuple == other._cmp_tuple
-
-    def __ne__(self, other):
-        return not (self == other)
-
-    def __lt__(self, other):
-        return self._cmp_tuple < other._cmp_tuple
-
-
 class Config(OrderedDict, fv.FinalValidateConfig):
     def __init__(self):
         super().__init__()
@@ -270,8 +250,9 @@ class Config(OrderedDict, fv.FinalValidateConfig):
         # --no-defaults` to emit only the user-supplied keys.
         self.user_config: ConfigType | None = None
         self._data = {}
-        # Store pending validation tasks (in heap order)
-        self._validation_tasks: list[_ValidationStepTask] = []
+        # Pending validation steps in heap order, as (-priority, id, step); the
+        # unique id breaks ties, so steps themselves are never compared.
+        self._validation_tasks: list[tuple[float, int, ConfigValidationStep]] = []
         # ID to ensure stable order for keys with equal priority
         self._validation_tasks_id = 0
 
@@ -285,25 +266,19 @@ class Config(OrderedDict, fv.FinalValidateConfig):
             last_root = max(
                 i for i, v in enumerate(error.path) if v is cv.ROOT_CONFIG_PATH
             )
-            # can't change the path so re-create the error
-            error = vol.Invalid(
-                message=error.error_message,
-                path=error.path[last_root + 1 :],
-                error_type=error.error_type,
-            )
+            # Trim in place, as Invalid.prepend() does, to keep the subclass
+            error._path = error.path[last_root + 1 :]  # pylint: disable=protected-access
         self.errors.append(error)
 
     def add_validation_step(self, step: ConfigValidationStep):
         id_num = self._validation_tasks_id
         self._validation_tasks_id += 1
-        heapq.heappush(
-            self._validation_tasks, _ValidationStepTask(step.priority, id_num, step)
-        )
+        heapq.heappush(self._validation_tasks, (-step.priority, id_num, step))
 
     def run_validation_steps(self):
         while self._validation_tasks and not self.errors:
-            task = heapq.heappop(self._validation_tasks)
-            task.step.run(self)
+            _, _, step = heapq.heappop(self._validation_tasks)
+            step.run(self)
 
     @contextmanager
     def catch_error(self, path=None):
@@ -413,23 +388,33 @@ class Config(OrderedDict, fv.FinalValidateConfig):
 
 
 def iter_ids(config, path=None):
-    path = path or []
+    # Walk with one shared path and copy it only for the IDs found; copying it at
+    # every level made the walk cost grow with the depth of each value.
+    yield from _iter_ids(config, list(path or []))
+
+
+def _iter_ids(config: Any, path: list) -> Iterator[tuple[core.ID, ConfigPath]]:
     if isinstance(config, core.ID):
-        yield config, path
+        yield config, path.copy()
     elif isinstance(config, core.Lambda):
         for id in config.requires_ids:
-            yield id, path
+            yield id, path.copy()
     elif isinstance(config, list):
         for i, item in enumerate(config):
-            yield from iter_ids(item, path + [i])
+            path.append(i)
+            yield from _iter_ids(item, path)
+            path.pop()
     elif isinstance(config, dict):
+        top_level = not path
         for key, value in config.items():
-            if len(path) == 0 and key == CONF_SUBSTITUTIONS:
+            if top_level and key == CONF_SUBSTITUTIONS:
                 # Ignore IDs in substitution definitions.
                 continue
             if isinstance(key, core.ID):
-                yield key, path
-            yield from iter_ids(value, path + [key])
+                yield key, path.copy()
+            path.append(key)
+            yield from _iter_ids(value, path)
+            path.pop()
 
 
 def check_replaceme(value):
@@ -860,7 +845,7 @@ class PrefetchRemoteFilesValidationStep(ConfigValidationStep):
 class MetadataValidationStep(ConfigValidationStep):
     """Validate component metadata
 
-    Responsibilties:
+    Responsibilities:
      - Config transformation (nullable, multi conf)
      - Check dependencies
      - Check conflicts
@@ -1062,36 +1047,44 @@ class IDPassValidationStep(ConfigValidationStep):
             return
 
         searching_ids: list[tuple[core.ID, ConfigPath]] = []
+        # First declaration of each manual ID name, so lookups don't scan the list
+        manual_decls: dict[str, tuple[core.ID, ConfigPath]] = {
+            v[0].id: v for v in reversed(result.declare_ids) if v[0].id is not None
+        }
         for id, path in iter_ids(result):
             if id.is_declaration:
                 if id.id is not None:
                     # Look for duplicate definitions
-                    match = next(
-                        (v for v in result.declare_ids if v[0].id == id.id), None
-                    )
+                    match = manual_decls.get(id.id)
                     if match is not None:
                         opath = "->".join(str(v) for v in match[1])
                         result.add_str_error(
                             f"ID {id.id} redefined! Check {opath}", path
                         )
                         continue
+                    manual_decls[id.id] = (id, path)
                 result.declare_ids.append((id, path))
             else:
                 searching_ids.append((id, path))
 
         # Resolve default ids after manual IDs
+        used_ids = {v[0].id for v in result.declare_ids}
         for id, _ in result.declare_ids:
-            id.resolve([v[0].id for v in result.declare_ids])
+            if id.id is None:
+                used_ids.add(id.resolve(used_ids))
             if isinstance(id.type, MockObjClass) and id.type.inherits_from(Component):
                 CORE.component_ids.add(id.id)
+
+        # Every declared ID by name, first declaration first, as the scan found it
+        declared_by_name: dict[str, core.ID] = {}
+        for v in result.declare_ids:
+            declared_by_name.setdefault(v[0].id, v[0])
 
         # Check searched IDs
         for id, path in searching_ids:
             if id.id is not None:
                 # manually declared
-                match = next(
-                    (v[0] for v in result.declare_ids if v[0].id == id.id), None
-                )
+                match = declared_by_name.get(id.id)
                 if match is None or not match.is_manual:
                     # No declared ID with this name
                     import difflib
@@ -1128,6 +1121,40 @@ class IDPassValidationStep(ConfigValidationStep):
                     inherits = v[0].type.inherits_from(id.type)
                     if inherits:
                         matches.append(v[0])
+
+                if id.match_config:
+                    # Disambiguate among same-type candidates by comparing their own
+                    # declared config against the requested key/value pairs, e.g. an
+                    # I2C address, instead of requiring a single unambiguous candidate.
+                    criteria = ", ".join(f"{k}={v}" for k, v in id.match_config.items())
+                    filtered = [
+                        m
+                        for m in matches
+                        if isinstance(
+                            candidate_conf := fv.get_declaring_config(m, result),
+                            dict,
+                        )
+                        and all(
+                            candidate_conf.get(k) == v
+                            for k, v in id.match_config.items()
+                        )
+                    ]
+                    if len(filtered) == 1:
+                        id.id = filtered[0].id
+                    elif len(filtered) == 0:
+                        result.add_str_error(
+                            f"Couldn't find a '{id.type}' matching {criteria}. "
+                            "Are you missing a hub declaration, or is the address wrong?",
+                            path,
+                        )
+                    else:
+                        ids = ", ".join(f"'{m.id}'" for m in filtered)
+                        result.add_str_error(
+                            f"Multiple '{id.type}' instances match {criteria}: {ids}. "
+                            "You must assign an explicit ID to the one you want to use.",
+                            path,
+                        )
+                    continue
 
                 if len(matches) == 0:
                     result.add_str_error(
@@ -1226,7 +1253,20 @@ class CoreFinalValidateStep(ConfigValidationStep):
         with result.catch_error([CONF_ESPHOME]):
             if CONF_ESPHOME in result:
                 core_config.validate_ids_and_references(result[CONF_ESPHOME])
+                core_config.validate_loop_interval(result[CONF_ESPHOME])
         fv.full_config.reset(token)
+
+
+class OptionalPinValidationStep(ConfigValidationStep):
+    """Remove optional pins that are also used elsewhere"""
+
+    # After the ID pass, and before component final validations which may inspect pin use
+    priority = -15.0
+
+    def run(self, result: Config) -> None:
+        if result.errors:
+            return
+        pins.PIN_SCHEMA_REGISTRY.remove_optional_conflicts(result)
 
 
 class PinUseValidationCheck(ConfigValidationStep):
@@ -1402,6 +1442,7 @@ def validate_config(
     result.add_validation_step(PrefetchRemoteFilesValidationStep())
     result.add_validation_step(IDPassValidationStep())
     result.add_validation_step(CoreFinalValidateStep())
+    result.add_validation_step(OptionalPinValidationStep())
     result.add_validation_step(PinUseValidationCheck())
 
     result.add_validation_step(RemoveReferenceValidationStep())
@@ -1476,6 +1517,7 @@ class InvalidYAMLError(EsphomeError):
         message = f"Invalid YAML syntax:\n\n{base}"
         super().__init__(message)
         self.base_exc = base_exc
+        self.base_message = base
 
 
 def _load_config(
@@ -1516,6 +1558,86 @@ def load_config(
         )
     except vol.Invalid as err:
         raise EsphomeError(f"Error while parsing config: {err}") from err
+
+
+def get_invalid_range(res: Config, invalid: vol.Invalid) -> DocumentRange | None:
+    """Return the source range of the YAML that caused *invalid*."""
+    return res.get_deepest_document_range_for_path(
+        invalid.path, isinstance(invalid, KeyInvalid)
+    )
+
+
+def _format_location(location: DocumentLocation | None) -> str:
+    """Return a 1-based `file:line:column`, or the main config file if unknown."""
+    if location is None:
+        return str(CORE.config_path)
+    return f"{location.document}:{location.line + 1}:{location.column + 1}"
+
+
+def _print_line_message(location: str, kind: str, message: object) -> None:
+    """Print *message* as `location: kind: text`, one line per message line.
+
+    Lines after the first become `note:` lines, so tools that read one
+    message per line still see every line with its location.
+    """
+    lines = [line.strip() for line in str(message).splitlines() if line.strip()]
+    first, *rest = lines or [""]
+    safe_print(f"{location}: {kind}: {first}")
+    for line in rest:
+        safe_print(f"{location}: note: {line}")
+
+
+def _find_marked_yaml_error(err: BaseException) -> yaml.MarkedYAMLError | None:
+    cause: BaseException | None = err
+    while cause is not None and not isinstance(cause, yaml.MarkedYAMLError):
+        cause = cause.__cause__
+    return cause
+
+
+def _print_marked_yaml_error(err: yaml.MarkedYAMLError) -> None:
+    # Errors raised as MarkedYAMLError(message, mark) put the message in context
+    mark = err.problem_mark or err.context_mark
+    location = DocumentLocation.from_mark(mark) if mark is not None else None
+    if not (message := err.problem or err.context):
+        # str() includes the note, so it is not printed separately
+        _print_line_message(_format_location(location), "error", str(err))
+        return
+    _print_line_message(_format_location(location), "error", message)
+    if err.problem and err.context and err.context_mark is not None:
+        context_location = DocumentLocation.from_mark(err.context_mark)
+        _print_line_message(_format_location(context_location), "note", err.context)
+    if err.note:
+        _print_line_message(_format_location(location), "note", err.note)
+
+
+def _print_line_errors(res: Config) -> None:
+    for err in res.errors:
+        doc_range = get_invalid_range(res, err)
+        location = _format_location(
+            doc_range.start_mark if doc_range is not None else None
+        )
+        # A YAML error in an included file is wrapped in a validation error
+        if (yaml_err := _find_marked_yaml_error(err)) is not None:
+            _print_marked_yaml_error(yaml_err)
+            _print_line_message(location, "note", "included from here")
+        elif isinstance(err, cv.SourceTraceInvalid):
+            # The trace only repeats the location this line already starts with
+            _print_line_message(location, "error", humanize_error(res, err.detail))
+        else:
+            _print_line_message(location, "error", _format_vol_invalid(err, res))
+        if doc_range is None and err.path:
+            # No source position, so give the config path to help find it
+            path = "->".join(str(item) for item in err.path)
+            _print_line_message(location, "note", f"In: {path}")
+
+
+def _print_line_load_error(err: EsphomeError) -> None:
+    if (yaml_err := _find_marked_yaml_error(err)) is not None:
+        _print_marked_yaml_error(yaml_err)
+    else:
+        # Drop the "Invalid YAML syntax" heading; it is wrong for unreadable files
+        message = err.base_message if isinstance(err, InvalidYAMLError) else err
+        _print_line_message(_format_location(None), "error", message)
 
 
 def line_info(config, path, highlight=True):
@@ -1666,7 +1788,13 @@ def read_config(
             snapshot_user_config=snapshot_user_config,
         )
     except EsphomeError as err:
-        _LOGGER.error("Error while reading config: %s", err)
+        if CORE.error_format == ErrorFormat.LINE:
+            _print_line_load_error(err)
+        else:
+            _LOGGER.error("Error while reading config: %s", err)
+        return None
+    if res.errors and CORE.error_format == ErrorFormat.LINE:
+        _print_line_errors(res)
         return None
     if res.errors:
         if not CORE.verbose:

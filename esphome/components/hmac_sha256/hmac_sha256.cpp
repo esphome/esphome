@@ -45,14 +45,15 @@ void HmacSHA256::get_hex(char *output) {
 }
 
 bool HmacSHA256::equals_bytes(const uint8_t *expected) {
-  return memcmp(this->digest_, expected, SHA256_DIGEST_SIZE) == 0;
+  return constant_time_equals(this->digest_, expected, SHA256_DIGEST_SIZE);
 }
 
 bool HmacSHA256::equals_hex(const char *expected) {
-  char hex_output[SHA256_DIGEST_SIZE * 2 + 1];
-  this->get_hex(hex_output);
-  hex_output[SHA256_DIGEST_SIZE * 2] = '\0';
-  return strncmp(hex_output, expected, SHA256_DIGEST_SIZE * 2) == 0;
+  uint8_t parsed[SHA256_DIGEST_SIZE];
+  if (parse_hex(expected, SHA256_DIGEST_SIZE * 2, parsed, SHA256_DIGEST_SIZE) != SHA256_DIGEST_SIZE * 2) {
+    return false;
+  }
+  return this->equals_bytes(parsed);
 }
 
 #elif defined(USE_HMAC_SHA256_MBEDTLS)
@@ -77,14 +78,15 @@ void HmacSHA256::get_hex(char *output) {
 }
 
 bool HmacSHA256::equals_bytes(const uint8_t *expected) {
-  return memcmp(this->digest_, expected, SHA256_DIGEST_SIZE) == 0;
+  return constant_time_equals(this->digest_, expected, SHA256_DIGEST_SIZE);
 }
 
 bool HmacSHA256::equals_hex(const char *expected) {
-  char hex_output[SHA256_DIGEST_SIZE * 2 + 1];
-  this->get_hex(hex_output);
-  hex_output[SHA256_DIGEST_SIZE * 2] = '\0';
-  return strncmp(hex_output, expected, SHA256_DIGEST_SIZE * 2) == 0;
+  uint8_t parsed[SHA256_DIGEST_SIZE];
+  if (parse_hex(expected, SHA256_DIGEST_SIZE * 2, parsed, SHA256_DIGEST_SIZE) != SHA256_DIGEST_SIZE * 2) {
+    return false;
+  }
+  return this->equals_bytes(parsed);
 }
 
 #else

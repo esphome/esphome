@@ -3,23 +3,7 @@ from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
 from esphome.components import modbus, sensor
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_CURRENT,
-    CONF_ENERGY,
-    CONF_ID,
-    CONF_POWER,
-    CONF_VOLTAGE,
-    DEVICE_CLASS_CURRENT,
-    DEVICE_CLASS_ENERGY,
-    DEVICE_CLASS_POWER,
-    DEVICE_CLASS_VOLTAGE,
-    STATE_CLASS_MEASUREMENT,
-    STATE_CLASS_TOTAL_INCREASING,
-    UNIT_AMPERE,
-    UNIT_KILOWATT_HOURS,
-    UNIT_VOLT,
-    UNIT_WATT,
-)
+from esphome.const import CONF_CURRENT, CONF_ENERGY, CONF_ID, CONF_POWER, CONF_VOLTAGE
 from esphome.types import ConfigType
 
 AUTO_LOAD = ["modbus"]
@@ -27,37 +11,20 @@ AUTO_LOAD = ["modbus"]
 pzemdc_ns = cg.esphome_ns.namespace("pzemdc")
 PZEMDC = pzemdc_ns.class_("PZEMDC", cg.PollingComponent, modbus.ModbusClientDevice)
 
-# Actions
-ResetEnergyAction = pzemdc_ns.class_("ResetEnergyAction", automation.Action)
-
 CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(PZEMDC),
             cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_VOLT,
-                accuracy_decimals=1,
-                device_class=DEVICE_CLASS_VOLTAGE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.VOLTAGE, accuracy_decimals=1
             ),
             cv.Optional(CONF_CURRENT): sensor.sensor_schema(
-                unit_of_measurement=UNIT_AMPERE,
-                accuracy_decimals=3,
-                device_class=DEVICE_CLASS_CURRENT,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.CURRENT, accuracy_decimals=3
             ),
             cv.Optional(CONF_POWER): sensor.sensor_schema(
-                unit_of_measurement=UNIT_WATT,
-                accuracy_decimals=1,
-                device_class=DEVICE_CLASS_POWER,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.POWER, accuracy_decimals=1
             ),
-            cv.Optional(CONF_ENERGY): sensor.sensor_schema(
-                unit_of_measurement=UNIT_KILOWATT_HOURS,
-                accuracy_decimals=3,
-                device_class=DEVICE_CLASS_ENERGY,
-                state_class=STATE_CLASS_TOTAL_INCREASING,
-            ),
+            cv.Optional(CONF_ENERGY): sensor.sensor_schema(kind=sensor.ENERGY_KWH),
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -65,46 +32,29 @@ CONFIG_SCHEMA = (
 )
 
 
-@automation.register_action(
+automation.register_apply_action(
     "pzemdc.reset_energy",
-    ResetEnergyAction,
     maybe_simple_id(
         {
             cv.GenerateID(CONF_ID): cv.use_id(PZEMDC),
         }
     ),
-    synchronous=True,
+    automation.ApplyCall("reset_energy()"),
 )
-async def reset_energy_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
 
 
-def _final_validate(config: ConfigType) -> ConfigType:
-    return modbus.final_validate_modbus_device("pzemdc", role="client")(config)
+def _final_validate(config: ConfigType) -> None:
+    modbus.final_validate_modbus_device("pzemdc", role="client")(config)
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
-async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await modbus.register_modbus_client_device(var, config)
+async def to_code(config: ConfigType) -> None:
+    var = await modbus.new_modbus_client_component(config)
 
-    if CONF_VOLTAGE in config:
-        conf = config[CONF_VOLTAGE]
-        sens = await sensor.new_sensor(conf)
-        cg.add(var.set_voltage_sensor(sens))
-    if CONF_CURRENT in config:
-        conf = config[CONF_CURRENT]
-        sens = await sensor.new_sensor(conf)
-        cg.add(var.set_current_sensor(sens))
-    if CONF_POWER in config:
-        conf = config[CONF_POWER]
-        sens = await sensor.new_sensor(conf)
-        cg.add(var.set_power_sensor(sens))
-    if CONF_ENERGY in config:
-        conf = config[CONF_ENERGY]
-        sens = await sensor.new_sensor(conf)
-        cg.add(var.set_energy_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_VOLTAGE, var.set_voltage_sensor)
+    await sensors(CONF_CURRENT, var.set_current_sensor)
+    await sensors(CONF_POWER, var.set_power_sensor)
+    await sensors(CONF_ENERGY, var.set_energy_sensor)

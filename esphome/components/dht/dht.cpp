@@ -4,7 +4,7 @@
 
 namespace esphome::dht {
 
-static const char *const TAG = "dht";
+ESPHOME_LOG_TAG(TAG, "dht");
 
 void DHT::setup() {
   this->t_pin_->digital_write(true);
@@ -20,8 +20,8 @@ void DHT::dump_config() {
                 "DHT:\n"
                 "  %sModel: %s\n"
                 "  Internal pull-up: %s",
-                this->is_auto_detect_ ? "Auto-detected " : "",
-                this->model_ == DHT_MODEL_DHT11 ? "DHT11" : "DHT22 or equivalent",
+                this->is_auto_detect_ ? LOG_STR_LITERAL("Auto-detected ") : "",
+                this->model_ == DHT_MODEL_DHT11 ? LOG_STR_LITERAL("DHT11") : LOG_STR_LITERAL("DHT22 or equivalent"),
                 ONOFF(this->t_pin_->get_flags() & gpio::FLAG_PULLUP));
   LOG_PIN("  Pin: ", this->t_pin_);
   LOG_UPDATE_INTERVAL(this);
@@ -44,17 +44,13 @@ void DHT::update() {
   }
 
   if (success) {
-    if (this->temperature_sensor_ != nullptr)
-      this->temperature_sensor_->publish_state(temperature);
-    if (this->humidity_sensor_ != nullptr)
-      this->humidity_sensor_->publish_state(humidity);
+    PUBLISH_STATE(this->temperature_sensor_, temperature);
+    PUBLISH_STATE(this->humidity_sensor_, humidity);
     this->status_clear_warning();
   } else {
     ESP_LOGW(TAG, "Invalid readings");
-    if (this->temperature_sensor_ != nullptr)
-      this->temperature_sensor_->publish_state(NAN);
-    if (this->humidity_sensor_ != nullptr)
-      this->humidity_sensor_->publish_state(NAN);
+    PUBLISH_STATE(this->temperature_sensor_, NAN);
+    PUBLISH_STATE(this->humidity_sensor_, NAN);
     this->status_set_warning();
   }
 }
@@ -154,8 +150,9 @@ bool HOT IRAM_ATTR DHT::read_sensor_(float *temperature, float *humidity, bool r
     }
   }
   if (error_code != 0) {
-    if (report_errors)
+    if (report_errors) {
       ESP_LOGW(TAG, ESP_LOG_MSG_COMM_FAIL);
+    }
     return false;
   }
 
@@ -165,7 +162,7 @@ bool HOT IRAM_ATTR DHT::read_sensor_(float *temperature, float *humidity, bool r
             BYTE_TO_BINARY(data[0]), BYTE_TO_BINARY(data[1]), BYTE_TO_BINARY(data[2]), BYTE_TO_BINARY(data[3]),
             BYTE_TO_BINARY(data[4]));
 
-  uint8_t checksum_a = data[0] + data[1] + data[2] + data[3];
+  uint8_t checksum_a = sum_bytes(data, 4);
   // On the DHT11, two algorithms for the checksum seem to be used, either the one from the DHT22,
   // or just using bytes 0 and 2
   uint8_t checksum_b = this->model_ == DHT_MODEL_DHT11 ? (data[0] + data[2]) : checksum_a;
@@ -198,14 +195,7 @@ bool HOT IRAM_ATTR DHT::read_sensor_(float *temperature, float *humidity, bool r
     }
   } else {
     uint16_t raw_humidity = encode_uint16(data[0], data[1]);
-    uint16_t raw_temperature = encode_uint16(data[2], data[3]);
-
-    if (raw_temperature & 0x8000) {
-      if (!(raw_temperature & 0x4000))
-        raw_temperature = ~(raw_temperature & 0x7FFF);
-    } else if (raw_temperature & 0x800) {
-      raw_temperature |= 0xf000;
-    }
+    const int16_t raw_temperature = decode_dht22_temperature(encode_uint16(data[2], data[3]));
 
     if (raw_temperature == 1 && raw_humidity == 10) {
       if (report_errors) {
@@ -217,7 +207,7 @@ bool HOT IRAM_ATTR DHT::read_sensor_(float *temperature, float *humidity, bool r
     *humidity = static_cast<float>(raw_humidity) * 0.1f;
     if (*humidity > 100.0f)
       *humidity = NAN;
-    *temperature = static_cast<int16_t>(raw_temperature) * 0.1f;
+    *temperature = raw_temperature * 0.1f;
   }
 
   if (*temperature == 0.0f && (*humidity == 1.0f || *humidity == 2.0f)) {

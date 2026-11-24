@@ -1,0 +1,13 @@
+esphome:
+  name: outgoing-conn-test
+
+host:
+
+logger:
+
+api:
+  encryption:
+    key: bOFFzzvfpg5DB94DuBGLXD/hMnhpDKgP9UQyBulwWVU=
+  outgoing_connection:
+    port: OUTGOING_PORT
+    delay: 1s

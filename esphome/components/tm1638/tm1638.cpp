@@ -6,7 +6,7 @@
 
 namespace esphome::tm1638 {
 
-static const char *const TAG = "display.tm1638";
+ESPHOME_LOG_TAG(TAG, "display.tm1638");
 static const uint8_t TM1638_REGISTER_FIXEDADDRESS = 0x44;
 static const uint8_t TM1638_REGISTER_AUTOADDRESS = 0x40;
 static const uint8_t TM1638_REGISTER_READBUTTONS = 0x42;
@@ -48,12 +48,10 @@ void TM1638Component::dump_config() {
 }
 
 void TM1638Component::loop() {
-  if (this->listeners_.empty())
-    return;
-
-  uint8_t keys = this->get_keys();
-  for (auto &listener : this->listeners_)
-    listener->keys_update(keys);
+#ifdef USE_TM1638_KEYS_PUBLISHER
+  if (this->keys_publisher_ != nullptr)
+    this->keys_publisher_(this->get_keys());
+#endif
 }
 
 uint8_t TM1638Component::get_keys() {
@@ -260,9 +258,7 @@ uint8_t TM1638Component::shift_in_() {
   for (int i = 0; i < 8; ++i) {
     value |= dio_pin_->digital_read() << i;
     delayMicroseconds(TM1638_SHIFT_DELAY);
-    this->clk_pin_->digital_write(true);
-    delayMicroseconds(TM1638_SHIFT_DELAY);
-    this->clk_pin_->digital_write(false);
+    pulse_pin(this->clk_pin_, true, TM1638_SHIFT_DELAY);
     delayMicroseconds(TM1638_SHIFT_DELAY);
   }
   return value;
@@ -273,10 +269,7 @@ void TM1638Component::shift_out_(uint8_t val) {
     this->dio_pin_->digital_write((val & (1 << i)));
     delayMicroseconds(TM1638_SHIFT_DELAY);
 
-    this->clk_pin_->digital_write(true);
-    delayMicroseconds(TM1638_SHIFT_DELAY);
-
-    this->clk_pin_->digital_write(false);
+    pulse_pin(this->clk_pin_, true, TM1638_SHIFT_DELAY);
     delayMicroseconds(TM1638_SHIFT_DELAY);
   }
 }

@@ -4,7 +4,7 @@
 
 namespace esphome::status_led {
 
-static const char *const TAG = "status_led";
+ESPHOME_LOG_TAG(TAG, "status_led");
 
 static constexpr uint32_t ERROR_PERIOD_MS = 250;
 static constexpr uint32_t ERROR_ON_MS = 150;
@@ -14,10 +14,7 @@ static constexpr uint32_t WARNING_ON_MS = 250;
 StatusLED *global_status_led = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 StatusLED::StatusLED(GPIOPin *pin) : pin_(pin) { global_status_led = this; }
-void StatusLED::pre_setup() {
-  this->pin_->setup();
-  this->pin_->digital_write(false);
-}
+void StatusLED::pre_setup() { setup_output_pin(this->pin_, false); }
 void StatusLED::dump_config() {
   ESP_LOGCONFIG(TAG, "Status LED:");
   LOG_PIN("  Pin: ", this->pin_);

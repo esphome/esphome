@@ -1,0 +1,25 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+spi:
+  clk_pin: GPIO14
+  mosi_pin: GPIO12
+  miso_pin: GPIO13
+
+display:
+  - platform: it8951
+    id: it8951_display
+    model: m5stack-m5paper
+  - platform: epaper_spi
+    id: epaper_display
+    model: ssd1677
+    dimensions:
+      width: 200
+      height: 200
+    cs_pin: GPIO5
+    dc_pin: GPIO21
+    busy_pin: GPIO22
+    reset_pin: GPIO25

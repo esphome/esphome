@@ -1,0 +1,25 @@
+esphome:
+  name: test
+
+esp32:
+  variant: esp32
+
+wifi:
+  ssid: SomeNetwork
+  password: SomePassword
+
+logger:
+
+api:
+
+select:
+  - platform: homeassistant
+    id: ha_select
+    name: HA select
+    entity_id: select.example
+  - platform: homeassistant
+    id: ha_input_select
+    name: HA input_select
+    entity_id: input_select.example
+    max_options: 4
+    options_buffer_size: 64

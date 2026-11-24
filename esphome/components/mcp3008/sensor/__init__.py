@@ -1,14 +1,8 @@
 import esphome.codegen as cg
 from esphome.components import sensor, voltage_sampler
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_ID,
-    CONF_NUMBER,
-    CONF_REFERENCE_VOLTAGE,
-    DEVICE_CLASS_VOLTAGE,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_VOLT,
-)
+from esphome.const import CONF_ID, CONF_NUMBER, CONF_REFERENCE_VOLTAGE
+from esphome.types import ConfigType
 
 from .. import MCP3008, mcp3008_ns
 
@@ -26,12 +20,7 @@ MCP3008Sensor = mcp3008_ns.class_(
 CONF_MCP3008_ID = "mcp3008_id"
 
 CONFIG_SCHEMA = (
-    sensor.sensor_schema(
-        MCP3008Sensor,
-        unit_of_measurement=UNIT_VOLT,
-        state_class=STATE_CLASS_MEASUREMENT,
-        device_class=DEVICE_CLASS_VOLTAGE,
-    )
+    sensor.sensor_schema(MCP3008Sensor, kind=sensor.VOLTAGE)
     .extend(
         {
             cv.GenerateID(CONF_MCP3008_ID): cv.use_id(MCP3008),
@@ -43,7 +32,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_parented(var, config[CONF_MCP3008_ID])
     await cg.register_component(var, config)

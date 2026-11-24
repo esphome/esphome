@@ -1,13 +1,8 @@
 import esphome.codegen as cg
 from esphome.components import sensor, voltage_sampler
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_ID,
-    CONF_REFERENCE_VOLTAGE,
-    DEVICE_CLASS_VOLTAGE,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_VOLT,
-)
+from esphome.const import CONF_ID, CONF_REFERENCE_VOLTAGE
+from esphome.types import ConfigType
 
 from .. import (
     CONF_WAVESHARE_IO_CH32V003_ID,
@@ -28,11 +23,7 @@ WaveshareIOCH32V003Sensor = waveshare_io_ch32v003_ns.class_(
 
 CONFIG_SCHEMA = (
     sensor.sensor_schema(
-        WaveshareIOCH32V003Sensor,
-        unit_of_measurement=UNIT_VOLT,
-        accuracy_decimals=3,
-        device_class=DEVICE_CLASS_VOLTAGE,
-        state_class=STATE_CLASS_MEASUREMENT,
+        WaveshareIOCH32V003Sensor, kind=sensor.VOLTAGE, accuracy_decimals=3
     )
     .extend(
         {
@@ -46,7 +37,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_parented(var, config[CONF_WAVESHARE_IO_CH32V003_ID])
     await cg.register_component(var, config)

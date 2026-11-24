@@ -1,9 +1,10 @@
 #include "ruuvi_ble.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::ruuvi_ble {
 
-static const char *const TAG = "ruuvi_ble";
+ESPHOME_LOG_TAG(TAG, "ruuvi_ble");
 
 bool parse_ruuvi_data_byte(const ble_device_base::adv_data_t &adv_data, RuuviParseResult &result) {
   const uint8_t data_type = adv_data[0];
@@ -19,9 +20,9 @@ bool parse_ruuvi_data_byte(const ble_device_base::adv_data_t &adv_data, RuuviPar
 
       const float humidity = data[0] * 0.5f;
       const float pressure = (encode_uint16(data[3], data[4]) + 50000.0f) / 100.0f;
-      const float acceleration_x = static_cast<int16_t>(encode_uint16(data[5], data[6])) / 1000.0f;
-      const float acceleration_y = static_cast<int16_t>(encode_uint16(data[7], data[8])) / 1000.0f;
-      const float acceleration_z = static_cast<int16_t>(encode_uint16(data[9], data[10])) / 1000.0f;
+      const float acceleration_x = encode_value<int16_t>(&data[5]) / 1000.0f;
+      const float acceleration_y = encode_value<int16_t>(&data[7]) / 1000.0f;
+      const float acceleration_z = encode_value<int16_t>(&data[9]) / 1000.0f;
       const float battery_voltage = encode_uint16(data[11], data[12]) / 1000.0f;
 
       result.humidity = humidity;
@@ -40,12 +41,12 @@ bool parse_ruuvi_data_byte(const ble_device_base::adv_data_t &adv_data, RuuviPar
       if (adv_data.size() != 24)
         return false;
 
-      const float temperature = static_cast<int16_t>(encode_uint16(data[0], data[1])) * 0.005f;
+      const float temperature = encode_value<int16_t>(data) * 0.005f;
       const float humidity = encode_uint16(data[2], data[3]) / 400.0f;
       const float pressure = (encode_uint16(data[4], data[5]) + 50000.0f) / 100.0f;
-      const float acceleration_x = static_cast<int16_t>(encode_uint16(data[6], data[7])) / 1000.0f;
-      const float acceleration_y = static_cast<int16_t>(encode_uint16(data[8], data[9])) / 1000.0f;
-      const float acceleration_z = static_cast<int16_t>(encode_uint16(data[10], data[11])) / 1000.0f;
+      const float acceleration_x = encode_value<int16_t>(&data[6]) / 1000.0f;
+      const float acceleration_y = encode_value<int16_t>(&data[8]) / 1000.0f;
+      const float acceleration_z = encode_value<int16_t>(&data[10]) / 1000.0f;
 
       const uint16_t power_info = encode_uint16(data[12], data[13]);
       const float battery_voltage = ((power_info >> 5) + 1600.0f) / 1000.0f;

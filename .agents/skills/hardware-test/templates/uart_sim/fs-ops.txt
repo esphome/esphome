@@ -1,0 +1,14 @@
+wait:3
+press:S Good
+press:S Repeated Header
+press:S Bad Checksum
+press:S Bad Tail
+press:S Cut Then Frame
+press:S Garbage Then Frame
+press:S Split 300
+press:S Split 700
+press:S Zero
+press:S Two Frames
+press:S Good After
+press:S Wake
+press:S Good

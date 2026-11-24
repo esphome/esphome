@@ -1,4 +1,5 @@
 from math import log
+from typing import Any
 
 import esphome.codegen as cg
 from esphome.components import sensor
@@ -11,10 +12,8 @@ from esphome.const import (
     CONF_SENSOR,
     CONF_TEMPERATURE,
     CONF_VALUE,
-    DEVICE_CLASS_TEMPERATURE,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS,
 )
+from esphome.types import ConfigType
 
 ntc_ns = cg.esphome_ns.namespace("ntc")
 NTC = ntc_ns.class_("NTC", cg.Component, sensor.Sensor)
@@ -25,7 +24,7 @@ CONF_C = "c"
 ZERO_POINT = 273.15
 
 
-def validate_calibration_parameter(value):
+def validate_calibration_parameter(value: Any) -> ConfigType:
     if isinstance(value, dict):
         return cv.Schema(
             {
@@ -48,7 +47,7 @@ def validate_calibration_parameter(value):
     )
 
 
-def calc_steinhart_hart(value):
+def calc_steinhart_hart(value: list[ConfigType]) -> tuple[float, float, float]:
     r1 = value[0][CONF_VALUE]
     r2 = value[1][CONF_VALUE]
     r3 = value[2][CONF_VALUE]
@@ -73,7 +72,7 @@ def calc_steinhart_hart(value):
     return a, b, c
 
 
-def calc_b(value):
+def calc_b(value: ConfigType) -> tuple[float, float, float]:
     beta = value[CONF_B_CONSTANT]
     t0 = value[CONF_REFERENCE_TEMPERATURE] + ZERO_POINT
     r0 = value[CONF_REFERENCE_RESISTANCE]
@@ -85,7 +84,7 @@ def calc_b(value):
     return a, b, c
 
 
-def process_calibration(value):
+def process_calibration(value: Any) -> ConfigType:
     if isinstance(value, dict):
         value = cv.Schema(
             {
@@ -115,13 +114,7 @@ def process_calibration(value):
 
 
 CONFIG_SCHEMA = (
-    sensor.sensor_schema(
-        NTC,
-        unit_of_measurement=UNIT_CELSIUS,
-        accuracy_decimals=1,
-        device_class=DEVICE_CLASS_TEMPERATURE,
-        state_class=STATE_CLASS_MEASUREMENT,
-    )
+    sensor.sensor_schema(NTC, kind=sensor.TEMPERATURE)
     .extend(
         {
             cv.Required(CONF_SENSOR): cv.use_id(sensor.Sensor),
@@ -132,12 +125,11 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
 
-    sens = await cg.get_variable(config[CONF_SENSOR])
-    cg.add(var.set_sensor(sens))
+    await cg.add_variable(var.set_source_sensor, config[CONF_SENSOR])
     calib = config[CONF_CALIBRATION]
     cg.add(var.set_a(calib[CONF_A]))
     cg.add(var.set_b(calib[CONF_B]))

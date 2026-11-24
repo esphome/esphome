@@ -1,0 +1,2 @@
+CODEOWNERS = ["@B48D81EFCC", "@ryansch"]
+DOMAIN = "max17048"

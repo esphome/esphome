@@ -4,10 +4,13 @@ Focuses on verifying that long multi-byte (Chinese/CJK) glyph strings
 are correctly processed through the font configuration pipeline.
 """
 
+from collections.abc import Callable
 import functools
 from pathlib import Path
+import re
 from unittest.mock import MagicMock, patch
 
+from freetype import Face
 import pytest
 
 from esphome.components.font import (
@@ -17,8 +20,10 @@ from esphome.components.font import (
     CONF_IGNORE_MISSING_GLYPHS,
     CONF_RAW_GLYPH_ID,
     FONT_CACHE,
+    GlyphInfo,
     flatten,
     glyph_comparator,
+    glyph_to_glyphinfo,
     to_code,
     validate_font_config,
 )
@@ -260,15 +265,12 @@ def mock_cg():
     with (
         patch("esphome.components.font.cg.add_define") as mock_define,
         patch("esphome.components.font.cg.progmem_array") as mock_progmem,
-        patch("esphome.components.font.cg.static_const_array") as mock_static,
         patch("esphome.components.font.cg.new_Pvariable") as mock_new_pvar,
     ):
         mock_progmem.return_value = MagicMock()
-        mock_static.return_value = MagicMock()
         yield {
             "add_define": mock_define,
             "progmem_array": mock_progmem,
-            "static_const_array": mock_static,
             "new_Pvariable": mock_new_pvar,
         }
 
@@ -288,13 +290,13 @@ async def test_to_code_long_latin_generates_all_glyphs(mock_cg):
     mock_cg["add_define"].assert_any_call("USE_FONT")
 
     # progmem_array receives the combined bitmap data (non-empty)
-    mock_cg["progmem_array"].assert_called_once()
-    bitmap_data = mock_cg["progmem_array"].call_args.args[1]
+    # bitmap data first, then the glyph table
+    assert mock_cg["progmem_array"].call_count == 2
+    bitmap_data = mock_cg["progmem_array"].call_args_list[0].args[1]
     assert len(bitmap_data) > 0
 
-    # static_const_array receives one entry per unique glyph
-    mock_cg["static_const_array"].assert_called_once()
-    glyph_initializer = mock_cg["static_const_array"].call_args.args[1]
+    # the glyph table receives one entry per unique glyph
+    glyph_initializer = mock_cg["progmem_array"].call_args_list[1].args[1]
     assert len(glyph_initializer) == glyph_count
 
     # new_Pvariable is called with the correct glyph count
@@ -314,7 +316,7 @@ async def test_to_code_glyph_entries_contain_expected_fields(mock_cg):
 
     await to_code(config)
 
-    glyph_initializer = mock_cg["static_const_array"].call_args.args[1]
+    glyph_initializer = mock_cg["progmem_array"].call_args_list[1].args[1]
     for entry in glyph_initializer:
         assert len(entry) == 7, f"Glyph entry should have 7 fields, got {len(entry)}"
         codepoint = entry[0]
@@ -332,6 +334,98 @@ async def test_to_code_glyphs_sorted_by_utf8(mock_cg):
 
     await to_code(config)
 
-    glyph_initializer = mock_cg["static_const_array"].call_args.args[1]
+    glyph_initializer = mock_cg["progmem_array"].call_args_list[1].args[1]
     codepoints = [entry[0] for entry in glyph_initializer]
     assert codepoints == sorted(codepoints)
+
+
+def test_glyph_table_is_progmem(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """The constexpr glyph table goes to flash, not a RAM static const array."""
+    main_cpp = generate_main(component_config_path("glyph_table.yaml"))
+
+    assert re.search(r"static constexpr font::Glyph \w+\[\] PROGMEM = ", main_cpp)
+    assert "static const font::Glyph" not in main_cpp
+
+
+# ---------- glyph cropping ----------
+
+BDF_PATH = FONT_DIR / "cell6x8.bdf"
+
+
+def _glyph_table(main_cpp: str, glyph_table_id: str) -> dict[int, tuple[int, ...]]:
+    """Map each codepoint in a generated glyph table to (advance, offset_x, offset_y, width, height)."""
+    table = re.search(
+        rf"font::Glyph {glyph_table_id}\[\] PROGMEM = \{{(.*)\}};", main_cpp
+    ).group(1)
+    return {
+        int(code): tuple(int(x) for x in rest.split(", "))
+        for code, rest in re.findall(r"\{(\d+), \([^)]*\), ([-\d, ]+)\}", table)
+    }
+
+
+def test_bitmap_font_glyphs_are_cropped(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    """Bitmap font glyphs drop blank rows and columns; outline glyphs are unchanged."""
+    main_cpp = generate_main(component_config_path("bitmap_crop.yaml"))
+
+    # Each 6x8 cell is reduced to its set pixels, and the offsets move to match
+    assert _glyph_table(main_cpp, "font_glyph_id") == {
+        32: (6, 0, 0, 0, 0),  # blank: no pixels stored
+        88: (6, 0, 0, 6, 8),  # touches every edge of the cell: no crop
+        120: (6, 1, 2, 3, 3),  # blank border all round
+        124: (6, 2, 0, 1, 8),  # full height column
+    }
+    # 6 bytes for "X", 2 for the cropped "x", 1 for "|"
+    assert (
+        "uint8_t_id[] PROGMEM = "
+        "{0x84, 0x00, 0x0C, 0x00, 0x00, 0x21, 0xAA, 0x80, 0xFF};" in main_cpp
+    )
+    # xheight and capheight still measure the uncropped cell
+    assert "font::Font(font_glyph_id, 4, 6, 8, 2, 8, 8, 1);" in main_cpp
+
+    # FreeType already crops outline glyphs, and a blank one stays 1x1
+    assert _glyph_table(main_cpp, "font_glyph_id_2") == {
+        32: (3, 0, 12, 1, 1),
+        65: (8, 0, 4, 8, 9),
+        66: (8, 1, 4, 6, 9),
+    }
+
+
+def _render(glyph: GlyphInfo, bpp: int) -> dict[tuple[int, int], int]:
+    """Decode a packed glyph bitmap into its non-zero pixels at absolute positions."""
+    pixels = {}
+    pos = 0
+    for y in range(glyph.height):
+        for x in range(glyph.width):
+            value = 0
+            for _ in range(bpp):
+                bit = glyph.bitmap_data[pos // 8] >> (7 - pos % 8) & 1
+                value = value << 1 | bit
+                pos += 1
+            if value:
+                pixels[(x + glyph.offset_x, y + glyph.offset_y)] = value
+    return pixels
+
+
+@pytest.mark.parametrize("bpp", [1, 2, 4, 8])
+@pytest.mark.parametrize(
+    ("path", "size"),
+    [(BDF_PATH, 8), (FONT_PATH, 12)],
+    ids=["bitmap", "outline"],
+)
+def test_cropped_glyphs_render_identically(path: Path, size: int, bpp: int) -> None:
+    """Cropping only drops blank pixels, so every glyph renders the same as before."""
+    face = Face(str(path))
+    for char in " Xx|AB":
+        if not face.get_char_index(char):
+            continue
+        full = glyph_to_glyphinfo(char, face, size, bpp, crop=False)
+        cropped = glyph_to_glyphinfo(char, face, size, bpp)
+        assert _render(cropped, bpp) == _render(full, bpp)
+        assert cropped.advance == full.advance
+        assert len(cropped.bitmap_data) <= len(full.bitmap_data)

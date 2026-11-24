@@ -11,10 +11,7 @@
 namespace esphome {
 
 /// Inline implementation — IRAM callers inline this directly.
-inline void ESPHOME_ALWAYS_INLINE wake_loop_impl() {
-  // Set the wake-requested flag BEFORE esp_schedule so the consumer is
-  // guaranteed to see it on its next gate check.
-  wake_request_set();
+inline void ESPHOME_ALWAYS_INLINE wake_scheduler_impl() {
   // Skip the post when a wake was already signalled and not yet consumed by
   // wakeable_delay(): esp_schedule() -> ets_post() can enter SDK WiFi pm code,
   // which must not be poked per-byte from the software serial RX ISR (see
@@ -26,11 +23,19 @@ inline void ESPHOME_ALWAYS_INLINE wake_loop_impl() {
   esp_schedule();
 }
 
+inline void ESPHOME_ALWAYS_INLINE wake_loop_impl() {
+  // Set the wake-requested flag BEFORE esp_schedule so the consumer is
+  // guaranteed to see it on its next gate check.
+  wake_request_set();
+  wake_scheduler_impl();
+}
+
 /// IRAM_ATTR entry point for ISR callers — defined in wake_esp8266.cpp.
 void wake_loop_any_context();
 
 /// Non-ISR: always inline.
 inline void wake_loop_threadsafe() { wake_loop_impl(); }
+inline void wake_scheduler_threadsafe() { wake_scheduler_impl(); }
 
 /// ISR-safe: no task_woken arg because ESP8266 has no FreeRTOS. Caller must be IRAM_ATTR.
 inline void ESPHOME_ALWAYS_INLINE wake_loop_isrsafe() { wake_loop_impl(); }

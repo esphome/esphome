@@ -145,13 +145,42 @@ def is_alpha_only(image: Image):
     return all(b.getextrema()[1] == 0 for b in image.split()[:-1])
 
 
-class ImageBinary(ImageEncoder):
+class BitPackedEncoder(ImageEncoder):
+    """Packs pixels MSB first, with every row padded to a whole byte."""
+
+    def __init__(
+        self,
+        bpp: int,
+        width: int,
+        height: int,
+        transparency: str,
+        dither: Image.Dither,
+        invert_alpha: bool,
+    ):
+        self.bpp = bpp
+        super().__init__(
+            (width * bpp + 7) // 8, height, transparency, dither, invert_alpha
+        )
+        self.bitno = 0
+
+    def add_bit(self, bit: bool) -> None:
+        if bit:
+            self.data[self.index] |= 0x80 >> self.bitno
+        self.bitno += 1
+        if self.bitno == 8:
+            self.end_row()
+
+    def end_row(self) -> None:
+        if self.bitno != 0:
+            self.bitno = 0
+            self.index += 1
+
+
+class ImageBinary(BitPackedEncoder):
     allow_config = {CONF_OPAQUE, CONF_INVERT_ALPHA, CONF_CHROMA_KEY}
 
     def __init__(self, width, height, transparency, dither, invert_alpha):
-        self.width8 = (width + 7) // 8
-        super().__init__(self.width8, height, transparency, dither, invert_alpha)
-        self.bitno = 0
+        super().__init__(1, width, height, transparency, dither, invert_alpha)
 
     def convert(self, image, path):
         if is_alpha_only(image):
@@ -159,22 +188,46 @@ class ImageBinary(ImageEncoder):
         return image.convert("1", dither=self.dither)
 
     def encode(self, pixel):
-        if self.invert_alpha:
-            pixel = not pixel
-        if pixel:
-            self.data[self.index] |= 0x80 >> (self.bitno % 8)
-        self.bitno += 1
-        if self.bitno == 8:
-            self.bitno = 0
-            self.index += 1
+        self.add_bit(bool(pixel) != self.invert_alpha)
 
-    def end_row(self):
-        """
-        Pad rows to a byte boundary
-        """
-        if self.bitno != 0:
-            self.bitno = 0
-            self.index += 1
+
+# The eight colours one bit per channel can express, for dithering.
+_RGB111_PALETTE = Image.new("P", (1, 1))
+_RGB111_PALETTE.putpalette([255 * int(x) for i in range(8) for x in f"{i:03b}"])
+
+
+class ImageRGB111(BitPackedEncoder):
+    allow_config = {CONF_OPAQUE, CONF_ALPHA_CHANNEL}
+
+    def __init__(
+        self,
+        width: int,
+        height: int,
+        transparency: str,
+        dither: Image.Dither,
+        invert_alpha: bool,
+    ):
+        bpp = 4 if transparency == CONF_ALPHA_CHANNEL else 3
+        super().__init__(bpp, width, height, transparency, dither, invert_alpha)
+
+    def convert(self, image: Image, path: str):
+        image = image.convert("RGBA")
+        if self.dither != Image.Dither.FLOYDSTEINBERG:
+            return image
+        alpha = image.getchannel("A")
+        image = image.convert("RGB").quantize(
+            palette=_RGB111_PALETTE, dither=Image.Dither.FLOYDSTEINBERG
+        )
+        image = image.convert("RGB")
+        image.putalpha(alpha)
+        return image
+
+    def encode(self, pixel: tuple[int, int, int, int]):
+        r, g, b, a = pixel
+        if self.invert_alpha:
+            a ^= 0xFF
+        for channel in (r, g, b, a)[: self.bpp]:
+            self.add_bit(channel > 127)
 
 
 class ImageGrayscale(ImageEncoder):
@@ -315,6 +368,7 @@ class ReplaceWith:
 IMAGE_TYPE = {
     "BINARY": ImageBinary,
     "GRAYSCALE": ImageGrayscale,
+    "RGB111": ImageRGB111,
     "RGB565": ImageRGB565,
     "RGB": ImageRGB,
     "TRANSPARENT_BINARY": ReplaceWith("'type: BINARY' and 'transparency: chroma_key'"),

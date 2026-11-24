@@ -9,6 +9,8 @@ namespace esphome::template_ {
 
 class TemplateTextSensor final : public text_sensor::TextSensor, public PollingComponent {
  public:
+  // User provided, not "= default": `new(p) TemplateTextSensor()` would zero-fill .bss that is already zero.
+  TemplateTextSensor() {}
   template<typename F> void set_template(F &&f) { this->f_.set(std::forward<F>(f)); }
 
   void update() override;

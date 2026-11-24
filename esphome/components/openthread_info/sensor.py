@@ -2,13 +2,12 @@ import esphome.codegen as cg
 from esphome.components import sensor
 import esphome.config_validation as cv
 from esphome.const import (
-    DEVICE_CLASS_SIGNAL_STRENGTH,
     ENTITY_CATEGORY_DIAGNOSTIC,
     STATE_CLASS_MEASUREMENT,
     STATE_CLASS_TOTAL_INCREASING,
-    UNIT_DECIBEL_MILLIWATT,
     UNIT_EMPTY,
 )
+from esphome.types import ConfigType
 
 CONF_PARENT_AVERAGE_RSSI = "parent_average_rssi"
 CONF_PARENT_LAST_RSSI = "parent_last_rssi"
@@ -71,18 +70,12 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_PARENT_AVERAGE_RSSI): sensor.sensor_schema(
             ParentAverageRssiOpenThreadInfo,
-            unit_of_measurement=UNIT_DECIBEL_MILLIWATT,
-            accuracy_decimals=0,
-            device_class=DEVICE_CLASS_SIGNAL_STRENGTH,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.SIGNAL_STRENGTH,
             entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
         ).extend(cv.polling_component_schema("5s")),
         cv.Optional(CONF_PARENT_LAST_RSSI): sensor.sensor_schema(
             ParentLastRssiOpenThreadInfo,
-            unit_of_measurement=UNIT_DECIBEL_MILLIWATT,
-            accuracy_decimals=0,
-            device_class=DEVICE_CLASS_SIGNAL_STRENGTH,
-            state_class=STATE_CLASS_MEASUREMENT,
+            kind=sensor.SIGNAL_STRENGTH,
             entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
         ).extend(cv.polling_component_schema("5s")),
         cv.Optional(CONF_PARENT_LINK_QUALITY_IN): sensor.sensor_schema(
@@ -166,13 +159,13 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-async def setup_conf(config: dict, key: str):
+async def setup_conf(config: dict, key: str) -> None:
     if conf := config.get(key):
         var = await sensor.new_sensor(conf)
         await cg.register_component(var, conf)
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     await setup_conf(config, CONF_PARENT_AVERAGE_RSSI)
     await setup_conf(config, CONF_PARENT_LAST_RSSI)
     await setup_conf(config, CONF_PARENT_LINK_QUALITY_IN)

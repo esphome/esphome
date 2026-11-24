@@ -3,6 +3,7 @@ from esphome.components import i2c
 from esphome.components.one_wire import OneWireBus
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
+from esphome.types import ConfigType
 
 ds2484_ns = cg.esphome_ns.namespace("ds2484")
 
@@ -29,7 +30,7 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await i2c.register_i2c_device(var, config)
     await cg.register_component(var, config)

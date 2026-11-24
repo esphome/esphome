@@ -8,10 +8,20 @@
 
 namespace esphome::modbus::testing {
 
+// Copies a PDU so a test can compare it after the span is gone.
+inline std::vector<uint8_t> vec(std::span<const uint8_t> pdu) { return {pdu.begin(), pdu.end()}; }
+
 // A UART that discards all writes, for tests that never inspect the wire.
 class NullUART : public uart::UARTComponent {
  public:
-  NullUART() { this->set_baud_rate(115200); }
+  // 8N1, matching what the uart schema emits for a real hub; the framing drives the modbus
+  // interframe timing, so leaving data/stop bits at their zero defaults would not be representative.
+  NullUART() {
+    this->set_baud_rate(115200);
+    this->set_data_bits(8);
+    this->set_stop_bits(1);
+    this->set_parity(uart::UART_CONFIG_PARITY_NONE);
+  }
   void write_array(const uint8_t *data, size_t len) override {}
   bool peek_byte(uint8_t *data) override { return false; }
   bool read_array(uint8_t *data, size_t len) override { return false; }

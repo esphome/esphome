@@ -1,0 +1,56 @@
+import esphome.codegen as cg
+from esphome.components import select
+import esphome.config_validation as cv
+from esphome.const import CONF_ID
+from esphome.types import ConfigType
+
+from .. import (
+    HOME_ASSISTANT_IMPORT_CONTROL_SCHEMA,
+    final_validate_entity_id,
+    homeassistant_ns,
+    register_home_assistant_import,
+    setup_home_assistant_entity,
+    validate_entity_domain,
+)
+
+CODEOWNERS = ["@jesserockz"]
+DEPENDENCIES = ["api"]
+AUTO_LOAD = ["homeassistant"]
+
+CONF_MAX_OPTIONS = "max_options"
+CONF_OPTIONS_BUFFER_SIZE = "options_buffer_size"
+
+SUPPORTED_DOMAINS = [
+    "input_select",
+    "select",
+]
+
+HomeassistantSelect = homeassistant_ns.class_("HomeassistantSelect", select.Select)
+
+CONFIG_SCHEMA = cv.All(
+    select.select_schema(HomeassistantSelect)
+    .extend(HOME_ASSISTANT_IMPORT_CONTROL_SCHEMA)
+    .extend(
+        {
+            cv.Optional(CONF_MAX_OPTIONS, default=16): cv.int_range(min=1, max=255),
+            cv.Optional(CONF_OPTIONS_BUFFER_SIZE, default=256): cv.int_range(
+                min=2, max=4096
+            ),
+        }
+    ),
+    validate_entity_domain("select", SUPPORTED_DOMAINS),
+)
+
+FINAL_VALIDATE_SCHEMA = final_validate_entity_id
+
+
+async def to_code(config: ConfigType) -> None:
+    var = await select.new_select(
+        config,
+        cg.static_buffer(config[CONF_ID], cg.char, config[CONF_OPTIONS_BUFFER_SIZE]),
+        cg.static_buffer(config[CONF_ID], cg.const_char_ptr, config[CONF_MAX_OPTIONS]),
+        options=[],
+    )
+    # 1 state + options fetch in HomeassistantSelect::subscribe()
+    setup_home_assistant_entity(var, config, state_subscription_count=2, services=True)
+    await register_home_assistant_import(var)

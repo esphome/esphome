@@ -2,15 +2,12 @@ from esphome import pins
 import esphome.codegen as cg
 from esphome.components import display
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_BRIGHTNESS,
-    CONF_EXTERNAL_VCC,
-    CONF_LAMBDA,
-    CONF_MODEL,
-    CONF_RESET_PIN,
-)
+from esphome.const import CONF_BRIGHTNESS, CONF_EXTERNAL_VCC, CONF_MODEL, CONF_RESET_PIN
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@kbx81"]
+DOMAIN = "ssd1322_base"
 
 ssd1322_base_ns = cg.esphome_ns.namespace("ssd1322_base")
 SSD1322 = ssd1322_base_ns.class_("SSD1322", cg.PollingComponent, display.DisplayBuffer)
@@ -32,19 +29,11 @@ SSD1322_SCHEMA = display.FULL_DISPLAY_SCHEMA.extend(
 ).extend(cv.polling_component_schema("1s"))
 
 
-async def setup_ssd1322(var, config):
+async def setup_ssd1322(var: MockObj, config: ConfigType) -> None:
     await display.register_display(var, config)
 
     cg.add(var.set_model(config[CONF_MODEL]))
-    if CONF_RESET_PIN in config:
-        reset = await cg.gpio_pin_expression(config[CONF_RESET_PIN])
-        cg.add(var.set_reset_pin(reset))
-    if CONF_BRIGHTNESS in config:
-        cg.add(var.init_brightness(config[CONF_BRIGHTNESS]))
-    if CONF_EXTERNAL_VCC in config:
-        cg.add(var.set_external_vcc(config[CONF_EXTERNAL_VCC]))
-    if CONF_LAMBDA in config:
-        lambda_ = await cg.process_lambda(
-            config[CONF_LAMBDA], [(display.DisplayRef, "it")], return_type=cg.void
-        )
-        cg.add(var.set_writer(lambda_))
+    await cg.add_pin(var.set_reset_pin, config.get(CONF_RESET_PIN))
+    cg.add_optional(var.init_brightness, config.get(CONF_BRIGHTNESS))
+    cg.add_optional(var.set_external_vcc, config.get(CONF_EXTERNAL_VCC))
+    await display.add_writer(var, config)

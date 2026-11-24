@@ -1,0 +1,9 @@
+esphome:
+  name: test
+
+esp32:
+  variant: esp32
+
+esp32_ble_server:
+  id: ble_server
+  manufacturer_data: [0x72, 0x04, 0x00, 0x23]

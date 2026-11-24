@@ -1,7 +1,6 @@
 #pragma once
 
 #include "esphome/core/component.h"
-#include "esphome/core/automation.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/uart/uart.h"
 
@@ -19,9 +18,9 @@ enum SenseAirStatus : uint8_t {
 };
 
 class SenseAirComponent final : public PollingComponent, public uart::UARTDevice {
- public:
-  void set_co2_sensor(sensor::Sensor *co2_sensor) { co2_sensor_ = co2_sensor; }
+  SUB_SENSOR(co2)
 
+ public:
   void update() override;
   void dump_config() override;
 
@@ -30,61 +29,11 @@ class SenseAirComponent final : public PollingComponent, public uart::UARTDevice
   void abc_get_period();
   void abc_enable();
   void abc_disable();
+  /// Set the automatic baseline correction period in hours; 0 disables it.
+  void abc_set_period(uint16_t hours);
 
  protected:
   bool senseair_write_command_(const uint8_t *command, uint8_t *response, uint8_t response_length);
-
-  sensor::Sensor *co2_sensor_{nullptr};
-};
-
-template<typename... Ts> class SenseAirBackgroundCalibrationAction final : public Action<Ts...> {
- public:
-  SenseAirBackgroundCalibrationAction(SenseAirComponent *senseair) : senseair_(senseair) {}
-
-  void play(const Ts &...x) override { this->senseair_->background_calibration(); }
-
- protected:
-  SenseAirComponent *senseair_;
-};
-
-template<typename... Ts> class SenseAirBackgroundCalibrationResultAction final : public Action<Ts...> {
- public:
-  SenseAirBackgroundCalibrationResultAction(SenseAirComponent *senseair) : senseair_(senseair) {}
-
-  void play(const Ts &...x) override { this->senseair_->background_calibration_result(); }
-
- protected:
-  SenseAirComponent *senseair_;
-};
-
-template<typename... Ts> class SenseAirABCEnableAction final : public Action<Ts...> {
- public:
-  SenseAirABCEnableAction(SenseAirComponent *senseair) : senseair_(senseair) {}
-
-  void play(const Ts &...x) override { this->senseair_->abc_enable(); }
-
- protected:
-  SenseAirComponent *senseair_;
-};
-
-template<typename... Ts> class SenseAirABCDisableAction final : public Action<Ts...> {
- public:
-  SenseAirABCDisableAction(SenseAirComponent *senseair) : senseair_(senseair) {}
-
-  void play(const Ts &...x) override { this->senseair_->abc_disable(); }
-
- protected:
-  SenseAirComponent *senseair_;
-};
-
-template<typename... Ts> class SenseAirABCGetPeriodAction final : public Action<Ts...> {
- public:
-  SenseAirABCGetPeriodAction(SenseAirComponent *senseair) : senseair_(senseair) {}
-
-  void play(const Ts &...x) override { this->senseair_->abc_get_period(); }
-
- protected:
-  SenseAirComponent *senseair_;
 };
 
 }  // namespace esphome::senseair

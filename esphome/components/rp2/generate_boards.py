@@ -256,7 +256,7 @@ def generate(arduino_pico_path: Path) -> str:
     return result.stdout.decode()
 
 
-def main():
+def main() -> None:
     if len(sys.argv) < 2:
         print(f"Usage: {sys.argv[0]} <arduino-pico-path>", file=sys.stderr)
         sys.exit(1)

@@ -5,8 +5,8 @@
 namespace esphome::animation {
 
 Animation::Animation(const uint8_t *data_start, int width, int height, uint32_t animation_frame_count,
-                     image::ImageType type, image::Transparency transparent)
-    : Image(data_start, width, height, type, transparent),
+                     image::ImageType type, image::Transparency transparent, bool big_endian)
+    : Image(data_start, width, height, type, transparent, big_endian),
       animation_data_start_(data_start),
       current_frame_(0),
       animation_frame_count_(animation_frame_count),
@@ -50,11 +50,7 @@ void Animation::set_frame(int frame) {
   unsigned abs_frame = abs(frame);
 
   if (abs_frame < this->animation_frame_count_) {
-    if (frame >= 0) {
-      this->current_frame_ = frame;
-    } else {
-      this->current_frame_ = this->animation_frame_count_ - abs_frame;
-    }
+    this->current_frame_ = frame >= 0 ? frame : this->animation_frame_count_ - abs_frame;
   }
 
   this->update_data_start_();

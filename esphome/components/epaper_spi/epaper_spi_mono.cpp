@@ -5,7 +5,18 @@
 #include "esphome/core/log.h"
 
 namespace esphome::epaper_spi {
-static constexpr const char *const TAG = "epaper_spi.mono";
+ESPHOME_LOG_TAG(TAG, "epaper_spi.mono");
+
+void EPaperMono::setup() {
+  EPaperBase::setup();
+  if (!this->is_failed())
+    this->init_previous_frame_();
+}
+
+void EPaperMono::init_previous_frame_() {
+  if (this->needs_previous_frame() && !this->sent_.is_valid())
+    this->init_sent_frame_(this->sent_frame_length());
+}
 
 void EPaperMono::refresh_screen(bool partial) {
   ESP_LOGV(TAG, "Refresh screen");
@@ -22,11 +33,12 @@ void EPaperMono::deep_sleep() {
 }
 
 bool EPaperMono::reset() {
-  if (EPaperBase::reset()) {
+  if (!EPaperBase::reset())
+    return false;
+  this->init_previous_frame_();
+  if (this->software_reset_)
     this->command(0x12);
-    return true;
-  }
-  return false;
+  return true;
 }
 
 void EPaperMono::set_window() {
@@ -66,9 +78,10 @@ bool HOT EPaperMono::transfer_data() {
   ESP_LOGV(TAG, "Writing %u bytes at line %zu at %ums", row_length, this->current_data_index_, (unsigned) millis());
   this->start_data_();
   while (this->current_data_index_ != this->y_high_) {
-    size_t data_idx = this->current_data_index_ * this->row_width_ + this->x_low_ / 8;
+    const size_t row_start = this->current_data_index_ * this->row_width_ + this->x_low_ / 8;
+    size_t data_idx = row_start;
     for (size_t i = 0; i != row_length; i++) {
-      bytes_to_send[i] = this->send_red_ ? 0 : this->buffer_[data_idx++];
+      bytes_to_send[i] = this->send_red_ && !this->send_red_as_image_ ? 0 : this->buffer_[data_idx++];
     }
     ++this->current_data_index_;
     this->write_array(&bytes_to_send.front(), row_length);  // NOLINT

@@ -9,7 +9,7 @@
 
 namespace esphome::mqtt {
 
-static const char *const TAG = "mqtt.cover";
+ESPHOME_LOG_TAG(TAG, "mqtt.cover");
 
 using namespace esphome::cover;
 
@@ -31,39 +31,44 @@ MQTTCoverComponent::MQTTCoverComponent(Cover *cover) : cover_(cover) {}
 void MQTTCoverComponent::setup() {
   auto traits = this->cover_->get_traits();
   this->cover_->add_on_state_callback([this]() { this->publish_state(); });
-  this->subscribe(this->get_command_topic_(), [this](const std::string &topic, const std::string &payload) {
+  this->subscribe(this->command_topic_source_(), [this](const std::string &topic, const std::string &payload) {
     auto call = this->cover_->make_call();
     call.set_command(payload.c_str());
     call.perform();
   });
   if (traits.get_supports_position()) {
-    this->subscribe(this->get_position_command_topic(), [this](const std::string &topic, const std::string &payload) {
-      auto value = parse_number<float>(payload);
-      if (!value.has_value()) {
-        ESP_LOGW(TAG, "Invalid position value: '%s'", payload.c_str());
-        return;
-      }
-      auto call = this->cover_->make_call();
-      call.set_position(*value / 100.0f);
-      call.perform();
-    });
+    this->subscribe(this->get_position_command_topic_source(),
+                    [this](const std::string &topic, const std::string &payload) {
+                      auto value = parse_number<float>(payload);
+                      if (!value.has_value()) {
+                        ESP_LOGW(TAG, "Invalid position value: '%s'", payload.c_str());
+                        return;
+                      }
+                      auto call = this->cover_->make_call();
+                      call.set_position(*value / 100.0f);
+                      call.perform();
+                    });
   }
   if (traits.get_supports_tilt()) {
-    this->subscribe(this->get_tilt_command_topic(), [this](const std::string &topic, const std::string &payload) {
-      auto value = parse_number<float>(payload);
-      if (!value.has_value()) {
-        ESP_LOGW(TAG, "Invalid tilt value: '%s'", payload.c_str());
-        return;
-      }
-      auto call = this->cover_->make_call();
-      call.set_tilt(*value / 100.0f);
-      call.perform();
-    });
+    this->subscribe(this->get_tilt_command_topic_source(),
+                    [this](const std::string &topic, const std::string &payload) {
+                      if (ESPHOME_strcasecmp_P(payload.c_str(), ESPHOME_PSTR("STOP")) == 0) {
+                        this->cover_->make_call().set_command_stop_tilt().perform();
+                        return;
+                      }
+                      auto value = parse_number<float>(payload);
+                      if (!value.has_value()) {
+                        ESP_LOGW(TAG, "Invalid tilt value: '%s'", payload.c_str());
+                        return;
+                      }
+                      auto call = this->cover_->make_call();
+                      call.set_tilt(*value / 100.0f);
+                      call.perform();
+                    });
   }
 }
 
 void MQTTCoverComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "MQTT cover '%s':", this->cover_->get_name().c_str());
   auto traits = this->cover_->get_traits();
   bool has_command_topic = traits.get_supports_position() || !traits.get_supports_tilt();
   LOG_MQTT_COMPONENT(true, has_command_topic);

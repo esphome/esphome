@@ -6,9 +6,9 @@ import logging
 import tzlocal
 
 from esphome import automation
-from esphome.automation import Condition
 import esphome.codegen as cg
 from esphome.components.zephyr import zephyr_add_prj_conf
+from esphome.config_helpers import filter_source_files_from_defines
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_AT,
@@ -17,7 +17,6 @@ from esphome.const import (
     CONF_DAYS_OF_WEEK,
     CONF_HOUR,
     CONF_HOURS,
-    CONF_ID,
     CONF_MINUTE,
     CONF_MINUTES,
     CONF_MONTHS,
@@ -36,6 +35,7 @@ from esphome.const import (
     PLATFORM_RTL87XX,
 )
 from esphome.core import CORE, CoroPriority, EsphomeError, coroutine_with_priority
+from esphome.helpers import cpp_string_escape
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -46,8 +46,6 @@ DOMAIN = "time"
 time_ns = cg.esphome_ns.namespace("time")
 RealTimeClock = time_ns.class_("RealTimeClock", cg.PollingComponent)
 CronTrigger = time_ns.class_("CronTrigger", automation.Trigger.template(), cg.Component)
-SyncTrigger = time_ns.class_("SyncTrigger", automation.Trigger.template(), cg.Component)
-TimeHasTimeCondition = time_ns.class_("TimeHasTimeCondition", Condition)
 
 # C++ types for pre-parsed timezone struct generation
 DSTRuleType_cpp = time_ns.enum("DSTRuleType", is_class=True)
@@ -169,6 +167,14 @@ def _parse_cron_part(part, min_value, max_value, special_mapping):
             raise cv.Invalid(
                 f"Repeat for '/' time expression must be an integer, got {repeat}"
             ) from None
+        if not min_value <= offset_n <= max_value:
+            raise cv.Invalid(
+                f"Step '{part}': offset {offset_n} is out of range (min={min_value} max={max_value})"
+            )
+        if repeat_n < 1:
+            raise cv.Invalid(
+                f"Step '{part}': repeat must be at least 1, got {repeat_n}"
+            )
         return set(range(offset_n, max_value + 1, repeat_n))
     if "-" in part:
         data = part.split("-")
@@ -183,8 +189,13 @@ def _parse_cron_part(part, min_value, max_value, special_mapping):
         end_n = _parse_cron_int(
             end, special_mapping, "Number for time range must be integer, got {}"
         )
+        for n in (begin_n, end_n):
+            if not min_value <= n <= max_value:
+                raise cv.Invalid(
+                    f"Range '{part}': {n} is out of range (min={min_value} max={max_value})"
+                )
         if end_n < begin_n:
-            return set(range(end_n, max_value + 1)) | set(range(min_value, begin_n + 1))
+            return set(range(begin_n, max_value + 1)) | set(range(min_value, end_n + 1))
         return set(range(begin_n, end_n + 1))
 
     return {
@@ -358,11 +369,7 @@ TIME_SCHEMA = cv.Schema(
             },
             validate_cron_keys,
         ),
-        cv.Optional(CONF_ON_TIME_SYNC): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(SyncTrigger),
-            }
-        ),
+        cv.Optional(CONF_ON_TIME_SYNC): automation.validate_automation({}),
     }
 ).extend(
     # ``visibility=ADVANCED`` flags the inherited ``update_interval``
@@ -411,19 +418,24 @@ async def setup_time_core_(time_var, config):
         cg.add_define("USE_TIME_TIMEZONE")
 
         if CORE.is_host:
-            # Host platform needs setenv("TZ")/tzset() for libc compatibility
-            cg.add(time_var.set_timezone(timezone))
-        else:
-            # Embedded: pre-parse at codegen time, emit struct directly
-            from aioesphomeapi.posix_tz import parse_posix_tz as parse_posix_tz_python
+            # Host platform also needs setenv("TZ")/tzset() for libc compatibility
+            cg.add(cg.RawExpression(f'setenv("TZ", {cpp_string_escape(timezone)}, 1)'))
+            cg.add(cg.RawExpression("tzset()"))
 
-            try:
-                parsed = parse_posix_tz_python(timezone)
-                _emit_parsed_timezone_fields(parsed)
-            except ValueError as e:
-                raise EsphomeError(f"Invalid timezone: {timezone}") from e
+        # Pre-parse at codegen time, emit struct directly
+        from aioesphomeapi.posix_tz import parse_posix_tz as parse_posix_tz_python
 
-    for conf in config.get(CONF_ON_TIME, []):
+        try:
+            parsed = parse_posix_tz_python(timezone)
+        except ValueError as e:
+            raise EsphomeError(f"Invalid timezone: {timezone}") from e
+        _emit_parsed_timezone_fields(parsed)
+
+    on_time = config.get(CONF_ON_TIME, [])
+    if on_time:
+        cg.add_define("USE_TIME_TRIGGERS")
+
+    for conf in on_time:
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], time_var)
 
         seconds = conf.get(CONF_SECONDS, list(range(61)))
@@ -443,10 +455,9 @@ async def setup_time_core_(time_var, config):
         await automation.build_automation(trigger, [], conf)
 
     for conf in config.get(CONF_ON_TIME_SYNC, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], time_var)
-
-        await cg.register_component(trigger, conf)
-        await automation.build_automation(trigger, [], conf)
+        await automation.build_callback_automation(
+            time_var, "add_on_time_sync_callback", [], conf
+        )
 
 
 async def register_time(time_var, config):
@@ -457,19 +468,33 @@ async def register_time(time_var, config):
 async def to_code(config):
     if CORE.using_zephyr:
         zephyr_add_prj_conf("POSIX_CLOCK", True)
+        # From sdk-nrf 2.8.0 newlib time() gets the clock through gettimeofday(),
+        # which Zephyr only provides with XSI_SINGLE_PROCESS. Without it time()
+        # always returns -1.
+        if CORE.framework_version >= cv.Version(2, 8, 0):
+            zephyr_add_prj_conf("POSIX_SINGLE_PROCESS", True)
+            zephyr_add_prj_conf("XSI_SINGLE_PROCESS", True)
     cg.add_define("USE_TIME")
     cg.add_global(time_ns.using)
 
 
-@automation.register_condition(
+automation.register_apply_condition(
     "time.has_time",
-    TimeHasTimeCondition,
     cv.Schema(
         {
             cv.GenerateID(): cv.use_id(RealTimeClock),
         }
     ),
+    "now().is_valid()",
 )
-async def time_has_time_to_code(config, condition_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(condition_id, template_arg, paren)
+
+
+# posix_tz.cpp is fully #ifdef'd on USE_TIME_TIMEZONE, set only when a
+# timezone is configured or detected; automation.cpp holds the on_time
+# trigger and is #ifdef'd on USE_TIME_TRIGGERS.
+FILTER_SOURCE_FILES = filter_source_files_from_defines(
+    {
+        "posix_tz.cpp": "USE_TIME_TIMEZONE",
+        "automation.cpp": "USE_TIME_TRIGGERS",
+    }
+)

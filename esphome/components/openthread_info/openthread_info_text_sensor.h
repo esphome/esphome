@@ -71,7 +71,7 @@ class Rloc16OpenThreadInfo final : public OpenThreadInstancePollingComponent, pu
     if (this->last_rloc16_ != rloc16) {
       this->last_rloc16_ = rloc16;
       char buf[5];
-      snprintf(buf, sizeof(buf), "%04x", rloc16);
+      format_hex_to(buf, rloc16);
       this->publish_state(buf);
     }
   }
@@ -134,6 +134,24 @@ class ChannelOpenThreadInfo final : public OpenThreadInstancePollingComponent, p
   uint8_t last_channel_;
 };
 
+class MeshLocalEidOpenThreadInfo final : public OpenThreadInstancePollingComponent, public text_sensor::TextSensor {
+ public:
+  void update_instance(otInstance *instance) override {
+    const otIp6Address *addr = otThreadGetMeshLocalEid(instance);
+    if (otIp6IsAddressEqual(addr, &this->last_addr_)) {
+      return;
+    }
+    this->last_addr_ = *addr;
+    char buf[OT_IP6_ADDRESS_STRING_SIZE];
+    otIp6AddressToString(addr, buf, sizeof(buf));
+    this->publish_state(buf);
+  }
+  void dump_config() override;
+
+ protected:
+  otIp6Address last_addr_{};
+};
+
 class DatasetOpenThreadInfo : public OpenThreadInstancePollingComponent {
  public:
   void update_instance(otInstance *instance) override {
@@ -186,7 +204,7 @@ class PanIdOpenThreadInfo final : public DatasetOpenThreadInfo, public text_sens
     if (this->last_panid_ != panid) {
       this->last_panid_ = panid;
       char buf[5];
-      snprintf(buf, sizeof(buf), "%04x", panid);
+      format_hex_to(buf, panid);
       this->publish_state(buf);
     }
   }

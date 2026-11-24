@@ -9,7 +9,7 @@ from esphome.analyze_memory.toolchain import (
     find_idedata_path,
     idedata_candidates,
 )
-from esphome.espidf.idedata import _cc_path_from_cxx
+from esphome.build_helpers.idedata import _cc_path_from_cxx
 from esphome.platformio.toolchain import IDEData
 
 

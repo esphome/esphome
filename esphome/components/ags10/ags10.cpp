@@ -4,7 +4,7 @@
 #include <cinttypes>
 
 namespace esphome::ags10 {
-static const char *const TAG = "ags10";
+ESPHOME_LOG_TAG(TAG, "ags10");
 
 // Data acquisition.
 static const uint8_t REG_TVOC = 0x00;
@@ -26,9 +26,7 @@ void AGS10Component::setup() {
   auto version = this->read_version_();
   if (version) {
     ESP_LOGD(TAG, "AGS10 Sensor Version: 0x%02X", *version);
-    if (this->version_ != nullptr) {
-      this->version_->publish_state(*version);
-    }
+    PUBLISH_STATE(this->version_sensor_, *version);
   } else {
     ESP_LOGE(TAG, "AGS10 Sensor Version: unknown");
   }
@@ -36,9 +34,7 @@ void AGS10Component::setup() {
   auto resistance = this->read_resistance_();
   if (resistance) {
     ESP_LOGD(TAG, "AGS10 Sensor Resistance: 0x%08" PRIX32, *resistance);
-    if (this->resistance_ != nullptr) {
-      this->resistance_->publish_state(*resistance);
-    }
+    PUBLISH_STATE(this->resistance_sensor_, *resistance);
   } else {
     ESP_LOGE(TAG, "AGS10 Sensor Resistance: unknown");
   }
@@ -47,7 +43,7 @@ void AGS10Component::setup() {
 void AGS10Component::update() {
   auto tvoc = this->read_tvoc_();
   if (tvoc) {
-    this->tvoc_->publish_state(*tvoc);
+    this->tvoc_sensor_->publish_state(*tvoc);
     this->status_clear_warning();
   } else {
     this->status_set_warning();
@@ -77,9 +73,9 @@ void AGS10Component::dump_config() {
       break;
   }
   LOG_UPDATE_INTERVAL(this);
-  LOG_SENSOR("  ", "TVOC Sensor", this->tvoc_);
-  LOG_SENSOR("  ", "Firmware Version Sensor", this->version_);
-  LOG_SENSOR("  ", "Resistance Sensor", this->resistance_);
+  LOG_SENSOR("  ", "TVOC Sensor", this->tvoc_sensor_);
+  LOG_SENSOR("  ", "Firmware Version Sensor", this->version_sensor_);
+  LOG_SENSOR("  ", "Resistance Sensor", this->resistance_sensor_);
 }
 
 /**
@@ -105,6 +101,20 @@ bool AGS10Component::new_i2c_address(uint8_t newaddress) {
 bool AGS10Component::set_zero_point_with_factory_defaults() { return this->set_zero_point_with(ZP_DEFAULT); }
 
 bool AGS10Component::set_zero_point_with_current_resistance() { return this->set_zero_point_with(ZP_CURRENT); }
+
+void AGS10Component::set_zero_point(AGS10SetZeroPointActionMode mode, uint16_t value) {
+  switch (mode) {
+    case FACTORY_DEFAULT:
+      this->set_zero_point_with_factory_defaults();
+      break;
+    case CURRENT_VALUE:
+      this->set_zero_point_with_current_resistance();
+      break;
+    case CUSTOM_VALUE:
+      this->set_zero_point_with(value);
+      break;
+  }
+}
 
 bool AGS10Component::set_zero_point_with(uint16_t value) {
   std::array<uint8_t, 5> data{0x00, 0x0C, (uint8_t) ((value >> 8) & 0xFF), (uint8_t) (value & 0xFF), 0};

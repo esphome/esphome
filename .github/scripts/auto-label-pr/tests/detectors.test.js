@@ -1,6 +1,7 @@
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
 const {
+  detectApiProto,
   detectMergeBranch,
   detectNewPlatforms,
   detectNewComponents,
@@ -43,14 +44,14 @@ const WITHOUT_SCHEMA = 'CODEOWNERS = ["@esphome/core"]';
 
 // Builds a fresh context for detectMergeBranch tests instead of mutating the
 // shared CONTEXT fixture above (which other describe blocks rely on).
-function makeMergeContext(baseRef, { stack } = {}) {
+function makeMergeContext(baseRef, { stack, defaultBranch = 'dev' } = {}) {
   const pull_request = { number: 1, base: { ref: baseRef } };
   if (stack !== undefined) {
     pull_request.stack = stack;
   }
   return {
     repo: { owner: 'esphome', repo: 'esphome' },
-    payload: { pull_request }
+    payload: { pull_request, repository: { default_branch: defaultBranch } }
   };
 }
 
@@ -136,6 +137,21 @@ describe('detectMergeBranch', () => {
     assert.deepEqual(Array.from(labels).sort(), ['chained-pr']);
     assert.equal(state.calls, 1);
   });
+
+  it('base ref matches default branch adds no labels', async () => {
+    const { github } = makeStackGithub({ stack: null });
+    const context = makeMergeContext('other', { defaultBranch: 'other' });
+    const labels = await detectMergeBranch(github, context);
+    assert.deepEqual(Array.from(labels).sort(), []);
+  });
+
+  it('base ref dev when the default branch is main adds chained-pr', async () => {
+    const { github } = makeStackGithub({ stack: null });
+    const context = makeMergeContext('dev', { defaultBranch: 'main' });
+    const labels = await detectMergeBranch(github, context);
+    assert.deepEqual(Array.from(labels).sort(), ['chained-pr']);
+  });
+
 });
 
 // ---------------------------------------------------------------------------
@@ -361,6 +377,27 @@ describe('detectRequirements', () => {
 });
 
 // ---------------------------------------------------------------------------
+// detectApiProto
+// ---------------------------------------------------------------------------
+
+describe('detectApiProto', () => {
+  it('labels a PR that changes api.proto', async () => {
+    const labels = await detectApiProto(['esphome/components/api/api.proto', 'esphome/components/api/api_pb2.cpp']);
+    assert.deepEqual(Array.from(labels), ['api.proto']);
+  });
+
+  it('labels a PR that changes only api_options.proto', async () => {
+    const labels = await detectApiProto(['esphome/components/api/api_options.proto']);
+    assert.deepEqual(Array.from(labels), ['api.proto']);
+  });
+
+  it('ignores the generated protocol files and other components', async () => {
+    const labels = await detectApiProto(['esphome/components/api/api_pb2.cpp', 'esphome/components/uart/api.proto']);
+    assert.equal(labels.size, 0);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // MANAGED_LABELS
 // ---------------------------------------------------------------------------
 
@@ -371,6 +408,10 @@ describe('MANAGED_LABELS', () => {
 
   it('includes needs-developer-docs so the workflow syncs it', () => {
     assert.ok(MANAGED_LABELS.includes('needs-developer-docs'));
+  });
+
+  it('includes api.proto so the workflow removes it when the file drops out of the diff', () => {
+    assert.ok(MANAGED_LABELS.includes('api.proto'));
   });
 });
 

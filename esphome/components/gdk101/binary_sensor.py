@@ -7,6 +7,7 @@ from esphome.const import (
     ENTITY_CATEGORY_DIAGNOSTIC,
     ICON_VIBRATE,
 )
+from esphome.types import ConfigType
 
 from . import CONF_GDK101_ID, GDK101Component
 
@@ -24,7 +25,7 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     hub = await cg.get_variable(config[CONF_GDK101_ID])
     var = await binary_sensor.new_binary_sensor(config[CONF_VIBRATIONS])
     cg.add(hub.set_vibration_binary_sensor(var))

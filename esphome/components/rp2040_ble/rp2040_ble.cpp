@@ -11,7 +11,7 @@
 
 namespace esphome::rp2040_ble {
 
-static const char *const TAG = "rp2040_ble";
+ESPHOME_LOG_TAG(TAG, "rp2040_ble");
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 RP2040BLE *global_ble = nullptr;
@@ -117,10 +117,8 @@ void RP2040BLE::loop() {
   if (report == nullptr)
     return;
   do {
-#ifdef RP2040_BLE_SCAN_LISTENER_COUNT
     for (auto *listener : this->scan_listeners_)
       listener->on_scan_report(*report);
-#endif
     this->report_pool_.release(report);
   } while ((report = this->report_queue_.pop()) != nullptr);
 

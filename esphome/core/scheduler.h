@@ -239,7 +239,16 @@ class Scheduler {
       name_type_ = type;
     }
 
-    static bool cmp(SchedulerItem *a, SchedulerItem *b);
+    // Heap order for items_: the item due first is on top. A function object rather than a function, so the
+    // heap algorithms call it directly and can inline it.
+    struct Cmp {
+      bool operator()(const SchedulerItem *a, const SchedulerItem *b) const {
+        // High bits are almost always equal (change only on 32-bit rollover ~49 days)
+        return (a->next_execution_high_ == b->next_execution_high_)
+                   ? (a->next_execution_low_ > b->next_execution_low_)
+                   : (a->next_execution_high_ > b->next_execution_high_);
+      }
+    };
 
     // Note: We use 48 bits total (32 + 16), stored in a 64-bit value for API compatibility.
     // The upper 16 bits of the 64-bit value are always zero, which is fine since
@@ -254,7 +263,7 @@ class Scheduler {
       // This is correct because millis_major_ that creates these values is also 16 bits.
       next_execution_high_ = static_cast<uint16_t>(value >> 32);
     }
-    constexpr const char *get_type_str() const { return (type == TIMEOUT) ? "timeout" : "interval"; }
+    const LogString *get_type_str() const { return (type == TIMEOUT) ? LOG_STR("timeout") : LOG_STR("interval"); }
     // The owning component, or nullptr for SELF_POINTER items (whose slot holds source_name instead).
     // All component access goes through this so SELF_POINTER items read as component-less.
     Component *get_component() const { return name_type_ == NameType::SELF_POINTER ? nullptr : component; }
@@ -404,7 +413,7 @@ class Scheduler {
 #ifdef ESPHOME_DEBUG_SCHEDULER
   // Helper for debug logging in set_timer_common_ - extracted to reduce code size
   void debug_log_timer_(const SchedulerItem *item, NameType name_type, const char *static_name, uint32_t hash_or_id,
-                        SchedulerItem::Type type, uint32_t delay, uint64_t now);
+                        uint32_t delay, uint64_t now);
 #endif /* ESPHOME_DEBUG_SCHEDULER */
 
 #ifndef ESPHOME_THREAD_SINGLE
@@ -518,7 +527,9 @@ class Scheduler {
                                                                             uint32_t hash_or_id,
                                                                             SchedulerItem::Type type, bool find_first);
 
-  Mutex lock_;
+  // Empty on single-threaded platforms (ESP8266, RP2), so it takes no space there; RP2 with networking locks by
+  // holding interrupts off (SchedulerLockGuard in scheduler.cpp)
+  [[no_unique_address]] Mutex lock_;
   std::vector<SchedulerItem *> items_;
   std::vector<SchedulerItem *> to_add_;
 

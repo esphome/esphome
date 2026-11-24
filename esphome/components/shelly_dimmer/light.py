@@ -1,11 +1,12 @@
 import hashlib
 from pathlib import Path
 import re
+from typing import Any
 
 from esphome import external_files, pins
 import esphome.codegen as cg
 from esphome.components import light, sensor, uart
-from esphome.components.const import CONF_SHA256
+from esphome.components.const import CONF_FIRMWARE, CONF_SHA256
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_CURRENT,
@@ -18,13 +19,6 @@ from esphome.const import (
     CONF_URL,
     CONF_VERSION,
     CONF_VOLTAGE,
-    DEVICE_CLASS_CURRENT,
-    DEVICE_CLASS_POWER,
-    DEVICE_CLASS_VOLTAGE,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_AMPERE,
-    UNIT_VOLT,
-    UNIT_WATT,
 )
 from esphome.core import HexInt
 from esphome.external_files import RemoteFile
@@ -39,7 +33,6 @@ ShellyDimmer = shelly_dimmer_ns.class_(
     "ShellyDimmer", light.LightOutput, cg.PollingComponent, uart.UARTDevice
 )
 
-CONF_FIRMWARE = "firmware"
 CONF_UPDATE = "update"
 
 CONF_LEADING_EDGE = "leading_edge"
@@ -66,7 +59,7 @@ KNOWN_FIRMWARE = {
 }
 
 
-def parse_firmware_version(value):
+def parse_firmware_version(value: str) -> tuple[int, int]:
     match = re.fullmatch(r"(\d+)\.(\d+)", value)
     if match is None:
         raise ValueError(f"Not a valid version number {value}")
@@ -154,7 +147,7 @@ def _extract_firmware_ref(entry: ConfigType) -> RemoteFile | None:
 PREFETCH_FILES = external_files.single_stage_prefetch(_extract_firmware_ref)
 
 
-def validate_firmware(value):
+def validate_firmware(value: ConfigType) -> ConfigType:
     config = value.copy()
     if CONF_URL not in config:
         try:
@@ -167,14 +160,14 @@ def validate_firmware(value):
     return config
 
 
-def validate_sha256(value):
+def validate_sha256(value: Any) -> str:
     value = cv.string(value)
     if not re.fullmatch(r"[0-9a-fA-F]{64}", value):
         raise ValueError(f"Not a valid SHA256 hex string: {value}")
     return value
 
 
-def validate_version(value):
+def validate_version(value: str) -> str:
     parse_firmware_version(value)
     return value
 
@@ -201,22 +194,13 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_MIN_BRIGHTNESS, default=0): cv.uint16_t,
             cv.Optional(CONF_MAX_BRIGHTNESS, default=1000): cv.uint16_t,
             cv.Optional(CONF_POWER): sensor.sensor_schema(
-                unit_of_measurement=UNIT_WATT,
-                accuracy_decimals=1,
-                device_class=DEVICE_CLASS_POWER,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.POWER, accuracy_decimals=1
             ),
             cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_VOLT,
-                accuracy_decimals=1,
-                device_class=DEVICE_CLASS_VOLTAGE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.VOLTAGE, accuracy_decimals=1
             ),
             cv.Optional(CONF_CURRENT): sensor.sensor_schema(
-                unit_of_measurement=UNIT_AMPERE,
-                device_class=DEVICE_CLASS_CURRENT,
-                accuracy_decimals=2,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.CURRENT, accuracy_decimals=2
             ),
             # Change the default gamma_correct setting.
             cv.Optional(CONF_GAMMA_CORRECT, default=1.0): cv.positive_float,
@@ -231,7 +215,7 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     fw_hex = get_firmware(config[CONF_FIRMWARE])
     fw_major, fw_minor = parse_firmware_version(config[CONF_FIRMWARE][CONF_VERSION])
 
@@ -249,10 +233,8 @@ async def to_code(config):
     await light.register_light(var, config)
     await uart.register_uart_device(var, config)
 
-    nrst_pin = await cg.gpio_pin_expression(config[CONF_NRST_PIN])
-    cg.add(var.set_nrst_pin(nrst_pin))
-    boot0_pin = await cg.gpio_pin_expression(config[CONF_BOOT0_PIN])
-    cg.add(var.set_boot0_pin(boot0_pin))
+    await cg.add_pin(var.set_nrst_pin, config[CONF_NRST_PIN])
+    await cg.add_pin(var.set_boot0_pin, config[CONF_BOOT0_PIN])
 
     cg.add(var.set_leading_edge(config[CONF_LEADING_EDGE]))
     cg.add(var.set_warmup_brightness(config[CONF_WARMUP_BRIGHTNESS]))

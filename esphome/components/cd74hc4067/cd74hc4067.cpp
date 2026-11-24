@@ -4,7 +4,7 @@
 
 namespace esphome::cd74hc4067 {
 
-static const char *const TAG = "cd74hc4067";
+ESPHOME_LOG_TAG(TAG, "cd74hc4067");
 
 void CD74HC4067Component::setup() {
   this->pin_s0_->setup();

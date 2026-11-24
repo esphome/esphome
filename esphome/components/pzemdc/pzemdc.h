@@ -1,6 +1,5 @@
 #pragma once
 
-#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/modbus/modbus.h"
@@ -11,34 +10,21 @@ namespace esphome::pzemdc {
 
 class PZEMDC final : public PollingComponent, public modbus::ModbusClientDevice {
  public:
-  void set_voltage_sensor(sensor::Sensor *voltage_sensor) { voltage_sensor_ = voltage_sensor; }
-  void set_current_sensor(sensor::Sensor *current_sensor) { current_sensor_ = current_sensor; }
-  void set_power_sensor(sensor::Sensor *power_sensor) { power_sensor_ = power_sensor; }
-  void set_energy_sensor(sensor::Sensor *energy_sensor) { energy_sensor_ = energy_sensor; }
+  SUB_SENSOR(voltage)
+  SUB_SENSOR(current)
+  SUB_SENSOR(power)
+  SUB_SENSOR(energy)
 
   void update() override;
 
-  void on_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu) override;
+  void on_read_input_registers(uint16_t start_address, std::span<const uint16_t> registers,
+                               modbus::ResponseStatus status) override;
+  void on_custom_response(std::span<const uint8_t> request_pdu, std::span<const uint8_t> response_pdu,
+                          modbus::ResponseStatus status) override;
 
   void dump_config() override;
 
   void reset_energy();
-
- protected:
-  sensor::Sensor *voltage_sensor_{nullptr};
-  sensor::Sensor *current_sensor_{nullptr};
-  sensor::Sensor *power_sensor_{nullptr};
-  sensor::Sensor *energy_sensor_{nullptr};
-};
-
-template<typename... Ts> class ResetEnergyAction final : public Action<Ts...> {
- public:
-  ResetEnergyAction(PZEMDC *pzemdc) : pzemdc_(pzemdc) {}
-
-  void play(const Ts &...x) override { this->pzemdc_->reset_energy(); }
-
- protected:
-  PZEMDC *pzemdc_;
 };
 
 }  // namespace esphome::pzemdc

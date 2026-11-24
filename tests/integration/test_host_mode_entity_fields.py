@@ -8,6 +8,7 @@ from aioesphomeapi import EntityCategory, EntityState
 import pytest
 
 from .types import APIClientConnectedFactory, RunCompiledFunction
+from .wait_utils import wait_or_fail
 
 
 @pytest.mark.asyncio
@@ -84,10 +85,7 @@ async def test_host_mode_entity_fields(
         client.subscribe_states(on_state)
 
         # Wait for at least one state
-        try:
-            await asyncio.wait_for(state_received.wait(), timeout=5.0)
-        except TimeoutError:
-            pytest.fail("No states received within 5 seconds")
+        await wait_or_fail(state_received, 5.0, "No states received within 5 seconds")
 
         # Verify we received states (which means has_state flag is working)
         assert len(states) > 0, "No states received - has_state flag may not be working"

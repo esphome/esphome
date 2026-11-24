@@ -1,0 +1,34 @@
+esphome:
+  name: set-internal-at-boot
+  on_boot:
+    then:
+      - lambda: |-
+          id(hidden_at_boot).set_internal(true);
+          id(shown_at_boot).set_internal(false);
+
+host:
+
+api:
+  actions:
+    - action: set_internal_late
+      then:
+        - lambda: id(untouched).set_internal(true);
+
+logger:
+
+sensor:
+  - platform: template
+    name: "Hidden At Boot"
+    id: hidden_at_boot
+    lambda: return 1.0;
+
+  - platform: template
+    name: "Shown At Boot"
+    id: shown_at_boot
+    internal: true
+    lambda: return 2.0;
+
+  - platform: template
+    name: "Untouched"
+    id: untouched
+    lambda: return 3.0;

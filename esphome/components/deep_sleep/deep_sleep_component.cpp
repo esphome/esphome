@@ -4,7 +4,7 @@
 
 namespace esphome::deep_sleep {
 
-static const char *const TAG = "deep_sleep";
+ESPHOME_LOG_TAG(TAG, "deep_sleep");
 // 5 seconds for deep sleep to ensure clean disconnect from Home Assistant
 static const uint32_t TEARDOWN_TIMEOUT_DEEP_SLEEP_MS = 5000;
 
@@ -12,11 +12,15 @@ bool global_has_deep_sleep = false;  // NOLINT(cppcoreguidelines-avoid-non-const
 
 void DeepSleepComponent::setup() {
   global_has_deep_sleep = true;
+#ifdef USE_BK72XX
+  this->setup_wakeup_pins_();
+#endif
   this->schedule_sleep_();
 }
 
 void DeepSleepComponent::schedule_sleep_() {
   this->next_enter_deep_sleep_ = false;
+  this->disable_loop();
   const optional<uint32_t> run_duration = get_run_duration_();
   if (run_duration.has_value()) {
     ESP_LOGI(TAG, "Scheduling in %" PRIu32 " ms", *run_duration);
@@ -25,6 +29,45 @@ void DeepSleepComponent::schedule_sleep_() {
     ESP_LOGD(TAG, "Not scheduling; no run duration configured");
   }
 }
+
+#ifdef USE_TIME
+void DeepSleepComponent::set_sleep_until(time::RealTimeClock *clock, uint8_t hour, uint8_t minute, uint8_t second) {
+  auto time = clock->now();
+  const uint32_t timestamp_now = time.timestamp;
+
+  bool after_time = false;
+  if (time.hour > hour) {
+    after_time = true;
+  } else {
+    if (time.hour == hour) {
+      if (time.minute > minute) {
+        after_time = true;
+      } else {
+        if (time.minute == minute) {
+          if (time.second > second) {
+            after_time = true;
+          }
+        }
+      }
+    }
+  }
+
+  time.hour = hour;
+  time.minute = minute;
+  time.second = second;
+  time.recalc_timestamp_utc();
+
+  time_t timestamp = time.timestamp;  // timestamp in local time zone
+
+  if (after_time)
+    timestamp += 60 * 60 * 24;
+
+  int32_t offset = ESPTime::timezone_offset();
+  timestamp -= offset;  // Change timestamp to utc
+  const uint32_t ms_left = (timestamp - timestamp_now) * 1000;
+  this->set_sleep_duration(ms_left);
+}
+#endif
 
 void DeepSleepComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "Deep sleep:");
@@ -43,13 +86,9 @@ void DeepSleepComponent::loop() {
     this->begin_sleep();
 }
 
-void DeepSleepComponent::set_sleep_duration(uint32_t time_ms) { this->sleep_duration_ = uint64_t(time_ms) * 1000; }
-
-void DeepSleepComponent::set_run_duration(uint32_t time_ms) { this->run_duration_ = time_ms; }
-
 void DeepSleepComponent::begin_sleep(bool manual) {
   if (this->prevent_ && !manual) {
-    this->next_enter_deep_sleep_ = true;
+    this->defer_sleep_();
     return;
   }
 
@@ -63,11 +102,9 @@ void DeepSleepComponent::begin_sleep(bool manual) {
   }
 
   if (this->should_teardown_()) {
-    App.run_safe_shutdown_hooks();
     // It's critical to teardown components cleanly for deep sleep to ensure
     // Home Assistant sees a clean disconnect instead of marking the device unavailable
-    App.teardown_components(TEARDOWN_TIMEOUT_DEEP_SLEEP_MS);
-    App.run_powerdown_hooks();
+    App.safe_shutdown(TEARDOWN_TIMEOUT_DEEP_SLEEP_MS);
   }
 
   this->deep_sleep_();
@@ -75,9 +112,5 @@ void DeepSleepComponent::begin_sleep(bool manual) {
 }
 
 float DeepSleepComponent::get_setup_priority() const { return setup_priority::LATE; }
-
-void DeepSleepComponent::prevent_deep_sleep() { this->prevent_ = true; }
-
-void DeepSleepComponent::allow_deep_sleep() { this->prevent_ = false; }
 
 }  // namespace esphome::deep_sleep

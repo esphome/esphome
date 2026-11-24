@@ -7,21 +7,13 @@ from esphome.const import (
     CONF_PRESSURE,
     CONF_TEMPERATURE,
     CONF_TVOC,
-    DEVICE_CLASS_HUMIDITY,
-    DEVICE_CLASS_PRESSURE,
-    DEVICE_CLASS_TEMPERATURE,
-    DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS,
-    DEVICE_CLASS_VOLTAGE,
     ENTITY_CATEGORY_DIAGNOSTIC,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS,
-    UNIT_HECTOPASCAL,
-    UNIT_PARTS_PER_BILLION,
-    UNIT_PERCENT,
-    UNIT_VOLT,
 )
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@ncareau", "@jeromelaban"]
+DOMAIN = "airthings_wave_base"
 
 DEPENDENCIES = ["ble_client"]
 
@@ -37,34 +29,16 @@ BASE_SCHEMA = (
     cv.Schema(
         {
             cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(
-                unit_of_measurement=UNIT_PERCENT,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_HUMIDITY,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.HUMIDITY, accuracy_decimals=0
             ),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_CELSIUS,
-                accuracy_decimals=2,
-                device_class=DEVICE_CLASS_TEMPERATURE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.TEMPERATURE, accuracy_decimals=2
             ),
-            cv.Optional(CONF_PRESSURE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_HECTOPASCAL,
-                accuracy_decimals=1,
-                device_class=DEVICE_CLASS_PRESSURE,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_TVOC): sensor.sensor_schema(
-                unit_of_measurement=UNIT_PARTS_PER_BILLION,
-                accuracy_decimals=0,
-                device_class=DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
+            cv.Optional(CONF_PRESSURE): sensor.sensor_schema(kind=sensor.PRESSURE),
+            cv.Optional(CONF_TVOC): sensor.sensor_schema(kind=sensor.VOC_PPB),
             cv.Optional(CONF_BATTERY_VOLTAGE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_VOLT,
+                kind=sensor.VOLTAGE,
                 accuracy_decimals=3,
-                device_class=DEVICE_CLASS_VOLTAGE,
-                state_class=STATE_CLASS_MEASUREMENT,
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
             cv.Optional(
@@ -78,25 +52,16 @@ BASE_SCHEMA = (
 )
 
 
-async def wave_base_to_code(var, config):
+async def wave_base_to_code(var: MockObj, config: ConfigType) -> None:
     await cg.register_component(var, config)
 
     await ble_client.register_ble_node(var, config)
 
-    if config_humidity := config.get(CONF_HUMIDITY):
-        sens = await sensor.new_sensor(config_humidity)
-        cg.add(var.set_humidity(sens))
-    if config_temperature := config.get(CONF_TEMPERATURE):
-        sens = await sensor.new_sensor(config_temperature)
-        cg.add(var.set_temperature(sens))
-    if config_pressure := config.get(CONF_PRESSURE):
-        sens = await sensor.new_sensor(config_pressure)
-        cg.add(var.set_pressure(sens))
-    if config_tvoc := config.get(CONF_TVOC):
-        sens = await sensor.new_sensor(config_tvoc)
-        cg.add(var.set_tvoc(sens))
-    if config_battery_voltage := config.get(CONF_BATTERY_VOLTAGE):
-        sens = await sensor.new_sensor(config_battery_voltage)
-        cg.add(var.set_battery_voltage(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_HUMIDITY, var.set_humidity_sensor)
+    await sensors(CONF_TEMPERATURE, var.set_temperature_sensor)
+    await sensors(CONF_PRESSURE, var.set_pressure_sensor)
+    await sensors(CONF_TVOC, var.set_tvoc_sensor)
+    await sensors(CONF_BATTERY_VOLTAGE, var.set_battery_voltage)
     if config_battery_update_interval := config.get(CONF_BATTERY_UPDATE_INTERVAL):
         cg.add(var.set_battery_update_interval(config_battery_update_interval))

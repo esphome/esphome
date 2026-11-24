@@ -1,10 +1,11 @@
 
 #include "modbus_textsensor.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::modbus_controller {
 
-static const char *const TAG = "modbus_controller.text_sensor";
+ESPHOME_LOG_TAG(TAG, "modbus_controller.text_sensor");
 
 void ModbusTextSensor::dump_config() { LOG_TEXT_SENSOR("", "Modbus Controller Text Sensor", this); }
 
@@ -19,7 +20,7 @@ void ModbusTextSensor::parse_and_publish(std::span<const uint8_t> data) {
       case RawEncoding::HEXBYTES: {
         // max 3: 2 hex digits + null
         char hex_buf[3];
-        snprintf(hex_buf, sizeof(hex_buf), "%02x", b);
+        format_hex_to(hex_buf, b);
         output_str += hex_buf;
         break;
       }

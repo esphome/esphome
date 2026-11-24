@@ -4,7 +4,7 @@
 
 namespace esphome::remote_base {
 
-static const char *const TAG = "remote.raw";
+ESPHOME_LOG_TAG(TAG, "remote.raw");
 
 bool RawDumper::dump(RemoteReceiveData src) {
   char buffer[256];

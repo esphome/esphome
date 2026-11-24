@@ -9,17 +9,13 @@
 
 namespace esphome::mqtt {
 
-static const char *const TAG = "mqtt.alarm_control_panel";
+ESPHOME_LOG_TAG(TAG, "mqtt.alarm_control_panel");
 
 using namespace esphome::alarm_control_panel;
 
 // Alarm state MQTT strings indexed by AlarmControlPanelState enum (0-9)
 PROGMEM_STRING_TABLE(AlarmMqttStateStrings, "disarmed", "armed_home", "armed_away", "armed_night", "armed_vacation",
                      "armed_custom_bypass", "pending", "arming", "disarming", "triggered", "unknown");
-
-static ProgmemStr alarm_state_to_mqtt_str(AlarmControlPanelState state) {
-  return AlarmMqttStateStrings::get_progmem_str(static_cast<uint8_t>(state), AlarmMqttStateStrings::LAST_INDEX);
-}
 
 MQTTAlarmControlPanelComponent::MQTTAlarmControlPanelComponent(AlarmControlPanel *alarm_control_panel)
     : alarm_control_panel_(alarm_control_panel) {}
@@ -50,7 +46,7 @@ static bool apply_command(AlarmControlPanelCall &call, const char *state) {
 void MQTTAlarmControlPanelComponent::setup() {
   this->alarm_control_panel_->add_on_state_callback(
       [this](AlarmControlPanelState /*state*/) { this->publish_state(); });
-  this->subscribe(this->get_command_topic_(), [this](const std::string &topic, const std::string &payload) {
+  this->subscribe(this->command_topic_source_(), [this](const std::string &topic, const std::string &payload) {
     auto call = this->alarm_control_panel_->make_call();
     if (!payload.empty() && payload[0] == '{') {
       // JSON payload: {"state": "DISARM", "code": "1234"}
@@ -59,9 +55,9 @@ void MQTTAlarmControlPanelComponent::setup() {
       if (!root.isNull()) {
         const char *state = root[ESPHOME_F("state")];
         if (state == nullptr) {
-          ESP_LOGW(TAG, "'%s': JSON payload missing 'state' key", this->friendly_name_().c_str());
+          ESP_LOGW(TAG, "'%s': JSON payload missing 'state' key", LOG_STR_ARG(this->log_name_()));
         } else if (!apply_command(call, state)) {
-          ESP_LOGW(TAG, "'%s': Received unknown state in JSON payload: %s", this->friendly_name_().c_str(), state);
+          ESP_LOGW(TAG, "'%s': Received unknown state in JSON payload: %s", LOG_STR_ARG(this->log_name_()), state);
         } else {
           const char *code = root[ESPHOME_F("code")];
           if (code != nullptr) {
@@ -70,14 +66,13 @@ void MQTTAlarmControlPanelComponent::setup() {
         }
       }
     } else if (!apply_command(call, payload.c_str())) {
-      ESP_LOGW(TAG, "'%s': Received unknown command payload %s", this->friendly_name_().c_str(), payload.c_str());
+      ESP_LOGW(TAG, "'%s': Received unknown command payload %s", LOG_STR_ARG(this->log_name_()), payload.c_str());
     }
     call.perform();
   });
 }
 
 void MQTTAlarmControlPanelComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "MQTT alarm_control_panel '%s':", this->alarm_control_panel_->get_name().c_str());
   LOG_MQTT_COMPONENT(true, true);
   ESP_LOGCONFIG(TAG,
                 "  Supported Features: %" PRIu32 "\n"
@@ -121,7 +116,7 @@ bool MQTTAlarmControlPanelComponent::send_initial_state() { return this->publish
 bool MQTTAlarmControlPanelComponent::publish_state() {
   char topic_buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
   return this->publish(this->get_state_topic_to_(topic_buf),
-                       alarm_state_to_mqtt_str(this->alarm_control_panel_->get_state()));
+                       AlarmMqttStateStrings::get_progmem_str(this->alarm_control_panel_->get_state()));
 }
 
 }  // namespace esphome::mqtt

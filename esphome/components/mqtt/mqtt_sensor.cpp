@@ -1,6 +1,7 @@
 #include <cinttypes>
 #include "mqtt_sensor.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 #include "mqtt_const.h"
 
@@ -13,7 +14,7 @@
 
 namespace esphome::mqtt {
 
-static const char *const TAG = "mqtt.sensor";
+ESPHOME_LOG_TAG(TAG, "mqtt.sensor");
 
 using namespace esphome::sensor;
 
@@ -24,11 +25,10 @@ void MQTTSensorComponent::setup() {
 }
 
 void MQTTSensorComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "MQTT Sensor '%s':", this->sensor_->get_name().c_str());
+  LOG_MQTT_COMPONENT(true, false);
   if (this->get_expire_after() > 0) {
     ESP_LOGCONFIG(TAG, "  Expire After: %" PRIu32 "s", this->get_expire_after() / 1000);
   }
-  LOG_MQTT_COMPONENT(true, false);
 }
 
 MQTT_COMPONENT_TYPE(MQTTSensorComponent, "sensor")
@@ -39,8 +39,6 @@ uint32_t MQTTSensorComponent::get_expire_after() const {
     return *this->expire_after_;
   return 0;
 }
-void MQTTSensorComponent::set_expire_after(uint32_t expire_after) { this->expire_after_ = expire_after; }
-void MQTTSensorComponent::disable_expire_after() { this->expire_after_ = 0; }
 
 void MQTTSensorComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
   // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
@@ -61,11 +59,7 @@ void MQTTSensorComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryCon
     root[MQTT_FORCE_UPDATE] = true;
 
   if (this->sensor_->get_state_class() != STATE_CLASS_NONE) {
-#ifdef USE_STORE_LOG_STR_IN_FLASH
-    root[MQTT_STATE_CLASS] = (const __FlashStringHelper *) state_class_to_string(this->sensor_->get_state_class());
-#else
-    root[MQTT_STATE_CLASS] = LOG_STR_ARG(state_class_to_string(this->sensor_->get_state_class()));
-#endif
+    root[MQTT_STATE_CLASS] = reinterpret_cast<ProgmemStr>(state_class_to_string(this->sensor_->get_state_class()));
   }
 
   config.command_topic = false;
@@ -79,12 +73,7 @@ bool MQTTSensorComponent::send_initial_state() {
 }
 bool MQTTSensorComponent::publish_state(float value) {
   char topic_buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
-  if (mqtt::global_mqtt_client->is_publish_nan_as_none() && std::isnan(value))
-    return this->publish(this->get_state_topic_to_(topic_buf), "None", 4);
-  int8_t accuracy = this->sensor_->get_accuracy_decimals();
-  char buf[VALUE_ACCURACY_MAX_LEN];
-  size_t len = value_accuracy_to_buf(buf, value, accuracy);
-  return this->publish(this->get_state_topic_to_(topic_buf), buf, len);
+  return this->publish_float_(this->get_state_topic_to_(topic_buf), value, this->sensor_->get_accuracy_decimals());
 }
 
 }  // namespace esphome::mqtt

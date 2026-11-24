@@ -5,11 +5,8 @@ from esphome.const import (
     CONF_FIELD_STRENGTH_X,
     CONF_FIELD_STRENGTH_Y,
     CONF_FIELD_STRENGTH_Z,
-    CONF_ID,
-    ICON_MAGNET,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_MICROTESLA,
 )
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["i2c"]
 
@@ -19,10 +16,7 @@ MMC5983Component = mmc5983_ns.class_(
 )
 
 field_strength_schema = sensor.sensor_schema(
-    unit_of_measurement=UNIT_MICROTESLA,
-    icon=ICON_MAGNET,
-    accuracy_decimals=4,
-    state_class=STATE_CLASS_MEASUREMENT,
+    kind=sensor.MAGNETIC_FIELD, accuracy_decimals=2
 )
 
 CONFIG_SCHEMA = (
@@ -39,17 +33,10 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+async def to_code(config: ConfigType) -> None:
+    var = await i2c.new_i2c_component(config)
 
-    if x_config := config.get(CONF_FIELD_STRENGTH_X):
-        sens = await sensor.new_sensor(x_config)
-        cg.add(var.set_x_sensor(sens))
-    if y_config := config.get(CONF_FIELD_STRENGTH_Y):
-        sens = await sensor.new_sensor(y_config)
-        cg.add(var.set_y_sensor(sens))
-    if z_config := config.get(CONF_FIELD_STRENGTH_Z):
-        sens = await sensor.new_sensor(z_config)
-        cg.add(var.set_z_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_FIELD_STRENGTH_X, var.set_x_sensor)
+    await sensors(CONF_FIELD_STRENGTH_Y, var.set_y_sensor)
+    await sensors(CONF_FIELD_STRENGTH_Z, var.set_z_sensor)

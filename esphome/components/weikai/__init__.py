@@ -1,3 +1,4 @@
+from esphome import pins
 import esphome.codegen as cg
 from esphome.components import uart
 from esphome.components.const import CONF_DATA_BITS, CONF_PARITY, CONF_STOP_BITS
@@ -12,9 +13,12 @@ from esphome.const import (
     CONF_NUMBER,
     CONF_OUTPUT,
 )
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@DrCoolZic"]
 AUTO_LOAD = ["uart"]
+DOMAIN = "weikai"
 
 MULTI_CONF = True
 CONF_CRYSTAL = "crystal"
@@ -26,7 +30,7 @@ WeikaiComponent = weikai_ns.class_("WeikaiComponent", cg.Component)
 WeikaiChannel = weikai_ns.class_("WeikaiChannel", uart.UARTComponent)
 
 
-def check_channel_max(value, max):
+def check_channel_max(value: ConfigType, max: int) -> ConfigType:
     channel_uniq = []
     channel_dup = []
     for x in value[CONF_UART]:
@@ -41,11 +45,11 @@ def check_channel_max(value, max):
     return value
 
 
-def check_channel_max_4(value):
+def check_channel_max_4(value: ConfigType) -> ConfigType:
     return check_channel_max(value, 4)
 
 
-def check_channel_max_2(value):
+def check_channel_max_2(value: ConfigType) -> ConfigType:
     return check_channel_max(value, 2)
 
 
@@ -70,7 +74,7 @@ WKBASE_SCHEMA = cv.Schema(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-async def register_weikai(var, config):
+async def register_weikai(var: MockObj, config: ConfigType) -> None:
     """Register an weikai device with the given config."""
     cg.add(var.set_crystal(config[CONF_CRYSTAL]))
     cg.add(var.set_test_mode(config[CONF_TEST_MODE]))
@@ -85,12 +89,9 @@ async def register_weikai(var, config):
         cg.add(chan.set_parity(uart_elem[CONF_PARITY]))
 
 
-def validate_pin_mode(value):
+def validate_pin_mode(value: ConfigType) -> ConfigType:
     """Checks input/output mode inconsistency"""
-    if not (value[CONF_MODE][CONF_INPUT] or value[CONF_MODE][CONF_OUTPUT]):
-        raise cv.Invalid("Mode must be either input or output")
-    if value[CONF_MODE][CONF_INPUT] and value[CONF_MODE][CONF_OUTPUT]:
-        raise cv.Invalid("Mode must be either input or output")
+    pins.gpio_validate_input_xor_output(value[CONF_MODE])
     return value
 
 

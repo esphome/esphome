@@ -15,30 +15,11 @@ struct RC6Data {
 
 class RC6Protocol : public RemoteProtocol<RC6Data> {
  public:
-  void encode(RemoteTransmitData *dst, const RC6Data &data) override;
-  optional<RC6Data> decode(RemoteReceiveData src) override;
-  void dump(const RC6Data &data) override;
+  void encode(RemoteTransmitData *dst, const RC6Data &data);
+  optional<RC6Data> decode(RemoteReceiveData src);
+  void dump(const RC6Data &data);
 };
 
 DECLARE_REMOTE_PROTOCOL(RC6)
-
-template<typename... Ts> class RC6Action : public RemoteTransmitterActionBase<Ts...> {
- public:
-  TEMPLATABLE_VALUE(uint8_t, address)
-  TEMPLATABLE_VALUE(uint8_t, command)
-
-  void encode(RemoteTransmitData *dst, Ts... x) {
-    RC6Data data{};
-    data.mode = 0;
-    data.toggle = this->toggle_;
-    data.address = this->address_.value(x...);
-    data.command = this->command_.value(x...);
-    RC6Protocol().encode(dst, data);
-    this->toggle_ = !this->toggle_;
-  }
-
- protected:
-  uint8_t toggle_{0};
-};
 
 }  // namespace esphome::remote_base

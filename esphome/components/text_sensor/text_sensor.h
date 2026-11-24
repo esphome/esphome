@@ -3,6 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/entity_base.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/progmem.h"
 #ifdef USE_TEXT_SENSOR_FILTER
 #include "esphome/components/text_sensor/filter.h"
 #endif
@@ -29,7 +30,8 @@ class TextSensor : public EntityBase {
  public:
   std::string state;
 
-  TextSensor() = default;
+  // User provided, not "= default": `new(p) TextSensor()` would zero-fill .bss that is already zero.
+  TextSensor() {}
   ~TextSensor() = default;
 
   /// Getter-syntax for .state.
@@ -37,9 +39,14 @@ class TextSensor : public EntityBase {
   /// Returns the raw (pre-filter) state.
   const std::string &get_raw_state() const;
 
-  void publish_state(const std::string &state);
-  void publish_state(const char *state);
+  void publish_state(const std::string &state) { this->publish_state(state.data(), state.size()); }
+  void publish_state(const char *state) { this->publish_state(state, strlen(state)); }
   void publish_state(const char *state, size_t len);
+#ifdef USE_ESP8266
+  /// Publish a flash string, such as a PROGMEM_STRING_TABLE get_progmem_str(); at most 255 characters, the Home
+  /// Assistant state limit, are kept.
+  void publish_state(ProgmemStr state);
+#endif
 
 #ifdef USE_TEXT_SENSOR_FILTER
   /// Add a filter to the filter chain. Will be appended to the back.
@@ -53,6 +60,17 @@ class TextSensor : public EntityBase {
 
   /// Clear the entire filter chain.
   void clear_filters();
+#ifdef USE_TEXT_SENSOR_FILTER_RESET
+  /// Reset the filter chain and take it out of use, so values publish unfiltered. If the last raw value differs
+  /// from the current state, because a filter held it back, dropped it or changed it, the raw value is sent.
+  /// Returns the chain, or nullptr if there is none, for attach_filters(). Not for use from this sensor's own raw
+  /// state callback; defer instead.
+  Filter *detach_filters();
+  /// Put back a chain from detach_filters() and run the current state through it, without calling the raw state
+  /// callbacks again. Only for use while the chain is detached: it replaces any chain that is attached. Does nothing
+  /// for nullptr.
+  void attach_filters(Filter *filters);
+#endif
 #endif
 
   template<typename F> void add_on_state_callback(F &&callback) { this->callback_.add(std::forward<F>(callback)); }
@@ -70,7 +88,9 @@ class TextSensor : public EntityBase {
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
 
-  void internal_send_state_to_frontend(const std::string &state);
+  void internal_send_state_to_frontend(const std::string &state) {
+    this->internal_send_state_to_frontend(state.data(), state.size());
+  }
   void internal_send_state_to_frontend(const char *state, size_t len);
 
  protected:

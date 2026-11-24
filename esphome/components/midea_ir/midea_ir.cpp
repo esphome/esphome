@@ -6,7 +6,7 @@
 
 namespace esphome::midea_ir {
 
-static const char *const TAG = "midea_ir.climate";
+ESPHOME_LOG_TAG(TAG, "midea_ir.climate");
 
 void ControlData::set_temp(float temp) {
   uint8_t min;

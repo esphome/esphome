@@ -4,20 +4,17 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_COUNTS,
     CONF_DIELECTRIC_CONSTANT,
-    CONF_ID,
     CONF_MOISTURE,
     CONF_PERMITTIVITY,
     CONF_TEMPERATURE,
     CONF_VOLTAGE,
-    DEVICE_CLASS_TEMPERATURE,
-    DEVICE_CLASS_VOLTAGE,
+    DEVICE_CLASS_MOISTURE,
     ICON_WATER_PERCENT,
     STATE_CLASS_MEASUREMENT,
-    UNIT_CELSIUS,
     UNIT_EMPTY,
     UNIT_PERCENT,
-    UNIT_VOLT,
 )
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["uart"]
 
@@ -43,22 +40,17 @@ CONFIG_SCHEMA = (
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_CELSIUS,
-                accuracy_decimals=2,
-                device_class=DEVICE_CLASS_TEMPERATURE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.TEMPERATURE, accuracy_decimals=2
             ),
             cv.Optional(CONF_MOISTURE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PERCENT,
                 icon=ICON_WATER_PERCENT,
                 accuracy_decimals=2,
+                device_class=DEVICE_CLASS_MOISTURE,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_VOLT,
-                accuracy_decimals=2,
-                device_class=DEVICE_CLASS_VOLTAGE,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.VOLTAGE, accuracy_decimals=2
             ),
         }
     )
@@ -67,31 +59,23 @@ CONFIG_SCHEMA = (
 )
 
 FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
-    "smt100", baud_rate=9600, require_rx=True, require_tx=True
+    "smt100",
+    baud_rate=9600,
+    require_rx=True,
+    require_tx=True,
+    data_bits=8,
+    parity="NONE",
+    stop_bits=1,
 )
 
 
-async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await uart.register_uart_device(var, config)
+async def to_code(config: ConfigType) -> None:
+    cg.add_define("USE_LINE_READER")
+    var = await uart.new_uart_component(config)
 
-    if CONF_COUNTS in config:
-        sens = await sensor.new_sensor(config[CONF_COUNTS])
-        cg.add(var.set_counts_sensor(sens))
-
-    if CONF_PERMITTIVITY in config:
-        sens = await sensor.new_sensor(config[CONF_PERMITTIVITY])
-        cg.add(var.set_permittivity_sensor(sens))
-
-    if CONF_TEMPERATURE in config:
-        sens = await sensor.new_sensor(config[CONF_TEMPERATURE])
-        cg.add(var.set_temperature_sensor(sens))
-
-    if CONF_MOISTURE in config:
-        sens = await sensor.new_sensor(config[CONF_MOISTURE])
-        cg.add(var.set_moisture_sensor(sens))
-
-    if CONF_VOLTAGE in config:
-        sens = await sensor.new_sensor(config[CONF_VOLTAGE])
-        cg.add(var.set_voltage_sensor(sens))
+    sensors = sensor.sub_sensors(config)
+    await sensors(CONF_COUNTS, var.set_counts_sensor)
+    await sensors(CONF_PERMITTIVITY, var.set_permittivity_sensor)
+    await sensors(CONF_TEMPERATURE, var.set_temperature_sensor)
+    await sensors(CONF_MOISTURE, var.set_moisture_sensor)
+    await sensors(CONF_VOLTAGE, var.set_voltage_sensor)

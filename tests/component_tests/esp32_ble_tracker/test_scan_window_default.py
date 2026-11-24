@@ -12,6 +12,7 @@ arbiter a full-duty scan would starve wifi, so the 30 ms default is kept.
 from __future__ import annotations
 
 from collections.abc import Callable
+import logging
 from pathlib import Path
 
 import pytest
@@ -23,6 +24,7 @@ from esphome.components.esp32 import KEY_IDF_VERSION
 from esphome.components.esp32_ble_tracker import (
     CONF_SOFTWARE_COEXISTENCE,
     CONFIG_SCHEMA,
+    SHORT_SCAN_WINDOW_DEFINE,
 )
 from esphome.const import CONF_INTERVAL, PlatformFramework
 from esphome.core import CORE
@@ -199,13 +201,17 @@ def test_connection_scan_window_truncation_collapse_rejected(
     ("config_file", "window_call", "connection_call", "warns"),
     [
         # Raised window with GATT clients: the injected fallback is emitted.
-        ("scan_window_raised.yaml", "set_scan_window(512)", True, False),
+        ("scan_window_raised.yaml", "set_scan_window(512)", 48, False),
         # Explicit window: nothing injected.
-        ("scan_window_explicit.yaml", "set_scan_window(48)", False, False),
-        # Scan-only build compiles the path out: the injected default is
-        # dropped silently, a user-set value warns.
-        ("scan_window_scan_only.yaml", "set_scan_window(512)", False, False),
-        ("scan_window_user_set_scan_only.yaml", "set_scan_window(512)", False, True),
+        ("scan_window_explicit.yaml", "set_scan_window(48)", None, False),
+        # Scan-only build without a wifi AP compiles the path out: the injected
+        # default is dropped silently, a user-set value warns.
+        ("scan_window_scan_only.yaml", "set_scan_window(512)", None, False),
+        ("scan_window_user_set_scan_only.yaml", "set_scan_window(512)", None, True),
+        # A wifi AP needs the short window even without clients
+        # (esphome/esphome#22534).
+        ("scan_window_scan_only_ap.yaml", "set_scan_window(512)", 48, False),
+        ("scan_window_user_set_scan_only_ap.yaml", "set_scan_window(512)", 32, False),
     ],
 )
 def test_connection_scan_window_codegen(
@@ -214,10 +220,66 @@ def test_connection_scan_window_codegen(
     caplog: pytest.LogCaptureFixture,
     config_file: str,
     window_call: str,
-    connection_call: bool,
+    connection_call: int | None,
     warns: bool,
 ) -> None:
     main_cpp = generate_main(component_config_path(config_file))
     assert window_call in main_cpp
-    assert ("set_connection_scan_window(48)" in main_cpp) == connection_call
+    armed = any(define.name == SHORT_SCAN_WINDOW_DEFINE for define in CORE.defines)
+    assert armed == (connection_call is not None)
+    if connection_call is None:
+        assert "set_connection_scan_window(" not in main_cpp
+    else:
+        assert f"set_connection_scan_window({connection_call})" in main_cpp
     assert ("'connection_scan_window' has no effect" in caplog.text) == warns
+
+
+@pytest.mark.parametrize(
+    ("wifi", "params", "expect_warning"),
+    [
+        (True, {"interval": "1100ms", "window": "1100ms"}, True),
+        (True, {"interval": "1100ms", "window": "601ms"}, True),
+        (True, {"interval": "1100ms", "window": "600ms"}, False),
+        (False, {"interval": "1100ms", "window": "1100ms"}, False),
+    ],
+)
+def test_long_window_with_wifi_warns(
+    stage_esp32: Callable[..., None],
+    caplog: pytest.LogCaptureFixture,
+    wifi: bool,
+    params: ConfigType,
+    expect_warning: bool,
+) -> None:
+    """A scan window above 600 ms warns only when wifi shares the radio."""
+    stage_esp32("5.5.5", wifi=wifi)
+    with caplog.at_level(logging.WARNING):
+        _scan_params({"scan_parameters": params})
+    assert ("starves wifi" in caplog.text) is expect_warning
+
+
+def test_long_window_warns_with_coexistence_disabled(
+    stage_esp32: Callable[..., None],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Disabling the arbiter is the worst case for a long window, so it still warns."""
+    stage_esp32("5.5.5", wifi=True)
+    with caplog.at_level(logging.WARNING):
+        _scan_params(
+            {
+                CONF_SOFTWARE_COEXISTENCE: False,
+                "scan_parameters": {"interval": "1100ms", "window": "1100ms"},
+            }
+        )
+    assert "BLE scan window of 1100ms" in caplog.text
+
+
+def test_raised_window_warning_points_at_interval(
+    stage_esp32: Callable[..., None],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """When the window was raised to a long interval, the warning names the interval."""
+    stage_esp32("5.5.5", wifi=True)
+    with caplog.at_level(logging.WARNING):
+        _scan_params({"scan_parameters": {"interval": "1s"}})
+    assert "BLE scan interval of 1s" in caplog.text
+    assert "BLE scan window of" not in caplog.text

@@ -1,0 +1,11 @@
+# Pico W on the station network with an active bluetooth_proxy (name set with -s name).
+rp2:
+  board: rpipicow
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+rp2_ble_tracker:
+bluetooth_proxy:
+  active: true
+packages:
+  common: !include rp-common.yaml

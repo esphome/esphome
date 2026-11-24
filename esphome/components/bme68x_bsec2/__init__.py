@@ -11,6 +11,7 @@ from esphome.const import (
     CONF_SAMPLE_RATE,
     CONF_TEMPERATURE_OFFSET,
 )
+from esphome.cpp_generator import MockObj
 from esphome.external_files import RemoteFile
 from esphome.types import ConfigType
 
@@ -35,28 +36,18 @@ BME68xBSEC2Component = bme68x_bsec2_ns.class_("BME68xBSEC2Component", cg.Compone
 MODEL_OPTIONS = ["bme680", "bme688"]
 
 AlgorithmOutput = bme68x_bsec2_ns.enum("AlgorithmOutput")
-ALGORITHM_OUTPUT_OPTIONS = {
-    "classification": AlgorithmOutput.ALGORITHM_OUTPUT_CLASSIFICATION,
-    "regression": AlgorithmOutput.ALGORITHM_OUTPUT_REGRESSION,
-}
+ALGORITHM_OUTPUT_OPTIONS = AlgorithmOutput.options(
+    "classification", "regression", prefix="ALGORITHM_OUTPUT_"
+)
 
 OperatingAge = bme68x_bsec2_ns.enum("OperatingAge")
-OPERATING_AGE_OPTIONS = {
-    "4d": OperatingAge.OPERATING_AGE_4D,
-    "28d": OperatingAge.OPERATING_AGE_28D,
-}
+OPERATING_AGE_OPTIONS = OperatingAge.options("4d", "28d", prefix="OPERATING_AGE_")
 
 SampleRate = bme68x_bsec2_ns.enum("SampleRate")
-SAMPLE_RATE_OPTIONS = {
-    "LP": SampleRate.SAMPLE_RATE_LP,
-    "ULP": SampleRate.SAMPLE_RATE_ULP,
-}
+SAMPLE_RATE_OPTIONS = SampleRate.options("LP", "ULP", prefix="SAMPLE_RATE_")
 
 Voltage = bme68x_bsec2_ns.enum("Voltage")
-VOLTAGE_OPTIONS = {
-    "1.8V": Voltage.VOLTAGE_1_8V,
-    "3.3V": Voltage.VOLTAGE_3_3V,
-}
+VOLTAGE_OPTIONS = Voltage.options("1.8V", "3.3V", prefix="VOLTAGE_")
 
 ALGORITHM_OUTPUT_FILE_NAME = {
     "classification": "sel",
@@ -94,7 +85,7 @@ def _compute_url(config: dict) -> str:
     return f"https://raw.githubusercontent.com/boschsensortec/Bosch-BSEC2-Library/{BSEC2_LIBRARY_VERSION}/src/config/{model}/{model}_{algo}_{volts}_{sample_rate}_{operating_age}/{filename}.txt"
 
 
-def download_bme68x_blob(config):
+def download_bme68x_blob(config: ConfigType) -> ConfigType:
     url = _compute_url(config)
     path = _compute_local_file_path(url)
     external_files.download_content(url, path)
@@ -138,7 +129,7 @@ def _extract_blob_ref(entry: ConfigType) -> RemoteFile | None:
 PREFETCH_FILES = external_files.single_stage_prefetch(_extract_blob_ref)
 
 
-def validate_bme68x(config):
+def validate_bme68x(config: ConfigType) -> ConfigType:
     if CONF_ALGORITHM_OUTPUT not in config:
         return config
 
@@ -178,7 +169,7 @@ CONFIG_SCHEMA_BASE = (
 )
 
 
-async def to_code_base(config):
+async def to_code_base(config: ConfigType) -> MockObj:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 

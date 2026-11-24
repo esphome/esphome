@@ -22,6 +22,14 @@ class PngDecoder : public ImageDecoder {
   PngDecoder(RuntimeImage *image);
   ~PngDecoder() override;
 
+  void reset() override {
+    ImageDecoder::reset();
+    if (this->pngle_) {
+      pngle_reset(this->pngle_);
+    }
+    this->pixels_decoded_ = 0;
+  }
+
   int prepare(size_t expected_size) override;
   int HOT decode(uint8_t *buffer, size_t size) override;
 

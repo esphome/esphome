@@ -2,10 +2,12 @@ import esphome.codegen as cg
 from esphome.components import spi, weikai
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@DrCoolZic"]
 DEPENDENCIES = ["spi"]
 AUTO_LOAD = ["weikai", "weikai_spi"]
+DOMAIN = "wk2132_spi"
 MULTI_CONF = True
 
 weikai_spi_ns = cg.esphome_ns.namespace("weikai_spi")
@@ -23,7 +25,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_name(str(config[CONF_ID])))
     await weikai.register_weikai(var, config)

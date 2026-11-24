@@ -12,6 +12,7 @@ from esphome.const import (
     CONF_PIN,
 )
 from esphome.core import CORE
+from esphome.types import ConfigType
 
 from .. import gpio_ns
 
@@ -23,6 +24,7 @@ GPIOBinarySensor = gpio_ns.class_(
 
 CONF_USE_INTERRUPT = "use_interrupt"
 CONF_INTERRUPT_TYPE = "interrupt_type"
+DEFAULT_INTERRUPT_TYPE = "ANY"  # the C++ default, so its setter is skipped
 
 INTERRUPT_TYPES = {
     "RISING": gpio_ns.INTERRUPT_RISING_EDGE,
@@ -50,7 +52,7 @@ CONFIG_SCHEMA = (
                 rp2=True,
                 rtl87xx=False,
             ): cv.boolean,
-            cv.Optional(CONF_INTERRUPT_TYPE, default="ANY"): cv.enum(
+            cv.Optional(CONF_INTERRUPT_TYPE, default=DEFAULT_INTERRUPT_TYPE): cv.enum(
                 INTERRUPT_TYPES, upper=True
             ),
         }
@@ -68,10 +70,11 @@ def _pin_shared_only_with_deep_sleep(pin_num: int) -> bool:
     return any(path and path[0] == "deep_sleep" for path, _, _ in pin_users)
 
 
-def _final_validate(config):
-    use_interrupt = config[CONF_USE_INTERRUPT]
-    if not use_interrupt:
-        return config
+def _final_validate(config: ConfigType) -> None:
+    if not config[CONF_USE_INTERRUPT]:
+        return
+
+    name = config.get(CONF_NAME, config[CONF_ID])
 
     # Expander pins (e.g. PCF8574, MCP23017) don't support direct interrupt
     # attachment — only internal/native GPIO pins do.
@@ -79,10 +82,10 @@ def _final_validate(config):
         _LOGGER.info(
             "GPIO binary_sensor '%s': Pin is not an internal GPIO, "
             "falling back to polling mode.",
-            config.get(CONF_NAME, config[CONF_ID]),
+            name,
         )
         config[CONF_USE_INTERRUPT] = False
-        return config
+        return
 
     pin_num = config[CONF_PIN][CONF_NUMBER]
 
@@ -93,47 +96,49 @@ def _final_validate(config):
             "Falling back to polling mode (same as in ESPHome <2025.7). "
             "The sensor will work exactly as before, but other pins have better "
             "performance with interrupts.",
-            config.get(CONF_NAME, config[CONF_ID]),
+            name,
         )
         config[CONF_USE_INTERRUPT] = False
-        return config
+        return
+
+    if not config[CONF_PIN].get(CONF_ALLOW_OTHER_USES):
+        return
 
     # When a pin is shared, interrupts can interfere with other components
     # (e.g., duty_cycle sensor) that need to monitor the pin's state changes.
     # Exception: deep_sleep wakeup pins are compatible with interrupts when
     # the pin is only shared between this sensor and deep_sleep (count == 2).
-    if config[CONF_PIN].get(CONF_ALLOW_OTHER_USES, False):
-        if not _pin_shared_only_with_deep_sleep(pin_num):
-            _LOGGER.info(
-                "GPIO binary_sensor '%s': Disabling interrupts because pin %s is shared "
-                "with other components. The sensor will use polling mode for "
-                "compatibility with other pin uses.",
-                config.get(CONF_NAME, config[CONF_ID]),
-                pin_num,
-            )
-            config[CONF_USE_INTERRUPT] = False
-        else:
-            _LOGGER.debug(
-                "GPIO binary_sensor '%s': Pin %s is shared with deep_sleep, "
-                "keeping interrupts enabled.",
-                config.get(CONF_NAME, config[CONF_ID]),
-                pin_num,
-            )
+    if _pin_shared_only_with_deep_sleep(pin_num):
+        _LOGGER.debug(
+            "GPIO binary_sensor '%s': Pin %s is shared with deep_sleep, "
+            "keeping interrupts enabled.",
+            name,
+            pin_num,
+        )
+        return
 
-    return config
+    _LOGGER.info(
+        "GPIO binary_sensor '%s': Disabling interrupts because pin %s is shared "
+        "with other components. The sensor will use polling mode for "
+        "compatibility with other pin uses.",
+        name,
+        pin_num,
+    )
+    config[CONF_USE_INTERRUPT] = False
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await binary_sensor.new_binary_sensor(config)
     await cg.register_component(var, config)
 
-    pin = await cg.gpio_pin_expression(config[CONF_PIN])
-    cg.add(var.set_pin(pin))
+    await cg.add_pin(var.set_pin, config[CONF_PIN])
 
     if config[CONF_USE_INTERRUPT]:
-        cg.add(var.set_interrupt_type(config[CONF_INTERRUPT_TYPE]))
+        cg.add_define("USE_GPIO_BINARY_SENSOR_INTERRUPT")
+        if config[CONF_INTERRUPT_TYPE] != DEFAULT_INTERRUPT_TYPE:
+            cg.add(var.set_interrupt_type(config[CONF_INTERRUPT_TYPE]))
     else:
         cg.add(var.set_use_interrupt(False))

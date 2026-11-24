@@ -3,6 +3,8 @@ from esphome.const import CONF_TEXT, CONF_VALUE
 from esphome.cpp_generator import MockObj
 from esphome.cpp_types import Component, esphome_ns
 
+from .defines import CONF_SELECTED_INDEX
+
 
 class LvType(cg.MockObjClass):
     def __init__(self, *args, **kwargs):
@@ -47,9 +49,6 @@ DrawEndTrigger = esphome_ns.class_(
 )
 lvgl_ns = cg.esphome_ns.namespace("lvgl")
 IdleTrigger = lvgl_ns.class_("IdleTrigger", automation.Trigger.template())
-ObjUpdateAction = lvgl_ns.class_("ObjUpdateAction", automation.Action)
-LvglCondition = lvgl_ns.class_("LvglCondition", automation.Condition)
-LvglAction = lvgl_ns.class_("LvglAction", automation.Action)
 lv_lambda_t = lvgl_ns.class_("LvLambdaComponent", Component)
 LvCompound = lvgl_ns.class_("LvCompound")
 lv_font_t = cg.global_ns.class_("lv_font_t")
@@ -112,3 +111,4 @@ class LvSelect(LvType):
             parents=parens,
             **kwargs,
         )
+        self.value_property = CONF_SELECTED_INDEX

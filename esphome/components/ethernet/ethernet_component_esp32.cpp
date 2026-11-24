@@ -2,6 +2,7 @@
 
 #if defined(USE_ETHERNET) && defined(USE_ESP32)
 
+#include "esphome/components/network/util.h"
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -10,6 +11,16 @@
 #include <lwip/dns.h>
 #include <cinttypes>
 #include "esp_event.h"
+#if USE_NETWORK_IPV6
+#include <esp_netif_net_stack.h>
+#include <lwip/netif.h>
+#if !USE_NETWORK_IPV4
+#include <lwip/dhcp6.h>
+#endif
+#endif
+#ifdef USE_PSRAM
+#include <esp_psram.h>
+#endif
 
 // IDF 6.0 moved per-chip PHY/MAC drivers to the Espressif Component Registry;
 // they are no longer included via esp_eth.h and need explicit includes.
@@ -38,6 +49,10 @@
 #include "esp_eth_mac_dm9051.h"
 #include "esp_eth_phy_dm9051.h"
 #endif
+#ifdef USE_ETHERNET_KSZ8851SNL
+#include "esp_eth_mac_ksz8851snl.h"
+#include "esp_eth_phy_ksz8851snl.h"
+#endif
 #endif  // ESP_IDF_VERSION >= 6.0.0
 
 // LAN867x header exists on all IDF versions (external component since IDF 5.3)
@@ -59,14 +74,43 @@
 #ifdef USE_ETHERNET_SPI
 #include <driver/gpio.h>
 #include <driver/spi_master.h>
+#ifdef USE_SPI
+#include "esphome/components/spi/spi.h"
+#endif
 #endif
 
 namespace esphome::ethernet {
 
-static const char *const TAG = "ethernet";
+ESPHOME_LOG_TAG(TAG, "ethernet");
 
 // PHY register size for hex logging
 static constexpr size_t PHY_REG_SIZE = 2;
+
+// Dual wifi + ethernet SPI builds: the one place internal RAM is short and lwip's other buffers are
+// already in PSRAM. Not with L2 TAP, whose filter lives in the glue's input path this replaces.
+#if defined(USE_PSRAM) && defined(USE_ETHERNET_SPI) && defined(USE_WIFI) && !defined(CONFIG_ESP_NETIF_L2_TAP)
+#define USE_ETHERNET_RX_PSRAM
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables) - reported by dump_config()
+static bool rx_psram_installed = false;
+
+// ESP-IDF ethernet drivers malloc() every received frame in internal RAM, where it stays until lwIP
+// hands it to the application. Move it to PSRAM; if that fails the frame is passed on where it is.
+static esp_err_t eth_input_to_psram(esp_eth_handle_t handle, uint8_t *buffer, uint32_t length, void *priv) {
+  auto *copy = static_cast<uint8_t *>(heap_caps_malloc(length, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+  if (copy != nullptr) {
+    memcpy(copy, buffer, length);
+    free(buffer);  // NOLINT(cppcoreguidelines-no-malloc) - allocated by the driver with malloc()
+    buffer = copy;
+  } else {
+    static bool warned = false;  // once, this runs per frame in the driver's task
+    if (!warned) {
+      warned = true;
+      ESP_LOGW(TAG, "PSRAM allocation failed, frame kept in internal RAM (reported once)");
+    }
+  }
+  return esp_netif_receive(static_cast<esp_netif_t *>(priv), buffer, length, nullptr);
+}
+#endif
 
 void EthernetComponent::log_error_and_mark_failed_(esp_err_t err, const char *message) {
   ESP_LOGE(TAG, "%s: (%d) %s", message, err, esp_err_to_name(err));
@@ -87,6 +131,21 @@ void EthernetComponent::log_error_and_mark_failed_(esp_err_t err, const char *me
 
 void EthernetComponent::loop() {
   const uint32_t now = App.get_loop_component_start_time();
+
+#ifdef USE_ETHERNET_IP_STATE_LISTENERS
+  // The IP events arrive on the event task; the listeners publish states, so notify them here
+  if (this->ip_state_pending_.load(std::memory_order_acquire) != 0) {
+    this->ip_state_pending_.store(0, std::memory_order_relaxed);
+    this->notify_ip_state_listeners_();
+  }
+#endif
+
+  const bool link_up = this->link_up_.load(std::memory_order_relaxed);
+  if (link_up && !this->link_was_up_) {
+    // Give DHCP a full window after the link comes up before the timeout below restarts it
+    this->connect_begin_ = now;
+  }
+  this->link_was_up_ = link_up;
 
   switch (this->state_) {
     case EthernetComponentState::STOPPED:
@@ -110,9 +169,17 @@ void EthernetComponent::loop() {
 #ifdef USE_ETHERNET_CONNECT_TRIGGER
         this->connect_trigger_.trigger();
 #endif
+        this->notify_connect_state_listeners_(true);
       } else if (now - this->connect_begin_ > 15000) {
-        ESP_LOGW(TAG, "Connecting failed; reconnecting");
-        this->start_connect_();
+        if (link_up) {
+          ESP_LOGW(TAG, "Connecting failed; reconnecting");
+          this->start_connect_();
+        } else {
+          // Restarting DHCP without a link only empties lwIP's DNS servers (espressif/esp-idf#19082);
+          // the DHCP client already running resumes when the link comes up.
+          ESP_LOGD(TAG, "Connecting failed: no link");
+          this->connect_begin_ = now;
+        }
       }
       break;
     case EthernetComponentState::CONNECTED:
@@ -122,6 +189,7 @@ void EthernetComponent::loop() {
 #ifdef USE_ETHERNET_DISCONNECT_TRIGGER
         this->disconnect_trigger_.trigger();
 #endif
+        this->notify_connect_state_listeners_(false);
       } else if (!this->connected_) {
         ESP_LOGW(TAG, "Connection lost; reconnecting");
         this->state_ = EthernetComponentState::CONNECTING;
@@ -129,6 +197,7 @@ void EthernetComponent::loop() {
 #ifdef USE_ETHERNET_DISCONNECT_TRIGGER
         this->disconnect_trigger_.trigger();
 #endif
+        this->notify_connect_state_listeners_(false);
       } else {
         this->finish_connect_();
         // When connected and stable, disable the loop to save CPU cycles
@@ -168,25 +237,34 @@ void EthernetComponent::ethernet_lazy_init_() {
   // Install GPIO ISR handler to be able to service SPI Eth modules interrupts
   gpio_install_isr_service(0);
 
-  spi_bus_config_t buscfg = {
-      .mosi_io_num = this->mosi_pin_,
-      .miso_io_num = this->miso_pin_,
-      .sclk_io_num = this->clk_pin_,
-      .quadwp_io_num = -1,
-      .quadhd_io_num = -1,
-      .data4_io_num = -1,
-      .data5_io_num = -1,
-      .data6_io_num = -1,
-      .data7_io_num = -1,
-      .max_transfer_sz = 0,
-      .flags = 0,
-      .intr_flags = 0,
-  };
+  spi_host_device_t host;
+#ifdef USE_SPI
+  if (this->spi_parent_ != nullptr) {
+    // The bus is owned and already initialized by the spi component; share its host.
+    host = this->spi_parent_->get_interface();
+  } else
+#endif
+  {
+    spi_bus_config_t buscfg = {
+        .mosi_io_num = this->mosi_pin_,
+        .miso_io_num = this->miso_pin_,
+        .sclk_io_num = this->clk_pin_,
+        .quadwp_io_num = -1,
+        .quadhd_io_num = -1,
+        .data4_io_num = -1,
+        .data5_io_num = -1,
+        .data6_io_num = -1,
+        .data7_io_num = -1,
+        .max_transfer_sz = 0,
+        .flags = 0,
+        .intr_flags = 0,
+    };
 
-  auto host = this->interface_;
+    host = this->interface_;
 
-  err = spi_bus_initialize(host, &buscfg, SPI_DMA_CH_AUTO);
-  ESPHL_ERROR_CHECK(err, "SPI bus initialize error");
+    err = spi_bus_initialize(host, &buscfg, SPI_DMA_CH_AUTO);
+    ESPHL_ERROR_CHECK(err, "SPI bus initialize error");
+  }
 #endif
   // Network interface setup handled by network component
 
@@ -223,6 +301,8 @@ void EthernetComponent::ethernet_lazy_init_() {
   eth_enc28j60_config_t enc28j60_config = ETH_ENC28J60_DEFAULT_CONFIG(host, &devcfg);
 #elif defined(USE_ETHERNET_CH390)
   eth_ch390_config_t ch390_config = ETH_CH390_DEFAULT_CONFIG(host, &devcfg);
+#elif defined(USE_ETHERNET_KSZ8851SNL)
+  eth_ksz8851snl_config_t ksz8851snl_config = ETH_KSZ8851SNL_DEFAULT_CONFIG(host, &devcfg);
 #endif
 
 #if defined(USE_ETHERNET_W5500)
@@ -248,6 +328,11 @@ void EthernetComponent::ethernet_lazy_init_() {
   ch390_config.int_gpio_num = this->interrupt_pin_;
 #ifdef USE_ETHERNET_SPI_POLLING_SUPPORT
   ch390_config.poll_period_ms = this->polling_interval_;
+#endif
+#elif defined(USE_ETHERNET_KSZ8851SNL)
+  ksz8851snl_config.int_gpio_num = this->interrupt_pin_;
+#ifdef USE_ETHERNET_SPI_POLLING_SUPPORT
+  ksz8851snl_config.poll_period_ms = this->polling_interval_;
 #endif
 #endif
 
@@ -379,6 +464,12 @@ void EthernetComponent::ethernet_lazy_init_() {
       this->phy_ = esp_eth_phy_new_ch390(&phy_config);
       break;
     }
+#elif defined(USE_ETHERNET_KSZ8851SNL)
+    case ETHERNET_TYPE_KSZ8851SNL: {
+      mac = esp_eth_mac_new_ksz8851snl(&ksz8851snl_config, &mac_config);
+      this->phy_ = esp_eth_phy_new_ksz8851snl(&phy_config);
+      break;
+    }
 #endif
 #endif
     default: {
@@ -400,9 +491,11 @@ void EthernetComponent::ethernet_lazy_init_() {
   }
 #endif  // USE_ETHERNET_KSZ8081
 
+#ifdef ESPHOME_ETHERNET_PHY_REGISTER_COUNT
   for (const auto &phy_register : this->phy_registers_) {
     this->write_phy_register_(mac, phy_register);
   }
+#endif
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
 #ifdef USE_ETHERNET_GENERIC
@@ -441,6 +534,28 @@ void EthernetComponent::ethernet_lazy_init_() {
   /* attach Ethernet driver to TCP/IP stack */
   err = esp_netif_attach(this->eth_netif_, esp_eth_new_netif_glue(this->eth_handle_));
   ESPHL_ERROR_CHECK(err, "ETH netif attach error");
+#ifdef USE_ETHERNET_RX_PSRAM
+  // The glue frees every receive buffer with free(), so the replacement buffer must come from the heap
+  if (esp_psram_is_initialized()) {
+    err = esp_eth_update_input_path(this->eth_handle_, eth_input_to_psram, this->eth_netif_);
+    rx_psram_installed = err == ESP_OK;
+    if (!rx_psram_installed) {
+      ESP_LOGW(TAG, "PSRAM RX path not installed: %s", esp_err_to_name(err));
+    }
+  }
+#endif
+#if USE_NETWORK_IPV6 && ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 0)
+  // Since IDF 5.5 the internal EMAC drops multicast groups that were never added (before,
+  // it passed all multicast), and lwIP never adds all-nodes, so router advertisements
+  // were lost and SLAAC never ran.
+  {
+    uint8_t all_nodes[6] = {0x33, 0x33, 0x00, 0x00, 0x00, 0x01};
+    if (esp_err_t filter_err = esp_eth_ioctl(this->eth_handle_, ETH_CMD_ADD_MAC_FILTER, all_nodes);
+        filter_err != ESP_OK) {
+      ESP_LOGD(TAG, "IPv6 all-nodes multicast filter not added: %s", esp_err_to_name(filter_err));
+    }
+  }
+#endif
 
   // Register user defined event handers
   err = esp_event_handler_register(ETH_EVENT, ESP_EVENT_ANY_ID, &EthernetComponent::eth_event_handler, nullptr);
@@ -542,6 +657,10 @@ void EthernetComponent::dump_config() {
     case ETHERNET_TYPE_CH390:
       eth_type = "CH390";
       break;
+#elif defined(USE_ETHERNET_KSZ8851SNL)
+    case ETHERNET_TYPE_KSZ8851SNL:
+      eth_type = "KSZ8851SNL";
+      break;
 #endif
 #ifdef USE_ETHERNET_OPENETH
     case ETHERNET_TYPE_OPENETH:
@@ -575,17 +694,25 @@ void EthernetComponent::dump_config() {
                 YESNO(this->is_connected()));
   this->dump_connect_params_();
 #ifdef USE_ETHERNET_SPI
-  ESP_LOGCONFIG(TAG,
-                "  CLK Pin: %u\n"
-                "  MISO Pin: %u\n"
-                "  MOSI Pin: %u\n"
-                "  CS Pin: %u",
-                this->clk_pin_, this->miso_pin_, this->mosi_pin_, this->cs_pin_);
-  const char *spi_interface = "spi3";
-  if (this->interface_ == SPI2_HOST) {
-    spi_interface = "spi2";
+#ifdef USE_SPI
+  if (this->spi_parent_ != nullptr) {
+    // Pins and interface come from the shared spi bus; only CS is ours.
+    ESP_LOGCONFIG(TAG, "  CS Pin: %u", this->cs_pin_);
+  } else
+#endif
+  {
+    ESP_LOGCONFIG(TAG,
+                  "  CLK Pin: %u\n"
+                  "  MISO Pin: %u\n"
+                  "  MOSI Pin: %u\n"
+                  "  CS Pin: %u",
+                  this->clk_pin_, this->miso_pin_, this->mosi_pin_, this->cs_pin_);
+    const char *spi_interface = "spi3";
+    if (this->interface_ == SPI2_HOST) {
+      spi_interface = "spi2";
+    }
+    ESP_LOGCONFIG(TAG, "  Interface: %s", spi_interface);
   }
-  ESP_LOGCONFIG(TAG, "  Interface: %s", spi_interface);
 #ifdef USE_ETHERNET_SPI_POLLING_SUPPORT
   if (this->polling_interval_ != 0) {
     ESP_LOGCONFIG(TAG, "  Polling Interval: %" PRIu32 " ms", this->polling_interval_);
@@ -610,12 +737,20 @@ void EthernetComponent::dump_config() {
                 this->clk_pin_, this->mdc_pin_, this->mdio_pin_, this->phy_addr_);
 #endif
   ESP_LOGCONFIG(TAG, "  Type: %s", eth_type);
+#ifdef USE_ETHERNET_RX_PSRAM
+  // Only known once the driver is up; with enable_on_boot: false that is after this dump
+  if (this->ethernet_initialized_) {
+    ESP_LOGCONFIG(TAG, "  RX frames: %s",
+                  rx_psram_installed ? LOG_STR_LITERAL("PSRAM") : LOG_STR_LITERAL("internal RAM"));
+  }
+#endif
 }
 
 network::IPAddresses EthernetComponent::get_ip_addresses() {
   network::IPAddresses addresses;
   if (!this->ethernet_initialized_)
     return addresses;  // all-zero IPs
+#if USE_NETWORK_IPV4
   esp_netif_ip_info_t ip;
   esp_err_t err = esp_netif_get_ip_info(this->eth_netif_, &ip);
   if (err != ESP_OK) {
@@ -625,15 +760,9 @@ network::IPAddresses EthernetComponent::get_ip_addresses() {
   } else {
     addresses[0] = network::IPAddress(&ip.ip);
   }
+#endif
 #if USE_NETWORK_IPV6
-  struct esp_ip6_addr if_ip6s[CONFIG_LWIP_IPV6_NUM_ADDRESSES];
-  uint8_t count = 0;
-  count = esp_netif_get_all_ip6(this->eth_netif_, if_ip6s);
-  assert(count <= CONFIG_LWIP_IPV6_NUM_ADDRESSES);
-  assert(count < addresses.size());
-  for (int i = 0; i < count; i++) {
-    addresses[i + 1] = network::IPAddress(&if_ip6s[i]);
-  }
+  network::fill_ip6_addresses(this->eth_netif_, addresses);
 #endif /* USE_NETWORK_IPV6 */
 
   return addresses;
@@ -658,20 +787,29 @@ void EthernetComponent::eth_event_handler(void *arg, esp_event_base_t event_base
       event_name = "ETH stopped";
       global_eth_component->started_ = false;
       global_eth_component->connected_ = false;
+      global_eth_component->link_up_.store(false, std::memory_order_relaxed);
       global_eth_component->enable_loop_soon_any_context();  // Enable loop when connection state changes
       break;
     case ETHERNET_EVENT_CONNECTED:
       event_name = "ETH connected";
+      global_eth_component->link_up_.store(true, std::memory_order_relaxed);
       // For static IP configurations, GOT_IP event may not fire, so notify IP listeners here
 #if defined(USE_ETHERNET_IP_STATE_LISTENERS) && defined(USE_ETHERNET_MANUAL_IP)
-      if (global_eth_component->manual_ip_.has_value()) {
-        global_eth_component->notify_ip_state_listeners_();
-      }
+      global_eth_component->ip_state_pending_.store(1, std::memory_order_release);
+      global_eth_component->enable_loop_soon_any_context();
 #endif
+#if USE_NETWORK_IPV6
+      // Start SLAAC on link-up, not after the DHCPv4 lease. This also restores the
+      // link-local after a link flap, which clears the IPv6 addresses.
+      if (esp_err_t ll_err = global_eth_component->ensure_ip6_linklocal_(); ll_err != ESP_OK) {
+        ESP_LOGW(TAG, "esp_netif_create_ip6_linklocal failed on link-up: %s", esp_err_to_name(ll_err));
+      }
+#endif /* USE_NETWORK_IPV6 */
       break;
     case ETHERNET_EVENT_DISCONNECTED:
       event_name = "ETH disconnected";
       global_eth_component->connected_ = false;
+      global_eth_component->link_up_.store(false, std::memory_order_relaxed);
       global_eth_component->enable_loop_soon_any_context();  // Enable loop when connection state changes
       break;
     default:
@@ -687,6 +825,9 @@ void EthernetComponent::got_ip_event_handler(void *arg, esp_event_base_t event_b
   const esp_netif_ip_info_t *ip_info = &event->ip_info;
   ESP_LOGV(TAG, "[Ethernet event] ETH Got IP " IPSTR, IP2STR(&ip_info->ip));
   global_eth_component->got_ipv4_address_ = true;
+#ifdef USE_ETHERNET_IP_STATE_LISTENERS
+  global_eth_component->ip_state_pending_.store(1, std::memory_order_release);
+#endif
 #if USE_NETWORK_IPV6 && (USE_NETWORK_MIN_IPV6_ADDR_COUNT > 0)
   global_eth_component->connected_ = global_eth_component->ipv6_count_ >= USE_NETWORK_MIN_IPV6_ADDR_COUNT;
   global_eth_component->enable_loop_soon_any_context();  // Enable loop when connection state changes
@@ -694,28 +835,64 @@ void EthernetComponent::got_ip_event_handler(void *arg, esp_event_base_t event_b
   global_eth_component->connected_ = true;
   global_eth_component->enable_loop_soon_any_context();  // Enable loop when connection state changes
 #endif /* USE_NETWORK_IPV6 */
-#ifdef USE_ETHERNET_IP_STATE_LISTENERS
-  global_eth_component->notify_ip_state_listeners_();
-#endif
 }
 
 #if USE_NETWORK_IPV6
 void EthernetComponent::got_ip6_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id,
                                               void *event_data) {
   ip_event_got_ip6_t *event = (ip_event_got_ip6_t *) event_data;
+  if (event->esp_netif != global_eth_component->eth_netif_) {
+    return;  // another interface's address (wifi alongside ethernet)
+  }
   ESP_LOGV(TAG, "[Ethernet event] ETH Got IPv6: " IPV6STR, IPV62STR(event->ip6_info.ip));
-  global_eth_component->ipv6_count_ += 1;
+  // Count the addresses on the interface, not the events: recreating the link-local
+  // after a link flap fires another event for the same address.
+  struct esp_ip6_addr if_ip6s[CONFIG_LWIP_IPV6_NUM_ADDRESSES];
+  global_eth_component->ipv6_count_ = esp_netif_get_all_ip6(global_eth_component->eth_netif_, if_ip6s);
+#ifdef USE_ETHERNET_IP_STATE_LISTENERS
+  global_eth_component->ip_state_pending_.store(1, std::memory_order_release);
+#endif
 #if (USE_NETWORK_MIN_IPV6_ADDR_COUNT > 0)
-  global_eth_component->connected_ =
-      global_eth_component->got_ipv4_address_ && (global_eth_component->ipv6_count_ >= USE_NETWORK_MIN_IPV6_ADDR_COUNT);
+  global_eth_component->connected_ = (!USE_NETWORK_IPV4 || global_eth_component->got_ipv4_address_) &&
+                                     (global_eth_component->ipv6_count_ >= USE_NETWORK_MIN_IPV6_ADDR_COUNT);
   global_eth_component->enable_loop_soon_any_context();  // Enable loop when connection state changes
 #else
   global_eth_component->connected_ = global_eth_component->got_ipv4_address_;
   global_eth_component->enable_loop_soon_any_context();  // Enable loop when connection state changes
 #endif
-#ifdef USE_ETHERNET_IP_STATE_LISTENERS
-  global_eth_component->notify_ip_state_listeners_();
+}
+#endif /* USE_NETWORK_IPV6 */
+
+#if USE_NETWORK_IPV6
+// Create the link-local address unless the interface already has one, including one still in
+// duplicate address detection: recreating it would restart DAD. esp_netif_get_ip6_linklocal()
+// only reports a preferred address, so ask lwIP for the slot state instead.
+esp_err_t EthernetComponent::ensure_ip6_linklocal_() {
+  auto *netif = static_cast<struct netif *>(esp_netif_get_netif_impl(this->eth_netif_));
+  u8_t state = IP6_ADDR_INVALID;
+  if (netif != nullptr) {
+    LwIPLock lock;
+    state = netif_ip6_addr_state(netif, 0);
+  }
+  if (!ip6_addr_istentative(state) && !ip6_addr_isvalid(state)) {
+    if (esp_err_t err = esp_netif_create_ip6_linklocal(this->eth_netif_); err != ESP_OK) {
+      return err;
+    }
+    ESP_LOGD(TAG, "IPv6 link-local address created");
+  }
+#if !USE_NETWORK_IPV4
+  // Without DHCPv4, DNS servers come from RDNSS or stateless DHCPv6; esp_netif never starts the latter.
+  // Idempotent in lwIP, so the link-up and connect paths can both call it.
+  if (netif != nullptr) {
+    esp_netif_tcpip_exec(
+        [](void *ctx) -> esp_err_t {
+          dhcp6_enable_stateless(static_cast<struct netif *>(ctx));
+          return ESP_OK;
+        },
+        netif);
+  }
 #endif
+  return ESP_OK;
 }
 #endif /* USE_NETWORK_IPV6 */
 
@@ -729,10 +906,7 @@ void EthernetComponent::finish_connect_() {
   // - Cable unplugged/network interruption (#10705)
   // We can now retry since we're in CONNECTED state and the interface is definitely up.
   if (!this->ipv6_setup_done_) {
-    esp_err_t err = esp_netif_create_ip6_linklocal(this->eth_netif_);
-    if (err == ESP_OK) {
-      ESP_LOGD(TAG, "IPv6 link-local address created (retry succeeded)");
-    }
+    this->ensure_ip6_linklocal_();
     // Always set the flag to prevent continuous retries
     // If IPv6 setup fails here with the interface up and stable, it's
     // likely a persistent issue (IPv6 disabled at router, hardware
@@ -746,7 +920,9 @@ void EthernetComponent::finish_connect_() {
 void EthernetComponent::start_connect_() {
   global_eth_component->got_ipv4_address_ = false;
 #if USE_NETWORK_IPV6
-  global_eth_component->ipv6_count_ = 0;
+  // Recount rather than zero: addresses that survive a reconnect are not announced again.
+  struct esp_ip6_addr if_ip6s[CONFIG_LWIP_IPV6_NUM_ADDRESSES];
+  global_eth_component->ipv6_count_ = esp_netif_get_all_ip6(this->eth_netif_, if_ip6s);
   this->ipv6_setup_done_ = false;
 #endif /* USE_NETWORK_IPV6 */
   this->connect_begin_ = millis();
@@ -758,19 +934,14 @@ void EthernetComponent::start_connect_() {
     ESP_LOGW(TAG, "esp_netif_set_hostname failed: %s", esp_err_to_name(err));
   }
 
-  esp_netif_ip_info_t info;
+#if USE_NETWORK_IPV4
+  esp_netif_ip_info_t info{};
 #ifdef USE_ETHERNET_MANUAL_IP
-  if (this->manual_ip_.has_value()) {
-    info.ip = this->manual_ip_->static_ip;
-    info.gw = this->manual_ip_->gateway;
-    info.netmask = this->manual_ip_->subnet;
-  } else
+  const ManualIP manual_ip = load_manual_ip();
+  info.ip = manual_ip.static_ip;
+  info.gw = manual_ip.gateway;
+  info.netmask = manual_ip.subnet;
 #endif
-  {
-    info.ip.addr = 0;
-    info.gw.addr = 0;
-    info.netmask.addr = 0;
-  }
 
   esp_netif_dhcp_status_t status = ESP_NETIF_DHCP_INIT;
 
@@ -788,35 +959,33 @@ void EthernetComponent::start_connect_() {
   ESPHL_ERROR_CHECK(err, "DHCPC set IP info error");
 
 #ifdef USE_ETHERNET_MANUAL_IP
-  if (this->manual_ip_.has_value()) {
-    // Set DNS through esp_netif so the servers are stored in the netif's own
-    // dns[] array; raw dns_setserver() would be lost when the default-route
-    // arbitration re-applies the default netif's DNS.
-    // Log-only on failure: the link still has a working IP/gateway, so degraded
-    // name resolution does not justify marking the whole component failed.
-    esp_netif_dns_info_t dns{};
-    if (this->manual_ip_->dns1.is_set()) {
-      dns.ip = this->manual_ip_->dns1;
-      err = esp_netif_set_dns_info(this->eth_netif_, ESP_NETIF_DNS_MAIN, &dns);
-      if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Set main DNS failed: %s", esp_err_to_name(err));
-      }
-    }
-    if (this->manual_ip_->dns2.is_set()) {
-      dns.ip = this->manual_ip_->dns2;
-      err = esp_netif_set_dns_info(this->eth_netif_, ESP_NETIF_DNS_BACKUP, &dns);
-      if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Set backup DNS failed: %s", esp_err_to_name(err));
-      }
-    }
-  } else
-#endif
-  {
-    err = esp_netif_dhcpc_start(this->eth_netif_);
-    if (err != ESP_ERR_ESP_NETIF_DHCP_ALREADY_STARTED) {
-      ESPHL_ERROR_CHECK(err, "DHCPC start error");
+  // Set DNS through esp_netif so the servers are stored in the netif's own
+  // dns[] array; raw dns_setserver() would be lost when the default-route
+  // arbitration re-applies the default netif's DNS.
+  // Log-only on failure: the link still has a working IP/gateway, so degraded
+  // name resolution does not justify marking the whole component failed.
+  esp_netif_dns_info_t dns{};
+  if (manual_ip.dns1.is_set()) {
+    dns.ip = manual_ip.dns1;
+    err = esp_netif_set_dns_info(this->eth_netif_, ESP_NETIF_DNS_MAIN, &dns);
+    if (err != ESP_OK) {
+      ESP_LOGE(TAG, "Set main DNS failed: %s", esp_err_to_name(err));
     }
   }
+  if (manual_ip.dns2.is_set()) {
+    dns.ip = manual_ip.dns2;
+    err = esp_netif_set_dns_info(this->eth_netif_, ESP_NETIF_DNS_BACKUP, &dns);
+    if (err != ESP_OK) {
+      ESP_LOGE(TAG, "Set backup DNS failed: %s", esp_err_to_name(err));
+    }
+  }
+#else
+  err = esp_netif_dhcpc_start(this->eth_netif_);
+  if (err != ESP_ERR_ESP_NETIF_DHCP_ALREADY_STARTED) {
+    ESPHL_ERROR_CHECK(err, "DHCPC start error");
+  }
+#endif
+#endif  // USE_NETWORK_IPV4
 #if USE_NETWORK_IPV6
   // Attempt to create IPv6 link-local address
   // We MUST attempt this here, not just in finish_connect_(), because with
@@ -825,7 +994,7 @@ void EthernetComponent::start_connect_() {
   // - At bootup when link isn't ready (#10281)
   // - After disconnection/cable unplugged (#10705)
   // We'll retry in finish_connect_() if it fails here.
-  err = esp_netif_create_ip6_linklocal(this->eth_netif_);
+  err = this->ensure_ip6_linklocal_();
   if (err != ESP_OK) {
     if (err == ESP_ERR_ESP_NETIF_INVALID_PARAMS) {
       // This is a programming error, not a transient failure
@@ -851,8 +1020,13 @@ void EthernetComponent::dump_connect_params_() {
     ESP_LOGCONFIG(TAG, "  uninitialized/disabled");
     return;
   }
+#if USE_NETWORK_IPV4
   esp_netif_ip_info_t ip;
   esp_netif_get_ip_info(this->eth_netif_, &ip);
+  network::IPAddress ip4(&ip.ip), subnet(&ip.netmask), gateway(&ip.gw);
+#else
+  network::IPAddress ip4, subnet, gateway;
+#endif
   const ip_addr_t *dns_ip1;
   const ip_addr_t *dns_ip2;
   {
@@ -891,8 +1065,7 @@ void EthernetComponent::dump_connect_params_() {
                 "  MAC Address: %s\n"
                 "  Is Full Duplex: %s\n"
                 "  Link Speed: %u",
-                network::IPAddress(&ip.ip).str_to(ip_buf), App.get_name().c_str(),
-                network::IPAddress(&ip.netmask).str_to(subnet_buf), network::IPAddress(&ip.gw).str_to(gateway_buf),
+                ip4.str_to(ip_buf), App.get_name().c_str(), subnet.str_to(subnet_buf), gateway.str_to(gateway_buf),
                 network::IPAddress(dns_ip1).str_to(dns1_buf), network::IPAddress(dns_ip2).str_to(dns2_buf),
                 this->get_eth_mac_address_pretty_into_buffer(mac_buf),
                 YESNO(this->get_duplex_mode() == ETH_DUPLEX_FULL), link_speed);
@@ -908,28 +1081,6 @@ void EthernetComponent::dump_connect_params_() {
 #endif /* USE_NETWORK_IPV6 */
 }
 
-#ifdef USE_ETHERNET_SPI
-void EthernetComponent::set_clk_pin(uint8_t clk_pin) { this->clk_pin_ = clk_pin; }
-void EthernetComponent::set_miso_pin(uint8_t miso_pin) { this->miso_pin_ = miso_pin; }
-void EthernetComponent::set_mosi_pin(uint8_t mosi_pin) { this->mosi_pin_ = mosi_pin; }
-void EthernetComponent::set_cs_pin(uint8_t cs_pin) { this->cs_pin_ = cs_pin; }
-void EthernetComponent::set_interrupt_pin(uint8_t interrupt_pin) { this->interrupt_pin_ = interrupt_pin; }
-void EthernetComponent::set_reset_pin(uint8_t reset_pin) { this->reset_pin_ = reset_pin; }
-void EthernetComponent::set_clock_speed(int clock_speed) { this->clock_speed_ = clock_speed; }
-void EthernetComponent::set_interface(spi_host_device_t interface) { this->interface_ = interface; }
-#ifdef USE_ETHERNET_SPI_POLLING_SUPPORT
-void EthernetComponent::set_polling_interval(uint32_t polling_interval) { this->polling_interval_ = polling_interval; }
-#endif
-#else
-void EthernetComponent::set_phy_addr(uint8_t phy_addr) { this->phy_addr_ = phy_addr; }
-void EthernetComponent::set_power_pin(int power_pin) { this->power_pin_ = power_pin; }
-void EthernetComponent::set_mdc_pin(uint8_t mdc_pin) { this->mdc_pin_ = mdc_pin; }
-void EthernetComponent::set_mdio_pin(uint8_t mdio_pin) { this->mdio_pin_ = mdio_pin; }
-void EthernetComponent::set_clk_pin(uint8_t clk_pin) { this->clk_pin_ = clk_pin; }
-void EthernetComponent::set_clk_mode(emac_rmii_clock_mode_t clk_mode) { this->clk_mode_ = clk_mode; }
-void EthernetComponent::add_phy_register(PHYRegister register_value) { this->phy_registers_.push_back(register_value); }
-#endif
-
 void EthernetComponent::get_eth_mac_address_raw(uint8_t *mac) {
   if (!this->ethernet_initialized_) {
     // External callers (mdns, ethernet_info, etc.) may ask for the MAC before/regardless
@@ -944,11 +1095,6 @@ void EthernetComponent::get_eth_mac_address_raw(uint8_t *mac) {
   esp_err_t err;
   err = esp_eth_ioctl(this->eth_handle_, ETH_CMD_G_MAC_ADDR, mac);
   ESPHL_ERROR_CHECK(err, "ETH_CMD_G_MAC error");
-}
-
-std::string EthernetComponent::get_eth_mac_address_pretty() {
-  char buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
-  return std::string(this->get_eth_mac_address_pretty_into_buffer(buf));
 }
 
 const char *EthernetComponent::get_eth_mac_address_pretty_into_buffer(
@@ -1032,6 +1178,7 @@ void EthernetComponent::ksz8081_set_clock_reference_(esp_eth_mac_t *mac) {
 }
 #endif  // USE_ETHERNET_KSZ8081
 
+#ifdef ESPHOME_ETHERNET_PHY_REGISTER_COUNT
 void EthernetComponent::write_phy_register_(esp_eth_mac_t *mac, PHYRegister register_data) {
   esp_err_t err;
 
@@ -1056,6 +1203,7 @@ void EthernetComponent::write_phy_register_(esp_eth_mac_t *mac, PHYRegister regi
   }
 #endif
 }
+#endif  // ESPHOME_ETHERNET_PHY_REGISTER_COUNT
 
 #ifdef USE_ETHERNET_YT8531
 void EthernetComponent::yt8531_phy_init_() {

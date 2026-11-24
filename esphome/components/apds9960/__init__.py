@@ -1,9 +1,10 @@
 import esphome.codegen as cg
 from esphome.components import i2c
 import esphome.config_validation as cv
-from esphome.const import CONF_ID
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["i2c"]
+DOMAIN = "apds9960"
 MULTI_CONF = True
 
 CONF_APDS9960_ID = "apds9960_id"
@@ -57,10 +58,8 @@ CONFIG_SCHEMA = (
 )
 
 
-async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+async def to_code(config: ConfigType) -> None:
+    var = await i2c.new_i2c_component(config)
     cg.add(var.set_led_drive(config[CONF_LED_DRIVE]))
     cg.add(var.set_proximity_gain(config[CONF_PROXIMITY_GAIN]))
     cg.add(var.set_ambient_gain(config[CONF_AMBIENT_LIGHT_GAIN]))

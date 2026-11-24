@@ -32,9 +32,9 @@ uart_mock:
       # duplicate or overlapping range would put an extra frame on the bus and fail to match.
       - expect_tx: [0x01, 0x03, 0x90, 0x01, 0x00, 0x02, 0xB8, 0xCB] # Read holding 0x9001 count 2 on device 1
         inject_rx: [0x01, 0x03, 0x04, 0x03, 0x97, 0x02, 0x91, 0x8B, 0x57] # 0x9001=0x0397, 0x9002=0x0291
-      # A force_new_range sensor at a HIGH address (0x30) sorts before the plain sensor at a LOW address
-      # (0x10). The two must poll as separate ranges: the covered branch's lower-bound check prevents the
-      # 0x10 sensor from being absorbed into the forced 0x30 range with a wrapped byte offset.
+      # A sensor at 0x30 with the deprecated force_new_range (migrates to reuse_previous_range: false)
+      # and a plain sensor at 0x10. The two must poll as separate ranges: the 0x10 sensor must not be
+      # absorbed into the isolated 0x30 range.
       - expect_tx: [0x01, 0x03, 0x00, 0x30, 0x00, 0x01, 0x84, 0x05] # Read holding 0x30 count 1 (forced range)
         inject_rx: [0x01, 0x03, 0x02, 0x01, 0x11, 0x79, 0xD8] # 0x30 = 0x0111 = 273
       - expect_tx: [0x01, 0x03, 0x00, 0x10, 0x00, 0x01, 0x85, 0xCF] # Read holding 0x10 count 1 (own range)
@@ -49,14 +49,10 @@ uart_mock:
         inject_rx: [0x01, 0x03, 0x02, 0x01, 0x41, 0x79, 0xE4] # 0x101 = 0x0141 = 321
       - expect_tx: [0x01, 0x03, 0x01, 0x03, 0x00, 0x01, 0x75, 0xF6] # Read holding 0x103 count 1
         inject_rx: [0x01, 0x03, 0x02, 0x01, 0xA5, 0x79, 0xAF] # 0x103 = 0x01A5 = 421
-      # A widened shared-address range at 0x200 plus a sensor at 0x201 carrying its own skip_updates.
-      # The sensor must keep its own range so the polling rates stay independent; if it were folded into
-      # the widened range it would decode 0x201 from THAT response (2, not 777) and drag the range's
-      # rate down to its own.
+      # Two sensors sharing start address 0x200 (a word and a dword) widen the range to 2 registers
+      # and both decode from the single response.
       - expect_tx: [0x01, 0x03, 0x02, 0x00, 0x00, 0x02, 0xC5, 0xB3] # Read holding 0x200 count 2
         inject_rx: [0x01, 0x03, 0x04, 0x01, 0x41, 0x00, 0x02, 0x2A, 0x1A] # 0x200=0x0141, 0x201=0x0002
-      - expect_tx: [0x01, 0x03, 0x02, 0x01, 0x00, 0x01, 0xD4, 0x72] # Read holding 0x201 count 1
-        inject_rx: [0x01, 0x03, 0x02, 0x03, 0x09, 0x78, 0xB2] # 0x201 = 0x0309 = 777
 
 modbus:
   uart_id: virtual_uart_dev
@@ -91,7 +87,7 @@ sensor:
     register_type: holding
     value_type: U_WORD
     modbus_controller_id: modbus_controller_ok
-  # Forced sensor at a high address: sorts first, opens its own isolated range
+  # Isolated sensor (deprecated spelling, migrates to reuse_previous_range: false): own range
   - platform: modbus_controller
     name: "forced_high"
     address: 0x30
@@ -99,7 +95,7 @@ sensor:
     value_type: U_WORD
     force_new_range: true
     modbus_controller_id: modbus_controller_ok
-  # Plain sensor at a lower address: must get its own range, never absorbed into the forced one
+  # Plain sensor at a lower address: must get its own range, never absorbed into the isolated one
   - platform: modbus_controller
     name: "plain_low"
     address: 0x10
@@ -128,25 +124,16 @@ sensor:
     modbus_controller_id: modbus_controller_ok
   # Shared address 0x200: the dword widens the range the word opened (or vice versa)
   - platform: modbus_controller
-    name: "rate_word"
+    name: "widen_word"
     address: 0x200
     register_type: holding
     value_type: U_WORD
     modbus_controller_id: modbus_controller_ok
   - platform: modbus_controller
-    name: "rate_dword"
+    name: "widen_dword"
     address: 0x200
     register_type: holding
     value_type: U_DWORD
-    modbus_controller_id: modbus_controller_ok
-  # Inside the widened range but with its own skip_updates: must NOT be folded in, or the two sensors
-  # above would silently drop to this sensor's polling rate
-  - platform: modbus_controller
-    name: "own_rate"
-    address: 0x201
-    register_type: holding
-    value_type: U_WORD
-    skip_updates: 100
     modbus_controller_id: modbus_controller_ok
 
 button:

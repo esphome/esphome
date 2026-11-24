@@ -3,6 +3,7 @@ import esphome.codegen as cg
 from esphome.components import stepper
 import esphome.config_validation as cv
 from esphome.const import CONF_DIR_PIN, CONF_ID, CONF_SLEEP_PIN, CONF_STEP_PIN
+from esphome.types import ConfigType
 
 a4988_ns = cg.esphome_ns.namespace("a4988")
 A4988 = a4988_ns.class_("A4988", stepper.Stepper, cg.Component)
@@ -17,16 +18,11 @@ CONFIG_SCHEMA = stepper.STEPPER_SCHEMA.extend(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await stepper.register_stepper(var, config)
 
-    step_pin = await cg.gpio_pin_expression(config[CONF_STEP_PIN])
-    cg.add(var.set_step_pin(step_pin))
-    dir_pin = await cg.gpio_pin_expression(config[CONF_DIR_PIN])
-    cg.add(var.set_dir_pin(dir_pin))
-
-    if sleep_pin_config := config.get(CONF_SLEEP_PIN):
-        sleep_pin = await cg.gpio_pin_expression(sleep_pin_config)
-        cg.add(var.set_sleep_pin(sleep_pin))
+    await cg.add_pin(var.set_step_pin, config[CONF_STEP_PIN])
+    await cg.add_pin(var.set_dir_pin, config[CONF_DIR_PIN])
+    await cg.add_pin(var.set_sleep_pin, config.get(CONF_SLEEP_PIN))

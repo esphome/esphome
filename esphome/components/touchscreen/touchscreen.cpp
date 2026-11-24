@@ -4,7 +4,8 @@
 
 namespace esphome::touchscreen {
 
-static const char *const TAG = "touchscreen";
+ESPHOME_LOG_TAG(TAG, "touchscreen");
+static constexpr uint32_t TOUCH_TIMEOUT_ID = 0;
 
 void TouchscreenInterrupt::gpio_intr(TouchscreenInterrupt *store) { store->touched = true; }
 
@@ -12,7 +13,7 @@ void Touchscreen::attach_interrupt_(InternalGPIOPin *irq_pin, esphome::gpio::Int
   irq_pin->attach_interrupt(TouchscreenInterrupt::gpio_intr, &this->store_, type);
   this->store_.init = true;
   this->store_.touched = false;
-  ESP_LOGD(TAG, "Attach Touch Interupt");
+  ESP_LOGD(TAG, "Attach Touch Interrupt");
 }
 
 void Touchscreen::call_setup() {
@@ -63,9 +64,9 @@ void Touchscreen::loop() {
         // Simulate a touch after <this->touch_timeout_> ms. This will reset any existing timeout operation.
         // This is to detect touch release.
         if (this->is_touched_) {
-          this->set_timeout(TAG, this->touch_timeout_, [this]() { this->store_.touched = true; });
+          this->set_timeout(TOUCH_TIMEOUT_ID, this->touch_timeout_, [this]() { this->store_.touched = true; });
         } else {
-          this->cancel_timeout(TAG);
+          this->cancel_timeout(TOUCH_TIMEOUT_ID);
         }
       }
     }

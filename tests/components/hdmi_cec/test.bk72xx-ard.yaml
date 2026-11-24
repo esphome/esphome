@@ -1,0 +1,5 @@
+substitutions:
+  cec_pin: P6
+
+packages:
+  hdmi_cec: !include common.yaml

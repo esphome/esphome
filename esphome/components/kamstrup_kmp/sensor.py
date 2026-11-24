@@ -5,24 +5,21 @@ from esphome.const import (
     CONF_COMMAND,
     CONF_CUSTOM,
     CONF_FLOW,
-    CONF_ID,
     CONF_POWER,
     CONF_VOLUME,
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_ENERGY,
-    DEVICE_CLASS_POWER,
     DEVICE_CLASS_TEMPERATURE,
     DEVICE_CLASS_VOLUME,
     DEVICE_CLASS_VOLUME_FLOW_RATE,
     STATE_CLASS_MEASUREMENT,
     STATE_CLASS_TOTAL_INCREASING,
-    UNIT_CELSIUS,
     UNIT_CUBIC_METER,
     UNIT_EMPTY,
     UNIT_KELVIN,
-    UNIT_KILOWATT,
     UNIT_LITRE_PER_HOUR,
 )
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@cfeenstra1024"]
 DEPENDENCIES = ["uart"]
@@ -50,24 +47,9 @@ CONFIG_SCHEMA = (
                 state_class=STATE_CLASS_TOTAL_INCREASING,
                 unit_of_measurement=UNIT_GIGA_JOULE,
             ),
-            cv.Optional(CONF_POWER): sensor.sensor_schema(
-                accuracy_decimals=3,
-                device_class=DEVICE_CLASS_POWER,
-                state_class=STATE_CLASS_MEASUREMENT,
-                unit_of_measurement=UNIT_KILOWATT,
-            ),
-            cv.Optional(CONF_TEMP1): sensor.sensor_schema(
-                accuracy_decimals=1,
-                device_class=DEVICE_CLASS_TEMPERATURE,
-                state_class=STATE_CLASS_MEASUREMENT,
-                unit_of_measurement=UNIT_CELSIUS,
-            ),
-            cv.Optional(CONF_TEMP2): sensor.sensor_schema(
-                accuracy_decimals=1,
-                device_class=DEVICE_CLASS_TEMPERATURE,
-                state_class=STATE_CLASS_MEASUREMENT,
-                unit_of_measurement=UNIT_CELSIUS,
-            ),
+            cv.Optional(CONF_POWER): sensor.sensor_schema(kind=sensor.POWER_KW),
+            cv.Optional(CONF_TEMP1): sensor.sensor_schema(kind=sensor.TEMPERATURE),
+            cv.Optional(CONF_TEMP2): sensor.sensor_schema(kind=sensor.TEMPERATURE),
             cv.Optional(CONF_TEMP_DIFF): sensor.sensor_schema(
                 accuracy_decimals=1,
                 device_class=DEVICE_CLASS_TEMPERATURE,
@@ -101,14 +83,18 @@ CONFIG_SCHEMA = (
 )
 
 FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
-    "kamstrup_kmp", baud_rate=1200, require_rx=True, require_tx=True
+    "kamstrup_kmp",
+    baud_rate=1200,
+    require_rx=True,
+    require_tx=True,
+    data_bits=8,
+    parity="NONE",
+    stop_bits=2,
 )
 
 
-async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await uart.register_uart_device(var, config)
+async def to_code(config: ConfigType) -> None:
+    var = await uart.new_uart_component(config)
 
     # Standard sensors
     for key in [

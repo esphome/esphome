@@ -1,0 +1,35 @@
+# ESP32-P4 (Waveshare ESP32-P4-WIFI6, pre-rev3 silicon) receiving the external wave on GPIO4, GPIO22 jumpered to it.
+# substitutions: power_down (true or false)
+esphome:
+  name: wake-detail-esp32p4
+  includes:
+    - wake_detail.hpp
+  on_boot:
+    priority: -100
+    then:
+      - lambda: wd::start();
+
+esp32:
+  board: esp32-p4-evboard
+  variant: esp32p4
+  engineering_sample: true
+  flash_size: 32MB
+  framework:
+    type: esp-idf
+
+logger:
+  hardware_uart: UART0
+
+power_management:
+  - platform: esp32_power_management
+    enable_light_sleep: true
+    power_down_peripherals: ${power_down}
+    profiling: true
+
+interval:
+  - interval: 20s
+    then:
+      - lambda: wd::report();
+  - interval: 200s
+    then:
+      - lambda: wd::dump();

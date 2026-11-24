@@ -1,5 +1,6 @@
 sensor:
   - platform: ltr_als_ps
+    i2c_id: i2c_bus
     address: 0x23
     gain: 1x
     integration_time: 100ms
@@ -8,3 +9,7 @@ sensor:
     full_spectrum_counts: "Full spectrum counts"
     infrared_counts: "Infrared counts"
     actual_gain: "Actual gain"
+    on_ps_high_threshold:
+      - logger.log: PS high
+    on_ps_low_threshold:
+      - logger.log: PS low

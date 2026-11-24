@@ -1,6 +1,10 @@
 from esphome import automation
 import esphome.codegen as cg
-from esphome.config_helpers import filter_source_files_from_platform
+from esphome.components.const import CONF_ON_STATE_CHANGE
+from esphome.config_helpers import (
+    filter_source_files_from_defines,
+    filter_source_files_from_platform,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ESPHOME,
@@ -12,10 +16,13 @@ from esphome.const import (
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.coroutine import CoroPriority
+from esphome.cpp_generator import MockObj
+from esphome.types import ConfigType
 
 OTA_STATE_LISTENER_KEY = "ota_state_listener"
 
 CODEOWNERS = ["@esphome/core"]
+DOMAIN = "ota"
 
 
 def AUTO_LOAD() -> list[str]:
@@ -33,7 +40,6 @@ CONF_ON_ABORT = "on_abort"
 CONF_ON_BEGIN = "on_begin"
 CONF_ON_END = "on_end"
 CONF_ON_PROGRESS = "on_progress"
-CONF_ON_STATE_CHANGE = "on_state_change"
 
 
 ota_ns = cg.esphome_ns.namespace("ota")
@@ -49,7 +55,7 @@ OTAStateChangeTrigger = ota_ns.class_(
 )
 
 
-def _ota_final_validate(config):
+def _ota_final_validate(config: ConfigType) -> None:
     if len(config) < 1:
         raise cv.Invalid(
             f"At least one platform must be specified for '{CONF_OTA}'; add '{CONF_PLATFORM}: {CONF_ESPHOME}' for original OTA functionality"
@@ -95,7 +101,7 @@ BASE_OTA_SCHEMA = cv.Schema(
 
 
 @coroutine_with_priority(CoroPriority.OTA_UPDATES)
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_OTA")
     CORE.add_job(final_step)
 
@@ -103,7 +109,7 @@ async def to_code(config):
         cg.add_library("Updater", None)
 
 
-async def ota_to_code(var, config):
+async def ota_to_code(var: MockObj, config: ConfigType) -> None:
     await cg.past_safe_mode()
     use_state_callback = False
     for conf in config.get(CONF_ON_STATE_CHANGE, []):
@@ -131,7 +137,16 @@ async def ota_to_code(var, config):
         await automation.build_automation(trigger, [(cg.uint8, "x")], conf)
         use_state_callback = True
     if use_state_callback:
-        request_ota_state_listeners()
+        request_ota_component_state_listeners()
+
+
+GLOBAL_LISTENER_COUNT_DEFINE = "ESPHOME_OTA_GLOBAL_LISTENER_COUNT"
+_request_global_listener_slot = cg.slot_counter(GLOBAL_LISTENER_COUNT_DEFINE)
+
+
+def request_ota_component_state_listeners() -> None:
+    """Compile in OTAComponent::add_state_listener() without a global listener slot."""
+    CORE.data[OTA_STATE_LISTENER_KEY] = True
 
 
 def request_ota_state_listeners() -> None:
@@ -140,15 +155,21 @@ def request_ota_state_listeners() -> None:
     Components that need to be notified about OTA state changes (start, progress,
     complete, error) should call this function during their code generation.
     This enables the add_state_listener() API on OTAComponent.
+    Each call also reserves one add_global_state_listener() slot, so call it once
+    per instance that registers.
     """
     CORE.data[OTA_STATE_LISTENER_KEY] = True
+    _request_global_listener_slot()
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
-async def final_step():
+async def final_step() -> None:
     """Final code generation step to configure optional OTA features."""
     if CORE.data.get(OTA_STATE_LISTENER_KEY, False):
         cg.add_define("USE_OTA_STATE_LISTENER")
+        # Not a hub, so cg.slot_list would not emit the zero count
+        if cg.get_slot_count(GLOBAL_LISTENER_COUNT_DEFINE) == 0:
+            cg.add_define(GLOBAL_LISTENER_COUNT_DEFINE, 0)
 
 
 _filter_backend_source_files = filter_source_files_from_platform(
@@ -169,17 +190,17 @@ _filter_backend_source_files = filter_source_files_from_platform(
 )
 
 
+# USE_OTA_SIGNED_VERIFICATION_MULTI_KEY is set only on ESP32/IDF;
+# USE_OTA_PARTITIONS is set by the esphome OTA platform when
+# allow_partition_access is enabled.
+_filter_define_source_files = filter_source_files_from_defines(
+    {
+        "ota_signature_esp_idf.cpp": "USE_OTA_SIGNED_VERIFICATION_MULTI_KEY",
+        "ota_bootloader_esp_idf.cpp": "USE_OTA_PARTITIONS",
+        "ota_partitions_esp_idf.cpp": "USE_OTA_PARTITIONS",
+    }
+)
+
+
 def FILTER_SOURCE_FILES() -> list[str]:
-    files = _filter_backend_source_files()
-    # ota_signature_esp_idf.cpp implements multi-key OTA signature verification,
-    # compiled only when the esp32 component enables it (external RSA signed
-    # OTA sets USE_OTA_SIGNED_VERIFICATION_MULTI_KEY). The define is set only on
-    # ESP32/IDF, so this also excludes the file on every other platform. Filter
-    # it out otherwise so the (otherwise fully #ifdef'd-out) file isn't opened
-    # and parsed on every build.
-    if not any(
-        define.name == "USE_OTA_SIGNED_VERIFICATION_MULTI_KEY"
-        for define in CORE.defines
-    ):
-        files.append("ota_signature_esp_idf.cpp")
-    return files
+    return _filter_backend_source_files() + _filter_define_source_files()

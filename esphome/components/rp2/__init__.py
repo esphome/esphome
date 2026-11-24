@@ -1,12 +1,11 @@
 from collections.abc import Callable
 import logging
 from pathlib import Path
-import re
 from string import ascii_letters, digits
-import subprocess
 from typing import Any
 
 import esphome.codegen as cg
+from esphome.components import network
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BOARD,
@@ -34,6 +33,8 @@ from esphome.core import (
 from esphome.core.config import BOARD_MAX_LENGTH
 from esphome.helpers import copy_file_if_changed, read_file, write_file_if_changed
 from esphome.platformio.toolchain import copy_ccache_script
+from esphome.stacktrace import process_crash_handler_line as process_stacktrace  # noqa: F401
+from esphome.storage_json import StorageJSON
 from esphome.types import ConfigType
 
 from . import boards
@@ -56,6 +57,7 @@ from .gpio import rp2_pin_to_code  # noqa: F401
 _LOGGER = logging.getLogger(__name__)
 CODEOWNERS = ["@jesserockz"]
 AUTO_LOAD = ["preferences"]
+DOMAIN = "rp2"
 IS_TARGET_PLATFORM = True
 
 # Legacy top-level YAML keys that route here. The framework
@@ -145,7 +147,7 @@ def only_on_variant(
     return validator_
 
 
-def get_download_types(storage_json):
+def get_download_types(storage_json: StorageJSON) -> list[dict[str, str]]:
     """Binary-download entries for a built RP2040 firmware.
 
     Used by device-builder (esphome/device-builder), via
@@ -156,6 +158,9 @@ def get_download_types(storage_json):
     the shape stable so the download panel
     doesn't have to special-case per-platform schemas.
     """
+    # No recorded firmware path means nothing was built; no downloads.
+    if storage_json.firmware_bin_path is None:
+        return []
     return [
         {
             "title": "UF2 factory format",
@@ -178,7 +183,7 @@ def _format_framework_arduino_version(ver: cv.Version) -> str:
     return f"https://github.com/earlephilhower/arduino-pico/releases/download/{ver}/rp2040-{ver}.zip"
 
 
-def _parse_platform_version(value):
+def _parse_platform_version(value: Any) -> str:
     value = cv.string(value)
     if value.startswith("http"):
         return value
@@ -190,23 +195,26 @@ def _parse_platform_version(value):
 #  * The new version needs to be thoroughly validated before changing the
 #    recommended version as otherwise a bunch of devices could be bricked
 #  * For all constants below, update platformio.ini (in this repo)
+#  * rp2_pio pins its own pioasm build (PIOASM_REPO_VERSION in rp2_pio/__init__.py); check
+#    https://github.com/earlephilhower/pico-quick-toolchain/releases for a matching release
 
 # The default/recommended arduino framework version
 #  - https://github.com/earlephilhower/arduino-pico/releases
-RECOMMENDED_ARDUINO_FRAMEWORK_VERSION = cv.Version(6, 0, 0)
+RECOMMENDED_ARDUINO_FRAMEWORK_VERSION = cv.Version(6, 4, 0)
 
 # The raspberrypi platform version to use for arduino frameworks
 #  - https://github.com/maxgerhardt/platform-raspberrypi/tags
-# develop-branch commit carrying the arduino-pico 6.0.0 / pico-quick-toolchain
-# 5.0.0 (GCC 16.1) update; replace with a release tag when one is cut
-RECOMMENDED_ARDUINO_PLATFORM_VERSION = "9c167c6b8aac4f4cfa6d55a0c4e5b848795150c0"
+# develop-branch commit carrying the arduino-pico 6.1.0 update; it predates
+# 6.1.1, so the boards added since have no board JSON on it yet; replace
+# with a release tag when one is cut
+RECOMMENDED_ARDUINO_PLATFORM_VERSION = "5d4561a05e3b212660ac6fdd3fbfb328d1988aa1"
 
 
-def _arduino_check_versions(value):
+def _arduino_check_versions(value: ConfigType) -> ConfigType:
     value = value.copy()
     lookups = {
-        "dev": (cv.Version(6, 0, 0), "https://github.com/earlephilhower/arduino-pico"),
-        "latest": (cv.Version(6, 0, 0), None),
+        "dev": (cv.Version(6, 4, 0), "https://github.com/earlephilhower/arduino-pico"),
+        "latest": (cv.Version(6, 4, 0), None),
         "recommended": (RECOMMENDED_ARDUINO_FRAMEWORK_VERSION, None),
     }
 
@@ -308,12 +316,14 @@ CONFIG_SCHEMA = cv.All(
     ),
     cv.has_at_least_one_key(CONF_BOARD, CONF_VARIANT),
     _detect_variant,
+    cv.require_platformio_toolchain("RP2"),
     set_core_data,
+    network.require_ipv4(PLATFORM_RP2),
 )
 
 
 @coroutine_with_priority(CoroPriority.PLATFORM)
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     cg.add(rp2_ns.setup_preferences())
 
     # Allow LDF to properly discover dependency including those in preprocessor
@@ -372,7 +382,7 @@ async def to_code(config):
         "board_build.filesystem_size", "0m" if CORE.testing_mode else "1m"
     )
 
-    ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
+    ver = CORE.framework_version
     cg.add_define(
         "USE_ARDUINO_VERSION_CODE",
         cg.RawExpression(f"VERSION_CODE({ver.major}, {ver.minor}, {ver.patch})"),
@@ -383,6 +393,8 @@ async def to_code(config):
         "USE_RP2040_WATCHDOG_TIMEOUT", config[CONF_WATCHDOG_TIMEOUT]
     )  # back-compat alias
     cg.add_define("USE_RP2_CRASH_HANDLER")
+    cg.add_define("USE_CRASH_HANDLER")
+    cg.add_define("USE_CRASH_REPORT")
     cg.add_define("USE_RP2040_CRASH_HANDLER")  # back-compat alias
 
     _configure_lwip()
@@ -585,7 +597,7 @@ def _generate_lwipopts_h() -> None:
     write_file_if_changed(lwip_dir / "lwipopts.h", content)
 
 
-def add_pio_file(component: str, key: str, data: str):
+def add_pio_file(component: str, key: str, data: str) -> None:
     try:
         cv.validate_id_name(key)
     except cv.Invalid as e:
@@ -626,7 +638,7 @@ def generate_pio_files() -> bool:
 
 
 # Called by writer.py
-def copy_files():
+def copy_files() -> None:
     dir = Path(__file__).parent
     post_build_file = dir / "post_build.py.script"
     copy_file_if_changed(
@@ -644,48 +656,3 @@ def copy_files():
         path = CORE.relative_src_path("esphome.h")
         content = read_file(path).rstrip("\n")
         write_file_if_changed(path, content + '\n#include "pio_includes.h"\n')
-
-
-# RP2040 crash handler stacktrace decoding
-# Matches output from esphome/components/rp2/crash_handler.cpp
-_CRASH_RE = re.compile(r"CRASH DETECTED ON PREVIOUS BOOT")
-_CRASH_ADDR_RE = re.compile(
-    r"(?:PC|LR|BT\d):\s+(0x[0-9a-fA-F]{8})\s+\((?:fault location|return address|stack backtrace)\)"
-)
-
-
-def _addr2line(tool: str, elf: Path, addr: str) -> str:
-    try:
-        result = subprocess.run(
-            [tool, "-pfiaC", "-e", str(elf), addr],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        return result.stdout.strip()
-    except (OSError, subprocess.CalledProcessError):
-        return f"{addr} (decode failed)"
-
-
-def process_stacktrace(config, line: str, backtrace_state: bool) -> bool:
-    """Decode RP2040 crash handler output using addr2line."""
-    if _CRASH_RE.search(line):
-        _LOGGER.error("RP2040 crash detected - decoding addresses")
-        return True
-
-    if backtrace_state:
-        if match := _CRASH_ADDR_RE.search(line):
-            from esphome.platformio.toolchain import get_idedata
-
-            idedata = get_idedata(config)
-            if idedata.addr2line_path:
-                elf = idedata.firmware_elf_path
-                if elf.exists():
-                    decoded = _addr2line(idedata.addr2line_path, elf, match.group(1))
-                    _LOGGER.error("  %s => %s", match.group(1), decoded)
-
-        # Stop backtrace state after addr2line hint (last line of crash dump)
-        if "addr2line" in line:
-            return False
-
-    return backtrace_state

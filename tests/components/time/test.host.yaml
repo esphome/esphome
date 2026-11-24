@@ -1,0 +1,10 @@
+network:
+
+api:
+
+time:
+  - platform: homeassistant
+    # Angle-bracket name pins the explicit-timezone host codegen path
+    # (setenv/tzset plus pre-parsed struct emission) with characters that
+    # would break unescaped string interpolation.
+    timezone: "<+07>-7"

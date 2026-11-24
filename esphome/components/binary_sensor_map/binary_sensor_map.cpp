@@ -3,7 +3,7 @@
 
 namespace esphome::binary_sensor_map {
 
-static const char *const TAG = "binary_sensor_map";
+ESPHOME_LOG_TAG(TAG, "binary_sensor_map");
 
 void BinarySensorMap::dump_config() { LOG_SENSOR("  ", "binary_sensor_map", this); }
 
@@ -47,7 +47,7 @@ void BinarySensorMap::process_group_() {
     }
   } else if (this->last_mask_ != 0ULL) {
     // no buttons are pressed and the states have changed since last run, so publish NAN
-    ESP_LOGV(TAG, "'%s' - No binary sensor active, publishing NAN", this->name_.c_str());
+    ESP_LOGV(TAG, "'%s' - No binary sensor active, publishing NAN", LOG_STR_ARG(this->get_log_name()));
     this->publish_state(NAN);
   }
 
@@ -81,7 +81,7 @@ void BinarySensorMap::process_bayesian_() {
   float posterior_probability = this->bayesian_prior_;
   uint64_t mask = 0x00;
 
-  // - compute the posterior probability by taking the product of the predicate probablities for each observation
+  // - compute the posterior probability by taking the product of the predicate probabilities for each observation
   // - create a bitmask for the binary_sensor states on all channels/observations
   for (size_t i = 0; i < this->channels_.size(); i++) {
     auto bs = this->channels_[i];

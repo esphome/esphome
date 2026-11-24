@@ -6,7 +6,7 @@
 
 namespace esphome::nextion {
 
-static const char *const TAG = "nextion.upload";
+ESPHOME_LOG_TAG(TAG, "nextion.upload");
 
 bool Nextion::upload_end_(bool successful) {
   if (successful) {

@@ -9,9 +9,11 @@ esphome:
     - id: sub_device_one
       name: Sub Device One
       area_id: test_area
+      relation: via
     - id: sub_device_two
       name: Sub Device Two
       area_id: test_area
+      relation: via
 
 host:
 api:

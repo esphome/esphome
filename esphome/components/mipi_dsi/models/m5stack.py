@@ -14,6 +14,8 @@ DsiDriverChip(
     pclk_frequency="60MHz",
     lane_bit_rate="730Mbps",
     color_order="RGB",
+    requires={"psram"},
+    reset_pin={"pi4ioe5v6408": {"address": 0x43}, "number": 4},
     initsequence=[
         (0xFF, 0x98, 0x81, 0x01),  # Select Page 1
         (0xB7, 0x03),  # Pad control - 2 lane
@@ -64,9 +66,12 @@ TAB5_ST7123 = DsiDriverChip(
     vsync_back_porch=8,
     vsync_pulse_width=2,
     vsync_front_porch=220,
-    pclk_frequency="80MHz",
+    # 80MHz left the panel's PSRAM reads too little time under load (underruns); the ST7121 also runs at 70MHz
+    pclk_frequency="70MHz",
     lane_bit_rate="960Mbps",
     color_order="RGB",
+    requires={"psram"},
+    reset_pin={"pi4ioe5v6408": {"address": 0x43}, "number": 4},
     initsequence=[
         (0x01,),
         (0x60, 0x71, 0x23, 0xa2),
@@ -118,6 +123,8 @@ DsiDriverChip(
     pclk_frequency="70MHz",
     lane_bit_rate="965Mbps",
     color_order="RGB",
+    requires={"psram"},
+    reset_pin={"pi4ioe5v6408": {"address": 0x43}, "number": 4},
     initsequence=[
         (0x01,),
         (0x60, 0x71, 0x21, 0xA2),

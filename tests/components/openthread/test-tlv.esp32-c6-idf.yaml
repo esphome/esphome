@@ -18,3 +18,5 @@ switch:
     turn_off_action:
       then:
         - openthread.set_poll_period: 5s
+        - openthread.set_poll_period:
+            poll_period: !lambda return 10000;

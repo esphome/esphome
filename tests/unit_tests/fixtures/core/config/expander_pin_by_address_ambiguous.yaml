@@ -1,0 +1,31 @@
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+i2c:
+  - id: bus_a
+    sda: GPIO21
+    scl: GPIO22
+  - id: bus_b
+    sda: GPIO18
+    scl: GPIO19
+
+xl9535:
+  - id: xl9535_a
+    i2c_id: bus_a
+    address: 0x20
+  - id: xl9535_b
+    i2c_id: bus_b
+    address: 0x20
+
+binary_sensor:
+  - platform: gpio
+    name: "Expander Pin"
+    pin:
+      xl9535:
+        address: 0x20
+      number: 1
+      mode:
+        input: true

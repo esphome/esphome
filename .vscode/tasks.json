@@ -2,6 +2,36 @@
   "version": "2.0.0",
   "tasks": [
     {
+      "label": "Set up dev environment",
+      "type": "shell",
+      "command": "script/setup",
+      "windows": {
+        "command": "script\\setup.bat"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Check dev environment",
+      "detail": "Runs script/setup when the folder is opened, if it has not been run yet",
+      "type": "shell",
+      "command": "script/setup",
+      "args": [
+        "--if-needed"
+      ],
+      "windows": {
+        "command": "script\\setup.bat"
+      },
+      "runOptions": {
+        "runOn": "folderOpen"
+      },
+      "presentation": {
+        "panel": "dedicated",
+        "focus": false,
+        "showReuseMessage": false
+      },
+      "problemMatcher": []
+    },
+    {
       "label": "Run Dashboard",
       "type": "shell",
       "command": "${command:python.interpreterPath}",

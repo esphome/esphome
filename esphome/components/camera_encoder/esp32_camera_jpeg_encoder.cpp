@@ -6,7 +6,7 @@
 
 namespace esphome::camera_encoder {
 
-static const char *const TAG = "camera_encoder";
+ESPHOME_LOG_TAG(TAG, "camera_encoder");
 
 ESP32CameraJPEGEncoder::ESP32CameraJPEGEncoder(uint8_t quality, camera::EncoderBuffer *output) {
   this->quality_ = quality;

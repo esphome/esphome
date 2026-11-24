@@ -2,7 +2,7 @@
 
 #include "esphome/core/defines.h"
 
-#if defined(USE_ESP32) && defined(USE_SENDSPIN_METADATA) && defined(USE_SENSOR)
+#if defined(USE_ESP_IDF) && defined(USE_SENDSPIN_METADATA) && defined(USE_SENSOR)
 
 #include "esphome/components/sendspin/sendspin_hub.h"
 #include "esphome/components/sensor/sensor.h"
@@ -32,7 +32,7 @@ class SendspinMetadataSensor final : public sensor::Sensor, public SendspinChild
   void set_metadata_type(SendspinNumericMetadataTypes metadata_type) { this->metadata_type_ = metadata_type; }
 
  protected:
-  std::optional<float> extract_value_(const sendspin::ServerMetadataStateObject &metadata) const;
+  std::optional<float> extract_value_(const sendspin::TrackMetadata &metadata) const;
   void publish_if_changed_(float value);
 
   SendspinNumericMetadataTypes metadata_type_;

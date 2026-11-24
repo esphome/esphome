@@ -1,9 +1,10 @@
 #include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
 #include "hm3301.h"
 
 namespace esphome::hm3301 {
 
-static const char *const TAG = "hm3301.sensor";
+ESPHOME_LOG_TAG(TAG, "hm3301.sensor");
 
 static const uint8_t PM_1_0_VALUE_INDEX = 5;
 static const uint8_t PM_2_5_VALUE_INDEX = 6;
@@ -27,7 +28,6 @@ void HM3301Component::dump_config() {
   LOG_SENSOR("  ", "PM1.0", this->pm_1_0_sensor_);
   LOG_SENSOR("  ", "PM2.5", this->pm_2_5_sensor_);
   LOG_SENSOR("  ", "PM10.0", this->pm_10_0_sensor_);
-  LOG_SENSOR("  ", "AQI", this->aqi_sensor_);
 }
 
 void HM3301Component::update() {
@@ -58,12 +58,6 @@ void HM3301Component::update() {
     pm_10_0_value = get_sensor_value_(data_buffer_, PM_10_0_VALUE_INDEX);
   }
 
-  int16_t aqi_value = -1;
-  if (this->aqi_sensor_ != nullptr && pm_2_5_value != -1 && pm_10_0_value != -1) {
-    aqi::AbstractAQICalculator *calculator = this->aqi_calculator_factory_.get_calculator(this->aqi_calc_type_);
-    aqi_value = calculator->get_aqi(pm_2_5_value, pm_10_0_value, /*extended_range=*/false);
-  }
-
   if (pm_1_0_value != -1) {
     this->pm_1_0_sensor_->publish_state(pm_1_0_value);
   }
@@ -73,24 +67,14 @@ void HM3301Component::update() {
   if (pm_10_0_value != -1) {
     this->pm_10_0_sensor_->publish_state(pm_10_0_value);
   }
-  if (aqi_value != -1) {
-    this->aqi_sensor_->publish_state(aqi_value);
-  }
 
   this->status_clear_warning();
 }
 
-bool HM3301Component::validate_checksum_(const uint8_t *data) {
-  uint8_t sum = 0;
-  for (int i = 0; i < 28; i++) {
-    sum += data[i];
-  }
-
-  return sum == data[28];
-}
+bool HM3301Component::validate_checksum_(const uint8_t *data) { return sum_bytes(data, 28) == data[28]; }
 
 uint16_t HM3301Component::get_sensor_value_(const uint8_t *data, uint8_t i) {
-  return (uint16_t) data[i * 2] << 8 | data[i * 2 + 1];
+  return encode_uint16(data[i * 2], data[i * 2 + 1]);
 }
 
 }  // namespace esphome::hm3301

@@ -1,0 +1,69 @@
+esphome:
+  name: rb66@V@
+  includes:
+    - ../softtx.hpp
+
+esp8266:
+  board: d1_mini
+
+packages:
+  common: !include ../rb-common.yaml
+
+remote_receiver:
+  - id: rx_all
+    pin: GPIO5
+    dump: all
+
+# the receiver leaves its pin an input; drive it so the software sender reaches the pad
+interval:
+  - interval: 1h
+    startup_delay: 0s
+    then:
+      - lambda: pinMode(5, OUTPUT);
+
+script:
+  - id: tx_all
+    then:
+      - lambda: |-
+          remote_base::RemoteTransmitData d;
+          using namespace remote_base;
+          NECProtocol().encode(&d, {0x1234, 0x78, 1});
+          softtx::send(d, "nec");
+      - delay: 400ms
+      - lambda: |-
+          remote_base::RemoteTransmitData d;
+          using namespace remote_base;
+          SamsungProtocol().encode(&d, {0xE0E040BF, 32});
+          softtx::send(d, "samsung");
+      - delay: 400ms
+      - lambda: |-
+          remote_base::RemoteTransmitData d;
+          using namespace remote_base;
+          SonyProtocol().encode(&d, {0xA90, 12});
+          softtx::send(d, "sony");
+      - delay: 400ms
+      - lambda: |-
+          remote_base::RemoteTransmitData d;
+          using namespace remote_base;
+          LGProtocol().encode(&d, {0x20DF10EF, 32});
+          softtx::send(d, "lg");
+      - delay: 400ms
+      - lambda: |-
+          remote_base::RemoteTransmitData d;
+          using namespace remote_base;
+          JVCProtocol().encode(&d, {0xC5E8});
+          softtx::send(d, "jvc");
+      - delay: 400ms
+      - lambda: |-
+          remote_base::RemoteTransmitData d;
+          using namespace remote_base;
+          RC5Protocol().encode(&d, {0x1C, 0x05});
+          softtx::send(d, "rc5");
+      - delay: 400ms
+      - lambda: |-
+          remote_base::RemoteTransmitData d;
+          using namespace remote_base;
+          d.item(3000, 1000); d.item(700, 2900); d.item(1500, 400); d.mark(2200);
+          softtx::send(d, "raw");
+      - delay: 400ms
+      - logger.log: "tx done"

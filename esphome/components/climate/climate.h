@@ -12,10 +12,7 @@
 
 namespace esphome::climate {
 
-#define LOG_CLIMATE(prefix, type, obj) \
-  if ((obj) != nullptr) { \
-    ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, LOG_STR_LITERAL(type), (obj)->get_name().c_str()); \
-  }
+#define LOG_CLIMATE(prefix, type, obj) log_entity_header(TAG, prefix, LOG_STR_LITERAL(type), (obj))
 
 class Climate;
 
@@ -82,6 +79,10 @@ class ClimateCall {
   ClimateCall &set_fan_mode(optional<std::string> fan_mode);
   /// Set the custom fan mode of the climate device.
   ClimateCall &set_fan_mode(const char *custom_fan_mode);
+  /// Set the custom fan mode of the climate device (StringRef overload to resolve ambiguity, zero-copy).
+  ClimateCall &set_fan_mode(StringRef custom_fan_mode) {
+    return this->set_fan_mode(custom_fan_mode.c_str(), custom_fan_mode.size());
+  }
   /// Set the custom fan mode of the climate device (zero-copy API path).
   ClimateCall &set_fan_mode(const char *custom_fan_mode, size_t len);
   /// Set the swing mode of the climate device.
@@ -102,6 +103,10 @@ class ClimateCall {
   ClimateCall &set_preset(optional<std::string> preset);
   /// Set the custom preset of the climate device.
   ClimateCall &set_preset(const char *custom_preset);
+  /// Set the custom preset of the climate device (StringRef overload to resolve ambiguity, zero-copy).
+  ClimateCall &set_preset(StringRef custom_preset) {
+    return this->set_preset(custom_preset.c_str(), custom_preset.size());
+  }
   /// Set the custom preset of the climate device (zero-copy API path).
   ClimateCall &set_preset(const char *custom_preset, size_t len);
 
@@ -228,33 +233,52 @@ class Climate : public EntityBase {
   ClimateTraits get_traits();
 
 #ifdef USE_CLIMATE_VISUAL_OVERRIDES
-  void set_visual_min_temperature_override(float visual_min_temperature_override);
-  void set_visual_max_temperature_override(float visual_max_temperature_override);
-  void set_visual_temperature_step_override(float target, float current);
-  void set_visual_min_humidity_override(float visual_min_humidity_override);
-  void set_visual_max_humidity_override(float visual_max_humidity_override);
+  void set_visual_min_temperature_override(float visual_min_temperature_override) {
+    this->visual_min_temperature_override_ = visual_min_temperature_override;
+  }
+  void set_visual_max_temperature_override(float visual_max_temperature_override) {
+    this->visual_max_temperature_override_ = visual_max_temperature_override;
+  }
+  void set_visual_temperature_step_override(float target, float current) {
+    this->visual_target_temperature_step_override_ = target;
+    this->visual_current_temperature_step_override_ = current;
+  }
+  void set_visual_min_humidity_override(float visual_min_humidity_override) {
+    this->visual_min_humidity_override_ = visual_min_humidity_override;
+  }
+  void set_visual_max_humidity_override(float visual_max_humidity_override) {
+    this->visual_max_humidity_override_ = visual_max_humidity_override;
+  }
 #endif
 
-  /// Set the supported custom fan modes (stored on Climate, referenced by ClimateTraits).
+  /// Set the supported custom fan modes; the list is copied (stored on Climate, referenced by ClimateTraits).
   void set_supported_custom_fan_modes(std::initializer_list<const char *> modes) {
-    this->ensure_custom_fan_modes_().assign(modes.begin(), modes.end());
+    this->supported_custom_fan_modes_.assign_copy(modes.begin(), modes.size());
   }
   void set_supported_custom_fan_modes(const std::vector<const char *> &modes) {
-    this->ensure_custom_fan_modes_() = modes;
+    this->supported_custom_fan_modes_.assign_copy(modes.data(), modes.size());
   }
   template<size_t N> void set_supported_custom_fan_modes(const char *const (&modes)[N]) {
-    this->ensure_custom_fan_modes_().assign(modes, modes + N);
+    this->supported_custom_fan_modes_.assign_copy(modes, N);
+  }
+  /// Points at a static table that outlives the climate (codegen); call before any runtime copy.
+  void set_supported_custom_fan_modes_static(const char *const *modes, size_t count) {
+    this->supported_custom_fan_modes_.assign_static(modes, count);
   }
 
-  /// Set the supported custom presets (stored on Climate, referenced by ClimateTraits).
+  /// Set the supported custom presets; the list is copied (stored on Climate, referenced by ClimateTraits).
   void set_supported_custom_presets(std::initializer_list<const char *> presets) {
-    this->ensure_custom_presets_().assign(presets.begin(), presets.end());
+    this->supported_custom_presets_.assign_copy(presets.begin(), presets.size());
   }
   void set_supported_custom_presets(const std::vector<const char *> &presets) {
-    this->ensure_custom_presets_() = presets;
+    this->supported_custom_presets_.assign_copy(presets.data(), presets.size());
   }
   template<size_t N> void set_supported_custom_presets(const char *const (&presets)[N]) {
-    this->ensure_custom_presets_().assign(presets, presets + N);
+    this->supported_custom_presets_.assign_copy(presets, N);
+  }
+  /// Points at a static table that outlives the climate (codegen); call before any runtime copy.
+  void set_supported_custom_presets_static(const char *const *presets, size_t count) {
+    this->supported_custom_presets_.assign_static(presets, count);
   }
 
   /// Check if a custom fan mode is currently active.
@@ -377,22 +401,8 @@ class Climate : public EntityBase {
 #endif
 
  private:
-  /// Lazy-allocate custom mode vectors (never freed — entity lives forever).
-  std::vector<const char *> &ensure_custom_fan_modes_() {
-    if (!this->supported_custom_fan_modes_) {
-      this->supported_custom_fan_modes_ = new std::vector<const char *>();  // NOLINT
-    }
-    return *this->supported_custom_fan_modes_;
-  }
-  std::vector<const char *> &ensure_custom_presets_() {
-    if (!this->supported_custom_presets_) {
-      this->supported_custom_presets_ = new std::vector<const char *>();  // NOLINT
-    }
-    return *this->supported_custom_presets_;
-  }
-
-  std::vector<const char *> *supported_custom_fan_modes_{nullptr};
-  std::vector<const char *> *supported_custom_presets_{nullptr};
+  ClimateCustomModes supported_custom_fan_modes_;
+  ClimateCustomModes supported_custom_presets_;
 
   /** The active custom fan mode (private - enforces use of safe setters).
    *

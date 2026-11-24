@@ -4,7 +4,11 @@ import pytest
 
 from esphome import config_validation as cv
 from esphome.components import modbus
-from esphome.components.modbus import CONF_MODBUS_ID, _validate_server_address
+from esphome.components.modbus import (
+    _HUB_TIME_PERIOD,
+    CONF_MODBUS_ID,
+    _validate_server_address,
+)
 from esphome.const import CONF_ADDRESS
 
 
@@ -33,7 +37,16 @@ def test_server_schema_rejects_address_zero() -> None:
 
 
 def test_client_schema_still_accepts_address_zero() -> None:
-    # Not rejected for clients today, but not supported either: a client broadcast gets no reply and
-    # stalls the hub for the full send-wait.
+    # A client may address 0: writes are broadcast, and reads are allowed with allow_broadcast_read.
     schema = modbus.modbus_device_schema(0x01)
     assert schema({CONF_MODBUS_ID: "hub", CONF_ADDRESS: 0})[CONF_ADDRESS] == 0
+
+
+def test_hub_time_accepts_up_to_65535_ms() -> None:
+    assert _HUB_TIME_PERIOD("65535ms").total_milliseconds == 65535
+
+
+def test_hub_time_rejects_values_the_hub_would_truncate() -> None:
+    # The setters take 16-bit milliseconds: 70 s would silently become 4464 ms.
+    with pytest.raises(cv.Invalid):
+        _HUB_TIME_PERIOD("70s")

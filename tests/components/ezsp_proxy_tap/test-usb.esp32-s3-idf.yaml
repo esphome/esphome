@@ -1,0 +1,27 @@
+wifi:
+  ssid: MySSID
+  password: password1
+  power_save_mode: none
+
+api:
+
+usb_host:
+
+usb_uart:
+  - type: CDC_ACM
+    vid: 0x303A
+    pid: 0x831A
+    channels:
+      - id: ezsp_usb_channel
+        baud_rate: 460800
+
+# The tapped port may be a USB CDC ACM channel just as well as a hardware UART:
+# ezsp_proxy_tap never touches the UART itself, so it does not care which it is.
+serial_proxy:
+  - id: ezsp_usb_serial
+    uart_id: ezsp_usb_channel
+    name: Zigbee
+    port_type: USB_SERIAL
+
+ezsp_proxy_tap:
+  serial_proxy_id: ezsp_usb_serial

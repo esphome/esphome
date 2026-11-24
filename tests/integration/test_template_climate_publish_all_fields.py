@@ -1,0 +1,90 @@
+"""Integration test for template climate: climate.template.publish covering every field at once.
+
+A single climate.template.publish call resolves into exactly one ClimateState update, and never
+triggers on_control (which would misrepresent a device state report as a fresh command). This also
+exercises that a sensor/humidity_sensor whose reading matches what's about to be published doesn't
+sneak in an extra state update of its own (the sensor callback only re-publishes on an actual
+change).
+"""
+
+from __future__ import annotations
+
+import asyncio
+
+import aioesphomeapi
+from aioesphomeapi import (
+    ButtonInfo,
+    ClimateAction,
+    ClimateFanMode,
+    ClimateInfo,
+    ClimateMode,
+    ClimatePreset,
+    ClimateSwingMode,
+)
+import pytest
+
+from .host_prefs import clear_host_prefs
+from .log_utils import LineWaiter
+from .state_utils import (
+    require_entity,
+    require_only_entity,
+    subscribe_after_initial_states,
+    wait_for_state,
+)
+from .types import APIClientConnectedFactory, RunCompiledFunction
+
+DEVICE_NAME = "tmpl-clim-publish-all"
+
+
+@pytest.mark.asyncio
+async def test_template_climate_publish_all_fields(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """One climate.template.publish call setting every field resolves to one state update."""
+    clear_host_prefs(DEVICE_NAME)
+
+    state_updates: list[aioesphomeapi.ClimateState] = []
+    waiter = LineWaiter()
+
+    async with (
+        run_compiled(yaml_config, line_callback=waiter.callback),
+        api_client_connected() as client,
+    ):
+
+        def on_state(state: aioesphomeapi.EntityState) -> None:
+            if isinstance(state, aioesphomeapi.ClimateState):
+                state_updates.append(state)
+
+        entities, _ = await client.list_entities_services()
+        require_only_entity(entities, ClimateInfo)
+
+        publish_button = require_entity(entities, "publish_all", ButtonInfo)
+
+        await subscribe_after_initial_states(client, entities, on_state=on_state)
+
+        client.button_command(publish_button.key)
+        state = await wait_for_state(
+            client,
+            lambda s: isinstance(s, aioesphomeapi.ClimateState),
+            msg="Timeout waiting for the published climate state",
+        )
+
+        assert state.current_temperature == pytest.approx(20.0, abs=0.1)
+        assert state.current_humidity == pytest.approx(60.0, abs=0.1)
+        assert state.target_temperature == pytest.approx(23.0, abs=0.1)
+        assert state.mode == ClimateMode.HEAT
+        assert state.action == ClimateAction.HEATING
+        assert state.fan_mode == ClimateFanMode.HIGH
+        assert state.swing_mode == ClimateSwingMode.VERTICAL
+        assert state.preset == ClimatePreset.ECO
+
+        # Give any stray extra update (there shouldn't be one) a moment to arrive.
+        await asyncio.sleep(0.2)
+        assert len(state_updates) == 1, (
+            f"Expected exactly one ClimateState update, got {len(state_updates)}"
+        )
+        assert not any("on_control fired" in line for line in waiter.lines), (
+            "climate.template.publish must not trigger on_control"
+        )

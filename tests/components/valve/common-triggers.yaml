@@ -1,0 +1,9 @@
+valve:
+  - platform: template
+    name: Trigger Test Valve
+    id: trigger_test_valve
+    optimistic: true
+    on_open:
+      - logger.log: Valve fully open
+    on_closed:
+      - logger.log: Valve fully closed

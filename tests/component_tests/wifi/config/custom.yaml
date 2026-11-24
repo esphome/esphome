@@ -1,0 +1,18 @@
+---
+esphome:
+  name: test
+
+esp8266:
+  board: d1_mini
+
+wifi:
+  networks:
+    - ssid: test
+      password: testtest
+      priority: 5
+  ap:
+    ssid: fallback
+    ap_timeout: 2min
+  reboot_timeout: 0s
+  power_save_mode: light
+  min_auth_mode: wpa

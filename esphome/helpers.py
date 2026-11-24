@@ -1,15 +1,16 @@
 from __future__ import annotations
 
-from collections.abc import Iterable, MutableMapping
+from collections.abc import Callable, Iterable, MutableMapping
 from contextlib import suppress
+import importlib
 import ipaddress
 import logging
 import os
 from pathlib import Path
-import platform
 import re
 import stat
 import sys
+from types import ModuleType
 from typing import TYPE_CHECKING, TextIO
 
 from esphome.const import __version__ as ESPHOME_VERSION
@@ -31,26 +32,34 @@ SockAddr = IPv4SockAddr | IPv6SockAddr
 
 _LOGGER = logging.getLogger(__name__)
 
-IS_MACOS = platform.system() == "Darwin"
-IS_WINDOWS = platform.system() == "Windows"
-IS_LINUX = platform.system() == "Linux"
+# cv.boolean's closed spelling tables, shared with the strict env-knob
+# parser (build_helpers.ccache.parse_enable_env)
+TRUTHY_BOOL_STRINGS = frozenset({"true", "yes", "on", "enable"})
+FALSY_BOOL_STRINGS = frozenset({"false", "no", "off", "disable"})
+# cv.boolean's spelling tables plus the 1/0 env convention
+TRUTHY_ENV_STRINGS = TRUTHY_BOOL_STRINGS | {"1"}
+FALSY_ENV_STRINGS = FALSY_BOOL_STRINGS | {"0"}
+
+IS_MACOS = sys.platform == "darwin"
+IS_WINDOWS = sys.platform == "win32"
+IS_LINUX = sys.platform.startswith("linux")
 
 # FNV-1 hash constants (must match C++ in esphome/core/helpers.h)
 FNV1_OFFSET_BASIS = 2166136261
 FNV1_PRIME = 16777619
 
 
-def ensure_unique_string(preferred_string, current_strings):
-    test_string = preferred_string
-    current_strings_set = set(current_strings)
-
-    tries = 1
-
-    while test_string in current_strings_set:
+def unique_name(name: str, taken: Callable[[str], bool]) -> str:
+    """``name``, or ``name_2``, ``name_3``, ... for the first that is not ``taken``."""
+    candidate, tries = name, 1
+    while taken(candidate):
         tries += 1
-        test_string = f"{preferred_string}_{tries}"
+        candidate = f"{name}_{tries}"
+    return candidate
 
-    return test_string
+
+def ensure_unique_string(preferred_string, current_strings):
+    return unique_name(preferred_string, set(current_strings).__contains__)
 
 
 def _fnv1_hash(values: Iterable[int]) -> int:
@@ -191,6 +200,21 @@ def cpp_string_escape(string, encoding="utf-8"):
         else:
             result += chr(character)
     return f'"{result}"'
+
+
+def cpp_u16string_escape(string: str) -> str:
+    """Escape a string as a C++ u"..." literal, which the compiler encodes as UTF-16."""
+    result = ""
+    for character in string:
+        code = ord(character)
+        if code >= 127:
+            # Surrogate escapes are ill-formed in C++; the compiler splits astral code points
+            result += f"\\U{code:08X}"
+        elif code < 32 or character in ("\\", '"'):
+            result += f"\\{code:03o}"
+        else:
+            result += character
+    return f'u"{result}"'
 
 
 def run_system_command(*args):
@@ -394,13 +418,24 @@ def sort_ip_addresses(address_list: list[str]) -> list[str]:
     return [socket.getnameinfo(r[4], socket.NI_NUMERICHOST)[0] for r in res]
 
 
+def get_usable_cpu_count() -> int:
+    """Return the number of CPUs usable by this process (affinity-aware
+    on Python 3.13+); 1 when the count is undeterminable."""
+    count = (
+        os.process_cpu_count() if hasattr(os, "process_cpu_count") else os.cpu_count()
+    )
+    return count or 1
+
+
 def get_bool_env(var, default=False):
+    """Read a boolean env var: the ``cv.boolean`` spellings plus ``1``/``0``;
+    anything else falls through to ``bool(value)``."""
     value = os.getenv(var, default)
     if isinstance(value, str):
         value = value.lower()
-        if value in ["1", "true"]:
+        if value in TRUTHY_ENV_STRINGS:
             return True
-        if value in ["0", "false"]:
+        if value in FALSY_ENV_STRINGS:
             return False
     return bool(value)
 
@@ -437,23 +472,55 @@ def add_git_ceiling_directory(env: MutableMapping[str, str], directory: Path) ->
         env["GIT_CEILING_DIRECTORIES"] = os.pathsep.join(parts)
 
 
-def rmtree(path: Path | str) -> None:
-    """Remove a directory tree, handling read-only files on Windows.
+# Deletion attempts when a directory keeps being repopulated mid-delete
+RMTREE_MAX_ATTEMPTS = 3
 
-    On Windows, git pack files and other files may be marked read-only,
-    causing shutil.rmtree to fail. This handles that by removing the
-    read-only flag and retrying.
+
+def rmtree(path: Path | str) -> None:
+    """Remove a directory tree, tolerating common filesystem races.
+
+    Read-only files (e.g. git pack files on Windows) get the read-only flag
+    removed and are retried. Paths that are already gone, whether the target
+    itself or entries vanishing mid-delete, are treated as removed.
+    Directories repopulated mid-delete (e.g. Finder recreating .DS_Store on
+    macOS) are retried a few times.
     """
 
+    import errno
     import shutil
+    import time
 
-    def _onexc(func, path, exc):
+    def _onexc(func: Callable[..., object], path: str | Path, exc: OSError) -> None:
+        if isinstance(exc, FileNotFoundError):
+            _LOGGER.debug("rmtree: %s already gone", path)
+            return
         if os.access(path, os.W_OK):
             raise exc
         Path(path).chmod(stat.S_IWUSR | stat.S_IRUSR)
         func(path)
 
-    shutil.rmtree(path, onexc=_onexc)
+    last_err: OSError | None = None
+    for attempt in range(RMTREE_MAX_ATTEMPTS - 1):
+        try:
+            shutil.rmtree(path, onexc=_onexc)
+            return
+        except OSError as err:
+            if err.errno not in (errno.ENOTEMPTY, errno.EEXIST):
+                raise
+            _LOGGER.debug(
+                "rmtree: %s repopulated mid-delete (attempt %d): %s",
+                path,
+                attempt + 1,
+                err,
+            )
+            last_err = err
+            # Give the racing writer (e.g. Finder) time to settle
+            time.sleep(0.05 * (attempt + 1))
+    try:
+        shutil.rmtree(path, onexc=_onexc)
+    except OSError as err:
+        # Keep the earlier races visible in the traceback
+        raise err from last_err
 
 
 def walk_files(path: Path):
@@ -545,6 +612,16 @@ def write_file(path: Path, text: str | bytes, private: bool = False) -> None:
         raise EsphomeError(f"Could not write file at {path}") from err
 
 
+def path_define_flag(name: str, path: Path) -> str:
+    """A ``-D<name>="<path>"`` build flag that every build's shell lexer decodes
+    to the same single argument (ESP-IDF and Zephyr then quote each token for
+    CMake), even when the path holds spaces or shell characters."""
+    # forward slashes for Windows, then escape what shlex would not pass
+    # through literally
+    escaped = re.sub(r"[^\w/.:+=,-]", r"\\\g<0>", Path(path).as_posix())
+    return f'-D{name}=\\"{escaped}\\"'
+
+
 def write_file_if_changed(path: Path, text: str) -> bool:
     """Write text to the given path, but not if the contents match already.
 
@@ -552,7 +629,18 @@ def write_file_if_changed(path: Path, text: str) -> bool:
     """
     src_content = None
     if path.is_file():
-        src_content = read_file(path)
+        try:
+            src_content = path.read_text(encoding="utf-8")
+        except UnicodeDecodeError as err:
+            # Replace a damaged file rather than abort the regeneration that
+            # fixes it; an OSError may hide an intact file, so it still raises
+            _LOGGER.warning("Replacing damaged file %s: %s", path, err)
+            with suppress(OSError):
+                path.unlink(missing_ok=True)
+        except OSError as err:
+            from esphome.core import EsphomeError
+
+            raise EsphomeError(f"Error reading file {path}: {err}") from err
     if src_content == text:
         return False
     write_file(path, text)
@@ -650,23 +738,20 @@ def add_class_to_obj(value, cls):
         # If already is instance, do not add
         return value
 
-    try:
-        orig_cls = value.__class__
-        key = (orig_cls, cls)
-        new_cls = _CLASS_LOOKUP.get(key)
-        if new_cls is None:
-            new_cls = orig_cls.__class__(orig_cls.__name__, (orig_cls, cls), {})
-            _CLASS_LOOKUP[key] = new_cls
-        value.__class__ = new_cls
-        return value
-    except TypeError:
-        # Non heap type, look in overloads dict
-        for type_, func in _TYPE_OVERLOADS.items():
-            # Use type() here, we only need to trigger if it's the exact type,
-            # as otherwise we don't need to overload the class
-            if type(value) is type_:  # pylint: disable=unidiomatic-typecheck
-                return add_class_to_obj(func(value), cls)
-        raise
+    # The built-in types refuse a __class__ change, so copy them into a heap
+    # subtype first. Matching the exact type, as a subclass is already a heap type.
+    if (overload := _TYPE_OVERLOADS.get(type(value))) is not None:
+        value = overload(value)
+
+    # Any other non heap type raises TypeError here
+    orig_cls = value.__class__
+    key = (orig_cls, cls)
+    new_cls = _CLASS_LOOKUP.get(key)
+    if new_cls is None:
+        new_cls = orig_cls.__class__(orig_cls.__name__, (orig_cls, cls), {})
+        _CLASS_LOOKUP[key] = new_cls
+    value.__class__ = new_cls
+    return value
 
 
 def snake_case(value: str) -> str:
@@ -718,10 +803,21 @@ class ProgressBar:
         sys.stderr.flush()
 
     def done(self) -> None:
-        if not self.enabled:
+        # No frame drawn, or the 100% frame already ended its own line
+        if not self.enabled or self.last_progress is None or self.last_progress == 100:
             return
         sys.stderr.write("\n")
         sys.stderr.flush()
+
+    def interrupt(self) -> None:
+        """End a mid-row frame so the next write starts on its own row.
+
+        The next ``update()`` redraws the bar; a finished bar stays done.
+        """
+        if self.last_progress == 100:
+            return
+        self.done()
+        self.last_progress = None
 
 
 def docs_url(path: str) -> str:
@@ -739,3 +835,11 @@ def docs_url(path: str) -> str:
 
     path = path.removeprefix("/")
     return docs_format.format(path=path)
+
+
+def zstd_module() -> ModuleType:
+    """The zstd module: the standard library one from Python 3.14, otherwise the backport."""
+    try:
+        return importlib.import_module("compression.zstd")
+    except ImportError:
+        return importlib.import_module("backports.zstd")

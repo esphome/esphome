@@ -1,0 +1,18 @@
+---
+esphome:
+  name: test
+
+esp32:
+  board: esp32dev
+
+output:
+  - platform: ledc
+    id: default_power
+    pin: GPIO4
+    max_power: 100%
+    min_power: 0%
+  - platform: ledc
+    id: custom_power
+    pin: GPIO5
+    max_power: 90%
+    min_power: 1%

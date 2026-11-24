@@ -5,6 +5,7 @@ from esphome.const import CONF_BUFFER_SIZE, CONF_ID, CONF_TYPE
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@DT-art1"]
+DOMAIN = "camera_encoder"
 
 AUTO_LOAD = ["camera"]
 

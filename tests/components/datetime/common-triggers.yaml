@@ -1,0 +1,10 @@
+datetime:
+  - platform: template
+    name: Datetime Trigger Test
+    id: datetime_trigger_test
+    type: datetime
+    optimistic: true
+    on_value:
+      - logger.log:
+          format: "New value %04d-%02d-%02d"
+          args: [x.year, x.month, x.day_of_month]

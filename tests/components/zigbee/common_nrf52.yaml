@@ -3,6 +3,8 @@ packages:
 
 zigbee:
   model: zigbee_test
+  manufacturer: test
+  version: 1
   wipe_on_boot: true
   on_join:
     then:
@@ -10,6 +12,3 @@ zigbee:
   on_start:
     then:
       - logger.log: "Started zigbee stack"
-
-time:
-  - platform: zigbee

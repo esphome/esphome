@@ -4,14 +4,15 @@ Scan modes:
   continuous: true  — scan runs forever; never stops automatically.
   continuous: false — a started scan runs for `duration`, then stops. The first
                       start is external too; nothing starts a non-continuous
-                      scan on boot. Until start/stop automation actions land
-                      (follow-up PR), starting means a lambda:
-                      `id(my_tracker).start_scan();`.
+                      scan on boot — use the rp2_ble_tracker.start_scan action
+                      (e.g. from api: on_client_connected:).
 """
 
+from esphome import automation
 import esphome.codegen as cg
 from esphome.components import ble_device_base, ota, rp2040_ble
-from esphome.components.const import CONF_SCAN_PARAMETERS, CONF_WINDOW
+from esphome.components.ble_device_base import automation as ble_automation
+from esphome.components.const import CONF_ON_SCAN_END, CONF_SCAN_PARAMETERS, CONF_WINDOW
 from esphome.components.rp2040_ble import CONF_RP2040_BLE_ID
 import esphome.config_validation as cv
 from esphome.const import (
@@ -26,6 +27,7 @@ from esphome.types import ConfigType
 DEPENDENCIES = ["rp2"]
 AUTO_LOAD = ["ble_device_base", "rp2040_ble"]
 CODEOWNERS = ["@bdraco"]
+DOMAIN = "rp2_ble_tracker"
 
 ble_device_base.register_hub_provider("rp2_ble_tracker")
 
@@ -33,6 +35,7 @@ rp2_ble_tracker_ns = cg.esphome_ns.namespace("rp2_ble_tracker")
 RP2BLETracker = rp2_ble_tracker_ns.class_(
     "RP2BLETracker", ble_device_base.BLEHub, cg.Component
 )
+BLEEndOfScanTrigger = ble_automation.BLEEndOfScanTrigger
 
 
 # interval defaults to 100 ms with the shared 30 ms window, a 30 % duty cycle —
@@ -48,6 +51,10 @@ CONFIG_SCHEMA = cv.Schema(
         cv.GenerateID(): cv.declare_id(RP2BLETracker),
         cv.GenerateID(CONF_RP2040_BLE_ID): cv.use_id(rp2040_ble.RP2040BLE),
         cv.Optional(CONF_SCAN_PARAMETERS, default={}): SCAN_PARAMETERS_SCHEMA,
+        **ble_automation.ADVERTISE_TRIGGERS_SCHEMA,
+        cv.Optional(CONF_ON_SCAN_END): ble_automation.scan_end_trigger_schema(
+            BLEEndOfScanTrigger
+        ),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -63,10 +70,8 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
 
     parent = await cg.get_variable(config[CONF_RP2040_BLE_ID])
-    cg.add(var.set_parent(parent))
-    # The tracker registers itself as a controller scan listener in setup();
-    # request the codegen-sized StaticVector slot for it.
-    rp2040_ble.request_scan_listener_slot()
+    await cg.register_parented(var, parent)
+    cg.add(rp2040_ble.register_scan_listener(parent, var))
 
     # Get notified when an OTA update starts, to pause scanning (esp32_ble_tracker parity)
     ota.request_ota_state_listeners()
@@ -76,4 +81,25 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_scan_window(ble_device_base.to_ble_units(scan[CONF_WINDOW])))
     cg.add(var.set_scan_duration(scan[CONF_DURATION].total_milliseconds))
     cg.add(var.set_scan_active(scan[CONF_ACTIVE]))
-    cg.add(var.set_scan_continuous(scan[CONF_CONTINUOUS]))
+    cg.add(var.set_configured_continuous(scan[CONF_CONTINUOUS]))
+
+    await ble_automation.advertise_triggers_to_code(config, var)
+
+    for conf in config.get(CONF_ON_SCAN_END, []):
+        await ble_automation.scan_end_trigger_to_code(conf, var)
+
+
+ble_automation.register_start_scan_action("rp2_ble_tracker.start_scan", RP2BLETracker)
+
+
+automation.register_apply_action(
+    "rp2_ble_tracker.stop_scan",
+    automation.maybe_simple_id(
+        cv.Schema(
+            {
+                cv.GenerateID(): cv.use_id(RP2BLETracker),
+            }
+        )
+    ),
+    automation.ApplyCall("stop_scan()"),
+)

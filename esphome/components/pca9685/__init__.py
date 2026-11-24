@@ -7,21 +7,20 @@ from esphome.const import (
     CONF_ID,
     CONF_PHASE_BALANCER,
 )
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["i2c"]
+DOMAIN = "pca9685"
 MULTI_CONF = True
 
 pca9685_ns = cg.esphome_ns.namespace("pca9685")
 PCA9685Output = pca9685_ns.class_("PCA9685Output", cg.Component, i2c.I2CDevice)
 
 phase_balancer = pca9685_ns.enum("PhaseBalancer", is_class=True)
-PHASE_BALANCERS = {
-    "none": phase_balancer.NONE,
-    "linear": phase_balancer.LINEAR,
-}
+PHASE_BALANCERS = phase_balancer.options("none", "linear")
 
 
-def validate_frequency(config):
+def validate_frequency(config: ConfigType) -> ConfigType:
     if config[CONF_EXTERNAL_CLOCK_INPUT]:
         if CONF_FREQUENCY in config:
             raise cv.Invalid(
@@ -52,10 +51,9 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
-    if CONF_FREQUENCY in config:
-        cg.add(var.set_frequency(config[CONF_FREQUENCY]))
+    cg.add_optional(var.set_frequency, config.get(CONF_FREQUENCY))
     cg.add(var.set_extclk(config[CONF_EXTERNAL_CLOCK_INPUT]))
     cg.add(var.set_phase_balancer(config[CONF_PHASE_BALANCER]))
     await cg.register_component(var, config)

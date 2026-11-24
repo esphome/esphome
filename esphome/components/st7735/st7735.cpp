@@ -218,7 +218,7 @@ static constexpr uint8_t PROGMEM
       100 };                        //     100 ms delay
 
 // clang-format on
-static const char *const TAG = "st7735";
+ESPHOME_LOG_TAG(TAG, "st7735");
 
 ST7735::ST7735(ST7735Model model, int width, int height, int colstart, int rowstart, bool eightbitcolor, bool usebgr,
                bool invert_colors)
@@ -449,8 +449,8 @@ void HOT ST7735::write_display_data_() {
   if (this->eightbitcolor_) {
     for (size_t line = 0; line < this->get_buffer_length(); line = line + this->get_width_internal()) {
       for (int index = 0; index < this->get_width_internal(); ++index) {
-        auto color332 = display::ColorUtil::to_color(this->buffer_[index + line], display::ColorOrder::COLOR_ORDER_RGB,
-                                                     display::ColorBitness::COLOR_BITNESS_332, true);
+        auto color332 =
+            display::ColorUtil::to_color(this->buffer_[index + line], display::ColorBitness::COLOR_BITNESS_332, true);
 
         auto color = display::ColorUtil::color_to_565(color332);
 

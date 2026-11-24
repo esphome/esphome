@@ -23,6 +23,7 @@ from .const import (
 )
 
 CODEOWNERS = ["@exciton"]
+DOMAIN = "modbus_server"
 
 AUTO_LOAD = ["modbus"]
 
@@ -144,14 +145,14 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def _final_validate(config: ConfigType) -> ConfigType:
-    return modbus.final_validate_modbus_device("modbus_server", role="server")(config)
+def _final_validate(config: ConfigType) -> None:
+    modbus.final_validate_modbus_device("modbus_server", role="server")(config)
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     if server_courtesy_response := config.get(CONF_COURTESY_RESPONSE):
         cg.add(
@@ -169,16 +170,17 @@ async def to_code(config):
         )
     if CONF_REGISTERS in config:
         for server_register in config[CONF_REGISTERS]:
+            value_type = server_register[CONF_VALUE_TYPE]
             server_register_var = cg.new_Pvariable(
                 server_register[CONF_ID],
                 server_register[CONF_ADDRESS],
-                server_register[CONF_VALUE_TYPE],
-                TYPE_REGISTER_MAP[server_register[CONF_VALUE_TYPE]],
+                value_type,
+                TYPE_REGISTER_MAP[value_type],
             )
-            cpp_type = CPP_TYPE_REGISTER_MAP[server_register[CONF_VALUE_TYPE]]
+            cpp_type = CPP_TYPE_REGISTER_MAP[value_type]
             cg.add(
                 server_register_var.set_read_lambda(
-                    cg.TemplateArguments(cpp_type),
+                    cg.TemplateArguments(value_type),
                     await cg.process_lambda(
                         server_register[CONF_READ_LAMBDA],
                         [(cg.uint16, "address")],
@@ -189,7 +191,7 @@ async def to_code(config):
             if CONF_WRITE_LAMBDA in server_register:
                 cg.add(
                     server_register_var.set_write_lambda(
-                        cg.TemplateArguments(cpp_type),
+                        cg.TemplateArguments(value_type),
                         await cg.process_lambda(
                             server_register[CONF_WRITE_LAMBDA],
                             parameters=[(cg.uint16, "address"), (cpp_type, "x")],

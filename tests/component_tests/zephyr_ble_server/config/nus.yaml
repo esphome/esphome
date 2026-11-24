@@ -1,0 +1,11 @@
+esphome:
+  name: mtutest
+
+nrf52:
+  board: adafruit_itsybitsy_nrf52840
+  bootloader: adafruit_nrf52_sd140_v6
+
+logger:
+
+ble_nus:
+  type: logs

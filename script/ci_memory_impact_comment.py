@@ -20,17 +20,21 @@ from jinja2 import Environment, FileSystemLoader
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # pylint: disable=wrong-import-position
+from helpers import run_gh_command  # noqa: E402
 
 # Comment marker to identify our memory impact comments
 COMMENT_MARKER = "<!-- esphome-memory-impact-analysis -->"
 
 
-def run_gh_command(args: list[str], operation: str) -> subprocess.CompletedProcess:
-    """Run a gh CLI command with error handling.
+def run_gh_command_logged(
+    args: list[str], operation: str, *, retry: bool = True
+) -> subprocess.CompletedProcess:
+    """Run a gh CLI command with retries and error reporting.
 
     Args:
         args: Command arguments (including 'gh')
         operation: Description of the operation for error messages
+        retry: Pass False for non-idempotent commands (see run_gh_command)
 
     Returns:
         CompletedProcess result
@@ -39,12 +43,7 @@ def run_gh_command(args: list[str], operation: str) -> subprocess.CompletedProce
         subprocess.CalledProcessError: If command fails (with detailed error output)
     """
     try:
-        return subprocess.run(
-            args,
-            check=True,
-            capture_output=True,
-            text=True,
-        )
+        return run_gh_command(args, retry=retry)
     except subprocess.CalledProcessError as e:
         print(
             f"ERROR: {operation} failed with exit code {e.returncode}", file=sys.stderr
@@ -472,7 +471,7 @@ def find_existing_comment(pr_number: str) -> str | None:
     print(f"DEBUG: Looking for existing comment on PR #{pr_number}", file=sys.stderr)
 
     # Use gh api to get comments directly - this returns the numeric id field
-    result = run_gh_command(
+    result = run_gh_command_logged(
         [
             "gh",
             "api",
@@ -535,7 +534,7 @@ def update_existing_comment(comment_id: str, comment_body: str) -> None:
     """
     print(f"DEBUG: Updating existing comment {comment_id}", file=sys.stderr)
     print(f"DEBUG: Comment body length: {len(comment_body)} bytes", file=sys.stderr)
-    result = run_gh_command(
+    result = run_gh_command_logged(
         [
             "gh",
             "api",
@@ -562,9 +561,12 @@ def create_new_comment(pr_number: str, comment_body: str) -> None:
     """
     print(f"DEBUG: Posting new comment on PR #{pr_number}", file=sys.stderr)
     print(f"DEBUG: Comment body length: {len(comment_body)} bytes", file=sys.stderr)
-    result = run_gh_command(
+    # Creating a comment is not idempotent: a retry after a dropped response
+    # could post the same comment twice, so fail on the first error instead.
+    result = run_gh_command_logged(
         ["gh", "pr", "comment", pr_number, "--body", comment_body],
         operation="Create PR comment",
+        retry=False,
     )
     print(f"DEBUG: Post response: {result.stdout}", file=sys.stderr)
 

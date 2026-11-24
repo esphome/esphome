@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+from .state_utils import assert_device_name
 from .types import APIClientConnectedFactory, RunCompiledFunction
 
 
@@ -23,6 +24,4 @@ async def test_host_mode_reconnect(
 
         # Reconnect with a new client
         async with api_client_connected() as client2:
-            device_info2 = await client2.device_info()
-            assert device_info2 is not None
-            assert device_info2.name == device_info.name
+            await assert_device_name(client2, device_info.name)

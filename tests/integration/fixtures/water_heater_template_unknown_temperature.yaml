@@ -1,0 +1,16 @@
+esphome:
+  name: wh-template-unknown-test
+host:
+api:
+logger:
+
+water_heater:
+  - platform: template
+    id: unknown_boiler
+    name: Unknown Boiler
+    # Both temperatures stay unknown, as they do before an upstream component reports a value.
+    current_temperature: !lambda "return NAN;"
+    target_temperature: !lambda "return NAN;"
+    supported_modes:
+      - "off"
+      - eco

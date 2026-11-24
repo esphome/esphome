@@ -6,10 +6,14 @@ import voluptuous as vol
 from esphome.schema_extractors import schema_extractor_extended
 
 
-class ExtraKeysInvalid(vol.Invalid):
+class KeyInvalid(vol.Invalid):
+    """An error caused by a mapping key itself rather than by its value."""
+
+
+class ExtraKeysInvalid(KeyInvalid):
     def __init__(self, *arg, **kwargs):
         self.candidates = kwargs.pop("candidates")
-        vol.Invalid.__init__(self, *arg, **kwargs)
+        super().__init__(*arg, **kwargs)
 
 
 def ensure_multiple_invalid(err):
@@ -192,7 +196,7 @@ class _Schema(vol.Schema):
                             )
                         else:
                             errors.append(
-                                vol.Invalid("extra keys not allowed", key_path)
+                                KeyInvalid("extra keys not allowed", key_path)
                             )
 
             # for any required keys left that weren't found and don't have defaults:
@@ -235,5 +239,8 @@ class _Schema(vol.Schema):
             extra_schemas.extend(schema._extra_schemas)
         if isinstance(schema, vol.Schema):
             schema = schema.schema
-        ret = super().extend(schema, extra=extra)
-        return _Schema(ret.schema, extra=ret.extra, extra_schemas=extra_schemas)
+        # vol.Schema.extend already builds and compiles a new _Schema, so only the
+        # extra schemas are copied over; compiling it again doubled the import cost.
+        ret = super().extend(schema, required=False, extra=extra)
+        ret._extra_schemas = extra_schemas
+        return ret

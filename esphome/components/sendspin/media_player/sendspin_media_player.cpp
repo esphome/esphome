@@ -1,6 +1,6 @@
 #include "sendspin_media_player.h"
 
-#if defined(USE_ESP32) && defined(USE_MEDIA_PLAYER) && defined(USE_SENDSPIN_CONTROLLER)
+#if defined(USE_ESP_IDF) && defined(USE_MEDIA_PLAYER) && defined(USE_SENDSPIN_CONTROLLER)
 
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
@@ -16,16 +16,16 @@
 
 namespace esphome::sendspin_ {
 
-static const char *const TAG = "sendspin.media_player";
+ESPHOME_LOG_TAG(TAG, "sendspin.media_player");
 
 // THREAD CONTEXT: Main loop. The callbacks registered here also fire on the main loop,
 // since SendspinHub dispatches group updates and controller state from client_->loop().
 void SendspinMediaPlayer::setup() {
   // Register for group updates to sync playback state
-  this->parent_->add_group_update_callback([this](const sendspin::GroupUpdateObject &group_obj) {
-    if (group_obj.playback_state.has_value()) {
+  this->parent_->add_group_state_callback([this](const sendspin::GroupState &changes) {
+    if (changes.playback_state.has_value()) {
       media_player::MediaPlayerState new_state;
-      switch (group_obj.playback_state.value()) {
+      switch (changes.playback_state.value()) {
         case sendspin::SendspinPlaybackState::PLAYING:
           new_state = media_player::MEDIA_PLAYER_STATE_PLAYING;
           break;
@@ -95,6 +95,10 @@ media_player::MediaPlayerTraits SendspinMediaPlayer::get_traits() {
 void SendspinMediaPlayer::control(const media_player::MediaPlayerCall &call) {
   if (!this->is_ready()) {
     // Ignore any commands sent before the media player is setup
+    return;
+  }
+  if (!this->parent_->is_client_running()) {
+    ESP_LOGW(TAG, "Cannot control media player: Sendspin is disabled");
     return;
   }
 

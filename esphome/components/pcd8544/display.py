@@ -11,6 +11,7 @@ from esphome.const import (
     CONF_PAGES,
     CONF_RESET_PIN,
 )
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["spi"]
 
@@ -40,21 +41,15 @@ FINAL_VALIDATE_SCHEMA = spi.final_validate_device_schema(
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
 
     await display.register_display(var, config)
     await spi.register_spi_device(var, config, write_only=True)
 
-    dc = await cg.gpio_pin_expression(config[CONF_DC_PIN])
-    cg.add(var.set_dc_pin(dc))
-    reset = await cg.gpio_pin_expression(config[CONF_RESET_PIN])
-    cg.add(var.set_reset_pin(reset))
+    await cg.add_pin(var.set_dc_pin, config[CONF_DC_PIN])
+    await cg.add_pin(var.set_reset_pin, config[CONF_RESET_PIN])
 
     cg.add(var.set_contrast(config[CONF_CONTRAST]))
 
-    if CONF_LAMBDA in config:
-        lambda_ = await cg.process_lambda(
-            config[CONF_LAMBDA], [(display.DisplayRef, "it")], return_type=cg.void
-        )
-        cg.add(var.set_writer(lambda_))
+    await display.add_writer(var, config)

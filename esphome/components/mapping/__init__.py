@@ -1,5 +1,6 @@
 from collections.abc import Callable
 import difflib
+from typing import Any
 
 import esphome.codegen as cg
 from esphome.components.const import KEY_METADATA
@@ -13,6 +14,7 @@ from esphome.cpp_generator import (
     add_global,
 )
 from esphome.loader import get_component
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@clydebarrow"]
 MULTI_CONF = True
@@ -32,13 +34,16 @@ class IndexType:
     """
 
     def __init__(
-        self, validator: Callable, data_type: MockObj, conversion: Callable = None
+        self,
+        validator: Callable,
+        data_type: MockObj,
+        conversion: Callable | None = None,
     ) -> None:
         self.validator = validator
         self.data_type = data_type
         self.conversion = conversion
 
-    async def convert_value(self, value):
+    async def convert_value(self, value: Any) -> Any:
         if self.conversion:
             return self.conversion(value)
         return await cg.get_variable(value)
@@ -60,7 +65,7 @@ class MappingMetaData:
         self.to_ = to_
 
 
-def to_schema(value):
+def to_schema(value: Any) -> str:
     """
     Generate a schema for the 'to' field of a map. This can be either one of the index types or a class name.
     :param value:
@@ -82,7 +87,7 @@ BASE_SCHEMA = cv.Schema(
 )
 
 
-def get_object_type(to_) -> MockObjClass | None:
+def get_object_type(to_: str) -> MockObjClass | None:
     """
     Get the object type from a string. Possible formats:
        xxx The name of a component which defines INSTANCE_TYPE
@@ -121,7 +126,7 @@ def add_metadata(
     get_all_mapping_metadata()[mapping_id.id] = MappingMetaData(from_, to_)
 
 
-def map_schema(config):
+def map_schema(config: ConfigType) -> ConfigType:
     config = BASE_SCHEMA(config)
     if CONF_ENTRIES not in config or not isinstance(config[CONF_ENTRIES], dict):
         raise cv.Invalid("an entries dictionary is required for a mapping")
@@ -163,7 +168,7 @@ def map_schema(config):
 CONFIG_SCHEMA = map_schema
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> MockObj:
     varid = config[CONF_ID]
     metadata = get_mapping_metadata(varid.id)
     entries = {

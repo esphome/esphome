@@ -14,7 +14,7 @@
 
 namespace esphome::rp2 {
 
-static const char *const TAG = "preferences";
+ESPHOME_LOG_TAG(TAG, "preferences");
 
 static constexpr uint32_t RP2040_FLASH_STORAGE_SIZE = 512;
 
@@ -29,13 +29,9 @@ static constexpr size_t PREF_MAX_BUFFER_SIZE = RP2040_FLASH_STORAGE_SIZE;
 // NOLINTNEXTLINE(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
 extern "C" uint8_t _EEPROM_start;
 
-template<class It> uint8_t calculate_crc(It first, It last, uint32_t type) {
+static uint8_t calculate_crc(const uint8_t *data, size_t len, uint32_t type) {
   std::array<uint8_t, 4> type_array = decode_value(type);
-  uint8_t crc = type_array[0] ^ type_array[1] ^ type_array[2] ^ type_array[3];
-  while (first != last) {
-    crc ^= (*first++);
-  }
-  return crc;
+  return xor_bytes(data, len, xor_bytes(type_array.data(), type_array.size()));
 }
 
 bool RP2PreferenceBackend::save(const uint8_t *data, size_t len) {
@@ -44,7 +40,7 @@ bool RP2PreferenceBackend::save(const uint8_t *data, size_t len) {
   const size_t buffer_size = len + 1;
   uint8_t buffer[PREF_MAX_BUFFER_SIZE];
   memcpy(buffer, data, len);
-  buffer[len] = calculate_crc(buffer, buffer + len, this->type);
+  buffer[len] = calculate_crc(buffer, len, this->type);
 
   for (size_t i = 0; i < buffer_size; i++) {
     uint32_t j = this->offset + i;
@@ -72,7 +68,7 @@ bool RP2PreferenceBackend::load(uint8_t *data, size_t len) {
     buffer[i] = s_flash_storage[j];
   }
 
-  uint8_t crc = calculate_crc(buffer, buffer + len, this->type);
+  uint8_t crc = calculate_crc(buffer, len, this->type);
   if (buffer[len] != crc) {
     return false;
   }

@@ -3,6 +3,7 @@ import esphome.codegen as cg
 from esphome.components import i2c, touchscreen
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_INTERRUPT_PIN, CONF_RESET_PIN
+from esphome.types import ConfigType
 
 from .. import cst816_ns
 
@@ -11,8 +12,6 @@ CST816Touchscreen = cst816_ns.class_(
     touchscreen.Touchscreen,
     i2c.I2CDevice,
 )
-
-CST816ButtonListener = cst816_ns.class_("CST816ButtonListener")
 
 CONF_SKIP_PROBE = "skip_probe"
 CONFIG_SCHEMA = touchscreen.TOUCHSCREEN_SCHEMA.extend(
@@ -25,13 +24,11 @@ CONFIG_SCHEMA = touchscreen.TOUCHSCREEN_SCHEMA.extend(
 ).extend(i2c.i2c_device_schema(0x15))
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await touchscreen.register_touchscreen(var, config)
     await i2c.register_i2c_device(var, config)
 
     cg.add(var.set_skip_probe(config[CONF_SKIP_PROBE]))
-    if interrupt_pin := config.get(CONF_INTERRUPT_PIN):
-        cg.add(var.set_interrupt_pin(await cg.gpio_pin_expression(interrupt_pin)))
-    if reset_pin := config.get(CONF_RESET_PIN):
-        cg.add(var.set_reset_pin(await cg.gpio_pin_expression(reset_pin)))
+    await cg.add_pin(var.set_interrupt_pin, config.get(CONF_INTERRUPT_PIN))
+    await cg.add_pin(var.set_reset_pin, config.get(CONF_RESET_PIN))

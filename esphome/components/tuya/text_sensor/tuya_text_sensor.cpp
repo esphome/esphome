@@ -4,9 +4,9 @@
 
 namespace esphome::tuya {
 
-static const char *const TAG = "tuya.text_sensor";
+ESPHOME_LOG_TAG(TAG, "tuya.text_sensor");
 
-void TuyaTextSensor::setup() {
+void TuyaTextSensor::register_listeners() {
   this->parent_->register_listener(this->sensor_id_, [this](const TuyaDatapoint &datapoint) {
     switch (datapoint.type) {
       case TuyaDatapointType::STRING:
@@ -35,7 +35,7 @@ void TuyaTextSensor::setup() {
   });
 }
 
-void TuyaTextSensor::dump_config() {
+void TuyaTextSensor::dump_child_config() {
   ESP_LOGCONFIG(TAG,
                 "Tuya Text Sensor:\n"
                 "  Text Sensor has datapoint ID %u",
