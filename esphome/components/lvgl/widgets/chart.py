@@ -21,7 +21,6 @@ from esphome.types import ConfigType
 
 from ..automation import action_to_code
 from ..defines import (
-    CONF_CURSOR,
     CONF_INDICATOR,
     CONF_MAIN,
     CONF_POINTS,
@@ -366,7 +365,7 @@ class ChartType(WidgetType):
         super().__init__(
             CONF_CHART,
             lv_chart_t,
-            (CONF_MAIN, CONF_ITEMS, CONF_INDICATOR, CONF_CURSOR),
+            (CONF_MAIN, CONF_ITEMS, CONF_INDICATOR),
             CHART_SCHEMA.add_extra(validate_chart),
             CHART_MODIFY_SCHEMA,
         )

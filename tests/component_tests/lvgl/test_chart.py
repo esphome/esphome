@@ -424,10 +424,12 @@ def test_series_named_like_a_trigger_argument(
 
 def test_chart_parts() -> None:
     assert "indicator" in chart_spec.parts
-    # LVGL 9 has no ticks part
+    # LVGL 9 has no ticks part, and charts have no cursors yet
     assert "ticks" not in chart_spec.parts
-    with pytest.raises(Invalid):
-        CHART_SCHEMA({"ticks": {"line_width": 2}})
+    assert "cursor" not in chart_spec.parts
+    for part in ("ticks", "cursor"):
+        with pytest.raises(Invalid):
+            CHART_SCHEMA({part: {"line_width": 2}})
 
 
 def test_series_update_errors_point_at_each_action(tmp_path: Path) -> None:
