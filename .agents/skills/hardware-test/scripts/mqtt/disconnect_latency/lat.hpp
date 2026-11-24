@@ -1,8 +1,10 @@
 #pragma once
 // Test only, LibreTiny (esphome#23104): records when AsyncMqttClient's disconnect callback runs, so on_disconnect can
-// log the delay to the main loop.
+// log the delay to the main loop; mq_ctx() names the task an automation runs in.
 #include "esphome/components/mqtt/mqtt_client.h"
 #include "esphome/core/hal.h"
+#include <FreeRTOS.h>
+#include <task.h>
 
 namespace hwtlat {
 template<typename Tag, typename Tag::type M> struct Rob {
@@ -31,4 +33,12 @@ inline void hwt_hook(esphome::mqtt::MQTTClientComponent *c) {
     hwt_cb_n++;
   });
 }
-inline uint32_t hwt_lat_us() { return micros() - hwt_cb_us; }
+// UINT32_MAX when the callback has not run since the last read (on dev the automation runs before it).
+inline uint32_t hwt_lat_us() {
+  static uint32_t seen = 0;
+  if (hwt_cb_n == seen)
+    return UINT32_MAX;
+  seen = hwt_cb_n;
+  return micros() - hwt_cb_us;
+}
+inline const char *mq_ctx() { return pcTaskGetName(nullptr); }

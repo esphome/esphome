@@ -60,9 +60,7 @@ script:
           count: 8
           then:
             - lambda: |-
-                static uint32_t c = 0;
-                c++;
-                ESP_LOGI("zwt", "CYCLE %u OFF cp=%d heap=%u min=%u", (unsigned) c, (int) id(zw_cp)->is_connected(),
+                ESP_LOGI("zwt", "CYCLE %u OFF cp=%d heap=%u min=%u", (unsigned) (iteration + 1), (int) id(zw_cp)->is_connected(),
                          (unsigned) esp_get_free_heap_size(), (unsigned) esp_get_minimum_free_heap_size());
                 esp_err_t err = usb_host_lib_set_root_port_power(false);
                 ESP_LOGI("zwt", "root port off: %s", esp_err_to_name(err));

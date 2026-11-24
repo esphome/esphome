@@ -19,7 +19,7 @@ arg = int(sys.argv[3]) if len(sys.argv) > 3 else 20
 def rx_once(nbytes: int | None = None, secs: float | None = None) -> tuple[int, int]:
     s = socket.create_connection((host, 5001), timeout=30)
     s.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 1 << 20)
-    buf = b"\xa5" * 65536
+    buf = memoryview(b"\xa5" * 65536)
     sent = 0
     t0 = time.monotonic()
     while True:

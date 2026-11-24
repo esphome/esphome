@@ -1,12 +1,7 @@
 substitutions:
   name: tbs
 packages:
-  base: !include p4-wifi6-base.yaml
-external_components:
-  - source:
-      type: local
-      path: components
-tcpbench:
+  base: !include bench-nopsram.yaml
 psram:
   mode: hex
   speed: 200MHz

@@ -1,6 +1,5 @@
 #include "tcpbench.h"
 #include "esphome/core/log.h"
-#include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include <atomic>
 #include <cstring>
@@ -13,13 +12,13 @@
 // NOLINTBEGIN: bench-only socket tasks
 namespace esphome::tcpbench {
 static constexpr const char *const TAG = "tcpbench";
-static std::atomic<uint32_t> g_rx_bytes{0}, g_tx_bytes{0}, g_udp_pkts{0};
-static std::atomic<bool> g_active{false};
+static std::atomic<uint32_t> g_rx_bytes{0}, g_tx_bytes{0};
 static uint8_t s_buf[16384];
 static uint8_t s_txbuf[16384];
+static uint8_t s_udp_buf[2048];
 
-static int listen_on(int port) {
-  int s = socket(AF_INET, SOCK_STREAM, 0);
+static int bind_on(int port, int type) {
+  int s = socket(AF_INET, type, 0);
   int one = 1;
   setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
   sockaddr_in a{};
@@ -27,20 +26,20 @@ static int listen_on(int port) {
   a.sin_port = htons(port);
   a.sin_addr.s_addr = htonl(INADDR_ANY);
   bind(s, (sockaddr *) &a, sizeof(a));
-  listen(s, 1);
+  if (type == SOCK_STREAM)
+    listen(s, 1);
   return s;
 }
 
 // Port 5001: RX sink. On EOF replies 8 bytes total + 4 bytes ms (first byte to EOF).
 static void rx_task(void *) {
-  int ls = listen_on(5001);
+  int ls = bind_on(5001, SOCK_STREAM);
   for (;;) {
     int c = accept(ls, nullptr, nullptr);
     if (c < 0) {
       vTaskDelay(100);
       continue;
     }
-    g_active = true;
     uint64_t total = 0;
     uint32_t t0 = 0, t1 = 0;
     for (;;) {
@@ -60,7 +59,6 @@ static void rx_task(void *) {
     send(c, rep, sizeof(rep), 0);
     shutdown(c, SHUT_RDWR);
     close(c);
-    g_active = false;
     ESP_LOGI(TAG, "RX done: %llu bytes in %u ms = %.1f KB/s", (unsigned long long) total, (unsigned) ms,
              ms ? total / 1.024 / ms : 0.0);
   }
@@ -68,7 +66,7 @@ static void rx_task(void *) {
 
 // Port 5002: TX source. Reads 4 bytes = seconds, then sends that long and closes.
 static void tx_task(void *) {
-  int ls = listen_on(5002);
+  int ls = bind_on(5002, SOCK_STREAM);
   memset(s_txbuf, 0x5a, sizeof(s_txbuf));
   for (;;) {
     int c = accept(ls, nullptr, nullptr);
@@ -80,7 +78,6 @@ static void tx_task(void *) {
     recv(c, &secs, 4, MSG_WAITALL);
     if (secs > 120)
       secs = 120;
-    g_active = true;
     uint64_t total = 0;
     uint32_t t0 = millis();
     while (millis() - t0 < secs * 1000) {
@@ -93,7 +90,6 @@ static void tx_task(void *) {
     uint32_t ms = millis() - t0;
     shutdown(c, SHUT_RDWR);
     close(c);
-    g_active = false;
     ESP_LOGI(TAG, "TX done: %llu bytes in %u ms = %.1f KB/s", (unsigned long long) total, (unsigned) ms,
              ms ? total / 1.024 / ms : 0.0);
   }
@@ -101,27 +97,21 @@ static void tx_task(void *) {
 
 // Port 5003 UDP: counts datagrams; a datagram starting with "Q" is answered with the count since the last query.
 static void udp_task(void *) {
-  int s = socket(AF_INET, SOCK_DGRAM, 0);
+  int s = bind_on(5003, SOCK_DGRAM);
   int rcv = 65535;
   setsockopt(s, SOL_SOCKET, SO_RCVBUF, &rcv, sizeof(rcv));
-  sockaddr_in a{};
-  a.sin_family = AF_INET;
-  a.sin_port = htons(5003);
-  a.sin_addr.s_addr = htonl(INADDR_ANY);
-  bind(s, (sockaddr *) &a, sizeof(a));
   uint32_t count = 0;
   for (;;) {
     sockaddr_in from{};
     socklen_t fl = sizeof(from);
-    int n = recvfrom(s, s_buf + 0, 2048, 0, (sockaddr *) &from, &fl);
+    int n = recvfrom(s, s_udp_buf, sizeof(s_udp_buf), 0, (sockaddr *) &from, &fl);
     if (n <= 0)
       continue;
-    if (s_buf[0] == 'Q') {
+    if (s_udp_buf[0] == 'Q') {
       sendto(s, &count, 4, 0, (sockaddr *) &from, fl);
       count = 0;
     } else {
       count++;
-      g_udp_pkts++;
     }
   }
 }
@@ -135,29 +125,22 @@ void TcpBench::setup() {
   xTaskCreate(rx_task, "tb_rx", 4096, nullptr, 5, nullptr);
   xTaskCreate(tx_task, "tb_tx", 4096, nullptr, 5, nullptr);
   xTaskCreate(udp_task, "tb_udp", 4096, nullptr, 5, nullptr);
-}
-
-void TcpBench::loop() {
-  static uint32_t last = 0, last_heap = 0;
-  static uint32_t prx = 0, ptx = 0;
-  uint32_t now = App.get_loop_component_start_time();
-  if (now - last >= 1000) {
-    last = now;
+  this->set_interval(1000, [this]() {
     uint32_t rx = g_rx_bytes, tx = g_tx_bytes;
-    if (rx != prx || tx != ptx) {
-      ESP_LOGI(TAG, "rate rx=%u KB/s tx=%u KB/s", (unsigned) ((rx - prx) / 1024), (unsigned) ((tx - ptx) / 1024));
+    if (rx != this->prx_ || tx != this->ptx_) {
+      ESP_LOGI(TAG, "rate rx=%u KB/s tx=%u KB/s", (unsigned) ((rx - this->prx_) / 1024),
+               (unsigned) ((tx - this->ptx_) / 1024));
     }
-    prx = rx;
-    ptx = tx;
-  }
-  if (now - last_heap >= 10000) {
-    last_heap = now;
+    this->prx_ = rx;
+    this->ptx_ = tx;
+  });
+  this->set_interval(10000, []() {
     ESP_LOGI(TAG, "heap free=%u internal=%u min_internal=%u psram=%u",
              (unsigned) heap_caps_get_free_size(MALLOC_CAP_DEFAULT),
              (unsigned) heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
              (unsigned) heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL),
              (unsigned) heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
-  }
+  });
 }
 }  // namespace esphome::tcpbench
 // NOLINTEND

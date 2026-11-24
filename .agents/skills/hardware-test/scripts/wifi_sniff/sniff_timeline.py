@@ -27,4 +27,5 @@ for line in text.splitlines():
             continue
         k = names.get(m.group(1), m.group(1)) + ("(ToDS)" if fc & 0x100 else "")
         out[k] = out.get(k, 0) + int(m.group(2))
-    print(line[1:9], " ".join(f"{k}={v}" for k, v in sorted(out.items())))
+    ts = m.group(1) if (m := re.match(r"\[([^\]]+)\]", line)) else "-"
+    print(ts, " ".join(f"{k}={v}" for k, v in sorted(out.items())))

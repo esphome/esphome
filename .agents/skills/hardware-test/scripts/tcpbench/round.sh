@@ -13,10 +13,12 @@ TREE=$TREE PY=$PY bash "$SKILL/pio_build.sh" upload "$N" "$H/$c.yaml" "$PORT" ||
 CAP=$H/cap-$N-r$r.txt
 $PY "$SKILL/serial_capture.py" "$PORT" 420 "$CAP" > /dev/null 2>&1 &
 IP=$(bash "$SKILL/resolve.sh" "$N" 40) || { echo "no join"; exit 1; }
-sleep 15
-grep -a -q -E "BUILDTAG $N|Hostname: '$N'" "$CAP" || { echo "wrong build on board"; exit 1; }
+wait_for() { for _ in $(seq "$2"); do grep -a -q -E "$1" "$CAP" && return 0; sleep 1; done; return 1; }
+wait_for "BUILDTAG $N|Hostname: '$N'" 30 || { echo "wrong build on board"; exit 1; }
 run() { echo "$N r$r $(date +%T) $* $($PY "$H/bench.py" "$IP" "$@" 2>&1 | tail -1)" | tee -a "$H/results.txt"; }
+# 3 s gaps let the previous socket close and the rate lines settle before the next run
 run rx 20; sleep 3; run rx 20; sleep 3; run tx 20; sleep 3; run tcpburst 10 512; sleep 3; run udpburst 10 300
-sleep 12
+# one more 10 s heap line so summ.py sees the low point after the last run
+h=$(grep -a -c "heap free=" "$CAP"); for _ in $(seq 12); do [ "$(grep -a -c "heap free=" "$CAP")" -gt "$h" ] && break; sleep 1; done
 pkill -f "[s]erial_capture.py $PORT"
 echo "$N r$r caplines $(wc -l < "$CAP") WE_hosted $(grep -a -c -E 'E \([0-9]+\)|W \([0-9]+\)' "$CAP")" | tee -a "$H/results.txt"

@@ -4,6 +4,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/application.h"
 #include <esp_wifi.h>
 #include <esp_event.h>
 #include <cstring>
@@ -15,7 +16,6 @@ static constexpr const char *const TAG = "wsniff";
 struct Dest {
   uint8_t mac[6];
   uint32_t count;
-  uint32_t total;
   uint16_t fc;
   int8_t rssi;
 };
@@ -42,14 +42,15 @@ class WSniff : public Component {
     esp_wifi_set_ps(WIFI_PS_NONE);
     wifi_promiscuous_filter_t f{};
     f.filter_mask = WIFI_PROMIS_FILTER_MASK_MGMT | WIFI_PROMIS_FILTER_MASK_DATA;
-    esp_wifi_set_promiscuous_filter(&f);
-    esp_wifi_set_promiscuous_rx_cb(&WSniff::rx_cb_);
-    ESP_ERROR_CHECK(esp_wifi_set_promiscuous(true));
+    esp_err_t e_flt = esp_wifi_set_promiscuous_filter(&f);
+    esp_err_t e_cb = esp_wifi_set_promiscuous_rx_cb(&WSniff::rx_cb_);
+    esp_err_t err = esp_wifi_set_promiscuous(true);
+    if (e_flt != ESP_OK || e_cb != ESP_OK || err != ESP_OK)
+      ESP_LOGE(TAG, "sniffer start failed: filter %d callback %d enable %d", e_flt, e_cb, err);
     this->channel_ = this->fixed_channel_ ? this->fixed_channel_ : 1;
     esp_wifi_set_channel(this->channel_, WIFI_SECOND_CHAN_NONE);
     this->locked_ = this->fixed_channel_ != 0;
-    this->last_ = millis();
-    this->hop_t_ = millis();
+    this->last_ = this->hop_t_ = millis();
     uint8_t own[6];
     esp_wifi_get_mac(WIFI_IF_STA, own);
     ESP_LOGI(TAG, "sniffer up, own STA MAC %02x:%02x:%02x:%02x:%02x:%02x, target %02x:%02x:%02x:%02x:%02x:%02x", own[0],
@@ -58,7 +59,7 @@ class WSniff : public Component {
   }
 
   void loop() override {
-    uint32_t now = millis();
+    uint32_t now = App.get_loop_component_start_time();
     if (!this->locked_) {
       if (now - this->hop_t_ >= 400) {
         uint32_t seen = this->seen_;
@@ -83,7 +84,7 @@ class WSniff : public Component {
     uint32_t all;
     portENTER_CRITICAL(&mux_);
     n = this->n_;
-    memcpy(snap, this->dests_, sizeof(snap));
+    memcpy(snap, this->dests_, n * sizeof(Dest));
     this->n_ = 0;  // free the slots so new destinations get one
     all = this->seen_;
     this->seen_ = 0;
@@ -92,8 +93,6 @@ class WSniff : public Component {
     int p =
         snprintf(buf, sizeof(buf), "SNIF ch=%u dt=%u from_target=%u", this->channel_, (unsigned) dt, (unsigned) all);
     for (size_t i = 0; i < n && p < (int) sizeof(buf) - 70; i++) {
-      if (snap[i].count == 0)
-        continue;
       p += snprintf(buf + p, sizeof(buf) - p, " | %02x:%02x:%02x:%02x:%02x:%02x=%u fc=%04x rssi=%d", snap[i].mac[0],
                     snap[i].mac[1], snap[i].mac[2], snap[i].mac[3], snap[i].mac[4], snap[i].mac[5],
                     (unsigned) snap[i].count, snap[i].fc, snap[i].rssi);
@@ -126,16 +125,14 @@ class WSniff : public Component {
     for (; i < s->n_; i++)
       if (memcmp(s->dests_[i].mac, h + 4, 6) == 0 && (s->dests_[i].fc & 0xFF) == h[0])
         break;
-    if (i == s->n_ && s->n_ < 12) {
+    if (i < s->n_) {
+      s->dests_[i].count++;
+    } else if (s->n_ < 12) {
       memcpy(s->dests_[i].mac, h + 4, 6);
-      s->dests_[i].fc = h[0];
-      s->dests_[i].count = 0;
-      s->dests_[i].total = 0;
+      s->dests_[i].count = 1;
       s->n_++;
     }
     if (i < s->n_) {
-      s->dests_[i].count++;
-      s->dests_[i].total++;
       s->dests_[i].fc = fc;
       s->dests_[i].rssi = pkt->rx_ctrl.rssi;
     }

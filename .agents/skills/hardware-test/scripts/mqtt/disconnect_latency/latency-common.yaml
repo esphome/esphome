@@ -7,7 +7,6 @@
 esphome:
   name: ${name}
   includes:
-    - ctx.hpp
     - lat.hpp
   on_boot:
     - priority: 700
