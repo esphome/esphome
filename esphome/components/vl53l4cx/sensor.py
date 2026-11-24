@@ -200,5 +200,9 @@ async def to_code(config: ConfigType) -> None:
     if (min_distance := config.get(CONF_MIN_DISTANCE)) is not None:
         cg.add(var.set_min_distance(round(min_distance * 1000)))
     cg.add_optional(var.set_offset, config.get(CONF_OFFSET))
-    await cg.add_pin(var.set_enable_pin, config.get(CONF_ENABLE_PIN))
-    await cg.add_pin(var.set_interrupt_pin, config.get(CONF_INTERRUPT_PIN))
+    if (enable_pin := config.get(CONF_ENABLE_PIN)) is not None:
+        cg.add_define("USE_VL53L4CX_ENABLE_PIN")
+        await cg.add_pin(var.set_enable_pin, enable_pin)
+    if (interrupt_pin := config.get(CONF_INTERRUPT_PIN)) is not None:
+        cg.add_define("USE_VL53L4CX_INTERRUPT_PIN")
+        await cg.add_pin(var.set_interrupt_pin, interrupt_pin)

@@ -60,16 +60,25 @@ def test_readdress_needs_enable_pin() -> None:
         validate_address(_entry(0xA9))
 
 
-def test_option_limits_of_st_driver() -> None:
-    # ST's driver has no short mode on the VL53L4CX and caps the timing budget at 200 ms
+# ST's driver has no short mode on the VL53L4CX and caps the timing budget at 200 ms
+@pytest.mark.parametrize(
+    ("validator", "value"),
+    [
+        pytest.param(validate_distance_mode, "short", id="short mode"),
+        pytest.param(validate_timing_budget, "201ms", id="budget over 200 ms"),
+        pytest.param(validate_timing_budget, "9ms", id="budget under 10 ms"),
+    ],
+)
+def test_option_limits_of_st_driver(
+    validator: Callable[[str], Any], value: str
+) -> None:
     with pytest.raises(cv.Invalid):
-        validate_distance_mode("short")
+        validator(value)
+
+
+def test_option_limits_accept_valid_values() -> None:
     assert validate_distance_mode("medium") == "medium"
     assert validate_timing_budget("200ms").total_milliseconds == 200
-    with pytest.raises(cv.Invalid):
-        validate_timing_budget("201ms")
-    with pytest.raises(cv.Invalid):
-        validate_timing_budget("9ms")
 
 
 @pytest.mark.parametrize(
@@ -177,6 +186,9 @@ def test_codegen(
     assert "garage->set_enable_pin(" in main_cpp
     assert "garage->set_i2c_address(0x2C);" in main_cpp
     assert "garage->set_update_interval(4294967295UL);" in main_cpp
+    # Pin code is compiled in only when a sensor uses the pin
+    defines = {define.name for define in CORE.defines}
+    assert {"USE_VL53L4CX_ENABLE_PIN", "USE_VL53L4CX_INTERRUPT_PIN"} <= defines
     # On ESP32 the driver comes from the ESP-IDF component registry, not PlatformIO
     components = CORE.data[KEY_ESP32][KEY_COMPONENTS]
     assert components["esphome/vl53l4cx"][KEY_REF] == VL53L4CX_VERSION
@@ -206,3 +218,14 @@ def test_codegen(
     ]
     assert len(paced) == 1
     assert "VL53L4CX 'vl53l4cx_" in paced[0]
+
+
+def test_codegen_without_pins_leaves_pin_code_out(
+    generate_main: Callable[[str | Path], str],
+    component_config_path: Callable[[str], Path],
+) -> None:
+    main_cpp = generate_main(component_config_path("vl53l4cx_no_pins.yaml"))
+    assert "set_enable_pin(" not in main_cpp
+    assert "set_interrupt_pin(" not in main_cpp
+    defines = {define.name for define in CORE.defines}
+    assert not {"USE_VL53L4CX_ENABLE_PIN", "USE_VL53L4CX_INTERRUPT_PIN"} & defines

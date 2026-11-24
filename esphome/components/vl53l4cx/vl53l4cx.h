@@ -3,6 +3,7 @@
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/core/component.h"
+#include "esphome/core/defines.h"
 #include "esphome/core/gpio.h"
 
 #include <vl53l4cx_class.h>
@@ -23,15 +24,21 @@ int32_t select_distance_mm(const VL53L4CX_MultiRangingData_t &data, Target targe
 /// VL53L4CX multi-target time-of-flight sensor, ranged by ST's driver (esphome-libs/VL53L4CX) over this I2C device.
 class VL53L4CXSensor final : public sensor::Sensor, public PollingComponent, public i2c::I2CDevice, public VL53L4CXHal {
  public:
+#ifdef USE_VL53L4CX_ENABLE_PIN
   VL53L4CXSensor();
+#endif
 
   void setup() override;
   void loop() override;
   void update() override;
   void dump_config() override;
 
+#ifdef USE_VL53L4CX_ENABLE_PIN
   void set_enable_pin(GPIOPin *pin) { this->enable_pin_ = pin; }
+#endif
+#ifdef USE_VL53L4CX_INTERRUPT_PIN
   void set_interrupt_pin(InternalGPIOPin *pin) { this->interrupt_pin_ = pin; }
+#endif
   void set_distance_mode(uint8_t mode) { this->distance_mode_ = mode; }
   void set_timing_budget(uint16_t budget_ms) { this->budget_ms_ = budget_ms; }
   void set_target(Target target) { this->target_ = target; }
@@ -49,13 +56,20 @@ class VL53L4CXSensor final : public sensor::Sensor, public PollingComponent, pub
   // Failed measurements in a row after which the state becomes NaN, so a dead sensor does not keep its last value
   static constexpr uint8_t MAX_FAILURES = 5;
 
+#ifdef USE_VL53L4CX_INTERRUPT_PIN
   // Inline like App.get_loop_component_start_time(): on RP2 both share .time_critical, which GCC rejects
   // when one is an ordinary function and the other inline
-  static void IRAM_ATTR ready_isr(VL53L4CXSensor *sensor) { sensor->enable_loop_soon_any_context(); }
+  static void IRAM_ATTR ready_isr(VL53L4CXSensor *sensor) {
+    sensor->ready_edge_ = true;
+    sensor->enable_loop_soon_any_context();
+  }
+#endif
 
   /// Boots, addresses and starts the sensor; the failure reason, or nullptr.
   const LogString *init_and_start_(bool at_boot);
   void reset_sensor_();
+  /// Holds a sensor with an enable pin in reset, so it cannot answer at the default address.
+  void hold_in_reset_();
   bool resetting_() const { return this->failures_ >= MAX_FAILURES; }
   bool start_measurement_();
   void measurement_failed_(const LogString *message, VL53L4CX_Error error);
@@ -63,13 +77,19 @@ class VL53L4CXSensor final : public sensor::Sensor, public PollingComponent, pub
   uint32_t timeout_ms_() const { return static_cast<uint32_t>(this->budget_ms_) * 2 + 100; }
   void publish_result_();
 
+#ifdef USE_VL53L4CX_ENABLE_PIN
   // Every instance, so the first setup() can hold all sensors with an enable pin in reset.
   static VL53L4CXSensor *first_sensor;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+#endif
 
   VL53L4CX driver_{this};
+#ifdef USE_VL53L4CX_ENABLE_PIN
   VL53L4CXSensor *next_{nullptr};
   GPIOPin *enable_pin_{nullptr};
+#endif
+#ifdef USE_VL53L4CX_INTERRUPT_PIN
   InternalGPIOPin *interrupt_pin_{nullptr};
+#endif
   uint32_t measurement_start_{0};
   uint16_t budget_ms_{33};
   uint16_t min_distance_mm_{0};
@@ -79,6 +99,9 @@ class VL53L4CXSensor final : public sensor::Sensor, public PollingComponent, pub
   uint8_t failures_{0};       // failed measurements in a row
   uint8_t settle_frames_{0};  // frames left to drop after a start
   bool measuring_{false};     // a measurement was started and its result not yet read
+#ifdef USE_VL53L4CX_INTERRUPT_PIN
+  volatile bool ready_edge_{false};  // GPIO1 fell since the last start
+#endif
 };
 
 }  // namespace esphome::vl53l4cx
