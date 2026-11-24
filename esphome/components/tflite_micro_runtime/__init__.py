@@ -25,7 +25,7 @@ from esphome.components.tflite_op_processor.op_manifest import (
     parse_op_table,
 )
 import esphome.config_validation as cv
-from esphome.const import CONF_DEBUG, CONF_ID, CONF_MODEL, CONF_RAW_DATA_ID
+from esphome.const import CONF_DEBUG, CONF_ID, CONF_RAW_DATA_ID
 from esphome.core import CORE, EsphomeError, HexInt
 from esphome.types import ConfigType
 
@@ -45,6 +45,15 @@ DOMAIN = "tflite_micro_runtime"
 
 # The build-wide resolver size, in operator slots.
 _MAX_OPERATORS_DEFINE = "TFLITE_MICRO_MAX_OPERATORS"
+
+# The audio kind owns these keys, so they are not part of this component's schema.
+# Their presence in a kind's entry selects the audio-only runtime fields.
+_AUDIO_KEYS = (
+    "probability_cutoff",
+    "sliding_window_size",
+    "features_step_size",
+    "feature_count",
+)
 
 
 @dataclass
@@ -103,13 +112,24 @@ async def declare_model(config: ConfigType) -> tuple[cg.MockObj, Path]:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     prog_arr = _emit_model_buffer(config, model_data)
-    cg.add(var.set_model(prog_arr, len(model_data)))
     # Per-instance CRC32 - MULTI_CONF safe, each helper carries its own checksum.
-    cg.add(var.set_expected_crc32(zlib.crc32(model_data) & 0xFFFFFFFF))
+    cg.add(
+        var.set_model(prog_arr, len(model_data), zlib.crc32(model_data) & 0xFFFFFFFF)
+    )
     for conf in config.get(CONF_ON_RESULT, []):
-        await automation.build_callback_automation(
-            var, "add_on_result_callback", [], conf
+        # Queued, not awaited: a lambda may reference the kind's decoder, which the
+        # kind declares after this function returns.
+        CORE.add_job(
+            automation.build_callback_automation,
+            var,
+            "add_on_result_callback",
+            [],
+            conf,
         )
+    if any(key in config for key in _AUDIO_KEYS):
+        # The audio kind calls the setters; without this define non-audio builds do
+        # not carry the audio-only fields.
+        cg.add_define("USE_TFLITE_AUDIO")
     cg.add_build_flag("-DTF_LITE_STATIC_MEMORY")
     cg.add_build_flag("-DTF_LITE_DISABLE_X86_NEON")
     cg.add_build_flag("-DESP_NN")
@@ -254,6 +274,20 @@ def _configured_model_ops() -> list[set[str]]:
     ]
 
 
+def _is_runtime_model_entry(entry: object) -> bool:
+    """True for an entry whose id is a TFLiteMicroHelper.
+
+    Other components (displays, gas sensors) also have a ``model`` key, so the key
+    names alone would send their hardware model strings to the source resolver.
+    """
+    if not isinstance(entry, dict):
+        return False
+    model_type = getattr(entry.get(CONF_ID), "type", None)
+    return isinstance(model_type, cg.MockObjClass) and model_type.inherits_from(
+        TFLiteMicroHelper
+    )
+
+
 def _model_entries(config: ConfigType) -> list[ConfigType]:
     """Every model entry in the configuration, whichever component owns it.
 
@@ -263,13 +297,7 @@ def _model_entries(config: ConfigType) -> list[ConfigType]:
     entries: list[ConfigType] = []
     for value in config.values():
         candidates = value if isinstance(value, list) else [value]
-        entries.extend(
-            entry
-            for entry in candidates
-            if isinstance(entry, dict)
-            and CONF_MODEL in entry
-            and CONF_RAW_DATA_ID in entry
-        )
+        entries.extend(entry for entry in candidates if _is_runtime_model_entry(entry))
     return entries
 
 

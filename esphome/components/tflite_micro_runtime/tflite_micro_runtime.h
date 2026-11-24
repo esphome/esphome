@@ -10,6 +10,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/main_task.h"
 #include "esphome/core/optional.h"
 #include "esphome/core/string_ref.h"
 
@@ -27,6 +28,7 @@ using tflite_model_loader::ImageModelConfig;
 using tflite_model_loader::ModelConfig;
 using tflite_output_processor::ProcessedOutput;
 
+#ifdef USE_TFLITE_AUDIO
 /// Audio (streaming) parameters, read by the consumer that owns the interpreter.
 struct AudioModelConfig {
   uint8_t probability_cutoff{128};  // quantized 0-255 (from 0.0-1.0)
@@ -34,6 +36,7 @@ struct AudioModelConfig {
   uint8_t features_step_size{20};  // ms between feature slices
   size_t feature_count{40};        // Mel filterbank bins
 };
+#endif
 
 /// Tensor arena utilization.
 struct ArenaStats {
@@ -73,8 +76,6 @@ struct ModelSpec {
   InputType input_type{InputType::INPUT_TYPE_UNKNOWN};
 };
 
-/// Model loading, tensor arena and inference. A Component on its own, so setup()
-/// loads the configured model; an audio model is left to its streaming consumer.
 /// @brief Fills the model's input tensor(s) from a payload.
 ///
 /// A model kind implements this when the input is not a raw byte copy: image frames
@@ -90,10 +91,21 @@ class InputPipeline {
     // The single-tensor fallback cannot fill a multi-input model.
     return count == 1 && this->fill(inputs[0], src, size);
   }
+  /// Set the size of an incoming frame that a consumer learns at run time, such
+  /// as a decoded camera frame. Pipelines that do not scale frames ignore it.
+  virtual void set_frame_geometry(int width, int height) {
+    (void) width;
+    (void) height;
+  }
   /// Name for dump_config(), e.g. "image".
   virtual const char *name() const = 0;
 };
 
+class TFLiteMicroHelper;
+class InferenceSession;
+
+/// Model loading, tensor arena and inference. A Component on its own, so setup()
+/// loads the configured model; an audio model is left to its streaming consumer.
 class TFLiteMicroHelper final : public Component {
  public:
   TFLiteMicroHelper() = default;
@@ -101,11 +113,13 @@ class TFLiteMicroHelper final : public Component {
   ~TFLiteMicroHelper() { this->model_handler_.unload(); }
 
   void setup() override;
+  void loop() override;
   void dump_config() override;
 
   void set_tensor_arena_size(size_t size);
-  /// Point the helper at the model data in flash; false while a model is loaded or loading.
-  bool set_model(const uint8_t *model_data, size_t model_size);
+  /// Point the helper at the model data in flash and its checksum, in one step.
+  /// False while a model is loaded or loading.
+  bool set_model(const uint8_t *model_data, size_t model_size, uint32_t expected_crc32);
   /// The name must outlive the component; code generation passes a string literal.
   void set_output_processing(const char *p) { this->output_processing_ = StringRef(p); }
   void set_scale_factor(float f) { this->scale_factor_ = f; }
@@ -114,13 +128,13 @@ class TFLiteMicroHelper final : public Component {
     this->model_handler_.set_debug(d);
   }
 
+#ifdef USE_TFLITE_AUDIO
   void set_probability_cutoff(float f);  // 0.0-1.0, quantized internally
   void set_sliding_window_size(size_t n);
   void set_features_step_size(uint8_t ms);
   void set_feature_count(size_t n);
   const AudioModelConfig &get_audio_config() const { return this->audio_config_; }
-
-  void set_expected_crc32(uint32_t crc) { this->expected_crc32_ = crc; }
+#endif
 
   /// Load the model and allocate the arena; false when one is already loaded.
   bool load_model();
@@ -128,14 +142,13 @@ class TFLiteMicroHelper final : public Component {
   bool unload_model(bool reset_config = false);
   bool is_model_loaded() const { return this->state_.load() == LoadState::LOAD_STATE_READY; }
 
-  /// Run the model on whatever is in input_tensor().
+  /// Run the model on whatever is in input_tensor(). Prefer InferenceSession.
   TfLiteStatus invoke();
-  /// Tensors of the loaded model; nullptr unless it is READY.
-  TfLiteTensor *input_tensor() { return this->is_model_loaded() ? this->model_handler_.input_tensor() : nullptr; }
-  const TfLiteTensor *input_tensor() const {
-    return this->is_model_loaded() ? this->model_handler_.input_tensor() : nullptr;
-  }
-  TfLiteTensor *output_tensor() { return this->is_model_loaded() ? this->model_handler_.output_tensor() : nullptr; }
+  /// Tensors of the loaded model; nullptr unless it is READY. Another task can
+  /// unload the model between the call and the use; use InferenceSession instead.
+  TfLiteTensor *input_tensor();
+  const TfLiteTensor *input_tensor() const;
+  TfLiteTensor *output_tensor();
 
   bool run_inference_on_buffer(const uint8_t *src_data, size_t src_size);
   /// run_inference_on_buffer() plus output processing; nullopt (logged) on failure.
@@ -143,10 +156,14 @@ class TFLiteMicroHelper final : public Component {
 
   /// Fill through the pipeline when one is set, invoke, then decode every output.
   bool run(const uint8_t *src_data, size_t src_size);
+  /// run() with a frame size learned at run time (a decoded camera frame). The
+  /// geometry is set under the inference lock before the pipeline fills the tensor.
+  bool run(const uint8_t *src_data, size_t src_size, int frame_width, int frame_height);
 
   /// Called after run() decoded a result, or run_inference() produced one. The
-  /// callbacks run after the inference lock is released, so one may start another
-  /// run; the decoded values are read from the kind's decoder object.
+  /// callbacks are dispatched from the main loop after the inference lock is
+  /// released, so one may start another run; read the kind's decoder, or
+  /// get_last_result() for a raw model without one.
   template<typename F> void add_on_result_callback(F &&callback) {
     this->result_callback_.add(std::forward<F>(callback));
   }
@@ -157,25 +174,26 @@ class TFLiteMicroHelper final : public Component {
   void set_output_decoder(tflite_output_processor::OutputDecoder *decoder) { this->output_decoder_ = decoder; }
 
   /// Model spec of the loaded model; all defaults when none is loaded.
-  ModelSpec get_model_spec() const;
+  ModelSpec get_model_spec();
 
   // These read the interpreter, so they report 0 until the model is READY.
-  int get_input_width() const { return this->is_model_loaded() ? this->model_handler_.get_input_width() : 0; }
-  int get_input_height() const { return this->is_model_loaded() ? this->model_handler_.get_input_height() : 0; }
-  int get_input_channels() const { return this->is_model_loaded() ? this->model_handler_.get_input_channels() : 0; }
-  const ModelConfig &get_config() const { return this->model_handler_.get_config(); }
+  int get_input_width();
+  int get_input_height();
+  int get_input_channels();
+  /// A copy of the loaded model's configuration; defaults when none is loaded.
+  ModelConfig get_config();
+  size_t get_arena_used_bytes();
 
-  size_t get_arena_used_bytes() const {
-    return this->is_model_loaded() ? this->model_handler_.get_arena_used_bytes() : 0;
-  }
-  size_t get_tensor_arena_size() const { return this->tensor_arena_size_requested_; }
+  size_t get_tensor_arena_size();
   /// Size the last load asked the allocator for, after probing (not a usage figure).
-  size_t get_tensor_arena_size_effective() const { return this->tensor_arena_size_effective_; }
-  size_t get_tensor_arena_size_actual() const { return this->tensor_arena_allocation_.actual_size; }
-  size_t get_model_size_bytes() const { return this->model_length_; }
-  ArenaStats get_arena_stats() const;
+  size_t get_tensor_arena_size_effective();
+  size_t get_tensor_arena_size_actual();
+  size_t get_model_size_bytes();
+  ArenaStats get_arena_stats();
   void report_memory_status();
-  const LoadStats &get_last_load_stats() const { return this->last_load_stats_; }
+  LoadStats get_last_load_stats();
+  /// The result run_inference() produced for the current notification.
+  ProcessedOutput get_last_result();
 
 #ifdef USE_TFLITE_MODEL_DEBUG
   void debug_test_parameters(const std::vector<std::vector<uint8_t>> &zone_data) {
@@ -184,6 +202,35 @@ class TFLiteMicroHelper final : public Component {
 #endif
 
  private:
+  friend class InferenceSession;
+
+  /// Lock the lifecycle mutex, or report a same-task re-entry instead of blocking.
+  class LockGuard {
+   public:
+    explicit LockGuard(TFLiteMicroHelper *helper);
+    ~LockGuard();
+    LockGuard(const LockGuard &) = delete;
+    LockGuard &operator=(const LockGuard &) = delete;
+    bool locked() const { return this->locked_; }
+
+   private:
+    TFLiteMicroHelper *helper_;
+    bool locked_{false};
+  };
+
+  static bool is_main_task_();
+  /// Dispatch a pending result if this is the main task; false on a worker task.
+  bool prepare_run_();
+  /// Run on the main loop: deliver the pending result, then clear the slot.
+  void dispatch_result_();
+  bool run_(const uint8_t *src_data, size_t src_size, int frame_width, int frame_height);
+  /// Queue the result for delivery and deliver it right away on the main task.
+  void finish_run_(bool succeeded);
+
+  int get_input_width_locked_() const;
+  int get_input_height_locked_() const;
+  int get_input_channels_locked_() const;
+
   /// Clear the model configuration after the arena and interpreter are gone.
   void reset_config();
   StringRef output_processing_{"argmax"};  // passed by name; ModelConfig parses it
@@ -194,7 +241,9 @@ class TFLiteMicroHelper final : public Component {
   size_t model_length_{0};
   size_t tensor_arena_size_requested_{tflite_model_loader::ModelLoader::DEFAULT_TENSOR_ARENA_SIZE};
   size_t tensor_arena_size_effective_{0};  // after probing; 0 before the first load
+#ifdef USE_TFLITE_AUDIO
   AudioModelConfig audio_config_;
+#endif
 
   tflite_model_loader::ModelHandler model_handler_;
   InputPipeline *input_pipeline_{nullptr};
@@ -215,20 +264,71 @@ class TFLiteMicroHelper final : public Component {
   uint32_t expected_crc32_{0};  // 0 = skip verification, set from __init__.py
 
   /// Serializes load, unload, inference and set_model(), so an unload from another
-  /// task cannot free the arena while it is in use. The tensor pointers the accessors
-  /// return stay valid only for the caller of run()/invoke(); do not keep them across
-  /// an unload. The mutex is not recursive, so the locked helpers are used internally.
+  /// task cannot free the arena while it is in use. The mutex is not recursive, so
+  /// a same-task re-entry is rejected by LockGuard instead of deadlocking.
   esphome::Mutex mutex_;
+  /// Task holding mutex_, so a log emitted under the lock cannot deadlock the device.
+  std::atomic<TaskHandle_t> lock_owner_{nullptr};
+  /// Set once per re-entry so the nested error log cannot recurse forever.
+  std::atomic<bool> reentry_reported_{false};
+
+  /// The result run_inference() produced, kept until its callback runs.
+  ProcessedOutput last_result_{};
+  /// Each successful run advances pending_epoch_; dispatch_result_() marks the
+  /// epoch it delivered, so a nested run keeps its own result pending.
+  std::atomic<uint32_t> pending_epoch_{0};
+  std::atomic<uint32_t> dispatched_epoch_{0};
+  /// True while the main loop is inside the callback, so a nested run is allowed.
+  std::atomic<bool> dispatching_{false};
+
   /// Null unless a run is configured with `on_result`, so an idle instance pays 4 bytes.
   LazyCallbackManager<void()> result_callback_;
   TfLiteStatus invoke_locked_();
   bool run_inference_on_buffer_locked_(const uint8_t *src_data, size_t src_size);
+  bool run_locked_(const uint8_t *src_data, size_t src_size);
+  /// Decode the loaded model's outputs into output_decoder_, when one is set.
+  bool decode_outputs_locked_();
 
   /// Why the model data does not match the configured checksum, or nullptr.
   const LogString *check_model_integrity_();
   bool allocate_tensor_arena_();
   ModelConfig build_config_();
   bool validate_input_tensor_(const uint8_t *src_data, size_t src_size) const;
+};
+
+/// @brief Holds the inference lock while a consumer fills the input, invokes and reads
+/// the output, so another task cannot unload the interpreter in between.
+///
+/// Stack-allocate it around the whole raw-inference block:
+///
+///     InferenceSession session(&helper);
+///     if (!session.valid()) return;
+///     TfLiteTensor *input = session.input_tensor();
+///     ...
+///     session.invoke();
+///     TfLiteTensor *output = session.output_tensor();
+class InferenceSession {
+ public:
+  explicit InferenceSession(TFLiteMicroHelper *helper) : helper_(helper), guard_(helper) {
+    this->locked_ = helper != nullptr && this->guard_.locked();
+  }
+  ~InferenceSession() = default;
+  InferenceSession(const InferenceSession &) = delete;
+  InferenceSession &operator=(const InferenceSession &) = delete;
+
+  /// False when the lock could not be taken (re-entered from a log callback).
+  bool valid() const { return this->locked_; }
+  /// Tensors of the loaded model; nullptr unless a model is loaded.
+  TfLiteTensor *input_tensor();
+  const TfLiteTensor *input_tensor() const;
+  TfLiteTensor *output_tensor();
+  /// Run the model on whatever is in input_tensor().
+  TfLiteStatus invoke();
+
+ protected:
+  TFLiteMicroHelper *helper_;
+  TFLiteMicroHelper::LockGuard guard_;
+  bool locked_{false};
 };
 
 }  // namespace esphome::tflite_micro_runtime

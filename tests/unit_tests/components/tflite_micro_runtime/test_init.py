@@ -20,13 +20,14 @@ MODEL_BYTES = b"\x1c\x00\x00\x00"
 
 
 def _model_id() -> ID:
-    return ID("tflite_model", is_declaration=True, type=ct.uint8)
+    return ID("tflite_model", is_declaration=True, type=tflm.TFLiteMicroHelper)
 
 
 def _model_entry() -> ConfigType:
     """A validated model entry, as any component built on the runtime stores it."""
     return {
-        tflm.CONF_MODEL: "model.tflite",
+        tflm.CONF_ID: _model_id(),
+        "model": "model.tflite",
         tflm.CONF_RAW_DATA_ID: ID("model_data", is_declaration=True, type=ct.uint8),
     }
 
@@ -276,17 +277,45 @@ def test_final_validate_reports_an_unreadable_model(setup_core: Path) -> None:
         tflm.FINAL_VALIDATE_SCHEMA({})
 
 
-def test_to_code_builds_the_result_callback(setup_core: Path) -> None:
-    """`on_result` registers a callback on the helper, out of the inference lock."""
+def test_to_code_queues_the_result_callback(setup_core: Path) -> None:
+    """A lambda may reference the kind's decoder, which is declared after this call."""
     on_result = [{"then": []}]
-    with patch.object(
-        tflm.automation, "build_callback_automation", new_callable=AsyncMock
-    ) as build:
+    with patch.object(tflm.CORE, "add_job") as add_job:
         _, var, _ = _run_to_code(
             {tflm.CONF_ID: _model_id(), tflm.CONF_ON_RESULT: on_result}
         )
 
-    build.assert_awaited_once_with(var, "add_on_result_callback", [], on_result[0])
+    add_job.assert_called_once_with(
+        tflm.automation.build_callback_automation,
+        var,
+        "add_on_result_callback",
+        [],
+        on_result[0],
+    )
+
+
+def test_a_non_runtime_entry_is_not_a_model(setup_core: Path) -> None:
+    """A display or gas sensor also has a `model` key, but is not one of ours."""
+    CORE.config = {
+        "ili9xxx": [
+            {
+                tflm.CONF_ID: ID("display", is_declaration=True, type=ct.uint8),
+                "model": "ILI9341",
+                tflm.CONF_RAW_DATA_ID: ID(
+                    "display_data", is_declaration=True, type=ct.uint8
+                ),
+            }
+        ]
+    }
+    with (
+        patch.object(tflm, "emit_all_ops") as emit_all,
+        patch.object(tflm, "emit_selective_op_defines") as emit_selective,
+        patch("esphome.codegen.add_define"),
+    ):
+        tflm._add_operator_defines()
+
+    emit_all.assert_called_once_with()
+    emit_selective.assert_not_called()
 
 
 def test_to_code_gives_each_model_its_own_checksum(setup_core: Path) -> None:
@@ -294,9 +323,22 @@ def test_to_code_gives_each_model_its_own_checksum(setup_core: Path) -> None:
     _, first, _ = _run_to_code({tflm.CONF_ID: _model_id()}, model_bytes=b"\x01")
     _, second, _ = _run_to_code({tflm.CONF_ID: _model_id()}, model_bytes=b"\x02\x03")
 
-    first.set_expected_crc32.assert_called_once_with(zlib.crc32(b"\x01") & 0xFFFFFFFF)
-    second.set_expected_crc32.assert_called_once_with(
-        zlib.crc32(b"\x02\x03") & 0xFFFFFFFF
+    assert first.set_model.call_args.args[1:] == (1, zlib.crc32(b"\x01") & 0xFFFFFFFF)
+    assert second.set_model.call_args.args[1:] == (
+        2,
+        zlib.crc32(b"\x02\x03") & 0xFFFFFFFF,
+    )
+
+
+def test_an_audio_entry_enables_the_audio_only_fields(setup_core: Path) -> None:
+    """An image or raw entry must not pay for the audio configuration."""
+    codegen, _, _ = _run_to_code({tflm.CONF_ID: _model_id(), "probability_cutoff": 0.5})
+    codegen.add_define.assert_any_call("USE_TFLITE_AUDIO")
+
+    codegen, _, _ = _run_to_code({tflm.CONF_ID: _model_id()})
+    assert not any(
+        call.args and call.args[0] == "USE_TFLITE_AUDIO"
+        for call in codegen.add_define.call_args_list
     )
 
 
