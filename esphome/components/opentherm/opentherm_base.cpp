@@ -246,7 +246,6 @@ const char *OpenThermBase::message_id_to_str(MessageId id) {
   }
 }
 
-
 void OpenThermBase::debug_data(OpenthermData &data) {
   char type_buf[9], id_buf[9], hb_buf[9], lb_buf[9];
   ESP_LOGD(TAG, "%s %s %s %s", format_bin_to(type_buf, data.type), format_bin_to(id_buf, data.id),
@@ -261,7 +260,6 @@ void OpenThermBase::debug_error(OpenThermError &error) const {
 }
 
 float OpenthermData::get_f88() { return ((float) this->get_s16()) / 256.0f; }
-
 
 void OpenthermData::set_f88(float value) { this->set_s16((int16_t) (value * 256)); }
 

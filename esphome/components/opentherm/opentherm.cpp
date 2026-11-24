@@ -1,7 +1,6 @@
 #include "opentherm.h"
 #include "esphome/core/helpers.h"
 
-
 #include <string>
 
 namespace esphome::opentherm {

@@ -64,7 +64,8 @@ void IRAM_ATTR OpenThermPolling::read_() {
 }
 
 #ifdef USE_ESP32
-bool IRAM_ATTR OpenThermPolling::timer_isr(gptimer_handle_t timer, const gptimer_alarm_event_data_t *edata, void *user_ctx) {
+bool IRAM_ATTR OpenThermPolling::timer_isr(gptimer_handle_t timer, const gptimer_alarm_event_data_t *edata,
+                                           void *user_ctx) {
   auto *arg = static_cast<OpenThermPolling *>(user_ctx);
 #else
 bool IRAM_ATTR OpenThermPolling::timer_isr(OpenThermPolling *arg) {

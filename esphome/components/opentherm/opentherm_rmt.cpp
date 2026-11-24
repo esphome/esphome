@@ -108,8 +108,8 @@ bool OpenThermRMT::init_tx_() {
     return false;
   }
 
-  ESP_LOGI(TAG, "RMT on GPIO%u (rx) and GPIO%u (tx), %" PRIu32 " symbols at %" PRIu32 " Hz",
-           this->in_pin_->get_pin(), this->out_pin_->get_pin(), this->rmt_symbols_, this->clock_resolution_);
+  ESP_LOGI(TAG, "RMT on GPIO%u (rx) and GPIO%u (tx), %" PRIu32 " symbols at %" PRIu32 " Hz", this->in_pin_->get_pin(),
+           this->out_pin_->get_pin(), this->rmt_symbols_, this->clock_resolution_);
   return true;
 }
 
