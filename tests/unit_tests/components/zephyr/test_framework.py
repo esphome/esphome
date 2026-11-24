@@ -17,10 +17,10 @@ from esphome.core import EsphomeError
 TOOLCHAIN: str = "riscv64-zephyr-elf"
 
 
-VERSION: str = "v4.5.0"
+VERSION = "v4.5.0"
 HALS: frozenset[str] = frozenset({"hal_stm32"})
 # The project filter of a workspace with HALS
-FILTER: str = ",".join(
+FILTER = ",".join(
     [
         "-hal_.*",
         "-nrf_hw_models",

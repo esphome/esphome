@@ -181,7 +181,7 @@ SOURCE: FrameworkSource = FrameworkSource(
     optional=("hal_.*",),
     required=frozenset({"zephyr"}),
 )
-VERSION: str = "v1.0.0"
+VERSION = "v1.0.0"
 ENV_PYTHON: Path = Path("/penv/bin/python")
 
 

@@ -180,7 +180,7 @@ class FrameworkSource:
 
 
 # The projects a finished install fetched
-_WEST_PROJECTS_FILE: str = ".west_projects"
+_WEST_PROJECTS_FILE = ".west_projects"
 
 
 def _set_project_filter(
