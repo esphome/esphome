@@ -133,8 +133,7 @@ static float cur_level = 0;
 static void report(const char *tag) {
   noInterrupts();
   Stats s = st;
-  interrupts();
-  reset_stats();
+  reset_stats();  // turns interrupts back on after the reset
   auto sd = [](int64_t sum, uint64_t sq, uint32_t n) -> float {
     if (n == 0)
       return 0;

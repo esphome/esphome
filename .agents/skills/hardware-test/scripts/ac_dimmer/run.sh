@@ -14,6 +14,7 @@ case $M in
   *) echo "unknown method $M"; exit 2 ;;
 esac
 pkill -f "[s]erial_capture.py $P "
+TREE=$T PY=$PY "$S/pio_build.sh" compile "$N" "$D/acd.yaml" "${MO[@]}" || exit 1
 TREE=$T PY=$PY "$S/pio_build.sh" upload "$N" "$D/acd.yaml" "$P" "${MO[@]}" || exit 1
 $PY "$S/serial_capture.py" "$P" "$SECS" "$D/$N-cap.txt" --reset &
 CP=$!
@@ -36,5 +37,5 @@ if [ "$H" = 1 ]; then
     echo "no address for $N, hammer skipped"
   fi
 fi
-wait $CP
+wait $CP || { echo "capture failed $N"; exit 1; }
 echo "capture done $N"
