@@ -7,6 +7,8 @@
 #include <span>
 
 #include "esphome/components/combination/combination.h"
+#include "esphome/core/application.h"
+#include "esphome/core/hal.h"
 
 namespace esphome::combination::testing {
 
@@ -124,6 +126,48 @@ TEST(LinearCombination, SumsStatesTimesComputedCoefficients) {
   combination.add_source(&sources[2], [](float x) -> float { return x; });
   combination.handle_new_value(0.0f);
   EXPECT_FLOAT_EQ(combination.get_state(), 12.0f);
+}
+
+TEST(CombinationSetup, InitializesParameterizedCombinationFromExistingState) {
+  LinearCombinationComponent combination;
+  sensor::Sensor source;
+  std::array<LinearCombinationComponent::SensorSource, 1> storage{};
+  combination.set_source_storage(storage);
+  source.publish_state(4.0f);
+  combination.add_source(&source, [](float) -> float { return 2.0f; });
+
+  combination.setup();
+  App.scheduler.call(millis());
+
+  EXPECT_FLOAT_EQ(combination.get_state(), 8.0f);
+}
+
+TEST(CombinationSetup, IgnoresExistingNonFiniteStateForLinearCombination) {
+  LinearCombinationComponent combination;
+  sensor::Sensor source;
+  std::array<LinearCombinationComponent::SensorSource, 1> storage{};
+  combination.set_source_storage(storage);
+  source.publish_state(NAN);
+  combination.add_source(&source, [](float) -> float { return 2.0f; });
+
+  combination.setup();
+  App.scheduler.call(millis());
+
+  EXPECT_TRUE(std::isnan(combination.get_state()));
+}
+
+TEST(CombinationSetup, DoesNotPublishSyntheticStateForExistingNoParameterSources) {
+  MostRecentCombinationComponent combination;
+  sensor::Sensor source;
+  std::array<sensor::Sensor *, 1> storage{};
+  combination.set_sensor_storage(storage);
+  source.publish_state(4.0f);
+  combination.add_source(&source);
+
+  combination.setup();
+  App.scheduler.call(millis());
+
+  EXPECT_TRUE(std::isnan(combination.get_state()));
 }
 
 // Each source's error comes from its compute function when the source publishes
