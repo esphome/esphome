@@ -32,8 +32,8 @@ class GPIORMTOneWireBus final : public one_wire::OneWireBus, public Component, p
 
   void set_pin(InternalGPIOPin *pin) { this->pin_ = pin; }
 
-  void write8(uint8_t val) override { this->engine_.write_blocking(&val, 8); }
-  void write64(uint64_t val) override { this->engine_.write_blocking(reinterpret_cast<const uint8_t *>(&val), 64); }
+  void write8(uint8_t val) override { this->write_(&val, 8); }
+  void write64(uint64_t val) override { this->write_(reinterpret_cast<const uint8_t *>(&val), 64); }
   uint8_t read8() override;
   uint64_t read64() override;
   bool submit(one_wire::Transaction *transaction) override;
@@ -46,10 +46,18 @@ class GPIORMTOneWireBus final : public one_wire::OneWireBus, public Component, p
   void wait_for_event(uint32_t max_ms) override;
 
  protected:
-  // Not -1, which reads as "bus held low": mark_failed() already named the cause
-  int reset_int() override { return this->is_failed() ? 0 : this->engine_.reset_blocking(); }
+  int reset_int() override;
   void reset_search() override { this->engine_.reset_search(); }
-  uint64_t search_int() override { return this->engine_.search_next(); }
+  uint64_t search_int() override;
+
+  void write_(const uint8_t *data, uint8_t num_bits);
+  /// Leaves data as it is when the call is dropped, so the caller sets all bits to 1 first.
+  void read_(uint8_t *data, uint8_t num_bits);
+  /// False inside an engine call, which only a log handler can reach. The engine would turn such a call away. It is
+  /// only counted, because a log at this point would run inside that engine call.
+  bool may_call_engine_();
+  /// Logs the calls that may_call_engine_() turned away, once no engine call runs.
+  void log_dropped_calls_();
 
   /// True if the call succeeded. Otherwise logs, and the bus is failed from now on.
   bool check_(esp_err_t error, const LogString *step);
@@ -67,6 +75,7 @@ class GPIORMTOneWireBus final : public one_wire::OneWireBus, public Component, p
   /// The deadline of the poll timeout that loop() set, in millis(). Only valid while poll_timeout_set_.
   uint32_t poll_timeout_at_ms_{0};
   bool poll_timeout_set_{false};
+  uint16_t dropped_calls_{0};
 };
 
 }  // namespace esphome::gpio

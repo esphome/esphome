@@ -129,6 +129,7 @@ void GPIORMTOneWireBus::dump_config() {
 
 void GPIORMTOneWireBus::loop() {
   this->engine_.poll();
+  this->log_dropped_calls_();
   // mark_failed() took the bus out of the loop, and disable_loop() would undo the failed state. A failed engine
   // ends all queued work itself.
   if (this->is_failed())
@@ -235,16 +236,80 @@ void GPIORMTOneWireBus::wait_for_event(uint32_t max_ms) {
   App.feed_wdt();
 }
 
+// The blocking methods log a failed call only after the engine call has returned. A log handler may use the bus,
+// and inside an engine call the engine would turn that away. Each failed call logs one warning here. The engine or
+// the port may have logged its cause before.
+
+int GPIORMTOneWireBus::reset_int() {
+  // Not -1, which reads as "bus held low": mark_failed() already named the cause
+  if (this->is_failed() || !this->may_call_engine_())
+    return 0;
+  const int result = this->engine_.reset_blocking();
+  this->log_dropped_calls_();
+  return result;
+}
+
+void GPIORMTOneWireBus::write_(const uint8_t *data, uint8_t num_bits) {
+  if (!this->may_call_engine_())
+    return;
+  // On a failed bus, mark_failed() already named the cause
+  if (!this->engine_.write_blocking(data, num_bits) && !this->is_failed()) {
+    ESP_LOGW(TAG, "Writing %u bits to the bus failed", num_bits);
+  }
+  this->log_dropped_calls_();
+}
+
 uint8_t GPIORMTOneWireBus::read8() {
-  uint8_t value = 0;
-  this->engine_.read_blocking(&value, 8);
+  uint8_t value = UINT8_MAX;
+  this->read_(&value, 8);
   return value;
 }
 
 uint64_t GPIORMTOneWireBus::read64() {
-  uint64_t value = 0;
-  this->engine_.read_blocking(reinterpret_cast<uint8_t *>(&value), 64);
+  uint64_t value = UINT64_MAX;
+  this->read_(reinterpret_cast<uint8_t *>(&value), 64);
   return value;
+}
+
+void GPIORMTOneWireBus::read_(uint8_t *data, uint8_t num_bits) {
+  if (!this->may_call_engine_())
+    return;
+  if (!this->engine_.read_blocking(data, num_bits) && !this->is_failed()) {
+    ESP_LOGW(TAG, "Reading %u bits from the bus failed, they read as 1", num_bits);
+  }
+  this->log_dropped_calls_();
+}
+
+uint64_t GPIORMTOneWireBus::search_int() {
+  if (!this->may_call_engine_())
+    return 0;
+  const uint64_t address = this->engine_.search_next();
+  // OneWireBus::search() takes the 0 as the end of the search
+  if (this->engine_.get_search_missed_devices()) {
+    ESP_LOGW(TAG, "Search stopped at bit %u: no device answered, devices may be missing",
+             this->engine_.get_search_no_answer_bit());
+  } else if (this->engine_.get_search_no_answer_bit() != 0) {
+    // A presence pulse without a device in the search, for example from a device that was just unplugged
+    ESP_LOGD(TAG, "Search: no device answered");
+  }
+  this->log_dropped_calls_();
+  return address;
+}
+
+bool GPIORMTOneWireBus::may_call_engine_() {
+  if (!this->engine_.is_busy())
+    return true;
+  if (this->dropped_calls_ < UINT16_MAX)
+    this->dropped_calls_++;
+  return false;
+}
+
+void GPIORMTOneWireBus::log_dropped_calls_() {
+  if (this->dropped_calls_ == 0 || this->engine_.is_busy())
+    return;
+  const uint16_t count = this->dropped_calls_;
+  this->dropped_calls_ = 0;
+  ESP_LOGW(TAG, "%u bus calls from a log handler were dropped, the bus was in use", count);
 }
 
 }  // namespace esphome::gpio

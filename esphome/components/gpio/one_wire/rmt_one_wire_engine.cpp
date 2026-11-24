@@ -351,6 +351,7 @@ uint64_t Engine::search_next() {
     return 0;
   BusyScope scope(this);
   this->drain_();
+  this->search_no_answer_bit_ = 0;
   if (this->last_device_)
     return 0;
 
@@ -369,8 +370,10 @@ uint64_t Engine::search_next() {
     }
     const bool bit = (slots >> (count - 2)) & 1;
     const bool complement = (slots >> (count - 1)) & 1;
-    if (bit && complement)
-      return 0;  // No device takes part
+    if (bit && complement) {
+      this->search_no_answer_bit_ = position;  // No device takes part
+      return 0;
+    }
 
     const uint64_t mask = uint64_t{1} << (position - 1);
     if (bit != complement) {

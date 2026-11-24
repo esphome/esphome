@@ -790,6 +790,8 @@ TEST(RmtOneWireSearchContract, ZeroAfterTheLastDeviceWithoutTouchingTheBus) {
   EXPECT_EQ(rig.engine.search_next(), 0u);
   EXPECT_EQ(rig.engine.search_next(), 0u);
   EXPECT_EQ(rig.port.tx_count, transmits);
+  EXPECT_EQ(rig.engine.get_search_no_answer_bit(), 0u) << "a finished search is no device that did not answer";
+  EXPECT_FALSE(rig.engine.get_search_missed_devices());
 }
 
 TEST(RmtOneWireSearchContract, ZeroWhenNoDeviceTakesPart) {
@@ -801,6 +803,43 @@ TEST(RmtOneWireSearchContract, ZeroWhenNoDeviceTakesPart) {
   for (const auto &section : rig.port.sections)
     slots += section.tx.size();
   EXPECT_EQ(slots, 2u);
+  EXPECT_EQ(rig.engine.get_search_no_answer_bit(), 1u);
+  EXPECT_FALSE(rig.engine.get_search_missed_devices()) << "no device was there to miss";
+}
+
+TEST(RmtOneWireSearchContract, DeviceThatDropsOutReportsItsBit) {
+  Rig rig;
+  rig.port.bus.devices.emplace_back(ROM_A);
+  rig.engine.reset_search();
+  ASSERT_EQ(rig.engine.reset_blocking(), 1);
+  ASSERT_TRUE(rig.engine.write_blocking(&SEARCH_ROM, 8));
+  // One section per bit: the device is gone from the section of bit 5 on
+  const int bit_5 = rig.port.tx_count + 4;
+  rig.port.on_start_tx = [&rig, bit_5]() {
+    if (rig.port.tx_count == bit_5)
+      rig.port.bus.devices.clear();
+  };
+  EXPECT_EQ(rig.engine.search_next(), 0u);
+  EXPECT_EQ(rig.engine.get_search_no_answer_bit(), 5u);
+  EXPECT_TRUE(rig.engine.get_search_missed_devices());
+}
+
+TEST(RmtOneWireSearchContract, DevicesThatDropOutBeforeALaterSearchAreMissed) {
+  // The first search found a device and left a branch, so the next one has devices to find, even at bit 1
+  Rig rig;
+  rig.port.bus.devices.emplace_back(ROM_A);
+  rig.port.bus.devices.emplace_back(ROM_B);
+  rig.engine.reset_search();
+  ASSERT_EQ(rig.engine.reset_blocking(), 1);
+  ASSERT_TRUE(rig.engine.write_blocking(&SEARCH_ROM, 8));
+  ASSERT_NE(rig.engine.search_next(), 0u);
+  EXPECT_EQ(rig.engine.get_search_no_answer_bit(), 0u);
+  ASSERT_EQ(rig.engine.reset_blocking(), 1);
+  ASSERT_TRUE(rig.engine.write_blocking(&SEARCH_ROM, 8));
+  rig.port.bus.devices.clear();
+  EXPECT_EQ(rig.engine.search_next(), 0u);
+  EXPECT_EQ(rig.engine.get_search_no_answer_bit(), 1u);
+  EXPECT_TRUE(rig.engine.get_search_missed_devices());
 }
 
 TEST(RmtOneWireSearchContract, ResetSearchStartsOver) {

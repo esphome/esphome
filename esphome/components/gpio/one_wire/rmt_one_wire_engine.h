@@ -75,6 +75,14 @@ class Engine {
   bool read_blocking(uint8_t *data, size_t num_bits);
   void reset_search();
   uint64_t search_next();  ///< Same contract as OneWireBus::search_int(): 0 when finished or on failure
+  /// After a search_next() that returned 0 because no device answered: the bit position (1 to 64). Otherwise 0.
+  /// search_next() does not log this. The caller logs it after the call has returned.
+  uint8_t get_search_no_answer_bit() const { return this->search_no_answer_bit_; }
+  /// True if that search still had devices to find: it stopped after bit 1, or an earlier search_next() since
+  /// reset_search() left a branch to follow. Otherwise no device took part at all.
+  bool get_search_missed_devices() const {
+    return this->search_no_answer_bit_ > 1 || (this->search_no_answer_bit_ == 1 && this->last_discrepancy_ != 0);
+  }
 
  protected:
   /// Where the transaction at the head of the FIFO stands.
@@ -130,6 +138,7 @@ class Engine {
   uint64_t search_address_{0};
   uint8_t last_discrepancy_{0};
   bool last_device_{false};
+  uint8_t search_no_answer_bit_{0};
 
   Symbol tx_[MAX_MEM_WORDS];
   Symbol rx_[MAX_MEM_WORDS];
