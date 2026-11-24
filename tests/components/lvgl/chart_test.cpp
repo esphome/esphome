@@ -14,6 +14,9 @@ TEST(ChartPointValueTest, ScalesAndRoundsHalfAwayFromZero) {
   EXPECT_EQ(chart_point_value(-2.5f, 1.0f), -3);
   EXPECT_EQ(chart_point_value(2.4f, 1.0f), 2);
   EXPECT_EQ(chart_point_value(0.5f, 100.0f), 50);
+  // The same values as test_scale_value in test_chart.py, which round differently in 64-bit floats
+  EXPECT_EQ(chart_point_value(311.835f, 100.0f), 31184);
+  EXPECT_EQ(chart_point_value(-303.025f, 100.0f), -30303);
 }
 
 TEST(ChartPointValueTest, NanLeavesAGap) { EXPECT_EQ(chart_point_value(NAN, 10.0f), LV_CHART_POINT_NONE); }

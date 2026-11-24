@@ -532,6 +532,11 @@ def test_series_update_errors_point_at_each_action(tmp_path: Path) -> None:
         (1e12, 1, POINT_LIMIT),
         (-1e12, 1, -POINT_LIMIT),
         (float("nan"), 10, None),
+        (float("inf"), 1, POINT_LIMIT),
+        (1e40, 1, POINT_LIMIT),
+        # These round differently in 64-bit floats; chart_test.cpp checks the same values
+        (311.835, 100, 31184),
+        (-303.025, 100, -30303),
     ],
 )
 def test_scale_value(value: float, multiplier: float, expected: int | None) -> None:

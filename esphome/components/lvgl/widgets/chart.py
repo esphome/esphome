@@ -1,5 +1,6 @@
 from collections.abc import Callable
 import math
+import struct
 from typing import Any
 
 from esphome import automation, codegen as cg
@@ -104,14 +105,27 @@ def _finite(value: float) -> float:
 lv_finite_float = LValidator(cv.All(cv.float_, _finite), cg.float_)
 
 
+def _float32(value: float) -> float:
+    """`value` rounded to a 32-bit float, as C++ stores a float."""
+    try:
+        return struct.unpack("<f", struct.pack("<f", value))[0]
+    except OverflowError:
+        return math.copysign(math.inf, value)
+
+
 def scale_value(value: float, multiplier: float) -> int | None:
-    """A fixed chart value as LVGL stores it, as chart_point_value() does at run
-    time: scaled, rounded half away from zero and limited to the int32 range.
-    None for NaN, which leaves a gap."""
+    """A fixed chart value as LVGL stores it, computed as chart_point_value() does at
+    run time, in 32-bit floats so that both give the same point: scaled, rounded half
+    away from zero and limited to the int32 range. None for NaN, which leaves a gap."""
     if math.isnan(value):
         return None
-    scaled = max(-POINT_LIMIT, min(POINT_LIMIT, value * multiplier))
-    return int(math.copysign(math.floor(abs(scaled) + 0.5), scaled))
+    # The product of two 32-bit floats is exact in a 64-bit float, so rounding it once
+    # to 32 bits gives the same result as a 32-bit multiplication.
+    scaled = _float32(_float32(value) * _float32(multiplier))
+    if math.isinf(scaled):
+        return int(math.copysign(POINT_LIMIT, scaled))
+    rounded = int(math.copysign(math.floor(abs(scaled) + 0.5), scaled))
+    return max(-POINT_LIMIT, min(POINT_LIMIT, rounded))
 
 
 def _validate_range(config: ConfigType, multiplier: float | None = None) -> None:
