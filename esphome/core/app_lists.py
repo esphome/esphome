@@ -18,6 +18,34 @@ from esphome.cpp_generator import (
 
 DOMAIN = "app_lists"
 
+# Every entity platform with an App list, in entity_types.h order (a test keeps the two in sync).
+ENTITY_PLATFORMS: tuple[str, ...] = (
+    "binary_sensor",
+    "cover",
+    "fan",
+    "light",
+    "sensor",
+    "switch",
+    "button",
+    "text_sensor",
+    "climate",
+    "number",
+    "date",
+    "time",
+    "datetime",
+    "text",
+    "select",
+    "lock",
+    "valve",
+    "media_player",
+    "alarm_control_panel",
+    "water_heater",
+    "infrared",
+    "radio_frequency",
+    "event",
+    "update",
+)
+
 # Platforms whose entity_types.h `upper` token and USE_* define carry a DATETIME_ prefix.
 DATETIME_SUBTYPES = {"date", "time", "datetime"}
 
@@ -29,33 +57,7 @@ def _upper(platform: str) -> str:
 
 # Entity list name (the `singular` of entity_types.h) -> its `upper` token.
 ENTITY_LISTS: dict[str, str] = {
-    platform: _upper(platform)
-    for platform in (
-        "binary_sensor",
-        "cover",
-        "fan",
-        "light",
-        "sensor",
-        "switch",
-        "button",
-        "text_sensor",
-        "climate",
-        "number",
-        "date",
-        "time",
-        "datetime",
-        "text",
-        "select",
-        "lock",
-        "valve",
-        "media_player",
-        "alarm_control_panel",
-        "water_heater",
-        "infrared",
-        "radio_frequency",
-        "event",
-        "update",
-    )
+    platform: _upper(platform) for platform in ENTITY_PLATFORMS
 }
 
 
