@@ -348,6 +348,14 @@ def _reorder(
     When named is set, the order is always given by the names of the components.
     """
     size = memory.symbols_per_block
+    channels = [channel for own in components for channel in own]
+    # No order fits more blocks than the memory has, so do not try them all
+    if sum(c.blocks(size) for c in channels) > memory.total_blocks or (
+        memory.rx_blocks is not None
+        and sum(c.blocks(size) for c in channels if c.direction == "RX")
+        > memory.rx_blocks
+    ):
+        return None
     smallest_first = sorted(
         components, key=lambda own: sum(c.blocks(size) for c in own)
     )

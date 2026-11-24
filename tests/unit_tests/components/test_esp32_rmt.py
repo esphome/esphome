@@ -886,3 +886,28 @@ def test_warning_with_fixed_channels(
     messages = _check_fixed(caplog, variant, [(_bus("bus"), bus)], config)
     assert len(messages) == 1
     assert text in messages[0]
+
+
+def test_reorder_skips_the_search_when_the_blocks_cannot_fit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Eight transmitters of 1 to 8 blocks need 36 of the 8 blocks of the ESP32.
+
+    No setup order can fit them, so the search over the 40320 orders is skipped.
+    """
+    memory = esp32_rmt.RMT_MEMORY[VARIANT_ESP32]
+    components = [
+        [
+            esp32_rmt._Channel(
+                f"tx{blocks}", None, "TX", blocks * memory.symbols_per_block, False, 0
+            )
+        ]
+        for blocks in range(1, 9)
+    ]
+    calls = []
+    allocate = esp32_rmt._allocate
+    monkeypatch.setattr(
+        esp32_rmt, "_allocate", lambda *args: calls.append(args) or allocate(*args)
+    )
+    assert esp32_rmt._reorder(memory, components) is None
+    assert not calls
