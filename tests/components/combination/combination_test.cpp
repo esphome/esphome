@@ -1,8 +1,10 @@
 #include <gtest/gtest.h>
 
 #include <array>
+#include <cstddef>
 #include <cmath>
 #include <initializer_list>
+#include <span>
 
 #include "esphome/components/combination/combination.h"
 
@@ -32,11 +34,13 @@ template<typename T, size_t N> struct Fixture {
 // Sources with the given states, each weighted by its compute function
 template<size_t N> struct WeightedMeanFixture {
   std::array<sensor::Sensor, N> sources;
-  std::array<WeightedMeanCombinationComponent::SensorSource, N> storage{};
+  alignas(WeightedMeanCombinationComponent::SensorSource)
+      std::array<std::byte, sizeof(WeightedMeanCombinationComponent::SensorSource) * N> storage{};
   WeightedMeanCombinationComponent combination;
 
   WeightedMeanFixture(std::initializer_list<float> states, std::initializer_list<TemplatableFn<float, float>> weights) {
-    this->combination.set_source_storage(this->storage);
+    this->combination.set_source_storage(std::span<WeightedMeanCombinationComponent::SensorSource>(
+        reinterpret_cast<WeightedMeanCombinationComponent::SensorSource *>(this->storage.data()), N));
     size_t i = 0;
     const auto *weight = weights.begin();
     for (float state : states) {
