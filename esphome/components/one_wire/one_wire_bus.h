@@ -124,8 +124,13 @@ class OneWireBus {
   const LogString *get_model_str(uint8_t model);
 
   /// Main loop only. on_done runs in the main loop, possibly before submit() returns.
-  /// Returns false only if this transaction is still pending; nothing changes in that case.
-  /// Default: runs the transaction at once through the blocking primitives.
+  /// Returns false only if this transaction is still pending. Nothing changes in that case.
+  ///
+  /// The default runs the transaction at once through reset_int(), write8(), write64() and read8().
+  /// It detects a failed reset and reports TRANSACTION_STATUS_NO_PRESENCE or TRANSACTION_STATUS_BUS_LOW.
+  /// The blocking write and read calls cannot report an error. So after a good reset the default always
+  /// reports TRANSACTION_STATUS_OK, even if a byte was lost on the bus. Check read data with its CRC.
+  /// A bus that can detect more errors overrides submit().
   virtual bool submit(Transaction *transaction);
 
  protected:

@@ -84,6 +84,7 @@ bool OneWireBus::submit(Transaction *transaction) {
       status = TransactionStatus::TRANSACTION_STATUS_NO_PRESENCE;
       break;
   }
+  // write8() and read8() cannot report an error, so after a good reset the status stays TRANSACTION_STATUS_OK
   if (status == TransactionStatus::TRANSACTION_STATUS_OK) {
     if (transaction->address == 0) {
       this->write8(ONE_WIRE_ROM_SKIP);
