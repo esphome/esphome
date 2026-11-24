@@ -15,18 +15,18 @@ ESPHOME_LOG_TAG(TAG, "tflite_micro_runtime");
 
 namespace {
 
-const char *input_type_name(InputType type) {
+const LogString *input_type_name(InputType type) {
   switch (type) {
     case InputType::INPUT_TYPE_UINT8:
-      return "uint8";
+      return LOG_STR("uint8");
     case InputType::INPUT_TYPE_INT8:
-      return "int8";
+      return LOG_STR("int8");
     case InputType::INPUT_TYPE_FLOAT32:
-      return "float32";
+      return LOG_STR("float32");
     case InputType::INPUT_TYPE_UNKNOWN:
       break;
   }
-  return "unknown";
+  return LOG_STR("unknown");
 }
 
 InputType tensor_type_to_input_type(TfLiteType type) {
@@ -99,8 +99,8 @@ void TFLiteMicroHelper::dump_config() {
                 "  Input pipeline: %s\n"
                 "  Model size: %zu bytes\n"
                 "  Tensor arena: %zu bytes configured",
-                this->input_pipeline_ != nullptr ? this->input_pipeline_->name() : "raw", this->get_model_size_bytes(),
-                this->get_tensor_arena_size());
+                this->input_pipeline_ != nullptr ? this->input_pipeline_->name() : LOG_STR_ARG(LOG_STR_LITERAL("raw")),
+                this->get_model_size_bytes(), this->get_tensor_arena_size());
 
   if (!this->is_model_loaded()) {
     ESP_LOGCONFIG(TAG, "  Model not loaded");
@@ -110,12 +110,19 @@ void TFLiteMicroHelper::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "  Input: %dx%dx%d %s\n"
                 "  Tensor arena allocated: %zu bytes, %zu bytes requested after probing, %zu bytes in use",
-                spec.input_width, spec.input_height, spec.input_channels, input_type_name(spec.input_type),
+                spec.input_width, spec.input_height, spec.input_channels, LOG_STR_ARG(input_type_name(spec.input_type)),
                 this->get_tensor_arena_size_actual(), this->get_tensor_arena_size_effective(),
                 this->get_arena_used_bytes());
 }
 
-void TFLiteMicroHelper::set_tensor_arena_size(size_t size) { this->tensor_arena_size_requested_ = size; }
+void TFLiteMicroHelper::set_tensor_arena_size(size_t size) {
+  LockGuard guard(this);
+  if (!guard.locked())
+    return;
+  this->tensor_arena_size_requested_ = size;
+  // A different seed needs a fresh probe; the proven size no longer applies.
+  this->arena_size_probed_ = 0;
+}
 
 bool TFLiteMicroHelper::set_model(const uint8_t *model_data, size_t model_size, uint32_t expected_crc32) {
   LockGuard guard(this);
@@ -129,6 +136,8 @@ bool TFLiteMicroHelper::set_model(const uint8_t *model_data, size_t model_size, 
   this->model_data_ = model_data;
   this->model_length_ = model_size;
   this->expected_crc32_ = expected_crc32;
+  // A different model needs its own probe.
+  this->arena_size_probed_ = 0;
   return true;
 }
 
@@ -444,28 +453,37 @@ bool TFLiteMicroHelper::load_model() {
     this->last_load_stats_ = stats;
     return false;
   }
-  // Probe the arena size; the result is kept apart from the configured value so a
-  // reload asks for the same size and the report does not call it requested.
+  // Reuse the size a previous load proved, or skip probing for a stateful model:
+  // its resource variables must not be shared with temporary probe interpreters,
+  // and the consumer sizes its own arena.
   this->tensor_arena_size_effective_ = this->tensor_arena_size_requested_;
-  size_t probe_size = this->model_handler_.probe_arena_size(
-      this->model_data_, this->model_length_, this->tensor_arena_size_requested_, this->resource_variables_);
-  if (probe_size == 0 && this->tensor_arena_size_requested_ > 1024) {
-    // An overestimate can exceed the heap's largest block; retry smaller before giving up.
-    probe_size = this->model_handler_.probe_arena_size(
-        this->model_data_, this->model_length_, this->tensor_arena_size_requested_ / 2, this->resource_variables_);
-  }
-  if (probe_size == 0) {
-    ESP_LOGW(TAG, "Arena probe failed, using configured size: %zu bytes", this->tensor_arena_size_requested_);
+  if (this->resource_variables_ != nullptr) {
+    ESP_LOGD(TAG, "Stateful model: using the configured arena size %zu bytes", this->tensor_arena_size_requested_);
+  } else if (this->arena_size_probed_ > 0) {
+    this->tensor_arena_size_effective_ = this->arena_size_probed_;
+    ESP_LOGD(TAG, "Reusing the proven arena size: %zu bytes", this->arena_size_probed_);
   } else {
-    this->tensor_arena_size_effective_ = probe_size;
-    if (probe_size < this->tensor_arena_size_requested_) {
-      ESP_LOGW(TAG, "Arena probe: model needs %zu bytes, %zu bytes configured -- allocating %zu", probe_size,
-               this->tensor_arena_size_requested_, probe_size);
-    } else if (probe_size > this->tensor_arena_size_requested_) {
-      ESP_LOGW(TAG, "Arena probe: model needs %zu bytes, more than the %zu bytes configured -- allocating %zu",
-               probe_size, this->tensor_arena_size_requested_, probe_size);
+    size_t probe_size = this->model_handler_.probe_arena_size(
+        this->model_data_, this->model_length_, this->tensor_arena_size_requested_, this->resource_variables_);
+    if (probe_size == 0 && this->tensor_arena_size_requested_ > 1024) {
+      // An overestimate can exceed the heap's largest block; retry smaller before giving up.
+      probe_size = this->model_handler_.probe_arena_size(
+          this->model_data_, this->model_length_, this->tensor_arena_size_requested_ / 2, this->resource_variables_);
+    }
+    if (probe_size == 0) {
+      ESP_LOGW(TAG, "Arena probe failed, using configured size: %zu bytes", this->tensor_arena_size_requested_);
     } else {
-      ESP_LOGD(TAG, "Arena probe: %zu bytes needed, which is the configured size", probe_size);
+      this->tensor_arena_size_effective_ = probe_size;
+      this->arena_size_probed_ = probe_size;
+      if (probe_size < this->tensor_arena_size_requested_) {
+        ESP_LOGW(TAG, "Arena probe: model needs %zu bytes, %zu bytes configured -- allocating %zu", probe_size,
+                 this->tensor_arena_size_requested_, probe_size);
+      } else if (probe_size > this->tensor_arena_size_requested_) {
+        ESP_LOGW(TAG, "Arena probe: model needs %zu bytes, more than the %zu bytes configured -- allocating %zu",
+                 probe_size, this->tensor_arena_size_requested_, probe_size);
+      } else {
+        ESP_LOGD(TAG, "Arena probe: %zu bytes needed, which is the configured size", probe_size);
+      }
     }
   }
   stats.parse_time_ms = millis() - stats.load_start_ms;
@@ -537,6 +555,7 @@ void TFLiteMicroHelper::reset_config() {
   this->model_length_ = 0;
   this->tensor_arena_size_requested_ = tflite_model_loader::ModelLoader::DEFAULT_TENSOR_ARENA_SIZE;
   this->tensor_arena_size_effective_ = 0;
+  this->arena_size_probed_ = 0;
   this->arena_heap_ = ArenaHeap::ARENA_HEAP_UNKNOWN;
   this->expected_crc32_ = 0;
   this->output_processing_ = StringRef("argmax");
