@@ -573,16 +573,20 @@ void MipiCsiCamera::report_throughput_(uint32_t now) {
 void MipiCsiCamera::request_image(camera::CameraRequester requester) { this->single_requesters_ |= (1U << requester); }
 
 void MipiCsiCamera::start_stream(camera::CameraRequester requester) {
-  for (auto *listener : this->listeners_) {
-    listener->on_stream_start();
-  }
+  this->defer([this]() {
+    for (auto *listener : this->listeners_) {
+      listener->on_stream_start();
+    }
+  });
   this->stream_requesters_ |= (1U << requester);
 }
 
 void MipiCsiCamera::stop_stream(camera::CameraRequester requester) {
-  for (auto *listener : this->listeners_) {
-    listener->on_stream_stop();
-  }
+  this->defer([this]() {
+    for (auto *listener : this->listeners_) {
+      listener->on_stream_stop();
+    }
+  });
   this->stream_requesters_ &= ~(1U << requester);
 }
 
