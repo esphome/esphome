@@ -83,6 +83,12 @@ uint32_t Engine::next_poll_in_ms() const {
   return elapsed >= SECTION_TIMEOUT_MS ? 0 : SECTION_TIMEOUT_MS - elapsed;
 }
 
+uint32_t Engine::next_poll_at_ms() const {
+  if (this->step_ == Step::STEP_LINE_UNCHECKED)
+    return this->port_->now_ms();
+  return this->since_ms_ + SECTION_TIMEOUT_MS;
+}
+
 void Engine::poll_() {
   if (this->queue_.empty())
     return;

@@ -137,10 +137,22 @@ void GPIORMTOneWireBus::loop() {
     // Only a completion or loop_interval runs loop() again, and a raised loop_interval can be seconds. So wake the
     // loop when the engine has work without a completion: a section that lost its completion times out, or a
     // transaction waits to start. A timer that fires alone does not run loop(), so it wakes the loop.
-    this->set_timeout(POLL_TIMEOUT_ID, this->engine_.next_poll_in_ms(), []() { App.wake_loop_threadsafe(); });
+    // The deadline stays the same for the whole of a section, so the timeout is only set again when it changes.
+    const uint32_t at_ms = this->engine_.next_poll_at_ms();
+    if (!this->poll_timeout_set_ || at_ms != this->poll_timeout_at_ms_) {
+      this->poll_timeout_set_ = true;
+      this->poll_timeout_at_ms_ = at_ms;
+      this->set_timeout(POLL_TIMEOUT_ID, this->engine_.next_poll_in_ms(), [this]() {
+        this->poll_timeout_set_ = false;
+        App.wake_loop_threadsafe();
+      });
+    }
     return;
   }
-  this->cancel_timeout(POLL_TIMEOUT_ID);
+  if (this->poll_timeout_set_) {
+    this->poll_timeout_set_ = false;
+    this->cancel_timeout(POLL_TIMEOUT_ID);
+  }
   this->disable_loop();
   // disable_loop() logs before it takes the bus out of the loop. A log handler that submits there calls
   // enable_loop() while the loop is still enabled, which does nothing. So enable it again here.

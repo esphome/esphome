@@ -837,6 +837,35 @@ TEST(RmtOneWireEngine, NextPollInMsIsTheTimeLeftOfTheRunningSection) {
   EXPECT_TRUE(rig.engine.is_idle());
 }
 
+TEST(RmtOneWireEngine, NextPollAtMsOnlyChangesWhenASectionStarts) {
+  // The bus sets its timeout again only when this changes
+  Rig rig;
+  add_scratchpad_device(rig);
+  rig.port.manual = true;
+  rig.port.set_time_base_ms(1000);
+  DoneLog log;
+  Job job(&log, 1, ROM_A, {READ_SCRATCHPAD}, 9);
+  ASSERT_TRUE(rig.engine.submit(&job.t));
+  EXPECT_EQ(rig.engine.next_poll_at_ms(), rig.port.now_ms()) << "waits to start";
+  rig.engine.poll();
+  ASSERT_EQ(rig.port.sections.size(), 1u);
+  const uint32_t first = rig.engine.next_poll_at_ms();
+  EXPECT_EQ(first, rig.port.now_ms() + 50);
+  for (int i = 0; i < 4; i++) {
+    rig.port.advance_us(10 * MS);
+    rig.engine.poll();
+    EXPECT_EQ(rig.engine.next_poll_at_ms(), first) << "same section";
+    EXPECT_EQ(rig.engine.next_poll_in_ms(), first - rig.port.now_ms());
+  }
+
+  rig.port.fire_tx();
+  rig.port.fire_rx();
+  rig.engine.poll();
+  ASSERT_EQ(rig.port.sections.size(), 2u);
+  EXPECT_EQ(rig.engine.next_poll_at_ms(), rig.port.now_ms() + 50) << "the next section has its own deadline";
+  EXPECT_NE(rig.engine.next_poll_at_ms(), first);
+}
+
 TEST(RmtOneWireEngine, NextPollInMsIsZeroWhileATransactionWaitsToStart) {
   Rig rig;
   add_scratchpad_device(rig);
@@ -850,6 +879,7 @@ TEST(RmtOneWireEngine, NextPollInMsIsZeroWhileATransactionWaitsToStart) {
   ASSERT_EQ(log, (DoneLog{{1, TransactionStatus::TRANSACTION_STATUS_BUS_LOW}}));
   ASSERT_FALSE(rig.engine.is_idle());
   EXPECT_EQ(rig.engine.next_poll_in_ms(), 0u);
+  EXPECT_EQ(rig.engine.next_poll_at_ms(), rig.port.now_ms());
 }
 
 TEST(RmtOneWireEngine, NextPollInMsWorksAcrossTheClockWrap) {

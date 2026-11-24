@@ -63,6 +63,9 @@ class GPIORMTOneWireBus final : public one_wire::OneWireBus, public Component, p
   rmt_channel_handle_t rx_channel_{nullptr};
   rmt_encoder_handle_t encoder_{nullptr};
   rmt_one_wire::Engine engine_;
+  /// The deadline of the poll timeout that loop() set, in millis(). Only valid while poll_timeout_set_.
+  uint32_t poll_timeout_at_ms_{0};
+  bool poll_timeout_set_{false};
 };
 
 }  // namespace esphome::gpio

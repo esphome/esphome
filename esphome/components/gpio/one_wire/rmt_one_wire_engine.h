@@ -51,6 +51,9 @@ class Engine {
   /// While !is_idle(): ms until poll() has work even if no completion arrives. That is the time left until the
   /// running section times out, or 0 when a transaction waits to start.
   uint32_t next_poll_in_ms() const;
+  /// While !is_idle(): the Port::now_ms() time at which next_poll_in_ms() reaches 0. It stays the same for the
+  /// whole of a section. While a transaction waits to start, it is the time of this call.
+  uint32_t next_poll_at_ms() const;
   /// True while poll() or a blocking method runs, except inside on_done.
   bool is_busy() const { return this->busy_; }
   const Timing &get_timing() const { return this->timing_; }
