@@ -1,5 +1,3 @@
-from typing import Any
-
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
@@ -18,12 +16,10 @@ from esphome.const import (
     CONF_REPEAT,
     CONF_TYPE,
     DEVICE_CLASS_EMPTY,
-    DEVICE_CLASS_ILLUMINANCE,
     ICON_BRIGHTNESS_5,
     ICON_BRIGHTNESS_6,
     ICON_TIMER,
     STATE_CLASS_MEASUREMENT,
-    UNIT_LUX,
     UNIT_MILLISECOND,
 )
 from esphome.types import ConfigType
@@ -89,16 +85,6 @@ PS_GAINS = {
 }
 
 
-def validate_integration_time(value: Any) -> Any:
-    value = cv.positive_time_period_milliseconds(value).total_milliseconds
-    return cv.enum(INTEGRATION_TIMES, int=True)(value)
-
-
-def validate_repeat_rate(value: Any) -> Any:
-    value = cv.positive_time_period_milliseconds(value).total_milliseconds
-    return cv.enum(MEASUREMENT_REPEAT_RATES, int=True)(value)
-
-
 def validate_time_and_repeat_rate(config: ConfigType) -> ConfigType:
     integraton_time = config[CONF_INTEGRATION_TIME]
     repeat_rate = config[CONF_REPEAT]
@@ -127,10 +113,12 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_TYPE, default="ALS_PS"): cv.enum(LTR_TYPES, upper=True),
             cv.Optional(CONF_AUTO_MODE, default=True): cv.boolean,
             cv.Optional(CONF_GAIN, default="1X"): cv.enum(ALS_GAINS, upper=True),
-            cv.Optional(
-                CONF_INTEGRATION_TIME, default="100ms"
-            ): validate_integration_time,
-            cv.Optional(CONF_REPEAT, default="500ms"): validate_repeat_rate,
+            cv.Optional(CONF_INTEGRATION_TIME, default="100ms"): cv.time_period_enum(
+                INTEGRATION_TIMES
+            ),
+            cv.Optional(CONF_REPEAT, default="500ms"): cv.time_period_enum(
+                MEASUREMENT_REPEAT_RATES
+            ),
             cv.Optional(CONF_GLASS_ATTENUATION_FACTOR, default=1.0): cv.float_range(
                 min=1.0
             ),
@@ -144,11 +132,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ON_PS_LOW_THRESHOLD): automation.validate_automation({}),
             cv.Optional(CONF_AMBIENT_LIGHT): cv.maybe_simple_value(
                 sensor.sensor_schema(
-                    unit_of_measurement=UNIT_LUX,
-                    icon=ICON_BRIGHTNESS_6,
-                    accuracy_decimals=1,
-                    device_class=DEVICE_CLASS_ILLUMINANCE,
-                    state_class=STATE_CLASS_MEASUREMENT,
+                    kind=sensor.ILLUMINANCE, icon=ICON_BRIGHTNESS_6, accuracy_decimals=1
                 ),
                 key=CONF_NAME,
             ),

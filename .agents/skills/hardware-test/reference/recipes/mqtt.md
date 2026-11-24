@@ -139,3 +139,25 @@ left-alone ones the odd numbers from 3 up; kick.py prints each left-alone connec
 and `judge.py` pairs those with the RESULT lines by time and passes when every one has `got=25/25`. A reset after
 the first connect fails the run. Retained switch commands fire `on_turn_on` only on the first connection, so
 `switches_on` is not judged.
+
+## Broker lookup at boot, no DNS server, broker restart and Wi-Fi drop (#22843, #22871)
+
+`scripts/mqtt/dns_boot/`: `common.yaml` logs `EV WIFI UP/DOWN`, `EV MQTT UP/DOWN reason=` and `EV MSG` (subscribed to
+`<name>/in`) with `millis()`, and drops Wi-Fi for 15 s every 120 s from 60 s. `e32.yaml` (ESP32, ESP-IDF) and
+`d1.yaml` (D1 mini) take the broker on the command line (`-s broker <hostname>`, an IP, or a `.invalid` name that
+never resolves); `nodns.yaml` is a package for a copy of either with a static address and `dns1: 0.0.0.0` (lwIP
+returns -6 at once). `mosq.conf` is the broker on port 18843. `boots.sh NAME YAML PORT BOOTS SECS [noflash|flash]
+[-s ...]` builds and uploads through `pio_build.sh` and takes BOOTS reset captures; `ana.py NAME` prints Wi-Fi up to
+MQTT up and the lookup errors per boot, `cad.py` the lookup cadence, `nan.py` the no DNS retry gaps and
+on_disconnect reasons, `drop.py` the events around each Wi-Fi drop. `rs.sh TAG NAME:PORT...` captures flashed boards,
+publishes to `<name>/in` every 2 s and restarts the broker 35 s in; `rsan.py rs-TAG-drv.txt CAPTURES` counts messages
+per connection.
+- A hostname from the router's DHCP names can move to another machine mid-run. Use a wildcard DNS name such as
+  `<ip-with-dashes>.sslip.io` for a broker hostname: the router forwards it and returns the private address.
+- lwIP caches the answer, so later lookups return at once without a `Resolved` line. Before #22843 every boot stalled
+  20 s on the lookup (`Error resolving -6`, then `Couldn't resolve`, one on_disconnect).
+- For timing in the first seconds after boot use a board that joins fast: a BW15 joins in about 1.1 s with a 64 hex
+  PSK and `fast_connect` (about 4 s with the passphrase); a BK7238 takes 7 to 20 s even then.
+- `interval:` fires once right at boot, so an `interval: 95s` reboot guard boot loops; use `on_boot` plus `delay`.
+- `mqtt:` is not available on RP2040 and RP2350.
+- A run script that stops a shared broker spoils every other run on it; give each concurrent run its own broker port.

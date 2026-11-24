@@ -1357,8 +1357,6 @@ def test_integration_class_handles_match_owning_definitions() -> None:
     """The cheap class handles must stay string-equal to the integrations'
     own declarations, or use_id/declare_id resolution silently drifts."""
     from esphome.components import mqtt, web_server
-    from esphome.components.zigbee import zigbee_zephyr
-    from esphome.components.zigbee.const import ZigbeeComponent
 
     mqtt_handle = mqtt_component_class("MQTTBinarySensorComponent")
     assert str(mqtt_handle) == str(mqtt.MQTTBinarySensorComponent)
@@ -1368,15 +1366,6 @@ def test_integration_class_handles_match_owning_definitions() -> None:
     assert str(entity_helpers._WebServer) == str(web_server.WebServer)
     assert entity_helpers._WebServer.inherits_from(web_server.WebServer)
     assert web_server.WebServer.inherits_from(entity_helpers._WebServer)
-
-    assert str(entity_helpers._ZigbeeComponent) == str(ZigbeeComponent)
-    for (
-        _conf_key,
-        class_name,
-        _cluster_options,
-    ) in entity_helpers._ZIGBEE_ENTITY_CLASSES.values():
-        owning = getattr(zigbee_zephyr, class_name)
-        assert str(owning) == f"zigbee::{class_name}"
 
 
 @cache
@@ -1428,6 +1417,14 @@ def test_datetime_time_handle_matches_time_component() -> None:
     from esphome.components import datetime, time
 
     assert str(datetime._RealTimeClock) == str(time.RealTimeClock)
+
+
+def test_zigbee_endpoint_needs_only_zigbee() -> None:
+    """nRF52 builds load zigbee without esp32."""
+    with patch.object(CORE, "loaded_integrations", {"zigbee"}):
+        assert entity_helpers.ZIGBEE_BASE_ENTITY_SCHEMA({"endpoint": 17}) == {
+            "endpoint": 17
+        }
 
 
 def test_zigbee_entity_schema_cluster_options() -> None:

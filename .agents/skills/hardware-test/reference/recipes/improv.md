@@ -57,6 +57,22 @@ When posting results:
   (`scripts/improv/openap32.yaml`).
 - Scan replies list the neighbours' SSIDs; filter them out of anything you post.
 
+## Logger console stack (#22596, #22597)
+
+- Log burst during Improv: an interval that logs 10 numbered `SEQ <n>` lines plus 10 lines without arguments per
+  second. Check the raw capture for gaps, duplicates and broken lines, ignoring a partial first or last line.
+- Console echo without Improv: `esphome: platformio_options: build_flags: [-DUSE_LOGGER_CONSOLE]` plus a 20 ms
+  interval calling `logger::global_logger->console_read()` and `console_write()`. Host writes of up to 300 bytes echo
+  exactly on ESP32 UART0 (ESP-IDF and Arduino), ESP8266 UART0, C3 and S3 USB_SERIAL_JTAG and RP2040 USB_CDC. Only
+  the S3 USB_CDC (OTG) console keeps just the first 91 bytes of one larger write (the ESP-IDF RX buffer).
+- ESP32-S3 `hardware_uart: USB_CDC` with `improv_serial` is refused by config validation; use USB_SERIAL_JTAG.
+- ESP32-C3 `hardware_uart: USB_CDC` with Improv: the device never reads its USB Serial/JTAG port, so a host
+  `flush()` (tcdrain) blocks forever. Send requests without a flush and with a `write_timeout`.
+- A right password that fails right after the wrong password case is a Wi-Fi retry race (the connect fails at once
+  after the new settings and RETRY_HIDDEN does not resolve within 30 s); rerun before blaming the change. For a clean
+  start on every run, reflash and call `global_preferences->reset()` from an `on_boot` priority 800 lambda.
+- The device logs the Improv password at DEBUG; keep raw captures local.
+
 ## Log macro rewrites, A/B by log text (#22758)
 
 `scripts/log_macros/`: `lm-common.yaml` (one entity of every common platform plus `improv_serial` and `web_server`),

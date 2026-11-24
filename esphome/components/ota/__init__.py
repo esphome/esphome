@@ -137,7 +137,16 @@ async def ota_to_code(var: MockObj, config: ConfigType) -> None:
         await automation.build_automation(trigger, [(cg.uint8, "x")], conf)
         use_state_callback = True
     if use_state_callback:
-        request_ota_state_listeners()
+        request_ota_component_state_listeners()
+
+
+GLOBAL_LISTENER_COUNT_DEFINE = "ESPHOME_OTA_GLOBAL_LISTENER_COUNT"
+_request_global_listener_slot = cg.slot_counter(GLOBAL_LISTENER_COUNT_DEFINE)
+
+
+def request_ota_component_state_listeners() -> None:
+    """Compile in OTAComponent::add_state_listener() without a global listener slot."""
+    CORE.data[OTA_STATE_LISTENER_KEY] = True
 
 
 def request_ota_state_listeners() -> None:
@@ -146,8 +155,11 @@ def request_ota_state_listeners() -> None:
     Components that need to be notified about OTA state changes (start, progress,
     complete, error) should call this function during their code generation.
     This enables the add_state_listener() API on OTAComponent.
+    Each call also reserves one add_global_state_listener() slot, so call it once
+    per instance that registers.
     """
     CORE.data[OTA_STATE_LISTENER_KEY] = True
+    _request_global_listener_slot()
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
@@ -155,6 +167,9 @@ async def final_step() -> None:
     """Final code generation step to configure optional OTA features."""
     if CORE.data.get(OTA_STATE_LISTENER_KEY, False):
         cg.add_define("USE_OTA_STATE_LISTENER")
+        # Not a hub, so cg.slot_list would not emit the zero count
+        if cg.get_slot_count(GLOBAL_LISTENER_COUNT_DEFINE) == 0:
+            cg.add_define(GLOBAL_LISTENER_COUNT_DEFINE, 0)
 
 
 _filter_backend_source_files = filter_source_files_from_platform(
