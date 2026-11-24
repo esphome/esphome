@@ -11,6 +11,7 @@
 #include <Esp.h>
 #include <esp8266_peri.h>
 
+#include <algorithm>
 #include <cinttypes>
 
 extern "C" {
@@ -33,6 +34,9 @@ static constexpr uint8_t GZIP_MAGIC_1 = 0x1F;
 static constexpr uint8_t GZIP_MAGIC_2 = 0x8B;
 
 static constexpr uint8_t MAX_IMAGE_SEGMENTS = 16;
+static constexpr uint8_t IMAGE_CHECKSUM_SEED = 0xEF;
+// elf2bin's add_crc() writes the image length and CRC here after the app checksum was taken
+static constexpr uint32_t CRC_WORDS_OFFSET = APP_START_OFFSET + 16;
 
 // ESP8266 flash memory base address (memory-mapped flash starts here)
 static constexpr uint32_t FLASH_BASE_ADDRESS = 0x40200000;
@@ -345,12 +349,11 @@ bool ESP8266OTABackend::verify_end_() {
 
   // No MD5: the segment tables must end exactly at the bytes received
   if (!this->md5_set_) {
-    size_t end = this->image_end_(0);
     // eboot padded to 4 KB, then the app
-    if (end != 0 && end <= APP_START_OFFSET && this->image_size_ > APP_START_OFFSET)
-      end = this->image_end_(APP_START_OFFSET);
+    size_t eboot_end = this->image_end_(0);
+    size_t end = eboot_end != 0 && eboot_end <= APP_START_OFFSET ? this->image_end_(APP_START_OFFSET) : 0;
     if (end != this->image_size_) {
-      ESP_LOGE(TAG, "Image size mismatch: %zu bytes received, segment tables end at %zu", this->image_size_, end);
+      ESP_LOGE(TAG, "Damaged image: %zu bytes received, valid up to %zu", this->image_size_, end);
       return false;
     }
   }
@@ -371,7 +374,7 @@ bool ESP8266OTABackend::verify_end_() {
   return true;
 }
 
-// EspClass::getSketchSize()'s walk, over the staged image
+// EspClass::getSketchSize()'s walk over the staged image, plus the image checksum
 size_t ESP8266OTABackend::image_end_(size_t offset) {
   image_header_t header;
   if (offset + sizeof(header) > this->image_size_ ||
@@ -379,6 +382,9 @@ size_t ESP8266OTABackend::image_end_(size_t offset) {
           SPI_FLASH_RESULT_OK ||
       header.magic != FIRMWARE_MAGIC || header.num_segments > MAX_IMAGE_SEGMENTS)
     return 0;
+  auto *buf = reinterpret_cast<uint32_t *>(this->buffer_.get());
+  size_t chunk_max = this->buffer_size_ & ~size_t{3};
+  uint8_t checksum = IMAGE_CHECKSUM_SEED;
   size_t end = offset + sizeof(header);
   for (uint8_t i = 0; i < header.num_segments; i++) {
     section_header_t section;
@@ -389,10 +395,30 @@ size_t ESP8266OTABackend::image_end_(size_t offset) {
     end += sizeof(section);
     if (section.size > this->image_size_ - end)
       return 0;
+    for (size_t done = 0; done < section.size;) {
+      size_t chunk = std::min(section.size - done, chunk_max);
+      if (spi_flash_read(this->start_address_ + end + done, buf, (chunk + 3) & ~size_t{3}) != SPI_FLASH_RESULT_OK)
+        return 0;
+      checksum = xor_bytes(this->buffer_.get(), chunk, checksum);
+      done += chunk;
+    }
     end += section.size;
   }
   // Checksum byte, then padding to 16 bytes
-  return (end + 1 + 15) & ~size_t{15};
+  end = (end + 1 + 15) & ~size_t{15};
+  uint32_t tail;
+  if (end > this->image_size_ ||
+      spi_flash_read(this->start_address_ + end - sizeof(tail), &tail, sizeof(tail)) != SPI_FLASH_RESULT_OK)
+    return 0;
+  uint8_t stored = tail >> 24;
+  if (stored == checksum)
+    return end;
+  uint32_t crc_words[2];
+  if (offset != APP_START_OFFSET ||
+      spi_flash_read(this->start_address_ + CRC_WORDS_OFFSET, crc_words, sizeof(crc_words)) != SPI_FLASH_RESULT_OK ||
+      stored != xor_bytes(reinterpret_cast<uint8_t *>(crc_words), sizeof(crc_words), checksum))
+    return 0;
+  return end;
 }
 
 uint8_t ESP8266OTABackend::get_flash_chip_mode_() {
