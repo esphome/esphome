@@ -1,0 +1,29 @@
+# Config-only: an automatic install needs a project version, and its manifest
+# is expected over HTTPS. The grouped builds merge component configs without
+# their esphome: section, so this path cannot live in common.yaml.
+esphome:
+  name: update-auto-install
+  project:
+    name: esphome.test
+    version: "1.1"
+
+esp32:
+  variant: esp32
+
+wifi:
+  ssid: MySSID
+  password: password1
+
+http_request:
+  verify_ssl: true
+
+ota:
+  - platform: http_request
+    id: update_http_request_ota
+
+update:
+  - platform: http_request
+    name: Firmware Update
+    ota_id: update_http_request_ota
+    source: https://example.com/manifest.json
+    allow_auto_install: true

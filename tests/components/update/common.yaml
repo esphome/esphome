@@ -2,9 +2,6 @@ substitutions:
   verify_ssl: "true"
 
 esphome:
-  project:
-    name: esphome.test
-    version: "1.1"
   on_boot:
     then:
       - if:
@@ -35,6 +32,5 @@ update:
     name: Firmware Update
     ota_id: update_http_request_ota
     source: http://example.com/manifest.json
-    allow_auto_install: true
     on_update_available:
       - logger.log: "A new update is available"
