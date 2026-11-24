@@ -1,0 +1,34 @@
+# ESP32-PICO-D4 (or any classic ESP32 with GPIO32/33 free): pdmux.hpp is the mux and its devices on the master's own pads.
+substitutions:
+  name: mxpd
+  xflags: -DMX_NONE
+  sda: GPIO32
+  scl: GPIO33
+  hook: |-
+    pds::install();
+    // warm the target ISR (it runs from flash) until it answers
+    int k = 0;
+    for (; k < 10 && id(bus_hw)->write_readv(0x70, nullptr, 0, nullptr, 0) != i2c::ERROR_OK; k++)
+      delay(5);
+    if (k == 10)
+      ESP_LOGE("mx", "MXDEAD software target never answered");
+    mx::root = id(bus_hw);
+    mx::ch2 = id(mux_ch2);
+esp32:
+  board: pico32
+  framework:
+    type: esp-idf
+    sdkconfig_options:
+      CONFIG_ESP_INT_WDT_TIMEOUT_MS: "1000"
+packages:
+  c: !include common.yaml
+tca9548a:
+  - id: mux
+    i2c_id: bus_hw
+    address: 0x70
+    channels:
+      - bus_id: mux_ch2
+        channel: 2
+        frequency: 10kHz
+      - bus_id: mux_ch5
+        channel: 5

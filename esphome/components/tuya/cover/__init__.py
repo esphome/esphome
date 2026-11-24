@@ -60,8 +60,9 @@ async def to_code(config):
     cg.add_optional(var.set_control_id, config.get(CONF_CONTROL_DATAPOINT))
     cg.add_optional(var.set_direction_id, config.get(CONF_DIRECTION_DATAPOINT))
     cg.add(var.set_position_id(config[CONF_POSITION_DATAPOINT]))
-    if CONF_POSITION_REPORT_DATAPOINT in config:
-        cg.add(var.set_position_report_id(config[CONF_POSITION_REPORT_DATAPOINT]))
+    cg.add_optional(
+        var.set_position_report_id, config.get(CONF_POSITION_REPORT_DATAPOINT)
+    )
     cg.add(var.set_min_value(config[CONF_MIN_VALUE]))
     cg.add(var.set_max_value(config[CONF_MAX_VALUE]))
     cg.add(var.set_invert_position(config[CONF_INVERT_POSITION]))

@@ -20,7 +20,7 @@ void SendspinTrackProgressSensor::dump_config() {
 // THREAD CONTEXT: Main loop. The registered metadata callback also fires on the main loop
 // (SendspinHub dispatches metadata from client_->loop()).
 void SendspinTrackProgressSensor::setup() {
-  this->parent_->add_metadata_update_callback([this](const sendspin::ServerMetadataStateObject &metadata) {
+  this->parent_->add_metadata_update_callback([this](const sendspin::TrackMetadata &metadata) {
     if (!metadata.progress.has_value()) {
       // Progress is unknown: the server has not reported it, or it was cleared (e.g. on disconnect). Stop polling and
       // report unknown rather than leaving the last position frozen on the frontend. Only the transition is published;
@@ -72,7 +72,7 @@ void SendspinMetadataSensor::dump_config() {
   }
 }
 
-std::optional<float> SendspinMetadataSensor::extract_value_(const sendspin::ServerMetadataStateObject &metadata) const {
+std::optional<float> SendspinMetadataSensor::extract_value_(const sendspin::TrackMetadata &metadata) const {
   switch (this->metadata_type_) {
     case SendspinNumericMetadataTypes::TRACK_DURATION:
       if (metadata.progress.has_value())
@@ -93,7 +93,7 @@ std::optional<float> SendspinMetadataSensor::extract_value_(const sendspin::Serv
 // THREAD CONTEXT: Main loop. The registered metadata callback also fires on the main loop
 // (SendspinHub dispatches metadata from client_->loop()).
 void SendspinMetadataSensor::setup() {
-  this->parent_->add_metadata_update_callback([this](const sendspin::ServerMetadataStateObject &metadata) {
+  this->parent_->add_metadata_update_callback([this](const sendspin::TrackMetadata &metadata) {
     // A field the server has not provided, or has explicitly cleared, is published as NAN (the sensor convention for
     // unknown) rather than skipped, so a value that goes away does not linger from the previous track.
     this->publish_if_changed_(this->extract_value_(metadata).value_or(NAN));

@@ -193,10 +193,7 @@ def zephyr_to_code(config: ConfigType) -> None:
     cg.add_define("USE_PREFERENCE_KEY_LOOKUP")
     cg.set_cpp_standard("gnu++20")
     # c++ support
-    zephyr_add_prj_conf("FPU", True)
     zephyr_add_prj_conf("STD_CPP20", True)
-    # random_bytes() uses sys_rand_get() which requires the entropy subsystem
-    zephyr_add_prj_conf("ENTROPY_GENERATOR", True)
 
     # <err> os: ***** USAGE FAULT *****
     # <err> os:   Illegal load of EXC_RETURN into PC
@@ -344,6 +341,12 @@ def zephyr_require_cdc_acm() -> None:
     zephyr_enable_usb_cdc_acm()
     if zephyr_use_usb_device_next():
         zephyr_data()["cdc_acm_required"] = True
+
+
+def zephyr_enable_poweroff() -> None:
+    """Enable sys_poweroff(); Zigbee builds leave it out and stay awake instead."""
+    if "zigbee" not in CORE.loaded_integrations:
+        zephyr_add_prj_conf("POWEROFF", True)
 
 
 def _cdc_acm_add_ports() -> None:

@@ -1,0 +1,49 @@
+# ESP32-S31 core board as an Ethernet-only border router: native 802.15.4 radio, YT8531 PHY, no wifi:.
+# Needs a tree with openthread border_router backbone (esphome#22929). Dataset values come from secrets.yaml.
+substitutions:
+  name: s31-br
+esphome:
+  name: ${name}
+packages:
+  omr: !include omr.yaml
+esp32:
+  variant: esp32s31
+  flash_size: 16MB
+  framework:
+    type: esp-idf
+logger:
+  hardware_uart: UART0
+network:
+  enable_ipv6: true
+api:
+  reboot_timeout: 0s
+  encryption:
+    key: !secret api_key
+ota:
+  - platform: esphome
+button:
+  - platform: restart
+    name: Restart
+ethernet:
+  type: YT8531
+  mdc_pin: GPIO5
+  mdio_pin: GPIO6
+  power_pin: GPIO7
+  phy_addr: 0
+openthread:
+  border_router:
+    backbone: ethernet
+  channel: !secret ot_channel
+  network_name: !secret ot_network_name
+  network_key: !secret ot_network_key
+  pan_id: !secret ot_pan_id
+  ext_pan_id: !secret ot_ext_pan_id
+  pskc: !secret ot_pskc
+  mesh_local_prefix: !secret ot_mesh_local_prefix
+  force_dataset: true
+interval:
+  - interval: 30s
+    then:
+      - lambda: |-
+          ESP_LOGI("hwt", "HWT alive heap=%u min=%u", (unsigned) heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+                   (unsigned) heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL));

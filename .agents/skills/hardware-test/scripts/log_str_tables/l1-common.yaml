@@ -1,0 +1,107 @@
+esphome:
+  name: ${name}
+  includes: [fakes.hpp]
+  on_boot:
+    - priority: 1100
+      then:
+        - lambda: |-
+            id(rtc)->set_i2c_bus(&fk::bus);
+            id(tmc)->set_uart_parent(&fk::tmc);
+    - priority: -100
+      then:
+        - delay: 2s
+        - logger.log: "MARK square wave actions"
+        - ds3231.enable_square_wave: {id: rtc, frequency: 1Hz}
+        - ds3231.enable_square_wave: {id: rtc, frequency: 1024Hz}
+        - ds3231.enable_square_wave: {id: rtc, frequency: 4096Hz}
+        - ds3231.enable_square_wave: {id: rtc, frequency: 8192Hz}
+        - delay: 3s
+        - logger.log: "MARK tmc flags on"
+        - lambda: |-
+            fk::tmc.regs[0x01] = 0x07;
+            fk::tmc.regs[0x6F] = 0x0FFF;
+        - delay: 3s
+        - logger.log: "MARK tmc flags off"
+        - lambda: 'fk::tmc.regs[0x6F] = 0;'
+        - delay: 3s
+        - logger.log: "MARK dump again"
+        - lambda: |-
+            id(rtc)->dump_config();
+        - delay: 25s
+        - logger.log: "MARK ALLDONE"
+
+logger:
+  baud_rate: 460800
+  level: DEBUG
+
+uart:
+  - id: uart_bus
+    tx_pin: ${uart_tx}
+    rx_pin: ${uart_rx}
+    baud_rate: 115200
+
+i2c:
+  - id: i2c_bus
+    sda: ${sda}
+    scl: ${scl}
+    scan: false
+
+ds3231:
+  - id: rtc
+    i2c_id: i2c_bus
+    address: 0x68
+    square_wave_frequency: 4096Hz
+
+audio_dac:
+  - {platform: es9038q2m_katana, id: k1, i2c_id: i2c_bus, address: 0x48, filter_shape: linear_phase_fast, deemphasis: bypass}
+  - {platform: es9038q2m_katana, id: k2, i2c_id: i2c_bus, address: 0x49, filter_shape: linear_phase_slow, deemphasis: 32khz}
+  - {platform: es9038q2m_katana, id: k3, i2c_id: i2c_bus, address: 0x4A, filter_shape: minimum_phase_fast, deemphasis: 44_1khz}
+  - {platform: es9038q2m_katana, id: k4, i2c_id: i2c_bus, address: 0x4B, filter_shape: minimum_phase_slow, deemphasis: 48khz}
+  - {platform: es9038q2m_katana, id: k5, i2c_id: i2c_bus, address: 0x48, filter_shape: apodizing}
+  - {platform: es9038q2m_katana, id: k6, i2c_id: i2c_bus, address: 0x49, filter_shape: hybrid}
+  - {platform: es9038q2m_katana, id: k7, i2c_id: i2c_bus, address: 0x4A, filter_shape: brick_wall}
+
+lis2dw12_i2c:
+  - {id: a1, i2c_id: i2c_bus, address: 0x18, power_mode: high_performance, output_data_rate: 1600Hz, range: 2G, filter_bandwidth: odr_div_2}
+  - {id: a2, i2c_id: i2c_bus, address: 0x19, power_mode: low_power_1, output_data_rate: 1.6Hz, range: 4G, filter_bandwidth: odr_div_4}
+  - {id: a3, i2c_id: i2c_bus, address: 0x18, power_mode: low_power_2, output_data_rate: 12.5Hz, range: 8G, filter_bandwidth: odr_div_10}
+  - {id: a4, i2c_id: i2c_bus, address: 0x19, power_mode: low_power_3, output_data_rate: 25Hz, range: 16G, filter_bandwidth: odr_div_20}
+  - {id: a5, i2c_id: i2c_bus, address: 0x18, power_mode: low_power_4, output_data_rate: 50Hz}
+  - {id: a6, i2c_id: i2c_bus, address: 0x19, output_data_rate: 100Hz}
+  - {id: a7, i2c_id: i2c_bus, address: 0x18, output_data_rate: 200Hz}
+  - {id: a8, i2c_id: i2c_bus, address: 0x19, output_data_rate: 400Hz}
+  - {id: a9, i2c_id: i2c_bus, address: 0x18, output_data_rate: 800Hz}
+
+npm1300:
+  - id: pmic
+    i2c_id: i2c_bus
+    buck1:
+      voltage: 1.8V
+    buck2:
+      voltage: 3.3V
+    ldo1:
+      voltage: 3.3V
+      mode: ldo
+      enabled: true
+    ldo2:
+      mode: load_switch
+      enabled: false
+
+sy6970:
+  - {id: wd0, i2c_id: i2c_bus, address: 0x6A, i2c_watchdog_timeout: DISABLED, update_interval: 60s}
+  - {id: wd1, i2c_id: i2c_bus, address: 0x6B, i2c_watchdog_timeout: 40S, update_interval: 60s}
+  - {id: wd2, i2c_id: i2c_bus, address: 0x6A, i2c_watchdog_timeout: 80S, update_interval: 60s}
+  - {id: wd3, i2c_id: i2c_bus, address: 0x6B, i2c_watchdog_timeout: 160S, update_interval: 60s}
+
+stepper:
+  - platform: tmc2209
+    id: tmc
+    uart_id: uart_bus
+    address: 0
+    step_pin: ${step_pin}
+    dir_pin: ${dir_pin}
+    max_speed: 1000 steps/s
+    on_status:
+      - logger.log:
+          format: "EV %u active %d"
+          args: [event, active]

@@ -1,0 +1,19 @@
+ld2410:
+  id: radar
+  uart_id: bus
+
+sensor:
+  - platform: ld2410
+    ld2410_id: radar
+    moving_distance:
+      name: Moving Distance
+      on_raw_value:
+        - lambda: lfh::record((int) x);
+
+script:
+  - id: run_cases
+    then:
+      - lambda: lfh::seen.clear(); ESP_LOGI("lfh", "RUN start");
+      - script.execute: {id: play, tuya: false}
+      - script.wait: play
+      - lambda: ESP_LOGI("lfh", "RUN end");
