@@ -8,6 +8,7 @@
 #include "freertos/task.h"
 #include "esp_check.h"
 #include "zigbee_attribute_esp32.h"
+#include "zigbee_cover_esp32.h"
 #include "zigbee_esp32.h"
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
@@ -255,17 +256,19 @@ void load_zb_event(ZBEvent *event, ezb_zcl_message_info_t info, ezb_zcl_attribut
   event->load_set_attr_value_event(info, attribute);
 }
 
+#ifdef USE_COVER
 void load_zb_event(ZBEvent *event, ezb_zcl_message_info_t info, uint8_t cmd_id, uint8_t percentage) {
   event->load_window_covering_event(info, cmd_id, percentage);
 }
+#endif
 
-template<typename... Args> void enqueue_zb_event(Args... args) {
+template<typename... Args> bool enqueue_zb_event(Args... args) {
   // Allocate an event from the pool
   ZBEvent *event = global_zigbee->zb_event_pool_.allocate();
   if (event == nullptr) {
     // No events available - queue is full or we're out of memory
     global_zigbee->zb_events_.increment_dropped_count();
-    return;
+    return false;
   }
 
   // Load new event data (replaces previous event)
@@ -275,10 +278,11 @@ template<typename... Args> void enqueue_zb_event(Args... args) {
   global_zigbee->zb_events_.push(event);
   // Push always succeeds because we're the only producer and the pool ensures we never exceed queue size
   global_zigbee->enable_loop_soon_any_context();
+  return true;
 }
 
 // Explicit template instantiations for the friend function
-template void enqueue_zb_event(ezb_zcl_message_info_t info, ezb_zcl_attribute_t attribute);
+template bool enqueue_zb_event(ezb_zcl_message_info_t info, ezb_zcl_attribute_t attribute);
 
 static void zb_attribute_handler(ezb_zcl_set_attr_value_message_t *message) {
   ESP_RETURN_ON_FALSE(message, , TAG, "Empty message");
@@ -290,6 +294,7 @@ static void zb_attribute_handler(ezb_zcl_set_attr_value_message_t *message) {
   enqueue_zb_event(message->info, message->in.attribute);
 }
 
+#ifdef USE_COVER
 static void zb_window_covering_handler(ezb_zcl_window_covering_movement_message_t *message) {
   ESP_RETURN_ON_FALSE(message && message->in.header, , TAG, "Empty message");
   const uint8_t cmd_id = message->in.header->cmd_id;
@@ -299,29 +304,35 @@ static void zb_window_covering_handler(ezb_zcl_window_covering_movement_message_
     case EZB_ZCL_CMD_WINDOW_COVERING_DOWN_CLOSE_ID:
     case EZB_ZCL_CMD_WINDOW_COVERING_STOP_ID:
       break;
-    case EZB_ZCL_CMD_WINDOW_COVERING_GO_TO_LIFT_PERCENTAGE_ID:
+    case EZB_ZCL_CMD_WINDOW_COVERING_GO_TO_LIFT_PERCENTAGE_ID: {
       percentage = message->in.payload.lift_percentage;
-      if (percentage > 100) {
+      const ZigbeeCover *cover = global_zigbee->find_cover(message->info.dst_ep);
+      if (percentage > 100 || (cover != nullptr && !cover->accepts_lift_percentage(percentage))) {
         message->out.result = EZB_ZCL_STATUS_INVALID_VALUE;
         return;
       }
       break;
+    }
     default:
       message->out.result = EZB_ZCL_STATUS_UNSUP_CMD;
       return;
   }
-  enqueue_zb_event(message->info, cmd_id, percentage);
-  message->out.result = EZB_ZCL_STATUS_SUCCESS;
+  // A dropped command must not be acknowledged: a lost stop would leave the motor running
+  message->out.result =
+      enqueue_zb_event(message->info, cmd_id, percentage) ? EZB_ZCL_STATUS_SUCCESS : EZB_ZCL_STATUS_FAIL;
 }
+#endif
 
 static void zb_action_handler(ezb_zcl_core_action_callback_id_t callback_id, void *message) {
   switch (callback_id) {
     case EZB_ZCL_CORE_SET_ATTR_VALUE_CB_ID:
       zb_attribute_handler((ezb_zcl_set_attr_value_message_t *) message);
       break;
+#ifdef USE_COVER
     case EZB_ZCL_CORE_WINDOW_COVERING_MOVEMENT_CB_ID:
       zb_window_covering_handler((ezb_zcl_window_covering_movement_message_t *) message);
       break;
+#endif
     case EZB_ZCL_CORE_DEFAULT_RSP_CB_ID: {
 #ifdef ESPHOME_LOG_HAS_VERBOSE
       ezb_zcl_cmd_default_rsp_message_t *default_rsp = (ezb_zcl_cmd_default_rsp_message_t *) message;
@@ -342,27 +353,11 @@ void ZigbeeComponent::handle_attribute_(ezb_zcl_message_info_t info, ezb_zcl_att
 }
 
 #ifdef USE_COVER
-void ZigbeeComponent::handle_window_covering_(ezb_zcl_message_info_t info, uint8_t cmd_id, uint8_t percentage) {
-  auto it = this->attributes_.find({info.dst_ep, info.cluster_id, info.cluster_role,
+ZigbeeCover *ZigbeeComponent::find_cover(uint8_t endpoint_id) {
+  auto it = this->attributes_.find({endpoint_id, EZB_ZCL_CLUSTER_ID_WINDOW_COVERING, EZB_ZCL_CLUSTER_SERVER,
                                     EZB_ZCL_ATTR_WINDOW_COVERING_CURRENT_POSITION_LIFT_PERCENTAGE_ID});
-  if (it != this->attributes_.end()) {
-    static_cast<ZigbeeAttribute *>(it->second)->on_command(cmd_id, percentage);
-  }
-}
-
-void ZigbeeComponent::remove_attr(uint8_t endpoint_id, uint16_t cluster_id, uint8_t role, uint16_t attr_id) {
-  ezb_af_ep_desc_t ep_desc = ezb_af_device_get_endpoint_desc(this->dev_desc_, endpoint_id);
-  if (ep_desc == NULL) {
-    return;
-  }
-  ezb_zcl_cluster_desc_t cluster_desc = ezb_af_endpoint_get_cluster_desc(ep_desc, cluster_id, role);
-  if (cluster_desc == NULL) {
-    return;
-  }
-  ezb_zcl_attr_desc_t attr_desc = ezb_zcl_cluster_remove_attr_desc(cluster_desc, attr_id, EZB_ZCL_STD_MANUF_CODE);
-  if (attr_desc != EZB_INVALID_ZCL_ATTR_DESC) {
-    ezb_zcl_free_attr_desc(attr_desc);
-  }
+  // Only ZigbeeCover registers this attribute
+  return it == this->attributes_.end() ? nullptr : static_cast<ZigbeeCover *>(it->second);
 }
 #endif
 
@@ -550,12 +545,13 @@ void ZigbeeComponent::loop() {
       case EZB_ZCL_CORE_SET_ATTR_VALUE_CB_ID:
         this->handle_attribute_(event->event_.set_attr.info, event->event_.set_attr.attribute);
         break;
-      case EZB_ZCL_CORE_WINDOW_COVERING_MOVEMENT_CB_ID:
 #ifdef USE_COVER
-        this->handle_window_covering_(event->event_.window_covering.info, event->event_.window_covering.cmd_id,
-                                      event->event_.window_covering.percentage);
-#endif
+      case EZB_ZCL_CORE_WINDOW_COVERING_MOVEMENT_CB_ID:
+        if (ZigbeeCover *cover = this->find_cover(event->event_.window_covering.info.dst_ep)) {
+          cover->on_command(event->event_.window_covering.cmd_id, event->event_.window_covering.percentage);
+        }
         break;
+#endif
       default:
         ESP_LOGW(TAG, "Received event with unhandled callback id: 0x%x", static_cast<unsigned>(event->callback_id_));
         break;

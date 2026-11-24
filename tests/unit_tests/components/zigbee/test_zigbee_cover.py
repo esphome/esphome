@@ -3,7 +3,13 @@
 import pytest
 
 from esphome.components import zigbee
-from esphome.components.zigbee.const import KEY_ZIGBEE
+from esphome.components.zigbee.const import (
+    CONF_ZIGBEE_COVER,
+    CONF_ZIGBEE_ID,
+    KEY_ZIGBEE,
+    ZigbeeComponent,
+    ZigbeeCover,
+)
 from esphome.components.zigbee.const_esp32 import (
     CONF_ATTRIBUTE_ID,
     CONF_ATTRIBUTES,
@@ -15,12 +21,14 @@ from esphome.components.zigbee.const_esp32 import (
     KEY_ZIGBEE_EP_NO_NUM,
 )
 from esphome.components.zigbee.zigbee_ep_esp32 import create_ep
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_DEVICE_CLASS,
     CONF_ENDPOINT,
     CONF_ID,
     CONF_INTERNAL,
     CONF_NAME,
+    CONF_NUMBER,
     CONF_REPORT,
     CONF_VALUE,
     KEY_CORE,
@@ -32,8 +40,6 @@ from esphome.core import CORE
 from esphome.types import ConfigType
 
 WINDOW_COVERING_TYPE_ATTRIBUTE = 0x0
-CONFIG_STATUS_ATTRIBUTE = 0x7
-LIFT_PERCENTAGE_ATTRIBUTE = 0x8
 MODE_ATTRIBUTE = 0x17
 
 
@@ -56,13 +62,14 @@ def test_cover_with_endpoint_gets_window_covering_cluster() -> None:
     assert endpoint[DEVICE_TYPE] == "WINDOW_COVERING"
     (cluster,) = endpoint[CONF_CLUSTERS]
     assert cluster[CONF_ID] == "WINDOW_COVERING"
-    connected = [a for a in cluster[CONF_ATTRIBUTES] if a.get(CONNECT)]
-    assert [a[CONF_ATTRIBUTE_ID] for a in connected] == [LIFT_PERCENTAGE_ATTRIBUTE]
-    assert connected[0][CONF_REPORT] == "force"
-    assert config[KEY_ZIGBEE_ATTRIBUTES] == connected
+    # ZigbeeCover owns the lift percentage and ConfigStatus attributes
+    assert not any(a.get(CONNECT) for a in cluster[CONF_ATTRIBUTES])
+    assert KEY_ZIGBEE_ATTRIBUTES not in config
+    assert config[KEY_ZIGBEE_EP] == {CONF_NUMBER: 3}
+    assert config[CONF_ZIGBEE_COVER].type is ZigbeeCover
+    assert config[CONF_ZIGBEE_ID].type is ZigbeeComponent
     values = {a[CONF_ATTRIBUTE_ID]: a[CONF_VALUE] for a in cluster[CONF_ATTRIBUTES]}
-    # operational, online, lift closed loop and timer controlled; mode not maintenance
-    assert values[CONFIG_STATUS_ATTRIBUTE] == 0x0B
+    # mode 0, not the maintenance default
     assert values[MODE_ATTRIBUTE] == 0x00
 
 
@@ -72,7 +79,7 @@ def test_cover_with_endpoint_gets_window_covering_cluster() -> None:
         pytest.param(None, 0x00, id="none-rollershade"),
         pytest.param("awning", 0x05, id="awning"),
         pytest.param("curtain", 0x04, id="curtain-drapery"),
-        pytest.param("shutter", 0x06, id="shutter"),
+        pytest.param("shutter", 0x00, id="shutter-lift-not-tilt-only"),
         pytest.param("blind", 0x00, id="blind-lift-only"),
         pytest.param("garage", 0x00, id="unmapped-rollershade"),
     ],
@@ -95,10 +102,12 @@ def test_cover_window_covering_type_from_device_class(
 def test_cover_without_endpoint_is_queued_for_numbering() -> None:
     _configure()
 
-    zigbee.validate_cover(_cover())
+    config = zigbee.validate_cover(_cover())
 
     assert len(CORE.data[KEY_ZIGBEE][KEY_ZIGBEE_EP_NO_NUM]) == 1
     assert KEY_ZIGBEE_EP not in CORE.data[KEY_ZIGBEE]
+    create_ep(False)
+    assert config[KEY_ZIGBEE_EP] == {CONF_NUMBER: 1}
 
 
 def test_covers_do_not_share_an_endpoint() -> None:
@@ -130,3 +139,10 @@ def test_cover_is_not_exposed(
 
     assert zigbee.validate_cover(config) == config
     assert KEY_ZIGBEE not in CORE.data
+
+
+def test_nrf52_cover_rejects_endpoint() -> None:
+    _configure(PLATFORM_NRF52)
+
+    with pytest.raises(cv.Invalid, match="only supported on ESP32"):
+        zigbee.validate_cover(_cover(**{CONF_ENDPOINT: 3}))

@@ -303,9 +303,9 @@ async def setup_cover(entity: cg.MockObj, config: ConfigType) -> None:
     if DOMAIN not in CORE.loaded_integrations or config.get(CONF_INTERNAL):
         return
     if CORE.is_esp32:
-        from .zigbee_esp32 import add_component
+        from .zigbee_esp32 import add_cover
 
-        CORE.add_job(add_component, entity, config)
+        CORE.add_job(add_cover, entity, config)
 
 
 async def setup_number(
@@ -387,7 +387,11 @@ def validate_cover(config: ConfigType) -> ConfigType:
         return config
     if CORE.is_esp32:
         return validate_cover_esp32(config)
-    return config  # nRF52 does not expose covers yet
+    if CONF_ENDPOINT in config:
+        raise cv.Invalid(
+            "Zigbee covers are only supported on ESP32", path=[CONF_ENDPOINT]
+        )
+    return config
 
 
 def validate_number(config: ConfigType) -> ConfigType:

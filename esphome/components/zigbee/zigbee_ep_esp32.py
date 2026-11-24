@@ -16,7 +16,6 @@ from esphome.const import (
     DEVICE_CLASS_OCCUPANCY,
     DEVICE_CLASS_PM25,
     DEVICE_CLASS_PRESSURE,
-    DEVICE_CLASS_SHUTTER,
     DEVICE_CLASS_TEMPERATURE,
     DEVICE_CLASS_VOLUME_FLOW_RATE,
     UNIT_CELSIUS,
@@ -361,10 +360,10 @@ SWITCH_EP_CONFIGS: dict[str, dict[str, Any]] = {
     },
 }
 
+# Only lift types: ZHA treats Shutter (0x06) as tilt only, so other classes stay Rollershade (0x00)
 WINDOW_COVERING_TYPES = {
     DEVICE_CLASS_AWNING: 0x05,
     DEVICE_CLASS_CURTAIN: 0x04,
-    DEVICE_CLASS_SHUTTER: 0x06,
 }
 
 WINDOW_COVERING_EP = {
@@ -380,19 +379,9 @@ WINDOW_COVERING_EP = {
                     CONF_VALUE: 0x00,
                 },
                 {
-                    CONF_ATTRIBUTE_ID: 0x7,
-                    CONF_TYPE: "MAP8",
-                    CONF_VALUE: 0x0B,
-                },
-                {
                     CONF_ATTRIBUTE_ID: 0x17,
                     CONF_TYPE: "MAP8",
                     CONF_VALUE: 0x00,
-                },
-                {
-                    CONF_ATTRIBUTE_ID: 0x8,
-                    CONF_TYPE: "UINT8",
-                    CONNECT: True,
                 },
             ],
         },

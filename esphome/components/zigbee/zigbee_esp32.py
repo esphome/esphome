@@ -54,6 +54,7 @@ from .const import (
     CONF_ROUTER,
     CONF_SLEEPY,
     CONF_USE_DEVICE_TYPE,
+    CONF_ZIGBEE_COVER,
     CONF_ZIGBEE_ID,
     CONF_ZIGBEE_NUMBER,
     KEY_ZIGBEE,
@@ -62,6 +63,7 @@ from .const import (
     POWER_SOURCE,
     ZigbeeAttribute,
     ZigbeeComponent,
+    ZigbeeCover,
     ZigbeeNumber,
 )
 from .const_esp32 import (
@@ -416,8 +418,14 @@ def validate_cover_esp32(config: ConfigType) -> ConfigType:
     ep = copy.deepcopy(WINDOW_COVERING_EP)
     covering_type = WINDOW_COVERING_TYPES.get(config.get(CONF_DEVICE_CLASS), 0x00)
     ep[CONF_CLUSTERS][0][CONF_ATTRIBUTES][0][CONF_VALUE] = covering_type
+    ep_ref: dict[str, Any] = {}
+    config[KEY_ZIGBEE_EP] = ep_ref
     setup_attributes(config, ep[CONF_CLUSTERS])
-    add_ep(ep, config.get(CONF_ENDPOINT), config.get(CONF_USE_DEVICE_TYPE))
+    add_ep(
+        ep, config.get(CONF_ENDPOINT), config.get(CONF_USE_DEVICE_TYPE), ep_ref=ep_ref
+    )
+    config[CONF_ZIGBEE_COVER] = cv.declare_id(ZigbeeCover)(None)
+    config[CONF_ZIGBEE_ID] = cv.use_id(ZigbeeComponent)(None)
     return config
 
 
@@ -549,10 +557,12 @@ async def add_component(entity: cg.MockObj, config: ConfigType) -> None:
             cg.add(zb_attr.connect(template_arg, entity))
 
 
-async def add_number(entity: cg.MockObj, config: ConfigType) -> None:
+async def _add_attribute_entity(
+    entity: cg.MockObj, config: ConfigType, id_key: str
+) -> None:
     zb = await cg.get_variable(config[CONF_ZIGBEE_ID])
     var = cg.new_Pvariable(
-        config[CONF_ZIGBEE_NUMBER],
+        config[id_key],
         zb,
         config[KEY_ZIGBEE_EP][CONF_NUMBER],
         entity,
@@ -563,6 +573,14 @@ async def add_number(entity: cg.MockObj, config: ConfigType) -> None:
         "coordinator",
     ):
         cg.add(var.set_report(report))
+
+
+async def add_number(entity: cg.MockObj, config: ConfigType) -> None:
+    await _add_attribute_entity(entity, config, CONF_ZIGBEE_NUMBER)
+
+
+async def add_cover(entity: cg.MockObj, config: ConfigType) -> None:
+    await _add_attribute_entity(entity, config, CONF_ZIGBEE_COVER)
 
 
 async def add_light(entity: cg.MockObj, config: ConfigType) -> None:

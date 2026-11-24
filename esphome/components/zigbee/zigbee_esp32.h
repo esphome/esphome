@@ -31,6 +31,10 @@ static constexpr uint8_t MAX_ZB_QUEUE_SIZE = 32;
 
 uint8_t *get_zcl_string(const char *str, uint8_t max_size, bool use_max_size = false);
 
+#ifdef USE_COVER
+class ZigbeeCover;
+#endif
+
 class ZigbeeAttributeInterface {
  public:
   virtual void on_value(ezb_zcl_attribute_t attribute) = 0;
@@ -62,7 +66,8 @@ class ZigbeeComponent final : public Component {
   void add_attr(uint8_t endpoint_id, uint16_t cluster_id, uint8_t role, uint16_t attr_id, uint8_t max_size,
                 uint8_t attr_type, uint8_t attr_access, T value);
 #ifdef USE_COVER
-  void remove_attr(uint8_t endpoint_id, uint16_t cluster_id, uint8_t role, uint16_t attr_id);
+  /// Also called from the Zigbee task; attributes_ is not modified after setup.
+  ZigbeeCover *find_cover(uint8_t endpoint_id);
 #endif
 
   static bool app_signal_handler(const ezb_app_signal_t *app_signal);
@@ -108,16 +113,13 @@ class ZigbeeComponent final : public Component {
   void add_attr_(ZigbeeAttributeInterface *attr, uint8_t endpoint_id, uint16_t cluster_id, uint8_t role,
                  uint16_t attr_id, uint8_t attr_type, uint8_t attr_access, T *value_p);
   void handle_attribute_(ezb_zcl_message_info_t info, ezb_zcl_attribute_t attribute);
-#ifdef USE_COVER
-  void handle_window_covering_(ezb_zcl_message_info_t info, uint8_t cmd_id, uint8_t percentage);
-#endif
   // attributes_ will be used during operation in zigbee callbacks to update the attribute values and trigger
   // automations
   // key tuple could be replaced by single 64 (48) bit int with bit fields for endpoint, cluster, role and attr_id
   std::map<std::tuple<uint8_t, uint16_t, uint8_t, uint16_t>, ZigbeeAttributeInterface *> attributes_;
   ezb_af_device_desc_t dev_desc_ = ezb_af_create_device_desc();
   CallbackManager<void(bool)> join_cb_{};
-  template<typename... Args> friend void enqueue_zb_event(Args... args);
+  template<typename... Args> friend bool enqueue_zb_event(Args... args);
   esphome::LockFreeQueue<ZBEvent, MAX_ZB_QUEUE_SIZE> zb_events_;
   // Pool sized to queue capacity (SIZE-1) because LockFreeQueue<T,N> is a ring
   // buffer that holds N-1 elements (one slot distinguishes full from empty).
