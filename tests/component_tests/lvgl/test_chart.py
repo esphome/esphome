@@ -363,8 +363,26 @@ def test_refresh_does_not_add_the_series_again(
     main_cpp = generate_main(component_config_path("chart_test.yaml"))
 
     assert main_cpp.count("x = lv_chart_add_series(bar_chart,") == 1
-    # The refresh re-applies the templated range
-    assert main_cpp.count("lv_chart_set_axis_range(bar_chart,") == 2
+    # Set at creation, by the refresh (the templated range only) and by lvgl.chart.update;
+    # the refresh must not undo the update_mode and point_count the update sets
+    assert main_cpp.count("lv_chart_set_axis_range(bar_chart,") == 3
+    assert main_cpp.count("lv_chart_set_type(bar_chart,") == 1
+    for option in ("update_mode", "point_count"):
+        assert main_cpp.count(f"lv_chart_set_{option}(bar_chart,") == 2
+
+
+def test_chart_update_sets_its_options(generate_main, component_config_path) -> None:
+    main_cpp = generate_main(component_config_path("chart_test.yaml"))
+
+    assert (
+        "lv_chart_set_update_mode(bar_chart, LV_CHART_UPDATE_MODE_CIRCULAR);"
+        in main_cpp
+    )
+    assert "lv_chart_set_point_count(bar_chart, 5);" in main_cpp
+    assert (
+        "lv_chart_set_axis_range(bar_chart, LV_CHART_AXIS_PRIMARY_Y, -10, 10);"
+        in main_cpp
+    )
 
 
 def test_series_named_like_a_trigger_argument(

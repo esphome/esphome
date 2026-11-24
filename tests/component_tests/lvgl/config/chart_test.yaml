@@ -61,6 +61,13 @@ lvgl:
     - button:
         on_click:
           - lvgl.widget.refresh: bar_chart
+          - lvgl.chart.update:
+              id: bar_chart
+              update_mode: circular
+              point_count: 5
+              y_axis:
+                min_value: -10
+                max_value: 10
           - lvgl.chart.series.update:
               id: line_series
               value: !lambda return 30;

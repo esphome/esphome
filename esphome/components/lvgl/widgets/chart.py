@@ -258,9 +258,12 @@ class ChartType(WidgetType):
         )
 
     async def create_to_code(self, config: ConfigType, parent: MockObj) -> Widget:
-        # Series are added here rather than in to_code(), which lvgl.widget.refresh
-        # runs again and which must not declare the series a second time.
+        # Options and series are set here rather than in to_code(), which
+        # lvgl.widget.refresh runs again: it must not declare the series a second time
+        # or undo what lvgl.chart.update changed. super() runs to_code(), which sets
+        # the templated axis ranges.
         w = await super().create_to_code(config, parent)
+        await set_chart_options(w.obj, config, templated=False)
         for index, series in enumerate(config.get(CONF_SERIES, ())):
             # Recorded before the variable exists, so an action waiting on it can find the chart.
             get_chart_series()[str(series[CONF_ID])] = w
@@ -283,35 +286,61 @@ class ChartType(WidgetType):
         lv.chart_refresh(w.obj)
         return w
 
-    async def to_code(self, w: Widget, config: ConfigType) -> None:
-        if chart_type := config.get(CONF_TYPE):
-            lv.chart_set_type(w.obj, literal(chart_type))
-        if mode := config.get(CONF_UPDATE_MODE):
-            lv.chart_set_update_mode(w.obj, literal(mode))
-        if point_count := config.get(CONF_POINT_COUNT):
-            lv.chart_set_point_count(w.obj, point_count)
-        if div_count := config.get(CONF_DIV_LINE_COUNT):
-            lv.chart_set_div_line_count(w.obj, div_count[0], div_count[1])
-
-        for axis_name, axis_key in (
-            (CONF_Y_AXIS, "PRIMARY_Y"),
-            (CONF_SECONDARY_Y_AXIS, "SECONDARY_Y"),
-            (CONF_X_AXIS, "PRIMARY_X"),
-            (CONF_SECONDARY_X_AXIS, "SECONDARY_X"),
-        ):
-            if axis := config.get(axis_name):
-                await set_axis_range(w.obj, axis_key, axis)
-
+    async def update_to_code(self, w: Widget, config: ConfigType) -> None:
+        await set_chart_options(w.obj, config)
         lv.chart_refresh(w.obj)
+
+    async def to_code(self, w: Widget, config: ConfigType) -> None:
+        await set_axis_ranges(w.obj, config, templated=True)
+        lv.chart_refresh(w.obj)
+
+
+AXES = (
+    (CONF_Y_AXIS, "PRIMARY_Y"),
+    (CONF_SECONDARY_Y_AXIS, "SECONDARY_Y"),
+    (CONF_X_AXIS, "PRIMARY_X"),
+    (CONF_SECONDARY_X_AXIS, "SECONDARY_X"),
+)
+
+
+def _is_templated(axis: ConfigType) -> bool:
+    return isinstance(axis[CONF_MIN_VALUE], Lambda) or isinstance(
+        axis[CONF_MAX_VALUE], Lambda
+    )
+
+
+async def set_chart_options(
+    chart: MockObj, config: ConfigType, templated: bool | None = None
+) -> None:
+    """Set the chart options in `config`, and the axis ranges that `templated` selects
+    (all of them when it is None)."""
+    if chart_type := config.get(CONF_TYPE):
+        lv.chart_set_type(chart, literal(chart_type))
+    if mode := config.get(CONF_UPDATE_MODE):
+        lv.chart_set_update_mode(chart, literal(mode))
+    if point_count := config.get(CONF_POINT_COUNT):
+        lv.chart_set_point_count(chart, point_count)
+    if div_count := config.get(CONF_DIV_LINE_COUNT):
+        lv.chart_set_div_line_count(chart, div_count[0], div_count[1])
+    await set_axis_ranges(chart, config, templated)
+
+
+async def set_axis_ranges(
+    chart: MockObj, config: ConfigType, templated: bool | None = None
+) -> None:
+    for axis_name, axis_key in AXES:
+        if (axis := config.get(axis_name)) is not None and templated in (
+            None,
+            _is_templated(axis),
+        ):
+            await set_axis_range(chart, axis_key, axis)
 
 
 async def set_axis_range(chart: MockObj, axis_key: str, axis: ConfigType) -> None:
     axis_id = literal(f"LV_CHART_AXIS_{axis_key}")
     min_value = await lv_int.process(axis[CONF_MIN_VALUE])
     max_value = await lv_int.process(axis[CONF_MAX_VALUE])
-    if not isinstance(axis[CONF_MIN_VALUE], Lambda) and not isinstance(
-        axis[CONF_MAX_VALUE], Lambda
-    ):
+    if not _is_templated(axis):
         lv.chart_set_axis_range(chart, axis_id, min_value, max_value)
         return
     # The schema only rejects equal fixed values; a zero-width range would make
