@@ -19,8 +19,6 @@ struct HostHooks {
   /// What the next AP start returns, and how many were tried.
   bool ap_start_ok{true};
   int ap_starts{0};
-  /// Stations on the AP once it starts.
-  uint8_t ap_clients{0};
   /// Output power values applied, in order.
   std::vector<float> output_powers;
   /// Times wifi_apply_power_save_() ran.

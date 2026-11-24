@@ -955,7 +955,8 @@ void WiFiComponent::loop() {
             // else: scan in progress, wait
           } else if (this->post_connect_roaming_ && this->roaming_state_ == RoamingState::IDLE &&
                      this->roaming_attempts_ < ROAMING_MAX_ATTEMPTS &&
-                     now - this->roaming_last_check_ >= ROAMING_CHECK_INTERVAL && !this->roaming_suppressed_()) {
+                     now - this->roaming_last_check_ >= ROAMING_CHECK_INTERVAL && !this->roaming_suppressed_() &&
+                     !this->ota_hold_()) {
             this->check_roaming_(now);
           }
         }
@@ -1009,8 +1010,9 @@ void WiFiComponent::loop() {
     }
 #endif  // USE_WIFI_AP && !USE_WIFI_AP_PERSISTENT
 #ifdef WIFI_AP_PORTAL_FOLLOWS_STA
+    // The portal's DNS change drops the AP clients, so not during an upload
     if (this->ap_setup_ && !this->is_connected() && now - this->last_connected_ > WIFI_PORTAL_REOPEN_DELAY_MS &&
-        !this->is_provisioning_closed_() && !this->is_ap_portal_active_()) {
+        !this->is_provisioning_closed_() && !this->is_ap_portal_active_() && !this->ota_hold_()) {
       this->start_ap_portal_();
     }
 #endif

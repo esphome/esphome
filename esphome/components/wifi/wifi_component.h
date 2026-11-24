@@ -924,12 +924,8 @@ class WiFiComponent final : public Component {
   bool is_provisioning_active_();
   /// An OTA upload may be running over the AP
   bool ota_hold_() const {
-#if defined(USE_WIFI_AP) && defined(USE_OTA) && (defined(USE_RTL87XX) || defined(USE_LN882X))
-    // These drivers report no stations
+#if defined(USE_WIFI_AP) && defined(USE_OTA)
     return this->ap_setup_ && ota::UpdateLock::any_held();
-#elif defined(USE_WIFI_AP) && defined(USE_OTA)
-    // Without a station on the AP the upload runs over the main network, which a retry may bring back
-    return this->ap_setup_ && this->ap_clients_ != 0 && ota::UpdateLock::any_held();
 #else
     return false;
 #endif

@@ -48,7 +48,6 @@ bool WiFiComponent::wifi_scan_start_(bool passive) {
 bool WiFiComponent::wifi_disconnect_() { return true; }
 bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
   host_hooks.ap_starts++;
-  this->ap_clients_ = host_hooks.ap_clients;
   return host_hooks.ap_start_ok;
 }
 network::IPAddress WiFiComponent::wifi_soft_ap_ip() { return {}; }
