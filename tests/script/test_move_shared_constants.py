@@ -689,6 +689,69 @@ def test_annotated_definition_is_found_and_removed(
     assert mod.cmd_move(repo, "KEY_BOARD") == 0
     moved = read(repo, "esphome/components/c0/__init__.py")
     assert "Final =" not in moved
+    assert "Final" not in moved
     assert "from esphome.components.const import KEY_BOARD" in moved
     assert 'KEY_BOARD = "board"\n' in read(repo, "esphome/components/const/__init__.py")
     assert "KEY_BOARD" not in read(repo, "esphome/components/c1/__init__.py")
+
+
+def test_bare_annotation_does_not_swallow_the_next_line(
+    repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    add_definers(repo, "KEY_FOO", "foo")
+    write(
+        repo,
+        "esphome/components/c0/__init__.py",
+        'KEY_FOO: str\nOTHER = "foo"\nKEY_FOO = "foo"\n',
+    )
+    assert mod.cmd_move(repo, "KEY_FOO") == 0
+    assert 'OTHER = "foo"' in read(repo, "esphome/components/c0/__init__.py")
+    assert "KEY_FOO: str" in read(repo, "esphome/components/c0/__init__.py")
+
+
+def test_commented_definition_is_counted_and_removed(
+    repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    for i in range(3):
+        write(
+            repo,
+            f"esphome/components/c{i}/__init__.py",
+            'KEY_NOTE = "note"  # it\'s a "note"\n',
+        )
+    mod.cmd_find(repo)
+    assert json.loads(capsys.readouterr().out) == ["KEY_NOTE"]
+    assert mod.cmd_move(repo, "KEY_NOTE") == 0
+    for i in range(3):
+        assert read(repo, f"esphome/components/c{i}/__init__.py") == ""
+
+
+def test_move_keeps_imports_that_are_still_used_or_deliberate(repo: Path) -> None:
+    add_definers(repo, "KEY_BOARD", "board", 2)
+    write(
+        repo,
+        "esphome/components/c2/__init__.py",
+        "import os\n"
+        "from typing import Any, Final, Literal  # noqa: F401\n"
+        "from typing import ClassVar, Final as F\n"
+        "import sys\n\n"
+        'KEY_BOARD: Final = "board"\n'
+        "X: ClassVar[Any] = os, sys, F\n",
+    )
+    assert mod.cmd_move(repo, "KEY_BOARD") == 0
+    moved = read(repo, "esphome/components/c2/__init__.py")
+    assert "Literal  # noqa: F401" in moved
+    assert "Final, Final as F" in moved
+    assert "KEY_BOARD:" not in moved
+
+
+def test_move_removes_only_the_unused_annotation_import(repo: Path) -> None:
+    add_definers(repo, "KEY_BOARD", "board", 2)
+    write(
+        repo,
+        "esphome/components/c2/__init__.py",
+        'from typing import Any, Final\n\nKEY_BOARD: Final = "board"\nX: Any = 1\n',
+    )
+    assert mod.cmd_move(repo, "KEY_BOARD") == 0
+    moved = read(repo, "esphome/components/c2/__init__.py")
+    assert "from typing import Any\n" in moved
+    assert "Final" not in moved

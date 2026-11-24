@@ -236,6 +236,56 @@ def test_name_not_in_a_home_passes() -> None:
     assert _redefine("a.py", 'MY_LOCAL_THING = "x"\nx == 1\n') == []
 
 
+def test_redefinition_reports_each_name_at_its_line_and_column() -> None:
+    first = _home_name(ci_custom.CONSTANTS, "ICON_")
+    second = _home_name(ci_custom.CONSTANTS, "STATE_CLASS_")
+    content = f'OTHER = 1\n{first} = {second} = "x"\n'
+    errs = _redefine("a.py", content)
+    assert [(line, col) for line, col, _ in errs] == [(2, 1), (2, len(first) + 4)]
+
+
+@pytest.mark.parametrize(
+    "template",
+    [
+        'OTHER, {name} = "a", "b"\n',
+        '[OTHER, *{name}] = "a", "b"\n',
+        'if X:\n    {name} = "x"\n',
+        'try:\n    pass\nexcept ImportError:\n    {name} = "x"\n',
+        'with X:\n    {name}: str = "x"\n',
+        'for _ in X:\n    {name} = "x"\n',
+        '{name} = "x"  # a comment\n',
+        '{name}="x"\n',
+    ],
+)
+def test_redefinition_forms_are_all_flagged(template: str) -> None:
+    name = _home_name(ci_custom.CONSTANTS, "ICON_")
+    assert len(_redefine("a.py", template.format(name=name))) == 1
+
+
+@pytest.mark.parametrize(
+    "template",
+    [
+        'def f() -> None:\n    {name} = "x"\n',
+        'async def f() -> None:\n    {name} = "x"\n',
+        'class A:\n    {name} = "x"\n',
+        "{name}: str\n",
+        "{name} += 1\n",
+        "a.{name} = 1\n",
+    ],
+)
+def test_redefinition_outside_module_scope_or_without_value_passes(
+    template: str,
+) -> None:
+    name = _home_name(ci_custom.CONSTANTS, "ICON_")
+    assert _redefine("a.py", template.format(name=name)) == []
+
+
+def test_unparseable_file_is_left_to_the_python_linters() -> None:
+    name = _home_name(ci_custom.CONSTANTS, "ICON_")
+    assert _redefine("a.py", f"{name} = (\n") == []
+    assert _matches("CONF_FOO = (\n") == []
+
+
 def test_indented_and_comparison_are_not_definitions() -> None:
     name = _home_name(ci_custom.CONSTANTS, "ICON_")
     assert _redefine("a.py", f'def f() -> None:\n    {name} = "x"\n') == []
@@ -246,9 +296,33 @@ def test_module_level_names_reads_assignments_with_ast(tmp_path: Path) -> None:
     path = tmp_path / "homes.py"
     path.write_text(
         'A = "a"\nB: str = "b"\nC, (D, E) = 1, (2, 3)\nDOMAIN = "d"\n'
-        '__version__ = "1"\nF += 1\nimport os\ndef f() -> None:\n    G = 1\n'
+        '__version__ = "1"\nF += 1\nH: int\nimport os\ndef f() -> None:\n    G = 1\n'
+        'try:\n    I = "i"\nexcept ImportError:\n    J = K = "j"\n'
     )
-    assert ci_custom._module_level_names(str(path)) == {"A", "B", "C", "D", "E"}
+    assert ci_custom._module_level_names(str(path)) == {
+        "A",
+        "B",
+        "C",
+        "D",
+        "E",
+        "I",
+        "J",
+        "K",
+    }
+
+
+def test_homes_do_not_overlap_in_the_repo() -> None:
+    assert ci_custom.lint_homes_do_not_overlap() == []
+
+
+def test_overlapping_home_names_are_reported(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(ci_custom, "CONSTANTS", {"ICON_A", "CONF_B"})
+    monkeypatch.setattr(ci_custom, "COMPONENT_CONSTANTS", {"CONF_B", "ICON_C"})
+    errs = ci_custom.lint_homes_do_not_overlap()
+    assert len(errs) == 1
+    assert "CONF_B" in errs[0]
 
 
 # --- 3+ files tracking for CONF_, UNIT_ and KEY_ ---
@@ -259,6 +333,17 @@ def test_const_not_in_a_home_is_tracked_not_flagged(name: str) -> None:
     ci_custom.CONSTANTS_USES.clear()
     assert _redefine("a.py", f'{name} = "fb"\n') == []
     assert ci_custom.CONSTANTS_USES[name] == ["a.py"]
+
+
+def test_commented_chained_and_indented_string_consts_are_tracked() -> None:
+    ci_custom.CONSTANTS_USES.clear()
+    assert _redefine("a.py", 'KEY_FOO_BAR = "x"  # note\n') == []
+    assert _redefine("b.py", 'KEY_FOO_BAR = KEY_BAZ_QUX = "x"\n') == []
+    assert _redefine("c.py", 'if X:\n    KEY_FOO_BAR = "x"\n') == []
+    assert _redefine("d.py", 'def f() -> None:\n    KEY_FOO_BAR = "x"\n') == []
+    assert _redefine("e.py", 'A, KEY_FOO_BAR = "x", "y"\n') == []
+    assert ci_custom.CONSTANTS_USES["KEY_FOO_BAR"] == ["a.py", "b.py", "c.py"]
+    assert ci_custom.CONSTANTS_USES["KEY_BAZ_QUX"] == ["b.py"]
 
 
 @pytest.mark.parametrize("value", ["OTHER", "8"])
@@ -320,6 +405,47 @@ def test_mismatched_name_and_value_is_flagged(prefix: str, annotation: str) -> N
     assert len(errs) == 1
     assert f"{prefix}_FOO_BAR" in errs[0][2]
     assert "does not match value" in errs[0][2]
+
+
+@pytest.mark.parametrize("prefix", ["CONF", "KEY"])
+@pytest.mark.parametrize(
+    "template",
+    [
+        '{p}_FOO = "foo"  # note\n',
+        '{p}_FOO="foo"\n',
+        '{p}_FOO = "fo" "o"\n',
+        '{p}_FOO = "FOO".lower()\n',
+        '{p}_FOO = OTHER = "foo"\n',
+        'class A:\n    {p}_FOO = "foo"\n',
+        'def f() -> None:\n    {p}_FOO: Final = "foo"\n',
+        "{p}_FOO = 8\n",
+        '{p}_FOO, OTHER = "a", "b"\n',
+        'a.{p}_FOO = "x"\n',
+    ],
+)
+def test_matching_forms_pass(prefix: str, template: str) -> None:
+    assert _matches(template.format(p=prefix)) == []
+
+
+@pytest.mark.parametrize("prefix", ["CONF", "KEY"])
+@pytest.mark.parametrize(
+    ("template", "line", "col"),
+    [
+        ('{p}_FOO = "wrong"  # note\n', 1, 1),
+        ('{p}_FOO="wrong"\n', 1, 1),
+        ('{p}_FOO = "wr" "ong"\n', 1, 1),
+        ('class A:\n    {p}_FOO = "wrong"\n', 2, 5),
+        ('{p}_FOO: Final = "wrong"\n', 1, 1),
+        ('OTHER = {p}_FOO = "wrong"\n', 1, 9),
+    ],
+)
+def test_mismatching_forms_are_flagged(
+    prefix: str, template: str, line: int, col: int
+) -> None:
+    errs = _matches(template.format(p=prefix))
+    assert [(ln, c) for ln, c, _ in errs] == [(line, col)]
+    assert f"{prefix}_FOO" in errs[0][2]
+    assert "wrong" in errs[0][2]
 
 
 def test_unit_name_may_differ_from_value() -> None:

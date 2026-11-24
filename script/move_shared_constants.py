@@ -30,9 +30,11 @@ import re
 import subprocess
 import sys
 
-# The optional annotation (`KEY_BOARD: Final = "board"`) is not part of the moved line.
+# The optional annotation (`KEY_BOARD: Final = "board"`) and trailing comment are not part
+# of the moved line. Everything stays on one line so a bare annotation never joins the
+# next statement.
 DEF_RE = re.compile(
-    r'^((?:CONF|UNIT|KEY)_[a-zA-Z0-9_]+)\s*(?::[^=]*)?=\s*([\'"].*?[\'"])\s*?$',
+    r'^((?:CONF|UNIT|KEY)_[a-zA-Z0-9_]+)[ \t]*(?::[^=\n]*)?=[ \t]*([\'"].*?[\'"])[ \t]*(?:#.*)?$',
     re.MULTILINE,
 )
 NAME_RE = re.compile(r"^(?:CONF|UNIT|KEY)_[A-Z0-9_]+$")
@@ -252,6 +254,40 @@ def imported_from(root: Path, files: list[str], name: str) -> set[str]:
     return modules
 
 
+def annotation_names(definition: str) -> set[str]:
+    """Return the names used in the annotation of a definition line, such as Final."""
+    node = ast.parse(definition.strip()).body[0]
+    if not isinstance(node, ast.AnnAssign):
+        return set()
+    return {n.id for n in ast.walk(node.annotation) if isinstance(n, ast.Name)}
+
+
+def drop_unused_imports(text: str, candidates: set[str]) -> str:
+    """Remove the imports of candidate names that nothing in the text uses any more.
+
+    Imports with a noqa comment are kept: they are deliberate re-exports.
+    """
+    tree = ast.parse(text)
+    used = {n.id for n in ast.walk(tree) if isinstance(n, ast.Name)}
+    lines = text.splitlines()
+    for node in reversed(tree.body):
+        if not isinstance(node, (ast.Import, ast.ImportFrom)):
+            continue
+        if any("noqa" in line for line in lines[node.lineno - 1 : node.end_lineno]):
+            continue
+        keep = [
+            alias
+            for alias in node.names
+            if (alias.asname or alias.name.split(".")[0]) not in candidates - used
+        ]
+        if len(keep) == len(node.names):
+            continue
+        node.names = keep
+        new = [ast.unparse(node)] if keep else []
+        lines[node.lineno - 1 : node.end_lineno] = new
+    return "\n".join(lines) + "\n" if lines else ""
+
+
 def replace_definition(
     root: Path, rel: str, name: str, import_line: str, importers: set[str]
 ) -> bool:
@@ -261,9 +297,9 @@ def replace_definition(
     this file's module. Returns whether an import was added.
     """
     text = read_text(root, rel)
-    text = re.sub(
-        rf"^{name}\s*(?::[^=]*)?=.*\n?", "", text, count=1, flags=re.MULTILINE
-    )
+    definition = re.search(rf"^{name}[ \t]*(?::[^=\n]*)?=.*\n?", text, re.MULTILINE)
+    text = text[: definition.start()] + text[definition.end() :]
+    text = drop_unused_imports(text, annotation_names(definition.group(0)))
     tree = ast.parse(text)
     used = any(isinstance(n, ast.Name) and n.id == name for n in ast.walk(tree))
     if not used and module_name(rel) not in importers:

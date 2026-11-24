@@ -539,23 +539,90 @@ def lint_const_ordered(fname, content):
     return errs
 
 
-@lint_re_check(
-    r'^\s*(CONF|KEY)_([A-Z_0-9a-z]+)[ \t]*(?::[^=\n]*)?=\s+[\'"](.*?)[\'"]\s*?$',
-    include=["*.py"],
-)
-def lint_const_matches_value(fname, match):
-    """Require a CONF_ or KEY_ constant's name to match its value (UNIT_ may be anything)."""
-    prefix = match.group(1)
-    const = match.group(2)
-    value = match.group(3)
-    const_norm = const.lower()
-    value_norm = value.replace(".", "_")
-    if const_norm == value_norm:
+def _assigned_names(target: ast.expr) -> Iterator[ast.Name]:
+    """Yield the names bound by an assignment target, including unpacked ones."""
+    if isinstance(target, ast.Name):
+        yield target
+    elif isinstance(target, ast.Starred):
+        yield from _assigned_names(target.value)
+    elif isinstance(target, (ast.Tuple, ast.List)):
+        for elt in target.elts:
+            yield from _assigned_names(elt)
+
+
+def _module_level_statements(nodes: Iterable[ast.AST]) -> Iterator[ast.AST]:
+    """Yield statements at module level, including those inside if/try/with/for blocks.
+
+    Function and class bodies are a different scope and are not entered.
+    """
+    for node in nodes:
+        yield node
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            continue
+        yield from _module_level_statements(
+            child
+            for child in ast.iter_child_nodes(node)
+            if isinstance(child, (ast.stmt, ast.excepthandler, ast.match_case))
+        )
+
+
+def _assignments(
+    nodes: Iterable[ast.AST],
+) -> Iterator[tuple[list[ast.expr], ast.expr]]:
+    """Yield (targets, value) for each assignment that binds a value in the nodes."""
+    for node in nodes:
+        if isinstance(node, ast.Assign):
+            yield node.targets, node.value
+        elif isinstance(node, ast.AnnAssign) and node.value is not None:
+            yield [node.target], node.value
+
+
+def _plain_string(value: ast.expr) -> str | None:
+    """Return the string a literal expression holds, or None if it is anything else."""
+    if isinstance(value, ast.Constant) and type(value.value) is str:
+        return value.value
+    return None
+
+
+def _parse(fname: Path | str, content: str) -> ast.Module | None:
+    """Parse a file, or return None when it does not parse (reported by the linters)."""
+    try:
+        return ast.parse(content, filename=str(fname))
+    except SyntaxError:
         return None
-    return (
-        f"Constant {highlight(prefix + '_' + const)} does not match value {highlight(value)}! "
-        "Please make sure the constant's name matches its value!"
-    )
+
+
+@lint_content_check(include=["*.py"])
+def lint_const_matches_value(fname: Path, content: str) -> list[tuple[int, int, str]]:
+    """Require a CONF_ or KEY_ constant's name to match its value (UNIT_ may be anything).
+
+    Every assignment of a string literal to a plain name is checked, in any scope.
+    """
+    if (tree := _parse(fname, content)) is None:
+        return []
+    errs: list[tuple[int, int, str]] = []
+    for targets, value in _assignments(ast.walk(tree)):
+        if (text := _plain_string(value)) is None:
+            continue
+        for target in targets:
+            if not isinstance(target, ast.Name) or not target.id.startswith(
+                ("CONF_", "KEY_")
+            ):
+                continue
+            if target.id.split("_", 1)[1].lower() == text.replace(".", "_"):
+                continue
+            errs.append(
+                (
+                    target.lineno,
+                    target.col_offset + 1,
+                    (
+                        f"Constant {highlight(target.id)} does not match value "
+                        f"{highlight(text)}! Please make sure the constant's name "
+                        "matches its value!"
+                    ),
+                )
+            )
+    return errs
 
 
 # The two canonical homes for shared constants: esphome/const.py (core, frozen) and
@@ -568,24 +635,14 @@ HOME_METADATA_NAMES = {"CODEOWNERS", "DOMAIN"}
 
 
 def _module_level_names(path: str) -> set[str]:
-    """Return the names a file binds with a top-level assignment, found with ast."""
-    with Path(path).open(encoding="utf-8") as handle:
-        tree = ast.parse(handle.read(), filename=path)
-    names: set[str] = set()
-    for node in tree.body:
-        if isinstance(node, ast.Assign):
-            targets = node.targets
-        elif isinstance(node, ast.AnnAssign):
-            targets = [node.target]
-        else:
-            continue
-        names.update(
-            n.id for t in targets for n in ast.walk(t) if isinstance(n, ast.Name)
-        )
+    """Return the names a file binds at module level, minus per-module metadata."""
+    tree = ast.parse(Path(path).read_text(encoding="utf-8"), filename=path)
     return {
-        name
-        for name in names
-        if name not in HOME_METADATA_NAMES and not name.startswith("__")
+        name.id
+        for targets, _ in _assignments(_module_level_statements(tree.body))
+        for target in targets
+        for name in _assigned_names(target)
+        if name.id not in HOME_METADATA_NAMES and not name.id.startswith("__")
     }
 
 
@@ -595,6 +652,16 @@ COMPONENT_CONSTANTS = _module_level_names(CONST_HOMES[1])
 # Definitions of CONF_, UNIT_ and KEY_ string constants outside the homes, for the 3+ files
 # and new constant checks.
 CONSTANTS_USES = collections.defaultdict(list)
+
+
+@lint_post_check
+def lint_homes_do_not_overlap() -> list[str]:
+    """Reject a name that both canonical const homes define."""
+    return [
+        f"Constant {highlight(name)} is defined in both esphome/const.py and "
+        "esphome/components/const/__init__.py - please keep it in one of them."
+        for name in sorted(CONSTANTS & COMPONENT_CONSTANTS)
+    ]
 
 
 def _const_home_error(name, core_constants, component_constants):
@@ -613,22 +680,28 @@ def _const_home_error(name, core_constants, component_constants):
     return None
 
 
-@lint_re_check(
-    r"^([A-Za-z_][A-Za-z0-9_]*)\s*(?::[^=\n]*)?=(?!=)\s*(.*)$",
-    include=["*.py"],
-    exclude=CONST_HOMES,
-)
-def lint_const_from_const_py(fname, match):
-    """Reject a module-level name that esphome/const.py or components/const defines."""
-    name = match.group(1)
-    err = _const_home_error(name, CONSTANTS, COMPONENT_CONSTANTS)
-    if (
-        err is None
-        and name.startswith(("CONF_", "UNIT_", "KEY_"))
-        and re.fullmatch(r"""(['"]).*?\1\s*""", match.group(2))
-    ):
-        CONSTANTS_USES[name].append(fname)
-    return err
+@lint_content_check(include=["*.py"], exclude=CONST_HOMES)
+def lint_const_from_const_py(fname: Path, content: str) -> list[tuple[int, int, str]]:
+    """Reject a module-level name that esphome/const.py or components/const defines.
+
+    Also records each CONF_, UNIT_ and KEY_ string constant for the 3+ files checks.
+    """
+    if (tree := _parse(fname, content)) is None:
+        return []
+    errs: list[tuple[int, int, str]] = []
+    for targets, value in _assignments(_module_level_statements(tree.body)):
+        is_string = _plain_string(value) is not None
+        for target in targets:
+            for name in _assigned_names(target):
+                if err := _const_home_error(name.id, CONSTANTS, COMPONENT_CONSTANTS):
+                    errs.append((name.lineno, name.col_offset + 1, err))
+                elif (
+                    is_string
+                    and isinstance(target, ast.Name)
+                    and name.id.startswith(("CONF_", "UNIT_", "KEY_"))
+                ):
+                    CONSTANTS_USES[name.id].append(fname)
+    return errs
 
 
 # Names that start with CONF_, UNIT_ or KEY_ but are not config key, unit or storage key
@@ -647,33 +720,12 @@ NON_LITERAL_CONSTANT_ALLOWLIST = {
 
 def _constant_names(target: ast.expr) -> Iterator[ast.Name]:
     """Yield the CONF_/UNIT_/KEY_ names bound by an assignment target."""
-    if isinstance(target, ast.Name):
+    for name in _assigned_names(target):
         if (
-            target.id.startswith(("CONF_", "UNIT_", "KEY_"))
-            and target.id not in NON_LITERAL_CONSTANT_ALLOWLIST
+            name.id.startswith(("CONF_", "UNIT_", "KEY_"))
+            and name.id not in NON_LITERAL_CONSTANT_ALLOWLIST
         ):
-            yield target
-    elif isinstance(target, ast.Starred):
-        yield from _constant_names(target.value)
-    elif isinstance(target, (ast.Tuple, ast.List)):
-        for elt in target.elts:
-            yield from _constant_names(elt)
-
-
-def _module_level_statements(nodes: Iterable[ast.AST]) -> Iterator[ast.AST]:
-    """Yield statements at module level, including those inside if/try/with/for blocks.
-
-    Function and class bodies are a different scope and are not entered.
-    """
-    for node in nodes:
-        yield node
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-            continue
-        yield from _module_level_statements(
-            child
-            for child in ast.iter_child_nodes(node)
-            if isinstance(child, (ast.stmt, ast.excepthandler, ast.match_case))
-        )
+            yield name
 
 
 @lint_content_check(include=["esphome/*.py"])
