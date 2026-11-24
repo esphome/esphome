@@ -163,11 +163,17 @@ def _add_count_define(
     add_define(name, value)
 
 
-def _emit_list(upper: str, objs: list[str]) -> None:
+def _emit_list(upper: str, objs: list[str], count_define: str) -> None:
     name = f"esphome::app_lists::APP_{upper}_LIST"
     # A list without codegen objects still needs a definition; its count is 0, so it is never read
     items = ", ".join(objs) or "nullptr"
     add_global(RawStatement(f"decltype({name}) {name} PROGMEM = {{{items}}};"))
+    # Catches a count defined later than the check above (a later FINAL job); costs no flash
+    add_global(
+        RawStatement(
+            f'static_assert({count_define} == {len(objs)}, "{count_define} must match the {upper} list");'
+        )
+    )
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
@@ -195,20 +201,20 @@ async def _emit_entity_lists() -> None:
             f"to register {platform} entities at run time, call "
             f'cg.reserve_runtime_entities("{platform}", n) in to_code'
         )
-        _add_count_define(
-            defined, f"ESPHOME_ENTITY_{platform.upper()}_COUNT", len(objs), hint
-        )
+        count_define = f"ESPHOME_ENTITY_{platform.upper()}_COUNT"
+        _add_count_define(defined, count_define, len(objs), hint)
         _add_count_define(defined, f"ESPHOME_RUNTIME_{upper}_COUNT", reserved, hint)
-        _emit_list(upper, objs)
+        _emit_list(upper, objs, count_define)
     for upper in ("DEVICE", "AREA"):
         if (objs := state.lists.get(upper)) is not None:
+            count_define = f"ESPHOME_{upper}_COUNT"
             _add_count_define(
                 defined,
-                f"ESPHOME_{upper}_COUNT",
+                count_define,
                 len(objs),
                 "devices and areas come from the YAML devices: and areas: lists",
             )
-            _emit_list(upper, objs)
+            _emit_list(upper, objs, count_define)
 
 
 def schedule_emit() -> None:

@@ -125,8 +125,6 @@ TEST(ComponentIterator, DeprecatedAdvanceKeepsLegacyPatternWorking) {
 #pragma GCC diagnostic pop
 
 #ifdef USE_SENSOR
-// Iterator whose sensor callback can refuse or yield; pins the per-item
-// contract: a refused item is re-offered with at_ unchanged, never skipped.
 // The two sensors the tests register into the runtime slots
 static sensor::Sensor sensor_a;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static sensor::Sensor sensor_b;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -137,6 +135,8 @@ static constexpr uint32_t SENSOR_C_HASH = 0x12345678;
 static constexpr uint32_t SENSOR_C_FIELDS =
     (1u << ENTITY_FIELD_INTERNAL_SHIFT) | (uint32_t{ENTITY_CATEGORY_CONFIG} << ENTITY_FIELD_ENTITY_CATEGORY_SHIFT);
 
+// Iterator whose sensor callback can refuse or yield; pins the per-item
+// contract: a refused item is re-offered with at_ unchanged, never skipped.
 class ItemRefusingIterator : public RefusingIterator {
  public:
   bool on_sensor(sensor::Sensor *obj) override {
@@ -270,6 +270,82 @@ TEST_F(ComponentIteratorSensorTest, YieldAfterStepEndsPassAndResumes) {
   // Remaining states then run to completion in one pass
   it.try_advance(BIG_BUDGET);
   EXPECT_TRUE(it.completed());
+}
+
+// Constructed sensors in a local constant list, walked the way the iterator walks App's lists
+static sensor::Sensor list_sensor_a;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static sensor::Sensor list_sensor_b;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static sensor::Sensor *const LIST_SENSORS[] = {&list_sensor_a, &list_sensor_b};
+static const AppList<sensor::Sensor, 2> LOCAL_LIST(LIST_SENSORS);
+
+// Same contract as ItemRefusingIterator, one process_platform_item_() step at a time over the local list
+class ListIterator : public RefusingIterator {
+ public:
+  bool on_sensor(sensor::Sensor *obj) override {
+    this->last_sensor = obj;
+    if (!step(this->sensor_calls, this->sensor_refusals))
+      return false;
+    if (this->yield_on_sensor)
+      this->yield_after_step_();
+    return true;
+  }
+  /// One iteration step over the local list
+  bool step_list() { return this->process_platform_item_(LOCAL_LIST, &ComponentIterator::on_sensor); }
+  uint16_t at() const { return this->at_; }
+  bool yield_requested() const { return this->yield_requested_; }
+
+  sensor::Sensor *last_sensor{nullptr};
+  int sensor_calls{0};
+  int sensor_refusals{0};
+  bool yield_on_sensor{false};
+};
+
+TEST(ComponentIteratorList, RefusedItemIsReofferedNotSkipped) {
+  ListIterator it;
+  it.sensor_refusals = 2;
+  // The first sensor refuses twice; at_ stays on it
+  EXPECT_FALSE(it.step_list());
+  EXPECT_FALSE(it.step_list());
+  EXPECT_EQ(it.at(), 0);
+  EXPECT_EQ(it.last_sensor, &list_sensor_a);
+  // Then it is accepted, and the second sensor follows
+  EXPECT_TRUE(it.step_list());
+  EXPECT_EQ(it.at(), 1);
+  EXPECT_TRUE(it.step_list());
+  EXPECT_EQ(it.last_sensor, &list_sensor_b);
+  EXPECT_EQ(it.sensor_calls, 4);
+  // Past the end the iterator moves on to the next platform without another callback
+  EXPECT_TRUE(it.step_list());
+  EXPECT_EQ(it.at(), 0);
+  EXPECT_EQ(it.sensor_calls, 4);
+}
+
+TEST(ComponentIteratorList, YieldAfterStepIsRequestedPerItem) {
+  ListIterator it;
+  it.yield_on_sensor = true;
+  EXPECT_TRUE(it.step_list());
+  // try_advance() ends its pass when the callback asked to yield
+  EXPECT_TRUE(it.yield_requested());
+  EXPECT_EQ(it.at(), 1);
+  EXPECT_EQ(it.last_sensor, &list_sensor_a);
+}
+
+TEST(AppListView, WalksTheConstantArrayInOrder) {
+  EXPECT_EQ(LOCAL_LIST.size(), 2u);
+  EXPECT_FALSE(LOCAL_LIST.empty());
+  EXPECT_EQ(LOCAL_LIST[0], &list_sensor_a);
+  EXPECT_EQ(LOCAL_LIST[1], &list_sensor_b);
+  std::vector<sensor::Sensor *> seen;
+  for (auto *obj : LOCAL_LIST)
+    seen.push_back(obj);
+  EXPECT_EQ(seen, (std::vector<sensor::Sensor *>{&list_sensor_a, &list_sensor_b}));
+}
+
+TEST(AppListView, EmptyListHasNoItems) {
+  const AppList<sensor::Sensor, 0> empty(nullptr);
+  EXPECT_EQ(empty.size(), 0u);
+  EXPECT_TRUE(empty.empty());
+  EXPECT_EQ(empty.begin(), empty.end());
 }
 #endif  // USE_SENSOR
 
