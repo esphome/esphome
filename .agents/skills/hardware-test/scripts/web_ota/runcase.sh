@@ -13,6 +13,7 @@ for try in 1 2 3 4 5 6; do
   # Retry only a case the network cut before the final chunk; close and hold cut it on purpose
   if [ "$1" != close ] && [ "$1" != hold ] && ! grep -aq "final chunk" <<<"$NEW" && grep -aq "interrupted" <<<"$NEW"; then
     echo "$L try $try interrupted by the network, retrying"
+    [ "$try" = 6 ] && echo "$L RETRIES EXHAUSTED: every try was cut by the network, no result for this case"
     sleep 10
     continue
   fi

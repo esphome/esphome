@@ -8,6 +8,7 @@ L=$1 IMG=$2 N=$3 M=$4 TREE=${5:-}
 D=$(cd "$(dirname "$0")" && pwd)
 IMG=$(cd "$(dirname "$IMG")" && pwd)/$(basename "$IMG")
 PY=${PYTHON:-python3}
+[ "$M" = web ] || [ -d "$TREE" ] || { echo "nat needs TREE, the checkout under test"; exit 1; }
 for i in $(seq 1 "$N"); do
   echo "$(date +%T) $L $M upload $i start"
   if [ "$M" = web ]; then
@@ -19,7 +20,7 @@ for i in $(seq 1 "$N"); do
   fi
   CP=$!
   sleep "${DROP_AT:-20}"
-  echo "${DROP_MS:-5000}" >drop-ms
+  echo "${DROP_MS:-5000}" >drop-ms.tmp && mv drop-ms.tmp drop-ms
   echo "$(date +%T) $L drop requested"
   wait $CP
   rc=$?
