@@ -20,7 +20,7 @@ from esphome.const import (
     KEY_ESP32,
     PlatformFramework,
 )
-from esphome.core import CORE
+from esphome.core import CORE, EsphomeError
 
 from ..types import SetCoreConfigCallable
 
@@ -63,7 +63,7 @@ def test_classic_rejects_hosted_controller(
 
     CORE.config = {esp32_ble.DOMAIN: config, esp32_ble.ESP32_HOSTED_DOMAIN: {}}
     # Code generation runs outside the final-validation context.
-    with pytest.raises(cv.Invalid, match="local ESP32 controller"):
+    with pytest.raises(EsphomeError, match="local ESP32 controller"):
         Context().run(esp32_ble.request_classic_bt)
 
 
@@ -122,6 +122,7 @@ def test_classic_request_works_without_manual_switch(
         esp32_ble.request_classic_bt()
 
     add_define.assert_called_once_with("USE_ESP32_BLE_CLASSIC_BT")
+    assert CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]["CONFIG_BT_ACL_CONNECTIONS"] == 5
     assert (
         CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS][
             "CONFIG_BTDM_CTRL_BR_EDR_MAX_ACL_CONN"
@@ -149,5 +150,84 @@ def test_classic_request_rejects_unsupported_targets(
         esp32_ble.validate_classic_bt_target(path=[esp32_ble.CONF_CLASSIC_BT])
     assert error.value.path == [esp32_ble.CONF_CLASSIC_BT]
 
-    with pytest.raises(cv.Invalid, match="original ESP32"):
+    with pytest.raises(EsphomeError, match="original ESP32"):
         esp32_ble.request_classic_bt()
+
+
+@pytest.mark.parametrize(
+    ("ble", "classic", "host_capacity"), [(3, 2, 6), (1, 7, 9), (7, 1, 9)]
+)
+def test_classic_shared_capacity(
+    set_core_config: SetCoreConfigCallable, ble: int, classic: int, host_capacity: int
+) -> None:
+    _stage(set_core_config, PlatformFramework.ESP32_IDF, VARIANT_ESP32)
+    config = esp32_ble.CONFIG_SCHEMA(
+        {
+            "classic_bt": True,
+            "max_connections": ble,
+            "classic_max_acl_connections": classic,
+        }
+    )
+    esp32_ble.final_validation(config)
+    options = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert options["CONFIG_BT_ACL_CONNECTIONS"] == host_capacity
+    assert options["CONFIG_BTDM_CTRL_BLE_MAX_CONN"] == ble
+    CORE.config = {esp32_ble.DOMAIN: config}
+    esp32_ble.request_classic_bt()
+    assert options["CONFIG_BT_ACL_CONNECTIONS"] == host_capacity
+    assert options["CONFIG_BTDM_CTRL_BR_EDR_MAX_ACL_CONN"] == classic
+
+
+@pytest.mark.parametrize(("ble", "classic"), [(2, 7), (8, 1), (3, 7)])
+def test_classic_rejects_oversubscribed_host(
+    set_core_config: SetCoreConfigCallable, ble: int, classic: int
+) -> None:
+    _stage(set_core_config, PlatformFramework.ESP32_IDF, VARIANT_ESP32)
+    config = esp32_ble.CONFIG_SCHEMA(
+        {
+            "classic_bt": True,
+            "max_connections": ble,
+            "classic_max_acl_connections": classic,
+        }
+    )
+    with pytest.raises(cv.Invalid, match="maximum is 9"):
+        esp32_ble.final_validation(config)
+
+
+def test_component_request_rechecks_ble_only_budget(
+    set_core_config: SetCoreConfigCallable,
+) -> None:
+    _stage(set_core_config, PlatformFramework.ESP32_IDF, VARIANT_ESP32)
+    config = esp32_ble.CONFIG_SCHEMA({"max_connections": 8})
+    esp32_ble.final_validation(config)
+    options = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert options["CONFIG_BT_ACL_CONNECTIONS"] == 9
+    CORE.config = {esp32_ble.DOMAIN: config}
+    with pytest.raises(EsphomeError, match="maximum is 9"):
+        esp32_ble.request_classic_bt()
+    assert options["CONFIG_BT_ACL_CONNECTIONS"] == 9
+
+
+@pytest.mark.parametrize(
+    ("ble_config", "tracker", "effective"),
+    [({}, 6, 6), ({"max_connections": 3}, 6, 3), ({}, 0, 3)],
+)
+def test_classic_budget_with_deprecated_tracker_limit(
+    set_core_config: SetCoreConfigCallable,
+    ble_config: dict,
+    tracker: int,
+    effective: int,
+) -> None:
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_VARIANT: VARIANT_ESP32, KEY_SDKCONFIG_OPTIONS: {}},
+        full_config={"esp32_ble_tracker": {"max_connections": tracker}},
+    )
+    config = esp32_ble.CONFIG_SCHEMA({**ble_config, "classic_bt": True})
+    esp32_ble.final_validation(config)
+    assert config["max_connections"] == effective
+    CORE.config = {esp32_ble.DOMAIN: config}
+    esp32_ble.request_classic_bt()
+    options = CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS]
+    assert options["CONFIG_BTDM_CTRL_BLE_MAX_CONN"] == effective
+    assert options["CONFIG_BT_ACL_CONNECTIONS"] == effective + 2
