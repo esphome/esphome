@@ -41,6 +41,16 @@ inline Color apply_color_order(Color color, ColorOrder order) {
   }
 }
 
+/** Rec.601 luma weights (0.299/0.587/0.114), scaled by 256 */
+static constexpr uint16_t REC601_LUMA_R = 77;
+static constexpr uint16_t REC601_LUMA_G = 150;
+static constexpr uint16_t REC601_LUMA_B = 29;
+
+/** Rec.601 luma of an RGB color, for optimum perceptual brightness */
+constexpr uint8_t rec601_luma(Color color) {
+  return (uint8_t) ((REC601_LUMA_R * color.r + REC601_LUMA_G * color.g + REC601_LUMA_B * color.b + 128u) >> 8);
+}
+
 class ColorUtil {
  public:
   /// Reads one packed pixel of the given bitness from a source buffer into the
@@ -149,9 +159,18 @@ class ColorUtil {
         return color_to_565(color);
     }
   }
+  /**
+   * Converts a Color to a 4 bit gray level (0-15) for grayscale displays.
+   *
+   * A color with no red, green or blue is a gray level given by the white channel alone, as the grayscale display
+   * docs describe (e.g. `white: 50%`). Any other color, such as those drawn by LVGL or from an image, takes its gray
+   * level from the Rec.601 luma of its RGB channels; the white channel then carries no gray level (it is 0 from LVGL
+   * and the opacity in image pixels).
+   */
   static uint32_t color_to_grayscale4(Color color) {
-    uint32_t gs4 = esp_scale8(color.white, 15);
-    return gs4;
+    if (color.r == 0 && color.g == 0 && color.b == 0)
+      return esp_scale8(color.white, 15);
+    return esp_scale8(rec601_luma(color), 15);
   }
   /***
    * Converts a Color value to an 8bit index using a 24bit 888 palette.
@@ -201,16 +220,6 @@ class ColorUtil {
     return color;
   }
 };
-
-/** Rec.601 luma weights (0.299/0.587/0.114), scaled by 256 */
-static constexpr uint16_t REC601_LUMA_R = 77;
-static constexpr uint16_t REC601_LUMA_G = 150;
-static constexpr uint16_t REC601_LUMA_B = 29;
-
-/** Rec.601 luma of an RGB color, for optimum perceptual brightness */
-constexpr uint8_t rec601_luma(Color color) {
-  return (uint8_t) ((REC601_LUMA_R * color.r + REC601_LUMA_G * color.g + REC601_LUMA_B * color.b + 128u) >> 8);
-}
 
 /** Map an RGB color to a single monochrome bit: 1 = white, 0 = black */
 constexpr uint8_t color_to_mono(Color color) { return rec601_luma(color) >= 128 ? 1 : 0; }
