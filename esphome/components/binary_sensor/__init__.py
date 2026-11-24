@@ -138,9 +138,7 @@ ClickTrigger = binary_sensor_ns.class_("ClickTrigger", automation.Trigger.templa
 DoubleClickTrigger = binary_sensor_ns.class_(
     "DoubleClickTrigger", automation.Trigger.template()
 )
-MultiClickTrigger = binary_sensor_ns.class_(
-    "MultiClickTrigger", automation.Trigger.template(), cg.Component
-)
+MultiClickBase = binary_sensor_ns.class_("MultiClickBase", automation.FiringComponent)
 MultiClickTriggerEvent = binary_sensor_ns.struct("MultiClickTriggerEvent")
 
 
@@ -514,7 +512,7 @@ _BINARY_SENSOR_SCHEMA = (
             ),
             cv.Optional(CONF_ON_MULTI_CLICK): automation.validate_automation(
                 {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(MultiClickTrigger),
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(MultiClickBase),
                     cv.Required(CONF_TIMING): cv.All(
                         [parse_multi_click_timing_str],
                         validate_multi_click_timing,
@@ -625,13 +623,16 @@ async def _build_binary_sensor_automations(var, config):
         table = cg.shared_progmem_array(
             "multi_click_timing", MultiClickTriggerEvent, cg.ArrayInitializer(*timings)
         )
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var, table, len(timings))
+        callback = await automation.build_component_automation(
+            conf,
+            automation.FireCallback,
+            template_args=[MultiClickBase],
+            ctor_args=(var, table, len(timings)),
+        )
         if (
             cooldown := conf[CONF_INVALID_COOLDOWN]
         ).total_milliseconds != DEFAULT_INVALID_COOLDOWN_MS:
-            cg.add(trigger.set_invalid_cooldown(cooldown))
-        await cg.register_component(trigger, conf)
-        await automation.build_automation(trigger, [], conf)
+            cg.add(callback.set_invalid_cooldown(cooldown))
 
 
 @setup_entity("binary_sensor")
