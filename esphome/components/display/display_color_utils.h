@@ -159,19 +159,8 @@ class ColorUtil {
         return color_to_565(color);
     }
   }
-  /**
-   * Converts a Color to a 4 bit gray level (0-15) for grayscale displays.
-   *
-   * A color with no red, green or blue is a gray level given by the white channel alone, as the grayscale display
-   * docs describe (e.g. `white: 50%`). Any other color, such as those drawn by LVGL or from an image, takes its gray
-   * level from the Rec.601 luma of its RGB channels; the white channel then carries no gray level (it is 0 from LVGL
-   * and the opacity in image pixels).
-   */
-  static uint32_t color_to_grayscale4(Color color) {
-    if (color.r == 0 && color.g == 0 && color.b == 0)
-      return esp_scale8(color.white, 15);
-    return esp_scale8(rec601_luma(color), 15);
-  }
+  /// The brighter of the white channel (grayscale colors such as `white: 50%`) and the RGB luma, as 4 bits.
+  static uint32_t color_to_grayscale4(Color color) { return esp_scale8(std::max(color.white, rec601_luma(color)), 15); }
   /***
    * Converts a Color value to an 8bit index using a 24bit 888 palette.
    * Uses euclidiean distance to calculate the linear distance between

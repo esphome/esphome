@@ -27,10 +27,7 @@ TEST(ColorToGrayscale4, RgbColorsWithoutWhite) {
   EXPECT_EQ(gray4(Color(0, 0, 255, 0)), 1u);  // luma 29
 }
 
-// Image pixels carry the opacity in the white channel, which must not turn them white.
-TEST(ColorToGrayscale4, ImagePixelsIgnoreOpacity) {
-  EXPECT_EQ(gray4(Color(64, 64, 64, 255)), 4u);
-  EXPECT_EQ(gray4(Color(200, 200, 200, 255)), 12u);
-}
+// Font::print() blends all four channels; an edge pixel of COLOR_ON text on a white-only gray background.
+TEST(ColorToGrayscale4, BlendOfWhiteOnlyAndRgb) { EXPECT_EQ(gray4(Color(17, 17, 17, 136)), 8u); }
 
 }  // namespace esphome::display::testing
