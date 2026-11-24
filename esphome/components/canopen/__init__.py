@@ -32,8 +32,7 @@ CANOPENNODE_VERSION = "4.1.0-esphome.2"
 ns = cg.esphome_ns.namespace("canopen")
 CANopenComponent = ns.class_("CANopenComponent", cg.Component)
 SDOResult = ns.enum("SDOResult", is_class=True)
-SDOWriteAction = ns.class_("SDOWriteAction", automation.Action)
-SDOReadAction = ns.class_("SDOReadAction", automation.Action)
+SDOReply = ns.struct("SDOReply")
 
 
 # response_timeout holds uint16 ms
@@ -106,29 +105,63 @@ SDO_ACTION_SCHEMA = cv.Schema(
     }
 )
 
+_ADDRESS = (
+    (CONF_NODE_ID, cg.uint8),
+    (CONF_INDEX, cg.uint16),
+    (CONF_SUBINDEX, cg.uint8),
+)
+_REPLY_PARAMS = [
+    (cg.void.operator("ptr"), "esphome__context"),
+    (SDOReply.operator("const").operator("ref"), "esphome__reply"),
+]
+
 
 async def _sdo_action_to_code(
     config: ConfigType,
     action_id: ID,
     template_arg: cg.TemplateArguments,
     args: TemplateArgsType,
+    method: str,
+    keys: tuple[tuple[str, MockObj], ...],
+    on_ok: tuple[str, TemplateArgsType, str],
 ) -> MockObj:
-    """Code shared by canopen.sdo_read and canopen.sdo_write."""
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    for key, setter, type_ in (
-        (CONF_NODE_ID, var.set_node_id, cg.uint8),
-        (CONF_INDEX, var.set_index, cg.uint16),
-        (CONF_SUBINDEX, var.set_subindex, cg.uint8),
-    ):
-        cg.add(setter(await cg.templatable(config[key], args, type_)))
-    if error_conf := config.get(CONF_ON_ERROR):
-        await automation.build_automation(
-            var.get_error_trigger(),
+    """``parent->method(<keys>, size, reply, nullptr)``; ``reply`` runs ``on_ok`` or on_error."""
+    exprs = [
+        str(await automation.call_user_lambda(value, args, type_))
+        if cg.is_template(value := config[key])
+        else str(cg.safe_exp(value))
+        for key, type_ in keys
+    ]
+    branches: list[tuple[str, str]] = []
+    for key, fn_args, fn_call, check in (
+        (*on_ok, "esphome__reply.ok()"),
+        (
+            CONF_ON_ERROR,
             [(SDOResult, "result"), (cg.uint32, "abort_code")],
-            error_conf,
+            "esphome__reply.result, esphome__reply.abort_code",
+            "!esphome__reply.ok()",
+        ),
+    ):
+        if (conf := config.get(key)) is not None:
+            fn, build = automation.declare_automation_function(fn_args, conf)
+            await build()
+            branches.append((check, f"{fn}({fn_call});"))
+    callback = "nullptr"
+    if branches:
+        (check, call), *other = branches
+        body = [f"if ({check}) {{", f"  {call}", "}"]
+        if other:
+            body[-1:] = ["} else {", f"  {other[0][1]}", "}"]
+        callback = str(
+            automation.apply_static_function(
+                action_id, cg.void, _REPLY_PARAMS, body, suffix="reply"
+            )
         )
-    return var
+    parent = await automation.apply_parent(config)
+    call_args = ", ".join([*exprs, str(config[CONF_SIZE]), callback, "nullptr"])
+    return automation.apply_statements_action(
+        action_id, template_arg, args, [f"{parent}->{method}({call_args});"]
+    )
 
 
 SDO_WRITE_SCHEMA = cv.All(
@@ -146,7 +179,7 @@ SDO_WRITE_SCHEMA = cv.All(
 
 
 @automation.register_action(
-    "canopen.sdo_write", SDOWriteAction, SDO_WRITE_SCHEMA, synchronous=True
+    "canopen.sdo_write", automation.ApplyAction, SDO_WRITE_SCHEMA, synchronous=True
 )
 async def sdo_write_to_code(
     config: ConfigType,
@@ -154,12 +187,15 @@ async def sdo_write_to_code(
     template_arg: cg.TemplateArguments,
     args: TemplateArgsType,
 ) -> MockObj:
-    var = await _sdo_action_to_code(config, action_id, template_arg, args)
-    cg.add(var.set_value(await cg.templatable(config[CONF_VALUE], args, cg.uint32)))
-    cg.add(var.set_size(config[CONF_SIZE]))
-    if success_conf := config.get(CONF_ON_SUCCESS):
-        await automation.build_automation(var.get_success_trigger(), [], success_conf)
-    return var
+    return await _sdo_action_to_code(
+        config,
+        action_id,
+        template_arg,
+        args,
+        "write_sdo",
+        (*_ADDRESS, (CONF_VALUE, cg.uint32)),
+        (CONF_ON_SUCCESS, [], ""),
+    )
 
 
 SDO_READ_SCHEMA = SDO_ACTION_SCHEMA.extend(
@@ -172,7 +208,7 @@ SDO_READ_SCHEMA = SDO_ACTION_SCHEMA.extend(
 
 
 @automation.register_action(
-    "canopen.sdo_read", SDOReadAction, SDO_READ_SCHEMA, synchronous=True
+    "canopen.sdo_read", automation.ApplyAction, SDO_READ_SCHEMA, synchronous=True
 )
 async def sdo_read_to_code(
     config: ConfigType,
@@ -180,10 +216,12 @@ async def sdo_read_to_code(
     template_arg: cg.TemplateArguments,
     args: TemplateArgsType,
 ) -> MockObj:
-    var = await _sdo_action_to_code(config, action_id, template_arg, args)
-    cg.add(var.set_size(config[CONF_SIZE]))
-    if value_conf := config.get(CONF_ON_VALUE):
-        await automation.build_automation(
-            var.get_value_trigger(), [(cg.uint32, "x")], value_conf
-        )
-    return var
+    return await _sdo_action_to_code(
+        config,
+        action_id,
+        template_arg,
+        args,
+        "read_sdo",
+        _ADDRESS,
+        (CONF_ON_VALUE, [(cg.uint32, "x")], "esphome__reply.value"),
+    )

@@ -27,6 +27,8 @@ script:
           node_id: 0x02
           index: 0x607A
           value: -1000
+          on_error:
+            - logger.log: "target position not set"
       - canopen.sdo_read:
           id: canopen_hub
           node_id: 0x01

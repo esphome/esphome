@@ -21,12 +21,21 @@ def test_codegen(
     assert "-DCO_CONFIG_SDO_CLI=0x03" in CORE.build_flags
     assert "-DCO_CONFIG_SDO_CLI_BUFFER_SIZE=7" in CORE.build_flags
     assert "-DCO_CONFIG_FIFO=0x01" in CORE.build_flags
-    assert "canopen::SDOReadAction<>" in main_cpp
-    assert "set_size(4);" in main_cpp
-    assert "get_value_trigger()" in main_cpp
-    assert "get_error_trigger()" in main_cpp
-    assert "canopen::SDOWriteAction<>" in main_cpp
-    assert "set_size(1);" in main_cpp
+    assert (
+        "::canopen_hub->read_sdo(32, 0x1018, 0x01, 4, esphome__applyaction_id__reply, nullptr);"
+        in main_cpp
+    )
+    assert (
+        "::canopen_hub->write_sdo(32, 0x2000, 0x00, 1, 1, nullptr, nullptr);"
+        in main_cpp
+    )
+    assert (
+        "if (esphome__reply.ok()) {\n"
+        "    esphome__automation_id__fn(esphome__reply.value);\n"
+        "  } else {\n"
+        "    esphome__automation_id_2__fn(esphome__reply.result, esphome__reply.abort_code);"
+    ) in main_cpp
+    assert "Trigger<" not in main_cpp
 
 
 @pytest.mark.parametrize(("timeout", "valid"), [("65535ms", True), ("65536ms", False)])
