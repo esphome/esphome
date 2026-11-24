@@ -28,6 +28,20 @@ static void for_each_pixel(int x_start, int x_end, int y_start, int y_end, int w
   }
 }
 
+// Color::gradient() for all four channels, two per multiply: each channel gets a 16 bit lane, and a lane never
+// exceeds 255 * 255 + 255 + 1, so lanes don't carry into each other. (v + 1 + (v >> 8)) >> 8 is v / 255 in that range.
+ESPHOME_ALWAYS_INLINE static inline Color blend_colors(Color from, Color to, uint8_t amnt) {
+  static constexpr uint32_t LANE_MASK = 0x00FF00FF;
+  const uint32_t keep = 255 - amnt;
+  uint32_t even = (from.raw_32 & LANE_MASK) * keep + (to.raw_32 & LANE_MASK) * amnt;
+  uint32_t odd = ((from.raw_32 >> 8) & LANE_MASK) * keep + ((to.raw_32 >> 8) & LANE_MASK) * amnt;
+  even = ((even + 0x00010001 + ((even >> 8) & LANE_MASK)) >> 8) & LANE_MASK;
+  odd = ((odd + 0x00010001 + ((odd >> 8) & LANE_MASK)) >> 8) & LANE_MASK;
+  Color color;
+  color.raw_32 = even | (odd << 8);
+  return color;
+}
+
 void Image::draw(int x, int y, display::Display *display, Color color_on, Color color_off) {
   int x_start = 0;
   int y_start = 0;
@@ -116,10 +130,7 @@ void Image::draw_(int x, int y, display::Display *display, Color color_on, Color
                                      }
                                    } else if (transparency == TRANSPARENCY_ALPHA_CHANNEL) {
                                      // gray is the alpha: blend from color_off to color_on, drawn opaque
-                                     color = Color(Color::blend_channel(color_off.r, color_on.r, gray),
-                                                   Color::blend_channel(color_off.g, color_on.g, gray),
-                                                   Color::blend_channel(color_off.b, color_on.b, gray),
-                                                   Color::blend_channel(color_off.w, color_on.w, gray));
+                                     color = blend_colors(color_off, color_on, gray);
                                    }
                                    display->draw_pixel_at(x + img_x, y + img_y, color);
                                  });
