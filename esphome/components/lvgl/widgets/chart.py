@@ -23,6 +23,7 @@ from ..defines import (
     LvConstant,
     get_chart_series,
     get_chart_series_updates,
+    get_updated_widgets,
     literal,
 )
 from ..lv_validation import lv_color, lv_int
@@ -166,17 +167,33 @@ def validate_series_update_for_type(config, chart_type, point_count):
     return config
 
 
+def _smallest_point_counts(global_config) -> dict[tuple, int]:
+    """Map each chart path to the smallest point_count that lvgl.chart.update can give it."""
+    smallest: dict[tuple, int] = {}
+    for update in get_updated_widgets().get(chart_spec, ()):
+        if (point_count := update.get(CONF_POINT_COUNT)) is None:
+            continue
+        for id_conf in update[CONF_ID]:
+            path = tuple(global_config.get_path_for_id(id_conf[CONF_ID])[:-1])
+            smallest[path] = min(smallest.get(path, point_count), point_count)
+    return smallest
+
+
 def validate_chart_series_updates(global_config):
     """Check each lvgl.chart.series.update action against the chart its series belongs to."""
+    smallest_point_counts = _smallest_point_counts(global_config)
     for config in get_chart_series_updates():
         series_id = config[CONF_ID]
         # A series ID is declared at <chart>/series/<index>/id
-        chart_config = global_config.get_config_for_path(
-            global_config.get_path_for_id(series_id)[:-3]
+        chart_path = tuple(global_config.get_path_for_id(series_id)[:-3])
+        chart_config = global_config.get_config_for_path(list(chart_path))
+        point_count = min(
+            chart_config[CONF_POINT_COUNT],
+            smallest_point_counts.get(chart_path, chart_config[CONF_POINT_COUNT]),
         )
         try:
             validate_series_update_for_type(
-                config, chart_config[CONF_TYPE], chart_config[CONF_POINT_COUNT]
+                config, chart_config[CONF_TYPE], point_count
             )
         except cv.Invalid as err:
             raise cv.Invalid(

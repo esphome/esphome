@@ -55,13 +55,14 @@ lvgl:
         on_click:
           - lvgl.chart.series.update:
 {update}
+{extra}
 """
 
 
-def _config_errors(tmp_path: Path, update: str) -> list[str]:
+def _config_errors(tmp_path: Path, update: str, extra: str = "") -> list[str]:
     """Validate a config with the given series update action and return the errors as text."""
     config_path = tmp_path / "chart.yaml"
-    config_path.write_text(CHART_CONFIG_TEMPLATE.format(update=update))
+    config_path.write_text(CHART_CONFIG_TEMPLATE.format(update=update, extra=extra))
     original_path = CORE.config_path
     try:
         CORE.config_path = config_path
@@ -245,3 +246,29 @@ def test_series_update_is_checked_against_its_chart(
 )
 def test_matching_series_update_is_accepted(tmp_path: Path, update: str) -> None:
     assert _config_errors(tmp_path, f"              {update}") == []
+
+
+def test_series_update_is_checked_against_a_smaller_runtime_point_count(
+    tmp_path: Path,
+) -> None:
+    errors = _config_errors(
+        tmp_path,
+        "              id: line_series\n              values: [1, 2]",
+        "          - lvgl.chart.update:\n"
+        "              id: line_chart\n"
+        "              point_count: 1",
+    )
+    assert any("can't have more than point_count (1) values" in e for e in errors)
+
+
+def test_larger_runtime_point_count_keeps_the_configured_limit(
+    tmp_path: Path,
+) -> None:
+    errors = _config_errors(
+        tmp_path,
+        "              id: line_series\n              values: [1, 2, 3]",
+        "          - lvgl.chart.update:\n"
+        "              id: line_chart\n"
+        "              point_count: 5",
+    )
+    assert any("can't have more than point_count (2) values" in e for e in errors)
