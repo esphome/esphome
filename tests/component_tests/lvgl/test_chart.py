@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -10,12 +11,13 @@ from esphome.components.lvgl.widgets.chart import (
     CHART_MODIFY_SCHEMA,
     CHART_SCHEMA,
     SERIES_MODIFY_SCHEMA,
+    chart_spec,
     series_axes,
     validate_series_update_for_type,
 )
 from esphome.config import load_config
 from esphome.config_validation import Invalid
-from esphome.core import CORE
+from esphome.core import CORE, Lambda
 
 CHART_CONFIG_TEMPLATE = """
 esphome:
@@ -171,12 +173,12 @@ def test_scatter_codegen_uses_paired_lvgl_apis(
         "lv_chart_set_next_value2(scatter_chart, scatter_series, 30, 40);" in main_cpp
     )
     assert (
-        "lv_chart_set_next_value2(scatter_chart, scatter_series, "
+        "lv_chart_set_next_value2(::scatter_chart, ::scatter_series, "
         "static_cast<int>(50), static_cast<int>(60));" in main_cpp
     )
     assert "lv_chart_set_next_value(line_chart, line_series, 10);" in main_cpp
     assert (
-        "lv_chart_set_next_value(line_chart, line_series, static_cast<int>(30));"
+        "lv_chart_set_next_value(::line_chart, ::line_series, static_cast<int>(30));"
         in main_cpp
     )
 
@@ -186,11 +188,15 @@ def test_series_values_update_clears_then_appends(
 ) -> None:
     main_cpp = generate_main(component_config_path("chart_test.yaml"))
 
-    clear = "lv_chart_set_all_values(line_chart, line_series, LV_CHART_POINT_NONE);"
+    clear = "lv_chart_set_all_values(::line_chart, ::line_series, LV_CHART_POINT_NONE);"
     assert clear in main_cpp
     after_clear = main_cpp[main_cpp.index(clear) :]
-    first = after_clear.index("lv_chart_set_next_value(line_chart, line_series, 1);")
-    second = after_clear.index("lv_chart_set_next_value(line_chart, line_series, 2);")
+    first = after_clear.index(
+        "lv_chart_set_next_value(::line_chart, ::line_series, 1);"
+    )
+    second = after_clear.index(
+        "lv_chart_set_next_value(::line_chart, ::line_series, 2);"
+    )
     assert first < second
 
 
@@ -317,3 +323,62 @@ def test_series_without_a_color_gets_one_from_the_palette(
         "lv_chart_add_series(line_chart, lv_palette_main(LV_PALETTE_RED), "
         "LV_CHART_AXIS_PRIMARY_Y)" in main_cpp
     )
+
+
+@pytest.mark.parametrize(
+    "schema,config",
+    [
+        (CHART_SCHEMA, {"type": Lambda("return LV_CHART_TYPE_BAR;")}),
+        (CHART_SCHEMA, {"update_mode": Lambda("return LV_CHART_UPDATE_MODE_SHIFT;")}),
+        (
+            CHART_MODIFY_SCHEMA,
+            {"update_mode": Lambda("return LV_CHART_UPDATE_MODE_CIRCULAR;")},
+        ),
+    ],
+)
+def test_chart_enums_cannot_be_lambdas(schema: Callable, config: dict) -> None:
+    with pytest.raises(Invalid, match="cannot be a lambda"):
+        schema(config)
+
+
+@pytest.mark.parametrize("schema", [CHART_SCHEMA, CHART_MODIFY_SCHEMA])
+def test_axis_range_cannot_be_zero_width(schema: Callable) -> None:
+    with pytest.raises(Invalid, match="must not be equal"):
+        schema({"y_axis": {"min_value": 5, "max_value": 5}})
+
+
+def test_templated_axis_range_is_guarded(generate_main, component_config_path) -> None:
+    main_cpp = generate_main(component_config_path("chart_test.yaml"))
+
+    assert (
+        "lv_chart_set_axis_range(bar_chart, LV_CHART_AXIS_PRIMARY_Y, axis_min_VAR_, "
+        "axis_max_VAR_ == axis_min_VAR_ ? axis_min_VAR_ + 1 : axis_max_VAR_);"
+        in main_cpp
+    )
+
+
+def test_refresh_does_not_add_the_series_again(
+    generate_main, component_config_path
+) -> None:
+    main_cpp = generate_main(component_config_path("chart_test.yaml"))
+
+    assert main_cpp.count("x = lv_chart_add_series(bar_chart,") == 1
+    # The refresh re-applies the templated range
+    assert main_cpp.count("lv_chart_set_axis_range(bar_chart,") == 2
+
+
+def test_series_named_like_a_trigger_argument(
+    generate_main, component_config_path
+) -> None:
+    """The sensor's `float x` argument must not shadow a series with the ID x."""
+    main_cpp = generate_main(component_config_path("chart_test.yaml"))
+
+    assert "lv_chart_set_next_value(::bar_chart, ::x," in main_cpp
+
+
+def test_chart_parts() -> None:
+    assert "indicator" in chart_spec.parts
+    # LVGL 9 has no ticks part
+    assert "ticks" not in chart_spec.parts
+    with pytest.raises(Invalid):
+        CHART_SCHEMA({"ticks": {"line_width": 2}})

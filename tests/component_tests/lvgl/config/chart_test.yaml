@@ -19,6 +19,14 @@ display:
       ignore_strapping_warning: true
     dc_pin: GPIO3
 
+sensor:
+  - platform: template
+    id: shadow_sensor
+    on_value:
+      - lvgl.chart.series.update:
+          id: x
+          value: !lambda return x;
+
 lvgl:
   widgets:
     - chart:
@@ -40,8 +48,19 @@ lvgl:
             points:
               - {x: 10, y: 20}
               - {x: 30, y: 40}
+    - chart:
+        id: bar_chart
+        type: bar
+        indicator:
+          width: 8
+        y_axis:
+          min_value: 0
+          max_value: !lambda return 100;
+        series:
+          - id: x
     - button:
         on_click:
+          - lvgl.widget.refresh: bar_chart
           - lvgl.chart.series.update:
               id: line_series
               value: !lambda return 30;

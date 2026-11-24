@@ -1756,7 +1756,7 @@ lvgl:
                       div_line_count: [4, 4]
                       y_axis:
                         min_value: 0
-                        max_value: 100
+                        max_value: !lambda return 100;
                       secondary_y_axis:
                         min_value: 0
                         max_value: 100
@@ -1770,6 +1770,9 @@ lvgl:
                           values: [50, 20, 80, 10, 60]
                   - chart:
                       id: lv_scatter_chart_id
+                      indicator:
+                        width: 6
+                        height: 6
                       width: 200
                       height: 120
                       point_count: 5
