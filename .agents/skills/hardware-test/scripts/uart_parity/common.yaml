@@ -1,0 +1,46 @@
+# D1 mini with shelly_dimmer and a report line every 6 s; the sd*.yaml files pick the pins and the report path
+substitutions:
+  tx: GPIO1
+  rx: GPIO3
+  log_uart: UART1
+  report: 'u->write_array((const uint8_t *) buf, l); u->flush();'
+esphome:
+  name: ${name}
+esp8266:
+  board: d1_mini
+logger:
+  hardware_uart: ${log_uart}
+  baud_rate: 115200
+  level: DEBUG
+uart:
+  id: uart_bus
+  tx_pin: ${tx}
+  rx_pin: ${rx}
+  baud_rate: 115200
+  rx_buffer_size: 512
+light:
+  - platform: shelly_dimmer
+    id: dimmer
+    output_id: dim
+    name: Dimmer
+    firmware:
+      version: "51.6"
+      update: true
+interval:
+  - interval: 6s
+    then:
+      - lambda: |-
+          static uint32_t n = 0;
+          n++;
+          auto *u = id(uart_bus);
+          const uint32_t av = u->available();
+          const uint32_t t0 = millis();
+          id(dim)->handle_firmware();
+          const uint32_t dt = millis() - t0;
+          const uint32_t c0 = USC0(0);
+          const bool sw0 = (IOSWAP & (1 << IOSWAPU0)) != 0;
+          char buf[120];
+          int l = snprintf(buf, sizeof(buf), "\r\nRPT n=%u par=%d c0=%08x swap=%d av=%u dt=%u\r\n", n,
+                           (int) u->get_parity(), c0, sw0, av, dt);
+          ESP_LOGI("rpt", "%s", buf + 2);
+          ${report}

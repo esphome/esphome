@@ -45,9 +45,8 @@ void HOT AddressableLightDisplay::draw_absolute_pixel_internal(int x, int y, Col
   if (x >= this->get_width_internal() || x < 0 || y >= this->get_height_internal() || y < 0)
     return;
 
-  if (this->pixel_mapper_f_.has_value()) {
-    // Params are passed by reference, so they may be modified in call.
-    int index = (*this->pixel_mapper_f_)(x, y);
+  if (this->pixel_mapper_f_ != nullptr) {
+    int index = this->pixel_mapper_f_(x, y);
     if (index < 0 || index >= this->width_ * this->height_)
       return;
     this->addressable_light_buffer_[index] = color;
