@@ -47,8 +47,6 @@ CONF_SECONDARY_X_AXIS = "secondary_x_axis"
 CONF_SECONDARY_Y_AXIS = "secondary_y_axis"
 CONF_SERIES = "series"
 CONF_UPDATE_MODE = "update_mode"
-CONF_USE_SECONDARY_X_AXIS = "use_secondary_x_axis"
-CONF_USE_SECONDARY_Y_AXIS = "use_secondary_y_axis"
 CONF_VALUES = "values"
 CONF_X_AXIS = "x_axis"
 CONF_Y_AXIS = "y_axis"
@@ -58,6 +56,9 @@ CHART_UPDATE_MODES = LvConstant("LV_CHART_UPDATE_MODE_", "SHIFT", "CIRCULAR")
 # Colours given in turn to series that do not set one
 SERIES_PALETTE = ("BLUE", "RED", "GREEN", "ORANGE", "PURPLE", "TEAL")
 GRID_LINES = cv.int_range(min=0, max=255)
+SECONDARY = "secondary"
+# Which of the chart's axes a series is drawn against
+SERIES_AXIS = cv.one_of("primary", SECONDARY, lower=True)
 
 
 def _fixed(constant: LvConstant):
@@ -181,8 +182,8 @@ SERIES_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(lv_chart_series_t),
         cv.Optional(CONF_COLOR): lv_color,
-        cv.Optional(CONF_USE_SECONDARY_Y_AXIS, default=False): cv.boolean,
-        cv.Optional(CONF_USE_SECONDARY_X_AXIS, default=False): cv.boolean,
+        cv.Optional(CONF_Y_AXIS, default="primary"): SERIES_AXIS,
+        cv.Optional(CONF_X_AXIS, default="primary"): SERIES_AXIS,
         cv.Optional(CONF_VALUES): cv.ensure_list(lv_float),
         cv.Optional(CONF_POINTS): cv.ensure_list(POINT_SCHEMA),
     }
@@ -237,16 +238,17 @@ CHART_MODIFY_SCHEMA = cv.Schema(
 def validate_chart(config: ConfigType) -> ConfigType:
     point_count = config[CONF_POINT_COUNT]
     is_scatter = config[CONF_TYPE] == "LV_CHART_TYPE_SCATTER"
-    for series in config.get(CONF_SERIES, ()):
+    for index, series in enumerate(config.get(CONF_SERIES, ())):
         values = series.get(CONF_VALUES)
         points = series.get(CONF_POINTS)
         if is_scatter and values is not None:
             raise cv.Invalid("A scatter chart series must use points instead of values")
         if not is_scatter and points is not None:
             raise cv.Invalid("points can only be used with a scatter chart")
-        if not is_scatter and series[CONF_USE_SECONDARY_X_AXIS]:
+        if not is_scatter and series[CONF_X_AXIS] == SECONDARY:
             raise cv.Invalid(
-                f"{CONF_USE_SECONDARY_X_AXIS} can only be used with a scatter chart"
+                "Only a scatter chart series can use the secondary X axis",
+                path=[CONF_SERIES, index, CONF_X_AXIS],
             )
         data = points if is_scatter else values
         if data is not None and len(data) > point_count:
@@ -437,8 +439,8 @@ def series_multipliers(
     chart_config: ConfigType, series: ConfigType
 ) -> tuple[float, float]:
     """The X and Y multipliers of the axes a series is drawn against."""
-    x_axis = CONF_SECONDARY_X_AXIS if series[CONF_USE_SECONDARY_X_AXIS] else CONF_X_AXIS
-    y_axis = CONF_SECONDARY_Y_AXIS if series[CONF_USE_SECONDARY_Y_AXIS] else CONF_Y_AXIS
+    x_axis = CONF_SECONDARY_X_AXIS if series[CONF_X_AXIS] == SECONDARY else CONF_X_AXIS
+    y_axis = CONF_SECONDARY_Y_AXIS if series[CONF_Y_AXIS] == SECONDARY else CONF_Y_AXIS
     return axis_multiplier(chart_config, x_axis), axis_multiplier(chart_config, y_axis)
 
 
@@ -521,8 +523,8 @@ async def series_color(series: ConfigType, index: int) -> Any:
 
 def series_axes(series: ConfigType) -> MockObj:
     """The lv_chart_axis_t flags for the axes a series is drawn against."""
-    y_axis = series[CONF_USE_SECONDARY_Y_AXIS]
-    x_axis = series[CONF_USE_SECONDARY_X_AXIS]
+    y_axis = series[CONF_Y_AXIS] == SECONDARY
+    x_axis = series[CONF_X_AXIS] == SECONDARY
     if y_axis and x_axis:
         return literal(
             "static_cast<lv_chart_axis_t>(LV_CHART_AXIS_SECONDARY_Y | LV_CHART_AXIS_SECONDARY_X)"

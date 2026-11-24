@@ -1769,7 +1769,7 @@ lvgl:
                           values: [10, 30, nan, 50, 40]
                         - id: lv_chart_secondary
                           color: 0x00FF00
-                          use_secondary_y_axis: true
+                          y_axis: secondary
                           values: [0.5, 0.2, 0.8, 0.1, 0.6]
                   - chart:
                       id: lv_scatter_chart_id
@@ -1791,8 +1791,8 @@ lvgl:
                         max_value: 100
                       series:
                         - id: lv_scatter_series
-                          use_secondary_x_axis: true
-                          use_secondary_y_axis: true
+                          x_axis: secondary
+                          y_axis: secondary
                           points:
                             - {x: 10, y: 20}
                             - {x: 30, y: 60}

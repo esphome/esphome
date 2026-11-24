@@ -320,10 +320,10 @@ BOTH_SECONDARY_AXES = "static_cast<lv_chart_axis_t>(LV_CHART_AXIS_SECONDARY_Y | 
     "series,axes",
     [
         ({}, "LV_CHART_AXIS_PRIMARY_Y"),
-        ({"use_secondary_y_axis": True}, "LV_CHART_AXIS_SECONDARY_Y"),
-        ({"use_secondary_x_axis": True}, "LV_CHART_AXIS_SECONDARY_X"),
+        ({"y_axis": "secondary"}, "LV_CHART_AXIS_SECONDARY_Y"),
+        ({"x_axis": "secondary"}, "LV_CHART_AXIS_SECONDARY_X"),
         (
-            {"use_secondary_y_axis": True, "use_secondary_x_axis": True},
+            {"y_axis": "secondary", "x_axis": "secondary"},
             BOTH_SECONDARY_AXES,
         ),
     ],
@@ -334,10 +334,8 @@ def test_series_axes(series: dict, axes: str) -> None:
 
 
 def test_secondary_x_axis_needs_a_scatter_chart() -> None:
-    with pytest.raises(Invalid, match="use_secondary_x_axis"):
-        CHART_SCHEMA(
-            {"type": "line", "series": [{"id": "s", "use_secondary_x_axis": True}]}
-        )
+    with pytest.raises(Invalid, match="secondary X axis"):
+        CHART_SCHEMA({"type": "line", "series": [{"id": "s", "x_axis": "secondary"}]})
 
 
 def test_series_without_a_color_gets_one_from_the_palette(
@@ -491,7 +489,7 @@ def test_series_multipliers_follow_the_series_axes() -> None:
             "secondary_y_axis": {"multiplier": 5},
             "series": [
                 {"id": "a"},
-                {"id": "b", "use_secondary_x_axis": True, "use_secondary_y_axis": True},
+                {"id": "b", "x_axis": "secondary", "y_axis": "secondary"},
             ],
         }
     )
@@ -555,3 +553,10 @@ def test_grid_lines_codegen(generate_main, component_config_path) -> None:
         main_cpp.count("lv_chart_set_axis_range(scaled_chart, LV_CHART_AXIS_PRIMARY_X")
         == 1
     )
+
+
+def test_series_axis_must_be_primary_or_secondary() -> None:
+    config = CHART_SCHEMA({"series": [{"id": "s", "y_axis": "SECONDARY"}]})
+    assert config["series"][0]["y_axis"] == "secondary"
+    with pytest.raises(Invalid):
+        CHART_SCHEMA({"series": [{"id": "s", "y_axis": "tertiary"}]})
