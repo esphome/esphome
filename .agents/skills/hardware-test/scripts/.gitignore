@@ -21,6 +21,9 @@ bt_proxy_ab/*.log
 bt_proxy_ab/*.pid
 bt_proxy_ab/*.txt
 bt_proxy_ab/handles.json
+canopen/*-a.txt
+canopen/*-b.txt
+canopen/*-events.txt
 cc1101_long/*.log
 climate_ir_loop/*-*.txt
 climate_ir_loop/*-frames.json

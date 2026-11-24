@@ -1,0 +1,70 @@
+# Full SDO client suite: values, actions, strings, length wrap, limits, bad objects, queues, NMT stop and start,
+# soak, then 40 s of requests while drive.py holds node B in reset, then recovery.
+substitutions:
+  name: canopen-a
+packages:
+  common: !include client-common.yaml
+esphome:
+  name: ${name}
+  on_boot:
+    priority: -100
+    then:
+      - script.execute: suite
+script:
+  - id: suite
+    then:
+      - delay: 4s
+      - lambda: cot::phase_values(id(hub));
+      - delay: 3s
+      - script.execute: actions2
+      - delay: 4s
+      - lambda: cot::phase_strings(id(hub));
+      - delay: 3s
+      - lambda: cot::phase_wrap(id(hub));
+      - delay: 3s
+      - lambda: cot::phase_limits(id(hub));
+      - delay: 3s
+      - lambda: cot::phase_bad(id(hub));
+      - delay: 3s
+      - lambda: cot::phase_queue(id(hub));
+      - delay: 3s
+      - lambda: cot::phase_queue_mixed(id(hub));
+      - delay: 3s
+      - lambda: |-
+          cot::summary("before nmt stop");
+          cot::nmt(id(can_bus), 0x02);
+      - delay: 200ms
+      - lambda: |-
+          id(hub).read_sdo<uint32_t>(0x20, 0x2002, 0, cot::cb, cot::mk("read while B stopped", cot::R::SDO_RESULT_TIMEOUT, 0x05040000));
+          id(hub).write_sdo<uint8_t>(0x20, 0x2000, 0, 7, cot::cb, cot::mk("write while B stopped", cot::R::SDO_RESULT_TIMEOUT, 0x05040000));
+          id(hub).read_sdo_data(0x20, 0x2010, 0, cot::rbuf, 80, cot::cb, cot::mk("data read while B stopped", cot::R::SDO_RESULT_TIMEOUT, 0x05040000));
+      - delay: 2s
+      - lambda: cot::nmt(id(can_bus), 0x01);
+      - delay: 200ms
+      - lambda: |-
+          id(hub).read_sdo<uint32_t>(0x20, 0x2002, 0, cot::cb, cot::mk("read after NMT start", cot::R::SDO_RESULT_SUCCESS));
+      - delay: 2s
+      - lambda: |-
+          cot::summary("before soak");
+          cot::soak_start(id(hub), 60000);
+      - delay: 62s
+      - lambda: |-
+          cot::soak_report();
+          cot::summary("after soak");
+          ESP_LOGI("cot", "PHASE offline: request every 250 ms for 40 s (B held in reset from outside)");
+          for (auto &w : cot::off_win) w = 0;
+      - repeat:
+          count: 160
+          then:
+            - lambda: cot::off_tick(id(hub));
+            - delay: 250ms
+      - delay: 2s
+      - lambda: |-
+          ESP_LOGI("cot", "OFFLINE window results: ok %u abort %u timeout %u size %u transport %u rejected %u",
+                   (unsigned) cot::off_win[0], (unsigned) cot::off_win[1], (unsigned) cot::off_win[2],
+                   (unsigned) cot::off_win[3], (unsigned) cot::off_win[4], (unsigned) cot::off_win[5]);
+          ESP_LOGI("cot", "PHASE recovery");
+          cot::phase_values(id(hub));
+          cot::phase_strings_after(id(hub));
+      - delay: 3s
+      - lambda: cot::summary("final");

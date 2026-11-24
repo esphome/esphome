@@ -69,6 +69,7 @@ One file per component, named after it:
 - [`value_range.md`](value_range.md): sensor and number on_value_range with a fixed sequence and a restart
 - [`ezo_fake_bus.md`](ezo_fake_bus.md): the ezo component against a fake I2C bus that answers like an EZO circuit
 - [`twai_self.md`](twai_self.md): esp32_can on_frame with the controller hearing its own transmit pad, no transceiver
+- [`canopen.md`](canopen.md): CANopen SDO client against a second node on a real bus, action paths, queue limits, server off and NMT stop, late responses, an MCP2515 third node
 - [`buttons.md`](buttons.md): output button pad timing, homeassistant button through a raw API client with the wizard input, uart button on the UART0 loopback
 - [`rs485_frame.md`](rs485_frame.md): DLE/STX/ETX bus on an ESP32-C3 with a cross-wired simulated bus device (frame cases, gate timing)
 - [`hx711.md`](hx711.md): fake HX711 driven from the other core, every published value matched to the served conversion
