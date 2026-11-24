@@ -55,7 +55,11 @@ def lines():
 
 
 def send(cmd, wait=1.5):
-    with FIFO.open("w", encoding="utf-8") as f:
+    try:  # nonblocking: with no zbcon.py reading the fifo, fail instead of hanging
+        fd = os.open(FIFO, os.O_WRONLY | os.O_NONBLOCK)
+    except OSError as e:
+        sys.exit(f"{FIFO}: {e} (is zbcon.py running?)")
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
         f.write(cmd + "\n")
     time.sleep(wait)
 

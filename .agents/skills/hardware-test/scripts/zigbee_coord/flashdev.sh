@@ -5,7 +5,7 @@
 # its app port (1200 baud touch DFU); set LOGPORT when its log comes up on another port. env: TREE, PY, PORT
 D=$(cd "$(dirname "$0")" && pwd); N=${1:?name}; Y=${2:?yaml}; SECS=${3:-600}
 T=${TREE:?set TREE}; PY=${PY:-$T/venv/bin/python}; P=${PORT:?set PORT}
-pkill -f "[s]erial_capture.py $P" ; sleep 1
+pkill -f "[s]erial_capture.py $P" ; pkill -f "[s]erial_capture.py ${LOGPORT:-$P}" ; sleep 1
 if [ -n "$CHIP" ]; then
   (cd "$T" && timeout 120 $PY -m esptool --chip "$CHIP" -p "$P" erase-flash > "$D/$N-erase.log" 2>&1) ||
     { echo "erase failed"; tail -3 "$D/$N-erase.log"; exit 1; }
