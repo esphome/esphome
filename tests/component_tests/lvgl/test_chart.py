@@ -1,4 +1,4 @@
-"""Tests for the LVGL chart widget and series update action."""
+"""Tests for the LVGL chart widget and its actions."""
 
 from __future__ import annotations
 
@@ -11,12 +11,15 @@ from esphome.components.lvgl.widgets.chart import (
     CHART_MODIFY_SCHEMA,
     CHART_SCHEMA,
     POINT_LIMIT,
-    SERIES_MODIFY_SCHEMA,
+    SERIES_APPEND_SCHEMA,
+    SERIES_CLEAR_SCHEMA,
+    SERIES_SET_SCHEMA,
+    SERIES_UPDATE_SCHEMA,
     chart_spec,
     scale_value,
     series_axes,
     series_multipliers,
-    validate_series_update_for_type,
+    validate_series_action,
 )
 from esphome.config import load_config
 from esphome.config_validation import Invalid
@@ -59,16 +62,23 @@ lvgl:
           - id: scatter_series
     - button:
         on_click:
-          - lvgl.chart.series.update:
+          - {action}:
 {update}
 {extra}
 """
 
+APPEND = "lvgl.chart.series.append"
+SET = "lvgl.chart.series.set"
 
-def _validation_errors(tmp_path: Path, update: str, extra: str = "") -> list[Invalid]:
-    """Validate a config with the given series update action and return the errors."""
+
+def _validation_errors(
+    tmp_path: Path, update: str, extra: str = "", action: str = APPEND
+) -> list[Invalid]:
+    """Validate a config with the given series action and return the errors."""
     config_path = tmp_path / "chart.yaml"
-    config_path.write_text(CHART_CONFIG_TEMPLATE.format(update=update, extra=extra))
+    config_path.write_text(
+        CHART_CONFIG_TEMPLATE.format(action=action, update=update, extra=extra)
+    )
     original_path = CORE.config_path
     try:
         CORE.config_path = config_path
@@ -78,30 +88,50 @@ def _validation_errors(tmp_path: Path, update: str, extra: str = "") -> list[Inv
         CORE.reset()
 
 
-def _config_errors(tmp_path: Path, update: str, extra: str = "") -> list[str]:
+def _config_errors(
+    tmp_path: Path, update: str, extra: str = "", action: str = APPEND
+) -> list[str]:
     """As _validation_errors(), with the errors as text."""
-    return [str(err) for err in _validation_errors(tmp_path, update, extra)]
+    return [str(err) for err in _validation_errors(tmp_path, update, extra, action)]
 
 
 @pytest.mark.parametrize(
-    "config",
+    "schema,config",
     [
-        {"id": "series"},
-        {"id": "series", "value": 1, "values": [2]},
-        {"id": "series", "value": 1, "point": {"x": 10, "y": 20}},
+        (SERIES_APPEND_SCHEMA, {}),
+        (SERIES_APPEND_SCHEMA, {"value": 1, "point": {"x": 10, "y": 20}}),
+        (SERIES_APPEND_SCHEMA, {"values": [1]}),
+        (SERIES_SET_SCHEMA, {}),
+        (SERIES_SET_SCHEMA, {"values": [1], "points": [{"x": 1, "y": 2}]}),
+        (SERIES_SET_SCHEMA, {"value": 1}),
+        (SERIES_SET_SCHEMA, {"index": 0, "values": [1]}),
+        (SERIES_SET_SCHEMA, {"index": -1, "value": 1}),
+        (SERIES_UPDATE_SCHEMA, {}),
+        (SERIES_UPDATE_SCHEMA, {"value": 1}),
+        (SERIES_CLEAR_SCHEMA, {"value": 1}),
     ],
 )
-def test_series_update_requires_exactly_one_payload(config: dict) -> None:
+def test_invalid_series_actions(schema: Callable, config: dict) -> None:
     with pytest.raises(Invalid):
-        SERIES_MODIFY_SCHEMA(config)
+        schema({"id": "series", **config})
 
 
 @pytest.mark.parametrize(
-    "key,payload",
-    [("value", 1), ("values", [1, 2]), ("point", {"x": 10, "y": 20})],
+    "schema,config",
+    [
+        (SERIES_APPEND_SCHEMA, {"value": 1}),
+        (SERIES_APPEND_SCHEMA, {"point": {"x": 10, "y": 20}}),
+        (SERIES_SET_SCHEMA, {"values": [1, 2]}),
+        (SERIES_SET_SCHEMA, {"points": [{"x": 1, "y": 2}]}),
+        (SERIES_SET_SCHEMA, {"index": 1, "value": 1}),
+        (SERIES_SET_SCHEMA, {"index": 0, "point": {"x": 1, "y": 2}}),
+        (SERIES_UPDATE_SCHEMA, {"color": 0xFF0000}),
+        (SERIES_UPDATE_SCHEMA, {"hidden": True}),
+        (SERIES_CLEAR_SCHEMA, {}),
+    ],
 )
-def test_series_update_accepts_one_payload(key: str, payload: object) -> None:
-    assert SERIES_MODIFY_SCHEMA({"id": "series", key: payload})[key] == payload
+def test_valid_series_actions(schema: Callable, config: dict) -> None:
+    assert schema({"id": "series", **config})
 
 
 @pytest.mark.parametrize("axis", ["x_axis", "y_axis"])
@@ -144,14 +174,28 @@ def test_chart_update_rejects_type_change() -> None:
         ("LV_CHART_TYPE_SCATTER", {"value": 1}),
         ("LV_CHART_TYPE_SCATTER", {"values": [1, 2]}),
         ("LV_CHART_TYPE_LINE", {"point": {"x": 1, "y": 2}}),
-        ("LV_CHART_TYPE_BAR", {"point": {"x": 1, "y": 2}}),
+        ("LV_CHART_TYPE_BAR", {"points": [{"x": 1, "y": 2}]}),
+        ("LV_CHART_TYPE_LINE", {"values": [1] * 11}),
+        ("LV_CHART_TYPE_SCATTER", {"points": [{"x": 1, "y": 2}] * 11}),
+        ("LV_CHART_TYPE_LINE", {"index": 10, "value": 1}),
     ],
 )
-def test_series_update_payload_must_match_chart_type(
-    chart_type: str, payload: dict
-) -> None:
+def test_series_action_must_match_chart(chart_type: str, payload: dict) -> None:
     with pytest.raises(Invalid):
-        validate_series_update_for_type(payload, chart_type, 10)
+        validate_series_action(SET, payload, chart_type, 10)
+
+
+@pytest.mark.parametrize(
+    "chart_type,payload",
+    [
+        ("LV_CHART_TYPE_LINE", {"values": [1] * 10}),
+        ("LV_CHART_TYPE_LINE", {"index": 9, "value": 1}),
+        ("LV_CHART_TYPE_LINE", {"index": Lambda("return 20;"), "value": 1}),
+        ("LV_CHART_TYPE_SCATTER", {"index": 0, "point": {"x": 1, "y": 2}}),
+    ],
+)
+def test_series_action_matching_chart(chart_type: str, payload: dict) -> None:
+    validate_series_action(SET, payload, chart_type, 10)
 
 
 def test_scatter_rejects_values() -> None:
@@ -242,49 +286,51 @@ def test_chart_update_requires_complete_axis_range(axis: str) -> None:
     assert config[axis] == {"min_value": -50, "max_value": 100}
 
 
-def test_series_update_values_cannot_exceed_point_count() -> None:
-    with pytest.raises(Invalid, match="point_count"):
-        validate_series_update_for_type({"values": [1, 2, 3]}, "LV_CHART_TYPE_LINE", 2)
-
-
-def test_series_update_values_can_match_point_count() -> None:
-    config = {"values": [1, 2]}
-    assert validate_series_update_for_type(config, "LV_CHART_TYPE_LINE", 2) == config
-
-
 @pytest.mark.parametrize(
-    "update,message",
+    "action,update,message",
     [
         (
+            APPEND,
             "id: scatter_series\n              value: 1",
-            "'scatter_series': A scatter chart series update requires point",
+            "'scatter_series': A scatter chart series takes point, not value",
         ),
         (
+            APPEND,
             "id: line_series\n              point: {x: 1, y: 2}",
-            "'line_series': point can only update a scatter chart series",
+            "'line_series': Only a scatter chart series takes point; use value",
         ),
         (
+            SET,
             "id: line_series\n              values: [1, 2, 3]",
-            "can't have more than point_count (2) values",
+            "values can't have more than point_count (2) entries",
+        ),
+        (
+            SET,
+            "id: line_series\n              index: 2\n              value: 1",
+            "index must be less than point_count (2)",
         ),
     ],
 )
-def test_series_update_is_checked_against_its_chart(
-    tmp_path: Path, update: str, message: str
+def test_series_action_is_checked_against_its_chart(
+    tmp_path: Path, action: str, update: str, message: str
 ) -> None:
-    errors = _config_errors(tmp_path, f"              {update}")
+    errors = _config_errors(tmp_path, f"              {update}", action=action)
     assert any(message in err for err in errors), errors
 
 
 @pytest.mark.parametrize(
-    "update",
+    "action,update",
     [
-        "id: line_series\n              values: [1, 2]",
-        "id: scatter_series\n              point: {x: 1, y: 2}",
+        (SET, "id: line_series\n              values: [1, 2]"),
+        (APPEND, "id: scatter_series\n              point: {x: 1, y: 2}"),
+        ("lvgl.chart.series.clear", "id: scatter_series"),
+        ("lvgl.chart.series.update", "id: line_series\n              hidden: true"),
     ],
 )
-def test_matching_series_update_is_accepted(tmp_path: Path, update: str) -> None:
-    assert _config_errors(tmp_path, f"              {update}") == []
+def test_matching_series_action_is_accepted(
+    tmp_path: Path, action: str, update: str
+) -> None:
+    assert _config_errors(tmp_path, f"              {update}", action=action) == []
 
 
 def test_series_update_is_checked_against_a_smaller_runtime_point_count(
@@ -296,8 +342,9 @@ def test_series_update_is_checked_against_a_smaller_runtime_point_count(
         "          - lvgl.chart.update:\n"
         "              id: line_chart\n"
         "              point_count: 1",
+        action=SET,
     )
-    assert any("can't have more than point_count (1) values" in e for e in errors)
+    assert any("can't have more than point_count (1) entries" in e for e in errors)
 
 
 def test_larger_runtime_point_count_keeps_the_configured_limit(
@@ -309,8 +356,9 @@ def test_larger_runtime_point_count_keeps_the_configured_limit(
         "          - lvgl.chart.update:\n"
         "              id: line_chart\n"
         "              point_count: 5",
+        action=SET,
     )
-    assert any("can't have more than point_count (2) values" in e for e in errors)
+    assert any("can't have more than point_count (2) entries" in e for e in errors)
 
 
 BOTH_SECONDARY_AXES = "static_cast<lv_chart_axis_t>(LV_CHART_AXIS_SECONDARY_Y | LV_CHART_AXIS_SECONDARY_X)"
@@ -436,14 +484,14 @@ def test_series_update_errors_point_at_each_action(tmp_path: Path) -> None:
     errors = _validation_errors(
         tmp_path,
         "              id: line_series\n              point: {x: 1, y: 2}",
-        "          - lvgl.chart.series.update:\n"
+        "          - lvgl.chart.series.set:\n"
         "              id: line_series\n"
         "              values: [1, 2, 3]",
     )
     action = ["lvgl", 0, "widgets", 2, "button", "on_click", 0, "then"]
     assert sorted((err.path for err in errors), key=str) == [
-        [*action, 0, "lvgl.chart.series.update", "point"],
-        [*action, 1, "lvgl.chart.series.update", "values"],
+        [*action, 0, APPEND, "point"],
+        [*action, 1, SET, "values"],
     ]
 
 
@@ -601,3 +649,29 @@ def test_x_range_update_needs_a_scatter_chart(tmp_path: Path) -> None:
     assert len(errors) == 1
     assert "Only a scatter chart has an X range" in str(errors[0])
     assert errors[0].path[-2:] == ["x_axis", "min_value"]
+
+
+def test_series_action_codegen(generate_main, component_config_path) -> None:
+    main_cpp = generate_main(component_config_path("chart_test.yaml"))
+
+    # set by index goes through the slot the point is drawn at
+    assert (
+        "lv_chart_set_series_value_by_id(::line_chart, ::line_series, "
+        "lvgl::chart_point_slot(::line_chart, ::line_series, " in main_cpp
+    )
+    assert (
+        "lv_chart_set_series_value_by_id2(::scatter_chart, ::scatter_series, "
+        "lvgl::chart_point_slot(::scatter_chart, ::scatter_series, 0), 1, 2);"
+        in main_cpp
+    )
+    assert (
+        "lv_chart_set_all_values(::line_chart, ::line_series_2, LV_CHART_POINT_NONE);"
+        in main_cpp
+    )
+    assert (
+        "lv_chart_set_series_color(::line_chart, ::line_series_2, "
+        "lv_color_make(0, 255, 0));" in main_cpp
+    )
+    assert "lv_chart_hide_series(::line_chart, ::line_series_2, " in main_cpp
+    # hidden when created
+    assert "lv_chart_hide_series(line_chart, line_series_2, true);" in main_cpp

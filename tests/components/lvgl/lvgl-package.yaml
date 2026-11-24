@@ -1800,13 +1800,22 @@ lvgl:
                   - button:
                       id: chart_update_button
                       on_click:
-                        - lvgl.chart.series.update:
+                        - lvgl.chart.series.append:
                             id: lv_chart_primary
                             value: !lambda return random_uint32() % 100;
-                        - lvgl.chart.series.update:
+                        - lvgl.chart.series.append:
                             id: lv_chart_primary
                             value: !lambda return NAN;
+                        - lvgl.chart.series.set:
+                            id: lv_chart_primary
+                            index: !lambda return random_uint32() % 5;
+                            value: 25
                         - lvgl.chart.series.update:
+                            id: lv_chart_primary
+                            color: !lambda return lv_color_hex(0x00FF00);
+                            hidden: false
+                        - lvgl.chart.series.clear: lv_chart_secondary
+                        - lvgl.chart.series.set:
                             id: lv_chart_secondary
                             values:
                               - !lambda return (random_uint32() % 100) / 100.0f;
@@ -1814,7 +1823,7 @@ lvgl:
                               - !lambda return (random_uint32() % 100) / 100.0f;
                               - !lambda return (random_uint32() % 100) / 100.0f;
                               - !lambda return (random_uint32() % 100) / 100.0f;
-                        - lvgl.chart.series.update:
+                        - lvgl.chart.series.append:
                             id: lv_scatter_series
                             point:
                               x: !lambda return random_uint32() % 100;

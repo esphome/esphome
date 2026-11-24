@@ -135,6 +135,16 @@ inline int32_t chart_point_value(float value, float multiplier) {
   static constexpr float POINT_LIMIT = 2147483520.0f;
   return static_cast<int32_t>(std::clamp(std::round(value * multiplier), -POINT_LIMIT, POINT_LIMIT));
 }
+
+/// The storage slot of the point `index` places from the left of the chart.
+/// In SHIFT mode the chart is drawn from the series start point; an index out of range is returned unchanged,
+/// so LVGL ignores it.
+inline uint32_t chart_point_slot(lv_obj_t *chart, lv_chart_series_t *series, uint32_t index) {
+  const uint32_t count = lv_chart_get_point_count(chart);
+  if (index >= count || lv_chart_get_update_mode(chart) != LV_CHART_UPDATE_MODE_SHIFT)
+    return index;
+  return (lv_chart_get_x_start_point(chart, series) + index) % count;
+}
 #endif
 
 #ifdef USE_LVGL_LIST

@@ -23,7 +23,7 @@ sensor:
   - platform: template
     id: shadow_sensor
     on_value:
-      - lvgl.chart.series.update:
+      - lvgl.chart.series.append:
           id: x
           value: !lambda return x;
 
@@ -39,6 +39,7 @@ lvgl:
           - id: line_series
             values: [10, 20]
           - id: line_series_2
+            hidden: true
     - chart:
         id: scatter_chart
         type: scatter
@@ -73,7 +74,7 @@ lvgl:
     - button:
         on_click:
           - lvgl.widget.refresh: bar_chart
-          - lvgl.chart.series.update:
+          - lvgl.chart.series.append:
               id: scaled_series
               value: !lambda return 0.5f;
           - lvgl.chart.update:
@@ -87,14 +88,27 @@ lvgl:
               y_axis:
                 min_value: -10
                 max_value: 10
-          - lvgl.chart.series.update:
+          - lvgl.chart.series.append:
               id: line_series
               value: !lambda return 30;
-          - lvgl.chart.series.update:
+          - lvgl.chart.series.set:
               id: line_series
               values: [1, 2]
-          - lvgl.chart.series.update:
+          - lvgl.chart.series.append:
               id: scatter_series
               point:
                 x: !lambda return 50;
                 y: !lambda return 60;
+          - lvgl.chart.series.set:
+              id: line_series
+              index: !lambda return 1;
+              value: 5
+          - lvgl.chart.series.set:
+              id: scatter_series
+              index: 0
+              point: {x: 1, y: 2}
+          - lvgl.chart.series.clear: line_series_2
+          - lvgl.chart.series.update:
+              id: line_series_2
+              color: 0x00FF00
+              hidden: !lambda return false;

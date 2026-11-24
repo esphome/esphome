@@ -1,3 +1,4 @@
+from collections.abc import Callable
 import math
 from typing import Any
 
@@ -5,7 +6,9 @@ from esphome import automation, codegen as cg
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_COLOR,
+    CONF_HIDDEN,
     CONF_ID,
+    CONF_INDEX,
     CONF_ITEMS,
     CONF_MAX_VALUE,
     CONF_MIN_VALUE,
@@ -28,16 +31,20 @@ from ..defines import (
     LValidator,
     LvConstant,
     get_chart_series,
-    get_chart_series_updates,
+    get_chart_series_actions,
     get_updated_widgets,
     literal,
 )
-from ..lv_validation import lv_color, lv_float
+from ..lv_validation import lv_bool, lv_color, lv_float, lv_positive_int
 from ..lvcode import LocalVariable, lv, lv_assign, lv_expr, lv_global
 from ..types import LvType, lvgl_ns
 from . import Widget, WidgetType
 
 CONF_CHART = "chart"
+ACTION_APPEND = "lvgl.chart.series.append"
+ACTION_SET = "lvgl.chart.series.set"
+ACTION_CLEAR = "lvgl.chart.series.clear"
+ACTION_UPDATE = "lvgl.chart.series.update"
 CONF_GRID_LINES = "grid_lines"
 CONF_MULTIPLIER = "multiplier"
 CONF_POINT_COUNT = "point_count"
@@ -77,6 +84,7 @@ CHART_UPDATE_MODE = _fixed(CHART_UPDATE_MODES)
 lv_chart_t = LvType("lv_chart_t")
 lv_chart_series_t = cg.global_ns.struct("lv_chart_series_t")
 chart_point_value = lvgl_ns.chart_point_value
+chart_point_slot = lvgl_ns.chart_point_slot
 
 # The largest float below 2**31; matches the limit in chart_point_value(). INT32_MAX
 # itself is LV_CHART_POINT_NONE, which marks a gap.
@@ -180,6 +188,7 @@ SERIES_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(lv_chart_series_t),
         cv.Optional(CONF_COLOR): lv_color,
+        cv.Optional(CONF_HIDDEN, default=False): cv.boolean,
         cv.Optional(CONF_Y_AXIS, default="primary"): SERIES_AXIS,
         cv.Optional(CONF_X_AXIS, default="primary"): SERIES_AXIS,
         cv.Optional(CONF_VALUES): cv.ensure_list(lv_float),
@@ -188,25 +197,70 @@ SERIES_SCHEMA = cv.Schema(
 )
 
 
-def _record_series_update(config: ConfigType) -> ConfigType:
-    """Remember the action so validate_chart_series_updates() can check it against
+def _record(action: str):
+    """Remember the action so validate_chart_series_actions() can check it against
     its chart once the whole config is known."""
-    get_chart_series_updates().append(config)
+
+    def validator(config: ConfigType) -> ConfigType:
+        get_chart_series_actions().append((action, config))
+        return config
+
+    return validator
+
+
+def _series_schema(action: str, schema: dict, *validators) -> cv.All:
+    return cv.All(
+        cv.Schema({cv.Required(CONF_ID): cv.use_id(lv_chart_series_t), **schema}),
+        *validators,
+        _record(action),
+    )
+
+
+def _index_goes_with_one_point(config: ConfigType) -> ConfigType:
+    one_point = CONF_VALUE in config or CONF_POINT in config
+    if one_point and CONF_INDEX not in config:
+        raise cv.Invalid(f"{CONF_INDEX} is required to set a single point")
+    if not one_point and CONF_INDEX in config:
+        raise cv.Invalid(
+            f"{CONF_INDEX} can only be used with {CONF_VALUE} or {CONF_POINT}",
+            path=[CONF_INDEX],
+        )
     return config
 
 
-SERIES_MODIFY_SCHEMA = cv.All(
-    cv.Schema(
-        {
-            cv.Required(CONF_ID): cv.use_id(lv_chart_series_t),
-            cv.Optional(CONF_VALUE): lv_float,
-            cv.Optional(CONF_VALUES): cv.ensure_list(lv_float),
-            cv.Optional(CONF_POINT): POINT_SCHEMA,
-        }
-    ),
-    cv.has_exactly_one_key(CONF_VALUE, CONF_VALUES, CONF_POINT),
-    _record_series_update,
+SERIES_APPEND_SCHEMA = _series_schema(
+    ACTION_APPEND,
+    {
+        cv.Optional(CONF_VALUE): lv_float,
+        cv.Optional(CONF_POINT): POINT_SCHEMA,
+    },
+    cv.has_exactly_one_key(CONF_VALUE, CONF_POINT),
 )
+
+SERIES_SET_SCHEMA = _series_schema(
+    ACTION_SET,
+    {
+        cv.Optional(CONF_VALUES): cv.ensure_list(lv_float),
+        cv.Optional(CONF_POINTS): cv.ensure_list(POINT_SCHEMA),
+        cv.Optional(CONF_INDEX): lv_positive_int,
+        cv.Optional(CONF_VALUE): lv_float,
+        cv.Optional(CONF_POINT): POINT_SCHEMA,
+    },
+    cv.has_exactly_one_key(CONF_VALUES, CONF_POINTS, CONF_VALUE, CONF_POINT),
+    _index_goes_with_one_point,
+)
+
+SERIES_CLEAR_SCHEMA = _series_schema(ACTION_CLEAR, {})
+
+SERIES_UPDATE_SCHEMA = _series_schema(
+    ACTION_UPDATE,
+    {
+        cv.Optional(CONF_COLOR): lv_color,
+        cv.Optional(CONF_HIDDEN): lv_bool,
+    },
+    cv.has_at_least_one_key(CONF_COLOR, CONF_HIDDEN),
+)
+
 
 CHART_SCHEMA = cv.Schema(
     {
@@ -278,22 +332,36 @@ def validate_chart(config: ConfigType) -> ConfigType:
     return config
 
 
-def validate_series_update_for_type(
-    config: ConfigType, chart_type: str, point_count: int
-) -> ConfigType:
+def validate_series_action(
+    action: str, config: ConfigType, chart_type: str, point_count: int
+) -> None:
+    """Check a series action's data against its chart's type and point count."""
     is_scatter = chart_type == "LV_CHART_TYPE_SCATTER"
-    if is_scatter and CONF_POINT not in config:
-        raise cv.Invalid("A scatter chart series update requires point")
-    if not is_scatter and CONF_POINT in config:
+    # The scatter key and the key for other charts, for one point and for all of them
+    data_keys = ((CONF_POINT, CONF_VALUE), (CONF_POINTS, CONF_VALUES))
+    for scatter_key, other_key in data_keys:
+        if is_scatter and other_key in config:
+            raise cv.Invalid(
+                f"A scatter chart series takes {scatter_key}, not {other_key}",
+                path=[other_key],
+            )
+        if not is_scatter and scatter_key in config:
+            raise cv.Invalid(
+                f"Only a scatter chart series takes {scatter_key}; use {other_key}",
+                path=[scatter_key],
+            )
+    for key in (CONF_VALUES, CONF_POINTS):
+        if (data := config.get(key)) is not None and len(data) > point_count:
+            raise cv.Invalid(
+                f"{key} can't have more than point_count ({point_count}) entries",
+                path=[key],
+            )
+    index = config.get(CONF_INDEX)
+    if isinstance(index, int) and index >= point_count:
         raise cv.Invalid(
-            "point can only update a scatter chart series", path=[CONF_POINT]
+            f"{CONF_INDEX} must be less than point_count ({point_count})",
+            path=[CONF_INDEX],
         )
-    if (values := config.get(CONF_VALUES)) is not None and len(values) > point_count:
-        raise cv.Invalid(
-            f"A chart series update can't have more than point_count ({point_count}) values",
-            path=[CONF_VALUES],
-        )
-    return config
 
 
 def _smallest_point_counts(global_config: FinalValidateConfig) -> dict[tuple, int]:
@@ -324,11 +392,11 @@ def _find_path(node: Any, target: ConfigType, path: list) -> list | None:
     return None
 
 
-def validate_chart_series_updates(global_config: FinalValidateConfig) -> None:
-    """Check each lvgl.chart.series.update action against the chart its series belongs to."""
+def validate_chart_series_actions(global_config: FinalValidateConfig) -> None:
+    """Check each lvgl.chart.series.* action against the chart its series belongs to."""
     smallest_point_counts = _smallest_point_counts(global_config)
     errors = []
-    for config in get_chart_series_updates():
+    for action, config in get_chart_series_actions():
         series_id = config[CONF_ID]
         # A series ID is declared at <chart>/series/<index>/id
         chart_path = tuple(global_config.get_path_for_id(series_id)[:-3])
@@ -338,9 +406,7 @@ def validate_chart_series_updates(global_config: FinalValidateConfig) -> None:
             smallest_point_counts.get(chart_path, chart_config[CONF_POINT_COUNT]),
         )
         try:
-            validate_series_update_for_type(
-                config, chart_config[CONF_TYPE], point_count
-            )
+            validate_series_action(action, config, chart_config[CONF_TYPE], point_count)
         except cv.Invalid as err:
             # The action may sit outside the lvgl block, so give its full path; the
             # root marker stops the lvgl block's path being put in front of it.
@@ -351,10 +417,7 @@ def validate_chart_series_updates(global_config: FinalValidateConfig) -> None:
                 else [cv.ROOT_CONFIG_PATH, *action_path, *err.path]
             )
             errors.append(
-                cv.Invalid(
-                    f"'lvgl.chart.series.update' for series '{series_id}': {err.msg}",
-                    path=path,
-                )
+                cv.Invalid(f"'{action}' for series '{series_id}': {err.msg}", path=path)
             )
     if errors:
         raise cv.MultipleInvalid(errors)
@@ -422,6 +485,8 @@ class ChartType(WidgetType):
                     series_axes(series),
                 ),
             )
+            if series[CONF_HIDDEN]:
+                lv.chart_hide_series(w.obj, series_var, True)
             x_scale, y_scale = series_multipliers(config, series)
             if config[CONF_TYPE] == "LV_CHART_TYPE_SCATTER":
                 await set_series_points(
@@ -586,33 +651,110 @@ async def set_series_points(
 chart_spec = ChartType()
 
 
-@automation.register_action(
-    "lvgl.chart.series.update",
-    automation.ApplyAction,
-    cv.maybe_simple_value(SERIES_MODIFY_SCHEMA, key=CONF_ID),
-    synchronous=True,
-)
-async def chart_series_update_to_code(
+async def series_action_to_code(
     config: ConfigType,
     action_id: ID,
     template_arg: cg.TemplateArguments,
     args: list,
+    action: Callable,
 ) -> MockObj:
+    """Generate a series action. `action` is called with the chart, the series, and
+    the X and Y multipliers of the series' axes."""
     # Named from global scope, so a trigger argument such as `x` cannot shadow them
     series = await lv_global(config[CONF_ID])
     chart, series_config = get_chart_series()[str(config[CONF_ID])]
     x_scale, y_scale = series_multipliers(chart.config, series_config)
 
-    async def do_update(w: Widget) -> None:
+    async def do_action(w: Widget) -> None:
         obj = automation.parent_ref(w.obj)
-        if (point := config.get(CONF_POINT)) is not None:
-            await set_series_points(obj, series, [point], x_scale, y_scale)
-        elif (values := config.get(CONF_VALUES)) is not None:
-            # Clearing also moves the start point back to the first slot.
-            lv.chart_set_all_values(obj, series, literal("LV_CHART_POINT_NONE"))
-            await set_series_values(obj, series, values, y_scale)
-        else:
-            await set_series_values(obj, series, [config[CONF_VALUE]], y_scale)
+        await action(obj, series, x_scale, y_scale)
         lv.chart_refresh(obj)
 
-    return await action_to_code([chart], do_update, action_id, template_arg, args)
+    return await action_to_code([chart], do_action, action_id, template_arg, args)
+
+
+@automation.register_action(
+    ACTION_APPEND, automation.ApplyAction, SERIES_APPEND_SCHEMA, synchronous=True
+)
+async def series_append_to_code(
+    config: ConfigType, action_id: ID, template_arg: cg.TemplateArguments, args: list
+) -> MockObj:
+    async def append(
+        chart: MockObj, series: MockObj, x_scale: float, y_scale: float
+    ) -> None:
+        if (point := config.get(CONF_POINT)) is not None:
+            await set_series_points(chart, series, [point], x_scale, y_scale)
+        else:
+            await set_series_values(chart, series, [config[CONF_VALUE]], y_scale)
+
+    return await series_action_to_code(config, action_id, template_arg, args, append)
+
+
+@automation.register_action(
+    ACTION_SET, automation.ApplyAction, SERIES_SET_SCHEMA, synchronous=True
+)
+async def series_set_to_code(
+    config: ConfigType, action_id: ID, template_arg: cg.TemplateArguments, args: list
+) -> MockObj:
+    async def set_data(
+        chart: MockObj, series: MockObj, x_scale: float, y_scale: float
+    ) -> None:
+        if CONF_INDEX not in config:
+            # Clearing also moves the start point back to the first slot.
+            lv.chart_set_all_values(chart, series, literal("LV_CHART_POINT_NONE"))
+            if (points := config.get(CONF_POINTS)) is not None:
+                await set_series_points(chart, series, points, x_scale, y_scale)
+            else:
+                await set_series_values(chart, series, config[CONF_VALUES], y_scale)
+            return
+        slot = chart_point_slot(
+            chart, series, await lv_positive_int.process(config[CONF_INDEX])
+        )
+        if (point := config.get(CONF_POINT)) is not None:
+            lv.chart_set_series_value_by_id2(
+                chart,
+                series,
+                slot,
+                await chart_value(point[CONF_X], x_scale),
+                await chart_value(point[CONF_Y], y_scale),
+            )
+        else:
+            lv.chart_set_series_value_by_id(
+                chart, series, slot, await chart_value(config[CONF_VALUE], y_scale)
+            )
+
+    return await series_action_to_code(config, action_id, template_arg, args, set_data)
+
+
+@automation.register_action(
+    ACTION_CLEAR,
+    automation.ApplyAction,
+    cv.maybe_simple_value(SERIES_CLEAR_SCHEMA, key=CONF_ID),
+    synchronous=True,
+)
+async def series_clear_to_code(
+    config: ConfigType, action_id: ID, template_arg: cg.TemplateArguments, args: list
+) -> MockObj:
+    async def clear(
+        chart: MockObj, series: MockObj, x_scale: float, y_scale: float
+    ) -> None:
+        lv.chart_set_all_values(chart, series, literal("LV_CHART_POINT_NONE"))
+
+    return await series_action_to_code(config, action_id, template_arg, args, clear)
+
+
+@automation.register_action(
+    ACTION_UPDATE, automation.ApplyAction, SERIES_UPDATE_SCHEMA, synchronous=True
+)
+async def series_update_to_code(
+    config: ConfigType, action_id: ID, template_arg: cg.TemplateArguments, args: list
+) -> MockObj:
+    async def update(
+        chart: MockObj, series: MockObj, x_scale: float, y_scale: float
+    ) -> None:
+        if (color := config.get(CONF_COLOR)) is not None:
+            lv.chart_set_series_color(chart, series, await lv_color.process(color))
+        if (hidden := config.get(CONF_HIDDEN)) is not None:
+            lv.chart_hide_series(chart, series, await lv_bool.process(hidden))
+
+    return await series_action_to_code(config, action_id, template_arg, args, update)

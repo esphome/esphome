@@ -26,7 +26,7 @@ KEY_LV_FONTS_USED = "lv_fonts_used"
 KEY_LV_IMAGES_USED = "lv_images_used"
 KEY_LV_USES = "lv_uses"
 KEY_CHART_SERIES = "chart_series"
-KEY_CHART_SERIES_UPDATES = "chart_series_updates"
+KEY_CHART_SERIES_ACTIONS = "chart_series_actions"
 KEY_MENU_SET_PAGE_ACTIONS = "menu_set_page_actions"
 KEY_NAMED_STYLES = "named_styles"
 KEY_OPTIONS = "options"
@@ -184,8 +184,9 @@ def get_chart_series() -> dict[str, tuple[Any, dict]]:
     return _get_data(KEY_CHART_SERIES, {})
 
 
-def get_chart_series_updates() -> list:
-    return _get_data(KEY_CHART_SERIES_UPDATES, [])
+def get_chart_series_actions() -> list[tuple[str, dict]]:
+    """The lvgl.chart.series.* actions to check in final validation, as (name, config)."""
+    return _get_data(KEY_CHART_SERIES_ACTIONS, [])
 
 
 def get_list_triggers() -> dict:
