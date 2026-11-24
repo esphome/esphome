@@ -50,3 +50,19 @@ Facts:
   unicast is about 95 to 100 %. Keep UDP loads light (counter tick 5 s, streams every 2 s) or the test measures the
   Wi-Fi. With Wi-Fi joined, `espnow.send` from the D1 to the ESP32 fails almost always (dev too).
 - The subnet broadcast address guess assumes .255; on a wider subnet (a /21, say) check it really ends in .255.
+
+## packet_interface compression over UDP and ESP-NOW (#22471)
+
+Files in `scripts/lzss_link/` (an ESP32-S3 and a Feather HUZZAH ESP8266; results:
+https://github.com/esphome/esphome/pull/22471#issuecomment-7119878173):
+
+- `gen.py BOARD VARIANT PEER_IP PEER_MAC` writes `lz<board><variant>.yaml` (`s3` or `hz`; `a` UDP with the default
+  dictionary, `b` UDP link capped at 200 bytes with compression `max_packet_size: 600`, `c` mismatched dictionaries at
+  VERBOSE, `e` ESP-NOW, `n` control without compression for the base tree). Pass each board the other board's address
+  and MAC.
+- `lztest.hpp` sends sensor, weather and device list JSON, hex and binary messages with a sequence number and a CRC32,
+  listens on top and on the layer below compression (the protected `lower_` through a derived accessor) to check the
+  header flag, the raw size plus one and the dictionary bits, and times `lzss::Lzss` encode and decode. The
+  dictionaries in `DICT_*.txt` must match the ones in the header byte for byte.
+- `run.sh V SECS` (env `TREE`, `PORT_HZ`, `PORT_S3`) flashes both and captures both from a reset; `ana.py V` prints per
+  type counts, messages missing from GAP lines, wire sizes and ratios, encode and decode times, resets and crashes.
