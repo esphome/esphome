@@ -1618,7 +1618,7 @@ def test_validate_id_name_reserved() -> None:
 
 @pytest.mark.parametrize("name", ["App", "app_lists", "AppList"])
 def test_validate_id_name_reserved_core_names(name: str) -> None:
-    """Names in esphome:: that a YAML id would clash with after `using namespace esphome`."""
+    """Names a YAML id would clash with under `using namespace esphome`."""
     with pytest.raises(Invalid, match="reserved internally"):
         cv.validate_id_name(name)
 

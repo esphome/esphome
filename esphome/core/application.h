@@ -65,8 +65,7 @@ struct HasLoopOverride<T, std::void_t<decltype(&T::loop)>>
 // cleanly is a warning in the log.
 static constexpr uint32_t TEARDOWN_TIMEOUT_REBOOT_MS = 1000;  // 1 second for quick reboot
 
-// Constant lists of codegen objects, defined in the generated main.cpp (PROGMEM on ESP8266). Their own
-// namespace keeps them clear of YAML ids, which main.cpp declares after `using namespace esphome`.
+// Defined in main.cpp; their own namespace keeps them clear of YAML ids
 namespace app_lists {
 #ifdef USE_DEVICES
 extern Device *const APP_DEVICE_LIST[];
@@ -84,9 +83,7 @@ extern Area *const APP_AREA_LIST[];
 // NOLINTEND(bugprone-macro-parentheses)
 }  // namespace app_lists
 
-/// Read-only view of one of the Application's lists: the `N` pointers codegen placed in a constant
-/// array, then the slots reserved for objects registered at run time (`Runtime`, a `SlotList`).
-/// The arrays hold aligned pointers, which ESP8266 reads from flash like RAM.
+/// View of a constant list then its runtime slots; ESP8266 reads the aligned pointers from flash like RAM.
 template<typename T, size_t N, typename Runtime = EmptyList<T *>> class AppList {
   static constexpr bool HAS_RUNTIME = !std::is_same_v<Runtime, EmptyList<T *>>;
 
@@ -198,7 +195,7 @@ class Application {
   }
 #endif
 
-// Devices and areas come from the YAML lists; these turn an old runtime call into a clear error
+// Removed runtime registration fails with a clear message
 #ifdef USE_DEVICES
   template<typename D = Device> void register_device(D * /*device*/) {
     static_assert(sizeof(D) == 0, "Devices come from the devices: list in YAML and cannot be added at run time");
@@ -217,8 +214,7 @@ class Application {
   void set_current_source(const LogString *source) { this->current_source_ = source; }
   const LogString *get_current_source() { return this->current_source_; }
 
-// Runtime entities fill slots reserved with cg.reserve_runtime_entities(); register_<entity>() returns false
-// when they are full, and without a reservation it fails to compile. `name` must outlive the entity.
+// Runtime entities fill reserved slots; register_<entity>() returns false when full. `name` must outlive it.
 // NOLINTBEGIN(bugprone-macro-parentheses)
 #define APP_RESERVE_HINT_(singular) \
   "Call cg.reserve_runtime_entities(\"" #singular "\", n) in to_code to register entities at run time"
@@ -286,7 +282,7 @@ class Application {
   /// Get the area of this Application set by pre_setup().
   const char *get_area() const {
 #ifdef USE_AREAS
-    // Codegen defines USE_AREAS only with at least one area; the first is the top-level area
+    // USE_AREAS implies at least one area
     return this->get_areas()[0]->get_name();
 #else
     return "";
@@ -552,8 +548,7 @@ class Application {
   friend void ::setup();
   friend void ::original_setup();
 
-  // setup() configures each listed entity through these instead of obj->configure_entity_(): the call
-  // passes the pointer it already holds and the offset to EntityBase is applied once, here
+  // For setup(): applies the EntityBase offset once instead of a literal per call
   // NOLINTBEGIN(bugprone-macro-parentheses)
 #define ENTITY_TYPE_(type, singular, plural, count, upper) \
   static void __attribute__((noinline)) configure_##singular(type *obj, const char *name, uint32_t object_id_hash, \

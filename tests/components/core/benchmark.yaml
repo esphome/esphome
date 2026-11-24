@@ -1,4 +1,2 @@
-# Pulls in sensor (USE_SENSOR) without codegen sensors, which test builds never construct; the
-# iterator tests walk their own constructed sensors, registered into runtime slots reserved in
-# __init__.py or held in a local list. Plain yaml.safe_load, no ESPHome tags.
+# USE_SENSOR without codegen sensors. Plain yaml.safe_load, no ESPHome tags.
 sensor: []

@@ -106,7 +106,7 @@ class ComponentIterator {
       return true;
     }
     typename Container::value_type item = items[this->at_];
-    // Checking include_internal_ first only matters to C++ test builds, whose entities are never constructed
+    // include_internal_ first: test builds never construct their entities
     if ((!this->include_internal_ && item->is_internal()) || (this->*on_item)(item)) {
       this->at_++;
       return true;

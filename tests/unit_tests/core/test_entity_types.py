@@ -21,7 +21,7 @@ def test_platforms_match_entity_types_h() -> None:
 
 
 def test_upper_tokens_match_entity_types_h() -> None:
-    """The DATETIME_ prefix of date/time/datetime and every other `upper` token match the header."""
+    """`upper` tokens, including the DATETIME_ prefix, match the header."""
     assert dict(ENTRIES) == app_lists.ENTITY_LISTS
     assert {
         singular for singular, upper in ENTRIES if upper.startswith("DATETIME_")

@@ -48,8 +48,7 @@ class RefusingIterator : public ComponentIterator {
 // Far above the fixed number of iterator states
 static constexpr size_t BIG_BUDGET = 1000;
 
-// Test builds never construct codegen entities: the walks pass include_internal so the iterator
-// never reads them, and the callbacks below only look at the test's own objects.
+// The walks pass include_internal, so test builds' unconstructed entities are never read
 
 TEST(ComponentIterator, NotRunningMakesNoProgress) {
   RefusingIterator it;
@@ -143,7 +142,7 @@ static constexpr uint32_t SENSOR_C_FIELDS =
 class ItemRefusingIterator : public RefusingIterator {
  public:
   bool on_sensor(sensor::Sensor *obj) override {
-    // Codegen sensors are unconstructed in test builds; accept them untouched
+    // Unconstructed codegen sensors: accept untouched
     if (obj != &sensor_a && obj != &sensor_b)
       return true;
     this->last_sensor = obj;
@@ -284,13 +283,13 @@ TEST_F(ComponentIteratorSensorTest, YieldAfterStepEndsPassAndResumes) {
   EXPECT_TRUE(it.completed());
 }
 
-// Constructed sensors in a local constant list, walked the way the iterator walks App's lists
+// Constructed sensors in a local constant list
 static sensor::Sensor list_sensor_a;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static sensor::Sensor list_sensor_b;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static sensor::Sensor *const LIST_SENSORS[] = {&list_sensor_a, &list_sensor_b};
 static const AppList<sensor::Sensor, 2> LOCAL_LIST(LIST_SENSORS);
 
-// Same contract as ItemRefusingIterator, one process_platform_item_() step at a time over the local list
+// ItemRefusingIterator's contract, one process_platform_item_() step at a time
 class ListIterator : public RefusingIterator {
  public:
   bool on_sensor(sensor::Sensor *obj) override {
@@ -301,7 +300,6 @@ class ListIterator : public RefusingIterator {
       this->yield_after_step_();
     return true;
   }
-  /// One iteration step over the local list
   bool step_list() { return this->process_platform_item_(LOCAL_LIST, &ComponentIterator::on_sensor); }
   uint16_t at() const { return this->at_; }
   bool yield_requested() const { return this->yield_requested_; }
@@ -315,18 +313,17 @@ class ListIterator : public RefusingIterator {
 TEST(ComponentIteratorList, RefusedItemIsReofferedNotSkipped) {
   ListIterator it;
   it.sensor_refusals = 2;
-  // The first sensor refuses twice; at_ stays on it
+  // Refused twice; at_ stays put
   EXPECT_FALSE(it.step_list());
   EXPECT_FALSE(it.step_list());
   EXPECT_EQ(it.at(), 0);
   EXPECT_EQ(it.last_sensor, &list_sensor_a);
-  // Then it is accepted, and the second sensor follows
   EXPECT_TRUE(it.step_list());
   EXPECT_EQ(it.at(), 1);
   EXPECT_TRUE(it.step_list());
   EXPECT_EQ(it.last_sensor, &list_sensor_b);
   EXPECT_EQ(it.sensor_calls, 4);
-  // Past the end the iterator moves on to the next platform without another callback
+  // Past the end: next platform, no callback
   EXPECT_TRUE(it.step_list());
   EXPECT_EQ(it.at(), 0);
   EXPECT_EQ(it.sensor_calls, 4);
@@ -336,7 +333,6 @@ TEST(ComponentIteratorList, YieldAfterStepIsRequestedPerItem) {
   ListIterator it;
   it.yield_on_sensor = true;
   EXPECT_TRUE(it.step_list());
-  // try_advance() ends its pass when the callback asked to yield
   EXPECT_TRUE(it.yield_requested());
   EXPECT_EQ(it.at(), 1);
   EXPECT_EQ(it.last_sensor, &list_sensor_a);

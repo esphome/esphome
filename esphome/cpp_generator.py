@@ -874,12 +874,7 @@ def is_static_pointer(obj: SafeExpType) -> bool:
 
 
 def static_pointer_address(obj: SafeExpType) -> str | None:
-    """A constant expression for the address ``obj`` points to, for a static Pvariable or an
-    alias of one; None if the address is only known at run time.
-
-    Use it in a constant table instead of the pointer variable: GCC reads that variable as a
-    run-time value, so converting it to a base class at a non-zero offset moves the table to RAM.
-    """
+    """Constant address expression of a static Pvariable or an alias of one, else None."""
     if not isinstance(obj, MockObj):
         return None
     return CORE.data.get(_STATIC_POINTER_ADDRESSES, {}).get(str(obj.base))
