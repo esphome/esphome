@@ -1,15 +1,11 @@
 # Free internal heap at boot and every 10 s, plus a 20 lines/s log burst, on the USB Serial/JTAG console.
 esphome:
   name: ${name}
-  includes:
-    - heap_caps.hpp
+  includes: [../bt_proxy_ab/heaplog.hpp]
   on_boot:
     priority: 800
     then:
-      - lambda: |-
-          ESP_LOGI("heap", "HEAP0 free_int=%u largest_int=%u",
-                   (unsigned) heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
-                   (unsigned) heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL));
+      - lambda: heaplog::log();
 
 wifi:
   ssid: !secret wifi_ssid
@@ -32,7 +28,4 @@ interval:
           ESP_LOGI("burst", "plain line without arguments");
   - interval: 10s
     then:
-      - lambda: |-
-          ESP_LOGI("heap", "HEAP t=%u free_int=%u largest_int=%u", (unsigned) (millis() / 1000),
-                   (unsigned) heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
-                   (unsigned) heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL));
+      - lambda: heaplog::log();

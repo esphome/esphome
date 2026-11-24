@@ -8,6 +8,10 @@ import pathlib
 import re
 import sys
 
+BURST = re.compile(
+    rb"\[burst[^\]]*\]: (?:SEQ (\d+)|plain line without arguments)(\x1b\[0m)?\r?$"
+)
+
 for path in sys.argv[1:]:
     data = pathlib.Path(path).read_bytes()
     segs = data.split(b"Running through setup()")
@@ -18,13 +22,11 @@ for path in sys.argv[1:]:
         for ln in lines:
             if b"[burst" not in ln and b"SEQ" not in ln and b"plain line" not in ln:
                 continue
-            one = ln.count(b"[burst") == 1  # two records run together are a broken line
-            m = one and re.search(rb"\[burst[^\]]*\]: SEQ (\d+)(\x1b\[0m)?\r?$", ln)
-            if m:
+            # two records run together are a broken line
+            m = ln.count(b"[burst") == 1 and BURST.search(ln)
+            if m and m.group(1):
                 seqs.append(int(m.group(1)))
-            elif one and re.search(
-                rb"\[burst[^\]]*\]: plain line without arguments(\x1b\[0m)?\r?$", ln
-            ):
+            elif m:
                 plain += 1
             else:
                 broken += 1

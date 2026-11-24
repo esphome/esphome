@@ -1,9 +1,11 @@
 // Test harness for the virtual_uart component (#20428): a fake MH-Z19 and SDS011 behind virtual UARTs.
 #pragma once
+#include <array>
 #include <cmath>
 #include <cstring>
 #include <span>
 #include <vector>
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace vu {
@@ -12,7 +14,7 @@ static const char *const TAG = "vutest";
 struct Stats {
   // mhz19
   uint32_t mhz_tx_cmds = 0, mhz_tx_getppm = 0, mhz_tx_other = 0, mhz_tx_bad = 0, mhz_tx_bytes = 0, mhz_tx_calls = 0;
-  uint32_t mhz_replies = 0, mhz_state_ok = 0, mhz_state_bad = 0, mhz_temp_ok = 0, mhz_temp_bad = 0;
+  uint32_t mhz_state_ok = 0, mhz_state_bad = 0, mhz_temp_ok = 0, mhz_temp_bad = 0;
   uint16_t mhz_expect_ppm = 0;
   // sds011
   uint32_t sds_tx_frames = 0, sds_tx_ok = 0, sds_tx_bad = 0, sds_tx_calls = 0;
@@ -25,17 +27,12 @@ struct Stats {
   uint32_t raw_runs = 0, raw_ok = 0, raw_bad = 0;
   // self write
   uint32_t self_tx_calls = 0;
-  uint32_t debug_lines = 0;
 };
 inline Stats st;
 
 inline void hex(const char *tag, const uint8_t *d, size_t n) {
-  char buf[3 * 64 + 1];
-  size_t k = 0;
-  for (size_t i = 0; i < n && i < 64; i++)
-    k += snprintf(buf + k, sizeof(buf) - k, "%02X ", d[i]);
-  buf[k] = 0;
-  ESP_LOGI(TAG, "%s (%u) %s", tag, (unsigned) n, buf);
+  char buf[esphome::format_hex_pretty_size(19)];
+  ESP_LOGI(TAG, "%s (%u) %s", tag, (unsigned) n, esphome::format_hex_pretty_to(buf, d, n, ' '));
 }
 
 // ---- MH-Z19 model: collects the 9 command bytes and answers GET_PPM with a fresh ppm ----
@@ -65,7 +62,6 @@ template<typename U> void on_mhz_tx(U *u, std::span<const uint8_t> data) {
       s += r[i];
     r[8] = -s;
     st.mhz_expect_ppm = ppm;
-    st.mhz_replies++;
     u->inject(r, 9);
   } else if (memcmp(mhz_tx_buf, ABC_OFF, 9) == 0) {
     st.mhz_tx_other++;
@@ -113,8 +109,8 @@ inline void on_sds_tx(std::span<const uint8_t> data) {
     st.sds_tx_bad++;
 }
 
-inline std::vector<uint8_t> sds_frame(uint16_t pm25x10, uint16_t pm10x10) {
-  std::vector<uint8_t> f = {
+inline std::array<uint8_t, 10> sds_frame(uint16_t pm25x10, uint16_t pm10x10) {
+  std::array<uint8_t, 10> f = {
       0xAA, 0xC0, (uint8_t) pm25x10, (uint8_t) (pm25x10 >> 8), (uint8_t) pm10x10, (uint8_t) (pm10x10 >> 8), 0x12, 0x34,
       0,    0xAB};
   uint8_t s = 0;
@@ -128,7 +124,8 @@ inline std::vector<uint8_t> sds_next() {
   st.sds_lambda_n++;
   uint16_t v = 1000 + (st.sds_lambda_n % 2000);
   st.sds_lambda_expect = v / 10.0f;
-  return sds_frame(v, 555);
+  auto f = sds_frame(v, 555);
+  return {f.begin(), f.end()};  // inject_rx takes a vector
 }
 inline void on_sds_state(float x) {
   if (std::fabs(x - 12.3f) < 0.01f)
@@ -152,14 +149,16 @@ template<typename U> void overflow(U *u) {
     st.ovf_skip++;
     return;
   }
-  auto a = sds_frame(777, 555);
-  a.resize(21, 0x00);
-  u->inject(a.data(), a.size());  // must drop, with a warning
+  uint8_t a[21] = {};
+  auto fa = sds_frame(777, 555);
+  memcpy(a, fa.data(), fa.size());
+  u->inject(a, sizeof(a));  // must drop, with a warning
   size_t after_a = u->available();
-  auto b = sds_frame(888, 555);
-  auto c = sds_frame(999, 555);
-  b.insert(b.end(), c.begin(), c.end());
-  u->inject(b.data(), b.size());  // exactly fits
+  uint8_t b[20];
+  auto fb = sds_frame(888, 555), fc = sds_frame(999, 555);
+  memcpy(b, fb.data(), 10);
+  memcpy(b + 10, fc.data(), 10);
+  u->inject(b, sizeof(b));  // exactly fits
   size_t after_b = u->available();
   uint8_t one = 0xAA;
   u->inject(&one, 1);  // full, must drop
@@ -196,10 +195,10 @@ template<typename U> void raw_check(U *u, bool log) {
 
 inline void summary() {
   ESP_LOGI(TAG,
-           "SUM mhz tx_calls=%u tx_bytes=%u cmds=%u getppm=%u abc=%u bad=%u replies=%u state_ok=%u state_bad=%u "
+           "SUM mhz tx_calls=%u tx_bytes=%u cmds=%u getppm=%u abc=%u bad=%u state_ok=%u state_bad=%u "
            "temp_ok=%u temp_bad=%u",
            st.mhz_tx_calls, st.mhz_tx_bytes, st.mhz_tx_cmds, st.mhz_tx_getppm, st.mhz_tx_other, st.mhz_tx_bad,
-           st.mhz_replies, st.mhz_state_ok, st.mhz_state_bad, st.mhz_temp_ok, st.mhz_temp_bad);
+           st.mhz_state_ok, st.mhz_state_bad, st.mhz_temp_ok, st.mhz_temp_bad);
   ESP_LOGI(TAG,
            "SUM sds tx_calls=%u frames=%u ok=%u bad=%u static_ok=%u lambda_n=%u lambda_ok=%u ovf_states=%u "
            "forbidden=%u bad_state=%u",

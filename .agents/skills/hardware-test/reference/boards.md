@@ -387,9 +387,9 @@ Ports are not listed on purpose: they follow the USB hub port and change on ever
 - AmebaZ GPIO registers at 0x40001000: DR +0x00, DDR +0x04, EXT_PORT +0x50, bit = PA pin number; EXT_PORT reads 0
   for a pad routed to the UART. UART0 LSR at 0x40040014 (THRE bit 5, TEMT bit 6); LibreTiny `flush()` there waits
   for TEMT.
-- ESPHome OTA switches to UDP on a lossy link and can then stall for minutes (API refused until it gives up). Force
-  TCP with a wrapper that sets `esphome.espota2.CLIENT_FEATURE_SUPPORTS_UDP = 0` before calling
-  `esphome.__main__.main()`; the same wrapper helps an LN882H on a bad link.
+- ESPHome OTA switches to UDP on a lossy link and can then stall for minutes (API refused until it gives up). Stay
+  on TCP as the `-tcp` modes in `recipes/ota.md` do (`espota2._loss_reason` returns None); the same helps an LN882H
+  on a bad link.
 
 ## BW16 kit (RTL8720DN, AmebaD)
 

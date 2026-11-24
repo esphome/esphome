@@ -45,7 +45,6 @@ i2c_wire_ab/*/*-ser*.txt
 i2c_wire_ab/*/*-upload.log
 i2c_wire_ab/mux/*-ser*.txt*
 i2c_wire_ab/mux/*.log
-improv/*-boot*.log
 improv/*-stress.bin
 improv/*.log
 interval/ivl*.yaml

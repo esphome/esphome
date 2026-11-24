@@ -3,35 +3,48 @@
 Writes start after 10 s: 20 chunks of 200 B (alternating text lines and random bytes) every 0.25 s, then a 2 KB
 blob, repeated every 15 s until 10 s before the end. Uses write_timeout and no flush, since nothing on the device
 may read the port. Prints bytes accepted and timed-out writes. Opening a C3/S3 USB Serial/JTAG port resets the chip
-once, which is why the writes wait 10 s.
+once, which is why the writes wait 10 s. A port that drops is reopened, also under a new path.
 """
 
+import contextlib
 import os
 import pathlib
 import sys
 import threading
 import time
+from types import SimpleNamespace
 
-import serial
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+import serial  # noqa: E402
+from serial_capture import PORT_ERRORS, current_path, identify, open_port  # noqa: E402
 
 
 def main() -> None:
     port, out, secs = sys.argv[1], sys.argv[2], float(sys.argv[3])
-    ser = serial.Serial()
-    ser.port, ser.baudrate, ser.timeout, ser.write_timeout = port, 115200, 0.05, 0.5
-    ser.dtr = ser.rts = False
-    ser.open()
+    opts = SimpleNamespace(baud=115200, released=True, reset=False)
+    serial_number, index = identify(port)
+    link = SimpleNamespace(ser=open_port(opts, port))
+    link.ser.write_timeout = 0.5
     end = time.time() + secs
-    stop = threading.Event()
     with pathlib.Path(out).open("wb") as f:
 
         def reader() -> None:
-            while not stop.is_set() and time.time() < end:
+            while time.time() < end:
+                if link.ser is None:
+                    try:
+                        s = open_port(opts, current_path(port, serial_number, index))
+                        s.write_timeout = 0.5
+                        link.ser = s
+                    except PORT_ERRORS:
+                        time.sleep(0.5)
+                    continue
                 try:
-                    d = ser.read(4096)
-                except serial.SerialException as e:
+                    d = link.ser.read(4096)
+                except PORT_ERRORS as e:
                     f.write(f"\n#READ ERROR {e}\n".encode())
-                    time.sleep(0.5)
+                    with contextlib.suppress(*PORT_ERRORS):
+                        link.ser.close()
+                    link.ser = None
                     continue
                 if d:
                     f.write(d)
@@ -42,26 +55,27 @@ def main() -> None:
         acc = tout = rounds = 0
         while time.time() < end - 10:
             rounds += 1
+            t_round = time.time()
             chunks = [
                 os.urandom(200)
                 if i % 2
-                else (f"host text line {rounds}.{i} " + "x" * 160 + "\r\n").encode()[
-                    :200
-                ]
+                else (f"host text line {rounds}.{i} " + "x" * 160 + "\r\n").encode()
                 for i in range(20)
             ]
             chunks.append(os.urandom(2048))
             for c in chunks:
                 try:
-                    acc += ser.write(c)
+                    if (s := link.ser) is not None:
+                        acc += s.write(c)
                 except serial.SerialTimeoutException:
                     tout += 1
+                except PORT_ERRORS:
+                    pass  # the reader reopens the port
                 time.sleep(0.25)
-            time.sleep(max(0, min(15 - 5.25, end - 10 - time.time())))
-        while time.time() < end:
-            time.sleep(0.5)
-        stop.set()
+            time.sleep(max(0, min(t_round + 15, end - 10) - time.time()))
         t.join()
+        if link.ser is not None:
+            link.ser.close()
     print(f"rounds={rounds} bytes_accepted={acc} write_timeouts={tout}")
 
 
