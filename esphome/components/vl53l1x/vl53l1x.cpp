@@ -214,10 +214,7 @@ void VL53L1XSensor::setup() {
   // comes back at the default address only when its own setup() releases it.
   if (VL53L1XSensor::first_sensor != nullptr) {
     for (auto *other = VL53L1XSensor::first_sensor; other != nullptr; other = other->next_) {
-      if (other->enable_pin_ != nullptr) {
-        other->enable_pin_->setup();
-        other->enable_pin_->digital_write(false);
-      }
+      setup_output_pin(other->enable_pin_, false);
     }
     VL53L1XSensor::first_sensor = nullptr;
   }
@@ -400,8 +397,8 @@ void VL53L1XSensor::dump_config() {
                 "  Timing Budget: %u ms\n"
                 "  ROI: %ux%u\n"
                 "  Offset: %d mm",
-                LOG_STR_ARG(DistanceModeStrings::get_log_str(this->distance_mode_, DistanceModeStrings::LAST_INDEX)),
-                this->budget_ms_, this->roi_width_, this->roi_height_, this->offset_mm_);
+                LOG_STR_ARG(DistanceModeStrings::get_log_str(this->distance_mode_)), this->budget_ms_, this->roi_width_,
+                this->roi_height_, this->offset_mm_);
   if (this->roi_center_ != 0) {
     ESP_LOGCONFIG(TAG, "  ROI Center: %u", this->roi_center_);
   }

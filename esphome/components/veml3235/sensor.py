@@ -1,13 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_GAIN,
-    CONF_INTEGRATION_TIME,
-    DEVICE_CLASS_ILLUMINANCE,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_LUX,
-)
+from esphome.const import CONF_GAIN, CONF_INTEGRATION_TIME
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@kbx81"]
@@ -44,13 +38,7 @@ def _validate_auto_gain_thresholds(config: ConfigType) -> ConfigType:
 
 
 CONFIG_SCHEMA = cv.All(
-    sensor.sensor_schema(
-        VEML3235Sensor,
-        unit_of_measurement=UNIT_LUX,
-        accuracy_decimals=1,
-        device_class=DEVICE_CLASS_ILLUMINANCE,
-        state_class=STATE_CLASS_MEASUREMENT,
-    )
+    sensor.sensor_schema(VEML3235Sensor, kind=sensor.ILLUMINANCE, accuracy_decimals=1)
     .extend(
         {
             cv.Optional(CONF_DIGITAL_GAIN, default="1X"): cv.enum(

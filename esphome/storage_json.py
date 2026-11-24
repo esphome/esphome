@@ -214,7 +214,7 @@ class StorageJSON:
             hardware = esp32.get_esp32_variant(esph)
             framework_version = str(esp32.idf_version())
         elif esph.is_nrf52:
-            framework_version = str(esph.data[KEY_CORE][KEY_FRAMEWORK_VERSION])
+            framework_version = str(esph.framework_version)
         return StorageJSON(
             storage_version=1,
             name=esph.name,

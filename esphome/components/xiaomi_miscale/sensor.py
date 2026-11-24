@@ -11,7 +11,6 @@ from esphome.const import (
     ICON_SCALE_BATHROOM,
     STATE_CLASS_MEASUREMENT,
     UNIT_KILOGRAM,
-    UNIT_OHM,
 )
 from esphome.types import ConfigType
 
@@ -19,7 +18,7 @@ AUTO_LOAD = ["ble_device_base"]
 
 xiaomi_miscale_ns = cg.esphome_ns.namespace("xiaomi_miscale")
 XiaomiMiscale = xiaomi_miscale_ns.class_(
-    "XiaomiMiscale", ble_device_base.ESPBTDeviceListener, cg.Component
+    "XiaomiMiscale", ble_device_base.ESPBTDeviceListener
 )
 
 CONFIG_SCHEMA = cv.All(
@@ -37,20 +36,15 @@ CONFIG_SCHEMA = cv.All(
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_IMPEDANCE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_OHM,
-                icon=ICON_OMEGA,
-                accuracy_decimals=0,
-                state_class=STATE_CLASS_MEASUREMENT,
+                kind=sensor.RESISTANCE, icon=ICON_OMEGA
             ),
         }
-    )
-    .extend(cv.COMPONENT_SCHEMA)
-    .extend(ble_device_base.BLE_DEVICE_SCHEMA),
+    ).extend(ble_device_base.BLE_DEVICE_SCHEMA),
 )
 
 
 async def to_code(config: ConfigType) -> None:
-    var = await ble_device_base.new_ble_device_component(config)
+    var = await ble_device_base.new_ble_device(config)
 
     cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))
     cg.add(var.set_clear_impedance(config[CONF_CLEAR_IMPEDANCE]))

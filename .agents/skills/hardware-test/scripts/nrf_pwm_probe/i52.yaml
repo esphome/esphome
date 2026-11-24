@@ -1,0 +1,31 @@
+# ItsyBitsy nRF52840: four distinct frequencies (the nRF52840 maximum), the LED and a P1 pin sharing one block.
+substitutions:
+  name: i52
+esphome:
+  name: ${name}
+nrf52:
+  board: adafruit_itsybitsy_nrf52840
+  bootloader: adafruit_nrf52_sd140_v6
+  dfu: true
+packages:
+  sweep: !include sweep.yaml
+output:
+  - {platform: zephyr_pwm, id: led, pin: P0.06}
+  - {platform: zephyr_pwm, id: d2, pin: P1.02}
+  - {platform: zephyr_pwm, id: a0, pin: {number: P0.04, inverted: true}, frequency: 2kHz}
+  - {platform: zephyr_pwm, id: a1, pin: P0.30, frequency: 3kHz}
+  - {platform: zephyr_pwm, id: a2, pin: P0.28, frequency: 4kHz}
+script:
+  - id: probe_all
+    then:
+      - lambda: |-
+          id(led).set_level(id(level)); id(d2).set_level(id(level)); id(a0).set_level(id(level));
+          id(a1).set_level(id(level)); id(a2).set_level(id(level));
+      - delay: 300ms
+      - lambda: |-
+          pwmprobe::measure("led_P0.06", 6, id(level), 20);
+          pwmprobe::measure("d2_P1.02", 32 + 2, id(level), 20);
+          pwmprobe::measure("a0_P0.04", 4, id(level), 20);
+          pwmprobe::measure("a1_P0.30", 30, id(level), 20);
+          pwmprobe::measure("a2_P0.28", 28, id(level), 20);
+      - delay: 200ms

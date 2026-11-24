@@ -1,12 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_ID,
-    DEVICE_CLASS_DISTANCE,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_MILLIMETER,
-)
+from esphome.const import CONF_ID
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@pkejval"]
@@ -18,13 +13,7 @@ GLR01I2CComponent = gl_r01_i2c_ns.class_(
 )
 
 CONFIG_SCHEMA = (
-    sensor.sensor_schema(
-        GLR01I2CComponent,
-        unit_of_measurement=UNIT_MILLIMETER,
-        accuracy_decimals=0,
-        device_class=DEVICE_CLASS_DISTANCE,
-        state_class=STATE_CLASS_MEASUREMENT,
-    )
+    sensor.sensor_schema(GLR01I2CComponent, kind=sensor.DISTANCE_MM)
     .extend(cv.polling_component_schema("60s"))
     .extend(i2c.i2c_device_schema(0x74))
 )

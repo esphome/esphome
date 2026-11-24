@@ -8,6 +8,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include "software_serial_rx_decoder.h"
+#include "software_serial_tx_frame.h"
 #include "uart_component.h"
 
 namespace esphome::uart {
@@ -93,6 +94,8 @@ class ESP8266UartComponent final : public UARTComponent, public Component {
   using UARTComponent::load_settings;  // also bring in the no-arg overload for convenience
 
  protected:
+  /// TX only (no core RX buffer or RX interrupt) for a bus without an RX pin; call after hw_serial_ is set
+  SerialMode serial_mode_() const;
   void check_logger_conflict() override;
 
   HardwareSerial *hw_serial_{nullptr};
