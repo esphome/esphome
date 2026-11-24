@@ -16,7 +16,7 @@ from esphome.components.zigbee.zigbee_ep_esp32 import (
     create_ep,
 )
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_VALUE
+from esphome.const import CONF_ID, CONF_NUMBER, CONF_VALUE
 from esphome.core import CORE
 
 
@@ -94,3 +94,27 @@ def test_create_ep_merges_unnumbered_clusters_with_coexisting_attributes() -> No
         {CONF_ATTRIBUTE_ID: 7, CONF_VALUE: 1},
         {CONF_ATTRIBUTE_ID: 8, CONF_VALUE: 2},
     ]
+
+
+def test_create_ep_sets_ep_ref_number_for_merged_endpoints() -> None:
+    ep_ref_1: dict[str, Any] = {}
+    ep_ref_2: dict[str, Any] = {}
+    add_ep(
+        {CONF_CLUSTERS: [_cluster(7, 1)]},
+        None,
+        None,
+        merge_attributes=True,
+        ep_ref=ep_ref_1,
+    )
+    add_ep(
+        {CONF_CLUSTERS: [_cluster(8, 2)]},
+        None,
+        None,
+        merge_attributes=True,
+        ep_ref=ep_ref_2,
+    )
+
+    create_ep(router=False)
+
+    assert ep_ref_1[CONF_NUMBER] == 1
+    assert ep_ref_2[CONF_NUMBER] == 1

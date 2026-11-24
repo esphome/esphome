@@ -151,11 +151,12 @@ class VBusCustomSensor : public VBusListener {
 
 class VBusCustomSubSensor : public sensor::Sensor {
  public:
-  void set_message_parser(message_parser_t parser) { this->message_parser_ = std::move(parser); };
+  using message_parser_t = float (*)(std::vector<uint8_t>);
+  void set_message_parser(message_parser_t parser) { this->message_parser_ = parser; }
   void parse_message(std::vector<uint8_t> &message);
 
  protected:
-  message_parser_t message_parser_;
+  message_parser_t message_parser_{nullptr};
 };
 
 }  // namespace esphome::vbus

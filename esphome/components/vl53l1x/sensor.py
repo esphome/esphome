@@ -1,6 +1,7 @@
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
+from esphome.components.const import CONF_TIMING_BUDGET
 from esphome.components.i2c import CONF_I2C_ID
 import esphome.config_validation as cv
 from esphome.const import (
@@ -28,7 +29,6 @@ DISTANCE_MODE_OPTIONS = DistanceMode.options(
 )
 
 CONF_DISTANCE_MODE = "distance_mode"
-CONF_TIMING_BUDGET = "timing_budget"
 CONF_SIGNAL_RATE_LIMIT = "signal_rate_limit"
 CONF_ROI_WIDTH = "roi_width"
 CONF_ROI_HEIGHT = "roi_height"
