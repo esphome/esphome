@@ -1,0 +1,86 @@
+#pragma once
+
+#include <cstdint>
+#include "esphome/core/hal.h"
+#include "opentherm_base.h"
+
+#ifdef USE_ESP32
+#include <soc/soc_caps.h>
+#include "driver/gptimer.h"
+#endif
+
+#if !(defined(USE_ESP32) && SOC_RMT_SUPPORTED)
+
+namespace esphome::opentherm {
+
+/**
+ * Timer-driven transport. A general purpose timer samples the line at five times the bit rate, and while sending
+ * flips the output at twice the bit rate; the frame is assembled from those samples. Used where there is no RMT
+ * peripheral: the ESP8266 and the ESP32 variants without one (C2, C61).
+ */
+class OpenThermPolling : public OpenThermBase {
+ public:
+  OpenThermPolling(InternalGPIOPin *in_pin, InternalGPIOPin *out_pin, int32_t device_timeout = 800)
+      : OpenThermBase(in_pin, out_pin, device_timeout) {}
+
+  void report_and_reset_timer_error() override;
+
+  /// Blocks while the transport is busy, or until the timeout expires. Only usable here: sampling and bit flipping
+  /// advance from interrupts, so nothing else has to run for a conversation to complete.
+  /// @return true when the transport finished, false on timeout
+  bool wait_until_done(uint32_t timeout);
+
+#ifdef USE_ESP32
+  static bool timer_isr(gptimer_handle_t timer, const gptimer_alarm_event_data_t *edata, void *user_ctx);
+#else
+  static bool timer_isr(OpenThermPolling *arg);
+#endif
+
+#ifdef ESP8266
+  static void esp8266_timer_isr();
+#endif
+
+ private:
+  bool initialize_impl_() override;
+  void listen_impl_() override;
+  void send_impl_() override;
+  void stop_impl_() override;
+  void loop_impl_() override {}
+
+  void read_();  // data detected, start reading
+  void bit_read_(uint8_t value);
+  ProtocolErrorType verify_stop_bit_(uint8_t value);
+  void write_bit_(uint8_t high, uint8_t clock);
+
+  // 5 kHz timer_ to sample at 1/5 of manchester code bit length
+  void start_read_timer_();
+  // 2 kHz timer_ to send manchester code
+  void start_write_timer_();
+  void stop_timer_();
+
+#ifdef USE_ESP32
+  bool init_esp32_timer_();
+  void start_esp32_timer_(uint64_t alarm_value);
+
+  gptimer_handle_t timer_handle_{nullptr};
+  gptimer_alarm_config_t alarm_config_{
+      .alarm_count = 0,
+      .reload_count = 0,
+      .flags = {.auto_reload_on_alarm = true},
+  };
+  esp_err_t timer_error_ = ESP_OK;
+  TimerErrorType timer_error_type_ = TimerErrorType::NO_TIMER_ERROR;
+#endif
+
+  int32_t timeout_counter_{-1};  // <0 no timeout
+
+#ifdef ESP8266
+  // ESP8266 timer can accept callback with no parameters, so we have this hack to save a static instance of
+  // OpenThermPolling
+  static OpenThermPolling *instance;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+#endif
+};
+
+}  // namespace esphome::opentherm
+
+#endif  // !(USE_ESP32 && SOC_RMT_SUPPORTED)

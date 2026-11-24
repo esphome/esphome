@@ -29,7 +29,7 @@ def create_component_schema(
 ) -> Schema:
     return (
         cv.Schema(
-            {cv.GenerateID(const.CONF_OPENTHERM_ID): cv.use_id(generate.OpenthermHub)}
+            {cv.GenerateID(const.CONF_OPENTHERM_ID): cv.use_id(generate.OpenTherm)}
         )
         .extend(create_entities_schema(entities, get_entity_validation_schema))
         .extend(cv.COMPONENT_SCHEMA)

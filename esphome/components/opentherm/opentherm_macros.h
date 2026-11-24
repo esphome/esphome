@@ -2,12 +2,12 @@
 
 namespace esphome::opentherm {
 
-// ===== hub.h macros =====
+// ===== opentherm.h macros =====
 
 // *_LIST macros will be generated in defines.h if at least one sensor from each platform is used.
 // These lists will look like this:
 // #define OPENTHERM_BINARY_SENSOR_LIST(F, sep) F(sensor_1) sep F(sensor_2)
-// These lists will be used in hub.h to define sensor fields (passing macros like OPENTHERM_DECLARE_SENSOR as F)
+// These lists will be used in opentherm.h to define sensor fields (passing macros like OPENTHERM_DECLARE_SENSOR as F)
 // and setters (passing macros like OPENTHERM_SET_SENSOR as F) (see below)
 // In order for things not to break, we define empty lists here in case some platforms are not used in config.
 #ifndef OPENTHERM_SENSOR_LIST
