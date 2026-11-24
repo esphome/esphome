@@ -309,10 +309,14 @@ void HttpRequestUpdate::perform(bool force) {
   this->state_ = update::UPDATE_STATE_INSTALLING;
   this->publish_state();
 
-  this->ota_parent_->set_md5(this->update_info.md5);
-  this->ota_parent_->set_url(this->update_info.firmware_url);
-  // Flash in the next loop
-  this->defer([this]() { this->ota_parent_->flash(); });
+  // The OTA parent can be shared by several update entities, so its URL and MD5 are set in the
+  // deferred callback: an entity that starts its install in the same loop pass would otherwise
+  // overwrite them before this entity's flash runs.
+  this->defer([this]() {
+    this->ota_parent_->set_md5(this->update_info.md5);
+    this->ota_parent_->set_url(this->update_info.firmware_url);
+    this->ota_parent_->flash();
+  });
 }
 
 }  // namespace esphome::http_request

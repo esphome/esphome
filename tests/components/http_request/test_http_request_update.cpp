@@ -75,6 +75,18 @@ class HttpRequestUpdateTest : public ::testing::Test {
     App.scheduler.call(millis());
     return update.state;
   }
+
+  // Runs an auto-install check that carries firmware metadata, without draining the scheduler, so a
+  // test can look at the state between the check and the deferred flash.
+  static void check_with_firmware(HttpRequestUpdate &update, const char *md5, const char *firmware_url) {
+    auto *result = new TaskResult();  // process_result_() takes ownership and frees it
+    result->info.current_version = "1.0.0";
+    result->info.latest_version = "1.1.0";
+    result->info.md5 = md5;
+    result->info.firmware_url = firmware_url;
+    result->auto_install = true;
+    update.process_result_(result);
+  }
 };
 
 TEST(HttpRequestUpdateSourceUrl, ConfigLiteralIsKeptByPointer) {
@@ -187,6 +199,21 @@ TEST_F(HttpRequestUpdateTest, AutoInstallFollowsAllowAndVersionChecks) {
   EXPECT_EQ(
       state_after_check({.allow_auto_install = true, .manifest_asks = true, .current = "1.0.0", .latest = "1.1.0"}),
       update::UPDATE_STATE_INSTALLING);
+}
+
+// The OTA parent can be shared by several update entities, so an install may only write its URL and
+// MD5 when its own deferred flash runs; writing them in perform() would let an install started in the
+// same loop pass overwrite them first.
+TEST_F(HttpRequestUpdateTest, PerformLeavesTheSharedOtaMetadataToTheDeferredFlash) {
+  HttpRequestUpdate update;
+  OtaHttpRequestComponent ota;
+  update.set_ota_parent(&ota);
+  update.set_allow_auto_install(true);
+  // The invalid URL keeps the deferred flash from opening a connection; the MD5 is still set.
+  check_with_firmware(update, "0123456789abcdef0123456789abcdef", "not-a-url");
+  EXPECT_EQ(update.state, update::UPDATE_STATE_INSTALLING);
+  EXPECT_TRUE(ota.md5_expected().empty());
+  App.scheduler.call(millis());
 }
 
 }  // namespace esphome::http_request::testing
