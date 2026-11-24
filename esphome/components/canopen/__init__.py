@@ -1,3 +1,5 @@
+from collections.abc import Callable
+
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import esp32
@@ -13,7 +15,7 @@ from esphome.const import (
     CONF_VALUE,
 )
 from esphome.core import CORE, ID
-from esphome.cpp_generator import MockObj, TemplateArgsType
+from esphome.cpp_generator import MockObj, TemplateArgsType, UnaryOpExpression
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -110,10 +112,25 @@ _ADDRESS = (
     (CONF_INDEX, cg.uint16),
     (CONF_SUBINDEX, cg.uint8),
 )
+_REPLY = MockObj("esphome__reply", ".")
 _REPLY_PARAMS = [
     (cg.void.operator("ptr"), "esphome__context"),
-    (SDOReply.operator("const").operator("ref"), "esphome__reply"),
+    (SDOReply.operator("const").operator("ref"), str(_REPLY)),
 ]
+
+
+async def _reply_call(
+    config: ConfigType,
+    key: str,
+    fn_args: TemplateArgsType,
+    fn_call: tuple[MockObj, ...],
+) -> cg.Statement | None:
+    """The call of the automation under ``key`` with ``fn_call``, if it is set."""
+    if (conf := config.get(key)) is None:
+        return None
+    fn, build = automation.declare_automation_function(fn_args, conf)
+    await build()
+    return cg.statement(MockObj(fn)(*fn_call))
 
 
 async def _sdo_action_to_code(
@@ -121,46 +138,42 @@ async def _sdo_action_to_code(
     action_id: ID,
     template_arg: cg.TemplateArguments,
     args: TemplateArgsType,
-    method: str,
+    request: Callable[[MockObj], MockObj],
     keys: tuple[tuple[str, MockObj], ...],
-    on_ok: tuple[str, TemplateArgsType, str],
+    on_ok: tuple[str, TemplateArgsType, tuple[MockObj, ...]],
 ) -> MockObj:
-    """``parent->method(<keys>, size, reply, nullptr)``; ``reply`` runs ``on_ok`` or on_error."""
-    exprs = [
-        str(await automation.call_user_lambda(value, args, type_))
+    """``request(parent)(<keys>, size, reply, nullptr)``; ``reply`` runs ``on_ok`` or on_error."""
+    values = [
+        await automation.call_user_lambda(value, args, type_)
         if cg.is_template(value := config[key])
-        else str(cg.safe_exp(value))
+        else cg.safe_exp(value)
         for key, type_ in keys
     ]
-    branches: list[tuple[str, str]] = []
-    for key, fn_args, fn_call, check in (
-        (*on_ok, "esphome__reply.ok()"),
-        (
-            CONF_ON_ERROR,
-            [(SDOResult, "result"), (cg.uint32, "abort_code")],
-            "esphome__reply.result, esphome__reply.abort_code",
-            "!esphome__reply.ok()",
-        ),
-    ):
-        if (conf := config.get(key)) is not None:
-            fn, build = automation.declare_automation_function(fn_args, conf)
-            await build()
-            branches.append((check, f"{fn}({fn_call});"))
-    callback = "nullptr"
-    if branches:
-        (check, call), *other = branches
-        body = [f"if ({check}) {{", f"  {call}", "}"]
-        if other:
-            body[-1:] = ["} else {", f"  {other[0][1]}", "}"]
-        callback = str(
-            automation.apply_static_function(
-                action_id, cg.void, _REPLY_PARAMS, body, suffix="reply"
-            )
+    ok_call = await _reply_call(config, *on_ok)
+    error_call = await _reply_call(
+        config,
+        CONF_ON_ERROR,
+        [(SDOResult, "result"), (cg.uint32, "abort_code")],
+        (_REPLY.result, _REPLY.abort_code),
+    )
+    callback = cg.nullptr
+    if ok_call is not None or error_call is not None:
+        ok = _REPLY.ok()
+        if ok_call is None:
+            body = [f"if ({UnaryOpExpression('!', ok)}) {{", f"  {error_call}", "}"]
+        else:
+            body = [f"if ({ok}) {{", f"  {ok_call}", "}"]
+            if error_call is not None:
+                body[-1:] = ["} else {", f"  {error_call}", "}"]
+        callback = automation.apply_static_function(
+            action_id, cg.void, _REPLY_PARAMS, body, suffix="reply"
         )
-    parent = await automation.apply_parent(config)
-    call_args = ", ".join([*exprs, str(config[CONF_SIZE]), callback, "nullptr"])
+    hub = automation.parent_ref(await cg.get_variable(config[CONF_ID]))
+    statement = cg.statement(
+        request(hub)(*values, config[CONF_SIZE], callback, cg.nullptr)
+    )
     return automation.apply_statements_action(
-        action_id, template_arg, args, [f"{parent}->{method}({call_args});"]
+        action_id, template_arg, args, [str(statement)]
     )
 
 
@@ -192,9 +205,9 @@ async def sdo_write_to_code(
         action_id,
         template_arg,
         args,
-        "write_sdo",
+        lambda hub: hub.write_sdo,
         (*_ADDRESS, (CONF_VALUE, cg.uint32)),
-        (CONF_ON_SUCCESS, [], ""),
+        (CONF_ON_SUCCESS, [], ()),
     )
 
 
@@ -221,7 +234,7 @@ async def sdo_read_to_code(
         action_id,
         template_arg,
         args,
-        "read_sdo",
+        lambda hub: hub.read_sdo,
         _ADDRESS,
-        (CONF_ON_VALUE, [(cg.uint32, "x")], "esphome__reply.value"),
+        (CONF_ON_VALUE, [(cg.uint32, "x")], (_REPLY.value,)),
     )
