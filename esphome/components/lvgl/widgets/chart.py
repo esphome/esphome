@@ -330,9 +330,15 @@ def validate_chart(config: ConfigType) -> ConfigType:
         values = series.get(CONF_VALUES)
         points = series.get(CONF_POINTS)
         if is_scatter and values is not None:
-            raise cv.Invalid("A scatter chart series must use points instead of values")
+            raise cv.Invalid(
+                "A scatter chart series must use points instead of values",
+                path=[CONF_SERIES, index, CONF_VALUES],
+            )
         if not is_scatter and points is not None:
-            raise cv.Invalid("points can only be used with a scatter chart")
+            raise cv.Invalid(
+                "points can only be used with a scatter chart",
+                path=[CONF_SERIES, index, CONF_POINTS],
+            )
         if not is_scatter and series[CONF_X_AXIS] == SECONDARY:
             raise cv.Invalid(
                 "Only a scatter chart series can use the secondary X axis",
@@ -340,10 +346,11 @@ def validate_chart(config: ConfigType) -> ConfigType:
             )
         if _negative_stacked_value(config[CONF_TYPE], values):
             raise cv.Invalid(STACKED_NEGATIVE, path=[CONF_SERIES, index, CONF_VALUES])
-        data = points if is_scatter else values
+        key, data = (CONF_POINTS, points) if is_scatter else (CONF_VALUES, values)
         if data is not None and len(data) > point_count:
             raise cv.Invalid(
-                f"A chart series can't have more than point_count ({point_count}) entries"
+                f"A chart series can't have more than point_count ({point_count}) entries",
+                path=[CONF_SERIES, index, key],
             )
     return config
 

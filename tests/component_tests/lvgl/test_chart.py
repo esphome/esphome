@@ -709,3 +709,34 @@ def test_stacked_series_actions_reject_negative_values(payload: dict) -> None:
 def test_chart_enums_list_their_choices_for_the_schema() -> None:
     assert CHART_TYPE(SCHEMA_EXTRACT) == ("LINE", "CURVE", "BAR", "STACKED", "SCATTER")
     assert CHART_UPDATE_MODE(SCHEMA_EXTRACT) == ("SHIFT", "CIRCULAR")
+
+
+@pytest.mark.parametrize(
+    "config,path",
+    [
+        (
+            {"type": "scatter", "series": [{"id": "a"}, {"id": "b", "values": [1]}]},
+            ["series", 1, "values"],
+        ),
+        (
+            {"type": "line", "series": [{"id": "a", "points": [{"x": 1, "y": 2}]}]},
+            ["series", 0, "points"],
+        ),
+        (
+            {"point_count": 1, "series": [{"id": "a", "values": [1, 2]}]},
+            ["series", 0, "values"],
+        ),
+        (
+            {
+                "type": "scatter",
+                "point_count": 1,
+                "series": [{"id": "a", "points": [{"x": 1, "y": 2}] * 2}],
+            },
+            ["series", 0, "points"],
+        ),
+    ],
+)
+def test_series_errors_point_at_the_series(config: dict, path: list) -> None:
+    with pytest.raises(Invalid) as err:
+        CHART_SCHEMA(config)
+    assert err.value.path == path
