@@ -218,7 +218,7 @@ void WebServerOTAComponent::handleRequest(AsyncWebServerRequest *request) {
   static const char CONNECTION_STR[] PROGMEM = "Connection";
   static const char CLOSE_STR[] PROGMEM = "close";
   const char *msg = refused ? UPDATE_BUSY : (this->ota_success_ ? UPDATE_SUCCESS : UPDATE_FAILED);
-  response = request->beginResponse_P(200, TEXT_PLAIN, msg);
+  response = request->beginResponse(200, TEXT_PLAIN, reinterpret_cast<const uint8_t *>(msg), strlen_P(msg));
   response->addHeader(CONNECTION_STR, CLOSE_STR);
 #else
   const char *msg = refused              ? "Update Failed! Another update is in progress, retry later."
