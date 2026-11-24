@@ -88,10 +88,11 @@ template<typename T, size_t N, typename Runtime = EmptyList<T *>> class AppList 
 
  public:
   using value_type = T *;
+  // Holds copies of the view's pointers, so it stays valid after the view itself is gone
   class Iterator {
    public:
-    Iterator(const AppList *list, size_t index) : list_(list), index_(index) {}
-    T *operator*() const { return (*this->list_)[this->index_]; }
+    Iterator(T *const *list, const Runtime *runtime, size_t index) : list_(list), runtime_(runtime), index_(index) {}
+    T *operator*() const { return this->index_ < N ? this->list_[this->index_] : (*this->runtime_)[this->index_ - N]; }
     Iterator &operator++() {
       ++this->index_;
       return *this;
@@ -99,7 +100,8 @@ template<typename T, size_t N, typename Runtime = EmptyList<T *>> class AppList 
     bool operator!=(const Iterator &other) const { return this->index_ != other.index_; }
 
    private:
-    const AppList *list_;
+    T *const *list_;
+    const Runtime *runtime_;
     size_t index_;
   };
   explicit AppList(T *const *list) : list_(list) {}
@@ -122,14 +124,14 @@ template<typename T, size_t N, typename Runtime = EmptyList<T *>> class AppList 
   // Without runtime slots the iterator is the array pointer itself
   auto begin() const {
     if constexpr (HAS_RUNTIME) {
-      return Iterator(this, 0);
+      return Iterator(this->list_, this->runtime_, 0);
     } else {
       return this->list_;
     }
   }
   auto end() const {
     if constexpr (HAS_RUNTIME) {
-      return Iterator(this, this->size());
+      return Iterator(this->list_, this->runtime_, this->size());
     } else {
       return this->list_ + N;
     }
@@ -212,7 +214,7 @@ class Application {
       this->log_runtime_slots_full_(name); \
       return false; \
     } \
-    obj->configure_entity_(name, 0, 0); \
+    obj->configure_name_(name); \
     this->runtime_##plural##_.push_back(obj); \
     return true; \
   } \
@@ -230,6 +232,7 @@ class Application {
   // NOLINTEND(bugprone-macro-parentheses)
 
  protected:
+  // Defined only with USE_RUNTIME_ENTITIES; only a reserved register_<entity>() calls it
   void log_runtime_slots_full_(const char *name);
 
  public:

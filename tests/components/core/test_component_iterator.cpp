@@ -128,8 +128,8 @@ TEST(ComponentIterator, DeprecatedAdvanceKeepsLegacyPatternWorking) {
 // Iterator whose sensor callback can refuse or yield; pins the per-item
 // contract: a refused item is re-offered with at_ unchanged, never skipped.
 // The two sensors the tests register into the runtime slots
-static sensor::Sensor sensor_a;
-static sensor::Sensor sensor_b;
+static sensor::Sensor sensor_a;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static sensor::Sensor sensor_b;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 class ItemRefusingIterator : public RefusingIterator {
  public:
@@ -155,6 +155,8 @@ class ComponentIteratorSensorTest : public ::testing::Test {
   void SetUp() override {
     static bool registered = false;
     if (!registered) {
+      // Set by the owner before registration; registering must keep it
+      sensor_b.set_internal(true);
       App.register_sensor(&sensor_a, "Runtime A");
       App.register_sensor(&sensor_b, "Runtime B");
       registered = true;
@@ -172,6 +174,21 @@ TEST_F(ComponentIteratorSensorTest, RegistrationPastTheReservationIsRefused) {
   EXPECT_FALSE(App.register_sensor(&extra, "Runtime C"));
   EXPECT_EQ(App.get_sensors().size(), ESPHOME_ENTITY_SENSOR_COUNT + 2u);
   EXPECT_EQ(extra.get_object_id_hash(), 0u);
+}
+
+TEST_F(ComponentIteratorSensorTest, RegistrationKeepsTheEntityFields) {
+  EXPECT_TRUE(sensor_b.is_internal());
+  EXPECT_FALSE(sensor_a.is_internal());
+}
+
+TEST_F(ComponentIteratorSensorTest, IteratorOutlivesTheView) {
+  // The view returned by get_sensors() is gone after this statement
+  auto it = App.get_sensors().begin();
+  for (size_t i = 0; i < ESPHOME_ENTITY_SENSOR_COUNT; i++)
+    ++it;
+  EXPECT_EQ(*it, &sensor_a);
+  ++it;
+  EXPECT_EQ(*it, &sensor_b);
 }
 
 TEST_F(ComponentIteratorSensorTest, RuntimeEntitiesAreNamedAndKeyed) {

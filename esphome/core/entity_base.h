@@ -232,12 +232,28 @@ class EntityBase {
  protected:
   friend void ::setup();
   friend void ::original_setup();
-  // Application's register_<entity>(obj, name) names an entity registered at run time
+  // Application's register_<entity>(obj, name) names an entity registered at run time through configure_name_()
   friend class Application;
 
   /// Combined entity setup from codegen: set name, object_id hash, entity string indices, and flags.
   /// Bit layout of entity_fields is defined by the ENTITY_FIELD_*_SHIFT constants above.
   void configure_entity_(const char *name, uint32_t object_id_hash, uint32_t entity_fields);
+  /// Set the name and its object_id hash, keeping the entity fields already set.
+  void configure_name_(const char *name) {
+    uint32_t fields = (uint32_t{this->flags_.internal} << ENTITY_FIELD_INTERNAL_SHIFT) |
+                      (uint32_t{this->flags_.disabled_by_default} << ENTITY_FIELD_DISABLED_BY_DEFAULT_SHIFT) |
+                      (uint32_t{this->flags_.entity_category} << ENTITY_FIELD_ENTITY_CATEGORY_SHIFT);
+#ifdef USE_ENTITY_DEVICE_CLASS
+    fields |= uint32_t{this->device_class_idx_} << ENTITY_FIELD_DC_SHIFT;
+#endif
+#ifdef USE_ENTITY_UNIT_OF_MEASUREMENT
+    fields |= uint32_t{this->uom_idx_} << ENTITY_FIELD_UOM_SHIFT;
+#endif
+#ifdef USE_ENTITY_ICON
+    fields |= uint32_t{this->icon_idx_} << ENTITY_FIELD_ICON_SHIFT;
+#endif
+    this->configure_entity_(name, 0, fields);
+  }
 
 #ifdef USE_DEVICES
   // Codegen-only setter — only accessible from setup() via friend declaration.
