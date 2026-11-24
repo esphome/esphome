@@ -20,6 +20,7 @@ from esphome.const import (
 from esphome.core import ID, Lambda
 from esphome.cpp_generator import MockObj
 from esphome.final_validate import FinalValidateConfig, full_config
+from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
 
 from ..automation import action_to_code
@@ -67,10 +68,13 @@ SECONDARY = "secondary"
 SERIES_AXIS = cv.one_of("primary", SECONDARY, lower=True)
 
 
-def _fixed(constant: LvConstant):
+def _fixed(constant: LvConstant) -> Callable[[Any], str]:
     """Accept one of the constant's values, but not a lambda."""
 
+    @schema_extractor("one_of")
     def validator(value: Any) -> str:
+        if value == SCHEMA_EXTRACT:
+            return constant.choices
         if isinstance(value, Lambda):
             raise cv.Invalid("This option cannot be a lambda")
         return constant.one_of(value)

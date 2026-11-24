@@ -10,6 +10,8 @@ import pytest
 from esphome.components.lvgl.widgets.chart import (
     CHART_MODIFY_SCHEMA,
     CHART_SCHEMA,
+    CHART_TYPE,
+    CHART_UPDATE_MODE,
     POINT_LIMIT,
     SERIES_APPEND_SCHEMA,
     SERIES_CLEAR_SCHEMA,
@@ -24,6 +26,7 @@ from esphome.components.lvgl.widgets.chart import (
 from esphome.config import load_config
 from esphome.config_validation import Invalid
 from esphome.core import CORE, Lambda
+from esphome.schema_extractors import SCHEMA_EXTRACT
 
 CHART_CONFIG_TEMPLATE = """
 esphome:
@@ -701,3 +704,8 @@ def test_stacked_series_actions_reject_negative_values(payload: dict) -> None:
     with pytest.raises(Invalid, match="negative"):
         validate_series_action(SET, payload, "LV_CHART_TYPE_STACKED", 10)
     validate_series_action(SET, payload, "LV_CHART_TYPE_BAR", 10)
+
+
+def test_chart_enums_list_their_choices_for_the_schema() -> None:
+    assert CHART_TYPE(SCHEMA_EXTRACT) == ("LINE", "CURVE", "BAR", "STACKED", "SCATTER")
+    assert CHART_UPDATE_MODE(SCHEMA_EXTRACT) == ("SHIFT", "CIRCULAR")
