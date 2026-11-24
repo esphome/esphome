@@ -23,10 +23,10 @@ from esphome.types import ConfigType
 AUTO_LOAD = ["gpio_expander"]
 CODEOWNERS = ["@parker-int64"]
 DEPENDENCIES = ["i2c"]
-DOMAIN = "m5pm1"
+DOMAIN = "m5stack_pm1"
 MULTI_CONF = True
 
-CONF_M5PM1_ID = "m5pm1_id"
+CONF_M5STACK_PM1_ID = "m5stack_pm1_id"
 CONF_INTERRUPT_GPIO = "interrupt_gpio"
 CONF_WAKEUP = "wakeup"
 CONF_WAKEUP_EDGE = "wakeup_edge"
@@ -39,13 +39,17 @@ def _bus_config(bus_id: ID) -> ConfigType | None:
     return None
 
 
-m5pm1_ns = cg.esphome_ns.namespace("m5pm1")
+m5stack_pm1_ns = cg.esphome_ns.namespace("m5stack_pm1")
 
-M5PM1Component = m5pm1_ns.class_("M5PM1Component", cg.Component, i2c.I2CDevice)
-M5PM1GPIOPin = m5pm1_ns.class_("M5PM1GPIOPin", cg.GPIOPin)
+M5StackPM1Component = m5stack_pm1_ns.class_(
+    "M5StackPM1Component", cg.Component, i2c.I2CDevice
+)
+M5StackPM1GPIOPin = m5stack_pm1_ns.class_("M5StackPM1GPIOPin", cg.GPIOPin)
 
-M5PM1WakeupEdge = m5pm1_ns.enum("M5PM1WakeupEdge", is_class=True)
-WAKEUP_EDGES = M5PM1WakeupEdge.options("FALLING", "RISING", prefix="M5PM1_WAKEUP_EDGE_")
+M5StackPM1WakeupEdge = m5stack_pm1_ns.enum("M5StackPM1WakeupEdge", is_class=True)
+WAKEUP_EDGES = M5StackPM1WakeupEdge.options(
+    "FALLING", "RISING", prefix="M5STACK_PM1_WAKEUP_EDGE_"
+)
 
 
 def validate_interrupt_config(config: ConfigType) -> ConfigType:
@@ -59,7 +63,7 @@ def validate_interrupt_config(config: ConfigType) -> ConfigType:
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.GenerateID(): cv.declare_id(M5PM1Component),
+            cv.GenerateID(): cv.declare_id(M5StackPM1Component),
             cv.Optional(CONF_INTERRUPT_GPIO): cv.int_range(min=0, max=4),
         }
     )
@@ -118,15 +122,15 @@ def validate_pin_usage(pin_config: ConfigType, hub_config: ConfigType) -> None:
         )
 
 
-M5PM1_PIN_SCHEMA = cv.All(
+M5STACK_PM1_PIN_SCHEMA = cv.All(
     pins.gpio_base_schema(
-        M5PM1GPIOPin,
+        M5StackPM1GPIOPin,
         cv.int_range(min=0, max=4),
         modes=[CONF_INPUT, CONF_OUTPUT, CONF_PULLUP, CONF_PULLDOWN, CONF_OPEN_DRAIN],
         mode_validator=validate_mode,
     ).extend(
         {
-            cv.Required(CONF_M5PM1_ID): cv.use_id(M5PM1Component),
+            cv.Required(CONF_M5STACK_PM1_ID): cv.use_id(M5StackPM1Component),
             cv.Optional(CONF_INTERRUPT, default=False): cv.boolean,
             cv.Optional(CONF_WAKEUP, default=False): cv.boolean,
             cv.Optional(CONF_WAKEUP_EDGE): cv.enum(WAKEUP_EDGES, upper=True),
@@ -136,10 +140,12 @@ M5PM1_PIN_SCHEMA = cv.All(
 )
 
 
-@pins.PIN_SCHEMA_REGISTRY.register(CONF_M5PM1_ID, M5PM1_PIN_SCHEMA, validate_pin_usage)
-async def m5pm1_pin_to_code(config: ConfigType) -> MockObj:
-    var = await pins.new_parented_pin(config, CONF_M5PM1_ID)
-    parent = await cg.get_variable(config[CONF_M5PM1_ID])
+@pins.PIN_SCHEMA_REGISTRY.register(
+    CONF_M5STACK_PM1_ID, M5STACK_PM1_PIN_SCHEMA, validate_pin_usage
+)
+async def m5stack_pm1_pin_to_code(config: ConfigType) -> MockObj:
+    var = await pins.new_parented_pin(config, CONF_M5STACK_PM1_ID)
+    parent = await cg.get_variable(config[CONF_M5STACK_PM1_ID])
     if config[CONF_WAKEUP]:
         cg.add(
             parent.set_pin_wakeup(
