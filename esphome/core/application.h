@@ -223,12 +223,14 @@ class Application {
  public: \
   SLOT_LIST_REQUIRES(ESPHOME_RUNTIME_##upper##_COUNT) \
   bool register_##singular(type *obj, const char *name, uint32_t object_id_hash, uint32_t entity_fields) { \
-    if (this->runtime_##plural##_.size() == SLOT_LIST_COUNT) { \
+    /* Typed through SLOT_LIST_COUNT so the body is only checked for a reserved (StaticVector) list */ \
+    auto &slots = static_cast<SlotList<type *, SLOT_LIST_COUNT> &>(this->runtime_##plural##_); \
+    if (slots.size() == SLOT_LIST_COUNT) { \
       this->log_runtime_slots_full_(name); \
       return false; \
     } \
     obj->configure_entity_(name, object_id_hash, entity_fields); \
-    this->runtime_##plural##_.push_back(obj); \
+    slots.push_back(obj); \
     return true; \
   } \
   SLOT_LIST_REQUIRES(ESPHOME_RUNTIME_##upper##_COUNT) \
