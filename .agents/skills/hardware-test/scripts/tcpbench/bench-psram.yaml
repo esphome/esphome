@@ -1,0 +1,13 @@
+substitutions:
+  name: tbs
+packages:
+  base: !include p4-wifi6-base.yaml
+external_components:
+  - source:
+      type: local
+      path: components
+tcpbench:
+psram:
+  mode: hex
+  speed: 200MHz
+  ignore_not_found: false
