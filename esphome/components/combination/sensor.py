@@ -1,3 +1,6 @@
+import math
+import struct
+
 import esphome.codegen as cg
 from esphome.components import sensor
 from esphome.components.const import CONF_SOURCES
@@ -94,10 +97,23 @@ LINEAR_SOURCE_SCHEMA = cv.Schema(
     }
 )
 
+
+def _validate_weight_float32(value: float) -> float:
+    try:
+        float32_value = struct.unpack("f", struct.pack("f", value))[0]
+    except OverflowError as err:
+        raise cv.Invalid("Weight must be within the C++ float range") from err
+    if not math.isfinite(float32_value) or (value > 0.0 and float32_value == 0.0):
+        raise cv.Invalid("Weight must be representable as a C++ float")
+    return value
+
+
 WEIGHTED_MEAN_SOURCE_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_SOURCE): cv.use_id(sensor.Sensor),
-        cv.Required(CONF_WEIGHT): cv.templatable(cv.positive_float),
+        cv.Required(CONF_WEIGHT): cv.templatable(
+            cv.All(cv.positive_float, _validate_weight_float32)
+        ),
     }
 )
 
