@@ -55,29 +55,27 @@ inline uint32_t fbits(float f) {
   memcpy(&u, &f, 4);
   return u;
 }
-// present value of an input cluster on an endpoint, as the stack holds it
+// present value of an input or output cluster on an endpoint, as the stack holds it
 inline void readpv(uint8_t ep) {
-  zb_zcl_attr_t *a = zb_zcl_get_attr_desc_a(ep, ZB_ZCL_CLUSTER_ID_ANALOG_INPUT, ZB_ZCL_CLUSTER_SERVER_ROLE, 0x0055);
-  if (a != nullptr) {
-    float f;
-    memcpy(&f, a->data_p, 4);
-    ESP_LOGI("readpv", "ep %u analog input present value %.1f", ep, f);
+  static constexpr struct {
+    uint16_t cluster;
+    bool is_float;
+    const char *name;
+  } PV[] = {{ZB_ZCL_CLUSTER_ID_ANALOG_INPUT, true, "analog input"},
+            {ZB_ZCL_CLUSTER_ID_BINARY_INPUT, false, "binary input"},
+            {ZB_ZCL_CLUSTER_ID_BINARY_OUTPUT, false, "binary output"},
+            {ZB_ZCL_CLUSTER_ID_ANALOG_OUTPUT, true, "analog output"}};
+  for (const auto &c : PV) {
+    zb_zcl_attr_t *a = zb_zcl_get_attr_desc_a(ep, c.cluster, ZB_ZCL_CLUSTER_SERVER_ROLE, 0x0055);
+    if (a == nullptr)
+      continue;
+    if (c.is_float) {
+      float f;
+      memcpy(&f, a->data_p, 4);
+      ESP_LOGI("readpv", "ep %u %s present value %.1f", ep, c.name, f);
+    } else {
+      ESP_LOGI("readpv", "ep %u %s present value %u", ep, c.name, *(uint8_t *) a->data_p);
+    }
     return;
-  }
-  a = zb_zcl_get_attr_desc_a(ep, ZB_ZCL_CLUSTER_ID_BINARY_INPUT, ZB_ZCL_CLUSTER_SERVER_ROLE, 0x0055);
-  if (a != nullptr) {
-    ESP_LOGI("readpv", "ep %u binary input present value %u", ep, *(uint8_t *) a->data_p);
-    return;
-  }
-  a = zb_zcl_get_attr_desc_a(ep, ZB_ZCL_CLUSTER_ID_BINARY_OUTPUT, ZB_ZCL_CLUSTER_SERVER_ROLE, 0x0055);
-  if (a != nullptr) {
-    ESP_LOGI("readpv", "ep %u binary output present value %u", ep, *(uint8_t *) a->data_p);
-    return;
-  }
-  a = zb_zcl_get_attr_desc_a(ep, ZB_ZCL_CLUSTER_ID_ANALOG_OUTPUT, ZB_ZCL_CLUSTER_SERVER_ROLE, 0x0055);
-  if (a != nullptr) {
-    float f;
-    memcpy(&f, a->data_p, 4);
-    ESP_LOGI("readpv", "ep %u analog output present value %.1f", ep, f);
   }
 }

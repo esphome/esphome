@@ -154,8 +154,8 @@ https://github.com/esphome/esphome/pull/22482#issuecomment-7111857310
   but RCP firmware (its USB port drops about 1 s after each boot). Flash `zbs3hold.yaml` on the S3 first: it pulses
   GPIO7 low then holds it high and leaves GPIO8 alone (driving GPIO8 high puts the H2 in download mode, `boot:0x4`).
   Back up both chips' flash before, to put the border router back afterwards.
-- `zbcon.py PORT coord.log coord.fifo SECONDS` bridges the console (`ZBRESET=1` resets the H2 on open);
-  `zbdrv.py` sends lines, marks the log and parses it (`waitjoin`, `interrogate`, `epbydesc`, `parse`; `ZBSRC=0xSHORT`
+- `zbcon.py PORT coord.log coord.fifo SECONDS` bridges the console;
+  `zbdrv.py` sends lines, marks the log and parses it (`waitjoin`, `interrogate`, `eps`, `epbydesc`, `parse`; `ZBSRC=0xSHORT`
   filters by source when two devices are on the network). Hexdumps over 8 bytes have a double space after byte 8.
 - **Form the network with `network type c` before `bdb_comm start form`.** The console example enables distributed
   security at init, and an ESP32 end device (ESPHome disables distributed security) then fails authentication: the
@@ -169,13 +169,14 @@ https://github.com/esphome/esphome/pull/22482#issuecomment-7111857310
   `zcl send_gen` fails with ESP_ERR_NOT_FOUND; `factoryreset` to change the data model. The console cannot `dm add`
   Level (0x0008) or Color (0x0300) clients (ESP_ERR_INVALID_ARG); `zha add 2 color_dimmer_switch` gives an endpoint
   with On/Off, Level and Color clients. Raw commands: `zcl send_raw -d SHORT --dst-ep EP -e 2 -c 0x0008 --cmd 4 -p
-  0x800000` (payload hex bytes in wire order). Float values go in `-v` as wire bytes (42.0 = `0x00002842`).
+  0x800000` (payload hex bytes in wire order). Float values go in `-v` as wire bytes (42.0 = `0x00002842`,
+  `zbdrv.py f32 42`).
 - Permit join lasts at most 254 s; `keepopen.sh` reopens it every 200 s. `flashdev.sh` erases the C6 before each build
   so it joins as a new device (the network data lives in the `nvs` partition); the nRF configs use `wipe_on_boot`, and
   a rejoin after it kept the same short address.
-- Flows (`COORD_IEEE` from `address -x`): `runi.sh` (entity flow: interrogate, bind and report, writes, 75 s of
+- Flows (`COORD_IEEE` from `address -x`, shared steps in `common.sh`): `runi.sh` (entity flow: interrogate, bind and report, writes, 75 s of
   reports; `c6-ents.yaml` or `nrf-ents.yaml` with `CHIP=`), `runnumber.sh` (#23051 number descriptor, writes, restore
-  across a reset), `runcopy.sh` (copy number), `runlight.sh` (light On/Off, Level, Color and local change reports),
+  across a reset), `runcopy.sh` (copy number, `c6-copy.yaml`), `runlight.sh` (light On/Off, Level, Color and local change reports),
   `summ.py NAME` (per-build summary for diffing PR against dev).
 - Diagnosis tricks that worked: `esp_rom_printf` in the signal handler (synchronous, survives the reset);
   `-Wl,--wrap=nvs_erase_all,--wrap=esp_restart` via `platformio_options: build_flags` plus `wrapdbg.hpp` to print the

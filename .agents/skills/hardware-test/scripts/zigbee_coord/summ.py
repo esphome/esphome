@@ -2,39 +2,27 @@
 reports grouped per endpoint, cluster and phase, so a PR and a dev run can be diffed."""
 
 import collections
-import pathlib
-import re
-import subprocess
 import sys
 
-D = pathlib.Path(__file__).resolve().parent
+import zbdrv
 
 
 def main(n: str) -> None:
-    out = subprocess.run(
-        [sys.executable, str(D / "zbdrv.py"), "parse", f"{n} start", f"{n} done"],
-        capture_output=True,
-        text=True,
-        check=True,
-    ).stdout.splitlines()
     phase = ""
     reps: dict[tuple, list] = collections.defaultdict(list)
-    rows = []
-    for line in out:
-        if "###" in line:
-            phase = line.split("### ")[1].replace(n + " ", "")
+    for r in zbdrv.parse(zbdrv.between(zbdrv.lines(), f"{n} start", f"{n} done")):
+        if r[0] == "MARK":
+            phase = r[2].replace(n + " ", "")
             continue
-        m = re.match(r"\S+ (\S+(?: a)?)\s+ep\s+(\S+) cl (\S+) attr (\S+) -> (.*)", line)
-        if not m:
-            continue
-        kind, ep, cl, attr, v = m.groups()
+        kind, _, ep, cl, attr, v = r
         if kind.startswith("Report"):
             reps[(int(ep), cl, phase.split(" ")[0])].append(v)
-        else:
-            rows.append(f"[{phase[:26]:26}] {kind} ep {ep} cl {cl} attr {attr} -> {v}")
-    print("\n".join(r for r in rows if "attr 0x0005" not in r))
+        elif attr != "0x0005":
+            print(f"[{phase[:26]:26}] {kind[:6]} ep {ep} cl {cl} attr {attr} -> {v}")
     for k, v in sorted(reps.items()):
-        print(f"reports ep {k[0]} cl {k[1]} during '{k[2]}': values={sorted(set(v))}")
+        print(
+            f"reports ep {k[0]} cl {k[1]} during '{k[2]}': values={sorted(set(v), key=str)}"
+        )
 
 
 main(sys.argv[1])

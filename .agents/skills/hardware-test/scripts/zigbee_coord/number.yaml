@@ -1,4 +1,4 @@
-# Number flow (#23051): a float number with device class, a restored number with a range, a switch and a sensor.
+# Number flow (#23051): a float number with device class, a restored number with a range and a sensor (with sw.yaml).
 esphome:
   on_boot:
     - priority: -100
@@ -6,15 +6,6 @@ esphome:
         - logger.log:
             format: "HWT boot done Num=%.1f NumR=%.1f"
             args: [id(num).state, id(numr).state]
-switch:
-  - platform: template
-    name: "Sw"
-    id: sw
-    optimistic: true
-    on_turn_on:
-      - logger.log: "HWT SW turned ON"
-    on_turn_off:
-      - logger.log: "HWT SW turned OFF"
 number:
   - platform: template
     name: "Num"

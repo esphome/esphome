@@ -5,14 +5,17 @@ ZBSRC=0xSHORT keeps only responses from one source address when two devices are 
 
 CLI:
   zbdrv.py mark TEXT
-  zbdrv.py waitjoin SINCE_LINE TIMEOUT        -> prints short address of the next commissioned device
-  zbdrv.py interrogate LABEL SHORT            -> active_ep, simple_desc, read attrs per cluster
+  zbdrv.py pos                                -> current size of coord.log (a SINCE for waitjoin)
+  zbdrv.py waitjoin SINCE TIMEOUT             -> prints short address of the next commissioned device
+  zbdrv.py interrogate LABEL SHORT            -> active_ep, simple_desc, read attrs per cluster; saves int-LABEL.json
+  zbdrv.py eps LABEL HAS [NOT]                -> endpoints of that interrogate with cluster HAS and without NOT
   zbdrv.py send "cmd" [wait]
   zbdrv.py parse FROM_MARK [TO_MARK]          -> one line per response/report between marks
-  zbdrv.py epbydesc FROM_MARK DESCRIPTION     -> endpoint whose Basic description (0x001C) read DESCRIPTION
-  zbdrv.py lines                              -> current line count of coord.log (a SINCE_LINE for waitjoin)
+  zbdrv.py epbydesc FROM_MARK DESC...         -> per DESC, the endpoint whose Basic description (0x001C) read DESC
+  zbdrv.py f32 VALUE                          -> VALUE as the wire bytes `zcl send_gen write -v` takes for a float
 """
 
+import json
 import os
 import pathlib
 import re
@@ -54,6 +57,10 @@ def lines():
         return f.read().decode(errors="replace").splitlines()
 
 
+def pos():
+    return LOG.stat().st_size if LOG.exists() else 0
+
+
 def send(cmd, wait=1.5):
     try:  # nonblocking: with no zbcon.py reading the fifo, fail instead of hanging
         fd = os.open(FIFO, os.O_WRONLY | os.O_NONBLOCK)
@@ -70,20 +77,30 @@ def mark(text):
 
 
 def wait_for(pattern, start, timeout):
+    """First match of pattern in the log after byte offset start: (the line before it, match), or ("", None)."""
     end = time.time() + timeout
     rx = re.compile(pattern)
-    while time.time() < end:
-        ls = lines()
-        for i in range(start, len(ls)):
-            m = rx.search(ls[i])
-            if m:
-                return i, m
-        time.sleep(0.5)
-    return None, None
+    while True:
+        with LOG.open("rb") as f:
+            f.seek(start)
+            ls = f.read().decode(errors="replace").splitlines()
+        for i, ln in enumerate(ls):
+            if m := rx.search(ln):
+                return (ls[i - 1] if i else ""), m
+        if time.time() >= end:
+            return "", None
+        time.sleep(0.2)
+
+
+def request(cmd, pattern, timeout):
+    """Send cmd and wait until pattern shows up after it."""
+    start = pos()
+    send(cmd, 0)
+    return wait_for(pattern, start, timeout)
 
 
 def waitjoin(since, timeout):
-    i, m = wait_for(
+    _, m = wait_for(
         r"New device commissioned or rejoined \(short: (0x[0-9a-f]{4})\)",
         since,
         timeout,
@@ -91,11 +108,11 @@ def waitjoin(since, timeout):
     return m.group(1) if m else None
 
 
-def interrogate(label, short, extra_eps=()):
+def interrogate(label, short):
     mark(f"{label} interrogate {short}")
-    n = len(lines())
-    send(f"zdo request active_ep -d {short}", 3)
-    i, m = wait_for(r"active ep: \[([0-9, ]*)\]", n, 15)
+    _, m = request(
+        f"zdo request active_ep -d {short}", r"active ep: \[([0-9, ]*)\]", 15
+    )
     if not m:
         print("NO ACTIVE EP")
         return {}
@@ -103,21 +120,24 @@ def interrogate(label, short, extra_eps=()):
     print("active eps", eps)
     clusters = {}
     for ep in eps:
-        n = len(lines())
-        send(f"zdo request simple_desc -e {ep} -d {short}", 3)
-        i, m = wait_for(r"in: \[([0-9a-fx, ]*)\]", n, 15)
+        dl, m = request(
+            f"zdo request simple_desc -e {ep} -d {short}", r"in: \[([0-9a-fx, ]*)\]", 15
+        )
         cl = [int(x, 16) for x in m.group(1).split(",") if x.strip()] if m else []
         clusters[ep] = cl
-        dl = lines()[i - 1] if i else ""
         print("ep", ep, dl.split(" ", 1)[-1], "in", [hex(c) for c in cl])
     mark(f"{label} reads")
+    rx = "Read attribute response"
     for ep, cl in clusters.items():
-        send(f"zcl send_gen read -d {short} --dst-ep {ep} -e 1 -c 0 -a 0x0005", 2)
+        request(
+            f"zcl send_gen read -d {short} --dst-ep {ep} -e 1 -c 0 -a 0x0005", rx, 2
+        )
         for c in cl:
             src = 2 if c in (0x0006, 0x0008, 0x0300) else 1
             for a in ATTRS.get(c, []):
-                send(
+                request(
                     f"zcl send_gen read -d {short} --dst-ep {ep} -e {src} -c {c:#06x} -a {a:#06x}",
+                    rx,
                     1.6,
                 )
     mark(f"{label} reads done")
@@ -144,12 +164,10 @@ def decode(hexs, t):
 
 
 def parse(ls):
-    out = []
-    phase = ""
+    """Yields (kind, time, src ep, cluster, attr, value) per response or report, and ("MARK", time, text) per mark."""
     for i, ln in enumerate(ls):
         if "### HWT" in ln:
-            phase = ln.split("### HWT ", 1)[1]
-            out.append(("MARK", ln[:8], phase))
+            yield ("MARK", ln[:8], ln.split("### HWT ", 1)[1])
             continue
         m = re.search(
             r"(Read attribute response|Report attribute|Write attribute response|Default response): "
@@ -166,53 +184,71 @@ def parse(ls):
             continue
         if kind == "Default response":
             mc = re.search(r"command\((0x[0-9a-f]+)\), status\((0x[0-9a-f]+)\)", blk)
-            out.append(
-                (
-                    kind,
-                    ln[:8],
-                    src,
-                    cl,
-                    mc.group(1) if mc else "?",
-                    f"status {mc.group(2) if mc else '?'}",
-                )
+            yield (
+                kind,
+                ln[:8],
+                src,
+                cl,
+                mc.group(1) if mc else "?",
+                f"status {mc.group(2) if mc else '?'}",
             )
             continue
         mt = re.search(
             r"attribute\((0x[0-9a-f]+)\), (type|status)\((0x[0-9a-f]+)\)", blk
         )
         if not mt:
-            out.append((kind, ln[:8], src, cl, "?", "?"))
+            yield (kind, ln[:8], src, cl, "?", "?")
             continue
         if mt.group(2) == "status":
             v = f"status {mt.group(3)}"
         else:
             mv = re.search(r"0x4[0-9a-f]{7}   ((?:[0-9a-f]{2} {1,2})+)", blk)
             v = decode(mv.group(1), mt.group(3)) if mv else "?"
-        out.append((kind, ln[:8], src, cl, mt.group(1), v))
-    return out
+        yield (kind, ln[:8], src, cl, mt.group(1), v)
+
+
+def between(ls, start, stop=None):
+    """The log lines from the last `start` mark to the first `stop` mark after it (inclusive)."""
+    marks = [i for i, ln in enumerate(ls) if "### HWT " + start in ln]
+    if not marks:
+        sys.exit(f"no mark {start!r} in {LOG}")
+    s = marks[-1]
+    e = next(
+        (i for i in range(s, len(ls)) if stop and "### HWT " + stop in ls[i]),
+        len(ls) - 1,
+    )
+    return ls[s : e + 1]
+
+
+def int_file(label):
+    return Z / f"int-{label.replace(' ', '-')}.json"
 
 
 def cli():
     a = sys.argv[1]
     if a == "mark":
         mark(" ".join(sys.argv[2:]))
+    elif a == "pos":
+        print(pos())
     elif a == "waitjoin":
-        s = waitjoin(int(sys.argv[2]), float(sys.argv[3]))
-        print(s or "NOJOIN")
+        print(waitjoin(int(sys.argv[2]), float(sys.argv[3])) or "NOJOIN")
     elif a == "interrogate":
-        interrogate(sys.argv[2], sys.argv[3])
+        clusters = interrogate(sys.argv[2], sys.argv[3])
+        int_file(sys.argv[2]).write_text(json.dumps(clusters))
+    elif a == "eps":
+        has, nott = (
+            int(sys.argv[3], 16),
+            int(sys.argv[4], 16) if len(sys.argv) > 4 else None,
+        )
+        for ep, cl in json.loads(int_file(sys.argv[2]).read_text()).items():
+            if has in cl and nott not in cl:
+                print(ep)
     elif a == "send":
         send(sys.argv[2], float(sys.argv[3]) if len(sys.argv) > 3 else 1.5)
     elif a == "parse":
-        ls = lines()
-        s = max(i for i, ln in enumerate(ls) if "### HWT " + sys.argv[2] in ln)
-        e = len(ls)
-        if len(sys.argv) > 3:
-            e = next(
-                (i for i in range(s, len(ls)) if "### HWT " + sys.argv[3] in ls[i]),
-                len(ls),
-            )
-        for r in parse(ls[s : e + 1]):
+        for r in parse(
+            between(lines(), sys.argv[2], sys.argv[3] if len(sys.argv) > 3 else None)
+        ):
             if r[0] == "MARK":
                 print(f"{r[1]} ### {r[2]}")
             else:
@@ -220,18 +256,16 @@ def cli():
                     f"{r[1]} {r[0][:6]:6} ep {r[2]:>3} cl {r[3]} attr {r[4]} -> {r[5]}"
                 )
     elif a == "epbydesc":
-        ls = lines()
-        s = max(i for i, ln in enumerate(ls) if "### HWT " + sys.argv[2] in ln)
-        for r in parse(ls[s:]):
-            if (
-                r[0].startswith("Read")
-                and r[4] == "0x001c"
-                and r[5] == repr(sys.argv[3])
-            ):
-                print(r[2])
-                break
-    elif a == "lines":
-        print(len(lines()))
+        found = {}
+        want = {repr(d): d for d in sys.argv[3:]}
+        for r in parse(between(lines(), sys.argv[2])):
+            if r[0].startswith("Read") and r[4] == "0x001c" and r[5] in want:
+                found.setdefault(want[r[5]], r[2])
+                if len(found) == len(want):
+                    break
+        print(" ".join(found.get(d, "?") for d in sys.argv[3:]))
+    elif a == "f32":
+        print("0x" + struct.pack("<f", float(sys.argv[2])).hex())
 
 
 if __name__ == "__main__":

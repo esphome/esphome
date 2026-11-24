@@ -1,13 +1,4 @@
-# Entities for the interrogate, report and write flow: switch, number, two sensors, two binary sensors, Zigbee time.
-switch:
-  - platform: template
-    name: "Sw"
-    id: sw
-    optimistic: true
-    on_turn_on:
-      - logger.log: "HWT SW turned ON"
-    on_turn_off:
-      - logger.log: "HWT SW turned OFF"
+# Entity flow entities (with sw.yaml): number, two sensors, two binary sensors, Zigbee time.
 number:
   - platform: template
     name: "Num"
