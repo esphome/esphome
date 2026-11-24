@@ -34,10 +34,16 @@ class VL53L1XSensor : public sensor::Sensor, public PollingComponent, public i2c
     this->roi_height_ = height;
   }
   void set_roi_center(uint8_t center) { this->roi_center_ = center; }
-  void set_speed_sensor(sensor::Sensor *speed_sensor) { this->speed_sensor_ = speed_sensor; }
+#ifdef USE_VL53L1X_SPEED
+  SUB_SENSOR(speed)
+#endif
 
  protected:
+#ifdef USE_VL53L1X_SPEED
   void publish_distance_(float distance_m);
+#else
+  void publish_distance_(float distance_m) { this->publish_state(distance_m); }
+#endif
   void fail_at_default_address_(const LogString *message);
   bool wait_for_boot_();
   bool configure_();
@@ -60,10 +66,11 @@ class VL53L1XSensor : public sensor::Sensor, public PollingComponent, public i2c
   uint8_t roi_center_{0};  // 0 selects the centre the way the ULD does
   DistanceMode distance_mode_{DISTANCE_MODE_LONG};
   bool first_result_{true};
-  sensor::Sensor *speed_sensor_{nullptr};
-  // Baseline for the speed sensor: last valid distance and when it was read.
+#ifdef USE_VL53L1X_SPEED
+  // Last distance (NAN after an invalid reading) and when it was read, for the speed
   float last_distance_m_{NAN};
   uint32_t last_distance_time_{0};
+#endif
 };
 
 }  // namespace esphome::vl53l1x

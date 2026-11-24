@@ -8,8 +8,8 @@ from esphome.const import (
     CONF_ENABLE_PIN,
     CONF_OFFSET,
     CONF_SPEED,
+    DEVICE_CLASS_SPEED,
     ICON_ARROW_EXPAND_VERTICAL,
-    ICON_GAUGE,
     STATE_CLASS_MEASUREMENT,
     UNIT_METER_PER_SECOND,
 )
@@ -143,7 +143,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_SPEED): sensor.sensor_schema(
                 unit_of_measurement=UNIT_METER_PER_SECOND,
                 accuracy_decimals=2,
-                icon=ICON_GAUGE,
+                device_class=DEVICE_CLASS_SPEED,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
         }
@@ -169,8 +169,8 @@ async def to_code(config: ConfigType) -> None:
     if (roi_center := config.get(CONF_ROI_CENTER)) is not None:
         cg.add(var.set_roi_center(roi_center))
     cg.add(var.set_offset(config[CONF_OFFSET]))
-    if (speed_config := config.get(CONF_SPEED)) is not None:
-        speed = await sensor.new_sensor(speed_config)
-        cg.add(var.set_speed_sensor(speed))
+    sensors = sensor.sub_sensors(config)
+    if await sensors(CONF_SPEED, var.set_speed_sensor) is not None:
+        cg.add_define("USE_VL53L1X_SPEED")
 
     await cg.add_pin(var.set_enable_pin, config.get(CONF_ENABLE_PIN))

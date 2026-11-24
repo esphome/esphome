@@ -385,34 +385,22 @@ void VL53L1XSensor::loop() {
   this->publish_distance_(distance_mm / 1000.0f);
 }
 
+#ifdef USE_VL53L1X_SPEED
 void VL53L1XSensor::publish_distance_(float distance_m) {
-  // Compute the speed and commit the baseline BEFORE publishing: the publish
-  // callbacks run synchronously, so their duration must not skew the timing,
-  // and a nested publish from one of them (e.g. a failed component.update)
-  // must stay the last write to the baseline.
+  // Save the baseline before publishing: callbacks run synchronously and may publish again
   const uint32_t now = App.get_loop_component_start_time();
-  float speed = 0.0f;
-  bool publish_speed = false;
+  float speed = NAN;
   if (this->speed_sensor_ != nullptr) {
-    if (std::isnan(distance_m)) {
-      // No valid reading to derive a speed from: reset the baseline.
-      this->last_distance_m_ = NAN;
-    } else {
-      if (!std::isnan(this->last_distance_m_)) {
-        const float dt = (now - this->last_distance_time_) / 1000.0f;
-        if (dt > 0) {
-          speed = (distance_m - this->last_distance_m_) / dt;
-          publish_speed = true;
-        }
-      }
-      this->last_distance_m_ = distance_m;
-      this->last_distance_time_ = now;
-    }
+    // NAN on either side (first or invalid reading) gives NAN, so no speed spans a gap
+    speed = (distance_m - this->last_distance_m_) * 1000.0f / (now - this->last_distance_time_);
+    this->last_distance_m_ = distance_m;
+    this->last_distance_time_ = now;
   }
   this->publish_state(distance_m);
-  if (publish_speed)
+  if (!std::isnan(speed))
     this->speed_sensor_->publish_state(speed);
 }
+#endif
 
 // Indexed by DistanceMode
 PROGMEM_STRING_TABLE(DistanceModeStrings, "short", "medium", "long");
@@ -422,7 +410,9 @@ void VL53L1XSensor::dump_config() {
   LOG_UPDATE_INTERVAL(this);
   LOG_I2C_DEVICE(this);
   LOG_PIN("  Enable Pin: ", this->enable_pin_);
+#ifdef USE_VL53L1X_SPEED
   LOG_SENSOR("  ", "Speed", this->speed_sensor_);
+#endif
   ESP_LOGCONFIG(TAG,
                 "  Distance Mode: %s\n"
                 "  Timing Budget: %u ms\n"
