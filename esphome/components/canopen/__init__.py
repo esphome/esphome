@@ -15,7 +15,7 @@ from esphome.const import (
     CONF_VALUE,
 )
 from esphome.core import CORE, ID
-from esphome.cpp_generator import MockObj, TemplateArgsType, UnaryOpExpression
+from esphome.cpp_generator import MockObj, TemplateArgsType
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -133,6 +133,18 @@ async def _reply_call(
     return cg.statement(MockObj(fn)(*fn_call))
 
 
+def _reply_body(
+    ok_call: cg.Statement | None, error_call: cg.Statement | None
+) -> list[str]:
+    """Run ``ok_call`` if the request succeeded, else ``error_call``."""
+    ok = _REPLY.ok()
+    if ok_call is None:
+        return [f"if (!{ok}) {{", f"  {error_call}", "}"]
+    if error_call is None:
+        return [f"if ({ok}) {{", f"  {ok_call}", "}"]
+    return [f"if ({ok}) {{", f"  {ok_call}", "} else {", f"  {error_call}", "}"]
+
+
 async def _sdo_action_to_code(
     config: ConfigType,
     action_id: ID,
@@ -158,15 +170,12 @@ async def _sdo_action_to_code(
     )
     callback = cg.nullptr
     if ok_call is not None or error_call is not None:
-        ok = _REPLY.ok()
-        if ok_call is None:
-            body = [f"if ({UnaryOpExpression('!', ok)}) {{", f"  {error_call}", "}"]
-        else:
-            body = [f"if ({ok}) {{", f"  {ok_call}", "}"]
-            if error_call is not None:
-                body[-1:] = ["} else {", f"  {error_call}", "}"]
         callback = automation.apply_static_function(
-            action_id, cg.void, _REPLY_PARAMS, body, suffix="reply"
+            action_id,
+            cg.void,
+            _REPLY_PARAMS,
+            _reply_body(ok_call, error_call),
+            suffix="reply",
         )
     hub = automation.parent_ref(await cg.get_variable(config[CONF_ID]))
     statement = cg.statement(
