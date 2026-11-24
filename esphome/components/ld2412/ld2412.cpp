@@ -426,8 +426,7 @@ bool LD2412Component::handle_ack_data_(const uint8_t *frame, uint8_t len) {
         ESP_LOGW(TAG, "Unknown distance resolution %u", frame[10]);
         break;
       }
-      ESP_LOGV(TAG, "Distance resolution: %s",
-               LOG_STR_ARG(DistanceResolutionStrings::get_log_str(*index, DistanceResolutionStrings::LAST_INDEX)));
+      ESP_LOGV(TAG, "Distance resolution: %s", LOG_STR_ARG(DistanceResolutionStrings::get_log_str(*index)));
 #ifdef USE_SELECT
       PUBLISH_STATE(this->distance_resolution_select_, *index);
 #endif

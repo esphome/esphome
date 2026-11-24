@@ -4,6 +4,7 @@ import esphome.config_validation as cv
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@solomondg1"]
+AUTO_LOAD = ["ads1xxx"]
 DEPENDENCIES = ["spi"]
 DOMAIN = "ads1118"
 MULTI_CONF = True
