@@ -18,7 +18,7 @@ namespace esphome::packet_interface {
  * because compressing did not make it smaller; bits 0-6 are a check of the dictionary, so a peer with another
  * dictionary drops the packet rather than passing up garbage. The compressed data is in the format of lzss::Lzss.
  */
-class LzssCompression : public PacketInterface {
+class LzssCompression final : public PacketInterface {
  public:
   /// The bit flagging compressed data, and the dictionary check in the bits below it.
   static constexpr uint8_t HEADER_COMPRESSED = 0x80;
