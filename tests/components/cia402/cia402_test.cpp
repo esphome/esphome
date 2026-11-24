@@ -219,9 +219,9 @@ TEST_F(DriveTest, ProfilePositionCompletesAcknowledgementHandshake) {
         status = started ? 0x427 : 0x27;
       }
       reply();
-    } else if (object == 0x6041)
+    } else if (object == 0x6041) {
       reply(status, 2);
-    else if (object == 0x6061) {
+    } else if (object == 0x6061) {
       reply(1, 1);
     } else if (object == 0x6064) {
       reply(static_cast<uint32_t>(-100), 4);
