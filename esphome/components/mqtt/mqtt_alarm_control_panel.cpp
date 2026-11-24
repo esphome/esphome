@@ -17,10 +17,6 @@ using namespace esphome::alarm_control_panel;
 PROGMEM_STRING_TABLE(AlarmMqttStateStrings, "disarmed", "armed_home", "armed_away", "armed_night", "armed_vacation",
                      "armed_custom_bypass", "pending", "arming", "disarming", "triggered", "unknown");
 
-static ProgmemStr alarm_state_to_mqtt_str(AlarmControlPanelState state) {
-  return AlarmMqttStateStrings::get_progmem_str(static_cast<uint8_t>(state), AlarmMqttStateStrings::LAST_INDEX);
-}
-
 MQTTAlarmControlPanelComponent::MQTTAlarmControlPanelComponent(AlarmControlPanel *alarm_control_panel)
     : alarm_control_panel_(alarm_control_panel) {}
 
@@ -120,7 +116,7 @@ bool MQTTAlarmControlPanelComponent::send_initial_state() { return this->publish
 bool MQTTAlarmControlPanelComponent::publish_state() {
   char topic_buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
   return this->publish(this->get_state_topic_to_(topic_buf),
-                       alarm_state_to_mqtt_str(this->alarm_control_panel_->get_state()));
+                       AlarmMqttStateStrings::get_progmem_str(this->alarm_control_panel_->get_state()));
 }
 
 }  // namespace esphome::mqtt

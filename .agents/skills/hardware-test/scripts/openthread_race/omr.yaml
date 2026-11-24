@@ -1,0 +1,39 @@
+# A text sensor "OMR Prefix" with the favored OMR prefix of the border router's own OpenThread instance (what the
+# meshcop omr TXT field carries), "none" while it has none, and an "Uptime" sensor that proves a restart.
+# omr_state.py reads both over the API after a restart.
+esphome:
+  includes:
+    - <openthread/border_routing.h>
+text_sensor:
+  - platform: debug
+    reset_reason:
+      name: Reset Reason
+  - platform: template
+    name: OMR Prefix
+    update_interval: 2s
+    lambda: |-
+      auto lock = openthread::InstanceLock::try_acquire(50);
+      if (!lock)
+        return std::string("error:lock");  // a stuck OpenThread task must not keep showing the last prefix
+      otIp6Prefix prefix{};
+      otRoutePreference pref;
+      otError err = otBorderRoutingGetFavoredOmrPrefix(lock.get_instance(), &prefix, &pref);
+      if (err != OT_ERROR_NONE)
+        return "error:" + std::to_string(err);  // border routing not running, unlike a slow prefix
+      if (prefix.mLength == 0)
+        return std::string("none");
+      char buf[OT_IP6_PREFIX_STRING_SIZE];
+      otIp6PrefixToString(&prefix, buf, sizeof(buf));
+      return std::string(buf);
+sensor:
+  - platform: uptime
+    name: Uptime
+    update_interval: 2s
+  # the raw esp_reset_reason(): the debug text also says "Reboot request" after a watchdog once a source is stored
+  - platform: template
+    name: Reset Code
+    update_interval: 2s
+    lambda: 'return (float) esp_reset_reason();'
+# the reset reason tells a requested reboot ("Reboot request from ...") from a shutdown watchdog or panic
+debug:
+  update_interval: never

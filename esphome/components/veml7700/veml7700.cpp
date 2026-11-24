@@ -78,9 +78,7 @@ static float get_gain_coeff(Gain gain) {
 
 PROGMEM_STRING_TABLE(GainStrings, "1x", "2x", "1/8x", "1/4x");
 
-static const LogString *get_gain_str(Gain gain) {
-  return GainStrings::get_log_str(gain & 0b11, GainStrings::LAST_INDEX);
-}
+static const LogString *get_gain_str(Gain gain) { return GainStrings::get_log_str(gain & 0b11); }
 
 void VEML7700Component::setup() {
   auto err = this->configure_();
@@ -213,8 +211,7 @@ void VEML7700Component::loop() {
       default:
         break;
     }
-    if (err != i2c::ERROR_OK)
-      this->status_set_warning();
+    this->status_comm_check(err == i2c::ERROR_OK);
   }
 }
 

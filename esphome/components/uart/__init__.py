@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 from logging import getLogger
 import math
 import re
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from esphome import automation, pins
 import esphome.codegen as cg
@@ -42,8 +42,12 @@ from esphome.const import (
     CONF_FLOW_CONTROL_PIN,
     CONF_ID,
     CONF_LAMBDA,
+    CONF_MODE,
     CONF_NUMBER,
+    CONF_OPEN_DRAIN,
     CONF_PORT,
+    CONF_PULLDOWN,
+    CONF_PULLUP,
     CONF_RX_BUFFER_SIZE,
     CONF_RX_PIN,
     CONF_SEQUENCE,
@@ -57,8 +61,12 @@ from esphome.const import (
 )
 from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
 import esphome.final_validate as fv
+from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import ConfigType
 from esphome.yaml_util import make_data_base
+
+if TYPE_CHECKING:
+    from esphome.components.libretiny import HardwareUart
 
 _LOGGER = getLogger(__name__)
 
@@ -78,6 +86,8 @@ LibreTinyUARTComponent = uart_ns.class_(
     "LibreTinyUARTComponent", UARTComponent, cg.Component
 )
 HostUartComponent = uart_ns.class_("HostUartComponent", UARTComponent, cg.Component)
+# Base of UARTs without a wire (uart_virtual.h)
+VirtualUARTComponent = uart_ns.class_("VirtualUARTComponent", UARTComponent)
 
 
 NATIVE_UART_CLASSES = (
@@ -171,7 +181,8 @@ def validate_host_config(config):
 
 
 def validate_rx_buffer_size(config):
-    if CORE.is_esp32:
+    # Without an RX pin the buffer is not used
+    if CORE.is_esp32 and CONF_RX_PIN in config:
         # ESP32 UART hardware FIFO is 128 bytes (LP UART is 16 bytes, but we use 128 as safe minimum)
         # rx_buffer_size must be greater than the hardware FIFO length
         min_buffer_size = 128
@@ -251,7 +262,11 @@ DEFAULT_DEBUG_OUTPUT = "UARTDebug::log_hex(direction, bytes, ':', debug_prefix);
 DEFAULT_SEQUENCE = [{CONF_LAMBDA: make_data_base(DEFAULT_DEBUG_OUTPUT)}]
 
 
-def maybe_empty_debug(value):
+@schema_extractor("schema")
+def maybe_empty_debug(value: ConfigType | None) -> ConfigType:
+    # A bare `debug:` is valid; the schema dumper still walks DEBUG_SCHEMA
+    if value is SCHEMA_EXTRACT:
+        return DEBUG_SCHEMA
     if value is None:
         value = {}
     return DEBUG_SCHEMA(value)
@@ -331,6 +346,89 @@ CONFIG_SCHEMA = cv.All(
     validate_host_config,
     validate_rx_buffer_size,
 )
+
+
+def _libretiny_hardware_uart(config: ConfigType) -> "HardwareUart | None":
+    """Hardware UART the board can route the configured pins to; None if none can or the board is unknown."""
+    from esphome.components.libretiny import get_hardware_uarts, has_software_serial
+
+    # Pin flags make setup() use SoftwareSerial where the family has it
+    if has_software_serial() and any(
+        pin[CONF_MODE].get(flag)
+        for pin in (config.get(CONF_TX_PIN), config.get(CONF_RX_PIN))
+        if pin is not None
+        for flag in (CONF_OPEN_DRAIN, CONF_PULLUP, CONF_PULLDOWN)
+    ):
+        return None
+    tx = config[CONF_TX_PIN][CONF_NUMBER] if CONF_TX_PIN in config else None
+    rx = config[CONF_RX_PIN][CONF_NUMBER] if CONF_RX_PIN in config else None
+    return next(
+        (
+            uart
+            for uart in get_hardware_uarts()
+            if tx in (None, *uart.tx_pins) and rx in (None, *uart.rx_pins)
+        ),
+        None,
+    )
+
+
+def _final_validate(config: ConfigType) -> None:
+    if CORE.is_libretiny:
+        _validate_libretiny_pins(config)
+
+
+def _validate_libretiny_pins(config: ConfigType) -> None:
+    from esphome.components.libretiny import (
+        can_choose_uart_pins,
+        get_hardware_uarts,
+        get_libretiny_board,
+        has_software_serial,
+    )
+
+    # A board without pin data is matched against its default pins at boot
+    if not (uarts := get_hardware_uarts()):
+        return
+    board = get_libretiny_board()
+    uart = _libretiny_hardware_uart(config)
+    if uart is None:
+        if has_software_serial():
+            return
+        choices = "; ".join(
+            f"UART{u.port}: TX={'/'.join(map(str, u.tx_pins)) or 'none'}, "
+            f"RX={'/'.join(map(str, u.rx_pins)) or 'none'}"
+            for u in uarts
+        )
+        raise cv.Invalid(
+            f"Board {board} has no hardware UART on these pins. Pin numbers per UART: {choices}"
+        )
+    # Two entries on one port would share the Serial object, and the second begin() would move its pins
+    for other in fv.full_config.get().get(DOMAIN, []):
+        if other is config or other[CONF_ID] == config[CONF_ID]:
+            continue
+        if (
+            other_uart := _libretiny_hardware_uart(other)
+        ) and other_uart.port == uart.port:
+            raise cv.Invalid(
+                f"UART {other[CONF_ID]} already uses hardware UART{uart.port} of board {board}"
+            )
+    if not uart.pin_choices:
+        return
+    # A left-out direction with no default pin is opened on an invalid pin, which hangs at boot
+    for key, role, choices in (
+        (CONF_TX_PIN, "TX", uart.tx_pin_choices),
+        (CONF_RX_PIN, "RX", uart.rx_pin_choices),
+    ):
+        if choices and key not in config:
+            raise cv.Invalid(
+                f"UART{uart.port} of board {board} has no default {role} pin, so it needs {key}"
+            )
+    if not can_choose_uart_pins():
+        raise cv.Invalid(
+            f"Choosing the pins of UART{uart.port} on board {board} needs LibreTiny 1.12.0 or later"
+        )
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def debug_to_code(config, parent):
@@ -426,6 +524,11 @@ async def to_code(config):
             enable_serial1()
             cg.add_define("USE_ESP8266_UART_SERIAL1")
 
+    if CORE.is_libretiny and (uart := _libretiny_hardware_uart(config)) is not None:
+        cg.add(var.set_hardware_port(uart.port))
+        if uart.pin_choices:
+            cg.add_define("USE_UART_LIBRETINY_PIN_ROUTING")
+
     CORE.add_job(final_step)
 
 
@@ -437,6 +540,7 @@ UART_DEVICE_SCHEMA = cv.Schema(
 )
 
 KEY_UART_DEVICES = "uart_devices"
+KEY_UART_EXCLUSIVE = "uart_exclusive"
 
 
 @dataclass
@@ -593,23 +697,70 @@ def final_validate_device_schema(
     )
 
 
-def subtree_references_uart(
-    node: object, uart_id: str, conf_key: str = CONF_UART_ID
-) -> bool:
-    """Return True if any dict in the subtree has a conf_key entry naming this bus.
+def subtree_references_uart(node: object, uart_id: str, *conf_keys: str) -> bool:
+    """Return True if any dict in the subtree has a conf_keys entry (uart_id by default) naming this bus.
 
     For the final validation of a component that needs a UART for itself. Bare
     `id:` references (a uart.write action) and lambdas are not found.
     """
+    conf_keys = conf_keys or (CONF_UART_ID,)
     if isinstance(node, dict):
         return any(
-            (key == conf_key and str(value) == uart_id)
-            or subtree_references_uart(value, uart_id, conf_key)
+            # the value is one id, or a list of ids
+            (
+                key in conf_keys
+                and uart_id in map(str, value if isinstance(value, list) else [value])
+            )
+            or subtree_references_uart(value, uart_id, *conf_keys)
             for key, value in node.items()
         )
     if isinstance(node, list):
-        return any(subtree_references_uart(item, uart_id, conf_key) for item in node)
+        return any(subtree_references_uart(item, uart_id, *conf_keys) for item in node)
     return False
+
+
+def claim_exclusive(
+    config: ConfigType, owner: str, conf_key: str = CONF_UART_ID
+) -> None:
+    """Claim the UART in config[conf_key] for owner alone; call it from final validation.
+
+    Fails on a second owner entry for that UART, on another domain that names it by
+    uart_id or conf_key (skipped in testing mode) and on a dummy_receiver in its debug.
+    owner must be the caller's top-level config key: the scan skips that domain.
+    """
+    full_config = fv.full_config.get()
+    uart_id = str(config[conf_key])
+    # Per owner, not per key: one UART named under two of the owner's keys is two readers
+    used = full_config.data.setdefault(KEY_UART_EXCLUSIVE, {}).setdefault(owner, set())
+    if uart_id in used:
+        raise cv.Invalid(
+            f"The UART '{uart_id}' is already used by another '{owner}' entry. "
+            f"Each {owner} needs its own UART.",
+            [conf_key],
+        )
+    used.add(uart_id)
+    # Grouped CI builds share buses, like final_validate_device_schema()'s pin check.
+    if not CORE.testing_mode:
+        for domain, domain_conf in full_config.items():
+            if domain != owner and subtree_references_uart(
+                domain_conf, uart_id, CONF_UART_ID, conf_key
+            ):
+                raise cv.Invalid(
+                    f"The UART '{uart_id}' is also used by '{domain}'. "
+                    f"{owner} requires exclusive use of that UART.",
+                    [conf_key],
+                )
+
+    def reject_dummy_receiver(uart_conf: ConfigType) -> ConfigType:
+        debug = uart_conf.get(CONF_DEBUG)
+        if isinstance(debug, dict) and debug.get(CONF_DUMMY_RECEIVER):
+            raise cv.Invalid(
+                f"dummy_receiver reads this UART and drops the bytes {owner} should forward.",
+                [CONF_DEBUG, CONF_DUMMY_RECEIVER],
+            )
+        return uart_conf
+
+    fv.id_declaration_match_schema(reject_dummy_receiver)(config[conf_key])
 
 
 async def register_uart_device(var, config):
@@ -649,7 +800,7 @@ automation.register_apply_action(
 @coroutine_with_priority(CoroPriority.FINAL)
 async def final_step():
     """Final code generation step to configure optional UART features."""
-    if (CORE.is_esp32 or CORE.is_esp8266) and CORE.has_networking:
+    if CORE.is_esp32 or CORE.is_esp8266:
         # Wake-on-RX is essentially free (just an ISR function pointer
         # registration on ESP32, an inline flag set on ESP8266 software
         # serial) — enable by default to reduce RX buffer overflow risk by

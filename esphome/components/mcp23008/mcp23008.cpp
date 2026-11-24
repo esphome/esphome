@@ -8,17 +8,13 @@ ESPHOME_LOG_TAG(TAG, "mcp23008");
 static constexpr uint8_t IOCON_ODR = 0x04;  // Open-drain output for INT pin
 
 void MCP23008::setup() {
-  uint8_t iocon;
-  if (!this->setup_check(this->read_reg(mcp23x08_base::MCP23X08_IOCON, &iocon)))
+  // Open-drain interrupt pin is 3.3V-safe; clear ODR left by an earlier config
+  if (!this->setup_check(
+          this->update_register(mcp23x08_base::MCP23X08_IOCON, IOCON_ODR, this->open_drain_ints_ ? IOCON_ODR : 0)))
     return;
 
   // Read current output register state
   this->read_reg(mcp23x08_base::MCP23X08_OLAT, &this->olat_);
-
-  if (this->open_drain_ints_) {
-    // enable open-drain interrupt pins, 3.3V-safe
-    this->write_reg(mcp23x08_base::MCP23X08_IOCON, iocon | IOCON_ODR);
-  }
 
   this->setup_interrupt_pin_();
 }

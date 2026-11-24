@@ -1,0 +1,20 @@
+# ESP32-C3 DUT for the Pico 2 W BME280/BMP280 fake (picofake.yaml): wire GPIO6 to GP4 (SDA), GPIO7 to GP5 (SCL) and GND.
+# run.sh adds the name and one of dut-bme280.yaml / dut-bmp280.yaml.
+esp32:
+  variant: esp32c3
+  board: esp32-c3-devkitm-1
+  framework:
+    type: esp-idf
+
+logger:
+  hardware_uart: USB_SERIAL_JTAG
+  level: VERBOSE
+  logs:
+    i2c.idf: DEBUG
+    i2c: DEBUG
+    scheduler: DEBUG
+
+i2c:
+  sda: GPIO6
+  scl: GPIO7
+  scan: true

@@ -47,7 +47,7 @@ void UponorSmatrixClimate::control(const climate::ClimateCall &call) {
   if (val.has_value()) {
     uint16_t temp = celsius_to_raw(*val);
     if (this->preset == climate::CLIMATE_PRESET_ECO) {
-      // During ECO mode, the thermostat automatically substracts the setback value from the setpoint,
+      // During ECO mode, the thermostat automatically subtracts the setback value from the setpoint,
       // so we need to add it here first
       temp += this->eco_setback_value_raw_;
     }
@@ -68,7 +68,7 @@ void UponorSmatrixClimate::on_device_data(const UponorSmatrixData *data, size_t 
         this->max_temperature_ = raw_to_celsius(data[i].value);
         break;
       case UPONOR_ID_TARGET_TEMP:
-        // Ignore invalid values here as they are used by the controller to explicitely request the setpoint from a
+        // Ignore invalid values here as they are used by the controller to explicitly request the setpoint from a
         // thermostat
         if (data[i].value != UPONOR_INVALID_VALUE)
           this->target_temperature_raw_ = data[i].value;

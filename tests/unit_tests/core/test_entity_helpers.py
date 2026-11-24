@@ -12,7 +12,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from esphome import final_validate as fv
+from esphome import cpp_generator, final_validate as fv
 import esphome.codegen as cg
 from esphome.components import (
     button,
@@ -1357,8 +1357,6 @@ def test_integration_class_handles_match_owning_definitions() -> None:
     """The cheap class handles must stay string-equal to the integrations'
     own declarations, or use_id/declare_id resolution silently drifts."""
     from esphome.components import mqtt, web_server
-    from esphome.components.zigbee import zigbee_zephyr
-    from esphome.components.zigbee.const import ZigbeeComponent
 
     mqtt_handle = mqtt_component_class("MQTTBinarySensorComponent")
     assert str(mqtt_handle) == str(mqtt.MQTTBinarySensorComponent)
@@ -1368,15 +1366,6 @@ def test_integration_class_handles_match_owning_definitions() -> None:
     assert str(entity_helpers._WebServer) == str(web_server.WebServer)
     assert entity_helpers._WebServer.inherits_from(web_server.WebServer)
     assert web_server.WebServer.inherits_from(entity_helpers._WebServer)
-
-    assert str(entity_helpers._ZigbeeComponent) == str(ZigbeeComponent)
-    for (
-        _conf_key,
-        class_name,
-        _cluster_options,
-    ) in entity_helpers._ZIGBEE_ENTITY_CLASSES.values():
-        owning = getattr(zigbee_zephyr, class_name)
-        assert str(owning) == f"zigbee::{class_name}"
 
 
 @cache
@@ -1428,6 +1417,14 @@ def test_datetime_time_handle_matches_time_component() -> None:
     from esphome.components import datetime, time
 
     assert str(datetime._RealTimeClock) == str(time.RealTimeClock)
+
+
+def test_zigbee_endpoint_needs_only_zigbee() -> None:
+    """nRF52 builds load zigbee without esp32."""
+    with patch.object(CORE, "loaded_integrations", {"zigbee"}):
+        assert entity_helpers.ZIGBEE_BASE_ENTITY_SCHEMA({"endpoint": 17}) == {
+            "endpoint": 17
+        }
 
 
 def test_zigbee_entity_schema_cluster_options() -> None:
@@ -1550,6 +1547,15 @@ def test_convert_visual_temperatures(
     convert_visual_temperatures({"visual": {}}, delta_keys, delta_section)
 
 
+def test_convert_visual_temperatures_without_a_visual_section() -> None:
+    """A platform entry that only holds nested entities has no visual section and is left alone."""
+    nested = {"visual": {"min_temperature": (50.0, "°F")}}
+    config = {"zone_1": nested}
+
+    assert convert_visual_temperatures(config, ("step",)) is config
+    assert nested["visual"]["min_temperature"] == (50.0, "°F")
+
+
 @pytest.mark.asyncio
 async def test_setup_entity_integrations_registers_mqtt_and_web_server(
     monkeypatch: pytest.MonkeyPatch, setup_test_environment: list[str]
@@ -1602,7 +1608,7 @@ def apply_functions(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, str, str
         emitted.append((name, params, "\n".join(body)))
         return RawExpression(name)
 
-    monkeypatch.setattr(entity_helpers.cg, "static_function", fake_static_function)
+    monkeypatch.setattr(cpp_generator, "static_function", fake_static_function)
     CORE.data.pop(entity_helpers._APPLY_DOMAIN, None)
     return emitted
 

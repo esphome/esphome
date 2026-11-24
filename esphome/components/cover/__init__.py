@@ -1,5 +1,3 @@
-import logging
-
 from esphome import automation
 from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
@@ -63,8 +61,6 @@ DEVICE_CLASSES = [
 ]
 DOMAIN = "cover"
 
-_LOGGER = logging.getLogger(__name__)
-
 cover_ns = cg.esphome_ns.namespace("cover")
 
 Cover = cover_ns.class_("Cover", cg.EntityBase)
@@ -101,7 +97,6 @@ CONF_ON_CLOSING = "on_closing"
 CONF_STOP_TILT = "stop_tilt"
 
 TRIGGERS = {
-    CONF_ON_OPEN: CoverOpenedTrigger,  # Deprecated, use on_opened
     CONF_ON_OPENED: CoverOpenedTrigger,
     CONF_ON_CLOSED: CoverClosedTrigger,
     CONF_ON_CLOSING: CoverTrigger.template(CoverOperation.COVER_OPERATION_CLOSING),
@@ -144,6 +139,11 @@ _COVER_SCHEMA = (
                 )
                 for conf, trigger_class in TRIGGERS.items()
             },
+            # Removed in 2026.12.0 - kept to provide helpful error message
+            cv.Optional(CONF_ON_OPEN): cv.invalid(
+                "The 'on_open' trigger was removed in ESPHome 2026.12.0, "
+                "use 'on_opened' instead."
+            ),
         }
     )
 )
@@ -194,10 +194,6 @@ def cover_schema(
 async def setup_cover_core_(var: MockObj, config: ConfigType) -> None:
     setup_device_class(config)
 
-    if CONF_ON_OPEN in config:
-        _LOGGER.warning(
-            "'on_open' is deprecated, use 'on_opened'. Will be removed in 2026.8.0"
-        )
     for trigger_conf in TRIGGERS:
         for conf in config.get(trigger_conf, []):
             trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)

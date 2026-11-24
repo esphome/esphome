@@ -1,0 +1,39 @@
+substitutions:
+  name: pulse-rtl
+  inv: "false"
+  filt: 13us
+  key: PC
+
+esphome:
+  name: ${name}
+  platformio_options:
+    build_flags:
+      - -DGEN_PIN_NAME=17
+  includes:
+    - pulsegen.hpp
+
+rtl87xx:
+  board: bw15
+
+logger:
+  level: DEBUG
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+interval:
+  - interval: 50ms
+    then:
+      - lambda: pulsegen::tick();
+
+sensor:
+  - platform: pulse_counter
+    name: PC
+    pin:
+      number: PA18
+      inverted: ${inv}
+    internal_filter: ${filt}
+    update_interval: 5s
+    on_raw_value:
+      - lambda: 'ESP_LOGI("meas", "${key} %.1f", x);'

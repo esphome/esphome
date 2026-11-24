@@ -34,6 +34,9 @@ class RP2040PIOLEDStripLightOutput final : public light::AddressableLight {
     this->internal_accessor_.channel_colors = channel_colors;
   }
 
+  /// Call after set_num_leds() and set_channel_colors().
+  void set_buffer(uint8_t *buffer) { this->internal_accessor_.set_buffer(buffer, this->num_leds_); }
+
   void set_max_refresh_rate(float interval_us) { this->max_refresh_rate_ = interval_us; }
 
   void set_pio(int pio_num) { pio_num ? this->pio_ = pio1 : this->pio_ = pio0; }

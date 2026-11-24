@@ -56,7 +56,6 @@ void OtaHttpRequestComponent::flash() {
   switch (ota_status) {
     case ota::OTA_RESPONSE_OK:
       this->report_state_(ota::OTA_COMPLETED, 100.0f, ota_status);
-      delay(10);
       App.safe_reboot();
       break;
 

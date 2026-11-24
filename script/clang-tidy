@@ -212,6 +212,8 @@ def clang_options(idedata, environment):
         and not flag.startswith("-mtune=esp")
     )
     cmd.append("-std=gnu++20")
+    # clang otherwise reads the `module:` bit-field in IDF's soc/regdma.h as a C++20 module directive
+    cmd.append("-fno-cxx-modules")
 
     if environment.startswith(("bk72xx", "ln882h", "rtl87xx")):
         # LibreTiny leaves function-like macro values unparenthesized
