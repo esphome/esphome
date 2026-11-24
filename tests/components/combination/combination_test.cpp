@@ -217,6 +217,36 @@ TEST(WeightedMeanCombination, InitializesFromExistingSourceStates) {
   EXPECT_FLOAT_EQ(f.combination.get_state(), 17.5f);
 }
 
+TEST(WeightedMeanCombination, UpdatesThroughCallbacksAndScheduler) {
+  WeightedMeanFixture<2> f({10.0f, 20.0f}, {[](float) -> float { return 1.0f; }, [](float) -> float { return 3.0f; }});
+  size_t publish_count = 0;
+  f.combination.add_on_state_callback([&publish_count](float) { ++publish_count; });
+  f.sources[0].publish_state(10.0f);
+  f.sources[1].publish_state(20.0f);
+  f.combination.setup();
+
+  App.scheduler.call(millis());
+  ASSERT_FLOAT_EQ(f.combination.get_state(), 17.5f);
+  publish_count = 0;
+
+  f.sources[0].publish_state(NAN);
+  f.sources[1].publish_state(NAN);
+  App.scheduler.call(millis());
+  EXPECT_TRUE(std::isnan(f.combination.get_state()));
+  EXPECT_EQ(publish_count, 1);
+
+  f.sources[0].publish_state(30.0f);
+  App.scheduler.call(millis());
+  EXPECT_FLOAT_EQ(f.combination.get_state(), 30.0f);
+  EXPECT_EQ(publish_count, 2);
+
+  f.sources[0].publish_state(40.0f);
+  f.sources[1].publish_state(50.0f);
+  App.scheduler.call(millis());
+  EXPECT_FLOAT_EQ(f.combination.get_state(), 47.5f);
+  EXPECT_EQ(publish_count, 3);
+}
+
 TEST(WeightedMeanCombination, SkipsNonFiniteStatesAndNonPositiveWeights) {
   WeightedMeanFixture<3> f(
       {10.0f, NAN, 20.0f},
