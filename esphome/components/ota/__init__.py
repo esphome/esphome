@@ -145,10 +145,7 @@ _request_global_listener_slot = cg.slot_counter(GLOBAL_LISTENER_COUNT_DEFINE)
 
 
 def request_ota_component_state_listeners() -> None:
-    """Compile in OTAComponent::add_state_listener() for a listener on one OTA component.
-
-    Unlike request_ota_state_listeners(), this reserves no global listener slot.
-    """
+    """Compile in OTAComponent::add_state_listener() without a global listener slot."""
     CORE.data[OTA_STATE_LISTENER_KEY] = True
 
 
@@ -170,7 +167,7 @@ async def final_step() -> None:
     """Final code generation step to configure optional OTA features."""
     if CORE.data.get(OTA_STATE_LISTENER_KEY, False):
         cg.add_define("USE_OTA_STATE_LISTENER")
-        # A singleton, not a hub, so cg.slot_list's empty-list emission does not cover it
+        # Not a hub, so cg.slot_list would not emit the zero count
         if cg.get_slot_count(GLOBAL_LISTENER_COUNT_DEFINE) == 0:
             cg.add_define(GLOBAL_LISTENER_COUNT_DEFINE, 0)
 
