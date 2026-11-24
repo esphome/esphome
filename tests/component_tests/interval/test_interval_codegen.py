@@ -6,7 +6,11 @@ import re
 
 import pytest
 
-from tests.component_tests.helpers import constructed, delayed_automation
+from tests.component_tests.helpers import (
+    callback_function,
+    constructed,
+    delayed_automation,
+)
 
 CONFIG = "interval_codegen.yaml"
 
@@ -19,60 +23,48 @@ def main_cpp(
     return generate_main(component_config_path(CONFIG))
 
 
-def _callback(var: str, startup_delay: int = 0) -> str:
-    if startup_delay:
-        return (
-            f"interval::DelayedIntervalCallback<esphome__{var}__fn, {startup_delay}>()"
-        )
-    return f"interval::IntervalCallback<esphome__{var}__fn>()"
-
-
 @pytest.mark.parametrize(
-    ("var", "expected", "update_interval"),
+    ("var", "startup_delay", "update_interval"),
     [
-        ("interval_intervaltrigger_id", _callback("interval_intervaltrigger_id"), 1000),
-        (
-            "interval_intervaltrigger_id_2",
-            _callback("interval_intervaltrigger_id_2", 5000),
-            2000,
-        ),
-        (
-            "interval_intervaltrigger_id_3",
-            _callback("interval_intervaltrigger_id_3"),
-            3000,
-        ),
-        ("named_interval", "interval::DelayedIntervalTrigger(3000)", 4000),
-        (
-            "interval_intervaltrigger_id_4",
-            _callback("interval_intervaltrigger_id_4"),
-            5000,
-        ),
+        ("interval_intervalcallback_id", 0, 1000),
+        ("interval_intervalcallback_id_2", 5000, 2000),
+        ("interval_intervalcallback_id_3", 0, 3000),
+        ("named_interval", 3000, 4000),
+        ("interval_intervalcallback_id_4", 0, 5000),
     ],
 )
 def test_interval_constructed(
-    main_cpp: str, var: str, expected: str, update_interval: int
+    main_cpp: str, var: str, startup_delay: int, update_interval: int
 ) -> None:
     """Each interval is built with its startup delay, if any, and gets its update interval."""
+    function = callback_function(main_cpp, var)
+    expected = (
+        f"interval::DelayedIntervalCallback<{function}, {startup_delay}>()"
+        if startup_delay
+        else f"interval::IntervalCallback<{function}>()"
+    )
     assert constructed(main_cpp, var) == expected
     assert f"{var}->set_update_interval({update_interval});" in main_cpp
 
 
 def test_interval_delay_triggers_automation(main_cpp: str) -> None:
     """A delay keeps the Automation of separate actions, which the function triggers."""
-    delayed_automation(main_cpp, "esphome__interval_intervaltrigger_id_3__fn")
+    delayed_automation(
+        main_cpp, callback_function(main_cpp, "interval_intervalcallback_id_3")
+    )
 
 
 def test_interval_registration_order(main_cpp: str) -> None:
     """Intervals register in config order; one waiting for a later id keeps its place."""
     registered = re.findall(r"App\.register_component_\((\w+), \d+\);", main_cpp)
     assert registered[-6:] == [
-        "interval_intervaltrigger_id",
-        "interval_intervaltrigger_id_2",
-        "interval_intervaltrigger_id_3",
+        "interval_intervalcallback_id",
+        "interval_intervalcallback_id_2",
+        "interval_intervalcallback_id_3",
         "named_interval",
-        "interval_intervaltrigger_id_4",
+        "interval_intervalcallback_id_4",
         "some_sensor",
     ]
     assert main_cpp.index(
-        "App.register_component_(interval_intervaltrigger_id_4"
+        "App.register_component_(interval_intervalcallback_id_4"
     ) < main_cpp.index("new(later_script)")

@@ -145,32 +145,6 @@ template<typename... Ts> class ForCondition : public Condition<Ts...>, public Co
   uint32_t last_inactive_{0};
 };
 
-class StartupTrigger : public Trigger<>, public Component {
- public:
-  explicit StartupTrigger(float setup_priority) : setup_priority_(setup_priority) {}
-  void setup() override { this->trigger(); }
-  float get_setup_priority() const override { return this->setup_priority_; }
-
- protected:
-  float setup_priority_;
-};
-
-class ShutdownTrigger : public Trigger<>, public Component {
- public:
-  explicit ShutdownTrigger(float setup_priority) : setup_priority_(setup_priority) {}
-  void on_shutdown() override { this->trigger(); }
-  float get_setup_priority() const override { return this->setup_priority_; }
-
- protected:
-  float setup_priority_;
-};
-
-class LoopTrigger : public Trigger<>, public Component {
- public:
-  void loop() override { this->trigger(); }
-  float get_setup_priority() const override { return setup_priority::DATA; }
-};
-
 /// Component whose setup priority is the float with bit pattern PRIORITY_BITS, since GCC 10 (ESP8266)
 /// has no float template parameters. Templated on the priority only, so each priority has one copy.
 template<uint32_t PRIORITY_BITS> class PriorityComponent : public Component {
