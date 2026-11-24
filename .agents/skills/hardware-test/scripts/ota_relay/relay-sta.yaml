@@ -1,0 +1,32 @@
+# Classic ESP32 relay: joins the DUT's fallback AP and relays TCP to 192.168.4.1 over UART0 at 921600, every DATA
+# frame checked by sequence number and checksum (run relay_host.py with RELAY_BAUD=921600 RELAY_SEQ=1).
+esphome:
+  name: otarelay-sta
+  platformio_options:
+    build_flags: ["-DRELAY_UART", "-DRELAY_SEQ"]
+  includes:
+    - relay.hpp
+  on_boot:
+    priority: 600
+    then:
+      - lambda: relay::start();
+esp32:
+  board: esp32dev
+  framework:
+    type: esp-idf
+    sdkconfig_options:
+      CONFIG_ESP_CONSOLE_NONE: y
+      CONFIG_ESP_CONSOLE_SECONDARY_NONE: y
+      CONFIG_BOOTLOADER_LOG_LEVEL_NONE: y
+      CONFIG_LOG_DEFAULT_LEVEL_NONE: y
+logger:
+  baud_rate: 0
+  hardware_uart: UART0
+  level: NONE
+wifi:
+  power_save_mode: none
+  networks:
+    - ssid: otarelay-dut-ap
+      password: !secret ap_password
+  reboot_timeout: 0s
+  post_connect_roaming: false
