@@ -84,8 +84,10 @@ void ArduinoI2CBus::dump_config() {
   this->dump_scan_results_();
 }
 
-#if defined(USE_ESP8266)
+#if defined(USE_ESP8266) && defined(I2C_BUFFER_LENGTH)
 static constexpr size_t WIRE_TRANSFER_MAX = I2C_BUFFER_LENGTH;
+#elif defined(USE_ESP8266)
+static constexpr size_t WIRE_TRANSFER_MAX = BUFFER_LENGTH;  // older cores name it only this way
 #elif defined(USE_RP2)
 static constexpr size_t WIRE_TRANSFER_MAX = WIRE_BUFFER_SIZE;
 #endif
