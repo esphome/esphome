@@ -370,12 +370,13 @@ def _advice(
 
 
 def final_validate_rmt_channels(config: ConfigType) -> None:
-    """FINAL_VALIDATE_SCHEMA of the components that use request_rmt_channel().
+    """FINAL_VALIDATE_SCHEMA of the components that request RMT channels.
 
-    Fails when the RMT components cannot all get a channel. The check runs once; its
-    errors are raised together from the first component named in one of them, since
-    final validation stops after the first error. Whether the channels fit in the RMT
-    memory depends on the setup order, which is only known in code generation.
+    Use it with request_rmt_channel() or request_rmt_channels(). Fails when the RMT
+    components cannot all get a channel. The check runs once; its errors are raised
+    together from the first component named in one of them, since final validation
+    stops after the first error. Whether the channels fit in the RMT memory depends on
+    the setup order, which is only known in code generation.
     """
     data = _get_data()
     if not data.checked:
@@ -401,10 +402,11 @@ def final_validate_rmt_channels(config: ConfigType) -> None:
 
 
 def register_rmt_channel(config: ConfigType) -> None:
-    """Record the setup order of a component that uses request_rmt_channel().
+    """Record the setup order of a component that requests RMT channels.
 
-    Call it in to_code right after cg.register_component(): C++ sets up components of
-    the same priority in the order they are registered.
+    Use it with request_rmt_channel() or request_rmt_channels(). Call it in to_code
+    right after cg.register_component(): C++ sets up components of the same priority in
+    the order they are registered.
     """
     data = _get_data()
     if not data.registered:

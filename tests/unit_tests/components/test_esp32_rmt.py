@@ -612,16 +612,10 @@ def test_fixed_channels_take_memory_in_setup_order(
     caplog: pytest.LogCaptureFixture, bus_priority: float, usage: str
 ) -> None:
     """A receiver of two blocks and the RX block of the bus do not fit together on C3."""
-    _set_variant(VARIANT_ESP32C3)
     bus = _bus("bus", **{CONF_SETUP_PRIORITY: bus_priority})
-    receiver = _entry("rx", 96)
-    with caplog.at_level(logging.WARNING):
-        esp32_rmt.request_rmt_channels(RX_AND_TX, 799.0)(bus)
-        esp32_rmt.request_rmt_channel("RX", PRIORITY)(receiver)
-        esp32_rmt.final_validate_rmt_channels(bus)
-        esp32_rmt.final_validate_rmt_channels(receiver)
-        _generate([bus, receiver])
-    messages = _rmt_messages(caplog)
+    messages = _check_fixed(
+        caplog, VARIANT_ESP32C3, [(bus, RX_AND_TX)], {"RX": [_entry("rx", 96)]}
+    )
     assert len(messages) == 1
     assert usage in messages[0]
     assert "Set 'rmt_symbols: 48' on 'rx'" in messages[0]
@@ -630,17 +624,11 @@ def test_fixed_channels_take_memory_in_setup_order(
 def test_fixed_channels_fit_next_to_a_small_receiver(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    _set_variant(VARIANT_ESP32C3)
-    bus = _bus("bus")
-    receiver = _entry("rx", 48)
-    with caplog.at_level(logging.WARNING):
-        esp32_rmt.request_rmt_channels(RX_AND_TX, 799.0)(bus)
-        esp32_rmt.request_rmt_channel("RX", PRIORITY)(receiver)
-        esp32_rmt.final_validate_rmt_channels(bus)
-        esp32_rmt.final_validate_rmt_channels(receiver)
-        _generate([bus, receiver])
+    messages = _check_fixed(
+        caplog, VARIANT_ESP32C3, [(_bus("bus"), RX_AND_TX)], {"RX": [_entry("rx", 48)]}
+    )
     assert len(esp32_rmt._get_data().channels) == 3
-    assert not _rmt_messages(caplog)
+    assert not messages
 
 
 @pytest.mark.parametrize("variant", [VARIANT_ESP32C2, "ESP32X1"])
@@ -814,3 +802,18 @@ def test_warning_counts_components_with_the_same_label_apart(
     messages = run_check(VARIANT_ESP32S2, {"TX": [strip, _entry("ir", 192)]})
     assert len(messages) == 1
     assert "will not fit: 'ir' (192), 'ir' (192)." in messages[0]
+
+
+def test_advice_for_each_pool(caplog: pytest.LogCaptureFixture) -> None:
+    """On S3 the strips can share the TX blocks, but the bus leaves no RX block free."""
+    messages = _check_fixed(
+        caplog,
+        VARIANT_ESP32S3,
+        [(_bus("bus"), (("RX", 4),))],
+        {**_strips(192, 192), "RX": [_entry("rx", 96)]},
+    )
+    assert len(messages) == 1
+    assert (
+        "Set 'rmt_symbols: 96' on 'strip0', 'strip1' and remove some of these "
+        "components or use a chip with more RMT memory." in messages[0]
+    )
