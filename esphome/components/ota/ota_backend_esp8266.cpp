@@ -347,10 +347,10 @@ bool ESP8266OTABackend::verify_end_() {
   if (!this->md5_set_) {
     size_t end = this->image_end_(0);
     // eboot padded to 4 KB, then the app
-    if (end <= APP_START_OFFSET && this->image_size_ > APP_START_OFFSET)
+    if (end != 0 && end <= APP_START_OFFSET && this->image_size_ > APP_START_OFFSET)
       end = this->image_end_(APP_START_OFFSET);
     if (end != this->image_size_) {
-      ESP_LOGE(TAG, "Image incomplete: %zu bytes received", this->image_size_);
+      ESP_LOGE(TAG, "Image size mismatch: %zu bytes received, segment tables end at %zu", this->image_size_, end);
       return false;
     }
   }
