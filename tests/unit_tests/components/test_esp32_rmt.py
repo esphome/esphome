@@ -895,3 +895,18 @@ def test_channels_after_a_failed_channel_are_not_created(
         "'strip0' and 'rmt_symbols: 48' on 'rx'. Otherwise ESP-IDF logs 'no free rx "
         "channels' at boot," in messages[0]
     )
+
+
+def test_reduce_and_reorder_together(caplog: pytest.LogCaptureFixture) -> None:
+    """On C3 the strip fits next to a TX channel of two blocks only when it is reduced
+    and set up first, so both are suggested together.
+    """
+    messages = _check_fixed(
+        caplog, VARIANT_ESP32C3, [(_bus("bus"), (("TX", 2),))], _strips(96)
+    )
+    assert len(messages) == 1
+    assert (
+        "'strip0' will not fit: 'bus' (96), 'strip0' (96). Set 'rmt_symbols: 48' on "
+        "'strip0' and set 'setup_priority' so 'strip0' is set up first, then 'bus'. "
+        "Otherwise" in messages[0]
+    )

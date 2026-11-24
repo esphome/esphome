@@ -338,11 +338,14 @@ def _pools(
     ]
 
 
-def _reorder(memory: RMTMemory, components: list[list[_Channel]]) -> str | None:
+def _reorder(
+    memory: RMTMemory, components: list[list[_Channel]], named: bool = False
+) -> str | None:
     """Suggest setup_priority when the components fit in another setup order.
 
     setup_priority moves a whole component: its setup() creates its channels in order.
     The order with the smaller components first is tried first, then every other one.
+    When named is set, the order is always given by the names of the components.
     """
     size = memory.symbols_per_block
     smallest_first = sorted(
@@ -352,7 +355,7 @@ def _reorder(memory: RMTMemory, components: list[list[_Channel]]) -> str | None:
     for i, order in enumerate(permutations(smallest_first)):
         if _allocate(memory, [channel for own in order for channel in own]):
             continue
-        if i == 0:
+        if i == 0 and not named:
             return f"set '{CONF_SETUP_PRIORITY}' so the smaller ones are set up first"
         first, *rest = (f"'{own[0].label}'" for own in order)
         then = "".join(f", then {label}" for label in rest)
@@ -366,9 +369,10 @@ def _advice(memory: RMTMemory, channels: list[_Channel], reorder: str | None) ->
     A DMA channel and a channel of a fixed size keep their blocks, whatever rmt_symbols
     is. When the TX channels need more than the TX blocks even with one block each, the
     rest can come from the RX blocks, because a TX channel can extend into them. The
-    values are only suggested when the channels then fit in this order. When a pool has
-    too little memory, or there is nothing to reduce, suggest to remove components
-    instead. reorder is the advice from _reorder(), suggested instead when it is set.
+    values are only suggested when the channels then fit in this order, or in another
+    order that is then suggested with them. When a pool has too little memory, or there
+    is nothing to reduce, suggest to remove components instead. reorder is the advice
+    from _reorder(), suggested instead when it is set.
     """
     size = memory.symbols_per_block
     suggestions = []
@@ -399,6 +403,8 @@ def _advice(memory: RMTMemory, channels: list[_Channel], reorder: str | None) ->
         if shrink := [channel for channel in others if channel.symbols > fair]:
             suggestions.append(f"'{CONF_RMT_SYMBOLS}: {fair}' on {_labels(shrink)}")
             reduced.update((channel, fair) for channel in shrink)
+    # Advice on setup_priority that the reduced values need
+    together = None
     if suggestions:
         # Check the suggestion on the pools it can fix
         trial = [
@@ -407,10 +413,17 @@ def _advice(memory: RMTMemory, channels: list[_Channel], reorder: str | None) ->
             if channel not in stuck
         ]
         if _allocate(memory, trial):
-            suggestions = []
+            if not stuck and not reorder:
+                together = _reorder(
+                    memory, list(_by_component(trial).values()), named=True
+                )
+            if together is None:
+                suggestions = []
     advice = [f"Set {' and '.join(suggestions)}"] if suggestions else []
     if reorder:
         advice.append(reorder)
+    elif together:
+        advice.append(together)
     elif stuck or not suggestions:
         advice.append(
             "remove some of these components or use a chip with more RMT memory"
