@@ -1,7 +1,6 @@
 # Pulls in sensor so entity iteration paths compile (USE_SENSOR);
-# tests register their own instances. Plain yaml.safe_load, no ESPHome tags.
-# An alphabetically-earlier component's sensor: block shadows this one in
-# combined builds; the tests' sensor-count ASSERT catches a capacity drop.
+# tests register their own instances into runtime slots reserved in __init__.py.
+# Plain yaml.safe_load, no ESPHome tags.
 sensor:
   - platform: template
     id: bench_sensor_a

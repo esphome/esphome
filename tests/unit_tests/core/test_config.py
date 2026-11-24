@@ -182,7 +182,10 @@ async def test_core_area_recorded_at_config_load(
     # Recorded already at config-load time, before any code generation.
     assert CORE.area == expected_area
 
-    with patch("esphome.core.config.cg") as mock_cg:
+    with (
+        patch("esphome.core.config.cg") as mock_cg,
+        patch("esphome.core.config.app_lists"),
+    ):
         mock_cg.RawStatement.side_effect = lambda *args, **kwargs: MagicMock()
         mock_cg.RawExpression.side_effect = lambda *args, **kwargs: MagicMock()
         await config.to_code(result[CONF_ESPHOME])
@@ -201,7 +204,10 @@ async def test_app_is_default_initialized(
     result = load_config_from_fixture(yaml_file, "valid_area_device.yaml", FIXTURES_DIR)
     assert result is not None
 
-    with patch("esphome.core.config.cg") as mock_cg:
+    with (
+        patch("esphome.core.config.cg") as mock_cg,
+        patch("esphome.core.config.app_lists"),
+    ):
         mock_cg.RawStatement.side_effect = lambda *args, **kwargs: MagicMock()
         mock_cg.RawExpression.side_effect = lambda *args, **kwargs: MagicMock()
         await config.to_code(result[CONF_ESPHOME])
@@ -231,7 +237,10 @@ async def test_no_exceptions_flag_skipped_on_native_cmake_builds(
     assert result is not None
     CORE.toolchain = toolchain
 
-    with patch("esphome.core.config.cg") as mock_cg:
+    with (
+        patch("esphome.core.config.cg") as mock_cg,
+        patch("esphome.core.config.app_lists"),
+    ):
         mock_cg.RawStatement.side_effect = lambda *args, **kwargs: MagicMock()
         mock_cg.RawExpression.side_effect = lambda *args, **kwargs: MagicMock()
         await config.to_code(result[CONF_ESPHOME])
@@ -496,7 +505,10 @@ async def test_device_relation_to_code(
     result = load_config_from_fixture(yaml_file, fixture, FIXTURES_DIR)
     assert result is not None
 
-    with patch("esphome.core.config.cg") as mock_cg:
+    with (
+        patch("esphome.core.config.cg") as mock_cg,
+        patch("esphome.core.config.app_lists"),
+    ):
         mock_cg.RawStatement.side_effect = lambda *args, **kwargs: MagicMock()
         mock_cg.RawExpression.side_effect = lambda *args, **kwargs: MagicMock()
         await config.to_code(result[CONF_ESPHOME])

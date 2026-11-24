@@ -27,7 +27,7 @@ if _root_path not in sys.path:
 from esphome.__main__ import command_compile, parse_args
 from esphome.config import validate_config
 from esphome.const import CONF_PLATFORM
-from esphome.core import CORE
+from esphome.core import CORE, app_lists
 from esphome.host.toolchain import get_elf_path
 from esphome.loader import get_component, get_platform
 from tests.testing_helpers import ComponentManifestOverride, set_testing_manifest
@@ -417,6 +417,8 @@ def compile_and_get_binary(
     dependencies = set(components_with_dependencies) - set(components)
     deps_str = ", ".join(dependencies) if dependencies else "None"
     print(f"Building {label}: {', '.join(components)}. Dependencies: {deps_str}")
+    # The harness never runs the generated setup(), so no codegen object is constructed
+    app_lists.testing_setup_not_run()
     CORE.config = config
     args = parse_args(["program", "compile", str(CORE.config_path)])
     try:

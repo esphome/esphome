@@ -56,6 +56,7 @@ from esphome.core import (
     KEY_CONTROLLER_REGISTRY_CONTROLLERS,
     CoroPriority,
     TimePeriodMilliseconds,
+    app_lists,
     coroutine_with_priority,
 )
 import esphome.final_validate as fv
@@ -831,8 +832,9 @@ async def _add_platform_defines() -> None:
         if count <= 0:
             continue
 
-        define_name = f"ESPHOME_ENTITY_{platform_name.upper()}_COUNT"
-        cg.add_define(define_name, count)
+        # Entity list counts come from the lists themselves (esphome/core/app_lists.py)
+        if platform_name not in app_lists.ENTITY_LISTS:
+            cg.add_define(f"ESPHOME_ENTITY_{platform_name.upper()}_COUNT", count)
 
         # Datetime subtypes only use USE_DATETIME_* defines
         if platform_name in DATETIME_SUBTYPES:
@@ -945,6 +947,7 @@ async def to_code(config: ConfigType) -> None:
     )
 
     CORE.add_job(_add_platform_defines)
+    app_lists.schedule_emit()
     CORE.add_job(_add_controller_registry_dispatch)
     CORE.add_job(_add_looping_components)
 
@@ -1028,7 +1031,6 @@ async def to_code(config: ConfigType) -> None:
 
     if all_areas:
         cg.add_define("USE_AREAS")
-        cg.add_define("ESPHOME_AREA_COUNT", len(all_areas))
 
         for area_conf in all_areas:
             area_id: core.ID = area_conf[CONF_ID]
@@ -1038,16 +1040,14 @@ async def to_code(config: ConfigType) -> None:
             area_var = cg.new_Pvariable(area_id)
             cg.add(area_var.set_area_id(area_id_hash))
             cg.add(area_var.set_name(area_name))
-            cg.add(cg.App.register_area(area_var))
+            app_lists.add_to_list("AREA", area_var)
 
     # Process devices
     devices: list[dict[str, str | core.ID]] = config[CONF_DEVICES]
     if not devices:
         return
 
-    # Define device count for static allocation
     cg.add_define("USE_DEVICES")
-    cg.add_define("ESPHOME_DEVICE_COUNT", len(devices))
 
     # When every device shares one relation the getter returns it as a constant,
     # so only a mix of relations needs a per-device field
@@ -1081,7 +1081,7 @@ async def to_code(config: ConfigType) -> None:
         ):
             cg.add(dev.set_relation(relation))
 
-        cg.add(cg.App.register_device(dev))
+        app_lists.add_to_list("DEVICE", dev)
 
 
 # Platform-specific source files for core

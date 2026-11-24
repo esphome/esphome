@@ -151,8 +151,10 @@ class ComponentIteratorSensorTest : public ::testing::Test {
       App.register_sensor(&sensor_b);
       registered = true;
     }
-    // StaticVector drops silently when full; fail the fixture, not the contract
-    ASSERT_EQ(App.get_sensors().size(), 2u) << "benchmark.yaml sensor count too small";
+    // Codegen sensors are never constructed in test builds, so only the two runtime slots are listed
+    ASSERT_EQ(App.get_sensors().size(), 2u);
+    ASSERT_EQ(App.get_sensors()[0], &sensor_a);
+    ASSERT_EQ(App.get_sensors()[1], &sensor_b);
   }
 };
 

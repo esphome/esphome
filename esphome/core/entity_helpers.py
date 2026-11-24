@@ -35,7 +35,7 @@ from esphome.const import (
     CONF_WEB_SERVER_ID,
     UNIT_CELSIUS,
 )
-from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, ID, CoroPriority, app_lists, coroutine_with_priority
 from esphome.core.config import (
     DEVICE_CLASS_MAX_LENGTH,
     ICON_MAX_LENGTH,
@@ -50,7 +50,7 @@ from esphome.cpp_generator import (
     add,
     get_variable,
 )
-from esphome.cpp_types import TEMPERATURE_UNITS, App
+from esphome.cpp_types import TEMPERATURE_UNITS
 import esphome.final_validate as fv
 from esphome.helpers import (
     cpp_string_escape,
@@ -88,10 +88,7 @@ _KEY_INTERNAL = "_entity_internal"
 _KEY_DISABLED_BY_DEFAULT = "_entity_disabled_by_default"
 _KEY_ENTITY_CATEGORY = "_entity_category"
 
-# Private config key for the App.register_<method> entry point.
-# When set, finalize_entity_strings() emits a single combined call
-# `App.register_<method>(var, name, hash, packed)` instead of separate
-# `App.register_<method>(var)` and `var->configure_entity_(...)` calls.
+# Private config key naming the App list the entity goes into (esphome/core/app_lists.py).
 _KEY_REGISTER_METHOD = "_entity_register_method"
 
 # Maximum unique strings per category (8-bit index, 0 = not set)
@@ -314,13 +311,8 @@ def _describe_packed_flags(config: ConfigType, entity_category: int) -> str:
 
 
 def queue_entity_register(method_name: str, config: ConfigType) -> None:
-    """Defer ``App.register_<method_name>(var)`` emission to ``finalize_entity_strings``.
-
-    When the deferred call is emitted, it is folded with ``configure_entity_`` into
-    a single ``App.register_<method_name>(var, name, hash, packed)`` call site,
-    which removes one statement and one method dispatch per entity from the
-    generated ``main.cpp``.
-    """
+    """Add the entity to the constant ``App`` list of ``method_name`` (for example ``sensor``)
+    when ``finalize_entity_strings`` runs."""
     config[_KEY_REGISTER_METHOD] = method_name
 
 
@@ -330,9 +322,8 @@ def finalize_entity_strings(var: MockObj, config: ConfigType) -> None:
     Call this at the end of each component's setup function, after
     setup_entity() and any register_device_class/register_unit_of_measurement calls.
 
-    If queue_entity_register() was called for this entity, emits one combined call
-    ``App.register_<method>(var, name, hash, packed)``. Otherwise falls back to a
-    standalone ``var->configure_entity_(name, hash, packed)``.
+    Emits ``var->configure_entity_(name, hash, packed)``, and adds the entity to its
+    ``App`` list if queue_entity_register() was called for it.
     """
     entity_name = RawExpression(
         f"ESPHOME_PSTR({cpp_string_escape(config[_KEY_ENTITY_NAME])})"
@@ -354,13 +345,9 @@ def finalize_entity_strings(var: MockObj, config: ConfigType) -> None:
     )
     # Build inline comment describing the packed flags for readability
     comment = _describe_packed_flags(config, entity_category)
-    register_method = config.get(_KEY_REGISTER_METHOD)
-    if register_method is not None:
-        expr = getattr(App, f"register_{register_method}")(
-            var, entity_name, object_id_hash, packed
-        )
-    else:
-        expr = var.configure_entity_(entity_name, object_id_hash, packed)
+    if (register_method := config.get(_KEY_REGISTER_METHOD)) is not None:
+        app_lists.add_entity(register_method, var)
+    expr = var.configure_entity_(entity_name, object_id_hash, packed)
     if comment:
         add(RawStatement(f"{expr};  // {comment}"))
     else:
