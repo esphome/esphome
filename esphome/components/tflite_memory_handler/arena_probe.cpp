@@ -15,7 +15,20 @@ namespace esphome::tflite_memory_handler {
 
 ESPHOME_LOG_TAG(TAG, "tflite_memory_handler");
 
-size_t probe_arena_size(const uint8_t *model_start, size_t model_size, size_t initial_size) {
+namespace {
+
+std::unique_ptr<tflite::MicroInterpreter> make_probe_interpreter(
+    const tflite::Model *model, tflite::MicroMutableOpResolver<TFLITE_MICRO_MAX_OPERATORS> &resolver, uint8_t *arena,
+    size_t arena_size, tflite::MicroResourceVariables *mrv) {
+  if (mrv != nullptr)
+    return std::make_unique<tflite::MicroInterpreter>(model, resolver, arena, arena_size, mrv);
+  return std::make_unique<tflite::MicroInterpreter>(model, resolver, arena, arena_size);
+}
+
+}  // namespace
+
+size_t probe_arena_size(const uint8_t *model_start, size_t model_size, size_t initial_size,
+                        tflite::MicroResourceVariables *mrv) {
   if (initial_size == 0) {
     // Every attempt size would be 0 bytes, so nothing could be measured.
     ESP_LOGE(TAG, "probe_arena_size: requested arena size is 0, so there is nothing to probe");
@@ -83,7 +96,7 @@ size_t probe_arena_size(const uint8_t *model_start, size_t model_size, size_t in
     uint8_t *probe_arena = probe_allocation.data.get();
 
     auto probe_interpreter =
-        std::make_unique<tflite::MicroInterpreter>(model, *local_resolver, probe_arena, probe_allocation.actual_size);
+        make_probe_interpreter(model, *local_resolver, probe_arena, probe_allocation.actual_size, mrv);
     if (probe_interpreter->AllocateTensors() != kTfLiteOk) {
       // Not necessarily a size problem: a bad model or an unsupported tensor
       // type fails at every size, so each attempt is logged on its own.
@@ -110,7 +123,7 @@ size_t probe_arena_size(const uint8_t *model_start, size_t model_size, size_t in
 
     // Test the lower bound first: when arena_used_bytes() plus headroom is
     // already enough (the expected case) this is the whole search.
-    auto lower_interpreter = std::make_unique<tflite::MicroInterpreter>(model, *local_resolver, probe_arena, lower);
+    auto lower_interpreter = make_probe_interpreter(model, *local_resolver, probe_arena, lower, mrv);
     const bool lower_ok = lower_interpreter->AllocateTensors() == kTfLiteOk;
     lower_interpreter.reset();
     if (lower_ok) {
@@ -126,7 +139,7 @@ size_t probe_arena_size(const uint8_t *model_start, size_t model_size, size_t in
     size_t high = upper;
     while (low < high) {
       const size_t mid = low + (high - low) / 2;
-      auto test_interpreter = std::make_unique<tflite::MicroInterpreter>(model, *local_resolver, probe_arena, mid);
+      auto test_interpreter = make_probe_interpreter(model, *local_resolver, probe_arena, mid, mrv);
       const bool ok = test_interpreter->AllocateTensors() == kTfLiteOk;
       test_interpreter.reset();
       if (ok) {

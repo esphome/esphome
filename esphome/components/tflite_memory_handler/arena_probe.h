@@ -7,6 +7,10 @@
 #include <cstddef>
 #include <cstdint>
 
+namespace tflite {
+class MicroResourceVariables;
+}  // namespace tflite
+
 namespace esphome::tflite_memory_handler {
 
 /// @brief Probes the actual required tensor arena size by trial allocation.
@@ -22,7 +26,9 @@ namespace esphome::tflite_memory_handler {
 /// @param model_start Start of the model buffer.
 /// @param model_size Length of the model buffer in bytes.
 /// @param initial_size Configured tensor arena size to start from.
-[[nodiscard]] size_t probe_arena_size(const uint8_t *model_start, size_t model_size, size_t initial_size);
+/// @param mrv Resource variables for a stateful model, or nullptr.
+[[nodiscard]] size_t probe_arena_size(const uint8_t *model_start, size_t model_size, size_t initial_size,
+                                      tflite::MicroResourceVariables *mrv = nullptr);
 
 }  // namespace esphome::tflite_memory_handler
 
