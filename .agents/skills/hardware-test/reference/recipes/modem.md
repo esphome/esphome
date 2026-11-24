@@ -114,8 +114,8 @@ and the API for a board whose serial port is not usable.
 - `modem.disable` on the SIM7670G after PPP logs `Radio off, but the SIM could not be powered down` (CFUN=0 fails),
   then DISABLED; enabling again connects in 7 to 8 s.
 - PPP traffic check (`traffic.yaml`): set the PPP netif (`PPP_DEF`) as the default from a lambda, send one
-  `http_request.get` to an address literal, and restore `WIFI_STA_DEF` in `on_response` and `on_error`, because the
-  action is asynchronous. Compare with the same GET over Wi-Fi. A SIM can attach and get an address while no traffic
+  `http_request.get` (an address literal in `traffic_url` skips DNS), and restore `WIFI_STA_DEF` in `on_response` and
+  `on_error`, because the action is asynchronous. Compare with the same GET over Wi-Fi. A SIM can attach and get an address while no traffic
   comes back (see above); that is the carrier side.
 - The two PRs conflicted on neighbouring lines; merged locally they worked together. Test such pairs merged too.
 

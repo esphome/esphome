@@ -11,4 +11,6 @@ sleep 10
 H=$("$S/resolve.sh" "$N") || exit 1
 timeout 300 $PY "$D/mdrive.py" "$H" "$D/$N-api.txt" wait:20 press:"Modem Disable" wait:15 press:"Modem Enable" \
   wait:100 press:"AT CFUN" wait:3 press:"AT CPIN" wait:3 > "$D/$N-states.txt" 2>&1
-echo "$(date +%T) FLOWDONE rc=$?"
+RC=$?
+echo "$(date +%T) FLOWDONE rc=$RC"
+exit $RC

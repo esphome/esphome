@@ -1,6 +1,6 @@
 # PPP traffic check: "Traffic Test" makes the PPP interface the default netif, sends one GET and puts Wi-Fi back as
 # the default when the (asynchronous) request ends; "Traffic WiFi" sends the same GET over Wi-Fi for comparison.
-# An address literal in traffic_url keeps DNS out of the test.
+# The default traffic_url needs DNS over PPP; set an address literal to keep DNS out of the test.
 substitutions:
   traffic_url: http://example.com/
 
