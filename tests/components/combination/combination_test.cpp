@@ -189,6 +189,17 @@ TEST(WeightedMeanCombination, CalculatesWeightedMean) {
   EXPECT_FLOAT_EQ(f.run(), 17.5f);
 }
 
+TEST(WeightedMeanCombination, InitializesFromExistingSourceStates) {
+  WeightedMeanFixture<2> f({10.0f, 20.0f}, {[](float) -> float { return 1.0f; }, [](float) -> float { return 3.0f; }});
+  f.sources[0].publish_state(10.0f);
+  f.sources[1].publish_state(20.0f);
+
+  f.combination.setup();
+  App.scheduler.call(millis());
+
+  EXPECT_FLOAT_EQ(f.combination.get_state(), 17.5f);
+}
+
 TEST(WeightedMeanCombination, SkipsNonFiniteStatesAndNonPositiveWeights) {
   WeightedMeanFixture<3> f(
       {10.0f, NAN, 20.0f},
