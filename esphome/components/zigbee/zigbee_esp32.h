@@ -31,7 +31,7 @@ static constexpr uint8_t MAX_ZB_QUEUE_SIZE = 32;
 
 uint8_t *get_zcl_string(const char *str, uint8_t max_size, bool use_max_size = false);
 
-#ifdef USE_COVER
+#ifdef USE_ZIGBEE_COVER
 class ZigbeeCover;
 #endif
 
@@ -65,7 +65,7 @@ class ZigbeeComponent final : public Component {
   template<typename T>
   void add_attr(uint8_t endpoint_id, uint16_t cluster_id, uint8_t role, uint16_t attr_id, uint8_t max_size,
                 uint8_t attr_type, uint8_t attr_access, T value);
-#ifdef USE_COVER
+#ifdef USE_ZIGBEE_COVER
   /// Called from the Zigbee task; attributes_ is not modified after setup.
   ZigbeeCover *find_cover(uint8_t endpoint_id);
 #endif

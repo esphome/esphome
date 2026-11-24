@@ -3,7 +3,7 @@
 #include "esphome/core/defines.h"
 #include "zigbee_attribute_base_esp32.h"
 
-#if defined(USE_ESP32) && defined(USE_ZIGBEE) && defined(USE_COVER)
+#if defined(USE_ESP32) && defined(USE_ZIGBEE_COVER)
 
 #include "esphome/components/cover/cover.h"
 
@@ -23,6 +23,8 @@ class ZigbeeCover final : public ZigbeeAttributeBase {
     return percentage <= 100 && (this->supports_position_ || percentage % 100 == 0);
   }
   void on_command(uint8_t cmd_id, uint8_t percentage);
+  /// Runs on the Zigbee task. The SDK stores a GoToLiftPercentage target before the handler can reject it.
+  void restore_lift_percentage();
 
   // After cover setup (initial position), before zigbee (WIFI)
   float get_setup_priority() const override { return setup_priority::AFTER_BLUETOOTH; }
