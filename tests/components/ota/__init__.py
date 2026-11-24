@@ -8,5 +8,6 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
     async def to_code_testing(config: ConfigType) -> None:
         cg.add_define("USE_OTA_STATE_LISTENER")
         cg.add_define("OTA_STATE_CALLBACK_COUNT", 5)
+        cg.add_define("ESPHOME_OTA_GLOBAL_LISTENER_COUNT", 0)
 
     manifest.to_code = to_code_testing

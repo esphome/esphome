@@ -9,6 +9,7 @@
 #include "ens210.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 #include "esphome/core/hal.h"
 
 namespace esphome::ens210 {
@@ -45,20 +46,13 @@ static const uint8_t DATA7_WIDTH = 17;
 static const uint32_t DATA7_MASK = ((1UL << DATA7_WIDTH) - 1);  // 0b 0 1111 1111 1111 1111
 static const uint32_t DATA7_MSB = (1UL << (DATA7_WIDTH - 1));   // 0b 1 0000 0000 0000 0000
 
+// Indexed by ENS210Component::ErrorCode
+PROGMEM_STRING_TABLE(StatusStrings, "Status OK", "Invalid data", "CRC error",
+                     "I2C error - communication with ENS210 failed!", "Unknown");
+
 // Converts a status to a human readable string
-static const LogString *ens210_status_to_human(int status) {
-  switch (status) {
-    case ENS210Component::ENS210_STATUS_I2C_ERROR:
-      return LOG_STR("I2C error - communication with ENS210 failed!");
-    case ENS210Component::ENS210_STATUS_CRC_ERROR:
-      return LOG_STR("CRC error");
-    case ENS210Component::ENS210_STATUS_INVALID:
-      return LOG_STR("Invalid data");
-    case ENS210Component::ENS210_STATUS_OK:
-      return LOG_STR("Status OK");
-    default:
-      return LOG_STR("Unknown");
-  }
+static __attribute__((noinline)) const LogString *ens210_status_to_human(int status) {
+  return StatusStrings::get_log_str(status);
 }
 
 // Compute the CRC-7 of 'value' (should only have 17 bits)
