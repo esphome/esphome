@@ -23,4 +23,4 @@ echo "=== $L ($*) try $try"
 grep -a "mode=\|server reply\|closed" "$D/case-$L.out" | sed 's/Access-Control.*\\r\\n\\r\\n/ ... /'
 grep -a "final chunk\|Image incomplete\|end failed\|staged\|successful\|interrupted\|OTAEV\|rst cause\|@cp\|e:3\|BOOTMARK\|Exception\|ota:[0-9]*\]: [^O]" <<<"$NEW" | grep -v "in progress"
 C=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "http://$HOST/")
-echo "alive check: GET / -> $C; last alive: $(grep -a 'alive build' "$LOG" | tail -1)"
+echo "alive check: GET / -> $C; last alive: $(tail -n 2000 "$LOG" | grep -a 'alive build' | tail -1)"

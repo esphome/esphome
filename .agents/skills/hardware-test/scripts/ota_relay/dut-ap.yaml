@@ -16,5 +16,7 @@ wifi:
     password: !secret ap_password
     ap_timeout: 15s
 captive_portal:
+web_server:
+  port: 80
 packages:
   events: !include ota-events.yaml

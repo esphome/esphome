@@ -28,5 +28,7 @@ wifi:
     - lambda: ESP_LOGI("test", "WIFIEV connected");
   on_disconnect:
     - lambda: ESP_LOGI("test", "WIFIEV disconnected");
+web_server:
+  port: 80
 packages:
   events: !include ota-events.yaml

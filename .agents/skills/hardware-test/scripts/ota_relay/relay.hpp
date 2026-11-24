@@ -5,9 +5,10 @@
 // Dev->host ops: 0 PONG(ready u8), 1 OPENED(err u8), 2 DATA, 3 CLOSED(reason u8), 4 ACK (one per DATA frame
 // written to the socket), 5 DROP done.
 // Build flags: -DRELAY_UART (link on UART0 at 921600, else USB Serial/JTAG), -DRELAY_TARGET='"a.b.c.d"'
-// (default the ESPHome AP address), -DRELAY_SEQ (DATA payload starts with seq u8 and sum8 u8; a lost or damaged
-// frame closes the connection with reason 9 instead of passing a hole on), -DRELAY_AP (this board hosts the test
-// AP: PONG reports a station on it, DROP renames the AP for ms so its stations lose the network).
+// (default the ESPHome AP address), -DRELAY_AP (this board hosts the test AP: PONG reports a station on it, DROP
+// renames the AP for ms so its stations lose the network).
+// Host->dev DATA payload starts with seq u8 and sum8 u8; a lost or damaged frame closes the connection with reason 9
+// instead of passing a hole on.
 #ifdef RELAY_UART
 #include <driver/uart.h>
 static inline int relay_write(const void *d, size_t n) { return uart_write_bytes(UART_NUM_0, d, n); }
@@ -33,17 +34,22 @@ namespace relay {
 static constexpr int NCH = 2;
 static int socks[NCH] = {-1, -1};
 static uint8_t seqs[NCH] = {0, 0};
+// Largest frame payload; relay_host.py's MAX_FRAME must match
+static constexpr uint16_t MAX_FRAME = 2100;
 static void put(uint8_t type, const uint8_t *data, uint16_t len) {
   uint8_t h[5] = {0xA5, 0x5A, type, (uint8_t) (len & 0xFF), (uint8_t) (len >> 8)};
   relay_write(h, 5);
   if (len)
     relay_write(data, len);
 }
-static void close_sock(int ch, uint8_t reason) {
+static void close_quiet(int ch) {
   if (socks[ch] >= 0) {
     ::close(socks[ch]);
     socks[ch] = -1;
   }
+}
+static void close_sock(int ch, uint8_t reason) {
+  close_quiet(ch);
   put(3 | (ch << 4), &reason, 1);
 }
 static void handle(uint8_t type, uint8_t *p, uint16_t len) {
@@ -58,10 +64,7 @@ static void handle(uint8_t type, uint8_t *p, uint16_t len) {
 #endif
     put(0 | (ch << 4), &c, 1);
   } else if (op == 1 && len >= 2) {
-    if (socks[ch] >= 0) {
-      ::close(socks[ch]);
-      socks[ch] = -1;
-    }
+    close_quiet(ch);
     seqs[ch] = 0;
     uint16_t port = p[0] | (p[1] << 8);
     int s = ::socket(AF_INET, SOCK_STREAM, 0);
@@ -84,7 +87,6 @@ static void handle(uint8_t type, uint8_t *p, uint16_t len) {
   } else if (op == 2) {
     if (socks[ch] < 0)
       return;
-#ifdef RELAY_SEQ
     if (len < 2)
       return;
     uint8_t sum = 0;
@@ -97,7 +99,6 @@ static void handle(uint8_t type, uint8_t *p, uint16_t len) {
     seqs[ch]++;
     p += 2;
     len -= 2;
-#endif
     size_t off = 0;
     while (off < len) {
       int n = ::send(socks[ch], p + off, len - off, 0);
@@ -148,7 +149,7 @@ static void task(void *) {
   usb_serial_jtag_driver_install(&cfg);
 #endif
   static uint8_t in[512];
-  static uint8_t fr[2100];
+  static uint8_t fr[MAX_FRAME];
   static uint8_t out[1460];
   int st = 0;
   uint8_t type = 0;

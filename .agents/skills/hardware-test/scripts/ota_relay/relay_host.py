@@ -1,10 +1,10 @@
 """Host side of the two channel relay in relay.hpp.
 Usage: relay_host.py PORT SPEC [SPEC]   |   relay_host.py PORT --ping
 Each SPEC is LPORT:TPORT:RATE_BPS; the first SPEC is channel 0. A local client on 127.0.0.1:LPORT is relayed to
-TPORT on the relay's target, paced to RATE_BPS. Run from the directory that holds the flag files:
+TPORT on the relay's target, paced to RATE_BPS. Flag files in this script's directory:
   drop-ms     holds a number of ms; the AP relay (RELAY_AP) renames its AP for that long, then the file is removed
   abort-chN   closes channel N on the device side mid upload
-env: RELAY_BAUD (default 115200; 921600 for a RELAY_UART build), RELAY_SEQ=1 (the build has RELAY_SEQ)."""
+env: RELAY_BAUD (default 115200; 921600 for a RELAY_UART build)."""
 
 import contextlib
 import os
@@ -17,7 +17,9 @@ import time
 
 import serial
 
-SEQ = os.environ.get("RELAY_SEQ") == "1"
+D = Path(__file__).resolve().parent
+# Largest frame payload; relay.hpp's MAX_FRAME must match
+MAX_FRAME = 2100
 ser = serial.Serial()
 ser.port = sys.argv[1]
 ser.baudrate = int(os.environ.get("RELAY_BAUD", "115200"))
@@ -84,32 +86,32 @@ def on_frame(t: int, p: bytes) -> None:
 
 
 def reader() -> None:
-    buf = b""
+    buf = bytearray()
     while True:
         buf += ser.read(4096)
+        pos = 0
         while True:
-            i = buf.find(b"\xa5\x5a")
+            i = buf.find(b"\xa5\x5a", pos)
             if i < 0:
-                buf = buf[-1:]
+                pos = max(pos, len(buf) - 1)
                 break
+            pos = i
             if len(buf) < i + 5:
-                buf = buf[i:]
                 break
             t = buf[i + 2]
-            n = struct.unpack("<H", buf[i + 3 : i + 5])[0]
-            if n > 2100 or (t >> 4) > 1:
-                buf = buf[i + 2 :]
+            n = struct.unpack_from("<H", buf, i + 3)[0]
+            if n > MAX_FRAME or (t >> 4) > 1:
+                pos = i + 2
                 continue
             if len(buf) < i + 5 + n:
-                buf = buf[i:]
                 break
-            p = buf[i + 5 : i + 5 + n]
-            buf = buf[i + 5 + n :]
-            on_frame(t, p)
+            pos = i + 5 + n
+            on_frame(t, bytes(buf[i + 5 : pos]))
+        del buf[:pos]
 
 
 def dropper() -> None:
-    flag = Path("drop-ms")
+    flag = D / "drop-ms"
     while True:
         if flag.exists():
             ms = int(flag.read_text(encoding="utf-8").strip() or "5000")
@@ -131,7 +133,7 @@ def wait_ready(c: Ch) -> None:
 def pump(c: Ch, conn: socket.socket, rate: int) -> int:
     tx = 0
     start = time.time()
-    flag = Path(f"abort-ch{c.n}")
+    flag = D / f"abort-ch{c.n}"
     conn.settimeout(0.2)
     while not c.ev_closed.is_set():
         if flag.exists():
@@ -149,9 +151,8 @@ def pump(c: Ch, conn: socket.socket, rate: int) -> int:
         while not c.credit.acquire(timeout=0.5):
             if c.ev_closed.is_set():
                 return tx
-        if SEQ:
-            d = bytes([c.seq & 255, sum(d) & 255]) + d
-            c.seq += 1
+        d = bytes([c.seq & 255, sum(d) & 255]) + d
+        c.seq += 1
         send(2 | (c.n << 4), d)
         tx += len(d)
         if (ahead := tx / rate - (time.time() - start)) > 0:

@@ -12,8 +12,6 @@ esp8266:
 logger:
   level: VERBOSE
   logs:
-    web_server.ota: VERBOSE
-    ota: VERBOSE
     esp8266.preferences: DEBUG
     scheduler: DEBUG
     component: DEBUG
@@ -25,21 +23,7 @@ wifi:
     ssid: ${name}-ap
     password: !secret ap_password
 captive_portal:
-ota:
-  - platform: esphome
-  - platform: web_server
-    on_begin:
-      - lambda: ESP_LOGI("test", "OTAEV web begin");
-    on_end:
-      - lambda: ESP_LOGI("test", "OTAEV web end");
-    on_error:
-      - lambda: ESP_LOGI("test", "OTAEV web error %u", (unsigned) x);
-    on_abort:
-      - lambda: ESP_LOGI("test", "OTAEV web abort");
 interval:
-  - interval: 5s
-    then:
-      - lambda: ESP_LOGI("test", "alive build=${marker} %u s", (unsigned) (millis() / 1000));
   - interval: 10s
     then:
       - if:
@@ -51,3 +35,5 @@ interval:
             - lambda: |-
                 ESP_LOGI("test", "starting captive portal on STA");
                 captive_portal::global_captive_portal->start();
+packages:
+  events: !include ../ota_relay/ota-events.yaml

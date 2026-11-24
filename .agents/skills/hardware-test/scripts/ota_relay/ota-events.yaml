@@ -1,6 +1,6 @@
-# Shared package: OTA, Wi-Fi and liveness log lines that webrun.sh, dropana.py and windows.py read.
-web_server:
-  port: 80
+# Shared package: OTA and liveness log lines that webrun.sh, dropana.py, windows.py and web_ota/runcase.sh read.
+substitutions:
+  marker: "-"
 ota:
   - platform: esphome
     on_begin:
@@ -23,4 +23,4 @@ ota:
 interval:
   - interval: 5s
     then:
-      - lambda: ESP_LOGI("test", "alive %u s", (unsigned) (millis() / 1000));
+      - lambda: ESP_LOGI("test", "alive build=${marker} %u s", (unsigned) (millis() / 1000));

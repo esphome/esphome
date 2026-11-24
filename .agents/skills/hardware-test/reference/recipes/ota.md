@@ -165,15 +165,15 @@ an upload last about a minute).
   finds its network) and relays to 192.168.4.1. `webrun.sh` starts each upload a few seconds after the DUT's retry
   line, so the next retry falls due mid upload; `windows.py` counts retry and warning lines per upload.
 - Network drop under an upload: `relay-ap.yaml` (S3) is the open test network and relays to `dut-sta.yaml` (C3,
-  static address, own AP always on). Writing a number of ms to `drop-ms` renames the AP for that long (stations are
-  kicked and cannot find it, the relay side stays up); `droprun.sh` drops it mid upload, `dropana.py` prints the time
-  from each drop to the upload end, disconnect, first scan and reconnect.
+  static address, own AP always on). Writing a number of ms to `drop-ms` next to `relay_host.py` renames the AP for
+  that long (stations are kicked and cannot find it, the relay side stays up); `droprun.sh` drops it mid upload,
+  `dropana.py` prints the time from each drop to the upload end, disconnect, first scan and reconnect.
 - On ESP32 a station drop ends an upload at once: the web upload aborts (or after the 5 s receive timeout) and native
   OTA fails its next write with errno 113, so the OTA is over before Wi-Fi handles the disconnect.
 - A WPA2 test AP with protected management frames delays drop detection by 6 to 11 s (`SA query timeout`); use an
   open AP for crisp drops.
 - Native OTA blocks the main loop for its whole data phase, so Wi-Fi cannot retry during a native upload either way.
 - The relay once lost a 1 KB frame and the ESP8266 flashed the short image as a good web OTA (boot loader `e:3`,
-  serial reflash), which is the bug #23225 fixes. Build the relay with `-DRELAY_SEQ` and run the host with
-  `RELAY_SEQ=1`: every DATA frame then carries a sequence number and checksum, and a lost frame closes the upload.
+  serial reflash), which is the bug #23225 fixes, so every DATA frame now carries a sequence number and checksum and a
+  lost frame closes the upload.
 - Result: https://github.com/esphome/esphome/pull/23218
