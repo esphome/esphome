@@ -83,7 +83,7 @@ inline void format_version_str(const uint8_t *version, std::span<char, 20> buffe
 static constexpr uint8_t HEADER_FOOTER_SIZE = 4;
 static constexpr uint8_t CMD_FRAME_HEADER[HEADER_FOOTER_SIZE] = {0xFD, 0xFC, 0xFB, 0xFA};
 static constexpr uint8_t CMD_FRAME_FOOTER[HEADER_FOOTER_SIZE] = {0x04, 0x03, 0x02, 0x01};
-// Periodic data frames from the LD2410 family share this header, a little-endian byte count and this footer
+// Periodic data frames from the LD2410 and LD2412 start with this header and end with this footer
 static constexpr uint8_t DATA_FRAME_HEADER[HEADER_FOOTER_SIZE] = {0xF4, 0xF3, 0xF2, 0xF1};
 static constexpr uint8_t DATA_FRAME_FOOTER[HEADER_FOOTER_SIZE] = {0xF8, 0xF7, 0xF6, 0xF5};
 
