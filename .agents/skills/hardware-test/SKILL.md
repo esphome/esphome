@@ -204,6 +204,7 @@ Per-topic scripts, each described in the matching `reference/recipes/<component>
 - `crc32/` (vector header and package)
 - `cse7766/` (API observer with ping)
 - `dfrobot_sen0395/` (API driver and case runner)
+- `display_recorder/` (recording fake display component, test image writer, scene package, host checker)
 - `ds248x_sim/` (DS2482-800 simulator, configs, driver)
 - `entity_icons/` (icon and device class readback over the API, MQTT discovery, web_server and dump_config, with a
   comparer)
@@ -261,8 +262,9 @@ Per-topic scripts, each described in the matching `reference/recipes/<component>
   coverage)
 - `lognorm.py` (strips colours, timestamps and source line numbers from logs before a diff)
 - `lt_platform.py` (newest LibreTiny platform for the flash wrappers)
-- `lzss_link/` (packet_interface compression config generator, checked JSON, hex and binary streams with wire
-  checks and codec timing, runner and summary)
+- `lvgl_snapshot/` (LVGL snapshot and chart series dump header, package, PNG rebuilder)
+- `lzss_link/` (packet_interface compression config generator, checked JSON, hex and binary streams with wire checks and
+  codec timing, runner and summary)
 - `manual_ip/` (station and AP manual IP configs, DNS probe and runners)
 - `mcp23017/` (IOCON and INT test component, three interrupt wiring variants, runner)
 - `mcp251xfd/` (CAN FD loopback stream, queue, TX object, forced mode, chip reset and CS counter harness, package with
@@ -344,6 +346,7 @@ Per-topic scripts, each described in the matching `reference/recipes/<component>
 - `usb_audio/` (URL player)
 - `usb_cdc_acm/` (host driver, Zephyr driver probe)
 - `value_range/` (on_value_range sequence with a restart, runner)
+- `vl53l1x/` (speed sensor timeline package, range-to-speed checker)
 - `vl6180x/` (probe, config generator with register, XSHUT and injection extras, runner and analyzers)
 - `voice_announce/` (slow announce on the Voice PE)
 - `voice_wake_word_audio/` (wake word audio capture and stale audio checks)

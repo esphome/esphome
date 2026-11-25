@@ -36,6 +36,8 @@ climate_ir_loop/*-*.txt
 climate_ir_loop/*-frames.json
 climate_ir_loop/whirlpool/w??base.yaml
 climate_ir_loop/whirlpool/w??pr.yaml
+display_recorder/*.png
+display_recorder/*.txt
 esp8266_edges/*-cap.txt
 esp8266_edges/*.log
 esp8266_flash_prefs/*-api.txt
@@ -73,6 +75,8 @@ log_str_tables/*-cap.txt
 log_str_tables/*.log
 log_str_tables/*.norm
 log_str_tables/l[0-9][pbq]*.yaml
+lvgl_snapshot/*.png
+lvgl_snapshot/*.txt
 lzss_link/*.err
 lzss_link/*.log
 lzss_link/lz*.yaml
