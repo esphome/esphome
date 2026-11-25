@@ -9,7 +9,7 @@
 
 namespace esphome::tflite_camera {
 
-static const char *const TAG = "tflite_camera";
+ESPHOME_LOG_TAG(TAG, "tflite_camera");
 
 void TFLiteCamera::setup() {
   if (this->camera_ == nullptr || this->decoder_ == nullptr) {
