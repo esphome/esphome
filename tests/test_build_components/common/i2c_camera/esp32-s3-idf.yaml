@@ -1,0 +1,39 @@
+# I2C bus and camera pins for the ESP32-S3 test target.
+psram:
+  mode: octal
+
+i2c:
+  - id: i2c_camera_bus
+    sda: 8
+    scl: 9
+    frequency: 400kHz
+
+esp32_camera:
+  id: test_camera
+  name: ESP32 Camera
+  data_pins:
+    - number: 4
+    - number: 5
+    - number: 6
+    - number: 7
+    - number: 10
+    - number: 11
+    - number: 12
+    - number: 13
+  vsync_pin: 14
+  href_pin: 15
+  pixel_clock_pin: 16
+  external_clock:
+    pin: 17
+    frequency: 20MHz
+  i2c_id: i2c_camera_bus
+  reset_pin: 18
+  power_down_pin: 19
+  resolution: 640x480
+  jpeg_quality: 10
+  frame_buffer_location: PSRAM
+  pixel_format: JPEG
+  on_image:
+    then:
+      - lambda: |-
+          ESP_LOGD("main", "image len=%d, data=%c", image.length, image.data[0]);

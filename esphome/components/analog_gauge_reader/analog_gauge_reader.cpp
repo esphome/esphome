@@ -9,6 +9,8 @@
 #include <cstring>
 #include <memory>
 
+#include <esp_heap_caps.h>
+
 namespace esphome::analog_gauge_reader {
 
 ESPHOME_LOG_TAG(TAG, "analog_gauge_reader");
@@ -35,6 +37,10 @@ void AnalogGaugeReader::setup() {
     this->mark_failed(LOG_STR("Could not allocate the dial and detector buffers"));
     return;
   }
+
+  // The decoder keeps the decoded frame in PSRAM when it can.
+  if (heap_caps_get_free_size(MALLOC_CAP_SPIRAM) == 0)
+    ESP_LOGW(TAG, "No PSRAM detected; the decoder may not be able to allocate the decoded frame");
 
   this->readings_.init(dial_count);
   this->digits_.init(dial_count);
