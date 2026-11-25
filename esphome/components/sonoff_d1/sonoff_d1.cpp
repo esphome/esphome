@@ -312,7 +312,7 @@ void SonoffD1Output::loop() {
                    valid_checksum);
           return false;
         }
-        // One command per pass, as before; the dimmer repeats a command until it is acked
+        // Only the first command per pass; the dimmer repeats a command until it is acked
         if (frame_len == 0) {
           std::memcpy(frame, data, len);
           frame_len = len;
