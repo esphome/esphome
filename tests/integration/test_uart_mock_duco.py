@@ -115,6 +115,7 @@ async def test_uart_mock_duco(
         )
         await wait_for(lambda: state_of(uptime) == "1d 12h 30m", "uptime")
         await wait_for(lambda: state_of(node_type) == "BSRH", "node type")
+        await waiter.wait_for("Duco node type mappings passed")
         assert state_of(invalid_serial) is None
         assert state_of(short_errors) is None
         await waiter.wait_for("Time set to")

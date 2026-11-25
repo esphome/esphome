@@ -4,6 +4,58 @@ esphome:
   on_boot:
     priority: -100
     then:
+      - lambda: |-
+          struct NodeTypeCase {
+            uint8_t type;
+            const char *expected;
+          };
+
+          static constexpr NodeTypeCase CASES[] = {
+              {1, "IQ"},
+              {2, "CO2"},
+              {3, "RH"},
+              {4, "KLEP"},
+              {5, "TOP"},
+              {6, "COMB"},
+              {7, "CLIMA"},
+              {8, "UCBAT"},
+              {9, "UC"},
+              {10, "UCRH"},
+              {11, "UCVOC"},
+              {12, "UCCO2"},
+              {13, "VLV"},
+              {14, "VLVRH"},
+              {15, "VLVVOC"},
+              {16, "VLVCO2"},
+              {17, "BOX"},
+              {18, "SWITCH"},
+              {19, "ACTUAT"},
+              {20, "UCBATRH"},
+              {21, "PWMIN"},
+              {22, "IAV"},
+              {23, "IAVRH"},
+              {24, "IAVVOC"},
+              {25, "IAVCO2"},
+              {26, "BOILER"},
+              {27, "TRONIC"},
+              {28, "VLVCO2RH"},
+              {0, "UNKNOWN"},
+              {29, "UNKNOWN"},
+              {0xFF, "UNKNOWN"},
+              {10 | duco::NODE_TYPE_BS, "BSRH"},
+              {12 | duco::NODE_TYPE_BS, "BSCO2"},
+              {17 | duco::NODE_TYPE_BS, "BOX"},
+          };
+
+          for (const auto &test : CASES) {
+            const char *actual = LOG_STR_ARG(duco::node_type_name(test.type));
+            if (std::string(actual) != test.expected) {
+              ESP_LOGE("duco_test", "Node type %u: expected %s, got %s",
+                       test.type, test.expected, actual);
+              return;
+            }
+          }
+          ESP_LOGI("duco_test", "Duco node type mappings passed");
       - component.update: co2
       - component.update: temperature
       - component.update: humidity
