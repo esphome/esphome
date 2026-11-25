@@ -2343,7 +2343,8 @@ template<typename... Ts> class LazyCallbackManager<void(Ts...)> {
     auto *it = cbs->data_;
     auto *end = it + cbs->size_;
     do {
-      it->call(args...);
+      // Each listener copies from a const source, as CallbackManager::call() does; references pass through.
+      it->call(static_cast<std::conditional_t<std::is_reference_v<Ts>, Ts, const Ts &>>(args)...);
     } while (++it != end);
   }
 };

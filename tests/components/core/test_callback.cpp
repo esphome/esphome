@@ -140,6 +140,27 @@ TEST(LazyCallbackManager, NonTrivialArgumentIsNotCopiedMoreThanCallbackManager) 
   EXPECT_EQ(CopyCounter::copies, plain_copies + 1);
 }
 
+// A copy from a mutable source marks that source, so a listener only sees a clean value if it was
+// copied from a const one. Listeners take a mutable reference for the same clang-tidy reason as above.
+struct SourceMarker {
+  bool marked{false};
+  SourceMarker() = default;
+  SourceMarker(const SourceMarker &other) = default;
+  SourceMarker(SourceMarker &other) : marked(other.marked) {
+    other.marked = true;  // NOLINT(bugprone-copy-constructor-mutates-argument,cert-oop58-cpp)
+  }
+  SourceMarker(SourceMarker &&) noexcept = default;
+};
+
+TEST(LazyCallbackManager, EveryListenerCopiesFromConstSource) {
+  LazyCallbackManager<void(SourceMarker)> lazy;
+  std::vector<bool> seen;
+  lazy.add([&seen](SourceMarker &m) { seen.push_back(m.marked); });
+  lazy.add([&seen](SourceMarker &m) { seen.push_back(m.marked); });
+  lazy.call(SourceMarker{});
+  EXPECT_EQ(seen, (std::vector<bool>{false, false}));
+}
+
 // The argument type may still be incomplete where the manager is declared; it is only checked by call().
 struct SelfEvent {
   LazyCallbackManager<void(SelfEvent)> callbacks;
