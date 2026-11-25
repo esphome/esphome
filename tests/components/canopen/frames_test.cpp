@@ -127,6 +127,14 @@ TEST_F(FramesTest, ListenerGetsMatchingFrames) {
   EXPECT_TRUE(this->received_[1].data.empty());
 }
 
+TEST_F(FramesTest, ListenerAddedTwiceIsListedOnce) {
+  this->hub_.setup();
+  this->listen_(0x18A, 0x7FF);
+  this->hub_.add_frame_listener(this->listeners_[0]);
+  this->hub_.frame(0x18A, {1});
+  EXPECT_EQ(this->received_.size(), 1u);
+}
+
 TEST_F(FramesTest, ListenerSkipsRemoteAndExtendedFrames) {
   this->hub_.setup();
   this->listen_(0x18A, 0x7FF);

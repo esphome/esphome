@@ -65,8 +65,8 @@ class CANopenComponent : public Component {
   void cancel_sdo(void *context);
 
   // Raw frames the SDO client doesn't use (e.g. other devices' PDOs). The callback gets every standard-ID data frame
-  // with (can_id ^ id) & mask == 0, after CANopenNode has seen it. Can be called before or after setup(), but not from
-  // a frame callback. Listeners can't be removed; the listener must outlive the component (make it static).
+  // with (can_id ^ id) & mask == 0, after CANopenNode has seen it. Can be called before or after setup(), also from a
+  // frame callback. Adding a listener twice does nothing. It can't be removed and must stay alive (make it static).
   void add_frame_listener(FrameListener &listener);
   // Sends a standard-ID data frame now. Returns false for an extended CAN ID, more than 8 bytes, or if the canbus
   // platform refuses it (e.g. TX buffers full); it isn't queued or retried, unlike CANopenNode's own frames.

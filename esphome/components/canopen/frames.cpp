@@ -12,6 +12,11 @@ void CANopenComponent::add_frame_listener(FrameListener &listener) {
     ESP_LOGW(TAG, "frame listener 0x%x/0x%x matches no 11-bit CAN ID, not added", listener.can_id, listener.mask);
     return;
   }
+  // adding it twice would link it to itself
+  for (const FrameListener *l = this->frame_listeners_; l != nullptr; l = l->next) {
+    if (l == &listener)
+      return;
+  }
   // the bits above 0x7FF are 0 in both the frame's id and can_id & mask, so they can go
   listener.can_id &= canbus::CAN_STANDARD_ID_MAX;
   listener.mask &= canbus::CAN_STANDARD_ID_MAX;
@@ -44,7 +49,6 @@ bool CANopenComponent::send_frame(uint32_t can_id, const uint8_t *data, size_t l
 void CANopenComponent::dispatch_frame_(const CO_CANrxMsg_t &msg) {
   if (msg.ident & 0x800)
     return;  // RTR
-  // a callback must not add listeners
   for (const FrameListener *l = this->frame_listeners_; l != nullptr; l = l->next) {
     if (((msg.ident ^ l->can_id) & l->mask) == 0)
       l->callback(l->context, msg.ident, msg.data, msg.DLC);
