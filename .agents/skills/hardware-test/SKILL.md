@@ -206,8 +206,8 @@ Per-topic scripts, each described in the matching `reference/recipes/<component>
 - `entity_transport/trcheck.py` (remote entity values against the sender's)
 - `esp8266_edges/` (GPIO edge logger and 8N1 decoder, `jsn_sr04t` probe and counters, I2C bus sniffer and decoder, SDA
   unstick, VL53L1X register logger)
-- `esp8266_flash_prefs/` (Wi-Fi scan versus flash erase repro, interrupt load during the flash sync, reset and
-  restore driver, API hold, crash, heap and pulse rate summaries)
+- `esp8266_flash_prefs/` (Wi-Fi scan versus flash erase repro, interrupt load during the flash sync, reset and restore
+  driver, API hold, crash, heap and pulse rate summaries)
 - `esp8266_lock_load/` (DS18B20 search and one-pin IR DUTs with a busy-wait control, UDP and HTTP load, runner)
 - `espnow_link/` and `tcp_link/` (packet_interface links over ESP-NOW, UDP and TCP with checked streams)
 - `ezo_fake_bus/` (fake EZO I2C bus and step config, runner)
@@ -264,8 +264,8 @@ Per-topic scripts, each described in the matching `reference/recipes/<component>
   loopback, CLASSIC window and bus-off configs, runner)
 - `mdns/` (unicast mDNS dump, hammer and latency)
 - `modem/` (button and sensor driver over the plaintext API, also used for the BLE MIDI boards, AT commands for the UART
-  passthrough; SIM7670G and SIM7080G CFUN fallback configs with a PPP traffic button, flash, reboot and disable flow, OTA
-  flow, AT line filter, USB AT port client)
+  passthrough; SIM7670G and SIM7080G CFUN fallback configs with a PPP traffic button, flash, reboot and disable flow,
+  OTA flow, AT line filter, USB AT port client)
 - `mqtt/` (`ha_discovery/`, `disable/`, `retained_burst/` and `reconnect/` runners; broker config with TLS,
   client-certificate and WebSocket listeners, test CA with server and client certificates, transport case runner,
   flash-and-drive runner, CLI TLS check without a board, MAC suffix runner with per-variant configs for two boards,
@@ -361,6 +361,9 @@ Per-topic scripts, each described in the matching `reference/recipes/<component>
   counter and runner)
 - `zephyr_ble_server/` (nRF52 server, looping ESP32 client and UF2 flash and count runner)
 - `zephyr_coredump/` (reader flow, decode with the Zephyr tools)
+- `zigbee_coord/` (ESP32-H2 Zigbee console coordinator: build, console bridge, driver and parser, network setup, device
+  flash and capture, entity, number, copy and light flows with configs, per-build summary, endpoint dump and write
+  injection header, leave debug wraps, S3 hold config for the Thread BR board)
 - `zwave_proxy/` (checksum verifier, device info, `usb_unplug/` UART list and root port power cycle package)
 
 ## Templates in `$SKILL/templates`
