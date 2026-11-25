@@ -231,3 +231,25 @@ def test_crop_checked_against_resolution_alias(
         cv.Invalid, match="does not fit inside the 320x240 camera resolution"
     ):
         _validate_final(set_core_config, {"crop": crop}, resolution="QVGA")
+
+
+def test_timeout_defaults_to_five_seconds(set_core_config: Callable[..., None]) -> None:
+    config = _validate(set_core_config)
+    assert config["timeout"].total_milliseconds == 5000
+
+
+def test_timeout_is_configurable(set_core_config: Callable[..., None]) -> None:
+    config = _validate(set_core_config, {"timeout": "8s"})
+    assert config["timeout"].total_milliseconds == 8000
+
+
+def test_crop_with_camera_window_warns(
+    set_core_config: Callable[..., None], caplog: pytest.LogCaptureFixture
+) -> None:
+    crop = {"x": 0, "y": 0, "width": 100, "height": 100}
+    config = _validate(set_core_config, {"crop": crop})
+    full = _full_config()
+    full[esp32_camera.DOMAIN]["window"] = {"offset_x": 0}
+    set_core_config(PlatformFramework.ESP32_IDF, full_config=full)
+    camera_image.FINAL_VALIDATE_SCHEMA(config)
+    assert "has a 'window'" in caplog.text

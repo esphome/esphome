@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from esphome.components.image import get_image_metadata
+from esphome.core import CORE
 
 BASE = """
 esphome:
@@ -111,9 +112,13 @@ def test_metadata_and_transform_size_follow_the_decoded_frame(
     assert metadata is not None
     assert (metadata.width, metadata.height) == expected_size
 
-    transform = f"set_transform_size({expected_size[0]}, {expected_size[1]})"
+    sizes = (
+        f".output_width = {expected_size[0]},",
+        f".output_height = {expected_size[1]},",
+    )
     if transformed:
-        assert transform in main_cpp
+        assert all(size in main_cpp for size in sizes)
+        assert "USE_CAMERA_IMAGE_TRANSFORM" in {d.name for d in CORE.defines}
     else:
-        # Nothing crops or rotates, so there is no output size to set.
-        assert "set_transform_size(" not in main_cpp
+        # Nothing crops or rotates, so the transform code is not built in.
+        assert "USE_CAMERA_IMAGE_TRANSFORM" not in {d.name for d in CORE.defines}

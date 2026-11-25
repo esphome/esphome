@@ -12,8 +12,6 @@ namespace esphome::camera_image {
 
 ESPHOME_LOG_TAG(TAG, "camera_image");
 
-/// Give up on a frame the camera never delivered, so the next update can try again.
-static constexpr uint32_t REQUEST_TIMEOUT_MS = 5000;
 /// Scheduler id for the delivery timeout, so a late frame can cancel it.
 static constexpr uint32_t REQUEST_TIMEOUT_ID = 0;
 
@@ -21,59 +19,28 @@ namespace {
 
 PROGMEM_STRING_TABLE(ImageTypeStrings, "BINARY", "GRAYSCALE", "RGB", "RGB565", "RGB111", "UNKNOWN");
 
-/// Rotates the crop rectangle into `output`. The pixel size is a template
-/// parameter, so every copy has a compile-time length the compiler inlines
-/// instead of calling memcpy once per pixel with a run-time size.
-template<size_t PIXEL_SIZE>
-void rotate_crop_into(uint8_t *output, const uint8_t *crop, int crop_width, int crop_height, int output_width,
-                      int output_height, size_t source_stride, size_t output_stride, int rotation) {
-  switch (rotation) {
-    case 90:
-      for (int y = 0; y < output_height; y++) {
-        for (int x = 0; x < output_width; x++) {
-          std::memcpy(output + static_cast<size_t>(y) * output_stride + x * PIXEL_SIZE,
-                      crop + static_cast<size_t>(crop_height - 1 - x) * source_stride + y * PIXEL_SIZE, PIXEL_SIZE);
-        }
-      }
-      break;
-    case 180:
-      for (int y = 0; y < output_height; y++) {
-        for (int x = 0; x < output_width; x++) {
-          std::memcpy(
-              output + static_cast<size_t>(y) * output_stride + x * PIXEL_SIZE,
-              crop + static_cast<size_t>(crop_height - 1 - y) * source_stride + (crop_width - 1 - x) * PIXEL_SIZE,
-              PIXEL_SIZE);
-        }
-      }
-      break;
-    default:  // 270
-      for (int y = 0; y < output_height; y++) {
-        for (int x = 0; x < output_width; x++) {
-          std::memcpy(output + static_cast<size_t>(y) * output_stride + x * PIXEL_SIZE,
-                      crop + static_cast<size_t>(x) * source_stride + (crop_width - 1 - y) * PIXEL_SIZE, PIXEL_SIZE);
-        }
-      }
-      break;
-  }
-}
-
 }  // namespace
 
 CameraImage::CameraImage(camera::Camera *camera, int width, int height, runtime_image::ImageFormat format,
                          image::ImageType type, image::Transparency transparency, image::Image *placeholder,
-                         bool is_big_endian, uint8_t *transform_buffer, size_t transform_buffer_size)
+                         bool is_big_endian, uint32_t request_timeout, [[maybe_unused]] const Transform &transform)
     : RuntimeImage(format, type, transparency, placeholder, is_big_endian, width, height),
       camera_(camera),
-      transform_buffer_(transform_buffer),
-      transform_buffer_size_(transform_buffer_size) {}
+#ifdef USE_CAMERA_IMAGE_TRANSFORM
+      transform_(transform),
+#endif
+      request_timeout_(request_timeout) {
+}
 
 void CameraImage::setup() {
   this->camera_->add_listener(this);
 
+#ifdef USE_CAMERA_IMAGE_TRANSFORM
   // A crop only copies rows in place, so only a rotation needs scratch memory.
-  if (this->rotation_ != 0 && this->transform_buffer_ == nullptr) {
+  if (this->transform_.rotation != 0 && this->transform_.buffer == nullptr) {
     this->mark_failed(LOG_STR("Could not allocate the rotation buffer"));
   }
+#endif
 }
 
 void CameraImage::update() {
@@ -82,11 +49,11 @@ void CameraImage::update() {
     return;
 
   this->waiting_ = true;
-  this->set_timeout(REQUEST_TIMEOUT_ID, REQUEST_TIMEOUT_MS, [this]() {
+  this->set_timeout(REQUEST_TIMEOUT_ID, this->request_timeout_, [this]() {
     if (!this->waiting_)
       return;
     this->waiting_ = false;
-    ESP_LOGW(TAG, "Camera did not deliver a frame within %u ms", static_cast<unsigned>(REQUEST_TIMEOUT_MS));
+    ESP_LOGW(TAG, "Camera did not deliver a frame within %u ms", static_cast<unsigned>(this->request_timeout_));
     this->on_error_callback_.call();
   });
   this->camera_->request_image(camera::COMPONENT_REQUESTER);
@@ -124,6 +91,7 @@ bool CameraImage::decode_frame_(const uint8_t *data, size_t length) {
   if (this->is_decoding())
     this->abort_decode();
 
+#ifdef USE_CAMERA_IMAGE_TRANSFORM
   // A transformed frame left the buffer reporting the output size; put the
   // decoded size back so the next decode reuses this buffer instead of
   // allocating a new one.
@@ -131,6 +99,7 @@ bool CameraImage::decode_frame_(const uint8_t *data, size_t length) {
     this->buffer_width_ = this->decode_width_;
     this->buffer_height_ = this->decode_height_;
   }
+#endif
 
   if (!this->begin_decode(length, this->get_format()))
     return false;
@@ -159,15 +128,19 @@ bool CameraImage::decode_frame_(const uint8_t *data, size_t length) {
   }
   // Crop and rotate before the frame is published, so a crop that does not fit
   // the decoded frame fails the update instead of showing the untransformed one.
-  if (!this->apply_crop_rotation_()) {
+#ifdef USE_CAMERA_IMAGE_TRANSFORM
+  if (!this->apply_transform_()) {
     this->abort_decode();
     return false;
   }
+#endif
   return this->end_decode();
 }
 
-bool CameraImage::apply_crop_rotation_() {
-  if (this->rotation_ == 0 && this->crop_width_ == 0)
+#ifdef USE_CAMERA_IMAGE_TRANSFORM
+bool CameraImage::apply_transform_() {
+  const Transform &transform = this->transform_;
+  if (transform.rotation == 0 && transform.crop_width == 0)
     return true;
 
   if (this->buffer_ == nullptr || this->buffer_width_ <= 0 || this->buffer_height_ <= 0) {
@@ -178,20 +151,19 @@ bool CameraImage::apply_crop_rotation_() {
 
   const int source_width = this->buffer_width_;
   const int source_height = this->buffer_height_;
-  const bool has_crop = this->crop_width_ > 0;
-  const int crop_x = has_crop ? this->crop_x_ : 0;
-  const int crop_y = has_crop ? this->crop_y_ : 0;
-  const int crop_width = has_crop ? this->crop_width_ : source_width;
-  const int crop_height = has_crop ? this->crop_height_ : source_height;
+  const bool has_crop = transform.crop_width > 0;
+  const int crop_x = has_crop ? transform.crop_x : 0;
+  const int crop_y = has_crop ? transform.crop_y : 0;
+  const int crop_width = has_crop ? transform.crop_width : source_width;
+  const int crop_height = has_crop ? transform.crop_height : source_height;
 
-  if (crop_x < 0 || crop_y < 0 || crop_width <= 0 || crop_height <= 0 || crop_x + crop_width > source_width ||
-      crop_y + crop_height > source_height) {
+  if (crop_x + crop_width > source_width || crop_y + crop_height > source_height) {
     ESP_LOGE(TAG, "Crop %d,%d %dx%d is outside the %dx%d frame", crop_x, crop_y, crop_width, crop_height, source_width,
              source_height);
     return false;
   }
 
-  const bool swap = this->rotation_ == 90 || this->rotation_ == 270;
+  const bool swap = transform.rotation == 90 || transform.rotation == 270;
   const int output_width = swap ? crop_height : crop_width;
   const int output_height = swap ? crop_width : crop_height;
 
@@ -201,7 +173,7 @@ bool CameraImage::apply_crop_rotation_() {
   const size_t output_size = output_stride * static_cast<size_t>(output_height);
   const uint8_t *crop_origin = this->buffer_ + static_cast<size_t>(crop_y) * source_stride + crop_x * pixel_size;
 
-  if (this->rotation_ == 0) {
+  if (transform.rotation == 0) {
     // Every output row is one run of a source row, and the destination is never
     // ahead of the source, so the copy can happen in place.
     for (int y = 0; y < output_height; y++) {
@@ -209,32 +181,18 @@ bool CameraImage::apply_crop_rotation_() {
                    crop_origin + static_cast<size_t>(y) * source_stride, output_stride);
     }
   } else {
-    if (this->transform_buffer_ == nullptr || output_size > this->transform_buffer_size_) {
+    if (transform.buffer == nullptr || output_size > transform.buffer_size) {
       ESP_LOGE(TAG, "No buffer allocated for a %dx%d crop/rotation", output_width, output_height);
       return false;
     }
-    uint8_t *output = this->transform_buffer_;
-    // Dispatch once per frame so each rotation loop copies a fixed-size pixel.
-    switch (pixel_size) {
-      case 1:
-        rotate_crop_into<1>(output, crop_origin, crop_width, crop_height, output_width, output_height, source_stride,
-                            output_stride, this->rotation_);
-        break;
-      case 2:
-        rotate_crop_into<2>(output, crop_origin, crop_width, crop_height, output_width, output_height, source_stride,
-                            output_stride, this->rotation_);
-        break;
-      case 3:
-        rotate_crop_into<3>(output, crop_origin, crop_width, crop_height, output_width, output_height, source_stride,
-                            output_stride, this->rotation_);
-        break;
-      default:
-        ESP_LOGE(TAG, "Cannot rotate a frame with %zu-byte pixels", pixel_size);
-        return false;
+    if (!rotate_crop(pixel_size, transform.buffer, crop_origin, crop_width, crop_height, output_width, output_height,
+                     source_stride, output_stride, transform.rotation)) {
+      ESP_LOGE(TAG, "Cannot rotate a frame with %zu-byte pixels", pixel_size);
+      return false;
     }
     // Publish from the decoded buffer: it keeps its own size, so the next decode
     // reuses it and no frame allocates.
-    std::memcpy(this->buffer_, output, output_size);
+    std::memcpy(this->buffer_, transform.buffer, output_size);
   }
 
   this->decode_width_ = source_width;
@@ -243,6 +201,7 @@ bool CameraImage::apply_crop_rotation_() {
   this->buffer_height_ = output_height;
   return true;
 }
+#endif
 
 void CameraImage::dump_config() {
   ESP_LOGCONFIG(TAG,
@@ -251,18 +210,20 @@ void CameraImage::dump_config() {
                 "  Type: %s",
                 LOG_STR_ARG(runtime_image::get_format_name(this->get_format())),
                 LOG_STR_ARG(ImageTypeStrings::get_log_str(this->get_type())));
-  if (this->crop_width_ > 0) {
-    ESP_LOGCONFIG(TAG, "  Crop: %d,%d %dx%d", this->crop_x_, this->crop_y_, this->crop_width_, this->crop_height_);
+#ifdef USE_CAMERA_IMAGE_TRANSFORM
+  if (this->transform_.crop_width > 0) {
+    ESP_LOGCONFIG(TAG, "  Crop: %d,%d %dx%d", this->transform_.crop_x, this->transform_.crop_y,
+                  this->transform_.crop_width, this->transform_.crop_height);
   }
-  if (this->rotation_ != 0) {
+  if (this->transform_.rotation != 0) {
     ESP_LOGCONFIG(TAG,
                   "  Rotation: %u\n"
                   "  Rotation buffer: %zu bytes",
-                  static_cast<unsigned>(this->rotation_), this->transform_buffer_size_);
+                  static_cast<unsigned>(this->transform_.rotation), this->transform_.buffer_size);
   }
-  if (this->transform_width_ > 0) {
-    ESP_LOGCONFIG(TAG, "  Output size: %dx%d", this->transform_width_, this->transform_height_);
-  }
+  ESP_LOGCONFIG(TAG, "  Output size: %dx%d", this->transform_.output_width, this->transform_.output_height);
+#endif
+  ESP_LOGCONFIG(TAG, "  Request timeout: %" PRIu32 " ms", this->request_timeout_);
   LOG_UPDATE_INTERVAL(this);
 }
 

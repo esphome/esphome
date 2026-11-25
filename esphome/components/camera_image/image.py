@@ -1,10 +1,12 @@
 """Camera image platform: expose the camera's frames as an ``image``."""
 
+import logging
 from struct import pack, unpack
 
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import esp32_camera, runtime_image
+from esphome.components.const import CONF_WINDOW
 from esphome.components.image import CONF_ALPHA_CHANNEL, CONF_TRANSPARENCY, add_metadata
 from esphome.components.runtime_image import CONF_DOUBLE_BUFFER
 import esphome.config_validation as cv
@@ -16,6 +18,7 @@ from esphome.const import (
     CONF_RESIZE,
     CONF_RESOLUTION,
     CONF_ROTATION,
+    CONF_TIMEOUT,
     CONF_TYPE,
     CONF_WIDTH,
     CONF_X,
@@ -23,6 +26,8 @@ from esphome.const import (
 )
 import esphome.final_validate as fv
 from esphome.types import ConfigType
+
+_LOGGER = logging.getLogger(__name__)
 
 AUTO_LOAD = ["runtime_image"]
 DEPENDENCIES = ["esp32_camera"]
@@ -52,6 +57,7 @@ camera_image_ns = cg.esphome_ns.namespace("camera_image")
 CameraImage = camera_image_ns.class_(
     "CameraImage", cg.PollingComponent, runtime_image.RuntimeImage
 )
+Transform = camera_image_ns.struct("Transform")
 
 
 def _validate_options(config: ConfigType) -> ConfigType:
@@ -96,6 +102,10 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_DOUBLE_BUFFER, default=False): cv.boolean,
             cv.Optional(CONF_CROP): _CROP_SCHEMA,
             cv.Optional(CONF_ROTATION, default=0): cv.one_of(0, 90, 180, 270),
+            # How long to wait for the camera to deliver a requested frame.
+            cv.Optional(
+                CONF_TIMEOUT, default="5s"
+            ): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_ON_IMAGE): automation.validate_automation({}),
             cv.Optional(CONF_ON_ERROR): automation.validate_automation({}),
         }
@@ -190,6 +200,17 @@ def _final_validate(config: ConfigType) -> ConfigType:
 
     if CONF_CROP in config:
         crop = config[CONF_CROP]
+        # An OV2640 `window` publishes a smaller frame than the resolution. The
+        # fitted sensor is only known at run time, so the crop is checked against
+        # the resolution here and against the real frame on every update.
+        if CONF_WINDOW in camera_config:
+            _LOGGER.warning(
+                "camera_image: the camera has a 'window', so the frame may be smaller "
+                "than the %dx%d resolution and 'crop' is checked against the frame at "
+                "run time",
+                camera_width,
+                camera_height,
+            )
         if (
             crop[CONF_X] + crop[CONF_WIDTH] > decoded_width
             or crop[CONF_Y] + crop[CONF_HEIGHT] > decoded_height
@@ -251,6 +272,23 @@ async def to_code(config: ConfigType) -> None:
             config[CONF_ID], cg.uint8, transform_buffer_size, psram=True
         )
 
+    has_transform = CONF_CROP in config or config[CONF_ROTATION] != 0
+    if has_transform:
+        cg.add_define("USE_CAMERA_IMAGE_TRANSFORM")
+    crop = config.get(CONF_CROP, {})
+    transform = cg.StructInitializer(
+        Transform,
+        ("buffer", transform_buffer),
+        ("buffer_size", transform_buffer_size),
+        ("crop_x", crop.get(CONF_X, 0)),
+        ("crop_y", crop.get(CONF_Y, 0)),
+        ("crop_width", crop.get(CONF_WIDTH, 0)),
+        ("crop_height", crop.get(CONF_HEIGHT, 0)),
+        ("output_width", output_width),
+        ("output_height", output_height),
+        ("rotation", config[CONF_ROTATION]),
+    )
+
     camera_var = await cg.get_variable(config[CONF_CAMERA_ID])
     var = cg.new_Pvariable(
         config[CONF_ID],
@@ -262,24 +300,12 @@ async def to_code(config: ConfigType) -> None:
         settings.transparent,
         settings.placeholder or cg.nullptr,
         settings.byte_order_big_endian,
-        transform_buffer,
-        transform_buffer_size,
+        config[CONF_TIMEOUT],
+        transform,
     )
     await cg.register_component(var, config)
 
     if settings.double_buffer:
         cg.add(var.set_double_buffer(True))
-
-    if CONF_CROP in config:
-        crop = config[CONF_CROP]
-        cg.add(
-            var.set_crop(
-                crop[CONF_X], crop[CONF_Y], crop[CONF_WIDTH], crop[CONF_HEIGHT]
-            )
-        )
-    if config[CONF_ROTATION]:
-        cg.add(var.set_rotation(config[CONF_ROTATION]))
-    if CONF_CROP in config or config[CONF_ROTATION] != 0:
-        cg.add(var.set_transform_size(output_width, output_height))
 
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)

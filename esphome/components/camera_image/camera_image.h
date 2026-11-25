@@ -11,6 +11,8 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 
+#include "transform.h"
+
 #include <memory>
 #include <utility>
 
@@ -20,29 +22,14 @@ namespace esphome::camera_image {
 class CameraImage final : public PollingComponent, public runtime_image::RuntimeImage, public camera::CameraListener {
  public:
   CameraImage(camera::Camera *camera, int width, int height, runtime_image::ImageFormat format, image::ImageType type,
-              image::Transparency transparency, image::Image *placeholder, bool is_big_endian,
-              uint8_t *transform_buffer, size_t transform_buffer_size);
+              image::Transparency transparency, image::Image *placeholder, bool is_big_endian, uint32_t request_timeout,
+              const Transform &transform);
 
   void setup() override;
   void update() override;
   void dump_config() override;
 
   void on_camera_image(const std::shared_ptr<camera::CameraImage> &image) override;
-
-  void set_crop(int x, int y, int width, int height) {
-    this->crop_x_ = x;
-    this->crop_y_ = y;
-    this->crop_width_ = width;
-    this->crop_height_ = height;
-  }
-
-  void set_rotation(uint16_t rotation) { this->rotation_ = rotation; }
-
-  /// Size of the crop/rotation output, allocated in setup().
-  void set_transform_size(int width, int height) {
-    this->transform_width_ = width;
-    this->transform_height_ = height;
-  }
 
   template<typename F> void add_on_image_callback(F &&callback) {
     this->on_image_callback_.add(std::forward<F>(callback));
@@ -54,23 +41,18 @@ class CameraImage final : public PollingComponent, public runtime_image::Runtime
 
  protected:
   bool decode_frame_(const uint8_t *data, size_t length);
-  bool apply_crop_rotation_();
+#ifdef USE_CAMERA_IMAGE_TRANSFORM
+  bool apply_transform_();
+#endif
 
   camera::Camera *camera_;
-  /// Crop rectangle; a zero width means no crop is configured.
-  int crop_x_{0};
-  int crop_y_{0};
-  int crop_width_{0};
-  int crop_height_{0};
-  int transform_width_{0};
-  int transform_height_{0};
+#ifdef USE_CAMERA_IMAGE_TRANSFORM
+  Transform transform_;
   /// Size of the decoded frame, kept so a transformed frame does not resize the buffer.
   int decode_width_{0};
   int decode_height_{0};
-  /// Scratch buffer for rotation, a static buffer from code generation (nullptr when it could not be allocated).
-  uint8_t *transform_buffer_;
-  size_t transform_buffer_size_;
-  uint16_t rotation_{0};
+#endif
+  uint32_t request_timeout_;
   bool waiting_{false};
   LazyCallbackManager<void()> on_image_callback_{};
   LazyCallbackManager<void()> on_error_callback_{};
