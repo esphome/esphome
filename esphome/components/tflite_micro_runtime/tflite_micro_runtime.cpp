@@ -544,6 +544,12 @@ bool TFLiteMicroHelper::unload_model(bool reset_config) {
       this->reset_config();
     return true;
   }
+  // A queued result, or a callback already reading the output tensors, needs the
+  // interpreter and its arena to stay alive until the callback returns.
+  if (this->result_blocks_inference_locked_()) {
+    ESP_LOGW(TAG, "A result callback is pending; call unload_model() after it returns");
+    return false;
+  }
   // Clear READY first, so a lock-free is_model_loaded() stops reporting the model
   // before its interpreter and arena are released.
   this->state_.store(LoadState::LOAD_STATE_UNLOADED, std::memory_order_relaxed);
@@ -557,6 +563,21 @@ bool TFLiteMicroHelper::unload_model(bool reset_config) {
   }
   return true;
 }
+
+#ifdef USE_TFLITE_MODEL_DEBUG
+void TFLiteMicroHelper::debug_test_parameters(const std::vector<std::vector<uint8_t>> &zone_data) {
+  LockGuard guard(this);
+  if (!guard.locked())
+    return;
+  // The sweep fills the input and invokes the interpreter repeatedly; a queued
+  // result or a running callback reads the tensors it would overwrite.
+  if (this->result_blocks_inference_locked_()) {
+    ESP_LOGW(TAG, "A result callback is pending; skipping the parameter sweep");
+    return;
+  }
+  this->model_handler_.debug_test_parameters(zone_data);
+}
+#endif
 
 void TFLiteMicroHelper::reset_config() {
   ESP_LOGD(TAG, "Resetting model configuration to defaults");

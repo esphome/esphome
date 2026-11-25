@@ -121,7 +121,8 @@ class TFLiteMicroHelper : public Component {
 
   /// Load the model and allocate the arena; false when one is already loaded.
   bool load_model();
-  /// Unload the model and free the arena; true when unloaded on return.
+  /// Unload the model and free the arena; true when unloaded on return. Refused
+  /// while a result waits for its callback, which reads the output tensors.
   bool unload_model(bool reset_config = false);
   bool is_model_loaded() const { return this->state_.load() == LoadState::LOAD_STATE_READY; }
 
@@ -182,11 +183,9 @@ class TFLiteMicroHelper : public Component {
   ProcessedOutput get_last_result();
 
 #ifdef USE_TFLITE_MODEL_DEBUG
-  void debug_test_parameters(const std::vector<std::vector<uint8_t>> &zone_data) {
-    LockGuard guard(this);
-    if (guard.locked())
-      this->model_handler_.debug_test_parameters(zone_data);
-  }
+  /// Sweep the model's parameters. Refused while a result waits for its callback,
+  /// because the sweep overwrites the tensors that callback reads.
+  void debug_test_parameters(const std::vector<std::vector<uint8_t>> &zone_data);
 #endif
 
  private:
