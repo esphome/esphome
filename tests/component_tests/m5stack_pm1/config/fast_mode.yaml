@@ -1,0 +1,14 @@
+esphome:
+  name: test-fast-mode
+
+esp32:
+  board: esp32dev
+
+i2c:
+  sda: GPIO16
+  scl: GPIO17
+  frequency: 400kHz
+
+m5stack_pm1:
+  id: pm1
+  fast_mode: true

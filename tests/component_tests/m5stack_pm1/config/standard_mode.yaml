@@ -1,0 +1,12 @@
+esphome:
+  name: test-standard-mode
+
+esp32:
+  board: esp32dev
+
+i2c:
+  sda: GPIO16
+  scl: GPIO17
+
+m5stack_pm1:
+  id: pm1
