@@ -3,13 +3,12 @@
 #ifdef USE_TFLITE_MICRO_HELPER
 
 #include <cmath>
-#include <new>
 
 #include "esphome/core/log.h"
 
 namespace esphome::tflite_segmentation {
 
-static const char *const TAG = "tflite_segmentation";
+ESPHOME_LOG_TAG(TAG, "tflite_segmentation");
 
 bool SegmentationDecoder::decode(TfLiteTensor *const *outputs, size_t count) {
   if (count != 1) {
@@ -31,7 +30,7 @@ bool SegmentationDecoder::decode(TfLiteTensor *const *outputs, size_t count) {
   const size_t pixels = width * height;
   // Allocated once, when the shape is first seen; a decoder is reused per model.
   if (this->width_ != width || this->height_ != height || this->classes_ != classes) {
-    this->labels_.reset(new (std::nothrow) uint8_t[pixels]);
+    this->labels_ = RAMAllocator<uint8_t>().make_unique_array_for_overwrite(pixels);
     if (!this->labels_) {
       ESP_LOGE(TAG, "Could not allocate the %zu-byte label image", pixels);
       return false;

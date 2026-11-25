@@ -6,9 +6,9 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <memory>
 
 #include "esphome/components/tflite_output_processor/output_processor.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::tflite_segmentation {
 
@@ -23,7 +23,7 @@ class SegmentationDecoder final : public tflite_output_processor::OutputDecoder 
   size_t class_count() const { return this->classes_; }
 
  protected:
-  std::unique_ptr<uint8_t[]> labels_;
+  RAMUniquePtr<uint8_t[]> labels_;
   size_t width_{0};
   size_t height_{0};
   size_t classes_{0};

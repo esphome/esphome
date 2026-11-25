@@ -15,6 +15,7 @@ from esphome.components.tflite_micro_runtime import (
     final_validate,
 )
 from esphome.components.tflite_model_io.model_reader import read_model_io
+from esphome.components.tflite_output_processor import CONF_DECODER_ID
 import esphome.config_validation as cv
 from esphome.types import ConfigType
 
@@ -29,7 +30,6 @@ FINAL_VALIDATE_SCHEMA = final_validate
 tflite_segmentation_ns = cg.esphome_ns.namespace("tflite_segmentation")
 SegmentationDecoder = tflite_segmentation_ns.class_("SegmentationDecoder")
 
-CONF_DECODER_ID = "decoder_id"
 
 SEGMENTATION_SCHEMA = IMAGE_SCHEMA.extend(
     {cv.GenerateID(CONF_DECODER_ID): cv.declare_id(SegmentationDecoder)}
