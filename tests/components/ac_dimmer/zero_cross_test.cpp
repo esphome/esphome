@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <cstdint>
 #include <cstdlib>
 #include <vector>
@@ -9,17 +10,19 @@
 namespace esphome::ac_dimmer::testing {
 
 /// Feeds zero-cross edges in time order and runs the timer whenever it asked to be called, as on the ESP8266:
-/// each edge re-arms the timer 2 µs later, and a timer with nothing pending waits 20 ms
+/// each edge re-arms the timer 2 µs later, and a timer with nothing pending waits 20 ms. With `tick`, the timer
+/// runs every `tick` µs instead, as on the ESP32.
 class Bench {
  public:
   /// With `gate_noise`, the triac firing disturbs the detector: an extra edge comes that long after the gate goes on
-  Bench(AcDimmerDataStore &store, uint32_t start, uint32_t gate_noise = 0)
-      : store_(store), timer_at_(start), gate_noise_(gate_noise) {}
+  Bench(AcDimmerDataStore &store, uint32_t start, uint32_t gate_noise = 0, uint32_t tick = 0)
+      : store_(store), timer_at_(start), gate_noise_(gate_noise), tick_(tick) {}
 
   void edge(uint32_t at) {
     this->run_until(at);
     this->store_.zero_cross_edge(at);
-    this->timer_at_ = at + 2;
+    if (this->tick_ == 0)
+      this->timer_at_ = at + 2;
   }
 
   void run_until(uint32_t at) {
@@ -27,14 +30,15 @@ class Bench {
       const uint32_t now = this->timer_at_;
       const bool enable_pending = this->store_.enable_time_us != 0;
       const uint32_t next = this->store_.timer_intr(now);
-      this->timer_at_ = now + (next != 0 ? next : 20000);
+      this->timer_at_ = now + (this->tick_ != 0 ? this->tick_ : next != 0 ? next : 20000);
       if (!enable_pending || this->store_.enable_time_us != 0)
         continue;
       this->gate_on.push_back(now);
       const uint32_t noise = now + this->gate_noise_;
       if (this->gate_noise_ != 0 && static_cast<int32_t>(at - noise) >= 0) {
         this->store_.zero_cross_edge(noise);
-        this->timer_at_ = noise + 2;
+        if (this->tick_ == 0)
+          this->timer_at_ = noise + 2;
       }
     }
   }
@@ -46,6 +50,7 @@ class Bench {
   AcDimmerDataStore &store_;
   uint32_t timer_at_;
   uint32_t gate_noise_;
+  uint32_t tick_;
 };
 
 /// Edges from the fifth crossing on lock the timing; the cases change what follows
@@ -100,10 +105,11 @@ INSTANTIATE_TEST_SUITE_P(
         PhaseLockCase{"Clean60Hz", 1000, 8333, 50, 0, 0, 0, 0, 2},
         // micros() wraps around, and one crossing is exactly at 0
         PhaseLockCase{"CrossingAtZeroMicros", 0U - 30000U, 10000, 50, 0, 0, 0, 0, 2},
-        // Strictly alternating jitter wider than the follow window: the prediction rests at its early end
-        PhaseLockCase{"AlternatingJitter", 1000, 10000, 200, 250, 0, 0, 0, 260, false, 80},
-        // Locked on an early edge, the prediction stays at the early end of the jitter: late edges only confirm
-        PhaseLockCase{"AlternatingJitterWhileLocking", 1000, 10000, 200, 250, 0, 0, 0, 250, true},
+        // A detector whose edges alternate early and late (unequal half cycles): the prediction stays in the middle
+        PhaseLockCase{"AlternatingJitter", 1000, 10000, 200, 250, 0, 0, 0, 60, false},
+        // Locked on edges that already alternate: the lock is on one side, the tracking moves it to the middle
+        PhaseLockCase{"AlternatingJitterWhileLocking", 1000, 10000, 200, 250, 0, 0, 0, 60, true},
+        PhaseLockCase{"AlternatingJitterWhileLockingAt60Hz", 1000, 8333, 200, 250, 0, 0, 0, 80, true},
         // Noise half way through every half cycle (the triac firing) is outside the window
         PhaseLockCase{"NoiseOutsideWindow", 1000, 10000, 200, 0, 5000, 0, 0, 2},
         // Noise 1 ms before every crossing is inside the window: the edge closest to the
@@ -123,9 +129,9 @@ struct EdgeOffsetCase {
 
 class EdgeOffsetTest : public ::testing::TestWithParam<EdgeOffsetCase> {};
 
-// Edges served late for a while (WiFi on the ESP8266) or early detector pulses only confirm the crossings: the
-// prediction neither follows them nor drifts afterwards, and a pulse near the end of the half cycle (4 %, no minimum
-// power) never fires in the next one, where the triac would stay on for all of it
+// Edges served late for a while (WiFi on the ESP8266) only confirm the crossings, and the timing moved by early
+// detector pulses comes back: the prediction ends on the crossings, and a pulse near the end of the half cycle (4 %, no
+// minimum power) never fires in the next one, where the triac would stay on for all of it
 TEST_P(EdgeOffsetTest, KeepsLockAndPhase) {
   const auto &c = GetParam();
   AcDimmerDataStore store{};
@@ -152,7 +158,10 @@ INSTANTIATE_TEST_SUITE_P(AcDimmer, EdgeOffsetTest,
                                            EdgeOffsetCase{"Late1000", 10000, 1000, 50, 250},
                                            EdgeOffsetCase{"Late1500", 10000, 1500, 50, 250},
                                            EdgeOffsetCase{"Late1500At60Hz", 8333, 1500, 50, 250},
-                                           EdgeOffsetCase{"ThreeEarlyPulses", 10000, -470, 100, 103}),
+                                           EdgeOffsetCase{"ThreeEarlyPulses", 10000, -470, 100, 103},
+                                           // The clean edges after them come late beyond the follow window
+                                           EdgeOffsetCase{"ThreeEarlyPulses550", 10000, -550, 100, 103},
+                                           EdgeOffsetCase{"ThreeEarlyPulses550At60Hz", 8333, -550, 100, 103}),
                          [](const ::testing::TestParamInfo<EdgeOffsetCase> &info) { return info.param.name; });
 
 struct StartupErrorCase {
@@ -228,6 +237,85 @@ INSTANTIATE_TEST_SUITE_P(AcDimmer, GateNoiseTest,
                                            GateNoiseCase{"Late1100At60Hz", 8333, 1100}),
                          [](const ::testing::TestParamInfo<GateNoiseCase> &info) { return info.param.name; });
 
+/// Whether a gate pulse at `at` started in the first half of a half cycle of crossings at `start` + n * `period`
+static bool in_next_half_cycle(uint32_t at, uint32_t start, uint32_t period) {
+  return (at - start) % period < period / 2;
+}
+
+struct StartupRampCase {
+  const char *name;
+  int32_t step;  // the first two edges come 2 * step and step early, the rest on the crossings
+};
+
+class StartupRampTest : public ::testing::TestWithParam<StartupRampCase> {};
+
+// The first edges after power up drift onto the crossings: the lock waits for them, so the gate is right from the start
+TEST_P(StartupRampTest, GateRightFromTheLock) {
+  const auto &c = GetParam();
+  AcDimmerDataStore store{};
+  store.value = 2621;  // 4 %, no minimum power: the gate fires 400 µs before the crossing
+  Bench bench(store, 1000);
+  uint32_t crossing = 1000;
+  for (int i = 0; i < 100; i++, crossing += 10000)
+    bench.edge(crossing - (i == 0 ? 2 * c.step : i == 1 ? c.step : 0));
+  bench.run_until(crossing);
+  ASSERT_FALSE(bench.gate_on.empty());
+  EXPECT_LE(bench.gate_on.front() - 1000, 100000U);  // locked within 100 ms
+  for (uint32_t at : bench.gate_on)
+    EXPECT_LE(std::abs(static_cast<int32_t>((at - 1000) % 10000) - 9600), 20) << "pulse at " << at;
+}
+
+INSTANTIATE_TEST_SUITE_P(AcDimmer, StartupRampTest,
+                         ::testing::Values(StartupRampCase{"Early150", 150}, StartupRampCase{"Late150", -150},
+                                           StartupRampCase{"Early300", 300}, StartupRampCase{"Late300", -300},
+                                           StartupRampCase{"Early600", 600}, StartupRampCase{"Late600", -600}),
+                         [](const ::testing::TestParamInfo<StartupRampCase> &info) { return info.param.name; });
+
+// A half cycle 50 µs off after the lock comes back while the lock is kept
+TEST(AcDimmerTimerTest, WrongHalfCycleConverges) {
+  for (int32_t off : {50, -50}) {
+    AcDimmerDataStore store{};
+    store.value = 2621;
+    Bench bench(store, 1000);
+    uint32_t crossing = 1000;
+    for (int i = 0; i < 300; i++, crossing += 10000) {
+      bench.edge(crossing);
+      if (i == 20)
+        store.period += off;
+      if (i > LOCK_EDGE)
+        ASSERT_EQ(store.phase, ZERO_CROSS_PHASE_LOCKED) << off << " crossing " << i;
+    }
+    bench.run_until(crossing - 5000);
+    EXPECT_LE(std::abs(static_cast<int32_t>(store.period) - 10000), 3) << off;
+    EXPECT_LE(std::abs(static_cast<int32_t>(store.zc_at - (crossing - 10000))), 20) << off;
+    for (uint32_t at : bench.gate_on)
+      EXPECT_FALSE(in_next_half_cycle(at, 1000, 10000)) << off << " pulse at " << at;
+  }
+}
+
+// ESP32-C3: the timer runs every 50 µs and the detector alternates 250 µs early and late. The gate fires in the
+// middle, not on one side of the jitter.
+TEST(AcDimmerTimerTest, AlternatingJitterGateOnTickTimer) {
+  AcDimmerDataStore store{};
+  store.value = 32768;  // the gate is due 4999 µs after the crossing
+  Bench bench(store, 1000, 0, 50);
+  uint32_t crossing = 1000;
+  for (int i = 0; i < 300; i++, crossing += 10000)
+    bench.edge(crossing + (i % 2 ? 250 : -250));
+  bench.run_until(crossing);
+  int32_t lo = INT32_MAX;
+  int32_t hi = INT32_MIN;
+  for (uint32_t at : bench.gate_on) {
+    if (at < 1000000)
+      continue;
+    const int32_t err = static_cast<int32_t>((at - 1000) % 10000) - 4999;
+    lo = std::min(lo, err);
+    hi = std::max(hi, err);
+  }
+  EXPECT_GE(lo, -30);
+  EXPECT_LE(hi, 80);
+}
+
 /// Locks a dimmer on crossings at 1 to 41 ms; the caller runs the timer at 41 ms to start that half cycle
 static AcDimmerDataStore locked_store(DimMethod method, uint16_t value) {
   AcDimmerDataStore store{};
@@ -238,15 +326,18 @@ static AcDimmerDataStore locked_store(DimMethod method, uint16_t value) {
   return store;
 }
 
-// A last locking edge that is late or early does not move the prediction
+// A late or early edge while locking puts off the lock until three full cycles agree, so it does not move the timing
 TEST(AcDimmerTimerTest, OffLockingEdgeDoesNotShiftThePrediction) {
-  for (uint32_t last : {41600U, 40500U}) {
+  for (uint32_t off : {41600U, 40500U}) {
     AcDimmerDataStore store{};
-    for (uint32_t at : {1000U, 11000U, 21000U, 31000U, last})
+    for (uint32_t at : {1000U, 11000U, 21000U, 31000U, off, 51000U, 61000U, 71000U, 81000U}) {
       store.zero_cross_edge(at);
-    ASSERT_EQ(store.phase, ZERO_CROSS_PHASE_LOCKED) << last;
-    EXPECT_EQ(store.period, 10000) << last;
-    EXPECT_EQ(store.zc_at, 31000U) << last;
+      EXPECT_NE(store.phase, ZERO_CROSS_PHASE_LOCKED) << off << " " << at;
+    }
+    store.zero_cross_edge(91000);
+    ASSERT_EQ(store.phase, ZERO_CROSS_PHASE_LOCKED) << off;
+    EXPECT_EQ(store.period, 10000) << off;
+    EXPECT_EQ(store.zc_at, 81000U) << off;
   }
 }
 

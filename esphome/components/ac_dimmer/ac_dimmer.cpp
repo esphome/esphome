@@ -156,7 +156,7 @@ void IRAM_ATTR HOT AcDimmerDataStore::acquire_edge(uint32_t now) {
   this->zc_at = now;
   this->period = gap;
   const int32_t diff = static_cast<int32_t>(gap) - last_gap;
-  if (this->phase == ZERO_CROSS_PHASE_ONE_EDGE || diff > last_gap / 8 || diff < -last_gap / 8) {
+  if (this->phase == ZERO_CROSS_PHASE_ONE_EDGE || diff > last_gap / 4 || diff < -last_gap / 4) {
     this->phase = ZERO_CROSS_PHASE_CONFIRMING;
     this->enable_time_us = 0;
     this->disable_time_us = 0;
@@ -171,6 +171,12 @@ void IRAM_ATTR HOT AcDimmerDataStore::acquire_edge(uint32_t now) {
   }
   const uint32_t a = this->disable_time_us;
   const uint32_t b = this->enable_time_us;
+  // The three must also agree: the first edges after power up can drift, which moves two of them
+  if (std::max(std::max(a, b), cycle) - std::min(std::min(a, b), cycle) > cycle / 128) {
+    this->disable_time_us = b;
+    this->enable_time_us = cycle;
+    return;
+  }
   this->period = std::max(std::min(a, b), std::min(std::max(a, b), cycle)) / 2;
   // Locked: the half cycle the edge before this one started counts as running. Its start is the middle of three
   // estimates, each from one of the last three edges, so one early or late edge does not move it.
@@ -182,6 +188,10 @@ void IRAM_ATTR HOT AcDimmerDataStore::acquire_edge(uint32_t now) {
   this->misses = 0;
   this->edge_now = true;
   this->edge_next = true;
+  this->early_steps = 0;
+  this->late_last = false;
+  this->late_before = false;
+  this->late_step = false;
   this->phase = ZERO_CROSS_PHASE_LOCKED;
 }
 
@@ -217,17 +227,38 @@ void IRAM_ATTR HOT AcDimmerDataStore::track_edge(uint32_t now) {
 }
 
 void IRAM_ATTR HOT AcDimmerDataStore::apply_edge_err() {
-  // Mains timing is steady, so follow slowly. A late edge may only have been served late: it only confirms the
-  // crossing unless it is close. An early edge was not served early: a lasting one also shortens the half cycle.
+  // Mains timing is steady, so follow slowly, by at most `close` per edge. A late edge may only have been served late:
+  // beyond `close` it counts only to undo early steps, or as a lone late edge of a detector whose edges alternate
+  // early and late around the crossing.
   const int32_t close = this->period / 32;
   const int32_t err = this->taken_err;
-  if (err <= close)
-    this->zc_at += err / 4;
-  if (std::abs(err) <= close) {
-    this->period += err / 16;
-  } else if (err < 0) {
-    this->period -= close / 64;
+  const bool late = err > close;
+  bool step = false;
+  int32_t move = 0;
+  if (!late) {
+    move = std::max(err, -close);
+    if (err < -close) {
+      if (this->early_steps != 7)
+        this->early_steps++;
+    } else if (err >= 0) {
+      this->early_steps = 0;
+    }
+  } else if (this->early_steps != 0) {
+    // Early detector pulses moved the timing: the edges after them undo it
+    this->early_steps--;
+    move = close;
+  } else if (this->late_before && !this->late_last && err <= 2 * close) {
+    move = close;
+    step = true;
+  } else if (this->late_step) {
+    // Late again: served late, not an alternating detector
+    this->period -= close / 16;
   }
+  this->zc_at += move / 4;
+  this->period += move / 16;
+  this->late_before = this->late_last;
+  this->late_last = late;
+  this->late_step = step;
   this->taken_err = NO_EDGE_ERR;
 }
 

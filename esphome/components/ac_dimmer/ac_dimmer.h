@@ -47,6 +47,14 @@ struct AcDimmerDataStore {
   bool init_cycle;
   /// Dimmer method
   DimMethod method;
+  /// Edges followed by only `close` while far early, each undone by a late edge (capped)
+  uint8_t early_steps : 3;
+  /// The edge of the last crossing with one was late beyond `close`
+  uint8_t late_last : 1;
+  /// The same for the crossing with an edge before it
+  uint8_t late_before : 1;
+  /// The last edge was a lone late one and counted as `close`
+  uint8_t late_step : 1;
 
   /// Timer work at `now`: starts half cycles and drives the gate; returns µs until the next event
   uint32_t timer_intr(uint32_t now);
@@ -54,7 +62,7 @@ struct AcDimmerDataStore {
   uint32_t timer_step(uint32_t now);
   /// Zero-cross edge at `now`: acquires the lock or corrects the timing
   void zero_cross_edge(uint32_t now);
-  /// Edge while not locked: locks once four gaps in a row agree
+  /// Edge while not locked: locks once three full cycles in a row agree
   void acquire_edge(uint32_t now);
   /// Edge while locked: an edge near the predicted crossing nudges the timing, others are ignored
   void track_edge(uint32_t now);
