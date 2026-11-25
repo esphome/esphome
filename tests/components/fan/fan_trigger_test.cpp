@@ -132,6 +132,18 @@ class FanTriggerTest : public ::testing::Test {
 
 using Events = std::vector<std::string>;
 
+// The generated change triggers keep their last values in zero-initialized statics, so the fan must start at zero
+TEST(FanDefaults, GeneratedChangeTriggersAssumeZeroDefaults) {
+  TriggerFan fan;
+  EXPECT_FALSE(fan.state);
+  EXPECT_FALSE(fan.oscillating);
+  EXPECT_EQ(fan.speed, 0);
+  EXPECT_EQ(fan.direction, FanDirection::FORWARD);
+  EXPECT_EQ(static_cast<int>(FanDirection::FORWARD), 0);
+  EXPECT_FALSE(fan.has_preset_mode());
+  EXPECT_TRUE(fan.get_preset_mode().empty());
+}
+
 TEST_F(FanTriggerTest, FirstPublishWithDefaultStateFiresNothing) {
   this->on_every_change_();
   this->fan_.publish_state();
