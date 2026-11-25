@@ -162,13 +162,13 @@ class CANopenComponent : public Component {
 
  protected:
   void on_frame_(const canbus::CanFrame &frame);
-  void receive_(uint16_t ident, const uint8_t *data, uint8_t len);
+  /// Returns whether a CANopenNode object took the frame
+  bool receive_(uint16_t ident, const uint8_t *data, uint8_t len);
   // A client-only hub with no request queued or running and no frame waiting to be resent. A node always has work
   // (heartbeat).
   bool idle_() const;
   // CO_process() and our node's own processing: per received frame and in loop()
   void process_node_();
-  void setup_client_only_();
   // marks the hub failed and ends the requests queued before setup()
   void fail_setup_(const LogString *reason);
   // The features' parts of setup(), called in this order: add_*_od_() add OD entries (before the OD is finalized),

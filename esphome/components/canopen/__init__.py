@@ -133,12 +133,7 @@ UINT16_MS = cv.All(
 )
 
 # 0x1017, sent from loop() (every 16 ms by default): a shorter producer time couldn't be kept
-HEARTBEAT_INTERVAL = cv.All(
-    cv.positive_time_period_milliseconds,
-    cv.Range(
-        min=cv.TimePeriod(milliseconds=100), max=cv.TimePeriod(milliseconds=65535)
-    ),
-)
+HEARTBEAT_INTERVAL = cv.All(UINT16_MS, cv.Range(min=cv.TimePeriod(milliseconds=100)))
 
 # 0x1018; vendor ids are assigned by CiA
 IDENTITY_SCHEMA = cv.Schema(
@@ -234,24 +229,19 @@ def _final_validate(config: ConfigType) -> ConfigType:
                 ),
                 path=[CONF_SDO_CLIENT],
             )
-        # nodes on the same canbus receive each other's frames: their ids must differ, as on any CANopen bus
         if (
-            other[CONF_ID] != config[CONF_ID]
-            and other[CONF_CANBUS_ID] == config[CONF_CANBUS_ID]
-            and CONF_NODE_ID in config
-            and other.get(CONF_NODE_ID) == config[CONF_NODE_ID]
+            other[CONF_ID] == config[CONF_ID]
+            or other[CONF_CANBUS_ID] != config[CONF_CANBUS_ID]
         ):
+            continue
+        # nodes on the same canbus receive each other's frames: their ids must differ, as on any CANopen bus
+        if CONF_NODE_ID in config and other.get(CONF_NODE_ID) == config[CONF_NODE_ID]:
             raise cv.Invalid(
                 f"node_id {config[CONF_NODE_ID]} is also used by canopen {other[CONF_ID]} on the same canbus",
                 path=[CONF_NODE_ID],
             )
         # their SDO clients would use the same COB-IDs, and a reply would end both clients' requests
-        if (
-            other[CONF_ID] != config[CONF_ID]
-            and other[CONF_CANBUS_ID] == config[CONF_CANBUS_ID]
-            and CONF_NODE_ID not in config
-            and CONF_NODE_ID not in other
-        ):
+        if CONF_NODE_ID not in config and CONF_NODE_ID not in other:
             raise cv.Invalid(
                 f"canopen {other[CONF_ID]} on the same canbus has no node_id either: one SDO client only hub "
                 "per canbus",
@@ -314,13 +304,9 @@ async def to_code(config: ConfigType) -> None:
             identity[CONF_SERIAL_NUMBER],
         )
     )
-    for key, setter in (
-        (CONF_DEVICE_NAME, var.set_device_name),
-        (CONF_HARDWARE_VERSION, var.set_hardware_version),
-        (CONF_SOFTWARE_VERSION, var.set_software_version),
-    ):
-        if key in config:
-            cg.add(setter(config[key]))
+    cg.add_optional(var.set_device_name, config.get(CONF_DEVICE_NAME))
+    cg.add_optional(var.set_hardware_version, config.get(CONF_HARDWARE_VERSION))
+    cg.add_optional(var.set_software_version, config.get(CONF_SOFTWARE_VERSION))
 
     await automation.build_callback_automations(var, config, CALLBACK_AUTOMATIONS)
 

@@ -29,7 +29,8 @@ void CANopenComponent::on_frame_(const canbus::CanFrame &frame) {
   const uint8_t len = frame.payload_length();
   if (frame.use_extended_id || len > 8)
     return;
-  this->receive_((frame.can_id & 0x7FF) | (frame.remote_transmission_request ? 0x800 : 0), frame.data, len);
+  const bool taken =
+      this->receive_((frame.can_id & 0x7FF) | (frame.remote_transmission_request ? 0x800 : 0), frame.data, len);
   this->hold_flush_ = true;
 #ifdef USE_CANOPEN_SDO_CLIENT
   // A reply for the running request is handled right away; CANopenNode restarts its response timer for it (and may
@@ -40,18 +41,19 @@ void CANopenComponent::on_frame_(const canbus::CanFrame &frame) {
     this->sdo_last_ms_ = App.get_loop_component_start_time();
   }
 #endif
-  // A node processes every frame before the next one: CANopenNode keeps one received frame per object (e.g. an
-  // RPDO), so a later frame of a burst would overwrite it.
-  if (!this->is_client_only())
+  // A node processes every frame a CANopenNode object took before the next one: it keeps one received frame per
+  // object (e.g. an RPDO), so a later frame of a burst would overwrite it.
+  if (taken && !this->is_client_only())
     this->process_node_();
   this->hold_flush_ = false;
 }
 
-void CANopenComponent::receive_(uint16_t ident, const uint8_t *data, uint8_t len) {
+bool CANopenComponent::receive_(uint16_t ident, const uint8_t *data, uint8_t len) {
   if (this->co_ == nullptr || this->is_failed())
-    return;
+    return false;
   CO_CANmodule_t *mod = this->co_->CANmodule;
   CO_CANrxMsg_t msg{};
+  bool taken = false;
   msg.ident = ident;
   msg.DLC = len;
   memcpy(msg.data, data, len);
@@ -64,8 +66,10 @@ void CANopenComponent::receive_(uint16_t ident, const uint8_t *data, uint8_t len
       continue;
 #endif
     rx->CANrx_callback(rx->object, &msg);
+    taken = true;
   }
   this->dispatch_frame_(msg);
+  return taken;
 }
 
 bool CANopenComponent::transmit(uint16_t ident, const uint8_t *data, uint8_t len) {
