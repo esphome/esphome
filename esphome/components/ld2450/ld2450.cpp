@@ -1043,11 +1043,16 @@ void LD2450Component::start_xy_unfiltered() {
 
 void LD2450Component::set_xy_unfiltered_(bool unfiltered) {
   this->xy_unfiltered_ = unfiltered;
-  // A still target sends no new position: republish so a held value shows, or the filters see the current one again
-  for (uint8_t i = 0; i < MAX_TARGETS; i++) {
-    text_sensor::TextSensor *s = this->target_xy_text_sensors_[i];
-    if (s != nullptr && s->has_state())
-      this->update_target_xy_(i, true);
+  // A still target sends no new position: republish the raw one, so a held value shows or the filters see it again
+  for (text_sensor::TextSensor *s : this->target_xy_text_sensors_) {
+    if (s == nullptr || s->get_raw_state().empty())
+      continue;
+    const std::string &raw = s->get_raw_state();
+    if (unfiltered) {
+      s->publish_state_unfiltered(raw.data(), raw.size());
+    } else {
+      s->publish_state(raw);
+    }
   }
 }
 #endif
