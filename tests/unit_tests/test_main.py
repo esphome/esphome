@@ -6881,6 +6881,19 @@ def test_run_esphome_bundle_detection(tmp_path: Path) -> None:
     assert result == 2
 
 
+def test_run_esphome_rotate_key_refuses_a_bundle(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The edits would land in an extracted copy that the next run replaces."""
+    bundle_path = tmp_path / f"device{BUNDLE_EXTENSION}"
+    bundle_path.write_bytes(b"fake-bundle")
+    with patch("esphome.bundle.prepare_bundle_for_compile") as mock_prepare:
+        result = run_esphome(["esphome", "rotate-key", str(bundle_path)])
+    mock_prepare.assert_not_called()
+    assert result == 1
+    assert "run it on the source configuration" in caplog.text
+
+
 def test_run_esphome_non_bundle_skips_extraction(tmp_path: Path) -> None:
     """Test run_esphome does not extract for regular .yaml files."""
     yaml_file = tmp_path / "device.yaml"
@@ -8295,6 +8308,35 @@ def test_command_rename_is_dispatched_to_the_cli_module() -> None:
     with patch("esphome.cli.rename.command_rename", return_value=7) as run:
         assert main.command_rename(args, {}) == 7
     run.assert_called_once_with(args, {})
+
+
+def test_command_rotate_key_is_dispatched_to_the_cli_module() -> None:
+    args = MockArgs()
+    with patch("esphome.cli.rotate_key.command_rotate_key", return_value=7) as run:
+        assert main.command_rotate_key(args, {}) == 7
+    run.assert_called_once_with(args, {})
+
+
+def test_parse_args_rotate_key() -> None:
+    args = parse_args(
+        [
+            "esphome",
+            "rotate-key",
+            "--device",
+            "dev.local",
+            "--prompt-new-key",
+            "-y",
+            "--username",
+            "mqtt-user",
+            "device.yaml",
+        ]
+    )
+    assert args.command == "rotate-key"
+    assert args.device == ["dev.local"]
+    assert args.prompt_new_key is True
+    assert args.yes is True
+    # MQTT device resolution reads these like upload does
+    assert args.username == "mqtt-user"
 
 
 VALID_OTA_KEY = "AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA="

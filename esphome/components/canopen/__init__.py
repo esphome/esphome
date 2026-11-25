@@ -25,6 +25,8 @@ DOMAIN = "canopen"
 MULTI_CONF = True
 
 CONF_NODE_ID = "node_id"
+CONF_ON_EMCY = "on_emcy"
+CONF_ON_HEARTBEAT = "on_heartbeat"
 CONF_RESPONSE_TIMEOUT = "response_timeout"
 CONF_SUBINDEX = "subindex"
 
@@ -34,6 +36,26 @@ CANOPENNODE_VERSION = "4.1.0-esphome.2"
 ns = cg.esphome_ns.namespace("canopen")
 CANopenComponent = ns.class_("CANopenComponent", cg.Component)
 SDOResult = ns.enum("SDOResult", is_class=True)
+NMTState = ns.enum("NMTState", is_class=True)
+Emergency = ns.struct("Emergency")
+
+# every heartbeat / EMCY frame on the bus, from any node
+CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(
+        CONF_ON_HEARTBEAT,
+        "add_on_heartbeat_callback",
+        [(cg.uint8, "node_id"), (NMTState, "state")],
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_EMCY,
+        "add_on_emcy_callback",
+        [
+            (cg.uint8, "node_id"),
+            # by value: actions that store their arguments (std::tuple) can't hold a reference
+            (Emergency, "emergency"),
+        ],
+    ),
+)
 
 
 # response_timeout holds uint16 ms
@@ -48,6 +70,8 @@ CONFIG_SCHEMA = cv.Schema(
         cv.GenerateID(): cv.declare_id(CANopenComponent),
         cv.GenerateID(CONF_CANBUS_ID): cv.use_id(CanbusComponent),
         cv.Optional(CONF_RESPONSE_TIMEOUT, "500ms"): UINT16_MS,
+        cv.Optional(CONF_ON_HEARTBEAT): automation.validate_automation({}),
+        cv.Optional(CONF_ON_EMCY): automation.validate_automation({}),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -83,6 +107,11 @@ async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID], canbus)
     await cg.register_component(var, config)
     cg.add(var.set_response_timeout(config[CONF_RESPONSE_TIMEOUT]))
+    if CONF_ON_HEARTBEAT in config:
+        cg.add_define("USE_CANOPEN_HEARTBEAT")
+    if CONF_ON_EMCY in config:
+        cg.add_define("USE_CANOPEN_EMCY")
+    await automation.build_callback_automations(var, config, CALLBACK_AUTOMATIONS)
 
 
 def validate_sdo_value(config: ConfigType) -> ConfigType:
