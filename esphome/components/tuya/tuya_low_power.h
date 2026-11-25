@@ -23,6 +23,8 @@ class TuyaLowPowerSession {
   bool faulted() const { return this->fault_; }
   bool busy() const { return this->status_pending_ || this->write_pending_; }
   bool ready() const { return this->product_ && this->synced_ && !this->fault_ && !this->busy(); }
+  /// No report within QUIET_MS: a report series the MCU started on its own is over.
+  bool quiet(uint32_t now) const { return now - this->last_report_ms_ >= QUIET_MS; }
 
   /// The MCU or the network changed: the known state is no longer current.
   void reset_status() {

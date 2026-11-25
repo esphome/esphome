@@ -72,6 +72,20 @@ TEST(TuyaLowPowerSession, ResetAndCommandTimeout) {
   EXPECT_TRUE(s.faulted() && !s.busy() && !s.ready());
 }
 
+TEST(TuyaLowPowerSession, ReportsTheMcuStartsHoldWritesUntilQuiet) {
+  TuyaLowPowerSession session;
+  session.product_received();
+  session.begin_full_status(0);
+  session.observe_report(100);
+  ASSERT_EQ(session.update(600), TuyaLowPowerSession::Event::EVENT_SYNCHRONIZED);
+  EXPECT_TRUE(session.quiet(600));
+  // The user turns the wheel: the MCU reports on its own while the module is synchronized.
+  session.observe_report(5000);
+  EXPECT_TRUE(session.ready());
+  EXPECT_FALSE(session.quiet(5000 + TuyaLowPowerSession::QUIET_MS - 1));
+  EXPECT_TRUE(session.quiet(5000 + TuyaLowPowerSession::QUIET_MS));
+}
+
 TEST(TuyaLowPowerProductInfo, Parse) {
   // Only p and v are required; mwkpt sets the wake pulse length.
   using esphome::tuya::TuyaLowPowerProductInfo;

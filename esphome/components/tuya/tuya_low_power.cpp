@@ -20,6 +20,8 @@ namespace esphome::tuya {
 ESPHOME_LOG_TAG(LP_TAG, "tuya.low_power");
 // A version-3 MCU (firmware 1.0.9) reports changes made at the device only when asked.
 static constexpr uint32_t LP_V3_STATUS_POLL_MS = 60000;
+// Until its first report, the status query of a version-3 MCU is repeated when the answer was lost.
+static constexpr uint32_t LP_V3_STATUS_RETRY_MS = 3000;
 static constexpr uint32_t LP_COMMAND_DELAY_MS = 10;
 // The MCU sleeps within a second of its last byte; after this long without one it is woken before a command.
 static constexpr uint32_t LP_MCU_SILENT_MS = 200;
@@ -47,6 +49,23 @@ static bool is_low_power_write(const TuyaCommand &command) { return command.cmd 
 // The network state (CMD02), queued so it does not cross a write
 static constexpr auto LP_NETWORK_CMD = static_cast<TuyaCommandType>(0x02);
 
+// A datapoint list the decoder takes whole: types and sizes as handle_datapoints_() accepts them.
+static bool valid_datapoints(const uint8_t *data, size_t len) {
+  if (len < 4)
+    return false;
+  for (size_t offset = 0; offset < len;) {
+    if (len - offset < 4)
+      return false;
+    const size_t size = encode_uint16(data[offset + 2], data[offset + 3]);
+    const uint8_t type = data[offset + 1];
+    if (size > len - offset - 4 || type > 5 || ((type == 1 || type == 4) && size != 1) || (type == 2 && size != 4) ||
+        (type == 5 && size != 1 && size != 2 && size != 4) || (type == 1 && data[offset + 4] > 1))
+      return false;
+    offset += 4 + size;
+  }
+  return true;
+}
+
 void TuyaUART::setup_low_power_() {
   this->init_state_ = TuyaInitState::INIT_PRODUCT;
   if (this->mcu_wake_pin_ != nullptr) {
@@ -59,6 +78,8 @@ void TuyaUART::setup_low_power_() {
 
 void TuyaUART::loop_low_power_() {
   if (!this->parent_->is_connected()) {
+    this->mcu_wake_pulse_running_();  // A running wake pulse still ends on time
+    this->expected_response_.reset();
     if (!this->lp_session_.faulted()) {
       this->lp_session_.command_timeout();
       this->lp_wire_.transport_fault();
@@ -87,15 +108,19 @@ void TuyaUART::loop_low_power_() {
 }
 
 void TuyaUART::poll_low_power_v3_status_() {
-  if (!this->lp_v3_ || this->lp_v3_pushes_ || !this->lp_session_.ready() || !this->lp_wire_.idle() ||
-      !this->command_queue_.empty() || this->reader_.receiving())
+  const bool synced = this->lp_session_.synchronized();
+  // Queued writes wait for the status this asks for, so only other queued commands hold it back
+  if (!this->lp_v3_ || !this->lp_v3_mode_acked_ || (synced && this->lp_v3_pushes_) || this->lp_session_.busy() ||
+      !this->lp_wire_.idle() || this->reader_.receiving() ||
+      !std::all_of(this->command_queue_.begin(), this->command_queue_.end(), is_low_power_write))
     return;
   const uint32_t now = App.get_loop_component_start_time();
-  if (now - this->lp_v3_last_poll_ms_ < LP_V3_STATUS_POLL_MS)
+  if (now - this->lp_v3_last_poll_ms_ < (synced ? LP_V3_STATUS_POLL_MS : LP_V3_STATUS_RETRY_MS))
     return;
   this->lp_v3_last_poll_ms_ = now;
   ESP_LOGV(LP_TAG, "Polling MCU status with CMD08");
-  this->send_low_power_direct_(0x08, {});
+  // Queued, so a sleeping MCU is woken first
+  this->send_empty_command_(static_cast<TuyaCommandType>(0x08));
 }
 
 void TuyaUART::handle_low_power_frame_(uint8_t command, uint8_t version, const uint8_t *buffer, size_t len) {
@@ -107,8 +132,8 @@ void TuyaUART::handle_low_power_frame_(uint8_t command, uint8_t version, const u
     ESP_LOGW(LP_TAG, "Discarding overdue MCU ACK CMD 0x%02X; recovery required", command);
     return;
   }
-  const auto command_type = static_cast<TuyaCommandType>(command);
-  if (this->lp_wire_.complete(command, len) && this->expected_response_ == command_type)
+  // The answer may be another command than the request: CMD07 confirms a version-3 write (CMD06).
+  if (this->lp_wire_.complete(command, len))
     this->expected_response_.reset();
   this->handle_low_power_command_(command, version, buffer, len);
   // A frame shows that the MCU is awake right now: during a recovery, ask for the product info at once instead
@@ -127,7 +152,7 @@ void TuyaUART::send_low_power_raw_command_(const TuyaCommand &command) {
   this->last_command_timestamp_ = millis();
   const auto cmd = static_cast<uint8_t>(command.cmd);
   const uint32_t now = App.get_loop_component_start_time();
-  if (cmd == 0x01 || cmd == 0x02 || cmd == 0x09) {
+  if (cmd == 0x01 || cmd == 0x02 || cmd == 0x06 || cmd == 0x08 || cmd == 0x09) {
     if (!this->lp_wire_.begin(cmd, now)) {
       ESP_LOGE(LP_TAG, "Refusing an overlapping MCU transaction");
       this->lp_session_.command_timeout();
@@ -250,10 +275,10 @@ void TuyaUART::poll_low_power_product_recovery_() {
 
 void TuyaUART::process_low_power_queue_() {
   const uint32_t now = App.get_loop_component_start_time();
-  // The command timestamp of tuya_uart.cpp comes from millis(), so compare it with millis().
-  const uint32_t wire_now = millis();
   if (this->mcu_wake_pulse_running_())
     return;
+  // After the pulse check, which may stamp its end; the command timestamp of tuya_uart.cpp comes from millis() too.
+  const uint32_t wire_now = millis();
 
   // The standard 300 ms retry does not fit a version-0 MCU, which reports its state some time after the ACK.
   // ACK and report have separate timeouts.
@@ -265,12 +290,10 @@ void TuyaUART::process_low_power_queue_() {
     // Recover with the direct CMD01 probe; a queued one would wait behind the quarantined queue.
     this->begin_low_power_product_retry_(now);
     ESP_LOGW(LP_TAG, "MCU command ACK timeout (product=%s); writes wait for a full resync", YESNO(product_query));
-    // A late ACK cannot be told apart from one for the next write, so do not replay queued commands.
-    if (!this->command_queue_.empty()) {
-      ESP_LOGW(LP_TAG, "Discarded %u queued MCU commands after the ACK timeout",
-               static_cast<unsigned>(this->command_queue_.size()));
-      this->command_queue_.clear();
-    }
+    // Unsent writes wait for the full resync, which no late ACK can reach; queued handshake commands are stale.
+    auto &queue = this->command_queue_;
+    queue.erase(std::remove_if(queue.begin(), queue.end(), [](const TuyaCommand &c) { return !is_low_power_write(c); }),
+                queue.end());
   }
 
   if (this->lp_session_.busy() || this->lp_wire_.active() || this->lp_wire_.faulted() ||
@@ -278,10 +301,10 @@ void TuyaUART::process_low_power_queue_() {
       static_cast<uint32_t>(wire_now - this->last_command_timestamp_) <= LP_COMMAND_DELAY_MS)
     return;
   // Before the product info only CMD01 may go out; writes wait until the MCU's state is known.
-  auto next = std::find_if(this->command_queue_.begin(), this->command_queue_.end(), [this](const TuyaCommand &c) {
+  auto next = std::find_if(this->command_queue_.begin(), this->command_queue_.end(), [this, now](const TuyaCommand &c) {
     if (!this->lp_session_.has_product())
       return c.cmd == TuyaCommandType::PRODUCT_QUERY;
-    return !is_low_power_write(c) || this->lp_session_.ready();
+    return !is_low_power_write(c) || (this->lp_session_.ready() && this->lp_session_.quiet(now));
   });
   if (next == this->command_queue_.end())
     return;
@@ -333,19 +356,25 @@ void TuyaUART::send_low_power_network_() {
   this->lp_network_status_ = status;
   if (this->lp_v3_ && this->lp_v3_mode_acked_) {
     // Standard Tuya framing: the network state is CMD03; CMD02 is the working-mode query. The MCU reports
-    // changes on its own only after it was told that the module is online.
-    this->send_low_power_direct_(0x03, {status});
+    // changes on its own only after it was told that the module is online. Queued, so a sleeping MCU is woken.
+    this->send_command_({.cmd = static_cast<TuyaCommandType>(0x03), .payload = {status}});
     return;
   }
   this->lp_session_.reset_status();
-  // Only the latest network state matters: one still queued is updated in place, keeping the order on the wire
+  // Only the latest network state matters: one still queued is updated in place, keeping the order on the wire.
+  // For version 3 it is the empty working-mode query, and the state follows as CMD03.
   for (auto &queued : this->command_queue_) {
     if (queued.cmd == LP_NETWORK_CMD) {
-      queued.payload[0] = status;
+      if (!queued.payload.empty())
+        queued.payload[0] = status;
       return;
     }
   }
-  this->send_command_({.cmd = LP_NETWORK_CMD, .payload = {status}});
+  if (this->lp_v3_) {
+    this->send_empty_command_(LP_NETWORK_CMD);
+  } else {
+    this->send_command_({.cmd = LP_NETWORK_CMD, .payload = {status}});
+  }
 }
 
 void TuyaUART::send_low_power_time_(uint8_t command) {
@@ -399,6 +428,7 @@ void TuyaUART::handle_low_power_command_(uint8_t command, uint8_t version, const
       } else {
         this->lp_session_.reset_status();
         this->lp_network_status_ = 0xFF;
+        this->lp_v3_mode_acked_ = false;  // A restarted version-3 MCU needs the working-mode handshake again
         this->send_low_power_network_();
         this->send_empty_command_(static_cast<TuyaCommandType>(0x13));
       }
@@ -467,8 +497,11 @@ void TuyaUART::handle_low_power_command_(uint8_t command, uint8_t version, const
       return;
 
     case 0x07: {  // Status report of a version-3 MCU
-      if (!this->lp_v3_ || len < 5)
+      if (!this->lp_v3_ || !valid_datapoints(data, len)) {
+        ESP_LOGW(LP_TAG, "Rejecting malformed CMD07 report");
         return;
+      }
+      this->lp_session_.observe_report(App.get_loop_component_start_time());
       if (!this->lp_v3_pushes_ && this->lp_session_.synchronized() &&
           App.get_loop_component_start_time() - this->lp_v3_last_poll_ms_ > 3000) {
         this->lp_v3_pushes_ = true;
@@ -486,23 +519,12 @@ void TuyaUART::handle_low_power_command_(uint8_t command, uint8_t version, const
     case 0x05: {  // Datapoint reports of a version-0 MCU; each datapoint is acknowledged on its own.
       if (len == 2 && data[0] == 0)
         return;  // An ACK, not a report
-      if (len < 5)
-        return;
       // Check the whole list first; a malformed frame gets no ACK at all.
-      size_t offset = 0;
-      while (offset < len) {
-        if (len - offset < 4)
-          return;
-        const size_t size = encode_uint16(data[offset + 2], data[offset + 3]);
-        const uint8_t type = data[offset + 1];
-        if (size > len - offset - 4 || type > 5 || ((type == 1 || type == 4) && size != 1) ||
-            (type == 2 && size != 4) || (type == 1 && data[offset + 4] > 1)) {
-          ESP_LOGW(LP_TAG, "Rejecting malformed CMD05 report");
-          return;
-        }
-        offset += 4 + size;
+      if (!valid_datapoints(data, len)) {
+        ESP_LOGW(LP_TAG, "Rejecting malformed CMD05 report");
+        return;
       }
-      for (offset = 0; offset < len; offset += 4 + encode_uint16(data[offset + 2], data[offset + 3]))
+      for (size_t offset = 0; offset < len; offset += 4 + encode_uint16(data[offset + 2], data[offset + 3]))
         this->send_low_power_direct_(0x05, {0x00, data[offset]});
       this->lp_session_.observe_report(App.get_loop_component_start_time());
       this->handle_datapoints_(data, len);

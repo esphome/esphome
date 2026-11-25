@@ -1,8 +1,8 @@
 #pragma once
 
-// The one MCU command (CMD01, CMD02 or CMD09) waiting for its answer. The protocol has no sequence numbers, so a
-// late answer cannot be matched to the command it belongs to: after a timeout no command is sent until the MCU
-// answered a product query again.
+// The one MCU command (CMD01, CMD02, CMD06, CMD08 or CMD09) waiting for its answer. The protocol has no sequence
+// numbers, so a late answer cannot be matched to the command it belongs to: after a timeout no command is sent until
+// the MCU answered a product query again.
 #include <cstddef>
 #include <cstdint>
 
@@ -13,7 +13,8 @@ class TuyaLowPowerWireTransactions {
   static constexpr uint32_t ACK_TIMEOUT_MS = 1500;
 
   bool begin(uint8_t command, uint32_t now) {
-    if (this->active_ || this->faulted_ || (command != 0x01 && command != 0x02 && command != 0x09))
+    if (this->active_ || this->faulted_ ||
+        (command != 0x01 && command != 0x02 && command != 0x06 && command != 0x08 && command != 0x09))
       return false;
     this->command_ = command;
     this->active_ = true;
@@ -21,9 +22,17 @@ class TuyaLowPowerWireTransactions {
     return true;
   }
 
-  /// Whether this frame answers the waiting command: the product info, or an empty CMD02/CMD09 ACK.
+  /// Whether this frame answers the waiting command: the product info, an empty CMD09 ACK, a CMD02 answer
+  /// (empty, or the two pin bytes of a version-3 MCU), or the CMD07 report that answers a version-3 write (CMD06) or
+  /// status query (CMD08).
   bool accepts(uint8_t command, size_t len) const {
-    return this->active_ && command == this->command_ && (command == 0x01) == (len != 0);
+    if (!this->active_)
+      return false;
+    if (this->command_ == 0x06 || this->command_ == 0x08)
+      return command == 0x07 && len >= 4;
+    if (command == 0x02)
+      return this->command_ == 0x02 && (len == 0 || len == 2);
+    return command == this->command_ && (command == 0x01) == (len != 0);
   }
 
   bool complete(uint8_t command, size_t len) {
