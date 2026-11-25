@@ -142,6 +142,18 @@ TEST_F(TextFilterTest, PublishUnfilteredKeepsValueFromRawCallback) {
   EXPECT_EQ(this->sensor_.get_raw_state(), "b");
 }
 
+// The raw state goes through the filters again, and the raw callbacks are not called
+TEST_F(TextFilterTest, ReapplyFiltersSkipsRawCallbacks) {
+  int raw_calls = 0;
+  this->sensor_.add_on_raw_state_callback([&raw_calls](const std::string &) { raw_calls++; });
+  AppendFilter append("!");
+  this->sensor_.add_filter(&append);
+  this->sensor_.publish_state_unfiltered("a");
+  this->sensor_.reapply_filters();
+  EXPECT_EQ(this->seen_, (std::vector<std::string>{"a", "a!"}));
+  EXPECT_EQ(raw_calls, 1);
+}
+
 // Feeds the same values to the timeout + throttle chain and to the merged filter
 static std::vector<std::string> run_sequence(std::initializer_list<Filter *> filters, Component &timeout) {
   TextSensor sensor;

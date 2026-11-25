@@ -98,6 +98,13 @@ void TextSensor::publish_state_unfiltered(const char *state, size_t len) {
   this->publish_state(state, len);
 }
 
+void TextSensor::reapply_filters() {
+#ifdef USE_TEXT_SENSOR_FILTER
+  if (this->filter_list_ != nullptr)
+    this->filter_list_->input(this->raw_state_);
+#endif
+}
+
 const std::string &TextSensor::get_state() const { return this->state; }
 const std::string &TextSensor::get_raw_state() const {
 #ifdef USE_TEXT_SENSOR_FILTER
