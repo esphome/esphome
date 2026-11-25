@@ -462,6 +462,46 @@ TEST_F(TcpUartThreeSlots, NextTurnWaitsUntilTheLastReplyLeftTheSharedBuffer) {
   EXPECT_EQ(received(this->c_), "");
 }
 
+TEST_F(TcpUartThreeSlots, FullPoolSparesTheClientWhoseReplyIsStillInTheSharedBuffer) {
+  // The first slot belongs to a client S that asks, then stops reading while its reply fills its socket, until a part
+  // stays in the TX buffer that all clients share. B and a new client A wait with requests, so all connections count
+  // as equally busy, and a tie closes the first slot.
+  ::close(this->a_);
+  this->loops(3);
+  ASSERT_EQ(this->uart_.open_connections(), 1);
+  const int s = this->uart_.adopt_socket_pair(0);
+  this->d_ = s;
+  send(s, "1.");
+  this->wait_for_bytes(2);
+  const uint16_t turn_of_s = this->uart_.turn();
+  this->uart_.hold_turn();
+  EXPECT_EQ(this->read_all(), "1.");
+  this->fill_shared_tx();
+  EXPECT_LT(this->uart_.available_for_write(), 1024u);
+  this->uart_.release_turn();
+  send(this->b_, "hi");
+  this->a_ = this->connect_client();
+  send(this->a_, "yo");
+  this->deliver();
+  EXPECT_EQ(this->uart_.turn(), turn_of_s);
+
+  // A new client connects to the full pool. S keeps its connection, because the rest of its reply is still in the
+  // buffer.
+  this->at(3000);
+  this->c_ = this->connect_client();
+  EXPECT_EQ(this->uart_.turn(), turn_of_s);
+  EXPECT_EQ(this->uart_.open_connections(), 3);
+
+  // S reads everything. Once its reply has left the buffer, the next request gets the turn.
+  for (int i = 0; i < 1000 && this->uart_.available() == 0; i++) {
+    char sink[4096];
+    while (::recv(s, sink, sizeof(sink), MSG_DONTWAIT) > 0) {
+    }
+    this->loops(1);
+  }
+  EXPECT_NE(this->uart_.turn(), turn_of_s);
+}
+
 TEST_F(TcpUartThreeSlots, ClientThatStopsReadingIsClosedAfterFiveSecondsWhileAnotherWaits) {
   const uint16_t turn_of_c = this->stall_c_then_b_asks();
   // C sends its next request but still reads nothing, so it never looks idle.

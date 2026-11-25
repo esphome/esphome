@@ -277,6 +277,10 @@ void TcpUart::accept_slot_(uint32_t now) {
     if (i == this->holder_) {
       continue;
     }
+    // The last holder keeps its connection while its reply still sits in the shared TX buffer.
+    if (i == this->tx_slot_ && link.tx_free() != Link::TX_BUFFER_SIZE) {
+      continue;
+    }
     // A connection with bytes waiting for its turn is not idle.
     const bool waiting = (this->pending_mask_ & (1u << i)) != 0 || link.ready();
     const uint32_t idle = waiting ? 0 : now - link.last_io();
