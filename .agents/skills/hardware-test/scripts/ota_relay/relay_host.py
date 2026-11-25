@@ -118,10 +118,16 @@ def dropper() -> None:
     flag = D / "drop-ms"
     while True:
         if flag.exists():
-            ms = int(flag.read_text(encoding="utf-8").strip() or "5000")
+            text = flag.read_text(encoding="utf-8").strip()
             flag.unlink()
+            try:
+                ms = int(text or "5000")
+                arg = struct.pack("<H", ms)
+            except (ValueError, struct.error):
+                log(f"bad drop-ms content {text!r}, no drop sent")
+                continue
             log(f"DROP: AP down for {ms} ms")
-            send(5, struct.pack("<H", ms))
+            send(5, arg)
         time.sleep(0.1)
 
 
