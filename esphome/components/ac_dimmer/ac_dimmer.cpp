@@ -45,6 +45,26 @@ static constexpr uint32_t GATE_NOISE_US = 50;
 /// Leading edge: the gate goes on at least this long after the predicted crossing, so an edge served a little late
 /// comes before it and not in its noise window
 static constexpr uint32_t MIN_ENABLE_TIME_US = 100;
+/// The value that keeps the gate on for the whole half cycle
+static constexpr uint16_t VALUE_FULL_ON = 65535;
+/// While acquiring, a half cycle that differs from the one before by more than a quarter of it starts over
+static constexpr int32_t ACQUIRE_HALF_CYCLE_DIV = 4;
+/// The three full cycles taken for the lock must agree within 1/128 of a cycle
+static constexpr uint32_t ACQUIRE_CYCLE_DIV = 128;
+/// Locked, an edge counts from 1/12 of a half cycle early to 1/6 late (served late), or MAX_EDGE_LATENCY_US
+static constexpr int32_t EDGE_EARLY_DIV = 12;
+static constexpr int32_t EDGE_LATE_DIV = 6;
+/// A gate that goes on within 1/32 of a half cycle before the crossing can hide the crossing's own edge
+static constexpr int32_t GATE_NEAR_CROSSING_DIV = 32;
+/// Crossings in a row that such gate noise alone may confirm; fits the 3-bit gate_edges
+static constexpr uint8_t MAX_GATE_EDGES = 7;
+/// One edge moves the timing by at most 1/24 of a half cycle
+static constexpr int32_t FOLLOW_STEP_DIV = 24;
+/// Steps taken for far early edges that later late edges may undo; fits the 3-bit early_steps
+static constexpr uint8_t MAX_EARLY_STEPS = 7;
+/// Each edge moves the crossing by a quarter of its step and the half cycle by a sixteenth
+static constexpr int32_t PHASE_GAIN_DIV = 4;
+static constexpr int32_t PERIOD_GAIN_DIV = 16;
 #ifdef USE_ESP32
 /// The zero-cross interrupt runs at a higher level than the timer and updates the same timing
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
@@ -69,7 +89,7 @@ static constexpr uint64_t TIMER_INTERVAL_US = 50;
 /// Returns when next "event" is expected in µs, or 0 if no such event known.
 uint32_t IRAM_ATTR HOT AcDimmerDataStore::timer_intr(uint32_t now) {
   if (this->phase != ZERO_CROSS_PHASE_LOCKED) {
-    if (this->value != 65535)
+    if (this->value != VALUE_FULL_ON)
       this->gate_pin.digital_write(false);
     return 0;
   }
@@ -94,7 +114,7 @@ uint32_t IRAM_ATTR HOT AcDimmerDataStore::timer_step(uint32_t now) {
       this->misses = 0;
     } else if (++this->misses >= MAX_MISSES) {
       this->phase = ZERO_CROSS_PHASE_NONE;
-      if (this->value != 65535)
+      if (this->value != VALUE_FULL_ON)
         this->gate_pin.digital_write(false);
       return 0;
     }
@@ -110,7 +130,7 @@ uint32_t IRAM_ATTR HOT AcDimmerDataStore::timer_step(uint32_t now) {
     return 1;
 
   uint32_t next = period - since;
-  if (this->value != 65535 && this->value != 0) {
+  if (this->value != VALUE_FULL_ON && this->value != 0) {
     if (!this->gate_fired && this->enable_time_us != 0 && since >= this->enable_time_us) {
       // A late timer does not start a pulse that could last past the crossing: the triac would stay on
       if (since + static_cast<int32_t>(GATE_ENABLE_TIME) + GATE_OFF_MARGIN_US < period) {
@@ -165,7 +185,8 @@ void IRAM_ATTR HOT AcDimmerDataStore::acquire_edge(uint32_t now) {
   this->zc_at = now;
   this->period = gap;
   const int32_t diff = static_cast<int32_t>(gap) - last_gap;
-  if (this->phase == ZERO_CROSS_PHASE_ONE_EDGE || diff > last_gap / 4 || diff < -last_gap / 4) {
+  if (this->phase == ZERO_CROSS_PHASE_ONE_EDGE || diff > last_gap / ACQUIRE_HALF_CYCLE_DIV ||
+      diff < -last_gap / ACQUIRE_HALF_CYCLE_DIV) {
     this->phase = ZERO_CROSS_PHASE_CONFIRMING;
     this->enable_time_us = 0;
     this->disable_time_us = 0;
@@ -183,7 +204,7 @@ void IRAM_ATTR HOT AcDimmerDataStore::acquire_edge(uint32_t now) {
   const uint32_t lo = std::min(a, b);
   const uint32_t hi = std::max(a, b);
   // The three must also agree: the first edges after power up can drift, which moves two of them
-  if (std::max(hi, cycle) - std::min(lo, cycle) > cycle / 128) {
+  if (std::max(hi, cycle) - std::min(lo, cycle) > cycle / ACQUIRE_CYCLE_DIV) {
     this->disable_time_us = b;
     this->enable_time_us = cycle;
     return;
@@ -205,7 +226,8 @@ void IRAM_ATTR HOT AcDimmerDataStore::track_edge(uint32_t now, const AcDimmerDat
   const bool next = static_cast<int32_t>(now - this->zc_at) > this->period / 2;
   const int32_t err = static_cast<int32_t>(now - this->zc_at) - (next ? this->period : 0);
   // Late edges get a wider window: the interrupt can be served late
-  if (err > std::max<int32_t>(this->period / 6, MAX_EDGE_LATENCY_US) || err < -this->period / 12)
+  if (err > std::max<int32_t>(this->period / EDGE_LATE_DIV, MAX_EDGE_LATENCY_US) ||
+      err < -this->period / EDGE_EARLY_DIV)
     return;
   // The first edge of a crossing is taken, later ones are ignored
   if (next ? this->edge_next : this->edge_now)
@@ -214,14 +236,15 @@ void IRAM_ATTR HOT AcDimmerDataStore::track_edge(uint32_t now, const AcDimmerDat
   if (noise_from != nullptr) {
     // A gate this close to the crossing can hide the crossing itself: the edge confirms it without moving the timing,
     // so noise alone keeps the lock only for a few more half cycles
-    if (noise_from->period - noise_from->enable_time_us > noise_from->period / 32 || this->gate_edges == 7)
+    if (noise_from->period - noise_from->enable_time_us > noise_from->period / GATE_NEAR_CROSSING_DIV ||
+        this->gate_edges == MAX_GATE_EDGES)
       return;
     this->gate_edges++;
   } else {
     this->gate_edges = 0;
     // Mains timing is steady, so follow slowly, by at most `close` per edge. An edge late beyond `close` may only have
     // been served late: it only undoes an earlier step made by an edge far early.
-    const int32_t close = this->period / 24;
+    const int32_t close = this->period / FOLLOW_STEP_DIV;
     int32_t move = std::max(err, -close);
     if (err > close) {
       move = 0;
@@ -230,13 +253,13 @@ void IRAM_ATTR HOT AcDimmerDataStore::track_edge(uint32_t now, const AcDimmerDat
         move = close;
       }
     } else if (err < -close) {
-      if (this->early_steps != 7)
+      if (this->early_steps != MAX_EARLY_STEPS)
         this->early_steps++;
     } else if (err >= 0) {
       this->early_steps = 0;
     }
-    this->zc_at += move / 4;
-    this->period += move / 16;
+    this->zc_at += move / PHASE_GAIN_DIV;
+    this->period += move / PERIOD_GAIN_DIV;
   }
   if (next) {
     this->edge_next = true;
@@ -252,7 +275,7 @@ void IRAM_ATTR HOT AcDimmerDataStore::gpio_intr([[maybe_unused]] uint32_t now,
   this->zero_cross_edge(now, noise_from);
 #else
   // No dimmer timer on this platform: only fully on and fully off work, switched at the crossing
-  if (this->value == 65535) {
+  if (this->value == VALUE_FULL_ON) {
     this->gate_pin.digital_write(true);
   } else if (this->value == 0) {
     this->gate_pin.digital_write(false);
@@ -264,7 +287,7 @@ void IRAM_ATTR HOT AcDimmerDataStore::start_half_cycle() {
   const uint32_t period = this->period;
   this->gate_fired = false;
   this->enable_time_us = 0;
-  if (this->value == 65535) {
+  if (this->value == VALUE_FULL_ON) {
     // fully on, enable output immediately
     this->gate_pin.digital_write(true);
   } else if (this->init_cycle) {
@@ -280,12 +303,12 @@ void IRAM_ATTR HOT AcDimmerDataStore::start_half_cycle() {
     if (this->method == DIM_METHOD_TRAILING) {
       this->enable_time_us = 1;  // cannot be 0
       // calculate time until disable in µs with integer arithmetic and take into account min_power
-      this->disable_time_us = std::max<uint32_t>(10, this->value * (period - min_us) / 65535 + min_us);
+      this->disable_time_us = std::max<uint32_t>(10, this->value * (period - min_us) / VALUE_FULL_ON + min_us);
     } else {
       // calculate time until enable in µs: (1.0-value)*cycle_time, but with integer arithmetic
       // also take into account min_power
       this->enable_time_us =
-          std::max<uint32_t>(MIN_ENABLE_TIME_US, ((65535 - this->value) * (period - min_us)) / 65535);
+          std::max<uint32_t>(MIN_ENABLE_TIME_US, ((VALUE_FULL_ON - this->value) * (period - min_us)) / VALUE_FULL_ON);
 
       // A gate still on from the last half cycle (a pulse that started just before the crossing) would fire
       // this one at full power
@@ -426,7 +449,7 @@ void AcDimmer::setup() {
 
 void AcDimmer::write_state(float state) {
   state = std::acos(1 - (2 * state)) / std::numbers::pi_v<float>;  // RMS power compensation
-  auto new_value = static_cast<uint16_t>(roundf(state * 65535));
+  auto new_value = static_cast<uint16_t>(roundf(state * VALUE_FULL_ON));
   if (new_value != 0 && this->store_.value == 0)
     this->store_.init_cycle = this->init_with_half_cycle_;
   this->store_.value = new_value;
