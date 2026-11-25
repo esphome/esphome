@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <string>
+#include <type_traits>
 
 #include "esphome/core/entity_base.h"
 
@@ -32,5 +33,22 @@ TEST(InlineCallbackManager, ReferenceArgumentsPassThrough) {
   EXPECT_FALSE(callbacks.empty());
   EXPECT_EQ(callbacks.size(), 1u);
 }
+
+TEST(InlineCallbackManager, EmptyManagerDispatchesNothing) {
+  InlineCallbackManager<void(int)> callbacks;
+  EXPECT_TRUE(callbacks.empty());
+  EXPECT_EQ(callbacks.size(), 0u);
+  callbacks.call(1);
+  callbacks(2);
+  EXPECT_TRUE(callbacks.empty());
+}
+
+// The inline list is only for MQTT builds, which always fill it; other builds keep the lazy pointer.
+#ifdef USE_MQTT
+static_assert(std::is_same_v<EntityCallbackManager<void(float)>, InlineCallbackManager<void(float)>>);
+#else
+static_assert(std::is_same_v<EntityCallbackManager<void(float)>, LazyCallbackManager<void(float)>>);
+static_assert(sizeof(EntityCallbackManager<void(float)>) == sizeof(void *));
+#endif
 
 }  // namespace esphome::testing
