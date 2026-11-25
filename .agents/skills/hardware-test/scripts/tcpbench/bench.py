@@ -61,7 +61,7 @@ def udp_burst(rounds: int, pkts: int) -> None:
     u.settimeout(2)
     payload = b"\x55" * 1400
     got = []
-    enobufs = 0
+    enobufs = timeouts = 0
     u.sendto(b"Q", (host, 5003))  # reset the device counter
     with contextlib.suppress(TimeoutError):
         u.recvfrom(16)
@@ -82,11 +82,13 @@ def udp_burst(rounds: int, pkts: int) -> None:
             d, _ = u.recvfrom(16)
             got.append(struct.unpack("<I", d[:4])[0])
         except TimeoutError:
-            got.append(-1)
+            timeouts += 1
         time.sleep(0.3)
+    if not got:
+        sys.exit(f"udpburst: all {rounds} count queries timed out")
     print(
         f"RESULT udpburst rounds={rounds} pkts={pkts} median={statistics.median(got)} "
-        f"min={min(got)} max={max(got)} enobufs={enobufs}"
+        f"min={min(got)} max={max(got)} enobufs={enobufs} timeouts={timeouts}"
     )
 
 
@@ -95,6 +97,8 @@ if mode == "rx":
     print(f"RESULT rx bytes={total} ms={ms} KBps={total / 1.024 / max(ms, 1):.1f}")
 elif mode == "tx":
     total, ms = tx_once(arg)
+    if not total:
+        sys.exit("tx: the device sent nothing")
     print(f"RESULT tx bytes={total} ms={ms:.0f} KBps={total / 1.024 / max(ms, 1):.1f}")
 elif mode == "tcpburst":
     kb = int(sys.argv[4]) if len(sys.argv) > 4 else 512

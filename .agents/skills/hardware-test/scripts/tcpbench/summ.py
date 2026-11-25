@@ -9,12 +9,16 @@ import sys
 H = Path(sys.argv[1] if len(sys.argv) > 1 else ".")
 KEYS = {"rx": "KBps", "tx": "KBps", "tcpburst": "median", "udpburst": "median"}
 rows: dict[str, dict[str, list[float]]] = {}
+failed: dict[str, int] = {}
 for line in (H / "results.txt").read_text(encoding="utf-8").splitlines():
-    m = re.match(r"(\S+) r(\d+) \S+ (\w+) .*RESULT (.*)", line)
+    m = re.match(r"(\S+) r(\d+) \S+ (\w+) (.*)", line)
     if not m or m[3] not in KEYS:
         continue
-    v = re.search(KEYS[m[3]] + r"=(-?[\d.]+)", m[4])
-    rows.setdefault(m[1], {k: [] for k in KEYS})[m[3]].append(float(v[1]))
+    d = rows.setdefault(m[1], {k: [] for k in KEYS})
+    if v := re.search(r"RESULT .*" + KEYS[m[3]] + r"=(-?[\d.]+)", m[4]):
+        d[m[3]].append(float(v[1]))
+    else:  # a run that timed out or crashed, left out of the medians
+        failed[m[1]] = failed.get(m[1], 0) + 1
 
 
 def fmt(v: list[float]) -> str:
@@ -39,6 +43,7 @@ for name, d in rows.items():
     print(
         f"{name}: "
         + " | ".join(f"{k} {fmt(v)}" for k, v in d.items())
+        + f" | failed runs {failed.get(name, 0)}"
         + f" | overflow {len(re.findall('overflow', txt, re.IGNORECASE))} oom {len(re.findall('mempool OOM', txt))}"
         f" alloc_fail {len(re.findall('alloc failed', txt))} E {len(re.findall(r'\[E\]', txt))}"
         f" | internal KB boot {min(boot, default='-')} to {max(boot, default='-')}"
