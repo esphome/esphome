@@ -18,12 +18,19 @@ for i in $(seq 1 "$N"); do
   sleep "${SYNC_DELAY:-3}"
   echo "$(date +%T) $L $MODE upload $i start"
   if [ "$MODE" = abort ]; then
-    curl -s -o /dev/null --max-time 120 -F "file=@$IMG" "http://127.0.0.1:$P/update" &
+    curl -s -o /dev/null -w '%{http_code} %{size_upload} %{time_total}\n' --max-time 120 -F "file=@$IMG" \
+      "http://127.0.0.1:$P/update" >"$D/curl-$L-$i.out" &
     CP=$!
     sleep 25
-    touch "$D/abort-ch0"
-    echo "$(date +%T) $L relay told to cut the upload"
+    if kill -0 $CP 2>/dev/null; then
+      touch "$D/abort-ch0"
+      echo "$(date +%T) $L relay told to cut the upload"
+    else
+      echo "$(date +%T) $L upload $i ended before the cut, NOT ABORTED"
+    fi
     wait $CP
+    rm -f "$D/abort-ch0"
+    echo "$(date +%T) $L abort upload $i result code/bytes/secs: $(cat "$D/curl-$L-$i.out")"
     sleep 75
     continue
   fi

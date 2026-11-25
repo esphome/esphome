@@ -88,7 +88,11 @@ def on_frame(t: int, p: bytes) -> None:
 def reader() -> None:
     buf = bytearray()
     while True:
-        buf += ser.read(4096)
+        try:
+            buf += ser.read(4096)
+        except serial.SerialException as e:
+            log(f"relay serial port lost: {e}")
+            os._exit(1)
         pos = 0
         while True:
             i = buf.find(b"\xa5\x5a", pos)
@@ -121,13 +125,16 @@ def dropper() -> None:
         time.sleep(0.1)
 
 
-def wait_ready(c: Ch) -> None:
-    while True:
+def wait_ready(c: Ch, limit: float = 90) -> bool:
+    end = time.time() + limit
+    while time.time() < end:
         c.ev_pong.clear()
         send(0 | (c.n << 4))
         if c.ev_pong.wait(1) and c.pong == 1:
-            return
+            return True
         time.sleep(0.5)
+    log(f"ch{c.n} relay not ready after {limit:.0f}s (last pong={c.pong})")
+    return False
 
 
 def pump(c: Ch, conn: socket.socket, rate: int) -> int:
@@ -169,7 +176,9 @@ def serve(c: Ch, lport: int, tport: int, rate: int) -> None:
     while True:
         conn, _ = srv.accept()
         t = time.time()
-        wait_ready(c)
+        if not wait_ready(c):
+            conn.close()
+            continue
         c.ev_open.clear()
         c.ev_closed.clear()
         c.rx = 0
@@ -203,7 +212,8 @@ def serve(c: Ch, lport: int, tport: int, rate: int) -> None:
 threading.Thread(target=reader, daemon=True).start()
 if sys.argv[2] == "--ping":
     t = time.time()
-    wait_ready(chs[0])
+    if not wait_ready(chs[0]):
+        sys.exit(1)
     log(f"relay ready after {time.time() - t:.1f}s")
     sys.exit(0)
 threading.Thread(target=dropper, daemon=True).start()
