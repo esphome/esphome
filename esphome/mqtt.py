@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import contextlib
 from datetime import datetime
+import hashlib
 import json
 import logging
 from pathlib import Path
 import re
+import socket
 import ssl
 import tempfile
 import time
@@ -83,6 +85,31 @@ def initialize(
     return 0
 
 
+def _unverified_context() -> ssl.SSLContext:
+    context = ssl.create_default_context()
+    context.check_hostname = False
+    context.verify_mode = ssl.CERT_NONE
+    return context
+
+
+def _check_broker_fingerprint(host: str, port: int, fingerprints: list[str]) -> None:
+    """Refuse a broker whose certificate SHA1 does not match a configured fingerprint."""
+    context = _unverified_context()
+    try:
+        with (
+            socket.create_connection((host, port), timeout=10) as sock,
+            context.wrap_socket(sock, server_hostname=host) as tls_sock,
+        ):
+            cert = tls_sock.getpeercert(binary_form=True)
+    except OSError as err:
+        raise EsphomeError(f"Cannot connect to MQTT broker: {err}") from err
+    if (fingerprint := hashlib.sha1(cert).hexdigest()) not in fingerprints:
+        raise EsphomeError(
+            f"MQTT broker certificate fingerprint {fingerprint} does not match "
+            "ssl_fingerprints; refusing to send credentials"
+        )
+
+
 def prepare(
     config: ConfigType,
     subscriptions: list[str],
@@ -135,6 +162,7 @@ def prepare(
             tries += 1
 
     # Match the firmware's transport; imported here to keep component code off the CLI start-up path
+    from esphome.components.const import CONF_SSL_FINGERPRINTS
     from esphome.components.mqtt import (
         CONF_TLS,
         CONF_TRANSPORT,
@@ -165,12 +193,16 @@ def prepare(
         client.username_pw_set(username, password)
 
     mqtt_conf = config[CONF_MQTT]
+    host = str(mqtt_conf[CONF_BROKER])
+    port = int(mqtt_conf[CONF_PORT])
+    if fingerprints := mqtt_conf.get(CONF_SSL_FINGERPRINTS):
+        # paho cannot pin a certificate, so check it on a separate handshake first
+        _check_broker_fingerprint(host, port, fingerprints)
+        client.tls_set_context(_unverified_context())
     # Validation sets tls whenever a certificate option or the wss transport implies it
-    if mqtt_conf.get(CONF_TLS):
+    elif mqtt_conf.get(CONF_TLS):
         if mqtt_conf.get(CONF_VERIFY_SSL) is False:
-            context = ssl.create_default_context()
-            context.check_hostname = False
-            context.verify_mode = ssl.CERT_NONE
+            context = _unverified_context()
         else:
             # Without a CA the system trust store stands in for the firmware's bundle
             context = ssl.create_default_context(
@@ -199,8 +231,6 @@ def prepare(
         client.tls_set_context(context)
 
     try:
-        host = str(config[CONF_MQTT][CONF_BROKER])
-        port = int(config[CONF_MQTT][CONF_PORT])
         client.connect(host, port)
     except OSError as err:
         raise EsphomeError(f"Cannot connect to MQTT broker: {err}") from err

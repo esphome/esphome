@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+import hashlib
 import json
 import logging
 from pathlib import Path
@@ -16,7 +17,7 @@ from paho.mqtt.packettypes import PacketTypes
 from paho.mqtt.reasoncodes import ReasonCode
 import pytest
 
-from esphome.components.const import CONF_VERIFY_SSL
+from esphome.components.const import CONF_SSL_FINGERPRINTS, CONF_VERIFY_SSL
 from esphome.components.mqtt import CONF_TLS
 from esphome.const import (
     CONF_BIRTH_MESSAGE,
@@ -913,6 +914,68 @@ def test_prepare_loads_client_certificate() -> None:
     cert_file, key_file = context.load_cert_chain.call_args.args
     assert not Path(cert_file).exists()
     assert not Path(key_file).exists()
+
+
+_BROKER_CERT = b"broker certificate"
+
+
+def _prepare_with_fingerprint(
+    fingerprint: str,
+) -> tuple[MagicMock, MagicMock, MagicMock]:
+    """Runs prepare() with ssl_fingerprints against a broker presenting _BROKER_CERT."""
+    with (
+        patch("esphome.mqtt.mqtt.Client") as client_cls,
+        patch("esphome.mqtt.ssl.create_default_context") as create_context,
+        patch("esphome.mqtt.socket.create_connection") as create_connection,
+    ):
+        context = create_context.return_value
+        tls_sock = context.wrap_socket.return_value.__enter__.return_value
+        tls_sock.getpeercert.return_value = _BROKER_CERT
+        prepare(
+            _mqtt_config({CONF_SSL_FINGERPRINTS: [fingerprint]}),
+            [],
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+    return client_cls.return_value, context, create_connection
+
+
+def test_prepare_fingerprint_match_connects_over_tls() -> None:
+    client, context, create_connection = _prepare_with_fingerprint(
+        hashlib.sha1(_BROKER_CERT).hexdigest()
+    )
+
+    create_connection.assert_called_once_with(("broker.local", 8883), timeout=10)
+    tls_sock = context.wrap_socket.return_value.__enter__.return_value
+    tls_sock.getpeercert.assert_called_once_with(binary_form=True)
+    assert context.check_hostname is False
+    assert context.verify_mode == ssl.CERT_NONE
+    client.tls_set_context.assert_called_once_with(context)
+    client.connect.assert_called_once_with("broker.local", 8883)
+
+
+def test_prepare_fingerprint_mismatch_refuses_to_connect() -> None:
+    with pytest.raises(EsphomeError, match="does not match ssl_fingerprints"):
+        _prepare_with_fingerprint("00" * 20)
+
+
+def test_prepare_fingerprint_check_connection_error() -> None:
+    with (
+        patch("esphome.mqtt.socket.create_connection", side_effect=OSError("boom")),
+        pytest.raises(EsphomeError, match="Cannot connect to MQTT broker: boom"),
+    ):
+        prepare(
+            _mqtt_config({CONF_SSL_FINGERPRINTS: ["00" * 20]}),
+            [],
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
 
 
 @patch("esphome.mqtt.initialize")
