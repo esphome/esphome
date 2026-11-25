@@ -44,7 +44,7 @@ JpegBuffer::~JpegBuffer() {
   }
 }
 
-ESP32CameraJPEGDecoder::ESP32CameraJPEGDecoder(camera::PixelFormat output_format, int rotation)
+ESP32CameraJPEGDecoder::ESP32CameraJPEGDecoder(camera::PixelFormat output_format, uint16_t rotation)
     : output_format_(output_format), rotation_degrees_(rotation) {}
 
 ESP32CameraJPEGDecoder::~ESP32CameraJPEGDecoder() {
@@ -99,9 +99,12 @@ bool ESP32CameraJPEGDecoder::open_decoder_() {
 
 camera::DecoderError ESP32CameraJPEGDecoder::decode(const uint8_t *data, size_t length, camera::CameraImageSpec *spec) {
   // Nothing is published until this frame has been decoded successfully.
-  this->has_output_ = false;
+  if (this->output_ != nullptr) {
+    this->output_->set_length(0);
+  }
 
   if (data == nullptr || length == 0 || spec == nullptr) {
+    ESP_LOGE(TAG, "decode() needs input data and an output spec");
     return camera::DECODER_ERROR_FAILED;
   }
   if (length > static_cast<size_t>(INT_MAX)) {
@@ -172,7 +175,6 @@ camera::DecoderError ESP32CameraJPEGDecoder::decode(const uint8_t *data, size_t 
     output_bytes = static_cast<size_t>(pixel_count);
   }
   this->output_->set_length(output_bytes);
-  this->has_output_ = true;
 
   spec->width = header.width;
   spec->height = header.height;
@@ -185,9 +187,11 @@ camera::DecoderError ESP32CameraJPEGDecoder::decode(const uint8_t *data, size_t 
 }
 
 void ESP32CameraJPEGDecoder::dump_config() {
-  ESP_LOGCONFIG(TAG, "Camera Decoder:");
-  ESP_LOGCONFIG(TAG, "  Output: %s", camera::to_string(this->output_format_));
-  ESP_LOGCONFIG(TAG, "  Rotation: %d", this->rotation_degrees_);
+  ESP_LOGCONFIG(TAG,
+                "Camera Decoder:\n"
+                "  Output: %s\n"
+                "  Rotation: %u",
+                camera::to_string(this->output_format_), static_cast<unsigned>(this->rotation_degrees_));
   if (this->output_format_ == camera::PIXEL_FORMAT_GRAYSCALE) {
     ESP_LOGCONFIG(TAG, "  Grayscale: decoded as RGB888 and compacted in place, 3x frame RAM");
   }

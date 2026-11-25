@@ -43,27 +43,28 @@ class JpegBuffer final : public camera::Buffer {
 /// for RGB888, so peak RAM is 3x the grayscale frame size.
 class ESP32CameraJPEGDecoder final : public camera::Decoder {
  public:
-  ESP32CameraJPEGDecoder(camera::PixelFormat output_format, int rotation);
+  ESP32CameraJPEGDecoder(camera::PixelFormat output_format, uint16_t rotation);
   ~ESP32CameraJPEGDecoder() override;
 
   camera::DecoderError decode(const uint8_t *data, size_t length, camera::CameraImageSpec *spec) override;
   /// Returns nullptr until a frame has been decoded successfully; the pointer
   /// and its contents stay valid only until the next decode().
-  camera::Buffer *get_output_buffer() override { return this->has_output_ ? this->output_.get() : nullptr; }
+  camera::Buffer *get_output_buffer() override {
+    return this->output_ != nullptr && this->output_->get_data_length() > 0 ? this->output_.get() : nullptr;
+  }
   void dump_config() override;
 
  protected:
   /// Opens the decoder on first use; the handle is kept for later frames.
   bool open_decoder_();
 
+  jpeg_dec_handle_t decoder_{nullptr};
+  std::unique_ptr<JpegBuffer> output_;
   camera::PixelFormat output_format_;
   /// Rotation in degrees, converted to the library's enum when the decoder opens.
-  int rotation_degrees_;
-  jpeg_dec_handle_t decoder_{nullptr};
-  bool has_output_{false};
+  uint16_t rotation_degrees_;
   /// Set when the decoder could not be opened, so every frame does not retry it.
   bool open_failed_{false};
-  std::unique_ptr<JpegBuffer> output_;
 };
 
 }  // namespace esphome::camera_decoder
