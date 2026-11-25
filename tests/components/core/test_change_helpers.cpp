@@ -49,12 +49,23 @@ TEST(ChangeHelpers, ChangedComparesTextAndKeepsThePointer) {
   static constexpr const char *ECO = "eco";
   const char eco_copy[] = "eco";
   const char *last = nullptr;
-  EXPECT_FALSE(changed(last, StringRef()));  // no text and an empty one are the same
-  EXPECT_TRUE(changed(last, StringRef(ECO)));
+  EXPECT_FALSE(changed(last, ""));  // no text and an empty one are the same
+  EXPECT_FALSE(changed(last, static_cast<const char *>(nullptr)));
+  EXPECT_TRUE(changed(last, ECO));
   EXPECT_EQ(last, ECO);
-  EXPECT_FALSE(changed(last, StringRef(eco_copy)));
+  EXPECT_FALSE(changed(last, eco_copy));
   EXPECT_EQ(last, eco_copy);
-  EXPECT_TRUE(changed(last, StringRef("boost")));
+  EXPECT_TRUE(changed(last, "boost"));
+}
+
+TEST(ChangeHelpers, ChangedComparesWholeStrings) {
+  const char economy[] = "economy";
+  const char economy_copy[] = "economy";
+  const char *last = "eco";
+  // A prefix is a different text, in either direction
+  EXPECT_TRUE(changed(last, economy));
+  EXPECT_FALSE(changed(last, economy_copy));
+  EXPECT_TRUE(changed(last, "eco"));
 }
 
 }  // namespace esphome::core::testing

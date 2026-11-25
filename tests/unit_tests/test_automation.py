@@ -2179,7 +2179,8 @@ async def test_grouped_automations_express_the_fan_change_triggers(
         ),
         GroupedAutomation(
             "on_preset_set",
-            lambda fan: fan.get_preset_mode(),
+            # A C string: the overload compares null-terminated text
+            lambda fan: fan.get_preset_mode().c_str(),
             filter_changed,
             last_type=cg.const_char_ptr,
             args=[(cg.StringRef, "x")],
@@ -2206,7 +2207,7 @@ async def test_grouped_automations_express_the_fan_change_triggers(
             "esphome::changed(fan_on_direction_set_0_last, ::fan->direction)",
             "esphome::changed(fan_on_oscillating_set_0_last, ::fan->oscillating)",
             "esphome::changed(fan_on_speed_set_0_last, ::fan->speed)",
-            "esphome::changed(fan_on_preset_set_0_last, ::fan->get_preset_mode())",
+            "esphome::changed(fan_on_preset_set_0_last, ::fan->get_preset_mode().c_str())",
         )
     ):
         assert f"if ({test}) esphome__automation_{i + 1}__fn();" in definition
@@ -2214,7 +2215,7 @@ async def test_grouped_automations_express_the_fan_change_triggers(
     assert f"::{NEW_OBJ}->trigger(::fan->speed);" in _definition(
         mock_cg, "esphome__automation_5__fn"
     )
-    assert f"::{NEW_OBJ}->trigger(::fan->get_preset_mode());" in _definition(
+    assert f"::{NEW_OBJ}->trigger(::fan->get_preset_mode().c_str());" in _definition(
         mock_cg, "esphome__automation_6__fn"
     )
 

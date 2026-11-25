@@ -851,10 +851,11 @@ template<typename T> bool changed(T &last, const T &now) {
   return result;
 }
 
-/// Codegen use only: whether the text of `now` differs from `last`. Keeps the pointer, so `now` must outlive it.
-inline bool changed(const char *&last, StringRef now) {
-  const bool result = now != StringRef::from_maybe_nullptr(last);
-  last = now.c_str();
+/// Codegen use only: whether the null-terminated text `now` differs from `last`; nullptr counts as "".
+/// Keeps the pointer, so `now` must outlive it.
+inline bool changed(const char *&last, const char *now) {
+  const bool result = strcmp(last != nullptr ? last : "", now != nullptr ? now : "") != 0;
+  last = now;
   return result;
 }
 

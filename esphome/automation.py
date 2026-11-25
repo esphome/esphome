@@ -2497,7 +2497,10 @@ def filter_left(last: MockObj, value: Expression) -> Expression:
 
 
 def filter_changed(last: MockObj, value: Expression) -> Expression:
-    """Runs when the watched value differs from the last one this automation saw."""
+    """Runs when the watched value differs from the last one this automation saw.
+
+    Text is watched as a null-terminated ``const char *``, with a ``const char *`` copy.
+    """
     return _QUALIFIED_ESPHOME_NS.changed(last, value)
 
 
