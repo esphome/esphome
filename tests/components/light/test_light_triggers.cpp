@@ -409,6 +409,23 @@ TEST_F(LightTriggersTest, LaterOnTurnOnSeesAnEarlierOnesTurnOffOnlyFromInside) {
   EXPECT_EQ(this->take(), "NnFSS");
 }
 
+TEST_F(LightTriggersTest, OnTurnOnThatTurnsTheLightOffSkipsTheNextOnTurnOn) {
+  this->triggers_.on_turn_on([this]() {
+    this->events_ += 'N';
+    this->state_.turn_off().perform();
+  });
+  this->triggers_.on_turn_on([this]() { this->events_ += 'n'; });
+  this->triggers_.on_turn_off([this]() { this->events_ += 'F'; });
+  this->triggers_.on_state([this]() { this->events_ += 'S'; });
+  this->boot();
+  this->state_.turn_on().perform();
+  // Each on_turn_on keeps its own last state: the second one sees the off report from inside the first, and
+  // then the light still off when the outer report reaches it
+  EXPECT_EQ(this->take(), "NFSS");
+  this->state_.turn_on().perform();
+  EXPECT_EQ(this->take(), "NFSS");
+}
+
 TEST_F(LightTriggersTest, OnStateThatTurnsTheLightOnRunsOnTurnOnInside) {
   bool armed = false;
   this->attach_all();
